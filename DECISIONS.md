@@ -17838,3 +17838,88 @@ hatalar 8 kale modeli ve prop'lardan geliyor. Hero ağaç katmanı listeye bir s
 (`low_poly_winter_tree_pack.glb`) ama sebebi aynı ve zaten kırmızı olan bir kapıyı bu tur kırmıyor.
 
 **Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+## ADR-0314 — Zemin: drenaj, bakı ve ölçek hiyerarşisi
+
+**Bağlam.** Sahip: *"Ben coğrafi gerçeklik için 3D oyunun zeminini gerçek dünya coğrafyasına dönüştür."*
+Tur 366'da çimi düzelttikten sonra kendi §8.5 çekimim altındaki toprağın hâlâ bütün bir yamaç boyunca
+tek düz hardal rengi olduğunu gösterdi. Her bant doğruydu ve sonuç yine de toprak değil boyalı yüzey
+okuyordu.
+
+**Bir biyom bandının veremediği şey: su ve güneş geçmişi.** Gerçek bir yamacın fotoğrafındaki en güçlü
+sinyaller "burası otlak" değildir:
+
+1. **Drenaj.** Su aşağı akar, çukurlarda toplanır. İçbükey zemin ıslaktır — koyu, daha çok bitkili;
+   dışbükey omuzlar ve sırtlar suyu boşaltır, toprak orada ince ve soluktur. Bu tek başına bütün drenaj
+   ağını — her oluğu, sekiyi, mahmuzu — kimse çizmeden boyar. Yerel eğrilikten hesaplanıyor: dört
+   komşunun ortalaması eksi kendi yüksekliği. Çağıran kod o dört komşuyu eğim için zaten örneklemiş.
+2. **Bakı.** Yamacın hangi yöne baktığı ne kadar güneş aldığını belirler; güneş gören kurur ve solar,
+   gölge nemli ve koyu kalır. Gerçek bir dağın sırtı boyunca iki tonlu görünmesinin sebebi budur.
+3. **Ölçek hiyerarşisi.** Gerçek zemin aynı anda metre, on metre ve yüz metre ölçeğinde değişir. Mevcut
+   benekleme tek hücre boyutundaydı: tane katıyor, yapı katmıyordu. Üç oktav eklendi.
+
+### Üç kere tahmin ettim, üçünde de ölçüm beni düzeltti
+
+**1. Eşik.** İlk sürüm `drainageFullMeters: 3.5` koydu, gerekçesi "gerçek oluklar 3-5 m'ye iner" idi.
+Bir manzara için doğru, bu alan için bu ölçekte değil: 3,91 m köşe aralığında 5219 kuru örnek p50 0,009,
+p95 0,625, **p99 1,013 m** veriyor. 3,5 m'de 99'uncu yüzdelik çukur bile etkinin 0,21'ini, medyan zemin
+0,01'ini alıyordu — katman render'ı ortalama **2 RGB seviyesi** oynatıyor, yani görünmüyordu. Bunu iddia
+etmedim: değişiklikli/değişikliksiz aynı kareleri çekip piksel piksel farkını aldım. 1,0 m'ye kalibre
+edildi.
+
+**2. Aridite hardal rengin sebebi değilmiş.** Sarılığı çöl karışımına yormak makuldü; ölçtüm, doğduğumuz
+bölgenin ortalama ariditesi **0,038**, kara hücrelerinin %83'ü 0,1'in altında. Sarılık taban paletinin
+kendisinden geliyor. Palete bu turda dokunmadım — ayrı ve tartışmalı bir karar.
+
+**3. LOD dikişi, ve maliyeti.** Eğrilik ölçüldüğü şablonla birlikte büyür, yani her chunk kendi köşe
+aralığını kullanırsa aynı zemin her LOD bandında farklı renk alır — her bant sınırında renk dikişi, ve
+bantlar oyuncuyla birlikte hareket ettiği için titreşen bir dikiş. Ölçtüm: normalize edilmemiş fark p95'te
+**2,479 m**, tepe 4,767 m. Gerçek sorun.
+
+Bariz çözümü — yükseklik alanını sabit şablonda yeniden örneklemek — denedim ve **başarısız oldu**:
+köşe başına dört ek örnek, önyüklemede eşzamanlı kurulan 529 chunk ile sayfayı 60 saniyelik yükleme
+zaman aşımının ötesine astı. Bunu tahmin etmedim, `page.goto` zaman aşımıyla çarpıp geri aldım. Yerine
+analitik normalleştirme: eğrilik bu arazide şablonla **doğrusal** ölçekleniyor — p90 |eğrilik| 3,91 m'de
+0,6301, 7,81 m'de 1,3362, 15,63 m'de 2,5818, yani 2,121x ve 4,098x oranlar, uydurulan üsler 1,085 ve
+1,017. `referans / şablon` ile çarpmak her bandı sıfır örnekleme maliyetiyle aynı değere getiriyor.
+Sonuç: p95 farkı 2,479 → **0,637 m** (3,9x iyi), medyan 0,210 m.
+
+### Kanıt kapısı kendi iddiasını da yıktı
+
+`scripts/checkTerrainGroundRealism.js` (yeni) altı şey doğruluyor. İki tanesi bilerek "bu test boş mu?"
+diye soruyor, çünkü bu oturumda tekrar tekrar çıkan hata sınıfı buydu — oyunun yapmadığı şeyi puanlayan
+kontrol:
+
+- Yükseklik sapması **0 m** (§8.4: render-only, yükseklik otoritesine dokunamaz).
+- Renk determinizmi **0 sapma** (§8.9 — aksi hâlde her chunk sınırında renk kopukluğu).
+- Su altı zemin sapması **0** (batimetrinin drenajı, bakısı, toprağı yoktur).
+- Çukur sırttan koyu (luma 0,3019 < 0,4470) **ve** daha yeşil (0,3696 > 0,3614). İşaret hatası bütün
+  drenaj ağını ters çevirir ve yine "çeşitli" görünürdü.
+- **Asıl iddia:** luma/eğrilik korelasyonu biyom bantlarıyla **-0,019**, bu katmanla **-0,440**. Küresel
+  kontrast ölçüsü yanlış aletti ve zaten ~%1 *düşüş* raporluyor — çukurları koyulaştırıp sırtları
+  açmak ikisini de ortalamaya çeker. İddia "daha çeşitli" değil, "renk drenajı takip ediyor".
+- LOD değişmezliği, hem p95 ile hem de normalleştirmeyi kapatınca farkın 3,9x büyüdüğünü göstererek —
+  yani testin boş olmadığını kanıtlayarak.
+
+*LOD kontrolünün ilk hâlini attım.* Aynı fonksiyonu iki kez aynı argümanlarla çağırıyordu, yani farkı
+tanımı gereği sıfırdı; render ise chunk başına şablon kullanıyordu. Kontrol "LOD değişmez" diye PASS
+verirken kod değildi. İstatistiği de tepe değerden p95'e çevirdim: fraktal bir alanda en kötü tek nokta
+her zaman uyuşmaz (kaba şablon kendinden ince detayı fiziksel olarak göremez, bu LOD'un doğasıdır),
+görünür dikişi yapan şey sistematik kaymadır ve normalleştirmenin kaldırdığı da odur. Tepe değer yine
+raporlanıyor: 1,309 m.
+
+**Diğer kapılar.** 14/14 koltuk, koltuk yol ağı, kanonik yollar 11/11 (0 ıslak), vadi oyma, yol
+koridoru, arazi görsel sözleşmesi, masaüstü LOD, hizalama, service worker (v30→v31), determinizm.
+`smokeTestGame3D` **42 PASS / 2 FAIL**, 3D mod `outcome=ready` — tur 366'nın taban çizgisiyle aynı;
+iki hata da bir kale ve bir ejderha modelinin LFS stub olmasından ve hata satırlarında hiçbir arazi
+modülü geçmiyor.
+
+**Sıradaki iş, teşhisi konmuş hâlde.** Karelerdeki en yapay şey artık her yeri kaplayan çapraz tarama
+deseni. Doku değil: mesh üçgenlemesini takip ediyor. Sebebi LOD: görünür chunk'ların çoğu 32 segmentte,
+yani 15,6 m köşe aralığı, Nyquist dalga boyu 31 m — ve `terrainReliefDetail.js`'in en ince oktavları
+(crag ~38 m, dissection ~31 m) tam oraya düşüyor. Doğru çözüm LOD-farkında bant sınırlama: bir chunk
+kendi köşe aralığının iki katından ince oktavları atlamalı. Bu **yükseklik örnekleyicisini** değiştirir,
+yani kendi §8.4 öncesi/sonrası döngüsünü ve LOD bantları arasında dikiş kanıtını hak ediyor — uzun bir
+turun sonunda aceleye getirilecek bir şey değil. Bir sonraki turun işi.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.

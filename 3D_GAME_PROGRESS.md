@@ -17298,3 +17298,72 @@ satırlarında hiç geçmiyor.
 Bir kapı daha bu konteynerde kırmızı, dürüstçe söylüyorum: `checkMobileVegetationLod` console hatası olarak
 `.glb`'lerin LFS stub oluşunu sayıyor. Dokunulmamış HEAD'i ayrı bir worktree'ye çıkarıp aynı kapıyı
 çalıştırdım — orada da kırmızı. Yani bu turun getirdiği bir bozulma değil, bu ortamın LFS eksiği.
+
+---
+
+## Tur 367 — Zemin: drenaj, bakı, ölçek hiyerarşisi
+
+Geçen tur çimi düzelttim ama kendi kanıt çekimim altındaki toprağın hâlâ bütün bir yamaç boyunca tek düz
+hardal rengi olduğunu gösterdi. Her bant doğruydu — otlak otlak, kuru yayla kuru yayla — ve sonuç yine de
+toprak değil boyalı yüzey okuyordu.
+
+Bir biyom bandının veremediği şey **suyun ve güneşin geçmişi**.
+
+**Drenaj.** Su aşağı akar, çukurlarda toplanır. İçbükey zemin ıslaktır — koyu, daha çok bitkili.
+Sırtlar ve omuzlar suyu boşaltır — toprak ince, soluk. Bunu ekleyince bütün drenaj ağı kendiliğinden
+boyanıyor: her oluk, her seki, her mahmuz, kimse tek bir çizgi çizmeden.
+
+**Bakı.** Yamacın hangi yöne baktığı ne kadar güneş aldığını belirler; güneş gören taraf kurur ve solar,
+gölge taraf nemli ve koyu kalır. Gerçek bir dağın sırtı boyunca iki tonlu görünmesinin sebebi budur.
+
+**Ölçek hiyerarşisi.** Gerçek zemin aynı anda metre, on metre ve yüz metre ölçeğinde değişir; mevcut
+benekleme tek boyuttaydı, tane katıyor yapı katmıyordu. Üç oktav ekledim.
+
+### Üç kez tahmin ettim, üçünde de ölçüm beni düzeltti
+
+**Eşiği yanlış koydum.** "Gerçek oluklar 3-5 metreye iner" diye 3,5 m dedim. Ölçtüm: bu arazide bu
+ölçekte en derin %1'lik çukur bile **1,01 m**. Yani en derin oluk etkinin beşte birini, sıradan zemin
+yüzde birini alıyordu — bütün katman görüntüyü ortalama iki RGB seviyesi oynatıyor, yani görünmüyordu.
+Bunu da iddia etmedim: değişiklikli ve değişikliksiz aynı kareleri çekip piksel piksel farkını aldım.
+1,0 m'ye kalibre ettim.
+
+**Sarılığın sebebini yanlış bildim.** Çöl karışımına yoruyordum. Ölçtüm — doğduğunuz bölgenin ortalama
+ariditesi 0,038, yani neredeyse sıfır. Sarılık taban paletinin kendisinden geliyor. Palete bu turda
+dokunmadım, o ayrı bir karar ve size sormaya değer.
+
+**Bir dikiş sorununu görüp çözümünü yanlış seçtim.** Eğrilik ölçüldüğü aralıkla büyüyor, yani her chunk
+kendi çözünürlüğünü kullanırsa aynı zemin uzak ve yakın bantta farklı renk alıyor — her LOD sınırında,
+üstelik oyuncuyla birlikte kayan bir renk dikişi. Ölçtüm, gerçekti. Bariz çözümü denedim (sabit aralıkta
+yeniden örnekleme) ve **oyunu açılmaz hâle getirdi**: köşe başına dört ek örnek, önyüklemede kurulan 529
+chunk ile sayfayı zaman aşımına soktu. Geri aldım. Yerine ölçüme dayalı bir kısayol: eğrilik bu arazide
+aralıkla doğrusal ölçekleniyor (3,91 / 7,81 / 15,63 m'de oranlar 1,00 / 2,12 / 4,10), yani basit bir
+çarpanla düzeltiliyor — sıfır maliyetle. Dikiş farkı 2,479 → 0,637 m.
+
+### Kanıt kapısı kendi iddiamı da yıktı
+
+Yeni `checkTerrainGroundRealism.js` altı şey doğruluyor ve ikisi bilerek "bu test boş mu?" diye soruyor,
+çünkü bu oturumda en çok tekrarlanan hata sınıfı oyunun yapmadığı şeyi puanlayan kontroldü.
+
+Nitekim **LOD kontrolümün ilk hâlini kendim attım**: aynı fonksiyonu iki kez aynı argümanlarla
+çağırıyordu, farkı tanımı gereği sıfırdı, oysa render başka bir yol kullanıyordu. Kontrol "sorun yok"
+derken kodda sorun vardı.
+
+Asıl kanıt şu: rengin araziyi ne kadar takip ettiği. Biyom bantlarıyla korelasyon **-0,019** (yani
+neredeyse hiç), bu katmanla **-0,440**. "Daha çeşitli göründü" demedim — küresel kontrastı ölçtüm ve
+aslında %1 *düştüğünü* gördüm, çünkü çukurları koyulaştırıp sırtları açmak ikisini de ortalamaya çeker.
+İddia çeşitlilik değil, rengin drenajı takip etmesi; ölçtüğüm de o.
+
+Ayrıca: yükseklik sapması 0 m (bu katman sadece renk), renk determinizmi 0, su altı zemin dokunulmamış,
+çukur sırttan hem koyu hem yeşil. Ve 14/14 koltuk, yollar 11/11, vadi, koridor, LOD, hizalama, service
+worker v31. Boot testi 42 geçti / 2 kaldı ve 3D mod "hazır" diyor — geçen turun taban çizgisiyle birebir
+aynı; kalan ikisi yine bir kale ve bir ejderha modelinin bu konteynerde LFS stub olmasından, hata
+satırlarında hiçbir arazi dosyası geçmiyor.
+
+### Sıradaki iş, teşhisi konmuş hâlde
+
+Karelerde artık en yapay şey her yeri kaplayan çapraz tarama deseni. Doku değil — mesh üçgenlemesini
+takip ediyor. Uzak chunk'lar 15,6 m aralıkla örnekleniyor ama arazi gürültüsünün en ince oktavları
+31-38 m dalga boyunda, yani tam örnekleme sınırına düşüyor ve desen oradan doğuyor. Doğru çözüm, her
+chunk'ın kendi çözünürlüğünden ince oktavları atlaması. Bu yükseklik örnekleyicisini değiştirdiği için
+kendi öncesi/sonrası güvenlik döngüsünü hak ediyor — bugün öğrendiğim gibi, bu dosyada acele etmek
+oyunu açılmaz hâle getirebiliyor. Bir sonraki turun ilk işi.

@@ -233,7 +233,7 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // RPG expedition readiness adds an offline-loadable gameplay module; v19->v20 refreshes existing installs.
 // Merge of run 355-359 (skirts, road corridor, forest scatter, forest affinity) with that work: both
 // sides bumped this independently, so the merged install needs a version above either branch's.
-const SHELL_CACHE = 'westeros-shell-v30';
+const SHELL_CACHE = 'westeros-shell-v31';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -335,6 +335,11 @@ const SHELL_FILES = [
 // directly by `game3d.js`. (`world/windGrass.js` came in the same run, extracted out of
 // `sceneManager.js`.) An offline install cached before this run would 404 on all three and take the
 // whole 3D mode down. `SHELL_CACHE` bumped v29->v30.
+//
+// run 367 (DECISIONS.md ADR-0314): added `world/terrainGroundRealism.js` — the drainage/aspect/mottle
+// pass over the biome colour, imported directly by `world/terrain.js`. An offline install cached before
+// this run would fetch a `terrain.js` whose import of it 404s, taking the whole 3D mode down rather than
+// degrading. `SHELL_CACHE` bumped v30->v31.
 const GAME3D_SHELL_FILES = [
     './src/3d/editor/EditorFallbackMaterialPalette.js',
     './game3d.html',
@@ -399,6 +404,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/world/worldLandmarkScatter.js',
     './src/3d/world/windGrass.js',
     './src/3d/world/heroTrees.js',
+    './src/3d/world/terrainGroundRealism.js',
     './src/3d/world/worldDressing.js',
     './src/3d/world/terrainValleyCarving.js',
     './src/3d/world/worldReferenceRoadRoutes.js',

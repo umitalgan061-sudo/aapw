@@ -32,6 +32,11 @@ import {
 	buildNeutralDetailCanvas,
 	buildFlatNeutralCanvas,
 } from './terrainBiomeShading.js';
+import {
+	applyGroundRealism,
+	curvatureMetersFromNeighbours,
+	sunExposure01FromNeighbours,
+} from './terrainGroundRealism.js';
 
 // Re-exported so the micro-surface extraction stays invisible to every existing importer and check.
 export { TERRAIN_MICRO_SURFACE_POLICY, terrainMicroUvAt, getSharedTerrainMicroSurfaceTextures, applyTerrainMicroSurface };
@@ -442,20 +447,40 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 		const column = Math.round((localX + halfSize) / spacingMeters);
 		const row = Math.round((localZ + halfSize) / spacingMeters);
 		const apronOffset = (row + 1) * apronCount + (column + 1);
-		const slopeDegrees = slopeDegreesFromNeighbours(
-			apronHeights[apronOffset - 1],
-			apronHeights[apronOffset + 1],
-			apronHeights[apronOffset - apronCount],
-			apronHeights[apronOffset + apronCount],
-			spacingMeters,
-		);
+		const heightWest = apronHeights[apronOffset - 1];
+		const heightEast = apronHeights[apronOffset + 1];
+		const heightNorth = apronHeights[apronOffset - apronCount];
+		const heightSouth = apronHeights[apronOffset + apronCount];
+		const ownHeight = apronHeights[apronOffset];
+		const slopeDegrees = slopeDegreesFromNeighbours(heightWest, heightEast, heightNorth, heightSouth, spacingMeters);
+		const heightAboveSeaMeters = ownHeight - SEA_LEVEL;
+		const worldX = columnWorldX[column];
+		const worldZ = rowWorldZ[row];
 		resolveTerrainBiomeColor(blended, {
-			heightAboveSeaMeters: apronHeights[apronOffset] - SEA_LEVEL,
+			heightAboveSeaMeters,
 			slopeDegrees,
 			rockWeight: apronRock[apronOffset],
 			snowWeight: apronSnow[apronOffset],
-			worldX: columnWorldX[column],
-			worldZ: rowWorldZ[row],
+			worldX,
+			worldZ,
+		});
+		// Run 367 / ADR-0314 — drainage, aspect and scale hierarchy over the biome colour. Render-only:
+		// the four neighbours are the same ones the slope above is measured from, so this adds no
+		// sampling and touches no height authority. See `world/terrainGroundRealism.js`.
+		applyGroundRealism(blended, {
+			// `spacingMeters` is this chunk's own vertex spacing, and it must be passed: curvature grows
+			// with the stencil it is measured over, so a 32-segment chunk and a 128-segment one would
+			// otherwise tint the ground they share four times differently and draw a seam along every LOD
+			// band boundary. See `curvatureStencilMeters`.
+			curvatureMeters: curvatureMetersFromNeighbours(heightWest, heightEast, heightNorth, heightSouth, ownHeight, spacingMeters),
+			sunExposure01: sunExposure01FromNeighbours(heightWest, heightEast, heightNorth, heightSouth),
+			slopeDegrees,
+			heightAboveSeaMeters,
+			worldX,
+			worldZ,
+			// Bare rock and snow have no soil to be wet or dry, so the effect fades out where the biome
+			// pass has already committed to them.
+			soilCoverage01: 1 - Math.max(apronRock[apronOffset], apronSnow[apronOffset]) * 0.75,
 		});
 		colors[index * 3] = blended.r;
 		colors[index * 3 + 1] = blended.g;
