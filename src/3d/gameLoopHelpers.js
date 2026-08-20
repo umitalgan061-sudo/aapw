@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { CHUNK_CONFIG } from './config.js';
 import { worldToChunkCoord } from './sceneManager.js';
+import { applyPlayerLockFacing, computePlayerLockViewForward, createPlayerLockOnController } from './gameplay/playerLockOn.js';
 
 const _forward = new THREE.Vector3();
 const _right = new THREE.Vector3();
@@ -24,9 +25,6 @@ export function applyGamepadCameraLook(camera, controls, axes) {
 	const lookX = Number.isFinite(axes?.lookX) ? axes.lookX : 0;
 	const lookY = Number.isFinite(axes?.lookY) ? axes.lookY : 0;
 	const cameraZoom = Number.isFinite(axes?.cameraZoom) ? THREE.MathUtils.clamp(axes.cameraZoom, -1, 1) : 0;
-	// Camera look is wall-clock sampled by KeyboardInput rather than Player's simulation delta. A
-	// 50 ms clamp made right-stick turn speed collapse on slow/mobile frames; 300 ms preserves
-	// useful angular progress while focus/page lifecycle resets prevent suspended-tab catch-up snaps.
 	const dt = Math.max(0, Math.min(GAMEPAD_CAMERA_MAX_FRAME_SECONDS, Number.isFinite(axes?.lookDeltaSeconds) ? axes.lookDeltaSeconds : 0));
 	if (dt === 0 || (lookX === 0 && lookY === 0 && cameraZoom === 0)) return false;
 	_cameraOffset.subVectors(camera.position, controls.target);
@@ -66,11 +64,30 @@ export function combineAxes(keyboardAxes, joystickAxes) {
 		strafe: Math.max(-1, Math.min(1, keyboardAxes.strafe + joystickAxes.strafe)),
 		running: keyboardAxes.running || joystickAxes.running,
 		guarding: Boolean(keyboardAxes.guarding || joystickAxes.guarding),
+		lockOnRequested: Boolean(keyboardAxes.lockOnRequested),
 		lookX: keyboardAxes.lookX ?? 0,
 		lookY: keyboardAxes.lookY ?? 0,
 		cameraZoom: keyboardAxes.cameraZoom ?? 0,
 		lookDeltaSeconds: keyboardAxes.lookDeltaSeconds ?? 0,
 	};
+}
+
+export function updatePlayerLockOn(state) {
+	if (!state?.player?.object3D || !state?.camera || !state?.controls || !state?.keyboardInput) return null;
+	state.playerLockOn ??= createPlayerLockOnController();
+	const nowSeconds = (globalThis.performance?.now?.() ?? Date.now()) / 1000;
+	const previousSeconds = Number.isFinite(state.playerLockOnLastSeconds) ? state.playerLockOnLastSeconds : nowSeconds;
+	state.playerLockOnLastSeconds = nowSeconds;
+	const delta = state.paused ? 0 : Math.max(0, Math.min(0.1, nowSeconds - previousSeconds));
+	const snapshot = state.playerLockOn.update({
+		playerPosition: state.player.object3D.position,
+		forward: computePlayerLockViewForward(state.camera.position, state.controls.target),
+		candidates: state.npcs ?? [],
+		toggleRequested: !state.paused && Boolean(state.keyboardInput.consumeLockOnRequested?.()),
+	});
+	if (snapshot?.targetPosition && delta > 0) applyPlayerLockFacing(state.player.object3D, snapshot.targetPosition, delta);
+	state.player.object3D.userData.playerLockOn = snapshot;
+	return snapshot;
 }
 
 const _cameraCollidables = [];
@@ -91,6 +108,10 @@ export function collectCameraCollidables(state, worldX, worldZ) {
 }
 
 export function streamAroundOrbitTarget(state) {
+	// `game3d.js` deliberately keeps frame orchestration under its 600-line cap; this already-called
+	// post-entity helper is the small adapter point for Player-only lock targeting. NPC state is read
+	// but never mutated; facing is applied only to the Player object after NPC updates have settled.
+	updatePlayerLockOn(state);
 	const chunkSize = CHUNK_CONFIG.CHUNK_SIZE_METERS;
 	const targetChunkX = worldToChunkCoord(state.controls.target.x, chunkSize);
 	const targetChunkZ = worldToChunkCoord(state.controls.target.z, chunkSize);
