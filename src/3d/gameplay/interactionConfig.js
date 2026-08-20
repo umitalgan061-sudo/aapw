@@ -8,6 +8,12 @@
  */
 
 import { CHOICES_BY_NPC_ID } from './dialogueChoices.js';
+import {
+	FAST_TRAVEL_BLOCK_REASON,
+	buildFieldReadinessText,
+	evaluateExpeditionRoutePlan,
+	evaluateFieldReadiness,
+} from './interactionFieldReadiness.js';
 
 /** Dragonstone watch outcome values shared by quest definitions and the interaction adapter. */
 export const WATCH_POLICY = Object.freeze({
@@ -85,6 +91,13 @@ export const INTERACTION_ITEMS = Object.freeze({
 		weightKg: 0.4,
 		stackLimit: 3,
 	}),
+	'dragonstone-expedition-maintenance-kit': Object.freeze({
+		id: 'dragonstone-expedition-maintenance-kit',
+		name: 'Dragonstone Sefer Bakım Kiti',
+		rarity: 'rare',
+		weightKg: 0.85,
+		stackLimit: 1,
+	}),
 });
 
 /** Compact inventory state for interaction-owned quest rewards and settlement purchases/crafting. */
@@ -111,22 +124,54 @@ export function createInteractionInventoryState() {
 		return true;
 	}
 
+	function normalizeCraftInputs(upgrade) {
+		const authoredInputs = Array.isArray(upgrade?.inputs) && upgrade.inputs.length > 0
+			? upgrade.inputs
+			: [{ itemId: upgrade?.inputItemId, quantity: upgrade?.inputQuantity }];
+		const requiredByItem = new Map();
+		for (const input of authoredInputs) {
+			const itemId = String(input?.itemId ?? '');
+			const quantity = Math.max(1, Math.floor(Number(input?.quantity) || 1));
+			if (!INTERACTION_ITEMS[itemId]) return null;
+			requiredByItem.set(itemId, (requiredByItem.get(itemId) ?? 0) + quantity);
+		}
+		return [...requiredByItem.entries()].map(([itemId, quantity]) => ({ itemId, quantity }));
+	}
+
 	function tryCraftUpgrade(upgrade, provenance) {
 		if (!upgrade || typeof upgrade !== 'object') return null;
-		const inputItemId = String(upgrade.inputItemId ?? '');
 		const outputItemId = String(upgrade.outputItemId ?? '');
-		const inputQuantity = Math.max(1, Math.floor(Number(upgrade.inputQuantity) || 1));
 		const outputQuantity = Math.max(1, Math.floor(Number(upgrade.outputQuantity) || 1));
-		if (!INTERACTION_ITEMS[inputItemId] || !INTERACTION_ITEMS[outputItemId]) return null;
-		if (quantityOf(inputItemId) < inputQuantity) return null;
+		const inputs = normalizeCraftInputs(upgrade);
+		if (!inputs || !INTERACTION_ITEMS[outputItemId]) return null;
+		if (inputs.some((input) => quantityOf(input.itemId) < input.quantity)) return null;
 		if (!canGrant(outputItemId, outputQuantity)) return { ok: false, reason: 'craft-output-full' };
-		if (!consume(inputItemId, inputQuantity)) return { ok: false, reason: 'craft-input-race' };
+		const before = snapshot();
+		for (const input of inputs) {
+			if (consume(input.itemId, input.quantity)) continue;
+			restore(before);
+			return { ok: false, reason: 'craft-input-race' };
+		}
 		const crafted = grant(outputItemId, outputQuantity, {
 			sourceType: 'settlement-crafting',
 			sourceId: String(upgrade.recipeId ?? provenance?.sourceId ?? 'interaction-crafting'),
 		});
-		if (!crafted) throw new Error('Atomic crafting invariant violated after validated output capacity');
-		return { ok: true, crafted: true, outputItemId, outputQuantity, consumedItemId: inputItemId, consumedQuantity: inputQuantity };
+		if (!crafted) {
+			restore(before);
+			throw new Error('Atomic crafting invariant violated after validated output capacity');
+		}
+		const result = {
+			ok: true,
+			crafted: true,
+			outputItemId,
+			outputQuantity,
+			consumedItems: inputs.map((input) => ({ ...input })),
+		};
+		if (inputs.length === 1) {
+			result.consumedItemId = inputs[0].itemId;
+			result.consumedQuantity = inputs[0].quantity;
+		}
+		return result;
 	}
 
 	function grant(itemId, quantity = 1, provenance = null) {
@@ -159,7 +204,33 @@ export function createInteractionInventoryState() {
 			};
 		});
 		const totalWeightKg = items.reduce((sum, item) => sum + item.weightKg * item.quantity, 0);
-		return { totalWeightKg: Number(totalWeightKg.toFixed(2)), items };
+		const base = { totalWeightKg: Number(totalWeightKg.toFixed(2)), items };
+		return { ...base, fieldReadiness: evaluateFieldReadiness(base) };
+	}
+
+	function consumeFastTravelProvisions(context = {}) {
+		const before = snapshot();
+		const readiness = before.fieldReadiness ?? evaluateFieldReadiness(before);
+		if (!readiness.capabilities.fastTravelEligible) {
+			return { ok: false, reason: FAST_TRAVEL_BLOCK_REASON.FIELD_KIT_REQUIRED, routePlan: evaluateExpeditionRoutePlan(readiness, context) };
+		}
+		const routePlan = evaluateExpeditionRoutePlan(readiness, context);
+		if (!routePlan.withinRange) {
+			return { ok: false, reason: FAST_TRAVEL_BLOCK_REASON.INSUFFICIENT_PROVISIONS, routePlan };
+		}
+		const quantity = routePlan.requiredTravelPacks;
+		if (quantity <= 0) return { ok: true, consumedItemId: null, consumedQuantity: 0, routePlan, inventory: before };
+		if (!consume('dragonstone-travel-ration-pack', quantity)) {
+			restore(before);
+			return { ok: false, reason: 'provision-consume-race', routePlan };
+		}
+		return {
+			ok: true,
+			consumedItemId: 'dragonstone-travel-ration-pack',
+			consumedQuantity: quantity,
+			routePlan,
+			inventory: snapshot(),
+		};
 	}
 
 	function restore(saved) {
@@ -176,12 +247,13 @@ export function createInteractionInventoryState() {
 		}
 	}
 
-	return { grant, quantityOf, consume, snapshot, restore };
+	return { grant, quantityOf, consume, consumeFastTravelProvisions, snapshot, restore };
 }
 
 export function buildInventoryText(snapshot = {}) {
 	const items = Array.isArray(snapshot.items) ? snapshot.items : [];
-	const lines = ['Envanter', `Toplam ağırlık: ${Number(snapshot.totalWeightKg) || 0} kg`];
+	const readiness = snapshot?.fieldReadiness?.tier ? snapshot.fieldReadiness : evaluateFieldReadiness(snapshot);
+	const lines = ['Envanter', `Toplam ağırlık: ${Number(snapshot.totalWeightKg) || 0} kg`, ...buildFieldReadinessText(readiness).split('\n')];
 	if (items.length === 0) return [...lines, 'Henüz eşya yok.'].join('\n');
 	for (const item of items) {
 		const origin = item.provenance?.at(-1);

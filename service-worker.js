@@ -230,7 +230,10 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Shared material placement adds two runtime/headless modules; v15->v16 forces existing installs to cache them.
 // Run346 first-audio addition (module + one .wav click sound); v16->v17 forces existing installs to
 // fetch+cache both so the game's first sound works offline too, not only on a fresh install.
-const SHELL_CACHE = 'westeros-shell-v23';
+// RPG expedition readiness adds an offline-loadable gameplay module; v19->v20 refreshes existing installs.
+// Merge of run 355-359 (skirts, road corridor, forest scatter, forest affinity) with that work: both
+// sides bumped this independently, so the merged install needs a version above either branch's.
+const SHELL_CACHE = 'westeros-shell-v24';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -364,6 +367,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/gameplay/dragonConfig.js',
     './src/3d/gameplay/interactionConfig.js',
     './src/3d/gameplay/interactionEconomy.js',
+    './src/3d/gameplay/interactionFieldReadiness.js',
     './src/3d/gameplay/creatureSpeciesConfig.js',
     './src/3d/gameplay/dialogueChoices.js',
     './src/3d/gameplay/player.js',
