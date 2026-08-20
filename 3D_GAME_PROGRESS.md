@@ -17604,3 +17604,36 @@ etrafından dolaşılması lore'a uygun — Smoking Sea'den gemiler de geçmez. 
 
 Kapılar: yeni Valyria kapısı, 14/14 koltuk, yollar, nehir vadisi, yol koridoru, LOD, doku atlası,
 zemin gerçekçiliği, hizalama, determinizm, service worker v34 — hepsi PASS.
+
+---
+
+## Tur 373 — "Bölgeler doğru mu?" artık ölçülebilir bir soru
+
+Valyria'yı düzelttim ama sizin sorunuz daha genişti: *diğer bölgeler de doğru mu?* Bugüne kadar buna
+ancak oraya uçup bakarak cevap verilebiliyordu. Valyria'nın bütün proje boyunca çayır olarak
+çizilirken bütün kapıların yeşil kalmasının sebebi de tam olarak buydu — kapıların hepsi doğruydu,
+hiçbiri "Dorne çöl mü?" diye sormuyordu.
+
+Artık soruyor. Yeni kontrol, map.png'den okuduğum ve kitaplardan adlandırdığım **11 bölgeyi** tek tek
+geziyor, her birinde araziyi ve haritanın biyom cevabını ölçüyor, ve olması gerekenle karşılaştırıyor.
+Sonuçları her çalıştırmada tablo hâlinde basıyor — geçse de geçmese de, ki kayma bozulmaya dönüşmeden
+görülebilsin.
+
+**Ve daha ilk çalıştırmada benim hatamı yakaladı.** Kontrolün ilk sürümü Valyria'yı %7 ormanlık diye
+raporladı, oysa oyun orayı doğru şekilde çıplak çiziyor. Sebep: ben ham veri alanını ölçüyordum, oyun
+ise paylaşılan orman otoritesini soruyor. Yani kontrol, oyunun yapmadığı bir şeyi puanlıyordu. Bu
+oturumda defalarca düştüğüm tuzağın aynısı; düzelttim.
+
+**Sonuç: 11 bölgenin 11'i de haritayla uyumlu.**
+
+- Duvar'ın ötesi **beyaz** çiziliyor (rgb 0,78 0,81 0,78) — karlı olduğundan endişelenmiştim, ölçünce
+  doğru çıktı
+- Dorne aridite **0,508** — güçlü çöl
+- Kızıl Çöl 0,251, Great Sand Sea 0,254 — ikisi de kumlu
+- Kemik Dağları tepe **760 m** — dünyanın en yüksek zemini
+- Sothoryos orman kapsaması **0,401** — gerçekten cangıl
+- Valyria orman **0,000**, renk **0,19 0,03 0,02** — bazalt ve lav, yeşilin zerresi yok
+
+**Bir varsayımım daha yanlış çıktı.** Kemik Dağları'nı da yükseltmem gerektiğini sanıyordum. Ölçtüm:
+zaten dünyanın en yüksek yeri ve kanonik dağ verisi onları zaten kapsıyor. Dokunmadım — tahminle
+arazi değiştirmenin bu oturumda bana nelere mal olduğunu gördüm.

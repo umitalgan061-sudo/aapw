@@ -18290,3 +18290,53 @@ kesit, 336 örnek.
 altında ama izlenmeli.
 
 **World Coverage.** Valyria artık kendi biyomu.
+
+## ADR-0320 — "Bölgeler doğru mu?" sorusu artık ölçülebilir
+
+**Bağlam.** Sahip: *"VALYRIA bölgesini ve diğer bölgeleri doğru coğrafik halde olduklarından emin ol."*
+Bu soruya bugüne kadar ancak bir yere uçup bakarak cevap verilebiliyordu — Valyria'nın bütün proje
+boyunca çayır olarak render edilirken her kapının yeşil kalmasının sebebi de tam olarak buydu.
+Kapıların hepsi doğruydu; hiçbiri *"Dorne çöl mü?"* diye sormuyordu.
+
+`scripts/checkRegionGeographyFidelity.js` (yeni) `map.png`'den okunmuş ve kitaplardan adlandırılmış
+**11 adlandırılmış bölgeyi** yürüyor, her birinde canlı yükseklik alanını ve haritanın kendi biyom
+cevabını örnekliyor, ve dünyada olanı bölgenin olması gerekenle karşılaştırıyor.
+
+**Beklentiler kasten gevşek ve asimetrik.** Dar bantlar yerine, bir bölgenin *yanlış olduğunu
+kanıtlayacak çelişkiler* olarak yazıldı: neredeyse hiç aridite olmayan bir çöl, dağı olmayan bir sıradağ,
+ağacı olmayan bir orman. Zevk üzerinden kırmızıya dönen bir kapı birkaç turda işe yaramaz hâle
+ayarlanır; bu proje o dersi zaten aldı. Her bölgenin ölçümleri geçse de geçmese de **her çalıştırmada
+basılıyor**, böylece kayma başarısızlığa dönüşmeden görünür oluyor.
+
+### Kapı ilk çalıştırmada kendi hatamı yakaladı
+
+İlk sürüm ham `sampleMapForest01` alanını ölçüyordu ve Valyria'yı **%7 ormanlık** raporladı — oysa
+renderer orayı doğru şekilde çıplak çiziyor. Sebep: renderer `forestCoverage01`'i soruyor; ham alan
+onun yalnızca bir girdisi. Yani kontrol, oyunun yapmadığı bir şeyi puanlıyordu — bu oturumda tekrar
+tekrar çıkan hata sınıfının ta kendisi. Paylaşılan otoriteyi ölçmeye çevrildi. Aynı sebeple renk sütunu
+`applyValyriaSurface`'i de içeriyor artık; yoksa Doom'u sıradan yeşil zemin diye raporluyordu.
+
+### Sonuç: 11/11 bölge haritayla uyumlu
+
+| bölge | kara% | ort. m | tepe m | orman | aridite | çizilen renk |
+|---|---|---|---|---|---|---|
+| Lands of Always Winter | 77 | 39 | 77 | 0,130 | 0,000 | 0,78 0,81 0,78 (beyaz) |
+| Kuzey | 83 | 38 | 81 | 0,413 | 0,005 | yeşil |
+| Reach | 99 | 103 | 350 | 0,414 | 0,010 | koyu yeşil |
+| Dorne | 85 | 64 | 364 | 0,135 | **0,508** | kum |
+| Kızıl Dağlar | 96 | 176 | **351** | 0,441 | 0,226 | kaya |
+| Dothraki Denizi | 98 | 85 | 181 | 0,303 | 0,028 | çayır |
+| Kızıl Çöl | 100 | 194 | 386 | 0,053 | **0,251** | kum |
+| Great Sand Sea | 100 | 265 | 656 | 0,090 | **0,254** | kum |
+| Kemik Dağları | 93 | **461** | **760** | 0,061 | 0,052 | gri |
+| **Valyria** | 27 | 78 | **308** | **0,000** | 0,044 | **0,19 0,03 0,02 (bazalt+lav)** |
+| Sothoryos | 54 | 29 | 61 | **0,401** | 0,000 | koyu orman yeşili |
+
+**Kemik Dağları hakkında düzeltme.** Onları da yükseltmem gerektiğini varsaymıştım. Ölçtüm: zaten
+**dünyanın en yüksek zemini** (tepe 760 m, ortalama 461 m) ve kanonik dağ verisi onları zaten
+kapsıyor. Varsayımla iş yapmadım, ölçüm düzeltti.
+
+**Doğrulama.** Bölge kapısı 11/11 PASS. Valyria kapısı, 14/14 koltuk, yollar, nehir vadisi, service
+worker, determinizm, varlık manifesti PASS.
+
+**Technical debt.** 0 new. **World Coverage.** Artık 11 adlandırılmış bölge sürekli izleniyor.
