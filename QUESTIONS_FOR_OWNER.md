@@ -521,7 +521,8 @@ Görsel gelene kadar yol güzergâhları uydurulmayacak.
 
 ## S-0037 (run 362) — `red-mountains` zincirinin doğu ucu haritayla uyuşmuyor
 
-**Durum:** Bilgi/onay bekliyor. Engelleyici değil; şimdilik dokunulmadı.
+**Durum:** ÇÖZÜLDÜ (run 363). Sahip "ne gerekiyorsa yap" dedi; zincir haritayla hizalandı ve
+öncesi/sonrası ölçüldü — ADR-0310.
 
 map.png artık depoda olduğu için transkripsiyon ilk kez orijinaline karşı denetlenebiliyor. Dorne
 bölgesini büyütünce şu çıktı: `worldReferenceMap.js`'teki `red-mountains` zinciri

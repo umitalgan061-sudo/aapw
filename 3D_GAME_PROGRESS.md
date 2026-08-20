@@ -17163,3 +17163,21 @@ y ≈ 0,59–0,61'de ve **x = 0,240 karada bile değil**, Dar Deniz'de.
 Kendiliğimden düzeltmedim: o zincir gerçek araziyi şekillendiriyor, oynatmak dağları yerinden oynatır ve
 yol eğim payını etkileyebilir. Yazım düzeltmesi değil, ölçülmesi gereken bir arazi değişikliği — S-0037
 olarak sordum.
+
+### Run 363 — Kızıl Dağlar doğru yere taşındı (ADR-0310, S-0037 kapandı)
+
+"Ne gerekiyorsa yap" dediniz, ben de geçen tur bulduğum sapmayı düzelttim — ama ölçerek, çünkü o zincir
+gerçek araziyi şekillendiriyor.
+
+Haritada sırt güneybatıdan kuzeydoğuya (0,128, 0,636) → (0,190, 0,591) uzanıyor. Eski kayıtta orta nokta
+sırtın **güneyinde**, Dorne ovasındaydı; doğu noktası ise **karada bile değildi** (0,240 = Dorne Denizi).
+Bağımsız kanıt: bu zincirin kendi authored geçitleri zaten gerçek sırtın üzerindeydi, kayıtlı noktaların
+değil — yani geçitler yıllardır yanlış geometriyi telafi ediyormuş.
+
+Ölçülen etki tam da beklenen yönde: **doran (Sunspear) 64,5 → 32,6 m** — kıyı Dorne'u artık dağ
+koltuğu değil; **ziya (Highgarden) 71,4 → 87,3 m** — sırtın kuzey eteğinde. Diğer koltuklar değişmedi.
+
+Yan kazanç: yol koridoru yatak eğimi 9,4° → **4,4°**, yanındaki zemin 49,6° → 20,1°. Dağlar ovanın
+üstünden çekilince yolların geçtiği arazi gerçekten yumuşadı.
+
+14/14 koltuk PASS, yollar 18,29 km PASS, su maskesi ve hizalama değişmedi, bütün diğer kapılar PASS.

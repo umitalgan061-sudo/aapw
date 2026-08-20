@@ -17609,3 +17609,40 @@ arazi değişikliği. QUESTIONS_FOR_OWNER.md S-0037 olarak soruldu.
 satır sınırı, SW cache PASS.
 
 **Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+## ADR-0310 — `red-mountains` zinciri haritayla hizalandı (S-0037 çözümü)
+
+**Bağlam.** ADR-0309 sapmayı bulmuş ama dokunmamıştı: zincir gerçek araziyi şekillendirdiği için
+oynatmak ölçüm gerektiriyordu. Sahip "ne gerekiyorsa yap" dedi.
+
+**Kanıt.** Kaynak görselde Kızıl Dağlar sırtı güneybatıdan kuzeydoğuya, yaklaşık (0,128, 0,636)'dan
+(0,190, 0,591)'e uzanıyor ve orada kıyıya çıkıyor. Eski kayıt `[[0.125,0.630],[0.180,0.625],
+[0.240,0.620]]`: orta nokta sırtın **güneyinde**, Dorne ovasında; doğu noktası ise **karada bile
+değil** — 0,240 Dorne Denizi'nde, Tyrosh yakınında.
+
+Bağımsız doğrulama: bu zincirin `worldReferenceMountainRelief.js`'teki kendi authored geçitleri zaten
+(0,145, 0,610) gibi **gerçek sırtın** üzerinde duruyordu, kayıtlı noktaların değil. Yani geçitler
+yıllardır yanlış geometriyi telafi etmek için ayarlanmış.
+
+**Karar.** Zincir `[[0.128, 0.636], [0.158, 0.604], [0.190, 0.591]]` olarak düzeltildi. Geçitlere
+dokunulmadı — ölçüm gerek olmadığını gösterdi.
+
+**Ölçülen etki (§8.4 öncesi/sonrası).**
+
+| koltuk | önce | sonra |
+|---|---|---|
+| doran (Sunspear) | 64,509 m | **32,573 m** |
+| ziya (Highgarden) | 71,394 m | **87,260 m** |
+| berk | 61,144 m | 59,978 m |
+| umit / berkalp / olena / cersei / twin | değişmedi | değişmedi |
+
+İkisi de doğru yönde: Sunspear kıyı Dorne'u, dağ koltuğu değil — eski zincir ovanın üstüne dağ
+koyuyormuş. Highgarden ise sırtın kuzey eteğinde, yükselmesi beklenen yer.
+
+**Doğrulama.** 14/14 koltuk PASS (hepsi su üstünde ve yürünebilir). Yollar PASS, 18,31 → **18,29 km**,
+stres rotası 11,4°. Yol koridoru guard'ı belirgin iyileşti: yatak eğimi 9,4° → **4,4°**, yanındaki
+dokunulmamış zemin 49,6° → 20,1° — dağlar Dorne ovasından çekilince yolların geçtiği arazi gerçekten
+yumuşadı. Su maskesi checksum'ı `2ca2bed8d8a1…` değişmedi, hizalama 14/14 %100. Vadi, terrain visual
+contract, masaüstü LOD, satır sınırı, determinizm, SW cache PASS.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.

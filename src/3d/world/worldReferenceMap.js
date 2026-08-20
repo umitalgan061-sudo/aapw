@@ -50,7 +50,14 @@ export const REFERENCE_WATER_ZONES = Object.freeze([
 
 export const REFERENCE_RELIEF_CHAINS = Object.freeze([
 	Object.freeze({ id: 'vale-chain', kind: 'mountain-chain', points: Object.freeze([[0.215, 0.390], [0.235, 0.435], [0.250, 0.485]]) }),
-	Object.freeze({ id: 'red-mountains', kind: 'mountain-chain', points: Object.freeze([[0.125, 0.630], [0.180, 0.625], [0.240, 0.620]]) }),
+	// Corrected in run 363 against the source image itself, which run 361 finally committed. The
+	// previous line ran [[0.125,0.630],[0.180,0.625],[0.240,0.620]]: its middle point sat south of the
+	// range in Dorne's lowland and its eastern point was not on land at all — 0.240 is open water in the
+	// Sea of Dorne, near Tyrosh. On the map the ridge runs south-west to north-east from about
+	// (0.128,0.636) to (0.190,0.591), where it meets the coast. Corroborated by this chain's own
+	// authored passes in `worldReferenceMountainRelief.js`, which were already centred near the real
+	// ridge (0.145,0.610) rather than near the recorded points — they had been tuned to compensate.
+	Object.freeze({ id: 'red-mountains', kind: 'mountain-chain', points: Object.freeze([[0.128, 0.636], [0.158, 0.604], [0.190, 0.591]]) }),
 	Object.freeze({ id: 'bone-mountains', kind: 'mountain-chain', points: Object.freeze([[0.700, 0.385], [0.705, 0.500], [0.715, 0.650]]) }),
 	Object.freeze({ id: 'eastern-chain', kind: 'mountain-chain', points: Object.freeze([[0.955, 0.680], [0.950, 0.800], [0.945, 0.910]]) }),
 ]);
