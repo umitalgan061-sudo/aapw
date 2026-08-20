@@ -78,9 +78,11 @@ assert.deepEqual(routeBlocked.legs[0].reasons, [FAST_TRAVEL_BLOCK_REASON.ROUTE_B
 const noKit = evaluateExpeditionJourney(inventoryWith({ kits: 0, travelPacks: 2 }), [threeLegs[0]]);
 assert.equal(noKit.complete, false);
 assert.deepEqual(noKit.legs[0].reasons, [FAST_TRAVEL_BLOCK_REASON.FIELD_KIT_REQUIRED]);
-assert.equal(noKit.legs[0].requiredTravelPacks, 0, 'field-kit gate must block before route provisions become consumable');
+assert.equal(noKit.legs[0].requiredTravelPacks, 1, 'route cost remains visible even when field-kit authorization blocks consumption');
 assert.equal(noKit.startingTravelPacks, 2, 'planner reports physical travel packs even when field-kit authorization is absent');
 assert.equal(noKit.remainingTravelPacks, 2, 'blocked no-kit plan must not consume physical travel packs');
+assert.equal(noKit.legs[0].remainingTravelPacksBefore, 2);
+assert.equal(noKit.legs[0].remainingTravelPacksAfter, 2, 'authorization failure must preserve route provisions atomically');
 
 const malformed = evaluateExpeditionJourney(evaluateFieldReadiness(inventoryWith({ travelPacks: 2 })), [{ originId: 'dragonstone', destinationId: '  ', discovered: true, routeOpen: true, distanceKm: -5 }]);
 assert.equal(malformed.complete, false);
