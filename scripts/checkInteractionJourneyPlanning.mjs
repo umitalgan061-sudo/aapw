@@ -230,9 +230,11 @@ const firstJourneyReceipt = {
 	restStopCount: 1,
 };
 assert.deepEqual(journeyState.snapshot(), { fatigueKm: 30, commitCount: 1, lastDestinationId: 'harbor-road', recentReceipts: [firstJourneyReceipt] });
-assert.match(buildJourneyStateText(journeyState.snapshot()), /Sefer yorgunluğu: 30\/52 km/);
-assert.match(buildJourneyStateText(journeyState.snapshot()), /Son sefer hedefi: harbor-road/);
-assert.match(buildJourneyStateText(journeyState.snapshot()), /Son sefer: 58 km · 2 yol azığı · 1 dinlenme/);
+const committedReadiness = evaluateFieldReadiness(committed.inventory);
+assert.match(buildJourneyStateText(journeyState.snapshot(), committedReadiness), /Sefer yorgunluğu: 30\/36 km/);
+assert.match(buildJourneyStateText(journeyState.snapshot(), committedReadiness), /Kesintisiz kalan dayanıklılık: 6 km/);
+assert.match(buildJourneyStateText(journeyState.snapshot(), committedReadiness), /Son sefer hedefi: harbor-road/);
+assert.match(buildJourneyStateText(journeyState.snapshot(), committedReadiness), /Son sefer: 58 km · 2 yol azığı · 1 dinlenme/);
 const receiptRoundTrip = createInteractionJourneyState();
 receiptRoundTrip.restore(journeyState.snapshot());
 assert.deepEqual(receiptRoundTrip.snapshot(), journeyState.snapshot(), 'journey receipt/fatigue must survive canonical restore');
