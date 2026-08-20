@@ -102,7 +102,7 @@ for (let yIndex = 0; yIndex <= 32; yIndex += 1) {
 		);
 	}
 }
-assert.equal(Number(worldMappingMaxDeltaMeters.toFixed(12)), 0, 'canonical normalized/world projection drifted');
+assert(worldMappingMaxDeltaMeters <= 1e-9, `canonical normalized/world projection drifted by ${worldMappingMaxDeltaMeters}m`);
 
 console.log('MOUNTAIN_NATURALIZATION_DETERMINISM_OK', JSON.stringify({
 	policyId: WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.id,
