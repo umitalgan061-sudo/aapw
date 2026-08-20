@@ -21,7 +21,8 @@ try {
 	const result = await page.evaluate(async () => {
 		const { DialogueBox } = await import('/src/3d/ui/dialogueBox.js');
 		const { createInteractionController } = await import('/src/3d/gameplay/interaction.js');
-		const { REST_KIND, buildExpeditionJourneyOptionsText, buildExpeditionJourneyText, buildJourneyRestText, evaluateExpeditionJourney, evaluateJourneyWithRestStops, rankExpeditionJourneyOptions } = await import('/src/3d/gameplay/interactionFieldReadiness.js');
+		const { buildInventoryText } = await import('/src/3d/gameplay/interactionConfig.js');
+		const { JOURNEY_REST_BLOCK_REASON, REST_KIND, buildExpeditionJourneyOptionsText, buildExpeditionJourneyText, buildJourneyRestText, evaluateExpeditionJourney, evaluateJourneyWithRestStops, rankExpeditionJourneyOptions } = await import('/src/3d/gameplay/interactionFieldReadiness.js');
 		const host = document.createElement('div'); document.body.appendChild(host);
 		const dialogueBox = new DialogueBox(host);
 		const controller = createInteractionController({ interactionPrompt: { setVisible() {} }, dialogueBox, greetingTemplate: 'Selam, {name}!', radiusMeters: 6 });
@@ -47,11 +48,12 @@ try {
 		]);
 		dialogueBox.show(buildExpeditionJourneyOptionsText(ranked));
 		const rankedRendered = dialogueBox._textEl.textContent;
-		const restPlan = evaluateJourneyWithRestStops(restored.inventory, [
+		const restSteps = [
 			{ type: 'travel', destinationId: 'watch-road', discovered: true, routeOpen: true, distanceKm: 28 },
 			{ type: 'rest', kind: REST_KIND.TAVERN, siteId: 'watch-road-tavern', discovered: true, open: true },
 			{ type: 'travel', destinationId: 'harbor-road', discovered: true, routeOpen: true, distanceKm: 30 },
-		]);
+		];
+		const restPlan = evaluateJourneyWithRestStops(restored.inventory, restSteps);
 		dialogueBox.show(buildJourneyRestText(restPlan));
 		const restRendered = dialogueBox._textEl.textContent;
 		const inventoryAfterPlanning = controller.getRpgSnapshot().inventory;
@@ -60,12 +62,79 @@ try {
 		const sequential = plan.complete === true && plan.legs[0].requiredTravelPacks === 0 && plan.legs[1].requiredTravelPacks === 1 && plan.legs[2].remainingTravelPacksAfter === 0;
 		const recommendation = ranked.preferredRouteId === 'ridge' && rankedRendered.includes('Sırt yolu · ÖNERİ · HAZIR · 28 km · 1 azık') && rankedRendered.includes('Önerilen rota: Sırt yolu');
 		const tavernRecovery = restPlan.complete === true && restPlan.totalDistanceKm === 58 && restPlan.steps[1].fatigueAfterKm === 0 && restRendered.includes('Taverna · watch-road-tavern · DİNLENDİ') && restRendered.includes('Plan hazır · son yorgunluk: 30 km');
+
+		const committed = controller.commitJourneyWithRestStops(restSteps);
+		const committedRpg = controller.getRpgSnapshot();
+		const committedSnapshot = committedRpg.inventory;
+		dialogueBox.show(buildInventoryText(committedSnapshot, committedRpg.journey));
+		const committedRendered = dialogueBox._textEl.textContent;
+		const remainingPacks = committedSnapshot.items.find((item) => item.itemId === 'dragonstone-travel-ration-pack')?.quantity ?? 0;
+		const maintenanceKits = committedSnapshot.items.find((item) => item.itemId === 'dragonstone-expedition-maintenance-kit')?.quantity ?? 0;
+		const committedTravel = committed.ok === true
+			&& committed.consumedQuantity === 2
+			&& remainingPacks === 0
+			&& maintenanceKits === 1
+			&& committedSnapshot.totalWeightKg === 0.85
+			&& committedSnapshot.fieldReadiness.tier === 'expedition-ready'
+			&& committedRendered.includes('Hızlı seyahat menzili: 12 km · Yol azığı: 0')
+			&& committedRendered.includes('Dragonstone Sefer Bakım Kiti ×1');
+		const firstReceipt = committedRpg.journey?.recentReceipts?.[0];
+		const journeySaved = committedRpg.schemaVersion === 6
+			&& committedRpg.journey?.fatigueKm === 30
+			&& committedRpg.journey?.commitCount === 1
+			&& committedRpg.journey?.lastDestinationId === 'harbor-road'
+			&& committedRpg.journey?.recentReceipts?.length === 1
+			&& firstReceipt?.sequence === 1
+			&& firstReceipt?.totalDistanceKm === 58
+			&& firstReceipt?.consumedTravelPacks === 2
+			&& firstReceipt?.finalFatigueKm === 30
+			&& firstReceipt?.destinationId === 'harbor-road'
+			&& firstReceipt?.restStopCount === 1
+			&& committedRendered.includes('Sefer yorgunluğu: 30/36 km')
+			&& committedRendered.includes('Kesintisiz kalan dayanıklılık: 6 km')
+			&& committedRendered.includes('Son sefer hedefi: harbor-road')
+			&& committedRendered.includes('Son sefer: 58 km · 2 yol azığı · 1 dinlenme');
+
+		const restoredController = createInteractionController({ interactionPrompt: { setVisible() {} }, dialogueBox, greetingTemplate: 'Selam, {name}!', radiusMeters: 6 });
+		restoredController.restoreRpgSnapshot(committedRpg);
+		const restoredJourney = restoredController.getJourneySnapshot();
+		const receiptRestored = restoredJourney.recentReceipts?.length === 1
+			&& restoredJourney.recentReceipts[0].sequence === 1
+			&& restoredJourney.recentReceipts[0].destinationId === 'harbor-road';
+		const fatigueBlocked = restoredController.commitJourneyWithRestStops([
+			{ type: 'travel', destinationId: 'nearby-camp', discovered: true, routeOpen: true, distanceKm: 10 },
+		]);
+		const carriedFatigueBlocks = restoredJourney.fatigueKm === 30
+			&& fatigueBlocked.ok === false
+			&& fatigueBlocked.reason === JOURNEY_REST_BLOCK_REASON.CONTINUOUS_TRAVEL_EXHAUSTED
+			&& restoredController.getJourneySnapshot().fatigueKm === 30
+			&& restoredController.getJourneySnapshot().recentReceipts.length === 1;
+		const recoveredCommit = restoredController.commitJourneyWithRestStops([
+			{ type: 'rest', kind: REST_KIND.TAVERN, siteId: 'harbor-road-tavern', discovered: true, open: true },
+			{ type: 'travel', destinationId: 'nearby-camp', discovered: true, routeOpen: true, distanceKm: 10 },
+		]);
+		const recoveredRpg = restoredController.getRpgSnapshot();
+		const secondReceipt = recoveredRpg.journey?.recentReceipts?.at(-1);
+		const persistedRecovery = recoveredCommit.ok === true
+			&& recoveredCommit.consumedQuantity === 0
+			&& recoveredRpg.schemaVersion === 6
+			&& recoveredRpg.journey?.fatigueKm === 10
+			&& recoveredRpg.journey?.commitCount === 2
+			&& recoveredRpg.journey?.lastDestinationId === 'nearby-camp'
+			&& recoveredRpg.journey?.recentReceipts?.length === 2
+			&& secondReceipt?.sequence === 2
+			&& secondReceipt?.totalDistanceKm === 10
+			&& secondReceipt?.consumedTravelPacks === 0
+			&& secondReceipt?.finalFatigueKm === 10
+			&& secondReceipt?.destinationId === 'nearby-camp'
+			&& secondReceipt?.restStopCount === 1;
+
 		dialogueBox.dispose(); host.remove();
-		return { renderedRoute, sequential, recommendation, tavernRecovery, preserved, rendered, rankedRendered, restRendered };
+		return { renderedRoute, sequential, recommendation, tavernRecovery, preserved, committedTravel, journeySaved, receiptRestored, carriedFatigueBlocks, persistedRecovery, rendered, rankedRendered, restRendered, committedRendered, committedPacks: committed.consumedQuantity, savedJourney: committedRpg.journey, recoveredJourney: recoveredRpg.journey };
 	});
 	if (pageErrors.length || consoleErrors.length) throw new Error(`Journey-planning browser proof emitted errors: ${JSON.stringify({ pageErrors, consoleErrors })}`);
-	for (const key of ['renderedRoute', 'sequential', 'recommendation', 'tavernRecovery', 'preserved']) if (!result[key]) throw new Error(`Journey-planning browser assertion failed: ${key} ${JSON.stringify(result)}`);
-	console.log(`[RPG Chromium] PASS sequential journey planning + tavern recovery ${JSON.stringify(result)}`);
+	for (const key of ['renderedRoute', 'sequential', 'recommendation', 'tavernRecovery', 'preserved', 'committedTravel', 'journeySaved', 'receiptRestored', 'carriedFatigueBlocks', 'persistedRecovery']) if (!result[key]) throw new Error(`Journey-planning browser assertion failed: ${key} ${JSON.stringify(result)}`);
+	console.log(`[RPG Chromium] PASS journey planning + atomic commit + persisted fatigue/receipts ${JSON.stringify(result)}`);
 } finally {
 	await browser.close();
 	await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
