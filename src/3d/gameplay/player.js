@@ -26,6 +26,8 @@ const PLAYER_ACTION_CONFIG = Object.freeze({
 	DODGE_SPEED_MPS: 10.5,
 	DODGE_COOLDOWN_SECONDS: 0.22,
 	DODGE_RUN_ANIMATION_TIMESCALE: 1.45,
+	DODGE_IFRAME_START_SECONDS: 0.06,
+	DODGE_IFRAME_END_SECONDS: 0.24,
 	GUARD_DRAIN_PER_SECOND: 11,
 	GUARD_MOVE_SPEED_MULTIPLIER: 0.5,
 	GUARD_DAMAGE_MULTIPLIER: 0.4,
@@ -187,6 +189,13 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 		dodgeCooldownRemaining = PLAYER_ACTION_CONFIG.DODGE_COOLDOWN_SECONDS + dodgeRemaining;
 		spendStamina(PLAYER_ACTION_CONFIG.DODGE_COST); lastRunPressAge = Infinity;
 	}
+	function dodgeElapsedSeconds() {
+		return dodgeRemaining > 0 ? PLAYER_ACTION_CONFIG.DODGE_DURATION_SECONDS - dodgeRemaining : PLAYER_ACTION_CONFIG.DODGE_DURATION_SECONDS;
+	}
+	function isDodgeInvulnerable() {
+		const elapsed = dodgeElapsedSeconds();
+		return dodgeRemaining > 0 && elapsed >= PLAYER_ACTION_CONFIG.DODGE_IFRAME_START_SECONDS && elapsed < PLAYER_ACTION_CONFIG.DODGE_IFRAME_END_SECONDS;
+	}
 	function attackPhase() {
 		if (attackRemaining <= 0) return 'none';
 		const tuning = attackTuning(attackKind);
@@ -195,6 +204,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 		return 'recovery';
 	}
 	function motionSnapshot() {
+		const dodgeElapsed = dodgeElapsedSeconds(), dodgeInvulnerable = isDodgeInvulnerable();
 		return Object.freeze({
 			state: movementState,
 			stamina: Number(stamina.toFixed(2)), maxStamina: PLAYER_ACTION_CONFIG.MAX_STAMINA,
@@ -205,6 +215,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 			attackKind, attackPhase: attackPhase(), attackComboStep, attackActive, attackRemaining: Number(attackRemaining.toFixed(3)),
 			isGrounded, canDodge: attackRemaining <= 0 && !guarding && guardBreakRemaining <= 0 && isGrounded && dodgeRemaining <= 0 && dodgeCooldownRemaining <= 0 && stamina >= PLAYER_ACTION_CONFIG.DODGE_COST,
 			speedMps: Number(planarSpeedMps.toFixed(3)), dodgeRemaining: Number(dodgeRemaining.toFixed(3)),
+			dodgeElapsedSeconds: Number(dodgeElapsed.toFixed(3)), dodgeInvulnerable,
 			dodgeCooldownRemaining: Number(dodgeCooldownRemaining.toFixed(3)), regenDelayRemaining: Number(regenDelayRemaining.toFixed(3)),
 			position: Object.freeze({ x: Number(model.position.x.toFixed(3)), y: Number(model.position.y.toFixed(3)), z: Number(model.position.z.toFixed(3)) }),
 		});
@@ -222,6 +233,11 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 	function onIncomingDamage(payload) {
 		const rawAmount = payload?.amount;
 		if (typeof rawAmount !== 'number' || !(rawAmount > 0) || !isGrounded || guardBreakRemaining > 0) return;
+		if (isDodgeInvulnerable()) {
+			lastDefenseResult = 'dodge';
+			payload.rawAmount = rawAmount; payload.blockedAmount = rawAmount; payload.amount = 0; payload.mitigation = 'dodge';
+			publishMotionTelemetry(true); return;
+		}
 		if (parryWindowRemaining > 0 && stamina >= PLAYER_ACTION_CONFIG.PARRY_STAMINA_COST) {
 			spendStamina(PLAYER_ACTION_CONFIG.PARRY_STAMINA_COST);
 			parryWindowRemaining = 0; parryFeedbackRemaining = PLAYER_ACTION_CONFIG.PARRY_FEEDBACK_SECONDS;
