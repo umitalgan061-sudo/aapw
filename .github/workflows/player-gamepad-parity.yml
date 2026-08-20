@@ -6,9 +6,11 @@ on:
     paths:
       - 'src/3d/input.js'
       - 'src/3d/gameLoopHelpers.js'
+      - 'src/3d/gameplay/playerLockOn.js'
       - 'scripts/checkPlayerGamepadInput.mjs'
       - 'scripts/checkPlayerGamepadHandoff.mjs'
       - 'scripts/checkPlayerGamepadRuntime.mjs'
+      - 'scripts/checkPlayerLockOn.mjs'
       - 'scripts/checkPlayerMeleeCombo.mjs'
       - '.github/workflows/player-gamepad-parity.yml'
       - '.github/workflows/player-stamina-dodge.yml'
@@ -44,7 +46,7 @@ jobs:
           git diff --check "$MAIN_SHA"...HEAD
           CHANGED="$(git diff --name-only "$MAIN_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/input\.js|src/3d/gameLoopHelpers\.js|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/gameplay/playerLockOn\.js|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|scripts/checkPlayerMeleeCombo\.mjs|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
           read -r ADD DEL < <(git diff --numstat "$MAIN_SHA"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           TOTAL=$((ADD + DEL))
           echo "base=$MAIN_SHA additions=$ADD deletions=$DEL total=$TOTAL"
@@ -60,16 +62,19 @@ jobs:
           test -s assets/animations/peasant_girl/idle.fbx
           test -s assets/animations/peasant_girl/walking.fbx
           test -s assets/animations/peasant_girl/running.fbx
-      - name: Standard gamepad movement combat and handoff contracts
+      - name: Standard gamepad movement combat lock-on and handoff contracts
         run: |
           set -euo pipefail
           node --check src/3d/input.js
           node --check src/3d/gameLoopHelpers.js
+          node --check src/3d/gameplay/playerLockOn.js
           node --check scripts/checkPlayerGamepadInput.mjs
           node --check scripts/checkPlayerGamepadHandoff.mjs
           node --check scripts/checkPlayerGamepadRuntime.mjs
+          node --check scripts/checkPlayerLockOn.mjs
           node scripts/checkPlayerGamepadInput.mjs
           node scripts/checkPlayerGamepadHandoff.mjs
+          node scripts/checkPlayerLockOn.mjs
           node --check scripts/checkPlayerMeleeCombo.mjs
           node scripts/checkPlayerMeleeCombo.mjs
       - name: Shared material PWA and cache contracts
@@ -81,6 +86,7 @@ jobs:
           node scripts/checkPwaInstallability.js
           node scripts/checkServiceWorkerCache.js
           ! grep -q 'EditorMaterialStudio' src/3d/input.js
+          ! grep -q 'EditorMaterialStudio' src/3d/gameplay/playerLockOn.js
       - name: Install Chromium
         shell: bash
         run: |
