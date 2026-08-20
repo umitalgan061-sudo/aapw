@@ -10,6 +10,7 @@ on:
       - 'scripts/checkNpcGuardGroupLifecycleBrowser.js'
       - 'scripts/checkNpcGuardLifecycleFrameRateBrowser.js'
       - 'scripts/checkNpcGuardOcclusionLifecycleBrowser.js'
+      - 'scripts/checkNpcGuardHearingLifecycleBrowser.js'
       - 'src/3d/**'
       - '.github/workflows/run167-determinism-policy.yml'
   pull_request:
@@ -21,6 +22,7 @@ on:
       - 'scripts/checkNpcGuardGroupLifecycleBrowser.js'
       - 'scripts/checkNpcGuardLifecycleFrameRateBrowser.js'
       - 'scripts/checkNpcGuardOcclusionLifecycleBrowser.js'
+      - 'scripts/checkNpcGuardHearingLifecycleBrowser.js'
       - 'src/3d/**'
       - '.github/workflows/run167-determinism-policy.yml'
 
@@ -69,6 +71,7 @@ jobs:
           node --check scripts/checkNpcGuardGroupLifecycleBrowser.js
           node --check scripts/checkNpcGuardLifecycleFrameRateBrowser.js
           node --check scripts/checkNpcGuardOcclusionLifecycleBrowser.js
+          node --check scripts/checkNpcGuardHearingLifecycleBrowser.js
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkNpcGuardLifecycleContract.mjs
           node scripts/checkAssetsManifest.js
@@ -119,6 +122,7 @@ jobs:
           node scripts/checkNpcGuardGroupLifecycleBrowser.js
           node scripts/checkNpcGuardLifecycleFrameRateBrowser.js
           node scripts/checkNpcGuardOcclusionLifecycleBrowser.js
+          node scripts/checkNpcGuardHearingLifecycleBrowser.js
 
       - name: Upload browser smoke diagnostic
         if: always()
