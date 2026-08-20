@@ -1,0 +1,26 @@
+name: Apply Road Endpoint Safety
+on:
+  push:
+    branches: [agent/buzul-map-reference-geography-db49125]
+    paths: ['scripts/applyRoadEndpointSafetyPatch.mjs','.github/workflows/apply-road-endpoint-safety.yml']
+permissions: { contents: write }
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: agent/buzul-map-reference-geography-db49125 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: |
+          set -euo pipefail
+          node scripts/applyRoadEndpointSafetyPatch.mjs
+          node --check src/3d/world/roadPathfinder.js
+      - run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm scripts/applyRoadEndpointSafetyPatch.mjs .github/workflows/apply-road-endpoint-safety.yml
+          git add src/3d/world/roadPathfinder.js
+          git commit -m 'fix(roads): keep smoothing inside routed grade envelope'
+          git push origin HEAD:agent/buzul-map-reference-geography-db49125
