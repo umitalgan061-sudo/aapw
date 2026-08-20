@@ -17116,3 +17116,37 @@ contract, masaüstü LOD, yol koridoru, SW cache v24→v25, satır sınırı, de
 `IMG_1874.jpeg` — iPhone fotoğrafı, yani muhtemelen HDR gain map'i olan bir JPEG ve bunu anlamayan
 görüntü hatları düz siyah çözüyor. Gmail araçlarımda ek indirme yok, ham MIME denemesinde de oturum
 düştü. Sahipten fotoğrafın ekran görüntüsünü istedim (ekran görüntüleri düz SDR'dir, gain map taşımaz).
+
+### Run 361 — Harita nihayet depoda, ve kendi yolları dünyada (ADR-0308)
+
+`aapw`'den çektim. Dosyaya bakınca iki şey çıktı: **adı `.png` ama içeriği JPEG** (1536x1024), ve
+**SHA-256'sı `20702972…`, yani `WORLD_REFERENCE_MAP.sha256` ile birebir aynı** — bu, projenin bütün
+coğrafya sözleşmelerinin türetildiği tam kaynak görsel.
+
+Asıl sorun `.gitignore`'daymış: `/resimler/` satırı yüzünden görsel hiç commit'lenmemiş. Uzak oturumlar
+depoyu sıfırdan klonladığı için map.png hiçbir oturumda yokmuş — transkripsiyon yıllardır tek bilgi
+kaynağıymış ve hiçbir şey ona karşı doğrulanamıyormuş. Artık istisna ile commit'li, ve bir kontrol hem
+varlığını hem checksum'ını koruyor.
+
+Haritaya bakınca görülen boşluk: transkripsiyonda biyomlar, sular ve dağ zincirleri var ama **yol yok**.
+Oysa harita Kralyolu'nu, Altınyol'u, Gülyolu'nu, Okyanus Yolu'nu, Dorne geçitlerini ve Essos'un dosdoğru
+Valyria yollarını açıkça çiziyor.
+
+Görseli bölge bölge kırpıp üzerine 0,01 aralıklı normalize ızgara bindirdim, her yolu gözle izleyip
+dönemeçlerini kaydettim. Uçları okumadan değil koltuklardan aldım: Highgarden okumam birebir tuttu ama
+Castle Black ~0,02 saptı, yani okumaya dayanan bir uç kaleden birkaç yüz metre önce biterdi. Şekil
+haritadan, uçlar dünyadan.
+
+Bir kusuru ölçüm yakaladı: Valyria ana yolunu önce King's Landing'e bağlamıştım ve kontrol geçmişti —
+çünkü yalnızca noktaları doğruluyordu, aralarını değil. İki uç da karadaydı, arası Dar Deniz'di. Kontrol
+artık her parça boyunca örnekliyor.
+
+Sonuç: **8 kanonik rota / 16,71 km**, koltuk MST'si (13 kenar, 18,31 km) dokunulmadan yanında. Yan etki
+olumlu — kanonik yolların yatakları MST'nin geçtiği zemini de yumuşattığı için en dik eğim 11,4° →
+**10,2°** düştü.
+
+Ekleme `sceneManager.js`'i 606 satıra çıkarınca (sınır 600) zemin kurulum dizisini `worldFoundation.js`'e
+çıkardım: pad → vadi → kanonik yol → yol yatağı sırası tek yerde, gerekçeleriyle. sceneManager 554'e indi.
+
+Kapılar: yeni harita/rota guard'ı, 14/14 koltuk, yollar, vadi, yol koridoru, terrain visual contract,
+masaüstü LOD, SW cache v25→v26, satır sınırı, determinizm — hepsi PASS.

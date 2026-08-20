@@ -27,6 +27,8 @@ import { createHeightSampler, mulberry32 } from './world/terrain.js';
 import { createSettlements, computeSettlementFlattenPads, KINGDOM_SEATS, mapToWorldXZ } from './world/settlements.js';
 import { computeRoadCorridor } from './world/roadCorridorSmoothing.js';
 import { computeRiverValleys } from './world/terrainValleyCarving.js';
+import { createReferenceRoadMeshes } from './world/worldReferenceRoadNetwork.js';
+import { buildWorldFoundation } from './worldFoundation.js';
 import { buildRoadNetwork } from './world/roads.js';
 import { createVegetation } from './world/vegetation.js';
 import { createVillages } from './world/villages.js';
@@ -162,51 +164,9 @@ export function createScene(canvas) {
 	// around the world origin, which is nowhere near where the player actually stands.
 	configureSunShadow(lights.sun, renderQuality);
 
-	// Ground-flatten pads (DECISIONS.md ADR-0118) — computed once, up front, from a throwaway *base*
-	// (unflattened) sampler, then threaded into both the chunk manager (so the rendered ground mesh
-	// is flat under every castle) and the ground collider below (so every gameplay height query —
-	// settlements/roads/rivers/NPCs/animals/dragons/the player — agrees with what's actually drawn).
-	// See `world/settlements.js`'s `computeSettlementFlattenPads` doc comment for why the anchor
-	// height must come from this clamped formula, not the raw terrain sample.
-	const baseSampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED);
-	const flattenPads = computeSettlementFlattenPads({
-		sampleHeightMeters: baseSampleHeightMeters,
-		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
-		minGroundClearanceMeters: SETTLEMENT_CONFIG.MIN_GROUND_CLEARANCE_METERS,
-		mapBounds: WORLD_SCALE.MAP_BOUNDS,
-		metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
-	});
-
-	// Touch-primary devices get the mobile-budget STREAM_RADIUS_CHUNKS instead of the desktop-only
-	// PHASE1_PREVIEW_RADIUS_CHUNKS boot preview — see this function's own doc comment / ADR-0010.
-	// The same signal picks terrain mesh resolution, which is the property that decides whether fine
-	// relief survives to the screen at all (see `CHUNK_CONFIG.TERRAIN_SEGMENTS_DESKTOP`).
-	// Road cut-and-fill bed (DECISIONS.md ADR-0304), built with the same two-phase pattern as the
-	// settlement pads above: route every cart edge over pads-flattened terrain, then lay a smoothed bed
-	// along those routes. It has to exist *before* the chunk manager and the ground collider, because
-	// both must see the same ground — a road drawn on one field and walked on another is the ADR-0118
-	// failure mode. This is also what lets `world/terrainReliefDetail.js` carry real player-scale
-	// roughness at all: without a bed, that roughness scores as impassable road grade (ADR-0303).
-	const phase1SampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
-
-	// River valleys (DECISIONS.md ADR-0307), traced over that same phase-1 field. Built before the road
-	// corridor on purpose: a valley is natural landform, so roads should be routed over a world that
-	// already has it and then get their cut-and-fill on the result — not the other way round.
-	const valleyField = computeRiverValleys({
-		seed: WORLD_DEFAULTS.WORLD_SEED,
-		baseSampleHeightMeters: phase1SampleHeightMeters,
-		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
-	});
-	const valleySampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads, null, valleyField);
-
-	const roadCorridor = computeRoadCorridor({
-		seats: KINGDOM_SEATS.map((seat) => {
-			const { x, z } = mapToWorldXZ(seat.mapX, seat.mapY, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT);
-			return { id: seat.id, x, z };
-		}),
-		baseSampleHeightMeters: valleySampleHeightMeters,
-	});
-
+	// Every terrain-shaping layer, in the order each one requires the previous — see
+	// `worldFoundation.js` for why that order is load-bearing rather than incidental.
+	const { flattenPads, valleyField, roadCorridor, referenceRoads } = buildWorldFoundation();
 	const isMobileClass = isCoarsePointerDevice();
 	const chunkManager = new ChunkManager({
 		scene,
@@ -309,6 +269,17 @@ export function createScene(canvas) {
 		sampleHeightMeters: groundCollider.getGroundHeight,
 	});
 	scene.add(roadsResult.group);
+	// Canonical highways, re-projected onto the bedded ground the chunks actually draw.
+	const referenceRoadsOnBed = referenceRoads.map((road) => ({
+		...road,
+		points: road.points.map((point) => ({ x: point.x, y: groundCollider.getGroundHeight(point.x, point.z), z: point.z })),
+	}));
+	const referenceRoadMeshes = createReferenceRoadMeshes(referenceRoadsOnBed);
+	scene.add(referenceRoadMeshes.group);
+	console.info(
+		`[sceneManager] Owner-map roads: ${referenceRoadMeshes.roadCount} canonical route(s), ` +
+			`${(referenceRoadMeshes.totalLengthMeters / 1000).toFixed(2)} km, read from resimler/map.png.`,
+	);
 	console.info(
 		`[sceneManager] Built road network: ${roadsResult.edges.length} segment(s) connecting ` +
 			`${settlementsResult.seats.length} kingdom seats, ${(roadsResult.totalLengthMeters / 1000).toFixed(2)} km total, ` +

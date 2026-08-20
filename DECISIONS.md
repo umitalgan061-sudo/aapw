@@ -17527,3 +17527,65 @@ değişmedi, terrain visual contract, masaüstü LOD, yol koridoru, SW cache (v2
 determinizm PASS.
 
 **Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+## ADR-0308 — map.png depoya girdi, ve haritanın kendi yolları dünyaya işlendi
+
+**Kök neden, nihayet.** Sahip haritayı sohbete iki kez gönderdi, ikisi de tamamen siyah geldi; sonra
+kendine mail attı (`IMG_1874.jpeg`, telefon fotoğrafı) ama Gmail araç setinde ek indirme yok. Sonunda
+GitHub'da `aapw` deposuna koydu ve oradan çekildi.
+
+Dosyaya bakınca iki şey ortaya çıktı:
+
+1. **Adı `.png` ama içeriği JPEG** (baseline JPEG, 1536x1024, 3 bileşen). `style.css` ve `index.html`
+   bu adla referans verdiği için ad değiştirilmedi; bunun yerine kontrol *gerçek* formatı doğruluyor
+   ki ileride biri uzantıyı "düzeltip" 2D kabuğu kırmasın.
+2. **SHA-256'sı `20702972…` — `WORLD_REFERENCE_MAP.sha256` ile birebir aynı.** Yani bu, projenin
+   bütün coğrafya sözleşmelerinin türetildiği tam kaynak görselin ta kendisi.
+
+**Asıl sorun `.gitignore`'daydı:** `/resimler/` satırı yüzünden görsel hiç commit'lenmemiş. Uzak
+oturumlar depoyu sıfırdan klonladığı için map.png hiçbir oturumda mevcut olmamış — bu yüzden
+`worldReferenceMap.js`'in transkripsiyonu yıllardır tek bilgi kaynağıydı ve hiçbir şey ona karşı
+doğrulanamıyordu. Dosya artık istisna ile commit'lendi (`!/resimler/map.png`).
+
+**Ve haritaya bakılınca görülen şey:** transkripsiyonda biyom bölgeleri, su bölgeleri ve dağ zincirleri
+var ama **yol yok** — oysa harita Kralyolu, Altınyol, Gülyolu, Okyanus Yolu, Dorne geçitleri ve Essos'un
+dosdoğru Valyria yollarını açıkça çiziyor.
+
+**Karar.** `world/worldReferenceRoadRoutes.js`: görsel bölge bölge kırpılıp üzerine 0,01 aralıklı
+normalize ızgara bindirilerek her ana yol gözle izlendi ve dönemeçleri kaydedildi — bu,
+`worldReferenceMap.js`'in kendi başlığında tarif ettiği "elle denetlenmiş çapa, runtime OCR değil"
+yönteminin aynısı, aynı ±0,015 okuma toleransıyla. `world/worldReferenceRoadNetwork.js` bunları gerçek
+arazi üzerinde A* ile rotalayıp çiziyor.
+
+**Uçlar okumadan değil koltuklardan geliyor.** Projenin 14 koltuğu haritanın çizdiği kalelere yakın ama
+onlarla aynı değil: Highgarden okumam birebir tuttu, Castle Black ~0,02 saptı. Okumaya dayanan bir uç,
+hizmet ettiği kaleden birkaç yüz metre önce biterdi. Bu yüzden rota hizmet ettiği koltuğu adlandırıyor,
+aradaki dönemeçler görselden geliyor. **Şekil haritadan, uçlar dünyadan.**
+
+**Ölçümle yakalanan bir kusur.** İlk sürümde Essos'un Valyria ana yolunu King's Landing'e bağlamıştım.
+Kontrol geçti — çünkü yalnızca *noktaları* doğruluyordu, aralarındaki *parçaları* değil. İki uç da
+karadaydı, arasındaki her şey Dar Deniz'di. Kontrol artık her parça boyunca 0,005 aralıkla örnekliyor,
+ve Essos rotaları hiçbir koltuğa bağlanmıyor: onlar haritanın kendi çizgileri.
+
+**Eklemeli.** Koltuk MST'si aynen duruyor (13 kenar, 18,31 km) — oyun bağlantısını o garanti ediyor.
+Kanonik yollar ikinci bir katman: **8 rota / 16,71 km**. İkisi de aynı şerit geometrisini ve aynı
+kes-doldur yatağını paylaşıyor, yani aynı tür yol gibi görünüyorlar. İki ağı tek ağda birleştirmek
+gerçek bir karar ("her koltuk bağlı" ölçütünü değiştirir), o yüzden yapılmadı.
+
+**Yan etki, olumlu:** kanonik yolların yatakları koltuk ağının geçtiği zemini de yumuşattığı için MST'nin
+en dik eğimi 11,4° → **10,2°** düştü.
+
+**Bir de sınır aşımı düzeltildi.** Bu ekleme `sceneManager.js`'i 606 satıra çıkardı (sınır 600). Zemin
+kurulum dizisi `worldFoundation.js`'e çıkarıldı — pad → vadi → kanonik yol → yol yatağı sırası tek yerde,
+gerekçeleriyle. Sıra kozmetik değil: yanlış sıralamak ADR-0118'in "çizilen zemin ile yürünen zemin
+ayrışır" hatasıdır. sceneManager 554 satıra indi.
+
+**Doğrulama.** `checkOwnerMapAndRoadRoutes.js` (yeni) PASS: map.png mevcut, 667.206 bayt, JPEG,
+sha256 sözleşmeyle aynı; 8 rotanın **her metresi** kanonik 96x64 yüzey maskesine göre karada. 14/14
+koltuk PASS, yollar PASS (18,31 km), vadi PASS, yol koridoru PASS, terrain visual contract, masaüstü
+LOD, SW cache (v25→v26), satır sınırı ve determinizm PASS.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+**Next safe step:** haritada okunacak daha çok yol var (Essos'un doğusu, Yi Ti, Dorne'un içi) ve artık
+görsel depoda olduğu için ormanların/dağların transkripsiyonu da doğrudan ona karşı denetlenebilir.

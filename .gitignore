@@ -3,6 +3,10 @@ firebase-debug.log
 node_modules/
 .DS_Store
 /resimler/
+# ...except the canonical owner map itself. It is the source of truth for every geography contract in
+# src/3d/world/worldReference*.js (SHA-256 20702972...), and having it ignored meant a fresh clone —
+# which is what every remote session gets — had no copy of it at all. Run 361.
+!/resimler/map.png
 /videolar/
 /sounds/
 .claude/

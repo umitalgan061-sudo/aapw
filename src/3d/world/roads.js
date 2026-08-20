@@ -128,7 +128,10 @@ export function computeSeatMST(seats) {
  *   (`ROAD_WIDTH_METERS`) so existing callers are unaffected.
  * @param {THREE.Color} [color] Ribbon color — defaults to `ROAD_COLOR`.
  */
-function appendRoadRibbon(buffers, points, widthMeters = ROAD_WIDTH_METERS, color = ROAD_COLOR) {
+// Exported additively in run 361 so `world/worldReferenceRoadNetwork.js` can draw the owner map's own
+// highways with exactly this ribbon geometry, rather than growing a second, slightly different one.
+// The MST network above is untouched.
+export function appendRoadRibbon(buffers, points, widthMeters = ROAD_WIDTH_METERS, color = ROAD_COLOR) {
 	if (points.length < 2) return;
 	const halfWidth = widthMeters / 2;
 	const baseVertex = buffers.positions.length / 3;

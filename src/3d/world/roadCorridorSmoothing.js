@@ -243,7 +243,7 @@ export function buildRoadCorridor(edges, { sampleHeightMeters }) {
  *   without any road corridor — the phase-1 field.
  * @returns {ReturnType<typeof buildRoadCorridor>}
  */
-export function computeRoadCorridor({ seats, baseSampleHeightMeters }) {
+export function computeRoadCorridor({ seats, baseSampleHeightMeters, extraRoutes = [] }) {
 	const previewEdges = computeSeatMST(seats).map((edgeSpec) => {
 		const from = seats.find((seat) => seat.id === edgeSpec.fromId);
 		const to = seats.find((seat) => seat.id === edgeSpec.toId);
@@ -255,5 +255,8 @@ export function computeRoadCorridor({ seats, baseSampleHeightMeters }) {
 		});
 		return { fromId: edgeSpec.fromId, toId: edgeSpec.toId, points };
 	}).filter(Boolean);
-	return buildRoadCorridor(previewEdges, { sampleHeightMeters: baseSampleHeightMeters });
+	// `extraRoutes` carries the owner map's canonical highways (ADR-0308). They are already routed, so
+	// they skip phase 1 and go straight into the bed — every road in this world gets cut-and-fill, not
+	// just the seat network.
+	return buildRoadCorridor([...previewEdges, ...extraRoutes], { sampleHeightMeters: baseSampleHeightMeters });
 }
