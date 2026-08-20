@@ -17998,6 +17998,13 @@ seçildi: **1,5x**. (İlk koyduğum 3x barajını ikisi de geçiyordu.)
 (0 ıslak), vadi oyma, yol koridoru, arazi görsel sözleşmesi, masaüstü LOD, chunk etek, hizalama, zemin
 gerçekçiliği (ADR-0314), determinizm, service worker v31→v32 (yeni modül yok ama atlas içeriği değişti;
 mevcut çevrimdışı kurulum aksi hâlde eski dokumayı sunmaya devam ederdi).
+`smokeTestGame3D` **42 PASS / 2 FAIL**, 3D mod `outcome=ready` — tur 366 ve 367'nin taban çizgisiyle
+birebir aynı. İki hata da bir kale ve bir ejderha modelinin LFS stub olmasından; hata satırlarının
+hiçbirinde arazi modülü geçmiyor.
+
+*Eşzamanlılık:* yayınlamadan hemen önce uzak `main` yeniden kontrol edildi ve başka bir oturumun
+PR #799'u (NPC muhafız LOD uyanma) geçtiği görüldü. Dala birleştirildi — çakışma yok, arazi dosyalarına
+temas yok — ve kapılar birleşik ağaçta tekrar çalıştırıldı.
 
 *Bildirilen ortam hatası:* `scripts/checkTerrainMicroSurface.mjs` bu konteynerde çalışmıyor — tarayıcı
 dışında çıplak `three` import'unu çözemiyor. Dokunulmamış HEAD'de de aynı şekilde başarısız; bu turun

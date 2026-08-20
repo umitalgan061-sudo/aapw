@@ -17409,3 +17409,10 @@ değil, bu iki ölçülen değerin arasından seçtim.
 
 Kapılar: 14/14 koltuk, yollar (taban çizgisiyle birebir), kanonik yollar 11/11, vadi, koridor, arazi
 görsel sözleşmesi, LOD, chunk etek, hizalama, zemin gerçekçiliği, determinizm, service worker v32.
+Boot testi 42 geçti / 2 kaldı ve 3D mod "hazır" diyor — son iki turun taban çizgisiyle birebir aynı;
+kalan ikisi yine bir kale ve bir ejderha modelinin bu konteynerde LFS stub olmasından, hata
+satırlarında hiçbir arazi dosyası geçmiyor.
+
+Yayınlamadan önce uzak main'i tekrar kontrol ettim: başka bir oturum bu sırada PR #799'u geçirmiş.
+Dalıma birleştirdim, çakışma yok, arazi dosyalarına dokunmuyor, kapıları birleşik ağaçta tekrar
+çalıştırdım.
