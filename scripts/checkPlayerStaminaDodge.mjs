@@ -54,7 +54,9 @@ assert.ok(hud.includes("'guard-break': 'Savunma kırıldı'"));
 for (const fragment of [
   "className = 'g3d-combat-status'", "setAttribute('role', 'status')", "setAttribute('aria-live', 'polite')",
   "addEventListener('aapw:player-lock-on'", "addEventListener('aapw:player-attack-window'", '_paintLockOn(detail)', '_paintAttack(detail)',
-  "'active-start': 'VURUŞ'", "dataset.state = this._combatAttack ? `attack-${this._combatAttack.phase}`", "removeEventListener('aapw:player-lock-on'", "removeEventListener('aapw:player-attack-window'",
+  "'active-start': 'VURUŞ'", "const DEFENSE_LABELS = Object.freeze({ guard: 'BLOK', parry: 'PARRY' })", '_paintDefense(payload)',
+  "payload) => { this._flash(); this._paintDefense(payload); }", "this._combatDefense ? `defense-${this._combatDefense}`",
+  "removeEventListener('aapw:player-lock-on'", "removeEventListener('aapw:player-attack-window'", 'clearTimeout(this._defenseTimeoutId)',
 ]) assert.ok(hud.includes(fragment), `missing combat HUD contract: ${fragment}`);
 assert.ok(input.includes("const GUARD_KEYS = new Set(['KeyQ'])"));
 assert.ok(input.includes('GUARD_POINTER_BUTTON = 2'));
@@ -80,5 +82,5 @@ console.log(JSON.stringify({
   guard: { damageMultiplier: cfg.guardDamageMultiplier, sample20AppliedDamage: guardedDamage, sample20StaminaCost: guardStaminaCost },
   poise: { max: cfg.maxPoise, sample20PoiseCost: guardPoiseCost, hitsToBreak, regenPerSecond: cfg.poiseRegen, regenDelaySeconds: cfg.poiseRegenDelay, guardBreakSeconds: cfg.guardBreakSeconds },
   parry: { windowSeconds: cfg.parryWindow, staminaCost: cfg.parryCost },
-  combatHud: { lockOnEvent: 'aapw:player-lock-on', attackWindowEvent: 'aapw:player-attack-window', accessibleLiveStatus: true },
+  combatHud: { lockOnEvent: 'aapw:player-lock-on', attackWindowEvent: 'aapw:player-attack-window', defenseMitigation: ['guard', 'parry'], accessibleLiveStatus: true },
 }, null, 2));
