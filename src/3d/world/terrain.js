@@ -15,7 +15,7 @@ import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
 import { referenceProtectionRadiiFromMeters, sampleSeatSafeReferenceHydrology } from './worldReferenceHydrology.js';
 import { sampleReferencePindexQualityV2 } from './worldReferenceSurfacePindexes.js';
 import { sampleWorldReferenceMountainReliefMeters } from './worldReferenceMountainRelief.js';
-import { sampleReferenceRoadPaintWorld } from './worldReferenceFeatureGuides.js';
+import { sampleReferenceForestInfluenceWorld, sampleReferenceRoadPaintWorld } from './worldReferenceFeatureGuides.js';
 import { coastWarpOffsets, reliefDetailMeters } from './terrainReliefDetail.js';
 import { continentalUpliftMeters } from './terrainContinentalUplift.js';
 import {
@@ -43,6 +43,7 @@ const MAP_HEIGHT = WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits;
 const TAU = Math.PI * 2;
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const lerp = (a, b, t) => a + (b - a) * t;
+const OWNER_MAP_FOREST_TINT = new THREE.Color(0x315b2f);
 const OWNER_MAP_ROAD_TINT = new THREE.Color(0x806943);
 
 /** Deterministic PRNG retained for roads/rivers and other established callers. */
@@ -439,6 +440,8 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 			worldX: columnWorldX[column],
 			worldZ: rowWorldZ[row],
 		});
+		const ownerMapForestPaint = sampleReferenceForestInfluenceWorld(columnWorldX[column], rowWorldZ[row]);
+		if (ownerMapForestPaint > 0) blended.lerp(OWNER_MAP_FOREST_TINT, ownerMapForestPaint * 0.48);
 		const ownerMapRoadPaint = sampleReferenceRoadPaintWorld(columnWorldX[column], rowWorldZ[row]);
 		if (ownerMapRoadPaint > 0) blended.lerp(OWNER_MAP_ROAD_TINT, ownerMapRoadPaint * 0.78);
 		colors[index * 3] = blended.r;
