@@ -74,11 +74,22 @@ try {
 	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.dataset.state === 'locked', null, { timeout: 3000 });
 	await page.evaluate(() => globalThis.dispatchEvent(new CustomEvent('aapw:player-lock-on', { detail: { locked: false, targetId: 'runtime-guard', reason: 'toggle-release' } })));
 	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.dataset.state === 'free');
+
+	const noTarget = await page.evaluate(() => {
+		globalThis.dispatchEvent(new CustomEvent('aapw:player-lock-on', { detail: { locked: false, targetId: null, reason: 'no-target' } }));
+		const el = document.querySelector('.g3d-combat-status');
+		return { text: el?.textContent ?? '', state: el?.dataset.state ?? '' };
+	});
+	need(noTarget.state === 'no-target' && noTarget.text.includes('Hedef yok'), `failed lock feedback missing: ${JSON.stringify(noTarget)}`);
+	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.dataset.state === 'free', null, { timeout: 2500 });
+	const noTargetReset = await page.locator('.g3d-combat-status').evaluate((el) => ({ text: el.textContent, state: el.dataset.state ?? '' }));
+	need(noTargetReset.text.includes('Serbest'), `failed lock feedback did not reset: ${JSON.stringify(noTargetReset)}`);
+
 	await page.screenshot({ path: path.join(outDir, 'combat-hud-runtime.png'), fullPage: true });
 	need(errors.length === 0, `browser/page errors: ${JSON.stringify(errors)}`);
-	const metrics = { ok: true, baseline, active, lockProjection, outOfRange, inRange, defenseProjection, browserErrors: errors };
+	const metrics = { ok: true, baseline, active, lockProjection, outOfRange, inRange, defenseProjection, noTarget, noTargetReset, browserErrors: errors };
 	fs.writeFileSync(path.join(outDir, 'combat-hud-runtime.json'), `${JSON.stringify(metrics, null, 2)}\n`);
-	console.log(`PLAYER_COMBAT_HUD_RUNTIME_OK ${JSON.stringify({ active: active.text, locked: lockProjection.text, outOfRange: outOfRange.text, inRange: inRange.text, defense: defenseProjection.text, errors: errors.length })}`);
+	console.log(`PLAYER_COMBAT_HUD_RUNTIME_OK ${JSON.stringify({ active: active.text, locked: lockProjection.text, outOfRange: outOfRange.text, inRange: inRange.text, defense: defenseProjection.text, noTarget: noTarget.text, reset: noTargetReset.text, errors: errors.length })}`);
 } finally {
 	await browser.close();
 	await new Promise((resolve) => server.close(resolve));
