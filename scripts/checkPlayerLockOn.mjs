@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { PLAYER_LOCK_ON_CONFIG, applyPlayerLockFacing, computePlayerLockViewForward, createPlayerLockOnController, evaluatePlayerLockTarget, selectPlayerLockTarget } from '../src/3d/gameplay/playerLockOn.js';
+import { PLAYER_LOCK_ON_CONFIG, applyPlayerLockFacing, computePlayerLockViewForward, createPlayerLockOnController, evaluatePlayerLockTarget, selectPlayerLockTarget } from '../src/3d/gameLoopHelpers.js';
 
 const entity = (id, x, z, y = 0) => ({ id, displayName: id, object3D: { position: { x, y, z }, rotation: { y: 0 }, userData: {} } });
 const player = { x: 0, y: 0, z: 0 }, forward = { x: 0, z: 1 };
@@ -43,6 +43,7 @@ for (const fragment of ["const LOCK_ON_KEYS = new Set(['Tab'])", 'LOCK_ON: 11', 
 const touchSource = fs.readFileSync(new URL('../src/3d/ui/touchJoystick.js', import.meta.url), 'utf8');
 for (const fragment of ["className = 'g3d-touch-lock-on-button'", "setAttribute('aria-label', 'Hedef kilidi')", "setAttribute('aria-pressed', 'false')", 'this._lockOnRequested = true', 'consumeLockOnRequested()', 'setLockOnActive(active)', "classList.toggle('g3d-touch-lock-on-active', locked)", "textContent = locked ? 'Kilitli' : 'Hedef'"]) assert.ok(touchSource.includes(fragment), `missing touch lock-on parity: ${fragment}`);
 const loopSource = fs.readFileSync(new URL('../src/3d/gameLoopHelpers.js', import.meta.url), 'utf8');
-for (const fragment of ["from './gameplay/playerLockOn.js'", 'export function updatePlayerLockOn(state)', 'candidates: state.npcs ?? []', 'state.keyboardInput.consumeLockOnRequested?.()', 'state.touchJoystick?.consumeLockOnRequested?.()', 'toggleRequested: !state.paused && (keyboardToggle || touchToggle)', 'state.touchJoystick?.setLockOnActive?.(Boolean(snapshot?.locked))', 'applyPlayerLockFacing(state.player.object3D', 'updatePlayerLockOn(state);']) assert.ok(loopSource.includes(fragment), `missing shipped lock-on integration: ${fragment}`);
+for (const fragment of ['export const PLAYER_LOCK_ON_CONFIG', 'export function createPlayerLockOnController', 'export function updatePlayerLockOn(state)', 'candidates: state.npcs ?? []', 'state.keyboardInput.consumeLockOnRequested?.()', 'state.touchJoystick?.consumeLockOnRequested?.()', 'toggleRequested: !state.paused && (keyboardToggle || touchToggle)', 'state.touchJoystick?.setLockOnActive?.(Boolean(snapshot?.locked))', 'applyPlayerLockFacing(state.player.object3D', 'updatePlayerLockOn(state);']) assert.ok(loopSource.includes(fragment), `missing shipped lock-on integration: ${fragment}`);
 assert.ok(!loopSource.includes('npc.update('), 'Player lock-on adapter must not mutate or invoke NPC AI');
+assert.ok(!fs.existsSync(new URL('../src/3d/gameplay/playerLockOn.js', import.meta.url)), 'lock-on must not add an uncached parallel runtime module');
 console.log('[checkPlayerLockOn] PASS');
