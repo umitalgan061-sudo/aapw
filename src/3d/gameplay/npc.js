@@ -328,7 +328,18 @@ export async function createNPC({
 				playerSpeedMps = Math.min(12, Math.hypot(playerPosition.x - previousPlayerPosition.x, playerPosition.z - previousPlayerPosition.z) / delta);
 			}
 			previousPlayerPosition = hasPlayerPosition ? { x: playerPosition.x, z: playerPosition.z } : null;
-			const urgent = hasPlayerPosition && combatStanceEnabled && distanceToPlayer <= combatStanceTriggerRadiusMeters;
+			const proximityUrgent = hasPlayerPosition && combatStanceEnabled && distanceToPlayer <= combatStanceTriggerRadiusMeters;
+			const pendingGuardAssist = perceptionEnabled && combatStanceEnabled && hasPlayerPosition
+				? evaluateNpcGuardAssistAlert({
+					alert: guardAlertChannel?.groups?.get?.(guardAlertGroupId),
+					observer: model.position,
+					groupId: guardAlertGroupId,
+					sourceId: guardSourceId,
+					lastRevision: lastGuardAlertRevision,
+					assistRadiusMeters: guardAssistRadiusMeters,
+				})
+				: null;
+			const urgent = proximityUrgent || Boolean(pendingGuardAssist?.accepted);
 			const simulationDelta = simulationLodEnabled
 				? simulationLod.step(delta, distanceToPlayer, urgent)
 				: clampSimulationDelta(delta, simulationLodMaxStepSeconds);
