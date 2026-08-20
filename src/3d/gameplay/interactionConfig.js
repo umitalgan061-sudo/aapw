@@ -50,6 +50,35 @@ export function createWatchWorldState() {
 	return { get, set, snapshot, restore };
 }
 
+export const INTERACTION_JOURNEY_POLICY = Object.freeze({ MAX_FATIGUE_KM: 52, MAX_COMMIT_COUNT: 1_000_000 });
+
+/** Compact travel-survival state kept inside the existing interaction RPG owner. */
+export function createInteractionJourneyState() {
+	let fatigueKm = 0;
+	let commitCount = 0;
+	let lastDestinationId = null;
+	function normalizeFatigue(value) {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) && parsed >= 0 ? Math.min(INTERACTION_JOURNEY_POLICY.MAX_FATIGUE_KM, Number(parsed.toFixed(2))) : 0;
+	}
+	function snapshot() { return { fatigueKm, commitCount, lastDestinationId }; }
+	function restore(saved) {
+		fatigueKm = normalizeFatigue(saved?.fatigueKm);
+		const count = Number(saved?.commitCount);
+		commitCount = Number.isFinite(count) && count >= 0 ? Math.min(INTERACTION_JOURNEY_POLICY.MAX_COMMIT_COUNT, Math.floor(count)) : 0;
+		lastDestinationId = String(saved?.lastDestinationId ?? '').trim() || null;
+	}
+	function applyCommit(result) {
+		if (result?.ok !== true || result?.plan?.complete !== true) return false;
+		fatigueKm = normalizeFatigue(result.plan.finalFatigueKm);
+		commitCount = Math.min(INTERACTION_JOURNEY_POLICY.MAX_COMMIT_COUNT, commitCount + 1);
+		const travelSteps = result.plan.steps?.filter((step) => step.type === 'travel' && step.allowed) ?? [];
+		lastDestinationId = travelSteps.at(-1)?.destinationId ?? lastDestinationId;
+		return true;
+	}
+	return { snapshot, restore, applyCommit };
+}
+
 export function watchPolicyLabel(policy) {
 	if (policy === WATCH_POLICY.MERCY) return 'İkinci şans';
 	if (policy === WATCH_POLICY.DISCIPLINE) return 'Sıkı disiplin';
@@ -234,10 +263,10 @@ export function createInteractionInventoryState() {
 		};
 	}
 
-	function commitJourneyWithRestStops(steps = []) {
+	function commitJourneyWithRestStops(steps = [], context = {}) {
 		const authoredSteps = Array.isArray(steps) ? steps : [];
 		const before = snapshot();
-		const plan = evaluateJourneyWithRestStops(before.fieldReadiness ?? before, authoredSteps);
+		const plan = evaluateJourneyWithRestStops(before.fieldReadiness ?? before, authoredSteps, context);
 		if (!plan.complete) {
 			const blocked = plan.steps?.find((step) => step.index === plan.blockedAtStepIndex) ?? null;
 			const reasons = blocked?.type === 'rest' ? blocked?.decision?.reasons : blocked?.reasons;
