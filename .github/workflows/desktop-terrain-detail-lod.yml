@@ -1,0 +1,98 @@
+name: Desktop Terrain Detail LOD
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/chunkManager.js'
+      - 'scripts/checkDesktopTerrainDetailLod.mjs'
+      - 'scripts/captureDesktopTerrainDetailLod.mjs'
+      - '.github/workflows/desktop-terrain-detail-lod.yml'
+
+concurrency:
+  group: desktop-terrain-detail-lod-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Exact-main and bounded-scope gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD "$MAIN_SHA")" = "$MAIN_SHA"
+          A="$(git diff --numstat "$MAIN_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
+          D="$(git diff --numstat "$MAIN_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
+          echo "desktop terrain detail scope additions=$A deletions=$D total=$((A+D))"
+          test $((A+D)) -le 1000
+          git diff --check "$MAIN_SHA"...HEAD
+
+      - name: Install Chromium outside repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Desktop LOD topology, runtime and mobile preservation
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/chunkManager.js
+          node --check scripts/checkDesktopTerrainDetailLod.mjs
+          node scripts/checkDesktopTerrainDetailLod.mjs | tee "$RUNNER_TEMP/desktop-terrain-detail-lod.log"
+          node scripts/checkMobileTerrainLod.js | tee "$RUNNER_TEMP/mobile-terrain-lod.log"
+
+      - name: Shared terrain safety and shipped browser smoke
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/terrainSeatSafetyCheck.js | tee "$RUNNER_TEMP/terrain-seat.log"
+          node scripts/roadNetworkSafetyCheck.js | tee "$RUNNER_TEMP/road-network.log"
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/game3d-smoke.log"
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' "$RUNNER_TEMP/game3d-smoke.log" | grep -F 'zero console/page errors'
+
+      - name: Capture exact-head terrain detail evidence
+        if: ${{ hashFiles('scripts/captureDesktopTerrainDetailLod.mjs') != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/captureDesktopTerrainDetailLod.mjs
+
+      - name: Upload topology logs and visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-terrain-detail-lod-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/desktop-terrain-detail-lod.log
+            ${{ runner.temp }}/mobile-terrain-lod.log
+            ${{ runner.temp }}/terrain-seat.log
+            ${{ runner.temp }}/road-network.log
+            ${{ runner.temp }}/game3d-smoke.log
+            artifacts/desktop-terrain-detail-lod/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Final exact-main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
