@@ -44,7 +44,9 @@ async function main() {
         name: 'hearing-guard', displayName: 'Hearing Guard',
         groundCollider: { getGroundHeight: () => 0 },
         playerCollider: { resolveXZ: (x, z) => ({ x, z }) },
-        speedMps: 2, combatStanceTriggerRadiusMeters: 10,
+        // Keep this proof about hearing/memory rather than allowing investigation movement to carry
+        // the guard into close-awareness range, where direct sight is expected to take ownership.
+        speedMps: 0, combatStanceTriggerRadiusMeters: 10,
         combatStanceTransitionSeconds: 0.05, perceptionEnabled: true,
         guardAlertChannel: channel, guardAlertGroupId: 'stannis',
         simulationLodEnabled: true, simulationLodNearRadiusMeters: 30,
@@ -81,8 +83,10 @@ async function main() {
         && afterNoise.lastKnown?.z === -6
         && afterNoise.investigationRemaining > 0;
 
+      // speedMps=0 deliberately isolates perception; the authored memory denominator clamps to 0.25,
+      // so 30 wall-clock seconds safely covers the <=25.25s hearing investigation horizon.
       let returnFrames = null;
-      for (let i = 0; i < 900; i += 1) {
+      for (let i = 0; i < 1800; i += 1) {
         npc.update(dt, stoppedPlayer);
         const perception = npc.object3D.userData.npcPerception;
         if (perception?.intent === 'patrol' && perception?.heard === false) {
@@ -103,7 +107,7 @@ async function main() {
         hearingStopped,
         memoryContinuesInvestigation,
         returnedToPatrol: returnFrames != null,
-        returnBounded: returnFrames != null && returnFrames <= 900,
+        returnBounded: returnFrames != null && returnFrames <= 1800,
         noAlertAfterRecovery,
         registryCleanAfterDispose: channel.groups.size === 0,
       };
