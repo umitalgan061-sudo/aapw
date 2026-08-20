@@ -5,7 +5,12 @@ on:
     paths:
       - 'map.png/map.png'
       - '.github/workflows/map-reference-inspection.yml'
+      - 'scripts/checkOwnerMapLiveGeography.mjs'
       - 'src/3d/world/**'
+
+concurrency:
+  group: map-reference-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -13,15 +18,40 @@ permissions:
 jobs:
   map-reference:
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Verify exact owner reference
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exact-main and bounded-scope gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD "$MAIN_SHA")" = "$MAIN_SHA"
+          A="$(git diff --numstat "$MAIN_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
+          D="$(git diff --numstat "$MAIN_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
+          echo "owner-map geography scope additions=$A deletions=$D total=$((A+D))"
+          test $((A+D)) -le 1000
+          git diff --check "$MAIN_SHA"...HEAD
+      - name: Verify exact owner reference and live guides
         shell: bash
         run: |
           set -euo pipefail
           test -s map.png/map.png
           file map.png/map.png
           sha256sum map.png/map.png | tee map-reference.sha256
+          node --check src/3d/world/worldReferenceFeatureGuides.js
+          node --check src/3d/world/worldReferenceMap.js
+          node --check src/3d/world/worldReferenceMountainRelief.js
+          node --check src/3d/world/roadPathfinder.js
+          node --check src/3d/world/roads.js
+          node --check src/3d/world/vegetation.js
+          node scripts/checkOwnerMapLiveGeography.mjs | tee owner-map-geography.log
       - name: Upload owner reference evidence
         uses: actions/upload-artifact@v4
         with:
@@ -29,4 +59,11 @@ jobs:
           path: |
             map.png/map.png
             map-reference.sha256
+            owner-map-geography.log
           retention-days: 7
+      - name: Final exact-main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
