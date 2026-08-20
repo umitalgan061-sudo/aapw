@@ -9,6 +9,7 @@ import {
 	WATCH_POLICY,
 	buildInventoryText,
 	createInteractionInventoryState,
+	createInteractionJourneyState,
 	createWatchWorldState,
 	watchPolicyLabel,
 } from './interactionConfig.js';
@@ -282,6 +283,7 @@ export function createInteractionController({
 	onWorldStateChanged = () => {},
 	onInventoryChanged = () => {},
 	onEconomyChanged = () => {},
+	onJourneyChanged = () => {},
 }) {
 	let activeNpc = null;
 	let nearestNpc = null;
@@ -294,6 +296,7 @@ export function createInteractionController({
 	const worldState = createWatchWorldState();
 	const inventory = createInteractionInventoryState();
 	const economy = createInteractionEconomyState();
+	const journey = createInteractionJourneyState();
 	const quests = createQuestTracker({
 		reputation,
 		progression,
@@ -367,7 +370,7 @@ export function createInteractionController({
 	function showInventory() {
 		activeNpc = null; activeChoices = null; activeNpcName = null; journalOpen = true; shopOpen = false;
 		interactionPrompt.setVisible(false);
-		dialogueBox.show(buildInventoryText(inventory.snapshot()));
+		dialogueBox.show(buildInventoryText(inventory.snapshot(), journey.snapshot()));
 	}
 	function showQuartermaster(feedback = '') {
 		if (nearestNpc?.object3D?.name !== QUARTERMASTER_NPC_ID) return false;
@@ -398,6 +401,16 @@ export function createInteractionController({
 		activeChoices = null;
 		dialogueBox.show(choice.response.replace('{name}', activeNpcName));
 		if (quests.consume(npcId, choice.originalIndex)) onQuestChanged(quests.snapshot());
+	}
+	function commitJourneyWithRestStops(steps = []) {
+		const journeyBefore = journey.snapshot();
+		const result = inventory.commitJourneyWithRestStops(steps, { startingFatigueKm: journeyBefore.fatigueKm });
+		if (!result.ok) return { ...result, journey: journeyBefore };
+		if (!journey.applyCommit(result)) return { ...result, ok: false, reason: 'journey-state-commit-failed', journey: journeyBefore };
+		const journeySnapshot = journey.snapshot();
+		if (result.consumedQuantity > 0) onInventoryChanged(result.inventory);
+		onJourneyChanged(journeySnapshot);
+		return { ...result, journey: journeySnapshot };
 	}
 	function rebuildRewardStateFromQuestRewards(savedQuestSnapshot, { includeObjectiveExperience = true } = {}) {
 		reputation.restore(DEFAULT_REPUTATION);
@@ -436,6 +449,7 @@ export function createInteractionController({
 		inventory.restore(saved.inventory);
 		economy.restore(saved.economy);
 		worldState.restore(saved.worldState);
+		journey.restore(saved.journey);
 		quests.restore(saved.quests);
 		if (!saved.reputation || !saved.progression || !saved.inventory) {
 			const explicitReputation = saved.reputation;
@@ -452,6 +466,7 @@ export function createInteractionController({
 		onInventoryChanged(inventory.snapshot());
 		onEconomyChanged(economy.snapshot());
 		onWorldStateChanged(worldState.snapshot());
+		onJourneyChanged(journey.snapshot());
 		onQuestChanged(quests.snapshot());
 	}
 
@@ -494,15 +509,19 @@ export function createInteractionController({
 		showQuestJournal: showJournal,
 		showInventory,
 		showQuartermaster,
+		commitJourneyWithRestStops,
 		getQuestSnapshot: quests.snapshot,
 		getReputationSnapshot: reputation.snapshot,
 		getProgressionSnapshot: progression.snapshot,
 		getInventorySnapshot: inventory.snapshot,
 		getEconomySnapshot: economy.snapshot,
 		getWorldStateSnapshot: worldState.snapshot,
+		getJourneySnapshot: journey.snapshot,
 		getRpgSnapshot() {
-			return {
-				schemaVersion: 5,
+			const journeySnapshot = journey.snapshot();
+			const hasJourneyState = journeySnapshot.commitCount > 0 || journeySnapshot.fatigueKm > 0 || journeySnapshot.lastDestinationId !== null || journeySnapshot.recentReceipts.length > 0;
+			const result = {
+				schemaVersion: hasJourneyState ? 6 : 5,
 				quests: quests.snapshot(),
 				reputation: reputation.snapshot(),
 				progression: progression.snapshot(),
@@ -510,17 +529,21 @@ export function createInteractionController({
 				economy: economy.snapshot(),
 				worldState: worldState.snapshot(),
 			};
+			if (hasJourneyState) result.journey = journeySnapshot;
+			return result;
 		},
 		restoreQuestSnapshot(snapshot) {
 			quests.restore(snapshot);
 			rebuildRewardStateFromQuestRewards(snapshot, { includeObjectiveExperience: true });
 			inferWorldStateFromQuestSnapshot(snapshot);
 			economy.restore(null);
+			journey.restore(null);
 			onReputationChanged(reputation.snapshot());
 			onProgressionChanged(progression.snapshot());
 			onInventoryChanged(inventory.snapshot());
 			onEconomyChanged(economy.snapshot());
 			onWorldStateChanged(worldState.snapshot());
+			onJourneyChanged(journey.snapshot());
 			onQuestChanged(quests.snapshot());
 		},
 		restoreRpgSnapshot,
