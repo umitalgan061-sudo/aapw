@@ -36,6 +36,9 @@ async function main() {
         async loadFBXModel() { const group = new THREE.Group(); group.animations = []; return group; }
       }
       const channel = { nextRevision: 1, groups: new Map() };
+      // Keep a deterministic opaque wall between this sentry and the noise source for the whole proof.
+      // Hearing must therefore own the investigation lifecycle even if the controller turns toward lastKnown.
+      const hearingOccluder = { resolveXZ: (x, z) => ({ x: x + 0.5, z }) };
       const npc = await createNPC({
         assetLoader: new FakeAssetLoader(),
         modelUrl: '/assets/models/characters/paladin_j_nordstrom.fbx',
@@ -43,7 +46,7 @@ async function main() {
         worldX: 0, worldZ: 0, groundY: 0, rotationYRadians: 0,
         name: 'hearing-guard', displayName: 'Hearing Guard',
         groundCollider: { getGroundHeight: () => 0 },
-        playerCollider: { resolveXZ: (x, z) => ({ x, z }) },
+        playerCollider: hearingOccluder,
         // Keep this proof about hearing/memory rather than allowing investigation movement to carry
         // the guard into close-awareness range, where direct sight is expected to take ownership.
         speedMps: 0, combatStanceTriggerRadiusMeters: 10,
