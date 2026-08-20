@@ -22,6 +22,10 @@ on:
       - 'scripts/checkInteractionFieldReadiness.mjs'
       - 'scripts/checkInteractionFieldReadinessBrowser.mjs'
       - 'scripts/checkInteractionFastTravelBoundary.mjs'
+      - 'scripts/checkInteractionRouteProvisions.mjs'
+      - 'scripts/checkInteractionRouteProvisionsBrowser.mjs'
+      - 'scripts/checkInteractionFastTravelConsumption.mjs'
+      - 'scripts/checkInteractionRouteProvisionPersistence.mjs'
       - 'service-worker.js'
       - '.github/workflows/rpg-interaction-quest-loop.yml'
   workflow_dispatch:
@@ -39,11 +43,9 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-
       - name: Exact-main bounded scope
         shell: bash
         run: |
@@ -55,14 +57,13 @@ jobs:
           printf '%s\n' "${FILES[@]}"
           for path in "${FILES[@]}"; do
             case "$path" in
-              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionConfig.js|src/3d/gameplay/interactionEconomy.js|src/3d/gameplay/interactionFieldReadiness.js|scripts/checkInteractionQuestLoop.mjs|scripts/checkInteractionInventoryRewards.mjs|scripts/checkInteractionQuartermasterTrade.mjs|scripts/checkInteractionTradeLedgerAtomicity.mjs|scripts/checkInteractionTradeLedgerBrowser.mjs|scripts/checkInteractionSettlementServiceContract.mjs|scripts/checkInteractionSettlementServiceBrowser.mjs|scripts/checkInteractionArmorerServiceBrowser.mjs|scripts/checkInteractionProvisioningCraft.mjs|scripts/checkInteractionProvisioningCraftBrowser.mjs|scripts/checkInteractionExpeditionKitCraft.mjs|scripts/checkInteractionExpeditionKitBrowser.mjs|scripts/checkInteractionFieldReadiness.mjs|scripts/checkInteractionFieldReadinessBrowser.mjs|scripts/checkInteractionFastTravelBoundary.mjs|service-worker.js|.github/workflows/rpg-interaction-quest-loop.yml) ;;
+              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionConfig.js|src/3d/gameplay/interactionEconomy.js|src/3d/gameplay/interactionFieldReadiness.js|scripts/checkInteractionQuestLoop.mjs|scripts/checkInteractionInventoryRewards.mjs|scripts/checkInteractionQuartermasterTrade.mjs|scripts/checkInteractionTradeLedgerAtomicity.mjs|scripts/checkInteractionTradeLedgerBrowser.mjs|scripts/checkInteractionSettlementServiceContract.mjs|scripts/checkInteractionSettlementServiceBrowser.mjs|scripts/checkInteractionArmorerServiceBrowser.mjs|scripts/checkInteractionProvisioningCraft.mjs|scripts/checkInteractionProvisioningCraftBrowser.mjs|scripts/checkInteractionExpeditionKitCraft.mjs|scripts/checkInteractionExpeditionKitBrowser.mjs|scripts/checkInteractionFieldReadiness.mjs|scripts/checkInteractionFieldReadinessBrowser.mjs|scripts/checkInteractionFastTravelBoundary.mjs|scripts/checkInteractionRouteProvisions.mjs|scripts/checkInteractionRouteProvisionsBrowser.mjs|scripts/checkInteractionFastTravelConsumption.mjs|scripts/checkInteractionRouteProvisionPersistence.mjs|service-worker.js|.github/workflows/rpg-interaction-quest-loop.yml) ;;
               *) echo "unexpected RPG scope path: $path" >&2; exit 1 ;;
             esac
           done
           CHANGED="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           test "$CHANGED" -le 1000
           git diff --check "$BASE_SHA" HEAD
-
       - name: Syntax and deterministic quest lifecycle
         run: |
           set -euo pipefail
@@ -85,6 +86,10 @@ jobs:
           node --check scripts/checkInteractionFieldReadiness.mjs
           node --check scripts/checkInteractionFieldReadinessBrowser.mjs
           node --check scripts/checkInteractionFastTravelBoundary.mjs
+          node --check scripts/checkInteractionRouteProvisions.mjs
+          node --check scripts/checkInteractionRouteProvisionsBrowser.mjs
+          node --check scripts/checkInteractionFastTravelConsumption.mjs
+          node --check scripts/checkInteractionRouteProvisionPersistence.mjs
           node scripts/checkInteractionQuestLoop.mjs
           node scripts/checkInteractionInventoryRewards.mjs
           node scripts/checkInteractionQuartermasterTrade.mjs
@@ -94,7 +99,9 @@ jobs:
           node scripts/checkInteractionExpeditionKitCraft.mjs
           node scripts/checkInteractionFieldReadiness.mjs
           node scripts/checkInteractionFastTravelBoundary.mjs
-
+          node scripts/checkInteractionRouteProvisions.mjs
+          node scripts/checkInteractionFastTravelConsumption.mjs
+          node scripts/checkInteractionRouteProvisionPersistence.mjs
       - name: Shared regression contracts
         run: |
           set -euo pipefail
@@ -102,7 +109,6 @@ jobs:
           node scripts/checkServiceWorkerCache.js
           node scripts/checkPwaInstallability.js
           node scripts/checkSharedMaterialPlacementContract.js
-
       - name: Install Chromium acceptance harness
         run: |
           set -euo pipefail
@@ -110,7 +116,6 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-
       - name: Shipped browser quartermaster and settlement services
         run: |
           set -euo pipefail
@@ -120,7 +125,7 @@ jobs:
           NODE_PATH="$NODE_PATH" node scripts/checkInteractionProvisioningCraftBrowser.mjs
           NODE_PATH="$NODE_PATH" node scripts/checkInteractionExpeditionKitBrowser.mjs
           NODE_PATH="$NODE_PATH" node scripts/checkInteractionFieldReadinessBrowser.mjs
-
+          NODE_PATH="$NODE_PATH" node scripts/checkInteractionRouteProvisionsBrowser.mjs
       - name: Final exact-main freshness
         run: |
           set -euo pipefail
