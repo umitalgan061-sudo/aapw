@@ -17,6 +17,7 @@ import { sampleReferencePindexQualityV2 } from './worldReferenceSurfacePindexes.
 import { sampleWorldReferenceMountainReliefMeters } from './worldReferenceMountainRelief.js';
 import { coastWarpOffsets, reliefDetailMeters } from './terrainReliefDetail.js';
 import { continentalUpliftMeters } from './terrainContinentalUplift.js';
+import { valyriaUpliftMeters, applyValyriaSurface, valyriaInfluence01 } from './worldReferenceValyria.js';
 import { createTerrainChunkSkirt, disposeTerrainChunkSkirt } from './terrainChunkSkirt.js';
 import {
 	TERRAIN_MICRO_SURFACE_POLICY,
@@ -232,6 +233,12 @@ function sampleCanonicalHeightMeters(worldX, worldZ, outSurface) {
 		snowWeight,
 		waterWeight,
 	}) * detailTaper;
+
+	// Run 372 / ADR-0319 — the Doom of Valyria. Applied after the relief detail and before the
+	// seat-protection clamp, on the same footing as every other land-shaping term. It returns 0 off the
+	// Valyrian peninsula and 0 at or below the waterline, so the Smoking Sea keeps its shape and no
+	// coastline moves; see `world/worldReferenceValyria.js` for the map reading it is built on.
+	heightMeters += valyriaUpliftMeters(nx, ny, heightMeters - SEA_LEVEL) * detailTaper;
 
 	// Keep the Pindex V2 coastal blend continuous. `rawWater` is a semantic QA bit and must not
 	// reintroduce a binary height cliff after the continuous surface weights have been evaluated.
@@ -467,6 +474,7 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 		// Run 367 / ADR-0314 — drainage, aspect and scale hierarchy over the biome colour. Render-only:
 		// the four neighbours are the same ones the slope above is measured from, so this adds no
 		// sampling and touches no height authority. See `world/terrainGroundRealism.js`.
+		const valyriaCurvature = curvatureMetersFromNeighbours(heightWest, heightEast, heightNorth, heightSouth, ownHeight, spacingMeters);
 		applyGroundRealism(blended, {
 			// `spacingMeters` is this chunk's own vertex spacing, and it must be passed: curvature grows
 			// with the stencil it is measured over, so a 32-segment chunk and a 128-segment one would
@@ -482,6 +490,18 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 			// pass has already committed to them.
 			soilCoverage01: 1 - Math.max(apronRock[apronOffset], apronSnow[apronOffset]) * 0.75,
 		});
+		// Run 372 / ADR-0319 — the Doom, over everything the biome and drainage passes decided. Basalt,
+		// ash on the heights, and lava pooling in the same hollows drainage uses, which is why the
+		// curvature above is reused rather than resampled.
+		{
+			const valyriaPoint = currentMapPoint(worldX, worldZ);
+			applyValyriaSurface(blended, {
+				nx: valyriaPoint.nx,
+				ny: valyriaPoint.ny,
+				heightAboveSeaMeters,
+				curvatureMeters: valyriaCurvature,
+			});
+		}
 		colors[index * 3] = blended.r;
 		colors[index * 3 + 1] = blended.g;
 		colors[index * 3 + 2] = blended.b;

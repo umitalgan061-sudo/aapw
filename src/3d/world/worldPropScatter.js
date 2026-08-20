@@ -43,6 +43,7 @@ import { mulberry32 } from './terrain.js';
 import { sampleMapAridity01, sampleMapForest01 } from './worldReferenceBiomeField.js';
 import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
 import { PROP_CATALOGUE_BY_BIOME, PROP_CATALOGUE_POLICY } from './worldPropCatalogue.js';
+import { valyriaInfluence01 } from './worldReferenceValyria.js';
 import { WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG } from '../config.js';
 
 export const PROP_SCATTER_POLICY = Object.freeze({
@@ -86,6 +87,9 @@ export const PROP_SCATTER_POLICY = Object.freeze({
 	 * appeared anywhere in the world.
 	 */
 	roadsideOuterMeters: 650,
+	/** Valyrian influence above which the ground is barren — see `world/worldReferenceValyria.js`. The
+	 * rim still takes scenery, so the Doom fades out rather than ending at a line. */
+	valyriaBarrenAbove: 0.25,
 });
 
 const ASSET_ROOT = PROP_CATALOGUE_POLICY.assetRoot;
@@ -217,6 +221,9 @@ export function planChunkProps({ chunkX, chunkZ, sampleHeightMeters, seed, seats
 		// Inside a seat's clearance nothing is placed at all: that pad belongs to the castle.
 		if (nearSeatMeters < 0) continue;
 		const { nx, ny } = normalizedMapPoint(x, z);
+		// Nothing has grown or stood in Valyria since the Doom. Barns, trees, statues and cattle all
+		// belong to a living country; the Freehold's ruin is ash and slag. See `worldReferenceValyria.js`.
+		if (valyriaInfluence01(nx, ny) > PROP_SCATTER_POLICY.valyriaBarrenAbove) continue;
 		const biome = resolvePropBiome({
 			heightAboveSeaMeters,
 			slopeDegrees,

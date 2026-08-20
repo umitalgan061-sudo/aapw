@@ -32,6 +32,9 @@
 
 import * as THREE from 'three';
 import { mulberry32 } from './terrain.js';
+import { valyriaInfluence01 } from './worldReferenceValyria.js';
+import { WORLD_SCALE } from '../config.js';
+import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
 
 /** Grid step, in meters, for the deterministic search that picks the river's source point (the
  * highest sampled point within `searchRadiusMeters` of the origin) — coarse enough to stay cheap
@@ -173,6 +176,14 @@ export function updateFlowAnimation(mesh, elapsedSeconds) {
  * @param {number} [options.maxSteps=400] Hard cap so a pathological height field can't loop forever.
  * @returns {{points: THREE.Vector3[], endReason: 'sea'|'bounds'|'local-minimum'|'max-steps'}}
  */
+/** World X/Z to normalized owner-map coordinates, for the Valyria exclusion in the source search. */
+function normalizedRiverPoint(worldX, worldZ) {
+	const { MAP_BOUNDS, METERS_PER_MAP_UNIT } = WORLD_SCALE;
+	const nx = (worldX / METERS_PER_MAP_UNIT + (MAP_BOUNDS.minX + MAP_BOUNDS.maxX) * 0.5) / WORLD_REFERENCE_ALIGNMENT.mapCanvasWidthUnits;
+	const ny = (worldZ / METERS_PER_MAP_UNIT + (MAP_BOUNDS.minY + MAP_BOUNDS.maxY) * 0.5) / WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits;
+	return [Math.max(0, Math.min(1, nx)), Math.max(0, Math.min(1, ny))];
+}
+
 export function generateRiverPath({
 	seed,
 	sampleHeightMeters,
@@ -187,6 +198,11 @@ export function generateRiverPath({
 	let sourceHeight = -Infinity;
 	for (let x = -searchRadiusMeters; x <= searchRadiusMeters; x += SOURCE_SEARCH_STEP_METERS) {
 		for (let z = -searchRadiusMeters; z <= searchRadiusMeters; z += SOURCE_SEARCH_STEP_METERS) {
+			// No river rises in the Doom (run 372 / ADR-0319). This search takes the highest ground within
+			// its radius, and raising Valyria made a volcanic peak the highest thing near the origin — the
+			// river source relocated onto it, the course collapsed from 30 points to 15, and
+			// `scripts/checkRiverValleyCarving.js` failed. Valyria is ash and slag; nothing springs there.
+			if (valyriaInfluence01(...normalizedRiverPoint(x, z)) > 0.25) continue;
 			const h = sampleHeightMeters(x, z);
 			if (h > sourceHeight) {
 				sourceHeight = h;

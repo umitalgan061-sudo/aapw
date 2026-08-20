@@ -18213,3 +18213,80 @@ biyomun hepsi, su altı 0 / dik 0 / koltuk içi 0 / çakışma 0, determinizm sa
 varlık manifesti (499), satır sınırı (katalog 272, serpme 442) PASS.
 
 **Technical debt.** 0 new. **World Coverage.** Katalog 150 → **185** kayıt.
+
+## ADR-0319 — Valyria: çayır değil, Doom
+
+**Bağlam.** Sahip: *"VALYRIA bölgesini yeşil alan yerine Lav'dan oluşan sert dağlık görünümüne
+kavuştur."* Haklıydı ve ne kadar haklı olduğunu ölçtüm: `map.png`'nin Valyria yarımadasını çizdiği
+kara, canlı alanda **deniz üstü ortalama 19,7 m, tepe 40,5 m**, orman kapsaması 0,05, aridite 0,05 —
+yani bu projedeki her kural onu haklı olarak **düz yeşil ova** diye okuyordu. Dünyanın en büyük
+uygarlığının kalıntısı çayır olarak render ediliyordu.
+
+**Haritaya bakarak.** `resimler/map.png` 3x büyütmeyle okundu: VALYRIA etiketli parçalanmış pas-mor
+bir yarımada, kuzeyinde kırık parçalar üzerinde OROS ve TYRIA, aralarındaki boğulmuş suyun üstünde
+"The Smoking Sea", ve yukarısında MANTARYS ile Demon Road'a uzanan "LANDS OF THE LONG SUMMER" kıstağı.
+Bölgenin hiçbir yeri yeşil çizilmemiş; kartograf üstüne duman sürmüş.
+
+**Lore'un araziye koyduğu dört şart.** Valyria volkanik bir yarımadaydı — Ondört Alev onun dağlarıydı,
+Freehold ejderha camı için onları oyar ve ısılarını işlerdi. Doom hepsini aynı anda kırdı: yarımada
+adalara ayrıldı, deniz yaraya doldu ve hâlâ kaynıyor, dört yüz yıldır orası kül ve cüruf. Yani zemin
+**dağlık** (Alevler), **parçalanmış** (kırılma), **siyah** (bazalt, kül, obsidyen) ve **çorak**
+(hiçbir şey yetişmiyor) olmalı — dördünü de yeşil bir çayır karşılamıyordu.
+
+**Kıyı çizgisine dokunulmadı.** Yükseltme yalnızca kanonik maskenin zaten kara dediği yerde ve kıyıdan
+rampalanarak uygulanıyor. Bölgeyi toptan kaldırmak Smoking Sea'yi doldurur ve Doom'u geri alırdı;
+sahibin duran talimatı haritadan şaşmamak, ve haritanın buradaki cevabı *ılık suda kırık kara*.
+Ölçüldü: sonda ızgarasında **49 kara / 138 deniz hücresi, öncesi ve sonrası birebir aynı**.
+
+### Bir kez daha tahmin ettim ve render beni yakaladı
+
+İlk denemede kırılmayı `shatterFrequency: 150` ve 4 oktavla kurdum. Bu, en ince oktavı
+13.500 / (150 x 2,07³) ≈ **10 m** dalga boyuna koyuyor — 3,91 m'lik yakın bant mesh'inin Nyquist
+sınırı olan 7,8 m'nin dibinde. Sonuç dağ değil **enkazdı**: yırtılmış tabakalar, havada duran
+levhalar, denize sarkan etek perdeleri. Ölçüm de söyledi: dünyanın en kötü LOD boşluğu 61,1 m'den
+**85,2 m**'ye çıkmıştı.
+
+55 frekans ve 3 oktava indirildi — en ince oktav ~57 m, mesh'in gerçekten taşıyabileceği ölçek. Boşluk
+71,1 m'ye indi, arazi bütünleşti, ve razor spike yerine geniş parçalanmış zirveler çıktı. Uplift 380 →
+330 m; şu an ortalama kara **109,2 m**, tepe **360,1 m**.
+
+### Yüzey
+
+Bazalt (`0x2a2422`) taban, yükseklerde kül (`0x6b6560`), ve **lav çukurlarda**. Lav için
+`terrainGroundRealism`'in her köşe için zaten hesapladığı drenaj eğriliği yeniden kullanılıyor: erimiş
+kaya da su gibi aşağı akar ve aynı içbükey yerlerde birikir. Yani başka bir yerde ıslak dere yatağı
+yapan aynı şekil, burada lav kanalı yapıyor — ek örnekleme maliyeti sıfır, ve parıltı zeminin kendi
+biçiminin söylediği yere düşüyor. (İlk ayarımda lav bütün yamaçları kaplıyordu; eğrilik eşiği
+0,15 → 0,45 yapıldı, damar oldu.)
+
+**Çorak.** `forestCoverage01` — orman için tek otorite — bölgede sıfır döndürüyor, yani hem zemin
+rengi hem `vegetation.js`'in ağaç serpmesi tek yerden kesiliyor. `worldPropScatter` de Doom'un
+kalbinde hiçbir şey yerleştirmiyor.
+
+**§8.4 öncesi/sonrası.** 14/14 koltuk **birebir aynı**. Yollar PASS; yalnızca **zaten SEA/feribot
+borçlu** iki kenar değişti (`umit->doran` 27→33, `umit->Xaro` 30→44 ıslak nokta, ağ 20,54→19,90 km).
+Dürüstçe bildiriyorum: bu iki kenar hiçbir zaman çalışan yol değildi (S-0038), ve yükseltilmiş bir
+Valyria'nın etrafından dolaşılması lore'a uygun — Smoking Sea'den gemiler de geçmez. Kara kenarlarının
+hepsi 20° tavanının altında.
+
+**Doğrulama.** `scripts/checkValyriaDoom.js` (yeni) beşini de doğruluyor: dağlık (ortalama 109,2 m,
+tepe 360,1 m), kıyı çizgisi değişmemiş (49/138), orman 0,000, Doom'da prop 0, kalp rengi
+rgb(0,042 0,035 0,032) — yeşil baskın değil. Ayrıca 14/14 koltuk, yollar, arazi görsel sözleşmesi,
+zemin gerçekçiliği, hizalama, determinizm, doku atlası, service worker v33→v34.
+
+### Nehir kaynağı Valyria'ya taşınmış — kapı yakaladı
+
+`checkRiverValleyCarving` FAIL verdi: nehir 30 noktadan **15'e** düşmüş, yükseltilmiş zemin raporlanmış.
+Sebep: `generateRiverPath` nehir kaynağını **başlangıç noktasının 2000 m yarıçapındaki en yüksek zemin**
+olarak seçiyor, ve Valyria kıstağı (z ≈ 1806 m) tam o yarıçapın içinde. Yükseltince oradaki volkanik
+zirve civardaki en yüksek şey oldu ve nehir kaynağı Doom'un üstüne taşındı — Smoking Sea'ye dökülen
+kısa bir dere.
+
+Hem regresyon hem lore saçmalığı: küller ve cürufun içinden nehir doğmaz. Kaynak aramasına Valyria
+dışlaması eklendi. Nehir taban çizgisine **birebir** döndü: 30 nokta, 29 segment, 43,5 m en derin
+kesit, 336 örnek.
+
+**Technical debt.** Dünyanın en kötü LOD boşluğu 61,1 → 71,1 m; etek politikasının 96 m tavanının
+altında ama izlenmeli.
+
+**World Coverage.** Valyria artık kendi biyomu.

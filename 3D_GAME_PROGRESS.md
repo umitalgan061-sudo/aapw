@@ -17556,3 +17556,51 @@ raporlanıyor, görünmez bir pay olmasın diye.
 
 Sonuç: **1472 prop**, **179/185 model (%96,8)**, sekiz biyomun hepsi, su altında 0, dik yamaçta 0,
 kale pad'inde 0, çakışma 0.
+
+---
+
+## Tur 372 — Valyria artık çayır değil
+
+Haklıydınız ve ne kadar haklı olduğunuzu ölçtüm: haritanın Valyria yarımadasını çizdiği yerde bizim
+arazimiz **deniz üstü ortalama 19,7 metre, en yüksek nokta 40,5 metre**ydi. Orman kapsaması 0,05,
+aridite 0,05. Yani sistemin her kuralı orayı haklı olarak "düz yeşil ova" diye okuyordu. Dünyanın en
+büyük uygarlığının kalıntısı çayır olarak çiziliyordu.
+
+**Haritaya baktım.** map.png'yi 3 kat büyütüp inceledim: VALYRIA etiketli parçalanmış pas-mor bir
+yarımada, kuzeyinde kırık parçalar üstünde OROS ve TYRIA, aralarındaki suyun üstünde "The Smoking Sea"
+yazısı, yukarısında Mantarys ve Demon Road'a uzanan "Lands of the Long Summer" kıstağı. Bölgenin
+hiçbir yeri yeşil çizilmemiş; kartograf üstüne duman sürmüş.
+
+**Lore'a baktım.** Valyria volkanik bir yarımadaydı, Ondört Alev onun dağlarıydı. Doom hepsini aynı
+anda kırdı; yarımada adalara ayrıldı, deniz yaraya doldu ve hâlâ kaynıyor. Dört yüz yıldır orası kül
+ve cüruf. Bu dört şart demek: **dağlık**, **parçalanmış**, **siyah**, **çorak**.
+
+**Kıyıya dokunmadım.** Yükseltmeyi yalnızca haritanın zaten kara dediği yere ve kıyıdan rampalayarak
+uyguladım. Bölgeyi toptan kaldırsaydım Smoking Sea dolar, Doom geri alınırdı. Ölçtüm: 49 kara / 138
+deniz hücresi, öncesi ve sonrası birebir aynı.
+
+**Yüzey.** Bazalt taban, yükseklerde kül, ve lav çukurlarda. Lav için geçen turlarda kurduğum drenaj
+eğriliğini yeniden kullandım: erimiş kaya da su gibi aşağı akar, aynı içbükey yerlerde birikir. Yani
+başka yerde ıslak dere yatağı yapan şey burada lav kanalı yapıyor, ek maliyet sıfır.
+
+### Ve yine bir kez tahmin ettim, render beni yakaladı
+
+Kırılmayı ilk ayarımda çok ince dalga boyunda kurdum — en ince detay ~10 metreye düşüyordu, oysa
+mesh'in çözebileceği sınır 7,8 metre. Sonuç dağ değil **enkazdı**: yırtılmış tabakalar, havada duran
+levhalar, denize sarkan perdeler. Ölçüm de söyledi, dünyanın en kötü LOD boşluğu 61'den 85 metreye
+fırlamıştı. Ölçeği düzelttim (en ince detay ~57 m), arazi bütünleşti, razor spike yerine geniş
+parçalanmış zirveler çıktı. Şu an ortalama 125 m, tepe 360 m.
+
+**Kapı bir regresyonumu daha yakaladı.** Nehir kontrolü kırmızıya döndü: nehir 30 noktadan 15'e
+düşmüş. Sebep şuydu — nehir kaynağı "başlangıcın 2 km yakınındaki en yüksek zemin" olarak seçiliyor, ve
+Valyria kıstağı tam o yarıçapın içinde. Yükseltince nehrin kaynağı bir volkanik zirveye taşınmıştı.
+Hem hata hem lore saçmalığı: külün içinden nehir doğmaz. Kaynak aramasından Valyria'yı çıkardım, nehir
+birebir eski hâline döndü.
+
+**Dürüst yan etki:** zaten "feribot bekliyor" diye işaretli iki deniz kenarının rotası değişti
+(`umit->doran`, `umit->Xaro`). Bunlar hiç çalışan yol değildi, ve yükseltilmiş bir Valyria'nın
+etrafından dolaşılması lore'a uygun — Smoking Sea'den gemiler de geçmez. Kara yollarının hepsi hâlâ
+20° tavanının altında, 14/14 koltuk birebir aynı.
+
+Kapılar: yeni Valyria kapısı, 14/14 koltuk, yollar, nehir vadisi, yol koridoru, LOD, doku atlası,
+zemin gerçekçiliği, hizalama, determinizm, service worker v34 — hepsi PASS.

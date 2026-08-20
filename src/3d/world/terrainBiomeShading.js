@@ -40,6 +40,7 @@ import { WORLD_SCALE } from '../config.js';
 import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
 import { canonicalForestAffinity } from './worldReferenceForestAffinity.js';
 import { sampleMapAridity01 } from './worldReferenceBiomeField.js';
+import { valyriaInfluence01 } from './worldReferenceValyria.js';
 
 /**
  * World X/Z to normalized owner-map coordinates — the same projection `world/terrain.js`'s private
@@ -269,6 +270,10 @@ export function forestCoverage01(worldX, worldZ, heightAboveSeaMeters, slopeDegr
 	// pure noise, which meant Dorne's desert and the jungles of Sothoryos were equally likely to be
 	// wooded — the map had no say. See `world/worldReferenceForestAffinity.js`.
 	const { nx, ny } = normalizedMapPoint(worldX, worldZ);
+	// The Doom killed everything that grew here four hundred years ago, and nothing has come back. This
+	// is the single authority on forest, so suppressing it here removes Valyrian woodland from the ground
+	// colour and from `world/vegetation.js`'s tree scatter in one place rather than two.
+	if (valyriaInfluence01(nx, ny) > 0.25) return 0;
 	const affinity = canonicalForestAffinity(nx, ny);
 	if (affinity <= 0) return 0;
 	const forestNoise01 = signedFbmNoise(worldX * P.forestPatchFrequency - 13.1, worldZ * P.forestPatchFrequency + 7.4, P.forestPatchOctaves) * 0.5 + 0.5;
