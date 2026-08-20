@@ -1,0 +1,32 @@
+name: Map Reference Inspection
+
+on:
+  pull_request:
+    paths:
+      - 'map.png/map.png'
+      - '.github/workflows/map-reference-inspection.yml'
+      - 'src/3d/world/**'
+
+permissions:
+  contents: read
+
+jobs:
+  map-reference:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify exact owner reference
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s map.png/map.png
+          file map.png/map.png
+          sha256sum map.png/map.png | tee map-reference.sha256
+      - name: Upload owner reference evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: owner-map-reference-${{ github.sha }}
+          path: |
+            map.png/map.png
+            map-reference.sha256
+          retention-days: 7
