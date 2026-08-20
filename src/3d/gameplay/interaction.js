@@ -370,7 +370,7 @@ export function createInteractionController({
 	function showInventory() {
 		activeNpc = null; activeChoices = null; activeNpcName = null; journalOpen = true; shopOpen = false;
 		interactionPrompt.setVisible(false);
-		dialogueBox.show(buildInventoryText(inventory.snapshot()));
+		dialogueBox.show(buildInventoryText(inventory.snapshot(), journey.snapshot()));
 	}
 	function showQuartermaster(feedback = '') {
 		if (nearestNpc?.object3D?.name !== QUARTERMASTER_NPC_ID) return false;
@@ -519,7 +519,7 @@ export function createInteractionController({
 		getJourneySnapshot: journey.snapshot,
 		getRpgSnapshot() {
 			const journeySnapshot = journey.snapshot();
-			const hasJourneyState = journeySnapshot.commitCount > 0 || journeySnapshot.fatigueKm > 0 || journeySnapshot.lastDestinationId !== null;
+			const hasJourneyState = journeySnapshot.commitCount > 0 || journeySnapshot.fatigueKm > 0 || journeySnapshot.lastDestinationId !== null || journeySnapshot.recentReceipts.length > 0;
 			const result = {
 				schemaVersion: hasJourneyState ? 6 : 5,
 				quests: quests.snapshot(),
