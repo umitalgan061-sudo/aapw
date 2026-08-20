@@ -257,15 +257,24 @@ function flattenWeight(distanceMeters, innerRadiusMeters, outerRadiusMeters) {
  * @param {*} _seed
  * @param {*} _fbmOptions
  * @param {{x: number, z: number, innerRadiusMeters: number, outerRadiusMeters: number, anchorHeightMeters: number}[]} [flattenPads]
+ * @param {{sampleValleyHeight: (x: number, z: number, naturalHeightMeters: number) => number}} [valleyField]
+ *   Optional river valley carve from `world/terrainValleyCarving.js` (ADR-0307). Applied *before*
+ *   settlement pads and the road bed — it is natural landform, not a gameplay override.
  * @param {{sampleCorridorHeight: (x: number, z: number, baseHeightMeters: number) => number}} [roadCorridor]
  *   Optional road cut-and-fill bed from `world/roadCorridorSmoothing.js` (ADR-0304). Applied *after*
  *   settlement pads, because a road approaching a castle must end up on the castle's pad height rather
  *   than carving through it. Passed in rather than imported so this module keeps no dependency on the
  *   road system — terrain does not know what a road is, it is only told where the ground was rebuilt.
  */
-export function createHeightSampler(_seed, _fbmOptions, flattenPads = [], roadCorridor = null) {
+export function createHeightSampler(_seed, _fbmOptions, flattenPads = [], roadCorridor = null, valleyField = null) {
 	return function sampleHeightMeters(worldX, worldZ, _maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS, outSurface) {
-		const baseHeightMeters = sampleCanonicalHeightMeters(worldX, worldZ, outSurface);
+		const canonicalHeightMeters = sampleCanonicalHeightMeters(worldX, worldZ, outSurface);
+		// River valleys (ADR-0307) come first, because they are part of the *natural* landscape rather
+		// than a gameplay override: a castle's flatten pad and a road's cut-and-fill both still win over
+		// the valley they sit in, which is the order those two layers already assume.
+		const baseHeightMeters = valleyField
+			? valleyField.sampleValleyHeight(worldX, worldZ, canonicalHeightMeters)
+			: canonicalHeightMeters;
 		let strongestWeight = 0;
 		let strongestAnchorMeters = baseHeightMeters;
 		for (const pad of flattenPads) {
@@ -358,8 +367,8 @@ export function getSharedTerrainAlbedoTexture() {
  * neighbouring chunks sample the same world coordinates through the same deterministic field, a
  * shared vertex resolves to the same slope from either side.
  */
-export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS, seed = 1, flattenPads = [], roadCorridor = null }) {
-	const sampleHeightMeters = createHeightSampler(seed, undefined, flattenPads, roadCorridor);
+export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS, seed = 1, flattenPads = [], roadCorridor = null, valleyField = null }) {
+	const sampleHeightMeters = createHeightSampler(seed, undefined, flattenPads, roadCorridor, valleyField);
 	const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
 	geometry.rotateX(-Math.PI / 2);
 	const position = geometry.attributes.position;

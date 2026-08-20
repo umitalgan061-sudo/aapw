@@ -17482,3 +17482,48 @@ yerine sahibin görseli sağlaması bekleniyor (QUESTIONS_FOR_OWNER.md S-0036).
 (v22→v23) PASS, satır sınırı PASS, determinizm PASS.
 
 **Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+## ADR-0307 — Nehir vadileri: nehrin düzlükte akmayı bırakması
+
+**Bağlam.** Sahibin "vadileri düzenle" isteği. `world/rivers.js` yükseklik alanı boyunca inen bir yol
+izleyip üzerine şerit çiziyordu, ama **içinden geçtiği zemini hiç kesmiyordu** — yani nehir, yüzeye
+çizilmiş bir çizgi gibiydi: taşkın ovası yok, yamaç yok, vadi yok. Gerçek nehirler manzarayı süslemez,
+onu *yapar*; ılıman coğrafyanın en tanınabilir yer şekli vadidir ve yokluğu, ADR-0304 zemine gerçek
+pürüzlülük verdikten sonra bile dünyanın hâlâ jenerik gürültü gibi okunmasının büyük bir parçasıydı.
+
+**Karar.** `world/terrainValleyCarving.js` — yollar ve yerleşimlerin zaten kullandığı iki fazlı kalıbın
+aynısı. Faz 1: nehir, yerleşim pad'li ama vadisiz arazi üzerinde izleniyor. Faz 2: o çoklu-çizgi, dar
+bir koridor içinde zemini nehrin kendi profiline çeken bir alana dönüştürülüyor; vadi ağzında doğal
+araziye yumuşakça bağlanıyor.
+
+**Sıralama kasıtlı.** Vadi, *doğal* manzaranın parçası — oyun amaçlı bir müdahale değil. Bu yüzden
+yerleşim pad'lerinden ve yol yatağından **önce** uygulanıyor: bir kalenin pad'i ve bir yolun kes-doldur
+şeridi, içinde bulundukları vadiye karşı hâlâ kazanıyor. `sceneManager.js`'te yol koridoru artık
+vadili arazi üzerinde hesaplanıyor, yani yollar vadisi olan bir dünyada rotalanıp sonra o sonucun
+üstünde yataklanıyor.
+
+**Güvenliği sağlayan üç kural.**
+
+1. *Yalnızca aşağı keser.* Alan `min(doğal, vadiProfili)` döndürüyor, yani kazı zemini asla
+   yükseltemez ve yükseklik alanının istemediği bir tepe uyduramaz.
+2. *Karada deniz seviyesini asla delmez.* map.png'nin kıyı şeridi bu projenin oynatmadığı tek şey.
+   Kıyıya yakın derinleşen bir vadi, owner haritasının kara dediği yere yeni su açardı; bu yüzden kazı,
+   doğal zeminin deniz seviyesinin üstünde olduğu her yerde üstte kalacak şekilde kısıtlanıyor.
+3. *Taban tekdüze iner.* Nehrin örneklenen profili aşağı doğru koşan minimuma zorlanıyor; su geri yokuş
+   çıkmaz, çıkan bir taban da vadi değil bir dizi çanak gibi okunurdu.
+
+**Kapılar da aynı zemini ölçüyor.** `roadNetworkSafetyCheck.js` ve `terrainSeatSafetyCheck.js`
+vadiyi taşıyacak şekilde güncellendi. Bu ADR-0304'te konan ilkenin sürdürülmesi: kapı, oyunun
+kurmadığı bir zemini puanlarsa hiçbir şey doğrulamış olmaz.
+
+**Ölçülen sonuç.** Nehir yolunun %75'indeki enine kesit: merkez hattında zemin 84,53 → **65,90 m**
+(18,6 m kazı), 50 m'ye kadar düz taban, 120 m'de 68,17 m, 250 m'de 91,93 m yamaç, ve 400 m'de
+**106,37 = 106,37**, yani bayt-bayt dokunulmamış. Dünya genelinde en derin kazı 43,5 m; **kara suya
+dönüşmedi (0)**, **zemin hiç yükseltilmedi (0)**, vadi ağzının ötesinde hiçbir şeye dokunulmadı (0).
+
+**Doğrulama.** `checkRiverValleyCarving.js` (yeni) PASS. 14/14 koltuk PASS ve yollar PASS (18,31 km,
+stres rotası 11,4°) — ikisi de artık vadili zeminde ölçülüyor. Su maskesi checksum'ı `2ca2bed8d8a1…`
+değişmedi, terrain visual contract, masaüstü LOD, yol koridoru, SW cache (v24→v25), satır sınırı ve
+determinizm PASS.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.

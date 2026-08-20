@@ -122,6 +122,7 @@ async function main() {
 			const { buildRoadNetwork } = await import('/src/3d/world/roads.js');
 			const { findSlopeAwarePath } = await import('/src/3d/world/roadPathfinder.js');
 			const { computeRoadCorridor, buildRoadCorridor } = await import('/src/3d/world/roadCorridorSmoothing.js');
+			const { computeRiverValleys } = await import('/src/3d/world/terrainValleyCarving.js');
 			const { generateRiverPath } = await import('/src/3d/world/rivers.js');
 
 			// Same flattened field `sceneManager.js` actually builds (DECISIONS.md ADR-0118) — not the
@@ -135,8 +136,16 @@ async function main() {
 				mapBounds: WORLD_SCALE.MAP_BOUNDS,
 				metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
 			});
-			// Phase 1: settlement-flattened terrain, no road bed yet. Roads are routed over this.
-			const phase1SampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
+			// Phase 1: settlement-flattened terrain, no valley and no road bed yet.
+			const preValleySampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
+			// River valleys (ADR-0307) are natural landform and exist before any road is routed, so this
+			// check has to carry them or it would be grading roads over ground the game does not build.
+			const valleyField = computeRiverValleys({
+				seed: WORLD_DEFAULTS.WORLD_SEED,
+				baseSampleHeightMeters: preValleySampleHeightMeters,
+				seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+			});
+			const phase1SampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads, null, valleyField);
 			const seats = KINGDOM_SEATS.map((seat) => {
 				const { x, z } = mapToWorldXZ(seat.mapX, seat.mapY, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT);
 				return { id: seat.id, x, z, groundY: phase1SampleHeightMeters(x, z) };
@@ -146,7 +155,7 @@ async function main() {
 			// same ground `sceneManager.js` builds, so it runs the identical two-phase construction —
 			// otherwise the gate would be grading terrain the game does not actually have.
 			const roadCorridor = computeRoadCorridor({ seats, baseSampleHeightMeters: phase1SampleHeightMeters });
-			const sampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads, roadCorridor);
+			const sampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads, roadCorridor, valleyField);
 
 			const network = buildRoadNetwork({ seats, sampleHeightMeters });
 			const edges = network.edges.map((edge) => ({

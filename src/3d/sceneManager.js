@@ -26,6 +26,7 @@ import { generateRiverPath, createRiverMesh, detectWaterfalls, createWaterfallMe
 import { createHeightSampler, mulberry32 } from './world/terrain.js';
 import { createSettlements, computeSettlementFlattenPads, KINGDOM_SEATS, mapToWorldXZ } from './world/settlements.js';
 import { computeRoadCorridor } from './world/roadCorridorSmoothing.js';
+import { computeRiverValleys } from './world/terrainValleyCarving.js';
 import { buildRoadNetwork } from './world/roads.js';
 import { createVegetation } from './world/vegetation.js';
 import { createVillages } from './world/villages.js';
@@ -187,12 +188,23 @@ export function createScene(canvas) {
 	// failure mode. This is also what lets `world/terrainReliefDetail.js` carry real player-scale
 	// roughness at all: without a bed, that roughness scores as impassable road grade (ADR-0303).
 	const phase1SampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
+
+	// River valleys (DECISIONS.md ADR-0307), traced over that same phase-1 field. Built before the road
+	// corridor on purpose: a valley is natural landform, so roads should be routed over a world that
+	// already has it and then get their cut-and-fill on the result — not the other way round.
+	const valleyField = computeRiverValleys({
+		seed: WORLD_DEFAULTS.WORLD_SEED,
+		baseSampleHeightMeters: phase1SampleHeightMeters,
+		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+	});
+	const valleySampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads, null, valleyField);
+
 	const roadCorridor = computeRoadCorridor({
 		seats: KINGDOM_SEATS.map((seat) => {
 			const { x, z } = mapToWorldXZ(seat.mapX, seat.mapY, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT);
 			return { id: seat.id, x, z };
 		}),
-		baseSampleHeightMeters: phase1SampleHeightMeters,
+		baseSampleHeightMeters: valleySampleHeightMeters,
 	});
 
 	const isMobileClass = isCoarsePointerDevice();
@@ -203,6 +215,7 @@ export function createScene(canvas) {
 		seed: WORLD_DEFAULTS.WORLD_SEED,
 		flattenPads,
 		roadCorridor,
+		valleyField,
 	});
 	const previewRadiusChunks = isMobileClass ? CHUNK_CONFIG.STREAM_RADIUS_CHUNKS : CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS;
 	const generationStart = performance.now();
@@ -218,7 +231,7 @@ export function createScene(canvas) {
 	// snaps to). Static, generated once — see world/rivers.js module doc for why the river itself
 	// doesn't stream/update per frame yet. Same `flattenPads` as `chunkManager` above (ADR-0118) so
 	// this never disagrees with the rendered ground mesh under a castle.
-	const groundCollider = createGroundCollider(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads, roadCorridor);
+	const groundCollider = createGroundCollider(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads, roadCorridor, valleyField);
 
 	// Bathymetry for the water surface (ADR-0270). Baked once, from the *same* flattened height
 	// field the rendered chunks and every gameplay query use, so the swell's amplitude taper can

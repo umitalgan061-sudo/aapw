@@ -17085,3 +17085,34 @@ izleyemiyorum. Uydurmadım; S-0036 olarak görseli istedim.
 
 Kapılar: 14/14 koltuk, yollar (18,31 km), terrain visual contract, SW cache v22→v23, satır sınırı,
 determinizm — hepsi PASS.
+
+### Run 360 — Nehir artık kendi vadisinde akıyor (ADR-0307)
+
+"Vadileri düzenle" dediniz. Baktığımda nehir sistemi zemini **hiç kesmiyormuş**: `rivers.js` inen bir
+yol izleyip üzerine şerit çiziyordu, yani nehir yüzeye çizilmiş bir çizgiydi — taşkın ovası yok, yamaç
+yok, vadi yok. Gerçek nehirler manzarayı süslemez, onu yapar.
+
+Yollarda kurduğum iki fazlı kalıbı aynen kullandım: nehri vadisiz arazi üzerinde izle, sonra o çizgi
+boyunca zemini nehrin kendi profiline çeken bir alan kur. Sıralama kasıtlı — vadi doğal manzaranın
+parçası, oyun müdahalesi değil; o yüzden yerleşim pad'lerinden ve yol yatağından **önce** uygulanıyor.
+Kale pad'i ve yol şeridi, içinde bulundukları vadiye karşı hâlâ kazanıyor.
+
+Üç kural güvenliği sağlıyor: yalnızca aşağı keser (tepe uyduramaz), karada deniz seviyesini asla
+delmez (kıyı şeridiniz korunur), ve taban tekdüze iner (su geri yokuş çıkmaz).
+
+Ölçüm — nehrin %75'indeki enine kesit: merkez hattında zemin 84,53 → **65,90 m**, 50 m'ye kadar düz
+taban, 250 m'de 91,93 m yamaç, **400 m'de 106,37 = 106,37**, yani bayt-bayt dokunulmamış. Ders kitabı
+vadi profili. Dünya genelinde en derin kazı 43,5 m; kara suya dönüşmedi (0), zemin hiç yükseltilmedi
+(0).
+
+Bir şeyi de düzelttim: kapılar vadiyi taşımıyordu, yani oyunun kurduğu zemini değil başka bir zemini
+puanlıyorlardı. Koltuk ve yol kapılarını vadili alana bağladım — ADR-0304'te koyduğum "kapı aynı zemini
+ölçmeli" ilkesi.
+
+Kapılar: yeni vadi guard'ı, 14/14 koltuk, yollar (18,31 km, stres 11,4°), su maskesi, terrain visual
+contract, masaüstü LOD, yol koridoru, SW cache v24→v25, satır sınırı, determinizm — hepsi PASS.
+
+**map.png hâlâ gelmedi.** Sohbete iki kez gönderildi, ikisi de tamamen siyah. E-postadaki ek
+`IMG_1874.jpeg` — iPhone fotoğrafı, yani muhtemelen HDR gain map'i olan bir JPEG ve bunu anlamayan
+görüntü hatları düz siyah çözüyor. Gmail araçlarımda ek indirme yok, ham MIME denemesinde de oturum
+düştü. Sahipten fotoğrafın ekran görüntüsünü istedim (ekran görüntüleri düz SDR'dir, gain map taşımaz).

@@ -124,6 +124,7 @@ async function main() {
 				const { KINGDOM_SEATS, mapToWorldXZ, computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');
 				const { WORLD_SCALE, WORLD_DEFAULTS, SETTLEMENT_CONFIG } = await import('/src/3d/config.js');
 				const { createHeightSampler } = await import('/src/3d/world/terrain.js');
+				const { computeRiverValleys } = await import('/src/3d/world/terrainValleyCarving.js');
 
 				// Keep flood detection tied to untouched source terrain, then construct the same flattened
 				// field sceneManager.js gives rendered chunks and gameplay physics for walkability.
@@ -135,7 +136,14 @@ async function main() {
 					mapBounds: WORLD_SCALE.MAP_BOUNDS,
 					metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
 				});
-				const sampleGameplayHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
+				// River valleys (ADR-0307) are part of the natural field a seat sits in, so both flood safety
+				// and walkability have to be judged on ground that carries them.
+				const valleyField = computeRiverValleys({
+					seed: WORLD_DEFAULTS.WORLD_SEED,
+					baseSampleHeightMeters: createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads),
+					seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+				});
+				const sampleGameplayHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads, null, valleyField);
 
 				return KINGDOM_SEATS.map((seat) => {
 					const { x, z } = mapToWorldXZ(seat.mapX, seat.mapY, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT);
