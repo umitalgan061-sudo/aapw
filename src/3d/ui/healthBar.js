@@ -5,6 +5,7 @@
  */
 const FLASH_SECONDS = 0.3;
 const DEFENSE_FEEDBACK_SECONDS = 0.65;
+const TARGET_FEEDBACK_SECONDS = 0.9;
 const STAMINA_STATE_LABELS = Object.freeze({ idle: 'Hazır', walk: 'Yürüme', sprint: 'Depar', dodge: 'Kaçınma', airborne: 'Havada', exhausted: 'Tükendi', guard: 'Savunma', parry: 'Karşılama', 'guard-break': 'Savunma kırıldı', 'attack-light': 'Hafif saldırı', 'attack-heavy': 'Ağır saldırı' });
 const ATTACK_KIND_LABELS = Object.freeze({ light: 'Hafif', heavy: 'Ağır' });
 const ATTACK_PHASE_LABELS = Object.freeze({ start: 'Hazırlık', 'active-start': 'VURUŞ', 'active-end': 'Toparlanma' });
@@ -27,7 +28,7 @@ export class HealthBar {
 		const combatLabel = document.createElement('p'); combatLabel.className = 'g3d-health-bar-label g3d-combat-status-label'; combatLabel.textContent = 'Çatışma'; combatLabel.style.gridRow = '1'; this._combatEl.appendChild(combatLabel);
 		this._combatTextEl = document.createElement('p'); this._combatTextEl.className = 'g3d-health-bar-text g3d-combat-status-text'; this._combatTextEl.style.gridRow = '2'; this._combatTextEl.textContent = 'Serbest'; this._combatEl.appendChild(this._combatTextEl); this._el.appendChild(this._combatEl); container.appendChild(this._el);
 		this._combatLock = null; this._combatAttack = null; this._combatDefense = null;
-		this._flashTimeoutId = null; this._defenseTimeoutId = null; this._onHealthChanged = (payload) => this._paint(payload); this._onDamage = (payload) => { this._flash(); this._paintDefense(payload); }; eventsBus.on(healthChangedEventName, this._onHealthChanged); eventsBus.on(damageEventName, this._onDamage); this._eventsBus = eventsBus; this._healthChangedEventName = healthChangedEventName; this._damageEventName = damageEventName;
+		this._flashTimeoutId = null; this._defenseTimeoutId = null; this._targetTimeoutId = null; this._onHealthChanged = (payload) => this._paint(payload); this._onDamage = (payload) => { this._flash(); this._paintDefense(payload); }; eventsBus.on(healthChangedEventName, this._onHealthChanged); eventsBus.on(damageEventName, this._onDamage); this._eventsBus = eventsBus; this._healthChangedEventName = healthChangedEventName; this._damageEventName = damageEventName;
 		this._motionEventTarget = typeof globalThis.addEventListener === 'function' ? globalThis : null; this._onPlayerMotion = (event) => this._paintMotion(event?.detail); this._onPlayerLockOn = (event) => this._paintLockOn(event?.detail); this._onAttackWindow = (event) => this._paintAttack(event?.detail); this._motionEventTarget?.addEventListener('aapw:player-motion', this._onPlayerMotion); this._motionEventTarget?.addEventListener('aapw:player-lock-on', this._onPlayerLockOn); this._motionEventTarget?.addEventListener('aapw:player-attack-window', this._onAttackWindow);
 	}
 	_paint({ current, maxHealth }) { const ratio = maxHealth > 0 ? Math.max(0, Math.min(1, current / maxHealth)) : 0; this._fillEl.style.width = `${(ratio * 100).toFixed(1)}%`; this._textEl.textContent = `${Math.ceil(current)} / ${maxHealth}`; this._el.setAttribute('aria-valuemax', String(maxHealth)); this._el.setAttribute('aria-valuenow', String(Math.max(0, Math.min(maxHealth, Math.ceil(current))))); this._el.setAttribute('aria-valuetext', `${Math.ceil(current)} / ${maxHealth}`); this._el.classList.toggle('g3d-health-bar-low', ratio > 0 && ratio <= 0.25); }
@@ -40,9 +41,18 @@ export class HealthBar {
 		this._poiseFillEl.style.width = `${(poiseRatio * 100).toFixed(1)}%`; this._poiseTextEl.textContent = broken ? 'KIRILDI' : `${poiseRounded} / ${maxPoise}`; this._poiseEl.setAttribute('aria-valuemax', String(maxPoise)); this._poiseEl.setAttribute('aria-valuenow', String(poiseRounded)); this._poiseEl.setAttribute('aria-valuetext', broken ? `Savunma kırıldı · ${poiseRounded} / ${maxPoise}` : `${poiseRounded} / ${maxPoise}`); this._poiseEl.dataset.state = broken ? 'guard-break' : 'stable'; this._poiseEl.classList.toggle('g3d-poise-bar-broken', broken); this._poiseFillEl.style.opacity = broken ? '0.45' : '1';
 	}
 	_paintLockOn(detail) {
-		if (detail?.locked) this._combatLock = { targetId: String(detail.targetId ?? 'hedef'), distanceMeters: Number.isFinite(detail.distanceMeters) ? detail.distanceMeters : null };
-		else if (detail?.reason !== 'no-target') this._combatLock = null;
-		this._renderCombatStatus(detail?.reason === 'no-target' ? 'Hedef yok' : null);
+		if (this._targetTimeoutId !== null) { clearTimeout(this._targetTimeoutId); this._targetTimeoutId = null; }
+		if (detail?.locked) {
+			this._combatLock = { targetId: String(detail.targetId ?? 'hedef'), distanceMeters: Number.isFinite(detail.distanceMeters) ? detail.distanceMeters : null };
+			this._renderCombatStatus();
+			return;
+		}
+		if (detail?.reason === 'no-target') {
+			this._renderCombatStatus('Hedef yok');
+			this._targetTimeoutId = setTimeout(() => { this._targetTimeoutId = null; this._renderCombatStatus(); }, TARGET_FEEDBACK_SECONDS * 1000);
+			return;
+		}
+		this._combatLock = null; this._renderCombatStatus();
 	}
 	_paintAttack(detail) {
 		if (!detail || (detail.kind !== 'light' && detail.kind !== 'heavy')) return;
@@ -70,5 +80,5 @@ export class HealthBar {
 		this._combatTextEl.textContent = text; this._combatEl.dataset.state = this._combatDefense ? `defense-${this._combatDefense}` : this._combatAttack ? `attack-${this._combatAttack.phase}` : this._combatLock ? 'locked' : transient ? 'no-target' : 'free'; this._combatEl.dataset.range = targetInRange === null ? 'unknown' : targetInRange ? 'in-range' : 'out-of-range'; this._combatEl.classList.toggle('g3d-combat-status-active', Boolean(this._combatAttack || this._combatDefense)); this._combatEl.classList.toggle('g3d-combat-status-locked', Boolean(this._combatLock));
 	}
 	_flash() { this._el.classList.add('g3d-health-bar-flash'); if (this._flashTimeoutId !== null) clearTimeout(this._flashTimeoutId); this._flashTimeoutId = setTimeout(() => { this._el.classList.remove('g3d-health-bar-flash'); this._flashTimeoutId = null; }, FLASH_SECONDS * 1000); }
-	dispose() { this._eventsBus.off(this._healthChangedEventName, this._onHealthChanged); this._eventsBus.off(this._damageEventName, this._onDamage); this._motionEventTarget?.removeEventListener('aapw:player-motion', this._onPlayerMotion); this._motionEventTarget?.removeEventListener('aapw:player-lock-on', this._onPlayerLockOn); this._motionEventTarget?.removeEventListener('aapw:player-attack-window', this._onAttackWindow); if (this._flashTimeoutId !== null) clearTimeout(this._flashTimeoutId); if (this._defenseTimeoutId !== null) clearTimeout(this._defenseTimeoutId); this._el.remove(); }
+	dispose() { this._eventsBus.off(this._healthChangedEventName, this._onHealthChanged); this._eventsBus.off(this._damageEventName, this._onDamage); this._motionEventTarget?.removeEventListener('aapw:player-motion', this._onPlayerMotion); this._motionEventTarget?.removeEventListener('aapw:player-lock-on', this._onPlayerLockOn); this._motionEventTarget?.removeEventListener('aapw:player-attack-window', this._onAttackWindow); if (this._flashTimeoutId !== null) clearTimeout(this._flashTimeoutId); if (this._defenseTimeoutId !== null) clearTimeout(this._defenseTimeoutId); if (this._targetTimeoutId !== null) clearTimeout(this._targetTimeoutId); this._el.remove(); }
 }
