@@ -46,15 +46,76 @@ export function terrainMicroUvAt(worldX, worldZ) {
 	return Object.freeze({ u: worldX / repeatMeters, v: worldZ / repeatMeters });
 }
 
-function terrainDetailHeight(u, v) {
-	// Integer spatial frequencies make the atlas itself exactly tileable at every edge.
+/**
+ * Deterministic [0,1) hash of an integer lattice cell. Integer-free trig hash, same family as the other
+ * micro-signal hashes in `world/`; no `Math.random()`, no state.
+ */
+function latticeHash01(ix, iy) {
+	const value = Math.sin(ix * 127.1 + iy * 311.7) * 43758.5453;
+	return value - Math.floor(value);
+}
+
+/** Quintic smoothstep — C2 continuous, so the noise has no visible lattice creases. */
+function fade(t) {
+	return t * t * t * (t * (t * 6 - 15) + 10);
+}
+
+/**
+ * Value noise on a lattice of `period` cells, wrapping exactly at the period.
+ *
+ * Wrapping the lattice indices modulo `period` is what makes the result seamlessly tileable, and it is
+ * the reason this can replace the plane-wave sum below without giving up the tiling guarantee.
+ */
+function tileableValueNoise(u, v, period) {
+	const x = u * period;
+	const y = v * period;
+	const x0 = Math.floor(x);
+	const y0 = Math.floor(y);
+	const fx = fade(x - x0);
+	const fy = fade(y - y0);
+	const wrap = (n) => ((n % period) + period) % period;
+	const xa = wrap(x0);
+	const xb = wrap(x0 + 1);
+	const ya = wrap(y0);
+	const yb = wrap(y0 + 1);
+	const top = latticeHash01(xa, ya) + (latticeHash01(xb, ya) - latticeHash01(xa, ya)) * fx;
+	const bottom = latticeHash01(xa, yb) + (latticeHash01(xb, yb) - latticeHash01(xa, yb)) * fx;
+	return top + (bottom - top) * fy;
+}
+
+/**
+ * The detail atlas's height field: multi-octave tileable value noise.
+ *
+ * **Why this was rebuilt (run 368 / ADR-0315).** The previous version summed six sinusoids at integer
+ * frequencies — `3u+5v`, `7u-4v`, `11u+13v`, `19u-17v`, `29u+23v`, `37u-31v`. Integer frequencies do
+ * make an atlas exactly tileable, which is why it was written that way, but every one of those terms is
+ * a *plane wave travelling along a fixed diagonal*. Summed, they do not read as surface grain; they read
+ * as a diagonal cross-hatch weave, and because the atlas repeats every 22 m that weave covered every
+ * hillside in the world.
+ *
+ * That artefact was misdiagnosed twice before it was isolated. It looked like height-noise aliasing
+ * against the mesh, since it follows the triangulation and is strongest where triangles are large — so
+ * an LOD-aware band limit was built for the height sampler, measured (it does change far-field heights
+ * by a mean of 1.17 m), and changed the render not at all. The artefact was finally pinned down by
+ * rendering the same view with the detail `map` detached, which removed it completely and left clean
+ * ground. It was in this function all along.
+ *
+ * Value noise on a wrapped lattice keeps the exact tileability — the lattice indices are taken modulo
+ * the period, so opposite edges sample the same cells — while having no preferred direction at all.
+ * Octave periods are coprime-ish and each is an exact divisor relationship with the atlas, so every
+ * octave tiles too.
+ */
+/**
+ * Exported for `scripts/checkTerrainDetailAtlasIsotropy.js`, which has to score the real field rather
+ * than a reconstruction: measuring the built normal map instead was tried and its rectified gradient
+ * destroyed exactly the directionality the check exists to detect.
+ */
+export function terrainDetailHeight(u, v) {
 	return (
-		0.34 * Math.sin(TAU * (3 * u + 5 * v) + 0.41)
-		+ 0.22 * Math.cos(TAU * (7 * u - 4 * v) + 1.73)
-		+ 0.16 * Math.sin(TAU * (11 * u + 13 * v) + 2.19)
-		+ 0.11 * Math.cos(TAU * (19 * u - 17 * v) + 0.87)
-		+ 0.09 * Math.sin(TAU * (29 * u + 23 * v) + 2.81)
-		+ 0.08 * Math.cos(TAU * (37 * u - 31 * v) + 1.21)
+		0.52 * (tileableValueNoise(u, v, 4) * 2 - 1)
+		+ 0.26 * (tileableValueNoise(u + 0.37, v + 0.11, 8) * 2 - 1)
+		+ 0.14 * (tileableValueNoise(u + 0.71, v + 0.53, 16) * 2 - 1)
+		+ 0.08 * (tileableValueNoise(u + 0.19, v + 0.83, 32) * 2 - 1)
 	);
 }
 

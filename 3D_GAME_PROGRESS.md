@@ -17367,3 +17367,45 @@ takip ediyor. Uzak chunk'lar 15,6 m aralıkla örnekleniyor ama arazi gürültü
 chunk'ın kendi çözünürlüğünden ince oktavları atlaması. Bu yükseklik örnekleyicisini değiştirdiği için
 kendi öncesi/sonrası güvenlik döngüsünü hak ediyor — bugün öğrendiğim gibi, bu dosyada acele etmek
 oyunu açılmaz hâle getirebiliyor. Bir sonraki turun ilk işi.
+
+---
+
+## Tur 368 — Zemini kaplayan çapraz dokuma kalktı (ve iki kez yanlış yerde aradım)
+
+Geçen turun sonunda "sıradaki iş teşhisi konmuş hâlde" diye yazmıştım. **Teşhisim yanlıştı**, ve bunu
+düzeltmek bu turun büyük kısmını aldı. Nasıl gittiğini olduğu gibi yazıyorum, çünkü sadece sonucu
+görseniz eksik bilgi olurdu.
+
+**Birinci yanlış teşhis.** Desen mesh üçgenlerini takip ediyordu ve üçgenler büyüdükçe güçleniyordu, yani
+arazi gürültüsünün mesh'e karşı takma ad yapması gibi duruyordu. Buna göre bir mekanizma kurdum: her
+chunk kendi çözünürlüğünden ince detayı istemesin. Ölçtüm, çalıştı — uzak arazi ortalama 1,17 m değişti.
+Görüntüde **hiçbir şey olmadı**.
+
+**İkinci yanlış teşhis.** O hâlde yakın bant da takma ad yapıyordur diye sınırı arazinin kendisine
+uyguladım. Güvenlik kontrollerini öncesi/sonrası çalıştırdım: 14/14 koltuk aynı, yollar geçiyor, ağ
+20,54 → 20,59 km. Yani güvenliydi — ama yine görüntüde hiçbir şey değişmedi. **Bu değişikliği geri
+aldım**: yanlış bir varsayıma dayanıyordu, oyun arazisini az da olsa oynatıyordu ve karşılığında hiçbir
+şey vermiyordu. Arazi tam olarak eski hâline döndü.
+
+**Gerçek sebep.** Tahmin etmeyi bırakıp deney yaptım: aynı manzarayı, arazi dokusunu materyalden söküp
+çizdim. Desen **tamamen kayboldu**. Demek ki geometri değil, dokuymuş.
+
+Ve sebep göz önündeymiş. Zeminin yüzey dokusunu üreten fonksiyon altı tane sinüs dalgasının toplamıydı
+ve her biri **sabit bir köşegen boyunca ilerleyen düz bir dalga**. Bunlar toplanınca yüzey tanesi değil,
+dokuma kumaş üretiyor — ve bu doku her 22 metrede tekrarladığı için dünyadaki her yamacı kaplıyordu.
+Böyle yazılmasının sebebi tam sayı frekansların dokuyu kusursuz döşenebilir yapması. Yerine sarmalı bir
+kafes üzerinde çok katmanlı değer gürültüsü koydum: döşenebilirlik aynen korunuyor, ama hiçbir yön
+tercihi yok.
+
+**Ölçtüm:** yüksek frekans enerjisi uzak sırtta 13,94 → 4,61, kuzey sırtta 8,74 → 2,15. Bir not: bu
+projede daha önce bu sayının *artması* "daha çok detay" demekti; burada **düşmesi** doğru olan, çünkü
+giden şey detay değil, takma ad artefaktıydı.
+
+**Yazdığım kapı kendi körlüğünü iki kez söyledi.** Yeni kontrol, eski düzlem-dalga fonksiyonunu negatif
+kontrol olarak içine gömüyor: eğer o da barajı geçerse test kendini "boş" ilan ediyor. İlk sürümüm
+yanlış sinyali ölçüyordu, kontrol "bu alet kör" dedi. İkinci sürümde ölçüm adımı çok kısaydı, on iki yön
+birkaç yöne çöküyordu; yine yakaladı. Üçüncüde ayrım netleşti (1,13x'e karşı 2,01x) ve barajı da tahminle
+değil, bu iki ölçülen değerin arasından seçtim.
+
+Kapılar: 14/14 koltuk, yollar (taban çizgisiyle birebir), kanonik yollar 11/11, vadi, koridor, arazi
+görsel sözleşmesi, LOD, chunk etek, hizalama, zemin gerçekçiliği, determinizm, service worker v32.

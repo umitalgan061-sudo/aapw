@@ -17923,3 +17923,84 @@ yani kendi §8.4 öncesi/sonrası döngüsünü ve LOD bantları arasında diki�
 turun sonunda aceleye getirilecek bir şey değil. Bir sonraki turun işi.
 
 **Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+## ADR-0315 — Zemini kaplayan çapraz dokuma: iki yanlış teşhis ve gerçek sebep
+
+**Bağlam.** Sahip aynı isteği tekrarladı: *"Ben coğrafi gerçeklik için 3D oyunun zeminini gerçek dünya
+coğrafyasına dönüştür."* Tur 367'den sonra karelerdeki en yapay şey, bütün zemini kaplayan ince çapraz
+tarama desenidir — arazi ne kadar iyi şekillenirse şekillensin, üstüne serilmiş bir kumaş gibi duruyordu.
+
+### Yanlış teşhis 1: LOD örnekleme takma adı
+
+Desen mesh üçgenlemesini takip ediyor ve üçgenlerin büyüdüğü yerde güçleniyordu, yani yükseklik
+gürültüsünün mesh'e karşı takma ad (aliasing) yapması gibi görünüyordu. Tur 367'nin sonunda bunu
+"teşhisi konmuş" diye yazmıştım. Yanlıştı.
+
+Yine de ölçtüm ve mekanizmayı kurdum: `renderableOctaves`, her katmanın oktavlarını tüketicinin
+çözebileceği en kısa dalga boyuna göre kırpıyor. Ölçüm tablosu (harita açıklığı 13.296 m):
+
+| katman | taban | en ince | oktav | →128seg | →64seg | →32seg |
+|---|---|---|---|---|---|---|
+| roughness | 31,7 m | **3,8 m** | 4 | 4 | 1 | 1 |
+| dissection | 120,9 m | 13,6 m | 4 | 4 | 3 | 2 |
+
+Bu tablo gerçek bir hatayı da ortaya çıkardı: `roughnessOctaves` politikasının kendi notu dördüncü
+oktavın "~4,9 m, yani 3,9 m'lik yakın bant mesh'inin çizebileceği şey" olduğunu söylüyor. Değil —
+3,91 m aralıklı bir mesh 7,81 m'nin altını temsil edemez, ve o oktav gerçekte 3,8 m'de.
+
+Uygulamanın etkisi ölçüldü: uzak bantta ortalama **1,17 m**, tepe 5,91 m yükseklik değişimi. Render'da
+**hiçbir şey değişmedi**. Desen aynen duruyordu.
+
+### Yanlış teşhis 2: alanın kendisini bant-sınırlamak
+
+Madem yakın bant da (3,91 m aralık, 3,8 m oktav) takma ad yapıyor, sınırı alanın kendisine — çarpıştırıcı
+dâhil — uygulayayım dedim. §8.4 öncesi/sonrası çalıştırdım: 14/14 koltuk aynı, yollar PASS, ağ 20,54 →
+20,59 km. Yani **güvenliydi**, ama yine render'da hiçbir şey değişmedi.
+
+**Bu değişikliği geri aldım.** Yanlış bir öncüle dayanıyordu, oyun arazisini (küçük de olsa) oynatıyordu
+ve görünür hiçbir şey kazandırmıyordu. Arazi tam olarak taban çizgisine döndü; yol kontrolünün çıktısı
+baytı baytına aynı.
+
+### Gerçek sebep, ölçerek bulundu
+
+Tahmin etmeyi bırakıp izole ettim: aynı kareyi, arazi materyallerinin `map`'i sökülmüş hâlde çizdim.
+Desen **tamamen kayboldu**. Yani geometri değil, doku.
+
+Sebep `world/terrainMicroSurface.js`'in `terrainDetailHeight` fonksiyonuydu ve göz önündeydi: tam sayı
+frekanslı **altı sinüzoid** — `3u+5v`, `7u-4v`, `11u+13v`, `19u-17v`, `29u+23v`, `37u-31v`. Tam sayı
+frekanslar atlası tam olarak döşenebilir yapıyor, yazılma sebebi de bu; bedeli ise her terimin **sabit
+bir köşegen boyunca ilerleyen düzlem dalgası** olması. Toplandığında yüzey tanesi değil, çapraz dokuma
+üretiyor — ve atlas her 22 m'de tekrarladığı için dünyadaki her yamacı kaplıyordu.
+
+Yerine sarmalı kafes üzerinde çok oktavlı **döşenebilir değer gürültüsü** kondu: kafes indeksleri periyoda
+göre modulo alındığı için karşılıklı kenarlar aynı hücreleri örnekliyor, yani tam döşenebilirlik aynen
+korunuyor, ama hiçbir tercihli yön yok.
+
+**Ölçülen sonuç** (§8.5, `captureDesktopTerrainLodEvidence.mjs`, chunk 0,2): yüksek frekans enerjisi
+uzak sırtta 13,94 → **4,61**, kuzey sırtta 8,74 → **2,15**, yakın zeminde 3,83 → **2,35**. Dikkat: bu
+projede daha önce *artan* yüksek frekans enerjisi "daha çok detay" demekti; burada **düşmesi** doğru
+sonuçtur, çünkü giden enerji detay değil takma ad artefaktıydı. Görsel bunu doğruluyor.
+
+### Kapı, kendi körlüğünü iki kez itiraf etti
+
+`scripts/checkTerrainDetailAtlasIsotropy.js` (yeni) iki şey ölçüyor — kusursuz döşenme, ve **yön
+bağımsızlığı** — ve eski düzlem-dalga fonksiyonunu **negatif kontrol** olarak gömüyor: kontrol aynı
+barajı *geçemezse* test kendini boş ilan ediyor.
+
+Bu iki kez işe yaradı. İlk sürüm alanı yeniden kurmak yerine üretilmiş normal haritasını puanlıyordu;
+onun doğrultulmuş gradyan büyüklüğü, testin aramaya çalıştığı yönselliği yok ediyordu — kontrol 2,30x
+çıkıp "bu alet kör" dedi. İkinci sürüm 2 piksel gecikme kullanıyordu, ki tam sayıya yuvarlanınca on iki
+yön birkaç özdeş vektöre çöküyordu. Alan doğrudan puanlanıp gecikme 8 piksele çıkarılınca ayrım netleşti:
+sevk edilen **1,13x**, kontrol **2,01x**. Baraj da tahminle değil bu iki ölçülen popülasyonun arasından
+seçildi: **1,5x**. (İlk koyduğum 3x barajını ikisi de geçiyordu.)
+
+**Doğrulama.** 14/14 koltuk, koltuk yol ağı (taban çizgisiyle birebir aynı), kanonik yollar 11/11
+(0 ıslak), vadi oyma, yol koridoru, arazi görsel sözleşmesi, masaüstü LOD, chunk etek, hizalama, zemin
+gerçekçiliği (ADR-0314), determinizm, service worker v31→v32 (yeni modül yok ama atlas içeriği değişti;
+mevcut çevrimdışı kurulum aksi hâlde eski dokumayı sunmaya devam ederdi).
+
+*Bildirilen ortam hatası:* `scripts/checkTerrainMicroSurface.mjs` bu konteynerde çalışmıyor — tarayıcı
+dışında çıplak `three` import'unu çözemiyor. Dokunulmamış HEAD'de de aynı şekilde başarısız; bu turun
+kırdığı bir şey değil.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
