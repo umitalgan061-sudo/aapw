@@ -13,6 +13,7 @@ import {
 	buildFieldReadinessText,
 	evaluateExpeditionRoutePlan,
 	evaluateFieldReadiness,
+	evaluateJourneyEndurance,
 	evaluateJourneyWithRestStops,
 } from './interactionFieldReadiness.js';
 
@@ -107,9 +108,11 @@ export function createInteractionJourneyState() {
 	return { snapshot, restore, applyCommit };
 }
 
-export function buildJourneyStateText(journey = {}) {
+export function buildJourneyStateText(journey = {}, readiness = {}) {
 	const fatigueKm = Math.max(0, Math.min(INTERACTION_JOURNEY_POLICY.MAX_FATIGUE_KM, Number(journey?.fatigueKm) || 0));
-	const lines = [`Sefer yorgunluğu: ${Number(fatigueKm.toFixed(2))}/${INTERACTION_JOURNEY_POLICY.MAX_FATIGUE_KM} km`];
+	const enduranceLimitKm = evaluateJourneyEndurance(readiness).continuousDistanceKm;
+	const remainingEnduranceKm = Number(Math.max(0, enduranceLimitKm - fatigueKm).toFixed(2));
+	const lines = [`Sefer yorgunluğu: ${Number(fatigueKm.toFixed(2))}/${enduranceLimitKm} km`, `Kesintisiz kalan dayanıklılık: ${remainingEnduranceKm} km`];
 	if (journey?.lastDestinationId) lines.push(`Son sefer hedefi: ${journey.lastDestinationId}`);
 	const lastReceipt = Array.isArray(journey?.recentReceipts) ? journey.recentReceipts.at(-1) : null;
 	if (lastReceipt) lines.push(`Son sefer: ${lastReceipt.totalDistanceKm} km · ${lastReceipt.consumedTravelPacks} yol azığı · ${lastReceipt.restStopCount} dinlenme`);
@@ -348,7 +351,7 @@ export function buildInventoryText(snapshot = {}, journey = null) {
 	const items = Array.isArray(snapshot.items) ? snapshot.items : [];
 	const readiness = snapshot?.fieldReadiness?.tier ? snapshot.fieldReadiness : evaluateFieldReadiness(snapshot);
 	const lines = ['Envanter', `Toplam ağırlık: ${Number(snapshot.totalWeightKg) || 0} kg`, ...buildFieldReadinessText(readiness).split('\n')];
-	if (journey) lines.push(...buildJourneyStateText(journey).split('\n'));
+	if (journey) lines.push(...buildJourneyStateText(journey, readiness).split('\n'));
 	if (items.length === 0) return [...lines, 'Henüz eşya yok.'].join('\n');
 	for (const item of items) {
 		const origin = item.provenance?.at(-1);
