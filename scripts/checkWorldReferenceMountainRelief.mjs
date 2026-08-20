@@ -137,6 +137,9 @@ const minimumPeakMeters = {
 	'red-mountains': 240,
 	'bone-mountains': 500,
 	'eastern-chain': 350,
+	'frostfangs': 300,
+	'painted-mountains': 120,
+	'jogos-spine': 180,
 };
 for (const [chainId, metrics] of Object.entries(actual.metrics.chains)) {
 	assert(metrics.dryOwnedSamples > 0, `${chainId} has no source-owned dry centerline samples`);
