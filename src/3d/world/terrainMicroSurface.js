@@ -29,14 +29,14 @@ const lerp = (a, b, t) => a + (b - a) * t;
 export const TERRAIN_MICRO_SURFACE_POLICY = Object.freeze({
 	id: 'terrain-micro-surface-world-uv-pbr-v2',
 	textureSize: 128,
-	detailRepeatMeters: 22,
-	normalStrength: 0.72,
-	normalSlopeGain: 3.4,
+	detailRepeatMeters: 32,
+	normalStrength: 0.42,
+	normalSlopeGain: 1.8,
 	roughnessBase: 0.96,
-	roughnessMin: 0.68,
+	roughnessMin: 0.82,
 	roughnessMax: 0.98,
 	uvChannel: 1,
-	maxAnisotropy: 8,
+	maxAnisotropy: 4,
 	renderOnly: true,
 });
 
