@@ -1,0 +1,95 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {
+	PLAYER_LOCK_ON_CONFIG,
+	applyPlayerLockFacing,
+	computePlayerLockViewForward,
+	createPlayerLockOnController,
+	evaluatePlayerLockTarget,
+	selectPlayerLockTarget,
+} from '../src/3d/gameplay/playerLockOn.js';
+
+const entity = (id, x, z, y = 0) => ({ id, displayName: id, object3D: { position: { x, y, z }, rotation: { y: 0 }, userData: {} } });
+const player = { x: 0, y: 0, z: 0 };
+const forward = { x: 0, z: 1 };
+
+assert.equal(PLAYER_LOCK_ON_CONFIG.ACQUIRE_DISTANCE_METERS, 22);
+assert.equal(PLAYER_LOCK_ON_CONFIG.BREAK_DISTANCE_METERS, 28);
+assert.ok(PLAYER_LOCK_ON_CONFIG.ACQUIRE_HALF_ANGLE_DEGREES > 45 && PLAYER_LOCK_ON_CONFIG.ACQUIRE_HALF_ANGLE_DEGREES < 90);
+
+const center = evaluatePlayerLockTarget({ playerPosition: player, forward, entity: entity('center', 0, 10) });
+assert.equal(center.eligible, true);
+assert.ok(center.angleDegrees < 0.001);
+assert.equal(Number(center.distanceMeters.toFixed(3)), 10);
+
+const behind = evaluatePlayerLockTarget({ playerPosition: player, forward, entity: entity('behind', 0, -8) });
+assert.equal(behind.eligible, false);
+assert.equal(behind.reason, 'angle');
+const far = evaluatePlayerLockTarget({ playerPosition: player, forward, entity: entity('far', 0, 30) });
+assert.equal(far.eligible, false);
+assert.equal(far.reason, 'range');
+
+const candidates = [entity('near-edge', 8, 8), entity('center-farther', 0, 12), entity('behind', 0, -4)];
+const selected = selectPlayerLockTarget({ playerPosition: player, forward, candidates });
+assert.equal(selected.id, 'center-farther', 'central view target should beat a slightly closer high-angle candidate');
+
+const tieA = entity('alpha', -2, 10), tieB = entity('beta', 2, 10);
+assert.equal(selectPlayerLockTarget({ playerPosition: player, forward, candidates: [tieB, tieA] }).id, 'alpha', 'stable id must break geometric ties deterministically');
+assert.equal(selectPlayerLockTarget({ playerPosition: player, forward, candidates: [tieA, tieB] }).id, 'alpha');
+
+const view = computePlayerLockViewForward({ x: 0, z: 8 }, { x: 0, z: 0 });
+assert.ok(Math.abs(view.x) < 1e-9 && view.z < -0.999, 'camera-target vector must define the acquisition cone');
+
+const facingPlayer = { position: { x: 0, z: 0 }, rotation: { y: 0 } };
+assert.equal(applyPlayerLockFacing(facingPlayer, { x: 10, z: 0 }, 0.05), true);
+assert.ok(facingPlayer.rotation.y > 0 && facingPlayer.rotation.y <= 0.55 + 1e-9, 'facing turn must be bounded by configured radians/second');
+for (let i = 0; i < 20; i += 1) applyPlayerLockFacing(facingPlayer, { x: 10, z: 0 }, 0.05);
+assert.ok(Math.abs(facingPlayer.rotation.y - Math.PI / 2) < 0.01, 'bounded facing must converge on target yaw');
+
+const previousCustomEvent = globalThis.CustomEvent;
+const previousDispatch = globalThis.dispatchEvent;
+if (typeof globalThis.CustomEvent !== 'function') globalThis.CustomEvent = class CustomEvent { constructor(type, init = {}) { this.type = type; this.detail = init.detail; } };
+const events = [];
+globalThis.dispatchEvent = (event) => { events.push({ type: event.type, detail: event.detail }); return true; };
+try {
+	const controller = createPlayerLockOnController();
+	const target = entity('guard-a', 0, 10);
+	const other = entity('guard-b', 5, 10);
+	let snapshot = controller.update({ playerPosition: player, forward, candidates: [other, target], toggleRequested: true });
+	assert.equal(snapshot.locked, true);
+	assert.equal(snapshot.targetId, 'guard-a');
+	assert.equal(events.at(-1)?.detail.reason, 'acquired');
+
+	target.object3D.position.x = 3;
+	snapshot = controller.update({ playerPosition: player, forward, candidates: [other, target] });
+	assert.equal(snapshot.locked, true);
+	assert.equal(snapshot.targetPosition.x, 3, 'lock must follow the existing NPC object position without mutating AI');
+
+	snapshot = controller.update({ playerPosition: player, forward, candidates: [other, target], toggleRequested: true });
+	assert.equal(snapshot.locked, false);
+	assert.equal(events.at(-1)?.detail.reason, 'toggle-release');
+
+	snapshot = controller.update({ playerPosition: player, forward, candidates: [target], toggleRequested: true });
+	assert.equal(snapshot.locked, true);
+	target.object3D.position.z = PLAYER_LOCK_ON_CONFIG.BREAK_DISTANCE_METERS + 1;
+	snapshot = controller.update({ playerPosition: player, forward, candidates: [target] });
+	assert.equal(snapshot.locked, false);
+	assert.equal(events.at(-1)?.detail.reason, 'range-break');
+
+	target.object3D.position.z = 10;
+	controller.update({ playerPosition: player, forward, candidates: [target], toggleRequested: true });
+	snapshot = controller.update({ playerPosition: player, forward, candidates: [] });
+	assert.equal(snapshot.locked, false);
+	assert.equal(events.at(-1)?.detail.reason, 'target-removed');
+} finally {
+	globalThis.dispatchEvent = previousDispatch;
+	if (previousCustomEvent) globalThis.CustomEvent = previousCustomEvent; else delete globalThis.CustomEvent;
+}
+
+const inputSource = fs.readFileSync(new URL('../src/3d/input.js', import.meta.url), 'utf8');
+for (const fragment of ["const LOCK_ON_KEYS = new Set(['Tab'])", 'LOCK_ON: 11', 'lockOnPressed: buttons.lockOn && !previousButtons.lockOn', 'if (sample.lockOnPressed) this._lockOnRequested = true', 'consumeLockOnRequested()']) assert.ok(inputSource.includes(fragment), `missing lock-on input contract: ${fragment}`);
+const loopSource = fs.readFileSync(new URL('../src/3d/gameLoopHelpers.js', import.meta.url), 'utf8');
+for (const fragment of ["from './gameplay/playerLockOn.js'", 'export function updatePlayerLockOn(state)', 'candidates: state.npcs ?? []', 'state.keyboardInput.consumeLockOnRequested?.()', 'applyPlayerLockFacing(state.player.object3D', 'updatePlayerLockOn(state);']) assert.ok(loopSource.includes(fragment), `missing shipped lock-on integration: ${fragment}`);
+assert.ok(!loopSource.includes('npc.update('), 'Player lock-on adapter must not mutate or invoke NPC AI');
+console.log('[checkPlayerLockOn] PASS');
