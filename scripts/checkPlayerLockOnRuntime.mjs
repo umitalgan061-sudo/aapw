@@ -85,8 +85,14 @@ try {
 	await setPad({ buttons: { 12: true } });
 	const approachStart = await waitHistory('motion', (motion) => motion.state === 'walk' && motion.speedMps > 2.5, 'D-pad approach walk', 5000);
 	await sleep(9500);
+	const motionCountBeforeStop = (await histories()).motion.length;
 	await setPad();
-	const approachEnd = await waitHistory('motion', (motion) => motion.state === 'idle' && motion.isGrounded, 'approach stop', 5000);
+	const approachEnd = await waitFor(
+		histories,
+		(history) => history.motion.slice(motionCountBeforeStop).find((motion) => motion.state === 'idle' && motion.isGrounded) ?? null,
+		'approach stop after D-pad release',
+		5000,
+	);
 	const displacement = Math.hypot(approachEnd.position.x - approachStart.position.x, approachEnd.position.z - approachStart.position.z);
 	need(displacement > 15, `approach displacement too small: ${displacement}`);
 
