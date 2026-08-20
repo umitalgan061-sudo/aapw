@@ -115,10 +115,20 @@ export const REFERENCE_ROAD_ROUTES = Object.freeze([
 		via: Object.freeze([[0.510, 0.462], [0.545, 0.458], [0.575, 0.456], [0.605, 0.455]]),
 		servesSeats: Object.freeze([]),
 	}),
-	/** The Slaver's Bay road, following the Skahazadhan east from Meereen past Hesh and Kraaz. */
+	/**
+	 * The Slaver's Bay road, following the Skahazadhan east from Meereen past Hesh and Kraaz.
+	 *
+	 * Corrected in run 365: the first reading sat at y 0.629-0.634, which is about 0.006 too far north —
+	 * inside Slaver's Bay itself. It put eight of the routed road's points under water, the deepest
+	 * 22.07 m below sea level, i.e. a highway along the seabed. Probing the real height field found dry
+	 * ground at y 0.638-0.641 (57 m, 78 m, 170 m, 203 m above sea), which is where the bank actually is.
+	 * The coarse 96x64 mask check had passed the original because its +/-1-cell coastal tolerance calls
+	 * that whole strip "near land" — see the height-field validation added to
+	 * `scripts/checkOwnerMapAndRoadRoutes.js`, which is what now catches this class of misreading.
+	 */
 	Object.freeze({
 		id: 'slavers-bay-road', kind: 'highway',
-		via: Object.freeze([[0.516, 0.633], [0.545, 0.634], [0.577, 0.634], [0.607, 0.633], [0.635, 0.629]]),
+		via: Object.freeze([[0.516, 0.638], [0.545, 0.641], [0.577, 0.641], [0.607, 0.641], [0.635, 0.640]]),
 		servesSeats: Object.freeze([]),
 	}),
 	/** The Sarnath road: north from Vaes Khadokh to the Sarne cities. */

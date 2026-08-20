@@ -233,7 +233,7 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // RPG expedition readiness adds an offline-loadable gameplay module; v19->v20 refreshes existing installs.
 // Merge of run 355-359 (skirts, road corridor, forest scatter, forest affinity) with that work: both
 // sides bumped this independently, so the merged install needs a version above either branch's.
-const SHELL_CACHE = 'westeros-shell-v27';
+const SHELL_CACHE = 'westeros-shell-v28';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -390,6 +390,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/world/vegetationForestScatter.js',
     './src/3d/world/worldReferenceForestAffinity.js',
     './src/3d/world/worldReferenceBiomeField.js',
+    './src/3d/world/worldLandmarkScatter.js',
     './src/3d/world/terrainValleyCarving.js',
     './src/3d/world/worldReferenceRoadRoutes.js',
     './src/3d/world/worldReferenceRoadNetwork.js',

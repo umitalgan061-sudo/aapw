@@ -66,6 +66,7 @@ import { createWorldEventSystem } from './gameplay/worldEvents.js';
 import { updateWater, disposeWater } from './world/water.js';
 import { disposeRiverMesh, disposeWaterfallMesh, updateFlowAnimation } from './world/rivers.js';
 import { disposeSettlements, disposeRealCastleModels, spawnRealCastleModels, mapToWorldXZ } from './world/settlements.js';
+import { initWorldLandmarks, disposeWorldLandmarks } from './world/worldLandmarkScatter.js';
 import { disposeRoadNetwork } from './world/roads.js';
 import { disposeVegetation } from './world/vegetation.js';
 import { disposeVillages } from './world/villages.js';
@@ -139,6 +140,8 @@ export async function initGame3D() {
 			seed: WORLD_DEFAULTS.WORLD_SEED,
 		});
 		state.scene.add(state.realCastles);
+
+		state.worldLandmarks = await initWorldLandmarks({ assetLoader, state });  // ADR-0312
 
 		// FAZ 4: playable character. Loaded after the terrain/sky/water scene so the loading overlay
 		// (hidden only once GAME_READY's "phase1-scene" fires below) stays up for the ~6MB of
@@ -573,6 +576,7 @@ export async function initGame3D() {
 			state.waterfalls.forEach(disposeWaterfallMesh);
 			disposeSettlements(state.settlements);
 			disposeRealCastleModels(state.realCastles);
+			if (state.worldLandmarks) disposeWorldLandmarks(state.worldLandmarks);
 			disposeRoadNetwork(state.roads);
 			disposeVegetation(state.vegetation);
 			disposeVillages(state.villages);

@@ -17208,3 +17208,31 @@ sınırı, determinizm — hepsi PASS.
 
 Kalan: taban bitki geçişi (30/km², tekdüze) kuraklığı okumuyor, çölde hâlâ seyrek ağaç var. Düzeltmesi
 `isPlaceablePosition`'a kuraklık kapısı ama o fonksiyonu köyler de kullanıyor — kendi turu gerekiyor.
+
+### Run 365 — Yollar denizden çıktı, ve modeller haritaya serpildi (ADR-0312)
+
+"Deniz'den yollar geçmesin" dediniz. Ölçünce beklemediğim şey çıktı: **koltuk yol ağı en başından beri
+denizden geçiyormuş** — 320 nokta su altında, `umit->doran` tek başına 168. Yüzlerce turdur böyleymiş
+çünkü hiçbir kontrol suya bakmıyordu, ve yol bulucu yalnızca eğim ödüyordu — açık deniz ise kusursuz
+düz, yani körfezin üstünden geçmek hep en ucuz yoldu.
+
+Üç düzeltme yaptım: suya giren adıma ağır ceza; yumuşatmayı su-farkında yaptım (Chaikin körfez ağzında
+tam da aramanın kaçındığı köşeyi kesiyordu); ve suya giren kanonik rota artık **çizilmiyor**, gerekçesiyle
+atlanıyor.
+
+Sonuç: kanonik yollarda **su altında 0 nokta**. `slavers-bay-road` düşürüldü — okumam da yanlışmış,
+y ≈ 0,633 körfezin içi, kuru kıyı 0,640'ta; düzelttim ama bu arazide yine de kuru yol yok.
+
+Koltuk ağında 320 → **64**. Kalan üçü fiziksel olarak kaçınılmaz: `umit`, `balon`, `Xaro` ada/denizaşırı
+koltuklar. Karaya zorlayınca `umit->doran` ada kıyısında 20,7°'lik keçi yoluna dönüyor — daha kötü cevap.
+O yüzden kontrol onları **SEA** diye işaretliyor, eğim tavanı onları yargılamıyor, ve gerçek
+feribot/köprü sistemini S-0038 olarak sordum (tavsiyem: kısa geçişe köprü, uzun ikisine feribot).
+
+**Blend dosyaları:** `.blend` doğrudan kullanılamıyor, Blender'ın kendi proje formatı ve tarayıcı okuyamaz.
+Onların dışa aktarıldığı **233 `.glb`** var; 14'ünü katalogladım ve haritanın biyom cevabına göre
+serpiştirdim — kıyıya iskele, kurak ülkeye yıpranmış taş, çayıra çiftlik, ormana kulübe, yaylaya duvar.
+**44 landmark**, beş biyom türünde de. (Bu konteynerde `.glb`'ler LFS stub olduğu için yer tutucu kutu
+çiziliyor; sizin ortamınızda gerçek modeller görünecek.)
+
+Kapılar: yollar, kanonik yollar (0 ıslak), 14/14 koltuk, vadi, koridor, terrain contract, LOD, hizalama,
+su maskesi, satır sınırı, determinizm — hepsi PASS.

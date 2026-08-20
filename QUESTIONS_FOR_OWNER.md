@@ -537,3 +537,31 @@ arazi değişikliği.
 
 **Soru:** Zinciri haritayla hizalamamı ister misiniz? İsterseniz kendi turunda, öncesi/sonrası koltuk ve
 yol kapılarıyla ölçerek yaparım. İstemezseniz kayıt burada dursun.
+
+## S-0038 (run 365) — Üç koltuk denizaşırı; feribot/köprü sistemi gerekiyor
+
+**Durum:** Sahip kararı bekliyor. Engelleyici değil — yollar artık denizden geçmiyor, ama üç bağlantı
+"deniz geçişi" olarak işaretli ve gerçek bir taşıma sistemi yok.
+
+Sahip "deniz'den yollar geçmesin" dedi. Ölçünce çıktı ki koltuk yol ağı **en başından beri** denizden
+geçiyormuş: 320 nokta su altında, dördü kenar (`umit->doran` tek başına 168 nokta). Yüzlerce turdur
+böyleymiş çünkü hiçbir kontrol suya bakmıyordu.
+
+Yol bulucuya su cezası eklendi; **320 → 64 noktaya** indi, yani var olan her kuru güzergâh artık
+seçiliyor. Kalan üç kenar fiziksel olarak kaçınılmaz: `umit` (0,432 / 0,767 — Yaz Denizi), `balon`
+(Demir Adaları) ve `Xaro` (Qarth, denizin ötesi) ada/denizaşırı koltuklar. Kara yolu yok.
+
+Bu kenarları karaya zorlamak daha kötü bir cevap veriyor: `umit->doran` ada kıyısında 20,7°'lik bir keçi
+yoluna dönüşüyor. Bu yüzden kontrolde artık **SEA** olarak işaretleniyorlar ve at arabası eğim tavanı
+onları yargılamıyor — ama ortada hâlâ gerçek bir bağlantı yok.
+
+**Soru:** Bu üç bağlantı nasıl olsun?
+
+1. **Feribot** — liman noktaları ve deniz üstünde bir geçiş hattı. En gerçekçi; oynanışta bekleme/ücret
+   gibi bir mekanik de doğurabilir.
+2. **Köprü** — `assets/models/fbx/stone bridge` deposunda zaten var. Kısa geçişler (`twin->balon`) için
+   inandırıcı, `umit->Xaro` gibi 4,5 km'lik açık deniz için değil.
+3. **Koltukları taşımak** — `umit`'i karaya almak sorunu kökten çözer ama kanonik yerleşimi değiştirir,
+   bu yüzden sizin kararınız.
+
+**Tavsiyem:** kısa geçişte köprü (2), uzun ikisinde feribot (1). Söylerseniz kurarım.

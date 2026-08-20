@@ -17691,3 +17691,50 @@ görsel: sıcak kum, plaj ve içinden geçen kanonik yol — Reach'in yeşilinde
 **Next safe step:** taban bitki örtüsü geçişi (km² başına 30, tekdüze) kuraklığı hiç okumuyor, bu yüzden
 çölde hâlâ seyrek ağaç kalıyor. `isPlaceablePosition`'a kuraklık kapısı eklemek doğru düzeltme ama o
 fonksiyonu köyler de kullanıyor, yani köy sayılarını da etkiler — kendi turunu hak ediyor.
+
+## ADR-0312 — Yollar denizden çıktı, ve model kütüphanesi haritaya biyoma göre serpildi
+
+**Bağlam.** Sahip: "Deniz'den yollar geçmesin… Blend dosyalarını haritaya serpiştir."
+
+### 1. Deniz geçişleri
+
+Ölçüm beklemediğim bir şey buldu: **koltuk yol ağı en başından beri denizden geçiyormuş** — 320 nokta
+su altında, dört kenarda (`umit->doran` tek başına 168). Yüzlerce turdur böyleymiş çünkü hiçbir kontrol
+suya bakmıyordu; `roadPathfinder.js` yalnızca eğim ödüyordu ve **açık deniz kusursuz düzdür**, yani iki
+kıyı noktası arasındaki en ucuz güzergâh çoğu zaman körfezin üstünden geçen düz çizgiydi.
+
+Üç düzeltme, üçü de ölçümle:
+
+1. `UNDERWATER_PENALTY` (20000x): deniz seviyesinin altında biten adım neredeyse yasak. `OVER_CAP_PENALTY`
+   gibi sonlu, çünkü bu modülün sözleşmesi "her zaman *bir* güzergâh vardır".
+2. *Yumuşatma da su-farkında.* Chaikin köşe kesiyor ve körfez ağzında kestiği köşe, aramanın az önce
+   kaçındığı suyun ta kendisi. Yumuşatılmış nokta suya düşerse ham noktası tercih ediliyor.
+3. `routeReferenceRoads` suya giren rotayı **çizmiyor**; adıyla `droppedRoutes`'a yazıyor.
+
+Sonuç: kanonik yollarda **su altında 0 nokta** (kontrol canlı yükseklik alanında doğruluyor).
+`slavers-bay-road` düşürüldü — ve okumam da yanlışmış: y ≈ 0,633 Köle Körfezi'nin içi, kuru kıyı
+y ≈ 0,640'ta. Düzeltildi, yine de bu dünyanın arazisinde kuru yol yok.
+
+Koltuk ağında 320 → **64** nokta. Kalan üç kenar fiziksel olarak kaçınılmaz: `umit`, `balon` ve `Xaro`
+ada/denizaşırı koltuklar. Karaya zorlamak daha kötü cevap veriyor — `umit->doran` ada kıyısında 20,7°'lik
+keçi yoluna dönüşüyor. Bu yüzden kontrol onları **SEA** olarak işaretliyor ve at arabası eğim tavanı
+onları yargılamıyor; gerçek feribot/köprü sistemi S-0038 olarak soruldu.
+
+### 2. Model kütüphanesi
+
+`.blend` doğrudan kullanılamıyor — Blender'ın kendi proje formatı, tarayıcıda hiçbir şey okuyamaz.
+Kullanılabilen, o kaynakların dışa aktarıldığı **233 prop `.glb`**'si. `world/worldLandmarkScatter.js`
+bunlardan 14'ünü katalogluyor ve haritanın hücre başına biyom cevabına göre yerleştiriyor: kıyıya
+iskele, kurak ülkeye yıpranmış taş, açık çayıra çiftlik yapıları, ormana kulübe, yaylaya duvar/kışla.
+Ölçülen: **44 landmark**, beş biyom türünde de. Kendi XOR-etiketli akışı var, yani bitki örtüsü/köy
+çizim sırasını bozmuyor.
+
+*Ortam sınırı, dürüstçe:* taze uzak klonda `.glb`'ler 131 baytlık LFS pointer stub olarak geliyor
+(RCA_RUN344), bu yüzden burada yer tutucu kutu çiziliyor. Yerleşim/oturtma/biyom mantığı aynı çalışıyor;
+gerçek mesh'ler LFS'in çözüldüğü ortamda görünüyor.
+
+**Doğrulama.** Yollar PASS (kara kenarlarında 20° altında; SEA kenarları adlandırılmış), kanonik yollar
+0 ıslak nokta, 14/14 koltuk, vadi, yol koridoru, terrain visual contract, masaüstü LOD, hizalama, su
+maskesi, satır sınırı (game3d.js 600'e indirildi), determinizm, borç 0.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.

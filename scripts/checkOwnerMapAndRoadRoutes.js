@@ -154,7 +154,41 @@ async function main() {
 					lengthNormalized,
 				});
 			}
-			return { routes, policy: REFERENCE_ROAD_ROUTES_POLICY, maskCells: `${width}x${height}` };
+			// The routes the game actually builds, on the real height field.
+			const { WORLD_DEFAULTS, WORLD_SCALE, SETTLEMENT_CONFIG } = await import('/src/3d/config.js');
+			const { computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');
+			const { createHeightSampler } = await import('/src/3d/world/terrain.js');
+			const { computeRiverValleys } = await import('/src/3d/world/terrainValleyCarving.js');
+			const { routeReferenceRoads } = await import('/src/3d/world/worldReferenceRoadNetwork.js');
+			const seaLevel = WORLD_DEFAULTS.WATER_LEVEL_METERS;
+			const rawSampler = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED);
+			const pads = computeSettlementFlattenPads({
+				sampleHeightMeters: rawSampler,
+				seaLevelMeters: seaLevel,
+				minGroundClearanceMeters: SETTLEMENT_CONFIG.MIN_GROUND_CLEARANCE_METERS,
+				mapBounds: WORLD_SCALE.MAP_BOUNDS,
+				metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
+			});
+			const preValley = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, pads);
+			const valleyField = computeRiverValleys({
+				seed: WORLD_DEFAULTS.WORLD_SEED, baseSampleHeightMeters: preValley, seaLevelMeters: seaLevel,
+			});
+			const liveSampler = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, pads, null, valleyField);
+			const built = routeReferenceRoads({
+				seats: KINGDOM_SEATS, sampleHeightMeters: liveSampler,
+				mapBounds: WORLD_SCALE.MAP_BOUNDS, metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
+			});
+			let wetRoutedPoints = 0;
+			for (const road of built.routed) {
+				for (const point of road.points) if (point.y <= seaLevel) wetRoutedPoints += 1;
+			}
+
+			return {
+				routes, policy: REFERENCE_ROAD_ROUTES_POLICY, maskCells: `${width}x${height}`,
+				builtCount: built.routed.length,
+				droppedRoutes: built.droppedRoutes.map((r) => `${r.id} (${r.wetPoints} wet, ${r.deepestBelowSeaMeters.toFixed(1)} m under)`),
+				wetRoutedPoints,
+			};
 		}, { coastToleranceCells: COAST_TOLERANCE_CELLS });
 
 		let allOk = true;
@@ -172,6 +206,15 @@ async function main() {
 			`[owner-map] ${allOk ? 'PASS' : 'FAIL'}: ${result.routes.length} canonical routes transcribed from the owner map ` +
 				`(${result.policy.method}, +/-${result.policy.readingToleranceNormalized} normalized), every metre of every route on land ` +
 				`per the ${result.maskCells} canonical surface mask.`,
+		);
+		if (result.wetRoutedPoints > 0) {
+			allOk = false;
+			console.error(`[owner-map] FAIL: ${result.wetRoutedPoints} routed road point(s) below sea level — roads must not run through water.`);
+		}
+		console.log(
+			`[owner-map] ${result.builtCount} route(s) built on the live height field with ${result.wetRoutedPoints} point(s) ` +
+				`below sea level` +
+				`${result.droppedRoutes.length ? `; dropped for want of a dry path: ${result.droppedRoutes.join(', ')}` : ''}.`,
 		);
 		process.exit(allOk ? 0 : 1);
 	} finally {

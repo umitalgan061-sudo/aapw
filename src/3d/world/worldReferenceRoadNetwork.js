@@ -25,6 +25,7 @@ import { appendRoadRibbon } from './roads.js';
 import { findSlopeAwarePath } from './roadPathfinder.js';
 import { REFERENCE_ROAD_ROUTES, expandRouteWaypoints } from './worldReferenceRoadRoutes.js';
 import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
+import { WORLD_DEFAULTS } from '../config.js';
 
 /** Widths, in metres, by the `kind` a route records. A Valyrian road is a monumental highway; a
  * mountain pass is a track. */
@@ -60,7 +61,16 @@ function normalizedToWorld(nx, ny, mapBounds, metersPerMapUnit) {
  * @param {(x: number, z: number) => number} options.sampleHeightMeters Phase-1 terrain.
  * @param {{minX: number, maxX: number, minY: number, maxY: number}} options.mapBounds
  * @param {number} options.metersPerMapUnit
- * @returns {{id: string, kind: string, points: {x: number, y: number, z: number}[], lengthMeters: number}[]}
+ *
+ * **No road is ever drawn through water.** `roadPathfinder.js` now charges `UNDERWATER_PENALTY` for a
+ * wet step and refuses to smooth a corner into the sea, which keeps every route that *can* stay dry
+ * dry. A route that still comes back with a submerged point has no land path in this world's height
+ * field between the waypoints read off the map — that is a transcription or a terrain fact, not
+ * something to paper over — so it is dropped here and named in `droppedRoutes` rather than rendered as
+ * a highway along the seabed.
+ *
+ * @returns {{routed: {id: string, kind: string, points: {x: number, y: number, z: number}[], lengthMeters: number}[],
+ *   droppedRoutes: {id: string, wetPoints: number, deepestBelowSeaMeters: number}[]}}
  */
 export function routeReferenceRoads({ seats, sampleHeightMeters, mapBounds, metersPerMapUnit }) {
 	const seatsById = new Map(seats.map((seat) => [seat.id, {
@@ -69,6 +79,8 @@ export function routeReferenceRoads({ seats, sampleHeightMeters, mapBounds, mete
 	}]));
 
 	const routed = [];
+	const droppedRoutes = [];
+	const seaLevel = WORLD_DEFAULTS.WATER_LEVEL_METERS;
 	for (const route of REFERENCE_ROAD_ROUTES) {
 		const waypoints = expandRouteWaypoints(route, seatsById);
 		if (waypoints.length < 2) continue;
@@ -87,13 +99,25 @@ export function routeReferenceRoads({ seats, sampleHeightMeters, mapBounds, mete
 		}
 		if (points.length < 2) continue;
 
+		let wetPoints = 0;
+		let deepestBelowSeaMeters = 0;
+		for (const point of points) {
+			if (point.y > seaLevel) continue;
+			wetPoints += 1;
+			deepestBelowSeaMeters = Math.max(deepestBelowSeaMeters, seaLevel - point.y);
+		}
+		if (wetPoints > 0) {
+			droppedRoutes.push({ id: route.id, wetPoints, deepestBelowSeaMeters });
+			continue;
+		}
+
 		let lengthMeters = 0;
 		for (let i = 1; i < points.length; i += 1) {
 			lengthMeters += Math.hypot(points[i].x - points[i - 1].x, points[i].z - points[i - 1].z);
 		}
 		routed.push({ id: route.id, kind: route.kind, points, lengthMeters });
 	}
-	return routed;
+	return { routed, droppedRoutes };
 }
 
 /**

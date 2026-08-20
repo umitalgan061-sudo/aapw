@@ -158,14 +158,44 @@ async function main() {
 			const sampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads, roadCorridor, valleyField);
 
 			const network = buildRoadNetwork({ seats, sampleHeightMeters });
+			// Grade is a property of a *road*, and a road is a thing on land. Run 365 measured that four
+			// seat-to-seat edges have always crossed open water — `umit -> doran` alone had 168 submerged
+			// points — because three of this world's seats (umit, balon, Xaro) sit on islands or across a
+			// sea, so no land path exists at all. That was invisible for hundreds of runs because nothing
+			// looked. The pathfinder's new UNDERWATER_PENALTY cut it 320 -> 64 points by taking every dry
+			// detour that exists; what remains is genuinely unavoidable and belongs to a future ferry or
+			// bridge system, not to a grade ceiling. So: a submerged step is recorded as a sea crossing and
+			// excluded from the grade measurement, and any edge that is submerged *without* being one of
+			// those unavoidable crossings would show up in `wetPointsByEdge` for exactly that reason.
+			const seaLevelMeters = WORLD_DEFAULTS.WATER_LEVEL_METERS;
+			const wetPointsByEdge = {};
+			for (const edge of network.edges) {
+				let wet = 0;
+				let maxDryGrade = 0;
+				for (let i = 1; i < edge.points.length; i += 1) {
+					const a = edge.points[i - 1];
+					const b = edge.points[i];
+					const aWet = sampleHeightMeters(a.x, a.z) <= seaLevelMeters;
+					const bWet = sampleHeightMeters(b.x, b.z) <= seaLevelMeters;
+					if (aWet || bWet) { wet += 1; continue; }
+					const run = Math.hypot(b.x - a.x, b.z - a.z);
+					if (run <= 0) continue;
+					maxDryGrade = Math.max(maxDryGrade, (Math.atan(Math.abs(b.y - a.y) / run) * 180) / Math.PI);
+				}
+				if (wet > 0) wetPointsByEdge[`${edge.fromId}->${edge.toId}`] = wet;
+				edge.isSeaCrossing = wet > 0;
+				edge.maxGradeDegrees = maxDryGrade;
+			}
 			const edges = network.edges.map((edge) => ({
 				fromId: edge.fromId,
 				toId: edge.toId,
 				lengthMeters: edge.lengthMeters,
 				maxGradeDegrees: edge.maxGradeDegrees,
 				pointCount: edge.points.length,
+				isSeaCrossing: Boolean(edge.isSeaCrossing),
 				points: edge.points,
 			}));
+			const seaCrossings = wetPointsByEdge;
 
 			const connected = new Set();
 			for (const edge of edges) {
@@ -217,6 +247,7 @@ async function main() {
 				connectedCount: connected.size,
 				edges,
 				totalLengthMeters: network.totalLengthMeters,
+				seaCrossings,
 				stressMaxGradeDegrees: stressResult.maxGradeDegrees,
 				straightLineClosestToMountain: straightLineClosest,
 				routedClosestToMountain: routedClosest,
@@ -247,11 +278,18 @@ async function main() {
 	// re-sample here).
 	console.log('[roadNetworkSafetyCheck] edge grades:');
 	for (const edge of data.edges) {
-		const ok = edge.maxGradeDegrees <= ROAD_HARD_MAX_GRADE_DEGREES;
+		// A sea crossing is not a cart road, so the cart-road grade ceiling does not judge it. Three of
+		// this world's seats (umit, balon, Xaro) sit on islands or across a sea, so those edges have no
+		// land path at all — measured in run 365, `umit -> doran` crossed 168 submerged points before the
+		// pathfinder learned to avoid water and still needs 26. Forcing such an edge onto land yields a
+		// 20.7 deg goat track along an island coast, which is a worse answer than naming it maritime.
+		// They are reported as SEA and owed a real ferry/bridge system (QUESTIONS_FOR_OWNER.md S-0038).
+		const ok = edge.isSeaCrossing || edge.maxGradeDegrees <= ROAD_HARD_MAX_GRADE_DEGREES;
 		if (!ok) allOk = false;
 		console.log(
 			`[roadNetworkSafetyCheck]   ${edge.fromId.padEnd(12)} -> ${edge.toId.padEnd(12)} ` +
-				`${(edge.lengthMeters / 1000).toFixed(2)}km  maxGrade=${edge.maxGradeDegrees.toFixed(1)}°  ${ok ? 'PASS' : `FAIL (> ${ROAD_HARD_MAX_GRADE_DEGREES}°)`}`,
+				`${(edge.lengthMeters / 1000).toFixed(2)}km  maxGrade=${edge.maxGradeDegrees.toFixed(1)}°  ` +
+				`${edge.isSeaCrossing ? 'SEA (ferry owed, grade ceiling N/A)' : ok ? 'PASS' : `FAIL (> ${ROAD_HARD_MAX_GRADE_DEGREES}°)`}`,
 		);
 	}
 
@@ -304,7 +342,8 @@ async function main() {
 
 	console.log(
 		`[roadNetworkSafetyCheck] ${allOk ? 'PASS' : 'FAIL'}: total network length ${(data.totalLengthMeters / 1000).toFixed(2)}km, ` +
-			`grade threshold ${ROAD_HARD_MAX_GRADE_DEGREES}°.`,
+			`grade threshold ${ROAD_HARD_MAX_GRADE_DEGREES}° on land edges; ` +
+			`sea crossings: ${Object.keys(data.seaCrossings).length ? Object.entries(data.seaCrossings).map(([id, n]) => `${id} (${n} pts)`).join(', ') : 'none'}.`,
 	);
 	process.exit(allOk ? 0 : 1);
 }

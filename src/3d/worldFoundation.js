@@ -75,7 +75,7 @@ export function buildWorldFoundation() {
 		// The owner map's own highways (DECISIONS.md ADR-0308), routed over the same valley-carved phase-1
 		// terrain the seat network is. Routed here so their polylines can go into the cut-and-fill bed
 		// below alongside the seat roads — a canonical highway gets the same treatment as any other road.
-		const referenceRoads = routeReferenceRoads({
+		const { routed: referenceRoads, droppedRoutes: droppedReferenceRoutes } = routeReferenceRoads({
 			seats: KINGDOM_SEATS,
 			sampleHeightMeters: valleySampleHeightMeters,
 			mapBounds: WORLD_SCALE.MAP_BOUNDS,
@@ -92,5 +92,5 @@ export function buildWorldFoundation() {
 		});
 
 
-	return { flattenPads, valleyField, roadCorridor, referenceRoads, baseSampleHeightMeters };
+	return { flattenPads, valleyField, roadCorridor, referenceRoads, droppedReferenceRoutes, baseSampleHeightMeters };
 }

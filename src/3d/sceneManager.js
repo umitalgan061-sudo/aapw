@@ -166,7 +166,7 @@ export function createScene(canvas) {
 
 	// Every terrain-shaping layer, in the order each one requires the previous — see
 	// `worldFoundation.js` for why that order is load-bearing rather than incidental.
-	const { flattenPads, valleyField, roadCorridor, referenceRoads } = buildWorldFoundation();
+	const { flattenPads, valleyField, roadCorridor, referenceRoads, droppedReferenceRoutes } = buildWorldFoundation();
 	const isMobileClass = isCoarsePointerDevice();
 	const chunkManager = new ChunkManager({
 		scene,
@@ -278,7 +278,8 @@ export function createScene(canvas) {
 	scene.add(referenceRoadMeshes.group);
 	console.info(
 		`[sceneManager] Owner-map roads: ${referenceRoadMeshes.roadCount} canonical route(s), ` +
-			`${(referenceRoadMeshes.totalLengthMeters / 1000).toFixed(2)} km, read from resimler/map.png.`,
+			`${(referenceRoadMeshes.totalLengthMeters / 1000).toFixed(2)} km, read from resimler/map.png` +
+			`${droppedReferenceRoutes.length ? `; dropped ${droppedReferenceRoutes.map((r) => r.id).join(', ')} — no dry path` : ''}.`,
 	);
 	console.info(
 		`[sceneManager] Built road network: ${roadsResult.edges.length} segment(s) connecting ` +
