@@ -58,6 +58,7 @@ for (const fragment of [
   "payload) => { this._flash(); this._paintDefense(payload); }", "this._combatDefense ? `defense-${this._combatDefense}`",
   'reachMeters: Number.isFinite(detail.reachMeters)', 'damageScale: Number.isFinite(detail.damageScale)',
   'this._combatLock.distanceMeters <= this._combatAttack.reachMeters', "targetInRange ? 'MENZİLDE' : 'UZAK'", "dataset.range = targetInRange === null ? 'unknown' : targetInRange ? 'in-range' : 'out-of-range'",
+  'const TARGET_FEEDBACK_SECONDS = 0.9', "detail?.reason === 'no-target'", "this._renderCombatStatus('Hedef yok')", '_targetTimeoutId = setTimeout', 'clearTimeout(this._targetTimeoutId)',
   "removeEventListener('aapw:player-lock-on'", "removeEventListener('aapw:player-attack-window'", 'clearTimeout(this._defenseTimeoutId)',
 ]) assert.ok(hud.includes(fragment), `missing combat HUD contract: ${fragment}`);
 assert.ok(input.includes("const GUARD_KEYS = new Set(['KeyQ'])"));
@@ -84,5 +85,5 @@ console.log(JSON.stringify({
   guard: { damageMultiplier: cfg.guardDamageMultiplier, sample20AppliedDamage: guardedDamage, sample20StaminaCost: guardStaminaCost },
   poise: { max: cfg.maxPoise, sample20PoiseCost: guardPoiseCost, hitsToBreak, regenPerSecond: cfg.poiseRegen, regenDelaySeconds: cfg.poiseRegenDelay, guardBreakSeconds: cfg.guardBreakSeconds },
   parry: { windowSeconds: cfg.parryWindow, staminaCost: cfg.parryCost },
-  combatHud: { lockOnEvent: 'aapw:player-lock-on', attackWindowEvent: 'aapw:player-attack-window', defenseMitigation: ['guard', 'parry'], accessibleLiveStatus: true, meleeRangeCue: ['in-range', 'out-of-range'] },
+  combatHud: { lockOnEvent: 'aapw:player-lock-on', attackWindowEvent: 'aapw:player-attack-window', defenseMitigation: ['guard', 'parry'], accessibleLiveStatus: true, meleeRangeCue: ['in-range', 'out-of-range'], failedTargetFeedbackSeconds: 0.9 },
 }, null, 2));
