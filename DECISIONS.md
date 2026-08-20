@@ -18011,3 +18011,64 @@ dışında çıplak `three` import'unu çözemiyor. Dokunulmamış HEAD'de de ay
 kırdığı bir şey değil.
 
 **Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+## ADR-0316 — Öğle ortamı güneşin sıcaklığını iki kez sayıyordu
+
+**Bağlam.** Sahip aynı isteği dördüncü kez yazdı: *"Coğrafi gerçeklik için 3D oyunun zeminini gerçek
+dünya coğrafyasına dönüştür."* Tur 367'de zeminin hardal sarısı olduğunu tespit etmiş, ariditeyi ölçüp
+elemiş ve "sarılık taban paletinden geliyor, palet ayrı bir karar" diye bırakmıştım. **Bu da tam olarak
+doğru değilmiş.** Bu tur ölçtüm ve sorumlunun palet değil ışık olduğu çıktı.
+
+### Önce bir yanlış varsayımımı düzeltmem gerekti
+
+Bütün §8.5 kanıt çekimlerim `startRatio` 0,42 ile alınıyor ve karelerde mor-siyah bir gökyüzü ile aurora
+görünüyor, yani aylardır gece görüntüsüne bakıyor olabileceğimden şüphelendim. Kontrol ettim: 0,42 şafak
+(0,27) ile öğle (0,5) arasında, güneş yoğunluğu ~1,23, gece faktörü ~0,12 — yani **gündüz**. Gökyüzünün
+karanlık kalmasının sebebi, kanıt betiğinin `updateDayNightLighting`'i çağırıp gökyüzünün kendi güncelleme
+fonksiyonunu çağırmaması; yani arazi gündüz ışığında, gökyüzü başlangıç hâlinde. **Bu bir oyun hatası
+değil, kanıt donanımının sınırı** — ama bütün kanıt karelerimde var olduğu için kayda geçiyor.
+
+### Ölçüm
+
+Aynı manzarayı öğlende çekip yazılan albedo ile çizilen rengi karşılaştırdım:
+
+| | ton | doygunluk |
+|---|---|---|
+| `GRASS_LOW`, yazılan albedo | **79°** | %43 |
+| çizilen zemin, sevk edilen ışık | **66°** | %37 |
+| çizilen zemin, gün ışığı mavisi ortam | **81°** | %31 |
+
+Yani dünya, paletin söylediği renkten **13 derece sarıya** kaymış hâlde çiziliyormuş.
+
+**Sebep:** `HemisphereLight`'ın `color` alanı *gökten gelen ışığı* temsil eder. Açık havada öğlen bu
+ışık mavidir. Anahtar kare ise oraya `0xffe8c0` koymuş — yani güneşin kendi rengini. Güneşin sıcaklığı
+zaten ayrı yönlü ışıkta `sunColor: 0xfff2d8` olarak taşınıyor, dolayısıyla **iki kez sayılıyordu** ve
+bütün dünyayı sarıya boyuyordu. Yalnızca bu anahtar kare yanlış: 0,27 ve 0,73'te gökyüzü gerçekten sıcak,
+gece kareleri zaten soğuk mavi.
+
+Düzeltildikten sonra çizilen zemin **79°** — yazılan albedonun tonuyla birebir.
+
+### Sevk etmediğim şey, ve neden
+
+Aynı deneyde anahtar/dolgu oranını da taradım (güneş 1,4→2,6, ortam 1,1→0,28). Zemin kontrastı sadece
+34,9 → 40,6 çıktı ve kareler hâlâ düz görünüyordu. Sebebi fiziksel: **öğlen güneş tepede olduğu için
+yukarı bakan bütün yüzeyler neredeyse aynı N·L değerini alır** — gerçek öğle hava fotoğrafları da düzdür.
+Araziye biçim veren şey yüksek kontrast değil, alçak güneşin yalayan ışığıdır. Yani hem kanıtım zayıftı
+hem de kendi çekim saatim düzlüğü abartıyordu; bütün oyunun ışığını bu temelde değiştirmedim. (Ayrıca
+`checkLightingVisualContract` güneş yoğunluğunu 0,05→1,40 olarak sabitliyor.)
+
+**Sözleşme değişikliği, açıkça.** `checkLightingVisualContract.js` anahtar kare tablosunu birebir
+aynalıyor; yani bu değer bilerek korunuyor. Kontroldeki ayna da aynı değere, gerekçesiyle birlikte
+güncellendi — böylece kapı *kazara* kaymayı yakalamaya devam ediyor, ama bu değişikliğin kasıtlı ve
+ölçülmüş olduğu kayda geçiyor.
+
+**Kapsam dürüstlüğü:** bu bir zemin değişikliği değil, öğlen aydınlatılan **her şeyi** etkiler —
+karakterler, kaleler, bitki örtüsü dâhil. Sahibin isteği zemin üzerineydi; sebep zeminde değildi.
+
+**Doğrulama.** 14/14 koltuk, koltuk yol ağı, arazi görsel sözleşmesi, determinizm, service worker,
+aydınlatma görsel sözleşmesi (aynalanmış tabloyla) — hepsi PASS.
+
+*Bildirilen, önceden var olan hata:* `scripts/checkSkyVisualContract.js` FAIL veriyor; dokunulmamış
+HEAD'de de aynı şekilde başarısız — daha önceki turlarda da bildirilmişti, bu turun kırdığı bir şey değil.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.

@@ -24,7 +24,15 @@ const KEYFRAMES = [
 	{ ratio: 0.0, sunColor: 0x233a66, sunIntensity: 0.05, hemiSky: 0x0a1230, hemiGround: 0x05070f, hemiIntensity: 0.25, nightFactor: 1.0 },
 	{ ratio: 0.22, sunColor: 0x233a66, sunIntensity: 0.05, hemiSky: 0x0a1230, hemiGround: 0x05070f, hemiIntensity: 0.25, nightFactor: 1.0 },
 	{ ratio: 0.27, sunColor: 0xffb366, sunIntensity: 0.9, hemiSky: 0x7d5a4a, hemiGround: 0x2a1c12, hemiIntensity: 0.6, nightFactor: 0.35 },
-	{ ratio: 0.5, sunColor: 0xfff2d8, sunIntensity: 1.4, hemiSky: 0xffe8c0, hemiGround: 0x1a140a, hemiIntensity: 1.1, nightFactor: 0.0 },
+	// Run 369 / ADR-0316 — `hemiSky` corrected from 0xffe8c0 to daylight skylight.
+	// A HemisphereLight's sky colour is the light arriving *from the sky*. At midday under a clear sky
+	// that is blue; the sun's own warmth is already carried by `sunColor` on the separate directional
+	// light. Using the sun's colour here too counted its warmth twice and cast the whole world yellow:
+	// measured, the terrain rendered at hue 66 deg while its authored albedo is 79 deg, and swapping in a
+	// daylight-blue skylight brings the render to 81 deg — i.e. back to what the palette actually says.
+	// Only this keyframe is wrong. At 0.27 and 0.73 the sky genuinely is warm, so warm ambient is right
+	// there, and the night keyframes were already a cold blue.
+	{ ratio: 0.5, sunColor: 0xfff2d8, sunIntensity: 1.4, hemiSky: 0x9dc0e8, hemiGround: 0x1a140a, hemiIntensity: 1.1, nightFactor: 0.0 },
 	{ ratio: 0.73, sunColor: 0xff8c52, sunIntensity: 0.85, hemiSky: 0x8a4a3a, hemiGround: 0x261408, hemiIntensity: 0.55, nightFactor: 0.35 },
 	{ ratio: 0.78, sunColor: 0x233a66, sunIntensity: 0.05, hemiSky: 0x0a1230, hemiGround: 0x05070f, hemiIntensity: 0.25, nightFactor: 1.0 },
 	{ ratio: 1.0, sunColor: 0x233a66, sunIntensity: 0.05, hemiSky: 0x0a1230, hemiGround: 0x05070f, hemiIntensity: 0.25, nightFactor: 1.0 },

@@ -56,7 +56,13 @@ async function main() {
 				{ ratio: 0.00, sunColor: 0x233a66, sunIntensity: 0.05, hemiSky: 0x0a1230, hemiGround: 0x05070f, hemiIntensity: 0.25, nightFactor: 1.00 },
 				{ ratio: 0.22, sunColor: 0x233a66, sunIntensity: 0.05, hemiSky: 0x0a1230, hemiGround: 0x05070f, hemiIntensity: 0.25, nightFactor: 1.00 },
 				{ ratio: 0.27, sunColor: 0xffb366, sunIntensity: 0.90, hemiSky: 0x7d5a4a, hemiGround: 0x2a1c12, hemiIntensity: 0.60, nightFactor: 0.35 },
-				{ ratio: 0.50, sunColor: 0xfff2d8, sunIntensity: 1.40, hemiSky: 0xffe8c0, hemiGround: 0x1a140a, hemiIntensity: 1.10, nightFactor: 0.00 },
+				// Run 369 / ADR-0316 — `hemiSky` deliberately changed 0xffe8c0 -> 0x9dc0e8, mirrored here so this
+				// guard keeps catching *accidental* drift. A HemisphereLight's sky colour is light arriving from
+				// the sky, which at midday is blue; the sun's warmth already rides on `sunColor`. The old value
+				// was the sun's own colour, so its warmth was applied twice and cast the world yellow — measured,
+				// terrain rendered at hue 66 deg against an authored albedo of 79 deg, and the corrected skylight
+				// brings it to 81 deg.
+				{ ratio: 0.50, sunColor: 0xfff2d8, sunIntensity: 1.40, hemiSky: 0x9dc0e8, hemiGround: 0x1a140a, hemiIntensity: 1.10, nightFactor: 0.00 },
 				{ ratio: 0.73, sunColor: 0xff8c52, sunIntensity: 0.85, hemiSky: 0x8a4a3a, hemiGround: 0x261408, hemiIntensity: 0.55, nightFactor: 0.35 },
 				{ ratio: 0.78, sunColor: 0x233a66, sunIntensity: 0.05, hemiSky: 0x0a1230, hemiGround: 0x05070f, hemiIntensity: 0.25, nightFactor: 1.00 },
 				{ ratio: 1.00, sunColor: 0x233a66, sunIntensity: 0.05, hemiSky: 0x0a1230, hemiGround: 0x05070f, hemiIntensity: 0.25, nightFactor: 1.00 },

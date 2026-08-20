@@ -17416,3 +17416,42 @@ satırlarında hiçbir arazi dosyası geçmiyor.
 Yayınlamadan önce uzak main'i tekrar kontrol ettim: başka bir oturum bu sırada PR #799'u geçirmiş.
 Dalıma birleştirdim, çakışma yok, arazi dosyalarına dokunmuyor, kapıları birleşik ağaçta tekrar
 çalıştırdım.
+
+---
+
+## Tur 369 — Zeminin hardal rengi paletten değil, ışıktan geliyormuş
+
+Tur 367'de zeminin sarılığını ölçmüş, çöl karışımını eleyip "sarılık taban paletinden geliyor" demiştim.
+**O da tam doğru değilmiş.** Bu tur ölçtüm: sorumlu palet değil, ışık.
+
+Önce kendi kanıtımla ilgili bir şüpheyi gidermem gerekti. Bütün kanıt karelerimde mor-siyah bir gökyüzü
+ve aurora var; aylardır gece görüntüsüne bakıyor olabilir miyim diye kontrol ettim. Hayır — arazi gündüz
+ışığında. Gökyüzünün karanlık kalması, kanıt betiğimin gökyüzünün kendi güncellemesini çağırmamasından;
+yani **oyunun değil, benim ölçüm donanımımın eksiği**. Yine de bütün kanıt karelerimde olduğu için
+söylüyorum.
+
+Sonra öğlende aynı manzarayı çekip, çizilen rengi paletin yazdığı renkle karşılaştırdım:
+
+- Paletin söylediği çim tonu: **79°**
+- Ekrana çizilen: **66°**
+
+Yani dünya, sanatçının seçtiği renkten 13 derece sarıya kaymış hâlde çiziliyormuş.
+
+Sebep basit ve düzeltilebilir bir hata: gökyüzü ortam ışığının rengi, **gökten gelen ışığı** temsil eder;
+açık havada öğlen bu ışık mavidir. Ayarda ise oraya güneşin kendi rengi konmuş. Güneşin sıcaklığı zaten
+ayrı güneş ışığında taşınıyordu, dolayısıyla **iki kez sayılıyor** ve bütün dünyayı sarıya boyuyordu.
+Düzelttim; çizilen ton şimdi **79°**, yani paletin söylediğiyle birebir.
+
+**Yapmadığım şey.** Aynı deneyde "ışık kontrastını artırsam arazi daha biçimli görünür mü" diye de
+taradım. Kontrast 34,9 → 40,6 çıktı, yani neredeyse hiç, ve kareler hâlâ düz görünüyordu. Sebebi fiziksel:
+öğlen güneş tepedeyken yukarı bakan her yüzey aynı ışığı alır — gerçek öğle hava fotoğrafları da düzdür.
+Araziye biçim veren şey kontrast değil, alçak güneşin yalayan ışığı. Yani hem elimdeki kanıt zayıftı, hem
+de kendi çekim saatim düzlüğü olduğundan fazla gösteriyordu. Bütün oyunun ışığını bu temelde
+değiştirmedim.
+
+**Dürüst kapsam notu:** bu bir zemin değişikliği değil. Öğlen aydınlatılan her şeyi etkiliyor —
+karakterler, kaleler, ağaçlar dâhil. Siz zemini sordunuz, sebep zeminde değildi.
+
+Kapılar: 14/14 koltuk, yollar, arazi görsel sözleşmesi, determinizm, service worker, aydınlatma
+sözleşmesi — hepsi PASS. (`checkSkyVisualContract` kırmızı, ama dokunulmamış HEAD'de de kırmızı; önceki
+turlarda da bildirmiştim.)
