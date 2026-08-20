@@ -36,9 +36,11 @@ async function main() {
         async loadFBXModel() { const group = new THREE.Group(); group.animations = []; return group; }
       }
       const channel = { nextRevision: 1, groups: new Map() };
-      // Keep a deterministic opaque wall between this sentry and the noise source for the whole proof.
-      // Hearing must therefore own the investigation lifecycle even if the controller turns toward lastKnown.
-      const hearingOccluder = { resolveXZ: (x, z) => ({ x: x + 0.5, z }) };
+      // Model a thin deterministic wall around z=-3. LOS samples crossing the wall are displaced,
+      // while movement/collision resolution at the stationary sentry position remains unchanged.
+      const hearingOccluder = {
+        resolveXZ: (x, z) => (z < -2.5 && z > -3.5 ? { x: x + 0.5, z } : { x, z }),
+      };
       const npc = await createNPC({
         assetLoader: new FakeAssetLoader(),
         modelUrl: '/assets/models/characters/paladin_j_nordstrom.fbx',
