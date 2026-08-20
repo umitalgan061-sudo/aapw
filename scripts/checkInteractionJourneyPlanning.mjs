@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { createInteractionInventoryState, createInteractionJourneyState } from '../src/3d/gameplay/interactionConfig.js';
+import { buildJourneyStateText, createInteractionInventoryState, createInteractionJourneyState } from '../src/3d/gameplay/interactionConfig.js';
 import {
 	FAST_TRAVEL_BLOCK_REASON,
 	JOURNEY_REST_BLOCK_REASON,
@@ -191,9 +191,9 @@ assert.equal(carriedFatigueRested.finalFatigueKm, 15);
 
 const journeyState = createInteractionJourneyState();
 journeyState.restore({ fatigueKm: 999, commitCount: 9_999_999, lastDestinationId: '  forged-harbor  ' });
-assert.deepEqual(journeyState.snapshot(), { fatigueKm: 52, commitCount: 1_000_000, lastDestinationId: 'forged-harbor' });
+assert.deepEqual(journeyState.snapshot(), { fatigueKm: 52, commitCount: 1_000_000, lastDestinationId: 'forged-harbor', recentReceipts: [] });
 journeyState.restore(null);
-assert.deepEqual(journeyState.snapshot(), { fatigueKm: 0, commitCount: 0, lastDestinationId: null });
+assert.deepEqual(journeyState.snapshot(), { fatigueKm: 0, commitCount: 0, lastDestinationId: null, recentReceipts: [] });
 
 // Commit seam: the interaction-owned inventory applies the already-qualified plan as one transaction.
 const journeySteps = [
@@ -219,6 +219,40 @@ assert.equal(committed.inventory.fieldReadiness.travelCapacity.travelRationPacks
 assert.equal(commitInventory.quantityOf('dragonstone-expedition-maintenance-kit'), 1);
 assert.equal(commitInventory.quantityOf('dragonstone-travel-ration-pack'), 0);
 assert.deepEqual(committed.inventory.items.find((item) => item.itemId === 'dragonstone-expedition-maintenance-kit')?.provenance, [{ sourceType: 'settlement-crafting', sourceId: 'dragonstone-expedition-maintenance-kit' }]);
+
+assert.equal(journeyState.applyCommit(committed), true);
+const firstJourneyReceipt = {
+	sequence: 1,
+	totalDistanceKm: 58,
+	consumedTravelPacks: 2,
+	finalFatigueKm: 30,
+	destinationId: 'harbor-road',
+	restStopCount: 1,
+};
+assert.deepEqual(journeyState.snapshot(), { fatigueKm: 30, commitCount: 1, lastDestinationId: 'harbor-road', recentReceipts: [firstJourneyReceipt] });
+assert.match(buildJourneyStateText(journeyState.snapshot()), /Sefer yorgunluğu: 30\/52 km/);
+assert.match(buildJourneyStateText(journeyState.snapshot()), /Son sefer hedefi: harbor-road/);
+assert.match(buildJourneyStateText(journeyState.snapshot()), /Son sefer: 58 km · 2 yol azığı · 1 dinlenme/);
+const receiptRoundTrip = createInteractionJourneyState();
+receiptRoundTrip.restore(journeyState.snapshot());
+assert.deepEqual(receiptRoundTrip.snapshot(), journeyState.snapshot(), 'journey receipt/fatigue must survive canonical restore');
+const forgedReceiptState = createInteractionJourneyState();
+forgedReceiptState.restore({
+	fatigueKm: 9,
+	commitCount: 7,
+	lastDestinationId: ' final ',
+	recentReceipts: Array.from({ length: 7 }, (_, index) => ({
+		sequence: index + 1,
+		totalDistanceKm: (index + 1) * 10,
+		consumedTravelPacks: index + 1,
+		finalFatigueKm: index === 6 ? 999 : index,
+		destinationId: ` stop-${index + 1} `,
+		restStopCount: index,
+	})),
+});
+assert.deepEqual(forgedReceiptState.snapshot().recentReceipts.map((receipt) => receipt.sequence), [3, 4, 5, 6, 7], 'only the bounded last-five journey receipts survive restore');
+assert.equal(forgedReceiptState.snapshot().recentReceipts.at(-1).finalFatigueKm, 52);
+assert.equal(forgedReceiptState.snapshot().recentReceipts.at(-1).destinationId, 'stop-7');
 
 const followupFatigueBlocked = commitInventory.commitJourneyWithRestStops([
 	{ type: 'travel', destinationId: 'nearby-camp', discovered: true, routeOpen: true, distanceKm: 10 },
@@ -269,4 +303,4 @@ assert.equal(forgedCostCommit.ok, true);
 assert.equal(forgedCostCommit.consumedQuantity, 1, 'commit must recompute route cost instead of trusting caller-authored cost fields');
 assert.equal(forgedCostInventory.quantityOf('dragonstone-travel-ration-pack'), 0);
 
-console.log(`[RPG] PASS sequential expedition journey + tavern rest planning/commit ${JSON.stringify({ readyDistanceKm: readyPlan.totalDistanceKm, preferredRoute: routeOptions.preferredRouteId, enduranceKm: endurance.continuousDistanceKm, tavernJourneyKm: withTavern.totalDistanceKm, provisionCarryBlockedAt: provisionCarryBlocked.blockedAtStepIndex, committedPacks: committed.consumedQuantity, carriedFatigueKm: carriedFatigueBlocked.startingFatigueKm })}`);
+console.log(`[RPG] PASS sequential expedition journey + tavern rest planning/commit ${JSON.stringify({ readyDistanceKm: readyPlan.totalDistanceKm, preferredRoute: routeOptions.preferredRouteId, enduranceKm: endurance.continuousDistanceKm, tavernJourneyKm: withTavern.totalDistanceKm, provisionCarryBlockedAt: provisionCarryBlocked.blockedAtStepIndex, committedPacks: committed.consumedQuantity, carriedFatigueKm: carriedFatigueBlocked.startingFatigueKm, recentReceipts: journeyState.snapshot().recentReceipts.length })}`);
