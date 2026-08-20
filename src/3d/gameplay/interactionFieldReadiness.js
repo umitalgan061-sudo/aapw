@@ -297,34 +297,40 @@ export function evaluateRestRequest(snapshotOrReadiness = {}, context = {}) {
 }
 export function evaluateJourneyWithRestStops(snapshotOrReadiness = {}, steps = []) {
 	const readiness = snapshotOrReadiness?.capabilities?.fastTravelEligible !== undefined ? snapshotOrReadiness : evaluateFieldReadiness(snapshotOrReadiness);
-	const endurance = evaluateJourneyEndurance(readiness);
 	const authoredSteps = Array.isArray(steps) ? steps : [];
+	const startingTravelPacks = Math.max(0, Math.floor(Number(readiness?.travelCapacity?.travelRationPacks) || 0));
+	let remainingTravelPacks = startingTravelPacks;
 	let fatigueKm = 0;
 	let totalDistanceKm = 0;
 	let blockedAtStepIndex = null;
 	const plannedSteps = [];
 	for (let index = 0; index < authoredSteps.length; index += 1) {
 		const step = authoredSteps[index] ?? {};
+		const currentReadiness = readinessWithTravelPackCount(readiness, remainingTravelPacks);
 		if (step.type === 'rest') {
-			const decision = evaluateRestRequest(readiness, { ...step, fatigueKm });
-			plannedSteps.push(Object.freeze({ index, type: 'rest', allowed: decision.allowed, decision, fatigueBeforeKm: fatigueKm, fatigueAfterKm: decision.allowed ? decision.remainingFatigueKm : fatigueKm }));
+			const decision = evaluateRestRequest(currentReadiness, { ...step, fatigueKm });
+			plannedSteps.push(Object.freeze({ index, type: 'rest', allowed: decision.allowed, decision, fatigueBeforeKm: fatigueKm, fatigueAfterKm: decision.allowed ? decision.remainingFatigueKm : fatigueKm, remainingTravelPacksBefore: remainingTravelPacks, remainingTravelPacksAfter: remainingTravelPacks }));
 			if (!decision.allowed) { blockedAtStepIndex = index; break; }
 			fatigueKm = decision.remainingFatigueKm;
 			continue;
 		}
-		const travel = evaluateFastTravelRequest(readiness, step);
+		const endurance = evaluateJourneyEndurance(currentReadiness);
+		const travel = evaluateFastTravelRequest(currentReadiness, step);
 		const distanceKm = normalizeJourneyDistance(travel.distanceKm);
+		const requiredTravelPacks = travel.routePlan?.requiredTravelPacks ?? 0;
 		const projectedFatigueKm = Number((fatigueKm + distanceKm).toFixed(2));
 		const reasons = [...travel.reasons];
 		if (travel.allowed && projectedFatigueKm > endurance.continuousDistanceKm) reasons.push(JOURNEY_REST_BLOCK_REASON.CONTINUOUS_TRAVEL_EXHAUSTED);
-		const allowed = reasons.length === 0;
-		plannedSteps.push(Object.freeze({ index, type: 'travel', allowed, destinationId: travel.destinationId, distanceKm, fatigueBeforeKm: fatigueKm, fatigueAfterKm: allowed ? projectedFatigueKm : fatigueKm, enduranceLimitKm: endurance.continuousDistanceKm, reasons: Object.freeze(reasons) }));
+		const allowed = reasons.length === 0 && requiredTravelPacks <= remainingTravelPacks;
+		const remainingAfterStep = allowed ? remainingTravelPacks - requiredTravelPacks : remainingTravelPacks;
+		plannedSteps.push(Object.freeze({ index, type: 'travel', allowed, destinationId: travel.destinationId, distanceKm, fatigueBeforeKm: fatigueKm, fatigueAfterKm: allowed ? projectedFatigueKm : fatigueKm, enduranceLimitKm: endurance.continuousDistanceKm, reasons: Object.freeze(reasons), requiredTravelPacks, remainingTravelPacksBefore: remainingTravelPacks, remainingTravelPacksAfter: remainingAfterStep }));
 		if (!allowed) { blockedAtStepIndex = index; break; }
+		remainingTravelPacks = remainingAfterStep;
 		fatigueKm = projectedFatigueKm;
 		totalDistanceKm += distanceKm;
 	}
 	const complete = blockedAtStepIndex === null && plannedSteps.length === authoredSteps.length && authoredSteps.length > 0;
-	return Object.freeze({ status: complete ? 'ready' : 'blocked', complete, blockedAtStepIndex, authoredStepCount: authoredSteps.length, plannedStepCount: plannedSteps.length, totalDistanceKm: Number(totalDistanceKm.toFixed(2)), finalFatigueKm: Number(fatigueKm.toFixed(2)), endurance, steps: Object.freeze(plannedSteps) });
+	return Object.freeze({ status: complete ? 'ready' : 'blocked', complete, blockedAtStepIndex, authoredStepCount: authoredSteps.length, plannedStepCount: plannedSteps.length, totalDistanceKm: Number(totalDistanceKm.toFixed(2)), finalFatigueKm: Number(fatigueKm.toFixed(2)), startingTravelPacks, remainingTravelPacks, endurance: evaluateJourneyEndurance(readiness), steps: Object.freeze(plannedSteps) });
 }
 export function buildJourneyRestText(plan = evaluateJourneyWithRestStops()) {
 	const lines = ['Sefer Dinlenme Planı'];
@@ -339,6 +345,6 @@ export function buildJourneyRestText(plan = evaluateJourneyWithRestStops()) {
 			if (!step.allowed && step.reasons?.length) lines.push(`   Engel: ${step.reasons.map((reason) => JOURNEY_REST_REASON_LABEL[reason] ?? FAST_TRAVEL_REASON_LABEL[reason] ?? reason).join(', ')}`);
 		}
 	}
-	lines.push(plan.complete ? `Plan hazır · son yorgunluk: ${plan.finalFatigueKm} km` : `Plan tamamlanamadı · ${Number(plan.blockedAtStepIndex) + 1}. adımda durdu`);
+	lines.push(plan.complete ? `Plan hazır · son yorgunluk: ${plan.finalFatigueKm} km · kalan yol azığı: ${plan.remainingTravelPacks}` : `Plan tamamlanamadı · ${Number(plan.blockedAtStepIndex) + 1}. adımda durdu · kalan yol azığı: ${plan.remainingTravelPacks}`);
 	return lines.join('\n');
 }
