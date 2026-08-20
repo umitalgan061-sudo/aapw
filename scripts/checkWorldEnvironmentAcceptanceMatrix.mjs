@@ -135,12 +135,15 @@ try {
   await page.waitForFunction(() => {
     const terrain = [...globalThis.__worldAcceptance.state.chunkManager.loaded.values()][0];
     const image = terrain?.material?.map?.image;
-    return Boolean(image?.complete && image.naturalWidth > 0 && image.naturalHeight > 0);
+    if (!image) return false;
+    const width = image.naturalWidth || image.width || 0;
+    const height = image.naturalHeight || image.height || 0;
+    return width > 0 && height > 0 && (typeof image.complete !== 'boolean' || image.complete);
   }, { timeout: 30000 });
   const albedoImage = await page.evaluate(() => {
     const terrain = [...globalThis.__worldAcceptance.state.chunkManager.loaded.values()][0];
     const image = terrain.material.map.image;
-    return { width: image.naturalWidth, height: image.naturalHeight };
+    return { width: image.naturalWidth || image.width || 0, height: image.naturalHeight || image.height || 0 };
   });
   assert(albedoImage.width > 0 && albedoImage.height > 0, 'authored terrain albedo did not decode before visual proof');
 
