@@ -21,7 +21,7 @@ try {
 	const result = await page.evaluate(async () => {
 		const { DialogueBox } = await import('/src/3d/ui/dialogueBox.js');
 		const { createInteractionController } = await import('/src/3d/gameplay/interaction.js');
-		const { buildExpeditionJourneyOptionsText, buildExpeditionJourneyText, evaluateExpeditionJourney, rankExpeditionJourneyOptions } = await import('/src/3d/gameplay/interactionFieldReadiness.js');
+		const { REST_KIND, buildExpeditionJourneyOptionsText, buildExpeditionJourneyText, buildJourneyRestText, evaluateExpeditionJourney, evaluateJourneyWithRestStops, rankExpeditionJourneyOptions } = await import('/src/3d/gameplay/interactionFieldReadiness.js');
 		const host = document.createElement('div'); document.body.appendChild(host);
 		const dialogueBox = new DialogueBox(host);
 		const controller = createInteractionController({ interactionPrompt: { setVisible() {} }, dialogueBox, greetingTemplate: 'Selam, {name}!', radiusMeters: 6 });
@@ -47,17 +47,25 @@ try {
 		]);
 		dialogueBox.show(buildExpeditionJourneyOptionsText(ranked));
 		const rankedRendered = dialogueBox._textEl.textContent;
+		const restPlan = evaluateJourneyWithRestStops(restored.inventory, [
+			{ type: 'travel', destinationId: 'watch-road', discovered: true, routeOpen: true, distanceKm: 28 },
+			{ type: 'rest', kind: REST_KIND.TAVERN, siteId: 'watch-road-tavern', discovered: true, open: true },
+			{ type: 'travel', destinationId: 'harbor-road', discovered: true, routeOpen: true, distanceKm: 30 },
+		]);
+		dialogueBox.show(buildJourneyRestText(restPlan));
+		const restRendered = dialogueBox._textEl.textContent;
 		const inventoryAfterPlanning = controller.getRpgSnapshot().inventory;
 		const preserved = inventoryAfterPlanning.fieldReadiness.travelCapacity.travelRationPacks === 2;
 		const renderedRoute = rendered.includes('Toplam: 55 km · 2 yol azığı') && rendered.includes('Rota hazır · kalan yol azığı: 0');
 		const sequential = plan.complete === true && plan.legs[0].requiredTravelPacks === 0 && plan.legs[1].requiredTravelPacks === 1 && plan.legs[2].remainingTravelPacksAfter === 0;
 		const recommendation = ranked.preferredRouteId === 'ridge' && rankedRendered.includes('Sırt yolu · ÖNERİ · HAZIR · 28 km · 1 azık') && rankedRendered.includes('Önerilen rota: Sırt yolu');
+		const tavernRecovery = restPlan.complete === true && restPlan.totalDistanceKm === 58 && restPlan.steps[1].fatigueAfterKm === 0 && restRendered.includes('Taverna · watch-road-tavern · DİNLENDİ') && restRendered.includes('Plan hazır · son yorgunluk: 30 km');
 		dialogueBox.dispose(); host.remove();
-		return { renderedRoute, sequential, recommendation, preserved, rendered, rankedRendered };
+		return { renderedRoute, sequential, recommendation, tavernRecovery, preserved, rendered, rankedRendered, restRendered };
 	});
 	if (pageErrors.length || consoleErrors.length) throw new Error(`Journey-planning browser proof emitted errors: ${JSON.stringify({ pageErrors, consoleErrors })}`);
-	for (const key of ['renderedRoute', 'sequential', 'recommendation', 'preserved']) if (!result[key]) throw new Error(`Journey-planning browser assertion failed: ${key} ${JSON.stringify(result)}`);
-	console.log(`[RPG Chromium] PASS sequential journey planning + route recommendation ${JSON.stringify(result)}`);
+	for (const key of ['renderedRoute', 'sequential', 'recommendation', 'tavernRecovery', 'preserved']) if (!result[key]) throw new Error(`Journey-planning browser assertion failed: ${key} ${JSON.stringify(result)}`);
+	console.log(`[RPG Chromium] PASS sequential journey planning + tavern recovery ${JSON.stringify(result)}`);
 } finally {
 	await browser.close();
 	await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

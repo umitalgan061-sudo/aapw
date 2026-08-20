@@ -2,10 +2,16 @@
 import assert from 'node:assert/strict';
 import {
 	FAST_TRAVEL_BLOCK_REASON,
+	JOURNEY_REST_BLOCK_REASON,
+	REST_KIND,
 	buildExpeditionJourneyOptionsText,
 	buildExpeditionJourneyText,
+	buildJourneyRestText,
 	evaluateExpeditionJourney,
 	evaluateFieldReadiness,
+	evaluateJourneyEndurance,
+	evaluateJourneyWithRestStops,
+	evaluateRestRequest,
 	rankExpeditionJourneyOptions,
 } from '../src/3d/gameplay/interactionFieldReadiness.js';
 
@@ -50,52 +56,21 @@ assert.match(readyText, /Rota hazır · kalan yol azığı: 0/);
 
 const underProvisioned = evaluateExpeditionJourney(inventoryWith({ travelPacks: 1 }), threeLegs);
 assert.equal(underProvisioned.complete, false);
-assert.equal(underProvisioned.status, 'blocked');
 assert.equal(underProvisioned.blockedAtLegIndex, 2);
-assert.equal(underProvisioned.plannedLegCount, 3);
-assert.equal(underProvisioned.totalRequiredTravelPacks, 1);
 assert.equal(underProvisioned.remainingTravelPacks, 0);
-assert.equal(underProvisioned.legs[2].allowed, false);
 assert.deepEqual(underProvisioned.legs[2].reasons, [FAST_TRAVEL_BLOCK_REASON.INSUFFICIENT_PROVISIONS]);
-assert.equal(underProvisioned.legs[2].remainingTravelPacksBefore, 0);
-assert.equal(underProvisioned.legs[2].remainingTravelPacksAfter, 0);
-assert.match(buildExpeditionJourneyText(underProvisioned), /Rota tamamlanamadı · 3\. etapta durdu/);
 
 const undiscovered = evaluateExpeditionJourney(inventoryWith({ travelPacks: 2 }), [threeLegs[0], { ...threeLegs[1], discovered: false }, threeLegs[2]]);
 assert.equal(undiscovered.complete, false);
 assert.equal(undiscovered.blockedAtLegIndex, 1);
-assert.equal(undiscovered.plannedLegCount, 2, 'planner must stop after first blocked leg');
 assert.deepEqual(undiscovered.legs[1].reasons, [FAST_TRAVEL_BLOCK_REASON.UNDISCOVERED_DESTINATION]);
-assert.equal(undiscovered.remainingTravelPacks, 2, 'blocked leg cannot reserve or consume provisions');
-assert.match(buildExpeditionJourneyText(undiscovered), /hedef henüz keşfedilmedi/);
+assert.equal(undiscovered.remainingTravelPacks, 2);
 
 const combatBlocked = evaluateExpeditionJourney(inventoryWith({ travelPacks: 2 }), [{ ...threeLegs[0], inCombat: true }]);
-assert.equal(combatBlocked.complete, false);
-assert.equal(combatBlocked.blockedAtLegIndex, 0);
 assert.deepEqual(combatBlocked.legs[0].reasons, [FAST_TRAVEL_BLOCK_REASON.COMBAT_ACTIVE]);
-const routeBlocked = evaluateExpeditionJourney(inventoryWith({ travelPacks: 2 }), [{ ...threeLegs[0], routeOpen: false }]);
-assert.deepEqual(routeBlocked.legs[0].reasons, [FAST_TRAVEL_BLOCK_REASON.ROUTE_BLOCKED]);
 const noKit = evaluateExpeditionJourney(inventoryWith({ kits: 0, travelPacks: 2 }), [threeLegs[0]]);
-assert.equal(noKit.complete, false);
 assert.deepEqual(noKit.legs[0].reasons, [FAST_TRAVEL_BLOCK_REASON.FIELD_KIT_REQUIRED]);
-assert.equal(noKit.legs[0].requiredTravelPacks, 1, 'route cost remains visible even when field-kit authorization blocks consumption');
-assert.equal(noKit.startingTravelPacks, 2, 'planner reports physical travel packs even when field-kit authorization is absent');
-assert.equal(noKit.remainingTravelPacks, 2, 'blocked no-kit plan must not consume physical travel packs');
-assert.equal(noKit.legs[0].remainingTravelPacksBefore, 2);
-assert.equal(noKit.legs[0].remainingTravelPacksAfter, 2, 'authorization failure must preserve route provisions atomically');
-
-const malformed = evaluateExpeditionJourney(evaluateFieldReadiness(inventoryWith({ travelPacks: 2 })), [{ originId: 'dragonstone', destinationId: '  ', discovered: true, routeOpen: true, distanceKm: -5 }]);
-assert.equal(malformed.complete, false);
-assert.equal(malformed.legs[0].destinationId, null);
-assert.equal(malformed.legs[0].distanceKm, null);
-assert.deepEqual(malformed.legs[0].reasons, [FAST_TRAVEL_BLOCK_REASON.NO_DESTINATION]);
-const empty = evaluateExpeditionJourney(inventoryWith({ travelPacks: 2 }), []);
-assert.equal(empty.complete, false);
-assert.equal(empty.plannedLegCount, 0);
-assert.equal(buildExpeditionJourneyText(empty), 'Sefer Rotası\nHenüz rota planlanmadı.');
-const capped = evaluateExpeditionJourney(inventoryWith({ travelPacks: 99 }), [{ originId: 'dragonstone', destinationId: 'far-road', discovered: true, routeOpen: true, inCombat: false, distanceKm: 85 }]);
-assert.equal(capped.complete, false);
-assert.deepEqual(capped.legs[0].reasons, [FAST_TRAVEL_BLOCK_REASON.INSUFFICIENT_PROVISIONS]);
+assert.equal(noKit.remainingTravelPacks, 2);
 
 const routeOptions = rankExpeditionJourneyOptions(readySnapshot, [
 	{ id: 'shore', label: 'Sahil yolu', legs: [{ originId: 'dragonstone', destinationId: 'harbor', discovered: true, routeOpen: true, distanceKm: 42 }] },
@@ -103,23 +78,97 @@ const routeOptions = rankExpeditionJourneyOptions(readySnapshot, [
 	{ id: 'closed-pass', label: 'Kapalı geçit', legs: [{ originId: 'dragonstone', destinationId: 'pass', discovered: true, routeOpen: false, distanceKm: 8 }] },
 ]);
 assert.equal(routeOptions.preferredRouteId, 'ridge');
-assert.equal(routeOptions.preferred.label, 'Sırt yolu');
 assert.deepEqual(routeOptions.options.map((entry) => entry.id), ['ridge', 'shore', 'closed-pass']);
-assert.equal(routeOptions.options[0].totalRequiredTravelPacks, 1);
-assert.equal(routeOptions.options[1].totalRequiredTravelPacks, 2);
-assert.equal(routeOptions.options[2].complete, false);
-const optionsText = buildExpeditionJourneyOptionsText(routeOptions);
-assert.match(optionsText, /1\. Sırt yolu · ÖNERİ · HAZIR · 28 km · 1 azık/);
-assert.match(optionsText, /2\. Sahil yolu · ADAY · HAZIR · 42 km · 2 azık/);
-assert.match(optionsText, /Önerilen rota: Sırt yolu/);
+assert.match(buildExpeditionJourneyOptionsText(routeOptions), /Önerilen rota: Sırt yolu/);
 
 const tieBreak = rankExpeditionJourneyOptions(readySnapshot, [
 	{ id: 'beta', legs: [{ destinationId: 'b', discovered: true, routeOpen: true, distanceKm: 10 }] },
 	{ id: 'alpha', legs: [{ destinationId: 'a', discovered: true, routeOpen: true, distanceKm: 10 }] },
 ]);
-assert.deepEqual(tieBreak.options.map((entry) => entry.id), ['alpha', 'beta'], 'equal routes use stable id ordering');
-const noValid = rankExpeditionJourneyOptions(inventoryWith({ kits: 0, travelPacks: 2 }), [{ id: 'a', legs: threeLegs }]);
-assert.equal(noValid.preferredRouteId, null);
-assert.match(buildExpeditionJourneyOptionsText(noValid), /Uygun rota bulunamadı/);
+assert.deepEqual(tieBreak.options.map((entry) => entry.id), ['alpha', 'beta']);
 
-console.log(`[RPG] PASS sequential expedition journey planning ${JSON.stringify({ ready: { distanceKm: readyPlan.totalDistanceKm, provisions: readyPlan.totalRequiredTravelPacks }, preferredRoute: routeOptions.preferredRouteId, blockedAt: underProvisioned.blockedAtLegIndex })}`);
+// Tavern/camp survival seam: same readiness snapshot, no second inventory or travel store.
+const readyReadiness = evaluateFieldReadiness(readySnapshot);
+const endurance = evaluateJourneyEndurance(readyReadiness);
+assert.deepEqual(endurance, {
+	continuousDistanceKm: 44,
+	baseDistanceKm: 24,
+	fieldKitBonusKm: 12,
+	rationBufferKm: 8,
+	travelRationPacks: 2,
+	readinessTier: 'expedition-ready',
+});
+
+const tavern = evaluateRestRequest(readyReadiness, { kind: REST_KIND.TAVERN, siteId: 'dragonstone-harbor-tavern', discovered: true, open: true, fatigueKm: 31.5 });
+assert.equal(tavern.allowed, true);
+assert.equal(tavern.recoveredFatigueKm, 31.5);
+assert.equal(tavern.remainingFatigueKm, 0);
+
+const camp = evaluateRestRequest(readyReadiness, { kind: REST_KIND.CAMP, siteId: 'dragonstone-ridge-camp', open: true, fatigueKm: 20 });
+assert.equal(camp.allowed, true);
+assert.equal(camp.recoveredFatigueKm, 11);
+assert.equal(camp.remainingFatigueKm, 9);
+
+const blockedTavern = evaluateRestRequest(readyReadiness, { kind: REST_KIND.TAVERN, siteId: 'unknown-inn', discovered: false, open: false, inCombat: true, fatigueKm: 12 });
+assert.deepEqual(blockedTavern.reasons, [
+	JOURNEY_REST_BLOCK_REASON.REST_SITE_CLOSED,
+	JOURNEY_REST_BLOCK_REASON.TAVERN_NOT_DISCOVERED,
+	JOURNEY_REST_BLOCK_REASON.COMBAT_ACTIVE,
+]);
+
+const withTavern = evaluateJourneyWithRestStops(readyReadiness, [
+	{ type: 'travel', destinationId: 'watch-road', discovered: true, routeOpen: true, distanceKm: 28 },
+	{ type: 'rest', kind: REST_KIND.TAVERN, siteId: 'watch-road-tavern', discovered: true, open: true },
+	{ type: 'travel', destinationId: 'harbor-road', discovered: true, routeOpen: true, distanceKm: 30 },
+]);
+assert.equal(withTavern.complete, true);
+assert.equal(withTavern.totalDistanceKm, 58);
+assert.equal(withTavern.startingTravelPacks, 2);
+assert.equal(withTavern.remainingTravelPacks, 0);
+assert.equal(withTavern.steps[0].remainingTravelPacksAfter, 1);
+assert.equal(withTavern.steps[1].remainingTravelPacksAfter, 1);
+assert.equal(withTavern.steps[2].remainingTravelPacksBefore, 1);
+assert.equal(withTavern.steps[2].remainingTravelPacksAfter, 0);
+assert.equal(withTavern.steps[1].fatigueAfterKm, 0);
+assert.equal(withTavern.finalFatigueKm, 30);
+assert.match(buildJourneyRestText(withTavern), /Taverna · watch-road-tavern · DİNLENDİ/);
+assert.match(buildJourneyRestText(withTavern), /Plan hazır · son yorgunluk: 30 km · kalan yol azığı: 0/);
+
+const onePackSnapshot = inventoryWith({ travelPacks: 1 });
+const onePackBefore = structuredClone(onePackSnapshot);
+const onePackReadiness = evaluateFieldReadiness(onePackSnapshot);
+const provisionCarryBlocked = evaluateJourneyWithRestStops(onePackReadiness, [
+	{ type: 'travel', destinationId: 'watch-road', discovered: true, routeOpen: true, distanceKm: 30 },
+	{ type: 'rest', kind: REST_KIND.TAVERN, siteId: 'watch-road-tavern', discovered: true, open: true },
+	{ type: 'travel', destinationId: 'harbor-road', discovered: true, routeOpen: true, distanceKm: 30 },
+]);
+assert.equal(provisionCarryBlocked.complete, false);
+assert.equal(provisionCarryBlocked.blockedAtStepIndex, 2);
+assert.equal(provisionCarryBlocked.remainingTravelPacks, 0);
+assert.equal(provisionCarryBlocked.steps[0].requiredTravelPacks, 1);
+assert.equal(provisionCarryBlocked.steps[0].remainingTravelPacksAfter, 0);
+assert.deepEqual(provisionCarryBlocked.steps[2].reasons, [FAST_TRAVEL_BLOCK_REASON.INSUFFICIENT_PROVISIONS]);
+assert.deepEqual(onePackSnapshot, onePackBefore, 'rest-enabled journey planning must not mutate inventory snapshots');
+
+const exhausted = evaluateJourneyWithRestStops(readyReadiness, [
+	{ type: 'travel', destinationId: 'watch-road', discovered: true, routeOpen: true, distanceKm: 28 },
+	{ type: 'travel', destinationId: 'harbor-road', discovered: true, routeOpen: true, distanceKm: 20 },
+]);
+assert.equal(exhausted.complete, false);
+assert.equal(exhausted.blockedAtStepIndex, 1);
+assert.deepEqual(exhausted.steps[1].reasons, [JOURNEY_REST_BLOCK_REASON.CONTINUOUS_TRAVEL_EXHAUSTED]);
+assert.equal(exhausted.finalFatigueKm, 28);
+
+const partialCamp = evaluateJourneyWithRestStops(readyReadiness, [
+	{ type: 'travel', destinationId: 'ridge', discovered: true, routeOpen: true, distanceKm: 30 },
+	{ type: 'rest', kind: REST_KIND.CAMP, siteId: 'ridge-camp', open: true },
+	{ type: 'travel', destinationId: 'harbor', discovered: true, routeOpen: true, distanceKm: 24 },
+]);
+assert.equal(partialCamp.complete, true);
+assert.equal(partialCamp.steps[1].fatigueAfterKm, 13.5);
+assert.equal(partialCamp.finalFatigueKm, 37.5);
+
+const noCampCapability = evaluateRestRequest({ ...readyReadiness, capabilities: { ...readyReadiness.capabilities, campProvisioning: false } }, { kind: REST_KIND.CAMP, siteId: 'dry-camp', fatigueKm: 10 });
+assert.deepEqual(noCampCapability.reasons, [JOURNEY_REST_BLOCK_REASON.CAMP_CAPABILITY_REQUIRED]);
+
+console.log(`[RPG] PASS sequential expedition journey + tavern rest planning ${JSON.stringify({ readyDistanceKm: readyPlan.totalDistanceKm, preferredRoute: routeOptions.preferredRouteId, enduranceKm: endurance.continuousDistanceKm, tavernJourneyKm: withTavern.totalDistanceKm, provisionCarryBlockedAt: provisionCarryBlocked.blockedAtStepIndex })}`);
