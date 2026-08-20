@@ -11,22 +11,17 @@ import {
 } from '../src/3d/gameplay/playerLockOn.js';
 
 const entity = (id, x, z, y = 0) => ({ id, displayName: id, object3D: { position: { x, y, z }, rotation: { y: 0 }, userData: {} } });
-const player = { x: 0, y: 0, z: 0 };
-const forward = { x: 0, z: 1 };
-
-assert.equal(PLAYER_LOCK_ON_CONFIG.ACQUIRE_DISTANCE_METERS, 22);
-assert.equal(PLAYER_LOCK_ON_CONFIG.BREAK_DISTANCE_METERS, 28);
+const player = { x: 0, y: 0, z: 0 }, forward = { x: 0, z: 1 };
+assert.equal(PLAYER_LOCK_ON_CONFIG.ACQUIRE_DISTANCE_METERS, 30);
+assert.equal(PLAYER_LOCK_ON_CONFIG.BREAK_DISTANCE_METERS, 38);
 assert.ok(PLAYER_LOCK_ON_CONFIG.ACQUIRE_HALF_ANGLE_DEGREES > 45 && PLAYER_LOCK_ON_CONFIG.ACQUIRE_HALF_ANGLE_DEGREES < 90);
 
 const center = evaluatePlayerLockTarget({ playerPosition: player, forward, entity: entity('center', 0, 10) });
-assert.equal(center.eligible, true);
-assert.ok(center.angleDegrees < 0.001);
-assert.equal(Number(center.distanceMeters.toFixed(3)), 10);
+assert.equal(center.eligible, true); assert.ok(center.angleDegrees < 0.001); assert.equal(Number(center.distanceMeters.toFixed(3)), 10);
 const behind = evaluatePlayerLockTarget({ playerPosition: player, forward, entity: entity('behind', 0, -8) });
 assert.equal(behind.eligible, false); assert.equal(behind.reason, 'angle');
-const far = evaluatePlayerLockTarget({ playerPosition: player, forward, entity: entity('far', 0, 30) });
+const far = evaluatePlayerLockTarget({ playerPosition: player, forward, entity: entity('far', 0, 31) });
 assert.equal(far.eligible, false); assert.equal(far.reason, 'range');
-
 const candidates = [entity('near-edge', 8, 8), entity('center-farther', 0, 12), entity('behind', 0, -4)];
 assert.equal(selectPlayerLockTarget({ playerPosition: player, forward, candidates }).id, 'center-farther', 'central view target should beat a slightly closer high-angle candidate');
 const tieA = entity('alpha', -2, 10), tieB = entity('beta', 2, 10);
@@ -34,23 +29,22 @@ assert.equal(selectPlayerLockTarget({ playerPosition: player, forward, candidate
 assert.equal(selectPlayerLockTarget({ playerPosition: player, forward, candidates: [tieA, tieB] }).id, 'alpha');
 
 const view = computePlayerLockViewForward({ x: 0, z: 8 }, { x: 0, z: 0 });
-assert.ok(Math.abs(view.x) < 1e-9 && view.z < -0.999, 'camera-target vector must define the acquisition cone');
+assert.ok(Math.abs(view.x) < 1e-9 && view.z < -0.999, 'camera-target vector must define acquisition cone');
 const facingPlayer = { position: { x: 0, z: 0 }, rotation: { y: 0 } };
 assert.equal(applyPlayerLockFacing(facingPlayer, { x: 10, z: 0 }, 0.05), true);
 assert.ok(facingPlayer.rotation.y > 0 && facingPlayer.rotation.y <= 0.55 + 1e-9, 'facing turn must be bounded by configured radians/second');
 for (let i = 0; i < 20; i += 1) applyPlayerLockFacing(facingPlayer, { x: 10, z: 0 }, 0.05);
 assert.ok(Math.abs(facingPlayer.rotation.y - Math.PI / 2) < 0.01, 'bounded facing must converge on target yaw');
 
-const previousCustomEvent = globalThis.CustomEvent;
-const previousDispatch = globalThis.dispatchEvent;
+const previousCustomEvent = globalThis.CustomEvent, previousDispatch = globalThis.dispatchEvent;
 if (typeof globalThis.CustomEvent !== 'function') globalThis.CustomEvent = class CustomEvent { constructor(type, init = {}) { this.type = type; this.detail = init.detail; } };
-const events = [];
-globalThis.dispatchEvent = (event) => { events.push({ type: event.type, detail: event.detail }); return true; };
+const events = []; globalThis.dispatchEvent = (event) => { events.push({ type: event.type, detail: event.detail }); return true; };
 try {
 	const controller = createPlayerLockOnController();
 	const target = entity('guard-a', 0, 10), other = entity('guard-b', 5, 10);
 	let snapshot = controller.update({ playerPosition: player, forward, candidates: [other, target], toggleRequested: true });
 	assert.equal(snapshot.locked, true); assert.equal(snapshot.targetId, 'guard-a'); assert.equal(events.at(-1)?.detail.reason, 'acquired');
+	assert.deepEqual(events.at(-1)?.detail.targetPosition, { x: 0, y: 0, z: 10 }, 'acquire telemetry must expose read-only target position for shipped combat proof');
 	target.object3D.position.x = 3;
 	snapshot = controller.update({ playerPosition: player, forward, candidates: [other, target] });
 	assert.equal(snapshot.locked, true); assert.equal(snapshot.targetPosition.x, 3, 'lock must follow the existing NPC object position without mutating AI');
@@ -66,42 +60,24 @@ try {
 	if (previousCustomEvent) globalThis.CustomEvent = previousCustomEvent; else delete globalThis.CustomEvent;
 }
 
-// Input parity uses the real KeyboardInput class. Initial R3-held connection must be seeded, then
-// release/repress fires exactly once. Tab is likewise edge-triggered and does not leak while held.
 const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
-let pads = [];
-Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { getGamepads: () => pads } });
+let pads = []; Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { getGamepads: () => pads } });
 const { KeyboardInput } = await import('../src/3d/input.js');
-const makePad = ({ index = 0, mapping = 'standard', buttons = {}, connected = true } = {}) => ({
-	index, mapping, connected, axes: [0, 0, 0, 0],
-	buttons: Array.from({ length: 16 }, (_, buttonIndex) => ({ pressed: Boolean(buttons[buttonIndex]), value: buttons[buttonIndex] ? 1 : 0 })),
-});
-const inputTarget = new EventTarget();
-const input = new KeyboardInput(inputTarget);
+const makePad = ({ index = 0, mapping = 'standard', buttons = {}, connected = true } = {}) => ({ index, mapping, connected, axes: [0, 0, 0, 0], buttons: Array.from({ length: 16 }, (_, i) => ({ pressed: Boolean(buttons[i]), value: buttons[i] ? 1 : 0 })) });
+const inputTarget = new EventTarget(), input = new KeyboardInput(inputTarget);
 try {
-	pads = [makePad({ index: 2, buttons: { 11: true } })];
-	input.getAxes();
-	assert.equal(input.consumeLockOnRequested(), false, 'held R3 on initial gamepad selection must be seeded, not toggle lock');
-	pads = [makePad({ index: 2 })]; input.getAxes();
-	pads = [makePad({ index: 2, buttons: { 11: true } })]; input.getAxes();
-	assert.equal(input.consumeLockOnRequested(), true, 'R3 release/repress must create one lock request');
-	input.getAxes(); assert.equal(input.consumeLockOnRequested(), false, 'held R3 must not repeat toggle every poll');
-
-	pads = [makePad({ index: 2, mapping: '', buttons: { 11: true } })]; input.getAxes();
-	assert.equal(input.consumeLockOnRequested(), false, 'non-Standard R3 must remain inert');
+	pads = [makePad({ index: 2, buttons: { 11: true } })]; input.getAxes(); assert.equal(input.consumeLockOnRequested(), false, 'held R3 on initial selection must be seeded');
+	pads = [makePad({ index: 2 })]; input.getAxes(); pads = [makePad({ index: 2, buttons: { 11: true } })]; input.getAxes();
+	assert.equal(input.consumeLockOnRequested(), true, 'R3 release/repress must create one lock request'); input.getAxes(); assert.equal(input.consumeLockOnRequested(), false, 'held R3 must not repeat');
+	pads = [makePad({ index: 2, mapping: '', buttons: { 11: true } })]; input.getAxes(); assert.equal(input.consumeLockOnRequested(), false, 'non-Standard R3 must remain inert');
 	pads = [];
-	const tabDown = new Event('keydown', { cancelable: true }); Object.defineProperty(tabDown, 'code', { value: 'Tab' });
-	inputTarget.dispatchEvent(tabDown);
-	assert.equal(tabDown.defaultPrevented, true, 'gameplay Tab lock-on must suppress browser focus navigation');
-	assert.equal(input.consumeLockOnRequested(), true, 'Tab must request lock once');
-	inputTarget.dispatchEvent(tabDown);
-	assert.equal(input.consumeLockOnRequested(), false, 'held/repeated Tab must not retrigger before keyup');
+	const tabDown = new Event('keydown', { cancelable: true }); Object.defineProperty(tabDown, 'code', { value: 'Tab' }); inputTarget.dispatchEvent(tabDown);
+	assert.equal(tabDown.defaultPrevented, true); assert.equal(input.consumeLockOnRequested(), true, 'Tab must request lock once');
+	inputTarget.dispatchEvent(tabDown); assert.equal(input.consumeLockOnRequested(), false, 'held/repeated Tab must not retrigger before keyup');
 	const tabUp = new Event('keyup'); Object.defineProperty(tabUp, 'code', { value: 'Tab' }); inputTarget.dispatchEvent(tabUp);
-	const tabAgain = new Event('keydown', { cancelable: true }); Object.defineProperty(tabAgain, 'code', { value: 'Tab' }); inputTarget.dispatchEvent(tabAgain);
-	assert.equal(input.consumeLockOnRequested(), true, 'Tab must rearm after keyup');
+	const tabAgain = new Event('keydown', { cancelable: true }); Object.defineProperty(tabAgain, 'code', { value: 'Tab' }); inputTarget.dispatchEvent(tabAgain); assert.equal(input.consumeLockOnRequested(), true, 'Tab must rearm after keyup');
 } finally {
-	input.dispose();
-	if (previousNavigator) Object.defineProperty(globalThis, 'navigator', previousNavigator); else delete globalThis.navigator;
+	input.dispose(); if (previousNavigator) Object.defineProperty(globalThis, 'navigator', previousNavigator); else delete globalThis.navigator;
 }
 
 const inputSource = fs.readFileSync(new URL('../src/3d/input.js', import.meta.url), 'utf8');
