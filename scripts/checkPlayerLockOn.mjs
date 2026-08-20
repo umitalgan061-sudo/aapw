@@ -22,6 +22,7 @@ const {
 	computePlayerLockViewForward,
 	createPlayerLockOnController,
 	evaluatePlayerLockTarget,
+	findNearestPlayerLockCandidate,
 	selectPlayerLockTarget,
 } = await import(lockModuleUrl);
 
@@ -48,6 +49,8 @@ assert.equal(selectPlayerLockTarget({ playerPosition: player, forward, candidate
 const tieA = entity('alpha', -2, 10), tieB = entity('beta', 2, 10);
 assert.equal(selectPlayerLockTarget({ playerPosition: player, forward, candidates: [tieB, tieA] }).id, 'alpha');
 assert.equal(selectPlayerLockTarget({ playerPosition: player, forward, candidates: [tieA, tieB] }).id, 'alpha');
+const nearest = findNearestPlayerLockCandidate({ playerPosition: player, forward, candidates: [hidden, entity('guide', 6, 40), entity('farther', 0, 55)] });
+assert.equal(nearest.id, 'guide'); assert.ok(nearest.distanceMeters > 40 && nearest.distanceMeters < 41); assert.ok(nearest.angleDegrees > 8 && nearest.angleDegrees < 9);
 
 const view = computePlayerLockViewForward({ x: 0, z: 8 }, { x: 0, z: 0 });
 assert.ok(Math.abs(view.x) < 1e-9 && view.z < -0.999);
@@ -62,7 +65,9 @@ if (typeof globalThis.CustomEvent !== 'function') globalThis.CustomEvent = class
 const events = []; globalThis.dispatchEvent = (event) => { events.push({ type: event.type, detail: event.detail }); return true; };
 try {
 	const controller = createPlayerLockOnController(), target = entity('guard-a', 0, 10), other = entity('guard-b', 5, 10);
-	let snapshot = controller.update({ playerPosition: player, forward, candidates: [other, target], toggleRequested: true });
+	let snapshot = controller.update({ playerPosition: player, forward, candidates: [entity('guide-far', 0, 45)], toggleRequested: true });
+	assert.equal(snapshot.locked, false); assert.equal(events.at(-1)?.detail.reason, 'no-target'); assert.equal(events.at(-1)?.detail.nearestTargetId, 'guide-far'); assert.equal(events.at(-1)?.detail.nearestDistanceMeters, 45);
+	snapshot = controller.update({ playerPosition: player, forward, candidates: [other, target], toggleRequested: true });
 	assert.equal(snapshot.locked, true); assert.equal(snapshot.targetId, 'guard-a'); assert.equal(events.at(-1)?.detail.reason, 'acquired');
 	target.object3D.position.x = 3; snapshot = controller.update({ playerPosition: player, forward, candidates: [other, target] });
 	assert.equal(snapshot.locked, true); assert.equal(snapshot.targetPosition.x, 3);
@@ -108,7 +113,7 @@ const inputSource = fs.readFileSync(new URL('../src/3d/input.js', import.meta.ur
 for (const fragment of ["const LOCK_ON_KEYS = new Set(['Tab'])", 'LOCK_ON: 11', 'lockOnPressed: buttons.lockOn && !previousButtons.lockOn', 'if (sample.lockOnPressed) this._lockOnRequested = true', 'consumeLockOnRequested()']) assert.ok(inputSource.includes(fragment), `missing lock-on input contract: ${fragment}`);
 const touchSource = fs.readFileSync(new URL('../src/3d/ui/touchJoystick.js', import.meta.url), 'utf8');
 for (const fragment of ["className = 'g3d-touch-lock-on-button'", "setAttribute('aria-label', 'Hedef kilidi')", "setAttribute('aria-pressed', 'false')", 'this._lockOnRequested = true', 'consumeLockOnRequested()', 'setLockOnActive(active)', "classList.toggle('g3d-touch-lock-on-active', locked)", "textContent = locked ? 'Kilitli' : 'Hedef'"]) assert.ok(touchSource.includes(fragment), `missing touch lock-on parity: ${fragment}`);
-for (const fragment of ['export const PLAYER_LOCK_ON_CONFIG', 'TRACK_HALF_ANGLE_DEGREES: 125', 'const entityLockAvailable = (entity)', "clear('target-unavailable')", "clear('view-break')", 'export function createPlayerLockOnController', 'export function updatePlayerLockOn(state)', 'candidates: state.npcs ?? []', 'state.keyboardInput.consumeLockOnRequested?.()', 'state.touchJoystick?.consumeLockOnRequested?.()', 'toggleRequested: !state.paused && (keyboardToggle || touchToggle)', 'state.touchJoystick?.setLockOnActive?.(Boolean(snapshot?.locked))', 'applyPlayerLockFacing(state.player.object3D', 'updatePlayerLockOn(state);']) assert.ok(loopSource.includes(fragment), `missing shipped lock-on integration: ${fragment}`);
+for (const fragment of ['export const PLAYER_LOCK_ON_CONFIG', 'TRACK_HALF_ANGLE_DEGREES: 125', 'const entityLockAvailable = (entity)', 'export function findNearestPlayerLockCandidate', 'nearestDistanceMeters', "clear('target-unavailable')", "clear('view-break')", 'export function createPlayerLockOnController', 'export function updatePlayerLockOn(state)', 'candidates: state.npcs ?? []', 'state.keyboardInput.consumeLockOnRequested?.()', 'state.touchJoystick?.consumeLockOnRequested?.()', 'toggleRequested: !state.paused && (keyboardToggle || touchToggle)', 'state.touchJoystick?.setLockOnActive?.(Boolean(snapshot?.locked))', 'applyPlayerLockFacing(state.player.object3D', 'updatePlayerLockOn(state);']) assert.ok(loopSource.includes(fragment), `missing shipped lock-on integration: ${fragment}`);
 assert.ok(!loopSource.includes('npc.update('), 'Player lock-on adapter must not mutate or invoke NPC AI');
 assert.ok(!fs.existsSync(new URL('../src/3d/gameplay/playerLockOn.js', import.meta.url)), 'lock-on must not add an uncached parallel runtime module');
 console.log('[checkPlayerLockOn] PASS');
