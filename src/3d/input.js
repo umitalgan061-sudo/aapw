@@ -19,6 +19,7 @@ const LIGHT_ATTACK_POINTER_BUTTON = 0;
 const COMBAT_INPUT_EVENT = 'aapw:player-combat-input';
 const INPUT_DEVICE_EVENT = 'aapw:player-input-device';
 const GAMEPAD_DEADZONE = 0.18;
+const GAMEPAD_TRIGGER_DEADZONE = 0.08;
 // Intentional actions get a second threshold above the hardware-noise deadzone. A worn controller
 // may sit just outside 0.18 while untouched; that must never drain sprint stamina or turn B/Circle
 // into a directional dodge. Sprint uses hysteresis so noisy input around the activation threshold
@@ -45,6 +46,11 @@ function buttonPressed(gamepad, index) { return Boolean(gamepad?.buttons?.[index
 function buttonValue(gamepad, index) {
 	const value = gamepad?.buttons?.[index]?.value;
 	return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : (buttonPressed(gamepad, index) ? 1 : 0);
+}
+export function applyGamepadTriggerDeadzone(value, deadzone = GAMEPAD_TRIGGER_DEADZONE) {
+	const normalized = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
+	if (normalized <= deadzone) return 0;
+	return Math.min(1, (normalized - deadzone) / (1 - deadzone));
 }
 function readActionButtons(gamepad) {
 	return {
@@ -93,10 +99,12 @@ export function samplePlayerGamepad(gamepad, previousButtons = {}, previousRunni
 	const dpad = readGamepadDpad(gamepad), locomotion = stick.magnitude > 0 ? stick : dpad;
 	const look = applyGamepadRadialDeadzone(gamepad.axes?.[2] ?? 0, gamepad.axes?.[3] ?? 0);
 	const buttons = readActionButtons(gamepad);
+	const zoomIn = applyGamepadTriggerDeadzone(buttonValue(gamepad, GAMEPAD_BUTTON.ZOOM_IN));
+	const zoomOut = applyGamepadTriggerDeadzone(buttonValue(gamepad, GAMEPAD_BUTTON.ZOOM_OUT));
 	return {
 		forward: (-locomotion.y) || 0, strafe: locomotion.x, magnitude: locomotion.magnitude,
 		lookX: look.x, lookY: look.y, lookMagnitude: look.magnitude,
-		cameraZoom: buttonValue(gamepad, GAMEPAD_BUTTON.ZOOM_IN) - buttonValue(gamepad, GAMEPAD_BUTTON.ZOOM_OUT),
+		cameraZoom: zoomIn - zoomOut,
 		running: resolveGamepadSprintIntent(locomotion.magnitude, buttonPressed(gamepad, GAMEPAD_BUTTON.SPRINT), previousRunning),
 		guarding: buttonPressed(gamepad, GAMEPAD_BUTTON.GUARD),
 		jumpPressed: buttons.jump && !previousButtons.jump,
@@ -148,7 +156,7 @@ export class KeyboardInput {
 		const sample = samplePlayerGamepad(gamepad, this._gamepadButtons, this._gamepadSprintActive);
 		if (!switched) {
 			if (sample.jumpPressed) this._jumpRequested = true;
-			if (sample.dodgePressed) pulsePlayerGamepadAction(gamepad, 'dodge');
+			if (sample.dodgePressed && sample.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE) pulsePlayerGamepadAction(gamepad, 'dodge');
 			if (sample.parryPressed) pulsePlayerGamepadAction(gamepad, 'parry');
 			if (sample.lightPressed) { emitPlayerCombatIntent('light', 'gamepad'); pulsePlayerGamepadAction(gamepad, 'light'); }
 			if (sample.heavyPressed) { emitPlayerCombatIntent('heavy', 'gamepad'); pulsePlayerGamepadAction(gamepad, 'heavy'); }
