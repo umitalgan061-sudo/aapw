@@ -67,17 +67,30 @@ export class HealthBar {
 		this._renderCombatStatus();
 	}
 	_paintDefense(payload) {
-		const mitigation = payload?.mitigation; if (!DEFENSE_LABELS[mitigation]) return; this._combatDefense = mitigation; this._renderCombatStatus(); if (this._defenseTimeoutId !== null) clearTimeout(this._defenseTimeoutId); this._defenseTimeoutId = setTimeout(() => { this._combatDefense = null; this._defenseTimeoutId = null; this._renderCombatStatus(); }, DEFENSE_FEEDBACK_SECONDS * 1000);
+		const mitigation = payload?.mitigation;
+		if (!DEFENSE_LABELS[mitigation]) return;
+		this._combatDefense = {
+			mitigation,
+			blockedAmount: Number.isFinite(payload?.blockedAmount) ? Math.max(0, payload.blockedAmount) : null,
+			appliedAmount: Number.isFinite(payload?.amount) ? Math.max(0, payload.amount) : null,
+		};
+		this._renderCombatStatus();
+		if (this._defenseTimeoutId !== null) clearTimeout(this._defenseTimeoutId);
+		this._defenseTimeoutId = setTimeout(() => { this._combatDefense = null; this._defenseTimeoutId = null; this._renderCombatStatus(); }, DEFENSE_FEEDBACK_SECONDS * 1000);
 	}
 	_renderCombatStatus(transient = null) {
 		const lockText = this._combatLock ? `Kilit · ${this._combatLock.targetId}${this._combatLock.distanceMeters !== null ? ` · ${this._combatLock.distanceMeters.toFixed(1)} m` : ''}` : null;
 		const attackText = this._combatAttack ? `${ATTACK_KIND_LABELS[this._combatAttack.kind]} · ${ATTACK_PHASE_LABELS[this._combatAttack.phase]} · Seri x${this._combatAttack.comboStep}${this._combatAttack.reachMeters !== null ? ` · Erişim ${this._combatAttack.reachMeters.toFixed(1)} m` : ''}${this._combatAttack.damageScale !== null ? ` · Güç x${this._combatAttack.damageScale.toFixed(2)}` : ''}` : null;
-		const hasRangeComparison = this._combatAttack?.reachMeters !== null && this._combatLock?.distanceMeters !== null;
+		const hasRangeComparison = Number.isFinite(this._combatAttack?.reachMeters) && Number.isFinite(this._combatLock?.distanceMeters);
 		const targetInRange = hasRangeComparison ? this._combatLock.distanceMeters <= this._combatAttack.reachMeters : null;
 		const rangeText = targetInRange === null ? null : targetInRange ? 'MENZİLDE' : 'UZAK';
-		const defenseText = this._combatDefense ? DEFENSE_LABELS[this._combatDefense] : null;
+		const defenseBlocked = this._combatDefense?.blockedAmount;
+		const defenseApplied = this._combatDefense?.appliedAmount;
+		const defenseText = this._combatDefense
+			? `${DEFENSE_LABELS[this._combatDefense.mitigation]}${Number.isFinite(defenseBlocked) ? ` · ${defenseBlocked.toFixed(1)} ${this._combatDefense.mitigation === 'parry' ? 'savuşturuldu' : 'engellendi'}` : ''}${this._combatDefense.mitigation === 'guard' && Number.isFinite(defenseApplied) ? ` · ${defenseApplied.toFixed(1)} hasar` : ''}`
+			: null;
 		const primary = defenseText ?? attackText; const text = primary ? `${primary}${lockText ? ` · ${lockText}` : ''}${rangeText ? ` · ${rangeText}` : ''}` : (transient ?? lockText ?? 'Serbest');
-		this._combatTextEl.textContent = text; this._combatEl.dataset.state = this._combatDefense ? `defense-${this._combatDefense}` : this._combatAttack ? `attack-${this._combatAttack.phase}` : this._combatLock ? 'locked' : transient ? 'no-target' : 'free'; this._combatEl.dataset.range = targetInRange === null ? 'unknown' : targetInRange ? 'in-range' : 'out-of-range'; this._combatEl.classList.toggle('g3d-combat-status-active', Boolean(this._combatAttack || this._combatDefense)); this._combatEl.classList.toggle('g3d-combat-status-locked', Boolean(this._combatLock));
+		this._combatTextEl.textContent = text; this._combatEl.dataset.state = this._combatDefense ? `defense-${this._combatDefense.mitigation}` : this._combatAttack ? `attack-${this._combatAttack.phase}` : this._combatLock ? 'locked' : transient ? 'no-target' : 'free'; this._combatEl.dataset.range = targetInRange === null ? 'unknown' : targetInRange ? 'in-range' : 'out-of-range'; this._combatEl.classList.toggle('g3d-combat-status-active', Boolean(this._combatAttack || this._combatDefense)); this._combatEl.classList.toggle('g3d-combat-status-locked', Boolean(this._combatLock));
 	}
 	_flash() { this._el.classList.add('g3d-health-bar-flash'); if (this._flashTimeoutId !== null) clearTimeout(this._flashTimeoutId); this._flashTimeoutId = setTimeout(() => { this._el.classList.remove('g3d-health-bar-flash'); this._flashTimeoutId = null; }, FLASH_SECONDS * 1000); }
 	dispose() { this._eventsBus.off(this._healthChangedEventName, this._onHealthChanged); this._eventsBus.off(this._damageEventName, this._onDamage); this._motionEventTarget?.removeEventListener('aapw:player-motion', this._onPlayerMotion); this._motionEventTarget?.removeEventListener('aapw:player-lock-on', this._onPlayerLockOn); this._motionEventTarget?.removeEventListener('aapw:player-attack-window', this._onAttackWindow); if (this._flashTimeoutId !== null) clearTimeout(this._flashTimeoutId); if (this._defenseTimeoutId !== null) clearTimeout(this._defenseTimeoutId); if (this._targetTimeoutId !== null) clearTimeout(this._targetTimeoutId); this._el.remove(); }
