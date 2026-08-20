@@ -5,7 +5,6 @@ on:
     branches: [main]
     paths:
       - 'src/3d/gameplay/player.js'
-      - 'src/3d/gameplay/playerLockOn.js'
       - 'src/3d/input.js'
       - 'src/3d/gameLoopHelpers.js'
       - 'src/3d/ui/touchJoystick.js'
@@ -52,7 +51,7 @@ jobs:
           git diff --check "$BASE"...HEAD
           CHANGED="$(git diff --name-only "$BASE"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/gameplay/playerLockOn\.js|src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|scripts/checkPlayerLockOnRuntime\.mjs|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|scripts/checkPlayerLockOnRuntime\.mjs|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           TOTAL=$((ADD + DEL))
           echo "base=$BASE additions=$ADD deletions=$DEL total=$TOTAL"
@@ -72,7 +71,6 @@ jobs:
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/player.js
-          node --check src/3d/gameplay/playerLockOn.js
           node --check src/3d/input.js
           node --check src/3d/gameLoopHelpers.js
           node --check src/3d/ui/touchJoystick.js
@@ -96,7 +94,7 @@ jobs:
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
           ! grep -q 'EditorMaterialStudio' src/3d/gameplay/player.js
-          ! grep -q 'EditorMaterialStudio' src/3d/gameplay/playerLockOn.js
+          ! grep -q 'EditorMaterialStudio' src/3d/gameLoopHelpers.js
           ! grep -q 'EditorMaterialStudio' src/3d/input.js
       - name: Install Chromium
         shell: bash
