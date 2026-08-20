@@ -90,7 +90,8 @@ try {
 			&& firstReceipt?.finalFatigueKm === 30
 			&& firstReceipt?.destinationId === 'harbor-road'
 			&& firstReceipt?.restStopCount === 1
-			&& committedRendered.includes('Sefer yorgunluğu: 30/52 km')
+			&& committedRendered.includes('Sefer yorgunluğu: 30/36 km')
+			&& committedRendered.includes('Kesintisiz kalan dayanıklılık: 6 km')
 			&& committedRendered.includes('Son sefer hedefi: harbor-road')
 			&& committedRendered.includes('Son sefer: 58 km · 2 yol azığı · 1 dinlenme');
 
