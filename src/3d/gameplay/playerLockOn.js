@@ -10,6 +10,7 @@ export const PLAYER_LOCK_ON_CONFIG = Object.freeze({
 	BREAK_DISTANCE_METERS: 28,
 	ACQUIRE_HALF_ANGLE_DEGREES: 68,
 	DISTANCE_SCORE_WEIGHT: 0.38,
+	TURN_RATE_RADIANS_PER_SECOND: 11,
 });
 
 const LOCK_ON_EVENT = 'aapw:player-lock-on';
@@ -35,6 +36,25 @@ function normalizedForward(forward) {
 	const z = Number.isFinite(forward?.z) ? forward.z : 1;
 	const length = Math.hypot(x, z);
 	return length > 1e-6 ? { x: x / length, z: z / length } : { x: 0, z: 1 };
+}
+
+export function computePlayerLockViewForward(cameraPosition, cameraTarget) {
+	const camera = planarPosition(cameraPosition), target = planarPosition(cameraTarget);
+	if (!camera || !target) return { x: 0, z: 1 };
+	return normalizedForward({ x: target.x - camera.x, z: target.z - camera.z });
+}
+
+export function applyPlayerLockFacing(playerObject, targetPosition, delta, turnRateRadiansPerSecond = PLAYER_LOCK_ON_CONFIG.TURN_RATE_RADIANS_PER_SECOND) {
+	const player = planarPosition(playerObject), target = planarPosition(targetPosition);
+	if (!player || !target || !playerObject?.rotation || !(delta > 0) || !(turnRateRadiansPerSecond > 0)) return false;
+	const dx = target.x - player.x, dz = target.z - player.z;
+	if (Math.hypot(dx, dz) <= 0.05) return false;
+	const currentYaw = Number.isFinite(playerObject.rotation.y) ? playerObject.rotation.y : 0;
+	const targetYaw = Math.atan2(dx, dz);
+	const shortestDelta = Math.atan2(Math.sin(targetYaw - currentYaw), Math.cos(targetYaw - currentYaw));
+	const maxStep = turnRateRadiansPerSecond * Math.min(delta, 0.1);
+	playerObject.rotation.y = currentYaw + clamp(shortestDelta, -maxStep, maxStep);
+	return true;
 }
 
 export function evaluatePlayerLockTarget({ playerPosition, forward, entity, index = 0, maxDistanceMeters = PLAYER_LOCK_ON_CONFIG.ACQUIRE_DISTANCE_METERS, halfAngleDegrees = PLAYER_LOCK_ON_CONFIG.ACQUIRE_HALF_ANGLE_DEGREES } = {}) {
