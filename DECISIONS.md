@@ -17424,3 +17424,61 @@ SW cache (v21→v22) PASS, satır sınırı PASS, determinizm PASS, borç 0.
 
 **Next safe step:** sahibin kalan iki isteği — vadilerin düzenlenmesi, ve Westeros'un doğu tarafındaki
 yolların map.png'ye bakılarak kurulması.
+
+## ADR-0306 — Ormanı map.png'nin adlandırılmış bölgelerine bağlamak
+
+**Bağlam.** Sahibin isteği: "map.png'ye bakıp bizim 3D oyunumuza o yolları, dağları, ormanları entegre et."
+
+**Önce bir olgu.** `resimler/map.png` bu depoda **yok** ve okunamıyor: `.gitignore` `/resimler/` satırını
+taşıyor, yani görsel hiç commit'lenmemiş, uzak oturum da depoyu sıfırdan klonluyor. Konteynerin tamamı
+tarandı, dosya hiçbir yerde yok. Sahibe bildirildi.
+
+Ama haritanın içeriği türetilmiş biçimde **depoda mevcut**: `world/worldReferenceMap.js`, kaynak
+görselin SHA-256'sını (`20702972…`) taşıyan elle denetlenmiş transkripsiyon — 17 adlandırılmış biyom
+bölgesi (kind + merkez + yarıçap), 5 su bölgesi ve 4 dağ zinciri. Denetlendi ve iki şey zaten bağlıymış:
+dağ zincirleri `worldReferenceMountainRelief.js` üzerinden araziyi gerçekten şekillendiriyor, biyom
+bölgeleri de `worldReferenceSurfacePindexes.js`'in yüzey maskesini besliyor.
+
+**Boşluk ormandaydı.** Run 358'in `forestCoverage01`'i saf gürültüydü ve bu bölgeleri hiç okumuyordu —
+yani Dorne çölü ile Sothoryos cengeli aynı orman olasılığını alıyordu. Harita, ormanlar konusunda hiç
+konuşmuyordu.
+
+**Karar.** `world/worldReferenceForestAffinity.js`: her biyom `kind`'ına bir orman yatkınlığı, ve
+`sampleReferenceInfluence` ile harmanlanmış bir sorgu. `forestCoverage01` artık yama maskesini bu
+yatkınlıkla çarpıyor. Böylece dağlar, yüzey sınıflandırması ve bitki örtüsü — üçü de haritanın **tek**
+transkripsiyonundan türüyor, üç ayrı görüşten değil.
+
+**Bir ölçüm, bir ayar.** İlk sürümde ayrım zayıf çıktı: Dorne 0,142, Sothoryos 0,493. Sebep,
+`sampleReferenceInfluence`'ın yalnızca tam merkezde 1'e ulaşması — bölgenin geri kalanı 0,62'lik
+bölgesiz varsayılana kayıyordu, yani harita danışılıp sonra büyük ölçüde geçersiz kılınıyordu. Yetki
+0,35 etkide doygunlaşacak şekilde ayarlandı; her bölgenin iç üçte ikisi kendi kind'ına ait, kenarı
+gerçek bir geçiş olarak kalıyor.
+
+Bölge başına ölçülen orman örtüsü (sonra):
+
+| bölge | örtü | | bölge | örtü |
+|---|---|---|---|---|
+| braavos-coast (temperate) | 0,616 | | dorne-mountains | 0,166 |
+| north (cold-grassland) | 0,603 | | neck (marsh) | 0,157 |
+| sothoryos (jungle) | 0,590 | | vale-mountains | 0,109 |
+| ulthos (jungle) | 0,564 | | dorne (desert) | 0,082 |
+| reach (lush-grassland) | 0,526 | | dothraki-sea (steppe) | 0,073 |
+| westerlands (rocky-hills) | 0,467 | | lands-always-winter (snow) | 0,069 |
+| yi-ti (lush-grassland) | 0,308 | | bone-mountains | 0,052 |
+| | | | grey-waste (arid) / red-waste | 0,050 / 0,034 |
+
+Çöl, bozkır, kar ve kaya artık sıfıra yakın; cengel, ılıman kıyı ve kuzey ormanlık. Öncesinde hepsi
+ayırt edilemezdi.
+
+**Bir sonuç, kayda geçsin.** Toplam ağaç sayısı 18.481 → 9.291 düştü. Bu bir gerileme değil, haritanın
+konuşması: önizleme diski dünya merkezinde, orası da transkripsiyona göre Dothraki bozkırı, yani doğru
+şekilde ağaçsız. Westeros tarafı (kuzey 0,60, Reach 0,53) ormanlık.
+
+**Yollar entegre edilmedi.** Transkripsiyon yol içermiyor — biyom bölgeleri, su bölgeleri ve dağ
+zincirleri var, yol yok. Görsel de okunamadığı için haritadaki yol çizgileri izlenemiyor. Uydurmak
+yerine sahibin görseli sağlaması bekleniyor (QUESTIONS_FOR_OWNER.md S-0036).
+
+**Doğrulama.** 14/14 koltuk PASS, yollar PASS (18,31 km), terrain visual contract PASS, SW cache
+(v22→v23) PASS, satır sınırı PASS, determinizm PASS.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.

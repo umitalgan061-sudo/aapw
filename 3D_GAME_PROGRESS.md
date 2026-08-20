@@ -17055,3 +17055,33 @@ Kapılar: 14/14 koltuk, yollar (18,31 km), terrain visual contract, SW cache v21
 determinizm, borç 0 — hepsi PASS.
 
 Sıradaki: kalan iki isteğiniz — vadilerin düzenlenmesi ve Westeros'un doğu tarafındaki yollar.
+
+### Run 359 — Ormanlar artık haritanın bölgelerini dinliyor (ADR-0306)
+
+Önce bir olgu: **map.png bu depoda yok.** `.gitignore` `/resimler/` satırını taşıyor, yani görsel hiç
+commit'lenmemiş; uzak oturum depoyu sıfırdan klonladığı için o dizin burada hiç oluşmuyor. Tüm dosya
+sistemini taradım, tek kopyası yok. "Resimler dizininden kopyala" önerisi bu yüzden uygulanamıyor.
+
+Ama haritanın içeriği türetilmiş hâlde depoda: `worldReferenceMap.js`, kaynak görselin SHA-256'sını
+taşıyan elle denetlenmiş transkripsiyon — 17 adlandırılmış biyom bölgesi, 5 su bölgesi, 4 dağ zinciri.
+Denetledim ve **dağlar zaten bağlıymış**: zincirler araziyi gerçekten şekillendiriyor. Biyom bölgeleri
+de yüzey maskesini besliyor.
+
+Boşluk ormandaydı. Geçen turun orman maskesi saf gürültüydü ve bu bölgeleri hiç okumuyordu — Dorne
+çölü ile Sothoryos cengeli aynı orman olasılığını alıyordu. Yani harita, ormanlar konusunda hiç
+konuşmuyordu.
+
+Şimdi konuşuyor: her biyom kind'ına bir orman yatkınlığı verdim ve maske onunla çarpılıyor. İlk
+denemede ayrım zayıf çıktı (Dorne 0,142, Sothoryos 0,493) çünkü bölge etkisi yalnızca tam merkezde
+1'e ulaşıyor, gerisi bölgesiz varsayılana kayıyordu — harita danışılıp sonra geçersiz kılınıyordu.
+Yetkiyi sıkılaştırınca ayrım oturdu: çöl 0,082 / 0,034, bozkır 0,073, kar 0,069, kaya 0,052 — hepsi
+sıfıra yakın; cengel 0,590, ılıman kıyı 0,616, kuzey 0,603, Reach 0,526 — ormanlık.
+
+Toplam ağaç 18.481 → 9.291 düştü. Bu gerileme değil, haritanın konuşması: önizleme diski dünya
+merkezinde ve orası transkripsiyona göre Dothraki bozkırı, yani doğru şekilde ağaçsız.
+
+**Yollar yapılmadı.** Transkripsiyonda yol yok ve görsel okunamıyor, o yüzden haritadaki yol çizgilerini
+izleyemiyorum. Uydurmadım; S-0036 olarak görseli istedim.
+
+Kapılar: 14/14 koltuk, yollar (18,31 km), terrain visual contract, SW cache v22→v23, satır sınırı,
+determinizm — hepsi PASS.

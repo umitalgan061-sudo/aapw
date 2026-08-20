@@ -495,3 +495,26 @@ komşu örnekler arasında büyük fark üretiyor ve uçurum gibi puanlanıyor �
 
 **Tavsiyem:** 3, uzun vadede doğru olan o; 2 ise ara adım olarak ucuz. Ama ikisi de "yol nedir"
 tanımını değiştirdiği için tahmin edilmedi.
+
+## S-0036 (run 359) — map.png bu depoda yok, yollar için görsele ihtiyaç var
+
+**Durum:** Sahip aksiyonu bekliyor. Engelleyici: haritadaki yolların 3D dünyaya işlenmesi.
+
+`.gitignore` `/resimler/` satırını taşıyor, yani `resimler/map.png` hiç commit'lenmemiş. Uzak oturum
+depoyu sıfırdan klonladığı için dosya konteynerde yok; tüm dosya sistemi tarandı, hiçbir kopyası yok.
+Sahibin "resimler dizininden kopyalayabilirsin" önerisi bu yüzden uygulanamıyor — o dizin sahibin kendi
+makinesinde.
+
+Ormanlar ve dağlar için sorun değil: `worldReferenceMap.js` görselin elle denetlenmiş transkripsiyonunu
+taşıyor (biyom bölgeleri, su bölgeleri, dağ zincirleri) ve run 359 ormanları ona bağladı. Ama
+transkripsiyonda **yol yok**, dolayısıyla haritadaki yol çizgileri izlenemiyor.
+
+**İhtiyaç:** map.png'nin kendisi. İki yol var:
+
+1. **Sohbete eklemek** — en hızlısı. Görseli doğrudan görebilirim, güzergâhları okuyup kanonik yol
+   çapaları olarak yazabilirim.
+2. **Depoya commit'lemek** — `.gitignore`'dan `/resimler/` satırını çıkarmak ya da `git add -f
+   resimler/map.png` ile zorlamak, sonra push. Kalıcı çözüm bu olur: harita bir daha kaybolmaz ve
+   sonraki turlar da ona bakabilir.
+
+Görsel gelene kadar yol güzergâhları uydurulmayacak.

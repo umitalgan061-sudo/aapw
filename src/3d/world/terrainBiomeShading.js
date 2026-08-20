@@ -36,6 +36,23 @@
 
 import * as THREE from 'three';
 import { signedFbmNoise } from './terrainReliefDetail.js';
+import { WORLD_SCALE } from '../config.js';
+import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
+import { canonicalForestAffinity } from './worldReferenceForestAffinity.js';
+
+/**
+ * World X/Z to normalized owner-map coordinates — the same projection `world/terrain.js`'s private
+ * `currentMapPoint` uses, repeated here rather than exported from there so this render-only module
+ * keeps no dependency on the height sampler.
+ */
+function normalizedMapPoint(worldX, worldZ) {
+	const { MAP_BOUNDS, METERS_PER_MAP_UNIT } = WORLD_SCALE;
+	const centerMapX = (MAP_BOUNDS.minX + MAP_BOUNDS.maxX) * 0.5;
+	const centerMapY = (MAP_BOUNDS.minY + MAP_BOUNDS.maxY) * 0.5;
+	const nx = (worldX / METERS_PER_MAP_UNIT + centerMapX) / WORLD_REFERENCE_ALIGNMENT.mapCanvasWidthUnits;
+	const ny = (worldZ / METERS_PER_MAP_UNIT + centerMapY) / WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits;
+	return { nx: Math.max(0, Math.min(1, nx)), ny: Math.max(0, Math.min(1, ny)) };
+}
 
 const clamp01 = (value) => (value < 0 ? 0 : value > 1 ? 1 : value);
 
@@ -247,11 +264,17 @@ const scratchRock = new THREE.Color();
  */
 export function forestCoverage01(worldX, worldZ, heightAboveSeaMeters, slopeDegrees) {
 	const P = TERRAIN_BIOME_SHADING_POLICY;
+	// Which *region* this is, per the owner map's transcribed biome zones. Run 358 shipped this mask as
+	// pure noise, which meant Dorne's desert and the jungles of Sothoryos were equally likely to be
+	// wooded — the map had no say. See `world/worldReferenceForestAffinity.js`.
+	const { nx, ny } = normalizedMapPoint(worldX, worldZ);
+	const affinity = canonicalForestAffinity(nx, ny);
+	if (affinity <= 0) return 0;
 	const forestNoise01 = signedFbmNoise(worldX * P.forestPatchFrequency - 13.1, worldZ * P.forestPatchFrequency + 7.4, P.forestPatchOctaves) * 0.5 + 0.5;
 	const forestPatch = smoothstep(P.forestPatchStart, P.forestPatchFull, forestNoise01);
 	const notCliff = 1 - smoothstep(P.forestSlopeFalloffStartDegrees, P.forestSlopeFalloffFullDegrees, slopeDegrees);
 	const belowTreeLine = 1 - smoothstep(P.forestTreeLineStartMeters, P.forestTreeLineFullMeters, heightAboveSeaMeters);
-	return forestPatch * notCliff * belowTreeLine;
+	return forestPatch * notCliff * belowTreeLine * affinity;
 }
 
 export function resolveTerrainBiomeColor(target, { heightAboveSeaMeters, slopeDegrees, rockWeight = 0, snowWeight = 0, worldX = 0, worldZ = 0 }) {
