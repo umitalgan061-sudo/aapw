@@ -303,3 +303,112 @@ ChunkManager.prototype.streamTowards = function streamTowardsWithLiveMobileRadiu
 // runtime streaming radius without duplicating a stale literal. Future additive radius wrappers
 // update this binding after their own declaration.
 export let MOBILE_LIVE_WORLD_RADIUS_CHUNKS = MOBILE_LIVE_WORLD_RADIUS_RUN140;
+
+// 2026-08-20 — desktop visual-detail LOD. Claude's measured all-128 experiment made the 529-chunk
+// boot preview perform ~8.8M vertex height samples and miss the 30s browser budget. The answer is
+// not to throw away the 3.9m detail: spend it only where a player/camera can resolve it. The 2:1
+// bands below keep the exact same height authority while reducing the initial vertex workload below
+// the historical all-64 preview. Mobile remains entirely owned by run 134 above.
+export const DESKTOP_TERRAIN_DETAIL_LOD = Object.freeze({
+	NEAR_SEGMENTS: 128,
+	MID_SEGMENTS: 64,
+	FAR_SEGMENTS: 32,
+	NEAR_RADIUS_CHUNKS: 1,
+	MID_RADIUS_CHUNKS: 4,
+});
+
+function desktopDetailLodSegments(chunkX, chunkZ, centerX, centerZ) {
+	const distance = Math.max(Math.abs(chunkX - centerX), Math.abs(chunkZ - centerZ));
+	if (distance <= DESKTOP_TERRAIN_DETAIL_LOD.NEAR_RADIUS_CHUNKS) return DESKTOP_TERRAIN_DETAIL_LOD.NEAR_SEGMENTS;
+	if (distance <= DESKTOP_TERRAIN_DETAIL_LOD.MID_RADIUS_CHUNKS) return DESKTOP_TERRAIN_DETAIL_LOD.MID_SEGMENTS;
+	return DESKTOP_TERRAIN_DETAIL_LOD.FAR_SEGMENTS;
+}
+
+// A fine edge contains one vertex between every pair present on its next-coarser neighbour. Morph
+// only those odd edge vertices onto the linear coarse edge. Interior vertices stay at the full
+// canonical height, so the 128 grid still exposes ~3.9m terrain detail while 128↔64 and 64↔32 borders
+// cannot open T-junction cracks. Applying this on all four edges also keeps fine↔fine borders equal.
+function morphDesktopLodEdges(mesh, segments) {
+	if (segments <= DESKTOP_TERRAIN_DETAIL_LOD.FAR_SEGMENTS || segments % 2 !== 0) return;
+	const position = mesh.geometry.getAttribute('position');
+	const rowWidth = segments + 1;
+	const averageY = (target, a, b) => position.setY(target, (position.getY(a) + position.getY(b)) * 0.5);
+	for (let i = 1; i < segments; i += 2) {
+		averageY(i, i - 1, i + 1);
+		const bottom = segments * rowWidth + i;
+		averageY(bottom, bottom - 1, bottom + 1);
+		const left = i * rowWidth;
+		averageY(left, left - rowWidth, left + rowWidth);
+		const right = left + segments;
+		averageY(right, right - rowWidth, right + rowWidth);
+	}
+	position.needsUpdate = true;
+	mesh.geometry.computeVertexNormals();
+	mesh.geometry.computeBoundingBox();
+	mesh.geometry.computeBoundingSphere();
+}
+
+function createDesktopDetailChunk(manager, chunkX, chunkZ, segments) {
+	const mesh = createTerrainChunk({
+		chunkX,
+		chunkZ,
+		size: manager.chunkSizeMeters,
+		segments,
+		seed: manager.seed,
+		flattenPads: manager.flattenPads,
+	});
+	morphDesktopLodEdges(mesh, segments);
+	mesh.userData.desktopTerrainLodSegments = segments;
+	mesh.userData.desktopTerrainVertexSpacingMeters = manager.chunkSizeMeters / segments;
+	mesh.userData.desktopTerrainEdgeMorph = segments > DESKTOP_TERRAIN_DETAIL_LOD.FAR_SEGMENTS;
+	return mesh;
+}
+
+const _loadChunkBeforeDesktopDetailLod = ChunkManager.prototype.loadChunk;
+ChunkManager.prototype.loadChunk = function loadChunkWithDesktopDetailLod(chunkX, chunkZ) {
+	if (isMobileCoarsePointerRun134() || !this.desktopTerrainDetailLodEnabled) {
+		return _loadChunkBeforeDesktopDetailLod.call(this, chunkX, chunkZ);
+	}
+	const key = chunkKey(chunkX, chunkZ);
+	const existing = this.loaded.get(key);
+	if (existing) return existing;
+	const center = this.desktopTerrainDetailLodCenter ?? { x: 0, z: 0 };
+	const segments = desktopDetailLodSegments(chunkX, chunkZ, center.x, center.z);
+	const mesh = createDesktopDetailChunk(this, chunkX, chunkZ, segments);
+	this.scene.add(mesh);
+	this.loaded.set(key, mesh);
+	this.everGenerated.add(key);
+	return mesh;
+};
+
+const _loadSquareBeforeDesktopDetailLod = ChunkManager.prototype.loadSquare;
+ChunkManager.prototype.loadSquare = function loadSquareWithDesktopDetailLod(centerX, centerZ, radius) {
+	// Enable only for the real desktop full-preview path. Small generic/test managers and mobile keep
+	// their historical behavior. Once enabled, seat-grounding loadSquare calls retain the current
+	// player/preview center instead of turning every distant castle into a 128-segment island.
+	if (!isMobileCoarsePointerRun134() && !this.desktopTerrainDetailLodEnabled &&
+		radius >= CHUNK_CONFIG.PHASE1_PREVIEW_RADIUS_CHUNKS) {
+		this.desktopTerrainDetailLodEnabled = true;
+		this.desktopTerrainDetailLodCenter = { x: centerX, z: centerZ };
+	}
+	return _loadSquareBeforeDesktopDetailLod.call(this, centerX, centerZ, radius);
+};
+
+const _streamTowardsBeforeDesktopDetailLod = ChunkManager.prototype.streamTowards;
+ChunkManager.prototype.streamTowards = function streamTowardsWithDesktopDetailLod(centerChunkX, centerChunkZ, radius) {
+	if (isMobileCoarsePointerRun134() || !this.desktopTerrainDetailLodEnabled) {
+		return _streamTowardsBeforeDesktopDetailLod.call(this, centerChunkX, centerChunkZ, radius);
+	}
+	this.desktopTerrainDetailLodCenter = { x: centerChunkX, z: centerChunkZ };
+	_streamTowardsBeforeDesktopDetailLod.call(this, centerChunkX, centerChunkZ, radius);
+	for (const [key, mesh] of [...this.loaded.entries()]) {
+		const [chunkX, chunkZ] = key.split(',').map(Number);
+		const desiredSegments = desktopDetailLodSegments(chunkX, chunkZ, centerChunkX, centerChunkZ);
+		if (mesh.userData.desktopTerrainLodSegments === desiredSegments) continue;
+		const replacement = createDesktopDetailChunk(this, chunkX, chunkZ, desiredSegments);
+		this.scene.remove(mesh);
+		disposeTerrainChunk(mesh);
+		this.scene.add(replacement);
+		this.loaded.set(key, replacement);
+	}
+};
