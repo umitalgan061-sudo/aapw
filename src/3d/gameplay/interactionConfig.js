@@ -13,6 +13,7 @@ import {
 	buildFieldReadinessText,
 	evaluateExpeditionRoutePlan,
 	evaluateFieldReadiness,
+	evaluateJourneyWithRestStops,
 } from './interactionFieldReadiness.js';
 
 /** Dragonstone watch outcome values shared by quest definitions and the interaction adapter. */
@@ -233,6 +234,33 @@ export function createInteractionInventoryState() {
 		};
 	}
 
+	function commitJourneyWithRestStops(steps = []) {
+		const authoredSteps = Array.isArray(steps) ? steps : [];
+		const before = snapshot();
+		const plan = evaluateJourneyWithRestStops(before.fieldReadiness ?? before, authoredSteps);
+		if (!plan.complete) {
+			const blocked = plan.steps?.find((step) => step.index === plan.blockedAtStepIndex) ?? null;
+			const reasons = blocked?.type === 'rest' ? blocked?.decision?.reasons : blocked?.reasons;
+			return { ok: false, reason: reasons?.[0] ?? 'journey-blocked', blockedAtStepIndex: plan.blockedAtStepIndex, consumedItemId: null, consumedQuantity: 0, plan, inventory: before };
+		}
+		let consumedQuantity = 0;
+		for (const plannedStep of plan.steps) {
+			if (plannedStep.type !== 'travel') continue;
+			const result = consumeFastTravelProvisions(authoredSteps[plannedStep.index] ?? {});
+			if (!result.ok) {
+				restore(before);
+				return { ok: false, reason: result.reason ?? 'journey-commit-race', blockedAtStepIndex: plannedStep.index, consumedItemId: null, consumedQuantity: 0, plan, inventory: snapshot() };
+			}
+			consumedQuantity += Math.max(0, Math.floor(Number(result.consumedQuantity) || 0));
+		}
+		const expectedConsumption = Math.max(0, plan.startingTravelPacks - plan.remainingTravelPacks);
+		if (consumedQuantity !== expectedConsumption) {
+			restore(before);
+			return { ok: false, reason: 'journey-consumption-invariant', blockedAtStepIndex: null, consumedItemId: null, consumedQuantity: 0, plan, inventory: snapshot() };
+		}
+		return { ok: true, reason: 'committed', blockedAtStepIndex: null, consumedItemId: consumedQuantity > 0 ? 'dragonstone-travel-ration-pack' : null, consumedQuantity, plan, inventory: snapshot() };
+	}
+
 	function restore(saved) {
 		entries.clear();
 		for (const savedItem of Array.isArray(saved?.items) ? saved.items : []) {
@@ -247,7 +275,7 @@ export function createInteractionInventoryState() {
 		}
 	}
 
-	return { grant, quantityOf, consume, consumeFastTravelProvisions, snapshot, restore };
+	return { grant, quantityOf, consume, consumeFastTravelProvisions, commitJourneyWithRestStops, snapshot, restore };
 }
 
 export function buildInventoryText(snapshot = {}) {
