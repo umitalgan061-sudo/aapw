@@ -50,9 +50,11 @@ for (const id of ['vale-chain', 'red-mountains', 'bone-mountains', 'eastern-chai
 const roadSource = fs.readFileSync('src/3d/world/roads.js', 'utf8');
 const pathfinderSource = fs.readFileSync('src/3d/world/roadPathfinder.js', 'utf8');
 const vegetationSource = fs.readFileSync('src/3d/world/vegetation.js', 'utf8');
+const serviceWorkerSource = fs.readFileSync('service-worker.js', 'utf8');
 assert.match(roadSource, /referenceRoadPreference: sampleReferenceRoadPreferenceWorld/);
 assert.match(pathfinderSource, /referenceRoadOffGuidePenalty/);
 assert.match(vegetationSource, /sampleReferenceForestInfluenceWorld/);
+assert.match(serviceWorkerSource, /worldReferenceFeatureGuides\.js/, 'owner-map feature guides must remain available to offline 3D boot');
 
 console.log(JSON.stringify({
 	ok: true,
