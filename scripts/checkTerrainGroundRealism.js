@@ -21,10 +21,14 @@
  * line in the world while still looking "varied".
  *
  * **4. The calibration still matches the terrain.** `drainageFullMeters` is calibrated to a measured
- * curvature distribution (p99 = 1.013 m at 3.91 m vertex spacing). Terrain changes constantly in this
- * project, and a calibration silently invalidated by a later relief change would make this pass fade
- * back to invisibility exactly as its first, guessed, 3.5 m version did. So the check re-measures the
- * distribution and fails if the policy has drifted more than 2x away from the live p99.
+ * curvature distribution — p99 = 1.317 m over the whole map at 3.91 m vertex spacing. Terrain changes
+ * constantly in this project, and a calibration silently invalidated by a later relief change would make
+ * this pass fade back to invisibility exactly as its first, guessed, 3.5 m version did. So the check
+ * re-measures the distribution and fails if the policy has drifted more than 2x away from the live p99.
+ *
+ * The distribution is walked over the entire map rather than one neighbourhood, which matters more than
+ * it sounds: sampling a single disc let run 372's Valyrian uplift push the reported p99 to 1.826 m and
+ * would have failed a calibration that is still right everywhere else.
  *
  * Usage: `node scripts/checkTerrainGroundRealism.js`
  * Exit codes: 0 = PASS. 1 = FAIL. 2 = Playwright unavailable.
@@ -125,15 +129,23 @@ const CALIBRATION_TOLERANCE_FACTOR = 2;
 			const greenShare = (c) => c.g / (c.r + c.g + c.b);
 
 			// --- 4. Calibration against the live curvature distribution. -------------------------------
+			// Sampled across the whole world, not one disc.
+			//
+			// An earlier revision sampled a 1200 m radius around (0, 1000). Run 372 raised Valyria, whose
+			// isthmus lies about 1095 m from that centre — inside the disc — and the reported p99 curvature
+			// jumped from 1.013 m to 1.826 m. That was not the world drifting: it was one atypical volcanic
+			// province dominating a statistic meant to describe the whole map, and left alone it would have
+			// failed this check for a calibration that is still right everywhere else. No single region can
+			// capture a world-wide walk.
 			const curvatures = [];
-			for (let i = 0; i < 6000; i += 1) {
-				const angle = i * 2.399963;
-				const radius = 1200 * Math.sqrt((i % 991) / 991);
-				const x = Math.cos(angle) * radius;
-				const z = 1000 + Math.sin(angle) * radius;
-				const own = live(x, z);
-				if (own <= seaLevel + 1) continue;
-				curvatures.push(realism.curvatureMetersFromNeighbours(live(x - spacing, z), live(x + spacing, z), live(x, z - spacing), live(x, z + spacing), own, spacing));
+			const halfWidth = (WORLD_SCALE.MAP_BOUNDS.maxX - WORLD_SCALE.MAP_BOUNDS.minX) * WORLD_SCALE.METERS_PER_MAP_UNIT * 0.5;
+			const halfHeight = (WORLD_SCALE.MAP_BOUNDS.maxY - WORLD_SCALE.MAP_BOUNDS.minY) * WORLD_SCALE.METERS_PER_MAP_UNIT * 0.5;
+			for (let z = -halfHeight; z <= halfHeight; z += 140) {
+				for (let x = -halfWidth; x <= halfWidth; x += 140) {
+					const own = live(x, z);
+					if (own <= seaLevel + 1) continue;
+					curvatures.push(realism.curvatureMetersFromNeighbours(live(x - spacing, z), live(x + spacing, z), live(x, z - spacing), live(x, z + spacing), own, spacing));
+				}
 			}
 			curvatures.sort((a, b) => a - b);
 			const p99 = curvatures[Math.floor(0.99 * (curvatures.length - 1))];

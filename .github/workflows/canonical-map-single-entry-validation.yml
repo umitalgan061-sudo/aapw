@@ -52,6 +52,18 @@ jobs:
           set -euo pipefail
           node scripts/terrainSeatSafetyCheck.js
           node scripts/roadNetworkSafetyCheck.js
+      # Geography fidelity gates (runs 367-373). These exist because the project spent hundreds of runs
+      # with Valyria rendering as a green meadow while every gate stayed green: the gates were all
+      # correct and none of them was asking whether a region was the country it is supposed to be.
+      # They only guard anything if they run automatically, so they run here.
+      - name: Geography fidelity
+        run: |
+          set -euo pipefail
+          node scripts/checkRegionGeographyFidelity.js
+          node scripts/checkValyriaDoom.js
+          node scripts/checkTerrainGroundRealism.js
+          node scripts/checkTerrainDetailAtlasIsotropy.js
+          node scripts/checkWorldPropScatter.js
       - name: Direct createScene canonical-map ownership and top-down proof
         run: |
           set -euo pipefail

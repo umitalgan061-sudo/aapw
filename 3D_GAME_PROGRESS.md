@@ -17649,3 +17649,22 @@ Kalan iki hata, oturum boyunca değişmeyen taban çizgisinin aynısı: bir kale
 (`icebound_citadel_decimated.glb`) ve ejderha modeli bu konteynerde LFS pointer stub olduğu için
 console hatası veriyor. Hata satırlarında bu oturumun getirdiği modüllerin (Valyria, prop serpme,
 zemin gerçekçiliği, dünya giydirme, rüzgâr çimi) **hiçbiri geçmiyor** — kontrol ettim.
+
+---
+
+## Tur 374 — Kapıları CI'a bağladım, ve biri kendi kusurunu gösterdi
+
+Bu oturumda beş yeni kontrol yazdım ama hiçbiri kendiliğinden çalışmıyordu — yalnızca ben hatırlayıp
+elle çalıştırdığımda. Valyria'nın yüzlerce tur çayır kalmasının sebebi de buydu: kapılar doğruydu ama
+kimse sormuyordu. Çalışmayan kapı kapı değil. Beşini de CI'ın ana doğrulama iş akışına ekledim; orası
+LFS varlıklarını zaten indiriyor, yani gerçek modellerle çalışacaklar.
+
+**Bağlarken biri kendi kusurunu gösterdi.** Zemin gerçekçiliği kontrolü kalibrasyon oranını 1,01'den
+**1,83**'e çıkmış raporladı, toleransın dibinde. Sebep arazinin bozulması değildi: kontrol ölçümünü
+tek bir noktanın 1200 metre çevresinden alıyordu, ve geçen tur yükselttiğim Valyria kıstağı o noktaya
+1095 metre uzakta — yani ölçüm alanının içinde. Tek bir volkanik bölge, bütün haritayı anlatması
+gereken bir sayıyı ele geçirmişti. Dokunmasaydım, her yerde hâlâ doğru olan bir ayarı kırmızıya
+düşürecekti.
+
+Ölçümü bütün haritaya yaydım: dünya çapında değer 1,32 — hem gerçek hem rahat. Ders tanıdık: bir sayı
+nereden baktığınıza göre değişiyorsa, ölçtüğü şey manzara değil bakış açınızdır.

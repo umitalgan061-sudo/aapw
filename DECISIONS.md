@@ -18340,3 +18340,27 @@ kapsıyor. Varsayımla iş yapmadım, ölçüm düzeltti.
 worker, determinizm, varlık manifesti PASS.
 
 **Technical debt.** 0 new. **World Coverage.** Artık 11 adlandırılmış bölge sürekli izleniyor.
+
+## ADR-0321 — Coğrafya kapıları CI'a bağlandı, ve biri bölgeye yakalanıyordu
+
+**Bağlam.** Bu oturumda beş yeni kapı yazıldı (ADR-0314, 0315, 0317/0318, 0319, 0320) ama hiçbiri
+otomatik çalışmıyordu — yalnızca ben hatırlayıp elle çalıştırdığımda. Valyria'nın yüzlerce tur boyunca
+çayır kalmasının sebebi de tam olarak buydu: kapılar doğruydu ama kimse sormuyordu. **Çalışmayan kapı
+kapı değildir.** Beşi de `canonical-map-single-entry-validation.yml`'a kendi adımı olarak eklendi. O
+iş akışı LFS varlıklarını zaten hidrate ediyor, yani CI'da gerçek modellerle çalışıyorlar.
+
+**Ve bağlarken biri kendi kusurunu gösterdi.** `checkTerrainGroundRealism` kalibrasyon oranını
+1,01x'ten **1,83x**'e çıkmış raporladı — 2x toleransının dibinde. Sebep arazinin kayması değildi:
+kontrol eğrilik dağılımını (0, 1000) merkezli 1200 m yarıçaplı **tek bir diskten** örnekliyordu, ve tur
+372'de yükselttiğim Valyria kıstağı o merkeze **1095 m** uzakta — yani diskin *içinde*. Tek bir volkanik
+bölge, bütün haritayı tarif etmesi gereken bir istatistiği ele geçirmişti; dokunmasam her yerde hâlâ
+doğru olan bir kalibrasyonu kırmızıya düşürecekti.
+
+Örnekleme bütün haritaya yayıldı. Dünya çapında p99 = **1,317 m** (1,32x) — hem gerçek hem rahat.
+Ders tanıdık: bir istatistik nereden bakıldığına göre değişiyorsa, ölçtüğü şey manzara değil bakış
+açısıdır.
+
+**Doğrulama.** Beş kapı da birleştirilmiş ağaçta PASS: bölgeler 11/11, Valyria, zemin gerçekçiliği
+(1,32x), doku atlası, dünya prop'ları. Workflow YAML parse ediliyor.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
