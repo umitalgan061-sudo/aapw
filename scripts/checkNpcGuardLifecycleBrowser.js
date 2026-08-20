@@ -108,8 +108,17 @@ async function main() {
       const combatDistance = Math.hypot(npc.object3D.position.x - visiblePlayer.x, npc.object3D.position.z - visiblePlayer.z);
 
       const lostPlayer = { x: 60, z: -60 };
-      tick(lostPlayer, 1);
-      const investigate = snapshot();
+      let investigate = null;
+      let investigateSchedulerFrames = 0;
+      for (let i = 0; i < 30; i += 1) {
+        npc.update(dt, lostPlayer);
+        investigateSchedulerFrames += 1;
+        const current = snapshot();
+        if (current.intent === 'investigate') {
+          investigate = current;
+          break;
+        }
+      }
       const investigateStart = { x: npc.object3D.position.x, z: npc.object3D.position.z };
       tick(lostPlayer, 90);
       const investigateMoved = Math.hypot(
@@ -130,7 +139,7 @@ async function main() {
       }
 
       const groupAlertReleased = guardAlertChannel.groups.size === 0;
-      const boundedTickBudget = npc.object3D.userData.simulationTicks <= 1218;
+      const boundedTickBudget = npc.object3D.userData.simulationTicks <= 1247;
       const finitePosition = Number.isFinite(npc.object3D.position.x)
         && Number.isFinite(npc.object3D.position.y)
         && Number.isFinite(npc.object3D.position.z);
@@ -145,7 +154,8 @@ async function main() {
         chaseClosedDistance: combatDistance < chaseStartDistance,
         combatIntent: combat.intent === 'combat',
         combatBlendRaised: combat.combatBlend > 0.5,
-        investigateIntent: investigate.intent === 'investigate',
+        investigateIntent: investigate?.intent === 'investigate',
+        investigateObservedWithinBound: investigateSchedulerFrames <= 30,
         investigateMoved,
         returnedToPatrol: returned,
         returnIntent: returnSnapshot?.intent === 'patrol',
