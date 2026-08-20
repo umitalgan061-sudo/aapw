@@ -324,24 +324,33 @@ function desktopDetailLodSegments(chunkX, chunkZ, centerX, centerZ) {
 	return DESKTOP_TERRAIN_DETAIL_LOD.FAR_SEGMENTS;
 }
 
-// A fine edge contains one vertex between every pair present on its next-coarser neighbour. Morph
-// only those odd edge vertices onto the linear coarse edge. Interior vertices stay at the full
-// canonical height, so the 128 grid still exposes ~3.9m terrain detail while 128↔64 and 64↔32 borders
-// cannot open T-junction cracks. Applying this on all four edges also keeps fine↔fine borders equal.
+// Every desktop LOD boundary is projected onto the same FAR=32 edge polyline. A 64 edge therefore
+// keeps every second vertex, while a 128 edge keeps every fourth; vertices between those anchors are
+// linearly interpolated. This makes 128↔64, 64↔32, 128↔32 and equal-LOD neighbours share one exact
+// world-space boundary without neighbour bookkeeping. Only the outer vertex row is morphed: all
+// interior vertices retain the canonical high-frequency height field and the near grid remains 3.9m.
 function morphDesktopLodEdges(mesh, segments) {
-	if (segments <= DESKTOP_TERRAIN_DETAIL_LOD.FAR_SEGMENTS || segments % 2 !== 0) return;
+	const farSegments = DESKTOP_TERRAIN_DETAIL_LOD.FAR_SEGMENTS;
+	if (segments <= farSegments) return;
+	const stride = segments / farSegments;
+	if (!Number.isInteger(stride) || stride < 2) return;
 	const position = mesh.geometry.getAttribute('position');
 	const rowWidth = segments + 1;
-	const averageY = (target, a, b) => position.setY(target, (position.getY(a) + position.getY(b)) * 0.5);
-	for (let i = 1; i < segments; i += 2) {
-		averageY(i, i - 1, i + 1);
-		const bottom = segments * rowWidth + i;
-		averageY(bottom, bottom - 1, bottom + 1);
-		const left = i * rowWidth;
-		averageY(left, left - rowWidth, left + rowWidth);
-		const right = left + segments;
-		averageY(right, right - rowWidth, right + rowWidth);
-	}
+	const morphLine = (indexAt) => {
+		for (let anchor = 0; anchor < segments; anchor += stride) {
+			const startIndex = indexAt(anchor);
+			const endIndex = indexAt(anchor + stride);
+			const startY = position.getY(startIndex);
+			const endY = position.getY(endIndex);
+			for (let offset = 1; offset < stride; offset += 1) {
+				position.setY(indexAt(anchor + offset), startY + (endY - startY) * (offset / stride));
+			}
+		}
+	};
+	morphLine((i) => i);
+	morphLine((i) => segments * rowWidth + i);
+	morphLine((i) => i * rowWidth);
+	morphLine((i) => i * rowWidth + segments);
 	position.needsUpdate = true;
 	mesh.geometry.computeVertexNormals();
 	mesh.geometry.computeBoundingBox();
