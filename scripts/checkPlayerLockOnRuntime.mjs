@@ -64,6 +64,25 @@ async function setPad({ axes = [0, 0, 0, 0], buttons = {}, connected = true } = 
 	}, { axes, buttons, connected });
 }
 
+async function acquireWithCameraSweep() {
+	for (let attempt = 0; attempt < 8; attempt += 1) {
+		const lockStart = (await histories()).locks.length;
+		await setPad({ buttons: { 11: true } });
+		await sleep(180);
+		await setPad();
+		await sleep(100);
+		const recent = (await histories()).locks.slice(lockStart);
+		const acquired = recent.find((event) => event.locked === true && event.reason === 'acquired');
+		if (acquired) return { acquired, sweepAttempts: attempt };
+		need(recent.some((event) => event.locked === false && event.reason === 'no-target'), `R3 attempt ${attempt} emitted no bounded acquisition result`);
+		await setPad({ axes: [0, 0, 0.8, 0] });
+		await sleep(350);
+		await setPad();
+		await sleep(100);
+	}
+	throw new Error('[player-lock-on-runtime] R3 camera sweep found no eligible shipped NPC within the 30m acquisition contract');
+}
+
 function facingDot(attack, targetPosition) {
 	const dx = targetPosition.x - attack.position.x;
 	const dz = targetPosition.z - attack.position.z;
@@ -92,14 +111,12 @@ try {
 		5000,
 	);
 	const displacement = Math.hypot(approachEnd.position.x - approachStart.position.x, approachEnd.position.z - approachStart.position.z);
-	// This precondition proves the shipped D-pad -> camera-relative move -> real collider/ground path moved
-	// the Player. Do not require an arbitrary long unobstructed distance: the live world collider is allowed
-	// to resolve against terrain/castles. Target acquisition below independently enforces the authoritative
-	// <=30m lock-on range, so reducing this to a meaningful >1m displacement does not relax lock-on reach.
 	need(displacement > 1, `approach did not produce meaningful collider-resolved movement: ${displacement}`);
 
-	await setPad({ buttons: { 11: true } });
-	const acquired = await waitHistory('locks', (event) => event.locked === true && event.reason === 'acquired', 'R3 target acquisition', 7000);
+	// The live NPC population is authoritative but its bearing from spawn is not. Sweep the real right-stick
+	// camera between edge-triggered R3 attempts instead of assuming a particular NPC sits inside the initial
+	// 68° cone. Every attempt still uses the shipped controller and the production <=30m acquisition gate.
+	const { acquired, sweepAttempts } = await acquireWithCameraSweep();
 	need(typeof acquired.targetId === 'string' && acquired.targetId.length > 0, `invalid target id ${JSON.stringify(acquired)}`);
 	need(acquired.distanceMeters > 0 && acquired.distanceMeters <= 30, `acquired target outside 30m contract: ${acquired.distanceMeters}`);
 	need(Number.isFinite(acquired.targetPosition?.x) && Number.isFinite(acquired.targetPosition?.z), `missing target position ${JSON.stringify(acquired)}`);
@@ -127,13 +144,14 @@ try {
 		ok: true,
 		baseline: { state: baseline.state, position: baseline.position },
 		approach: { displacementMeters: Number(displacement.toFixed(3)), endPosition: approachEnd.position, path: 'dpad-camera-relative-collider-ground' },
+		acquisition: { sweepAttempts },
 		acquired,
 		attack: { serial: attack.serial, kind: attack.kind, position: attack.position, facing: attack.facing, targetFacingDot: Number(dot.toFixed(4)) },
 		released,
 		browserErrors: errors,
 	};
 	fs.writeFileSync(path.join(outDir, 'lock-on-runtime.json'), `${JSON.stringify(metrics, null, 2)}\n`);
-	console.log(`PLAYER_LOCK_ON_RUNTIME_OK ${JSON.stringify({ targetId: acquired.targetId, distanceMeters: acquired.distanceMeters, approachMeters: metrics.approach.displacementMeters, targetFacingDot: metrics.attack.targetFacingDot, errors: errors.length })}`);
+	console.log(`PLAYER_LOCK_ON_RUNTIME_OK ${JSON.stringify({ targetId: acquired.targetId, distanceMeters: acquired.distanceMeters, approachMeters: metrics.approach.displacementMeters, sweepAttempts, targetFacingDot: metrics.attack.targetFacingDot, errors: errors.length })}`);
 } finally {
 	await browser.close();
 	await new Promise((resolve) => server.close(resolve));
