@@ -53,6 +53,8 @@ const vegetationSource = fs.readFileSync('src/3d/world/vegetation.js', 'utf8');
 const serviceWorkerSource = fs.readFileSync('service-worker.js', 'utf8');
 assert.match(roadSource, /referenceRoadPreference: sampleReferenceRoadPreferenceWorld/);
 assert.match(pathfinderSource, /referenceRoadOffGuidePenalty/);
+assert.match(pathfinderSource, /exactRawXZ\[0\] = \{ x: start\.x, z: start\.z \};/, 'road smoothing must preserve exact seat endpoints before smoothing');
+assert.match(pathfinderSource, /smoothed\.maxGradeDegrees <= ROAD_MAX_GRADE_DEGREES/, 'road smoothing must remain inside the A* grade envelope');
 assert.match(vegetationSource, /sampleReferenceForestInfluenceWorld/);
 assert.match(serviceWorkerSource, /worldReferenceFeatureGuides\.js/, 'owner-map feature guides must remain available to offline 3D boot');
 
