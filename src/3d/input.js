@@ -21,15 +21,9 @@ const COMBAT_INPUT_EVENT = 'aapw:player-combat-input';
 const INPUT_DEVICE_EVENT = 'aapw:player-input-device';
 const GAMEPAD_DEADZONE = 0.18;
 const GAMEPAD_TRIGGER_DEADZONE = 0.08;
-// Intentional actions get a second threshold above the hardware-noise deadzone. A worn controller
-// may sit just outside 0.18 while untouched; that must never drain sprint stamina or turn B/Circle
-// into a directional dodge. Sprint uses hysteresis so noisy input around the activation threshold
-// cannot flap the Player state every frame once a deliberate sprint is already underway.
 const GAMEPAD_SPRINT_MIN_MAGNITUDE = 0.72;
 const GAMEPAD_SPRINT_RELEASE_MAGNITUDE = 0.55;
 const GAMEPAD_DODGE_MIN_MAGNITUDE = 0.45;
-// Preserve camera angular speed during transient low-FPS frames without allowing a long suspended
-// tab interval to create an unbounded snap. blur/pagehide/visibility-hidden reset the poll clock.
 const GAMEPAD_CAMERA_MAX_FRAME_SECONDS = 0.3;
 const GAMEPAD_BUTTON = Object.freeze({
 	JUMP: 0, DODGE: 1, LIGHT: 2, HEAVY: 3, GUARD: 4, PARRY: 5, ZOOM_OUT: 6, ZOOM_IN: 7, SPRINT: 10, LOCK_ON: 11,
@@ -96,8 +90,6 @@ export function selectPlayerGamepad(gamepads, preferredIndex = null) {
 export function samplePlayerGamepad(gamepad, previousButtons = {}, previousRunning = false) {
 	if (!gamepad?.connected || gamepad.mapping !== 'standard') return { forward: 0, strafe: 0, magnitude: 0, lookX: 0, lookY: 0, lookMagnitude: 0, cameraZoom: 0, running: false, guarding: false, jumpPressed: false, dodgePressed: false, lightPressed: false, heavyPressed: false, parryPressed: false, lockOnPressed: false, buttons: { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false } };
 	const stick = applyGamepadRadialDeadzone(gamepad.axes?.[0] ?? 0, gamepad.axes?.[1] ?? 0);
-	// D-pad is a digital accessibility fallback, not an extra force vector. A live analog stick wins
-	// so pressing a D-pad direction cannot accelerate, cancel or skew an intentional stick vector.
 	const dpad = readGamepadDpad(gamepad), locomotion = stick.magnitude > 0 ? stick : dpad;
 	const look = applyGamepadRadialDeadzone(gamepad.axes?.[2] ?? 0, gamepad.axes?.[3] ?? 0);
 	const buttons = readActionButtons(gamepad);
@@ -177,17 +169,14 @@ export class KeyboardInput {
 	getAxes() {
 		const gamepad = this._pollGamepad(); let forward = gamepad.forward, strafe = gamepad.strafe, running = gamepad.running, guarding = this._guardPointerHeld || gamepad.guarding;
 		for (const code of this._keys) { if (FORWARD_KEYS.has(code)) forward += 1; else if (BACK_KEYS.has(code)) forward -= 1; else if (RIGHT_KEYS.has(code)) strafe += 1; else if (LEFT_KEYS.has(code)) strafe -= 1; else if (RUN_KEYS.has(code)) running = true; else if (GUARD_KEYS.has(code)) guarding = true; }
-		// B/Circle is a one-frame adapter into Player's existing run+jump dodge request. Requiring a
-		// deliberate post-deadzone magnitude prevents worn-stick drift from spending dodge stamina.
 		const dodgeRequested = gamepad.dodgePressed && gamepad.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE;
 		if (dodgeRequested) running = true;
-		// RB/R1 is a one-frame adapter into Player's existing guard rising-edge contract. Player owns
-		// the parry window/timing/stamina rules; input only supplies the same transient guard edge.
 		if (gamepad.parryPressed) guarding = true;
-		const jumpRequested = this._jumpRequested || dodgeRequested, lockOnRequested = this._lockOnRequested;
-		this._jumpRequested = false; this._lockOnRequested = false;
-		return { forward: Math.max(-1, Math.min(1, forward)), strafe: Math.max(-1, Math.min(1, strafe)), running, jumpRequested, lockOnRequested, guarding, lookX: gamepad.lookX, lookY: gamepad.lookY, cameraZoom: gamepad.cameraZoom, lookDeltaSeconds: gamepad.lookDeltaSeconds };
+		const jumpRequested = this._jumpRequested;
+		this._jumpRequested = false;
+		return { forward: Math.max(-1, Math.min(1, forward)), strafe: Math.max(-1, Math.min(1, strafe)), running, jumpRequested: jumpRequested || dodgeRequested, lockOnRequested: this._lockOnRequested, guarding, lookX: gamepad.lookX, lookY: gamepad.lookY, cameraZoom: gamepad.cameraZoom, lookDeltaSeconds: gamepad.lookDeltaSeconds };
 	}
+	consumeLockOnRequested() { const requested = this._lockOnRequested; this._lockOnRequested = false; return requested; }
 	dispose() {
 		for (const [type, handler] of [['keydown', this._onKeyDown], ['keyup', this._onKeyUp], ['pointerdown', this._onPointerDown], ['pointerup', this._onPointerUp], ['pointercancel', this._onPointerUp], ['contextmenu', this._onContextMenu], ['blur', this._onFocusLoss], ['pagehide', this._onFocusLoss], ['visibilitychange', this._onVisibilityChange]]) this._target.removeEventListener(type, handler);
 		this._keys.clear(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false; this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null;
