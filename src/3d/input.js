@@ -19,6 +19,11 @@ const LIGHT_ATTACK_POINTER_BUTTON = 0;
 const COMBAT_INPUT_EVENT = 'aapw:player-combat-input';
 const INPUT_DEVICE_EVENT = 'aapw:player-input-device';
 const GAMEPAD_DEADZONE = 0.18;
+// Intentional actions get a second threshold above the hardware-noise deadzone. A worn controller
+// may sit just outside 0.18 while untouched; that must never drain sprint stamina or turn B/Circle
+// into a directional dodge. D-pad remains magnitude 1 and therefore keeps full digital parity.
+const GAMEPAD_SPRINT_MIN_MAGNITUDE = 0.72;
+const GAMEPAD_DODGE_MIN_MAGNITUDE = 0.45;
 // Preserve camera angular speed during transient low-FPS frames without allowing a long suspended
 // tab interval to create an unbounded snap. blur/pagehide/visibility-hidden reset the poll clock.
 const GAMEPAD_CAMERA_MAX_FRAME_SECONDS = 0.3;
@@ -84,7 +89,8 @@ export function samplePlayerGamepad(gamepad, previousButtons = {}) {
 		forward: (-locomotion.y) || 0, strafe: locomotion.x, magnitude: locomotion.magnitude,
 		lookX: look.x, lookY: look.y, lookMagnitude: look.magnitude,
 		cameraZoom: buttonValue(gamepad, GAMEPAD_BUTTON.ZOOM_IN) - buttonValue(gamepad, GAMEPAD_BUTTON.ZOOM_OUT),
-		running: buttonPressed(gamepad, GAMEPAD_BUTTON.SPRINT), guarding: buttonPressed(gamepad, GAMEPAD_BUTTON.GUARD),
+		running: buttonPressed(gamepad, GAMEPAD_BUTTON.SPRINT) && locomotion.magnitude >= GAMEPAD_SPRINT_MIN_MAGNITUDE,
+		guarding: buttonPressed(gamepad, GAMEPAD_BUTTON.GUARD),
 		jumpPressed: buttons.jump && !previousButtons.jump,
 		dodgePressed: buttons.dodge && !previousButtons.dodge,
 		lightPressed: buttons.light && !previousButtons.light,
@@ -144,10 +150,9 @@ export class KeyboardInput {
 	getAxes() {
 		const gamepad = this._pollGamepad(); let forward = gamepad.forward, strafe = gamepad.strafe, running = gamepad.running, guarding = this._guardPointerHeld || gamepad.guarding;
 		for (const code of this._keys) { if (FORWARD_KEYS.has(code)) forward += 1; else if (BACK_KEYS.has(code)) forward -= 1; else if (RIGHT_KEYS.has(code)) strafe += 1; else if (LEFT_KEYS.has(code)) strafe -= 1; else if (RUN_KEYS.has(code)) running = true; else if (GUARD_KEYS.has(code)) guarding = true; }
-		// B/Circle is a one-frame adapter into Player's existing run+jump dodge request. It only
-		// synthesizes that contract while locomotion has movement magnitude, so a stationary B
-		// press can never leak through as a normal jump and no second dodge state machine is created.
-		const dodgeRequested = gamepad.dodgePressed && gamepad.magnitude > 0;
+		// B/Circle is a one-frame adapter into Player's existing run+jump dodge request. Requiring a
+		// deliberate post-deadzone magnitude prevents worn-stick drift from spending dodge stamina.
+		const dodgeRequested = gamepad.dodgePressed && gamepad.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE;
 		if (dodgeRequested) running = true;
 		// RB/R1 is a one-frame adapter into Player's existing guard rising-edge contract. Player owns
 		// the parry window/timing/stamina rules; input only supplies the same transient guard edge.
