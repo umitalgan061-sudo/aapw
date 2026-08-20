@@ -87,12 +87,7 @@ function buildTravelCapacity({ maintenanceKits = 0, travelPacks = 0 } = {}) {
 		EXPEDITION_ROUTE_POLICY.MAX_FAST_TRAVEL_RANGE_KM,
 		baseRangeKm + rationRangeKm,
 	);
-	return Object.freeze({
-		travelRationPacks: travelPacks,
-		baseRangeKm,
-		rationRangeKm,
-		maxDistanceKm,
-	});
+	return Object.freeze({ travelRationPacks: travelPacks, baseRangeKm, rationRangeKm, maxDistanceKm });
 }
 
 export function evaluateFieldReadiness(snapshot = {}) {
@@ -101,56 +96,31 @@ export function evaluateFieldReadiness(snapshot = {}) {
 	const travelPacks = quantities.get(FIELD_READINESS_ITEMS.TRAVEL_RATION_PACK) ?? 0;
 	const whetstones = quantities.get(FIELD_READINESS_ITEMS.WHETSTONE) ?? 0;
 	const maintenanceKits = quantities.get(FIELD_READINESS_ITEMS.EXPEDITION_MAINTENANCE_KIT) ?? 0;
-
 	let tier = FIELD_READINESS_TIER.UNPREPARED;
 	let score = 0;
 	if (fieldRations > 0) score += 15;
-	if (travelPacks > 0) {
-		tier = FIELD_READINESS_TIER.PROVISIONED;
-		score += 35;
-	}
-	if (whetstones > 0) {
-		if (tier === FIELD_READINESS_TIER.PROVISIONED) tier = FIELD_READINESS_TIER.MAINTAINED;
-		score += 25;
-	}
-	if (maintenanceKits > 0) {
-		tier = FIELD_READINESS_TIER.EXPEDITION_READY;
-		score = 100;
-	}
-
+	if (travelPacks > 0) { tier = FIELD_READINESS_TIER.PROVISIONED; score += 35; }
+	if (whetstones > 0) { if (tier === FIELD_READINESS_TIER.PROVISIONED) tier = FIELD_READINESS_TIER.MAINTAINED; score += 25; }
+	if (maintenanceKits > 0) { tier = FIELD_READINESS_TIER.EXPEDITION_READY; score = 100; }
 	const capabilities = Object.freeze({
 		campProvisioning: travelPacks > 0 || maintenanceKits > 0,
 		equipmentMaintenance: whetstones > 0 || maintenanceKits > 0,
 		fastTravelEligible: maintenanceKits > 0,
 		survivalBuffer: maintenanceKits > 0,
 	});
-	const equipped = maintenanceKits > 0
-		? Object.freeze({ slot: 'field-kit', itemId: FIELD_READINESS_ITEMS.EXPEDITION_MAINTENANCE_KIT })
-		: null;
+	const equipped = maintenanceKits > 0 ? Object.freeze({ slot: 'field-kit', itemId: FIELD_READINESS_ITEMS.EXPEDITION_MAINTENANCE_KIT }) : null;
 	const missingForExpedition = [];
 	if (maintenanceKits <= 0) {
 		if (travelPacks <= 0) missingForExpedition.push(FIELD_READINESS_ITEMS.TRAVEL_RATION_PACK);
 		if (whetstones <= 0) missingForExpedition.push(FIELD_READINESS_ITEMS.WHETSTONE);
 	}
 	const travelCapacity = buildTravelCapacity({ maintenanceKits, travelPacks });
-
-	return Object.freeze({
-		tier,
-		label: FIELD_READINESS_LABEL[tier],
-		score: Math.min(100, score),
-		equipped,
-		capabilities,
-		capabilityLabels: Object.freeze(capabilitySummary(capabilities)),
-		missingForExpedition: Object.freeze(missingForExpedition),
-		travelCapacity,
-	});
+	return Object.freeze({ tier, label: FIELD_READINESS_LABEL[tier], score: Math.min(100, score), equipped, capabilities, capabilityLabels: Object.freeze(capabilitySummary(capabilities)), missingForExpedition: Object.freeze(missingForExpedition), travelCapacity });
 }
 
 export function evaluateCraftAvailability(upgrade, snapshot = {}, itemDefinitions = {}) {
 	if (!upgrade || typeof upgrade !== 'object') return Object.freeze({ status: 'invalid-recipe', ready: false, inputs: [] });
-	const authoredInputs = Array.isArray(upgrade.inputs) && upgrade.inputs.length > 0
-		? upgrade.inputs
-		: [{ itemId: upgrade.inputItemId, quantity: upgrade.inputQuantity }];
+	const authoredInputs = Array.isArray(upgrade.inputs) && upgrade.inputs.length > 0 ? upgrade.inputs : [{ itemId: upgrade.inputItemId, quantity: upgrade.inputQuantity }];
 	const required = new Map();
 	for (const input of authoredInputs) {
 		const itemId = String(input?.itemId ?? '');
@@ -159,12 +129,7 @@ export function evaluateCraftAvailability(upgrade, snapshot = {}, itemDefinition
 		required.set(itemId, (required.get(itemId) ?? 0) + quantity);
 	}
 	const quantities = quantitiesFromSnapshot(snapshot);
-	const inputs = [...required.entries()].map(([itemId, requiredQuantity]) => Object.freeze({
-		itemId,
-		requiredQuantity,
-		availableQuantity: quantities.get(itemId) ?? 0,
-		missingQuantity: Math.max(0, requiredQuantity - (quantities.get(itemId) ?? 0)),
-	}));
+	const inputs = [...required.entries()].map(([itemId, requiredQuantity]) => Object.freeze({ itemId, requiredQuantity, availableQuantity: quantities.get(itemId) ?? 0, missingQuantity: Math.max(0, requiredQuantity - (quantities.get(itemId) ?? 0)) }));
 	const outputItemId = String(upgrade.outputItemId ?? '');
 	const outputQuantity = Math.max(1, Math.floor(Number(upgrade.outputQuantity) || 1));
 	const outputDefinition = itemDefinitions[outputItemId];
@@ -291,5 +256,95 @@ export function buildExpeditionJourneyOptionsText(result = rankExpeditionJourney
 	}
 	if (result.preferred) lines.push(`Önerilen rota: ${result.preferred.label}`);
 	else lines.push('Uygun rota bulunamadı.');
+	return lines.join('\n');
+}
+
+export const JOURNEY_REST_POLICY = Object.freeze({ BASE_FATIGUE_CAPACITY_KM: 24, FIELD_KIT_BONUS_KM: 12, TRAVEL_PACK_BUFFER_KM: 4, MAX_CONTINUOUS_DISTANCE_KM: 52, TAVERN_RECOVERY_RATIO: 1, CAMP_RECOVERY_RATIO: 0.55 });
+export const REST_KIND = Object.freeze({ TAVERN: 'tavern', CAMP: 'camp' });
+export const JOURNEY_REST_BLOCK_REASON = Object.freeze({ NO_REST_SITE: 'no-rest-site', REST_SITE_CLOSED: 'rest-site-closed', TAVERN_NOT_DISCOVERED: 'tavern-not-discovered', CAMP_CAPABILITY_REQUIRED: 'camp-capability-required', COMBAT_ACTIVE: 'combat-active', NO_FATIGUE_TO_RECOVER: 'no-fatigue-to-recover', CONTINUOUS_TRAVEL_EXHAUSTED: 'continuous-travel-exhausted' });
+const JOURNEY_REST_REASON_LABEL = Object.freeze({
+	[JOURNEY_REST_BLOCK_REASON.NO_REST_SITE]: 'dinlenme noktası seçilmedi',
+	[JOURNEY_REST_BLOCK_REASON.REST_SITE_CLOSED]: 'dinlenme noktası kapalı',
+	[JOURNEY_REST_BLOCK_REASON.TAVERN_NOT_DISCOVERED]: 'taverna henüz keşfedilmedi',
+	[JOURNEY_REST_BLOCK_REASON.CAMP_CAPABILITY_REQUIRED]: 'kamp erzağı hazırlığı gerekli',
+	[JOURNEY_REST_BLOCK_REASON.COMBAT_ACTIVE]: 'çatışma sürüyor',
+	[JOURNEY_REST_BLOCK_REASON.NO_FATIGUE_TO_RECOVER]: 'dinlenme gerektirecek yorgunluk yok',
+	[JOURNEY_REST_BLOCK_REASON.CONTINUOUS_TRAVEL_EXHAUSTED]: 'kesintisiz seyahat dayanıklılığı aşıldı',
+});
+function normalizeJourneyDistance(value) { const parsed = Number(value); return Number.isFinite(parsed) && parsed >= 0 ? Number(parsed.toFixed(2)) : 0; }
+export function evaluateJourneyEndurance(snapshotOrReadiness = {}) {
+	const readiness = snapshotOrReadiness?.capabilities?.fastTravelEligible !== undefined ? snapshotOrReadiness : evaluateFieldReadiness(snapshotOrReadiness);
+	const travelPacks = Math.max(0, Math.floor(Number(readiness?.travelCapacity?.travelRationPacks) || 0));
+	const fieldKitBonusKm = readiness?.capabilities?.survivalBuffer === true ? JOURNEY_REST_POLICY.FIELD_KIT_BONUS_KM : 0;
+	const rationBufferKm = Math.min(16, travelPacks * JOURNEY_REST_POLICY.TRAVEL_PACK_BUFFER_KM);
+	return Object.freeze({ continuousDistanceKm: Math.min(JOURNEY_REST_POLICY.MAX_CONTINUOUS_DISTANCE_KM, JOURNEY_REST_POLICY.BASE_FATIGUE_CAPACITY_KM + fieldKitBonusKm + rationBufferKm), baseDistanceKm: JOURNEY_REST_POLICY.BASE_FATIGUE_CAPACITY_KM, fieldKitBonusKm, rationBufferKm, travelRationPacks: travelPacks, readinessTier: readiness?.tier ?? FIELD_READINESS_TIER.UNPREPARED });
+}
+export function evaluateRestRequest(snapshotOrReadiness = {}, context = {}) {
+	const readiness = snapshotOrReadiness?.capabilities?.fastTravelEligible !== undefined ? snapshotOrReadiness : evaluateFieldReadiness(snapshotOrReadiness);
+	const kind = context?.kind === REST_KIND.CAMP ? REST_KIND.CAMP : REST_KIND.TAVERN;
+	const siteId = String(context?.siteId ?? '').trim();
+	const fatigueKm = normalizeJourneyDistance(context?.fatigueKm);
+	const reasons = [];
+	if (!siteId) reasons.push(JOURNEY_REST_BLOCK_REASON.NO_REST_SITE);
+	if (context?.open === false) reasons.push(JOURNEY_REST_BLOCK_REASON.REST_SITE_CLOSED);
+	if (kind === REST_KIND.TAVERN && siteId && context?.discovered !== true) reasons.push(JOURNEY_REST_BLOCK_REASON.TAVERN_NOT_DISCOVERED);
+	if (kind === REST_KIND.CAMP && readiness?.capabilities?.campProvisioning !== true) reasons.push(JOURNEY_REST_BLOCK_REASON.CAMP_CAPABILITY_REQUIRED);
+	if (context?.inCombat === true) reasons.push(JOURNEY_REST_BLOCK_REASON.COMBAT_ACTIVE);
+	if (fatigueKm <= 0) reasons.push(JOURNEY_REST_BLOCK_REASON.NO_FATIGUE_TO_RECOVER);
+	const recoveryRatio = kind === REST_KIND.TAVERN ? JOURNEY_REST_POLICY.TAVERN_RECOVERY_RATIO : JOURNEY_REST_POLICY.CAMP_RECOVERY_RATIO;
+	const recoveredFatigueKm = reasons.length === 0 ? Number((fatigueKm * recoveryRatio).toFixed(2)) : 0;
+	return Object.freeze({ allowed: reasons.length === 0, status: reasons.length === 0 ? 'ready' : 'blocked', kind, siteId: siteId || null, fatigueKm, recoveredFatigueKm, remainingFatigueKm: Number(Math.max(0, fatigueKm - recoveredFatigueKm).toFixed(2)), recoveryRatio, reasons: Object.freeze(reasons) });
+}
+export function evaluateJourneyWithRestStops(snapshotOrReadiness = {}, steps = []) {
+	const readiness = snapshotOrReadiness?.capabilities?.fastTravelEligible !== undefined ? snapshotOrReadiness : evaluateFieldReadiness(snapshotOrReadiness);
+	const authoredSteps = Array.isArray(steps) ? steps : [];
+	const startingTravelPacks = Math.max(0, Math.floor(Number(readiness?.travelCapacity?.travelRationPacks) || 0));
+	let remainingTravelPacks = startingTravelPacks;
+	let fatigueKm = 0;
+	let totalDistanceKm = 0;
+	let blockedAtStepIndex = null;
+	const plannedSteps = [];
+	for (let index = 0; index < authoredSteps.length; index += 1) {
+		const step = authoredSteps[index] ?? {};
+		const currentReadiness = readinessWithTravelPackCount(readiness, remainingTravelPacks);
+		if (step.type === 'rest') {
+			const decision = evaluateRestRequest(currentReadiness, { ...step, fatigueKm });
+			plannedSteps.push(Object.freeze({ index, type: 'rest', allowed: decision.allowed, decision, fatigueBeforeKm: fatigueKm, fatigueAfterKm: decision.allowed ? decision.remainingFatigueKm : fatigueKm, remainingTravelPacksBefore: remainingTravelPacks, remainingTravelPacksAfter: remainingTravelPacks }));
+			if (!decision.allowed) { blockedAtStepIndex = index; break; }
+			fatigueKm = decision.remainingFatigueKm;
+			continue;
+		}
+		const endurance = evaluateJourneyEndurance(currentReadiness);
+		const travel = evaluateFastTravelRequest(currentReadiness, step);
+		const distanceKm = normalizeJourneyDistance(travel.distanceKm);
+		const requiredTravelPacks = travel.routePlan?.requiredTravelPacks ?? 0;
+		const projectedFatigueKm = Number((fatigueKm + distanceKm).toFixed(2));
+		const reasons = [...travel.reasons];
+		if (travel.allowed && projectedFatigueKm > endurance.continuousDistanceKm) reasons.push(JOURNEY_REST_BLOCK_REASON.CONTINUOUS_TRAVEL_EXHAUSTED);
+		const allowed = reasons.length === 0 && requiredTravelPacks <= remainingTravelPacks;
+		const remainingAfterStep = allowed ? remainingTravelPacks - requiredTravelPacks : remainingTravelPacks;
+		plannedSteps.push(Object.freeze({ index, type: 'travel', allowed, destinationId: travel.destinationId, distanceKm, fatigueBeforeKm: fatigueKm, fatigueAfterKm: allowed ? projectedFatigueKm : fatigueKm, enduranceLimitKm: endurance.continuousDistanceKm, reasons: Object.freeze(reasons), requiredTravelPacks, remainingTravelPacksBefore: remainingTravelPacks, remainingTravelPacksAfter: remainingAfterStep }));
+		if (!allowed) { blockedAtStepIndex = index; break; }
+		remainingTravelPacks = remainingAfterStep;
+		fatigueKm = projectedFatigueKm;
+		totalDistanceKm += distanceKm;
+	}
+	const complete = blockedAtStepIndex === null && plannedSteps.length === authoredSteps.length && authoredSteps.length > 0;
+	return Object.freeze({ status: complete ? 'ready' : 'blocked', complete, blockedAtStepIndex, authoredStepCount: authoredSteps.length, plannedStepCount: plannedSteps.length, totalDistanceKm: Number(totalDistanceKm.toFixed(2)), finalFatigueKm: Number(fatigueKm.toFixed(2)), startingTravelPacks, remainingTravelPacks, endurance: evaluateJourneyEndurance(readiness), steps: Object.freeze(plannedSteps) });
+}
+export function buildJourneyRestText(plan = evaluateJourneyWithRestStops()) {
+	const lines = ['Sefer Dinlenme Planı'];
+	if (!plan.steps?.length) return [...lines, 'Henüz seyahat veya dinlenme adımı yok.'].join('\n');
+	lines.push(`Kesintisiz dayanıklılık: ${plan.endurance.continuousDistanceKm} km`);
+	for (const step of plan.steps) {
+		if (step.type === 'rest') {
+			lines.push(`${step.index + 1}. ${step.decision.kind === REST_KIND.TAVERN ? 'Taverna' : 'Kamp'} · ${step.decision.siteId ?? 'hedefsiz'} · ${step.allowed ? 'DİNLENDİ' : 'KİLİTLİ'} · yorgunluk ${step.fatigueBeforeKm}→${step.fatigueAfterKm} km`);
+			if (!step.allowed) lines.push(`   Engel: ${step.decision.reasons.map((reason) => JOURNEY_REST_REASON_LABEL[reason] ?? reason).join(', ')}`);
+		} else {
+			lines.push(`${step.index + 1}. Seyahat · ${step.destinationId ?? 'hedefsiz'} · ${step.distanceKm} km · ${step.allowed ? 'HAZIR' : 'KİLİTLİ'} · yorgunluk ${step.fatigueBeforeKm}→${step.fatigueAfterKm} km`);
+			if (!step.allowed && step.reasons?.length) lines.push(`   Engel: ${step.reasons.map((reason) => JOURNEY_REST_REASON_LABEL[reason] ?? FAST_TRAVEL_REASON_LABEL[reason] ?? reason).join(', ')}`);
+		}
+	}
+	lines.push(plan.complete ? `Plan hazır · son yorgunluk: ${plan.finalFatigueKm} km · kalan yol azığı: ${plan.remainingTravelPacks}` : `Plan tamamlanamadı · ${Number(plan.blockedAtStepIndex) + 1}. adımda durdu · kalan yol azığı: ${plan.remainingTravelPacks}`);
 	return lines.join('\n');
 }
