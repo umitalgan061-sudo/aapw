@@ -17637,3 +17637,15 @@ oturumda defalarca düştüğüm tuzağın aynısı; düzelttim.
 **Bir varsayımım daha yanlış çıktı.** Kemik Dağları'nı da yükseltmem gerektiğini sanıyordum. Ölçtüm:
 zaten dünyanın en yüksek yeri ve kanonik dağ verisi onları zaten kapsıyor. Dokunmadım — tahminle
 arazi değiştirmenin bu oturumda bana nelere mal olduğunu gördüm.
+
+---
+
+### Tur 366-373 boot testi sonucu (birleştirilmiş ağaç)
+
+Bu oturumda yapılan bütün değişiklikler ve `main`'in son hâli birleştirilmiş ağaçta boot testi
+çalıştırıldı: **42 geçti / 2 kaldı**, 3D mod `outcome=ready` — yani oyun açılıyor.
+
+Kalan iki hata, oturum boyunca değişmeyen taban çizgisinin aynısı: bir kale modeli
+(`icebound_citadel_decimated.glb`) ve ejderha modeli bu konteynerde LFS pointer stub olduğu için
+console hatası veriyor. Hata satırlarında bu oturumun getirdiği modüllerin (Valyria, prop serpme,
+zemin gerçekçiliği, dünya giydirme, rüzgâr çimi) **hiçbiri geçmiyor** — kontrol ettim.
