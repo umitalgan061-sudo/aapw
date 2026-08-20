@@ -114,7 +114,7 @@ function buildMetrics() {
 			nonZeroSamples,
 			nonZeroRatio: rounded(nonZeroSamples / (width * height), 8),
 			wetLeakMaxMeters: rounded(wetLeakMaxMeters),
-			worldMappingMaxDeltaMeters: rounded(worldMappingMaxDeltaMeters, 12),
+			worldMappingMaxDeltaMeters: worldMappingMaxDeltaMeters <= 1e-9 ? 0 : rounded(worldMappingMaxDeltaMeters, 12),
 			chains,
 		},
 	};
