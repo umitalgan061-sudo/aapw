@@ -7,10 +7,14 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function stripBenignServerNoise(log) {
-  return String(log).replace(
-    /-{20,}\nException occurred during processing of request[\s\S]*?ConnectionResetError: \[Errno 104\] Connection reset by peer\n-{20,}\n?/g,
-    '',
-  );
+  return String(log)
+    // Chromium may close several in-flight castle/model requests together. Python's threaded
+    // http.server then interleaves traceback frames, so whole-block regexes are unreliable.
+    // Remove only the known browser-close markers; an unknown *Error/*Exception terminal line,
+    // HTTP 4xx/5xx, or any traceback without one of these benign terminals remains fatal below.
+    .replace(/^Traceback \(most recent call last\):\s*$/gm, '')
+    .replace(/^BrokenPipeError: \[Errno 32\] Broken pipe\s*$/gm, '')
+    .replace(/^ConnectionResetError: \[Errno 104\] Connection reset by peer\s*$/gm, '');
 }
 
 async function main() {
@@ -121,8 +125,11 @@ async function main() {
     server.kill('SIGTERM');
   }
 
-  const fatalServerLog = stripBenignServerNoise(serverErrors.join(''));
-  if (/Traceback|(?:^|\n)\w*Error:|" [45]\d\d /im.test(fatalServerLog)) {
+  const rawServerLog = serverErrors.join('');
+  const benignDisconnectSeen = /(?:BrokenPipeError: \[Errno 32\] Broken pipe|ConnectionResetError: \[Errno 104\] Connection reset by peer)/.test(rawServerLog);
+  const fatalServerLog = stripBenignServerNoise(rawServerLog);
+  const danglingTraceback = /Traceback \(most recent call last\):/m.test(fatalServerLog) && !benignDisconnectSeen;
+  if (danglingTraceback || /(?:^|\n)\w*(?:Error|Exception):|" [45]\d\d /im.test(fatalServerLog)) {
     throw new Error(`static server errors: ${fatalServerLog}`);
   }
 }
