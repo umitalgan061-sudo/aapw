@@ -328,21 +328,26 @@ export function findSlopeAwarePath({
  * @returns {{points: {x: number, z: number, y: number}[], maxGradeDegrees: number}}
  */
 function smoothAndResamplePath(rawPoints, start, end, sampleHeightMeters) {
-	const smoothedXZ = chaikinSmooth(rawPoints);
-	smoothedXZ[0] = { x: start.x, z: start.z };
-	smoothedXZ[smoothedXZ.length - 1] = { x: end.x, z: end.z };
+	const exactRawXZ = rawPoints.map(({ x, z }) => ({ x, z }));
+	exactRawXZ[0] = { x: start.x, z: start.z };
+	exactRawXZ[exactRawXZ.length - 1] = { x: end.x, z: end.z };
 
-	const points = smoothedXZ.map(({ x, z }) => ({ x, z, y: sampleHeightMeters(x, z) }));
-
-	let maxGradeDegrees = 0;
-	for (let i = 1; i < points.length; i++) {
-		const a = points[i - 1];
-		const b = points[i];
-		const horizontalDistance = Math.hypot(b.x - a.x, b.z - a.z);
-		if (horizontalDistance < 1e-6) continue;
-		const grade = (Math.atan2(Math.abs(b.y - a.y), horizontalDistance) * 180) / Math.PI;
-		if (grade > maxGradeDegrees) maxGradeDegrees = grade;
+	function evaluatePath(xzPoints) {
+		const points = xzPoints.map(({ x, z }) => ({ x, z, y: sampleHeightMeters(x, z) }));
+		let maxGradeDegrees = 0;
+		for (let i = 1; i < points.length; i++) {
+			const a = points[i - 1];
+			const b = points[i];
+			const horizontalDistance = Math.hypot(b.x - a.x, b.z - a.z);
+			if (horizontalDistance < 1e-6) continue;
+			const grade = (Math.atan2(Math.abs(b.y - a.y), horizontalDistance) * 180) / Math.PI;
+			if (grade > maxGradeDegrees) maxGradeDegrees = grade;
+		}
+		return { points, maxGradeDegrees };
 	}
 
-	return { points, maxGradeDegrees };
+	const smoothed = evaluatePath(chaikinSmooth(exactRawXZ));
+	if (smoothed.maxGradeDegrees <= ROAD_MAX_GRADE_DEGREES) return smoothed;
+	const raw = evaluatePath(exactRawXZ);
+	return raw.maxGradeDegrees < smoothed.maxGradeDegrees ? raw : smoothed;
 }
