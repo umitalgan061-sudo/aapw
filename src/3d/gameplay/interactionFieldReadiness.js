@@ -290,3 +290,93 @@ export function buildFieldReadinessText(readiness = evaluateFieldReadiness()) {
 	}
 	return lines.join('\n');
 }
+
+function readinessWithTravelPackCount(readiness, travelRationPacks) {
+	const safeCount = Math.max(0, Math.floor(Number(travelRationPacks) || 0));
+	const hasFieldKit = readiness?.capabilities?.fastTravelEligible === true;
+	return Object.freeze({
+		...readiness,
+		travelCapacity: buildTravelCapacity({
+			maintenanceKits: hasFieldKit ? 1 : 0,
+			travelPacks: safeCount,
+		}),
+	});
+}
+
+/**
+ * Plan a sequential multi-leg journey against one canonical inventory snapshot.
+ *
+ * Each leg is evaluated with the same fast-travel authorization contract as a single trip, but
+ * provision packs are virtually consumed between legs. The planner never mutates inventory or owns
+ * destination/discovery state; map/POI callers provide the live context for each leg and may later
+ * commit accepted legs through the existing inventory `consumeFastTravelProvisions()` seam.
+ */
+export function evaluateExpeditionJourney(snapshotOrReadiness = {}, legs = []) {
+	const readiness = snapshotOrReadiness?.capabilities?.fastTravelEligible !== undefined
+		? snapshotOrReadiness
+		: evaluateFieldReadiness(snapshotOrReadiness);
+	const authoredLegs = Array.isArray(legs) ? legs : [];
+	let remainingTravelPacks = Math.max(0, Math.floor(Number(readiness?.travelCapacity?.travelRationPacks) || 0));
+	let totalRequiredTravelPacks = 0;
+	let totalDistanceKm = 0;
+	let blockedAtLegIndex = null;
+	const plannedLegs = [];
+
+	for (let index = 0; index < authoredLegs.length; index += 1) {
+		const leg = authoredLegs[index] ?? {};
+		const legReadiness = readinessWithTravelPackCount(readiness, remainingTravelPacks);
+		const decision = evaluateFastTravelRequest(legReadiness, leg);
+		const requiredTravelPacks = decision.routePlan?.requiredTravelPacks ?? 0;
+		const canConsume = decision.allowed && requiredTravelPacks <= remainingTravelPacks;
+		const remainingAfterLeg = canConsume ? remainingTravelPacks - requiredTravelPacks : remainingTravelPacks;
+		if (decision.distanceKm != null) totalDistanceKm += decision.distanceKm;
+		if (canConsume) totalRequiredTravelPacks += requiredTravelPacks;
+		if (!canConsume && blockedAtLegIndex === null) blockedAtLegIndex = index;
+		plannedLegs.push(Object.freeze({
+			index,
+			originId: String(leg?.originId ?? '').trim() || null,
+			destinationId: decision.destinationId,
+			distanceKm: decision.distanceKm,
+			allowed: canConsume,
+			reasons: decision.reasons,
+			requiredTravelPacks,
+			remainingTravelPacksBefore: remainingTravelPacks,
+			remainingTravelPacksAfter: remainingAfterLeg,
+		}));
+		if (!canConsume) break;
+		remainingTravelPacks = remainingAfterLeg;
+	}
+
+	const complete = blockedAtLegIndex === null && plannedLegs.length === authoredLegs.length && authoredLegs.length > 0;
+	return Object.freeze({
+		status: complete ? 'ready' : 'blocked',
+		complete,
+		plannedLegCount: plannedLegs.length,
+		authoredLegCount: authoredLegs.length,
+		blockedAtLegIndex,
+		totalDistanceKm: Number(totalDistanceKm.toFixed(2)),
+		totalRequiredTravelPacks,
+		startingTravelPacks: Math.max(0, Math.floor(Number(readiness?.travelCapacity?.travelRationPacks) || 0)),
+		remainingTravelPacks,
+		legs: Object.freeze(plannedLegs),
+	});
+}
+
+export function buildExpeditionJourneyText(plan = evaluateExpeditionJourney()) {
+	const lines = ['Sefer Rotası'];
+	if (!Array.isArray(plan.legs) || plan.legs.length === 0) return [...lines, 'Henüz rota planlanmadı.'].join('\n');
+	lines.push(`Toplam: ${plan.totalDistanceKm} km · ${plan.totalRequiredTravelPacks} yol azığı`);
+	for (const leg of plan.legs) {
+		const origin = leg.originId ? `${leg.originId} → ` : '';
+		const status = leg.allowed ? 'HAZIR' : 'KİLİTLİ';
+		const packText = leg.requiredTravelPacks > 0 ? ` · ${leg.requiredTravelPacks} azık` : ' · acil menzil';
+		lines.push(`${leg.index + 1}. ${origin}${leg.destinationId ?? 'hedefsiz'} · ${leg.distanceKm ?? '?'} km · ${status}${packText}`);
+		if (!leg.allowed && leg.reasons?.length) {
+			lines.push(`   Engel: ${leg.reasons.map((reason) => FAST_TRAVEL_REASON_LABEL[reason] ?? reason).join(', ')}`);
+		}
+	}
+	lines.push(plan.complete
+		? `Rota hazır · kalan yol azığı: ${plan.remainingTravelPacks}`
+		: `Rota tamamlanamadı · ${Number(plan.blockedAtLegIndex) + 1}. etapta durdu`);
+	return lines.join('\n');
+}
