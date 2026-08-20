@@ -90,6 +90,7 @@ async function main() {
 
       for (let i = 0; i < 18; i += 1) leader.update(dt, threatPlayer);
       const alert = channel.groups.get('stannis');
+      const firstRevision = alert?.revision ?? null;
       const leaderPublished = Boolean(alert && alert.sourceId === 'leader' && alert.lastKnown?.z === 8);
 
       wingman.update(dt, distantPlayer);
@@ -147,11 +148,74 @@ async function main() {
       }
       const wingmanReturned = wingmanReturnFrames != null;
 
-      const groupRevisionBounded = channel.nextRevision === 2;
-      const registryCleanBeforeDispose = !channel.groups.has('stannis') && !channel.groups.has('cersei');
+      // Publisher succession: after returning to patrol, the former receiver sees a new nearby threat
+      // and becomes the new owner of the same settlement channel. Disposing the old publisher must not
+      // delete this newer alert, and a fresh same-settlement reserve must consume revision 2 exactly as
+      // a real reinforcement would.
+      const replacementThreat = {
+        x: wingman.object3D.position.x,
+        z: wingman.object3D.position.z + 2,
+      };
+      let replacementPublishFrames = null;
+      for (let i = 0; i < 120; i += 1) {
+        wingman.update(dt, replacementThreat);
+        const replacement = channel.groups.get('stannis');
+        if (replacement?.sourceId === 'wingman') {
+          replacementPublishFrames = i + 1;
+          break;
+        }
+      }
+      const replacement = channel.groups.get('stannis');
+      const replacementPublished = replacementPublishFrames != null
+        && replacement?.sourceId === 'wingman'
+        && replacement?.revision === firstRevision + 1;
+
       leader.dispose();
+      const staleLeaderDisposePreservesReplacement = channel.groups.get('stannis')?.sourceId === 'wingman';
+
+      const reserve = await createNPC({
+        ...common,
+        worldX: wingman.object3D.position.x + 24,
+        worldZ: wingman.object3D.position.z,
+        name: 'reserve',
+        displayName: 'Reserve',
+        patrolWaypoints: [
+          { x: wingman.object3D.position.x + 24, z: wingman.object3D.position.z },
+          { x: wingman.object3D.position.x + 24, z: wingman.object3D.position.z - 6 },
+        ],
+      });
+      reserve.update(dt, distantPlayer);
+      const reservePerception = { ...(reserve.object3D.userData.npcPerception ?? {}) };
+      const reserveAcceptedReplacement = reservePerception.assisted === true
+        && reservePerception.intent === 'investigate'
+        && reservePerception.assistSourceId === 'wingman';
+
+      let replacementReleaseFrames = null;
+      for (let i = 0; i < 240; i += 1) {
+        wingman.update(dt, quietPlayer);
+        if (!channel.groups.has('stannis')) {
+          replacementReleaseFrames = i + 1;
+          break;
+        }
+      }
+      const replacementReleased = replacementReleaseFrames != null;
+
+      let reserveReturnFrames = null;
+      for (let i = 0; i < 1800; i += 1) {
+        reserve.update(dt, quietPlayer);
+        const perception = reserve.object3D.userData.npcPerception;
+        if (perception?.intent === 'patrol' && perception?.assisted === false) {
+          reserveReturnFrames = i + 1;
+          break;
+        }
+      }
+      const reserveReturned = reserveReturnFrames != null;
+
+      const revisionsSequential = firstRevision === 1 && channel.nextRevision === 3;
+      const registryCleanBeforeDispose = !channel.groups.has('stannis') && !channel.groups.has('cersei');
       wingman.dispose();
       outsider.dispose();
+      reserve.dispose();
       const registryCleanAfterDispose = channel.groups.size === 0;
 
       return {
@@ -166,7 +230,15 @@ async function main() {
         leaderReleaseBounded: leaderReleaseFrames != null && leaderReleaseFrames <= 240,
         wingmanReturned,
         wingmanReturnBounded: wingmanReturnFrames != null && wingmanReturnFrames <= 1800,
-        groupRevisionBounded,
+        replacementPublished,
+        replacementPublishBounded: replacementPublishFrames != null && replacementPublishFrames <= 120,
+        staleLeaderDisposePreservesReplacement,
+        reserveAcceptedReplacement,
+        replacementReleased,
+        replacementReleaseBounded: replacementReleaseFrames != null && replacementReleaseFrames <= 240,
+        reserveReturned,
+        reserveReturnBounded: reserveReturnFrames != null && reserveReturnFrames <= 1800,
+        revisionsSequential,
         registryCleanBeforeDispose,
         registryCleanAfterDispose,
       };
