@@ -123,10 +123,32 @@ const withTavern = evaluateJourneyWithRestStops(readyReadiness, [
 ]);
 assert.equal(withTavern.complete, true);
 assert.equal(withTavern.totalDistanceKm, 58);
+assert.equal(withTavern.startingTravelPacks, 2);
+assert.equal(withTavern.remainingTravelPacks, 0);
+assert.equal(withTavern.steps[0].remainingTravelPacksAfter, 1);
+assert.equal(withTavern.steps[1].remainingTravelPacksAfter, 1);
+assert.equal(withTavern.steps[2].remainingTravelPacksBefore, 1);
+assert.equal(withTavern.steps[2].remainingTravelPacksAfter, 0);
 assert.equal(withTavern.steps[1].fatigueAfterKm, 0);
 assert.equal(withTavern.finalFatigueKm, 30);
 assert.match(buildJourneyRestText(withTavern), /Taverna · watch-road-tavern · DİNLENDİ/);
-assert.match(buildJourneyRestText(withTavern), /Plan hazır · son yorgunluk: 30 km/);
+assert.match(buildJourneyRestText(withTavern), /Plan hazır · son yorgunluk: 30 km · kalan yol azığı: 0/);
+
+const onePackSnapshot = inventoryWith({ travelPacks: 1 });
+const onePackBefore = structuredClone(onePackSnapshot);
+const onePackReadiness = evaluateFieldReadiness(onePackSnapshot);
+const provisionCarryBlocked = evaluateJourneyWithRestStops(onePackReadiness, [
+	{ type: 'travel', destinationId: 'watch-road', discovered: true, routeOpen: true, distanceKm: 30 },
+	{ type: 'rest', kind: REST_KIND.TAVERN, siteId: 'watch-road-tavern', discovered: true, open: true },
+	{ type: 'travel', destinationId: 'harbor-road', discovered: true, routeOpen: true, distanceKm: 30 },
+]);
+assert.equal(provisionCarryBlocked.complete, false);
+assert.equal(provisionCarryBlocked.blockedAtStepIndex, 2);
+assert.equal(provisionCarryBlocked.remainingTravelPacks, 0);
+assert.equal(provisionCarryBlocked.steps[0].requiredTravelPacks, 1);
+assert.equal(provisionCarryBlocked.steps[0].remainingTravelPacksAfter, 0);
+assert.deepEqual(provisionCarryBlocked.steps[2].reasons, [FAST_TRAVEL_BLOCK_REASON.INSUFFICIENT_PROVISIONS]);
+assert.deepEqual(onePackSnapshot, onePackBefore, 'rest-enabled journey planning must not mutate inventory snapshots');
 
 const exhausted = evaluateJourneyWithRestStops(readyReadiness, [
 	{ type: 'travel', destinationId: 'watch-road', discovered: true, routeOpen: true, distanceKm: 28 },
@@ -149,4 +171,4 @@ assert.equal(partialCamp.finalFatigueKm, 37.5);
 const noCampCapability = evaluateRestRequest({ ...readyReadiness, capabilities: { ...readyReadiness.capabilities, campProvisioning: false } }, { kind: REST_KIND.CAMP, siteId: 'dry-camp', fatigueKm: 10 });
 assert.deepEqual(noCampCapability.reasons, [JOURNEY_REST_BLOCK_REASON.CAMP_CAPABILITY_REQUIRED]);
 
-console.log(`[RPG] PASS sequential expedition journey + tavern rest planning ${JSON.stringify({ readyDistanceKm: readyPlan.totalDistanceKm, preferredRoute: routeOptions.preferredRouteId, enduranceKm: endurance.continuousDistanceKm, tavernJourneyKm: withTavern.totalDistanceKm })}`);
+console.log(`[RPG] PASS sequential expedition journey + tavern rest planning ${JSON.stringify({ readyDistanceKm: readyPlan.totalDistanceKm, preferredRoute: routeOptions.preferredRouteId, enduranceKm: endurance.continuousDistanceKm, tavernJourneyKm: withTavern.totalDistanceKm, provisionCarryBlockedAt: provisionCarryBlocked.blockedAtStepIndex })}`);
