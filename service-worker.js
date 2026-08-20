@@ -233,7 +233,7 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // RPG expedition readiness adds an offline-loadable gameplay module; v19->v20 refreshes existing installs.
 // Merge of run 355-359 (skirts, road corridor, forest scatter, forest affinity) with that work: both
 // sides bumped this independently, so the merged install needs a version above either branch's.
-const SHELL_CACHE = 'westeros-shell-v28';
+const SHELL_CACHE = 'westeros-shell-v30';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -329,6 +329,12 @@ const SHELL_FILES = [
 // imported directly by `world/terrain.js`. Offline installs that cached the shell before this run
 // would fetch a `terrain.js` whose import of it 404s, taking the whole 3D mode down rather than
 // degrading — the same failure mode every entry above describes. `SHELL_CACHE` bumped v19->v20.
+//
+// run 366 (DECISIONS.md ADR-0313): added `world/heroTrees.js` and `world/worldDressing.js` — the
+// authored tree models and the dressing layer that composes them with the landmark scatter, imported
+// directly by `game3d.js`. (`world/windGrass.js` came in the same run, extracted out of
+// `sceneManager.js`.) An offline install cached before this run would 404 on all three and take the
+// whole 3D mode down. `SHELL_CACHE` bumped v29->v30.
 const GAME3D_SHELL_FILES = [
     './src/3d/editor/EditorFallbackMaterialPalette.js',
     './game3d.html',
@@ -391,6 +397,9 @@ const GAME3D_SHELL_FILES = [
     './src/3d/world/worldReferenceForestAffinity.js',
     './src/3d/world/worldReferenceBiomeField.js',
     './src/3d/world/worldLandmarkScatter.js',
+    './src/3d/world/windGrass.js',
+    './src/3d/world/heroTrees.js',
+    './src/3d/world/worldDressing.js',
     './src/3d/world/terrainValleyCarving.js',
     './src/3d/world/worldReferenceRoadRoutes.js',
     './src/3d/world/worldReferenceRoadNetwork.js',

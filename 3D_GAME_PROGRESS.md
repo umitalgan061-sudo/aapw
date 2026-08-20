@@ -17236,3 +17236,65 @@ serpiştirdim — kıyıya iskele, kurak ülkeye yıpranmış taş, çayıra çi
 
 Kapılar: yollar, kanonik yollar (0 ıslak), 14/14 koltuk, vadi, koridor, terrain contract, LOD, hizalama,
 su maskesi, satır sınırı, determinizm — hepsi PASS.
+
+---
+
+## Tur 366 — Çim dikdörtgen olmaktan çıktı, gerçek ağaçlar dünyaya girdi, son yol denizden çıktı
+
+Haklıydınız, ve sebebi tam olarak gördüğünüz şeydi: çimin her yaprağı kodda **tek bir düz dikdörtgen**
+olarak kuruluyordu — dört köşe, incelme yok, kesit yok — ve 4,5 metrelik yamada sadece on tane. Ekranda
+dikdörtgen görüyordunuz çünkü orada gerçekten dikdörtgen vardı.
+
+**Çim.** Geometri paylaşımlı kuruluyor (bir kez kurulup 4000 yamada tekrar kullanılıyor), yani daha iyi
+bir yaprak neredeyse bedava. Yaprak artık dik açıyla **çapraz iki yüzey** (hangi yönden bakarsanız
+bakın hacimli), tabandan uca **incelen üç segment** (rüzgâr artık rijit dikdörtgeni kaydırmıyor,
+yaprağı boyunca büküyor), kökü koyu ucu aydınlık.
+
+İlk denemem yetmedi ve bunu kendi çekimimde gördüm: yalnız yaprağı düzeltmiş, yamaları 350 m yarıçapa
+yaymaya devam etmiştim — 96 m²'ye bir yama, yani güzel yapraklar ama aralarında hâlâ çıplak toprak.
+Sabit yama sayısında yarıçap doğrudan yoğunluk demek. 130 m'ye çektim: aynı 4000 yama üst üste binip
+sürekli çim oluyor. 130 m ötesinde verdiğim çim zaten görünmüyordu — 300 metrede yarım metrelik yaprak
+bir pikselden küçük.
+
+İkinci bir şeyi de kendi çekimim söyledi: yaprakları mızrak gibi gösteren yükseklik değil
+**genişlik**miş. Yarım metrelik yaprak çim için doğru, ama tabanı 11-18 cm enindeydi — gerçeğinin yirmi
+katı. 4-7 cm'ye indirdim ve kazandığım üçgeni, o incelikte zaten görünmeyen eğriliğe değil, iki katı
+yaprağa harcadım.
+
+Ölçtüm: yama başına 20 → **384 üçgen** (aynı bütçe, 48 yaprak), siluet karmaşıklığı yakın çekimde
+9,5 → **27,8**.
+
+**Gerçek ağaçlar.** Depoda 13 tane yazılmış ağaç modeli kullanılmadan duruyordu — Quaternius çam, huş,
+palmiye, ölü ağaç paketleri, bükülmüş ağaç, büyük ağaç, kütük. Artık yakın alana biyoma göre
+dikiliyorlar: kurağa palmiye ve bükülmüş ağaç, soğuk yaylaya çam ve ölü ağaç, gerisine geniş yapraklı.
+
+Burada da ilk ayarım kötüydü ve ölçüm söyledi: sert bir orman-kapsama eşiği koymuştum, 90 hedefe
+karşılık **4 ağaç** dikildi. Alanı taradım — yerleştirme yarıçapındaki 3447 kuru örneğin 3106'sı çok
+düşük kapsama okuyor, çünkü doğduğunuz yer gerçekten açık otlak. Alan yanlış değildi, kapı yanlıştı.
+Kapsama artık ihtimali ölçekliyor: ormanda sık, otlakta serpiştirilmiş tek ağaçlar ve koruluklar.
+**4 → 90.**
+
+*Dürüst sınır:* bu konteynerde ağaç `.glb`'leri LFS pointer stub olarak geliyor, yani burada hiçbiri
+yüklenmiyor. Bu yüzden yer tutucu kutu **asla dikilmiyor** — kutu tarlası, yerini alacağı prosedürel
+ağaçtan kötü olurdu. Yüklenemeyen model atılıyor, hiçbiri yüklenmezse katman sessizce boş kalıyor.
+Sizin ortamınızda gerçek ağaçlar görünecek, burada bugünkü görüntü korunuyor, hiçbir yerde kutu tarlası
+olmuyor.
+
+**Ve son yol denizden çıktı.** Geçen tur `slavers-bay-road`'u düşürmüştüm — haritanın en okunaklı Essos
+yolu dünyada hiç yoktu. Canlı araziyi ızgarayla taradım: Köle Körfezi x 0,520-0,535'te içeri giriyor ve
+o şeridin tamamı deniz seviyesinin 8 ile 27 metre altında. Bu enlemde x 0,545'in batısında kuru yol
+yok — harita yolu Meereen'den başlatıyor, bizim arazimiz orayı suyun altına koyuyor. Batı ucunu ilk
+gerçekten kuru zemine kırptım. Artık **11 kanonik yolun 11'i de karada kurulu, su altında 0 nokta,
+düşürülen rota yok.**
+
+Kapılar: kanonik yollar 11/11, koltuk ağı, 14/14 koltuk, vadi, koridor, arazi görsel sözleşmesi,
+masaüstü LOD, chunk etek, hizalama, bitki örtüsü, service worker (v30), determinizm, varlık manifesti,
+materyal sözleşmesi, satır sınırı — hepsi PASS. Kanıt görselleri `artifacts/ground-cover/after/`.
+
+Boot testi: **42 geçti, 2 kaldı**, ve 3D mod kontrolü "hazır" diyor — oyun açılıyor. Kalan ikisi de
+bir kale ve bir ejderha modelinin bu konteynerde LFS stub olmasından; hero ağaç dosyaları o hata
+satırlarında hiç geçmiyor.
+
+Bir kapı daha bu konteynerde kırmızı, dürüstçe söylüyorum: `checkMobileVegetationLod` console hatası olarak
+`.glb`'lerin LFS stub oluşunu sayıyor. Dokunulmamış HEAD'i ayrı bir worktree'ye çıkarıp aynı kapıyı
+çalıştırdım — orada da kırmızı. Yani bu turun getirdiği bir bozulma değil, bu ortamın LFS eksiği.

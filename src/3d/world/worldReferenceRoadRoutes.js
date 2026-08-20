@@ -125,10 +125,21 @@ export const REFERENCE_ROAD_ROUTES = Object.freeze([
 	 * The coarse 96x64 mask check had passed the original because its +/-1-cell coastal tolerance calls
 	 * that whole strip "near land" — see the height-field validation added to
 	 * `scripts/checkOwnerMapAndRoadRoutes.js`, which is what now catches this class of misreading.
+	 *
+	 * **Western terminus trimmed in run 366.** The y correction fixed the eastern four fifths but the
+	 * route still came back with seven wet points, 23.3 m under, and was therefore dropped entirely
+	 * rather than drawn — so the map's most legible Essosi highway was simply absent from the world.
+	 * Probing the live height field on a 0.010 x 0.005 grid across x 0.510-0.640, y 0.615-0.680 showed
+	 * why: the bay itself bites inland at x 0.520-0.535, which reads -27 m to -8 m for the whole
+	 * latitude band the road runs in. There is no dry path west of about x 0.545 at this latitude. The
+	 * map draws the road beginning at Meereen, on a coast this world's height field puts under water,
+	 * so the western end is trimmed to the first genuinely dry ground (x 0.550 reads 23 m) instead. The
+	 * road is 0.034 normalized units shorter than the drawing at its western end and every metre of it
+	 * is on land — which is the trade the owner's "deniz'den yollar geçmesin" makes for us.
 	 */
 	Object.freeze({
 		id: 'slavers-bay-road', kind: 'highway',
-		via: Object.freeze([[0.516, 0.638], [0.545, 0.641], [0.577, 0.641], [0.607, 0.641], [0.635, 0.640]]),
+		via: Object.freeze([[0.550, 0.636], [0.577, 0.641], [0.607, 0.641], [0.635, 0.640]]),
 		servesSeats: Object.freeze([]),
 	}),
 	/** The Sarnath road: north from Vaes Khadokh to the Sarne cities. */

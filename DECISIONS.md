@@ -17738,3 +17738,103 @@ gerçek mesh'ler LFS'in çözüldüğü ortamda görünüyor.
 maskesi, satır sınırı (game3d.js 600'e indirildi), determinizm, borç 0.
 
 **Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+## ADR-0313 — Çim dikdörtgen olmaktan çıktı, gerçek ağaç modelleri dünyaya girdi, Köle Körfezi yolu karaya taşındı
+
+**Bağlam.** Sahip editörün ekran görüntüsünü gönderdi: *"Zemin'deki dikdörtgen şeklindeki hareket
+halinde olanlar eğer çimse; Ben coğrafi gerçeklik deyip durdukça böyle kalitesiz görüntüleri görmek beni
+üzüyor. Ağaçlar ve çimlerle alakalı fbx / blend vs. dosyaları varsa onları değerlendirelim. Modellerin
+arasında İskele vs olması lazım. Kullanabildiğimiz ne varsa şuan Coğrafyaya ekle."*
+
+Şikâyet doğruydu ve sebebi tam olarak söylediği şeydi: `run180GrassGeometry()` her çim yaprağını **tek
+bir düz dikdörtgen** olarak kuruyordu — dört köşe, incelme yok, kesit yok — ve 4,5 m'lik yamada on tane.
+Yani ekranda gerçekten dikdörtgenler duruyordu.
+
+### 1. Çim
+
+Geometri `InstancedMesh` ile bir kez kuruluyor ve 4000 yama tarafından paylaşılıyor, yani **daha iyi bir
+yaprak örnek başına hiçbir şeye mal olmuyor**. Üç değişiklik:
+
+1. **Çapraz yaprak** — dik açıyla iki quad, her yönden hacimli; kenardan bakınca kaybolmuyor.
+2. **İncelen, bükülen yaprak** — tabandan uca daralan üç yükseklik segmenti; mevcut `run180Flex` rüzgâr
+   terimi artık rijit dikdörtgeni kaydırmak yerine yaprağı boyunca büküyor. Kök koyu, uç aydınlık köşe
+   renkleri.
+3. **Yoğunluk** — 4,5 m'de 10 yaprak yerine 2,2 m'de 48.
+
+**İlk denemem yetmedi ve §8.5 çekimi bunu gösterdi.** Yalnız yaprağı düzelttim, yama bütçesini 350 m
+yarıçapa yaymaya devam ettim: 4000 yama / 96 m²'ye bir yama, yani iyi yapraklar, hâlâ yalıtılmış, aralarında
+hâlâ çıplak toprak. Sabit yama sayısında **yarıçap doğrudan yoğunluktur**. 130 m'ye çekildi: aynı 4000
+yama 53.000 m²'yi 15 m²'lik yamalarla kaplıyor, üst üste binerek sürekli çim oluyor. 130 m ötesinde
+verilen çim zaten okunmuyordu — 300 m'de 0,5 m'lik yaprak bir pikselin altında.
+
+**İkinci şey: yaprakları mızrak gibi gösteren yükseklik değil genişlikti.** Göz hizası çekiminde
+yapraklar kamış gibi duruyordu, oysa 0,34-0,74 m çim için doğru. Taban yarı-genişliği 0,055-0,09'du,
+yani 11-18 cm eninde bir yaprak — gerçeğinin yirmi katı — bu yüzden her biri yaprak değil *yaprak
+bıçağı* okuyordu. 4-7 cm'ye indirildi ve üçgen bütçesi 4 cm eninde kimsenin göremeyeceği eğriliğe değil
+iki katı yaprağa harcandı (üç segmentte 32 yerine iki segmentte 48). Yama başına üçgen aynı: 384.
+
+Ölçülen (`scripts/captureGroundCoverEvidence.mjs`, yeni): yama başına 40 köşe/20 üçgen → **576 köşe/384
+üçgen**; siluet karmaşıklığı yakın eğik çekimde 9,52 → **27,83**, göz hizasında **13,49**, diz
+hizasında **20,78**.
+
+*Kanıt betiği kendi hatasını da yakaladı:* ilk çekimde diz hizası karesi üç ayrı geometride tıpatıp
+aynı sayıyı veriyordu, çünkü çim `onBeforeRender` içinde kameranın hücresine göre yeniden doluyor ve
+taşınmış kameranın **ilk** karesi hâlâ eski hücrenin yamalarını gösteriyordu. Isınma karesi eklendi.
+
+### 2. Gerçek ağaç modelleri — `world/heroTrees.js`
+
+Depoda 13 yazılmış ağaç `.glb`'si kullanılmadan duruyordu (Quaternius çam/huş/palmiye/ölü ağaç paketleri,
+bükülmüş ağaç, büyük ağaç, kütük). Bunlar artık yakın alana biyoma göre dikiliyor: kurak ülkeye palmiye ve
+bükülmüş ağaç, soğuk yaylaya çam ve ölü ağaç, gerisine geniş yapraklı — `worldReferenceBiomeField.js`'in
+hücre başına verdiği aynı cevaptan.
+
+*Yer tutucu asla dikilmiyor.* LFS nesnesi olmayan checkout'ta bu dosyalar 132 baytlık pointer stub
+(RCA_RUN344) ve `AssetLoader` görünür bir kutu döndürüyor. Kutu tarlası, yerini alacağı prosedürel
+koniden **daha kötü**. Bu yüzden `userData.isPlaceholder` taşıyan her model atılıyor; hiçbiri hayatta
+kalmazsa katman sessizce boş kalıyor ve `vegetation.js` dünyayı bugünkü gibi taşıyor.
+
+**Orman eşiği ölçümle düzeltildi.** İlk `minForestCoverage: 0.28` sert kapısı yakın alanın %99,9'unu
+atıyordu — 90 hedefe karşılık **4 ağaç**. Canlı alanı ölçtüm: yerleştirme yarıçapındaki 3447 kuru
+örneğin 3106'sı 0,1'in altında okuyor, hiçbiri 0,4'ün üstünde değil; haritanın tamamında da hücrelerin
+%89,6'sı 0,1'in altında (çoğu deniz ve otlak). Alan yanlış değil, kapı yanlıştı. Kapsama artık
+**kabul olasılığını** ölçekliyor, taban `openCountryChance: 0.22`: ormanda sık, otlakta serpiştirilmiş
+tek ağaçlar ve koruluklar, çölde kendi payı. **4 → 90 yerleştirme.**
+
+### 3. `world/worldDressing.js`
+
+`game3d.js` 600 satır tavanında (GOVERNANCE.md §5). Landmark serpme ile hero ağaçları aynı *tür*
+katman — ikisi de yazılmış `.glb` yüklüyor, ikisi de biyoma göre yerleştiriyor, ikisi de model
+okunamadığında hiçbir şeye düşüyor — bu yüzden burada birleştiriliyor: oyun modülü tek init/tek dispose
+çağırmaya devam ediyor, her katman kendi dosyasında kalıyor. Bir katman hata verirse loglanıp
+atlanıyor; dünya yine giydiriliyor.
+
+### 4. `slavers-bay-road` denizden karaya
+
+ADR-0312 bu rotayı **düşürülmüş** bırakmıştı: y düzeltmesi doğuyu kurtardı ama batı ucu hâlâ 7 nokta
+suda, en derini 23,3 m altta, dolayısıyla haritanın en okunaklı Essos yolu dünyada hiç yoktu. Canlı
+yükseklik alanını x 0,510-0,640 / y 0,615-0,680 aralığında 0,010 x 0,005 ızgarayla taradım: körfez
+x 0,520-0,535'te içeri giriyor ve o enlem şeridinin tamamı -27 m ile -8 m okuyor. **Bu enlemde
+x 0,545'in batısında kuru yol yoktur.** Harita yolu Meereen'den başlatıyor; bu dünyanın arazisi orayı
+suyun altına koyuyor. Batı ucu ilk gerçekten kuru zemine (x 0,550, 23 m) kırpıldı.
+
+Sonuç: **11/11 kanonik yol canlı yükseklik alanında kuruluyor, su altında 0 nokta.** Artık düşürülen rota yok.
+
+**Doğrulama.** Kanonik yollar 11/11 PASS (0 ıslak nokta), koltuk yol ağı PASS, 14/14 koltuk, vadi
+oyma PASS, yol koridoru PASS, terrain visual contract PASS, masaüstü LOD PASS, chunk etek PASS,
+hizalama PASS, bitki örtüsü görsel sözleşmesi PASS, service worker cache PASS (v29→v30,
+`heroTrees.js` + `worldDressing.js` + `windGrass.js`), determinizm PASS, varlık manifesti PASS,
+paylaşılan materyal sözleşmesi PASS, `game3d.js` 600 satırda, §8.5 kanıtı
+`artifacts/ground-cover/after/`.
+
+`scripts/smokeTestGame3D.js`: **42 PASS / 2 FAIL**, ve 3D mod kontrolü `outcome=ready` diyor — yani
+oyun açılıyor. İki hatanın ikisi de console-hatası iddiası: biri bir kale modelinin
+(`icebound_citadel_decimated.glb`), diğeri ejderha modelinin (`"isPlaceholder":true`) LFS stub olması.
+Hero ağaç varlıkları bu hata satırlarının hiçbirinde geçmiyor.
+
+*Açıkça bildirilen ortam hatası:* `scripts/checkMobileVegetationLod.js` bu konteynerde FAIL veriyor —
+console hatası olarak `.glb` dosyalarının LFS pointer stub oluşunu sayıyor (RCA_RUN344). **Bu turun
+değişikliğinden önce de FAIL veriyor**: dokunulmamış HEAD'de ayrı bir worktree'de çalıştırıp doğruladım,
+hatalar 8 kale modeli ve prop'lardan geliyor. Hero ağaç katmanı listeye bir satır ekliyor
+(`low_poly_winter_tree_pack.glb`) ama sebebi aynı ve zaten kırmızı olan bir kapıyı bu tur kırmıyor.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
