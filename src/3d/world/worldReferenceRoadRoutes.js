@@ -84,6 +84,14 @@ export const REFERENCE_ROAD_ROUTES = Object.freeze([
 		servesSeats: Object.freeze([]),
 	}),
 
+	/** The Greenblood road: Dorne's river road, running east along the Greenblood from the Martell seat
+	 * to the Sunspear coast. The map draws settlements strung along it the whole way. */
+	Object.freeze({
+		id: 'greenblood-road', kind: 'highway',
+		via: Object.freeze([[0.163, 0.660], [0.175, 0.657], [0.188, 0.653], [0.196, 0.652]]),
+		servesSeats: Object.freeze([]),
+	}),
+
 	// ---- Essos: the Valyrian roads ----------------------------------------------------------------
 	// These are the dead-straight tan lines the map rules across Essos. They are the most legible
 	// roads on the whole image precisely because they ignore terrain — Valyrian engineering — but they
@@ -99,6 +107,18 @@ export const REFERENCE_ROAD_ROUTES = Object.freeze([
 		id: 'valyrian-trunk-east', kind: 'valyrian',
 		via: Object.freeze([[0.288, 0.501], [0.312, 0.478], [0.350, 0.495], [0.392, 0.512],
 			[0.432, 0.502], [0.470, 0.505], [0.510, 0.512]]),
+		servesSeats: Object.freeze([]),
+	}),
+	/** The Dothraki road west out of Vaes Dothrak, under the Mother of Mountains. */
+	Object.freeze({
+		id: 'vaes-dothrak-road', kind: 'valyrian',
+		via: Object.freeze([[0.510, 0.462], [0.545, 0.458], [0.575, 0.456], [0.605, 0.455]]),
+		servesSeats: Object.freeze([]),
+	}),
+	/** The Slaver's Bay road, following the Skahazadhan east from Meereen past Hesh and Kraaz. */
+	Object.freeze({
+		id: 'slavers-bay-road', kind: 'highway',
+		via: Object.freeze([[0.516, 0.633], [0.545, 0.634], [0.577, 0.634], [0.607, 0.633], [0.635, 0.629]]),
 		servesSeats: Object.freeze([]),
 	}),
 	/** The Sarnath road: north from Vaes Khadokh to the Sarne cities. */

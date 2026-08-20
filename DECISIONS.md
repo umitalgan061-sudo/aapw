@@ -17589,3 +17589,23 @@ LOD, SW cache (v25→v26), satır sınırı ve determinizm PASS.
 
 **Next safe step:** haritada okunacak daha çok yol var (Essos'un doğusu, Yi Ti, Dorne'un içi) ve artık
 görsel depoda olduğu için ormanların/dağların transkripsiyonu da doğrudan ona karşı denetlenebilir.
+
+## ADR-0309 — Haritadan üç yol daha, ve transkripsiyonda bulunan bir sapma
+
+**Karar.** map.png depoda olduğu için okumaya devam edildi: Dorne'un Yeşilkan yol hattı, Vaes Dothrak
+batı yolu ve Köle Körfezi'nin Skahazadhan boyunca doğuya giden yolu eklendi. Kanonik yol ağı **8 → 11
+rota, 16,71 → 20,92 km**. Yöntem ve tolerans ADR-0308 ile aynı.
+
+**Ve ilk kez orijinaline karşı denetim yapılabildi — bir sapma çıktı.** `worldReferenceMap.js`'teki
+`red-mountains` zinciri `[[0.125,0.630],[0.180,0.625],[0.240,0.620]]` kayıtlı, ama haritada Kızıl
+Dağlar sırtı y ≈ 0,59–0,61 bandında ve **x = 0,240 karada değil** — Dar Deniz'de, Tyrosh yakını.
+
+Düzeltmedim. Bu zincir `worldReferenceMountainRelief.js` üzerinden gerçek araziyi şekillendiriyor;
+noktalarını oynatmak dağları yerinden oynatır ve ADR-0297..0300'de ölçümle kazanılan yol eğim payını
+etkileyebilir. Yani yazım düzeltmesi değil, kendi turunu ve kendi öncesi/sonrası ölçümünü hak eden bir
+arazi değişikliği. QUESTIONS_FOR_OWNER.md S-0037 olarak soruldu.
+
+**Doğrulama.** 11 rotanın her metresi kanonik maskeye göre karada; 14/14 koltuk, yollar (18,31 km),
+satır sınırı, SW cache PASS.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.

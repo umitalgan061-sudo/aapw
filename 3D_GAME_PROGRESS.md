@@ -17150,3 +17150,16 @@ Ekleme `sceneManager.js`'i 606 satıra çıkarınca (sınır 600) zemin kurulum 
 
 Kapılar: yeni harita/rota guard'ı, 14/14 koltuk, yollar, vadi, yol koridoru, terrain visual contract,
 masaüstü LOD, SW cache v25→v26, satır sınırı, determinizm — hepsi PASS.
+
+### Run 362 — Üç yol daha, ve transkripsiyonda bir sapma (ADR-0309)
+
+Harita artık depoda olduğu için okumaya devam ettim: Dorne'un Yeşilkan hattı, Vaes Dothrak batı yolu ve
+Köle Körfezi yolu. Kanonik ağ 8 → **11 rota, 20,92 km**.
+
+Daha önemlisi, ilk kez transkripsiyonu **orijinaline karşı** denetleyebildim ve bir sapma buldum:
+`red-mountains` zinciri `[[0.125,0.630],[0.180,0.625],[0.240,0.620]]` kayıtlı ama haritada sırt
+y ≈ 0,59–0,61'de ve **x = 0,240 karada bile değil**, Dar Deniz'de.
+
+Kendiliğimden düzeltmedim: o zincir gerçek araziyi şekillendiriyor, oynatmak dağları yerinden oynatır ve
+yol eğim payını etkileyebilir. Yazım düzeltmesi değil, ölçülmesi gereken bir arazi değişikliği — S-0037
+olarak sordum.

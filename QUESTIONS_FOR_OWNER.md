@@ -518,3 +518,21 @@ transkripsiyonda **yol yok**, dolayısıyla haritadaki yol çizgileri izlenemiyo
    sonraki turlar da ona bakabilir.
 
 Görsel gelene kadar yol güzergâhları uydurulmayacak.
+
+## S-0037 (run 362) — `red-mountains` zincirinin doğu ucu haritayla uyuşmuyor
+
+**Durum:** Bilgi/onay bekliyor. Engelleyici değil; şimdilik dokunulmadı.
+
+map.png artık depoda olduğu için transkripsiyon ilk kez orijinaline karşı denetlenebiliyor. Dorne
+bölgesini büyütünce şu çıktı: `worldReferenceMap.js`'teki `red-mountains` zinciri
+`[[0.125,0.630],[0.180,0.625],[0.240,0.620]]` olarak kayıtlı, ama haritada Kızıl Dağlar sırtı
+**y ≈ 0,59–0,61** bandında uzanıyor ve **x = 0,240 noktası karada bile değil** — orası Dar Deniz'de,
+Tyrosh'un yakını.
+
+Kendiliğimden düzeltmedim çünkü bu zincir `worldReferenceMountainRelief.js` üzerinden gerçek araziyi
+şekillendiriyor; noktalarını oynatmak dağları yerinden oynatır ve yol eğim geçmişini (ADR-0297..0300'de
+ölçülerek kazanılan payı) etkileyebilir. Yani ucuz bir yazım düzeltmesi değil, ölçülmesi gereken bir
+arazi değişikliği.
+
+**Soru:** Zinciri haritayla hizalamamı ister misiniz? İsterseniz kendi turunda, öncesi/sonrası koltuk ve
+yol kapılarıyla ölçerek yaparım. İstemezseniz kayıt burada dursun.
