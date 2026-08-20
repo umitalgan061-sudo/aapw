@@ -18398,3 +18398,80 @@ suya ulaşıyor, taç 213 m, taban havada değil, Castle Black hattın **95 m** 
 Görsel kanıt `artifacts/the-wall/`. Service worker v34→v35. Kapı CI'a da eklendi.
 
 **Technical debt.** 0 new. **World Coverage.** Duvar artık var.
+
+## ADR-0323 — Dünyanın tek bir nehri vardı; on tanesi sessizce hiç akmadı
+
+**Bağlam.** `map.png` nehirlerle kaplı: Trident ve üç çatalı, King's Landing'den geçen Blackwater
+Rush, Reach boyunca Mander, Essos'ta Rhoyne ve Skahazadhan. Bu dünyada **tam olarak bir tane** vardı —
+`generateRiverPath` tüm projede bir kez çağrılıyordu, origin yakınındaki en yüksek zeminden aşağı
+inen isimsiz bir dere. Nehir, herhangi bir haritanın en okunaklı öğesidir.
+
+**Kaynaklar haritadan, yataklar araziden.** `worldReferenceRoadRoutes.js`'in yollar için yerleştiği
+ilkenin aynısı, suda daha da önemli: sabit bir polylinе olarak aktarılan nehir, bu dünyanın yükseklik
+alanı çizimle anlaşmadığı her yerde yokuş yukarı akardı — saçma değil, **fiziksel olarak imkânsız**.
+Bu yüzden `worldReferenceRivers.js` her nehir için yalnızca bir **kaynak** verir (haritadan 4x'te
+okundu, ±0,015 normalize tolerans); yatağı `rivers.js`'in mevcut yokuş-aşağı izleyicisi bulur.
+
+**Asıl hata: on nehirden sekizi sessizce hiç izlenmedi.** Eklendikten sonra her kapı yeşil kaldı —
+koltuk güvenliği aynı, yol ağı baseline ile **bayt-bayt aynı**. On yeni nehir için fazlasıyla temiz
+bir sonuçtu, ve öyleydi de. `generateRiverPath` yürüyüşünü `hypot(bestX, bestZ)` ile sınırlıyordu:
+**dünya originine** olan mesafe. Tek nehir varken ve onun origini (0, 0) iken bu iki ifade aynıydı.
+Westeros'un her kaynağı dünya origininden 4,5-5,0 km uzakta, 2800 m'lik varsayılanın ötesinde — sekiz
+nehir **ilk adımında** `bounds` ile çıktı, tek noktalı yol döndürdü ve `computeRiverValleys`'in
+`points.length < 2` koruması tarafından sessizce atıldı. Hiçbir şey oyulmadı, dolayısıyla hiçbir şey
+değişmedi, dolayısıyla her kapı geçti. Sınır artık nehrin **kendi** originine göre; tek nehrin kursu
+bit-bit aynı kaldı çünkü onun origini hâlâ (0, 0).
+
+**Ölçüm (§8.4).** Koltuklar **bayt-bayt aynı**, 14/14 PASS. Yollar PASS ama artık **değişti**: altı
+kenar yeniden yönlendi, ağ 19,95 → **20,34 km** (+%2,0), en kötü kara eğimi 15,5° (tavan 20°), deniz
+geçişleri aynı. Yollar yeni vadilerin **etrafından** dolaşıyor — bir yükseklik alanının gerçekten
+değiştiğinin imzası budur.
+
+**İkinci hata: nehirlerin üçte biri yer altındaydı.** İlk render Mander'ı bir nehir olarak değil,
+**kopuk mavi lekelerden oluşan kesik çizgi** olarak gösterdi. Şerit, izlenen polyline'ın 40 m'lik
+kirişleri üzerine kuruluyordu; `generateRiverPath` yerel minimumlardan çıkmak için 640 m'ye kadar
+tırmanabildiğinden ardışık noktalar aralarındaki zeminden çok daha alçakta kalabiliyor. Ölçüldü: on
+nehrin **%23-63'ü yer altında**, arazi şeridin 28 m üstüne çıkıyor. Düzeltme iki parçalı: yüzey artık
+**8 m'de bir** yeniden örnekleniyor, ve profil ağızdan yukarı doğru
+`yüzey = max(aşağıdakiYüzey, yatak + 1 m)` ile süpürülüyor — suyun yaptığı iki şey tam olarak bu:
+aşağı akarken asla yokuş çıkmaz, ve üzerinde durduğu zeminin altında olmaz. Kurs bir sırtı kesiyorsa
+su arkasında **göllenir**, tünel açmaz. Sonuç: **%23-63 → %0,32**.
+
+**Şerit artık ikinci kez izlenmiyor.** İlk sürüm kursu bitmiş zemin üzerinde yeniden izliyordu
+(oyulmuş taban en dik inişi çeker diye). Ölçüm aksini söyledi: ikinci iz kendi hendeğinden yeterince
+sık çıkıyordu. Artık şerit doğrudan **oyulan polyline'ı** kullanıyor — nehir başına iki kurs yerine
+bir tane olduğu için ayrışma ihtimali ortadan kalktı, korunmadı.
+
+**Üçüncü hata, ölçümde: `checkRiverValleyCarving` on bir nehirlik bir alanı tek nehirle ölçüyordu.**
+Birincil nehri takip eden yürüyüşü, isimli bir nehrin kendi rim'inin içinden geçince onun tamamen
+meşru vadisini "rim sızıntısı" sayıp kapıyı kırmızıya düşürdü: (896, 1873)'te Skahazadhan'a 347 m,
+birincil nehre 540,4 m uzaklıkta, 0,38 m'lik bir kesim. Oyma doğruydu; **ölçüm bir nehir bilirken alan
+on bir taşıyordu**. Bu projenin defalarca ödediği hata sınıfının aynısı; artık mesafe alandaki **her**
+nehrin merkez hattına ölçülüyor.
+
+**Doğrulama.** `scripts/checkNamedRivers.js` (yeni) sekiz özelliği doğruluyor: onunun onu da izleniyor,
+hepsi `sea` ile bitiyor, her kaynak kanonik karada, her ağız kanonik suda (800 m'lik diskin %28-65'i
+deniz — iç kesimdeki bir çukur değil, gerçek kıyı), oyma zemine ulaşıyor (819/9923 kara örneği,
+en derin 116,2 m), şeridin **%0,32'si** gömülü, en kötü askıda kalma 24,3 m (tavan 30 m — gerçek bir
+göl bunun içinde kalır), ve iki build aynı kursları veriyor. `checkRiverValleyCarving` düzeltildi ve
+PASS. Skirt payı değişmedi: dünya en kötü LOD boşluğu **71,05 m**, 96 m tavanının altında. Her iki
+kapı da CI'a eklendi. Görsel kanıt `artifacts/named-rivers/` (Mander, Greenblood, Skahazadhan; her
+biri iki açı).
+
+**Gelecek faz etkisi.** Vadi tabanları yerleşim ve yol dışında ilk gerçek "koridor" arazisi: FAZ 5+
+için doğal geçiş yolları, değirmen/liman yerleşimi ve karşıya geçiş noktaları buradan türetilebilir.
+S-0038 (deniz geçişleri için feribot/köprü) hâlâ açık ve artık nehir geçişlerini de kapsıyor.
+
+**Ve asıl nehir 376 turdur gömülüydü.** İsimli nehirlerdeki gömülmeyi ölçen probu, dokunulmamış
+ağaçtaki tek nehre de çevirdim: **%70,9'u yer altında**, en kötü 37 m — on yeni nehrin hepsinden
+kötü. Aynı sebep, ve bunca turdur kimse yakından bakmamış. Bırakılsaydı, on bir nehirlik bir dünyada
+tek bozuk olan **orijinal nehir** olacaktı; o yüzden o da `buildRiverSurface`'den geçiyor:
+**%70,9 → %0,1**, şerit 60 → 592 vertex. *Kursu* değişmedi, dolayısıyla ADR-0011'in tam bu kursa
+göre kalibre ettiği şelale eşikleri hâlâ ölçtükleri şeyi görüyor.
+
+**Performans (§4).** Vadiler arazi; bedelini zaten var olan chunk'lar ödüyor. Tek per-frame maliyet
+şeritler: on nehrin tamamı **2490 üçgen / 2510 vertex / 10 draw call**. `checkNamedRivers.js` bunu
+20 000 üçgenlik bir tavana bağladı — 8 m'lik örnekleme aralığı ayarlanabilir bir sayı ve yarıya
+indirmek bunu ikiye katlar; o takas bir telefonda keşfedilmek yerine bilerek yapılsın diye.
+
+**Technical debt.** 0 new. **World Coverage.** Dünyada 1 yerine 11 nehir var.

@@ -17697,3 +17697,51 @@ eğimiydi. Düzelttim.
 
 Görsel kanıt `artifacts/the-wall/`: karlı Kuzey'in üstünde uzanan devasa buz duvarı, Kingsroad ona
 doğru çıkıyor, çamlar zeminde. Kontrolü CI'a da ekledim.
+
+## Tur 376 — Dünyanın tek bir nehri vardı
+
+`map.png` nehirlerle kaplı. Bu dünyada tam olarak **bir** tane vardı: `generateRiverPath` tüm projede
+bir kez çağrılıyordu. Haritadan on kaynak okudum (Trident'in üç çatalı, Blackwater Rush, Mander,
+Greenblood, White Knife, Rhoyne, Skahazadhan, Sarne) ve yatakları araziye buldurdum — sabit bir
+polyline olarak aktarılsalardı yokuş yukarı akarlardı.
+
+### Her kapı yeşildi, çünkü hiçbir şey olmuyordu
+
+Ekledikten sonra koltuk güvenliği aynı çıktı, yol ağı baseline ile **bayt-bayt aynı**. On yeni nehir
+için fazla temiz bir sonuçtu; bir prob yazdım. Cevap: **on nehirden ikisi izlenmiş**. `generateRiverPath`
+yürüyüşünü *dünya originine* olan mesafeyle sınırlıyordu — tek nehir varken ve origini (0, 0) iken
+doğru olan bir ifade. Westeros'un her kaynağı origine 4,5-5,0 km uzakta, 2800 m'lik varsayılanın
+ötesinde: sekiz nehir ilk adımında çıkıp tek noktalı yol döndürdü ve `points.length < 2` koruması
+onları sessizce attı. **Hiçbir şey oymayan bir nehir, projedeki her kapıya görünmezdir.**
+
+Sınır artık nehrin kendi originine göre. Tek nehrin kursu bit-bit aynı. §8.4: koltuklar bayt-bayt
+aynı (14/14), yollar PASS ama altı kenar yeniden yönlendi, ağ 19,95 → **20,34 km** — yollar artık yeni
+vadilerin etrafından dolaşıyor.
+
+### İkinci kusur: nehirlerin üçte biri yer altındaydı
+
+İlk render Mander'ı nehir olarak değil **kesik çizgi** olarak gösterdi. Şerit 40 m'lik kirişler
+üzerindeydi; izleyici yerel minimumlardan çıkmak için 640 m'ye kadar sıçrayabildiği için aradaki zemin
+şeridin 28 m üstüne çıkıyordu. Ölçüm: **%23-63 gömülü**. Yüzey artık 8 m'de bir örnekleniyor ve
+profil ağızdan yukarı `max(aşağıdakiYüzey, yatak + 1 m)` ile süpürülüyor — su yokuş çıkmaz ve zeminin
+altına inmez; sırt varsa arkasında göllenir. **%23-63 → %0,32.** Şerit ayrıca artık ikinci kez
+izlenmiyor, doğrudan oyulan polyline'ı kullanıyor: iki kurs yoksa ayrışma da yok.
+
+### Üçüncüsü yine ölçümdeydi
+
+`checkRiverValleyCarving` on bir nehirlik alanı tek nehirle ölçüyordu ve isimli bir nehrin meşru
+vadisini "rim sızıntısı" sayıp kırmızıya düştü — (896, 1873)'te Skahazadhan'a 347 m. Oyma doğruydu,
+ölçüm eksikti. Bu, bu projenin defalarca ödediği hata sınıfının aynısı.
+
+### Ve asıl nehir 376 turdur gömülüydü
+
+Aynı probu dokunulmamış ağaçtaki tek nehre çevirdim: **%70,9 gömülü**, en kötü 37 m — on yeni nehrin
+hepsinden kötü. O da aynı yoldan geçiyor artık: **%70,9 → %0,1**. Kursu değişmedi, şelale eşikleri
+etkilenmedi.
+
+### Kanıt
+
+`scripts/checkNamedRivers.js` (yeni, CI'da): 10/10 izlendi, hepsi denize ulaşıyor, her kaynak kanonik
+karada, her ağız kanonik suda (800 m diskin %28-65'i deniz), oyma 819/9923 kara örneğini kesiyor,
+şeridin %0,32'si gömülü, iki build aynı. Skirt payı değişmedi (dünya en kötü LOD boşluğu 71,05 m,
+tavan 96 m). Görsel kanıt: `artifacts/named-rivers/`.

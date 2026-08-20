@@ -299,7 +299,7 @@ export async function initRtsGame() {
 		// Same downstream flow the third-person mode animates (ADR-0271) — the RTS camera looks
 		// straight down at the river, so a frozen ribbon would read as painted-on here first.
 		updateFlowAnimation(state.river, elapsedSeconds);
-		for (const waterfall of state.waterfalls) updateFlowAnimation(waterfall, elapsedSeconds);
+		for (const feature of state.waterFeatures) updateFlowAnimation(feature, elapsedSeconds);
 		state.controls.update();
 		state.renderer.render(state.scene, state.camera);
 		frameId = requestAnimationFrame(tick);
@@ -326,7 +326,7 @@ export async function initRtsGame() {
 		disposeStarfield(state.stars);
 		disposeWater(state.water);
 		if (state.river) disposeRiverMesh(state.river);
-		state.waterfalls.forEach(disposeWaterfallMesh);
+		state.waterFeatures.forEach(disposeWaterfallMesh);
 		disposeSettlements(state.settlements);
 		disposeRealCastleModels(state.realCastles);
 		disposeRoadNetwork(state.roads);

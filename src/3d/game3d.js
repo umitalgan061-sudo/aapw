@@ -283,7 +283,7 @@ export async function initGame3D() {
 		// spawner: the shadow decision is a render-budget concern owned by `renderQuality.js`, not
 		// something six unrelated gameplay modules should each re-derive. Enumerated per collection
 		// instead of traversing `state.scene` wholesale, so the surfaces deliberately left out of
-		// shadowing (sky, stars, water, river, waterfalls) stay out.
+		// shadowing (sky, stars, water, river, waterFeatures) stay out.
 		const shadowOpts = { quality: state.renderQuality };
 		applyShadowRoles(state.player?.object3D, shadowOpts);
 		for (const collection of [state.npcs, state.animals, state.creatures, state.carts, state.dragons]) {
@@ -509,10 +509,10 @@ export async function initGame3D() {
 			updateFog(state.scene.fog, dayNight);
 			if (state.freeCamera.active) state.scene.fog.density = 0; // see debug/README.md's Conventions.
 			updateWater(state.water, viewCamera.position, elapsedSeconds);
-			// Downstream foam on the river and its waterfall curtains (ADR-0271). Both are no-ops
+			// Downstream foam on the river, the named rivers and the waterfall curtains. All no-ops
 			// when the mesh is absent or its material never got the flow injection.
 			updateFlowAnimation(state.river, elapsedSeconds);
-			for (const waterfall of state.waterfalls) updateFlowAnimation(waterfall, elapsedSeconds);
+			for (const feature of state.waterFeatures) updateFlowAnimation(feature, elapsedSeconds);
 
 			// Wall-avoidance: pull the camera in front of any terrain/castle occluding the line from
 			// the player to it. Applied last (after sky/stars/water already used the true free-orbit
@@ -573,7 +573,7 @@ export async function initGame3D() {
 			disposeStarfield(state.stars);
 			disposeWater(state.water);
 			if (state.river) disposeRiverMesh(state.river);
-			state.waterfalls.forEach(disposeWaterfallMesh);
+			state.waterFeatures.forEach(disposeWaterfallMesh);
 			disposeSettlements(state.settlements);
 			disposeRealCastleModels(state.realCastles);
 			if (state.worldDressing) disposeWorldDressing(state.worldDressing);

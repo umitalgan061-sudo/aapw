@@ -56,6 +56,9 @@ async function main() {
 			});
 			const carved = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads, null, valleyField);
 			const points = valleyField.riverPoints;
+			// Every river the field actually carves — the primary plus the map's named rivers. The
+			// rim-leak invariant below is measured against all of them; see the note at its own site.
+			const centrelines = [points, ...(valleyField.namedRivers ?? []).map((river) => river.points)];
 
 			// Walk both banks at a spread of offsets, all along the river.
 			const beyondRim = TERRAIN_VALLEY_POLICY.rimHalfWidthMouthMeters + 120;
@@ -83,9 +86,19 @@ async function main() {
 						// A perpendicular offset from one point can still land inside a *different* bend's
 						// valley, because the river meanders — so the invariant is about true distance to
 						// the nearest centreline point, not about the offset used to generate the sample.
+						//
+						// Run 376: "nearest centreline" means the nearest centreline of *any* river in the
+						// field, not of the primary one. Once the map's named rivers began carving, this
+						// walk — which follows the primary river — started passing within a named river's
+						// own rim and scoring its perfectly legitimate valley as a rim leak: one sample at
+						// (896, 1873), 347 m from the Skahazadhan and 540.4 m from the primary, cut 0.38 m
+						// and failed the gate. The carve was correct; the measurement knew about one river
+						// while the field carried eleven.
 						if (Math.abs(after - before) > 1e-9) {
 							let nearest = Infinity;
-							for (const point of points) nearest = Math.min(nearest, Math.hypot(x - point.x, z - point.z));
+							for (const centreline of centrelines) {
+								for (const point of centreline) nearest = Math.min(nearest, Math.hypot(x - point.x, z - point.z));
+							}
 							if (nearest > beyondRim) touchedBeyondRim += 1;
 						}
 					}

@@ -23,7 +23,7 @@ export function installEditorLiveWorldResourceCleanup(liveSurface = window.__WES
     if (state.sky) disposeAuroraSky(state.sky);
     if (state.stars) disposeStarfield(state.stars);
     if (state.river) disposeRiverMesh(state.river);
-    for (const waterfall of state.waterfalls || []) disposeWaterfallMesh(waterfall);
+    for (const feature of state.waterFeatures || []) disposeWaterfallMesh(feature);
     if (state.settlements) disposeSettlements(state.settlements);
     if (state.roads) disposeRoadNetwork(state.roads);
     if (state.vegetation) disposeVegetation(state.vegetation);

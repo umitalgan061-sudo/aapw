@@ -62,6 +62,8 @@ jobs:
           node scripts/checkRegionGeographyFidelity.js
           node scripts/checkValyriaDoom.js
           node scripts/checkTheWall.js
+          node scripts/checkNamedRivers.js
+          node scripts/checkRiverValleyCarving.js
           node scripts/checkTerrainGroundRealism.js
           node scripts/checkTerrainDetailAtlasIsotropy.js
           node scripts/checkWorldPropScatter.js

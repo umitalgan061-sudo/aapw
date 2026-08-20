@@ -36,6 +36,9 @@ import { valyriaInfluence01 } from './worldReferenceValyria.js';
 import { WORLD_SCALE } from '../config.js';
 import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
 
+/** Seed tag for the named rivers, XORed with the world seed ("RVNM"). */
+export const NAMED_RIVER_SEED_TAG = 0x52564e4d;
+
 /** Grid step, in meters, for the deterministic search that picks the river's source point (the
  * highest sampled point within `searchRadiusMeters` of the origin) — coarse enough to stay cheap
  * (a few thousand height samples), fine enough not to miss the general shape of the high ground. */
@@ -171,7 +174,7 @@ export function updateFlowAnimation(mesh, elapsedSeconds) {
  * @param {(worldX: number, worldZ: number) => number} options.sampleHeightMeters `terrain.js`'s `createHeightSampler` output.
  * @param {number} options.seaLevelMeters `WORLD_DEFAULTS.WATER_LEVEL_METERS` — the walk stops once it reaches this height.
  * @param {number} [options.searchRadiusMeters=2000] Radius around the origin to search for the source (highest point).
- * @param {number} [options.maxRiverRadiusMeters=2800] Walk stops if it would step outside this radius from the origin — keeps the path inside the always-loaded FAZ 1 preview area (see module doc).
+ * @param {number} [options.maxRiverRadiusMeters=2800] Walk stops if it would step outside this radius **of `originX`/`originZ`** — for the historical single river that is the world origin and the FAZ 1 preview area it was written for (see module doc); a named river gets whatever reach its course to the sea needs.
  * @param {number} [options.stepMeters=40] Distance advanced per walk step.
  * @param {number} [options.maxSteps=400] Hard cap so a pathological height field can't loop forever.
  * @returns {{points: THREE.Vector3[], endReason: 'sea'|'bounds'|'local-minimum'|'max-steps'}}
@@ -188,6 +191,10 @@ export function generateRiverPath({
 	seed,
 	sampleHeightMeters,
 	seaLevelMeters,
+	/** Centre of the source search, in world metres. Run 376: named rivers pass their own map-read
+	 * headwater here; the historical single river leaves it at the origin, so its course is unchanged. */
+	originX = 0,
+	originZ = 0,
 	searchRadiusMeters = 2000,
 	maxRiverRadiusMeters = 2800,
 	stepMeters = 40,
@@ -196,8 +203,8 @@ export function generateRiverPath({
 	let sourceX = 0;
 	let sourceZ = 0;
 	let sourceHeight = -Infinity;
-	for (let x = -searchRadiusMeters; x <= searchRadiusMeters; x += SOURCE_SEARCH_STEP_METERS) {
-		for (let z = -searchRadiusMeters; z <= searchRadiusMeters; z += SOURCE_SEARCH_STEP_METERS) {
+	for (let x = originX - searchRadiusMeters; x <= originX + searchRadiusMeters; x += SOURCE_SEARCH_STEP_METERS) {
+		for (let z = originZ - searchRadiusMeters; z <= originZ + searchRadiusMeters; z += SOURCE_SEARCH_STEP_METERS) {
 			// No river rises in the Doom (run 372 / ADR-0319). This search takes the highest ground within
 			// its radius, and raising Valyria made a volcanic peak the highest thing near the origin — the
 			// river source relocated onto it, the course collapsed from 30 points to 15, and
@@ -249,7 +256,14 @@ export function generateRiverPath({
 			endReason = 'local-minimum';
 			break;
 		}
-		if (Math.hypot(bestX, bestZ) > maxRiverRadiusMeters) {
+		// Bounded around this river's *own* origin, not the world origin. It was written as
+		// `hypot(bestX, bestZ)` back when there was exactly one river and its origin was (0, 0), where
+		// the two are the same expression. Run 376 gave rivers map-read headwaters, and every Westeros
+		// one is 4.5-5.0 km from the world origin — past the 2800 m default — so eight of the ten named
+		// rivers broke out of the walk on their very first step and were silently discarded by
+		// `computeRiverValleys`'s `points.length < 2` guard. The world had two named rivers, both of
+		// them in Essos, purely because those two happened to rise near the world origin.
+		if (Math.hypot(bestX - originX, bestZ - originZ) > maxRiverRadiusMeters) {
 			endReason = 'bounds';
 			break;
 		}
@@ -356,6 +370,91 @@ export function createRiverMesh(points, widthMeters = 14) {
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.userData.totalFlowLengthMeters = arcLengthMeters;
 	return mesh;
+}
+
+/** Spacing, in metres, of the cross-sections a named river's ribbon is built from. */
+const RIVER_SURFACE_SPACING_METERS = 8;
+/** How far the water surface is held above the bed beneath it. A river is not a decal on the ground. */
+const RIVER_FREEBOARD_METERS = 1;
+
+/**
+ * Turns a traced course into the water surface that runs along it.
+ *
+ * **Why this is not just the traced polyline.** `generateRiverPath` steps 40 m at a time and escalates
+ * to as much as 640 m to climb out of the FBM's local minima, so consecutive path points can sit either
+ * side of ground far higher than the straight line between them. Drawing a ribbon on that line buries
+ * it: measured over the ten named rivers, **23-63% of every ribbon's length was underground**, with the
+ * terrain poking up to 28 m through it, which is why the Mander first rendered as a dashed line of
+ * disconnected blue patches rather than as a river.
+ *
+ * So the course is resampled every 8 m — fine enough that the ground can only vary a few centimetres
+ * between neighbours — and the surface is then swept **upstream** from the mouth as
+ * `surface = max(surfaceDownstream, bed + freeboard)`. Those two terms are exactly the two things water
+ * does: it never runs uphill going downstream (the running maximum enforces it), and it is never below
+ * the ground it lies on (the freeboard enforces it). Where the course does cross a rise, the sweep
+ * ponds the water behind it instead of tunnelling through — which is what a landscape does with a
+ * dammed valley, and is legible as a lake rather than as a rendering fault.
+ *
+ * @param {{x: number, y: number, z: number}[]} points Traced course, source first.
+ * @param {(x: number, z: number) => number} sampleHeightMeters The **final** ground field.
+ * @returns {THREE.Vector3[]} Dense surface points, source first.
+ */
+export function buildRiverSurface(points, sampleHeightMeters) {
+	const dense = [];
+	for (let i = 1; i < points.length; i += 1) {
+		const from = points[i - 1];
+		const to = points[i];
+		const segmentMeters = Math.hypot(to.x - from.x, to.z - from.z);
+		const steps = Math.max(1, Math.round(segmentMeters / RIVER_SURFACE_SPACING_METERS));
+		// `i === 1` also emits the source itself; every later segment skips its shared first point.
+		for (let step = i === 1 ? 0 : 1; step <= steps; step += 1) {
+			const t = step / steps;
+			const x = from.x + (to.x - from.x) * t;
+			const z = from.z + (to.z - from.z) * t;
+			dense.push({ x, z, bed: sampleHeightMeters(x, z) });
+		}
+	}
+	if (dense.length < 2) return [];
+
+	const surface = new Array(dense.length);
+	let running = -Infinity;
+	for (let i = dense.length - 1; i >= 0; i -= 1) {
+		running = Math.max(running, dense[i].bed + RIVER_FREEBOARD_METERS);
+		surface[i] = running;
+	}
+	return dense.map((point, i) => new THREE.Vector3(point.x, surface[i], point.z));
+}
+
+/**
+ * Ribbons the map's named rivers — the Trident's three forks, the Blackwater Rush, the Mander, the
+ * Greenblood, the White Knife, the Rhoyne, the Skahazadhan and the Sarne.
+ *
+ * **The courses come from the carve, not from a second trace.** `terrainValleyCarving.js` has already
+ * traced each river over the phase-1 field and cut a valley along that exact polyline. Re-tracing here
+ * against the finished ground looked reasonable — a carved floor should attract steepest descent — but
+ * measurement disagreed: the second trace wandered out of its own trench often enough to leave a third
+ * of each ribbon buried. Reusing the carved polyline removes the possibility entirely, because there is
+ * now only one course per river rather than two that can disagree.
+ *
+ * @param {object} options
+ * @param {{id: string, name: string, points: {x: number, y: number, z: number}[]}[]} options.namedRivers
+ *   `computeRiverValleys(...).namedRivers` — the courses whose valleys are in the ground.
+ * @param {(x: number, z: number) => number} options.sampleHeightMeters The **final** ground field.
+ * @returns {THREE.Mesh[]} One ribbon per river; disposed with `disposeRiverMesh`.
+ */
+export function createNamedRiverMeshes({ namedRivers, sampleHeightMeters }) {
+	const meshes = [];
+	for (const river of namedRivers ?? []) {
+		const surface = buildRiverSurface(river.points, sampleHeightMeters);
+		const mesh = createRiverMesh(surface);
+		if (!mesh) continue;
+		mesh.name = `river-${river.id}`;
+		mesh.userData.namedRiver = Object.freeze({
+			id: river.id, name: river.name, pointCount: surface.length,
+		});
+		meshes.push(mesh);
+	}
+	return meshes;
 }
 
 /**

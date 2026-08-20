@@ -1,6 +1,6 @@
 /**
  * Scene bootstrap: builds the renderer/camera/scene and the one-time boot-preview world (terrain,
- * water, sky, stars, lighting, river/waterfalls, settlements, colliders, the F4 debug free-fly
+ * water, sky, stars, lighting, river/water features, settlements, colliders, the F4 debug free-fly
  * camera) around `#game3d-canvas`. Extracted out of `game3d.js` (which owns the tick loop and
  * lifecycle wiring instead) once `game3d.js` hit the project's 600-line-per-file cap — see
  * DECISIONS.md ADR-0052. Only setup-time factories live here; the per-frame `update*`/`dispose*`
@@ -22,7 +22,7 @@ import {
 	WATER_PLANE_SEGMENTS_MOBILE,
 } from './world/water.js';
 import { createWaterDepthField } from './world/waterDepthField.js';
-import { generateRiverPath, createRiverMesh, detectWaterfalls, createWaterfallMesh } from './world/rivers.js';
+import { generateRiverPath, createRiverMesh, buildRiverSurface, createNamedRiverMeshes, detectWaterfalls, createWaterfallMesh } from './world/rivers.js';
 import { createHeightSampler, mulberry32 } from './world/terrain.js';
 import { createSettlements, computeSettlementFlattenPads, KINGDOM_SEATS, mapToWorldXZ } from './world/settlements.js';
 import { computeRoadCorridor } from './world/roadCorridorSmoothing.js';
@@ -95,7 +95,7 @@ export function worldToChunkCoord(worldCoord, chunkSizeMeters) {
  * over. Fixed one-time load, not position-based streaming yet — see 3D_GAME_PROGRESS.md FAZ 1 for
  * what's next.
  * @param {HTMLCanvasElement} canvas
- * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, freeCamera: {camera: THREE.PerspectiveCamera, active: boolean, update: (delta: number) => void, dispose: () => void}, chunkManager: ChunkManager, groundCollider: {getGroundHeight: (x: number, z: number) => number}, playerCollider: {resolveXZ: (x: number, z: number) => {x: number, z: number}}, sky: THREE.Mesh, stars: THREE.Points, water: THREE.Mesh, river: THREE.Mesh | null, waterfalls: THREE.Mesh[], settlements: THREE.Group, roads: THREE.Group, roadEdges: {fromId: string, toId: string, points: {x: number, y: number, z: number}[], lengthMeters: number, maxGradeDegrees: number}[], vegetation: THREE.Group, villages: THREE.Group, settlementSeats: {id: string, name: string, x: number, z: number, groundY: number}[], lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, elapsedSeconds: number, lastStreamChunk: {x: number, z: number} | null, cameraCollisionRaycaster: THREE.Raycaster}}
+ * @returns {{renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, controls: import('./camera.js').OrbitControls, freeCamera: {camera: THREE.PerspectiveCamera, active: boolean, update: (delta: number) => void, dispose: () => void}, chunkManager: ChunkManager, groundCollider: {getGroundHeight: (x: number, z: number) => number}, playerCollider: {resolveXZ: (x: number, z: number) => {x: number, z: number}}, sky: THREE.Mesh, stars: THREE.Points, water: THREE.Mesh, river: THREE.Mesh | null, waterFeatures: THREE.Mesh[], settlements: THREE.Group, roads: THREE.Group, roadEdges: {fromId: string, toId: string, points: {x: number, y: number, z: number}[], lengthMeters: number, maxGradeDegrees: number}[], vegetation: THREE.Group, villages: THREE.Group, settlementSeats: {id: string, name: string, x: number, z: number, groundY: number}[], lights: {sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}, clock: THREE.Clock, elapsedSeconds: number, lastStreamChunk: {x: number, z: number} | null, cameraCollisionRaycaster: THREE.Raycaster}}
  */
 export function createScene(canvas) {
 	// Canonical owner-map rendering is a scene invariant, not an HTML-entrypoint option. Keeping
@@ -214,17 +214,41 @@ export function createScene(canvas) {
 		sampleHeightMeters: groundCollider.getGroundHeight,
 		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
 	});
-	const river = createRiverMesh(riverPoints);
+	// Run 376: the historical river goes through `buildRiverSurface` too. Measured on the untouched
+	// tree, **70.9% of it was underground** — worse than any of the ten new rivers, and the same cause:
+	// a ribbon laid on the traced polyline's 40 m chords while the ground between those points rose
+	// through it (worst 37 m). Nobody had looked closely at it in 376 runs. Leaving it would make the
+	// one original river the only broken one in a world of eleven. Its *path* is untouched, so the
+	// waterfall thresholds ADR-0011 calibrated against this exact course still see what they measured.
+	const river = createRiverMesh(buildRiverSurface(riverPoints, groundCollider.getGroundHeight));
 	if (river) scene.add(river);
 	console.info(
 		`[sceneManager] River path traced: ${riverPoints.length} points, ended via "${riverEndReason}".`,
 	);
 
+	// The map's named rivers (run 376 / ADR-0323). `terrainValleyCarving.js` has already cut their
+	// valleys into the ground `groundCollider` samples; these are the ribbons of water that run in them.
+	const namedRiverMeshes = createNamedRiverMeshes({
+		namedRivers: valleyField.namedRivers,
+		sampleHeightMeters: groundCollider.getGroundHeight,
+	});
+	namedRiverMeshes.forEach((mesh) => scene.add(mesh));
+	console.info(
+		`[sceneManager] Named rivers: ${namedRiverMeshes.length} traced — ` +
+			`${namedRiverMeshes.map((mesh) => mesh.userData.namedRiver.id).join(', ')}.`,
+	);
+
 	// Waterfall "curtains" mark the river's steepest segments — see world/rivers.js module doc /
 	// DECISIONS.md ADR-0011 for why the visual is schematic rather than a physically-carved cliff.
-	const waterfalls = detectWaterfalls(riverPoints).map((waterfall) => createWaterfallMesh(waterfall));
-	waterfalls.forEach((mesh) => scene.add(mesh));
-	console.info(`[sceneManager] Detected ${waterfalls.length} waterfall-grade drop(s) along the river.`);
+	const waterfallMeshes = detectWaterfalls(riverPoints).map((waterfall) => createWaterfallMesh(waterfall));
+	waterfallMeshes.forEach((mesh) => scene.add(mesh));
+	console.info(`[sceneManager] Detected ${waterfallMeshes.length} waterfall-grade drop(s) along the river.`);
+
+	// One array for every flow-animated water mesh that is not the primary river. Its consumers —
+	// `game3d.js`, `rtsGame.js` and the editor's sync/cleanup — each do exactly two generic things with
+	// it, advance the flow uniform and dispose geometry + material, so named-river ribbons and waterfall
+	// curtains ride together. It was called `waterfalls` when curtains were the only thing in it.
+	const waterFeatures = [...namedRiverMeshes, ...waterfallMeshes];
 
 	// One procedural castle per kingdom seat (FAZ 3) — see world/settlements.js and DECISIONS.md ADR-0013.
 	const settlementsResult = createSettlements({
@@ -348,7 +372,7 @@ export function createScene(canvas) {
 
 	// Standing world geometry both casts and receives: a keep should shadow the ground beside it *and*
 	// take its own towers' shadows. Deliberately excluded: `sky`/`stars` (they are the light source's
-	// backdrop, not lit geometry), `water`/`river`/`waterfalls` (a shadow-receiving flat plane at a
+	// backdrop, not lit geometry), `water`/`river`/`waterFeatures` (a shadow-receiving flat plane at a
 	// fixed sea level shows the shadow-acne banding `SHADOW_BIAS` cannot fully hide on a surface that
 	// large, and the Gerstner displacement means its shadow-map depth would not match its rendered
 	// surface anyway — see ADR-0048's own note about that vertex/fragment split).
@@ -360,7 +384,7 @@ export function createScene(canvas) {
 	applyShadowRoles(roadsResult.group, { quality: renderQuality, cast: false });
 
 	return {
-		renderer, scene, camera, controls, freeCamera, chunkManager, groundCollider, playerCollider, sky, stars, water, river, waterfalls,
+		renderer, scene, camera, controls, freeCamera, chunkManager, groundCollider, playerCollider, sky, stars, water, river, waterFeatures,
 		// Exposed so game3d.js can focus the sun's shadow frustum on the player each frame and opt
 		// later-spawned entities (player, NPCs, animals, dragons, carts) into shadows with the same
 		// resolved budget this function used — rather than re-deriving the device tier a second time.

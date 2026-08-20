@@ -32,7 +32,8 @@
  * @module world/terrainValleyCarving
  */
 
-import { generateRiverPath } from './rivers.js';
+import { generateRiverPath, NAMED_RIVER_SEED_TAG } from './rivers.js';
+import { allRiverHeadwaters } from './worldReferenceRivers.js';
 
 export const TERRAIN_VALLEY_POLICY = Object.freeze({
 	id: 'terrain-river-valley-carving-2026-08-20-v1',
@@ -196,10 +197,60 @@ export function buildRiverValleyField(points, seaLevelMeters) {
  * @param {(x: number, z: number) => number} options.baseSampleHeightMeters Phase-1 field: settlement
  *   pads applied, no valley and no road bed yet.
  * @param {number} options.seaLevelMeters
+ * @param {{id: string, name: string, x: number, z: number, searchRadiusMeters: number}[]} [options.headwaters]
+ *   Named rivers to carve. **Defaults to the full map-read set** rather than to none, deliberately: a
+ *   dozen check scripts build this field themselves to measure the world, and a default of `[]` would
+ *   have let every one of them silently score a world with different rivers than the game renders. That
+ *   exact class of bug — a check scoring something the game does not do — has cost this project several
+ *   runs, so the safe value is the one that matches the game.
  * @returns {ReturnType<typeof buildRiverValleyField> & {riverPoints: {x: number, y: number, z: number}[]}}
  */
-export function computeRiverValleys({ seed, baseSampleHeightMeters, seaLevelMeters }) {
+export function computeRiverValleys({ seed, baseSampleHeightMeters, seaLevelMeters, headwaters = allRiverHeadwaters() }) {
+	// The historical unnamed river, traced from the highest ground near the origin. Its source search and
+	// therefore its course are untouched, so every measurement calibrated against it still holds.
 	const { points } = generateRiverPath({ seed, sampleHeightMeters: baseSampleHeightMeters, seaLevelMeters });
-	const field = buildRiverValleyField(points, seaLevelMeters);
-	return { ...field, sampleValleyHeight: field.sampleValleyHeight, riverPoints: points };
+	const primaryField = buildRiverValleyField(points, seaLevelMeters);
+
+	// Run 376 / ADR-0323 — the map's named rivers. Each is traced downhill from its own map-read
+	// headwater, so its course is guaranteed to run downhill on the terrain this world actually has
+	// rather than following a drawing that may disagree with it.
+	const named = [];
+	for (const headwater of headwaters) {
+		const traced = generateRiverPath({
+			seed: seed ^ NAMED_RIVER_SEED_TAG,
+			sampleHeightMeters: baseSampleHeightMeters,
+			seaLevelMeters,
+			originX: headwater.x,
+			originZ: headwater.z,
+			searchRadiusMeters: headwater.searchRadiusMeters,
+		});
+		if (traced.points.length < 2) continue;
+		named.push({
+			id: headwater.id,
+			name: headwater.name,
+			points: traced.points,
+			field: buildRiverValleyField(traced.points, seaLevelMeters),
+		});
+	}
+
+	/**
+	 * Every river cuts, in turn.
+	 *
+	 * `buildRiverValleyField`'s own contract is that it only ever lowers ground — it returns
+	 * `min(natural, profile)` — so applying the fields one after another composes safely: the result is
+	 * the deepest cut any single river makes there, and no river can raise what another lowered. That is
+	 * also why the order does not matter.
+	 */
+	const sampleValleyHeight = (x, z, naturalHeight) => {
+		let height = primaryField.sampleValleyHeight(x, z, naturalHeight);
+		for (const river of named) height = river.field.sampleValleyHeight(x, z, height);
+		return height;
+	};
+
+	return {
+		...primaryField,
+		sampleValleyHeight,
+		riverPoints: points,
+		namedRivers: named.map(({ id, name, points: riverPoints }) => ({ id, name, points: riverPoints })),
+	};
 }
