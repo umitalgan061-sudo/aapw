@@ -18,6 +18,7 @@ on:
       - 'scripts/checkPlayerGamepadHandoff.mjs'
       - 'scripts/checkPlayerGamepadRuntime.mjs'
       - 'scripts/checkPlayerLockOn.mjs'
+      - 'scripts/checkPlayerLockOnRuntime.mjs'
       - '.github/workflows/player-gamepad-parity.yml'
       - '.github/workflows/player-stamina-dodge.yml'
   workflow_dispatch:
@@ -32,7 +33,7 @@ concurrency:
 jobs:
   contract:
     runs-on: ubuntu-24.04
-    timeout-minutes: 55
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,7 +52,7 @@ jobs:
           git diff --check "$BASE"...HEAD
           CHANGED="$(git diff --name-only "$BASE"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/gameplay/playerLockOn\.js|src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/gameplay/playerLockOn\.js|src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|scripts/checkPlayerLockOnRuntime\.mjs|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           TOTAL=$((ADD + DEL))
           echo "base=$BASE additions=$ADD deletions=$DEL total=$TOTAL"
@@ -84,6 +85,7 @@ jobs:
           node --check scripts/checkPlayerGamepadHandoff.mjs
           node --check scripts/checkPlayerGamepadRuntime.mjs
           node --check scripts/checkPlayerLockOn.mjs
+          node --check scripts/checkPlayerLockOnRuntime.mjs
           node scripts/checkPlayerStaminaDodge.mjs
           node scripts/checkPlayerMeleeCombo.mjs
           node scripts/checkPlayerGamepadInput.mjs
@@ -123,6 +125,11 @@ jobs:
           test -s artifacts/player-stamina-dodge/gamepad/gamepad-runtime.json
           grep -q 'PLAYER_GAMEPAD_RUNTIME_OK' artifacts/player-stamina-dodge/gamepad.log
           grep -q '"browserErrors": \[\]' artifacts/player-stamina-dodge/gamepad/gamepad-runtime.json
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerLockOnRuntime.mjs --out-dir=artifacts/player-stamina-dodge/lock-on | tee artifacts/player-stamina-dodge/lock-on.log
+          test -s artifacts/player-stamina-dodge/lock-on/lock-on-runtime.png
+          test -s artifacts/player-stamina-dodge/lock-on/lock-on-runtime.json
+          grep -q 'PLAYER_LOCK_ON_RUNTIME_OK' artifacts/player-stamina-dodge/lock-on.log
+          grep -q '"browserErrors": \[\]' artifacts/player-stamina-dodge/lock-on/lock-on-runtime.json
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
       - name: Final main freshness
