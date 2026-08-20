@@ -8,37 +8,55 @@
     "height": 193,
     "quantizationCentimeters": 1
   },
-  "heightChecksumSha256": "7051946c41505cd52812dc6dce66c8d73afa0d06b815288947b63f45e5cc0cf8",
+  "heightChecksumSha256": "8b5808f9b23c5543ecb94b25968e805bda32547f0d09baf21e68d223af3aafca",
   "metrics": {
-    "peakMeters": 523.078506,
-    "nonZeroSamples": 3545,
-    "nonZeroRatio": 0.07147033,
+    "peakMeters": 509.340846,
+    "nonZeroSamples": 5565,
+    "nonZeroRatio": 0.11219532,
     "wetLeakMaxMeters": 0,
     "worldMappingMaxDeltaMeters": 0,
     "chains": {
       "vale-chain": {
-        "peakMeters": 245.065844,
-        "dryOwnedSamples": 97,
-        "dryPositiveSamples": 97,
-        "minDryOwnedMeters": 6.911848
+        "peakMeters": 242.50975,
+        "dryOwnedSamples": 183,
+        "dryPositiveSamples": 183,
+        "minDryOwnedMeters": 5.880731
       },
       "red-mountains": {
-        "peakMeters": 264.194849,
-        "dryOwnedSamples": 93,
-        "dryPositiveSamples": 93,
-        "minDryOwnedMeters": 18.398736
+        "peakMeters": 318.572443,
+        "dryOwnedSamples": 166,
+        "dryPositiveSamples": 166,
+        "minDryOwnedMeters": 17.021904
       },
       "bone-mountains": {
-        "peakMeters": 521.26079,
-        "dryOwnedSamples": 193,
-        "dryPositiveSamples": 193,
-        "minDryOwnedMeters": 58.24053
+        "peakMeters": 512.955323,
+        "dryOwnedSamples": 390,
+        "dryPositiveSamples": 390,
+        "minDryOwnedMeters": 54.216145
       },
       "eastern-chain": {
-        "peakMeters": 369.378353,
-        "dryOwnedSamples": 170,
-        "dryPositiveSamples": 170,
-        "minDryOwnedMeters": 133.997584
+        "peakMeters": 369.942837,
+        "dryOwnedSamples": 249,
+        "dryPositiveSamples": 249,
+        "minDryOwnedMeters": 134.404976
+      },
+      "frostfangs": {
+        "peakMeters": 448.294967,
+        "dryOwnedSamples": 133,
+        "dryPositiveSamples": 133,
+        "minDryOwnedMeters": 52.540584
+      },
+      "painted-mountains": {
+        "peakMeters": 176.295285,
+        "dryOwnedSamples": 404,
+        "dryPositiveSamples": 404,
+        "minDryOwnedMeters": 138.408335
+      },
+      "jogos-spine": {
+        "peakMeters": 347.154173,
+        "dryOwnedSamples": 303,
+        "dryPositiveSamples": 303,
+        "minDryOwnedMeters": 285.215
       }
     }
   }
