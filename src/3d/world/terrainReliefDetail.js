@@ -35,6 +35,8 @@
  * @module world/terrainReliefDetail
  */
 
+import { terrainGeomorphologyMeters } from './terrainGeomorphology.js';
+
 const clamp01 = (value) => (value < 0 ? 0 : value > 1 ? 1 : value);
 
 export const TERRAIN_RELIEF_DETAIL_POLICY = Object.freeze({
@@ -252,7 +254,7 @@ export function coastWarpOffsets(normalizedX, normalizedY) {
  * @param {number} context.rockWeight Canonical rock surface weight, 0..1.
  * @param {number} context.snowWeight Canonical snow surface weight, 0..1.
  * @param {number} context.waterWeight Canonical sea+lake weight, 0..1.
- * @returns {number} Metres to add (always >= 0 on land, 0 over water).
+ * @returns {number} Metres to add.
  */
 export function reliefDetailMeters(normalizedX, normalizedY, { heightAboveSeaMeters, reliefInfluence, rockWeight, snowWeight, waterWeight }) {
 	const P = TERRAIN_RELIEF_DETAIL_POLICY;
@@ -282,6 +284,17 @@ export function reliefDetailMeters(normalizedX, normalizedY, { heightAboveSeaMet
 	// chain. Ridged so it produces ridge-and-valley country rather than smooth dunes.
 	const hills = ridged2(normalizedX * P.hillFrequency + 17.3, normalizedY * P.hillFrequency - 41.6, P.hillOctaves);
 	metres += (hills - 0.5) * 2 * P.hillAmplitudeMeters * landGate;
+
+	// Real-world drainage fabric: unlike isotropic noise, this is oriented from the gradient of the
+	// canonical continental uplift, so main valleys trend downhill toward lower coastal ground and
+	// tributaries/interfluves form a coherent basin pattern. The helper owns no height source; this
+	// existing relief owner remains the only caller and still returns one shared terrain field.
+	metres += terrainGeomorphologyMeters(normalizedX, normalizedY, {
+		heightAboveSeaMeters,
+		waterWeight,
+		reliefInfluence,
+		rockWeight,
+	}) * shoreFade;
 
 	// Fine dissection: the gully-and-spur pattern that covers real hillsides. Ridged, elevation-ramped,
 	// and present on every piece of land — this is the layer that removes "smooth" from the world.
