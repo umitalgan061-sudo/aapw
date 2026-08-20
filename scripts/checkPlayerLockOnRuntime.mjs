@@ -65,7 +65,7 @@ async function setPad({ axes = [0, 0, 0, 0], buttons = {}, connected = true } = 
 }
 
 async function acquireWithGuidedApproach() {
-	let approachBursts = 0, nearestSeen = Infinity;
+	let approachBursts = 0, nearestSeen = Infinity, sweepDirection = 1, previousAngle = Infinity;
 	for (let attempt = 0; attempt < 24; attempt += 1) {
 		const lockStart = (await histories()).locks.length;
 		await setPad({ buttons: { 11: true } }); await sleep(180); await setPad(); await sleep(100);
@@ -81,8 +81,12 @@ async function acquireWithGuidedApproach() {
 			// burst bounded so collider/ground resolution stays authoritative in the shipped scene.
 			const burstMs = Math.min(1800, Math.max(650, (noTarget.nearestDistanceMeters - 27) * 420));
 			await setPad({ buttons: { 12: true } }); await sleep(burstMs); await setPad(); await sleep(120); approachBursts += 1;
+			previousAngle = Infinity;
+			continue;
 		}
-		await setPad({ axes: [0, 0, 0.8, 0] }); await sleep(300); await setPad(); await sleep(100);
+		if (noTarget.nearestAngleDegrees > previousAngle + 0.5) sweepDirection *= -1;
+		previousAngle = noTarget.nearestAngleDegrees;
+		await setPad({ axes: [0, 0, 0.8 * sweepDirection, 0] }); await sleep(300); await setPad(); await sleep(100);
 	}
 	throw new Error(`[player-lock-on-runtime] guided R3 approach found no eligible shipped NPC; nearest=${nearestSeen.toFixed(2)}m bursts=${approachBursts}`);
 }
