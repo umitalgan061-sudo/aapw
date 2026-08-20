@@ -47,7 +47,13 @@ export class HealthBar {
 	_paintAttack(detail) {
 		if (!detail || (detail.kind !== 'light' && detail.kind !== 'heavy')) return;
 		if (detail.phase === 'finish') this._combatAttack = null;
-		else if (ATTACK_PHASE_LABELS[detail.phase]) this._combatAttack = { kind: detail.kind, phase: detail.phase, comboStep: Number.isFinite(detail.comboStep) ? detail.comboStep : 1 };
+		else if (ATTACK_PHASE_LABELS[detail.phase]) this._combatAttack = {
+			kind: detail.kind,
+			phase: detail.phase,
+			comboStep: Number.isFinite(detail.comboStep) ? detail.comboStep : 1,
+			reachMeters: Number.isFinite(detail.reachMeters) && detail.reachMeters > 0 ? detail.reachMeters : null,
+			damageScale: Number.isFinite(detail.damageScale) && detail.damageScale > 0 ? detail.damageScale : null,
+		};
 		this._renderCombatStatus();
 	}
 	_paintDefense(payload) {
@@ -55,10 +61,13 @@ export class HealthBar {
 	}
 	_renderCombatStatus(transient = null) {
 		const lockText = this._combatLock ? `Kilit · ${this._combatLock.targetId}${this._combatLock.distanceMeters !== null ? ` · ${this._combatLock.distanceMeters.toFixed(1)} m` : ''}` : null;
-		const attackText = this._combatAttack ? `${ATTACK_KIND_LABELS[this._combatAttack.kind]} · ${ATTACK_PHASE_LABELS[this._combatAttack.phase]} · x${this._combatAttack.comboStep}` : null;
+		const attackText = this._combatAttack ? `${ATTACK_KIND_LABELS[this._combatAttack.kind]} · ${ATTACK_PHASE_LABELS[this._combatAttack.phase]} · Seri x${this._combatAttack.comboStep}${this._combatAttack.reachMeters !== null ? ` · Erişim ${this._combatAttack.reachMeters.toFixed(1)} m` : ''}${this._combatAttack.damageScale !== null ? ` · Güç x${this._combatAttack.damageScale.toFixed(2)}` : ''}` : null;
+		const hasRangeComparison = this._combatAttack?.reachMeters !== null && this._combatLock?.distanceMeters !== null;
+		const targetInRange = hasRangeComparison ? this._combatLock.distanceMeters <= this._combatAttack.reachMeters : null;
+		const rangeText = targetInRange === null ? null : targetInRange ? 'MENZİLDE' : 'UZAK';
 		const defenseText = this._combatDefense ? DEFENSE_LABELS[this._combatDefense] : null;
-		const primary = defenseText ?? attackText; const text = primary ? `${primary}${lockText ? ` · ${lockText}` : ''}` : (transient ?? lockText ?? 'Serbest');
-		this._combatTextEl.textContent = text; this._combatEl.dataset.state = this._combatDefense ? `defense-${this._combatDefense}` : this._combatAttack ? `attack-${this._combatAttack.phase}` : this._combatLock ? 'locked' : transient ? 'no-target' : 'free'; this._combatEl.classList.toggle('g3d-combat-status-active', Boolean(this._combatAttack || this._combatDefense)); this._combatEl.classList.toggle('g3d-combat-status-locked', Boolean(this._combatLock));
+		const primary = defenseText ?? attackText; const text = primary ? `${primary}${lockText ? ` · ${lockText}` : ''}${rangeText ? ` · ${rangeText}` : ''}` : (transient ?? lockText ?? 'Serbest');
+		this._combatTextEl.textContent = text; this._combatEl.dataset.state = this._combatDefense ? `defense-${this._combatDefense}` : this._combatAttack ? `attack-${this._combatAttack.phase}` : this._combatLock ? 'locked' : transient ? 'no-target' : 'free'; this._combatEl.dataset.range = targetInRange === null ? 'unknown' : targetInRange ? 'in-range' : 'out-of-range'; this._combatEl.classList.toggle('g3d-combat-status-active', Boolean(this._combatAttack || this._combatDefense)); this._combatEl.classList.toggle('g3d-combat-status-locked', Boolean(this._combatLock));
 	}
 	_flash() { this._el.classList.add('g3d-health-bar-flash'); if (this._flashTimeoutId !== null) clearTimeout(this._flashTimeoutId); this._flashTimeoutId = setTimeout(() => { this._el.classList.remove('g3d-health-bar-flash'); this._flashTimeoutId = null; }, FLASH_SECONDS * 1000); }
 	dispose() { this._eventsBus.off(this._healthChangedEventName, this._onHealthChanged); this._eventsBus.off(this._damageEventName, this._onDamage); this._motionEventTarget?.removeEventListener('aapw:player-motion', this._onPlayerMotion); this._motionEventTarget?.removeEventListener('aapw:player-lock-on', this._onPlayerLockOn); this._motionEventTarget?.removeEventListener('aapw:player-attack-window', this._onAttackWindow); if (this._flashTimeoutId !== null) clearTimeout(this._flashTimeoutId); if (this._defenseTimeoutId !== null) clearTimeout(this._defenseTimeoutId); this._el.remove(); }
