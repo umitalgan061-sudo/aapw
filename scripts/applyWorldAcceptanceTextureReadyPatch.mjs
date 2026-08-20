@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+const path='scripts/checkWorldEnvironmentAcceptanceMatrix.mjs';
+let s=fs.readFileSync(path,'utf8');
+const old=`    const image = terrain?.material?.map?.image;\n    return Boolean(image?.complete && image.naturalWidth > 0 && image.naturalHeight > 0);`;
+const neu=`    const image = terrain?.material?.map?.image;\n    if (!image) return false;\n    const width = image.naturalWidth || image.width || 0;\n    const height = image.naturalHeight || image.height || 0;\n    return width > 0 && height > 0 && (typeof image.complete !== 'boolean' || image.complete);`;
+if(!s.includes(old)) throw new Error('texture readiness block drifted');
+s=s.replace(old,neu);
+const oldDims=`    return { width: image.naturalWidth, height: image.naturalHeight };`;
+const newDims=`    return { width: image.naturalWidth || image.width || 0, height: image.naturalHeight || image.height || 0 };`;
+if(!s.includes(oldDims)) throw new Error('albedo dimension block drifted');
+s=s.replace(oldDims,newDims);
+fs.writeFileSync(path,s);
