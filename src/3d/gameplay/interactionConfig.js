@@ -8,7 +8,12 @@
  */
 
 import { CHOICES_BY_NPC_ID } from './dialogueChoices.js';
-import { buildFieldReadinessText, evaluateFieldReadiness } from './interactionFieldReadiness.js';
+import {
+	FAST_TRAVEL_BLOCK_REASON,
+	buildFieldReadinessText,
+	evaluateExpeditionRoutePlan,
+	evaluateFieldReadiness,
+} from './interactionFieldReadiness.js';
 
 /** Dragonstone watch outcome values shared by quest definitions and the interaction adapter. */
 export const WATCH_POLICY = Object.freeze({
@@ -203,6 +208,31 @@ export function createInteractionInventoryState() {
 		return { ...base, fieldReadiness: evaluateFieldReadiness(base) };
 	}
 
+	function consumeFastTravelProvisions(context = {}) {
+		const before = snapshot();
+		const readiness = before.fieldReadiness ?? evaluateFieldReadiness(before);
+		if (!readiness.capabilities.fastTravelEligible) {
+			return { ok: false, reason: FAST_TRAVEL_BLOCK_REASON.FIELD_KIT_REQUIRED, routePlan: evaluateExpeditionRoutePlan(readiness, context) };
+		}
+		const routePlan = evaluateExpeditionRoutePlan(readiness, context);
+		if (!routePlan.withinRange) {
+			return { ok: false, reason: FAST_TRAVEL_BLOCK_REASON.INSUFFICIENT_PROVISIONS, routePlan };
+		}
+		const quantity = routePlan.requiredTravelPacks;
+		if (quantity <= 0) return { ok: true, consumedItemId: null, consumedQuantity: 0, routePlan, inventory: before };
+		if (!consume('dragonstone-travel-ration-pack', quantity)) {
+			restore(before);
+			return { ok: false, reason: 'provision-consume-race', routePlan };
+		}
+		return {
+			ok: true,
+			consumedItemId: 'dragonstone-travel-ration-pack',
+			consumedQuantity: quantity,
+			routePlan,
+			inventory: snapshot(),
+		};
+	}
+
 	function restore(saved) {
 		entries.clear();
 		for (const savedItem of Array.isArray(saved?.items) ? saved.items : []) {
@@ -217,7 +247,7 @@ export function createInteractionInventoryState() {
 		}
 	}
 
-	return { grant, quantityOf, consume, snapshot, restore };
+	return { grant, quantityOf, consume, consumeFastTravelProvisions, snapshot, restore };
 }
 
 export function buildInventoryText(snapshot = {}) {
