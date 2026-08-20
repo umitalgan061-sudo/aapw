@@ -83,6 +83,7 @@ export function updatePlayerLockOn(state) {
 		toggleRequested: !state.paused && (keyboardToggle || touchToggle),
 	});
 	if (snapshot?.targetPosition && delta > 0) applyPlayerLockFacing(state.player.object3D, snapshot.targetPosition, delta);
+	state.touchJoystick?.setLockOnActive?.(Boolean(snapshot?.locked));
 	state.player.object3D.userData.playerLockOn = snapshot;
 	return snapshot;
 }
