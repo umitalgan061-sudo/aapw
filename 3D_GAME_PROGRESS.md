@@ -17668,3 +17668,32 @@ düşürecekti.
 
 Ölçümü bütün haritaya yaydım: dünya çapında değer 1,32 — hem gerçek hem rahat. Ders tanıdık: bir sayı
 nereden baktığınıza göre değişiyorsa, ölçtüğü şey manzara değil bakış açınızdır.
+
+---
+
+## Tur 375 — Duvar hiç yapılmamış
+
+Lore'a bakarak eksik ne var diye aradım ve şunu buldum: depoda "Duvar" geçen her satır bir **yorum**du.
+Yol tanımının kendi açıklaması "Kingsroad: Duvar'dan King's Landing'e" diyor; yol Castle Black'e
+varıyor ve orada hiçbir şey yok. Bütün hikâyenin en tanınır coğrafi öğesi hiç inşa edilmemişti.
+
+**Yerini haritadan okudum.** map.png'yi 4 kat büyütünce "The Wall" etiketli soluk bant, üstünde Gece
+Nöbeti kaleleri, hemen altında Castle Black, batıda Bay of Ice, doğuda Bay of Seals. Araziyi o enlemde
+taradım: kara iki deniz arasında kesintisiz, arası düz 18-33 metre zemin. Duvarı tam o açıklığa,
+kıyıdan kıyıya kurdum — **745 metre**, iki ucu da suya değiyor. Etrafından dolaşılabilen duvar hiçbir
+şeyi mühürlemez.
+
+**Yüksekliği kitaplardan:** yedi yüz kadem, 213 metre. Çevresindeki 20-30 metrelik araziye göre devasa
+— öyle olması gerekiyor, Duvar'ın bütün meselesi çevresiyle orantısız olması.
+
+**Araziye değil, geometri olarak yaptım.** Yükseklik alanı dikey yüzey ifade edemez; araziye gömseydim
+duvar değil rampa olurdu. Ayrıca güvenli olan da buydu: Valyria iki tur sürmüştü çünkü bir arazi
+değişikliği LOD çatlaklarına, nehir kaynağına ve iki yola yayılmıştı. Bu hiçbirine dokunmuyor —
+ölçtüm, arazi sapması sıfır.
+
+**Yazdığım kapı yine kendi hatamı yakaladı.** Taban boşluğunu yanlış formülle hesaplıyordum ve doğru
+oturmuş bir duvarı "havada duruyor" diye kırmızıya düşürdü. Ölçtüğüm şey aslında arazinin kendi
+eğimiydi. Düzelttim.
+
+Görsel kanıt `artifacts/the-wall/`: karlı Kuzey'in üstünde uzanan devasa buz duvarı, Kingsroad ona
+doğru çıkıyor, çamlar zeminde. Kontrolü CI'a da ekledim.

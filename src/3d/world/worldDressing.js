@@ -15,6 +15,7 @@
  */
 
 import { initWorldProps, disposeWorldProps } from './worldPropScatter.js';
+import { initTheWall, disposeTheWall } from './theWall.js';
 
 /**
  * The layers, in the order they are added to the scene.
@@ -28,6 +29,9 @@ import { initWorldProps, disposeWorldProps } from './worldPropScatter.js';
  */
 const DRESSING_LAYERS = Object.freeze([
 	Object.freeze({ id: 'world-props', init: initWorldProps, dispose: disposeWorldProps }),
+	// Run 375: the Wall. Geometry rather than terrain — a height field maps one (x, z) to one height and
+	// cannot express a vertical face, so a wall built into the terrain comes out as a ramp.
+	Object.freeze({ id: 'the-wall', init: initTheWall, dispose: disposeTheWall }),
 ]);
 
 /**

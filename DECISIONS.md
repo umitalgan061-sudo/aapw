@@ -18364,3 +18364,37 @@ açısıdır.
 (1,32x), doku atlası, dünya prop'ları. Workflow YAML parse ediliyor.
 
 **Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+## ADR-0322 — Duvar hiç inşa edilmemişti
+
+**Bağlam.** Sahip lore'a bakarak coğrafyayı geliştirmemi istedi. Depoda "the Wall" geçen her satır bir
+**yorum**du. `worldReferenceRoadRoutes.js`'in kendi docstring'i "Kingsroad: Duvar'dan King's Landing'e"
+diyor; yol Castle Black'e varıyor ve orada **hiçbir şey yok**. Bütün hikâyenin en tanınır coğrafi
+öğesi — dünyanın tepesinde üç yüz mil buz — hiç yapılmamıştı.
+
+**Yeri, haritadan okundu.** `map.png` 4x'te "The Wall" etiketli soluk mavi-beyaz bir bant, üstünde
+Gece Nöbeti kaleleri, hemen altında Castle Black, onun altında Brandon's Gift ve The New Gift, batıda
+Bay of Ice, doğuda Bay of Seals. Canlı yükseklik alanını o enlemde tarayınca kara **nx 0,152 ile 0,208
+arasında kesintisiz**, iki yanı deniz, arası düz 18-33 m zemin. Duvar tam o açıklığa, kıyıdan kıyıya
+kuruldu — hem haritanın çizdiği bu, hem de hikâyenin gerektirdiği: kıtayı mühürlüyor, ve etrafından
+dolaşılabilen duvar hiçbir şeyi mühürlemez. Ölçülen: **745 m**, iki ucu da suya değiyor.
+
+**Yüksekliği kitaplardan.** Yedi yüz kadem, yani **213 m**. 18-33 m'lik zemine karşı devasa, ve öyle
+olması gerekiyor — Duvar Kuzey'e hükmeder ve üstünden görülemez. Bu dünyanın sıkıştırılmış yatay
+mesafelerine oranlanmadı, çünkü o şeyin bütün meselesi çevresindeki her şeyle orantısız olması.
+
+**Arazi değil, geometri.** Yükseklik alanı bir (x, z)'yi tek bir yüksekliğe eşliyor; dikey yüzey ifade
+edemez, araziye gömülen bir duvar rampa olarak çıkardı. Ayrıca güvenli olan da bu: Valyria iki tur
+sürdü çünkü bir yükseklik değişikliği LOD çatlaklarına, nehir kaynağına ve iki yol rotasına yayılmıştı.
+Bu hiçbirine dokunmuyor — ölçüldü, **arazi sapması 0 m**.
+
+**Kapı, kendi hatamı da yakaladı.** İlk sürümü taban boşluğunu `crownY - height - groundY` diye
+hesaplıyordu, ki bu `enYüksekZemin - zemin`'e sadeleşiyor — yani Duvar boyunca arazinin kendi
+değişimi, havada durma değil. 28,7 m raporlayıp doğru oturmuş bir duvarı kırmızıya düşürdü. Gerçek
+ölçüye çevrildi: taban her kesitte kendi zemininin 6 m altında, yani **-6,0 m** (havada durma yok).
+
+**Doğrulama.** `scripts/checkTheWall.js` (yeni) beşini de doğruluyor: 745 m kıyıdan kıyıya, iki uç da
+suya ulaşıyor, taç 213 m, taban havada değil, Castle Black hattın **95 m** yakınında, arazi sapması 0.
+Görsel kanıt `artifacts/the-wall/`. Service worker v34→v35. Kapı CI'a da eklendi.
+
+**Technical debt.** 0 new. **World Coverage.** Duvar artık var.

@@ -61,6 +61,7 @@ jobs:
           set -euo pipefail
           node scripts/checkRegionGeographyFidelity.js
           node scripts/checkValyriaDoom.js
+          node scripts/checkTheWall.js
           node scripts/checkTerrainGroundRealism.js
           node scripts/checkTerrainDetailAtlasIsotropy.js
           node scripts/checkWorldPropScatter.js
