@@ -399,6 +399,11 @@ export function createInteractionController({
 		dialogueBox.show(choice.response.replace('{name}', activeNpcName));
 		if (quests.consume(npcId, choice.originalIndex)) onQuestChanged(quests.snapshot());
 	}
+	function commitJourneyWithRestStops(steps = []) {
+		const result = inventory.commitJourneyWithRestStops(steps);
+		if (result.ok && result.consumedQuantity > 0) onInventoryChanged(result.inventory);
+		return result;
+	}
 	function rebuildRewardStateFromQuestRewards(savedQuestSnapshot, { includeObjectiveExperience = true } = {}) {
 		reputation.restore(DEFAULT_REPUTATION);
 		progression.restore(null);
@@ -494,6 +499,7 @@ export function createInteractionController({
 		showQuestJournal: showJournal,
 		showInventory,
 		showQuartermaster,
+		commitJourneyWithRestStops,
 		getQuestSnapshot: quests.snapshot,
 		getReputationSnapshot: reputation.snapshot,
 		getProgressionSnapshot: progression.snapshot,
