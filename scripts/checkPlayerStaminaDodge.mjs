@@ -51,6 +51,19 @@ for (const fragment of [
 assert.ok(hud.includes("className = 'g3d-poise-bar'"));
 assert.ok(hud.includes("setAttribute('aria-label', 'Denge')"));
 assert.ok(hud.includes("'guard-break': 'Savunma kırıldı'"));
+for (const fragment of [
+  "className = 'g3d-combat-status'", "setAttribute('role', 'status')", "setAttribute('aria-live', 'polite')",
+  "addEventListener('aapw:player-lock-on'", "addEventListener('aapw:player-attack-window'", '_paintLockOn(detail)', '_paintAttack(detail)',
+  "'active-start': 'VURUŞ'", "const DEFENSE_LABELS = Object.freeze({ guard: 'BLOK', parry: 'PARRY' })", '_paintDefense(payload)',
+  "payload) => { this._flash(); this._paintDefense(payload); }", "this._combatDefense ? `defense-${this._combatDefense.mitigation}`",
+  'blockedAmount: Number.isFinite(payload?.blockedAmount)', 'appliedAmount: Number.isFinite(payload?.amount)', 'savuşturuldu', 'engellendi',
+  'reachMeters: Number.isFinite(detail.reachMeters)', 'damageScale: Number.isFinite(detail.damageScale)',
+  'Number.isFinite(this._combatAttack?.reachMeters)', 'Number.isFinite(this._combatLock?.distanceMeters)',
+  'this._combatLock.distanceMeters <= this._combatAttack.reachMeters', "targetInRange ? 'MENZİLDE' : 'UZAK'", "dataset.range = targetInRange === null ? 'unknown' : targetInRange ? 'in-range' : 'out-of-range'",
+  'const TARGET_FEEDBACK_SECONDS = 0.9', "detail?.reason === 'no-target'", "this._renderCombatStatus('Hedef yok')", '_targetTimeoutId = setTimeout', 'clearTimeout(this._targetTimeoutId)',
+  "removeEventListener('aapw:player-lock-on'", "removeEventListener('aapw:player-attack-window'", 'clearTimeout(this._defenseTimeoutId)',
+]) assert.ok(hud.includes(fragment), `missing combat HUD contract: ${fragment}`);
+assert.ok(!hud.includes('this._combatLock?.distanceMeters !== null'), 'absent lock must never be treated as a valid range sample');
 assert.ok(input.includes("const GUARD_KEYS = new Set(['KeyQ'])"));
 assert.ok(input.includes('GUARD_POINTER_BUTTON = 2'));
 assert.match(input, /return\s*\{[^}]*\bguarding\b[^}]*\}/s);
@@ -70,9 +83,10 @@ assert.ok(hitsToBreak >= 4 && hitsToBreak <= 8, `guard break should require a bo
 assert.ok(cfg.poiseRegen * cfg.guardBreakSeconds < cfg.maxPoise, 'guard break cannot refill poise during stagger');
 
 console.log(JSON.stringify({
-  ok: true, contract: 'player-stamina-dodge-guard-parry-poise',
+  ok: true, contract: 'player-stamina-dodge-guard-parry-poise-combat-hud',
   stamina: { max: cfg.maxStamina, sprintSpeedMps: cfg.sprintSpeed, dodgeSpeedMps: cfg.dodgeSpeed },
   guard: { damageMultiplier: cfg.guardDamageMultiplier, sample20AppliedDamage: guardedDamage, sample20StaminaCost: guardStaminaCost },
   poise: { max: cfg.maxPoise, sample20PoiseCost: guardPoiseCost, hitsToBreak, regenPerSecond: cfg.poiseRegen, regenDelaySeconds: cfg.poiseRegenDelay, guardBreakSeconds: cfg.guardBreakSeconds },
   parry: { windowSeconds: cfg.parryWindow, staminaCost: cfg.parryCost },
+  combatHud: { lockOnEvent: 'aapw:player-lock-on', attackWindowEvent: 'aapw:player-attack-window', defenseMitigation: ['guard', 'parry'], defenseAmounts: true, accessibleLiveStatus: true, meleeRangeCue: ['in-range', 'out-of-range', 'unknown'], failedTargetFeedbackSeconds: 0.9 },
 }, null, 2));
