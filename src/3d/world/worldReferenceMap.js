@@ -13,7 +13,7 @@
 
 export const WORLD_REFERENCE_MAP = Object.freeze({
 	id: 'owner-world-map-2026-08-08',
-	source: 'owner-supplied-reference-image',
+	source: 'map.png/map.png',
 	sha256: '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1',
 	pixelWidth: 1536,
 	pixelHeight: 1024,
@@ -48,11 +48,18 @@ export const REFERENCE_WATER_ZONES = Object.freeze([
 	Object.freeze({ id: 'summer-sea', kind: 'sea', center: [0.535, 0.835], radius: [0.235, 0.090] }),
 ]);
 
+// Polyline controls hand-traced from the exact `map.png/map.png` owner reference. The first four
+// chains are the historical live controls; the later three fill obvious painted relief that the
+// earlier coarse contract omitted (Frostfangs, the long central/southern Essos ridge and Jogos Nhai's
+// isolated north-south spine).
 export const REFERENCE_RELIEF_CHAINS = Object.freeze([
-	Object.freeze({ id: 'vale-chain', kind: 'mountain-chain', points: Object.freeze([[0.215, 0.390], [0.235, 0.435], [0.250, 0.485]]) }),
-	Object.freeze({ id: 'red-mountains', kind: 'mountain-chain', points: Object.freeze([[0.125, 0.630], [0.180, 0.625], [0.240, 0.620]]) }),
-	Object.freeze({ id: 'bone-mountains', kind: 'mountain-chain', points: Object.freeze([[0.700, 0.385], [0.705, 0.500], [0.715, 0.650]]) }),
-	Object.freeze({ id: 'eastern-chain', kind: 'mountain-chain', points: Object.freeze([[0.955, 0.680], [0.950, 0.800], [0.945, 0.910]]) }),
+	Object.freeze({ id: 'vale-chain', kind: 'mountain-chain', points: Object.freeze([[0.205, 0.370], [0.220, 0.405], [0.238, 0.440], [0.250, 0.485]]) }),
+	Object.freeze({ id: 'red-mountains', kind: 'mountain-chain', points: Object.freeze([[0.115, 0.615], [0.150, 0.625], [0.190, 0.625], [0.240, 0.620]]) }),
+	Object.freeze({ id: 'bone-mountains', kind: 'mountain-chain', points: Object.freeze([[0.690, 0.385], [0.700, 0.455], [0.705, 0.525], [0.710, 0.595], [0.715, 0.665]]) }),
+	Object.freeze({ id: 'eastern-chain', kind: 'mountain-chain', points: Object.freeze([[0.955, 0.680], [0.950, 0.760], [0.948, 0.840], [0.945, 0.915]]) }),
+	Object.freeze({ id: 'frostfangs', kind: 'mountain-chain', points: Object.freeze([[0.145, 0.060], [0.153, 0.095], [0.162, 0.130], [0.175, 0.170]]) }),
+	Object.freeze({ id: 'painted-mountains', kind: 'mountain-chain', points: Object.freeze([[0.355, 0.605], [0.405, 0.610], [0.455, 0.610], [0.510, 0.605], [0.555, 0.600]]) }),
+	Object.freeze({ id: 'jogos-spine', kind: 'mountain-chain', points: Object.freeze([[0.895, 0.505], [0.890, 0.545], [0.892, 0.585], [0.895, 0.625]]) }),
 ]);
 
 export function normalizedMapToWorldXZ(normalizedX, normalizedY, mapBounds, metersPerMapUnit) {
