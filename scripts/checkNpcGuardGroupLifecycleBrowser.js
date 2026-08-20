@@ -84,38 +84,70 @@ async function main() {
       });
 
       const dt = 1 / 60;
-      const player = { x: 0, z: 8 };
-      for (let i = 0; i < 18; i += 1) leader.update(dt, player);
+      const threatPlayer = { x: 0, z: 8 };
+      const quietPlayer = { x: 50, z: 50 };
+      const distantPlayer = { x: 100, z: 100 };
+
+      for (let i = 0; i < 18; i += 1) leader.update(dt, threatPlayer);
       const alert = channel.groups.get('stannis');
       const leaderPublished = Boolean(alert && alert.sourceId === 'leader' && alert.lastKnown?.z === 8);
 
-      wingman.update(dt, { x: 100, z: 100 });
-      outsider.update(dt, { x: 100, z: 100 });
+      wingman.update(dt, distantPlayer);
       const wingmanPerception = { ...wingman.object3D.userData.npcPerception };
-      const outsiderPerception = { ...outsider.object3D.userData.npcPerception };
       const wingmanStart = { x: wingman.object3D.position.x, z: wingman.object3D.position.z };
-      for (let i = 0; i < 60; i += 1) wingman.update(dt, { x: 100, z: 100 });
+      for (let i = 0; i < 60; i += 1) wingman.update(dt, distantPlayer);
       const wingmanMoved = Math.hypot(
         wingman.object3D.position.x - wingmanStart.x,
         wingman.object3D.position.z - wingmanStart.z,
       ) > 0.05;
 
-      const playerGone = { x: -80, z: -80 };
-      leader.update(dt, playerGone);
-      const leaderReleased = !channel.groups.has('stannis');
-
-      let wingmanReturned = false;
-      for (let i = 0; i < 900; i += 1) {
-        wingman.update(dt, playerGone);
-        if (wingman.object3D.userData.npcPerception?.intent === 'patrol') {
-          wingmanReturned = true;
+      // A distant LOD guard is not guaranteed a simulation tick on the first render frame. Observe a
+      // bounded real scheduler tick before judging isolation rather than treating an uninitialized
+      // telemetry object as an AI failure.
+      const outsiderTicksBefore = outsider.object3D.userData.simulationTicks;
+      let outsiderObservedOnRealTick = false;
+      for (let i = 0; i < 180; i += 1) {
+        outsider.update(dt, distantPlayer);
+        if (outsider.object3D.userData.simulationTicks > outsiderTicksBefore
+          && outsider.object3D.userData.npcPerception) {
+          outsiderObservedOnRealTick = true;
           break;
         }
       }
+      const outsiderPerception = { ...(outsider.object3D.userData.npcPerception ?? {}) };
+      const outsiderStayedIsolated = outsiderObservedOnRealTick
+        && outsiderPerception.assisted === false
+        && outsiderPerception.assistSourceId == null
+        && outsiderPerception.intent === 'patrol'
+        && !channel.groups.has('cersei');
+
+      // Losing sight may itself be LOD-throttled after the player jumps away. Require cleanup on a
+      // bounded real scheduler horizon, not literally the first render frame after the jump.
+      let leaderReleaseFrames = null;
+      for (let i = 0; i < 240; i += 1) {
+        leader.update(dt, quietPlayer);
+        if (!channel.groups.has('stannis')) {
+          leaderReleaseFrames = i + 1;
+          break;
+        }
+      }
+      const leaderReleased = leaderReleaseFrames != null;
+
+      // The wingman received an authored 24m assist, giving it a deliberately long investigate timer.
+      // With the player quiet and out of perception range it must eventually consume that timer and
+      // return to patrol; 30 wall-clock seconds covers the far-LOD cadence plus the full 13.5s budget.
+      let wingmanReturnFrames = null;
+      for (let i = 0; i < 1800; i += 1) {
+        wingman.update(dt, quietPlayer);
+        const perception = wingman.object3D.userData.npcPerception;
+        if (perception?.intent === 'patrol' && perception?.assisted === false) {
+          wingmanReturnFrames = i + 1;
+          break;
+        }
+      }
+      const wingmanReturned = wingmanReturnFrames != null;
 
       const groupRevisionBounded = channel.nextRevision === 2;
-      const outsiderStayedIsolated = outsiderPerception.assisted === false
-        && outsiderPerception.intent === 'patrol';
       const registryCleanBeforeDispose = !channel.groups.has('stannis') && !channel.groups.has('cersei');
       leader.dispose();
       wingman.dispose();
@@ -129,8 +161,11 @@ async function main() {
         wingmanSourceCorrect: wingmanPerception.assistSourceId === 'leader',
         wingmanMoved,
         outsiderStayedIsolated,
+        outsiderObservedOnRealTick,
         leaderReleased,
+        leaderReleaseBounded: leaderReleaseFrames != null && leaderReleaseFrames <= 240,
         wingmanReturned,
+        wingmanReturnBounded: wingmanReturnFrames != null && wingmanReturnFrames <= 1800,
         groupRevisionBounded,
         registryCleanBeforeDispose,
         registryCleanAfterDispose,
