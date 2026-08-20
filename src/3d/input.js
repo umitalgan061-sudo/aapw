@@ -21,8 +21,10 @@ const INPUT_DEVICE_EVENT = 'aapw:player-input-device';
 const GAMEPAD_DEADZONE = 0.18;
 // Intentional actions get a second threshold above the hardware-noise deadzone. A worn controller
 // may sit just outside 0.18 while untouched; that must never drain sprint stamina or turn B/Circle
-// into a directional dodge. D-pad remains magnitude 1 and therefore keeps full digital parity.
+// into a directional dodge. Sprint uses hysteresis so noisy input around the activation threshold
+// cannot flap the Player state every frame once a deliberate sprint is already underway.
 const GAMEPAD_SPRINT_MIN_MAGNITUDE = 0.72;
+const GAMEPAD_SPRINT_RELEASE_MAGNITUDE = 0.55;
 const GAMEPAD_DODGE_MIN_MAGNITUDE = 0.45;
 // Preserve camera angular speed during transient low-FPS frames without allowing a long suspended
 // tab interval to create an unbounded snap. blur/pagehide/visibility-hidden reset the poll clock.
@@ -71,13 +73,19 @@ function readGamepadDpad(gamepad) {
 	return { x: x / length, y: y / length, magnitude: 1 };
 }
 
+export function resolveGamepadSprintIntent(magnitude, sprintPressed, wasRunning = false) {
+	if (!sprintPressed) return false;
+	const threshold = wasRunning ? GAMEPAD_SPRINT_RELEASE_MAGNITUDE : GAMEPAD_SPRINT_MIN_MAGNITUDE;
+	return Number.isFinite(magnitude) && magnitude >= threshold;
+}
+
 export function selectPlayerGamepad(gamepads, preferredIndex = null) {
 	const standard = Array.from(gamepads ?? []).filter((pad) => pad?.connected && pad.mapping === 'standard');
 	if (preferredIndex !== null) { const sticky = standard.find((pad) => pad.index === preferredIndex); if (sticky) return sticky; }
 	return standard.sort((a, b) => (a.index ?? 999) - (b.index ?? 999))[0] ?? null;
 }
 
-export function samplePlayerGamepad(gamepad, previousButtons = {}) {
+export function samplePlayerGamepad(gamepad, previousButtons = {}, previousRunning = false) {
 	if (!gamepad?.connected || gamepad.mapping !== 'standard') return { forward: 0, strafe: 0, magnitude: 0, lookX: 0, lookY: 0, lookMagnitude: 0, cameraZoom: 0, running: false, guarding: false, jumpPressed: false, dodgePressed: false, lightPressed: false, heavyPressed: false, parryPressed: false, buttons: { jump: false, dodge: false, light: false, heavy: false, parry: false } };
 	const stick = applyGamepadRadialDeadzone(gamepad.axes?.[0] ?? 0, gamepad.axes?.[1] ?? 0);
 	// D-pad is a digital accessibility fallback, not an extra force vector. A live analog stick wins
@@ -89,7 +97,7 @@ export function samplePlayerGamepad(gamepad, previousButtons = {}) {
 		forward: (-locomotion.y) || 0, strafe: locomotion.x, magnitude: locomotion.magnitude,
 		lookX: look.x, lookY: look.y, lookMagnitude: look.magnitude,
 		cameraZoom: buttonValue(gamepad, GAMEPAD_BUTTON.ZOOM_IN) - buttonValue(gamepad, GAMEPAD_BUTTON.ZOOM_OUT),
-		running: buttonPressed(gamepad, GAMEPAD_BUTTON.SPRINT) && locomotion.magnitude >= GAMEPAD_SPRINT_MIN_MAGNITUDE,
+		running: resolveGamepadSprintIntent(locomotion.magnitude, buttonPressed(gamepad, GAMEPAD_BUTTON.SPRINT), previousRunning),
 		guarding: buttonPressed(gamepad, GAMEPAD_BUTTON.GUARD),
 		jumpPressed: buttons.jump && !previousButtons.jump,
 		dodgePressed: buttons.dodge && !previousButtons.dodge,
@@ -119,7 +127,7 @@ function emitInputDeviceChange(index, reason) {
 export class KeyboardInput {
 	constructor(target = window) {
 		this._keys = new Set(); this._jumpRequested = false; this._guardPointerHeld = false;
-		this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false }; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._target = target;
+		this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._target = target;
 		this._onKeyDown = (event) => { const firstPress = !this._keys.has(event.code); if (JUMP_KEYS.has(event.code) && firstPress) this._jumpRequested = true; if (firstPress && LIGHT_ATTACK_KEYS.has(event.code)) emitPlayerCombatIntent('light', 'keyboard'); if (firstPress && HEAVY_ATTACK_KEYS.has(event.code)) emitPlayerCombatIntent('heavy', 'keyboard'); this._keys.add(event.code); };
 		this._onKeyUp = (event) => this._keys.delete(event.code);
 		this._onPointerDown = (event) => { if (event.button === GUARD_POINTER_BUTTON) { this._guardPointerHeld = true; event.preventDefault?.(); return; } if (event.button === LIGHT_ATTACK_POINTER_BUTTON && !isInteractiveTarget(event.target)) emitPlayerCombatIntent('light', 'mouse'); };
@@ -127,7 +135,7 @@ export class KeyboardInput {
 		this._onContextMenu = (event) => { if (this._guardPointerHeld) event.preventDefault?.(); };
 		this._onFocusLoss = (event) => {
 			const hadActiveInput = this._keys.size > 0 || this._jumpRequested || this._guardPointerHeld || this._activeGamepadIndex !== null;
-			this._keys.clear(); this._jumpRequested = false; this._guardPointerHeld = false; this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false }; this._activeGamepadIndex = null; this._lastPollSeconds = null;
+			this._keys.clear(); this._jumpRequested = false; this._guardPointerHeld = false; this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null;
 			if (hadActiveInput) emitInputDeviceChange(null, event?.type === 'pagehide' ? 'page-hidden' : event?.type === 'visibilitychange' ? 'visibility-hidden' : 'focus-lost');
 		};
 		this._onVisibilityChange = () => { if (this._target?.hidden === true || globalThis.document?.hidden === true) this._onFocusLoss({ type: 'visibilitychange' }); };
@@ -136,8 +144,8 @@ export class KeyboardInput {
 	_pollGamepad() {
 		const pads = globalThis.navigator?.getGamepads?.() ?? [], gamepad = selectPlayerGamepad(pads, this._activeGamepadIndex), nextIndex = gamepad?.index ?? null, switched = nextIndex !== this._activeGamepadIndex;
 		const nowSeconds = (globalThis.performance?.now?.() ?? Date.now()) / 1000, lookDeltaSeconds = this._lastPollSeconds === null ? 0 : Math.max(0, Math.min(GAMEPAD_CAMERA_MAX_FRAME_SECONDS, nowSeconds - this._lastPollSeconds)); this._lastPollSeconds = nowSeconds;
-		if (switched) { this._gamepadButtons = gamepad ? readActionButtons(gamepad) : { jump: false, dodge: false, light: false, heavy: false, parry: false }; this._activeGamepadIndex = nextIndex; emitInputDeviceChange(nextIndex, gamepad ? 'selected' : 'disconnected'); }
-		const sample = samplePlayerGamepad(gamepad, this._gamepadButtons);
+		if (switched) { this._gamepadButtons = gamepad ? readActionButtons(gamepad) : { jump: false, dodge: false, light: false, heavy: false, parry: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = nextIndex; emitInputDeviceChange(nextIndex, gamepad ? 'selected' : 'disconnected'); }
+		const sample = samplePlayerGamepad(gamepad, this._gamepadButtons, this._gamepadSprintActive);
 		if (!switched) {
 			if (sample.jumpPressed) this._jumpRequested = true;
 			if (sample.dodgePressed) pulsePlayerGamepadAction(gamepad, 'dodge');
@@ -145,7 +153,7 @@ export class KeyboardInput {
 			if (sample.lightPressed) { emitPlayerCombatIntent('light', 'gamepad'); pulsePlayerGamepadAction(gamepad, 'light'); }
 			if (sample.heavyPressed) { emitPlayerCombatIntent('heavy', 'gamepad'); pulsePlayerGamepadAction(gamepad, 'heavy'); }
 		}
-		this._gamepadButtons = sample.buttons; return { ...sample, lookDeltaSeconds };
+		this._gamepadButtons = sample.buttons; this._gamepadSprintActive = sample.running; return { ...sample, lookDeltaSeconds };
 	}
 	getAxes() {
 		const gamepad = this._pollGamepad(); let forward = gamepad.forward, strafe = gamepad.strafe, running = gamepad.running, guarding = this._guardPointerHeld || gamepad.guarding;
@@ -162,6 +170,6 @@ export class KeyboardInput {
 	}
 	dispose() {
 		for (const [type, handler] of [['keydown', this._onKeyDown], ['keyup', this._onKeyUp], ['pointerdown', this._onPointerDown], ['pointerup', this._onPointerUp], ['pointercancel', this._onPointerUp], ['contextmenu', this._onContextMenu], ['blur', this._onFocusLoss], ['pagehide', this._onFocusLoss], ['visibilitychange', this._onVisibilityChange]]) this._target.removeEventListener(type, handler);
-		this._keys.clear(); this._jumpRequested = false; this._guardPointerHeld = false; this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false }; this._activeGamepadIndex = null; this._lastPollSeconds = null;
+		this._keys.clear(); this._jumpRequested = false; this._guardPointerHeld = false; this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null;
 	}
 }
