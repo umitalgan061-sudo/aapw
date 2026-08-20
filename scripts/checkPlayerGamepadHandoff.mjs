@@ -8,7 +8,7 @@ let pads = [];
 const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
 Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { getGamepads: () => pads } });
 const { KeyboardInput } = await import('../src/3d/input.js');
-function makePad({ index, axes = [0, 0], buttons = {}, connected = true, mapping = 'standard' }) { return { index, connected, mapping, axes, buttons: Array.from({ length: 12 }, (_, i) => ({ pressed: Boolean(buttons[i]) })) }; }
+function makePad({ index, axes = [0, 0], buttons = {}, connected = true, mapping = 'standard' }) { return { index, connected, mapping, axes, buttons: Array.from({ length: 16 }, (_, i) => ({ pressed: Boolean(buttons[i]), value: buttons[i] ? 1 : 0 })) }; }
 const combatEvents = (kind = null) => emitted.filter((e) => e.type === 'aapw:player-combat-input' && (!kind || e.detail?.kind === kind));
 const deviceEvents = () => emitted.filter((e) => e.type === 'aapw:player-input-device');
 const target = new EventTarget();
@@ -26,6 +26,10 @@ try {
 	pads = [makePad({ index: 0, axes: [0, -1], buttons: { 0: true, 1: true, 2: true, 3: true, 5: true } })]; const reconnectHeld = input.getAxes(); assert.equal(reconnectHeld.jumpRequested, false); assert.equal(reconnectHeld.running, false, 'held B during reconnect must be seeded rather than synthesize dodge'); assert.equal(reconnectHeld.guarding, false, 'held RB during reconnect must be seeded rather than synthesize parry'); assert.equal(combatEvents('light').length, 1); assert.equal(combatEvents('heavy').length, 1);
 	pads = [makePad({ index: 0 })]; input.getAxes(); pads = [makePad({ index: 0, buttons: { 0: true } })]; assert.equal(input.getAxes().jumpRequested, true); assert.equal(input.getAxes().jumpRequested, false);
 	pads = [makePad({ index: 0 })]; input.getAxes(); pads = [makePad({ index: 0, buttons: { 5: true } })]; const parryEdge = input.getAxes(); assert.equal(parryEdge.guarding, true, 'RB rising edge must feed Player guard/parry contract'); const heldParry = input.getAxes(); assert.equal(heldParry.guarding, false, 'held RB must not turn into continuous guard');
+
+	pads = [makePad({ index: 0 })]; input.getAxes(); pads = [makePad({ index: 0, axes: [0, -0.35], buttons: { 1: true, 10: true } })]; const driftIntent = input.getAxes(); assert.ok(driftIntent.forward > 0, 'above-deadzone drift fixture must remain ordinary analog movement'); assert.equal(driftIntent.running, false, 'weak stick plus L3 must not request sprint or dodge run intent'); assert.equal(driftIntent.jumpRequested, false, 'weak stick plus B must not synthesize run+jump dodge');
+	pads = [makePad({ index: 0 })]; input.getAxes(); pads = [makePad({ index: 0, axes: [0, -0.65], buttons: { 1: true } })]; const deliberateDodge = input.getAxes(); assert.equal(deliberateDodge.jumpRequested, true, 'deliberate stick plus B must feed existing dodge request'); assert.equal(deliberateDodge.running, true);
+	pads = [makePad({ index: 0, axes: [0, -0.85], buttons: { 10: true } })]; const deliberateSprint = input.getAxes(); assert.equal(deliberateSprint.running, true, 'strong stick plus L3 must retain sprint intent');
 
 	pads = [makePad({ index: 0, axes: [0, -1] })]; input.getAxes(); pads = [makePad({ index: 0, axes: [0, -1], buttons: { 1: true } })]; const directDodge = input.getAxes(); assert.equal(directDodge.jumpRequested, true); assert.equal(directDodge.running, true, 'B with movement must adapt into existing run+jump dodge request'); const heldDodge = input.getAxes(); assert.equal(heldDodge.jumpRequested, false, 'held B must not retrigger dodge');
 
