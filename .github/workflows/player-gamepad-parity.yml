@@ -11,6 +11,7 @@ on:
       - 'scripts/checkPlayerGamepadHandoff.mjs'
       - 'scripts/checkPlayerGamepadRuntime.mjs'
       - 'scripts/checkPlayerLockOn.mjs'
+      - 'scripts/checkPlayerLockOnRuntime.mjs'
       - 'scripts/checkPlayerMeleeCombo.mjs'
       - '.github/workflows/player-gamepad-parity.yml'
       - '.github/workflows/player-stamina-dodge.yml'
@@ -26,7 +27,7 @@ concurrency:
 jobs:
   contract:
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
         with:
@@ -46,7 +47,7 @@ jobs:
           git diff --check "$MAIN_SHA"...HEAD
           CHANGED="$(git diff --name-only "$MAIN_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/gameplay/playerLockOn\.js|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|scripts/checkPlayerMeleeCombo\.mjs|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/gameplay/playerLockOn\.js|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|scripts/checkPlayerLockOnRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
           read -r ADD DEL < <(git diff --numstat "$MAIN_SHA"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           TOTAL=$((ADD + DEL))
           echo "base=$MAIN_SHA additions=$ADD deletions=$DEL total=$TOTAL"
@@ -72,6 +73,7 @@ jobs:
           node --check scripts/checkPlayerGamepadHandoff.mjs
           node --check scripts/checkPlayerGamepadRuntime.mjs
           node --check scripts/checkPlayerLockOn.mjs
+          node --check scripts/checkPlayerLockOnRuntime.mjs
           node scripts/checkPlayerGamepadInput.mjs
           node scripts/checkPlayerGamepadHandoff.mjs
           node scripts/checkPlayerLockOn.mjs
@@ -95,7 +97,7 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-      - name: Shipped scene gamepad parity proof
+      - name: Shipped scene gamepad parity and lock-on proof
         shell: bash
         run: |
           set -euo pipefail
@@ -104,6 +106,11 @@ jobs:
           test -s artifacts/player-gamepad/gamepad-runtime.json
           grep -q 'PLAYER_GAMEPAD_RUNTIME_OK' artifacts-player-gamepad.log
           grep -q '"browserErrors": \[\]' artifacts/player-gamepad/gamepad-runtime.json
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerLockOnRuntime.mjs --out-dir=artifacts/player-lock-on | tee artifacts-player-lock-on.log
+          test -s artifacts/player-lock-on/lock-on-runtime.png
+          test -s artifacts/player-lock-on/lock-on-runtime.json
+          grep -q 'PLAYER_LOCK_ON_RUNTIME_OK' artifacts-player-lock-on.log
+          grep -q '"browserErrors": \[\]' artifacts/player-lock-on/lock-on-runtime.json
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
       - name: Final main freshness
@@ -123,4 +130,6 @@ jobs:
           if-no-files-found: warn
           path: |
             artifacts/player-gamepad/
+            artifacts/player-lock-on/
             artifacts-player-gamepad.log
+            artifacts-player-lock-on.log
