@@ -7,6 +7,7 @@ on:
       - 'src/3d/gameplay/npc.js'
       - 'scripts/checkNpcGuardLifecycleContract.mjs'
       - 'scripts/checkNpcGuardLifecycleBrowser.js'
+      - 'scripts/checkNpcGuardGroupLifecycleBrowser.js'
       - '.github/workflows/npc-guard-lifecycle.yml'
   workflow_dispatch:
 
@@ -40,6 +41,7 @@ jobs:
           set -euo pipefail
           node --check scripts/checkNpcGuardLifecycleContract.mjs
           node --check scripts/checkNpcGuardLifecycleBrowser.js
+          node --check scripts/checkNpcGuardGroupLifecycleBrowser.js
           node scripts/checkNpcGuardLifecycleContract.mjs
           node scripts/checkNpcGuardPerception.mjs
           node scripts/checkNpcGuardAttack.mjs
@@ -62,6 +64,8 @@ jobs:
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
       - name: Real shipped Three.js guard lifecycle proof
         run: node scripts/checkNpcGuardLifecycleBrowser.js
+      - name: Real shipped Three.js guard group proof
+        run: node scripts/checkNpcGuardGroupLifecycleBrowser.js
       - name: Final exact-main freshness
         shell: bash
         run: |
