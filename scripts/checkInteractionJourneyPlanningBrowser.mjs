@@ -21,7 +21,6 @@ try {
 	const result = await page.evaluate(async () => {
 		const { DialogueBox } = await import('/src/3d/ui/dialogueBox.js');
 		const { createInteractionController } = await import('/src/3d/gameplay/interaction.js');
-		const { buildInventoryText, createInteractionInventoryState } = await import('/src/3d/gameplay/interactionConfig.js');
 		const { REST_KIND, buildExpeditionJourneyOptionsText, buildExpeditionJourneyText, buildJourneyRestText, evaluateExpeditionJourney, evaluateJourneyWithRestStops, rankExpeditionJourneyOptions } = await import('/src/3d/gameplay/interactionFieldReadiness.js');
 		const host = document.createElement('div'); document.body.appendChild(host);
 		const dialogueBox = new DialogueBox(host);
@@ -63,17 +62,18 @@ try {
 		const recommendation = ranked.preferredRouteId === 'ridge' && rankedRendered.includes('Sırt yolu · ÖNERİ · HAZIR · 28 km · 1 azık') && rankedRendered.includes('Önerilen rota: Sırt yolu');
 		const tavernRecovery = restPlan.complete === true && restPlan.totalDistanceKm === 58 && restPlan.steps[1].fatigueAfterKm === 0 && restRendered.includes('Taverna · watch-road-tavern · DİNLENDİ') && restRendered.includes('Plan hazır · son yorgunluk: 30 km');
 
-		const journeyInventory = createInteractionInventoryState();
-		journeyInventory.restore(restored.inventory);
-		const committed = journeyInventory.commitJourneyWithRestStops(restSteps);
-		dialogueBox.show(buildInventoryText(committed.inventory));
+		const committed = controller.commitJourneyWithRestStops(restSteps);
+		controller.showInventory();
 		const committedRendered = dialogueBox._textEl.textContent;
+		const committedSnapshot = controller.getRpgSnapshot().inventory;
+		const remainingPacks = committedSnapshot.items.find((item) => item.itemId === 'dragonstone-travel-ration-pack')?.quantity ?? 0;
+		const maintenanceKits = committedSnapshot.items.find((item) => item.itemId === 'dragonstone-expedition-maintenance-kit')?.quantity ?? 0;
 		const committedTravel = committed.ok === true
 			&& committed.consumedQuantity === 2
-			&& journeyInventory.quantityOf('dragonstone-travel-ration-pack') === 0
-			&& journeyInventory.quantityOf('dragonstone-expedition-maintenance-kit') === 1
-			&& committed.inventory.totalWeightKg === 0.85
-			&& committed.inventory.fieldReadiness.tier === 'expedition-ready'
+			&& remainingPacks === 0
+			&& maintenanceKits === 1
+			&& committedSnapshot.totalWeightKg === 0.85
+			&& committedSnapshot.fieldReadiness.tier === 'expedition-ready'
 			&& committedRendered.includes('Hızlı seyahat menzili: 12 km · Yol azığı: 0')
 			&& committedRendered.includes('Dragonstone Sefer Bakım Kiti ×1');
 
@@ -82,7 +82,7 @@ try {
 	});
 	if (pageErrors.length || consoleErrors.length) throw new Error(`Journey-planning browser proof emitted errors: ${JSON.stringify({ pageErrors, consoleErrors })}`);
 	for (const key of ['renderedRoute', 'sequential', 'recommendation', 'tavernRecovery', 'preserved', 'committedTravel']) if (!result[key]) throw new Error(`Journey-planning browser assertion failed: ${key} ${JSON.stringify(result)}`);
-	console.log(`[RPG Chromium] PASS sequential journey planning + tavern recovery + atomic commit ${JSON.stringify(result)}`);
+	console.log(`[RPG Chromium] PASS sequential journey planning + tavern recovery + controller atomic commit ${JSON.stringify(result)}`);
 } finally {
 	await browser.close();
 	await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
