@@ -66,7 +66,7 @@ async function setPad({ axes = [0, 0, 0, 0], buttons = {}, connected = true } = 
 
 async function acquireWithGuidedApproach() {
 	let approachBursts = 0, nearestSeen = Infinity;
-	for (let attempt = 0; attempt < 18; attempt += 1) {
+	for (let attempt = 0; attempt < 24; attempt += 1) {
 		const lockStart = (await histories()).locks.length;
 		await setPad({ buttons: { 11: true } }); await sleep(180); await setPad(); await sleep(100);
 		const recent = (await histories()).locks.slice(lockStart);
@@ -76,8 +76,11 @@ async function acquireWithGuidedApproach() {
 		need(noTarget, `R3 attempt ${attempt} emitted no bounded acquisition result`);
 		need(typeof noTarget.nearestTargetId === 'string' && Number.isFinite(noTarget.nearestDistanceMeters) && Number.isFinite(noTarget.nearestAngleDegrees), `R3 attempt ${attempt} missing nearest-candidate telemetry: ${JSON.stringify(noTarget)}`);
 		nearestSeen = Math.min(nearestSeen, noTarget.nearestDistanceMeters);
-		if (noTarget.nearestDistanceMeters > 30 && noTarget.nearestAngleDegrees <= 48) {
-			await setPad({ buttons: { 12: true } }); await sleep(1400); await setPad(); await sleep(120); approachBursts += 1;
+		if (noTarget.nearestDistanceMeters > 30 && noTarget.nearestAngleDegrees <= 60) {
+			// Walk long enough to cross the real 30m acquisition boundary with margin, but keep each
+			// burst bounded so collider/ground resolution stays authoritative in the shipped scene.
+			const burstMs = Math.min(1800, Math.max(650, (noTarget.nearestDistanceMeters - 27) * 420));
+			await setPad({ buttons: { 12: true } }); await sleep(burstMs); await setPad(); await sleep(120); approachBursts += 1;
 		}
 		await setPad({ axes: [0, 0, 0.8, 0] }); await sleep(300); await setPad(); await sleep(100);
 	}
