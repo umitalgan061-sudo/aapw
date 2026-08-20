@@ -16,6 +16,27 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 const errors = [];
 page.on('pageerror', (error) => errors.push(`page:${error.message}`));
 page.on('console', (message) => { if (message.type() === 'error') errors.push(`console:${message.text()}`); });
+
+// The attack active window is intentionally short. Capture the HUD after the canonical event has
+// completed dispatch rather than racing a later Playwright DOM read against the following frame.
+await page.addInitScript(() => {
+	window.__combatHudAttackSamples = [];
+	window.addEventListener('aapw:player-attack-window', (event) => {
+		if (event?.detail?.phase !== 'active-start') return;
+		queueMicrotask(() => {
+			const el = document.querySelector('.g3d-combat-status');
+			window.__combatHudAttackSamples.push({
+				serial: event.detail.serial,
+				kind: event.detail.kind,
+				phase: event.detail.phase,
+				comboStep: event.detail.comboStep,
+				text: el?.textContent ?? '',
+				state: el?.dataset.state ?? '',
+			});
+		});
+	});
+});
+
 try {
 	await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
 	await page.locator('#run266-entry-enter').click();
@@ -23,11 +44,13 @@ try {
 	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.textContent?.includes('Serbest'), null, { timeout: 15000 });
 	const baseline = await page.locator('.g3d-combat-status').evaluate((el) => ({ text: el.textContent, role: el.getAttribute('role'), live: el.getAttribute('aria-live'), state: el.dataset.state ?? '' }));
 	need(baseline.role === 'status' && baseline.live === 'polite', `combat HUD accessibility contract missing: ${JSON.stringify(baseline)}`);
+
 	await page.keyboard.press('KeyE');
-	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.dataset.state === 'attack-active-start', null, { timeout: 10000 });
-	const active = await page.locator('.g3d-combat-status').evaluate((el) => ({ text: el.textContent, state: el.dataset.state }));
-	need(active.text.includes('Hafif') && active.text.includes('VURUŞ'), `real light attack did not project active phase: ${JSON.stringify(active)}`);
+	await page.waitForFunction(() => window.__combatHudAttackSamples?.some((sample) => sample.kind === 'light' && sample.phase === 'active-start'), null, { timeout: 10000 });
+	const active = await page.evaluate(() => window.__combatHudAttackSamples.find((sample) => sample.kind === 'light' && sample.phase === 'active-start'));
+	need(active?.state === 'attack-active-start' && active.text.includes('Hafif') && active.text.includes('VURUŞ'), `real light attack did not project active phase: ${JSON.stringify(active)}`);
 	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.dataset.state === 'free', null, { timeout: 15000 });
+
 	const lockProjection = await page.evaluate(() => { globalThis.dispatchEvent(new CustomEvent('aapw:player-lock-on', { detail: { locked: true, targetId: 'runtime-guard', distanceMeters: 12.345, reason: 'acquired' } })); const el = document.querySelector('.g3d-combat-status'); return { text: el?.textContent ?? '', state: el?.dataset.state ?? '' }; });
 	need(lockProjection.state === 'locked' && lockProjection.text.includes('runtime-guard') && lockProjection.text.includes('12.3 m'), `lock event projection failed: ${JSON.stringify(lockProjection)}`);
 	const defenseProjection = await page.evaluate(async () => { const { gameEvents } = await import('./src/3d/eventBus.js'); const { EVENTS } = await import('./src/3d/config.js'); gameEvents.emit(EVENTS.PLAYER_DAMAGED, { amount: 4, mitigation: 'parry' }); const el = document.querySelector('.g3d-combat-status'); return { text: el?.textContent ?? '', state: el?.dataset.state ?? '' }; });
