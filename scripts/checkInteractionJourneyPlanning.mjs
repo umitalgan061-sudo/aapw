@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { createInteractionInventoryState } from '../src/3d/gameplay/interactionConfig.js';
 import {
 	FAST_TRAVEL_BLOCK_REASON,
 	JOURNEY_REST_BLOCK_REASON,
@@ -171,4 +172,70 @@ assert.equal(partialCamp.finalFatigueKm, 37.5);
 const noCampCapability = evaluateRestRequest({ ...readyReadiness, capabilities: { ...readyReadiness.capabilities, campProvisioning: false } }, { kind: REST_KIND.CAMP, siteId: 'dry-camp', fatigueKm: 10 });
 assert.deepEqual(noCampCapability.reasons, [JOURNEY_REST_BLOCK_REASON.CAMP_CAPABILITY_REQUIRED]);
 
-console.log(`[RPG] PASS sequential expedition journey + tavern rest planning ${JSON.stringify({ readyDistanceKm: readyPlan.totalDistanceKm, preferredRoute: routeOptions.preferredRouteId, enduranceKm: endurance.continuousDistanceKm, tavernJourneyKm: withTavern.totalDistanceKm, provisionCarryBlockedAt: provisionCarryBlocked.blockedAtStepIndex })}`);
+// Commit seam: the interaction-owned inventory applies the already-qualified plan as one transaction.
+const journeySteps = [
+	{ type: 'travel', destinationId: 'watch-road', discovered: true, routeOpen: true, distanceKm: 28 },
+	{ type: 'rest', kind: REST_KIND.TAVERN, siteId: 'watch-road-tavern', discovered: true, open: true },
+	{ type: 'travel', destinationId: 'harbor-road', discovered: true, routeOpen: true, distanceKm: 30 },
+];
+const commitInventory = createInteractionInventoryState();
+assert.equal(commitInventory.grant('dragonstone-expedition-maintenance-kit', 1, { sourceType: 'settlement-crafting', sourceId: 'dragonstone-expedition-maintenance-kit' }), true);
+assert.equal(commitInventory.grant('dragonstone-travel-ration-pack', 2, { sourceType: 'settlement-crafting', sourceId: 'dragonstone-watch-travel-ration-pack' }), true);
+const commitBefore = commitInventory.snapshot();
+assert.equal(commitBefore.totalWeightKg, 2.05);
+const committed = commitInventory.commitJourneyWithRestStops(journeySteps);
+assert.equal(committed.ok, true);
+assert.equal(committed.reason, 'committed');
+assert.equal(committed.consumedItemId, 'dragonstone-travel-ration-pack');
+assert.equal(committed.consumedQuantity, 2);
+assert.equal(committed.plan.complete, true);
+assert.equal(committed.inventory.totalWeightKg, 0.85);
+assert.equal(committed.inventory.fieldReadiness.tier, 'expedition-ready');
+assert.equal(committed.inventory.fieldReadiness.travelCapacity.travelRationPacks, 0);
+assert.equal(commitInventory.quantityOf('dragonstone-expedition-maintenance-kit'), 1);
+assert.equal(commitInventory.quantityOf('dragonstone-travel-ration-pack'), 0);
+assert.deepEqual(committed.inventory.items.find((item) => item.itemId === 'dragonstone-expedition-maintenance-kit')?.provenance, [{ sourceType: 'settlement-crafting', sourceId: 'dragonstone-expedition-maintenance-kit' }]);
+
+const restoredAfterJourney = createInteractionInventoryState();
+restoredAfterJourney.restore(committed.inventory);
+assert.deepEqual(restoredAfterJourney.snapshot(), committed.inventory, 'committed expedition inventory must survive canonical save/load');
+
+const atomicBlocked = createInteractionInventoryState();
+atomicBlocked.grant('dragonstone-expedition-maintenance-kit', 1, { sourceType: 'settlement-crafting', sourceId: 'kit' });
+atomicBlocked.grant('dragonstone-travel-ration-pack', 1, { sourceType: 'settlement-crafting', sourceId: 'pack' });
+const atomicBlockedBefore = atomicBlocked.snapshot();
+const blockedCommit = atomicBlocked.commitJourneyWithRestStops([
+	{ ...journeySteps[0], distanceKm: 30 },
+	journeySteps[1],
+	{ ...journeySteps[2], distanceKm: 30 },
+]);
+assert.equal(blockedCommit.ok, false);
+assert.equal(blockedCommit.reason, FAST_TRAVEL_BLOCK_REASON.INSUFFICIENT_PROVISIONS);
+assert.equal(blockedCommit.blockedAtStepIndex, 2);
+assert.equal(blockedCommit.consumedQuantity, 0);
+assert.deepEqual(atomicBlocked.snapshot(), atomicBlockedBefore, 'blocked multi-step journey must consume no provisions');
+
+const fatigueBlockedInventory = createInteractionInventoryState();
+fatigueBlockedInventory.grant('dragonstone-expedition-maintenance-kit', 1, { sourceType: 'settlement-crafting', sourceId: 'kit' });
+fatigueBlockedInventory.grant('dragonstone-travel-ration-pack', 2, { sourceType: 'settlement-crafting', sourceId: 'pack' });
+const fatigueBlockedBefore = fatigueBlockedInventory.snapshot();
+const fatigueCommit = fatigueBlockedInventory.commitJourneyWithRestStops([
+	{ type: 'travel', destinationId: 'watch-road', discovered: true, routeOpen: true, distanceKm: 28 },
+	{ type: 'travel', destinationId: 'harbor-road', discovered: true, routeOpen: true, distanceKm: 20 },
+]);
+assert.equal(fatigueCommit.ok, false);
+assert.equal(fatigueCommit.reason, JOURNEY_REST_BLOCK_REASON.CONTINUOUS_TRAVEL_EXHAUSTED);
+assert.equal(fatigueCommit.consumedQuantity, 0);
+assert.deepEqual(fatigueBlockedInventory.snapshot(), fatigueBlockedBefore, 'fatigue-blocked journey must stay atomic');
+
+const forgedCostInventory = createInteractionInventoryState();
+forgedCostInventory.grant('dragonstone-expedition-maintenance-kit', 1, { sourceType: 'settlement-crafting', sourceId: 'kit' });
+forgedCostInventory.grant('dragonstone-travel-ration-pack', 1, { sourceType: 'settlement-crafting', sourceId: 'pack' });
+const forgedCostCommit = forgedCostInventory.commitJourneyWithRestStops([
+	{ type: 'travel', destinationId: 'watch-road', discovered: true, routeOpen: true, distanceKm: 30, requiredTravelPacks: 0, remainingTravelPacksAfter: 99 },
+]);
+assert.equal(forgedCostCommit.ok, true);
+assert.equal(forgedCostCommit.consumedQuantity, 1, 'commit must recompute route cost instead of trusting caller-authored cost fields');
+assert.equal(forgedCostInventory.quantityOf('dragonstone-travel-ration-pack'), 0);
+
+console.log(`[RPG] PASS sequential expedition journey + tavern rest planning/commit ${JSON.stringify({ readyDistanceKm: readyPlan.totalDistanceKm, preferredRoute: routeOptions.preferredRouteId, enduranceKm: endurance.continuousDistanceKm, tavernJourneyKm: withTavern.totalDistanceKm, provisionCarryBlockedAt: provisionCarryBlocked.blockedAtStepIndex, committedPacks: committed.consumedQuantity })}`);
