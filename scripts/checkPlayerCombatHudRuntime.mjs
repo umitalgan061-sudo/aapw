@@ -32,6 +32,7 @@ await page.addInitScript(() => {
 				comboStep: event.detail.comboStep,
 				text: el?.textContent ?? '',
 				state: el?.dataset.state ?? '',
+				range: el?.dataset.range ?? '',
 			});
 		});
 	});
@@ -42,17 +43,32 @@ try {
 	await page.locator('#run266-entry-enter').click();
 	await page.waitForFunction(() => document.querySelector('#game3d-loading')?.classList.contains('g3d-loading-hidden'), null, { timeout: 90000 });
 	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.textContent?.includes('Serbest'), null, { timeout: 15000 });
-	const baseline = await page.locator('.g3d-combat-status').evaluate((el) => ({ text: el.textContent, role: el.getAttribute('role'), live: el.getAttribute('aria-live'), state: el.dataset.state ?? '' }));
+	const baseline = await page.locator('.g3d-combat-status').evaluate((el) => ({ text: el.textContent, role: el.getAttribute('role'), live: el.getAttribute('aria-live'), state: el.dataset.state ?? '', range: el.dataset.range ?? '' }));
 	need(baseline.role === 'status' && baseline.live === 'polite', `combat HUD accessibility contract missing: ${JSON.stringify(baseline)}`);
 
 	await page.keyboard.press('KeyE');
 	await page.waitForFunction(() => window.__combatHudAttackSamples?.some((sample) => sample.kind === 'light' && sample.phase === 'active-start'), null, { timeout: 10000 });
 	const active = await page.evaluate(() => window.__combatHudAttackSamples.find((sample) => sample.kind === 'light' && sample.phase === 'active-start'));
 	need(active?.state === 'attack-active-start' && active.text.includes('Hafif') && active.text.includes('VURUŞ'), `real light attack did not project active phase: ${JSON.stringify(active)}`);
+	need(active.text.includes('Erişim') && active.text.includes('Güç'), `real attack tuning missing from HUD: ${JSON.stringify(active)}`);
 	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.dataset.state === 'free', null, { timeout: 15000 });
 
-	const lockProjection = await page.evaluate(() => { globalThis.dispatchEvent(new CustomEvent('aapw:player-lock-on', { detail: { locked: true, targetId: 'runtime-guard', distanceMeters: 12.345, reason: 'acquired' } })); const el = document.querySelector('.g3d-combat-status'); return { text: el?.textContent ?? '', state: el?.dataset.state ?? '' }; });
+	const lockProjection = await page.evaluate(() => { globalThis.dispatchEvent(new CustomEvent('aapw:player-lock-on', { detail: { locked: true, targetId: 'runtime-guard', distanceMeters: 12.345, reason: 'acquired' } })); const el = document.querySelector('.g3d-combat-status'); return { text: el?.textContent ?? '', state: el?.dataset.state ?? '', range: el?.dataset.range ?? '' }; });
 	need(lockProjection.state === 'locked' && lockProjection.text.includes('runtime-guard') && lockProjection.text.includes('12.3 m'), `lock event projection failed: ${JSON.stringify(lockProjection)}`);
+	const outOfRange = await page.evaluate(() => {
+		globalThis.dispatchEvent(new CustomEvent('aapw:player-attack-window', { detail: { kind: 'light', phase: 'active-start', comboStep: 2, reachMeters: 1.65, damageScale: 1 } }));
+		const el = document.querySelector('.g3d-combat-status');
+		return { text: el?.textContent ?? '', state: el?.dataset.state ?? '', range: el?.dataset.range ?? '' };
+	});
+	need(outOfRange.state === 'attack-active-start' && outOfRange.range === 'out-of-range' && outOfRange.text.includes('UZAK') && outOfRange.text.includes('Erişim 1.6 m') && outOfRange.text.includes('Seri x2'), `out-of-range melee cue failed: ${JSON.stringify(outOfRange)}`);
+	const inRange = await page.evaluate(() => {
+		globalThis.dispatchEvent(new CustomEvent('aapw:player-lock-on', { detail: { locked: true, targetId: 'runtime-guard', distanceMeters: 1.2, reason: 'tracking' } }));
+		const el = document.querySelector('.g3d-combat-status');
+		return { text: el?.textContent ?? '', state: el?.dataset.state ?? '', range: el?.dataset.range ?? '' };
+	});
+	need(inRange.range === 'in-range' && inRange.text.includes('MENZİLDE') && inRange.text.includes('1.2 m'), `in-range melee cue failed: ${JSON.stringify(inRange)}`);
+	await page.evaluate(() => globalThis.dispatchEvent(new CustomEvent('aapw:player-attack-window', { detail: { kind: 'light', phase: 'finish', comboStep: 2, reachMeters: 1.65, damageScale: 1 } })));
+
 	const defenseProjection = await page.evaluate(async () => { const { gameEvents } = await import('./src/3d/eventBus.js'); const { EVENTS } = await import('./src/3d/config.js'); gameEvents.emit(EVENTS.PLAYER_DAMAGED, { amount: 4, mitigation: 'parry' }); const el = document.querySelector('.g3d-combat-status'); return { text: el?.textContent ?? '', state: el?.dataset.state ?? '' }; });
 	need(defenseProjection.state === 'defense-parry' && defenseProjection.text.includes('PARRY'), `defense event projection failed: ${JSON.stringify(defenseProjection)}`);
 	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.dataset.state === 'locked', null, { timeout: 3000 });
@@ -60,9 +76,9 @@ try {
 	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.dataset.state === 'free');
 	await page.screenshot({ path: path.join(outDir, 'combat-hud-runtime.png'), fullPage: true });
 	need(errors.length === 0, `browser/page errors: ${JSON.stringify(errors)}`);
-	const metrics = { ok: true, baseline, active, lockProjection, defenseProjection, browserErrors: errors };
+	const metrics = { ok: true, baseline, active, lockProjection, outOfRange, inRange, defenseProjection, browserErrors: errors };
 	fs.writeFileSync(path.join(outDir, 'combat-hud-runtime.json'), `${JSON.stringify(metrics, null, 2)}\n`);
-	console.log(`PLAYER_COMBAT_HUD_RUNTIME_OK ${JSON.stringify({ active: active.text, locked: lockProjection.text, defense: defenseProjection.text, errors: errors.length })}`);
+	console.log(`PLAYER_COMBAT_HUD_RUNTIME_OK ${JSON.stringify({ active: active.text, locked: lockProjection.text, outOfRange: outOfRange.text, inRange: inRange.text, defense: defenseProjection.text, errors: errors.length })}`);
 } finally {
 	await browser.close();
 	await new Promise((resolve) => server.close(resolve));
