@@ -58,6 +58,12 @@ jobs:
           node scripts/checkSharedMaterialPlacementContract.js
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkServiceWorkerCache.js
+      - name: Hydrate scoped browser LFS assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs version
+          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
       - name: Install Chromium outside repo
         shell: bash
         run: |
