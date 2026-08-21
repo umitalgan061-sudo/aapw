@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'src/3d/world/vegetation.js'
+      - 'src/3d/world/winterVegetationAsset.js'
       - 'src/3d/world/terrainBiomeShading.js'
       - 'src/3d/world/northGroundCoverClimate.js'
       - 'src/3d/world/windGrass.js'
@@ -11,6 +12,7 @@ on:
       - 'scripts/checkNorthernVegetationClimate.mjs'
       - 'scripts/checkNorthernVegetationRuntime.mjs'
       - 'scripts/checkNorthernVegetationDeterminism.mjs'
+      - 'scripts/checkWinterVegetationAssetUpgrade.mjs'
       - 'scripts/checkTerrainGeographicPalette.mjs'
       - 'scripts/checkNorthClimateContinuity.mjs'
       - 'scripts/checkNorthGroundCoverClimate.mjs'
@@ -35,6 +37,7 @@ jobs:
       - name: Syntax
         run: |
           node --check src/3d/world/vegetation.js
+          node --check src/3d/world/winterVegetationAsset.js
           node --check src/3d/world/terrainBiomeShading.js
           node --check src/3d/world/northGroundCoverClimate.js
           node --check src/3d/world/windGrass.js
@@ -42,6 +45,7 @@ jobs:
           node --check scripts/checkNorthernVegetationClimate.mjs
           node --check scripts/checkNorthernVegetationRuntime.mjs
           node --check scripts/checkNorthernVegetationDeterminism.mjs
+          node --check scripts/checkWinterVegetationAssetUpgrade.mjs
           node --check scripts/checkTerrainGeographicPalette.mjs
           node --check scripts/checkNorthClimateContinuity.mjs
           node --check scripts/checkNorthGroundCoverClimate.mjs
@@ -52,6 +56,8 @@ jobs:
         run: node scripts/checkNorthernVegetationRuntime.mjs
       - name: Northern vegetation determinism
         run: node scripts/checkNorthernVegetationDeterminism.mjs
+      - name: Winter vegetation asset upgrade
+        run: node scripts/checkWinterVegetationAssetUpgrade.mjs
       - name: Geographic terrain palette
         run: node scripts/checkTerrainGeographicPalette.mjs
       - name: North climate continuity
