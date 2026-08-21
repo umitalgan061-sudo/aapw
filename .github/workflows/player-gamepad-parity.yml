@@ -4,6 +4,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'src/3d/gameplay/player.js'
       - 'src/3d/input.js'
       - 'src/3d/gameLoopHelpers.js'
       - 'src/3d/ui/touchJoystick.js'
@@ -15,6 +16,8 @@ on:
       - 'scripts/checkPlayerLockOnRuntime.mjs'
       - 'scripts/checkPlayerMeleeCombo.mjs'
       - 'scripts/checkPlayerStaminaDodge.mjs'
+      - 'scripts/checkPlayerDodgeIFrames.mjs'
+      - 'scripts/checkPlayerDodgeIFrameRuntime.mjs'
       - 'scripts/checkPlayerCombatHudRuntime.mjs'
       - '.github/workflows/player-gamepad-parity.yml'
       - '.github/workflows/player-stamina-dodge.yml'
@@ -50,7 +53,7 @@ jobs:
           git diff --check "$MAIN_SHA"...HEAD
           CHANGED="$(git diff --name-only "$MAIN_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|scripts/checkPlayerLockOnRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerCombatHudRuntime\.mjs|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|scripts/checkPlayerLockOnRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerDodgeIFrames\.mjs|scripts/checkPlayerDodgeIFrameRuntime\.mjs|scripts/checkPlayerCombatHudRuntime\.mjs|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
           read -r ADD DEL < <(git diff --numstat "$MAIN_SHA"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           TOTAL=$((ADD + DEL))
           echo "base=$MAIN_SHA additions=$ADD deletions=$DEL total=$TOTAL"
@@ -66,9 +69,10 @@ jobs:
           test -s assets/animations/peasant_girl/idle.fbx
           test -s assets/animations/peasant_girl/walking.fbx
           test -s assets/animations/peasant_girl/running.fbx
-      - name: Standard gamepad movement combat lock-on and handoff contracts
+      - name: Standard gamepad movement combat lock-on dodge iframe and handoff contracts
         run: |
           set -euo pipefail
+          node --check src/3d/gameplay/player.js
           node --check src/3d/input.js
           node --check src/3d/gameLoopHelpers.js
           node --check src/3d/ui/touchJoystick.js
@@ -79,6 +83,8 @@ jobs:
           node --check scripts/checkPlayerLockOn.mjs
           node --check scripts/checkPlayerLockOnRuntime.mjs
           node --check scripts/checkPlayerStaminaDodge.mjs
+          node --check scripts/checkPlayerDodgeIFrames.mjs
+          node --check scripts/checkPlayerDodgeIFrameRuntime.mjs
           node --check scripts/checkPlayerCombatHudRuntime.mjs
           node scripts/checkPlayerGamepadInput.mjs
           node scripts/checkPlayerGamepadHandoff.mjs
@@ -86,6 +92,7 @@ jobs:
           node --check scripts/checkPlayerMeleeCombo.mjs
           node scripts/checkPlayerMeleeCombo.mjs
           node scripts/checkPlayerStaminaDodge.mjs
+          node scripts/checkPlayerDodgeIFrames.mjs
       - name: Shared material PWA and cache contracts
         run: |
           set -euo pipefail
@@ -94,6 +101,7 @@ jobs:
           node scripts/checkSharedMaterialPlacementContract.js
           node scripts/checkPwaInstallability.js
           node scripts/checkServiceWorkerCache.js
+          ! grep -q 'EditorMaterialStudio' src/3d/gameplay/player.js
           ! grep -q 'EditorMaterialStudio' src/3d/input.js
           ! grep -q 'EditorMaterialStudio' src/3d/gameLoopHelpers.js
           ! grep -q 'EditorMaterialStudio' src/3d/ui/healthBar.js
@@ -105,7 +113,7 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-      - name: Shipped scene gamepad parity and lock-on proof
+      - name: Shipped scene gamepad parity lock-on and dodge iframe proof
         shell: bash
         run: |
           set -euo pipefail
@@ -119,6 +127,12 @@ jobs:
           test -s artifacts/player-lock-on/lock-on-runtime.json
           grep -q 'PLAYER_LOCK_ON_RUNTIME_OK' artifacts-player-lock-on.log
           grep -q '"browserErrors": \[\]' artifacts/player-lock-on/lock-on-runtime.json
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerDodgeIFrameRuntime.mjs --out-dir=artifacts/player-dodge-iframes | tee artifacts-player-dodge-iframes.log
+          test -s artifacts/player-dodge-iframes/dodge-iframes-runtime.png
+          test -s artifacts/player-dodge-iframes/dodge-iframes-runtime.json
+          grep -q 'PLAYER_DODGE_IFRAMES_RUNTIME_OK' artifacts-player-dodge-iframes.log
+          grep -q '"mitigation": "dodge"' artifacts/player-dodge-iframes/dodge-iframes-runtime.json
+          grep -q '"browserErrors": \[\]' artifacts/player-dodge-iframes/dodge-iframes-runtime.json
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
       - name: Final main freshness
@@ -139,5 +153,7 @@ jobs:
           path: |
             artifacts/player-gamepad/
             artifacts/player-lock-on/
+            artifacts/player-dodge-iframes/
             artifacts-player-gamepad.log
             artifacts-player-lock-on.log
+            artifacts-player-dodge-iframes.log
