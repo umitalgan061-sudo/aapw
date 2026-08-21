@@ -9,6 +9,7 @@ import {
   northClimateWeightsAtWorldZ,
   resolveTerrainBiomeColor,
   resolveTerrainSnowCoverage,
+  terrainConcavityMetersFromNeighbours,
 } from '../src/3d/world/terrainBiomeShading.js';
 
 function worldZForNormalizedMapY(normalizedY) {
@@ -28,12 +29,13 @@ function colorAt({ normalizedY = 0.60, height = 12, slope = 3, rockWeight = 0, s
   });
 }
 
-function snowAt({ normalizedY, height, slope, snowWeight = 0 }) {
+function snowAt({ normalizedY, height, slope, snowWeight = 0, terrainConcavityMeters = 0 }) {
   return resolveTerrainSnowCoverage({
     heightAboveSeaMeters: height,
     slopeDegrees: slope,
     snowWeight,
     worldZ: worldZForNormalizedMapY(normalizedY),
+    terrainConcavityMeters,
   });
 }
 
@@ -116,6 +118,24 @@ assert(northGentleSnow.snowAmount >= northSteepSnow.snowAmount,
 assert(northSteepSnow.moraineExposure >= 0,
   'steep permanent-ice terrain must expose a finite non-negative moraine contribution');
 
+// Four-neighbour terrain form must distinguish deposition bowls from exposed ridges without changing
+// canonical height authority. A local bowl has neighbours above its centre; a ridge has them below.
+assert.equal(terrainConcavityMetersFromNeighbours(100, 106, 104, 105, 105), 5,
+  'terrain-form helper must report positive concavity for a bowl/valley');
+assert.equal(terrainConcavityMetersFromNeighbours(100, 96, 95, 94, 95), -5,
+  'terrain-form helper must report negative concavity for a convex ridge');
+const tundraBowlSnow = snowAt({ normalizedY: 0.33, height: 120, slope: 7, terrainConcavityMeters: 5 });
+const tundraNeutralSnow = snowAt({ normalizedY: 0.33, height: 120, slope: 7, terrainConcavityMeters: 0 });
+const tundraRidgeSnow = snowAt({ normalizedY: 0.33, height: 120, slope: 7, terrainConcavityMeters: -5 });
+assert(tundraBowlSnow.snowAmount > tundraNeutralSnow.snowAmount,
+  'tundra bowls should retain more snow than locally neutral terrain');
+assert(tundraNeutralSnow.snowAmount > tundraRidgeSnow.snowAmount,
+  'convex tundra ridges should be visibly more wind-scoured than neutral terrain');
+assert(tundraBowlSnow.terrainFormSupply <= TERRAIN_BIOME_SHADING_POLICY.tundraConcavitySnowGain + 1e-9,
+  'concavity accumulation must stay within its bounded tundra gain');
+assert(tundraRidgeSnow.ridgeScour <= TERRAIN_BIOME_SHADING_POLICY.tundraRidgeScourMax + 1e-9,
+  'ridge scour must stay within its bounded tundra ceiling');
+
 let previousColdPreference = null;
 for (let normalizedY = 0.06; normalizedY <= 0.40; normalizedY += 0.01) {
   const sample = colorAt({ normalizedY, height: 0.5, slope: 2, worldX: 120 });
@@ -160,6 +180,9 @@ console.log('[checkTerrainGeographicPalette] PASS', JSON.stringify({
   northPermanentIce: northClimate.permanentIce,
   tundraGentleDrift: tundraGentleSnow.driftSupply,
   tundraSteepDrift: tundraSteepSnow.driftSupply,
+  tundraBowlSnow: tundraBowlSnow.snowAmount,
+  tundraNeutralSnow: tundraNeutralSnow.snowAmount,
+  tundraRidgeSnow: tundraRidgeSnow.snowAmount,
   lowland: lowland.getHexString(),
   shore: shore.getHexString(),
   southSeabed: southSeabed.getHexString(),
