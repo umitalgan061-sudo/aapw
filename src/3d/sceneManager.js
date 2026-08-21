@@ -27,6 +27,7 @@ import { createHeightSampler, mulberry32 } from './world/terrain.js';
 import { createSettlements, computeSettlementFlattenPads } from './world/settlements.js';
 import { buildRoadNetwork } from './world/roads.js';
 import { createVegetation } from './world/vegetation.js';
+import { upgradeWinterVegetationAssets } from './world/winterVegetationAsset.js';
 import { createWindGrassRun180 } from './world/windGrass.js';
 import { createVillages } from './world/villages.js';
 import { createOrbitCamera } from './camera.js';
@@ -205,6 +206,18 @@ export function createScene(canvas) {
 		`[sceneManager] Scattered vegetation: ${vegetationResult.placedCount}/${vegetationResult.targetCount} tree(s) placed ` +
 			`(${vegetationResult.clusterSeatCount} seat(s) with a local cluster ring).`,
 	);
+	void upgradeWinterVegetationAssets(vegetationResult.group).then((upgrade) => {
+		if (upgrade.status === 'active') {
+			console.info(
+				`[sceneManager] Upgraded ${upgrade.treeCount} northern snow tree(s) from ${upgrade.assetUrl} ` +
+				`using ${upgrade.meshCount} instanced GLB primitive(s).`,
+			);
+		} else if (upgrade.status === 'procedural-fallback') {
+			console.info('[sceneManager] Winter GLB unavailable/pointer-only; procedural snow-pine fallback remains active.');
+		}
+	}).catch((error) => {
+		console.warn('[sceneManager] Optional winter vegetation asset upgrade failed; procedural fallback remains active.', error);
+	});
 
 	const villagesResult = createVillages({
 		sampleHeightMeters: groundCollider.getGroundHeight,
