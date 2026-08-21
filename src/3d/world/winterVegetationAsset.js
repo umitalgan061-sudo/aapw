@@ -12,20 +12,34 @@
 import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
 
+const PREFERRED_SNOW_PINE_ASSET = 'assets/models/vegetation/pine_Zt62gceKXZ.glb';
+const BARE_WINTER_TREE_ASSET = 'assets/models/vegetation/winter_tree.glb';
+const SNOW_DEAD_TREE_GROVE_ASSET = 'assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb';
+
 export const WINTER_VEGETATION_ASSET_POLICY = Object.freeze({
-	id: 'winter-vegetation-materialized-asset-2026-08-21-v3',
+	id: 'winter-vegetation-materialized-asset-2026-08-21-v4',
+	preferredSnowPineAsset: PREFERRED_SNOW_PINE_ASSET,
+	bareWinterTreeAsset: BARE_WINTER_TREE_ASSET,
+	groveAsset: SNOW_DEAD_TREE_GROVE_ASSET,
 	candidates: Object.freeze([
-		'assets/models/vegetation/winter_tree.glb',
-		'assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb',
+		PREFERRED_SNOW_PINE_ASSET,
+		BARE_WINTER_TREE_ASSET,
+		SNOW_DEAD_TREE_GROVE_ASSET,
 	]),
 	proceduralTrunkName: 'vegetation-snow-pine-trunks',
 	proceduralFoliageName: 'vegetation-snow-pine-foliage',
 	targetHeightMeters: 8.6,
 	minSourceHeightMeters: 0.05,
-	// Hydrated-GLB QA measured the single Tree asset at 0.627 horizontal/height, while the seven-mesh
-	// dead-tree/stump grove is 1.416. A snow-pine point represents one tree, so tolerate a broad crown
-	// but reject grove-shaped replacements; if the primary tree fails, the procedural fallback wins.
+	// Hydrated browser QA measured the textured pine at 0.777 and the bare winter tree at 0.627
+	// horizontal/height, while the seven-mesh dead-tree/stump grove is 1.416. A snow-pine point
+	// represents one tree, so accept either single tree but reject grove-shaped replacements.
 	maxHorizontalToHeightRatio: 1.05,
+	// The preferred pine ships as a green textured asset. Its transparent foliage primitive keeps
+	// the source alpha silhouette while this shader blend pushes visible needles toward cold snow.
+	pineFoliageSnowColor: Object.freeze([0.86, 0.92, 0.94]),
+	pineFoliageSnowMixMin: 0.58,
+	pineFoliageSnowMixRange: 0.28,
+	pineFoliageMinRoughness: 0.92,
 	// A Git-LFS pointer is ~130 bytes. A real textured tree GLB is orders of magnitude larger. HEAD
 	// preflight lets Firebase/static hosting reject an unhydrated pointer without downloading it into
 	// GLTFLoader first. Keep the threshold deliberately tiny so it cannot reject a plausible real GLB.
@@ -141,8 +155,44 @@ export function createWinterAssetNormalization(measurement, targetHeightMeters =
 	return new THREE.Matrix4().makeScale(scale, scale, scale).multiply(translateToBase);
 }
 
-function cloneMaterialWithTextureCleanup(sourceMaterial, disposedTextures) {
+/**
+ * Converts only the preferred pine's alpha-cut foliage toward a cold snow palette. Keeping the
+ * original map fragment first preserves its detailed silhouette/alpha and texture variation; the
+ * post-map blend changes visible RGB only. Opaque trunk material remains textured brown but loses
+ * the source asset's non-physical metallic response so snow lighting reads naturally.
+ */
+export function applyWinterPineMaterialTreatment(material, assetUrl, policy = WINTER_VEGETATION_ASSET_POLICY) {
+	if (!material || assetUrl !== policy.preferredSnowPineAsset) return material;
+	material.metalness = 0;
+	if (Number.isFinite(material.roughness)) material.roughness = Math.max(material.roughness, policy.pineFoliageMinRoughness);
+
+	const isMappedFoliage = Boolean(material.map && material.transparent);
+	material.userData = {
+		...material.userData,
+		winterPineTreatment: isMappedFoliage ? 'snow-foliage-shader' : 'winter-trunk-source-map',
+	};
+	if (!isMappedFoliage) return material;
+
+	const [snowR, snowG, snowB] = policy.pineFoliageSnowColor;
+	const priorCompile = material.onBeforeCompile;
+	material.onBeforeCompile = function compileSnowPine(shader, renderer) {
+		priorCompile?.call(this, shader, renderer);
+		const marker = '#include <map_fragment>';
+		if (!shader.fragmentShader.includes(marker)) return;
+		shader.fragmentShader = shader.fragmentShader.replace(marker, `${marker}\n
+			float winterFoliageLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+			float winterSnowMix = ${policy.pineFoliageSnowMixMin.toFixed(3)}
+				+ ${policy.pineFoliageSnowMixRange.toFixed(3)} * smoothstep(0.12, 0.52, winterFoliageLuma);
+			diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${snowR.toFixed(3)}, ${snowG.toFixed(3)}, ${snowB.toFixed(3)}), winterSnowMix);`);
+	};
+	material.customProgramCacheKey = () => `${policy.id}:snow-foliage-v1`;
+	material.needsUpdate = true;
+	return material;
+}
+
+function cloneMaterialWithTextureCleanup(sourceMaterial, disposedTextures, assetUrl) {
 	const material = sourceMaterial.clone();
+	applyWinterPineMaterialTreatment(material, assetUrl);
 	const originalDispose = material.dispose.bind(material);
 	material.dispose = function disposeWinterAssetMaterial() {
 		for (const key of Object.keys(material)) {
@@ -185,13 +235,17 @@ function applyWinterAssetInstances({ group, sourceMesh, sourceFoliageMesh, model
 
 	for (let meshIndex = 0; meshIndex < modelMeshes.length; meshIndex++) {
 		const sourceAssetMesh = modelMeshes[meshIndex];
-		const material = cloneMaterialWithTextureCleanup(sourceAssetMesh.material, disposedTextures);
+		const material = cloneMaterialWithTextureCleanup(sourceAssetMesh.material, disposedTextures, assetUrl);
 		const instanced = new THREE.InstancedMesh(sourceAssetMesh.geometry, material, count);
 		instanced.name = `vegetation-snow-asset-${meshIndex}`;
 		instanced.instanceMatrix.setUsage(THREE.StaticDrawUsage);
 		instanced.castShadow = sourceMesh.castShadow || sourceFoliageMesh.castShadow;
 		instanced.receiveShadow = sourceMesh.receiveShadow || sourceFoliageMesh.receiveShadow;
-		instanced.userData.winterVegetationAsset = Object.freeze({ assetUrl, meshIndex });
+		instanced.userData.winterVegetationAsset = Object.freeze({
+			assetUrl,
+			meshIndex,
+			materialTreatment: material.userData?.winterPineTreatment ?? 'source',
+		});
 
 		for (let instanceIndex = 0; instanceIndex < count; instanceIndex++) {
 			sourceMesh.getMatrixAt(instanceIndex, treeMatrix);
@@ -213,6 +267,9 @@ function markNorthClimateRepresentation(group, assetUrl, meshCount, treeCount) {
 		winterAssetUrl: assetUrl,
 		winterAssetMeshCount: meshCount,
 		winterAssetTreeCount: treeCount,
+		winterAssetTreatment: assetUrl === WINTER_VEGETATION_ASSET_POLICY.preferredSnowPineAsset
+			? 'textured-pine-snow-foliage'
+			: 'source-material',
 	});
 }
 
