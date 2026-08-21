@@ -56,13 +56,20 @@ try {
 		const scene = new THREE.Scene();
 		scene.background = new THREE.Color(0xc8d0d4);
 		const camera = new THREE.PerspectiveCamera(39, viewport.width / viewport.height, 0.1, 80);
-		scene.add(new THREE.HemisphereLight(0xe8f2f5, 0x586068, 1.25));
+		const hemisphere = new THREE.HemisphereLight(0xe8f2f5, 0x586068, 1.25);
+		scene.add(hemisphere);
 		const sun = new THREE.DirectionalLight(0xfff1d6, 3.1);
 		sun.position.set(8, 15, 10);
 		sun.castShadow = true;
 		sun.shadow.mapSize.set(1024, 1024);
 		Object.assign(sun.shadow.camera, { left: -12, right: 12, top: 12, bottom: -12, near: 0.5, far: 45 });
 		scene.add(sun);
+		const moon = new THREE.DirectionalLight(0xaec8ff, 0);
+		moon.position.set(-9, 12, -7);
+		moon.castShadow = true;
+		moon.shadow.mapSize.set(1024, 1024);
+		Object.assign(moon.shadow.camera, { left: -12, right: 12, top: 12, bottom: -12, near: 0.5, far: 45 });
+		scene.add(moon);
 
 		const ground = new THREE.Mesh(
 			new THREE.PlaneGeometry(32, 32),
@@ -135,8 +142,25 @@ try {
 			return projection();
 		}
 
+		function setNightLighting(enabled) {
+			sun.intensity = enabled ? 0 : 3.1;
+			moon.intensity = enabled ? 1.65 : 0;
+			hemisphere.intensity = enabled ? 0.45 : 1.25;
+			scene.background.set(enabled ? 0x101827 : 0xc8d0d4);
+			ground.material.color.set(enabled ? 0xaeb9c5 : 0xd7d9d5);
+		}
+
 		const frontProjection = renderView([10.5, 7.4, 14.5], [0, 4.15, 0], `${assetLabel} · three-quarter · 8.6 m target`);
 		window.__renderWinterTreeSide = () => renderView([-18.0, 7.0, 0], [0, 4.0, 0], `${assetLabel} · side · shadow/material QA`);
+		window.__renderWinterTreeNight = () => {
+			setNightLighting(true);
+			return {
+				projection: renderView([10.5, 7.4, 14.5], [0, 4.15, 0], `${assetLabel} · moonlight · night readability QA`),
+				moonIntensity: moon.intensity,
+				sunIntensity: sun.intensity,
+				hemisphereIntensity: hemisphere.intensity,
+			};
+		};
 
 		return {
 			policyId: WINTER_VEGETATION_ASSET_POLICY.id,
@@ -161,6 +185,7 @@ try {
 			shadows: {
 				rendererEnabled: renderer.shadowMap.enabled,
 				lightCastShadow: sun.castShadow,
+				moonCastShadow: moon.castShadow,
 				groundReceiveShadow: ground.receiveShadow,
 				replacementsCastShadow: replacements.every((mesh) => mesh.castShadow),
 				replacementsReceiveShadow: replacements.every((mesh) => mesh.receiveShadow),
@@ -172,6 +197,8 @@ try {
 	await page.screenshot({ path: `${ARTIFACT_DIR}/${ARTIFACT_STEM}-three-quarter.png`, fullPage: true });
 	const sideProjection = await page.evaluate(() => window.__renderWinterTreeSide());
 	await page.screenshot({ path: `${ARTIFACT_DIR}/${ARTIFACT_STEM}-side.png`, fullPage: true });
+	const night = await page.evaluate(() => window.__renderWinterTreeNight());
+	await page.screenshot({ path: `${ARTIFACT_DIR}/${ARTIFACT_STEM}-moonlight.png`, fullPage: true });
 
 	const report = {
 		assetPath: ASSET_PATH,
@@ -180,6 +207,10 @@ try {
 		bounds: Object.fromEntries(Object.entries(metrics.bounds).map(([key, values]) => [key, values.map((value) => round(value))])),
 		frontProjection: Object.fromEntries(Object.entries(metrics.frontProjection).map(([key, value]) => [key, round(value)])),
 		sideProjection: Object.fromEntries(Object.entries(sideProjection).map(([key, value]) => [key, round(value)])),
+		night: {
+			...night,
+			projection: Object.fromEntries(Object.entries(night.projection).map(([key, value]) => [key, round(value)])),
+		},
 		browserErrors,
 	};
 	await writeFile(`${ARTIFACT_DIR}/${ARTIFACT_STEM}-report.json`, `${JSON.stringify(report, null, 2)}\n`);
@@ -194,6 +225,9 @@ try {
 	assert(metrics.frontProjection.height > 0.5 && metrics.frontProjection.height < 1.75, 'three-quarter view must frame the full tree');
 	assert(metrics.frontProjection.width > 0.2 && metrics.frontProjection.width < 1.4, 'tree crown must occupy a useful frame width');
 	assert(sideProjection.height > 0.5 && sideProjection.height < 1.8, 'side view must frame the full tree');
+	assert(night.projection.height > 0.5 && night.projection.height < 1.75, 'moonlight view must preserve full-tree framing');
+	assert(night.moonIntensity > 0 && night.sunIntensity === 0 && night.hemisphereIntensity > 0,
+		'night QA must use moon + restrained ambient light with the sun disabled');
 	assert(metrics.materials.every((material) => material.opacity > 0), 'asset materials must remain visible');
 	assert(Object.values(metrics.shadows).every(Boolean), 'QA scene must exercise cast/receive shadow behavior');
 	assert(metrics.renderInfo.triangles > 0, 'QA scene must render real triangles');
@@ -210,6 +244,7 @@ try {
 		sizeMeters: report.bounds.size,
 		ratio: report.ratio,
 		materials: report.materials.map((material) => material.treatment),
+		nightLighting: { moon: report.night.moonIntensity, ambient: report.night.hemisphereIntensity },
 		triangles: report.renderInfo.triangles,
 	}));
 } finally {
