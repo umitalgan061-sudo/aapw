@@ -18864,3 +18864,44 @@ Service worker v40→v41.
 
 **Technical debt.** 0 new. **Açık iş.** `coastalReliefTaper` duvarı (yukarıda), coğrafi renkler,
 göller (S-0039), assetlerin dokulanması.
+
+## ADR-0329 — Yapılar havada duruyordu: zemin, ayak izinin en alçak noktasına oturtuldu
+
+**Sahibin talimatı.** "Herhangi bir yapının herhangi bir köşesi ya da bölgesi havada kalmasın. Zemin,
+o yapının otomatik alt tabanına yapışsın." Ekran görüntüsü kusuru gösteriyordu: bir yamaçtaki ahırların
+aşağı köşeleri havada.
+
+**Sebep tek satırdı.** `villageBuildings.groundModel` binanın tabanını (`box.min.y`) yalnızca **merkez**
+noktasında (`x, z`) örneklenen zemine oturtuyordu. Eğimde ayak izinin altındaki zemin değişir: merkezi
+120 m'de olan bir ahırın aşağı köşesi 116 m zeminin üzerinde, tabanı 120 m'ye sabitlenince o köşe **4 m
+havada** kalıyor. Düzeltme: tabanı ayak izinin **en alçak** noktasına (dört köşe + merkez) oturtmak.
+Böylece zeminin her noktası tabanın üstünde ya da hizasında olur — yukarı taraf tepeye hafifçe gömülür,
+aşağı taraf zemine değer. "Zemin, tabana yapışsın" tam olarak budur. Aynı düzeltme
+`worldPropScatter.buildChunkGroup`'a da uygulandı (döndürülmüş kutunun dünya-AABB köşeleri, dönüşten
+bağımsız doğru sonuç verir).
+
+**Kapı yanlış uçtan ölçüyordu — ve önce bunu yakaladım.** `checkVillageBuildings.js`'e "havada" kontrolü
+eklerken ilk sürüm boşluğu **en yüksek** köşe zeminine göre ölçtü; oysa bina aşağı tarafta, zeminin
+tabanın **altına** düştüğü yerde havalanır. Metrik ayak izinin **en alçak** zeminine çevrildi. Merkez
+tabanlı eski davranışla ölçüldüğünde **23 bina havada, en kötüsü 5,79 m** — ekran görüntüsündeki kusur,
+sayıyla. Ayak-izi-min düzeltmesiyle **0**. Önce hatayı üretip kapının dişini kanıtladım, sonra düzelttim.
+
+**Çit modeli tamamen kaldırıldı.** `fence_fence.fbx` tur 380'de hydrate edilince render soruyu
+kapattı: 6 m ayak izine ölçeklenince bir çit değil, yere yatmış düz beyaz bir levha — fotogrametri
+taramasının bounding box'ına gömülü zemin düzlemi "en geniş boyut = 6 m" ile gerçek parmaklıkları
+zerreye indiriyor. 17.254 üçgen de o. Köylerden (`villageBuildings.js`) ve scatter'dan
+(`worldPropExclusions.js` → yeni `photogrammetryGroundPlaneNotAnObject`) çıkarıldı; katalogda kalıyor,
+hiçbir yere yerleştirilmiyor. `villages.js` tarla sınırlarını zaten instanced duvarlarla çiziyor, yani
+çit kaybı yok — yalnız glitch. Köy maliyeti **575k → 311k üçgen** düştü.
+
+**Ölçülen sonuç:** 11 köy, 70 yapı (7 kilise, 9 zanaat, 26 tarla, 28 tezgâh), **0 havada** (en kötü
+0 m, tavan 0,75 m), 0 suda, 0 placeholder, deterministik. Coverage 0 unaccounted (çit artık withheld).
+Scatter kapısı PASS, her yerleştirme legal. §8.4 tetiklenmiyor (arazi yükseklik alanı değişmedi; yalnız
+modeller onu okuyor). Service worker v41→v42.
+
+**Görsel kanıt** `artifacts/villages/berk-*.png` (80,8 m'de yamaç köyü): kilise, ahırlar, kışla, tezgâh
+hepsi zemine oturuyor. Renderdaki soluk levha bir **yol şeridi** — bina değil; kavşakta araziden
+kalkan yol meshi, ayrı bir konu (roads.js), tur 383 için not edildi (görev #5).
+
+**Technical debt.** 0 new. **Açık iş.** Sahibin aynı mesajındaki diğer üç istek: kuzeyin buzla
+kaplanması, map.png'den zemin renk paleti, güneş/ay ile gerçekçi gökyüzü. Ve yol şeridi kalkması.

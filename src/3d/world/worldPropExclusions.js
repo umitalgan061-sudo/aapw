@@ -255,6 +255,18 @@ export const PROP_EXCLUSIONS_BY_REASON = Object.freeze({
 	]),
 	underwaterOnly: Object.freeze([
 		"animals/shark.glb",
+	]),
+	/**
+	 * `fence_fence.fbx` renders as a flat sheet, not a fence. Run 381 hydrated it and the render was
+	 * unambiguous: its bounding box is dominated by a baked ground plane from the photogrammetry capture,
+	 * so scaling "widest dimension = footprint" shrinks the actual rails to nothing and lays a white
+	 * sheet flat on the terrain — a glitch wherever it lands, in a village or scattered on farmland. It
+	 * was 17,254 triangles for that. Removed from village buildings (`world/villageBuildings.js`, run
+	 * 381) and now from the scatter too; `world/villages.js` draws the field boundaries this was meant to
+	 * provide as instanced walls. Kept in the repository, placed nowhere.
+	 */
+	photogrammetryGroundPlaneNotAnObject: Object.freeze([
+		"fbx/fence_fence.fbx",
 	]),});
 
 /** Every excluded path, flattened — what `scripts/checkAssetCoverage.js` checks against. */

@@ -39,6 +39,14 @@ const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 /** How far past a hamlet's own green a building may stand, in metres. */
 const MAX_PLOT_DISTANCE_METERS = 70;
 /**
+ * How far a building's base may sit above the tallest ground under its own footprint before it counts
+ * as floating, in metres. `groundModel` founds every building on the *lowest* ground under it minus a
+ * small bite, so a correctly grounded building has a base at or below the terrain everywhere — a
+ * positive gap here means a real hole of open air under it, which is what the owner flagged. The
+ * tolerance covers height-sampler interpolation between the placement sampler and the live collider,
+ * not a visible gap. */
+const MAX_FLOAT_METERS = 0.75;
+/**
  * Triangle ceiling for every village building in the world together (GOVERNANCE.md §4).
  *
  * This is where an asset library bites: the models range from a 970-triangle barn to an 86,728-triangle
@@ -59,7 +67,7 @@ const MAX_VILLAGE_TRIANGLES = 900000;
 	try {
 		const page = await browser.newPage();
 		await page.goto(`${origin}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-		const result = await page.evaluate(async ({ maxPlotDistance }) => {
+		const result = await page.evaluate(async ({ maxPlotDistance, floatToleranceMeters }) => {
 			const THREE = await import('three');
 			const { WORLD_DEFAULTS } = await import('/src/3d/config.js');
 			const { createScene } = await import('/src/3d/sceneManager.js');
@@ -95,6 +103,8 @@ const MAX_VILLAGE_TRIANGLES = 900000;
 			let worstPlotDistance = 0;
 			let submerged = 0;
 			let placeholders = 0;
+			let floating = 0;
+			let worstFloatMeters = 0;
 			const sea = WORLD_DEFAULTS.WATER_LEVEL_METERS;
 			const ground = state.groundCollider.getGroundHeight;
 			// Where a building *is*, not where its transform node is. `groundModel` recentres a model on
@@ -119,6 +129,24 @@ const MAX_VILLAGE_TRIANGLES = 900000;
 				worstPlotDistance = Math.max(worstPlotDistance, distance);
 				if (distance > maxPlotDistance) placedOutsideVillage += 1;
 				if (ground(worldCentre.x, worldCentre.z) <= sea) submerged += 1;
+				// Floating: a corner of the building's flat base sits above the ground beneath it, leaving a
+				// gap of open air — the exact defect the owner flagged. The gap is largest at the *lowest*
+				// ground under the footprint (the downhill corner), not the highest: measure the base
+				// against the minimum ground across the footprint's four corners and its centre. A base
+				// more than the tolerance above that lowest point is a real, visible float. (Grounding on
+				// the footprint minimum, as `groundModel` now does, drives this to -groundBite by
+				// construction; center-only grounding leaves it at the downhill drop, which is the bug.)
+				const worldSize = worldBox.getSize(new THREE.Vector3());
+				const hx = worldSize.x * 0.5;
+				const hz = worldSize.z * 0.5;
+				let lowestUnderFootprint = ground(worldCentre.x, worldCentre.z);
+				for (const cx of [-hx, hx]) {
+					for (const cz of [-hz, hz]) {
+						lowestUnderFootprint = Math.min(lowestUnderFootprint, ground(worldCentre.x + cx, worldCentre.z + cz));
+					}
+				}
+				const gap = worldBox.min.y - lowestUnderFootprint;
+				if (gap > floatToleranceMeters) { floating += 1; worstFloatMeters = Math.max(worstFloatMeters, gap); }
 				const entry = perHamlet.get(meta.seatId) ?? {};
 				entry[meta.role] = (entry[meta.role] ?? 0) + 1;
 				perHamlet.set(meta.seatId, entry);
@@ -144,11 +172,12 @@ const MAX_VILLAGE_TRIANGLES = 900000;
 				placed: built.placed, skipped: built.skipped, byRole: built.byRole,
 				perHamlet: [...perHamlet.entries()].map(([seatId, roles]) => ({ seatId, roles })),
 				placedOutsideVillage, worstPlotDistance, submerged, placeholders,
+				floating, worstFloatMeters: +worstFloatMeters.toFixed(2),
 				triangles: Math.round(triangles), drawCalls,
 				uncatalogued,
 				deterministic: digest(built) === digest(again),
 			};
-		}, { maxPlotDistance: MAX_PLOT_DISTANCE_METERS });
+		}, { maxPlotDistance: MAX_PLOT_DISTANCE_METERS, floatToleranceMeters: MAX_FLOAT_METERS });
 
 		const failures = [];
 		if (result.hamletCount === 0) failures.push('no villages exist at all — nothing to build buildings in');
@@ -162,6 +191,7 @@ const MAX_VILLAGE_TRIANGLES = 900000;
 			failures.push(`${result.placedOutsideVillage} building(s) stand more than ${MAX_PLOT_DISTANCE_METERS} m from their own village green, worst ${result.worstPlotDistance.toFixed(0)} m — that is the scattered-props bug again`);
 		}
 		if (result.submerged > 0) failures.push(`${result.submerged} building(s) stand in water`);
+		if (result.floating > 0) failures.push(`${result.floating} building(s) float above their own footprint, worst gap ${result.worstFloatMeters} m — a corner is left in the air`);
 		if (!result.deterministic) failures.push('two builds placed different buildings');
 		if (result.triangles > MAX_VILLAGE_TRIANGLES) {
 			failures.push(`the villages cost ${result.triangles} triangles (ceiling ${MAX_VILLAGE_TRIANGLES}) — see GOVERNANCE.md §4`);
@@ -177,7 +207,7 @@ const MAX_VILLAGE_TRIANGLES = 900000;
 		const roles = Object.entries(result.byRole).map(([role, count]) => `${role} ${count}`).join(', ');
 		console.log(`[village-buildings] ${result.hamletCount} village(s); ${result.placed} building(s) raised, ${result.skipped} plot(s) empty`);
 		console.log(`[village-buildings] by role: ${roles}`);
-		console.log(`[village-buildings] plots: worst distance from its own green ${result.worstPlotDistance.toFixed(0)} m (max ${MAX_PLOT_DISTANCE_METERS} m), ${result.submerged} in water, ${result.placeholders} placeholders planted`);
+		console.log(`[village-buildings] plots: worst distance from its own green ${result.worstPlotDistance.toFixed(0)} m (max ${MAX_PLOT_DISTANCE_METERS} m), ${result.submerged} in water, ${result.floating} floating (worst ${result.worstFloatMeters} m, max ${MAX_FLOAT_METERS} m), ${result.placeholders} placeholders planted`);
 		console.log(`[village-buildings] cost: ${result.triangles} triangles over ${result.drawCalls} draw calls (ceiling ${MAX_VILLAGE_TRIANGLES})`);
 		console.log(`[village-buildings] every role model is in the catalogue: ${result.uncatalogued.length === 0}; deterministic ${result.deterministic}`);
 		if (result.placed === 0) {

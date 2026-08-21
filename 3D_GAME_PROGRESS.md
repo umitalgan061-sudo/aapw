@@ -17947,3 +17947,25 @@ kendi ölçüm döngüsünü istiyor) — **tur 382**.
 Koltuklar 14/14 PASS, yollar **13/13 PASS** (en dik kara kenarı 19,9°), nehir geçişi PASS, ağ 21,87 km.
 Etek dünya en kötüsü **87,49 → 83,38 m**, tavan 144 m. Dağlar: 19 zincir, 189 zirve, **9 bölgede**
 (7'den), medyan sivrilik 0,2825. Görsel kanıt `artifacts/mountains/*-run381.png`. SW v40→v41.
+
+## Tur 382 — Yapılar havada duruyordu; zemin ayak izinin en alçak noktasına oturtuldu (ADR-0329)
+
+Sahibin talimatı: "Herhangi bir yapının herhangi bir köşesi ya da bölgesi havada kalmasın. Zemin, o
+yapının otomatik alt tabanına yapışsın." Ekran görüntüsü kusuru gösterdi.
+
+**Sebep tek satır.** `groundModel` binanın tabanını yalnızca merkez `(x,z)` zeminine oturtuyordu.
+Eğimde aşağı köşe daha alçak zemin üzerinde kalıp havalanıyordu. Düzeltme: taban ayak izinin **en
+alçak** noktasına (4 köşe + merkez) oturtuluyor. Aynısı `worldPropScatter`'a da uygulandı.
+
+**Kapıyı önce doğru uçtan ölçtüm.** `checkVillageBuildings`'e havada kontrolü eklerken ilk metrik en
+*yüksek* köşeyi ölçtü (yanlış — bina en *alçak* zeminin altında havalanır). En alçağa çevrildi: merkez
+tabanlı eski davranışta **23 bina havada, en kötü 5,79 m**; ayak-izi-min düzeltmesiyle **0**. Hatayı
+üretip kapıyı kanıtladıktan sonra düzelttim.
+
+**Çit kaldırıldı.** `fence_fence.fbx` hydrate edilince düz beyaz bir levha olarak çıktı (fotogrametri
+zemin düzlemi). Köyden ve scatter'dan çıkarıldı (`villages.js` tarla duvarlarını zaten çiziyor); köy
+maliyeti 575k → 311k üçgen.
+
+**Sonuç:** 11 köy, 70 yapı, 0 havada, 0 suda, coverage 0 unaccounted, scatter PASS, deterministik.
+§8.4 tetiklenmiyor (arazi değişmedi). Görsel kanıt `artifacts/villages/berk-*.png`. SW v41→v42.
+Renderdaki soluk levha bir **yol şeridi** (bina değil) — ayrı konu, tur 383.

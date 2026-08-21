@@ -63,16 +63,18 @@ export const VILLAGE_BUILDING_POLICY = Object.freeze({
 	fieldBuildingCount: 3,
 	/** Stalls, carts, barrels and crates on the green. */
 	marketPropCount: 5,
-	/**
-	 * Fence runs around the green's edge — two, not four.
-	 *
-	 * `fence_fence.fbx` is 17,254 triangles for a rail fence, and at four per village it was **63% of
-	 * every village building in the world put together** (500k of 800k) for the least visible thing in
-	 * them. `world/villages.js` already draws the field walls that do this job as instanced geometry at
-	 * almost no cost; these are variety on top of that, not the whole hedgerow.
-	 */
-	fenceCount: 2,
 });
+
+/**
+ * **Why there is no fence role.** `fence_fence.fbx` was a village building through run 379 (four per
+ * village, then two). Run 381 hydrated the model and its render settled the question: scaled to a 6 m
+ * footprint it reads as a flat white sheet lying on the ground, not a fence — a photogrammetry scan
+ * whose bounding box is dominated by a baked ground plane, so "widest dimension = 6 m" shrinks the
+ * rails to nothing and lays the plane flat. It was also 17,254 triangles for the least legible thing in
+ * the settlement. `world/villages.js` already draws the field boundaries that do this job as instanced
+ * walls at almost no cost, so dropping it loses no fencing — only the glitch. The file stays in the
+ * prop catalogue and is still scattered on farmland; it is simply not a village building.
+ */
 
 /**
  * What a village is made of, by role, as paths into `assets/models/`.
@@ -113,8 +115,6 @@ export const VILLAGE_BUILDING_ROLES = Object.freeze({
 		'props/bonfire_Azj9hJwwwG.glb',
 		'fbx/Fountain_fount.fbx',
 	]),
-	/** Field boundaries. */
-	fence: Object.freeze(['fbx/fence_fence.fbx']),
 });
 
 /**
@@ -143,7 +143,7 @@ export const VILLAGE_BUILDING_ROLES = Object.freeze({
  * waist-high. Scale is the difference between a village square and a giant's toybox.
  */
 const ROLE_FOOTPRINT_METERS = Object.freeze({
-	worship: 16, craft: 14, field: 13, market: 1.6, fence: 6,
+	worship: 16, craft: 14, field: 13, market: 1.6,
 });
 
 /**
@@ -158,9 +158,18 @@ const ROLE_FOOTPRINT_METERS = Object.freeze({
  * The model's own bounding box then decides where its feet are, which is the only reliable way to
  * place files authored at a dozen different origins.
  *
+ * **The base is founded on the lowest ground under the whole footprint, not the height at the centre.**
+ * Sampling only `(x, z)` was why buildings floated on any slope: a barn whose centre sits at 120 m has
+ * a downhill corner over 116 m ground, and grounding its base at 120 m leaves that corner four metres
+ * in the air — exactly the gap the owner flagged. Founding on the minimum over the footprint (its four
+ * corners and centre, after the real rotated/scaled box is known) guarantees no corner can float: every
+ * point of terrain under the building is at or above the base, so the uphill side beds slightly into the
+ * hill and the downhill side meets the ground. That is what "zemin, yapının alt tabanına yapışsın"
+ * means — the ground touches the base everywhere rather than only under the middle.
+ *
  * @returns {number} The building's footprint radius in world metres, for spacing and collision.
  */
-function groundModel(model, x, z, groundY, yaw, footprintMeters) {
+function groundModel(model, x, z, sampleHeightMeters, yaw, footprintMeters) {
 	model.rotation.set(0, yaw, 0);
 	model.scale.setScalar(1);
 	model.position.set(0, 0, 0);
@@ -174,9 +183,19 @@ function groundModel(model, x, z, groundY, yaw, footprintMeters) {
 	const box = new THREE.Box3().setFromObject(model);
 	const size = box.getSize(new THREE.Vector3());
 	const centre = box.getCenter(new THREE.Vector3());
+	// Half-extents of the real rotated footprint, so the samples land on the building's own corners.
+	const halfX = size.x * 0.5;
+	const halfZ = size.z * 0.5;
+	let lowestGroundY = sampleHeightMeters(x, z);
+	for (const dx of [-halfX, halfX]) {
+		for (const dz of [-halfZ, halfZ]) {
+			const cornerY = sampleHeightMeters(x + dx, z + dz);
+			if (cornerY < lowestGroundY) lowestGroundY = cornerY;
+		}
+	}
 	model.position.set(
 		x - centre.x,
-		groundY - box.min.y - VILLAGE_BUILDING_POLICY.groundBiteMeters,
+		lowestGroundY - box.min.y - VILLAGE_BUILDING_POLICY.groundBiteMeters,
 		z - centre.z,
 	);
 	model.updateMatrixWorld(true);
@@ -208,7 +227,7 @@ export async function createVillageBuildings({ assetLoader, hamlets, sampleHeigh
 	const P = VILLAGE_BUILDING_POLICY;
 	const group = new THREE.Group();
 	group.name = 'village-buildings';
-	const byRole = { worship: 0, craft: 0, field: 0, market: 0, fence: 0 };
+	const byRole = { worship: 0, craft: 0, field: 0, market: 0 };
 	const buildings = [];
 	let placed = 0;
 	let skipped = 0;
@@ -235,9 +254,6 @@ export async function createVillageBuildings({ assetLoader, hamlets, sampleHeigh
 		plan.push({ role: 'craft', ring: P.civicRingMeters, bearing: civicBearing + Math.PI * 0.7 });
 		for (let i = 0; i < P.fieldBuildingCount; i += 1) {
 			plan.push({ role: 'field', ring: P.fieldRingMeters, bearing: (i / P.fieldBuildingCount) * Math.PI * 2 + rng() * 0.6 });
-		}
-		for (let i = 0; i < P.fenceCount; i += 1) {
-			plan.push({ role: 'fence', ring: P.fieldRingMeters * 0.72, bearing: (i / P.fenceCount) * Math.PI * 2 + 0.4 });
 		}
 		for (let i = 0; i < P.marketPropCount; i += 1) {
 			plan.push({ role: 'market', ring: P.marketRadiusMeters * Math.sqrt(rng()), bearing: rng() * Math.PI * 2 });
@@ -266,7 +282,7 @@ export async function createVillageBuildings({ assetLoader, hamlets, sampleHeigh
 			const model = source.clone(true);
 			// Face the green, so the settlement turns inward the way the cottages already do.
 			const yaw = Math.atan2(hamlet.x - x, hamlet.z - z) + (rng() - 0.5) * 0.4;
-			const radius = groundModel(model, x, z, groundY, yaw, ROLE_FOOTPRINT_METERS[plot.role]);
+			const radius = groundModel(model, x, z, sampleHeightMeters, yaw, ROLE_FOOTPRINT_METERS[plot.role]);
 			model.name = `village-${plot.role}-${hamlet.seatId}`;
 			model.userData.villageBuilding = Object.freeze({ seatId: hamlet.seatId, role: plot.role, file });
 			group.add(model);

@@ -342,7 +342,7 @@ const scratchBox = new THREE.Box3();
 const scratchSize = new THREE.Vector3();
 
 /** Builds one chunk's props into a group, or an empty group if none of its models are readable. */
-async function buildChunkGroup({ assetLoader, cache, placements, liveBudget }) {
+async function buildChunkGroup({ assetLoader, cache, placements, liveBudget, sampleHeightMeters }) {
 	const group = new THREE.Group();
 	group.name = 'world-props-chunk';
 	let built = 0;
@@ -356,9 +356,27 @@ async function buildChunkGroup({ assetLoader, cache, placements, liveBudget }) {
 		// Scale so the model's footprint matches what the catalogue reserved for it, then ground it.
 		const widest = Math.max(scratchSize.x, scratchSize.z) || 1;
 		model.scale.setScalar((placement.footprintMeters / widest) * placement.scale);
-		scratchBox.setFromObject(model);
-		model.position.set(placement.x, placement.y - scratchBox.min.y, placement.z);
 		model.rotation.y = placement.rotationY;
+		model.updateMatrixWorld(true);
+		scratchBox.setFromObject(model);
+		// Found the base on the lowest ground under the whole footprint, not just the centre — same fix
+		// as `villageBuildings.groundModel`. A prop grounded at its centre height floats on a slope: its
+		// downhill corner sits over lower ground with open air beneath it. Sampling the rotated box's
+		// four corners and taking the minimum guarantees no corner floats. `placement.y` is the centre
+		// height already, so it seeds the minimum without an extra sample there.
+		scratchBox.getSize(scratchSize);
+		const halfX = scratchSize.x * 0.5;
+		const halfZ = scratchSize.z * 0.5;
+		let lowestGroundY = placement.y;
+		if (sampleHeightMeters) {
+			for (const dx of [-halfX, halfX]) {
+				for (const dz of [-halfZ, halfZ]) {
+					const cornerY = sampleHeightMeters(placement.x + dx, placement.z + dz);
+					if (cornerY < lowestGroundY) lowestGroundY = cornerY;
+				}
+			}
+		}
+		model.position.set(placement.x, lowestGroundY - scratchBox.min.y, placement.z);
 		model.userData.worldProp = Object.freeze({ file: placement.file, terrain: placement.terrain });
 		group.add(model);
 		built += 1;
@@ -418,7 +436,7 @@ export async function initWorldProps({ assetLoader, state }) {
 			const [chunkX, chunkZ] = key.split(',').map(Number);
 			const placements = planChunkProps({ chunkX, chunkZ, sampleHeightMeters, seed, seats });
 			if (placements.length === 0) { resident.set(key, new THREE.Group()); continue; }
-			const chunkGroup = await buildChunkGroup({ assetLoader, cache, placements, liveBudget });
+			const chunkGroup = await buildChunkGroup({ assetLoader, cache, placements, liveBudget, sampleHeightMeters });
 			resident.set(key, chunkGroup);
 			if (chunkGroup.children.length > 0) group.add(chunkGroup);
 		}

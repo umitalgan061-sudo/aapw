@@ -240,7 +240,11 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run 381 rewrites the height field again — every mountain chain in `worldReferenceMountainRelief.js`
 // was widened so ranges stop reading as walls. Same reasoning as v40 immediately above: the shell is
 // cache-first, so a stale cache serves a stale *world*. v40->v41.
-const SHELL_CACHE = 'westeros-shell-v41';
+// Run 382 grounds buildings and scattered props on the lowest ground under their whole footprint
+// (`villageBuildings.js`, `worldPropScatter.js`) so no corner floats, and drops the flat-sheet fence
+// model. Both are offline-loadable runtime modules, so an existing install keeps floating buildings
+// until the shell refreshes. v41->v42.
+const SHELL_CACHE = 'westeros-shell-v42';
 const SHELL_FILES = [
     './',
     './index.html',
