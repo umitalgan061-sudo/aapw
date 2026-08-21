@@ -25,6 +25,8 @@ export const WINTER_VEGETATION_ASSET_POLICY = Object.freeze({
 	maxHorizontalToHeightRatio: 1.8,
 });
 
+const inFlightUpgrades = new WeakMap();
+
 function makeStatus(status, extra = {}) {
 	return Object.freeze({
 		policyId: WINTER_VEGETATION_ASSET_POLICY.id,
@@ -83,12 +85,32 @@ export function measureWinterAsset(model) {
 	return { bounds, size, center, horizontalToHeightRatio };
 }
 
+function hasFiniteMeasurement(measurement) {
+	const values = [
+		measurement.size.x,
+		measurement.size.y,
+		measurement.size.z,
+		measurement.center.x,
+		measurement.center.y,
+		measurement.center.z,
+		measurement.bounds.min.x,
+		measurement.bounds.min.y,
+		measurement.bounds.min.z,
+		measurement.bounds.max.x,
+		measurement.bounds.max.y,
+		measurement.bounds.max.z,
+		measurement.horizontalToHeightRatio,
+	];
+	return values.every(Number.isFinite);
+}
+
 export function validateWinterAsset(model, policy = WINTER_VEGETATION_ASSET_POLICY) {
 	if (isPlaceholderWinterAsset(model)) return { valid: false, reason: 'placeholder' };
 	const meshes = collectWinterAssetMeshes(model);
 	if (meshes.length === 0) return { valid: false, reason: 'no-renderable-mesh' };
 	const measurement = measureWinterAsset(model);
 	if (!measurement) return { valid: false, reason: 'empty-bounds' };
+	if (!hasFiniteMeasurement(measurement)) return { valid: false, reason: 'non-finite-bounds' };
 	if (measurement.size.y < policy.minSourceHeightMeters) return { valid: false, reason: 'degenerate-height' };
 	if (measurement.horizontalToHeightRatio > policy.maxHorizontalToHeightRatio) {
 		return { valid: false, reason: 'implausibly-wide-tree' };
@@ -107,15 +129,14 @@ export function createWinterAssetNormalization(measurement, targetHeightMeters =
 	return new THREE.Matrix4().makeScale(scale, scale, scale).multiply(translateToBase);
 }
 
-function cloneMaterialWithTextureCleanup(sourceMaterial) {
+function cloneMaterialWithTextureCleanup(sourceMaterial, disposedTextures) {
 	const material = sourceMaterial.clone();
 	const originalDispose = material.dispose.bind(material);
 	material.dispose = function disposeWinterAssetMaterial() {
-		const seenTextures = new Set();
 		for (const key of Object.keys(material)) {
 			const value = material[key];
-			if (!value?.isTexture || seenTextures.has(value)) continue;
-			seenTextures.add(value);
+			if (!value?.isTexture || disposedTextures.has(value)) continue;
+			disposedTextures.add(value);
 			value.dispose();
 		}
 		originalDispose();
@@ -128,15 +149,31 @@ function disposeRejectedModel(model) {
 	AssetLoader.disposeObject3D(model);
 }
 
+/**
+ * Replacement meshes reuse the source geometries and textures, but not the source materials.
+ * Material.dispose() does not dispose textures in Three.js, so releasing these now is safe and
+ * prevents a successfully loaded source scene from retaining needless GPU material programs.
+ */
+function disposeSourceMaterials(modelMeshes) {
+	const disposedMaterials = new Set();
+	for (const mesh of modelMeshes) {
+		const material = mesh.material;
+		if (!material || disposedMaterials.has(material)) continue;
+		disposedMaterials.add(material);
+		material.dispose();
+	}
+}
+
 function applyWinterAssetInstances({ group, sourceMesh, sourceFoliageMesh, modelMeshes, normalization, assetUrl }) {
 	const count = sourceMesh.count;
 	const treeMatrix = new THREE.Matrix4();
 	const finalMatrix = new THREE.Matrix4();
 	const addedMeshes = [];
+	const disposedTextures = new Set();
 
 	for (let meshIndex = 0; meshIndex < modelMeshes.length; meshIndex++) {
 		const sourceAssetMesh = modelMeshes[meshIndex];
-		const material = cloneMaterialWithTextureCleanup(sourceAssetMesh.material);
+		const material = cloneMaterialWithTextureCleanup(sourceAssetMesh.material, disposedTextures);
 		const instanced = new THREE.InstancedMesh(sourceAssetMesh.geometry, material, count);
 		instanced.name = `vegetation-snow-asset-${meshIndex}`;
 		instanced.instanceMatrix.setUsage(THREE.StaticDrawUsage);
@@ -167,26 +204,26 @@ function markNorthClimateRepresentation(group, assetUrl, meshCount, treeCount) {
 	});
 }
 
-/**
- * Attempts each known winter GLB in order. Pointer-only/corrupt/missing/implausible assets are
- * rejected and the already-visible procedural snow pines remain untouched. On success, every GLB
- * primitive is instanced using the exact deterministic snow-pine matrices; the procedural pair is
- * only hidden after all replacement meshes are ready.
- */
-export async function upgradeWinterVegetationAssets(group, {
-	assetLoader = new AssetLoader(),
-	candidates = WINTER_VEGETATION_ASSET_POLICY.candidates,
-	targetHeightMeters = WINTER_VEGETATION_ASSET_POLICY.targetHeightMeters,
-} = {}) {
-	const existing = group?.userData?.winterVegetationAssetUpgrade;
-	if (existing?.status === 'active' || existing?.status === 'procedural-fallback') return existing;
+function markCancelled(group, treeCount, attemptedAssets, reason = 'abort-signal') {
+	const status = makeStatus('cancelled', { treeCount, attemptedAssets, reason });
+	if (group?.userData) group.userData.winterVegetationAssetUpgrade = status;
+	return status;
+}
 
+async function performWinterVegetationAssetUpgrade(group, {
+	assetLoader,
+	candidates,
+	targetHeightMeters,
+	signal,
+}) {
 	const { trunkMesh, foliageMesh } = findProceduralWinterMeshes(group);
 	if (!trunkMesh || !foliageMesh || trunkMesh.count <= 0) {
 		const status = makeStatus('no-winter-trees', { attemptedAssets: 0 });
 		if (group?.userData) group.userData.winterVegetationAssetUpgrade = status;
 		return status;
 	}
+
+	if (signal?.aborted) return markCancelled(group, trunkMesh.count, 0);
 
 	group.userData.winterVegetationAssetUpgrade = makeStatus('loading', {
 		treeCount: trunkMesh.count,
@@ -195,12 +232,20 @@ export async function upgradeWinterVegetationAssets(group, {
 
 	const rejected = [];
 	for (const assetUrl of candidates) {
+		if (signal?.aborted) return markCancelled(group, trunkMesh.count, rejected.length);
+
 		let model;
 		try {
 			model = await assetLoader.loadModel(assetUrl, { fallbackColor: 0xdce8ea, fallbackSize: 1 });
 		} catch (error) {
+			if (signal?.aborted) return markCancelled(group, trunkMesh.count, rejected.length);
 			rejected.push(Object.freeze({ assetUrl, reason: 'loader-threw' }));
 			continue;
+		}
+
+		if (signal?.aborted) {
+			disposeRejectedModel(model);
+			return markCancelled(group, trunkMesh.count, rejected.length + 1);
 		}
 
 		const validation = validateWinterAsset(model);
@@ -219,6 +264,7 @@ export async function upgradeWinterVegetationAssets(group, {
 			normalization,
 			assetUrl,
 		});
+		disposeSourceMaterials(validation.meshes);
 
 		trunkMesh.visible = false;
 		foliageMesh.visible = false;
@@ -241,4 +287,38 @@ export async function upgradeWinterVegetationAssets(group, {
 	});
 	group.userData.winterVegetationAssetUpgrade = status;
 	return status;
+}
+
+/**
+ * Attempts each known winter GLB in order. Pointer-only/corrupt/missing/implausible assets are
+ * rejected and the already-visible procedural snow pines remain untouched. On success, every GLB
+ * primitive is instanced using the exact deterministic snow-pine matrices; the procedural pair is
+ * only hidden after all replacement meshes are ready. Re-entrant callers share one in-flight load,
+ * and an optional AbortSignal can cancel a page that is tearing down without leaving detached meshes.
+ */
+export function upgradeWinterVegetationAssets(group, {
+	assetLoader = new AssetLoader(),
+	candidates = WINTER_VEGETATION_ASSET_POLICY.candidates,
+	targetHeightMeters = WINTER_VEGETATION_ASSET_POLICY.targetHeightMeters,
+	signal,
+} = {}) {
+	if (!group?.userData) return Promise.resolve(makeStatus('invalid-group', { attemptedAssets: 0 }));
+	const existing = group.userData.winterVegetationAssetUpgrade;
+	if (['active', 'procedural-fallback', 'no-winter-trees', 'cancelled'].includes(existing?.status)) {
+		return Promise.resolve(existing);
+	}
+
+	const inFlight = inFlightUpgrades.get(group);
+	if (inFlight) return inFlight;
+
+	const promise = performWinterVegetationAssetUpgrade(group, {
+		assetLoader,
+		candidates,
+		targetHeightMeters,
+		signal,
+	}).finally(() => {
+		if (inFlightUpgrades.get(group) === promise) inFlightUpgrades.delete(group);
+	});
+	inFlightUpgrades.set(group, promise);
+	return promise;
 }
