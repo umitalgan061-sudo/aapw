@@ -2,13 +2,33 @@ import * as THREE from 'three';
 import { resolveWorldSurfacePlacement } from '../world/WorldAssetPlacementPipeline.js';
 import { createTerrainFoundationConformer } from '../world/terrainFoundationConformer.js';
 
-const STRUCTURE_PATTERN = /(castle|citadel|keep|tower|wall|gate|house|building|fort|settlement|village|bridge|structure)/i;
+const NON_STRUCTURE_PRIMITIVES = new Set(['land-cell', 'water-cell', 'road-segment', 'tree', 'soldier']);
+const STRUCTURE_TERMS = Object.freeze([
+  'architecture', 'architectural', 'building', 'structure', 'settlement', 'village',
+  'castle', 'citadel', 'keep', 'tower', 'wall', 'gate', 'gatehouse', 'fort', 'fortress',
+  'fortification', 'house', 'hall', 'manor', 'inn', 'tavern', 'hut', 'cottage', 'barn',
+  'stable', 'sept', 'temple', 'shrine', 'bridge', 'dock', 'pier', 'quay', 'harbor',
+  'harbour', 'rampart', 'battlement', 'ruin', 'monument',
+  // Editor library and authored content also use Turkish category/name metadata.
+  'mimari', 'bina', 'yapi', 'yapı', 'yerlesim', 'yerleşim', 'koy', 'köy', 'kale',
+  'hisar', 'sur', 'kule', 'kopru', 'köprü', 'iskele', 'liman', 'ahır', 'ahir',
+]);
+const STRUCTURE_PATTERN = new RegExp(`(^|[^a-z0-9çğıöşü])(${STRUCTURE_TERMS.join('|')})(?=$|[^a-z0-9çğıöşü])`, 'iu');
+
+function structureDescriptor(asset) {
+  return [asset?.id, asset?.name, asset?.category, asset?.kind, asset?.primitive, asset?.src]
+    .filter(Boolean)
+    .join(' ')
+    .toLocaleLowerCase('tr-TR');
+}
 
 export function isEditorStructureAsset(asset) {
   if (!asset) return false;
-  if (asset.primitive === 'land-cell' || asset.primitive === 'water-cell' || asset.primitive === 'road-segment') return false;
-  if (asset.primitive === 'tree' || asset.primitive === 'soldier') return false;
-  return STRUCTURE_PATTERN.test([asset.id, asset.name, asset.category, asset.kind, asset.primitive].filter(Boolean).join(' '));
+  if (asset.terrainFoundation === false || asset.structureLike === false) return false;
+  if (asset.terrainFoundation === true || asset.structureLike === true) return true;
+  const primitive = String(asset.primitive || '').trim().toLowerCase();
+  if (NON_STRUCTURE_PRIMITIVES.has(primitive)) return false;
+  return STRUCTURE_PATTERN.test(structureDescriptor(asset));
 }
 
 function centerGroundObject(object, groundHeight, x, z) {
