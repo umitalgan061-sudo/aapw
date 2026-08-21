@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/3d/gameplay/creatureSpawner.js'
       - 'src/3d/gameplay/creatureBrain.js'
+      - 'scripts/checkCreatureSocialSpawnContract.mjs'
       - 'scripts/checkCreatureSocialSpawnBrowser.js'
       - '.github/workflows/creature-social-spawn.yml'
   workflow_dispatch:
@@ -38,7 +39,9 @@ jobs:
       - name: Static and shared contracts
         run: |
           set -euo pipefail
+          node --check scripts/checkCreatureSocialSpawnContract.mjs
           node --check scripts/checkCreatureSocialSpawnBrowser.js
+          node scripts/checkCreatureSocialSpawnContract.mjs
           node scripts/checkCreatureSimulationLod.mjs
           node scripts/checkCreatureThreatMemory.mjs
           node scripts/checkCreatureEcologyThreat.mjs
