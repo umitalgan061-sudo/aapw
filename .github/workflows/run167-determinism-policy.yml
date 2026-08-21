@@ -5,12 +5,24 @@ on:
     branches: [main]
     paths:
       - 'scripts/checkSeededRandomPolicy.js'
+      - 'scripts/checkNpcGuardLifecycleContract.mjs'
+      - 'scripts/checkNpcGuardLifecycleBrowser.js'
+      - 'scripts/checkNpcGuardGroupLifecycleBrowser.js'
+      - 'scripts/checkNpcGuardLifecycleFrameRateBrowser.js'
+      - 'scripts/checkNpcGuardOcclusionLifecycleBrowser.js'
+      - 'scripts/checkNpcGuardHearingLifecycleBrowser.js'
       - 'src/3d/**'
       - '.github/workflows/run167-determinism-policy.yml'
   pull_request:
     branches: [main]
     paths:
       - 'scripts/checkSeededRandomPolicy.js'
+      - 'scripts/checkNpcGuardLifecycleContract.mjs'
+      - 'scripts/checkNpcGuardLifecycleBrowser.js'
+      - 'scripts/checkNpcGuardGroupLifecycleBrowser.js'
+      - 'scripts/checkNpcGuardLifecycleFrameRateBrowser.js'
+      - 'scripts/checkNpcGuardOcclusionLifecycleBrowser.js'
+      - 'scripts/checkNpcGuardHearingLifecycleBrowser.js'
       - 'src/3d/**'
       - '.github/workflows/run167-determinism-policy.yml'
 
@@ -54,7 +66,14 @@ jobs:
           set -euo pipefail
           node --check scripts/checkSeededRandomPolicy.js
           node --check scripts/smokeTestGame3D.js
+          node --check scripts/checkNpcGuardLifecycleContract.mjs
+          node --check scripts/checkNpcGuardLifecycleBrowser.js
+          node --check scripts/checkNpcGuardGroupLifecycleBrowser.js
+          node --check scripts/checkNpcGuardLifecycleFrameRateBrowser.js
+          node --check scripts/checkNpcGuardOcclusionLifecycleBrowser.js
+          node --check scripts/checkNpcGuardHearingLifecycleBrowser.js
           node scripts/checkSeededRandomPolicy.js
+          node scripts/checkNpcGuardLifecycleContract.mjs
           node scripts/checkAssetsManifest.js
           node scripts/checkPwaInstallability.js
           node scripts/checkServiceWorkerCache.js
@@ -94,6 +113,16 @@ jobs:
               done || true
           if [ "$SMOKE_STATUS" -ne 0 ]; then exit "$SMOKE_STATUS"; fi
           test "$PASS_COUNT" -ge 34
+
+      - name: Guard lifecycle browser regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkNpcGuardLifecycleBrowser.js
+          node scripts/checkNpcGuardGroupLifecycleBrowser.js
+          node scripts/checkNpcGuardLifecycleFrameRateBrowser.js
+          node scripts/checkNpcGuardOcclusionLifecycleBrowser.js
+          node scripts/checkNpcGuardHearingLifecycleBrowser.js
 
       - name: Upload browser smoke diagnostic
         if: always()
