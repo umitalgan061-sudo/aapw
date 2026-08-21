@@ -18,6 +18,21 @@
 			"three/addons/": "./src/3d/vendor/three/addons/"
 		}
 	</script>
+	<script type="module">
+		import * as THREE from 'three';
+		import {
+			CELESTIAL_ASSET_POLICY,
+			createDayNightLighting,
+			updateDayNightLighting,
+		} from './src/3d/lighting.js';
+
+		window.__celestialQaModules = Object.freeze({
+			THREE,
+			CELESTIAL_ASSET_POLICY,
+			createDayNightLighting,
+			updateDayNightLighting,
+		});
+	</script>
 </head>
 <body>
 	<div id="qa-root"></div>
