@@ -59,6 +59,7 @@ assert.equal(ordinaryBinary.kind, 'materialized');
 assert.doesNotThrow(() => assertMaterializedDeployState('asset.fbx', ordinaryBinary));
 
 const tracked = parseLfsTrackedPaths([
+	'assets/models/vegetation/pine_Zt62gceKXZ.glb',
 	'assets/models/vegetation/winter_tree.glb',
 	'assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb',
 	'',
@@ -66,6 +67,8 @@ const tracked = parseLfsTrackedPaths([
 assert.deepEqual([...tracked], [...FIREBASE_DEPLOY_LFS_POLICY.winterAssets]);
 assert.equal(new Set(FIREBASE_DEPLOY_LFS_POLICY.winterAssets).size, FIREBASE_DEPLOY_LFS_POLICY.winterAssets.length,
 	'winter deployment candidates must remain unique');
+assert.equal(FIREBASE_DEPLOY_LFS_POLICY.winterAssets[0], 'assets/models/vegetation/pine_Zt62gceKXZ.glb',
+	'Firebase winter hydration must include the preferred textured pine before visual/runtime QA');
 
 const firebase = JSON.parse(await readFile(new URL('../firebase.json', import.meta.url), 'utf8'));
 const predeploy = Array.isArray(firebase.hosting?.predeploy)
