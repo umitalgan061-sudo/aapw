@@ -6,6 +6,7 @@ on:
       - 'src/3d/world/vegetation.js'
       - 'src/3d/world/terrainBiomeShading.js'
       - 'scripts/checkNorthernVegetationClimate.mjs'
+      - 'scripts/checkNorthernVegetationRuntime.mjs'
       - '.github/workflows/northern-vegetation-climate.yml'
   workflow_dispatch:
 
@@ -27,5 +28,8 @@ jobs:
         run: |
           node --check src/3d/world/vegetation.js
           node --check scripts/checkNorthernVegetationClimate.mjs
+          node --check scripts/checkNorthernVegetationRuntime.mjs
       - name: Northern vegetation climate contract
         run: node scripts/checkNorthernVegetationClimate.mjs
+      - name: Northern vegetation runtime scatter
+        run: node scripts/checkNorthernVegetationRuntime.mjs
