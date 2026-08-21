@@ -14,6 +14,7 @@ import {
 	northGroundCoverProfileAtWorldZ,
 	NORTH_GROUND_COVER_POLICY,
 } from './northGroundCoverClimate.js';
+import { resolveTerrainSnowCoverage } from './terrainBiomeShading.js';
 
 export const RUN180_WIND_GRASS_CONFIG = Object.freeze({
 	desktop: Object.freeze({ radiusMeters: 350, maxPatches: 4000 }),
@@ -26,6 +27,12 @@ export const RUN180_WIND_GRASS_CONFIG = Object.freeze({
 	shoreMarginMeters: 1.5,
 	maxSlopeDegrees: 38,
 	maxPlacementAttempts: 8,
+	surfaceProbeMeters: 4,
+	// Ordinary blades may poke through patchy snow, but should disappear before the terrain reads as
+	// a continuous snow field. This uses the exact render snow-coverage resolver rather than inventing
+	// a second altitude/latitude snowline for vegetation.
+	snowDensityFadeStart: 0.18,
+	snowDensityZeroAt: 0.72,
 });
 
 function grassRng(seed) {
@@ -38,6 +45,8 @@ function grassRng(seed) {
 		return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
 	};
 }
+
+const clamp01 = (value) => Math.max(0, Math.min(1, value));
 
 export function grassSegmentDistance(px, pz, a, b) {
 	const dx = b.x - a.x;
@@ -54,7 +63,7 @@ export function isWindGrassSurfaceAllowed(x, z, {
 	seaLevelMeters,
 	seats = [],
 	roadEdges = [],
-}) {
+}, outSurface = null) {
 	for (const seat of seats) {
 		if (Math.hypot(x - seat.x, z - seat.z) < RUN180_WIND_GRASS_CONFIG.seatClearanceMeters) return false;
 	}
@@ -65,11 +74,33 @@ export function isWindGrassSurfaceAllowed(x, z, {
 	}
 	const y = sampleHeightMeters(x, z);
 	if (y <= seaLevelMeters + RUN180_WIND_GRASS_CONFIG.shoreMarginMeters) return false;
-	const d = 4;
+	const d = RUN180_WIND_GRASS_CONFIG.surfaceProbeMeters;
 	const dx = sampleHeightMeters(x + d, z) - y;
 	const dz = sampleHeightMeters(x, z + d) - y;
 	const slopeDegrees = Math.atan2(Math.max(Math.abs(dx), Math.abs(dz)), d) * 180 / Math.PI;
+	if (outSurface) {
+		outSurface.heightMeters = y;
+		outSurface.slopeDegrees = slopeDegrees;
+	}
 	return slopeDegrees <= RUN180_WIND_GRASS_CONFIG.maxSlopeDegrees;
+}
+
+/**
+ * Translate the canonical render snow amount into ordinary-grass survival. Patchy snow can retain
+ * some vegetation; continuous snow suppresses it completely. Dry temperate ground returns exactly 1
+ * so the established southern RNG stream does not consume any additional acceptance roll.
+ */
+export function windGrassSnowDensityMultiplier({ heightAboveSeaMeters, slopeDegrees, worldZ }) {
+	const snow = resolveTerrainSnowCoverage({
+		heightAboveSeaMeters,
+		slopeDegrees,
+		worldZ,
+	});
+	const start = RUN180_WIND_GRASS_CONFIG.snowDensityFadeStart;
+	const end = RUN180_WIND_GRASS_CONFIG.snowDensityZeroAt;
+	const raw = clamp01((snow.snowAmount - start) / Math.max(1e-6, end - start));
+	const smooth = raw * raw * (3 - 2 * raw);
+	return 1 - smooth;
 }
 
 export function createWindGrassGeometry() {
@@ -120,8 +151,10 @@ export function populateWindGrass(mesh, params, cellX, cellZ) {
 	const up = new THREE.Vector3(0, 1, 0);
 	const centerX = cellX * RUN180_WIND_GRASS_CONFIG.cellMeters;
 	const centerZ = cellZ * RUN180_WIND_GRASS_CONFIG.cellMeters;
+	const surface = { heightMeters: 0, slopeDegrees: 0 };
 	let placed = 0;
 	let climateRejected = 0;
+	let snowRejected = 0;
 
 	for (let i = 0; i < config.maxPatches; i++) {
 		for (let attempt = 0; attempt < RUN180_WIND_GRASS_CONFIG.maxPlacementAttempts; attempt++) {
@@ -129,21 +162,32 @@ export function populateWindGrass(mesh, params, cellX, cellZ) {
 			const radius = config.radiusMeters * Math.sqrt(random());
 			const x = centerX + Math.cos(angle) * radius;
 			const z = centerZ + Math.sin(angle) * radius;
-			if (!isWindGrassSurfaceAllowed(x, z, params)) continue;
+			if (!isWindGrassSurfaceAllowed(x, z, params, surface)) continue;
 
 			const cover = northGroundCoverProfileAtWorldZ(z);
 			if (cover.grassDensity <= 0) {
 				climateRejected++;
 				continue;
 			}
-			// Do not consume a new RNG draw in the temperate south. This preserves the historical
-			// deterministic transform stream exactly where climate density is still 1.
-			if (cover.grassDensity < 1 && random() >= cover.grassDensity) {
-				climateRejected++;
+			const snowDensity = windGrassSnowDensityMultiplier({
+				heightAboveSeaMeters: surface.heightMeters - params.seaLevelMeters,
+				slopeDegrees: surface.slopeDegrees,
+				worldZ: z,
+			});
+			if (snowDensity <= 0) {
+				snowRejected++;
+				continue;
+			}
+			const grassDensity = cover.grassDensity * snowDensity;
+			// Do not consume a new RNG draw on fully accepted ground. This preserves the historical
+			// deterministic transform stream exactly where both climate and snow density remain 1.
+			if (grassDensity < 1 && random() >= grassDensity) {
+				if (snowDensity < 1) snowRejected++;
+				else climateRejected++;
 				continue;
 			}
 
-			position.set(x, params.sampleHeightMeters(x, z) + 0.03, z);
+			position.set(x, surface.heightMeters + 0.03, z);
 			quaternion.setFromAxisAngle(up, random() * Math.PI * 2);
 			const uniformScale = (0.78 + random() * 0.47) * cover.heightScale;
 			scale.set(uniformScale, uniformScale, uniformScale);
@@ -164,6 +208,8 @@ export function populateWindGrass(mesh, params, cellX, cellZ) {
 	mesh.userData.northGroundCover = {
 		policyId: NORTH_GROUND_COVER_POLICY.id,
 		climateRejected,
+		snowRejected,
+		snowAware: true,
 	};
 	return placed;
 }
@@ -176,11 +222,12 @@ function createWindGrassMaterial(config) {
 		side: THREE.DoubleSide,
 	});
 	material.userData.run180WindGrass = Object.freeze({
-		key: 'run180-wind-grass-v2-north-climate',
+		key: 'run180-wind-grass-v3-snow-climate',
 		radiusMeters: config.radiusMeters,
 		maxPatches: config.maxPatches,
 		bladesPerPatch: RUN180_WIND_GRASS_CONFIG.bladesPerPatch,
 		climatePolicyId: NORTH_GROUND_COVER_POLICY.id,
+		snowAware: true,
 	});
 	material.onBeforeCompile = (shader) => {
 		shader.uniforms.uRun180WindTime = { value: 0 };
@@ -192,7 +239,7 @@ function createWindGrassMaterial(config) {
 			.replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb*=mix(0.84,1.10,vRun180GrassVariation);');
 		material.userData.run180Shader = shader;
 	};
-	material.customProgramCacheKey = () => 'run180-wind-grass-v2-north-climate';
+	material.customProgramCacheKey = () => 'run180-wind-grass-v3-snow-climate';
 	return material;
 }
 
@@ -229,6 +276,7 @@ export function createWindGrassRun180({
 			group.userData.run180WindGrass.placedCount = placed;
 			group.userData.run180WindGrass.centerCell = { x: cellX, z: cellZ };
 			group.userData.run180WindGrass.climateRejected = mesh.userData.northGroundCover?.climateRejected ?? 0;
+			group.userData.run180WindGrass.snowRejected = mesh.userData.northGroundCover?.snowRejected ?? 0;
 		}
 	};
 
@@ -242,6 +290,8 @@ export function createWindGrassRun180({
 		centerCell: { x: initialX, z: initialZ },
 		climatePolicyId: NORTH_GROUND_COVER_POLICY.id,
 		climateRejected: mesh.userData.northGroundCover?.climateRejected ?? 0,
+		snowRejected: mesh.userData.northGroundCover?.snowRejected ?? 0,
+		snowAware: true,
 	};
 	return { group, mesh };
 }
