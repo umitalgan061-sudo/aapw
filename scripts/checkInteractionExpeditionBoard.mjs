@@ -22,6 +22,7 @@ assert.equal(lockedBoard.entries.every((entry) => entry.ready === false), true);
 assert.match(buildExpeditionBoardText(lockedBoard), /Dragonstone Sefer Panosu/);
 assert.match(buildExpeditionBoardText(lockedBoard), /KİLİTLİ/);
 assert.match(buildExpeditionBoardText(lockedBoard), /Tamamlanan kontrat: 0\/3/);
+assert.match(buildExpeditionBoardText(lockedBoard), /Sefer ustalığı: İLERLEME 0\/3/);
 
 const readyBoard = evaluateExpeditionBoard(expeditionInventory(), { fatigueKm: 0 }, { dragonstoneExpeditionRoutes: [] });
 assert.equal(readyBoard.entries[1].id, 'dragonstone-harbor-tavern-run');
@@ -96,6 +97,7 @@ assert.deepEqual(controller.getEconomySnapshot().ledger.recentCredits, [{
 }]);
 assert.match(buildQuartermasterText(controller.getEconomySnapshot()), /Son gelir: Sefer kontratı · \+12 bakır · bakiye 52/);
 assert.deepEqual(controller.getWorldStateSnapshot().dragonstoneExpeditionRoutes, ['dragonstone-harbor-tavern-run']);
+assert.equal(controller.getWorldStateSnapshot().dragonstoneExpeditionMasteryClaimed, undefined);
 assert.equal(inventoryEvents, 1);
 assert.equal(journeyEvents, 1);
 assert.equal(progressionEvents, 1);
@@ -107,6 +109,7 @@ controller.handleKeyDown({ code: 'KeyT', repeat: false });
 assert.match(renderedText, /Dragonstone Sefer Panosu/);
 assert.match(renderedText, /Mevcut yorgunluk: 30 km/);
 assert.match(renderedText, /Tamamlanan kontrat: 1\/3/);
+assert.match(renderedText, /Sefer ustalığı: İLERLEME 1\/3/);
 assert.match(renderedText, /Liman Taverna Seferi .*ÖDÜL ALINDI/);
 
 const persisted = controller.getRpgSnapshot();
@@ -139,6 +142,7 @@ assert.deepEqual(restored.getWorldStateSnapshot().dragonstoneExpeditionRoutes, [
 // Forged/unknown route completion ids are ignored on restore and cannot mint copper; receipt history is bounded/sanitized independently.
 const forged = restored.getRpgSnapshot();
 forged.worldState.dragonstoneExpeditionRoutes = ['dragonstone-harbor-tavern-run', 'forged-route', '', 'dragonstone-harbor-tavern-run'];
+forged.worldState.dragonstoneExpeditionMasteryClaimed = true;
 forged.economy.copper = 52;
 forged.economy.ledger.recentCredits = [
 	{ sequence: 0, creditedCopper: 999, sourceId: 'ignored' },
@@ -147,9 +151,66 @@ forged.economy.ledger.recentCredits = [
 ];
 restored.restoreRpgSnapshot(forged);
 assert.deepEqual(restored.getWorldStateSnapshot().dragonstoneExpeditionRoutes, ['dragonstone-harbor-tavern-run']);
+assert.equal(restored.getWorldStateSnapshot().dragonstoneExpeditionMasteryClaimed, undefined, 'mastery claim must be rejected unless all authored routes are completed');
 assert.equal(restored.getEconomySnapshot().copper, 52);
 assert.equal(restored.getEconomySnapshot().ledger.recentCredits.length, 5);
 assert.deepEqual(restored.getEconomySnapshot().ledger.recentCredits.map((entry) => entry.sequence), [5, 6, 7, 8, 9]);
 assert.equal(restored.getEconomySnapshot().ledger.recentCredits.at(-1).label, 'Gelir 7');
 
-console.log(`[RPG] PASS expedition contracts + persisted bounded income receipts ${JSON.stringify({ routes: readyBoard.entries.length, rewardedRoute: 'dragonstone-harbor-tavern-run', xp: restored.getProgressionSnapshot().totalExperience, reputation: restored.getReputationSnapshot().dragonstone, copper: restored.getEconomySnapshot().copper, creditReceipts: restored.getEconomySnapshot().ledger.recentCredits.length })}`);
+// Completing the third unique authored route grants the mastery milestone exactly once through existing owners.
+const masteryController = createInteractionController({ interactionPrompt: { setVisible() {} }, dialogueBox, greetingTemplate: 'Selam, {name}!', radiusMeters: 6 });
+const masterySave = masteryController.getRpgSnapshot();
+masterySave.inventory = expeditionInventory();
+masterySave.worldState = {
+	dragonstoneWatchPolicy: null,
+	dragonstoneExpeditionRoutes: ['dragonstone-watch-circuit', 'dragonstone-harbor-tavern-run'],
+};
+masteryController.restoreRpgSnapshot(masterySave);
+masteryController.update([quartermaster], { x: 1, z: 1 });
+masteryController.handleKeyDown({ code: 'KeyT', repeat: false });
+assert.match(renderedText, /Tamamlanan kontrat: 2\/3/);
+assert.match(renderedText, /Sefer ustalığı: İLERLEME 2\/3/);
+assert.match(renderedChoices[2], /Sırt Kampı Seferi — HAZIR/);
+masteryController.handleKeyDown({ code: 'Digit3', repeat: false });
+assert.match(renderedText, /SEFER USTALIĞI KAZANILDI: 50 XP \+ 3 Dragonstone itibarı \+ 20 bakır · kese 70/);
+assert.equal(masteryController.getProgressionSnapshot().totalExperience, 75);
+assert.equal(masteryController.getReputationSnapshot().dragonstone, 5);
+assert.equal(masteryController.getEconomySnapshot().copper, 70);
+assert.deepEqual(masteryController.getWorldStateSnapshot().dragonstoneExpeditionRoutes, [
+	'dragonstone-watch-circuit',
+	'dragonstone-harbor-tavern-run',
+	'dragonstone-ridge-camp',
+]);
+assert.equal(masteryController.getWorldStateSnapshot().dragonstoneExpeditionMasteryClaimed, true);
+assert.deepEqual(masteryController.getEconomySnapshot().ledger.recentCredits.map(({ sourceId, label, creditedCopper, balanceCopper }) => ({ sourceId, label, creditedCopper, balanceCopper })), [
+	{ sourceId: 'expedition-contract', label: 'Sefer kontratı', creditedCopper: 10, balanceCopper: 50 },
+	{ sourceId: 'expedition-mastery', label: 'Sefer ustalığı', creditedCopper: 20, balanceCopper: 70 },
+]);
+assert.match(buildQuartermasterText(masteryController.getEconomySnapshot()), /Son gelir: Sefer ustalığı · \+20 bakır · bakiye 70/);
+masteryController.update([quartermaster], { x: 1, z: 1 });
+masteryController.handleKeyDown({ code: 'KeyT', repeat: false });
+assert.match(renderedText, /Sefer ustalığı: TAMAMLANDI/);
+masteryController.showQuestJournal();
+assert.match(renderedText, /Sefer kontratları: 3\/3/);
+assert.match(renderedText, /Sefer ustalığı: TAMAMLANDI/);
+
+const masteryPersisted = structuredClone(masteryController.getRpgSnapshot());
+const masteryRestored = createInteractionController({ interactionPrompt: { setVisible() {} }, dialogueBox, greetingTemplate: 'Selam, {name}!', radiusMeters: 6 });
+masteryRestored.restoreRpgSnapshot(masteryPersisted);
+assert.equal(masteryRestored.getWorldStateSnapshot().dragonstoneExpeditionMasteryClaimed, true);
+assert.equal(masteryRestored.getEconomySnapshot().copper, 70);
+const masteryReplay = masteryRestored.getRpgSnapshot();
+masteryReplay.inventory = expeditionInventory();
+masteryReplay.journey = { fatigueKm: 0, commitCount: 1, lastDestinationId: 'dragonstone-harbor-road', recentReceipts: [] };
+masteryRestored.restoreRpgSnapshot(masteryReplay);
+masteryRestored.update([quartermaster], { x: 1, z: 1 });
+masteryRestored.handleKeyDown({ code: 'KeyT', repeat: false });
+masteryRestored.handleKeyDown({ code: 'Digit3', repeat: false });
+assert.doesNotMatch(renderedText, /SEFER USTALIĞI KAZANILDI/);
+assert.match(renderedText, /tekrar ödülü yok/);
+assert.equal(masteryRestored.getProgressionSnapshot().totalExperience, 75);
+assert.equal(masteryRestored.getReputationSnapshot().dragonstone, 5);
+assert.equal(masteryRestored.getEconomySnapshot().copper, 70);
+assert.equal(masteryRestored.getEconomySnapshot().ledger.recentCredits.length, 2);
+
+console.log(`[RPG] PASS expedition contracts + mastery + persisted bounded income receipts ${JSON.stringify({ routes: readyBoard.entries.length, rewardedRoute: 'dragonstone-harbor-tavern-run', masteryClaimed: masteryRestored.getWorldStateSnapshot().dragonstoneExpeditionMasteryClaimed, masteryCopper: masteryRestored.getEconomySnapshot().copper, creditReceipts: masteryRestored.getEconomySnapshot().ledger.recentCredits.length })}`);
