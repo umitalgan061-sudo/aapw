@@ -13,7 +13,7 @@ import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
 
 export const WINTER_VEGETATION_ASSET_POLICY = Object.freeze({
-	id: 'winter-vegetation-materialized-asset-2026-08-21-v2',
+	id: 'winter-vegetation-materialized-asset-2026-08-21-v3',
 	candidates: Object.freeze([
 		'assets/models/vegetation/winter_tree.glb',
 		'assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb',
@@ -22,7 +22,10 @@ export const WINTER_VEGETATION_ASSET_POLICY = Object.freeze({
 	proceduralFoliageName: 'vegetation-snow-pine-foliage',
 	targetHeightMeters: 8.6,
 	minSourceHeightMeters: 0.05,
-	maxHorizontalToHeightRatio: 1.8,
+	// Hydrated-GLB QA measured the single Tree asset at 0.627 horizontal/height, while the seven-mesh
+	// dead-tree/stump grove is 1.416. A snow-pine point represents one tree, so tolerate a broad crown
+	// but reject grove-shaped replacements; if the primary tree fails, the procedural fallback wins.
+	maxHorizontalToHeightRatio: 1.05,
 	// A Git-LFS pointer is ~130 bytes. A real textured tree GLB is orders of magnitude larger. HEAD
 	// preflight lets Firebase/static hosting reject an unhydrated pointer without downloading it into
 	// GLTFLoader first. Keep the threshold deliberately tiny so it cannot reject a plausible real GLB.
