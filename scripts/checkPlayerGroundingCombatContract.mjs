@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 
 const playerPath = 'src/3d/gameplay/player.js';
-const playerConfigPath = 'src/3d/gameplay/playerConfig.js';
+const gameplayConfigPath = 'src/3d/gameplay/gameplayConfig.js';
 const player = fs.readFileSync(playerPath, 'utf8');
-const playerConfig = fs.readFileSync(playerConfigPath, 'utf8');
+const gameplayConfig = fs.readFileSync(gameplayConfigPath, 'utf8');
 
 function requireMatch(source, pattern, message) {
   if (!pattern.test(source)) throw new Error(message);
@@ -29,12 +29,12 @@ requireMatch(player, /gameEvents\.on\(EVENTS\.PLAYER_DAMAGED, onIncomingDamage\)
   'Defense must continue consuming the shared PLAYER_DAMAGED event.');
 requireMatch(player, /publishAttackWindow\('active-start'\)/,
   'Melee hit timing must retain an explicit active-window event.');
-requireMatch(playerConfig, /MODEL_URL:\s*['"][^'"]+\.fbx['"]/, 'Player must use a shipped FBX character asset.');
-requireMatch(playerConfig, /idle:\s*['"][^'"]+\.fbx['"]/, 'Player must use a shipped idle animation asset.');
-requireMatch(playerConfig, /walking:\s*['"][^'"]+\.fbx['"]/, 'Player must use a shipped walking animation asset.');
-requireMatch(playerConfig, /running:\s*['"][^'"]+\.fbx['"]/, 'Player must use a shipped running animation asset.');
+requireMatch(gameplayConfig, /MODEL_URL:\s*['"][^'"]+\.fbx['"]/, 'Player must use a shipped FBX character asset.');
+requireMatch(gameplayConfig, /idle:\s*['"][^'"]+\.fbx['"]/, 'Player must use a shipped idle animation asset.');
+requireMatch(gameplayConfig, /walking:\s*['"][^'"]+\.fbx['"]/, 'Player must use a shipped walking animation asset.');
+requireMatch(gameplayConfig, /running:\s*['"][^'"]+\.fbx['"]/, 'Player must use a shipped running animation asset.');
 
-for (const assetPath of [...playerConfig.matchAll(/['"](assets\/(?:models\/characters|animations\/peasant_girl)\/[^'"]+\.fbx)['"]/g)].map((match) => match[1])) {
+for (const assetPath of [...gameplayConfig.matchAll(/['"](assets\/(?:models\/characters|animations\/peasant_girl)\/[^'"]+\.fbx)['"]/g)].map((match) => match[1])) {
   if (!fs.existsSync(assetPath)) throw new Error(`Configured shipped player asset is missing: ${assetPath}`);
 }
 
