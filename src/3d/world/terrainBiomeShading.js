@@ -19,7 +19,7 @@ function smoothstep(edge0, edge1, value) {
 }
 
 export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
-	id: 'terrain-map-climate-snowline-2026-08-21-v2',
+	id: 'terrain-map-climate-shoreline-2026-08-21-v3',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	measured: Object.freeze({
@@ -34,6 +34,11 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 	}),
 	shoreSandTopMeters: 1.6,
 	shoreSandFullMeters: 0.25,
+	// Warm sand belongs to temperate coasts. The north uses a climate-driven frozen shore so the
+	// tundra/ice transition cannot expose a yellow beach band beneath otherwise cold terrain.
+	northFrozenShoreTundraStrength: 0.84,
+	northFrozenShoreIceStrength: 1,
+	northFrozenSeabedStrength: 0.72,
 	grassMidStartMeters: 8,
 	grassMidFullMeters: 60,
 	dryUplandStartMeters: 60,
@@ -98,7 +103,10 @@ export const NEUTRAL_DETAIL_GAIN = 255 / TERRAIN_BIOME_SHADING_POLICY.detailEnco
  * one uniform green overlay. Values intentionally remain conservative so PBR lighting does the work. */
 export const TERRAIN_BIOME_PALETTE = Object.freeze({
 	SEABED: new THREE.Color(0x3c514b),
+	NORTH_SEABED: new THREE.Color(0x536d72),
 	SHORE_SAND: new THREE.Color(0xc9bf9f),
+	FROZEN_SHORE: new THREE.Color(0xaab5ad),
+	GLACIAL_SHORE: new THREE.Color(0xc5d6d8),
 	GRASS_LOW: new THREE.Color(0x718b42),
 	MEADOW: new THREE.Color(0x82984e),
 	GRASS_MID: new THREE.Color(0x78834a),
@@ -167,6 +175,14 @@ export function northClimateWeightsAtWorldZ(worldZ) {
 	});
 }
 
+function frozenShoreWeight(permanentIce, tundra) {
+	const P = TERRAIN_BIOME_SHADING_POLICY;
+	return clamp01(Math.max(
+		permanentIce * P.northFrozenShoreIceStrength,
+		tundra * P.northFrozenShoreTundraStrength,
+	));
+}
+
 function snowlineRangeFromClimate(permanentIce, tundra, out) {
 	const P = TERRAIN_BIOME_SHADING_POLICY;
 	const tundraStart = lerp(P.snowAltitudeStartMeters, P.northTundraSnowlineStartMeters, tundra);
@@ -204,9 +220,6 @@ function computeTerrainSnowCoverage(out, {
 	const authoredSnow = Math.max(altitudeSnow, canonicalSnow);
 	const northSnowSupply = permanentIce * P.northSnowMinimumCoverage;
 	const tundraBand = tundra * (1 - permanentIce);
-	// The lowland tundra floor follows the same monotonic latitude weight directly. Multiplying by
-	// (1-permanentIce) created a small rebound at the south edge of the ice fade: the ice floor fell
-	// while the tundra floor rose. The max() below already lets permanent ice dominate safely.
 	const tundraLowlandFloor = tundra * P.northTundraLowlandSnowFloor;
 	const snowSupply = clamp01(Math.max(authoredSnow, northSnowSupply, tundraLowlandFloor));
 	const naturalHold = 1 - smoothstep(P.snowShedStartDegrees, P.snowShedFullDegrees, slopeDegrees);
@@ -251,6 +264,8 @@ export function resolveTerrainSnowCoverage({
 
 const scratchRock = new THREE.Color();
 const scratchGround = new THREE.Color();
+const scratchShore = new THREE.Color();
+const scratchSeabed = new THREE.Color();
 const scratchSnowCoverage = {};
 
 export function resolveTerrainBiomeColor(target, {
@@ -267,9 +282,8 @@ export function resolveTerrainBiomeColor(target, {
 	const normalizedY = normalizedMapYAtWorldZ(worldZ);
 	const permanentNorth = permanentIceWeightAtNormalizedY(normalizedY);
 	const tundraNorth = tundraWeightAtNormalizedY(normalizedY);
+	const coldShore = frozenShoreWeight(permanentNorth, tundraNorth);
 
-	// Open ground: meadow/grass/heath/dry upland. This keeps map.png's geographic family but removes
-	// the single green sheet that made plains, scrub and uplands indistinguishable.
 	const drift = signedFbmNoise(worldX * P.grassVariationFrequency + 5.3, worldZ * P.grassVariationFrequency - 2.9, 3);
 	const meadowAmount = clamp01(0.45 + drift * 0.35);
 	scratchGround.copy(TERRAIN_BIOME_PALETTE.GRASS_LOW).lerp(TERRAIN_BIOME_PALETTE.MEADOW, meadowAmount);
@@ -279,7 +293,6 @@ export function resolveTerrainBiomeColor(target, {
 		.lerp(TERRAIN_BIOME_PALETTE.DRY_UPLAND, smoothstep(P.dryUplandStartMeters, P.dryUplandFullMeters, height));
 	if (tundraNorth > 0) target.lerp(TERRAIN_BIOME_PALETTE.TUNDRA, tundraNorth * 0.78);
 
-	// Forest remains patch-driven, but disappears toward the frozen north and above the tree line.
 	const forestNoise01 = signedFbmNoise(worldX * P.forestPatchFrequency - 13.1, worldZ * P.forestPatchFrequency + 7.4, P.forestPatchOctaves) * 0.5 + 0.5;
 	const forestPatch = smoothstep(P.forestPatchStart, P.forestPatchFull, forestNoise01);
 	const notCliff = 1 - smoothstep(P.forestSlopeFalloffStartDegrees, P.forestSlopeFalloffFullDegrees, slope);
@@ -287,11 +300,16 @@ export function resolveTerrainBiomeColor(target, {
 	const forestAmount = forestPatch * notCliff * belowTreeLine * P.forestMaxStrength * (1 - permanentNorth) * (1 - tundraNorth * 0.62);
 	if (forestAmount > 0) target.lerp(TERRAIN_BIOME_PALETTE.FOREST, forestAmount);
 
-	const sandAmount = (1 - smoothstep(P.shoreSandFullMeters, P.shoreSandTopMeters, height))
+	const shoreAmount = (1 - smoothstep(P.shoreSandFullMeters, P.shoreSandTopMeters, height))
 		* (1 - smoothstep(P.rockSlopeStartDegrees, P.rockSlopeFullDegrees, slope))
-		* (height > 0 ? 1 : 0)
-		* (1 - permanentNorth);
+		* (height > 0 ? 1 : 0);
+	const sandAmount = shoreAmount * (1 - coldShore);
 	if (sandAmount > 0) target.lerp(TERRAIN_BIOME_PALETTE.SHORE_SAND, sandAmount);
+	if (shoreAmount > 0 && coldShore > 0) {
+		scratchShore.copy(TERRAIN_BIOME_PALETTE.FROZEN_SHORE)
+			.lerp(TERRAIN_BIOME_PALETTE.GLACIAL_SHORE, permanentNorth);
+		target.lerp(scratchShore, shoreAmount * coldShore);
+	}
 
 	const rockAmount = clamp01(Math.max(
 		smoothstep(P.rockSlopeStartDegrees, P.rockSlopeFullDegrees, slope),
@@ -303,10 +321,6 @@ export function resolveTerrainBiomeColor(target, {
 		target.lerp(scratchRock, rockAmount);
 	}
 
-	// Snow authority stays map-derived first (canonical snowWeight), with altitude as a physically
-	// plausible supplement. Unlike the old global threshold, the altitude snowline now descends
-	// continuously toward the north. Permanent ice still wins on low terrain; tundra only receives a
-	// restrained lowland floor so it does not become an artificial second ice sheet.
 	const snow = computeTerrainSnowCoverage(scratchSnowCoverage, {
 		heightAboveSeaMeters: height,
 		slopeDegrees: slope,
@@ -317,7 +331,11 @@ export function resolveTerrainBiomeColor(target, {
 	if (snow.glacialIceTint > 0) target.lerp(TERRAIN_BIOME_PALETTE.GLACIAL_ICE, snow.glacialIceTint);
 
 	const submergedAmount = 1 - smoothstep(-P.seabedFullDepthMeters, 0, height);
-	if (submergedAmount > 0) target.lerp(TERRAIN_BIOME_PALETTE.SEABED, submergedAmount);
+	if (submergedAmount > 0) {
+		scratchSeabed.copy(TERRAIN_BIOME_PALETTE.SEABED)
+			.lerp(TERRAIN_BIOME_PALETTE.NORTH_SEABED, coldShore * P.northFrozenSeabedStrength);
+		target.lerp(scratchSeabed, submergedAmount);
+	}
 
 	const mottleStrength = P.mottleAmplitude * (1 - permanentNorth * 0.45);
 	const mottle = 1 + (positionHash01(worldX, worldZ) - 0.5) * 2 * mottleStrength;
