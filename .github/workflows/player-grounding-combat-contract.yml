@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - 'src/3d/gameplay/player.js'
-      - 'src/3d/gameplay/gameplayConfig.js'
+      - 'src/3d/gameplay/playerConfig.js'
       - 'scripts/checkPlayerGroundingCombatContract.mjs'
       - 'scripts/checkPlayerDodgeIFrames.mjs'
       - 'scripts/checkPlayerDodgeIFrameRuntime.mjs'
@@ -23,7 +23,7 @@ concurrency:
 jobs:
   contract:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -46,6 +46,16 @@ jobs:
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           test "$((ADD + DEL))" -le 1000
           echo "BASE_SHA=$BASE" >> "$GITHUB_ENV"
+      - name: Asset-first targeted hydration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs version
+          git lfs pull --include="assets/models/characters/peasant_girl.fbx,assets/animations/peasant_girl/**" --exclude=""
+          test -s assets/models/characters/peasant_girl.fbx
+          test -s assets/animations/peasant_girl/idle.fbx
+          test -s assets/animations/peasant_girl/walking.fbx
+          test -s assets/animations/peasant_girl/running.fbx
       - name: Grounding combat static acceptance
         run: |
           set -euo pipefail
@@ -53,9 +63,30 @@ jobs:
           node scripts/checkPlayerGroundingCombatContract.mjs
           node --check scripts/checkPlayerDodgeIFrames.mjs
           node scripts/checkPlayerDodgeIFrames.mjs
+          node --check scripts/checkPlayerDodgeIFrameRuntime.mjs
           node --check src/3d/gameplay/player.js
           node scripts/checkSharedMaterialPlacementContract.js
           node scripts/checkSeededRandom.js
+          node scripts/checkServiceWorkerCache.js
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Shipped scene dodge i-frame proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerDodgeIFrameRuntime.mjs --out-dir=artifacts/player-dodge-iframes | tee artifacts/player-dodge-iframes.log
+          test -s artifacts/player-dodge-iframes/dodge-iframes-runtime.png
+          test -s artifacts/player-dodge-iframes/dodge-iframes-runtime.json
+          grep -q 'PLAYER_DODGE_IFRAMES_RUNTIME_OK' artifacts/player-dodge-iframes.log
+          grep -q '"browserErrors": \[\]' artifacts/player-dodge-iframes/dodge-iframes-runtime.json
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
       - name: Final main freshness
         shell: bash
         run: |
@@ -64,3 +95,12 @@ jobs:
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           test "$(git merge-base origin/main HEAD)" = "$BASE_SHA"
           git diff --check "$BASE_SHA"...HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: player-dodge-iframes-${{ github.sha }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            artifacts/player-dodge-iframes/
+            artifacts/player-dodge-iframes.log
