@@ -9,6 +9,8 @@ on:
       - 'firebase.json'
       - 'scripts/firebaseDeployLfsReadiness.mjs'
       - 'scripts/checkFirebaseDeployLfsReadiness.mjs'
+      - 'scripts/inspectWinterGlbMetadata.mjs'
+      - 'scripts/checkWinterGlbMetadataInspector.mjs'
       - '.github/workflows/firebase-deploy-lfs-readiness.yml'
   workflow_dispatch:
 
@@ -34,7 +36,10 @@ jobs:
         run: |
           node --check scripts/firebaseDeployLfsReadiness.mjs
           node --check scripts/checkFirebaseDeployLfsReadiness.mjs
+          node --check scripts/inspectWinterGlbMetadata.mjs
+          node --check scripts/checkWinterGlbMetadataInspector.mjs
           node scripts/checkFirebaseDeployLfsReadiness.mjs
+          node scripts/checkWinterGlbMetadataInspector.mjs
 
       - name: Hydrate and verify winter deployment assets
         if: github.event_name == 'pull_request'
@@ -52,10 +57,13 @@ jobs:
             --scope=all \
             --manifest=artifacts/firebase-deploy-lfs-readiness.json
 
+      - name: Inspect hydrated winter GLB geometry
+        run: node scripts/inspectWinterGlbMetadata.mjs | tee artifacts/winter-glb-metadata.txt
+
       - name: Upload readiness manifest
         uses: actions/upload-artifact@v4
         with:
           name: firebase-deploy-lfs-readiness
-          path: artifacts/firebase-deploy-lfs-readiness.json
+          path: artifacts/
           if-no-files-found: error
           retention-days: 7
