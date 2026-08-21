@@ -3,6 +3,7 @@ name: Northern Vegetation Climate
 on:
   pull_request:
     paths:
+      - 'assets/models/vegetation/pine_Zt62gceKXZ.glb'
       - 'assets/models/vegetation/winter_tree.glb'
       - 'assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb'
       - '.gitattributes'
@@ -17,6 +18,7 @@ on:
       - 'scripts/checkNorthernVegetationRuntime.mjs'
       - 'scripts/checkNorthernVegetationDeterminism.mjs'
       - 'scripts/checkWinterVegetationAssetUpgrade.mjs'
+      - 'scripts/checkWinterPineMaterialTreatment.mjs'
       - 'scripts/checkWinterVegetationHostedPreflight.mjs'
       - 'scripts/checkWinterVegetationRepositoryContract.mjs'
       - 'scripts/checkWinterVegetationResourceOwnership.mjs'
@@ -57,6 +59,7 @@ jobs:
           node --check scripts/checkNorthernVegetationRuntime.mjs
           node --check scripts/checkNorthernVegetationDeterminism.mjs
           node --check scripts/checkWinterVegetationAssetUpgrade.mjs
+          node --check scripts/checkWinterPineMaterialTreatment.mjs
           node --check scripts/checkWinterVegetationHostedPreflight.mjs
           node --check scripts/checkWinterVegetationRepositoryContract.mjs
           node --check scripts/checkWinterVegetationResourceOwnership.mjs
@@ -76,6 +79,8 @@ jobs:
         run: node scripts/checkNorthernVegetationDeterminism.mjs
       - name: Winter vegetation asset upgrade
         run: node scripts/checkWinterVegetationAssetUpgrade.mjs
+      - name: Winter pine material treatment
+        run: node scripts/checkWinterPineMaterialTreatment.mjs
       - name: Hosted winter asset preflight
         run: node scripts/checkWinterVegetationHostedPreflight.mjs
       - name: Winter vegetation repository contract
