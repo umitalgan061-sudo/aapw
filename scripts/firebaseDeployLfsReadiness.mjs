@@ -7,16 +7,21 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const LFS_POINTER_PREFIX = 'version https://git-lfs.github.com/spec/v1\n';
+const FBX_BINARY_MAGIC = Buffer.from('Kaydara FBX Binary  \x00\x1a\x00', 'binary');
 
 export const FIREBASE_DEPLOY_LFS_POLICY = Object.freeze({
-	id: 'firebase-deploy-lfs-readiness-2026-08-21-v2',
+	id: 'firebase-deploy-lfs-readiness-2026-08-21-v3',
 	firebasePublicDirectory: '.',
 	winterAssets: Object.freeze([
 		'assets/models/vegetation/pine_Zt62gceKXZ.glb',
 		'assets/models/vegetation/winter_tree.glb',
 		'assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb',
 	]),
+	celestialAssets: Object.freeze([
+		'assets/models/Ay/Moon 2K.fbx',
+	]),
 	minimumWinterGlbBytes: 512,
+	minimumCelestialFbxBytes: 1024,
 });
 
 export function classifyLfsBuffer(buffer) {
@@ -40,17 +45,35 @@ export function classifyLfsBuffer(buffer) {
 	return Object.freeze({ kind: 'materialized', bytes: buffer.length });
 }
 
-export function assertMaterializedDeployState(assetPath, state, { winter = false } = {}) {
+export function classifyCelestialBuffer(buffer) {
+	const generic = classifyLfsBuffer(buffer);
+	if (generic.kind === 'lfs-pointer') return generic;
+	if (buffer.length >= FBX_BINARY_MAGIC.length && buffer.subarray(0, FBX_BINARY_MAGIC.length).equals(FBX_BINARY_MAGIC)) {
+		return Object.freeze({ kind: 'fbx-binary', bytes: buffer.length });
+	}
+	const prefix = buffer.subarray(0, Math.min(buffer.length, 96)).toString('utf8');
+	if (/^\s*;\s*FBX\b/i.test(prefix)) return Object.freeze({ kind: 'fbx-ascii', bytes: buffer.length });
+	return Object.freeze({ kind: 'invalid-fbx', bytes: buffer.length });
+}
+
+export function assertMaterializedDeployState(assetPath, state, { winter = false, celestial = false } = {}) {
 	assert.notEqual(state.kind, 'lfs-pointer',
 		`${assetPath} is still a Git-LFS pointer; Firebase deploy must stop before publishing it`);
 	assert(state.bytes > 0, `${assetPath} must be a non-empty materialized file`);
-	if (!winter) return state;
-	assert.equal(state.kind, 'glb', `${assetPath} winter asset must materialize as a binary GLB`);
-	assert.equal(state.version, 2, `${assetPath} must be glTF binary version 2`);
-	assert.equal(state.declaredLength, state.bytes,
-		`${assetPath} GLB header length must equal the hydrated file length`);
-	assert(state.bytes >= FIREBASE_DEPLOY_LFS_POLICY.minimumWinterGlbBytes,
-		`${assetPath} hydrated GLB must exceed the runtime pointer-rejection threshold`);
+	if (winter) {
+		assert.equal(state.kind, 'glb', `${assetPath} winter asset must materialize as a binary GLB`);
+		assert.equal(state.version, 2, `${assetPath} must be glTF binary version 2`);
+		assert.equal(state.declaredLength, state.bytes,
+			`${assetPath} GLB header length must equal the hydrated file length`);
+		assert(state.bytes >= FIREBASE_DEPLOY_LFS_POLICY.minimumWinterGlbBytes,
+			`${assetPath} hydrated GLB must exceed the runtime pointer-rejection threshold`);
+	}
+	if (celestial) {
+		assert(['fbx-binary', 'fbx-ascii'].includes(state.kind),
+			`${assetPath} celestial asset must materialize as a valid FBX file`);
+		assert(state.bytes >= FIREBASE_DEPLOY_LFS_POLICY.minimumCelestialFbxBytes,
+			`${assetPath} hydrated FBX must exceed the runtime pointer-rejection threshold`);
+	}
 	return state;
 }
 
@@ -82,8 +105,9 @@ async function verifyFirebaseHostingContract() {
 	assert.equal(hosting.public, FIREBASE_DEPLOY_LFS_POLICY.firebasePublicDirectory,
 		'deploy readiness assumes Firebase publishes the repository checkout directly');
 	const ignore = Array.isArray(hosting.ignore) ? hosting.ignore : [];
-	for (const assetPath of FIREBASE_DEPLOY_LFS_POLICY.winterAssets) {
-		assert(!ignore.includes(assetPath), `Firebase ignore must not exclude required winter asset ${assetPath}`);
+	const requiredAssets = [...FIREBASE_DEPLOY_LFS_POLICY.winterAssets, ...FIREBASE_DEPLOY_LFS_POLICY.celestialAssets];
+	for (const assetPath of requiredAssets) {
+		assert(!ignore.includes(assetPath), `Firebase ignore must not exclude required asset ${assetPath}`);
 	}
 	return hosting;
 }
@@ -102,6 +126,10 @@ function hydrateLfs(scope) {
 		runGit(['lfs', 'pull', '--include', FIREBASE_DEPLOY_LFS_POLICY.winterAssets.join(','), '--exclude', '']);
 		return;
 	}
+	if (scope === 'celestial') {
+		runGit(['lfs', 'pull', '--include', FIREBASE_DEPLOY_LFS_POLICY.celestialAssets.join(','), '--exclude', '']);
+		return;
+	}
 	if (scope === 'all') {
 		runGit(['lfs', 'pull']);
 		return;
@@ -109,13 +137,14 @@ function hydrateLfs(scope) {
 	throw new Error(`unsupported hydration scope: ${scope}`);
 }
 
-async function verifyPaths(paths, { winterSet = new Set() } = {}) {
+async function verifyPaths(paths, { winterSet = new Set(), celestialSet = new Set() } = {}) {
 	const files = [];
 	let totalVerifiedBytes = 0;
 	for (const assetPath of paths) {
 		const buffer = await readFile(path.join(ROOT, assetPath));
-		const state = classifyLfsBuffer(buffer);
-		assertMaterializedDeployState(assetPath, state, { winter: winterSet.has(assetPath) });
+		const celestial = celestialSet.has(assetPath);
+		const state = celestial ? classifyCelestialBuffer(buffer) : classifyLfsBuffer(buffer);
+		assertMaterializedDeployState(assetPath, state, { winter: winterSet.has(assetPath), celestial });
 		files.push(Object.freeze({ path: assetPath, ...state }));
 		totalVerifiedBytes += state.bytes;
 	}
@@ -130,14 +159,20 @@ export async function runFirebaseDeployLfsReadiness({
 	await verifyFirebaseHostingContract();
 	const tracked = trackedLfsPaths();
 	const winterSet = new Set(FIREBASE_DEPLOY_LFS_POLICY.winterAssets);
-	for (const required of winterSet) {
-		assert(tracked.includes(required), `required winter asset must remain Git-LFS tracked: ${required}`);
+	const celestialSet = new Set(FIREBASE_DEPLOY_LFS_POLICY.celestialAssets);
+	for (const required of [...winterSet, ...celestialSet]) {
+		assert(tracked.includes(required), `required deploy asset must remain Git-LFS tracked: ${required}`);
 	}
 	if (hydrate) hydrateLfs(scope);
 
-	const selected = scope === 'winter' ? FIREBASE_DEPLOY_LFS_POLICY.winterAssets : tracked;
-	const verified = await verifyPaths(selected, { winterSet });
+	const selected = scope === 'winter'
+		? FIREBASE_DEPLOY_LFS_POLICY.winterAssets
+		: scope === 'celestial'
+			? FIREBASE_DEPLOY_LFS_POLICY.celestialAssets
+			: tracked;
+	const verified = await verifyPaths(selected, { winterSet, celestialSet });
 	const winterAssets = verified.files.filter((entry) => winterSet.has(entry.path));
+	const celestialAssets = verified.files.filter((entry) => celestialSet.has(entry.path));
 	const manifest = Object.freeze({
 		policy: FIREBASE_DEPLOY_LFS_POLICY.id,
 		scope,
@@ -146,6 +181,7 @@ export async function runFirebaseDeployLfsReadiness({
 		verifiedFiles: verified.files.length,
 		totalVerifiedBytes: verified.totalVerifiedBytes,
 		winterAssets,
+		celestialAssets,
 	});
 
 	if (manifestPath) {
@@ -164,7 +200,7 @@ function parseArgs(argv) {
 		else if (arg.startsWith('--manifest=')) options.manifestPath = arg.slice('--manifest='.length);
 		else throw new Error(`unknown argument: ${arg}`);
 	}
-	assert(['winter', 'all'].includes(options.scope), '--scope must be winter or all');
+	assert(['winter', 'celestial', 'all'].includes(options.scope), '--scope must be winter, celestial, or all');
 	return options;
 }
 
