@@ -6,6 +6,7 @@ on:
       - 'src/3d/gameplay/interaction.js'
       - 'src/3d/gameplay/interactionConfig.js'
       - 'scripts/checkInteractionExpeditionBoard.mjs'
+      - 'scripts/checkInteractionExpeditionMasterySmithingReward.mjs'
       - 'scripts/checkInteractionExpeditionBoardBrowser.mjs'
       - '.github/workflows/rpg-expedition-board.yml'
   workflow_dispatch:
@@ -40,6 +41,7 @@ jobs:
           node --check src/3d/gameplay/interaction.js
           node --check src/3d/gameplay/interactionConfig.js
           node scripts/checkInteractionExpeditionBoard.mjs
+          node scripts/checkInteractionExpeditionMasterySmithingReward.mjs
           node scripts/checkInteractionJourneyPlanning.mjs
       - name: Install Chromium acceptance harness
         run: |
