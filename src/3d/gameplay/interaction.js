@@ -33,18 +33,49 @@ const DEFAULT_REPUTATION = Object.freeze({ [INTERACTION_FACTIONS.DRAGONSTONE]: 0
 export const INTERACTION_PROGRESSION = Object.freeze({ START_LEVEL: 1, XP_PER_LEVEL: 100, MAX_LEVEL: 20 });
 
 function createWatchWorldState() {
-	const values = { dragonstoneWatchPolicy: null };
-	function set(key, value) { if (key !== 'dragonstoneWatchPolicy' || ![null, WATCH_POLICY.DISCIPLINE, WATCH_POLICY.MERCY].includes(value)) return false; values[key] = value; return true; }
-	function get(key) { return values[key] ?? null; }
-	function snapshot() { return { ...values }; }
-	function restore(saved) { values.dragonstoneWatchPolicy = null; if (saved && typeof saved === 'object' && !Array.isArray(saved)) set('dragonstoneWatchPolicy', saved.dragonstoneWatchPolicy ?? null); }
-	return { get, set, snapshot, restore };
+	const values = { dragonstoneWatchPolicy: null, dragonstoneExpeditionRoutes: [] };
+	function set(key, value) {
+		if (key === 'dragonstoneWatchPolicy') {
+			if (![null, WATCH_POLICY.DISCIPLINE, WATCH_POLICY.MERCY].includes(value)) return false;
+			values[key] = value;
+			return true;
+		}
+		if (key === 'dragonstoneExpeditionRoutes') {
+			if (!Array.isArray(value)) return false;
+			const authoredRouteIds = new Set(EXPEDITION_BOARD_ROUTES.map((route) => route.id));
+			values[key] = [...new Set(value.map((routeId) => String(routeId ?? '').trim()).filter((routeId) => routeId && authoredRouteIds.has(routeId)))].slice(0, EXPEDITION_BOARD_ROUTES.length);
+			return true;
+		}
+		return false;
+	}
+	function get(key) { return Array.isArray(values[key]) ? [...values[key]] : values[key] ?? null; }
+	function hasCompletedExpedition(routeId) { return values.dragonstoneExpeditionRoutes.includes(routeId); }
+	function completeExpedition(routeId) {
+		const id = String(routeId ?? '').trim();
+		if (!id || hasCompletedExpedition(id) || !EXPEDITION_BOARD_ROUTES.some((route) => route.id === id)) return false;
+		values.dragonstoneExpeditionRoutes = [...values.dragonstoneExpeditionRoutes, id];
+		return true;
+	}
+	function snapshot() {
+		const result = { dragonstoneWatchPolicy: values.dragonstoneWatchPolicy };
+		if (values.dragonstoneExpeditionRoutes.length > 0) result.dragonstoneExpeditionRoutes = [...values.dragonstoneExpeditionRoutes];
+		return result;
+	}
+	function restore(saved) {
+		values.dragonstoneWatchPolicy = null;
+		values.dragonstoneExpeditionRoutes = [];
+		if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
+		set('dragonstoneWatchPolicy', saved.dragonstoneWatchPolicy ?? null);
+		set('dragonstoneExpeditionRoutes', saved.dragonstoneExpeditionRoutes ?? []);
+	}
+	return { get, set, snapshot, restore, hasCompletedExpedition, completeExpedition };
 }
 function watchPolicyLabel(policy) { if (policy === WATCH_POLICY.MERCY) return 'İkinci şans'; if (policy === WATCH_POLICY.DISCIPLINE) return 'Sıkı disiplin'; return null; }
 
 export const EXPEDITION_BOARD_ROUTES = Object.freeze([
 	Object.freeze({
 		id: 'dragonstone-watch-circuit', label: 'Nöbet Yolu Devriyesi', summary: 'Dragonstone nöbet yollarını tek seferde dolaş.',
+		reward: Object.freeze({ experience: 20, reputation: 1 }),
 		steps: Object.freeze([
 			Object.freeze({ type: 'travel', originId: 'dragonstone', destinationId: 'dragonstone-watch-road', discovered: true, routeOpen: true, inCombat: false, distanceKm: 10 }),
 			Object.freeze({ type: 'travel', originId: 'dragonstone-watch-road', destinationId: 'dragonstone-harbor-road', discovered: true, routeOpen: true, inCombat: false, distanceKm: 25 }),
@@ -53,6 +84,7 @@ export const EXPEDITION_BOARD_ROUTES = Object.freeze([
 	}),
 	Object.freeze({
 		id: 'dragonstone-harbor-tavern-run', label: 'Liman Taverna Seferi', summary: 'Nöbet yolundan liman tavernasına git, dinlen ve dönüş hattını tamamla.',
+		reward: Object.freeze({ experience: 30, reputation: 2 }),
 		steps: Object.freeze([
 			Object.freeze({ type: 'travel', originId: 'dragonstone', destinationId: 'dragonstone-watch-road', discovered: true, routeOpen: true, inCombat: false, distanceKm: 28 }),
 			Object.freeze({ type: 'rest', kind: REST_KIND.TAVERN, siteId: 'dragonstone-harbor-tavern', discovered: true, open: true, inCombat: false }),
@@ -61,6 +93,7 @@ export const EXPEDITION_BOARD_ROUTES = Object.freeze([
 	}),
 	Object.freeze({
 		id: 'dragonstone-ridge-camp', label: 'Sırt Kampı Seferi', summary: 'Sırt hattına çık, mevcut kamp erzağıyla toparlan ve liman yoluna in.',
+		reward: Object.freeze({ experience: 25, reputation: 2 }),
 		steps: Object.freeze([
 			Object.freeze({ type: 'travel', originId: 'dragonstone', destinationId: 'dragonstone-ridge', discovered: true, routeOpen: true, inCombat: false, distanceKm: 30 }),
 			Object.freeze({ type: 'rest', kind: REST_KIND.CAMP, siteId: 'dragonstone-ridge-camp', open: true, inCombat: false }),
@@ -70,26 +103,37 @@ export const EXPEDITION_BOARD_ROUTES = Object.freeze([
 ]);
 
 function readinessFromInventory(inventory = {}) { return inventory?.fieldReadiness?.tier ? inventory.fieldReadiness : inventory; }
-export function evaluateExpeditionBoard(inventory = {}, journey = {}, routes = EXPEDITION_BOARD_ROUTES) {
+export function evaluateExpeditionBoard(inventory = {}, journey = {}, worldState = {}, routes = EXPEDITION_BOARD_ROUTES) {
 	const startingFatigueKm = Math.max(0, Number(journey?.fatigueKm) || 0);
+	const completedRouteIds = new Set(Array.isArray(worldState?.dragonstoneExpeditionRoutes) ? worldState.dragonstoneExpeditionRoutes : []);
 	const entries = (Array.isArray(routes) ? routes : []).map((route, index) => {
 		const plan = evaluateJourneyWithRestStops(readinessFromInventory(inventory), route.steps, { startingFatigueKm });
 		const blockedStep = plan.steps?.find((step) => step.index === plan.blockedAtStepIndex) ?? null;
 		const reasons = blockedStep?.type === 'rest' ? blockedStep?.decision?.reasons : blockedStep?.reasons;
-		return Object.freeze({ id: route.id, label: route.label, summary: route.summary, index, steps: route.steps, ready: plan.complete, status: plan.complete ? 'ready' : 'blocked', plan, reasons: Object.freeze([...(reasons ?? [])]) });
+		const completed = completedRouteIds.has(route.id);
+		return Object.freeze({ id: route.id, label: route.label, summary: route.summary, reward: route.reward, index, steps: route.steps, ready: plan.complete, status: plan.complete ? 'ready' : 'blocked', completed, firstRewardAvailable: !completed, plan, reasons: Object.freeze([...(reasons ?? [])]) });
 	});
-	return Object.freeze({ startingFatigueKm, entries: Object.freeze(entries), readyRouteCount: entries.filter((entry) => entry.ready).length });
+	return Object.freeze({ startingFatigueKm, completedRouteCount: entries.filter((entry) => entry.completed).length, entries: Object.freeze(entries), readyRouteCount: entries.filter((entry) => entry.ready).length });
 }
 export function buildExpeditionBoardText(board = evaluateExpeditionBoard()) {
-	const lines = ['Dragonstone Sefer Panosu', `Mevcut yorgunluk: ${board.startingFatigueKm} km`];
+	const lines = ['Dragonstone Sefer Panosu', `Mevcut yorgunluk: ${board.startingFatigueKm} km`, `Tamamlanan kontrat: ${board.completedRouteCount ?? 0}/${board.entries?.length ?? 0}`];
 	if (!board.entries?.length) return [...lines, 'Açık sefer bulunmuyor.'].join('\n');
 	lines.push('Bir sefer seç:');
-	for (const [index, entry] of board.entries.entries()) { const requirement = entry.ready ? 'HAZIR' : `KİLİTLİ · ${entry.reasons?.join(', ') || 'rota uygun değil'}`; lines.push(`${index + 1}. ${entry.label} · ${requirement} · ${entry.plan.totalDistanceKm} km · ${entry.plan.totalRequiredTravelPacks} azık`); }
+	for (const [index, entry] of board.entries.entries()) {
+		const requirement = entry.ready ? 'HAZIR' : `KİLİTLİ · ${entry.reasons?.join(', ') || 'rota uygun değil'}`;
+		const reward = entry.completed ? 'ÖDÜL ALINDI' : `İLK ÖDÜL: ${entry.reward?.experience ?? 0} XP + ${entry.reward?.reputation ?? 0} itibar`;
+		lines.push(`${index + 1}. ${entry.label} · ${requirement} · ${entry.plan.totalDistanceKm} km · ${entry.plan.totalRequiredTravelPacks} azık · ${reward}`);
+	}
 	return lines.join('\n');
 }
 export function buildExpeditionBoardResultText(entry, result = {}) {
 	if (!entry) return 'Sefer seçilemedi.';
-	if (result.ok === true) return `${entry.label}\nSEFER TAMAMLANDI\nTüketilen yol azığı: ${result.consumedQuantity}\n${buildJourneyRestText(result.plan)}`;
+	if (result.ok === true) {
+		const rewardText = result.firstCompletion === true
+			? `\nKontrat ödülü: ${result.rewardExperience} XP + ${result.rewardReputation} Dragonstone itibarı`
+			: '\nKontrat daha önce tamamlandı · tekrar ödülü yok';
+		return `${entry.label}\nSEFER TAMAMLANDI\nTüketilen yol azığı: ${result.consumedQuantity}${rewardText}\n${buildJourneyRestText(result.plan)}`;
+	}
 	return `${entry.label}\nSEFER BAŞLATILAMADI\n${buildJourneyRestText(result.plan ?? entry.plan)}`;
 }
 
@@ -174,7 +218,8 @@ export function buildQuestJournalText(snapshot, reputationSnapshot = {}, progres
 	const xp = Number(progressionSnapshot.experienceIntoLevel) || 0;
 	const xpToNext = Number(progressionSnapshot.experienceToNextLevel) || INTERACTION_PROGRESSION.XP_PER_LEVEL;
 	const policyLabel = watchPolicyLabel(worldStateSnapshot.dragonstoneWatchPolicy);
-	const lines = ['Görev Günlüğü', `Seviye: ${level} · XP: ${xp}/${xpToNext}`, `Dragonstone itibarı: ${dragonstoneReputation}`];
+	const completedExpeditions = Array.isArray(worldStateSnapshot.dragonstoneExpeditionRoutes) ? worldStateSnapshot.dragonstoneExpeditionRoutes.length : 0;
+	const lines = ['Görev Günlüğü', `Seviye: ${level} · XP: ${xp}/${xpToNext}`, `Dragonstone itibarı: ${dragonstoneReputation}`, `Sefer kontratları: ${completedExpeditions}/${EXPEDITION_BOARD_ROUTES.length}`];
 	if (policyLabel) lines.push(`Nöbet kararı: ${policyLabel}`);
 	if (visible.length === 0) return [...lines, 'Henüz kabul edilmiş bir görev yok.'].join('\n');
 	for (const quest of visible) { const status = quest.status === 'ready' ? 'TESLİME HAZIR' : quest.status === 'completed' ? 'TAMAMLANDI' : 'AKTİF'; lines.push(`\n${quest.title} — ${status}`); for (const objective of quest.objectives) lines.push(`${objective.completed ? '✓' : '○'} ${objective.label}`); if (quest.outcome) lines.push(`Sonuç: ${watchPolicyLabel(quest.outcome) ?? quest.outcome}`); if (quest.rewardGranted) lines.push(`Ödül: ${quest.reward}`); }
@@ -195,11 +240,30 @@ export function createInteractionController({ interactionPrompt, dialogueBox, gr
 	function showJournal() { activeNpc = null; activeChoices = null; activeNpcName = null; journalOpen = true; shopOpen = false; expeditionBoardOpen = false; activeExpeditionBoard = null; interactionPrompt.setVisible(false); dialogueBox.show(buildQuestJournalText(quests.snapshot(), reputation.snapshot(), progression.snapshot(), worldState.snapshot())); }
 	function showInventory() { activeNpc = null; activeChoices = null; activeNpcName = null; journalOpen = true; shopOpen = false; expeditionBoardOpen = false; activeExpeditionBoard = null; interactionPrompt.setVisible(false); dialogueBox.show(buildInventoryText(inventory.snapshot(), journey.snapshot())); }
 	function showQuartermaster(feedback = '') { if (nearestNpc?.object3D?.name !== QUARTERMASTER_NPC_ID) return false; activeNpc = null; activeChoices = null; activeNpcName = null; journalOpen = true; shopOpen = true; expeditionBoardOpen = false; activeExpeditionBoard = null; interactionPrompt.setVisible(false); dialogueBox.show(buildQuartermasterText(economy.snapshot(), QUARTERMASTER_OFFERS, feedback), QUARTERMASTER_OFFERS.map((offer) => `${offer.label} — ${offer.priceCopper} bakır`)); return true; }
-	function showExpeditionBoard() { if (nearestNpc?.object3D?.name !== QUARTERMASTER_NPC_ID) return false; activeNpc = null; activeChoices = null; activeNpcName = null; journalOpen = true; shopOpen = false; expeditionBoardOpen = true; activeExpeditionBoard = evaluateExpeditionBoard(inventory.snapshot(), journey.snapshot()); interactionPrompt.setVisible(false); dialogueBox.show(buildExpeditionBoardText(activeExpeditionBoard), activeExpeditionBoard.entries.map((entry) => `${entry.label} — ${entry.ready ? 'HAZIR' : 'KİLİTLİ'}`)); return true; }
+	function showExpeditionBoard() { if (nearestNpc?.object3D?.name !== QUARTERMASTER_NPC_ID) return false; activeNpc = null; activeChoices = null; activeNpcName = null; journalOpen = true; shopOpen = false; expeditionBoardOpen = true; activeExpeditionBoard = evaluateExpeditionBoard(inventory.snapshot(), journey.snapshot(), worldState.snapshot()); interactionPrompt.setVisible(false); dialogueBox.show(buildExpeditionBoardText(activeExpeditionBoard), activeExpeditionBoard.entries.map((entry) => `${entry.label} — ${entry.ready ? 'HAZIR' : 'KİLİTLİ'}${entry.completed ? ' · ÖDÜL ALINDI' : ''}`)); return true; }
 	function selectShopOffer(index) { const offer = QUARTERMASTER_OFFERS[index]; if (!offer) return; const result = economy.purchase(offer, (...args) => inventory.grant(...args)); let feedback = 'Satın alma başarısız.'; if (result.ok) { feedback = `${offer.label} çantana eklendi. ${result.spentCopper} bakır ödendi.`; onInventoryChanged(inventory.snapshot()); onEconomyChanged(economy.snapshot()); } else if (result.reason === 'insufficient-funds') feedback = 'Kesende yeterli bakır yok.'; else if (result.reason === 'inventory-full') feedback = 'Bu eşyadan daha fazlasını taşıyamazsın.'; showQuartermaster(feedback); }
 	function selectChoice(index) { const choice = activeChoices[index]; const npcId = activeNpc?.object3D?.name ?? ''; activeChoices = null; dialogueBox.show(choice.response.replace('{name}', activeNpcName)); if (quests.consume(npcId, choice.originalIndex)) onQuestChanged(quests.snapshot()); }
 	function commitJourneyWithRestStops(steps = []) { const journeyBefore = journey.snapshot(); const result = inventory.commitJourneyWithRestStops(steps, { startingFatigueKm: journeyBefore.fatigueKm }); if (!result.ok) return { ...result, journey: journeyBefore }; if (!journey.applyCommit(result)) return { ...result, ok: false, reason: 'journey-state-commit-failed', journey: journeyBefore }; const journeySnapshot = journey.snapshot(); if (result.consumedQuantity > 0) onInventoryChanged(result.inventory); onJourneyChanged(journeySnapshot); return { ...result, journey: journeySnapshot }; }
-	function selectExpeditionRoute(index) { const entry = activeExpeditionBoard?.entries?.[index]; if (!entry) return; const result = commitJourneyWithRestStops(entry.steps); expeditionBoardOpen = false; activeExpeditionBoard = null; activeChoices = null; dialogueBox.show(buildExpeditionBoardResultText(entry, result)); }
+	function selectExpeditionRoute(index) {
+		const entry = activeExpeditionBoard?.entries?.[index];
+		if (!entry) return;
+		let result = commitJourneyWithRestStops(entry.steps);
+		if (result.ok === true) {
+			const firstCompletion = worldState.completeExpedition(entry.id);
+			let rewardExperience = 0;
+			let rewardReputation = 0;
+			if (firstCompletion) {
+				rewardExperience = Math.max(0, Math.floor(Number(entry.reward?.experience) || 0));
+				rewardReputation = Math.max(0, Math.floor(Number(entry.reward?.reputation) || 0));
+				if (progression.grant(rewardExperience)) onProgressionChanged(progression.snapshot());
+				if (reputation.grant(INTERACTION_FACTIONS.DRAGONSTONE, rewardReputation)) onReputationChanged(reputation.snapshot());
+				onWorldStateChanged(worldState.snapshot());
+			}
+			result = { ...result, firstCompletion, rewardExperience, rewardReputation };
+		}
+		expeditionBoardOpen = false; activeExpeditionBoard = null; activeChoices = null;
+		dialogueBox.show(buildExpeditionBoardResultText(entry, result));
+	}
 	function rebuildRewardStateFromQuestRewards(savedQuestSnapshot, { includeObjectiveExperience = true } = {}) { reputation.restore(DEFAULT_REPUTATION); progression.restore(null); inventory.restore(null); for (const savedQuest of Array.isArray(savedQuestSnapshot) ? savedQuestSnapshot : []) { const definition = INTERACTION_QUESTS.find((quest) => quest.id === savedQuest?.id); if (!definition) continue; if (includeObjectiveExperience) for (const savedObjective of savedQuest.objectives ?? []) { if (!savedObjective?.completed) continue; const objective = definition.objectives.find((candidate) => candidate.id === savedObjective.id); progression.grant(Number(objective?.progressExperience)); } if (savedQuest.status !== QUEST_STATUS.COMPLETED || savedQuest.rewardGranted !== true) continue; const reward = definition.reward; if (reward?.reputation) reputation.grant(reward.reputation.faction, reward.reputation.amount); progression.grant(Number(reward?.experience)); if (reward?.item) inventory.grant(reward.item.id, reward.item.quantity, { sourceType: 'quest', sourceId: definition.id }); } quests.unlockEligible(); }
 	function inferWorldStateFromQuestSnapshot(savedQuestSnapshot) { worldState.restore(null); const secondQuest = (Array.isArray(savedQuestSnapshot) ? savedQuestSnapshot : []).find((quest) => quest?.id === 'watch-under-pressure'); if (secondQuest?.status !== QUEST_STATUS.COMPLETED) return; const inferred = [WATCH_POLICY.DISCIPLINE, WATCH_POLICY.MERCY].includes(secondQuest.outcome) ? secondQuest.outcome : WATCH_POLICY.DISCIPLINE; worldState.set('dragonstoneWatchPolicy', inferred); }
 	function restoreRpgSnapshot(saved) { if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return; const schemaVersion = Number(saved.schemaVersion) || 1; reputation.restore(saved.reputation); progression.restore(saved.progression); inventory.restore(saved.inventory); economy.restore(saved.economy); worldState.restore(saved.worldState); journey.restore(saved.journey); quests.restore(saved.quests); if (!saved.reputation || !saved.progression || !saved.inventory) { const explicitReputation = saved.reputation; const explicitProgression = saved.progression; const explicitInventory = saved.inventory; rebuildRewardStateFromQuestRewards(saved.quests, { includeObjectiveExperience: schemaVersion >= 3 }); if (explicitReputation) reputation.restore(explicitReputation); if (explicitProgression) progression.restore(explicitProgression); if (explicitInventory) inventory.restore(explicitInventory); } if (!saved.worldState) inferWorldStateFromQuestSnapshot(saved.quests); onReputationChanged(reputation.snapshot()); onProgressionChanged(progression.snapshot()); onInventoryChanged(inventory.snapshot()); onEconomyChanged(economy.snapshot()); onWorldStateChanged(worldState.snapshot()); onJourneyChanged(journey.snapshot()); onQuestChanged(quests.snapshot()); }
