@@ -17861,3 +17861,49 @@ köy rollerinden çıkarıldı.
 meydanına 52 m, suda 0, placeholder 0, deterministik, **570k üçgen / 314 draw call**. Prosedürel
 kulübeler kalıyor — LFS olmayan bir klonda yalnız modellerden kurulan köy hiç görünmezdi. Görsel kanıt:
 `artifacts/villages/`.
+
+## Tur 380 — Dünyanın bütün dağları tek bir yığındaydı (ADR-0327)
+
+Sahibin talimatı: "Tek büyük kocaman dağ yerine daha sivri ama sıra dağ gruplarına önem ve özen
+göster." Ölçtüm, ve şikâyet birebir doğruydu.
+
+### Ölçülen başlangıç
+
+Dünyanın **tüm** dağ sistemi **dört zincir, her biri üç nokta**tı. Dünyanın en yüksek **on dört**
+zirvesinin hepsi tek bir Essos kütlesinin içinde (nx 0.698–0.721); **Westeros'un ilk on dörtte tek bir
+zirvesi yoktu.** Sorun profil ayarı değil zincir sayısıydı: 1,6 km genişliğindeki bir kabartma
+profilinin altındaki 1 km'lik bir zincir, kanatları ne kadar keskin olursa olsun tek bir yumrudur.
+
+### Sıra dağlar `map.png`'den okundu
+
+Haritanın taralı gri sırtlarını erozyona uğratmak (kale ikonları ve metin etiketleri düşer) 1.464 iz
+içinde 13.769 piksel bırakıyor; 120 pikselden büyük **yirmi iz** kartografın gerçekten çizdiği sıra
+dağlar. Her zincirin noktaları kendi ana ekseni boyunca (PCA) yedi ağırlık merkezi. **Beşi suya
+düştü** — `coastalReliefTaper` orada kabartmayı 0.12 tabanına indiriyor, yani 328 m'lik bir profil
+41 m üretiyordu ve iz aslında denizin üzerindeki bir etiketti; silindiler. **4 → 19 zincir.**
+
+### Sivrilik: ortalama almak dağı düzleştirir
+
+Zirve gürültüsüne oktav *eklemek* dağı **daha pürüzsüz** yaptı — merkezi limit teoremi. Ortalama yerine
+**çarpım** + 1.55 kazanç kullanıldı. Sırt kesiti `cos^1.3` → **`cos^2.6`**.
+
+### İki gate ters yöne çekti
+
+`doran -> ziya` yolu keskinleştirmeden sonra **40,7°** yaptı (tavan 20°). Dağı düzleştirmek yerine Red
+Mountains ölçülü indirildi ve **kendi geçitleri %40 genişletildi** → **10,2°**. Ayrıca dünyanın en kötü
+LOD boşluğu **71,05 → 87,49 m** çıktı, etek tavanı 96 → **144 m**.
+
+### Sonuç
+
+**19 zincir, 150 m üstü 191 ayrı zirve, 7 bölgede, ortalama sırt eğriliği 31,31 m.** Koltuklar 14/14
+PASS, yollar PASS, etek her chunk'ta kendi boşluğunu örtüyor. `scripts/checkMountainRanges.js` bunların
+hepsini CI'da koruyor. Görsel kanıt `artifacts/mountains/`. Service worker v39→v40.
+
+### Bu turda bulunan, HENÜZ GİDERİLMEMİŞ kusur
+
+Render'a bakınca Bones hâlâ bir **duvar**: kabartma 80 m yatayda 170 m düşüyor (**~65°**). Sebep
+ölçülebilir — `bone-mountains` 950 m tepe / `outerWidthNormalized` 0.042 (≈441 m yarı-genişlik), yani
+2:1'den dik bir bıçak sırtı; `eastern-chain` de aynı (950 / 0.040). Bu, keskinlik değil orantısızlık:
+dünya yatayda 13,5 km ve içinde 950 m'lik bir tepe var. Kuzeybatı Westeros ve Red Mountains (300–560 m)
+render'da doğru görünüyor; yalnız bu iki 950 m'lik zincir "tek büyük kocaman dağ" olarak okunuyor —
+yani sahibin şikâyetinin tam olarak kalan yarısı. Tur 381'in konusu bu (kendi §8.4 çifti ile).

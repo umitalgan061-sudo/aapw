@@ -18697,3 +18697,95 @@ kanıtlamadan geçerdi. Service worker v38→v39.
 **Technical debt.** 0 new. **Açık iş.** Köyün *konutları* hâlâ prosedürel: 21 konut modeli katalogda
 duruyor ve LFS hidrasyonu güvenilir olduğunda kutuların yerini alabilirler. Ayrıca 14 koltuktan yalnız
 11'inde köy var (önizleme yarıçapı dışındakiler atlanıyor) ve köyler chunk-stream edilmiyor.
+
+## ADR-0327 — Dünyanın bütün dağları tek bir yığındaydı; haritanın kendisi on beş sıra dağ daha çiziyordu
+
+**Sahibin talimatı.** "Tek büyük kocaman dağ yerine daha sivri ama sıra dağ gruplarına önem ve özen
+göster." Şikâyet ölçülebilir çıktı ve ölçüm şikâyeti bire bir doğruladı.
+
+**Ölçülen başlangıç durumu.** Dünyanın **tüm** dağ sistemi `REFERENCE_RELIEF_CHAINS` içindeki **dört
+zincir, her biri üç nokta**tı. Dünyanın en yüksek **on dört** zirvesinin hepsi tek bir Essos kütlesinin
+içinde, nx 0.698–0.721 aralığında sıkışmıştı; **Westeros'un ilk on dörtte tek bir zirvesi yoktu.**
+Bones "tek pürüzsüz balina sırtı" olarak render ediliyordu. 1,6 km genişliğinde bir kabartma profilinin
+altındaki 1 km'lik bir zincir, kanatları ne kadar keskinleştirilirse keskinleştirilsin ancak tek bir
+yumru olabilir — sorun profil ayarı değil, zincir sayısıydı.
+
+### Sıra dağlar uydurulmadı; `map.png`'den okundu
+
+Kanonik harita dağlarını taralı gri sırtlar olarak çiziyor. O griyi erozyona uğratmak (kale ikonlarını
+ve metin etiketlerini düşürür, ikisi de gri) **1.464 iz içinde 13.769 piksel** bırakıyor; 120 pikselden
+büyük **yirmi iz**, kartografın gerçekten çizdiği sıra dağlar. Her birinin noktaları kendi ana ekseni
+boyunca yedi kutuya bölünmüş ağırlık merkezleri (PCA), böylece polyline izin uçlarından geçen düz bir
+çizgi değil gerçek omurgasını takip ediyor. Kısalar — 200–750 m — çünkü çizilmiş sırtlar o kadar uzun,
+ve **"sıra dağ grupları" tam olarak budur**: kısa sıra dağların dağılımı.
+
+Yirmisinden **beşi** suya düştü: `coastalReliefTaper` kabartmayı orada 0.12 tabanına indiriyor, yani
+328 m'lik bir profil 41 m üretiyor ve iz aslında denizin üzerindeki bir etiket ya da ikondu. Silindiler
+— dekor olarak bırakılmadılar. Ölü bir zincir bedava değil: kaynakta o sıra dağ varmış gibi okunur ve
+her yükseklik örneğinde sonsuza dek bir sınırlayıcı-kutu testine mal olur. **4 → 19 zincir.**
+
+### Sivrilik: ortalama almak dağı düzleştirir
+
+Zirve gürültüsüne oktav **eklemek** dağları *daha pürüzsüz* yaptı — merkezi limit teoremi: bağımsız
+oktavların ortalaması varyansı düşürür, tam olarak kaybedilmemesi gereken şeyi. Ortalama yerine
+**çarpım** artı 1.55 kazanç ve kırpma kullanıldı; kaba yapı ince yapıyı modüle ediyor, seyreltmiyor.
+Sırt kesiti de keskinleştirildi: `ridgeExponent` `1.10 + coreRatio * 2.0` → **`2.20 + coreRatio * 4.0`**.
+Vale ve Red Mountains'ın tekdüze `summitFloor`'u kaldırıldı; Vale 560 m'ye (Ay Dağları, Eyrie),
+Bones ve doğu zinciri 950 m'ye çıkarıldı.
+
+### Kapı ve arazi güvenliği aynı turda ters yöne çekti
+
+Keskinleştirmeden sonra `doran -> ziya` yolu **40,7°** yaptı (tavan 20°). Dağı düzleştirmek yanıt
+değildi: Red Mountains ölçülü biçimde indirildi (430 m) ve **kendi geçitleri ~%40 genişletildi**
+(0.045→0.064, 0.055→0.078, 0.050→0.070) — sonuç **10,2°**, ağ 19,86 km, 14/14 koltuk PASS.
+
+**Kritik bağlaşım:** daha keskin arazi, bir chunk'ın ince kenarı ile kaba komşusununki arasında daha
+büyük uyumsuzluk demek; dikişi gizleyen etek tavanlı. Dünyanın en kötü LOD boşluğu üç turda
+**60,74 → 71,05 → 87,49 m** yürüdü. `TERRAIN_CHUNK_SKIRT_POLICY.maxDepthMeters` 96 → **144**. Bunlar
+birlikte ölçülmezse bir sonraki dağ keskinleştirmesi dünyada bir delik açar ve bunu ilk oyuncu görür.
+
+### `scripts/checkMountainRanges.js`
+
+Doğru olanı ölçülebilir kılan şey onu koruyabilir de: en yüksek 20 zirvenin **en az 3 ayrı bölgeye**
+dağılması (her zirvenin tek kütlede olması tam da giderilen kusur), **en az 16 zincir**, **hiçbir
+zincirin 40 m'nin altında kabartma üretmemesi**, 150 m üstü **en az 120 ayrı zirve**, ve yüksek arazide
+**ortalama sırt eğriliği ≥ 18 m** — bir kubbe ile bir zirve tam orada ayrışır. Etek tavanı da
+raporlanıyor. CI'ın "Geography fidelity" adımına bağlandı.
+
+**Ölçülen sonuç:** **19 zincir, 150 m üstü 191 ayrı zirve, 7 bölgede, ortalama sırt eğriliği 31,31 m**;
+en zayıf zincir 105 m (eskiden 41 m'lik ölü bir zincir vardı). Dünyanın en yüksek noktası 857 m.
+
+**§8.4 Arazi Değişikliği Güvenlik Kontrolü** öncesi/sonrası tam çift olarak koşuldu: koltuklar 14/14
+PASS, yollar PASS (en dik 18,8°'i deniz geçişi, kara kenarlarında en dik 12,3°), etek her chunk'ta
+kendi en kötü boşluğunu örtüyor (87,49 m dünya en kötüsü, 144 m tavan). Service worker v39→**v40**:
+kabuk cache-first olduğu için eski kurulum eski modülleri sunar ve oyuncu eski tek pürüzsüz kütleyi
+görürdü — burada bayat bir cache, bayat bir *dünya* demek.
+
+**Görsel kanıt** `artifacts/mountains/` (öncesi/sonrası, dört bakış). Bones artık gerçek bir boyun ile
+ayrılmış keskin, dar bir kütle; kuzeybatı Westeros'ta ayrı zirveli düzgün bir sırt hattı; Red
+Mountains'ta yolun geçtiği görünür bir geçit.
+
+### Bu turda bulunan, bilerek giderilmeyen kusur: Bones bir bıçak sırtı
+
+§8.5 gereği render'a bakmak yeni bir kusur gösterdi ve ölçüm doğruladı: Bones'un kabartması **80 m
+yatayda 170 m** düşüyor — **~65°**, yürünebilirlik tavanı 35°. Sebep `bone-mountains`'ın 950 m tepesi
+ile 0.042'lik `outerWidthNormalized`'ı (≈441 m yarı-genişlik) arasındaki orantı: 2:1'den dik bir bıçak.
+`eastern-chain` aynı (950 / 0.040). Bu keskinlik değil **orantısızlık** — dünya yatayda 13,5 km ve
+içine 950 m'lik bir tepe konmuş; gerçek bir dağ sırasında bu oran 1:1000 civarıdır, burada 1:14.
+
+Kusur bu turdan **önce de vardı** (`artifacts/mountains/bones-before.png` aynı duvarı gösteriyor) ve
+akış yarıçapı ikiye katlanınca kaybolmadı, yani bir chunk-stream kenarı değil gerçek arazi. Bu turda
+giderilmedi çünkü zincir genişletmek arazi değişikliğidir ve kendi §8.4 öncesi/sonrası çiftini,
+kendi yol eğim requalifikasyonunu ve kendi etek ölçümünü gerektirir — bu tura eklenirse tur atomik
+olmaktan çıkar. **Tur 381'in konusu**, ve sahibin şikâyetinin ("tek büyük kocaman dağ") kalan yarısı.
+
+**Technical debt.** 0 new. **Açık iş.** Sahibin aynı mesajındaki diğer istekler henüz karşılanmadı:
+**coğrafi renkler** ("Coğrafi renklere ve görünümlere yeniden bak" — ovalar tek düze doygun yeşil),
+**göller** (S-0039: hiçbir göl modellenmiş değil; Tanrıların Gözü ~97×185 m, tek bir 96×64 maske
+hücresinden küçük) ve **assetlerin dokulanması**.
+
+**Yayın durumu — sahibin dikkatine.** Bu dal (`agent/terrain-chunk-skirt-run355`) `main`'e göre **35
+commit ileride ve hiç birleştirilmemiş**: tur 355'ten 380'e kadarki işin tamamı — Duvar üzerindeki
+Castle Black, adlandırılmış nehirler, köy yapıları, FBX yükleyici düzeltmesi, bu turun sıra dağları —
+`main`'de **yok**, dolayısıyla oyunda da yok. Bu dal için hiç PR açılmamış. Birleştirme sahibin kararı
+(§ sahip kapısı), o yüzden açılmadı; ama iş yayımlanmadığı sürece oyuna ulaşmıyor.

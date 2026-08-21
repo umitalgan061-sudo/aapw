@@ -233,7 +233,11 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // RPG expedition readiness adds an offline-loadable gameplay module; v19->v20 refreshes existing installs.
 // Merge of run 355-359 (skirts, road corridor, forest scatter, forest affinity) with that work: both
 // sides bumped this independently, so the merged install needs a version above either branch's.
-const SHELL_CACHE = 'westeros-shell-v39';
+// Run 380 rewrites the height field itself: `worldReferenceMap.js` gained fifteen mountain chains read
+// off `map.png` and `worldReferenceMountainRelief.js` sharpened every ridge cross-section. The shell is
+// cache-first, so an existing install would keep serving the old modules and the player would see the
+// old single smooth massif — a stale cache here is a stale *world*, not just a stale script. v39->v40.
+const SHELL_CACHE = 'westeros-shell-v40';
 const SHELL_FILES = [
     './',
     './index.html',

@@ -47,11 +47,16 @@ export const TERRAIN_CHUNK_SKIRT_POLICY = Object.freeze({
 	minDepthMeters: 2,
 	/**
 	 * Hard ceiling, as a backstop against a pathological edge dragging one chunk's wall absurdly deep.
-	 * `scripts/measureTerrainChunkSkirtDepth.js` measures the true worst mismatch anywhere in the world
-	 * at 60.74 m (a 64-vs-16 seam on chunk (6,0)'s west edge), so this clears reality with room spare
-	 * and never actually binds today — see DECISIONS.md ADR-0301.
+	 *
+	 * This is a **measured** ceiling and it has been eroding as the world gained relief.
+	 * `scripts/measureTerrainChunkSkirtDepth.js` reports the worst LOD mismatch anywhere in the world:
+	 * 60.74 m when it was set to 96 (ADR-0301), 71.05 m after the Doom raised Valyria (ADR-0319 recorded
+	 * that as debt to watch), and **87.49 m** once run 380 sharpened the mountain chains. Seven metres of
+	 * margin is not a backstop, it is a fuse. 144 m restores the roughly 35% headroom the number was
+	 * originally chosen with. It costs nothing until a chunk actually needs it — the depth is picked per
+	 * chunk from its own measured gap, and the deepest any chunk currently chooses is 57.1 m.
 	 */
-	maxDepthMeters: 96,
+	maxDepthMeters: 144,
 });
 
 /**

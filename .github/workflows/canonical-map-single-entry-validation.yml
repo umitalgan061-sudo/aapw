@@ -63,6 +63,7 @@ jobs:
           set -euo pipefail
           node scripts/checkRegionGeographyFidelity.js
           node scripts/checkMapFeatureFidelity.js
+          node scripts/checkMountainRanges.js
           node scripts/checkValyriaDoom.js
           node scripts/checkTheWall.js
           node scripts/checkNightsWatchCastles.js

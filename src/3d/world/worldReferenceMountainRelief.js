@@ -47,30 +47,71 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 	// Bone/eastern chains need no authored pass yet because no current live road crosses them.
 	chains: Object.freeze({
 		'vale-chain': Object.freeze({
-			peakMeters: 430,
+			// The Vale holds the Eyrie and the Mountains of the Moon — the most vertical country in
+			// Westeros — and measured 323 m against a Bone Mountains massif at 774 m. Westeros had no peak
+			// in the world's highest fourteen; every one of them was the same Essos blob.
+			peakMeters: 560,
 			coreWidthNormalized: 0.007,
 			outerWidthNormalized: 0.052,
-			summitFloor: 0.65,
+			// **0.65 was why the Vale looked like a moor.** A floor that high pins the crest between 65%
+			// and 100% of its peak everywhere along the chain — a uniform embankment by construction, no
+			// matter what the summit noise does above it. Sharp peaks need room to fall between them.
+			summitFloor: 0.22,
 			seed: 11,
 			passes: Object.freeze([
-				Object.freeze({ id: 'vale-northwest-approach', center: [0.206, 0.399], innerRadiusNormalized: 0.015, outerRadiusNormalized: 0.050, minimumMultiplier: 0.02, corridorVia: [0.1755, 0.3738], corridorEnd: [0.169444, 0.250], corridorInnerRadiusNormalized: 0.012, corridorOuterRadiusNormalized: 0.030 }),
-				Object.freeze({ id: 'vale-south-approach', center: [0.233, 0.467], innerRadiusNormalized: 0.018, outerRadiusNormalized: 0.055, minimumMultiplier: 0.02 }),
+				Object.freeze({ id: 'vale-northwest-approach', center: [0.206, 0.399], innerRadiusNormalized: 0.011, outerRadiusNormalized: 0.034, minimumMultiplier: 0.02, corridorVia: [0.1755, 0.3738], corridorEnd: [0.169444, 0.250], corridorInnerRadiusNormalized: 0.012, corridorOuterRadiusNormalized: 0.030 }),
+				Object.freeze({ id: 'vale-south-approach', center: [0.233, 0.467], innerRadiusNormalized: 0.013, outerRadiusNormalized: 0.037, minimumMultiplier: 0.02 }),
 			]),
 		}),
 		'red-mountains': Object.freeze({
-			peakMeters: 380,
+			// The Red Mountains wall Dorne off from the Reach; they were the second-weakest chain.
+			//
+			// 470 m with a 0.20 summit floor put the `doran -> ziya` road at **40.7 degrees** against a
+			// 20-degree ceiling: a sharper cross-section makes steeper flanks by construction, and this is
+			// the one range a live road crosses. 430 m with a slightly higher floor keeps the range a
+			// range and keeps Dorne reachable — measured, not guessed, and the pass radii below were
+			// widened in the same pass so the corridor eases into the ridge instead of hitting a wall.
+			peakMeters: 430,
 			coreWidthNormalized: 0.008,
 			outerWidthNormalized: 0.050,
-			summitFloor: 0.55,
+			// Same reason as the Vale's floor above, held a little higher because of the road.
+			summitFloor: 0.34,
 			seed: 23,
 			passes: Object.freeze([
-				Object.freeze({ id: 'red-west-approach', center: [0.145, 0.610], innerRadiusNormalized: 0.014, outerRadiusNormalized: 0.045, minimumMultiplier: 0.08 }),
-				Object.freeze({ id: 'red-central-approach', center: [0.179, 0.651], innerRadiusNormalized: 0.016, outerRadiusNormalized: 0.055, minimumMultiplier: 0.08, corridorEnd: [0.139, 0.587], corridorInnerRadiusNormalized: 0.009, corridorOuterRadiusNormalized: 0.024 }),
-				Object.freeze({ id: 'red-east-approach', center: [0.225, 0.640], innerRadiusNormalized: 0.014, outerRadiusNormalized: 0.050, minimumMultiplier: 0.08 }),
+				Object.freeze({ id: 'red-west-approach', center: [0.145, 0.610], innerRadiusNormalized: 0.018, outerRadiusNormalized: 0.064, minimumMultiplier: 0.08 }),
+				Object.freeze({ id: 'red-central-approach', center: [0.179, 0.651], innerRadiusNormalized: 0.021, outerRadiusNormalized: 0.078, minimumMultiplier: 0.08, corridorEnd: [0.139, 0.587], corridorInnerRadiusNormalized: 0.009, corridorOuterRadiusNormalized: 0.024 }),
+				Object.freeze({ id: 'red-east-approach', center: [0.225, 0.640], innerRadiusNormalized: 0.018, outerRadiusNormalized: 0.070, minimumMultiplier: 0.08 }),
 			]),
 		}),
-		'bone-mountains': Object.freeze({ peakMeters: 1100, coreWidthNormalized: 0.008, outerWidthNormalized: 0.060, seed: 37 }),
-		'eastern-chain': Object.freeze({ peakMeters: 1100, coreWidthNormalized: 0.007, outerWidthNormalized: 0.055, seed: 53 }),
+		// **`summitFloor` here is the difference between a range and a wall.** Both of these chains left it
+		// unset, so they took the global 0.08 floor — but with no authored passes and a 1100 m peak, the
+		// Bones still measured 51.7% of their area above 300 m: a continuous rampart rather than summits
+		// with country between them. An explicit low floor lets the saddles drop properly, and the peak
+		// comes down because the point was never that Essos should tower over Westeros by 350 m — it was
+		// that the Bones are the tallest range in the known world, which 950 m still says.
+		'bone-mountains': Object.freeze({ peakMeters: 950, coreWidthNormalized: 0.008, outerWidthNormalized: 0.042, summitFloor: 0.05, seed: 37 }),
+		'eastern-chain': Object.freeze({ peakMeters: 950, coreWidthNormalized: 0.007, outerWidthNormalized: 0.040, summitFloor: 0.05, seed: 53 }),
+
+		// Profiles for the twenty ridges read off map.png — see `REFERENCE_RELIEF_CHAINS`. Narrow
+		// (`outerWidthNormalized` 0.026, about 350 m of shoulder) because these are individual drawn
+		// ridges rather than continental spines, and peaked between 300 m and 520 m by how large the mark
+		// is on the map. Narrow and separate is the whole point: twenty of these read as mountain country,
+		// where one wide chain of the same total mass reads as a hill.
+		'map-ridge-02': Object.freeze({ peakMeters: 384, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 114 }),
+		'map-ridge-03': Object.freeze({ peakMeters: 363, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 127 }),
+		'map-ridge-04': Object.freeze({ peakMeters: 358, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 140 }),
+		'map-ridge-05': Object.freeze({ peakMeters: 347, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 153 }),
+		'map-ridge-07': Object.freeze({ peakMeters: 345, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 179 }),
+		'map-ridge-08': Object.freeze({ peakMeters: 344, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 192 }),
+		'map-ridge-09': Object.freeze({ peakMeters: 341, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 205 }),
+		'map-ridge-10': Object.freeze({ peakMeters: 335, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 218 }),
+		'map-ridge-11': Object.freeze({ peakMeters: 331, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 231 }),
+		'map-ridge-12': Object.freeze({ peakMeters: 331, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 244 }),
+		'map-ridge-14': Object.freeze({ peakMeters: 328, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 270 }),
+		'map-ridge-16': Object.freeze({ peakMeters: 319, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 296 }),
+		'map-ridge-17': Object.freeze({ peakMeters: 317, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 309 }),
+		'map-ridge-19': Object.freeze({ peakMeters: 317, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 335 }),
+		'map-ridge-20': Object.freeze({ peakMeters: 315, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 348 }),
 	}),
 });
 
@@ -319,16 +360,45 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 		if (distance >= outerWidth) continue;
 		const normalizedDistance = clamp(distance / Math.max(outerWidth, 1e-9), 0, 1);
 		const coreRatio = clamp(coreWidth / Math.max(outerWidth, 1e-9), 0.06, 0.24);
-		const ridgeExponent = 1.10 + coreRatio * 2.0;
+		// **Sharper, on the owner's instruction: "daha sivri".** This was `1.10 + coreRatio * 2.0`, an
+		// exponent of 1.22-1.58, and `cos^1.3` is a *dome*: it falls away from the crest so gently that a
+		// chain reads as one smooth whale-back rather than as mountains. The render of the Bone Mountains
+		// made it unmistakable — a single continuous loaf several kilometres long. At `cos^2.6` the flanks
+		// drop away fast enough for a crest to read as a peak.
+		const ridgeExponent = 2.20 + coreRatio * 4.0;
 		const ridge = Math.pow(Math.cos(normalizedDistance * Math.PI * 0.5), ridgeExponent);
-		const summitNoise = (
-			valueNoise2D(normalizedX * 8, normalizedY * 8, chain.profile.seed + 101) * 0.75 +
-			valueNoise2D(normalizedX * 17, normalizedY * 17, chain.profile.seed + 211) * 0.25
+		// **A series of summits, not one swell: "sıra dağ grupları".**
+		//
+		// The first attempt at this simply added two finer octaves to the weighted sum, and it made the
+		// range *smoother*. Averaging more noise fields pulls their sum toward the middle — four octaves
+		// averaged land near 0.5 almost everywhere, so the crest height barely varied along its length and
+		// the chain stayed the single whale-back it had been. More detail, less shape.
+		//
+		// Summits come from a **product**, not an average. `broad` sets where the range rises at all;
+		// `fine` cuts the saddles between individual peaks. Multiplying them means either one being low
+		// drops the crest, which is exactly the peak-and-col rhythm a real range has. The fine term is
+		// remapped to 0.45..1 rather than 0..1 so the spine stays a spine: a range is high ground with
+		// summits on it, not a row of detached cones.
+		const broad = (
+			valueNoise2D(normalizedX * 8, normalizedY * 8, chain.profile.seed + 101) * 0.60 +
+			valueNoise2D(normalizedX * 17, normalizedY * 17, chain.profile.seed + 211) * 0.40
 		);
+		const fine = (
+			valueNoise2D(normalizedX * 34, normalizedY * 34, chain.profile.seed + 307) * 0.60 +
+			valueNoise2D(normalizedX * 61, normalizedY * 61, chain.profile.seed + 419) * 0.40
+		);
+		// The gain is what makes the peaks *sharp* rather than merely uneven. A product of two noise
+		// fields is rarely high — it needs both terms high at once — so shaping the crest this way gave
+		// the right rhythm but shaved the summits: the world's tallest point fell from 759 m to 636 m
+		// while the saddles behaved. Multiplying by 1.55 and clamping lets the genuinely good spots
+		// saturate into real summits while the cols stay where the product put them, which is the
+		// difference between a bumpy ridge and a range with peaks on it.
+		const summitNoise = Math.min(1, Math.pow(broad, 1.0) * (0.40 + 0.60 * Math.pow(fine, 1.5)) * 1.55);
 		const summitFloor = chain.profile.summitFloor ?? WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.summitModulationMinimum;
-		const modulation = summitFloor +
-			(1 - summitFloor) *
-				Math.pow(summitNoise, WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.summitNoiseExponent);
+		// `summitNoise` already carries its own shaping exponents above, so the global
+		// `summitNoiseExponent` is deliberately not applied a second time here — squaring the product
+		// again would collapse the range back toward its floor.
+		const modulation = summitFloor + (1 - summitFloor) * summitNoise;
 		const talusBreakup = sampleTalusBreakup(normalizedX, normalizedY, normalizedDistance, chain.profile.seed);
 		const passMultiplier = samplePassMultiplier(normalizedX, normalizedY, chain.profile.passes);
 		strongestMeters = Math.max(
