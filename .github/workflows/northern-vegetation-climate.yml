@@ -17,6 +17,7 @@ on:
       - 'scripts/checkNorthernVegetationDeterminism.mjs'
       - 'scripts/checkWinterVegetationAssetUpgrade.mjs'
       - 'scripts/checkWinterVegetationRepositoryContract.mjs'
+      - 'scripts/checkWinterVegetationResourceOwnership.mjs'
       - 'scripts/checkTerrainGeographicPalette.mjs'
       - 'scripts/checkNorthClimateContinuity.mjs'
       - 'scripts/checkNorthGroundCoverClimate.mjs'
@@ -51,6 +52,7 @@ jobs:
           node --check scripts/checkNorthernVegetationDeterminism.mjs
           node --check scripts/checkWinterVegetationAssetUpgrade.mjs
           node --check scripts/checkWinterVegetationRepositoryContract.mjs
+          node --check scripts/checkWinterVegetationResourceOwnership.mjs
           node --check scripts/checkTerrainGeographicPalette.mjs
           node --check scripts/checkNorthClimateContinuity.mjs
           node --check scripts/checkNorthGroundCoverClimate.mjs
@@ -65,6 +67,8 @@ jobs:
         run: node scripts/checkWinterVegetationAssetUpgrade.mjs
       - name: Winter vegetation repository contract
         run: node scripts/checkWinterVegetationRepositoryContract.mjs
+      - name: Winter vegetation resource ownership
+        run: node scripts/checkWinterVegetationResourceOwnership.mjs
       - name: Geographic terrain palette
         run: node scripts/checkTerrainGeographicPalette.mjs
       - name: North climate continuity
