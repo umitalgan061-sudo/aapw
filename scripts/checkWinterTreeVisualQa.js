@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import serverHelper from './devServerHelper.js';
 
 const { startStaticServer, loadPlaywright } = serverHelper;
@@ -12,7 +13,9 @@ if (!playwright?.chromium) {
 
 const ARTIFACT_DIR = 'artifacts/winter-tree-visual-qa';
 const VIEWPORT = Object.freeze({ width: 960, height: 720 });
-const PRIMARY_ASSET = 'assets/models/vegetation/winter_tree.glb';
+const ASSET_PATH = process.env.WINTER_VISUAL_ASSET || 'assets/models/vegetation/winter_tree.glb';
+const ARTIFACT_STEM = process.env.WINTER_VISUAL_STEM || 'winter-tree';
+const ASSET_LABEL = path.basename(ASSET_PATH);
 
 function round(value, digits = 4) {
 	const factor = 10 ** digits;
@@ -31,7 +34,7 @@ page.on('console', (message) => {
 
 try {
 	await page.goto(`${server.baseUrl}/winter-tree-visual-qa.html`, { waitUntil: 'networkidle' });
-	const metrics = await page.evaluate(async ({ primaryAsset, viewport }) => {
+	const metrics = await page.evaluate(async ({ assetPath, assetLabel, viewport }) => {
 		const THREE = await import('three');
 		const {
 			WINTER_VEGETATION_ASSET_POLICY,
@@ -88,7 +91,7 @@ try {
 		group.userData.northClimateVegetation = { winterTreeCount: 1, liveRepresentation: 'instanced-procedural-snow-pine' };
 		scene.add(group);
 
-		const status = await upgradeWinterVegetationAssets(group, { candidates: [primaryAsset] });
+		const status = await upgradeWinterVegetationAssets(group, { candidates: [assetPath] });
 		const { trunkMesh, foliageMesh } = findProceduralWinterMeshes(group);
 		const replacements = group.children.filter((child) => child.name.startsWith('vegetation-snow-asset-'));
 		group.updateMatrixWorld(true);
@@ -131,8 +134,8 @@ try {
 			return projection();
 		}
 
-		const frontProjection = renderView([10.5, 7.4, 14.5], [0, 4.15, 0], 'winter_tree.glb · three-quarter · 8.6 m target');
-		window.__renderWinterTreeSide = () => renderView([-14.5, 6.7, 0], [0, 4.0, 0], 'winter_tree.glb · side · shadow/material QA');
+		const frontProjection = renderView([10.5, 7.4, 14.5], [0, 4.15, 0], `${assetLabel} · three-quarter · 8.6 m target`);
+		window.__renderWinterTreeSide = () => renderView([-18.0, 7.0, 0], [0, 4.0, 0], `${assetLabel} · side · shadow/material QA`);
 
 		return {
 			policyId: WINTER_VEGETATION_ASSET_POLICY.id,
@@ -149,6 +152,7 @@ try {
 				metalness: Number.isFinite(mesh.material.metalness) ? mesh.material.metalness : null,
 				opacity: mesh.material.opacity,
 				transparent: mesh.material.transparent,
+				alphaTest: mesh.material.alphaTest ?? 0,
 				map: Boolean(mesh.material.map),
 			})),
 			shadows: {
@@ -160,13 +164,14 @@ try {
 			},
 			renderInfo: { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles },
 		};
-	}, { primaryAsset: PRIMARY_ASSET, viewport: VIEWPORT });
+	}, { assetPath: ASSET_PATH, assetLabel: ASSET_LABEL, viewport: VIEWPORT });
 
-	await page.screenshot({ path: `${ARTIFACT_DIR}/winter-tree-three-quarter.png`, fullPage: true });
+	await page.screenshot({ path: `${ARTIFACT_DIR}/${ARTIFACT_STEM}-three-quarter.png`, fullPage: true });
 	const sideProjection = await page.evaluate(() => window.__renderWinterTreeSide());
-	await page.screenshot({ path: `${ARTIFACT_DIR}/winter-tree-side.png`, fullPage: true });
+	await page.screenshot({ path: `${ARTIFACT_DIR}/${ARTIFACT_STEM}-side.png`, fullPage: true });
 
 	const report = {
+		assetPath: ASSET_PATH,
 		...metrics,
 		ratio: round(metrics.ratio),
 		bounds: Object.fromEntries(Object.entries(metrics.bounds).map(([key, values]) => [key, values.map((value) => round(value))])),
@@ -174,28 +179,28 @@ try {
 		sideProjection: Object.fromEntries(Object.entries(sideProjection).map(([key, value]) => [key, round(value)])),
 		browserErrors,
 	};
-	await writeFile(`${ARTIFACT_DIR}/report.json`, `${JSON.stringify(report, null, 2)}\n`);
+	await writeFile(`${ARTIFACT_DIR}/${ARTIFACT_STEM}-report.json`, `${JSON.stringify(report, null, 2)}\n`);
 
-	assert.equal(metrics.status.status, 'active', 'hydrated primary winter tree must activate in the browser');
-	assert.equal(metrics.status.assetUrl, PRIMARY_ASSET);
-	assert.equal(metrics.replacementMeshes, 1, 'primary winter GLB must remain a single rendered mesh');
-	assert.equal(metrics.proceduralHidden, true, 'procedural snow-pine must hide after GLB activation');
+	assert.equal(metrics.status.status, 'active', `${ASSET_LABEL} must satisfy the runtime winter-tree validator`);
+	assert.equal(metrics.status.assetUrl, ASSET_PATH);
+	assert(metrics.replacementMeshes >= 1, 'accepted asset must create at least one rendered replacement mesh');
+	assert.equal(metrics.proceduralHidden, true, 'procedural snow-pine must hide after accepted GLB activation');
 	assert(Math.abs(metrics.bounds.size[1] - 8.6) < 0.03, `normalized height must be 8.6 m, got ${metrics.bounds.size[1]}`);
 	assert(Math.abs(metrics.bounds.min[1]) < 0.03, `tree base must sit on ground, got Y=${metrics.bounds.min[1]}`);
 	assert(metrics.ratio <= 1.05, `single-tree width ratio exceeds runtime policy: ${metrics.ratio}`);
 	assert(metrics.frontProjection.height > 0.5 && metrics.frontProjection.height < 1.75, 'three-quarter view must frame the full tree');
 	assert(metrics.frontProjection.width > 0.2 && metrics.frontProjection.width < 1.4, 'tree crown must occupy a useful frame width');
 	assert(sideProjection.height > 0.5 && sideProjection.height < 1.8, 'side view must frame the full tree');
-	assert(metrics.materials.every((material) => material.opacity > 0 && material.transparent === false), 'winter material must be visible and opaque');
+	assert(metrics.materials.every((material) => material.opacity > 0), 'asset materials must remain visible');
 	assert(Object.values(metrics.shadows).every(Boolean), 'QA scene must exercise cast/receive shadow behavior');
 	assert(metrics.renderInfo.triangles > 0, 'QA scene must render real triangles');
 	assert.deepEqual(browserErrors, [], `browser visual QA emitted errors: ${browserErrors.join(' | ')}`);
 
 	console.log('[checkWinterTreeVisualQa] PASS', JSON.stringify({
-		asset: PRIMARY_ASSET,
+		asset: ASSET_PATH,
 		sizeMeters: report.bounds.size,
 		ratio: report.ratio,
-		material: report.materials[0],
+		materials: report.materials.length,
 		triangles: report.renderInfo.triangles,
 	}));
 } finally {
