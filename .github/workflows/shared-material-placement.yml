@@ -7,6 +7,7 @@ on:
       - 'src/3d/world/WorldAssetPlacementPipeline.js'
       - 'src/3d/editor/EditorAutoTexture.js'
       - 'scripts/checkSharedMaterialPlacementContract.js'
+      - 'scripts/checkWorldFootprintGrounding.mjs'
       - '.github/workflows/shared-material-placement.yml'
   workflow_dispatch:
 
@@ -28,5 +29,8 @@ jobs:
           node --check src/3d/world/WorldAssetPlacementPipeline.js
           node --check src/3d/editor/EditorAutoTexture.js
           node --check scripts/checkSharedMaterialPlacementContract.js
+          node --check scripts/checkWorldFootprintGrounding.mjs
       - name: Shared editor-agent contract
         run: node scripts/checkSharedMaterialPlacementContract.js
+      - name: World footprint grounding contract
+        run: node scripts/checkWorldFootprintGrounding.mjs
