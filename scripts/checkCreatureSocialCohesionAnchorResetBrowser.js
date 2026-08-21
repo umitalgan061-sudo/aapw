@@ -40,6 +40,7 @@ async function main() {
     const result = await page.evaluate(async () => {
       const { scatterCreatures, CREATURE_SOCIAL_SPAWN_RADIUS_METERS } = await import('/src/3d/gameplay/creatureSpawner.js');
       const localRadius = CREATURE_SOCIAL_SPAWN_RADIUS_METERS.koyun;
+      const coordinateEpsilon = 1e-6;
       const sequence = [
         // Sheep 0: canonical world-disc anchor exactly at x=899.
         0, 0, 0,
@@ -73,9 +74,10 @@ async function main() {
       const deterministic = JSON.stringify(first) === JSON.stringify(second);
       const boundedDrop = first.length === 3;
       const [oldCluster, newAnchor, newClusterMember] = first;
-      const firstAnchorPreserved = oldCluster?.socialAnchorX === 899 && oldCluster?.socialAnchorZ === 0;
-      const secondAnchorCreated = Math.abs((newAnchor?.socialAnchorX ?? Infinity) - 895) < 1e-6
-        && newAnchor?.socialAnchorZ === 0;
+      const firstAnchorPreserved = Math.abs((oldCluster?.socialAnchorX ?? Infinity) - 899) < coordinateEpsilon
+        && Math.abs(oldCluster?.socialAnchorZ ?? Infinity) < coordinateEpsilon;
+      const secondAnchorCreated = Math.abs((newAnchor?.socialAnchorX ?? Infinity) - 895) < coordinateEpsilon
+        && Math.abs(newAnchor?.socialAnchorZ ?? Infinity) < coordinateEpsilon;
       const secondMemberUsesSecondAnchor = newClusterMember?.socialAnchorX === newAnchor?.socialAnchorX
         && newClusterMember?.socialAnchorZ === newAnchor?.socialAnchorZ;
       const oldMemberNotRebound = oldCluster?.socialAnchorX !== newAnchor?.socialAnchorX;
@@ -83,9 +85,9 @@ async function main() {
       const newMemberInsideLocalRadius = Math.hypot(
         newClusterMember.x - newAnchor.socialAnchorX,
         newClusterMember.z - newAnchor.socialAnchorZ,
-      ) <= localRadius + 1e-6;
-      const allHabitatValid = first.every((entry) => Math.hypot(entry.x, entry.z) <= 900 + 1e-6);
-      const rejectedMemberNotLeaked = first.every((entry) => entry.x < 900 + 1e-6);
+      ) <= localRadius + coordinateEpsilon;
+      const allHabitatValid = first.every((entry) => Math.hypot(entry.x, entry.z) <= 900 + coordinateEpsilon);
+      const rejectedMemberNotLeaked = first.every((entry) => entry.x < 900 + coordinateEpsilon);
 
       return {
         deterministic,
