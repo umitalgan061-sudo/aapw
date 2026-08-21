@@ -18939,3 +18939,55 @@ coğrafya kapıları PASS (11 bölge, Duvar, harita özellikleri). Görsel kanı
 **Technical debt.** 0 new. **Açık iş.** Sahip "assets'de karlı ağaçlar var, onları oralarda
 kullanabilirsin" dedi — bitki örtüsü hâlâ tek tip prosedürel yeşil ağaç ve kuzeyde kar ağırlığını
 okumuyor; ayrı bir tur. Ayrıca zemin renk paleti ve güneş/ay gökyüzü istekleri duruyor.
+
+## ADR-0331 — Gökyüzü boştu: güneş ve ay birer cisim oldu, ay geceyi aydınlatıyor
+
+**Sahibin talimatı.** "Gerçekçi gökyüzü oluştur. Assets'in içerisinde güneş ve ay var. İkisini doğru
+mantıklarla yerleştir. Güneş Doğudan doğup Batıdan batsın, Ay geceleri iyi şekilde aydınlatsın." Üç
+ayrı istek: cisimler **görünsün**, doğru kuralla **hareket etsin**, gece gerçekten **aydınlansın**.
+
+**Güneş zaten doğudan doğuyordu; kimse göremiyordu.** `lighting.js` `DirectionalLight`'ı `timeRatio`
+0.25'te +X'e, 0.75'te −X'e yerleştiriyor ve bu dünyada **+X doğudur** (`nx` dünya X'i ile büyür,
+`map.png`'nin doğu kenarı `nx` 1). Yani *yön* doğruydu, *gökyüzü* boştu: yönlü ışığın cismi yok,
+dolayısıyla doğup batacak bir disk de yoktu. Yeni `skyBodies.js` cisimleri **tam da o mevcut yön
+üzerine** koyuyor — ikinci bir gök mekaniği kurup ışıkla ayrışma riski almak yerine.
+
+**Kritik ayrıntı: yön `position - target`, `position` değil.** `renderQuality.focusSunShadow` gölge
+frustumunu oyuncuya taşımak için ışığın konumunu *ve* hedefini birlikte kaydırıyor; yön değişmiyor ama
+ham konum oyuncunun yanında rastgele bir noktaya dönüşüyor. Yalnız onu normalize etmek **oyuncu
+yürüdükçe güneşi gökyüzünde savurur**. Fark değişmez olan; kapı bunu ayrıca ölçüyor (odaklama sonrası
+disk kayması **0 m**).
+
+**Ay prosedürel, ve bu bilinçli.** `assets/models/Ay/Moon 2K.fbx` taze klonda **130 baytlık bir LFS
+pointer**'ı; ondan kurulan bir ay, LFS olmayan her yerde placeholder kutu olurdu — köy dersinin aynısı.
+Güneş farklı: `assets/models/fbx/sun/2k_sun.jpg` **gerçek, 822 KB'lık commit edilmiş** bir doku, o
+yüzden güneş diski onu kullanıyor (yüklenemezse düz emissive diske düşüyor). Ayın yüzü burada
+deterministik bir tuvalde üretiliyor (maria + kraterler, `mulberry32`, `Math.random()` yok, §8.9): tek
+bir 256×256 doku, her makinede aynı, ve gri kutuya dönüşemez.
+
+**Ay ışığı ayrı bir yönlü ışık**, gece güneşini parlatmak değil: ikisi zıt yönlerden gelir, gece
+yarısı güneş ufkun altındadır ve oradan aydınlatmak her yamacı **alttan** aydınlatırdı. Yoğunluk
+`nightFactor` **ve** ayın kendi ufuk çarpanıyla ölçekleniyor, yani öğlen sıfır, gece yarısı **0.42**
+(öğlenin 1.4'ünün çok altında — gece gece kalıyor, ama arazi okunuyor).
+
+Her iki cisim de gökküre üzerinde çiziliyor (`depthWrite` kapalı, `renderOrder` skybox'ın hemen
+üstünde), yani sonsuz uzaktaymış gibi okunuyor: dağı kesmiyor, gölge/frustum işlemi gerektirmiyor —
+ama arazi sonra çizildiği için **ufuk çizgisinde doğru şekilde dağın arkasına giriyor**.
+
+**`scripts/checkSkyBodies.js`** üçünü ayrı ayrı ölçüyor: doğuş/batış tarafı (+X/−X), her cismin kendi
+yarım gününde kalması (öğlen ay görünmez, gece yarısı güneş görünmez), gece yarısı ay ışığı ≥ 0.25 ve
+öğlen ≤ 0.001, ve odaklanmış ışıkta disk kaymasının 0 olması.
+
+**Ölçülen sonuç:** doğuş güneş x=+496 disk +8290; batış x=−496 disk −8290; öğlen ay ışığı 0, ay
+görünmez; gece yarısı ay ışığı **0.42**, ay görünür, güneş görünmez; odak kayması **0 m**. Görsel
+kanıt `artifacts/sky/`: güneş doğu sırtından doğuyor (dokusu yüklenmiş), ay doğudan yükselirken güneş
+batıdan batıyor, gece yarısı arazi — yollar ve nehir dahil — okunabiliyor.
+
+**600 satır tavanı.** Bu tur `game3d.js`'i 600'den 608'e taşıdı; kendi eklememi 2 satıra indirip modül
+başlığındaki tekrarlı tur geçmişini sadeleştirerek **599**'a çektim. Ayrıca **tur 383'ün `terrain.js`'i
+609'a taşıdığını fark ettim** — benim ihlalim, aynı şekilde 599'a indirildi (yorum sıkıştırıldı,
+`smoothstep` tek çağıranına inline edildi). Kuzey buzu kapısı sonrasında birebir aynı sayıları
+veriyor. Service worker v43→v44; `skyBodies.js` offline kabuğa kaydedildi — kapı eksikliği yakaladı.
+
+**Technical debt.** 0 new. **Açık iş.** Gece arazisi hâlâ fazla doygun yeşil okunuyor; bu ay ışığının
+değil zemin albedosunun sorunu ve sahibin "coğrafi renkler" isteğiyle (sıradaki tur) aynı kök.

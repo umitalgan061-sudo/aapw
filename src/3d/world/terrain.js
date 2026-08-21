@@ -49,32 +49,24 @@ const MAP_HEIGHT = WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits;
 const TAU = Math.PI * 2;
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const lerp = (a, b, t) => a + (b - a) * t;
-const smoothstep = (edge0, edge1, value) => {
-	if (value <= edge0) return 0;
-	if (value >= edge1) return 1;
-	const t = (value - edge0) / (edge1 - edge0);
-	return t * t * (3 - 2 * t);
-};
-
 /**
  * The Lands of Always Winter — snow laid on the far north by latitude, on top of the canonical mask.
  *
- * The owner: "Westeros'un en kuzeyinin tamamen buzla kaplı olduğu belirgin ama haritamızda yeşil alan
- * var." Measured, they were right: the source mask carries `snow` only on the glacier cells (a narrow
- * band of `nx`), so the land around and north of the Wall reads as `soil` and rendered bright green —
- * at nx 0.175 the whole northern transect had snowWeight 0 and a (50,78,12) green. The Wall runs at
- * ny ~0.16 (`world/theWall.js`), and everything north of it is ice in the source world, so snow is
- * supplied by latitude: full at or above the Wall, fading out over the Gift so the North proper
- * (Winterfell, ny ~0.285) stays the cold grassland the mask makes it.
+ * The mask carries `snow` only on the glacier cells, so land around and north of the Wall read as
+ * `soil` and rendered bright green — at nx 0.175 the northern transect had snowWeight 0 and a
+ * (50,78,12) green, the defect the owner reported. The Wall is at ny ~0.16 (`world/theWall.js`) and
+ * all north of it is ice, so snow comes from latitude, fading over the Gift so the North proper
+ * (Winterfell, ny ~0.285) keeps its cold grassland.
  *
- * **This augments the visual/vegetation snow weight only — never the height terms.** `snowWeight` also
- * feeds terrain elevation (`+ snowWeight * 12` and the relief detail), and raising the far north would
- * be a height change that the §8.4 terrain-safety pair must gate. The height field stays byte-identical:
- * only `outSurface.snowWeight`, which colours the ground and tells vegetation where the snow is, sees
- * the latitude term.
+ * **Visual/vegetation snow weight only — never the height terms**, which `snowWeight` also feeds
+ * (`+ snowWeight * 12`, relief detail): latitude there would raise the whole north and invalidate
+ * every seat, road and skirt measurement. `scripts/checkNorthernIce.js` guards that.
  */
 const NORTHERN_SNOW = Object.freeze({ fullNy: 0.15, fadeNy: 0.25 });
-const northernLatitudeSnow = (ny) => 1 - smoothstep(NORTHERN_SNOW.fullNy, NORTHERN_SNOW.fadeNy, ny);
+const northernLatitudeSnow = (ny) => {
+	const t = clamp01((ny - NORTHERN_SNOW.fullNy) / (NORTHERN_SNOW.fadeNy - NORTHERN_SNOW.fullNy));
+	return 1 - t * t * (3 - 2 * t); // smoothstep, inlined: its only caller
+};
 
 /** Deterministic PRNG retained for roads/rivers and other established callers. */
 export function mulberry32(seed) {
@@ -275,11 +267,9 @@ function sampleCanonicalHeightMeters(worldX, worldZ, outSurface) {
 	}
 	if (outSurface) {
 		outSurface.rockWeight = rockWeight;
-		// Far-north latitude snow on top of the mask's glacier cells — visual/vegetation only, never the
-		// height above. Only on land: the sea keeps its colour. See `NORTHERN_SNOW`.
-		outSurface.snowWeight = waterWeight >= 0.5
-			? snowWeight
-			: clamp01(Math.max(snowWeight, northernLatitudeSnow(ny)));
+		// Far-north latitude snow over the mask's glaciers — land only, so the sea keeps its colour, and
+		// applied here rather than above so it never reaches the height. See `NORTHERN_SNOW`.
+		outSurface.snowWeight = waterWeight >= 0.5 ? snowWeight : Math.max(snowWeight, northernLatitudeSnow(ny));
 		outSurface.waterWeight = waterWeight;
 	}
 	return heightMeters;

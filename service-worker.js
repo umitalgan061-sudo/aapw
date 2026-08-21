@@ -1,3 +1,9 @@
+// Run384 sky-bodies offline shell extension — `skyBodies.js` is imported by `sceneManager.js` and
+// `game3d.js`, so an offline PWA load needs it cached or the scene cannot boot at all.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./src/3d/skyBodies.js');
+});
+
 // Owner-map mountain relief offline shell extension. terrain.js imports this canonical live-height
 // source, so an offline 3D boot must cache it before any chunk can be generated.
 self.addEventListener('install', () => {
@@ -247,7 +253,10 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run 383 lays snow on the far north by latitude in `terrain.js`, so the Lands of Always Winter render
 // as ice instead of grassland. Ground colour comes from that module at runtime; a cache-first shell
 // would keep the old green north. v42->v43.
-const SHELL_CACHE = 'westeros-shell-v43';
+// Run 384 adds `skyBodies.js` — a visible sun and moon and the moon's light. It is a new offline-
+// loadable module *and* a look change, so an existing install needs the refreshed shell for both
+// reasons. v43->v44.
+const SHELL_CACHE = 'westeros-shell-v44';
 const SHELL_FILES = [
     './',
     './index.html',

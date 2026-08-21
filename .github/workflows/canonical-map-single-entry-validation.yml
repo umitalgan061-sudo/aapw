@@ -67,6 +67,7 @@ jobs:
           node scripts/checkValyriaDoom.js
           node scripts/checkTheWall.js
           node scripts/checkNorthernIce.js
+          node scripts/checkSkyBodies.js
           node scripts/checkNightsWatchCastles.js
           node scripts/checkNamedRivers.js
           node scripts/checkRiverValleyCarving.js

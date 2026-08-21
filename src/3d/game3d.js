@@ -27,15 +27,11 @@
  * first pass of static, idling NPCs (`gameplay/npc.js`) reusing the same Mixamo FBX pipeline
  * stands near the `stannis` kingdom seat — see ADR-0019. FAZ 5/6 NPC and animal spawn-resolution
  * wiring now lives in `gameplay/npc.js`'s `spawnConfiguredNPCs` / `gameplay/animals.js`'s
- * `spawnConfiguredAnimals` (run 29), not this file — see ADR-0028. The renderer/scene/camera
- * bootstrap itself (terrain boot-preview, water/sky/stars/lighting, river/settlements, colliders,
- * the F4 debug camera) lives in `sceneManager.js`'s `createScene` (run 40, ADR-0052) — this file
- * owns the tick loop and lifecycle wiring that calls it, not scene construction. The tick loop's
- * pure per-frame helpers (camera-relative movement, axis merging, chase-camera occluder
- * collection, chunk streaming, resize wiring) live in `gameLoopHelpers.js` (run 105) — split out
- * purely to stay under the 600-line file cap, no behavior change. The NPC/animal/procedural-
- * creature/dragon spawn wiring likewise moved to `gameplay/livingWorldSpawner.js` (run 332),
- * same reasoning, same no-behavior-change guarantee.
+ * `spawnConfiguredAnimals` (run 29), not this file — see ADR-0028. Scene construction itself lives
+ * in `sceneManager.js`'s `createScene` (run 40, ADR-0052); the tick loop's pure per-frame helpers in
+ * `gameLoopHelpers.js` (run 105); the NPC/animal/creature/dragon spawn wiring in
+ * `gameplay/livingWorldSpawner.js` (run 332). All three were split out purely to stay under the
+ * 600-line file cap, with no behavior change — this file owns the tick loop and lifecycle wiring.
  * See 3D_GAME_PROGRESS.md for what's next.
  * @module game3d
  */
@@ -78,6 +74,7 @@ import { createVegetation } from './world/vegetation.js';
 import { CHUNK_CONFIG } from './config.js';
 import { resolveCameraCollision } from './camera.js';
 import { updateAuroraSky, disposeAuroraSky } from './sky.js';
+import { updateSkyBodies } from './skyBodies.js';
 import { updateStarfield, disposeStarfield } from './stars.js';
 import { updateDayNightLighting, disposeDayNightLighting } from './lighting.js';
 import { updateFog } from './fog.js';
@@ -505,6 +502,8 @@ export async function initGame3D() {
 			state.freeCamera.update(delta);
 			const viewCamera = state.freeCamera.active ? state.freeCamera.camera : state.camera;
 			updateAuroraSky(state.sky, viewCamera.position, elapsedSeconds, dayNight);
+			// Sun/moon discs and moonlight, read off the sun light itself — see `skyBodies.js`.
+			updateSkyBodies(state.skyBodies, viewCamera.position, state.lights.sun, dayNight.nightFactor);
 			updateStarfield(state.stars, viewCamera.position, elapsedSeconds, dayNight.nightFactor);
 			updateFog(state.scene.fog, dayNight);
 			if (state.freeCamera.active) state.scene.fog.density = 0; // see debug/README.md's Conventions.

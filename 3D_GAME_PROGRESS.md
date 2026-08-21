@@ -17986,3 +17986,22 @@ bağımsız doğruladı: "terrain drift 0 m", yani §8.4 tetiklenmiyor.
 Coğrafya kapıları PASS. Görsel kanıt `artifacts/north/`. SW v42→v43.
 
 **Açık:** karlı ağaç modelleri henüz kullanılmıyor (bitki örtüsü kar ağırlığını okumuyor) — ayrı tur.
+
+## Tur 384 — Gökyüzü boştu: güneş ve ay cisim oldu (ADR-0331)
+
+Sahip: güneş doğudan doğup batıdan batsın, ay geceyi aydınlatsın, ikisi de assets'ten.
+
+**Güneş zaten doğudan doğuyordu — görünmüyordu.** `lighting.js` yönü doğru veriyordu (+X = doğu); eksik
+olan cisimdi. Yeni `skyBodies.js` diskleri **mevcut ışık yönünün üzerine** koyuyor, ikinci bir gök
+mekaniği kurmadan. Kritik ayrıntı: yön `position - target` — `focusSunShadow` ışığı oyuncuya taşıdığı
+için ham konumu normalize etmek güneşi oyuncu yürüdükçe savururdu (kapı: odak kayması 0 m).
+
+**Ay prosedürel:** `Moon 2K.fbx` taze klonda 130 baytlık LFS pointer'ı, ondan kurulan ay çoğu yerde
+kutu olurdu. Yüzü deterministik tuvalde üretiliyor. Güneş dokusu (`2k_sun.jpg`, 822 KB gerçek dosya)
+kullanılıyor. **Ay ışığı ayrı bir yönlü ışık** — gece güneşini parlatmak her yamacı alttan aydınlatırdı.
+
+**Ölçülen:** doğuş +496 / batış −496; öğlen ay ışığı 0; gece yarısı **0.42**, ay görünür, güneş değil.
+Görsel kanıt `artifacts/sky/`. `scripts/checkSkyBodies.js` hepsini koruyor. SW v43→v44.
+
+**600 satır tavanı:** `game3d.js` 608'e çıkmıştı → 599. Ayrıca tur 383'ün `terrain.js`'i 609'a
+taşıdığını fark edip düzelttim → 599. Kuzey buzu kapısı sonrasında aynı sayıları veriyor.

@@ -38,6 +38,8 @@ import { createFreeCameraController } from './debug/freeCamera.js';
 import { createAuroraSky } from './sky.js';
 import { createStarfield } from './stars.js';
 import { createDayNightLighting } from './lighting.js';
+import { createSkyBodies } from './skyBodies.js';
+import { AssetLoader } from './assetLoader.js';
 import { createFog } from './fog.js';
 import { resolveRenderQuality, configureRendererRealism, configureSunShadow, applyShadowRoles } from './renderQuality.js';
 
@@ -160,6 +162,10 @@ export function createScene(canvas) {
 	const clock = new THREE.Clock();
 
 	const lights = createDayNightLighting(scene);
+	// The sun and moon as visible bodies, plus the light the moon casts. Built from the same direction
+	// the sun light already uses, so the disc can never drift out of step with the lighting — see
+	// `skyBodies.js`. `game3d.js` places them each frame in the same tick that orbits the sun.
+	const skyBodies = createSkyBodies(scene, new AssetLoader());
 	// The sun becomes the world's single shadow caster. Its frustum has to be re-anchored onto the
 	// player every frame (`focusSunShadow` in game3d.js's tick) — `updateDayNightLighting` orbits it
 	// around the world origin, which is nowhere near where the player actually stands.
@@ -399,7 +405,7 @@ export function createScene(canvas) {
 		// Exposed (not just the settlements.group mesh) so initGame3D can place FAZ 5 NPCs relative to
 		// a named kingdom seat's real world position/ground height without re-deriving mapToWorldXZ.
 		settlementSeats: settlementsResult.seats,
-		lights, clock, elapsedSeconds: 0, lastStreamChunk: null,
+		lights, skyBodies, clock, elapsedSeconds: 0, lastStreamChunk: null,
 		// Reused every frame by resolveCameraCollision() — a fresh Raycaster per frame would be
 		// needless garbage for a purely synchronous, single-frame query.
 		cameraCollisionRaycaster: new THREE.Raycaster(),
