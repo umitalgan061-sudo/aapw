@@ -4,10 +4,13 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - 'src/3d/gameplay/player.js'
       - 'src/3d/input.js'
       - 'src/3d/gameLoopHelpers.js'
       - 'src/3d/ui/touchJoystick.js'
       - 'src/3d/ui/healthBar.js'
+      - 'scripts/checkPlayerDodgeIFrames.mjs'
+      - 'scripts/checkPlayerDodgeIFrameRuntime.mjs'
       - 'scripts/checkPlayerGamepadInput.mjs'
       - 'scripts/checkPlayerGamepadHandoff.mjs'
       - 'scripts/checkPlayerGamepadRuntime.mjs'
@@ -16,6 +19,7 @@ on:
       - 'scripts/checkPlayerMeleeCombo.mjs'
       - 'scripts/checkPlayerStaminaDodge.mjs'
       - 'scripts/checkPlayerCombatHudRuntime.mjs'
+      - '.github/workflows/player-dodge-iframes.yml'
       - '.github/workflows/player-gamepad-parity.yml'
       - '.github/workflows/player-stamina-dodge.yml'
   workflow_dispatch:
@@ -50,7 +54,7 @@ jobs:
           git diff --check "$MAIN_SHA"...HEAD
           CHANGED="$(git diff --name-only "$MAIN_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|scripts/checkPlayerLockOnRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerCombatHudRuntime\.mjs|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerDodgeIFrames\.mjs|scripts/checkPlayerDodgeIFrameRuntime\.mjs|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|scripts/checkPlayerLockOnRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerCombatHudRuntime\.mjs|\.github/workflows/player-dodge-iframes\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
           read -r ADD DEL < <(git diff --numstat "$MAIN_SHA"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           TOTAL=$((ADD + DEL))
           echo "base=$MAIN_SHA additions=$ADD deletions=$DEL total=$TOTAL"
@@ -69,10 +73,12 @@ jobs:
       - name: Standard gamepad movement combat lock-on and handoff contracts
         run: |
           set -euo pipefail
+          node --check src/3d/gameplay/player.js
           node --check src/3d/input.js
           node --check src/3d/gameLoopHelpers.js
           node --check src/3d/ui/touchJoystick.js
           node --check src/3d/ui/healthBar.js
+          node --check scripts/checkPlayerDodgeIFrames.mjs
           node --check scripts/checkPlayerGamepadInput.mjs
           node --check scripts/checkPlayerGamepadHandoff.mjs
           node --check scripts/checkPlayerGamepadRuntime.mjs
@@ -80,6 +86,7 @@ jobs:
           node --check scripts/checkPlayerLockOnRuntime.mjs
           node --check scripts/checkPlayerStaminaDodge.mjs
           node --check scripts/checkPlayerCombatHudRuntime.mjs
+          node scripts/checkPlayerDodgeIFrames.mjs
           node scripts/checkPlayerGamepadInput.mjs
           node scripts/checkPlayerGamepadHandoff.mjs
           node scripts/checkPlayerLockOn.mjs
@@ -94,6 +101,7 @@ jobs:
           node scripts/checkSharedMaterialPlacementContract.js
           node scripts/checkPwaInstallability.js
           node scripts/checkServiceWorkerCache.js
+          ! grep -q 'EditorMaterialStudio' src/3d/gameplay/player.js
           ! grep -q 'EditorMaterialStudio' src/3d/input.js
           ! grep -q 'EditorMaterialStudio' src/3d/gameLoopHelpers.js
           ! grep -q 'EditorMaterialStudio' src/3d/ui/healthBar.js
