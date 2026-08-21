@@ -19,7 +19,7 @@ function smoothstep(edge0, edge1, value) {
 }
 
 export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
-	id: 'terrain-slope-altitude-biome-shading-2026-08-19-v1',
+	id: 'terrain-map-climate-snowline-2026-08-21-v2',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	measured: Object.freeze({
@@ -43,17 +43,35 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 	canonicalRockGain: 0.85,
 	rockCoolStartMeters: 80,
 	rockCoolFullMeters: 320,
+
+	// Temperate mountain snowline measured against the current canonical terrain distribution. The
+	// line is progressively depressed northward rather than using one global 380-580 m band, so a
+	// 300 m mountain can be snowy in the Gift/tundra while remaining bare much farther south.
 	snowAltitudeStartMeters: 380,
 	snowAltitudeFullMeters: 580,
+	northTundraSnowlineStartMeters: 205,
+	northTundraSnowlineFullMeters: 395,
+	northIceSnowlineStartMeters: 0,
+	northIceSnowlineFullMeters: 135,
 	canonicalSnowGain: 1,
 	snowShedStartDegrees: 40,
 	snowShedFullDegrees: 58,
+
 	// map.png is top-down: normalized Y=0 is the far north. 0.12 (~840 map units) is permanent
-	// cryosphere; 0.29 (~2030 units) is the end of the snow/tundra transition.
+	// cryosphere; 0.29 (~2030 units) is the end of the ice transition; tundra influence fades by 0.38.
 	northIceFullNormalizedY: 0.12,
 	northIceFadeNormalizedY: 0.29,
 	northTundraFadeNormalizedY: 0.38,
 	northSnowMinimumCoverage: 0.94,
+	// Tundra should read cold and intermittently snowy, not as a second permanent ice sheet. Canonical
+	// map snow and the lowered mountain snowline can still raise this well above the lowland floor.
+	northTundraLowlandSnowFloor: 0.16,
+	// Low, flat permanent-ice terrain receives a restrained blue glacial tint after the snow blend.
+	// High mountains remain predominantly white, which keeps summit snow distinct from ice fields.
+	northIceLowlandTintStrength: 0.30,
+	northIceLowlandTintFadeStartMeters: 45,
+	northIceLowlandTintFadeFullMeters: 220,
+
 	forestPatchFrequency: 0.00095,
 	forestPatchOctaves: 4,
 	forestPatchStart: 0.40,
@@ -130,18 +148,107 @@ export function normalizedMapYAtWorldZ(worldZ) {
 	return clamp01(mapY / WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits);
 }
 
-export function northClimateWeightsAtWorldZ(worldZ) {
+function permanentIceWeightAtNormalizedY(normalizedY) {
 	const P = TERRAIN_BIOME_SHADING_POLICY;
+	return 1 - smoothstep(P.northIceFullNormalizedY, P.northIceFadeNormalizedY, normalizedY);
+}
+
+function tundraWeightAtNormalizedY(normalizedY) {
+	const P = TERRAIN_BIOME_SHADING_POLICY;
+	return 1 - smoothstep(P.northIceFadeNormalizedY, P.northTundraFadeNormalizedY, normalizedY);
+}
+
+export function northClimateWeightsAtWorldZ(worldZ) {
 	const normalizedY = normalizedMapYAtWorldZ(worldZ);
 	return Object.freeze({
 		normalizedY,
-		permanentIce: 1 - smoothstep(P.northIceFullNormalizedY, P.northIceFadeNormalizedY, normalizedY),
-		tundra: 1 - smoothstep(P.northIceFadeNormalizedY, P.northTundraFadeNormalizedY, normalizedY),
+		permanentIce: permanentIceWeightAtNormalizedY(normalizedY),
+		tundra: tundraWeightAtNormalizedY(normalizedY),
 	});
+}
+
+function snowlineRangeFromClimate(permanentIce, tundra, out) {
+	const P = TERRAIN_BIOME_SHADING_POLICY;
+	const tundraStart = lerp(P.snowAltitudeStartMeters, P.northTundraSnowlineStartMeters, tundra);
+	const tundraFull = lerp(P.snowAltitudeFullMeters, P.northTundraSnowlineFullMeters, tundra);
+	out.startMeters = lerp(tundraStart, P.northIceSnowlineStartMeters, permanentIce);
+	out.fullMeters = lerp(tundraFull, P.northIceSnowlineFullMeters, permanentIce);
+	return out;
+}
+
+/**
+ * Geographic mountain snowline for diagnostics/tests. Runtime shading uses the same scalar helper
+ * without allocating this object per terrain vertex.
+ */
+export function mountainSnowlineAtWorldZ(worldZ) {
+	const normalizedY = normalizedMapYAtWorldZ(worldZ);
+	const permanentIce = permanentIceWeightAtNormalizedY(normalizedY);
+	const tundra = tundraWeightAtNormalizedY(normalizedY);
+	const range = snowlineRangeFromClimate(permanentIce, tundra, {});
+	return Object.freeze({ normalizedY, permanentIce, tundra, ...range });
+}
+
+function computeTerrainSnowCoverage(out, {
+	heightAboveSeaMeters,
+	slopeDegrees,
+	snowWeight,
+	worldZ,
+}) {
+	const P = TERRAIN_BIOME_SHADING_POLICY;
+	const normalizedY = normalizedMapYAtWorldZ(worldZ);
+	const permanentIce = permanentIceWeightAtNormalizedY(normalizedY);
+	const tundra = tundraWeightAtNormalizedY(normalizedY);
+	const snowline = snowlineRangeFromClimate(permanentIce, tundra, out);
+	const altitudeSnow = smoothstep(snowline.startMeters, snowline.fullMeters, heightAboveSeaMeters);
+	const canonicalSnow = clamp01(snowWeight) * P.canonicalSnowGain;
+	const authoredSnow = Math.max(altitudeSnow, canonicalSnow);
+	const northSnowSupply = permanentIce * P.northSnowMinimumCoverage;
+	const tundraBand = tundra * (1 - permanentIce);
+	const tundraLowlandFloor = tundraBand * P.northTundraLowlandSnowFloor;
+	const snowSupply = clamp01(Math.max(authoredSnow, northSnowSupply, tundraLowlandFloor));
+	const naturalHold = 1 - smoothstep(P.snowShedStartDegrees, P.snowShedFullDegrees, slopeDegrees);
+	const snowHold = lerp(naturalHold, Math.max(naturalHold, 0.96), permanentIce);
+	const snowAmount = heightAboveSeaMeters > 0 ? clamp01(snowSupply * snowHold) : 0;
+	const lowlandIce = 1 - smoothstep(
+		P.northIceLowlandTintFadeStartMeters,
+		P.northIceLowlandTintFadeFullMeters,
+		heightAboveSeaMeters,
+	);
+
+	out.normalizedY = normalizedY;
+	out.permanentIce = permanentIce;
+	out.tundra = tundra;
+	out.tundraBand = tundraBand;
+	out.altitudeSnow = altitudeSnow;
+	out.canonicalSnow = canonicalSnow;
+	out.authoredSnow = authoredSnow;
+	out.northSnowSupply = northSnowSupply;
+	out.tundraLowlandFloor = tundraLowlandFloor;
+	out.snowSupply = snowSupply;
+	out.snowHold = snowHold;
+	out.snowAmount = snowAmount;
+	out.glacialIceTint = permanentIce * lowlandIce * P.northIceLowlandTintStrength;
+	return out;
+}
+
+/** Pure diagnostic twin of the runtime snow calculation. */
+export function resolveTerrainSnowCoverage({
+	heightAboveSeaMeters,
+	slopeDegrees,
+	snowWeight = 0,
+	worldZ = 0,
+}) {
+	return Object.freeze({ ...computeTerrainSnowCoverage({}, {
+		heightAboveSeaMeters,
+		slopeDegrees,
+		snowWeight,
+		worldZ,
+	}) });
 }
 
 const scratchRock = new THREE.Color();
 const scratchGround = new THREE.Color();
+const scratchSnowCoverage = {};
 
 export function resolveTerrainBiomeColor(target, {
 	heightAboveSeaMeters,
@@ -154,9 +261,9 @@ export function resolveTerrainBiomeColor(target, {
 	const P = TERRAIN_BIOME_SHADING_POLICY;
 	const height = heightAboveSeaMeters;
 	const slope = slopeDegrees;
-	const climate = northClimateWeightsAtWorldZ(worldZ);
-	const permanentNorth = climate.permanentIce;
-	const tundraNorth = climate.tundra;
+	const normalizedY = normalizedMapYAtWorldZ(worldZ);
+	const permanentNorth = permanentIceWeightAtNormalizedY(normalizedY);
+	const tundraNorth = tundraWeightAtNormalizedY(normalizedY);
 
 	// Open ground: meadow/grass/heath/dry upland. This keeps map.png's geographic family but removes
 	// the single green sheet that made plains, scrub and uplands indistinguishable.
@@ -193,21 +300,18 @@ export function resolveTerrainBiomeColor(target, {
 		target.lerp(scratchRock, rockAmount);
 	}
 
-	// Snow authority: canonical snow + altitude + a latitude floor. In the permanent cryosphere the
-	// latitude floor wins even on low terrain, fixing the green far-north visible in the current build.
-	const authoredSnow = Math.max(
-		smoothstep(P.snowAltitudeStartMeters, P.snowAltitudeFullMeters, height),
-		clamp01(snowWeight) * P.canonicalSnowGain,
-	);
-	const northSnowSupply = permanentNorth * P.northSnowMinimumCoverage;
-	const snowSupply = clamp01(Math.max(authoredSnow, northSnowSupply, tundraNorth * 0.58));
-	const naturalHold = 1 - smoothstep(P.snowShedStartDegrees, P.snowShedFullDegrees, slope);
-	const snowHold = lerp(naturalHold, Math.max(naturalHold, 0.96), permanentNorth);
-	const snowAmount = height > 0 ? clamp01(snowSupply * snowHold) : 0;
-	if (snowAmount > 0) {
-		target.lerp(TERRAIN_BIOME_PALETTE.GLACIAL_ICE, permanentNorth * 0.22);
-		target.lerp(TERRAIN_BIOME_PALETTE.SNOW, snowAmount);
-	}
+	// Snow authority stays map-derived first (canonical snowWeight), with altitude as a physically
+	// plausible supplement. Unlike the old global threshold, the altitude snowline now descends
+	// continuously toward the north. Permanent ice still wins on low terrain; tundra only receives a
+	// restrained lowland floor so it does not become an artificial second ice sheet.
+	const snow = computeTerrainSnowCoverage(scratchSnowCoverage, {
+		heightAboveSeaMeters: height,
+		slopeDegrees: slope,
+		snowWeight,
+		worldZ,
+	});
+	if (snow.snowAmount > 0) target.lerp(TERRAIN_BIOME_PALETTE.SNOW, snow.snowAmount);
+	if (snow.glacialIceTint > 0) target.lerp(TERRAIN_BIOME_PALETTE.GLACIAL_ICE, snow.glacialIceTint);
 
 	const submergedAmount = 1 - smoothstep(-P.seabedFullDepthMeters, 0, height);
 	if (submergedAmount > 0) target.lerp(TERRAIN_BIOME_PALETTE.SEABED, submergedAmount);
