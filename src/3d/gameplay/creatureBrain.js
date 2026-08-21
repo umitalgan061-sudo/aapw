@@ -41,6 +41,16 @@
  * flying over a castle wall or a cottage roof is correct, not a bug, unlike a ground quadruped walking
  * through one.
  *
+ * **Social herd cohesion.** `creatureSpawner.js` now carries the deterministic cluster anchor that
+ * social species already use at spawn time into each spawn record. Ground herd species reuse that
+ * anchor as their idle wander center rather than treating every member's individual spawn point as a
+ * separate home. Their calm wander radius is capped below half the existing same-species alert radius,
+ * keeping two independently wandering herd members inside the communication envelope in steady state.
+ * Threat reactions remain unconstrained: a frightened animal may still flee well outside the herd;
+ * once calm, the existing wander movement naturally walks it back toward the shared anchor. Flight
+ * species deliberately retain their landing-local wander center because forcing a landed bird to
+ * ground-hop all the way back to its pre-flight flock anchor would look less realistic, not more.
+ *
  * **Which species.** Every `CREATURE_BEHAVIOR_PROFILES` key below is a `gameplay/creatureBodyPlans.js`
  * body-plan id, *except* `kurt` (already a real, shipped, asset-driven wolf — `gameplay/animals.js` —
  * spawning a second, procedural wolf population alongside it would just look like a visual downgrade
@@ -105,6 +115,10 @@ import { CREATURE_BODY_PLANS } from './creatureBodyPlans.js';
 
 /** Shared by every profile unless overridden. */
 const DEFAULT_TURN_RATE_RADIANS_PER_SECOND = 3.2;
+
+// A calm ground herd member may roam at most 42% of the existing pack-alert radius from the shared
+// anchor. Two members at opposite extremes therefore remain at 84% of the communication radius.
+export const CREATURE_SOCIAL_WANDER_RADIUS_FACTOR = 0.42;
 
 /** @type {Record<string, CreatureBehaviorProfile>} */
 export const CREATURE_BEHAVIOR_PROFILES = Object.freeze({
@@ -218,6 +232,8 @@ function hashSeedString(text) {
  * @param {number} options.worldZ
  * @param {number} options.groundY
  * @param {number} [options.rotationYRadians]
+ * @param {number} [options.socialAnchorX] Shared deterministic herd center supplied by creatureSpawner.
+ * @param {number} [options.socialAnchorZ] Shared deterministic herd center supplied by creatureSpawner.
  * @param {{getGroundHeight: (x: number, z: number) => number}} options.groundCollider
  * @param {{resolveXZ: (x: number, z: number) => {x: number, z: number}}} [options.playerCollider]
  *   Run 332's own follow-up to Run 331's own named gap: the same castle+village obstacle collider
@@ -238,6 +254,8 @@ export function createCreatureBeing({
 	worldZ,
 	groundY,
 	rotationYRadians = 0,
+	socialAnchorX = null,
+	socialAnchorZ = null,
 	groundCollider,
 	playerCollider = null,
 	mulberry32,
@@ -253,14 +271,30 @@ export function createCreatureBeing({
 	object3D.position.set(worldX, groundY, worldZ);
 	object3D.rotation.y = rotationYRadians;
 
+	const socialCohesionEnabled = profile.locomotion !== 'flight'
+		&& profile.packAlertRadiusMeters != null
+		&& Number.isFinite(socialAnchorX)
+		&& Number.isFinite(socialAnchorZ);
+	const idleWanderRadiusMeters = socialCohesionEnabled
+		? Math.min(profile.wanderRadiusMeters, profile.packAlertRadiusMeters * CREATURE_SOCIAL_WANDER_RADIUS_FACTOR)
+		: profile.wanderRadiusMeters;
 	const rng = mulberry32(hashSeedString(spawnId) ^ 0x42524e00); // "BRN\0"-ish tag
-	const wanderCenter = { x: worldX, z: worldZ };
+	const wanderCenter = socialCohesionEnabled
+		? { x: socialAnchorX, z: socialAnchorZ }
+		: { x: worldX, z: worldZ };
 	let wanderTarget = { x: worldX, z: worldZ };
 	let pauseTimer = profile.wanderPauseSeconds;
 	let gaitClockSeconds = 0;
 	let wasMoving = false;
 	let currentlyReacting = false;
 	const isFlightSpecies = profile.locomotion === 'flight';
+	object3D.userData.creatureSocial = Object.freeze({
+		enabled: socialCohesionEnabled,
+		anchorX: socialCohesionEnabled ? socialAnchorX : null,
+		anchorZ: socialCohesionEnabled ? socialAnchorZ : null,
+		idleWanderRadiusMeters: Number(idleWanderRadiusMeters.toFixed(3)),
+		alertRadiusMeters: profile.packAlertRadiusMeters ?? null,
+	});
 	// Flight-only state — declared unconditionally (cheap, and keeps this function's shape uniform) but
 	// only ever read/written when `isFlightSpecies` is true.
 	let flightPhase = 'grounded'; // 'grounded' | 'climbing' | 'cruising' | 'landing'
@@ -281,7 +315,7 @@ export function createCreatureBeing({
 
 	function pickNewWanderTarget() {
 		const angle = rng() * Math.PI * 2;
-		const radius = profile.wanderRadiusMeters * Math.sqrt(rng());
+		const radius = idleWanderRadiusMeters * Math.sqrt(rng());
 		wanderTarget = { x: wanderCenter.x + Math.cos(angle) * radius, z: wanderCenter.z + Math.sin(angle) * radius };
 	}
 
@@ -449,7 +483,7 @@ export function createCreatureBeing({
  * asset-download step: a procedural rig has nothing to `await` (no network fetch, no glTF parse), so
  * this stays a plain synchronous function rather than an async one that never actually suspends.
  * @param {object} options
- * @param {{id: string, speciesId: string, x: number, z: number, rotationYRadians?: number}[]} options.spawns
+ * @param {{id: string, speciesId: string, x: number, z: number, rotationYRadians?: number, socialAnchorX?: number, socialAnchorZ?: number}[]} options.spawns
  * @param {{getGroundHeight: (x: number, z: number) => number}} options.groundCollider
  * @param {{resolveXZ: (x: number, z: number) => {x: number, z: number}}} [options.playerCollider]
  *   Forwarded to every `createCreatureBeing` call — see that function's own JSDoc.
@@ -473,6 +507,8 @@ export function spawnConfiguredCreatures({ spawns, groundCollider, playerCollide
 				worldZ: spawn.z,
 				groundY: groundCollider.getGroundHeight(spawn.x, spawn.z),
 				rotationYRadians: spawn.rotationYRadians ?? 0,
+				socialAnchorX: spawn.socialAnchorX ?? null,
+				socialAnchorZ: spawn.socialAnchorZ ?? null,
 				groundCollider,
 				playerCollider,
 				mulberry32,
