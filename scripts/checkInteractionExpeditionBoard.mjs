@@ -213,4 +213,29 @@ assert.equal(masteryRestored.getReputationSnapshot().dragonstone, 5);
 assert.equal(masteryRestored.getEconomySnapshot().copper, 70);
 assert.equal(masteryRestored.getEconomySnapshot().ledger.recentCredits.length, 2);
 
-console.log(`[RPG] PASS expedition contracts + mastery + persisted bounded income receipts ${JSON.stringify({ routes: readyBoard.entries.length, rewardedRoute: 'dragonstone-harbor-tavern-run', masteryClaimed: masteryRestored.getWorldStateSnapshot().dragonstoneExpeditionMasteryClaimed, masteryCopper: masteryRestored.getEconomySnapshot().copper, creditReceipts: masteryRestored.getEconomySnapshot().ledger.recentCredits.length })}`);
+// Legacy 3/3 saves created before the mastery flag existed surface READY and can claim the milestone once on the next successful expedition replay.
+const legacyMastery = createInteractionController({ interactionPrompt: { setVisible() {} }, dialogueBox, greetingTemplate: 'Selam, {name}!', radiusMeters: 6 });
+const legacySave = legacyMastery.getRpgSnapshot();
+legacySave.inventory = expeditionInventory();
+legacySave.worldState = {
+	dragonstoneWatchPolicy: null,
+	dragonstoneExpeditionRoutes: ['dragonstone-watch-circuit', 'dragonstone-harbor-tavern-run', 'dragonstone-ridge-camp'],
+};
+legacyMastery.restoreRpgSnapshot(legacySave);
+legacyMastery.update([quartermaster], { x: 1, z: 1 });
+legacyMastery.handleKeyDown({ code: 'KeyT', repeat: false });
+assert.match(renderedText, /Tamamlanan kontrat: 3\/3/);
+assert.match(renderedText, /Sefer ustalığı: HAZIR · 50 XP \+ 3 itibar \+ 20 bakır/);
+assert.match(renderedChoices[0], /Nöbet Yolu Devriyesi — HAZIR/);
+legacyMastery.handleKeyDown({ code: 'Digit1', repeat: false });
+assert.match(renderedText, /tekrar ödülü yok/);
+assert.match(renderedText, /SEFER USTALIĞI KAZANILDI: 50 XP \+ 3 Dragonstone itibarı \+ 20 bakır · kese 60/);
+assert.equal(legacyMastery.getProgressionSnapshot().totalExperience, 50);
+assert.equal(legacyMastery.getReputationSnapshot().dragonstone, 3);
+assert.equal(legacyMastery.getEconomySnapshot().copper, 60);
+assert.equal(legacyMastery.getWorldStateSnapshot().dragonstoneExpeditionMasteryClaimed, true);
+assert.deepEqual(legacyMastery.getEconomySnapshot().ledger.recentCredits.map(({ sourceId, creditedCopper }) => ({ sourceId, creditedCopper })), [
+	{ sourceId: 'expedition-mastery', creditedCopper: 20 },
+]);
+
+console.log(`[RPG] PASS expedition contracts + mastery + persisted bounded income receipts ${JSON.stringify({ routes: readyBoard.entries.length, rewardedRoute: 'dragonstone-harbor-tavern-run', masteryClaimed: masteryRestored.getWorldStateSnapshot().dragonstoneExpeditionMasteryClaimed, masteryCopper: masteryRestored.getEconomySnapshot().copper, legacyMasteryClaimed: legacyMastery.getWorldStateSnapshot().dragonstoneExpeditionMasteryClaimed, creditReceipts: masteryRestored.getEconomySnapshot().ledger.recentCredits.length })}`);
