@@ -52,7 +52,6 @@ try {
 		const save = controller.getRpgSnapshot();
 		save.inventory = {
 			items: [
-				{ itemId: 'dragonstone-expedition-maintenance-kit', quantity: 1, provenance: [{ sourceType: 'settlement-crafting', sourceId: 'dragonstone-expedition-maintenance-kit' }] },
 				{ itemId: 'dragonstone-travel-ration-pack', quantity: 2, provenance: [{ sourceType: 'settlement-crafting', sourceId: 'dragonstone-watch-travel-ration-pack' }] },
 			],
 		};
@@ -71,11 +70,14 @@ try {
 		const afterMastery = controller.getRpgSnapshot();
 		const whetstone = afterMastery.inventory.items.find((item) => item.itemId === 'dragonstone-whetstone');
 		const pack = afterMastery.inventory.items.find((item) => item.itemId === 'dragonstone-travel-ration-pack');
-		const masteryGranted = masteryText.includes('SEFER USTALIĞI KAZANILDI')
-			&& masteryText.includes('Ustalık smithing ödülü: 1 Nöbetçi Bileği Taşı')
-			&& whetstone?.quantity === 1
+		const masteryTextOk = masteryText.includes('SEFER USTALIĞI KAZANILDI: 50 XP + 3 Dragonstone itibarı + 20 bakır')
+			&& masteryText.includes('Ustalık smithing ödülü: 1 Nöbetçi Bileği Taşı');
+		const masteryRewardOk = whetstone?.quantity === 1
 			&& whetstone?.provenance?.at(-1)?.sourceType === 'expedition-mastery'
-			&& pack?.quantity >= 1
+			&& whetstone?.provenance?.at(-1)?.sourceId === 'dragonstone-expedition-mastery';
+		const masteryGranted = masteryTextOk
+			&& masteryRewardOk
+			&& pack?.quantity === 1
 			&& afterMastery.economy.copper === 70;
 
 		controller.handleKeyDown({ code: 'KeyB', repeat: false });
@@ -85,7 +87,7 @@ try {
 		const afterCraft = controller.getRpgSnapshot();
 		const craftedKit = afterCraft.inventory.items.find((item) => item.itemId === recipe.outputItemId);
 		const crafted = afterCraft.inventory.items.every((item) => item.itemId !== 'dragonstone-whetstone')
-			&& craftedKit?.quantity === 2
+			&& craftedKit?.quantity === 1
 			&& craftedKit?.provenance?.at(-1)?.sourceType === 'settlement-crafting'
 			&& craftedKit?.provenance?.at(-1)?.sourceId === recipe.recipeId
 			&& afterCraft.economy.copper === 58
@@ -106,7 +108,7 @@ try {
 		const restoredKit = roundTrip.inventory.items.find((item) => item.itemId === recipe.outputItemId);
 		const persisted = roundTrip.worldState.dragonstoneExpeditionMasteryClaimed === true
 			&& roundTrip.economy.copper === 58
-			&& restoredKit?.quantity === 2
+			&& restoredKit?.quantity === 1
 			&& restoredKit?.provenance?.at(-1)?.sourceId === recipe.recipeId
 			&& roundTrip.inventory.items.every((item) => item.itemId !== 'dragonstone-whetstone');
 
@@ -117,6 +119,10 @@ try {
 		return {
 			boardAdvertisesProgress,
 			masteryGranted,
+			masteryTextOk,
+			masteryRewardOk,
+			remainingPacks: pack?.quantity ?? 0,
+			masteryBalance: afterMastery.economy.copper,
 			serviceAdvertised,
 			crafted,
 			persisted,
