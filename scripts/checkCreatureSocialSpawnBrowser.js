@@ -8,11 +8,12 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function stripBenignServerNoise(log) {
   return String(log)
-    .replace(/^-+\s*$/gm, '')
-    .replace(/^Exception occurred during processing of request from .*$/gm, '')
-    .replace(/^Traceback \(most recent call last\):\s*$[\s\S]*?(?=^\s*$|^-+\s*$|\z)/gm, (block) => {
-      if (/BrokenPipeError|ConnectionResetError/.test(block)) return '';
-      return block;
+    .replace(/^-+\s*\nException occurred during processing of request from .*?\n[\s\S]*?^-+\s*$/gm, (block) => {
+      const browserCloseStack = /socketserver\.py/.test(block)
+        && /http\/server\.py/.test(block)
+        && /shutil\.py/.test(block)
+        && !/" [45]\d\d /.test(block);
+      return browserCloseStack ? '' : block;
     })
     .replace(/^BrokenPipeError: \[Errno 32\] Broken pipe\s*$/gm, '')
     .replace(/^ConnectionResetError: \[Errno 104\] Connection reset by peer\s*$/gm, '');
