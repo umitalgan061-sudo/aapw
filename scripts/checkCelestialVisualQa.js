@@ -35,13 +35,17 @@ page.on('console', (message) => {
 
 try {
 	await page.goto(`${server.baseUrl}/celestial-visual-qa.html`, { waitUntil: 'networkidle' });
+	await page.waitForFunction(() => Boolean(window.__celestialQaModules), null, { timeout: 10000 });
 	const bootstrap = await page.evaluate(async ({ viewport }) => {
-		const THREE = await import('./src/3d/vendor/three/three.module.js');
 		const {
+			THREE,
 			CELESTIAL_ASSET_POLICY,
 			createDayNightLighting,
 			updateDayNightLighting,
-		} = await import('./src/3d/lighting.js');
+		} = window.__celestialQaModules ?? {};
+		if (!THREE || !CELESTIAL_ASSET_POLICY || !createDayNightLighting || !updateDayNightLighting) {
+			throw new Error('celestial QA modules did not initialize through the document import map');
+		}
 
 		const assetResponse = await fetch(`./${CELESTIAL_ASSET_POLICY.moonAssetUrl}`, { cache: 'no-store' });
 		const assetBytes = new Uint8Array(await assetResponse.arrayBuffer());
