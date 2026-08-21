@@ -17969,3 +17969,20 @@ maliyeti 575k → 311k üçgen.
 **Sonuç:** 11 köy, 70 yapı, 0 havada, 0 suda, coverage 0 unaccounted, scatter PASS, deterministik.
 §8.4 tetiklenmiyor (arazi değişmedi). Görsel kanıt `artifacts/villages/berk-*.png`. SW v41→v42.
 Renderdaki soluk levha bir **yol şeridi** (bina değil) — ayrı konu, tur 383.
+
+## Tur 383 — Her Zaman Kış Diyarı yeşildi (ADR-0330)
+
+Sahip: "Westeros'un en kuzeyi tamamen buzla kaplı olmalı, haritamızda yeşil alan var." Ölçüm doğruladı:
+nx 0.175'te tüm kuzey kesitinde `snowWeight 0`, RGB (50,78,12). Sebep, kanonik maskenin `snow` kodunu
+yalnız **buzul hücrelerinde** taşıması — maske buzulu biliyor, enlemi bilmiyor.
+
+`terrain.js` artık maskenin üstüne **enleme göre** kar veriyor: Duvar'da (ny ~0.16) tam, Hediye boyunca
+sönüyor, Winterfell (0.285) çayır kalıyor. **Yükseklik alanına dokunmadan** — `snowWeight` kotu da
+besliyor, o yüzden enlem terimi yalnız görsel `outSurface.snowWeight`'e uygulanıyor. Duvar kapısı
+bağımsız doğruladı: "terrain drift 0 m", yani §8.4 tetiklenmiyor.
+
+`scripts/checkNorthernIce.js` üçünü birden koruyor: uzak kuzey beyaz, Kuzey yeşil, kotlar sabit.
+**Ölçülen:** ny 0.14 kar 1.00 / yeşil-mavi −4; ny 0.28 kar 0.00 / yeşil-mavi +45; kotlar değişmedi.
+Coğrafya kapıları PASS. Görsel kanıt `artifacts/north/`. SW v42→v43.
+
+**Açık:** karlı ağaç modelleri henüz kullanılmıyor (bitki örtüsü kar ağırlığını okumuyor) — ayrı tur.

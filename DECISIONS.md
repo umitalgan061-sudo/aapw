@@ -18905,3 +18905,37 @@ kalkan yol meshi, ayrı bir konu (roads.js), tur 383 için not edildi (görev #5
 
 **Technical debt.** 0 new. **Açık iş.** Sahibin aynı mesajındaki diğer üç istek: kuzeyin buzla
 kaplanması, map.png'den zemin renk paleti, güneş/ay ile gerçekçi gökyüzü. Ve yol şeridi kalkması.
+
+## ADR-0330 — Her Zaman Kış Diyarı yeşildi: kuzeye enleme göre kar
+
+**Sahibin talimatı.** "Westeros'un en kuzeyinin tamamen Buz'la kaplı olduğu belirgin ama Coğrafi
+haritamızda yeşil alan var, bu yanlış." Ölçtüm, haklıydı.
+
+**Sebep.** Kanonik 96×64 yüzey maskesi `snow` kodunu yalnız **buzul hücrelerinde** taşıyor — dar bir
+`nx` bandı. Duvar'ın çevresi ve kuzeyi maskede `soil` olarak geliyordu, dolayısıyla parlak yeşil
+render ediliyordu: nx 0.175'te tüm kuzey kesitinde `snowWeight 0` ve RGB **(50,78,12)**. Yani maske
+buzulu biliyor, *enlemi* bilmiyor.
+
+**Düzeltme.** `terrain.js` artık maskenin üstüne **enleme göre** kar veriyor (`NORTHERN_SNOW`): Duvar
+(ny ~0.16) ve kuzeyinde tam, Hediye boyunca (ny 0.15→0.25) sönerek biten bir rampa. Kuzey'in kendisi
+(Winterfell ny ~0.285) maskenin yaptığı soğuk çayır olarak kalıyor.
+
+**Kritik kısıt: yükseklik alanına dokunmuyor.** `snowWeight` aynı zamanda *kotu* besliyor
+(`+ snowWeight * 12` ve relief detayı). Enlem terimini o terimlerden önce vermek tüm kuzeyi metrelerce
+kaldırır ve projedeki her koltuk/yol/etek ölçümünü sessizce geçersiz kılardı. Terim yalnız görsel/bitki
+örtüsü için kullanılan `outSurface.snowWeight`'e uygulanıyor; yükseklik **bit düzeyinde aynı**. Duvar
+kapısı bunu bağımsız doğruladı: "terrain drift 0 m". Bu yüzden §8.4 tetiklenmiyor.
+
+**`scripts/checkNorthernIce.js`** üç şeyi birden koruyor: (1) uzak kuzey **beyaz** — kar ağırlığı ve
+çözülmüş biyom renginin yeşil-mavi dengesi (kar nötr, bitki örtüsü yeşil baskın, karıştırılamazlar);
+(2) Kuzey'in kendisi **beyaz değil** — rampa güneye taşarsa Winterfell'in çayırını siler; (3) **kuzey
+kotları oynamadı** — enlem karı kota sızarsa burada düşer, üç tur sonra bir koltuk kontrolünde değil.
+
+**Ölçülen sonuç:** uzak kuzey (ny 0.14) kar **1.00**, yeşil-mavi **−4** (nötr beyaz); Kuzey (ny 0.28)
+kar **0.00**, yeşil-mavi **+45** (yeşil); kotlar 23.64/69.18/91.18/28.35/267.54 m — değişmedi. Bütün
+coğrafya kapıları PASS (11 bölge, Duvar, harita özellikleri). Görsel kanıt `artifacts/north/*-after.png`:
+önceki karede sağ yarıyı kaplayan parlak yeşil kara artık buz. Service worker v42→v43.
+
+**Technical debt.** 0 new. **Açık iş.** Sahip "assets'de karlı ağaçlar var, onları oralarda
+kullanabilirsin" dedi — bitki örtüsü hâlâ tek tip prosedürel yeşil ağaç ve kuzeyde kar ağırlığını
+okumuyor; ayrı bir tur. Ayrıca zemin renk paleti ve güneş/ay gökyüzü istekleri duruyor.

@@ -244,7 +244,10 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // (`villageBuildings.js`, `worldPropScatter.js`) so no corner floats, and drops the flat-sheet fence
 // model. Both are offline-loadable runtime modules, so an existing install keeps floating buildings
 // until the shell refreshes. v41->v42.
-const SHELL_CACHE = 'westeros-shell-v42';
+// Run 383 lays snow on the far north by latitude in `terrain.js`, so the Lands of Always Winter render
+// as ice instead of grassland. Ground colour comes from that module at runtime; a cache-first shell
+// would keep the old green north. v42->v43.
+const SHELL_CACHE = 'westeros-shell-v43';
 const SHELL_FILES = [
     './',
     './index.html',
