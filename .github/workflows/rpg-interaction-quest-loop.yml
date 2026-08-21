@@ -30,6 +30,7 @@ on:
       - 'scripts/checkInteractionJourneyPlanningBrowser.mjs'
       - 'scripts/checkInteractionExpeditionBoard.mjs'
       - 'scripts/checkInteractionExpeditionBoardBrowser.mjs'
+      - 'scripts/checkInteractionExpeditionMasterySmithingReward.mjs'
       - 'service-worker.js'
       - '.github/workflows/rpg-expedition-board.yml'
       - '.github/workflows/rpg-interaction-quest-loop.yml'
@@ -62,7 +63,7 @@ jobs:
           printf '%s\n' "${FILES[@]}"
           for path in "${FILES[@]}"; do
             case "$path" in
-              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionConfig.js|src/3d/gameplay/interactionEconomy.js|src/3d/gameplay/interactionFieldReadiness.js|scripts/checkInteractionQuestLoop.mjs|scripts/checkInteractionInventoryRewards.mjs|scripts/checkInteractionQuartermasterTrade.mjs|scripts/checkInteractionTradeLedgerAtomicity.mjs|scripts/checkInteractionTradeLedgerBrowser.mjs|scripts/checkInteractionSettlementServiceContract.mjs|scripts/checkInteractionSettlementServiceBrowser.mjs|scripts/checkInteractionArmorerServiceBrowser.mjs|scripts/checkInteractionProvisioningCraft.mjs|scripts/checkInteractionProvisioningCraftBrowser.mjs|scripts/checkInteractionExpeditionKitCraft.mjs|scripts/checkInteractionExpeditionKitBrowser.mjs|scripts/checkInteractionFieldReadiness.mjs|scripts/checkInteractionFieldReadinessBrowser.mjs|scripts/checkInteractionFastTravelBoundary.mjs|scripts/checkInteractionRouteProvisions.mjs|scripts/checkInteractionRouteProvisionsBrowser.mjs|scripts/checkInteractionFastTravelConsumption.mjs|scripts/checkInteractionRouteProvisionPersistence.mjs|scripts/checkInteractionJourneyPlanning.mjs|scripts/checkInteractionJourneyPlanningBrowser.mjs|scripts/checkInteractionExpeditionBoard.mjs|scripts/checkInteractionExpeditionBoardBrowser.mjs|service-worker.js|.github/workflows/rpg-expedition-board.yml|.github/workflows/rpg-interaction-quest-loop.yml) ;;
+              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionConfig.js|src/3d/gameplay/interactionEconomy.js|src/3d/gameplay/interactionFieldReadiness.js|scripts/checkInteractionQuestLoop.mjs|scripts/checkInteractionInventoryRewards.mjs|scripts/checkInteractionQuartermasterTrade.mjs|scripts/checkInteractionTradeLedgerAtomicity.mjs|scripts/checkInteractionTradeLedgerBrowser.mjs|scripts/checkInteractionSettlementServiceContract.mjs|scripts/checkInteractionSettlementServiceBrowser.mjs|scripts/checkInteractionArmorerServiceBrowser.mjs|scripts/checkInteractionProvisioningCraft.mjs|scripts/checkInteractionProvisioningCraftBrowser.mjs|scripts/checkInteractionExpeditionKitCraft.mjs|scripts/checkInteractionExpeditionKitBrowser.mjs|scripts/checkInteractionFieldReadiness.mjs|scripts/checkInteractionFieldReadinessBrowser.mjs|scripts/checkInteractionFastTravelBoundary.mjs|scripts/checkInteractionRouteProvisions.mjs|scripts/checkInteractionRouteProvisionsBrowser.mjs|scripts/checkInteractionFastTravelConsumption.mjs|scripts/checkInteractionRouteProvisionPersistence.mjs|scripts/checkInteractionJourneyPlanning.mjs|scripts/checkInteractionJourneyPlanningBrowser.mjs|scripts/checkInteractionExpeditionBoard.mjs|scripts/checkInteractionExpeditionBoardBrowser.mjs|scripts/checkInteractionExpeditionMasterySmithingReward.mjs|service-worker.js|.github/workflows/rpg-expedition-board.yml|.github/workflows/rpg-interaction-quest-loop.yml) ;;
               *) echo "unexpected RPG scope path: $path" >&2; exit 1 ;;
             esac
           done
@@ -99,6 +100,7 @@ jobs:
           node --check scripts/checkInteractionJourneyPlanningBrowser.mjs
           node --check scripts/checkInteractionExpeditionBoard.mjs
           node --check scripts/checkInteractionExpeditionBoardBrowser.mjs
+          node --check scripts/checkInteractionExpeditionMasterySmithingReward.mjs
           node scripts/checkInteractionQuestLoop.mjs
           node scripts/checkInteractionInventoryRewards.mjs
           node scripts/checkInteractionQuartermasterTrade.mjs
@@ -113,6 +115,7 @@ jobs:
           node scripts/checkInteractionRouteProvisionPersistence.mjs
           node scripts/checkInteractionJourneyPlanning.mjs
           node scripts/checkInteractionExpeditionBoard.mjs
+          node scripts/checkInteractionExpeditionMasterySmithingReward.mjs
       - name: Shared regression contracts
         run: |
           set -euo pipefail
