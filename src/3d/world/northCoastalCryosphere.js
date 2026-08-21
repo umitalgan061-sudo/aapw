@@ -24,34 +24,17 @@ export const NORTH_COASTAL_CRYOSPHERE_POLICY = Object.freeze({
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	climateAuthority: 'terrainBiomeShading.northClimateWeightsAtWorldZ',
-
-	// Only the actual shoreline is affected. Above this elevation ordinary tundra/snow rules win.
 	shoreInfluenceFullMeters: 0.15,
 	shoreInfluenceFadeMeters: 4.8,
-
-	// Flat coast freezes most readily; cliff faces remain rock rather than becoming a blue wall.
 	flatSlopeFullDegrees: 5,
 	flatSlopeFadeDegrees: 32,
-
-	// Permanent ice almost removes warm sand. Tundra retains a muted fraction so the coast transition
-	// is gradual instead of jumping from beige to white at one latitude.
 	permanentIceSandRetention: 0.04,
 	tundraSandRetention: 0.46,
-
-	// Frozen-shore tint is strongest just above sea level and fades with both elevation and slope.
 	frozenShoreStrength: 0.72,
 	tundraFrozenShoreStrength: 0.22,
-
-	// Pack-ice tint is intentionally smaller than snow coverage; it supplies cold blue-grey undertone
-	// without turning every northern beach into saturated cyan.
 	packIceStrength: 0.44,
 	tundraPackIceStrength: 0.10,
-
-	// Exposed rock becomes slightly more important where sand is suppressed. This prevents a uniform
-	// white coastline and preserves believable dark headlands between snowy coves.
 	rockExposureStrength: 0.34,
-
-	// Deterministic broad coastal variation. This modulates tint only, never canonical shoreline shape.
 	variationCellMeters: 96,
 	variationAmplitude: 0.12,
 });
@@ -76,18 +59,8 @@ function smoothLattice01(worldX, worldZ) {
 	return lerp(a, b, sz);
 }
 
-/**
- * Resolve render-only frozen-coast weights.
- *
- * @param {object} input
- * @param {number} input.heightAboveSeaMeters Positive land height relative to sea level.
- * @param {number} input.slopeDegrees Terrain slope in degrees.
- * @param {number} input.permanentIce Shared north climate weight in [0, 1].
- * @param {number} input.tundra Shared tundra climate weight in [0, 1].
- * @param {number} [input.worldX=0] World X, used only for smooth deterministic variation.
- * @param {number} [input.worldZ=0] World Z, used only for smooth deterministic variation.
- */
-export function resolveNorthCoastalCryosphere({
+/** Allocation-free runtime resolver. `out` is overwritten and returned. */
+export function resolveNorthCoastalCryosphereInto(out, {
 	heightAboveSeaMeters,
 	slopeDegrees,
 	permanentIce,
@@ -102,45 +75,34 @@ export function resolveNorthCoastalCryosphere({
 	const shoreline = land * (1 - smoothstep(P.shoreInfluenceFullMeters, P.shoreInfluenceFadeMeters, heightAboveSeaMeters));
 	const flatness = 1 - smoothstep(P.flatSlopeFullDegrees, P.flatSlopeFadeDegrees, slopeDegrees);
 	const coastEligibility = shoreline * flatness;
-
 	const climateFreeze = clamp01(ice + tundraOnly * 0.34);
-	const targetSandRetention = lerp(
-		1,
-		P.tundraSandRetention,
-		tundraOnly,
-	);
-	const sandRetention = lerp(
-		targetSandRetention,
-		P.permanentIceSandRetention,
-		ice,
-	);
-
+	const targetSandRetention = lerp(1, P.tundraSandRetention, tundraOnly);
+	const sandRetention = lerp(targetSandRetention, P.permanentIceSandRetention, ice);
 	const variation01 = smoothLattice01(worldX, worldZ);
 	const variation = 1 + (variation01 - 0.5) * 2 * P.variationAmplitude;
 	const frozenShore = clamp01(coastEligibility * variation * (
-		ice * P.frozenShoreStrength
-		+ tundraOnly * P.tundraFrozenShoreStrength
+		ice * P.frozenShoreStrength + tundraOnly * P.tundraFrozenShoreStrength
 	));
 	const packIce = clamp01(coastEligibility * variation * (
-		ice * P.packIceStrength
-		+ tundraOnly * P.tundraPackIceStrength
+		ice * P.packIceStrength + tundraOnly * P.tundraPackIceStrength
 	));
 	const rockExposure = clamp01(
-		coastEligibility
-		* climateFreeze
-		* (1 - sandRetention)
-		* P.rockExposureStrength,
+		coastEligibility * climateFreeze * (1 - sandRetention) * P.rockExposureStrength,
 	);
 
-	return Object.freeze({
-		shoreline,
-		flatness,
-		coastEligibility,
-		climateFreeze,
-		sandRetention: clamp01(sandRetention),
-		frozenShore,
-		packIce,
-		rockExposure,
-		variation01,
-	});
+	out.shoreline = shoreline;
+	out.flatness = flatness;
+	out.coastEligibility = coastEligibility;
+	out.climateFreeze = climateFreeze;
+	out.sandRetention = clamp01(sandRetention);
+	out.frozenShore = frozenShore;
+	out.packIce = packIce;
+	out.rockExposure = rockExposure;
+	out.variation01 = variation01;
+	return out;
+}
+
+/** Pure diagnostic wrapper for tests/debugging. */
+export function resolveNorthCoastalCryosphere(input) {
+	return Object.freeze({ ...resolveNorthCoastalCryosphereInto({}, input) });
 }
