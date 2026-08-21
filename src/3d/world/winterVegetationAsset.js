@@ -1,7 +1,7 @@
 /**
  * Optional real-asset upgrade for the procedural far-north snow pines.
  *
- * The repository keeps vegetation binaries in Git LFS. Some CI/dev checkouts can therefore expose
+ * The repository keeps vegetation binaries in Git LFS. Some CI/dev/deployment checkouts can expose
  * the ~130 byte LFS pointer text instead of the actual GLB. `vegetation.js` must remain immediately
  * renderable in that state, so the procedural snow pine is still the authority for placement,
  * determinism and fallback visuals. This module only replaces its visible geometry after a verified
@@ -13,7 +13,7 @@ import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
 
 export const WINTER_VEGETATION_ASSET_POLICY = Object.freeze({
-	id: 'winter-vegetation-materialized-asset-2026-08-21-v1',
+	id: 'winter-vegetation-materialized-asset-2026-08-21-v2',
 	candidates: Object.freeze([
 		'assets/models/vegetation/winter_tree.glb',
 		'assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb',
@@ -23,6 +23,11 @@ export const WINTER_VEGETATION_ASSET_POLICY = Object.freeze({
 	targetHeightMeters: 8.6,
 	minSourceHeightMeters: 0.05,
 	maxHorizontalToHeightRatio: 1.8,
+	// A Git-LFS pointer is ~130 bytes. A real textured tree GLB is orders of magnitude larger. HEAD
+	// preflight lets Firebase/static hosting reject an unhydrated pointer without downloading it into
+	// GLTFLoader first. Keep the threshold deliberately tiny so it cannot reject a plausible real GLB.
+	hostedPreflightMinBytes: 512,
+	hostedPreflightCache: 'no-store',
 });
 
 const inFlightUpgrades = new WeakMap();
@@ -33,6 +38,10 @@ function makeStatus(status, extra = {}) {
 		status,
 		...extra,
 	});
+}
+
+function makeProbeStatus(status, shouldLoad, extra = {}) {
+	return Object.freeze({ status, shouldLoad, ...extra });
 }
 
 function findNamedChild(group, name) {
@@ -210,8 +219,72 @@ function markCancelled(group, treeCount, attemptedAssets, reason = 'abort-signal
 	return status;
 }
 
+function headerValue(headers, name) {
+	if (!headers || typeof headers.get !== 'function') return null;
+	return headers.get(name) ?? headers.get(name.toLowerCase()) ?? null;
+}
+
+/**
+ * Cheap hosting preflight. It deliberately does not try to parse the GLB: HEAD is enough to reject
+ * the two deployment failures we can identify before GLTFLoader runs — an HTTP miss and a tiny/text
+ * Git-LFS pointer response. Unknown/unsupported HEAD behavior is fail-open because AssetLoader still
+ * validates the real model and preserves the procedural fallback.
+ */
+export async function probeHostedWinterAsset(assetUrl, {
+	fetchImpl = globalThis.fetch,
+	signal,
+	minBytes = WINTER_VEGETATION_ASSET_POLICY.hostedPreflightMinBytes,
+	cache = WINTER_VEGETATION_ASSET_POLICY.hostedPreflightCache,
+} = {}) {
+	if (typeof fetchImpl !== 'function') {
+		return makeProbeStatus('unknown', true, { reason: 'fetch-unavailable' });
+	}
+
+	let response;
+	try {
+		response = await fetchImpl(assetUrl, { method: 'HEAD', cache, signal });
+	} catch (error) {
+		if (signal?.aborted) return makeProbeStatus('cancelled', false, { reason: 'abort-signal' });
+		return makeProbeStatus('unknown', true, { reason: 'head-failed' });
+	}
+
+	if (signal?.aborted) return makeProbeStatus('cancelled', false, { reason: 'abort-signal' });
+	const statusCode = Number(response?.status);
+	if (!response?.ok) {
+		if (statusCode === 405 || statusCode === 501) {
+			return makeProbeStatus('unknown', true, { reason: 'head-unsupported', statusCode });
+		}
+		return makeProbeStatus('rejected', false, { reason: 'http-error', statusCode });
+	}
+
+	const rawLength = headerValue(response.headers, 'content-length');
+	const contentLength = rawLength == null ? null : Number.parseInt(rawLength, 10);
+	if (Number.isFinite(contentLength) && contentLength > 0 && contentLength < minBytes) {
+		return makeProbeStatus('rejected', false, {
+			reason: 'pointer-sized-response',
+			contentLength,
+			minBytes,
+		});
+	}
+
+	const contentType = String(headerValue(response.headers, 'content-type') ?? '').toLowerCase();
+	if (contentType.startsWith('text/')) {
+		return makeProbeStatus('rejected', false, { reason: 'text-response', contentLength, contentType });
+	}
+
+	return makeProbeStatus('accepted', true, { reason: 'hosted-binary-candidate', contentLength, contentType });
+}
+
+async function defaultWinterAssetProbe(assetUrl, options) {
+	if (typeof window === 'undefined' || typeof window.fetch !== 'function') {
+		return makeProbeStatus('skipped', true, { reason: 'non-browser-runtime' });
+	}
+	return probeHostedWinterAsset(assetUrl, { ...options, fetchImpl: window.fetch.bind(window) });
+}
+
 async function performWinterVegetationAssetUpgrade(group, {
 	assetLoader,
+	assetProbe,
 	candidates,
 	targetHeightMeters,
 	signal,
@@ -233,6 +306,31 @@ async function performWinterVegetationAssetUpgrade(group, {
 	const rejected = [];
 	for (const assetUrl of candidates) {
 		if (signal?.aborted) return markCancelled(group, trunkMesh.count, rejected.length);
+
+		if (assetProbe) {
+			let probe;
+			try {
+				probe = await assetProbe(assetUrl, { signal });
+			} catch (error) {
+				if (signal?.aborted) return markCancelled(group, trunkMesh.count, rejected.length);
+				// Probe is an optimization/diagnostic, not a new availability authority. Unexpected probe
+				// failures therefore fall through to the proven loader + placeholder validation path.
+				probe = makeProbeStatus('unknown', true, { reason: 'probe-threw' });
+			}
+			if (signal?.aborted || probe?.status === 'cancelled') {
+				return markCancelled(group, trunkMesh.count, rejected.length);
+			}
+			if (probe?.shouldLoad === false) {
+				rejected.push(Object.freeze({
+					assetUrl,
+					reason: `preflight-${probe.reason ?? probe.status ?? 'rejected'}`,
+					preflightStatus: probe.status ?? 'rejected',
+					contentLength: probe.contentLength ?? null,
+					statusCode: probe.statusCode ?? null,
+				}));
+				continue;
+			}
+		}
 
 		let model;
 		try {
@@ -291,13 +389,15 @@ async function performWinterVegetationAssetUpgrade(group, {
 
 /**
  * Attempts each known winter GLB in order. Pointer-only/corrupt/missing/implausible assets are
- * rejected and the already-visible procedural snow pines remain untouched. On success, every GLB
+ * rejected and the already-visible procedural snow pines remain untouched. In browsers a cheap HEAD
+ * preflight rejects a hosted LFS pointer before GLTFLoader downloads it. On success, every GLB
  * primitive is instanced using the exact deterministic snow-pine matrices; the procedural pair is
  * only hidden after all replacement meshes are ready. Re-entrant callers share one in-flight load,
  * and an optional AbortSignal can cancel a page that is tearing down without leaving detached meshes.
  */
 export function upgradeWinterVegetationAssets(group, {
 	assetLoader = new AssetLoader(),
+	assetProbe = defaultWinterAssetProbe,
 	candidates = WINTER_VEGETATION_ASSET_POLICY.candidates,
 	targetHeightMeters = WINTER_VEGETATION_ASSET_POLICY.targetHeightMeters,
 	signal,
@@ -313,6 +413,7 @@ export function upgradeWinterVegetationAssets(group, {
 
 	const promise = performWinterVegetationAssetUpgrade(group, {
 		assetLoader,
+		assetProbe,
 		candidates,
 		targetHeightMeters,
 		signal,
