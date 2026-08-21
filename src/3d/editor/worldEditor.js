@@ -6,6 +6,7 @@ import { EditorInstanceManager } from './EditorInstanceManager.js';
 import { serializeEditorScene, validateEditorScene } from './EditorSceneSerializer.js';
 import { rehydrateInstanceGroups } from './EditorFormationRehydrator.js';
 import { autoTextureObject, autoTextureMany, restoreOriginalMaterials, describeResult } from './EditorAutoTexture.js';
+import { isEditorStructureAsset } from './EditorTerrainFoundationGrounder.js';
 import { disposePaletteCaches } from '../materials/textureFactory.js';
 
 const $ = (id) => document.getElementById(id);
@@ -138,6 +139,23 @@ function selectObject(object) {
   refreshHierarchy();
 }
 
+function livePlacement() {
+  return window.__WESTEROS_EDITOR_PLACEMENT__ || null;
+}
+
+function retireObjectFoundation(object) {
+  if (!object?.userData?.editorFoundationKey && !object?.userData?.terrainFoundationKey) return { ok: true, skipped: true };
+  const placement = livePlacement();
+  if (!placement?.removeObjectFoundation) return { ok: false, error: 'live-placement-unavailable' };
+  return placement.removeObjectFoundation(object);
+}
+
+function regroundObjectFoundation(object, asset = null) {
+  const placement = livePlacement();
+  if (!placement?.groundObject || !object || object.isInstancedMesh) return { ok: false, error: 'live-placement-unavailable' };
+  return placement.groundObject(object, asset ? { asset } : undefined);
+}
+
 async function addAsset(asset, position = new THREE.Vector3()) {
   try {
     toast(`${asset.name} yükleniyor…`);
@@ -194,22 +212,45 @@ function renderCategories() {
 
 function applyInspector() {
   if (!selectedObject || selectedObject.isInstancedMesh) return;
+  const hadFoundation = Boolean(selectedObject.userData?.editorFoundationKey || selectedObject.userData?.terrainFoundationKey);
   selectedObject.name = $('we-name').value.trim() || selectedObject.name;
   selectedObject.position.set(snapValue(Number($('we-pos-x').value) || 0), snapValue(Number($('we-pos-y').value) || 0), snapValue(Number($('we-pos-z').value) || 0));
   selectedObject.rotation.set(THREE.MathUtils.degToRad(Number($('we-rot-x').value) || 0), THREE.MathUtils.degToRad(Number($('we-rot-y').value) || 0), THREE.MathUtils.degToRad(Number($('we-rot-z').value) || 0));
   selectedObject.scale.set(Math.max(0.01, Number($('we-scale-x').value) || 1), Math.max(0.01, Number($('we-scale-y').value) || 1), Math.max(0.01, Number($('we-scale-z').value) || 1));
+  if (hadFoundation) {
+    const grounding = regroundObjectFoundation(selectedObject);
+    if (!grounding.ok) console.warn('[worldEditor] live foundation update failed', grounding.error);
+  }
+  writeInspector(selectedObject);
   refreshHierarchy();
 }
 
 function duplicateSelected() {
   if (!selectedObject || selectedObject.isInstancedMesh) return;
+  const sourceAsset = findEditorAsset(selectedObject.userData?.editorAssetId) || null;
+  const sourceWasStructure = Boolean(
+    selectedObject.userData?.editorFoundationKey
+    || selectedObject.userData?.terrainFoundationKey
+    || isEditorStructureAsset(sourceAsset),
+  );
   const clone = selectedObject.clone(true);
-  clone.userData = { ...selectedObject.userData, editorId: nextEditorId(selectedObject.userData.editorAssetId || 'object') };
+  const {
+    editorFoundationKey: _editorFoundationKey,
+    terrainFoundationKey: _terrainFoundationKey,
+    editorGroundingMode: _editorGroundingMode,
+    ...cloneUserData
+  } = selectedObject.userData || {};
+  clone.userData = { ...cloneUserData, editorId: nextEditorId(selectedObject.userData.editorAssetId || 'object') };
   clone.name = `${selectedObject.name} Kopya`;
   clone.position.x = snapValue(clone.position.x + editorState().snapSize);
   editableObjects.push(clone);
   scene.add(clone);
   selectObject(clone);
+  if (sourceWasStructure) {
+    const grounding = regroundObjectFoundation(clone, sourceAsset);
+    if (!grounding.ok) console.warn('[worldEditor] duplicated structure grounding failed', grounding.error);
+    else writeInspector(clone);
+  }
 }
 
 function deleteSelected() {
@@ -220,6 +261,10 @@ function deleteSelected() {
   }
   const index = editableObjects.indexOf(selectedObject);
   if (index >= 0) {
+    const retired = retireObjectFoundation(selectedObject);
+    if (!retired.ok && retired.error !== 'foundation-not-registered') {
+      console.warn('[worldEditor] foundation cleanup failed before delete', retired.error);
+    }
     scene.remove(selectedObject);
     editableObjects.splice(index, 1);
     selectObject(null);
@@ -251,6 +296,10 @@ async function loadSceneFile(file) {
   const data = validateEditorScene(JSON.parse(await file.text()));
   instanceManager.clear();
   for (const object of [...editableObjects]) {
+    const retired = retireObjectFoundation(object);
+    if (!retired.ok && retired.error !== 'foundation-not-registered') {
+      console.warn('[worldEditor] foundation cleanup failed before scene load', retired.error);
+    }
     scene.remove(object);
     editableObjects.splice(editableObjects.indexOf(object), 1);
   }
@@ -263,6 +312,11 @@ async function loadSceneFile(file) {
     object.name = record.name;
     object.rotation.set(...record.transform.rotation);
     object.scale.set(...record.transform.scale);
+    if (isEditorStructureAsset(asset)) {
+      const grounding = regroundObjectFoundation(object, asset);
+      if (!grounding.ok) console.warn('[worldEditor] loaded structure grounding failed', record.id, grounding.error);
+      else writeInspector(object);
+    }
   }
   await rehydrateInstanceGroups(data.instanceGroups, instanceManager, findEditorAsset);
   $('we-grid-toggle').checked = data.editor?.gridVisible !== false;
