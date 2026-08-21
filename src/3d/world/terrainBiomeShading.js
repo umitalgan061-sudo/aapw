@@ -19,7 +19,7 @@ function smoothstep(edge0, edge1, value) {
 }
 
 export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
-	id: 'terrain-map-climate-cryosphere-2026-08-21-v5',
+	id: 'terrain-map-climate-cryosphere-2026-08-21-v6',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	measured: Object.freeze({
@@ -68,6 +68,15 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 	snowDriftSlopeFadeDegrees: 28,
 	northSnowDriftGain: 0.14,
 	tundraSnowDriftGain: 0.06,
+	// The same four-neighbour apron used for seam-free slope also provides a local terrain-form signal:
+	// positive values are bowls/valleys and negative values are convex ridges. It only redistributes
+	// snow visually; the canonical height sampler and collider remain untouched.
+	snowConcavityFullMeters: 4.5,
+	snowConvexityFullMeters: 3.5,
+	northConcavitySnowGain: 0.08,
+	tundraConcavitySnowGain: 0.045,
+	northRidgeScourMax: 0.10,
+	tundraRidgeScourMax: 0.06,
 
 	northIceFullNormalizedY: 0.12,
 	northIceFadeNormalizedY: 0.29,
@@ -199,11 +208,16 @@ export function mountainSnowlineAtWorldZ(worldZ) {
 	return Object.freeze({ normalizedY, permanentIce, tundra, ...range });
 }
 
+export function terrainConcavityMetersFromNeighbours(center, heightWest, heightEast, heightNorth, heightSouth) {
+	return (heightWest + heightEast + heightNorth + heightSouth) * 0.25 - center;
+}
+
 function computeTerrainSnowCoverage(out, {
 	heightAboveSeaMeters,
 	slopeDegrees,
 	snowWeight,
 	worldZ,
+	terrainConcavityMeters = 0,
 }) {
 	const P = TERRAIN_BIOME_SHADING_POLICY;
 	const normalizedY = normalizedMapYAtWorldZ(worldZ);
@@ -220,9 +234,20 @@ function computeTerrainSnowCoverage(out, {
 		permanentIce * P.northSnowDriftGain,
 		tundra * (1 - permanentIce) * P.tundraSnowDriftGain,
 	);
-	const snowSupply = clamp01(Math.max(authoredSnow, northSnowSupply, tundraLowlandFloor) + driftSupply);
+	const concavityHold = smoothstep(0, P.snowConcavityFullMeters, Math.max(0, terrainConcavityMeters));
+	const ridgeExposure = smoothstep(0, P.snowConvexityFullMeters, Math.max(0, -terrainConcavityMeters));
+	const terrainFormSupply = gentleSlope * concavityHold * Math.max(
+		permanentIce * P.northConcavitySnowGain,
+		tundra * (1 - permanentIce) * P.tundraConcavitySnowGain,
+	);
+	const ridgeScour = ridgeExposure * Math.max(
+		permanentIce * P.northRidgeScourMax,
+		tundra * (1 - permanentIce) * P.tundraRidgeScourMax,
+	);
+	const snowSupply = clamp01(Math.max(authoredSnow, northSnowSupply, tundraLowlandFloor) + driftSupply + terrainFormSupply);
 	const naturalHold = 1 - smoothstep(P.snowShedStartDegrees, P.snowShedFullDegrees, slopeDegrees);
-	const snowHold = lerp(naturalHold, Math.max(naturalHold, 0.96), permanentIce);
+	const climateHold = lerp(naturalHold, Math.max(naturalHold, 0.96), permanentIce);
+	const snowHold = clamp01(climateHold * (1 - ridgeScour));
 	const landEmergence = smoothstep(0, P.shoreEmergenceFullMeters, heightAboveSeaMeters);
 	const snowAmount = clamp01(snowSupply * snowHold) * landEmergence;
 	const lowlandIce = 1 - smoothstep(
@@ -246,6 +271,11 @@ function computeTerrainSnowCoverage(out, {
 	out.tundraLowlandFloor = tundraLowlandFloor;
 	out.gentleSlope = gentleSlope;
 	out.driftSupply = driftSupply;
+	out.terrainConcavityMeters = terrainConcavityMeters;
+	out.concavityHold = concavityHold;
+	out.ridgeExposure = ridgeExposure;
+	out.terrainFormSupply = terrainFormSupply;
+	out.ridgeScour = ridgeScour;
 	out.snowSupply = snowSupply;
 	out.snowHold = snowHold;
 	out.landEmergence = landEmergence;
@@ -260,12 +290,14 @@ export function resolveTerrainSnowCoverage({
 	slopeDegrees,
 	snowWeight = 0,
 	worldZ = 0,
+	terrainConcavityMeters = 0,
 }) {
 	return Object.freeze({ ...computeTerrainSnowCoverage({}, {
 		heightAboveSeaMeters,
 		slopeDegrees,
 		snowWeight,
 		worldZ,
+		terrainConcavityMeters,
 	}) });
 }
 
@@ -282,6 +314,7 @@ export function resolveTerrainBiomeColor(target, {
 	snowWeight = 0,
 	worldX = 0,
 	worldZ = 0,
+	terrainConcavityMeters = 0,
 }) {
 	const P = TERRAIN_BIOME_SHADING_POLICY;
 	const height = heightAboveSeaMeters;
@@ -338,6 +371,7 @@ export function resolveTerrainBiomeColor(target, {
 		slopeDegrees: slope,
 		snowWeight,
 		worldZ,
+		terrainConcavityMeters,
 	});
 	if (snow.moraineExposure > 0) target.lerp(TERRAIN_BIOME_PALETTE.MORAINE, snow.moraineExposure);
 	if (snow.snowAmount > 0) target.lerp(TERRAIN_BIOME_PALETTE.SNOW, snow.snowAmount);
@@ -346,7 +380,7 @@ export function resolveTerrainBiomeColor(target, {
 	const submergedAmount = 1 - smoothstep(-P.seabedFullDepthMeters, 0, height);
 	if (submergedAmount > 0) {
 		scratchSeabed.copy(TERRAIN_BIOME_PALETTE.SEABED)
-			.lerp(TERRAIN_BIOME_PALETTE.NORTH_SEABED, coldShore * P.northFrozenSeabedStrength);
+		.lerp(TERRAIN_BIOME_PALETTE.NORTH_SEABED, coldShore * P.northFrozenSeabedStrength);
 		target.lerp(scratchSeabed, submergedAmount);
 	}
 
