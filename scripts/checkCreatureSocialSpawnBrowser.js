@@ -41,6 +41,7 @@ async function main() {
       const {
         scatterCreatures,
         CREATURE_SOCIAL_SPAWN_RADIUS_METERS,
+        CREATURE_SPAWN_CLEARANCE_RADIUS_METERS,
       } = await import('/src/3d/gameplay/creatureSpawner.js');
       const { mulberry32 } = await import('/src/3d/world/terrain.js');
 
@@ -68,6 +69,19 @@ async function main() {
         if (!anchor) return Infinity;
         return Math.max(...items.map((entry) => Math.hypot(entry.x - anchor.x, entry.z - anchor.z)));
       };
+      let minimumClearanceMarginMeters = Infinity;
+      let bodyClearanceSatisfied = true;
+      for (let i = 0; i < first.length; i += 1) {
+        for (let j = i + 1; j < first.length; j += 1) {
+          const a = first[i];
+          const b = first[j];
+          const required = (CREATURE_SPAWN_CLEARANCE_RADIUS_METERS[a.speciesId] ?? 0.35)
+            + (CREATURE_SPAWN_CLEARANCE_RADIUS_METERS[b.speciesId] ?? 0.35);
+          const distance = Math.hypot(a.x - b.x, a.z - b.z);
+          minimumClearanceMarginMeters = Math.min(minimumClearanceMarginMeters, distance - required);
+          if (distance + 1e-9 < required) bodyClearanceSatisfied = false;
+        }
+      }
       const sheep = bySpecies(first, 'koyun');
       const deer = bySpecies(first, 'geyik');
       const cats = bySpecies(first, 'kedi');
@@ -90,12 +104,14 @@ async function main() {
         deterministic,
         physicallyValid,
         idsUnique,
+        bodyClearanceSatisfied,
         socialCountsPreserved,
         solitaryCountPreserved,
         sheepClustered,
         deerClustered,
         solitaryStillScattered,
         withinWorldDisc,
+        minimumClearanceMarginMeters: Number(minimumClearanceMarginMeters.toFixed(3)),
         sheepMaxAnchorDistance: Number(maxAnchorDistance(sheep).toFixed(3)),
         deerMaxAnchorDistance: Number(maxAnchorDistance(deer).toFixed(3)),
         catMaxAnchorDistance: Number(maxAnchorDistance(cats).toFixed(3)),
@@ -105,7 +121,7 @@ async function main() {
 
     if (pageErrors.length) throw new Error(`browser errors: ${pageErrors.join(' | ')}`);
     const failed = Object.entries(result)
-      .filter(([key, value]) => !key.endsWith('Distance') && key !== 'total' && value !== true);
+      .filter(([key, value]) => !key.endsWith('Distance') && !key.endsWith('Meters') && key !== 'total' && value !== true);
     if (failed.length) throw new Error(`social fauna spawn proof failed: ${JSON.stringify(result)}`);
     console.log('CREATURE_SOCIAL_SPAWN_BROWSER_PASS', JSON.stringify(result));
   } finally {
