@@ -21,17 +21,19 @@ try {
 	const result = await page.evaluate(async () => {
 		const { DialogueBox } = await import('/src/3d/ui/dialogueBox.js');
 		const { createInteractionController } = await import('/src/3d/gameplay/interaction.js');
+		const expeditionInventory = () => ({ items: [
+			{ itemId: 'dragonstone-expedition-maintenance-kit', quantity: 1, provenance: [{ sourceType: 'settlement-crafting', sourceId: 'dragonstone-expedition-maintenance-kit' }] },
+			{ itemId: 'dragonstone-travel-ration-pack', quantity: 2, provenance: [{ sourceType: 'settlement-crafting', sourceId: 'dragonstone-watch-travel-ration-pack' }] },
+		] });
+		const quartermaster = { displayName: 'Dragonstone Levazımcısı', object3D: { name: 'stannis-guard-1', position: { x: 0, z: 0 } } };
+
 		const host = document.createElement('div');
 		document.body.appendChild(host);
 		const dialogueBox = new DialogueBox(host);
 		const controller = createInteractionController({ interactionPrompt: { setVisible() {} }, dialogueBox, greetingTemplate: 'Selam, {name}!', radiusMeters: 6 });
 		const saved = controller.getRpgSnapshot();
-		saved.inventory = { items: [
-			{ itemId: 'dragonstone-expedition-maintenance-kit', quantity: 1, provenance: [{ sourceType: 'settlement-crafting', sourceId: 'dragonstone-expedition-maintenance-kit' }] },
-			{ itemId: 'dragonstone-travel-ration-pack', quantity: 2, provenance: [{ sourceType: 'settlement-crafting', sourceId: 'dragonstone-watch-travel-ration-pack' }] },
-		] };
+		saved.inventory = expeditionInventory();
 		controller.restoreRpgSnapshot(saved);
-		const quartermaster = { displayName: 'Dragonstone Levazımcısı', object3D: { name: 'stannis-guard-1', position: { x: 0, z: 0 } } };
 		controller.update([quartermaster], { x: 1, z: 1 });
 		controller.handleKeyDown({ code: 'KeyT', repeat: false });
 		const boardText = dialogueBox._textEl.textContent;
@@ -43,6 +45,30 @@ try {
 		const inventoryText = dialogueBox._textEl.textContent;
 		const rpg = controller.getRpgSnapshot();
 		dialogueBox.dispose(); host.remove();
+
+		const masteryHost = document.createElement('div');
+		document.body.appendChild(masteryHost);
+		const masteryBox = new DialogueBox(masteryHost);
+		const masteryController = createInteractionController({ interactionPrompt: { setVisible() {} }, dialogueBox: masteryBox, greetingTemplate: 'Selam, {name}!', radiusMeters: 6 });
+		const masterySave = masteryController.getRpgSnapshot();
+		masterySave.inventory = expeditionInventory();
+		masterySave.worldState = {
+			dragonstoneWatchPolicy: null,
+			dragonstoneExpeditionRoutes: ['dragonstone-watch-circuit', 'dragonstone-harbor-tavern-run'],
+		};
+		masteryController.restoreRpgSnapshot(masterySave);
+		masteryController.update([quartermaster], { x: 1, z: 1 });
+		masteryController.handleKeyDown({ code: 'KeyT', repeat: false });
+		const masteryBeforeText = masteryBox._textEl.textContent;
+		masteryController.handleKeyDown({ code: 'Digit3', repeat: false });
+		const masteryResultText = masteryBox._textEl.textContent;
+		masteryController.handleKeyDown({ code: 'KeyT', repeat: false });
+		const masteryBoardText = masteryBox._textEl.textContent;
+		masteryController.showQuestJournal();
+		const masteryJournalText = masteryBox._textEl.textContent;
+		const masteryRpg = masteryController.getRpgSnapshot();
+		masteryBox.dispose(); masteryHost.remove();
+
 		return {
 			boardText,
 			resultText,
@@ -54,17 +80,32 @@ try {
 			reputation: rpg.reputation.dragonstone,
 			copper: rpg.economy.copper,
 			completedRoutes: rpg.worldState.dragonstoneExpeditionRoutes,
+			masteryBeforeText,
+			masteryResultText,
+			masteryBoardText,
+			masteryJournalText,
+			masteryXp: masteryRpg.progression.totalExperience,
+			masteryReputation: masteryRpg.reputation.dragonstone,
+			masteryCopper: masteryRpg.economy.copper,
+			masteryClaimed: masteryRpg.worldState.dragonstoneExpeditionMasteryClaimed,
+			masteryCredits: masteryRpg.economy.ledger.recentCredits,
 		};
 	});
 	if (pageErrors.length || consoleErrors.length) throw new Error(`Expedition-board browser proof emitted errors: ${JSON.stringify({ pageErrors, consoleErrors })}`);
-	if (!result.boardText.includes('Dragonstone Sefer Panosu') || !result.boardText.includes('Tamamlanan kontrat: 0/3')) throw new Error(`Board did not render contract state: ${JSON.stringify(result)}`);
+	if (!result.boardText.includes('Dragonstone Sefer Panosu') || !result.boardText.includes('Tamamlanan kontrat: 0/3') || !result.boardText.includes('Sefer ustalığı: İLERLEME 0/3')) throw new Error(`Board did not render contract state: ${JSON.stringify(result)}`);
 	if (!result.boardText.includes('1. Nöbet Yolu Devriyesi') || !result.boardText.includes('2. Liman Taverna Seferi') || !result.boardText.includes('3. Sırt Kampı Seferi')) throw new Error(`Route choices missing from shipped board text: ${JSON.stringify(result)}`);
 	if (!result.boardText.includes('İLK ÖDÜL: 30 XP + 2 itibar + 12 bakır')) throw new Error(`First completion economy reward missing from shipped board text: ${JSON.stringify(result)}`);
 	if (!result.resultText.includes('SEFER TAMAMLANDI') || !result.resultText.includes('dragonstone-harbor-tavern') || !result.resultText.includes('Kontrat ödülü: 30 XP + 2 Dragonstone itibarı + 12 bakır · kese 52')) throw new Error(`Committed route reward/result missing: ${JSON.stringify(result)}`);
 	if (!result.journalText.includes('Seviye: 1 · XP: 30/100') || !result.journalText.includes('Dragonstone itibarı: 2') || !result.journalText.includes('Sefer kontratları: 1/3')) throw new Error(`Post-contract journal UX mismatch: ${JSON.stringify(result)}`);
 	if (!result.inventoryText.includes('Sefer yorgunluğu: 30/36 km') || !result.inventoryText.includes('Yol azığı: 0')) throw new Error(`Post-expedition inventory UX mismatch: ${JSON.stringify(result)}`);
 	if (result.fatigueKm !== 30 || result.packs !== 0 || result.xp !== 30 || result.reputation !== 2 || result.copper !== 52 || result.completedRoutes?.[0] !== 'dragonstone-harbor-tavern-run') throw new Error(`Canonical contract state mismatch: ${JSON.stringify(result)}`);
-	console.log(`[RPG Chromium] PASS expedition contract economy keyboard loop ${JSON.stringify({ fatigueKm: result.fatigueKm, packs: result.packs, xp: result.xp, reputation: result.reputation, copper: result.copper, completedRoutes: result.completedRoutes })}`);
+	if (!result.masteryBeforeText.includes('Tamamlanan kontrat: 2/3') || !result.masteryBeforeText.includes('Sefer ustalığı: İLERLEME 2/3')) throw new Error(`Mastery precondition UX mismatch: ${JSON.stringify(result)}`);
+	if (!result.masteryResultText.includes('SEFER USTALIĞI KAZANILDI: 50 XP + 3 Dragonstone itibarı + 20 bakır · kese 70')) throw new Error(`Mastery completion result missing: ${JSON.stringify(result)}`);
+	if (!result.masteryBoardText.includes('Tamamlanan kontrat: 3/3') || !result.masteryBoardText.includes('Sefer ustalığı: TAMAMLANDI')) throw new Error(`Mastery board persistence UX mismatch: ${JSON.stringify(result)}`);
+	if (!result.masteryJournalText.includes('Sefer kontratları: 3/3') || !result.masteryJournalText.includes('Sefer ustalığı: TAMAMLANDI')) throw new Error(`Mastery journal persistence UX mismatch: ${JSON.stringify(result)}`);
+	if (result.masteryXp !== 75 || result.masteryReputation !== 5 || result.masteryCopper !== 70 || result.masteryClaimed !== true) throw new Error(`Canonical mastery state mismatch: ${JSON.stringify(result)}`);
+	if (result.masteryCredits?.length !== 2 || result.masteryCredits.at(-1)?.sourceId !== 'expedition-mastery' || result.masteryCredits.at(-1)?.creditedCopper !== 20) throw new Error(`Mastery economy receipt mismatch: ${JSON.stringify(result)}`);
+	console.log(`[RPG Chromium] PASS expedition contract + mastery keyboard loop ${JSON.stringify({ fatigueKm: result.fatigueKm, packs: result.packs, xp: result.xp, reputation: result.reputation, copper: result.copper, masteryXp: result.masteryXp, masteryReputation: result.masteryReputation, masteryCopper: result.masteryCopper, masteryClaimed: result.masteryClaimed })}`);
 } finally {
 	await browser.close();
 	await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
