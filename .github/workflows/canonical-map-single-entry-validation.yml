@@ -39,7 +39,9 @@ jobs:
         run: |
           set -euo pipefail
           git lfs install --local
-          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
+          # Village building models too (run 379): without them `checkVillageBuildings.js` only ever
+          # exercises its degrade-to-empty path, which passes without proving a single building is right.
+          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/settlements/church_*.glb,assets/models/settlements/barn_*.glb,assets/models/settlements/big_barn_*.glb,assets/models/settlements/blacksmith_*.glb,assets/models/settlements/barracks_*.glb,assets/models/settlements/fantasy_stable_*.glb,assets/models/settlements/silo_house_*.glb,assets/models/vegetation/crops_*.glb,assets/models/props/barrel_*.glb,assets/models/props/crate_*.glb,assets/models/props/bonfire_*.glb,assets/models/fbx/Fountain_fount.fbx,assets/models/fbx/fence_fence.fbx" --exclude=""
       - name: Install Chromium
         run: |
           set -euo pipefail
@@ -70,6 +72,7 @@ jobs:
           node scripts/checkTerrainDetailAtlasIsotropy.js
           node scripts/checkAssetCoverage.js
           node scripts/checkWorldPropScatter.js
+          node scripts/checkVillageBuildings.js
       - name: Direct createScene canonical-map ownership and top-down proof
         run: |
           set -euo pipefail

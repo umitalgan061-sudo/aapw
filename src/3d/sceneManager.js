@@ -385,6 +385,8 @@ export function createScene(canvas) {
 
 	return {
 		renderer, scene, camera, controls, freeCamera, chunkManager, groundCollider, playerCollider, sky, stars, water, river, waterFeatures,
+		/** Village greens, so `world/villageBuildings.js` raises its church in the same village. */
+		villageHamlets: villagesResult.hamlets,
 		// Exposed so game3d.js can focus the sun's shadow frustum on the player each frame and opt
 		// later-spawned entities (player, NPCs, animals, dragons, carts) into shadows with the same
 		// resolved budget this function used — rather than re-deriving the device tier a second time.

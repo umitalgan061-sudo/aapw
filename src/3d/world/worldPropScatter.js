@@ -299,12 +299,36 @@ export function normalisePropMaterials(model) {
 }
 
 /**
- * Loads one catalogue model, once, and caches it. Placeholders are cached as `null` so a stub file is
- * attempted once rather than on every chunk that wants it.
+ * Loads one catalogue model with the loader its file format actually needs.
+ *
+ * **This routed everything through `loadModel` — the glTF loader — until run 379.** `AssetLoader` has
+ * two loaders and `loadModel` is glTF-only; handing it an `.fbx` throws, the catch swallowed it, and
+ * the model was quietly treated as unreadable. **68 of the catalogue's 195 entries are FBX**, so a
+ * third of the library the owner asked to see across the map could never appear no matter how well
+ * the placement worked. The failure was invisible from every direction: the scatter reported the entry
+ * as "never placed", which looks identical to a Git LFS stub, and this environment has 498 of those.
+ *
+ * FBX keeps its textures in sibling files rather than embedded, so it also needs `resourcePath` — the
+ * directory the model came from — or it loads geometry with no maps on it.
+ *
+ * Exported so `world/villageBuildings.js` uses the same routing rather than a second copy that can
+ * drift back into being glTF-only.
+ *
+ * @param {import('../assetLoader.js').AssetLoader} assetLoader
+ * @param {Map<string, Promise<THREE.Object3D|null>>} cache Placeholders cache as `null`, so a stub is
+ *   attempted once rather than on every chunk that wants it.
+ * @param {string} file Path relative to `assets/models/`.
+ * @returns {Promise<THREE.Object3D|null>}
  */
-async function loadPropModel(assetLoader, cache, file) {
+export async function loadPropModel(assetLoader, cache, file) {
 	if (cache.has(file)) return cache.get(file);
-	const pending = assetLoader.loadModel(ASSET_ROOT + file, { fallbackColor: 0x8a8378, fallbackSize: 4 })
+	const url = ASSET_ROOT + file;
+	const isFbx = /\.fbx$/i.test(file);
+	const options = { fallbackColor: 0x8a8378, fallbackSize: 4 };
+	const pending = (isFbx
+		? assetLoader.loadFBXModel(url, { ...options, resourcePath: url.slice(0, url.lastIndexOf('/') + 1) })
+		: assetLoader.loadModel(url, options)
+	)
 		.then((model) => {
 			if (!model || model.userData?.isPlaceholder) return null;
 			return normalisePropMaterials(model);

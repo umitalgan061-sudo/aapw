@@ -140,6 +140,8 @@ function buildVillageGeometries() {
  *   `houses` — one circle per placed house (footprint half-diagonal, see `physics.js`'s
  *   `createCircleCollider`) — is the run-330-technical-debt fix: before this, `physics.js` had no
  *   idea a village existed and the player walked straight through every cottage.
+ *   `hamlets` — one entry per village green, so `world/villageBuildings.js` can raise the church, the
+ *   smithy and the barns in the same village these houses are in.
  */
 export function createVillages({
 	sampleHeightMeters,
@@ -191,6 +193,15 @@ export function createVillages({
 	let villageCount = 0;
 	/** One collision circle per placed house — see this function's own JSDoc `houses` return note. */
 	const houses = [];
+	/**
+	 * Where each village's green actually ended up.
+	 *
+	 * Returned because the hamlet centre is drawn from this module's own RNG stream in seat order and
+	 * cannot be recomputed from outside without copying that draw — and a copy would drift the moment
+	 * either side changed. `world/villageBuildings.js` needs it to put the church, the smithy and the
+	 * barns in the same village as the houses rather than in a field somewhere near it.
+	 */
+	const hamlets = [];
 
 	for (const seat of eligibleSeats) {
 		const placedHere = [];
@@ -201,6 +212,7 @@ export function createVillages({
 		const hamletDistance = HAMLET_DISTANCE_MIN_METERS + rng() * (HAMLET_DISTANCE_MAX_METERS - HAMLET_DISTANCE_MIN_METERS);
 		const hamletX = seat.x + Math.cos(hamletBearing) * hamletDistance;
 		const hamletZ = seat.z + Math.sin(hamletBearing) * hamletDistance;
+		hamlets.push({ seatId: seat.id, x: hamletX, z: hamletZ, radiusMeters: HAMLET_RADIUS_METERS });
 
 		for (let i = 0; i < housesPerVillage; i++) {
 			for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_BUILDING; attempt++) {
@@ -312,7 +324,7 @@ export function createVillages({
 	if (roofMesh.instanceColor) roofMesh.instanceColor.needsUpdate = true;
 	group.add(bodyMesh, roofMesh, stepMesh, wallMesh);
 
-	return { group, villageCount, houseCount, wallCount, houses };
+	return { group, villageCount, houseCount, wallCount, houses, hamlets };
 }
 
 /**

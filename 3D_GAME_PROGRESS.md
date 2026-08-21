@@ -17830,3 +17830,34 @@ neredeyse hepsi haritanın üst çerçevesindeki, dünyanın doğru şekilde aç
 **Göller gerçek boşluk:** bu dünyada modellenmiş tek göl yok. Kanonik su maskesi 96×64 (~140 m hücre),
 Tanrıların Gözü ise ~97 m × 185 m — onu tutması gereken ızgaranın bir hücresinden küçük. %41,2 tesadüfi
 alçak zemin. Sıradaki iş bu (S-0039).
+
+## Tur 379 — Modeller dağıtılmıştı, köy kurulmamıştı
+
+Sahip düzeltti: "Dolu yerleşim olayını yapman için assets kısmındaki her şeyi coğrafyaya yerleştir
+demiştim zaten, sen yapmamışsın." Haklıydı. Kütüphane haritaya dağıtılmıştı ama `worldPropScatter.js`
+**dağıtır** — yamaca bir ahır, iki kilometre öteye bir ev. Yerleşimleri kuran `villages.js` hâlâ
+prosedürel kutulardan ev yapıyordu. Ölçüm: 14 koltuktan 9'unda köy, 85 ev, **sıfır model**.
+
+### Katalogun %35'i hiçbir zaman yüklenemiyormuş
+
+Köy parsellerinin 110/154'ü boş kalınca sebebini aradım: `AssetLoader.loadModel` **yalnızca glTF**, ve
+scatter her şeyi ondan geçiriyordu. **195 katalog girdisinin 68'i FBX.** Üçte biri, yerleştirme ne
+kadar doğru olursa olsun görünemezdi — ve hata görünmezdi, çünkü scatter bunu "hiç yerleştirilmedi"
+diye raporluyor, ki bir LFS stub'ıyla aynı görünüyor. Yükleyici uzantıya göre yönlendirildi: 44 → 92.
+
+### LFS ilk kez çekilebildi, ve iki kusur anında göründü
+
+Depo `aapw` olarak yeniden adlandırılmış; yeni adı oturuma ekleyince 22 köy modeli indi (40 MB) ve
+modeller tur 370'ten beri ilk kez gerçekten render edildi.
+
+**Ölçek normalizasyonu yoktu** — ahır 90 m uzaktan tüm kareyi dolduran kırmızı bir duvardı.
+**`Medieval_Market_Asset_Pack.fbx` 7612 m × 5710 m** — bir pazar değil, kilometrelerce boşluğa yayılmış
+89 prop; 14 m'ye normalize etmek içindeki her şeyi zerreye indiriyor. O ve diğer ağır/paket dosyalar
+köy rollerinden çıkarıldı.
+
+### Sonuç
+
+11 köy, **84 yapı**: 10 kilise, 7 zanaat, 26 ahır/tarla, 25 tezgâh, 16 çit. En uzak parsel kendi
+meydanına 52 m, suda 0, placeholder 0, deterministik, **570k üçgen / 314 draw call**. Prosedürel
+kulübeler kalıyor — LFS olmayan bir klonda yalnız modellerden kurulan köy hiç görünmezdi. Görsel kanıt:
+`artifacts/villages/`.

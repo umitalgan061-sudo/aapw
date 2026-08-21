@@ -17,6 +17,7 @@
 import { initWorldProps, disposeWorldProps } from './worldPropScatter.js';
 import { initTheWall, disposeTheWall } from './theWall.js';
 import { initNightsWatchCastles, disposeNightsWatchCastles } from './nightsWatchCastles.js';
+import { initVillageBuildings, disposeVillageBuildings } from './villageBuildings.js';
 
 /**
  * The layers, in the order they are added to the scene.
@@ -36,6 +37,11 @@ const DRESSING_LAYERS = Object.freeze([
 	// Run 378: the three manned Night's Watch castles on it. Must come after the Wall — they read its
 	// centreline and crown height to stand on, so a Wall that failed to build leaves them out too.
 	Object.freeze({ id: 'nights-watch-castles', init: initNightsWatchCastles, dispose: disposeNightsWatchCastles }),
+	// Run 379: the church, the smithy, the barns and the market stalls of every village, from the real
+	// model library. Additive over `villages.js`'s procedural cottages rather than a replacement — see
+	// that module's header for why a village built only from models would be an empty field in any
+	// clone without Git LFS objects.
+	Object.freeze({ id: 'village-buildings', init: initVillageBuildings, dispose: disposeVillageBuildings }),
 ]);
 
 /**

@@ -18621,3 +18621,79 @@ tur 377 ile aynı, iki hata da önceden var olan LFS pointer stub'ları. Görsel
 
 **Technical debt.** 0 new. **Açık iş.** Göller (S-0039: Tanrıların Gözü + Uzun Göl, havza oyma + kendi
 seviyesinde su yüzeyi), ve Duvar'ın kalan on altı harabe kalesi.
+
+## ADR-0326 — Modeller dağıtılmıştı ama köy kurulmamıştı; ve katalogun üçte biri hiç yüklenemiyordu
+
+**Sahibin düzeltmesi.** "Dolu yerleşim olayını yapman için assets kısmındaki her şeyi coğrafyaya
+yerleştir demiştim zaten, sen yapmamışsın." Haklıydı. Tur 370 ve 377 kütüphaneyi haritaya dağıttı ama
+`worldPropScatter.js` **dağıtır**: bir yamaca ahır, iki kilometre öteye ev, her biri açık arazide tek
+başına. Bu döşenmiş bir vahşi doğa, dolu bir yerleşim değil. Yerleşimleri kuran `villages.js` ise hâlâ
+prosedürel kutulardan ev yapıyordu — ve kendi başlığı sebebini yazıyordu: "assets_manifest.json'da hiç
+[ev modeli] yok". Bu yazıldığında doğruydu, artık değil: katalogda **21 konut, 10 ahır/çiftlik, 9 ibadet
+yapısı, 4 zanaat yapısı** var ve hiçbiri bir köyde durmamıştı.
+
+**Ölçülen başlangıç durumu:** 14 koltuktan 9'unda köy, 85 ev — hepsi prosedürel kutu, **sıfır model**.
+
+### Asıl bulgu: katalogun %35'i hiçbir zaman yüklenemiyordu
+
+Köy yapılarını kurarken 154 parselden 110'u boş kaldı. Sebep köy mantığı değildi: `AssetLoader`'ın iki
+yükleyicisi var ve `loadModel` **yalnızca glTF**. Ona bir `.fbx` verildiğinde fırlatıyor, catch bunu
+yutuyor ve model sessizce "okunamaz" sayılıyordu. **Katalogun 195 girdisinin 68'i FBX** — yani sahibin
+haritada görmek istediği kütüphanenin üçte biri, yerleştirme ne kadar doğru olursa olsun asla
+görünemezdi. Hata her yönden görünmezdi: scatter bunu "hiç yerleştirilmedi" diye raporluyor, ki bu bir
+Git LFS stub'ıyla birebir aynı görünüyor — ve bu ortamda 498 tane stub var. Yükleyici artık uzantıya
+göre yönleniyor (`loadPropModel`, ortak), FBX'e `resourcePath` de veriliyor (dokuları gömülü değil,
+kardeş dosyalarda). Köy yapıları **44 → 92**.
+
+### LFS nesneleri ilk kez çekilebildi
+
+Depo `westeros-pwa` → `aapw` olarak yeniden adlandırılmış; proxy eski adı yetkilendirdiği için LFS
+batch API'si reddediyordu. Yeni ad oturuma eklenince **22 köy modeli indirildi (40 MB)** ve tur
+370'ten beri ilk kez modeller gerçekten render edildi. İki kusur anında görüldü:
+
+**1. Ölçek normalizasyonu yoktu.** Ahır 90 m uzaktan tüm kareyi dolduran, üzerinde durduğu tepeden
+yüksek bir kırmızı duvar olarak çıktı. `worldPropScatter.js` her zaman `footprintMeters / widest` ile
+normalize ediyordu; bu modül etmiyordu. Modeller bir düzine yazardan bir düzine birim geleneğinde
+geliyor; ölçeklemek opsiyonel değil.
+
+**2. `Medieval_Market_Asset_Pack.fbx` bir pazar değil.** Ölçülen: **7612 m × 377 m × 5710 m** — bir
+mağaza sayfasının ekran görüntüsü için kilometrelerce boşluğa yayılmış 89 ayrı prop. 14 m'lik ayak
+izine normalize etmek içindeki her nesneyi zerreye indiriyor ve köyün zanaat parselini aralarındaki
+boş ızgaranın ortasına oturtuyor. O ve 156 MB'lık ikizi rollerden çıkarıldı; aynısı 58 MB'lık bir
+sandık ve 86.728 üçgenlik bir tapınak için de yapıldı. Hepsi katalogda ve hâlâ dağıtılıyor; sadece bir
+köyün kurulacağı şeyler değiller.
+
+### Köy bir plan, bir serpiştirme değil
+
+Her mezra bir ibadet yapısı ve bir zanaat yapısını meydanın kenarına, ahır ve çiftliklerini evlerin
+dışındaki tarla halkasına, tezgâh ve fıçılarını ortaya alıyor. Roller rastgele çekilişle değil halka ve
+kerteriz ile atanıyor — bir köy ile aynı yapıların rastgele serpilmesi arasındaki fark tam olarak bu.
+
+**Toplayıcı, yerine geçmiyor.** Prosedürel kulübeler kalıyor: her model bu depoda taze bir klonda LFS
+pointer, dolayısıyla yalnız modellerden kurulan bir köy LFS olmayan her yerde **hiç** görünmezdi —
+değiştirdiği kutulardan kesinlikle daha kötü. Kapı bunu iki yönde de doğruluyor: LFS varken yapıların
+doğru olduğunu, yokken hiç yapı olmadığını (kutu değil, hiç) iddia ediyor.
+
+### Kapı yine kendi kusurunu gösterdi
+
+"2 yapı kendi köyünden 545 m uzakta, 1'i suyun içinde" dedi. Üçü de yerindeydi: `groundModel` modeli
+kendi sınırlayıcı-kutu merkezi kadar kaydırarak parseline oturtuyor, dolayısıyla dosya orijininden uzak
+modellenmiş bir mesh'in **düğümü** yüzlerce metre ötede olurken bina tam yerinde duruyor. Ölçüm
+`node.position` yerine dünya sınırlayıcı kutusuna çevrildi — oyuncunun gördüğü şey o.
+
+**Ölçülen sonuç:** 11 köy, **84 yapı** (10 kilise, 7 zanaat, 26 tarla, 25 tezgâh, 16 çit), en uzak
+parsel kendi meydanına 52 m, suda 0, placeholder 0, deterministik. Maliyet **570.146 üçgen / 314 draw
+call** (tavan 900k). Çit sayısı 4→2: `fence_fence.fbx` bir çit için 17.254 üçgen ve dörtlü hâliyle
+dünyadaki tüm köy yapılarının **%63'ünü** (800k'nın 500k'sı) en az görünen şey için harcıyordu;
+`villages.js` zaten o işi neredeyse bedavaya instanced tarla duvarlarıyla yapıyor. Pazar ayak izi 3 m →
+1,6 m: 3 m, köy meydanında yanındaki kulübeden uzun bir sandık üretiyordu.
+
+**Görsel kanıt** `artifacts/villages/`. CI'ın LFS hydrate adımı köy modellerini de çekecek şekilde
+genişletildi — yoksa kapı orada yalnızca "boşa düş" yolunu sınar ve tek bir binanın doğru olduğunu
+kanıtlamadan geçerdi. Service worker v38→v39.
+
+**Bu turda arazi değişmedi** (§8.4 tetiklenmiyor).
+
+**Technical debt.** 0 new. **Açık iş.** Köyün *konutları* hâlâ prosedürel: 21 konut modeli katalogda
+duruyor ve LFS hidrasyonu güvenilir olduğunda kutuların yerini alabilirler. Ayrıca 14 koltuktan yalnız
+11'inde köy var (önizleme yarıçapı dışındakiler atlanıyor) ve köyler chunk-stream edilmiyor.
