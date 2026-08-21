@@ -24,6 +24,7 @@ on:
       - 'scripts/checkWinterVegetationResourceOwnership.mjs'
       - 'scripts/checkFirebaseWinterAssetHostingContract.mjs'
       - 'scripts/checkTerrainGeographicPalette.mjs'
+      - 'scripts/checkNorthCoastalShoreContinuity.mjs'
       - 'scripts/checkNorthClimateContinuity.mjs'
       - 'scripts/checkNorthMountainSnowline.mjs'
       - 'scripts/checkNorthMountainSnowlineRuntime.mjs'
@@ -65,6 +66,7 @@ jobs:
           node --check scripts/checkWinterVegetationResourceOwnership.mjs
           node --check scripts/checkFirebaseWinterAssetHostingContract.mjs
           node --check scripts/checkTerrainGeographicPalette.mjs
+          node --check scripts/checkNorthCoastalShoreContinuity.mjs
           node --check scripts/checkNorthClimateContinuity.mjs
           node --check scripts/checkNorthMountainSnowline.mjs
           node --check scripts/checkNorthMountainSnowlineRuntime.mjs
@@ -91,6 +93,8 @@ jobs:
         run: node scripts/checkFirebaseWinterAssetHostingContract.mjs
       - name: Geographic terrain palette
         run: node scripts/checkTerrainGeographicPalette.mjs
+      - name: North coastal shoreline continuity
+        run: node scripts/checkNorthCoastalShoreContinuity.mjs
       - name: North climate continuity
         run: node scripts/checkNorthClimateContinuity.mjs
       - name: North mountain snowline contract
