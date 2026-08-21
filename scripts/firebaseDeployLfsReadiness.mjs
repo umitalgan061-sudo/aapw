@@ -9,9 +9,10 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const LFS_POINTER_PREFIX = 'version https://git-lfs.github.com/spec/v1\n';
 
 export const FIREBASE_DEPLOY_LFS_POLICY = Object.freeze({
-	id: 'firebase-deploy-lfs-readiness-2026-08-21-v1',
+	id: 'firebase-deploy-lfs-readiness-2026-08-21-v2',
 	firebasePublicDirectory: '.',
 	winterAssets: Object.freeze([
+		'assets/models/vegetation/pine_Zt62gceKXZ.glb',
 		'assets/models/vegetation/winter_tree.glb',
 		'assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb',
 	]),
@@ -98,84 +99,79 @@ function hydrateLfs(scope) {
 	runGit(['lfs', 'version']);
 	runGit(['lfs', 'install', '--local']);
 	if (scope === 'winter') {
-		runGit([
-			'lfs', 'pull',
-			`--include=${FIREBASE_DEPLOY_LFS_POLICY.winterAssets.join(',')}`,
-			'--exclude=',
-		]);
+		runGit(['lfs', 'pull', '--include', FIREBASE_DEPLOY_LFS_POLICY.winterAssets.join(','), '--exclude', '']);
 		return;
 	}
-	runGit(['lfs', 'pull']);
-}
-
-async function inspectPath(assetPath, { winter = false } = {}) {
-	let buffer;
-	try {
-		buffer = await readFile(path.join(ROOT, assetPath));
-	} catch (error) {
-		throw new Error(`${assetPath} is missing from the Firebase deployment checkout`, { cause: error });
+	if (scope === 'all') {
+		runGit(['lfs', 'pull']);
+		return;
 	}
-	const state = classifyLfsBuffer(buffer);
-	assertMaterializedDeployState(assetPath, state, { winter });
-	return Object.freeze({ path: assetPath, ...state });
+	throw new Error(`unsupported hydration scope: ${scope}`);
 }
 
-function parseCliArgs(argv) {
-	let scope = 'winter';
-	let hydrate = false;
-	let manifest = null;
-	for (const arg of argv) {
-		if (arg === '--hydrate') hydrate = true;
-		else if (arg.startsWith('--scope=')) scope = arg.slice('--scope='.length);
-		else if (arg.startsWith('--manifest=')) manifest = arg.slice('--manifest='.length);
-		else throw new Error(`unknown argument: ${arg}`);
+async function verifyPaths(paths, { winterSet = new Set() } = {}) {
+	const files = [];
+	let totalVerifiedBytes = 0;
+	for (const assetPath of paths) {
+		const buffer = await readFile(path.join(ROOT, assetPath));
+		const state = classifyLfsBuffer(buffer);
+		assertMaterializedDeployState(assetPath, state, { winter: winterSet.has(assetPath) });
+		files.push(Object.freeze({ path: assetPath, ...state }));
+		totalVerifiedBytes += state.bytes;
 	}
-	assert(['winter', 'all'].includes(scope), '--scope must be winter or all');
-	return { scope, hydrate, manifest };
+	return Object.freeze({ files: Object.freeze(files), totalVerifiedBytes });
 }
 
-export async function runFirebaseDeployLfsReadiness({ scope = 'winter', hydrate = false, manifest = null } = {}) {
-	assert(['winter', 'all'].includes(scope), 'scope must be winter or all');
+export async function runFirebaseDeployLfsReadiness({
+	hydrate = false,
+	scope = 'all',
+	manifestPath = null,
+} = {}) {
 	await verifyFirebaseHostingContract();
 	const tracked = trackedLfsPaths();
-	for (const assetPath of FIREBASE_DEPLOY_LFS_POLICY.winterAssets) {
-		assert(tracked.includes(assetPath), `${assetPath} must remain tracked by Git LFS`);
+	const winterSet = new Set(FIREBASE_DEPLOY_LFS_POLICY.winterAssets);
+	for (const required of winterSet) {
+		assert(tracked.includes(required), `required winter asset must remain Git-LFS tracked: ${required}`);
 	}
 	if (hydrate) hydrateLfs(scope);
 
-	const selected = scope === 'all' ? tracked : FIREBASE_DEPLOY_LFS_POLICY.winterAssets;
-	const inspected = [];
-	let totalBytes = 0;
-	for (const assetPath of selected) {
-		const state = await inspectPath(assetPath, {
-			winter: FIREBASE_DEPLOY_LFS_POLICY.winterAssets.includes(assetPath),
-		});
-		inspected.push(state);
-		totalBytes += state.bytes;
-	}
-
-	const report = Object.freeze({
+	const selected = scope === 'winter' ? FIREBASE_DEPLOY_LFS_POLICY.winterAssets : tracked;
+	const verified = await verifyPaths(selected, { winterSet });
+	const winterAssets = verified.files.filter((entry) => winterSet.has(entry.path));
+	const manifest = Object.freeze({
 		policy: FIREBASE_DEPLOY_LFS_POLICY.id,
 		scope,
 		hydratedByCommand: hydrate,
 		trackedLfsFiles: tracked.length,
-		verifiedFiles: inspected.length,
-		totalVerifiedBytes: totalBytes,
-		winterAssets: Object.freeze(inspected.filter((entry) => FIREBASE_DEPLOY_LFS_POLICY.winterAssets.includes(entry.path))),
+		verifiedFiles: verified.files.length,
+		totalVerifiedBytes: verified.totalVerifiedBytes,
+		winterAssets,
 	});
 
-	if (manifest) {
-		const destination = path.resolve(ROOT, manifest);
-		await mkdir(path.dirname(destination), { recursive: true });
-		await writeFile(destination, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+	if (manifestPath) {
+		const outputPath = path.resolve(ROOT, manifestPath);
+		await mkdir(path.dirname(outputPath), { recursive: true });
+		await writeFile(outputPath, `${JSON.stringify(manifest, null, 2)}\n`);
 	}
-	return report;
+	return manifest;
+}
+
+function parseArgs(argv) {
+	const options = { hydrate: false, scope: 'all', manifestPath: null };
+	for (const arg of argv) {
+		if (arg === '--hydrate') options.hydrate = true;
+		else if (arg.startsWith('--scope=')) options.scope = arg.slice('--scope='.length);
+		else if (arg.startsWith('--manifest=')) options.manifestPath = arg.slice('--manifest='.length);
+		else throw new Error(`unknown argument: ${arg}`);
+	}
+	assert(['winter', 'all'].includes(options.scope), '--scope must be winter or all');
+	return options;
 }
 
 async function main() {
-	const options = parseCliArgs(process.argv.slice(2));
-	const report = await runFirebaseDeployLfsReadiness(options);
-	console.log('[firebaseDeployLfsReadiness] PASS', JSON.stringify(report));
+	const options = parseArgs(process.argv.slice(2));
+	const manifest = await runFirebaseDeployLfsReadiness(options);
+	console.log('[firebaseDeployLfsReadiness] PASS', JSON.stringify(manifest));
 }
 
 const invokedPath = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;
