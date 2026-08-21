@@ -5,11 +5,14 @@ on:
     paths:
       - 'src/3d/world/vegetation.js'
       - 'src/3d/world/terrainBiomeShading.js'
+      - 'src/3d/world/northGroundCoverClimate.js'
+      - 'src/3d/sceneManager.js'
       - 'scripts/checkNorthernVegetationClimate.mjs'
       - 'scripts/checkNorthernVegetationRuntime.mjs'
       - 'scripts/checkNorthernVegetationDeterminism.mjs'
       - 'scripts/checkTerrainGeographicPalette.mjs'
       - 'scripts/checkNorthClimateContinuity.mjs'
+      - 'scripts/checkNorthGroundCoverClimate.mjs'
       - '.github/workflows/northern-vegetation-climate.yml'
   workflow_dispatch:
 
@@ -30,11 +33,15 @@ jobs:
       - name: Syntax
         run: |
           node --check src/3d/world/vegetation.js
+          node --check src/3d/world/terrainBiomeShading.js
+          node --check src/3d/world/northGroundCoverClimate.js
+          node --check src/3d/sceneManager.js
           node --check scripts/checkNorthernVegetationClimate.mjs
           node --check scripts/checkNorthernVegetationRuntime.mjs
           node --check scripts/checkNorthernVegetationDeterminism.mjs
           node --check scripts/checkTerrainGeographicPalette.mjs
           node --check scripts/checkNorthClimateContinuity.mjs
+          node --check scripts/checkNorthGroundCoverClimate.mjs
       - name: Northern vegetation climate contract
         run: node scripts/checkNorthernVegetationClimate.mjs
       - name: Northern vegetation runtime scatter
@@ -45,3 +52,5 @@ jobs:
         run: node scripts/checkTerrainGeographicPalette.mjs
       - name: North climate continuity
         run: node scripts/checkNorthClimateContinuity.mjs
+      - name: North ground-cover climate
+        run: node scripts/checkNorthGroundCoverClimate.mjs
