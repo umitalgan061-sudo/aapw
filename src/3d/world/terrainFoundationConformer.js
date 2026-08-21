@@ -52,10 +52,15 @@ function smoothPadRadius(bounds, innerMarginMeters) {
 }
 
 function structureKey(payload) {
-	const explicit = payload?.metadata?.id ?? payload?.metadata?.assetId ?? payload?.metadata?.src;
+	// Authored ids are instance identities when present. A source path is not: the same house/tower
+	// model may be instantiated many times, so prefer the runtime object's UUID before falling back to
+	// `src`. Otherwise grounding one clone would move the flatten pad away from another clone.
+	const explicit = payload?.metadata?.id ?? payload?.metadata?.assetId;
 	if (explicit !== null && explicit !== undefined && String(explicit).trim()) return `asset:${String(explicit)}`;
 	const uuid = payload?.object?.uuid;
 	if (uuid) return `object:${uuid}`;
+	const src = payload?.metadata?.src;
+	if (src !== null && src !== undefined && String(src).trim()) return `source:${String(src)}`;
 	const bounds = normalizedBounds(payload?.bounds);
 	if (!bounds) return null;
 	return `bounds:${bounds.minX.toFixed(3)}:${bounds.maxX.toFixed(3)}:${bounds.minZ.toFixed(3)}:${bounds.maxZ.toFixed(3)}`;
