@@ -1,0 +1,66 @@
+name: RPG Mastery To Smithing
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/interaction.js'
+      - 'src/3d/gameplay/interactionConfig.js'
+      - 'src/3d/gameplay/interactionEconomy.js'
+      - 'scripts/checkInteractionExpeditionMasterySmithingReward.mjs'
+      - 'scripts/checkInteractionExpeditionKitCraft.mjs'
+      - 'scripts/checkInteractionMasteryToSmithingBrowser.mjs'
+      - '.github/workflows/rpg-mastery-to-smithing.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mastery-to-smithing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main ancestry, bounded scope and quota
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          base=$(git merge-base HEAD origin/main)
+          test "$base" = "$(git rev-parse origin/main)"
+          mapfile -t paths < <(git diff --name-only "$base"...HEAD)
+          allowed='^(scripts/checkInteractionMasteryToSmithingBrowser\.mjs|\.github/workflows/rpg-mastery-to-smithing\.yml)$'
+          for path in "${paths[@]}"; do
+            [[ "$path" =~ $allowed ]] || { echo "Unexpected path: $path"; exit 1; }
+          done
+          changed=$(git diff --numstat "$base"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 1000
+      - name: Syntax and existing RPG lifecycle contracts
+        run: |
+          set -euo pipefail
+          node --check scripts/checkInteractionMasteryToSmithingBrowser.mjs
+          node scripts/checkInteractionExpeditionMasterySmithingReward.mjs
+          node scripts/checkInteractionExpeditionKitCraft.mjs
+      - name: Install Chromium acceptance harness
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Shipped-page mastery to smithing proof
+        run: NODE_PATH="$NODE_PATH" node scripts/checkInteractionMasteryToSmithingBrowser.mjs
+      - name: Shared material placement boundary
+        run: node scripts/checkSharedMaterialPlacementContract.js
+      - name: Final freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
