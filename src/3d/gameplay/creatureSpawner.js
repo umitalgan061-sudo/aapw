@@ -53,6 +53,16 @@ export const CREATURE_SOCIAL_SPAWN_RADIUS_METERS = Object.freeze({
 	tavuk: 3.25,
 });
 
+// Approximate horizontal body-clearance radii in physical world metres. Social clustering deliberately
+// keeps herd members close, but "close" must not mean two independently skinned bodies occupying the
+// same footprint on frame zero. Candidate clearance is symmetric (candidate radius + existing radius),
+// so mixed species cannot interpenetrate either; movement may still bring animals together later.
+export const CREATURE_SPAWN_CLEARANCE_RADIUS_METERS = Object.freeze({
+	kedi: 0.3, kopek: 0.4, at: 0.75, fil: 1.25, geyik: 0.55, koyun: 0.42, inek: 0.7,
+	keci: 0.45, domuz: 0.5, tavsan: 0.22, ayi: 0.7, aslan: 0.6, zurafa: 0.72,
+	kuzgun: 0.2, kartal: 0.3, tavuk: 0.22,
+});
+
 // Predators are authored later in the deterministic species order than their prey. Without an
 // inter-species spawn gate, a lion/bear can therefore materialize directly inside a freshly clustered
 // herd and force an unavoidable flee burst on the first simulation tick. These buffers are deliberately
@@ -94,6 +104,18 @@ export function isCreatureHabitatCompatible(speciesId, x, z, {
 	if (!Number.isFinite(elevationAboveSea)) return false;
 	if (rule.minElevationAboveSeaMeters != null && elevationAboveSea < rule.minElevationAboveSeaMeters) return false;
 	if (rule.maxElevationAboveSeaMeters != null && elevationAboveSea > rule.maxElevationAboveSeaMeters) return false;
+	return true;
+}
+
+export function isCreatureSpawnClear(speciesId, x, z, spawns, {
+	clearanceRadii = CREATURE_SPAWN_CLEARANCE_RADIUS_METERS,
+} = {}) {
+	const candidateRadius = clearanceRadii?.[speciesId] ?? 0.35;
+	for (const spawn of spawns ?? []) {
+		const existingRadius = clearanceRadii?.[spawn?.speciesId] ?? 0.35;
+		const minimumDistanceMeters = candidateRadius + existingRadius;
+		if (Math.hypot(x - spawn.x, z - spawn.z) < minimumDistanceMeters) return false;
+	}
 	return true;
 }
 
@@ -301,6 +323,7 @@ export function scatterCreatures({
 				const rotationYRadians = rng() * Math.PI * 2;
 				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
 				if (!isCreatureHabitatCompatible(speciesId, x, z, { sampleHeightMeters, seaLevelMeters, seats })) continue;
+				if (!isCreatureSpawnClear(speciesId, x, z, spawns)) continue;
 				if (!isCreaturePredatorSpawnSeparated(speciesId, x, z, spawns)) continue;
 				if (!isCreaturePredatorTerritorySeparated(speciesId, x, z, spawns)) continue;
 				if (!socialAnchor && socialRadiusMeters) socialAnchor = Object.freeze({ x, z });
