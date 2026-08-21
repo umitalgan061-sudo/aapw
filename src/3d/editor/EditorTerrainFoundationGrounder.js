@@ -13,6 +13,10 @@ const STRUCTURE_TERMS = Object.freeze([
   'mimari', 'bina', 'yapi', 'yapı', 'yerlesim', 'yerleşim', 'koy', 'köy', 'kale',
   'hisar', 'sur', 'kule', 'kopru', 'köprü', 'iskele', 'liman', 'ahır', 'ahir',
 ]);
+const TURKISH_STRUCTURE_STEMS = Object.freeze([
+  'mimari', 'bina', 'yapi', 'yapı', 'yerlesim', 'yerleşim', 'koy', 'köy', 'kale',
+  'hisar', 'sur', 'kule', 'kopru', 'köprü', 'iskele', 'liman', 'ahır', 'ahir',
+]);
 const STRUCTURE_PATTERN = new RegExp(`(^|[^a-z0-9çğıöşü])(${STRUCTURE_TERMS.join('|')})(?=$|[^a-z0-9çğıöşü])`, 'iu');
 
 function structureDescriptor(asset) {
@@ -22,13 +26,19 @@ function structureDescriptor(asset) {
     .toLocaleLowerCase('tr-TR');
 }
 
+function hasLocalizedStructureStem(descriptor) {
+  const words = descriptor.split(/[^a-z0-9çğıöşü]+/iu).filter(Boolean);
+  return words.some((word) => TURKISH_STRUCTURE_STEMS.some((stem) => word === stem || word.startsWith(stem)));
+}
+
 export function isEditorStructureAsset(asset) {
   if (!asset) return false;
   if (asset.terrainFoundation === false || asset.structureLike === false) return false;
   if (asset.terrainFoundation === true || asset.structureLike === true) return true;
   const primitive = String(asset.primitive || '').trim().toLowerCase();
   if (NON_STRUCTURE_PRIMITIVES.has(primitive)) return false;
-  return STRUCTURE_PATTERN.test(structureDescriptor(asset));
+  const descriptor = structureDescriptor(asset);
+  return STRUCTURE_PATTERN.test(descriptor) || hasLocalizedStructureStem(descriptor);
 }
 
 function centerGroundObject(object, groundHeight, x, z) {
