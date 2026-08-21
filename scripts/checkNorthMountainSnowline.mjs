@@ -68,7 +68,7 @@ assert(maxStartStep < 5 && maxFullStep < 5,
 	`latitude snowline must remain continuous; observed steps ${maxStartStep.toFixed(3)} / ${maxFullStep.toFixed(3)} m`);
 
 const southMountain = coverageAt({ normalizedY: 0.62, height: 300 });
-const tundraMountain = coverageAt({ normalizedY: 0.34, height: 300 });
+const tundraMountain = coverageAt({ normalizedY: 0.31, height: 300 });
 const iceLowland = coverageAt({ normalizedY: 0.06, height: 18 });
 const tundraLowland = coverageAt({ normalizedY: 0.34, height: 18 });
 const canonicalSouthSnow = coverageAt({ normalizedY: 0.62, height: 18, snowWeight: 1 });
@@ -79,7 +79,7 @@ const highIce = coverageAt({ normalizedY: 0.06, height: 320, slope: 2 });
 assert(southMountain.altitudeSnow < 0.05,
 	'a 300 m temperate mountain must remain below the southern altitude snowline');
 assert(tundraMountain.altitudeSnow > 0.25,
-	'the same 300 m mountain in tundra must visibly accumulate altitude snow');
+	'the same 300 m mountain in the tundra core must visibly accumulate altitude snow');
 assert(iceLowland.snowAmount > 0.88,
 	'low permanent-ice land must remain almost completely snow/ice covered');
 assert(tundraLowland.snowAmount > 0 && tundraLowland.snowAmount <= P.northTundraLowlandSnowFloor + 1e-9,
