@@ -27,12 +27,12 @@ assert.equal(readyBoard.entries[1].id, 'dragonstone-harbor-tavern-run');
 assert.equal(readyBoard.entries[1].ready, true);
 assert.equal(readyBoard.entries[1].completed, false);
 assert.equal(readyBoard.entries[1].firstRewardAvailable, true);
-assert.deepEqual(readyBoard.entries[1].reward, { experience: 30, reputation: 2 });
+assert.deepEqual(readyBoard.entries[1].reward, { experience: 30, reputation: 2, copper: 12 });
 assert.equal(readyBoard.entries[1].plan.totalDistanceKm, 58);
 assert.equal(readyBoard.entries[1].plan.startingTravelPacks, 2);
 assert.equal(readyBoard.entries[1].plan.remainingTravelPacks, 0);
 assert.equal(readyBoard.entries[1].plan.finalFatigueKm, 30);
-assert.match(buildExpeditionBoardText(readyBoard), /İLK ÖDÜL: 30 XP \+ 2 itibar/);
+assert.match(buildExpeditionBoardText(readyBoard), /İLK ÖDÜL: 30 XP \+ 2 itibar \+ 12 bakır/);
 
 let renderedText = '';
 let renderedChoices = [];
@@ -41,6 +41,7 @@ let journeyEvents = 0;
 let progressionEvents = 0;
 let reputationEvents = 0;
 let worldEvents = 0;
+let economyEvents = 0;
 const dialogueBox = {
 	show(text, choices = []) { renderedText = String(text); renderedChoices = [...choices]; },
 	hide() { renderedText = ''; renderedChoices = []; },
@@ -55,6 +56,7 @@ const controller = createInteractionController({
 	onProgressionChanged() { progressionEvents += 1; },
 	onReputationChanged() { reputationEvents += 1; },
 	onWorldStateChanged() { worldEvents += 1; },
+	onEconomyChanged() { economyEvents += 1; },
 });
 const saved = controller.getRpgSnapshot();
 saved.inventory = expeditionInventory();
@@ -64,6 +66,7 @@ journeyEvents = 0;
 progressionEvents = 0;
 reputationEvents = 0;
 worldEvents = 0;
+economyEvents = 0;
 
 const quartermaster = { displayName: 'Dragonstone Levazımcısı', object3D: { name: 'stannis-guard-1', position: { x: 0, z: 0 } } };
 controller.update([quartermaster], { x: 1, z: 1 });
@@ -74,7 +77,7 @@ assert.match(renderedChoices[1], /Liman Taverna Seferi — HAZIR/);
 
 controller.handleKeyDown({ code: 'Digit2', repeat: false });
 assert.match(renderedText, /SEFER TAMAMLANDI/);
-assert.match(renderedText, /Kontrat ödülü: 30 XP \+ 2 Dragonstone itibarı/);
+assert.match(renderedText, /Kontrat ödülü: 30 XP \+ 2 Dragonstone itibarı \+ 12 bakır · kese 52/);
 assert.match(renderedText, /Taverna · dragonstone-harbor-tavern · DİNLENDİ/);
 assert.equal(controller.getInventorySnapshot().fieldReadiness.travelCapacity.travelRationPacks, 0);
 assert.equal(controller.getJourneySnapshot().fatigueKm, 30);
@@ -82,12 +85,14 @@ assert.equal(controller.getJourneySnapshot().lastDestinationId, 'dragonstone-har
 assert.equal(controller.getJourneySnapshot().commitCount, 1);
 assert.equal(controller.getProgressionSnapshot().totalExperience, 30);
 assert.equal(controller.getReputationSnapshot().dragonstone, 2);
+assert.equal(controller.getEconomySnapshot().copper, 52);
 assert.deepEqual(controller.getWorldStateSnapshot().dragonstoneExpeditionRoutes, ['dragonstone-harbor-tavern-run']);
 assert.equal(inventoryEvents, 1);
 assert.equal(journeyEvents, 1);
 assert.equal(progressionEvents, 1);
 assert.equal(reputationEvents, 1);
 assert.equal(worldEvents, 1);
+assert.equal(economyEvents, 1);
 
 controller.handleKeyDown({ code: 'KeyT', repeat: false });
 assert.match(renderedText, /Dragonstone Sefer Panosu/);
@@ -102,9 +107,10 @@ assert.equal(restored.getJourneySnapshot().fatigueKm, 30);
 assert.equal(restored.getInventorySnapshot().fieldReadiness.travelCapacity.travelRationPacks, 0);
 assert.equal(restored.getProgressionSnapshot().totalExperience, 30);
 assert.equal(restored.getReputationSnapshot().dragonstone, 2);
+assert.equal(restored.getEconomySnapshot().copper, 52);
 assert.deepEqual(restored.getWorldStateSnapshot().dragonstoneExpeditionRoutes, ['dragonstone-harbor-tavern-run']);
 
-// A repeated route remains playable when resources/fatigue permit, but the one-time reward cannot be farmed.
+// A repeated route remains playable when resources/fatigue permit, but XP/reputation/copper cannot be farmed.
 const replaySave = restored.getRpgSnapshot();
 replaySave.inventory = expeditionInventory();
 replaySave.journey = { fatigueKm: 0, commitCount: 1, lastDestinationId: 'dragonstone-harbor-road', recentReceipts: [] };
@@ -116,12 +122,15 @@ restored.handleKeyDown({ code: 'Digit2', repeat: false });
 assert.match(renderedText, /tekrar ödülü yok/);
 assert.equal(restored.getProgressionSnapshot().totalExperience, 30);
 assert.equal(restored.getReputationSnapshot().dragonstone, 2);
+assert.equal(restored.getEconomySnapshot().copper, 52);
 assert.deepEqual(restored.getWorldStateSnapshot().dragonstoneExpeditionRoutes, ['dragonstone-harbor-tavern-run']);
 
-// Forged/unknown route completion ids are ignored on restore.
+// Forged/unknown route completion ids are ignored on restore and do not mint copper.
 const forged = restored.getRpgSnapshot();
 forged.worldState.dragonstoneExpeditionRoutes = ['dragonstone-harbor-tavern-run', 'forged-route', '', 'dragonstone-harbor-tavern-run'];
+forged.economy.copper = 52;
 restored.restoreRpgSnapshot(forged);
 assert.deepEqual(restored.getWorldStateSnapshot().dragonstoneExpeditionRoutes, ['dragonstone-harbor-tavern-run']);
+assert.equal(restored.getEconomySnapshot().copper, 52);
 
-console.log(`[RPG] PASS expedition contracts + one-time rewards ${JSON.stringify({ routes: readyBoard.entries.length, rewardedRoute: 'dragonstone-harbor-tavern-run', xp: restored.getProgressionSnapshot().totalExperience, reputation: restored.getReputationSnapshot().dragonstone })}`);
+console.log(`[RPG] PASS expedition contracts + one-time economy payouts ${JSON.stringify({ routes: readyBoard.entries.length, rewardedRoute: 'dragonstone-harbor-tavern-run', xp: restored.getProgressionSnapshot().totalExperience, reputation: restored.getReputationSnapshot().dragonstone, copper: restored.getEconomySnapshot().copper })}`);
