@@ -7,16 +7,37 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function stripBenignServerNoise(log) {
-  return String(log)
-    .replace(/^-+\s*\nException occurred during processing of request from .*?\n[\s\S]*?^-+\s*$/gm, (block) => {
-      const browserCloseStack = /socketserver\.py/.test(block)
-        && /http\/server\.py/.test(block)
-        && /shutil\.py/.test(block)
-        && !/" [45]\d\d /.test(block);
-      return browserCloseStack ? '' : block;
-    })
-    .replace(/^BrokenPipeError: \[Errno 32\] Broken pipe\s*$/gm, '')
-    .replace(/^ConnectionResetError: \[Errno 104\] Connection reset by peer\s*$/gm, '');
+  const withoutSuccessfulAccess = String(log)
+    .replace(/^127\.0\.0\.1 - - \[[^\]]+\] "[A-Z]+ [^"]+ HTTP\/1\.1" [23]\d\d -\s*$/gm, '');
+
+  if (/" [45]\d\d /.test(withoutSuccessfulAccess)) return withoutSuccessfulAccess;
+
+  const compact = withoutSuccessfulAccess
+    .replace(/^-+\s*$/gm, '')
+    .trim();
+  if (!compact) return '';
+
+  const pythonFiles = [...compact.matchAll(/File "([^"]+\.py)"/g)].map((match) => match[1]);
+  const exceptionLines = compact
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => /^[A-Za-z_][\w.]*?(?:Error|Exception):/.test(line));
+  const onlyCloseStackFiles = pythonFiles.length > 0
+    && pythonFiles.every((path) => /\/(?:socketserver|http\/server|shutil)\.py$/.test(path));
+  const onlyCloseExceptions = exceptionLines.every((line) => (
+    /^BrokenPipeError: \[Errno 32\] Broken pipe$/.test(line)
+    || /^ConnectionResetError: \[Errno 104\] Connection reset by peer$/.test(line)
+  ));
+  const browserCloseStack = /Exception occurred during processing of request/.test(compact)
+    && /Traceback/.test(compact)
+    && /socketserver\.py/.test(compact)
+    && /http\/server\.py/.test(compact)
+    && /shutil\.py/.test(compact)
+    && /(?:copyfileobj|sendall)/.test(compact)
+    && onlyCloseStackFiles
+    && onlyCloseExceptions;
+
+  return browserCloseStack ? '' : compact;
 }
 
 async function main() {
