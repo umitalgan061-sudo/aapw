@@ -40,8 +40,10 @@ for (const fragment of [
 ]) assert.ok(source.includes(fragment), `missing dodge iframe contract: ${fragment}`);
 
 assert.ok(source.indexOf('if (isDodgeInvulnerable())') < source.indexOf('if (parryWindowRemaining > 0'), 'active dodge mitigation must be resolved before guard/parry handling');
-assert.ok(!source.includes('DODGE_IFRAME_START_SECONDS: 0'), 'frame-zero dodge immunity must stay forbidden');
-assert.ok(!source.includes('DODGE_IFRAME_END_SECONDS: 0.38'), 'full-duration dodge immunity must stay forbidden');
+// Numeric parsing above is authoritative: `start > 0` rejects exact frame-zero immunity without
+// the old substring trap where a valid `0.06` value also contains the text `: 0`.
+assert.notEqual(start, 0, 'frame-zero dodge immunity must stay forbidden');
+assert.notEqual(end, duration, 'full-duration dodge immunity must stay forbidden');
 
 console.log(JSON.stringify({
   ok: true,
