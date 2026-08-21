@@ -45,15 +45,22 @@ for (const fragment of [
   "this._combatDefense?.mitigation === 'dodge' ? 'önlendi'",
   '`defense-${this._combatDefense.mitigation}`',
   'DEFENSE_FEEDBACK_SECONDS',
+  'this._combatDodgeInvulnerable = false',
+  "state === 'dodge' && motion?.dodgeInvulnerable === true",
+  "'KAÇINMA · DOKUNULMAZ'",
+  "'dodge-invulnerable'",
+  'this._combatAttack || this._combatDefense || this._combatDodgeInvulnerable',
 ]) assert.ok(healthBar.includes(fragment), `missing dodge combat HUD contract: ${fragment}`);
 
 assert.ok(source.indexOf('if (isDodgeInvulnerable())') < source.indexOf('if (parryWindowRemaining > 0'), 'active dodge mitigation must be resolved before guard/parry handling');
 assert.notEqual(start, 0, 'frame-zero dodge immunity must stay forbidden');
 assert.notEqual(end, duration, 'full-duration dodge immunity must stay forbidden');
+assert.ok(!healthBar.includes('DODGE_IFRAME_START_SECONDS'), 'HUD must consume canonical dodgeInvulnerable telemetry instead of duplicating iframe tuning');
+assert.ok(!healthBar.includes('DODGE_IFRAME_END_SECONDS'), 'HUD must not own a second iframe timing contract');
 
 console.log(JSON.stringify({
   ok: true,
   contract: 'player-dodge-invulnerability',
   dodge: { durationSeconds: duration, iframeStartSeconds: start, iframeEndSeconds: end, iframeDurationSeconds: Number((end - start).toFixed(3)) },
-  mitigation: { event: 'PLAYER_DAMAGED', mitigation: 'dodge', amount: 0, hud: 'KAÇINMA', preservesNpcOwnership: true },
+  mitigation: { event: 'PLAYER_DAMAGED', mitigation: 'dodge', amount: 0, hud: 'KAÇINMA', iframeHud: 'KAÇINMA · DOKUNULMAZ', preservesNpcOwnership: true },
 }, null, 2));
