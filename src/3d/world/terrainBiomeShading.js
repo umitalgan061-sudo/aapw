@@ -19,7 +19,7 @@ function smoothstep(edge0, edge1, value) {
 }
 
 export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
-	id: 'terrain-map-climate-shoreline-2026-08-21-v3',
+	id: 'terrain-map-climate-shoreline-2026-08-21-v4',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	measured: Object.freeze({
@@ -34,6 +34,10 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 	}),
 	shoreSandTopMeters: 1.6,
 	shoreSandFullMeters: 0.25,
+	// Render-only coastal cover fades in over the first 60 cm above canonical sea level. This removes
+	// the one-vertex snow/frozen-shore ring produced by a boolean height>0 mask without changing any
+	// terrain height, coastline geometry or collision authority.
+	shoreEmergenceFullMeters: 0.6,
 	// Warm sand belongs to temperate coasts. The north uses a climate-driven frozen shore so the
 	// tundra/ice transition cannot expose a yellow beach band beneath otherwise cold terrain.
 	northFrozenShoreTundraStrength: 0.84,
@@ -224,7 +228,8 @@ function computeTerrainSnowCoverage(out, {
 	const snowSupply = clamp01(Math.max(authoredSnow, northSnowSupply, tundraLowlandFloor));
 	const naturalHold = 1 - smoothstep(P.snowShedStartDegrees, P.snowShedFullDegrees, slopeDegrees);
 	const snowHold = lerp(naturalHold, Math.max(naturalHold, 0.96), permanentIce);
-	const snowAmount = heightAboveSeaMeters > 0 ? clamp01(snowSupply * snowHold) : 0;
+	const landEmergence = smoothstep(0, P.shoreEmergenceFullMeters, heightAboveSeaMeters);
+	const snowAmount = clamp01(snowSupply * snowHold) * landEmergence;
 	const lowlandIce = 1 - smoothstep(
 		P.northIceLowlandTintFadeStartMeters,
 		P.northIceLowlandTintFadeFullMeters,
@@ -242,8 +247,9 @@ function computeTerrainSnowCoverage(out, {
 	out.tundraLowlandFloor = tundraLowlandFloor;
 	out.snowSupply = snowSupply;
 	out.snowHold = snowHold;
+	out.landEmergence = landEmergence;
 	out.snowAmount = snowAmount;
-	out.glacialIceTint = permanentIce * lowlandIce * P.northIceLowlandTintStrength;
+	out.glacialIceTint = permanentIce * lowlandIce * P.northIceLowlandTintStrength * landEmergence;
 	return out;
 }
 
@@ -283,6 +289,7 @@ export function resolveTerrainBiomeColor(target, {
 	const permanentNorth = permanentIceWeightAtNormalizedY(normalizedY);
 	const tundraNorth = tundraWeightAtNormalizedY(normalizedY);
 	const coldShore = frozenShoreWeight(permanentNorth, tundraNorth);
+	const landEmergence = smoothstep(0, P.shoreEmergenceFullMeters, height);
 
 	const drift = signedFbmNoise(worldX * P.grassVariationFrequency + 5.3, worldZ * P.grassVariationFrequency - 2.9, 3);
 	const meadowAmount = clamp01(0.45 + drift * 0.35);
@@ -302,7 +309,7 @@ export function resolveTerrainBiomeColor(target, {
 
 	const shoreAmount = (1 - smoothstep(P.shoreSandFullMeters, P.shoreSandTopMeters, height))
 		* (1 - smoothstep(P.rockSlopeStartDegrees, P.rockSlopeFullDegrees, slope))
-		* (height > 0 ? 1 : 0);
+		* landEmergence;
 	const sandAmount = shoreAmount * (1 - coldShore);
 	if (sandAmount > 0) target.lerp(TERRAIN_BIOME_PALETTE.SHORE_SAND, sandAmount);
 	if (shoreAmount > 0 && coldShore > 0) {
