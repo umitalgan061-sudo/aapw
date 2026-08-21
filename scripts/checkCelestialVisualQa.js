@@ -36,7 +36,7 @@ page.on('console', (message) => {
 try {
 	await page.goto(`${server.baseUrl}/celestial-visual-qa.html`, { waitUntil: 'networkidle' });
 	const bootstrap = await page.evaluate(async ({ viewport }) => {
-		const THREE = await import('three');
+		const THREE = await import('./src/3d/vendor/three/three.module.js');
 		const {
 			CELESTIAL_ASSET_POLICY,
 			createDayNightLighting,
