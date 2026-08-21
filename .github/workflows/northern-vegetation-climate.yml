@@ -6,6 +6,7 @@ on:
       - 'src/3d/world/vegetation.js'
       - 'src/3d/world/terrainBiomeShading.js'
       - 'src/3d/world/northGroundCoverClimate.js'
+      - 'src/3d/world/windGrass.js'
       - 'src/3d/sceneManager.js'
       - 'scripts/checkNorthernVegetationClimate.mjs'
       - 'scripts/checkNorthernVegetationRuntime.mjs'
@@ -13,6 +14,7 @@ on:
       - 'scripts/checkTerrainGeographicPalette.mjs'
       - 'scripts/checkNorthClimateContinuity.mjs'
       - 'scripts/checkNorthGroundCoverClimate.mjs'
+      - 'scripts/checkWindGrassClimateModule.mjs'
       - '.github/workflows/northern-vegetation-climate.yml'
   workflow_dispatch:
 
@@ -35,6 +37,7 @@ jobs:
           node --check src/3d/world/vegetation.js
           node --check src/3d/world/terrainBiomeShading.js
           node --check src/3d/world/northGroundCoverClimate.js
+          node --check src/3d/world/windGrass.js
           node --check src/3d/sceneManager.js
           node --check scripts/checkNorthernVegetationClimate.mjs
           node --check scripts/checkNorthernVegetationRuntime.mjs
@@ -42,6 +45,7 @@ jobs:
           node --check scripts/checkTerrainGeographicPalette.mjs
           node --check scripts/checkNorthClimateContinuity.mjs
           node --check scripts/checkNorthGroundCoverClimate.mjs
+          node --check scripts/checkWindGrassClimateModule.mjs
       - name: Northern vegetation climate contract
         run: node scripts/checkNorthernVegetationClimate.mjs
       - name: Northern vegetation runtime scatter
@@ -54,3 +58,5 @@ jobs:
         run: node scripts/checkNorthClimateContinuity.mjs
       - name: North ground-cover climate
         run: node scripts/checkNorthGroundCoverClimate.mjs
+      - name: Wind-grass climate module
+        run: node scripts/checkWindGrassClimateModule.mjs
