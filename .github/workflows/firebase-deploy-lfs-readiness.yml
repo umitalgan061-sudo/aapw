@@ -13,6 +13,15 @@ on:
       - 'scripts/checkWinterGlbMetadataInspector.mjs'
       - '.github/workflows/firebase-deploy-lfs-readiness.yml'
   workflow_dispatch:
+    inputs:
+      scope:
+        description: 'LFS hydration scope; choose all immediately before a real Firebase deployment'
+        required: true
+        default: winter
+        type: choice
+        options:
+          - winter
+          - all
 
 permissions:
   contents: read
@@ -41,7 +50,7 @@ jobs:
           node scripts/checkFirebaseDeployLfsReadiness.mjs
           node scripts/checkWinterGlbMetadataInspector.mjs
 
-      - name: Hydrate and verify winter deployment assets
+      - name: Hydrate and verify PR winter deployment assets
         if: github.event_name == 'pull_request'
         run: |
           node scripts/firebaseDeployLfsReadiness.mjs \
@@ -49,8 +58,16 @@ jobs:
             --scope=winter \
             --manifest=artifacts/firebase-deploy-lfs-readiness.json
 
+      - name: Hydrate and verify dispatched winter deployment assets
+        if: github.event_name == 'workflow_dispatch' && inputs.scope == 'winter'
+        run: |
+          node scripts/firebaseDeployLfsReadiness.mjs \
+            --hydrate \
+            --scope=winter \
+            --manifest=artifacts/firebase-deploy-lfs-readiness.json
+
       - name: Hydrate and verify complete Firebase deployment checkout
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' && inputs.scope == 'all'
         run: |
           node scripts/firebaseDeployLfsReadiness.mjs \
             --hydrate \
