@@ -6,6 +6,7 @@ import { WORLD_REFERENCE_ALIGNMENT } from '../src/3d/world/worldReferenceAlignme
 import {
   TERRAIN_BIOME_PALETTE,
   TERRAIN_BIOME_SHADING_POLICY,
+  coastalCryosphereWeightAtWorldZ,
   northClimateWeightsAtWorldZ,
   resolveTerrainBiomeColor,
   resolveTerrainSnowCoverage,
@@ -39,6 +40,10 @@ function snowAt({ normalizedY, height, slope, snowWeight = 0, terrainConcavityMe
   });
 }
 
+function coastalCryosphereAt(normalizedY) {
+  return coastalCryosphereWeightAtWorldZ(worldZForNormalizedMapY(normalizedY));
+}
+
 function distance(a, b) {
   return Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
 }
@@ -50,11 +55,13 @@ function luminance(color) {
 const lowland = colorAt({ normalizedY: 0.62, height: 18, slope: 4, worldX: 120 });
 const meadowVariant = colorAt({ normalizedY: 0.62, height: 18, slope: 4, worldX: 2100 });
 const shore = colorAt({ normalizedY: 0.62, height: 0.5, slope: 2, worldX: 120 });
+const southCoastalLowland = colorAt({ normalizedY: 0.62, height: 2.0, slope: 2, worldX: 120 });
 const southSeabed = colorAt({ normalizedY: 0.62, height: -1.8, slope: 2, worldX: 120 });
 const upland = colorAt({ normalizedY: 0.62, height: 150, slope: 8, worldX: 120 });
 const cliff = colorAt({ normalizedY: 0.62, height: 150, slope: 52, rockWeight: 0.9, worldX: 120 });
 const tundra = colorAt({ normalizedY: 0.33, height: 18, slope: 4, worldX: 120 });
 const tundraShore = colorAt({ normalizedY: 0.33, height: 0.5, slope: 2, worldX: 120 });
+const tundraCoastalLowland = colorAt({ normalizedY: 0.33, height: 2.0, slope: 2, worldX: 120 });
 const tundraSeabed = colorAt({ normalizedY: 0.33, height: -1.8, slope: 2, worldX: 120 });
 const iceTransitionShore = colorAt({ normalizedY: 0.22, height: 0.5, slope: 2, worldX: 120 });
 const farNorth = colorAt({ normalizedY: 0.06, height: 18, slope: 4, worldX: 120 });
@@ -93,12 +100,42 @@ assert(distance(farNorthShore, TERRAIN_BIOME_PALETTE.GLACIAL_SHORE) < distance(f
 assert(distance(farNorthCoastalLowland, TERRAIN_BIOME_PALETTE.COASTAL_ICE)
     < distance(farNorthCoastalLowland, TERRAIN_BIOME_PALETTE.SHORE_SAND),
   'far-north low coastal land should continue the cryosphere instead of reverting to beach sand');
+assert(distance(tundraCoastalLowland, TERRAIN_BIOME_PALETTE.COASTAL_ICE)
+    < distance(southCoastalLowland, TERRAIN_BIOME_PALETTE.COASTAL_ICE),
+  'tundra low coast should begin frosting before the permanent-ice boundary');
 assert(distance(southSeabed, farNorthSeabed) > 0.03,
   'submerged northern shallows should not share the same warm/green seabed tint as temperate coasts');
 assert(distance(farNorthSeabed, TERRAIN_BIOME_PALETTE.NORTH_SEABED) < distance(southSeabed, TERRAIN_BIOME_PALETTE.NORTH_SEABED),
   'far-north seabed should move toward the cold northern seabed palette');
 assert(distance(tundraSeabed, southSeabed) > 0.01,
   'tundra shallows should begin cooling before the permanent-ice boundary');
+
+// Coastal cryosphere must ramp continuously from a restrained tundra frost apron into permanent ice.
+// The helper is used by the production palette path, so this contract catches climate-boundary seams
+// without depending on RGB mottle or unrelated lowland vegetation variation.
+const tundraCoastalCryosphere = coastalCryosphereAt(0.33);
+const transitionCoastalCryosphere = coastalCryosphereAt(0.22);
+const farNorthCoastalCryosphere = coastalCryosphereAt(0.06);
+assert(tundraCoastalCryosphere > 0,
+  'tundra coastline must retain a non-zero frost apron before permanent ice begins');
+assert(transitionCoastalCryosphere > tundraCoastalCryosphere,
+  'coastal cryosphere should strengthen moving north through the ice transition');
+assert(farNorthCoastalCryosphere > transitionCoastalCryosphere,
+  'permanent-ice coast should own the strongest coastal cryosphere signal');
+assert(farNorthCoastalCryosphere <= TERRAIN_BIOME_SHADING_POLICY.northCoastalIceStrength + 1e-9,
+  'permanent coastal apron must remain within the authored strength ceiling');
+assert(tundraCoastalCryosphere <= TERRAIN_BIOME_SHADING_POLICY.northCoastalIceTundraStrength + 1e-9,
+  'tundra frost apron must remain subordinate to permanent coastal ice');
+
+let previousCoastalCryosphere = coastalCryosphereAt(0.06);
+for (let normalizedY = 0.07; normalizedY <= 0.40; normalizedY += 0.01) {
+  const current = coastalCryosphereAt(normalizedY);
+  assert(current <= previousCoastalCryosphere + 0.012,
+    `coastal cryosphere must not strengthen abruptly southward near normalizedY=${normalizedY.toFixed(2)}`);
+  assert(Math.abs(current - previousCoastalCryosphere) < 0.075,
+    `coastal cryosphere transition must remain continuous near normalizedY=${normalizedY.toFixed(2)}`);
+  previousCoastalCryosphere = current;
+}
 
 // Snow accumulation must remain geographic rather than a flat latitude wash. Gentle tundra slopes
 // can hold a restrained drift supplement, while steeper faces expose more rock and shed that drift.
@@ -157,11 +194,13 @@ for (const [label, color] of Object.entries({
   lowland,
   meadowVariant,
   shore,
+  southCoastalLowland,
   southSeabed,
   upland,
   cliff,
   tundra,
   tundraShore,
+  tundraCoastalLowland,
   tundraSeabed,
   iceTransitionShore,
   farNorth,
@@ -178,6 +217,9 @@ for (const [label, color] of Object.entries({
 console.log('[checkTerrainGeographicPalette] PASS', JSON.stringify({
   policy: TERRAIN_BIOME_SHADING_POLICY.id,
   northPermanentIce: northClimate.permanentIce,
+  tundraCoastalCryosphere,
+  transitionCoastalCryosphere,
+  farNorthCoastalCryosphere,
   tundraGentleDrift: tundraGentleSnow.driftSupply,
   tundraSteepDrift: tundraSteepSnow.driftSupply,
   tundraBowlSnow: tundraBowlSnow.snowAmount,
@@ -185,11 +227,13 @@ console.log('[checkTerrainGeographicPalette] PASS', JSON.stringify({
   tundraRidgeSnow: tundraRidgeSnow.snowAmount,
   lowland: lowland.getHexString(),
   shore: shore.getHexString(),
+  southCoastalLowland: southCoastalLowland.getHexString(),
   southSeabed: southSeabed.getHexString(),
   upland: upland.getHexString(),
   cliff: cliff.getHexString(),
   tundra: tundra.getHexString(),
   tundraShore: tundraShore.getHexString(),
+  tundraCoastalLowland: tundraCoastalLowland.getHexString(),
   iceTransitionShore: iceTransitionShore.getHexString(),
   farNorth: farNorth.getHexString(),
   farNorthShore: farNorthShore.getHexString(),
