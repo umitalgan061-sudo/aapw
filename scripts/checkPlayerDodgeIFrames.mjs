@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const source = await readFile(new URL('../src/3d/gameplay/player.js', import.meta.url), 'utf8');
+const healthBar = await readFile(new URL('../src/3d/ui/healthBar.js', import.meta.url), 'utf8');
 const numberConstant = (name) => {
   const match = source.match(new RegExp(`${name}:\\s*([0-9.]+)`));
   assert.ok(match, `missing ${name}`);
@@ -39,9 +40,14 @@ for (const fragment of [
   'publishMotionTelemetry(true); return;',
 ]) assert.ok(source.includes(fragment), `missing dodge iframe contract: ${fragment}`);
 
+for (const fragment of [
+  "dodge: 'KAÇINMA'",
+  "this._combatDefense?.mitigation === 'dodge' ? 'önlendi'",
+  '`defense-${this._combatDefense.mitigation}`',
+  'DEFENSE_FEEDBACK_SECONDS',
+]) assert.ok(healthBar.includes(fragment), `missing dodge combat HUD contract: ${fragment}`);
+
 assert.ok(source.indexOf('if (isDodgeInvulnerable())') < source.indexOf('if (parryWindowRemaining > 0'), 'active dodge mitigation must be resolved before guard/parry handling');
-// Numeric parsing above is authoritative: `start > 0` rejects exact frame-zero immunity without
-// the old substring trap where a valid `0.06` value also contains the text `: 0`.
 assert.notEqual(start, 0, 'frame-zero dodge immunity must stay forbidden');
 assert.notEqual(end, duration, 'full-duration dodge immunity must stay forbidden');
 
@@ -49,5 +55,5 @@ console.log(JSON.stringify({
   ok: true,
   contract: 'player-dodge-invulnerability',
   dodge: { durationSeconds: duration, iframeStartSeconds: start, iframeEndSeconds: end, iframeDurationSeconds: Number((end - start).toFixed(3)) },
-  mitigation: { event: 'PLAYER_DAMAGED', mitigation: 'dodge', amount: 0, preservesNpcOwnership: true },
+  mitigation: { event: 'PLAYER_DAMAGED', mitigation: 'dodge', amount: 0, hud: 'KAÇINMA', preservesNpcOwnership: true },
 }, null, 2));
