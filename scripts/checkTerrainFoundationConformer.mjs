@@ -116,4 +116,26 @@ assert.equal(removed.ok, true, removed.error);
 assert.equal(runtimePads.length, 0);
 assert.equal(conformer.getDynamicPads().length, 0);
 
-console.log('[checkTerrainFoundationConformer] PASS: footprint pads enclose the full base, mutate the shared height authority, rebuild only affected resident chunks, update idempotently and remove cleanly.');
+// Two runtime clones can legitimately share one GLB/FBX src. Their foundations must remain separate;
+// src identifies the model resource, not the placed structure instance.
+const clonePads = [];
+const cloneConformer = createTerrainFoundationConformer({ flattenPads: clonePads });
+const cloneA = cloneConformer.conformTerrain({
+	metadata: { src: 'assets/models/buildings/tower.glb', category: 'building' },
+	object: { uuid: 'tower-a' },
+	bounds: { minX: -30, maxX: -20, minZ: -5, maxZ: 5 },
+	targetHeight: 12,
+});
+const cloneB = cloneConformer.conformTerrain({
+	metadata: { src: 'assets/models/buildings/tower.glb', category: 'building' },
+	object: { uuid: 'tower-b' },
+	bounds: { minX: 20, maxX: 30, minZ: -5, maxZ: 5 },
+	targetHeight: 18,
+});
+assert.equal(cloneA.ok, true, cloneA.error);
+assert.equal(cloneB.ok, true, cloneB.error);
+assert.equal(clonePads.length, 2, 'clones sharing one src must retain independent terrain pads');
+assert.deepEqual(clonePads.map((pad) => pad.foundationKey).sort(), ['object:tower-a', 'object:tower-b']);
+assert.deepEqual(clonePads.map((pad) => pad.x).sort((a, b) => a - b), [-25, 25]);
+
+console.log('[checkTerrainFoundationConformer] PASS: footprint pads enclose the full base, mutate the shared height authority, rebuild only affected resident chunks, keep cloned structures independent, update idempotently and remove cleanly.');
