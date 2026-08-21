@@ -5,6 +5,7 @@ import {
 	createInteractionController,
 	evaluateExpeditionBoard,
 } from '../src/3d/gameplay/interaction.js';
+import { buildQuartermasterText } from '../src/3d/gameplay/interactionEconomy.js';
 
 function expeditionInventory({ packs = 2 } = {}) {
 	return {
@@ -86,6 +87,14 @@ assert.equal(controller.getJourneySnapshot().commitCount, 1);
 assert.equal(controller.getProgressionSnapshot().totalExperience, 30);
 assert.equal(controller.getReputationSnapshot().dragonstone, 2);
 assert.equal(controller.getEconomySnapshot().copper, 52);
+assert.deepEqual(controller.getEconomySnapshot().ledger.recentCredits, [{
+	sequence: 1,
+	sourceId: 'expedition-contract',
+	label: 'Sefer kontratı',
+	creditedCopper: 12,
+	balanceCopper: 52,
+}]);
+assert.match(buildQuartermasterText(controller.getEconomySnapshot()), /Son gelir: Sefer kontratı · \+12 bakır · bakiye 52/);
 assert.deepEqual(controller.getWorldStateSnapshot().dragonstoneExpeditionRoutes, ['dragonstone-harbor-tavern-run']);
 assert.equal(inventoryEvents, 1);
 assert.equal(journeyEvents, 1);
@@ -108,6 +117,7 @@ assert.equal(restored.getInventorySnapshot().fieldReadiness.travelCapacity.trave
 assert.equal(restored.getProgressionSnapshot().totalExperience, 30);
 assert.equal(restored.getReputationSnapshot().dragonstone, 2);
 assert.equal(restored.getEconomySnapshot().copper, 52);
+assert.deepEqual(restored.getEconomySnapshot().ledger.recentCredits, persisted.economy.ledger.recentCredits);
 assert.deepEqual(restored.getWorldStateSnapshot().dragonstoneExpeditionRoutes, ['dragonstone-harbor-tavern-run']);
 
 // A repeated route remains playable when resources/fatigue permit, but XP/reputation/copper cannot be farmed.
@@ -123,14 +133,23 @@ assert.match(renderedText, /tekrar ödülü yok/);
 assert.equal(restored.getProgressionSnapshot().totalExperience, 30);
 assert.equal(restored.getReputationSnapshot().dragonstone, 2);
 assert.equal(restored.getEconomySnapshot().copper, 52);
+assert.equal(restored.getEconomySnapshot().ledger.recentCredits.length, 1);
 assert.deepEqual(restored.getWorldStateSnapshot().dragonstoneExpeditionRoutes, ['dragonstone-harbor-tavern-run']);
 
-// Forged/unknown route completion ids are ignored on restore and do not mint copper.
+// Forged/unknown route completion ids are ignored on restore and cannot mint copper; receipt history is bounded/sanitized independently.
 const forged = restored.getRpgSnapshot();
 forged.worldState.dragonstoneExpeditionRoutes = ['dragonstone-harbor-tavern-run', 'forged-route', '', 'dragonstone-harbor-tavern-run'];
 forged.economy.copper = 52;
+forged.economy.ledger.recentCredits = [
+	{ sequence: 0, creditedCopper: 999, sourceId: 'ignored' },
+	{ sequence: 1, creditedCopper: 12, sourceId: ' expedition-contract ', label: '  Sefer   kontratı  ', balanceCopper: 52 },
+	...Array.from({ length: 8 }, (_, index) => ({ sequence: index + 2, creditedCopper: index + 1, sourceId: `source-${index}`, label: `Gelir ${index}`, balanceCopper: 52 })),
+];
 restored.restoreRpgSnapshot(forged);
 assert.deepEqual(restored.getWorldStateSnapshot().dragonstoneExpeditionRoutes, ['dragonstone-harbor-tavern-run']);
 assert.equal(restored.getEconomySnapshot().copper, 52);
+assert.equal(restored.getEconomySnapshot().ledger.recentCredits.length, 5);
+assert.deepEqual(restored.getEconomySnapshot().ledger.recentCredits.map((entry) => entry.sequence), [5, 6, 7, 8, 9]);
+assert.equal(restored.getEconomySnapshot().ledger.recentCredits.at(-1).label, 'Gelir 7');
 
-console.log(`[RPG] PASS expedition contracts + one-time economy payouts ${JSON.stringify({ routes: readyBoard.entries.length, rewardedRoute: 'dragonstone-harbor-tavern-run', xp: restored.getProgressionSnapshot().totalExperience, reputation: restored.getReputationSnapshot().dragonstone, copper: restored.getEconomySnapshot().copper })}`);
+console.log(`[RPG] PASS expedition contracts + persisted bounded income receipts ${JSON.stringify({ routes: readyBoard.entries.length, rewardedRoute: 'dragonstone-harbor-tavern-run', xp: restored.getProgressionSnapshot().totalExperience, reputation: restored.getReputationSnapshot().dragonstone, copper: restored.getEconomySnapshot().copper, creditReceipts: restored.getEconomySnapshot().ledger.recentCredits.length })}`);

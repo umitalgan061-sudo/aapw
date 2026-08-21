@@ -7,6 +7,7 @@
 export const QUARTERMASTER_NPC_ID = 'stannis-guard-1';
 export const STARTING_COPPER = 40;
 export const RECENT_TRANSACTION_LIMIT = 5;
+export const RECENT_CREDIT_LIMIT = 5;
 
 export const QUARTERMASTER_OFFERS = Object.freeze([
 	Object.freeze({
@@ -72,6 +73,7 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 	let transactionCount = 0;
 	let lifetimeSpentCopper = 0;
 	let recentTransactions = [];
+	let recentCredits = [];
 	const stockByOffer = new Map();
 	const purchasesByOffer = new Map();
 	resetStock();
@@ -91,6 +93,11 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		const parsed = Number(value);
 		if (!Number.isFinite(parsed) || parsed < 0) return limit;
 		return Math.min(limit, Math.floor(parsed));
+	}
+
+	function normalizeReceiptText(value, fallback) {
+		const normalized = String(value ?? '').trim().replace(/\s+/g, ' ').slice(0, 80);
+		return normalized || fallback;
 	}
 
 	function stockLimitFor(offer) {
@@ -116,6 +123,7 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		transactionCount = 0;
 		lifetimeSpentCopper = 0;
 		recentTransactions = [];
+		recentCredits = [];
 		purchasesByOffer.clear();
 		for (const offer of offers) purchasesByOffer.set(offer.id, 0);
 	}
@@ -145,15 +153,27 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		};
 	}
 
+	function creditReceipt(amount, metadata = {}, sequence = recentCredits.length + 1, balanceCopper = copper) {
+		return {
+			sequence: Math.max(1, normalizeCount(sequence, 1)),
+			sourceId: normalizeReceiptText(metadata?.sourceId, 'expedition-contract'),
+			label: normalizeReceiptText(metadata?.label, 'Sefer kontratı'),
+			creditedCopper: normalizeCopper(amount, 0),
+			balanceCopper: normalizeCopper(balanceCopper, copper),
+		};
+	}
+
 	function ledgerSnapshot() {
 		const purchases = {};
 		for (const offer of offers) purchases[offer.id] = purchasesByOffer.get(offer.id) ?? 0;
-		return {
+		const ledger = {
 			transactionCount,
 			lifetimeSpentCopper,
 			purchasesByOffer: purchases,
 			recentTransactions: recentTransactions.map((receipt) => ({ ...receipt })),
 		};
+		if (recentCredits.length > 0) ledger.recentCredits = recentCredits.map((receipt) => ({ ...receipt }));
+		return ledger;
 	}
 
 	function snapshot() {
@@ -173,12 +193,25 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 			}
 		}
 
-		// Finite stock is the gameplay-authoritative source. Derive all aggregate ledger totals from it so
+		// Finite stock is the gameplay-authoritative source. Derive all aggregate purchase totals from it so
 		// legacy stock-aware saves gain truthful history totals and forged aggregate fields cannot drift.
 		syncLedgerTotalsFromStock();
 
 		const savedLedger = saved?.ledger;
 		if (!savedLedger || typeof savedLedger !== 'object' || Array.isArray(savedLedger)) return;
+		if (Array.isArray(savedLedger.recentCredits)) {
+			const validCredits = [];
+			const seenSequences = new Set();
+			for (const savedReceipt of savedLedger.recentCredits.slice(-RECENT_CREDIT_LIMIT * 2)) {
+				if (!savedReceipt || typeof savedReceipt !== 'object' || Array.isArray(savedReceipt)) continue;
+				const creditedCopper = normalizeCopper(savedReceipt.creditedCopper, 0);
+				const sequence = normalizeCount(savedReceipt.sequence, 0);
+				if (creditedCopper <= 0 || sequence <= 0 || seenSequences.has(sequence)) continue;
+				seenSequences.add(sequence);
+				validCredits.push(creditReceipt(creditedCopper, savedReceipt, sequence, savedReceipt.balanceCopper));
+			}
+			recentCredits = validCredits.sort((left, right) => left.sequence - right.sequence).slice(-RECENT_CREDIT_LIMIT);
+		}
 		if (!Array.isArray(savedLedger.recentTransactions) || transactionCount <= 0) return;
 
 		const oldestRecentSequence = Math.max(1, transactionCount - RECENT_TRANSACTION_LIMIT + 1);
@@ -213,11 +246,15 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		return { ok: true, reason: 'available', offerId: configuredOffer.id, remainingStock, priceCopper: price, balanceCopper: copper, balanceAfterPurchase: copper - price };
 	}
 
-	function credit(amount) {
+	function credit(amount, metadata = {}) {
 		const creditedCopper = normalizeCopper(amount, 0);
 		if (creditedCopper <= 0) return { ok: false, reason: 'invalid-credit', creditedCopper: 0, balanceCopper: copper };
 		copper += creditedCopper;
-		return { ok: true, creditedCopper, balanceCopper: copper };
+		const sequence = (recentCredits.at(-1)?.sequence ?? 0) + 1;
+		const receipt = creditReceipt(creditedCopper, metadata, sequence, copper);
+		recentCredits.push(receipt);
+		if (recentCredits.length > RECENT_CREDIT_LIMIT) recentCredits.splice(0, recentCredits.length - RECENT_CREDIT_LIMIT);
+		return { ok: true, creditedCopper, balanceCopper: copper, receipt, ledger: ledgerSnapshot() };
 	}
 
 	function purchase(offer, grantItem) {
@@ -270,6 +307,13 @@ export function buildQuartermasterText(economySnapshot = {}, offers = QUARTERMAS
 	const transactionCount = Math.max(0, Math.floor(Number(ledger?.transactionCount) || 0));
 	const lifetimeSpentCopper = Math.max(0, Math.floor(Number(ledger?.lifetimeSpentCopper) || 0));
 	const lines = ['Dragonstone Levazımcısı', `Kese: ${balance} bakır`, `Alışveriş defteri: ${transactionCount} işlem · ${lifetimeSpentCopper} bakır harcandı`];
+	const recentCredits = Array.isArray(ledger?.recentCredits) ? ledger.recentCredits : [];
+	const latestCredit = recentCredits.at(-1);
+	if (latestCredit) {
+		const credited = Math.max(0, Math.floor(Number(latestCredit.creditedCopper) || 0));
+		const receiptBalance = Math.max(0, Math.floor(Number(latestCredit.balanceCopper) || 0));
+		lines.push(`Son gelir: ${String(latestCredit.label ?? 'Sefer kontratı')} · +${credited} bakır · bakiye ${receiptBalance}`);
+	}
 	const recentTransactions = Array.isArray(ledger?.recentTransactions) ? ledger.recentTransactions : [];
 	for (let index = recentTransactions.length - 1; index >= 0; index -= 1) {
 		const receipt = recentTransactions[index];
