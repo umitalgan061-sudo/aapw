@@ -1,0 +1,77 @@
+name: Celestial Visual QA
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'assets/models/Ay/Moon 2K.fbx'
+      - '.gitattributes'
+      - 'src/3d/lighting.js'
+      - 'src/3d/assetLoader.js'
+      - 'src/3d/nightVisualEnhancement.js'
+      - 'scripts/firebaseDeployLfsReadiness.mjs'
+      - 'scripts/checkFirebaseDeployLfsReadiness.mjs'
+      - 'scripts/checkCelestialVisualQa.js'
+      - 'scripts/devServerHelper.js'
+      - 'celestial-visual-qa.html'
+      - '.github/workflows/celestial-visual-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  visual-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout pointer state
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          lfs: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Resolve vendored Three.js for runtime imports
+        run: node scripts/setupNodeThreeShim.mjs
+
+      - name: Static celestial and deployment contracts
+        run: |
+          node --check src/3d/lighting.js
+          node --check scripts/firebaseDeployLfsReadiness.mjs
+          node --check scripts/checkFirebaseDeployLfsReadiness.mjs
+          node --check scripts/checkCelestialVisualQa.js
+          node scripts/checkFirebaseDeployLfsReadiness.mjs
+
+      - name: Hydrate verified Moon FBX
+        run: |
+          node scripts/firebaseDeployLfsReadiness.mjs \
+            --hydrate \
+            --scope=celestial \
+            --manifest=artifacts/celestial-visual-qa/lfs-readiness.json
+
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          ln -sfn "$RUNNER_TEMP/pw/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Render sunrise noon sunset and night
+        run: |
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkCelestialVisualQa.js
+
+      - name: Upload celestial visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: celestial-visual-qa
+          path: artifacts/celestial-visual-qa/
+          if-no-files-found: error
+          retention-days: 7
