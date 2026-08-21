@@ -68,7 +68,14 @@ function fitObjectToDiameter(object, diameter) {
 	const size = new THREE.Vector3();
 	box.getSize(size);
 	const largest = Math.max(size.x, size.y, size.z);
-	if (largest > 1e-6) object.scale.multiplyScalar(diameter / largest);
+	if (!(largest > 1e-6)) return false;
+	object.scale.multiplyScalar(diameter / largest);
+	object.updateMatrixWorld(true);
+	box.setFromObject(object);
+	const center = box.getCenter(new THREE.Vector3());
+	object.position.sub(center);
+	object.updateMatrixWorld(true);
+	return true;
 }
 
 function setMoonAssetStatus(moonAnchor, status, detail = {}) {
@@ -90,7 +97,9 @@ function installMoonAssetAsync(moonAnchor) {
 	return loader.loadFBXModel(CELESTIAL_ASSET_POLICY.moonAssetUrl, { fallbackColor: 0xdbe8ff, fallbackSize: 2 }).then((model) => {
 		if (!moonAnchor.parent) return setMoonAssetStatus(moonAnchor, 'detached');
 		if (model.userData?.isPlaceholder) return setMoonAssetStatus(moonAnchor, 'fallback-placeholder');
-		fitObjectToDiameter(model, CELESTIAL_ASSET_POLICY.moonTargetDiameterMeters);
+		if (!fitObjectToDiameter(model, CELESTIAL_ASSET_POLICY.moonTargetDiameterMeters)) {
+			return setMoonAssetStatus(moonAnchor, 'fallback-empty-model');
+		}
 		let meshCount = 0;
 		model.traverse((node) => {
 			if (!node.isMesh) return;
