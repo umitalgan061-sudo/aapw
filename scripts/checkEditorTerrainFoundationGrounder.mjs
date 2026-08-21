@@ -51,7 +51,13 @@ const groundCollider = {
 const grounder = createEditorTerrainFoundationGrounder({ chunkManager, groundCollider });
 const castleAsset = { id: 'castle-test', name: 'Northern Keep', category: 'castle', src: 'keep.glb' };
 assert.equal(isEditorStructureAsset(castleAsset), true);
+assert.equal(isEditorStructureAsset({ id: 'editor-building-001', name: 'Taş Konut', category: 'Bina' }), true, 'localized Bina category must use footprint foundations');
+assert.equal(isEditorStructureAsset({ id: 'editor-architecture-001', name: 'Dekoratif Yapı', category: 'Mimari' }), true, 'localized Mimari category must use footprint foundations');
+assert.equal(isEditorStructureAsset({ id: 'waterside-001', name: 'Balıkçı İskelesi', category: 'Prop' }), true, 'dock/pier-like authored names must use footprint foundations');
+assert.equal(isEditorStructureAsset({ id: 'custom-structure', category: 'Prop', structureLike: true }), true, 'authors can explicitly opt custom structures into terrain foundations');
+assert.equal(isEditorStructureAsset({ id: 'fake-building-sign', category: 'Prop', structureLike: false }), false, 'explicit non-structure metadata must override naming heuristics');
 assert.equal(isEditorStructureAsset({ id: 'tree-test', primitive: 'tree', category: 'vegetation' }), false);
+assert.equal(isEditorStructureAsset({ id: 'road-building-marker', primitive: 'road-segment', category: 'Bina' }), false, 'terrain/road primitives must never create foundations even if mislabeled');
 
 const castle = new THREE.Mesh(new THREE.BoxGeometry(12, 8, 10), new THREE.MeshBasicMaterial());
 castle.geometry.translate(0, 4, 0);
@@ -78,19 +84,35 @@ const second = grounder.groundObject(castle, castleAsset, { x: 9, z: -5 });
 assert.equal(second.ok, true, second.error);
 assert.equal(flattenPads.length, beforeRepeat, 're-grounding the same editor id must update, not duplicate, its pad');
 
+const localizedBuilding = new THREE.Mesh(new THREE.BoxGeometry(7, 5, 9), new THREE.MeshBasicMaterial());
+localizedBuilding.geometry.translate(0, 2.5, 0);
+localizedBuilding.userData.editorId = 'localized-building-placed-0001';
+const localizedResult = grounder.groundObject(localizedBuilding, {
+  id: 'asset-001',
+  name: 'Kuzey Konutu',
+  category: 'Bina',
+}, { x: 55, z: 18 });
+assert.equal(localizedResult.ok, true, localizedResult.error);
+assert.equal(localizedResult.mode, 'terrain-conform', 'localized building metadata must reach the footprint conformer');
+assert.equal(localizedResult.footprint?.samples?.length, 9);
+assert.equal(flattenPads.length, beforeRepeat + 1, 'second distinct structure must own an independent foundation pad');
+
 const tree = new THREE.Mesh(new THREE.BoxGeometry(1, 4, 1), new THREE.MeshBasicMaterial());
 tree.geometry.translate(0, 2, 0);
 tree.userData.editorId = 'tree-placed-0001';
 const treeResult = grounder.groundObject(tree, { id: 'tree', primitive: 'tree', category: 'vegetation' }, { x: 40, z: 30 });
 assert.equal(treeResult.ok, true, treeResult.error);
 assert.equal(treeResult.mode, 'center-base');
-assert.equal(flattenPads.length, beforeRepeat, 'non-structures must never deform terrain');
+assert.equal(flattenPads.length, beforeRepeat + 1, 'non-structures must never deform terrain');
 tree.updateMatrixWorld(true);
 const treeBox = new THREE.Box3().setFromObject(tree);
 assert(Math.abs(treeBox.min.y - groundCollider.getGroundHeight(40, 30)) < 1e-6);
 
 const removed = grounder.removeObjectFoundation(castle);
 assert.equal(removed.ok, true, removed.error);
-assert.equal(flattenPads.length, 0, 'removing a structure foundation must restore the shared pad authority');
+assert.equal(flattenPads.length, 1, 'removing one structure foundation must preserve other structure foundations');
+const localizedRemoved = grounder.removeObjectFoundation(localizedBuilding);
+assert.equal(localizedRemoved.ok, true, localizedRemoved.error);
+assert.equal(flattenPads.length, 0, 'removing all structures must restore the shared pad authority');
 
-console.log('[checkEditorTerrainFoundationGrounder] PASS: editor structures conform shared render/physics terrain, repeated grounding is idempotent, props stay center-grounded, and foundations can be removed.');
+console.log('[checkEditorTerrainFoundationGrounder] PASS: English/localized/custom editor structures conform shared render/physics terrain, protected primitives stay center-grounded, repeated grounding is idempotent, and foundations remain independently removable.');
