@@ -206,7 +206,11 @@ export function createScene(canvas) {
 		`[sceneManager] Scattered vegetation: ${vegetationResult.placedCount}/${vegetationResult.targetCount} tree(s) placed ` +
 			`(${vegetationResult.clusterSeatCount} seat(s) with a local cluster ring).`,
 	);
-	void upgradeWinterVegetationAssets(vegetationResult.group).then((upgrade) => {
+	const winterVegetationAbortController = new AbortController();
+	window.addEventListener('pagehide', () => winterVegetationAbortController.abort(), { once: true });
+	void upgradeWinterVegetationAssets(vegetationResult.group, {
+		signal: winterVegetationAbortController.signal,
+	}).then((upgrade) => {
 		if (upgrade.status === 'active') {
 			console.info(
 				`[sceneManager] Upgraded ${upgrade.treeCount} northern snow tree(s) from ${upgrade.assetUrl} ` +
