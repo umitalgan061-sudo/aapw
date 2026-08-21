@@ -25,6 +25,7 @@ on:
       - 'scripts/checkNorthClimateContinuity.mjs'
       - 'scripts/checkNorthMountainSnowline.mjs'
       - 'scripts/checkNorthMountainSnowlineRuntime.mjs'
+      - 'scripts/checkNorthSnowCoverageContinuity.mjs'
       - 'scripts/checkNorthGroundCoverClimate.mjs'
       - 'scripts/checkWindGrassClimateModule.mjs'
       - '.github/workflows/northern-vegetation-climate.yml'
@@ -64,6 +65,7 @@ jobs:
           node --check scripts/checkNorthClimateContinuity.mjs
           node --check scripts/checkNorthMountainSnowline.mjs
           node --check scripts/checkNorthMountainSnowlineRuntime.mjs
+          node --check scripts/checkNorthSnowCoverageContinuity.mjs
           node --check scripts/checkNorthGroundCoverClimate.mjs
           node --check scripts/checkWindGrassClimateModule.mjs
       - name: Northern vegetation climate contract
@@ -90,6 +92,8 @@ jobs:
         run: node scripts/checkNorthMountainSnowline.mjs
       - name: North mountain snowline canonical runtime
         run: node scripts/checkNorthMountainSnowlineRuntime.mjs
+      - name: North snow coverage continuity
+        run: node scripts/checkNorthSnowCoverageContinuity.mjs
       - name: North ground-cover climate
         run: node scripts/checkNorthGroundCoverClimate.mjs
       - name: Wind-grass climate module
