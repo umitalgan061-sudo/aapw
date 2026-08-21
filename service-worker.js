@@ -237,7 +237,10 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // off `map.png` and `worldReferenceMountainRelief.js` sharpened every ridge cross-section. The shell is
 // cache-first, so an existing install would keep serving the old modules and the player would see the
 // old single smooth massif — a stale cache here is a stale *world*, not just a stale script. v39->v40.
-const SHELL_CACHE = 'westeros-shell-v40';
+// Run 381 rewrites the height field again — every mountain chain in `worldReferenceMountainRelief.js`
+// was widened so ranges stop reading as walls. Same reasoning as v40 immediately above: the shell is
+// cache-first, so a stale cache serves a stale *world*. v40->v41.
+const SHELL_CACHE = 'westeros-shell-v41';
 const SHELL_FILES = [
     './',
     './index.html',

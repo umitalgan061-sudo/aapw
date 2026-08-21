@@ -18,9 +18,11 @@
  * **3. There are enough ranges to be range country.** Four chains of three points each was the entire
  * mountain system of the world, and no amount of profile tuning makes four short chains into a range.
  *
- * **4. The ridges are sharp.** Measured as mean crest curvature over high ground: a dome and a peak
- * differ exactly there, and a regression to `cos^1.3` flanks would show up here before it showed up in
- * a screenshot.
+ * **4. The ridges are sharp.** Measured as a dimensionless ratio of near-ring to far-ring drop around
+ * each summit: a dome and a peak differ exactly there, and a regression to `cos^1.3` flanks would show
+ * up here before it showed up in a screenshot. It deliberately does *not* measure steepness — run 381
+ * widened every chain in the world to stop them reading as walls, and a steepness-based metric would
+ * have failed that correct change. See `MIN_CREST_SHARPNESS_RATIO`.
  *
  * **5. The skirt still covers the LOD gap.** This is the coupling that made sharper mountains
  * dangerous rather than merely prettier. Sharper terrain means a bigger mismatch between a chunk's
@@ -43,8 +45,24 @@ const MIN_CHAIN_COUNT = 16;
 const MIN_SUMMIT_REGIONS = 3;
 /** Distinct summits above 150 m, world-wide, sampled on a 52 m grid. */
 const MIN_SUMMIT_COUNT = 120;
-/** Mean crest curvature on high ground — a dome reads lower than a peak. */
-const MIN_CREST_CURVATURE_METERS = 18;
+/**
+ * Crest sharpness, as the ratio of the mean drop at 120 m from a summit to the mean drop at 600 m.
+ *
+ * **This replaced a mean-curvature-in-metres test, which was the wrong measure and would have blocked
+ * a correct fix.** Curvature in metres scales with peak height over width squared, so it cannot tell
+ * a blunt mountain from a merely *wider* one. Run 381 widened every chain in the world — the crest
+ * profiles were held exactly, only the footprints grew — and that alone would have driven the old
+ * metric from 31.31 m to about 4 m and failed the run. Measured on the same two worlds, this ratio
+ * moved 0.2813 to 0.2793: unchanged, which is the truth.
+ *
+ * The ratio is dimensionless and independent of both height and width. A cone gives exactly
+ * 120/600 = 0.2, a paraboloid dome gives 0.04, and a spike gives more. The floor sits at the cone
+ * value: anything at or above it is at least as sharp as a straight-sided peak.
+ */
+const MIN_CREST_SHARPNESS_RATIO = 0.20;
+/** Ring radii in meters for the sharpness ratio above. */
+const SHARPNESS_NEAR_METERS = 120;
+const SHARPNESS_FAR_METERS = 600;
 
 (async () => {
 	const playwright = loadPlaywright();
@@ -58,7 +76,7 @@ const MIN_CREST_CURVATURE_METERS = 18;
 	try {
 		const page = await browser.newPage();
 		await page.goto(`${origin}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-		const result = await page.evaluate(async () => {
+		const result = await page.evaluate(async ({ nearMeters, farMeters }) => {
 			const { WORLD_DEFAULTS, WORLD_SCALE, SETTLEMENT_CONFIG } = await import('/src/3d/config.js');
 			const { computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');
 			const { createHeightSampler } = await import('/src/3d/world/terrain.js');
@@ -126,16 +144,27 @@ const MIN_CREST_CURVATURE_METERS = 18;
 			// Bin the top summits into 0.08-normalized cells; distinct cells are distinct mountain regions.
 			const regions = new Set(summits.slice(0, 20).map((s) => `${Math.floor(s.nx / 0.08)},${Math.floor(s.ny / 0.08)}`));
 
-			let curvature = 0;
-			let curvatureCount = 0;
-			for (let iy = 2; iy < N - 2; iy += 2) {
-				for (let ix = 2; ix < N - 2; ix += 2) {
-					const h = grid[iy][ix];
-					if (h < 150) continue;
-					curvature += Math.abs((grid[iy][ix - 1] + grid[iy][ix + 1] + grid[iy - 1][ix] + grid[iy + 1][ix]) - 4 * h);
-					curvatureCount += 1;
+			// Crest sharpness, sampled off the grid in real meters so grid resolution cannot flatter it:
+			// mean drop around a ring close to each summit, over the mean drop around a far ring.
+			const RAYS = 16;
+			const ringDrop = (x, z, summitHeight, radius) => {
+				let total = 0;
+				for (let k = 0; k < RAYS; k += 1) {
+					const angle = (k * 2 * Math.PI) / RAYS;
+					total += Math.max(0, summitHeight - live(x + Math.cos(angle) * radius, z + Math.sin(angle) * radius));
 				}
+				return total / RAYS;
+			};
+			const sharpness = [];
+			for (const summit of summits.slice(0, 60)) {
+				const world = toWorld(summit.nx, summit.ny);
+				const far = ringDrop(world.x, world.z, summit.h, farMeters);
+				// A summit whose far ring barely drops is a bump on a plateau, not a peak; the ratio is
+				// meaningless there and including it would be noise, so skip it.
+				if (far <= 40) continue;
+				sharpness.push(ringDrop(world.x, world.z, summit.h, nearMeters) / far);
 			}
+			sharpness.sort((a, b) => a - b);
 
 			return {
 				chains,
@@ -143,10 +172,11 @@ const MIN_CREST_CURVATURE_METERS = 18;
 				summitCount: summits.length,
 				topSummits: summits.slice(0, 6).map((s) => ({ nx: +s.nx.toFixed(3), ny: +s.ny.toFixed(3), h: Math.round(s.h) })),
 				regionCount: regions.size,
-				crestCurvature: +(curvature / Math.max(1, curvatureCount)).toFixed(2),
+				sharpnessSampleCount: sharpness.length,
+				crestSharpness: sharpness.length ? +(sharpness[Math.floor(sharpness.length / 2)]).toFixed(4) : 0,
 				skirtCapMeters: TERRAIN_CHUNK_SKIRT_POLICY.maxDepthMeters,
 			};
-		});
+		}, { nearMeters: SHARPNESS_NEAR_METERS, farMeters: SHARPNESS_FAR_METERS });
 
 		const dead = result.chains.filter((chain) => chain.relief < MIN_CHAIN_RELIEF_METERS);
 		const failures = [];
@@ -154,9 +184,10 @@ const MIN_CREST_CURVATURE_METERS = 18;
 		if (dead.length) failures.push(`${dead.length} chain(s) produce under ${MIN_CHAIN_RELIEF_METERS} m of relief: ${dead.map((c) => c.id).join(', ')}`);
 		if (result.regionCount < MIN_SUMMIT_REGIONS) failures.push(`the world's 20 highest summits sit in ${result.regionCount} region(s) (min ${MIN_SUMMIT_REGIONS}) — every peak in one massif is the defect this guards`);
 		if (result.summitCount < MIN_SUMMIT_COUNT) failures.push(`${result.summitCount} distinct summits above 150 m (min ${MIN_SUMMIT_COUNT})`);
-		if (result.crestCurvature < MIN_CREST_CURVATURE_METERS) failures.push(`mean crest curvature ${result.crestCurvature} m (min ${MIN_CREST_CURVATURE_METERS}) — the ridges have gone soft`);
+		if (result.crestSharpness < MIN_CREST_SHARPNESS_RATIO) failures.push(`median crest sharpness ${result.crestSharpness} (min ${MIN_CREST_SHARPNESS_RATIO}, a cone is exactly ${(SHARPNESS_NEAR_METERS / SHARPNESS_FAR_METERS).toFixed(2)} and a dome about 0.04) — the ridges have gone soft`);
 
-		console.log(`[mountains] ${result.chainCount} chains, ${result.summitCount} summits above 150 m in ${result.regionCount} regions, crest curvature ${result.crestCurvature} m`);
+		console.log(`[mountains] ${result.chainCount} chains, ${result.summitCount} summits above 150 m in ${result.regionCount} regions`);
+		console.log(`[mountains] median crest sharpness ${result.crestSharpness} over ${result.sharpnessSampleCount} summits (cone ${(SHARPNESS_NEAR_METERS / SHARPNESS_FAR_METERS).toFixed(2)}, dome 0.04)`);
 		console.log(`[mountains] highest: ${result.topSummits.map((s) => `${s.h}m@(${s.nx},${s.ny})`).join('  ')}`);
 		const weakest = [...result.chains].sort((a, b) => a.relief - b.relief).slice(0, 4);
 		console.log(`[mountains] weakest chains: ${weakest.map((c) => `${c.id} ${c.relief}m`).join(', ')}`);

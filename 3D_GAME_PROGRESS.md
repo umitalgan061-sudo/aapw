@@ -17907,3 +17907,43 @@ Render'a bakınca Bones hâlâ bir **duvar**: kabartma 80 m yatayda 170 m düş�
 dünya yatayda 13,5 km ve içinde 950 m'lik bir tepe var. Kuzeybatı Westeros ve Red Mountains (300–560 m)
 render'da doğru görünüyor; yalnız bu iki 950 m'lik zincir "tek büyük kocaman dağ" olarak okunuyor —
 yani sahibin şikâyetinin tam olarak kalan yarısı. Tur 381'in konusu bu (kendi §8.4 çifti ile).
+
+## Tur 381 — Dağlar bıçak sırtıydı; ve duvarın sebebi bulundu (ADR-0328)
+
+Tur 380 sırtları keskinleştirdi, ama render'da "tek büyük kocaman dağ" duruyordu. Ölçünce sorunun
+keskinlik değil **orantı** olduğu çıktı: on dokuz zincirin ortalama kanat açısı **40–66°**, en kötüsü
+Bones (950 m tepe / 434 m yarı-genişlik = 2:1'den dik). Yürünebilirlik 35°'de biter.
+
+**Yatay ölçek değişemez, o yüzden dağlar yayıldı.** Her zincir ~35°'lik kanada doğru genişletildi ve
+`coreWidthNormalized` her seferinde `outerWidthNormalized` ile aynı oranda ölçeklendi — `coreRatio`
+`ridgeExponent`'i belirlediği için oran sabit kalınca tur 380'in keskin sırtı birebir korunuyor. Bones
+ve doğu zinciri ayrıca 950 → 720/700 (950'de bir sonraki en yüksek zincirin 1,7 katıydılar).
+
+**Sonuç: 40–66° → 33,5–38,9°.** Bones artık listenin başı değil ortası.
+
+### Üç kapı da yanlış şeyi ölçüyordu
+
+1. **Dağ kapısı** sivrilği metre cinsinden eğrilikle ölçüyordu — eğrilik tepe/genişlik² ile ölçeklenir,
+   yani küt dağ ile *sadece daha geniş* dağı ayıramaz; bu doğru düzeltmeyi reddedecekti (31,31 → ~4 m).
+   Yerine boyutsuz oran: 120 m halkası / 600 m halkası. Koni 0,20, kubbe 0,04. **0,2813 → 0,2793** —
+   genişletme sırtları hiç körletmemiş.
+2. **Nehir kapısı** ardışık *nokta* sayıyordu. Dik bir geçiş bandın içinde zorunlu olarak 50 m harcar,
+   yani 15 m aralıkta 4 nokta aritmetik gereği. Metreye çevrildi (tavan 80 m); ölçülen 47 m, PASS.
+3. **Geçitler**: her iki yarıçapı ölçeklemek Vale'i 95 m'ye düşürdü (yine bozkır). İç yarıçap geri
+   alındı, yalnız dış konik büyüdü → **163 m**. Ayrıca geçidi açmak yolu *kötüleştirebiliyor*:
+   0,047/0,051 denemesi `stannis -> robin`'i 19,9° → 26,7° yaptı, çünkü router daha kısa/dik hat seçti.
+
+### Duvarın gerçek sebebi bulundu: `coastalReliefTaper`
+
+x=2600 kesiti: `centreDry` boyunca **1,0** (tamamen kara), ama beş örneğin minimumu `clearance`
+**0,079 → 0,979**'a 120 m'de tırmanıyor ve kabartma birebir izliyor: **59 → 423 m**. Kıyıdan bir
+taper-yarıçapı içindeki her dağ ~120 m'de tamamlanan bir çarpanla ölçekleniyor — deniz tarafı kanadı
+zincir ne kadar geniş olursa olsun dikey bir levhaya dönüşüyor. Levhanın *pürüzsüz* olması da buydu:
+çarpımsal rampa, gürültü değil. Bu turda düzeltilmedi (yarıçapı büyütmek zayıf zincirleri öldürebilir,
+kendi ölçüm döngüsünü istiyor) — **tur 382**.
+
+### Sonuç
+
+Koltuklar 14/14 PASS, yollar **13/13 PASS** (en dik kara kenarı 19,9°), nehir geçişi PASS, ağ 21,87 km.
+Etek dünya en kötüsü **87,49 → 83,38 m**, tavan 144 m. Dağlar: 19 zincir, 189 zirve, **9 bölgede**
+(7'den), medyan sivrilik 0,2825. Görsel kanıt `artifacts/mountains/*-run381.png`. SW v40→v41.

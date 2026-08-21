@@ -55,12 +55,13 @@ const ROAD_HARD_MAX_GRADE_DEGREES = 20;
  * a small margin — points closer than this could visually read as the road running in the riverbed. */
 const RIVER_CLEARANCE_METERS = 25;
 
-/** How many *consecutive* road points may sit within `RIVER_CLEARANCE_METERS` of the river before
- * this counts as a real "runs alongside the river" failure rather than a single expected crossing
- * point — a genuine crossing touches the clearance zone for at most one or two points before crossing
- * to the far side; a long run of many consecutive close points would mean the road is tracing the
- * riverbank instead. */
-const MAX_CONSECUTIVE_RIVER_ADJACENT_POINTS = 3;
+/** How many *meters* of road may run continuously within `RIVER_CLEARANCE_METERS` of the river before
+ * this counts as a real "runs alongside the river" failure rather than an expected crossing. A road
+ * crossing perpendicularly must spend `2 * RIVER_CLEARANCE_METERS` (50 m) inside the band by
+ * construction; an oblique crossing spends more. 80 m leaves room for a crossing at roughly 40 degrees
+ * off perpendicular and is still nowhere near the hundreds of metres a road tracing a bank would show.
+ * Measured in meters rather than in points on purpose — see the note at the check itself. */
+const MAX_RIVER_ADJACENT_RUN_METERS = 80;
 
 const MIME_TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8' };
 
@@ -309,11 +310,28 @@ async function main() {
 		);
 	}
 
-	// 4. River non-collision: no long run of consecutive road points within RIVER_CLEARANCE_METERS.
-	let worstRun = 0;
+	// 4. River non-collision: no long run of road *within* RIVER_CLEARANCE_METERS of the river.
+	//
+	// **Measured in metres, not in points.** This counted consecutive road points and allowed at most
+	// three, which silently assumed a road point spacing. Run 381 widened the mountain chains, the
+	// router re-spaced its paths to about 15 m, and the check failed at four points — on a run whose
+	// geometry was x=1564..1609 with the distance to the river going 21 -> 5 -> 12.9 -> 24.7 m. That is
+	// a road crossing a 14 m river head-on: 45 m of road, one dip, out the other side. Nothing was
+	// wrong with the world. A perpendicular crossing has to spend `2 * RIVER_CLEARANCE_METERS` of road
+	// inside the band no matter what, so at 15 m spacing it occupies four points by arithmetic and the
+	// ceiling of three could not be met by any correct road.
+	//
+	// Length is the resolution-independent form of the same question, and it still catches the real
+	// defect: a road tracing a riverbank stays in the band for hundreds of metres, far past the ~50 m a
+	// crossing needs. The ceiling below is generous enough for an oblique crossing and far short of a
+	// parallel run.
+	let worstRunMeters = 0;
+	let worstRunPoints = 0;
 	let anyCrossing = false;
 	for (const edge of data.edges) {
-		let run = 0;
+		let runMeters = 0;
+		let runPoints = 0;
+		let previous = null;
 		for (const point of edge.points) {
 			let closestToRiver = Infinity;
 			for (const riverPoint of data.riverPoints) {
@@ -321,23 +339,30 @@ async function main() {
 				if (d < closestToRiver) closestToRiver = d;
 			}
 			if (closestToRiver < RIVER_CLEARANCE_METERS) {
-				run++;
+				if (previous) runMeters += Math.hypot(point.x - previous.x, point.z - previous.z);
+				runPoints += 1;
 				anyCrossing = true;
-				if (run > worstRun) worstRun = run;
+				if (runMeters > worstRunMeters) {
+					worstRunMeters = runMeters;
+					worstRunPoints = runPoints;
+				}
+				previous = point;
 			} else {
-				run = 0;
+				runMeters = 0;
+				runPoints = 0;
+				previous = null;
 			}
 		}
 	}
-	if (worstRun <= MAX_CONSECUTIVE_RIVER_ADJACENT_POINTS) {
+	if (worstRunMeters <= MAX_RIVER_ADJACENT_RUN_METERS) {
 		pass(
 			'river non-collision',
 			anyCrossing
-				? `longest run of road points within ${RIVER_CLEARANCE_METERS}m of the river polyline: ${worstRun} consecutive point(s) — a brief crossing, not a parallel run`
+				? `longest run inside the ${RIVER_CLEARANCE_METERS}m river band: ${worstRunMeters.toFixed(0)}m of road (${worstRunPoints} points) — a crossing, not a parallel run`
 				: `no road point ever comes within ${RIVER_CLEARANCE_METERS}m of the river polyline`,
 		);
 	} else {
-		fail('river non-collision', `${worstRun} consecutive road points within ${RIVER_CLEARANCE_METERS}m of the river — reads as running alongside it, not crossing it`);
+		fail('river non-collision', `${worstRunMeters.toFixed(0)}m of road runs within ${RIVER_CLEARANCE_METERS}m of the river (ceiling ${MAX_RIVER_ADJACENT_RUN_METERS}m) — reads as running alongside it, not crossing it`);
 	}
 
 	console.log(

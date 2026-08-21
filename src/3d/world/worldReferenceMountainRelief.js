@@ -51,16 +51,38 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 			// Westeros — and measured 323 m against a Bone Mountains massif at 774 m. Westeros had no peak
 			// in the world's highest fourteen; every one of them was the same Essos blob.
 			peakMeters: 560,
-			coreWidthNormalized: 0.007,
-			outerWidthNormalized: 0.052,
+			// Widened 0.052 -> 0.080 in run 381 with the core kept at the same 13.5% of it, so the crest
+			// profile is unchanged and only the mountain's footprint grows. See the flank-angle note on
+			// `bone-mountains` below for why every chain in this file was widened at once.
+			coreWidthNormalized: 0.0108,
+			outerWidthNormalized: 0.080,
 			// **0.65 was why the Vale looked like a moor.** A floor that high pins the crest between 65%
 			// and 100% of its peak everywhere along the chain — a uniform embankment by construction, no
 			// matter what the summit noise does above it. Sharp peaks need room to fall between them.
 			summitFloor: 0.22,
 			seed: 11,
+			// **A pass is a hole through a chain, so its radius has to follow the chain's — but only its
+			// outer radius.** Widening `outerWidthNormalized` 0.052 -> 0.080 and leaving these alone left a
+			// corridor cut for a mountain 54% narrower than the one now standing there, and the road met a
+			// wall on the far side: `ziya -> cersei` measured **29.5 degrees** against a 20-degree ceiling.
+			//
+			// Scaling *both* radii by the chain's factor then overcorrected, and the guard caught it. These
+			// pass centres sit almost on the chain's own polyline — `vale-northwest-approach` is 0.0147
+			// from the first chain point — so the inner radius, inside which relief is pinned to
+			// `minimumMultiplier`, is the one that decides whether the range survives. At 0.017 it
+			// swallowed the point outright and the chain's peak relief fell to 95 m: the Vale went back to
+			// being the moor the `summitFloor` note above exists to prevent. The inner radii are therefore
+			// unchanged from before the widening, and only the outer taper grows, which lengthens the
+			// approach without deepening the hole.
+			//
+			// **A wider pass does not mean a gentler road, so do not tune these by intuition.** Trying
+			// 0.047/0.051 here to buy grade margin made `stannis -> robin` *worse*, 19.9 -> 26.7 degrees:
+			// the easier saddle changed the router's cost field, and it took a new line 450 m shorter and
+			// steeper rather than the same line more gently. The response to a grade failure is to measure
+			// the route again, not to keep opening the pass.
 			passes: Object.freeze([
-				Object.freeze({ id: 'vale-northwest-approach', center: [0.206, 0.399], innerRadiusNormalized: 0.011, outerRadiusNormalized: 0.034, minimumMultiplier: 0.02, corridorVia: [0.1755, 0.3738], corridorEnd: [0.169444, 0.250], corridorInnerRadiusNormalized: 0.012, corridorOuterRadiusNormalized: 0.030 }),
-				Object.freeze({ id: 'vale-south-approach', center: [0.233, 0.467], innerRadiusNormalized: 0.013, outerRadiusNormalized: 0.037, minimumMultiplier: 0.02 }),
+				Object.freeze({ id: 'vale-northwest-approach', center: [0.206, 0.399], innerRadiusNormalized: 0.011, outerRadiusNormalized: 0.043, minimumMultiplier: 0.02, corridorVia: [0.1755, 0.3738], corridorEnd: [0.169444, 0.250], corridorInnerRadiusNormalized: 0.012, corridorOuterRadiusNormalized: 0.038 }),
+				Object.freeze({ id: 'vale-south-approach', center: [0.233, 0.467], innerRadiusNormalized: 0.013, outerRadiusNormalized: 0.046, minimumMultiplier: 0.02 }),
 			]),
 		}),
 		'red-mountains': Object.freeze({
@@ -72,46 +94,76 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 			// range and keeps Dorne reachable — measured, not guessed, and the pass radii below were
 			// widened in the same pass so the corridor eases into the ridge instead of hitting a wall.
 			peakMeters: 430,
-			coreWidthNormalized: 0.008,
-			outerWidthNormalized: 0.050,
+			// Widened 0.050 -> 0.062 in run 381, core held at the same 16% of it. This chain was already
+			// the gentlest in the world at 39.7 degrees, so it needed the least.
+			coreWidthNormalized: 0.0099,
+			outerWidthNormalized: 0.062,
 			// Same reason as the Vale's floor above, held a little higher because of the road.
 			summitFloor: 0.34,
 			seed: 23,
+			// Outer radii scaled by the same 0.062/0.050 the chain was widened by, inner radii held — see
+			// the note on the Vale's passes for why only the outer one may move.
 			passes: Object.freeze([
-				Object.freeze({ id: 'red-west-approach', center: [0.145, 0.610], innerRadiusNormalized: 0.018, outerRadiusNormalized: 0.064, minimumMultiplier: 0.08 }),
-				Object.freeze({ id: 'red-central-approach', center: [0.179, 0.651], innerRadiusNormalized: 0.021, outerRadiusNormalized: 0.078, minimumMultiplier: 0.08, corridorEnd: [0.139, 0.587], corridorInnerRadiusNormalized: 0.009, corridorOuterRadiusNormalized: 0.024 }),
-				Object.freeze({ id: 'red-east-approach', center: [0.225, 0.640], innerRadiusNormalized: 0.018, outerRadiusNormalized: 0.070, minimumMultiplier: 0.08 }),
+				Object.freeze({ id: 'red-west-approach', center: [0.145, 0.610], innerRadiusNormalized: 0.018, outerRadiusNormalized: 0.079, minimumMultiplier: 0.08 }),
+				Object.freeze({ id: 'red-central-approach', center: [0.179, 0.651], innerRadiusNormalized: 0.021, outerRadiusNormalized: 0.097, minimumMultiplier: 0.08, corridorEnd: [0.139, 0.587], corridorInnerRadiusNormalized: 0.009, corridorOuterRadiusNormalized: 0.030 }),
+				Object.freeze({ id: 'red-east-approach', center: [0.225, 0.640], innerRadiusNormalized: 0.018, outerRadiusNormalized: 0.087, minimumMultiplier: 0.08 }),
 			]),
 		}),
 		// **`summitFloor` here is the difference between a range and a wall.** Both of these chains left it
 		// unset, so they took the global 0.08 floor — but with no authored passes and a 1100 m peak, the
 		// Bones still measured 51.7% of their area above 300 m: a continuous rampart rather than summits
-		// with country between them. An explicit low floor lets the saddles drop properly, and the peak
-		// comes down because the point was never that Essos should tower over Westeros by 350 m — it was
-		// that the Bones are the tallest range in the known world, which 950 m still says.
-		'bone-mountains': Object.freeze({ peakMeters: 950, coreWidthNormalized: 0.008, outerWidthNormalized: 0.042, summitFloor: 0.05, seed: 37 }),
-		'eastern-chain': Object.freeze({ peakMeters: 950, coreWidthNormalized: 0.007, outerWidthNormalized: 0.040, summitFloor: 0.05, seed: 53 }),
+		// with country between them. An explicit low floor lets the saddles drop properly.
+		//
+		// **Every chain in this file was a blade, and these two were the worst.**
+		//
+		// Run 380 made the crests sharp and the owner's complaint — "tek büyük kocaman dağ" — survived it,
+		// because sharpness was never what was wrong. Measured across all nineteen chains, mean flank
+		// angle ran **40 to 66 degrees**, and these two topped it: a 950 m peak standing on a 434 m
+		// half-width is steeper than 2:1, which is not a mountain but a wall. The render showed it as
+		// exactly that — a flat sheet with a straight top edge — and doubling the chunk streaming radius
+		// did not move it, so it was terrain, not a stream edge. The relief drops 170 m over 80 m of
+		// ground. Walkable terrain tops out at 35 degrees.
+		//
+		// The cause is proportion, not profile. This world is 13.5 km wide and holds a 950 m summit; real
+		// Westeros is ~3000 km wide with ~3000 m peaks, a ratio near 1:1000 against this file's 1:14. The
+		// horizontal scale cannot change — every seat, road and mask cell is anchored to it — so the
+		// mountains have to spread instead. Each chain here is widened toward a **mean flank near 35
+		// degrees**, the walkability ceiling, so a range meets the land at a grade a player can climb and
+		// keeps its steep ground for the crest. `coreWidthNormalized` is scaled by the same factor as
+		// `outerWidthNormalized` in every case: `coreRatio` drives `ridgeExponent`, so holding the ratio
+		// keeps run 380's sharp crest exactly as it was and changes only the footprint.
+		//
+		// These two also came down 950 -> 720/700. At 950 they were 1.7x the next-highest chain in the
+		// world, which is its own reading of "one giant mountain": the Bones dwarfed every other range
+		// rather than leading them.
+		'bone-mountains': Object.freeze({ peakMeters: 720, coreWidthNormalized: 0.019, outerWidthNormalized: 0.100, summitFloor: 0.05, seed: 37 }),
+		'eastern-chain': Object.freeze({ peakMeters: 700, coreWidthNormalized: 0.017, outerWidthNormalized: 0.097, summitFloor: 0.05, seed: 53 }),
 
-		// Profiles for the twenty ridges read off map.png — see `REFERENCE_RELIEF_CHAINS`. Narrow
-		// (`outerWidthNormalized` 0.026, about 350 m of shoulder) because these are individual drawn
-		// ridges rather than continental spines, and peaked between 300 m and 520 m by how large the mark
-		// is on the map. Narrow and separate is the whole point: twenty of these read as mountain country,
-		// where one wide chain of the same total mass reads as a hill.
-		'map-ridge-02': Object.freeze({ peakMeters: 384, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 114 }),
-		'map-ridge-03': Object.freeze({ peakMeters: 363, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 127 }),
-		'map-ridge-04': Object.freeze({ peakMeters: 358, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 140 }),
-		'map-ridge-05': Object.freeze({ peakMeters: 347, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 153 }),
-		'map-ridge-07': Object.freeze({ peakMeters: 345, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 179 }),
-		'map-ridge-08': Object.freeze({ peakMeters: 344, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 192 }),
-		'map-ridge-09': Object.freeze({ peakMeters: 341, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 205 }),
-		'map-ridge-10': Object.freeze({ peakMeters: 335, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 218 }),
-		'map-ridge-11': Object.freeze({ peakMeters: 331, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 231 }),
-		'map-ridge-12': Object.freeze({ peakMeters: 331, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 244 }),
-		'map-ridge-14': Object.freeze({ peakMeters: 328, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 270 }),
-		'map-ridge-16': Object.freeze({ peakMeters: 319, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 296 }),
-		'map-ridge-17': Object.freeze({ peakMeters: 317, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 309 }),
-		'map-ridge-19': Object.freeze({ peakMeters: 317, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 335 }),
-		'map-ridge-20': Object.freeze({ peakMeters: 315, coreWidthNormalized: 0.006, outerWidthNormalized: 0.026, summitFloor: 0.06, seed: 348 }),
+		// Profiles for the fifteen surviving ridges read off map.png — see `REFERENCE_RELIEF_CHAINS`, whose
+		// header explains the five that were dropped. Peaked between 315 m and 384 m by how large the mark
+		// is on the map. Narrow *relative to the continental spines* and separate is the whole point:
+		// fifteen of these read as mountain country, where one wide chain of the same total mass reads as
+		// a hill.
+		//
+		// `outerWidthNormalized` was 0.026 — about 270 m of shoulder, which at these peaks is a mean flank
+		// of 50 to 55 degrees. Run 381 widened it to 0.046 (~476 m) for the reason given on
+		// `bone-mountains` above; `coreWidthNormalized` moved with it, 0.006 -> 0.0106, holding the 23%
+		// core ratio that sets `ridgeExponent` so the crests keep run 380's sharpness.
+		'map-ridge-02': Object.freeze({ peakMeters: 384, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 114 }),
+		'map-ridge-03': Object.freeze({ peakMeters: 363, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 127 }),
+		'map-ridge-04': Object.freeze({ peakMeters: 358, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 140 }),
+		'map-ridge-05': Object.freeze({ peakMeters: 347, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 153 }),
+		'map-ridge-07': Object.freeze({ peakMeters: 345, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 179 }),
+		'map-ridge-08': Object.freeze({ peakMeters: 344, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 192 }),
+		'map-ridge-09': Object.freeze({ peakMeters: 341, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 205 }),
+		'map-ridge-10': Object.freeze({ peakMeters: 335, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 218 }),
+		'map-ridge-11': Object.freeze({ peakMeters: 331, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 231 }),
+		'map-ridge-12': Object.freeze({ peakMeters: 331, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 244 }),
+		'map-ridge-14': Object.freeze({ peakMeters: 328, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 270 }),
+		'map-ridge-16': Object.freeze({ peakMeters: 319, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 296 }),
+		'map-ridge-17': Object.freeze({ peakMeters: 317, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 309 }),
+		'map-ridge-19': Object.freeze({ peakMeters: 317, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 335 }),
+		'map-ridge-20': Object.freeze({ peakMeters: 315, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 348 }),
 	}),
 });
 
