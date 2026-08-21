@@ -114,7 +114,12 @@ export const EXPEDITION_BOARD_ROUTES = Object.freeze([
 	}),
 ]);
 
-export const EXPEDITION_MASTERY_REWARD = Object.freeze({ experience: 50, reputation: 3, copper: 20 });
+export const EXPEDITION_MASTERY_REWARD = Object.freeze({
+	experience: 50,
+	reputation: 3,
+	copper: 20,
+	item: Object.freeze({ id: 'dragonstone-whetstone', quantity: 1, label: 'Nöbetçi Bileği Taşı' }),
+});
 
 function readinessFromInventory(inventory = {}) { return inventory?.fieldReadiness?.tier ? inventory.fieldReadiness : inventory; }
 export function evaluateExpeditionBoard(inventory = {}, journey = {}, worldState = {}, routes = EXPEDITION_BOARD_ROUTES) {
@@ -134,7 +139,7 @@ export function evaluateExpeditionBoard(inventory = {}, journey = {}, worldState
 export function buildExpeditionBoardText(board = evaluateExpeditionBoard()) {
 	const lines = ['Dragonstone Sefer Panosu', `Mevcut yorgunluk: ${board.startingFatigueKm} km`, `Tamamlanan kontrat: ${board.completedRouteCount ?? 0}/${board.entries?.length ?? 0}`];
 	if (board.masteryClaimed) lines.push('Sefer ustalığı: TAMAMLANDI');
-	else if (board.masteryReady) lines.push(`Sefer ustalığı: HAZIR · ${board.masteryReward?.experience ?? 0} XP + ${board.masteryReward?.reputation ?? 0} itibar + ${board.masteryReward?.copper ?? 0} bakır`);
+	else if (board.masteryReady) lines.push(`Sefer ustalığı: HAZIR · ${board.masteryReward?.experience ?? 0} XP + ${board.masteryReward?.reputation ?? 0} itibar + ${board.masteryReward?.copper ?? 0} bakır + ${board.masteryReward?.item?.quantity ?? 0} ${board.masteryReward?.item?.label ?? 'eşya'}`);
 	else lines.push(`Sefer ustalığı: İLERLEME ${board.completedRouteCount ?? 0}/${board.entries?.length ?? 0}`);
 	if (!board.entries?.length) return [...lines, 'Açık sefer bulunmuyor.'].join('\n');
 	lines.push('Bir sefer seç:');
@@ -152,7 +157,7 @@ export function buildExpeditionBoardResultText(entry, result = {}) {
 			? `\nKontrat ödülü: ${result.rewardExperience} XP + ${result.rewardReputation} Dragonstone itibarı + ${result.rewardCopper} bakır · kese ${result.balanceCopper}`
 			: '\nKontrat daha önce tamamlandı · tekrar ödülü yok';
 		const masteryText = result.masteryClaimed === true
-			? `\nSEFER USTALIĞI KAZANILDI: ${result.masteryExperience} XP + ${result.masteryReputation} Dragonstone itibarı + ${result.masteryCopper} bakır · kese ${result.balanceCopper}`
+			? `\nSEFER USTALIĞI KAZANILDI: ${result.masteryExperience} XP + ${result.masteryReputation} Dragonstone itibarı + ${result.masteryCopper} bakır · kese ${result.balanceCopper}\nUstalık smithing ödülü: ${result.masteryItemQuantity} ${result.masteryItemLabel}`
 			: '';
 		return `${entry.label}\nSEFER TAMAMLANDI\nTüketilen yol azığı: ${result.consumedQuantity}${rewardText}${masteryText}\n${buildJourneyRestText(result.plan)}`;
 	}
@@ -279,6 +284,8 @@ export function createInteractionController({ interactionPrompt, dialogueBox, gr
 			let masteryExperience = 0;
 			let masteryReputation = 0;
 			let masteryCopper = 0;
+			let masteryItemQuantity = 0;
+			let masteryItemLabel = EXPEDITION_MASTERY_REWARD.item.label;
 			let balanceCopper = economy.snapshot().copper;
 			if (firstCompletion) {
 				rewardExperience = Math.max(0, Math.floor(Number(entry.reward?.experience) || 0));
@@ -296,11 +303,15 @@ export function createInteractionController({ interactionPrompt, dialogueBox, gr
 				masteryCopper = EXPEDITION_MASTERY_REWARD.copper;
 				if (progression.grant(masteryExperience)) onProgressionChanged(progression.snapshot());
 				if (reputation.grant(INTERACTION_FACTIONS.DRAGONSTONE, masteryReputation)) onReputationChanged(reputation.snapshot());
+				if (inventory.grant(EXPEDITION_MASTERY_REWARD.item.id, EXPEDITION_MASTERY_REWARD.item.quantity, { sourceType: 'expedition-mastery', sourceId: 'dragonstone-expedition-mastery' })) {
+					masteryItemQuantity = EXPEDITION_MASTERY_REWARD.item.quantity;
+					onInventoryChanged(inventory.snapshot());
+				}
 				const masteryCredit = economy.credit(masteryCopper, { sourceId: 'expedition-mastery', label: 'Sefer ustalığı' });
 				if (masteryCredit.ok) { balanceCopper = masteryCredit.balanceCopper; onEconomyChanged(economy.snapshot()); }
 			}
 			if (firstCompletion || masteryClaimed) onWorldStateChanged(worldState.snapshot());
-			result = { ...result, firstCompletion, rewardExperience, rewardReputation, rewardCopper, masteryClaimed, masteryExperience, masteryReputation, masteryCopper, balanceCopper };
+			result = { ...result, firstCompletion, rewardExperience, rewardReputation, rewardCopper, masteryClaimed, masteryExperience, masteryReputation, masteryCopper, masteryItemQuantity, masteryItemLabel, balanceCopper };
 		}
 		expeditionBoardOpen = false; activeExpeditionBoard = null; activeChoices = null;
 		dialogueBox.show(buildExpeditionBoardResultText(entry, result));
