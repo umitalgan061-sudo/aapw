@@ -13,12 +13,15 @@ const numberConstant = (name) => {
 const duration = numberConstant('DODGE_DURATION_SECONDS');
 const start = numberConstant('DODGE_IFRAME_START_SECONDS');
 const end = numberConstant('DODGE_IFRAME_END_SECONDS');
+const attackBuffer = numberConstant('ATTACK_COMBO_BUFFER_SECONDS');
 
 assert.ok(duration >= 0.3 && duration <= 0.5, `unexpected dodge duration ${duration}`);
 assert.ok(start > 0, 'dodge must not be invulnerable on frame zero');
 assert.ok(start < end, 'dodge iframe start must precede end');
 assert.ok(end < duration, 'dodge recovery tail must remain vulnerable');
 assert.ok(end - start >= 0.12 && end - start <= 0.22, 'iframe window must remain useful but bounded');
+assert.ok(attackBuffer > duration - end, 'attack buffer must outlive the vulnerable dodge recovery tail');
+assert.ok(attackBuffer < duration, 'attack buffer must stay bounded below the full dodge duration');
 
 const invulnerableAt = (elapsed) => elapsed >= start && elapsed < end && elapsed < duration;
 assert.equal(invulnerableAt(0), false, 'dodge startup must be vulnerable');
@@ -38,7 +41,16 @@ for (const fragment of [
   "lastDefenseResult = 'dodge'",
   'dodgeElapsedSeconds: Number(dodgeElapsed.toFixed(3)), dodgeInvulnerable',
   'publishMotionTelemetry(true); return;',
-]) assert.ok(source.includes(fragment), `missing dodge iframe contract: ${fragment}`);
+  'attackBufferRemaining = Math.max(0, attackBufferRemaining - dt)',
+  "if (attackBufferRemaining <= 0 && attackRemaining <= 0) bufferedAttackKind = 'none'",
+  "if (attackRemaining <= 0 && attackBufferRemaining > 0 && bufferedAttackKind !== 'none') startAttack(bufferedAttackKind, false)",
+  'dodgeRemaining <= 0 && parryFeedbackRemaining <= 0',
+]) assert.ok(source.includes(fragment), `missing dodge iframe/recovery contract: ${fragment}`);
+
+const bufferedAttackAttempt = source.indexOf("if (attackRemaining <= 0 && attackBufferRemaining > 0 && bufferedAttackKind !== 'none') startAttack(bufferedAttackKind, false)");
+const dodgeMotionBranch = source.indexOf('} else if (dodgeRemaining > 0) {');
+assert.ok(bufferedAttackAttempt > 0 && dodgeMotionBranch > bufferedAttackAttempt, 'buffered attacks must be attempted without skipping the authoritative dodge motion branch');
+assert.ok(source.indexOf('dodgeRemaining <= 0 && parryFeedbackRemaining <= 0') < source.indexOf('function startAttack'), 'attack start eligibility must retain dodge completion gating');
 
 for (const fragment of [
   "dodge: 'KAÇINMA'",
@@ -66,6 +78,7 @@ assert.ok(!healthBar.includes('DODGE_IFRAME_END_SECONDS'), 'HUD must not own a s
 console.log(JSON.stringify({
   ok: true,
   contract: 'player-dodge-invulnerability',
-  dodge: { durationSeconds: duration, iframeStartSeconds: start, iframeEndSeconds: end, iframeDurationSeconds: Number((end - start).toFixed(3)) },
+  dodge: { durationSeconds: duration, iframeStartSeconds: start, iframeEndSeconds: end, iframeDurationSeconds: Number((end - start).toFixed(3)), recoverySeconds: Number((duration - end).toFixed(3)), attackBufferSeconds: attackBuffer },
   mitigation: { event: 'PLAYER_DAMAGED', mitigation: 'dodge', amount: 0, hud: 'KAÇINMA', iframeHud: 'KAÇINMA · DOKUNULMAZ', recoveryHud: 'KAÇINMA · TOPARLANMA · SAVUNMASIZ', preservesNpcOwnership: true },
+  recoveryAttackBuffer: { dodgeCancelForbidden: true, survivesRecoveryTail: true },
 }, null, 2));
