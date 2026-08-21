@@ -28,6 +28,7 @@ import {
 	NEUTRAL_DETAIL_GAIN,
 	resolveTerrainBiomeColor,
 	slopeDegreesFromNeighbours,
+	terrainConcavityMetersFromNeighbours,
 	buildNeutralDetailCanvas,
 	buildFlatNeutralCanvas,
 } from './terrainBiomeShading.js';
@@ -338,14 +339,12 @@ export function getSharedTerrainAlbedoTexture() {
  * world coordinates — the biome-shading pass added here is strictly additive and reads heights, never
  * writes them.
  *
- * **Slope without seams.** Colour now depends on local slope, which needs each vertex's four
- * neighbours. Edge vertices have no in-chunk neighbour, so this samples a one-vertex apron just
- * outside the chunk rather than falling back to a one-sided difference: a one-sided difference would
- * give the two chunks sharing an edge two different slopes for the same ground and draw a visible
- * colour seam along every chunk border. The apron costs `4 * (segments + 3) - 4` extra height samples
- * (264 at the default 64 segments — about 6% on top of the 4,225 vertex samples), and because both
- * neighbouring chunks sample the same world coordinates through the same deterministic field, a
- * shared vertex resolves to the same slope from either side.
+ * **Slope and terrain form without seams.** Colour depends on local slope and, in the north, the same
+ * four-neighbour terrain form used to distinguish snow-catching bowls from wind-scoured ridges. Edge
+ * vertices have no in-chunk neighbour, so this samples a one-vertex apron just outside the chunk rather
+ * than falling back to one-sided differences. The apron costs `4 * (segments + 3) - 4` extra height
+ * samples (264 at the default 64 segments — about 6% on top of the 4,225 vertex samples), and both
+ * neighbouring chunks derive slope and concavity from the same deterministic world-space samples.
  */
 export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS, seed = 1, flattenPads = [] }) {
 	const sampleHeightMeters = createHeightSampler(seed, undefined, flattenPads);
@@ -415,19 +414,30 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 		}
 	}
 
-	// Shading pass: slope from the apron, colour from `world/terrainBiomeShading.js`.
+	// Shading pass: slope and local terrain form from the shared apron, colour from biome shading.
 	for (let index = 0; index < position.count; index += 1) {
 		const localX = position.getX(index);
 		const localZ = position.getZ(index);
 		const column = Math.round((localX + halfSize) / spacingMeters);
 		const row = Math.round((localZ + halfSize) / spacingMeters);
 		const apronOffset = (row + 1) * apronCount + (column + 1);
+		const heightWest = apronHeights[apronOffset - 1];
+		const heightEast = apronHeights[apronOffset + 1];
+		const heightNorth = apronHeights[apronOffset - apronCount];
+		const heightSouth = apronHeights[apronOffset + apronCount];
 		const slopeDegrees = slopeDegreesFromNeighbours(
-			apronHeights[apronOffset - 1],
-			apronHeights[apronOffset + 1],
-			apronHeights[apronOffset - apronCount],
-			apronHeights[apronOffset + apronCount],
+			heightWest,
+			heightEast,
+			heightNorth,
+			heightSouth,
 			spacingMeters,
+		);
+		const terrainConcavityMeters = terrainConcavityMetersFromNeighbours(
+			apronHeights[apronOffset],
+			heightWest,
+			heightEast,
+			heightNorth,
+			heightSouth,
 		);
 		resolveTerrainBiomeColor(blended, {
 			heightAboveSeaMeters: apronHeights[apronOffset] - SEA_LEVEL,
@@ -436,6 +446,7 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 			snowWeight: apronSnow[apronOffset],
 			worldX: columnWorldX[column],
 			worldZ: rowWorldZ[row],
+			terrainConcavityMeters,
 		});
 		colors[index * 3] = blended.r;
 		colors[index * 3 + 1] = blended.g;
@@ -488,6 +499,8 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 		renderOnly: true,
 		slopeAware: true,
 		apronSampledSlope: true,
+		terrainFormSnowAware: true,
+		apronSampledTerrainForm: true,
 	});
 	mesh.userData.currentTerrainMicroSurface = material.userData.terrainMicroSurface;
 	return mesh;
