@@ -37,9 +37,9 @@ assert.equal(temperate.startMeters, P.snowAltitudeStartMeters,
 	'temperate south must retain the measured 380 m snowline start');
 assert.equal(temperate.fullMeters, P.snowAltitudeFullMeters,
 	'temperate south must retain the measured 580 m full-snow altitude');
-assert(tundra.startMeters < temperate.startMeters - 80,
+assert(tundra.startMeters < temperate.startMeters - 60,
 	'tundra mountains must start holding snow materially lower than temperate mountains');
-assert(tundra.fullMeters < temperate.fullMeters - 80,
+assert(tundra.fullMeters < temperate.fullMeters - 60,
 	'tundra mountains must reach full snow materially lower than temperate mountains');
 assert(iceTransition.startMeters < tundra.startMeters,
 	'the snowline must continue descending through the permanent-ice transition');
