@@ -256,8 +256,22 @@ export function scatterCreatures({
 				const rotationYRadians = rng() * Math.PI * 2;
 				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
 				if (!isCreatureHabitatCompatible(speciesId, x, z, { sampleHeightMeters, seaLevelMeters, seats })) continue;
-				spawns.push({ id: `creature-${speciesId}-${spawnIndex++}`, speciesId, x, z, rotationYRadians });
 				if (!socialAnchor && socialRadiusMeters) socialAnchor = Object.freeze({ x, z });
+				const socialMetadata = socialAnchor && socialRadiusMeters
+					? {
+						socialAnchorX: socialAnchor.x,
+						socialAnchorZ: socialAnchor.z,
+						socialSpawnRadiusMeters: socialRadiusMeters,
+					}
+					: {};
+				spawns.push({
+					id: `creature-${speciesId}-${spawnIndex++}`,
+					speciesId,
+					x,
+					z,
+					rotationYRadians,
+					...socialMetadata,
+				});
 				placed = true;
 				placedForSpecies++;
 				break;
