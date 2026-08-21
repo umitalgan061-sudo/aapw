@@ -63,6 +63,15 @@ export const CREATURE_PREDATOR_PREY_SPAWN_BUFFER_METERS = Object.freeze({
 	aslan: Object.freeze({ geyik: 34, koyun: 28, inek: 24, at: 26, zurafa: 30, tavsan: 20 }),
 });
 
+// Territorial predators should not materialize as a stacked pack either. The matrix is symmetric for
+// cross-species competition so spawn validity does not depend on which predator happened to be authored
+// first. Distances stay small relative to the habitat/world-disc scale; movement can still create later
+// encounters naturally, but the initial frame never starts with overlapping bears/lions.
+export const CREATURE_PREDATOR_TERRITORY_RADIUS_METERS = Object.freeze({
+	ayi: Object.freeze({ ayi: 42, aslan: 36 }),
+	aslan: Object.freeze({ ayi: 36, aslan: 48 }),
+});
+
 function nearestSeatDistanceMeters(x, z, seats) {
 	let nearest = Infinity;
 	for (const seat of seats ?? []) nearest = Math.min(nearest, Math.hypot(x - seat.x, z - seat.z));
@@ -95,6 +104,19 @@ export function isCreaturePredatorSpawnSeparated(speciesId, x, z, spawns, {
 	if (!preyBuffers) return true;
 	for (const spawn of spawns ?? []) {
 		const minimumDistanceMeters = preyBuffers[spawn?.speciesId];
+		if (!(minimumDistanceMeters > 0)) continue;
+		if (Math.hypot(x - spawn.x, z - spawn.z) < minimumDistanceMeters) return false;
+	}
+	return true;
+}
+
+export function isCreaturePredatorTerritorySeparated(speciesId, x, z, spawns, {
+	territoryRules = CREATURE_PREDATOR_TERRITORY_RADIUS_METERS,
+} = {}) {
+	const predatorBuffers = territoryRules?.[speciesId];
+	if (!predatorBuffers) return true;
+	for (const spawn of spawns ?? []) {
+		const minimumDistanceMeters = predatorBuffers[spawn?.speciesId];
 		if (!(minimumDistanceMeters > 0)) continue;
 		if (Math.hypot(x - spawn.x, z - spawn.z) < minimumDistanceMeters) return false;
 	}
@@ -280,6 +302,7 @@ export function scatterCreatures({
 				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
 				if (!isCreatureHabitatCompatible(speciesId, x, z, { sampleHeightMeters, seaLevelMeters, seats })) continue;
 				if (!isCreaturePredatorSpawnSeparated(speciesId, x, z, spawns)) continue;
+				if (!isCreaturePredatorTerritorySeparated(speciesId, x, z, spawns)) continue;
 				if (!socialAnchor && socialRadiusMeters) socialAnchor = Object.freeze({ x, z });
 				const socialMetadata = socialAnchor && socialRadiusMeters
 					? {
