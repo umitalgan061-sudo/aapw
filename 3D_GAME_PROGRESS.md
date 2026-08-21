@@ -18026,3 +18026,30 @@ kırpılıyordu**, yani gökyüzü yine boştu. 1750 m + derinlik testi. Kapı 9
 
 **Ölçülen:** ortalama ikili renk uzaklığı 47,7 (taban 43). Bölge coğrafyası 11/11 PASS, kuzey buzu
 PASS, zemin gerçekçiliği PASS. Görsel kanıt `artifacts/colour/`, `artifacts/sky/`. SW v44→v45.
+
+## Tur 386 — Dağlar küçüldü ve parçalara bölündü (ADR-0333)
+
+Sahip: "Dağlar oyuna göre çok büyük kalıyor... parçalara bölmek lazım, bu sayede sıra dağlar oluşmuş
+olur. Ayrıntılar ve gerçekçilik devam etsin."
+
+**Yapısal sebep:** kabartma polyline'a *uzaklığın* fonksiyonuydu, yani her zincir uçtan uca **tek** bir
+arazi biçimiydi; zirve gürültüsü onu sadece yer yer alçaltıyordu. Yeni `sampleMassifGate` zincir
+üzerindeki **yay uzunluğunu** kullanıp zinciri ayrı kütlelere bölüyor: kütle ortasında tam kabartma,
+birleşme yerinde `colFloor` (0.20) — yani gerçek boyunlar. Hücre sınırları zincirin tohumundan
+sarsılıyor, böylece kütleler eşit uzunlukta değil. Bones 5 kütleye bölünüyor, kısa harita izleri tek
+zirve kalıyor.
+
+**Küçültme:** Bones 720→470, doğu 700→455, Vale 560→395, Red 430→340, map-ridge'ler ×0.74. Dünyanın en
+yükseği **729 → 557 m**.
+
+**Ayrıntı korundu ve ölçüldü:** sırt sivriliği 0.2825 → **0.2615** (koni 0.20'nin üstünde), ve 150 m
+üstü **ayrı zirve 189 → 194** — daha alçak bir dünyada zirve sayısı *arttı*, bölünmenin kanıtı.
+
+**§8.4:** koltuklar 14/14, yollar 13/13 PASS (ağ 21,87 → 20,10 km), etek 83,38 → 79,55 m. Bütün
+coğrafya kapıları PASS.
+
+**Kuzey buzu** (sahibin sorusu): tur 383'te düzelmişti, render doğruluyor. Sorunca `map.png`'nin kendi
+kara piksellerini ölçtüm — beyazlık Duvar'da 0,63, ny 0.28'de 0,10 — ve rampamın kuyruğunun kısa
+olduğunu gördüm: `fadeNy` 0.25 → **0.30**, haritanın çizdiği yere.
+
+Görsel kanıt `artifacts/mountains/*-run386.png`, `artifacts/north/*-run386.png`. SW v45→v46.

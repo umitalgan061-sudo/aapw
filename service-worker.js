@@ -264,7 +264,10 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // reasons. v43->v44.
 // Run 385 gives the ground its regional colour from map.png's own pixels — a new offline-loadable
 // module and a look change both. v44->v45.
-const SHELL_CACHE = 'westeros-shell-v45';
+// Run 386 rewrites the height field again: every mountain peak is lower and each chain is broken
+// into separate massifs, and the northern snow tail now follows map.png's own profile. A stale
+// cache-first shell would keep the old, oversized single ridges. v45->v46.
+const SHELL_CACHE = 'westeros-shell-v46';
 const SHELL_FILES = [
     './',
     './index.html',

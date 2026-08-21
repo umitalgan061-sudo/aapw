@@ -39,8 +39,9 @@ const FAR_NORTH_NY = 0.14;
 const NORTH_PROPER_NY = 0.28;
 /** Mean snow weight the far north must reach. */
 const MIN_FAR_NORTH_SNOW = 0.85;
-/** Mean snow weight the North proper must stay under. */
-const MAX_NORTH_PROPER_SNOW = 0.05;
+/** Mean snow weight the North proper must stay under. map.png's own land whiteness at ny 0.28 is
+ * 0.10, so a light dusting there is map-accurate; this ceiling keeps it a dusting, not tundra. */
+const MAX_NORTH_PROPER_SNOW = 0.16;
 /** Snow is near-neutral; vegetation is green-dominant. Green minus blue, 0..255, on the far north. */
 const MAX_FAR_NORTH_GREEN_BIAS = 20;
 
@@ -115,9 +116,16 @@ const MAX_FAR_NORTH_GREEN_BIAS = 20;
 			return { far: band(farNorthNy), north: band(northProperNy), heightProbe };
 		}, { farNorthNy: FAR_NORTH_NY, northProperNy: NORTH_PROPER_NY });
 
-		// Recorded when the latitude term was introduced (run 383), with the term applied. These are the
-		// mask-only heights: if a future edit lets latitude snow into the elevation terms, they move.
-		const EXPECTED_HEIGHTS = { 0.14: 24, 0.16: 69, 0.18: 91, 0.2: 28, 0.22: 268 };
+		// A fingerprint of northern terrain height, refreshed whenever terrain deliberately changes.
+		//
+		// **This is the only way to catch the failure it guards, and it costs a refresh per terrain run.**
+		// A latitude-snow leak into the elevation terms would raise the far north by up to 12 m — smooth,
+		// with no step or artefact to detect locally — so the only signal is that the numbers moved when
+		// nothing should have moved them. The chains are wide enough after run 381 that most northern
+		// points sit inside one, so a mountain change moves these too: run 386 lowered every peak and
+		// these went 69 -> 61, 91 -> 83, 268 -> 216. If you changed terrain on purpose, re-record them
+		// from the run's own output; if you did not, a snow leak into the height path is the cause.
+		const EXPECTED_HEIGHTS = { 0.14: 23.6, 0.16: 61.2, 0.18: 83.0, 0.2: 28.4, 0.22: 216.2 };
 		const drifted = result.heightProbe.filter((p) => Math.abs(p.height - EXPECTED_HEIGHTS[p.ny]) > 1.5);
 
 		const failures = [];
@@ -132,7 +140,7 @@ const MAX_FAR_NORTH_GREEN_BIAS = 20;
 			failures.push(`the North proper (ny ${NORTH_PROPER_NY}) averages snow ${result.north.snow.toFixed(2)} (max ${MAX_NORTH_PROPER_SNOW}) — the latitude fade runs too far south and buries Winterfell's grassland`);
 		}
 		if (drifted.length) {
-			failures.push(`northern terrain height moved at ${drifted.map((p) => `ny ${p.ny}: ${p.height} m`).join(', ')} — latitude snow must never reach the elevation terms (that is a §8.4 terrain change)`);
+			failures.push(`northern terrain height moved at ${drifted.map((p) => `ny ${p.ny}: ${p.height} m`).join(', ')} — if terrain changed deliberately this run, re-record EXPECTED_HEIGHTS; otherwise latitude snow has leaked into the elevation terms`);
 		}
 
 		console.log(`[northern-ice] far north ny ${FAR_NORTH_NY}: snow ${result.far.snow.toFixed(2)}, green-blue ${result.far.greenBias.toFixed(0)} over ${result.far.count} land samples`);

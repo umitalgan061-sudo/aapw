@@ -62,7 +62,8 @@ const lerp = (a, b, t) => a + (b - a) * t;
  * (`+ snowWeight * 12`, relief detail): latitude there would raise the whole north and invalidate
  * every seat, road and skirt measurement. `scripts/checkNorthernIce.js` guards that.
  */
-const NORTHERN_SNOW = Object.freeze({ fullNy: 0.15, fadeNy: 0.25 });
+// `fadeNy` 0.30 is map.png's own tail: land whiteness 0.86 at ny 0.04, 0.63 at the Wall, 0.10 at 0.28.
+const NORTHERN_SNOW = Object.freeze({ fullNy: 0.15, fadeNy: 0.30 });
 const northernLatitudeSnow = (ny) => {
 	const t = clamp01((ny - NORTHERN_SNOW.fullNy) / (NORTHERN_SNOW.fadeNy - NORTHERN_SNOW.fullNy));
 	return 1 - t * t * (3 - 2 * t); // smoothstep, inlined: its only caller

@@ -35,6 +35,22 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 		radiusNormalized: 0.012,
 		minimumScale: 0.12,
 	}),
+	/**
+	 * What turns each chain from one continuous ridge into a row of separate massifs — see
+	 * `sampleMassifGate`, which is where the reasoning lives.
+	 *
+	 * `massifLengthNormalized` 0.052 is about 540 m of ridge per massif, so the Bones' 0.27 of chain
+	 * becomes five massifs and the short `map-ridge-*` marks stay single peaks, which is what they are
+	 * on the map. `colFloor` 0.20 puts the saddles at a fifth of the local peak height: low enough to
+	 * read as separate mountains and to walk between, high enough that the range still reads as one
+	 * system rather than scattered cones.
+	 */
+	massifSegmentation: Object.freeze({
+		massifLengthNormalized: 0.052,
+		colFloor: 0.20,
+		colSharpness: 0.85,
+		centreJitter: 0.34,
+	}),
 	talusBreakup: Object.freeze({
 		broadFrequency: 22,
 		detailFrequency: 47,
@@ -50,7 +66,7 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 			// The Vale holds the Eyrie and the Mountains of the Moon — the most vertical country in
 			// Westeros — and measured 323 m against a Bone Mountains massif at 774 m. Westeros had no peak
 			// in the world's highest fourteen; every one of them was the same Essos blob.
-			peakMeters: 560,
+			peakMeters: 395,
 			// Widened 0.052 -> 0.080 in run 381 with the core kept at the same 13.5% of it, so the crest
 			// profile is unchanged and only the mountain's footprint grows. See the flank-angle note on
 			// `bone-mountains` below for why every chain in this file was widened at once.
@@ -93,7 +109,7 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 			// the one range a live road crosses. 430 m with a slightly higher floor keeps the range a
 			// range and keeps Dorne reachable — measured, not guessed, and the pass radii below were
 			// widened in the same pass so the corridor eases into the ridge instead of hitting a wall.
-			peakMeters: 430,
+			peakMeters: 340,
 			// Widened 0.050 -> 0.062 in run 381, core held at the same 16% of it. This chain was already
 			// the gentlest in the world at 39.7 degrees, so it needed the least.
 			coreWidthNormalized: 0.0099,
@@ -136,8 +152,8 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 		// These two also came down 950 -> 720/700. At 950 they were 1.7x the next-highest chain in the
 		// world, which is its own reading of "one giant mountain": the Bones dwarfed every other range
 		// rather than leading them.
-		'bone-mountains': Object.freeze({ peakMeters: 720, coreWidthNormalized: 0.019, outerWidthNormalized: 0.100, summitFloor: 0.05, seed: 37 }),
-		'eastern-chain': Object.freeze({ peakMeters: 700, coreWidthNormalized: 0.017, outerWidthNormalized: 0.097, summitFloor: 0.05, seed: 53 }),
+		'bone-mountains': Object.freeze({ peakMeters: 470, coreWidthNormalized: 0.019, outerWidthNormalized: 0.100, summitFloor: 0.05, seed: 37 }),
+		'eastern-chain': Object.freeze({ peakMeters: 455, coreWidthNormalized: 0.017, outerWidthNormalized: 0.097, summitFloor: 0.05, seed: 53 }),
 
 		// Profiles for the fifteen surviving ridges read off map.png — see `REFERENCE_RELIEF_CHAINS`, whose
 		// header explains the five that were dropped. Peaked between 315 m and 384 m by how large the mark
@@ -149,21 +165,21 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 		// of 50 to 55 degrees. Run 381 widened it to 0.046 (~476 m) for the reason given on
 		// `bone-mountains` above; `coreWidthNormalized` moved with it, 0.006 -> 0.0106, holding the 23%
 		// core ratio that sets `ridgeExponent` so the crests keep run 380's sharpness.
-		'map-ridge-02': Object.freeze({ peakMeters: 384, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 114 }),
-		'map-ridge-03': Object.freeze({ peakMeters: 363, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 127 }),
-		'map-ridge-04': Object.freeze({ peakMeters: 358, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 140 }),
-		'map-ridge-05': Object.freeze({ peakMeters: 347, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 153 }),
-		'map-ridge-07': Object.freeze({ peakMeters: 345, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 179 }),
-		'map-ridge-08': Object.freeze({ peakMeters: 344, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 192 }),
-		'map-ridge-09': Object.freeze({ peakMeters: 341, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 205 }),
-		'map-ridge-10': Object.freeze({ peakMeters: 335, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 218 }),
-		'map-ridge-11': Object.freeze({ peakMeters: 331, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 231 }),
-		'map-ridge-12': Object.freeze({ peakMeters: 331, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 244 }),
-		'map-ridge-14': Object.freeze({ peakMeters: 328, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 270 }),
-		'map-ridge-16': Object.freeze({ peakMeters: 319, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 296 }),
-		'map-ridge-17': Object.freeze({ peakMeters: 317, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 309 }),
-		'map-ridge-19': Object.freeze({ peakMeters: 317, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 335 }),
-		'map-ridge-20': Object.freeze({ peakMeters: 315, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 348 }),
+		'map-ridge-02': Object.freeze({ peakMeters: 284, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 114 }),
+		'map-ridge-03': Object.freeze({ peakMeters: 269, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 127 }),
+		'map-ridge-04': Object.freeze({ peakMeters: 265, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 140 }),
+		'map-ridge-05': Object.freeze({ peakMeters: 257, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 153 }),
+		'map-ridge-07': Object.freeze({ peakMeters: 255, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 179 }),
+		'map-ridge-08': Object.freeze({ peakMeters: 255, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 192 }),
+		'map-ridge-09': Object.freeze({ peakMeters: 252, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 205 }),
+		'map-ridge-10': Object.freeze({ peakMeters: 248, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 218 }),
+		'map-ridge-11': Object.freeze({ peakMeters: 245, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 231 }),
+		'map-ridge-12': Object.freeze({ peakMeters: 245, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 244 }),
+		'map-ridge-14': Object.freeze({ peakMeters: 243, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 270 }),
+		'map-ridge-16': Object.freeze({ peakMeters: 236, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 296 }),
+		'map-ridge-17': Object.freeze({ peakMeters: 235, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 309 }),
+		'map-ridge-19': Object.freeze({ peakMeters: 235, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 335 }),
+		'map-ridge-20': Object.freeze({ peakMeters: 233, coreWidthNormalized: 0.0106, outerWidthNormalized: 0.046, summitFloor: 0.06, seed: 348 }),
 	}),
 });
 
@@ -271,6 +287,44 @@ function pointSegmentDistance(px, py, ax, ay, bx, by) {
 	return Math.hypot(px - (ax + dx * t), py - (ay + dy * t));
 }
 
+/**
+ * How much relief survives at a given point *along* a chain — what breaks one ridge into a range.
+ *
+ * **The owner's instruction: "Dağları biraz daha küçültüp parçalara bölmek lazım, bu sayede sıra
+ * dağlar oluşmuş olur."** Runs 380 and 381 sharpened the crests and fixed their proportions, but every
+ * chain was still one *continuous* landform from end to end: the relief field is a function of distance
+ * to the polyline, so anywhere near the line got a mountain, and the summit noise only made that
+ * continuous ridge taller and shorter along its length. A range is not one long hill with bumps — it is
+ * several separate massifs with real ground between them.
+ *
+ * This is the term that makes them separate. Arc length along the chain is divided into `massifCount`
+ * cells, and within each cell relief rises to full at the middle and falls to `colFloor` at the joins,
+ * so consecutive massifs are divided by a genuine low col rather than a slightly lower crest. The cell
+ * boundaries are jittered per chain and per massif from the chain's own seed, so the massifs are
+ * different lengths and the result never reads as a regular picket fence.
+ *
+ * `colFloor` is deliberately not zero: at zero the chain would break into detached cones with flat
+ * ground between, which is a row of hills, not a mountain range. A low saddle keeps the range legible
+ * as one system while still letting the player see — and walk — between its peaks.
+ *
+ * @param {number} alongNormalized 0 at the chain's head, 1 at its tail.
+ * @param {{massifCount: number, profile: {seed: number}}} chain
+ * @returns {number} 0..1 multiplier on this chain's relief.
+ */
+function sampleMassifGate(alongNormalized, chain) {
+	const policy = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.massifSegmentation;
+	if (chain.massifCount <= 1) return 1;
+	const scaled = alongNormalized * chain.massifCount;
+	const index = Math.floor(scaled);
+	// Jitter each massif's centre so the cells are not all the same length.
+	const jitter = (hash2D(index, chain.massifCount, chain.profile.seed + 613) - 0.5) * policy.centreJitter;
+	const within = clamp(scaled - index + jitter, 0, 1);
+	// A raised cosine across the cell: full at the centre, `colFloor` at both joins.
+	const bump = 0.5 - 0.5 * Math.cos(within * Math.PI * 2);
+	const shaped = Math.pow(bump, policy.colSharpness);
+	return policy.colFloor + (1 - policy.colFloor) * shaped;
+}
+
 function samplePassMultiplier(normalizedX, normalizedY, passes = []) {
 	let multiplier = 1;
 	for (const pass of passes) {
@@ -358,10 +412,24 @@ const COMPILED_CHAINS = Object.freeze(REFERENCE_RELIEF_CHAINS.map((chain) => {
 	const xs = points.map((point) => point[0]);
 	const ys = points.map((point) => point[1]);
 	const maximumWidthScale = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.shoulderWidthVariation.maximumScale;
+	// Arc length along the chain, so relief can be modulated by *where along the ridge* a point is and
+	// not only by its distance from it. `segmentStart[i]` is the distance from the chain's head to
+	// point `i`; `totalLength` closes it. See `sampleMassifGate` for what this buys.
+	const segmentStart = [0];
+	let totalLength = 0;
+	for (let index = 0; index < points.length - 1; index += 1) {
+		totalLength += Math.hypot(points[index + 1][0] - points[index][0], points[index + 1][1] - points[index][1]);
+		segmentStart.push(totalLength);
+	}
+	const massifPolicy = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.massifSegmentation;
 	return Object.freeze({
 		id: chain.id,
 		points,
 		profile,
+		segmentStart: Object.freeze(segmentStart),
+		totalLength,
+		/** How many separate massifs this chain breaks into — one per `massifLengthNormalized` of ridge. */
+		massifCount: Math.max(1, Math.round(totalLength / massifPolicy.massifLengthNormalized)),
 		minX: Math.min(...xs) - profile.outerWidthNormalized * maximumWidthScale,
 		maxX: Math.max(...xs) + profile.outerWidthNormalized * maximumWidthScale,
 		minY: Math.min(...ys) - profile.outerWidthNormalized * maximumWidthScale,
@@ -399,12 +467,27 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 		const py = unwarpedY + warpY;
 		if (px < chain.minX || px > chain.maxX || py < chain.minY || py > chain.maxY) continue;
 
+		// Nearest point on the chain, and *where along it* that point lies. The along-position is what
+		// `sampleMassifGate` needs to break the ridge into separate massifs; tracking it here costs one
+		// projection per segment that the distance loop was computing anyway.
 		let distance = Infinity;
+		let alongLength = 0;
 		for (let index = 0; index < chain.points.length - 1; index += 1) {
 			const a = chain.points[index];
 			const b = chain.points[index + 1];
-			distance = Math.min(distance, pointSegmentDistance(px, py, a[0], a[1], b[0], b[1]));
+			const segmentDx = b[0] - a[0];
+			const segmentDy = b[1] - a[1];
+			const lengthSquared = segmentDx * segmentDx + segmentDy * segmentDy;
+			const t = lengthSquared <= 1e-12
+				? 0
+				: clamp(((px - a[0]) * segmentDx + (py - a[1]) * segmentDy) / lengthSquared, 0, 1);
+			const segmentDistance = Math.hypot(px - (a[0] + segmentDx * t), py - (a[1] + segmentDy * t));
+			if (segmentDistance < distance) {
+				distance = segmentDistance;
+				alongLength = chain.segmentStart[index] + t * Math.sqrt(lengthSquared);
+			}
 		}
+		const alongNormalized = chain.totalLength > 1e-9 ? alongLength / chain.totalLength : 0;
 
 		const widthScale = sampleShoulderWidthScale(normalizedX, normalizedY, chain.profile.seed);
 		const coreWidth = chain.profile.coreWidthNormalized * clamp(widthScale * 0.92, 0.78, 1.22);
@@ -453,9 +536,11 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 		const modulation = summitFloor + (1 - summitFloor) * summitNoise;
 		const talusBreakup = sampleTalusBreakup(normalizedX, normalizedY, normalizedDistance, chain.profile.seed);
 		const passMultiplier = samplePassMultiplier(normalizedX, normalizedY, chain.profile.passes);
+		// The chain broken into separate massifs — the difference between one long ridge and a range.
+		const massifGate = sampleMassifGate(alongNormalized, chain);
 		strongestMeters = Math.max(
 			strongestMeters,
-			chain.profile.peakMeters * ridge * modulation * talusBreakup * passMultiplier,
+			chain.profile.peakMeters * ridge * modulation * talusBreakup * passMultiplier * massifGate,
 		);
 	}
 	if (strongestMeters === 0) return 0;

@@ -19050,3 +19050,62 @@ PASS (renkler hâlâ haritayla tutarlı), kuzey buzu PASS, zemin gerçekçiliği
 
 **Technical debt.** 0 new. **Açık iş.** Kavşakta araziden kalkan yol şeridi (görev #5) ve karlı ağaç
 modellerinin kuzeyde kullanılması.
+
+## ADR-0333 — Dağlar oyuna göre büyüktü ve tek parçaydı: her zincir ayrı kütlelere bölündü
+
+**Sahibin talimatı.** "Dağlar oyuna göre çok büyük kalıyor. Dağları biraz daha küçültüp parçalara
+bölmek lazım, bu sayede sıra dağlar oluşmuş olur. Dağların ayrıntıları ve gerçekçiliği devam etsin."
+
+**İki ayrı iş, ve ikincisi yenisi.** Tur 380 sırtları keskinleştirdi, tur 381 orantısını düzeltti — ama
+her zincir hâlâ **uçtan uca tek bir arazi biçimi**ydi. Sebep yapısaldı: kabartma alanı polyline'a olan
+*uzaklığın* fonksiyonu, yani çizginin yakınındaki her yer dağ oluyor; zirve gürültüsü de o sürekli
+sırtı yalnızca yer yer yükseltip alçaltıyor. Sıra dağ, üstünde tümsekler olan uzun bir tepe değildir —
+aralarında gerçek arazi bulunan **ayrı kütlelerdir**.
+
+**Yeni terim: `sampleMassifGate`.** Zincir üzerindeki **yay uzunluğu** artık hesaplanıyor (mesafe
+döngüsünün zaten yaptığı izdüşümden, ek maliyeti yok) ve zincir `massifCount` hücreye bölünüyor. Her
+hücrede kabartma ortada tam, birleşme noktalarında `colFloor`'a düşüyor — yani ardışık kütleler biraz
+alçak bir sırtla değil **gerçek bir boyunla** ayrılıyor. Hücre sınırları zincirin kendi tohumundan
+sarsılıyor (`centreJitter`), böylece kütleler farklı uzunlukta oluyor ve sonuç düzenli bir çit gibi
+okunmuyor. `massifLengthNormalized` 0.052 ≈ 540 m: Bones beş kütleye bölünüyor, kısa `map-ridge-*`
+izleri tek zirve kalıyor — ki haritada zaten öyleler.
+
+**`colFloor` bilerek sıfır değil (0.20).** Sıfırda zincir, aralarında düz zemin olan kopuk konilere
+dağılır; o bir tepe dizisi, sıra dağ değil. Alçak bir boyun, sistemi tek bir dağ silsilesi olarak
+okunur tutarken oyuncunun zirveler arasından geçmesine izin veriyor.
+
+**Küçültme.** Bones 720→470, doğu zinciri 700→455, Vale 560→395, Red Mountains 430→340, on beş
+`map-ridge` ×0.74. Dünyanın en yüksek noktası **729 → 557 m**.
+
+**Ayrıntı korundu** — `talusBreakup`, koordinat warp'ı, zirve gürültüsü, sırt üssü hiç değişmedi.
+Ölçüm bunu doğruluyor: medyan sırt sivriliği **0.2825 → 0.2615**, hâlâ koni referansının (0.20) belirgin
+biçimde üstünde. Ve bölünme çalışıyor: 150 m üstü **ayrı zirve sayısı 189 → 194** *daha alçak* bir
+dünyada arttı — tam da parçalara ayırmanın anlamı.
+
+**§8.4 tam çift:** koltuklar 14/14 PASS, yollar **13/13 PASS** (ağ 21,87 → 20,10 km, alçalan dağlar
+rotayı kolaylaştırdı), nehir geçişi PASS, etek dünya en kötüsü **83,38 → 79,55 m** (144 m tavanın
+altında). Bölge coğrafyası 11/11, zemin renk çeşitliliği 46,6, harita özellikleri, Duvar: hepsi PASS.
+
+### Kuzey buzu: düzelmişti, ama kuyruğu haritadan kısaydı
+
+Sahip "o kısım düzeldi mi" diye sordu. Evet — tur 383'te düzeldi ve render bunu gösteriyor. Ama sormuşken
+`map.png`'nin **kendi kara piksellerini** ölçtüm (deniz hariç, Westeros bandı): beyazlık ny 0.04'te
+**0,86**, Duvar'da (0.16) **0,63**, 0.20'de **0,37**, 0.24'te 0,25, 0.28'de **0,10**, 0.32'de 0,02.
+Benim rampam 0.25'te bitiyordu, yani haritanın gerçekten çizdiği kuyruğu erken kesiyordu. `fadeNy`
+0.25 → **0.30**: Hediye ve güneyi karını haritanın koyduğu yerde bırakıyor, Winterfell'e (0.285) çayır
+yerine hafif bir kar serpintisi düşüyor — haritada da orada 0,10 beyazlık var.
+
+### Kapının kendi kusuru: yükseklik parmak izi
+
+`checkNorthernIce.js` kuzey kotlarını sabit bir tabloyla karşılaştırıyor; bu turda **haklı olarak**
+düştü, çünkü dağları bilerek alçalttım (69→61, 91→83, 268→216). Tur 381'den sonra zincirler o kadar
+geniş ki kuzeydeki çoğu nokta bir zincirin içinde kalıyor, dolayısıyla her dağ ayarı bu tabloyu
+oynatıyor. Parmak izi yine de tek yol: enlem karının kota sızması dünyayı 12 m'ye kadar **pürüzsüzce**
+kaldırırdı, yerel olarak yakalanacak bir basamak bırakmadan. Tablo yenilendi ve hata mesajı artık
+"arazi bilerek değiştiyse yeniden kaydet, değiştiyse sızıntı vardır" diyor.
+
+**Görsel kanıt** `artifacts/mountains/*-run386.png`: Bones artık aralarında gerçek boyunlar olan
+belirgin kütleler dizisi, karlı zirveleri ve talusu yerinde; kuzeybatı Westeros ölçülü bir burun sırtı.
+`artifacts/north/*-run386.png` kuzeyin buzunu gösteriyor. Service worker v45→v46.
+
+**Technical debt.** 0 new. **Açık iş.** Kavşakta araziden kalkan yol şeridi; karlı ağaç modelleri.
