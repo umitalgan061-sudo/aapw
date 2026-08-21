@@ -37,6 +37,22 @@ export const CREATURE_HABITAT_RULES = Object.freeze({
 	tavsan: Object.freeze({ minSeatDistanceMeters: 80, maxElevationAboveSeaMeters: 1200 }),
 });
 
+// Species with established herd/flock alert behavior should also have a realistic chance to spawn
+// within that behavior's communication envelope. These radii stay below the matching runtime alert
+// radii in creatureBrain.js so group AI is usable without creating dense clone piles. Solitary species
+// remain on the original uniform-disc scatter path.
+export const CREATURE_SOCIAL_SPAWN_RADIUS_METERS = Object.freeze({
+	at: 14,
+	geyik: 12,
+	koyun: 4.5,
+	inek: 6,
+	keci: 7,
+	zurafa: 14,
+	kuzgun: 8,
+	kartal: 14,
+	tavuk: 5.5,
+});
+
 function nearestSeatDistanceMeters(x, z, seats) {
 	let nearest = Infinity;
 	for (const seat of seats ?? []) nearest = Math.min(nearest, Math.hypot(x - seat.x, z - seat.z));
@@ -224,21 +240,32 @@ export function scatterCreatures({
 	let spawnIndex = 0;
 	for (const [speciesId, count] of Object.entries(speciesCounts)) {
 		let placedForSpecies = 0;
+		let socialAnchor = null;
+		const socialRadiusMeters = CREATURE_SOCIAL_SPAWN_RADIUS_METERS[speciesId] ?? null;
 		for (let i = 0; i < count; i++) {
 			let placed = false;
 			for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_CREATURE; attempt++) {
 				const angle = rng() * Math.PI * 2;
-				const radius = radiusMeters * Math.sqrt(rng());
-				const x = centerX + Math.cos(angle) * radius;
-				const z = centerZ + Math.sin(angle) * radius;
+				const sampleRadius = socialAnchor && socialRadiusMeters
+					? socialRadiusMeters * Math.sqrt(rng())
+					: radiusMeters * Math.sqrt(rng());
+				const sampleCenterX = socialAnchor?.x ?? centerX;
+				const sampleCenterZ = socialAnchor?.z ?? centerZ;
+				const x = sampleCenterX + Math.cos(angle) * sampleRadius;
+				const z = sampleCenterZ + Math.sin(angle) * sampleRadius;
 				const rotationYRadians = rng() * Math.PI * 2;
 				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
 				if (!isCreatureHabitatCompatible(speciesId, x, z, { sampleHeightMeters, seaLevelMeters, seats })) continue;
 				spawns.push({ id: `creature-${speciesId}-${spawnIndex++}`, speciesId, x, z, rotationYRadians });
+				if (!socialAnchor && socialRadiusMeters) socialAnchor = Object.freeze({ x, z });
 				placed = true;
 				placedForSpecies++;
 				break;
 			}
+			// If a social anchor happens to sit beside a narrow physical/habitat boundary, do not let
+			// the whole herd disappear. Clear it once and retry the remaining individual from the
+			// canonical world disc on its next iteration; a new valid member becomes the next anchor.
+			if (!placed && socialAnchor) socialAnchor = null;
 		}
 		if (placedForSpecies < count) {
 			console.warn(
