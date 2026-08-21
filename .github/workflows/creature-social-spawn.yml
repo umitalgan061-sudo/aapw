@@ -7,6 +7,7 @@ on:
       - 'src/3d/gameplay/creatureSpawner.js'
       - 'src/3d/gameplay/creatureBrain.js'
       - 'scripts/checkCreatureSocialSpawnContract.mjs'
+      - 'scripts/checkCreaturePredatorSpawnBuffer.mjs'
       - 'scripts/checkCreatureSocialSpawnBrowser.js'
       - 'scripts/checkCreatureSocialCohesionContract.mjs'
       - 'scripts/checkCreatureSocialCohesionBrowser.js'
@@ -44,12 +45,14 @@ jobs:
         run: |
           set -euo pipefail
           node --check scripts/checkCreatureSocialSpawnContract.mjs
+          node --check scripts/checkCreaturePredatorSpawnBuffer.mjs
           node --check scripts/checkCreatureSocialSpawnBrowser.js
           node --check scripts/checkCreatureSocialCohesionContract.mjs
           node --check scripts/checkCreatureSocialCohesionBrowser.js
           node --check scripts/checkCreatureSocialCohesionLodBrowser.js
           node --check scripts/checkCreatureSocialCohesionAnchorResetBrowser.js
           node scripts/checkCreatureSocialSpawnContract.mjs
+          node scripts/checkCreaturePredatorSpawnBuffer.mjs
           node scripts/checkCreatureSocialCohesionContract.mjs
           node scripts/checkCreatureSimulationLod.mjs
           node scripts/checkCreatureThreatMemory.mjs
