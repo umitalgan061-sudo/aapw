@@ -94,12 +94,33 @@ export const TERRAIN_BIOME_PALETTE = Object.freeze({
 	SNOW: new THREE.Color(0xf4f6f7),
 });
 
+function latticeHash01(ix, iz) {
+	const value = Math.sin(ix * 127.1 + iz * 311.7) * 43758.5453;
+	return value - Math.floor(value);
+}
+
+/**
+ * Smooth deterministic world-space mottle. The previous implementation rounded directly to one
+ * hash cell, which introduced hard 37 m colour steps. Those discontinuities were especially visible
+ * across the north snow/tundra transition and could be mistaken for a latitude seam. Bilinear
+ * interpolation preserves the same deterministic low-frequency variation while making both value
+ * and first-order movement visually continuous across cell boundaries.
+ */
 function positionHash01(worldX, worldZ) {
 	const cell = TERRAIN_BIOME_SHADING_POLICY.mottleCellMeters;
-	const qx = Math.round(worldX / cell);
-	const qz = Math.round(worldZ / cell);
-	const value = Math.sin(qx * 127.1 + qz * 311.7) * 43758.5453;
-	return value - Math.floor(value);
+	const gx = worldX / cell;
+	const gz = worldZ / cell;
+	const x0 = Math.floor(gx);
+	const z0 = Math.floor(gz);
+	const fx = gx - x0;
+	const fz = gz - z0;
+	const sx = fx * fx * (3 - 2 * fx);
+	const sz = fz * fz * (3 - 2 * fz);
+	const h00 = latticeHash01(x0, z0);
+	const h10 = latticeHash01(x0 + 1, z0);
+	const h01 = latticeHash01(x0, z0 + 1);
+	const h11 = latticeHash01(x0 + 1, z0 + 1);
+	return lerp(lerp(h00, h10, sx), lerp(h01, h11, sx), sz);
 }
 
 export function normalizedMapYAtWorldZ(worldZ) {
