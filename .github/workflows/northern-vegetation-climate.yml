@@ -3,6 +3,9 @@ name: Northern Vegetation Climate
 on:
   pull_request:
     paths:
+      - 'assets/models/vegetation/winter_tree.glb'
+      - 'assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb'
+      - '.gitattributes'
       - 'src/3d/world/vegetation.js'
       - 'src/3d/world/winterVegetationAsset.js'
       - 'src/3d/world/terrainBiomeShading.js'
@@ -13,6 +16,7 @@ on:
       - 'scripts/checkNorthernVegetationRuntime.mjs'
       - 'scripts/checkNorthernVegetationDeterminism.mjs'
       - 'scripts/checkWinterVegetationAssetUpgrade.mjs'
+      - 'scripts/checkWinterVegetationRepositoryContract.mjs'
       - 'scripts/checkTerrainGeographicPalette.mjs'
       - 'scripts/checkNorthClimateContinuity.mjs'
       - 'scripts/checkNorthGroundCoverClimate.mjs'
@@ -46,6 +50,7 @@ jobs:
           node --check scripts/checkNorthernVegetationRuntime.mjs
           node --check scripts/checkNorthernVegetationDeterminism.mjs
           node --check scripts/checkWinterVegetationAssetUpgrade.mjs
+          node --check scripts/checkWinterVegetationRepositoryContract.mjs
           node --check scripts/checkTerrainGeographicPalette.mjs
           node --check scripts/checkNorthClimateContinuity.mjs
           node --check scripts/checkNorthGroundCoverClimate.mjs
@@ -58,6 +63,8 @@ jobs:
         run: node scripts/checkNorthernVegetationDeterminism.mjs
       - name: Winter vegetation asset upgrade
         run: node scripts/checkWinterVegetationAssetUpgrade.mjs
+      - name: Winter vegetation repository contract
+        run: node scripts/checkWinterVegetationRepositoryContract.mjs
       - name: Geographic terrain palette
         run: node scripts/checkTerrainGeographicPalette.mjs
       - name: North climate continuity
