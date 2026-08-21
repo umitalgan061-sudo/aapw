@@ -20,7 +20,7 @@
  */
 
 export const TERRAIN_FOUNDATION_CONFORM_POLICY = Object.freeze({
-	id: 'runtime-structure-foundation-conform-2026-08-21-v1',
+	id: 'runtime-structure-foundation-conform-2026-08-21-v2',
 	footprintMode: 'aabb-enclosing-circle',
 	defaultInnerMarginMeters: 0.75,
 	defaultFeatherMeters: 14,
@@ -64,6 +64,11 @@ function structureKey(payload) {
 	const bounds = normalizedBounds(payload?.bounds);
 	if (!bounds) return null;
 	return `bounds:${bounds.minX.toFixed(3)}:${bounds.maxX.toFixed(3)}:${bounds.minZ.toFixed(3)}:${bounds.maxZ.toFixed(3)}`;
+}
+
+function rememberedStructureKey(object) {
+	const key = object?.userData?.terrainFoundationKey;
+	return key !== null && key !== undefined && String(key).trim() ? String(key) : null;
 }
 
 /**
@@ -175,13 +180,34 @@ export function createTerrainFoundationConformer({
 	if (!Array.isArray(flattenPads)) throw new TypeError('terrainFoundationConformer: flattenPads must be a mutable array');
 	const dynamicPads = new Map();
 
+	function removeInstalledPad(key, { rebuild = true } = {}) {
+		const pad = key ? dynamicPads.get(key) : null;
+		if (!pad) return { ok: false, error: 'foundation-not-found', rebuiltChunkCount: 0 };
+		const index = flattenPads.indexOf(pad);
+		if (index >= 0) flattenPads.splice(index, 1);
+		dynamicPads.delete(key);
+		const rebuiltChunkCount = rebuild ? rebuildChunksForFoundation(chunkManager, pad, chunkSizeMeters) : 0;
+		return { ok: true, pad, rebuiltChunkCount };
+	}
+
 	function installPad(payload) {
 		const created = createFoundationFlattenPad(payload, { innerMarginMeters, featherMeters, maximumInnerRadiusMeters });
 		if (!created.ok) return created;
 		const { key, pad } = created;
+		const object = payload?.object || null;
+		const previousObjectKey = rememberedStructureKey(object);
+		let rebuiltChunkCount = 0;
+
+		// If an object's authored/runtime identity changes, retire the old pad before installing the new
+		// one. Otherwise an editor rename/re-id can leave a stale raised island behind while the same
+		// physical structure starts owning a second foundation key.
+		if (previousObjectKey && previousObjectKey !== key && dynamicPads.has(previousObjectKey)) {
+			const retired = removeInstalledPad(previousObjectKey);
+			if (retired.ok) rebuiltChunkCount += retired.rebuiltChunkCount;
+		}
+
 		let installedPad = key ? dynamicPads.get(key) : null;
 		let previousPad = null;
-
 		if (installedPad) {
 			previousPad = { ...installedPad };
 			Object.assign(installedPad, pad);
@@ -191,9 +217,13 @@ export function createTerrainFoundationConformer({
 			if (key) dynamicPads.set(key, installedPad);
 		}
 
+		if (object && key) {
+			object.userData ||= {};
+			object.userData.terrainFoundationKey = key;
+		}
+
 		// If an existing structure moved or changed footprint, rebuild both its old and new influence
 		// regions so no stale raised patch remains in an already-resident terrain mesh.
-		let rebuiltChunkCount = 0;
 		if (previousPad) rebuiltChunkCount += rebuildChunksForFoundation(chunkManager, previousPad, chunkSizeMeters);
 		rebuiltChunkCount += rebuildChunksForFoundation(chunkManager, installedPad, chunkSizeMeters);
 
@@ -206,19 +236,16 @@ export function createTerrainFoundationConformer({
 	}
 
 	function removeFoundation(keyOrObject) {
+		const object = typeof keyOrObject === 'object' && keyOrObject ? keyOrObject : null;
 		const key = typeof keyOrObject === 'string'
 			? keyOrObject
-			: keyOrObject?.uuid
-				? `object:${keyOrObject.uuid}`
-				: null;
+			: rememberedStructureKey(object)
+				|| (object?.uuid ? `object:${object.uuid}` : null);
 		if (!key) return { ok: false, error: 'foundation-missing-key' };
-		const pad = dynamicPads.get(key);
-		if (!pad) return { ok: false, error: 'foundation-not-found' };
-		const index = flattenPads.indexOf(pad);
-		if (index >= 0) flattenPads.splice(index, 1);
-		dynamicPads.delete(key);
-		const rebuiltChunkCount = rebuildChunksForFoundation(chunkManager, pad, chunkSizeMeters);
-		return { ok: true, rebuiltChunkCount };
+		const removed = removeInstalledPad(key);
+		if (!removed.ok) return removed;
+		if (object?.userData?.terrainFoundationKey === key) delete object.userData.terrainFoundationKey;
+		return { ok: true, rebuiltChunkCount: removed.rebuiltChunkCount };
 	}
 
 	return Object.freeze({
