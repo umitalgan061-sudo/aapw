@@ -8,6 +8,10 @@ on:
       - 'src/3d/gameplay/creatureBrain.js'
       - 'scripts/checkCreatureSocialSpawnContract.mjs'
       - 'scripts/checkCreatureSocialSpawnBrowser.js'
+      - 'scripts/checkCreatureSocialCohesionContract.mjs'
+      - 'scripts/checkCreatureSocialCohesionBrowser.js'
+      - 'scripts/checkCreatureSocialCohesionLodBrowser.js'
+      - 'scripts/checkCreatureSocialCohesionAnchorResetBrowser.js'
       - '.github/workflows/creature-social-spawn.yml'
   workflow_dispatch:
 
@@ -41,7 +45,12 @@ jobs:
           set -euo pipefail
           node --check scripts/checkCreatureSocialSpawnContract.mjs
           node --check scripts/checkCreatureSocialSpawnBrowser.js
+          node --check scripts/checkCreatureSocialCohesionContract.mjs
+          node --check scripts/checkCreatureSocialCohesionBrowser.js
+          node --check scripts/checkCreatureSocialCohesionLodBrowser.js
+          node --check scripts/checkCreatureSocialCohesionAnchorResetBrowser.js
           node scripts/checkCreatureSocialSpawnContract.mjs
+          node scripts/checkCreatureSocialCohesionContract.mjs
           node scripts/checkCreatureSimulationLod.mjs
           node scripts/checkCreatureThreatMemory.mjs
           node scripts/checkCreaturePredatorPrey.mjs
@@ -49,6 +58,12 @@ jobs:
           node scripts/checkSharedMaterialPlacementContract.js
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkServiceWorkerCache.js
+      - name: Hydrate scoped browser LFS assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs version
+          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
       - name: Install Chromium outside repo
         shell: bash
         run: |
@@ -59,6 +74,12 @@ jobs:
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
       - name: Real shipped Three.js social fauna proof
         run: node scripts/checkCreatureSocialSpawnBrowser.js
+      - name: Real shipped Three.js social cohesion proof
+        run: node scripts/checkCreatureSocialCohesionBrowser.js
+      - name: Real shipped Three.js social cohesion LOD proof
+        run: node scripts/checkCreatureSocialCohesionLodBrowser.js
+      - name: Real shipped Three.js social anchor succession proof
+        run: node scripts/checkCreatureSocialCohesionAnchorResetBrowser.js
       - name: Final exact-main freshness
         shell: bash
         run: |
