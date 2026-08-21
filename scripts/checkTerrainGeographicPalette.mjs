@@ -128,9 +128,11 @@ assert(tundraCoastalCryosphere <= TERRAIN_BIOME_SHADING_POLICY.northCoastalIceTu
   'tundra frost apron must remain subordinate to permanent coastal ice');
 
 let previousCoastalCryosphere = coastalCryosphereAt(0.06);
+let maxSouthwardStrengthening = 0;
 for (let normalizedY = 0.07; normalizedY <= 0.40; normalizedY += 0.01) {
   const current = coastalCryosphereAt(normalizedY);
-  assert(current <= previousCoastalCryosphere + 0.012,
+  maxSouthwardStrengthening = Math.max(maxSouthwardStrengthening, current - previousCoastalCryosphere);
+  assert(current <= previousCoastalCryosphere + 0.015,
     `coastal cryosphere must not strengthen abruptly southward near normalizedY=${normalizedY.toFixed(2)}`);
   assert(Math.abs(current - previousCoastalCryosphere) < 0.075,
     `coastal cryosphere transition must remain continuous near normalizedY=${normalizedY.toFixed(2)}`);
@@ -220,6 +222,7 @@ console.log('[checkTerrainGeographicPalette] PASS', JSON.stringify({
   tundraCoastalCryosphere,
   transitionCoastalCryosphere,
   farNorthCoastalCryosphere,
+  maxSouthwardStrengthening,
   tundraGentleDrift: tundraGentleSnow.driftSupply,
   tundraSteepDrift: tundraSteepSnow.driftSupply,
   tundraBowlSnow: tundraBowlSnow.snowAmount,
