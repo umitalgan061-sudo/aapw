@@ -73,16 +73,14 @@ try {
 	await page.evaluate(() => globalThis.dispatchEvent(new CustomEvent('aapw:player-attack-window', { detail: { kind: 'light', phase: 'finish', comboStep: 2, reachMeters: 1.65, damageScale: 1 } })));
 
 	// Defense feedback consumes the same fields the Player defense adapter writes before health
-	// consumption: blockedAmount is the amount stopped; amount is the post-mitigation damage.
-	const parryProjection = await page.evaluate(async () => { const { gameEvents } = await import('./src/3d/eventBus.js'); const { EVENTS } = await import('./src/3d/config.js'); gameEvents.emit(EVENTS.PLAYER_DAMAGED, { rawAmount: 20, blockedAmount: 20, amount: 0, mitigation: 'parry' }); const el = document.querySelector('.g3d-combat-status'); return { text: el?.textContent ?? '', state: el?.dataset.state ?? '' }; });
-	need(parryProjection.state === 'defense-parry' && parryProjection.text.includes('PARRY') && parryProjection.text.includes('20.0 savuşturuldu'), `parry mitigation detail failed: ${JSON.stringify(parryProjection)}`);
-	// The shipped living-world lock-on controller remains active during this proof and may publish a
-	// newer canonical unlocked snapshot while the 650 ms defense transient is visible. The defense
-	// contract is therefore that the transient expires, not that an earlier synthetic lock must win
-	// against subsequent live telemetry. Lock projection itself is asserted separately above/below.
-	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.dataset.state !== 'defense-parry', null, { timeout: 3000 });
+	// consumption. Distinct sentinel amounts let the live-world proof assert that this exact synthetic
+	// feedback yields within the bounded window even if a newer real defense event legitimately replaces it.
+	const parrySentinel = '17.3 savuşturuldu';
+	const parryProjection = await page.evaluate(async () => { const { gameEvents } = await import('./src/3d/eventBus.js'); const { EVENTS } = await import('./src/3d/config.js'); gameEvents.emit(EVENTS.PLAYER_DAMAGED, { rawAmount: 17.25, blockedAmount: 17.25, amount: 0, mitigation: 'parry' }); const el = document.querySelector('.g3d-combat-status'); return { text: el?.textContent ?? '', state: el?.dataset.state ?? '' }; });
+	need(parryProjection.state === 'defense-parry' && parryProjection.text.includes('PARRY') && parryProjection.text.includes(parrySentinel), `parry mitigation detail failed: ${JSON.stringify(parryProjection)}`);
+	await page.waitForFunction((sentinel) => !document.querySelector('.g3d-combat-status')?.textContent?.includes(sentinel), parrySentinel, { timeout: 3000 });
 	const afterParry = await page.locator('.g3d-combat-status').evaluate((el) => ({ text: el.textContent, state: el.dataset.state ?? '' }));
-	need(afterParry.state !== 'defense-parry', `parry feedback did not expire: ${JSON.stringify(afterParry)}`);
+	need(!afterParry.text.includes(parrySentinel), `synthetic parry feedback did not yield: ${JSON.stringify(afterParry)}`);
 	const lockAfterParry = await page.evaluate(() => {
 		globalThis.dispatchEvent(new CustomEvent('aapw:player-lock-on', { detail: { locked: true, targetId: 'runtime-guard', distanceMeters: 1.2, reason: 'tracking' } }));
 		const el = document.querySelector('.g3d-combat-status');
@@ -90,11 +88,12 @@ try {
 	});
 	need(lockAfterParry.state === 'locked' && lockAfterParry.text.includes('runtime-guard'), `post-parry lock projection failed: ${JSON.stringify(lockAfterParry)}`);
 
-	const guardProjection = await page.evaluate(async () => { const { gameEvents } = await import('./src/3d/eventBus.js'); const { EVENTS } = await import('./src/3d/config.js'); gameEvents.emit(EVENTS.PLAYER_DAMAGED, { rawAmount: 20, blockedAmount: 12, amount: 8, mitigation: 'guard' }); const el = document.querySelector('.g3d-combat-status'); return { text: el?.textContent ?? '', state: el?.dataset.state ?? '' }; });
-	need(guardProjection.state === 'defense-guard' && guardProjection.text.includes('BLOK') && guardProjection.text.includes('12.0 engellendi') && guardProjection.text.includes('8.0 hasar'), `guard mitigation detail failed: ${JSON.stringify(guardProjection)}`);
-	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.dataset.state !== 'defense-guard', null, { timeout: 3000 });
+	const guardSentinel = '13.3 engellendi';
+	const guardProjection = await page.evaluate(async () => { const { gameEvents } = await import('./src/3d/eventBus.js'); const { EVENTS } = await import('./src/3d/config.js'); gameEvents.emit(EVENTS.PLAYER_DAMAGED, { rawAmount: 23.25, blockedAmount: 13.25, amount: 10, mitigation: 'guard' }); const el = document.querySelector('.g3d-combat-status'); return { text: el?.textContent ?? '', state: el?.dataset.state ?? '' }; });
+	need(guardProjection.state === 'defense-guard' && guardProjection.text.includes('BLOK') && guardProjection.text.includes(guardSentinel) && guardProjection.text.includes('10.0 hasar'), `guard mitigation detail failed: ${JSON.stringify(guardProjection)}`);
+	await page.waitForFunction((sentinel) => !document.querySelector('.g3d-combat-status')?.textContent?.includes(sentinel), guardSentinel, { timeout: 3000 });
 	const afterGuard = await page.locator('.g3d-combat-status').evaluate((el) => ({ text: el.textContent, state: el.dataset.state ?? '' }));
-	need(afterGuard.state !== 'defense-guard', `guard feedback did not expire: ${JSON.stringify(afterGuard)}`);
+	need(!afterGuard.text.includes(guardSentinel), `synthetic guard feedback did not yield: ${JSON.stringify(afterGuard)}`);
 	const lockAfterGuard = await page.evaluate(() => {
 		globalThis.dispatchEvent(new CustomEvent('aapw:player-lock-on', { detail: { locked: true, targetId: 'runtime-guard', distanceMeters: 1.2, reason: 'tracking' } }));
 		const el = document.querySelector('.g3d-combat-status');
