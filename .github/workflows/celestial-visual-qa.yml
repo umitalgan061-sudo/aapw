@@ -11,6 +11,7 @@ on:
       - 'src/3d/nightVisualEnhancement.js'
       - 'scripts/firebaseDeployLfsReadiness.mjs'
       - 'scripts/checkFirebaseDeployLfsReadiness.mjs'
+      - 'scripts/checkCelestialAssetContract.mjs'
       - 'scripts/checkCelestialVisualQa.js'
       - 'scripts/devServerHelper.js'
       - 'celestial-visual-qa.html'
@@ -43,8 +44,10 @@ jobs:
           node --check src/3d/lighting.js
           node --check scripts/firebaseDeployLfsReadiness.mjs
           node --check scripts/checkFirebaseDeployLfsReadiness.mjs
+          node --check scripts/checkCelestialAssetContract.mjs
           node --check scripts/checkCelestialVisualQa.js
           node scripts/checkFirebaseDeployLfsReadiness.mjs
+          node scripts/checkCelestialAssetContract.mjs
 
       - name: Hydrate verified Moon FBX
         run: |
