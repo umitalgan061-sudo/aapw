@@ -35,7 +35,14 @@ page.on('console', (message) => {
 
 try {
 	await page.goto(`${server.baseUrl}/celestial-visual-qa.html`, { waitUntil: 'networkidle' });
-	await page.waitForFunction(() => Boolean(window.__celestialQaModules), null, { timeout: 10000 });
+	await page.waitForFunction(
+		() => Boolean(window.__celestialQaModules || window.__celestialQaBootstrapError),
+		null,
+		{ timeout: 10000 },
+	);
+	const bootstrapError = await page.evaluate(() => window.__celestialQaBootstrapError ?? null);
+	if (bootstrapError) throw new Error(`celestial browser module bootstrap failed: ${bootstrapError}`);
+
 	const bootstrap = await page.evaluate(async ({ viewport }) => {
 		const {
 			THREE,
