@@ -33,7 +33,7 @@ const DEFAULT_REPUTATION = Object.freeze({ [INTERACTION_FACTIONS.DRAGONSTONE]: 0
 export const INTERACTION_PROGRESSION = Object.freeze({ START_LEVEL: 1, XP_PER_LEVEL: 100, MAX_LEVEL: 20 });
 
 function createWatchWorldState() {
-	const values = { dragonstoneWatchPolicy: null, dragonstoneExpeditionRoutes: [] };
+	const values = { dragonstoneWatchPolicy: null, dragonstoneExpeditionRoutes: [], dragonstoneExpeditionMasteryClaimed: false };
 	function set(key, value) {
 		if (key === 'dragonstoneWatchPolicy') {
 			if (![null, WATCH_POLICY.DISCIPLINE, WATCH_POLICY.MERCY].includes(value)) return false;
@@ -46,6 +46,10 @@ function createWatchWorldState() {
 			values[key] = [...new Set(value.map((routeId) => String(routeId ?? '').trim()).filter((routeId) => routeId && authoredRouteIds.has(routeId)))].slice(0, EXPEDITION_BOARD_ROUTES.length);
 			return true;
 		}
+		if (key === 'dragonstoneExpeditionMasteryClaimed') {
+			values[key] = value === true && values.dragonstoneExpeditionRoutes.length === EXPEDITION_BOARD_ROUTES.length;
+			return true;
+		}
 		return false;
 	}
 	function get(key) { return Array.isArray(values[key]) ? [...values[key]] : values[key] ?? null; }
@@ -56,19 +60,27 @@ function createWatchWorldState() {
 		values.dragonstoneExpeditionRoutes = [...values.dragonstoneExpeditionRoutes, id];
 		return true;
 	}
+	function claimExpeditionMastery() {
+		if (values.dragonstoneExpeditionMasteryClaimed || values.dragonstoneExpeditionRoutes.length !== EXPEDITION_BOARD_ROUTES.length) return false;
+		values.dragonstoneExpeditionMasteryClaimed = true;
+		return true;
+	}
 	function snapshot() {
 		const result = { dragonstoneWatchPolicy: values.dragonstoneWatchPolicy };
 		if (values.dragonstoneExpeditionRoutes.length > 0) result.dragonstoneExpeditionRoutes = [...values.dragonstoneExpeditionRoutes];
+		if (values.dragonstoneExpeditionMasteryClaimed) result.dragonstoneExpeditionMasteryClaimed = true;
 		return result;
 	}
 	function restore(saved) {
 		values.dragonstoneWatchPolicy = null;
 		values.dragonstoneExpeditionRoutes = [];
+		values.dragonstoneExpeditionMasteryClaimed = false;
 		if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return;
 		set('dragonstoneWatchPolicy', saved.dragonstoneWatchPolicy ?? null);
 		set('dragonstoneExpeditionRoutes', saved.dragonstoneExpeditionRoutes ?? []);
+		set('dragonstoneExpeditionMasteryClaimed', saved.dragonstoneExpeditionMasteryClaimed === true);
 	}
-	return { get, set, snapshot, restore, hasCompletedExpedition, completeExpedition };
+	return { get, set, snapshot, restore, hasCompletedExpedition, completeExpedition, claimExpeditionMastery };
 }
 function watchPolicyLabel(policy) { if (policy === WATCH_POLICY.MERCY) return 'İkinci şans'; if (policy === WATCH_POLICY.DISCIPLINE) return 'Sıkı disiplin'; return null; }
 
@@ -102,6 +114,8 @@ export const EXPEDITION_BOARD_ROUTES = Object.freeze([
 	}),
 ]);
 
+export const EXPEDITION_MASTERY_REWARD = Object.freeze({ experience: 50, reputation: 3, copper: 20 });
+
 function readinessFromInventory(inventory = {}) { return inventory?.fieldReadiness?.tier ? inventory.fieldReadiness : inventory; }
 export function evaluateExpeditionBoard(inventory = {}, journey = {}, worldState = {}, routes = EXPEDITION_BOARD_ROUTES) {
 	const startingFatigueKm = Math.max(0, Number(journey?.fatigueKm) || 0);
@@ -113,10 +127,15 @@ export function evaluateExpeditionBoard(inventory = {}, journey = {}, worldState
 		const completed = completedRouteIds.has(route.id);
 		return Object.freeze({ id: route.id, label: route.label, summary: route.summary, reward: route.reward, index, steps: route.steps, ready: plan.complete, status: plan.complete ? 'ready' : 'blocked', completed, firstRewardAvailable: !completed, plan, reasons: Object.freeze([...(reasons ?? [])]) });
 	});
-	return Object.freeze({ startingFatigueKm, completedRouteCount: entries.filter((entry) => entry.completed).length, entries: Object.freeze(entries), readyRouteCount: entries.filter((entry) => entry.ready).length });
+	const completedRouteCount = entries.filter((entry) => entry.completed).length;
+	const masteryClaimed = worldState?.dragonstoneExpeditionMasteryClaimed === true;
+	return Object.freeze({ startingFatigueKm, completedRouteCount, masteryClaimed, masteryReady: completedRouteCount === entries.length && entries.length > 0 && !masteryClaimed, masteryReward: EXPEDITION_MASTERY_REWARD, entries: Object.freeze(entries), readyRouteCount: entries.filter((entry) => entry.ready).length });
 }
 export function buildExpeditionBoardText(board = evaluateExpeditionBoard()) {
 	const lines = ['Dragonstone Sefer Panosu', `Mevcut yorgunluk: ${board.startingFatigueKm} km`, `Tamamlanan kontrat: ${board.completedRouteCount ?? 0}/${board.entries?.length ?? 0}`];
+	if (board.masteryClaimed) lines.push('Sefer ustalığı: TAMAMLANDI');
+	else if (board.masteryReady) lines.push(`Sefer ustalığı: HAZIR · ${board.masteryReward?.experience ?? 0} XP + ${board.masteryReward?.reputation ?? 0} itibar + ${board.masteryReward?.copper ?? 0} bakır`);
+	else lines.push(`Sefer ustalığı: İLERLEME ${board.completedRouteCount ?? 0}/${board.entries?.length ?? 0}`);
 	if (!board.entries?.length) return [...lines, 'Açık sefer bulunmuyor.'].join('\n');
 	lines.push('Bir sefer seç:');
 	for (const [index, entry] of board.entries.entries()) {
@@ -132,7 +151,10 @@ export function buildExpeditionBoardResultText(entry, result = {}) {
 		const rewardText = result.firstCompletion === true
 			? `\nKontrat ödülü: ${result.rewardExperience} XP + ${result.rewardReputation} Dragonstone itibarı + ${result.rewardCopper} bakır · kese ${result.balanceCopper}`
 			: '\nKontrat daha önce tamamlandı · tekrar ödülü yok';
-		return `${entry.label}\nSEFER TAMAMLANDI\nTüketilen yol azığı: ${result.consumedQuantity}${rewardText}\n${buildJourneyRestText(result.plan)}`;
+		const masteryText = result.masteryClaimed === true
+			? `\nSEFER USTALIĞI KAZANILDI: ${result.masteryExperience} XP + ${result.masteryReputation} Dragonstone itibarı + ${result.masteryCopper} bakır · kese ${result.balanceCopper}`
+			: '';
+		return `${entry.label}\nSEFER TAMAMLANDI\nTüketilen yol azığı: ${result.consumedQuantity}${rewardText}${masteryText}\n${buildJourneyRestText(result.plan)}`;
 	}
 	return `${entry.label}\nSEFER BAŞLATILAMADI\n${buildJourneyRestText(result.plan ?? entry.plan)}`;
 }
@@ -219,7 +241,8 @@ export function buildQuestJournalText(snapshot, reputationSnapshot = {}, progres
 	const xpToNext = Number(progressionSnapshot.experienceToNextLevel) || INTERACTION_PROGRESSION.XP_PER_LEVEL;
 	const policyLabel = watchPolicyLabel(worldStateSnapshot.dragonstoneWatchPolicy);
 	const completedExpeditions = Array.isArray(worldStateSnapshot.dragonstoneExpeditionRoutes) ? worldStateSnapshot.dragonstoneExpeditionRoutes.length : 0;
-	const lines = ['Görev Günlüğü', `Seviye: ${level} · XP: ${xp}/${xpToNext}`, `Dragonstone itibarı: ${dragonstoneReputation}`, `Sefer kontratları: ${completedExpeditions}/${EXPEDITION_BOARD_ROUTES.length}`];
+	const masteryClaimed = worldStateSnapshot.dragonstoneExpeditionMasteryClaimed === true;
+	const lines = ['Görev Günlüğü', `Seviye: ${level} · XP: ${xp}/${xpToNext}`, `Dragonstone itibarı: ${dragonstoneReputation}`, `Sefer kontratları: ${completedExpeditions}/${EXPEDITION_BOARD_ROUTES.length}`, `Sefer ustalığı: ${masteryClaimed ? 'TAMAMLANDI' : completedExpeditions === EXPEDITION_BOARD_ROUTES.length ? 'HAZIR' : 'DEVAM EDİYOR'}`];
 	if (policyLabel) lines.push(`Nöbet kararı: ${policyLabel}`);
 	if (visible.length === 0) return [...lines, 'Henüz kabul edilmiş bir görev yok.'].join('\n');
 	for (const quest of visible) { const status = quest.status === 'ready' ? 'TESLİME HAZIR' : quest.status === 'completed' ? 'TAMAMLANDI' : 'AKTİF'; lines.push(`\n${quest.title} — ${status}`); for (const objective of quest.objectives) lines.push(`${objective.completed ? '✓' : '○'} ${objective.label}`); if (quest.outcome) lines.push(`Sonuç: ${watchPolicyLabel(quest.outcome) ?? quest.outcome}`); if (quest.rewardGranted) lines.push(`Ödül: ${quest.reward}`); }
@@ -253,6 +276,9 @@ export function createInteractionController({ interactionPrompt, dialogueBox, gr
 			let rewardExperience = 0;
 			let rewardReputation = 0;
 			let rewardCopper = 0;
+			let masteryExperience = 0;
+			let masteryReputation = 0;
+			let masteryCopper = 0;
 			let balanceCopper = economy.snapshot().copper;
 			if (firstCompletion) {
 				rewardExperience = Math.max(0, Math.floor(Number(entry.reward?.experience) || 0));
@@ -262,9 +288,19 @@ export function createInteractionController({ interactionPrompt, dialogueBox, gr
 				if (reputation.grant(INTERACTION_FACTIONS.DRAGONSTONE, rewardReputation)) onReputationChanged(reputation.snapshot());
 				const credit = economy.credit(rewardCopper);
 				if (credit.ok) { balanceCopper = credit.balanceCopper; onEconomyChanged(economy.snapshot()); }
-				onWorldStateChanged(worldState.snapshot());
 			}
-			result = { ...result, firstCompletion, rewardExperience, rewardReputation, rewardCopper, balanceCopper };
+			const masteryClaimed = worldState.claimExpeditionMastery();
+			if (masteryClaimed) {
+				masteryExperience = EXPEDITION_MASTERY_REWARD.experience;
+				masteryReputation = EXPEDITION_MASTERY_REWARD.reputation;
+				masteryCopper = EXPEDITION_MASTERY_REWARD.copper;
+				if (progression.grant(masteryExperience)) onProgressionChanged(progression.snapshot());
+				if (reputation.grant(INTERACTION_FACTIONS.DRAGONSTONE, masteryReputation)) onReputationChanged(reputation.snapshot());
+				const masteryCredit = economy.credit(masteryCopper, { sourceId: 'expedition-mastery', label: 'Sefer ustalığı' });
+				if (masteryCredit.ok) { balanceCopper = masteryCredit.balanceCopper; onEconomyChanged(economy.snapshot()); }
+			}
+			if (firstCompletion || masteryClaimed) onWorldStateChanged(worldState.snapshot());
+			result = { ...result, firstCompletion, rewardExperience, rewardReputation, rewardCopper, masteryClaimed, masteryExperience, masteryReputation, masteryCopper, balanceCopper };
 		}
 		expeditionBoardOpen = false; activeExpeditionBoard = null; activeChoices = null;
 		dialogueBox.show(buildExpeditionBoardResultText(entry, result));
