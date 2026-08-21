@@ -1,0 +1,61 @@
+name: Firebase Deploy LFS Readiness
+
+on:
+  pull_request:
+    paths:
+      - 'assets/models/vegetation/winter_tree.glb'
+      - 'assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb'
+      - '.gitattributes'
+      - 'firebase.json'
+      - 'scripts/firebaseDeployLfsReadiness.mjs'
+      - 'scripts/checkFirebaseDeployLfsReadiness.mjs'
+      - '.github/workflows/firebase-deploy-lfs-readiness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lfs-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout pointer state
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          lfs: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Static deploy-preflight contract
+        run: |
+          node --check scripts/firebaseDeployLfsReadiness.mjs
+          node --check scripts/checkFirebaseDeployLfsReadiness.mjs
+          node scripts/checkFirebaseDeployLfsReadiness.mjs
+
+      - name: Hydrate and verify winter deployment assets
+        if: github.event_name == 'pull_request'
+        run: |
+          node scripts/firebaseDeployLfsReadiness.mjs \
+            --hydrate \
+            --scope=winter \
+            --manifest=artifacts/firebase-deploy-lfs-readiness.json
+
+      - name: Hydrate and verify complete Firebase deployment checkout
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          node scripts/firebaseDeployLfsReadiness.mjs \
+            --hydrate \
+            --scope=all \
+            --manifest=artifacts/firebase-deploy-lfs-readiness.json
+
+      - name: Upload readiness manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: firebase-deploy-lfs-readiness
+          path: artifacts/firebase-deploy-lfs-readiness.json
+          if-no-files-found: error
+          retention-days: 7
