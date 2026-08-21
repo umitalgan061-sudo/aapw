@@ -85,6 +85,10 @@ function makeWideCluster() {
 	return root;
 }
 
+function replacementMeshes(group) {
+	return group.children.filter((child) => child.name.startsWith('vegetation-snow-asset-'));
+}
+
 {
 	const group = makeProceduralGroup(2);
 	const source = findProceduralWinterMeshes(group);
@@ -105,6 +109,15 @@ function makeWideCluster() {
 	const invalid = validateWinterAsset(makeWideCluster());
 	assert.equal(invalid.valid, false);
 	assert.equal(invalid.reason, 'implausibly-wide-tree');
+}
+
+{
+	const nonFinite = makeValidWinterModel();
+	nonFinite.scale.x = Number.NaN;
+	nonFinite.updateMatrixWorld(true);
+	const validation = validateWinterAsset(nonFinite);
+	assert.equal(validation.valid, false);
+	assert.equal(validation.reason, 'non-finite-bounds');
 }
 
 {
@@ -131,7 +144,7 @@ function makeWideCluster() {
 	assert.equal(foliageMesh.visible, false, 'procedural foliage should hide only after successful upgrade');
 	assert.equal(group.userData.northClimateVegetation.liveRepresentation, 'materialized-instanced-winter-glb');
 
-	const replacements = group.children.filter((child) => child.name.startsWith('vegetation-snow-asset-'));
+	const replacements = replacementMeshes(group);
 	assert.equal(replacements.length, 2, 'both GLB primitives should remain visible through instancing');
 	for (const replacement of replacements) {
 		assert.equal(replacement.count, 2);
@@ -149,6 +162,105 @@ function makeWideCluster() {
 	assert.ok(Math.abs((p1.x - p0.x) + 30) < 1e-6, 'asset instances must preserve deterministic X separation');
 	assert.ok(Math.abs((p1.y - p0.y) - 3) < 1e-6, 'asset instances must preserve deterministic Y separation');
 	assert.ok(Math.abs((p1.z - p0.z) - 35) < 1e-6, 'asset instances must preserve deterministic Z separation');
+
+	let unexpectedLoads = 0;
+	const repeatedStatus = await upgradeWinterVegetationAssets(group, {
+		assetLoader: { async loadModel() { unexpectedLoads++; throw new Error('must not reload active upgrade'); } },
+	});
+	assert.strictEqual(repeatedStatus, status, 'active status should be stable and idempotent');
+	assert.equal(unexpectedLoads, 0);
+	assert.equal(replacementMeshes(group).length, 2, 'idempotent call must not duplicate replacement meshes');
+}
+
+{
+	const group = makeProceduralGroup(1);
+	const model = makeValidWinterModel();
+	let sourceMaterialDisposals = 0;
+	model.traverse((node) => {
+		if (!node.isMesh) return;
+		const originalDispose = node.material.dispose.bind(node.material);
+		node.material.dispose = () => {
+			sourceMaterialDisposals++;
+			originalDispose();
+		};
+	});
+	const status = await upgradeWinterVegetationAssets(group, {
+		assetLoader: { async loadModel() { return model; } },
+		candidates: ['materialized.glb'],
+	});
+	assert.equal(status.status, 'active');
+	assert.equal(sourceMaterialDisposals, 2, 'source scene materials must be released after cloned instance materials exist');
+	assert.equal(replacementMeshes(group).length, 2);
+}
+
+{
+	const group = makeProceduralGroup(1);
+	let resolveModel;
+	let loadCalls = 0;
+	const deferredModel = new Promise((resolve) => { resolveModel = resolve; });
+	const loader = {
+		async loadModel() {
+			loadCalls++;
+			return deferredModel;
+		},
+	};
+	const firstPromise = upgradeWinterVegetationAssets(group, { assetLoader: loader, candidates: ['winter.glb'] });
+	const secondPromise = upgradeWinterVegetationAssets(group, { assetLoader: loader, candidates: ['winter.glb'] });
+	assert.strictEqual(firstPromise, secondPromise, 're-entrant callers must share one in-flight upgrade promise');
+	assert.equal(loadCalls, 1, 'concurrent callers must not issue duplicate GLB requests');
+	resolveModel(makeValidWinterModel());
+	const [firstStatus, secondStatus] = await Promise.all([firstPromise, secondPromise]);
+	assert.strictEqual(firstStatus, secondStatus);
+	assert.equal(firstStatus.status, 'active');
+	assert.equal(replacementMeshes(group).length, 2, 'one source model must yield one replacement set');
+}
+
+{
+	const group = makeProceduralGroup(1);
+	const controller = new AbortController();
+	controller.abort();
+	let loadCalls = 0;
+	const status = await upgradeWinterVegetationAssets(group, {
+		assetLoader: { async loadModel() { loadCalls++; return makeValidWinterModel(); } },
+		candidates: ['winter.glb'],
+		signal: controller.signal,
+	});
+	assert.equal(status.status, 'cancelled');
+	assert.equal(loadCalls, 0, 'pre-aborted scene must not start a GLB request');
+	const { trunkMesh, foliageMesh } = findProceduralWinterMeshes(group);
+	assert.equal(trunkMesh.visible, true);
+	assert.equal(foliageMesh.visible, true);
+}
+
+{
+	const group = makeProceduralGroup(1);
+	const controller = new AbortController();
+	const model = makeValidWinterModel();
+	let disposedGeometries = 0;
+	model.traverse((node) => {
+		if (!node.isMesh) return;
+		const originalDispose = node.geometry.dispose.bind(node.geometry);
+		node.geometry.dispose = () => {
+			disposedGeometries++;
+			originalDispose();
+		};
+	});
+	let resolveModel;
+	const pendingModel = new Promise((resolve) => { resolveModel = resolve; });
+	const statusPromise = upgradeWinterVegetationAssets(group, {
+		assetLoader: { async loadModel() { return pendingModel; } },
+		candidates: ['winter.glb'],
+		signal: controller.signal,
+	});
+	controller.abort();
+	resolveModel(model);
+	const status = await statusPromise;
+	assert.equal(status.status, 'cancelled');
+	assert.equal(disposedGeometries, 2, 'asset resolving after teardown must be disposed immediately');
+	assert.equal(replacementMeshes(group).length, 0, 'cancelled upgrade must not attach detached meshes');
+	const { trunkMesh, foliageMesh } = findProceduralWinterMeshes(group);
+	assert.equal(trunkMesh.visible, true);
+	assert.equal(foliageMesh.visible, true);
 }
 
 {
@@ -162,7 +274,7 @@ function makeWideCluster() {
 	const { trunkMesh, foliageMesh } = findProceduralWinterMeshes(group);
 	assert.equal(trunkMesh.visible, true);
 	assert.equal(foliageMesh.visible, true);
-	assert.equal(group.children.filter((child) => child.name.startsWith('vegetation-snow-asset-')).length, 0);
+	assert.equal(replacementMeshes(group).length, 0);
 }
 
 {
@@ -183,4 +295,4 @@ function makeWideCluster() {
 		'sceneManager must import the dedicated winter vegetation asset module');
 }
 
-console.log('[checkWinterVegetationAssetUpgrade] PASS: materialized GLB upgrade preserves procedural placement and safe fallback.');
+console.log('[checkWinterVegetationAssetUpgrade] PASS: materialized GLB upgrade preserves placement, lifecycle safety and fallback.');
