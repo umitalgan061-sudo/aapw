@@ -8,6 +8,7 @@ on:
       - 'src/3d/editor/EditorAutoTexture.js'
       - 'scripts/checkSharedMaterialPlacementContract.js'
       - 'scripts/checkWorldFootprintGrounding.mjs'
+      - 'scripts/setupNodeThreeShim.mjs'
       - '.github/workflows/shared-material-placement.yml'
   workflow_dispatch:
 
@@ -23,6 +24,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Resolve vendored Three.js for Node contracts
+        run: node scripts/setupNodeThreeShim.mjs
       - name: Syntax
         run: |
           node --check src/3d/materials/MaterialAssignmentCore.js
