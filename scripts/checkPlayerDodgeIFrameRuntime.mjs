@@ -62,9 +62,10 @@ try {
       if (!frame || frame.state !== 'dodge') return;
       if (!activeSent && frame.dodgeInvulnerable) {
         activeSent = true;
+        const iframeHud = readCombatHud();
         const payload = { amount: 20, sourceId: 'iframe-active-proof' };
         gameEvents.emit(EVENTS.PLAYER_DAMAGED, payload);
-        window.__iframeProof.activeHit = { frame: structuredClone(frame), payload: structuredClone(payload), hud: readCombatHud() };
+        window.__iframeProof.activeHit = { frame: structuredClone(frame), iframeHud, payload: structuredClone(payload), hud: readCombatHud() };
         return;
       }
       if (activeSent && !recoverySent && !frame.dodgeInvulnerable && frame.dodgeElapsedSeconds >= 0.24 && frame.dodgeRemaining > 0) {
@@ -96,6 +97,7 @@ try {
 
   need(proof.activeHit.frame.dodgeInvulnerable === true, `active proof missed iframe ${JSON.stringify(proof.activeHit)}`);
   need(proof.activeHit.frame.dodgeElapsedSeconds >= 0.06 && proof.activeHit.frame.dodgeElapsedSeconds < 0.24, `active iframe timing out of bounds ${JSON.stringify(proof.activeHit.frame)}`);
+  need(proof.activeHit.iframeHud.state === 'dodge-invulnerable' && proof.activeHit.iframeHud.text.includes('KAÇINMA') && proof.activeHit.iframeHud.text.includes('DOKUNULMAZ'), `canonical iframe HUD did not project live dodgeInvulnerable telemetry ${JSON.stringify(proof.activeHit.iframeHud)}`);
   need(proof.activeHit.payload.mitigation === 'dodge' && proof.activeHit.payload.amount === 0 && proof.activeHit.payload.blockedAmount === 20, `active dodge did not negate damage ${JSON.stringify(proof.activeHit.payload)}`);
   need(proof.activeHit.hud.state === 'defense-dodge' && proof.activeHit.hud.text.includes('KAÇINMA') && proof.activeHit.hud.text.includes('20.0 önlendi'), `active dodge HUD missing canonical mitigation feedback ${JSON.stringify(proof.activeHit.hud)}`);
   need(proof.recoveryHit.frame.dodgeInvulnerable === false && proof.recoveryHit.frame.dodgeRemaining > 0, `recovery proof must remain inside dodge but outside iframes ${JSON.stringify(proof.recoveryHit.frame)}`);
@@ -112,7 +114,7 @@ try {
   };
   fs.writeFileSync(path.join(outDir, 'dodge-iframes-runtime.json'), `${JSON.stringify(metrics, null, 2)}\n`);
   await page.screenshot({ path: path.join(outDir, 'dodge-iframes-runtime.png'), fullPage: true });
-  console.log(`PLAYER_DODGE_IFRAMES_RUNTIME_OK ${JSON.stringify({ activeElapsed: proof.activeHit.frame.dodgeElapsedSeconds, recoveryElapsed: proof.recoveryHit.frame.dodgeElapsedSeconds, dodgeHud: proof.activeHit.hud.text, healthBefore, healthAfter })}`);
+  console.log(`PLAYER_DODGE_IFRAMES_RUNTIME_OK ${JSON.stringify({ activeElapsed: proof.activeHit.frame.dodgeElapsedSeconds, recoveryElapsed: proof.recoveryHit.frame.dodgeElapsedSeconds, iframeHud: proof.activeHit.iframeHud.text, dodgeHud: proof.activeHit.hud.text, healthBefore, healthAfter })}`);
 } finally {
   await browser.close();
   await new Promise((resolve) => server.close(resolve));
