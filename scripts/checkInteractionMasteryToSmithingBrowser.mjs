@@ -52,7 +52,8 @@ try {
 		const save = controller.getRpgSnapshot();
 		save.inventory = {
 			items: [
-				{ itemId: 'dragonstone-travel-ration-pack', quantity: 2, provenance: [{ sourceType: 'settlement-crafting', sourceId: 'dragonstone-watch-travel-ration-pack' }] },
+				{ itemId: 'dragonstone-expedition-maintenance-kit', quantity: 1, provenance: [{ sourceType: 'settlement-crafting', sourceId: 'dragonstone-expedition-maintenance-kit' }] },
+				{ itemId: 'dragonstone-travel-ration-pack', quantity: 3, provenance: [{ sourceType: 'settlement-crafting', sourceId: 'dragonstone-watch-travel-ration-pack' }] },
 			],
 		};
 		save.worldState = {
