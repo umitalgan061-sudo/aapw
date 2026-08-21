@@ -397,7 +397,9 @@ async function performWinterVegetationAssetUpgrade(group, {
  */
 export function upgradeWinterVegetationAssets(group, {
 	assetLoader = new AssetLoader(),
-	assetProbe = defaultWinterAssetProbe,
+	assetProbe = typeof window !== 'undefined' && typeof window.fetch === 'function'
+		? defaultWinterAssetProbe
+		: null,
 	candidates = WINTER_VEGETATION_ASSET_POLICY.candidates,
 	targetHeightMeters = WINTER_VEGETATION_ASSET_POLICY.targetHeightMeters,
 	signal,
