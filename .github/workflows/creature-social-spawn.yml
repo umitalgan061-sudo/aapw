@@ -8,6 +8,8 @@ on:
       - 'src/3d/gameplay/creatureBrain.js'
       - 'scripts/checkCreatureSocialSpawnContract.mjs'
       - 'scripts/checkCreatureSocialSpawnBrowser.js'
+      - 'scripts/checkCreatureSocialCohesionContract.mjs'
+      - 'scripts/checkCreatureSocialCohesionBrowser.js'
       - '.github/workflows/creature-social-spawn.yml'
   workflow_dispatch:
 
@@ -41,7 +43,10 @@ jobs:
           set -euo pipefail
           node --check scripts/checkCreatureSocialSpawnContract.mjs
           node --check scripts/checkCreatureSocialSpawnBrowser.js
+          node --check scripts/checkCreatureSocialCohesionContract.mjs
+          node --check scripts/checkCreatureSocialCohesionBrowser.js
           node scripts/checkCreatureSocialSpawnContract.mjs
+          node scripts/checkCreatureSocialCohesionContract.mjs
           node scripts/checkCreatureSimulationLod.mjs
           node scripts/checkCreatureThreatMemory.mjs
           node scripts/checkCreaturePredatorPrey.mjs
@@ -59,6 +64,8 @@ jobs:
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
       - name: Real shipped Three.js social fauna proof
         run: node scripts/checkCreatureSocialSpawnBrowser.js
+      - name: Real shipped Three.js social cohesion proof
+        run: node scripts/checkCreatureSocialCohesionBrowser.js
       - name: Final exact-main freshness
         shell: bash
         run: |
