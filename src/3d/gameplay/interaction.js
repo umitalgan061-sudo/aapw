@@ -157,7 +157,7 @@ export function buildExpeditionBoardResultText(entry, result = {}) {
 			? `\nKontrat ödülü: ${result.rewardExperience} XP + ${result.rewardReputation} Dragonstone itibarı + ${result.rewardCopper} bakır · kese ${result.balanceCopper}`
 			: '\nKontrat daha önce tamamlandı · tekrar ödülü yok';
 		const masteryText = result.masteryClaimed === true
-			? `\nSEFER USTALIĞI KAZANILDI: ${result.masteryExperience} XP + ${result.masteryReputation} Dragonstone itibarı + ${result.masteryCopper} bakır + ${result.masteryItemQuantity} ${result.masteryItemLabel} · kese ${result.balanceCopper}`
+			? `\nSEFER USTALIĞI KAZANILDI: ${result.masteryExperience} XP + ${result.masteryReputation} Dragonstone itibarı + ${result.masteryCopper} bakır · kese ${result.balanceCopper}\nUstalık smithing ödülü: ${result.masteryItemQuantity} ${result.masteryItemLabel}`
 			: '';
 		return `${entry.label}\nSEFER TAMAMLANDI\nTüketilen yol azığı: ${result.consumedQuantity}${rewardText}${masteryText}\n${buildJourneyRestText(result.plan)}`;
 	}
