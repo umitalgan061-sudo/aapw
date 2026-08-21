@@ -28,7 +28,13 @@ const NIGHT_READABILITY_LIGHT_NAME = 'Game Night Readability Fill';
 const NIGHT_READABILITY_DAY_INTENSITY = 0.05;
 const NIGHT_READABILITY_NIGHT_INTENSITY = 0.36;
 const MOON_MAX_INTENSITY = 0.55;
-const MOON_ASSET_URL = 'assets/models/Ay/Moon%202K.fbx';
+
+export const CELESTIAL_ASSET_POLICY = Object.freeze({
+	id: 'celestial-asset-policy-2026-08-21-v1',
+	moonRepositoryPath: 'assets/models/Ay/Moon 2K.fbx',
+	moonAssetUrl: 'assets/models/Ay/Moon%202K.fbx',
+	moonTargetDiameterMeters: CELESTIAL_VISUAL_SCALE * 2,
+});
 
 function findKeyframeSegment(ratio) {
 	for (let i = 0; i < KEYFRAMES.length - 1; i++) {
@@ -65,21 +71,40 @@ function fitObjectToDiameter(object, diameter) {
 	if (largest > 1e-6) object.scale.multiplyScalar(diameter / largest);
 }
 
+function setMoonAssetStatus(moonAnchor, status, detail = {}) {
+	const value = Object.freeze({
+		policy: CELESTIAL_ASSET_POLICY.id,
+		assetUrl: CELESTIAL_ASSET_POLICY.moonAssetUrl,
+		status,
+		...detail,
+	});
+	moonAnchor.userData.celestialAsset = value;
+	return value;
+}
+
 /** Load the repository moon asset without making world boot wait for it. The procedural sphere stays
  * as a safe fallback if the FBX is unavailable or is only an LFS pointer in the current deployment. */
 function installMoonAssetAsync(moonAnchor) {
 	const loader = new AssetLoader();
-	loader.loadFBXModel(MOON_ASSET_URL, { fallbackColor: 0xdbe8ff, fallbackSize: 2 }).then((model) => {
-		if (!moonAnchor.parent || model.userData?.isPlaceholder) return;
-		fitObjectToDiameter(model, CELESTIAL_VISUAL_SCALE * 2);
+	setMoonAssetStatus(moonAnchor, 'loading');
+	return loader.loadFBXModel(CELESTIAL_ASSET_POLICY.moonAssetUrl, { fallbackColor: 0xdbe8ff, fallbackSize: 2 }).then((model) => {
+		if (!moonAnchor.parent) return setMoonAssetStatus(moonAnchor, 'detached');
+		if (model.userData?.isPlaceholder) return setMoonAssetStatus(moonAnchor, 'fallback-placeholder');
+		fitObjectToDiameter(model, CELESTIAL_ASSET_POLICY.moonTargetDiameterMeters);
+		let meshCount = 0;
 		model.traverse((node) => {
 			if (!node.isMesh) return;
+			meshCount += 1;
 			node.castShadow = false;
 			node.receiveShadow = false;
 		});
+		if (meshCount === 0) return setMoonAssetStatus(moonAnchor, 'fallback-empty-model');
 		moonAnchor.clear();
 		moonAnchor.add(model);
-	}).catch(() => {});
+		return setMoonAssetStatus(moonAnchor, 'active', { meshCount });
+	}).catch((error) => setMoonAssetStatus(moonAnchor, 'fallback-error', {
+		error: error instanceof Error ? error.message : String(error),
+	}));
 }
 
 export function createDayNightLighting(scene) {
@@ -102,8 +127,8 @@ export function createDayNightLighting(scene) {
 	readability.userData.gameNightReadability = true;
 	hemisphere.add(readability);
 	installNightVisualEnhancement(hemisphere);
-	installMoonAssetAsync(moonVisual);
-	return { sun, moon, hemisphere, sunVisual, moonVisual };
+	const moonAssetReady = installMoonAssetAsync(moonVisual);
+	return { sun, moon, hemisphere, sunVisual, moonVisual, moonAssetReady };
 }
 
 export function updateDayNightLighting(lights, elapsedSeconds, dayLengthSeconds, startRatio) {
