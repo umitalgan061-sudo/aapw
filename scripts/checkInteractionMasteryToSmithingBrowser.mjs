@@ -30,6 +30,7 @@ try {
 		const { QUARTERMASTER_NPC_ID, QUARTERMASTER_OFFERS } = await import('/src/3d/gameplay/interactionEconomy.js');
 		const armorer = QUARTERMASTER_OFFERS.find((offer) => offer.id === 'dragonstone-whetstone');
 		const recipe = armorer?.fulfillment?.craftUpgrade;
+		const itemQuantity = (snapshot, itemId) => snapshot.inventory.items.find((item) => item.itemId === itemId)?.quantity ?? 0;
 		const host = document.createElement('div');
 		document.body.appendChild(host);
 		const dialogueBox = new DialogueBox(host);
@@ -68,9 +69,8 @@ try {
 		const boardAdvertisesProgress = dialogueBox._textEl.textContent.includes('Sefer ustalığı: İLERLEME 2/3');
 		controller.handleKeyDown({ code: 'Digit3', repeat: false });
 		const masteryText = dialogueBox._textEl.textContent;
-		const afterMastery = controller.getRpgSnapshot();
+		const afterMastery = structuredClone(controller.getRpgSnapshot());
 		const whetstone = afterMastery.inventory.items.find((item) => item.itemId === 'dragonstone-whetstone');
-		const pack = afterMastery.inventory.items.find((item) => item.itemId === 'dragonstone-travel-ration-pack');
 		const masteryTextOk = masteryText.includes('SEFER USTALIĞI KAZANILDI: 50 XP + 3 Dragonstone itibarı + 20 bakır')
 			&& masteryText.includes('Ustalık smithing ödülü: 1 Nöbetçi Bileği Taşı');
 		const masteryRewardOk = whetstone?.quantity === 1
@@ -78,16 +78,17 @@ try {
 			&& whetstone?.provenance?.at(-1)?.sourceId === 'dragonstone-expedition-mastery';
 		const masteryGranted = masteryTextOk
 			&& masteryRewardOk
-			&& pack?.quantity === 1
-			&& afterMastery.economy.copper === 70;
+			&& afterMastery.economy.copper === 70
+			&& afterMastery.worldState.dragonstoneExpeditionMasteryClaimed === true;
 
 		controller.handleKeyDown({ code: 'KeyB', repeat: false });
 		const serviceAdvertised = dialogueBox._textEl.textContent.includes('HİZMET: Zırhçı bileme hazırlığı')
 			&& dialogueBox._textEl.textContent.includes('1 yol azığı paketi + 1 bileği taşını 1 sefer bakım kitine hazırla');
 		controller.handleKeyDown({ code: 'Digit2', repeat: false });
-		const afterCraft = controller.getRpgSnapshot();
+		const afterCraft = structuredClone(controller.getRpgSnapshot());
 		const craftedKit = afterCraft.inventory.items.find((item) => item.itemId === recipe.outputItemId);
-		const crafted = afterCraft.inventory.items.every((item) => item.itemId !== 'dragonstone-whetstone')
+		const crafted = itemQuantity(afterCraft, 'dragonstone-whetstone') === 0
+			&& itemQuantity(afterCraft, 'dragonstone-travel-ration-pack') === 0
 			&& craftedKit?.quantity === 1
 			&& craftedKit?.provenance?.at(-1)?.sourceType === 'settlement-crafting'
 			&& craftedKit?.provenance?.at(-1)?.sourceId === recipe.recipeId
@@ -111,7 +112,8 @@ try {
 			&& roundTrip.economy.copper === 58
 			&& restoredKit?.quantity === 1
 			&& restoredKit?.provenance?.at(-1)?.sourceId === recipe.recipeId
-			&& roundTrip.inventory.items.every((item) => item.itemId !== 'dragonstone-whetstone');
+			&& itemQuantity(roundTrip, 'dragonstone-whetstone') === 0
+			&& itemQuantity(roundTrip, 'dragonstone-travel-ration-pack') === 0;
 
 		secondDialogue.dispose();
 		secondHost.remove();
@@ -122,7 +124,7 @@ try {
 			masteryGranted,
 			masteryTextOk,
 			masteryRewardOk,
-			remainingPacks: pack?.quantity ?? 0,
+			masteryRationPacks: itemQuantity(afterMastery, 'dragonstone-travel-ration-pack'),
 			masteryBalance: afterMastery.economy.copper,
 			serviceAdvertised,
 			crafted,
@@ -131,6 +133,8 @@ try {
 			economyEvents: events.economy.length,
 			balance: afterCraft.economy.copper,
 			kitQuantity: craftedKit?.quantity ?? 0,
+			whetstonesAfterCraft: itemQuantity(afterCraft, 'dragonstone-whetstone'),
+			rationPacksAfterCraft: itemQuantity(afterCraft, 'dragonstone-travel-ration-pack'),
 		};
 	});
 
