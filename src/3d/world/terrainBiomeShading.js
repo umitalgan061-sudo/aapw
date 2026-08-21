@@ -19,7 +19,7 @@ function smoothstep(edge0, edge1, value) {
 }
 
 export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
-	id: 'terrain-map-climate-shoreline-2026-08-21-v4',
+	id: 'terrain-map-climate-cryosphere-2026-08-21-v5',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	measured: Object.freeze({
@@ -34,15 +34,15 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 	}),
 	shoreSandTopMeters: 1.6,
 	shoreSandFullMeters: 0.25,
-	// Render-only coastal cover fades in over the first 60 cm above canonical sea level. This removes
-	// the one-vertex snow/frozen-shore ring produced by a boolean height>0 mask without changing any
-	// terrain height, coastline geometry or collision authority.
 	shoreEmergenceFullMeters: 0.6,
-	// Warm sand belongs to temperate coasts. The north uses a climate-driven frozen shore so the
-	// tundra/ice transition cannot expose a yellow beach band beneath otherwise cold terrain.
 	northFrozenShoreTundraStrength: 0.84,
 	northFrozenShoreIceStrength: 1,
 	northFrozenSeabedStrength: 0.72,
+	// A narrow, render-only sea-ice apron makes far-north coasts read frozen without moving the
+	// canonical coastline. It peaks at sea level and disappears before ordinary lowland begins.
+	northCoastalIceTopMeters: 2.8,
+	northCoastalIceFullMeters: 0.45,
+	northCoastalIceStrength: 0.62,
 	grassMidStartMeters: 8,
 	grassMidFullMeters: 60,
 	dryUplandStartMeters: 60,
@@ -53,9 +53,6 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 	rockCoolStartMeters: 80,
 	rockCoolFullMeters: 320,
 
-	// Temperate mountain snowline measured against the current canonical terrain distribution. The
-	// line is progressively depressed northward rather than using one global 380-580 m band, so a
-	// 300 m mountain can be snowy in the Gift/tundra while remaining bare much farther south.
 	snowAltitudeStartMeters: 380,
 	snowAltitudeFullMeters: 580,
 	northTundraSnowlineStartMeters: 205,
@@ -65,21 +62,26 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 	canonicalSnowGain: 1,
 	snowShedStartDegrees: 40,
 	snowShedFullDegrees: 58,
+	// Gentle terrain retains a little more snow than steep wind-scoured faces. This is intentionally
+	// bounded and deterministic; canonical snow and altitude remain the primary accumulation owners.
+	snowDriftSlopeFullDegrees: 8,
+	snowDriftSlopeFadeDegrees: 28,
+	northSnowDriftGain: 0.14,
+	tundraSnowDriftGain: 0.06,
 
-	// map.png is top-down: normalized Y=0 is the far north. 0.12 (~840 map units) is permanent
-	// cryosphere; 0.29 (~2030 units) is the end of the ice transition; tundra influence fades by 0.38.
 	northIceFullNormalizedY: 0.12,
 	northIceFadeNormalizedY: 0.29,
 	northTundraFadeNormalizedY: 0.38,
 	northSnowMinimumCoverage: 0.94,
-	// Tundra should read cold and intermittently snowy, not as a second permanent ice sheet. Canonical
-	// map snow and the lowered mountain snowline can still raise this well above the lowland floor.
 	northTundraLowlandSnowFloor: 0.16,
-	// Low, flat permanent-ice terrain receives a restrained blue glacial tint after the snow blend.
-	// High mountains remain predominantly white, which keeps summit snow distinct from ice fields.
 	northIceLowlandTintStrength: 0.30,
 	northIceLowlandTintFadeStartMeters: 45,
 	northIceLowlandTintFadeFullMeters: 220,
+	// Exposed steep ice-country rock should not become uniformly white. A subdued moraine tint keeps
+	// cliff geometry legible while flat permanent-ice lowlands remain predominantly snow/glacier.
+	northMoraineSlopeStartDegrees: 28,
+	northMoraineSlopeFullDegrees: 52,
+	northMoraineMaxStrength: 0.22,
 
 	forestPatchFrequency: 0.00095,
 	forestPatchOctaves: 4,
@@ -103,14 +105,13 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 
 export const NEUTRAL_DETAIL_GAIN = 255 / TERRAIN_BIOME_SHADING_POLICY.detailEncodePivot;
 
-/** Natural, low-saturation geography palette derived from the visual language of map.png rather than
- * one uniform green overlay. Values intentionally remain conservative so PBR lighting does the work. */
 export const TERRAIN_BIOME_PALETTE = Object.freeze({
 	SEABED: new THREE.Color(0x3c514b),
 	NORTH_SEABED: new THREE.Color(0x536d72),
 	SHORE_SAND: new THREE.Color(0xc9bf9f),
 	FROZEN_SHORE: new THREE.Color(0xaab5ad),
 	GLACIAL_SHORE: new THREE.Color(0xc5d6d8),
+	COASTAL_ICE: new THREE.Color(0xd2e2e5),
 	GRASS_LOW: new THREE.Color(0x718b42),
 	MEADOW: new THREE.Color(0x82984e),
 	GRASS_MID: new THREE.Color(0x78834a),
@@ -120,6 +121,7 @@ export const TERRAIN_BIOME_PALETTE = Object.freeze({
 	FOREST: new THREE.Color(0x354d2b),
 	ROCK_WARM: new THREE.Color(0x6c6257),
 	ROCK_COOL: new THREE.Color(0x777a79),
+	MORAINE: new THREE.Color(0x6f7776),
 	GLACIAL_ICE: new THREE.Color(0xdceaf0),
 	SNOW: new THREE.Color(0xf4f6f7),
 });
@@ -129,13 +131,6 @@ function latticeHash01(ix, iz) {
 	return value - Math.floor(value);
 }
 
-/**
- * Smooth deterministic world-space mottle. The previous implementation rounded directly to one
- * hash cell, which introduced hard 37 m colour steps. Those discontinuities were especially visible
- * across the north snow/tundra transition and could be mistaken for a latitude seam. Bilinear
- * interpolation preserves the same deterministic low-frequency variation while making both value
- * and first-order movement visually continuous across cell boundaries.
- */
 function positionHash01(worldX, worldZ) {
 	const cell = TERRAIN_BIOME_SHADING_POLICY.mottleCellMeters;
 	const gx = worldX / cell;
@@ -196,10 +191,6 @@ function snowlineRangeFromClimate(permanentIce, tundra, out) {
 	return out;
 }
 
-/**
- * Geographic mountain snowline for diagnostics/tests. Runtime shading uses the same scalar helper
- * without allocating this object per terrain vertex.
- */
 export function mountainSnowlineAtWorldZ(worldZ) {
 	const normalizedY = normalizedMapYAtWorldZ(worldZ);
 	const permanentIce = permanentIceWeightAtNormalizedY(normalizedY);
@@ -223,9 +214,13 @@ function computeTerrainSnowCoverage(out, {
 	const canonicalSnow = clamp01(snowWeight) * P.canonicalSnowGain;
 	const authoredSnow = Math.max(altitudeSnow, canonicalSnow);
 	const northSnowSupply = permanentIce * P.northSnowMinimumCoverage;
-	const tundraBand = tundra * (1 - permanentIce);
 	const tundraLowlandFloor = tundra * P.northTundraLowlandSnowFloor;
-	const snowSupply = clamp01(Math.max(authoredSnow, northSnowSupply, tundraLowlandFloor));
+	const gentleSlope = 1 - smoothstep(P.snowDriftSlopeFullDegrees, P.snowDriftSlopeFadeDegrees, slopeDegrees);
+	const driftSupply = gentleSlope * Math.max(
+		permanentIce * P.northSnowDriftGain,
+		tundra * (1 - permanentIce) * P.tundraSnowDriftGain,
+	);
+	const snowSupply = clamp01(Math.max(authoredSnow, northSnowSupply, tundraLowlandFloor) + driftSupply);
 	const naturalHold = 1 - smoothstep(P.snowShedStartDegrees, P.snowShedFullDegrees, slopeDegrees);
 	const snowHold = lerp(naturalHold, Math.max(naturalHold, 0.96), permanentIce);
 	const landEmergence = smoothstep(0, P.shoreEmergenceFullMeters, heightAboveSeaMeters);
@@ -235,25 +230,31 @@ function computeTerrainSnowCoverage(out, {
 		P.northIceLowlandTintFadeFullMeters,
 		heightAboveSeaMeters,
 	);
+	const moraineExposure = permanentIce
+		* smoothstep(P.northMoraineSlopeStartDegrees, P.northMoraineSlopeFullDegrees, slopeDegrees)
+		* P.northMoraineMaxStrength
+		* (1 - snowAmount);
 
 	out.normalizedY = normalizedY;
 	out.permanentIce = permanentIce;
 	out.tundra = tundra;
-	out.tundraBand = tundraBand;
+	out.tundraBand = tundra * (1 - permanentIce);
 	out.altitudeSnow = altitudeSnow;
 	out.canonicalSnow = canonicalSnow;
 	out.authoredSnow = authoredSnow;
 	out.northSnowSupply = northSnowSupply;
 	out.tundraLowlandFloor = tundraLowlandFloor;
+	out.gentleSlope = gentleSlope;
+	out.driftSupply = driftSupply;
 	out.snowSupply = snowSupply;
 	out.snowHold = snowHold;
 	out.landEmergence = landEmergence;
 	out.snowAmount = snowAmount;
 	out.glacialIceTint = permanentIce * lowlandIce * P.northIceLowlandTintStrength * landEmergence;
+	out.moraineExposure = moraineExposure;
 	return out;
 }
 
-/** Pure diagnostic twin of the runtime snow calculation. */
 export function resolveTerrainSnowCoverage({
 	heightAboveSeaMeters,
 	slopeDegrees,
@@ -317,6 +318,10 @@ export function resolveTerrainBiomeColor(target, {
 			.lerp(TERRAIN_BIOME_PALETTE.GLACIAL_SHORE, permanentNorth);
 		target.lerp(scratchShore, shoreAmount * coldShore);
 	}
+	const coastalIceBand = (1 - smoothstep(P.northCoastalIceFullMeters, P.northCoastalIceTopMeters, height))
+		* landEmergence * permanentNorth * P.northCoastalIceStrength
+		* (1 - smoothstep(18, 34, slope));
+	if (coastalIceBand > 0) target.lerp(TERRAIN_BIOME_PALETTE.COASTAL_ICE, coastalIceBand);
 
 	const rockAmount = clamp01(Math.max(
 		smoothstep(P.rockSlopeStartDegrees, P.rockSlopeFullDegrees, slope),
@@ -334,6 +339,7 @@ export function resolveTerrainBiomeColor(target, {
 		snowWeight,
 		worldZ,
 	});
+	if (snow.moraineExposure > 0) target.lerp(TERRAIN_BIOME_PALETTE.MORAINE, snow.moraineExposure);
 	if (snow.snowAmount > 0) target.lerp(TERRAIN_BIOME_PALETTE.SNOW, snow.snowAmount);
 	if (snow.glacialIceTint > 0) target.lerp(TERRAIN_BIOME_PALETTE.GLACIAL_ICE, snow.glacialIceTint);
 
