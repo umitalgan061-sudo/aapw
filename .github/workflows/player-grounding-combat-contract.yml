@@ -1,0 +1,61 @@
+name: Player Grounding Combat Contract
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/player.js'
+      - 'src/3d/gameplay/gameplayConfig.js'
+      - 'scripts/checkPlayerGroundingCombatContract.mjs'
+      - '.github/workflows/player-grounding-combat-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: player-grounding-combat-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact main and bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          BASE="$(git rev-parse origin/main)"
+          test "$(git merge-base origin/main HEAD)" = "$BASE"
+          git diff --check "$BASE"...HEAD
+          CHANGED="$(git diff --name-only "$BASE"...HEAD)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(scripts/checkPlayerGroundingCombatContract\.mjs|\.github/workflows/player-grounding-combat-contract\.yml)$' | wc -l)" -eq 0
+          read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
+          test "$((ADD + DEL))" -le 1000
+          echo "BASE_SHA=$BASE" >> "$GITHUB_ENV"
+      - name: Grounding combat static acceptance
+        run: |
+          set -euo pipefail
+          node --check scripts/checkPlayerGroundingCombatContract.mjs
+          node scripts/checkPlayerGroundingCombatContract.mjs
+          node --check src/3d/gameplay/player.js
+          node scripts/checkSharedMaterialPlacementContract.js
+          node scripts/checkSeededRandom.js
+      - name: Final main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test "$(git merge-base origin/main HEAD)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA"...HEAD
