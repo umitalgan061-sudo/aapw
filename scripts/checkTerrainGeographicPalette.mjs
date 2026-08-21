@@ -8,6 +8,7 @@ import {
   TERRAIN_BIOME_SHADING_POLICY,
   northClimateWeightsAtWorldZ,
   resolveTerrainBiomeColor,
+  resolveTerrainSnowCoverage,
 } from '../src/3d/world/terrainBiomeShading.js';
 
 function worldZForNormalizedMapY(normalizedY) {
@@ -23,6 +24,15 @@ function colorAt({ normalizedY = 0.60, height = 12, slope = 3, rockWeight = 0, s
     rockWeight,
     snowWeight,
     worldX,
+    worldZ: worldZForNormalizedMapY(normalizedY),
+  });
+}
+
+function snowAt({ normalizedY, height, slope, snowWeight = 0 }) {
+  return resolveTerrainSnowCoverage({
+    heightAboveSeaMeters: height,
+    slopeDegrees: slope,
+    snowWeight,
     worldZ: worldZForNormalizedMapY(normalizedY),
   });
 }
@@ -47,6 +57,7 @@ const tundraSeabed = colorAt({ normalizedY: 0.33, height: -1.8, slope: 2, worldX
 const iceTransitionShore = colorAt({ normalizedY: 0.22, height: 0.5, slope: 2, worldX: 120 });
 const farNorth = colorAt({ normalizedY: 0.06, height: 18, slope: 4, worldX: 120 });
 const farNorthShore = colorAt({ normalizedY: 0.06, height: 0.5, slope: 2, worldX: 120 });
+const farNorthCoastalLowland = colorAt({ normalizedY: 0.06, height: 2.0, slope: 2, worldX: 120 });
 const farNorthSeabed = colorAt({ normalizedY: 0.06, height: -1.8, slope: 2, worldX: 120 });
 const highSnow = colorAt({ normalizedY: 0.62, height: 560, slope: 8, snowWeight: 0.8, worldX: 120 });
 
@@ -69,8 +80,6 @@ assert(distance(farNorth, TERRAIN_BIOME_PALETTE.SNOW) < distance(farNorth, TERRA
 assert(distance(highSnow, TERRAIN_BIOME_PALETTE.SNOW) < distance(highSnow, TERRAIN_BIOME_PALETTE.DRY_UPLAND),
   'high canonical/altitude snow must remain snow even outside the far north');
 
-// Shoreline climate regression. Warm sand is still valid in the temperate south, but must not bleed
-// through the tundra/cryosphere where it creates an implausible yellow ring around frozen coasts.
 assert(distance(shore, TERRAIN_BIOME_PALETTE.SHORE_SAND) < distance(shore, TERRAIN_BIOME_PALETTE.FROZEN_SHORE),
   'temperate shoreline should remain perceptually closer to warm sand than frozen shore');
 assert(distance(tundraShore, TERRAIN_BIOME_PALETTE.FROZEN_SHORE) < distance(tundraShore, TERRAIN_BIOME_PALETTE.SHORE_SAND),
@@ -79,6 +88,9 @@ assert(distance(iceTransitionShore, TERRAIN_BIOME_PALETTE.GLACIAL_SHORE) < dista
   'ice-transition shoreline should prefer glacial/frozen tones over warm sand');
 assert(distance(farNorthShore, TERRAIN_BIOME_PALETTE.GLACIAL_SHORE) < distance(farNorthShore, TERRAIN_BIOME_PALETTE.SHORE_SAND),
   'permanent-ice shoreline should read glacial rather than sandy');
+assert(distance(farNorthCoastalLowland, TERRAIN_BIOME_PALETTE.COASTAL_ICE)
+    < distance(farNorthCoastalLowland, TERRAIN_BIOME_PALETTE.SHORE_SAND),
+  'far-north low coastal land should continue the cryosphere instead of reverting to beach sand');
 assert(distance(southSeabed, farNorthSeabed) > 0.03,
   'submerged northern shallows should not share the same warm/green seabed tint as temperate coasts');
 assert(distance(farNorthSeabed, TERRAIN_BIOME_PALETTE.NORTH_SEABED) < distance(southSeabed, TERRAIN_BIOME_PALETTE.NORTH_SEABED),
@@ -86,8 +98,24 @@ assert(distance(farNorthSeabed, TERRAIN_BIOME_PALETTE.NORTH_SEABED) < distance(s
 assert(distance(tundraSeabed, southSeabed) > 0.01,
   'tundra shallows should begin cooling before the permanent-ice boundary');
 
-// Sample the entire climate transition to ensure the frozen-shore preference changes continuously,
-// without a sudden yellow beach seam at either north climate boundary.
+// Snow accumulation must remain geographic rather than a flat latitude wash. Gentle tundra slopes
+// can hold a restrained drift supplement, while steeper faces expose more rock and shed that drift.
+const tundraGentleSnow = snowAt({ normalizedY: 0.33, height: 80, slope: 4 });
+const tundraSteepSnow = snowAt({ normalizedY: 0.33, height: 80, slope: 32 });
+assert(tundraGentleSnow.driftSupply > tundraSteepSnow.driftSupply,
+  'gentle tundra slopes should receive more bounded drift supply than steep faces');
+assert(tundraGentleSnow.snowSupply > tundraSteepSnow.snowSupply,
+  'tundra snow supply should respond to terrain slope instead of latitude alone');
+assert(tundraGentleSnow.driftSupply <= TERRAIN_BIOME_SHADING_POLICY.tundraSnowDriftGain + 1e-9,
+  'tundra drift supplement must remain within the authored bounded gain');
+
+const northGentleSnow = snowAt({ normalizedY: 0.06, height: 40, slope: 4 });
+const northSteepSnow = snowAt({ normalizedY: 0.06, height: 40, slope: 52 });
+assert(northGentleSnow.snowAmount >= northSteepSnow.snowAmount,
+  'flat permanent-ice terrain should retain at least as much snow as a steep exposed face');
+assert(northSteepSnow.moraineExposure >= 0,
+  'steep permanent-ice terrain must expose a finite non-negative moraine contribution');
+
 let previousColdPreference = null;
 for (let normalizedY = 0.06; normalizedY <= 0.40; normalizedY += 0.01) {
   const sample = colorAt({ normalizedY, height: 0.5, slope: 2, worldX: 120 });
@@ -118,6 +146,7 @@ for (const [label, color] of Object.entries({
   iceTransitionShore,
   farNorth,
   farNorthShore,
+  farNorthCoastalLowland,
   farNorthSeabed,
   highSnow,
 })) {
@@ -129,6 +158,8 @@ for (const [label, color] of Object.entries({
 console.log('[checkTerrainGeographicPalette] PASS', JSON.stringify({
   policy: TERRAIN_BIOME_SHADING_POLICY.id,
   northPermanentIce: northClimate.permanentIce,
+  tundraGentleDrift: tundraGentleSnow.driftSupply,
+  tundraSteepDrift: tundraSteepSnow.driftSupply,
   lowland: lowland.getHexString(),
   shore: shore.getHexString(),
   southSeabed: southSeabed.getHexString(),
@@ -139,6 +170,7 @@ console.log('[checkTerrainGeographicPalette] PASS', JSON.stringify({
   iceTransitionShore: iceTransitionShore.getHexString(),
   farNorth: farNorth.getHexString(),
   farNorthShore: farNorthShore.getHexString(),
+  farNorthCoastalLowland: farNorthCoastalLowland.getHexString(),
   farNorthSeabed: farNorthSeabed.getHexString(),
   highSnow: highSnow.getHexString(),
 }));
