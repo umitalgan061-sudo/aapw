@@ -16,6 +16,7 @@
 
 import { initWorldProps, disposeWorldProps } from './worldPropScatter.js';
 import { initTheWall, disposeTheWall } from './theWall.js';
+import { initNightsWatchCastles, disposeNightsWatchCastles } from './nightsWatchCastles.js';
 
 /**
  * The layers, in the order they are added to the scene.
@@ -32,6 +33,9 @@ const DRESSING_LAYERS = Object.freeze([
 	// Run 375: the Wall. Geometry rather than terrain — a height field maps one (x, z) to one height and
 	// cannot express a vertical face, so a wall built into the terrain comes out as a ramp.
 	Object.freeze({ id: 'the-wall', init: initTheWall, dispose: disposeTheWall }),
+	// Run 378: the three manned Night's Watch castles on it. Must come after the Wall — they read its
+	// centreline and crown height to stand on, so a Wall that failed to build leaves them out too.
+	Object.freeze({ id: 'nights-watch-castles', init: initNightsWatchCastles, dispose: disposeNightsWatchCastles }),
 ]);
 
 /**

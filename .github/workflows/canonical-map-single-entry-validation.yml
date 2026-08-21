@@ -60,8 +60,10 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/checkRegionGeographyFidelity.js
+          node scripts/checkMapFeatureFidelity.js
           node scripts/checkValyriaDoom.js
           node scripts/checkTheWall.js
+          node scripts/checkNightsWatchCastles.js
           node scripts/checkNamedRivers.js
           node scripts/checkRiverValleyCarving.js
           node scripts/checkTerrainGroundRealism.js

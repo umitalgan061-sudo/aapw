@@ -18543,3 +18543,81 @@ yüklenmez. Görsel kanıt gerçekten yüklenen tek model olan kurt için var.
 
 **Technical debt.** 0 new. **World Coverage.** 360 modelin 360'ı hesapta: 195 yerleştirilmiş, 31
 sistem sahipli, 137 gerekçeli dışlanmış.
+
+## ADR-0325 — Duvar'da kimse yoktu; ve coğrafi özellikler ilk kez tek tek ölçüldü
+
+**Bağlam.** Sahip üç şey istedi: Winterfell'in kuzeyinde, Duvar'ın olduğu yere kaleyi ekle;
+`map.png`'ye bakarak dağ/orman/göl/deniz/buzul doğru mu teyit et; ve Game of Thrones'u araştırıp bir
+yerde sakla.
+
+**Araştırma bir dosyaya kondu.** `docs/westeros-lore-reference.md` — Duvar'ın ölçüleri, Gece Nöbeti'nin
+19 kalesi ve hâlâ insanlı olan üçü, Castle Black'in yapıları, Tanrıların Gözü ve Yüzler Adası, bölge
+beklentileri; her biri kaynaklı. Kural: **sadece metin ve ölçü**; hiçbir HBO görsel/ses varlığı
+indirilmedi — bu işin tek sabit kısıtı ve bir lore notu onu gevşetmenin mazereti değil. Artık bir modül
+lore sayısı sabitlediğinde (Duvar'ın 213 m'si, kulenin 30 m'si) o dosyayı gösteriyor.
+
+**Castle Black bir kale değil, ve inşa şeklini belirleyen tam olarak bu.** Kitaplar açık: batıda,
+doğuda ve güneyde onu koruyan hiçbir duvar yoktur; kuzeyde sadece Duvar durur. Taş kuleler ve ahşap
+keep'lerden oluşan bir küme. Surla çevrili bir kale çizmek, yerden bakıldığında en görünür şekilde
+yanlış olurdu; bu yüzden `world/nightsWatchCastles.js` hiçbir yerde perde duvar çizmiyor.
+
+Kurulanlar: **King's Tower** — yüz kadem (30 m), yuvarlak, tacında dişler, kapıya ve Duvar'a çıkan
+ahşap merdivenin dibine bakıyor; **Lord Commander's Tower**; **common hall** — beşik çatılı büyük
+ahşap keep; iki küçük keep; Duvar'ın güney yüzünde **zikzak ahşap merdiven**; ve tepede **ırgat
+çerçevesi** ile yüzden aşağı sarkan **demir kafes**. Üç kale kuruldu, on dokuz değil: hikâyede yalnızca
+üçü insanlı — batıda Shadow Tower, ortada Castle Black, doğuda Eastwatch-by-the-Sea. Kalan on altısı
+harabe ve öyle de yapılmalı; unutulmadı, sonraki işe bırakıldı.
+
+**Yeri ikinci kez transkribe edilmedi.** Her kale Duvar'ın kendi merkez hattı üzerinde bir parametreyle
+duruyor, yani Duvar oynarsa kale de oynar. Castle Black'inki de tahmin değil: merkez hattının `jon`
+koltuğuna en yakın noktası — o koltuğu `world/settlements.js` sahibin haritasından yerleştiriyor.
+Ölçülen: yard koltuğa **130 m**.
+
+**İki geometri hatası kendi renderımda yakalandı.** Merdivenin zikzak matematiği sadeleşince iki sabit
+konuma çöküyordu — buzun önünde havada asılı kopuk tahtalar. Ve sahanlıklar ters işaretle
+yerleştiriliyordu: `rotation.y` kutunun yerel +X'ini **eksi** Duvar yönüne eşliyor, `rotateZ` de aynı
+ucu kaldırıyor, dolayısıyla tırmanan uç `-along` tarafında kalıyor. Ayrıca common hall'ün çatısı,
+`.rotation.y` ve `.rotation.z` ayrı ayrı atandığı için varsayılan XYZ sırasıyla çapraz duruyordu;
+`rotation.set(0, facing, PI/2, 'YZX')` ile düzeldi. Sekiz sahanlık 46°'lik bir merdiven veriyordu —
+merdiven değil, el merdiveni; on dörde çıkarıldı, ~31°.
+
+**Kapı kendi kusurunu da yakaladı.** İlk çalıştırmada "44 yapının 36'sı havada, en kötü 31 m" dedi.
+31 m tam olarak King's Tower'ın boyu: kontrol, kule tacındaki **dişleri** yere basması gereken yapı
+sanıyordu. Yapılar artık kaynakta `standsOnGround` ile işaretleniyor — niyeti bilen yer orası.
+`scripts/checkNightsWatchCastles.js` sekiz özelliği doğruluyor; ölçülen: 0 yapı Duvar'ın kuzeyinde,
+King's Tower 30,0 m, merdiven 17 m → 249 m (30..246 m tırmanışa karşı), en kötü havada kalma −0,50 m,
+arazi sapması 0 m, deterministik.
+
+**Ve coğrafya ilk kez özellik özellik ölçüldü.** `scripts/checkMapFeatureFidelity.js` (yeni):
+`map.png`'yi tarayıcıda okuyup her örnek pikseli haritacının çizdiği şeye göre sınıflıyor, canlı dünyayı
+aynı noktada örnekliyor, ve sınıf sınıf uyuşmayı raporluyor. Sonuç:
+
+| özellik | çizilen | dünya uyuyor | taban |
+| --- | --- | --- | --- |
+| deniz | 90 246 | **%96,5** | %90 |
+| buzul | 3 363 | **%94,9** | %60 |
+| orman | 3 618 | **%58,3** | %50 |
+| dağ | 865 | **%68,7** | %50 |
+| göl | 260 | **%41,2** | %35 |
+
+**İki sınıf, düzeltilene kadar kartografya ölçüyordu.** İlk koşu dağları 5827 "kaya" pikseli üzerinden
+%49,4 verdi — ama harita gri kale ikonları ve gri etiket yazılarıyla dolu ve bunların hiçbiri dağ
+değil. Gri bir pikselin komşuluğunun da gri olmasını şart koşmak işaretleri eliyor, sırtları bırakıyor:
+865 gerçek sırt pikseli, uyum **%68,7**. Aynı koşu gölleri %83,6 verdi; başarı gibi görünüyordu, tam
+tersiydi — saydığı piksellerin neredeyse tamamı haritanın kendi üst çerçevesi boyunca uzanan, sınır
+flood-fill'inden kopmuş ve dünyanın gayet doğru şekilde açık deniz olarak çizdiği sudur. Artık yalnızca
+o banttan uzak, gerçek boyutlu, bağlantılı iç su kütleleri sayılıyor: 2382 yerine 260 örnek.
+
+**Göller dürüst bir boşluk.** Bu dünyada modellenmiş tek bir göl yok. Kanonik su maskesi 96×64 hücre
+(~140 m) ve Westeros'un en büyük gölü Tanrıların Gözü bu dünyanın ölçeğinde ~97 m × 185 m — onu tutması
+gereken ızgaranın **bir hücresinden küçük**. Maske tüm dünyada altı göl hücresi taşıyor ve hiçbiri
+Westeros'ta değil. %41,2 tesadüfi alçak zemindir, göl değil. Taban %35'e sabitlendi: gerilemeyi yakalar,
+özelliğin çalıştığını iddia etmez. Tabanı yükseltmek, göllerin gerçekten inşa edilmesinin kabul testi.
+
+**Bu turda arazi değişmedi** — kaleler de Duvar gibi geometri, yükseklik alanına dokunmuyorlar
+(ölçülen sapma 0 m), dolayısıyla §8.4 tetiklenmiyor. Boot smoke 42 PASS / 2 FAIL, outcome=ready —
+tur 377 ile aynı, iki hata da önceden var olan LFS pointer stub'ları. Görsel kanıt
+`artifacts/castle-black/`. Service worker v37→v38.
+
+**Technical debt.** 0 new. **Açık iş.** Göller (S-0039: Tanrıların Gözü + Uzun Göl, havza oyma + kendi
+seviyesinde su yüzeyi), ve Duvar'ın kalan on altı harabe kalesi.

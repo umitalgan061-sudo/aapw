@@ -17788,3 +17788,45 @@ kürk mesh'i bir seviye aşağıdaydı, sessizce hiçbir şey yapmıyordu), ve `
 Bu ortamda 501 dosyanın 498'i LFS pointer. Yeni 69 girdi **yapısal olarak** doğrulandı (biyom, eğim,
 su, koltuk mesafesi, çakışma, determinizm), görsel olarak değil — scatter placeholder dikmez. Görsel
 kanıt gerçekten yüklenen tek model olan kurt için var.
+
+## Tur 378 — Duvar'da kimse yoktu, ve coğrafya ilk kez özellik özellik ölçüldü
+
+Sahip üç şey istedi: Duvar'ın olduğu yere kaleyi ekle, `map.png`'ye bakarak coğrafi özellikleri teyit
+et, ve Game of Thrones'u araştırıp sakla.
+
+### Araştırma
+
+`docs/westeros-lore-reference.md`: Duvar'ın ölçüleri, 19 kale ve insanlı olan üçü, Castle Black'in
+yapıları, Tanrıların Gözü ve Yüzler Adası, bölge beklentileri — hepsi kaynaklı. Sadece metin ve ölçü;
+hiçbir HBO görsel/ses varlığı indirilmedi.
+
+### Castle Black — ve neden surla çevrili değil
+
+Kitaplar açık: batıda, doğuda, güneyde onu koruyan duvar yok; kuzeyde sadece Duvar var. Taş kuleler ve
+ahşap keep'ler. Kurulanlar: yüz kademlik (30 m) dişli **King's Tower**, **Lord Commander's Tower**,
+beşik çatılı **common hall**, iki küçük keep, Duvar'ın güney yüzünde **zikzak ahşap merdiven**, tepede
+**ırgat çerçevesi** ve yüzden sarkan **demir kafes**. Üç kale: Shadow Tower, Castle Black,
+Eastwatch-by-the-Sea. Yerleri Duvar'ın kendi merkez hattından türüyor; Castle Black `jon` koltuğuna en
+yakın nokta — ölçülen 130 m.
+
+Kendi renderım iki geometri hatası yakaladı: merdivenin zikzağı iki sabit konuma çöküp havada asılı
+kopuk tahtalara dönüşmüştü, ve sahanlıklar ters işaretle tırmanan ucun karşı tarafına konuyordu. Çatı
+da `.rotation.y`/`.rotation.z` ayrı atandığı için çapraz duruyordu.
+
+Kapı da kendi kusurunu gösterdi: "36 yapı havada, en kötü 31 m" — 31 m tam olarak kulenin boyu, yani
+kule tacındaki **dişleri** yere basması gereken yapı sanıyordu. Yapılar artık kaynakta
+`standsOnGround` ile işaretli.
+
+### Coğrafya, ölçülmüş hâlde
+
+`scripts/checkMapFeatureFidelity.js`: deniz **%96,5**, buzul **%94,9**, orman **%58,3**, dağ **%68,7**,
+göl **%41,2**.
+
+İki sınıf düzeltilene kadar kartografya ölçüyordu. Dağlar 5827 "kaya" pikseli üzerinden %49,4 çıktı —
+harita gri kale ikonları ve etiketlerle dolu. Komşuluğun da gri olmasını şart koşunca 865 gerçek sırt
+pikseli kaldı: %68,7. Göller %83,6 çıkmıştı; başarı gibi görünüp tam tersiydi — sayılan piksellerin
+neredeyse hepsi haritanın üst çerçevesindeki, dünyanın doğru şekilde açık deniz çizdiği sudu.
+
+**Göller gerçek boşluk:** bu dünyada modellenmiş tek göl yok. Kanonik su maskesi 96×64 (~140 m hücre),
+Tanrıların Gözü ise ~97 m × 185 m — onu tutması gereken ızgaranın bir hücresinden küçük. %41,2 tesadüfi
+alçak zemin. Sıradaki iş bu (S-0039).
