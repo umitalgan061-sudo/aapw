@@ -10,6 +10,14 @@ function expect(source, pattern, message) {
   assert(pattern.test(source), message);
 }
 
+function functionBody(source, name, nextName) {
+  const start = source.indexOf(`function ${name}(`);
+  assert.notEqual(start, -1, `${name} must exist`);
+  const end = nextName ? source.indexOf(`function ${nextName}(`, start) : source.length;
+  assert.notEqual(end, -1, `${nextName} must follow ${name}`);
+  return source.slice(start, end);
+}
+
 expect(
   placementController,
   /const surface = Object\.freeze\(\{[\s\S]*?groundObject,[\s\S]*?removeObjectFoundation,/,
@@ -41,13 +49,14 @@ expect(
   'scene replacement must remove previous pads and recreate foundations for loaded structures',
 );
 
+const objectChangeBody = functionBody(transformControls, 'onObjectChange', 'onDraggingChanged');
 expect(
-  transformControls,
-  /function onObjectChange\([\s\S]*?writeInspector[\s\S]*?refreshHierarchy[\s\S]*?\n  \}/,
+  objectChangeBody,
+  /writeInspector[\s\S]*?refreshHierarchy/,
   'drag frames must keep inspector/hierarchy responsive',
 );
 assert.equal(
-  /function onObjectChange\([\s\S]*?refreshTerrainFoundation\(/.test(transformControls),
+  /refreshTerrainFoundation\(/.test(objectChangeBody),
   false,
   'terrain chunks must not rebuild on every TransformControls pointer frame',
 );
