@@ -258,5 +258,5 @@ try {
 } finally {
   await page.close().catch(() => {});
   await browser.close().catch(() => {});
-  await server.close().catch(() => {});
+  await new Promise((resolve) => server.close(resolve));
 }
