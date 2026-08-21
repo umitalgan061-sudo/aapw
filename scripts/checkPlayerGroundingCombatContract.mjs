@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 
 const playerPath = 'src/3d/gameplay/player.js';
-const configPath = 'src/3d/gameplay/gameplayConfig.js';
+const playerConfigPath = 'src/3d/gameplay/playerConfig.js';
 const player = fs.readFileSync(playerPath, 'utf8');
-const config = fs.readFileSync(configPath, 'utf8');
+const playerConfig = fs.readFileSync(playerConfigPath, 'utf8');
 
 function requireMatch(source, pattern, message) {
   if (!pattern.test(source)) throw new Error(message);
@@ -29,10 +29,14 @@ requireMatch(player, /gameEvents\.on\(EVENTS\.PLAYER_DAMAGED, onIncomingDamage\)
   'Defense must continue consuming the shared PLAYER_DAMAGED event.');
 requireMatch(player, /publishAttackWindow\('active-start'\)/,
   'Melee hit timing must retain an explicit active-window event.');
-requireMatch(config, /MODEL_URL:\s*['"][^'"]+\.fbx['"]/, 'Player must use a shipped FBX character asset.');
-requireMatch(config, /idle:\s*['"][^'"]+\.fbx['"]/, 'Player must use a shipped idle animation asset.');
-requireMatch(config, /walking:\s*['"][^'"]+\.fbx['"]/, 'Player must use a shipped walking animation asset.');
-requireMatch(config, /running:\s*['"][^'"]+\.fbx['"]/, 'Player must use a shipped running animation asset.');
+requireMatch(playerConfig, /MODEL_URL:\s*['"][^'"]+\.fbx['"]/, 'Player must use a shipped FBX character asset.');
+requireMatch(playerConfig, /idle:\s*['"][^'"]+\.fbx['"]/, 'Player must use a shipped idle animation asset.');
+requireMatch(playerConfig, /walking:\s*['"][^'"]+\.fbx['"]/, 'Player must use a shipped walking animation asset.');
+requireMatch(playerConfig, /running:\s*['"][^'"]+\.fbx['"]/, 'Player must use a shipped running animation asset.');
+
+for (const assetPath of [...playerConfig.matchAll(/['"](assets\/(?:models\/characters|animations\/peasant_girl)\/[^'"]+\.fbx)['"]/g)].map((match) => match[1])) {
+  if (!fs.existsSync(assetPath)) throw new Error(`Configured shipped player asset is missing: ${assetPath}`);
+}
 
 if (/EditorMaterialStudio/.test(player)) throw new Error('Runtime player code must not import editor-only Material Studio UI.');
 if (!fs.existsSync('src/3d/materials/MaterialAssignmentCore.js')) throw new Error('Shared MaterialAssignmentCore successor must exist on main.');
