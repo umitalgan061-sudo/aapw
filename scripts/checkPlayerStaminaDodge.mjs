@@ -17,6 +17,7 @@ const cfg = Object.freeze({
   maxStamina: numberConstant('MAX_STAMINA'), maxPoise: numberConstant('MAX_POISE'), sprintSpeed: numberConstant('SPRINT_SPEED_MPS'),
   sprintDrain: numberConstant('SPRINT_DRAIN_PER_SECOND'), restart: numberConstant('SPRINT_RESTART_STAMINA'),
   regen: numberConstant('STAMINA_REGEN_PER_SECOND'), dodgeCost: numberConstant('DODGE_COST'), dodgeDuration: numberConstant('DODGE_DURATION_SECONDS'),
+  dodgeInvulnerableStart: numberConstant('DODGE_INVULNERABLE_START_SECONDS'), dodgeInvulnerableEnd: numberConstant('DODGE_INVULNERABLE_END_SECONDS'),
   dodgeSpeed: numberConstant('DODGE_SPEED_MPS'), collisionStep: numberConstant('MAX_COLLISION_STEP_METERS'), maxFrameDelta: numberConstant('MAX_FRAME_DELTA_SECONDS'),
   guardDrain: numberConstant('GUARD_DRAIN_PER_SECOND'), guardMoveMultiplier: numberConstant('GUARD_MOVE_SPEED_MULTIPLIER'),
   guardDamageMultiplier: numberConstant('GUARD_DAMAGE_MULTIPLIER'), guardStaminaDamageRatio: numberConstant('GUARD_STAMINA_DAMAGE_RATIO'),
@@ -29,6 +30,9 @@ assert.equal(cfg.maxStamina, 100); assert.equal(cfg.maxPoise, 100);
 assert.ok(cfg.sprintSpeed > 6 && cfg.sprintDrain > 0 && cfg.regen > 0);
 assert.ok(cfg.restart > 0 && cfg.restart < cfg.maxStamina);
 assert.ok(cfg.dodgeCost > 0 && cfg.dodgeCost < cfg.maxStamina && cfg.dodgeDuration > 0 && cfg.dodgeDuration < 0.75);
+assert.ok(cfg.dodgeInvulnerableStart > 0 && cfg.dodgeInvulnerableStart < cfg.dodgeInvulnerableEnd);
+assert.ok(cfg.dodgeInvulnerableEnd < cfg.dodgeDuration, 'dodge recovery must remain punishable after i-frames');
+assert.ok(cfg.dodgeInvulnerableEnd - cfg.dodgeInvulnerableStart <= 0.25, 'dodge i-frame window must stay bounded');
 assert.ok(cfg.dodgeSpeed > cfg.sprintSpeed && cfg.collisionStep <= 0.5 && cfg.maxFrameDelta <= 0.1);
 assert.ok(cfg.guardDrain > 0 && cfg.guardMoveMultiplier > 0 && cfg.guardMoveMultiplier < 1);
 assert.ok(cfg.guardDamageMultiplier > 0 && cfg.guardDamageMultiplier < 0.5);
@@ -42,6 +46,8 @@ for (const fragment of [
   'Math.ceil(travelMeters / PLAYER_ACTION_CONFIG.MAX_COLLISION_STEP_METERS)',
   'runJumpDodgeRequested = Boolean(jumpRequested) && runIntent', 'canStartDodge()', 'startDodge(moveDirectionXZ)',
   "movementState = 'dodge'", "movementState = 'guard'", "movementState = 'parry'", "movementState = 'guard-break'",
+  'dodgeElapsed = Math.min(PLAYER_ACTION_CONFIG.DODGE_DURATION_SECONDS, dodgeElapsed + dt)', 'dodgeInvulnerable: isDodgeInvulnerable()',
+  "payload.mitigation = 'dodge'", "lastDefenseResult = 'dodge'",
   'spendPoise(blockedAmount * PLAYER_ACTION_CONFIG.GUARD_POISE_DAMAGE_RATIO)', 'if (poise <= 0) triggerGuardBreak()',
   'guarding = guardIntent && attackRemaining <= 0 && guardBreakRemaining <= 0', 'guardBreakRemaining <= 0 && jumpRequested',
   "gameEvents.on(EVENTS.PLAYER_DAMAGED, onIncomingDamage)", "payload.mitigation = 'parry'", "payload.mitigation = 'guard'",
@@ -85,6 +91,7 @@ assert.ok(cfg.poiseRegen * cfg.guardBreakSeconds < cfg.maxPoise, 'guard break ca
 console.log(JSON.stringify({
   ok: true, contract: 'player-stamina-dodge-guard-parry-poise-combat-hud',
   stamina: { max: cfg.maxStamina, sprintSpeedMps: cfg.sprintSpeed, dodgeSpeedMps: cfg.dodgeSpeed },
+  dodge: { durationSeconds: cfg.dodgeDuration, invulnerableStartSeconds: cfg.dodgeInvulnerableStart, invulnerableEndSeconds: cfg.dodgeInvulnerableEnd, mitigation: 'dodge' },
   guard: { damageMultiplier: cfg.guardDamageMultiplier, sample20AppliedDamage: guardedDamage, sample20StaminaCost: guardStaminaCost },
   poise: { max: cfg.maxPoise, sample20PoiseCost: guardPoiseCost, hitsToBreak, regenPerSecond: cfg.poiseRegen, regenDelaySeconds: cfg.poiseRegenDelay, guardBreakSeconds: cfg.guardBreakSeconds },
   parry: { windowSeconds: cfg.parryWindow, staminaCost: cfg.parryCost },
