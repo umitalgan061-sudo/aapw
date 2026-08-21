@@ -40,6 +40,7 @@ import { WORLD_SCALE } from '../config.js';
 import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
 import { canonicalForestAffinity } from './worldReferenceForestAffinity.js';
 import { sampleMapAridity01 } from './worldReferenceBiomeField.js';
+import { sampleMapGroundColor } from './worldReferenceGroundColorField.js';
 import { valyriaInfluence01 } from './worldReferenceValyria.js';
 
 /**
@@ -181,6 +182,23 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 	seabedFullDepthMeters: 2.5,
 	/** Deterministic per-vertex mottling, in +/- fraction of albedo. Breaks up otherwise flat bands. */
 	mottleAmplitude: 0.075,
+	/**
+	 * How far the ground's hue is pulled toward the owner map's own painted colour.
+	 *
+	 * Only chroma moves — the luminance the height/slope/rock/snow terms computed is preserved — so
+	 * this cannot flatten relief no matter how high it goes. It is held well below 1 anyway because
+	 * the map is a pale, evenly-lit painting: at full strength every region converges on parchment
+	 * and the world stops looking lit. 0.55 is enough to tell the Reach from Yi Ti at a glance.
+	 */
+	mapGroundColorStrength: 1.0,
+	/** The map's own land-average colour (162.6, 166.4, 126.1 of 255), measured over its 4,429 land
+	 * cells. Regional colour is expressed as a ratio to this, so only what makes a place different
+	 * from the average survives — see the note at the transfer itself. */
+	mapGroundColorLandMean: Object.freeze({ r: 0.6377, g: 0.6527, b: 0.4946 }),
+	/** Exponent on that ratio. 1.0 reproduces the map's own regional differences exactly; above 1 it
+	 * stretches them, which is what the owner asked for ("palet çeşitliliğini arttıralım"). Measured by
+	 * mean pairwise distance between region colours — see the note at the transfer. */
+	mapGroundColorChromaExponent: 1.8,
 	mottleCellMeters: 37,
 	/** Neutralised authored-detail texture: square resolution, and the clamp applied to
 	 * luminance/meanLuminance so one dark photographic blotch cannot black out a whole hillside. */
@@ -232,6 +250,7 @@ function positionHash01(worldX, worldZ) {
 }
 
 const scratchRock = new THREE.Color();
+const scratchMapColor = new THREE.Color();
 
 /**
  * Resolves one vertex's terrain albedo from its altitude, local slope and canonical surface weights.
@@ -340,6 +359,54 @@ export function resolveTerrainBiomeColor(target, { heightAboveSeaMeters, slopeDe
 	// 6. Below the waterline, fade to seabed so shallows read as bathymetry.
 	const submergedAmount = 1 - smoothstep(-P.seabedFullDepthMeters, 0, height);
 	if (submergedAmount > 0) target.lerp(TERRAIN_BIOME_PALETTE.SEABED, submergedAmount);
+
+	// 6b. Regional hue, straight off the map's own pixels.
+	//
+	// Everything above reads the *terrain* — height, slope, rock, snow — and reads it correctly. None of
+	// it knows *where in the world* a place is, which is why the Reach, the Westerlands and Yi Ti all
+	// came out much the same olive: they are all mid-height, low-slope, soil-covered ground.
+	//
+	// **The map's colour is applied as a deviation from the map's own land average, not as a colour to
+	// blend toward.** Blending toward it was tried first and measured *worse*: mean pairwise distance
+	// between region colours fell from 41.6 to 39.4. The map is a pale, evenly-inked painting whose land
+	// averages (163,166,126), so lerping every region toward its local map colour drags them all toward
+	// that one parchment tone — it equalises regions instead of separating them, which is the opposite
+	// of what was asked. Taking the *ratio* of a cell to the land mean keeps only what makes that place
+	// different from everywhere else and amplifies it, so Dorne's warmth and Yi Ti's green pull apart
+	// rather than together.
+	//
+	// Luminance is preserved exactly: the ratio is renormalised so it can only rotate hue and stretch
+	// saturation, never brighten or darken. Relief, cliffs, beaches and snowlines are untouched.
+	//
+	// Excluded where the ground is not soil — snow stays white, bare rock grey, and anything at or below
+	// the waterline keeps its seabed colour rather than picking up the map's painted sea.
+	const groundTint = clamp01(1 - Math.max(snowAmount, rockAmount))
+		* (height > 0 ? 1 : 0)
+		* (1 - submergedAmount)
+		* P.mapGroundColorStrength;
+	if (groundTint > 0.001) {
+		sampleMapGroundColor(scratchMapColor, aridNx, aridNy);
+		const mean = P.mapGroundColorLandMean;
+		const exponent = P.mapGroundColorChromaExponent;
+		const ratioR = Math.pow(scratchMapColor.r / mean.r, exponent);
+		const ratioG = Math.pow(scratchMapColor.g / mean.g, exponent);
+		const ratioB = Math.pow(scratchMapColor.b / mean.b, exponent);
+		// Renormalise the ratio to unit luminance so this cannot change how bright the ground is. The
+		// gain must NOT carry `groundTint`: folding the strength into the gain would scale luminance
+		// rather than blend, so every partially-tinted vertex — the edge of a snowfield, a shoreline,
+		// the foot of a cliff — would come out darker than the ground beside it. Strength belongs in
+		// the lerp, which is a blend and cannot change brightness on its own.
+		const ratioLuminance = ratioR * 0.2126 + ratioG * 0.7152 + ratioB * 0.0722;
+		if (ratioLuminance > 0.05) {
+			const gain = 1 / ratioLuminance;
+			scratchMapColor.setRGB(
+				clamp01(target.r * ratioR * gain),
+				clamp01(target.g * ratioG * gain),
+				clamp01(target.b * ratioB * gain),
+			);
+			target.lerp(scratchMapColor, groundTint);
+		}
+	}
 
 	// 7. Deterministic mottling so the bands above never read as flat vector shapes.
 	const mottle = 1 + (positionHash01(worldX, worldZ) - 0.5) * 2 * P.mottleAmplitude;

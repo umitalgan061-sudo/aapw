@@ -71,6 +71,16 @@ const MAX_NOON_MOONLIGHT = 0.001;
 				};
 			};
 
+			// The two mistakes the first version of this module shipped, each asserted directly.
+			const { SKY_BODY_POLICY } = await import('/src/3d/skyBodies.js');
+			const frustum = {
+				distanceMeters: SKY_BODY_POLICY.distanceMeters,
+				farPlaneMeters: WORLD_DEFAULTS.FAR_PLANE,
+				sunDepthTest: bodies.sun.material.depthTest,
+				moonDepthTest: bodies.moon.material.depthTest,
+				sunDepthWrite: bodies.sun.material.depthWrite,
+			};
+
 			const sunrise = at(0.27);
 			const noon = at(0.5);
 			const sunset = at(0.73);
@@ -85,7 +95,7 @@ const MAX_NOON_MOONLIGHT = 0.001;
 			updateSkyBodies(bodies, camera, lights.sun, 0.35);
 			const focusDrift = bodies.sun.position.distanceTo(beforeFocus);
 
-			return { sunrise, noon, sunset, midnight, focusDrift: +focusDrift.toFixed(2) };
+			return { sunrise, noon, sunset, midnight, frustum, focusDrift: +focusDrift.toFixed(2) };
 		});
 
 		const failures = [];
@@ -104,6 +114,20 @@ const MAX_NOON_MOONLIGHT = 0.001;
 		if (result.noon.moonLight > MAX_NOON_MOONLIGHT) {
 			failures.push(`moonlight at noon is ${result.noon.moonLight} (max ${MAX_NOON_MOONLIGHT}) — it is washing out the day`);
 		}
+		// Inside the frustum: at 9000 m against a 2000 m far plane the bodies were clipped away entirely
+		// and the sky was empty again — invisible in gameplay, and only correct in a capture script whose
+		// far plane was 40 km.
+		if (!(result.frustum.distanceMeters < result.frustum.farPlaneMeters * 0.95)) {
+			failures.push(`the bodies sit at ${result.frustum.distanceMeters} m against a ${result.frustum.farPlaneMeters} m far plane — they will be clipped away in gameplay`);
+		}
+		// Depth-tested: `transparent: true` renders them after all opaque geometry, so without the depth
+		// test they paint over the terrain in front of the player.
+		if (!result.frustum.sunDepthTest || !result.frustum.moonDepthTest) {
+			failures.push('a sky body has depth testing off — in the transparent pass that paints it over the terrain');
+		}
+		if (result.frustum.sunDepthWrite) {
+			failures.push('the sun writes depth — it would occlude the world behind it');
+		}
 		if (result.focusDrift > 1) {
 			failures.push(`the sun disc moved ${result.focusDrift} m when the shadow frustum was focused on the player — the direction must come from position minus target, not position`);
 		}
@@ -113,6 +137,7 @@ const MAX_NOON_MOONLIGHT = 0.001;
 		console.log(`[sky-bodies] noon:     moonlight ${result.noon.moonLight}, moon visible ${result.noon.moonVisible}`);
 		console.log(`[sky-bodies] midnight: moonlight ${result.midnight.moonLight}, moon visible ${result.midnight.moonVisible}, sun visible ${result.midnight.sunVisible}`);
 		console.log(`[sky-bodies] sun disc drift when the shadow light is focused on a distant player: ${result.focusDrift} m`);
+		console.log(`[sky-bodies] bodies at ${result.frustum.distanceMeters} m inside a ${result.frustum.farPlaneMeters} m far plane; depth-tested ${result.frustum.sunDepthTest && result.frustum.moonDepthTest}`);
 
 		if (failures.length) {
 			for (const failure of failures) console.error(`[sky-bodies] FAIL: ${failure}`);

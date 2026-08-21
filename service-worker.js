@@ -1,3 +1,9 @@
+// Run385 ground-colour-field offline shell extension — `worldReferenceGroundColorField.js` is imported
+// by `world/terrainBiomeShading.js`, so an offline PWA load needs it cached or terrain cannot shade.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceGroundColorField.js');
+});
+
 // Run384 sky-bodies offline shell extension — `skyBodies.js` is imported by `sceneManager.js` and
 // `game3d.js`, so an offline PWA load needs it cached or the scene cannot boot at all.
 self.addEventListener('install', () => {
@@ -256,7 +262,9 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run 384 adds `skyBodies.js` — a visible sun and moon and the moon's light. It is a new offline-
 // loadable module *and* a look change, so an existing install needs the refreshed shell for both
 // reasons. v43->v44.
-const SHELL_CACHE = 'westeros-shell-v44';
+// Run 385 gives the ground its regional colour from map.png's own pixels — a new offline-loadable
+// module and a look change both. v44->v45.
+const SHELL_CACHE = 'westeros-shell-v45';
 const SHELL_FILES = [
     './',
     './index.html',

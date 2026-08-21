@@ -18005,3 +18005,24 @@ Görsel kanıt `artifacts/sky/`. `scripts/checkSkyBodies.js` hepsini koruyor. SW
 
 **600 satır tavanı:** `game3d.js` 608'e çıkmıştı → 599. Ayrıca tur 383'ün `terrain.js`'i 609'a
 taşıdığını fark edip düzelttim → 599. Kuzey buzu kapısı sonrasında aynı sayıları veriyor.
+
+## Tur 385 — Zemin rengi haritanın piksellerinden; ve 384'ün iki gökyüzü hatası (ADR-0332)
+
+Sahip: "map.png'ye bakarak zemin renk palet çeşitliliğini arttıralım, gerçek coğrafi renkler olsun."
+
+Renk yükseklik/eğim/kaya/kardan kuruluyordu — hiçbir teriminde **dünyanın neresi** olduğu yoktu, o
+yüzden Reach, Westerlands, Dothraki ve Yi Ti aynı zeytin yeşiliydi. Yeni
+`worldReferenceGroundColorField.js` haritadan 128×96 renk alanı pişiriyor (hücre başına **medyan**,
+çünkü ortalama harita mürekkebini zemine karıştırıyor).
+
+**Ölçüm yanlış uygulamayı reddetti.** İlk deneme her vertex'i yerel harita rengine harmanlıyordu:
+çeşitlilik **40,1 → 39,4**, yani azaldı — harita soluk ve tek tonlu (kara ortalaması 163,166,126), her
+bölgeyi ona çekmek hepsini eşitliyor. Doğrusu **kara ortalamasına oran** almak (1.8 üssüyle esnetilmiş):
+**40,1 → 47,7**. Parlaklık birebir korunuyor, yani kabartma/uçurum/kumsal hiç etkilenmiyor.
+
+**Tur 384'ün iki hatası render'a bakınca çıktı:** (1) `transparent:true` + `depthTest:false` güneş/ayı
+arazinin üstüne boyuyordu; (2) 9000 m mesafe 2000 m far plane'in dışında — **gerçek oyunda ikisi de
+kırpılıyordu**, yani gökyüzü yine boştu. 1750 m + derinlik testi. Kapı 9000'e geri alınca düşüyor.
+
+**Ölçülen:** ortalama ikili renk uzaklığı 47,7 (taban 43). Bölge coğrafyası 11/11 PASS, kuzey buzu
+PASS, zemin gerçekçiliği PASS. Görsel kanıt `artifacts/colour/`, `artifacts/sky/`. SW v44→v45.

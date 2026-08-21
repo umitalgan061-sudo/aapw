@@ -23,10 +23,11 @@
  * every machine and every run (`mulberry32`, no `Math.random()`, per §8.9), and it cannot regress to a
  * grey cube.
  *
- * **Both bodies are drawn on the sky sphere, not in the world.** They ride at a fixed distance from
- * the camera with depth-writing off and `renderOrder` just above the skybox, so they read as
- * infinitely far away: they never clip a mountain, never light-scatter through terrain, and never need
- * the shadow or frustum treatment world geometry needs.
+ * **Both bodies ride with the camera, just inside the sky sphere.** They write no depth and cast no
+ * shadow, so they need none of the treatment world geometry needs — but they do *test* depth, and they
+ * sit inside the camera's far plane. Both of those are corrections of a first version that treated them
+ * as astronomical objects and got each wrong in a different way; see `distanceMeters` and the sun
+ * material for what each mistake looked like on screen.
  *
  * @module skyBodies
  */
@@ -36,12 +37,24 @@ import { mulberry32 } from './world/terrain.js';
 
 export const SKY_BODY_POLICY = Object.freeze({
 	id: 'sky-bodies-2026-08-21-v1',
-	/** Distance from the camera the bodies are drawn at. Inside the skybox, far outside any terrain. */
-	distanceMeters: 9000,
+	/**
+	 * Distance from the camera the bodies are drawn at, and the sizes that go with it.
+	 *
+	 * **This must stay inside the camera's far plane, and it is much closer than "the sky" suggests.**
+	 * `WORLD_DEFAULTS.FAR_PLANE` is 2000 m and `sky.js`'s own sphere sits at 1900 m for exactly this
+	 * reason. The first version of this module placed the bodies at 9000 m, reasoning about them as
+	 * astronomical objects: in gameplay they were beyond the far plane and clipped away entirely, so the
+	 * sky was empty again — the bug the module exists to fix. It only looked correct in the capture
+	 * script, which uses a 40 km far plane no real camera has.
+	 *
+	 * 1750 m keeps them inside the sky sphere and inside the frustum. The radii are the apparent sizes
+	 * that distance implies, not physical ones.
+	 */
+	distanceMeters: 1750,
 	/** Radius of the sun disc at that distance — an apparent size, not a physical one. */
-	sunRadiusMeters: 420,
+	sunRadiusMeters: 82,
 	/** The moon reads slightly smaller than the sun, as it does from Earth. */
-	moonRadiusMeters: 330,
+	moonRadiusMeters: 64,
 	/**
 	 * Peak moonlight intensity.
 	 *
@@ -130,7 +143,12 @@ export function createSkyBodies(scene, assetLoader = null) {
 		color: 0xfff3d0,
 		fog: false,
 		depthWrite: false,
-		depthTest: false,
+		// **Depth testing on, deliberately.** `transparent: true` puts these in three.js's transparent
+		// pass, which runs after *all* opaque geometry, so `depthTest: false` — the obvious choice for a
+		// sky body — painted the sun and moon on top of the world: a hillside in front of the player had
+		// a disc pasted over it. With the test on and no depth written, terrain nearer than
+		// `distanceMeters` occludes them correctly while open sky does not.
+		depthTest: true,
 		transparent: true,
 	});
 	const sun = new THREE.Mesh(new THREE.SphereGeometry(P.sunRadiusMeters, 24, 16), sunMaterial);
@@ -143,7 +161,7 @@ export function createSkyBodies(scene, assetLoader = null) {
 		map: createMoonFaceTexture(),
 		fog: false,
 		depthWrite: false,
-		depthTest: false,
+		depthTest: true, // See the sun's material above.
 		transparent: true,
 	});
 	const moon = new THREE.Mesh(new THREE.SphereGeometry(P.moonRadiusMeters, 24, 16), moonMaterial);

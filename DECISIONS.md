@@ -18991,3 +18991,62 @@ veriyor. Service worker v43→v44; `skyBodies.js` offline kabuğa kaydedildi —
 
 **Technical debt.** 0 new. **Açık iş.** Gece arazisi hâlâ fazla doygun yeşil okunuyor; bu ay ışığının
 değil zemin albedosunun sorunu ve sahibin "coğrafi renkler" isteğiyle (sıradaki tur) aynı kök.
+
+## ADR-0332 — Zemin rengi haritanın kendi piksellerinden; ve tur 384'ün iki gökyüzü hatası
+
+**Sahibin talimatı.** "map.png'ye bakarak zemin renk palet çeşitliliğini arttıralım ama gerçek coğrafi
+renkler olsun ve renkleri hem gerçekçi hem de map.png ile uyumlu hale getirelim."
+
+**Sebep.** `terrainBiomeShading.js` rengi yükseklik, eğim, kaya ve kardan kuruyor — *araziyi* okuyor ve
+doğru okuyor. Hiçbir teriminde **dünyanın neresi** olduğu yoktu, o yüzden Reach, Westerlands, Dothraki
+Denizi ve Yi Ti aynı zeytin yeşiline çıkıyordu: hepsi orta yükseklikte, düşük eğimli, topraklı arazi.
+Yeni `worldReferenceGroundColorField.js` haritanın kendi piksellerinden 128×96 hücrelik bir renk alanı
+pişiriyor — `worldReferenceBiomeField.js`'in orman/kuraklık için yaptığının aynısı.
+
+**Medyan, ortalama değil.** Harita gri-siyah mürekkeple kaplı (etiketler, kale ikonları, taralı sırtlar,
+sınırlar); hücre ortalaması bu mürekkebi zemin rengine karıştırır, yani yer adı yoğun bir bölge
+komşusundan daha çamurlu çıkar. Nötre yakın pikseller (parlak olanlar hariç — karlar gerçekten beyaz)
+medyandan önce atılıyor.
+
+### Ölçüm yanlış uygulamayı reddetti
+
+İlk uygulama her vertex'i **kendi yerel harita rengine doğru harmanlıyordu** — "haritanın renklerini
+kullan"ın bariz yorumu. Ölçtüm: bölgeler arası ortalama ikili renk uzaklığı **40,1 → 39,4**, yani
+çeşitlilik **azaldı**. Sebep ölçülebilir: harita soluk, eşit mürekkeplenmiş bir resim ve kara ortalaması
+(163,166,126); her bölgeyi kendi harita rengine doğru çekmek hepsini o tek parşömen tonuna sürüklüyor —
+bölgeleri ayırmak yerine **eşitliyor**, yani istenenin tam tersi.
+
+Doğrusu: harita rengini **kendi kara ortalamasına oranı** olarak almak. Böylece yalnız "burayı her
+yerden farklı kılan şey" kalıyor ve büyütülüyor. Oran 1.8 üssüyle esnetiliyor (sahip "arttıralım"
+dedi). **40,1 → 47,7.** Parlaklık birebir korunuyor: oran birim luminansa yeniden ölçekleniyor, yani
+yalnız ton ve doygunluk dönüyor — kabartma, uçurum, kumsal, kar sınırı hiç etkilenmiyor. Kar, çıplak
+kaya ve su hattı altı tamamen dışarıda.
+
+**`scripts/checkGroundColorVariety.js`** bunu koruyor: bölgeler arası ortalama ikili uzaklık ≥ 43
+(temel 40,1'in üstünde, yani özelliği silerek geçilemez) ve hiçbir iki bölge 3'ten yakın olamaz.
+Sayı olmasaydı **yanlış sürüm yayınlanırdı** — o da map.png'nin renklerini kullanıyor, sadece dünyayı
+daha tekdüze yapıyor.
+
+### Tur 384'ün iki gökyüzü hatası — render'a bakınca çıktı
+
+Dothraki Denizi renk karesinde güneş ve ay **arazinin üzerine yapıştırılmış dev diskler** olarak
+göründü. İki ayrı hata:
+
+1. **`transparent: true` + `depthTest: false`.** Saydam malzemeler three.js'te *tüm opak geometriden
+   sonra* çiziliyor, derinlik testi kapalıyken de her şeyin üstüne boyanıyor. Derinlik testi açıldı
+   (yazma kapalı kalıyor), böylece önündeki arazi cismi doğru şekilde örtüyor.
+2. **9000 m mesafe, 2000 m far plane.** `WORLD_DEFAULTS.FAR_PLANE` 2000 m (`sky.js` küresi tam bu yüzden
+   1900 m'de). Yani **gerçek oyunda güneş ve ay tamamen kırpılıyordu — gökyüzü yine boştu**, modülün
+   çözmek için var olduğu hatanın ta kendisi. Yalnızca 40 km far plane kullanan çekim betiğimde doğru
+   görünüyordu. 1750 m'ye alındı, yarıçaplar orantılı küçültüldü (82 / 64).
+
+Kapı ikisini de doğrudan ölçüyor ve **dişi kanıtlandı**: 9000 m'ye geri alınca "bodies sit at 9000 m
+against a 2000 m far plane — they will be clipped away in gameplay" ile düşüyor.
+
+**Ölçülen sonuç:** kuzey (27,47,8), Reach (33,37,15), Dorne (107,81,48), Westerlands (39,37,21),
+Dothraki (56,77,12), Yi Ti (23,59,6); ortalama ikili uzaklık **47,7**. Bölge coğrafya kapısı 11/11
+PASS (renkler hâlâ haritayla tutarlı), kuzey buzu PASS, zemin gerçekçiliği PASS. Görsel kanıt
+`artifacts/colour/` ve `artifacts/sky/*-far2000.png`. Service worker v44→v45.
+
+**Technical debt.** 0 new. **Açık iş.** Kavşakta araziden kalkan yol şeridi (görev #5) ve karlı ağaç
+modellerinin kuzeyde kullanılması.
