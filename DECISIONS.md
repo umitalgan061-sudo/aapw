@@ -18475,3 +18475,71 @@ göre kalibre ettiği şelale eşikleri hâlâ ölçtükleri şeyi görüyor.
 indirmek bunu ikiye katlar; o takas bir telefonda keşfedilmek yerine bilerek yapılsın diye.
 
 **Technical debt.** 0 new. **World Coverage.** Dünyada 1 yerine 11 nehir var.
+
+## ADR-0324 — "Bütün modelleri dağıt" sorusu ilk kez cevaplanabilir hale geldi
+
+**Bağlam.** Sahip bu isteği üç kez yazdı: "assets'de bulunan bütün modelleri bütün coğrafyaya dağıt.
+Hepsini doğru yere doğru dokularla yerleştir." Tur 370 katalogu kurdu, tur 371 hayvanları ekledi. Ama
+**isteğin karşılanıp karşılanmadığı ölçülebilir bir soru değildi**: katalog neyi yerleştirdiğini
+listeliyordu, dışlamalar `{ riggedLivingEntity: 14, isItselfTerrain: 11, ... }` diye **arkasında dosya
+adı olmayan sayılardı**, ve hiçbir şey bu ikisini diskteki gerçek dosyalarla karşılaştırmıyordu. Her
+kapı katalogu kendisiyle ölçüyordu.
+
+**Ölçüm.** `assets/` altında **501 model dosyası** var, ama içerik hash'ine göre **360 farklı model** —
+`assets/models/fbx/` ham indirme klasörü, düzenli klasörler aynı dosyaların kopyası. Bunların
+**203'üne hiçbir sistem dokunmuyordu**. Yerleştirilmemiş, bilerek dışlanmamış; sadece görünmez.
+
+**Üç kusur, üçü de mevcut kapılara görünmezdi.**
+
+1. **203 model hiçbir sistemde yoktu.** Şimdi hepsi sınıflandırıldı: **69'u katalogda** (mimari,
+   harabe, sütun, çeşme, lamba, sandık, iskele, kaya ve bitki taramaları), **137'si adı konmuş bir
+   gerekçeyle dışlandı** (`world/worldPropExclusions.js`).
+2. **Katalog 58 modeli iki kez yerleştiriyordu.** 185 girdinin 117'si, `fbx/` ve düzenli klasör
+   altındaki aynı dosyaydı — her biri **çift ağırlıkla** seçiliyor ve **iki ayrı cache anahtarıyla iki
+   kez GPU'ya** yükleniyordu. Girdiler artık Git LFS içerik hash'ine göre tekilleştirildi: 185 yol →
+   **195 farklı model**, sıfır çift.
+3. **Dışlama gerekçeleri denetlenemezdi.** Sayı yerine dosya listesi: 15 gerekçe, 137 dosya, her biri
+   niçin dışarıda kaldığını yazıyor. `PROP_CATALOGUE_EXCLUSIONS` artık o listeden **türetiliyor**, yan
+   yana yazılmıyor — ikisi ayrışamaz.
+
+**Kapı.** `scripts/checkAssetCoverage.js` (yeni, CI'da): `assets/` yürünür, her model ya katalogda, ya
+adı konmuş bir sistemin (koltuk kaleleri, hayvanlar, NPC'ler, oyuncu, ejderhalar, editör) elinde, ya da
+gerekçeli dışlama listesinde olmak zorunda. Başka hiçbir şey. **Bir model ekleyip yerleştirmeyi
+unutmak artık kırmızı bir build.** Aynı kapı ilk çalıştırmasında OID taramasının kaçırdığı 3 dosyayı
+yakaladı — deponun LFS pointer olmayan tek üç dosyası.
+
+**Katalog kalabalığı, yine.** 69 girdi eklenince kapsama %92,8'e düştü (tavan %95): 32 `upland` girdisi
+dünya genelindeki 32 `upland` yerleşimi için yarışıyordu. Tur 370 bunu `arid` ile yaşamıştı. 24 girdi
+tapınak/harabe/sütun/merdiven olarak `meadow`/`woodland`/`roadside`'a taşındı — Westeros'ta harabeler
+zaten ovada ve ormanda; artık her biyomda girdi başına **en az 4** yerleşim var. Kapsama **%97,9**
+(191/195), yerleşimlerin hepsi legal, determinizm sapması 0.
+
+**Ve tek gerçek model 376 turdur kutuydu.** `animalConfig.js` kurdu
+`Wolf-Blender-2.82a.**glb**`'den yüklüyordu — 132 baytlık bir LFS pointer. Yanındaki
+`Wolf-Blender-2.82a.**gltf**` ise **gerçek ve depoya işlenmiş**: 508 KB JSON, 2,6 MB `.bin`, kendi
+dokuları, 2876 üçgen, bir skin ve beş klip. Config'in yazdığı klip adları (`04_Idle_Armature_0` …) o
+dosyanın kendi adları — yani tablo bu dosyaya bakılarak yazılmış, sonra yanlış kardeşe bağlanmış.
+Repointlendi: kurt artık **placeholder değil**, kürkü ve gözleri dokulu, `map: srgb`, üç klip de
+yerinde. Görsel kanıt `artifacts/asset-coverage/`.
+
+İki yan kusur bu sırada çıktı ve düzeltildi: `stripNamedChildren` yalnızca **kökün doğrudan
+çocuklarını** tarıyordu, oysa temizlenmesi gereken kürk mesh'i `Armature_0` altında bir seviye
+aşağıdaydı — sessizce hiçbir şey yapıyordu; artık tüm alt ağacı tarıyor. Ve kurdun `Wolf_Fur`
+materyali bozuk ihraç edilmiş: `alphaMode: BLEND`, **taban rengi dokusu da katsayısı da yok**, three.js
+bunu opak beyaza çözüyor — kurdun boynunda beyaz bir yele olarak görünüyordu. Klasördeki
+`Fur_Col_20.png`/`Fur_Alpha_3.png` bağlanarak denendi: kartlar omuzdan çıkan düz koyu poligonlara
+dönüştü, beyazdan daha kötü. Kürk kartları çıkarıldı; kurdun kendi gövde dokusu zaten eksiksiz.
+
+**Servis worker.** `.glb` yerine `.gltf` + `.bin` + iki doku — bir `.gltf`'in tamponu ve dokuları
+`.glb`'nin aksine **dış dosyalar**, hepsi girilmezse kurt çevrimdışı bozulur. Cache v36→v37.
+
+**Bu turda arazi değişmedi.** Katalog, dışlama listesi ve hayvan config'i yükseklik alanına
+dokunmuyor, dolayısıyla §8.4 tetiklenmiyor.
+
+**Dürüst sınır.** Bu ortamda 501 model dosyasının **498'i LFS pointer**. Yeni 69 girdinin yerleşimi
+yapısal olarak doğrulandı (kapı + scatter kontrolü: biyom, eğim, su, koltuk mesafesi, çakışma,
+determinizm), **görsel olarak değil** — çünkü scatter placeholder dikmez ve burada o modeller
+yüklenmez. Görsel kanıt gerçekten yüklenen tek model olan kurt için var.
+
+**Technical debt.** 0 new. **World Coverage.** 360 modelin 360'ı hesapta: 195 yerleştirilmiş, 31
+sistem sahipli, 137 gerekçeli dışlanmış.

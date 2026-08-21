@@ -233,7 +233,7 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // RPG expedition readiness adds an offline-loadable gameplay module; v19->v20 refreshes existing installs.
 // Merge of run 355-359 (skirts, road corridor, forest scatter, forest affinity) with that work: both
 // sides bumped this independently, so the merged install needs a version above either branch's.
-const SHELL_CACHE = 'westeros-shell-v36';
+const SHELL_CACHE = 'westeros-shell-v37';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -247,8 +247,7 @@ const SHELL_FILES = [
 // 3D mode's own app shell — precached separately (own cache.addAll call, own catch) so a failure
 // here can never block the 2D shell above from installing. FAZ 4 was the first system to actually
 // fetch a character/animation asset (peasant_girl + its 3 clips); FAZ 5 added the 6 shared-skeleton
-// NPC character FBXes; FAZ 6 added the wolf glTF/GLB (a single self-contained .glb — its
-// buffer/textures are embedded, so no separate .bin/texture entries are needed here) and the
+// NPC character FBXes; FAZ 6 added the wolf glTF and the
 // horse glb; FAZ 7 added the dragon FBX + its unbaked texture folder (9 files — the FBX references
 // them externally, unlike the wolf/horse glbs, so each one needs its own entry here).
 //
@@ -408,6 +407,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/world/worldReferenceBiomeField.js',
     './src/3d/world/windGrass.js',
     './src/3d/world/worldPropCatalogue.js',
+    './src/3d/world/worldPropExclusions.js',
     './src/3d/world/worldReferenceValyria.js',
     './src/3d/world/theWall.js',
     './src/3d/world/worldReferenceRivers.js',
@@ -452,7 +452,15 @@ const GAME3D_SHELL_FILES = [
     './assets/models/characters/paladin_wprop_j_nordstrom.fbx',
     './assets/models/characters/erika_archer.fbx',
     './assets/models/characters/uriel_a_plotexia.fbx',
-    './assets/models/animals/wolf/Wolf-Blender-2.82a.glb',
+    // The wolf is the `.gltf`, not the `.glb` beside it (run 377): the `.glb` is a Git LFS pointer
+    // that never resolves, so the wolf loaded as a placeholder box. The `.gltf` is a real committed
+    // model, but unlike a `.glb` its buffer and textures are *external* files, so each needs its own
+    // entry here or the wolf breaks offline. `Fur_*.png` are deliberately absent: the glTF never
+    // references them and its fur-card mesh is stripped at load (see `gameplay/animalConfig.js`).
+    './assets/models/animals/wolf/Wolf-Blender-2.82a.gltf',
+    './assets/models/animals/wolf/Wolf-Blender-2.82a.bin',
+    './assets/models/animals/wolf/Material__wolf_col_tga_diffuse_jpeg.jpg',
+    './assets/models/animals/wolf/eyes_diffuse_jpeg.jpg',
     './assets/models/animals/ivory_stallion.glb',
     './assets/models/creatures/dragon/Dragon_Baked_Actions_fbx_7.4_binary.fbx',
     './assets/models/creatures/dragon/textures/Ani_Fire_A.png',

@@ -17745,3 +17745,46 @@ etkilenmedi.
 karada, her ağız kanonik suda (800 m diskin %28-65'i deniz), oyma 819/9923 kara örneğini kesiyor,
 şeridin %0,32'si gömülü, iki build aynı. Skirt payı değişmedi (dünya en kötü LOD boşluğu 71,05 m,
 tavan 96 m). Görsel kanıt: `artifacts/named-rivers/`.
+
+## Tur 377 — "Bütün modelleri dağıttın mı?" artık ölçülebilir bir soru
+
+Sahip bunu üçüncü kez yazdı. Sorun katalogun küçük olması değildi; **isteğin karşılanıp
+karşılanmadığının ölçülemiyor olmasıydı**. Katalog neyi yerleştirdiğini listeliyordu, dışlamalar
+arkasında dosya adı olmayan sayılardı, ve hiçbir şey bu ikisini diskle karşılaştırmıyordu.
+
+Ölçtüm: `assets/` altında 501 dosya ama içerik hash'ine göre **360 farklı model** — `fbx/` ham indirme
+klasörü, düzenli klasörler aynı dosyaların kopyası. **203'üne hiçbir sistem dokunmuyordu.**
+
+### Üç kusur
+
+**203 model görünmezdi.** 69'u kataloga girdi (mimari, harabe, sütun, çeşme, lamba, sandık, iskele,
+kaya ve bitki taramaları), 137'si adı konmuş gerekçeyle dışlandı.
+
+**Katalog 58 modeli iki kez yerleştiriyordu.** 185 girdinin 117'si `fbx/` ve düzenli klasördeki aynı
+dosyaydı — çift ağırlık, iki cache anahtarı, iki GPU kopyası. LFS içerik hash'ine göre tekilleştirildi.
+
+**Dışlama gerekçeleri denetlenemezdi.** Artık 15 gerekçe, 137 dosya, her biri niçin dışarıda kaldığını
+yazıyor; özet sayılar o listeden türetiliyor.
+
+### Kapı
+
+`scripts/checkAssetCoverage.js`: her model ya katalogda, ya adı konmuş bir sistemin elinde, ya da
+gerekçeli dışlama listesinde. Başkası yok. İlk çalıştırmasında OID taramamın kaçırdığı 3 dosyayı
+yakaladı. Katalog kalabalığı yine vurdu (%92,8, tavan %95): 32 upland girdisi 32 upland yerleşimi için
+yarışıyordu; 24 girdi ovaya/ormana/yol kenarına taşındı → **%97,9**, her biyomda girdi başına ≥4
+yerleşim, determinizm sapması 0.
+
+### Ve tek gerçek model 376 turdur kutuydu
+
+Kurt `.glb`'den yükleniyordu — 132 baytlık LFS pointer. Yanındaki `.gltf` gerçek ve depoda: 2,6 MB
+`.bin`, kendi dokuları, 2876 üçgen, beş klip. Config'in klip adları o dosyanın kendi adları; tablo ona
+bakılarak yazılıp yanlış kardeşe bağlanmış. Repointlendi — kurt artık dokulu ve animasyonlu.
+Yanında iki kusur daha: `stripNamedChildren` sadece kökün doğrudan çocuklarına bakıyordu (temizlenecek
+kürk mesh'i bir seviye aşağıdaydı, sessizce hiçbir şey yapmıyordu), ve `Wolf_Fur` materyali dokusuz
+`BLEND` olduğu için opak beyaz bir yele olarak görünüyordu. Kanıt: `artifacts/asset-coverage/`.
+
+### Dürüst sınır
+
+Bu ortamda 501 dosyanın 498'i LFS pointer. Yeni 69 girdi **yapısal olarak** doğrulandı (biyom, eğim,
+su, koltuk mesafesi, çakışma, determinizm), görsel olarak değil — scatter placeholder dikmez. Görsel
+kanıt gerçekten yüklenen tek model olan kurt için var.

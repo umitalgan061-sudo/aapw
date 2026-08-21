@@ -4,7 +4,7 @@ export const EDITOR_ASSETS = Object.freeze([
   Object.freeze({ id: 'marker-soldier', name: 'Asker İşaretçisi', category: 'Asker', format: 'primitive', primitive: 'soldier', instancing: true }),
   Object.freeze({ id: 'peasant-girl', name: 'Peasant Girl', category: 'NPC', format: 'fbx', src: 'assets/models/characters/peasant_girl.fbx', instancing: false }),
   Object.freeze({ id: 'paladin', name: 'Paladin', category: 'Asker', format: 'fbx', src: 'assets/models/characters/paladin_j_nordstrom.fbx', instancing: false }),
-  Object.freeze({ id: 'wolf', name: 'Kurt', category: 'Canlı', format: 'glb', src: 'assets/models/animals/wolf/Wolf-Blender-2.82a.glb', instancing: false }),
+  Object.freeze({ id: 'wolf', name: 'Kurt', category: 'Canlı', format: 'gltf', src: 'assets/models/animals/wolf/Wolf-Blender-2.82a.gltf', instancing: false }),
   Object.freeze({ id: 'castle_icebound_citadel_decimated', name: 'Buz Hisarı', category: 'Bina', format: 'glb', src: 'assets/models/settlements/castles/icebound_citadel_decimated.glb', instancing: false, targetMaxDimension: 46 }),
   Object.freeze({ id: 'castle_walled_city_fortress_decimated', name: 'Surlu Şehir Kalesi', category: 'Bina', format: 'glb', src: 'assets/models/settlements/castles/walled_city_fortress_decimated.glb', instancing: false, targetMaxDimension: 46 }),
   Object.freeze({ id: 'castle_fortress_of_the_crown_decimated', name: 'Taç Kalesi', category: 'Bina', format: 'glb', src: 'assets/models/settlements/castles/fortress_of_the_crown_decimated.glb', instancing: false, targetMaxDimension: 46 }),

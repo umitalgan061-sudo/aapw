@@ -51,10 +51,33 @@ const HORSE_MODEL_URL = 'assets/models/animals/ivory_stallion.glb';
  */
 export const ANIMAL_SPECIES = Object.freeze({
 	wolf: Object.freeze({
-		modelUrl: 'assets/models/animals/wolf/Wolf-Blender-2.82a.glb',
+		/**
+		 * The `.gltf`, not the `.glb` beside it.
+		 *
+		 * Both names exist in `assets/models/animals/wolf/`. The `.glb` is a Git LFS pointer — 132 bytes
+		 * that never resolve in a clone without LFS objects (RCA_RUN344), so the wolf has been loading as
+		 * an `AssetLoader` placeholder box: no fur, no rig, no clips. The `.gltf` beside it is the real
+		 * model, complete and committed: 508 KB of JSON, a 2.6 MB `.bin`, its own textures, 2876
+		 * triangles, one skin and five clips. The clip names this config declares below —
+		 * `04_Idle_Armature_0`, `02_walk_Armature_0`, `01_Run_Armature_0` — are that file's own, which is
+		 * how we know this table was authored against it and then pointed at the wrong sibling.
+		 */
+		modelUrl: 'assets/models/animals/wolf/Wolf-Blender-2.82a.gltf',
 		clips: Object.freeze({ idle: '04_Idle_Armature_0', walk: '02_walk_Armature_0', flee: '01_Run_Armature_0' }),
-		/** See `ANIMAL_CONFIG.STRIP_CHILD_NAMES` — only the wolf glTF bundles a shadow-catcher disc. */
-		stripChildNames: Object.freeze(['Circle']),
+		/**
+		 * Two meshes in this file are not the animal.
+		 *
+		 * `Circle` is a bundled ground-shadow-catcher disc — see `ANIMAL_CONFIG.STRIP_CHILD_NAMES`.
+		 *
+		 * `Wolf2_fur__fella3_jpg_001_0` is a cape of fur cards, and its `Wolf_Fur` material is broken as
+		 * exported: `alphaMode: BLEND` with **no base-colour texture and no base-colour factor**, which
+		 * three.js resolves to opaque white. It rendered as a white ruff over the wolf's neck and
+		 * shoulders. The fur textures the cards want (`Fur_Col_20.png`, `Fur_Alpha_3.png`) do sit in the
+		 * same directory, and run 377 tried binding them: the cards then read as flat dark polygons
+		 * sticking out of the shoulders, worse than the white. Without the cards the wolf's own body
+		 * texture is a complete, correct wolf, so the cape goes.
+		 */
+		stripChildNames: Object.freeze(['Circle', 'Wolf2_fur__fella3_jpg_001_0']),
 	}),
 	/** Replaces the rigless `ivory_stallion.glb` as the live horse — see `HORSE_MODEL_URL`'s note and
 	 * DECISIONS.md ADR-0047, which explicitly recorded "needs rigging before a real walk/flee
@@ -117,7 +140,9 @@ export const ANIMAL_CONFIG = Object.freeze({
 	/** Per-species model/clip table (see `ANIMAL_SPECIES`). Exposed on `ANIMAL_CONFIG` too so
 	 * `spawnConfiguredAnimals` keeps taking exactly one config object, as it already did. */
 	SPECIES: ANIMAL_SPECIES,
-	WOLF_MODEL_URL: 'assets/models/animals/wolf/Wolf-Blender-2.82a.glb',
+	/** Fallback for a `SPAWNS` entry that names no species. The `.gltf`, for the reason given on
+	 * `ANIMAL_SPECIES.wolf.modelUrl` — the `.glb` beside it is a Git LFS pointer that never loads. */
+	WOLF_MODEL_URL: 'assets/models/animals/wolf/Wolf-Blender-2.82a.gltf',
 	HORSE_MODEL_URL,
 	/** Exact glTF animation-clip names (`THREE.AnimationClip.findByName`) — confirmed against the
 	 * source file's own `.gltf` JSON sidecar, not guessed: `01_Run_Armature_0`, `02_walk_Armature_0`,

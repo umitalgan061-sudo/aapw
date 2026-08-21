@@ -66,6 +66,7 @@ jobs:
           node scripts/checkRiverValleyCarving.js
           node scripts/checkTerrainGroundRealism.js
           node scripts/checkTerrainDetailAtlasIsotropy.js
+          node scripts/checkAssetCoverage.js
           node scripts/checkWorldPropScatter.js
       - name: Direct createScene canonical-map ownership and top-down proof
         run: |

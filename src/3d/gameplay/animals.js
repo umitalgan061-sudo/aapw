@@ -17,18 +17,28 @@ import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
 
 /**
- * Removes any direct child of `object3D` whose name is in `names`, disposing its GPU resources.
- * Used to strip the wolf glTF's bundled non-skinned "Circle" ground-shadow-catcher disc — see
- * `gameplay/gameplayConfig.js`'s `ANIMAL_CONFIG.STRIP_CHILD_NAMES` doc comment for why it exists in the source file.
+ * Removes any descendant of `object3D` whose name is in `names`, disposing its GPU resources.
+ *
+ * Originally this swept only the root's direct children, which was enough for the one thing it was
+ * written for: the wolf glTF's bundled "Circle" ground-shadow-catcher disc, which sits at the root
+ * beside the armature. Run 377 needed to reach the same file's `Wolf2_fur__fella3_jpg_001_0` mesh,
+ * which hangs off `Armature_0` a level down — a direct-children sweep silently did nothing, and the
+ * mesh went on rendering. It sweeps the whole subtree now. Only names a caller explicitly lists are
+ * removed, so reaching deeper cannot take anything a caller did not ask for.
+ *
+ * See `gameplay/gameplayConfig.js`'s `ANIMAL_CONFIG.STRIP_CHILD_NAMES` for why this exists at all.
  * @param {THREE.Object3D} object3D
  * @param {string[]} names
  */
 function stripNamedChildren(object3D, names) {
-	for (const child of [...object3D.children]) {
-		if (names.includes(child.name)) {
-			object3D.remove(child);
-			AssetLoader.disposeObject3D(child);
-		}
+	if (!names.length) return;
+	const doomed = [];
+	object3D.traverse((node) => {
+		if (names.includes(node.name)) doomed.push(node);
+	});
+	for (const node of doomed) {
+		node.parent?.remove(node);
+		AssetLoader.disposeObject3D(node);
 	}
 }
 
