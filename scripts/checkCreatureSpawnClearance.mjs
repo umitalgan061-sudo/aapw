@@ -24,7 +24,9 @@ function extractObject(name) {
 function extractFunction(name) {
   const start = source.indexOf(`export function ${name}`);
   assert.ok(start >= 0, `${name} must exist`);
-  const brace = source.indexOf('{', start);
+  const signatureEnd = source.indexOf(') {', start);
+  assert.ok(signatureEnd >= 0, `${name} signature must terminate with ) {`);
+  const brace = signatureEnd + 2;
   let depth = 0;
   let end = -1;
   for (let i = brace; i < source.length; i += 1) {
@@ -34,6 +36,7 @@ function extractFunction(name) {
       if (depth === 0) { end = i + 1; break; }
     }
   }
+  assert.ok(end > brace, `${name} body must close`);
   return source.slice(start, end).replace(/^export\s+/, '');
 }
 
