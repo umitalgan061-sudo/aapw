@@ -5,9 +5,11 @@ on:
     paths:
       - 'assets/models/vegetation/winter_tree.glb'
       - 'assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb'
+      - 'assets/models/Ay/Moon 2K.fbx'
       - '.gitattributes'
       - 'firebase.json'
       - 'src/3d/world/winterVegetationAsset.js'
+      - 'src/3d/lighting.js'
       - 'scripts/firebaseDeployLfsReadiness.mjs'
       - 'scripts/checkFirebaseDeployLfsReadiness.mjs'
       - 'scripts/inspectWinterGlbMetadata.mjs'
@@ -23,6 +25,7 @@ on:
         type: choice
         options:
           - winter
+          - celestial
           - all
 
 permissions:
@@ -49,6 +52,7 @@ jobs:
       - name: Static deploy-preflight contract
         run: |
           node --check src/3d/world/winterVegetationAsset.js
+          node --check src/3d/lighting.js
           node --check scripts/firebaseDeployLfsReadiness.mjs
           node --check scripts/checkFirebaseDeployLfsReadiness.mjs
           node --check scripts/inspectWinterGlbMetadata.mjs
@@ -73,6 +77,14 @@ jobs:
             --scope=winter \
             --manifest=artifacts/firebase-deploy-lfs-readiness.json
 
+      - name: Hydrate and verify dispatched celestial deployment assets
+        if: github.event_name == 'workflow_dispatch' && inputs.scope == 'celestial'
+        run: |
+          node scripts/firebaseDeployLfsReadiness.mjs \
+            --hydrate \
+            --scope=celestial \
+            --manifest=artifacts/firebase-deploy-lfs-readiness.json
+
       - name: Hydrate and verify complete Firebase deployment checkout
         if: github.event_name == 'workflow_dispatch' && inputs.scope == 'all'
         run: |
@@ -82,9 +94,11 @@ jobs:
             --manifest=artifacts/firebase-deploy-lfs-readiness.json
 
       - name: Inspect hydrated winter GLB geometry
+        if: github.event_name == 'pull_request' || inputs.scope != 'celestial'
         run: node scripts/inspectWinterGlbMetadata.mjs | tee artifacts/winter-glb-metadata.txt
 
       - name: Match hydrated assets to runtime single-tree policy
+        if: github.event_name == 'pull_request' || inputs.scope != 'celestial'
         run: node scripts/checkWinterAssetSuitabilityContract.mjs | tee artifacts/winter-asset-suitability.txt
 
       - name: Upload readiness manifest
