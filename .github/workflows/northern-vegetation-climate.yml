@@ -6,6 +6,7 @@ on:
       - 'assets/models/vegetation/winter_tree.glb'
       - 'assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb'
       - '.gitattributes'
+      - 'firebase.json'
       - 'src/3d/world/vegetation.js'
       - 'src/3d/world/winterVegetationAsset.js'
       - 'src/3d/world/terrainBiomeShading.js'
@@ -16,10 +17,14 @@ on:
       - 'scripts/checkNorthernVegetationRuntime.mjs'
       - 'scripts/checkNorthernVegetationDeterminism.mjs'
       - 'scripts/checkWinterVegetationAssetUpgrade.mjs'
+      - 'scripts/checkWinterVegetationHostedPreflight.mjs'
       - 'scripts/checkWinterVegetationRepositoryContract.mjs'
       - 'scripts/checkWinterVegetationResourceOwnership.mjs'
+      - 'scripts/checkFirebaseWinterAssetHostingContract.mjs'
       - 'scripts/checkTerrainGeographicPalette.mjs'
       - 'scripts/checkNorthClimateContinuity.mjs'
+      - 'scripts/checkNorthMountainSnowline.mjs'
+      - 'scripts/checkNorthMountainSnowlineRuntime.mjs'
       - 'scripts/checkNorthGroundCoverClimate.mjs'
       - 'scripts/checkWindGrassClimateModule.mjs'
       - '.github/workflows/northern-vegetation-climate.yml'
@@ -51,10 +56,14 @@ jobs:
           node --check scripts/checkNorthernVegetationRuntime.mjs
           node --check scripts/checkNorthernVegetationDeterminism.mjs
           node --check scripts/checkWinterVegetationAssetUpgrade.mjs
+          node --check scripts/checkWinterVegetationHostedPreflight.mjs
           node --check scripts/checkWinterVegetationRepositoryContract.mjs
           node --check scripts/checkWinterVegetationResourceOwnership.mjs
+          node --check scripts/checkFirebaseWinterAssetHostingContract.mjs
           node --check scripts/checkTerrainGeographicPalette.mjs
           node --check scripts/checkNorthClimateContinuity.mjs
+          node --check scripts/checkNorthMountainSnowline.mjs
+          node --check scripts/checkNorthMountainSnowlineRuntime.mjs
           node --check scripts/checkNorthGroundCoverClimate.mjs
           node --check scripts/checkWindGrassClimateModule.mjs
       - name: Northern vegetation climate contract
@@ -65,14 +74,22 @@ jobs:
         run: node scripts/checkNorthernVegetationDeterminism.mjs
       - name: Winter vegetation asset upgrade
         run: node scripts/checkWinterVegetationAssetUpgrade.mjs
+      - name: Hosted winter asset preflight
+        run: node scripts/checkWinterVegetationHostedPreflight.mjs
       - name: Winter vegetation repository contract
         run: node scripts/checkWinterVegetationRepositoryContract.mjs
       - name: Winter vegetation resource ownership
         run: node scripts/checkWinterVegetationResourceOwnership.mjs
+      - name: Firebase winter asset hosting contract
+        run: node scripts/checkFirebaseWinterAssetHostingContract.mjs
       - name: Geographic terrain palette
         run: node scripts/checkTerrainGeographicPalette.mjs
       - name: North climate continuity
         run: node scripts/checkNorthClimateContinuity.mjs
+      - name: North mountain snowline contract
+        run: node scripts/checkNorthMountainSnowline.mjs
+      - name: North mountain snowline canonical runtime
+        run: node scripts/checkNorthMountainSnowlineRuntime.mjs
       - name: North ground-cover climate
         run: node scripts/checkNorthGroundCoverClimate.mjs
       - name: Wind-grass climate module
