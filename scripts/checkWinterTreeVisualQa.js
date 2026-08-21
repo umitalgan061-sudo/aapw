@@ -13,8 +13,9 @@ if (!playwright?.chromium) {
 
 const ARTIFACT_DIR = 'artifacts/winter-tree-visual-qa';
 const VIEWPORT = Object.freeze({ width: 960, height: 720 });
-const ASSET_PATH = process.env.WINTER_VISUAL_ASSET || 'assets/models/vegetation/winter_tree.glb';
-const ARTIFACT_STEM = process.env.WINTER_VISUAL_STEM || 'winter-tree';
+const PREFERRED_PINE = 'assets/models/vegetation/pine_Zt62gceKXZ.glb';
+const ASSET_PATH = process.env.WINTER_VISUAL_ASSET || PREFERRED_PINE;
+const ARTIFACT_STEM = process.env.WINTER_VISUAL_STEM || 'snow-pine';
 const ASSET_LABEL = path.basename(ASSET_PATH);
 
 function round(value, digits = 4) {
@@ -139,6 +140,7 @@ try {
 
 		return {
 			policyId: WINTER_VEGETATION_ASSET_POLICY.id,
+			preferredSnowPineAsset: WINTER_VEGETATION_ASSET_POLICY.preferredSnowPineAsset,
 			status,
 			replacementMeshes: replacements.length,
 			proceduralHidden: trunkMesh?.visible === false && foliageMesh?.visible === false,
@@ -154,6 +156,7 @@ try {
 				transparent: mesh.material.transparent,
 				alphaTest: mesh.material.alphaTest ?? 0,
 				map: Boolean(mesh.material.map),
+				treatment: mesh.material.userData?.winterPineTreatment ?? 'source',
 			})),
 			shadows: {
 				rendererEnabled: renderer.shadowMap.enabled,
@@ -195,12 +198,18 @@ try {
 	assert(Object.values(metrics.shadows).every(Boolean), 'QA scene must exercise cast/receive shadow behavior');
 	assert(metrics.renderInfo.triangles > 0, 'QA scene must render real triangles');
 	assert.deepEqual(browserErrors, [], `browser visual QA emitted errors: ${browserErrors.join(' | ')}`);
+	if (ASSET_PATH === PREFERRED_PINE) {
+		const treatments = new Set(metrics.materials.map((material) => material.treatment));
+		assert(treatments.has('snow-foliage-shader'), 'preferred pine must compile the winter snow foliage shader');
+		assert(treatments.has('winter-trunk-source-map'), 'preferred pine must preserve a separately textured non-metallic trunk');
+		assert(metrics.materials.every((material) => material.metalness === 0), 'winterized pine must not render metallic bark/needles');
+	}
 
 	console.log('[checkWinterTreeVisualQa] PASS', JSON.stringify({
 		asset: ASSET_PATH,
 		sizeMeters: report.bounds.size,
 		ratio: report.ratio,
-		materials: report.materials.length,
+		materials: report.materials.map((material) => material.treatment),
 		triangles: report.renderInfo.triangles,
 	}));
 } finally {
