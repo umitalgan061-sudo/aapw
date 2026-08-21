@@ -9,7 +9,7 @@ const TARGET_FEEDBACK_SECONDS = 0.9;
 const STAMINA_STATE_LABELS = Object.freeze({ idle: 'Hazır', walk: 'Yürüme', sprint: 'Depar', dodge: 'Kaçınma', airborne: 'Havada', exhausted: 'Tükendi', guard: 'Savunma', parry: 'Karşılama', 'guard-break': 'Savunma kırıldı', 'attack-light': 'Hafif saldırı', 'attack-heavy': 'Ağır saldırı' });
 const ATTACK_KIND_LABELS = Object.freeze({ light: 'Hafif', heavy: 'Ağır' });
 const ATTACK_PHASE_LABELS = Object.freeze({ start: 'Hazırlık', 'active-start': 'VURUŞ', 'active-end': 'Toparlanma' });
-const DEFENSE_LABELS = Object.freeze({ guard: 'BLOK', parry: 'PARRY' });
+const DEFENSE_LABELS = Object.freeze({ guard: 'BLOK', parry: 'PARRY', dodge: 'KAÇINMA' });
 export class HealthBar {
 	constructor({ eventsBus, healthChangedEventName, damageEventName, container = document.body }) {
 		this._el = document.createElement('div'); this._el.className = 'g3d-health-bar g3d-player-vitals'; this._el.setAttribute('role', 'meter'); this._el.setAttribute('aria-label', 'Can'); this._el.setAttribute('aria-valuemin', '0'); Object.assign(this._el.style, { width: '440px', display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gridTemplateRows: 'auto auto auto', columnGap: '10px' });
@@ -86,8 +86,9 @@ export class HealthBar {
 		const rangeText = targetInRange === null ? null : targetInRange ? 'MENZİLDE' : 'UZAK';
 		const defenseBlocked = this._combatDefense?.blockedAmount;
 		const defenseApplied = this._combatDefense?.appliedAmount;
+		const defenseVerb = this._combatDefense?.mitigation === 'parry' ? 'savuşturuldu' : this._combatDefense?.mitigation === 'dodge' ? 'önlendi' : 'engellendi';
 		const defenseText = this._combatDefense
-			? `${DEFENSE_LABELS[this._combatDefense.mitigation]}${Number.isFinite(defenseBlocked) ? ` · ${defenseBlocked.toFixed(1)} ${this._combatDefense.mitigation === 'parry' ? 'savuşturuldu' : 'engellendi'}` : ''}${this._combatDefense.mitigation === 'guard' && Number.isFinite(defenseApplied) ? ` · ${defenseApplied.toFixed(1)} hasar` : ''}`
+			? `${DEFENSE_LABELS[this._combatDefense.mitigation]}${Number.isFinite(defenseBlocked) ? ` · ${defenseBlocked.toFixed(1)} ${defenseVerb}` : ''}${this._combatDefense.mitigation === 'guard' && Number.isFinite(defenseApplied) ? ` · ${defenseApplied.toFixed(1)} hasar` : ''}`
 			: null;
 		const primary = defenseText ?? attackText; const text = primary ? `${primary}${lockText ? ` · ${lockText}` : ''}${rangeText ? ` · ${rangeText}` : ''}` : (transient ?? lockText ?? 'Serbest');
 		this._combatTextEl.textContent = text; this._combatEl.dataset.state = this._combatDefense ? `defense-${this._combatDefense.mitigation}` : this._combatAttack ? `attack-${this._combatAttack.phase}` : this._combatLock ? 'locked' : transient ? 'no-target' : 'free'; this._combatEl.dataset.range = targetInRange === null ? 'unknown' : targetInRange ? 'in-range' : 'out-of-range'; this._combatEl.classList.toggle('g3d-combat-status-active', Boolean(this._combatAttack || this._combatDefense)); this._combatEl.classList.toggle('g3d-combat-status-locked', Boolean(this._combatLock));
