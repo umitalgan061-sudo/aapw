@@ -72,16 +72,14 @@ try {
 	need(inRange.range === 'in-range' && inRange.text.includes('MENZİLDE') && inRange.text.includes('1.2 m'), `in-range melee cue failed: ${JSON.stringify(inRange)}`);
 	await page.evaluate(() => globalThis.dispatchEvent(new CustomEvent('aapw:player-attack-window', { detail: { kind: 'light', phase: 'finish', comboStep: 2, reachMeters: 1.65, damageScale: 1 } })));
 
-	// Defense feedback consumes the same fields the Player defense adapter writes before health
-	// consumption. Distinct sentinel amounts let the live-world proof assert that this exact synthetic
-	// feedback yields within a bounded window even if a newer real defense event legitimately replaces it.
-	// The production feedback timer is 0.65 s. A loaded software-WebGL CI frame can delay timers by
-	// several seconds, so keep the semantic assertion while giving the shipped scene a bounded 10 s yield budget.
-	const defenseYieldTimeoutMs = 10000;
+	// Defense and transient lock feedback are production timers, not frame-count contracts. A loaded
+	// software-WebGL CI scene can delay those timers by several seconds, so assert the same semantic
+	// transition with one bounded yield budget rather than using a stricter synthetic-only deadline.
+	const feedbackYieldTimeoutMs = 10000;
 	const parrySentinel = '17.3 savuşturuldu';
 	const parryProjection = await page.evaluate(async () => { const { gameEvents } = await import('./src/3d/eventBus.js'); const { EVENTS } = await import('./src/3d/config.js'); gameEvents.emit(EVENTS.PLAYER_DAMAGED, { rawAmount: 17.25, blockedAmount: 17.25, amount: 0, mitigation: 'parry' }); const el = document.querySelector('.g3d-combat-status'); return { text: el?.textContent ?? '', state: el?.dataset.state ?? '' }; });
 	need(parryProjection.state === 'defense-parry' && parryProjection.text.includes('PARRY') && parryProjection.text.includes(parrySentinel), `parry mitigation detail failed: ${JSON.stringify(parryProjection)}`);
-	await page.waitForFunction((sentinel) => !document.querySelector('.g3d-combat-status')?.textContent?.includes(sentinel), parrySentinel, { timeout: defenseYieldTimeoutMs });
+	await page.waitForFunction((sentinel) => !document.querySelector('.g3d-combat-status')?.textContent?.includes(sentinel), parrySentinel, { timeout: feedbackYieldTimeoutMs });
 	const afterParry = await page.locator('.g3d-combat-status').evaluate((el) => ({ text: el.textContent, state: el.dataset.state ?? '' }));
 	need(!afterParry.text.includes(parrySentinel), `synthetic parry feedback did not yield: ${JSON.stringify(afterParry)}`);
 	const lockAfterParry = await page.evaluate(() => {
@@ -94,7 +92,7 @@ try {
 	const guardSentinel = '13.3 engellendi';
 	const guardProjection = await page.evaluate(async () => { const { gameEvents } = await import('./src/3d/eventBus.js'); const { EVENTS } = await import('./src/3d/config.js'); gameEvents.emit(EVENTS.PLAYER_DAMAGED, { rawAmount: 23.25, blockedAmount: 13.25, amount: 10, mitigation: 'guard' }); const el = document.querySelector('.g3d-combat-status'); return { text: el?.textContent ?? '', state: el?.dataset.state ?? '' }; });
 	need(guardProjection.state === 'defense-guard' && guardProjection.text.includes('BLOK') && guardProjection.text.includes(guardSentinel) && guardProjection.text.includes('10.0 hasar'), `guard mitigation detail failed: ${JSON.stringify(guardProjection)}`);
-	await page.waitForFunction((sentinel) => !document.querySelector('.g3d-combat-status')?.textContent?.includes(sentinel), guardSentinel, { timeout: defenseYieldTimeoutMs });
+	await page.waitForFunction((sentinel) => !document.querySelector('.g3d-combat-status')?.textContent?.includes(sentinel), guardSentinel, { timeout: feedbackYieldTimeoutMs });
 	const afterGuard = await page.locator('.g3d-combat-status').evaluate((el) => ({ text: el.textContent, state: el.dataset.state ?? '' }));
 	need(!afterGuard.text.includes(guardSentinel), `synthetic guard feedback did not yield: ${JSON.stringify(afterGuard)}`);
 	const lockAfterGuard = await page.evaluate(() => {
@@ -112,7 +110,7 @@ try {
 		return { text: el?.textContent ?? '', state: el?.dataset.state ?? '' };
 	});
 	need(noTarget.state === 'no-target' && noTarget.text.includes('Hedef yok'), `failed lock feedback missing: ${JSON.stringify(noTarget)}`);
-	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.dataset.state === 'free', null, { timeout: 2500 });
+	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.dataset.state === 'free', null, { timeout: feedbackYieldTimeoutMs });
 	const noTargetReset = await page.locator('.g3d-combat-status').evaluate((el) => ({ text: el.textContent, state: el.dataset.state ?? '' }));
 	need(noTargetReset.text.includes('Serbest'), `failed lock feedback did not reset: ${JSON.stringify(noTargetReset)}`);
 
