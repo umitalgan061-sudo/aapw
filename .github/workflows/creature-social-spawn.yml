@@ -10,6 +10,7 @@ on:
       - 'scripts/checkCreatureSocialSpawnBrowser.js'
       - 'scripts/checkCreatureSocialCohesionContract.mjs'
       - 'scripts/checkCreatureSocialCohesionBrowser.js'
+      - 'scripts/checkCreatureSocialCohesionLodBrowser.js'
       - '.github/workflows/creature-social-spawn.yml'
   workflow_dispatch:
 
@@ -45,6 +46,7 @@ jobs:
           node --check scripts/checkCreatureSocialSpawnBrowser.js
           node --check scripts/checkCreatureSocialCohesionContract.mjs
           node --check scripts/checkCreatureSocialCohesionBrowser.js
+          node --check scripts/checkCreatureSocialCohesionLodBrowser.js
           node scripts/checkCreatureSocialSpawnContract.mjs
           node scripts/checkCreatureSocialCohesionContract.mjs
           node scripts/checkCreatureSimulationLod.mjs
@@ -66,6 +68,8 @@ jobs:
         run: node scripts/checkCreatureSocialSpawnBrowser.js
       - name: Real shipped Three.js social cohesion proof
         run: node scripts/checkCreatureSocialCohesionBrowser.js
+      - name: Real shipped Three.js social cohesion LOD proof
+        run: node scripts/checkCreatureSocialCohesionLodBrowser.js
       - name: Final exact-main freshness
         shell: bash
         run: |
