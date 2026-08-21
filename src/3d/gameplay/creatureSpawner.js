@@ -38,19 +38,19 @@ export const CREATURE_HABITAT_RULES = Object.freeze({
 });
 
 // Species with established herd/flock alert behavior should also have a realistic chance to spawn
-// within that behavior's communication envelope. These radii stay below the matching runtime alert
-// radii in creatureBrain.js so group AI is usable without creating dense clone piles. Solitary species
-// remain on the original uniform-disc scatter path.
+// inside one another's communication envelope. Every radius is strictly below half the matching
+// runtime alert radius in creatureBrain.js, so even two members on opposite sides of the shared anchor
+// remain mutually reachable on the first simulation tick. Solitary species keep uniform-disc scatter.
 export const CREATURE_SOCIAL_SPAWN_RADIUS_METERS = Object.freeze({
-	at: 14,
-	geyik: 12,
-	koyun: 4.5,
-	inek: 6,
-	keci: 7,
-	zurafa: 14,
-	kuzgun: 8,
-	kartal: 14,
-	tavuk: 5.5,
+	at: 8,
+	geyik: 7,
+	koyun: 2.5,
+	inek: 3.25,
+	keci: 4,
+	zurafa: 8,
+	kuzgun: 5,
+	kartal: 8,
+	tavuk: 3.25,
 });
 
 function nearestSeatDistanceMeters(x, z, seats) {
@@ -256,8 +256,22 @@ export function scatterCreatures({
 				const rotationYRadians = rng() * Math.PI * 2;
 				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
 				if (!isCreatureHabitatCompatible(speciesId, x, z, { sampleHeightMeters, seaLevelMeters, seats })) continue;
-				spawns.push({ id: `creature-${speciesId}-${spawnIndex++}`, speciesId, x, z, rotationYRadians });
 				if (!socialAnchor && socialRadiusMeters) socialAnchor = Object.freeze({ x, z });
+				const socialMetadata = socialAnchor && socialRadiusMeters
+					? {
+						socialAnchorX: socialAnchor.x,
+						socialAnchorZ: socialAnchor.z,
+						socialSpawnRadiusMeters: socialRadiusMeters,
+					}
+					: {};
+				spawns.push({
+					id: `creature-${speciesId}-${spawnIndex++}`,
+					speciesId,
+					x,
+					z,
+					rotationYRadians,
+					...socialMetadata,
+				});
 				placed = true;
 				placedForSpecies++;
 				break;

@@ -31,8 +31,8 @@ for (const [speciesId, clusterRadius] of socialEntries) {
   assert.ok(profile, `${speciesId} behavior profile missing`);
   const alertRadius = Number(profile.match(/packAlertRadiusMeters:\s*([0-9.]+)/)?.[1]);
   assert.ok(Number.isFinite(alertRadius) && alertRadius > 0, `${speciesId} must retain herd/flock alert behavior`);
-  assert.ok(clusterRadius < alertRadius,
-    `${speciesId} social spawn radius ${clusterRadius} must stay strictly inside alert radius ${alertRadius}`);
+  assert.ok(clusterRadius * 2 < alertRadius,
+    `${speciesId} worst-case pair distance ${clusterRadius * 2} must stay inside alert radius ${alertRadius}`);
 }
 
 assert.match(spawner, /isPlaceablePosition\(x, z,/,
@@ -46,6 +46,7 @@ assert.doesNotMatch(spawner, /EditorMaterialStudio/,
 
 console.log('CREATURE_SOCIAL_SPAWN_CONTRACT_PASS', JSON.stringify({
   species: socialEntries.map(([speciesId]) => speciesId),
+  pairwiseAlertReachableAtSpawn: true,
   canonicalPlacementGate: true,
   deterministic: true,
 }));
