@@ -75,7 +75,7 @@ function watchPolicyLabel(policy) { if (policy === WATCH_POLICY.MERCY) return '�
 export const EXPEDITION_BOARD_ROUTES = Object.freeze([
 	Object.freeze({
 		id: 'dragonstone-watch-circuit', label: 'Nöbet Yolu Devriyesi', summary: 'Dragonstone nöbet yollarını tek seferde dolaş.',
-		reward: Object.freeze({ experience: 20, reputation: 1 }),
+		reward: Object.freeze({ experience: 20, reputation: 1, copper: 8 }),
 		steps: Object.freeze([
 			Object.freeze({ type: 'travel', originId: 'dragonstone', destinationId: 'dragonstone-watch-road', discovered: true, routeOpen: true, inCombat: false, distanceKm: 10 }),
 			Object.freeze({ type: 'travel', originId: 'dragonstone-watch-road', destinationId: 'dragonstone-harbor-road', discovered: true, routeOpen: true, inCombat: false, distanceKm: 25 }),
@@ -84,7 +84,7 @@ export const EXPEDITION_BOARD_ROUTES = Object.freeze([
 	}),
 	Object.freeze({
 		id: 'dragonstone-harbor-tavern-run', label: 'Liman Taverna Seferi', summary: 'Nöbet yolundan liman tavernasına git, dinlen ve dönüş hattını tamamla.',
-		reward: Object.freeze({ experience: 30, reputation: 2 }),
+		reward: Object.freeze({ experience: 30, reputation: 2, copper: 12 }),
 		steps: Object.freeze([
 			Object.freeze({ type: 'travel', originId: 'dragonstone', destinationId: 'dragonstone-watch-road', discovered: true, routeOpen: true, inCombat: false, distanceKm: 28 }),
 			Object.freeze({ type: 'rest', kind: REST_KIND.TAVERN, siteId: 'dragonstone-harbor-tavern', discovered: true, open: true, inCombat: false }),
@@ -93,7 +93,7 @@ export const EXPEDITION_BOARD_ROUTES = Object.freeze([
 	}),
 	Object.freeze({
 		id: 'dragonstone-ridge-camp', label: 'Sırt Kampı Seferi', summary: 'Sırt hattına çık, mevcut kamp erzağıyla toparlan ve liman yoluna in.',
-		reward: Object.freeze({ experience: 25, reputation: 2 }),
+		reward: Object.freeze({ experience: 25, reputation: 2, copper: 10 }),
 		steps: Object.freeze([
 			Object.freeze({ type: 'travel', originId: 'dragonstone', destinationId: 'dragonstone-ridge', discovered: true, routeOpen: true, inCombat: false, distanceKm: 30 }),
 			Object.freeze({ type: 'rest', kind: REST_KIND.CAMP, siteId: 'dragonstone-ridge-camp', open: true, inCombat: false }),
@@ -121,7 +121,7 @@ export function buildExpeditionBoardText(board = evaluateExpeditionBoard()) {
 	lines.push('Bir sefer seç:');
 	for (const [index, entry] of board.entries.entries()) {
 		const requirement = entry.ready ? 'HAZIR' : `KİLİTLİ · ${entry.reasons?.join(', ') || 'rota uygun değil'}`;
-		const reward = entry.completed ? 'ÖDÜL ALINDI' : `İLK ÖDÜL: ${entry.reward?.experience ?? 0} XP + ${entry.reward?.reputation ?? 0} itibar`;
+		const reward = entry.completed ? 'ÖDÜL ALINDI' : `İLK ÖDÜL: ${entry.reward?.experience ?? 0} XP + ${entry.reward?.reputation ?? 0} itibar + ${entry.reward?.copper ?? 0} bakır`;
 		lines.push(`${index + 1}. ${entry.label} · ${requirement} · ${entry.plan.totalDistanceKm} km · ${entry.plan.totalRequiredTravelPacks} azık · ${reward}`);
 	}
 	return lines.join('\n');
@@ -130,7 +130,7 @@ export function buildExpeditionBoardResultText(entry, result = {}) {
 	if (!entry) return 'Sefer seçilemedi.';
 	if (result.ok === true) {
 		const rewardText = result.firstCompletion === true
-			? `\nKontrat ödülü: ${result.rewardExperience} XP + ${result.rewardReputation} Dragonstone itibarı`
+			? `\nKontrat ödülü: ${result.rewardExperience} XP + ${result.rewardReputation} Dragonstone itibarı + ${result.rewardCopper} bakır · kese ${result.balanceCopper}`
 			: '\nKontrat daha önce tamamlandı · tekrar ödülü yok';
 		return `${entry.label}\nSEFER TAMAMLANDI\nTüketilen yol azığı: ${result.consumedQuantity}${rewardText}\n${buildJourneyRestText(result.plan)}`;
 	}
@@ -252,14 +252,19 @@ export function createInteractionController({ interactionPrompt, dialogueBox, gr
 			const firstCompletion = worldState.completeExpedition(entry.id);
 			let rewardExperience = 0;
 			let rewardReputation = 0;
+			let rewardCopper = 0;
+			let balanceCopper = economy.snapshot().copper;
 			if (firstCompletion) {
 				rewardExperience = Math.max(0, Math.floor(Number(entry.reward?.experience) || 0));
 				rewardReputation = Math.max(0, Math.floor(Number(entry.reward?.reputation) || 0));
+				rewardCopper = Math.max(0, Math.floor(Number(entry.reward?.copper) || 0));
 				if (progression.grant(rewardExperience)) onProgressionChanged(progression.snapshot());
 				if (reputation.grant(INTERACTION_FACTIONS.DRAGONSTONE, rewardReputation)) onReputationChanged(reputation.snapshot());
+				const credit = economy.credit(rewardCopper);
+				if (credit.ok) { balanceCopper = credit.balanceCopper; onEconomyChanged(economy.snapshot()); }
 				onWorldStateChanged(worldState.snapshot());
 			}
-			result = { ...result, firstCompletion, rewardExperience, rewardReputation };
+			result = { ...result, firstCompletion, rewardExperience, rewardReputation, rewardCopper, balanceCopper };
 		}
 		expeditionBoardOpen = false; activeExpeditionBoard = null; activeChoices = null;
 		dialogueBox.show(buildExpeditionBoardResultText(entry, result));
