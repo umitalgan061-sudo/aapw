@@ -6,6 +6,7 @@ on:
     paths:
       - 'assets/models/vegetation/winter_tree.glb'
       - 'assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb'
+      - 'assets/models/vegetation/pine_Zt62gceKXZ.glb'
       - 'src/3d/world/winterVegetationAsset.js'
       - 'scripts/firebaseDeployLfsReadiness.mjs'
       - 'scripts/checkWinterTreeVisualQa.js'
@@ -42,6 +43,18 @@ jobs:
             --scope=winter \
             --manifest=artifacts/winter-tree-visual-qa/lfs-readiness.json
 
+      - name: Hydrate singular pine comparison asset
+        run: |
+          git lfs pull --include='assets/models/vegetation/pine_Zt62gceKXZ.glb' --exclude=''
+          node --input-type=module - <<'NODE'
+          import { readFile } from 'node:fs/promises';
+          import { inspectGlbBuffer } from './scripts/inspectWinterGlbMetadata.mjs';
+          const path = 'assets/models/vegetation/pine_Zt62gceKXZ.glb';
+          const buffer = await readFile(path);
+          const report = inspectGlbBuffer(buffer);
+          console.log('[pine-comparison-metadata]', JSON.stringify({ bytes: buffer.length, ...report }));
+          NODE
+
       - name: Install Playwright Chromium
         run: |
           set -euo pipefail
@@ -52,6 +65,15 @@ jobs:
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
       - name: Render hydrated winter tree
+        run: |
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkWinterTreeVisualQa.js
+
+      - name: Render singular pine comparison
+        continue-on-error: true
+        env:
+          WINTER_VISUAL_ASSET: assets/models/vegetation/pine_Zt62gceKXZ.glb
+          WINTER_VISUAL_STEM: pine-candidate
         run: |
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           node scripts/checkWinterTreeVisualQa.js
