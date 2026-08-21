@@ -7,6 +7,7 @@ on:
       - 'src/3d/world/vegetation.js'
       - 'src/3d/world/terrain.js'
       - 'scripts/checkVillageFootprintGrounding.mjs'
+      - 'scripts/setupNodeThreeShim.mjs'
       - '.github/workflows/village-footprint-grounding.yml'
   workflow_dispatch:
 
@@ -22,9 +23,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - name: Install dependencies
-        run: npm ci
+      - name: Resolve vendored Three.js for Node contracts
+        run: node scripts/setupNodeThreeShim.mjs
       - name: Syntax
         run: |
           node --check src/3d/world/villages.js
