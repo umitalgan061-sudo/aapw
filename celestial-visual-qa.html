@@ -19,19 +19,23 @@
 		}
 	</script>
 	<script type="module">
-		import * as THREE from 'three';
-		import {
-			CELESTIAL_ASSET_POLICY,
-			createDayNightLighting,
-			updateDayNightLighting,
-		} from './src/3d/lighting.js';
-
-		window.__celestialQaModules = Object.freeze({
-			THREE,
-			CELESTIAL_ASSET_POLICY,
-			createDayNightLighting,
-			updateDayNightLighting,
-		});
+		try {
+			const THREE = await import('three');
+			const {
+				CELESTIAL_ASSET_POLICY,
+				createDayNightLighting,
+				updateDayNightLighting,
+			} = await import('./src/3d/lighting.js');
+			window.__celestialQaModules = Object.freeze({
+				THREE,
+				CELESTIAL_ASSET_POLICY,
+				createDayNightLighting,
+				updateDayNightLighting,
+			});
+		} catch (error) {
+			window.__celestialQaBootstrapError = error?.stack || error?.message || String(error);
+			console.error('[celestial-visual-qa] module bootstrap failed', error);
+		}
 	</script>
 </head>
 <body>
