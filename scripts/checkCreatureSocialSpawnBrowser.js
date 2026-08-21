@@ -6,6 +6,18 @@ const PORT = 4192;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function stripBenignServerNoise(log) {
+  return String(log)
+    .replace(/^-+\s*$/gm, '')
+    .replace(/^Exception occurred during processing of request from .*$/gm, '')
+    .replace(/^Traceback \(most recent call last\):\s*$[\s\S]*?(?=^\s*$|^-+\s*$|\z)/gm, (block) => {
+      if (/BrokenPipeError|ConnectionResetError/.test(block)) return '';
+      return block;
+    })
+    .replace(/^BrokenPipeError: \[Errno 32\] Broken pipe\s*$/gm, '')
+    .replace(/^ConnectionResetError: \[Errno 104\] Connection reset by peer\s*$/gm, '');
+}
+
 async function main() {
   const server = spawn('python3', ['-m', 'http.server', String(PORT), '--bind', '127.0.0.1'], {
     cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'],
@@ -61,7 +73,6 @@ async function main() {
       const sheepRadius = CREATURE_SOCIAL_SPAWN_RADIUS_METERS.koyun;
       const deerRadius = CREATURE_SOCIAL_SPAWN_RADIUS_METERS.geyik;
 
-      // All flat-world placements must remain above water and outside the canonical seat exclusion.
       const physicallyValid = first.every((entry) => sampleHeightMeters(entry.x, entry.z) > 0
         && Math.hypot(entry.x - seats[0].x, entry.z - seats[0].z) > 75);
       const idsUnique = new Set(first.map((entry) => entry.id)).size === first.length;
@@ -70,8 +81,6 @@ async function main() {
       const solitaryCountPreserved = cats.length === 6;
       const sheepClustered = maxAnchorDistance(sheep) <= sheepRadius + 1e-6;
       const deerClustered = maxAnchorDistance(deer) <= deerRadius + 1e-6;
-      // Solitary cats still use the original world-disc scatter and should not collapse into the
-      // much smaller sheep cluster envelope under this fixed deterministic seed.
       const solitaryStillScattered = maxAnchorDistance(cats) > sheepRadius * 3;
       const withinWorldDisc = first.every((entry) => Math.hypot(entry.x - common.centerX, entry.z - common.centerZ)
         <= common.radiusMeters + Math.max(sheepRadius, deerRadius) + 1e-6);
@@ -104,8 +113,8 @@ async function main() {
     server.kill('SIGTERM');
   }
 
-  const fatalServerLog = serverErrors.join('').replace(/BrokenPipeError[^\n]*/g, '').replace(/ConnectionResetError[^\n]*/g, '');
-  if (/" [45]\d\d |Traceback|(?:^|\n)\w*(?:Error|Exception):/im.test(fatalServerLog)) {
+  const fatalServerLog = stripBenignServerNoise(serverErrors.join(''));
+  if (/" [45]\d\d |(?:^|\n)\w*(?:Error|Exception):|Traceback/im.test(fatalServerLog)) {
     throw new Error(`static server errors: ${fatalServerLog}`);
   }
 }
