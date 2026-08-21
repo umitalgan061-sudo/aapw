@@ -70,9 +70,10 @@ try {
       }
       if (activeSent && !recoverySent && !frame.dodgeInvulnerable && frame.dodgeElapsedSeconds >= 0.24 && frame.dodgeRemaining > 0) {
         recoverySent = true;
+        const recoveryHud = readCombatHud();
         const payload = { amount: 20, sourceId: 'iframe-recovery-proof' };
         gameEvents.emit(EVENTS.PLAYER_DAMAGED, payload);
-        window.__iframeProof.recoveryHit = { frame: structuredClone(frame), payload: structuredClone(payload), hud: readCombatHud() };
+        window.__iframeProof.recoveryHit = { frame: structuredClone(frame), recoveryHud, payload: structuredClone(payload), hud: readCombatHud() };
         window.removeEventListener('aapw:player-motion', onMotion);
       }
     };
@@ -101,6 +102,7 @@ try {
   need(proof.activeHit.payload.mitigation === 'dodge' && proof.activeHit.payload.amount === 0 && proof.activeHit.payload.blockedAmount === 20, `active dodge did not negate damage ${JSON.stringify(proof.activeHit.payload)}`);
   need(proof.activeHit.hud.state === 'defense-dodge' && proof.activeHit.hud.text.includes('KAÇINMA') && proof.activeHit.hud.text.includes('20.0 önlendi'), `active dodge HUD missing canonical mitigation feedback ${JSON.stringify(proof.activeHit.hud)}`);
   need(proof.recoveryHit.frame.dodgeInvulnerable === false && proof.recoveryHit.frame.dodgeRemaining > 0, `recovery proof must remain inside dodge but outside iframes ${JSON.stringify(proof.recoveryHit.frame)}`);
+  need(proof.recoveryHit.recoveryHud.state === 'dodge-recovery' && proof.recoveryHit.recoveryHud.text.includes('TOPARLANMA') && proof.recoveryHit.recoveryHud.text.includes('SAVUNMASIZ'), `recovery HUD must expose vulnerable dodge tail ${JSON.stringify(proof.recoveryHit.recoveryHud)}`);
   need(proof.recoveryHit.payload.mitigation === undefined && proof.recoveryHit.payload.amount === 20, `recovery damage must remain vulnerable ${JSON.stringify(proof.recoveryHit.payload)}`);
   need(healthBefore - healthAfter === 20, `exactly one 20-damage hit must apply: ${healthBefore} -> ${healthAfter}`);
   need(errors.length === 0, `browser/page errors: ${JSON.stringify(errors)}`);
@@ -114,7 +116,7 @@ try {
   };
   fs.writeFileSync(path.join(outDir, 'dodge-iframes-runtime.json'), `${JSON.stringify(metrics, null, 2)}\n`);
   await page.screenshot({ path: path.join(outDir, 'dodge-iframes-runtime.png'), fullPage: true });
-  console.log(`PLAYER_DODGE_IFRAMES_RUNTIME_OK ${JSON.stringify({ activeElapsed: proof.activeHit.frame.dodgeElapsedSeconds, recoveryElapsed: proof.recoveryHit.frame.dodgeElapsedSeconds, iframeHud: proof.activeHit.iframeHud.text, dodgeHud: proof.activeHit.hud.text, healthBefore, healthAfter })}`);
+  console.log(`PLAYER_DODGE_IFRAMES_RUNTIME_OK ${JSON.stringify({ activeElapsed: proof.activeHit.frame.dodgeElapsedSeconds, recoveryElapsed: proof.recoveryHit.frame.dodgeElapsedSeconds, iframeHud: proof.activeHit.iframeHud.text, recoveryHud: proof.recoveryHit.recoveryHud.text, dodgeHud: proof.activeHit.hud.text, healthBefore, healthAfter })}`);
 } finally {
   await browser.close();
   await new Promise((resolve) => server.close(resolve));
