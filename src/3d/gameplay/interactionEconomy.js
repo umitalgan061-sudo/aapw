@@ -213,6 +213,13 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		return { ok: true, reason: 'available', offerId: configuredOffer.id, remainingStock, priceCopper: price, balanceCopper: copper, balanceAfterPurchase: copper - price };
 	}
 
+	function credit(amount) {
+		const creditedCopper = normalizeCopper(amount, 0);
+		if (creditedCopper <= 0) return { ok: false, reason: 'invalid-credit', creditedCopper: 0, balanceCopper: copper };
+		copper += creditedCopper;
+		return { ok: true, creditedCopper, balanceCopper: copper };
+	}
+
 	function purchase(offer, grantItem) {
 		if (typeof grantItem !== 'function') return { ok: false, reason: 'invalid-offer' };
 		const purchaseQuote = quote(offer);
@@ -249,7 +256,7 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		};
 	}
 
-	return { purchase, quote, restore, snapshot };
+	return { credit, purchase, quote, restore, snapshot };
 }
 
 export function buildQuartermasterText(economySnapshot = {}, offers = QUARTERMASTER_OFFERS, feedback = '') {
