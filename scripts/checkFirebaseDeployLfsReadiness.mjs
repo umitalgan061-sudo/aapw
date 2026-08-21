@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import {
 	FIREBASE_DEPLOY_LFS_POLICY,
 	assertMaterializedDeployState,
@@ -66,8 +67,16 @@ assert.deepEqual([...tracked], [...FIREBASE_DEPLOY_LFS_POLICY.winterAssets]);
 assert.equal(new Set(FIREBASE_DEPLOY_LFS_POLICY.winterAssets).size, FIREBASE_DEPLOY_LFS_POLICY.winterAssets.length,
 	'winter deployment candidates must remain unique');
 
+const firebase = JSON.parse(await readFile(new URL('../firebase.json', import.meta.url), 'utf8'));
+const predeploy = Array.isArray(firebase.hosting?.predeploy)
+	? firebase.hosting.predeploy
+	: [firebase.hosting?.predeploy].filter(Boolean);
+assert(predeploy.includes('node scripts/firebaseDeployLfsReadiness.mjs --scope=all'),
+	'Firebase Hosting must fail-fast through the all-LFS readiness check before every direct deploy');
+
 console.log('[checkFirebaseDeployLfsReadiness] PASS', JSON.stringify({
 	policy: FIREBASE_DEPLOY_LFS_POLICY.id,
 	winterAssets: FIREBASE_DEPLOY_LFS_POLICY.winterAssets.length,
 	minimumWinterGlbBytes: FIREBASE_DEPLOY_LFS_POLICY.minimumWinterGlbBytes,
+	predeployGuarded: true,
 }));
