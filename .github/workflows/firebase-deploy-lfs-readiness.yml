@@ -7,10 +7,12 @@ on:
       - 'assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb'
       - '.gitattributes'
       - 'firebase.json'
+      - 'src/3d/world/winterVegetationAsset.js'
       - 'scripts/firebaseDeployLfsReadiness.mjs'
       - 'scripts/checkFirebaseDeployLfsReadiness.mjs'
       - 'scripts/inspectWinterGlbMetadata.mjs'
       - 'scripts/checkWinterGlbMetadataInspector.mjs'
+      - 'scripts/checkWinterAssetSuitabilityContract.mjs'
       - '.github/workflows/firebase-deploy-lfs-readiness.yml'
   workflow_dispatch:
     inputs:
@@ -41,12 +43,17 @@ jobs:
         with:
           node-version: 22
 
+      - name: Resolve vendored Three.js for runtime policy checks
+        run: node scripts/setupNodeThreeShim.mjs
+
       - name: Static deploy-preflight contract
         run: |
+          node --check src/3d/world/winterVegetationAsset.js
           node --check scripts/firebaseDeployLfsReadiness.mjs
           node --check scripts/checkFirebaseDeployLfsReadiness.mjs
           node --check scripts/inspectWinterGlbMetadata.mjs
           node --check scripts/checkWinterGlbMetadataInspector.mjs
+          node --check scripts/checkWinterAssetSuitabilityContract.mjs
           node scripts/checkFirebaseDeployLfsReadiness.mjs
           node scripts/checkWinterGlbMetadataInspector.mjs
 
@@ -76,6 +83,9 @@ jobs:
 
       - name: Inspect hydrated winter GLB geometry
         run: node scripts/inspectWinterGlbMetadata.mjs | tee artifacts/winter-glb-metadata.txt
+
+      - name: Match hydrated assets to runtime single-tree policy
+        run: node scripts/checkWinterAssetSuitabilityContract.mjs | tee artifacts/winter-asset-suitability.txt
 
       - name: Upload readiness manifest
         uses: actions/upload-artifact@v4
