@@ -8,6 +8,10 @@ function selectedAssetFromDom() {
   return EDITOR_ASSETS.find((asset) => asset.name === name) || null;
 }
 
+function assetForObject(object) {
+  return EDITOR_ASSETS.find((candidate) => candidate.id === object?.userData?.editorAssetId) || null;
+}
+
 function nextPlacementId(api, assetId) {
   const used = new Set(api.editableObjects.map((object) => object.userData?.editorId).filter(Boolean));
   let index = 1;
@@ -119,6 +123,20 @@ export function installEditorPlacementController(api, authoring = window.__WESTE
     syncUi();
   }
 
+  function groundObject(object, {
+    asset = assetForObject(object),
+    x = object?.position?.x,
+    z = object?.position?.z,
+  } = {}) {
+    if (!object || object.isInstancedMesh) return { ok: false, error: 'editor-ground-invalid-selection' };
+    return terrainGrounder.groundObject(object, asset, { x, z });
+  }
+
+  function removeObjectFoundation(object) {
+    if (!object) return { ok: false, error: 'foundation-missing-object' };
+    return terrainGrounder.removeObjectFoundation(object);
+  }
+
   async function placeSelectedAtPoint(point) {
     const asset = selectedAssetFromDom();
     if (!asset) {
@@ -131,7 +149,7 @@ export function installEditorPlacementController(api, authoring = window.__WESTE
       const object = await assetManager.createObject(asset);
       if (disposed) return null;
       object.userData.editorId = nextPlacementId(api, asset.id);
-      const grounding = terrainGrounder.groundObject(object, asset, { x: point.x, z: point.z });
+      const grounding = groundObject(object, { asset, x: point.x, z: point.z });
       if (!grounding.ok) throw new Error(grounding.error || 'terrain-grounding-failed');
       api.editableObjects.push(object);
       api.scene.add(object);
@@ -156,8 +174,7 @@ export function installEditorPlacementController(api, authoring = window.__WESTE
       toast('Zemine oturtmak için normal bir obje seç.');
       return false;
     }
-    const asset = EDITOR_ASSETS.find((candidate) => candidate.id === object.userData?.editorAssetId) || null;
-    const grounding = terrainGrounder.groundObject(object, asset, { x: object.position.x, z: object.position.z });
+    const grounding = groundObject(object);
     if (!grounding.ok) {
       console.error('[EditorPlacementController] grounding failed', grounding.error);
       toast('Seçili obje zemine oturtulamadı.');
@@ -225,8 +242,9 @@ export function installEditorPlacementController(api, authoring = window.__WESTE
     setPlacementMode,
     isPlacementMode: () => placementMode,
     placeSelectedAtPoint,
+    groundObject,
     groundSelected,
-    removeObjectFoundation: terrainGrounder.removeObjectFoundation,
+    removeObjectFoundation,
     getSnapshot,
     dispose
   });
