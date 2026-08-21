@@ -204,7 +204,10 @@ function computeTerrainSnowCoverage(out, {
 	const authoredSnow = Math.max(altitudeSnow, canonicalSnow);
 	const northSnowSupply = permanentIce * P.northSnowMinimumCoverage;
 	const tundraBand = tundra * (1 - permanentIce);
-	const tundraLowlandFloor = tundraBand * P.northTundraLowlandSnowFloor;
+	// The lowland tundra floor follows the same monotonic latitude weight directly. Multiplying by
+	// (1-permanentIce) created a small rebound at the south edge of the ice fade: the ice floor fell
+	// while the tundra floor rose. The max() below already lets permanent ice dominate safely.
+	const tundraLowlandFloor = tundra * P.northTundraLowlandSnowFloor;
 	const snowSupply = clamp01(Math.max(authoredSnow, northSnowSupply, tundraLowlandFloor));
 	const naturalHold = 1 - smoothstep(P.snowShedStartDegrees, P.snowShedFullDegrees, slopeDegrees);
 	const snowHold = lerp(naturalHold, Math.max(naturalHold, 0.96), permanentIce);
