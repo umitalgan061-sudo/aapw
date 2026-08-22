@@ -18,6 +18,25 @@ Bu dosya, zamanlanmış/otonom zemin görevleri için zorunlu çalışma sözle�
 - Her değişiklik ölçülebilir bir kaynak-eşleşme iyileştirmesi göstermelidir. Sadece estetik olarak farklı olmak yeterli değildir.
 - Kaynakta düşük çözünürlükte temsil edilen bir sınır final renderda aynı piksel merdiveniyle korunmaz; önce coğrafi topoloji korunur, sonra yüksek çözünürlüklü sürekli sınır üretilir.
 
+### 1.1 Ortak, sürümlü map-derived geography package
+
+Dört ajan aynı kaynak piksellerini bağımsız ve çelişkili biçimde yorumlayamaz. Tek bir sürümlü,
+checksum'lı ve deterministik **map-derived geography package** bütün authoring/runtime tüketicilerinin
+ortak girdisidir. Bu pakette en az aşağıdakiler bulunur:
+
+- `sourceMapSha256`, kaynak boyutu, extractor/algoritma sürümü ve her katman için provenance;
+- yazı, şehir/kale işareti, arma, dekoratif sınır ve ikonları dışlayan `label_symbol_mask`;
+- `land/ocean`, kıyı sığlığı/shelf ve lagoon alt sınıfları;
+- sabit `lake_id`, kapalı lake maskesi, göl su kotu ve spill point/havza ilişkisi;
+- yönlü river graph ile source/tributary/outlet ve flow-accumulation verisi;
+- ridge/peak/valley/pass eksenleri; yön, genişlik ve göreli prominence;
+- forest/biome/ice/desert/marsh olasılık alanları;
+- düşük güvenli bölgeler için confidence; ajan burada keskin uydurma özellik üretmez.
+
+Harita yazısı veya şehir ikonu dağa; etiket boşluğu göle; noktalı sınır ormana dönüşemez. Ortak paket
+değişikliği ayrı bir ledger lease/PR, checksum sürüm artışı ve dört quadrant regresyonu ister.
+`map.png` rengi makro sınıf/olasılık kanıtıdır; düz, literal final albedo değildir.
+
 ## 2. Terrain motorları ve nihai mimari
 
 ### HTerrain
@@ -61,9 +80,19 @@ Dört ana ajan aynı anda başlar:
 3. **Güneybatı — Günbatımı Ustası**: `(0,7)` köşesinden merkeze doğru.
 4. **Güneydoğu — Kızıl Ufuk**: `(7,7)` köşesinden merkeze doğru.
 
-Her ajan kendi köşesine Chebyshev/halka uzaklığı en küçük olan tamamlanmamış GeoCell'i seçer ve merkeze doğru ilerler. Aynı hücre başka bir ajan tarafından bitirilmişse iş yapmak için rastgele değiştirme yapmaz; mevcut kanıtı ölçer ve yalnız kalite skorunu artırabildiği durumda refinement PR'ı açar.
+Her turun ilk işi, son **gerçek runtime full-world 3D renderı** ile yazı/simge maskeli map.png arasında
+çok ölçekli bir hata ısı haritası çıkarmaktır. Coast, ocean/lake topology, river graph, mountain/ridge,
+forest/biome, seam ve runtime/physics parity kusurları önem sırasıyla listelenir.
 
-Her ajan yalnız kendi hücresinin merkezini değil, dikiş kontrolü için komşu hücre sınırlarında en az bir **overlap/guard band** örnekler. Guard band sahiplik anlamına gelmez; sadece kıyı, yükseklik, normal, materyal ve foliage sürekliliğini ölçmek içindir.
+- Devam eden geçerli lease veya yarım feature varsa önce güvenle bitirilir.
+- Aksi halde ajan, kendi quadrant'ındaki **en yüksek görsel/oyunsal şiddetli sahiplenilmemiş hatayı**
+  seçer. Köşeye Chebyshev/halka uzaklığı yalnız eşitlik bozucudur; düşük etkili yakın hücre, bütün
+  dünyada kayıp dağ zinciri veya yanlış deniz/göl topolojisinin önüne geçemez.
+- Dağ zinciri, nehir havzası, göl ve orman gibi hücre aşan işler `feature_id + GeoCell listesi +
+  guard-band` lease'i alır. Guard band yalnız ölçüm değil, aynı feature'ın sınırda kesilmesini
+  engelleyen sözleşmedir; komşu hücrenin merkez sahipliğini devretmez.
+- Başka ajan daha iyi kanıtla tamamladıysa rastgele rewrite yapılmaz; refinement ancak baseline'a
+  göre sayısal iyileşme ve gerçek runtime görsel farkı gösteriyorsa açılır.
 
 ## 4. GeoCell kabul sırası — adım adım gerçekçilik
 
@@ -77,7 +106,61 @@ Bir hücre tek commit/PR'da devasa biçimde yeniden yazılmaz. Aşağıdaki katm
 6. **Near Detail** — normal/roughness/detiling/microvariation/foliage/instance; uzaktan harita eşleşmesini bozmaz.
 7. **Terrain3D Bake/Runtime parity** — authoring çıktısı deterministik bake edilir ve Three.js runtime'da aynı makro araziyi üretir.
 
-Bir üst katmana geçmek için önceki katman regresyon yapmamalıdır. Bir hücre yalnız Coast/Hydrology tamamlandı diye "tamamlandı" sayılmaz; tam-dünya bitişi için yedi katmanın tamamı gerekir.
+Bir üst katmana geçmek için önceki katman regresyon yapmamalıdır. Bir hücre yalnız Coast/Hydrology tamamlandı diye "tamamlandı" sayılmaz; tam-dünya bitişi için yedi katmanın tamamı gerekir. Maske/JSON veya semantic görsel tek başına hiçbir katmanı tamamlamaz; özellik gerçek runtime sahnede görünür, ölçülebilir ve fizik ile aynı kaynakta olmalıdır.
+
+### 4.1 Ocean, lake ve river topoloji sözleşmesi
+
+- **Ocean**, görüntü/dünya dış sınırına su üzerinden bağlı bileşendir. **Lake**, tamamen kara içinde
+  kapalı, sabit `lake_id` ve düz su kotu olan bileşendir. **River**, yönlü grafiktir. Açık mavi
+  kıyı sığlığı/shelf veya deniz içi renk poligonu göl değildir; denizde lake geometry sayısı sıfırdır.
+- Tek dev water plane'in karayı örtmesi göl üretimi sayılmaz. Ocean ve lake mask/geometry/material
+  katmanları ayrı doğrulanır; terrain kıyısı ile su sınırı aynı topoloji paketini kullanır.
+- Heightfield, Priority-Flood veya belgelenmiş eşdeğer ile yapay pitlerden arındırılır; D8/D∞ ya da
+  kanıtlanmış eşdeğer akış yönü ve flow accumulation nehir grafiğini üretir.
+- Nehir source → tributary → main channel → lake/ocean zincirinde kesintisiz ve monoton aşağı
+  akmalıdır. Uphill segment, yetim uç, geçersiz outlet, yüzen mavi yama, kuru göl çıkışı ve kıyıda
+  cyan speckle sıfır olmalıdır.
+- Ocean shader dalga/foam/depth geçişi; lake shader daha sakin normal/roughness kullanır. Tam-dünya
+  uzak görünümünde oyun-kamerası foam/specular'ı sahte göl poligonuna dönüşemez.
+
+### 4.2 Gerçek heightfield, dağ zinciri ve erozyon
+
+- Üretim yüksekliği 8-bit PNG, düşük `DEFAULT_MAX_HEIGHT_METERS` veya bağımsız FBM olamaz.
+  16/32-bit EXR/R16 ya da eşdeğer metre-değerli master kullanılır; sea datum, min/max metre,
+  import scale/offset, vertex spacing ve vertical aspect ratio manifestte kayıtlıdır.
+- Önce kısıtlı çok ölçekli makro şekil kurulur: kıyı sea datum; ridge/peak pozitif yükseklik ve
+  gradient; valley/pass/river azalan/negatif gradient kısıtıdır. Kontrollü erosion ve mikro-noise
+  ancak bundan sonra uygulanır; kıyı, ana ridge yönü ve feature ayak izi silinemez.
+- Haritadaki dağlar izole koni/noise kabarcığı değil; geniş ayak izli, yan sırtlı, vadili, geçitli,
+  kaynak doğrultusuna hizalı **kesintisiz zincirler** olmalıdır. Peak prominence, ridge coverage,
+  yön sapması, chain continuity, relief range ve slope dağılımı ölçülür.
+- Dağ gerçek runtime orthographic hillshade/shadow/normal kanıtında belirgin değilse Relief tamam
+  değildir. Yalnız kanıt görüntüsünde capture-only height exaggeration yapıp üretim mesh/collider'ını
+  düz bırakmak nihai çözüm değildir; diagnostik görüntü metadata'sında açıkça ayrılır.
+
+### 4.3 PBR zemin, iklim ve biyom
+
+- Terrain3D Height + Control + Color/Roughness gerçekten üretilir/import edilir. Materyal kararı
+  slope, elevation, moisture/flow accumulation, latitude, continentality, rain shadow, shore
+  distance ve map biome olasılığını birlikte kullanır.
+- Steep yüzeyde triplanar rock; kıyıda ıslaklık/kum/çakıl; vadide toprak/çayır; iklime bağlı snow/ice;
+  arid bölgede rock/sand uygulanır. Geçişler sürekli ağırlık/SDF ile organiktir.
+- Normal, roughness ve macro/micro albedo tekrarını kır; uzaktan düz boya, yakından görünür tiling
+  veya GeoCell bloğu üretme. Sıcak Yi Ti/Jogos Nhai ve sıcak alçak arazide salt noise/yükseklik
+  yüzünden sahte kar yasaktır.
+
+### 4.4 Ağaç ve orman yerleşimi
+
+- map.png orman lekesi makro density envelope'tur. Yoğunluk bu zarf ile biome, nem, slope, elevation,
+  shore/river mesafesini birlikte kullanır; haritada orman olmayan çöl/tundra/steppe rastgele kapanmaz.
+- Deterministik seed, blue-noise/Poisson benzeri aralık, cluster+gap, yumuşak orman kenarı ve
+  tür/yaş/boy/rotasyon çeşitliliği kullanılır.
+- Ağaç ocean/lake/river, yol, yerleşim, dik cliff, çıplak yüksek dağ, aktif snow/ice veya biome dışı
+  alana giremez. Aynı live terrain sampler'dan height/normal/surface alır; yüzen/gömülü ağaç sıfırdır.
+- Yakında kaliteli mesh/wind/shadow; uzakta LOD/HLOD/impostor; spatial chunk'lı
+  MultiMesh/InstancedMesh ve doğru AABB/bounds kullanılır. Collider yalnız gameplay yakınında
+  etkinleşir. Desktop ve mobile/PWA için p95 frame time, draw-call, triangle, instance ve bellek
+  bütçeleri baseline ile raporlanır.
 
 ## 5. Çakışma, dikiş ve buluşma kuralı
 
@@ -107,7 +190,35 @@ Her terrain PR'ında uygun olanların tamamı çalıştırılır:
 - desktop/mobile performans bütçesi;
 - tam browser smoke ve temiz console;
 - en az yakın + uzak görsel kanıt, mümkünse before/after;
-- tam-dünya kilometrelerce üstten görünümde kaynak coğrafya eşleşmesi ve yakında fiziksel yüzey gerçekçiliği.
+- tam-dünya kilometrelerce üstten görünümde kaynak coğrafya eşleşmesi ve yakında fiziksel yüzey gerçekçiliği;
+- coastline IoU + symmetric Chamfer/Hausdorff; ridge alignment/coverage/continuity/prominence;
+  lake component/id/planarity/land-containment; river connectivity/downhill/outlet; forest
+  precision/recall/alan ve illegal-instance; seam height/normal/control/foliage ölçümleri;
+- renderer, Terrain3D bake, collider, navmesh/player grounding, water/river, roads, settlements ve
+  vegetation için tek `currentTerrain/world-data` sampler + aynı source checksum; görsel/fizik
+  yükseklik farkı FAIL;
+- yazı/simge kaynaklı false-positive feature sayısı ve ocean↔lake topoloji hatası sıfır;
+- sürüm kontrollü kabul eşikleri ve önceki baseline'a karşı no-regression; metrik yoksa PASS yok.
+
+### 6.1 Zorunlu gerçek full-world 3D orthographic kanıt
+
+Semantic/reference kanıt ile oyun sahnesi kanıtı ayrı artefact'tir:
+
+- `g10-relief-full-world-topdown.png` yalnız semantic/reference top-down;
+- `artifacts/nw-g10-relief-visual/g10-relief-full-world-3d-topdown.png` gerçek runtime terrain mesh,
+  water, üretim PBR ve uygun vegetation içeren kullanıcıya gösterilecek "tepeden harita"dır.
+
+Gerçek kanıt 1536x1024 tek kareye bütün world bounds'u sığdıran tam 90° aşağı bakan
+`THREE.OrthographicCamera` kullanır. Eğik Perspective veya semantic reconstruction bunun yerine
+geçmez. Üretim yüksekliği sabit eğik güneş, shadow/AO ve normals ile okunur; grid/helper overlay
+kapalıdır.
+
+Companion metadata en az `cameraType=OrthographicCamera`, `topDownDegrees=90`, world bounds,
+source/runtime SHA-256, render SHA-256, `visibleGeoCellOverlay=false`, dimensions, nonblank
+coverage ve `consoleErrors=[]` taşır. `checkNWG10FullWorld3DTopdown.mjs` veya aynı sözleşmenin
+güncel checker'ı; eksik/küçük/blank frame, yanlış kamera, eksik dünya, console/page/network error,
+checksum yokluğu, görünür grid/seam, cyan ocean artefactı ya da okunmayan reliefte CI'ı düşürür.
+Workflow PNG+JSON'u upload eder ve PR açıklaması gerçek before/after render ile error heatmap'i içerir.
 
 Terrain3D veya HTerrain yalnız araç değildir: bu proje için **Terrain3D authoring + deterministik web runtime parity** hedef mimaridir; yine de nihai kabul ölçütü kaynak doğruluğu, doğal görünüm, performans ve güvenliktir.
 
@@ -115,10 +226,18 @@ Terrain3D veya HTerrain yalnız araç değildir: bu proje için **Terrain3D auth
 
 Dört köşe ajanının tamamı bundan sonra aynı nihai hedefe çalışır: **64 GeoCell'in tamamını Terrain3D ile author edilmiş, komşularla dikişsiz, gerçekçi ve Three.js runtime'a deterministik bake edilmiş tek bir dünya haline getirmek.**
 
-- **Buzul Muhafızı / NW:** kuzeybatıdan merkeze; soğuk iklim, kar/buz, kuzey kıyıları ve yüksek enlem relief sürekliliği.
-- **Şafak Kartalı / NE:** kuzeydoğudan merkeze; doğu denizleri, steppe/dağ geçişleri, uzak görüş ve LOD sürekliliği.
-- **Günbatımı Ustası / SW:** güneybatıdan merkeze; Westeros güney/batı kıyıları, dağ-ova/çöl geçişleri, yol ve kıyı ayrıntısı.
-- **Kızıl Ufuk / SE:** güneydoğudan merkeze; Yi Ti/Sothoryos/Ulthos yönü, tropik/arid geçişler, relief ve foliage çeşitliliği.
+- **Buzul Muhafızı / NW:** Westeros kuzeyi, Lands of Always Winter, Wall çevresi, haritadaki büyük
+  kuzey ridge/Frostfang-benzeri zincirler, batı adaları, wolfswood/temperate forest ve tundra/ice
+  geçişi. Dağlar top-down gölgede bağlı kütle olarak okunur; düşük rakıma tekdüze beyaz boya sürülmez.
+- **Şafak Kartalı / NE:** northern/eastern Essos, Shivering Sea adaları, kuzey orman/taiga kuşağı,
+  steppe/Jogos Nhai geçişi ve Bone Mountains dahil büyük kuzey-güney/doğu mountain spine'ları.
+  Rain-shadow okunur; kar yalnız enlem+irtifa+nem uygunsa çıkar.
+- **Günbatımı Ustası / SW:** southern Westeros/Dorne, Stepstones, Summer Isles ve western Sothoryos.
+  Dorne'da kuru/kızıl sırt ve seyrek scrub; ada/güneyde tropik orman; kıyıda shelf/reef. Küçük adalar
+  korunur, turkuaz deniz sığlığı göl yapılmaz.
+- **Kızıl Ufuk / SE:** eastern/southern Essos, Red Waste, Yi Ti, Jogos Nhai, doğu yüksek sıraları,
+  Sothoryos/Ullthos. Dev dağ kuşakları geniş ayak izli ve kesintisiz; rain-shadow çölü, havzalar
+  göl/nehri, sıcak güney yoğun jungle'ı besler; sıcak lowland'de sahte kar yoktur.
 
 Her ajan kendi bölgesinde bütün yedi katmanı tamamlar; yalnız hydrology hücreleri üretip merkezde bırakmaz. Buluşma noktasına gelindiğinde dört yönün yükseklik, kıyı, materyal, yol ve foliage verisi tek bir Terrain3D/bake bütünlüğünde birleşmelidir.
 
@@ -136,7 +255,33 @@ Aşağıdakilerin tamamı kanıtlanmadan "3D dünya tamamlandı" denmez:
 - runtime bake checksum/provenance deterministik;
 - desktop/mobile performans bütçeleri geçiyor;
 - yakın, orta, uzak ve **tam-harita tepeden** görsel kanıt var;
-- Three.js oyun/PWA tam smoke testinde konsol hatası yok.
+- Three.js oyun/PWA tam smoke testinde konsol hatası yok;
+- source-map label/symbol false-positive'i, denizde lake geometry ve geçersiz river outlet sıfır;
+- haritadaki büyük mountain-chain ve forest envelope'ları gerçek runtime sahnede ölçülebilir;
+- kullanıcıya gösterilen tam-harita tepeden kanıt semantic değil gerçek 3D orthographic artefact;
+- renderer/collider/water/road/settlement/vegetation tek live terrain sampler ile parity içinde.
+
+## 8.1 Araştırma dayanakları ve sürüm sınırı
+
+Bu kuralların teknik dayanağı aşağıdaki birincil/resmî kaynaklardır; görev, API'yi tahmin etmek yerine
+kilitli sürüm davranışını ve ilgili dokümanı okur:
+
+- [Terrain3D Heightmaps](https://terrain3d.readthedocs.io/en/stable/docs/heightmaps.html) ve
+  [Import/Export](https://terrain3d.readthedocs.io/en/stable/docs/import_export.html):
+  16/32-bit height, metre/scale/offset/spacing ve region verisi;
+- Guérin vd., [*Gradient Terrain Authoring*](https://hal.science/hal-03577171/):
+  elevation + gradient/ridge/valley constraint yaklaşımı;
+- Barnes vd., [*Priority-Flood*](https://arxiv.org/abs/1511.04463):
+  pit conditioning ve drenaj garantisi;
+- Godot resmî [MultiMesh](https://docs.godotengine.org/en/stable/classes/class_multimesh.html) +
+  [Visibility Ranges/HLOD](https://docs.godotengine.org/en/stable/tutorials/3d/visibility_ranges.html):
+  spatial chunking, instancing ve uzak impostor;
+- Three.js resmî [OrthographicCamera](https://threejs.org/docs/pages/OrthographicCamera.html) +
+  [InstancedMesh](https://threejs.org/docs/pages/InstancedMesh.html):
+  tam-dünya kanıtı ve web instance bütçesi.
+
+Araştırma yeni bir upstream sürüm bulsa bile `terrain3d.lock.json` sessiz değiştirilmez. Yeni algoritma
+önce fixture/baseline, determinism, map-fidelity, safety ve perf testli ayrı PR'da sürümlenir.
 
 ## 9. Görev çıktısı
 
