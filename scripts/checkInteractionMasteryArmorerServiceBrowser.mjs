@@ -65,6 +65,7 @@ try {
 		first.controller.handleKeyDown({ code: 'KeyF', repeat: false });
 		const lockedText = first.dialogueBox._textEl.textContent;
 		const lockedInventory = first.controller.getInventorySnapshot();
+		first.controller.handleKeyDown({ code: 'Escape', repeat: false });
 
 		const unlockedSeed = first.controller.getRpgSnapshot();
 		unlockedSeed.inventory = structuredClone(seedInventory);
@@ -76,7 +77,6 @@ try {
 		first.controller.restoreRpgSnapshot(unlockedSeed);
 		first.controller.handleKeyDown({ code: 'KeyB', repeat: false });
 		const shopHintText = first.dialogueBox._textEl.textContent;
-		first.controller.handleKeyDown({ code: 'KeyB', repeat: false });
 		first.controller.handleKeyDown({ code: 'KeyF', repeat: false });
 		const craftedText = first.dialogueBox._textEl.textContent;
 		const craftedSnapshot = structuredClone(first.controller.getRpgSnapshot());
