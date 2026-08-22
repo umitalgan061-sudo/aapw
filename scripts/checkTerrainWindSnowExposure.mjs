@@ -102,8 +102,10 @@ assert.equal(south.leeDeposit, 0,
 // Integration contract: the same directional signal must now alter the authoritative render snow
 // coverage, not merely exist as a detached helper. Use an extreme north worldZ so climate clamping
 // gives permanentIce=1 without depending on a particular world-scale constant in this contract.
+// Keep the height below the full permanent-ice snowline so the neutral sample is not clamped to 1;
+// otherwise a valid lee deposit becomes unobservable at the snowSupply ceiling.
 const northBaseInput = {
-  heightAboveSeaMeters: 150,
+  heightAboveSeaMeters: 60,
   slopeDegrees: northWestFacing.slopeDegrees,
   snowWeight: 0.25,
   worldZ: -1e9,
@@ -120,6 +122,8 @@ const leeCoverage = resolveTerrainSnowCoverage({
   terrainWindward: 0,
   terrainLee: southEastFacing.lee,
 });
+assert(neutralCoverage.snowSupply < 1,
+  'integration fixture must preserve headroom for measurable lee deposition');
 assert(windwardCoverage.windwardScour > 0,
   'runtime snow coverage must consume windward exposure');
 assert(leeCoverage.leeDeposit > 0,
