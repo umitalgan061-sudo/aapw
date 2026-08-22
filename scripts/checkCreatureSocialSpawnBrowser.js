@@ -7,16 +7,37 @@ const BASE_URL = `http://127.0.0.1:${PORT}`;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function stripBenignServerNoise(log) {
-  return String(log)
-    .replace(/^-+\s*\nException occurred during processing of request from .*?\n[\s\S]*?^-+\s*$/gm, (block) => {
-      const browserCloseStack = /socketserver\.py/.test(block)
-        && /http\/server\.py/.test(block)
-        && /shutil\.py/.test(block)
-        && !/" [45]\d\d /.test(block);
-      return browserCloseStack ? '' : block;
-    })
-    .replace(/^BrokenPipeError: \[Errno 32\] Broken pipe\s*$/gm, '')
-    .replace(/^ConnectionResetError: \[Errno 104\] Connection reset by peer\s*$/gm, '');
+  const withoutSuccessfulAccess = String(log)
+    .replace(/^127\.0\.0\.1 - - \[[^\]]+\] "[A-Z]+ [^"]+ HTTP\/1\.1" [23]\d\d -\s*$/gm, '');
+
+  if (/" [45]\d\d /.test(withoutSuccessfulAccess)) return withoutSuccessfulAccess;
+
+  const compact = withoutSuccessfulAccess
+    .replace(/^-+\s*$/gm, '')
+    .trim();
+  if (!compact) return '';
+
+  const pythonFiles = [...compact.matchAll(/File "([^"]+\.py)"/g)].map((match) => match[1]);
+  const exceptionLines = compact
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => /^[A-Za-z_][\w.]*?(?:Error|Exception):/.test(line));
+  const onlyCloseStackFiles = pythonFiles.length > 0
+    && pythonFiles.every((path) => /\/(?:socketserver|http\/server|shutil)\.py$/.test(path));
+  const onlyCloseExceptions = exceptionLines.every((line) => (
+    /^BrokenPipeError: \[Errno 32\] Broken pipe$/.test(line)
+    || /^ConnectionResetError: \[Errno 104\] Connection reset by peer$/.test(line)
+  ));
+  const browserCloseStack = /Exception occurred during processing of request/.test(compact)
+    && /Traceback/.test(compact)
+    && /socketserver\.py/.test(compact)
+    && /http\/server\.py/.test(compact)
+    && /shutil\.py/.test(compact)
+    && /(?:copyfileobj|sendall)/.test(compact)
+    && onlyCloseStackFiles
+    && onlyCloseExceptions;
+
+  return browserCloseStack ? '' : compact;
 }
 
 async function main() {
@@ -41,6 +62,7 @@ async function main() {
       const {
         scatterCreatures,
         CREATURE_SOCIAL_SPAWN_RADIUS_METERS,
+        CREATURE_SPAWN_CLEARANCE_RADIUS_METERS,
       } = await import('/src/3d/gameplay/creatureSpawner.js');
       const { mulberry32 } = await import('/src/3d/world/terrain.js');
 
@@ -68,6 +90,19 @@ async function main() {
         if (!anchor) return Infinity;
         return Math.max(...items.map((entry) => Math.hypot(entry.x - anchor.x, entry.z - anchor.z)));
       };
+      let minimumClearanceMarginMeters = Infinity;
+      let bodyClearanceSatisfied = true;
+      for (let i = 0; i < first.length; i += 1) {
+        for (let j = i + 1; j < first.length; j += 1) {
+          const a = first[i];
+          const b = first[j];
+          const required = (CREATURE_SPAWN_CLEARANCE_RADIUS_METERS[a.speciesId] ?? 0.35)
+            + (CREATURE_SPAWN_CLEARANCE_RADIUS_METERS[b.speciesId] ?? 0.35);
+          const distance = Math.hypot(a.x - b.x, a.z - b.z);
+          minimumClearanceMarginMeters = Math.min(minimumClearanceMarginMeters, distance - required);
+          if (distance + 1e-9 < required) bodyClearanceSatisfied = false;
+        }
+      }
       const sheep = bySpecies(first, 'koyun');
       const deer = bySpecies(first, 'geyik');
       const cats = bySpecies(first, 'kedi');
@@ -90,12 +125,14 @@ async function main() {
         deterministic,
         physicallyValid,
         idsUnique,
+        bodyClearanceSatisfied,
         socialCountsPreserved,
         solitaryCountPreserved,
         sheepClustered,
         deerClustered,
         solitaryStillScattered,
         withinWorldDisc,
+        minimumClearanceMarginMeters: Number(minimumClearanceMarginMeters.toFixed(3)),
         sheepMaxAnchorDistance: Number(maxAnchorDistance(sheep).toFixed(3)),
         deerMaxAnchorDistance: Number(maxAnchorDistance(deer).toFixed(3)),
         catMaxAnchorDistance: Number(maxAnchorDistance(cats).toFixed(3)),
@@ -105,7 +142,7 @@ async function main() {
 
     if (pageErrors.length) throw new Error(`browser errors: ${pageErrors.join(' | ')}`);
     const failed = Object.entries(result)
-      .filter(([key, value]) => !key.endsWith('Distance') && key !== 'total' && value !== true);
+      .filter(([key, value]) => !key.endsWith('Distance') && !key.endsWith('Meters') && key !== 'total' && value !== true);
     if (failed.length) throw new Error(`social fauna spawn proof failed: ${JSON.stringify(result)}`);
     console.log('CREATURE_SOCIAL_SPAWN_BROWSER_PASS', JSON.stringify(result));
   } finally {
