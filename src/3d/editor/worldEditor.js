@@ -150,6 +150,15 @@ function retireObjectFoundation(object) {
   return placement.removeObjectFoundation(object);
 }
 
+function retireObjectFoundations(objects) {
+  const candidates = (Array.isArray(objects) ? objects : [objects])
+    .filter((object) => object?.userData?.editorFoundationKey || object?.userData?.terrainFoundationKey);
+  if (!candidates.length) return { ok: true, removedCount: 0, missingKeys: [], rebuiltChunkCount: 0 };
+  const placement = livePlacement();
+  if (!placement?.removeObjectFoundations) return { ok: false, error: 'live-placement-unavailable' };
+  return placement.removeObjectFoundations(candidates);
+}
+
 function regroundObjectFoundation(object, asset = null) {
   const placement = livePlacement();
   if (!placement?.groundObject || !object || object.isInstancedMesh) return { ok: false, error: 'live-placement-unavailable' };
@@ -295,14 +304,15 @@ function saveScene() {
 async function loadSceneFile(file) {
   const data = validateEditorScene(JSON.parse(await file.text()));
   instanceManager.clear();
-  for (const object of [...editableObjects]) {
-    const retired = retireObjectFoundation(object);
-    if (!retired.ok && retired.error !== 'foundation-not-registered') {
-      console.warn('[worldEditor] foundation cleanup failed before scene load', retired.error);
-    }
-    scene.remove(object);
-    editableObjects.splice(editableObjects.indexOf(object), 1);
+  const previousObjects = [...editableObjects];
+  const retired = retireObjectFoundations(previousObjects);
+  if (!retired.ok) {
+    console.warn('[worldEditor] batch foundation cleanup failed before scene load', retired.error);
   }
+  for (const object of previousObjects) {
+    scene.remove(object);
+  }
+  editableObjects.splice(0, editableObjects.length);
   for (const record of data.objects) {
     const asset = findEditorAsset(record.asset);
     if (!asset) continue;
@@ -360,7 +370,6 @@ $('we-auto-texture').addEventListener('click', () => {
   toast(describeResult(result));
 });
 $('we-auto-texture-all').addEventListener('click', () => {
-  // Instanced groups live in the instance manager, not `editableObjects`, so dress both sets.
   const targets = [...editableObjects, ...instanceManager.groups.map((record) => record.object)];
   if (targets.length === 0) { toast('Sahnede giydirilecek obje yok.'); return; }
   const summary = autoTextureMany(targets, { lookupAsset: findEditorAsset });
@@ -406,8 +415,6 @@ window.addEventListener('pagehide', () => {
   window.clearTimeout(toastTimer);
   controls.dispose();
   renderer.dispose();
-  // Generated palette textures/materials are cached and shared across figures, so they outlive any
-  // single object's disposal — this is their only owner (memory-leak checklist, GOVERNANCE.md §2.8).
   disposePaletteCaches();
 });
 
@@ -423,7 +430,6 @@ renderer.setAnimationLoop(() => {
   renderer.render(scene, camera);
 });
 
-// Run216 additive editor ownership bridge for the isolated TransformControls controller.
 window.__WESTEROS_WORLD_EDITOR__ = Object.freeze({
   scene,
   camera,
