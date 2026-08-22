@@ -5,7 +5,10 @@ import {
 	FIREBASE_DEPLOY_LFS_POLICY,
 	classifyCelestialBuffer,
 } from './firebaseDeployLfsReadiness.mjs';
-import { CELESTIAL_ASSET_POLICY } from '../src/3d/lighting.js';
+import {
+	CELESTIAL_ASSET_POLICY,
+	celestialAltitudeWeightFromY,
+} from '../src/3d/lighting.js';
 
 const ROOT = new URL('../', import.meta.url);
 const repositoryPath = CELESTIAL_ASSET_POLICY.moonRepositoryPath;
@@ -19,6 +22,18 @@ assert.equal(CELESTIAL_ASSET_POLICY.moonAssetUrl.includes(' '), false,
 	'runtime URL must percent-encode the space in the Moon filename');
 assert(CELESTIAL_ASSET_POLICY.moonTargetDiameterMeters >= 24 && CELESTIAL_ASSET_POLICY.moonTargetDiameterMeters <= 48,
 	'Moon visual diameter must remain readable without becoming an oversized sky object');
+assert.equal(CELESTIAL_ASSET_POLICY.moonLightingAltitudeModulated, true,
+	'Moon directional illumination must remain tied to celestial altitude');
+assert.equal(CELESTIAL_ASSET_POLICY.twilightSkyAltitudeModulated, true,
+	'twilight sky colour must remain tied to solar altitude');
+
+assert.equal(celestialAltitudeWeightFromY(-100), 0,
+	'a celestial body well below the horizon must contribute no directional key');
+const horizonWeight = celestialAltitudeWeightFromY(0);
+assert(horizonWeight > 0 && horizonWeight < 0.1,
+	'a body touching the horizon should fade in gently instead of popping to full strength');
+assert.equal(celestialAltitudeWeightFromY(900), 1,
+	'a high celestial body must reach full altitude weighting');
 
 const attributes = await readFile(new URL('.gitattributes', ROOT), 'utf8');
 const fbxRules = attributes.split(/\r?\n/)
@@ -50,6 +65,10 @@ assert(lightingSource.includes('moonAssetReady'),
 	'createDayNightLighting must expose the asynchronous Moon readiness result for browser/runtime QA');
 assert(lightingSource.includes('object.position.sub(center)'),
 	'hydrated Moon geometry must be centered on the celestial orbit anchor after normalization');
+assert(lightingSource.includes('MOON_MAX_INTENSITY * smoothNightFactor * moonAltitudeFactor'),
+	'Moon directional key must combine darkness with actual Moon altitude');
+assert(lightingSource.includes('SKY_TWILIGHT'),
+	'lighting runtime must retain a dedicated solar-altitude twilight sky state');
 
 console.log('[checkCelestialAssetContract] PASS', JSON.stringify({
 	policy: CELESTIAL_ASSET_POLICY.id,
@@ -59,4 +78,5 @@ console.log('[checkCelestialAssetContract] PASS', JSON.stringify({
 	checkoutBytes: moonState.bytes,
 	declaredSize: moonState.declaredSize ?? moonState.bytes,
 	targetDiameterMeters: CELESTIAL_ASSET_POLICY.moonTargetDiameterMeters,
+	horizonAltitudeWeight: horizonWeight,
 }));
