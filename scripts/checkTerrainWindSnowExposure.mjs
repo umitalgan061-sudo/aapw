@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { resolveTerrainSnowCoverage } from '../src/3d/world/terrainBiomeShading.js';
 import {
   TERRAIN_WIND_SNOW_POLICY,
   resolveTerrainWindSnowAdjustment,
@@ -24,9 +25,7 @@ assert.equal(flat.windward, 0, 'flat terrain must not invent a windward face');
 assert.equal(flat.lee, 0, 'flat terrain must not invent a lee face');
 assert.equal(flat.slopeAspectStrength, 0, 'flat terrain must suppress slope-aspect redistribution');
 
-// Height rising east creates a west-facing slope normal, directly facing the prevailing NW source.
 const westFacing = terrainWindExposureFromNeighbours(90, 110, 100, 100, 10);
-// Reversing that stencil creates the corresponding east-facing lee slope.
 const eastFacing = terrainWindExposureFromNeighbours(110, 90, 100, 100, 10);
 assert(westFacing.windward > westFacing.lee,
   'west-facing terrain should be windward under NW prevailing flow');
@@ -37,7 +36,6 @@ assert(Math.abs(westFacing.slopeDegrees - eastFacing.slopeDegrees) < EPSILON,
 assert(Math.abs(westFacing.aspectDot + eastFacing.aspectDot) < EPSILON,
   'reversed slope aspect must invert directional exposure');
 
-// A slope facing north-west should align more strongly than one facing only west.
 const northWestFacing = terrainWindExposureFromNeighbours(94, 106, 94, 106, 10);
 const southEastFacing = terrainWindExposureFromNeighbours(106, 94, 106, 94, 10);
 assert(northWestFacing.aspectDot > westFacing.aspectDot,
@@ -101,6 +99,53 @@ assert.equal(south.windwardScour, 0,
 assert.equal(south.leeDeposit, 0,
   'temperate south must receive no north-climate lee snow deposition');
 
+// Integration contract: the same directional signal must now alter the authoritative render snow
+// coverage, not merely exist as a detached helper. Use an extreme north worldZ so climate clamping
+// gives permanentIce=1 without depending on a particular world-scale constant in this contract.
+const northBaseInput = {
+  heightAboveSeaMeters: 150,
+  slopeDegrees: northWestFacing.slopeDegrees,
+  snowWeight: 0.25,
+  worldZ: -1e9,
+  terrainConcavityMeters: 0,
+};
+const neutralCoverage = resolveTerrainSnowCoverage(northBaseInput);
+const windwardCoverage = resolveTerrainSnowCoverage({
+  ...northBaseInput,
+  terrainWindward: northWestFacing.windward,
+  terrainLee: 0,
+});
+const leeCoverage = resolveTerrainSnowCoverage({
+  ...northBaseInput,
+  terrainWindward: 0,
+  terrainLee: southEastFacing.lee,
+});
+assert(windwardCoverage.windwardScour > 0,
+  'runtime snow coverage must consume windward exposure');
+assert(leeCoverage.leeDeposit > 0,
+  'runtime snow coverage must consume lee exposure');
+assert(windwardCoverage.snowSupply < neutralCoverage.snowSupply,
+  'windward terrain must lose loose snow supply');
+assert(leeCoverage.snowSupply > neutralCoverage.snowSupply,
+  'lee terrain must gain retained snow supply');
+
+const southNeutralCoverage = resolveTerrainSnowCoverage({
+  ...northBaseInput,
+  worldZ: 1e9,
+});
+const southDirectionalCoverage = resolveTerrainSnowCoverage({
+  ...northBaseInput,
+  worldZ: 1e9,
+  terrainWindward: 1,
+  terrainLee: 1,
+});
+assert.equal(southDirectionalCoverage.windwardScour, 0,
+  'temperate runtime coverage must not receive wind scour');
+assert.equal(southDirectionalCoverage.leeDeposit, 0,
+  'temperate runtime coverage must not receive lee deposition');
+assert.equal(southDirectionalCoverage.snowSupply, southNeutralCoverage.snowSupply,
+  'temperate snow supply must remain unchanged by directional inputs');
+
 for (const sample of [flat, westFacing, eastFacing, northWestFacing, southEastFacing, shallow, steep]) {
   assert(Number.isFinite(sample.slopeDegrees) && Number.isFinite(sample.aspectDot),
     'terrain wind exposure outputs must remain finite');
@@ -123,6 +168,9 @@ console.log('[checkTerrainWindSnowExposure] PASS', JSON.stringify({
   permanentIce: {
     windwardScour: northWindward.windwardScour,
     leeDeposit: northLee.leeDeposit,
+    neutralSnowSupply: neutralCoverage.snowSupply,
+    windwardSnowSupply: windwardCoverage.snowSupply,
+    leeSnowSupply: leeCoverage.snowSupply,
   },
   tundra: {
     windwardScour: tundraWindward.windwardScour,
