@@ -20,8 +20,18 @@ function functionBody(source, name, nextName) {
 
 expect(
   placementController,
-  /const surface = Object\.freeze\(\{[\s\S]*?groundObject,[\s\S]*?removeObjectFoundation,[\s\S]*?removeObjectFoundations,/,
-  'live placement API must expose foundation refresh plus single and batch removal operations',
+  /const surface = Object\.freeze\(\{[\s\S]*?groundObject,[\s\S]*?reconcileExistingStructureFoundations,[\s\S]*?removeObjectFoundation,[\s\S]*?removeObjectFoundations,/,
+  'live placement API must expose foundation refresh, bootstrap reconciliation, plus single and batch removal operations',
+);
+expect(
+  placementController,
+  /function reconcileExistingStructureFoundations\(\)[\s\S]*?for \(const object of api\.editableObjects\)[\s\S]*?isEditorStructureAsset\(asset\)[\s\S]*?editorFoundationKey[\s\S]*?terrainFoundationKey[\s\S]*?groundObject\(object, \{ asset \}\)/,
+  'placement boot must reconcile structure objects that were created before live terrain placement became available',
+);
+expect(
+  placementController,
+  /window\.__WESTEROS_EDITOR_PLACEMENT__ = surface;[\s\S]*?reconcileExistingStructureFoundations\(\)[\s\S]*?syncUi\(\)/,
+  'placement installation must run existing-structure reconciliation after publishing the live placement surface',
 );
 expect(
   placementController,
@@ -42,6 +52,23 @@ expect(
   worldEditor,
   /function retireObjectFoundations\([\s\S]*?removeObjectFoundations\(candidates\)/,
   'scene replacement must expose a batch foundation retirement path',
+);
+
+const addAssetBody = functionBody(worldEditor, 'addAsset', 'renderAssets');
+expect(
+  addAssetBody,
+  /groundStructure = true[\s\S]*?scene\.add\(object\)[\s\S]*?isEditorStructureAsset\(asset\)[\s\S]*?regroundObjectFoundation\(object, asset\)/,
+  'asset-library additions must automatically install a footprint terrain foundation for structure assets',
+);
+expect(
+  addAssetBody,
+  /grounding\.error !== 'live-placement-unavailable'/,
+  'pre-controller asset creation may defer structure grounding so placement bootstrap can reconcile it later',
+);
+expect(
+  worldEditor,
+  /button\.addEventListener\('dblclick', \(\) => addAsset\(asset, controls\.target\.clone\(\)\)\)/,
+  'asset-library double-click additions must use the automatically grounded addAsset path',
 );
 expect(
   worldEditor,
@@ -72,8 +99,8 @@ assert.equal(
 );
 expect(
   loadSceneBody,
-  /isEditorStructureAsset\(asset\)[\s\S]*?regroundObjectFoundation\(object, asset\)/,
-  'scene replacement must recreate foundations for loaded structures after batch cleanup',
+  /addAsset\(asset, new THREE\.Vector3\(\.\.\.record\.transform\.position\), \{ groundStructure: false \}\)[\s\S]*?object\.rotation\.set[\s\S]*?object\.scale\.set[\s\S]*?isEditorStructureAsset\(asset\)[\s\S]*?regroundObjectFoundation\(object, asset\)/,
+  'scene replacement must defer addAsset grounding until persisted rotation and scale are restored, then create one correct foundation',
 );
 
 const objectChangeBody = functionBody(transformControls, 'onObjectChange', 'onDraggingChanged');
@@ -98,4 +125,4 @@ expect(
   'quick scale authoring must refresh a foundation-owned structure after scale changes',
 );
 
-console.log('[checkEditorTerrainFoundationLifecycle] PASS: editor structure foundations track inspector, drag-end, quick-scale, clone and delete lifecycles; scene replacement batch-retires old foundations; placement teardown removes shared pads without useless terrain rebuilds.');
+console.log('[checkEditorTerrainFoundationLifecycle] PASS: editor structure foundations auto-ground on asset creation, reconcile pre-controller structures, track inspector/drag-end/quick-scale/clone/delete lifecycles, batch-retire scene replacements, and teardown shared pads without useless terrain rebuilds.');
