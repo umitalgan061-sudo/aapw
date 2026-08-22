@@ -28,9 +28,13 @@ assert.equal(computeAttackCommitStep(0, 1, 0.46, 0.9, 0.9), 0.9);
 assert.match(player, /LIGHT_ATTACK_COMMIT_METERS:\s*0\.58/);
 assert.match(player, /HEAVY_ATTACK_COMMIT_METERS:\s*0\.9/);
 assert.match(player, /attackCommitRemaining = attackCommitBudget/);
-assert.match(player, /moveBy\(Math\.sin\(model\.rotation\.y\), Math\.cos\(model\.rotation\.y\), commitStep \/ dt, dt\)/);
+assert.match(player, /const startX = model\.position\.x, startZ = model\.position\.z;/);
+assert.match(player, /return Math\.hypot\(model\.position\.x - startX, model\.position\.z - startZ\);/);
+assert.match(player, /const committedMeters = moveBy\(Math\.sin\(model\.rotation\.y\), Math\.cos\(model\.rotation\.y\), commitStep \/ dt, dt\)/);
+assert.match(player, /attackCommitRemaining = Math\.max\(0, attackCommitRemaining - committedMeters\)/);
+assert.doesNotMatch(player, /attackCommitRemaining = Math\.max\(0, attackCommitRemaining - commitStep\)/, 'blocked collision travel must not consume untraveled attack commit budget');
 assert.match(player, /commitRemainingMeters/);
 assert.ok(player.indexOf('const commitStep = computeAttackCommitStep') < player.indexOf('const activeNow = attackElapsed'), 'commit motion must be integrated before attack-window transition telemetry');
 assert.ok(!player.includes('EditorMaterialStudio'), 'gameplay runtime must remain DOM/editor independent');
 
-console.log('[checkPlayerMeleeCommitStep] PASS: light/heavy combo attacks use deterministic bounded collider-aware forward commit during windup/active time only.');
+console.log('[checkPlayerMeleeCommitStep] PASS: melee commit budget follows actual collider-resolved travel and never consumes blocked distance.');
