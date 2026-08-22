@@ -11,6 +11,7 @@ import { AssetLoader } from '../assetLoader.js';
 import { integrateJumpArc } from '../physics.js';
 import { gameEvents } from '../eventBus.js';
 import { EVENTS } from '../config.js';
+import { attackCommitBudget, computeAttackCommitStep } from './playerCombatMath.js';
 
 const PLAYER_ACTION_CONFIG = Object.freeze({
 	MAX_STAMINA: 100,
@@ -50,8 +51,11 @@ const PLAYER_ACTION_CONFIG = Object.freeze({
 	HEAVY_ATTACK_ACTIVE_END_SECONDS: 0.46,
 	ATTACK_COMBO_BUFFER_SECONDS: 0.28,
 	ATTACK_COMBO_MAX_STEPS: 3,
+	ATTACK_COMBO_COMMIT_BONUS_PER_STEP: 0.08,
 	LIGHT_ATTACK_REACH_METERS: 1.65,
 	HEAVY_ATTACK_REACH_METERS: 2.05,
+	LIGHT_ATTACK_COMMIT_METERS: 0.58,
+	HEAVY_ATTACK_COMMIT_METERS: 0.9,
 	LIGHT_ATTACK_DAMAGE_SCALE: 1,
 	HEAVY_ATTACK_DAMAGE_SCALE: 1.65,
 	MAX_COLLISION_STEP_METERS: 0.45,
@@ -80,7 +84,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 	let dodgeRemaining = 0, dodgeElapsed = 0, dodgeCooldownRemaining = 0, lastRunPressAge = Infinity, wasRunHeld = false;
 	let runIntent = false, hasMovementInput = false, planarSpeedMps = 0, dodgeDirectionX = 0, dodgeDirectionZ = 1;
 	let guarding = false, wasGuardHeld = false, parryWindowRemaining = 0, parryFeedbackRemaining = 0;
-	let attackKind = 'none', attackRemaining = 0, attackElapsed = 0, attackActive = false, attackComboStep = 0, attackSerial = 0;
+	let attackKind = 'none', attackRemaining = 0, attackElapsed = 0, attackActive = false, attackComboStep = 0, attackSerial = 0, attackCommitRemaining = 0;
 	let bufferedAttackKind = 'none', attackBufferRemaining = 0;
 	let lastDefenseResult = 'none';
 	let movementState = 'idle', currentActionName = null, lastTelemetryState = '', lastTelemetryStamina = -1, lastTelemetryPoise = -1;
@@ -128,8 +132,8 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 	}
 	function attackTuning(kind) {
 		return kind === 'heavy'
-			? { cost: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_STAMINA_COST, duration: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_SECONDS, activeStart: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_ACTIVE_START_SECONDS, activeEnd: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_ACTIVE_END_SECONDS, reach: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_REACH_METERS, damageScale: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_DAMAGE_SCALE }
-			: { cost: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_STAMINA_COST, duration: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_SECONDS, activeStart: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_ACTIVE_START_SECONDS, activeEnd: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_ACTIVE_END_SECONDS, reach: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_REACH_METERS, damageScale: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_DAMAGE_SCALE };
+			? { cost: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_STAMINA_COST, duration: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_SECONDS, activeStart: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_ACTIVE_START_SECONDS, activeEnd: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_ACTIVE_END_SECONDS, reach: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_REACH_METERS, commitMeters: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_COMMIT_METERS, damageScale: PLAYER_ACTION_CONFIG.HEAVY_ATTACK_DAMAGE_SCALE }
+			: { cost: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_STAMINA_COST, duration: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_SECONDS, activeStart: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_ACTIVE_START_SECONDS, activeEnd: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_ACTIVE_END_SECONDS, reach: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_REACH_METERS, commitMeters: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_COMMIT_METERS, damageScale: PLAYER_ACTION_CONFIG.LIGHT_ATTACK_DAMAGE_SCALE };
 	}
 	function publishAttackWindow(phase) {
 		if (typeof globalThis.dispatchEvent !== 'function' || typeof globalThis.CustomEvent !== 'function') return;
@@ -137,6 +141,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 		globalThis.dispatchEvent(new globalThis.CustomEvent(ATTACK_WINDOW_EVENT, { detail: Object.freeze({
 			serial: attackSerial, kind: attackKind, comboStep: attackComboStep, phase, active: attackActive,
 			stamina: Number(stamina.toFixed(2)), reachMeters: tuning.reach, damageScale: tuning.damageScale,
+			commitRemainingMeters: Number(attackCommitRemaining.toFixed(3)),
 			position: Object.freeze({ x: Number(model.position.x.toFixed(3)), y: Number(model.position.y.toFixed(3)), z: Number(model.position.z.toFixed(3)) }),
 			facing: Object.freeze({ x: Number(Math.sin(model.rotation.y).toFixed(4)), z: Number(Math.cos(model.rotation.y).toFixed(4)) }),
 		}) }));
@@ -151,14 +156,20 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 		spendStamina(tuning.cost);
 		attackKind = kind; attackRemaining = tuning.duration; attackElapsed = 0; attackActive = false; attackSerial += 1;
 		attackComboStep = chained ? Math.min(PLAYER_ACTION_CONFIG.ATTACK_COMBO_MAX_STEPS, previousComboStep + 1) : 1;
+		attackCommitRemaining = attackCommitBudget(tuning.commitMeters, attackComboStep, PLAYER_ACTION_CONFIG.ATTACK_COMBO_COMMIT_BONUS_PER_STEP);
 		bufferedAttackKind = 'none'; attackBufferRemaining = 0; guarding = false; parryWindowRemaining = 0;
 		movementState = `attack-${kind}`; playAction('idle', 1); publishAttackWindow('start');
 		return true;
 	}
 	function updateAttack(dt) {
 		if (attackRemaining <= 0) return;
-		const tuning = attackTuning(attackKind);
+		const tuning = attackTuning(attackKind), previousElapsed = attackElapsed;
 		attackElapsed += dt; attackRemaining = Math.max(0, attackRemaining - dt);
+		const commitStep = computeAttackCommitStep({ previousElapsedSeconds: previousElapsed, nextElapsedSeconds: attackElapsed, activeEndSeconds: tuning.activeEnd, totalCommitMeters: attackCommitBudget(tuning.commitMeters, attackComboStep, PLAYER_ACTION_CONFIG.ATTACK_COMBO_COMMIT_BONUS_PER_STEP), remainingCommitMeters: attackCommitRemaining });
+		if (commitStep > 0 && dt > 0) {
+			moveBy(Math.sin(model.rotation.y), Math.cos(model.rotation.y), commitStep / dt, dt);
+			attackCommitRemaining = Math.max(0, attackCommitRemaining - commitStep);
+		}
 		const activeNow = attackElapsed >= tuning.activeStart && attackElapsed < tuning.activeEnd;
 		if (activeNow && !attackActive) { attackActive = true; publishAttackWindow('active-start'); }
 		else if (!activeNow && attackActive) { attackActive = false; publishAttackWindow('active-end'); }
@@ -167,7 +178,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 		if (attackActive) { attackActive = false; publishAttackWindow('active-end'); }
 		publishAttackWindow('finish');
 		const chainedKind = attackBufferRemaining > 0 ? bufferedAttackKind : 'none';
-		attackKind = 'none'; attackElapsed = 0;
+		attackKind = 'none'; attackElapsed = 0; attackCommitRemaining = 0;
 		if (chainedKind !== 'none' && startAttack(chainedKind, true)) return;
 		attackComboStep = 0; bufferedAttackKind = 'none'; attackBufferRemaining = 0;
 	}
@@ -208,7 +219,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 			poise: Number(poise.toFixed(2)), maxPoise: PLAYER_ACTION_CONFIG.MAX_POISE,
 			poiseRatio: Number((poise / PLAYER_ACTION_CONFIG.MAX_POISE).toFixed(4)), guardBreakRemaining: Number(guardBreakRemaining.toFixed(3)),
 			guarding, parryWindowRemaining: Number(parryWindowRemaining.toFixed(3)), defenseResult: lastDefenseResult,
-			attackKind, attackPhase: attackPhase(), attackComboStep, attackActive, attackRemaining: Number(attackRemaining.toFixed(3)),
+			attackKind, attackPhase: attackPhase(), attackComboStep, attackActive, attackRemaining: Number(attackRemaining.toFixed(3)), attackCommitRemaining: Number(attackCommitRemaining.toFixed(3)),
 			isGrounded, canDodge: attackRemaining <= 0 && !guarding && guardBreakRemaining <= 0 && isGrounded && dodgeRemaining <= 0 && dodgeCooldownRemaining <= 0 && stamina >= PLAYER_ACTION_CONFIG.DODGE_COST,
 			isDodgeInvulnerable: isDodgeInvulnerable(), dodgeElapsed: Number(dodgeElapsed.toFixed(3)),
 			speedMps: Number(planarSpeedMps.toFixed(3)), dodgeRemaining: Number(dodgeRemaining.toFixed(3)),
