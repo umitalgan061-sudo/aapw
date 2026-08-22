@@ -19,6 +19,11 @@ on:
       - 'scripts/checkPlayerLockOn.mjs'
       - 'scripts/checkPlayerLockOnRuntime.mjs'
       - 'scripts/checkPlayerCombatHudRuntime.mjs'
+      - 'scripts/checkPlayerDodgeIFrames.mjs'
+      - 'scripts/checkPlayerDodgeIFrameRuntime.mjs'
+      - 'scripts/checkPlayerGroundingCombatContract.mjs'
+      - '.github/workflows/player-dodge-iframes.yml'
+      - '.github/workflows/player-grounding-combat-contract.yml'
       - '.github/workflows/player-gamepad-parity.yml'
       - '.github/workflows/player-stamina-dodge.yml'
   workflow_dispatch:
@@ -52,7 +57,8 @@ jobs:
           git diff --check "$BASE"...HEAD
           CHANGED="$(git diff --name-only "$BASE"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|scripts/checkPlayerLockOnRuntime\.mjs|scripts/checkPlayerCombatHudRuntime\.mjs|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
+          OUT_OF_SCOPE="$(printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|scripts/checkPlayerLockOnRuntime\.mjs|scripts/checkPlayerCombatHudRuntime\.mjs|scripts/checkPlayerDodgeIFrames\.mjs|scripts/checkPlayerDodgeIFrameRuntime\.mjs|scripts/checkPlayerGroundingCombatContract\.mjs|\.github/workflows/player-dodge-iframes\.yml|\.github/workflows/player-grounding-combat-contract\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-stamina-dodge\.yml)$' || true)"
+          test -z "$OUT_OF_SCOPE"
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           TOTAL=$((ADD + DEL))
           echo "base=$BASE additions=$ADD deletions=$DEL total=$TOTAL"
@@ -86,11 +92,16 @@ jobs:
           node --check scripts/checkPlayerLockOn.mjs
           node --check scripts/checkPlayerLockOnRuntime.mjs
           node --check scripts/checkPlayerCombatHudRuntime.mjs
+          node --check scripts/checkPlayerDodgeIFrames.mjs
+          node --check scripts/checkPlayerDodgeIFrameRuntime.mjs
+          node --check scripts/checkPlayerGroundingCombatContract.mjs
           node scripts/checkPlayerStaminaDodge.mjs
           node scripts/checkPlayerMeleeCombo.mjs
           node scripts/checkPlayerGamepadInput.mjs
           node scripts/checkPlayerGamepadHandoff.mjs
           node scripts/checkPlayerLockOn.mjs
+          node scripts/checkPlayerDodgeIFrames.mjs
+          node scripts/checkPlayerGroundingCombatContract.mjs
           node scripts/checkSharedMaterialPlacementContract.js
           node scripts/checkServiceWorkerCache.js
           test -f src/3d/materials/MaterialAssignmentCore.js
@@ -135,6 +146,11 @@ jobs:
           test -s artifacts/player-stamina-dodge/combat-hud/combat-hud-runtime.json
           grep -q 'PLAYER_COMBAT_HUD_RUNTIME_OK' artifacts/player-stamina-dodge/combat-hud.log
           grep -q '"browserErrors": \[\]' artifacts/player-stamina-dodge/combat-hud/combat-hud-runtime.json
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerDodgeIFrameRuntime.mjs --out-dir=artifacts/player-stamina-dodge/dodge-iframes | tee artifacts/player-stamina-dodge/dodge-iframes.log
+          test -s artifacts/player-stamina-dodge/dodge-iframes/dodge-iframes-runtime.png
+          test -s artifacts/player-stamina-dodge/dodge-iframes/dodge-iframes-runtime.json
+          grep -q 'PLAYER_DODGE_IFRAMES_RUNTIME_OK' artifacts/player-stamina-dodge/dodge-iframes.log
+          grep -q '"browserErrors": \[\]' artifacts/player-stamina-dodge/dodge-iframes/dodge-iframes-runtime.json
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
       - name: Final main freshness
