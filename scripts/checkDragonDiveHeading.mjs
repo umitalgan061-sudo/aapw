@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { applyCirclePose, applyDiveOffset } from '../src/3d/gameplay/dragonFlightMath.js';
+import {
+  alignDiveOrientation,
+  applyCirclePose,
+  applyDiveOffset,
+  clampAltitudeAboveGround,
+} from '../src/3d/gameplay/dragonFlightMath.js';
 
 function fakeDragon() {
   return {
@@ -91,6 +96,56 @@ assert.equal(calm.rotation.y, patrolYaw, 'zero dive blend must preserve exact ci
 assert.equal(calm.position.x, circleX, 'zero dive blend must preserve exact circle X');
 assert.equal(calm.position.z, circleZ, 'zero dive blend must preserve exact circle Z');
 
+const vertical = fakeDragon();
+applyCirclePose(vertical, center, 20, 0, 0.2);
+const verticalCircleX = vertical.position.x;
+const verticalCircleZ = vertical.position.z;
+applyDiveOffset(vertical, {
+  playerX: verticalCircleX,
+  playerZ: verticalCircleZ,
+  centerY: center.y,
+  diveDropMeters: 24,
+  lateralPullFraction: 1,
+  diveBlend: 1,
+});
+assert.ok(angleDistance(vertical.rotation.x, Math.PI / 2) < 1e-10,
+  'purely vertical committed dive must pitch straight down instead of retaining patrol pitch');
+assert.equal(vertical.rotation.y, patrolYaw,
+  'purely vertical dive has no horizontal heading and must preserve authored yaw');
+
+const clamped = fakeDragon();
+applyCirclePose(clamped, center, 20, 0, 0.2);
+const clampOriginX = clamped.position.x;
+const clampOriginY = clamped.position.y;
+const clampOriginZ = clamped.position.z;
+const clampOriginPitch = clamped.rotation.x;
+const clampOriginYaw = clamped.rotation.y;
+applyDiveOffset(clamped, {
+  playerX: 30,
+  playerZ: -10,
+  centerY: center.y,
+  diveDropMeters: 24,
+  lateralPullFraction: 0.7,
+  diveBlend: 1,
+});
+clampAltitudeAboveGround(clamped, () => 65, 10);
+alignDiveOrientation(
+  clamped,
+  clampOriginX,
+  clampOriginY,
+  clampOriginZ,
+  clampOriginPitch,
+  clampOriginYaw,
+  1,
+);
+const clampedHorizontal = Math.hypot(clamped.position.x - clampOriginX, clamped.position.z - clampOriginZ);
+const clampedPitch = Math.atan2(clampOriginY - clamped.position.y, clampedHorizontal);
+assert.equal(clamped.position.y, 75, 'terrain safety fixture must clamp the rendered dive altitude');
+assert.ok(angleDistance(clamped.rotation.x, clampedPitch) < 1e-10,
+  'post-clamp pitch must follow the actual rendered 3D path rather than the unclamped target');
+assert.ok(clamped.rotation.x < committedPitch,
+  'terrain clamp that shortens the descent must visibly flatten the final dive pitch');
+
 const repeat = fakeDragon();
 applyCirclePose(repeat, center, 20, 0, 0.2);
 applyDiveOffset(repeat, {
@@ -110,6 +165,8 @@ console.log('DRAGON_DIVE_HEADING_PASS', JSON.stringify({
   committedPitch: dragon.rotation.x,
   halfYaw: half.rotation.y,
   halfPitch: half.rotation.x,
+  verticalPitch: vertical.rotation.x,
+  clampedPitch: clamped.rotation.x,
   bankPreserved: dragon.rotation.z,
   deterministic: true,
 }));
