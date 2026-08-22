@@ -67,7 +67,7 @@ jobs:
           node --check scripts/checkPlayerDodgeIFrameRuntime.mjs
           node --check src/3d/gameplay/player.js
           node scripts/checkSharedMaterialPlacementContract.js
-          node scripts/checkSeededRandom.js
+          node scripts/checkSeededRandomPolicy.js
           node scripts/checkServiceWorkerCache.js
       - name: Install Chromium
         shell: bash
