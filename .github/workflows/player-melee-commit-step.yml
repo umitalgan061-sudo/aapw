@@ -27,6 +27,7 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          lfs: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -59,6 +60,18 @@ jobs:
           node scripts/checkSharedMaterialPlacementContract.js
           node scripts/checkServiceWorkerCache.js
           ! grep -q 'EditorMaterialStudio' src/3d/gameplay/player.js
+      - name: Hydrate shipped scene asset families
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          INCLUDE='assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**'
+          git lfs pull --include="$INCLUDE" --exclude=''
+          POINTERS="$(git grep -Il '^version https://git-lfs.github.com/spec/v1$' -- assets/models/settlements/castles assets/models/characters assets/animations/peasant_girl assets/models/animals assets/models/creatures/dragon || true)"
+          if [ -n "$POINTERS" ]; then
+            printf 'Unhydrated shipped-scene LFS assets:\n%s\n' "$POINTERS" >&2
+            exit 1
+          fi
       - name: Install Chromium
         shell: bash
         run: |
