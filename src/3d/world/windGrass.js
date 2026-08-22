@@ -15,7 +15,7 @@ import {
 	northGroundCoverProfileAtWorldXZ,
 	NORTH_GROUND_COVER_POLICY,
 } from './northGroundCoverClimate.js';
-import { resolveTerrainSnowCoverage } from './terrainBiomeShading.js';
+import { resolveTerrainSnowCoverage, TERRAIN_BIOME_SHADING_POLICY } from './terrainBiomeShading.js';
 
 export const RUN180_WIND_GRASS_CONFIG = Object.freeze({
 	desktop: Object.freeze({ radiusMeters: 350, maxPatches: 4000 }),
@@ -88,10 +88,23 @@ export function isWindGrassSurfaceAllowed(x, z, {
 
 /**
  * Translate the canonical render snow amount into ordinary-grass survival. Patchy snow can retain
- * some vegetation; continuous snow suppresses it completely. Dry temperate ground returns exactly 1
- * so the established southern RNG stream does not consume any additional acceptance roll.
+ * some vegetation; continuous snow suppresses it completely. During the staged map-climate migration,
+ * low ground explicitly outside the canonical X/Z north field must not inherit the legacy latitude-only
+ * permanent-ice floor. Mountain snow remains owned by the terrain resolver everywhere.
  */
-export function windGrassSnowDensityMultiplier({ heightAboveSeaMeters, slopeDegrees, worldZ }) {
+export function windGrassSnowDensityMultiplier({
+	heightAboveSeaMeters,
+	slopeDegrees,
+	worldZ,
+	climateProfile = null,
+}) {
+	if (
+		climateProfile
+		&& climateProfile.tundra <= 0
+		&& heightAboveSeaMeters < TERRAIN_BIOME_SHADING_POLICY.snowAltitudeStartMeters
+	) {
+		return 1;
+	}
 	const snow = resolveTerrainSnowCoverage({
 		heightAboveSeaMeters,
 		slopeDegrees,
@@ -174,6 +187,7 @@ export function populateWindGrass(mesh, params, cellX, cellZ) {
 				heightAboveSeaMeters: surface.heightMeters - params.seaLevelMeters,
 				slopeDegrees: surface.slopeDegrees,
 				worldZ: z,
+				climateProfile: cover,
 			});
 			if (snowDensity <= 0) {
 				snowRejected++;
@@ -212,6 +226,7 @@ export function populateWindGrass(mesh, params, cellX, cellZ) {
 		snowRejected,
 		mapAlignedClimate: true,
 		snowAware: true,
+		latitudeSnowFloorBypassedOutsideCryosphere: true,
 	};
 	return placed;
 }
@@ -224,7 +239,7 @@ function createWindGrassMaterial(config) {
 		side: THREE.DoubleSide,
 	});
 	material.userData.run180WindGrass = Object.freeze({
-		key: 'run180-wind-grass-v4-map-aligned-snow-climate',
+		key: 'run180-wind-grass-v5-map-aligned-snow-transition',
 		radiusMeters: config.radiusMeters,
 		maxPatches: config.maxPatches,
 		bladesPerPatch: RUN180_WIND_GRASS_CONFIG.bladesPerPatch,
@@ -242,7 +257,7 @@ function createWindGrassMaterial(config) {
 			.replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb*=mix(0.84,1.10,vRun180GrassVariation);');
 		material.userData.run180Shader = shader;
 	};
-	material.customProgramCacheKey = () => 'run180-wind-grass-v4-map-aligned-snow-climate';
+	material.customProgramCacheKey = () => 'run180-wind-grass-v5-map-aligned-snow-transition';
 	return material;
 }
 
