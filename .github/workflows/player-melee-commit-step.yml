@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/3d/gameplay/player.js'
       - 'scripts/checkPlayerMeleeCommitStep.mjs'
+      - 'scripts/checkPlayerDodgeIFrames.mjs'
       - '.github/workflows/player-melee-commit-step.yml'
   workflow_dispatch:
 
@@ -37,7 +38,7 @@ jobs:
           test "$(git merge-base origin/main HEAD)" = "$BASE"
           git diff --check "$BASE"...HEAD
           CHANGED="$(git diff --name-only "$BASE"...HEAD)"
-          OUT_OF_SCOPE="$(printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|scripts/checkPlayerMeleeCommitStep\.mjs|\.github/workflows/player-melee-commit-step\.yml)$' || true)"
+          OUT_OF_SCOPE="$(printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|scripts/checkPlayerMeleeCommitStep\.mjs|scripts/checkPlayerDodgeIFrames\.mjs|\.github/workflows/player-melee-commit-step\.yml)$' || true)"
           test -z "$OUT_OF_SCOPE"
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           test "$((ADD + DEL))" -le 1000
@@ -47,6 +48,7 @@ jobs:
           set -euo pipefail
           node --check src/3d/gameplay/player.js
           node --check scripts/checkPlayerMeleeCommitStep.mjs
+          node --check scripts/checkPlayerDodgeIFrames.mjs
           node scripts/checkPlayerMeleeCommitStep.mjs
           node scripts/checkPlayerMeleeCombo.mjs
           node scripts/checkPlayerStaminaDodge.mjs
