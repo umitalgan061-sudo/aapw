@@ -20,9 +20,10 @@
  */
 
 export const TERRAIN_FOUNDATION_CONFORM_POLICY = Object.freeze({
-	id: 'runtime-structure-foundation-conform-2026-08-22-v3',
+	id: 'runtime-structure-foundation-conform-2026-08-22-v4',
 	footprintMode: 'aabb-enclosing-circle',
 	chunkRebuildMode: 'union-deduplicated',
+	batchRemovalMode: 'mutate-all-then-union-rebuild',
 	defaultInnerMarginMeters: 0.75,
 	defaultFeatherMeters: 14,
 	minimumInnerRadiusMeters: 1.5,
@@ -70,6 +71,15 @@ function structureKey(payload) {
 function rememberedStructureKey(object) {
 	const key = object?.userData?.terrainFoundationKey;
 	return key !== null && key !== undefined && String(key).trim() ? String(key) : null;
+}
+
+function foundationKeyFromInput(keyOrObject) {
+	const object = typeof keyOrObject === 'object' && keyOrObject ? keyOrObject : null;
+	const key = typeof keyOrObject === 'string'
+		? keyOrObject
+		: rememberedStructureKey(object)
+			|| (object?.uuid ? `object:${object.uuid}` : null);
+	return { key, object };
 }
 
 /**
@@ -210,9 +220,6 @@ export function createTerrainFoundationConformer({
 		const previousObjectKey = rememberedStructureKey(object);
 		const staleInfluencePads = [];
 
-		// If an object's authored/runtime identity changes, retire the old pad before installing the new
-		// one. Defer terrain rebuilding until the replacement pad exists so overlapping old/new influence
-		// regions are regenerated once as a union rather than repeatedly unloading the same chunk.
 		if (previousObjectKey && previousObjectKey !== key && dynamicPads.has(previousObjectKey)) {
 			const retired = removeInstalledPad(previousObjectKey, { rebuild: false });
 			if (retired.ok) staleInfluencePads.push(retired.pad);
@@ -248,12 +255,41 @@ export function createTerrainFoundationConformer({
 		};
 	}
 
+	function removeFoundations(inputs) {
+		const requested = Array.isArray(inputs) ? inputs : [inputs];
+		const removedPads = [];
+		const removedObjects = [];
+		const missingKeys = [];
+		const seenKeys = new Set();
+
+		for (const input of requested) {
+			const { key, object } = foundationKeyFromInput(input);
+			if (!key || seenKeys.has(key)) continue;
+			seenKeys.add(key);
+			const removed = removeInstalledPad(key, { rebuild: false });
+			if (!removed.ok) {
+				missingKeys.push(key);
+				continue;
+			}
+			removedPads.push(removed.pad);
+			if (object) removedObjects.push({ object, key });
+		}
+
+		for (const { object, key } of removedObjects) {
+			if (object?.userData?.terrainFoundationKey === key) delete object.userData.terrainFoundationKey;
+		}
+
+		const rebuiltChunkCount = rebuildChunksForFoundations(chunkManager, removedPads, chunkSizeMeters);
+		return {
+			ok: missingKeys.length === 0,
+			removedCount: removedPads.length,
+			missingKeys,
+			rebuiltChunkCount,
+		};
+	}
+
 	function removeFoundation(keyOrObject) {
-		const object = typeof keyOrObject === 'object' && keyOrObject ? keyOrObject : null;
-		const key = typeof keyOrObject === 'string'
-			? keyOrObject
-			: rememberedStructureKey(object)
-				|| (object?.uuid ? `object:${object.uuid}` : null);
+		const { key, object } = foundationKeyFromInput(keyOrObject);
 		if (!key) return { ok: false, error: 'foundation-missing-key' };
 		const removed = removeInstalledPad(key);
 		if (!removed.ok) return removed;
@@ -264,6 +300,7 @@ export function createTerrainFoundationConformer({
 	return Object.freeze({
 		conformTerrain: installPad,
 		removeFoundation,
+		removeFoundations,
 		getDynamicPads: () => [...dynamicPads.values()],
 		policy: TERRAIN_FOUNDATION_CONFORM_POLICY,
 	});
