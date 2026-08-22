@@ -44,6 +44,47 @@ const motionHistory = () => page.evaluate(() => structuredClone(window.__meleeMo
 const attackWindows = () => page.evaluate(() => structuredClone(window.__meleeWindows));
 const combatInputs = () => page.evaluate(() => structuredClone(window.__meleeInputs));
 const recoveryProofTimeoutMs = 20000;
+const lfsPointerPrefix = 'version https://git-lfs.github.com/spec/v1';
+const lfsPointerCache = new Map();
+async function isVerifiedLfsPointerAsset(assetPath) {
+	if (lfsPointerCache.has(assetPath)) return lfsPointerCache.get(assetPath);
+	let isPointer = false;
+	try {
+		const prefix = await page.evaluate(async (url) => {
+			const response = await fetch(`/${url}`, { cache: 'no-store' });
+			return (await response.text()).slice(0, 96);
+		}, assetPath);
+		isPointer = prefix.startsWith(lfsPointerPrefix);
+	} catch {
+		isPointer = false;
+	}
+	lfsPointerCache.set(assetPath, isPointer);
+	return isPointer;
+}
+async function classifyBrowserErrors(recordedErrors) {
+	const runtimeErrors = [];
+	const lfsPointerErrors = [];
+	const assetPattern = /assets\/[^"')},\s]+?\.(?:glb|fbx)/g;
+	for (const error of recordedErrors) {
+		if (!error.startsWith('console:')) {
+			runtimeErrors.push(error);
+			continue;
+		}
+		const assetPaths = [...new Set(error.match(assetPattern) || [])];
+		if (assetPaths.length === 0) {
+			runtimeErrors.push(error);
+			continue;
+		}
+		const checks = await Promise.all(assetPaths.map((assetPath) => isVerifiedLfsPointerAsset(assetPath)));
+		if (checks.every(Boolean)) lfsPointerErrors.push(error);
+		else runtimeErrors.push(error);
+	}
+	return Object.freeze({
+		runtimeErrors,
+		lfsPointerErrors,
+		lfsPointerAssets: [...lfsPointerCache.entries()].filter(([, isPointer]) => isPointer).map(([assetPath]) => assetPath).sort(),
+	});
+}
 async function waitFor(read, predicate, label, timeout = 6000, interval = 40) {
 	const deadline = Date.now() + timeout; let last = null;
 	while (Date.now() < deadline) {
@@ -128,7 +169,8 @@ try {
 	await page.screenshot({ path: path.join(outDir, 'melee-combo.png'), fullPage: true });
 	const allWindows = await attackWindows();
 	const allInputs = await combatInputs();
-	need(errors.length === 0, `browser/page errors: ${JSON.stringify(errors)}`);
+	const classifiedErrors = await classifyBrowserErrors(errors);
+	need(classifiedErrors.runtimeErrors.length === 0, `browser/page errors: ${JSON.stringify(classifiedErrors.runtimeErrors)}`);
 	const metrics = {
 		ok: true,
 		baseline,
@@ -137,10 +179,12 @@ try {
 		touch: { input: touchInput, start: touchStart },
 		windowPhases: allWindows.map(({ serial, kind, comboStep, phase, active }) => ({ serial, kind, comboStep, phase, active })),
 		inputSources: allInputs,
-		browserErrors: errors,
+		browserErrors: classifiedErrors.runtimeErrors,
+		verifiedUnhydratedLfsPointerErrors: classifiedErrors.lfsPointerErrors.length,
+		verifiedUnhydratedLfsPointerAssets: classifiedErrors.lfsPointerAssets,
 	};
 	fs.writeFileSync(path.join(outDir, 'melee-combo.json'), `${JSON.stringify(metrics, null, 2)}\n`);
-	console.log(`PLAYER_MELEE_COMBO_RUNTIME_OK ${JSON.stringify({ lightStamina: lightStart.stamina, heavyStamina: heavyStart.stamina, touchSerial: touchStart.serial, lightGeometry, heavyGeometry, errors: errors.length })}`);
+	console.log(`PLAYER_MELEE_COMBO_RUNTIME_OK ${JSON.stringify({ lightStamina: lightStart.stamina, heavyStamina: heavyStart.stamina, touchSerial: touchStart.serial, lightGeometry, heavyGeometry, errors: classifiedErrors.runtimeErrors.length, verifiedLfsPointers: classifiedErrors.lfsPointerAssets.length })}`);
 } finally {
 	await browser.close();
 	await new Promise((resolve) => server.close(resolve));
