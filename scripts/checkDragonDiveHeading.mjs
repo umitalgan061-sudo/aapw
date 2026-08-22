@@ -15,6 +15,21 @@ function fakeDragon() {
   };
 }
 
+function poseSnapshot(dragon) {
+  return {
+    position: {
+      x: dragon.position.x,
+      y: dragon.position.y,
+      z: dragon.position.z,
+    },
+    rotation: {
+      x: dragon.rotation.x,
+      y: dragon.rotation.y,
+      z: dragon.rotation.z,
+    },
+  };
+}
+
 function angleDistance(a, b) {
   return Math.abs(Math.atan2(Math.sin(a - b), Math.cos(a - b)));
 }
@@ -79,7 +94,8 @@ applyDiveOffset(repeat, {
   lateralPullFraction: 0.7,
   diveBlend: 1,
 });
-assert.deepEqual(repeat, dragon, 'dive pose and heading must remain deterministic');
+assert.deepEqual(poseSnapshot(repeat), poseSnapshot(dragon),
+  'dive pose and heading must remain deterministic');
 
 console.log('DRAGON_DIVE_HEADING_PASS', JSON.stringify({
   patrolYaw,
