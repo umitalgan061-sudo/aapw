@@ -4,9 +4,7 @@
  * Extracted from sceneManager so ground cover owns its own placement, climate and GPU-wind policy.
  * The public `createWindGrassRun180` name is kept for compatibility with the established browser
  * regression contract, while the implementation now consumes the shared map-aligned north ground-
- * cover climate profile directly. Permanent ice therefore has zero ordinary grass only inside the
- * canonical Westeros cryosphere; tundra gets sparse, shorter, desaturated cover; same-latitude east
- * remains temperate unless the owner map explicitly marks it cold.
+ * cover and terrain-snow climate authorities directly.
  * @module world/windGrass
  */
 
@@ -15,7 +13,7 @@ import {
 	northGroundCoverProfileAtWorldXZ,
 	NORTH_GROUND_COVER_POLICY,
 } from './northGroundCoverClimate.js';
-import { resolveTerrainSnowCoverage, TERRAIN_BIOME_SHADING_POLICY } from './terrainBiomeShading.js';
+import { resolveTerrainSnowCoverage } from './terrainBiomeShading.js';
 
 export const RUN180_WIND_GRASS_CONFIG = Object.freeze({
 	desktop: Object.freeze({ radiusMeters: 350, maxPatches: 4000 }),
@@ -29,9 +27,6 @@ export const RUN180_WIND_GRASS_CONFIG = Object.freeze({
 	maxSlopeDegrees: 38,
 	maxPlacementAttempts: 8,
 	surfaceProbeMeters: 4,
-	// Ordinary blades may poke through patchy snow, but should disappear before the terrain reads as
-	// a continuous snow field. This uses the exact render snow-coverage resolver rather than inventing
-	// a second altitude/latitude snowline for vegetation.
 	snowDensityFadeStart: 0.18,
 	snowDensityZeroAt: 0.72,
 });
@@ -86,28 +81,17 @@ export function isWindGrassSurfaceAllowed(x, z, {
 	return slopeDegrees <= RUN180_WIND_GRASS_CONFIG.maxSlopeDegrees;
 }
 
-/**
- * Translate the canonical render snow amount into ordinary-grass survival. Patchy snow can retain
- * some vegetation; continuous snow suppresses it completely. During the staged map-climate migration,
- * low ground explicitly outside the canonical X/Z north field must not inherit the legacy latitude-only
- * permanent-ice floor. Mountain snow remains owned by the terrain resolver everywhere.
- */
+/** Translate the exact map-aligned terrain snow amount into ordinary-grass survival. */
 export function windGrassSnowDensityMultiplier({
 	heightAboveSeaMeters,
 	slopeDegrees,
+	worldX,
 	worldZ,
-	climateProfile = null,
 }) {
-	if (
-		climateProfile
-		&& climateProfile.tundra <= 0
-		&& heightAboveSeaMeters < TERRAIN_BIOME_SHADING_POLICY.snowAltitudeStartMeters
-	) {
-		return 1;
-	}
 	const snow = resolveTerrainSnowCoverage({
 		heightAboveSeaMeters,
 		slopeDegrees,
+		worldX,
 		worldZ,
 	});
 	const start = RUN180_WIND_GRASS_CONFIG.snowDensityFadeStart;
@@ -186,16 +170,14 @@ export function populateWindGrass(mesh, params, cellX, cellZ) {
 			const snowDensity = windGrassSnowDensityMultiplier({
 				heightAboveSeaMeters: surface.heightMeters - params.seaLevelMeters,
 				slopeDegrees: surface.slopeDegrees,
+				worldX: x,
 				worldZ: z,
-				climateProfile: cover,
 			});
 			if (snowDensity <= 0) {
 				snowRejected++;
 				continue;
 			}
 			const grassDensity = cover.grassDensity * snowDensity;
-			// Do not consume a new RNG draw on fully accepted ground. This preserves the historical
-			// deterministic transform stream exactly where both climate and snow density remain 1.
 			if (grassDensity < 1 && random() >= grassDensity) {
 				if (snowDensity < 1) snowRejected++;
 				else climateRejected++;
@@ -225,8 +207,8 @@ export function populateWindGrass(mesh, params, cellX, cellZ) {
 		climateRejected,
 		snowRejected,
 		mapAlignedClimate: true,
+		mapAlignedSnowAuthority: true,
 		snowAware: true,
-		latitudeSnowFloorBypassedOutsideCryosphere: true,
 	};
 	return placed;
 }
@@ -239,12 +221,13 @@ function createWindGrassMaterial(config) {
 		side: THREE.DoubleSide,
 	});
 	material.userData.run180WindGrass = Object.freeze({
-		key: 'run180-wind-grass-v5-map-aligned-snow-transition',
+		key: 'run180-wind-grass-v6-map-aligned-snow-authority',
 		radiusMeters: config.radiusMeters,
 		maxPatches: config.maxPatches,
 		bladesPerPatch: RUN180_WIND_GRASS_CONFIG.bladesPerPatch,
 		climatePolicyId: NORTH_GROUND_COVER_POLICY.id,
 		mapAlignedClimate: true,
+		mapAlignedSnowAuthority: true,
 		snowAware: true,
 	});
 	material.onBeforeCompile = (shader) => {
@@ -257,7 +240,7 @@ function createWindGrassMaterial(config) {
 			.replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb*=mix(0.84,1.10,vRun180GrassVariation);');
 		material.userData.run180Shader = shader;
 	};
-	material.customProgramCacheKey = () => 'run180-wind-grass-v5-map-aligned-snow-transition';
+	material.customProgramCacheKey = () => 'run180-wind-grass-v6-map-aligned-snow-authority';
 	return material;
 }
 
@@ -310,6 +293,7 @@ export function createWindGrassRun180({
 		climateRejected: mesh.userData.northGroundCover?.climateRejected ?? 0,
 		snowRejected: mesh.userData.northGroundCover?.snowRejected ?? 0,
 		mapAlignedClimate: true,
+		mapAlignedSnowAuthority: true,
 		snowAware: true,
 	};
 	return { group, mesh };
