@@ -37,7 +37,7 @@ jobs:
           deletions="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END {print s+0}')"
           test $((additions + deletions)) -le 1000
 
-      - name: Syntax and deterministic dive-heading contract
+      - name: Syntax and deterministic 3D dive-orientation contract
         run: |
           node --check src/3d/gameplay/dragonFlightMath.js
           node --check scripts/checkDragonDiveHeading.mjs
@@ -52,6 +52,7 @@ jobs:
           set -euo pipefail
           ! grep -q 'EditorMaterialStudio' src/3d/gameplay/dragonFlightMath.js
           grep -q 'applyDiveOffset' src/3d/gameplay/dragonController.js
+          grep -q 'targetPitch' src/3d/gameplay/dragonFlightMath.js
 
       - name: Final exact-main freshness
         shell: bash
