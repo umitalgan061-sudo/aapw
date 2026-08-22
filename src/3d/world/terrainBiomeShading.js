@@ -20,7 +20,7 @@ function smoothstep(edge0, edge1, value) {
 }
 
 export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
-	id: 'terrain-map-climate-cryosphere-2026-08-22-v8',
+	id: 'terrain-map-climate-cryosphere-2026-08-22-v9',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	measured: Object.freeze({
@@ -39,8 +39,10 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 	northFrozenShoreTundraStrength: 0.84,
 	northFrozenShoreIceStrength: 1,
 	northFrozenSeabedStrength: 0.72,
-	northCoastalIceTopMeters: 2.8,
-	northCoastalIceFullMeters: 0.45,
+	northCoastalIceTundraTopMeters: 1.8,
+	northCoastalIceTundraFullMeters: 0.35,
+	northCoastalIceTopMeters: 4.2,
+	northCoastalIceFullMeters: 0.55,
 	northCoastalIceStrength: 0.62,
 	northCoastalIceTundraStrength: 0.20,
 	grassMidStartMeters: 8,
@@ -181,20 +183,31 @@ function frozenShoreWeight(permanentIce, tundra) {
 	));
 }
 
-function coastalCryosphereWeight(permanentIce, tundra) {
+function coastalCryosphereProfile(permanentIce, tundra, out) {
 	const P = TERRAIN_BIOME_SHADING_POLICY;
 	const tundraBand = tundra * (1 - permanentIce);
-	return clamp01(Math.max(
+	out.weight = clamp01(Math.max(
 		permanentIce * P.northCoastalIceStrength,
 		tundraBand * P.northCoastalIceTundraStrength,
 	));
+	out.topMeters = lerp(P.northCoastalIceTundraTopMeters, P.northCoastalIceTopMeters, permanentIce);
+	out.fullMeters = lerp(P.northCoastalIceTundraFullMeters, P.northCoastalIceFullMeters, permanentIce);
+	return out;
 }
 
 export function coastalCryosphereWeightAtWorldZ(worldZ) {
 	const normalizedY = normalizedMapYAtWorldZ(worldZ);
 	const permanentIce = permanentIceWeightAtNormalizedY(normalizedY);
 	const tundra = tundraWeightAtNormalizedY(normalizedY);
-	return coastalCryosphereWeight(permanentIce, tundra);
+	return coastalCryosphereProfile(permanentIce, tundra, {}).weight;
+}
+
+export function coastalCryosphereProfileAtWorldZ(worldZ) {
+	const normalizedY = normalizedMapYAtWorldZ(worldZ);
+	const permanentIce = permanentIceWeightAtNormalizedY(normalizedY);
+	const tundra = tundraWeightAtNormalizedY(normalizedY);
+	const profile = coastalCryosphereProfile(permanentIce, tundra, {});
+	return Object.freeze({ normalizedY, permanentIce, tundra, ...profile });
 }
 
 function snowlineRangeFromClimate(permanentIce, tundra, out) {
@@ -331,6 +344,7 @@ const scratchGround = new THREE.Color();
 const scratchShore = new THREE.Color();
 const scratchSeabed = new THREE.Color();
 const scratchSnowCoverage = {};
+const scratchCoastalCryosphere = {};
 
 export function resolveTerrainBiomeColor(target, {
 	heightAboveSeaMeters,
@@ -350,7 +364,7 @@ export function resolveTerrainBiomeColor(target, {
 	const permanentNorth = permanentIceWeightAtNormalizedY(normalizedY);
 	const tundraNorth = tundraWeightAtNormalizedY(normalizedY);
 	const coldShore = frozenShoreWeight(permanentNorth, tundraNorth);
-	const coastalCryosphere = coastalCryosphereWeight(permanentNorth, tundraNorth);
+	const coastalCryosphere = coastalCryosphereProfile(permanentNorth, tundraNorth, scratchCoastalCryosphere);
 	const landEmergence = smoothstep(0, P.shoreEmergenceFullMeters, height);
 
 	const drift = signedFbmNoise(worldX * P.grassVariationFrequency + 5.3, worldZ * P.grassVariationFrequency - 2.9, 3);
@@ -379,8 +393,8 @@ export function resolveTerrainBiomeColor(target, {
 			.lerp(TERRAIN_BIOME_PALETTE.GLACIAL_SHORE, permanentNorth);
 		target.lerp(scratchShore, shoreAmount * coldShore);
 	}
-	const coastalIceBand = (1 - smoothstep(P.northCoastalIceFullMeters, P.northCoastalIceTopMeters, height))
-		* landEmergence * coastalCryosphere
+	const coastalIceBand = (1 - smoothstep(coastalCryosphere.fullMeters, coastalCryosphere.topMeters, height))
+		* landEmergence * coastalCryosphere.weight
 		* (1 - smoothstep(18, 34, slope));
 	if (coastalIceBand > 0) target.lerp(TERRAIN_BIOME_PALETTE.COASTAL_ICE, coastalIceBand);
 
