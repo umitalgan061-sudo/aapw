@@ -22,7 +22,7 @@ function smoothstep(edge0, edge1, value) {
 const PREVAILING_SOURCE_LENGTH = Math.hypot(0.8, 0.6);
 
 export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
-	id: 'terrain-wind-snow-exposure-2026-08-22-v1',
+	id: 'terrain-wind-snow-exposure-2026-08-22-v2',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	// Direction points toward the source of the prevailing wind. Wind therefore travels NW -> SE.
@@ -30,6 +30,9 @@ export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
 	prevailingSourceZ: -0.6 / PREVAILING_SOURCE_LENGTH,
 	aspectSlopeStartDegrees: 3,
 	aspectSlopeFullDegrees: 28,
+	// Sheltered faces can hold loose snow on ordinary mountain slopes, but near-cliffs should shed it.
+	leeRetentionFadeStartDegrees: 42,
+	leeRetentionFadeFullDegrees: 62,
 	northWindwardScourMax: 0.075,
 	tundraWindwardScourMax: 0.045,
 	northLeeDepositMax: 0.055,
@@ -39,9 +42,12 @@ export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
 /**
  * Resolve deterministic slope-aspect exposure from a seam-safe four-neighbour height stencil.
  *
- * `windward` and `lee` are complementary directional weights in [0, 1]. Flat terrain deliberately
- * returns zero for both because it has no meaningful facing direction. `slopeAspectStrength` fades
- * the signal in over shallow slopes so lowland snow does not develop artificial directional bands.
+ * `windward` and `lee` are directional weights in [0, 1]. Flat terrain deliberately returns zero
+ * for both because it has no meaningful facing direction. `slopeAspectStrength` fades the signal in
+ * over shallow slopes so lowland snow does not develop artificial directional bands. Lee retention
+ * then fades on near-cliffs: a sheltered face can collect snow, but loose deposition should not be
+ * painted onto extremely steep rock where gravity would shed it. Windward exposure remains active
+ * on those faces because scour can still strip snow from exposed cliffs and ridges.
  */
 export function terrainWindExposureFromNeighbours(
 	heightWest,
@@ -60,6 +66,11 @@ export function terrainWindExposureFromNeighbours(
 		TERRAIN_WIND_SNOW_POLICY.aspectSlopeFullDegrees,
 		slopeDegrees,
 	);
+	const leeRetention = 1 - smoothstep(
+		TERRAIN_WIND_SNOW_POLICY.leeRetentionFadeStartDegrees,
+		TERRAIN_WIND_SNOW_POLICY.leeRetentionFadeFullDegrees,
+		slopeDegrees,
+	);
 
 	if (gradientMagnitude <= 1e-9 || slopeAspectStrength <= 0) {
 		return Object.freeze({
@@ -67,6 +78,7 @@ export function terrainWindExposureFromNeighbours(
 			gradientZ,
 			slopeDegrees,
 			slopeAspectStrength,
+			leeRetention,
 			aspectDot: 0,
 			windward: 0,
 			lee: 0,
@@ -88,9 +100,10 @@ export function terrainWindExposureFromNeighbours(
 		gradientZ,
 		slopeDegrees,
 		slopeAspectStrength,
+		leeRetention,
 		aspectDot,
 		windward: Math.max(0, aspectDot) * slopeAspectStrength,
-		lee: Math.max(0, -aspectDot) * slopeAspectStrength,
+		lee: Math.max(0, -aspectDot) * slopeAspectStrength * leeRetention,
 	});
 }
 
