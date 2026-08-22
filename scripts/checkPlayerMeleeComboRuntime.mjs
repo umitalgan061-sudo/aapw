@@ -57,12 +57,18 @@ async function waitFor(read, predicate, label, timeout = 6000, interval = 40) {
 const waitMotion = (predicate, label, timeout) => waitFor(motionHistory, (motions) => [...motions].reverse().find(predicate) ?? null, label, timeout);
 const waitWindow = (predicate, label, timeout) => waitFor(attackWindows, (events) => [...events].reverse().find(predicate) ?? null, label, timeout);
 const planarDistance = (a, b) => Math.hypot((a?.x ?? 0) - (b?.x ?? 0), (a?.z ?? 0) - (b?.z ?? 0));
-function validateActiveAnchor(event, motion, baseline, label) {
+function closestActiveMotion(event, motions, label) {
+	const candidates = (motions || []).filter((motion) => motion.attackKind === event?.kind && motion.attackComboStep === event?.comboStep && motion.attackActive && motion.position);
+	need(candidates.length > 0, `${label} needs active Player motion telemetry for the same combo step`);
+	return candidates.reduce((closest, motion) => planarDistance(event.position, motion.position) < planarDistance(event.position, closest.position) ? motion : closest);
+}
+function validateActiveAnchor(event, motions, baseline, label) {
+	const motion = closestActiveMotion(event, motions, label);
 	const facingLength = Math.hypot(event?.facing?.x ?? 0, event?.facing?.z ?? 0);
 	const eventMotionDelta = planarDistance(event?.position, motion?.position);
 	const groundDelta = Math.abs((event?.position?.y ?? Infinity) - (baseline?.position?.y ?? 0));
 	need(Math.abs(facingLength - 1) <= 0.002, `${label} facing must be normalized; got ${facingLength}`);
-	need(eventMotionDelta <= 0.05, `${label} attack-window anchor must follow Player motion; delta=${eventMotionDelta}`);
+	need(eventMotionDelta <= 0.05, `${label} attack-window anchor must match same-step Player motion history; delta=${eventMotionDelta}`);
 	need(groundDelta <= 0.05, `${label} active anchor drifted from grounded baseline; deltaY=${groundDelta}`);
 	return Object.freeze({ facingLength: Number(facingLength.toFixed(5)), eventMotionDelta: Number(eventMotionDelta.toFixed(4)), groundDelta: Number(groundDelta.toFixed(4)) });
 }
@@ -82,7 +88,7 @@ try {
 	need(lightActive.reachMeters >= 1.5 && lightActive.damageScale === 1, `bad light hit window ${JSON.stringify(lightActive)}`);
 	const lockedLight = await waitMotion((motion) => motion.attackKind === 'light' && motion.attackActive, 'light active motion');
 	need(!lockedLight.canDodge && !lockedLight.guarding && lockedLight.state === 'attack-light', `light attack must lock dodge/guard ${JSON.stringify(lockedLight)}`);
-	const lightGeometry = validateActiveAnchor(lightActive, lockedLight, baseline, 'light');
+	const lightGeometry = validateActiveAnchor(lightActive, await motionHistory(), baseline, 'light');
 
 	await waitWindow((event) => event.serial === lightStart.serial && event.phase === 'active-end', 'light active-end recovery buffer window');
 	const bufferedHeavyInput = await waitFor(combatInputs, (events) => [...events].reverse().find((event) => event.kind === 'heavy' && event.source === 'keyboard') ?? null, 'buffered heavy keyboard intent');
@@ -93,7 +99,7 @@ try {
 	const heavyActive = await waitWindow((event) => event.serial === heavyStart.serial && event.phase === 'active-start' && event.active, 'heavy active window');
 	need(heavyActive.reachMeters > lightActive.reachMeters && heavyActive.damageScale > lightActive.damageScale, 'heavy attack needs stronger reach/damage metadata');
 	const lockedHeavy = await waitMotion((motion) => motion.attackKind === 'heavy' && motion.attackActive, 'heavy active motion');
-	const heavyGeometry = validateActiveAnchor(heavyActive, lockedHeavy, baseline, 'heavy');
+	const heavyGeometry = validateActiveAnchor(heavyActive, await motionHistory(), baseline, 'heavy');
 	await waitWindow((event) => event.serial === heavyStart.serial && event.phase === 'finish', 'heavy recovery finish', recoveryProofTimeoutMs);
 	await waitMotion((motion) => motion.state === 'idle' && motion.attackKind === 'none', 'post-combo idle', recoveryProofTimeoutMs);
 
