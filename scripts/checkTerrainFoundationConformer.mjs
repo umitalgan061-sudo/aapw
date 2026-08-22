@@ -5,6 +5,7 @@ import {
 	createFoundationFlattenPad,
 	createTerrainFoundationConformer,
 	rebuildChunksForFoundation,
+	rebuildChunksForFoundations,
 	TERRAIN_FOUNDATION_CONFORM_POLICY,
 } from '../src/3d/world/terrainFoundationConformer.js';
 
@@ -25,6 +26,7 @@ assert.equal(built.pad.anchorHeightMeters, 71.25);
 assert(built.pad.innerRadiusMeters >= Math.hypot(8, 6), 'inner pad must enclose every footprint corner');
 assert.equal(built.pad.outerRadiusMeters, built.pad.innerRadiusMeters + 9);
 assert.equal(built.pad.source, TERRAIN_FOUNDATION_CONFORM_POLICY.id);
+assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.chunkRebuildMode, 'union-deduplicated');
 
 const invalid = createFoundationFlattenPad({ bounds: payload.bounds, targetHeight: Number.NaN });
 assert.equal(invalid.ok, false);
@@ -83,6 +85,16 @@ const directRebuildCount = rebuildChunksForFoundation(mockManager, {
 }, 100);
 assert.equal(directRebuildCount, 1, 'only the chunk whose square intersects the pad should rebuild');
 assert.deepEqual(events, ['unload:1,0', 'load:1,0']);
+events.length = 0;
+
+// Two influence circles can overlap the same resident terrain. A move/scale update must rebuild the
+// union once, not unload/load the same GPU chunk once for the old pad and again for the new pad.
+const unionRebuildCount = rebuildChunksForFoundations(mockManager, [
+	{ x: 92, z: 0, outerRadiusMeters: 28 },
+	{ x: 108, z: 0, outerRadiusMeters: 28 },
+], 100);
+assert.equal(unionRebuildCount, 1, 'overlapping old/new foundation pads must rebuild one resident chunk once');
+assert.deepEqual(events, ['unload:1,0', 'load:1,0'], 'union rebuild must not duplicate unload/load events for one chunk');
 events.length = 0;
 
 const runtimePads = [];
@@ -163,4 +175,4 @@ assert.equal(cloneConformer.removeFoundation(cloneAObject).ok, true, 'clone foun
 assert.equal(clonePads.length, 1, 'removing clone A must preserve clone B foundation');
 assert.equal(clonePads[0].foundationKey, 'object:tower-b');
 
-console.log('[checkTerrainFoundationConformer] PASS: footprint pads enclose the full base, mutate one shared render/physics height authority, rebuild only affected chunks, remember/rekey/remove object-owned foundations safely, and keep cloned structures independent.');
+console.log('[checkTerrainFoundationConformer] PASS: footprint pads enclose the full base, mutate one shared render/physics height authority, rebuild the union of old/new influence once, remember/rekey/remove object-owned foundations safely, and keep cloned structures independent.');
