@@ -51,6 +51,7 @@ const PLAYER_ACTION_CONFIG = Object.freeze({
 	ATTACK_COMBO_BUFFER_SECONDS: 0.28,
 	ATTACK_COMBO_MAX_STEPS: 3,
 	ATTACK_COMBO_COMMIT_BONUS_PER_STEP: 0.08,
+	ATTACK_WINDUP_TURN_MULTIPLIER: 0.68,
 	LIGHT_ATTACK_REACH_METERS: 1.65,
 	HEAVY_ATTACK_REACH_METERS: 2.05,
 	LIGHT_ATTACK_COMMIT_METERS: 0.58,
@@ -158,10 +159,11 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 		attackCommitRemaining = attackCommitBudget(tuning.commitMeters, attackComboStep);
 		bufferedAttackKind = 'none'; attackBufferRemaining = 0; guarding = false; parryWindowRemaining = 0; movementState = `attack-${kind}`; playAction('idle', 1); publishAttackWindow('start'); return true;
 	}
-	function updateAttack(dt) {
+	function updateAttack(dt, moveDirectionXZ) {
 		if (attackRemaining <= 0) return;
 		const tuning = attackTuning(attackKind), previousElapsed = attackElapsed;
 		attackElapsed += dt; attackRemaining = Math.max(0, attackRemaining - dt);
+		if (previousElapsed < tuning.activeStart && hasMovementInput) turnToward(moveDirectionXZ.x, moveDirectionXZ.z, dt * PLAYER_ACTION_CONFIG.ATTACK_WINDUP_TURN_MULTIPLIER);
 		const commitStep = computeAttackCommitStep(previousElapsed, attackElapsed, tuning.activeEnd, attackCommitBudget(tuning.commitMeters, attackComboStep), attackCommitRemaining);
 		if (commitStep > 0 && dt > 0) { const committedMeters = moveBy(Math.sin(model.rotation.y), Math.cos(model.rotation.y), commitStep / dt, dt); attackCommitRemaining = Math.max(0, attackCommitRemaining - committedMeters); }
 		const activeNow = attackElapsed >= tuning.activeStart && attackElapsed < tuning.activeEnd;
@@ -210,7 +212,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 			if (guardBreakRemaining > 0) { guarding = false; movementState = 'guard-break'; playAction('idle', 1); }
 			else if (dodgeRemaining > 0) { dodgeElapsed += dt; dodgeRemaining = Math.max(0, dodgeRemaining - dt); moveBy(dodgeDirectionX, dodgeDirectionZ, PLAYER_ACTION_CONFIG.DODGE_SPEED_MPS, dt); turnToward(dodgeDirectionX, dodgeDirectionZ, dt); movementState = 'dodge'; playAction('running', PLAYER_ACTION_CONFIG.DODGE_RUN_ANIMATION_TIMESCALE); }
 			else if (parryFeedbackRemaining > 0) { movementState = 'parry'; playAction('idle', 1); }
-			else if (attackRemaining > 0) { guarding = false; updateAttack(dt); }
+			else if (attackRemaining > 0) { guarding = false; updateAttack(dt, moveDirectionXZ); }
 			else if (guarding) { spendStamina(PLAYER_ACTION_CONFIG.GUARD_DRAIN_PER_SECOND * dt); if (hasMovementInput) { moveBy(moveDirectionXZ.x, moveDirectionXZ.z, PLAYER_CONFIG.WALK_SPEED_MPS * PLAYER_ACTION_CONFIG.GUARD_MOVE_SPEED_MULTIPLIER, dt); turnToward(moveDirectionXZ.x, moveDirectionXZ.z, dt); playAction('walking', 0.65); } else playAction('idle', 1); movementState = 'guard'; }
 			else if (hasMovementInput) { const sprinting = runIntent && isGrounded && !sprintExhausted && stamina > 0, speed = sprinting ? PLAYER_ACTION_CONFIG.SPRINT_SPEED_MPS : PLAYER_CONFIG.WALK_SPEED_MPS; moveBy(moveDirectionXZ.x, moveDirectionXZ.z, speed, dt); turnToward(moveDirectionXZ.x, moveDirectionXZ.z, dt); if (sprinting) { spendStamina(PLAYER_ACTION_CONFIG.SPRINT_DRAIN_PER_SECOND * dt); movementState = 'sprint'; playAction('running', 1); } else { movementState = isGrounded && runIntent && sprintExhausted ? 'exhausted' : (isGrounded ? 'walk' : 'airborne'); playAction('walking', 1); } }
 			else { movementState = isGrounded ? 'idle' : 'airborne'; playAction('idle', 1); }
