@@ -25,8 +25,13 @@ expect(
 );
 expect(
   placementController,
-  /function removeObjectFoundations\(objects\)[\s\S]*?terrainGrounder\.removeObjectFoundations\(objects\)/,
-  'placement controller batch cleanup must delegate to the shared terrain grounder authority',
+  /function removeObjectFoundations\(objects, options = \{\}\)[\s\S]*?terrainGrounder\.removeObjectFoundations\(objects, options\)/,
+  'placement controller batch cleanup must delegate options to the shared terrain grounder authority',
+);
+expect(
+  placementController,
+  /function dispose\(\)[\s\S]*?removeObjectFoundations\(api\.editableObjects, \{ rebuild: false \}\)[\s\S]*?disposed = true/,
+  'placement teardown must retire live structure foundations without rebuilding terrain that will no longer render',
 );
 expect(
   worldEditor,
@@ -93,4 +98,4 @@ expect(
   'quick scale authoring must refresh a foundation-owned structure after scale changes',
 );
 
-console.log('[checkEditorTerrainFoundationLifecycle] PASS: editor structure foundations track inspector, drag-end, quick-scale, clone and delete lifecycles while scene replacement batch-retires old foundations without per-object terrain rebuilds.');
+console.log('[checkEditorTerrainFoundationLifecycle] PASS: editor structure foundations track inspector, drag-end, quick-scale, clone and delete lifecycles; scene replacement batch-retires old foundations; placement teardown removes shared pads without useless terrain rebuilds.');
