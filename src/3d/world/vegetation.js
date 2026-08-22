@@ -14,23 +14,21 @@
  * annulus sampling, same shared `isPlaceablePosition`/`pickSpeciesIndex` — see `createVegetation`'s
  * own doc comment for why only seats near the loaded terrain disc qualify).
  *
- * The far north now consumes the exact same latitude climate weights as terrain shading. Permanent
- * ice never receives green deciduous/conifer foliage; it receives a snow-laden procedural pine
- * silhouette instead. The tundra transition blends snow pine with ordinary pine while suppressing
- * the broad round-crown species. This deliberately stays instanced/procedural: the repository's
- * `winter_tree.glb` and `dead_trees_with_snow_*.glb` entries are Git-LFS pointer-sized assets on this
- * branch, so making live world generation depend on them would trade a deterministic forest for an
- * asset-fetch failure on hosts that do not materialize LFS objects.
+ * Far-north species selection now consumes the canonical map-aligned X+Z cryosphere field. The
+ * lands-always-winter zone receives snow-laden pine while same-latitude eastern regions no longer
+ * become snowy merely because they share world Z. The legacy Z-only picker remains exported for
+ * compatibility, but live scatter uses X+Z ownership from `northReferenceCryosphere.js`.
  * @module world/vegetation
  */
 
 import * as THREE from 'three';
 import { mulberry32 } from './terrain.js';
 import { northClimateWeightsAtWorldZ } from './terrainBiomeShading.js';
+import { northReferenceCryosphereAtWorldXZ } from './northReferenceCryosphere.js';
 
 /**
  * Low-poly species recipes. `weight` applies only to the temperate picker; climate-only species use
- * weight 0 and are selected explicitly by `pickSpeciesIndexForWorldZ`.
+ * weight 0 and are selected explicitly by the climate-aware pickers below.
  */
 const SPECIES = [
 	{
@@ -57,7 +55,8 @@ const TEMPERATE_SPECIES_COUNT = 2;
 const SNOW_PINE_SPECIES_INDEX = 2;
 
 export const VEGETATION_NORTH_CLIMATE_POLICY = Object.freeze({
-	id: 'vegetation-far-north-climate-2026-08-21-v1',
+	id: 'vegetation-map-aligned-north-climate-2026-08-22-v2',
+	climateAuthority: 'northReferenceCryosphereAtWorldXZ',
 	permanentIceSnowOnlyThreshold: 0.55,
 	tundraClimateThreshold: 0.20,
 	tundraBaseSnowChance: 0.22,
@@ -130,14 +129,7 @@ export function pickSpeciesIndex(roll) {
 	return TEMPERATE_SPECIES_COUNT - 1;
 }
 
-/**
- * Climate-aware species picker shared by base scatter and settlement-cluster passes.
- * Permanent ice is snow-pine only. Tundra never receives broadleaf trees: one draw blends snow pine
- * into ordinary dark pine as the latitude floor weakens. South of the tundra threshold the historic
- * 60/40 temperate distribution remains unchanged.
- */
-export function pickSpeciesIndexForWorldZ(roll, worldZ) {
-	const climate = northClimateWeightsAtWorldZ(worldZ);
+function pickSpeciesIndexForClimate(roll, climate) {
 	const policy = VEGETATION_NORTH_CLIMATE_POLICY;
 	if (climate.permanentIce >= policy.permanentIceSnowOnlyThreshold) return SNOW_PINE_SPECIES_INDEX;
 	if (Math.max(climate.permanentIce, climate.tundra) >= policy.tundraClimateThreshold) {
@@ -148,6 +140,16 @@ export function pickSpeciesIndexForWorldZ(roll, worldZ) {
 		return roll < snowChance ? SNOW_PINE_SPECIES_INDEX : 0;
 	}
 	return pickSpeciesIndex(roll);
+}
+
+/** Compatibility picker for callers that still only know world Z. */
+export function pickSpeciesIndexForWorldZ(roll, worldZ) {
+	return pickSpeciesIndexForClimate(roll, northClimateWeightsAtWorldZ(worldZ));
+}
+
+/** Canonical live picker: X+Z decides whether a point actually belongs to northern Westeros. */
+export function pickSpeciesIndexForWorldXZ(roll, worldX, worldZ) {
+	return pickSpeciesIndexForClimate(roll, northReferenceCryosphereAtWorldXZ(worldX, worldZ));
 }
 
 export function vegetationSpeciesId(index) {
@@ -197,7 +199,7 @@ function placeTreeInstance(entry, x, z, sampleHeightMeters, rng, up, matrix, pos
 
 /**
  * Scatters deterministic trees in the existing base-disc + seat-cluster passes, with species now
- * resolved against the same north-climate field used by terrain colour/snow.
+ * resolved against the canonical map-aligned north cryosphere.
  */
 export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, seats, roadEdges, radiusMeters, densityPerKm2 = TARGET_DENSITY_PER_KM2 }) {
 	const group = new THREE.Group();
@@ -242,7 +244,7 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 			const z = Math.sin(angle) * radius;
 			if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
 
-			const speciesIndex = pickSpeciesIndexForWorldZ(rng(), z);
+			const speciesIndex = pickSpeciesIndexForWorldXZ(rng(), x, z);
 			const entry = perSpecies[speciesIndex];
 			placeTreeInstance(entry, x, z, sampleHeightMeters, rng, up, matrix, position, quaternion, scaleVector);
 			placedCount++;
@@ -256,7 +258,7 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 				const { x, z } = sampleAnnulusPoint(clusterRng, seat.x, seat.z, clusterInnerRadius, CLUSTER_RING_OUTER_RADIUS_METERS);
 				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
 
-				const speciesIndex = pickSpeciesIndexForWorldZ(clusterRng(), z);
+				const speciesIndex = pickSpeciesIndexForWorldXZ(clusterRng(), x, z);
 				const entry = perSpecies[speciesIndex];
 				placeTreeInstance(entry, x, z, sampleHeightMeters, clusterRng, up, matrix, position, quaternion, scaleVector);
 				placedCount++;
@@ -276,6 +278,8 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 	const winterTreeCount = perSpecies[SNOW_PINE_SPECIES_INDEX].placedCount;
 	group.userData.northClimateVegetation = Object.freeze({
 		policyId: VEGETATION_NORTH_CLIMATE_POLICY.id,
+		climateAuthority: VEGETATION_NORTH_CLIMATE_POLICY.climateAuthority,
+		mapAligned: true,
 		winterTreeCount,
 		temperateTreeCount: placedCount - winterTreeCount,
 		liveRepresentation: VEGETATION_NORTH_CLIMATE_POLICY.liveRepresentation,
@@ -325,6 +329,7 @@ function buildMobileVegetationGeometryRun136(species) {
 	} else if (foliage.kind === 'sphere') {
 		foliageGeometry = new THREE.SphereGeometry(
 			foliage.radius,
+			foliage.height,
 			MOBILE_VEGETATION_LOD_RUN136.sphereWidthSegments,
 			MOBILE_VEGETATION_LOD_RUN136.sphereHeightSegments,
 		);
