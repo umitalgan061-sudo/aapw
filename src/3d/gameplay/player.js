@@ -107,6 +107,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 	playAction('idle');
 
 	function moveBy(directionX, directionZ, speed, delta) {
+		const startX = model.position.x, startZ = model.position.z;
 		const travelMeters = Math.hypot(directionX, directionZ) * speed * delta;
 		const steps = playerCollider ? Math.max(1, Math.ceil(travelMeters / PLAYER_ACTION_CONFIG.MAX_COLLISION_STEP_METERS)) : 1;
 		const stepDelta = steps > 0 ? delta / steps : 0;
@@ -115,6 +116,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 			if (playerCollider) ({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
 			model.position.x = nextX; model.position.z = nextZ;
 		}
+		return Math.hypot(model.position.x - startX, model.position.z - startZ);
 	}
 	function turnToward(directionX, directionZ, delta) {
 		const targetYaw = Math.atan2(directionX, directionZ);
@@ -161,7 +163,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 		const tuning = attackTuning(attackKind), previousElapsed = attackElapsed;
 		attackElapsed += dt; attackRemaining = Math.max(0, attackRemaining - dt);
 		const commitStep = computeAttackCommitStep(previousElapsed, attackElapsed, tuning.activeEnd, attackCommitBudget(tuning.commitMeters, attackComboStep), attackCommitRemaining);
-		if (commitStep > 0 && dt > 0) { moveBy(Math.sin(model.rotation.y), Math.cos(model.rotation.y), commitStep / dt, dt); attackCommitRemaining = Math.max(0, attackCommitRemaining - commitStep); }
+		if (commitStep > 0 && dt > 0) { const committedMeters = moveBy(Math.sin(model.rotation.y), Math.cos(model.rotation.y), commitStep / dt, dt); attackCommitRemaining = Math.max(0, attackCommitRemaining - committedMeters); }
 		const activeNow = attackElapsed >= tuning.activeStart && attackElapsed < tuning.activeEnd;
 		if (activeNow && !attackActive) { attackActive = true; publishAttackWindow('active-start'); }
 		else if (!activeNow && attackActive) { attackActive = false; publishAttackWindow('active-end'); }
