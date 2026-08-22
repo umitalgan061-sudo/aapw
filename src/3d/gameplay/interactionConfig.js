@@ -63,7 +63,7 @@ export function createInteractionJourneyState() {
 		lastDestinationId = String(saved?.lastDestinationId ?? '').trim() || null;
 		recentReceipts = (Array.isArray(saved?.recentReceipts) ? saved.recentReceipts : [])
 			.map(sanitizeReceipt)
-			.filter(Boolean)
+			.filter((receipt) => receipt && receipt.sequence <= commitCount)
 			.slice(-INTERACTION_JOURNEY_POLICY.MAX_RECENT_RECEIPTS);
 	}
 	function applyCommit(result) {
