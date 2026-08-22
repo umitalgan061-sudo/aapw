@@ -1,13 +1,14 @@
 /**
  * Render-only geographic terrain shading. Canonical map/Pindex data remains height authority; this
  * module only resolves believable surface colour from altitude, slope, canonical rock/snow weights
- * and latitude on the owner 9000x7000 map.
+ * and the owner map's geographic climate fields.
  * @module world/terrainBiomeShading
  */
 
 import * as THREE from 'three';
 import { WORLD_SCALE } from '../config.js';
 import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
+import { northReferenceCryosphereAtWorldXZ } from './northReferenceCryosphere.js';
 import { signedFbmNoise } from './terrainReliefDetail.js';
 import { resolveTerrainWindSnowAdjustment } from './terrainWindSnowExposure.js';
 
@@ -20,9 +21,10 @@ function smoothstep(edge0, edge1, value) {
 }
 
 export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
-	id: 'terrain-map-climate-cryosphere-2026-08-22-v10',
+	id: 'terrain-map-climate-cryosphere-2026-08-22-v11-map-aligned',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
+	mapAlignedCryosphere: true,
 	measured: Object.freeze({
 		probeGrid: '220x220 full-map + 200x200 land-only, live createHeightSampler',
 		seaLevelMeters: 6,
@@ -177,7 +179,13 @@ export function northClimateWeightsAtWorldZ(worldZ) {
 		normalizedY,
 		permanentIce: permanentIceWeightAtNormalizedY(normalizedY),
 		tundra: tundraWeightAtNormalizedY(normalizedY),
+		mapAligned: false,
 	});
+}
+
+export function northClimateWeightsAtWorldXZ(worldX, worldZ) {
+	const climate = northReferenceCryosphereAtWorldXZ(worldX, worldZ);
+	return Object.freeze({ ...climate, mapAligned: true });
 }
 
 function frozenShoreWeight(permanentIce, tundra) {
@@ -206,18 +214,25 @@ function coastalCryosphereProfile(permanentIce, tundra, out) {
 }
 
 export function coastalCryosphereWeightAtWorldZ(worldZ) {
-	const normalizedY = normalizedMapYAtWorldZ(worldZ);
-	const permanentIce = permanentIceWeightAtNormalizedY(normalizedY);
-	const tundra = tundraWeightAtNormalizedY(normalizedY);
-	return coastalCryosphereProfile(permanentIce, tundra, {}).weight;
+	const climate = northClimateWeightsAtWorldZ(worldZ);
+	return coastalCryosphereProfile(climate.permanentIce, climate.tundra, {}).weight;
 }
 
 export function coastalCryosphereProfileAtWorldZ(worldZ) {
-	const normalizedY = normalizedMapYAtWorldZ(worldZ);
-	const permanentIce = permanentIceWeightAtNormalizedY(normalizedY);
-	const tundra = tundraWeightAtNormalizedY(normalizedY);
-	const profile = coastalCryosphereProfile(permanentIce, tundra, {});
-	return Object.freeze({ normalizedY, permanentIce, tundra, ...profile });
+	const climate = northClimateWeightsAtWorldZ(worldZ);
+	const profile = coastalCryosphereProfile(climate.permanentIce, climate.tundra, {});
+	return Object.freeze({ ...climate, ...profile });
+}
+
+export function coastalCryosphereWeightAtWorldXZ(worldX, worldZ) {
+	const climate = northClimateWeightsAtWorldXZ(worldX, worldZ);
+	return coastalCryosphereProfile(climate.permanentIce, climate.tundra, {}).weight;
+}
+
+export function coastalCryosphereProfileAtWorldXZ(worldX, worldZ) {
+	const climate = northClimateWeightsAtWorldXZ(worldX, worldZ);
+	const profile = coastalCryosphereProfile(climate.permanentIce, climate.tundra, {});
+	return Object.freeze({ ...climate, ...profile });
 }
 
 function snowlineRangeFromClimate(permanentIce, tundra, out) {
@@ -230,11 +245,15 @@ function snowlineRangeFromClimate(permanentIce, tundra, out) {
 }
 
 export function mountainSnowlineAtWorldZ(worldZ) {
-	const normalizedY = normalizedMapYAtWorldZ(worldZ);
-	const permanentIce = permanentIceWeightAtNormalizedY(normalizedY);
-	const tundra = tundraWeightAtNormalizedY(normalizedY);
-	const range = snowlineRangeFromClimate(permanentIce, tundra, {});
-	return Object.freeze({ normalizedY, permanentIce, tundra, ...range });
+	const climate = northClimateWeightsAtWorldZ(worldZ);
+	const range = snowlineRangeFromClimate(climate.permanentIce, climate.tundra, {});
+	return Object.freeze({ ...climate, ...range });
+}
+
+export function mountainSnowlineAtWorldXZ(worldX, worldZ) {
+	const climate = northClimateWeightsAtWorldXZ(worldX, worldZ);
+	const range = snowlineRangeFromClimate(climate.permanentIce, climate.tundra, {});
+	return Object.freeze({ ...climate, ...range });
 }
 
 export function terrainConcavityMetersFromNeighbours(center, heightWest, heightEast, heightNorth, heightSouth) {
@@ -245,15 +264,19 @@ function computeTerrainSnowCoverage(out, {
 	heightAboveSeaMeters,
 	slopeDegrees,
 	snowWeight,
+	worldX = null,
 	worldZ,
 	terrainConcavityMeters = 0,
 	terrainWindward = 0,
 	terrainLee = 0,
 }) {
 	const P = TERRAIN_BIOME_SHADING_POLICY;
-	const normalizedY = normalizedMapYAtWorldZ(worldZ);
-	const permanentIce = permanentIceWeightAtNormalizedY(normalizedY);
-	const tundra = tundraWeightAtNormalizedY(normalizedY);
+	const climate = Number.isFinite(worldX)
+		? northReferenceCryosphereAtWorldXZ(worldX, worldZ)
+		: northClimateWeightsAtWorldZ(worldZ);
+	const normalizedY = climate.normalizedY ?? normalizedMapYAtWorldZ(worldZ);
+	const permanentIce = climate.permanentIce;
+	const tundra = climate.tundra;
 	const snowline = snowlineRangeFromClimate(permanentIce, tundra, out);
 	const altitudeSnow = smoothstep(snowline.startMeters, snowline.fullMeters, heightAboveSeaMeters);
 	const canonicalSnow = clamp01(snowWeight) * P.canonicalSnowGain;
@@ -303,6 +326,7 @@ function computeTerrainSnowCoverage(out, {
 	out.permanentIce = permanentIce;
 	out.tundra = tundra;
 	out.tundraBand = tundra * (1 - permanentIce);
+	out.mapAlignedClimate = Number.isFinite(worldX);
 	out.altitudeSnow = altitudeSnow;
 	out.canonicalSnow = canonicalSnow;
 	out.authoredSnow = authoredSnow;
@@ -333,6 +357,7 @@ export function resolveTerrainSnowCoverage({
 	heightAboveSeaMeters,
 	slopeDegrees,
 	snowWeight = 0,
+	worldX = null,
 	worldZ = 0,
 	terrainConcavityMeters = 0,
 	terrainWindward = 0,
@@ -342,6 +367,7 @@ export function resolveTerrainSnowCoverage({
 		heightAboveSeaMeters,
 		slopeDegrees,
 		snowWeight,
+		worldX,
 		worldZ,
 		terrainConcavityMeters,
 		terrainWindward,
@@ -370,9 +396,9 @@ export function resolveTerrainBiomeColor(target, {
 	const P = TERRAIN_BIOME_SHADING_POLICY;
 	const height = heightAboveSeaMeters;
 	const slope = slopeDegrees;
-	const normalizedY = normalizedMapYAtWorldZ(worldZ);
-	const permanentNorth = permanentIceWeightAtNormalizedY(normalizedY);
-	const tundraNorth = tundraWeightAtNormalizedY(normalizedY);
+	const northClimate = northReferenceCryosphereAtWorldXZ(worldX, worldZ);
+	const permanentNorth = northClimate.permanentIce;
+	const tundraNorth = northClimate.tundra;
 	const coldShore = frozenShoreWeight(permanentNorth, tundraNorth);
 	const coastalCryosphere = coastalCryosphereProfile(permanentNorth, tundraNorth, scratchCoastalCryosphere);
 	const landEmergence = smoothstep(0, P.shoreEmergenceFullMeters, height);
@@ -422,6 +448,7 @@ export function resolveTerrainBiomeColor(target, {
 		heightAboveSeaMeters: height,
 		slopeDegrees: slope,
 		snowWeight,
+		worldX,
 		worldZ,
 		terrainConcavityMeters,
 		terrainWindward,
