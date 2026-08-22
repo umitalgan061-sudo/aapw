@@ -21,6 +21,12 @@ requireMatch(player, /Math\.ceil\(travelMeters \/ PLAYER_ACTION_CONFIG\.MAX_COLL
   'Movement must subdivide long frames before playerCollider resolution.');
 requireMatch(player, /playerCollider\.resolveXZ\(nextX, nextZ\)/,
   'Movement must continue to use the existing composed player collider.');
+requireMatch(player, /const startX = model\.position\.x, startZ = model\.position\.z;[\s\S]*return Math\.hypot\(model\.position\.x - startX, model\.position\.z - startZ\);/,
+  'Movement must report actual collider-resolved X/Z travel rather than requested distance.');
+requireMatch(player, /const committedMeters = moveBy\([\s\S]*?attackCommitRemaining = Math\.max\(0, attackCommitRemaining - committedMeters\);/,
+  'Melee commit budget must be consumed only by actual collider-resolved travel.');
+requireMatch(player, /computeAttackCommitStep\(previousElapsed, attackElapsed, tuning\.activeEnd,[\s\S]*attackCommitRemaining\)/,
+  'Melee commit must stay bounded by authored attack timing and remaining distance.');
 requireMatch(player, /movementState = 'dodge';/,
   'Dodge must remain inside the existing player state machine.');
 requireMatch(player, /movementState = `attack-\$\{attackKind\}`;/,

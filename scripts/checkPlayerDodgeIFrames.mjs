@@ -19,7 +19,7 @@ assert.ok(end < duration, 'iframe window must leave recovery vulnerability');
 assert.ok(start >= 0.04, 'startup vulnerability must remain meaningfully punishable');
 assert.ok(duration - end >= 0.08, 'recovery vulnerability must remain meaningfully punishable');
 assert.match(source, /let dodgeRemaining = 0, dodgeElapsed = 0,/);
-assert.match(source, /dodgeElapsed = 0;\s*dodgeRemaining = PLAYER_ACTION_CONFIG\.DODGE_DURATION_SECONDS;/);
+assert.match(source, /dodgeElapsed = 0;\s*\n\s*dodgeRemaining = PLAYER_ACTION_CONFIG\.DODGE_DURATION_SECONDS;/);
 assert.match(source, /function isDodgeInvulnerable\(\)[\s\S]*dodgeElapsed >= PLAYER_ACTION_CONFIG\.DODGE_IFRAME_START_SECONDS[\s\S]*dodgeElapsed < PLAYER_ACTION_CONFIG\.DODGE_IFRAME_END_SECONDS/);
 assert.match(source, /if \(isDodgeInvulnerable\(\)\) \{[\s\S]*payload\.rawAmount = rawAmount; payload\.blockedAmount = rawAmount; payload\.amount = 0; payload\.mitigation = 'dodge';/);
 assert.match(source, /if \(isDodgeInvulnerable\(\)\) \{[\s\S]*publishMotionTelemetry\(true\); return;/);

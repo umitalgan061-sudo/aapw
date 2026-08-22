@@ -44,47 +44,6 @@ const motionHistory = () => page.evaluate(() => structuredClone(window.__meleeMo
 const attackWindows = () => page.evaluate(() => structuredClone(window.__meleeWindows));
 const combatInputs = () => page.evaluate(() => structuredClone(window.__meleeInputs));
 const recoveryProofTimeoutMs = 20000;
-const lfsPointerPrefix = 'version https://git-lfs.github.com/spec/v1';
-const lfsPointerCache = new Map();
-async function isVerifiedLfsPointerAsset(assetPath) {
-	if (lfsPointerCache.has(assetPath)) return lfsPointerCache.get(assetPath);
-	let isPointer = false;
-	try {
-		const prefix = await page.evaluate(async (url) => {
-			const response = await fetch(`/${url}`, { cache: 'no-store' });
-			return (await response.text()).slice(0, 96);
-		}, assetPath);
-		isPointer = prefix.startsWith(lfsPointerPrefix);
-	} catch {
-		isPointer = false;
-	}
-	lfsPointerCache.set(assetPath, isPointer);
-	return isPointer;
-}
-async function classifyBrowserErrors(recordedErrors) {
-	const runtimeErrors = [];
-	const lfsPointerErrors = [];
-	const assetPattern = /assets\/[^"')},\s]+?\.(?:glb|fbx)/g;
-	for (const error of recordedErrors) {
-		if (!error.startsWith('console:')) {
-			runtimeErrors.push(error);
-			continue;
-		}
-		const assetPaths = [...new Set(error.match(assetPattern) || [])];
-		if (assetPaths.length === 0) {
-			runtimeErrors.push(error);
-			continue;
-		}
-		const checks = await Promise.all(assetPaths.map((assetPath) => isVerifiedLfsPointerAsset(assetPath)));
-		if (checks.every(Boolean)) lfsPointerErrors.push(error);
-		else runtimeErrors.push(error);
-	}
-	return Object.freeze({
-		runtimeErrors,
-		lfsPointerErrors,
-		lfsPointerAssets: [...lfsPointerCache.entries()].filter(([, isPointer]) => isPointer).map(([assetPath]) => assetPath).sort(),
-	});
-}
 async function waitFor(read, predicate, label, timeout = 6000, interval = 40) {
 	const deadline = Date.now() + timeout; let last = null;
 	while (Date.now() < deadline) {
@@ -98,18 +57,12 @@ async function waitFor(read, predicate, label, timeout = 6000, interval = 40) {
 const waitMotion = (predicate, label, timeout) => waitFor(motionHistory, (motions) => [...motions].reverse().find(predicate) ?? null, label, timeout);
 const waitWindow = (predicate, label, timeout) => waitFor(attackWindows, (events) => [...events].reverse().find(predicate) ?? null, label, timeout);
 const planarDistance = (a, b) => Math.hypot((a?.x ?? 0) - (b?.x ?? 0), (a?.z ?? 0) - (b?.z ?? 0));
-function closestActiveMotion(event, motions, label) {
-	const candidates = (motions || []).filter((motion) => motion.attackKind === event?.kind && motion.attackComboStep === event?.comboStep && motion.attackActive && motion.position);
-	need(candidates.length > 0, `${label} needs active Player motion telemetry for the same combo step`);
-	return candidates.reduce((closest, motion) => planarDistance(event.position, motion.position) < planarDistance(event.position, closest.position) ? motion : closest);
-}
-function validateActiveAnchor(event, motions, baseline, label) {
-	const motion = closestActiveMotion(event, motions, label);
+function validateActiveAnchor(event, motion, baseline, label) {
 	const facingLength = Math.hypot(event?.facing?.x ?? 0, event?.facing?.z ?? 0);
 	const eventMotionDelta = planarDistance(event?.position, motion?.position);
 	const groundDelta = Math.abs((event?.position?.y ?? Infinity) - (baseline?.position?.y ?? 0));
 	need(Math.abs(facingLength - 1) <= 0.002, `${label} facing must be normalized; got ${facingLength}`);
-	need(eventMotionDelta <= 0.05, `${label} attack-window anchor must match same-step Player motion history; delta=${eventMotionDelta}`);
+	need(eventMotionDelta <= 0.05, `${label} attack-window anchor must follow Player motion; delta=${eventMotionDelta}`);
 	need(groundDelta <= 0.05, `${label} active anchor drifted from grounded baseline; deltaY=${groundDelta}`);
 	return Object.freeze({ facingLength: Number(facingLength.toFixed(5)), eventMotionDelta: Number(eventMotionDelta.toFixed(4)), groundDelta: Number(groundDelta.toFixed(4)) });
 }
@@ -129,7 +82,7 @@ try {
 	need(lightActive.reachMeters >= 1.5 && lightActive.damageScale === 1, `bad light hit window ${JSON.stringify(lightActive)}`);
 	const lockedLight = await waitMotion((motion) => motion.attackKind === 'light' && motion.attackActive, 'light active motion');
 	need(!lockedLight.canDodge && !lockedLight.guarding && lockedLight.state === 'attack-light', `light attack must lock dodge/guard ${JSON.stringify(lockedLight)}`);
-	const lightGeometry = validateActiveAnchor(lightActive, await motionHistory(), baseline, 'light');
+	const lightGeometry = validateActiveAnchor(lightActive, lockedLight, baseline, 'light');
 
 	await waitWindow((event) => event.serial === lightStart.serial && event.phase === 'active-end', 'light active-end recovery buffer window');
 	const bufferedHeavyInput = await waitFor(combatInputs, (events) => [...events].reverse().find((event) => event.kind === 'heavy' && event.source === 'keyboard') ?? null, 'buffered heavy keyboard intent');
@@ -140,7 +93,7 @@ try {
 	const heavyActive = await waitWindow((event) => event.serial === heavyStart.serial && event.phase === 'active-start' && event.active, 'heavy active window');
 	need(heavyActive.reachMeters > lightActive.reachMeters && heavyActive.damageScale > lightActive.damageScale, 'heavy attack needs stronger reach/damage metadata');
 	const lockedHeavy = await waitMotion((motion) => motion.attackKind === 'heavy' && motion.attackActive, 'heavy active motion');
-	const heavyGeometry = validateActiveAnchor(heavyActive, await motionHistory(), baseline, 'heavy');
+	const heavyGeometry = validateActiveAnchor(heavyActive, lockedHeavy, baseline, 'heavy');
 	await waitWindow((event) => event.serial === heavyStart.serial && event.phase === 'finish', 'heavy recovery finish', recoveryProofTimeoutMs);
 	await waitMotion((motion) => motion.state === 'idle' && motion.attackKind === 'none', 'post-combo idle', recoveryProofTimeoutMs);
 
@@ -169,8 +122,7 @@ try {
 	await page.screenshot({ path: path.join(outDir, 'melee-combo.png'), fullPage: true });
 	const allWindows = await attackWindows();
 	const allInputs = await combatInputs();
-	const classifiedErrors = await classifyBrowserErrors(errors);
-	need(classifiedErrors.runtimeErrors.length === 0, `browser/page errors: ${JSON.stringify(classifiedErrors.runtimeErrors)}`);
+	need(errors.length === 0, `browser/page errors: ${JSON.stringify(errors)}`);
 	const metrics = {
 		ok: true,
 		baseline,
@@ -179,12 +131,10 @@ try {
 		touch: { input: touchInput, start: touchStart },
 		windowPhases: allWindows.map(({ serial, kind, comboStep, phase, active }) => ({ serial, kind, comboStep, phase, active })),
 		inputSources: allInputs,
-		browserErrors: classifiedErrors.runtimeErrors,
-		verifiedUnhydratedLfsPointerErrors: classifiedErrors.lfsPointerErrors.length,
-		verifiedUnhydratedLfsPointerAssets: classifiedErrors.lfsPointerAssets,
+		browserErrors: errors,
 	};
 	fs.writeFileSync(path.join(outDir, 'melee-combo.json'), `${JSON.stringify(metrics, null, 2)}\n`);
-	console.log(`PLAYER_MELEE_COMBO_RUNTIME_OK ${JSON.stringify({ lightStamina: lightStart.stamina, heavyStamina: heavyStart.stamina, touchSerial: touchStart.serial, lightGeometry, heavyGeometry, errors: classifiedErrors.runtimeErrors.length, verifiedLfsPointers: classifiedErrors.lfsPointerAssets.length })}`);
+	console.log(`PLAYER_MELEE_COMBO_RUNTIME_OK ${JSON.stringify({ lightStamina: lightStart.stamina, heavyStamina: heavyStart.stamina, touchSerial: touchStart.serial, lightGeometry, heavyGeometry, errors: errors.length })}`);
 } finally {
 	await browser.close();
 	await new Promise((resolve) => server.close(resolve));
