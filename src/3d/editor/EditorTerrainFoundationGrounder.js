@@ -106,14 +106,14 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
     return result;
   }
 
-  function removeObjectFoundations(objects) {
+  function removeObjectFoundations(objects, options = {}) {
     const candidates = (Array.isArray(objects) ? objects : [objects])
       .filter((object) => object?.userData?.editorFoundationKey);
     if (!candidates.length) {
       return { ok: true, removedCount: 0, missingKeys: [], rebuiltChunkCount: 0 };
     }
     const keys = candidates.map((object) => object.userData.editorFoundationKey);
-    const result = terrainConformer.removeFoundations(keys);
+    const result = terrainConformer.removeFoundations(keys, options);
     const missing = new Set(result.missingKeys || []);
     for (const object of candidates) {
       const key = object.userData?.editorFoundationKey;
