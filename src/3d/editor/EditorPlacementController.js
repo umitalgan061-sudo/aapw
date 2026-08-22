@@ -137,6 +137,11 @@ export function installEditorPlacementController(api, authoring = window.__WESTE
     return terrainGrounder.removeObjectFoundation(object);
   }
 
+  function removeObjectFoundations(objects) {
+    if (!Array.isArray(objects)) return { ok: false, error: 'foundation-batch-invalid-objects' };
+    return terrainGrounder.removeObjectFoundations(objects);
+  }
+
   async function placeSelectedAtPoint(point) {
     const asset = selectedAssetFromDom();
     if (!asset) {
@@ -245,6 +250,7 @@ export function installEditorPlacementController(api, authoring = window.__WESTE
     groundObject,
     groundSelected,
     removeObjectFoundation,
+    removeObjectFoundations,
     getSnapshot,
     dispose
   });
