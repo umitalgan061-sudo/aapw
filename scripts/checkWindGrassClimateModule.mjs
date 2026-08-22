@@ -2,7 +2,10 @@
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { WORLD_SCALE } from '../src/3d/config.js';
-import { WORLD_REFERENCE_ALIGNMENT } from '../src/3d/world/worldReferenceAlignment.js';
+import {
+  WORLD_REFERENCE_ALIGNMENT,
+  normalizedReferenceToWorldXZ,
+} from '../src/3d/world/worldReferenceAlignment.js';
 import {
   RUN180_WIND_GRASS_CONFIG,
   grassSegmentDistance,
@@ -17,6 +20,22 @@ function worldZForNormalizedMapY(normalizedY) {
   const centerMapY = (WORLD_SCALE.MAP_BOUNDS.minY + WORLD_SCALE.MAP_BOUNDS.maxY) * 0.5;
   const mapY = normalizedY * WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits;
   return (mapY - centerMapY) * WORLD_SCALE.METERS_PER_MAP_UNIT;
+}
+
+function worldXZ(normalizedX, normalizedY) {
+  return normalizedReferenceToWorldXZ(
+    normalizedX,
+    normalizedY,
+    WORLD_SCALE.MAP_BOUNDS,
+    WORLD_SCALE.METERS_PER_MAP_UNIT,
+  );
+}
+
+function cellForWorld(point) {
+  return {
+    x: Math.round(point.x / RUN180_WIND_GRASS_CONFIG.cellMeters),
+    z: Math.round(point.z / RUN180_WIND_GRASS_CONFIG.cellMeters),
+  };
 }
 
 assert.equal(grassSegmentDistance(5, 3, { x: 0, z: 0 }, { x: 10, z: 0 }), 3);
@@ -58,18 +77,11 @@ function makeMesh(maxPatches = RUN180_WIND_GRASS_CONFIG.mobile.maxPatches) {
   return mesh;
 }
 
+// Snow authority remains on the terrain resolver during this staged migration. Keep its legacy
+// latitude contract covered independently from map-aligned ground-cover density.
 const farNorthZ = worldZForNormalizedMapY(0.05);
 const tundraZ = worldZForNormalizedMapY(0.32);
 const southZ = worldZForNormalizedMapY(0.62);
-const shared = {
-  sampleHeightMeters: flatSampler,
-  seaLevelMeters: 6,
-  seed: 424242,
-  seats: [],
-  roadEdges: [],
-  isMobileClass: true,
-};
-
 const southSnowDensity = windGrassSnowDensityMultiplier({
   heightAboveSeaMeters: 14,
   slopeDegrees: 0,
@@ -90,34 +102,54 @@ const northSnowDensity = windGrassSnowDensityMultiplier({
   slopeDegrees: 4,
   worldZ: farNorthZ,
 });
-assert.equal(southSnowDensity, 1, 'dry temperate lowland must preserve the historical full grass density');
+assert.equal(southSnowDensity, 1, 'dry temperate lowland must preserve historical full grass density');
 assert(tundraLowSnowDensity > tundraHighSnowDensity,
   'snow-covered tundra highland must suppress ordinary grass more than tundra lowland');
 assert(tundraHighSnowDensity < 0.5,
   'tundra highland snow should strongly thin ordinary grass before continuous snow');
 assert.equal(northSnowDensity, 0,
-  'continuous permanent-ice snow cover must reject ordinary grass through the snow authority too');
+  'continuous permanent-ice snow cover must reject ordinary grass through snow authority too');
+
+const alwaysWinterWorld = worldXZ(0.145, 0.115);
+const sameLatitudeEastWorld = worldXZ(0.82, 0.115);
+const canonicalNorthWorld = worldXZ(0.19, 0.235);
+const southWorld = worldXZ(0.52, 0.62);
+const alwaysWinterCell = cellForWorld(alwaysWinterWorld);
+const sameLatitudeEastCell = cellForWorld(sameLatitudeEastWorld);
+const canonicalNorthCell = cellForWorld(canonicalNorthWorld);
+const southCell = cellForWorld(southWorld);
+const shared = {
+  sampleHeightMeters: flatSampler,
+  seaLevelMeters: 6,
+  seed: 424242,
+  seats: [],
+  roadEdges: [],
+  isMobileClass: true,
+};
 
 const northMesh = makeMesh();
+const sameLatitudeEastMesh = makeMesh();
 const tundraMesh = makeMesh();
 const southMesh = makeMesh();
 const southRepeat = makeMesh();
 const snowyTundraMesh = makeMesh();
-const northCell = Math.round(farNorthZ / RUN180_WIND_GRASS_CONFIG.cellMeters);
-const tundraCell = Math.round(tundraZ / RUN180_WIND_GRASS_CONFIG.cellMeters);
-const southCell = Math.round(southZ / RUN180_WIND_GRASS_CONFIG.cellMeters);
-const northCount = populateWindGrass(northMesh, shared, 0, northCell);
-const tundraCount = populateWindGrass(tundraMesh, shared, 0, tundraCell);
-const southCount = populateWindGrass(southMesh, shared, 0, southCell);
-const southRepeatCount = populateWindGrass(southRepeat, shared, 0, southCell);
+const northCount = populateWindGrass(northMesh, shared, alwaysWinterCell.x, alwaysWinterCell.z);
+const sameLatitudeEastCount = populateWindGrass(sameLatitudeEastMesh, shared, sameLatitudeEastCell.x, sameLatitudeEastCell.z);
+const tundraCount = populateWindGrass(tundraMesh, shared, canonicalNorthCell.x, canonicalNorthCell.z);
+const southCount = populateWindGrass(southMesh, shared, southCell.x, southCell.z);
+const southRepeatCount = populateWindGrass(southRepeat, shared, southCell.x, southCell.z);
 const snowyTundraCount = populateWindGrass(snowyTundraMesh, {
   ...shared,
   sampleHeightMeters: () => 346,
-}, 0, tundraCell);
+}, canonicalNorthCell.x, canonicalNorthCell.z);
 
-assert.equal(northCount, 0, 'permanent ice must reject every physical green-grass patch');
+assert.equal(northCount, 0, 'canonical permanent ice must reject every physical green-grass patch');
 assert((northMesh.userData.northGroundCover?.climateRejected ?? 0) > 0, 'north rejection telemetry must identify climate as the cause');
-assert(tundraCount > 0, 'tundra should keep some hardy ground cover');
+assert.equal(northMesh.userData.northGroundCover?.mapAlignedClimate, true,
+  'runtime telemetry must declare canonical X/Z climate ownership');
+assert(sameLatitudeEastCount > northCount,
+  'same-latitude far-east ground must recover grass outside Westeros cryosphere');
+assert(tundraCount > 0, 'canonical North tundra should keep some hardy ground cover');
 assert(tundraCount < southCount, `tundra (${tundraCount}) must be sparser than temperate south (${southCount})`);
 assert(snowyTundraCount < tundraCount,
   `snowy tundra highland (${snowyTundraCount}) must be sparser than low tundra (${tundraCount})`);
@@ -152,7 +184,7 @@ southScale.setFromMatrixScale(southMatrix);
 assert(tundraScale.y < 1.25, 'tundra climate should cap wind-grass height below the raw maximum');
 assert(southScale.y >= 0.78 && southScale.y <= 1.25, 'temperate south must retain historical raw scale bounds');
 
-for (const mesh of [northMesh, tundraMesh, southMesh, southRepeat, snowyTundraMesh]) {
+for (const mesh of [northMesh, sameLatitudeEastMesh, tundraMesh, southMesh, southRepeat, snowyTundraMesh]) {
   mesh.geometry.dispose();
   mesh.material.dispose();
 }
@@ -161,6 +193,7 @@ geometry.dispose();
 console.log('[checkWindGrassClimateModule] PASS', JSON.stringify({
   policy: NORTH_GROUND_COVER_POLICY.id,
   northCount,
+  sameLatitudeEastCount,
   tundraCount,
   snowyTundraCount,
   southCount,
