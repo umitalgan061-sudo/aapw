@@ -89,5 +89,25 @@ assert.deepEqual(missing.missingKeys, ['asset:not-installed']);
 assert.equal(missing.rebuiltChunkCount, 0);
 assert.deepEqual(events, []);
 
+// Shutdown/teardown paths must be able to retire shared height authority without scheduling GPU
+// terrain churn that will never be rendered. The physics/render source still mutates immediately.
+const shutdownA = { uuid: 'shutdown-a', userData: {} };
+const shutdownB = { uuid: 'shutdown-b', userData: {} };
+install('shutdown-a', shutdownA, 92, 31);
+install('shutdown-b', shutdownB, 108, 33);
+assert.equal(flattenPads.length, 2);
+events.length = 0;
+const shutdown = conformer.removeFoundations([shutdownA, shutdownB], { rebuild: false });
+assert.equal(shutdown.ok, true);
+assert.equal(shutdown.removedCount, 2);
+assert.equal(shutdown.rebuiltChunkCount, 0, 'teardown cleanup must not rebuild terrain chunks');
+assert.equal(shutdown.rebuildSkipped, true);
+assert.deepEqual(events, [], 'teardown cleanup must not unload/load resident terrain');
+assert.equal(flattenPads.length, 0, 'teardown cleanup must still mutate the shared render/physics pad authority');
+assert.equal(conformer.getDynamicPads().length, 0);
+assert.equal(shutdownA.userData.terrainFoundationKey, undefined);
+assert.equal(shutdownB.userData.terrainFoundationKey, undefined);
+
 assert.equal(conformer.policy.batchRemovalMode, 'mutate-all-then-union-rebuild');
-console.log('[checkTerrainFoundationBatchRemoval] PASS: multi-structure cleanup mutates the shared pad authority first, deduplicates object/key inputs, preserves unrelated foundations, and rebuilds each affected resident terrain chunk at most once.');
+assert.equal(conformer.policy.shutdownRemovalMode, 'mutate-without-rebuild');
+console.log('[checkTerrainFoundationBatchRemoval] PASS: multi-structure cleanup mutates the shared pad authority first, deduplicates object/key inputs, preserves unrelated foundations, rebuilds each affected resident terrain chunk at most once, and supports rebuild-free teardown cleanup.');
