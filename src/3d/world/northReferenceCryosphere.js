@@ -26,10 +26,11 @@ const ALWAYS_WINTER_ZONE = findZone('lands-always-winter');
 const NORTH_ZONE = findZone('north');
 
 export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
-	id: 'owner-map-north-cryosphere-2026-08-22-v1',
+	id: 'owner-map-north-cryosphere-2026-08-22-v2-bounded-world',
 	source: 'WORLD_REFERENCE_MAP biome zones',
 	renderClimateOnly: true,
 	heightAuthorityUnchanged: true,
+	outsideReferenceIsTemperate: true,
 	alwaysWinterZoneId: ALWAYS_WINTER_ZONE.id,
 	northZoneId: NORTH_ZONE.id,
 	iceTransitionRadiusScale: 1.55,
@@ -69,12 +70,7 @@ export function northReferenceCryosphereAtNormalized(normalizedX, normalizedY) {
 	const northCore = sampleReferenceInfluence(normalizedX, normalizedY, NORTH_ZONE);
 	const northHalo = sampleReferenceInfluence(normalizedX, normalizedY, NORTH_TUNDRA_TRANSITION_ZONE);
 
-	// The canonical snow ellipse owns permanent ice. Its expanded halo supplies a restrained,
-	// continuous glacial transition rather than a straight latitude stripe.
 	const permanentIce = clamp01(Math.max(winterCore, winterHalo * P.iceHaloGain));
-
-	// Tundra remains inclusive of permanent ice, matching existing north-climate consumers, while
-	// the explicit `north` map zone extends the cold ground transition south of always-winter.
 	const tundra = clamp01(Math.max(
 		permanentIce,
 		northCore * P.northTundraGain,
@@ -85,6 +81,7 @@ export function northReferenceCryosphereAtNormalized(normalizedX, normalizedY) {
 	return Object.freeze({
 		normalizedX,
 		normalizedY,
+		outsideReference: false,
 		winterCore,
 		winterHalo,
 		northCore,
@@ -95,11 +92,44 @@ export function northReferenceCryosphereAtNormalized(normalizedX, normalizedY) {
 	});
 }
 
+function neutralCryosphereOutsideReference(worldX, worldZ) {
+	const bounds = WORLD_SCALE.MAP_BOUNDS;
+	const centerMapX = (bounds.minX + bounds.maxX) * 0.5;
+	const centerMapY = (bounds.minY + bounds.maxY) * 0.5;
+	const mapX = worldX / WORLD_SCALE.METERS_PER_MAP_UNIT + centerMapX;
+	const mapY = worldZ / WORLD_SCALE.METERS_PER_MAP_UNIT + centerMapY;
+	const normalizedX = clamp01((mapX - bounds.minX) / Math.max(1e-9, bounds.maxX - bounds.minX));
+	const normalizedY = clamp01((mapY - bounds.minY) / Math.max(1e-9, bounds.maxY - bounds.minY));
+	return Object.freeze({
+		normalizedX,
+		normalizedY,
+		outsideReference: true,
+		winterCore: 0,
+		winterHalo: 0,
+		northCore: 0,
+		northHalo: 0,
+		permanentIce: 0,
+		tundra: 0,
+		tundraBand: 0,
+	});
+}
+
 export function northReferenceCryosphereAtWorldXZ(worldX, worldZ) {
+	if (!Number.isFinite(worldX) || !Number.isFinite(worldZ)) {
+		throw new TypeError('world cryosphere coordinates must be finite');
+	}
+	const bounds = WORLD_SCALE.MAP_BOUNDS;
+	const centerMapX = (bounds.minX + bounds.maxX) * 0.5;
+	const centerMapY = (bounds.minY + bounds.maxY) * 0.5;
+	const mapX = worldX / WORLD_SCALE.METERS_PER_MAP_UNIT + centerMapX;
+	const mapY = worldZ / WORLD_SCALE.METERS_PER_MAP_UNIT + centerMapY;
+	if (mapX < bounds.minX || mapX > bounds.maxX || mapY < bounds.minY || mapY > bounds.maxY) {
+		return neutralCryosphereOutsideReference(worldX, worldZ);
+	}
 	const normalized = worldXZToNormalizedReference(
 		worldX,
 		worldZ,
-		WORLD_SCALE.MAP_BOUNDS,
+		bounds,
 		WORLD_SCALE.METERS_PER_MAP_UNIT,
 	);
 	return northReferenceCryosphereAtNormalized(normalized.x, normalized.y);
