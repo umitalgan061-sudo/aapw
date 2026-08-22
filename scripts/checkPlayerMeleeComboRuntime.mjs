@@ -66,6 +66,12 @@ function validateActiveAnchor(event, motion, baseline, label) {
 	need(groundDelta <= 0.05, `${label} active anchor drifted from grounded baseline; deltaY=${groundDelta}`);
 	return Object.freeze({ facingLength: Number(facingLength.toFixed(5)), eventMotionDelta: Number(eventMotionDelta.toFixed(4)), groundDelta: Number(groundDelta.toFixed(4)) });
 }
+function sameAttackWindowMotion(event, motion) {
+	return motion.attackKind === event.kind
+		&& motion.attackActive === event.active
+		&& motion.attackComboStep === event.comboStep
+		&& Math.abs((motion.attackCommitRemaining ?? Infinity) - (event.commitRemainingMeters ?? -Infinity)) <= 0.001;
+}
 
 try {
 	await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -80,7 +86,7 @@ try {
 	need(Math.abs(lightStart.stamina - 88) < 0.2, `light stamina cost should be 12, got ${lightStart.stamina}`);
 	const lightActive = await waitWindow((event) => event.serial === lightStart.serial && event.phase === 'active-start' && event.active, 'light active window');
 	need(lightActive.reachMeters >= 1.5 && lightActive.damageScale === 1, `bad light hit window ${JSON.stringify(lightActive)}`);
-	const lockedLight = await waitMotion((motion) => motion.attackKind === 'light' && motion.attackActive, 'light active motion');
+	const lockedLight = await waitMotion((motion) => sameAttackWindowMotion(lightActive, motion), 'light active motion');
 	need(!lockedLight.canDodge && !lockedLight.guarding && lockedLight.state === 'attack-light', `light attack must lock dodge/guard ${JSON.stringify(lockedLight)}`);
 	const lightGeometry = validateActiveAnchor(lightActive, lockedLight, baseline, 'light');
 
@@ -92,7 +98,7 @@ try {
 	need(Math.abs(heavyStart.stamina - 64) < 0.25, `light+heavy chain should spend 36 stamina, got ${heavyStart.stamina}`);
 	const heavyActive = await waitWindow((event) => event.serial === heavyStart.serial && event.phase === 'active-start' && event.active, 'heavy active window');
 	need(heavyActive.reachMeters > lightActive.reachMeters && heavyActive.damageScale > lightActive.damageScale, 'heavy attack needs stronger reach/damage metadata');
-	const lockedHeavy = await waitMotion((motion) => motion.attackKind === 'heavy' && motion.attackActive, 'heavy active motion');
+	const lockedHeavy = await waitMotion((motion) => sameAttackWindowMotion(heavyActive, motion), 'heavy active motion');
 	const heavyGeometry = validateActiveAnchor(heavyActive, lockedHeavy, baseline, 'heavy');
 	await waitWindow((event) => event.serial === heavyStart.serial && event.phase === 'finish', 'heavy recovery finish', recoveryProofTimeoutMs);
 	await waitMotion((motion) => motion.state === 'idle' && motion.attackKind === 'none', 'post-combo idle', recoveryProofTimeoutMs);
