@@ -1,6 +1,6 @@
 import { EditorAssetManager } from './EditorAssetManager.js';
 import { EDITOR_ASSETS } from './editorAssetLibrary.js';
-import { createEditorTerrainFoundationGrounder } from './EditorTerrainFoundationGrounder.js';
+import { createEditorTerrainFoundationGrounder, isEditorStructureAsset } from './EditorTerrainFoundationGrounder.js';
 
 function selectedAssetFromDom() {
   const button = document.querySelector('#we-assets .we-asset.is-selected');
@@ -132,6 +132,25 @@ export function installEditorPlacementController(api, authoring = window.__WESTE
     return terrainGrounder.groundObject(object, asset, { x, z });
   }
 
+  function reconcileExistingStructureFoundations() {
+    let groundedCount = 0;
+    let alreadyGroundedCount = 0;
+    const failures = [];
+    for (const object of api.editableObjects) {
+      if (!object || object.isInstancedMesh) continue;
+      const asset = assetForObject(object);
+      if (!isEditorStructureAsset(asset)) continue;
+      if (object.userData?.editorFoundationKey || object.userData?.terrainFoundationKey) {
+        alreadyGroundedCount += 1;
+        continue;
+      }
+      const grounding = groundObject(object, { asset });
+      if (grounding.ok) groundedCount += 1;
+      else failures.push({ editorId: object.userData?.editorId || null, error: grounding.error || 'terrain-grounding-failed' });
+    }
+    return Object.freeze({ groundedCount, alreadyGroundedCount, failures: Object.freeze(failures) });
+  }
+
   function removeObjectFoundation(object) {
     if (!object) return { ok: false, error: 'foundation-missing-object' };
     return terrainGrounder.removeObjectFoundation(object);
@@ -253,12 +272,17 @@ export function installEditorPlacementController(api, authoring = window.__WESTE
     placeSelectedAtPoint,
     groundObject,
     groundSelected,
+    reconcileExistingStructureFoundations,
     removeObjectFoundation,
     removeObjectFoundations,
     getSnapshot,
     dispose
   });
   window.__WESTEROS_EDITOR_PLACEMENT__ = surface;
+  const reconciliation = reconcileExistingStructureFoundations();
+  if (reconciliation.failures.length) {
+    console.warn('[EditorPlacementController] existing structure foundation reconciliation incomplete', reconciliation.failures);
+  }
   syncUi();
   return surface;
 }
