@@ -329,7 +329,6 @@ function buildMobileVegetationGeometryRun136(species) {
 	} else if (foliage.kind === 'sphere') {
 		foliageGeometry = new THREE.SphereGeometry(
 			foliage.radius,
-			foliage.height,
 			MOBILE_VEGETATION_LOD_RUN136.sphereWidthSegments,
 			MOBILE_VEGETATION_LOD_RUN136.sphereHeightSegments,
 		);
