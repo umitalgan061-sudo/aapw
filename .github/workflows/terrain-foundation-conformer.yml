@@ -1,0 +1,40 @@
+name: Terrain Foundation Conformer
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/terrainFoundationConformer.js'
+      - 'src/3d/world/WorldAssetPlacementPipeline.js'
+      - 'src/3d/world/terrain.js'
+      - 'src/3d/world/chunkManager.js'
+      - 'src/3d/physics.js'
+      - 'scripts/checkTerrainFoundationConformer.mjs'
+      - 'scripts/checkTerrainFoundationBatchRemoval.mjs'
+      - 'scripts/setupNodeThreeShim.mjs'
+      - '.github/workflows/terrain-foundation-conformer.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  foundation-conform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Resolve vendored Three.js for Node contracts
+        run: node scripts/setupNodeThreeShim.mjs
+      - name: Syntax
+        run: |
+          node --check src/3d/world/terrainFoundationConformer.js
+          node --check src/3d/world/WorldAssetPlacementPipeline.js
+          node --check scripts/checkTerrainFoundationConformer.mjs
+          node --check scripts/checkTerrainFoundationBatchRemoval.mjs
+      - name: Shared terrain authority and selective chunk rebuild
+        run: |
+          node scripts/checkTerrainFoundationConformer.mjs
+          node scripts/checkTerrainFoundationBatchRemoval.mjs

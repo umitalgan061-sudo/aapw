@@ -1,0 +1,50 @@
+name: North Reference Cryosphere
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/northReferenceCryosphere.js'
+      - 'src/3d/world/terrainBiomeShading.js'
+      - 'src/3d/world/terrainWindSnowExposure.js'
+      - 'src/3d/world/terrainReliefDetail.js'
+      - 'src/3d/world/worldReferenceMap.js'
+      - 'src/3d/world/worldReferenceAlignment.js'
+      - 'src/3d/config.js'
+      - 'scripts/checkNorthReferenceCryosphere.mjs'
+      - 'scripts/checkMapAlignedTerrainCryosphere.mjs'
+      - '.github/workflows/north-reference-cryosphere.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install terrain runtime test dependency
+        run: npm install --no-save --no-package-lock three
+
+      - name: Syntax check
+        run: |
+          node --check src/3d/world/northReferenceCryosphere.js
+          node --check src/3d/world/terrainBiomeShading.js
+          node --check scripts/checkNorthReferenceCryosphere.mjs
+          node --check scripts/checkMapAlignedTerrainCryosphere.mjs
+
+      - name: Validate map-aligned north cryosphere
+        run: node scripts/checkNorthReferenceCryosphere.mjs
+
+      - name: Validate map-aligned terrain cryosphere
+        run: node scripts/checkMapAlignedTerrainCryosphere.mjs

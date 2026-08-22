@@ -1,11 +1,15 @@
-import * as THREE from 'three';
 import { EditorAssetManager } from './EditorAssetManager.js';
 import { EDITOR_ASSETS } from './editorAssetLibrary.js';
+import { createEditorTerrainFoundationGrounder, isEditorStructureAsset } from './EditorTerrainFoundationGrounder.js';
 
 function selectedAssetFromDom() {
   const button = document.querySelector('#we-assets .we-asset.is-selected');
   const name = button?.querySelector('strong')?.textContent?.trim();
   return EDITOR_ASSETS.find((asset) => asset.name === name) || null;
+}
+
+function assetForObject(object) {
+  return EDITOR_ASSETS.find((candidate) => candidate.id === object?.userData?.editorAssetId) || null;
 }
 
 function nextPlacementId(api, assetId) {
@@ -41,7 +45,7 @@ function createUi() {
   groundButton.id = 'we-ground-selected';
   groundButton.type = 'button';
   groundButton.textContent = 'Zemine Oturt';
-  groundButton.title = 'Seçili objenin tabanını gerçek terrain yüksekliğine oturt';
+  groundButton.title = 'Seçili objenin bütün tabanını gerçek terrain yüksekliğine oturt';
 
   group.append(placeButton, groundButton);
   toolbar.insertBefore(group, link);
@@ -69,8 +73,17 @@ export function installEditorPlacementController(api, authoring = window.__WESTE
   }
   if (window.__WESTEROS_EDITOR_PLACEMENT__) return window.__WESTEROS_EDITOR_PLACEMENT__;
 
+  const liveState = window.__WESTEROS_EDITOR_LIVE_WORLD__?.liveState;
+  if (!liveState?.chunkManager || !liveState?.groundCollider) {
+    throw new Error('World Editor terrain conform için canlı world state hazır olmalı.');
+  }
+
   const ui = createUi();
   const assetManager = new EditorAssetManager();
+  const terrainGrounder = createEditorTerrainFoundationGrounder({
+    chunkManager: liveState.chunkManager,
+    groundCollider: liveState.groundCollider,
+  });
   const removers = [];
   let placementMode = false;
   let busy = false;
@@ -110,16 +123,42 @@ export function installEditorPlacementController(api, authoring = window.__WESTE
     syncUi();
   }
 
-  function visibleSurfaceY(point) {
-    const terrainY = authoring.groundHeight(point.x, point.z);
-    return Math.max(terrainY, Number(point.y) || terrainY);
+  function groundObject(object, {
+    asset = assetForObject(object),
+    x = object?.position?.x,
+    z = object?.position?.z,
+  } = {}) {
+    if (!object || object.isInstancedMesh) return { ok: false, error: 'editor-ground-invalid-selection' };
+    return terrainGrounder.groundObject(object, asset, { x, z });
   }
 
-  function baseOffsetAtOrigin(object) {
-    object.position.set(0, 0, 0);
-    object.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(object);
-    return Number.isFinite(box.min.y) ? box.min.y : 0;
+  function reconcileExistingStructureFoundations() {
+    let groundedCount = 0;
+    let alreadyGroundedCount = 0;
+    const failures = [];
+    for (const object of api.editableObjects) {
+      if (!object || object.isInstancedMesh) continue;
+      const asset = assetForObject(object);
+      if (!isEditorStructureAsset(asset)) continue;
+      if (object.userData?.editorFoundationKey || object.userData?.terrainFoundationKey) {
+        alreadyGroundedCount += 1;
+        continue;
+      }
+      const grounding = groundObject(object, { asset });
+      if (grounding.ok) groundedCount += 1;
+      else failures.push({ editorId: object.userData?.editorId || null, error: grounding.error || 'terrain-grounding-failed' });
+    }
+    return Object.freeze({ groundedCount, alreadyGroundedCount, failures: Object.freeze(failures) });
+  }
+
+  function removeObjectFoundation(object) {
+    if (!object) return { ok: false, error: 'foundation-missing-object' };
+    return terrainGrounder.removeObjectFoundation(object);
+  }
+
+  function removeObjectFoundations(objects, options = {}) {
+    if (!Array.isArray(objects)) return { ok: false, error: 'foundation-batch-invalid-objects' };
+    return terrainGrounder.removeObjectFoundations(objects, options);
   }
 
   async function placeSelectedAtPoint(point) {
@@ -133,13 +172,14 @@ export function installEditorPlacementController(api, authoring = window.__WESTE
     try {
       const object = await assetManager.createObject(asset);
       if (disposed) return null;
-      const localBaseY = baseOffsetAtOrigin(object);
-      object.position.set(point.x, visibleSurfaceY(point) - localBaseY, point.z);
       object.userData.editorId = nextPlacementId(api, asset.id);
+      const grounding = groundObject(object, { asset, x: point.x, z: point.z });
+      if (!grounding.ok) throw new Error(grounding.error || 'terrain-grounding-failed');
       api.editableObjects.push(object);
       api.scene.add(object);
       selectThroughHierarchy(api, object);
-      toast(`${asset.name} yerleştirildi.`);
+      const suffix = grounding.mode === 'terrain-conform' ? ' · terrain tabana uyarlandı' : '';
+      toast(`${asset.name} yerleştirildi${suffix}.`);
       return object;
     } catch (error) {
       console.error('[EditorPlacementController] placement failed', error);
@@ -158,15 +198,17 @@ export function installEditorPlacementController(api, authoring = window.__WESTE
       toast('Zemine oturtmak için normal bir obje seç.');
       return false;
     }
-    object.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(object);
-    if (!Number.isFinite(box.min.y)) return false;
-    const terrainY = authoring.groundHeight(object.position.x, object.position.z);
-    object.position.y += terrainY - box.min.y;
-    object.updateMatrixWorld(true);
+    const grounding = groundObject(object);
+    if (!grounding.ok) {
+      console.error('[EditorPlacementController] grounding failed', grounding.error);
+      toast('Seçili obje zemine oturtulamadı.');
+      return false;
+    }
     api.writeInspector?.(object);
     api.refreshHierarchy();
-    toast('Seçili obje gerçek terrain üzerine oturtuldu.');
+    toast(grounding.mode === 'terrain-conform'
+      ? 'Seçili yapının bütün tabanı terrain ile birleştirildi.'
+      : 'Seçili obje gerçek terrain üzerine oturtuldu.');
     return true;
   }
 
@@ -195,12 +237,17 @@ export function installEditorPlacementController(api, authoring = window.__WESTE
       placementMode,
       busy,
       selectedAssetId: selectedAssetFromDom()?.id || null,
-      selectedEditorId: api.getSelectedObject()?.userData?.editorId || null
+      selectedEditorId: api.getSelectedObject()?.userData?.editorId || null,
+      dynamicFoundationCount: terrainGrounder.getDynamicPads().length,
     });
   }
 
   function dispose() {
     if (disposed) return;
+    const foundationCleanup = removeObjectFoundations(api.editableObjects, { rebuild: false });
+    if (!foundationCleanup.ok && foundationCleanup.missingKeys?.length) {
+      console.warn('[EditorPlacementController] teardown foundation cleanup incomplete', foundationCleanup.missingKeys);
+    }
     disposed = true;
     placementMode = false;
     busy = false;
@@ -223,21 +270,19 @@ export function installEditorPlacementController(api, authoring = window.__WESTE
     setPlacementMode,
     isPlacementMode: () => placementMode,
     placeSelectedAtPoint,
+    groundObject,
     groundSelected,
+    reconcileExistingStructureFoundations,
+    removeObjectFoundation,
+    removeObjectFoundations,
     getSnapshot,
     dispose
   });
   window.__WESTEROS_EDITOR_PLACEMENT__ = surface;
+  const reconciliation = reconcileExistingStructureFoundations();
+  if (reconciliation.failures.length) {
+    console.warn('[EditorPlacementController] existing structure foundation reconciliation incomplete', reconciliation.failures);
+  }
   syncUi();
   return surface;
-}
-
-const api = window.__WESTEROS_WORLD_EDITOR__;
-const authoring = window.__WESTEROS_EDITOR_LIVE_AUTHORING__;
-if (api && authoring) {
-  try {
-    installEditorPlacementController(api, authoring);
-  } catch (error) {
-    console.error('[EditorPlacementController] boot failed', error);
-  }
 }

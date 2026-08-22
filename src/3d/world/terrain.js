@@ -28,9 +28,11 @@ import {
 	NEUTRAL_DETAIL_GAIN,
 	resolveTerrainBiomeColor,
 	slopeDegreesFromNeighbours,
+	terrainConcavityMetersFromNeighbours,
 	buildNeutralDetailCanvas,
 	buildFlatNeutralCanvas,
 } from './terrainBiomeShading.js';
+import { terrainWindExposureFromNeighbours } from './terrainWindSnowExposure.js';
 
 // Re-exported so the micro-surface extraction stays invisible to every existing importer and check.
 export { TERRAIN_MICRO_SURFACE_POLICY, terrainMicroUvAt, getSharedTerrainMicroSurfaceTextures, applyTerrainMicroSurface };
@@ -138,7 +140,6 @@ export const CURRENT_TERRAIN_ALBEDO_POLICY = Object.freeze({
 	terrainHeightAuthority: CURRENT_TERRAIN_POLICY.id,
 });
 
-
 function currentMapPoint(worldX, worldZ) {
 	const centerMapX = (WORLD_SCALE.MAP_BOUNDS.minX + WORLD_SCALE.MAP_BOUNDS.maxX) * 0.5;
 	const centerMapY = (WORLD_SCALE.MAP_BOUNDS.minY + WORLD_SCALE.MAP_BOUNDS.maxY) * 0.5;
@@ -151,10 +152,6 @@ function currentMapPoint(worldX, worldZ) {
 	});
 }
 
-/**
- * Stable map-space UV query shared by terrain chunks and visual QA. V is flipped because image UV
- * origin is bottom-left while the canonical map canvas is addressed top-down.
- */
 export function terrainMapUvAt(worldX, worldZ) {
 	const point = currentMapPoint(worldX, worldZ);
 	return Object.freeze({ u: point.nx, v: 1 - point.ny, insideOwnerMap: point.insideOwnerMap });
@@ -166,23 +163,8 @@ function canonicalMicroSignal(nx, ny) {
 		+ 0.20 * Math.sin(TAU * (nx * 41 + ny * 37) + 2.07);
 }
 
-/**
- * @param {number} worldX
- * @param {number} worldZ
- * @param {{rockWeight: number, snowWeight: number, waterWeight: number}} [outSurface] Optional
- *   caller-owned scratch object filled with the canonical surface weights this height was derived
- *   from. Purely additive: the returned height is bit-identical whether or not it is passed, and no
- *   extra `sampleReferencePindexQualityV2` call is made — the weights are already computed here.
- *   Exists so `createTerrainChunk` can shade a vertex without paying for a second canonical sample
- *   (see `world/terrainBiomeShading.js`); an out-parameter rather than a returned object keeps this
- *   function allocation-free for its hot callers (physics, roads, rivers).
- * @returns {number} Height in metres.
- */
 function sampleCanonicalHeightMeters(worldX, worldZ, outSurface) {
 	const { nx, ny } = currentMapPoint(worldX, worldZ);
-	// Coastline domain-warp: the canonical mask is read at a displaced coordinate so its 96x64 cell
-	// grid stops surfacing as a ~138 m rectangular staircase along every shore. The mask's own
-	// land/sea decisions are untouched — only where each is read from. See `world/terrainReliefDetail.js`.
 	const detailTaper = seatDetailTaper(nx, ny);
 	const warp = coastWarpOffsets(nx, ny);
 	const wx = clamp01(nx + warp.du * detailTaper);
@@ -195,14 +177,6 @@ function sampleCanonicalHeightMeters(worldX, worldZ, outSurface) {
 	const snowWeight = clamp01(sample.surfaceWeights.snow ?? 0);
 	const micro = canonicalMicroSignal(nx, ny) * (0.45 + sample.microAmplitude * 12);
 	const mountainMeters = sampleWorldReferenceMountainReliefMeters(worldX, worldZ);
-
-	// Continental uplift: inland ground stands hundreds of metres above its own coast, the way a real
-	// landmass does. Zero at the waterline by construction, so the canonical coastline from map.png is
-	// not displaced by a single metre — see `world/terrainContinentalUplift.js`.
-	// Deliberately NOT tapered around seats, unlike the relief detail above. Tapering was tried and
-	// measured worse: zeroing uplift in a 650 m disc while the surrounding land keeps climbing builds a
-	// steep rim around every seat, and it pushed a fourth road edge (`doran -> ziya`) past the ceiling
-	// at 25.6 deg. A smooth continental field must stay smooth.
 	const upliftMeters = continentalUpliftMeters(wx, wy);
 	const dryRelative = 1.0
 		+ upliftMeters
@@ -214,11 +188,6 @@ function sampleCanonicalHeightMeters(worldX, worldZ, outSurface) {
 		+ micro;
 	const wetRelative = -3.0 - waterWeight * 5.25 - sample.reliefInfluence * 0.75 + micro * 0.12;
 	let heightMeters = SEA_LEVEL + lerp(dryRelative, wetRelative, waterWeight);
-
-	// Multi-octave land relief: gentle undulation on the plains, ridged crags on the canonical
-	// mountain chains. Amplitude-gated so it cannot breach the road-grade or seat-walkability
-	// ceilings — see `world/terrainReliefDetail.js`. Added before the seat-protection clamp below so
-	// a protected seat still wins over it.
 	heightMeters += reliefDetailMeters(wx, wy, {
 		heightAboveSeaMeters: heightMeters - SEA_LEVEL,
 		reliefInfluence: sample.reliefInfluence,
@@ -226,9 +195,6 @@ function sampleCanonicalHeightMeters(worldX, worldZ, outSurface) {
 		snowWeight,
 		waterWeight,
 	}) * detailTaper;
-
-	// Keep the Pindex V2 coastal blend continuous. `rawWater` is a semantic QA bit and must not
-	// reintroduce a binary height cliff after the continuous surface weights have been evaluated.
 	const hydrology = sampleSeatSafeReferenceHydrology(nx, ny, PROTECTED_SEATS, PROTECTION_RADII);
 	if (hydrology.protectedLand) {
 		const minimumLand = SEA_LEVEL + 0.35 + hydrology.protectedLandWeight * 0.9;
@@ -249,10 +215,6 @@ function flattenWeight(distanceMeters, innerRadiusMeters, outerRadiusMeters) {
 	return t * t * (3 - 2 * t);
 }
 
-/**
- * Shared render/physics height sampler. `seed`, `fbmOptions` and `maxHeightMeters` remain accepted
- * for API compatibility, but do not alter the canonical production terrain.
- */
 export function createHeightSampler(_seed, _fbmOptions, flattenPads = []) {
 	return function sampleHeightMeters(worldX, worldZ, _maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS, outSurface) {
 		const baseHeightMeters = sampleCanonicalHeightMeters(worldX, worldZ, outSurface);
@@ -281,7 +243,6 @@ function isCoarsePointerDevice() {
 		&& window.matchMedia('(pointer: coarse)').matches;
 }
 
-/** One app-lifetime texture shared by every desktop chunk; mobile keeps the proven lightweight path. */
 export function getSharedTerrainAlbedoTexture() {
 	if (typeof document === 'undefined' || isCoarsePointerDevice() || sharedTerrainAlbedoLoadFailed) return null;
 	if (sharedTerrainAlbedoTexture) return sharedTerrainAlbedoTexture;
@@ -290,16 +251,10 @@ export function getSharedTerrainAlbedoTexture() {
 	const texture = new THREE.TextureLoader().load(
 		url,
 		(loaded) => {
-			// The authored image is a saturated green photographic texture, not a neutral detail map
-			// (measured: mean saturation 0.42 — see `TERRAIN_BIOME_SHADING_POLICY.measured.overlayPng`).
-			// Converting it to a unit-mean luminance multiplier here is what lets the per-vertex biome
-			// colour own hue while this asset keeps owning surface detail.
 			try {
 				loaded.image = buildNeutralDetailCanvas(loaded.image);
 				loaded.userData.neutralisedDetail = true;
 			} catch (error) {
-				// Never leave the raw green image on a NoColorSpace sampler — it would be read as raw
-				// linear data and tint the entire world. Flat neutral loses detail, keeps colour correct.
 				console.warn('[terrain] neutral detail conversion failed, falling back to flat neutral', error);
 				loaded.image = buildFlatNeutralCanvas();
 				loaded.userData.neutralisedDetail = false;
@@ -313,8 +268,6 @@ export function getSharedTerrainAlbedoTexture() {
 		},
 	);
 	texture.name = 'owner-map-authored-terrain-detail-neutralised';
-	// Deliberately NOT sRGB: this texture carries a ratio, not a colour. See
-	// `TERRAIN_BIOME_SHADING_POLICY.detailEncodePivot`.
 	texture.colorSpace = THREE.NoColorSpace;
 	texture.wrapS = THREE.ClampToEdgeWrapping;
 	texture.wrapT = THREE.ClampToEdgeWrapping;
@@ -331,22 +284,6 @@ export function getSharedTerrainAlbedoTexture() {
 	return texture;
 }
 
-/**
- * Builds one chunk from the exact same sampler used by physics and gameplay.
- *
- * Vertex heights are produced by the identical call this function has always made, at the identical
- * world coordinates — the biome-shading pass added here is strictly additive and reads heights, never
- * writes them.
- *
- * **Slope without seams.** Colour now depends on local slope, which needs each vertex's four
- * neighbours. Edge vertices have no in-chunk neighbour, so this samples a one-vertex apron just
- * outside the chunk rather than falling back to a one-sided difference: a one-sided difference would
- * give the two chunks sharing an edge two different slopes for the same ground and draw a visible
- * colour seam along every chunk border. The apron costs `4 * (segments + 3) - 4` extra height samples
- * (264 at the default 64 segments — about 6% on top of the 4,225 vertex samples), and because both
- * neighbouring chunks sample the same world coordinates through the same deterministic field, a
- * shared vertex resolves to the same slope from either side.
- */
 export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS, seed = 1, flattenPads = [] }) {
 	const sampleHeightMeters = createHeightSampler(seed, undefined, flattenPads);
 	const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
@@ -357,18 +294,11 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 	const colors = new Float32Array(position.count * 3);
 	const microUvs = new Float32Array(position.count * 2);
 	const blended = new THREE.Color();
-
-	// Apron grid: the chunk's (segments+1)^2 vertices ringed by one extra row/column on every side.
-	// Apron index (ai, aj) maps to vertex index (ai-1, aj-1); the ring is filled after the vertex pass.
 	const spacingMeters = size / segments;
 	const apronCount = segments + 3;
 	const apronHeights = new Float32Array(apronCount * apronCount);
 	const apronRock = new Float32Array(apronCount * apronCount);
 	const apronSnow = new Float32Array(apronCount * apronCount);
-	// The vertex grid is axis-aligned and regular, so a vertex's world X depends only on its column
-	// and its world Z only on its row. Recording them per column/row lets the ring below be sampled at
-	// exactly `vertexCoordinate +/- spacing`, keeping every coordinate derived from the real geometry
-	// rather than re-derived arithmetic that could round differently.
 	const columnWorldX = new Float64Array(segments + 1);
 	const rowWorldZ = new Float64Array(segments + 1);
 	const surfaceScratch = { rockWeight: 0, snowWeight: 0, waterWeight: 0 };
@@ -386,7 +316,6 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 		const microUv = terrainMicroUvAt(worldX, worldZ);
 		microUvs[index * 2] = microUv.u;
 		microUvs[index * 2 + 1] = microUv.v;
-
 		const column = Math.round((localX + halfSize) / spacingMeters);
 		const row = Math.round((localZ + halfSize) / spacingMeters);
 		columnWorldX[column] = worldX;
@@ -397,7 +326,6 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 		apronSnow[apronOffset] = surfaceScratch.snowWeight;
 	}
 
-	// Ring pass: every apron cell outside the vertex grid, sampled one spacing beyond the real edge.
 	const apronWorldX = (ai) => (ai === 0
 		? columnWorldX[0] - spacingMeters
 		: ai === apronCount - 1 ? columnWorldX[segments] + spacingMeters : columnWorldX[ai - 1]);
@@ -415,18 +343,35 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 		}
 	}
 
-	// Shading pass: slope from the apron, colour from `world/terrainBiomeShading.js`.
 	for (let index = 0; index < position.count; index += 1) {
 		const localX = position.getX(index);
 		const localZ = position.getZ(index);
 		const column = Math.round((localX + halfSize) / spacingMeters);
 		const row = Math.round((localZ + halfSize) / spacingMeters);
 		const apronOffset = (row + 1) * apronCount + (column + 1);
+		const heightWest = apronHeights[apronOffset - 1];
+		const heightEast = apronHeights[apronOffset + 1];
+		const heightNorth = apronHeights[apronOffset - apronCount];
+		const heightSouth = apronHeights[apronOffset + apronCount];
 		const slopeDegrees = slopeDegreesFromNeighbours(
-			apronHeights[apronOffset - 1],
-			apronHeights[apronOffset + 1],
-			apronHeights[apronOffset - apronCount],
-			apronHeights[apronOffset + apronCount],
+			heightWest,
+			heightEast,
+			heightNorth,
+			heightSouth,
+			spacingMeters,
+		);
+		const terrainConcavityMeters = terrainConcavityMetersFromNeighbours(
+			apronHeights[apronOffset],
+			heightWest,
+			heightEast,
+			heightNorth,
+			heightSouth,
+		);
+		const terrainWindExposure = terrainWindExposureFromNeighbours(
+			heightWest,
+			heightEast,
+			heightNorth,
+			heightSouth,
 			spacingMeters,
 		);
 		resolveTerrainBiomeColor(blended, {
@@ -436,6 +381,9 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 			snowWeight: apronSnow[apronOffset],
 			worldX: columnWorldX[column],
 			worldZ: rowWorldZ[row],
+			terrainConcavityMeters,
+			terrainWindward: terrainWindExposure.windward,
+			terrainLee: terrainWindExposure.lee,
 		});
 		colors[index * 3] = blended.r;
 		colors[index * 3 + 1] = blended.g;
@@ -455,13 +403,6 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 		roughness: TERRAIN_MICRO_SURFACE_POLICY.roughnessBase,
 		metalness: 0,
 	});
-	// The detail map stores a ratio around a mid-grey pivot, so the material carries the reciprocal
-	// gain that restores a unit mean. Without a map there is nothing to compensate for.
-	//
-	// Recorded on `userData` as well as applied, because `world/worldReferenceSurfaceTerrainVisual.js`
-	// re-runs over every chunk at load and used to reset `material.color` to flat white — which
-	// silently halved the whole world's brightness once this gain existed. That module now restores
-	// this value instead of assuming white.
 	const terrainDetailGain = terrainAlbedo ? NEUTRAL_DETAIL_GAIN : 1;
 	material.color.setScalar(terrainDetailGain);
 	material.userData.terrainDetailGain = terrainDetailGain;
@@ -488,6 +429,10 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 		renderOnly: true,
 		slopeAware: true,
 		apronSampledSlope: true,
+		terrainFormSnowAware: true,
+		apronSampledTerrainForm: true,
+		windAspectSnowAware: true,
+		apronSampledWindAspect: true,
 	});
 	mesh.userData.currentTerrainMicroSurface = material.userData.terrainMicroSurface;
 	return mesh;
@@ -495,7 +440,5 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 
 export function disposeTerrainChunk(chunkMesh) {
 	chunkMesh.geometry.dispose();
-	// The albedo and micro normal/roughness textures are app-lifetime shared resources. Disposing a
-	// single chunk must never invalidate texture maps still referenced by neighboring chunk materials.
 	chunkMesh.material.dispose();
 }

@@ -1,0 +1,47 @@
+name: Editor Terrain Foundation
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/editor/EditorTerrainFoundationGrounder.js'
+      - 'src/3d/editor/EditorPlacementController.js'
+      - 'src/3d/editor/EditorTransformControls.js'
+      - 'src/3d/editor/worldEditor.js'
+      - 'src/3d/world/WorldAssetPlacementPipeline.js'
+      - 'src/3d/world/terrainFoundationConformer.js'
+      - 'scripts/checkEditorTerrainFoundationGrounder.mjs'
+      - 'scripts/checkEditorTerrainFoundationBatchCleanup.mjs'
+      - 'scripts/checkEditorTerrainFoundationLifecycle.mjs'
+      - 'scripts/setupNodeThreeShim.mjs'
+      - '.github/workflows/editor-terrain-foundation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  editor-terrain-foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Resolve vendored Three.js for Node contracts
+        run: node scripts/setupNodeThreeShim.mjs
+      - name: Syntax
+        run: |
+          node --check src/3d/editor/EditorTerrainFoundationGrounder.js
+          node --check src/3d/editor/EditorPlacementController.js
+          node --check src/3d/editor/EditorTransformControls.js
+          node --check src/3d/editor/worldEditor.js
+          node --check scripts/checkEditorTerrainFoundationGrounder.mjs
+          node --check scripts/checkEditorTerrainFoundationBatchCleanup.mjs
+          node --check scripts/checkEditorTerrainFoundationLifecycle.mjs
+      - name: Editor structure foundation contract
+        run: node scripts/checkEditorTerrainFoundationGrounder.mjs
+      - name: Editor batch foundation cleanup contract
+        run: node scripts/checkEditorTerrainFoundationBatchCleanup.mjs
+      - name: Editor structure lifecycle contract
+        run: node scripts/checkEditorTerrainFoundationLifecycle.mjs
