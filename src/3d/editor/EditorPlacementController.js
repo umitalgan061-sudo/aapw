@@ -137,9 +137,9 @@ export function installEditorPlacementController(api, authoring = window.__WESTE
     return terrainGrounder.removeObjectFoundation(object);
   }
 
-  function removeObjectFoundations(objects) {
+  function removeObjectFoundations(objects, options = {}) {
     if (!Array.isArray(objects)) return { ok: false, error: 'foundation-batch-invalid-objects' };
-    return terrainGrounder.removeObjectFoundations(objects);
+    return terrainGrounder.removeObjectFoundations(objects, options);
   }
 
   async function placeSelectedAtPoint(point) {
@@ -225,6 +225,10 @@ export function installEditorPlacementController(api, authoring = window.__WESTE
 
   function dispose() {
     if (disposed) return;
+    const foundationCleanup = removeObjectFoundations(api.editableObjects, { rebuild: false });
+    if (!foundationCleanup.ok && foundationCleanup.missingKeys?.length) {
+      console.warn('[EditorPlacementController] teardown foundation cleanup incomplete', foundationCleanup.missingKeys);
+    }
     disposed = true;
     placementMode = false;
     busy = false;
@@ -257,14 +261,4 @@ export function installEditorPlacementController(api, authoring = window.__WESTE
   window.__WESTEROS_EDITOR_PLACEMENT__ = surface;
   syncUi();
   return surface;
-}
-
-const api = window.__WESTEROS_WORLD_EDITOR__;
-const authoring = window.__WESTEROS_EDITOR_LIVE_AUTHORING__;
-if (api && authoring) {
-  try {
-    installEditorPlacementController(api, authoring);
-  } catch (error) {
-    console.error('[EditorPlacementController] boot failed', error);
-  }
 }
