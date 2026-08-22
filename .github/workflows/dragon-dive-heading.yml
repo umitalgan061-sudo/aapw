@@ -44,7 +44,7 @@ jobs:
           node scripts/checkDragonDiveHeading.mjs
 
       - name: Preserve shared material placement contract
-        run: node scripts/checkSharedMaterialPlacementContract.mjs
+        run: node scripts/checkSharedMaterialPlacementContract.js
 
       - name: Runtime ownership guard
         shell: bash
