@@ -20,8 +20,9 @@
  */
 
 export const TERRAIN_FOUNDATION_CONFORM_POLICY = Object.freeze({
-	id: 'runtime-structure-foundation-conform-2026-08-21-v2',
+	id: 'runtime-structure-foundation-conform-2026-08-22-v3',
 	footprintMode: 'aabb-enclosing-circle',
+	chunkRebuildMode: 'union-deduplicated',
 	defaultInnerMarginMeters: 0.75,
 	defaultFeatherMeters: 14,
 	minimumInnerRadiusMeters: 1.5,
@@ -143,24 +144,35 @@ function parseChunkKey(key) {
 }
 
 /**
- * Rebuilds only resident chunks intersecting a foundation pad. `unloadChunk` disposes the old GPU
- * resources; `loadChunk` regenerates from the same manager and therefore the same mutated pad array.
+ * Rebuilds each resident chunk at most once across every supplied foundation influence region.
+ * This matters when a structure moves/scales within one chunk: old and new pads overlap heavily, and
+ * doing one rebuild per pad would dispose/recreate the same GPU terrain twice for a single edit.
  */
-export function rebuildChunksForFoundation(chunkManager, pad, chunkSizeMeters) {
+export function rebuildChunksForFoundations(chunkManager, pads, chunkSizeMeters) {
 	if (!chunkManager?.loaded || typeof chunkManager.unloadChunk !== 'function' || typeof chunkManager.loadChunk !== 'function') return 0;
 	const size = finiteNumber(chunkSizeMeters ?? chunkManager.chunkSizeMeters);
 	if (size === null || size <= 0) return 0;
+	const validPads = (Array.isArray(pads) ? pads : [pads]).filter((pad) => (
+		pad && Number.isFinite(Number(pad.x)) && Number.isFinite(Number(pad.z)) && Number.isFinite(Number(pad.outerRadiusMeters))
+	));
+	if (!validPads.length) return 0;
 
 	const affected = [];
 	for (const key of chunkManager.loaded.keys()) {
 		const chunk = parseChunkKey(key);
-		if (chunk && circleIntersectsChunk(pad, chunk.x, chunk.z, size)) affected.push(chunk);
+		if (chunk && validPads.some((pad) => circleIntersectsChunk(pad, chunk.x, chunk.z, size))) affected.push(chunk);
 	}
-	for (const chunk of affected) {
-		chunkManager.unloadChunk(chunk.x, chunk.z);
-		chunkManager.loadChunk(chunk.x, chunk.z);
-	}
+	for (const chunk of affected) chunkManager.unloadChunk(chunk.x, chunk.z);
+	for (const chunk of affected) chunkManager.loadChunk(chunk.x, chunk.z);
 	return affected.length;
+}
+
+/**
+ * Rebuilds only resident chunks intersecting one foundation pad. Kept as the single-pad compatibility
+ * entry point; internally it uses the same union-deduplicated rebuild path as structure updates.
+ */
+export function rebuildChunksForFoundation(chunkManager, pad, chunkSizeMeters) {
+	return rebuildChunksForFoundations(chunkManager, [pad], chunkSizeMeters);
 }
 
 /**
@@ -196,14 +208,14 @@ export function createTerrainFoundationConformer({
 		const { key, pad } = created;
 		const object = payload?.object || null;
 		const previousObjectKey = rememberedStructureKey(object);
-		let rebuiltChunkCount = 0;
+		const staleInfluencePads = [];
 
 		// If an object's authored/runtime identity changes, retire the old pad before installing the new
-		// one. Otherwise an editor rename/re-id can leave a stale raised island behind while the same
-		// physical structure starts owning a second foundation key.
+		// one. Defer terrain rebuilding until the replacement pad exists so overlapping old/new influence
+		// regions are regenerated once as a union rather than repeatedly unloading the same chunk.
 		if (previousObjectKey && previousObjectKey !== key && dynamicPads.has(previousObjectKey)) {
-			const retired = removeInstalledPad(previousObjectKey);
-			if (retired.ok) rebuiltChunkCount += retired.rebuiltChunkCount;
+			const retired = removeInstalledPad(previousObjectKey, { rebuild: false });
+			if (retired.ok) staleInfluencePads.push(retired.pad);
 		}
 
 		let installedPad = key ? dynamicPads.get(key) : null;
@@ -222,10 +234,11 @@ export function createTerrainFoundationConformer({
 			object.userData.terrainFoundationKey = key;
 		}
 
-		// If an existing structure moved or changed footprint, rebuild both its old and new influence
-		// regions so no stale raised patch remains in an already-resident terrain mesh.
-		if (previousPad) rebuiltChunkCount += rebuildChunksForFoundation(chunkManager, previousPad, chunkSizeMeters);
-		rebuiltChunkCount += rebuildChunksForFoundation(chunkManager, installedPad, chunkSizeMeters);
+		const rebuiltChunkCount = rebuildChunksForFoundations(
+			chunkManager,
+			[...staleInfluencePads, previousPad, installedPad].filter(Boolean),
+			chunkSizeMeters,
+		);
 
 		return {
 			ok: true,
