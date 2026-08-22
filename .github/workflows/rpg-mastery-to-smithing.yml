@@ -35,7 +35,7 @@ jobs:
           base=$(git merge-base HEAD origin/main)
           test "$base" = "$(git rev-parse origin/main)"
           mapfile -t paths < <(git diff --name-only "$base"...HEAD)
-          allowed='^(scripts/checkInteractionMasteryToSmithingBrowser\.mjs|\.github/workflows/rpg-mastery-to-smithing\.yml)$'
+          allowed='^(scripts/checkInteractionMasteryToSmithingBrowser\.mjs|scripts/checkInteractionMasteryArmorerServiceBrowser\.mjs|\.github/workflows/(rpg-mastery-to-smithing|rpg-mastery-armorer-service|rpg-mastery-journal-continuity|rpg-interaction-quest-loop)\.yml|src/3d/gameplay/(interaction|interactionConfig|interactionEconomy)\.js)$'
           for path in "${paths[@]}"; do
             [[ "$path" =~ $allowed ]] || { echo "Unexpected path: $path"; exit 1; }
           done
