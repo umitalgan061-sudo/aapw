@@ -2,10 +2,7 @@
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { WORLD_SCALE } from '../src/3d/config.js';
-import {
-  WORLD_REFERENCE_ALIGNMENT,
-  normalizedReferenceToWorldXZ,
-} from '../src/3d/world/worldReferenceAlignment.js';
+import { normalizedReferenceToWorldXZ } from '../src/3d/world/worldReferenceAlignment.js';
 import {
   RUN180_WIND_GRASS_CONFIG,
   grassSegmentDistance,
@@ -15,12 +12,6 @@ import {
   populateWindGrass,
 } from '../src/3d/world/windGrass.js';
 import { NORTH_GROUND_COVER_POLICY } from '../src/3d/world/northGroundCoverClimate.js';
-
-function worldZForNormalizedMapY(normalizedY) {
-  const centerMapY = (WORLD_SCALE.MAP_BOUNDS.minY + WORLD_SCALE.MAP_BOUNDS.maxY) * 0.5;
-  const mapY = normalizedY * WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits;
-  return (mapY - centerMapY) * WORLD_SCALE.METERS_PER_MAP_UNIT;
-}
 
 function worldXZ(normalizedX, normalizedY) {
   return normalizedReferenceToWorldXZ(
@@ -77,30 +68,40 @@ function makeMesh(maxPatches = RUN180_WIND_GRASS_CONFIG.mobile.maxPatches) {
   return mesh;
 }
 
-// Snow authority remains on the terrain resolver during this staged migration. Keep its legacy
-// latitude contract covered independently from map-aligned ground-cover density.
-const farNorthZ = worldZForNormalizedMapY(0.05);
-const tundraZ = worldZForNormalizedMapY(0.32);
-const southZ = worldZForNormalizedMapY(0.62);
+const alwaysWinterWorld = worldXZ(0.145, 0.115);
+const sameLatitudeEastWorld = worldXZ(0.82, 0.115);
+const canonicalNorthWorld = worldXZ(0.19, 0.235);
+const southWorld = worldXZ(0.52, 0.62);
+
 const southSnowDensity = windGrassSnowDensityMultiplier({
   heightAboveSeaMeters: 14,
   slopeDegrees: 0,
-  worldZ: southZ,
+  worldX: southWorld.x,
+  worldZ: southWorld.z,
 });
 const tundraLowSnowDensity = windGrassSnowDensityMultiplier({
   heightAboveSeaMeters: 14,
   slopeDegrees: 0,
-  worldZ: tundraZ,
+  worldX: canonicalNorthWorld.x,
+  worldZ: canonicalNorthWorld.z,
 });
 const tundraHighSnowDensity = windGrassSnowDensityMultiplier({
   heightAboveSeaMeters: 340,
   slopeDegrees: 4,
-  worldZ: tundraZ,
+  worldX: canonicalNorthWorld.x,
+  worldZ: canonicalNorthWorld.z,
 });
 const northSnowDensity = windGrassSnowDensityMultiplier({
   heightAboveSeaMeters: 40,
   slopeDegrees: 4,
-  worldZ: farNorthZ,
+  worldX: alwaysWinterWorld.x,
+  worldZ: alwaysWinterWorld.z,
+});
+const sameLatitudeEastSnowDensity = windGrassSnowDensityMultiplier({
+  heightAboveSeaMeters: 40,
+  slopeDegrees: 4,
+  worldX: sameLatitudeEastWorld.x,
+  worldZ: sameLatitudeEastWorld.z,
 });
 assert.equal(southSnowDensity, 1, 'dry temperate lowland must preserve historical full grass density');
 assert(tundraLowSnowDensity > tundraHighSnowDensity,
@@ -108,12 +109,10 @@ assert(tundraLowSnowDensity > tundraHighSnowDensity,
 assert(tundraHighSnowDensity < 0.5,
   'tundra highland snow should strongly thin ordinary grass before continuous snow');
 assert.equal(northSnowDensity, 0,
-  'continuous permanent-ice snow cover must reject ordinary grass through snow authority too');
+  'continuous permanent-ice snow cover must reject ordinary grass through shared terrain snow authority');
+assert.equal(sameLatitudeEastSnowDensity, 1,
+  'same-latitude east lowland must not inherit the Westeros permanent-ice snow floor');
 
-const alwaysWinterWorld = worldXZ(0.145, 0.115);
-const sameLatitudeEastWorld = worldXZ(0.82, 0.115);
-const canonicalNorthWorld = worldXZ(0.19, 0.235);
-const southWorld = worldXZ(0.52, 0.62);
 const alwaysWinterCell = cellForWorld(alwaysWinterWorld);
 const sameLatitudeEastCell = cellForWorld(sameLatitudeEastWorld);
 const canonicalNorthCell = cellForWorld(canonicalNorthWorld);
@@ -147,6 +146,8 @@ assert.equal(northCount, 0, 'canonical permanent ice must reject every physical 
 assert((northMesh.userData.northGroundCover?.climateRejected ?? 0) > 0, 'north rejection telemetry must identify climate as the cause');
 assert.equal(northMesh.userData.northGroundCover?.mapAlignedClimate, true,
   'runtime telemetry must declare canonical X/Z climate ownership');
+assert.equal(northMesh.userData.northGroundCover?.mapAlignedSnowAuthority, true,
+  'runtime telemetry must declare shared X/Z terrain-snow ownership');
 assert(sameLatitudeEastCount > northCount,
   'same-latitude far-east ground must recover grass outside Westeros cryosphere');
 assert(tundraCount > 0, 'canonical North tundra should keep some hardy ground cover');
@@ -201,6 +202,7 @@ console.log('[checkWindGrassClimateModule] PASS', JSON.stringify({
   tundraLowSnowDensity,
   tundraHighSnowDensity,
   northSnowDensity,
+  sameLatitudeEastSnowDensity,
   southColor: southColor.getHexString(),
   tundraColor: tundraColor.getHexString(),
 }));
