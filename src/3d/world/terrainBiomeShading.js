@@ -20,7 +20,7 @@ function smoothstep(edge0, edge1, value) {
 }
 
 export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
-	id: 'terrain-map-climate-cryosphere-2026-08-22-v9',
+	id: 'terrain-map-climate-cryosphere-2026-08-22-v10',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	measured: Object.freeze({
@@ -45,6 +45,10 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 	northCoastalIceFullMeters: 0.55,
 	northCoastalIceStrength: 0.62,
 	northCoastalIceTundraStrength: 0.20,
+	northShallowIceTundraDepthMeters: 0.65,
+	northShallowIceDepthMeters: 2.6,
+	northShallowIceTundraStrength: 0.14,
+	northShallowIceStrength: 0.68,
 	grassMidStartMeters: 8,
 	grassMidFullMeters: 60,
 	dryUplandStartMeters: 60,
@@ -109,6 +113,7 @@ export const NEUTRAL_DETAIL_GAIN = 255 / TERRAIN_BIOME_SHADING_POLICY.detailEnco
 export const TERRAIN_BIOME_PALETTE = Object.freeze({
 	SEABED: new THREE.Color(0x3c514b),
 	NORTH_SEABED: new THREE.Color(0x536d72),
+	GLACIAL_SHALLOW: new THREE.Color(0x9bbbc2),
 	SHORE_SAND: new THREE.Color(0xc9bf9f),
 	FROZEN_SHORE: new THREE.Color(0xaab5ad),
 	GLACIAL_SHORE: new THREE.Color(0xc5d6d8),
@@ -192,6 +197,11 @@ function coastalCryosphereProfile(permanentIce, tundra, out) {
 	));
 	out.topMeters = lerp(P.northCoastalIceTundraTopMeters, P.northCoastalIceTopMeters, permanentIce);
 	out.fullMeters = lerp(P.northCoastalIceTundraFullMeters, P.northCoastalIceFullMeters, permanentIce);
+	out.shallowDepthMeters = lerp(P.northShallowIceTundraDepthMeters, P.northShallowIceDepthMeters, permanentIce);
+	out.shallowWeight = clamp01(Math.max(
+		permanentIce * P.northShallowIceStrength,
+		tundraBand * P.northShallowIceTundraStrength,
+	));
 	return out;
 }
 
@@ -424,8 +434,13 @@ export function resolveTerrainBiomeColor(target, {
 	const submergedAmount = 1 - smoothstep(-P.seabedFullDepthMeters, 0, height);
 	if (submergedAmount > 0) {
 		scratchSeabed.copy(TERRAIN_BIOME_PALETTE.SEABED)
-		.lerp(TERRAIN_BIOME_PALETTE.NORTH_SEABED, coldShore * P.northFrozenSeabedStrength);
+			.lerp(TERRAIN_BIOME_PALETTE.NORTH_SEABED, coldShore * P.northFrozenSeabedStrength);
 		target.lerp(scratchSeabed, submergedAmount);
+	}
+	if (height < 0 && coastalCryosphere.shallowWeight > 0) {
+		const glacialShallowAmount = smoothstep(-coastalCryosphere.shallowDepthMeters, 0, height)
+			* coastalCryosphere.shallowWeight;
+		if (glacialShallowAmount > 0) target.lerp(TERRAIN_BIOME_PALETTE.GLACIAL_SHALLOW, glacialShallowAmount);
 	}
 
 	const mottleStrength = P.mottleAmplitude * (1 - permanentNorth * 0.45);
