@@ -20,13 +20,23 @@ function functionBody(source, name, nextName) {
 
 expect(
   placementController,
-  /const surface = Object\.freeze\(\{[\s\S]*?groundObject,[\s\S]*?removeObjectFoundation,/,
-  'live placement API must expose both foundation refresh and removal operations',
+  /const surface = Object\.freeze\(\{[\s\S]*?groundObject,[\s\S]*?removeObjectFoundation,[\s\S]*?removeObjectFoundations,/,
+  'live placement API must expose foundation refresh plus single and batch removal operations',
+);
+expect(
+  placementController,
+  /function removeObjectFoundations\(objects\)[\s\S]*?terrainGrounder\.removeObjectFoundations\(objects\)/,
+  'placement controller batch cleanup must delegate to the shared terrain grounder authority',
 );
 expect(
   worldEditor,
   /function retireObjectFoundation\([\s\S]*?removeObjectFoundation\(object\)/,
-  'object deletion/reload cleanup must retire its live terrain foundation',
+  'single object deletion must retire its live terrain foundation',
+);
+expect(
+  worldEditor,
+  /function retireObjectFoundations\([\s\S]*?removeObjectFoundations\(candidates\)/,
+  'scene replacement must expose a batch foundation retirement path',
 );
 expect(
   worldEditor,
@@ -41,12 +51,24 @@ expect(
 expect(
   worldEditor,
   /function deleteSelected\([\s\S]*?retireObjectFoundation\(selectedObject\)[\s\S]*?scene\.remove\(selectedObject\)/,
-  'structure deletion must remove its terrain pad before removing the scene object',
+  'single structure deletion must remove its terrain pad before removing the scene object',
+);
+
+const loadSceneBody = functionBody(worldEditor, 'loadSceneFile', null);
+expect(
+  loadSceneBody,
+  /const previousObjects = \[\.\.\.editableObjects\];[\s\S]*?retireObjectFoundations\(previousObjects\)[\s\S]*?for \(const object of previousObjects\)[\s\S]*?scene\.remove\(object\)[\s\S]*?editableObjects\.splice\(0, editableObjects\.length\)/,
+  'scene replacement must retire all previous foundations in one batch before clearing scene objects',
+);
+assert.equal(
+  /retireObjectFoundation\(object\)/.test(loadSceneBody),
+  false,
+  'scene replacement must not rebuild terrain once per previous object',
 );
 expect(
-  worldEditor,
-  /async function loadSceneFile\([\s\S]*?retireObjectFoundation\(object\)[\s\S]*?isEditorStructureAsset\(asset\)[\s\S]*?regroundObjectFoundation\(object, asset\)/,
-  'scene replacement must remove previous pads and recreate foundations for loaded structures',
+  loadSceneBody,
+  /isEditorStructureAsset\(asset\)[\s\S]*?regroundObjectFoundation\(object, asset\)/,
+  'scene replacement must recreate foundations for loaded structures after batch cleanup',
 );
 
 const objectChangeBody = functionBody(transformControls, 'onObjectChange', 'onDraggingChanged');
@@ -71,4 +93,4 @@ expect(
   'quick scale authoring must refresh a foundation-owned structure after scale changes',
 );
 
-console.log('[checkEditorTerrainFoundationLifecycle] PASS: editor structure foundations track inspector, drag-end, quick-scale, clone, delete and scene-load lifecycles without rebuilding terrain every pointer frame.');
+console.log('[checkEditorTerrainFoundationLifecycle] PASS: editor structure foundations track inspector, drag-end, quick-scale, clone and delete lifecycles while scene replacement batch-retires old foundations without per-object terrain rebuilds.');
