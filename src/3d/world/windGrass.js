@@ -3,15 +3,16 @@
  *
  * Extracted from sceneManager so ground cover owns its own placement, climate and GPU-wind policy.
  * The public `createWindGrassRun180` name is kept for compatibility with the established browser
- * regression contract, while the implementation now consumes the shared north ground-cover climate
- * profile directly. Permanent ice therefore has zero ordinary grass; tundra gets sparse, shorter,
- * desaturated cover; temperate regions retain the historical density and scale.
+ * regression contract, while the implementation now consumes the shared map-aligned north ground-
+ * cover climate profile directly. Permanent ice therefore has zero ordinary grass only inside the
+ * canonical Westeros cryosphere; tundra gets sparse, shorter, desaturated cover; same-latitude east
+ * remains temperate unless the owner map explicitly marks it cold.
  * @module world/windGrass
  */
 
 import * as THREE from 'three';
 import {
-	northGroundCoverProfileAtWorldZ,
+	northGroundCoverProfileAtWorldXZ,
 	NORTH_GROUND_COVER_POLICY,
 } from './northGroundCoverClimate.js';
 import { resolveTerrainSnowCoverage } from './terrainBiomeShading.js';
@@ -57,7 +58,7 @@ export function grassSegmentDistance(px, pz, a, b) {
 	return Math.hypot(px - (a.x + dx * t), pz - (a.z + dz * t));
 }
 
-/** Geometric/gameplay exclusions independent from latitude density thinning. */
+/** Geometric/gameplay exclusions independent from climate density thinning. */
 export function isWindGrassSurfaceAllowed(x, z, {
 	sampleHeightMeters,
 	seaLevelMeters,
@@ -164,7 +165,7 @@ export function populateWindGrass(mesh, params, cellX, cellZ) {
 			const z = centerZ + Math.sin(angle) * radius;
 			if (!isWindGrassSurfaceAllowed(x, z, params, surface)) continue;
 
-			const cover = northGroundCoverProfileAtWorldZ(z);
+			const cover = northGroundCoverProfileAtWorldXZ(x, z);
 			if (cover.grassDensity <= 0) {
 				climateRejected++;
 				continue;
@@ -209,6 +210,7 @@ export function populateWindGrass(mesh, params, cellX, cellZ) {
 		policyId: NORTH_GROUND_COVER_POLICY.id,
 		climateRejected,
 		snowRejected,
+		mapAlignedClimate: true,
 		snowAware: true,
 	};
 	return placed;
@@ -222,11 +224,12 @@ function createWindGrassMaterial(config) {
 		side: THREE.DoubleSide,
 	});
 	material.userData.run180WindGrass = Object.freeze({
-		key: 'run180-wind-grass-v3-snow-climate',
+		key: 'run180-wind-grass-v4-map-aligned-snow-climate',
 		radiusMeters: config.radiusMeters,
 		maxPatches: config.maxPatches,
 		bladesPerPatch: RUN180_WIND_GRASS_CONFIG.bladesPerPatch,
 		climatePolicyId: NORTH_GROUND_COVER_POLICY.id,
+		mapAlignedClimate: true,
 		snowAware: true,
 	});
 	material.onBeforeCompile = (shader) => {
@@ -239,7 +242,7 @@ function createWindGrassMaterial(config) {
 			.replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb*=mix(0.84,1.10,vRun180GrassVariation);');
 		material.userData.run180Shader = shader;
 	};
-	material.customProgramCacheKey = () => 'run180-wind-grass-v3-snow-climate';
+	material.customProgramCacheKey = () => 'run180-wind-grass-v4-map-aligned-snow-climate';
 	return material;
 }
 
@@ -291,6 +294,7 @@ export function createWindGrassRun180({
 		climatePolicyId: NORTH_GROUND_COVER_POLICY.id,
 		climateRejected: mesh.userData.northGroundCover?.climateRejected ?? 0,
 		snowRejected: mesh.userData.northGroundCover?.snowRejected ?? 0,
+		mapAlignedClimate: true,
 		snowAware: true,
 	};
 	return { group, mesh };
