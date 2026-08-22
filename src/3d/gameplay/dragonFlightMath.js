@@ -55,6 +55,34 @@ export function stepCenterTowardTarget(center, targetX, targetZ, maxStep) {
 }
 
 /**
+ * Points a dive pose along the dragon's actual rendered path from its on-circle origin. This is
+ * intentionally callable both before and after terrain clamping: `applyDiveOffset()` gives immediate
+ * orientation for pure math callers, while `dragonController.js` calls it again after the canonical
+ * terrain floor so the final pitch matches the position the player really sees. A vertical dive is
+ * valid — `atan2(verticalDrop, 0)` gives π/2 — so pitch must not be gated on horizontal travel.
+ */
+export function alignDiveOrientation(object3D, circleX, circleY, circleZ, circlePitch, circleYaw, diveBlend) {
+	if (diveBlend <= 0) return;
+	const boundedBlend = Math.min(1, Math.max(0, diveBlend));
+	const motionX = object3D.position.x - circleX;
+	const motionZ = object3D.position.z - circleZ;
+	const horizontalDistance = Math.hypot(motionX, motionZ);
+
+	if (horizontalDistance > 1e-8) {
+		const targetYaw = Math.atan2(motionX, motionZ);
+		const shortestYawDelta = Math.atan2(Math.sin(targetYaw - circleYaw), Math.cos(targetYaw - circleYaw));
+		object3D.rotation.y = circleYaw + shortestYawDelta * boundedBlend;
+	} else {
+		object3D.rotation.y = circleYaw;
+	}
+
+	const verticalDrop = Math.max(0, circleY - object3D.position.y);
+	const targetPitch = Math.atan2(verticalDrop, horizontalDistance);
+	const shortestPitchDelta = Math.atan2(Math.sin(targetPitch - circlePitch), Math.cos(targetPitch - circlePitch));
+	object3D.rotation.x = circlePitch + shortestPitchDelta * boundedBlend;
+}
+
+/**
  * Blends `object3D` off its already-applied on-circle pose toward the dive target. In addition to
  * moving the dragon, yaw eases from the circle tangent toward the actual horizontal swoop vector and
  * pitch eases toward the real downward path angle. Previously a committed dive could descend with a
@@ -75,21 +103,7 @@ export function applyDiveOffset(object3D, { playerX, playerZ, centerY, diveDropM
 	const blendedZ = circleZ + (diveTargetZ - circleZ) * diveBlend;
 	const blendedY = centerY + (diveTargetY - centerY) * diveBlend;
 	object3D.position.set(blendedX, blendedY, blendedZ);
-
-	const motionX = blendedX - circleX;
-	const motionZ = blendedZ - circleZ;
-	const horizontalDistance = Math.hypot(motionX, motionZ);
-	if (diveBlend > 0 && horizontalDistance > 1e-8) {
-		const boundedBlend = Math.min(1, Math.max(0, diveBlend));
-		const targetYaw = Math.atan2(motionX, motionZ);
-		const shortestYawDelta = Math.atan2(Math.sin(targetYaw - circleYaw), Math.cos(targetYaw - circleYaw));
-		object3D.rotation.y = circleYaw + shortestYawDelta * boundedBlend;
-
-		const verticalDrop = Math.max(0, centerY - blendedY);
-		const targetPitch = Math.atan2(verticalDrop, horizontalDistance);
-		const shortestPitchDelta = Math.atan2(Math.sin(targetPitch - circlePitch), Math.cos(targetPitch - circlePitch));
-		object3D.rotation.x = circlePitch + shortestPitchDelta * boundedBlend;
-	}
+	alignDiveOrientation(object3D, circleX, centerY, circleZ, circlePitch, circleYaw, diveBlend);
 }
 
 export function clampAltitudeAboveGround(object3D, sampleGroundY, minAltitudeAboveGroundMeters) {
