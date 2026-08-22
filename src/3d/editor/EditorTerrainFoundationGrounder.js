@@ -9,7 +9,6 @@ const STRUCTURE_TERMS = Object.freeze([
   'fortification', 'house', 'hall', 'manor', 'inn', 'tavern', 'hut', 'cottage', 'barn',
   'stable', 'sept', 'temple', 'shrine', 'bridge', 'dock', 'pier', 'quay', 'harbor',
   'harbour', 'rampart', 'battlement', 'ruin', 'monument',
-  // Editor library and authored content also use Turkish category/name metadata.
   'mimari', 'bina', 'yapi', 'yapı', 'yerlesim', 'yerleşim', 'koy', 'köy', 'kale',
   'hisar', 'sur', 'kule', 'kopru', 'köprü', 'iskele', 'liman', 'ahır', 'ahir',
 ]);
@@ -107,9 +106,29 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
     return result;
   }
 
+  function removeObjectFoundations(objects) {
+    const candidates = (Array.isArray(objects) ? objects : [objects])
+      .filter((object) => object?.userData?.editorFoundationKey);
+    if (!candidates.length) {
+      return { ok: true, removedCount: 0, missingKeys: [], rebuiltChunkCount: 0 };
+    }
+    const keys = candidates.map((object) => object.userData.editorFoundationKey);
+    const result = terrainConformer.removeFoundations(keys);
+    const missing = new Set(result.missingKeys || []);
+    for (const object of candidates) {
+      const key = object.userData?.editorFoundationKey;
+      if (key && !missing.has(key)) {
+        delete object.userData.editorFoundationKey;
+        delete object.userData.editorGroundingMode;
+      }
+    }
+    return result;
+  }
+
   return Object.freeze({
     groundObject,
     removeObjectFoundation,
+    removeObjectFoundations,
     isStructureAsset: isEditorStructureAsset,
     getDynamicPads: terrainConformer.getDynamicPads,
     policy: terrainConformer.policy,
