@@ -1,22 +1,21 @@
-name: RPG Mastery To Smithing
+name: RPG Mastery Armorer Service
 
 on:
   pull_request:
     paths:
+      - 'scripts/checkInteractionMasteryArmorerServiceBrowser.mjs'
+      - '.github/workflows/rpg-mastery-armorer-service.yml'
       - 'src/3d/gameplay/interaction.js'
       - 'src/3d/gameplay/interactionConfig.js'
       - 'src/3d/gameplay/interactionEconomy.js'
-      - 'scripts/checkInteractionExpeditionMasterySmithingReward.mjs'
-      - 'scripts/checkInteractionExpeditionKitCraft.mjs'
-      - 'scripts/checkInteractionMasteryToSmithingBrowser.mjs'
-      - '.github/workflows/rpg-mastery-to-smithing.yml'
+      - 'src/3d/ui/dialogueBox.js'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  mastery-to-smithing:
+  mastery-armorer:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
@@ -27,7 +26,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Exact-main ancestry, bounded scope and quota
+      - name: Exact-main bounded scope and quota
         shell: bash
         run: |
           set -euo pipefail
@@ -35,18 +34,21 @@ jobs:
           base=$(git merge-base HEAD origin/main)
           test "$base" = "$(git rev-parse origin/main)"
           mapfile -t paths < <(git diff --name-only "$base"...HEAD)
-          allowed='^(scripts/checkInteractionMasteryToSmithingBrowser\.mjs|scripts/checkInteractionMasteryArmorerServiceBrowser\.mjs|\.github/workflows/(rpg-mastery-to-smithing|rpg-mastery-armorer-service|rpg-mastery-journal-continuity|rpg-interaction-quest-loop)\.yml|src/3d/gameplay/(interaction|interactionConfig|interactionEconomy)\.js)$'
-          for path in "${paths[@]}"; do
-            [[ "$path" =~ $allowed ]] || { echo "Unexpected path: $path"; exit 1; }
-          done
+          allowed='^(scripts/checkInteractionMasteryArmorerServiceBrowser\.mjs|\.github/workflows/(rpg-mastery-armorer-service|rpg-interaction-quest-loop|rpg-mastery-to-smithing|rpg-mastery-journal-continuity)\.yml|src/3d/gameplay/interaction\.js|src/3d/gameplay/interactionConfig\.js|src/3d/gameplay/interactionEconomy\.js|src/3d/ui/dialogueBox\.js)$'
+          printf '%s\n' "${paths[@]}" | grep -Ev "$allowed" && exit 1 || true
           changed=$(git diff --numstat "$base"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
           test "$changed" -le 1000
-      - name: Syntax and existing RPG lifecycle contracts
+      - name: Syntax and existing RPG lifecycle regressions
         run: |
           set -euo pipefail
-          node --check scripts/checkInteractionMasteryToSmithingBrowser.mjs
+          node --check src/3d/gameplay/interaction.js
+          node --check scripts/checkInteractionMasteryArmorerServiceBrowser.mjs
+          node scripts/checkInteractionExpeditionBoard.mjs
           node scripts/checkInteractionExpeditionMasterySmithingReward.mjs
+          node scripts/checkInteractionMasteryEconomyContinuity.mjs
           node scripts/checkInteractionExpeditionKitCraft.mjs
+          node scripts/checkInteractionSettlementServiceContract.mjs
+          node scripts/checkInteractionJourneyPlanning.mjs
       - name: Install Chromium acceptance harness
         run: |
           set -euo pipefail
@@ -54,11 +56,11 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-      - name: Shipped-page mastery to smithing proof
-        run: NODE_PATH="$NODE_PATH" node scripts/checkInteractionMasteryToSmithingBrowser.mjs
+      - name: Shipped-page Chromium mastery armorer proof
+        run: NODE_PATH="$NODE_PATH" node scripts/checkInteractionMasteryArmorerServiceBrowser.mjs
       - name: Shared material placement boundary
         run: node scripts/checkSharedMaterialPlacementContract.js
-      - name: Final freshness
+      - name: Final exact-main freshness
         shell: bash
         run: |
           set -euo pipefail
