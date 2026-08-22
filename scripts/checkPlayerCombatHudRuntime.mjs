@@ -76,10 +76,12 @@ try {
 	// consumption: blockedAmount is the amount stopped; amount is the post-mitigation damage.
 	const parryProjection = await page.evaluate(async () => { const { gameEvents } = await import('./src/3d/eventBus.js'); const { EVENTS } = await import('./src/3d/config.js'); gameEvents.emit(EVENTS.PLAYER_DAMAGED, { rawAmount: 20, blockedAmount: 20, amount: 0, mitigation: 'parry' }); const el = document.querySelector('.g3d-combat-status'); return { text: el?.textContent ?? '', state: el?.dataset.state ?? '' }; });
 	need(parryProjection.state === 'defense-parry' && parryProjection.text.includes('PARRY') && parryProjection.text.includes('20.0 savuşturuldu'), `parry mitigation detail failed: ${JSON.stringify(parryProjection)}`);
-	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.dataset.state === 'locked', null, { timeout: 3000 });
+	// CI renders a fully hydrated shipped scene; allow the canonical feedback timer to settle under
+	// software WebGL load instead of treating a slow frame as a combat-state failure.
+	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.dataset.state === 'locked', null, { timeout: 10000 });
 	const guardProjection = await page.evaluate(async () => { const { gameEvents } = await import('./src/3d/eventBus.js'); const { EVENTS } = await import('./src/3d/config.js'); gameEvents.emit(EVENTS.PLAYER_DAMAGED, { rawAmount: 20, blockedAmount: 12, amount: 8, mitigation: 'guard' }); const el = document.querySelector('.g3d-combat-status'); return { text: el?.textContent ?? '', state: el?.dataset.state ?? '' }; });
 	need(guardProjection.state === 'defense-guard' && guardProjection.text.includes('BLOK') && guardProjection.text.includes('12.0 engellendi') && guardProjection.text.includes('8.0 hasar'), `guard mitigation detail failed: ${JSON.stringify(guardProjection)}`);
-	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.dataset.state === 'locked', null, { timeout: 3000 });
+	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.dataset.state === 'locked', null, { timeout: 10000 });
 	await page.evaluate(() => globalThis.dispatchEvent(new CustomEvent('aapw:player-lock-on', { detail: { locked: false, targetId: 'runtime-guard', reason: 'toggle-release' } })));
 	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.dataset.state === 'free');
 
@@ -89,7 +91,7 @@ try {
 		return { text: el?.textContent ?? '', state: el?.dataset.state ?? '' };
 	});
 	need(noTarget.state === 'no-target' && noTarget.text.includes('Hedef yok'), `failed lock feedback missing: ${JSON.stringify(noTarget)}`);
-	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.dataset.state === 'free', null, { timeout: 2500 });
+	await page.waitForFunction(() => document.querySelector('.g3d-combat-status')?.dataset.state === 'free', null, { timeout: 10000 });
 	const noTargetReset = await page.locator('.g3d-combat-status').evaluate((el) => ({ text: el.textContent, state: el.dataset.state ?? '' }));
 	need(noTargetReset.text.includes('Serbest'), `failed lock feedback did not reset: ${JSON.stringify(noTargetReset)}`);
 
