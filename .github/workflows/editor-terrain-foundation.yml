@@ -10,6 +10,7 @@ on:
       - 'src/3d/world/WorldAssetPlacementPipeline.js'
       - 'src/3d/world/terrainFoundationConformer.js'
       - 'scripts/checkEditorTerrainFoundationGrounder.mjs'
+      - 'scripts/checkEditorTerrainFoundationBatchCleanup.mjs'
       - 'scripts/checkEditorTerrainFoundationLifecycle.mjs'
       - 'scripts/setupNodeThreeShim.mjs'
       - '.github/workflows/editor-terrain-foundation.yml'
@@ -36,8 +37,11 @@ jobs:
           node --check src/3d/editor/EditorTransformControls.js
           node --check src/3d/editor/worldEditor.js
           node --check scripts/checkEditorTerrainFoundationGrounder.mjs
+          node --check scripts/checkEditorTerrainFoundationBatchCleanup.mjs
           node --check scripts/checkEditorTerrainFoundationLifecycle.mjs
       - name: Editor structure foundation contract
         run: node scripts/checkEditorTerrainFoundationGrounder.mjs
+      - name: Editor batch foundation cleanup contract
+        run: node scripts/checkEditorTerrainFoundationBatchCleanup.mjs
       - name: Editor structure lifecycle contract
         run: node scripts/checkEditorTerrainFoundationLifecycle.mjs
