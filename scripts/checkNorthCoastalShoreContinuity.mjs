@@ -169,9 +169,13 @@ assert(distance(midSlopeNorth, TERRAIN_BIOME_PALETTE.SHORE_SAND)
 const southSeabed = sample({ normalizedY: 0.55, height: -1.5, slope: 2, worldX: 370 });
 const tundraSeabed = sample({ normalizedY: 0.33, height: -1.5, slope: 2, worldX: 370 });
 const iceSeabed = sample({ normalizedY: 0.06, height: -1.5, slope: 2, worldX: 370 });
-assert(distance(iceSeabed, TERRAIN_BIOME_PALETTE.NORTH_SEABED)
-    < distance(southSeabed, TERRAIN_BIOME_PALETTE.NORTH_SEABED),
-  'permanent-ice shallows should move toward NORTH_SEABED palette');
+const deepIceSeabed = sample({ normalizedY: 0.06, height: -3.0, slope: 2, worldX: 370 });
+assert(distance(iceSeabed, TERRAIN_BIOME_PALETTE.GLACIAL_SHALLOW)
+    < distance(southSeabed, TERRAIN_BIOME_PALETTE.GLACIAL_SHALLOW),
+  'permanent-ice shallows should move toward GLACIAL_SHALLOW near the coast');
+assert(distance(deepIceSeabed, TERRAIN_BIOME_PALETTE.NORTH_SEABED)
+    < distance(iceSeabed, TERRAIN_BIOME_PALETTE.NORTH_SEABED),
+  'deeper permanent-ice seabed should return toward NORTH_SEABED below the shallow glacial band');
 assert(distance(tundraSeabed, southSeabed) > 0.008,
   'tundra shallows should begin cooling before permanent ice');
 assert(saturation(iceSeabed) < 0.55,
@@ -204,7 +208,7 @@ assert(distance(authoredRock, TERRAIN_BIOME_PALETTE.ROCK_COOL)
 
 for (const [label, color] of Object.entries({
   farNorthShore, tundraShore, temperateShore, flatNorth, midSlopeNorth, cliffNorth,
-  southSeabed, tundraSeabed, iceSeabed, authoredSnow, authoredRock,
+  southSeabed, tundraSeabed, iceSeabed, deepIceSeabed, authoredSnow, authoredRock,
 })) {
   assert(Number.isFinite(color.r) && Number.isFinite(color.g) && Number.isFinite(color.b), `${label} must be finite`);
   assert(color.r >= 0 && color.r <= 1 && color.g >= 0 && color.g <= 1 && color.b >= 0 && color.b <= 1,
@@ -223,5 +227,6 @@ console.log('[checkNorthCoastalShoreContinuity] PASS', JSON.stringify({
   temperateShore: temperateShore.getHexString(),
   cliffNorth: cliffNorth.getHexString(),
   iceSeabed: iceSeabed.getHexString(),
+  deepIceSeabed: deepIceSeabed.getHexString(),
   sampleDiagnostics: latitudeSamples,
 }));
