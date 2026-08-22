@@ -1,0 +1,60 @@
+name: RPG Expedition Tavern Recovery
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/interaction.js'
+      - 'src/3d/gameplay/interactionConfig.js'
+      - 'src/3d/gameplay/interactionFieldReadiness.js'
+      - 'scripts/checkInteractionExpeditionTavernRecovery.mjs'
+      - 'scripts/checkInteractionJourneyPlanning.mjs'
+      - 'scripts/checkInteractionExpeditionBoard.mjs'
+      - 'scripts/checkSharedMaterialPlacementContract.js'
+      - '.github/workflows/rpg-expedition-tavern-recovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Exact-main bounded scope and quota
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          git merge-base --is-ancestor origin/main HEAD
+          mapfile -t files < <(git diff --name-only origin/main...HEAD)
+          printf '%s\n' "${files[@]}"
+          allowed='^(\.github/workflows/rpg-expedition-tavern-recovery\.yml|scripts/checkInteractionExpeditionTavernRecovery\.mjs|src/3d/gameplay/interaction\.js|src/3d/gameplay/interactionConfig\.js|src/3d/gameplay/interactionFieldReadiness\.js)$'
+          for file in "${files[@]}"; do
+            [[ "$file" =~ $allowed ]] || { echo "Unexpected file: $file"; exit 1; }
+          done
+          changed=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          echo "changed-lines=$changed"
+          test "$changed" -le 1000
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/interaction.js
+          node --check src/3d/gameplay/interactionConfig.js
+          node --check src/3d/gameplay/interactionFieldReadiness.js
+          node --check scripts/checkInteractionExpeditionTavernRecovery.mjs
+      - name: Canonical tavern expedition continuity
+        run: node scripts/checkInteractionExpeditionTavernRecovery.mjs
+      - name: Journey planning regression
+        run: node scripts/checkInteractionJourneyPlanning.mjs
+      - name: Expedition board regression
+        run: node scripts/checkInteractionExpeditionBoard.mjs
+      - name: Shared Material Placement Contract
+        run: node scripts/checkSharedMaterialPlacementContract.js
+      - name: Final exact-main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          git merge-base --is-ancestor origin/main HEAD
