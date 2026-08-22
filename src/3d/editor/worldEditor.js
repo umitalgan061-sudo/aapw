@@ -165,7 +165,7 @@ function regroundObjectFoundation(object, asset = null) {
   return placement.groundObject(object, asset ? { asset } : undefined);
 }
 
-async function addAsset(asset, position = new THREE.Vector3()) {
+async function addAsset(asset, position = new THREE.Vector3(), { groundStructure = true } = {}) {
   try {
     toast(`${asset.name} yükleniyor…`);
     const object = await assetManager.createObject(asset);
@@ -173,6 +173,12 @@ async function addAsset(asset, position = new THREE.Vector3()) {
     object.userData.editorId = nextEditorId(asset.id);
     editableObjects.push(object);
     scene.add(object);
+    if (groundStructure && isEditorStructureAsset(asset)) {
+      const grounding = regroundObjectFoundation(object, asset);
+      if (!grounding.ok && grounding.error !== 'live-placement-unavailable') {
+        console.warn('[worldEditor] newly added structure grounding failed', asset.id, grounding.error);
+      }
+    }
     selectObject(object);
     toast(`${asset.name} sahneye eklendi.`);
     return object;
@@ -316,7 +322,7 @@ async function loadSceneFile(file) {
   for (const record of data.objects) {
     const asset = findEditorAsset(record.asset);
     if (!asset) continue;
-    const object = await addAsset(asset, new THREE.Vector3(...record.transform.position));
+    const object = await addAsset(asset, new THREE.Vector3(...record.transform.position), { groundStructure: false });
     if (!object) continue;
     object.userData.editorId = record.id;
     object.name = record.name;
