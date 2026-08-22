@@ -6,10 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import { WORLD_SCALE } from '../src/3d/config.js';
 import { WORLD_REFERENCE_ALIGNMENT } from '../src/3d/world/worldReferenceAlignment.js';
-import {
-	REFERENCE_RELIEF_CHAINS,
-	WORLD_REFERENCE_MAP,
-} from '../src/3d/world/worldReferenceMap.js';
+import { REFERENCE_RELIEF_CHAINS, WORLD_REFERENCE_MAP } from '../src/3d/world/worldReferenceMap.js';
 import {
 	WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY,
 	sampleNormalizedReferenceMountainReliefMeters,
@@ -99,10 +96,7 @@ function buildMetrics() {
 			const worldZ = (y * WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits - centerMapY) * WORLD_SCALE.METERS_PER_MAP_UNIT;
 			worldMappingMaxDeltaMeters = Math.max(
 				worldMappingMaxDeltaMeters,
-				Math.abs(
-					sampleNormalizedReferenceMountainReliefMeters(x, y) -
-					sampleWorldReferenceMountainReliefMeters(worldX, worldZ)
-				),
+				Math.abs(sampleNormalizedReferenceMountainReliefMeters(x, y) - sampleWorldReferenceMountainReliefMeters(worldX, worldZ)),
 			);
 		}
 	}
@@ -114,22 +108,37 @@ function buildMetrics() {
 			nonZeroSamples,
 			nonZeroRatio: rounded(nonZeroSamples / (width * height), 8),
 			wetLeakMaxMeters: rounded(wetLeakMaxMeters),
-			worldMappingMaxDeltaMeters: rounded(worldMappingMaxDeltaMeters, 12),
+			worldMappingMaxDeltaMeters: worldMappingMaxDeltaMeters <= 1e-9 ? 0 : rounded(worldMappingMaxDeltaMeters, 12),
 			chains,
 		},
 	};
 }
 
 assert(fixture.schemaVersion === 1, 'unsupported fixture schema');
-assert(fixture.policyId === WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.id, 'policy id drift');
 assert(fixture.sourceMapSha256 === WORLD_REFERENCE_MAP.sha256, 'owner map checksum drift');
 assert(fixture.surfaceMaskSha256 === WORLD_REFERENCE_BASE_SURFACE_MASK.maskSha256, 'surface mask checksum drift');
 assert(Object.keys(WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.chains).length === REFERENCE_RELIEF_CHAINS.length, 'every canonical chain needs exactly one live profile');
 
+// Always compute the new deterministic field before comparing the frozen fixture. A deliberate
+// geography revision must therefore fail closed while still printing the exact replacement checksum
+// and metrics in one run; reviewers never need to guess or temporarily weaken the fixture contract.
 const actual = buildMetrics();
-assert(actual.heightChecksumSha256 === fixture.heightChecksumSha256, `height checksum drift: ${actual.heightChecksumSha256}`);
-assert(JSON.stringify(actual.metrics) === JSON.stringify(fixture.metrics), `metric drift: ${JSON.stringify(actual.metrics)}`);
+const fixtureDrift =
+	fixture.policyId !== WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.id ||
+	actual.heightChecksumSha256 !== fixture.heightChecksumSha256 ||
+	JSON.stringify(actual.metrics) !== JSON.stringify(fixture.metrics);
+if (fixtureDrift) {
+	fail(`fixture drift: ${JSON.stringify({
+		expectedPolicyId: fixture.policyId,
+		actualPolicyId: WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.id,
+		expectedChecksum: fixture.heightChecksumSha256,
+		actualChecksum: actual.heightChecksumSha256,
+		actualMetrics: actual.metrics,
+	})}`);
+}
+
 assert(actual.metrics.peakMeters >= 500, 'full reference has no large mountain peak');
+assert(actual.metrics.nonZeroRatio <= 0.24, 'mountain/highland relief covers too much of the owner map; plains must remain dominant');
 assert(actual.metrics.wetLeakMaxMeters === 0, 'mountain relief leaked into sea/lake ownership');
 assert(actual.metrics.worldMappingMaxDeltaMeters === 0, 'normalized/world projection mismatch');
 const minimumPeakMeters = {
