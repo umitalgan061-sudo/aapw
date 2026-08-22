@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { WORLD_SCALE } from '../src/3d/config.js';
 import {
   NORTH_REFERENCE_CRYOSPHERE_POLICY,
   northReferenceCryosphereAtNormalized,
+  northReferenceCryosphereAtWorldXZ,
 } from '../src/3d/world/northReferenceCryosphere.js';
 
 function sample(x, y) {
@@ -66,10 +68,30 @@ for (let x = 0; x <= 1; x += 0.025) {
   }
 }
 
+const halfWidth = WORLD_SCALE.WORLD_WIDTH_METERS * 0.5;
+const halfDepth = WORLD_SCALE.WORLD_DEPTH_METERS * 0.5;
+const outsideSamples = [
+  northReferenceCryosphereAtWorldXZ(halfWidth + 1, 0),
+  northReferenceCryosphereAtWorldXZ(-halfWidth - 1, 0),
+  northReferenceCryosphereAtWorldXZ(0, halfDepth + 1),
+  northReferenceCryosphereAtWorldXZ(0, -halfDepth - 1),
+  northReferenceCryosphereAtWorldXZ(halfWidth + 800, -halfDepth - 800),
+];
+for (const outside of outsideSamples) {
+  assert.equal(outside.outsideReference, true,
+    'scatter candidates outside the owner map must be marked outside-reference instead of throwing');
+  assert.equal(outside.permanentIce, 0,
+    'outside-reference scatter candidates must not inherit permanent ice');
+  assert.equal(outside.tundra, 0,
+    'outside-reference scatter candidates must not inherit tundra');
+}
+
 assert.equal(NORTH_REFERENCE_CRYOSPHERE_POLICY.renderClimateOnly, true,
   'reference cryosphere field must remain climate/render-only');
 assert.equal(NORTH_REFERENCE_CRYOSPHERE_POLICY.heightAuthorityUnchanged, true,
   'reference cryosphere field must never become a second terrain/collider height authority');
+assert.equal(NORTH_REFERENCE_CRYOSPHERE_POLICY.outsideReferenceIsTemperate, true,
+  'world-edge scatter must remain safe and climate-neutral beyond the owner map');
 
 console.log('[checkNorthReferenceCryosphere] PASS', JSON.stringify({
   policy: NORTH_REFERENCE_CRYOSPHERE_POLICY.id,
@@ -78,4 +100,5 @@ console.log('[checkNorthReferenceCryosphere] PASS', JSON.stringify({
   westTransitionPermanentIce: westTransition.permanentIce,
   sameLatitudeEastPermanentIce: sameLatitudeEast.permanentIce,
   maxTransitionStep: maxStep,
+  outsideReferenceSamples: outsideSamples.length,
 }));
