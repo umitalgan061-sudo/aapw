@@ -19,6 +19,9 @@ assert(Math.abs(Math.hypot(
 ) - 1) < EPSILON, 'prevailing wind source vector must remain normalized');
 assert(TERRAIN_WIND_SNOW_POLICY.prevailingSourceX < 0 && TERRAIN_WIND_SNOW_POLICY.prevailingSourceZ < 0,
   'prevailing source must remain in the north-west quadrant');
+assert(TERRAIN_WIND_SNOW_POLICY.leeRetentionFadeStartDegrees
+  < TERRAIN_WIND_SNOW_POLICY.leeRetentionFadeFullDegrees,
+'lee retention fade must have a valid slope interval');
 
 const flat = terrainWindExposureFromNeighbours(100, 100, 100, 100, 10);
 assert.equal(flat.windward, 0, 'flat terrain must not invent a windward face');
@@ -43,7 +46,20 @@ assert(northWestFacing.aspectDot > westFacing.aspectDot,
 assert(northWestFacing.windward > 0.9 * northWestFacing.slopeAspectStrength,
   'directly exposed NW slope should approach full windward weighting');
 assert(southEastFacing.lee > 0.9 * southEastFacing.slopeAspectStrength,
-  'opposite SE slope should approach full lee weighting');
+  'ordinary SE slope should approach full lee weighting before cliff shedding begins');
+assert.equal(southEastFacing.leeRetention, 1,
+  'ordinary mountain lee slope should retain the full directional deposition signal');
+
+const cliffNorthWestFacing = terrainWindExposureFromNeighbours(80, 120, 80, 120, 10);
+const cliffSouthEastFacing = terrainWindExposureFromNeighbours(120, 80, 120, 80, 10);
+assert(cliffSouthEastFacing.slopeDegrees > TERRAIN_WIND_SNOW_POLICY.leeRetentionFadeFullDegrees,
+  'cliff fixture must exceed the authored lee retention fade');
+assert.equal(cliffSouthEastFacing.leeRetention, 0,
+  'near-cliff lee face must shed loose deposition instead of painting snow onto rock');
+assert.equal(cliffSouthEastFacing.lee, 0,
+  'near-cliff SE face must expose no lee deposition weight after gravity shedding');
+assert(cliffNorthWestFacing.windward > 0.9,
+  'near-cliff NW face should remain strongly windward even when lee retention is zero');
 
 const shallow = terrainWindExposureFromNeighbours(99.7, 100.3, 100, 100, 10);
 const steep = terrainWindExposureFromNeighbours(90, 110, 100, 100, 10);
@@ -59,6 +75,12 @@ const northWindward = resolveTerrainWindSnowAdjustment({
 const northLee = resolveTerrainWindSnowAdjustment({
   windward: 0,
   lee: southEastFacing.lee,
+  permanentIce: 1,
+  tundra: 1,
+});
+const northCliffLee = resolveTerrainWindSnowAdjustment({
+  windward: 0,
+  lee: cliffSouthEastFacing.lee,
   permanentIce: 1,
   tundra: 1,
 });
@@ -79,6 +101,8 @@ assert(northWindward.windwardScour > tundraWindward.windwardScour,
   'permanent-ice windward scour should be stronger than tundra scour');
 assert(northLee.leeDeposit > tundraLee.leeDeposit,
   'permanent-ice lee deposition should be stronger than tundra deposition');
+assert.equal(northCliffLee.leeDeposit, 0,
+  'cliff-safe exposure must suppress runtime lee snow deposition');
 assert(northWindward.windwardScour <= TERRAIN_WIND_SNOW_POLICY.northWindwardScourMax + EPSILON,
   'windward scour must stay inside its authored permanent-ice ceiling');
 assert(northLee.leeDeposit <= TERRAIN_WIND_SNOW_POLICY.northLeeDepositMax + EPSILON,
@@ -122,6 +146,16 @@ const leeCoverage = resolveTerrainSnowCoverage({
   terrainWindward: 0,
   terrainLee: southEastFacing.lee,
 });
+const cliffLeeCoverage = resolveTerrainSnowCoverage({
+  ...northBaseInput,
+  slopeDegrees: cliffSouthEastFacing.slopeDegrees,
+  terrainWindward: 0,
+  terrainLee: cliffSouthEastFacing.lee,
+});
+const cliffNeutralCoverage = resolveTerrainSnowCoverage({
+  ...northBaseInput,
+  slopeDegrees: cliffSouthEastFacing.slopeDegrees,
+});
 assert(neutralCoverage.snowSupply < 1,
   'integration fixture must preserve headroom for measurable lee deposition');
 assert(windwardCoverage.windwardScour > 0,
@@ -132,6 +166,10 @@ assert(windwardCoverage.snowSupply < neutralCoverage.snowSupply,
   'windward terrain must lose loose snow supply');
 assert(leeCoverage.snowSupply > neutralCoverage.snowSupply,
   'lee terrain must gain retained snow supply');
+assert.equal(cliffLeeCoverage.leeDeposit, 0,
+  'runtime cliff coverage must not receive lee deposition');
+assert.equal(cliffLeeCoverage.snowSupply, cliffNeutralCoverage.snowSupply,
+  'cliff lee aspect must not inflate snow supply after gravity shedding');
 
 const southNeutralCoverage = resolveTerrainSnowCoverage({
   ...northBaseInput,
@@ -150,11 +188,23 @@ assert.equal(southDirectionalCoverage.leeDeposit, 0,
 assert.equal(southDirectionalCoverage.snowSupply, southNeutralCoverage.snowSupply,
   'temperate snow supply must remain unchanged by directional inputs');
 
-for (const sample of [flat, westFacing, eastFacing, northWestFacing, southEastFacing, shallow, steep]) {
+for (const sample of [
+  flat,
+  westFacing,
+  eastFacing,
+  northWestFacing,
+  southEastFacing,
+  cliffNorthWestFacing,
+  cliffSouthEastFacing,
+  shallow,
+  steep,
+]) {
   assert(Number.isFinite(sample.slopeDegrees) && Number.isFinite(sample.aspectDot),
     'terrain wind exposure outputs must remain finite');
   assert(sample.windward >= 0 && sample.windward <= 1 && sample.lee >= 0 && sample.lee <= 1,
     'terrain wind exposure weights must remain normalized');
+  assert(sample.leeRetention >= 0 && sample.leeRetention <= 1,
+    'lee retention must remain normalized');
 }
 
 console.log('[checkTerrainWindSnowExposure] PASS', JSON.stringify({
@@ -168,6 +218,16 @@ console.log('[checkTerrainWindSnowExposure] PASS', JSON.stringify({
     slopeDegrees: northWestFacing.slopeDegrees,
     aspectDot: northWestFacing.aspectDot,
     windward: northWestFacing.windward,
+  },
+  southEastFacing: {
+    slopeDegrees: southEastFacing.slopeDegrees,
+    lee: southEastFacing.lee,
+    leeRetention: southEastFacing.leeRetention,
+  },
+  cliffSouthEastFacing: {
+    slopeDegrees: cliffSouthEastFacing.slopeDegrees,
+    lee: cliffSouthEastFacing.lee,
+    leeRetention: cliffSouthEastFacing.leeRetention,
   },
   permanentIce: {
     windwardScour: northWindward.windwardScour,
