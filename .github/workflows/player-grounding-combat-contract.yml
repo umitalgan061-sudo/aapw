@@ -44,7 +44,7 @@ jobs:
           git diff --check "$BASE"...HEAD
           CHANGED="$(git diff --name-only "$BASE"...HEAD)"
           echo "$CHANGED"
-          OUT_OF_SCOPE="$(printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|scripts/checkPlayerGroundingCombatContract\.mjs|scripts/checkPlayerDodgeIFrames\.mjs|scripts/checkPlayerDodgeIFrameRuntime\.mjs|\.github/workflows/player-dodge-iframes\.yml|\.github/workflows/player-grounding-combat-contract\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-stamina-dodge\.yml)$' || true)"
+          OUT_OF_SCOPE="$(printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|scripts/checkPlayerGroundingCombatContract\.mjs|scripts/checkPlayerDodgeIFrames\.mjs|scripts/checkPlayerDodgeIFrameRuntime\.mjs|scripts/checkPlayerCombatHudRuntime\.mjs|\.github/workflows/player-dodge-iframes\.yml|\.github/workflows/player-grounding-combat-contract\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-stamina-dodge\.yml)$' || true)"
           test -z "$OUT_OF_SCOPE"
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           test "$((ADD + DEL))" -le 1000
@@ -54,7 +54,7 @@ jobs:
         run: |
           set -euo pipefail
           git lfs version
-          git lfs pull --include="assets/models/characters/peasant_girl.fbx,assets/animations/peasant_girl/**" --exclude=""
+          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**" --exclude=""
           test -s assets/models/characters/peasant_girl.fbx
           test -s assets/animations/peasant_girl/idle.fbx
           test -s assets/animations/peasant_girl/walking.fbx
@@ -83,6 +83,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p artifacts/player-dodge-iframes
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerDodgeIFrameRuntime.mjs --out-dir=artifacts/player-dodge-iframes | tee artifacts/player-dodge-iframes.log
           test -s artifacts/player-dodge-iframes/dodge-iframes-runtime.png
           test -s artifacts/player-dodge-iframes/dodge-iframes-runtime.json
