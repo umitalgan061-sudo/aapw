@@ -1,0 +1,94 @@
+name: Player Melee Commit Step
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/player.js'
+      - 'scripts/checkPlayerMeleeCommitStep.mjs'
+      - '.github/workflows/player-melee-commit-step.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: player-melee-commit-step-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          BASE="$(git rev-parse origin/main)"
+          test "$(git merge-base origin/main HEAD)" = "$BASE"
+          git diff --check "$BASE"...HEAD
+          CHANGED="$(git diff --name-only "$BASE"...HEAD)"
+          OUT_OF_SCOPE="$(printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|scripts/checkPlayerMeleeCommitStep\.mjs|\.github/workflows/player-melee-commit-step\.yml)$' || true)"
+          test -z "$OUT_OF_SCOPE"
+          read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
+          test "$((ADD + DEL))" -le 1000
+          echo "BASE_SHA=$BASE" >> "$GITHUB_ENV"
+      - name: Combat contracts
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/player.js
+          node --check scripts/checkPlayerMeleeCommitStep.mjs
+          node scripts/checkPlayerMeleeCommitStep.mjs
+          node scripts/checkPlayerMeleeCombo.mjs
+          node scripts/checkPlayerStaminaDodge.mjs
+          node scripts/checkPlayerDodgeIFrames.mjs
+          node scripts/checkPlayerLockOn.mjs
+          node scripts/checkSharedMaterialPlacementContract.js
+          node scripts/checkServiceWorkerCache.js
+          ! grep -q 'EditorMaterialStudio' src/3d/gameplay/player.js
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Shipped melee scene proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/player-melee-commit-step
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerMeleeComboRuntime.mjs --out-dir=artifacts/player-melee-commit-step | tee artifacts/player-melee-commit-step.log
+          grep -q 'PLAYER_MELEE_COMBO_RUNTIME_OK' artifacts/player-melee-commit-step.log
+          test -s artifacts/player-melee-commit-step/melee-combo.png
+          test -s artifacts/player-melee-commit-step/melee-combo.json
+          grep -q '"browserErrors": \[\]' artifacts/player-melee-commit-step/melee-combo.json
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
+      - name: Final main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test "$(git merge-base origin/main HEAD)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA"...HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: player-melee-commit-step-${{ github.sha }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            artifacts/player-melee-commit-step/
+            artifacts/player-melee-commit-step.log
