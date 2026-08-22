@@ -20,10 +20,11 @@
  */
 
 export const TERRAIN_FOUNDATION_CONFORM_POLICY = Object.freeze({
-	id: 'runtime-structure-foundation-conform-2026-08-22-v4',
+	id: 'runtime-structure-foundation-conform-2026-08-22-v5',
 	footprintMode: 'aabb-enclosing-circle',
 	chunkRebuildMode: 'union-deduplicated',
 	batchRemovalMode: 'mutate-all-then-union-rebuild',
+	shutdownRemovalMode: 'mutate-without-rebuild',
 	defaultInnerMarginMeters: 0.75,
 	defaultFeatherMeters: 14,
 	minimumInnerRadiusMeters: 1.5,
@@ -255,7 +256,7 @@ export function createTerrainFoundationConformer({
 		};
 	}
 
-	function removeFoundations(inputs) {
+	function removeFoundations(inputs, { rebuild = true } = {}) {
 		const requested = Array.isArray(inputs) ? inputs : [inputs];
 		const removedPads = [];
 		const removedObjects = [];
@@ -279,12 +280,15 @@ export function createTerrainFoundationConformer({
 			if (object?.userData?.terrainFoundationKey === key) delete object.userData.terrainFoundationKey;
 		}
 
-		const rebuiltChunkCount = rebuildChunksForFoundations(chunkManager, removedPads, chunkSizeMeters);
+		const rebuiltChunkCount = rebuild
+			? rebuildChunksForFoundations(chunkManager, removedPads, chunkSizeMeters)
+			: 0;
 		return {
 			ok: missingKeys.length === 0,
 			removedCount: removedPads.length,
 			missingKeys,
 			rebuiltChunkCount,
+			rebuildSkipped: !rebuild && removedPads.length > 0,
 		};
 	}
 
