@@ -22,19 +22,43 @@ const KEYFRAMES = [
 
 const SKY_DAY = { horizon: new THREE.Color(0xaed7ee), zenith: new THREE.Color(0x2f72ad) };
 const SKY_NIGHT = { horizon: new THREE.Color(0x263752), zenith: new THREE.Color(0x071127) };
+const SKY_TWILIGHT = { horizon: new THREE.Color(0xe59a6d), zenith: new THREE.Color(0x4d6086) };
 const ORBIT_RADIUS_METERS = 900;
 const CELESTIAL_VISUAL_SCALE = 18;
 const NIGHT_READABILITY_LIGHT_NAME = 'Game Night Readability Fill';
 const NIGHT_READABILITY_DAY_INTENSITY = 0.05;
 const NIGHT_READABILITY_NIGHT_INTENSITY = 0.36;
 const MOON_MAX_INTENSITY = 0.55;
+const CELESTIAL_HORIZON_FADE_METERS = 25;
+const CELESTIAL_FULL_ALTITUDE_METERS = ORBIT_RADIUS_METERS * 0.22;
+const TWILIGHT_FULL_ALTITUDE_METERS = ORBIT_RADIUS_METERS * 0.30;
 
 export const CELESTIAL_ASSET_POLICY = Object.freeze({
-	id: 'celestial-asset-policy-2026-08-21-v1',
+	id: 'celestial-asset-policy-2026-08-22-v2',
 	moonRepositoryPath: 'assets/models/Ay/Moon 2K.fbx',
 	moonAssetUrl: 'assets/models/Ay/Moon%202K.fbx',
 	moonTargetDiameterMeters: CELESTIAL_VISUAL_SCALE * 2,
+	moonLightingAltitudeModulated: true,
+	twilightSkyAltitudeModulated: true,
 });
+
+function smoothstep(edge0, edge1, value) {
+	if (edge0 === edge1) return value >= edge1 ? 1 : 0;
+	const t = Math.max(0, Math.min(1, (value - edge0) / (edge1 - edge0)));
+	return t * t * (3 - 2 * t);
+}
+
+/**
+ * Keeps a directional celestial key from lighting the world at full strength while its visual body
+ * is still at or below the horizon. The small negative start avoids a one-frame pop at rise/set.
+ */
+export function celestialAltitudeWeightFromY(worldY) {
+	return smoothstep(-CELESTIAL_HORIZON_FADE_METERS, CELESTIAL_FULL_ALTITUDE_METERS, worldY);
+}
+
+function twilightWeightFromSunY(sunY) {
+	return 1 - smoothstep(0, TWILIGHT_FULL_ALTITUDE_METERS, Math.abs(sunY));
+}
 
 function findKeyframeSegment(ratio) {
 	for (let i = 0; i < KEYFRAMES.length - 1; i++) {
@@ -121,6 +145,7 @@ export function createDayNightLighting(scene) {
 	sun.name = 'Sun Directional Light';
 	const moon = new THREE.DirectionalLight(0xc8dcff, 0);
 	moon.name = 'Moon Directional Light';
+	moon.userData.altitudeModulated = true;
 	const hemisphere = new THREE.HemisphereLight(0xffffff, 0x000000, 1);
 
 	const sunVisual = new THREE.Group();
@@ -164,7 +189,6 @@ export function updateDayNightLighting(lights, elapsedSeconds, dayLengthSeconds,
 		readability.intensity = NIGHT_READABILITY_DAY_INTENSITY +
 			(NIGHT_READABILITY_NIGHT_INTENSITY - NIGHT_READABILITY_DAY_INTENSITY) * smoothNightFactor;
 	}
-	if (lights.moon) lights.moon.intensity = MOON_MAX_INTENSITY * smoothNightFactor;
 	updateNightVisualEnhancement(lights.hemisphere, nightFactor);
 
 	// 06:00 => east (+X) horizon, 12:00 => zenith, 18:00 => west (-X) horizon.
@@ -175,17 +199,30 @@ export function updateDayNightLighting(lights, elapsedSeconds, dayLengthSeconds,
 	lights.sun.position.set(sunX, sunY, sunZ);
 	if (lights.sunVisual) lights.sunVisual.position.copy(lights.sun.position);
 
-	// Moon is 180 degrees opposite the sun; its light becomes dominant only after sunset.
-	if (lights.moon) lights.moon.position.set(-sunX, -sunY, -sunZ);
-	if (lights.moonVisual) {
-		lights.moonVisual.position.set(-sunX, -sunY, -sunZ);
-		lights.moonVisual.visible = smoothNightFactor > 0.08;
+	// Moon is 180 degrees opposite the sun. Its illumination now follows its actual altitude as well as
+	// darkness, so a moon below the horizon cannot cast a physically impossible full-strength key.
+	const moonY = -sunY;
+	const moonAltitudeFactor = celestialAltitudeWeightFromY(moonY);
+	if (lights.moon) {
+		lights.moon.position.set(-sunX, moonY, -sunZ);
+		lights.moon.intensity = MOON_MAX_INTENSITY * smoothNightFactor * moonAltitudeFactor;
+		lights.moon.userData.altitudeFactor = moonAltitudeFactor;
 	}
-	if (lights.sunVisual) lights.sunVisual.visible = sunY > -25;
+	if (lights.moonVisual) {
+		lights.moonVisual.position.set(-sunX, moonY, -sunZ);
+		lights.moonVisual.visible = moonY > -CELESTIAL_HORIZON_FADE_METERS && smoothNightFactor > 0.08;
+	}
+	if (lights.sunVisual) lights.sunVisual.visible = sunY > -CELESTIAL_HORIZON_FADE_METERS;
 
-	const horizonColor = SKY_NIGHT.horizon.clone().lerp(SKY_DAY.horizon, 1 - nightFactor);
-	const zenithColor = SKY_NIGHT.zenith.clone().lerp(SKY_DAY.zenith, 1 - nightFactor);
-	return { timeRatio, nightFactor, horizonColor, zenithColor };
+	// Twilight is tied to solar altitude rather than clock keyframes alone. This keeps noon blue and
+	// midnight dark while giving both sunrise and sunset a narrow warm horizon band.
+	const twilightFactor = twilightWeightFromSunY(sunY);
+	const daylightFactor = 1 - smoothNightFactor;
+	const horizonColor = SKY_NIGHT.horizon.clone().lerp(SKY_DAY.horizon, daylightFactor)
+		.lerp(SKY_TWILIGHT.horizon, twilightFactor * 0.68);
+	const zenithColor = SKY_NIGHT.zenith.clone().lerp(SKY_DAY.zenith, daylightFactor)
+		.lerp(SKY_TWILIGHT.zenith, twilightFactor * 0.24);
+	return { timeRatio, nightFactor, twilightFactor, moonAltitudeFactor, horizonColor, zenithColor };
 }
 
 export function disposeDayNightLighting(scene, lights) {
