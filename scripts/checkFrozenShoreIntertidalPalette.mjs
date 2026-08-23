@@ -34,8 +34,36 @@ function colorAt(normalizedX, normalizedY, height, slope = 2) {
   });
 }
 
+function clamp01(value) {
+  return Math.max(0, Math.min(1, value));
+}
+
+function smoothstep(edge0, edge1, value) {
+  const t = clamp01((value - edge0) / Math.max(1e-9, edge1 - edge0));
+  return t * t * (3 - 2 * t);
+}
+
+function intertidalBandAmount(profile, height, slope) {
+  const P = TERRAIN_BIOME_SHADING_POLICY;
+  const landEmergence = smoothstep(0, P.shoreEmergenceFullMeters, height);
+  return (1 - smoothstep(0, profile.intertidalTopMeters, height))
+    * landEmergence
+    * profile.intertidalWeight
+    * (1 - smoothstep(P.northIntertidalSlopeFadeStartDegrees, P.northIntertidalSlopeFadeFullDegrees, slope));
+}
+
 function distance(a, b) {
   return Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
+}
+
+function nearestCryosphereDistance(color) {
+  return Math.min(
+    distance(color, TERRAIN_BIOME_PALETTE.WET_FROZEN_SHORE),
+    distance(color, TERRAIN_BIOME_PALETTE.FROZEN_SHORE),
+    distance(color, TERRAIN_BIOME_PALETTE.GLACIAL_SHORE),
+    distance(color, TERRAIN_BIOME_PALETTE.COASTAL_ICE),
+    distance(color, TERRAIN_BIOME_PALETTE.SNOW),
+  );
 }
 
 const tundra = profileAt(0.175, 0.30);
@@ -75,15 +103,21 @@ assert(southSandDistance < southUpperSandDistance,
 const tundraWaterline = colorAt(0.175, 0.30, 0.34, 2);
 const tundraUpperShore = colorAt(0.175, 0.30, 1.25, 2);
 const tundraSteepWaterline = colorAt(0.175, 0.30, 0.34, 36);
-const wetPalette = TERRAIN_BIOME_PALETTE.WET_FROZEN_SHORE;
+const tundraWaterlineIntertidal = intertidalBandAmount(tundra, 0.34, 2);
+const tundraUpperIntertidal = intertidalBandAmount(tundra, 1.25, 2);
+const tundraSteepIntertidal = intertidalBandAmount(tundra, 0.34, 36);
 
-assert(distance(tundraWaterline, wetPalette) < distance(tundraUpperShore, wetPalette),
-  'low tundra waterline should read wetter/darker than the upper frozen shore');
-assert(distance(tundraWaterline, wetPalette) < distance(tundraSteepWaterline, wetPalette),
-  'steep rocky headlands should shed the flat intertidal tint');
-assert(distance(tundraWaterline, TERRAIN_BIOME_PALETTE.SHORE_SAND)
-    > distance(tundraWaterline, wetPalette),
-  'tundra waterline must remain inside the cold intertidal palette family');
+assert(tundraWaterlineIntertidal > tundraUpperIntertidal,
+  'flat tundra waterline must receive more intertidal tint than the upper frozen shore');
+assert(tundraWaterlineIntertidal > tundraSteepIntertidal,
+  'steep rocky headlands must shed the flat intertidal contribution');
+assert(nearestCryosphereDistance(tundraWaterline)
+    < distance(tundraWaterline, TERRAIN_BIOME_PALETTE.SHORE_SAND),
+  'tundra waterline must remain inside the combined cold shore/ice/snow palette family');
+assert.notDeepEqual(tundraWaterline.toArray(), tundraUpperShore.toArray(),
+  'tundra waterline and upper shore must remain visibly distinct');
+assert.notDeepEqual(tundraWaterline.toArray(), tundraSteepWaterline.toArray(),
+  'tundra flat and steep waterline samples must remain visibly distinct');
 
 let previousWeight = permanentIce.intertidalWeight;
 let maxAdjacentStep = 0;
@@ -101,7 +135,13 @@ assert.equal(TERRAIN_BIOME_SHADING_POLICY.heightAuthorityUnchanged, true,
   'intertidal palette refinement must never become terrain/collider height authority');
 
 console.log(JSON.stringify({
-  tundra: { intertidalWeight: tundra.intertidalWeight, intertidalTopMeters: tundra.intertidalTopMeters },
+  tundra: {
+    intertidalWeight: tundra.intertidalWeight,
+    intertidalTopMeters: tundra.intertidalTopMeters,
+    waterlineIntertidal: tundraWaterlineIntertidal,
+    upperIntertidal: tundraUpperIntertidal,
+    steepIntertidal: tundraSteepIntertidal,
+  },
   transition: { intertidalWeight: transition.intertidalWeight, intertidalTopMeters: transition.intertidalTopMeters },
   permanentIce: { intertidalWeight: permanentIce.intertidalWeight, intertidalTopMeters: permanentIce.intertidalTopMeters },
   sameLatitudeEast: { intertidalWeight: sameLatitudeEast.intertidalWeight },
