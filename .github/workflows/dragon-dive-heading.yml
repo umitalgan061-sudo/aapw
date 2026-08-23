@@ -58,7 +58,10 @@ jobs:
           grep -q 'clampAltitudeAboveGround(model' src/3d/gameplay/dragonController.js
           grep -q 'DRAGON_TERRAIN_LOOKAHEAD_METERS' src/3d/gameplay/dragonFlightMath.js
           grep -q 'DRAGON_TERRAIN_PROBE_SPACING_METERS' src/3d/gameplay/dragonFlightMath.js
+          grep -q 'dragonPreviousRenderedX' src/3d/gameplay/dragonFlightMath.js
+          grep -q 'dragonPreviousRenderedZ' src/3d/gameplay/dragonFlightMath.js
           grep -q 'segmentCount' src/3d/gameplay/dragonFlightMath.js
+          grep -q 'actual rendered +Z motion even when yaw faces +X' scripts/checkDragonDiveHeading.mjs
           node - <<'NODE'
           const fs = require('fs');
           const controller = fs.readFileSync('src/3d/gameplay/dragonController.js', 'utf8');
@@ -67,9 +70,12 @@ jobs:
           if (clamp < 0 || align < 0 || align < clamp) throw new Error('final dive orientation must be recomputed after terrain clamp');
           const math = fs.readFileSync('src/3d/gameplay/dragonFlightMath.js', 'utf8');
           const currentProbe = math.indexOf('sampleGroundY(object3D.position.x, object3D.position.z)');
+          const retainedMotion = math.indexOf('object3D.position.x - previousX');
           const segments = math.indexOf('Math.ceil(lookAheadMeters / spacing)');
           const loop = math.indexOf('segment <= segmentCount');
-          if (currentProbe < 0 || segments < currentProbe || loop < segments) throw new Error('terrain lookahead must sweep a bounded subdivided strip after the current-point probe');
+          if (currentProbe < 0 || retainedMotion < currentProbe || segments < retainedMotion || loop < segments) {
+            throw new Error('terrain lookahead must prefer retained rendered motion before sweeping the bounded subdivided strip');
+          }
           NODE
 
       - name: Final exact-main freshness
