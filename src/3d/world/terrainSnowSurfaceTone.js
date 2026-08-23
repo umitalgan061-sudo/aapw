@@ -13,20 +13,22 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-23-v4-smooth-cryosphere-union',
+  id: 'terrain-snow-surface-tone-2026-08-23-v5-glacial-family-bridge',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
   cryosphereToneUnion: true,
+  glacialFamilyBridge: true,
   packedWindwardGain: 0.72,
   packedRidgeGain: 0.34,
   packedPermanentIceFloor: 0.10,
   packedGlacialContinuityGain: 0.08,
+  packedGlacialFamilyGain: 0.12,
   packedTransitionColdGain: 0.05,
   accumulatedLeeGain: 0.72,
   accumulatedConcavityGain: 0.42,
   accumulatedGentleSlopeGain: 0.16,
-  accumulatedPermanentIceScale: 0.70,
+  accumulatedPermanentIceScale: 0.62,
   tundraToneScale: 0.78,
   minimumVisibleSnow: 0.08,
   minimumAccumulatedSnow: 0.22,
@@ -76,6 +78,7 @@ export function resolveTerrainSnowSurfaceTone({
       climate,
       tundraToneWeight,
       glacialContinuity: 0,
+      glacialFamilySupport: 0,
       transitionColdSupport: 0,
       accumulationClimateScale: 1,
       packedWeight: 0,
@@ -92,14 +95,20 @@ export function resolveTerrainSnowSurfaceTone({
   // notch without changing snow coverage or creating a new climate authority.
   const transitionColdSupport = 4 * permanentIceWeight * (1 - permanentIceWeight)
     * visibleSnow * P.packedTransitionColdGain;
+  const shelterSignal = Math.max(clamp01(leeDeposit), clamp01(concavityHold));
+  // Far-north mountain snow should belong to the same visual cryosphere family as the glacial
+  // lowlands below it. Keep that bridge strongest on exposed/neutral snow and taper it inside deep
+  // sheltered drifts so lee bowls retain a visibly softer accumulated-snow character.
+  const deepShelter = accumulationVisibleSnow * shelterSignal;
+  const glacialFamilySupport = glacialContinuity * (1 - deepShelter * 0.55);
   const packedSignal = clamp01(
     clamp01(windwardScour) * P.packedWindwardGain
       + clamp01(ridgeExposure) * P.packedRidgeGain
       + permanentIceWeight * P.packedPermanentIceFloor
       + glacialContinuity * P.packedGlacialContinuityGain
+      + glacialFamilySupport * P.packedGlacialFamilyGain
       + transitionColdSupport,
   );
-  const shelterSignal = Math.max(clamp01(leeDeposit), clamp01(concavityHold));
   const gentleShelterSupport = clamp01(gentleSlope) * shelterSignal * P.accumulatedGentleSlopeGain;
   const accumulatedSignal = clamp01(
     clamp01(leeDeposit) * P.accumulatedLeeGain
@@ -129,6 +138,7 @@ export function resolveTerrainSnowSurfaceTone({
     climate,
     tundraToneWeight,
     glacialContinuity,
+    glacialFamilySupport,
     transitionColdSupport,
     accumulationClimateScale,
     shelterSignal,
