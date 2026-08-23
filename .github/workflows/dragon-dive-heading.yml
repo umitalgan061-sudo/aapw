@@ -60,8 +60,9 @@ jobs:
           grep -q 'DRAGON_TERRAIN_PROBE_SPACING_METERS' src/3d/gameplay/dragonFlightMath.js
           grep -q 'dragonPreviousRenderedX' src/3d/gameplay/dragonFlightMath.js
           grep -q 'dragonPreviousRenderedZ' src/3d/gameplay/dragonFlightMath.js
-          grep -q 'segmentCount' src/3d/gameplay/dragonFlightMath.js
-          grep -q 'actual rendered +Z motion even when yaw faces +X' scripts/checkDragonDiveHeading.mjs
+          grep -q 'sampleSegmentGround' src/3d/gameplay/dragonFlightMath.js
+          grep -q 'traversedDistance' src/3d/gameplay/dragonFlightMath.js
+          grep -q 'long-frame traversed segment must be sampled before projecting new lookahead' scripts/checkDragonDiveHeading.mjs
           node - <<'NODE'
           const fs = require('fs');
           const controller = fs.readFileSync('src/3d/gameplay/dragonController.js', 'utf8');
@@ -71,10 +72,10 @@ jobs:
           const math = fs.readFileSync('src/3d/gameplay/dragonFlightMath.js', 'utf8');
           const currentProbe = math.indexOf('sampleGroundY(object3D.position.x, object3D.position.z)');
           const retainedMotion = math.indexOf('object3D.position.x - previousX');
-          const segments = math.indexOf('Math.ceil(lookAheadMeters / spacing)');
-          const loop = math.indexOf('segment <= segmentCount');
-          if (currentProbe < 0 || retainedMotion < currentProbe || segments < retainedMotion || loop < segments) {
-            throw new Error('terrain lookahead must prefer retained rendered motion before sweeping the bounded subdivided strip');
+          const traversedSweep = math.indexOf('traversedDistance');
+          const forwardSweep = math.lastIndexOf('sampleSegmentGround(');
+          if (currentProbe < 0 || retainedMotion < currentProbe || traversedSweep < retainedMotion || forwardSweep < traversedSweep) {
+            throw new Error('terrain safety must sample retained previous-to-current travel before projecting forward lookahead');
           }
           NODE
 
