@@ -67,12 +67,16 @@ jobs:
           grep -q 'dragonTerrainSweepDiscontinuity' src/3d/gameplay/dragonFlightMath.js
           grep -q 'dragonTerrainSampleCount' src/3d/gameplay/dragonFlightMath.js
           grep -q 'dragonTerrainInvalidSampleCount' src/3d/gameplay/dragonFlightMath.js
-          grep -q 'Number.isFinite(groundY)' src/3d/gameplay/dragonFlightMath.js
+          grep -q 'dragonTerrainSampleExceptionCount' src/3d/gameplay/dragonFlightMath.js
+          grep -q 'try {' src/3d/gameplay/dragonFlightMath.js
+          grep -q 'groundY = sampleGroundY(x, z)' src/3d/gameplay/dragonFlightMath.js
           grep -q 'sampleSegmentGround' src/3d/gameplay/dragonFlightMath.js
           grep -q 'traversedDistance <= boundedMaxTraversed' src/3d/gameplay/dragonFlightMath.js
           grep -q 'kilometre-scale retained displacement must be classified as a discontinuity' scripts/checkDragonDiveHeading.mjs
           grep -q 'long-frame traversed segment must be sampled before projecting new lookahead' scripts/checkDragonDiveHeading.mjs
           grep -q 'valid forward ridge must still clamp altitude when the current sample is NaN' scripts/checkDragonTerrainSampleResilience.mjs
+          grep -q 'an isolated terrain sampler exception must not abort the dragon update' scripts/checkDragonTerrainSampleResilience.mjs
+          grep -q 'all-throwing terrain data must preserve the rendered altitude' scripts/checkDragonTerrainSampleResilience.mjs
           grep -q 'all-invalid terrain data must preserve the rendered altitude' scripts/checkDragonTerrainSampleResilience.mjs
           node - <<'NODE'
           const fs = require('fs');
@@ -81,7 +85,7 @@ jobs:
           const align = controller.indexOf('alignDiveOrientation(model');
           if (clamp < 0 || align < 0 || align < clamp) throw new Error('final dive orientation must be recomputed after terrain clamp');
           const math = fs.readFileSync('src/3d/gameplay/dragonFlightMath.js', 'utf8');
-          const currentProbe = math.indexOf('sampleGroundY(object3D.position.x, object3D.position.z)');
+          const currentProbe = math.indexOf('probeGround(object3D.position.x, object3D.position.z)');
           const retainedMotion = math.indexOf('object3D.position.x - previousX');
           const traversedSweep = math.indexOf('traversedDistance <= boundedMaxTraversed');
           const discontinuity = math.indexOf('skippedDiscontinuity = true');
