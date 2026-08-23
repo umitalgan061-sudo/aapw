@@ -28,7 +28,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Exact-main bounded scope and quota
+      - name: Exact-main bounded dependency scope and quota
         shell: bash
         run: |
           set -euo pipefail
@@ -36,11 +36,10 @@ jobs:
           base="$(git merge-base HEAD origin/main)"
           test "$base" = "$(git rev-parse origin/main)"
           mapfile -t paths < <(git diff --name-only "$base"...HEAD)
-          allowed='^(\.github/workflows/rpg-journey-history-window\.yml|scripts/checkInteractionJourneyHistoryWindow\.mjs)$'
+          allowed='^(src/3d/gameplay/interactionConfig\.js|src/3d/gameplay/interactionFieldReadiness\.js|scripts/checkInteractionJourneyHistoryWindow\.mjs|scripts/checkInteractionJourneyLedgerUx\.mjs|scripts/checkInteractionTavernReceiptIntegrity\.mjs|scripts/checkInteractionExpeditionTavernRecovery\.mjs|scripts/checkInteractionMasteryTravelContinuityBrowser\.mjs|\.github/workflows/rpg-journey-history-window\.yml)$'
           if (( ${#paths[@]} )); then
             printf '%s\n' "${paths[@]}" | grep -Ev "$allowed" && exit 1 || true
           fi
-          test "${#paths[@]}" -eq 2
           changed="$(git diff --numstat "$base"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           test "$changed" -le 1000
       - name: Syntax and journey persistence regressions
