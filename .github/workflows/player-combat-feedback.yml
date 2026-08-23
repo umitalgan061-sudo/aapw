@@ -4,7 +4,9 @@ on:
   pull_request:
     paths:
       - 'src/3d/gameplay/player.js'
+      - 'src/3d/gameplay/health.js'
       - 'scripts/checkPlayerCombatFeedback.mjs'
+      - 'scripts/checkPlayerCombatHealthReceipt.mjs'
       - '.github/workflows/player-combat-feedback.yml'
   workflow_dispatch:
 
@@ -24,8 +26,12 @@ jobs:
       - name: Syntax
         run: |
           node --check src/3d/gameplay/player.js
+          node --check src/3d/gameplay/health.js
           node --check scripts/checkPlayerCombatFeedback.mjs
+          node --check scripts/checkPlayerCombatHealthReceipt.mjs
       - name: Authoritative feedback contract
         run: node scripts/checkPlayerCombatFeedback.mjs
+      - name: Authoritative health receipt
+        run: node scripts/checkPlayerCombatHealthReceipt.mjs
       - name: Existing melee contract
         run: node scripts/checkPlayerMeleeCombo.mjs
