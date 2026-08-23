@@ -39,11 +39,12 @@ jobs:
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           test "$((ADD + DEL))" -le 1000
           echo "BASE_SHA=$BASE" >> "$GITHUB_ENV"
-      - name: Asset-first player family hydration
+      - name: Asset-first shipped-scene hydration
         shell: bash
         run: |
           set -euo pipefail
-          git lfs pull --include="assets/models/characters/peasant_girl.fbx,assets/animations/peasant_girl/**" --exclude=""
+          git lfs version
+          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**" --exclude=""
           test -s assets/models/characters/peasant_girl.fbx
           test -s assets/animations/peasant_girl/idle.fbx
           test -s assets/animations/peasant_girl/walking.fbx
@@ -72,6 +73,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p artifacts
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerHitStaggerRuntime.mjs --out-dir=artifacts/player-hit-stagger | tee artifacts/player-hit-stagger.log
           grep -q 'PLAYER_HIT_STAGGER_RUNTIME_OK' artifacts/player-hit-stagger.log
           test -s artifacts/player-hit-stagger/hit-stagger-runtime.png
