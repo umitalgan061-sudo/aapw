@@ -13,13 +13,14 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-24-v10-glacial-depth-harmony',
+  id: 'terrain-snow-surface-tone-2026-08-24-v11-sheltered-packed-floor',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
   cryosphereToneUnion: true,
   glacialFamilyBridge: true,
   glacialDepthHarmony: true,
+  shelteredPackedFloor: true,
   glacialVisibilityExponent: 0.65,
   glacialDepthFloor: 0.54,
   glacialDepthGain: 0.46,
@@ -31,6 +32,7 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   packedGlacialDepthGain: 0.08,
   packedShelteredGlacialGain: 0.10,
   packedTransitionColdGain: 0.05,
+  shelteredPackedFloorGain: 0.12,
   accumulatedLeeGain: 0.72,
   accumulatedConcavityGain: 0.42,
   accumulatedGentleSlopeGain: 0.16,
@@ -92,6 +94,7 @@ export function resolveTerrainSnowSurfaceTone({
       glacialDepthSupport: 0,
       shelteredGlacialRetention: 0,
       shelteredGlacialBridge: 0,
+      glacialPackedFloor: 0,
       transitionColdSupport: 0,
       accumulationGlacialCooling: 0,
       accumulationDepthCooling: 0,
@@ -166,11 +169,19 @@ export function resolveTerrainSnowSurfaceTone({
     * (1 - accumulationGlacialCooling)
     * (1 - accumulationDepthCooling);
 
-  // A sheltered accumulation signal suppresses the packed interpretation and vice versa. This
-  // avoids muddy double-tinting on transition vertices where both upstream signals are non-zero.
+  // A sheltered accumulation signal suppresses the ordinary packed interpretation and vice versa.
+  // Permanent-ice shelter still keeps a small independent cold-family floor so a deep lee bowl can
+  // remain soft without visually disconnecting from the glacial lowland below it.
   const packedDominance = packedSignal * (1 - accumulatedSignal * 0.72);
   const accumulatedDominance = accumulatedSignal * (1 - packedSignal * 0.72);
-  const packedWeight = Math.min(P.maximumPackedWeight, packedDominance * visibleSnow * climate);
+  const glacialPackedFloor = glacialFamilySupport
+    * visibleSnow
+    * lerp(0.35, 1, deepShelter)
+    * P.shelteredPackedFloorGain;
+  const packedWeight = Math.min(
+    P.maximumPackedWeight,
+    Math.max(packedDominance * visibleSnow * climate, glacialPackedFloor),
+  );
   // Thin veneers can look cold/packed, but should not read as deep creamy drifts. Accumulated tone
   // therefore needs a little more retained snow than the generic visible-snow threshold. Deep snow
   // remains visible in permanent ice, but its warm/soft tint is moderated so it harmonises with the
@@ -192,6 +203,7 @@ export function resolveTerrainSnowSurfaceTone({
     glacialDepthSupport,
     shelteredGlacialRetention,
     shelteredGlacialBridge,
+    glacialPackedFloor,
     transitionColdSupport,
     accumulationGlacialCooling,
     accumulationDepthCooling,
