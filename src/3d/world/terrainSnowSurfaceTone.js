@@ -10,16 +10,19 @@
 
 const clamp01 = (value) => (value < 0 ? 0 : value > 1 ? 1 : value);
 const lerp = (a, b, t) => a + (b - a) * t;
+const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-23-v3-cryosphere-harmony',
+  id: 'terrain-snow-surface-tone-2026-08-23-v4-smooth-cryosphere-union',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
+  cryosphereToneUnion: true,
   packedWindwardGain: 0.72,
   packedRidgeGain: 0.34,
   packedPermanentIceFloor: 0.10,
   packedGlacialContinuityGain: 0.08,
+  packedTransitionColdGain: 0.05,
   accumulatedLeeGain: 0.72,
   accumulatedConcavityGain: 0.42,
   accumulatedGentleSlopeGain: 0.16,
@@ -41,8 +44,9 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
  * a scoured hard ridge and a deep sheltered drift.
  *
  * Permanent-ice terrain deliberately biases retained snow toward the packed/cold family and tones
- * down the warm accumulated interpretation. That keeps mountain snow visually continuous with the
- * existing GLACIAL_ICE / COASTAL_ICE family without changing where snow exists or how much is held.
+ * down the warm accumulated interpretation. The tundra and permanent-ice tone influences are
+ * combined as a bounded union rather than selected with max(), preventing a subtle colour-derivative
+ * kink where the two authored climate fields overlap on the map-aligned north transition.
  */
 export function resolveTerrainSnowSurfaceTone({
   snowAmount = 0,
@@ -58,18 +62,21 @@ export function resolveTerrainSnowSurfaceTone({
   const normalizedSnow = clamp01(snowAmount);
   const permanentIceWeight = clamp01(permanentIce);
   const tundraWeight = clamp01(tundra);
+  const tundraToneWeight = tundraWeight * P.tundraToneScale;
   const visibleSnow = clamp01((normalizedSnow - P.minimumVisibleSnow) / (1 - P.minimumVisibleSnow));
   const accumulationVisibleSnow = clamp01(
     (normalizedSnow - P.minimumAccumulatedSnow) / (1 - P.minimumAccumulatedSnow),
   );
-  const climate = clamp01(Math.max(permanentIceWeight, tundraWeight * P.tundraToneScale));
+  const climate = boundedUnion(permanentIceWeight, tundraToneWeight);
 
   if (visibleSnow <= 0 || climate <= 0) {
     return Object.freeze({
       visibleSnow,
       accumulationVisibleSnow,
       climate,
+      tundraToneWeight,
       glacialContinuity: 0,
+      transitionColdSupport: 0,
       accumulationClimateScale: 1,
       packedWeight: 0,
       accumulatedWeight: 0,
@@ -80,11 +87,17 @@ export function resolveTerrainSnowSurfaceTone({
   }
 
   const glacialContinuity = permanentIceWeight * visibleSnow;
+  // Smoothly reinforce the cold family inside the permanent-ice transition, but let the support
+  // return to zero at both pure tundra and fully glaciated endpoints. This avoids a visible colour
+  // notch without changing snow coverage or creating a new climate authority.
+  const transitionColdSupport = 4 * permanentIceWeight * (1 - permanentIceWeight)
+    * visibleSnow * P.packedTransitionColdGain;
   const packedSignal = clamp01(
     clamp01(windwardScour) * P.packedWindwardGain
       + clamp01(ridgeExposure) * P.packedRidgeGain
       + permanentIceWeight * P.packedPermanentIceFloor
-      + glacialContinuity * P.packedGlacialContinuityGain,
+      + glacialContinuity * P.packedGlacialContinuityGain
+      + transitionColdSupport,
   );
   const shelterSignal = Math.max(clamp01(leeDeposit), clamp01(concavityHold));
   const gentleShelterSupport = clamp01(gentleSlope) * shelterSignal * P.accumulatedGentleSlopeGain;
@@ -114,7 +127,9 @@ export function resolveTerrainSnowSurfaceTone({
     visibleSnow,
     accumulationVisibleSnow,
     climate,
+    tundraToneWeight,
     glacialContinuity,
+    transitionColdSupport,
     accumulationClimateScale,
     shelterSignal,
     gentleShelterSupport,
