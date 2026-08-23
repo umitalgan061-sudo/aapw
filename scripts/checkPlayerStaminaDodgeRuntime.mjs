@@ -113,14 +113,15 @@ try {
     const frame = frames.at(-1);
     return frame?.state === 'idle'
       && frame.stamina === 100
-      && frame.poise >= 99.5
       && frame.isGrounded
       && frame.canDodge
+      && frame.hitStaggerRemaining === 0
+      && frame.guardBreakRemaining === 0
       ? frame
       : null;
-  }, { timeout: 12000, interval: 100, label: 'recovered idle baseline after any shipped-scene spawn pressure' });
+  }, { timeout: 12000, interval: 100, label: 'input-ready idle stamina baseline under shipped-scene spawn pressure' });
   need(baseline.state === 'idle', `expected idle baseline, got ${baseline.state}`);
-  need(baseline.stamina === 100 && baseline.poise >= 99.5 && baseline.isGrounded && baseline.canDodge, `bad baseline ${JSON.stringify(baseline)}`);
+  need(baseline.stamina === 100 && baseline.isGrounded && baseline.canDodge && baseline.hitStaggerRemaining === 0 && baseline.guardBreakRemaining === 0, `bad baseline ${JSON.stringify(baseline)}`);
 
   await page.evaluate(() => { window.__playerMotionFrames.length = 0; });
   await page.keyboard.down('KeyW'); await page.keyboard.down('ShiftLeft'); await waitState('sprint');
