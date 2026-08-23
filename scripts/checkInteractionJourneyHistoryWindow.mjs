@@ -30,10 +30,13 @@ for (const [index, destinationId] of destinations.entries()) {
 		sourceType: 'settlement-crafting',
 		sourceId: 'dragonstone-watch-travel-ration-pack',
 	}), true, `settlement resupply must provision journey ${index + 1}`);
-	const result = inventory.commitJourneyWithRestStops([
-		{ type: 'rest', kind: REST_KIND.TAVERN, siteId: 'dragonstone-harbor-tavern', discovered: true, open: true },
-		{ type: 'travel', destinationId, discovered: true, routeOpen: true, distanceKm: 30 },
-	], { startingFatigueKm: journey.snapshot().fatigueKm });
+	const startingFatigueKm = journey.snapshot().fatigueKm;
+	const steps = [];
+	if (startingFatigueKm > 0) {
+		steps.push({ type: 'rest', kind: REST_KIND.TAVERN, siteId: 'dragonstone-harbor-tavern', discovered: true, open: true });
+	}
+	steps.push({ type: 'travel', destinationId, discovered: true, routeOpen: true, distanceKm: 30 });
+	const result = inventory.commitJourneyWithRestStops(steps, { startingFatigueKm });
 	assert.equal(result.ok, true, `journey ${index + 1} must commit through the real inventory path`);
 	assert.equal(result.plan.finalFatigueKm, 30);
 	assert.equal(result.consumedQuantity, 1);
@@ -68,4 +71,4 @@ restored.restore(structuredClone(snapshot));
 assert.deepEqual(restored.snapshot(), snapshot, 'bounded journey history must survive save/load byte-for-byte at the state level');
 assert.equal(buildJourneyStateText(restored.snapshot(), readiness), text, 'player-facing journey UX must remain stable after save/load');
 
-console.log('PASS: seven reachable Dragonstone tavern journeys retain only the latest five authoritative receipts while preserving sequence, destination, fatigue and save/load UX continuity');
+console.log('PASS: seven reachable Dragonstone journeys retain only the latest five authoritative receipts while later legs recover at the tavern and preserve sequence, destination, fatigue and save/load UX continuity');
