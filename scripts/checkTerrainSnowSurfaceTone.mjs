@@ -8,6 +8,8 @@ assert.equal(P.renderOnly, true);
 assert.equal(P.heightAuthorityUnchanged, true);
 assert.equal(P.snowCoverageAuthorityUnchanged, true);
 assert(P.minimumAccumulatedSnow > P.minimumVisibleSnow);
+assert(P.accumulatedPermanentIceScale < 1, 'permanent ice should temper warm accumulated-snow tint');
+assert(P.packedGlacialContinuityGain > 0, 'permanent ice should reinforce the packed/cold snow family');
 
 const bare = resolveTerrainSnowSurfaceTone({ snowAmount: 0.02, permanentIce: 1, windwardScour: 1, ridgeExposure: 1 });
 assert.equal(bare.packedWeight, 0);
@@ -55,7 +57,15 @@ assert.equal(thinSheltered.accumulatedWeight, 0, 'thin sheltered snow must stay 
 const tundraPacked = resolveTerrainSnowSurfaceTone({
   snowAmount: 0.82, tundra: 1, windwardScour: 0.92, ridgeExposure: 0.88,
 });
+const tundraLee = resolveTerrainSnowSurfaceTone({
+  snowAmount: 0.82, tundra: 1, leeDeposit: 0.9, concavityHold: 0.85, gentleSlope: 0.9,
+});
 assert(windward.packedWeight > tundraPacked.packedWeight);
+assert(windward.glacialContinuity > tundraPacked.glacialContinuity);
+assert(lee.accumulationClimateScale < tundraLee.accumulationClimateScale);
+assert(lee.accumulatedWeight < tundraLee.accumulatedWeight,
+  'permanent-ice drifts should stay soft but less cream-tinted than equivalent tundra drifts');
+assert(lee.accumulatedWeight > 0, 'permanent-ice lee bowls must retain visible accumulated-snow character');
 
 const mixed = resolveTerrainSnowSurfaceTone({
   snowAmount: 1, permanentIce: 1, tundra: 1,
@@ -65,9 +75,13 @@ assert(mixed.packedWeight <= P.maximumPackedWeight + EPSILON);
 assert(mixed.accumulatedWeight <= P.maximumAccumulatedWeight + EPSILON);
 
 for (const sample of [
-  bare, south, neutral, windward, lee, crosswind, gentleUnsheltered, thinSheltered, tundraPacked, mixed,
+  bare, south, neutral, windward, lee, crosswind, gentleUnsheltered, thinSheltered,
+  tundraPacked, tundraLee, mixed,
 ]) {
-  for (const key of ['visibleSnow', 'accumulationVisibleSnow', 'climate', 'packedWeight', 'accumulatedWeight', 'neutralWeight']) {
+  for (const key of [
+    'visibleSnow', 'accumulationVisibleSnow', 'climate', 'glacialContinuity',
+    'accumulationClimateScale', 'packedWeight', 'accumulatedWeight', 'neutralWeight',
+  ]) {
     assert(Number.isFinite(sample[key]) && sample[key] >= 0 && sample[key] <= 1, `${key} must be normalized`);
   }
   assert(Number.isFinite(sample.coolShift));
@@ -82,6 +96,8 @@ const shadingSource = readFileSync(new URL('../src/3d/world/terrainBiomeShading.
 assert.match(shadingSource, /resolveTerrainSnowSurfaceTone/);
 assert.match(shadingSource, /PACKED_SNOW/);
 assert.match(shadingSource, /ACCUMULATED_SNOW/);
+assert.match(shadingSource, /GLACIAL_ICE/);
+assert.match(shadingSource, /COASTAL_ICE/);
 assert.match(shadingSource, /snowTone\.packedWeight/);
 assert.match(shadingSource, /snowTone\.accumulatedWeight/);
 assert.match(shadingSource, /target\.lerp\(scratchSnowTone, snow\.snowAmount\)/);
@@ -92,6 +108,9 @@ console.log(JSON.stringify({
   policy: P.id,
   windwardPackedWeight: windward.packedWeight,
   leeAccumulatedWeight: lee.accumulatedWeight,
+  tundraLeeAccumulatedWeight: tundraLee.accumulatedWeight,
+  glacialContinuity: windward.glacialContinuity,
+  permanentIceAccumulationScale: lee.accumulationClimateScale,
   gentleUnshelteredAccumulatedWeight: gentleUnsheltered.accumulatedWeight,
   thinShelteredAccumulatedWeight: thinSheltered.accumulatedWeight,
   tundraPackedWeight: tundraPacked.packedWeight,
