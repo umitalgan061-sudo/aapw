@@ -1,11 +1,51 @@
 import assert from 'node:assert/strict';
 import { clampAltitudeAboveGround } from '../src/3d/gameplay/dragonFlightMath.js';
+import { createDragonReactionState, stepDragonReactionState } from '../src/3d/gameplay/dragonReactionState.js';
 
 function createDragon({ x = 0, y = 5, z = 0, yaw = 0 } = {}) {
 	return {
 		position: { x, y, z },
 		rotation: { y: yaw },
 		userData: {},
+	};
+}
+
+function createReactionConfig(sampleGroundY) {
+	return {
+		canNotice: false,
+		canDive: false,
+		canPursue: true,
+		canBite: false,
+		noticeRadiusMeters: 0,
+		reactiveSpeedMultiplier: 1,
+		reactiveBankAngleRadians: 0,
+		reactiveTransitionSeconds: 1,
+		bankAngleRadians: 0,
+		speedMps: 10,
+		circleRadiusMeters: 20,
+		alarmRadiusMeters: 0,
+		diveTelegraphSeconds: 0,
+		diveTelegraphTransitionSeconds: 1,
+		diveTransitionSeconds: 1,
+		attackTriggerSeconds: 0,
+		attackTransitionSeconds: 1,
+		clampedDiveLateralPullFraction: 0,
+		diveDropMeters: 0,
+		clampedAttackLateralPullFraction: 0,
+		attackDropMeters: 0,
+		pursuitRadiusMeters: 100,
+		pursuitCenterSpeedMps: 0,
+		centerX: 0,
+		centerZ: 0,
+		centerY: 20,
+		pursuitCircleRadiusMeters: 20,
+		pursuitTransitionSeconds: 1,
+		pursuitMaxSeconds: 100,
+		cruiseAltitudeAboveGroundMeters: 10,
+		sampleGroundY,
+		giveUpBankAngleMultiplier: 1,
+		giveUpTransitionSeconds: 1,
+		playerPosition: { x: 0, z: 0 },
 	};
 }
 
@@ -46,6 +86,27 @@ function runThrowingCurrentSampleProof() {
 	assert.ok(visited.some(([, z]) => Math.abs(z - 3) < 1e-9), 'sampling must continue to later valid ridge probes after the exception');
 }
 
+function runThrowingPursuitCenterProof() {
+	const state = createDragonReactionState(0, 0, 20, 0);
+	const throwingConfig = createReactionConfig(() => { throw new Error('pursuit-center tile temporarily unavailable'); });
+
+	assert.doesNotThrow(
+		() => stepDragonReactionState(state, 0.5, 1, throwingConfig),
+		'a throwing pursuit-center terrain sample must not abort the configured dragon update',
+	);
+	assert.equal(state.center.y, 20, 'a throwing pursuit-center sample must preserve the previous center altitude');
+	assert.equal(state.pursuitCenterTerrainSampleExceptionCount, 1, 'pursuit-center sampler exceptions must be observable');
+	assert.equal(state.pursuitCenterTerrainInvalidSampleCount, 1, 'a throwing pursuit-center sample must count as invalid');
+
+	stepDragonReactionState(state, 0.5, 1, createReactionConfig(() => Number.NaN));
+	assert.equal(state.center.y, 20, 'a non-finite pursuit-center sample must also preserve the previous center altitude');
+	assert.equal(state.pursuitCenterTerrainSampleExceptionCount, 1, 'non-finite pursuit-center data must not be misclassified as an exception');
+	assert.equal(state.pursuitCenterTerrainInvalidSampleCount, 2, 'non-finite pursuit-center data must be counted separately as invalid');
+
+	stepDragonReactionState(state, 0.5, 1, createReactionConfig(() => 6));
+	assert.equal(state.center.y, 16, 'the pursuit center must resume terrain following as soon as a finite sample returns');
+}
+
 function runAllThrowingFailSafeProof() {
 	const dragon = createDragon({ y: 23, yaw: Math.PI / 2 });
 	assert.doesNotThrow(() => clampAltitudeAboveGround(dragon, () => { throw new Error('terrain unavailable'); }, 10));
@@ -77,6 +138,7 @@ function runFiniteCompatibilityProof() {
 
 runIsolatedInvalidCurrentSampleProof();
 runThrowingCurrentSampleProof();
+runThrowingPursuitCenterProof();
 runAllThrowingFailSafeProof();
 runAllInvalidFailSafeProof();
 runFiniteCompatibilityProof();
