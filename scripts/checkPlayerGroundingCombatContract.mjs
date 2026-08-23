@@ -35,6 +35,21 @@ requireMatch(player, /gameEvents\.on\(EVENTS\.PLAYER_DAMAGED, onIncomingDamage\)
   'Defense must continue consuming the shared PLAYER_DAMAGED event.');
 requireMatch(player, /publishAttackWindow\('active-start'\)/,
   'Melee hit timing must retain an explicit active-window event.');
+requireMatch(player, /HIT_POISE_DAMAGE_RATIO:\s*1/,
+  'Unguarded hits must have an explicit bounded poise damage ratio.');
+requireMatch(player, /HIT_STAGGER_SECONDS:\s*0\.32/,
+  'Hit stagger must use a short bounded authored duration.');
+requireMatch(player, /if \(!guarding \|\| stamina <= 0\) \{ spendPoise\(rawAmount \* PLAYER_ACTION_CONFIG\.HIT_POISE_DAMAGE_RATIO\);/,
+  'Unguarded damage must consume poise without replacing health damage semantics.');
+requireMatch(player, /function triggerHitStagger\(\)[\s\S]*interruptAttackForHit\(\)[\s\S]*movementState = 'hit-stagger'/,
+  'Poise break must enter the existing player state machine and interrupt melee cleanly.');
+requireMatch(player, /publishAttackWindow\('interrupted'\)/,
+  'Interrupted melee must publish a terminal combat-window phase for existing consumers.');
+requireMatch(player, /hitStaggerRemaining > 0\) \{ guarding = false; movementState = 'hit-stagger';/,
+  'Hit stagger must suppress locomotion through the canonical update precedence.');
+requireMatch(player, /hitStaggerRemaining: Number\(hitStaggerRemaining\.toFixed\(3\)\)/,
+  'Hit stagger state must be exposed through existing player motion telemetry.');
+if (/payload\.amount\s*=\s*0/.test(player.match(/if \(!guarding \|\| stamina <= 0\)[\s\S]*?return; \}/)?.[0] || '')) throw new Error('Unguarded stagger must not erase authoritative health damage.');
 requireMatch(playerConfig, /MODEL_URL:\s*['"][^'"]+\.fbx['"]/, 'Player must use a shipped FBX character asset.');
 requireMatch(playerConfig, /idle:\s*['"][^'"]+\.fbx['"]/, 'Player must use a shipped idle animation asset.');
 requireMatch(playerConfig, /walking:\s*['"][^'"]+\.fbx['"]/, 'Player must use a shipped walking animation asset.');
