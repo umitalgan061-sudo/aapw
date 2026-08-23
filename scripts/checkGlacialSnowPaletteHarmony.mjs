@@ -40,6 +40,8 @@ assert(P.shelteredGlacialRetentionFloor >= 0.5 && P.shelteredGlacialRetentionFlo
   'deep shelter must soften, not erase, the far-north glacial-family link');
 assert(P.accumulatedPermanentIceScale >= 0.45 && P.accumulatedPermanentIceScale <= 0.6,
   'permanent-ice accumulated snow should stay soft without becoming a warm isolated patch');
+assert(P.shelteredGlacialAccumulationCooling >= 0.1 && P.shelteredGlacialAccumulationCooling <= 0.25,
+  'deep glacial shelter cooling should be visible but remain a bounded render-only correction');
 
 const packedHex = readPaletteHex('PACKED_SNOW');
 const accumulatedHex = readPaletteHex('ACCUMULATED_SNOW');
@@ -103,6 +105,14 @@ const tundraShallowShelter = resolveTerrainSnowSurfaceTone({
   concavityHold: 0.65,
   gentleSlope: 0.8,
 });
+const transitionShelter = resolveTerrainSnowSurfaceTone({
+  snowAmount: 0.82,
+  permanentIce: 0.5,
+  tundra: 1,
+  leeDeposit: 0.9,
+  concavityHold: 0.85,
+  gentleSlope: 0.9,
+});
 
 assert(permanentLee.glacialFamilySupport > 0.55,
   'deep far-north shelter should retain enough glacial-family support to avoid cream islands');
@@ -112,10 +122,19 @@ assert(permanentLee.shelteredGlacialBridge > 0,
   'deep permanent-ice shelter should keep a direct cold-family bridge');
 assert.equal(tundraLee.shelteredGlacialBridge, 0,
   'pure tundra shelter must not inherit the permanent-ice cold bridge');
+assert(permanentLee.accumulationGlacialCooling > 0,
+  'deep permanent-ice shelter should actively reduce warm accumulated tint through glacial support');
+assert.equal(tundraLee.accumulationGlacialCooling, 0,
+  'pure tundra shelter must not receive permanent-ice glacial accumulation cooling');
+assert(transitionShelter.accumulationGlacialCooling > 0
+  && transitionShelter.accumulationGlacialCooling < permanentLee.accumulationGlacialCooling,
+  'map-aligned transition shelter should cool smoothly between tundra and permanent ice');
+assert(permanentLee.accumulationClimateScale < P.accumulatedPermanentIceScale,
+  'deep permanent-ice shelter should cool slightly beyond the broad permanent-ice warm-tint scale');
 assert(permanentLee.accumulatedWeight < tundraLee.accumulatedWeight * 0.65,
   'permanent-ice lee snow should be materially less warm-tinted than equivalent tundra drift');
-assert(permanentLee.accumulatedWeight > 0.2,
-  'far-north lee bowls must still read as visibly accumulated snow');
+assert(permanentLee.accumulatedWeight > 0.18,
+  'far-north lee bowls must still read as visibly accumulated snow after glacial harmony cooling');
 assert(permanentLee.packedWeight > 0,
   'far-north sheltered snow should retain a small cold-family contribution');
 assert(permanentWindward.packedWeight > permanentNeutral.packedWeight,
@@ -136,6 +155,7 @@ for (const sample of [
   permanentWindward,
   permanentShallowShelter,
   tundraShallowShelter,
+  transitionShelter,
 ]) {
   for (const key of [
     'packedWeight',
@@ -143,6 +163,7 @@ for (const sample of [
     'glacialFamilySupport',
     'shelteredGlacialRetention',
     'shelteredGlacialBridge',
+    'accumulationGlacialCooling',
     'visibleSnow',
   ]) {
     assert(Number.isFinite(sample[key]) && sample[key] >= -EPSILON && sample[key] <= 1 + EPSILON,
@@ -169,6 +190,9 @@ console.log(JSON.stringify({
   permanentLeeGlacialSupport: permanentLee.glacialFamilySupport,
   permanentLeeShelteredRetention: permanentLee.shelteredGlacialRetention,
   permanentLeeShelteredBridge: permanentLee.shelteredGlacialBridge,
+  permanentLeeAccumulationCooling: permanentLee.accumulationGlacialCooling,
+  transitionAccumulationCooling: transitionShelter.accumulationGlacialCooling,
+  permanentLeeAccumulationScale: permanentLee.accumulationClimateScale,
   shallowShelterPackedDelta: permanentShallowShelter.packedWeight - tundraShallowShelter.packedWeight,
   permanentWindwardPackedWeight: permanentWindward.packedWeight,
   heightAuthorityUnchanged: true,
