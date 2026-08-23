@@ -9,18 +9,21 @@
  */
 
 const clamp01 = (value) => (value < 0 ? 0 : value > 1 ? 1 : value);
+const lerp = (a, b, t) => a + (b - a) * t;
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-23-v2-sheltered-accumulation',
+  id: 'terrain-snow-surface-tone-2026-08-23-v3-cryosphere-harmony',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
   packedWindwardGain: 0.72,
   packedRidgeGain: 0.34,
   packedPermanentIceFloor: 0.10,
+  packedGlacialContinuityGain: 0.08,
   accumulatedLeeGain: 0.72,
   accumulatedConcavityGain: 0.42,
   accumulatedGentleSlopeGain: 0.16,
+  accumulatedPermanentIceScale: 0.70,
   tundraToneScale: 0.78,
   minimumVisibleSnow: 0.08,
   minimumAccumulatedSnow: 0.22,
@@ -36,6 +39,10 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
  * Resolve visual-only snow tone weights from authoritative snow coverage telemetry.
  * Packed and accumulated weights intentionally compete so a vertex cannot simultaneously read as
  * a scoured hard ridge and a deep sheltered drift.
+ *
+ * Permanent-ice terrain deliberately biases retained snow toward the packed/cold family and tones
+ * down the warm accumulated interpretation. That keeps mountain snow visually continuous with the
+ * existing GLACIAL_ICE / COASTAL_ICE family without changing where snow exists or how much is held.
  */
 export function resolveTerrainSnowSurfaceTone({
   snowAmount = 0,
@@ -49,17 +56,21 @@ export function resolveTerrainSnowSurfaceTone({
 } = {}) {
   const P = TERRAIN_SNOW_SURFACE_TONE_POLICY;
   const normalizedSnow = clamp01(snowAmount);
+  const permanentIceWeight = clamp01(permanentIce);
+  const tundraWeight = clamp01(tundra);
   const visibleSnow = clamp01((normalizedSnow - P.minimumVisibleSnow) / (1 - P.minimumVisibleSnow));
   const accumulationVisibleSnow = clamp01(
     (normalizedSnow - P.minimumAccumulatedSnow) / (1 - P.minimumAccumulatedSnow),
   );
-  const climate = clamp01(Math.max(clamp01(permanentIce), clamp01(tundra) * P.tundraToneScale));
+  const climate = clamp01(Math.max(permanentIceWeight, tundraWeight * P.tundraToneScale));
 
   if (visibleSnow <= 0 || climate <= 0) {
     return Object.freeze({
       visibleSnow,
       accumulationVisibleSnow,
       climate,
+      glacialContinuity: 0,
+      accumulationClimateScale: 1,
       packedWeight: 0,
       accumulatedWeight: 0,
       neutralWeight: visibleSnow,
@@ -68,10 +79,12 @@ export function resolveTerrainSnowSurfaceTone({
     });
   }
 
+  const glacialContinuity = permanentIceWeight * visibleSnow;
   const packedSignal = clamp01(
     clamp01(windwardScour) * P.packedWindwardGain
       + clamp01(ridgeExposure) * P.packedRidgeGain
-      + clamp01(permanentIce) * P.packedPermanentIceFloor,
+      + permanentIceWeight * P.packedPermanentIceFloor
+      + glacialContinuity * P.packedGlacialContinuityGain,
   );
   const shelterSignal = Math.max(clamp01(leeDeposit), clamp01(concavityHold));
   const gentleShelterSupport = clamp01(gentleSlope) * shelterSignal * P.accumulatedGentleSlopeGain;
@@ -80,6 +93,7 @@ export function resolveTerrainSnowSurfaceTone({
       + clamp01(concavityHold) * P.accumulatedConcavityGain
       + gentleShelterSupport,
   );
+  const accumulationClimateScale = lerp(1, P.accumulatedPermanentIceScale, permanentIceWeight);
 
   // A sheltered accumulation signal suppresses the packed interpretation and vice versa. This
   // avoids muddy double-tinting on transition vertices where both upstream signals are non-zero.
@@ -87,10 +101,12 @@ export function resolveTerrainSnowSurfaceTone({
   const accumulatedDominance = accumulatedSignal * (1 - packedSignal * 0.72);
   const packedWeight = Math.min(P.maximumPackedWeight, packedDominance * visibleSnow * climate);
   // Thin veneers can look cold/packed, but should not read as deep creamy drifts. Accumulated tone
-  // therefore needs a little more retained snow than the generic visible-snow threshold.
+  // therefore needs a little more retained snow than the generic visible-snow threshold. Deep snow
+  // remains visible in permanent ice, but its warm/soft tint is moderated so it harmonises with the
+  // surrounding glacial/coastal ice rather than forming isolated cream-coloured patches.
   const accumulatedWeight = Math.min(
     P.maximumAccumulatedWeight,
-    accumulatedDominance * accumulationVisibleSnow * climate,
+    accumulatedDominance * accumulationVisibleSnow * climate * accumulationClimateScale,
   );
   const neutralWeight = clamp01(visibleSnow * (1 - Math.max(packedWeight, accumulatedWeight)));
 
@@ -98,6 +114,8 @@ export function resolveTerrainSnowSurfaceTone({
     visibleSnow,
     accumulationVisibleSnow,
     climate,
+    glacialContinuity,
+    accumulationClimateScale,
     shelterSignal,
     gentleShelterSupport,
     packedWeight,
