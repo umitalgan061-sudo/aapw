@@ -13,7 +13,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-23-v8-sheltered-glacial-bridge',
+  id: 'terrain-snow-surface-tone-2026-08-24-v9-glacial-accumulation-harmony',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
@@ -32,6 +32,7 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   accumulatedGentleSlopeGain: 0.16,
   accumulatedPermanentIceScale: 0.54,
   shelteredGlacialRetentionFloor: 0.58,
+  shelteredGlacialAccumulationCooling: 0.18,
   tundraToneScale: 0.78,
   minimumVisibleSnow: 0.08,
   minimumAccumulatedSnow: 0.22,
@@ -86,6 +87,7 @@ export function resolveTerrainSnowSurfaceTone({
       shelteredGlacialRetention: 0,
       shelteredGlacialBridge: 0,
       transitionColdSupport: 0,
+      accumulationGlacialCooling: 0,
       accumulationClimateScale: 1,
       packedWeight: 0,
       accumulatedWeight: 0,
@@ -134,7 +136,15 @@ export function resolveTerrainSnowSurfaceTone({
       + clamp01(concavityHold) * P.accumulatedConcavityGain
       + gentleShelterSupport,
   );
-  const accumulationClimateScale = lerp(1, P.accumulatedPermanentIceScale, permanentIceWeight);
+  // Permanent-ice shelter remains visibly soft, but its warm accumulated tint should lose strength
+  // in proportion to the actual glacial-family support beneath it. This is deliberately separate
+  // from the simple permanent-ice scale so authored transition areas cool smoothly instead of
+  // changing character at a binary climate boundary.
+  const accumulationGlacialCooling = clamp01(
+    glacialFamilySupport * deepShelter * P.shelteredGlacialAccumulationCooling,
+  );
+  const accumulationClimateScale = lerp(1, P.accumulatedPermanentIceScale, permanentIceWeight)
+    * (1 - accumulationGlacialCooling);
 
   // A sheltered accumulation signal suppresses the packed interpretation and vice versa. This
   // avoids muddy double-tinting on transition vertices where both upstream signals are non-zero.
@@ -162,6 +172,7 @@ export function resolveTerrainSnowSurfaceTone({
     shelteredGlacialRetention,
     shelteredGlacialBridge,
     transitionColdSupport,
+    accumulationGlacialCooling,
     accumulationClimateScale,
     shelterSignal,
     gentleShelterSupport,
