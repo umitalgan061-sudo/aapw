@@ -7,9 +7,11 @@ const EPSILON = 1e-9;
 assert.equal(P.renderOnly, true);
 assert.equal(P.heightAuthorityUnchanged, true);
 assert.equal(P.snowCoverageAuthorityUnchanged, true);
+assert.equal(P.cryosphereToneUnion, true);
 assert(P.minimumAccumulatedSnow > P.minimumVisibleSnow);
 assert(P.accumulatedPermanentIceScale < 1, 'permanent ice should temper warm accumulated-snow tint');
 assert(P.packedGlacialContinuityGain > 0, 'permanent ice should reinforce the packed/cold snow family');
+assert(P.packedTransitionColdGain > 0, 'ice transition should carry bounded cold-tone support');
 
 const bare = resolveTerrainSnowSurfaceTone({ snowAmount: 0.02, permanentIce: 1, windwardScour: 1, ridgeExposure: 1 });
 assert.equal(bare.packedWeight, 0);
@@ -67,6 +69,36 @@ assert(lee.accumulatedWeight < tundraLee.accumulatedWeight,
   'permanent-ice drifts should stay soft but less cream-tinted than equivalent tundra drifts');
 assert(lee.accumulatedWeight > 0, 'permanent-ice lee bowls must retain visible accumulated-snow character');
 
+// The map-aligned north combines authored tundra and permanent-ice fields. Tone influence should
+// cross that overlap smoothly rather than producing a max()-selection kink where their weights meet.
+const transitionSamples = [];
+let maxClimateStep = 0;
+let maxPackedStep = 0;
+for (let i = 0; i <= 40; i += 1) {
+  const permanentIce = i / 40;
+  const tundra = 1 - permanentIce * 0.35;
+  const sample = resolveTerrainSnowSurfaceTone({
+    snowAmount: 0.82,
+    permanentIce,
+    tundra,
+    windwardScour: 0.68,
+    ridgeExposure: 0.55,
+  });
+  transitionSamples.push(sample);
+  if (i > 0) {
+    const previous = transitionSamples[i - 1];
+    maxClimateStep = Math.max(maxClimateStep, Math.abs(sample.climate - previous.climate));
+    maxPackedStep = Math.max(maxPackedStep, Math.abs(sample.packedWeight - previous.packedWeight));
+  }
+}
+assert(maxClimateStep < 0.03, `cryosphere tone climate should stay locally smooth; step=${maxClimateStep}`);
+assert(maxPackedStep < 0.035, `packed-snow tone should stay locally smooth across ice transition; step=${maxPackedStep}`);
+assert.equal(transitionSamples[0].transitionColdSupport, 0, 'pure tundra endpoint needs no transition-only cold support');
+assert.equal(transitionSamples.at(-1).transitionColdSupport, 0, 'pure permanent-ice endpoint needs no transition-only cold support');
+assert(transitionSamples[20].transitionColdSupport > 0, 'mixed cryosphere should receive bounded transition cold support');
+assert(transitionSamples[20].climate > Math.max(0.5, (1 - 0.5 * 0.35) * P.tundraToneScale),
+  'bounded union should retain both overlapping climate influences rather than selecting only one');
+
 const mixed = resolveTerrainSnowSurfaceTone({
   snowAmount: 1, permanentIce: 1, tundra: 1,
   windwardScour: 1, leeDeposit: 1, ridgeExposure: 1, concavityHold: 1, gentleSlope: 1,
@@ -76,11 +108,11 @@ assert(mixed.accumulatedWeight <= P.maximumAccumulatedWeight + EPSILON);
 
 for (const sample of [
   bare, south, neutral, windward, lee, crosswind, gentleUnsheltered, thinSheltered,
-  tundraPacked, tundraLee, mixed,
+  tundraPacked, tundraLee, mixed, ...transitionSamples,
 ]) {
   for (const key of [
-    'visibleSnow', 'accumulationVisibleSnow', 'climate', 'glacialContinuity',
-    'accumulationClimateScale', 'packedWeight', 'accumulatedWeight', 'neutralWeight',
+    'visibleSnow', 'accumulationVisibleSnow', 'climate', 'tundraToneWeight', 'glacialContinuity',
+    'transitionColdSupport', 'accumulationClimateScale', 'packedWeight', 'accumulatedWeight', 'neutralWeight',
   ]) {
     assert(Number.isFinite(sample[key]) && sample[key] >= 0 && sample[key] <= 1, `${key} must be normalized`);
   }
@@ -111,6 +143,9 @@ console.log(JSON.stringify({
   tundraLeeAccumulatedWeight: tundraLee.accumulatedWeight,
   glacialContinuity: windward.glacialContinuity,
   permanentIceAccumulationScale: lee.accumulationClimateScale,
+  transitionMidColdSupport: transitionSamples[20].transitionColdSupport,
+  transitionMaxClimateStep: maxClimateStep,
+  transitionMaxPackedStep: maxPackedStep,
   gentleUnshelteredAccumulatedWeight: gentleUnsheltered.accumulatedWeight,
   thinShelteredAccumulatedWeight: thinSheltered.accumulatedWeight,
   tundraPackedWeight: tundraPacked.packedWeight,
