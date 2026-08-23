@@ -32,8 +32,8 @@ jobs:
           test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
           changed="$(git diff --name-only origin/main...HEAD)"
           printf '%s\n' "$changed"
-          test "$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)" -eq 4
-          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/dragonFlightMath\.js|src/3d/gameplay/dragonController\.js|scripts/checkDragonDiveHeading\.mjs|\.github/workflows/dragon-dive-heading\.yml)$' && exit 1 || true
+          test "$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)" -eq 3
+          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/dragonFlightMath\.js|scripts/checkDragonDiveHeading\.mjs|\.github/workflows/dragon-dive-heading\.yml)$' && exit 1 || true
           additions="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END {print s+0}')"
           deletions="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END {print s+0}')"
           test $((additions + deletions)) -le 1000
@@ -55,7 +55,9 @@ jobs:
           ! grep -q 'EditorMaterialStudio' src/3d/gameplay/dragonFlightMath.js
           grep -q 'applyDiveOffset' src/3d/gameplay/dragonController.js
           grep -q 'alignDiveOrientation' src/3d/gameplay/dragonController.js
-          grep -q 'targetPitch' src/3d/gameplay/dragonFlightMath.js
+          grep -q 'clampAltitudeAboveGround(model' src/3d/gameplay/dragonController.js
+          grep -q 'DRAGON_TERRAIN_LOOKAHEAD_METERS' src/3d/gameplay/dragonFlightMath.js
+          grep -q 'highestGroundY' src/3d/gameplay/dragonFlightMath.js
           node - <<'NODE'
           const fs = require('fs');
           const src = fs.readFileSync('src/3d/gameplay/dragonController.js', 'utf8');
@@ -63,6 +65,13 @@ jobs:
           const align = src.indexOf('alignDiveOrientation(model');
           if (clamp < 0 || align < 0 || align < clamp) {
             throw new Error('final dive orientation must be recomputed after terrain clamp');
+          }
+          const math = fs.readFileSync('src/3d/gameplay/dragonFlightMath.js', 'utf8');
+          const currentProbe = math.indexOf('sampleGroundY(object3D.position.x, object3D.position.z)');
+          const halfProbe = math.indexOf('halfLookAhead');
+          const fullProbe = math.indexOf('forwardX * lookAheadMeters');
+          if (currentProbe < 0 || halfProbe < currentProbe || fullProbe < halfProbe) {
+            throw new Error('terrain lookahead must preserve current-point probe before bounded forward probes');
           }
           NODE
 
