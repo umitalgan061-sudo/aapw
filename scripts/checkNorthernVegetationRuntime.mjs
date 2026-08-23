@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { WORLD_SCALE } from '../src/3d/config.js';
 import { WORLD_REFERENCE_ALIGNMENT } from '../src/3d/world/worldReferenceAlignment.js';
 import { createVegetation, disposeVegetation } from '../src/3d/world/vegetation.js';
-import { northClimateWeightsAtWorldZ } from '../src/3d/world/terrainBiomeShading.js';
+import { northClimateWeightsAtWorldXZ } from '../src/3d/world/terrainBiomeShading.js';
 
 function worldZForNormalizedMapY(normalizedY) {
   const centerMapY = (WORLD_SCALE.MAP_BOUNDS.minY + WORLD_SCALE.MAP_BOUNDS.maxY) * 0.5;
@@ -44,15 +44,15 @@ const scale = new THREE.Vector3();
 let snowInNorth = 0;
 let greenRoundInFrozenClimate = 0;
 let ordinaryPineInPermanentIce = 0;
-let southRound = 0;
+let temperateRound = 0;
 
 for (let i = 0; i < snowTrunks.count; i += 1) {
   snowTrunks.getMatrixAt(i, matrix);
   matrix.decompose(position, quaternion, scale);
-  const climate = northClimateWeightsAtWorldZ(position.z);
+  const climate = northClimateWeightsAtWorldXZ(position.x, position.z);
   assert(
     Math.max(climate.permanentIce, climate.tundra) >= 0.20,
-    `snow pine ${i} escaped northern climate band at z=${position.z}`,
+    `snow pine ${i} escaped map-aligned northern climate at x=${position.x}, z=${position.z}`,
   );
   if (climate.permanentIce >= 0.55) snowInNorth += 1;
 }
@@ -60,28 +60,28 @@ for (let i = 0; i < snowTrunks.count; i += 1) {
 for (let i = 0; i < roundTrunks.count; i += 1) {
   roundTrunks.getMatrixAt(i, matrix);
   matrix.decompose(position, quaternion, scale);
-  const climate = northClimateWeightsAtWorldZ(position.z);
+  const climate = northClimateWeightsAtWorldXZ(position.x, position.z);
   if (Math.max(climate.permanentIce, climate.tundra) >= 0.20) greenRoundInFrozenClimate += 1;
-  if (climate.permanentIce === 0 && climate.tundra === 0) southRound += 1;
+  if (climate.permanentIce === 0 && climate.tundra === 0) temperateRound += 1;
 }
 
 for (let i = 0; i < pineTrunks.count; i += 1) {
   pineTrunks.getMatrixAt(i, matrix);
   matrix.decompose(position, quaternion, scale);
-  const climate = northClimateWeightsAtWorldZ(position.z);
+  const climate = northClimateWeightsAtWorldXZ(position.x, position.z);
   if (climate.permanentIce >= 0.55) ordinaryPineInPermanentIce += 1;
 }
 
-assert(snowInNorth > 0, 'permanent-ice band must render snow-pine instances');
-assert.equal(greenRoundInFrozenClimate, 0, 'broadleaf green round crowns must be absent from tundra/ice');
-assert.equal(ordinaryPineInPermanentIce, 0, 'ordinary green pine must be absent from permanent ice');
-assert(southRound > 0, 'temperate south must still retain round-crown variety');
+assert(snowInNorth > 0, 'permanent-ice map zone must render snow-pine instances');
+assert.equal(greenRoundInFrozenClimate, 0, 'broadleaf green round crowns must be absent from map-aligned tundra/ice');
+assert.equal(ordinaryPineInPermanentIce, 0, 'ordinary green pine must be absent from map-aligned permanent ice');
+assert(temperateRound > 0, 'temperate map zones must still retain round-crown variety');
 
 disposeVegetation(result.group);
 console.log('[checkNorthernVegetationRuntime] PASS', JSON.stringify({
   placedCount: result.placedCount,
   winterTreeCount: result.winterTreeCount,
   snowInPermanentIce: snowInNorth,
-  southRound,
+  temperateRound,
   radiusMeters: requiredRadius,
 }));
