@@ -6,6 +6,7 @@ on:
       - 'src/3d/world/terrainBiomeShading.js'
       - 'scripts/checkCoastalCryosphereWidth.mjs'
       - 'scripts/checkCoastalCryosphereShallows.mjs'
+      - 'scripts/checkFrozenShoreIntertidalPalette.mjs'
       - '.github/workflows/coastal-cryosphere-width.yml'
   workflow_dispatch:
 
@@ -35,9 +36,13 @@ jobs:
           node --check src/3d/world/terrainBiomeShading.js
           node --check scripts/checkCoastalCryosphereWidth.mjs
           node --check scripts/checkCoastalCryosphereShallows.mjs
+          node --check scripts/checkFrozenShoreIntertidalPalette.mjs
 
       - name: Climate-scaled shoreline apron contract
         run: node scripts/checkCoastalCryosphereWidth.mjs
 
       - name: Glacial shallow-water continuity contract
         run: node scripts/checkCoastalCryosphereShallows.mjs
+
+      - name: Frozen shoreline intertidal palette contract
+        run: node scripts/checkFrozenShoreIntertidalPalette.mjs
