@@ -6,6 +6,7 @@
 
 export const DRAGON_TERRAIN_LOOKAHEAD_METERS = 12;
 export const DRAGON_TERRAIN_PROBE_SPACING_METERS = 1;
+export const DRAGON_TERRAIN_MAX_TRAVERSED_SWEEP_METERS = 48;
 
 export function easeBlendToward(currentBlend, targetBlend, delta, transitionSeconds) {
 	if (transitionSeconds > 0) {
@@ -96,13 +97,14 @@ function sampleSegmentGround(sampleGroundY, startX, startZ, unitX, unitZ, distan
 
 /**
  * Deterministically samples the actual traversed XZ segment and then a bounded strip ahead of the
- * rendered dragon. Sampling only the terminal point plus forward lookahead can tunnel across a
- * narrow ridge when a long frame moves farther than the configured lookahead. Retained previous
- * rendered XZ therefore owns the safety path whenever available: every traversed metre is sampled
- * at the same conservative spacing before the forward strip is projected. Facing yaw remains only
- * a compatibility fallback when no retained motion exists. The forward strip is always bounded to
- * `lookAheadMeters`; traversed work scales only with distance the dragon actually crossed in that
- * frame and allocates nothing. `lookAheadMeters=0` preserves historical point-only behavior.
+ * rendered dragon. Normal frame travel is swept at the conservative probe spacing before the
+ * forward strip is projected. Retained positions that are farther apart than
+ * `maxTraversedSweepMeters` are treated as a discontinuity (teleport, resume-from-background or
+ * external reposition): the destination and normal forward lookahead remain terrain-safe, but the
+ * unrendered gap is deliberately not sampled metre-by-metre. This caps one dragon's terrain work
+ * under pathological frame gaps while preserving the qualified long-frame anti-tunnelling path for
+ * ordinary movement. Facing yaw remains only a compatibility fallback when no retained motion
+ * exists. `lookAheadMeters=0` preserves historical point-only behavior.
  */
 export function clampAltitudeAboveGround(
 	object3D,
@@ -112,8 +114,13 @@ export function clampAltitudeAboveGround(
 	probeSpacingMeters = DRAGON_TERRAIN_PROBE_SPACING_METERS,
 	motionX,
 	motionZ,
+	maxTraversedSweepMeters = DRAGON_TERRAIN_MAX_TRAVERSED_SWEEP_METERS,
 ) {
+	object3D.userData ??= {};
+	let terrainSampleCount = 1;
 	let highestGroundY = sampleGroundY(object3D.position.x, object3D.position.z);
+	let traversedDistance = 0;
+	let skippedDiscontinuity = false;
 	if (lookAheadMeters > 0) {
 		const spacing = Number.isFinite(probeSpacingMeters) && probeSpacingMeters > 0
 			? Math.min(probeSpacingMeters, lookAheadMeters)
@@ -142,13 +149,17 @@ export function clampAltitudeAboveGround(
 			forwardX /= motionLength;
 			forwardZ /= motionLength;
 			const keepHighest = (groundY) => {
+				terrainSampleCount += 1;
 				if (groundY > highestGroundY) highestGroundY = groundY;
 			};
 			if (hasRetainedPosition) {
 				const traversedX = object3D.position.x - previousX;
 				const traversedZ = object3D.position.z - previousZ;
-				const traversedDistance = Math.hypot(traversedX, traversedZ);
-				if (traversedDistance > 1e-8) {
+				traversedDistance = Math.hypot(traversedX, traversedZ);
+				const boundedMaxTraversed = Number.isFinite(maxTraversedSweepMeters) && maxTraversedSweepMeters > 0
+					? maxTraversedSweepMeters
+					: DRAGON_TERRAIN_MAX_TRAVERSED_SWEEP_METERS;
+				if (traversedDistance > 1e-8 && traversedDistance <= boundedMaxTraversed) {
 					sampleSegmentGround(
 						sampleGroundY,
 						previousX,
@@ -161,6 +172,8 @@ export function clampAltitudeAboveGround(
 						false,
 						keepHighest,
 					);
+				} else if (traversedDistance > boundedMaxTraversed) {
+					skippedDiscontinuity = true;
 				}
 			}
 			sampleSegmentGround(
@@ -177,6 +190,9 @@ export function clampAltitudeAboveGround(
 			);
 		}
 	}
+	object3D.userData.dragonTerrainTraversedMeters = traversedDistance;
+	object3D.userData.dragonTerrainSweepDiscontinuity = skippedDiscontinuity;
+	object3D.userData.dragonTerrainSampleCount = terrainSampleCount;
 	const minY = highestGroundY + minAltitudeAboveGroundMeters;
 	if (object3D.position.y < minY) object3D.position.y = minY;
 }
