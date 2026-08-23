@@ -13,6 +13,7 @@ function fakeDragon() {
   return {
     position: { x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; } },
     rotation: { x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; } },
+    userData: {},
   };
 }
 function poseSnapshot(d) { return { position: { x: d.position.x, y: d.position.y, z: d.position.z }, rotation: { x: d.rotation.x, y: d.rotation.y, z: d.rotation.z } }; }
@@ -85,10 +86,26 @@ assert.deepEqual(sampled[0], [0, 0]);
 assert.ok(sampled.some(([x]) => Math.abs(x - 3) < 1e-10), 'subdivision must sample a narrow ridge between the old 0/6/12m point probes');
 assert.equal(ridge.position.y, 24, 'narrow ridge inside swept strip must raise the rendered dragon');
 for (let i = 2; i < sampled.length; i += 1) {
-  assert.ok(sampled[i][0] > sampled[i - 1][0], 'lookahead probes must progress monotonically along heading');
+  assert.ok(sampled[i][0] > sampled[i - 1][0], 'lookahead probes must progress monotonically along heading fallback');
   assert.ok(sampled[i][0] - sampled[i - 1][0] <= DRAGON_TERRAIN_PROBE_SPACING_METERS + 1e-10, 'probe spacing must remain bounded');
 }
 assert.ok(Math.abs(sampled.at(-1)[0] - DRAGON_TERRAIN_LOOKAHEAD_METERS) < 1e-10, 'sweep must include full lookahead endpoint');
+
+// P1 regression: a committed dive can face inward while its rendered frame-to-frame trajectory is
+// tangential. The terrain sweep must follow the actual previous→current displacement, not yaw.
+const motionRidge = fakeDragon();
+motionRidge.position.set(0, 18, 4);
+motionRidge.rotation.set(0, Math.PI / 2, 0); // faces +X, deliberately different from +Z motion
+motionRidge.userData.dragonPreviousRenderedX = 0;
+motionRidge.userData.dragonPreviousRenderedZ = 0;
+const motionSamples = [];
+clampAltitudeAboveGround(motionRidge, (x, z) => {
+  motionSamples.push([x, z]);
+  return Math.abs(x) < 1e-10 && z >= 6.75 && z <= 7.25 ? 16 : 0;
+}, 10);
+assert.ok(motionSamples.some(([x, z]) => Math.abs(x) < 1e-10 && Math.abs(z - 7) < 1e-10), 'terrain sweep must follow actual rendered +Z motion even when yaw faces +X');
+assert.ok(motionSamples.slice(1).every(([x]) => Math.abs(x) < 1e-10), 'yaw must not steer lookahead away from a valid retained motion vector');
+assert.equal(motionRidge.position.y, 26, 'ridge on the real rendered trajectory must raise the dragon before crossing it');
 
 const pointOnly = fakeDragon();
 pointOnly.position.set(0, 18, 0);
@@ -103,4 +120,4 @@ applyCirclePose(repeat, center, 20, 0, 0.2);
 applyDiveOffset(repeat, { playerX: 30, playerZ: -10, centerY: center.y, diveDropMeters: 24, lateralPullFraction: 0.7, diveBlend: 1 });
 assert.deepEqual(poseSnapshot(repeat), poseSnapshot(dragon));
 
-console.log('DRAGON_DIVE_HEADING_PASS', JSON.stringify({ patrolYaw, committedYaw: dragon.rotation.y, committedPitch: dragon.rotation.x, clampedPitch: clamped.rotation.x, terrainLookaheadMeters: DRAGON_TERRAIN_LOOKAHEAD_METERS, probeSpacingMeters: DRAGON_TERRAIN_PROBE_SPACING_METERS, terrainLookaheadSamples: sampled.length, bankPreserved: dragon.rotation.z, deterministic: true }));
+console.log('DRAGON_DIVE_HEADING_PASS', JSON.stringify({ patrolYaw, committedYaw: dragon.rotation.y, committedPitch: dragon.rotation.x, clampedPitch: clamped.rotation.x, terrainLookaheadMeters: DRAGON_TERRAIN_LOOKAHEAD_METERS, probeSpacingMeters: DRAGON_TERRAIN_PROBE_SPACING_METERS, terrainLookaheadSamples: sampled.length, motionDirectedSamples: motionSamples.length, bankPreserved: dragon.rotation.z, deterministic: true }));
