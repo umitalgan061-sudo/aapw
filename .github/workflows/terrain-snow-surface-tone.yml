@@ -1,0 +1,35 @@
+name: Terrain Snow Surface Tone
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/terrainSnowSurfaceTone.js'
+      - 'scripts/checkTerrainSnowSurfaceTone.mjs'
+      - '.github/workflows/terrain-snow-surface-tone.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  terrain-snow-surface-tone:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Syntax check
+        run: |
+          node --check src/3d/world/terrainSnowSurfaceTone.js
+          node --check scripts/checkTerrainSnowSurfaceTone.mjs
+
+      - name: Snow surface tone contract
+        run: node scripts/checkTerrainSnowSurfaceTone.mjs
