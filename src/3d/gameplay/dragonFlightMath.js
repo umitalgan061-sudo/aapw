@@ -18,6 +18,8 @@
  * @module gameplay/dragonFlightMath
  */
 
+export const DRAGON_TERRAIN_LOOKAHEAD_METERS = 12;
+
 export function easeBlendToward(currentBlend, targetBlend, delta, transitionSeconds) {
 	if (transitionSeconds > 0) {
 		const step = delta / transitionSeconds;
@@ -106,8 +108,35 @@ export function applyDiveOffset(object3D, { playerX, playerZ, centerY, diveDropM
 	alignDiveOrientation(object3D, circleX, centerY, circleZ, circlePitch, circleYaw, diveBlend);
 }
 
-export function clampAltitudeAboveGround(object3D, sampleGroundY, minAltitudeAboveGroundMeters) {
-	const groundY = sampleGroundY(object3D.position.x, object3D.position.z);
-	const minY = groundY + minAltitudeAboveGroundMeters;
+/**
+ * Keeps the rendered dragon above both the ground directly underneath it and a short, bounded strip
+ * ahead of its current heading. Sampling only the terminal X/Z point allowed a fast dive/circle step
+ * to move from one side of a narrow ridge to the other without ever observing the ridge itself,
+ * especially at lower frame rates. Two look-ahead probes add a deterministic anti-tunnelling floor
+ * without introducing a second terrain owner or per-frame allocation; ordinary flat-ground behavior
+ * remains identical. `lookAheadMeters=0` preserves the historical point-only clamp for pure callers.
+ */
+export function clampAltitudeAboveGround(
+	object3D,
+	sampleGroundY,
+	minAltitudeAboveGroundMeters,
+	lookAheadMeters = DRAGON_TERRAIN_LOOKAHEAD_METERS,
+) {
+	let highestGroundY = sampleGroundY(object3D.position.x, object3D.position.z);
+	if (lookAheadMeters > 0 && Number.isFinite(object3D.rotation?.y)) {
+		const forwardX = Math.sin(object3D.rotation.y);
+		const forwardZ = Math.cos(object3D.rotation.y);
+		const halfLookAhead = lookAheadMeters * 0.5;
+		const halfGroundY = sampleGroundY(
+			object3D.position.x + forwardX * halfLookAhead,
+			object3D.position.z + forwardZ * halfLookAhead,
+		);
+		const fullGroundY = sampleGroundY(
+			object3D.position.x + forwardX * lookAheadMeters,
+			object3D.position.z + forwardZ * lookAheadMeters,
+		);
+		highestGroundY = Math.max(highestGroundY, halfGroundY, fullGroundY);
+	}
+	const minY = highestGroundY + minAltitudeAboveGroundMeters;
 	if (object3D.position.y < minY) object3D.position.y = minY;
 }
