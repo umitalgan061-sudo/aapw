@@ -160,18 +160,18 @@ try {
   await page.keyboard.up('KeyQ'); await waitState('idle', 6000);
 
   // Isolate guard-break pressure from the earlier guard/parry poise spend without requiring a
-  // wall-clock wait for a completely refilled stamina bar. Seven guarded 20-point impacts spend
-  // 29.4 stamina in production; a >=40 stamina baseline is a real, bounded budget once the burst
-  // is emitted synchronously inside one browser task, so render cadence cannot add unrelated guard drain.
+  // wall-clock wait for a completely refilled stamina/poise bar. Seven guarded 20-point impacts
+  // remove 105 poise and spend 29.4 stamina; >90 poise guarantees the seventh real hit breaks
+  // guard while >=40 stamina provides the measured synchronous burst budget.
   const pressureBaseline = await waitForHistoryEvidence((frames) => {
     const frame = frames.at(-1);
     return frame?.state === 'idle'
       && frame.guardBreakRemaining === 0
       && frame.stamina >= 40
-      && frame.poise >= 99.5
+      && frame.poise > 90
       ? frame
       : null;
-  }, { timeout: 20000, interval: 100, label: 'full poise and bounded stamina budget before guard-break pressure' });
+  }, { timeout: 20000, interval: 100, label: 'seven-hit poise and bounded stamina budget before guard-break pressure' });
   need(pressureBaseline.canDodge && !pressureBaseline.guarding, `pressure baseline must restore locomotion ${JSON.stringify(pressureBaseline)}`);
   await page.evaluate(() => { window.__playerMotionFrames.length = 0; });
 
@@ -181,7 +181,7 @@ try {
   // health floor and shipped synchronous death->respawn reset.
   await page.keyboard.down('KeyQ');
   const pressureReady = await waitForHistoryEvidence((frames) => { const frame = frames.at(-1); return frame?.state === 'guard' && frame.guarding && frame.parryWindowRemaining === 0 ? frame : null; }, { timeout: 12000, interval: 100, label: 'guard ready for poise pressure' });
-  need(pressureReady.stamina >= 35 && pressureReady.poise >= 99.5, `poise pressure must start with the measured seven-hit resource budget ${JSON.stringify(pressureReady)}`);
+  need(pressureReady.stamina >= 35 && pressureReady.poise > 90, `poise pressure must start with the measured seven-hit resource budget ${JSON.stringify(pressureReady)}`);
   const breakHealthBefore = await readHealth();
   const marker = (await history()).length;
   const healthBurst = await emitMeasuredPlayerDamageBurst(20, 7, 'poise-break');
