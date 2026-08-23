@@ -19,7 +19,7 @@
 
 import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
-import { applyCirclePose, applyDiveOffset, clampAltitudeAboveGround } from './dragonFlightMath.js';
+import { alignDiveOrientation, applyCirclePose, applyDiveOffset, clampAltitudeAboveGround } from './dragonFlightMath.js';
 import { createDragonReactionState, stepDragonReactionState } from './dragonReactionState.js';
 
 /**
@@ -356,7 +356,17 @@ export async function createDragon({
 			// underlying path, so easing back to diveBlend 0 always lands exactly here again.
 			applyCirclePose(model, state.center, frame.currentCircleRadiusMeters, state.angle, frame.currentBankAngleRadians);
 
+			let diveOriginX = null;
+			let diveOriginY = 0;
+			let diveOriginZ = 0;
+			let diveOriginPitch = 0;
+			let diveOriginYaw = 0;
 			if (state.diveBlend > 0 && playerPosition) {
+				diveOriginX = model.position.x;
+				diveOriginY = model.position.y;
+				diveOriginZ = model.position.z;
+				diveOriginPitch = model.rotation.x;
+				diveOriginYaw = model.rotation.y;
 				applyDiveOffset(model, {
 					playerX: playerPosition.x,
 					playerZ: playerPosition.z,
@@ -371,6 +381,13 @@ export async function createDragon({
 			// dragon with no `sampleGroundY` (see `dragonFlightMath.js`'s own doc comment).
 			if (typeof sampleGroundY === 'function') {
 				clampAltitudeAboveGround(model, sampleGroundY, minAltitudeAboveGroundMeters);
+			}
+
+			// The terrain floor may raise a requested dive substantially. Recompute orientation from
+			// the real post-clamp path so the rendered body cannot point through the ground; this also
+			// handles a purely vertical dive where horizontal displacement is exactly zero.
+			if (diveOriginX != null) {
+				alignDiveOrientation(model, diveOriginX, diveOriginY, diveOriginZ, diveOriginPitch, diveOriginYaw, state.diveBlend);
 			}
 
 			// Run 90 (ADR-0116) bite: checked against the *final*, post-terrain-clamp position (the
