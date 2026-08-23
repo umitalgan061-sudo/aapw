@@ -31,7 +31,7 @@ jobs:
           git merge-base --is-ancestor origin/main HEAD
           mapfile -t files < <(git diff --name-only origin/main...HEAD)
           printf '%s\n' "${files[@]}"
-          allowed='^(\.github/workflows/rpg-expedition-tavern-recovery\.yml|scripts/checkInteractionExpeditionTavernRecovery\.mjs|src/3d/gameplay/interaction\.js|src/3d/gameplay/interactionConfig\.js|src/3d/gameplay/interactionFieldReadiness\.js)$'
+          allowed='^(\.github/workflows/(rpg-expedition-tavern-recovery|rpg-interaction-quest-loop|rpg-mastery-armorer-service|rpg-mastery-journal-continuity|rpg-mastery-to-smithing|rpg-mastery-travel-continuity|rpg-tavern-receipt-integrity)\.yml|scripts/checkInteractionExpeditionTavernRecovery\.mjs|scripts/checkInteractionTavernReceiptIntegrity\.mjs|src/3d/gameplay/interaction\.js|src/3d/gameplay/interactionConfig\.js|src/3d/gameplay/interactionFieldReadiness\.js)$'
           for file in "${files[@]}"; do
             [[ "$file" =~ $allowed ]] || { echo "Unexpected file: $file"; exit 1; }
           done
