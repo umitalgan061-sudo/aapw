@@ -34,6 +34,10 @@ assert.equal(P.heightAuthorityUnchanged, true);
 assert.equal(P.snowCoverageAuthorityUnchanged, true);
 assert(P.packedGlacialFamilyGain >= 0.14 && P.packedGlacialFamilyGain <= 0.2,
   'glacial packed-family bridge should remain visually meaningful but bounded');
+assert(P.packedShelteredGlacialGain >= 0.06 && P.packedShelteredGlacialGain <= 0.14,
+  'sheltered permanent-ice snow should retain a small bounded cold-family bridge');
+assert(P.shelteredGlacialRetentionFloor >= 0.5 && P.shelteredGlacialRetentionFloor <= 0.7,
+  'deep shelter must soften, not erase, the far-north glacial-family link');
 assert(P.accumulatedPermanentIceScale >= 0.45 && P.accumulatedPermanentIceScale <= 0.6,
   'permanent-ice accumulated snow should stay soft without becoming a warm isolated patch');
 
@@ -84,9 +88,30 @@ const permanentWindward = resolveTerrainSnowSurfaceTone({
   windwardScour: 0.92,
   ridgeExposure: 0.88,
 });
+const permanentShallowShelter = resolveTerrainSnowSurfaceTone({
+  snowAmount: 0.34,
+  permanentIce: 1,
+  tundra: 1,
+  leeDeposit: 0.7,
+  concavityHold: 0.65,
+  gentleSlope: 0.8,
+});
+const tundraShallowShelter = resolveTerrainSnowSurfaceTone({
+  snowAmount: 0.34,
+  tundra: 1,
+  leeDeposit: 0.7,
+  concavityHold: 0.65,
+  gentleSlope: 0.8,
+});
 
 assert(permanentLee.glacialFamilySupport > 0.55,
   'deep far-north shelter should retain enough glacial-family support to avoid cream islands');
+assert(permanentLee.shelteredGlacialRetention >= P.shelteredGlacialRetentionFloor - EPSILON,
+  'deep shelter must never erase the authored glacial-family retention floor');
+assert(permanentLee.shelteredGlacialBridge > 0,
+  'deep permanent-ice shelter should keep a direct cold-family bridge');
+assert.equal(tundraLee.shelteredGlacialBridge, 0,
+  'pure tundra shelter must not inherit the permanent-ice cold bridge');
 assert(permanentLee.accumulatedWeight < tundraLee.accumulatedWeight * 0.65,
   'permanent-ice lee snow should be materially less warm-tinted than equivalent tundra drift');
 assert(permanentLee.accumulatedWeight > 0.2,
@@ -97,9 +122,29 @@ assert(permanentWindward.packedWeight > permanentNeutral.packedWeight,
   'windward permanent-ice ridges must remain the strongest packed-snow case');
 assert(permanentWindward.packedWeight > permanentLee.packedWeight,
   'sheltered snow must remain softer than windward packed snow');
+assert(permanentShallowShelter.shelteredGlacialBridge > 0,
+  'partially retained far-north shelter should already connect to the glacial family');
+assert(permanentShallowShelter.packedWeight > tundraShallowShelter.packedWeight,
+  'equally sheltered visible snow should stay colder in permanent ice than in tundra');
+assert(permanentShallowShelter.accumulatedWeight < tundraShallowShelter.accumulatedWeight,
+  'permanent-ice shallow shelter should remain less warm-tinted than tundra shelter');
 
-for (const sample of [permanentLee, tundraLee, permanentNeutral, permanentWindward]) {
-  for (const key of ['packedWeight', 'accumulatedWeight', 'glacialFamilySupport', 'visibleSnow']) {
+for (const sample of [
+  permanentLee,
+  tundraLee,
+  permanentNeutral,
+  permanentWindward,
+  permanentShallowShelter,
+  tundraShallowShelter,
+]) {
+  for (const key of [
+    'packedWeight',
+    'accumulatedWeight',
+    'glacialFamilySupport',
+    'shelteredGlacialRetention',
+    'shelteredGlacialBridge',
+    'visibleSnow',
+  ]) {
     assert(Number.isFinite(sample[key]) && sample[key] >= -EPSILON && sample[key] <= 1 + EPSILON,
       `${key} must remain normalized`);
   }
@@ -122,6 +167,9 @@ console.log(JSON.stringify({
   permanentLeeAccumulatedWeight: permanentLee.accumulatedWeight,
   tundraLeeAccumulatedWeight: tundraLee.accumulatedWeight,
   permanentLeeGlacialSupport: permanentLee.glacialFamilySupport,
+  permanentLeeShelteredRetention: permanentLee.shelteredGlacialRetention,
+  permanentLeeShelteredBridge: permanentLee.shelteredGlacialBridge,
+  shallowShelterPackedDelta: permanentShallowShelter.packedWeight - tundraShallowShelter.packedWeight,
   permanentWindwardPackedWeight: permanentWindward.packedWeight,
   heightAuthorityUnchanged: true,
 }, null, 2));
