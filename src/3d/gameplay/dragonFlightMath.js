@@ -80,10 +80,12 @@ export function applyDiveOffset(object3D, { playerX, playerZ, centerY, diveDropM
 
 /**
  * Deterministically samples a bounded strip ahead of the rendered dragon. A three-point probe left
- * gaps large enough for narrow ridges to remain invisible between samples. The strip is now
- * subdivided at a conservative 1 m gameplay-terrain spacing, so a 12 m look-ahead performs at most
- * 13 samples (current point + 12 forward samples). This stays bounded and allocation-free while
- * materially reducing low-FPS terrain tunnelling. `lookAheadMeters=0` preserves point-only behavior.
+ * gaps large enough for narrow ridges to remain invisible between samples. The strip is subdivided
+ * at a conservative 1 m gameplay-terrain spacing and follows the dragon's actual frame-to-frame XZ
+ * displacement when supplied by the controller; yaw is only a compatibility fallback for pure
+ * callers that do not have retained motion. A 12 m look-ahead therefore performs at most 13 samples
+ * (current point + 12 forward samples), bounded and allocation-free. `lookAheadMeters=0` preserves
+ * point-only behavior.
  */
 export function clampAltitudeAboveGround(
 	object3D,
@@ -91,22 +93,34 @@ export function clampAltitudeAboveGround(
 	minAltitudeAboveGroundMeters,
 	lookAheadMeters = DRAGON_TERRAIN_LOOKAHEAD_METERS,
 	probeSpacingMeters = DRAGON_TERRAIN_PROBE_SPACING_METERS,
+	motionX,
+	motionZ,
 ) {
 	let highestGroundY = sampleGroundY(object3D.position.x, object3D.position.z);
-	if (lookAheadMeters > 0 && Number.isFinite(object3D.rotation?.y)) {
-		const forwardX = Math.sin(object3D.rotation.y);
-		const forwardZ = Math.cos(object3D.rotation.y);
-		const spacing = Number.isFinite(probeSpacingMeters) && probeSpacingMeters > 0
-			? Math.min(probeSpacingMeters, lookAheadMeters)
-			: lookAheadMeters;
-		const segmentCount = Math.max(1, Math.ceil(lookAheadMeters / spacing));
-		for (let segment = 1; segment <= segmentCount; segment += 1) {
-			const distance = lookAheadMeters * (segment / segmentCount);
-			const groundY = sampleGroundY(
-				object3D.position.x + forwardX * distance,
-				object3D.position.z + forwardZ * distance,
-			);
-			if (groundY > highestGroundY) highestGroundY = groundY;
+	if (lookAheadMeters > 0) {
+		let forwardX = Number.isFinite(motionX) ? motionX : 0;
+		let forwardZ = Number.isFinite(motionZ) ? motionZ : 0;
+		let motionLength = Math.hypot(forwardX, forwardZ);
+		if (motionLength <= 1e-8 && Number.isFinite(object3D.rotation?.y)) {
+			forwardX = Math.sin(object3D.rotation.y);
+			forwardZ = Math.cos(object3D.rotation.y);
+			motionLength = 1;
+		}
+		if (motionLength > 1e-8) {
+			forwardX /= motionLength;
+			forwardZ /= motionLength;
+			const spacing = Number.isFinite(probeSpacingMeters) && probeSpacingMeters > 0
+				? Math.min(probeSpacingMeters, lookAheadMeters)
+				: lookAheadMeters;
+			const segmentCount = Math.max(1, Math.ceil(lookAheadMeters / spacing));
+			for (let segment = 1; segment <= segmentCount; segment += 1) {
+				const distance = lookAheadMeters * (segment / segmentCount);
+				const groundY = sampleGroundY(
+					object3D.position.x + forwardX * distance,
+					object3D.position.z + forwardZ * distance,
+				);
+				if (groundY > highestGroundY) highestGroundY = groundY;
+			}
 		}
 	}
 	const minY = highestGroundY + minAltitudeAboveGroundMeters;
