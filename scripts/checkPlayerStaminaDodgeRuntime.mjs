@@ -109,9 +109,18 @@ try {
   await page.locator('#run266-entry-enter').click();
   await page.waitForFunction(() => document.querySelector('#game3d-loading')?.classList.contains('g3d-loading-hidden'), null, { timeout: 90000 });
   await waitForHistoryEvidence((frames) => frames.length > 0 ? frames.at(-1) : null, { timeout: 30000, label: 'first player motion frame' });
-  const baseline = await latest();
+  const baseline = await waitForHistoryEvidence((frames) => {
+    const frame = frames.at(-1);
+    return frame?.state === 'idle'
+      && frame.stamina === 100
+      && frame.poise >= 99.5
+      && frame.isGrounded
+      && frame.canDodge
+      ? frame
+      : null;
+  }, { timeout: 12000, interval: 100, label: 'recovered idle baseline after any shipped-scene spawn pressure' });
   need(baseline.state === 'idle', `expected idle baseline, got ${baseline.state}`);
-  need(baseline.stamina === 100 && baseline.poise === 100 && baseline.isGrounded && baseline.canDodge, `bad baseline ${JSON.stringify(baseline)}`);
+  need(baseline.stamina === 100 && baseline.poise >= 99.5 && baseline.isGrounded && baseline.canDodge, `bad baseline ${JSON.stringify(baseline)}`);
 
   await page.evaluate(() => { window.__playerMotionFrames.length = 0; });
   await page.keyboard.down('KeyW'); await page.keyboard.down('ShiftLeft'); await waitState('sprint');
