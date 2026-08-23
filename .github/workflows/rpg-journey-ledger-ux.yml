@@ -36,7 +36,7 @@ jobs:
           base="$(git merge-base HEAD origin/main)"
           test "$base" = "$(git rev-parse origin/main)"
           mapfile -t paths < <(git diff --name-only "$base"...HEAD)
-          allowed='^(\.github/workflows/rpg-journey-ledger-ux\.yml|scripts/checkInteractionJourneyLedgerUx\.mjs|src/3d/gameplay/(interaction|interactionConfig|interactionFieldReadiness)\.js|src/3d/ui/dialogueBox\.js)$'
+          allowed='^(\.github/workflows/rpg-journey-ledger-ux\.yml|scripts/checkInteraction(JourneyLedgerUx|TavernReceiptIntegrity|MasteryTravelContinuityBrowser)\.mjs|src/3d/gameplay/(interaction|interactionConfig|interactionFieldReadiness)\.js|src/3d/ui/dialogueBox\.js)$'
           printf '%s\n' "${paths[@]}" | grep -Ev "$allowed" && exit 1 || true
           changed="$(git diff --numstat "$base"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           test "$changed" -le 1000
