@@ -86,14 +86,25 @@ export function applyDiveOffset(object3D, { playerX, playerZ, centerY, diveDropM
 	alignDiveOrientation(object3D, circleX, centerY, circleZ, circlePitch, circleYaw, diveBlend);
 }
 
+function sampleSegmentGround(sampleGroundY, startX, startZ, unitX, unitZ, distanceMeters, spacingMeters, includeEndpoint, onSample) {
+	if (distanceMeters <= 1e-8) return;
+	const segmentCount = Math.max(1, Math.ceil(distanceMeters / spacingMeters));
+	const lastSegment = includeEndpoint ? segmentCount : segmentCount - 1;
+	for (let segment = 0; segment <= lastSegment; segment += 1) {
+		const distance = distanceMeters * (segment / segmentCount);
+		onSample(sampleGroundY(startX + unitX * distance, startZ + unitZ * distance));
+	}
+}
+
 /**
- * Deterministically samples a bounded strip ahead of the rendered dragon. A three-point probe left
- * gaps large enough for narrow ridges to remain invisible between samples. The strip is subdivided
- * at a conservative 1 m gameplay-terrain spacing and follows actual frame-to-frame rendered XZ
- * displacement retained by `applyCirclePose`; facing yaw is only a compatibility fallback when no
- * previous rendered point exists. A 12 m look-ahead therefore performs at most 13 samples (current
- * point + 12 forward samples), bounded and allocation-free. `lookAheadMeters=0` preserves point-only
- * behavior. Optional explicit motion remains available to pure callers/tests and takes precedence.
+ * Deterministically samples the actual traversed XZ segment and then a bounded strip ahead of the
+ * rendered dragon. Sampling only the terminal point plus forward lookahead can tunnel across a
+ * narrow ridge when a long frame moves farther than the configured lookahead. Retained previous
+ * rendered XZ therefore owns the safety path whenever available: every traversed metre is sampled
+ * at the same conservative spacing before the forward strip is projected. Facing yaw remains only
+ * a compatibility fallback when no retained motion exists. The forward strip is always bounded to
+ * `lookAheadMeters`; traversed work scales only with distance the dragon actually crossed in that
+ * frame and allocates nothing. `lookAheadMeters=0` preserves historical point-only behavior.
  */
 export function clampAltitudeAboveGround(
 	object3D,
@@ -106,12 +117,16 @@ export function clampAltitudeAboveGround(
 ) {
 	let highestGroundY = sampleGroundY(object3D.position.x, object3D.position.z);
 	if (lookAheadMeters > 0) {
+		const spacing = Number.isFinite(probeSpacingMeters) && probeSpacingMeters > 0
+			? Math.min(probeSpacingMeters, lookAheadMeters)
+			: lookAheadMeters;
+		const previousX = object3D.userData?.dragonPreviousRenderedX;
+		const previousZ = object3D.userData?.dragonPreviousRenderedZ;
+		const hasRetainedPosition = Number.isFinite(previousX) && Number.isFinite(previousZ);
 		let forwardX = Number.isFinite(motionX) ? motionX : Number.NaN;
 		let forwardZ = Number.isFinite(motionZ) ? motionZ : Number.NaN;
 		if (!Number.isFinite(forwardX) || !Number.isFinite(forwardZ)) {
-			const previousX = object3D.userData?.dragonPreviousRenderedX;
-			const previousZ = object3D.userData?.dragonPreviousRenderedZ;
-			if (Number.isFinite(previousX) && Number.isFinite(previousZ)) {
+			if (hasRetainedPosition) {
 				forwardX = object3D.position.x - previousX;
 				forwardZ = object3D.position.z - previousZ;
 			} else {
@@ -128,18 +143,38 @@ export function clampAltitudeAboveGround(
 		if (motionLength > 1e-8) {
 			forwardX /= motionLength;
 			forwardZ /= motionLength;
-			const spacing = Number.isFinite(probeSpacingMeters) && probeSpacingMeters > 0
-				? Math.min(probeSpacingMeters, lookAheadMeters)
-				: lookAheadMeters;
-			const segmentCount = Math.max(1, Math.ceil(lookAheadMeters / spacing));
-			for (let segment = 1; segment <= segmentCount; segment += 1) {
-				const distance = lookAheadMeters * (segment / segmentCount);
-				const groundY = sampleGroundY(
-					object3D.position.x + forwardX * distance,
-					object3D.position.z + forwardZ * distance,
-				);
+			const keepHighest = (groundY) => {
 				if (groundY > highestGroundY) highestGroundY = groundY;
+			};
+			if (hasRetainedPosition) {
+				const traversedX = object3D.position.x - previousX;
+				const traversedZ = object3D.position.z - previousZ;
+				const traversedDistance = Math.hypot(traversedX, traversedZ);
+				if (traversedDistance > 1e-8) {
+					sampleSegmentGround(
+						sampleGroundY,
+						previousX,
+						previousZ,
+						traversedX / traversedDistance,
+						traversedZ / traversedDistance,
+						traversedDistance,
+						spacing,
+						false,
+						keepHighest,
+					);
+				}
 			}
+			sampleSegmentGround(
+				sampleGroundY,
+				object3D.position.x,
+				object3D.position.z,
+				forwardX,
+				forwardZ,
+				lookAheadMeters,
+				spacing,
+				true,
+				keepHighest,
+			);
 		}
 	}
 	const minY = highestGroundY + minAltitudeAboveGroundMeters;
