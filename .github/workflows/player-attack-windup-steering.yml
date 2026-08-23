@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/3d/gameplay/player.js'
       - 'scripts/checkPlayerAttackWindupSteering.mjs'
+      - 'scripts/checkPlayerMeleeCombo.mjs'
       - '.github/workflows/player-attack-windup-steering.yml'
   workflow_dispatch:
 
@@ -26,15 +27,17 @@ jobs:
           test "$BASE" = "$(git rev-parse origin/main)"
           CHANGED=$(git diff --name-only "$BASE"..HEAD)
           printf '%s\n' "$CHANGED"
-          printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|scripts/checkPlayerAttackWindupSteering\.mjs|\.github/workflows/player-attack-windup-steering\.yml)$' && exit 1 || true
+          printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|scripts/checkPlayerAttackWindupSteering\.mjs|scripts/checkPlayerMeleeCombo\.mjs|\.github/workflows/player-attack-windup-steering\.yml)$' && exit 1 || true
           TOTAL=$(git diff --numstat "$BASE"..HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
           test "$TOTAL" -le 1000
       - name: Syntax
-        run: node --check src/3d/gameplay/player.js && node --check scripts/checkPlayerAttackWindupSteering.mjs
+        run: node --check src/3d/gameplay/player.js && node --check scripts/checkPlayerAttackWindupSteering.mjs && node --check scripts/checkPlayerMeleeCombo.mjs
       - name: Windup steering contract
         run: node scripts/checkPlayerAttackWindupSteering.mjs
+      - name: Melee compatibility contract
+        run: node scripts/checkPlayerMeleeCombo.mjs
       - name: Shared Material Placement Contract
-        run: node scripts/checkSharedMaterialPlacementContract.mjs
+        run: node scripts/checkSharedMaterialPlacementContract.js
       - name: Final main freshness
         shell: bash
         run: |
