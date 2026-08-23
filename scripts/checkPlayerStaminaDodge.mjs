@@ -22,6 +22,7 @@ const cfg = Object.freeze({
   guardDamageMultiplier: numberConstant('GUARD_DAMAGE_MULTIPLIER'), guardStaminaDamageRatio: numberConstant('GUARD_STAMINA_DAMAGE_RATIO'),
   guardPoiseDamageRatio: numberConstant('GUARD_POISE_DAMAGE_RATIO'), parryWindow: numberConstant('PARRY_WINDOW_SECONDS'), parryCost: numberConstant('PARRY_STAMINA_COST'),
   poiseRegen: numberConstant('POISE_REGEN_PER_SECOND'), poiseRegenDelay: numberConstant('POISE_REGEN_DELAY_SECONDS'),
+  hitPoiseDamageRatio: numberConstant('HIT_POISE_DAMAGE_RATIO'), hitStaggerSeconds: numberConstant('HIT_STAGGER_SECONDS'), hitStaggerPoiseRecovery: numberConstant('HIT_STAGGER_POISE_RECOVERY'),
   guardBreakSeconds: numberConstant('GUARD_BREAK_SECONDS'), guardBreakStaminaPenalty: numberConstant('GUARD_BREAK_STAMINA_PENALTY'),
 });
 
@@ -36,16 +37,21 @@ assert.ok(cfg.guardStaminaDamageRatio > 0 && cfg.guardPoiseDamageRatio >= 1);
 assert.ok(cfg.parryWindow > 0 && cfg.parryWindow <= 0.2 && cfg.parryCost > 0);
 assert.ok(cfg.poiseRegen > 0 && cfg.poiseRegenDelay >= 0.5 && cfg.guardBreakSeconds >= 0.5 && cfg.guardBreakSeconds <= 1.2);
 assert.ok(cfg.guardBreakStaminaPenalty > 0 && cfg.guardBreakStaminaPenalty < cfg.maxStamina);
+assert.ok(cfg.hitPoiseDamageRatio > 0 && cfg.hitPoiseDamageRatio <= 2);
+assert.ok(cfg.hitStaggerSeconds > 0 && cfg.hitStaggerSeconds < cfg.guardBreakSeconds);
+assert.ok(cfg.hitStaggerPoiseRecovery > 0 && cfg.hitStaggerPoiseRecovery < cfg.maxPoise);
 
 for (const fragment of [
   'groundCollider.getGroundHeight', 'playerCollider.resolveXZ',
   'Math.ceil(travelMeters / PLAYER_ACTION_CONFIG.MAX_COLLISION_STEP_METERS)',
   'runJumpDodgeRequested = Boolean(jumpRequested) && runIntent', 'canStartDodge()', 'startDodge(moveDirectionXZ)',
-  "movementState = 'dodge'", "movementState = 'guard'", "movementState = 'parry'", "movementState = 'guard-break'",
+  "movementState = 'dodge'", "movementState = 'guard'", "movementState = 'parry'", "movementState = 'guard-break'", "movementState = 'hit-stagger'",
   'spendPoise(blockedAmount * PLAYER_ACTION_CONFIG.GUARD_POISE_DAMAGE_RATIO)', 'if (poise <= 0) triggerGuardBreak()',
-  'guarding = guardIntent && attackRemaining <= 0 && guardBreakRemaining <= 0', 'guardBreakRemaining <= 0 && jumpRequested',
+  'spendPoise(rawAmount * PLAYER_ACTION_CONFIG.HIT_POISE_DAMAGE_RATIO)', 'if (poise <= 0) triggerHitStagger()',
+  'guarding = guardIntent && attackRemaining <= 0 && guardBreakRemaining <= 0 && hitStaggerRemaining <= 0',
+  'guardBreakRemaining <= 0 && hitStaggerRemaining <= 0 && jumpRequested',
   "gameEvents.on(EVENTS.PLAYER_DAMAGED, onIncomingDamage)", "payload.mitigation = 'parry'", "payload.mitigation = 'guard'",
-  "globalThis.CustomEvent('aapw:player-motion'",
+  'hitStaggerRemaining: Number(hitStaggerRemaining.toFixed(3))', "globalThis.CustomEvent('aapw:player-motion'",
 ]) assert.ok(source.includes(fragment), `missing runtime contract: ${fragment}`);
 
 assert.ok(hud.includes("className = 'g3d-poise-bar'"));
@@ -81,12 +87,14 @@ assert.ok(guardedDamage <= 8 && guardStaminaCost > 0 && guardPoiseCost > guardSt
 const hitsToBreak = Math.ceil(cfg.maxPoise / guardPoiseCost);
 assert.ok(hitsToBreak >= 4 && hitsToBreak <= 8, `guard break should require a bounded short pressure sequence, got ${hitsToBreak}`);
 assert.ok(cfg.poiseRegen * cfg.guardBreakSeconds < cfg.maxPoise, 'guard break cannot refill poise during stagger');
+const unguardedHitsToStagger = Math.ceil(cfg.maxPoise / (rawDamage * cfg.hitPoiseDamageRatio));
+assert.ok(unguardedHitsToStagger >= 3 && unguardedHitsToStagger <= 8, `hit stagger should require a bounded pressure sequence, got ${unguardedHitsToStagger}`);
 
 console.log(JSON.stringify({
-  ok: true, contract: 'player-stamina-dodge-guard-parry-poise-combat-hud',
+  ok: true, contract: 'player-stamina-dodge-guard-parry-poise-hit-stagger-combat-hud',
   stamina: { max: cfg.maxStamina, sprintSpeedMps: cfg.sprintSpeed, dodgeSpeedMps: cfg.dodgeSpeed },
   guard: { damageMultiplier: cfg.guardDamageMultiplier, sample20AppliedDamage: guardedDamage, sample20StaminaCost: guardStaminaCost },
-  poise: { max: cfg.maxPoise, sample20PoiseCost: guardPoiseCost, hitsToBreak, regenPerSecond: cfg.poiseRegen, regenDelaySeconds: cfg.poiseRegenDelay, guardBreakSeconds: cfg.guardBreakSeconds },
+  poise: { max: cfg.maxPoise, sample20PoiseCost: guardPoiseCost, hitsToBreak, unguardedHitsToStagger, hitStaggerSeconds: cfg.hitStaggerSeconds, hitStaggerPoiseRecovery: cfg.hitStaggerPoiseRecovery, regenPerSecond: cfg.poiseRegen, regenDelaySeconds: cfg.poiseRegenDelay, guardBreakSeconds: cfg.guardBreakSeconds },
   parry: { windowSeconds: cfg.parryWindow, staminaCost: cfg.parryCost },
   combatHud: { lockOnEvent: 'aapw:player-lock-on', attackWindowEvent: 'aapw:player-attack-window', defenseMitigation: ['guard', 'parry'], defenseAmounts: true, accessibleLiveStatus: true, meleeRangeCue: ['in-range', 'out-of-range', 'unknown'], failedTargetFeedbackSeconds: 0.9 },
 }, null, 2));
