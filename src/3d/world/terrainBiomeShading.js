@@ -11,6 +11,7 @@ import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
 import { northReferenceCryosphereAtWorldXZ } from './northReferenceCryosphere.js';
 import { signedFbmNoise } from './terrainReliefDetail.js';
 import { resolveTerrainWindSnowAdjustment } from './terrainWindSnowExposure.js';
+import { resolveTerrainSnowSurfaceTone } from './terrainSnowSurfaceTone.js';
 
 const clamp01 = (value) => (value < 0 ? 0 : value > 1 ? 1 : value);
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -21,10 +22,11 @@ function smoothstep(edge0, edge1, value) {
 }
 
 export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
-	id: 'terrain-map-climate-cryosphere-2026-08-23-v13-intertidal-union',
+	id: 'terrain-map-climate-cryosphere-2026-08-23-v14-snow-surface-tone',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	mapAlignedCryosphere: true,
+	snowSurfaceTone: true,
 	measured: Object.freeze({
 		probeGrid: '220x220 full-map + 200x200 land-only, live createHeightSampler',
 		seaLevelMeters: 6,
@@ -139,6 +141,8 @@ export const TERRAIN_BIOME_PALETTE = Object.freeze({
 	MORAINE: new THREE.Color(0x6f7776),
 	GLACIAL_ICE: new THREE.Color(0xdceaf0),
 	SNOW: new THREE.Color(0xf4f6f7),
+	PACKED_SNOW: new THREE.Color(0xdce8ed),
+	ACCUMULATED_SNOW: new THREE.Color(0xf8f5ef),
 });
 
 function latticeHash01(ix, iz) {
@@ -391,6 +395,7 @@ const scratchRock = new THREE.Color();
 const scratchGround = new THREE.Color();
 const scratchShore = new THREE.Color();
 const scratchSeabed = new THREE.Color();
+const scratchSnowTone = new THREE.Color();
 const scratchSnowCoverage = {};
 const scratchCoastalCryosphere = {};
 
@@ -471,7 +476,22 @@ export function resolveTerrainBiomeColor(target, {
 		terrainLee,
 	});
 	if (snow.moraineExposure > 0) target.lerp(TERRAIN_BIOME_PALETTE.MORAINE, snow.moraineExposure);
-	if (snow.snowAmount > 0) target.lerp(TERRAIN_BIOME_PALETTE.SNOW, snow.snowAmount);
+	if (snow.snowAmount > 0) {
+		const snowTone = resolveTerrainSnowSurfaceTone({
+			snowAmount: snow.snowAmount,
+			permanentIce: snow.permanentIce,
+			tundra: snow.tundra,
+			windwardScour: snow.windwardScour,
+			leeDeposit: snow.leeDeposit,
+			ridgeExposure: snow.ridgeExposure,
+			concavityHold: snow.concavityHold,
+			gentleSlope: snow.gentleSlope,
+		});
+		scratchSnowTone.copy(TERRAIN_BIOME_PALETTE.SNOW);
+		if (snowTone.packedWeight > 0) scratchSnowTone.lerp(TERRAIN_BIOME_PALETTE.PACKED_SNOW, snowTone.packedWeight);
+		if (snowTone.accumulatedWeight > 0) scratchSnowTone.lerp(TERRAIN_BIOME_PALETTE.ACCUMULATED_SNOW, snowTone.accumulatedWeight);
+		target.lerp(scratchSnowTone, snow.snowAmount);
+	}
 	if (snow.glacialIceTint > 0) target.lerp(TERRAIN_BIOME_PALETTE.GLACIAL_ICE, snow.glacialIceTint);
 
 	const submergedAmount = 1 - smoothstep(-P.seabedFullDepthMeters, 0, height);
