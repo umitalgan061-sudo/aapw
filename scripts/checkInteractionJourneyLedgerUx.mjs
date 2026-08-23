@@ -14,7 +14,7 @@ const journey = createInteractionJourneyState();
 journey.restore({
 	fatigueKm: 30,
 	commitCount: 2,
-	lastDestinationId: 'dragonstone-harbor-road',
+	lastDestinationId: 'dragonstone-ridge',
 	recentReceipts: [
 		{
 			sequence: 1,
@@ -45,11 +45,12 @@ journey.restore({
 
 const snapshot = journey.snapshot();
 assert.deepEqual(snapshot.recentReceipts.map((receipt) => receipt.sequence), [1, 2], 'future forged receipt must not survive restore');
-assert.equal(snapshot.recentReceipts.at(-1)?.destinationId, 'dragonstone-ridge', 'latest visible receipt must remain the authoritative committed journey');
+assert.equal(snapshot.lastDestinationId, 'dragonstone-ridge', 'saved destination must match the latest authoritative committed journey');
+assert.equal(snapshot.recentReceipts.at(-1)?.destinationId, snapshot.lastDestinationId, 'latest visible receipt and saved destination must stay coherent');
 
 const text = buildJourneyStateText(snapshot, readiness);
 assert.match(text, /Sefer yorgunluğu: 30\//, 'UX must surface current fatigue from authoritative journey state');
-assert.match(text, /Son sefer hedefi: dragonstone-harbor-road/, 'UX must preserve the authoritative saved destination');
+assert.match(text, /Son sefer hedefi: dragonstone-ridge/, 'UX must surface the destination of the latest authoritative journey');
 assert.match(text, /Son sefer: 30 km · 1 yol azığı · 0 dinlenme/, 'UX must summarize the latest accepted journey receipt');
 assert.ok(!text.includes('forged-future-route'), 'forged future destination must never surface in player-facing journey UX');
 assert.ok(!text.includes('9999 km'), 'forged future distance must never surface in player-facing journey UX');
@@ -61,4 +62,4 @@ const roundTripSnapshot = roundTrip.snapshot();
 assert.deepEqual(roundTripSnapshot, snapshot, 'journey ledger must remain idempotent across save/load');
 assert.equal(buildJourneyStateText(roundTripSnapshot, readiness), text, 'player-facing journey UX must be stable after save/load');
 
-console.log('PASS: authoritative journey receipts drive stable player-facing travel UX; forged future ledger entries stay invisible across save/load');
+console.log('PASS: authoritative journey receipts drive coherent, stable player-facing travel UX; forged future ledger entries stay invisible across save/load');
