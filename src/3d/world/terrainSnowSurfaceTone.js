@@ -13,12 +13,13 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-23-v5-glacial-family-bridge',
+  id: 'terrain-snow-surface-tone-2026-08-23-v6-thin-snow-glacial-continuity',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
   cryosphereToneUnion: true,
   glacialFamilyBridge: true,
+  glacialVisibilityExponent: 0.65,
   packedWindwardGain: 0.72,
   packedRidgeGain: 0.34,
   packedPermanentIceFloor: 0.10,
@@ -77,6 +78,7 @@ export function resolveTerrainSnowSurfaceTone({
       accumulationVisibleSnow,
       climate,
       tundraToneWeight,
+      glacialVisibility: 0,
       glacialContinuity: 0,
       glacialFamilySupport: 0,
       transitionColdSupport: 0,
@@ -89,12 +91,16 @@ export function resolveTerrainSnowSurfaceTone({
     });
   }
 
-  const glacialContinuity = permanentIceWeight * visibleSnow;
+  // Keep thin-but-visible permanent-ice snow inside the same cold colour family as the lowland ice
+  // below it without changing how much snow exists. A sub-linear visibility curve prevents the
+  // glacial bridge from being effectively multiplied by visibleSnow twice near the snow threshold.
+  const glacialVisibility = Math.pow(visibleSnow, P.glacialVisibilityExponent);
+  const glacialContinuity = permanentIceWeight * glacialVisibility;
   // Smoothly reinforce the cold family inside the permanent-ice transition, but let the support
   // return to zero at both pure tundra and fully glaciated endpoints. This avoids a visible colour
   // notch without changing snow coverage or creating a new climate authority.
   const transitionColdSupport = 4 * permanentIceWeight * (1 - permanentIceWeight)
-    * visibleSnow * P.packedTransitionColdGain;
+    * glacialVisibility * P.packedTransitionColdGain;
   const shelterSignal = Math.max(clamp01(leeDeposit), clamp01(concavityHold));
   // Far-north mountain snow should belong to the same visual cryosphere family as the glacial
   // lowlands below it. Keep that bridge strongest on exposed/neutral snow and taper it inside deep
@@ -137,6 +143,7 @@ export function resolveTerrainSnowSurfaceTone({
     accumulationVisibleSnow,
     climate,
     tundraToneWeight,
+    glacialVisibility,
     glacialContinuity,
     glacialFamilySupport,
     transitionColdSupport,
