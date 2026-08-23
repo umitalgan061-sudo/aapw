@@ -19,6 +19,11 @@ assert(Math.abs(Math.hypot(
 ) - 1) < EPSILON, 'prevailing wind source vector must remain normalized');
 assert(TERRAIN_WIND_SNOW_POLICY.prevailingSourceX < 0 && TERRAIN_WIND_SNOW_POLICY.prevailingSourceZ < 0,
   'prevailing source must remain in the north-west quadrant');
+assert(TERRAIN_WIND_SNOW_POLICY.directionalAlignmentStart > 0
+  && TERRAIN_WIND_SNOW_POLICY.directionalAlignmentStart < TERRAIN_WIND_SNOW_POLICY.directionalAlignmentFull,
+'directional aspect gate must preserve a crosswind neutral zone and valid ramp');
+assert(TERRAIN_WIND_SNOW_POLICY.directionalAlignmentFull <= 1,
+  'directional alignment must reach full strength inside normalized aspect space');
 assert(TERRAIN_WIND_SNOW_POLICY.leeRetentionFadeStartDegrees
   < TERRAIN_WIND_SNOW_POLICY.leeRetentionFadeFullDegrees,
 'lee retention fade must have a valid slope interval');
@@ -27,6 +32,8 @@ const flat = terrainWindExposureFromNeighbours(100, 100, 100, 100, 10);
 assert.equal(flat.windward, 0, 'flat terrain must not invent a windward face');
 assert.equal(flat.lee, 0, 'flat terrain must not invent a lee face');
 assert.equal(flat.slopeAspectStrength, 0, 'flat terrain must suppress slope-aspect redistribution');
+assert.equal(flat.windwardAlignment, 0, 'flat terrain must expose no directional windward alignment');
+assert.equal(flat.leeAlignment, 0, 'flat terrain must expose no directional lee alignment');
 
 const westFacing = terrainWindExposureFromNeighbours(90, 110, 100, 100, 10);
 const eastFacing = terrainWindExposureFromNeighbours(110, 90, 100, 100, 10);
@@ -39,10 +46,29 @@ assert(Math.abs(westFacing.slopeDegrees - eastFacing.slopeDegrees) < EPSILON,
 assert(Math.abs(westFacing.aspectDot + eastFacing.aspectDot) < EPSILON,
   'reversed slope aspect must invert directional exposure');
 
+// A crosswind face is deliberately steep enough for aspect redistribution, but its horizontal
+// normal is perpendicular to the NW source. It must remain neutral instead of inheriting the old
+// broad half-mountain windward/lee split.
+const crosswind = terrainWindExposureFromNeighbours(94, 106, 108, 92, 10);
+assert(crosswind.slopeAspectStrength > 0.9,
+  'crosswind fixture must be steep enough to isolate the directional alignment gate');
+assert(Math.abs(crosswind.aspectDot) < EPSILON,
+  'crosswind fixture must be perpendicular to the authored prevailing source');
+assert.equal(crosswind.windwardAlignment, 0,
+  'crosswind terrain must remain outside the windward alignment ramp');
+assert.equal(crosswind.leeAlignment, 0,
+  'crosswind terrain must remain outside the lee alignment ramp');
+assert.equal(crosswind.windward, 0,
+  'crosswind terrain must not receive windward snow scour');
+assert.equal(crosswind.lee, 0,
+  'crosswind terrain must not receive lee-side deposition');
+
 const northWestFacing = terrainWindExposureFromNeighbours(94, 106, 94, 106, 10);
 const southEastFacing = terrainWindExposureFromNeighbours(106, 94, 106, 94, 10);
 assert(northWestFacing.aspectDot > westFacing.aspectDot,
   'NW-facing slope should align more strongly with the authored prevailing source');
+assert(northWestFacing.windwardAlignment > westFacing.windwardAlignment,
+  'direct NW alignment should receive stronger scour weighting than a merely west-facing slope');
 assert(northWestFacing.windward > 0.9 * northWestFacing.slopeAspectStrength,
   'directly exposed NW slope should approach full windward weighting');
 assert(southEastFacing.lee > 0.9 * southEastFacing.slopeAspectStrength,
@@ -78,6 +104,12 @@ const northLee = resolveTerrainWindSnowAdjustment({
   permanentIce: 1,
   tundra: 1,
 });
+const northCrosswind = resolveTerrainWindSnowAdjustment({
+  windward: crosswind.windward,
+  lee: crosswind.lee,
+  permanentIce: 1,
+  tundra: 1,
+});
 const northCliffLee = resolveTerrainWindSnowAdjustment({
   windward: 0,
   lee: cliffSouthEastFacing.lee,
@@ -101,6 +133,10 @@ assert(northWindward.windwardScour > tundraWindward.windwardScour,
   'permanent-ice windward scour should be stronger than tundra scour');
 assert(northLee.leeDeposit > tundraLee.leeDeposit,
   'permanent-ice lee deposition should be stronger than tundra deposition');
+assert.equal(northCrosswind.windwardScour, 0,
+  'crosswind terrain must not receive runtime windward snow scour');
+assert.equal(northCrosswind.leeDeposit, 0,
+  'crosswind terrain must not receive runtime lee snow deposition');
 assert.equal(northCliffLee.leeDeposit, 0,
   'cliff-safe exposure must suppress runtime lee snow deposition');
 assert(northWindward.windwardScour <= TERRAIN_WIND_SNOW_POLICY.northWindwardScourMax + EPSILON,
@@ -123,7 +159,7 @@ assert.equal(south.windwardScour, 0,
 assert.equal(south.leeDeposit, 0,
   'temperate south must receive no north-climate lee snow deposition');
 
-// Integration contract: the same directional signal must now alter the authoritative render snow
+// Integration contract: the same directional signal must alter the authoritative render snow
 // coverage, not merely exist as a detached helper. Use an extreme north worldZ so climate clamping
 // gives permanentIce=1 without depending on a particular world-scale constant in this contract.
 // Keep the height below the full permanent-ice snowline so the neutral sample is not clamped to 1;
@@ -146,6 +182,11 @@ const leeCoverage = resolveTerrainSnowCoverage({
   terrainWindward: 0,
   terrainLee: southEastFacing.lee,
 });
+const crosswindCoverage = resolveTerrainSnowCoverage({
+  ...northBaseInput,
+  terrainWindward: crosswind.windward,
+  terrainLee: crosswind.lee,
+});
 const cliffLeeCoverage = resolveTerrainSnowCoverage({
   ...northBaseInput,
   slopeDegrees: cliffSouthEastFacing.slopeDegrees,
@@ -166,6 +207,12 @@ assert(windwardCoverage.snowSupply < neutralCoverage.snowSupply,
   'windward terrain must lose loose snow supply');
 assert(leeCoverage.snowSupply > neutralCoverage.snowSupply,
   'lee terrain must gain retained snow supply');
+assert.equal(crosswindCoverage.windwardScour, 0,
+  'runtime snow coverage must keep crosswind slopes free of directional scour');
+assert.equal(crosswindCoverage.leeDeposit, 0,
+  'runtime snow coverage must keep crosswind slopes free of directional deposition');
+assert.equal(crosswindCoverage.snowSupply, neutralCoverage.snowSupply,
+  'crosswind snow supply must remain identical to the neutral terrain fixture');
 assert.equal(cliffLeeCoverage.leeDeposit, 0,
   'runtime cliff coverage must not receive lee deposition');
 assert.equal(cliffLeeCoverage.snowSupply, cliffNeutralCoverage.snowSupply,
@@ -192,6 +239,7 @@ for (const sample of [
   flat,
   westFacing,
   eastFacing,
+  crosswind,
   northWestFacing,
   southEastFacing,
   cliffNorthWestFacing,
@@ -203,6 +251,9 @@ for (const sample of [
     'terrain wind exposure outputs must remain finite');
   assert(sample.windward >= 0 && sample.windward <= 1 && sample.lee >= 0 && sample.lee <= 1,
     'terrain wind exposure weights must remain normalized');
+  assert(sample.windwardAlignment >= 0 && sample.windwardAlignment <= 1
+    && sample.leeAlignment >= 0 && sample.leeAlignment <= 1,
+  'directional alignment weights must remain normalized');
   assert(sample.leeRetention >= 0 && sample.leeRetention <= 1,
     'lee retention must remain normalized');
 }
@@ -212,15 +263,24 @@ console.log('[checkTerrainWindSnowExposure] PASS', JSON.stringify({
   westFacing: {
     slopeDegrees: westFacing.slopeDegrees,
     aspectDot: westFacing.aspectDot,
+    windwardAlignment: westFacing.windwardAlignment,
     windward: westFacing.windward,
+  },
+  crosswind: {
+    slopeDegrees: crosswind.slopeDegrees,
+    aspectDot: crosswind.aspectDot,
+    windward: crosswind.windward,
+    lee: crosswind.lee,
   },
   northWestFacing: {
     slopeDegrees: northWestFacing.slopeDegrees,
     aspectDot: northWestFacing.aspectDot,
+    windwardAlignment: northWestFacing.windwardAlignment,
     windward: northWestFacing.windward,
   },
   southEastFacing: {
     slopeDegrees: southEastFacing.slopeDegrees,
+    leeAlignment: southEastFacing.leeAlignment,
     lee: southEastFacing.lee,
     leeRetention: southEastFacing.leeRetention,
   },
