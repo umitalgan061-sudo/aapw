@@ -1,22 +1,11 @@
 /**
  * Pure flight-path / reaction-blend math for `gameplay/dragons.js` (run 71, DECISIONS.md ADR-0092).
- *
- * Every function here is stateless and side-effect-free apart from writing into the caller's own
- * objects (an `Object3D`'s `position`/`rotation`, or the small mutable circle-center record
- * `dragonController.js` owns) — nothing is cached between frames, nothing allocates per frame, and
- * no `Math.random()` is involved, so the whole module stays deterministic in exactly the way
- * GOVERNANCE.md §5 requires of world/gameplay code.
- *
- * These blocks were lifted out of `dragons.js`'s single 598-line file when it reached the 600-line
- * cap (GOVERNANCE.md Altın Kural 7). Each one is the *same arithmetic in the same order* as the
- * inline code it replaces — deliberately not "cleaned up" on the way out, because the expression
- * order is load-bearing: e.g. `stepCenterTowardTarget`'s `(to / distance) * maxStep` must stay in
- * that order (rewriting it as `to * (maxStep / distance)` is a different floating-point result), and
- * its snap-to-target branch must assign the target *exactly* rather than add a remaining delta, so
- * "fully returned home" stays an exact equality instead of an asymptote. See ADR-0092.
- *
+ * Stateless, deterministic helpers only; no module-level retained state or randomness.
  * @module gameplay/dragonFlightMath
  */
+
+export const DRAGON_TERRAIN_LOOKAHEAD_METERS = 12;
+export const DRAGON_TERRAIN_PROBE_SPACING_METERS = 1;
 
 export function easeBlendToward(currentBlend, targetBlend, delta, transitionSeconds) {
 	if (transitionSeconds > 0) {
@@ -33,6 +22,14 @@ export function blendScalar(fromValue, toValue, blend) {
 }
 
 export function applyCirclePose(object3D, center, radiusMeters, angle, bankAngleRadians) {
+	// Capture the last rendered XZ before this frame overwrites the pose. Dive/pursuit offsets are
+	// applied after this helper, so on the next frame these values represent the actual previous
+	// rendered position rather than the new circle tangent or the dragon's facing yaw.
+	object3D.userData ??= {};
+	if (Number.isFinite(object3D.position?.x) && Number.isFinite(object3D.position?.z)) {
+		object3D.userData.dragonPreviousRenderedX = object3D.position.x;
+		object3D.userData.dragonPreviousRenderedZ = object3D.position.z;
+	}
 	const x = center.x + radiusMeters * Math.sin(angle);
 	const z = center.z + radiusMeters * Math.cos(angle);
 	object3D.position.set(x, center.y, z);
@@ -54,20 +51,12 @@ export function stepCenterTowardTarget(center, targetX, targetZ, maxStep) {
 	}
 }
 
-/**
- * Points a dive pose along the dragon's actual rendered path from its on-circle origin. This is
- * intentionally callable both before and after terrain clamping: `applyDiveOffset()` gives immediate
- * orientation for pure math callers, while `dragonController.js` calls it again after the canonical
- * terrain floor so the final pitch matches the position the player really sees. A vertical dive is
- * valid — `atan2(verticalDrop, 0)` gives π/2 — so pitch must not be gated on horizontal travel.
- */
 export function alignDiveOrientation(object3D, circleX, circleY, circleZ, circlePitch, circleYaw, diveBlend) {
 	if (diveBlend <= 0) return;
 	const boundedBlend = Math.min(1, Math.max(0, diveBlend));
 	const motionX = object3D.position.x - circleX;
 	const motionZ = object3D.position.z - circleZ;
 	const horizontalDistance = Math.hypot(motionX, motionZ);
-
 	if (horizontalDistance > 1e-8) {
 		const targetYaw = Math.atan2(motionX, motionZ);
 		const shortestYawDelta = Math.atan2(Math.sin(targetYaw - circleYaw), Math.cos(targetYaw - circleYaw));
@@ -75,22 +64,12 @@ export function alignDiveOrientation(object3D, circleX, circleY, circleZ, circle
 	} else {
 		object3D.rotation.y = circleYaw;
 	}
-
 	const verticalDrop = Math.max(0, circleY - object3D.position.y);
 	const targetPitch = Math.atan2(verticalDrop, horizontalDistance);
 	const shortestPitchDelta = Math.atan2(Math.sin(targetPitch - circlePitch), Math.cos(targetPitch - circlePitch));
 	object3D.rotation.x = circlePitch + shortestPitchDelta * boundedBlend;
 }
 
-/**
- * Blends `object3D` off its already-applied on-circle pose toward the dive target. In addition to
- * moving the dragon, yaw eases from the circle tangent toward the actual horizontal swoop vector and
- * pitch eases toward the real downward path angle. Previously a committed dive could descend with a
- * level body even after yaw had been corrected, making the dragon look like it was sliding down an
- * invisible ramp. Both orientation corrections are tied to `diveBlend`: blend 0 preserves the exact
- * authored patrol pose, blend 1 faces the committed 3D swoop, and intermediate values progress
- * smoothly without introducing a second controller/state machine. Authored bank/roll is untouched.
- */
 export function applyDiveOffset(object3D, { playerX, playerZ, centerY, diveDropMeters, lateralPullFraction, diveBlend }) {
 	const circleX = object3D.position.x;
 	const circleZ = object3D.position.z;
@@ -99,15 +78,70 @@ export function applyDiveOffset(object3D, { playerX, playerZ, centerY, diveDropM
 	const diveTargetX = circleX + (playerX - circleX) * lateralPullFraction;
 	const diveTargetZ = circleZ + (playerZ - circleZ) * lateralPullFraction;
 	const diveTargetY = centerY - diveDropMeters;
-	const blendedX = circleX + (diveTargetX - circleX) * diveBlend;
-	const blendedZ = circleZ + (diveTargetZ - circleZ) * diveBlend;
-	const blendedY = centerY + (diveTargetY - centerY) * diveBlend;
-	object3D.position.set(blendedX, blendedY, blendedZ);
+	object3D.position.set(
+		circleX + (diveTargetX - circleX) * diveBlend,
+		centerY + (diveTargetY - centerY) * diveBlend,
+		circleZ + (diveTargetZ - circleZ) * diveBlend,
+	);
 	alignDiveOrientation(object3D, circleX, centerY, circleZ, circlePitch, circleYaw, diveBlend);
 }
 
-export function clampAltitudeAboveGround(object3D, sampleGroundY, minAltitudeAboveGroundMeters) {
-	const groundY = sampleGroundY(object3D.position.x, object3D.position.z);
-	const minY = groundY + minAltitudeAboveGroundMeters;
+/**
+ * Deterministically samples a bounded strip ahead of the rendered dragon. A three-point probe left
+ * gaps large enough for narrow ridges to remain invisible between samples. The strip is subdivided
+ * at a conservative 1 m gameplay-terrain spacing and follows actual frame-to-frame rendered XZ
+ * displacement retained by `applyCirclePose`; facing yaw is only a compatibility fallback when no
+ * previous rendered point exists. A 12 m look-ahead therefore performs at most 13 samples (current
+ * point + 12 forward samples), bounded and allocation-free. `lookAheadMeters=0` preserves point-only
+ * behavior. Optional explicit motion remains available to pure callers/tests and takes precedence.
+ */
+export function clampAltitudeAboveGround(
+	object3D,
+	sampleGroundY,
+	minAltitudeAboveGroundMeters,
+	lookAheadMeters = DRAGON_TERRAIN_LOOKAHEAD_METERS,
+	probeSpacingMeters = DRAGON_TERRAIN_PROBE_SPACING_METERS,
+	motionX,
+	motionZ,
+) {
+	let highestGroundY = sampleGroundY(object3D.position.x, object3D.position.z);
+	if (lookAheadMeters > 0) {
+		let forwardX = Number.isFinite(motionX) ? motionX : Number.NaN;
+		let forwardZ = Number.isFinite(motionZ) ? motionZ : Number.NaN;
+		if (!Number.isFinite(forwardX) || !Number.isFinite(forwardZ)) {
+			const previousX = object3D.userData?.dragonPreviousRenderedX;
+			const previousZ = object3D.userData?.dragonPreviousRenderedZ;
+			if (Number.isFinite(previousX) && Number.isFinite(previousZ)) {
+				forwardX = object3D.position.x - previousX;
+				forwardZ = object3D.position.z - previousZ;
+			} else {
+				forwardX = 0;
+				forwardZ = 0;
+			}
+		}
+		let motionLength = Math.hypot(forwardX, forwardZ);
+		if (motionLength <= 1e-8 && Number.isFinite(object3D.rotation?.y)) {
+			forwardX = Math.sin(object3D.rotation.y);
+			forwardZ = Math.cos(object3D.rotation.y);
+			motionLength = 1;
+		}
+		if (motionLength > 1e-8) {
+			forwardX /= motionLength;
+			forwardZ /= motionLength;
+			const spacing = Number.isFinite(probeSpacingMeters) && probeSpacingMeters > 0
+				? Math.min(probeSpacingMeters, lookAheadMeters)
+				: lookAheadMeters;
+			const segmentCount = Math.max(1, Math.ceil(lookAheadMeters / spacing));
+			for (let segment = 1; segment <= segmentCount; segment += 1) {
+				const distance = lookAheadMeters * (segment / segmentCount);
+				const groundY = sampleGroundY(
+					object3D.position.x + forwardX * distance,
+					object3D.position.z + forwardZ * distance,
+				);
+				if (groundY > highestGroundY) highestGroundY = groundY;
+			}
+		}
+	}
+	const minY = highestGroundY + minAltitudeAboveGroundMeters;
 	if (object3D.position.y < minY) object3D.position.y = minY;
 }
