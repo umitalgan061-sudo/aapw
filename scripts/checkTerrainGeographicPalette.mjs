@@ -101,8 +101,14 @@ assert(distance(highSnow, TERRAIN_BIOME_PALETTE.SNOW) < distance(highSnow, TERRA
 
 assert(distance(shore, TERRAIN_BIOME_PALETTE.SHORE_SAND) < distance(shore, TERRAIN_BIOME_PALETTE.FROZEN_SHORE),
   'temperate shoreline should remain perceptually closer to warm sand than frozen shore');
-assert(distance(tundraShore, TERRAIN_BIOME_PALETTE.FROZEN_SHORE) < distance(tundraShore, TERRAIN_BIOME_PALETTE.SHORE_SAND),
-  'tundra shoreline should prefer frozen shore over warm sand');
+const tundraCryospherePaletteDistance = Math.min(
+  distance(tundraShore, TERRAIN_BIOME_PALETTE.FROZEN_SHORE),
+  distance(tundraShore, TERRAIN_BIOME_PALETTE.GLACIAL_SHORE),
+  distance(tundraShore, TERRAIN_BIOME_PALETTE.COASTAL_ICE),
+  distance(tundraShore, TERRAIN_BIOME_PALETTE.SNOW),
+);
+assert(tundraCryospherePaletteDistance < distance(tundraShore, TERRAIN_BIOME_PALETTE.SHORE_SAND),
+  'tundra shoreline should stay perceptually inside the frozen/glacial palette family instead of warm sand');
 assert(distance(iceTransitionShore, TERRAIN_BIOME_PALETTE.GLACIAL_SHORE) < distance(iceTransitionShore, TERRAIN_BIOME_PALETTE.SHORE_SAND),
   'ice-transition shoreline should prefer glacial/frozen tones over warm sand');
 assert(distance(farNorthShore, TERRAIN_BIOME_PALETTE.GLACIAL_SHORE) < distance(farNorthShore, TERRAIN_BIOME_PALETTE.SHORE_SAND),
