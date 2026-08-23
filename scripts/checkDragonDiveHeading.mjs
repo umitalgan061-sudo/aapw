@@ -81,7 +81,7 @@ clampAltitudeAboveGround(ridge, (x, z) => {
   return x >= 2.75 && x <= 3.25 ? 14 : 0;
 }, 10);
 const expectedSegments = Math.ceil(DRAGON_TERRAIN_LOOKAHEAD_METERS / DRAGON_TERRAIN_PROBE_SPACING_METERS);
-assert.equal(sampled.length, expectedSegments + 1, 'terrain sweep must stay bounded to current plus evenly subdivided forward probes');
+assert.equal(sampled.length, expectedSegments + 1, 'heading-fallback terrain sweep must stay bounded to current plus forward probes');
 assert.deepEqual(sampled[0], [0, 0]);
 assert.ok(sampled.some(([x]) => Math.abs(x - 3) < 1e-10), 'subdivision must sample a narrow ridge between the old 0/6/12m point probes');
 assert.equal(ridge.position.y, 24, 'narrow ridge inside swept strip must raise the rendered dragon');
@@ -105,6 +105,23 @@ assert.ok(motionSamples.some(([x, z]) => Math.abs(x) < 1e-10 && Math.abs(z - 7) 
 assert.ok(motionSamples.slice(1).every(([x]) => Math.abs(x) < 1e-10), 'yaw must not steer lookahead away from a valid retained motion vector');
 assert.equal(motionRidge.position.y, 26, 'ridge on the real rendered trajectory must raise the dragon before crossing it');
 
+const hitched = fakeDragon();
+hitched.position.set(0, 18, 15);
+hitched.rotation.set(0, Math.PI / 2, 0);
+hitched.userData.dragonPreviousRenderedX = 0;
+hitched.userData.dragonPreviousRenderedZ = 0;
+const hitchSamples = [];
+clampAltitudeAboveGround(hitched, (x, z) => {
+  hitchSamples.push([x, z]);
+  return Math.abs(x) < 1e-10 && z >= 6.75 && z <= 7.25 ? 17 : 0;
+}, 10);
+assert.ok(hitchSamples.some(([x, z]) => Math.abs(x) < 1e-10 && Math.abs(z - 7) < 1e-10), 'long-frame traversed segment must be sampled before projecting new lookahead');
+assert.equal(hitched.position.y, 27, 'ridge crossed during a >12m frame must still raise the dragon');
+const traversedSamples = hitchSamples.filter(([, z]) => z >= -1e-10 && z < 15 - 1e-10).map(([, z]) => z).sort((a, b) => a - b);
+for (let i = 1; i < traversedSamples.length; i += 1) {
+  assert.ok(traversedSamples[i] - traversedSamples[i - 1] <= DRAGON_TERRAIN_PROBE_SPACING_METERS + 1e-10, 'traversed-segment spacing must remain <=1m under a frame hitch');
+}
+
 const pointOnly = fakeDragon();
 pointOnly.position.set(0, 18, 0);
 pointOnly.rotation.set(0, Math.PI / 2, 0);
@@ -118,4 +135,4 @@ applyCirclePose(repeat, center, 20, 0, 0.2);
 applyDiveOffset(repeat, { playerX: 30, playerZ: -10, centerY: center.y, diveDropMeters: 24, lateralPullFraction: 0.7, diveBlend: 1 });
 assert.deepEqual(poseSnapshot(repeat), poseSnapshot(dragon));
 
-console.log('DRAGON_DIVE_HEADING_PASS', JSON.stringify({ patrolYaw, committedYaw: dragon.rotation.y, committedPitch: dragon.rotation.x, clampedPitch: clamped.rotation.x, terrainLookaheadMeters: DRAGON_TERRAIN_LOOKAHEAD_METERS, probeSpacingMeters: DRAGON_TERRAIN_PROBE_SPACING_METERS, terrainLookaheadSamples: sampled.length, motionDirectedSamples: motionSamples.length, bankPreserved: dragon.rotation.z, deterministic: true }));
+console.log('DRAGON_DIVE_HEADING_PASS', JSON.stringify({ patrolYaw, committedYaw: dragon.rotation.y, committedPitch: dragon.rotation.x, clampedPitch: clamped.rotation.x, terrainLookaheadMeters: DRAGON_TERRAIN_LOOKAHEAD_METERS, probeSpacingMeters: DRAGON_TERRAIN_PROBE_SPACING_METERS, terrainLookaheadSamples: sampled.length, motionDirectedSamples: motionSamples.length, hitchedSweepSamples: hitchSamples.length, bankPreserved: dragon.rotation.z, deterministic: true }));
