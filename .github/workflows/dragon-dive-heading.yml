@@ -7,6 +7,7 @@ on:
       - 'src/3d/gameplay/dragonFlightMath.js'
       - 'src/3d/gameplay/dragonController.js'
       - 'scripts/checkDragonDiveHeading.mjs'
+      - 'scripts/checkDragonTerrainSampleResilience.mjs'
       - '.github/workflows/dragon-dive-heading.yml'
   workflow_dispatch:
 
@@ -32,8 +33,8 @@ jobs:
           test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
           changed="$(git diff --name-only origin/main...HEAD)"
           printf '%s\n' "$changed"
-          test "$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)" -eq 3
-          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/dragonFlightMath\.js|scripts/checkDragonDiveHeading\.mjs|\.github/workflows/dragon-dive-heading\.yml)$' && exit 1 || true
+          test "$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)" -eq 4
+          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/dragonFlightMath\.js|scripts/checkDragonDiveHeading\.mjs|scripts/checkDragonTerrainSampleResilience\.mjs|\.github/workflows/dragon-dive-heading\.yml)$' && exit 1 || true
           additions="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END {print s+0}')"
           deletions="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END {print s+0}')"
           test $((additions + deletions)) -le 1000
@@ -43,7 +44,9 @@ jobs:
           node --check src/3d/gameplay/dragonFlightMath.js
           node --check src/3d/gameplay/dragonController.js
           node --check scripts/checkDragonDiveHeading.mjs
+          node --check scripts/checkDragonTerrainSampleResilience.mjs
           node scripts/checkDragonDiveHeading.mjs
+          node scripts/checkDragonTerrainSampleResilience.mjs
 
       - name: Preserve shared material placement contract
         run: node scripts/checkSharedMaterialPlacementContract.js
@@ -63,10 +66,14 @@ jobs:
           grep -q 'dragonPreviousRenderedZ' src/3d/gameplay/dragonFlightMath.js
           grep -q 'dragonTerrainSweepDiscontinuity' src/3d/gameplay/dragonFlightMath.js
           grep -q 'dragonTerrainSampleCount' src/3d/gameplay/dragonFlightMath.js
+          grep -q 'dragonTerrainInvalidSampleCount' src/3d/gameplay/dragonFlightMath.js
+          grep -q 'Number.isFinite(groundY)' src/3d/gameplay/dragonFlightMath.js
           grep -q 'sampleSegmentGround' src/3d/gameplay/dragonFlightMath.js
           grep -q 'traversedDistance <= boundedMaxTraversed' src/3d/gameplay/dragonFlightMath.js
           grep -q 'kilometre-scale retained displacement must be classified as a discontinuity' scripts/checkDragonDiveHeading.mjs
           grep -q 'long-frame traversed segment must be sampled before projecting new lookahead' scripts/checkDragonDiveHeading.mjs
+          grep -q 'valid forward ridge must still clamp altitude when the current sample is NaN' scripts/checkDragonTerrainSampleResilience.mjs
+          grep -q 'all-invalid terrain data must preserve the rendered altitude' scripts/checkDragonTerrainSampleResilience.mjs
           node - <<'NODE'
           const fs = require('fs');
           const controller = fs.readFileSync('src/3d/gameplay/dragonController.js', 'utf8');
