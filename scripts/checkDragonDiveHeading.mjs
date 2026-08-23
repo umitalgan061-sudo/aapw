@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import {
   DRAGON_TERRAIN_LOOKAHEAD_METERS,
+  DRAGON_TERRAIN_MAX_TRAVERSED_SWEEP_METERS,
   DRAGON_TERRAIN_PROBE_SPACING_METERS,
   alignDiveOrientation,
   applyCirclePose,
@@ -117,10 +118,31 @@ clampAltitudeAboveGround(hitched, (x, z) => {
 }, 10);
 assert.ok(hitchSamples.some(([x, z]) => Math.abs(x) < 1e-10 && Math.abs(z - 7) < 1e-10), 'long-frame traversed segment must be sampled before projecting new lookahead');
 assert.equal(hitched.position.y, 27, 'ridge crossed during a >12m frame must still raise the dragon');
+assert.equal(hitched.userData.dragonTerrainSweepDiscontinuity, false);
+assert.equal(hitched.userData.dragonTerrainTraversedMeters, 15);
+assert.equal(hitched.userData.dragonTerrainSampleCount, hitchSamples.length);
 const traversedSamples = hitchSamples.filter(([, z]) => z >= -1e-10 && z < 15 - 1e-10).map(([, z]) => z).sort((a, b) => a - b);
 for (let i = 1; i < traversedSamples.length; i += 1) {
   assert.ok(traversedSamples[i] - traversedSamples[i - 1] <= DRAGON_TERRAIN_PROBE_SPACING_METERS + 1e-10, 'traversed-segment spacing must remain <=1m under a frame hitch');
 }
+
+const discontinuity = fakeDragon();
+discontinuity.position.set(0, 18, 1200);
+discontinuity.rotation.set(0, 0, 0);
+discontinuity.userData.dragonPreviousRenderedX = 0;
+discontinuity.userData.dragonPreviousRenderedZ = 0;
+const discontinuitySamples = [];
+clampAltitudeAboveGround(discontinuity, (x, z) => {
+  discontinuitySamples.push([x, z]);
+  return z >= 599.5 && z <= 600.5 ? 80 : 0;
+}, 10);
+assert.equal(discontinuity.userData.dragonTerrainSweepDiscontinuity, true, 'kilometre-scale retained displacement must be classified as a discontinuity');
+assert.equal(discontinuity.userData.dragonTerrainTraversedMeters, 1200);
+assert.equal(discontinuitySamples.length, expectedSegments + 1, 'discontinuity work must stay bounded to destination plus normal lookahead');
+assert.equal(discontinuity.userData.dragonTerrainSampleCount, discontinuitySamples.length);
+assert.equal(discontinuity.position.y, 18, 'unrendered teleport gap terrain must not spuriously clamp the destination');
+assert.ok(discontinuitySamples.every(([, z]) => z >= 1200 - 1e-10), 'discontinuity must never metre-scan the unrendered retained gap');
+assert.ok(DRAGON_TERRAIN_MAX_TRAVERSED_SWEEP_METERS > 15, 'qualified hitch distance must remain inside the traversed anti-tunnelling budget');
 
 const pointOnly = fakeDragon();
 pointOnly.position.set(0, 18, 0);
@@ -129,10 +151,11 @@ let pointOnlySamples = 0;
 clampAltitudeAboveGround(pointOnly, () => { pointOnlySamples += 1; return 0; }, 10, 0);
 assert.equal(pointOnlySamples, 1);
 assert.equal(pointOnly.position.y, 18);
+assert.equal(pointOnly.userData.dragonTerrainSampleCount, 1);
 
 const repeat = fakeDragon();
 applyCirclePose(repeat, center, 20, 0, 0.2);
 applyDiveOffset(repeat, { playerX: 30, playerZ: -10, centerY: center.y, diveDropMeters: 24, lateralPullFraction: 0.7, diveBlend: 1 });
 assert.deepEqual(poseSnapshot(repeat), poseSnapshot(dragon));
 
-console.log('DRAGON_DIVE_HEADING_PASS', JSON.stringify({ patrolYaw, committedYaw: dragon.rotation.y, committedPitch: dragon.rotation.x, clampedPitch: clamped.rotation.x, terrainLookaheadMeters: DRAGON_TERRAIN_LOOKAHEAD_METERS, probeSpacingMeters: DRAGON_TERRAIN_PROBE_SPACING_METERS, terrainLookaheadSamples: sampled.length, motionDirectedSamples: motionSamples.length, hitchedSweepSamples: hitchSamples.length, bankPreserved: dragon.rotation.z, deterministic: true }));
+console.log('DRAGON_DIVE_HEADING_PASS', JSON.stringify({ patrolYaw, committedYaw: dragon.rotation.y, committedPitch: dragon.rotation.x, clampedPitch: clamped.rotation.x, terrainLookaheadMeters: DRAGON_TERRAIN_LOOKAHEAD_METERS, probeSpacingMeters: DRAGON_TERRAIN_PROBE_SPACING_METERS, maxTraversedSweepMeters: DRAGON_TERRAIN_MAX_TRAVERSED_SWEEP_METERS, terrainLookaheadSamples: sampled.length, motionDirectedSamples: motionSamples.length, hitchedSweepSamples: hitchSamples.length, discontinuitySamples: discontinuitySamples.length, bankPreserved: dragon.rotation.z, deterministic: true }));
