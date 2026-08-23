@@ -11,7 +11,7 @@
 const clamp01 = (value) => (value < 0 ? 0 : value > 1 ? 1 : value);
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-23-v1',
+  id: 'terrain-snow-surface-tone-2026-08-23-v2-sheltered-accumulation',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
@@ -20,9 +20,10 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   packedPermanentIceFloor: 0.10,
   accumulatedLeeGain: 0.72,
   accumulatedConcavityGain: 0.42,
-  accumulatedGentleSlopeGain: 0.12,
+  accumulatedGentleSlopeGain: 0.16,
   tundraToneScale: 0.78,
   minimumVisibleSnow: 0.08,
+  minimumAccumulatedSnow: 0.22,
   maximumPackedWeight: 0.72,
   maximumAccumulatedWeight: 0.78,
   packedCoolShift: 0.18,
@@ -47,12 +48,17 @@ export function resolveTerrainSnowSurfaceTone({
   gentleSlope = 0,
 } = {}) {
   const P = TERRAIN_SNOW_SURFACE_TONE_POLICY;
-  const visibleSnow = clamp01((clamp01(snowAmount) - P.minimumVisibleSnow) / (1 - P.minimumVisibleSnow));
+  const normalizedSnow = clamp01(snowAmount);
+  const visibleSnow = clamp01((normalizedSnow - P.minimumVisibleSnow) / (1 - P.minimumVisibleSnow));
+  const accumulationVisibleSnow = clamp01(
+    (normalizedSnow - P.minimumAccumulatedSnow) / (1 - P.minimumAccumulatedSnow),
+  );
   const climate = clamp01(Math.max(clamp01(permanentIce), clamp01(tundra) * P.tundraToneScale));
 
   if (visibleSnow <= 0 || climate <= 0) {
     return Object.freeze({
       visibleSnow,
+      accumulationVisibleSnow,
       climate,
       packedWeight: 0,
       accumulatedWeight: 0,
@@ -67,10 +73,12 @@ export function resolveTerrainSnowSurfaceTone({
       + clamp01(ridgeExposure) * P.packedRidgeGain
       + clamp01(permanentIce) * P.packedPermanentIceFloor,
   );
+  const shelterSignal = Math.max(clamp01(leeDeposit), clamp01(concavityHold));
+  const gentleShelterSupport = clamp01(gentleSlope) * shelterSignal * P.accumulatedGentleSlopeGain;
   const accumulatedSignal = clamp01(
     clamp01(leeDeposit) * P.accumulatedLeeGain
       + clamp01(concavityHold) * P.accumulatedConcavityGain
-      + clamp01(gentleSlope) * P.accumulatedGentleSlopeGain,
+      + gentleShelterSupport,
   );
 
   // A sheltered accumulation signal suppresses the packed interpretation and vice versa. This
@@ -78,12 +86,20 @@ export function resolveTerrainSnowSurfaceTone({
   const packedDominance = packedSignal * (1 - accumulatedSignal * 0.72);
   const accumulatedDominance = accumulatedSignal * (1 - packedSignal * 0.72);
   const packedWeight = Math.min(P.maximumPackedWeight, packedDominance * visibleSnow * climate);
-  const accumulatedWeight = Math.min(P.maximumAccumulatedWeight, accumulatedDominance * visibleSnow * climate);
+  // Thin veneers can look cold/packed, but should not read as deep creamy drifts. Accumulated tone
+  // therefore needs a little more retained snow than the generic visible-snow threshold.
+  const accumulatedWeight = Math.min(
+    P.maximumAccumulatedWeight,
+    accumulatedDominance * accumulationVisibleSnow * climate,
+  );
   const neutralWeight = clamp01(visibleSnow * (1 - Math.max(packedWeight, accumulatedWeight)));
 
   return Object.freeze({
     visibleSnow,
+    accumulationVisibleSnow,
     climate,
+    shelterSignal,
+    gentleShelterSupport,
     packedWeight,
     accumulatedWeight,
     neutralWeight,
