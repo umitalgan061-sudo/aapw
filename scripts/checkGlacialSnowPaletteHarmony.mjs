@@ -32,6 +32,15 @@ function distance(a, b) {
 assert.equal(P.renderOnly, true);
 assert.equal(P.heightAuthorityUnchanged, true);
 assert.equal(P.snowCoverageAuthorityUnchanged, true);
+assert.equal(P.glacialDepthHarmony, true);
+assert(P.glacialDepthFloor >= 0.45 && P.glacialDepthFloor <= 0.65,
+  'visible permanent-ice snow should retain a bounded cold-family depth floor');
+assert(P.glacialDepthGain >= 0.35 && P.glacialDepthGain <= 0.55,
+  'retained snow depth should strengthen glacial harmony without becoming a second coverage owner');
+assert(P.packedGlacialDepthGain >= 0.04 && P.packedGlacialDepthGain <= 0.12,
+  'depth-aware packed support should remain meaningful but bounded');
+assert(P.glacialDepthAccumulationCooling >= 0.05 && P.glacialDepthAccumulationCooling <= 0.16,
+  'deep glacial accumulation cooling should stay a small render-only correction');
 assert(P.packedGlacialFamilyGain >= 0.14 && P.packedGlacialFamilyGain <= 0.2,
   'glacial packed-family bridge should remain visually meaningful but bounded');
 assert(P.packedShelteredGlacialGain >= 0.06 && P.packedShelteredGlacialGain <= 0.14,
@@ -90,8 +99,24 @@ const permanentWindward = resolveTerrainSnowSurfaceTone({
   windwardScour: 0.92,
   ridgeExposure: 0.88,
 });
+const permanentThinShelter = resolveTerrainSnowSurfaceTone({
+  snowAmount: 0.24,
+  permanentIce: 1,
+  tundra: 1,
+  leeDeposit: 0.7,
+  concavityHold: 0.65,
+  gentleSlope: 0.8,
+});
 const permanentShallowShelter = resolveTerrainSnowSurfaceTone({
   snowAmount: 0.34,
+  permanentIce: 1,
+  tundra: 1,
+  leeDeposit: 0.7,
+  concavityHold: 0.65,
+  gentleSlope: 0.8,
+});
+const permanentDeepShelter = resolveTerrainSnowSurfaceTone({
+  snowAmount: 0.94,
   permanentIce: 1,
   tundra: 1,
   leeDeposit: 0.7,
@@ -112,6 +137,21 @@ const transitionShelter = resolveTerrainSnowSurfaceTone({
   leeDeposit: 0.9,
   concavityHold: 0.85,
   gentleSlope: 0.9,
+});
+const transitionDeepShelter = resolveTerrainSnowSurfaceTone({
+  snowAmount: 0.94,
+  permanentIce: 0.5,
+  tundra: 1,
+  leeDeposit: 0.7,
+  concavityHold: 0.65,
+  gentleSlope: 0.8,
+});
+const tundraDeepShelter = resolveTerrainSnowSurfaceTone({
+  snowAmount: 0.94,
+  tundra: 1,
+  leeDeposit: 0.7,
+  concavityHold: 0.65,
+  gentleSlope: 0.8,
 });
 
 assert(permanentLee.glacialFamilySupport > 0.55,
@@ -148,22 +188,49 @@ assert(permanentShallowShelter.packedWeight > tundraShallowShelter.packedWeight,
 assert(permanentShallowShelter.accumulatedWeight < tundraShallowShelter.accumulatedWeight,
   'permanent-ice shallow shelter should remain less warm-tinted than tundra shelter');
 
+assert(permanentThinShelter.glacialDepthSupport > 0,
+  'thin visible permanent-ice snow should already retain a depth-aware glacial-family signal');
+assert(permanentDeepShelter.glacialDepthSupport > permanentThinShelter.glacialDepthSupport,
+  'retained snow depth should strengthen glacial-family support monotonically');
+assert(permanentDeepShelter.accumulationDepthCooling > permanentShallowShelter.accumulationDepthCooling,
+  'deep sheltered permanent-ice snow should receive more depth-aware warm-tint cooling than shallow snow');
+assert.equal(tundraDeepShelter.glacialDepthSupport, 0,
+  'pure tundra snow must not inherit permanent-ice depth harmony');
+assert.equal(tundraDeepShelter.accumulationDepthCooling, 0,
+  'pure tundra accumulated snow must not receive glacial depth cooling');
+assert(transitionDeepShelter.glacialDepthSupport > 0
+  && transitionDeepShelter.glacialDepthSupport < permanentDeepShelter.glacialDepthSupport,
+  'map-aligned transition snow depth should stay between tundra and permanent-ice glacial support');
+assert(transitionDeepShelter.accumulationDepthCooling > 0
+  && transitionDeepShelter.accumulationDepthCooling < permanentDeepShelter.accumulationDepthCooling,
+  'depth-aware accumulated cooling should transition smoothly with permanent-ice climate weight');
+assert(permanentDeepShelter.accumulatedWeight < tundraDeepShelter.accumulatedWeight,
+  'deep far-north lee snow should remain visually colder than equally deep tundra accumulation');
+assert(permanentDeepShelter.accumulatedWeight > 0.16,
+  'depth harmony must not erase the soft accumulated-snow reading in far-north bowls');
+
 for (const sample of [
   permanentLee,
   tundraLee,
   permanentNeutral,
   permanentWindward,
+  permanentThinShelter,
   permanentShallowShelter,
+  permanentDeepShelter,
   tundraShallowShelter,
   transitionShelter,
+  transitionDeepShelter,
+  tundraDeepShelter,
 ]) {
   for (const key of [
     'packedWeight',
     'accumulatedWeight',
     'glacialFamilySupport',
+    'glacialDepthSupport',
     'shelteredGlacialRetention',
     'shelteredGlacialBridge',
     'accumulationGlacialCooling',
+    'accumulationDepthCooling',
     'visibleSnow',
   ]) {
     assert(Number.isFinite(sample[key]) && sample[key] >= -EPSILON && sample[key] <= 1 + EPSILON,
@@ -195,5 +262,10 @@ console.log(JSON.stringify({
   permanentLeeAccumulationScale: permanentLee.accumulationClimateScale,
   shallowShelterPackedDelta: permanentShallowShelter.packedWeight - tundraShallowShelter.packedWeight,
   permanentWindwardPackedWeight: permanentWindward.packedWeight,
+  thinGlacialDepthSupport: permanentThinShelter.glacialDepthSupport,
+  deepGlacialDepthSupport: permanentDeepShelter.glacialDepthSupport,
+  shallowAccumulationDepthCooling: permanentShallowShelter.accumulationDepthCooling,
+  deepAccumulationDepthCooling: permanentDeepShelter.accumulationDepthCooling,
+  transitionDepthCooling: transitionDeepShelter.accumulationDepthCooling,
   heightAuthorityUnchanged: true,
 }, null, 2));
