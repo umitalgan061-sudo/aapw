@@ -21,7 +21,7 @@ function smoothstep(edge0, edge1, value) {
 }
 
 export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
-	id: 'terrain-map-climate-cryosphere-2026-08-23-v12-intertidal',
+	id: 'terrain-map-climate-cryosphere-2026-08-23-v13-intertidal-union',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	mapAlignedCryosphere: true,
@@ -213,10 +213,10 @@ function coastalCryosphereProfile(permanentIce, tundra, out) {
 	out.topMeters = lerp(P.northCoastalIceTundraTopMeters, P.northCoastalIceTopMeters, permanentIce);
 	out.fullMeters = lerp(P.northCoastalIceTundraFullMeters, P.northCoastalIceFullMeters, permanentIce);
 	out.intertidalTopMeters = lerp(P.northIntertidalTundraTopMeters, P.northIntertidalIceTopMeters, permanentIce);
-	out.intertidalWeight = clamp01(Math.max(
-		permanentIce * P.northIntertidalIceStrength,
-		tundraBand * P.northIntertidalTundraStrength,
-	));
+	out.intertidalWeight = clamp01(
+		permanentIce * P.northIntertidalIceStrength
+		+ tundraBand * P.northIntertidalTundraStrength,
+	);
 	out.shallowDepthMeters = lerp(P.northShallowIceTundraDepthMeters, P.northShallowIceDepthMeters, permanentIce);
 	out.shallowWeight = clamp01(Math.max(
 		permanentIce * P.northShallowIceStrength,
