@@ -104,7 +104,10 @@ function sampleSegmentGround(sampleGroundY, startX, startZ, unitX, unitZ, distan
  * unrendered gap is deliberately not sampled metre-by-metre. This caps one dragon's terrain work
  * under pathological frame gaps while preserving the qualified long-frame anti-tunnelling path for
  * ordinary movement. Facing yaw remains only a compatibility fallback when no retained motion
- * exists. `lookAheadMeters=0` preserves historical point-only behavior.
+ * exists. Non-finite terrain samples are counted and ignored individually so one transient bad
+ * sample cannot disable valid ridge probes; if every sample is invalid the existing altitude is
+ * preserved rather than manufacturing a ground height. `lookAheadMeters=0` preserves historical
+ * point-only behavior.
  */
 export function clampAltitudeAboveGround(
 	object3D,
@@ -117,8 +120,18 @@ export function clampAltitudeAboveGround(
 	maxTraversedSweepMeters = DRAGON_TERRAIN_MAX_TRAVERSED_SWEEP_METERS,
 ) {
 	object3D.userData ??= {};
-	let terrainSampleCount = 1;
-	let highestGroundY = sampleGroundY(object3D.position.x, object3D.position.z);
+	let terrainSampleCount = 0;
+	let invalidTerrainSampleCount = 0;
+	let highestGroundY = Number.NEGATIVE_INFINITY;
+	const keepHighest = (groundY) => {
+		terrainSampleCount += 1;
+		if (!Number.isFinite(groundY)) {
+			invalidTerrainSampleCount += 1;
+			return;
+		}
+		if (groundY > highestGroundY) highestGroundY = groundY;
+	};
+	keepHighest(sampleGroundY(object3D.position.x, object3D.position.z));
 	let traversedDistance = 0;
 	let skippedDiscontinuity = false;
 	if (lookAheadMeters > 0) {
@@ -148,10 +161,6 @@ export function clampAltitudeAboveGround(
 		if (motionLength > 1e-8) {
 			forwardX /= motionLength;
 			forwardZ /= motionLength;
-			const keepHighest = (groundY) => {
-				terrainSampleCount += 1;
-				if (groundY > highestGroundY) highestGroundY = groundY;
-			};
 			if (hasRetainedPosition) {
 				const traversedX = object3D.position.x - previousX;
 				const traversedZ = object3D.position.z - previousZ;
@@ -193,6 +202,8 @@ export function clampAltitudeAboveGround(
 	object3D.userData.dragonTerrainTraversedMeters = traversedDistance;
 	object3D.userData.dragonTerrainSweepDiscontinuity = skippedDiscontinuity;
 	object3D.userData.dragonTerrainSampleCount = terrainSampleCount;
+	object3D.userData.dragonTerrainInvalidSampleCount = invalidTerrainSampleCount;
+	if (!Number.isFinite(highestGroundY)) return;
 	const minY = highestGroundY + minAltitudeAboveGroundMeters;
 	if (object3D.position.y < minY) object3D.position.y = minY;
 }
