@@ -21,7 +21,7 @@ function worldAt(normalizedX, normalizedY) {
 function canonicalNorthXAt(normalizedY) {
   const winter = { x: 0.145, y: 0.115 };
   const north = { x: 0.175, y: 0.285 };
-  const south = { x: 0.22, y: 0.42 };
+  const south = { x: 0.22, y: 0.52 };
   if (normalizedY <= winter.y) return winter.x;
   if (normalizedY <= north.y) {
     const t = (normalizedY - winter.y) / (north.y - winter.y);
@@ -49,7 +49,7 @@ function sampleAt(normalizedY, normalizedX = canonicalNorthXAt(normalizedY)) {
 // Start at the authored always-winter centre. Sampling north of this point and then travelling
 // south first approaches the core, so a global southward-monotonic assertion would be invalid.
 const start = 0.115;
-const end = 0.42;
+const end = 0.52;
 const samples = 240;
 let previousClimate = null;
 let previousColor = null;
@@ -98,7 +98,7 @@ assert(maxColorStep < 0.12,
 
 const winterCore = sampleAt(0.115, 0.145).climate;
 const canonicalNorth = sampleAt(0.285, 0.175).climate;
-const south = sampleAt(0.42, 0.22).climate;
+const south = sampleAt(0.52, 0.22).climate;
 const sameLatitudeEast = sampleAt(0.115, 0.72).climate;
 assert(winterCore.permanentIce > 0.99, 'always-winter centre must remain fully frozen');
 assert(canonicalNorth.tundra > 0.85, 'canonical North centre must retain strong tundra influence');
