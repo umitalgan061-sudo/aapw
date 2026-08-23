@@ -48,7 +48,7 @@ jobs:
       - name: Preserve shared material placement contract
         run: node scripts/checkSharedMaterialPlacementContract.js
 
-      - name: Runtime ownership guard
+      - name: Runtime ownership and terrain sweep budget guard
         shell: bash
         run: |
           set -euo pipefail
@@ -58,10 +58,14 @@ jobs:
           grep -q 'clampAltitudeAboveGround(model' src/3d/gameplay/dragonController.js
           grep -q 'DRAGON_TERRAIN_LOOKAHEAD_METERS' src/3d/gameplay/dragonFlightMath.js
           grep -q 'DRAGON_TERRAIN_PROBE_SPACING_METERS' src/3d/gameplay/dragonFlightMath.js
+          grep -q 'DRAGON_TERRAIN_MAX_TRAVERSED_SWEEP_METERS' src/3d/gameplay/dragonFlightMath.js
           grep -q 'dragonPreviousRenderedX' src/3d/gameplay/dragonFlightMath.js
           grep -q 'dragonPreviousRenderedZ' src/3d/gameplay/dragonFlightMath.js
+          grep -q 'dragonTerrainSweepDiscontinuity' src/3d/gameplay/dragonFlightMath.js
+          grep -q 'dragonTerrainSampleCount' src/3d/gameplay/dragonFlightMath.js
           grep -q 'sampleSegmentGround' src/3d/gameplay/dragonFlightMath.js
-          grep -q 'traversedDistance' src/3d/gameplay/dragonFlightMath.js
+          grep -q 'traversedDistance <= boundedMaxTraversed' src/3d/gameplay/dragonFlightMath.js
+          grep -q 'kilometre-scale retained displacement must be classified as a discontinuity' scripts/checkDragonDiveHeading.mjs
           grep -q 'long-frame traversed segment must be sampled before projecting new lookahead' scripts/checkDragonDiveHeading.mjs
           node - <<'NODE'
           const fs = require('fs');
@@ -72,10 +76,11 @@ jobs:
           const math = fs.readFileSync('src/3d/gameplay/dragonFlightMath.js', 'utf8');
           const currentProbe = math.indexOf('sampleGroundY(object3D.position.x, object3D.position.z)');
           const retainedMotion = math.indexOf('object3D.position.x - previousX');
-          const traversedSweep = math.indexOf('traversedDistance');
+          const traversedSweep = math.indexOf('traversedDistance <= boundedMaxTraversed');
+          const discontinuity = math.indexOf('skippedDiscontinuity = true');
           const forwardSweep = math.lastIndexOf('sampleSegmentGround(');
-          if (currentProbe < 0 || retainedMotion < currentProbe || traversedSweep < retainedMotion || forwardSweep < traversedSweep) {
-            throw new Error('terrain safety must sample retained previous-to-current travel before projecting forward lookahead');
+          if (currentProbe < 0 || retainedMotion < currentProbe || traversedSweep < retainedMotion || discontinuity < traversedSweep || forwardSweep < discontinuity) {
+            throw new Error('terrain safety must bound retained travel before projecting forward lookahead');
           }
           NODE
 
