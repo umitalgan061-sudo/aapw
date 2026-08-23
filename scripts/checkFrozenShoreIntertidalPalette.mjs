@@ -38,11 +38,13 @@ function distance(a, b) {
   return Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
 }
 
-const tundra = profileAt(0.175, 0.285);
+const tundra = profileAt(0.175, 0.30);
 const transition = profileAt(0.155, 0.20);
 const permanentIce = profileAt(0.145, 0.115);
 const sameLatitudeEast = profileAt(0.72, 0.115);
 
+assert.equal(tundra.permanentIce, 0,
+  'tundra fixture must isolate the authored tundra intertidal contribution');
 assert(tundra.intertidalWeight > 0,
   'canonical North tundra must retain a visible cold intertidal signal');
 assert(transition.intertidalWeight > tundra.intertidalWeight,
@@ -56,7 +58,7 @@ assert(transition.intertidalTopMeters < permanentIce.intertidalTopMeters,
 assert(permanentIce.intertidalWeight <= TERRAIN_BIOME_SHADING_POLICY.northIntertidalIceStrength + 1e-9,
   'permanent-ice intertidal weight must remain bounded by authored strength');
 assert(tundra.intertidalWeight <= TERRAIN_BIOME_SHADING_POLICY.northIntertidalTundraStrength + 1e-9,
-  'tundra intertidal weight must remain subordinate to permanent ice');
+  'pure tundra intertidal weight must remain bounded by authored tundra strength');
 assert.equal(sameLatitudeEast.intertidalWeight, 0,
   'same-latitude east must not inherit Westeros frozen intertidal treatment');
 
@@ -65,9 +67,9 @@ assert(distance(southWaterline, TERRAIN_BIOME_PALETTE.SHORE_SAND)
     < distance(southWaterline, TERRAIN_BIOME_PALETTE.WET_FROZEN_SHORE),
   'temperate shoreline must remain warm sand rather than cold wet intertidal ground');
 
-const tundraWaterline = colorAt(0.175, 0.285, 0.34, 2);
-const tundraUpperShore = colorAt(0.175, 0.285, 1.25, 2);
-const tundraSteepWaterline = colorAt(0.175, 0.285, 0.34, 36);
+const tundraWaterline = colorAt(0.175, 0.30, 0.34, 2);
+const tundraUpperShore = colorAt(0.175, 0.30, 1.25, 2);
+const tundraSteepWaterline = colorAt(0.175, 0.30, 0.34, 36);
 const wetPalette = TERRAIN_BIOME_PALETTE.WET_FROZEN_SHORE;
 
 assert(distance(tundraWaterline, wetPalette) < distance(tundraUpperShore, wetPalette),
