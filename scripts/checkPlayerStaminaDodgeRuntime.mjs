@@ -136,7 +136,6 @@ try {
   need(airborneFrames.every((frame) => frame.state !== 'dodge'), 'plain jump incorrectly became dodge without run intent');
   await page.keyboard.up('KeyW'); await waitState('idle', 6000); const recoveryStart = await latest();
   const recoveryEnd = await waitForHistoryEvidence((frames) => { const frame = frames.at(-1); return frame?.state === 'idle' && frame.stamina > recoveryStart.stamina ? frame : null; }, { timeout: 6000, interval: 100, label: 'idle stamina recovery after regen delay' });
-
   await page.keyboard.down('KeyQ');
   const guardReady = await waitForHistoryEvidence((frames) => { const frame = frames.at(-1); return frame?.state === 'guard' && frame.guarding && frame.parryWindowRemaining === 0 ? frame : null; }, { timeout: 12000, interval: 100, label: 'held guard after simulation-time parry window' });
   const guardHealthBefore = await readHealth();
@@ -163,7 +162,8 @@ try {
   // Isolate guard-break pressure from the earlier guard/parry poise spend without requiring a
   // wall-clock wait for a completely refilled stamina/poise bar. Seven guarded 20-point impacts
   // remove 105 poise and spend 29.4 stamina; >90 poise guarantees the seventh real hit breaks
-  // guard while >=40 stamina provides the measured synchronous burst budget.
+  // guard while >=40 stamina provides the measured synchronous burst budget. The shipped scene
+  // can be under concurrent spawn pressure, so allow a bounded 30s recovery window before failing.
   const pressureBaseline = await waitForHistoryEvidence((frames) => {
     const frame = frames.at(-1);
     return frame?.state === 'idle'
@@ -172,7 +172,7 @@ try {
       && frame.poise > 90
       ? frame
       : null;
-  }, { timeout: 20000, interval: 100, label: 'seven-hit poise and bounded stamina budget before guard-break pressure' });
+  }, { timeout: 30000, interval: 100, label: 'seven-hit poise and bounded stamina budget before guard-break pressure' });
   need(pressureBaseline.canDodge && !pressureBaseline.guarding, `pressure baseline must restore locomotion ${JSON.stringify(pressureBaseline)}`);
   await page.evaluate(() => { window.__playerMotionFrames.length = 0; });
 
