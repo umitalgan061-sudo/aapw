@@ -1,6 +1,6 @@
 /**
  * Pure flight-path / reaction-blend math for `gameplay/dragons.js` (run 71, DECISIONS.md ADR-0092).
- * Stateless, deterministic helpers only; no per-frame retained state or randomness.
+ * Stateless, deterministic helpers only; no module-level retained state or randomness.
  * @module gameplay/dragonFlightMath
  */
 
@@ -22,6 +22,14 @@ export function blendScalar(fromValue, toValue, blend) {
 }
 
 export function applyCirclePose(object3D, center, radiusMeters, angle, bankAngleRadians) {
+	// Capture the last rendered XZ before this frame overwrites the pose. Dive/pursuit offsets are
+	// applied after this helper, so on the next frame these values represent the actual previous
+	// rendered position rather than the new circle tangent or the dragon's facing yaw.
+	object3D.userData ??= {};
+	if (Number.isFinite(object3D.position?.x) && Number.isFinite(object3D.position?.z)) {
+		object3D.userData.dragonPreviousRenderedX = object3D.position.x;
+		object3D.userData.dragonPreviousRenderedZ = object3D.position.z;
+	}
 	const x = center.x + radiusMeters * Math.sin(angle);
 	const z = center.z + radiusMeters * Math.cos(angle);
 	object3D.position.set(x, center.y, z);
@@ -81,11 +89,11 @@ export function applyDiveOffset(object3D, { playerX, playerZ, centerY, diveDropM
 /**
  * Deterministically samples a bounded strip ahead of the rendered dragon. A three-point probe left
  * gaps large enough for narrow ridges to remain invisible between samples. The strip is subdivided
- * at a conservative 1 m gameplay-terrain spacing and follows the dragon's actual frame-to-frame XZ
- * displacement when supplied by the controller; yaw is only a compatibility fallback for pure
- * callers that do not have retained motion. A 12 m look-ahead therefore performs at most 13 samples
- * (current point + 12 forward samples), bounded and allocation-free. `lookAheadMeters=0` preserves
- * point-only behavior.
+ * at a conservative 1 m gameplay-terrain spacing and follows actual frame-to-frame rendered XZ
+ * displacement retained by `applyCirclePose`; facing yaw is only a compatibility fallback when no
+ * previous rendered point exists. A 12 m look-ahead therefore performs at most 13 samples (current
+ * point + 12 forward samples), bounded and allocation-free. `lookAheadMeters=0` preserves point-only
+ * behavior. Optional explicit motion remains available to pure callers/tests and takes precedence.
  */
 export function clampAltitudeAboveGround(
 	object3D,
@@ -98,8 +106,19 @@ export function clampAltitudeAboveGround(
 ) {
 	let highestGroundY = sampleGroundY(object3D.position.x, object3D.position.z);
 	if (lookAheadMeters > 0) {
-		let forwardX = Number.isFinite(motionX) ? motionX : 0;
-		let forwardZ = Number.isFinite(motionZ) ? motionZ : 0;
+		let forwardX = Number.isFinite(motionX) ? motionX : Number.NaN;
+		let forwardZ = Number.isFinite(motionZ) ? motionZ : Number.NaN;
+		if (!Number.isFinite(forwardX) || !Number.isFinite(forwardZ)) {
+			const previousX = object3D.userData?.dragonPreviousRenderedX;
+			const previousZ = object3D.userData?.dragonPreviousRenderedZ;
+			if (Number.isFinite(previousX) && Number.isFinite(previousZ)) {
+				forwardX = object3D.position.x - previousX;
+				forwardZ = object3D.position.z - previousZ;
+			} else {
+				forwardX = 0;
+				forwardZ = 0;
+			}
+		}
 		let motionLength = Math.hypot(forwardX, forwardZ);
 		if (motionLength <= 1e-8 && Number.isFinite(object3D.rotation?.y)) {
 			forwardX = Math.sin(object3D.rotation.y);
