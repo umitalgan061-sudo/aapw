@@ -2,18 +2,25 @@
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { WORLD_SCALE } from '../src/3d/config.js';
-import { WORLD_REFERENCE_ALIGNMENT } from '../src/3d/world/worldReferenceAlignment.js';
+import { normalizedReferenceToWorldXZ } from '../src/3d/world/worldReferenceAlignment.js';
 import { createVegetation, disposeVegetation } from '../src/3d/world/vegetation.js';
 import { northClimateWeightsAtWorldXZ } from '../src/3d/world/terrainBiomeShading.js';
 
-function worldZForNormalizedMapY(normalizedY) {
-  const centerMapY = (WORLD_SCALE.MAP_BOUNDS.minY + WORLD_SCALE.MAP_BOUNDS.maxY) * 0.5;
-  const mapY = normalizedY * WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits;
-  return (mapY - centerMapY) * WORLD_SCALE.METERS_PER_MAP_UNIT;
+function worldAt(normalizedX, normalizedY) {
+  return normalizedReferenceToWorldXZ(
+    normalizedX,
+    normalizedY,
+    WORLD_SCALE.MAP_BOUNDS,
+    WORLD_SCALE.METERS_PER_MAP_UNIT,
+  );
 }
 
-const farNorthZ = worldZForNormalizedMapY(0.08);
-const requiredRadius = Math.abs(farNorthZ) + 900;
+// The canonical lands-always-winter zone is north-west of the world origin. A radius derived only
+// from normalized Y can cover its latitude while entirely missing its X extent, producing a false
+// "no permanent-ice snow pine" failure. Size the deterministic scatter disc from the authored 2D
+// winter core instead.
+const winterCore = worldAt(0.145, 0.115);
+const requiredRadius = Math.hypot(winterCore.x, winterCore.z) + 900;
 const result = createVegetation({
   sampleHeightMeters: () => 120,
   seaLevelMeters: 0,
@@ -84,4 +91,5 @@ console.log('[checkNorthernVegetationRuntime] PASS', JSON.stringify({
   snowInPermanentIce: snowInNorth,
   temperateRound,
   radiusMeters: requiredRadius,
+  winterCore,
 }));
