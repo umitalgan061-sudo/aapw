@@ -22,7 +22,7 @@ function smoothstep(edge0, edge1, value) {
 const PREVAILING_SOURCE_LENGTH = Math.hypot(0.8, 0.6);
 
 export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
-	id: 'terrain-wind-snow-exposure-2026-08-22-v2',
+	id: 'terrain-wind-snow-exposure-2026-08-23-v3-selective-aspect',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	// Direction points toward the source of the prevailing wind. Wind therefore travels NW -> SE.
@@ -30,6 +30,10 @@ export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
 	prevailingSourceZ: -0.6 / PREVAILING_SOURCE_LENGTH,
 	aspectSlopeStartDegrees: 3,
 	aspectSlopeFullDegrees: 28,
+	// Avoid broad half-mountain striping: crosswind faces stay neutral until they meaningfully align
+	// with the authored prevailing flow, then ramp smoothly toward full windward/lee influence.
+	directionalAlignmentStart: 0.22,
+	directionalAlignmentFull: 0.90,
 	// Sheltered faces can hold loose snow on ordinary mountain slopes, but near-cliffs should shed it.
 	leeRetentionFadeStartDegrees: 42,
 	leeRetentionFadeFullDegrees: 62,
@@ -44,8 +48,10 @@ export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
  *
  * `windward` and `lee` are directional weights in [0, 1]. Flat terrain deliberately returns zero
  * for both because it has no meaningful facing direction. `slopeAspectStrength` fades the signal in
- * over shallow slopes so lowland snow does not develop artificial directional bands. Lee retention
- * then fades on near-cliffs: a sheltered face can collect snow, but loose deposition should not be
+ * over shallow slopes so lowland snow does not develop artificial directional bands. A second
+ * alignment gate keeps nearly crosswind faces neutral, preventing the old broad 180-degree
+ * windward/lee split from painting large directional bands across mountains. Lee retention then
+ * fades on near-cliffs: a sheltered face can collect snow, but loose deposition should not be
  * painted onto extremely steep rock where gravity would shed it. Windward exposure remains active
  * on those faces because scour can still strip snow from exposed cliffs and ridges.
  */
@@ -80,6 +86,8 @@ export function terrainWindExposureFromNeighbours(
 			slopeAspectStrength,
 			leeRetention,
 			aspectDot: 0,
+			windwardAlignment: 0,
+			leeAlignment: 0,
 			windward: 0,
 			lee: 0,
 		});
@@ -94,6 +102,16 @@ export function terrainWindExposureFromNeighbours(
 		+ normalZ * TERRAIN_WIND_SNOW_POLICY.prevailingSourceZ
 		+ 1
 	) * 0.5) * 2 - 1;
+	const windwardAlignment = smoothstep(
+		TERRAIN_WIND_SNOW_POLICY.directionalAlignmentStart,
+		TERRAIN_WIND_SNOW_POLICY.directionalAlignmentFull,
+		Math.max(0, aspectDot),
+	);
+	const leeAlignment = smoothstep(
+		TERRAIN_WIND_SNOW_POLICY.directionalAlignmentStart,
+		TERRAIN_WIND_SNOW_POLICY.directionalAlignmentFull,
+		Math.max(0, -aspectDot),
+	);
 
 	return Object.freeze({
 		gradientX,
@@ -102,8 +120,10 @@ export function terrainWindExposureFromNeighbours(
 		slopeAspectStrength,
 		leeRetention,
 		aspectDot,
-		windward: Math.max(0, aspectDot) * slopeAspectStrength,
-		lee: Math.max(0, -aspectDot) * slopeAspectStrength * leeRetention,
+		windwardAlignment,
+		leeAlignment,
+		windward: windwardAlignment * slopeAspectStrength,
+		lee: leeAlignment * slopeAspectStrength * leeRetention,
 	});
 }
 
