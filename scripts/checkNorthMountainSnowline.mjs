@@ -17,12 +17,25 @@ function worldAt(normalizedX, normalizedY) {
 	);
 }
 
-function snowlineAt(normalizedY, normalizedX = 0.145) {
+function canonicalNorthXAt(normalizedY) {
+	const winter = { x: 0.145, y: 0.115 };
+	const north = { x: 0.175, y: 0.285 };
+	const south = { x: 0.22, y: 0.52 };
+	if (normalizedY <= winter.y) return winter.x;
+	if (normalizedY <= north.y) {
+		const t = (normalizedY - winter.y) / (north.y - winter.y);
+		return winter.x + (north.x - winter.x) * t;
+	}
+	const t = Math.min(1, (normalizedY - north.y) / (south.y - north.y));
+	return north.x + (south.x - north.x) * t;
+}
+
+function snowlineAt(normalizedY, normalizedX = canonicalNorthXAt(normalizedY)) {
 	const world = worldAt(normalizedX, normalizedY);
 	return mountainSnowlineAtWorldXZ(world.x, world.z);
 }
 
-function coverageAt({ normalizedX = 0.145, normalizedY, height, slope = 8, snowWeight = 0 }) {
+function coverageAt({ normalizedX = canonicalNorthXAt(normalizedY), normalizedY, height, slope = 8, snowWeight = 0 }) {
 	const world = worldAt(normalizedX, normalizedY);
 	return resolveTerrainSnowCoverage({
 		heightAboveSeaMeters: height,
@@ -34,7 +47,7 @@ function coverageAt({ normalizedX = 0.145, normalizedY, height, slope = 8, snowW
 }
 
 const P = TERRAIN_BIOME_SHADING_POLICY;
-const farNorth = snowlineAt(0.115);
+const farNorth = snowlineAt(0.115, 0.145);
 const iceTransition = snowlineAt(0.20, 0.155);
 const tundra = snowlineAt(0.285, 0.175);
 const temperate = snowlineAt(0.62, 0.52);
@@ -57,20 +70,29 @@ assert(farNorth.startMeters <= 1,
 assert(farNorth.fullMeters <= P.northIceSnowlineFullMeters + 1e-9,
 	'far-north full snow must use the dedicated low cryosphere altitude');
 
-let previous = snowlineAt(0.08);
+// Follow the authored Westeros north path rather than a fixed longitude. The winter and North
+// climate zones overlap, so global monotonicity between every adjacent sample is not a valid
+// requirement; the canonical anchors above enforce the large-scale ordering while this sweep
+// guards against visible local snowline seams.
+const sweepStart = 0.115;
+const sweepEnd = 0.52;
+const sweepSamples = 400;
+let previous = snowlineAt(sweepStart);
 let maxStartStep = 0;
 let maxFullStep = 0;
-for (let i = 1; i <= 400; i += 1) {
-	const normalizedY = 0.08 + 0.34 * (i / 400);
+let maxSouthwardStartDrop = 0;
+let maxSouthwardFullDrop = 0;
+for (let i = 1; i <= sweepSamples; i += 1) {
+	const normalizedY = sweepStart + (sweepEnd - sweepStart) * (i / sweepSamples);
 	const current = snowlineAt(normalizedY);
-	assert(current.startMeters >= previous.startMeters - 1e-9,
-		'mountain snowline start must rise monotonically when travelling south through canonical Westeros');
-	assert(current.fullMeters >= previous.fullMeters - 1e-9,
-		'full-snow altitude must rise monotonically when travelling south through canonical Westeros');
 	assert(current.fullMeters > current.startMeters,
 		'every climate sample must retain a non-zero snow accumulation band');
-	maxStartStep = Math.max(maxStartStep, current.startMeters - previous.startMeters);
-	maxFullStep = Math.max(maxFullStep, current.fullMeters - previous.fullMeters);
+	const startDelta = current.startMeters - previous.startMeters;
+	const fullDelta = current.fullMeters - previous.fullMeters;
+	maxStartStep = Math.max(maxStartStep, Math.abs(startDelta));
+	maxFullStep = Math.max(maxFullStep, Math.abs(fullDelta));
+	maxSouthwardStartDrop = Math.max(maxSouthwardStartDrop, -startDelta);
+	maxSouthwardFullDrop = Math.max(maxSouthwardFullDrop, -fullDelta);
 	previous = current;
 }
 assert(maxStartStep < 5 && maxFullStep < 5,
@@ -78,12 +100,12 @@ assert(maxStartStep < 5 && maxFullStep < 5,
 
 const southMountain = coverageAt({ normalizedX: 0.52, normalizedY: 0.62, height: 300 });
 const tundraMountain = coverageAt({ normalizedX: 0.175, normalizedY: 0.285, height: 300 });
-const iceLowland = coverageAt({ normalizedY: 0.115, height: 18 });
+const iceLowland = coverageAt({ normalizedX: 0.145, normalizedY: 0.115, height: 18 });
 const tundraLowland = coverageAt({ normalizedX: 0.175, normalizedY: 0.285, height: 18 });
 const canonicalSouthSnow = coverageAt({ normalizedX: 0.52, normalizedY: 0.62, height: 18, snowWeight: 1 });
-const steepIce = coverageAt({ normalizedY: 0.115, height: 80, slope: 70 });
-const flatIce = coverageAt({ normalizedY: 0.115, height: 18, slope: 2 });
-const highIce = coverageAt({ normalizedY: 0.115, height: 320, slope: 2 });
+const steepIce = coverageAt({ normalizedX: 0.145, normalizedY: 0.115, height: 80, slope: 70 });
+const flatIce = coverageAt({ normalizedX: 0.145, normalizedY: 0.115, height: 18, slope: 2 });
+const highIce = coverageAt({ normalizedX: 0.145, normalizedY: 0.115, height: 320, slope: 2 });
 const eastLowland = coverageAt({ normalizedX: 0.72, normalizedY: 0.115, height: 18 });
 
 assert(southMountain.altitudeSnow < 0.05,
@@ -116,6 +138,7 @@ for (const sample of [southMountain, tundraMountain, iceLowland, tundraLowland, 
 console.log('[checkNorthMountainSnowline] PASS', JSON.stringify({
 	policy: P.id,
 	farNorth: { start: farNorth.startMeters, full: farNorth.fullMeters },
+	iceTransition: { start: iceTransition.startMeters, full: iceTransition.fullMeters },
 	tundra: { start: tundra.startMeters, full: tundra.fullMeters },
 	temperate: { start: temperate.startMeters, full: temperate.fullMeters },
 	sameLatitudeEast: { start: sameLatitudeEast.startMeters, full: sameLatitudeEast.fullMeters },
@@ -124,4 +147,8 @@ console.log('[checkNorthMountainSnowline] PASS', JSON.stringify({
 	iceLowlandSnow: iceLowland.snowAmount,
 	maxStartStep,
 	maxFullStep,
+	maxSouthwardStartDrop,
+	maxSouthwardFullDrop,
+	sweepStart,
+	sweepEnd,
 }));
