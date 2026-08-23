@@ -26,11 +26,13 @@ const ALWAYS_WINTER_ZONE = findZone('lands-always-winter');
 const NORTH_ZONE = findZone('north');
 
 export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
-	id: 'owner-map-north-cryosphere-2026-08-22-v2-bounded-world',
+	id: 'owner-map-north-cryosphere-2026-08-23-v3-smooth-overlap',
 	source: 'WORLD_REFERENCE_MAP biome zones',
 	renderClimateOnly: true,
 	heightAuthorityUnchanged: true,
 	outsideReferenceIsTemperate: true,
+	corePreservingIceHalo: true,
+	tundraUnionBlend: true,
 	alwaysWinterZoneId: ALWAYS_WINTER_ZONE.id,
 	northZoneId: NORTH_ZONE.id,
 	iceTransitionRadiusScale: 1.55,
@@ -56,6 +58,12 @@ const NORTH_TUNDRA_TRANSITION_ZONE = scaledZone(
 	NORTH_REFERENCE_CRYOSPHERE_POLICY.tundraTransitionRadiusScale,
 );
 
+function union01(...weights) {
+	let remaining = 1;
+	for (const weight of weights) remaining *= 1 - clamp01(weight);
+	return clamp01(1 - remaining);
+}
+
 export function northReferenceCryosphereAtNormalized(normalizedX, normalizedY) {
 	if (!Number.isFinite(normalizedX) || !Number.isFinite(normalizedY)) {
 		throw new TypeError('normalized reference coordinates must be finite');
@@ -70,13 +78,18 @@ export function northReferenceCryosphereAtNormalized(normalizedX, normalizedY) {
 	const northCore = sampleReferenceInfluence(normalizedX, normalizedY, NORTH_ZONE);
 	const northHalo = sampleReferenceInfluence(normalizedX, normalizedY, NORTH_TUNDRA_TRANSITION_ZONE);
 
-	const permanentIce = clamp01(Math.max(winterCore, winterHalo * P.iceHaloGain));
-	const tundra = clamp01(Math.max(
-		permanentIce,
-		northCore * P.northTundraGain,
-		northHalo * P.northTundraGain,
-		winterHalo * P.winterHaloGain,
-	));
+	// Preserve authored full ice in the core, then spend only the halo influence that extends beyond it.
+	// This removes the branch/kink created by max(core, halo * gain) while keeping the outer halo bounded.
+	const winterHaloExtension = Math.max(0, winterHalo - winterCore);
+	const permanentIce = clamp01(winterCore + winterHaloExtension * P.iceHaloGain);
+
+	// Blend overlapping authored tundra envelopes as a bounded union instead of choosing one with max().
+	// The resulting field stays continuous where the North zone and always-winter halo overlap.
+	const northCoreTundra = northCore * P.northTundraGain;
+	const northHaloTundra = northHalo * P.northTundraGain;
+	const winterHaloTundra = winterHalo * P.winterHaloGain;
+	const tundraUnion = union01(northCoreTundra, northHaloTundra, winterHaloTundra);
+	const tundra = clamp01(Math.max(permanentIce, tundraUnion));
 
 	return Object.freeze({
 		normalizedX,
@@ -84,8 +97,10 @@ export function northReferenceCryosphereAtNormalized(normalizedX, normalizedY) {
 		outsideReference: false,
 		winterCore,
 		winterHalo,
+		winterHaloExtension,
 		northCore,
 		northHalo,
+		tundraUnion,
 		permanentIce,
 		tundra,
 		tundraBand: clamp01(tundra * (1 - permanentIce)),
@@ -106,8 +121,10 @@ function neutralCryosphereOutsideReference(worldX, worldZ) {
 		outsideReference: true,
 		winterCore: 0,
 		winterHalo: 0,
+		winterHaloExtension: 0,
 		northCore: 0,
 		northHalo: 0,
+		tundraUnion: 0,
 		permanentIce: 0,
 		tundra: 0,
 		tundraBand: 0,
