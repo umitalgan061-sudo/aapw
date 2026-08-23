@@ -9,6 +9,8 @@ assert.equal(P.heightAuthorityUnchanged, true);
 assert.equal(P.snowCoverageAuthorityUnchanged, true);
 assert.equal(P.cryosphereToneUnion, true);
 assert.equal(P.glacialFamilyBridge, true, 'far-north mountain snow should bridge into the glacial palette family');
+assert(P.glacialVisibilityExponent > 0.5 && P.glacialVisibilityExponent < 1,
+  'thin-snow glacial visibility curve should be sub-linear but bounded');
 assert(P.minimumAccumulatedSnow > P.minimumVisibleSnow);
 assert(P.accumulatedPermanentIceScale < 1, 'permanent ice should temper warm accumulated-snow tint');
 assert(P.packedGlacialContinuityGain > 0, 'permanent ice should reinforce the packed/cold snow family');
@@ -43,6 +45,16 @@ const thinSheltered = resolveTerrainSnowSurfaceTone({
   concavityHold: 1,
   gentleSlope: 1,
 });
+const thinPermanent = resolveTerrainSnowSurfaceTone({
+  snowAmount: P.minimumVisibleSnow + 0.18,
+  permanentIce: 1,
+  ridgeExposure: 0.35,
+});
+const thinTundra = resolveTerrainSnowSurfaceTone({
+  snowAmount: P.minimumVisibleSnow + 0.18,
+  tundra: 1,
+  ridgeExposure: 0.35,
+});
 
 assert(windward.packedWeight > neutral.packedWeight);
 assert(windward.packedWeight > windward.accumulatedWeight);
@@ -59,6 +71,14 @@ assert.equal(gentleUnsheltered.accumulatedWeight, 0, 'unsheltered gentle snow sh
 assert(thinSheltered.visibleSnow > 0, 'thin retained snow should still be visibly snowy');
 assert.equal(thinSheltered.accumulationVisibleSnow, 0, 'thin snow veneer must not read as deep accumulated snow');
 assert.equal(thinSheltered.accumulatedWeight, 0, 'thin sheltered snow must stay out of accumulated palette');
+assert(thinPermanent.visibleSnow > 0 && thinPermanent.visibleSnow < 0.5,
+  'thin permanent-ice fixture should remain close to the visible-snow threshold');
+assert(thinPermanent.glacialVisibility > thinPermanent.visibleSnow,
+  'sub-linear glacial visibility should keep thin far-north snow tied to the cold family');
+assert(thinPermanent.glacialContinuity > 0,
+  'thin permanent-ice snow should retain a non-zero glacial bridge');
+assert(thinPermanent.packedWeight > thinTundra.packedWeight,
+  'thin permanent-ice snow should stay colder than same-depth tundra snow without adding coverage');
 assert(neutral.glacialFamilySupport > 0,
   'neutral permanent-ice mountain snow must receive glacial-family colour support');
 assert.equal(neutralTundra.glacialFamilySupport, 0,
@@ -120,11 +140,11 @@ assert(mixed.accumulatedWeight <= P.maximumAccumulatedWeight + EPSILON);
 
 for (const sample of [
   bare, south, neutral, neutralTundra, windward, lee, crosswind, gentleUnsheltered, thinSheltered,
-  tundraPacked, tundraLee, mixed, ...transitionSamples,
+  thinPermanent, thinTundra, tundraPacked, tundraLee, mixed, ...transitionSamples,
 ]) {
   for (const key of [
-    'visibleSnow', 'accumulationVisibleSnow', 'climate', 'tundraToneWeight', 'glacialContinuity',
-    'glacialFamilySupport', 'transitionColdSupport', 'accumulationClimateScale',
+    'visibleSnow', 'accumulationVisibleSnow', 'climate', 'tundraToneWeight', 'glacialVisibility',
+    'glacialContinuity', 'glacialFamilySupport', 'transitionColdSupport', 'accumulationClimateScale',
     'packedWeight', 'accumulatedWeight', 'neutralWeight',
   ]) {
     assert(Number.isFinite(sample[key]) && sample[key] >= 0 && sample[key] <= 1, `${key} must be normalized`);
@@ -157,6 +177,10 @@ console.log(JSON.stringify({
   glacialContinuity: windward.glacialContinuity,
   neutralGlacialFamilySupport: neutral.glacialFamilySupport,
   shelteredGlacialFamilySupport: lee.glacialFamilySupport,
+  thinPermanentVisibleSnow: thinPermanent.visibleSnow,
+  thinPermanentGlacialVisibility: thinPermanent.glacialVisibility,
+  thinPermanentPackedWeight: thinPermanent.packedWeight,
+  thinTundraPackedWeight: thinTundra.packedWeight,
   permanentIceAccumulationScale: lee.accumulationClimateScale,
   transitionMidColdSupport: transitionSamples[20].transitionColdSupport,
   transitionMaxClimateStep: maxClimateStep,
