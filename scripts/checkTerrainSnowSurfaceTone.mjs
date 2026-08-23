@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { TERRAIN_SNOW_SURFACE_TONE_POLICY as P, resolveTerrainSnowSurfaceTone } from '../src/3d/world/terrainSnowSurfaceTone.js';
 
 const EPSILON = 1e-9;
@@ -57,9 +58,20 @@ for (const sample of [bare, south, neutral, windward, lee, crosswind, tundraPack
   assert(Number.isFinite(sample.brightnessShift));
 }
 
+const shadingSource = readFileSync(new URL('../src/3d/world/terrainBiomeShading.js', import.meta.url), 'utf8');
+assert.match(shadingSource, /resolveTerrainSnowSurfaceTone/);
+assert.match(shadingSource, /PACKED_SNOW/);
+assert.match(shadingSource, /ACCUMULATED_SNOW/);
+assert.match(shadingSource, /snowTone\.packedWeight/);
+assert.match(shadingSource, /snowTone\.accumulatedWeight/);
+assert.match(shadingSource, /target\.lerp\(scratchSnowTone, snow\.snowAmount\)/);
+assert.match(shadingSource, /heightAuthorityUnchanged:\s*true/);
+assert.doesNotMatch(shadingSource, /heightAboveSeaMeters\s*[+\-]=/);
+
 console.log(JSON.stringify({
   policy: P.id,
   windwardPackedWeight: windward.packedWeight,
   leeAccumulatedWeight: lee.accumulatedWeight,
   tundraPackedWeight: tundraPacked.packedWeight,
+  runtimeIntegrated: true,
 }, null, 2));
