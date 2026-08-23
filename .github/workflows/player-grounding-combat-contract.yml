@@ -7,6 +7,7 @@ on:
       - 'src/3d/gameplay/player.js'
       - 'src/3d/gameplay/playerConfig.js'
       - 'scripts/checkPlayerGroundingCombatContract.mjs'
+      - 'scripts/checkPlayerMeleeCombo.mjs'
       - 'scripts/checkPlayerMeleeComboRuntime.mjs'
       - 'scripts/checkPlayerDodgeIFrames.mjs'
       - 'scripts/checkPlayerDodgeIFrameRuntime.mjs'
@@ -45,7 +46,7 @@ jobs:
           git diff --check "$BASE"...HEAD
           CHANGED="$(git diff --name-only "$BASE"...HEAD)"
           echo "$CHANGED"
-          OUT_OF_SCOPE="$(printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|scripts/checkPlayerGroundingCombatContract\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|scripts/checkPlayerDodgeIFrames\.mjs|scripts/checkPlayerDodgeIFrameRuntime\.mjs|scripts/checkPlayerCombatHudRuntime\.mjs|\.github/workflows/player-dodge-iframes\.yml|\.github/workflows/player-grounding-combat-contract\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-stamina-dodge\.yml)$' || true)"
+          OUT_OF_SCOPE="$(printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|scripts/checkPlayerGroundingCombatContract\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|scripts/checkPlayerDodgeIFrames\.mjs|scripts/checkPlayerDodgeIFrameRuntime\.mjs|scripts/checkPlayerCombatHudRuntime\.mjs|\.github/workflows/player-dodge-iframes\.yml|\.github/workflows/player-grounding-combat-contract\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-stamina-dodge\.yml)$' || true)"
           test -z "$OUT_OF_SCOPE"
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           test "$((ADD + DEL))" -le 1000
@@ -65,6 +66,8 @@ jobs:
           set -euo pipefail
           node --check scripts/checkPlayerGroundingCombatContract.mjs
           node scripts/checkPlayerGroundingCombatContract.mjs
+          node --check scripts/checkPlayerMeleeCombo.mjs
+          node scripts/checkPlayerMeleeCombo.mjs
           node --check scripts/checkPlayerMeleeComboRuntime.mjs
           node --check scripts/checkPlayerDodgeIFrames.mjs
           node scripts/checkPlayerDodgeIFrames.mjs
