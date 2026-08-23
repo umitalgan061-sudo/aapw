@@ -13,7 +13,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-23-v7-sheltered-glacial-harmony',
+  id: 'terrain-snow-surface-tone-2026-08-23-v8-sheltered-glacial-bridge',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
@@ -25,11 +25,13 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   packedPermanentIceFloor: 0.10,
   packedGlacialContinuityGain: 0.08,
   packedGlacialFamilyGain: 0.16,
+  packedShelteredGlacialGain: 0.10,
   packedTransitionColdGain: 0.05,
   accumulatedLeeGain: 0.72,
   accumulatedConcavityGain: 0.42,
   accumulatedGentleSlopeGain: 0.16,
   accumulatedPermanentIceScale: 0.54,
+  shelteredGlacialRetentionFloor: 0.58,
   tundraToneScale: 0.78,
   minimumVisibleSnow: 0.08,
   minimumAccumulatedSnow: 0.22,
@@ -81,6 +83,8 @@ export function resolveTerrainSnowSurfaceTone({
       glacialVisibility: 0,
       glacialContinuity: 0,
       glacialFamilySupport: 0,
+      shelteredGlacialRetention: 0,
+      shelteredGlacialBridge: 0,
       transitionColdSupport: 0,
       accumulationClimateScale: 1,
       packedWeight: 0,
@@ -103,16 +107,25 @@ export function resolveTerrainSnowSurfaceTone({
     * glacialVisibility * P.packedTransitionColdGain;
   const shelterSignal = Math.max(clamp01(leeDeposit), clamp01(concavityHold));
   // Far-north mountain snow should belong to the same visual cryosphere family as the glacial
-  // lowlands below it. Keep a meaningful fraction of that bridge even inside deep shelter so lee
-  // bowls stay soft without becoming isolated cream patches against surrounding glacial terrain.
+  // lowlands below it. Deep shelter is allowed to soften that bridge, but never erase it entirely;
+  // otherwise a lee bowl can become a warm cream island surrounded by blue-grey permanent ice.
   const deepShelter = accumulationVisibleSnow * shelterSignal;
-  const glacialFamilySupport = glacialContinuity * (1 - deepShelter * 0.42);
+  const shelteredGlacialRetention = lerp(1, P.shelteredGlacialRetentionFloor, deepShelter);
+  const glacialFamilySupport = glacialContinuity * shelteredGlacialRetention;
+  // Retain a small independent packed/cold component inside sheltered permanent ice. It is bounded
+  // by both the glacial family and accumulated-snow visibility, so tundra and snow-free terrain get
+  // no extra tint while deep far-north drifts remain visually connected to lowland/coastal ice.
+  const shelteredGlacialBridge = glacialFamilySupport
+    * accumulationVisibleSnow
+    * shelterSignal
+    * P.packedShelteredGlacialGain;
   const packedSignal = clamp01(
     clamp01(windwardScour) * P.packedWindwardGain
       + clamp01(ridgeExposure) * P.packedRidgeGain
       + permanentIceWeight * P.packedPermanentIceFloor
       + glacialContinuity * P.packedGlacialContinuityGain
       + glacialFamilySupport * P.packedGlacialFamilyGain
+      + shelteredGlacialBridge
       + transitionColdSupport,
   );
   const gentleShelterSupport = clamp01(gentleSlope) * shelterSignal * P.accumulatedGentleSlopeGain;
@@ -146,6 +159,8 @@ export function resolveTerrainSnowSurfaceTone({
     glacialVisibility,
     glacialContinuity,
     glacialFamilySupport,
+    shelteredGlacialRetention,
+    shelteredGlacialBridge,
     transitionColdSupport,
     accumulationClimateScale,
     shelterSignal,
