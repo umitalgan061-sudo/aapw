@@ -67,6 +67,7 @@ const PLAYER_ACTION_CONFIG = Object.freeze({
 
 const COMBAT_INPUT_EVENT = 'aapw:player-combat-input';
 const ATTACK_WINDOW_EVENT = 'aapw:player-attack-window';
+const COMBAT_FEEDBACK_EVENT = 'aapw:player-combat-feedback';
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 function attackCommitBudget(baseMeters, comboStep, comboBonusPerStep = PLAYER_ACTION_CONFIG.ATTACK_COMBO_COMMIT_BONUS_PER_STEP) {
 	const base = Math.max(0, Number(baseMeters) || 0), step = Math.max(1, Math.floor(Number(comboStep) || 1)), bonus = Math.max(0, Number(comboBonusPerStep) || 0);
@@ -99,7 +100,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 	let guarding = false, wasGuardHeld = false, parryWindowRemaining = 0, parryFeedbackRemaining = 0;
 	let attackKind = 'none', attackRemaining = 0, attackElapsed = 0, attackActive = false, attackComboStep = 0, attackSerial = 0, attackCommitRemaining = 0;
 	let bufferedAttackKind = 'none', attackBufferRemaining = 0;
-	let lastDefenseResult = 'none';
+	let lastDefenseResult = 'none', combatFeedbackSerial = 0;
 	let movementState = 'idle', currentActionName = null, lastTelemetryState = '', lastTelemetryStamina = -1, lastTelemetryPoise = -1;
 
 	function playAction(name, timeScale = 1) {
@@ -149,6 +150,21 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 		if (typeof globalThis.dispatchEvent !== 'function' || typeof globalThis.CustomEvent !== 'function') return;
 		const tuning = attackTuning(attackKind);
 		globalThis.dispatchEvent(new globalThis.CustomEvent(ATTACK_WINDOW_EVENT, { detail: Object.freeze({ serial: attackSerial, kind: attackKind, comboStep: attackComboStep, phase, active: attackActive, stamina: Number(stamina.toFixed(2)), reachMeters: tuning.reach, damageScale: tuning.damageScale, commitRemainingMeters: Number(attackCommitRemaining.toFixed(3)), position: Object.freeze({ x: Number(model.position.x.toFixed(3)), y: Number(model.position.y.toFixed(3)), z: Number(model.position.z.toFixed(3)) }), facing: Object.freeze({ x: Number(Math.sin(model.rotation.y).toFixed(4)), z: Number(Math.cos(model.rotation.y).toFixed(4)) }) }) }));
+	}
+	function publishCombatFeedback(outcome, rawAmount, appliedAmount, blockedAmount) {
+		if (typeof globalThis.dispatchEvent !== 'function' || typeof globalThis.CustomEvent !== 'function') return;
+		combatFeedbackSerial += 1;
+		globalThis.dispatchEvent(new globalThis.CustomEvent(COMBAT_FEEDBACK_EVENT, { detail: Object.freeze({
+			serial: combatFeedbackSerial,
+			outcome,
+			rawAmount: Number(rawAmount.toFixed(4)),
+			appliedAmount: Number(appliedAmount.toFixed(4)),
+			blockedAmount: Number(blockedAmount.toFixed(4)),
+			stamina: Number(stamina.toFixed(2)),
+			poise: Number(poise.toFixed(2)),
+			state: movementState,
+			position: Object.freeze({ x: Number(model.position.x.toFixed(3)), y: Number(model.position.y.toFixed(3)), z: Number(model.position.z.toFixed(3)) }),
+		}) }));
 	}
 	function interruptAttackForHit() {
 		if (attackRemaining <= 0) return;
@@ -205,11 +221,11 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 
 	function onIncomingDamage(payload) {
 		const rawAmount = payload?.amount; if (typeof rawAmount !== 'number' || !(rawAmount > 0) || !isGrounded || guardBreakRemaining > 0) return;
-		if (isDodgeInvulnerable()) { lastDefenseResult = 'dodge'; payload.rawAmount = rawAmount; payload.blockedAmount = rawAmount; payload.amount = 0; payload.mitigation = 'dodge'; publishMotionTelemetry(true); return; }
-		if (parryWindowRemaining > 0 && stamina >= PLAYER_ACTION_CONFIG.PARRY_STAMINA_COST) { spendStamina(PLAYER_ACTION_CONFIG.PARRY_STAMINA_COST); parryWindowRemaining = 0; parryFeedbackRemaining = PLAYER_ACTION_CONFIG.PARRY_FEEDBACK_SECONDS; movementState = 'parry'; lastDefenseResult = 'parry'; payload.rawAmount = rawAmount; payload.blockedAmount = rawAmount; payload.amount = 0; payload.mitigation = 'parry'; publishMotionTelemetry(true); return; }
-		if (!guarding || stamina <= 0) { spendPoise(rawAmount * PLAYER_ACTION_CONFIG.HIT_POISE_DAMAGE_RATIO); lastDefenseResult = 'hit'; if (poise <= 0) triggerHitStagger(); publishMotionTelemetry(true); return; }
+		if (isDodgeInvulnerable()) { lastDefenseResult = 'dodge'; payload.rawAmount = rawAmount; payload.blockedAmount = rawAmount; payload.amount = 0; payload.mitigation = 'dodge'; publishCombatFeedback('dodge', rawAmount, 0, rawAmount); publishMotionTelemetry(true); return; }
+		if (parryWindowRemaining > 0 && stamina >= PLAYER_ACTION_CONFIG.PARRY_STAMINA_COST) { spendStamina(PLAYER_ACTION_CONFIG.PARRY_STAMINA_COST); parryWindowRemaining = 0; parryFeedbackRemaining = PLAYER_ACTION_CONFIG.PARRY_FEEDBACK_SECONDS; movementState = 'parry'; lastDefenseResult = 'parry'; payload.rawAmount = rawAmount; payload.blockedAmount = rawAmount; payload.amount = 0; payload.mitigation = 'parry'; publishCombatFeedback('parry', rawAmount, 0, rawAmount); publishMotionTelemetry(true); return; }
+		if (!guarding || stamina <= 0) { spendPoise(rawAmount * PLAYER_ACTION_CONFIG.HIT_POISE_DAMAGE_RATIO); lastDefenseResult = 'hit'; if (poise <= 0) triggerHitStagger(); publishCombatFeedback(lastDefenseResult, rawAmount, rawAmount, 0); publishMotionTelemetry(true); return; }
 		const reducedAmount = Number((rawAmount * PLAYER_ACTION_CONFIG.GUARD_DAMAGE_MULTIPLIER).toFixed(4)), blockedAmount = rawAmount - reducedAmount;
-		spendStamina(blockedAmount * PLAYER_ACTION_CONFIG.GUARD_STAMINA_DAMAGE_RATIO); spendPoise(blockedAmount * PLAYER_ACTION_CONFIG.GUARD_POISE_DAMAGE_RATIO); lastDefenseResult = 'guard'; payload.rawAmount = rawAmount; payload.blockedAmount = blockedAmount; payload.amount = reducedAmount; payload.mitigation = 'guard'; if (poise <= 0) triggerGuardBreak(); publishMotionTelemetry(true);
+		spendStamina(blockedAmount * PLAYER_ACTION_CONFIG.GUARD_STAMINA_DAMAGE_RATIO); spendPoise(blockedAmount * PLAYER_ACTION_CONFIG.GUARD_POISE_DAMAGE_RATIO); lastDefenseResult = 'guard'; payload.rawAmount = rawAmount; payload.blockedAmount = blockedAmount; payload.amount = reducedAmount; payload.mitigation = 'guard'; if (poise <= 0) triggerGuardBreak(); publishCombatFeedback(lastDefenseResult, rawAmount, reducedAmount, blockedAmount); publishMotionTelemetry(true);
 	}
 	gameEvents.on(EVENTS.PLAYER_DAMAGED, onIncomingDamage);
 
