@@ -52,24 +52,30 @@ try {
     const {
       TERRAIN_BIOME_PALETTE,
       TERRAIN_BIOME_SHADING_POLICY,
-      northClimateWeightsAtWorldZ,
+      northClimateWeightsAtWorldXZ,
       resolveTerrainBiomeColor,
     } = terrain;
 
-    function worldZForNormalizedMapY(normalizedY) {
+    function worldAt(normalizedX, normalizedY) {
+      const centerMapX = (WORLD_SCALE.MAP_BOUNDS.minX + WORLD_SCALE.MAP_BOUNDS.maxX) * 0.5;
       const centerMapY = (WORLD_SCALE.MAP_BOUNDS.minY + WORLD_SCALE.MAP_BOUNDS.maxY) * 0.5;
+      const mapX = normalizedX * WORLD_REFERENCE_ALIGNMENT.mapCanvasWidthUnits;
       const mapY = normalizedY * WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits;
-      return (mapY - centerMapY) * WORLD_SCALE.METERS_PER_MAP_UNIT;
+      return {
+        x: (mapX - centerMapX) * WORLD_SCALE.METERS_PER_MAP_UNIT,
+        z: (mapY - centerMapY) * WORLD_SCALE.METERS_PER_MAP_UNIT,
+      };
     }
 
-    function sampleColor({ normalizedY, height, slope = 3, worldX = 0, rockWeight = 0, snowWeight = 0 }) {
+    function sampleColor({ normalizedX, normalizedY, height, slope = 3, rockWeight = 0, snowWeight = 0 }) {
+      const world = worldAt(normalizedX, normalizedY);
       return resolveTerrainBiomeColor(new THREE.Color(), {
         heightAboveSeaMeters: height,
         slopeDegrees: slope,
         rockWeight,
         snowWeight,
-        worldX,
-        worldZ: worldZForNormalizedMapY(normalizedY),
+        worldX: world.x,
+        worldZ: world.z,
       });
     }
 
@@ -103,10 +109,10 @@ try {
     scene.add(key);
 
     const climates = Object.freeze([
-      { label: 'FAR NORTH', normalizedY: 0.06 },
-      { label: 'ICE EDGE', normalizedY: 0.22 },
-      { label: 'TUNDRA', normalizedY: 0.33 },
-      { label: 'TEMPERATE', normalizedY: 0.55 },
+      { label: 'FAR NORTH', normalizedX: 0.145, normalizedY: 0.115 },
+      { label: 'ICE EDGE', normalizedX: 0.155, normalizedY: 0.20 },
+      { label: 'TUNDRA', normalizedX: 0.175, normalizedY: 0.30 },
+      { label: 'TEMPERATE', normalizedX: 0.22, normalizedY: 0.55 },
     ]);
 
     const rowReports = [];
@@ -118,6 +124,7 @@ try {
 
     for (let rowIndex = 0; rowIndex < climates.length; rowIndex += 1) {
       const climateSpec = climates[rowIndex];
+      const anchorWorld = worldAt(climateSpec.normalizedX, climateSpec.normalizedY);
       const geometry = new THREE.PlaneGeometry(width, depth, cols, rows);
       geometry.rotateX(-Math.PI / 2);
       const position = geometry.attributes.position;
@@ -141,8 +148,8 @@ try {
           slopeDegrees: slope,
           rockWeight,
           snowWeight: 0,
-          worldX: localX * 35 + rowIndex * 770,
-          worldZ: worldZForNormalizedMapY(climateSpec.normalizedY),
+          worldX: anchorWorld.x + localX * 2,
+          worldZ: anchorWorld.z + localZ * 2,
         });
         colors[i * 3] = color.r;
         colors[i * 3 + 1] = color.g;
@@ -167,10 +174,10 @@ try {
       mesh.castShadow = true;
       scene.add(mesh);
 
-      const climate = northClimateWeightsAtWorldZ(worldZForNormalizedMapY(climateSpec.normalizedY));
-      const shore = sampleColor({ normalizedY: climateSpec.normalizedY, height: 0.5, worldX: 120 });
-      const lowland = sampleColor({ normalizedY: climateSpec.normalizedY, height: 18, worldX: 120 });
-      const seabed = sampleColor({ normalizedY: climateSpec.normalizedY, height: -1.5, worldX: 120 });
+      const climate = northClimateWeightsAtWorldXZ(anchorWorld.x, anchorWorld.z);
+      const shore = sampleColor({ ...climateSpec, height: 0.5 });
+      const lowland = sampleColor({ ...climateSpec, height: 18 });
+      const seabed = sampleColor({ ...climateSpec, height: -1.5 });
       rowReports.push({
         ...climateSpec,
         permanentIce: climate.permanentIce,
