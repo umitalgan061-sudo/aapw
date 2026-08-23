@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import {
+  DRAGON_TERRAIN_LOOKAHEAD_METERS,
   alignDiveOrientation,
   applyCirclePose,
   applyDiveOffset,
@@ -146,6 +147,34 @@ assert.ok(angleDistance(clamped.rotation.x, clampedPitch) < 1e-10,
 assert.ok(clamped.rotation.x < committedPitch,
   'terrain clamp that shortens the descent must visibly flatten the final dive pitch');
 
+const ridge = fakeDragon();
+ridge.position.set(0, 18, 0);
+ridge.rotation.set(0, Math.PI / 2, 0);
+const sampled = [];
+clampAltitudeAboveGround(ridge, (x, z) => {
+  sampled.push([x, z]);
+  return x >= DRAGON_TERRAIN_LOOKAHEAD_METERS * 0.45 && x <= DRAGON_TERRAIN_LOOKAHEAD_METERS * 0.55 ? 14 : 0;
+}, 10);
+assert.equal(sampled.length, 3, 'terrain lookahead must stay bounded to current + two forward probes');
+assert.deepEqual(sampled[0], [0, 0], 'first terrain probe must remain directly under the rendered dragon');
+assert.ok(Math.abs(sampled[1][0] - DRAGON_TERRAIN_LOOKAHEAD_METERS * 0.5) < 1e-10,
+  'second terrain probe must inspect the midpoint ahead of the current heading');
+assert.ok(Math.abs(sampled[2][0] - DRAGON_TERRAIN_LOOKAHEAD_METERS) < 1e-10,
+  'third terrain probe must inspect the bounded full lookahead distance');
+assert.equal(ridge.position.y, 24,
+  'narrow ridge inside lookahead strip must raise the dragon before terminal-point tunnelling can occur');
+
+const pointOnly = fakeDragon();
+pointOnly.position.set(0, 18, 0);
+pointOnly.rotation.set(0, Math.PI / 2, 0);
+let pointOnlySamples = 0;
+clampAltitudeAboveGround(pointOnly, () => {
+  pointOnlySamples += 1;
+  return 0;
+}, 10, 0);
+assert.equal(pointOnlySamples, 1, 'explicit zero lookahead must preserve historical point-only sampling');
+assert.equal(pointOnly.position.y, 18, 'point-only flat-ground clamp must remain inert');
+
 const repeat = fakeDragon();
 applyCirclePose(repeat, center, 20, 0, 0.2);
 applyDiveOffset(repeat, {
@@ -167,6 +196,8 @@ console.log('DRAGON_DIVE_HEADING_PASS', JSON.stringify({
   halfPitch: half.rotation.x,
   verticalPitch: vertical.rotation.x,
   clampedPitch: clamped.rotation.x,
+  terrainLookaheadMeters: DRAGON_TERRAIN_LOOKAHEAD_METERS,
+  terrainLookaheadSamples: sampled.length,
   bankPreserved: dragon.rotation.z,
   deterministic: true,
 }));
