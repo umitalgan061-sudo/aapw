@@ -6,6 +6,7 @@ on:
       - 'src/3d/world/terrainSnowSurfaceTone.js'
       - 'src/3d/world/terrainBiomeShading.js'
       - 'scripts/checkTerrainSnowSurfaceTone.mjs'
+      - 'scripts/checkGlacialSnowPaletteHarmony.mjs'
       - '.github/workflows/terrain-snow-surface-tone.yml'
   workflow_dispatch:
 
@@ -32,6 +33,10 @@ jobs:
           node --check src/3d/world/terrainSnowSurfaceTone.js
           node --check src/3d/world/terrainBiomeShading.js
           node --check scripts/checkTerrainSnowSurfaceTone.mjs
+          node --check scripts/checkGlacialSnowPaletteHarmony.mjs
 
       - name: Snow surface tone contract
         run: node scripts/checkTerrainSnowSurfaceTone.mjs
+
+      - name: Glacial snow palette harmony contract
+        run: node scripts/checkGlacialSnowPaletteHarmony.mjs
