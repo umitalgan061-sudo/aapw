@@ -90,15 +90,18 @@ assert(distance(northBeyondShallow, TERRAIN_BIOME_PALETTE.NORTH_SEABED)
     < distance(northBeyondShallow, TERRAIN_BIOME_PALETTE.GLACIAL_SHALLOW),
   'deep far-north seabed must remain governed by the northern seabed palette');
 
+// Sample the authored winter-core -> tundra route finely enough to measure the smooth field rather
+// than aliasing its steepest legitimate transition into one oversized test step.
+const continuitySamples = 48;
 let previousDepth = north.shallowDepthMeters;
 let maxDepthStep = 0;
-for (let step = 1; step <= 24; step += 1) {
-  const t = step / 24;
+for (let step = 1; step <= continuitySamples; step += 1) {
+  const t = step / continuitySamples;
   const normalizedX = NORTH.x + (TUNDRA.x - NORTH.x) * t;
   const normalizedY = NORTH.y + (0.40 - NORTH.y) * t;
   const currentDepth = profileAt(normalizedX, normalizedY).shallowDepthMeters;
   maxDepthStep = Math.max(maxDepthStep, Math.abs(currentDepth - previousDepth));
-  assert(Math.abs(currentDepth - previousDepth) < 0.22,
+  assert(Math.abs(currentDepth - previousDepth) < 0.16,
     `map-aligned shallow freeze depth must remain continuous at path step=${step}`);
   previousDepth = currentDepth;
 }
@@ -113,5 +116,6 @@ console.log('[checkCoastalCryosphereShallows] PASS', JSON.stringify({
   northShallowWeight: north.shallowWeight,
   tundraShallowDepthMeters: tundra.shallowDepthMeters,
   northShallowDepthMeters: north.shallowDepthMeters,
+  continuitySamples,
   maxDepthStep,
 }));
