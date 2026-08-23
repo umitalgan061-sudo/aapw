@@ -21,7 +21,7 @@ function smoothstep(edge0, edge1, value) {
 }
 
 export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
-	id: 'terrain-map-climate-cryosphere-2026-08-22-v11-map-aligned',
+	id: 'terrain-map-climate-cryosphere-2026-08-23-v12-intertidal',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	mapAlignedCryosphere: true,
@@ -47,6 +47,12 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 	northCoastalIceFullMeters: 0.55,
 	northCoastalIceStrength: 0.62,
 	northCoastalIceTundraStrength: 0.20,
+	northIntertidalTundraTopMeters: 0.72,
+	northIntertidalIceTopMeters: 1.35,
+	northIntertidalTundraStrength: 0.18,
+	northIntertidalIceStrength: 0.36,
+	northIntertidalSlopeFadeStartDegrees: 12,
+	northIntertidalSlopeFadeFullDegrees: 30,
 	northShallowIceTundraDepthMeters: 0.65,
 	northShallowIceDepthMeters: 2.6,
 	northShallowIceTundraStrength: 0.14,
@@ -119,6 +125,7 @@ export const TERRAIN_BIOME_PALETTE = Object.freeze({
 	SHORE_SAND: new THREE.Color(0xc9bf9f),
 	FROZEN_SHORE: new THREE.Color(0xaab5ad),
 	GLACIAL_SHORE: new THREE.Color(0xc5d6d8),
+	WET_FROZEN_SHORE: new THREE.Color(0x83979a),
 	COASTAL_ICE: new THREE.Color(0xd2e2e5),
 	GRASS_LOW: new THREE.Color(0x718b42),
 	MEADOW: new THREE.Color(0x82984e),
@@ -205,6 +212,11 @@ function coastalCryosphereProfile(permanentIce, tundra, out) {
 	));
 	out.topMeters = lerp(P.northCoastalIceTundraTopMeters, P.northCoastalIceTopMeters, permanentIce);
 	out.fullMeters = lerp(P.northCoastalIceTundraFullMeters, P.northCoastalIceFullMeters, permanentIce);
+	out.intertidalTopMeters = lerp(P.northIntertidalTundraTopMeters, P.northIntertidalIceTopMeters, permanentIce);
+	out.intertidalWeight = clamp01(Math.max(
+		permanentIce * P.northIntertidalIceStrength,
+		tundraBand * P.northIntertidalTundraStrength,
+	));
 	out.shallowDepthMeters = lerp(P.northShallowIceTundraDepthMeters, P.northShallowIceDepthMeters, permanentIce);
 	out.shallowWeight = clamp01(Math.max(
 		permanentIce * P.northShallowIceStrength,
@@ -433,6 +445,10 @@ export function resolveTerrainBiomeColor(target, {
 		* landEmergence * coastalCryosphere.weight
 		* (1 - smoothstep(18, 34, slope));
 	if (coastalIceBand > 0) target.lerp(TERRAIN_BIOME_PALETTE.COASTAL_ICE, coastalIceBand);
+	const intertidalBand = (1 - smoothstep(0, coastalCryosphere.intertidalTopMeters, height))
+		* landEmergence * coastalCryosphere.intertidalWeight
+		* (1 - smoothstep(P.northIntertidalSlopeFadeStartDegrees, P.northIntertidalSlopeFadeFullDegrees, slope));
+	if (intertidalBand > 0) target.lerp(TERRAIN_BIOME_PALETTE.WET_FROZEN_SHORE, intertidalBand);
 
 	const rockAmount = clamp01(Math.max(
 		smoothstep(P.rockSlopeStartDegrees, P.rockSlopeFullDegrees, slope),
