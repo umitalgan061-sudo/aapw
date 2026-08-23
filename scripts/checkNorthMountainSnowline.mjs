@@ -114,8 +114,15 @@ assert(tundraMountain.altitudeSnow > 0.25,
 	'the same 300 m mountain in canonical North tundra must visibly accumulate altitude snow');
 assert(iceLowland.snowAmount > 0.88,
 	'low permanent-ice land must remain almost completely snow/ice covered');
-assert(tundraLowland.snowAmount > 0 && tundraLowland.snowAmount <= P.northTundraLowlandSnowFloor + 1e-9,
-	'low tundra may retain patchy snow but must not become a second permanent ice sheet');
+assert(tundraLowland.tundraLowlandFloor > 0
+	&& tundraLowland.tundraLowlandFloor <= P.northTundraLowlandSnowFloor + 1e-9,
+	'canonical tundra lowland must retain only the authored patchy lowland floor');
+assert(tundraLowland.driftSupply >= 0
+	&& tundraLowland.driftSupply <= P.tundraSnowDriftGain + 1e-9,
+	'gentle tundra terrain may add only the bounded natural snow-drift contribution');
+assert(tundraLowland.snowAmount > 0
+	&& tundraLowland.snowAmount <= P.northTundraLowlandSnowFloor + P.tundraSnowDriftGain + 1e-9,
+	'low tundra floor plus gentle drift must remain patchy rather than becoming a second permanent ice sheet');
 assert.equal(eastLowland.snowAmount, 0,
 	'same-latitude east lowland must remain free of the Westeros snow floor');
 assert(canonicalSouthSnow.snowAmount > 0.95,
@@ -144,6 +151,9 @@ console.log('[checkNorthMountainSnowline] PASS', JSON.stringify({
 	sameLatitudeEast: { start: sameLatitudeEast.startMeters, full: sameLatitudeEast.fullMeters },
 	southMountainSnow: southMountain.snowAmount,
 	tundraMountainSnow: tundraMountain.snowAmount,
+	tundraLowlandSnow: tundraLowland.snowAmount,
+	tundraLowlandFloor: tundraLowland.tundraLowlandFloor,
+	tundraLowlandDrift: tundraLowland.driftSupply,
 	iceLowlandSnow: iceLowland.snowAmount,
 	maxStartStep,
 	maxFullStep,
