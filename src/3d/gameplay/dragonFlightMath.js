@@ -22,9 +22,6 @@ export function blendScalar(fromValue, toValue, blend) {
 }
 
 export function applyCirclePose(object3D, center, radiusMeters, angle, bankAngleRadians) {
-	// Capture the last rendered XZ before this frame overwrites the pose. Dive/pursuit offsets are
-	// applied after this helper, so on the next frame these values represent the actual previous
-	// rendered position rather than the new circle tangent or the dragon's facing yaw.
 	object3D.userData ??= {};
 	if (Number.isFinite(object3D.position?.x) && Number.isFinite(object3D.position?.z)) {
 		object3D.userData.dragonPreviousRenderedX = object3D.position.x;
@@ -86,11 +83,12 @@ export function applyDiveOffset(object3D, { playerX, playerZ, centerY, diveDropM
 	alignDiveOrientation(object3D, circleX, centerY, circleZ, circlePitch, circleYaw, diveBlend);
 }
 
-function sampleSegmentGround(sampleGroundY, startX, startZ, unitX, unitZ, distanceMeters, spacingMeters, includeEndpoint, onSample) {
+function sampleSegmentGround(sampleGroundY, startX, startZ, unitX, unitZ, distanceMeters, spacingMeters, includeStart, includeEndpoint, onSample) {
 	if (distanceMeters <= 1e-8) return;
 	const segmentCount = Math.max(1, Math.ceil(distanceMeters / spacingMeters));
+	const firstSegment = includeStart ? 0 : 1;
 	const lastSegment = includeEndpoint ? segmentCount : segmentCount - 1;
-	for (let segment = 0; segment <= lastSegment; segment += 1) {
+	for (let segment = firstSegment; segment <= lastSegment; segment += 1) {
 		const distance = distanceMeters * (segment / segmentCount);
 		onSample(sampleGroundY(startX + unitX * distance, startZ + unitZ * distance));
 	}
@@ -159,6 +157,7 @@ export function clampAltitudeAboveGround(
 						traversedZ / traversedDistance,
 						traversedDistance,
 						spacing,
+						true,
 						false,
 						keepHighest,
 					);
@@ -172,6 +171,7 @@ export function clampAltitudeAboveGround(
 				forwardZ,
 				lookAheadMeters,
 				spacing,
+				false,
 				true,
 				keepHighest,
 			);
