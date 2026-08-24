@@ -20,9 +20,121 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
+  shape-aware-rebuild-patch:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Patch and validate shape-aware rebuild
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -q "v12-shape-aware-rebuild" src/3d/world/terrainFoundationConformer.js; then exit 0; fi
+          python - <<'PY'
+          from pathlib import Path
+          def r(text, old, new, label):
+              count = text.count(old)
+              if count != 1: raise SystemExit(f'{label}: expected one match, got {count}')
+              return text.replace(old, new, 1)
+
+          p = Path('src/3d/world/terrainFoundationConformer.js'); s = p.read_text()
+          s = r(s,
+              "Runtime structure foundations use an adaptive four-cell circle union over the AABB. Near-square\n * footprints use a 2x2 grid; long/narrow footprints rotate the same four-pad budget into 4x1 or 1x4.\n * Every circle encloses its rectangular cell, so the full base stays flat while narrow structures avoid\n * the side overreach a forced 2x2 grid still produced. Legacy authored seat/castle pads remain ordinary\n * circles and continue to work unchanged in `createHeightSampler`.",
+              "Runtime structure foundations use an adaptive four-cell oriented-rectangle union. Near-square\n * footprints use a 2x2 grid; long/narrow footprints rotate the same four-pad budget into 4x1 or 1x4.\n * Terrain height and resident-chunk rebuild selection both consume those same rectangular cells plus\n * bounded feather. Legacy authored seat/castle pads remain ordinary circles and keep their circle path.", 'docs')
+          s = r(s,
+              "id: 'runtime-structure-foundation-conform-2026-08-24-v11-oriented-rect-cells',",
+              "id: 'runtime-structure-foundation-conform-2026-08-25-v12-shape-aware-rebuild',", 'id')
+          s = r(s, "\tchunkRebuildMode: 'union-deduplicated',", "\tchunkRebuildMode: 'shape-aware-union-deduplicated',", 'mode')
+          s = r(s,
+              " * Converts one structure footprint into a compact circle union consumed by the existing terrain\n * height sampler. `pad` remains a compatibility envelope descriptor; `pads` is the installed cluster.",
+              " * Converts one structure footprint into compact oriented-rectangle cells consumed by the shared\n * terrain height sampler. `pad` remains a compatibility envelope descriptor; `pads` is the installed cluster.", 'factory docs')
+          old = """function circleIntersectsChunk(pad, chunkX, chunkZ, chunkSizeMeters) {
+\tconst half = chunkSizeMeters * 0.5;
+\tconst centerX = chunkX * chunkSizeMeters;
+\tconst centerZ = chunkZ * chunkSizeMeters;
+\tconst closestX = Math.max(centerX - half, Math.min(pad.x, centerX + half));
+\tconst closestZ = Math.max(centerZ - half, Math.min(pad.z, centerZ + half));
+\treturn Math.hypot(pad.x - closestX, pad.z - closestZ) <= pad.outerRadiusMeters;
+}
+"""
+          new = old + """
+function orientedRectangleIntersectsChunk(pad, chunkX, chunkZ, chunkSizeMeters) {
+\tconst values = [pad.halfWidthMeters, pad.halfDepthMeters, pad.axisX?.x, pad.axisX?.z, pad.axisZ?.x, pad.axisZ?.z, pad.featherMeters].map(Number);
+\tif (!values.every(Number.isFinite) || values[0] < 0 || values[1] < 0) return circleIntersectsChunk(pad, chunkX, chunkZ, chunkSizeMeters);
+\tconst [halfWidth, halfDepth, axisXX, axisXZ, axisZX, axisZZ, rawFeather] = values;
+\tconst feather = Math.max(0, rawFeather);
+\tconst chunkHalf = chunkSizeMeters * 0.5;
+\tconst deltaX = pad.x - chunkX * chunkSizeMeters;
+\tconst deltaZ = pad.z - chunkZ * chunkSizeMeters;
+\treturn [
+\t\t[Math.abs(deltaX), halfWidth * Math.abs(axisXX) + halfDepth * Math.abs(axisZX) + chunkHalf + feather],
+\t\t[Math.abs(deltaZ), halfWidth * Math.abs(axisXZ) + halfDepth * Math.abs(axisZZ) + chunkHalf + feather],
+\t\t[Math.abs(deltaX * axisXX + deltaZ * axisXZ), halfWidth + chunkHalf * (Math.abs(axisXX) + Math.abs(axisXZ)) + feather],
+\t\t[Math.abs(deltaX * axisZX + deltaZ * axisZZ), halfDepth + chunkHalf * (Math.abs(axisZX) + Math.abs(axisZZ)) + feather],
+\t].every(([distance, reach]) => distance <= reach);
+}
+
+function foundationPadIntersectsChunk(pad, chunkX, chunkZ, chunkSizeMeters) {
+\treturn pad?.shape === 'oriented-rectangle'
+\t\t? orientedRectangleIntersectsChunk(pad, chunkX, chunkZ, chunkSizeMeters)
+\t\t: circleIntersectsChunk(pad, chunkX, chunkZ, chunkSizeMeters);
+}
+"""
+          s = r(s, old, new, 'intersection helper')
+          s = r(s,
+              "validPads.some((pad) => circleIntersectsChunk(pad, chunk.x, chunk.z, size))",
+              "validPads.some((pad) => foundationPadIntersectsChunk(pad, chunk.x, chunk.z, size))", 'consumer')
+          p.write_text(s)
+
+          p = Path('scripts/checkTerrainFoundationConformer.mjs'); s = p.read_text()
+          s = r(s,
+              "assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.chunkRebuildMode, 'union-deduplicated');",
+              "assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.chunkRebuildMode, 'shape-aware-union-deduplicated');", 'test mode')
+          marker = """assert.equal(unionRebuildCount, 1, 'overlapping old/new foundation pads must rebuild one resident chunk once');
+assert.deepEqual(events, ['unload:1,0', 'load:1,0'], 'union rebuild must not duplicate unload/load events for one chunk');
+events.length = 0;
+"""
+          addition = marker + """
+const rectangularRebuildCount = rebuildChunksForFoundations(mockManager, [{
+\tshape: 'oriented-rectangle', x: 0, z: 0,
+\thalfWidthMeters: 90, halfDepthMeters: 5,
+\taxisX: { x: 1, z: 0 }, axisZ: { x: 0, z: 1 },
+\tfeatherMeters: 2, outerRadiusMeters: 93,
+}], 100);
+assert.equal(rectangularRebuildCount, 2, 'shape-aware rebuild should touch the two chunks crossed by the long rectangle');
+assert.deepEqual(events, ['unload:0,0', 'unload:1,0', 'load:0,0', 'load:1,0']);
+assert(!events.some((entry) => entry.includes('0,1')), 'narrow rectangle must not rebuild the distant side chunk hit only by its circle envelope');
+events.length = 0;
+"""
+          s = r(s, marker, addition, 'rebuild regression')
+          p.write_text(s)
+          PY
+          node scripts/setupNodeThreeShim.mjs
+          node --check src/3d/world/terrainFoundationConformer.js
+          node --check scripts/checkTerrainFoundationConformer.mjs
+          node scripts/checkStructureGroundingPolicy.mjs
+          node scripts/checkSettlementFoundationAuthority.mjs
+          node scripts/checkTerrainFoundationConformer.mjs
+          node scripts/checkTerrainFoundationBatchRemoval.mjs
+          node scripts/checkWorldFootprintGrounding.mjs
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- src/3d/world/terrainFoundationConformer.js scripts/checkTerrainFoundationConformer.mjs
+          git diff --cached --check
+          git commit -m "perf(world): rebuild chunks by foundation shape"
+          git push origin HEAD:codex/foundation-grounding-20260821
+
   foundation-conform:
     runs-on: ubuntu-latest
     timeout-minutes: 8
