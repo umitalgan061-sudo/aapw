@@ -106,6 +106,10 @@ async function main() {
 		assert.equal(summary.waterLayerComposition.farDepthWrite, false, 'far transparent water underlay must not occlude near swell');
 		assert(summary.waterLayerComposition.farRenderOrder < 0, 'far water underlay must render before near swell');
 		assert(summary.waterLayerComposition.farLocalY < 0, 'far water underlay must remain slightly below near water');
+		assert(Math.abs(summary.waterLayerComposition.nearWorldXZ[0] - summary.camera.position[0]) < 1e-6,
+			'near-water world X must follow the topdown camera exactly');
+		assert(Math.abs(summary.waterLayerComposition.nearWorldXZ[1] - summary.camera.position[2]) < 1e-6,
+			'near-water world Z must follow the topdown camera exactly');
 
 		console.log('[captureFullWorld3DTopdown] PASS', JSON.stringify({
 			output: path.relative(repoRoot, outputPath),
