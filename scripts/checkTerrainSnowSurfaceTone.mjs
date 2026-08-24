@@ -62,7 +62,10 @@ assert(windward.coolShift > 0);
 assert(windward.brightnessShift < 0);
 assert(lee.accumulatedWeight > neutral.accumulatedWeight);
 assert(lee.accumulatedWeight > lee.packedWeight);
-assert(lee.coolShift < 0);
+assert(lee.coolShift < neutral.coolShift,
+  'sheltered glacial snow may retain a cold-family bridge but must stay softer than neutral retained snow');
+assert(lee.coolShift < windward.coolShift,
+  'lee-side accumulated snow must stay visually softer than windward packed snow');
 assert(lee.brightnessShift > 0);
 assert(crosswind.packedWeight < windward.packedWeight);
 assert(crosswind.accumulatedWeight < lee.accumulatedWeight);
