@@ -20,7 +20,7 @@ try {
   if (!(stats.width > 2200 && stats.width < 3600)) throw new Error(`wall width outside visual contract: ${stats.width}`);
   if (!(stats.height > 120 && stats.height < 230)) throw new Error(`wall height outside visual contract: ${stats.height}`);
   if (!(stats.blockers > 40)) throw new Error(`insufficient collision blockers: ${stats.blockers}`);
-  for (const role of ['glacial-cliff-wall', 'arched-wall-portal', 'walkable-ice-cave-shell', 'cave-ceiling-icicles']) {
+  for (const role of ['natural-ice-wall', 'arched-wall-portal', 'walkable-ice-cave-shell', 'cave-ceiling-icicles']) {
     if (!stats.roles.includes(role)) throw new Error(`missing visual role: ${role}`);
   }
 
