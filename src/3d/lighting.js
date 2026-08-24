@@ -9,6 +9,7 @@
 import * as THREE from 'three';
 import { installNightVisualEnhancement, updateNightVisualEnhancement } from './nightVisualEnhancement.js';
 import { AssetLoader } from './assetLoader.js';
+import { publishCelestialLightState } from './celestialLightState.js';
 
 const KEYFRAMES = [
 	{ ratio: 0.0, sunColor: 0x233a66, sunIntensity: 0.0, hemiSky: 0x101b38, hemiGround: 0x080b13, hemiIntensity: 0.28, nightFactor: 1.0 },
@@ -214,6 +215,19 @@ export function updateDayNightLighting(lights, elapsedSeconds, dayLengthSeconds,
 	}
 	if (lights.sunVisual) lights.sunVisual.visible = sunY > -CELESTIAL_HORIZON_FADE_METERS;
 
+	// Custom shaders cannot see Three.js DirectionalLight uniforms automatically. Publish the same
+	// live celestial key that built-in terrain/road/river materials receive so water highlights move
+	// east → zenith → west with the sun and switch to the cool moon at night.
+	const celestialKey = publishCelestialLightState({
+		sunPosition: lights.sun.position,
+		sunColor: lights.sun.color,
+		sunIntensity: lights.sun.intensity * celestialAltitudeWeightFromY(sunY),
+		moonPosition: lights.moon?.position,
+		moonColor: lights.moon?.color,
+		moonIntensity: lights.moon?.intensity ?? 0,
+		nightFactor,
+	});
+
 	// Twilight is tied to solar altitude rather than clock keyframes alone. This keeps noon blue and
 	// midnight dark while giving both sunrise and sunset a narrow warm horizon band.
 	const twilightFactor = twilightWeightFromSunY(sunY);
@@ -222,7 +236,7 @@ export function updateDayNightLighting(lights, elapsedSeconds, dayLengthSeconds,
 		.lerp(SKY_TWILIGHT.horizon, twilightFactor * 0.68);
 	const zenithColor = SKY_NIGHT.zenith.clone().lerp(SKY_DAY.zenith, daylightFactor)
 		.lerp(SKY_TWILIGHT.zenith, twilightFactor * 0.24);
-	return { timeRatio, nightFactor, twilightFactor, moonAltitudeFactor, horizonColor, zenithColor };
+	return { timeRatio, nightFactor, twilightFactor, moonAltitudeFactor, celestialKey, horizonColor, zenithColor };
 }
 
 export function disposeDayNightLighting(scene, lights) {
