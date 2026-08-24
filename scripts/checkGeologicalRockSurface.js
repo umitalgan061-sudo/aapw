@@ -119,22 +119,23 @@ async function main() {
 				fail(saturation < 0.38, `rock became implausibly saturated (${saturation})`);
 			}
 
-			// Authored snow must still be resolved after rock geology, so two geologically different
-			// surfaces converge strongly when fully snow supplied on a gentle high surface.
-			const snowA = new THREE.Color();
-			const snowB = new THREE.Color();
-			for (const [target, x] of [[snowA, 315], [snowB, 645]]) {
-				resolveTerrainBiomeColor(target, {
-					heightAboveSeaMeters: 500,
-					slopeDegrees: 8,
-					rockWeight: 1,
-					snowWeight: 1,
-					worldX: x,
-					worldZ: 2900,
-				});
-			}
-			const snowDelta = colorDistance(snowA, snowB);
-			fail(snowDelta < exposedDelta, `snow no longer covers geological colour (${snowDelta} >= ${exposedDelta})`);
+			// Isolate snow coverage at one exact coordinate. Comparing two world positions would also
+			// measure the legitimate post-palette terrain mottle, not just whether geology leaks through
+			// snow. Here every input is identical except rockWeight: fully authored snow should erase that
+			// difference before the shared position-dependent mottle is applied.
+			const snowOverRock = new THREE.Color();
+			const snowWithoutRock = new THREE.Color();
+			const snowProbe = {
+				heightAboveSeaMeters: 500,
+				slopeDegrees: 8,
+				snowWeight: 1,
+				worldX: 315,
+				worldZ: 2900,
+			};
+			resolveTerrainBiomeColor(snowOverRock, { ...snowProbe, rockWeight: 1 });
+			resolveTerrainBiomeColor(snowWithoutRock, { ...snowProbe, rockWeight: 0 });
+			const snowLeakDelta = colorDistance(snowOverRock, snowWithoutRock);
+			fail(snowLeakDelta < 1e-6, `geology leaks through fully authored snow (${snowLeakDelta})`);
 
 			return {
 				maxStrata,
@@ -145,7 +146,7 @@ async function main() {
 				maxEnergy,
 				smoothDelta,
 				exposedDelta,
-				snowDelta,
+				snowLeakDelta,
 				strongestIndex: strongest?.i,
 				weakestIndex: weakest?.i,
 			};
@@ -156,7 +157,7 @@ async function main() {
 			`[checkGeologicalRockSurface] PASS: strata ${result.maxStrata.toFixed(2)}, mineral ${result.maxMineral.toFixed(2)}, ` +
 			`vein ${result.maxVein.toFixed(2)}, erosion ${result.maxErosion.toFixed(2)}, energy ` +
 			`${result.minEnergy.toFixed(3)}..${result.maxEnergy.toFixed(3)}, 10cm continuity Δ${result.smoothDelta.toFixed(4)}, ` +
-			`exposed/snow colour Δ ${result.exposedDelta.toFixed(3)}/${result.snowDelta.toFixed(3)}.`,
+			`exposed colour Δ ${result.exposedDelta.toFixed(3)}, snow geology leak Δ ${result.snowLeakDelta.toFixed(6)}.`,
 		);
 	} finally {
 		await browser.close();
