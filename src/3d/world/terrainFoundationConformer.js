@@ -20,11 +20,12 @@
  */
 
 export const TERRAIN_FOUNDATION_CONFORM_POLICY = Object.freeze({
-	id: 'runtime-structure-foundation-conform-2026-08-22-v5',
+	id: 'runtime-structure-foundation-conform-2026-08-24-v6-instance-identity',
 	footprintMode: 'aabb-enclosing-circle',
 	chunkRebuildMode: 'union-deduplicated',
 	batchRemovalMode: 'mutate-all-then-union-rebuild',
 	shutdownRemovalMode: 'mutate-without-rebuild',
+	identityMode: 'runtime-object-first',
 	defaultInnerMarginMeters: 0.75,
 	defaultFeatherMeters: 14,
 	minimumInnerRadiusMeters: 1.5,
@@ -55,13 +56,14 @@ function smoothPadRadius(bounds, innerMarginMeters) {
 }
 
 function structureKey(payload) {
-	// Authored ids are instance identities when present. A source path is not: the same house/tower
-	// model may be instantiated many times, so prefer the runtime object's UUID before falling back to
-	// `src`. Otherwise grounding one clone would move the flatten pad away from another clone.
-	const explicit = payload?.metadata?.id ?? payload?.metadata?.assetId;
-	if (explicit !== null && explicit !== undefined && String(explicit).trim()) return `asset:${String(explicit)}`;
+	// Runtime Object3D identity is authoritative whenever it exists. Asset/catalog ids and source paths
+	// are resource identities and can legitimately be shared by many placed clones. Preferring them over
+	// `object.uuid` makes the second clone overwrite the first clone's pad, so render/physics grounding
+	// silently jumps between instances. Non-Object3D callers keep deterministic authored fallbacks.
 	const uuid = payload?.object?.uuid;
 	if (uuid) return `object:${uuid}`;
+	const explicit = payload?.metadata?.instanceId ?? payload?.metadata?.placementId ?? payload?.metadata?.id ?? payload?.metadata?.assetId;
+	if (explicit !== null && explicit !== undefined && String(explicit).trim()) return `asset:${String(explicit)}`;
 	const src = payload?.metadata?.src;
 	if (src !== null && src !== undefined && String(src).trim()) return `source:${String(src)}`;
 	const bounds = normalizedBounds(payload?.bounds);
