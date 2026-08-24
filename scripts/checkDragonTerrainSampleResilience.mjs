@@ -1,11 +1,51 @@
 import assert from 'node:assert/strict';
 import { clampAltitudeAboveGround } from '../src/3d/gameplay/dragonFlightMath.js';
+import { createDragonReactionState, stepDragonReactionState } from '../src/3d/gameplay/dragonReactionState.js';
 
 function createDragon({ x = 0, y = 5, z = 0, yaw = 0 } = {}) {
 	return {
 		position: { x, y, z },
 		rotation: { y: yaw },
 		userData: {},
+	};
+}
+
+function createReactionConfig(sampleGroundY) {
+	return {
+		canNotice: false,
+		canDive: false,
+		canPursue: true,
+		canBite: false,
+		noticeRadiusMeters: 0,
+		reactiveSpeedMultiplier: 1,
+		reactiveBankAngleRadians: 0,
+		reactiveTransitionSeconds: 1,
+		bankAngleRadians: 0,
+		speedMps: 10,
+		circleRadiusMeters: 20,
+		alarmRadiusMeters: 0,
+		diveTelegraphSeconds: 0,
+		diveTelegraphTransitionSeconds: 1,
+		diveTransitionSeconds: 1,
+		attackTriggerSeconds: 0,
+		attackTransitionSeconds: 1,
+		clampedDiveLateralPullFraction: 0,
+		diveDropMeters: 0,
+		clampedAttackLateralPullFraction: 0,
+		attackDropMeters: 0,
+		pursuitRadiusMeters: 100,
+		pursuitCenterSpeedMps: 0,
+		centerX: 0,
+		centerZ: 0,
+		centerY: 20,
+		pursuitCircleRadiusMeters: 20,
+		pursuitTransitionSeconds: 1,
+		pursuitMaxSeconds: 100,
+		cruiseAltitudeAboveGroundMeters: 10,
+		sampleGroundY,
+		giveUpBankAngleMultiplier: 1,
+		giveUpTransitionSeconds: 1,
+		playerPosition: { x: 0, z: 0 },
 	};
 }
 
@@ -23,8 +63,58 @@ function runIsolatedInvalidCurrentSampleProof() {
 
 	assert.equal(dragon.position.y, 17, 'a valid forward ridge must still clamp altitude when the current sample is NaN');
 	assert.equal(dragon.userData.dragonTerrainInvalidSampleCount, 1, 'the isolated invalid current sample must be counted');
+	assert.equal(dragon.userData.dragonTerrainSampleExceptionCount, 0, 'non-finite samples must not be misclassified as sampler exceptions');
 	assert.equal(dragon.userData.dragonTerrainSampleCount, 13, 'default current + 12m lookahead work budget must remain unchanged');
 	assert.ok(visited.some(([, z]) => Math.abs(z - 3) < 1e-9), 'the valid ridge probe must be reached');
+}
+
+function runThrowingCurrentSampleProof() {
+	const dragon = createDragon({ y: 5, yaw: 0 });
+	const visited = [];
+	const sampleGroundY = (x, z) => {
+		visited.push([x, z]);
+		if (Math.abs(x) < 1e-9 && Math.abs(z) < 1e-9) throw new Error('terrain tile temporarily unavailable');
+		if (Math.abs(z - 3) < 1e-9) return 7;
+		return 0;
+	};
+
+	assert.doesNotThrow(() => clampAltitudeAboveGround(dragon, sampleGroundY, 10), 'an isolated terrain sampler exception must not abort the dragon update');
+	assert.equal(dragon.position.y, 17, 'valid probes after a thrown current sample must still clamp to the ridge clearance');
+	assert.equal(dragon.userData.dragonTerrainSampleExceptionCount, 1, 'the thrown probe must be exposed separately in telemetry');
+	assert.equal(dragon.userData.dragonTerrainInvalidSampleCount, 1, 'a thrown probe must also count toward total invalid terrain samples');
+	assert.equal(dragon.userData.dragonTerrainSampleCount, 13, 'exception recovery must not expand the bounded terrain work budget');
+	assert.ok(visited.some(([, z]) => Math.abs(z - 3) < 1e-9), 'sampling must continue to later valid ridge probes after the exception');
+}
+
+function runThrowingPursuitCenterProof() {
+	const state = createDragonReactionState(0, 0, 20, 0);
+	const throwingConfig = createReactionConfig(() => { throw new Error('pursuit-center tile temporarily unavailable'); });
+
+	assert.doesNotThrow(
+		() => stepDragonReactionState(state, 0.5, 1, throwingConfig),
+		'a throwing pursuit-center terrain sample must not abort the configured dragon update',
+	);
+	assert.equal(state.center.y, 20, 'a throwing pursuit-center sample must preserve the previous center altitude');
+	assert.equal(state.pursuitCenterTerrainSampleExceptionCount, 1, 'pursuit-center sampler exceptions must be observable');
+	assert.equal(state.pursuitCenterTerrainInvalidSampleCount, 1, 'a throwing pursuit-center sample must count as invalid');
+
+	stepDragonReactionState(state, 0.5, 1, createReactionConfig(() => Number.NaN));
+	assert.equal(state.center.y, 20, 'a non-finite pursuit-center sample must also preserve the previous center altitude');
+	assert.equal(state.pursuitCenterTerrainSampleExceptionCount, 1, 'non-finite pursuit-center data must not be misclassified as an exception');
+	assert.equal(state.pursuitCenterTerrainInvalidSampleCount, 2, 'non-finite pursuit-center data must be counted separately as invalid');
+
+	stepDragonReactionState(state, 0.5, 1, createReactionConfig(() => 6));
+	assert.equal(state.center.y, 16, 'the pursuit center must resume terrain following as soon as a finite sample returns');
+}
+
+function runAllThrowingFailSafeProof() {
+	const dragon = createDragon({ y: 23, yaw: Math.PI / 2 });
+	assert.doesNotThrow(() => clampAltitudeAboveGround(dragon, () => { throw new Error('terrain unavailable'); }, 10));
+
+	assert.equal(dragon.position.y, 23, 'all-throwing terrain data must preserve the rendered altitude');
+	assert.equal(dragon.userData.dragonTerrainSampleCount, 13, 'all-throwing sampling must remain bounded');
+	assert.equal(dragon.userData.dragonTerrainInvalidSampleCount, 13, 'every thrown probe must count as invalid');
+	assert.equal(dragon.userData.dragonTerrainSampleExceptionCount, 13, 'every thrown probe must be observable as a sampler exception');
 }
 
 function runAllInvalidFailSafeProof() {
@@ -34,6 +124,7 @@ function runAllInvalidFailSafeProof() {
 	assert.equal(dragon.position.y, 23, 'all-invalid terrain data must preserve the rendered altitude instead of manufacturing ground');
 	assert.equal(dragon.userData.dragonTerrainSampleCount, 13, 'all-invalid sampling must stay within the normal bounded budget');
 	assert.equal(dragon.userData.dragonTerrainInvalidSampleCount, 13, 'every invalid terrain probe must be observable');
+	assert.equal(dragon.userData.dragonTerrainSampleExceptionCount, 0, 'non-finite terrain data must remain distinct from thrown sampler faults');
 }
 
 function runFiniteCompatibilityProof() {
@@ -42,9 +133,13 @@ function runFiniteCompatibilityProof() {
 
 	assert.equal(dragon.position.y, 14, 'finite terrain behavior must preserve the highest-ground + clearance contract');
 	assert.equal(dragon.userData.dragonTerrainInvalidSampleCount, 0, 'finite terrain must report zero invalid probes');
+	assert.equal(dragon.userData.dragonTerrainSampleExceptionCount, 0, 'finite terrain must report zero sampler exceptions');
 }
 
 runIsolatedInvalidCurrentSampleProof();
+runThrowingCurrentSampleProof();
+runThrowingPursuitCenterProof();
+runAllThrowingFailSafeProof();
 runAllInvalidFailSafeProof();
 runFiniteCompatibilityProof();
 

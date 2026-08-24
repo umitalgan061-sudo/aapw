@@ -48,6 +48,8 @@ export function createDragonReactionState(startAngleRadians, centerX, centerY, c
 		attackBlend: 0,
 		biteCooldownRemainingSeconds: 0,
 		playerWasInNoticeRadius: false,
+		pursuitCenterTerrainInvalidSampleCount: 0,
+		pursuitCenterTerrainSampleExceptionCount: 0,
 	};
 }
 
@@ -127,12 +129,26 @@ export function stepDragonReactionState(state, delta, distanceToPlayer, config) 
 		stepCenterTowardTarget(state.center, targetCenterX, targetCenterZ, pursuitCenterSpeedMps * delta);
 	}
 
-	// Radius/altitude ease into and out of the engaged shape.
+	// Radius/altitude ease into and out of the engaged shape. A transient terrain-provider fault
+	// must not abort the whole dragon update before the model-level terrain clamp gets its own
+	// guarded probes. Preserve the last rendered pursuit-center altitude until a finite center
+	// sample returns; track non-finite values separately from thrown provider exceptions.
 	state.pursuitBlend = easeBlendToward(state.pursuitBlend, isEngaged ? 1 : 0, delta, pursuitTransitionSeconds);
 	const currentCircleRadiusMeters = blendScalar(circleRadiusMeters, pursuitCircleRadiusMeters, state.pursuitBlend);
 	if (canPursue && cruiseAltitudeAboveGroundMeters != null) {
-		const terrainFollowingCenterY = sampleGroundY(state.center.x, state.center.z) + cruiseAltitudeAboveGroundMeters;
-		state.center.y = blendScalar(centerY, terrainFollowingCenterY, state.pursuitBlend);
+		let centerGroundY;
+		try {
+			centerGroundY = sampleGroundY(state.center.x, state.center.z);
+		} catch (_error) {
+			state.pursuitCenterTerrainSampleExceptionCount += 1;
+			centerGroundY = Number.NaN;
+		}
+		if (Number.isFinite(centerGroundY)) {
+			const terrainFollowingCenterY = centerGroundY + cruiseAltitudeAboveGroundMeters;
+			state.center.y = blendScalar(centerY, terrainFollowingCenterY, state.pursuitBlend);
+		} else {
+			state.pursuitCenterTerrainInvalidSampleCount += 1;
+		}
 	}
 
 	// Tangential speed is the tuned constant; angular speed is derived from it against the
