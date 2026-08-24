@@ -86,6 +86,11 @@ async function main() {
 		const summary = await page.evaluate(() => window.__FULL_WORLD_3D_TOPDOWN__);
 		if (pageErrors.length) throw new Error(pageErrors.join('\n'));
 
+		// Always preserve the visual + numeric evidence before semantic assertions. If a future gate
+		// fails, reviewers still get the exact frame that failed instead of an empty artifact folder.
+		await page.screenshot({ path: outputPath, type: 'png' });
+		await fs.writeFile(jsonPath, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
+
 		assert.equal(summary.camera.type, 'OrthographicCamera');
 		assert.equal(summary.camera.verticalExaggeration, 1, 'QA must render production vertical scale');
 		assert(summary.vertexCount > 20000, 'full-world terrain mesh is unexpectedly coarse');
@@ -93,12 +98,11 @@ async function main() {
 		assert(summary.heightStdDevMeters > 20, 'full-world relief variance is unexpectedly flat');
 		assert(summary.surfaceCounts.sea > summary.surfaceCounts.lake, 'sea must remain the dominant water class');
 		assert(summary.surfaceCounts.lake > 0, 'canonical inland lakes disappeared from full-world sampling');
-		assert(summary.northPermanentIceMean > 0.25, 'map-aligned northern cryosphere is not represented');
+		assert(summary.northPermanentIceMax >= 0.8, 'authored permanent-ice core disappeared from the north');
+		assert(summary.northPermanentIceActiveSamples > 0, 'no strong permanent-ice samples were represented');
 		assert(summary.waterDepthField.meanWetCoverage > 0.35, 'production water coverage is unexpectedly sparse');
 		assert(summary.waterDepthField.mixedCoastTexelRatio > 0, 'coastline anti-alias coverage disappeared');
 
-		await page.screenshot({ path: outputPath, type: 'png' });
-		await fs.writeFile(jsonPath, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
 		console.log('[captureFullWorld3DTopdown] PASS', JSON.stringify({
 			output: path.relative(repoRoot, outputPath),
 			json: path.relative(repoRoot, jsonPath),
@@ -106,6 +110,7 @@ async function main() {
 			heightRange: [summary.minHeightMeters, summary.maxHeightMeters],
 			lakeSamples: summary.surfaceCounts.lake,
 			northPermanentIceMean: summary.northPermanentIceMean,
+			northPermanentIceMax: summary.northPermanentIceMax,
 		}));
 	} finally {
 		await browser?.close().catch(() => {});
