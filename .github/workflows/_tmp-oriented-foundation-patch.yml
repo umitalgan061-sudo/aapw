@@ -1,0 +1,221 @@
+name: Temporary Oriented Foundation Patch
+on:
+  push:
+    branches: [codex/foundation-grounding-20260821]
+    paths: [.github/workflows/_tmp-oriented-foundation-patch.yml]
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/foundation-grounding-20260821
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Patch oriented footprint authority
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('src/3d/world/WorldAssetPlacementPipeline.js')
+          s = p.read_text()
+          old = '''function worldFootprintFor(object) {
+            if (!object?.isObject3D) return null;
+            object.updateMatrixWorld?.(true);
+            const box = new THREE.Box3().setFromObject(object);
+            if (box.isEmpty()) return null;
+
+            const minX = box.min.x;
+            const maxX = box.max.x;
+            const minZ = box.min.z;
+            const maxZ = box.max.z;
+            const centerX = (minX + maxX) * 0.5;
+            const centerZ = (minZ + maxZ) * 0.5;
+
+            return {
+              baseOffsetY: box.min.y - object.position.y,
+              bounds: Object.freeze({
+                minX, maxX, minZ, maxZ,
+                width: maxX - minX,
+                depth: maxZ - minZ,
+              }),
+              points: [
+                { label: 'center', x: centerX, z: centerZ },
+                { label: 'north-west', x: minX, z: minZ },
+                { label: 'north-east', x: maxX, z: minZ },
+                { label: 'south-west', x: minX, z: maxZ },
+                { label: 'south-east', x: maxX, z: maxZ },
+                { label: 'north-mid', x: centerX, z: minZ },
+                { label: 'south-mid', x: centerX, z: maxZ },
+                { label: 'west-mid', x: minX, z: centerZ },
+                { label: 'east-mid', x: maxX, z: centerZ },
+              ],
+            };
+          }'''
+          new = '''function worldFootprintFor(object) {
+            if (!object?.isObject3D) return null;
+            object.updateMatrixWorld?.(true);
+            const worldBox = new THREE.Box3().setFromObject(object);
+            if (worldBox.isEmpty()) return null;
+
+            // Build the footprint in the root object's own X/Z frame, then transform that rectangle
+            // back to world space. This preserves yaw: a long 45-degree wall no longer becomes a huge
+            // square foundation merely because its world AABB is square.
+            const inverseRoot = object.matrixWorld.clone().invert();
+            const localBox = new THREE.Box3();
+            const corner = new THREE.Vector3();
+            let foundGeometry = false;
+            object.traverse((child) => {
+              const geometry = child?.geometry;
+              if (!geometry) return;
+              geometry.computeBoundingBox?.();
+              const box = geometry.boundingBox;
+              if (!box || box.isEmpty()) return;
+              const toRoot = inverseRoot.clone().multiply(child.matrixWorld);
+              for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) {
+                localBox.expandByPoint(corner.set(x, y, z).applyMatrix4(toRoot));
+              }
+              foundGeometry = true;
+            });
+            if (!foundGeometry || localBox.isEmpty()) {
+              return worldAabbFootprint(object, worldBox);
+            }
+
+            const localCenterX = (localBox.min.x + localBox.max.x) * 0.5;
+            const localCenterZ = (localBox.min.z + localBox.max.z) * 0.5;
+            const localPoints = [
+              ['center', localCenterX, localCenterZ],
+              ['north-west', localBox.min.x, localBox.min.z],
+              ['north-east', localBox.max.x, localBox.min.z],
+              ['south-west', localBox.min.x, localBox.max.z],
+              ['south-east', localBox.max.x, localBox.max.z],
+              ['north-mid', localCenterX, localBox.min.z],
+              ['south-mid', localCenterX, localBox.max.z],
+              ['west-mid', localBox.min.x, localCenterZ],
+              ['east-mid', localBox.max.x, localCenterZ],
+            ];
+            const points = localPoints.map(([label, x, z]) => {
+              const world = new THREE.Vector3(x, localBox.min.y, z).applyMatrix4(object.matrixWorld);
+              return { label, x: world.x, z: world.z };
+            });
+            const footprintCorners = points.filter((point) => ['north-west', 'north-east', 'south-east', 'south-west'].includes(point.label));
+            return {
+              baseOffsetY: worldBox.min.y - object.position.y,
+              bounds: Object.freeze({ minX: worldBox.min.x, maxX: worldBox.max.x, minZ: worldBox.min.z, maxZ: worldBox.max.z, width: worldBox.max.x - worldBox.min.x, depth: worldBox.max.z - worldBox.min.z }),
+              orientedFootprint: Object.freeze({ corners: footprintCorners.map((point) => Object.freeze({ x: point.x, z: point.z })) }),
+              points,
+            };
+          }
+
+          function worldAabbFootprint(object, box) {
+            const minX = box.min.x, maxX = box.max.x, minZ = box.min.z, maxZ = box.max.z;
+            const centerX = (minX + maxX) * 0.5, centerZ = (minZ + maxZ) * 0.5;
+            return {
+              baseOffsetY: box.min.y - object.position.y,
+              bounds: Object.freeze({ minX, maxX, minZ, maxZ, width: maxX - minX, depth: maxZ - minZ }),
+              orientedFootprint: null,
+              points: [
+                { label: 'center', x: centerX, z: centerZ }, { label: 'north-west', x: minX, z: minZ },
+                { label: 'north-east', x: maxX, z: minZ }, { label: 'south-west', x: minX, z: maxZ },
+                { label: 'south-east', x: maxX, z: maxZ }, { label: 'north-mid', x: centerX, z: minZ },
+                { label: 'south-mid', x: centerX, z: maxZ }, { label: 'west-mid', x: minX, z: centerZ },
+                { label: 'east-mid', x: maxX, z: centerZ },
+              ],
+            };
+          }'''
+          if old not in s: raise SystemExit('worldFootprintFor block drifted')
+          s = s.replace(old, new)
+          needle = '''      bounds: footprintGeometry.bounds,
+              points: pointRecords.map((point) => ({ ...point })),'''
+          repl = '''      bounds: footprintGeometry.bounds,
+              orientedFootprint: footprintGeometry.orientedFootprint || null,
+              points: pointRecords.map((point) => ({ ...point })),'''
+          if needle not in s: raise SystemExit('conform payload drifted')
+          p.write_text(s.replace(needle, repl))
+
+          p = Path('src/3d/world/terrainFoundationConformer.js')
+          s = p.read_text()
+          s = s.replace("footprintMode: 'aabb-adaptive-four-cell-circle-union'", "footprintMode: 'oriented-adaptive-four-cell-circle-union'")
+          old = '''function createAdaptiveCellPads(bounds, targetHeight, key, safeInnerMargin, safeFeather) {
+            const width = bounds.maxX - bounds.minX;
+            const depth = bounds.maxZ - bounds.minZ;
+            const { columns, rows } = chooseAdaptiveGrid(width, depth);
+            const cellWidth = width / columns;
+            const cellDepth = depth / rows;'''
+          new = '''function createAdaptiveCellPads(bounds, targetHeight, key, safeInnerMargin, safeFeather, orientedFootprint = null) {
+            const corners = orientedFootprint?.corners;
+            const oriented = Array.isArray(corners) && corners.length === 4 && corners.every((point) => Number.isFinite(point?.x) && Number.isFinite(point?.z));
+            const nw = oriented ? corners[0] : { x: bounds.minX, z: bounds.minZ };
+            const ne = oriented ? corners[1] : { x: bounds.maxX, z: bounds.minZ };
+            const sw = oriented ? corners[3] : { x: bounds.minX, z: bounds.maxZ };
+            const axisX = { x: ne.x - nw.x, z: ne.z - nw.z };
+            const axisZ = { x: sw.x - nw.x, z: sw.z - nw.z };
+            const width = Math.hypot(axisX.x, axisX.z);
+            const depth = Math.hypot(axisZ.x, axisZ.z);
+            const { columns, rows } = chooseAdaptiveGrid(width, depth);
+            const cellWidth = width / columns;
+            const cellDepth = depth / rows;'''
+          if old not in s: raise SystemExit('adaptive pad header drifted')
+          s = s.replace(old, new)
+          old = '''        pads.push({
+                  x: columns === 1 ? (bounds.minX + bounds.maxX) * 0.5 : bounds.minX + cellWidth * (column + 0.5),
+                  z: rows === 1 ? (bounds.minZ + bounds.maxZ) * 0.5 : bounds.minZ + cellDepth * (row + 0.5),'''
+          new = '''        const u = (column + 0.5) / columns;
+                const v = (row + 0.5) / rows;
+                pads.push({
+                  x: nw.x + axisX.x * u + axisZ.x * v,
+                  z: nw.z + axisX.z * u + axisZ.z * v,'''
+          if old not in s: raise SystemExit('adaptive pad center drifted')
+          s = s.replace(old, new)
+          old = '''  const pads = createAdaptiveCellPads(bounds, targetHeight, key, safeInnerMargin, safeFeather);'''
+          new = '''  const pads = createAdaptiveCellPads(bounds, targetHeight, key, safeInnerMargin, safeFeather, payload?.orientedFootprint);'''
+          if old not in s: raise SystemExit('adaptive pad call drifted')
+          p.write_text(s.replace(old, new))
+          PY
+      - name: Add rotated-footprint acceptance
+        run: |
+          cat > scripts/checkRotatedStructureFoundation.mjs <<'EOF'
+          import assert from 'node:assert/strict';
+          import * as THREE from 'three';
+          import { resolveWorldSurfacePlacement } from '../src/3d/world/WorldAssetPlacementPipeline.js';
+          import { createFoundationFlattenPad } from '../src/3d/world/terrainFoundationConformer.js';
+
+          const object = new THREE.Mesh(new THREE.BoxGeometry(100, 12, 10), new THREE.MeshBasicMaterial());
+          object.rotation.y = Math.PI / 4;
+          object.position.set(25, 0, -40);
+          let conformPayload = null;
+          const result = resolveWorldSurfacePlacement(object, {
+            metadata: { category: 'building', id: 'rotated-longhall' }, footprintGrounding: 'always',
+            groundHeight: (x, z) => 20 + x * 0.002 + z * 0.001,
+            conformTerrain: (payload) => { conformPayload = payload; return { ok: true, height: payload.targetHeight }; },
+          });
+          assert.equal(result.ok, true);
+          assert.ok(conformPayload?.orientedFootprint?.corners?.length === 4, 'placement must expose four oriented corners');
+          const corners = conformPayload.orientedFootprint.corners;
+          const longEdge = Math.hypot(corners[1].x - corners[0].x, corners[1].z - corners[0].z);
+          const shortEdge = Math.hypot(corners[3].x - corners[0].x, corners[3].z - corners[0].z);
+          assert.ok(Math.abs(longEdge - 100) < 0.01 && Math.abs(shortEdge - 10) < 0.01, `oriented footprint dimensions drifted: ${longEdge}, ${shortEdge}`);
+          const created = createFoundationFlattenPad(conformPayload);
+          assert.equal(created.ok, true);
+          assert.equal(created.pads.length, 4);
+          const xs = created.pads.map((pad) => pad.x), zs = created.pads.map((pad) => pad.z);
+          assert.ok(Math.max(...xs) - Math.min(...xs) > 45, 'pads must follow rotated long axis in X');
+          assert.ok(Math.max(...zs) - Math.min(...zs) > 45, 'pads must follow rotated long axis in Z');
+          assert.ok(created.pads.every((pad) => pad.innerRadiusMeters < 15), 'rotated longhall must not inherit world-AABB-sized circles');
+          console.log('Rotated structure foundation acceptance passed.');
+          EOF
+          node --check src/3d/world/WorldAssetPlacementPipeline.js
+          node --check src/3d/world/terrainFoundationConformer.js
+          node scripts/checkRotatedStructureFoundation.mjs
+          node scripts/checkTerrainFoundationConformer.mjs
+          node scripts/checkWorldFootprintGrounding.mjs
+      - name: Commit production slice
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/3d/world/WorldAssetPlacementPipeline.js src/3d/world/terrainFoundationConformer.js scripts/checkRotatedStructureFoundation.mjs
+          git commit -m 'feat(world): preserve rotated structure foundation footprint'
+          git push origin HEAD:codex/foundation-grounding-20260821
