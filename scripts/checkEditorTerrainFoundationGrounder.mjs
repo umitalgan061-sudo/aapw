@@ -131,22 +131,40 @@ assert.equal(localizedResult.mode, 'terrain-conform', 'localized building metada
 assert.equal(localizedResult.footprint?.samples?.length, 9);
 assert.equal(flattenPads.length, beforeRepeat + 1, 'second distinct structure must own an independent foundation pad');
 
+const importedStructure = new THREE.Mesh(new THREE.BoxGeometry(10, 6, 8), new THREE.MeshBasicMaterial());
+importedStructure.geometry.translate(0, 3, 0);
+importedStructure.userData = {
+  editorId: 'imported-structure-0001',
+  structureLike: true,
+  category: 'custom-import',
+  src: 'imports/custom-great-hall.glb',
+};
+const importedResult = grounder.groundObject(importedStructure, null, { x: -34, z: 21 });
+assert.equal(importedResult.ok, true, importedResult.error);
+assert.equal(importedResult.mode, 'terrain-conform', 'object metadata must opt library-external structures into terrain conforming');
+assert.equal(importedResult.footprint?.samples?.length, 9, 'imported custom structures must use the complete footprint probe set');
+assert.equal(importedStructure.userData.editorFoundationKey, 'asset:imported-structure-0001');
+assert.equal(flattenPads.length, beforeRepeat + 2, 'imported structure must own an independent shared foundation pad');
+
 const tree = new THREE.Mesh(new THREE.BoxGeometry(1, 4, 1), new THREE.MeshBasicMaterial());
 tree.geometry.translate(0, 2, 0);
 tree.userData.editorId = 'tree-placed-0001';
 const treeResult = grounder.groundObject(tree, { id: 'tree', primitive: 'tree', category: 'vegetation' }, { x: 40, z: 30 });
 assert.equal(treeResult.ok, true, treeResult.error);
 assert.equal(treeResult.mode, 'center-base');
-assert.equal(flattenPads.length, beforeRepeat + 1, 'non-structures must never deform terrain');
+assert.equal(flattenPads.length, beforeRepeat + 2, 'non-structures must never deform terrain');
 tree.updateMatrixWorld(true);
 const treeBox = new THREE.Box3().setFromObject(tree);
 assert(Math.abs(treeBox.min.y - groundCollider.getGroundHeight(40, 30)) < 1e-6);
 
 const removed = grounder.removeObjectFoundation(castle);
 assert.equal(removed.ok, true, removed.error);
-assert.equal(flattenPads.length, 1, 'removing one structure foundation must preserve other structure foundations');
+assert.equal(flattenPads.length, 2, 'removing one structure foundation must preserve other structure foundations');
 const localizedRemoved = grounder.removeObjectFoundation(localizedBuilding);
 assert.equal(localizedRemoved.ok, true, localizedRemoved.error);
+assert.equal(flattenPads.length, 1, 'localized foundation removal must preserve imported structure foundation');
+const importedRemoved = grounder.removeObjectFoundation(importedStructure);
+assert.equal(importedRemoved.ok, true, importedRemoved.error);
 assert.equal(flattenPads.length, 0, 'removing all structures must restore the shared pad authority');
 
-console.log('[checkEditorTerrainFoundationGrounder] PASS: broad English/Turkish/custom structure families conform shared render/physics terrain, protected primitives stay center-grounded, repeated grounding ignores stale self-foundation feedback while preserving shared pad identity, and foundations remain independently removable.');
+console.log('[checkEditorTerrainFoundationGrounder] PASS: broad English/Turkish/custom/imported structure families conform shared render/physics terrain, protected primitives stay center-grounded, repeated grounding ignores stale self-foundation feedback while preserving shared pad identity, and foundations remain independently removable.');
