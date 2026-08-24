@@ -15,6 +15,7 @@ on:
       - 'scripts/checkSettlementFoundationAuthority.mjs'
       - 'scripts/checkTerrainFoundationConformer.mjs'
       - 'scripts/checkTerrainFoundationBatchRemoval.mjs'
+      - 'scripts/checkFoundationRenderPhysicsParity.mjs'
       - 'scripts/setupNodeThreeShim.mjs'
       - '.github/workflows/terrain-foundation-conformer.yml'
   workflow_dispatch:
@@ -48,6 +49,7 @@ jobs:
           node --check scripts/checkSettlementFoundationAuthority.mjs
           node --check scripts/checkTerrainFoundationConformer.mjs
           node --check scripts/checkTerrainFoundationBatchRemoval.mjs
+          node --check scripts/checkFoundationRenderPhysicsParity.mjs
       - name: Shared structure footprint and surface classification
         run: |
           node scripts/checkStructureGroundingPolicy.mjs
@@ -58,3 +60,4 @@ jobs:
         run: |
           node scripts/checkTerrainFoundationConformer.mjs
           node scripts/checkTerrainFoundationBatchRemoval.mjs
+          node scripts/checkFoundationRenderPhysicsParity.mjs
