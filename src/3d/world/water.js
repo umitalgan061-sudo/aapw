@@ -35,6 +35,7 @@
  */
 
 import * as THREE from 'three';
+import { getCelestialLightState } from '../celestialLightState.js';
 
 /**
  * The three swell components, longest first: `[wavelengthMeters, amplitudeMeters, dirX, dirZ]`.
@@ -140,6 +141,8 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	uniform vec3 uShallowColor;
 	uniform vec3 uDeepColor;
 	uniform vec3 uSunDirection;
+	uniform vec3 uSunColor;
+	uniform float uSunIntensity;
 	uniform vec3 uCameraPosition;
 	uniform sampler2D uDepthMap;
 	uniform float uDepthFieldExtentMeters;
@@ -210,9 +213,9 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		vec3 normal = normalize(vec3(-slope.x, 1.0, -slope.y));
 		vec3 viewDir = normalize(uCameraPosition - vWorldPosition);
 
-		// Fragment depth (rather than vertex-interpolated depth) lets the two-triangle far plane retain
-		// the exact same canonical shallow/deep bathymetry response as the dense near-water mesh.
-		vec3 bodyColor = mix(uShallowColor, uDeepColor, smoothstep(0.02, 0.6, fragmentDepth));
+		// Keep the photographed coast/pool behaviour: shallow water holds its lighter teal for longer,
+		// then transitions progressively toward deep navy rather than becoming dark immediately offshore.
+		vec3 bodyColor = mix(uShallowColor, uDeepColor, smoothstep(0.04, 0.82, fragmentDepth));
 
 		// Fresnel-ish: nearer grazing angles read lighter/more reflective, straight-down reads deep.
 		float fresnel = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 3.0);
@@ -220,6 +223,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 
 		vec3 halfVector = normalize(uSunDirection + viewDir);
 		float specular = pow(clamp(dot(normal, halfVector), 0.0, 1.0), 80.0);
+		vec3 celestialSpecular = uSunColor * specular * (0.12 + clamp(uSunIntensity, 0.0, 1.6) * 0.34);
 
 		// Surf remains depth-bounded, but now also requires a real bathymetry transition. Uniformly
 		// shallow lake interiors therefore stay calm instead of turning the whole polygon into foam.
@@ -230,11 +234,12 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		shallowMask *= shorelineGradientMask(vWorldPosition.xz) * waterCoverage;
 		float foam = clamp(shallowMask * surge, 0.0, 1.0);
 
-		vec3 color = mix(baseColor + specular * 0.48, vec3(0.90, 0.95, 0.96), foam * 0.76);
-		// Shallow water is more see-through, so a lake bed or beach shelf shows through instead of
-		// every depth rendering as the same opaque sheet. Coverage then fades the canonical shoreline
-		// itself rather than tinting the dry side of it.
-		float alpha = mix(0.34, 0.88, smoothstep(0.0, 0.35, fragmentDepth));
+		vec3 color = mix(baseColor + celestialSpecular, vec3(0.90, 0.95, 0.96), foam * 0.76);
+		// Beer-Lambert-inspired optical response: very shallow shelves/pools are genuinely transparent
+		// enough to reveal the terrain mesh beneath; opacity rises continuously with water depth and
+		// approaches an opaque deep-sea body instead of applying one sheet opacity everywhere.
+		float opticalDepth = 1.0 - exp(-fragmentDepth * 3.2);
+		float alpha = mix(0.14, 0.90, opticalDepth);
 		alpha *= waterCoverage;
 
 		gl_FragColor = vec4(color, max(alpha, foam * 0.78));
@@ -283,10 +288,8 @@ export const WATER_PLANE_SEGMENTS_MOBILE = 192;
  */
 const DEFAULT_SHALLOW_COLOR = new THREE.Color(0x53899a);
 const DEFAULT_DEEP_COLOR = new THREE.Color(0x0c2c4a);
-/** Matches `game3d.js`'s directional "sun" light position, normalized — kept as a local constant
- * here (not `config.js`) since only this shader's specular highlight reads it today; promote it if
- * a second system needs the same direction. */
-const SUN_DIRECTION = new THREE.Vector3(300, 400, 200).normalize();
+const DEFAULT_SUN_DIRECTION = new THREE.Vector3(300, 400, 200).normalize();
+const DEFAULT_SUN_COLOR = new THREE.Color(0xffe2a1);
 
 /**
  * Placeholder bound to `uDepthMap` before a real field is attached: one fully-deep/fully-covered
@@ -333,7 +336,9 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 				uTime: { value: 0 },
 				uShallowColor: { value: DEFAULT_SHALLOW_COLOR },
 				uDeepColor: { value: DEFAULT_DEEP_COLOR },
-				uSunDirection: { value: SUN_DIRECTION },
+				uSunDirection: { value: DEFAULT_SUN_DIRECTION },
+				uSunColor: { value: DEFAULT_SUN_COLOR },
+				uSunIntensity: { value: 1 },
 				uCameraPosition: { value: new THREE.Vector3() },
 				uDepthMap: { value: PLACEHOLDER_DEPTH_TEXTURE },
 				uDepthFieldExtentMeters: { value: 1 },
@@ -349,6 +354,12 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.position.y = waterLevelMeters;
 	mesh.frustumCulled = false; // recentered on the camera every frame — always meant to be in view.
+	mesh.userData.opticalProfile = Object.freeze({
+		shallowAlpha: 0.14,
+		deepAlpha: 0.90,
+		attenuation: 3.2,
+		celestialSpecular: true,
+	});
 
 	// Two triangles cover the complete owner world underneath the dense near mesh. The shared shader
 	// samples bathymetry/coverage per fragment, while vertex swell is edge-faded to zero on this large
@@ -399,8 +410,8 @@ export function setWaterDepthField(waterMesh, depthField, swellStrength = 1) {
 
 /**
  * Re-centers the water plane's XZ on the camera (keeping its fixed sea-level Y), advances the
- * wave animation time, and updates the specular-highlight camera-position uniform.
- * Call once per frame.
+ * wave animation time, updates the camera uniform and copies the live sun/moon key published by
+ * `lighting.js`. This keeps water specular highlights physically aligned with the celestial cycle.
  * @param {THREE.Mesh} waterMesh
  * @param {THREE.Vector3} cameraPosition
  * @param {number} elapsedSeconds
@@ -408,9 +419,14 @@ export function setWaterDepthField(waterMesh, depthField, swellStrength = 1) {
 export function updateWater(waterMesh, cameraPosition, elapsedSeconds) {
 	waterMesh.position.x = cameraPosition.x;
 	waterMesh.position.z = cameraPosition.z;
+	const celestial = getCelestialLightState();
 	for (const material of [waterMesh.material, waterMesh.userData.farWater?.material].filter(Boolean)) {
-		material.uniforms.uTime.value = elapsedSeconds;
-		material.uniforms.uCameraPosition.value.copy(cameraPosition);
+		const { uniforms } = material;
+		uniforms.uTime.value = elapsedSeconds;
+		uniforms.uCameraPosition.value.copy(cameraPosition);
+		uniforms.uSunDirection.value.set(celestial.direction.x, celestial.direction.y, celestial.direction.z);
+		uniforms.uSunColor.value.setRGB(celestial.color.r, celestial.color.g, celestial.color.b);
+		uniforms.uSunIntensity.value = celestial.intensity;
 	}
 }
 
