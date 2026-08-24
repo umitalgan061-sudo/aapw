@@ -1,0 +1,186 @@
+name: One-shot Shape-aware Foundation Rebuild
+
+on:
+  push:
+    branches:
+      - codex/foundation-grounding-20260821
+    paths:
+      - '.github/workflows/one-shot-shape-aware-foundation-rebuild.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/foundation-grounding-20260821
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Patch shape-aware resident chunk rebuild
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one match, got {count}')
+              return text.replace(old, new, 1)
+
+          path = Path('src/3d/world/terrainFoundationConformer.js')
+          text = path.read_text()
+          text = replace_once(
+              text,
+              "\tchunkRebuildMode: 'union-deduplicated',",
+              "\tchunkRebuildMode: 'shape-aware-union-deduplicated',",
+              'policy rebuild mode',
+          )
+          old = """function circleIntersectsChunk(pad, chunkX, chunkZ, chunkSizeMeters) {
+\tconst half = chunkSizeMeters * 0.5;
+\tconst centerX = chunkX * chunkSizeMeters;
+\tconst centerZ = chunkZ * chunkSizeMeters;
+\tconst closestX = Math.max(centerX - half, Math.min(pad.x, centerX + half));
+\tconst closestZ = Math.max(centerZ - half, Math.min(pad.z, centerZ + half));
+\treturn Math.hypot(pad.x - closestX, pad.z - closestZ) <= pad.outerRadiusMeters;
+}
+"""
+          new = """function circleIntersectsChunk(pad, chunkX, chunkZ, chunkSizeMeters) {
+\tconst half = chunkSizeMeters * 0.5;
+\tconst centerX = chunkX * chunkSizeMeters;
+\tconst centerZ = chunkZ * chunkSizeMeters;
+\tconst closestX = Math.max(centerX - half, Math.min(pad.x, centerX + half));
+\tconst closestZ = Math.max(centerZ - half, Math.min(pad.z, centerZ + half));
+\treturn Math.hypot(pad.x - closestX, pad.z - closestZ) <= pad.outerRadiusMeters;
+}
+
+function orientedRectangleIntersectsChunk(pad, chunkX, chunkZ, chunkSizeMeters) {
+\tconst halfChunk = chunkSizeMeters * 0.5;
+\tconst halfWidth = finiteNumber(pad.halfWidthMeters);
+\tconst halfDepth = finiteNumber(pad.halfDepthMeters);
+\tconst feather = Math.max(0, finiteNumber(pad.featherMeters) ?? 0);
+\tlet axisXX = finiteNumber(pad.axisX?.x);
+\tlet axisXZ = finiteNumber(pad.axisX?.z);
+\tlet axisZX = finiteNumber(pad.axisZ?.x);
+\tlet axisZZ = finiteNumber(pad.axisZ?.z);
+\tif ([halfWidth, halfDepth, axisXX, axisXZ, axisZX, axisZZ].some((value) => value === null)) return null;
+\tif (halfWidth < 0 || halfDepth < 0) return null;
+\tconst xLength = Math.hypot(axisXX, axisXZ);
+\tconst zLength = Math.hypot(axisZX, axisZZ);
+\tif (xLength < 1e-6 || zLength < 1e-6) return null;
+\taxisXX /= xLength; axisXZ /= xLength; axisZX /= zLength; axisZZ /= zLength;
+\tif (Math.abs(axisXX * axisZX + axisXZ * axisZZ) > 0.08) return null;
+
+\t// The height field's rectangle influence is the footprint plus a rounded feather. Testing the
+\t// rectangle expanded by the same feather is deliberately conservative at its four corners: it
+\t// can rebuild one harmless extra boundary chunk, but can never leave influenced terrain stale.
+\tconst expandedWidth = halfWidth + feather;
+\tconst expandedDepth = halfDepth + feather;
+\tconst dx = pad.x - chunkX * chunkSizeMeters;
+\tconst dz = pad.z - chunkZ * chunkSizeMeters;
+\tif (Math.abs(dx) > halfChunk + expandedWidth * Math.abs(axisXX) + expandedDepth * Math.abs(axisZX)) return false;
+\tif (Math.abs(dz) > halfChunk + expandedWidth * Math.abs(axisXZ) + expandedDepth * Math.abs(axisZZ)) return false;
+\tif (Math.abs(dx * axisXX + dz * axisXZ) > expandedWidth + halfChunk * (Math.abs(axisXX) + Math.abs(axisXZ))) return false;
+\tif (Math.abs(dx * axisZX + dz * axisZZ) > expandedDepth + halfChunk * (Math.abs(axisZX) + Math.abs(axisZZ))) return false;
+\treturn true;
+}
+
+function foundationPadIntersectsChunk(pad, chunkX, chunkZ, chunkSizeMeters) {
+\tif (pad.shape === 'oriented-rectangle') {
+\t\tconst rectangleResult = orientedRectangleIntersectsChunk(pad, chunkX, chunkZ, chunkSizeMeters);
+\t\tif (rectangleResult !== null) return rectangleResult;
+\t}
+\treturn circleIntersectsChunk(pad, chunkX, chunkZ, chunkSizeMeters);
+}
+"""
+          text = replace_once(text, old, new, 'chunk intersection helper')
+          text = replace_once(
+              text,
+              "validPads.some((pad) => circleIntersectsChunk(pad, chunk.x, chunk.z, size))",
+              "validPads.some((pad) => foundationPadIntersectsChunk(pad, chunk.x, chunk.z, size))",
+              'shape-aware rebuild consumption',
+          )
+          path.write_text(text)
+
+          test_path = Path('scripts/checkTerrainFoundationConformer.mjs')
+          test = test_path.read_text()
+          test = replace_once(
+              test,
+              "assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.chunkRebuildMode, 'union-deduplicated');",
+              "assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.chunkRebuildMode, 'shape-aware-union-deduplicated');",
+              'policy assertion',
+          )
+          marker = """assert.deepEqual(events, ['unload:1,0', 'load:1,0'], 'union rebuild must not duplicate unload/load events for one chunk');
+events.length = 0;
+"""
+          addition = marker + """
+// Rectangle pads keep the legacy outerRadius compatibility envelope, but resident chunk rebuild
+// must use their actual oriented footprint + feather. This pad influences z <= 49m; chunk 0,1 starts
+// at z=50m. A circle-only rebuild would incorrectly regenerate that untouched neighbour because its
+// compatibility radius reaches beyond the real rectangle.
+const shapeAwareRebuildCount = rebuildChunksForFoundations(mockManager, [{
+\tshape: 'oriented-rectangle',
+\tx: 0, z: 42,
+\thalfWidthMeters: 12,
+\thalfDepthMeters: 5,
+\taxisX: { x: 1, z: 0 },
+\taxisZ: { x: 0, z: 1 },
+\tfeatherMeters: 2,
+\touterRadiusMeters: 16,
+}], 100);
+assert.equal(shapeAwareRebuildCount, 1,
+\t'shape-aware rebuild must exclude resident chunks outside the rectangular footprint feather');
+assert.deepEqual(events, ['unload:0,0', 'load:0,0'],
+\t'only the actually influenced rectangular chunk should rebuild');
+events.length = 0;
+
+const legacyCircleRebuildCount = rebuildChunksForFoundation(mockManager, {
+\tx: 0, z: 42, outerRadiusMeters: 16,
+}, 100);
+assert.equal(legacyCircleRebuildCount, 2,
+\t'legacy circle foundations must retain their existing circular rebuild envelope');
+assert.deepEqual(events, ['unload:0,0', 'unload:0,1', 'load:0,0', 'load:0,1']);
+events.length = 0;
+"""
+          test = replace_once(test, marker, addition, 'shape-aware rebuild regression')
+          test = replace_once(
+              test,
+              "rebuild old/new influence once, and keep per-object identity.",
+              "rebuild old/new influence once with shape-aware rectangular chunk selection, preserve legacy circles, and keep per-object identity.",
+              'PASS summary',
+          )
+          test_path.write_text(test)
+          PY
+
+      - name: Validate exact patch
+        run: |
+          set -euo pipefail
+          node scripts/setupNodeThreeShim.mjs
+          node --check src/3d/world/terrainFoundationConformer.js
+          node --check scripts/checkTerrainFoundationConformer.mjs
+          node scripts/checkTerrainFoundationConformer.mjs
+          node scripts/checkWorldFootprintGrounding.mjs
+          node scripts/checkStructureGroundingPolicy.mjs
+          node scripts/checkSettlementFoundationAuthority.mjs
+
+      - name: Commit validated production patch
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- src/3d/world/terrainFoundationConformer.js scripts/checkTerrainFoundationConformer.mjs; then
+            echo 'No production diff to publish.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- src/3d/world/terrainFoundationConformer.js scripts/checkTerrainFoundationConformer.mjs
+          git commit -m 'perf(world): rebuild only foundation-influenced chunks'
+          git push origin HEAD:codex/foundation-grounding-20260821
