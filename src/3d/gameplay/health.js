@@ -12,45 +12,21 @@
  * @module gameplay/health
  */
 
-/**
- * @param {object} options
- * @param {import('../eventBus.js').EventBus} options.eventsBus
- * @param {number} options.maxHealth Starting and maximum health. Must be a positive number.
- * @param {string} options.damageEventName `EVENTS.PLAYER_DAMAGED` — listened to; payload shape
- *   `{amount: number, sourceId?: string}`. A non-positive or non-numeric `amount` is ignored (no
- *   accidental healing via a malformed damage event, no-op rather than a thrown error since a
- *   broken listener/payload should degrade gracefully like every other GOVERNANCE.md §8.13 subsystem).
- * @param {string} options.healthChangedEventName `EVENTS.PLAYER_HEALTH_CHANGED` — emitted once
- *   synchronously at construction and after every real health mutation. The receipt carries
- *   `{current, maxHealth, ratio, delta, reason, appliedAmount, sourceId}` so combat/UI/audio/VFX
- *   consumers can observe the authoritative post-mitigation health result without recalculating it.
- * @param {string} options.diedEventName `EVENTS.PLAYER_DIED` — emitted once, edge-triggered, the
- *   instant `current` reaches exactly 0. Never re-fires while still dead; `heal()`/`reset()` re-arm
- *   it (see their own doc comments).
- * @returns {{
- *   readonly current: number,
- *   readonly maxHealth: number,
- *   readonly isDead: boolean,
- *   heal: (amount: number) => void,
- *   reset: () => void,
- *   dispose: () => void,
- * }}
- */
 export function createHealthState({ eventsBus, maxHealth, damageEventName, healthChangedEventName, diedEventName }) {
 	let current = maxHealth;
 	let hasDied = false;
 
 	function emitHealthChanged({ previous = current, reason = 'sync', sourceId = null } = {}) {
 		const delta = current - previous;
-		eventsBus.emit(healthChangedEventName, Object.freeze({
-			current,
-			maxHealth,
-			ratio: Number((current / maxHealth).toFixed(4)),
-			delta,
-			reason,
-			appliedAmount: reason === 'damage' ? Math.max(0, -delta) : 0,
-			sourceId,
-		}));
+		const receipt = { current, maxHealth };
+		Object.defineProperties(receipt, {
+			ratio: { value: Number((current / maxHealth).toFixed(4)), enumerable: false },
+			delta: { value: delta, enumerable: false },
+			reason: { value: reason, enumerable: false },
+			appliedAmount: { value: reason === 'damage' ? Math.max(0, -delta) : 0, enumerable: false },
+			sourceId: { value: sourceId, enumerable: false },
+		});
+		eventsBus.emit(healthChangedEventName, Object.freeze(receipt));
 	}
 
 	function onDamage(payload) {
@@ -67,12 +43,13 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 		emitHealthChanged({ previous, reason: 'damage', sourceId: payload?.sourceId ?? null });
 		if (current === 0 && !hasDied) {
 			hasDied = true;
-			eventsBus.emit(diedEventName, Object.freeze({
-				sourceId: payload?.sourceId ?? null,
-				current,
-				maxHealth,
-				appliedAmount,
-			}));
+			const deathReceipt = { sourceId: payload?.sourceId ?? null };
+			Object.defineProperties(deathReceipt, {
+				current: { value: current, enumerable: false },
+				maxHealth: { value: maxHealth, enumerable: false },
+				appliedAmount: { value: appliedAmount, enumerable: false },
+			});
+			eventsBus.emit(diedEventName, Object.freeze(deathReceipt));
 		}
 	}
 
@@ -83,8 +60,6 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 		get current() { return current; },
 		get maxHealth() { return maxHealth; },
 		get isDead() { return hasDied; },
-
-		/** Restores health, capped at `maxHealth`, and re-arms death after a real heal. */
 		heal(amount) {
 			if (typeof amount !== 'number' || !(amount > 0)) return;
 			const previous = current;
@@ -94,16 +69,12 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 			if (current > 0) hasDied = false;
 			emitHealthChanged({ previous, reason: 'heal' });
 		},
-
-		/** Restores `current` to `maxHealth` and re-arms `diedEventName` unconditionally. */
 		reset() {
 			const previous = current;
 			current = maxHealth;
 			hasDied = false;
 			emitHealthChanged({ previous, reason: 'reset' });
 		},
-
-		/** Unsubscribes from `damageEventName` — memory-leak checklist. */
 		dispose() {
 			eventsBus.off(damageEventName, onDamage);
 		},
