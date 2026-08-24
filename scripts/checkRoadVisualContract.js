@@ -87,11 +87,6 @@ async function main() {
 				`expected ${expectedChildCount} road-network mesh(es) (cart road + patika if any footpath qualifies), got ${network.group.children.length}`,
 			);
 
-			/** Validates one tier's merged mesh against its own expected name/width/color, mirroring
-			 * the single-tier checks this file ran before run 314/ADR-0264 — same assertions, now
-			 * parameterized so both the cart-road and patika tiers share one implementation instead of
-			 * duplicating ~80 lines. Disposal is checked once for the whole network afterward (see
-			 * below), not per tier, since `disposeRoadNetwork` tears down every child together. */
 			function checkTierMesh(mesh, { expectedName, edges, expectedWidth, expectedColorHex }) {
 				fail(mesh?.name === expectedName, `unexpected mesh name: ${mesh?.name}`);
 				fail(mesh.isMesh === true, `road-network child '${expectedName}' is not a THREE.Mesh`);
@@ -155,7 +150,7 @@ async function main() {
 				const material = mesh.material;
 				fail(material?.isMeshStandardMaterial === true, `${expectedName} no longer uses MeshStandardMaterial`);
 				fail(material.vertexColors === true, `${expectedName} material vertexColors must stay enabled`);
-				fail(nearlyEqual(material.roughness, 0.95, 1e-9), `${expectedName} roughness drifted to ${material.roughness}`);
+				fail(nearlyEqual(material.roughness, 0.98, 1e-9), `${expectedName} roughness drifted to ${material.roughness}`);
 				fail(nearlyEqual(material.metalness, 0, 1e-9), `${expectedName} metalness drifted to ${material.metalness}`);
 				fail(material.side === THREE.DoubleSide, `${expectedName} material side ${material.side} != THREE.DoubleSide`);
 
@@ -166,14 +161,14 @@ async function main() {
 				expectedName: 'roads',
 				edges: network.edges,
 				expectedWidth,
-				expectedColorHex: 0x9c7b4a,
+				expectedColorHex: 0x816b4f,
 			});
 			const footpathResult = network.footpathEdges.length > 0
 				? checkTierMesh(network.group.children[1], {
 					expectedName: 'patika',
 					edges: network.footpathEdges,
 					expectedWidth: expectedFootpathWidth,
-					expectedColorHex: 0xbfae82,
+					expectedColorHex: 0xa08c6b,
 				})
 				: null;
 
