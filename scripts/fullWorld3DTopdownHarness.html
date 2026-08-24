@@ -143,13 +143,36 @@ setWaterDepthField(water, depthField, 1);
 scene.add(water);
 
 const aspect = width / height;
-const halfWidth = worldWidth * 0.59;
-const halfHeight = Math.max(worldDepth * 0.59, halfWidth / aspect);
-const camera = new THREE.OrthographicCamera(-halfWidth, halfWidth, halfHeight, -halfHeight, 1, 40000);
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 40000);
 camera.position.set(0, 15800, worldDepth * 0.26);
 camera.up.set(0, 0, -1);
 camera.lookAt(0, seaLevel, 0);
+camera.updateMatrixWorld(true);
+
+// Fit the actual 3D owner-world envelope rather than a hand-tuned 2D rectangle. The oblique
+// top-down camera mixes Z and elevation into screen Y, so checking all eight min/max terrain-box
+// corners is what guarantees southern islands and tall mountain crowns stay in frame together.
+let requiredHalfWidth = 0;
+let requiredHalfHeight = 0;
+const viewPoint = new THREE.Vector3();
+for (const worldX of [-worldWidth / 2, worldWidth / 2]) {
+	for (const worldY of [minHeight, maxHeight]) {
+		for (const worldZ of [-worldDepth / 2, worldDepth / 2]) {
+			viewPoint.set(worldX, worldY, worldZ).applyMatrix4(camera.matrixWorldInverse);
+			requiredHalfWidth = Math.max(requiredHalfWidth, Math.abs(viewPoint.x));
+			requiredHalfHeight = Math.max(requiredHalfHeight, Math.abs(viewPoint.y));
+		}
+	}
+}
+const frameMargin = 1.06;
+const fittedHalfHeight = Math.max(requiredHalfHeight * frameMargin, requiredHalfWidth * frameMargin / aspect);
+const fittedHalfWidth = fittedHalfHeight * aspect;
+camera.left = -fittedHalfWidth;
+camera.right = fittedHalfWidth;
+camera.top = fittedHalfHeight;
+camera.bottom = -fittedHalfHeight;
 camera.updateProjectionMatrix();
+
 for (const material of [water.material, water.userData.farWater?.material].filter(Boolean)) {
 	material.uniforms.uCameraPosition.value.copy(camera.position);
 	material.uniforms.uTime.value = 0;
@@ -194,6 +217,9 @@ window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
 		type: 'OrthographicCamera',
 		position: Object.freeze(camera.position.toArray()),
 		verticalExaggeration: 1,
+		frameMargin,
+		fittedHalfWidth,
+		fittedHalfHeight,
 	}),
 });
 </script>
