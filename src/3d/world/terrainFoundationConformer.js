@@ -14,7 +14,7 @@
  */
 
 export const TERRAIN_FOUNDATION_CONFORM_POLICY = Object.freeze({
-	id: 'runtime-structure-foundation-conform-2026-08-24-v8-adaptive-footprint-cluster',
+	id: 'runtime-structure-foundation-conform-2026-08-24-v9-adaptive-cell-safety',
 	footprintMode: 'aabb-adaptive-four-cell-circle-union',
 	defaultClusterColumns: 2,
 	defaultClusterRows: 2,
@@ -153,19 +153,20 @@ export function createFoundationFlattenPad(payload, {
 		TERRAIN_FOUNDATION_CONFORM_POLICY.minimumInnerRadiusMeters,
 		enclosingRadius(bounds, safeInnerMargin),
 	);
-	if (requestedEnvelopeRadius > safeMaximum) {
-		return {
-			ok: false,
-			error: 'foundation-footprint-too-large',
-			requestedInnerRadiusMeters: requestedEnvelopeRadius,
-			maximumInnerRadiusMeters: safeMaximum,
-		};
-	}
-
 	const x = (bounds.minX + bounds.maxX) * 0.5;
 	const z = (bounds.minZ + bounds.maxZ) * 0.5;
 	const key = structureKey(payload);
 	const pads = createAdaptiveCellPads(bounds, targetHeight, key, safeInnerMargin, safeFeather);
+	const requestedCellRadius = Math.max(...pads.map((pad) => pad.innerRadiusMeters));
+	if (requestedCellRadius > safeMaximum) {
+		return {
+			ok: false,
+			error: 'foundation-footprint-too-large',
+			requestedInnerRadiusMeters: requestedCellRadius,
+			maximumInnerRadiusMeters: safeMaximum,
+		};
+	}
+
 	return {
 		ok: true,
 		key,
