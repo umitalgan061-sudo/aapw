@@ -5,6 +5,7 @@ import {
   createMaterialManifest,
   validateMaterialAssignment,
 } from '../materials/MaterialAssignmentCore.js';
+import { isStructureGroundingCandidate } from './structureGroundingPolicy.js';
 
 export const WORLD_SURFACE_POLICY_PRESETS = Object.freeze({
   vegetation: Object.freeze({
@@ -45,11 +46,6 @@ const POLICY_RANGES = Object.freeze([
   ['minRoadDistance', 'maxRoadDistance', 'road-distance'],
   ['minSettlementDistance', 'maxSettlementDistance', 'settlement-distance'],
   ['minMoisture', 'maxMoisture', 'moisture'],
-]);
-
-const STRUCTURE_CATEGORIES = new Set([
-  'building', 'settlement', 'bridge', 'house', 'structure', 'castle',
-  'keep', 'tower', 'wall', 'fortification', 'village', 'gate',
 ]);
 
 /**
@@ -223,7 +219,7 @@ export function resolveWorldSurfacePlacement(object, {
   }
   const policy = policyValidation.policy;
 
-  const useFootprint = shouldUseFootprintGrounding(metadata, footprintGrounding);
+  const useFootprint = shouldUseFootprintGrounding(metadata, object?.userData, footprintGrounding);
   const footprintGeometry = useFootprint ? worldFootprintFor(object) : null;
   const pointRecords = footprintGeometry?.points?.length
     ? footprintGeometry.points
@@ -493,11 +489,10 @@ function createSurfaceQuery(surfaceQuery, groundHeight, object) {
   return null;
 }
 
-function shouldUseFootprintGrounding(metadata, footprintGrounding) {
+function shouldUseFootprintGrounding(metadata, objectMetadata, footprintGrounding) {
   if (footprintGrounding === true || footprintGrounding === 'always') return true;
   if (footprintGrounding === false || footprintGrounding === 'never') return false;
-  const category = String(metadata?.category || metadata?.kind || '').trim().toLowerCase();
-  return STRUCTURE_CATEGORIES.has(category);
+  return isStructureGroundingCandidate(metadata, objectMetadata);
 }
 
 function worldFootprintFor(object) {
