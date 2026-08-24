@@ -103,8 +103,8 @@ const first = grounder.groundObject(firstHouse, sharedAsset, { x: 14, z: -8 });
 const second = grounder.groundObject(secondHouse, sharedAsset, { x: 122, z: 6 });
 assert.equal(first.ok, true, first.error);
 assert.equal(second.ok, true, second.error);
-assert.equal(flattenPads.length, 2, 'two clones with one editor/catalog identity must retain two foundations');
-assert.equal(grounder.getDynamicPads().length, 2);
+assert.equal(flattenPads.length, 8, 'two clones with one editor/catalog identity must retain two independent four-pad clusters');
+assert.equal(grounder.getDynamicPads().length, 8);
 
 assert.equal(firstHouse.userData.editorFoundationKey, 'asset:duplicate-editor-placement-id',
   'legacy editor metadata remains stable for persistence compatibility');
@@ -115,32 +115,42 @@ assert.equal(secondHouse.userData.terrainFoundationKey, `object:${secondHouse.uu
   'second clone must address terrain through its independent runtime Object3D identity');
 assert.notEqual(firstHouse.userData.terrainFoundationKey, secondHouse.userData.terrainFoundationKey);
 
-const firstPad = flattenPads.find((pad) => pad.foundationKey === firstHouse.userData.terrainFoundationKey);
-const secondPad = flattenPads.find((pad) => pad.foundationKey === secondHouse.userData.terrainFoundationKey);
-assert(firstPad, 'first runtime foundation pad missing');
-assert(secondPad, 'second runtime foundation pad missing');
-assert.notEqual(firstPad, secondPad);
+const firstPads = flattenPads.filter((pad) => pad.foundationKey === firstHouse.userData.terrainFoundationKey);
+const secondPads = flattenPads.filter((pad) => pad.foundationKey === secondHouse.userData.terrainFoundationKey);
+assert.equal(firstPads.length, 4, 'first runtime foundation cluster is incomplete');
+assert.equal(secondPads.length, 4, 'second runtime foundation cluster is incomplete');
+assert(firstPads.every((pad) => pad.foundationClusterSize === 4));
+assert(secondPads.every((pad) => pad.foundationClusterSize === 4));
+assert(firstPads.every((pad) => !secondPads.includes(pad)), 'clone clusters must not share physical pad objects');
 
-const firstAnchorBeforeMove = firstPad.anchorHeightMeters;
-const secondAnchorBeforeMove = secondPad.anchorHeightMeters;
+const firstAnchorBeforeMove = firstPads[0].anchorHeightMeters;
+const secondAnchorBeforeMove = secondPads[0].anchorHeightMeters;
 const moved = grounder.groundObject(firstHouse, sharedAsset, { x: 18, z: -5 });
 assert.equal(moved.ok, true, moved.error);
-assert.equal(flattenPads.length, 2, 'moving one clone must mutate its own pad without duplicating/removing its sibling');
-assert.equal(flattenPads.find((pad) => pad.foundationKey === firstHouse.userData.terrainFoundationKey), firstPad,
-  'moving a clone must preserve its installed pad object identity');
-assert.equal(flattenPads.find((pad) => pad.foundationKey === secondHouse.userData.terrainFoundationKey), secondPad,
-  'moving the first clone must preserve the second clone pad');
-assert.equal(secondPad.anchorHeightMeters, secondAnchorBeforeMove,
-  'moving one clone must not rewrite a sibling foundation that shares editor/catalog ids');
+assert.equal(flattenPads.length, 8, 'moving one clone must replace its own cluster without duplicating/removing its sibling');
+const movedFirstPads = flattenPads.filter((pad) => pad.foundationKey === firstHouse.userData.terrainFoundationKey);
+const survivingSecondPads = flattenPads.filter((pad) => pad.foundationKey === secondHouse.userData.terrainFoundationKey);
+assert.equal(movedFirstPads.length, 4);
+assert.equal(survivingSecondPads.length, 4);
+assert(firstPads.every((pad) => !flattenPads.includes(pad)),
+  'moving a clone must retire every pad from its former physical footprint cluster');
+assert.deepEqual(survivingSecondPads, secondPads,
+  'moving the first clone must preserve the sibling clone cluster object-for-object');
+assert(secondPads.every((pad) => pad.anchorHeightMeters === secondAnchorBeforeMove),
+  'moving one clone must not rewrite a sibling foundation cluster that shares editor/catalog ids');
 assert(Math.abs(moved.footprint.targetGroundHeight - expectedUnderlyingMax(moved.footprint.bounds)) < 1e-9,
-  're-grounding must exclude the moving clone runtime pad while sampling underlying terrain');
+  're-grounding must exclude the moving clone runtime cluster while sampling underlying terrain');
 assert(Math.abs(moved.footprint.targetGroundHeight - firstAnchorBeforeMove) > 1e-4,
   'old self-foundation height must not feed back into the moved clone');
+assert(movedFirstPads.every((pad) => pad.anchorHeightMeters === moved.footprint.targetGroundHeight),
+  'replacement clone cluster must share the newly sampled target height');
 
 const removedFirst = grounder.removeObjectFoundation(firstHouse);
 assert.equal(removedFirst.ok, true, removedFirst.error);
-assert.equal(flattenPads.length, 1, 'removing one clone must preserve the sibling foundation');
-assert.equal(flattenPads[0], secondPad);
+assert.equal(removedFirst.removedCount, 1, 'editor-facing removal count must stay structure-based');
+assert.equal(removedFirst.removedPadCount, 4, 'first clone removal must retire all four physical pads');
+assert.equal(flattenPads.length, 4, 'removing one clone must preserve the sibling four-pad foundation cluster');
+assert.deepEqual(flattenPads, secondPads);
 assert.equal(firstHouse.userData.terrainFoundationKey, undefined);
 assert.equal(firstHouse.userData.editorFoundationKey, undefined);
 assert.equal(secondHouse.userData.terrainFoundationKey, `object:${secondHouse.uuid}`);
@@ -149,11 +159,12 @@ assert.equal(secondHouse.userData.editorFoundationKey, 'asset:duplicate-editor-p
 const rebuiltBeforeFinalRemoval = rebuilds;
 const removedSecond = grounder.removeObjectFoundations([secondHouse]);
 assert.equal(removedSecond.ok, true);
-assert.equal(removedSecond.removedCount, 1);
+assert.equal(removedSecond.removedCount, 1, 'batch API must still report one removed structure');
+assert.equal(removedSecond.removedPadCount, 4, 'batch API must expose four retired physical pads separately');
 assert.equal(flattenPads.length, 0);
 assert.equal(grounder.getDynamicPads().length, 0);
 assert.equal(secondHouse.userData.terrainFoundationKey, undefined);
 assert.equal(secondHouse.userData.editorFoundationKey, undefined);
-assert(rebuilds > rebuiltBeforeFinalRemoval, 'removing the final live pad must rebuild intersecting resident terrain');
+assert(rebuilds > rebuiltBeforeFinalRemoval, 'removing the final live cluster must rebuild intersecting resident terrain');
 
-console.log('[checkEditorFoundationRuntimeIdentity] PASS: cloned editor placements sharing authored ids keep independent runtime-object foundations, self-excluding re-grounding, and independent cleanup.');
+console.log('[checkEditorFoundationRuntimeIdentity] PASS: cloned editor placements sharing authored ids keep independent runtime-object four-pad foundation clusters, self-excluding re-grounding, sibling-safe replacement, and structure-vs-pad-aware cleanup.');
