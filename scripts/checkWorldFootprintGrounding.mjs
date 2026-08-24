@@ -64,6 +64,10 @@ const conformedResult = resolveWorldSurfacePlacement(conformed, {
 assert.equal(conformedResult.ok, true, conformedResult.error);
 assert.equal(conformedResult.footprint?.groundingMode, 'terrain-conform');
 assert.equal(conformCall?.samples?.length, 9, 'terrain conformer receives the complete footprint');
+assert(conformCall?.orientedFootprint, 'terrain conformer must receive the root-oriented footprint basis');
+assert(Math.abs(conformCall.orientedFootprint.halfWidthMeters - 4) < 1e-6, 'rotated 8m local width must remain 8m instead of inflating to its world AABB');
+assert(Math.abs(conformCall.orientedFootprint.halfDepthMeters - 6) < 1e-6, 'rotated 12m local depth must remain 12m instead of inflating to its world AABB');
+assert(conformCall.bounds.width * conformCall.bounds.depth > 96, 'world AABB remains a conservative compatibility envelope around the tighter oriented footprint');
 assert.equal(conformCall.targetHeight, conformedResult.footprint.maxHeight, 'conformer targets the high-side foundation plane');
 
 conformed.updateMatrixWorld(true);
@@ -90,4 +94,4 @@ assert.equal(treeResult.ok, true, treeResult.error);
 assert.equal(treeResult.footprint, null, 'non-structure assets keep the established centre-sample path');
 assert.equal(tree.position.y, 12.5);
 
-console.log('[checkWorldFootprintGrounding] PASS: structures sample their whole footprint, never hover on the low side, expose a terrain-conform hook, and non-structures keep centre snapping.');
+console.log('[checkWorldFootprintGrounding] PASS: structures sample their root-oriented footprint, never hover on the low side, expose an oriented terrain-conform hook, and non-structures keep centre snapping.');

@@ -276,6 +276,7 @@ export function resolveWorldSurfacePlacement(object, {
       object,
       metadata,
       bounds: footprintGeometry.bounds,
+      orientedFootprint: footprintGeometry.orientedFootprint || null,
       points: pointRecords.map((point) => ({ ...point })),
       samples: normalizedSamples.map((sample) => ({ ...sample })),
       targetHeight: maxHeight,
@@ -309,6 +310,7 @@ export function resolveWorldSurfacePlacement(object, {
     baseOffsetY,
     insetMeters: inset,
     bounds: footprintGeometry.bounds,
+    orientedFootprint: footprintGeometry.orientedFootprint || null,
     samples: normalizedSamples.map(stripPlacementCoordinates),
   });
 
@@ -501,37 +503,109 @@ function shouldUseFootprintGrounding(metadata, objectMetadata, footprintGroundin
   return isStructureGroundingCandidate(metadata, objectMetadata);
 }
 
+function expandBoxWithGeometryCorners(targetBox, geometryBox, matrixWorld, inverseRoot, scratch) {
+  for (const x of [geometryBox.min.x, geometryBox.max.x]) {
+    for (const y of [geometryBox.min.y, geometryBox.max.y]) {
+      for (const z of [geometryBox.min.z, geometryBox.max.z]) {
+        scratch.set(x, y, z).applyMatrix4(matrixWorld).applyMatrix4(inverseRoot);
+        targetBox.expandByPoint(scratch);
+      }
+    }
+  }
+}
+
+function rootLocalGeometryBounds(object) {
+  object.updateMatrixWorld?.(true);
+  const inverseRoot = object.matrixWorld.clone().invert();
+  const localBox = new THREE.Box3();
+  const scratch = new THREE.Vector3();
+  let foundGeometry = false;
+  object.traverse?.((node) => {
+    const geometry = node?.geometry;
+    if (!geometry?.attributes?.position) return;
+    if (!geometry.boundingBox) geometry.computeBoundingBox();
+    if (!geometry.boundingBox || geometry.boundingBox.isEmpty()) return;
+    expandBoxWithGeometryCorners(localBox, geometry.boundingBox, node.matrixWorld, inverseRoot, scratch);
+    foundGeometry = true;
+  });
+  return foundGeometry && !localBox.isEmpty() ? localBox : null;
+}
+
 function worldFootprintFor(object) {
   if (!object?.isObject3D) return null;
   object.updateMatrixWorld?.(true);
-  const box = new THREE.Box3().setFromObject(object);
-  if (box.isEmpty()) return null;
+  const localBox = rootLocalGeometryBounds(object);
+  if (!localBox) {
+    const box = new THREE.Box3().setFromObject(object);
+    if (box.isEmpty()) return null;
+    const minX = box.min.x;
+    const maxX = box.max.x;
+    const minZ = box.min.z;
+    const maxZ = box.max.z;
+    const centerX = (minX + maxX) * 0.5;
+    const centerZ = (minZ + maxZ) * 0.5;
+    return {
+      baseOffsetY: box.min.y - object.position.y,
+      orientedFootprint: null,
+      bounds: Object.freeze({ minX, maxX, minZ, maxZ, width: maxX - minX, depth: maxZ - minZ }),
+      points: [
+        { label: 'center', x: centerX, z: centerZ },
+        { label: 'north-west', x: minX, z: minZ },
+        { label: 'north-east', x: maxX, z: minZ },
+        { label: 'south-west', x: minX, z: maxZ },
+        { label: 'south-east', x: maxX, z: maxZ },
+        { label: 'north-mid', x: centerX, z: minZ },
+        { label: 'south-mid', x: centerX, z: maxZ },
+        { label: 'west-mid', x: minX, z: centerZ },
+        { label: 'east-mid', x: maxX, z: centerZ },
+      ],
+    };
+  }
 
-  const minX = box.min.x;
-  const maxX = box.max.x;
-  const minZ = box.min.z;
-  const maxZ = box.max.z;
-  const centerX = (minX + maxX) * 0.5;
-  const centerZ = (minZ + maxZ) * 0.5;
-
+  const localCenterX = (localBox.min.x + localBox.max.x) * 0.5;
+  const localCenterZ = (localBox.min.z + localBox.max.z) * 0.5;
+  const halfWidth = (localBox.max.x - localBox.min.x) * 0.5;
+  const halfDepth = (localBox.max.z - localBox.min.z) * 0.5;
+  const localRecords = [
+    ['center', localCenterX, localCenterZ],
+    ['north-west', localBox.min.x, localBox.min.z],
+    ['north-east', localBox.max.x, localBox.min.z],
+    ['south-west', localBox.min.x, localBox.max.z],
+    ['south-east', localBox.max.x, localBox.max.z],
+    ['north-mid', localCenterX, localBox.min.z],
+    ['south-mid', localCenterX, localBox.max.z],
+    ['west-mid', localBox.min.x, localCenterZ],
+    ['east-mid', localBox.max.x, localCenterZ],
+  ];
+  const points = localRecords.map(([label, localX, localZ]) => {
+    const world = object.localToWorld(new THREE.Vector3(localX, localBox.min.y, localZ));
+    return { label, x: world.x, z: world.z };
+  });
+  const centerWorld = object.localToWorld(new THREE.Vector3(localCenterX, localBox.min.y, localCenterZ));
+  const xWorld = object.localToWorld(new THREE.Vector3(localCenterX + 1, localBox.min.y, localCenterZ));
+  const zWorld = object.localToWorld(new THREE.Vector3(localCenterX, localBox.min.y, localCenterZ + 1));
+  const axisXLength = Math.hypot(xWorld.x - centerWorld.x, xWorld.z - centerWorld.z) || 1;
+  const axisZLength = Math.hypot(zWorld.x - centerWorld.x, zWorld.z - centerWorld.z) || 1;
+  const orientedFootprint = Object.freeze({
+    centerX: centerWorld.x,
+    centerZ: centerWorld.z,
+    axisX: Object.freeze({ x: (xWorld.x - centerWorld.x) / axisXLength, z: (xWorld.z - centerWorld.z) / axisXLength }),
+    axisZ: Object.freeze({ x: (zWorld.x - centerWorld.x) / axisZLength, z: (zWorld.z - centerWorld.z) / axisZLength }),
+    halfWidthMeters: halfWidth * axisXLength,
+    halfDepthMeters: halfDepth * axisZLength,
+  });
+  const minX = Math.min(...points.map((point) => point.x));
+  const maxX = Math.max(...points.map((point) => point.x));
+  const minZ = Math.min(...points.map((point) => point.z));
+  const maxZ = Math.max(...points.map((point) => point.z));
+  const bottomWorldY = Math.min(...localRecords.slice(1, 5).map(([, localX, localZ]) => (
+    object.localToWorld(new THREE.Vector3(localX, localBox.min.y, localZ)).y
+  )));
   return {
-    baseOffsetY: box.min.y - object.position.y,
-    bounds: Object.freeze({
-      minX, maxX, minZ, maxZ,
-      width: maxX - minX,
-      depth: maxZ - minZ,
-    }),
-    points: [
-      { label: 'center', x: centerX, z: centerZ },
-      { label: 'north-west', x: minX, z: minZ },
-      { label: 'north-east', x: maxX, z: minZ },
-      { label: 'south-west', x: minX, z: maxZ },
-      { label: 'south-east', x: maxX, z: maxZ },
-      { label: 'north-mid', x: centerX, z: minZ },
-      { label: 'south-mid', x: centerX, z: maxZ },
-      { label: 'west-mid', x: minX, z: centerZ },
-      { label: 'east-mid', x: maxX, z: centerZ },
-    ],
+    baseOffsetY: bottomWorldY - object.position.y,
+    orientedFootprint,
+    bounds: Object.freeze({ minX, maxX, minZ, maxZ, width: maxX - minX, depth: maxZ - minZ }),
+    points,
   };
 }
 

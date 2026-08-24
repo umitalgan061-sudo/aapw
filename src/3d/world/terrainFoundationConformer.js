@@ -14,8 +14,8 @@
  */
 
 export const TERRAIN_FOUNDATION_CONFORM_POLICY = Object.freeze({
-	id: 'runtime-structure-foundation-conform-2026-08-24-v9-adaptive-cell-safety',
-	footprintMode: 'aabb-adaptive-four-cell-circle-union',
+	id: 'runtime-structure-foundation-conform-2026-08-24-v10-oriented-footprint',
+	footprintMode: 'root-oriented-adaptive-four-cell-circle-union-with-aabb-fallback',
 	defaultClusterColumns: 2,
 	defaultClusterRows: 2,
 	longAxisClusterCells: 4,
@@ -79,6 +79,26 @@ function foundationKeyFromInput(keyOrObject) {
 	return { key, object };
 }
 
+function normalizedOrientedFootprint(value) {
+  if (!value || typeof value !== 'object') return null;
+  const centerX = finiteNumber(value.centerX);
+  const centerZ = finiteNumber(value.centerZ);
+  const halfWidthMeters = finiteNumber(value.halfWidthMeters);
+  const halfDepthMeters = finiteNumber(value.halfDepthMeters);
+  let axisXX = finiteNumber(value.axisX?.x);
+  let axisXZ = finiteNumber(value.axisX?.z);
+  let axisZX = finiteNumber(value.axisZ?.x);
+  let axisZZ = finiteNumber(value.axisZ?.z);
+  if ([centerX, centerZ, halfWidthMeters, halfDepthMeters, axisXX, axisXZ, axisZX, axisZZ].some((entry) => entry === null)) return null;
+  if (halfWidthMeters < 0 || halfDepthMeters < 0) return null;
+  const xLength = Math.hypot(axisXX, axisXZ);
+  const zLength = Math.hypot(axisZX, axisZZ);
+  if (xLength < 1e-6 || zLength < 1e-6) return null;
+  axisXX /= xLength; axisXZ /= xLength; axisZX /= zLength; axisZZ /= zLength;
+  if (Math.abs(axisXX * axisZX + axisXZ * axisZZ) > 0.08) return null;
+  return { centerX, centerZ, halfWidthMeters, halfDepthMeters, axisX: { x: axisXX, z: axisXZ }, axisZ: { x: axisZX, z: axisZZ } };
+}
+
 function chooseAdaptiveGrid(width, depth) {
 	if (width <= 0 && depth <= 0) return { columns: 1, rows: 1 };
 	if (depth <= 0) return { columns: TERRAIN_FOUNDATION_CONFORM_POLICY.longAxisClusterCells, rows: 1 };
@@ -96,34 +116,43 @@ function chooseAdaptiveGrid(width, depth) {
 	};
 }
 
-function createAdaptiveCellPads(bounds, targetHeight, key, safeInnerMargin, safeFeather) {
-	const width = bounds.maxX - bounds.minX;
-	const depth = bounds.maxZ - bounds.minZ;
-	const { columns, rows } = chooseAdaptiveGrid(width, depth);
-	const cellWidth = width / columns;
-	const cellDepth = depth / rows;
-	const cellRadius = Math.max(
-		TERRAIN_FOUNDATION_CONFORM_POLICY.minimumInnerRadiusMeters,
-		Math.hypot(cellWidth * 0.5, cellDepth * 0.5) + safeInnerMargin,
-	);
-	const pads = [];
-	for (let row = 0; row < rows; row += 1) {
-		for (let column = 0; column < columns; column += 1) {
-			pads.push({
-				x: columns === 1 ? (bounds.minX + bounds.maxX) * 0.5 : bounds.minX + cellWidth * (column + 0.5),
-				z: rows === 1 ? (bounds.minZ + bounds.maxZ) * 0.5 : bounds.minZ + cellDepth * (row + 0.5),
-				innerRadiusMeters: cellRadius,
-				outerRadiusMeters: cellRadius + safeFeather,
-				anchorHeightMeters: targetHeight,
-				source: TERRAIN_FOUNDATION_CONFORM_POLICY.id,
-				foundationKey: key,
-				foundationClusterIndex: pads.length,
-				foundationClusterSize: columns * rows,
-				footprintBounds: { ...bounds },
-			});
-		}
-	}
-	return pads;
+function createAdaptiveCellPads(bounds, orientedFootprint, targetHeight, key, safeInnerMargin, safeFeather) {
+  const oriented = normalizedOrientedFootprint(orientedFootprint);
+  const width = oriented ? oriented.halfWidthMeters * 2 : bounds.maxX - bounds.minX;
+  const depth = oriented ? oriented.halfDepthMeters * 2 : bounds.maxZ - bounds.minZ;
+  const { columns, rows } = chooseAdaptiveGrid(width, depth);
+  const cellWidth = width / columns;
+  const cellDepth = depth / rows;
+  const cellRadius = Math.max(
+    TERRAIN_FOUNDATION_CONFORM_POLICY.minimumInnerRadiusMeters,
+    Math.hypot(cellWidth * 0.5, cellDepth * 0.5) + safeInnerMargin,
+  );
+  const pads = [];
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const localX = -width * 0.5 + cellWidth * (column + 0.5);
+      const localZ = -depth * 0.5 + cellDepth * (row + 0.5);
+      const x = oriented
+        ? oriented.centerX + oriented.axisX.x * localX + oriented.axisZ.x * localZ
+        : (columns === 1 ? (bounds.minX + bounds.maxX) * 0.5 : bounds.minX + cellWidth * (column + 0.5));
+      const z = oriented
+        ? oriented.centerZ + oriented.axisX.z * localX + oriented.axisZ.z * localZ
+        : (rows === 1 ? (bounds.minZ + bounds.maxZ) * 0.5 : bounds.minZ + cellDepth * (row + 0.5));
+      pads.push({
+        x, z,
+        innerRadiusMeters: cellRadius,
+        outerRadiusMeters: cellRadius + safeFeather,
+        anchorHeightMeters: targetHeight,
+        source: TERRAIN_FOUNDATION_CONFORM_POLICY.id,
+        foundationKey: key,
+        foundationClusterIndex: pads.length,
+        foundationClusterSize: columns * rows,
+        footprintBounds: { ...bounds },
+        orientedFootprint: oriented ? { ...oriented, axisX: { ...oriented.axisX }, axisZ: { ...oriented.axisZ } } : null,
+      });
+    }
+  }
+  return pads;
 }
 
 /**
@@ -156,7 +185,8 @@ export function createFoundationFlattenPad(payload, {
 	const x = (bounds.minX + bounds.maxX) * 0.5;
 	const z = (bounds.minZ + bounds.maxZ) * 0.5;
 	const key = structureKey(payload);
-	const pads = createAdaptiveCellPads(bounds, targetHeight, key, safeInnerMargin, safeFeather);
+	const orientedFootprint = normalizedOrientedFootprint(payload?.orientedFootprint);
+	const pads = createAdaptiveCellPads(bounds, orientedFootprint, targetHeight, key, safeInnerMargin, safeFeather);
 	const requestedCellRadius = Math.max(...pads.map((pad) => pad.innerRadiusMeters));
 	if (requestedCellRadius > safeMaximum) {
 		return {
@@ -181,6 +211,7 @@ export function createFoundationFlattenPad(payload, {
 			foundationKey: key,
 			foundationClusterSize: pads.length,
 			footprintBounds: { ...bounds },
+			orientedFootprint: orientedFootprint ? { ...orientedFootprint, axisX: { ...orientedFootprint.axisX }, axisZ: { ...orientedFootprint.axisZ } } : null,
 		},
 	};
 }

@@ -27,7 +27,7 @@ assert.equal(built.pads.length, 4, 'non-degenerate AABB foundations should use f
 assert.equal(built.pad.foundationClusterSize, 4);
 assert.equal(built.pad.outerRadiusMeters, built.pad.innerRadiusMeters + 9);
 assert.equal(built.pad.source, TERRAIN_FOUNDATION_CONFORM_POLICY.id);
-assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.footprintMode, 'aabb-adaptive-four-cell-circle-union');
+assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.footprintMode, 'root-oriented-adaptive-four-cell-circle-union-with-aabb-fallback');
 assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.chunkRebuildMode, 'union-deduplicated');
 assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.identityMode, 'runtime-object-first');
 for (const pad of built.pads) {
@@ -93,6 +93,35 @@ assert.equal(compactSampler(0, 20), nearSideProbeBase,
 const sideProbeBase = baseSampler(0, 35);
 assert.equal(compactSampler(0, 35), sideProbeBase,
 	'compact footprint cluster must not flatten distant side terrain that lies inside the old enclosing-circle envelope');
+
+const diagonal = Math.SQRT1_2;
+const rotatedLongBuilt = createFoundationFlattenPad({
+  metadata: { id: 'rotated-long-hall' },
+  bounds: { minX: -38.891, maxX: 38.891, minZ: -38.891, maxZ: 38.891 },
+  orientedFootprint: {
+    centerX: 0, centerZ: 0,
+    axisX: { x: diagonal, z: diagonal },
+    axisZ: { x: -diagonal, z: diagonal },
+    halfWidthMeters: 50,
+    halfDepthMeters: 5,
+  },
+  targetHeight: 133,
+}, { innerMarginMeters: 0, featherMeters: 2 });
+assert.equal(rotatedLongBuilt.ok, true, rotatedLongBuilt.error);
+assert.equal(rotatedLongBuilt.pads.length, 4);
+assert(rotatedLongBuilt.pads.every((pad) => Math.abs(pad.x - pad.z) < 1e-9),
+  'rotated 100x10m hall must place its four compact pads along the real diagonal long axis');
+assert(rotatedLongBuilt.pads.every((pad) => pad.innerRadiusMeters < 14),
+  'oriented footprint must avoid sizing pads from the much wider world AABB');
+const rotatedSampler = createHeightSampler(123, undefined, rotatedLongBuilt.pads);
+for (const [localX, localZ] of [[-50, -5], [-50, 5], [50, -5], [50, 5], [0, 0]]) {
+  const x = diagonal * localX - diagonal * localZ;
+  const z = diagonal * localX + diagonal * localZ;
+  assert.equal(rotatedSampler(x, z), 133, `rotated footprint point ${localX},${localZ} must be fully conformed`);
+}
+const rotatedSideProbe = { x: -diagonal * 25, z: diagonal * 25 };
+assert.equal(rotatedSampler(rotatedSideProbe.x, rotatedSideProbe.z), baseSampler(rotatedSideProbe.x, rotatedSideProbe.z),
+  'oriented foundation must preserve terrain inside the world AABB but far outside the real narrow footprint');
 
 const tallBuilt = createFoundationFlattenPad({
 	metadata: { id: 'tall-wall' },
@@ -232,4 +261,4 @@ assert.equal(cloneConformer.removeFoundation(cloneAObject).ok, true, 'clone foun
 assert.equal(clonePads.length, 4, 'removing clone A must preserve clone B foundation cluster');
 assert(clonePads.every((pad) => pad.foundationKey === 'object:tower-b'));
 
-console.log('[checkTerrainFoundationConformer] PASS: adaptive four-cell foundation clusters cover full AABBs, rotate along long footprints, validate installed cell radii instead of obsolete envelope size, preserve the shared render/physics height authority, rebuild old/new influence once, and keep per-object identity.');
+console.log('[checkTerrainFoundationConformer] PASS: adaptive four-cell foundation clusters cover AABB fallbacks and root-oriented footprints, rotate along long footprints, validate installed cell radii instead of obsolete envelope size, preserve the shared render/physics height authority, rebuild old/new influence once, and keep per-object identity.');
