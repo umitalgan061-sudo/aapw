@@ -127,8 +127,9 @@ function playGamepadHaptic(gamepad, profile) {
 }
 function readCombatFeedbackAmount(value) { return Number.isFinite(value) && value > 0 ? value : 0; }
 export function resolvePlayerCombatFeedbackHaptic(feedback) {
-	const outcome = feedback?.outcome, profile = GAMEPAD_COMBAT_FEEDBACK_HAPTICS[outcome];
-	if (!profile) return null;
+	const outcome = feedback?.outcome;
+	if (typeof outcome !== 'string' || !Object.hasOwn(GAMEPAD_COMBAT_FEEDBACK_HAPTICS, outcome)) return null;
+	const profile = GAMEPAD_COMBAT_FEEDBACK_HAPTICS[outcome];
 	const appliedAmount = readCombatFeedbackAmount(feedback?.appliedAmount), blockedAmount = readCombatFeedbackAmount(feedback?.blockedAmount);
 	if ((outcome === 'dodge' || outcome === 'parry' || outcome === 'guard') && blockedAmount <= 0) return null;
 	if ((outcome === 'hit' || outcome === 'hit-stagger') && appliedAmount <= 0) return null;
