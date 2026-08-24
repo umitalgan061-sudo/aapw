@@ -108,9 +108,10 @@ function sampleSegmentGround(startX, startZ, unitX, unitZ, distanceMeters, spaci
  * probe so one transient terrain-provider failure cannot abort the dragon update or disable later
  * valid ridge probes. When an entire ordinary frame has no valid terrain sample, the last rendered
  * altitude proven safe by a finite terrain frame is latched as a floor, so a dive cannot descend
- * through terrain merely because the provider is temporarily unavailable. Discontinuities do not
- * reuse that old-location floor. If no safe altitude has ever been established, the requested
- * altitude is preserved as before. `lookAheadMeters=0` preserves historical point-only behavior.
+ * through terrain merely because the provider is temporarily unavailable. An all-invalid
+ * discontinuity invalidates that latch so later frames at the new location cannot reuse an
+ * old-location floor. If no safe altitude has ever been established, the requested altitude is
+ * preserved as before. `lookAheadMeters=0` preserves historical point-only behavior.
  */
 export function clampAltitudeAboveGround(
 	object3D,
@@ -216,6 +217,7 @@ export function clampAltitudeAboveGround(
 	object3D.userData.dragonTerrainInvalidSampleCount = invalidTerrainSampleCount;
 	object3D.userData.dragonTerrainSampleExceptionCount = terrainSampleExceptionCount;
 	if (!Number.isFinite(highestGroundY)) {
+		if (skippedDiscontinuity) delete object3D.userData.dragonTerrainLastSafeAltitudeY;
 		const canUseSafeAltitudeFallback = !skippedDiscontinuity && Number.isFinite(previousSafeAltitudeY);
 		object3D.userData.dragonTerrainUsingSafeAltitudeFallback = canUseSafeAltitudeFallback;
 		if (canUseSafeAltitudeFallback && object3D.position.y < previousSafeAltitudeY) {
