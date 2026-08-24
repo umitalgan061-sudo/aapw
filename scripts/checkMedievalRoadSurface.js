@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
- * Live-browser regression guard for run 177's additive medieval road-surface layer.
- * It deliberately keeps the proven 13-edge/14-seat topology and one-mesh geometry contract intact,
- * while checking the new deterministic wheel-rut/mud/stone shader inputs and metadata.
+ * Live-browser regression guard for the medieval road-surface layer.
+ * It keeps the proven 13-edge/14-seat topology and one-mesh geometry contract intact while checking
+ * deterministic wheel-rut/mud/stone plus the geographic dry-mineral variation added from the
+ * owner-supplied photogrammetry reference.
  */
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
@@ -49,11 +50,6 @@ async function main() {
 			const network = buildRoadNetwork({ seats, sampleHeightMeters });
 			fail(seats.length === 14, `expected 14 seats, got ${seats.length}`);
 			fail(network.edges.length === 13, `expected 13 connected MST edges, got ${network.edges.length}`);
-			// Run 314/ADR-0264: the road-network group may now also hold a second "patika" footpath
-			// mesh (own plain vertex-colored material, no medieval surface applied) alongside the
-			// cart-road mesh this check cares about — expect 1 (no qualifying footpath pair) or 2, and
-			// keep validating the medieval surface strictly against `children[0]`, the cart-road mesh,
-			// same as before this run.
 			const expectedChildCount = network.footpathEdges.length > 0 ? 2 : 1;
 			fail(
 				network.group.children.length === expectedChildCount,
@@ -72,11 +68,12 @@ async function main() {
 			}
 
 			const style = mesh.material.userData.medievalRoadSurfaceRun177;
-			fail(style?.key === 'run177-medieval-road-surface-v1', `unexpected style key ${style?.key}`);
+			fail(style?.key === 'run177-medieval-road-surface-v2-geographic', `unexpected style key ${style?.key}`);
 			fail(style.wheelRutOffsetNormalized === 0.47, 'wheel-rut offset drifted');
 			fail(style.proceduralStoneThreshold === 0.955, 'stone threshold drifted');
+			fail(style.dryMineralVariation === true, 'dry-mineral geographic variation disappeared');
 			fail(style.extraDrawCalls === 0, 'road surface must not add draw-call meshes');
-			fail(mesh.material.customProgramCacheKey() === 'run177-medieval-road-surface-v1', 'program cache key drifted');
+			fail(mesh.material.customProgramCacheKey() === 'run177-medieval-road-surface-v2-geographic', 'program cache key drifted');
 
 			const shader = {
 				vertexShader: '#include <common>\nvoid main(){\n#include <begin_vertex>\n}',
@@ -86,7 +83,16 @@ async function main() {
 			for (const token of ['attribute float roadSide', 'vRun177RoadSide', 'vRun177RoadPosition']) {
 				fail(shader.vertexShader.includes(token), `vertex shader missing ${token}`);
 			}
-			for (const token of ['run177RoadHash', 'run177WheelRut', 'run177MudPatch', 'run177Stone', 'run177ShoulderWear']) {
+			for (const token of [
+				'run177RoadHash',
+				'run177WheelRut',
+				'run177MudPatch',
+				'run177Stone',
+				'run177ShoulderWear',
+				'run177DryNoise',
+				'run177MineralNoise',
+				'run177MineralDust',
+			]) {
 				fail(shader.fragmentShader.includes(token), `fragment shader missing ${token}`);
 			}
 
@@ -113,7 +119,7 @@ async function main() {
 		console.log(
 			`[checkMedievalRoadSurface] PASS: ${result.edgeCount} edges connect ${result.reached}/${result.seatCount} seats, ` +
 			`${(result.totalLengthMeters / 1000).toFixed(2)}km one-mesh road, ${result.vertexCount} vertices; ` +
-			'procedural wheel-rut/mud/stone surface, +0 draw-call meshes.',
+			'wheel-rut/mud/stone + dry mineral surface, +0 draw-call meshes.',
 		);
 	} finally {
 		await browser.close();
