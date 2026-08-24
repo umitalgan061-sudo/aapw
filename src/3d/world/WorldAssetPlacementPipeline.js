@@ -5,7 +5,10 @@ import {
   createMaterialManifest,
   validateMaterialAssignment,
 } from '../materials/MaterialAssignmentCore.js';
-import { isStructureGroundingCandidate } from './structureGroundingPolicy.js';
+import {
+  isStructureGroundingCandidate,
+  resolveStructureSurfaceProfile,
+} from './structureGroundingPolicy.js';
 
 export const WORLD_SURFACE_POLICY_PRESETS = Object.freeze({
   vegetation: Object.freeze({
@@ -24,6 +27,7 @@ export const WORLD_SURFACE_POLICY_PRESETS = Object.freeze({
   building: Object.freeze({ maxSlopeDegrees: 12, maxWaterDepth: 0.02, minRoadDistance: 0 }),
   settlement: Object.freeze({ maxSlopeDegrees: 12, maxWaterDepth: 0.02, minRoadDistance: 0 }),
   bridge: Object.freeze({ maxSlopeDegrees: 24, maxWaterDepth: Infinity }),
+  waterside: Object.freeze({ maxSlopeDegrees: 18, maxWaterDepth: Infinity, minRoadDistance: 0 }),
 });
 
 const POLICY_NUMERIC_FIELDS = Object.freeze([
@@ -205,7 +209,7 @@ export function resolveWorldSurfacePlacement(object, {
     return { ok: true, surface: null, footprint: null, policy: null };
   }
 
-  const policySource = mergeWorldSurfacePolicy(metadata, placementPolicy);
+  const policySource = mergeWorldSurfacePolicy(metadata, placementPolicy, object?.userData);
   const policyValidation = validateWorldSurfacePolicy(policySource);
   if (!policyValidation.ok) {
     return {
@@ -316,8 +320,8 @@ export function resolveWorldSurfacePlacement(object, {
   };
 }
 
-export function resolveWorldSurfacePolicy(metadata = {}, override = null) {
-  const validation = validateWorldSurfacePolicy(mergeWorldSurfacePolicy(metadata, override));
+export function resolveWorldSurfacePolicy(metadata = {}, override = null, fallbackMetadata = null) {
+  const validation = validateWorldSurfacePolicy(mergeWorldSurfacePolicy(metadata, override, fallbackMetadata));
   if (!validation.ok) {
     throw new TypeError(`Invalid world surface placement policy: ${validation.errors.join(',')}`);
   }
@@ -451,10 +455,12 @@ export function normalizePlacementPolicy(policy = {}) {
   };
 }
 
-function mergeWorldSurfacePolicy(metadata, override) {
+function mergeWorldSurfacePolicy(metadata, override, fallbackMetadata = null) {
   if (override !== null && override !== undefined && !isPlainObject(override)) return override;
-  const category = String(metadata?.category || metadata?.kind || '').toLowerCase();
-  const preset = WORLD_SURFACE_POLICY_PRESETS[category] || null;
+  const category = String(metadata?.category || metadata?.kind || '').trim().toLowerCase();
+  const exactPreset = WORLD_SURFACE_POLICY_PRESETS[category] || null;
+  const structureProfile = exactPreset ? null : resolveStructureSurfaceProfile(metadata, fallbackMetadata);
+  const preset = exactPreset || (structureProfile ? WORLD_SURFACE_POLICY_PRESETS[structureProfile] : null);
   return { ...(preset || {}), ...(override || {}) };
 }
 
