@@ -1,0 +1,58 @@
+name: Full World 3D Topdown QA
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/config.js'
+      - 'src/3d/world/terrain.js'
+      - 'src/3d/world/terrainBiomeShading.js'
+      - 'src/3d/world/northReferenceCryosphere.js'
+      - 'src/3d/world/worldReferenceSurfacePindexes.js'
+      - 'src/3d/world/worldReferenceMountainRelief.js'
+      - 'src/3d/world/water.js'
+      - 'src/3d/world/waterDepthField.js'
+      - 'scripts/captureFullWorld3DTopdown.mjs'
+      - 'scripts/fullWorld3DTopdownHarness.html'
+      - '.github/workflows/full-world-3d-topdown.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full-world-3d-topdown:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact requested head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          lfs: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install browser capture dependency
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Render authoritative full-world 3D topdown
+        run: |
+          node scripts/captureFullWorld3DTopdown.mjs \
+            --width=1600 \
+            --height=1100 \
+            --segments=240 \
+            --output=artifacts/full-world-3d-topdown/full-world-3d-topdown.png
+
+      - name: Upload full-world visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-world-3d-topdown
+          path: artifacts/full-world-3d-topdown/
+          if-no-files-found: warn
+          retention-days: 7
