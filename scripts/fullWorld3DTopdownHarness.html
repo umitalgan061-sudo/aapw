@@ -20,6 +20,7 @@
 <script type="module">
 import * as THREE from 'three';
 import { WORLD_DEFAULTS, WORLD_SCALE } from '../src/3d/config.js';
+import { publishCelestialLightState } from '../src/3d/celestialLightState.js';
 import { createHeightSampler } from '../src/3d/world/terrain.js';
 import {
 	northClimateWeightsAtWorldXZ,
@@ -27,7 +28,7 @@ import {
 	slopeDegreesFromNeighbours,
 } from '../src/3d/world/terrainBiomeShading.js';
 import { sampleReferencePindexQualityV2 } from '../src/3d/world/worldReferenceSurfacePindexes.js';
-import { createWater, setWaterDepthField, WATER_PLANE_SEGMENTS_MOBILE } from '../src/3d/world/water.js';
+import { createWater, setWaterDepthField, updateWater, WATER_PLANE_SEGMENTS_MOBILE } from '../src/3d/world/water.js';
 import { createWaterDepthField } from '../src/3d/world/waterDepthField.js';
 
 const params = new URLSearchParams(location.search);
@@ -60,6 +61,12 @@ scene.add(new THREE.HemisphereLight(0xdce8ef, 0x495849, 2.15));
 const sun = new THREE.DirectionalLight(0xfff2d6, 3.35);
 sun.position.set(-5200, 9200, -3800);
 scene.add(sun);
+publishCelestialLightState({
+	sunPosition: sun.position,
+	sunColor: sun.color,
+	sunIntensity: sun.intensity,
+	nightFactor: 0,
+});
 
 const terrainGeometry = new THREE.PlaneGeometry(worldWidth, worldDepth, segmentsX, segmentsZ);
 terrainGeometry.rotateX(-Math.PI / 2);
@@ -173,10 +180,10 @@ camera.top = fittedHalfHeight;
 camera.bottom = -fittedHalfHeight;
 camera.updateProjectionMatrix();
 
-for (const material of [water.material, water.userData.farWater?.material].filter(Boolean)) {
-	material.uniforms.uCameraPosition.value.copy(camera.position);
-	material.uniforms.uTime.value = 0;
-}
+// Mirror production instead of manually updating only shader uniforms. The near-water mesh and the
+// far-underlay exclusion window must share the same camera-follow origin or a topdown capture shows
+// rectangular holes/double-water blocks that never exist in the live runtime.
+updateWater(water, camera.position, 0);
 
 renderer.render(scene, camera);
 await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -212,6 +219,7 @@ window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
 		farDepthWrite: water.userData.farWater?.material?.depthWrite ?? null,
 		farRenderOrder: water.userData.farWater?.renderOrder ?? null,
 		farLocalY: water.userData.farWater?.position?.y ?? null,
+		nearWorldXZ: Object.freeze([water.position.x, water.position.z]),
 	}),
 	camera: Object.freeze({
 		type: 'OrthographicCamera',
