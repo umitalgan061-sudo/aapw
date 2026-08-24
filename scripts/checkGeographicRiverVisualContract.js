@@ -78,15 +78,32 @@ async function main() {
 				bottom: new THREE.Vector3(4, 4, 0),
 				dropMeters: 8,
 			}, 14);
+			const fallPositions = waterfall.geometry.getAttribute('position');
 			const fallColors = waterfall.geometry.getAttribute('color');
+			const fallDistances = waterfall.geometry.getAttribute('aFlowDistance');
 			const fallSpeeds = waterfall.geometry.getAttribute('aFlowSpeed');
-			fail(fallColors.count === 4, 'waterfall curtain topology unexpectedly changed');
-			fail(fallSpeeds.getX(0) === 9, 'waterfall flow speed drifted');
+			const fallIndex = waterfall.geometry.getIndex();
+			fail(fallPositions.count === 8 && fallColors.count === 8, 'waterfall curtain + apron must remain one 8-vertex mesh');
+			fail(fallIndex?.count === 12, `waterfall single-mesh index count ${fallIndex?.count} != 12`);
+			fail(fallSpeeds.getX(0) === 9, 'waterfall curtain flow speed drifted');
+			fail(fallSpeeds.getX(4) < fallSpeeds.getX(0), 'plunge apron must slow after impact');
 			const lip = new THREE.Color(fallColors.getX(0), fallColors.getY(0), fallColors.getZ(0));
 			const plunge = new THREE.Color(fallColors.getX(2), fallColors.getY(2), fallColors.getZ(2));
+			const impact = new THREE.Color(fallColors.getX(4), fallColors.getY(4), fallColors.getZ(4));
 			fail(lip.r > plunge.r && lip.g > plunge.g && lip.b > plunge.b, 'waterfall lip must remain brighter/foamier than plunge water');
+			fail(impact.r > plunge.r && impact.g > plunge.g && impact.b > plunge.b, 'impact apron must re-aerate brighter than plunge water');
+			fail(Math.abs(fallDistances.getX(4) - 8) < 1e-6, 'apron flow must continue from the full curtain drop distance');
+			fail(fallDistances.getX(6) > fallDistances.getX(4), 'apron flow distance must advance downstream');
+			const nearWidth = Math.hypot(fallPositions.getX(4) - fallPositions.getX(5), fallPositions.getZ(4) - fallPositions.getZ(5));
+			const farWidth = Math.hypot(fallPositions.getX(6) - fallPositions.getX(7), fallPositions.getZ(6) - fallPositions.getZ(7));
+			const nearCenterX = (fallPositions.getX(4) + fallPositions.getX(5)) * 0.5;
+			const farCenterX = (fallPositions.getX(6) + fallPositions.getX(7)) * 0.5;
+			fail(farWidth > nearWidth, `plunge apron must spread downstream (${nearWidth} -> ${farWidth})`);
+			fail(farCenterX > nearCenterX, 'plunge apron must extend in the waterfall downstream direction');
 			fail(waterfall.material.opacity === 0.74, 'waterfall transparency drifted');
 			fail(waterfall.material.userData.opticalProfile?.aerated === true, 'waterfall aeration metadata disappeared');
+			fail(waterfall.material.userData.opticalProfile?.splashApron === true, 'waterfall splash-apron metadata disappeared');
+			fail(waterfall.material.userData.opticalProfile?.singleDrawCall === true, 'waterfall apron must not add a draw-call mesh');
 
 			const summary = {
 				calmSpeed,
@@ -94,6 +111,8 @@ async function main() {
 				colorDistance: calmRapidColorDistance,
 				riverOpacity: river.material.opacity,
 				waterfallOpacity: waterfall.material.opacity,
+				waterfallVertices: fallPositions.count,
+				apronSpread: farWidth / nearWidth,
 			};
 			disposeRiverMesh(river);
 			disposeWaterfallMesh(waterfall);
@@ -104,7 +123,7 @@ async function main() {
 		console.log(
 			`[checkGeographicRiverVisualContract] PASS: calm ${result.calmSpeed.toFixed(2)}m/s → rapid ` +
 			`${result.rapidSpeed.toFixed(2)}m/s, colour Δ ${result.colorDistance.toFixed(3)}, ` +
-			`river/fall alpha ${result.riverOpacity}/${result.waterfallOpacity}.`,
+			`${result.waterfallVertices}-vertex single-draw waterfall, apron spread x${result.apronSpread.toFixed(2)}.`,
 		);
 	} finally {
 		await browser.close();
