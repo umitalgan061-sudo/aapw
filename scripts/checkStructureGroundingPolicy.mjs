@@ -52,20 +52,33 @@ function runAuto(metadata = {}, userData = {}) {
   return { object, result, queryCount };
 }
 
-assert.match(STRUCTURE_GROUNDING_POLICY.id, /surface-profile/);
+assert.match(STRUCTURE_GROUNDING_POLICY.id, /family-aliases/);
 assert.equal(STRUCTURE_GROUNDING_POLICY.footprintProbeCount, 9);
 assert.equal(STRUCTURE_GROUNDING_POLICY.primaryMetadataOverridesFallback, true);
 assert.equal(STRUCTURE_GROUNDING_POLICY.protectedPrimitivesOverrideOptIn, true);
 assert.deepEqual(STRUCTURE_GROUNDING_POLICY.surfaceProfiles, ['building', 'bridge', 'waterside']);
+for (const field of ['type', 'subtype', 'family', 'tags', 'assetType', 'assetSubtype', 'assetFamily', 'assetTags']) {
+  assert(STRUCTURE_GROUNDING_POLICY.descriptorFields.includes(field), `${field} must participate in structure classification`);
+}
 
 const positiveAssets = [
   { id: 'building', category: 'building' },
   { id: 'palace', category: 'palace' },
   { id: 'manor', name: 'Riverlands Manor', category: 'prop' },
   { id: 'watchtower', name: 'Northern Watchtower', category: 'prop' },
+  { id: 'towerhouse', type: 'towerhouse', category: 'Prop' },
+  { id: 'stronghold', family: 'stronghold', category: 'Prop' },
+  { id: 'outpost', subtype: 'frontier-outpost', category: 'Prop' },
+  { id: 'longhouse', assetType: 'longhouse', category: 'Prop' },
+  { id: 'farmstead', assetFamily: 'farmstead', category: 'Prop' },
+  { id: 'greenhouse', tags: ['garden', 'greenhouse'], category: 'Prop' },
+  { id: 'shed', assetTags: ['utility', 'shed'], category: 'Prop' },
   { id: 'lighthouse', category: 'lighthouse' },
   { id: 'warehouse', category: 'warehouse' },
   { id: 'forge', name: 'Village Forge', category: 'prop' },
+  { id: 'foundry', category: 'foundry' },
+  { id: 'brewery', category: 'brewery' },
+  { id: 'bakery', category: 'bakery' },
   { id: 'mill', category: 'mill' },
   { id: 'crypt', category: 'crypt' },
   { id: 'temple', category: 'temple' },
@@ -80,10 +93,14 @@ const positiveAssets = [
   { id: 'localized-building', category: 'Bina' },
   { id: 'localized-palace', category: 'Saray' },
   { id: 'localized-watchtower', name: 'Gözetleme Kulesi', category: 'Prop' },
+  { id: 'localized-outpost', name: 'Gece Nöbeti Karakolu', category: 'Prop' },
   { id: 'localized-pier', name: 'Balıkçı İskelesi', category: 'Prop' },
   { id: 'localized-shipyard', category: 'Tersane' },
   { id: 'localized-mill', category: 'Değirmen' },
   { id: 'localized-workshop', category: 'Atölye' },
+  { id: 'localized-foundry', category: 'Dökümhane' },
+  { id: 'localized-bakery', category: 'Fırın' },
+  { id: 'localized-greenhouse', category: 'Sera' },
   { id: 'localized-temple', category: 'Tapınak' },
   { id: 'localized-library', category: 'Kütüphane' },
   { id: 'localized-fountain', category: 'Çeşme' },
@@ -105,6 +122,9 @@ for (const asset of positiveAssets) {
 for (const metadata of [
   { category: 'palace' },
   { category: 'temple' },
+  { type: 'towerhouse' },
+  { family: 'farmstead' },
+  { tags: ['winter', 'longhouse'] },
   { category: 'Saray' },
   { name: 'Gözetleme Kulesi', category: 'Prop' },
   { structureLike: true, category: 'custom-import' },
@@ -115,6 +135,7 @@ for (const metadata of [
 for (const metadata of [
   { category: 'bridge' },
   { category: 'aqueduct' },
+  { type: 'bridge' },
   { category: 'Köprü' },
   { name: 'Taş Köprüsü', category: 'Prop' },
 ]) {
@@ -126,6 +147,8 @@ for (const metadata of [
   { category: 'pier' },
   { category: 'shipyard' },
   { category: 'lighthouse' },
+  { tags: ['coastal', 'pier'] },
+  { assetSubtype: 'harbor' },
   { name: 'Balıkçı İskelesi', category: 'Prop' },
   { category: 'Tersane' },
   { name: 'Kuzey Limanı', category: 'Prop' },
@@ -163,6 +186,14 @@ const fallbackNameRuntime = runAuto({}, {
 });
 assert.equal(fallbackNameRuntime.queryCount, 9,
   'runtime auto grounding must classify rehydrated structure names from object userData');
+
+const fallbackAliasRuntime = runAuto({}, {
+  editorId: 'rehydrated-longhouse',
+  category: 'Prop',
+  assetTags: ['settlement', 'longhouse'],
+});
+assert.equal(fallbackAliasRuntime.queryCount, 9,
+  'runtime auto grounding must classify rehydrated structure aliases from object userData');
 
 const optedOut = runAuto(
   { id: 'instance-opt-out', structureLike: false },
@@ -208,6 +239,7 @@ console.log(JSON.stringify({
   positiveStructureFamilies: positiveAssets.length,
   footprintProbeCount: STRUCTURE_GROUNDING_POLICY.footprintProbeCount,
   surfaceProfiles: STRUCTURE_GROUNDING_POLICY.surfaceProfiles,
+  metadataAliasCoverage: ['type', 'subtype', 'family', 'tags', 'assetType', 'assetSubtype', 'assetFamily', 'assetTags'],
   fallbackObjectMetadata: true,
   primaryOptOutWins: true,
   protectedPrimitiveCount: 5,
