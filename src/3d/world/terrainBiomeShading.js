@@ -22,7 +22,7 @@ function smoothstep(edge0, edge1, value) {
 }
 
 export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
-	id: 'terrain-map-climate-cryosphere-2026-08-23-v14-snow-surface-tone',
+	id: 'terrain-map-climate-cryosphere-2026-08-24-v15-mixed-ice-lowland',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	mapAlignedCryosphere: true,
@@ -93,6 +93,7 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 	northSnowMinimumCoverage: 0.94,
 	northTundraLowlandSnowFloor: 0.16,
 	northIceLowlandTintStrength: 0.30,
+	northIceTransitionLowlandTintGain: 0.07,
 	northIceLowlandTintFadeStartMeters: 45,
 	northIceLowlandTintFadeFullMeters: 220,
 	northMoraineSlopeStartDegrees: 28,
@@ -333,6 +334,14 @@ function computeTerrainSnowCoverage(out, {
 		P.northIceLowlandTintFadeFullMeters,
 		heightAboveSeaMeters,
 	);
+	// Keep the canonical mixed-ice belt visually connected to its glacial shore without expanding the
+	// authored cryosphere. The bell-shaped transition support vanishes at pure tundra and pure ice,
+	// and the gain is bounded so effective lowland glacial tint remains monotonic toward the core.
+	const mixedIceTransition = 4 * permanentIce * (1 - permanentIce);
+	const glacialIceTintBase = permanentIce * P.northIceLowlandTintStrength;
+	const glacialIceTintTransition = mixedIceTransition * P.northIceTransitionLowlandTintGain;
+	const glacialIceTint = clamp01(glacialIceTintBase + glacialIceTintTransition)
+		* lowlandIce * landEmergence;
 	const moraineExposure = permanentIce
 		* smoothstep(P.northMoraineSlopeStartDegrees, P.northMoraineSlopeFullDegrees, slopeDegrees)
 		* P.northMoraineMaxStrength
@@ -364,7 +373,10 @@ function computeTerrainSnowCoverage(out, {
 	out.snowHold = snowHold;
 	out.landEmergence = landEmergence;
 	out.snowAmount = snowAmount;
-	out.glacialIceTint = permanentIce * lowlandIce * P.northIceLowlandTintStrength * landEmergence;
+	out.mixedIceTransition = mixedIceTransition;
+	out.glacialIceTintBase = glacialIceTintBase;
+	out.glacialIceTintTransition = glacialIceTintTransition;
+	out.glacialIceTint = glacialIceTint;
 	out.moraineExposure = moraineExposure;
 	return out;
 }
