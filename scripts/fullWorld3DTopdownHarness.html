@@ -184,6 +184,12 @@ window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
 		mixedCoastTexelRatio: depthField.mixedCoastTexelRatio,
 		deepTexelRatio: depthField.deepTexelRatio,
 	}),
+	waterLayerComposition: Object.freeze({
+		nearDepthWrite: water.material.depthWrite,
+		farDepthWrite: water.userData.farWater?.material?.depthWrite ?? null,
+		farRenderOrder: water.userData.farWater?.renderOrder ?? null,
+		farLocalY: water.userData.farWater?.position?.y ?? null,
+	}),
 	camera: Object.freeze({
 		type: 'OrthographicCamera',
 		position: Object.freeze(camera.position.toArray()),
