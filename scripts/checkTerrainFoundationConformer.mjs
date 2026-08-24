@@ -28,7 +28,7 @@ assert.equal(built.pad.foundationClusterSize, 4);
 assert.equal(built.pad.outerRadiusMeters, built.pad.innerRadiusMeters + 9);
 assert.equal(built.pad.source, TERRAIN_FOUNDATION_CONFORM_POLICY.id);
 assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.footprintMode, 'root-oriented-adaptive-four-cell-rectangle-union-with-aabb-fallback');
-assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.chunkRebuildMode, 'union-deduplicated');
+assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.chunkRebuildMode, 'shape-aware-union-deduplicated');
 assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.identityMode, 'runtime-object-first');
 for (const pad of built.pads) {
 	assert.equal(pad.foundationKey, 'object:object-keep');
@@ -189,6 +189,42 @@ assert.equal(unionRebuildCount, 1, 'overlapping old/new foundation pads must reb
 assert.deepEqual(events, ['unload:1,0', 'load:1,0'], 'union rebuild must not duplicate unload/load events for one chunk');
 events.length = 0;
 
+// Runtime oriented rectangles must invalidate chunks from the same actual rectangle + feather shape
+// consumed by the terrain height sampler. A long 45° hall crosses only the three diagonal resident
+// chunks below; its much larger compatibility circle would also rebuild the two off-axis chunks.
+const shapeEvents = [];
+const shapeManager = {
+	chunkSizeMeters: 100,
+	loaded: new Map([
+		['-1,1', {}], ['-1,-1', {}], ['0,0', {}], ['1,1', {}], ['1,-1', {}],
+	]),
+	unloadChunk(x, z) {
+		shapeEvents.push(`unload:${x},${z}`);
+		this.loaded.delete(`${x},${z}`);
+	},
+	loadChunk(x, z) {
+		shapeEvents.push(`load:${x},${z}`);
+		this.loaded.set(`${x},${z}`, {});
+	},
+};
+const shapeAwareCount = rebuildChunksForFoundation(shapeManager, {
+	shape: 'oriented-rectangle',
+	x: 0,
+	z: 0,
+	halfWidthMeters: 150,
+	halfDepthMeters: 5,
+	axisX: { x: diagonal, z: diagonal },
+	axisZ: { x: -diagonal, z: diagonal },
+	featherMeters: 2,
+	outerRadiusMeters: Math.hypot(150, 5) + 2,
+}, 100);
+assert.equal(shapeAwareCount, 3,
+	'shape-aware rebuild must exclude off-axis chunks inside only the obsolete circle envelope');
+assert.deepEqual(shapeEvents, [
+	'unload:-1,-1', 'unload:0,0', 'unload:1,1',
+	'load:-1,-1', 'load:0,0', 'load:1,1',
+]);
+
 const runtimePads = [];
 const conformer = createTerrainFoundationConformer({
 	flattenPads: runtimePads,
@@ -264,4 +300,4 @@ assert.equal(cloneConformer.removeFoundation(cloneAObject).ok, true, 'clone foun
 assert.equal(clonePads.length, 4, 'removing clone A must preserve clone B foundation cluster');
 assert(clonePads.every((pad) => pad.foundationKey === 'object:tower-b'));
 
-console.log('[checkTerrainFoundationConformer] PASS: adaptive four-cell foundation clusters cover AABB fallbacks and root-oriented footprints, rotate along long footprints, validate installed cell radii instead of obsolete envelope size, preserve the shared render/physics height authority, rebuild old/new influence once, and keep per-object identity.');
+console.log('[checkTerrainFoundationConformer] PASS: adaptive four-cell foundation clusters cover AABB fallbacks and root-oriented footprints, rotate along long footprints, validate installed cell radii instead of obsolete envelope size, preserve the shared render/physics height authority, select rebuild chunks from the actual foundation shape, rebuild old/new influence once, and keep per-object identity.');
