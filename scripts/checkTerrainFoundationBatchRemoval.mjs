@@ -54,6 +54,9 @@ install('batch-b', keepB, 108, 32);
 install('batch-far', keepFar, 300, 40);
 assert.equal(flattenPads.length, 3);
 assert.equal(conformer.getDynamicPads().length, 3);
+assert.equal(keepA.userData.terrainFoundationKey, 'object:batch-a');
+assert.equal(keepB.userData.terrainFoundationKey, 'object:batch-b');
+assert.equal(keepFar.userData.terrainFoundationKey, 'object:batch-far');
 events.length = 0;
 
 // A and B overlap the same resident terrain chunk. Removing them as a batch must mutate the shared
@@ -65,10 +68,10 @@ assert.equal(batch.missingKeys.length, 0);
 assert.equal(batch.rebuiltChunkCount, 1, 'overlapping removed foundations must rebuild one resident chunk once');
 assert.deepEqual(events, ['unload:1,0', 'load:1,0']);
 assert.equal(flattenPads.length, 1, 'batch removal must leave unrelated foundations installed');
-assert.equal(flattenPads[0].foundationKey, 'asset:batch-far');
+assert.equal(flattenPads[0].foundationKey, 'object:batch-far');
 assert.equal(keepA.userData.terrainFoundationKey, undefined);
 assert.equal(keepB.userData.terrainFoundationKey, undefined);
-assert.equal(keepFar.userData.terrainFoundationKey, 'asset:batch-far');
+assert.equal(keepFar.userData.terrainFoundationKey, 'object:batch-far');
 
 events.length = 0;
 const duplicateInput = conformer.removeFoundations([keepFar, keepFar]);
@@ -110,4 +113,4 @@ assert.equal(shutdownB.userData.terrainFoundationKey, undefined);
 
 assert.equal(conformer.policy.batchRemovalMode, 'mutate-all-then-union-rebuild');
 assert.equal(conformer.policy.shutdownRemovalMode, 'mutate-without-rebuild');
-console.log('[checkTerrainFoundationBatchRemoval] PASS: multi-structure cleanup mutates the shared pad authority first, deduplicates object/key inputs, preserves unrelated foundations, rebuilds each affected resident terrain chunk at most once, and supports rebuild-free teardown cleanup.');
+console.log('[checkTerrainFoundationBatchRemoval] PASS: multi-structure cleanup follows runtime-object foundation identity, mutates the shared pad authority first, deduplicates object/key inputs, preserves unrelated foundations, rebuilds each affected resident terrain chunk at most once, and supports rebuild-free teardown cleanup.');
