@@ -268,7 +268,7 @@ try {
     crowdSpan: Object.fromEntries(Object.entries(report.crowdSpan).map(([key, value]) => [key, round(value)])),
     crowdCenter: report.crowdCenter.map((value) => round(value)),
     terrain: Object.fromEntries(Object.entries(report.terrain).map(([key, value]) => [key, typeof value === 'number' ? round(value) : value])),
-    gameplayRender,
+    gameplayRender: report.gameplayRender,
     aerialRender,
     browserErrors,
   };
