@@ -39,19 +39,18 @@ const ROAD_WIDTH_METERS = 8;
  * dry, often-rougher fine-noise terrain (no water surface smoothing nearby to hide a thinner gap). */
 const VERTICAL_OFFSET_METERS = 0.4;
 
-/** Dirt/path color — a warm tan-brown, deliberately distinct from `world/terrain.js`'s grass
- * (`0x3d6b28`) and bare-rock (`0x6b6152`) height colors so the road reads clearly against either. */
-const ROAD_COLOR = new THREE.Color(0x9c7b4a);
+/** Muted mineral-earth base derived from the supplied mountain-road photogrammetry. It deliberately
+ * avoids the old saturated golden-tan, allowing sunlight and procedural dust/stone variation to
+ * create warmth instead of baking orange into every road under every time of day. */
+const ROAD_COLOR = new THREE.Color(0x816b4f);
 
 /** Ribbon width, in meters, for the second "patika" (footpath) tier (run 314, ADR-0264) — narrow
  * enough to read as a walked dirt track rather than a cart road, wider than a single-file trail so it
  * stays visible at typical play-camera distance. Roughly a third of `ROAD_WIDTH_METERS`. */
 const FOOTPATH_WIDTH_METERS = 2.5;
 
-/** Footpath color — a paler, more worn tan than `ROAD_COLOR` (less compacted dirt, no cart-wheel
- * churn) so the two tiers read as visually distinct at a glance, while staying in the same warm
- * dirt-path family (not a jarring color swap). */
-const FOOTPATH_COLOR = new THREE.Color(0xbfae82);
+/** Footpaths are drier/worn but stay in the same low-saturation mineral family as cart roads. */
+const FOOTPATH_COLOR = new THREE.Color(0xa08c6b);
 
 /** Maximum seat-to-seat Euclidean distance, in meters, for a non-MST pair to qualify as a "patika"
  * footpath (run 314, ADR-0264 — answers ADR-0076's deferred "every edge, or only short/local ones"
@@ -244,7 +243,7 @@ export function buildRoadNetwork({ seats, sampleHeightMeters }) {
 		geometry.setIndex(buffers.indices);
 		geometry.computeVertexNormals();
 
-		const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
+		const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.98, metalness: 0, side: THREE.DoubleSide });
 		const mesh = new THREE.Mesh(geometry, material);
 		mesh.name = name;
 		return mesh;
@@ -288,7 +287,7 @@ export function disposeRoadNetwork(group) {
 
 // RUN 177 — owner-approved medieval road surface. This is intentionally appended instead of
 // rewriting the proven road topology/geometry so the additive-only source contract remains intact.
-const RUN177_MEDIEVAL_ROAD_SURFACE_KEY = 'run177-medieval-road-surface-v1';
+const RUN177_MEDIEVAL_ROAD_SURFACE_KEY = 'run177-medieval-road-surface-v2-geographic';
 const buildRoadNetworkBeforeMedievalSurfaceRun177 = buildRoadNetwork;
 
 function applyMedievalRoadSurfaceRun177(network) {
@@ -310,6 +309,7 @@ function applyMedievalRoadSurfaceRun177(network) {
 		key: RUN177_MEDIEVAL_ROAD_SURFACE_KEY,
 		wheelRutOffsetNormalized: 0.47,
 		proceduralStoneThreshold: 0.955,
+		dryMineralVariation: true,
 		extraDrawCalls: 0,
 	});
 
@@ -341,9 +341,14 @@ float run177StoneNoise = run177RoadHash(floor(vRun177RoadPosition.xz * 0.70));
 float run177Stone = step(0.955, run177StoneNoise) * (1.0 - run177WheelRut) * (1.0 - run177ShoulderWear * 0.4);
 float run177MudNoise = run177RoadHash(floor(vRun177RoadPosition.xz * 0.12) + vec2(19.0, 7.0));
 float run177MudPatch = step(0.82, run177MudNoise) * (0.35 + run177WheelRut * 0.65);
-diffuseColor.rgb *= 1.0 - run177WheelRut * 0.22 - run177ShoulderWear * 0.10 - run177MudPatch * 0.08;
-diffuseColor.rgb *= 1.0 + run177CenterCrown * 0.035;
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.42, 0.38, 0.31), run177Stone * 0.35);`,
+float run177DryNoise = run177RoadHash(floor(vRun177RoadPosition.xz * 0.035) + vec2(43.0, 11.0));
+float run177MineralNoise = run177RoadHash(floor(vRun177RoadPosition.xz * 0.19) + vec2(3.0, 31.0));
+float run177DryTone = (run177DryNoise - 0.5) * 0.11;
+float run177MineralDust = smoothstep(0.58, 0.94, run177MineralNoise) * (0.25 + run177ShoulderWear * 0.75);
+diffuseColor.rgb *= 1.0 - run177WheelRut * 0.22 - run177ShoulderWear * 0.08 - run177MudPatch * 0.09;
+diffuseColor.rgb *= 1.0 + run177CenterCrown * 0.028 + run177DryTone;
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.36, 0.34, 0.29), run177Stone * 0.32);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.55, 0.48, 0.37), run177MineralDust * 0.10);`,
 			);
 	};
 	material.customProgramCacheKey = () => RUN177_MEDIEVAL_ROAD_SURFACE_KEY;
