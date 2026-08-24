@@ -51,20 +51,26 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
 
   function groundHeightWithoutSelfFoundation(object, x, z) {
     const foundationKey = liveFoundationKeyForObject(object);
-    const index = foundationKey
-      ? chunkManager.flattenPads.findIndex((pad) => pad?.foundationKey === foundationKey)
-      : -1;
-    if (index < 0) return groundCollider.getGroundHeight(x, z);
+    if (!foundationKey) return groundCollider.getGroundHeight(x, z);
 
-    // Re-grounding a moved/scaled structure must sample the terrain *under* its previous pad rather
-    // than feeding the old foundation plane back into the next one. Remove only this object's pad for
-    // the duration of the single synchronous collider query, then restore the exact object/ordering.
-    // Other static/dynamic pads remain active, so neighbouring foundations still influence the sample.
-    const [selfPad] = chunkManager.flattenPads.splice(index, 1);
+    const removed = [];
+    for (let index = chunkManager.flattenPads.length - 1; index >= 0; index -= 1) {
+      const pad = chunkManager.flattenPads[index];
+      if (pad?.foundationKey !== foundationKey) continue;
+      removed.push({ index, pad });
+      chunkManager.flattenPads.splice(index, 1);
+    }
+    if (!removed.length) return groundCollider.getGroundHeight(x, z);
+
+    // Re-grounding a moved/scaled structure must sample canonical/neighbour terrain under its previous
+    // foundation rather than feeding any part of the old cluster back into the next cluster. Remove the
+    // complete synchronous self-cluster, query the already-live collider, then restore exact pad objects
+    // at their original indexes. Other static/dynamic pads stay active throughout the sample.
     try {
       return groundCollider.getGroundHeight(x, z);
     } finally {
-      chunkManager.flattenPads.splice(index, 0, selfPad);
+      removed.sort((a, b) => a.index - b.index);
+      for (const { index, pad } of removed) chunkManager.flattenPads.splice(index, 0, pad);
     }
   }
 
@@ -85,9 +91,6 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
     const result = resolveWorldSurfacePlacement(object, {
       metadata: { id: editorId, category: 'structure', src: structureSource.src || '' },
       groundHeight: (sampleX, sampleZ) => groundHeightWithoutSelfFoundation(object, sampleX, sampleZ),
-      // Existing editor objects are being re-grounded, not re-evaluated for autonomous placement.
-      // The live collider intentionally exposes only canonical height here; disable the inferred
-      // building eligibility fields while retaining the exact same 9-probe footprint/conformer path.
       placementPolicy: EDITOR_REGROUND_SURFACE_POLICY_OVERRIDE,
       footprintGrounding: 'always',
       foundationInsetMeters: 0.04,
@@ -96,9 +99,6 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
     });
     if (!result.ok) return result;
 
-    // `terrainFoundationKey` is the conformer's authoritative runtime-object identity. Keep the
-    // historical editor key only as editor-facing compatibility metadata; never use it to address the
-    // shared pad, because cloned placements may intentionally reuse one editor/catalog id.
     if (!liveFoundationKeyForObject(object)) return { ok: false, error: 'editor-ground-missing-foundation-key' };
     object.userData ||= {};
     object.userData.editorFoundationKey = editorFoundationKey;
