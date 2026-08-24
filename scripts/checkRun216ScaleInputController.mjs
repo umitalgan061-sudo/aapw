@@ -39,9 +39,18 @@ globalThis.document = {
   getElementById(id) { return inputs.get(id) || null; }
 };
 
+let foundationRefreshes = 0;
+let lastGroundedObject = null;
 globalThis.window = {
   addEventListener(type, handler) {
     if (type === 'pagehide') pagehideListeners.push(handler);
+  },
+  __WESTEROS_EDITOR_PLACEMENT__: {
+    groundObject(object) {
+      foundationRefreshes += 1;
+      lastGroundedObject = object;
+      return { ok: true };
+    }
   }
 };
 globalThis.window.removeEventListener = (type, handler) => {
@@ -52,7 +61,11 @@ globalThis.window.removeEventListener = (type, handler) => {
 
 const { installEditorScaleInputController, EDITOR_SCALE_INPUT_POLICY } = await import('../src/3d/editor/EditorScaleInputController.js');
 
-let selected = { isInstancedMesh: false, scale: { x: 1, y: 1, z: 1 } };
+let selected = {
+  isInstancedMesh: false,
+  scale: { x: 1, y: 1, z: 1 },
+  userData: { editorFoundationKey: 'asset:test-structure' }
+};
 let inspectorWrites = 0;
 let hierarchyRefreshes = 0;
 const api = {
@@ -69,10 +82,12 @@ if (installEditorScaleInputController(api) !== surface) throw new Error('duplica
 scaleX.value = '0.005';
 if (!scaleX.dispatchChange()) throw new Error('precise scale input did not own the change event');
 if (selected.scale.x !== 0.005) throw new Error(`0.005 scale was not preserved: ${selected.scale.x}`);
+if (foundationRefreshes !== 1 || lastGroundedObject !== selected) throw new Error('structural numeric scale did not refresh its terrain foundation');
 
 scaleY.value = '0';
 scaleY.dispatchChange();
 if (selected.scale.y !== 0.001) throw new Error(`zero scale was not clamped safely: ${selected.scale.y}`);
+if (foundationRefreshes !== 2) throw new Error('clamped structural scale did not refresh terrain foundation');
 
 scaleZ.value = 'not-a-number';
 const previousZ = selected.scale.z;
@@ -81,21 +96,30 @@ if (selected.scale.z !== previousZ) throw new Error('invalid scale mutated objec
 scaleZ.value = '   ';
 scaleZ.dispatchChange();
 if (selected.scale.z !== previousZ) throw new Error('blank scale mutated object state');
+if (foundationRefreshes !== 2) throw new Error('invalid/blank scale must not rebuild terrain foundation');
+
+const structure = selected;
+selected = { isInstancedMesh: false, scale: { x: 1, y: 1, z: 1 }, userData: {} };
+scaleX.value = '0.5';
+if (!scaleX.dispatchChange()) throw new Error('ordinary scale input did not own the change event');
+if (selected.scale.x !== 0.5) throw new Error('ordinary scale was not applied');
+if (foundationRefreshes !== 2) throw new Error('non-foundation object must not invoke terrain grounding');
 
 const ordinary = selected;
-selected = { isInstancedMesh: true, scale: { x: 1, y: 1, z: 1 } };
+selected = { isInstancedMesh: true, scale: { x: 1, y: 1, z: 1 }, userData: {} };
 scaleX.value = '0.25';
 if (scaleX.dispatchChange()) throw new Error('instance group scale event should remain available to its own editing layer');
 if (selected.scale.x !== 1) throw new Error('instance group scale was mutated by ordinary-object controller');
 selected = ordinary;
 
-if (inspectorWrites < 4) throw new Error('Inspector was not synchronized after scale changes');
-if (hierarchyRefreshes !== 2) throw new Error(`unexpected hierarchy refresh count: ${hierarchyRefreshes}`);
+if (inspectorWrites < 5) throw new Error('Inspector was not synchronized after scale changes');
+if (hierarchyRefreshes !== 3) throw new Error(`unexpected hierarchy refresh count: ${hierarchyRefreshes}`);
 if (pagehideListeners.length !== 1) throw new Error('pagehide cleanup listener not installed exactly once');
 
+selected = structure;
 surface.dispose();
 if (scaleX.listenerCount() || scaleY.listenerCount() || scaleZ.listenerCount()) throw new Error('dispose leaked scale listeners');
 if (pagehideListeners.length !== 0) throw new Error('dispose leaked pagehide listener');
 surface.dispose();
 
-console.log('PASS Run216 precise Inspector scale input: sub-0.01 values persist, zero stays non-singular, invalid/blank input is non-destructive, cleanup is idempotent.');
+console.log('PASS Run216 precise Inspector scale input: sub-0.01 values persist, zero stays non-singular, structural numeric scaling refreshes the shared terrain foundation exactly once per valid committed change, invalid/blank input is non-destructive, and cleanup is idempotent.');
