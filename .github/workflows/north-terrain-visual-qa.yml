@@ -7,10 +7,12 @@ on:
       - 'src/3d/world/terrainBiomeShading.js'
       - 'src/3d/world/terrainSnowSurfaceTone.js'
       - 'src/3d/world/terrainReliefDetail.js'
+      - 'src/3d/world/iceLandmarks.js'
       - 'src/3d/world/worldReferenceAlignment.js'
       - 'src/3d/config.js'
       - 'scripts/checkTerrainGeographicPalette.mjs'
       - 'scripts/checkNorthCoastalShoreContinuity.mjs'
+      - 'scripts/checkIceLandmarks.mjs'
       - 'scripts/checkNorthTerrainVisualQa.js'
       - 'scripts/devServerHelper.js'
       - 'north-terrain-visual-qa.html'
@@ -43,11 +45,14 @@ jobs:
         run: |
           node --check src/3d/world/terrainBiomeShading.js
           node --check src/3d/world/terrainSnowSurfaceTone.js
+          node --check src/3d/world/iceLandmarks.js
           node --check scripts/checkTerrainGeographicPalette.mjs
           node --check scripts/checkNorthCoastalShoreContinuity.mjs
+          node --check scripts/checkIceLandmarks.mjs
           node --check scripts/checkNorthTerrainVisualQa.js
           node scripts/checkTerrainGeographicPalette.mjs
           node scripts/checkNorthCoastalShoreContinuity.mjs
+          node scripts/checkIceLandmarks.mjs
 
       - name: Install Playwright Chromium
         run: |
