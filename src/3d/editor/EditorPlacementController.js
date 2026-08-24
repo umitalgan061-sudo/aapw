@@ -139,7 +139,7 @@ export function installEditorPlacementController(api, authoring = window.__WESTE
     for (const object of api.editableObjects) {
       if (!object || object.isInstancedMesh) continue;
       const asset = assetForObject(object);
-      if (!isEditorStructureAsset(asset)) continue;
+      if (!terrainGrounder.isStructureObject(object, asset)) continue;
       if (object.userData?.editorFoundationKey || object.userData?.terrainFoundationKey) {
         alreadyGroundedCount += 1;
         continue;
