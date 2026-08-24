@@ -5,18 +5,21 @@
  * and physics already share one mutable `flattenPads` authority. This module deliberately mutates that
  * existing array instead of creating a second height system.
  *
- * Runtime structure foundations use a four-cell circle union over the AABB. Each quarter-cell circle
- * encloses its entire rectangular cell, so the full building base is still guaranteed to be flat, but
- * long/narrow structures no longer flatten the huge empty corners of one AABB-enclosing circle. Legacy
- * authored seat/castle pads remain ordinary circles and continue to work unchanged in `createHeightSampler`.
+ * Runtime structure foundations use an adaptive four-cell circle union over the AABB. Near-square
+ * footprints use a 2x2 grid; long/narrow footprints rotate the same four-pad budget into 4x1 or 1x4.
+ * Every circle encloses its rectangular cell, so the full base stays flat while narrow structures avoid
+ * the side overreach a forced 2x2 grid still produced. Legacy authored seat/castle pads remain ordinary
+ * circles and continue to work unchanged in `createHeightSampler`.
  * @module world/terrainFoundationConformer
  */
 
 export const TERRAIN_FOUNDATION_CONFORM_POLICY = Object.freeze({
-	id: 'runtime-structure-foundation-conform-2026-08-24-v7-footprint-cluster',
-	footprintMode: 'aabb-quarter-cell-circle-union',
-	clusterColumns: 2,
-	clusterRows: 2,
+	id: 'runtime-structure-foundation-conform-2026-08-24-v8-adaptive-footprint-cluster',
+	footprintMode: 'aabb-adaptive-four-cell-circle-union',
+	defaultClusterColumns: 2,
+	defaultClusterRows: 2,
+	longAxisClusterCells: 4,
+	longAxisAspectThreshold: 2.5,
 	maximumClusterPads: 4,
 	chunkRebuildMode: 'union-deduplicated',
 	batchRemovalMode: 'mutate-all-then-union-rebuild',
@@ -76,13 +79,29 @@ function foundationKeyFromInput(keyOrObject) {
 	return { key, object };
 }
 
-function createQuarterCellPads(bounds, targetHeight, key, safeInnerMargin, safeFeather) {
+function chooseAdaptiveGrid(width, depth) {
+	if (width <= 0 && depth <= 0) return { columns: 1, rows: 1 };
+	if (depth <= 0) return { columns: TERRAIN_FOUNDATION_CONFORM_POLICY.longAxisClusterCells, rows: 1 };
+	if (width <= 0) return { columns: 1, rows: TERRAIN_FOUNDATION_CONFORM_POLICY.longAxisClusterCells };
+	const aspect = width / depth;
+	if (aspect >= TERRAIN_FOUNDATION_CONFORM_POLICY.longAxisAspectThreshold) {
+		return { columns: TERRAIN_FOUNDATION_CONFORM_POLICY.longAxisClusterCells, rows: 1 };
+	}
+	if (aspect <= 1 / TERRAIN_FOUNDATION_CONFORM_POLICY.longAxisAspectThreshold) {
+		return { columns: 1, rows: TERRAIN_FOUNDATION_CONFORM_POLICY.longAxisClusterCells };
+	}
+	return {
+		columns: TERRAIN_FOUNDATION_CONFORM_POLICY.defaultClusterColumns,
+		rows: TERRAIN_FOUNDATION_CONFORM_POLICY.defaultClusterRows,
+	};
+}
+
+function createAdaptiveCellPads(bounds, targetHeight, key, safeInnerMargin, safeFeather) {
 	const width = bounds.maxX - bounds.minX;
 	const depth = bounds.maxZ - bounds.minZ;
-	const columns = width > 0 ? TERRAIN_FOUNDATION_CONFORM_POLICY.clusterColumns : 1;
-	const rows = depth > 0 ? TERRAIN_FOUNDATION_CONFORM_POLICY.clusterRows : 1;
-	const cellWidth = columns > 0 ? width / columns : 0;
-	const cellDepth = rows > 0 ? depth / rows : 0;
+	const { columns, rows } = chooseAdaptiveGrid(width, depth);
+	const cellWidth = width / columns;
+	const cellDepth = depth / rows;
 	const cellRadius = Math.max(
 		TERRAIN_FOUNDATION_CONFORM_POLICY.minimumInnerRadiusMeters,
 		Math.hypot(cellWidth * 0.5, cellDepth * 0.5) + safeInnerMargin,
@@ -146,7 +165,7 @@ export function createFoundationFlattenPad(payload, {
 	const x = (bounds.minX + bounds.maxX) * 0.5;
 	const z = (bounds.minZ + bounds.maxZ) * 0.5;
 	const key = structureKey(payload);
-	const pads = createQuarterCellPads(bounds, targetHeight, key, safeInnerMargin, safeFeather);
+	const pads = createAdaptiveCellPads(bounds, targetHeight, key, safeInnerMargin, safeFeather);
 	return {
 		ok: true,
 		key,
