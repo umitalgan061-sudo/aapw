@@ -66,6 +66,24 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
     chunkSizeMeters: chunkManager.chunkSizeMeters,
   });
 
+  function groundHeightWithoutSelfFoundation(foundationKey, x, z) {
+    const index = foundationKey
+      ? chunkManager.flattenPads.findIndex((pad) => pad?.foundationKey === foundationKey)
+      : -1;
+    if (index < 0) return groundCollider.getGroundHeight(x, z);
+
+    // Re-grounding a moved/scaled structure must sample the terrain *under* its previous pad rather
+    // than feeding the old foundation plane back into the next one. Remove only this object's pad for
+    // the duration of the single synchronous collider query, then restore the exact object/ordering.
+    // Other static/dynamic pads remain active, so neighbouring foundations still influence the sample.
+    const [selfPad] = chunkManager.flattenPads.splice(index, 1);
+    try {
+      return groundCollider.getGroundHeight(x, z);
+    } finally {
+      chunkManager.flattenPads.splice(index, 0, selfPad);
+    }
+  }
+
   function groundObject(object, asset, { x = object?.position?.x, z = object?.position?.z } = {}) {
     if (!object || !Number.isFinite(Number(x)) || !Number.isFinite(Number(z))) {
       return { ok: false, error: 'editor-ground-invalid-object-or-position' };
@@ -78,9 +96,10 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
     object.position.z = Number(z);
     object.updateMatrixWorld(true);
     const editorId = object.userData?.editorId || object.uuid;
+    const foundationKey = `asset:${editorId}`;
     const result = resolveWorldSurfacePlacement(object, {
       metadata: { id: editorId, category: 'structure', src: asset?.src || '' },
-      groundHeight: groundCollider.getGroundHeight,
+      groundHeight: (sampleX, sampleZ) => groundHeightWithoutSelfFoundation(foundationKey, sampleX, sampleZ),
       footprintGrounding: 'always',
       foundationInsetMeters: 0.04,
       conformTerrain: terrainConformer.conformTerrain,
@@ -89,7 +108,7 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
     if (!result.ok) return result;
 
     object.userData ||= {};
-    object.userData.editorFoundationKey = `asset:${editorId}`;
+    object.userData.editorFoundationKey = foundationKey;
     object.userData.editorGroundingMode = result.footprint?.groundingMode || 'terrain-conform';
     object.updateMatrixWorld(true);
     return { ...result, mode: 'terrain-conform' };
