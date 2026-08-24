@@ -23,11 +23,18 @@ assert.equal(built.key, 'object:object-keep', 'runtime Object3D identity must ou
 assert.equal(built.pad.x, 100);
 assert.equal(built.pad.z, -50);
 assert.equal(built.pad.anchorHeightMeters, 71.25);
-assert(built.pad.innerRadiusMeters >= Math.hypot(8, 6), 'inner pad must enclose every footprint corner');
+assert.equal(built.pads.length, 4, 'non-degenerate AABB foundations should use four quarter-cell pads');
+assert.equal(built.pad.foundationClusterSize, 4);
 assert.equal(built.pad.outerRadiusMeters, built.pad.innerRadiusMeters + 9);
 assert.equal(built.pad.source, TERRAIN_FOUNDATION_CONFORM_POLICY.id);
+assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.footprintMode, 'aabb-quarter-cell-circle-union');
 assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.chunkRebuildMode, 'union-deduplicated');
 assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.identityMode, 'runtime-object-first');
+for (const pad of built.pads) {
+	assert.equal(pad.foundationKey, 'object:object-keep');
+	assert.equal(pad.foundationClusterSize, 4);
+	assert.equal(pad.anchorHeightMeters, 71.25);
+}
 
 const authoredOnly = createFoundationFlattenPad({
 	metadata: { instanceId: 'authored-placement-7', id: 'shared-house-catalog-id' },
@@ -49,6 +56,23 @@ const huge = createFoundationFlattenPad({
 assert.equal(huge.ok, false, 'a malformed/giant asset must not flatten an unlimited part of the map');
 assert.equal(huge.error, 'foundation-footprint-too-large');
 
+// The compact cluster must still cover the entire footprint while avoiding the broad empty side-area
+// that the previous one-circle envelope flattened around long, narrow structures.
+const longBuilt = createFoundationFlattenPad({
+	metadata: { id: 'long-hall' },
+	bounds: { minX: -50, maxX: 50, minZ: -5, maxZ: 5 },
+	targetHeight: 120,
+}, { innerMarginMeters: 0, featherMeters: 2 });
+assert.equal(longBuilt.ok, true, longBuilt.error);
+assert.equal(longBuilt.pads.length, 4);
+const compactSampler = createHeightSampler(123, undefined, longBuilt.pads);
+for (const [x, z] of [[-50, -5], [-50, 5], [50, -5], [50, 5], [0, 0]]) {
+	assert.equal(compactSampler(x, z), 120, `full footprint point ${x},${z} must be fully conformed`);
+}
+const sideProbeBase = createHeightSampler(123, undefined, [])(0, 35);
+assert.equal(compactSampler(0, 35), sideProbeBase,
+	'compact footprint cluster must not flatten distant side terrain that lies inside the old enclosing-circle envelope');
+
 // Prove the existing terrain sampler observes pads appended *after* the sampler was created. This is
 // the render/physics bridge's central invariant: sceneManager constructs the collider once, then a
 // later structure placement mutates the same array and the collider must immediately read the pad.
@@ -67,7 +91,6 @@ assert.equal(sampler(0, 0), raisedHeight, 'pre-existing sampler must observe a l
 sharedPads.length = 0;
 assert.equal(sampler(0, 0), baseHeight, 'removing the dynamic pad must restore canonical ground queries');
 
-// Mock a resident chunk manager. Only chunks touched by the new pad may be rebuilt.
 const events = [];
 const mockManager = {
 	chunkSizeMeters: 100,
@@ -97,8 +120,6 @@ assert.equal(directRebuildCount, 1, 'only the chunk whose square intersects the 
 assert.deepEqual(events, ['unload:1,0', 'load:1,0']);
 events.length = 0;
 
-// Two influence circles can overlap the same resident terrain. A move/scale update must rebuild the
-// union once, not unload/load the same GPU chunk once for the old pad and again for the new pad.
 const unionRebuildCount = rebuildChunksForFoundations(mockManager, [
 	{ x: 92, z: 0, outerRadiusMeters: 28 },
 	{ x: 108, z: 0, outerRadiusMeters: 28 },
@@ -117,23 +138,20 @@ const conformer = createTerrainFoundationConformer({
 const result = conformer.conformTerrain(payload);
 assert.equal(result.ok, true, result.error);
 assert.equal(result.height, payload.targetHeight);
-assert.equal(runtimePads.length, 1, 'first placement appends one dynamic pad');
-assert.equal(conformer.getDynamicPads().length, 1);
+assert.equal(runtimePads.length, 4, 'first non-degenerate placement appends one four-pad footprint cluster');
+assert.equal(conformer.getDynamicPads().length, 4);
 assert.equal(payloadObject.userData.terrainFoundationKey, 'object:object-keep', 'placed object must remember its runtime-instance foundation key');
 assert(result.rebuiltChunkCount >= 1, 'resident terrain touched by a foundation must be regenerated');
 
-// Re-placing the same Object3D must update, not duplicate, its pad. Metadata ids can change during
-// authoring without changing physical instance identity.
 const moved = conformer.conformTerrain({
 	...payload,
 	bounds: { minX: 190, maxX: 210, minZ: -10, maxZ: 10 },
 	targetHeight: 82,
 });
 assert.equal(moved.ok, true, moved.error);
-assert.equal(runtimePads.length, 1, 'same runtime object must not leak duplicate flatten pads');
-assert.equal(runtimePads[0].x, 200);
-assert.equal(runtimePads[0].z, 0);
-assert.equal(runtimePads[0].anchorHeightMeters, 82);
+assert.equal(runtimePads.length, 4, 'same runtime object must replace, not leak, its footprint cluster');
+assert(runtimePads.every((pad) => pad.foundationKey === 'object:object-keep'));
+assert(runtimePads.every((pad) => pad.anchorHeightMeters === 82));
 
 const renamed = conformer.conformTerrain({
 	...payload,
@@ -142,19 +160,17 @@ const renamed = conformer.conformTerrain({
 	targetHeight: 84,
 });
 assert.equal(renamed.ok, true, renamed.error);
-assert.equal(runtimePads.length, 1, 'renaming asset metadata must keep the physical object on one pad');
-assert.equal(runtimePads[0].foundationKey, 'object:object-keep');
+assert.equal(runtimePads.length, 4, 'renaming asset metadata must keep one physical-object cluster');
+assert(runtimePads.every((pad) => pad.foundationKey === 'object:object-keep'));
 assert.equal(payloadObject.userData.terrainFoundationKey, 'object:object-keep');
-assert.equal(runtimePads[0].x, 300);
 
 const removed = conformer.removeFoundation(payloadObject);
 assert.equal(removed.ok, true, removed.error);
+assert.equal(removed.removedCount, 4);
 assert.equal(runtimePads.length, 0);
 assert.equal(conformer.getDynamicPads().length, 0);
 assert.equal(payloadObject.userData.terrainFoundationKey, undefined, 'object removal must clear remembered foundation identity');
 
-// Two runtime clones can legitimately share BOTH the catalog id and the GLB/FBX src. Their foundations
-// must remain independent; those fields identify the reusable resource, not the placed structure.
 const clonePads = [];
 const cloneConformer = createTerrainFoundationConformer({ flattenPads: clonePads });
 const cloneAObject = { uuid: 'tower-a', userData: {} };
@@ -179,13 +195,12 @@ const cloneB = cloneConformer.conformTerrain({
 });
 assert.equal(cloneA.ok, true, cloneA.error);
 assert.equal(cloneB.ok, true, cloneB.error);
-assert.equal(clonePads.length, 2, 'clones sharing catalog id and src must retain independent terrain pads');
-assert.deepEqual(clonePads.map((pad) => pad.foundationKey).sort(), ['object:tower-a', 'object:tower-b']);
-assert.deepEqual(clonePads.map((pad) => pad.x).sort((a, b) => a - b), [-25, 25]);
+assert.equal(clonePads.length, 8, 'two clones must retain independent four-pad terrain clusters');
+assert.deepEqual([...new Set(clonePads.map((pad) => pad.foundationKey))].sort(), ['object:tower-a', 'object:tower-b']);
 assert.equal(cloneAObject.userData.terrainFoundationKey, 'object:tower-a');
 assert.equal(cloneBObject.userData.terrainFoundationKey, 'object:tower-b');
 assert.equal(cloneConformer.removeFoundation(cloneAObject).ok, true, 'clone foundation must be removable by its object identity');
-assert.equal(clonePads.length, 1, 'removing clone A must preserve clone B foundation');
-assert.equal(clonePads[0].foundationKey, 'object:tower-b');
+assert.equal(clonePads.length, 4, 'removing clone A must preserve clone B foundation cluster');
+assert(clonePads.every((pad) => pad.foundationKey === 'object:tower-b'));
 
-console.log('[checkTerrainFoundationConformer] PASS: footprint pads enclose the full base, mutate one shared render/physics height authority, rebuild old/new influence once, preserve stable per-object foundation identity across metadata edits, and keep clones with shared catalog ids/resources independent.');
+console.log('[checkTerrainFoundationConformer] PASS: compact quarter-cell foundation clusters cover the full AABB without the old enclosing-circle side overreach, mutate one shared render/physics height authority, rebuild old/new influence once, and preserve per-object identity.');
