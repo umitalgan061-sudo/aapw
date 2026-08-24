@@ -24,6 +24,8 @@ assert(CELESTIAL_ASSET_POLICY.moonTargetDiameterMeters >= 24 && CELESTIAL_ASSET_
 	'Moon visual diameter must remain readable without becoming an oversized sky object');
 assert.equal(CELESTIAL_ASSET_POLICY.moonLightingAltitudeModulated, true,
 	'Moon directional illumination must remain tied to celestial altitude');
+assert.equal(CELESTIAL_ASSET_POLICY.sunLightingAltitudeModulated, true,
+	'Sun directional illumination must remain tied to celestial altitude');
 assert.equal(CELESTIAL_ASSET_POLICY.twilightSkyAltitudeModulated, true,
 	'twilight sky colour must remain tied to solar altitude');
 
@@ -67,6 +69,10 @@ assert(lightingSource.includes('object.position.sub(center)'),
 	'hydrated Moon geometry must be centered on the celestial orbit anchor after normalization');
 assert(lightingSource.includes('MOON_MAX_INTENSITY * smoothNightFactor * moonAltitudeFactor'),
 	'Moon directional key must combine darkness with actual Moon altitude');
+assert(lightingSource.includes('lights.sun.intensity = baseSunIntensity * sunAltitudeFactor'),
+	'Sun DirectionalLight must apply the same altitude attenuation used by custom shader lighting');
+assert(lightingSource.includes('sunIntensity: lights.sun.intensity'),
+	'custom shader celestial state must publish the already altitude-modulated Sun intensity exactly once');
 assert(lightingSource.includes('SKY_TWILIGHT'),
 	'lighting runtime must retain a dedicated solar-altitude twilight sky state');
 
