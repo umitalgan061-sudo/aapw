@@ -124,8 +124,16 @@ manifest.assets.push(...additions);
 fs.writeFileSync(MANIFEST_PATH, renderManifest(manifest));
 
 let credits = fs.readFileSync(CREDITS_PATH, 'utf8');
+let creditsSuffix = '';
 const creditMarkerIndex = credits.indexOf(CREDIT_MARKER);
-if (creditMarkerIndex >= 0) credits = credits.slice(0, creditMarkerIndex);
+if (creditMarkerIndex >= 0) {
+  const ownerHeadingIndex = credits.indexOf('\n## ', creditMarkerIndex + CREDIT_MARKER.length);
+  const nextHeadingIndex = ownerHeadingIndex >= 0
+    ? credits.indexOf('\n## ', ownerHeadingIndex + '\n## '.length)
+    : -1;
+  if (nextHeadingIndex >= 0) creditsSuffix = credits.slice(nextHeadingIndex).trim();
+  credits = credits.slice(0, creditMarkerIndex);
+}
 credits = credits.trimEnd();
 const allOwnerApproved = manifest.assets
   .filter((entry) => entry.license === OWNER_LICENSE && String(entry.file || '').match(/\.(fbx|glb)$/i))
@@ -138,7 +146,8 @@ const section = [
   '|---|---|---|---|',
   ...allOwnerApproved.map(creditRow), ''
 ].join('\n');
-fs.writeFileSync(CREDITS_PATH, `${credits}${section}`);
+const suffix = creditsSuffix ? `\n${creditsSuffix}\n` : '';
+fs.writeFileSync(CREDITS_PATH, `${credits}${section}${suffix}`);
 
 const afterFiles = new Set(manifest.assets.map((entry) => entry.file));
 const unresolved = modelFiles.filter((file) => !afterFiles.has(file));
