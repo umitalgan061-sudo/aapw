@@ -24,17 +24,25 @@ assert.deepEqual(healthEvents().at(-1), {
 });
 assert.equal(Object.isFrozen(healthEvents().at(-1)), true, 'health receipts must be immutable');
 
-bus.emit('damage', { amount: 40, sourceId: 'guard-01' });
+const normalHit = { amount: 40, sourceId: 'guard-01' };
+bus.emit('damage', normalHit);
 assert.equal(health.current, 60);
+assert.equal(normalHit.appliedAmount, 40, 'damage payload must expose the authoritative clamped amount to later same-event consumers');
 assert.deepEqual(healthEvents().at(-1), {
   current: 60, maxHealth: 100, ratio: 0.6, delta: -40, reason: 'damage', appliedAmount: 40, sourceId: 'guard-01',
 });
 
-bus.emit('damage', { amount: 200, sourceId: 'dragon-01' });
+const overkill = { amount: 200, sourceId: 'dragon-01' };
+bus.emit('damage', overkill);
 assert.equal(health.current, 0);
+assert.equal(overkill.appliedAmount, 60, 'overkill receipt must report only health actually removed');
 const death = bus.emitted.filter((entry) => entry.name === 'died').at(-1)?.payload;
 assert.deepEqual(death, { sourceId: 'dragon-01', current: 0, maxHealth: 100, appliedAmount: 60 });
 assert.equal(Object.isFrozen(death), true, 'death receipt must be immutable');
+
+const postDeath = { amount: 10, sourceId: 'after-death' };
+bus.emit('damage', postDeath);
+assert.equal(postDeath.appliedAmount, 0, 'damage against an already-dead state must reconcile to zero applied damage');
 
 health.heal(25);
 assert.equal(health.current, 25);
@@ -53,3 +61,4 @@ assert.equal(health.current, before, 'dispose must detach the damage listener');
 
 console.log('Player Combat Health Receipt: PASS');
 console.log('receipt=current,maxHealth,ratio,delta,reason,appliedAmount,sourceId');
+console.log('damagePayloadAppliedAmount=normal,overkill,already-dead');
