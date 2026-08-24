@@ -13,6 +13,7 @@ function sample(x, y) {
 
 const alwaysWinterCenter = sample(0.145, 0.115);
 const northCenter = sample(0.175, 0.285);
+const iceEdge = sample(0.155, 0.20);
 const westTransition = sample(0.145, 0.22);
 const overlapTransition = sample(0.16, 0.205);
 const sameLatitudeEast = sample(0.60, 0.115);
@@ -32,6 +33,13 @@ assert(northCenter.tundra > 0.85,
   'canonical north biome center must remain strongly tundra/cold-ground');
 assert(northCenter.permanentIce < northCenter.tundra,
   'canonical north biome must stay colder than temperate ground without collapsing into full permanent ice');
+
+assert(iceEdge.permanentIce >= 0.49 && iceEdge.permanentIce <= 0.56,
+  `canonical ICE EDGE should remain a visibly glacial mixed belt; permanentIce=${iceEdge.permanentIce}`);
+assert(iceEdge.permanentIce < alwaysWinterCenter.permanentIce,
+  'ICE EDGE must remain transitional rather than collapsing into the full always-winter core');
+assert(iceEdge.tundra >= iceEdge.permanentIce,
+  'ICE EDGE glacial strengthening must remain inside the shared tundra envelope');
 
 assert(westTransition.permanentIce > 0,
   'always-winter ellipse must have a continuous west-Westeros glacial transition halo');
@@ -138,11 +146,17 @@ assert.equal(NORTH_REFERENCE_CRYOSPHERE_POLICY.corePreservingIceHalo, true,
   'permanent-ice transition must preserve authored core strength while blending the outer halo');
 assert.equal(NORTH_REFERENCE_CRYOSPHERE_POLICY.tundraUnionBlend, true,
   'overlapping North and always-winter tundra envelopes must use bounded union blending');
+assert.equal(NORTH_REFERENCE_CRYOSPHERE_POLICY.iceEdgeVisualHarmony, true,
+  'canonical ICE EDGE should keep an explicit visual-harmony contract without widening the map zone');
+assert(NORTH_REFERENCE_CRYOSPHERE_POLICY.iceHaloGain >= 0.8
+    && NORTH_REFERENCE_CRYOSPHERE_POLICY.iceHaloGain <= 0.9,
+  'ice halo gain should strengthen the mixed glacial belt while remaining bounded');
 
 console.log('[checkNorthReferenceCryosphere] PASS', JSON.stringify({
   policy: NORTH_REFERENCE_CRYOSPHERE_POLICY.id,
   alwaysWinterPermanentIce: alwaysWinterCenter.permanentIce,
   northTundra: northCenter.tundra,
+  iceEdgePermanentIce: iceEdge.permanentIce,
   westTransitionPermanentIce: westTransition.permanentIce,
   overlapTundraUnion: overlapTransition.tundraUnion,
   sameLatitudeEastPermanentIce: sameLatitudeEast.permanentIce,
