@@ -8,10 +8,12 @@ on:
       - 'src/3d/world/water.js'
       - 'src/3d/world/rivers.js'
       - 'src/3d/world/roads.js'
+      - 'src/3d/world/terrainBiomeShading.js'
       - 'scripts/checkWaterVisualContract.js'
       - 'scripts/checkRoadVisualContract.js'
       - 'scripts/checkMedievalRoadSurface.js'
       - 'scripts/checkGeographicRiverVisualContract.js'
+      - 'scripts/checkGeologicalRockSurface.js'
       - 'scripts/geographicRiverHarness.html'
       - '.github/workflows/geographic-visual-realism.yml'
   workflow_dispatch:
@@ -53,10 +55,12 @@ jobs:
           node --check src/3d/world/water.js
           node --check src/3d/world/rivers.js
           node --check src/3d/world/roads.js
+          node --check src/3d/world/terrainBiomeShading.js
           node --check scripts/checkWaterVisualContract.js
           node --check scripts/checkRoadVisualContract.js
           node --check scripts/checkMedievalRoadSurface.js
           node --check scripts/checkGeographicRiverVisualContract.js
+          node --check scripts/checkGeologicalRockSurface.js
 
       - name: Water optical and celestial contract
         run: node scripts/checkWaterVisualContract.js
@@ -70,6 +74,9 @@ jobs:
 
       - name: River and waterfall visual contract
         run: node scripts/checkGeographicRiverVisualContract.js
+
+      - name: Geological rock surface contract
+        run: node scripts/checkGeologicalRockSurface.js
 
       - name: Diff whitespace
         run: git diff --check HEAD^ HEAD
