@@ -49,13 +49,14 @@ function house(editorId, x) {
 
 const a = house('batch-house-a', 92);
 const b = house('batch-house-b', 108);
-assert.equal(flattenPads.length, 2);
-assert.equal(grounder.getDynamicPads().length, 2);
+assert.equal(flattenPads.length, 8, 'two non-degenerate editor structures should own two four-pad clusters');
+assert.equal(grounder.getDynamicPads().length, 8);
 events.length = 0;
 
 const result = grounder.removeObjectFoundations([a, b]);
 assert.equal(result.ok, true);
-assert.equal(result.removedCount, 2);
+assert.equal(result.removedCount, 2, 'editor-facing removal count must remain structure-based');
+assert.equal(result.removedPadCount, 8, 'cluster implementation detail should remain observable separately');
 assert.equal(result.rebuiltChunkCount, 1, 'scene-style multi-delete must rebuild the shared resident chunk once');
 assert.deepEqual(events, ['unload:1,0', 'load:1,0']);
 assert.equal(flattenPads.length, 0);
@@ -68,6 +69,7 @@ assert.equal(b.userData.editorGroundingMode, undefined);
 const noStructures = grounder.removeObjectFoundations([{}, null]);
 assert.equal(noStructures.ok, true);
 assert.equal(noStructures.removedCount, 0);
+assert.equal(noStructures.removedPadCount, 0);
 assert.equal(noStructures.rebuiltChunkCount, 0);
 
-console.log('[checkEditorTerrainFoundationBatchCleanup] PASS: editor multi-object cleanup removes every registered foundation from the shared render/physics authority and union-rebuilds overlapping resident terrain once.');
+console.log('[checkEditorTerrainFoundationBatchCleanup] PASS: editor multi-object cleanup removes every clustered foundation from the shared render/physics authority, preserves structure-level API counts, and union-rebuilds overlapping resident terrain once.');
