@@ -43,6 +43,10 @@ export function isEditorStructureAsset(asset) {
   return STRUCTURE_PATTERN.test(descriptor) || hasLocalizedStructureStem(descriptor);
 }
 
+function isStructureObject(object, asset) {
+  return isEditorStructureAsset(asset) || isEditorStructureAsset(object?.userData);
+}
+
 function centerGroundObject(object, groundHeight, x, z) {
   object.position.set(0, 0, 0);
   object.updateMatrixWorld(true);
@@ -91,7 +95,7 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
     if (!object || !Number.isFinite(Number(x)) || !Number.isFinite(Number(z))) {
       return { ok: false, error: 'editor-ground-invalid-object-or-position' };
     }
-    if (!isEditorStructureAsset(asset)) {
+    if (!isStructureObject(object, asset)) {
       return centerGroundObject(object, groundCollider.getGroundHeight, Number(x), Number(z));
     }
 
@@ -100,8 +104,9 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
     object.updateMatrixWorld(true);
     const editorId = object.userData?.editorId || object.uuid;
     const foundationKey = `asset:${editorId}`;
+    const structureSource = asset || object.userData || {};
     const result = resolveWorldSurfacePlacement(object, {
-      metadata: { id: editorId, category: 'structure', src: asset?.src || '' },
+      metadata: { id: editorId, category: 'structure', src: structureSource.src || '' },
       groundHeight: (sampleX, sampleZ) => groundHeightWithoutSelfFoundation(foundationKey, sampleX, sampleZ),
       footprintGrounding: 'always',
       foundationInsetMeters: 0.04,
@@ -152,6 +157,7 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
     removeObjectFoundation,
     removeObjectFoundations,
     isStructureAsset: isEditorStructureAsset,
+    isStructureObject,
     getDynamicPads: terrainConformer.getDynamicPads,
     policy: terrainConformer.policy,
   });
