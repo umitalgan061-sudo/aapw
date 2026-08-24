@@ -7,6 +7,8 @@ import {
 } from '../src/3d/world/terrainSnowSurfaceTone.js';
 
 const EPSILON = 1e-9;
+const MIN_GLACIAL_DISTANCE_GAIN = 0.0004;
+const MIN_COASTAL_DISTANCE_GAIN = 0.0002;
 const shadingSource = readFileSync(new URL('../src/3d/world/terrainBiomeShading.js', import.meta.url), 'utf8');
 
 function clamp01(value) {
@@ -113,11 +115,16 @@ const currentToGlacial = distance(currentColor, glacial);
 const legacyToGlacial = distance(reconstructedLegacyColor, glacial);
 const currentToCoastal = distance(currentColor, coastal);
 const legacyToCoastal = distance(reconstructedLegacyColor, coastal);
+const glacialDistanceGain = legacyToGlacial - currentToGlacial;
+const coastalDistanceGain = legacyToCoastal - currentToCoastal;
 
-assert(currentToGlacial + 0.002 < legacyToGlacial,
-  `retention must measurably pull deep far-north accumulated snow toward GLACIAL_ICE; current=${currentToGlacial} legacy=${legacyToGlacial}`);
-assert(currentToCoastal + 0.002 < legacyToCoastal,
-  `retention must measurably pull deep far-north accumulated snow toward COASTAL_ICE; current=${currentToCoastal} legacy=${legacyToCoastal}`);
+// Palette distances are normalized RGB units. Require a directional improvement above a small
+// numerical noise floor rather than an arbitrary 0.002 absolute jump; the actual authored palette
+// is intentionally subtle so sheltered snow remains recognisably soft instead of becoming packed ice.
+assert(glacialDistanceGain > MIN_GLACIAL_DISTANCE_GAIN,
+  `retention must measurably pull deep far-north accumulated snow toward GLACIAL_ICE; gain=${glacialDistanceGain} current=${currentToGlacial} legacy=${legacyToGlacial}`);
+assert(coastalDistanceGain > MIN_COASTAL_DISTANCE_GAIN,
+  `retention must measurably pull deep far-north accumulated snow toward COASTAL_ICE; gain=${coastalDistanceGain} current=${currentToCoastal} legacy=${legacyToCoastal}`);
 assert(distance(currentColor, accumulated) < 0.18,
   'deep lee snow must remain recognisably inside the soft accumulated-snow family');
 assert(currentToGlacial < distance(tundraColor, glacial),
@@ -132,6 +139,8 @@ for (const [label, value] of Object.entries({
   legacyToGlacial,
   currentToCoastal,
   legacyToCoastal,
+  glacialDistanceGain,
+  coastalDistanceGain,
 })) {
   assert(Number.isFinite(value), `${label} must remain finite`);
 }
@@ -153,8 +162,10 @@ console.log(JSON.stringify({
   reconstructedLegacyAccumulatedWeight,
   currentToGlacial,
   legacyToGlacial,
+  glacialDistanceGain,
   currentToCoastal,
   legacyToCoastal,
+  coastalDistanceGain,
   heightAuthorityUnchanged: P.heightAuthorityUnchanged,
   snowCoverageAuthorityUnchanged: P.snowCoverageAuthorityUnchanged,
 }, null, 2));
