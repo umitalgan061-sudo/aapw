@@ -13,9 +13,11 @@ on:
       - 'scripts/checkTerrainGeographicPalette.mjs'
       - 'scripts/checkNorthCoastalShoreContinuity.mjs'
       - 'scripts/checkIceLandmarks.mjs'
+      - 'scripts/checkIceLandmarksVisualQa.js'
       - 'scripts/checkNorthTerrainVisualQa.js'
       - 'scripts/devServerHelper.js'
       - 'north-terrain-visual-qa.html'
+      - 'ice-landmarks-visual-qa.html'
       - '.github/workflows/north-terrain-visual-qa.yml'
   workflow_dispatch:
 
@@ -49,6 +51,7 @@ jobs:
           node --check scripts/checkTerrainGeographicPalette.mjs
           node --check scripts/checkNorthCoastalShoreContinuity.mjs
           node --check scripts/checkIceLandmarks.mjs
+          node --check scripts/checkIceLandmarksVisualQa.js
           node --check scripts/checkNorthTerrainVisualQa.js
           node scripts/checkTerrainGeographicPalette.mjs
           node scripts/checkNorthCoastalShoreContinuity.mjs
@@ -68,11 +71,25 @@ jobs:
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           node scripts/checkNorthTerrainVisualQa.js
 
+      - name: Render natural ice wall and cave
+        run: |
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkIceLandmarksVisualQa.js
+
       - name: Upload north terrain visual proof
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: north-terrain-visual-qa
           path: artifacts/north-terrain-visual-qa/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload ice landmark visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ice-landmarks-visual-qa
+          path: artifacts/ice-landmarks-visual-qa/
           if-no-files-found: error
           retention-days: 7
