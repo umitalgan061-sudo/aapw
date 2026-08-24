@@ -5,6 +5,7 @@ import {
   STRUCTURE_GROUNDING_POLICY,
   classifyStructureGrounding,
   isStructureGroundingCandidate,
+  resolveStructureSurfaceProfile,
 } from '../src/3d/world/structureGroundingPolicy.js';
 import { resolveWorldSurfacePlacement } from '../src/3d/world/WorldAssetPlacementPipeline.js';
 import { isEditorStructureAsset } from '../src/3d/editor/EditorTerrainFoundationGrounder.js';
@@ -51,10 +52,11 @@ function runAuto(metadata = {}, userData = {}) {
   return { object, result, queryCount };
 }
 
-assert.match(STRUCTURE_GROUNDING_POLICY.id, /shared/);
+assert.match(STRUCTURE_GROUNDING_POLICY.id, /surface-profile/);
 assert.equal(STRUCTURE_GROUNDING_POLICY.footprintProbeCount, 9);
 assert.equal(STRUCTURE_GROUNDING_POLICY.primaryMetadataOverridesFallback, true);
 assert.equal(STRUCTURE_GROUNDING_POLICY.protectedPrimitivesOverrideOptIn, true);
+assert.deepEqual(STRUCTURE_GROUNDING_POLICY.surfaceProfiles, ['building', 'bridge', 'waterside']);
 
 const positiveAssets = [
   { id: 'building', category: 'building' },
@@ -100,6 +102,46 @@ for (const asset of positiveAssets) {
   assert.equal(runtime.result.footprint?.groundingMode, 'embedded-low-side');
 }
 
+for (const metadata of [
+  { category: 'palace' },
+  { category: 'temple' },
+  { category: 'Saray' },
+  { name: 'Gözetleme Kulesi', category: 'Prop' },
+  { structureLike: true, category: 'custom-import' },
+]) {
+  assert.equal(resolveStructureSurfaceProfile(metadata), 'building',
+    `${JSON.stringify(metadata)} should use the dry building surface profile`);
+}
+for (const metadata of [
+  { category: 'bridge' },
+  { category: 'aqueduct' },
+  { category: 'Köprü' },
+  { name: 'Taş Köprüsü', category: 'Prop' },
+]) {
+  assert.equal(resolveStructureSurfaceProfile(metadata), 'bridge',
+    `${JSON.stringify(metadata)} should use the spanning bridge surface profile`);
+}
+for (const metadata of [
+  { category: 'dock' },
+  { category: 'pier' },
+  { category: 'shipyard' },
+  { category: 'lighthouse' },
+  { name: 'Balıkçı İskelesi', category: 'Prop' },
+  { category: 'Tersane' },
+  { name: 'Kuzey Limanı', category: 'Prop' },
+]) {
+  assert.equal(resolveStructureSurfaceProfile(metadata), 'waterside',
+    `${JSON.stringify(metadata)} should use the waterside structure surface profile`);
+}
+assert.equal(resolveStructureSurfaceProfile({}, { category: 'Saray' }), 'building',
+  'surface profile must consume fallback object metadata for rehydrated structures');
+assert.equal(resolveStructureSurfaceProfile({}, { name: 'Balıkçı İskelesi', category: 'Prop' }), 'waterside',
+  'rehydrated waterside structures must retain their waterside profile');
+assert.equal(resolveStructureSurfaceProfile({ structureLike: false }, { category: 'castle' }), null,
+  'primary explicit opt-out must suppress fallback surface profiles');
+assert.equal(resolveStructureSurfaceProfile({ primitive: 'tree', category: 'Bina', structureLike: true }), null,
+  'protected primitives must never receive a structure surface profile');
+
 const explicitCustom = { id: 'custom-hall', category: 'Prop', structureLike: true };
 assert.equal(classifyStructureGrounding(explicitCustom).reason, 'explicit-opt-in');
 assert.equal(runAuto(explicitCustom).queryCount, 9, 'explicit custom structures must use runtime footprint grounding');
@@ -142,6 +184,7 @@ for (const primitive of ['tree', 'road-segment', 'water-cell', 'terrain-cell', '
   assert.equal(classification.isStructure, false, `${primitive} must remain protected from terrain foundations`);
   assert.match(classification.reason, /^protected-primitive:/);
   assert.equal(isEditorStructureAsset(metadata), false, `${primitive} editor classification must respect hard exclusion`);
+  assert.equal(resolveStructureSurfaceProfile(metadata), null, `${primitive} must not receive a structure surface profile`);
   const runtime = runAuto(metadata);
   assert.equal(runtime.queryCount, 1, `${primitive} runtime auto grounding must stay on center sampling`);
   assert.equal(runtime.result.footprint, null, `${primitive} must not own a terrain footprint`);
@@ -154,6 +197,7 @@ for (const metadata of [
 ]) {
   assert.equal(isStructureGroundingCandidate(metadata), false, `${metadata.id} must remain non-structural`);
   assert.equal(isEditorStructureAsset(metadata), false, `${metadata.id} editor wrapper mismatch`);
+  assert.equal(resolveStructureSurfaceProfile(metadata), null, `${metadata.id} must not receive a structure surface profile`);
   const runtime = runAuto(metadata);
   assert.equal(runtime.queryCount, 1, `${metadata.id} must keep the center-grounding path`);
   assert.equal(runtime.result.footprint, null);
@@ -163,6 +207,7 @@ console.log(JSON.stringify({
   policy: STRUCTURE_GROUNDING_POLICY.id,
   positiveStructureFamilies: positiveAssets.length,
   footprintProbeCount: STRUCTURE_GROUNDING_POLICY.footprintProbeCount,
+  surfaceProfiles: STRUCTURE_GROUNDING_POLICY.surfaceProfiles,
   fallbackObjectMetadata: true,
   primaryOptOutWins: true,
   protectedPrimitiveCount: 5,
