@@ -35,6 +35,7 @@ async function main() {
 				disposeWaterfallMesh,
 			} = await import('/src/3d/world/rivers.js');
 			const fail = (condition, message) => { if (!condition) throw new Error(message); };
+			const colorDistance = (a, b) => Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
 
 			// A deliberately calm first reach followed by a steep rapid. Production code must derive
 			// both speed and visual colour from that same bed-gradient signal.
@@ -54,7 +55,8 @@ async function main() {
 			fail(rapidSpeed > calmSpeed, `rapid ${rapidSpeed} must be faster than calm reach ${calmSpeed}`);
 			const calmColor = new THREE.Color(colors.getX(0), colors.getY(0), colors.getZ(0));
 			const rapidColor = new THREE.Color(colors.getX(2), colors.getY(2), colors.getZ(2));
-			fail(calmColor.distanceTo(rapidColor) > 0.01, 'calm pool and rapid water collapsed to one colour');
+			const calmRapidColorDistance = colorDistance(calmColor, rapidColor);
+			fail(calmRapidColorDistance > 0.01, 'calm pool and rapid water collapsed to one colour');
 			fail(river.material.opacity === 0.74, `river opacity ${river.material.opacity} no longer exposes the bed`);
 			fail(river.material.userData.opticalProfile?.calmBedReadable === true, 'calm river bed-readability metadata disappeared');
 			fail(river.material.userData.opticalProfile?.slopeDrivenFoam === true, 'slope-driven foam metadata disappeared');
@@ -89,7 +91,7 @@ async function main() {
 			const summary = {
 				calmSpeed,
 				rapidSpeed,
-				colorDistance: calmColor.distanceTo(rapidColor),
+				colorDistance: calmRapidColorDistance,
 				riverOpacity: river.material.opacity,
 				waterfallOpacity: waterfall.material.opacity,
 			};
