@@ -13,6 +13,7 @@ on:
       - 'src/3d/world/water.js'
       - 'src/3d/world/waterDepthField.js'
       - 'scripts/checkEasternMountainRidgeContinuity.mjs'
+      - 'scripts/checkEasternMountainCrossSectionReadability.mjs'
       - 'scripts/checkMountainNaturalizationProfile.mjs'
       - 'scripts/checkMountainNaturalizationDeterminism.mjs'
       - 'scripts/captureFullWorld3DTopdown.mjs'
@@ -47,12 +48,15 @@ jobs:
         run: |
           node --check src/3d/world/worldReferenceMountainRelief.js
           node --check scripts/checkEasternMountainRidgeContinuity.mjs
+          node --check scripts/checkEasternMountainCrossSectionReadability.mjs
           node --check scripts/checkMountainNaturalizationProfile.mjs
           node --check scripts/checkMountainNaturalizationDeterminism.mjs
           node --check scripts/captureFullWorld3DTopdown.mjs
 
-      - name: Long ridge continuity
-        run: node scripts/checkEasternMountainRidgeContinuity.mjs | tee "$RUNNER_TEMP/ridge-continuity.log"
+      - name: Long ridge continuity and cross-section readability
+        run: |
+          node scripts/checkEasternMountainRidgeContinuity.mjs | tee "$RUNNER_TEMP/ridge-continuity.log"
+          node scripts/checkEasternMountainCrossSectionReadability.mjs | tee "$RUNNER_TEMP/ridge-cross-section.log"
 
       - name: Existing mountain naturalization safety
         run: |
@@ -80,6 +84,7 @@ jobs:
           name: eastern-mountain-ridge-continuity-${{ github.sha }}
           path: |
             ${{ runner.temp }}/ridge-continuity.log
+            ${{ runner.temp }}/ridge-cross-section.log
             ${{ runner.temp }}/mountain-profile.log
             ${{ runner.temp }}/mountain-determinism.log
             ${{ runner.temp }}/full-world-natural-ridges.log
