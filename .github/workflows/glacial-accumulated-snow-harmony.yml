@@ -1,0 +1,42 @@
+name: Glacial Accumulated Snow Harmony
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/terrainSnowSurfaceTone.js'
+      - 'src/3d/world/terrainBiomeShading.js'
+      - 'scripts/checkGlacialAccumulatedPaletteRetention.mjs'
+      - '.github/workflows/glacial-accumulated-snow-harmony.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: glacial-accumulated-snow-harmony-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  glacial-accumulated-snow-harmony:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Static syntax
+        run: |
+          node --check src/3d/world/terrainSnowSurfaceTone.js
+          node --check scripts/checkGlacialAccumulatedPaletteRetention.mjs
+
+      - name: Glacial accumulated palette retention contract
+        run: node scripts/checkGlacialAccumulatedPaletteRetention.mjs
