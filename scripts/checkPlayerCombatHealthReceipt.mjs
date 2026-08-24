@@ -54,6 +54,14 @@ assertHealthReceipt(healthEvents().at(-1), { current: 25, maxHealth: 100, ratio:
 health.reset();
 assertHealthReceipt(healthEvents().at(-1), { current: 100, maxHealth: 100, ratio: 1, delta: 75, reason: 'reset', appliedAmount: 0, sourceId: null });
 
+const frozenHit = Object.freeze({ amount: 15, sourceId: 'frozen-guard' });
+assert.doesNotThrow(() => bus.emit('damage', frozenHit), 'immutable damage payloads must not crash the authoritative health listener');
+assert.equal(health.current, 85, 'immutable damage payloads must still apply finite authoritative damage');
+assert.equal('appliedAmount' in frozenHit, false, 'immutable producer payload must remain untouched when reconciliation cannot be written back');
+assertHealthReceipt(healthEvents().at(-1), { current: 85, maxHealth: 100, ratio: 0.85, delta: -15, reason: 'damage', appliedAmount: 15, sourceId: 'frozen-guard' });
+
+health.reset();
+assertHealthReceipt(healthEvents().at(-1), { current: 100, maxHealth: 100, ratio: 1, delta: 15, reason: 'reset', appliedAmount: 0, sourceId: null });
 health.dispose();
 const before = health.current;
 bus.emit('damage', { amount: 10, sourceId: 'after-dispose' });
@@ -62,4 +70,4 @@ assert.equal(health.current, before, 'dispose must detach the damage listener');
 console.log('Player Combat Health Receipt: PASS');
 console.log('legacy-enumerable=current,maxHealth|receipt=ratio,delta,reason,appliedAmount,sourceId');
 console.log('finite-guard=damage+heal|invalid=Infinity,-Infinity,NaN');
-console.log('damagePayloadAppliedAmount=normal,overkill,already-dead');
+console.log('damagePayloadAppliedAmount=normal,overkill,already-dead|immutable-payload=safe');
