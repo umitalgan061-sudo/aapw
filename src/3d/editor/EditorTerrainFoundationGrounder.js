@@ -62,10 +62,6 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
     }
     if (!removed.length) return groundCollider.getGroundHeight(x, z);
 
-    // Re-grounding a moved/scaled structure must sample canonical/neighbour terrain under its previous
-    // foundation rather than feeding any part of the old cluster back into the next cluster. Remove the
-    // complete synchronous self-cluster, query the already-live collider, then restore exact pad objects
-    // at their original indexes. Other static/dynamic pads stay active throughout the sample.
     try {
       return groundCollider.getGroundHeight(x, z);
     } finally {
@@ -115,6 +111,7 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
     if (result.ok) {
       delete object.userData.editorFoundationKey;
       delete object.userData.editorGroundingMode;
+      return { ...result, removedPadCount: result.removedCount ?? 0, removedCount: 1 };
     }
     return result;
   }
@@ -123,19 +120,25 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
     const candidates = (Array.isArray(objects) ? objects : [objects])
       .filter((object) => object && (object.userData?.editorFoundationKey || liveFoundationKeyForObject(object)));
     if (!candidates.length) {
-      return { ok: true, removedCount: 0, missingKeys: [], rebuiltChunkCount: 0 };
+      return { ok: true, removedCount: 0, removedPadCount: 0, missingKeys: [], rebuiltChunkCount: 0 };
     }
     const liveKeys = new Map(candidates.map((object) => [object, liveFoundationKeyForObject(object)]));
     const result = terrainConformer.removeFoundations(candidates, options);
     const missing = new Set(result.missingKeys || []);
+    let removedStructureCount = 0;
     for (const object of candidates) {
       const key = liveKeys.get(object);
       if (key && !missing.has(key)) {
+        removedStructureCount += 1;
         delete object.userData.editorFoundationKey;
         delete object.userData.editorGroundingMode;
       }
     }
-    return result;
+    return {
+      ...result,
+      removedPadCount: result.removedCount ?? 0,
+      removedCount: removedStructureCount,
+    };
   }
 
   return Object.freeze({
