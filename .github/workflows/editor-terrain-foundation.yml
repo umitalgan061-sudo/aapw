@@ -9,7 +9,9 @@ on:
       - 'src/3d/editor/EditorScaleInputController.js'
       - 'src/3d/editor/worldEditor.js'
       - 'src/3d/world/WorldAssetPlacementPipeline.js'
+      - 'src/3d/world/structureGroundingPolicy.js'
       - 'src/3d/world/terrainFoundationConformer.js'
+      - 'scripts/checkStructureGroundingPolicy.mjs'
       - 'scripts/checkEditorTerrainFoundationGrounder.mjs'
       - 'scripts/checkEditorTerrainFoundationBatchCleanup.mjs'
       - 'scripts/checkEditorTerrainFoundationLifecycle.mjs'
@@ -44,10 +46,15 @@ jobs:
           node --check src/3d/editor/EditorTransformControls.js
           node --check src/3d/editor/EditorScaleInputController.js
           node --check src/3d/editor/worldEditor.js
+          node --check src/3d/world/WorldAssetPlacementPipeline.js
+          node --check src/3d/world/structureGroundingPolicy.js
+          node --check scripts/checkStructureGroundingPolicy.mjs
           node --check scripts/checkEditorTerrainFoundationGrounder.mjs
           node --check scripts/checkEditorTerrainFoundationBatchCleanup.mjs
           node --check scripts/checkEditorTerrainFoundationLifecycle.mjs
           node --check scripts/checkRun216ScaleInputController.mjs
+      - name: Shared structure grounding classification
+        run: node scripts/checkStructureGroundingPolicy.mjs
       - name: Editor structure foundation contract
         run: node scripts/checkEditorTerrainFoundationGrounder.mjs
       - name: Editor numeric scale foundation refresh contract
