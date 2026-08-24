@@ -20,79 +20,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  integrate-live-ice:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 8
-    steps:
-      - name: Checkout exact PR head
-        uses: actions/checkout@v4
-        with:
-          ref: codex/foundation-grounding-20260821
-          fetch-depth: 2
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Wire ice landmarks into scene, player physics and camera collision
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-
-          def replace_once(text, old, new, label):
-              count = text.count(old)
-              if count != 1:
-                  raise SystemExit(f'{label}: expected exactly one match, got {count}')
-              return text.replace(old, new, 1)
-
-          scene_path = Path('src/3d/sceneManager.js')
-          scene = scene_path.read_text()
-          scene = replace_once(scene, "import { createVillages } from './world/villages.js';\n", "import { createVillages } from './world/villages.js';\nimport { createIceLandmarks } from './world/iceLandmarks.js';\n", 'scene import')
-          scene = replace_once(scene, "\tconst groundCollider = createGroundCollider(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);\n\n\tconst waterDepthField", "\tconst groundCollider = createGroundCollider(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);\n\n\t// The Wall and cave use the same collider-owned terrain sampler as every live grounded system.\n\tconst iceLandmarksResult = createIceLandmarks({\n\t\tsampleHeightMeters: groundCollider.getGroundHeight,\n\t\tseed: WORLD_DEFAULTS.WORLD_SEED,\n\t});\n\tscene.add(iceLandmarksResult.group);\n\tconsole.info(`[sceneManager] Ice landmarks: ${iceLandmarksResult.stats.wallLengthMeters.toFixed(0)}m Wall, ${iceLandmarksResult.stats.cave.tunnelDepthMeters}m cave.`);\n\n\tconst waterDepthField", 'scene creation')
-          scene = replace_once(scene, "\tconst villageCollider = createCircleCollider(villagesResult.houses);\n\tconst playerCollider = createComposedCollider([settlementCollider, villageCollider]);", "\tconst villageCollider = createCircleCollider(villagesResult.houses);\n\tconst iceLandmarkCollider = createCircleCollider(iceLandmarksResult.blockers);\n\tconst playerCollider = createComposedCollider([settlementCollider, villageCollider, iceLandmarkCollider]);", 'player collider')
-          scene = replace_once(scene, "\tapplyShadowRoles(villagesResult.group, { quality: renderQuality });\n\tapplyShadowRoles(vegetationResult.group, { quality: renderQuality });", "\tapplyShadowRoles(villagesResult.group, { quality: renderQuality });\n\tapplyShadowRoles(iceLandmarksResult.group, { quality: renderQuality });\n\tapplyShadowRoles(vegetationResult.group, { quality: renderQuality });", 'shadow roles')
-          scene = replace_once(scene, "\t\tvillages: villagesResult.group,\n\t\tsettlementSeats: settlementsResult.seats,", "\t\tvillages: villagesResult.group,\n\t\ticeLandmarks: iceLandmarksResult.group,\n\t\ticeLandmarkStats: iceLandmarksResult.stats,\n\t\tsettlementSeats: settlementsResult.seats,", 'scene state')
-          scene_path.write_text(scene)
-
-          game_path = Path('src/3d/game3d.js')
-          game = game_path.read_text()
-          game = replace_once(game, "import { disposeVillages } from './world/villages.js';\n", "import { disposeVillages } from './world/villages.js';\nimport { disposeIceLandmarks } from './world/iceLandmarks.js';\n", 'game import')
-          game = replace_once(game, "\t\t\tdisposeVillages(state.villages);\n\t\t\tif (state.mobileSpawnVegetation)", "\t\t\tdisposeVillages(state.villages);\n\t\t\tdisposeIceLandmarks(state.iceLandmarks);\n\t\t\tif (state.mobileSpawnVegetation)", 'game dispose')
-          game_path.write_text(game)
-
-          helpers_path = Path('src/3d/gameLoopHelpers.js')
-          helpers = helpers_path.read_text()
-          helpers = replace_once(helpers, "for (const realCastle of state.realCastles.children) _cameraCollidables.push(realCastle); return _cameraCollidables; }", "for (const realCastle of state.realCastles.children) _cameraCollidables.push(realCastle); for (const icePart of state.iceLandmarks?.children ?? []) _cameraCollidables.push(icePart); return _cameraCollidables; }", 'camera collision')
-          helpers_path.write_text(helpers)
-          PY
-
-      - name: Validate integration contract
-        run: |
-          set -euo pipefail
-          node scripts/setupNodeThreeShim.mjs
-          node --check src/3d/world/iceLandmarks.js
-          node --check src/3d/sceneManager.js
-          node --check src/3d/game3d.js
-          node --check src/3d/gameLoopHelpers.js
-          node scripts/checkIceLandmarks.mjs
-
-      - name: Commit live integration and restore permanent QA workflow
-        run: |
-          set -euo pipefail
-          git checkout HEAD^ -- .github/workflows/north-terrain-visual-qa.yml
-          rm -f .github/workflows/one-shot-integrate-ice-landmarks.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- src/3d/sceneManager.js src/3d/game3d.js src/3d/gameLoopHelpers.js .github/workflows/north-terrain-visual-qa.yml
-          if git ls-files --error-unmatch .github/workflows/one-shot-integrate-ice-landmarks.yml >/dev/null 2>&1; then git add -- .github/workflows/one-shot-integrate-ice-landmarks.yml; fi
-          git commit -m "feat(world): integrate ice wall and cave into live world"
-          git push origin HEAD:codex/foundation-grounding-20260821
-
   visual-qa:
     runs-on: ubuntu-24.04
     timeout-minutes: 16
