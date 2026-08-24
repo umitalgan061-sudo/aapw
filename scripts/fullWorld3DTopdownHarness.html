@@ -28,7 +28,13 @@ import {
 	slopeDegreesFromNeighbours,
 } from '../src/3d/world/terrainBiomeShading.js';
 import { sampleReferencePindexQualityV2 } from '../src/3d/world/worldReferenceSurfacePindexes.js';
-import { createWater, setWaterDepthField, updateWater, WATER_PLANE_SEGMENTS_MOBILE } from '../src/3d/world/water.js';
+import {
+	createWater,
+	setWaterDepthField,
+	updateWater,
+	WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
+	WATER_PLANE_SEGMENTS_MOBILE,
+} from '../src/3d/world/water.js';
 import { createWaterDepthField } from '../src/3d/world/waterDepthField.js';
 
 const params = new URLSearchParams(location.search);
@@ -182,7 +188,8 @@ camera.updateProjectionMatrix();
 
 // Mirror production instead of manually updating only shader uniforms. The near-water mesh and the
 // far-underlay exclusion window must share the same camera-follow origin or a topdown capture shows
-// rectangular holes/double-water blocks that never exist in the live runtime.
+// rectangular holes/double-water blocks that never exist in the live runtime. The deep-ocean floor is
+// a child of the same water root, so it inherits this camera-follow XZ while remaining below terrain.
 updateWater(water, camera.position, 0);
 
 renderer.render(scene, camera);
@@ -192,6 +199,8 @@ renderer.render(scene, camera);
 const sampleCount = positions.count;
 const meanHeight = heightSum / sampleCount;
 const heightVariance = Math.max(0, heightSquaredSum / sampleCount - meanHeight * meanHeight);
+const deepOceanBackdrop = water.userData.deepOceanBackdrop;
+const deepOceanBackdropWorldY = water.position.y + (deepOceanBackdrop?.position.y ?? 0);
 window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
 	status: 'ready',
 	width,
@@ -219,6 +228,13 @@ window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
 		farDepthWrite: water.userData.farWater?.material?.depthWrite ?? null,
 		farRenderOrder: water.userData.farWater?.renderOrder ?? null,
 		farLocalY: water.userData.farWater?.position?.y ?? null,
+		deepBackdropDepthWrite: deepOceanBackdrop?.material?.depthWrite ?? null,
+		deepBackdropOpaque: deepOceanBackdrop?.material?.transparent === false,
+		deepBackdropFog: deepOceanBackdrop?.material?.fog ?? null,
+		deepBackdropRenderOrder: deepOceanBackdrop?.renderOrder ?? null,
+		deepBackdropLocalY: deepOceanBackdrop?.position?.y ?? null,
+		deepBackdropWorldY: deepOceanBackdropWorldY,
+		deepBackdropExtentMeters: WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
 		nearWorldXZ: Object.freeze([water.position.x, water.position.z]),
 	}),
 	camera: Object.freeze({
