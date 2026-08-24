@@ -72,6 +72,7 @@ assert.equal(castle.userData.editorFoundationKey, 'asset:castle-test-placed-0001
 assert(rebuilds >= 1, 'resident terrain intersecting the pad must rebuild');
 
 const pad = flattenPads[0];
+const firstAnchorHeight = pad.anchorHeightMeters;
 for (const sample of first.footprint.samples) {
   assert(
     Math.abs(groundCollider.getGroundHeight(sample.x ?? 8, sample.z ?? -6) - pad.anchorHeightMeters) < 1e-6,
@@ -83,6 +84,18 @@ const beforeRepeat = flattenPads.length;
 const second = grounder.groundObject(castle, castleAsset, { x: 9, z: -5 });
 assert.equal(second.ok, true, second.error);
 assert.equal(flattenPads.length, beforeRepeat, 're-grounding the same editor id must update, not duplicate, its pad');
+assert.equal(flattenPads[0], pad, 're-grounding must mutate the installed shared pad rather than replace its identity');
+const expectedSecondUnderlyingMax = Math.max(...second.footprint.samples.map((sample) => baseHeight(sample.x, sample.z)));
+assert(
+  Math.abs(second.footprint.targetGroundHeight - expectedSecondUnderlyingMax) < 1e-9,
+  `re-grounding must sample canonical terrain beneath its own old pad; expected ${expectedSecondUnderlyingMax}, got ${second.footprint.targetGroundHeight}`,
+);
+assert(
+  Math.abs(second.footprint.targetGroundHeight - firstAnchorHeight) > 1e-4,
+  'moving a structure inside its former pad must not feed the stale foundation height back into the new foundation',
+);
+assert.equal(pad.anchorHeightMeters, second.footprint.targetGroundHeight,
+  'shared collider/render pad must receive the newly sampled underlying-terrain target');
 
 const localizedBuilding = new THREE.Mesh(new THREE.BoxGeometry(7, 5, 9), new THREE.MeshBasicMaterial());
 localizedBuilding.geometry.translate(0, 2.5, 0);
@@ -115,4 +128,4 @@ const localizedRemoved = grounder.removeObjectFoundation(localizedBuilding);
 assert.equal(localizedRemoved.ok, true, localizedRemoved.error);
 assert.equal(flattenPads.length, 0, 'removing all structures must restore the shared pad authority');
 
-console.log('[checkEditorTerrainFoundationGrounder] PASS: English/localized/custom editor structures conform shared render/physics terrain, protected primitives stay center-grounded, repeated grounding is idempotent, and foundations remain independently removable.');
+console.log('[checkEditorTerrainFoundationGrounder] PASS: English/localized/custom editor structures conform shared render/physics terrain, protected primitives stay center-grounded, repeated grounding ignores stale self-foundation feedback while preserving shared pad identity, and foundations remain independently removable.');
