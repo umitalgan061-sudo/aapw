@@ -65,18 +65,45 @@ const integrationPad = { ...makePad({ index: 7 }), vibrationActuator: { playEffe
 try {
 	Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { getGamepads: () => [integrationPad] } });
 	const target = new EventTarget(); const input = new KeyboardInput(target);
-	input.getAxes();
 	const emitFeedback = (detail) => { const event = new Event('aapw:player-combat-feedback'); Object.defineProperty(event, 'detail', { value: detail }); target.dispatchEvent(event); };
-	emitFeedback({ serial: 41, outcome: 'guard-break', appliedAmount: 8, blockedAmount: 12 });
-	assert.equal(integrationCalls.length, 1, 'active Standard pad must receive authoritative guard-break result');
-	emitFeedback({ serial: 41, outcome: 'guard-break', appliedAmount: 8, blockedAmount: 12 });
+
+	// Combat feedback may describe results, but it must never activate or switch a controller by itself.
+	emitFeedback({ serial: 40, outcome: 'guard-break', appliedAmount: 8, blockedAmount: 12 });
+	assert.equal(integrationCalls.length, 0, 'feedback before input polling must not activate a Standard controller');
+	input.getAxes();
+	emitFeedback({ serial: 40, outcome: 'guard-break', appliedAmount: 8, blockedAmount: 12 });
+	assert.equal(integrationCalls.length, 1, 'unconsumed pre-activation serial must remain valid after normal controller selection');
+	emitFeedback({ serial: 40, outcome: 'guard-break', appliedAmount: 8, blockedAmount: 12 });
 	assert.equal(integrationCalls.length, 1, 'duplicate combat feedback serial must not double-rumble');
-	emitFeedback({ serial: 42, outcome: 'hit-stagger', appliedAmount: 20, blockedAmount: 0 });
-	assert.equal(integrationCalls.length, 2, 'new authoritative result serial must pulse');
-	assert.ok(integrationCalls[1].options.duration >= integrationCalls[0].options.duration - 10, 'hit stagger must remain a substantial result pulse');
+
+	// A no-op receipt is not consumed; corrected authoritative evidence may reuse the same serial.
+	emitFeedback({ serial: 41, outcome: 'guard', appliedAmount: 0, blockedAmount: 0 });
+	assert.equal(integrationCalls.length, 1, 'zero-evidence guard receipt must not rumble or consume its serial');
+	emitFeedback({ serial: 41, outcome: 'guard', appliedAmount: 0, blockedAmount: 12 });
+	assert.equal(integrationCalls.length, 2, 'corrected authoritative evidence must be able to reuse an unconsumed serial');
+
+	// Receipt identity is an authoritative positive safe integer, never a coercible or fractional value.
+	for (const serial of ['42', 42.5, 0, -1, Number.POSITIVE_INFINITY]) emitFeedback({ serial, outcome: 'hit', appliedAmount: 9, blockedAmount: 0 });
+	assert.equal(integrationCalls.length, 2, 'invalid combat feedback serials must never rumble');
+
+	// Successful delivery advances a monotonic watermark so delayed older receipts cannot replay.
+	emitFeedback({ serial: 43, outcome: 'hit-stagger', appliedAmount: 20, blockedAmount: 0 });
+	assert.equal(integrationCalls.length, 3, 'new authoritative result serial must pulse');
+	assert.ok(integrationCalls[2].options.duration >= integrationCalls[0].options.duration - 10, 'hit stagger must remain a substantial result pulse');
+	emitFeedback({ serial: 42, outcome: 'hit', appliedAmount: 9, blockedAmount: 0 });
+	assert.equal(integrationCalls.length, 3, 'delayed serial older than the consumed watermark must not replay');
+
+	// A delivery failure must not consume the receipt; normal input state can recover it later.
+	integrationPad.mapping = '';
+	emitFeedback({ serial: 44, outcome: 'hit', appliedAmount: 9, blockedAmount: 0 });
+	assert.equal(integrationCalls.length, 3, 'non-Standard controller must not receive result haptics');
+	integrationPad.mapping = 'standard';
+	emitFeedback({ serial: 44, outcome: 'hit', appliedAmount: 9, blockedAmount: 0 });
+	assert.equal(integrationCalls.length, 4, 'failed haptic delivery must not consume the authoritative serial');
+
 	input.dispose();
-	emitFeedback({ serial: 43, outcome: 'hit', appliedAmount: 20, blockedAmount: 0 });
-	assert.equal(integrationCalls.length, 2, 'disposed input must stop consuming combat feedback');
+	emitFeedback({ serial: 45, outcome: 'hit', appliedAmount: 20, blockedAmount: 0 });
+	assert.equal(integrationCalls.length, 4, 'disposed input must stop consuming combat feedback');
 } finally {
 	if (originalNavigatorDescriptor) Object.defineProperty(globalThis, 'navigator', originalNavigatorDescriptor);
 	else delete globalThis.navigator;
@@ -85,7 +112,7 @@ try {
 const unmapped = samplePlayerGamepad(makePad({ mapping: '', axes: [1, -1, 1, -1], buttons: { 0: true, 1: true, 2: true, 3: true, 4: true, 5: true, 10: true, 12: true, 15: true }, values: { 6: 1, 7: 1 } })); assert.equal(unmapped.forward, 0); assert.equal(unmapped.lookX, 0); assert.equal(unmapped.running, false); assert.equal(unmapped.dodgePressed, false); assert.equal(unmapped.parryPressed, false); assert.equal(unmapped.lightPressed, false);
 const pads = [makePad({ index: 3, mapping: '' }), makePad({ index: 2 }), makePad({ index: 1 })]; assert.equal(selectPlayerGamepad(pads)?.index, 1); assert.equal(selectPlayerGamepad(pads, 2)?.index, 2); assert.equal(selectPlayerGamepad([pads[0]], 3), null);
 const source = fs.readFileSync(new URL('../src/3d/input.js', import.meta.url), 'utf8');
-for (const contract of ["JUMP: 0", "DODGE: 1", "LIGHT: 2", "HEAVY: 3", "GUARD: 4", "PARRY: 5", "ZOOM_OUT: 6", "ZOOM_IN: 7", "SPRINT: 10", "DPAD_UP: 12", "DPAD_DOWN: 13", "DPAD_LEFT: 14", "DPAD_RIGHT: 15", "readGamepadDpad", "stick.magnitude > 0 ? stick : dpad", "GAMEPAD_TRIGGER_DEADZONE = 0.08", "applyGamepadTriggerDeadzone", "GAMEPAD_SPRINT_MIN_MAGNITUDE = 0.72", "GAMEPAD_SPRINT_RELEASE_MAGNITUDE = 0.55", "GAMEPAD_DODGE_MIN_MAGNITUDE = 0.45", "resolveGamepadSprintIntent", "this._gamepadSprintActive", "sample.dodgePressed && sample.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE", "gamepad.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE", "GAMEPAD_CAMERA_MAX_FRAME_SECONDS = 0.3", "Math.min(GAMEPAD_CAMERA_MAX_FRAME_SECONDS, nowSeconds - this._lastPollSeconds)", "dodgePressed: buttons.dodge && !previousButtons.dodge", "parryPressed: buttons.parry && !previousButtons.parry", "if (gamepad.parryPressed) guarding = true", "pulsePlayerGamepadAction(gamepad, 'dodge')", "pulsePlayerGamepadAction(gamepad, 'parry')", "gamepad.axes?.[2]", "gamepad.axes?.[3]", "pad.mapping === 'standard'", "GAMEPAD_ACTION_HAPTICS", "GAMEPAD_COMBAT_FEEDBACK_HAPTICS", "COMBAT_FEEDBACK_EVENT", "pulsePlayerGamepadCombatFeedback", "this._lastCombatFeedbackSerial", "[COMBAT_FEEDBACK_EVENT, this._onCombatFeedback]", "dual-rumble", "visibilitychange", "visibility-hidden"]) assert.ok(source.includes(contract), `missing ${contract}`);
+for (const contract of ["JUMP: 0", "DODGE: 1", "LIGHT: 2", "HEAVY: 3", "GUARD: 4", "PARRY: 5", "ZOOM_OUT: 6", "ZOOM_IN: 7", "SPRINT: 10", "DPAD_UP: 12", "DPAD_DOWN: 13", "DPAD_LEFT: 14", "DPAD_RIGHT: 15", "readGamepadDpad", "stick.magnitude > 0 ? stick : dpad", "GAMEPAD_TRIGGER_DEADZONE = 0.08", "applyGamepadTriggerDeadzone", "GAMEPAD_SPRINT_MIN_MAGNITUDE = 0.72", "GAMEPAD_SPRINT_RELEASE_MAGNITUDE = 0.55", "GAMEPAD_DODGE_MIN_MAGNITUDE = 0.45", "resolveGamepadSprintIntent", "this._gamepadSprintActive", "sample.dodgePressed && sample.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE", "gamepad.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE", "GAMEPAD_CAMERA_MAX_FRAME_SECONDS = 0.3", "Math.min(GAMEPAD_CAMERA_MAX_FRAME_SECONDS, nowSeconds - this._lastPollSeconds)", "dodgePressed: buttons.dodge && !previousButtons.dodge", "parryPressed: buttons.parry && !previousButtons.parry", "if (gamepad.parryPressed) guarding = true", "pulsePlayerGamepadAction(gamepad, 'dodge')", "pulsePlayerGamepadAction(gamepad, 'parry')", "gamepad.axes?.[2]", "gamepad.axes?.[3]", "pad.mapping === 'standard'", "GAMEPAD_ACTION_HAPTICS", "GAMEPAD_COMBAT_FEEDBACK_HAPTICS", "COMBAT_FEEDBACK_EVENT", "pulsePlayerGamepadCombatFeedback", "this._lastCombatFeedbackSerial", "Number.isSafeInteger(serial)", "serial <= this._lastCombatFeedbackSerial", "[COMBAT_FEEDBACK_EVENT, this._onCombatFeedback]", "dual-rumble", "visibilitychange", "visibility-hidden"]) assert.ok(source.includes(contract), `missing ${contract}`);
 const movementSource = fs.readFileSync(new URL('../src/3d/gameLoopHelpers.js', import.meta.url), 'utf8');
 for (const contract of ['const inputMagnitude = Math.min(1, Math.hypot(axes.forward, axes.strafe))', '_move.normalize().multiplyScalar(inputMagnitude)', 'export function applyGamepadCameraLook(camera, controls, axes)', 'GAMEPAD_CAMERA_ZOOM_METERS_PER_SECOND', 'GAMEPAD_CAMERA_MAX_FRAME_SECONDS = 0.3', 'Math.min(GAMEPAD_CAMERA_MAX_FRAME_SECONDS, Number.isFinite(axes?.lookDeltaSeconds)']) assert.ok(movementSource.includes(contract), `missing ${contract}`);
 assert.ok(!source.includes('Math.min(0.05, nowSeconds - this._lastPollSeconds)'), 'legacy 50ms input clamp must stay removed');

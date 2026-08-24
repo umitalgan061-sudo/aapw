@@ -150,7 +150,7 @@ function emitInputDeviceChange(index, reason) {
 export class KeyboardInput {
 	constructor(target = window) {
 		this._keys = new Set(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false;
-		this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._lastCombatFeedbackSerial = null; this._target = target;
+		this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._lastCombatFeedbackSerial = 0; this._target = target;
 		this._onKeyDown = (event) => {
 			const firstPress = !this._keys.has(event.code);
 			if (JUMP_KEYS.has(event.code) && firstPress) this._jumpRequested = true;
@@ -164,8 +164,8 @@ export class KeyboardInput {
 		this._onPointerUp = (event) => { if (event.button === GUARD_POINTER_BUTTON) this._guardPointerHeld = false; };
 		this._onContextMenu = (event) => { if (this._guardPointerHeld) event.preventDefault?.(); };
 		this._onCombatFeedback = (event) => {
-			const detail = event?.detail, serial = Number(detail?.serial);
-			if (!Number.isFinite(serial) || serial === this._lastCombatFeedbackSerial) return;
+			const detail = event?.detail, serial = detail?.serial;
+			if (!Number.isSafeInteger(serial) || serial <= 0 || serial <= this._lastCombatFeedbackSerial) return;
 			const pads = globalThis.navigator?.getGamepads?.() ?? [], gamepad = selectPlayerGamepad(pads, this._activeGamepadIndex);
 			if (!gamepad || gamepad.index !== this._activeGamepadIndex) return;
 			if (pulsePlayerGamepadCombatFeedback(gamepad, detail)) this._lastCombatFeedbackSerial = serial;
@@ -206,6 +206,6 @@ export class KeyboardInput {
 	consumeLockOnRequested() { const requested = this._lockOnRequested; this._lockOnRequested = false; return requested; }
 	dispose() {
 		for (const [type, handler] of [['keydown', this._onKeyDown], ['keyup', this._onKeyUp], ['pointerdown', this._onPointerDown], ['pointerup', this._onPointerUp], ['pointercancel', this._onPointerUp], ['contextmenu', this._onContextMenu], [COMBAT_FEEDBACK_EVENT, this._onCombatFeedback], ['blur', this._onFocusLoss], ['pagehide', this._onFocusLoss], ['visibilitychange', this._onVisibilityChange]]) this._target.removeEventListener(type, handler);
-		this._keys.clear(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false; this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._lastCombatFeedbackSerial = null;
+		this._keys.clear(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false; this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._lastCombatFeedbackSerial = 0;
 	}
 }
