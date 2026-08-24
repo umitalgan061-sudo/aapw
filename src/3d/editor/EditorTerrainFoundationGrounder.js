@@ -29,6 +29,12 @@ function centerGroundObject(object, groundHeight, x, z) {
   return { ok: true, mode: 'center-base', height: y };
 }
 
+function liveFoundationKeyForObject(object) {
+  const remembered = object?.userData?.terrainFoundationKey;
+  if (remembered !== null && remembered !== undefined && String(remembered).trim()) return String(remembered);
+  return object?.uuid ? `object:${object.uuid}` : null;
+}
+
 export function createEditorTerrainFoundationGrounder({ chunkManager, groundCollider } = {}) {
   if (!chunkManager?.loaded || !Array.isArray(chunkManager.flattenPads)) {
     throw new TypeError('EditorTerrainFoundationGrounder: live ChunkManager with mutable flattenPads is required.');
@@ -43,7 +49,8 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
     chunkSizeMeters: chunkManager.chunkSizeMeters,
   });
 
-  function groundHeightWithoutSelfFoundation(foundationKey, x, z) {
+  function groundHeightWithoutSelfFoundation(object, x, z) {
+    const foundationKey = liveFoundationKeyForObject(object);
     const index = foundationKey
       ? chunkManager.flattenPads.findIndex((pad) => pad?.foundationKey === foundationKey)
       : -1;
@@ -73,11 +80,10 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
     object.position.z = Number(z);
     object.updateMatrixWorld(true);
     const editorId = object.userData?.editorId || object.uuid;
-    const foundationKey = `asset:${editorId}`;
     const structureSource = asset || object.userData || {};
     const result = resolveWorldSurfacePlacement(object, {
       metadata: { id: editorId, category: 'structure', src: structureSource.src || '' },
-      groundHeight: (sampleX, sampleZ) => groundHeightWithoutSelfFoundation(foundationKey, sampleX, sampleZ),
+      groundHeight: (sampleX, sampleZ) => groundHeightWithoutSelfFoundation(object, sampleX, sampleZ),
       // Existing editor objects are being re-grounded, not re-evaluated for autonomous placement.
       // The live collider intentionally exposes only canonical height here; disable the inferred
       // building eligibility fields while retaining the exact same 9-probe footprint/conformer path.
@@ -89,6 +95,10 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
     });
     if (!result.ok) return result;
 
+    // terrainFoundationConformer owns identity. Runtime Object3D UUIDs intentionally outrank catalog
+    // and editor ids because several placed clones may share the same authored asset metadata.
+    const foundationKey = liveFoundationKeyForObject(object);
+    if (!foundationKey) return { ok: false, error: 'editor-ground-missing-foundation-key' };
     object.userData ||= {};
     object.userData.editorFoundationKey = foundationKey;
     object.userData.editorGroundingMode = result.footprint?.groundingMode || 'terrain-conform';
@@ -97,9 +107,9 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
   }
 
   function removeObjectFoundation(object) {
-    const key = object?.userData?.editorFoundationKey;
+    const key = object?.userData?.editorFoundationKey || liveFoundationKeyForObject(object);
     if (!key) return { ok: false, error: 'foundation-not-registered' };
-    const result = terrainConformer.removeFoundation(key);
+    const result = terrainConformer.removeFoundation(object || key);
     if (result.ok) {
       delete object.userData.editorFoundationKey;
       delete object.userData.editorGroundingMode;
@@ -109,15 +119,14 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
 
   function removeObjectFoundations(objects, options = {}) {
     const candidates = (Array.isArray(objects) ? objects : [objects])
-      .filter((object) => object?.userData?.editorFoundationKey);
+      .filter((object) => object && (object.userData?.editorFoundationKey || liveFoundationKeyForObject(object)));
     if (!candidates.length) {
       return { ok: true, removedCount: 0, missingKeys: [], rebuiltChunkCount: 0 };
     }
-    const keys = candidates.map((object) => object.userData.editorFoundationKey);
-    const result = terrainConformer.removeFoundations(keys, options);
+    const result = terrainConformer.removeFoundations(candidates, options);
     const missing = new Set(result.missingKeys || []);
     for (const object of candidates) {
-      const key = object.userData?.editorFoundationKey;
+      const key = object.userData?.editorFoundationKey || liveFoundationKeyForObject(object);
       if (key && !missing.has(key)) {
         delete object.userData.editorFoundationKey;
         delete object.userData.editorGroundingMode;
