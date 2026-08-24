@@ -34,11 +34,11 @@ export const WINTER_VEGETATION_ASSET_POLICY = Object.freeze({
 	// horizontal/height, while the seven-mesh dead-tree/stump grove is 1.416. A snow-pine point
 	// represents one tree, so accept either single tree but reject grove-shaped replacements.
 	maxHorizontalToHeightRatio: 1.05,
-	// The preferred pine ships as a green textured asset. Its transparent foliage primitive keeps
-	// the source alpha silhouette while this shader blend pushes visible needles toward cold snow.
+	// Preserve the source evergreen texture in shadowed needles while keeping bright foliage visibly
+	// snow-laden. The previous 0.58..0.86 blend washed nearly the whole crown to white in browser QA.
 	pineFoliageSnowColor: Object.freeze([0.86, 0.92, 0.94]),
-	pineFoliageSnowMixMin: 0.58,
-	pineFoliageSnowMixRange: 0.28,
+	pineFoliageSnowMixMin: 0.36,
+	pineFoliageSnowMixRange: 0.36,
 	pineFoliageMinRoughness: 0.92,
 	// A Git-LFS pointer is ~130 bytes. A real textured tree GLB is orders of magnitude larger. HEAD
 	// preflight lets Firebase/static hosting reject an unhydrated pointer without downloading it into
