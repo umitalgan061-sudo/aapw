@@ -1,27 +1,23 @@
 /**
  * Runtime foundation-to-terrain bridge.
  *
- * `WorldAssetPlacementPipeline` can discover a structure's whole footprint, but terrain rendering and
- * physics only agree if the same height modification reaches both systems. The scene already solves
- * that problem for kingdom-seat castles by sharing one mutable `flattenPads` array between
- * `ChunkManager` and `createGroundCollider`. This module deliberately reuses that authority instead
- * of creating a second terrain system.
+ * `WorldAssetPlacementPipeline` discovers a structure's world-space footprint while terrain rendering
+ * and physics already share one mutable `flattenPads` authority. This module deliberately mutates that
+ * existing array instead of creating a second height system.
  *
- * A structure footprint is converted into a circular flatten pad large enough to enclose its full
- * world-space AABB. The target plane is the footprint's high-side sample supplied by the placement
- * pipeline. Because `createHeightSampler` reads the shared array on every query, physics immediately
- * sees a newly appended pad. Already-rendered terrain chunks are then rebuilt only where the pad can
- * influence them, so render geometry catches up to the same shared field.
- *
- * Circular pads are conservative: a rotated rectangle may flatten a little more terrain at its
- * corners, but it can never leave part of the building base outside the conformed ground. The outer
- * feather makes that small overreach visually natural instead of producing a vertical terrain step.
+ * Runtime structure foundations use a four-cell circle union over the AABB. Each quarter-cell circle
+ * encloses its entire rectangular cell, so the full building base is still guaranteed to be flat, but
+ * long/narrow structures no longer flatten the huge empty corners of one AABB-enclosing circle. Legacy
+ * authored seat/castle pads remain ordinary circles and continue to work unchanged in `createHeightSampler`.
  * @module world/terrainFoundationConformer
  */
 
 export const TERRAIN_FOUNDATION_CONFORM_POLICY = Object.freeze({
-	id: 'runtime-structure-foundation-conform-2026-08-24-v6-instance-identity',
-	footprintMode: 'aabb-enclosing-circle',
+	id: 'runtime-structure-foundation-conform-2026-08-24-v7-footprint-cluster',
+	footprintMode: 'aabb-quarter-cell-circle-union',
+	clusterColumns: 2,
+	clusterRows: 2,
+	maximumClusterPads: 4,
 	chunkRebuildMode: 'union-deduplicated',
 	batchRemovalMode: 'mutate-all-then-union-rebuild',
 	shutdownRemovalMode: 'mutate-without-rebuild',
@@ -49,17 +45,13 @@ function normalizedBounds(bounds) {
 	return { minX, maxX, minZ, maxZ };
 }
 
-function smoothPadRadius(bounds, innerMarginMeters) {
+function enclosingRadius(bounds, innerMarginMeters) {
 	const halfWidth = (bounds.maxX - bounds.minX) * 0.5;
 	const halfDepth = (bounds.maxZ - bounds.minZ) * 0.5;
 	return Math.hypot(halfWidth, halfDepth) + innerMarginMeters;
 }
 
 function structureKey(payload) {
-	// Runtime Object3D identity is authoritative whenever it exists. Asset/catalog ids and source paths
-	// are resource identities and can legitimately be shared by many placed clones. Preferring them over
-	// `object.uuid` makes the second clone overwrite the first clone's pad, so render/physics grounding
-	// silently jumps between instances. Non-Object3D callers keep deterministic authored fallbacks.
 	const uuid = payload?.object?.uuid;
 	if (uuid) return `object:${uuid}`;
 	const explicit = payload?.metadata?.instanceId ?? payload?.metadata?.placementId ?? payload?.metadata?.id ?? payload?.metadata?.assetId;
@@ -80,14 +72,44 @@ function foundationKeyFromInput(keyOrObject) {
 	const object = typeof keyOrObject === 'object' && keyOrObject ? keyOrObject : null;
 	const key = typeof keyOrObject === 'string'
 		? keyOrObject
-		: rememberedStructureKey(object)
-			|| (object?.uuid ? `object:${object.uuid}` : null);
+		: rememberedStructureKey(object) || (object?.uuid ? `object:${object.uuid}` : null);
 	return { key, object };
 }
 
+function createQuarterCellPads(bounds, targetHeight, key, safeInnerMargin, safeFeather) {
+	const width = bounds.maxX - bounds.minX;
+	const depth = bounds.maxZ - bounds.minZ;
+	const columns = width > 0 ? TERRAIN_FOUNDATION_CONFORM_POLICY.clusterColumns : 1;
+	const rows = depth > 0 ? TERRAIN_FOUNDATION_CONFORM_POLICY.clusterRows : 1;
+	const cellWidth = columns > 0 ? width / columns : 0;
+	const cellDepth = rows > 0 ? depth / rows : 0;
+	const cellRadius = Math.max(
+		TERRAIN_FOUNDATION_CONFORM_POLICY.minimumInnerRadiusMeters,
+		Math.hypot(cellWidth * 0.5, cellDepth * 0.5) + safeInnerMargin,
+	);
+	const pads = [];
+	for (let row = 0; row < rows; row += 1) {
+		for (let column = 0; column < columns; column += 1) {
+			pads.push({
+				x: columns === 1 ? (bounds.minX + bounds.maxX) * 0.5 : bounds.minX + cellWidth * (column + 0.5),
+				z: rows === 1 ? (bounds.minZ + bounds.maxZ) * 0.5 : bounds.minZ + cellDepth * (row + 0.5),
+				innerRadiusMeters: cellRadius,
+				outerRadiusMeters: cellRadius + safeFeather,
+				anchorHeightMeters: targetHeight,
+				source: TERRAIN_FOUNDATION_CONFORM_POLICY.id,
+				foundationKey: key,
+				foundationClusterIndex: pads.length,
+				foundationClusterSize: columns * rows,
+				footprintBounds: { ...bounds },
+			});
+		}
+	}
+	return pads;
+}
+
 /**
- * Converts a footprint payload from `WorldAssetPlacementPipeline` into the pad shape already consumed
- * by `world/terrain.js#createHeightSampler`.
+ * Converts one structure footprint into a compact circle union consumed by the existing terrain
+ * height sampler. `pad` remains a compatibility envelope descriptor; `pads` is the installed cluster.
  */
 export function createFoundationFlattenPad(payload, {
 	innerMarginMeters = TERRAIN_FOUNDATION_CONFORM_POLICY.defaultInnerMarginMeters,
@@ -108,15 +130,15 @@ export function createFoundationFlattenPad(payload, {
 		TERRAIN_FOUNDATION_CONFORM_POLICY.minimumInnerRadiusMeters,
 		finiteNumber(maximumInnerRadiusMeters) ?? TERRAIN_FOUNDATION_CONFORM_POLICY.maximumInnerRadiusMeters,
 	);
-	const requestedRadius = Math.max(
+	const requestedEnvelopeRadius = Math.max(
 		TERRAIN_FOUNDATION_CONFORM_POLICY.minimumInnerRadiusMeters,
-		smoothPadRadius(bounds, safeInnerMargin),
+		enclosingRadius(bounds, safeInnerMargin),
 	);
-	if (requestedRadius > safeMaximum) {
+	if (requestedEnvelopeRadius > safeMaximum) {
 		return {
 			ok: false,
 			error: 'foundation-footprint-too-large',
-			requestedInnerRadiusMeters: requestedRadius,
+			requestedInnerRadiusMeters: requestedEnvelopeRadius,
 			maximumInnerRadiusMeters: safeMaximum,
 		};
 	}
@@ -124,17 +146,20 @@ export function createFoundationFlattenPad(payload, {
 	const x = (bounds.minX + bounds.maxX) * 0.5;
 	const z = (bounds.minZ + bounds.maxZ) * 0.5;
 	const key = structureKey(payload);
+	const pads = createQuarterCellPads(bounds, targetHeight, key, safeInnerMargin, safeFeather);
 	return {
 		ok: true,
 		key,
+		pads,
 		pad: {
 			x,
 			z,
-			innerRadiusMeters: requestedRadius,
-			outerRadiusMeters: requestedRadius + safeFeather,
+			innerRadiusMeters: requestedEnvelopeRadius,
+			outerRadiusMeters: requestedEnvelopeRadius + safeFeather,
 			anchorHeightMeters: targetHeight,
 			source: TERRAIN_FOUNDATION_CONFORM_POLICY.id,
 			foundationKey: key,
+			foundationClusterSize: pads.length,
 			footprintBounds: { ...bounds },
 		},
 	};
@@ -156,16 +181,11 @@ function parseChunkKey(key) {
 	return Number.isInteger(x) && Number.isInteger(z) ? { x, z } : null;
 }
 
-/**
- * Rebuilds each resident chunk at most once across every supplied foundation influence region.
- * This matters when a structure moves/scales within one chunk: old and new pads overlap heavily, and
- * doing one rebuild per pad would dispose/recreate the same GPU terrain twice for a single edit.
- */
 export function rebuildChunksForFoundations(chunkManager, pads, chunkSizeMeters) {
 	if (!chunkManager?.loaded || typeof chunkManager.unloadChunk !== 'function' || typeof chunkManager.loadChunk !== 'function') return 0;
 	const size = finiteNumber(chunkSizeMeters ?? chunkManager.chunkSizeMeters);
 	if (size === null || size <= 0) return 0;
-	const validPads = (Array.isArray(pads) ? pads : [pads]).filter((pad) => (
+	const validPads = (Array.isArray(pads) ? pads : [pads]).flat().filter((pad) => (
 		pad && Number.isFinite(Number(pad.x)) && Number.isFinite(Number(pad.z)) && Number.isFinite(Number(pad.outerRadiusMeters))
 	));
 	if (!validPads.length) return 0;
@@ -180,20 +200,10 @@ export function rebuildChunksForFoundations(chunkManager, pads, chunkSizeMeters)
 	return affected.length;
 }
 
-/**
- * Rebuilds only resident chunks intersecting one foundation pad. Kept as the single-pad compatibility
- * entry point; internally it uses the same union-deduplicated rebuild path as structure updates.
- */
 export function rebuildChunksForFoundation(chunkManager, pad, chunkSizeMeters) {
 	return rebuildChunksForFoundations(chunkManager, [pad], chunkSizeMeters);
 }
 
-/**
- * Creates the callback consumed by `WorldAssetPlacementPipeline`'s `conformTerrain` option.
- *
- * IMPORTANT: `flattenPads` must be the exact same array used to construct both `ChunkManager` and the
- * ground collider. The caller should not replace that array after construction; mutation is expected.
- */
 export function createTerrainFoundationConformer({
 	flattenPads,
 	chunkManager = null,
@@ -203,41 +213,44 @@ export function createTerrainFoundationConformer({
 	maximumInnerRadiusMeters = TERRAIN_FOUNDATION_CONFORM_POLICY.maximumInnerRadiusMeters,
 } = {}) {
 	if (!Array.isArray(flattenPads)) throw new TypeError('terrainFoundationConformer: flattenPads must be a mutable array');
-	const dynamicPads = new Map();
+	const dynamicPadClusters = new Map();
 
 	function removeInstalledPad(key, { rebuild = true } = {}) {
-		const pad = key ? dynamicPads.get(key) : null;
-		if (!pad) return { ok: false, error: 'foundation-not-found', rebuiltChunkCount: 0 };
-		const index = flattenPads.indexOf(pad);
-		if (index >= 0) flattenPads.splice(index, 1);
-		dynamicPads.delete(key);
-		const rebuiltChunkCount = rebuild ? rebuildChunksForFoundation(chunkManager, pad, chunkSizeMeters) : 0;
-		return { ok: true, pad, rebuiltChunkCount };
+		const pads = key ? dynamicPadClusters.get(key) : null;
+		if (!pads?.length) return { ok: false, error: 'foundation-not-found', rebuiltChunkCount: 0 };
+		for (const pad of pads) {
+			const index = flattenPads.indexOf(pad);
+			if (index >= 0) flattenPads.splice(index, 1);
+		}
+		dynamicPadClusters.delete(key);
+		const rebuiltChunkCount = rebuild ? rebuildChunksForFoundations(chunkManager, pads, chunkSizeMeters) : 0;
+		return { ok: true, pad: pads[0], pads, rebuiltChunkCount };
 	}
 
 	function installPad(payload) {
 		const created = createFoundationFlattenPad(payload, { innerMarginMeters, featherMeters, maximumInnerRadiusMeters });
 		if (!created.ok) return created;
-		const { key, pad } = created;
+		const { key, pads } = created;
 		const object = payload?.object || null;
 		const previousObjectKey = rememberedStructureKey(object);
 		const staleInfluencePads = [];
 
-		if (previousObjectKey && previousObjectKey !== key && dynamicPads.has(previousObjectKey)) {
+		if (previousObjectKey && previousObjectKey !== key && dynamicPadClusters.has(previousObjectKey)) {
 			const retired = removeInstalledPad(previousObjectKey, { rebuild: false });
-			if (retired.ok) staleInfluencePads.push(retired.pad);
+			if (retired.ok) staleInfluencePads.push(...retired.pads);
 		}
 
-		let installedPad = key ? dynamicPads.get(key) : null;
-		let previousPad = null;
-		if (installedPad) {
-			previousPad = { ...installedPad };
-			Object.assign(installedPad, pad);
-		} else {
-			installedPad = pad;
-			flattenPads.push(installedPad);
-			if (key) dynamicPads.set(key, installedPad);
+		const previousPads = key ? dynamicPadClusters.get(key) : null;
+		if (previousPads?.length) {
+			staleInfluencePads.push(...previousPads.map((pad) => ({ ...pad })));
+			for (const pad of previousPads) {
+				const index = flattenPads.indexOf(pad);
+				if (index >= 0) flattenPads.splice(index, 1);
+			}
 		}
+
+		flattenPads.push(...pads);
+		if (key) dynamicPadClusters.set(key, pads);
 
 		if (object && key) {
 			object.userData ||= {};
@@ -246,14 +259,15 @@ export function createTerrainFoundationConformer({
 
 		const rebuiltChunkCount = rebuildChunksForFoundations(
 			chunkManager,
-			[...staleInfluencePads, previousPad, installedPad].filter(Boolean),
+			[...staleInfluencePads, ...pads],
 			chunkSizeMeters,
 		);
 
 		return {
 			ok: true,
-			height: installedPad.anchorHeightMeters,
-			pad: installedPad,
+			height: pads[0].anchorHeightMeters,
+			pad: pads[0],
+			pads: [...pads],
 			rebuiltChunkCount,
 		};
 	}
@@ -274,7 +288,7 @@ export function createTerrainFoundationConformer({
 				missingKeys.push(key);
 				continue;
 			}
-			removedPads.push(removed.pad);
+			removedPads.push(...removed.pads);
 			if (object) removedObjects.push({ object, key });
 		}
 
@@ -300,14 +314,14 @@ export function createTerrainFoundationConformer({
 		const removed = removeInstalledPad(key);
 		if (!removed.ok) return removed;
 		if (object?.userData?.terrainFoundationKey === key) delete object.userData.terrainFoundationKey;
-		return { ok: true, rebuiltChunkCount: removed.rebuiltChunkCount };
+		return { ok: true, removedCount: removed.pads.length, rebuiltChunkCount: removed.rebuiltChunkCount };
 	}
 
 	return Object.freeze({
 		conformTerrain: installPad,
 		removeFoundation,
 		removeFoundations,
-		getDynamicPads: () => [...dynamicPads.values()],
+		getDynamicPads: () => [...dynamicPadClusters.values()].flat(),
 		policy: TERRAIN_FOUNDATION_CONFORM_POLICY,
 	});
 }
