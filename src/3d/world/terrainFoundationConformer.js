@@ -5,23 +5,23 @@
  * and physics already share one mutable `flattenPads` authority. This module deliberately mutates that
  * existing array instead of creating a second height system.
  *
- * Runtime structure foundations use an adaptive four-cell circle union over the AABB. Near-square
+ * Runtime structure foundations use an adaptive four-cell oriented-rectangle union. Near-square
  * footprints use a 2x2 grid; long/narrow footprints rotate the same four-pad budget into 4x1 or 1x4.
- * Every circle encloses its rectangular cell, so the full base stays flat while narrow structures avoid
- * the side overreach a forced 2x2 grid still produced. Legacy authored seat/castle pads remain ordinary
- * circles and continue to work unchanged in `createHeightSampler`.
+ * The same rectangle + feather shape drives both height influence and resident-chunk rebuild selection,
+ * avoiding the obsolete circumscribed-circle rebuild overreach. Legacy authored seat/castle pads remain
+ * ordinary circles and continue to use circle-vs-chunk intersection unchanged.
  * @module world/terrainFoundationConformer
  */
 
 export const TERRAIN_FOUNDATION_CONFORM_POLICY = Object.freeze({
-	id: 'runtime-structure-foundation-conform-2026-08-24-v11-oriented-rect-cells',
+	id: 'runtime-structure-foundation-conform-2026-08-25-v12-shape-aware-rebuild',
 	footprintMode: 'root-oriented-adaptive-four-cell-rectangle-union-with-aabb-fallback',
 	defaultClusterColumns: 2,
 	defaultClusterRows: 2,
 	longAxisClusterCells: 4,
 	longAxisAspectThreshold: 2.5,
 	maximumClusterPads: 4,
-	chunkRebuildMode: 'union-deduplicated',
+	chunkRebuildMode: 'shape-aware-union-deduplicated',
 	batchRemovalMode: 'mutate-all-then-union-rebuild',
 	shutdownRemovalMode: 'mutate-without-rebuild',
 	identityMode: 'runtime-object-first',
@@ -161,8 +161,8 @@ function createAdaptiveCellPads(bounds, orientedFootprint, targetHeight, key, sa
 }
 
 /**
- * Converts one structure footprint into a compact circle union consumed by the existing terrain
- * height sampler. `pad` remains a compatibility envelope descriptor; `pads` is the installed cluster.
+ * Converts one structure footprint into a compact oriented-rectangle union consumed by the existing
+ * terrain height sampler. `pad` remains a compatibility envelope descriptor; `pads` is the installed cluster.
  */
 export function createFoundationFlattenPad(payload, {
 	innerMarginMeters = TERRAIN_FOUNDATION_CONFORM_POLICY.defaultInnerMarginMeters,
@@ -230,6 +230,49 @@ function circleIntersectsChunk(pad, chunkX, chunkZ, chunkSizeMeters) {
 	return Math.hypot(pad.x - closestX, pad.z - closestZ) <= pad.outerRadiusMeters;
 }
 
+function orientedRectangleIntersectsChunk(pad, chunkX, chunkZ, chunkSizeMeters) {
+	const axisXX = finiteNumber(pad.axisX?.x);
+	const axisXZ = finiteNumber(pad.axisX?.z);
+	const axisZX = finiteNumber(pad.axisZ?.x);
+	const axisZZ = finiteNumber(pad.axisZ?.z);
+	const halfWidth = finiteNumber(pad.halfWidthMeters);
+	const halfDepth = finiteNumber(pad.halfDepthMeters);
+	const feather = Math.max(0, finiteNumber(pad.featherMeters) ?? 0);
+	if ([axisXX, axisXZ, axisZX, axisZZ, halfWidth, halfDepth].some((value) => value === null)) {
+		return circleIntersectsChunk(pad, chunkX, chunkZ, chunkSizeMeters);
+	}
+	const xLength = Math.hypot(axisXX, axisXZ);
+	const zLength = Math.hypot(axisZX, axisZZ);
+	if (xLength < 1e-6 || zLength < 1e-6 || halfWidth < 0 || halfDepth < 0) {
+		return circleIntersectsChunk(pad, chunkX, chunkZ, chunkSizeMeters);
+	}
+	const ux = axisXX / xLength;
+	const uz = axisXZ / xLength;
+	const vx = axisZX / zLength;
+	const vz = axisZZ / zLength;
+	if (Math.abs(ux * vx + uz * vz) > 0.08) return circleIntersectsChunk(pad, chunkX, chunkZ, chunkSizeMeters);
+
+	// Separating-axis test between the resident chunk AABB and the foundation rectangle expanded by
+	// its feather. Expanding the rectangle is conservative at rounded feather corners: it may rebuild
+	// a boundary chunk that receives zero weight, but it cannot omit a chunk whose render height changed.
+	const chunkHalf = chunkSizeMeters * 0.5;
+	const dx = pad.x - chunkX * chunkSizeMeters;
+	const dz = pad.z - chunkZ * chunkSizeMeters;
+	const rectHalfX = halfWidth + feather;
+	const rectHalfZ = halfDepth + feather;
+	if (Math.abs(dx) > chunkHalf + rectHalfX * Math.abs(ux) + rectHalfZ * Math.abs(vx)) return false;
+	if (Math.abs(dz) > chunkHalf + rectHalfX * Math.abs(uz) + rectHalfZ * Math.abs(vz)) return false;
+	if (Math.abs(dx * ux + dz * uz) > rectHalfX + chunkHalf * (Math.abs(ux) + Math.abs(uz))) return false;
+	if (Math.abs(dx * vx + dz * vz) > rectHalfZ + chunkHalf * (Math.abs(vx) + Math.abs(vz))) return false;
+	return true;
+}
+
+function foundationIntersectsChunk(pad, chunkX, chunkZ, chunkSizeMeters) {
+	return pad?.shape === 'oriented-rectangle'
+		? orientedRectangleIntersectsChunk(pad, chunkX, chunkZ, chunkSizeMeters)
+		: circleIntersectsChunk(pad, chunkX, chunkZ, chunkSizeMeters);
+}
+
 function parseChunkKey(key) {
 	const [rawX, rawZ] = String(key).split(',');
 	const x = Number(rawX);
@@ -249,7 +292,7 @@ export function rebuildChunksForFoundations(chunkManager, pads, chunkSizeMeters)
 	const affected = [];
 	for (const key of chunkManager.loaded.keys()) {
 		const chunk = parseChunkKey(key);
-		if (chunk && validPads.some((pad) => circleIntersectsChunk(pad, chunk.x, chunk.z, size))) affected.push(chunk);
+		if (chunk && validPads.some((pad) => foundationIntersectsChunk(pad, chunk.x, chunk.z, size))) affected.push(chunk);
 	}
 	for (const chunk of affected) chunkManager.unloadChunk(chunk.x, chunk.z);
 	for (const chunk of affected) chunkManager.loadChunk(chunk.x, chunk.z);
