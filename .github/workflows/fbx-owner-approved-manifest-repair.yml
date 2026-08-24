@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - fix/fbx-asset-manifest-owner-approved-20260814
-      - agent/safak-kartali-npc-hearing-framerate-c74ef03
     paths:
       - scripts/materializeOwnerApprovedModelManifest.js
       - .github/workflows/fbx-owner-approved-manifest-repair.yml
