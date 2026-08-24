@@ -80,6 +80,7 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
     object.position.z = Number(z);
     object.updateMatrixWorld(true);
     const editorId = object.userData?.editorId || object.uuid;
+    const editorFoundationKey = `asset:${editorId}`;
     const structureSource = asset || object.userData || {};
     const result = resolveWorldSurfacePlacement(object, {
       metadata: { id: editorId, category: 'structure', src: structureSource.src || '' },
@@ -95,21 +96,22 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
     });
     if (!result.ok) return result;
 
-    // terrainFoundationConformer owns identity. Runtime Object3D UUIDs intentionally outrank catalog
-    // and editor ids because several placed clones may share the same authored asset metadata.
-    const foundationKey = liveFoundationKeyForObject(object);
-    if (!foundationKey) return { ok: false, error: 'editor-ground-missing-foundation-key' };
+    // `terrainFoundationKey` is the conformer's authoritative runtime-object identity. Keep the
+    // historical editor key only as editor-facing compatibility metadata; never use it to address the
+    // shared pad, because cloned placements may intentionally reuse one editor/catalog id.
+    if (!liveFoundationKeyForObject(object)) return { ok: false, error: 'editor-ground-missing-foundation-key' };
     object.userData ||= {};
-    object.userData.editorFoundationKey = foundationKey;
+    object.userData.editorFoundationKey = editorFoundationKey;
     object.userData.editorGroundingMode = result.footprint?.groundingMode || 'terrain-conform';
     object.updateMatrixWorld(true);
     return { ...result, mode: 'terrain-conform' };
   }
 
   function removeObjectFoundation(object) {
-    const key = object?.userData?.editorFoundationKey || liveFoundationKeyForObject(object);
-    if (!key) return { ok: false, error: 'foundation-not-registered' };
-    const result = terrainConformer.removeFoundation(object || key);
+    if (!object?.userData?.editorFoundationKey && !liveFoundationKeyForObject(object)) {
+      return { ok: false, error: 'foundation-not-registered' };
+    }
+    const result = terrainConformer.removeFoundation(object);
     if (result.ok) {
       delete object.userData.editorFoundationKey;
       delete object.userData.editorGroundingMode;
@@ -123,10 +125,11 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
     if (!candidates.length) {
       return { ok: true, removedCount: 0, missingKeys: [], rebuiltChunkCount: 0 };
     }
+    const liveKeys = new Map(candidates.map((object) => [object, liveFoundationKeyForObject(object)]));
     const result = terrainConformer.removeFoundations(candidates, options);
     const missing = new Set(result.missingKeys || []);
     for (const object of candidates) {
-      const key = object.userData?.editorFoundationKey || liveFoundationKeyForObject(object);
+      const key = liveKeys.get(object);
       if (key && !missing.has(key)) {
         delete object.userData.editorFoundationKey;
         delete object.userData.editorGroundingMode;
