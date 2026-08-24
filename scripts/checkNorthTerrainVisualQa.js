@@ -42,10 +42,11 @@ try {
     const {
       THREE,
       terrain,
+      snowTone,
       WORLD_SCALE,
       WORLD_REFERENCE_ALIGNMENT,
     } = window.__northTerrainQaModules ?? {};
-    if (!THREE || !terrain || !WORLD_SCALE || !WORLD_REFERENCE_ALIGNMENT) {
+    if (!THREE || !terrain || !snowTone || !WORLD_SCALE || !WORLD_REFERENCE_ALIGNMENT) {
       throw new Error('north terrain QA modules did not initialize');
     }
 
@@ -55,6 +56,10 @@ try {
       northClimateWeightsAtWorldXZ,
       resolveTerrainBiomeColor,
     } = terrain;
+    const {
+      TERRAIN_SNOW_SURFACE_TONE_POLICY,
+      resolveTerrainSnowSurfaceTone,
+    } = snowTone;
 
     function worldAt(normalizedX, normalizedY) {
       const centerMapX = (WORLD_SCALE.MAP_BOUNDS.minX + WORLD_SCALE.MAP_BOUNDS.maxX) * 0.5;
@@ -81,6 +86,40 @@ try {
 
     function colorDistance(a, b) {
       return Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
+    }
+
+    function surfaceToneReport({
+      snowAmount,
+      permanentIce,
+      tundra,
+      windwardScour = 0,
+      leeDeposit = 0,
+      ridgeExposure = 0,
+      concavityHold = 0,
+      gentleSlope = 0,
+    }) {
+      const tone = resolveTerrainSnowSurfaceTone({
+        snowAmount,
+        permanentIce,
+        tundra,
+        windwardScour,
+        leeDeposit,
+        ridgeExposure,
+        concavityHold,
+        gentleSlope,
+      });
+      const color = new THREE.Color().copy(TERRAIN_BIOME_PALETTE.SNOW);
+      if (tone.packedWeight > 0) color.lerp(TERRAIN_BIOME_PALETTE.PACKED_SNOW, tone.packedWeight);
+      if (tone.accumulatedWeight > 0) color.lerp(TERRAIN_BIOME_PALETTE.ACCUMULATED_SNOW, tone.accumulatedWeight);
+      return {
+        colorHex: `#${color.getHexString()}`,
+        packedWeight: tone.packedWeight,
+        accumulatedWeight: tone.accumulatedWeight,
+        accumulatedGlacialPaletteRetention: tone.accumulatedGlacialPaletteRetention,
+        glacialFamilySupport: tone.glacialFamilySupport,
+        toGlacialIce: colorDistance(color, TERRAIN_BIOME_PALETTE.GLACIAL_ICE),
+        toCoastalIce: colorDistance(color, TERRAIN_BIOME_PALETTE.COASTAL_ICE),
+      };
     }
 
     const root = document.getElementById('qa-root');
@@ -187,11 +226,51 @@ try {
         shoreHex: `#${shore.getHexString()}`,
         lowlandHex: `#${lowland.getHexString()}`,
         seabedHex: `#${seabed.getHexString()}`,
+        shoreToLowland: colorDistance(shore, lowland),
         shoreToSand: colorDistance(shore, TERRAIN_BIOME_PALETTE.SHORE_SAND),
         shoreToFrozen: colorDistance(shore, TERRAIN_BIOME_PALETTE.FROZEN_SHORE),
         shoreToGlacial: colorDistance(shore, TERRAIN_BIOME_PALETTE.GLACIAL_SHORE),
       });
     }
+
+    const farNorthClimate = rowReports[0];
+    const iceEdgeClimate = rowReports[1];
+    const tundraClimate = rowReports[2];
+    const snowHarmony = {
+      policy: TERRAIN_SNOW_SURFACE_TONE_POLICY.id,
+      farNorthWindward: surfaceToneReport({
+        snowAmount: 0.84,
+        permanentIce: farNorthClimate.permanentIce,
+        tundra: farNorthClimate.tundra,
+        windwardScour: 0.92,
+        ridgeExposure: 0.88,
+        gentleSlope: 0.2,
+      }),
+      farNorthSheltered: surfaceToneReport({
+        snowAmount: 0.94,
+        permanentIce: farNorthClimate.permanentIce,
+        tundra: farNorthClimate.tundra,
+        leeDeposit: 0.88,
+        concavityHold: 0.82,
+        gentleSlope: 0.9,
+      }),
+      iceEdgeSheltered: surfaceToneReport({
+        snowAmount: 0.94,
+        permanentIce: iceEdgeClimate.permanentIce,
+        tundra: iceEdgeClimate.tundra,
+        leeDeposit: 0.88,
+        concavityHold: 0.82,
+        gentleSlope: 0.9,
+      }),
+      tundraSheltered: surfaceToneReport({
+        snowAmount: 0.94,
+        permanentIce: tundraClimate.permanentIce,
+        tundra: tundraClimate.tundra,
+        leeDeposit: 0.88,
+        concavityHold: 0.82,
+        gentleSlope: 0.9,
+      }),
+    };
 
     const water = new THREE.Mesh(
       new THREE.PlaneGeometry(310, 34),
@@ -221,13 +300,15 @@ try {
       `NORTH TERRAIN VISUAL QA · ${TERRAIN_BIOME_SHADING_POLICY.id}`,
       'Each strip uses live resolveTerrainBiomeColor()',
       'foreground = shallow sea/shore · rear = lowland/ridge',
-      ...rowReports.map((row) => `${row.label}: ice=${row.permanentIce.toFixed(2)} tundra=${row.tundra.toFixed(2)} shore=${row.shoreHex}`),
+      ...rowReports.map((row) => `${row.label}: ice=${row.permanentIce.toFixed(2)} tundra=${row.tundra.toFixed(2)} shore=${row.shoreHex} lowland=${row.lowlandHex}`),
+      `SNOW: windward=${snowHarmony.farNorthWindward.colorHex} sheltered=${snowHarmony.farNorthSheltered.colorHex}`,
     ].join('\n');
 
     renderer.render(scene, camera);
     return {
       policy: TERRAIN_BIOME_SHADING_POLICY.id,
       rows: rowReports,
+      snowHarmony,
       renderCalls: renderer.info.render.calls,
       triangles: renderer.info.render.triangles,
       canvas: { width: renderer.domElement.width, height: renderer.domElement.height },
@@ -238,6 +319,12 @@ try {
   const normalized = {
     ...report,
     rows: report.rows.map((row) => Object.fromEntries(Object.entries(row).map(([key, value]) => [key, typeof value === 'number' ? round(value) : value]))),
+    snowHarmony: Object.fromEntries(Object.entries(report.snowHarmony).map(([key, value]) => [
+      key,
+      typeof value === 'object' && value !== null
+        ? Object.fromEntries(Object.entries(value).map(([metric, metricValue]) => [metric, typeof metricValue === 'number' ? round(metricValue) : metricValue]))
+        : value,
+    ])),
     browserErrors,
   };
   await writeFile(`${ARTIFACT_DIR}/north-terrain-visual-report.json`, `${JSON.stringify(normalized, null, 2)}\n`);
@@ -255,12 +342,43 @@ try {
   assert(farNorth.shoreToGlacial < farNorth.shoreToSand, 'far-north rendered shore must be closer to glacial than sand');
   assert(tundra.shoreToFrozen < tundra.shoreToSand, 'tundra rendered shore must be closer to frozen than sand');
   assert(temperate.shoreToSand < temperate.shoreToFrozen, 'temperate rendered shore must remain closer to sand');
+  assert(iceEdge.shoreToLowland < 0.17,
+    `ICE EDGE lowland must stay visually connected to its glacial shore; distance=${iceEdge.shoreToLowland}`);
+  assert(iceEdge.shoreToLowland > 0.025,
+    'ICE EDGE shore and lowland must keep enough contrast to remain readable');
+
+  const { farNorthWindward, farNorthSheltered, iceEdgeSheltered, tundraSheltered } = report.snowHarmony;
+  assert(farNorthWindward.packedWeight > farNorthSheltered.packedWeight,
+    'windward far-north ridge snow must remain harder/packed than sheltered accumulation');
+  assert(farNorthWindward.toGlacialIce < 0.04,
+    'windward packed snow must remain tightly inside the glacial-ice colour family');
+  assert(farNorthSheltered.accumulatedWeight > 0.12,
+    'far-north sheltered snow must retain a visible accumulated/soft component');
+  assert(farNorthSheltered.accumulatedWeight < tundraSheltered.accumulatedWeight,
+    'far-north sheltered snow must be less warm-tinted than equivalent tundra accumulation');
+  assert(farNorthSheltered.accumulatedGlacialPaletteRetention < iceEdgeSheltered.accumulatedGlacialPaletteRetention,
+    'glacial accumulated palette retention should strengthen from ICE EDGE into permanent ice');
+  assert(iceEdgeSheltered.accumulatedGlacialPaletteRetention < tundraSheltered.accumulatedGlacialPaletteRetention,
+    'ICE EDGE accumulated snow should sit between tundra and full permanent ice palette retention');
+  assert.equal(tundraSheltered.accumulatedGlacialPaletteRetention, 1,
+    'pure tundra accumulated snow must keep its original soft palette');
+  assert(farNorthSheltered.toGlacialIce < iceEdgeSheltered.toGlacialIce,
+    'far-north sheltered snow should stay closer to glacial ice than ICE EDGE sheltered snow');
+  assert(iceEdgeSheltered.toGlacialIce < tundraSheltered.toGlacialIce,
+    'ICE EDGE sheltered snow should stay closer to glacial ice than pure tundra accumulation');
 
   console.log('[checkNorthTerrainVisualQa] PASS', JSON.stringify({
     policy: report.policy,
+    snowPolicy: report.snowHarmony.policy,
     renderCalls: report.renderCalls,
     triangles: report.triangles,
-    shores: report.rows.map(({ label, shoreHex }) => [label, shoreHex]),
+    rows: report.rows.map(({ label, shoreHex, lowlandHex, shoreToLowland }) => [label, shoreHex, lowlandHex, round(shoreToLowland)]),
+    snow: {
+      windward: farNorthWindward.colorHex,
+      sheltered: farNorthSheltered.colorHex,
+      iceEdgeSheltered: iceEdgeSheltered.colorHex,
+      tundraSheltered: tundraSheltered.colorHex,
+    },
   }));
 } finally {
   await page.close().catch(() => {});
