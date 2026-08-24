@@ -84,14 +84,14 @@ export function applyDiveOffset(object3D, { playerX, playerZ, centerY, diveDropM
 	alignDiveOrientation(object3D, circleX, centerY, circleZ, circlePitch, circleYaw, diveBlend);
 }
 
-function sampleSegmentGround(sampleGroundY, startX, startZ, unitX, unitZ, distanceMeters, spacingMeters, includeStart, includeEndpoint, onSample) {
+function sampleSegmentGround(startX, startZ, unitX, unitZ, distanceMeters, spacingMeters, includeStart, includeEndpoint, onProbe) {
 	if (distanceMeters <= 1e-8) return;
 	const segmentCount = Math.max(1, Math.ceil(distanceMeters / spacingMeters));
 	const firstSegment = includeStart ? 0 : 1;
 	const lastSegment = includeEndpoint ? segmentCount : segmentCount - 1;
 	for (let segment = firstSegment; segment <= lastSegment; segment += 1) {
 		const distance = distanceMeters * (segment / segmentCount);
-		onSample(sampleGroundY(startX + unitX * distance, startZ + unitZ * distance));
+		onProbe(startX + unitX * distance, startZ + unitZ * distance);
 	}
 }
 
@@ -104,10 +104,10 @@ function sampleSegmentGround(sampleGroundY, startX, startZ, unitX, unitZ, distan
  * unrendered gap is deliberately not sampled metre-by-metre. This caps one dragon's terrain work
  * under pathological frame gaps while preserving the qualified long-frame anti-tunnelling path for
  * ordinary movement. Facing yaw remains only a compatibility fallback when no retained motion
- * exists. Non-finite terrain samples are counted and ignored individually so one transient bad
- * sample cannot disable valid ridge probes; if every sample is invalid the existing altitude is
- * preserved rather than manufacturing a ground height. `lookAheadMeters=0` preserves historical
- * point-only behavior.
+ * exists. Non-finite terrain samples and isolated sampler exceptions are counted and ignored per
+ * probe so one transient terrain-provider failure cannot abort the dragon update or disable later
+ * valid ridge probes; if every sample is invalid the existing altitude is preserved rather than
+ * manufacturing a ground height. `lookAheadMeters=0` preserves historical point-only behavior.
  */
 export function clampAltitudeAboveGround(
 	object3D,
@@ -122,16 +122,25 @@ export function clampAltitudeAboveGround(
 	object3D.userData ??= {};
 	let terrainSampleCount = 0;
 	let invalidTerrainSampleCount = 0;
+	let terrainSampleExceptionCount = 0;
 	let highestGroundY = Number.NEGATIVE_INFINITY;
-	const keepHighest = (groundY) => {
+	const probeGround = (x, z) => {
 		terrainSampleCount += 1;
+		let groundY;
+		try {
+			groundY = sampleGroundY(x, z);
+		} catch {
+			invalidTerrainSampleCount += 1;
+			terrainSampleExceptionCount += 1;
+			return;
+		}
 		if (!Number.isFinite(groundY)) {
 			invalidTerrainSampleCount += 1;
 			return;
 		}
 		if (groundY > highestGroundY) highestGroundY = groundY;
 	};
-	keepHighest(sampleGroundY(object3D.position.x, object3D.position.z));
+	probeGround(object3D.position.x, object3D.position.z);
 	let traversedDistance = 0;
 	let skippedDiscontinuity = false;
 	if (lookAheadMeters > 0) {
@@ -170,7 +179,6 @@ export function clampAltitudeAboveGround(
 					: DRAGON_TERRAIN_MAX_TRAVERSED_SWEEP_METERS;
 				if (traversedDistance > 1e-8 && traversedDistance <= boundedMaxTraversed) {
 					sampleSegmentGround(
-						sampleGroundY,
 						previousX,
 						previousZ,
 						traversedX / traversedDistance,
@@ -179,14 +187,13 @@ export function clampAltitudeAboveGround(
 						spacing,
 						true,
 						false,
-						keepHighest,
+						probeGround,
 					);
 				} else if (traversedDistance > boundedMaxTraversed) {
 					skippedDiscontinuity = true;
 				}
 			}
 			sampleSegmentGround(
-				sampleGroundY,
 				object3D.position.x,
 				object3D.position.z,
 				forwardX,
@@ -195,7 +202,7 @@ export function clampAltitudeAboveGround(
 				spacing,
 				false,
 				true,
-				keepHighest,
+				probeGround,
 			);
 		}
 	}
@@ -203,6 +210,7 @@ export function clampAltitudeAboveGround(
 	object3D.userData.dragonTerrainSweepDiscontinuity = skippedDiscontinuity;
 	object3D.userData.dragonTerrainSampleCount = terrainSampleCount;
 	object3D.userData.dragonTerrainInvalidSampleCount = invalidTerrainSampleCount;
+	object3D.userData.dragonTerrainSampleExceptionCount = terrainSampleExceptionCount;
 	if (!Number.isFinite(highestGroundY)) return;
 	const minY = highestGroundY + minAltitudeAboveGroundMeters;
 	if (object3D.position.y < minY) object3D.position.y = minY;
