@@ -5,9 +5,11 @@ on:
     paths:
       - 'src/3d/world/terrainFoundationConformer.js'
       - 'src/3d/world/WorldAssetPlacementPipeline.js'
+      - 'src/3d/world/structureGroundingPolicy.js'
       - 'src/3d/world/terrain.js'
       - 'src/3d/world/chunkManager.js'
       - 'src/3d/physics.js'
+      - 'scripts/checkStructureGroundingPolicy.mjs'
       - 'scripts/checkTerrainFoundationConformer.mjs'
       - 'scripts/checkTerrainFoundationBatchRemoval.mjs'
       - 'scripts/setupNodeThreeShim.mjs'
@@ -22,7 +24,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -32,8 +39,12 @@ jobs:
         run: |
           node --check src/3d/world/terrainFoundationConformer.js
           node --check src/3d/world/WorldAssetPlacementPipeline.js
+          node --check src/3d/world/structureGroundingPolicy.js
+          node --check scripts/checkStructureGroundingPolicy.mjs
           node --check scripts/checkTerrainFoundationConformer.mjs
           node --check scripts/checkTerrainFoundationBatchRemoval.mjs
+      - name: Shared structure footprint classification
+        run: node scripts/checkStructureGroundingPolicy.mjs
       - name: Shared terrain authority and selective chunk rebuild
         run: |
           node scripts/checkTerrainFoundationConformer.mjs
