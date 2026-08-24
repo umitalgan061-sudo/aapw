@@ -59,6 +59,27 @@ assert.equal(isEditorStructureAsset({ id: 'fake-building-sign', category: 'Prop'
 assert.equal(isEditorStructureAsset({ id: 'tree-test', primitive: 'tree', category: 'vegetation' }), false);
 assert.equal(isEditorStructureAsset({ id: 'road-building-marker', primitive: 'road-segment', category: 'Bina' }), false, 'terrain/road primitives must never create foundations even if mislabeled');
 
+for (const asset of [
+  { id: 'palace-01', category: 'palace' },
+  { id: 'watchtower-01', name: 'Coastal Watchtower', category: 'prop' },
+  { id: 'lighthouse-01', category: 'lighthouse' },
+  { id: 'warehouse-01', category: 'warehouse' },
+  { id: 'forge-01', name: 'Village Forge', category: 'prop' },
+  { id: 'mill-01', category: 'mill' },
+  { id: 'crypt-01', category: 'crypt' },
+  { id: 'shipyard-01', category: 'shipyard' },
+  { id: 'aqueduct-01', category: 'aqueduct' },
+  { id: 'well-01', category: 'well' },
+  { id: 'saray-01', category: 'Saray' },
+  { id: 'gozetleme-01', name: 'Gözetleme Kulesi', category: 'Prop' },
+  { id: 'tersane-01', category: 'Tersane' },
+  { id: 'degirmen-01', category: 'Değirmen' },
+  { id: 'atolye-01', category: 'Atölye' },
+  { id: 'cesme-01', category: 'Çeşme' },
+]) {
+  assert.equal(isEditorStructureAsset(asset), true, `${asset.id} must use footprint terrain foundations`);
+}
+
 const castle = new THREE.Mesh(new THREE.BoxGeometry(12, 8, 10), new THREE.MeshBasicMaterial());
 castle.geometry.translate(0, 4, 0);
 castle.rotation.y = Math.PI / 7;
@@ -128,4 +149,4 @@ const localizedRemoved = grounder.removeObjectFoundation(localizedBuilding);
 assert.equal(localizedRemoved.ok, true, localizedRemoved.error);
 assert.equal(flattenPads.length, 0, 'removing all structures must restore the shared pad authority');
 
-console.log('[checkEditorTerrainFoundationGrounder] PASS: English/localized/custom editor structures conform shared render/physics terrain, protected primitives stay center-grounded, repeated grounding ignores stale self-foundation feedback while preserving shared pad identity, and foundations remain independently removable.');
+console.log('[checkEditorTerrainFoundationGrounder] PASS: broad English/Turkish/custom structure families conform shared render/physics terrain, protected primitives stay center-grounded, repeated grounding ignores stale self-foundation feedback while preserving shared pad identity, and foundations remain independently removable.');
