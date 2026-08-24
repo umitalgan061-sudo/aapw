@@ -8,9 +8,9 @@
  * Also detects and renders **waterfalls**: river segments whose drop/distance ratio is steep
  * enough to flag as a fall rather than a normal gentle descent (`detectWaterfalls`/
  * `createWaterfallMesh`) — see DECISIONS.md ADR-0011 for the exact thresholds (calibrated against
- * this world's actual generated river, not guessed) and why the visual is a vertical "curtain"
- * standing at the drop's midpoint rather than a slanted patch following the real (gentle, non-
- * cliff) terrain between the two points.
+ * this world's actual generated river, not guessed). The waterfall stays a schematic steep-section
+ * visual over the smooth FBM terrain, but now combines its vertical curtain with a short downstream
+ * plunge/splash apron in the same BufferGeometry so falling water does not visually stop at impact.
  *
  * Scope of the first pass (see 3D_GAME_PROGRESS.md Known Issues): one static river near the
  * world origin, confined to the FAZ 1 preview area so it never renders over unloaded terrain.
@@ -58,6 +58,7 @@ const MAX_STUCK_ESCALATIONS = 4;
 const RIVER_POOL_COLOR = new THREE.Color(0x667d77);
 const RIVER_COLOR = new THREE.Color(0x4f7f89);
 const WATERFALL_PLUNGE_COLOR = new THREE.Color(0x587783);
+const WATERFALL_SPLASH_COLOR = new THREE.Color(0xd5e7e9);
 
 /** Flow speed, in m/s, of the foam pattern over a perfectly flat reach. Not a physical current
  * measurement — the speed the *visual* streaks travel at, tuned so a still-looking pool still reads
@@ -78,6 +79,8 @@ const RIVER_FLOW_WAVENUMBER = 1.0;
 /** Waterfall curtains fall much faster than the river flows, and their drop is short, so they get
  * their own fixed speed rather than a gradient-derived one. */
 const WATERFALL_FLOW_SPEED_MPS = 9;
+/** Impact foam decelerates after the vertical fall and fans out over rock/pool water. */
+const WATERFALL_APRON_FLOW_SPEED_MPS = 5.5;
 
 /**
  * Injects downstream foam-streak animation into a stock `MeshStandardMaterial` via
@@ -405,14 +408,10 @@ export function detectWaterfalls(points) {
 }
 
 /**
- * Builds a vertical "curtain" mesh for one `detectWaterfalls` entry: a flat quad standing upright
- * at the horizontal midpoint between `top`/`bottom`, spanning the full vertical drop, oriented
- * perpendicular to the flow direction (same `perpX`/`perpZ` technique as `createRiverMesh`'s
- * ribbon). Deliberately vertical rather than following the real (gently-sloped, non-cliff) terrain
- * between the two points — `terrain.js`'s smooth FBM has no actual cliff faces yet, so a slanted
- * patch would just look like a tinted continuation of the river ribbon, not a fall. This is a
- * schematic "steep-section marker," not a physically-carved waterfall — see this module's own doc
- * comment and DECISIONS.md ADR-0011.
+ * Builds one animated waterfall mesh with two connected visual zones in a single BufferGeometry:
+ * the original vertical curtain plus a short horizontal plunge/splash apron at its base. The apron
+ * widens slightly downstream, matching the reference whitewater fan where impact foam spreads over
+ * rock before returning to calmer channel water. Both zones share one material and one draw call.
  * @param {{top: THREE.Vector3, bottom: THREE.Vector3, dropMeters: number}} waterfall One entry from `detectWaterfalls`.
  * @param {number} [widthMeters=14] Matches `createRiverMesh`'s default river width.
  * @returns {THREE.Mesh}
@@ -420,17 +419,30 @@ export function detectWaterfalls(points) {
 export function createWaterfallMesh({ top, bottom, dropMeters }, widthMeters = 14) {
 	const midX = (top.x + bottom.x) / 2;
 	const midZ = (top.z + bottom.z) / 2;
-	const tangentLength = Math.hypot(bottom.x - top.x, bottom.z - top.z) || 1;
-	const perpX = -(bottom.z - top.z) / tangentLength;
-	const perpZ = (bottom.x - top.x) / tangentLength;
+	const flowX = bottom.x - top.x;
+	const flowZ = bottom.z - top.z;
+	const tangentLength = Math.hypot(flowX, flowZ) || 1;
+	const dirX = flowX / tangentLength;
+	const dirZ = flowZ / tangentLength;
+	const perpX = -dirZ;
+	const perpZ = dirX;
 	const halfWidth = widthMeters / 2;
+	const apronLengthMeters = Math.max(3.5, Math.min(widthMeters * 0.72, dropMeters * 0.9));
+	const apronFarHalfWidth = halfWidth * 1.22;
+	const apronY = bottom.y + 0.16;
+	const farX = midX + dirX * apronLengthMeters;
+	const farZ = midZ + dirZ * apronLengthMeters;
 
 	// prettier-ignore
 	const positions = new Float32Array([
-		midX + perpX * halfWidth, top.y, midZ + perpZ * halfWidth, // top-left
-		midX - perpX * halfWidth, top.y, midZ - perpZ * halfWidth, // top-right
-		midX + perpX * halfWidth, bottom.y, midZ + perpZ * halfWidth, // bottom-left
-		midX - perpX * halfWidth, bottom.y, midZ - perpZ * halfWidth, // bottom-right
+		midX + perpX * halfWidth, top.y, midZ + perpZ * halfWidth, // curtain top-left
+		midX - perpX * halfWidth, top.y, midZ - perpZ * halfWidth, // curtain top-right
+		midX + perpX * halfWidth, bottom.y, midZ + perpZ * halfWidth, // curtain bottom-left
+		midX - perpX * halfWidth, bottom.y, midZ - perpZ * halfWidth, // curtain bottom-right
+		midX + perpX * halfWidth, apronY, midZ + perpZ * halfWidth, // impact near-left
+		midX - perpX * halfWidth, apronY, midZ - perpZ * halfWidth, // impact near-right
+		farX + perpX * apronFarHalfWidth, apronY, farZ + perpZ * apronFarHalfWidth, // apron far-left
+		farX - perpX * apronFarHalfWidth, apronY, farZ - perpZ * apronFarHalfWidth, // apron far-right
 	]);
 	// prettier-ignore
 	const colors = new Float32Array([
@@ -438,19 +450,30 @@ export function createWaterfallMesh({ top, bottom, dropMeters }, widthMeters = 1
 		WATERFALL_FOAM_COLOR.r, WATERFALL_FOAM_COLOR.g, WATERFALL_FOAM_COLOR.b,
 		WATERFALL_PLUNGE_COLOR.r, WATERFALL_PLUNGE_COLOR.g, WATERFALL_PLUNGE_COLOR.b,
 		WATERFALL_PLUNGE_COLOR.r, WATERFALL_PLUNGE_COLOR.g, WATERFALL_PLUNGE_COLOR.b,
+		WATERFALL_SPLASH_COLOR.r, WATERFALL_SPLASH_COLOR.g, WATERFALL_SPLASH_COLOR.b,
+		WATERFALL_SPLASH_COLOR.r, WATERFALL_SPLASH_COLOR.g, WATERFALL_SPLASH_COLOR.b,
+		WATERFALL_PLUNGE_COLOR.r, WATERFALL_PLUNGE_COLOR.g, WATERFALL_PLUNGE_COLOR.b,
+		WATERFALL_PLUNGE_COLOR.r, WATERFALL_PLUNGE_COLOR.g, WATERFALL_PLUNGE_COLOR.b,
 	]);
-	const indices = [0, 2, 1, 2, 3, 1];
-	// Flow runs top-to-bottom here rather than along the channel: distance is measured down the
-	// curtain, so the same shader makes the foam fall instead of drift downstream.
+	const indices = [
+		0, 2, 1, 2, 3, 1, // vertical curtain
+		4, 6, 5, 6, 7, 5, // horizontal plunge apron
+	];
+	// Continue flow distance through the impact seam so foam visually leaves the falling sheet and
+	// travels downstream rather than restarting its animation at the base.
 	// prettier-ignore
-	const flowDistances = new Float32Array([0, 0, dropMeters, dropMeters]);
-	const flowSpeeds = new Float32Array([
-		WATERFALL_FLOW_SPEED_MPS,
-		WATERFALL_FLOW_SPEED_MPS,
-		WATERFALL_FLOW_SPEED_MPS,
-		WATERFALL_FLOW_SPEED_MPS,
+	const flowDistances = new Float32Array([
+		0, 0, dropMeters, dropMeters,
+		dropMeters, dropMeters, dropMeters + apronLengthMeters, dropMeters + apronLengthMeters,
 	]);
-	const flowSides = new Float32Array([-1, 1, -1, 1]);
+	// prettier-ignore
+	const flowSpeeds = new Float32Array([
+		WATERFALL_FLOW_SPEED_MPS, WATERFALL_FLOW_SPEED_MPS,
+		WATERFALL_FLOW_SPEED_MPS, WATERFALL_FLOW_SPEED_MPS,
+		WATERFALL_APRON_FLOW_SPEED_MPS, WATERFALL_APRON_FLOW_SPEED_MPS,
+		WATERFALL_APRON_FLOW_SPEED_MPS, WATERFALL_APRON_FLOW_SPEED_MPS,
+	]);
+	const flowSides = new Float32Array([-1, 1, -1, 1, -1, 1, -1, 1]);
 
 	const geometry = new THREE.BufferGeometry();
 	geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -469,10 +492,17 @@ export function createWaterfallMesh({ top, bottom, dropMeters }, widthMeters = 1
 		opacity: 0.74,
 		side: THREE.DoubleSide,
 	});
-	material.userData.opticalProfile = Object.freeze({ aerated: true, opacity: 0.74, plungeColor: WATERFALL_PLUNGE_COLOR.getHex() });
-	attachFlowAnimation(material, 'waterfall-flow', 0.44);
+	material.userData.opticalProfile = Object.freeze({
+		aerated: true,
+		opacity: 0.74,
+		plungeColor: WATERFALL_PLUNGE_COLOR.getHex(),
+		splashApron: true,
+		singleDrawCall: true,
+	});
+	attachFlowAnimation(material, 'waterfall-flow-splash-v2', 0.44);
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.userData.dropMeters = dropMeters;
+	mesh.userData.apronLengthMeters = apronLengthMeters;
 	return mesh;
 }
 
