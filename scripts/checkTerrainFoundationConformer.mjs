@@ -19,7 +19,7 @@ const payload = {
 
 const built = createFoundationFlattenPad(payload, { innerMarginMeters: 1, featherMeters: 9 });
 assert.equal(built.ok, true, built.error);
-assert.equal(built.key, 'asset:test-keep');
+assert.equal(built.key, 'object:object-keep', 'runtime Object3D identity must outrank shared asset/catalog ids');
 assert.equal(built.pad.x, 100);
 assert.equal(built.pad.z, -50);
 assert.equal(built.pad.anchorHeightMeters, 71.25);
@@ -27,6 +27,16 @@ assert(built.pad.innerRadiusMeters >= Math.hypot(8, 6), 'inner pad must enclose 
 assert.equal(built.pad.outerRadiusMeters, built.pad.innerRadiusMeters + 9);
 assert.equal(built.pad.source, TERRAIN_FOUNDATION_CONFORM_POLICY.id);
 assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.chunkRebuildMode, 'union-deduplicated');
+assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.identityMode, 'runtime-object-first');
+
+const authoredOnly = createFoundationFlattenPad({
+	metadata: { instanceId: 'authored-placement-7', id: 'shared-house-catalog-id' },
+	bounds: payload.bounds,
+	targetHeight: 70,
+});
+assert.equal(authoredOnly.ok, true, authoredOnly.error);
+assert.equal(authoredOnly.key, 'asset:authored-placement-7',
+	'non-Object3D authoring callers must retain a deterministic explicit placement identity fallback');
 
 const invalid = createFoundationFlattenPad({ bounds: payload.bounds, targetHeight: Number.NaN });
 assert.equal(invalid.ok, false);
@@ -109,35 +119,32 @@ assert.equal(result.ok, true, result.error);
 assert.equal(result.height, payload.targetHeight);
 assert.equal(runtimePads.length, 1, 'first placement appends one dynamic pad');
 assert.equal(conformer.getDynamicPads().length, 1);
-assert.equal(payloadObject.userData.terrainFoundationKey, 'asset:test-keep', 'placed object must remember the exact installed foundation key');
+assert.equal(payloadObject.userData.terrainFoundationKey, 'object:object-keep', 'placed object must remember its runtime-instance foundation key');
 assert(result.rebuiltChunkCount >= 1, 'resident terrain touched by a foundation must be regenerated');
 
-// Re-placing the same asset must update, not duplicate, its pad. This matters for editor moves and
-// autonomous agents re-running placement on the same asset id.
+// Re-placing the same Object3D must update, not duplicate, its pad. Metadata ids can change during
+// authoring without changing physical instance identity.
 const moved = conformer.conformTerrain({
 	...payload,
 	bounds: { minX: 190, maxX: 210, minZ: -10, maxZ: 10 },
 	targetHeight: 82,
 });
 assert.equal(moved.ok, true, moved.error);
-assert.equal(runtimePads.length, 1, 'same asset id must not leak duplicate flatten pads');
+assert.equal(runtimePads.length, 1, 'same runtime object must not leak duplicate flatten pads');
 assert.equal(runtimePads[0].x, 200);
 assert.equal(runtimePads[0].z, 0);
 assert.equal(runtimePads[0].anchorHeightMeters, 82);
 
-// If authoring changes the same physical object's id, the remembered key must retire the old pad
-// before the new identity is installed. Otherwise one moved/renamed building can leave two terrain
-// islands behind while render and physics continue reading both.
-const rekeyed = conformer.conformTerrain({
+const renamed = conformer.conformTerrain({
 	...payload,
 	metadata: { ...payload.metadata, id: 'renamed-keep' },
 	bounds: { minX: 290, maxX: 310, minZ: -10, maxZ: 10 },
 	targetHeight: 84,
 });
-assert.equal(rekeyed.ok, true, rekeyed.error);
-assert.equal(runtimePads.length, 1, 'same physical object with a new id must retire its old pad');
-assert.equal(runtimePads[0].foundationKey, 'asset:renamed-keep');
-assert.equal(payloadObject.userData.terrainFoundationKey, 'asset:renamed-keep');
+assert.equal(renamed.ok, true, renamed.error);
+assert.equal(runtimePads.length, 1, 'renaming asset metadata must keep the physical object on one pad');
+assert.equal(runtimePads[0].foundationKey, 'object:object-keep');
+assert.equal(payloadObject.userData.terrainFoundationKey, 'object:object-keep');
 assert.equal(runtimePads[0].x, 300);
 
 const removed = conformer.removeFoundation(payloadObject);
@@ -146,27 +153,33 @@ assert.equal(runtimePads.length, 0);
 assert.equal(conformer.getDynamicPads().length, 0);
 assert.equal(payloadObject.userData.terrainFoundationKey, undefined, 'object removal must clear remembered foundation identity');
 
-// Two runtime clones can legitimately share one GLB/FBX src. Their foundations must remain separate;
-// src identifies the model resource, not the placed structure instance.
+// Two runtime clones can legitimately share BOTH the catalog id and the GLB/FBX src. Their foundations
+// must remain independent; those fields identify the reusable resource, not the placed structure.
 const clonePads = [];
 const cloneConformer = createTerrainFoundationConformer({ flattenPads: clonePads });
 const cloneAObject = { uuid: 'tower-a', userData: {} };
 const cloneBObject = { uuid: 'tower-b', userData: {} };
+const sharedCloneMetadata = {
+	id: 'watchtower-catalog-entry',
+	assetId: 'watchtower-catalog-entry',
+	src: 'assets/models/buildings/tower.glb',
+	category: 'building',
+};
 const cloneA = cloneConformer.conformTerrain({
-	metadata: { src: 'assets/models/buildings/tower.glb', category: 'building' },
+	metadata: sharedCloneMetadata,
 	object: cloneAObject,
 	bounds: { minX: -30, maxX: -20, minZ: -5, maxZ: 5 },
 	targetHeight: 12,
 });
 const cloneB = cloneConformer.conformTerrain({
-	metadata: { src: 'assets/models/buildings/tower.glb', category: 'building' },
+	metadata: sharedCloneMetadata,
 	object: cloneBObject,
 	bounds: { minX: 20, maxX: 30, minZ: -5, maxZ: 5 },
 	targetHeight: 18,
 });
 assert.equal(cloneA.ok, true, cloneA.error);
 assert.equal(cloneB.ok, true, cloneB.error);
-assert.equal(clonePads.length, 2, 'clones sharing one src must retain independent terrain pads');
+assert.equal(clonePads.length, 2, 'clones sharing catalog id and src must retain independent terrain pads');
 assert.deepEqual(clonePads.map((pad) => pad.foundationKey).sort(), ['object:tower-a', 'object:tower-b']);
 assert.deepEqual(clonePads.map((pad) => pad.x).sort((a, b) => a - b), [-25, 25]);
 assert.equal(cloneAObject.userData.terrainFoundationKey, 'object:tower-a');
@@ -175,4 +188,4 @@ assert.equal(cloneConformer.removeFoundation(cloneAObject).ok, true, 'clone foun
 assert.equal(clonePads.length, 1, 'removing clone A must preserve clone B foundation');
 assert.equal(clonePads[0].foundationKey, 'object:tower-b');
 
-console.log('[checkTerrainFoundationConformer] PASS: footprint pads enclose the full base, mutate one shared render/physics height authority, rebuild the union of old/new influence once, remember/rekey/remove object-owned foundations safely, and keep cloned structures independent.');
+console.log('[checkTerrainFoundationConformer] PASS: footprint pads enclose the full base, mutate one shared render/physics height authority, rebuild old/new influence once, preserve stable per-object foundation identity across metadata edits, and keep clones with shared catalog ids/resources independent.');
