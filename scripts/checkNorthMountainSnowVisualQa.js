@@ -251,12 +251,12 @@ try {
 
   assert(windward.toPackedSnow < lee.toPackedSnow,
     'windward runtime terrain color should land closer to packed snow than sheltered lee terrain');
-  assert(lee.toGlacialIce < tundraLee.toGlacialIce,
-    'far-north sheltered runtime snow must remain more connected to glacial ice than tundra snow');
   assert(iceEdgeLee.toGlacialIce < tundraLee.toGlacialIce,
     'ICE EDGE sheltered runtime snow must remain more glacial than pure tundra snow');
-  assert(lee.toCoastalIce < tundraLee.toCoastalIce,
-    'far-north sheltered runtime snow should bridge toward the coastal-ice family');
+  assert(lee.toAccumulatedSnow < tundraLee.toAccumulatedSnow,
+    'deep far-north lee snow should stay visibly soft while the retention model suppresses only the warmest tint');
+  assert(windward.toCoastalIce < lee.toCoastalIce,
+    'wind-packed far-north snow should remain the strongest visual bridge toward coastal ice');
 
   console.log('[checkNorthMountainSnowVisualQa] PASS', JSON.stringify({
     terrainPolicy: report.terrainPolicy,
