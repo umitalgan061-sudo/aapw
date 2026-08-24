@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Live-browser water contract: topology, depth-clear optical response, near/far composition and the
- * live celestial key consumed by the custom shader. The terrain-derived depth field is validated by
- * its own checks; this pins how the rendered water turns that authority into visible water.
+ * Live-browser water contract: topology, depth-clear optical response, near/far/backdrop composition
+ * and the live celestial key consumed by the custom shader. The terrain-derived depth field is
+ * validated by its own checks; this pins how the rendered water turns that authority into visible water.
  */
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
@@ -24,7 +24,12 @@ async function main() {
 		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
 		const result = await page.evaluate(async () => {
 			const THREE = await import('three');
-			const { createWater, updateWater, disposeWater } = await import('/src/3d/world/water.js');
+			const {
+				createWater,
+				updateWater,
+				disposeWater,
+				WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
+			} = await import('/src/3d/world/water.js');
 			const { publishCelestialLightState } = await import('/src/3d/celestialLightState.js');
 			const fail = (condition, message) => { if (!condition) throw new Error(message); };
 			const close = (a, b, tolerance = 1e-6) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= tolerance;
@@ -45,6 +50,21 @@ async function main() {
 			fail(far.material.depthWrite === false, 'far water must not occlude displaced near-water troughs');
 			fail(far.renderOrder === -1, 'far water must render before the near layer');
 			fail(far.material.uniforms.uFarLayerMask.value === 1, 'far water no longer masks itself under the near square');
+
+			const backdrop = water.userData.deepOceanBackdrop;
+			fail(backdrop?.isMesh === true, 'deep-ocean backdrop mesh is missing');
+			fail(backdrop.geometry?.type === 'PlaneGeometry', 'deep-ocean backdrop is not PlaneGeometry');
+			fail(backdrop.geometry.parameters?.width === WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
+				'deep-ocean backdrop extent drifted');
+			fail(backdrop.geometry.parameters?.widthSegments === 1 && backdrop.geometry.parameters?.heightSegments === 1,
+				'deep-ocean backdrop must stay two triangles');
+			fail(backdrop.material?.isMeshBasicMaterial === true, 'deep-ocean backdrop must stay an unlit base layer');
+			fail(backdrop.material.transparent === false && backdrop.material.depthWrite === true && backdrop.material.fog === true,
+				'deep-ocean backdrop must remain opaque, depth-writing and fog-aware');
+			fail(backdrop.renderOrder === -2 && backdrop.position.y === -32,
+				'deep-ocean backdrop must render below/before both transparent water layers');
+			fail(water.userData.waterCoverage?.deepOceanBackdropExtentMeters === WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
+				'water coverage metadata lost the deep-ocean backdrop extent');
 
 			const uniforms = water.material.uniforms;
 			for (const name of [
@@ -87,6 +107,7 @@ async function main() {
 			fail(uniforms.uSunColor.value.getHex() === 0xffb366, 'water did not copy live sun colour');
 			fail(vectorClose(uniforms.uCameraPosition.value, camera), 'water camera uniform drifted');
 			fail(close(water.position.x, camera.x) && close(water.position.z, camera.z) && close(water.position.y, waterLevel), 'water camera-follow drifted');
+			fail(close(backdrop.position.x, 0) && close(backdrop.position.z, 0), 'deep-ocean backdrop must inherit camera-follow XZ from the water parent');
 
 			publishCelestialLightState({
 				sunPosition: new THREE.Vector3(0, -1, 0),
@@ -114,15 +135,28 @@ async function main() {
 
 			let geometryDisposed = 0;
 			let materialDisposed = 0;
+			let backdropGeometryDisposed = 0;
+			let backdropMaterialDisposed = 0;
 			water.geometry.addEventListener('dispose', () => geometryDisposed++);
 			water.material.addEventListener('dispose', () => materialDisposed++);
+			backdrop.geometry.addEventListener('dispose', () => backdropGeometryDisposed++);
+			backdrop.material.addEventListener('dispose', () => backdropMaterialDisposed++);
 			disposeWater(water);
 			fail(geometryDisposed === 1 && materialDisposed === 1, 'near-water resources were not disposed exactly once');
-			return { vertexCount: positions.count, indexCount: index.count, optical };
+			fail(backdropGeometryDisposed === 1 && backdropMaterialDisposed === 1,
+				'deep-ocean backdrop resources were not disposed exactly once');
+			fail(water.userData.deepOceanBackdrop === null, 'disposed water retained deep-ocean backdrop ownership');
+			return {
+				vertexCount: positions.count,
+				indexCount: index.count,
+				optical,
+				backdropExtent: WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
+			};
 		});
 
 		assert(result.vertexCount === 16641 && result.indexCount === 98304, 'water topology mismatch escaped browser contract');
-		console.log(`[checkWaterVisualContract] PASS: depth-clear ${result.optical.shallowAlpha.toFixed(2)}→${result.optical.deepAlpha.toFixed(2)} alpha, live sun/moon specular, near/far composition, ${result.vertexCount} vertices.`);
+		assert(result.backdropExtent === 28000, 'deep-ocean backdrop contract escaped browser validation');
+		console.log(`[checkWaterVisualContract] PASS: depth-clear ${result.optical.shallowAlpha.toFixed(2)}→${result.optical.deepAlpha.toFixed(2)} alpha, live sun/moon specular, near/far/deep-ocean composition, ${result.vertexCount} near-water vertices.`);
 	} finally {
 		await browser.close();
 		await new Promise((resolve) => server.close(resolve));
