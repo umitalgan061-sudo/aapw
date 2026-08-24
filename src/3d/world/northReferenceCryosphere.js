@@ -26,7 +26,7 @@ const ALWAYS_WINTER_ZONE = findZone('lands-always-winter');
 const NORTH_ZONE = findZone('north');
 
 export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
-	id: 'owner-map-north-cryosphere-2026-08-24-v4-ice-edge-visual-harmony',
+	id: 'owner-map-north-cryosphere-2026-08-24-v5-mixed-belt-harmony',
 	source: 'WORLD_REFERENCE_MAP biome zones',
 	renderClimateOnly: true,
 	heightAuthorityUnchanged: true,
@@ -34,11 +34,13 @@ export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
 	corePreservingIceHalo: true,
 	tundraUnionBlend: true,
 	iceEdgeVisualHarmony: true,
+	curvedIceHalo: true,
 	alwaysWinterZoneId: ALWAYS_WINTER_ZONE.id,
 	northZoneId: NORTH_ZONE.id,
 	iceTransitionRadiusScale: 1.55,
 	tundraTransitionRadiusScale: 1.28,
 	iceHaloGain: 0.85,
+	iceHaloCurveExponent: 0.88,
 	northTundraGain: 0.92,
 	winterHaloGain: 0.82,
 });
@@ -80,11 +82,12 @@ export function northReferenceCryosphereAtNormalized(normalizedX, normalizedY) {
 	const northHalo = sampleReferenceInfluence(normalizedX, normalizedY, NORTH_TUNDRA_TRANSITION_ZONE);
 
 	// Preserve authored full ice in the core, then spend only the halo influence that extends beyond it.
-	// The stronger halo gain is intentionally bounded by the same authored transition radius: it makes
-	// the canonical ICE EDGE read as a genuine mixed glacial belt without widening permanent ice into
-	// unrelated eastern land or changing any terrain/collider height authority.
+	// A shallow sub-linear response strengthens the already-authored mixed belt without increasing its
+	// radius. This keeps ICE EDGE lowlands visually connected to glacial shorelines while avoiding any
+	// eastward or southward geographic expansion of permanent ice.
 	const winterHaloExtension = Math.max(0, winterHalo - winterCore);
-	const permanentIce = clamp01(winterCore + winterHaloExtension * P.iceHaloGain);
+	const curvedWinterHaloExtension = Math.pow(winterHaloExtension, P.iceHaloCurveExponent);
+	const permanentIce = clamp01(winterCore + curvedWinterHaloExtension * P.iceHaloGain);
 
 	// Blend overlapping authored tundra envelopes as a bounded union instead of choosing one with max().
 	// The resulting field stays continuous where the North zone and always-winter halo overlap.
@@ -101,6 +104,7 @@ export function northReferenceCryosphereAtNormalized(normalizedX, normalizedY) {
 		winterCore,
 		winterHalo,
 		winterHaloExtension,
+		curvedWinterHaloExtension,
 		northCore,
 		northHalo,
 		tundraUnion,
@@ -125,6 +129,7 @@ function neutralCryosphereOutsideReference(worldX, worldZ) {
 		winterCore: 0,
 		winterHalo: 0,
 		winterHaloExtension: 0,
+		curvedWinterHaloExtension: 0,
 		northCore: 0,
 		northHalo: 0,
 		tundraUnion: 0,
