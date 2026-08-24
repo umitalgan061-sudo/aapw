@@ -20,6 +20,16 @@ function assertHealthReceipt(receipt, expected) {
 
 assertHealthReceipt(healthEvents().at(-1), { current: 100, maxHealth: 100, ratio: 1, delta: 0, reason: 'sync', appliedAmount: 0, sourceId: null });
 
+const invalidEventCount = healthEvents().length;
+for (const invalidAmount of [Infinity, -Infinity, NaN]) bus.emit('damage', { amount: invalidAmount, sourceId: 'invalid-damage' });
+assert.equal(health.current, 100, 'non-finite damage must not mutate authoritative health');
+assert.equal(health.isDead, false, 'non-finite damage must not enter the death state');
+assert.equal(healthEvents().length, invalidEventCount, 'non-finite damage must not emit a synthetic health receipt');
+health.heal(Infinity);
+health.heal(NaN);
+assert.equal(health.current, 100, 'non-finite healing must not mutate authoritative health');
+assert.equal(healthEvents().length, invalidEventCount, 'non-finite healing must not emit a synthetic health receipt');
+
 const normalHit = { amount: 40, sourceId: 'guard-01' };
 bus.emit('damage', normalHit);
 assert.equal(health.current, 60);
@@ -51,4 +61,5 @@ assert.equal(health.current, before, 'dispose must detach the damage listener');
 
 console.log('Player Combat Health Receipt: PASS');
 console.log('legacy-enumerable=current,maxHealth|receipt=ratio,delta,reason,appliedAmount,sourceId');
+console.log('finite-guard=damage+heal|invalid=Infinity,-Infinity,NaN');
 console.log('damagePayloadAppliedAmount=normal,overkill,already-dead');
