@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const read = async (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
-const [player, playerConfig, loop, input, touch, health, materialCore, placement] = await Promise.all([
+const [player, playerConfig, loop, game3d, input, touch, health, materialCore, placement] = await Promise.all([
   read('src/3d/gameplay/player.js'),
   read('src/3d/gameplay/playerConfig.js'),
   read('src/3d/gameLoopHelpers.js'),
+  read('src/3d/game3d.js'),
   read('src/3d/input.js'),
   read('src/3d/ui/touchJoystick.js'),
   read('src/3d/gameplay/health.js'),
@@ -67,7 +68,15 @@ requireFragments(touch, 'mobile/PWA input parity', [
   "emitPlayerCombatIntent('heavy', 'touch')",
   'consumeLockOnRequested()',
 ]);
-requireFragments(health, 'authoritative health receipt', ['appliedAmount', 'PLAYER_DAMAGED']);
+requireFragments(game3d, 'authoritative player health wiring', [
+  'createHealthState({',
+  'damageEventName: EVENTS.PLAYER_DAMAGED',
+]);
+requireFragments(health, 'authoritative health receipt', [
+  'appliedAmount',
+  "reason === 'damage'",
+  'eventsBus.emit(healthChangedEventName',
+]);
 requireFragments(materialCore, 'shared material core', ['validateMaterialAssignment']);
 requireFragments(placement, 'shared placement pipeline', ['MaterialAssignmentCore']);
 
