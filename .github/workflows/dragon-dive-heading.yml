@@ -34,8 +34,8 @@ jobs:
           test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
           changed="$(git diff --name-only origin/main...HEAD)"
           printf '%s\n' "$changed"
-          test "$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)" -eq 4
-          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/dragonFlightMath\.js|src/3d/gameplay/dragonReactionState\.js|scripts/checkDragonTerrainSampleResilience\.mjs|\.github/workflows/dragon-dive-heading\.yml)$' && exit 1 || true
+          test "$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)" -eq 3
+          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/dragonFlightMath\.js|scripts/checkDragonTerrainSampleResilience\.mjs|\.github/workflows/dragon-dive-heading\.yml)$' && exit 1 || true
           additions="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END {print s+0}')"
           deletions="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END {print s+0}')"
           test $((additions + deletions)) -le 1000
@@ -70,6 +70,10 @@ jobs:
           grep -q 'dragonTerrainSampleCount' src/3d/gameplay/dragonFlightMath.js
           grep -q 'dragonTerrainInvalidSampleCount' src/3d/gameplay/dragonFlightMath.js
           grep -q 'dragonTerrainSampleExceptionCount' src/3d/gameplay/dragonFlightMath.js
+          grep -q 'dragonTerrainLastSafeAltitudeY' src/3d/gameplay/dragonFlightMath.js
+          grep -q 'dragonTerrainUsingSafeAltitudeFallback' src/3d/gameplay/dragonFlightMath.js
+          grep -q 'if (skippedDiscontinuity) delete object3D.userData.dragonTerrainLastSafeAltitudeY' src/3d/gameplay/dragonFlightMath.js
+          grep -q 'canUseSafeAltitudeFallback = !skippedDiscontinuity' src/3d/gameplay/dragonFlightMath.js
           grep -q 'try {' src/3d/gameplay/dragonFlightMath.js
           grep -q 'groundY = sampleGroundY(x, z)' src/3d/gameplay/dragonFlightMath.js
           grep -q 'sampleSegmentGround' src/3d/gameplay/dragonFlightMath.js
@@ -82,9 +86,13 @@ jobs:
           grep -q 'long-frame traversed segment must be sampled before projecting new lookahead' scripts/checkDragonDiveHeading.mjs
           grep -q 'valid forward ridge must still clamp altitude when the current sample is NaN' scripts/checkDragonTerrainSampleResilience.mjs
           grep -q 'an isolated terrain sampler exception must not abort the dragon update' scripts/checkDragonTerrainSampleResilience.mjs
+          grep -q 'an all-throwing transient terrain frame must not let an active dive descend below the last proven safe altitude' scripts/checkDragonTerrainSampleResilience.mjs
+          grep -q 'an all-invalid discontinuity must invalidate the old-location safe-altitude latch' scripts/checkDragonTerrainSampleResilience.mjs
+          grep -q 'a post-discontinuity outage must not resurrect the invalidated old-location safe altitude' scripts/checkDragonTerrainSampleResilience.mjs
+          grep -q 'finite terrain recovery must release the transient fallback and resume the current terrain floor' scripts/checkDragonTerrainSampleResilience.mjs
           grep -q 'a throwing pursuit-center terrain sample must not abort the configured dragon update' scripts/checkDragonTerrainSampleResilience.mjs
-          grep -q 'all-throwing terrain data must preserve the rendered altitude' scripts/checkDragonTerrainSampleResilience.mjs
-          grep -q 'all-invalid terrain data must preserve the rendered altitude' scripts/checkDragonTerrainSampleResilience.mjs
+          grep -q 'all-throwing terrain data with no prior safe latch must preserve the requested rendered altitude' scripts/checkDragonTerrainSampleResilience.mjs
+          grep -q 'all-invalid terrain data with no prior safe latch must preserve the requested rendered altitude' scripts/checkDragonTerrainSampleResilience.mjs
           node - <<'NODE'
           const fs = require('fs');
           const controller = fs.readFileSync('src/3d/gameplay/dragonController.js', 'utf8');
@@ -97,8 +105,14 @@ jobs:
           const traversedSweep = math.indexOf('traversedDistance <= boundedMaxTraversed');
           const discontinuity = math.indexOf('skippedDiscontinuity = true');
           const forwardSweep = math.lastIndexOf('sampleSegmentGround(');
+          const invalidateLatch = math.indexOf('if (skippedDiscontinuity) delete object3D.userData.dragonTerrainLastSafeAltitudeY');
+          const fallback = math.indexOf('canUseSafeAltitudeFallback = !skippedDiscontinuity');
+          const safeLatch = math.indexOf('dragonTerrainLastSafeAltitudeY = object3D.position.y');
           if (currentProbe < 0 || retainedMotion < currentProbe || traversedSweep < retainedMotion || discontinuity < traversedSweep || forwardSweep < discontinuity) {
             throw new Error('terrain safety must bound retained travel before projecting forward lookahead');
+          }
+          if (invalidateLatch < forwardSweep || fallback < invalidateLatch || safeLatch < fallback) {
+            throw new Error('all-invalid discontinuities must invalidate the old safe-altitude latch before fallback eligibility is evaluated');
           }
           NODE
 
