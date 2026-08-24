@@ -365,7 +365,7 @@ export async function createNPC({
 					lastKnownPlayer = { x: playerPosition.x, z: playerPosition.z };
 					investigationRemaining = Math.max(investigationRemaining, 2 + distanceToPlayer / Math.max(0.25, speedMps * 0.85));
 				} else if (heard) {
-					suspicion = Math.min(1, suspicion + 0.18 * noiseStrength);
+					suspicion = Math.min(1, suspicion + simulationDelta * 0.72 * noiseStrength);
 					lastKnownPlayer = { x: playerPosition.x, z: playerPosition.z };
 					investigationRemaining = Math.max(investigationRemaining, 1.25 + distanceToPlayer / Math.max(0.25, speedMps * 0.85));
 				} else {
