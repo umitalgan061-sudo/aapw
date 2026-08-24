@@ -11,6 +11,7 @@ on:
       - 'src/3d/world/worldReferenceAlignment.js'
       - 'src/3d/config.js'
       - 'scripts/checkNorthMountainSnowVisualQa.js'
+      - 'scripts/checkNorthMountainSnowVisualContract.mjs'
       - 'scripts/devServerHelper.js'
       - 'north-mountain-snow-visual-qa.html'
       - '.github/workflows/north-mountain-snow-visual-qa.yml'
@@ -46,6 +47,8 @@ jobs:
           node --check src/3d/world/terrainSnowSurfaceTone.js
           node --check src/3d/world/terrainWindSnowExposure.js
           node --check scripts/checkNorthMountainSnowVisualQa.js
+          node --check scripts/checkNorthMountainSnowVisualContract.mjs
+          node scripts/checkNorthMountainSnowVisualContract.mjs
 
       - name: Install Playwright Chromium
         run: |
