@@ -23,7 +23,7 @@ function smoothstep(edge0, edge1, value) {
 }
 
 export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
-	id: 'terrain-map-climate-cryosphere-2026-08-24-v16-geological-rock',
+	id: 'terrain-map-climate-cryosphere-2026-08-24-v17-geological-rock',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	mapAlignedCryosphere: true,
@@ -197,27 +197,20 @@ function positionHash01(worldX, worldZ) {
 	return lerp(lerp(h00, h10, sx), lerp(h01, h11, sx), sz);
 }
 
-/**
- * Resolves colour-only geological detail for exposed/canonical rock. Broad height bands are gently
- * warped and dipped across the world instead of being perfectly horizontal; sparse pale mineral
- * seams cross those bands, while steep faces receive narrow dark erosion/water streaks. All signals
- * are deterministic and multiplied by the same rock authority used by the terrain palette, so no
- * geology can leak onto ordinary grassland.
- */
-export function resolveRockGeology({
-	heightAboveSeaMeters,
-	slopeDegrees,
-	rockWeight = 0,
-	worldX = 0,
-	worldZ = 0,
-}) {
+function computeRockGeology(out, heightAboveSeaMeters, slopeDegrees, rockWeight, worldX, worldZ) {
 	const P = TERRAIN_BIOME_SHADING_POLICY;
 	const rockAmount = clamp01(Math.max(
 		smoothstep(P.rockSlopeStartDegrees, P.rockSlopeFullDegrees, slopeDegrees),
 		clamp01(rockWeight) * P.canonicalRockGain,
 	));
+	out.rockAmount = rockAmount;
 	if (rockAmount <= 0) {
-		return Object.freeze({ rockAmount: 0, strata: 0, mineral: 0, vein: 0, erosion: 0, detailEnergy: 0 });
+		out.strata = 0;
+		out.mineral = 0;
+		out.vein = 0;
+		out.erosion = 0;
+		out.detailEnergy = 0;
+		return out;
 	}
 
 	const strataWarp = signedFbmNoise(
@@ -239,7 +232,11 @@ export function resolveRockGeology({
 		worldZ * P.rockMineralFrequency + 5.8,
 		4,
 	);
-	const mineral = smoothstep(0.08, 0.72, mineralNoise) * rockAmount;
+	// This is intentionally a broad macro-scale stain, not a narrow seam. CI sampling showed that a
+	// positive-only threshold made the iron/mineral component effectively invisible across an entire
+	// representative cliff face. Widening the response around neutral FBM keeps it subtle via the
+	// existing 8.5% colour gain while allowing kilometre-scale geological patches to actually read.
+	const mineral = smoothstep(-0.22, 0.52, mineralNoise) * rockAmount;
 
 	const veinWarp = signedFbmNoise(
 		worldX * P.rockVeinWarpFrequency + 19.3,
@@ -269,7 +266,32 @@ export function resolveRockGeology({
 		+ vein * P.rockVeinStrength
 		+ erosion * P.rockErosionStrength,
 	);
-	return Object.freeze({ rockAmount, strata, mineral, vein, erosion, detailEnergy });
+	out.strata = strata;
+	out.mineral = mineral;
+	out.vein = vein;
+	out.erosion = erosion;
+	out.detailEnergy = detailEnergy;
+	return out;
+}
+
+/**
+ * Resolves colour-only geological detail for exposed/canonical rock. Broad height bands are gently
+ * warped and dipped across the world instead of being perfectly horizontal; sparse pale mineral
+ * seams cross those bands, while steep faces receive narrow dark erosion/water streaks. All signals
+ * are deterministic and multiplied by the same rock authority used by the terrain palette, so no
+ * geology can leak onto ordinary grassland. External callers receive an immutable snapshot; the
+ * terrain hot path uses a reusable scratch object through `computeRockGeology` below.
+ */
+export function resolveRockGeology({
+	heightAboveSeaMeters,
+	slopeDegrees,
+	rockWeight = 0,
+	worldX = 0,
+	worldZ = 0,
+}) {
+	return Object.freeze({
+		...computeRockGeology({}, heightAboveSeaMeters, slopeDegrees, rockWeight, worldX, worldZ),
+	});
 }
 
 export function normalizedMapYAtWorldZ(worldZ) {
@@ -514,6 +536,7 @@ const scratchSeabed = new THREE.Color();
 const scratchSnowTone = new THREE.Color();
 const scratchSnowCoverage = {};
 const scratchCoastalCryosphere = {};
+const scratchRockGeology = {};
 
 export function resolveTerrainBiomeColor(target, {
 	heightAboveSeaMeters,
@@ -571,13 +594,7 @@ export function resolveTerrainBiomeColor(target, {
 		* (1 - smoothstep(P.northIntertidalSlopeFadeStartDegrees, P.northIntertidalSlopeFadeFullDegrees, slope));
 	if (intertidalBand > 0) target.lerp(TERRAIN_BIOME_PALETTE.WET_FROZEN_SHORE, intertidalBand);
 
-	const geology = resolveRockGeology({
-		heightAboveSeaMeters: height,
-		slopeDegrees: slope,
-		rockWeight,
-		worldX,
-		worldZ,
-	});
+	const geology = computeRockGeology(scratchRockGeology, height, slope, rockWeight, worldX, worldZ);
 	const rockAmount = geology.rockAmount;
 	if (rockAmount > 0) {
 		scratchRock.copy(TERRAIN_BIOME_PALETTE.ROCK_WARM)
