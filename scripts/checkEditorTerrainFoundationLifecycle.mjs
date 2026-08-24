@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 const worldEditor = readFileSync(new URL('../src/3d/editor/worldEditor.js', import.meta.url), 'utf8');
 const placementController = readFileSync(new URL('../src/3d/editor/EditorPlacementController.js', import.meta.url), 'utf8');
 const transformControls = readFileSync(new URL('../src/3d/editor/EditorTransformControls.js', import.meta.url), 'utf8');
+const scaleInputController = readFileSync(new URL('../src/3d/editor/EditorScaleInputController.js', import.meta.url), 'utf8');
 
 function expect(source, pattern, message) {
   assert(pattern.test(source), message);
@@ -25,8 +26,8 @@ expect(
 );
 expect(
   placementController,
-  /function reconcileExistingStructureFoundations\(\)[\s\S]*?for \(const object of api\.editableObjects\)[\s\S]*?isEditorStructureAsset\(asset\)[\s\S]*?editorFoundationKey[\s\S]*?terrainFoundationKey[\s\S]*?groundObject\(object, \{ asset \}\)/,
-  'placement boot must reconcile structure objects that were created before live terrain placement became available',
+  /function reconcileExistingStructureFoundations\(\)[\s\S]*?for \(const object of api\.editableObjects\)[\s\S]*?terrainGrounder\.isStructureObject\(object, asset\)[\s\S]*?editorFoundationKey[\s\S]*?terrainFoundationKey[\s\S]*?groundObject\(object, \{ asset \}\)/,
+  'placement boot must reconcile library-backed and imported structure objects created before live terrain placement became available',
 );
 expect(
   placementController,
@@ -73,7 +74,17 @@ expect(
 expect(
   worldEditor,
   /function applyInspector\([\s\S]*?hadFoundation[\s\S]*?regroundObjectFoundation\(selectedObject\)/,
-  'inspector transforms of foundation-owned structures must refresh terrain',
+  'inspector position/rotation transforms of foundation-owned structures must refresh terrain',
+);
+expect(
+  scaleInputController,
+  /function onScaleChange\(event\)[\s\S]*?object\.scale\[axis\] = next;[\s\S]*?refreshTerrainFoundation\(object\)/,
+  'precise numeric Inspector scale changes must refresh the footprint foundation after committing the new scale',
+);
+expect(
+  scaleInputController,
+  /function refreshTerrainFoundation\(object\)[\s\S]*?editorFoundationKey[\s\S]*?terrainFoundationKey[\s\S]*?__WESTEROS_EDITOR_PLACEMENT__[\s\S]*?groundObject\(object\)/,
+  'numeric scale foundation refresh must route through the live shared placement/terrain authority',
 );
 expect(
   worldEditor,
@@ -125,4 +136,4 @@ expect(
   'quick scale authoring must refresh a foundation-owned structure after scale changes',
 );
 
-console.log('[checkEditorTerrainFoundationLifecycle] PASS: editor structure foundations auto-ground on asset creation, reconcile pre-controller structures, track inspector/drag-end/quick-scale/clone/delete lifecycles, batch-retire scene replacements, and teardown shared pads without useless terrain rebuilds.');
+console.log('[checkEditorTerrainFoundationLifecycle] PASS: editor structure foundations auto-ground on asset creation, reconcile library/imported pre-controller structures, track Inspector position/rotation/numeric-scale plus drag-end/quick-scale/clone/delete lifecycles, batch-retire scene replacements, and teardown shared pads without useless terrain rebuilds.');
