@@ -17,7 +17,7 @@ import {
 import { WORLD_REFERENCE_BASE_SURFACE_MASK } from './worldReferenceSurfacePindexes.js';
 
 export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
-	id: 'owner-map-live-mountain-relief-2026-08-17-v3',
+	id: 'owner-map-live-mountain-relief-2026-08-24-v4-ridge-continuity',
 	sourceMapSha256: WORLD_REFERENCE_MAP.sha256,
 	surfaceMaskSha256: WORLD_REFERENCE_BASE_SURFACE_MASK.maskSha256,
 	landGateZero: 0.54,
@@ -44,7 +44,8 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 	}),
 	// Western chains overlap shipped kingdom roads, so their audited map-space approaches are
 	// lowered into traversable passes instead of flattening/removing the surrounding mountains.
-	// Bone/eastern chains need no authored pass yet because no current live road crosses them.
+	// Bone/eastern chains use a higher modulation floor and softer exponent so long source-owned
+	// ridges keep visible shoulders between local summits instead of collapsing into isolated plugs.
 	chains: Object.freeze({
 		'vale-chain': Object.freeze({
 			peakMeters: 430,
@@ -69,8 +70,22 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 				Object.freeze({ id: 'red-east-approach', center: [0.225, 0.640], innerRadiusNormalized: 0.014, outerRadiusNormalized: 0.050, minimumMultiplier: 0.08 }),
 			]),
 		}),
-		'bone-mountains': Object.freeze({ peakMeters: 1100, coreWidthNormalized: 0.008, outerWidthNormalized: 0.060, seed: 37 }),
-		'eastern-chain': Object.freeze({ peakMeters: 1100, coreWidthNormalized: 0.007, outerWidthNormalized: 0.055, seed: 53 }),
+		'bone-mountains': Object.freeze({
+			peakMeters: 1100,
+			coreWidthNormalized: 0.008,
+			outerWidthNormalized: 0.060,
+			summitFloor: 0.28,
+			summitNoiseExponent: 1.5,
+			seed: 37,
+		}),
+		'eastern-chain': Object.freeze({
+			peakMeters: 1100,
+			coreWidthNormalized: 0.007,
+			outerWidthNormalized: 0.055,
+			summitFloor: 0.28,
+			summitNoiseExponent: 1.5,
+			seed: 53,
+		}),
 	}),
 });
 
@@ -326,9 +341,10 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 			valueNoise2D(normalizedX * 17, normalizedY * 17, chain.profile.seed + 211) * 0.25
 		);
 		const summitFloor = chain.profile.summitFloor ?? WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.summitModulationMinimum;
+		const summitExponent = chain.profile.summitNoiseExponent ?? WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.summitNoiseExponent;
 		const modulation = summitFloor +
 			(1 - summitFloor) *
-				Math.pow(summitNoise, WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.summitNoiseExponent);
+				Math.pow(summitNoise, summitExponent);
 		const talusBreakup = sampleTalusBreakup(normalizedX, normalizedY, normalizedDistance, chain.profile.seed);
 		const passMultiplier = samplePassMultiplier(normalizedX, normalizedY, chain.profile.passes);
 		strongestMeters = Math.max(
