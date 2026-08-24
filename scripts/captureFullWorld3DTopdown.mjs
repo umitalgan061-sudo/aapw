@@ -106,6 +106,18 @@ async function main() {
 		assert.equal(summary.waterLayerComposition.farDepthWrite, false, 'far transparent water underlay must not occlude near swell');
 		assert(summary.waterLayerComposition.farRenderOrder < 0, 'far water underlay must render before near swell');
 		assert(summary.waterLayerComposition.farLocalY < 0, 'far water underlay must remain slightly below near water');
+		assert.equal(summary.waterLayerComposition.deepBackdropDepthWrite, true, 'deep-ocean backdrop must write depth behind transparent water');
+		assert.equal(summary.waterLayerComposition.deepBackdropOpaque, true, 'deep-ocean backdrop must remain opaque');
+		assert.equal(summary.waterLayerComposition.deepBackdropFog, true, 'deep-ocean backdrop must participate in scene fog');
+		assert(summary.waterLayerComposition.deepBackdropRenderOrder < summary.waterLayerComposition.farRenderOrder,
+			'deep-ocean backdrop must render before the transparent far-water underlay');
+		assert(summary.waterLayerComposition.deepBackdropLocalY < summary.waterLayerComposition.farLocalY,
+			'deep-ocean backdrop must remain below the far-water underlay');
+		assert(summary.waterLayerComposition.deepBackdropWorldY < summary.minHeightMeters - 1,
+			'deep-ocean backdrop must stay safely below the lowest canonical owner terrain');
+		const worldDiagonal = Math.hypot(summary.worldWidthMeters, summary.worldDepthMeters);
+		assert(summary.waterLayerComposition.deepBackdropExtentMeters > worldDiagonal * 1.5,
+			'deep-ocean backdrop must extend comfortably beyond the owner-world diagonal in high-camera views');
 		assert(Math.abs(summary.waterLayerComposition.nearWorldXZ[0] - summary.camera.position[0]) < 1e-6,
 			'near-water world X must follow the topdown camera exactly');
 		assert(Math.abs(summary.waterLayerComposition.nearWorldXZ[1] - summary.camera.position[2]) < 1e-6,
