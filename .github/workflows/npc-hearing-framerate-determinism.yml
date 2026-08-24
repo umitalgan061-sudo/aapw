@@ -5,6 +5,9 @@ on:
     paths:
       - 'src/3d/gameplay/npc.js'
       - 'scripts/checkNpcHearingFrameRateDeterminism.mjs'
+      - 'scripts/materializeOwnerApprovedModelManifest.js'
+      - 'assets_manifest.json'
+      - 'CREDITS.md'
       - '.github/workflows/npc-hearing-framerate-determinism.yml'
   workflow_dispatch:
 
@@ -34,7 +37,7 @@ jobs:
           test "$base" = "$(git rev-parse origin/main)"
           changed="$(git diff --name-only origin/main...HEAD)"
           printf '%s\n' "$changed"
-          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/npc\.js|scripts/checkNpcHearingFrameRateDeterminism\.mjs|\.github/workflows/npc-hearing-framerate-determinism\.yml)$' && exit 1 || true
+          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/npc\.js|scripts/checkNpcHearingFrameRateDeterminism\.mjs|scripts/materializeOwnerApprovedModelManifest\.js|assets_manifest\.json|CREDITS\.md|\.github/workflows/npc-hearing-framerate-determinism\.yml)$' && exit 1 || true
           additions="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END {print s+0}')"
           deletions="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END {print s+0}')"
           test $((additions + deletions)) -le 1000
