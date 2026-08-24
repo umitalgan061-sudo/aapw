@@ -70,6 +70,8 @@ let maxHeight = -Infinity;
 let heightSum = 0;
 let heightSquaredSum = 0;
 let northIceSum = 0;
+let northIceMax = 0;
+let northIceActiveSamples = 0;
 let northIceSamples = 0;
 
 for (let index = 0; index < positions.count; index++) {
@@ -115,7 +117,10 @@ for (let index = 0; index < positions.count; index++) {
 	surfaceCounts[dominant]++;
 
 	if (ny <= 0.22) {
-		northIceSum += northClimateWeightsAtWorldXZ(worldX, worldZ).permanentIce;
+		const permanentIce = northClimateWeightsAtWorldXZ(worldX, worldZ).permanentIce;
+		northIceSum += permanentIce;
+		northIceMax = Math.max(northIceMax, permanentIce);
+		if (permanentIce >= 0.5) northIceActiveSamples++;
 		northIceSamples++;
 	}
 }
@@ -171,6 +176,8 @@ window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
 	heightStdDevMeters: Math.sqrt(heightVariance),
 	surfaceCounts: Object.freeze({ ...surfaceCounts }),
 	northPermanentIceMean: northIceSamples ? northIceSum / northIceSamples : 0,
+	northPermanentIceMax: northIceMax,
+	northPermanentIceActiveSamples: northIceActiveSamples,
 	waterDepthField: Object.freeze({
 		resolution: depthField.resolution,
 		meanWetCoverage: depthField.meanWetCoverage,
