@@ -130,6 +130,34 @@ function runTransientAllThrowingSafeAltitudeProof() {
 	assert.equal(dragon.userData.dragonTerrainLastSafeAltitudeY, 10, 'finite recovery must refresh the safe rendered altitude latch');
 }
 
+function runDiscontinuityClearsSafeAltitudeLatchProof() {
+	const dragon = createDragon({ y: 90, yaw: 0 });
+	clampAltitudeAboveGround(dragon, () => 90, 10);
+	assert.equal(dragon.position.y, 100, 'finite terrain must establish the old-location safe altitude before a discontinuity');
+	assert.equal(dragon.userData.dragonTerrainLastSafeAltitudeY, 100, 'the old location must publish its proven safe altitude');
+
+	// Simulate an external reposition large enough to be classified as a discontinuity.
+	dragon.userData.dragonPreviousRenderedX = 0;
+	dragon.userData.dragonPreviousRenderedZ = 0;
+	dragon.position.x = 0;
+	dragon.position.z = 1200;
+	dragon.position.y = 10;
+	clampAltitudeAboveGround(dragon, () => Number.NaN, 10);
+	assert.equal(dragon.userData.dragonTerrainSweepDiscontinuity, true, 'kilometre-scale retained displacement must be classified as a discontinuity');
+	assert.equal(dragon.position.y, 10, 'an all-invalid discontinuity must not reuse the old-location safe altitude on the teleport frame');
+	assert.equal(dragon.userData.dragonTerrainLastSafeAltitudeY, undefined, 'an all-invalid discontinuity must invalidate the old-location safe-altitude latch');
+	assert.equal(dragon.userData.dragonTerrainUsingSafeAltitudeFallback, false, 'discontinuity frames must not report safe-altitude fallback use');
+
+	// The next ordinary outage frame at the destination must not resurrect the old 100m floor.
+	dragon.userData.dragonPreviousRenderedX = dragon.position.x;
+	dragon.userData.dragonPreviousRenderedZ = dragon.position.z;
+	dragon.position.y = 8;
+	clampAltitudeAboveGround(dragon, () => Number.NaN, 10);
+	assert.equal(dragon.userData.dragonTerrainSweepDiscontinuity, false, 'the destination frame must return to ordinary retained-motion handling');
+	assert.equal(dragon.position.y, 8, 'a post-discontinuity outage must not resurrect the invalidated old-location safe altitude');
+	assert.equal(dragon.userData.dragonTerrainUsingSafeAltitudeFallback, false, 'post-discontinuity outages must remain fallback-free until new finite terrain proof exists');
+}
+
 function runAllThrowingFailSafeProof() {
 	const dragon = createDragon({ y: 23, yaw: Math.PI / 2 });
 	assert.doesNotThrow(() => clampAltitudeAboveGround(dragon, () => { throw new Error('terrain unavailable'); }, 10));
@@ -167,6 +195,7 @@ runIsolatedInvalidCurrentSampleProof();
 runThrowingCurrentSampleProof();
 runThrowingPursuitCenterProof();
 runTransientAllThrowingSafeAltitudeProof();
+runDiscontinuityClearsSafeAltitudeLatchProof();
 runAllThrowingFailSafeProof();
 runAllInvalidFailSafeProof();
 runFiniteCompatibilityProof();
