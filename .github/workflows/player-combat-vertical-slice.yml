@@ -16,6 +16,7 @@ on:
       - 'scripts/checkPlayerLockOn.mjs'
       - 'scripts/checkPlayerCombatFeedback.mjs'
       - 'scripts/checkPlayerGroundingCombatContract.mjs'
+      - 'scripts/checkSharedMaterialPlacementContract.js'
       - '.github/workflows/player-combat-vertical-slice.yml'
   workflow_dispatch:
 
@@ -49,6 +50,7 @@ jobs:
           node --check src/3d/gameplay/player.js
           node --check src/3d/gameLoopHelpers.js
           node --check src/3d/input.js
+          node --check scripts/checkSharedMaterialPlacementContract.js
       - name: Shipped vertical slice composition
         run: node scripts/checkPlayerCombatVerticalSlice.mjs
       - name: Existing melee combo
@@ -60,7 +62,7 @@ jobs:
       - name: Existing grounding combat contract
         run: node scripts/checkPlayerGroundingCombatContract.mjs
       - name: Shared material placement contract
-        run: node scripts/checkSharedMaterialPlacementContract.mjs
+        run: node scripts/checkSharedMaterialPlacementContract.js
       - name: Final main freshness
         if: github.event_name == 'pull_request'
         env:
