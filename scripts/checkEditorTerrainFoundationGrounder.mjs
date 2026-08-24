@@ -32,6 +32,22 @@ function baseHeight(x, z) {
   return 20 + x * 0.08 - z * 0.035;
 }
 
+function footprintProbePoints(bounds) {
+  const centerX = (bounds.minX + bounds.maxX) * 0.5;
+  const centerZ = (bounds.minZ + bounds.maxZ) * 0.5;
+  return [
+    { x: centerX, z: centerZ },
+    { x: bounds.minX, z: bounds.minZ },
+    { x: bounds.maxX, z: bounds.minZ },
+    { x: bounds.minX, z: bounds.maxZ },
+    { x: bounds.maxX, z: bounds.maxZ },
+    { x: centerX, z: bounds.minZ },
+    { x: centerX, z: bounds.maxZ },
+    { x: bounds.minX, z: centerZ },
+    { x: bounds.maxX, z: centerZ },
+  ];
+}
+
 const groundCollider = {
   getGroundHeight(x, z) {
     const raw = baseHeight(x, z);
@@ -94,9 +110,9 @@ assert(rebuilds >= 1, 'resident terrain intersecting the pad must rebuild');
 
 const pad = flattenPads[0];
 const firstAnchorHeight = pad.anchorHeightMeters;
-for (const sample of first.footprint.samples) {
+for (const sample of footprintProbePoints(first.footprint.bounds)) {
   assert(
-    Math.abs(groundCollider.getGroundHeight(sample.x ?? 8, sample.z ?? -6) - pad.anchorHeightMeters) < 1e-6,
+    Math.abs(groundCollider.getGroundHeight(sample.x, sample.z) - pad.anchorHeightMeters) < 1e-6,
     'shared collider must read the newly installed foundation plane inside the footprint',
   );
 }
@@ -106,7 +122,9 @@ const second = grounder.groundObject(castle, castleAsset, { x: 9, z: -5 });
 assert.equal(second.ok, true, second.error);
 assert.equal(flattenPads.length, beforeRepeat, 're-grounding the same editor id must update, not duplicate, its pad');
 assert.equal(flattenPads[0], pad, 're-grounding must mutate the installed shared pad rather than replace its identity');
-const expectedSecondUnderlyingMax = Math.max(...second.footprint.samples.map((sample) => baseHeight(sample.x, sample.z)));
+const expectedSecondUnderlyingMax = Math.max(
+  ...footprintProbePoints(second.footprint.bounds).map(({ x, z }) => baseHeight(x, z)),
+);
 assert(
   Math.abs(second.footprint.targetGroundHeight - expectedSecondUnderlyingMax) < 1e-9,
   `re-grounding must sample canonical terrain beneath its own old pad; expected ${expectedSecondUnderlyingMax}, got ${second.footprint.targetGroundHeight}`,
