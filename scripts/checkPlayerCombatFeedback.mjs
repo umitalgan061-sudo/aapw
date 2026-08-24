@@ -12,13 +12,11 @@ assert.match(source, /detail: Object\.freeze\(\{[\s\S]*serial: combatFeedbackSer
 for (const outcome of ['dodge', 'parry']) {
   assert.match(source, new RegExp(`publishCombatFeedback\\('${outcome}', rawAmount, 0, rawAmount\\)`), `${outcome} must publish a zero-damage full-block receipt`);
 }
-assert.match(source, /publishCombatFeedback\(lastDefenseResult, rawAmount, rawAmount, 0\)/, 'unguarded hit/hit-stagger must publish full applied damage');
-assert.match(source, /if \(poise <= 0\) triggerGuardBreak\(\); publishCombatFeedback\(lastDefenseResult, rawAmount, reducedAmount, blockedAmount\)/, 'guard and guard-break must publish post-resolution mitigation values');
-assert.match(source, /if \(poise <= 0\) triggerHitStagger\(\); publishCombatFeedback\(lastDefenseResult, rawAmount, rawAmount, 0\)/, 'hit-stagger outcome must be published after the poise-break transition');
-
-const feedbackCalls = source.match(/publishCombatFeedback\(/g) ?? [];
-assert.equal(feedbackCalls.length, 5, 'expected one helper plus four authoritative damage-path calls');
+assert.match(source, /function publishCombatFeedbackAfterHealth\(outcome, payload, rawAmount, blockedAmount\)[\s\S]*queueMicrotask\([\s\S]*payload\?\.appliedAmount[\s\S]*publishCombatFeedback\(outcome, rawAmount, appliedAmount, blockedAmount\)/, 'damage feedback must reconcile against the authoritative post-clamp health receipt');
+assert.match(source, /if \(!isGrounded \|\| guardBreakRemaining > 0\) \{[\s\S]*publishCombatFeedbackAfterHealth\(lastDefenseResult, payload, rawAmount, 0\)/, 'airborne and already guard-broken damage must still produce reconciled feedback');
+assert.match(source, /if \(!guarding \|\| stamina <= 0\)[\s\S]*if \(poise <= 0\) triggerHitStagger\(\); publishCombatFeedbackAfterHealth\(lastDefenseResult, payload, rawAmount, 0\)/, 'unguarded hit/hit-stagger feedback must wait for the health clamp');
+assert.match(source, /if \(poise <= 0\) triggerGuardBreak\(\); publishCombatFeedbackAfterHealth\(lastDefenseResult, payload, rawAmount, blockedAmount\)/, 'guard and guard-break feedback must preserve mitigation while using the health result');
 
 console.log('Player Combat Feedback Contract: PASS');
-console.log('outcomes=dodge,parry,guard,guard-break,hit,hit-stagger');
-console.log('payload=serial,outcome,rawAmount,appliedAmount,blockedAmount,stamina,poise,state,position');
+console.log('outcomes=dodge,parry,guard,guard-break,hit,hit-stagger,airborne-hit');
+console.log('appliedDamage=authoritative-health-clamp');
