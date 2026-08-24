@@ -61,10 +61,12 @@ assert.ok(snapshot.recentReceipts.every((receipt) => receipt.restStopCount === 1
 
 const readiness = evaluateFieldReadiness(inventory.snapshot());
 const text = buildJourneyStateText(snapshot, readiness);
-assert.match(text, /Sefer yorgunluğu: 30\//);
-assert.match(text, /Son sefer hedefi: dragonstone-ridge/);
-assert.match(text, /Son sefer: 30 km · 1 yol azığı · 1 dinlenme/);
-assert.ok(!text.includes('sequence'), 'player-facing UX must not leak internal ledger sequence metadata');
+assert.equal(text, [
+	'Sefer yorgunluğu: 30/36 km',
+	'Kesintisiz kalan dayanıklılık: 6 km',
+	'Son sefer hedefi: dragonstone-ridge',
+	'Son sefer: 30 km · 1 yol azığı · 1 dinlenme',
+].join('\n'), 'player-facing journey ledger must match the complete expected text and expose no internal sequence metadata');
 
 const restored = createInteractionJourneyState();
 restored.restore(structuredClone(snapshot));
