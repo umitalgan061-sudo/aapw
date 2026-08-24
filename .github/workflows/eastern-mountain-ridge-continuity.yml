@@ -7,9 +7,16 @@ on:
       - 'src/3d/world/worldReferenceMountainRelief.js'
       - 'src/3d/world/worldReferenceMap.js'
       - 'src/3d/world/worldReferenceSurfacePindexes.js'
+      - 'src/3d/world/terrain.js'
+      - 'src/3d/world/terrainBiomeShading.js'
+      - 'src/3d/world/northReferenceCryosphere.js'
+      - 'src/3d/world/water.js'
+      - 'src/3d/world/waterDepthField.js'
       - 'scripts/checkEasternMountainRidgeContinuity.mjs'
       - 'scripts/checkMountainNaturalizationProfile.mjs'
       - 'scripts/checkMountainNaturalizationDeterminism.mjs'
+      - 'scripts/captureFullWorld3DTopdown.mjs'
+      - 'scripts/fullWorld3DTopdownHarness.html'
       - 'scripts/setupNodeThreeShim.mjs'
       - '.github/workflows/eastern-mountain-ridge-continuity.yml'
   workflow_dispatch:
@@ -20,7 +27,7 @@ permissions:
 jobs:
   ridge-continuity:
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 18
     steps:
       - name: Checkout exact PR head
         uses: actions/checkout@v4
@@ -42,11 +49,40 @@ jobs:
           node --check scripts/checkEasternMountainRidgeContinuity.mjs
           node --check scripts/checkMountainNaturalizationProfile.mjs
           node --check scripts/checkMountainNaturalizationDeterminism.mjs
+          node --check scripts/captureFullWorld3DTopdown.mjs
 
       - name: Long ridge continuity
-        run: node scripts/checkEasternMountainRidgeContinuity.mjs
+        run: node scripts/checkEasternMountainRidgeContinuity.mjs | tee "$RUNNER_TEMP/ridge-continuity.log"
 
       - name: Existing mountain naturalization safety
         run: |
-          node scripts/checkMountainNaturalizationProfile.mjs
-          node scripts/checkMountainNaturalizationDeterminism.mjs
+          node scripts/checkMountainNaturalizationProfile.mjs | tee "$RUNNER_TEMP/mountain-profile.log"
+          node scripts/checkMountainNaturalizationDeterminism.mjs | tee "$RUNNER_TEMP/mountain-determinism.log"
+
+      - name: Install browser capture dependency
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Render exact-head full-world mountain proof
+        run: |
+          node scripts/captureFullWorld3DTopdown.mjs \
+            --width=1600 \
+            --height=1100 \
+            --segments=240 \
+            --output=artifacts/eastern-mountain-ridge-continuity/full-world-natural-ridges.png \
+            | tee "$RUNNER_TEMP/full-world-natural-ridges.log"
+
+      - name: Upload ridge metrics and full-world visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eastern-mountain-ridge-continuity-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/ridge-continuity.log
+            ${{ runner.temp }}/mountain-profile.log
+            ${{ runner.temp }}/mountain-determinism.log
+            ${{ runner.temp }}/full-world-natural-ridges.log
+            artifacts/eastern-mountain-ridge-continuity/
+          if-no-files-found: warn
+          retention-days: 14
