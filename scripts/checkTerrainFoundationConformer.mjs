@@ -23,11 +23,11 @@ assert.equal(built.key, 'object:object-keep', 'runtime Object3D identity must ou
 assert.equal(built.pad.x, 100);
 assert.equal(built.pad.z, -50);
 assert.equal(built.pad.anchorHeightMeters, 71.25);
-assert.equal(built.pads.length, 4, 'non-degenerate AABB foundations should use four quarter-cell pads');
+assert.equal(built.pads.length, 4, 'non-degenerate AABB foundations should use four compact pads');
 assert.equal(built.pad.foundationClusterSize, 4);
 assert.equal(built.pad.outerRadiusMeters, built.pad.innerRadiusMeters + 9);
 assert.equal(built.pad.source, TERRAIN_FOUNDATION_CONFORM_POLICY.id);
-assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.footprintMode, 'aabb-quarter-cell-circle-union');
+assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.footprintMode, 'aabb-adaptive-four-cell-circle-union');
 assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.chunkRebuildMode, 'union-deduplicated');
 assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.identityMode, 'runtime-object-first');
 for (const pad of built.pads) {
@@ -56,8 +56,8 @@ const huge = createFoundationFlattenPad({
 assert.equal(huge.ok, false, 'a malformed/giant asset must not flatten an unlimited part of the map');
 assert.equal(huge.error, 'foundation-footprint-too-large');
 
-// The compact cluster must still cover the entire footprint while avoiding the broad empty side-area
-// that the previous one-circle envelope flattened around long, narrow structures.
+// Long/narrow footprints must rotate the fixed four-pad budget along the long axis. This keeps the
+// full AABB flat while reducing side feather compared with a forced 2x2 layout.
 const longBuilt = createFoundationFlattenPad({
 	metadata: { id: 'long-hall' },
 	bounds: { minX: -50, maxX: 50, minZ: -5, maxZ: 5 },
@@ -65,13 +65,33 @@ const longBuilt = createFoundationFlattenPad({
 }, { innerMarginMeters: 0, featherMeters: 2 });
 assert.equal(longBuilt.ok, true, longBuilt.error);
 assert.equal(longBuilt.pads.length, 4);
+assert(longBuilt.pads.every((pad) => Math.abs(pad.z) < 1e-9),
+	'100x10m hall should rotate the four-cell budget into a 4x1 grid along its long axis');
+assert.deepEqual(longBuilt.pads.map((pad) => Number(pad.x.toFixed(1))), [-37.5, -12.5, 12.5, 37.5]);
+assert(longBuilt.pads.every((pad) => pad.innerRadiusMeters < 14),
+	'adaptive long-axis cells must materially reduce the old 2x2 cell radius');
 const compactSampler = createHeightSampler(123, undefined, longBuilt.pads);
 for (const [x, z] of [[-50, -5], [-50, 5], [50, -5], [50, 5], [0, 0]]) {
 	assert.equal(compactSampler(x, z), 120, `full footprint point ${x},${z} must be fully conformed`);
 }
-const sideProbeBase = createHeightSampler(123, undefined, [])(0, 35);
+const baseSampler = createHeightSampler(123, undefined, []);
+const nearSideProbeBase = baseSampler(0, 20);
+assert.equal(compactSampler(0, 20), nearSideProbeBase,
+	'adaptive 4x1 cells must preserve side terrain that the previous forced 2x2 cluster still feathered');
+const sideProbeBase = baseSampler(0, 35);
 assert.equal(compactSampler(0, 35), sideProbeBase,
 	'compact footprint cluster must not flatten distant side terrain that lies inside the old enclosing-circle envelope');
+
+const tallBuilt = createFoundationFlattenPad({
+	metadata: { id: 'tall-wall' },
+	bounds: { minX: -4, maxX: 4, minZ: -48, maxZ: 48 },
+	targetHeight: 91,
+}, { innerMarginMeters: 0, featherMeters: 2 });
+assert.equal(tallBuilt.ok, true, tallBuilt.error);
+assert.equal(tallBuilt.pads.length, 4);
+assert(tallBuilt.pads.every((pad) => Math.abs(pad.x) < 1e-9),
+	'8x96m footprint should rotate into a 1x4 grid along Z');
+assert.deepEqual(tallBuilt.pads.map((pad) => Number(pad.z.toFixed(1))), [-36, -12, 12, 36]);
 
 // Prove the existing terrain sampler observes pads appended *after* the sampler was created. This is
 // the render/physics bridge's central invariant: sceneManager constructs the collider once, then a
@@ -203,4 +223,4 @@ assert.equal(cloneConformer.removeFoundation(cloneAObject).ok, true, 'clone foun
 assert.equal(clonePads.length, 4, 'removing clone A must preserve clone B foundation cluster');
 assert(clonePads.every((pad) => pad.foundationKey === 'object:tower-b'));
 
-console.log('[checkTerrainFoundationConformer] PASS: compact quarter-cell foundation clusters cover the full AABB without the old enclosing-circle side overreach, mutate one shared render/physics height authority, rebuild old/new influence once, and preserve per-object identity.');
+console.log('[checkTerrainFoundationConformer] PASS: adaptive four-cell foundation clusters cover the full AABB, rotate along long footprints to reduce side overreach, mutate one shared render/physics height authority, rebuild old/new influence once, and preserve per-object identity.');
