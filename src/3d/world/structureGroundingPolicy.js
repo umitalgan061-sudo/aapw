@@ -7,27 +7,27 @@ const HARD_EXCLUDED_PRIMITIVES = Object.freeze([
 
 const STRUCTURE_TERMS = Object.freeze([
   'architecture', 'architectural', 'building', 'structure', 'settlement', 'village', 'city', 'town',
-  'castle', 'citadel', 'keep', 'tower', 'watchtower', 'lighthouse', 'wall', 'gate', 'gatehouse', 'fort', 'fortress',
-  'fortification', 'palace', 'house', 'farmhouse', 'boathouse', 'hall', 'manor', 'inn', 'tavern', 'hut', 'cottage', 'barn',
-  'stable', 'granary', 'warehouse', 'workshop', 'forge', 'smithy', 'mill', 'market', 'sept', 'temple', 'shrine', 'chapel',
+  'castle', 'citadel', 'keep', 'tower', 'watchtower', 'towerhouse', 'stronghold', 'outpost', 'lighthouse', 'wall', 'gate', 'gatehouse', 'fort', 'fortress',
+  'fortification', 'palace', 'house', 'longhouse', 'townhouse', 'rowhouse', 'farmhouse', 'boathouse', 'hall', 'manor', 'inn', 'tavern', 'hut', 'cottage', 'cabin', 'shed', 'barn',
+  'stable', 'granary', 'warehouse', 'workshop', 'forge', 'smithy', 'foundry', 'brewery', 'bakery', 'mill', 'market', 'sept', 'temple', 'shrine', 'chapel',
   'church', 'cathedral', 'abbey', 'monastery', 'crypt', 'mausoleum', 'barracks', 'armory', 'armoury', 'library', 'school',
   'hospital', 'bridge', 'aqueduct', 'dock', 'pier', 'quay', 'wharf', 'harbor', 'harbour', 'port', 'shipyard', 'rampart',
-  'battlement', 'ruin', 'monument', 'arena', 'stadium', 'well', 'fountain',
+  'battlement', 'ruin', 'monument', 'arena', 'stadium', 'well', 'fountain', 'residence', 'homestead', 'farmstead', 'estate', 'greenhouse',
   'mimari', 'bina', 'yapi', 'yapı', 'konut', 'yerlesim', 'yerleşim', 'koy', 'köy', 'sehir', 'şehir', 'kasaba', 'kale',
-  'hisar', 'sur', 'kule', 'gozetleme', 'gözetleme', 'saray', 'kosk', 'köşk', 'malikane', 'ciftlik', 'çiftlik', 'baraka',
+  'hisar', 'sur', 'kule', 'gozetleme', 'gözetleme', 'karakol', 'saray', 'kosk', 'köşk', 'malikane', 'ciftlik', 'çiftlik', 'baraka',
   'kulube', 'kulübe', 'kopru', 'köprü', 'iskele', 'liman', 'rihtim', 'rıhtım', 'tersane', 'depo', 'ambar', 'atolye',
-  'atölye', 'demirhane', 'degirmen', 'değirmen', 'pazar', 'ahir', 'ahır', 'han', 'meyhane', 'tapinak', 'tapınak',
+  'atölye', 'demirhane', 'dokumhane', 'dökümhane', 'birahane', 'firin', 'fırın', 'degirmen', 'değirmen', 'pazar', 'ahir', 'ahır', 'han', 'meyhane', 'tapinak', 'tapınak',
   'mabet', 'sapel', 'şapel', 'manastir', 'manastır', 'katedral', 'kisla', 'kışla', 'cephanelik', 'kutuphane', 'kütüphane',
-  'okul', 'hastane', 'mezar', 'anit', 'anıt', 'kuyu', 'cesme', 'çeşme',
+  'okul', 'hastane', 'mezar', 'anit', 'anıt', 'kuyu', 'cesme', 'çeşme', 'sera',
 ]);
 
 const TURKISH_STRUCTURE_STEMS = Object.freeze([
   'mimari', 'bina', 'yapi', 'yapı', 'konut', 'yerlesim', 'yerleşim', 'koy', 'köy', 'sehir', 'şehir', 'kasaba', 'kale',
-  'hisar', 'kule', 'gozetleme', 'gözetleme', 'saray', 'kosk', 'köşk', 'malikane', 'ciftlik', 'çiftlik', 'baraka', 'kulube',
+  'hisar', 'kule', 'gozetleme', 'gözetleme', 'karakol', 'saray', 'kosk', 'köşk', 'malikane', 'ciftlik', 'çiftlik', 'baraka', 'kulube',
   'kulübe', 'kopru', 'köprü', 'iskele', 'liman', 'rihtim', 'rıhtım', 'tersane', 'depo', 'ambar', 'atolye', 'atölye',
-  'demirhane', 'degirmen', 'değirmen', 'pazar', 'ahir', 'ahır', 'meyhane', 'tapinak', 'tapınak', 'mabet', 'sapel', 'şapel',
+  'demirhane', 'dokumhane', 'dökümhane', 'birahane', 'firin', 'fırın', 'degirmen', 'değirmen', 'pazar', 'ahir', 'ahır', 'meyhane', 'tapinak', 'tapınak', 'mabet', 'sapel', 'şapel',
   'manastir', 'manastır', 'katedral', 'kisla', 'kışla', 'cephanelik', 'kutuphane', 'kütüphane', 'okul', 'hastane', 'mezar',
-  'anit', 'anıt', 'kuyu', 'cesme', 'çeşme',
+  'anit', 'anıt', 'kuyu', 'cesme', 'çeşme', 'sera',
 ]);
 
 const BRIDGE_PROFILE_TERMS = Object.freeze(['bridge', 'aqueduct']);
@@ -38,8 +38,8 @@ const WATERSIDE_PROFILE_TERMS = Object.freeze([
 const WATERSIDE_PROFILE_STEMS = Object.freeze(['iskele', 'liman', 'rihtim', 'rıhtım', 'tersane']);
 
 const DESCRIPTOR_FIELDS = Object.freeze([
-  'id', 'name', 'category', 'kind', 'primitive', 'src',
-  'assetId', 'assetName', 'assetCategory', 'assetKind', 'assetPrimitive', 'assetSrc',
+  'id', 'name', 'category', 'kind', 'type', 'subtype', 'family', 'tags', 'primitive', 'src',
+  'assetId', 'assetName', 'assetCategory', 'assetKind', 'assetType', 'assetSubtype', 'assetFamily', 'assetTags', 'assetPrimitive', 'assetSrc',
 ]);
 
 const HARD_EXCLUDED_SET = new Set(HARD_EXCLUDED_PRIMITIVES);
@@ -48,7 +48,7 @@ const BRIDGE_PROFILE_PATTERN = termPattern(BRIDGE_PROFILE_TERMS);
 const WATERSIDE_PROFILE_PATTERN = termPattern(WATERSIDE_PROFILE_TERMS);
 
 export const STRUCTURE_GROUNDING_POLICY = Object.freeze({
-  id: 'structure-grounding-classifier-2026-08-24-v2-surface-profile',
+  id: 'structure-grounding-classifier-2026-08-24-v3-family-aliases',
   footprintProbeCount: 9,
   primaryMetadataOverridesFallback: true,
   protectedPrimitivesOverrideOptIn: true,
@@ -116,6 +116,7 @@ function structureDescriptor(metadata) {
   return DESCRIPTOR_FIELDS
     .map((field) => metadata?.[field])
     .filter((value) => value !== undefined && value !== null && value !== '')
+    .flatMap((value) => Array.isArray(value) ? value : [value])
     .join(' ')
     .toLocaleLowerCase('tr-TR');
 }
