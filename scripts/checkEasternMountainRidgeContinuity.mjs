@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   REFERENCE_RELIEF_CHAINS,
+  WORLD_REFERENCE_MAP,
 } from '../src/3d/world/worldReferenceMap.js';
 import {
   WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY,
@@ -11,6 +12,7 @@ import {
 } from '../src/3d/world/worldReferenceMountainRelief.js';
 
 const TARGET_CHAINS = new Set(['bone-mountains', 'eastern-chain']);
+const MAP_ASPECT = WORLD_REFERENCE_MAP.pixelWidth / WORLD_REFERENCE_MAP.pixelHeight;
 const evidence = {};
 
 function percentile(sorted, fraction) {
@@ -19,14 +21,32 @@ function percentile(sorted, fraction) {
   return sorted[index];
 }
 
+function isInteriorDry(x, y) {
+  const radiusY = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.coastalReliefTaper.radiusNormalized;
+  const radiusX = radiusY / MAP_ASPECT;
+  const probes = [
+    [x, y],
+    [x - radiusX, y],
+    [x + radiusX, y],
+    [x, y - radiusY],
+    [x, y + radiusY],
+  ];
+  return probes.every(([px, py]) =>
+    px >= 0 && px <= 1 && py >= 0 && py <= 1 &&
+    sampleReferenceDryLandWeight(px, py) >= WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateFull);
+}
+
 for (const chain of REFERENCE_RELIEF_CHAINS.filter(({ id }) => TARGET_CHAINS.has(id))) {
   const profile = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.chains[chain.id];
   assert(profile, `${chain.id}: runtime profile missing`);
-  assert(profile.summitFloor >= 0.25,
-    `${chain.id}: summit floor ${profile.summitFloor} can collapse a long mapped ridge into isolated plugs`);
-  assert(profile.summitNoiseExponent <= 1.6,
-    `${chain.id}: summit exponent ${profile.summitNoiseExponent} over-concentrates height into local spikes`);
+  assert(profile.peakMeters <= 850, `${chain.id}: peak cap ${profile.peakMeters}m is too tall for a long map-scale ridge`);
+  assert(profile.outerWidthNormalized >= 0.085, `${chain.id}: shoulder width ${profile.outerWidthNormalized} is too narrow and column-like`);
+  assert(profile.summitFloor >= 0.32, `${chain.id}: summit floor ${profile.summitFloor} can collapse a long ridge into plugs`);
+  assert(profile.summitNoiseExponent <= 1.4, `${chain.id}: summit exponent ${profile.summitNoiseExponent} over-concentrates local peaks`);
+  assert(profile.coordinateWarpScale >= 1.5 && profile.coordinateWarpScale <= 2.4, `${chain.id}: map-safe ridge warp is outside the audited envelope`);
+  assert(profile.shoulderDetailStrength >= 0.15 && profile.shoulderDetailStrength <= 0.28, `${chain.id}: shoulder detail is not visibly irregular but bounded`);
 
+  const allDryHeights = [];
   const heights = [];
   const samples = [];
   for (let segment = 0; segment < chain.points.length - 1; segment += 1) {
@@ -40,12 +60,15 @@ for (const chain of REFERENCE_RELIEF_CHAINS.filter(({ id }) => TARGET_CHAINS.has
       const meters = sampleNormalizedReferenceMountainReliefMeters(x, y);
       if (dry < WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.landGateFull) continue;
       assert(Number.isFinite(meters) && meters > 0, `${chain.id}: dry centerline relief vanished at ${x},${y}`);
+      allDryHeights.push(meters);
+      if (!isInteriorDry(x, y)) continue;
       heights.push(meters);
       samples.push({ x, y, meters });
     }
   }
 
-  assert(heights.length >= 60, `${chain.id}: too few source-owned dry centerline samples for ridge continuity`);
+  assert(allDryHeights.length >= 60, `${chain.id}: too few source-owned dry centerline samples`);
+  assert(heights.length >= 36, `${chain.id}: too few interior-dry samples for ridge continuity`);
   const sorted = [...heights].sort((a, b) => a - b);
   const p10 = percentile(sorted, 0.10);
   const median = percentile(sorted, 0.50);
@@ -53,14 +76,10 @@ for (const chain of REFERENCE_RELIEF_CHAINS.filter(({ id }) => TARGET_CHAINS.has
   const maximum = sorted.at(-1);
   const minimum = sorted[0];
 
-  assert(p10 >= profile.peakMeters * 0.10,
-    `${chain.id}: lower ridge body collapsed below 10% of peak envelope (${p10.toFixed(1)}m)`);
-  assert(median >= profile.peakMeters * 0.16,
-    `${chain.id}: median ridge body is too weak (${median.toFixed(1)}m)`);
-  assert(p90 / Math.max(p10, 1) <= 4.5,
-    `${chain.id}: p90/p10 ${ (p90 / Math.max(p10, 1)).toFixed(2) } reads as isolated summit spikes`);
-  assert(maximum / Math.max(median, 1) <= 3.8,
-    `${chain.id}: max/median ${ (maximum / Math.max(median, 1)).toFixed(2) } is too column-like`);
+  assert(p10 >= profile.peakMeters * 0.14, `${chain.id}: interior lower ridge body collapsed (${p10.toFixed(1)}m)`);
+  assert(median >= profile.peakMeters * 0.22, `${chain.id}: interior median ridge body is too weak (${median.toFixed(1)}m)`);
+  assert(p90 / Math.max(p10, 1) <= 3.2, `${chain.id}: p90/p10 ${(p90 / Math.max(p10, 1)).toFixed(2)} reads as isolated summit spikes`);
+  assert(maximum / Math.max(median, 1) <= 2.8, `${chain.id}: max/median ${(maximum / Math.max(median, 1)).toFixed(2)} is too column-like`);
 
   let largestNeighbourJump = 0;
   for (let index = 1; index < samples.length; index += 1) {
@@ -71,11 +90,11 @@ for (const chain of REFERENCE_RELIEF_CHAINS.filter(({ id }) => TARGET_CHAINS.has
     const ratio = Math.max(previous.meters, current.meters) / Math.max(1, Math.min(previous.meters, current.meters));
     largestNeighbourJump = Math.max(largestNeighbourJump, ratio);
   }
-  assert(largestNeighbourJump <= 1.55,
-    `${chain.id}: adjacent ridge samples jump ${largestNeighbourJump.toFixed(2)}x, indicating a needle-like local discontinuity`);
+  assert(largestNeighbourJump <= 1.45, `${chain.id}: adjacent interior ridge samples jump ${largestNeighbourJump.toFixed(2)}x`);
 
   evidence[chain.id] = {
-    dryCenterlineSamples: heights.length,
+    dryCenterlineSamples: allDryHeights.length,
+    interiorDrySamples: heights.length,
     minimumMeters: Number(minimum.toFixed(2)),
     p10Meters: Number(p10.toFixed(2)),
     medianMeters: Number(median.toFixed(2)),
@@ -84,8 +103,11 @@ for (const chain of REFERENCE_RELIEF_CHAINS.filter(({ id }) => TARGET_CHAINS.has
     p90ToP10: Number((p90 / Math.max(p10, 1)).toFixed(3)),
     maxToMedian: Number((maximum / Math.max(median, 1)).toFixed(3)),
     largestNeighbourJump: Number(largestNeighbourJump.toFixed(3)),
+    peakMeters: profile.peakMeters,
+    outerWidthNormalized: profile.outerWidthNormalized,
     summitFloor: profile.summitFloor,
     summitNoiseExponent: profile.summitNoiseExponent,
+    shoulderDetailStrength: profile.shoulderDetailStrength,
   };
 }
 

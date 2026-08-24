@@ -216,7 +216,9 @@ try {
       return { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles };
     }
 
-    const gameplayRender = renderView([520, 185, 610], [0, 48, -30], 'gameplay / three-quarter stand readability');
+    const gameplayTarget = [crowdCenter.x, crowdCenter.y + 8, crowdCenter.z];
+    const gameplayCamera = [crowdCenter.x + 260, crowdCenter.y + 105, crowdCenter.z + 320];
+    const gameplayRender = renderView(gameplayCamera, gameplayTarget, 'gameplay / close three-quarter stand readability');
     window.__renderNorthSnowPineAerial = () => renderView([760, 720, 880], [0, 10, 0], 'elevated / cluster distribution readability');
 
     const treatments = replacementMeshes.map((mesh) => mesh.material?.userData?.winterPineTreatment ?? 'source');

@@ -17,7 +17,7 @@ import {
 import { WORLD_REFERENCE_BASE_SURFACE_MASK } from './worldReferenceSurfacePindexes.js';
 
 export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
-	id: 'owner-map-live-mountain-relief-2026-08-24-v4-ridge-continuity',
+	id: 'owner-map-live-mountain-relief-2026-08-24-v5-natural-long-ranges',
 	sourceMapSha256: WORLD_REFERENCE_MAP.sha256,
 	surfaceMaskSha256: WORLD_REFERENCE_BASE_SURFACE_MASK.maskSha256,
 	landGateZero: 0.54,
@@ -71,19 +71,25 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 			]),
 		}),
 		'bone-mountains': Object.freeze({
-			peakMeters: 1100,
-			coreWidthNormalized: 0.008,
-			outerWidthNormalized: 0.060,
-			summitFloor: 0.28,
-			summitNoiseExponent: 1.5,
+			peakMeters: 820,
+			coreWidthNormalized: 0.007,
+			outerWidthNormalized: 0.094,
+			summitFloor: 0.36,
+			summitNoiseExponent: 1.3,
+			coordinateWarpScale: 2.0,
+			shoulderDetailStrength: 0.22,
+			shoulderDetailFrequency: 31,
 			seed: 37,
 		}),
 		'eastern-chain': Object.freeze({
-			peakMeters: 1100,
-			coreWidthNormalized: 0.007,
-			outerWidthNormalized: 0.055,
-			summitFloor: 0.28,
-			summitNoiseExponent: 1.5,
+			peakMeters: 760,
+			coreWidthNormalized: 0.006,
+			outerWidthNormalized: 0.088,
+			summitFloor: 0.36,
+			summitNoiseExponent: 1.3,
+			coordinateWarpScale: 2.0,
+			shoulderDetailStrength: 0.22,
+			shoulderDetailFrequency: 29,
 			seed: 53,
 		}),
 	}),
@@ -254,6 +260,18 @@ function sampleShoulderWidthScale(normalizedX, normalizedY, seed) {
 	return policy.minimumScale + (policy.maximumScale - policy.minimumScale) * blend;
 }
 
+function sampleProfileShoulderDetailScale(normalizedX, normalizedY, profile) {
+	const strength = profile.shoulderDetailStrength ?? 0;
+	if (strength <= 0) return 1;
+	const frequency = profile.shoulderDetailFrequency ?? 29;
+	const detail = valueNoise2D(
+		normalizedX * frequency + profile.seed * 0.17,
+		normalizedY * frequency - profile.seed * 0.11,
+		profile.seed + 733,
+	);
+	return 1 + (detail - 0.5) * 2 * strength;
+}
+
 function sampleTalusBreakup(normalizedX, normalizedY, normalizedDistance, seed) {
 	const policy = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.talusBreakup;
 	const shoulderWeight = smoothstep(policy.shoulderStart, policy.shoulderEnd, normalizedDistance)
@@ -279,7 +297,8 @@ const COMPILED_CHAINS = Object.freeze(REFERENCE_RELIEF_CHAINS.map((chain) => {
 	const points = Object.freeze(chain.points.map(([x, y]) => Object.freeze([x * MAP_ASPECT, y])));
 	const xs = points.map((point) => point[0]);
 	const ys = points.map((point) => point[1]);
-	const maximumWidthScale = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.shoulderWidthVariation.maximumScale;
+	const maximumWidthScale = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.shoulderWidthVariation.maximumScale
+		* (1 + (profile.shoulderDetailStrength ?? 0));
 	return Object.freeze({
 		id: chain.id,
 		points,
@@ -303,8 +322,10 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 	for (const chain of COMPILED_CHAINS) {
 		const unwarpedX = normalizedX * MAP_ASPECT;
 		const unwarpedY = normalizedY;
-		const warpPaddingX = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.coordinateWarpNormalized * MAP_ASPECT * 0.5;
-		const warpPaddingY = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.coordinateWarpNormalized * 0.5;
+		const coordinateWarpScale = chain.profile.coordinateWarpScale ?? 1;
+		const coordinateWarpNormalized = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.coordinateWarpNormalized * coordinateWarpScale;
+		const warpPaddingX = coordinateWarpNormalized * MAP_ASPECT * 0.5;
+		const warpPaddingY = coordinateWarpNormalized * 0.5;
 		if (
 			unwarpedX < chain.minX - warpPaddingX ||
 			unwarpedX > chain.maxX + warpPaddingX ||
@@ -314,9 +335,9 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 
 		const warpFrequency = 18;
 		const warpX = (valueNoise2D(normalizedX * warpFrequency, normalizedY * warpFrequency, chain.profile.seed) - 0.5)
-			* WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.coordinateWarpNormalized * MAP_ASPECT;
+			* coordinateWarpNormalized * MAP_ASPECT;
 		const warpY = (valueNoise2D(normalizedX * warpFrequency + 31, normalizedY * warpFrequency - 17, chain.profile.seed) - 0.5)
-			* WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.coordinateWarpNormalized;
+			* coordinateWarpNormalized;
 		const px = unwarpedX + warpX;
 		const py = unwarpedY + warpY;
 		if (px < chain.minX || px > chain.maxX || py < chain.minY || py > chain.maxY) continue;
@@ -328,7 +349,8 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 			distance = Math.min(distance, pointSegmentDistance(px, py, a[0], a[1], b[0], b[1]));
 		}
 
-		const widthScale = sampleShoulderWidthScale(normalizedX, normalizedY, chain.profile.seed);
+		const widthScale = sampleShoulderWidthScale(normalizedX, normalizedY, chain.profile.seed)
+			* sampleProfileShoulderDetailScale(normalizedX, normalizedY, chain.profile);
 		const coreWidth = chain.profile.coreWidthNormalized * clamp(widthScale * 0.92, 0.78, 1.22);
 		const outerWidth = chain.profile.outerWidthNormalized * widthScale;
 		if (distance >= outerWidth) continue;
