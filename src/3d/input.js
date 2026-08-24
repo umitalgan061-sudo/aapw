@@ -18,6 +18,7 @@ const LOCK_ON_KEYS = new Set(['Tab']);
 const GUARD_POINTER_BUTTON = 2;
 const LIGHT_ATTACK_POINTER_BUTTON = 0;
 const COMBAT_INPUT_EVENT = 'aapw:player-combat-input';
+const COMBAT_FEEDBACK_EVENT = 'aapw:player-combat-feedback';
 const INPUT_DEVICE_EVENT = 'aapw:player-input-device';
 const GAMEPAD_DEADZONE = 0.18;
 const GAMEPAD_TRIGGER_DEADZONE = 0.08;
@@ -34,6 +35,14 @@ const GAMEPAD_ACTION_HAPTICS = Object.freeze({
 	parry: Object.freeze({ duration: 38, weakMagnitude: 0.18, strongMagnitude: 0.68 }),
 	light: Object.freeze({ duration: 55, weakMagnitude: 0.22, strongMagnitude: 0.48 }),
 	heavy: Object.freeze({ duration: 90, weakMagnitude: 0.38, strongMagnitude: 0.82 }),
+});
+const GAMEPAD_COMBAT_FEEDBACK_HAPTICS = Object.freeze({
+	dodge: Object.freeze({ duration: 34, weakMagnitude: 0.1, strongMagnitude: 0.24 }),
+	parry: Object.freeze({ duration: 72, weakMagnitude: 0.18, strongMagnitude: 0.86 }),
+	guard: Object.freeze({ duration: 54, weakMagnitude: 0.34, strongMagnitude: 0.56 }),
+	'guard-break': Object.freeze({ duration: 135, weakMagnitude: 0.58, strongMagnitude: 0.96 }),
+	hit: Object.freeze({ duration: 78, weakMagnitude: 0.44, strongMagnitude: 0.74 }),
+	'hit-stagger': Object.freeze({ duration: 128, weakMagnitude: 0.62, strongMagnitude: 0.92 }),
 });
 
 function isInteractiveTarget(target) { return Boolean(target?.closest?.('button, a, input, textarea, select, [contenteditable="true"]')); }
@@ -111,12 +120,32 @@ export function samplePlayerGamepad(gamepad, previousButtons = {}, previousRunni
 	};
 }
 
-export function pulsePlayerGamepadAction(gamepad, kind) {
-	const profile = GAMEPAD_ACTION_HAPTICS[kind], actuator = gamepad?.vibrationActuator;
-	if (!profile || gamepad?.mapping !== 'standard' || !gamepad?.connected || typeof actuator?.playEffect !== 'function') return false;
-	try { void Promise.resolve(actuator.playEffect('dual-rumble', { startDelay: 0, ...profile })).catch(() => {}); return true; } catch { return false; }
+function readGamepadHapticActuator(gamepad) {
+	const vibrationActuator = gamepad?.vibrationActuator;
+	if (typeof vibrationActuator?.playEffect === 'function') return vibrationActuator;
+	const fallbackActuator = gamepad?.hapticActuators?.[0];
+	return typeof fallbackActuator?.playEffect === 'function' ? fallbackActuator : null;
 }
+function requestGamepadHaptic(gamepad, profile) {
+	const actuator = readGamepadHapticActuator(gamepad);
+	if (!profile || gamepad?.mapping !== 'standard' || !gamepad?.connected || !actuator) return null;
+	try { return Promise.resolve(actuator.playEffect('dual-rumble', { startDelay: 0, ...profile })).then(() => true, () => false); } catch { return null; }
+}
+function playGamepadHaptic(gamepad, profile) { return Boolean(requestGamepadHaptic(gamepad, profile)); }
+function readGamepadHapticProfile(profiles, kind) { return typeof kind === 'string' && Object.hasOwn(profiles, kind) ? profiles[kind] : null; }
+function readCombatFeedbackAmount(value) { return Number.isFinite(value) && value > 0 ? value : 0; }
+export function resolvePlayerCombatFeedbackHaptic(feedback) {
+	const outcome = feedback?.outcome, profile = readGamepadHapticProfile(GAMEPAD_COMBAT_FEEDBACK_HAPTICS, outcome);
+	if (!profile) return null;
+	const appliedAmount = readCombatFeedbackAmount(feedback?.appliedAmount), blockedAmount = readCombatFeedbackAmount(feedback?.blockedAmount);
+	if ((outcome === 'dodge' || outcome === 'parry' || outcome === 'guard') && blockedAmount <= 0) return null;
+	if ((outcome === 'hit' || outcome === 'hit-stagger') && appliedAmount <= 0) return null;
+	if (outcome === 'guard-break' && appliedAmount <= 0 && blockedAmount <= 0) return null;
+	return profile;
+}
+export function pulsePlayerGamepadAction(gamepad, kind) { return playGamepadHaptic(gamepad, readGamepadHapticProfile(GAMEPAD_ACTION_HAPTICS, kind)); }
 export function pulsePlayerGamepadMelee(gamepad, kind) { return pulsePlayerGamepadAction(gamepad, kind); }
+export function pulsePlayerGamepadCombatFeedback(gamepad, feedback) { return playGamepadHaptic(gamepad, resolvePlayerCombatFeedbackHaptic(feedback)); }
 
 export function emitPlayerCombatIntent(kind, source = 'unknown') {
 	if ((kind !== 'light' && kind !== 'heavy') || typeof globalThis.dispatchEvent !== 'function' || typeof globalThis.CustomEvent !== 'function') return false;
@@ -130,7 +159,7 @@ function emitInputDeviceChange(index, reason) {
 export class KeyboardInput {
 	constructor(target = window) {
 		this._keys = new Set(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false;
-		this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._target = target;
+		this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._lastCombatFeedbackSerial = 0; this._pendingCombatFeedbackSerial = 0; this._target = target;
 		this._onKeyDown = (event) => {
 			const firstPress = !this._keys.has(event.code);
 			if (JUMP_KEYS.has(event.code) && firstPress) this._jumpRequested = true;
@@ -143,13 +172,26 @@ export class KeyboardInput {
 		this._onPointerDown = (event) => { if (event.button === GUARD_POINTER_BUTTON) { this._guardPointerHeld = true; event.preventDefault?.(); return; } if (event.button === LIGHT_ATTACK_POINTER_BUTTON && !isInteractiveTarget(event.target)) emitPlayerCombatIntent('light', 'mouse'); };
 		this._onPointerUp = (event) => { if (event.button === GUARD_POINTER_BUTTON) this._guardPointerHeld = false; };
 		this._onContextMenu = (event) => { if (this._guardPointerHeld) event.preventDefault?.(); };
+		this._onCombatFeedback = (event) => {
+			const detail = event?.detail, serial = detail?.serial;
+			if (!Number.isSafeInteger(serial) || serial <= 0 || serial <= Math.max(this._lastCombatFeedbackSerial, this._pendingCombatFeedbackSerial)) return;
+			const pads = globalThis.navigator?.getGamepads?.() ?? [], gamepad = selectPlayerGamepad(pads, this._activeGamepadIndex);
+			if (!gamepad || gamepad.index !== this._activeGamepadIndex) return;
+			const request = requestGamepadHaptic(gamepad, resolvePlayerCombatFeedbackHaptic(detail));
+			if (!request) return;
+			this._pendingCombatFeedbackSerial = serial;
+			void request.then((played) => {
+				if (this._pendingCombatFeedbackSerial === serial) this._pendingCombatFeedbackSerial = 0;
+				if (played && serial > this._lastCombatFeedbackSerial) this._lastCombatFeedbackSerial = serial;
+			});
+		};
 		this._onFocusLoss = (event) => {
 			const hadActiveInput = this._keys.size > 0 || this._jumpRequested || this._lockOnRequested || this._guardPointerHeld || this._activeGamepadIndex !== null;
 			this._keys.clear(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false; this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null;
 			if (hadActiveInput) emitInputDeviceChange(null, event?.type === 'pagehide' ? 'page-hidden' : event?.type === 'visibilitychange' ? 'visibility-hidden' : 'focus-lost');
 		};
 		this._onVisibilityChange = () => { if (this._target?.hidden === true || globalThis.document?.hidden === true) this._onFocusLoss({ type: 'visibilitychange' }); };
-		for (const [type, handler] of [['keydown', this._onKeyDown], ['keyup', this._onKeyUp], ['pointerdown', this._onPointerDown], ['pointerup', this._onPointerUp], ['pointercancel', this._onPointerUp], ['contextmenu', this._onContextMenu], ['blur', this._onFocusLoss], ['pagehide', this._onFocusLoss], ['visibilitychange', this._onVisibilityChange]]) target.addEventListener(type, handler);
+		for (const [type, handler] of [['keydown', this._onKeyDown], ['keyup', this._onKeyUp], ['pointerdown', this._onPointerDown], ['pointerup', this._onPointerUp], ['pointercancel', this._onPointerUp], ['contextmenu', this._onContextMenu], [COMBAT_FEEDBACK_EVENT, this._onCombatFeedback], ['blur', this._onFocusLoss], ['pagehide', this._onFocusLoss], ['visibilitychange', this._onVisibilityChange]]) target.addEventListener(type, handler);
 	}
 	_pollGamepad() {
 		const pads = globalThis.navigator?.getGamepads?.() ?? [], gamepad = selectPlayerGamepad(pads, this._activeGamepadIndex), nextIndex = gamepad?.index ?? null, switched = nextIndex !== this._activeGamepadIndex;
@@ -178,7 +220,7 @@ export class KeyboardInput {
 	}
 	consumeLockOnRequested() { const requested = this._lockOnRequested; this._lockOnRequested = false; return requested; }
 	dispose() {
-		for (const [type, handler] of [['keydown', this._onKeyDown], ['keyup', this._onKeyUp], ['pointerdown', this._onPointerDown], ['pointerup', this._onPointerUp], ['pointercancel', this._onPointerUp], ['contextmenu', this._onContextMenu], ['blur', this._onFocusLoss], ['pagehide', this._onFocusLoss], ['visibilitychange', this._onVisibilityChange]]) this._target.removeEventListener(type, handler);
-		this._keys.clear(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false; this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null;
+		for (const [type, handler] of [['keydown', this._onKeyDown], ['keyup', this._onKeyUp], ['pointerdown', this._onPointerDown], ['pointerup', this._onPointerUp], ['pointercancel', this._onPointerUp], ['contextmenu', this._onContextMenu], [COMBAT_FEEDBACK_EVENT, this._onCombatFeedback], ['blur', this._onFocusLoss], ['pagehide', this._onFocusLoss], ['visibilitychange', this._onVisibilityChange]]) this._target.removeEventListener(type, handler);
+		this._keys.clear(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false; this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._lastCombatFeedbackSerial = 0; this._pendingCombatFeedbackSerial = 0;
 	}
 }
