@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { applyGamepadRadialDeadzone, applyGamepadTriggerDeadzone, pulsePlayerGamepadAction, pulsePlayerGamepadMelee, resolveGamepadSprintIntent, samplePlayerGamepad, selectPlayerGamepad } from '../src/3d/input.js';
+import { KeyboardInput, applyGamepadRadialDeadzone, applyGamepadTriggerDeadzone, pulsePlayerGamepadAction, pulsePlayerGamepadCombatFeedback, pulsePlayerGamepadMelee, resolveGamepadSprintIntent, resolvePlayerCombatFeedbackHaptic, samplePlayerGamepad, selectPlayerGamepad } from '../src/3d/input.js';
 function makePad({ index = 0, mapping = 'standard', axes = [0, 0], buttons = {}, values = {}, connected = true } = {}) {
 	return { index, mapping, connected, axes, buttons: Array.from({ length: 16 }, (_, i) => ({ pressed: Boolean(buttons[i]) || Number(values[i] ?? 0) > 0.5, value: Number(values[i] ?? (buttons[i] ? 1 : 0)) })) };
 }
@@ -41,10 +41,51 @@ assert.ok(calls[1].options.strongMagnitude > calls[0].options.strongMagnitude, '
 assert.ok(calls[3].options.strongMagnitude > calls[2].options.strongMagnitude, 'heavy melee must remain stronger than light melee');
 for (const call of calls) { assert.equal(call.options.startDelay, 0); assert.ok(call.options.duration > 0 && call.options.duration <= 100); assert.ok(call.options.weakMagnitude >= 0 && call.options.weakMagnitude <= 1); assert.ok(call.options.strongMagnitude >= 0 && call.options.strongMagnitude <= 1); }
 assert.equal(pulsePlayerGamepadAction(hapticPad, 'unknown'), false); assert.equal(pulsePlayerGamepadAction({ ...hapticPad, mapping: '' }, 'parry'), false);
+
+const guardProfile = resolvePlayerCombatFeedbackHaptic({ outcome: 'guard', blockedAmount: 12, appliedAmount: 8 });
+const breakProfile = resolvePlayerCombatFeedbackHaptic({ outcome: 'guard-break', blockedAmount: 12, appliedAmount: 8 });
+const staggerProfile = resolvePlayerCombatFeedbackHaptic({ outcome: 'hit-stagger', appliedAmount: 20 });
+const parryProfile = resolvePlayerCombatFeedbackHaptic({ outcome: 'parry', blockedAmount: 20 });
+assert.ok(guardProfile && breakProfile && staggerProfile && parryProfile);
+assert.ok(breakProfile.duration > guardProfile.duration && breakProfile.strongMagnitude > guardProfile.strongMagnitude, 'guard break result must read stronger than a normal block');
+assert.ok(staggerProfile.duration > guardProfile.duration && staggerProfile.weakMagnitude > guardProfile.weakMagnitude, 'hit stagger result must carry a longer body pulse');
+assert.ok(parryProfile.strongMagnitude > guardProfile.strongMagnitude, 'successful parry result must stay crisp and strong');
+for (const profile of [guardProfile, breakProfile, staggerProfile, parryProfile]) { assert.ok(profile.duration > 0 && profile.duration <= 150); assert.ok(profile.weakMagnitude >= 0 && profile.weakMagnitude <= 1); assert.ok(profile.strongMagnitude >= 0 && profile.strongMagnitude <= 1); }
+assert.equal(resolvePlayerCombatFeedbackHaptic({ outcome: 'guard', blockedAmount: 0 }), null);
+assert.equal(resolvePlayerCombatFeedbackHaptic({ outcome: 'hit', appliedAmount: 0 }), null);
+assert.equal(resolvePlayerCombatFeedbackHaptic({ outcome: 'unknown', appliedAmount: 20 }), null);
+const resultCalls = []; const resultPad = { ...makePad(), vibrationActuator: { playEffect: (type, options) => { resultCalls.push({ type, options }); return Promise.resolve(); } } };
+assert.equal(pulsePlayerGamepadCombatFeedback(resultPad, { outcome: 'hit-stagger', appliedAmount: 20 }), true);
+assert.equal(resultCalls.length, 1); assert.equal(resultCalls[0].type, 'dual-rumble'); assert.deepEqual(resultCalls[0].options, { startDelay: 0, ...staggerProfile });
+assert.equal(pulsePlayerGamepadCombatFeedback({ ...resultPad, mapping: '' }, { outcome: 'hit-stagger', appliedAmount: 20 }), false);
+
+const originalNavigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+const integrationCalls = [];
+const integrationPad = { ...makePad({ index: 7 }), vibrationActuator: { playEffect: (type, options) => { integrationCalls.push({ type, options }); return Promise.resolve(); } } };
+try {
+	Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { getGamepads: () => [integrationPad] } });
+	const target = new EventTarget(); const input = new KeyboardInput(target);
+	input.getAxes();
+	const emitFeedback = (detail) => { const event = new Event('aapw:player-combat-feedback'); Object.defineProperty(event, 'detail', { value: detail }); target.dispatchEvent(event); };
+	emitFeedback({ serial: 41, outcome: 'guard-break', appliedAmount: 8, blockedAmount: 12 });
+	assert.equal(integrationCalls.length, 1, 'active Standard pad must receive authoritative guard-break result');
+	emitFeedback({ serial: 41, outcome: 'guard-break', appliedAmount: 8, blockedAmount: 12 });
+	assert.equal(integrationCalls.length, 1, 'duplicate combat feedback serial must not double-rumble');
+	emitFeedback({ serial: 42, outcome: 'hit-stagger', appliedAmount: 20, blockedAmount: 0 });
+	assert.equal(integrationCalls.length, 2, 'new authoritative result serial must pulse');
+	assert.ok(integrationCalls[1].options.duration >= integrationCalls[0].options.duration - 10, 'hit stagger must remain a substantial result pulse');
+	input.dispose();
+	emitFeedback({ serial: 43, outcome: 'hit', appliedAmount: 20, blockedAmount: 0 });
+	assert.equal(integrationCalls.length, 2, 'disposed input must stop consuming combat feedback');
+} finally {
+	if (originalNavigatorDescriptor) Object.defineProperty(globalThis, 'navigator', originalNavigatorDescriptor);
+	else delete globalThis.navigator;
+}
+
 const unmapped = samplePlayerGamepad(makePad({ mapping: '', axes: [1, -1, 1, -1], buttons: { 0: true, 1: true, 2: true, 3: true, 4: true, 5: true, 10: true, 12: true, 15: true }, values: { 6: 1, 7: 1 } })); assert.equal(unmapped.forward, 0); assert.equal(unmapped.lookX, 0); assert.equal(unmapped.running, false); assert.equal(unmapped.dodgePressed, false); assert.equal(unmapped.parryPressed, false); assert.equal(unmapped.lightPressed, false);
 const pads = [makePad({ index: 3, mapping: '' }), makePad({ index: 2 }), makePad({ index: 1 })]; assert.equal(selectPlayerGamepad(pads)?.index, 1); assert.equal(selectPlayerGamepad(pads, 2)?.index, 2); assert.equal(selectPlayerGamepad([pads[0]], 3), null);
 const source = fs.readFileSync(new URL('../src/3d/input.js', import.meta.url), 'utf8');
-for (const contract of ["JUMP: 0", "DODGE: 1", "LIGHT: 2", "HEAVY: 3", "GUARD: 4", "PARRY: 5", "ZOOM_OUT: 6", "ZOOM_IN: 7", "SPRINT: 10", "DPAD_UP: 12", "DPAD_DOWN: 13", "DPAD_LEFT: 14", "DPAD_RIGHT: 15", "readGamepadDpad", "stick.magnitude > 0 ? stick : dpad", "GAMEPAD_TRIGGER_DEADZONE = 0.08", "applyGamepadTriggerDeadzone", "GAMEPAD_SPRINT_MIN_MAGNITUDE = 0.72", "GAMEPAD_SPRINT_RELEASE_MAGNITUDE = 0.55", "GAMEPAD_DODGE_MIN_MAGNITUDE = 0.45", "resolveGamepadSprintIntent", "this._gamepadSprintActive", "sample.dodgePressed && sample.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE", "gamepad.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE", "GAMEPAD_CAMERA_MAX_FRAME_SECONDS = 0.3", "Math.min(GAMEPAD_CAMERA_MAX_FRAME_SECONDS, nowSeconds - this._lastPollSeconds)", "dodgePressed: buttons.dodge && !previousButtons.dodge", "parryPressed: buttons.parry && !previousButtons.parry", "if (gamepad.parryPressed) guarding = true", "pulsePlayerGamepadAction(gamepad, 'dodge')", "pulsePlayerGamepadAction(gamepad, 'parry')", "gamepad.axes?.[2]", "gamepad.axes?.[3]", "pad.mapping === 'standard'", "GAMEPAD_ACTION_HAPTICS", "dual-rumble", "visibilitychange", "visibility-hidden"]) assert.ok(source.includes(contract), `missing ${contract}`);
+for (const contract of ["JUMP: 0", "DODGE: 1", "LIGHT: 2", "HEAVY: 3", "GUARD: 4", "PARRY: 5", "ZOOM_OUT: 6", "ZOOM_IN: 7", "SPRINT: 10", "DPAD_UP: 12", "DPAD_DOWN: 13", "DPAD_LEFT: 14", "DPAD_RIGHT: 15", "readGamepadDpad", "stick.magnitude > 0 ? stick : dpad", "GAMEPAD_TRIGGER_DEADZONE = 0.08", "applyGamepadTriggerDeadzone", "GAMEPAD_SPRINT_MIN_MAGNITUDE = 0.72", "GAMEPAD_SPRINT_RELEASE_MAGNITUDE = 0.55", "GAMEPAD_DODGE_MIN_MAGNITUDE = 0.45", "resolveGamepadSprintIntent", "this._gamepadSprintActive", "sample.dodgePressed && sample.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE", "gamepad.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE", "GAMEPAD_CAMERA_MAX_FRAME_SECONDS = 0.3", "Math.min(GAMEPAD_CAMERA_MAX_FRAME_SECONDS, nowSeconds - this._lastPollSeconds)", "dodgePressed: buttons.dodge && !previousButtons.dodge", "parryPressed: buttons.parry && !previousButtons.parry", "if (gamepad.parryPressed) guarding = true", "pulsePlayerGamepadAction(gamepad, 'dodge')", "pulsePlayerGamepadAction(gamepad, 'parry')", "gamepad.axes?.[2]", "gamepad.axes?.[3]", "pad.mapping === 'standard'", "GAMEPAD_ACTION_HAPTICS", "GAMEPAD_COMBAT_FEEDBACK_HAPTICS", "COMBAT_FEEDBACK_EVENT", "pulsePlayerGamepadCombatFeedback", "this._lastCombatFeedbackSerial", "[COMBAT_FEEDBACK_EVENT, this._onCombatFeedback]", "dual-rumble", "visibilitychange", "visibility-hidden"]) assert.ok(source.includes(contract), `missing ${contract}`);
 const movementSource = fs.readFileSync(new URL('../src/3d/gameLoopHelpers.js', import.meta.url), 'utf8');
 for (const contract of ['const inputMagnitude = Math.min(1, Math.hypot(axes.forward, axes.strafe))', '_move.normalize().multiplyScalar(inputMagnitude)', 'export function applyGamepadCameraLook(camera, controls, axes)', 'GAMEPAD_CAMERA_ZOOM_METERS_PER_SECOND', 'GAMEPAD_CAMERA_MAX_FRAME_SECONDS = 0.3', 'Math.min(GAMEPAD_CAMERA_MAX_FRAME_SECONDS, Number.isFinite(axes?.lookDeltaSeconds)']) assert.ok(movementSource.includes(contract), `missing ${contract}`);
 assert.ok(!source.includes('Math.min(0.05, nowSeconds - this._lastPollSeconds)'), 'legacy 50ms input clamp must stay removed');
