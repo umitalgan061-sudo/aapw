@@ -23,9 +23,10 @@
     try {
       const THREE = await import('three');
       const terrain = await import('./src/3d/world/terrainBiomeShading.js');
+      const snowTone = await import('./src/3d/world/terrainSnowSurfaceTone.js');
       const config = await import('./src/3d/config.js');
       const alignment = await import('./src/3d/world/worldReferenceAlignment.js');
-      window.__northTerrainQaModules = Object.freeze({ THREE, terrain, ...config, ...alignment });
+      window.__northTerrainQaModules = Object.freeze({ THREE, terrain, snowTone, ...config, ...alignment });
     } catch (error) {
       window.__northTerrainQaBootstrapError = error?.stack || error?.message || String(error);
       console.error('[north-terrain-visual-qa] module bootstrap failed', error);
@@ -35,6 +36,6 @@
 <body>
   <div id="qa-root"></div>
   <pre id="qa-panel">north terrain visual QA</pre>
-  <div id="qa-legend">FAR NORTH · ICE EDGE · TUNDRA · TEMPERATE<br>sea → shore → lowland → ridge</div>
+  <div id="qa-legend">FAR NORTH · ICE EDGE · TUNDRA · TEMPERATE<br>sea → shore → lowland → ridge<br>packed ridge ↔ sheltered snow</div>
 </body>
 </html>
