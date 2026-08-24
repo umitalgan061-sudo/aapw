@@ -120,9 +120,15 @@ export function samplePlayerGamepad(gamepad, previousButtons = {}, previousRunni
 	};
 }
 
+function readGamepadHapticActuator(gamepad) {
+	const vibrationActuator = gamepad?.vibrationActuator;
+	if (typeof vibrationActuator?.playEffect === 'function') return vibrationActuator;
+	const fallbackActuator = gamepad?.hapticActuators?.[0];
+	return typeof fallbackActuator?.playEffect === 'function' ? fallbackActuator : null;
+}
 function playGamepadHaptic(gamepad, profile) {
-	const actuator = gamepad?.vibrationActuator;
-	if (!profile || gamepad?.mapping !== 'standard' || !gamepad?.connected || typeof actuator?.playEffect !== 'function') return false;
+	const actuator = readGamepadHapticActuator(gamepad);
+	if (!profile || gamepad?.mapping !== 'standard' || !gamepad?.connected || !actuator) return false;
 	try { void Promise.resolve(actuator.playEffect('dual-rumble', { startDelay: 0, ...profile })).catch(() => {}); return true; } catch { return false; }
 }
 function readGamepadHapticProfile(profiles, kind) { return typeof kind === 'string' && Object.hasOwn(profiles, kind) ? profiles[kind] : null; }
