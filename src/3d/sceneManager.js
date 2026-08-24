@@ -30,6 +30,7 @@ import { createVegetation } from './world/vegetation.js';
 import { upgradeWinterVegetationAssets } from './world/winterVegetationAsset.js';
 import { createWindGrassRun180 } from './world/windGrass.js';
 import { createVillages } from './world/villages.js';
+import { createIceLandmarks } from './world/iceLandmarks.js';
 import { createOrbitCamera } from './camera.js';
 import { createFreeCameraController } from './debug/freeCamera.js';
 import { createAuroraSky } from './sky.js';
@@ -133,6 +134,14 @@ export function createScene(canvas) {
 	);
 
 	const groundCollider = createGroundCollider(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
+
+	// The Wall and cave use the same collider-owned terrain sampler as every live grounded system.
+	const iceLandmarksResult = createIceLandmarks({
+		sampleHeightMeters: groundCollider.getGroundHeight,
+		seed: WORLD_DEFAULTS.WORLD_SEED,
+	});
+	scene.add(iceLandmarksResult.group);
+	console.info(`[sceneManager] Ice landmarks: ${iceLandmarksResult.stats.wallLengthMeters.toFixed(0)}m Wall, ${iceLandmarksResult.stats.cave.tunnelDepthMeters}m cave.`);
 
 	const waterDepthField = createWaterDepthField({
 		sampleHeightMeters: groundCollider.getGroundHeight,
@@ -239,10 +248,12 @@ export function createScene(canvas) {
 	);
 
 	const villageCollider = createCircleCollider(villagesResult.houses);
-	const playerCollider = createComposedCollider([settlementCollider, villageCollider]);
+	const iceLandmarkCollider = createCircleCollider(iceLandmarksResult.blockers);
+	const playerCollider = createComposedCollider([settlementCollider, villageCollider, iceLandmarkCollider]);
 
 	applyShadowRoles(settlementsResult.group, { quality: renderQuality });
 	applyShadowRoles(villagesResult.group, { quality: renderQuality });
+	applyShadowRoles(iceLandmarksResult.group, { quality: renderQuality });
 	applyShadowRoles(vegetationResult.group, { quality: renderQuality });
 	applyShadowRoles(roadsResult.group, { quality: renderQuality, cast: false });
 
@@ -254,6 +265,8 @@ export function createScene(canvas) {
 		roadEdges: roadsResult.edges,
 		vegetation: vegetationResult.group,
 		villages: villagesResult.group,
+		iceLandmarks: iceLandmarksResult.group,
+		iceLandmarkStats: iceLandmarksResult.stats,
 		settlementSeats: settlementsResult.seats,
 		lights, clock, elapsedSeconds: 0, lastStreamChunk: null,
 		cameraCollisionRaycaster: new THREE.Raycaster(),

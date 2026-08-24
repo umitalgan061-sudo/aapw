@@ -69,6 +69,7 @@ import { disposeSettlements, disposeRealCastleModels, spawnRealCastleModels, map
 import { disposeRoadNetwork } from './world/roads.js';
 import { disposeVegetation } from './world/vegetation.js';
 import { disposeVillages } from './world/villages.js';
+import { disposeIceLandmarks } from './world/iceLandmarks.js';
 // Run 135 / ADR-0159 — new import, additive: `createVegetation` itself is unchanged, this file just
 // also calls it a second time (see the mobile spawn-anchored vegetation block below).
 import { createVegetation } from './world/vegetation.js';
@@ -576,6 +577,7 @@ export async function initGame3D() {
 			disposeRoadNetwork(state.roads);
 			disposeVegetation(state.vegetation);
 			disposeVillages(state.villages);
+			disposeIceLandmarks(state.iceLandmarks);
 			if (state.mobileSpawnVegetation) disposeVegetation(state.mobileSpawnVegetation);
 			disposeDayNightLighting(state.scene, state.lights);
 			state.renderer.dispose();
