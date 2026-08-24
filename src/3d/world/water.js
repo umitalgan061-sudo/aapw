@@ -251,6 +251,10 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 const WATER_PLANE_EXTENT_METERS = 4000;
 /** Full-owner-world diagonal coverage for orthographic acceptance and distant canonical water. */
 export const WATER_FULL_WORLD_EXTENT_METERS = 17000;
+/** Camera-follow deep-ocean floor extends beyond every owner-world edge in high/orthographic views. */
+export const WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS = 28000;
+/** Local Y keeps the backdrop safely below the canonical terrain minimum while following the water XZ. */
+const WATER_DEEP_OCEAN_BACKDROP_LOCAL_Y_METERS = -32;
 /**
  * Default geometry resolution — unchanged from the pre-swell version (32,768 triangles) so every
  * existing caller and `scripts/checkWaterVisualContract.js` see exactly the mesh they did before.
@@ -288,6 +292,7 @@ export const WATER_PLANE_SEGMENTS_MOBILE = 192;
  */
 const DEFAULT_SHALLOW_COLOR = new THREE.Color(0x53899a);
 const DEFAULT_DEEP_COLOR = new THREE.Color(0x0c2c4a);
+const DEFAULT_DEEP_OCEAN_BACKDROP_COLOR = new THREE.Color(0x071827);
 const DEFAULT_SUN_DIRECTION = new THREE.Vector3(300, 400, 200).normalize();
 const DEFAULT_SUN_COLOR = new THREE.Color(0xffe2a1);
 
@@ -378,10 +383,35 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 	farWater.frustumCulled = false;
 	mesh.add(farWater);
 
+	// A two-triangle opaque seabed sits below the lowest canonical owner terrain and extends well past
+	// its rectangular envelope. Through the transparent far-water layer it replaces the bright scene
+	// background only where terrain genuinely ends, hiding the high-camera rectangular seabed boundary
+	// without changing map.png geography, bathymetry, collision or wet/dry classification.
+	const deepOceanGeometry = new THREE.PlaneGeometry(
+		WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
+		WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
+		1,
+		1,
+	);
+	deepOceanGeometry.rotateX(-Math.PI / 2);
+	const deepOceanMaterial = new THREE.MeshBasicMaterial({
+		color: DEFAULT_DEEP_OCEAN_BACKDROP_COLOR,
+		fog: true,
+		depthTest: true,
+		depthWrite: true,
+	});
+	const deepOceanBackdrop = new THREE.Mesh(deepOceanGeometry, deepOceanMaterial);
+	deepOceanBackdrop.position.y = WATER_DEEP_OCEAN_BACKDROP_LOCAL_Y_METERS;
+	deepOceanBackdrop.renderOrder = -2;
+	deepOceanBackdrop.frustumCulled = false;
+	mesh.add(deepOceanBackdrop);
+
 	mesh.userData.farWater = farWater;
+	mesh.userData.deepOceanBackdrop = deepOceanBackdrop;
 	mesh.userData.waterCoverage = Object.freeze({
 		nearExtentMeters: WATER_PLANE_EXTENT_METERS,
 		fullWorldExtentMeters: WATER_FULL_WORLD_EXTENT_METERS,
+		deepOceanBackdropExtentMeters: WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
 		fullWorld: true,
 	});
 	return mesh;
@@ -436,6 +466,13 @@ export function updateWater(waterMesh, cameraPosition, elapsedSeconds) {
  * @param {THREE.Mesh} waterMesh
  */
 export function disposeWater(waterMesh) {
+	const deepOceanBackdrop = waterMesh.userData.deepOceanBackdrop;
+	if (deepOceanBackdrop) {
+		deepOceanBackdrop.geometry.dispose();
+		deepOceanBackdrop.material.dispose();
+		waterMesh.remove(deepOceanBackdrop);
+		waterMesh.userData.deepOceanBackdrop = null;
+	}
 	const farWater = waterMesh.userData.farWater;
 	if (farWater) {
 		farWater.geometry.dispose();
