@@ -24,6 +24,21 @@ function makeFoundationMesh() {
   return mesh;
 }
 
+function assertWorldPointInsideOrientedFootprint(point, footprint, label) {
+  const dx = point.x - footprint.centerX;
+  const dz = point.z - footprint.centerZ;
+  const alongX = dx * footprint.axisX.x + dz * footprint.axisX.z;
+  const alongZ = dx * footprint.axisZ.x + dz * footprint.axisZ.z;
+  assert(
+    Math.abs(alongX) <= footprint.halfWidthMeters + 1e-6,
+    `${label}: projected X ${alongX} must stay inside half-width ${footprint.halfWidthMeters}`,
+  );
+  assert(
+    Math.abs(alongZ) <= footprint.halfDepthMeters + 1e-6,
+    `${label}: projected Z ${alongZ} must stay inside half-depth ${footprint.halfDepthMeters}`,
+  );
+}
+
 const embedded = makeFoundationMesh();
 const embeddedResult = resolveWorldSurfacePlacement(embedded, {
   metadata: { category: 'building' },
@@ -77,6 +92,55 @@ assert(
   'conformed foundation underside must align to the returned terrain plane minus the anti-seam inset',
 );
 
+// Imported GLB/FBX structures are frequently a root Group with transformed child meshes rather than
+// one root mesh. Lock that hierarchy contract: root yaw + non-uniform scale + a locally rotated and
+// offset child must still publish one root-oriented footprint containing every real child base corner.
+const nested = new THREE.Group();
+nested.position.set(-210, 280, 165);
+nested.rotation.y = Math.PI / 6;
+nested.scale.set(1.65, 1, 0.72);
+const nestedGeometry = new THREE.BoxGeometry(10, 7, 24);
+nestedGeometry.translate(0, 3.5, 0);
+const nestedChild = new THREE.Mesh(nestedGeometry, new THREE.MeshBasicMaterial());
+nestedChild.position.set(4, 0, -3);
+nestedChild.rotation.y = Math.PI / 9;
+nestedChild.scale.set(1.15, 1, 0.85);
+nested.add(nestedChild);
+nested.updateMatrixWorld(true);
+let nestedConformCall = null;
+const nestedResult = resolveWorldSurfacePlacement(nested, {
+  metadata: { category: 'building', id: 'nested-imported-hall' },
+  surfaceQuery: buildingSurface,
+  requireSurfaceContext: true,
+  conformTerrain(payload) {
+    nestedConformCall = payload;
+    return { ok: true, height: payload.targetHeight };
+  },
+});
+assert.equal(nestedResult.ok, true, nestedResult.error);
+assert.equal(nestedConformCall?.samples?.length, 9, 'nested imported structures must keep the complete footprint probe set');
+assert(nestedConformCall?.orientedFootprint, 'nested imported structures must publish a root-oriented footprint');
+nestedGeometry.computeBoundingBox();
+for (const x of [nestedGeometry.boundingBox.min.x, nestedGeometry.boundingBox.max.x]) {
+  for (const z of [nestedGeometry.boundingBox.min.z, nestedGeometry.boundingBox.max.z]) {
+    const worldCorner = nestedChild.localToWorld(new THREE.Vector3(x, nestedGeometry.boundingBox.min.y, z));
+    assertWorldPointInsideOrientedFootprint(
+      worldCorner,
+      nestedConformCall.orientedFootprint,
+      `nested child base corner ${x},${z}`,
+    );
+  }
+}
+assert(
+  nestedConformCall.orientedFootprint.halfWidthMeters > 5 && nestedConformCall.orientedFootprint.halfDepthMeters > 5,
+  'nested child transforms and non-uniform root scale must materially contribute to the resolved footprint',
+);
+assert.equal(
+  nestedConformCall.targetHeight,
+  Math.max(...nestedConformCall.samples.map((sample) => sample.height)),
+  'nested structure terrain conforming must target the highest real footprint probe',
+);
+
 const tree = new THREE.Mesh(new THREE.BoxGeometry(1, 3, 1), new THREE.MeshBasicMaterial());
 tree.position.set(10, 999, 15);
 const treeResult = resolveWorldSurfacePlacement(tree, {
@@ -94,4 +158,4 @@ assert.equal(treeResult.ok, true, treeResult.error);
 assert.equal(treeResult.footprint, null, 'non-structure assets keep the established centre-sample path');
 assert.equal(tree.position.y, 12.5);
 
-console.log('[checkWorldFootprintGrounding] PASS: structures sample their root-oriented footprint, never hover on the low side, expose an oriented terrain-conform hook, and non-structures keep centre snapping.');
+console.log('[checkWorldFootprintGrounding] PASS: structures sample their root-oriented footprint, nested transformed child geometry remains covered, foundations never hover on the low side, terrain conforming targets the complete probe set, and non-structures keep centre snapping.');
