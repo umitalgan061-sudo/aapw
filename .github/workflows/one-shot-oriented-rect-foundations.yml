@@ -1,0 +1,226 @@
+name: One-shot Oriented Rect Foundations
+
+on:
+  push:
+    branches:
+      - codex/foundation-grounding-20260821
+    paths:
+      - '.github/workflows/one-shot-oriented-rect-foundations.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/foundation-grounding-20260821
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Patch oriented rectangular foundation cells
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(text, old, new, label):
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one match, got {count}')
+              return text.replace(old, new, 1)
+
+          terrain_path = Path('src/3d/world/terrain.js')
+          terrain = terrain_path.read_text()
+          terrain = replace_once(
+              terrain,
+              "function flattenWeight(distanceMeters, innerRadiusMeters, outerRadiusMeters) {\n\tif (distanceMeters <= innerRadiusMeters) return 1;\n\tif (distanceMeters >= outerRadiusMeters) return 0;\n\tconst t = 1 - (distanceMeters - innerRadiusMeters) / (outerRadiusMeters - innerRadiusMeters);\n\treturn t * t * (3 - 2 * t);\n}\n",
+              "function flattenWeight(distanceMeters, innerRadiusMeters, outerRadiusMeters) {\n\tif (distanceMeters <= innerRadiusMeters) return 1;\n\tif (distanceMeters >= outerRadiusMeters) return 0;\n\tconst t = 1 - (distanceMeters - innerRadiusMeters) / (outerRadiusMeters - innerRadiusMeters);\n\treturn t * t * (3 - 2 * t);\n}\n\nfunction flattenPadWeight(worldX, worldZ, pad) {\n\tif (pad?.shape !== 'oriented-rect') {\n\t\treturn flattenWeight(\n\t\t\tMath.hypot(worldX - pad.x, worldZ - pad.z),\n\t\t\tpad.innerRadiusMeters,\n\t\t\tpad.outerRadiusMeters,\n\t\t);\n\t}\n\tconst dx = worldX - pad.x;\n\tconst dz = worldZ - pad.z;\n\tconst axisX = pad.axisX;\n\tconst axisZ = pad.axisZ;\n\tif (!axisX || !axisZ) return 0;\n\tconst localX = dx * axisX.x + dz * axisX.z;\n\tconst localZ = dx * axisZ.x + dz * axisZ.z;\n\tconst outsideX = Math.max(0, Math.abs(localX) - pad.halfWidthMeters);\n\tconst outsideZ = Math.max(0, Math.abs(localZ) - pad.halfDepthMeters);\n\tconst outsideDistance = Math.hypot(outsideX, outsideZ);\n\tconst featherMeters = Math.max(0, Number(pad.featherMeters) || 0);\n\tif (outsideDistance <= 0) return 1;\n\tif (featherMeters <= 0 || outsideDistance >= featherMeters) return 0;\n\treturn flattenWeight(outsideDistance, 0, featherMeters);\n}\n",
+              'terrain flatten pad weight helper',
+          )
+          terrain = replace_once(
+              terrain,
+              "\t\tfor (const pad of flattenPads) {\n\t\t\tconst distanceMeters = Math.hypot(worldX - pad.x, worldZ - pad.z);\n\t\t\tconst weight = flattenWeight(distanceMeters, pad.innerRadiusMeters, pad.outerRadiusMeters);",
+              "\t\tfor (const pad of flattenPads) {\n\t\t\tconst weight = flattenPadWeight(worldX, worldZ, pad);",
+              'terrain sampler consumes shape-aware pad weight',
+          )
+          terrain_path.write_text(terrain)
+
+          conformer_path = Path('src/3d/world/terrainFoundationConformer.js')
+          conformer = conformer_path.read_text()
+          conformer = replace_once(
+              conformer,
+              "id: 'runtime-structure-foundation-conform-2026-08-24-v10-oriented-footprint',",
+              "id: 'runtime-structure-foundation-conform-2026-08-24-v11-oriented-rect-cells',",
+              'foundation policy id',
+          )
+          conformer = replace_once(
+              conformer,
+              "footprintMode: 'root-oriented-adaptive-four-cell-circle-union-with-aabb-fallback',",
+              "footprintMode: 'root-oriented-adaptive-four-cell-rect-union-with-aabb-fallback',",
+              'foundation footprint mode',
+          )
+          conformer = replace_once(
+              conformer,
+              " * Runtime structure foundations use an adaptive four-cell circle union over the AABB. Near-square\n * footprints use a 2x2 grid; long/narrow footprints rotate the same four-pad budget into 4x1 or 1x4.\n * Every circle encloses its rectangular cell, so the full base stays flat while narrow structures avoid\n * the side overreach a forced 2x2 grid still produced. Legacy authored seat/castle pads remain ordinary\n * circles and continue to work unchanged in `createHeightSampler`.\n",
+              " * Runtime structure foundations use an adaptive four-cell union. Near-square footprints use a 2x2\n * grid; long/narrow footprints rotate the same four-pad budget into 4x1 or 1x4. Each runtime cell is\n * stored as an oriented rectangle with a rounded feather outside its real footprint, so the full base\n * stays flat without the corner/side overreach of enclosing circles. Legacy authored seat/castle pads\n * remain ordinary circles and continue to work unchanged in `createHeightSampler`.\n",
+              'foundation module docs',
+          )
+          old = """  const cellRadius = Math.max(
+    TERRAIN_FOUNDATION_CONFORM_POLICY.minimumInnerRadiusMeters,
+    Math.hypot(cellWidth * 0.5, cellDepth * 0.5) + safeInnerMargin,
+  );
+  const pads = [];
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const localX = -width * 0.5 + cellWidth * (column + 0.5);
+      const localZ = -depth * 0.5 + cellDepth * (row + 0.5);
+      const x = oriented
+        ? oriented.centerX + oriented.axisX.x * localX + oriented.axisZ.x * localZ
+        : (columns === 1 ? (bounds.minX + bounds.maxX) * 0.5 : bounds.minX + cellWidth * (column + 0.5));
+      const z = oriented
+        ? oriented.centerZ + oriented.axisX.z * localX + oriented.axisZ.z * localZ
+        : (rows === 1 ? (bounds.minZ + bounds.maxZ) * 0.5 : bounds.minZ + cellDepth * (row + 0.5));
+      pads.push({
+        x, z,
+        innerRadiusMeters: cellRadius,
+        outerRadiusMeters: cellRadius + safeFeather,
+        anchorHeightMeters: targetHeight,
+        source: TERRAIN_FOUNDATION_CONFORM_POLICY.id,
+        foundationKey: key,
+        foundationClusterIndex: pads.length,
+        foundationClusterSize: columns * rows,
+        footprintBounds: { ...bounds },
+        orientedFootprint: oriented ? { ...oriented, axisX: { ...oriented.axisX }, axisZ: { ...oriented.axisZ } } : null,
+      });
+    }
+  }
+"""
+          new = """  const halfCellWidth = cellWidth * 0.5 + safeInnerMargin;
+  const halfCellDepth = cellDepth * 0.5 + safeInnerMargin;
+  const cellRadius = Math.max(
+    TERRAIN_FOUNDATION_CONFORM_POLICY.minimumInnerRadiusMeters,
+    Math.hypot(halfCellWidth, halfCellDepth),
+  );
+  const axisX = oriented?.axisX ?? { x: 1, z: 0 };
+  const axisZ = oriented?.axisZ ?? { x: 0, z: 1 };
+  const pads = [];
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const localX = -width * 0.5 + cellWidth * (column + 0.5);
+      const localZ = -depth * 0.5 + cellDepth * (row + 0.5);
+      const x = oriented
+        ? oriented.centerX + oriented.axisX.x * localX + oriented.axisZ.x * localZ
+        : (columns === 1 ? (bounds.minX + bounds.maxX) * 0.5 : bounds.minX + cellWidth * (column + 0.5));
+      const z = oriented
+        ? oriented.centerZ + oriented.axisX.z * localX + oriented.axisZ.z * localZ
+        : (rows === 1 ? (bounds.minZ + bounds.maxZ) * 0.5 : bounds.minZ + cellDepth * (row + 0.5));
+      pads.push({
+        x, z,
+        shape: 'oriented-rect',
+        axisX: { ...axisX },
+        axisZ: { ...axisZ },
+        halfWidthMeters: halfCellWidth,
+        halfDepthMeters: halfCellDepth,
+        featherMeters: safeFeather,
+        innerRadiusMeters: cellRadius,
+        outerRadiusMeters: cellRadius + safeFeather,
+        anchorHeightMeters: targetHeight,
+        source: TERRAIN_FOUNDATION_CONFORM_POLICY.id,
+        foundationKey: key,
+        foundationClusterIndex: pads.length,
+        foundationClusterSize: columns * rows,
+        footprintBounds: { ...bounds },
+        orientedFootprint: oriented ? { ...oriented, axisX: { ...oriented.axisX }, axisZ: { ...oriented.axisZ } } : null,
+      });
+    }
+  }
+"""
+          conformer = replace_once(conformer, old, new, 'runtime oriented rectangle cells')
+          conformer_path.write_text(conformer)
+
+          editor_test_path = Path('scripts/checkEditorTerrainFoundationGrounder.mjs')
+          editor_test = editor_test_path.read_text()
+          editor_test = replace_once(
+              editor_test,
+              "function flattenWeight(distance, inner, outer) {\n  if (distance <= inner) return 1;\n  if (distance >= outer) return 0;\n  const t = 1 - (distance - inner) / (outer - inner);\n  return t * t * (3 - 2 * t);\n}\n",
+              "function flattenWeight(distance, inner, outer) {\n  if (distance <= inner) return 1;\n  if (distance >= outer) return 0;\n  const t = 1 - (distance - inner) / (outer - inner);\n  return t * t * (3 - 2 * t);\n}\n\nfunction foundationWeight(x, z, pad) {\n  if (pad.shape !== 'oriented-rect') {\n    return flattenWeight(Math.hypot(x - pad.x, z - pad.z), pad.innerRadiusMeters, pad.outerRadiusMeters);\n  }\n  const dx = x - pad.x;\n  const dz = z - pad.z;\n  const localX = dx * pad.axisX.x + dz * pad.axisX.z;\n  const localZ = dx * pad.axisZ.x + dz * pad.axisZ.z;\n  const outsideX = Math.max(0, Math.abs(localX) - pad.halfWidthMeters);\n  const outsideZ = Math.max(0, Math.abs(localZ) - pad.halfDepthMeters);\n  const outsideDistance = Math.hypot(outsideX, outsideZ);\n  return outsideDistance <= 0 ? 1 : flattenWeight(outsideDistance, 0, pad.featherMeters);\n}\n",
+              'editor test shape-aware weight',
+          )
+          editor_test = replace_once(
+              editor_test,
+              "      const weight = flattenWeight(Math.hypot(x - pad.x, z - pad.z), pad.innerRadiusMeters, pad.outerRadiusMeters);",
+              "      const weight = foundationWeight(x, z, pad);",
+              'editor collider shape-aware weight',
+          )
+          editor_test = replace_once(
+              editor_test,
+              "const outsideDistance = Math.min(...firstCastlePads.map((pad) => Math.hypot(aabbCorner.x - pad.x, aabbCorner.z - pad.z)));\nassert(\n  outsideDistance > Math.max(...firstCastlePads.map((pad) => pad.outerRadiusMeters)),\n  'rotated world-AABB corner must remain outside the compact oriented foundation cluster',\n);\n",
+              "assert(\n  firstCastlePads.every((pad) => foundationWeight(aabbCorner.x, aabbCorner.z, pad) === 0),\n  'rotated world-AABB corner must remain outside the true oriented foundation cells and feather',\n);\n",
+              'editor AABB outside exact cell assertion',
+          )
+          editor_test_path.write_text(editor_test)
+
+          conform_test_path = Path('scripts/checkTerrainFoundationConformer.mjs')
+          conform_test = conform_test_path.read_text()
+          conform_test = replace_once(
+              conform_test,
+              "assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.footprintMode, 'root-oriented-adaptive-four-cell-circle-union-with-aabb-fallback');",
+              "assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.footprintMode, 'root-oriented-adaptive-four-cell-rect-union-with-aabb-fallback');",
+              'conformer footprint policy assertion',
+          )
+          conform_test = replace_once(
+              conform_test,
+              "\tassert.equal(pad.foundationKey, 'object:object-keep');\n\tassert.equal(pad.foundationClusterSize, 4);\n\tassert.equal(pad.anchorHeightMeters, 71.25);",
+              "\tassert.equal(pad.foundationKey, 'object:object-keep');\n\tassert.equal(pad.foundationClusterSize, 4);\n\tassert.equal(pad.anchorHeightMeters, 71.25);\n\tassert.equal(pad.shape, 'oriented-rect', 'runtime structure cells must use exact rectangular footprint ownership');",
+              'conformer pad shape assertion',
+          )
+          conform_test = replace_once(
+              conform_test,
+              "const nearSideProbeBase = baseSampler(0, 20);\nassert.equal(compactSampler(0, 20), nearSideProbeBase,\n\t'adaptive 4x1 cells must preserve side terrain that the previous forced 2x2 cluster still feathered');",
+              "const edgeFeatherProbeBase = baseSampler(0, 7);\nassert.equal(compactSampler(0, 7), edgeFeatherProbeBase,\n\t'oriented rectangular cells must end their 2m feather exactly 2m beyond the true 5m half-depth');\nconst nearSideProbeBase = baseSampler(0, 20);\nassert.equal(compactSampler(0, 20), nearSideProbeBase,\n\t'adaptive 4x1 cells must preserve side terrain that the previous forced 2x2 cluster still feathered');",
+              'conformer exact side feather regression',
+          )
+          conform_test = replace_once(
+              conform_test,
+              "console.log('[checkTerrainFoundationConformer] PASS: adaptive four-cell foundation clusters cover AABB fallbacks and root-oriented footprints, rotate along long footprints, validate installed cell radii instead of obsolete envelope size, preserve the shared render/physics height authority, rebuild old/new influence once, and keep per-object identity.');",
+              "console.log('[checkTerrainFoundationConformer] PASS: adaptive oriented-rectangle foundation clusters cover AABB fallbacks and root-oriented footprints without circle overreach, rotate along long footprints, preserve legacy circle pads and the shared render/physics height authority, rebuild old/new influence once, and keep per-object identity.');",
+              'conformer pass summary',
+          )
+          conform_test_path.write_text(conform_test)
+          PY
+
+      - name: Validate foundation owner and editor lifecycle
+        run: |
+          set -euo pipefail
+          node scripts/setupNodeThreeShim.mjs
+          node --check src/3d/world/terrain.js
+          node --check src/3d/world/terrainFoundationConformer.js
+          node --check scripts/checkTerrainFoundationConformer.mjs
+          node --check scripts/checkWorldFootprintGrounding.mjs
+          node --check scripts/checkEditorTerrainFoundationGrounder.mjs
+          node scripts/checkTerrainFoundationConformer.mjs
+          node scripts/checkWorldFootprintGrounding.mjs
+          node scripts/checkStructureGroundingPolicy.mjs
+          node scripts/checkEditorTerrainFoundationGrounder.mjs
+          node scripts/checkEditorFoundationRuntimeIdentity.mjs
+          node scripts/checkEditorTerrainFoundationBatchCleanup.mjs
+          node scripts/checkEditorTerrainFoundationLifecycle.mjs
+          node scripts/checkRun216ScaleInputController.mjs
+
+      - name: Commit validated production patch
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- src/3d/world/terrain.js src/3d/world/terrainFoundationConformer.js scripts/checkTerrainFoundationConformer.mjs scripts/checkEditorTerrainFoundationGrounder.mjs
+          git diff --cached --check
+          git commit -m "feat(world): conform structures with oriented rect cells"
+          git push origin HEAD:codex/foundation-grounding-20260821
