@@ -125,18 +125,18 @@ function playGamepadHaptic(gamepad, profile) {
 	if (!profile || gamepad?.mapping !== 'standard' || !gamepad?.connected || typeof actuator?.playEffect !== 'function') return false;
 	try { void Promise.resolve(actuator.playEffect('dual-rumble', { startDelay: 0, ...profile })).catch(() => {}); return true; } catch { return false; }
 }
+function readGamepadHapticProfile(profiles, kind) { return typeof kind === 'string' && Object.hasOwn(profiles, kind) ? profiles[kind] : null; }
 function readCombatFeedbackAmount(value) { return Number.isFinite(value) && value > 0 ? value : 0; }
 export function resolvePlayerCombatFeedbackHaptic(feedback) {
-	const outcome = feedback?.outcome;
-	if (typeof outcome !== 'string' || !Object.hasOwn(GAMEPAD_COMBAT_FEEDBACK_HAPTICS, outcome)) return null;
-	const profile = GAMEPAD_COMBAT_FEEDBACK_HAPTICS[outcome];
+	const outcome = feedback?.outcome, profile = readGamepadHapticProfile(GAMEPAD_COMBAT_FEEDBACK_HAPTICS, outcome);
+	if (!profile) return null;
 	const appliedAmount = readCombatFeedbackAmount(feedback?.appliedAmount), blockedAmount = readCombatFeedbackAmount(feedback?.blockedAmount);
 	if ((outcome === 'dodge' || outcome === 'parry' || outcome === 'guard') && blockedAmount <= 0) return null;
 	if ((outcome === 'hit' || outcome === 'hit-stagger') && appliedAmount <= 0) return null;
 	if (outcome === 'guard-break' && appliedAmount <= 0 && blockedAmount <= 0) return null;
 	return profile;
 }
-export function pulsePlayerGamepadAction(gamepad, kind) { return playGamepadHaptic(gamepad, GAMEPAD_ACTION_HAPTICS[kind]); }
+export function pulsePlayerGamepadAction(gamepad, kind) { return playGamepadHaptic(gamepad, readGamepadHapticProfile(GAMEPAD_ACTION_HAPTICS, kind)); }
 export function pulsePlayerGamepadMelee(gamepad, kind) { return pulsePlayerGamepadAction(gamepad, kind); }
 export function pulsePlayerGamepadCombatFeedback(gamepad, feedback) { return playGamepadHaptic(gamepad, resolvePlayerCombatFeedbackHaptic(feedback)); }
 
