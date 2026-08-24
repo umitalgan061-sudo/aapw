@@ -3,6 +3,12 @@ import { resolveWorldSurfacePlacement } from '../world/WorldAssetPlacementPipeli
 import { createTerrainFoundationConformer } from '../world/terrainFoundationConformer.js';
 import { isStructureGroundingCandidate } from '../world/structureGroundingPolicy.js';
 
+const EDITOR_REGROUND_SURFACE_POLICY_OVERRIDE = Object.freeze({
+  maxSlopeDegrees: null,
+  maxWaterDepth: null,
+  minRoadDistance: null,
+});
+
 export function isEditorStructureAsset(asset) {
   return isStructureGroundingCandidate(asset);
 }
@@ -72,6 +78,10 @@ export function createEditorTerrainFoundationGrounder({ chunkManager, groundColl
     const result = resolveWorldSurfacePlacement(object, {
       metadata: { id: editorId, category: 'structure', src: structureSource.src || '' },
       groundHeight: (sampleX, sampleZ) => groundHeightWithoutSelfFoundation(foundationKey, sampleX, sampleZ),
+      // Existing editor objects are being re-grounded, not re-evaluated for autonomous placement.
+      // The live collider intentionally exposes only canonical height here; disable the inferred
+      // building eligibility fields while retaining the exact same 9-probe footprint/conformer path.
+      placementPolicy: EDITOR_REGROUND_SURFACE_POLICY_OVERRIDE,
       footprintGrounding: 'always',
       foundationInsetMeters: 0.04,
       conformTerrain: terrainConformer.conformTerrain,
