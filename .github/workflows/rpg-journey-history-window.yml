@@ -3,6 +3,7 @@ name: RPG Journey History Window
 on:
   pull_request:
     paths:
+      - 'src/3d/gameplay/interaction.js'
       - 'src/3d/gameplay/interactionConfig.js'
       - 'src/3d/gameplay/interactionFieldReadiness.js'
       - 'scripts/checkInteractionJourneyHistoryWindow.mjs'
@@ -36,7 +37,7 @@ jobs:
           base="$(git merge-base HEAD origin/main)"
           test "$base" = "$(git rev-parse origin/main)"
           mapfile -t paths < <(git diff --name-only "$base"...HEAD)
-          allowed='^(src/3d/gameplay/interactionConfig\.js|src/3d/gameplay/interactionFieldReadiness\.js|scripts/checkInteractionJourneyHistoryWindow\.mjs|scripts/checkInteractionJourneyLedgerUx\.mjs|scripts/checkInteractionTavernReceiptIntegrity\.mjs|scripts/checkInteractionExpeditionTavernRecovery\.mjs|scripts/checkInteractionMasteryTravelContinuityBrowser\.mjs|\.github/workflows/rpg-journey-history-window\.yml)$'
+          allowed='^(src/3d/gameplay/interaction\.js|src/3d/gameplay/interactionConfig\.js|src/3d/gameplay/interactionFieldReadiness\.js|scripts/checkInteractionJourneyHistoryWindow\.mjs|scripts/checkInteractionJourneyLedgerUx\.mjs|scripts/checkInteractionTavernReceiptIntegrity\.mjs|scripts/checkInteractionExpeditionTavernRecovery\.mjs|scripts/checkInteractionMasteryTravelContinuityBrowser\.mjs|\.github/workflows/rpg-journey-history-window\.yml)$'
           if (( ${#paths[@]} )); then
             printf '%s\n' "${paths[@]}" | grep -Ev "$allowed" && exit 1 || true
           fi
@@ -45,6 +46,8 @@ jobs:
       - name: Syntax and journey persistence regressions
         run: |
           set -euo pipefail
+          node --check src/3d/gameplay/interaction.js
+          node --check src/3d/gameplay/interactionConfig.js
           node --check scripts/checkInteractionJourneyHistoryWindow.mjs
           node scripts/checkInteractionJourneyHistoryWindow.mjs
           node scripts/checkInteractionTavernReceiptIntegrity.mjs

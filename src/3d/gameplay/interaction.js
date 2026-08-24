@@ -23,7 +23,7 @@ import {
 	evaluateJourneyWithRestStops,
 } from './interactionFieldReadiness.js';
 
-const DIALOGUE_CHOICE_KEY_CODES = ['Digit1', 'Digit2', 'Digit3'];
+const DIALOGUE_CHOICE_KEY_CODES = ['Digit1', 'Digit2', 'Digit3', 'Digit4'];
 const QUEST_STATUS = Object.freeze({
 	LOCKED: 'locked', AVAILABLE: 'available', ACTIVE: 'active', READY: 'ready', COMPLETED: 'completed',
 });
@@ -114,6 +114,15 @@ export const EXPEDITION_BOARD_ROUTES = Object.freeze([
 	}),
 ]);
 
+export const EXPEDITION_TAVERN_RECOVERY = Object.freeze({
+	id: 'dragonstone-harbor-tavern-recovery',
+	label: 'Liman tavernasında dinlen',
+	summary: 'Yeni kontrata çıkmadan önce liman tavernasında birikmiş sefer yorgunluğunu gider.',
+	steps: Object.freeze([
+		Object.freeze({ type: 'rest', kind: REST_KIND.TAVERN, siteId: 'dragonstone-harbor-tavern', discovered: true, open: true, inCombat: false }),
+	]),
+});
+
 export const EXPEDITION_MASTERY_REWARD = Object.freeze({
 	experience: 50,
 	reputation: 3,
@@ -124,17 +133,22 @@ export const EXPEDITION_MASTERY_REWARD = Object.freeze({
 function readinessFromInventory(inventory = {}) { return inventory?.fieldReadiness?.tier ? inventory.fieldReadiness : inventory; }
 export function evaluateExpeditionBoard(inventory = {}, journey = {}, worldState = {}, routes = EXPEDITION_BOARD_ROUTES) {
 	const startingFatigueKm = Math.max(0, Number(journey?.fatigueKm) || 0);
+	const readiness = readinessFromInventory(inventory);
 	const completedRouteIds = new Set(Array.isArray(worldState?.dragonstoneExpeditionRoutes) ? worldState.dragonstoneExpeditionRoutes : []);
 	const entries = (Array.isArray(routes) ? routes : []).map((route, index) => {
-		const plan = evaluateJourneyWithRestStops(readinessFromInventory(inventory), route.steps, { startingFatigueKm });
+		const plan = evaluateJourneyWithRestStops(readiness, route.steps, { startingFatigueKm });
 		const blockedStep = plan.steps?.find((step) => step.index === plan.blockedAtStepIndex) ?? null;
 		const reasons = blockedStep?.type === 'rest' ? blockedStep?.decision?.reasons : blockedStep?.reasons;
 		const completed = completedRouteIds.has(route.id);
 		return Object.freeze({ id: route.id, label: route.label, summary: route.summary, reward: route.reward, index, steps: route.steps, ready: plan.complete, status: plan.complete ? 'ready' : 'blocked', completed, firstRewardAvailable: !completed, plan, reasons: Object.freeze([...(reasons ?? [])]) });
 	});
+	const recoveryPlan = evaluateJourneyWithRestStops(readiness, EXPEDITION_TAVERN_RECOVERY.steps, { startingFatigueKm });
+	const recoveryBlockedStep = recoveryPlan.steps?.find((step) => step.index === recoveryPlan.blockedAtStepIndex) ?? null;
+	const recoveryReasons = recoveryBlockedStep?.type === 'rest' ? recoveryBlockedStep?.decision?.reasons : recoveryBlockedStep?.reasons;
+	const recovery = Object.freeze({ ...EXPEDITION_TAVERN_RECOVERY, ready: recoveryPlan.complete, status: recoveryPlan.complete ? 'ready' : 'blocked', plan: recoveryPlan, reasons: Object.freeze([...(recoveryReasons ?? [])]) });
 	const completedRouteCount = entries.filter((entry) => entry.completed).length;
 	const masteryClaimed = worldState?.dragonstoneExpeditionMasteryClaimed === true;
-	return Object.freeze({ startingFatigueKm, completedRouteCount, masteryClaimed, masteryReady: completedRouteCount === entries.length && entries.length > 0 && !masteryClaimed, masteryReward: EXPEDITION_MASTERY_REWARD, entries: Object.freeze(entries), readyRouteCount: entries.filter((entry) => entry.ready).length });
+	return Object.freeze({ startingFatigueKm, completedRouteCount, masteryClaimed, masteryReady: completedRouteCount === entries.length && entries.length > 0 && !masteryClaimed, masteryReward: EXPEDITION_MASTERY_REWARD, entries: Object.freeze(entries), recovery, readyRouteCount: entries.filter((entry) => entry.ready).length });
 }
 export function buildExpeditionBoardText(board = evaluateExpeditionBoard()) {
 	const lines = ['Dragonstone Sefer Panosu', `Mevcut yorgunluk: ${board.startingFatigueKm} km`, `Tamamlanan kontrat: ${board.completedRouteCount ?? 0}/${board.entries?.length ?? 0}`];
@@ -147,6 +161,10 @@ export function buildExpeditionBoardText(board = evaluateExpeditionBoard()) {
 		const requirement = entry.ready ? 'HAZIR' : `KİLİTLİ · ${entry.reasons?.join(', ') || 'rota uygun değil'}`;
 		const reward = entry.completed ? 'ÖDÜL ALINDI' : `İLK ÖDÜL: ${entry.reward?.experience ?? 0} XP + ${entry.reward?.reputation ?? 0} itibar + ${entry.reward?.copper ?? 0} bakır`;
 		lines.push(`${index + 1}. ${entry.label} · ${requirement} · ${entry.plan.totalDistanceKm} km · ${entry.plan.totalRequiredTravelPacks} azık · ${reward}`);
+	}
+	if (board.recovery) {
+		const recoveryRequirement = board.recovery.ready ? 'HAZIR' : `KİLİTLİ · ${board.recovery.reasons?.join(', ') || 'dinlenme uygun değil'}`;
+		lines.push(`${(board.entries?.length ?? 0) + 1}. ${board.recovery.label} · ${recoveryRequirement} · sefer kaydı oluşturmaz`);
 	}
 	return lines.join('\n');
 }
@@ -162,6 +180,11 @@ export function buildExpeditionBoardResultText(entry, result = {}) {
 		return `${entry.label}\nSEFER TAMAMLANDI\nTüketilen yol azığı: ${result.consumedQuantity}${rewardText}${masteryText}\n${buildJourneyRestText(result.plan)}`;
 	}
 	return `${entry.label}\nSEFER BAŞLATILAMADI\n${buildJourneyRestText(result.plan ?? entry.plan)}`;
+}
+export function buildExpeditionRecoveryResultText(recovery, result = {}) {
+	const label = recovery?.label ?? EXPEDITION_TAVERN_RECOVERY.label;
+	const status = result.ok === true ? 'DİNLENME TAMAMLANDI' : 'DİNLENME BAŞLATILAMADI';
+	return `${label}\n${status}\n${buildJourneyRestText(result.plan ?? recovery?.plan)}`;
 }
 
 export const INTERACTION_QUESTS = Object.freeze([
@@ -268,7 +291,17 @@ export function createInteractionController({ interactionPrompt, dialogueBox, gr
 	function showJournal() { activeNpc = null; activeChoices = null; activeNpcName = null; journalOpen = true; shopOpen = false; expeditionBoardOpen = false; activeExpeditionBoard = null; interactionPrompt.setVisible(false); dialogueBox.show(buildQuestJournalText(quests.snapshot(), reputation.snapshot(), progression.snapshot(), worldState.snapshot())); }
 	function showInventory() { activeNpc = null; activeChoices = null; activeNpcName = null; journalOpen = true; shopOpen = false; expeditionBoardOpen = false; activeExpeditionBoard = null; interactionPrompt.setVisible(false); dialogueBox.show(buildInventoryText(inventory.snapshot(), journey.snapshot())); }
 	function showQuartermaster(feedback = '') { if (nearestNpc?.object3D?.name !== QUARTERMASTER_NPC_ID) return false; activeNpc = null; activeChoices = null; activeNpcName = null; journalOpen = true; shopOpen = true; expeditionBoardOpen = false; activeExpeditionBoard = null; interactionPrompt.setVisible(false); const masteryHint = worldState.get('dragonstoneExpeditionMasteryClaimed') === true ? 'F — Ustalık zırhçı hizmeti: 1 yol azığı + 1 bileği taşı → 1 sefer bakım kiti.' : ''; dialogueBox.show(buildQuartermasterText(economy.snapshot(), QUARTERMASTER_OFFERS, feedback || masteryHint), QUARTERMASTER_OFFERS.map((offer) => `${offer.label} — ${offer.priceCopper} bakır`)); return true; }
-	function showExpeditionBoard() { if (nearestNpc?.object3D?.name !== QUARTERMASTER_NPC_ID) return false; activeNpc = null; activeChoices = null; activeNpcName = null; journalOpen = true; shopOpen = false; expeditionBoardOpen = true; activeExpeditionBoard = evaluateExpeditionBoard(inventory.snapshot(), journey.snapshot(), worldState.snapshot()); interactionPrompt.setVisible(false); dialogueBox.show(buildExpeditionBoardText(activeExpeditionBoard), activeExpeditionBoard.entries.map((entry) => `${entry.label} — ${entry.ready ? 'HAZIR' : 'KİLİTLİ'}${entry.completed ? ' · ÖDÜL ALINDI' : ''}`)); return true; }
+	function showExpeditionBoard() {
+		if (nearestNpc?.object3D?.name !== QUARTERMASTER_NPC_ID) return false;
+		activeNpc = null; activeChoices = null; activeNpcName = null; journalOpen = true; shopOpen = false; expeditionBoardOpen = true;
+		activeExpeditionBoard = evaluateExpeditionBoard(inventory.snapshot(), journey.snapshot(), worldState.snapshot());
+		interactionPrompt.setVisible(false);
+		const routeChoices = activeExpeditionBoard.entries.map((entry) => `${entry.label} — ${entry.ready ? 'HAZIR' : 'KİLİTLİ'}${entry.completed ? ' · ÖDÜL ALINDI' : ''}`);
+		const recovery = activeExpeditionBoard.recovery;
+		if (recovery) routeChoices.push(`${recovery.label} — ${recovery.ready ? 'HAZIR' : 'KİLİTLİ'}`);
+		dialogueBox.show(buildExpeditionBoardText(activeExpeditionBoard), routeChoices);
+		return true;
+	}
 	function useMasteryArmorerService() {
 		if (nearestNpc?.object3D?.name !== QUARTERMASTER_NPC_ID) return false;
 		if (worldState.get('dragonstoneExpeditionMasteryClaimed') !== true) { showQuartermaster('Sefer Ustalığı tamamlanmadan zırhçı ustalık hizmeti açılmaz.'); return false; }
@@ -287,6 +320,20 @@ export function createInteractionController({ interactionPrompt, dialogueBox, gr
 	function selectShopOffer(index) { const offer = QUARTERMASTER_OFFERS[index]; if (!offer) return; const result = economy.purchase(offer, (...args) => inventory.grant(...args)); let feedback = 'Satın alma başarısız.'; if (result.ok) { feedback = `${offer.label} çantana eklendi. ${result.spentCopper} bakır ödendi.`; onInventoryChanged(inventory.snapshot()); onEconomyChanged(economy.snapshot()); } else if (result.reason === 'insufficient-funds') feedback = 'Kesende yeterli bakır yok.'; else if (result.reason === 'inventory-full') feedback = 'Bu eşyadan daha fazlasını taşıyamazsın.'; showQuartermaster(feedback); }
 	function selectChoice(index) { const choice = activeChoices[index]; const npcId = activeNpc?.object3D?.name ?? ''; activeChoices = null; dialogueBox.show(choice.response.replace('{name}', activeNpcName)); if (quests.consume(npcId, choice.originalIndex)) onQuestChanged(quests.snapshot()); }
 	function commitJourneyWithRestStops(steps = []) { const journeyBefore = journey.snapshot(); const result = inventory.commitJourneyWithRestStops(steps, { startingFatigueKm: journeyBefore.fatigueKm }); if (!result.ok) return { ...result, journey: journeyBefore }; if (!journey.applyCommit(result)) return { ...result, ok: false, reason: 'journey-state-commit-failed', journey: journeyBefore }; const journeySnapshot = journey.snapshot(); if (result.consumedQuantity > 0) onInventoryChanged(result.inventory); onJourneyChanged(journeySnapshot); return { ...result, journey: journeySnapshot }; }
+	function recoverExpeditionFatigueAtTavern() {
+		const recovery = activeExpeditionBoard?.recovery;
+		if (!recovery) return;
+		const journeyBefore = journey.snapshot();
+		let result = inventory.commitJourneyWithRestStops(recovery.steps, { startingFatigueKm: journeyBefore.fatigueKm });
+		if (result.ok === true && !journey.applyRecovery(result)) result = { ...result, ok: false, reason: 'journey-recovery-state-failed' };
+		if (result.ok === true) {
+			const journeySnapshot = journey.snapshot();
+			onJourneyChanged(journeySnapshot);
+			result = { ...result, journey: journeySnapshot };
+		} else result = { ...result, journey: journeyBefore };
+		expeditionBoardOpen = false; activeExpeditionBoard = null; activeChoices = null;
+		dialogueBox.show(buildExpeditionRecoveryResultText(recovery, result));
+	}
 	function selectExpeditionRoute(index) {
 		const entry = activeExpeditionBoard?.entries?.[index];
 		if (!entry) return;
@@ -335,9 +382,9 @@ export function createInteractionController({ interactionPrompt, dialogueBox, gr
 	function inferWorldStateFromQuestSnapshot(savedQuestSnapshot) { worldState.restore(null); const secondQuest = (Array.isArray(savedQuestSnapshot) ? savedQuestSnapshot : []).find((quest) => quest?.id === 'watch-under-pressure'); if (secondQuest?.status !== QUEST_STATUS.COMPLETED) return; const inferred = [WATCH_POLICY.DISCIPLINE, WATCH_POLICY.MERCY].includes(secondQuest.outcome) ? secondQuest.outcome : WATCH_POLICY.DISCIPLINE; worldState.set('dragonstoneWatchPolicy', inferred); }
 	function restoreRpgSnapshot(saved) { if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return; const schemaVersion = Number(saved.schemaVersion) || 1; reputation.restore(saved.reputation); progression.restore(saved.progression); inventory.restore(saved.inventory); economy.restore(saved.economy); worldState.restore(saved.worldState); journey.restore(saved.journey); quests.restore(saved.quests); if (!saved.reputation || !saved.progression || !saved.inventory) { const explicitReputation = saved.reputation; const explicitProgression = saved.progression; const explicitInventory = saved.inventory; rebuildRewardStateFromQuestRewards(saved.quests, { includeObjectiveExperience: schemaVersion >= 3 }); if (explicitReputation) reputation.restore(explicitReputation); if (explicitProgression) progression.restore(explicitProgression); if (explicitInventory) inventory.restore(explicitInventory); } if (!saved.worldState) inferWorldStateFromQuestSnapshot(saved.quests); onReputationChanged(reputation.snapshot()); onProgressionChanged(progression.snapshot()); onInventoryChanged(inventory.snapshot()); onEconomyChanged(economy.snapshot()); onWorldStateChanged(worldState.snapshot()); onJourneyChanged(journey.snapshot()); onQuestChanged(quests.snapshot()); }
 	return {
-		handleChoice(index) { if (isPaused() || !Number.isInteger(index)) return; if (shopOpen) { selectShopOffer(index); return; } if (expeditionBoardOpen) { selectExpeditionRoute(index); return; } if (!activeChoices || index < 0 || index >= activeChoices.length) return; selectChoice(index); },
+		handleChoice(index) { if (isPaused() || !Number.isInteger(index)) return; if (shopOpen) { selectShopOffer(index); return; } if (expeditionBoardOpen) { const routeCount = activeExpeditionBoard?.entries?.length ?? 0; if (index >= 0 && index < routeCount) selectExpeditionRoute(index); else if (index === routeCount && activeExpeditionBoard?.recovery) recoverExpeditionFatigueAtTavern(); return; } if (!activeChoices || index < 0 || index >= activeChoices.length) return; selectChoice(index); },
 		update(npcs, playerPos) { nearestNpc = null; let nearestDistance = Infinity; for (const npc of npcs) { const distance = Math.hypot(npc.object3D.position.x - playerPos.x, npc.object3D.position.z - playerPos.z); if (distance < radiusMeters && distance < nearestDistance) { nearestNpc = npc; nearestDistance = distance; } } if (activeNpc && activeNpc !== nearestNpc) closeDialogue(); if ((shopOpen || expeditionBoardOpen) && nearestNpc?.object3D?.name !== QUARTERMASTER_NPC_ID) closeDialogue(); interactionPrompt.setVisible(!activeNpc && !journalOpen && nearestNpc !== null); },
-		handleKeyDown(event) { if (isPaused() || event.repeat) return; if (shopOpen) { const shopIndex = DIALOGUE_CHOICE_KEY_CODES.indexOf(event.code); if (shopIndex !== -1 && shopIndex < QUARTERMASTER_OFFERS.length) { selectShopOffer(shopIndex); return; } } if (expeditionBoardOpen) { const routeIndex = DIALOGUE_CHOICE_KEY_CODES.indexOf(event.code); if (routeIndex !== -1 && routeIndex < (activeExpeditionBoard?.entries?.length ?? 0)) { selectExpeditionRoute(routeIndex); return; } } if (event.code === 'KeyF') { useMasteryArmorerService(); return; } if (event.code === 'KeyB') { if (shopOpen) closeDialogue(); else showQuartermaster(); return; } if (event.code === 'KeyT') { if (expeditionBoardOpen) closeDialogue(); else showExpeditionBoard(); return; } if (event.code === 'KeyJ') { if (journalOpen) closeDialogue(); else showJournal(); return; } if (event.code === 'KeyI') { if (journalOpen) closeDialogue(); else showInventory(); return; } if (event.code === 'Escape') { if (activeNpc || journalOpen) closeDialogue(); return; } if (activeChoices) { const index = DIALOGUE_CHOICE_KEY_CODES.indexOf(event.code); if (index !== -1 && index < activeChoices.length) { selectChoice(index); return; } } if (event.code !== 'KeyE') return; if (activeNpc) closeDialogue(); else if (nearestNpc) openDialogue(nearestNpc); },
+		handleKeyDown(event) { if (isPaused() || event.repeat) return; if (shopOpen) { const shopIndex = DIALOGUE_CHOICE_KEY_CODES.indexOf(event.code); if (shopIndex !== -1 && shopIndex < QUARTERMASTER_OFFERS.length) { selectShopOffer(shopIndex); return; } } if (expeditionBoardOpen) { const routeIndex = DIALOGUE_CHOICE_KEY_CODES.indexOf(event.code); const routeCount = activeExpeditionBoard?.entries?.length ?? 0; if (routeIndex !== -1 && routeIndex < routeCount) { selectExpeditionRoute(routeIndex); return; } if (routeIndex === routeCount && activeExpeditionBoard?.recovery) { recoverExpeditionFatigueAtTavern(); return; } } if (event.code === 'KeyF') { useMasteryArmorerService(); return; } if (event.code === 'KeyB') { if (shopOpen) closeDialogue(); else showQuartermaster(); return; } if (event.code === 'KeyT') { if (expeditionBoardOpen) closeDialogue(); else showExpeditionBoard(); return; } if (event.code === 'KeyJ') { if (journalOpen) closeDialogue(); else showJournal(); return; } if (event.code === 'KeyI') { if (journalOpen) closeDialogue(); else showInventory(); return; } if (event.code === 'Escape') { if (activeNpc || journalOpen) closeDialogue(); return; } if (activeChoices) { const index = DIALOGUE_CHOICE_KEY_CODES.indexOf(event.code); if (index !== -1 && index < activeChoices.length) { selectChoice(index); return; } } if (event.code !== 'KeyE') return; if (activeNpc) closeDialogue(); else if (nearestNpc) openDialogue(nearestNpc); },
 		showQuestJournal: showJournal, showInventory, showQuartermaster, showExpeditionBoard, useMasteryArmorerService, commitJourneyWithRestStops,
 		getQuestSnapshot: quests.snapshot, getReputationSnapshot: reputation.snapshot, getProgressionSnapshot: progression.snapshot, getInventorySnapshot: inventory.snapshot, getEconomySnapshot: economy.snapshot, getWorldStateSnapshot: worldState.snapshot, getJourneySnapshot: journey.snapshot,
 		getRpgSnapshot() { const journeySnapshot = journey.snapshot(); const hasJourneyState = journeySnapshot.commitCount > 0 || journeySnapshot.fatigueKm > 0 || journeySnapshot.lastDestinationId !== null || journeySnapshot.recentReceipts.length > 0; const result = { schemaVersion: hasJourneyState ? 6 : 5, quests: quests.snapshot(), reputation: reputation.snapshot(), progression: progression.snapshot(), inventory: inventory.snapshot(), economy: economy.snapshot(), worldState: worldState.snapshot() }; if (hasJourneyState) result.journey = journeySnapshot; return result; },
