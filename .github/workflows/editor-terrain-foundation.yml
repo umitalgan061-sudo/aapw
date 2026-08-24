@@ -13,6 +13,7 @@ on:
       - 'src/3d/world/terrainFoundationConformer.js'
       - 'scripts/checkStructureGroundingPolicy.mjs'
       - 'scripts/checkEditorTerrainFoundationGrounder.mjs'
+      - 'scripts/checkEditorFoundationRuntimeIdentity.mjs'
       - 'scripts/checkEditorTerrainFoundationBatchCleanup.mjs'
       - 'scripts/checkEditorTerrainFoundationLifecycle.mjs'
       - 'scripts/checkRun216ScaleInputController.mjs'
@@ -50,6 +51,7 @@ jobs:
           node --check src/3d/world/structureGroundingPolicy.js
           node --check scripts/checkStructureGroundingPolicy.mjs
           node --check scripts/checkEditorTerrainFoundationGrounder.mjs
+          node --check scripts/checkEditorFoundationRuntimeIdentity.mjs
           node --check scripts/checkEditorTerrainFoundationBatchCleanup.mjs
           node --check scripts/checkEditorTerrainFoundationLifecycle.mjs
           node --check scripts/checkRun216ScaleInputController.mjs
@@ -57,6 +59,8 @@ jobs:
         run: node scripts/checkStructureGroundingPolicy.mjs
       - name: Editor structure foundation contract
         run: node scripts/checkEditorTerrainFoundationGrounder.mjs
+      - name: Editor cloned runtime foundation identity
+        run: node scripts/checkEditorFoundationRuntimeIdentity.mjs
       - name: Editor numeric scale foundation refresh contract
         run: node scripts/checkRun216ScaleInputController.mjs
       - name: Editor batch foundation cleanup contract
