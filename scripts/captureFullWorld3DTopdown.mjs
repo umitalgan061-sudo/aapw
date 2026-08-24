@@ -102,6 +102,10 @@ async function main() {
 		assert(summary.northPermanentIceActiveSamples > 0, 'no strong permanent-ice samples were represented');
 		assert(summary.waterDepthField.meanWetCoverage > 0.35, 'production water coverage is unexpectedly sparse');
 		assert(summary.waterDepthField.mixedCoastTexelRatio > 0, 'coastline anti-alias coverage disappeared');
+		assert.equal(summary.waterLayerComposition.nearDepthWrite, true, 'near swell must retain depth writes');
+		assert.equal(summary.waterLayerComposition.farDepthWrite, false, 'far transparent water underlay must not occlude near swell');
+		assert(summary.waterLayerComposition.farRenderOrder < 0, 'far water underlay must render before near swell');
+		assert(summary.waterLayerComposition.farLocalY < 0, 'far water underlay must remain slightly below near water');
 
 		console.log('[captureFullWorld3DTopdown] PASS', JSON.stringify({
 			output: path.relative(repoRoot, outputPath),
@@ -111,6 +115,7 @@ async function main() {
 			lakeSamples: summary.surfaceCounts.lake,
 			northPermanentIceMean: summary.northPermanentIceMean,
 			northPermanentIceMax: summary.northPermanentIceMax,
+			waterLayers: summary.waterLayerComposition,
 		}));
 	} finally {
 		await browser?.close().catch(() => {});
