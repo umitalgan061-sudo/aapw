@@ -13,7 +13,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-24-v12-glacial-palette-floor',
+  id: 'terrain-snow-surface-tone-2026-08-24-v13-transition-accumulation-harmony',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
@@ -22,6 +22,7 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   glacialDepthHarmony: true,
   shelteredPackedFloor: true,
   glacialPaletteFloor: true,
+  transitionAccumulationHarmony: true,
   glacialVisibilityExponent: 0.65,
   glacialDepthFloor: 0.54,
   glacialDepthGain: 0.46,
@@ -44,6 +45,7 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   shelteredGlacialRetentionFloor: 0.58,
   shelteredGlacialAccumulationCooling: 0.18,
   glacialDepthAccumulationCooling: 0.10,
+  transitionAccumulationCoolingGain: 0.12,
   tundraToneScale: 0.78,
   minimumVisibleSnow: 0.08,
   minimumAccumulatedSnow: 0.22,
@@ -103,6 +105,7 @@ export function resolveTerrainSnowSurfaceTone({
       transitionColdSupport: 0,
       accumulationGlacialCooling: 0,
       accumulationDepthCooling: 0,
+      transitionAccumulationCooling: 0,
       accumulationClimateScale: 1,
       packedWeight: 0,
       accumulatedWeight: 0,
@@ -170,9 +173,17 @@ export function resolveTerrainSnowSurfaceTone({
   const accumulationDepthCooling = clamp01(
     glacialDepthSupport * accumulationVisibleSnow * shelterSignal * P.glacialDepthAccumulationCooling,
   );
+  // The mixed tundra/permanent-ice belt should not become a temporary warm accumulated-snow notch
+  // between colder endpoints. Apply a small transition-only cooling term that peaks at 50/50 ice,
+  // requires real retained shelter and vanishes at pure tundra and pure permanent ice.
+  const transitionAccumulationCooling = clamp01(
+    4 * permanentIceWeight * (1 - permanentIceWeight)
+      * accumulationVisibleSnow * shelterSignal * P.transitionAccumulationCoolingGain,
+  );
   const accumulationClimateScale = lerp(1, P.accumulatedPermanentIceScale, permanentIceWeight)
     * (1 - accumulationGlacialCooling)
-    * (1 - accumulationDepthCooling);
+    * (1 - accumulationDepthCooling)
+    * (1 - transitionAccumulationCooling);
 
   // A sheltered accumulation signal suppresses the ordinary packed interpretation and vice versa.
   // Permanent-ice shelter still keeps independent cold-family floors so a deep lee bowl can remain
@@ -219,6 +230,7 @@ export function resolveTerrainSnowSurfaceTone({
     transitionColdSupport,
     accumulationGlacialCooling,
     accumulationDepthCooling,
+    transitionAccumulationCooling,
     accumulationClimateScale,
     shelterSignal,
     gentleShelterSupport,
