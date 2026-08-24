@@ -172,6 +172,10 @@ try {
 				moonPosition: lights.moon.position.toArray(),
 				sunIntensity: lights.sun.intensity,
 				moonIntensity: lights.moon.intensity,
+				sunAltitudeFactor: state.sunAltitudeFactor,
+				moonAltitudeFactor: state.moonAltitudeFactor,
+				celestialSource: state.celestialKey.source,
+				celestialIntensity: state.celestialKey.intensity,
 				sunVisible: lights.sunVisual.visible,
 				moonVisible: lights.moonVisual.visible,
 				horizonColor: `#${state.horizonColor.getHexString()}`,
@@ -214,6 +218,9 @@ try {
 			moonPosition: roundedVector(phase.moonPosition),
 			sunIntensity: round(phase.sunIntensity),
 			moonIntensity: round(phase.moonIntensity),
+			sunAltitudeFactor: round(phase.sunAltitudeFactor),
+			moonAltitudeFactor: round(phase.moonAltitudeFactor),
+			celestialIntensity: round(phase.celestialIntensity),
 		}])),
 		browserErrors,
 	};
@@ -237,12 +244,16 @@ try {
 	const sunrise = phaseReports.sunrise;
 	assert(sunrise.sunPosition[0] > 850 && Math.abs(sunrise.sunPosition[1]) < 1,
 		`sunrise must place Sun on east +X horizon, got ${sunrise.sunPosition}`);
+	assert(sunrise.sunAltitudeFactor < 0.05 && sunrise.sunIntensity < 0.05,
+		`sunrise direct light must remain horizon-faded, got factor=${sunrise.sunAltitudeFactor} intensity=${sunrise.sunIntensity}`);
 	const noon = phaseReports.noon;
 	assert(noon.sunPosition[1] > 850 && noon.sunIntensity > 1 && noon.nightFactor < 0.01,
 		`noon must place a bright Sun overhead, got ${JSON.stringify(noon)}`);
 	const sunset = phaseReports.sunset;
 	assert(sunset.sunPosition[0] < -850 && Math.abs(sunset.sunPosition[1]) < 1,
 		`sunset must place Sun on west -X horizon, got ${sunset.sunPosition}`);
+	assert(sunset.sunAltitudeFactor < 0.05 && sunset.sunIntensity < 0.05,
+		`sunset direct light must remain horizon-faded, got factor=${sunset.sunAltitudeFactor} intensity=${sunset.sunIntensity}`);
 	const night = phaseReports.night;
 	assert(night.sunPosition[1] < -850 && night.moonPosition[1] > 850,
 		`night must put Sun below and Moon above horizon, got sun=${night.sunPosition} moon=${night.moonPosition}`);
@@ -255,6 +266,9 @@ try {
 			assert(Math.abs(phase.sunPosition[axis] + phase.moonPosition[axis]) < 0.001,
 				`${name} Moon must remain 180 degrees opposite the Sun on axis ${axis}`);
 		}
+		const strongestVisibleKey = Math.max(phase.sunIntensity, phase.moonIntensity);
+		assert(Math.abs(phase.celestialIntensity - strongestVisibleKey) < 1e-6,
+			`${name} custom-shader celestial intensity must match built-in directional lights: ${phase.celestialIntensity} vs ${strongestVisibleKey}`);
 		assert(phase.triangles > 0 && phase.renderCalls > 0, `${name} must render real WebGL geometry`);
 	}
 	assert.deepEqual(browserErrors, [], `celestial browser QA emitted errors: ${browserErrors.join(' | ')}`);
@@ -266,8 +280,10 @@ try {
 		moonSize: report.moonBounds.size,
 		moonCenter: report.moonBounds.center,
 		sunriseSun: report.phases.sunrise.sunPosition,
+		sunriseIntensity: report.phases.sunrise.sunIntensity,
 		noonSun: report.phases.noon.sunPosition,
 		sunsetSun: report.phases.sunset.sunPosition,
+		sunsetIntensity: report.phases.sunset.sunIntensity,
 		nightMoon: report.phases.night.moonPosition,
 	}));
 } finally {
