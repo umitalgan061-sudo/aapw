@@ -72,6 +72,7 @@ jobs:
           grep -q 'dragonTerrainSampleExceptionCount' src/3d/gameplay/dragonFlightMath.js
           grep -q 'dragonTerrainLastSafeAltitudeY' src/3d/gameplay/dragonFlightMath.js
           grep -q 'dragonTerrainUsingSafeAltitudeFallback' src/3d/gameplay/dragonFlightMath.js
+          grep -q 'if (skippedDiscontinuity) delete object3D.userData.dragonTerrainLastSafeAltitudeY' src/3d/gameplay/dragonFlightMath.js
           grep -q 'canUseSafeAltitudeFallback = !skippedDiscontinuity' src/3d/gameplay/dragonFlightMath.js
           grep -q 'try {' src/3d/gameplay/dragonFlightMath.js
           grep -q 'groundY = sampleGroundY(x, z)' src/3d/gameplay/dragonFlightMath.js
@@ -86,6 +87,8 @@ jobs:
           grep -q 'valid forward ridge must still clamp altitude when the current sample is NaN' scripts/checkDragonTerrainSampleResilience.mjs
           grep -q 'an isolated terrain sampler exception must not abort the dragon update' scripts/checkDragonTerrainSampleResilience.mjs
           grep -q 'an all-throwing transient terrain frame must not let an active dive descend below the last proven safe altitude' scripts/checkDragonTerrainSampleResilience.mjs
+          grep -q 'an all-invalid discontinuity must invalidate the old-location safe-altitude latch' scripts/checkDragonTerrainSampleResilience.mjs
+          grep -q 'a post-discontinuity outage must not resurrect the invalidated old-location safe altitude' scripts/checkDragonTerrainSampleResilience.mjs
           grep -q 'finite terrain recovery must release the transient fallback and resume the current terrain floor' scripts/checkDragonTerrainSampleResilience.mjs
           grep -q 'a throwing pursuit-center terrain sample must not abort the configured dragon update' scripts/checkDragonTerrainSampleResilience.mjs
           grep -q 'all-throwing terrain data with no prior safe latch must preserve the requested rendered altitude' scripts/checkDragonTerrainSampleResilience.mjs
@@ -102,13 +105,14 @@ jobs:
           const traversedSweep = math.indexOf('traversedDistance <= boundedMaxTraversed');
           const discontinuity = math.indexOf('skippedDiscontinuity = true');
           const forwardSweep = math.lastIndexOf('sampleSegmentGround(');
+          const invalidateLatch = math.indexOf('if (skippedDiscontinuity) delete object3D.userData.dragonTerrainLastSafeAltitudeY');
           const fallback = math.indexOf('canUseSafeAltitudeFallback = !skippedDiscontinuity');
           const safeLatch = math.indexOf('dragonTerrainLastSafeAltitudeY = object3D.position.y');
           if (currentProbe < 0 || retainedMotion < currentProbe || traversedSweep < retainedMotion || discontinuity < traversedSweep || forwardSweep < discontinuity) {
             throw new Error('terrain safety must bound retained travel before projecting forward lookahead');
           }
-          if (fallback < forwardSweep || safeLatch < fallback) {
-            throw new Error('last-safe altitude fallback must run only after the full terrain sweep and refresh only after finite terrain proof');
+          if (invalidateLatch < forwardSweep || fallback < invalidateLatch || safeLatch < fallback) {
+            throw new Error('all-invalid discontinuities must invalidate the old safe-altitude latch before fallback eligibility is evaluated');
           }
           NODE
 
