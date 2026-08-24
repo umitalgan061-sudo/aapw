@@ -184,3 +184,5 @@ events.length = 0;
           git add -- src/3d/world/terrainFoundationConformer.js scripts/checkTerrainFoundationConformer.mjs
           git commit -m 'perf(world): rebuild only foundation-influenced chunks'
           git push origin HEAD:codex/foundation-grounding-20260821
+
+# retrigger registered workflow
