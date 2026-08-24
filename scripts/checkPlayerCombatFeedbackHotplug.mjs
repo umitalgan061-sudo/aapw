@@ -15,6 +15,7 @@ class FakeInputTarget {
 
 const calls = [];
 const fallbackCalls = [];
+const retryCalls = [];
 let connected = true;
 const primaryActuator = {
   playEffect(type, options) {
@@ -25,6 +26,14 @@ const primaryActuator = {
 const fallbackActuator = {
   playEffect(type, options) {
     fallbackCalls.push({ type, options });
+    return Promise.resolve();
+  },
+};
+let rejectRetryPulse = true;
+const retryActuator = {
+  playEffect(type, options) {
+    retryCalls.push({ type, options });
+    if (rejectRetryPulse) { rejectRetryPulse = false; return Promise.reject(new Error('transient haptic failure')); }
     return Promise.resolve();
   },
 };
@@ -87,6 +96,21 @@ try {
   assert.equal(fallbackCalls.length, 1, 'alternate haptic actuator must preserve combat-result feedback');
   assert.equal(fallbackCalls[0].type, 'dual-rumble', 'fallback actuator must keep the canonical dual-rumble effect');
   assert.equal(fallbackCalls[0].options.duration, 128, 'fallback actuator must preserve the hit-stagger profile');
+
+  pad.vibrationActuator = retryActuator;
+  target.dispatch('aapw:player-combat-feedback', {
+    detail: { serial: 25, outcome: 'hit', appliedAmount: 6 },
+  });
+  target.dispatch('aapw:player-combat-feedback', {
+    detail: { serial: 25, outcome: 'hit', appliedAmount: 6 },
+  });
+  assert.equal(retryCalls.length, 1, 'pending receipt must not launch duplicate haptic requests');
+  await Promise.resolve();
+  await Promise.resolve();
+  target.dispatch('aapw:player-combat-feedback', {
+    detail: { serial: 25, outcome: 'hit', appliedAmount: 6 },
+  });
+  assert.equal(retryCalls.length, 2, 'rejected haptic promise must leave the authoritative receipt retryable');
 
   input.dispose();
 } finally {
