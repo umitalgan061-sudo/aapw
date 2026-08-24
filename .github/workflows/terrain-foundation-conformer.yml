@@ -20,9 +20,64 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
+  rectangular-foundation-patch:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Patch once
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -q "v11-oriented-rect-cells" src/3d/world/terrainFoundationConformer.js; then exit 0; fi
+          python - <<'PY'
+          from pathlib import Path
+          def r(s,a,b,n):
+              if s.count(a)!=1: raise SystemExit(f'{n}: {s.count(a)}')
+              return s.replace(a,b,1)
+          p=Path('src/3d/world/terrainFoundationConformer.js'); s=p.read_text()
+          s=r(s,"id: 'runtime-structure-foundation-conform-2026-08-24-v10-oriented-footprint',\n\tfootprintMode: 'root-oriented-adaptive-four-cell-circle-union-with-aabb-fallback',","id: 'runtime-structure-foundation-conform-2026-08-24-v11-oriented-rect-cells',\n\tfootprintMode: 'root-oriented-adaptive-four-cell-rectangle-union-with-aabb-fallback',",'policy')
+          s=r(s,"  const cellRadius = Math.max(\n    TERRAIN_FOUNDATION_CONFORM_POLICY.minimumInnerRadiusMeters,\n    Math.hypot(cellWidth * 0.5, cellDepth * 0.5) + safeInnerMargin,\n  );\n  const pads = [];","  const halfWidthMeters = cellWidth * 0.5 + safeInnerMargin;\n  const halfDepthMeters = cellDepth * 0.5 + safeInnerMargin;\n  const cellRadius = Math.max(TERRAIN_FOUNDATION_CONFORM_POLICY.minimumInnerRadiusMeters, Math.hypot(halfWidthMeters, halfDepthMeters));\n  const axisX = oriented ? oriented.axisX : { x: 1, z: 0 };\n  const axisZ = oriented ? oriented.axisZ : { x: 0, z: 1 };\n  const pads = [];",'cell')
+          s=r(s,"      pads.push({\n        x, z,\n        innerRadiusMeters: cellRadius,","      pads.push({\n        shape: 'oriented-rectangle',\n        x, z,\n        halfWidthMeters, halfDepthMeters,\n        axisX: { ...axisX }, axisZ: { ...axisZ },\n        featherMeters: safeFeather,\n        innerRadiusMeters: cellRadius,",'pad')
+          p.write_text(s)
+          p=Path('src/3d/world/terrain.js'); s=p.read_text()
+          m="function flattenWeight(distanceMeters, innerRadiusMeters, outerRadiusMeters) {\n\tif (distanceMeters <= innerRadiusMeters) return 1;\n\tif (distanceMeters >= outerRadiusMeters) return 0;\n\tconst t = 1 - (distanceMeters - innerRadiusMeters) / (outerRadiusMeters - innerRadiusMeters);\n\treturn t * t * (3 - 2 * t);\n}\n"
+          h=m+"\nfunction foundationPadWeight(worldX, worldZ, pad) {\n\tif (pad?.shape !== 'oriented-rectangle') return flattenWeight(Math.hypot(worldX - pad.x, worldZ - pad.z), pad.innerRadiusMeters, pad.outerRadiusMeters);\n\tconst v = [pad.halfWidthMeters,pad.halfDepthMeters,pad.axisX?.x,pad.axisX?.z,pad.axisZ?.x,pad.axisZ?.z].map(Number);\n\tif (!v.every(Number.isFinite)) return 0;\n\tconst [hw,hd,xx,xz,zx,zz]=v, dx=worldX-pad.x, dz=worldZ-pad.z;\n\tconst ox=Math.max(0,Math.abs(dx*xx+dz*xz)-hw), oz=Math.max(0,Math.abs(dx*zx+dz*zz)-hd);\n\tconst d=Math.hypot(ox,oz); if (d<=0) return 1;\n\tconst f=Math.max(0,Number(pad.featherMeters)||0); return f>0 ? flattenWeight(d,0,f) : 0;\n}\n"
+          s=r(s,m,h,'terrain helper')
+          s=r(s,"\t\tfor (const pad of flattenPads) {\n\t\t\tconst distanceMeters = Math.hypot(worldX - pad.x, worldZ - pad.z);\n\t\t\tconst weight = flattenWeight(distanceMeters, pad.innerRadiusMeters, pad.outerRadiusMeters);","\t\tfor (const pad of flattenPads) {\n\t\t\tconst weight = foundationPadWeight(worldX, worldZ, pad);",'consumer')
+          p.write_text(s)
+          p=Path('scripts/checkTerrainFoundationConformer.mjs'); s=p.read_text()
+          s=r(s,"assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.footprintMode, 'root-oriented-adaptive-four-cell-circle-union-with-aabb-fallback');","assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.footprintMode, 'root-oriented-adaptive-four-cell-rectangle-union-with-aabb-fallback');",'test policy')
+          s=r(s,"const nearSideProbeBase = baseSampler(0, 20);","assert.equal(compactSampler(0, 8), baseSampler(0, 8), 'rectangular cells must stop after bounded side feather');\nconst nearSideProbeBase = baseSampler(0, 20);",'side')
+          s=r(s,"const rotatedSideProbe = { x: -diagonal * 25, z: diagonal * 25 };","const rotatedTightSideProbe = { x: -diagonal * 8, z: diagonal * 8 };\nassert.equal(rotatedSampler(rotatedTightSideProbe.x, rotatedTightSideProbe.z), baseSampler(rotatedTightSideProbe.x, rotatedTightSideProbe.z), 'rotated rectangular cells must stop after bounded feather');\nconst rotatedSideProbe = { x: -diagonal * 25, z: diagonal * 25 };",'rotated')
+          p.write_text(s)
+          PY
+          node scripts/setupNodeThreeShim.mjs
+          node --check src/3d/world/terrainFoundationConformer.js
+          node --check src/3d/world/terrain.js
+          node scripts/checkStructureGroundingPolicy.mjs
+          node scripts/checkSettlementFoundationAuthority.mjs
+          node scripts/checkTerrainFoundationConformer.mjs
+          node scripts/checkTerrainFoundationBatchRemoval.mjs
+          node scripts/checkWorldFootprintGrounding.mjs
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- src/3d/world/terrainFoundationConformer.js src/3d/world/terrain.js scripts/checkTerrainFoundationConformer.mjs
+          git diff --cached --check
+          if git diff --cached --quiet; then exit 0; fi
+          git commit -m "feat(world): conform structure terrain with rectangular cells"
+          git push origin HEAD:codex/foundation-grounding-20260821
+
   foundation-conform:
     runs-on: ubuntu-latest
     timeout-minutes: 8
