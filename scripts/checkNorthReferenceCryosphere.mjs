@@ -28,18 +28,22 @@ assert(alwaysWinterCenter.tundra >= alwaysWinterCenter.permanentIce,
   'tundra climate envelope must include permanent ice');
 assert(alwaysWinterCenter.winterHaloExtension < 1e-9,
   'full winter core must not spend extra transition-halo strength at its center');
+assert(alwaysWinterCenter.curvedWinterHaloExtension < 1e-9,
+  'full winter core must not gain curved transition support at its center');
 
 assert(northCenter.tundra > 0.85,
   'canonical north biome center must remain strongly tundra/cold-ground');
 assert(northCenter.permanentIce < northCenter.tundra,
   'canonical north biome must stay colder than temperate ground without collapsing into full permanent ice');
 
-assert(iceEdge.permanentIce >= 0.49 && iceEdge.permanentIce <= 0.56,
+assert(iceEdge.permanentIce >= 0.52 && iceEdge.permanentIce <= 0.60,
   `canonical ICE EDGE should remain a visibly glacial mixed belt; permanentIce=${iceEdge.permanentIce}`);
 assert(iceEdge.permanentIce < alwaysWinterCenter.permanentIce,
   'ICE EDGE must remain transitional rather than collapsing into the full always-winter core');
 assert(iceEdge.tundra >= iceEdge.permanentIce,
   'ICE EDGE glacial strengthening must remain inside the shared tundra envelope');
+assert(iceEdge.curvedWinterHaloExtension + 1e-9 >= iceEdge.winterHaloExtension,
+  'sub-linear halo curve should retain or strengthen authored mixed-belt influence without changing its radius');
 
 assert(westTransition.permanentIce > 0,
   'always-winter ellipse must have a continuous west-Westeros glacial transition halo');
@@ -50,8 +54,8 @@ assert(westTransition.winterHaloExtension >= 0,
 assert(westTransition.permanentIce + 1e-9 >= westTransition.winterCore,
   'transition halo must never weaken authored permanent-ice core influence');
 assert(westTransition.permanentIce <= westTransition.winterCore
-    + westTransition.winterHaloExtension * NORTH_REFERENCE_CRYOSPHERE_POLICY.iceHaloGain + 1e-9,
-  'transition halo must remain bounded by the authored halo gain');
+    + westTransition.curvedWinterHaloExtension * NORTH_REFERENCE_CRYOSPHERE_POLICY.iceHaloGain + 1e-9,
+  'transition halo must remain bounded by the curved authored halo gain');
 
 const overlapContributions = [
   overlapTransition.northCore * NORTH_REFERENCE_CRYOSPHERE_POLICY.northTundraGain,
@@ -101,7 +105,7 @@ for (let x = 0; x <= 1; x += 0.025) {
   for (let y = 0; y <= 0.65; y += 0.025) {
     const result = sample(x, y);
     for (const key of [
-      'winterCore', 'winterHalo', 'winterHaloExtension', 'northCore', 'northHalo',
+      'winterCore', 'winterHalo', 'winterHaloExtension', 'curvedWinterHaloExtension', 'northCore', 'northHalo',
       'tundraUnion', 'permanentIce', 'tundra', 'tundraBand',
     ]) {
       assert(Number.isFinite(result[key]), `${key} must remain finite at ${x},${y}`);
@@ -111,6 +115,8 @@ for (let x = 0; x <= 1; x += 0.025) {
       `tundra envelope must include permanent ice at ${x},${y}`);
     assert(result.winterHaloExtension <= result.winterHalo + 1e-9,
       `winter halo extension must remain bounded by sampled halo influence at ${x},${y}`);
+    assert(result.curvedWinterHaloExtension + 1e-9 >= result.winterHaloExtension,
+      `curved winter halo must not weaken authored mixed-belt influence at ${x},${y}`);
   }
 }
 
@@ -132,6 +138,8 @@ for (const outside of outsideSamples) {
     'outside-reference scatter candidates must not inherit tundra');
   assert.equal(outside.winterHaloExtension, 0,
     'outside-reference scatter candidates must not retain transition-halo telemetry');
+  assert.equal(outside.curvedWinterHaloExtension, 0,
+    'outside-reference scatter candidates must not retain curved transition-halo telemetry');
   assert.equal(outside.tundraUnion, 0,
     'outside-reference scatter candidates must not retain tundra-overlap telemetry');
 }
@@ -148,15 +156,22 @@ assert.equal(NORTH_REFERENCE_CRYOSPHERE_POLICY.tundraUnionBlend, true,
   'overlapping North and always-winter tundra envelopes must use bounded union blending');
 assert.equal(NORTH_REFERENCE_CRYOSPHERE_POLICY.iceEdgeVisualHarmony, true,
   'canonical ICE EDGE should keep an explicit visual-harmony contract without widening the map zone');
+assert.equal(NORTH_REFERENCE_CRYOSPHERE_POLICY.curvedIceHalo, true,
+  'mixed-belt harmony must be implemented as a bounded curve inside the authored halo radius');
 assert(NORTH_REFERENCE_CRYOSPHERE_POLICY.iceHaloGain >= 0.8
     && NORTH_REFERENCE_CRYOSPHERE_POLICY.iceHaloGain <= 0.9,
   'ice halo gain should strengthen the mixed glacial belt while remaining bounded');
+assert(NORTH_REFERENCE_CRYOSPHERE_POLICY.iceHaloCurveExponent >= 0.8
+    && NORTH_REFERENCE_CRYOSPHERE_POLICY.iceHaloCurveExponent < 1,
+  'ice halo curve should gently lift mixed-belt strength without turning the halo into a new hard core');
 
 console.log('[checkNorthReferenceCryosphere] PASS', JSON.stringify({
   policy: NORTH_REFERENCE_CRYOSPHERE_POLICY.id,
   alwaysWinterPermanentIce: alwaysWinterCenter.permanentIce,
   northTundra: northCenter.tundra,
   iceEdgePermanentIce: iceEdge.permanentIce,
+  iceEdgeRawHaloExtension: iceEdge.winterHaloExtension,
+  iceEdgeCurvedHaloExtension: iceEdge.curvedWinterHaloExtension,
   westTransitionPermanentIce: westTransition.permanentIce,
   overlapTundraUnion: overlapTransition.tundraUnion,
   sameLatitudeEastPermanentIce: sameLatitudeEast.permanentIce,
