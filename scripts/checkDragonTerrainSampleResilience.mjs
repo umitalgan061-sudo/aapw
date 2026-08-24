@@ -107,11 +107,35 @@ function runThrowingPursuitCenterProof() {
 	assert.equal(state.center.y, 16, 'the pursuit center must resume terrain following as soon as a finite sample returns');
 }
 
+function runTransientAllThrowingSafeAltitudeProof() {
+	const dragon = createDragon({ y: 5, yaw: 0 });
+	clampAltitudeAboveGround(dragon, () => 10, 10);
+	assert.equal(dragon.position.y, 20, 'a finite terrain frame must establish the safe rendered altitude');
+	assert.equal(dragon.userData.dragonTerrainLastSafeAltitudeY, 20, 'the last finite terrain frame must latch its safe rendered altitude');
+	assert.equal(dragon.userData.dragonTerrainUsingSafeAltitudeFallback, false, 'finite terrain must not report fallback use');
+
+	// Simulate the next frame's dive offset lowering the rendered request before terrain safety runs.
+	dragon.position.y = 6;
+	assert.doesNotThrow(() => clampAltitudeAboveGround(dragon, () => { throw new Error('terrain provider unavailable'); }, 10));
+	assert.equal(dragon.position.y, 20, 'an all-throwing transient terrain frame must not let an active dive descend below the last proven safe altitude');
+	assert.equal(dragon.userData.dragonTerrainUsingSafeAltitudeFallback, true, 'transient all-throwing terrain must expose last-safe-altitude fallback use');
+	assert.equal(dragon.userData.dragonTerrainSampleCount, 13, 'safe-altitude fallback must keep the normal bounded sample budget');
+	assert.equal(dragon.userData.dragonTerrainSampleExceptionCount, 13, 'every failed probe must remain observable during fallback');
+
+	// Once finite terrain returns, normal terrain following may descend to the newly proven floor.
+	dragon.position.y = 6;
+	clampAltitudeAboveGround(dragon, () => 0, 10);
+	assert.equal(dragon.position.y, 10, 'finite terrain recovery must release the transient fallback and resume the current terrain floor');
+	assert.equal(dragon.userData.dragonTerrainUsingSafeAltitudeFallback, false, 'finite recovery must clear fallback telemetry');
+	assert.equal(dragon.userData.dragonTerrainLastSafeAltitudeY, 10, 'finite recovery must refresh the safe rendered altitude latch');
+}
+
 function runAllThrowingFailSafeProof() {
 	const dragon = createDragon({ y: 23, yaw: Math.PI / 2 });
 	assert.doesNotThrow(() => clampAltitudeAboveGround(dragon, () => { throw new Error('terrain unavailable'); }, 10));
 
-	assert.equal(dragon.position.y, 23, 'all-throwing terrain data must preserve the rendered altitude');
+	assert.equal(dragon.position.y, 23, 'all-throwing terrain data with no prior safe latch must preserve the requested rendered altitude');
+	assert.equal(dragon.userData.dragonTerrainUsingSafeAltitudeFallback, false, 'fallback must remain off until a finite terrain frame establishes a safe altitude');
 	assert.equal(dragon.userData.dragonTerrainSampleCount, 13, 'all-throwing sampling must remain bounded');
 	assert.equal(dragon.userData.dragonTerrainInvalidSampleCount, 13, 'every thrown probe must count as invalid');
 	assert.equal(dragon.userData.dragonTerrainSampleExceptionCount, 13, 'every thrown probe must be observable as a sampler exception');
@@ -121,7 +145,8 @@ function runAllInvalidFailSafeProof() {
 	const dragon = createDragon({ y: 23, yaw: Math.PI / 2 });
 	clampAltitudeAboveGround(dragon, () => Number.NaN, 10);
 
-	assert.equal(dragon.position.y, 23, 'all-invalid terrain data must preserve the rendered altitude instead of manufacturing ground');
+	assert.equal(dragon.position.y, 23, 'all-invalid terrain data with no prior safe latch must preserve the requested rendered altitude instead of manufacturing ground');
+	assert.equal(dragon.userData.dragonTerrainUsingSafeAltitudeFallback, false, 'all-invalid data must not claim fallback without prior finite proof');
 	assert.equal(dragon.userData.dragonTerrainSampleCount, 13, 'all-invalid sampling must stay within the normal bounded budget');
 	assert.equal(dragon.userData.dragonTerrainInvalidSampleCount, 13, 'every invalid terrain probe must be observable');
 	assert.equal(dragon.userData.dragonTerrainSampleExceptionCount, 0, 'non-finite terrain data must remain distinct from thrown sampler faults');
@@ -132,6 +157,8 @@ function runFiniteCompatibilityProof() {
 	clampAltitudeAboveGround(dragon, (_x, z) => (z >= 4 && z <= 5 ? 6 : 1), 8);
 
 	assert.equal(dragon.position.y, 14, 'finite terrain behavior must preserve the highest-ground + clearance contract');
+	assert.equal(dragon.userData.dragonTerrainLastSafeAltitudeY, 14, 'finite terrain must publish the proven safe rendered altitude');
+	assert.equal(dragon.userData.dragonTerrainUsingSafeAltitudeFallback, false, 'ordinary finite terrain must not use fallback');
 	assert.equal(dragon.userData.dragonTerrainInvalidSampleCount, 0, 'finite terrain must report zero invalid probes');
 	assert.equal(dragon.userData.dragonTerrainSampleExceptionCount, 0, 'finite terrain must report zero sampler exceptions');
 }
@@ -139,6 +166,7 @@ function runFiniteCompatibilityProof() {
 runIsolatedInvalidCurrentSampleProof();
 runThrowingCurrentSampleProof();
 runThrowingPursuitCenterProof();
+runTransientAllThrowingSafeAltitudeProof();
 runAllThrowingFailSafeProof();
 runAllInvalidFailSafeProof();
 runFiniteCompatibilityProof();
