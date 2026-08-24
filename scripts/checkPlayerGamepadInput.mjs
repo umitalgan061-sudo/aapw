@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { applyGamepadRadialDeadzone, applyGamepadTriggerDeadzone, pulsePlayerGamepadAction, pulsePlayerGamepadCombatFeedback, pulsePlayerGamepadMelee, resolveGamepadSprintIntent, resolvePlayerCombatFeedbackHaptic, samplePlayerGamepad, selectPlayerGamepad } from '../src/3d/input.js';
+import { KeyboardInput, applyGamepadRadialDeadzone, applyGamepadTriggerDeadzone, pulsePlayerGamepadAction, pulsePlayerGamepadCombatFeedback, pulsePlayerGamepadMelee, resolveGamepadSprintIntent, resolvePlayerCombatFeedbackHaptic, samplePlayerGamepad, selectPlayerGamepad } from '../src/3d/input.js';
 function makePad({ index = 0, mapping = 'standard', axes = [0, 0], buttons = {}, values = {}, connected = true } = {}) {
 	return { index, mapping, connected, axes, buttons: Array.from({ length: 16 }, (_, i) => ({ pressed: Boolean(buttons[i]) || Number(values[i] ?? 0) > 0.5, value: Number(values[i] ?? (buttons[i] ? 1 : 0)) })) };
 }
@@ -72,6 +72,39 @@ for (const feedback of [
 ]) assert.equal(resolvePlayerCombatFeedbackHaptic(feedback), null, `invalid combat receipt must not vibrate: ${String(feedback.outcome)}`);
 assert.equal(pulsePlayerGamepadCombatFeedback({ ...hapticPad, connected: false }, { outcome: 'hit', appliedAmount: 10 }), false, 'disconnected gamepad must not receive combat feedback');
 assert.equal(pulsePlayerGamepadCombatFeedback({ ...hapticPad, mapping: '' }, { outcome: 'hit', appliedAmount: 10 }), false, 'non-standard gamepad must not receive combat feedback');
+class FakeInputTarget {
+	constructor() { this.hidden = false; this.listeners = new Map(); }
+	addEventListener(type, handler) { if (!this.listeners.has(type)) this.listeners.set(type, new Set()); this.listeners.get(type).add(handler); }
+	removeEventListener(type, handler) { this.listeners.get(type)?.delete(handler); }
+	dispatch(type, event = {}) { for (const handler of this.listeners.get(type) ?? []) handler({ type, ...event }); }
+}
+const lifecycleCalls = [];
+const lifecyclePad = { ...makePad({ index: 4 }), vibrationActuator: { playEffect: (type, options) => { lifecycleCalls.push({ type, options }); return Promise.resolve(); } } };
+const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { getGamepads: () => [lifecyclePad] } });
+try {
+	const target = new FakeInputTarget();
+	const controller = new KeyboardInput(target);
+	controller._activeGamepadIndex = 4;
+	target.dispatch('aapw:player-combat-feedback', { detail: { serial: 11, outcome: 'hit', appliedAmount: 12 } });
+	assert.equal(lifecycleCalls.length, 1, 'active Standard controller must receive authoritative combat feedback');
+	target.dispatch('aapw:player-combat-feedback', { detail: { serial: 11, outcome: 'hit-stagger', appliedAmount: 12 } });
+	target.dispatch('aapw:player-combat-feedback', { detail: { serial: 10, outcome: 'parry', blockedAmount: 12 } });
+	assert.equal(lifecycleCalls.length, 1, 'duplicate and out-of-order serials must never replay haptics');
+	target.dispatch('aapw:player-combat-feedback', { detail: { serial: 12, outcome: 'hit', appliedAmount: 0 } });
+	assert.equal(lifecycleCalls.length, 1, 'invalid evidence must not consume the next serial');
+	target.dispatch('aapw:player-combat-feedback', { detail: { serial: 12, outcome: 'guard-break', blockedAmount: 5 } });
+	assert.equal(lifecycleCalls.length, 2, 'same serial may still play after an invalid receipt was rejected');
+	target.dispatch('blur');
+	target.dispatch('aapw:player-combat-feedback', { detail: { serial: 13, outcome: 'hit', appliedAmount: 12 } });
+	assert.equal(lifecycleCalls.length, 2, 'focus loss must disarm gamepad combat feedback');
+	controller._activeGamepadIndex = 4;
+	controller.dispose();
+	target.dispatch('aapw:player-combat-feedback', { detail: { serial: 14, outcome: 'hit', appliedAmount: 12 } });
+	assert.equal(lifecycleCalls.length, 2, 'dispose must remove the combat feedback listener');
+} finally {
+	if (navigatorDescriptor) Object.defineProperty(globalThis, 'navigator', navigatorDescriptor); else delete globalThis.navigator;
+}
 const unmapped = samplePlayerGamepad(makePad({ mapping: '', axes: [1, -1, 1, -1], buttons: { 0: true, 1: true, 2: true, 3: true, 4: true, 5: true, 10: true, 12: true, 15: true }, values: { 6: 1, 7: 1 } })); assert.equal(unmapped.forward, 0); assert.equal(unmapped.lookX, 0); assert.equal(unmapped.running, false); assert.equal(unmapped.dodgePressed, false); assert.equal(unmapped.parryPressed, false); assert.equal(unmapped.lightPressed, false);
 const pads = [makePad({ index: 3, mapping: '' }), makePad({ index: 2 }), makePad({ index: 1 })]; assert.equal(selectPlayerGamepad(pads)?.index, 1); assert.equal(selectPlayerGamepad(pads, 2)?.index, 2); assert.equal(selectPlayerGamepad([pads[0]], 3), null);
 const source = fs.readFileSync(new URL('../src/3d/input.js', import.meta.url), 'utf8');
