@@ -5,9 +5,12 @@ on:
     paths:
       - 'src/3d/materials/**'
       - 'src/3d/world/WorldAssetPlacementPipeline.js'
+      - 'src/3d/world/structureGroundingPolicy.js'
       - 'src/3d/editor/EditorAutoTexture.js'
       - 'scripts/checkSharedMaterialPlacementContract.js'
       - 'scripts/checkWorldFootprintGrounding.mjs'
+      - 'scripts/checkWorldSurfacePlacementPolicy.mjs'
+      - 'scripts/checkStructureSurfacePolicy.mjs'
       - 'scripts/setupNodeThreeShim.mjs'
       - '.github/workflows/shared-material-placement.yml'
   workflow_dispatch:
@@ -20,7 +23,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -30,10 +38,17 @@ jobs:
         run: |
           node --check src/3d/materials/MaterialAssignmentCore.js
           node --check src/3d/world/WorldAssetPlacementPipeline.js
+          node --check src/3d/world/structureGroundingPolicy.js
           node --check src/3d/editor/EditorAutoTexture.js
           node --check scripts/checkSharedMaterialPlacementContract.js
           node --check scripts/checkWorldFootprintGrounding.mjs
+          node --check scripts/checkWorldSurfacePlacementPolicy.mjs
+          node --check scripts/checkStructureSurfacePolicy.mjs
       - name: Shared editor-agent contract
         run: node scripts/checkSharedMaterialPlacementContract.js
       - name: World footprint grounding contract
         run: node scripts/checkWorldFootprintGrounding.mjs
+      - name: World surface placement policy contracts
+        run: |
+          node scripts/checkWorldSurfacePlacementPolicy.mjs
+          node scripts/checkStructureSurfacePolicy.mjs
