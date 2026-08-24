@@ -125,10 +125,11 @@ function playGamepadHaptic(gamepad, profile) {
 	if (!profile || gamepad?.mapping !== 'standard' || !gamepad?.connected || typeof actuator?.playEffect !== 'function') return false;
 	try { void Promise.resolve(actuator.playEffect('dual-rumble', { startDelay: 0, ...profile })).catch(() => {}); return true; } catch { return false; }
 }
+function readCombatFeedbackAmount(value) { return Number.isFinite(value) && value > 0 ? value : 0; }
 export function resolvePlayerCombatFeedbackHaptic(feedback) {
 	const outcome = feedback?.outcome, profile = GAMEPAD_COMBAT_FEEDBACK_HAPTICS[outcome];
 	if (!profile) return null;
-	const appliedAmount = Math.max(0, Number(feedback?.appliedAmount) || 0), blockedAmount = Math.max(0, Number(feedback?.blockedAmount) || 0);
+	const appliedAmount = readCombatFeedbackAmount(feedback?.appliedAmount), blockedAmount = readCombatFeedbackAmount(feedback?.blockedAmount);
 	if ((outcome === 'dodge' || outcome === 'parry' || outcome === 'guard') && blockedAmount <= 0) return null;
 	if ((outcome === 'hit' || outcome === 'hit-stagger') && appliedAmount <= 0) return null;
 	if (outcome === 'guard-break' && appliedAmount <= 0 && blockedAmount <= 0) return null;
