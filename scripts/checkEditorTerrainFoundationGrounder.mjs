@@ -32,19 +32,17 @@ function baseHeight(x, z) {
   return 20 + x * 0.08 - z * 0.035;
 }
 
-function footprintProbePoints(bounds) {
-  const centerX = (bounds.minX + bounds.maxX) * 0.5;
-  const centerZ = (bounds.minZ + bounds.maxZ) * 0.5;
+function orientedFootprintProbePoints(orientedFootprint) {
+  assert(orientedFootprint, 'rotated structures must publish oriented footprint geometry');
+  const { centerX, centerZ, axisX, axisZ, halfWidthMeters, halfDepthMeters } = orientedFootprint;
+  const point = (alongX, alongZ) => ({
+    x: centerX + axisX.x * halfWidthMeters * alongX + axisZ.x * halfDepthMeters * alongZ,
+    z: centerZ + axisX.z * halfWidthMeters * alongX + axisZ.z * halfDepthMeters * alongZ,
+  });
   return [
-    { x: centerX, z: centerZ },
-    { x: bounds.minX, z: bounds.minZ },
-    { x: bounds.maxX, z: bounds.minZ },
-    { x: bounds.minX, z: bounds.maxZ },
-    { x: bounds.maxX, z: bounds.maxZ },
-    { x: centerX, z: bounds.minZ },
-    { x: centerX, z: bounds.maxZ },
-    { x: bounds.minX, z: centerZ },
-    { x: bounds.maxX, z: centerZ },
+    point(0, 0),
+    point(-1, -1), point(1, -1), point(-1, 1), point(1, 1),
+    point(0, -1), point(0, 1), point(-1, 0), point(1, 0),
   ];
 }
 
@@ -104,6 +102,7 @@ const first = grounder.groundObject(castle, castleAsset, { x: 8, z: -6 });
 assert.equal(first.ok, true, first.error);
 assert.equal(first.mode, 'terrain-conform');
 assert.equal(first.footprint?.samples?.length, 9);
+assert(first.footprint?.orientedFootprint, 'rotated castle must expose its real oriented footprint');
 assert.equal(flattenPads.length, 4, 'first non-degenerate structural placement must register one four-pad terrain cluster');
 assert(flattenPads.every((pad) => pad.foundationClusterSize === 4), 'castle cluster must advertise its four-pad footprint size');
 assert.equal(castle.userData.editorFoundationKey, 'asset:castle-test-placed-0001');
@@ -112,12 +111,22 @@ assert(rebuilds >= 1, 'resident terrain intersecting the pad cluster must rebuil
 const firstCastlePads = [...flattenPads];
 const firstAnchorHeight = first.footprint.targetGroundHeight;
 assert(firstCastlePads.every((pad) => pad.anchorHeightMeters === firstAnchorHeight), 'all pads in one structure cluster must share the footprint target height');
-for (const sample of footprintProbePoints(first.footprint.bounds)) {
+for (const sample of orientedFootprintProbePoints(first.footprint.orientedFootprint)) {
   assert(
     Math.abs(groundCollider.getGroundHeight(sample.x, sample.z) - firstAnchorHeight) < 1e-6,
-    'shared collider must read the newly installed foundation plane across the complete footprint',
+    'shared collider must read the newly installed foundation plane across the complete oriented footprint',
   );
 }
+const aabbCorner = { x: first.footprint.bounds.minX, z: first.footprint.bounds.minZ };
+const outsideDistance = Math.min(...firstCastlePads.map((pad) => Math.hypot(aabbCorner.x - pad.x, aabbCorner.z - pad.z)));
+assert(
+  outsideDistance > Math.max(...firstCastlePads.map((pad) => pad.outerRadiusMeters)),
+  'rotated world-AABB corner must remain outside the compact oriented foundation cluster',
+);
+assert(
+  Math.abs(groundCollider.getGroundHeight(aabbCorner.x, aabbCorner.z) - baseHeight(aabbCorner.x, aabbCorner.z)) < 1e-6,
+  'terrain inside the world AABB but outside the true rotated footprint must remain canonical',
+);
 
 const beforeRepeat = flattenPads.length;
 const second = grounder.groundObject(castle, castleAsset, { x: 9, z: -5 });
@@ -126,7 +135,7 @@ assert.equal(flattenPads.length, beforeRepeat, 're-grounding the same editor id 
 assert(firstCastlePads.every((pad) => !flattenPads.includes(pad)), 're-grounding must retire the old physical pad cluster');
 assert(flattenPads.every((pad) => pad.foundationKey === castle.userData.terrainFoundationKey), 'replacement cluster must retain the same runtime-object foundation identity');
 const expectedSecondUnderlyingMax = Math.max(
-  ...footprintProbePoints(second.footprint.bounds).map(({ x, z }) => baseHeight(x, z)),
+  ...orientedFootprintProbePoints(second.footprint.orientedFootprint).map(({ x, z }) => baseHeight(x, z)),
 );
 assert(
   Math.abs(second.footprint.targetGroundHeight - expectedSecondUnderlyingMax) < 1e-9,
@@ -190,4 +199,4 @@ const importedRemoved = grounder.removeObjectFoundation(importedStructure);
 assert.equal(importedRemoved.ok, true, importedRemoved.error);
 assert.equal(flattenPads.length, 0, 'removing all structures must restore the shared pad authority');
 
-console.log('[checkEditorTerrainFoundationGrounder] PASS: broad English/Turkish/custom/imported structure families conform shared render/physics terrain with compact four-pad clusters, protected primitives stay center-grounded, repeated grounding ignores stale self-foundation feedback without leaking old pads, and structure-level removal counts remain independent of physical pad counts.');
+console.log('[checkEditorTerrainFoundationGrounder] PASS: broad English/Turkish/custom/imported structure families conform shared render/physics terrain with compact oriented four-pad clusters, rotated AABB-only terrain stays canonical, protected primitives stay center-grounded, repeated grounding ignores stale self-foundation feedback without leaking old pads, and structure-level removal counts remain independent of physical pad counts.');
