@@ -13,7 +13,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-24-v11-sheltered-packed-floor',
+  id: 'terrain-snow-surface-tone-2026-08-24-v12-glacial-palette-floor',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
@@ -21,6 +21,7 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   glacialFamilyBridge: true,
   glacialDepthHarmony: true,
   shelteredPackedFloor: true,
+  glacialPaletteFloor: true,
   glacialVisibilityExponent: 0.65,
   glacialDepthFloor: 0.54,
   glacialDepthGain: 0.46,
@@ -33,6 +34,9 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   packedShelteredGlacialGain: 0.10,
   packedTransitionColdGain: 0.05,
   shelteredPackedFloorGain: 0.12,
+  packedGlacialPaletteFloorGain: 0.22,
+  packedGlacialPaletteDepthGain: 0.10,
+  packedGlacialPaletteShelterRetention: 0.72,
   accumulatedLeeGain: 0.72,
   accumulatedConcavityGain: 0.42,
   accumulatedGentleSlopeGain: 0.16,
@@ -95,6 +99,7 @@ export function resolveTerrainSnowSurfaceTone({
       shelteredGlacialRetention: 0,
       shelteredGlacialBridge: 0,
       glacialPackedFloor: 0,
+      glacialPaletteFloor: 0,
       transitionColdSupport: 0,
       accumulationGlacialCooling: 0,
       accumulationDepthCooling: 0,
@@ -170,17 +175,23 @@ export function resolveTerrainSnowSurfaceTone({
     * (1 - accumulationDepthCooling);
 
   // A sheltered accumulation signal suppresses the ordinary packed interpretation and vice versa.
-  // Permanent-ice shelter still keeps a small independent cold-family floor so a deep lee bowl can
-  // remain soft without visually disconnecting from the glacial lowland below it.
+  // Permanent-ice shelter still keeps independent cold-family floors so a deep lee bowl can remain
+  // soft without visually disconnecting from the glacial lowland below it. The broader palette floor
+  // also acts on neutral retained snow, strengthening continuously with snow depth while shelter only
+  // softens it to an authored retention floor instead of erasing the mountain-to-lowland colour link.
   const packedDominance = packedSignal * (1 - accumulatedSignal * 0.72);
   const accumulatedDominance = accumulatedSignal * (1 - packedSignal * 0.72);
   const glacialPackedFloor = glacialFamilySupport
     * visibleSnow
     * lerp(0.35, 1, deepShelter)
     * P.shelteredPackedFloorGain;
+  const glacialPaletteFloor = glacialFamilySupport
+    * visibleSnow
+    * (P.packedGlacialPaletteFloorGain + accumulationVisibleSnow * P.packedGlacialPaletteDepthGain)
+    * lerp(1, P.packedGlacialPaletteShelterRetention, deepShelter);
   const packedWeight = Math.min(
     P.maximumPackedWeight,
-    Math.max(packedDominance * visibleSnow * climate, glacialPackedFloor),
+    Math.max(packedDominance * visibleSnow * climate, glacialPackedFloor, glacialPaletteFloor),
   );
   // Thin veneers can look cold/packed, but should not read as deep creamy drifts. Accumulated tone
   // therefore needs a little more retained snow than the generic visible-snow threshold. Deep snow
@@ -204,6 +215,7 @@ export function resolveTerrainSnowSurfaceTone({
     shelteredGlacialRetention,
     shelteredGlacialBridge,
     glacialPackedFloor,
+    glacialPaletteFloor,
     transitionColdSupport,
     accumulationGlacialCooling,
     accumulationDepthCooling,
