@@ -13,6 +13,7 @@ import { signedFbmNoise } from './terrainReliefDetail.js';
 import { resolveTerrainWindSnowAdjustment } from './terrainWindSnowExposure.js';
 import { resolveTerrainSnowSurfaceTone } from './terrainSnowSurfaceTone.js';
 
+const TAU = Math.PI * 2;
 const clamp01 = (value) => (value < 0 ? 0 : value > 1 ? 1 : value);
 const lerp = (a, b, t) => a + (b - a) * t;
 function smoothstep(edge0, edge1, value) {
@@ -22,11 +23,12 @@ function smoothstep(edge0, edge1, value) {
 }
 
 export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
-	id: 'terrain-map-climate-cryosphere-2026-08-24-v15-mixed-ice-lowland',
+	id: 'terrain-map-climate-cryosphere-2026-08-24-v16-geological-rock',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	mapAlignedCryosphere: true,
 	snowSurfaceTone: true,
+	geologicalRockSurface: true,
 	measured: Object.freeze({
 		probeGrid: '220x220 full-map + 200x200 land-only, live createHeightSampler',
 		seaLevelMeters: 6,
@@ -68,6 +70,29 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 	canonicalRockGain: 0.85,
 	rockCoolStartMeters: 80,
 	rockCoolFullMeters: 320,
+	// Photogrammetry-inspired rock treatment. These signals affect colour only; no geometry or
+	// height is displaced, so roads/foundations/physics retain the canonical map-derived surface.
+	rockStrataBandMeters: 27,
+	rockStrataDipX: 0.018,
+	rockStrataDipZ: -0.011,
+	rockStrataWarpFrequency: 0.0014,
+	rockStrataWarpMeters: 9,
+	rockStrataStrength: 0.105,
+	rockMineralFrequency: 0.00055,
+	rockMineralStrength: 0.085,
+	rockVeinFrequencyX: 0.029,
+	rockVeinFrequencyZ: -0.021,
+	rockVeinHeightFrequency: 0.041,
+	rockVeinWarpFrequency: 0.0018,
+	rockVeinWidth: 0.115,
+	rockVeinStrength: 0.13,
+	rockErosionFrequencyX: 0.017,
+	rockErosionFrequencyZ: 0.031,
+	rockErosionWarpFrequency: 0.0011,
+	rockErosionWidth: 0.16,
+	rockErosionSlopeStartDegrees: 30,
+	rockErosionSlopeFullDegrees: 55,
+	rockErosionStrength: 0.11,
 	snowAltitudeStartMeters: 380,
 	snowAltitudeFullMeters: 580,
 	northTundraSnowlineStartMeters: 205,
@@ -139,6 +164,10 @@ export const TERRAIN_BIOME_PALETTE = Object.freeze({
 	FOREST: new THREE.Color(0x354d2b),
 	ROCK_WARM: new THREE.Color(0x6c6257),
 	ROCK_COOL: new THREE.Color(0x777a79),
+	ROCK_STRATA_LIGHT: new THREE.Color(0x82786d),
+	ROCK_IRON: new THREE.Color(0x806650),
+	ROCK_QUARTZ: new THREE.Color(0xb8b1a6),
+	ROCK_EROSION: new THREE.Color(0x504f4b),
 	MORAINE: new THREE.Color(0x6f7776),
 	GLACIAL_ICE: new THREE.Color(0xdceaf0),
 	SNOW: new THREE.Color(0xf4f6f7),
@@ -166,6 +195,81 @@ function positionHash01(worldX, worldZ) {
 	const h01 = latticeHash01(x0, z0 + 1);
 	const h11 = latticeHash01(x0 + 1, z0 + 1);
 	return lerp(lerp(h00, h10, sx), lerp(h01, h11, sx), sz);
+}
+
+/**
+ * Resolves colour-only geological detail for exposed/canonical rock. Broad height bands are gently
+ * warped and dipped across the world instead of being perfectly horizontal; sparse pale mineral
+ * seams cross those bands, while steep faces receive narrow dark erosion/water streaks. All signals
+ * are deterministic and multiplied by the same rock authority used by the terrain palette, so no
+ * geology can leak onto ordinary grassland.
+ */
+export function resolveRockGeology({
+	heightAboveSeaMeters,
+	slopeDegrees,
+	rockWeight = 0,
+	worldX = 0,
+	worldZ = 0,
+}) {
+	const P = TERRAIN_BIOME_SHADING_POLICY;
+	const rockAmount = clamp01(Math.max(
+		smoothstep(P.rockSlopeStartDegrees, P.rockSlopeFullDegrees, slopeDegrees),
+		clamp01(rockWeight) * P.canonicalRockGain,
+	));
+	if (rockAmount <= 0) {
+		return Object.freeze({ rockAmount: 0, strata: 0, mineral: 0, vein: 0, erosion: 0, detailEnergy: 0 });
+	}
+
+	const strataWarp = signedFbmNoise(
+		worldX * P.rockStrataWarpFrequency + 11.2,
+		worldZ * P.rockStrataWarpFrequency - 7.6,
+		3,
+	) * P.rockStrataWarpMeters;
+	const strataCoordinate = (
+		heightAboveSeaMeters
+		+ worldX * P.rockStrataDipX
+		+ worldZ * P.rockStrataDipZ
+		+ strataWarp
+	) / P.rockStrataBandMeters;
+	const strataWave = Math.sin(strataCoordinate * TAU) * 0.5 + 0.5;
+	const strata = smoothstep(0.20, 0.82, strataWave) * rockAmount;
+
+	const mineralNoise = signedFbmNoise(
+		worldX * P.rockMineralFrequency - 3.1,
+		worldZ * P.rockMineralFrequency + 5.8,
+		4,
+	);
+	const mineral = smoothstep(0.08, 0.72, mineralNoise) * rockAmount;
+
+	const veinWarp = signedFbmNoise(
+		worldX * P.rockVeinWarpFrequency + 19.3,
+		worldZ * P.rockVeinWarpFrequency - 4.7,
+		3,
+	) * 2.8;
+	const veinPhase = worldX * P.rockVeinFrequencyX
+		+ worldZ * P.rockVeinFrequencyZ
+		+ heightAboveSeaMeters * P.rockVeinHeightFrequency
+		+ veinWarp;
+	const vein = (1 - smoothstep(0.02, P.rockVeinWidth, Math.abs(Math.sin(veinPhase)))) * rockAmount;
+
+	const erosionWarp = signedFbmNoise(
+		worldX * P.rockErosionWarpFrequency - 8.4,
+		worldZ * P.rockErosionWarpFrequency + 12.9,
+		3,
+	) * 2.3;
+	const erosionPhase = worldX * P.rockErosionFrequencyX
+		+ worldZ * P.rockErosionFrequencyZ
+		+ erosionWarp;
+	const erosionLine = 1 - smoothstep(0.02, P.rockErosionWidth, Math.abs(Math.sin(erosionPhase)));
+	const steepFace = smoothstep(P.rockErosionSlopeStartDegrees, P.rockErosionSlopeFullDegrees, slopeDegrees);
+	const erosion = erosionLine * steepFace * rockAmount;
+	const detailEnergy = clamp01(
+		strata * P.rockStrataStrength
+		+ mineral * P.rockMineralStrength
+		+ vein * P.rockVeinStrength
+		+ erosion * P.rockErosionStrength,
+	);
+	return Object.freeze({ rockAmount, strata, mineral, vein, erosion, detailEnergy });
 }
 
 export function normalizedMapYAtWorldZ(worldZ) {
@@ -467,13 +571,23 @@ export function resolveTerrainBiomeColor(target, {
 		* (1 - smoothstep(P.northIntertidalSlopeFadeStartDegrees, P.northIntertidalSlopeFadeFullDegrees, slope));
 	if (intertidalBand > 0) target.lerp(TERRAIN_BIOME_PALETTE.WET_FROZEN_SHORE, intertidalBand);
 
-	const rockAmount = clamp01(Math.max(
-		smoothstep(P.rockSlopeStartDegrees, P.rockSlopeFullDegrees, slope),
-		clamp01(rockWeight) * P.canonicalRockGain,
-	));
+	const geology = resolveRockGeology({
+		heightAboveSeaMeters: height,
+		slopeDegrees: slope,
+		rockWeight,
+		worldX,
+		worldZ,
+	});
+	const rockAmount = geology.rockAmount;
 	if (rockAmount > 0) {
 		scratchRock.copy(TERRAIN_BIOME_PALETTE.ROCK_WARM)
 			.lerp(TERRAIN_BIOME_PALETTE.ROCK_COOL, smoothstep(P.rockCoolStartMeters, P.rockCoolFullMeters, height));
+		// Keep the supplied photogrammetry palette's broad warm-grey rock, adding only restrained
+		// geology within that family. Snow/moraine are resolved afterward and naturally cover it.
+		if (geology.strata > 0) scratchRock.lerp(TERRAIN_BIOME_PALETTE.ROCK_STRATA_LIGHT, geology.strata * P.rockStrataStrength);
+		if (geology.mineral > 0) scratchRock.lerp(TERRAIN_BIOME_PALETTE.ROCK_IRON, geology.mineral * P.rockMineralStrength);
+		if (geology.erosion > 0) scratchRock.lerp(TERRAIN_BIOME_PALETTE.ROCK_EROSION, geology.erosion * P.rockErosionStrength);
+		if (geology.vein > 0) scratchRock.lerp(TERRAIN_BIOME_PALETTE.ROCK_QUARTZ, geology.vein * P.rockVeinStrength);
 		target.lerp(scratchRock, rockAmount);
 	}
 
