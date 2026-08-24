@@ -165,6 +165,10 @@ try {
 		return {
 			policyId: WINTER_VEGETATION_ASSET_POLICY.id,
 			preferredSnowPineAsset: WINTER_VEGETATION_ASSET_POLICY.preferredSnowPineAsset,
+			foliageSnowMix: {
+				minimum: WINTER_VEGETATION_ASSET_POLICY.pineFoliageSnowMixMin,
+				maximum: WINTER_VEGETATION_ASSET_POLICY.pineFoliageSnowMixMin + WINTER_VEGETATION_ASSET_POLICY.pineFoliageSnowMixRange,
+			},
 			status,
 			replacementMeshes: replacements.length,
 			proceduralHidden: trunkMesh?.visible === false && foliageMesh?.visible === false,
@@ -237,6 +241,10 @@ try {
 		assert(treatments.has('snow-foliage-shader'), 'preferred pine must compile the winter snow foliage shader');
 		assert(treatments.has('winter-trunk-source-map'), 'preferred pine must preserve a separately textured non-metallic trunk');
 		assert(metrics.materials.every((material) => material.metalness === 0), 'winterized pine must not render metallic bark/needles');
+		assert(metrics.foliageSnowMix.minimum >= 0.25 && metrics.foliageSnowMix.minimum <= 0.65,
+			`winter foliage minimum snow mix must preserve visible source needles, got ${metrics.foliageSnowMix.minimum}`);
+		assert(metrics.foliageSnowMix.maximum >= 0.65 && metrics.foliageSnowMix.maximum <= 0.90,
+			`winter foliage highlight snow mix must remain visibly snow-laden, got ${metrics.foliageSnowMix.maximum}`);
 	}
 
 	console.log('[checkWinterTreeVisualQa] PASS', JSON.stringify({
@@ -244,6 +252,7 @@ try {
 		sizeMeters: report.bounds.size,
 		ratio: report.ratio,
 		materials: report.materials.map((material) => material.treatment),
+		foliageSnowMix: report.foliageSnowMix,
 		nightLighting: { moon: report.night.moonIntensity, ambient: report.night.hemisphereIntensity },
 		triangles: report.renderInfo.triangles,
 	}));
