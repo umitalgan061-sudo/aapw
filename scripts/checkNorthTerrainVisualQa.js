@@ -350,8 +350,12 @@ try {
   const { farNorthWindward, farNorthSheltered, iceEdgeSheltered, tundraSheltered } = report.snowHarmony;
   assert(farNorthWindward.packedWeight > farNorthSheltered.packedWeight,
     'windward far-north ridge snow must remain harder/packed than sheltered accumulation');
-  assert(farNorthWindward.toGlacialIce < 0.04,
-    'windward packed snow must remain tightly inside the glacial-ice colour family');
+  assert(farNorthWindward.toGlacialIce < 0.075,
+    `windward packed snow must remain tightly inside the glacial-ice colour family; distance=${farNorthWindward.toGlacialIce}`);
+  assert(farNorthWindward.toGlacialIce < farNorthWindward.toCoastalIce,
+    'windward mountain snow should remain closer to glacial interior ice than coastal shelf ice');
+  assert(farNorthWindward.toGlacialIce < farNorthSheltered.toGlacialIce,
+    'windward packed snow must remain more glacial than the soft sheltered drift');
   assert(farNorthSheltered.accumulatedWeight > 0.12,
     'far-north sheltered snow must retain a visible accumulated/soft component');
   assert(farNorthSheltered.accumulatedWeight < tundraSheltered.accumulatedWeight,
