@@ -6,6 +6,7 @@ on:
       - 'src/3d/world/terrainBiomeShading.js'
       - 'src/3d/world/northReferenceCryosphere.js'
       - 'scripts/checkIceEdgeLowlandGlacialHarmony.mjs'
+      - 'scripts/checkIceEdgeLowlandShoreDistance.mjs'
       - '.github/workflows/ice-edge-lowland-glacial-harmony.yml'
   workflow_dispatch:
 
@@ -40,6 +41,9 @@ jobs:
         run: |
           node --check src/3d/world/terrainBiomeShading.js
           node --check scripts/checkIceEdgeLowlandGlacialHarmony.mjs
+          node --check scripts/checkIceEdgeLowlandShoreDistance.mjs
 
-      - name: Mixed-ice lowland glacial harmony contract
-        run: node scripts/checkIceEdgeLowlandGlacialHarmony.mjs
+      - name: Mixed-ice lowland glacial harmony contracts
+        run: |
+          node scripts/checkIceEdgeLowlandGlacialHarmony.mjs
+          node scripts/checkIceEdgeLowlandShoreDistance.mjs
