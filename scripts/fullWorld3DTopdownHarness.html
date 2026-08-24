@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width,initial-scale=1" />
+	<title>AAPW Full World 3D Topdown QA</title>
+	<style>
+		html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #9fb4c1; }
+		canvas { display: block; width: 100%; height: 100%; }
+	</style>
+	<script type="importmap">
+	{
+		"imports": {
+			"three": "../src/3d/vendor/three/three.module.js"
+		}
+	}
+	</script>
+</head>
+<body>
+<script type="module">
+import * as THREE from 'three';
+import { WORLD_DEFAULTS, WORLD_SCALE } from '../src/3d/config.js';
+import { createHeightSampler } from '../src/3d/world/terrain.js';
+import {
+	northClimateWeightsAtWorldXZ,
+	resolveTerrainBiomeColor,
+	slopeDegreesFromNeighbours,
+} from '../src/3d/world/terrainBiomeShading.js';
+import { sampleReferencePindexQualityV2 } from '../src/3d/world/worldReferenceSurfacePindexes.js';
+import { createWater, setWaterDepthField, WATER_PLANE_SEGMENTS_MOBILE } from '../src/3d/world/water.js';
+import { createWaterDepthField } from '../src/3d/world/waterDepthField.js';
+
+const params = new URLSearchParams(location.search);
+const width = Math.max(640, Number(params.get('width')) || 1600);
+const height = Math.max(480, Number(params.get('height')) || 1100);
+const segmentsX = Math.max(80, Number(params.get('segments')) || 240);
+const segmentsZ = Math.round(segmentsX * WORLD_SCALE.WORLD_DEPTH_METERS / WORLD_SCALE.WORLD_WIDTH_METERS);
+const worldWidth = WORLD_SCALE.WORLD_WIDTH_METERS;
+const worldDepth = WORLD_SCALE.WORLD_DEPTH_METERS;
+const seaLevel = WORLD_DEFAULTS.WATER_LEVEL_METERS;
+const sampleHeight = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, null, []);
+const spacingX = worldWidth / segmentsX;
+const spacingZ = worldDepth / segmentsZ;
+const slopeSpacing = Math.min(spacingX, spacingZ);
+const scratchColor = new THREE.Color();
+const surfaceNames = ['sea', 'lake', 'soil', 'rock', 'snow'];
+const surfaceCounts = Object.fromEntries(surfaceNames.map((name) => [name, 0]));
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(width, height, false);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+document.body.append(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9fb4c1);
+scene.add(new THREE.HemisphereLight(0xdce8ef, 0x495849, 2.15));
+const sun = new THREE.DirectionalLight(0xfff2d6, 3.35);
+sun.position.set(-5200, 9200, -3800);
+scene.add(sun);
+
+const terrainGeometry = new THREE.PlaneGeometry(worldWidth, worldDepth, segmentsX, segmentsZ);
+terrainGeometry.rotateX(-Math.PI / 2);
+const positions = terrainGeometry.getAttribute('position');
+const colors = new Float32Array(positions.count * 3);
+let minHeight = Infinity;
+let maxHeight = -Infinity;
+let heightSum = 0;
+let heightSquaredSum = 0;
+let northIceSum = 0;
+let northIceSamples = 0;
+
+for (let index = 0; index < positions.count; index++) {
+	const worldX = positions.getX(index);
+	const worldZ = positions.getZ(index);
+	const surface = {};
+	const terrainHeight = sampleHeight(worldX, worldZ, undefined, surface);
+	positions.setY(index, terrainHeight);
+	minHeight = Math.min(minHeight, terrainHeight);
+	maxHeight = Math.max(maxHeight, terrainHeight);
+	heightSum += terrainHeight;
+	heightSquaredSum += terrainHeight * terrainHeight;
+
+	const west = sampleHeight(worldX - slopeSpacing, worldZ);
+	const east = sampleHeight(worldX + slopeSpacing, worldZ);
+	const north = sampleHeight(worldX, worldZ - slopeSpacing);
+	const south = sampleHeight(worldX, worldZ + slopeSpacing);
+	const slopeDegrees = slopeDegreesFromNeighbours(west, east, north, south, slopeSpacing);
+	resolveTerrainBiomeColor(scratchColor, {
+		heightAboveSeaMeters: terrainHeight - seaLevel,
+		slopeDegrees,
+		rockWeight: surface.rockWeight ?? 0,
+		snowWeight: surface.snowWeight ?? 0,
+		worldX,
+		worldZ,
+	});
+	colors[index * 3] = scratchColor.r;
+	colors[index * 3 + 1] = scratchColor.g;
+	colors[index * 3 + 2] = scratchColor.b;
+
+	const nx = THREE.MathUtils.clamp(worldX / worldWidth + 0.5, 0, 1);
+	const ny = THREE.MathUtils.clamp(worldZ / worldDepth + 0.5, 0, 1);
+	const pindex = sampleReferencePindexQualityV2(nx, ny);
+	let dominant = 'soil';
+	let dominantWeight = -1;
+	for (const name of surfaceNames) {
+		const weight = pindex.surfaceWeights[name] ?? 0;
+		if (weight > dominantWeight) {
+			dominant = name;
+			dominantWeight = weight;
+		}
+	}
+	surfaceCounts[dominant]++;
+
+	if (ny <= 0.22) {
+		northIceSum += northClimateWeightsAtWorldXZ(worldX, worldZ).permanentIce;
+		northIceSamples++;
+	}
+}
+terrainGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+terrainGeometry.computeVertexNormals();
+const terrainMaterial = new THREE.MeshStandardMaterial({
+	vertexColors: true,
+	roughness: 0.95,
+	metalness: 0,
+});
+const terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
+scene.add(terrain);
+
+const depthField = createWaterDepthField({
+	sampleHeightMeters: sampleHeight,
+	waterLevelMeters: seaLevel,
+});
+const water = createWater(seaLevel, WATER_PLANE_SEGMENTS_MOBILE);
+setWaterDepthField(water, depthField, 1);
+scene.add(water);
+
+const aspect = width / height;
+const halfWidth = worldWidth * 0.59;
+const halfHeight = Math.max(worldDepth * 0.59, halfWidth / aspect);
+const camera = new THREE.OrthographicCamera(-halfWidth, halfWidth, halfHeight, -halfHeight, 1, 40000);
+camera.position.set(0, 15800, worldDepth * 0.26);
+camera.up.set(0, 0, -1);
+camera.lookAt(0, seaLevel, 0);
+camera.updateProjectionMatrix();
+for (const material of [water.material, water.userData.farWater?.material].filter(Boolean)) {
+	material.uniforms.uCameraPosition.value.copy(camera.position);
+	material.uniforms.uTime.value = 0;
+}
+
+renderer.render(scene, camera);
+await new Promise((resolve) => requestAnimationFrame(resolve));
+renderer.render(scene, camera);
+
+const sampleCount = positions.count;
+const meanHeight = heightSum / sampleCount;
+const heightVariance = Math.max(0, heightSquaredSum / sampleCount - meanHeight * meanHeight);
+window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
+	status: 'ready',
+	width,
+	height,
+	segmentsX,
+	segmentsZ,
+	vertexCount: sampleCount,
+	worldWidthMeters: worldWidth,
+	worldDepthMeters: worldDepth,
+	minHeightMeters: minHeight,
+	maxHeightMeters: maxHeight,
+	heightStdDevMeters: Math.sqrt(heightVariance),
+	surfaceCounts: Object.freeze({ ...surfaceCounts }),
+	northPermanentIceMean: northIceSamples ? northIceSum / northIceSamples : 0,
+	waterDepthField: Object.freeze({
+		resolution: depthField.resolution,
+		meanWetCoverage: depthField.meanWetCoverage,
+		mixedCoastTexelRatio: depthField.mixedCoastTexelRatio,
+		deepTexelRatio: depthField.deepTexelRatio,
+	}),
+	camera: Object.freeze({
+		type: 'OrthographicCamera',
+		position: Object.freeze(camera.position.toArray()),
+		verticalExaggeration: 1,
+	}),
+});
+</script>
+</body>
+</html>
