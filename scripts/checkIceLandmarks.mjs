@@ -46,7 +46,7 @@ assert.equal(wall.material?.userData?.iceSurface?.verticalFlowTexture, true);
 assert.equal(wall.material?.userData?.iceSurface?.proceduralCracks, true);
 assert(Math.abs(wall.material?.ior - 1.31) < 1e-9, 'ice IOR must remain physically plausible');
 
-const caveMesh = result.group.children.find((child) => child.userData?.iceLandmarkRole === 'walk-through-ice-cave');
+const caveMesh = result.group.children.find((child) => child.userData?.iceLandmarkRole === 'walkable-ice-cave-shell');
 assert(caveMesh?.isMesh, 'walk-through cave shell missing');
 assert.equal(caveMesh.material?.userData?.iceSurface?.mode, 'cave-subsurface');
 assert(caveMesh.material?.transmission > wall.material?.transmission,
