@@ -30,6 +30,7 @@ jobs:
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
+          from textwrap import dedent
 
           relief_path = Path('src/3d/world/worldReferenceMountainRelief.js')
           relief = relief_path.read_text()
@@ -95,7 +96,8 @@ jobs:
           relief_path.write_text(relief)
 
           continuity_path = Path('scripts/checkEasternMountainRidgeContinuity.mjs')
-          continuity_path.write_text("""#!/usr/bin/env node
+          continuity_path.write_text(dedent("""\
+          #!/usr/bin/env node
           import assert from 'node:assert/strict';
 
           import {
@@ -213,7 +215,7 @@ jobs:
             policyId: WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.id,
             evidence,
           }));
-          """.replace(/^ {10}/gm, ''))
+          """))
 
           crowd_path = Path('scripts/checkNorthSnowPineCrowdVisualQa.js')
           crowd = crowd_path.read_text()
