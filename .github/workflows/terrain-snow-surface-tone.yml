@@ -9,6 +9,7 @@ on:
       - 'scripts/checkGlacialSnowPaletteHarmony.mjs'
       - 'scripts/checkShelteredGlacialPackedFloor.mjs'
       - 'scripts/checkGlacialSnowPaletteFloor.mjs'
+      - 'scripts/checkTransitionSnowPaletteHarmony.mjs'
       - '.github/workflows/terrain-snow-surface-tone.yml'
   workflow_dispatch:
 
@@ -38,6 +39,7 @@ jobs:
           node --check scripts/checkGlacialSnowPaletteHarmony.mjs
           node --check scripts/checkShelteredGlacialPackedFloor.mjs
           node --check scripts/checkGlacialSnowPaletteFloor.mjs
+          node --check scripts/checkTransitionSnowPaletteHarmony.mjs
 
       - name: Snow surface tone contract
         run: node scripts/checkTerrainSnowSurfaceTone.mjs
@@ -50,3 +52,6 @@ jobs:
 
       - name: Glacial snow palette floor contract
         run: node scripts/checkGlacialSnowPaletteFloor.mjs
+
+      - name: Transition snow palette harmony contract
+        run: node scripts/checkTransitionSnowPaletteHarmony.mjs
