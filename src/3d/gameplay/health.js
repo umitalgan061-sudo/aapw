@@ -31,7 +31,7 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 
 	function onDamage(payload) {
 		const amount = payload?.amount;
-		if (typeof amount !== 'number' || !(amount > 0)) return;
+		if (!Number.isFinite(amount) || !(amount > 0)) return;
 		if (hasDied) {
 			if (payload && typeof payload === 'object') payload.appliedAmount = 0;
 			return;
@@ -61,7 +61,7 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 		get maxHealth() { return maxHealth; },
 		get isDead() { return hasDied; },
 		heal(amount) {
-			if (typeof amount !== 'number' || !(amount > 0)) return;
+			if (!Number.isFinite(amount) || !(amount > 0)) return;
 			const previous = current;
 			const next = Math.min(maxHealth, current + amount);
 			if (next === current) return;
