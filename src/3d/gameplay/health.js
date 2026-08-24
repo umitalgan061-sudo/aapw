@@ -16,6 +16,15 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 	let current = maxHealth;
 	let hasDied = false;
 
+	function writeAppliedAmountReceipt(payload, appliedAmount) {
+		if (!payload || typeof payload !== 'object') return false;
+		try {
+			return Reflect.set(payload, 'appliedAmount', appliedAmount);
+		} catch {
+			return false;
+		}
+	}
+
 	function emitHealthChanged({ previous = current, reason = 'sync', sourceId = null } = {}) {
 		const delta = current - previous;
 		const receipt = { current, maxHealth };
@@ -33,13 +42,13 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 		const amount = payload?.amount;
 		if (!Number.isFinite(amount) || !(amount > 0)) return;
 		if (hasDied) {
-			if (payload && typeof payload === 'object') payload.appliedAmount = 0;
+			writeAppliedAmountReceipt(payload, 0);
 			return;
 		}
 		const previous = current;
 		current = Math.max(0, current - amount);
 		const appliedAmount = previous - current;
-		if (payload && typeof payload === 'object') payload.appliedAmount = appliedAmount;
+		writeAppliedAmountReceipt(payload, appliedAmount);
 		emitHealthChanged({ previous, reason: 'damage', sourceId: payload?.sourceId ?? null });
 		if (current === 0 && !hasDied) {
 			hasDied = true;
