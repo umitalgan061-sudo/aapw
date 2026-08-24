@@ -345,6 +345,12 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 	const farGeometry = new THREE.PlaneGeometry(WATER_FULL_WORLD_EXTENT_METERS, WATER_FULL_WORLD_EXTENT_METERS, 1, 1);
 	farGeometry.rotateX(-Math.PI / 2);
 	const farMaterial = material.clone();
+	// The far plane is a transparent colour/coverage underlay, not an occluder for the displaced
+	// near-water surface. If it writes depth, a negative swell trough can fall behind the flat far
+	// plane and expose the two layers as a dark 4 km rectangle in high/orthographic views. Rendering
+	// it first without depth writes keeps seabed depth testing intact while letting every near-water
+	// fragment composite over the underlay regardless of the instantaneous swell sign.
+	farMaterial.depthWrite = false;
 	const farWater = new THREE.Mesh(farGeometry, farMaterial);
 	farWater.position.y = -0.06;
 	farWater.renderOrder = -1;
