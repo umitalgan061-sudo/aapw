@@ -6,11 +6,13 @@ on:
       - 'src/3d/world/terrainFoundationConformer.js'
       - 'src/3d/world/WorldAssetPlacementPipeline.js'
       - 'src/3d/world/structureGroundingPolicy.js'
+      - 'src/3d/world/settlements.js'
       - 'src/3d/world/terrain.js'
       - 'src/3d/world/chunkManager.js'
       - 'src/3d/physics.js'
       - 'scripts/checkStructureGroundingPolicy.mjs'
       - 'scripts/checkStructureSurfacePolicy.mjs'
+      - 'scripts/checkSettlementFoundationAuthority.mjs'
       - 'scripts/checkTerrainFoundationConformer.mjs'
       - 'scripts/checkTerrainFoundationBatchRemoval.mjs'
       - 'scripts/setupNodeThreeShim.mjs'
@@ -43,12 +45,15 @@ jobs:
           node --check src/3d/world/structureGroundingPolicy.js
           node --check scripts/checkStructureGroundingPolicy.mjs
           node --check scripts/checkStructureSurfacePolicy.mjs
+          node --check scripts/checkSettlementFoundationAuthority.mjs
           node --check scripts/checkTerrainFoundationConformer.mjs
           node --check scripts/checkTerrainFoundationBatchRemoval.mjs
       - name: Shared structure footprint and surface classification
         run: |
           node scripts/checkStructureGroundingPolicy.mjs
           node scripts/checkStructureSurfacePolicy.mjs
+      - name: Settlement render and physics foundation authority
+        run: node scripts/checkSettlementFoundationAuthority.mjs
       - name: Shared terrain authority and selective chunk rebuild
         run: |
           node scripts/checkTerrainFoundationConformer.mjs
