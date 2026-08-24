@@ -215,14 +215,23 @@ function flattenWeight(distanceMeters, innerRadiusMeters, outerRadiusMeters) {
 	return t * t * (3 - 2 * t);
 }
 
+function foundationPadWeight(worldX, worldZ, pad) {
+	if (pad?.shape !== 'oriented-rectangle') return flattenWeight(Math.hypot(worldX - pad.x, worldZ - pad.z), pad.innerRadiusMeters, pad.outerRadiusMeters);
+	const v = [pad.halfWidthMeters,pad.halfDepthMeters,pad.axisX?.x,pad.axisX?.z,pad.axisZ?.x,pad.axisZ?.z].map(Number);
+	if (!v.every(Number.isFinite)) return 0;
+	const [hw,hd,xx,xz,zx,zz]=v, dx=worldX-pad.x, dz=worldZ-pad.z;
+	const ox=Math.max(0,Math.abs(dx*xx+dz*xz)-hw), oz=Math.max(0,Math.abs(dx*zx+dz*zz)-hd);
+	const d=Math.hypot(ox,oz); if (d<=0) return 1;
+	const f=Math.max(0,Number(pad.featherMeters)||0); return f>0 ? flattenWeight(d,0,f) : 0;
+}
+
 export function createHeightSampler(_seed, _fbmOptions, flattenPads = []) {
 	return function sampleHeightMeters(worldX, worldZ, _maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS, outSurface) {
 		const baseHeightMeters = sampleCanonicalHeightMeters(worldX, worldZ, outSurface);
 		let strongestWeight = 0;
 		let strongestAnchorMeters = baseHeightMeters;
 		for (const pad of flattenPads) {
-			const distanceMeters = Math.hypot(worldX - pad.x, worldZ - pad.z);
-			const weight = flattenWeight(distanceMeters, pad.innerRadiusMeters, pad.outerRadiusMeters);
+			const weight = foundationPadWeight(worldX, worldZ, pad);
 			if (weight > strongestWeight) {
 				strongestWeight = weight;
 				strongestAnchorMeters = pad.anchorHeightMeters;

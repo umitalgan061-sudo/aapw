@@ -27,7 +27,7 @@ assert.equal(built.pads.length, 4, 'non-degenerate AABB foundations should use f
 assert.equal(built.pad.foundationClusterSize, 4);
 assert.equal(built.pad.outerRadiusMeters, built.pad.innerRadiusMeters + 9);
 assert.equal(built.pad.source, TERRAIN_FOUNDATION_CONFORM_POLICY.id);
-assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.footprintMode, 'root-oriented-adaptive-four-cell-circle-union-with-aabb-fallback');
+assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.footprintMode, 'root-oriented-adaptive-four-cell-rectangle-union-with-aabb-fallback');
 assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.chunkRebuildMode, 'union-deduplicated');
 assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.identityMode, 'runtime-object-first');
 for (const pad of built.pads) {
@@ -87,6 +87,7 @@ for (const [x, z] of [[-50, -5], [-50, 5], [50, -5], [50, 5], [0, 0]]) {
 	assert.equal(compactSampler(x, z), 120, `full footprint point ${x},${z} must be fully conformed`);
 }
 const baseSampler = createHeightSampler(123, undefined, []);
+assert.equal(compactSampler(0, 8), baseSampler(0, 8), 'rectangular cells must stop after bounded side feather');
 const nearSideProbeBase = baseSampler(0, 20);
 assert.equal(compactSampler(0, 20), nearSideProbeBase,
 	'adaptive 4x1 cells must preserve side terrain that the previous forced 2x2 cluster still feathered');
@@ -119,6 +120,8 @@ for (const [localX, localZ] of [[-50, -5], [-50, 5], [50, -5], [50, 5], [0, 0]])
   const z = diagonal * localX + diagonal * localZ;
   assert.equal(rotatedSampler(x, z), 133, `rotated footprint point ${localX},${localZ} must be fully conformed`);
 }
+const rotatedTightSideProbe = { x: -diagonal * 8, z: diagonal * 8 };
+assert.equal(rotatedSampler(rotatedTightSideProbe.x, rotatedTightSideProbe.z), baseSampler(rotatedTightSideProbe.x, rotatedTightSideProbe.z), 'rotated rectangular cells must stop after bounded feather');
 const rotatedSideProbe = { x: -diagonal * 25, z: diagonal * 25 };
 assert.equal(rotatedSampler(rotatedSideProbe.x, rotatedSideProbe.z), baseSampler(rotatedSideProbe.x, rotatedSideProbe.z),
   'oriented foundation must preserve terrain inside the world AABB but far outside the real narrow footprint');

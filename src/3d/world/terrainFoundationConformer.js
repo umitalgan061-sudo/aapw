@@ -14,8 +14,8 @@
  */
 
 export const TERRAIN_FOUNDATION_CONFORM_POLICY = Object.freeze({
-	id: 'runtime-structure-foundation-conform-2026-08-24-v10-oriented-footprint',
-	footprintMode: 'root-oriented-adaptive-four-cell-circle-union-with-aabb-fallback',
+	id: 'runtime-structure-foundation-conform-2026-08-24-v11-oriented-rect-cells',
+	footprintMode: 'root-oriented-adaptive-four-cell-rectangle-union-with-aabb-fallback',
 	defaultClusterColumns: 2,
 	defaultClusterRows: 2,
 	longAxisClusterCells: 4,
@@ -123,10 +123,11 @@ function createAdaptiveCellPads(bounds, orientedFootprint, targetHeight, key, sa
   const { columns, rows } = chooseAdaptiveGrid(width, depth);
   const cellWidth = width / columns;
   const cellDepth = depth / rows;
-  const cellRadius = Math.max(
-    TERRAIN_FOUNDATION_CONFORM_POLICY.minimumInnerRadiusMeters,
-    Math.hypot(cellWidth * 0.5, cellDepth * 0.5) + safeInnerMargin,
-  );
+  const halfWidthMeters = cellWidth * 0.5 + safeInnerMargin;
+  const halfDepthMeters = cellDepth * 0.5 + safeInnerMargin;
+  const cellRadius = Math.max(TERRAIN_FOUNDATION_CONFORM_POLICY.minimumInnerRadiusMeters, Math.hypot(halfWidthMeters, halfDepthMeters));
+  const axisX = oriented ? oriented.axisX : { x: 1, z: 0 };
+  const axisZ = oriented ? oriented.axisZ : { x: 0, z: 1 };
   const pads = [];
   for (let row = 0; row < rows; row += 1) {
     for (let column = 0; column < columns; column += 1) {
@@ -139,7 +140,11 @@ function createAdaptiveCellPads(bounds, orientedFootprint, targetHeight, key, sa
         ? oriented.centerZ + oriented.axisX.z * localX + oriented.axisZ.z * localZ
         : (rows === 1 ? (bounds.minZ + bounds.maxZ) * 0.5 : bounds.minZ + cellDepth * (row + 0.5));
       pads.push({
+        shape: 'oriented-rectangle',
         x, z,
+        halfWidthMeters, halfDepthMeters,
+        axisX: { ...axisX }, axisZ: { ...axisZ },
+        featherMeters: safeFeather,
         innerRadiusMeters: cellRadius,
         outerRadiusMeters: cellRadius + safeFeather,
         anchorHeightMeters: targetHeight,
