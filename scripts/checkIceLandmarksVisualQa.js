@@ -1,19 +1,25 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { chromium } from 'playwright';
-import { startDevServer } from './devServerHelper.js';
+import serverHelper from './devServerHelper.js';
+
+const { startStaticServer, loadPlaywright } = serverHelper;
+const playwright = loadPlaywright();
+if (!playwright?.chromium) {
+  console.error('[checkIceLandmarksVisualQa] Playwright unavailable; install playwright@1.55.0 first.');
+  process.exit(2);
+}
 
 const artifactDir = path.resolve('artifacts/ice-landmarks-visual-qa');
 await fs.mkdir(artifactDir, { recursive: true });
-const server = await startDevServer({ port: 4187 });
+const server = await startStaticServer();
 let browser;
 try {
-  browser = await chromium.launch({ headless: true });
+  browser = await playwright.chromium.launch({ headless: true, args: ['--disable-dev-shm-usage'] });
   const page = await browser.newPage({ viewport: { width: 1200, height: 720 }, deviceScaleFactor: 1 });
   const errors = [];
   page.on('pageerror', (error) => errors.push(String(error)));
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
-  await page.goto('http://127.0.0.1:4187/ice-landmarks-visual-qa.html', { waitUntil: 'domcontentloaded' });
+  await page.goto(`${server.baseUrl}/ice-landmarks-visual-qa.html`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.__iceQa?.ready === true, null, { timeout: 20000 });
 
   const stats = await page.evaluate(() => window.__iceQa.stats);
@@ -34,5 +40,5 @@ try {
   console.log(`Ice landmarks visual QA passed: ${stats.width.toFixed(1)}m wall span, ${stats.height.toFixed(1)}m height, ${stats.blockers} blockers.`);
 } finally {
   await browser?.close();
-  await server.close();
+  await server.stop();
 }
