@@ -106,8 +106,12 @@ function sampleSegmentGround(startX, startZ, unitX, unitZ, distanceMeters, spaci
  * ordinary movement. Facing yaw remains only a compatibility fallback when no retained motion
  * exists. Non-finite terrain samples and isolated sampler exceptions are counted and ignored per
  * probe so one transient terrain-provider failure cannot abort the dragon update or disable later
- * valid ridge probes; if every sample is invalid the existing altitude is preserved rather than
- * manufacturing a ground height. `lookAheadMeters=0` preserves historical point-only behavior.
+ * valid ridge probes. When an entire ordinary frame has no valid terrain sample, the last rendered
+ * altitude proven safe by a finite terrain frame is latched as a floor, so a dive cannot descend
+ * through terrain merely because the provider is temporarily unavailable. An all-invalid
+ * discontinuity invalidates that latch so later frames at the new location cannot reuse an
+ * old-location floor. If no safe altitude has ever been established, the requested altitude is
+ * preserved as before. `lookAheadMeters=0` preserves historical point-only behavior.
  */
 export function clampAltitudeAboveGround(
 	object3D,
@@ -120,6 +124,7 @@ export function clampAltitudeAboveGround(
 	maxTraversedSweepMeters = DRAGON_TERRAIN_MAX_TRAVERSED_SWEEP_METERS,
 ) {
 	object3D.userData ??= {};
+	const previousSafeAltitudeY = object3D.userData.dragonTerrainLastSafeAltitudeY;
 	let terrainSampleCount = 0;
 	let invalidTerrainSampleCount = 0;
 	let terrainSampleExceptionCount = 0;
@@ -211,7 +216,17 @@ export function clampAltitudeAboveGround(
 	object3D.userData.dragonTerrainSampleCount = terrainSampleCount;
 	object3D.userData.dragonTerrainInvalidSampleCount = invalidTerrainSampleCount;
 	object3D.userData.dragonTerrainSampleExceptionCount = terrainSampleExceptionCount;
-	if (!Number.isFinite(highestGroundY)) return;
+	if (!Number.isFinite(highestGroundY)) {
+		if (skippedDiscontinuity) delete object3D.userData.dragonTerrainLastSafeAltitudeY;
+		const canUseSafeAltitudeFallback = !skippedDiscontinuity && Number.isFinite(previousSafeAltitudeY);
+		object3D.userData.dragonTerrainUsingSafeAltitudeFallback = canUseSafeAltitudeFallback;
+		if (canUseSafeAltitudeFallback && object3D.position.y < previousSafeAltitudeY) {
+			object3D.position.y = previousSafeAltitudeY;
+		}
+		return;
+	}
+	object3D.userData.dragonTerrainUsingSafeAltitudeFallback = false;
 	const minY = highestGroundY + minAltitudeAboveGroundMeters;
 	if (object3D.position.y < minY) object3D.position.y = minY;
+	object3D.userData.dragonTerrainLastSafeAltitudeY = object3D.position.y;
 }
