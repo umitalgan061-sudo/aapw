@@ -40,6 +40,7 @@ export const CELESTIAL_ASSET_POLICY = Object.freeze({
 	moonAssetUrl: 'assets/models/Ay/Moon%202K.fbx',
 	moonTargetDiameterMeters: CELESTIAL_VISUAL_SCALE * 2,
 	moonLightingAltitudeModulated: true,
+	sunLightingAltitudeModulated: true,
 	twilightSkyAltitudeModulated: true,
 });
 
@@ -144,6 +145,7 @@ function installMoonAssetAsync(moonAnchor) {
 export function createDayNightLighting(scene) {
 	const sun = new THREE.DirectionalLight(0xffffff, 1);
 	sun.name = 'Sun Directional Light';
+	sun.userData.altitudeModulated = true;
 	const moon = new THREE.DirectionalLight(0xc8dcff, 0);
 	moon.name = 'Moon Directional Light';
 	moon.userData.altitudeModulated = true;
@@ -173,7 +175,7 @@ export function updateDayNightLighting(lights, elapsedSeconds, dayLengthSeconds,
 	scratchColorA.set(a.sunColor);
 	scratchColorB.set(b.sunColor);
 	lights.sun.color.copy(scratchColorA).lerp(scratchColorB, t);
-	lights.sun.intensity = a.sunIntensity + (b.sunIntensity - a.sunIntensity) * t;
+	const baseSunIntensity = a.sunIntensity + (b.sunIntensity - a.sunIntensity) * t;
 
 	scratchColorA.set(a.hemiSky);
 	scratchColorB.set(b.hemiSky);
@@ -197,7 +199,11 @@ export function updateDayNightLighting(lights, elapsedSeconds, dayLengthSeconds,
 	const sunX = Math.cos(angle) * ORBIT_RADIUS_METERS;
 	const sunY = Math.sin(angle) * ORBIT_RADIUS_METERS;
 	const sunZ = Math.sin(angle * 0.35) * ORBIT_RADIUS_METERS * 0.12;
+	const sunAltitudeFactor = celestialAltitudeWeightFromY(sunY);
 	lights.sun.position.set(sunX, sunY, sunZ);
+	lights.sun.intensity = baseSunIntensity * sunAltitudeFactor;
+	lights.sun.userData.baseIntensity = baseSunIntensity;
+	lights.sun.userData.altitudeFactor = sunAltitudeFactor;
 	if (lights.sunVisual) lights.sunVisual.position.copy(lights.sun.position);
 
 	// Moon is 180 degrees opposite the sun. Its illumination now follows its actual altitude as well as
@@ -221,7 +227,7 @@ export function updateDayNightLighting(lights, elapsedSeconds, dayLengthSeconds,
 	const celestialKey = publishCelestialLightState({
 		sunPosition: lights.sun.position,
 		sunColor: lights.sun.color,
-		sunIntensity: lights.sun.intensity * celestialAltitudeWeightFromY(sunY),
+		sunIntensity: lights.sun.intensity,
 		moonPosition: lights.moon?.position,
 		moonColor: lights.moon?.color,
 		moonIntensity: lights.moon?.intensity ?? 0,
@@ -236,7 +242,16 @@ export function updateDayNightLighting(lights, elapsedSeconds, dayLengthSeconds,
 		.lerp(SKY_TWILIGHT.horizon, twilightFactor * 0.68);
 	const zenithColor = SKY_NIGHT.zenith.clone().lerp(SKY_DAY.zenith, daylightFactor)
 		.lerp(SKY_TWILIGHT.zenith, twilightFactor * 0.24);
-	return { timeRatio, nightFactor, twilightFactor, moonAltitudeFactor, celestialKey, horizonColor, zenithColor };
+	return {
+		timeRatio,
+		nightFactor,
+		twilightFactor,
+		sunAltitudeFactor,
+		moonAltitudeFactor,
+		celestialKey,
+		horizonColor,
+		zenithColor,
+	};
 }
 
 export function disposeDayNightLighting(scene, lights) {
