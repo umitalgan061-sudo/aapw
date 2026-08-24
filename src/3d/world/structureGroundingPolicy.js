@@ -30,22 +30,29 @@ const TURKISH_STRUCTURE_STEMS = Object.freeze([
   'anit', 'anıt', 'kuyu', 'cesme', 'çeşme',
 ]);
 
+const BRIDGE_PROFILE_TERMS = Object.freeze(['bridge', 'aqueduct']);
+const BRIDGE_PROFILE_STEMS = Object.freeze(['kopru', 'köprü']);
+const WATERSIDE_PROFILE_TERMS = Object.freeze([
+  'dock', 'pier', 'quay', 'wharf', 'harbor', 'harbour', 'port', 'shipyard', 'boathouse', 'lighthouse',
+]);
+const WATERSIDE_PROFILE_STEMS = Object.freeze(['iskele', 'liman', 'rihtim', 'rıhtım', 'tersane']);
+
 const DESCRIPTOR_FIELDS = Object.freeze([
   'id', 'name', 'category', 'kind', 'primitive', 'src',
   'assetId', 'assetName', 'assetCategory', 'assetKind', 'assetPrimitive', 'assetSrc',
 ]);
 
 const HARD_EXCLUDED_SET = new Set(HARD_EXCLUDED_PRIMITIVES);
-const STRUCTURE_PATTERN = new RegExp(
-  `(^|[^a-z0-9çğıöşü])(${STRUCTURE_TERMS.map(escapeRegExp).join('|')})(?=$|[^a-z0-9çğıöşü])`,
-  'iu',
-);
+const STRUCTURE_PATTERN = termPattern(STRUCTURE_TERMS);
+const BRIDGE_PROFILE_PATTERN = termPattern(BRIDGE_PROFILE_TERMS);
+const WATERSIDE_PROFILE_PATTERN = termPattern(WATERSIDE_PROFILE_TERMS);
 
 export const STRUCTURE_GROUNDING_POLICY = Object.freeze({
-  id: 'structure-grounding-classifier-2026-08-24-v1-shared',
+  id: 'structure-grounding-classifier-2026-08-24-v2-surface-profile',
   footprintProbeCount: 9,
   primaryMetadataOverridesFallback: true,
   protectedPrimitivesOverrideOptIn: true,
+  surfaceProfiles: Object.freeze(['building', 'bridge', 'waterside']),
   hardExcludedPrimitives: HARD_EXCLUDED_PRIMITIVES,
   descriptorFields: DESCRIPTOR_FIELDS,
 });
@@ -82,6 +89,15 @@ export function isStructureGroundingCandidate(primaryMetadata, fallbackMetadata 
   return classifyStructureGrounding(primaryMetadata, fallbackMetadata).isStructure;
 }
 
+export function resolveStructureSurfaceProfile(primaryMetadata, fallbackMetadata = null) {
+  const classification = classifyStructureGrounding(primaryMetadata, fallbackMetadata);
+  if (!classification.isStructure) return null;
+  const descriptor = classification.descriptor;
+  if (BRIDGE_PROFILE_PATTERN.test(descriptor) || hasStem(descriptor, BRIDGE_PROFILE_STEMS)) return 'bridge';
+  if (WATERSIDE_PROFILE_PATTERN.test(descriptor) || hasStem(descriptor, WATERSIDE_PROFILE_STEMS)) return 'waterside';
+  return 'building';
+}
+
 function mergeMetadata(primaryMetadata, fallbackMetadata) {
   const primary = isMetadataObject(primaryMetadata) ? primaryMetadata : null;
   const fallback = isMetadataObject(fallbackMetadata) ? fallbackMetadata : null;
@@ -105,8 +121,19 @@ function structureDescriptor(metadata) {
 }
 
 function hasLocalizedStructureStem(descriptor) {
+  return hasStem(descriptor, TURKISH_STRUCTURE_STEMS);
+}
+
+function hasStem(descriptor, stems) {
   const words = descriptor.split(/[^a-z0-9çğıöşü]+/iu).filter(Boolean);
-  return words.some((word) => TURKISH_STRUCTURE_STEMS.some((stem) => word === stem || word.startsWith(stem)));
+  return words.some((word) => stems.some((stem) => word === stem || word.startsWith(stem)));
+}
+
+function termPattern(terms) {
+  return new RegExp(
+    `(^|[^a-z0-9çğıöşü])(${terms.map(escapeRegExp).join('|')})(?=$|[^a-z0-9çğıöşü])`,
+    'iu',
+  );
 }
 
 function isMetadataObject(value) {
