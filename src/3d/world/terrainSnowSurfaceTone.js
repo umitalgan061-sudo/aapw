@@ -13,7 +13,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-24-v13-transition-accumulation-harmony',
+  id: 'terrain-snow-surface-tone-2026-08-24-v14-transition-lowland-harmony',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
@@ -23,6 +23,7 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   shelteredPackedFloor: true,
   glacialPaletteFloor: true,
   transitionAccumulationHarmony: true,
+  transitionLowlandHarmony: true,
   glacialVisibilityExponent: 0.65,
   glacialDepthFloor: 0.54,
   glacialDepthGain: 0.46,
@@ -33,9 +34,9 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   packedGlacialFamilyGain: 0.16,
   packedGlacialDepthGain: 0.08,
   packedShelteredGlacialGain: 0.10,
-  packedTransitionColdGain: 0.05,
+  packedTransitionColdGain: 0.075,
   shelteredPackedFloorGain: 0.12,
-  packedGlacialPaletteFloorGain: 0.22,
+  packedGlacialPaletteFloorGain: 0.25,
   packedGlacialPaletteDepthGain: 0.10,
   packedGlacialPaletteShelterRetention: 0.72,
   accumulatedLeeGain: 0.72,
@@ -125,9 +126,9 @@ export function resolveTerrainSnowSurfaceTone({
   // second snow amount: this only changes the colour interpretation of already-authoritative snow.
   const glacialDepthSupport = glacialContinuity
     * lerp(P.glacialDepthFloor, 1, accumulationVisibleSnow * P.glacialDepthGain);
-  // Smoothly reinforce the cold family inside the permanent-ice transition, but let the support
-  // return to zero at both pure tundra and fully glaciated endpoints. This avoids a visible colour
-  // notch without changing snow coverage or creating a new climate authority.
+  // Strengthen the mixed cryosphere just enough to keep ICE EDGE lowlands visually connected to
+  // glacial shoreline/lowland ice. The bell-shaped support returns to zero at pure tundra and pure
+  // permanent ice, so it cannot become a second climate or snow-coverage authority.
   const transitionColdSupport = 4 * permanentIceWeight * (1 - permanentIceWeight)
     * glacialVisibility * P.packedTransitionColdGain;
   const shelterSignal = Math.max(clamp01(leeDeposit), clamp01(concavityHold));
