@@ -1,9 +1,9 @@
 name: One-shot Adaptive Foundation Cluster
 
 on:
-  push:
+  pull_request:
     branches:
-      - codex/foundation-grounding-20260821
+      - main
     paths:
       - '.github/workflows/one-shot-adaptive-foundation-cluster.yml'
 
