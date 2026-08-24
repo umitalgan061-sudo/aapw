@@ -7,6 +7,7 @@ on:
       - 'src/3d/world/WorldAssetPlacementPipeline.js'
       - 'src/3d/editor/EditorTerrainFoundationGrounder.js'
       - 'scripts/checkStructureGroundingPolicy.mjs'
+      - 'scripts/checkStructureSurfacePolicy.mjs'
       - 'scripts/setupNodeThreeShim.mjs'
       - '.github/workflows/structure-grounding-policy.yml'
   workflow_dispatch:
@@ -44,6 +45,10 @@ jobs:
           node --check src/3d/world/WorldAssetPlacementPipeline.js
           node --check src/3d/editor/EditorTerrainFoundationGrounder.js
           node --check scripts/checkStructureGroundingPolicy.mjs
+          node --check scripts/checkStructureSurfacePolicy.mjs
 
       - name: Shared editor/runtime structure grounding contract
         run: node scripts/checkStructureGroundingPolicy.mjs
+
+      - name: Runtime structure surface profile contract
+        run: node scripts/checkStructureSurfacePolicy.mjs
