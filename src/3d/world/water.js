@@ -143,6 +143,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	uniform vec3 uCameraPosition;
 	uniform sampler2D uDepthMap;
 	uniform float uDepthFieldExtentMeters;
+	uniform float uFarLayerMask;
 	varying vec3 vWorldPosition;
 	varying float vDepthFactor;
 	varying vec2 vSwellSlope;
@@ -180,6 +181,15 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	}
 
 	void main() {
+		// The 17 km plane is an underlay only. Inside the camera-follow 4 km near-water square, the
+		// dense displaced mesh must be the sole transparent layer; otherwise drawing the same body
+		// colour twice produces a visible dark rectangle even when depth ordering is correct. Leave a
+		// sub-metre raster tolerance at the exact edge, where the near swell has already tapered flat.
+		if (uFarLayerMask > 0.5) {
+			float nearLayerDistance = max(abs(vWorldPosition.x - uCameraPosition.x), abs(vWorldPosition.z - uCameraPosition.z));
+			if (nearLayerDistance < 1999.5) discard;
+		}
+
 		vec2 waterField = sampleWaterField(vWorldPosition.xz);
 		float fragmentDepth = waterField.x;
 		// Green is the terrain-authoritative wet/dry classification baked alongside depth. Bilinear
@@ -328,6 +338,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 				uDepthMap: { value: PLACEHOLDER_DEPTH_TEXTURE },
 				uDepthFieldExtentMeters: { value: 1 },
 				uSwellStrength: { value: 0 },
+				uFarLayerMask: { value: 0 },
 			},
 		]),
 		transparent: true,
@@ -346,11 +357,10 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 	farGeometry.rotateX(-Math.PI / 2);
 	const farMaterial = material.clone();
 	// The far plane is a transparent colour/coverage underlay, not an occluder for the displaced
-	// near-water surface. If it writes depth, a negative swell trough can fall behind the flat far
-	// plane and expose the two layers as a dark 4 km rectangle in high/orthographic views. Rendering
-	// it first without depth writes keeps seabed depth testing intact while letting every near-water
-	// fragment composite over the underlay regardless of the instantaneous swell sign.
+	// near-water surface. It neither writes depth nor draws below the camera-follow near-water square:
+	// the former prevents swell trough occlusion, while the latter prevents double-alpha darkening.
 	farMaterial.depthWrite = false;
+	farMaterial.uniforms.uFarLayerMask.value = 1;
 	const farWater = new THREE.Mesh(farGeometry, farMaterial);
 	farWater.position.y = -0.06;
 	farWater.renderOrder = -1;
