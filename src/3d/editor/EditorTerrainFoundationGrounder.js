@@ -1,50 +1,14 @@
 import * as THREE from 'three';
 import { resolveWorldSurfacePlacement } from '../world/WorldAssetPlacementPipeline.js';
 import { createTerrainFoundationConformer } from '../world/terrainFoundationConformer.js';
-
-const NON_STRUCTURE_PRIMITIVES = new Set(['land-cell', 'water-cell', 'road-segment', 'tree', 'soldier']);
-const STRUCTURE_TERMS = Object.freeze([
-  'architecture', 'architectural', 'building', 'structure', 'settlement', 'village', 'city', 'town',
-  'castle', 'citadel', 'keep', 'tower', 'watchtower', 'lighthouse', 'wall', 'gate', 'gatehouse', 'fort', 'fortress',
-  'fortification', 'palace', 'house', 'farmhouse', 'boathouse', 'hall', 'manor', 'inn', 'tavern', 'hut', 'cottage', 'barn',
-  'stable', 'granary', 'warehouse', 'workshop', 'forge', 'mill', 'market', 'sept', 'temple', 'shrine', 'crypt', 'mausoleum',
-  'bridge', 'aqueduct', 'dock', 'pier', 'quay', 'harbor', 'harbour', 'shipyard', 'rampart', 'battlement', 'ruin', 'monument',
-  'arena', 'stadium', 'well', 'fountain',
-  'mimari', 'bina', 'yapi', 'yapı', 'yerlesim', 'yerleşim', 'koy', 'köy', 'sehir', 'şehir', 'kasaba', 'kale',
-  'hisar', 'sur', 'kule', 'gozetleme', 'gözetleme', 'saray', 'kopru', 'köprü', 'iskele', 'liman', 'tersane',
-  'depo', 'atolye', 'atölye', 'degirmen', 'değirmen', 'pazar', 'ahır', 'ahir', 'mezar', 'anıt', 'anit', 'kuyu', 'cesme', 'çeşme',
-]);
-const TURKISH_STRUCTURE_STEMS = Object.freeze([
-  'mimari', 'bina', 'yapi', 'yapı', 'yerlesim', 'yerleşim', 'koy', 'köy', 'sehir', 'şehir', 'kasaba', 'kale',
-  'hisar', 'sur', 'kule', 'gozetleme', 'gözetleme', 'saray', 'kopru', 'köprü', 'iskele', 'liman', 'tersane',
-  'depo', 'atolye', 'atölye', 'degirmen', 'değirmen', 'pazar', 'ahır', 'ahir', 'mezar', 'anıt', 'anit', 'kuyu', 'cesme', 'çeşme',
-]);
-const STRUCTURE_PATTERN = new RegExp(`(^|[^a-z0-9çğıöşü])(${STRUCTURE_TERMS.join('|')})(?=$|[^a-z0-9çğıöşü])`, 'iu');
-
-function structureDescriptor(asset) {
-  return [asset?.id, asset?.name, asset?.category, asset?.kind, asset?.primitive, asset?.src]
-    .filter(Boolean)
-    .join(' ')
-    .toLocaleLowerCase('tr-TR');
-}
-
-function hasLocalizedStructureStem(descriptor) {
-  const words = descriptor.split(/[^a-z0-9çğıöşü]+/iu).filter(Boolean);
-  return words.some((word) => TURKISH_STRUCTURE_STEMS.some((stem) => word === stem || word.startsWith(stem)));
-}
+import { isStructureGroundingCandidate } from '../world/structureGroundingPolicy.js';
 
 export function isEditorStructureAsset(asset) {
-  if (!asset) return false;
-  if (asset.terrainFoundation === false || asset.structureLike === false) return false;
-  if (asset.terrainFoundation === true || asset.structureLike === true) return true;
-  const primitive = String(asset.primitive || '').trim().toLowerCase();
-  if (NON_STRUCTURE_PRIMITIVES.has(primitive)) return false;
-  const descriptor = structureDescriptor(asset);
-  return STRUCTURE_PATTERN.test(descriptor) || hasLocalizedStructureStem(descriptor);
+  return isStructureGroundingCandidate(asset);
 }
 
 function isStructureObject(object, asset) {
-  return isEditorStructureAsset(asset) || isEditorStructureAsset(object?.userData);
+  return isStructureGroundingCandidate(asset, object?.userData);
 }
 
 function centerGroundObject(object, groundHeight, x, z) {
