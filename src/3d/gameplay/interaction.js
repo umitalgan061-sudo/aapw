@@ -297,8 +297,6 @@ export function createInteractionController({ interactionPrompt, dialogueBox, gr
 		activeExpeditionBoard = evaluateExpeditionBoard(inventory.snapshot(), journey.snapshot(), worldState.snapshot());
 		interactionPrompt.setVisible(false);
 		const routeChoices = activeExpeditionBoard.entries.map((entry) => `${entry.label} — ${entry.ready ? 'HAZIR' : 'KİLİTLİ'}${entry.completed ? ' · ÖDÜL ALINDI' : ''}`);
-		const recovery = activeExpeditionBoard.recovery;
-		if (recovery) routeChoices.push(`${recovery.label} — ${recovery.ready ? 'HAZIR' : 'KİLİTLİ'}`);
 		dialogueBox.show(buildExpeditionBoardText(activeExpeditionBoard), routeChoices);
 		return true;
 	}
