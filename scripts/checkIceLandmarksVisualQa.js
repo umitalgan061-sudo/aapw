@@ -26,6 +26,14 @@ try {
   if (!(stats.width > 2200 && stats.width < 3600)) throw new Error(`wall width outside visual contract: ${stats.width}`);
   if (!(stats.height > 120 && stats.height < 230)) throw new Error(`wall height outside visual contract: ${stats.height}`);
   if (!(stats.blockers > 40)) throw new Error(`insufficient collision blockers: ${stats.blockers}`);
+  if (stats.terrainAuthority !== 'canonical-createHeightSampler+terrainBiomeShading') {
+    throw new Error(`ice QA lost canonical terrain authority: ${stats.terrainAuthority}`);
+  }
+  if (!(stats.terrain?.vertexCount > 10000)) throw new Error(`canonical terrain patch unexpectedly coarse: ${stats.terrain?.vertexCount}`);
+  if (!(stats.terrain?.reliefSpan > 1)) throw new Error(`canonical terrain relief collapsed: ${stats.terrain?.reliefSpan}`);
+  if (![stats.terrain?.minHeight, stats.terrain?.maxHeight, stats.terrain?.meanSnowWeight, stats.terrain?.meanRockWeight].every(Number.isFinite)) {
+    throw new Error(`canonical terrain telemetry contains non-finite values: ${JSON.stringify(stats.terrain)}`);
+  }
   for (const role of ['natural-ice-wall', 'arched-wall-portal', 'walkable-ice-cave-shell', 'cave-ceiling-icicles']) {
     if (!stats.roles.includes(role)) throw new Error(`missing visual role: ${role}`);
   }
@@ -37,7 +45,10 @@ try {
   }
   if (errors.length) throw new Error(`browser errors: ${errors.join(' | ')}`);
   await fs.writeFile(path.join(artifactDir, 'stats.json'), JSON.stringify(stats, null, 2));
-  console.log(`Ice landmarks visual QA passed: ${stats.width.toFixed(1)}m wall span, ${stats.height.toFixed(1)}m height, ${stats.blockers} blockers.`);
+  console.log(
+    `Ice landmarks visual QA passed: ${stats.width.toFixed(1)}m wall span, ${stats.height.toFixed(1)}m height, ` +
+    `${stats.blockers} blockers, canonical terrain relief ${stats.terrain.reliefSpan.toFixed(1)}m.`,
+  );
 } finally {
   await browser?.close();
   await server.stop();
