@@ -230,7 +230,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 	function publishMotionTelemetry(force = false) { const staminaBucket = Math.floor(stamina * 10), poiseBucket = Math.floor(poise * 10), transient = movementState === 'dodge' || movementState === 'parry' || movementState === 'guard-break' || movementState === 'hit-stagger' || movementState.startsWith('attack-'); if (!force && !transient && movementState === lastTelemetryState && staminaBucket === lastTelemetryStamina && poiseBucket === lastTelemetryPoise) return; lastTelemetryState = movementState; lastTelemetryStamina = staminaBucket; lastTelemetryPoise = poiseBucket; model.userData.playerMotion = motionSnapshot(); if (typeof globalThis.dispatchEvent === 'function' && typeof globalThis.CustomEvent === 'function') globalThis.dispatchEvent(new globalThis.CustomEvent('aapw:player-motion', { detail: model.userData.playerMotion })); }
 
 	function onIncomingDamage(payload) {
-		const rawAmount = payload?.amount; if (typeof rawAmount !== 'number' || !(rawAmount > 0)) return;
+		const rawAmount = payload?.amount; if (!Number.isFinite(rawAmount) || !(rawAmount > 0)) return;
 		stageDamageResolution(payload, { amount: rawAmount });
 		if (!isGrounded || guardBreakRemaining > 0) { lastDefenseResult = guardBreakRemaining > 0 ? 'guard-break' : 'hit'; publishCombatFeedbackAfterHealth(lastDefenseResult, payload, rawAmount, 0); return; }
 		if (isDodgeInvulnerable()) { lastDefenseResult = 'dodge'; stageDamageResolution(payload, { rawAmount, blockedAmount: rawAmount, amount: 0, mitigation: 'dodge' }); publishCombatFeedback('dodge', rawAmount, 0, rawAmount); publishMotionTelemetry(true); return; }
