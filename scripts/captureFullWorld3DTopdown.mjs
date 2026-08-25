@@ -86,8 +86,6 @@ async function main() {
 		const summary = await page.evaluate(() => window.__FULL_WORLD_3D_TOPDOWN__);
 		if (pageErrors.length) throw new Error(pageErrors.join('\n'));
 
-		// Always preserve the visual + numeric evidence before semantic assertions. If a future gate
-		// fails, reviewers still get the exact frame that failed instead of an empty artifact folder.
 		await page.screenshot({ path: outputPath, type: 'png' });
 		await fs.writeFile(jsonPath, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
 
@@ -100,6 +98,14 @@ async function main() {
 		assert(summary.surfaceCounts.lake > 0, 'canonical inland lakes disappeared from full-world sampling');
 		assert(summary.northPermanentIceMax >= 0.8, 'authored permanent-ice core disappeared from the north');
 		assert(summary.northPermanentIceActiveSamples > 0, 'no strong permanent-ice samples were represented');
+		assert.equal(summary.terrainSurfaceRealism?.policyId, 'terrain-micro-surface-world-uv-pbr-v4-natural-albedo',
+			'full-world proof must render the production photoreal terrain surface policy');
+		assert.equal(summary.terrainSurfaceRealism?.naturalAlbedoRemap, true,
+			'full-world proof must include natural vegetation/soil/snow albedo remapping');
+		assert.equal(summary.terrainSurfaceRealism?.macroColorBreakup, true,
+			'full-world proof must include multi-kilometre terrain colour breakup');
+		assert.equal(summary.terrainSurfaceRealism?.uvChannel, 1,
+			'full-world proof must use production metre-space uv1 for terrain PBR detail');
 		assert(summary.waterDepthField.meanWetCoverage > 0.35, 'production water coverage is unexpectedly sparse');
 		assert(summary.waterDepthField.mixedCoastTexelRatio > 0, 'coastline anti-alias coverage disappeared');
 		assert.equal(summary.waterLayerComposition.nearDepthWrite, true, 'near swell must retain depth writes');
@@ -131,6 +137,7 @@ async function main() {
 			lakeSamples: summary.surfaceCounts.lake,
 			northPermanentIceMean: summary.northPermanentIceMean,
 			northPermanentIceMax: summary.northPermanentIceMax,
+			terrainSurfaceRealism: summary.terrainSurfaceRealism,
 			waterLayers: summary.waterLayerComposition,
 		}));
 	} finally {
