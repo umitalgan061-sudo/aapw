@@ -16,6 +16,13 @@
 import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
 
+const MAX_WILDLIFE_SIMULATION_STEP_SECONDS = 0.1;
+
+function boundedWildlifeDelta(delta) {
+	if (!Number.isFinite(delta) || delta <= 0) return 0;
+	return Math.min(delta, MAX_WILDLIFE_SIMULATION_STEP_SECONDS);
+}
+
 /**
  * Removes any direct child of `object3D` whose name is in `names`, disposing its GPU resources.
  * Used to strip the wolf glTF's bundled non-skinned "Circle" ground-shadow-catcher disc — see
@@ -122,7 +129,6 @@ export async function createWolf({
 	}
 
 	let currentAction = null;
-	/** Crossfades to `action`; a no-op if it's already playing or doesn't exist. */
 	function playAction(action) {
 		if (currentAction === action || !action) return;
 		action.reset().fadeIn(0.25).play();
@@ -131,12 +137,6 @@ export async function createWolf({
 	}
 	playAction(idleAction);
 
-	/**
-	 * Turns `model` toward `targetYaw` at `turnRateRadiansPerSecond`, shortest-path (never spins the
-	 * long way around). Shared by both the patrol-walk and flee movement branches below.
-	 * @param {number} targetYaw
-	 * @param {number} delta
-	 */
 	function turnToward(targetYaw, delta) {
 		const turnStep = turnRateRadiansPerSecond * delta;
 		model.rotation.y = THREE.MathUtils.lerp(
@@ -146,44 +146,21 @@ export async function createWolf({
 		);
 	}
 
-	// Patrol state — unused (and never advanced) when isPatrolling is false.
 	let waypointIndex = 0;
-	// Starts at 0, not `pauseSeconds` (fixed run 38, DECISIONS.md ADR-0045) — same fix as
-	// `gameplay/npc.js`'s identical copied logic. `patrolWaypoints[0]` is always this animal's own
-	// spawn point (see `spawnConfiguredAnimals`), so the very first `update()` call resolves it as an
-	// immediate zero-distance "arrival" (a no-op) and *then* starts the real `pauseSeconds` dwell
-	// before the first actual step, instead of idling a second, redundant full cycle first.
 	let pauseTimer = 0;
-	// Read by this frame's other wolves (via the `isFleeing` getter below) to build their own
-	// `packmateFleePositions` — see DECISIONS.md ADR-0029. Starts false; only `update()` writes it.
 	let currentlyFleeing = false;
 
 	return {
 		object3D: model,
-
-		/** Whether this wolf is currently fleeing (player-triggered or pack-alerted) — read by the
-		 * caller to build other animals' `packmateFleePositions` for the next `update()` call. */
 		get isFleeing() {
 			return currentlyFleeing;
 		},
-
-		/**
-		 * @param {number} delta Seconds since the last frame.
-		 * @param {{x: number, z: number}} [playerPosition] Current player world position — only read
-		 *   when this animal can flee (see `fleeTriggerRadiusMeters`).
-		 * @param {{x: number, z: number}[]} [packmateFleePositions] World positions of other animals
-		 *   already fleeing this frame — see `packAlertRadiusMeters`. Omit/empty for no pack reaction.
-		 */
 		update(delta, playerPosition, packmateFleePositions) {
+			const simulationDelta = boundedWildlifeDelta(delta);
 			const dxFromPlayer = playerPosition ? model.position.x - playerPosition.x : Infinity;
 			const dzFromPlayer = playerPosition ? model.position.z - playerPosition.z : Infinity;
 			const distanceFromPlayer = Math.hypot(dxFromPlayer, dzFromPlayer);
 			const isFleeingFromPlayer = canFlee && distanceFromPlayer < fleeTriggerRadiusMeters;
-
-			// Pack awareness (run 29, DECISIONS.md ADR-0029): only checked when not already triggered
-			// directly (cheap early-out) and only when playerPosition is known (the flee direction
-			// below is always "away from the player," so a pack-alerted flee still needs it — see
-			// this function's own JSDoc for why player-relative, not packmate-relative).
 			let isFleeingFromPack = false;
 			if (canFlee && !isFleeingFromPlayer && playerPosition && packAlertRadiusMeters != null && packmateFleePositions) {
 				for (const packmatePosition of packmateFleePositions) {
@@ -193,48 +170,36 @@ export async function createWolf({
 						isFleeingFromPack = true;
 						break;
 					}
-				}
 			}
-
 			currentlyFleeing = isFleeingFromPlayer || isFleeingFromPack;
 
-			if (currentlyFleeing) {
-				// Straight-line flight directly away from the player — no pathfinding/obstacle-avoidance,
-				// the smallest thing that earns "flees" (same scope discipline as patrol's own "straight
-				// line between waypoints, no pathfinding" — see DECISIONS.md ADR-0021/ADR-0026).
-				const safeDistance = Math.max(distanceFromPlayer, 1e-6); // guards atan2/divide when the
-				// player stands exactly on the wolf's own position (distance 0) — picks an arbitrary but
-				// stable flee direction instead of producing a NaN velocity.
+			if (currentlyFleeing && simulationDelta > 0) {
+				const safeDistance = Math.max(distanceFromPlayer, 1e-6);
 				const dirX = dxFromPlayer / safeDistance;
 				const dirZ = dzFromPlayer / safeDistance;
-				const step = fleeSpeedMps * delta;
+				const step = fleeSpeedMps * simulationDelta;
 				let nextX = model.position.x + dirX * step;
 				let nextZ = model.position.z + dirZ * step;
-				if (playerCollider) {
-					({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
-				}
+				if (playerCollider) ({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
 				model.position.x = nextX;
 				model.position.z = nextZ;
 				model.position.y = groundCollider.getGroundHeight(model.position.x, model.position.z);
-				turnToward(Math.atan2(dirX, dirZ), delta);
+				turnToward(Math.atan2(dirX, dirZ), simulationDelta);
 				playAction(fleeAction ?? walkAction ?? idleAction);
-			} else if (isPatrolling) {
+			} else if (isPatrolling && simulationDelta > 0) {
 				if (pauseTimer > 0) {
-					pauseTimer -= delta;
+					pauseTimer = Math.max(0, pauseTimer - simulationDelta);
 					playAction(idleAction);
 				} else {
 					const target = patrolWaypoints[waypointIndex % patrolWaypoints.length];
 					const dx = target.x - model.position.x;
 					const dz = target.z - model.position.z;
 					const distance = Math.hypot(dx, dz);
-					const step = speedMps * delta;
-
+					const step = speedMps * simulationDelta;
 					if (distance <= step) {
 						let targetX = target.x;
 						let targetZ = target.z;
-						if (playerCollider) {
-							({ x: targetX, z: targetZ } = playerCollider.resolveXZ(targetX, targetZ));
-						}
+						if (playerCollider) ({ x: targetX, z: targetZ } = playerCollider.resolveXZ(targetX, targetZ));
 						model.position.x = targetX;
 						model.position.z = targetZ;
 						model.position.y = groundCollider.getGroundHeight(targetX, targetZ);
@@ -244,22 +209,17 @@ export async function createWolf({
 					} else {
 						let nextPatrolX = model.position.x + (dx / distance) * step;
 						let nextPatrolZ = model.position.z + (dz / distance) * step;
-						if (playerCollider) {
-							({ x: nextPatrolX, z: nextPatrolZ } = playerCollider.resolveXZ(nextPatrolX, nextPatrolZ));
-						}
+						if (playerCollider) ({ x: nextPatrolX, z: nextPatrolZ } = playerCollider.resolveXZ(nextPatrolX, nextPatrolZ));
 						model.position.x = nextPatrolX;
 						model.position.z = nextPatrolZ;
 						model.position.y = groundCollider.getGroundHeight(model.position.x, model.position.z);
-						turnToward(Math.atan2(dx, dz), delta);
+						turnToward(Math.atan2(dx, dz), simulationDelta);
 						playAction(walkAction);
 					}
 				}
 			}
-
-			mixer.update(delta);
+			mixer.update(simulationDelta);
 		},
-
-		/** Stops all animation actions and releases the model's GPU resources. */
 		dispose() {
 			mixer.stopAllAction();
 			AssetLoader.disposeObject3D(model);
@@ -267,30 +227,6 @@ export async function createWolf({
 	};
 }
 
-/**
- * Resolves and loads every configured animal spawn (`gameplayConfig.js`'s `ANIMAL_CONFIG.SPAWNS`) against a
- * kingdom-seat lookup, in parallel — moved out of `game3d.js` (run 29, DECISIONS.md ADR-0028) to
- * keep that file a thin orchestrator, mirroring `npc.js`'s own `spawnConfiguredNPCs`. A spawn
- * referencing an unknown `seatId` is skipped with a console warning, not thrown — matches
- * `game3d.js`'s prior inline behavior exactly. Wolves were the only animal through run 38; run 39
- * (DECISIONS.md ADR-0047) added a per-spawn `modelUrl` override (default `animalConfig.
- * WOLF_MODEL_URL`, so every pre-existing wolf `SPAWNS` entry is unaffected) and a per-spawn
- * `canFlee` flag (default `true`, same reasoning) for `umit-horse-1` — a rigless/animation-less
- * model that has no walk/flee clips to run and no `patrol` field, so it should never enter the
- * flee/pack-alert branches at all, not just fail to find a matching clip name silently. A "kind"
- * field / per-species lookup table would be cleaner if a 3rd non-wolf-shaped animal shows up, but
- * two per-spawn overrides is still the smaller change for exactly one exception so far — revisit if
- * a 3rd species needs its own knobs.
- * @param {object} options
- * @param {import('../assetLoader.js').AssetLoader} options.assetLoader
- * @param {typeof import('./gameplayConfig.js').ANIMAL_CONFIG} options.animalConfig
- * @param {Map<string, {id: string, x: number, z: number}>} options.seatsById
- * @param {(worldX: number, worldZ: number) => number} options.sampleGroundY
- * @param {{getGroundHeight: (x: number, z: number) => number}} options.groundCollider
- * @param {{resolveXZ: (x: number, z: number) => {x: number, z: number}}} [options.playerCollider]
- *   Forwarded to every `createWolf` call — see that function's own JSDoc.
- * @returns {Promise<Awaited<ReturnType<typeof createWolf>>[]>} Already filtered — no `null` entries.
- */
 export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsById, sampleGroundY, groundCollider, playerCollider }) {
 	const animals = await Promise.all(
 		animalConfig.SPAWNS.map(async (spawn) => {
@@ -307,25 +243,15 @@ export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsB
 						{ x: seat.x + spawn.patrol.toOffsetXMeters, z: seat.z + spawn.patrol.toOffsetZMeters },
 					]
 				: undefined;
-			// Species resolution (run 300+): a spawn naming a `speciesId` takes its model and its clip
-			// names from `animalConfig.SPECIES`; a spawn without one keeps the pre-existing wolf-global
-			// behavior byte-for-byte, so every legacy wolf entry is unaffected. An unknown `speciesId` is
-			// skipped with a warning rather than silently falling back to a wolf model — a mistyped
-			// species would otherwise spawn a wolf where a cow was intended, which is far harder to
-			// notice than a missing animal plus a console line.
 			const species = spawn.speciesId ? animalConfig.SPECIES?.[spawn.speciesId] : null;
 			if (spawn.speciesId && !species) {
 				console.warn(`[gameplay/animals] Animal spawn "${spawn.id}" references unknown species "${spawn.speciesId}" — skipping.`);
 				return null;
 			}
 			const clips = species?.clips;
-			// A species with no `walk` clip (e.g. sheep — genuinely absent in the source file) never
-			// patrols, even if the spawn declares a `patrol` line: driving translation with no walk cycle
-			// is exactly the sliding-model artifact ADR-0047 avoided for the rigless horse.
 			const walkClipName = species ? clips?.walk : animalConfig.WALK_CLIP_NAME;
 			const effectiveWaypoints = walkClipName ? patrolWaypoints : undefined;
 			const fleeClipName = species ? clips?.flee : animalConfig.FLEE_CLIP_NAME;
-			// Same guard on the flee side: no flee clip means no flee/pack-alert branch at all.
 			const canFlee = spawn.canFlee !== false && Boolean(fleeClipName);
 			return createWolf({
 				assetLoader,
