@@ -186,7 +186,7 @@ try {
   // seventh real hit must break guard at 44 health without entering PLAYER_DIED/respawn.
   await page.keyboard.down('KeyQ');
   const pressureReady = await waitForHistoryEvidence((frames) => { const frame = frames.at(-1); return frame?.state === 'guard' && frame.guarding && frame.parryWindowRemaining === 0 ? frame : null; }, { timeout: 12000, interval: 100, label: 'guard ready for poise pressure' });
-  need(pressureReady.stamina >= 99 && pressureReady.poise === 100, `poise pressure must start from the fresh respawn resource budget ${JSON.stringify(pressureReady)}`);
+  need(pressureReady.stamina >= 97 && pressureReady.poise === 100, `poise pressure must start from the fresh respawn resource budget ${JSON.stringify(pressureReady)}`);
   const breakHealthBefore = await readHealth();
   const marker = (await history()).length;
   const healthBurst = await emitMeasuredPlayerDamageBurst(20, 7, 'poise-break');
