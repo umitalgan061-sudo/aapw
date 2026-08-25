@@ -23,6 +23,11 @@ import { WORLD_DEFAULTS, WORLD_SCALE } from '../src/3d/config.js';
 import { publishCelestialLightState } from '../src/3d/celestialLightState.js';
 import { createHeightSampler } from '../src/3d/world/terrain.js';
 import {
+	applyTerrainMicroSurface,
+	TERRAIN_MICRO_SURFACE_POLICY,
+	terrainMicroUvAt,
+} from '../src/3d/world/terrainMicroSurface.js';
+import {
 	northClimateWeightsAtWorldXZ,
 	resolveTerrainBiomeColor,
 	slopeDegreesFromNeighbours,
@@ -78,6 +83,7 @@ const terrainGeometry = new THREE.PlaneGeometry(worldWidth, worldDepth, segments
 terrainGeometry.rotateX(-Math.PI / 2);
 const positions = terrainGeometry.getAttribute('position');
 const colors = new Float32Array(positions.count * 3);
+const microUvs = new Float32Array(positions.count * 2);
 let minHeight = Infinity;
 let maxHeight = -Infinity;
 let heightSum = 0;
@@ -114,6 +120,9 @@ for (let index = 0; index < positions.count; index++) {
 	colors[index * 3] = scratchColor.r;
 	colors[index * 3 + 1] = scratchColor.g;
 	colors[index * 3 + 2] = scratchColor.b;
+	const microUv = terrainMicroUvAt(worldX, worldZ);
+	microUvs[index * 2] = microUv.u;
+	microUvs[index * 2 + 1] = microUv.v;
 
 	const nx = THREE.MathUtils.clamp(worldX / worldWidth + 0.5, 0, 1);
 	const ny = THREE.MathUtils.clamp(worldZ / worldDepth + 0.5, 0, 1);
@@ -138,12 +147,14 @@ for (let index = 0; index < positions.count; index++) {
 	}
 }
 terrainGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+terrainGeometry.setAttribute('uv1', new THREE.BufferAttribute(microUvs, 2));
 terrainGeometry.computeVertexNormals();
 const terrainMaterial = new THREE.MeshStandardMaterial({
 	vertexColors: true,
 	roughness: 0.95,
 	metalness: 0,
 });
+applyTerrainMicroSurface(terrainMaterial);
 const terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
 scene.add(terrain);
 
@@ -162,9 +173,6 @@ camera.up.set(0, 0, -1);
 camera.lookAt(0, seaLevel, 0);
 camera.updateMatrixWorld(true);
 
-// Fit the actual 3D owner-world envelope rather than a hand-tuned 2D rectangle. The oblique
-// top-down camera mixes Z and elevation into screen Y, so checking all eight min/max terrain-box
-// corners is what guarantees southern islands and tall mountain crowns stay in frame together.
 let requiredHalfWidth = 0;
 let requiredHalfHeight = 0;
 const viewPoint = new THREE.Vector3();
@@ -186,12 +194,7 @@ camera.top = fittedHalfHeight;
 camera.bottom = -fittedHalfHeight;
 camera.updateProjectionMatrix();
 
-// Mirror production instead of manually updating only shader uniforms. The near-water mesh and the
-// far-underlay exclusion window must share the same camera-follow origin or a topdown capture shows
-// rectangular holes/double-water blocks that never exist in the live runtime. The deep-ocean floor is
-// a child of the same water root, so it inherits this camera-follow XZ while remaining below terrain.
 updateWater(water, camera.position, 0);
-
 renderer.render(scene, camera);
 await new Promise((resolve) => requestAnimationFrame(resolve));
 renderer.render(scene, camera);
@@ -217,6 +220,13 @@ window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
 	northPermanentIceMean: northIceSamples ? northIceSum / northIceSamples : 0,
 	northPermanentIceMax: northIceMax,
 	northPermanentIceActiveSamples: northIceActiveSamples,
+	terrainSurfaceRealism: Object.freeze({
+		policyId: TERRAIN_MICRO_SURFACE_POLICY.id,
+		detailRepeatMeters: TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters,
+		macroColorBreakup: TERRAIN_MICRO_SURFACE_POLICY.macroColorBreakup,
+		naturalAlbedoRemap: TERRAIN_MICRO_SURFACE_POLICY.naturalAlbedoRemap,
+		uvChannel: TERRAIN_MICRO_SURFACE_POLICY.uvChannel,
+	}),
 	waterDepthField: Object.freeze({
 		resolution: depthField.resolution,
 		meanWetCoverage: depthField.meanWetCoverage,
