@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyIceLandmarkGeometryBreakup } from './iceLandmarkGeometryBreakup.js';
 
 const TEXTURE_WIDTH = 256;
 const TEXTURE_HEIGHT = 512;
@@ -100,33 +101,33 @@ function createGlacialTextureSet(seed, { cave = false } = {}) {
 			const meso = fbm2D(u * 13.5, v * 6.1, seed + 47);
 			const micro = fbm2D(u * 48, v * 31, seed + 83);
 			const fractureWarp = fbm2D(u * 7.1 + macro * 1.8, v * 3.2, seed + 103);
-			const flowPhase = u * 21 + macro * 5.4 + fractureWarp * 3.6 + Math.sin(v * 9.3) * 0.48;
+			const flowPhase = u * 15.5 + macro * 5.8 + fractureWarp * 4.1 + Math.sin(v * 7.1) * 0.42;
 			const verticalDistance = Math.abs(Math.sin(flowPhase * Math.PI));
-			const crossDistance = Math.abs(Math.sin((u * 6.4 - v * 2.15 + meso * 2.7 + fractureWarp) * Math.PI));
-			const verticalCrack = 1 - smoothstep(0.017, 0.078, verticalDistance);
-			const crossCrack = (1 - smoothstep(0.018, 0.070, crossDistance)) * 0.52;
-			const crack = clamp01(Math.max(verticalCrack, crossCrack) * (0.67 + micro * 0.55));
-			const flowRidge = Math.pow(1 - verticalDistance, 2.7) * (0.28 + meso * 0.58);
-			const frost = clamp01(0.18 + (meso - 0.42) * 0.50 + flowRidge * 0.26 + (cave ? 0.02 : v * 0.17));
+			const crossDistance = Math.abs(Math.sin((u * 5.1 - v * 1.75 + meso * 3.1 + fractureWarp * 1.3) * Math.PI));
+			const verticalCrack = 1 - smoothstep(0.014, 0.064, verticalDistance);
+			const crossCrack = (1 - smoothstep(0.015, 0.060, crossDistance)) * 0.48;
+			const crack = clamp01(Math.max(verticalCrack, crossCrack) * (0.62 + micro * 0.52));
+			const flowRidge = Math.pow(1 - verticalDistance, 2.9) * (0.24 + meso * 0.52);
+			const frost = clamp01(0.18 + (meso - 0.42) * 0.50 + flowRidge * 0.24 + (cave ? 0.02 : v * 0.17));
 			const snowCap = cave ? 0 : smoothstep(0.76, 0.985, v) * clamp01(0.55 + macro * 0.65);
 			const baseDebris = cave
 				? smoothstep(0.60, 0.92, meso) * (0.14 + (1 - v) * 0.25)
 				: (1 - smoothstep(0.035, 0.23, v)) * clamp01(0.30 + macro * 0.84);
-			const wet = clamp01((cave ? 0.22 : 0.045) + crack * 0.36 + (1 - frost) * meso * (cave ? 0.40 : 0.13));
+			const wet = clamp01((cave ? 0.22 : 0.045) + crack * 0.34 + (1 - frost) * meso * (cave ? 0.40 : 0.13));
 			const denseIce = clamp01(0.22 + macro * 0.39 + meso * 0.20 - frost * 0.18 - snowCap * 0.42);
 			const blueCore = clamp01(smoothstep(0.34, 0.64, denseIce) * (1 - frost * 0.82) * (0.50 + crack * 0.42));
 			const dirtyBand = clamp01(baseDebris * (0.55 + meso * 0.45));
 
 			let rgb = mixRgb(palette.shadow, palette.dense, denseIce);
-			rgb = mixRgb(rgb, palette.crack, crack * 0.78);
+			rgb = mixRgb(rgb, palette.crack, crack * 0.72);
 			rgb = mixRgb(rgb, palette.dense, blueCore * (cave ? 0.62 : 0.36));
 			rgb = mixRgb(rgb, palette.frost, frost * 0.70);
 			rgb = mixRgb(rgb, palette.snow, snowCap * 0.94);
 			rgb = mixRgb(rgb, palette.debris, dirtyBand * 0.64);
 			rgb = mixRgb(rgb, palette.wet, wet * (cave ? 0.18 : 0.08));
 
-			const signal = macro * 0.16 + meso * 0.14 + micro * 0.038 + flowRidge * 0.075
-				- crack * 0.25 + frost * 0.045 + baseDebris * 0.075;
+			const signal = macro * 0.13 + meso * 0.10 + micro * 0.025 + flowRidge * 0.035
+				- crack * 0.075 + frost * 0.035 + baseDebris * 0.055;
 			scalar[y * TEXTURE_WIDTH + x] = signal;
 			const index = (y * TEXTURE_WIDTH + x) * 4;
 			colorBytes[index] = Math.round(rgb[0]);
@@ -155,8 +156,8 @@ function createGlacialTextureSet(seed, { cave = false } = {}) {
 			const right = scalar[y * TEXTURE_WIDTH + Math.min(TEXTURE_WIDTH - 1, x + 1)];
 			const down = scalar[Math.max(0, y - 1) * TEXTURE_WIDTH + x];
 			const up = scalar[Math.min(TEXTURE_HEIGHT - 1, y + 1) * TEXTURE_WIDTH + x];
-			const dx = (right - left) * (cave ? 3.0 : 3.5);
-			const dy = (up - down) * (cave ? 2.7 : 3.1);
+			const dx = (right - left) * (cave ? 2.4 : 2.7);
+			const dy = (up - down) * (cave ? 2.2 : 2.5);
 			const length = Math.hypot(dx, dy, 1) || 1;
 			const index = (y * TEXTURE_WIDTH + x) * 4;
 			normalBytes[index] = Math.round(((-dx / length) * 0.5 + 0.5) * 255);
@@ -198,7 +199,7 @@ function replaceMaterialSurface(material, textures, { cave = false } = {}) {
 	material.roughnessMap = textures.roughnessMap;
 	material.normalMap = textures.normalMap;
 	material.vertexColors = false;
-	material.normalScale.set(cave ? 0.70 : 0.80, cave ? 0.84 : 0.96);
+	material.normalScale.set(cave ? 0.42 : 0.38, cave ? 0.52 : 0.48);
 	material.color.set(cave ? 0xd0d8d7 : 0xe0e3e1);
 	material.roughness = cave ? 0.48 : 0.60;
 	material.clearcoat = cave ? 0.20 : 0.08;
@@ -265,23 +266,35 @@ function createWallDetails(sections, caveGapSegment, solidWallMaterial, seed) {
 		const section = sections[index];
 		const side = hash2D(index, 3, seed + 1103) > 0.5 ? 1 : -1;
 		const tangentAngle = Math.atan2(section.tz, section.tx);
-		const seracHeight = 14 + hash2D(index, 5, seed + 1201) * 28;
-		const seracWidth = 4 + hash2D(index, 7, seed + 1301) * 7;
-		const seracDepth = 4 + hash2D(index, 11, seed + 1409) * 8;
+		const seracHeight = 22 + hash2D(index, 5, seed + 1201) * 40;
+		const seracWidth = 7 + hash2D(index, 7, seed + 1301) * 10;
+		const seracDepth = 7 + hash2D(index, 11, seed + 1409) * 12;
 		const faceOffset = section.thicknessMeters * 0.47 + seracDepth * 0.22;
 		seracs.push({
 			position: new THREE.Vector3(
 				section.x + section.nx * faceOffset * side,
-				section.centerGround + section.heightMeters * (0.26 + hash2D(index, 13, seed + 1511) * 0.35),
+				section.centerGround + section.heightMeters * (0.24 + hash2D(index, 13, seed + 1511) * 0.39),
 				section.z + section.nz * faceOffset * side,
 			),
 			scale: new THREE.Vector3(seracWidth * 0.5, seracHeight * 0.5, seracDepth * 0.5),
-			rx: (hash2D(index, 17, seed + 1601) - 0.5) * 0.18,
-			ry: -tangentAngle + (hash2D(index, 19, seed + 1709) - 0.5) * 0.28,
-			rz: (hash2D(index, 23, seed + 1801) - 0.5) * 0.12,
+			rx: (hash2D(index, 17, seed + 1601) - 0.5) * 0.25,
+			ry: -tangentAngle + (hash2D(index, 19, seed + 1709) - 0.5) * 0.34,
+			rz: (hash2D(index, 23, seed + 1801) - 0.5) * 0.18,
 		});
+		if (index % 6 === 3) {
+			seracs.push({
+				position: new THREE.Vector3(
+					section.x - section.nx * faceOffset * 0.86 * side,
+					section.centerGround + section.heightMeters * (0.38 + hash2D(index, 61, seed + 1853) * 0.30),
+					section.z - section.nz * faceOffset * 0.86 * side,
+				),
+				scale: new THREE.Vector3(seracWidth * 0.42, seracHeight * 0.38, seracDepth * 0.44),
+				ry: -tangentAngle - (hash2D(index, 67, seed + 1867) - 0.5) * 0.30,
+				rz: (hash2D(index, 71, seed + 1877) - 0.5) * 0.18,
+			});
+		}
 		if (index % 4 === 1) {
-			const talusSize = 2.2 + hash2D(index, 29, seed + 1901) * 5.8;
+			const talusSize = 2.8 + hash2D(index, 29, seed + 1901) * 7.4;
 			talus.push({
 				position: new THREE.Vector3(
 					section.x + section.nx * (section.thicknessMeters * 0.5 + talusSize * 0.5) * side,
@@ -297,9 +310,9 @@ function createWallDetails(sections, caveGapSegment, solidWallMaterial, seed) {
 		if (index % 6 === 1) {
 			cornices.push({
 				position: new THREE.Vector3(section.x, section.topY + 0.8, section.z),
-				scale: new THREE.Vector3(3.5 + hash2D(index, 43, seed + 2309) * 5, 0.8 + hash2D(index, 47, seed + 2411) * 1.3, 2.5 + hash2D(index, 53, seed + 2503) * 4),
+				scale: new THREE.Vector3(4.5 + hash2D(index, 43, seed + 2309) * 6, 1.0 + hash2D(index, 47, seed + 2411) * 1.7, 3.0 + hash2D(index, 53, seed + 2503) * 5),
 				ry: -tangentAngle,
-				rz: (hash2D(index, 59, seed + 2609) - 0.5) * 0.12,
+				rz: (hash2D(index, 59, seed + 2609) - 0.5) * 0.16,
 			});
 		}
 	}
@@ -426,6 +439,13 @@ export function enhanceIceLandmarkRealism({
 	const portalRim = createPortalFractureRim(portal, solidWallMaterial, seed);
 	const caveRibs = createCaveFractureRibs(portal, caveRings, solidCaveMaterial, seed);
 	for (const object of [...wallDetails, portalRim, caveRibs]) group.add(object);
+	const geometryBreakup = applyIceLandmarkGeometryBreakup({
+		group,
+		wallSections,
+		portal,
+		caveRings,
+		seed,
+	});
 	return Object.freeze({
 		stats: Object.freeze({
 			version: 3,
@@ -436,6 +456,7 @@ export function enhanceIceLandmarkRealism({
 			corniceCount: wallDetails[2].count,
 			portalFractureCount: portalRim.count,
 			caveFractureRibCount: caveRibs.count,
+			geometryBreakup,
 		}),
 	});
 }
