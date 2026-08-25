@@ -31,7 +31,9 @@ function valueNoise2D(x, y, seed) {
 	const b = hash2D(x0 + 1, y0, seed);
 	const c = hash2D(x0, y0 + 1, seed);
 	const d = hash2D(x0 + 1, y0 + 1, seed);
-	return (a + (b - a) * tx) + ((c + (d - c) * tx) - (a + (b - a) * tx)) * ty;
+	const top = a + (b - a) * tx;
+	const bottom = c + (d - c) * tx;
+	return top + (bottom - top) * ty;
 }
 
 function fbm2D(x, y, seed) {
@@ -74,30 +76,31 @@ function createGlacialTextureSet(seed, { cave = false } = {}) {
 			const macro = fbm2D(u * 4.1, v * 1.55, seed + 11);
 			const meso = fbm2D(u * 13.5, v * 6.1, seed + 47);
 			const micro = fbm2D(u * 48, v * 31, seed + 83);
-			const flowPhase = u * 29 + macro * 4.8 + Math.sin(v * 11.5) * 0.55;
+			const fractureWarp = fbm2D(u * 7.1 + macro * 1.8, v * 3.2, seed + 103);
+			const flowPhase = u * 21 + macro * 5.4 + fractureWarp * 3.6 + Math.sin(v * 9.3) * 0.48;
 			const verticalDistance = Math.abs(Math.sin(flowPhase * Math.PI));
-			const crossDistance = Math.abs(Math.sin((u * 8.3 - v * 2.65 + meso * 2.2) * Math.PI));
-			const verticalCrack = 1 - smoothstep(0.018, 0.085, verticalDistance);
-			const crossCrack = (1 - smoothstep(0.018, 0.075, crossDistance)) * 0.58;
-			const crack = clamp01(Math.max(verticalCrack, crossCrack) * (0.72 + micro * 0.54));
-			const flowRidge = Math.pow(1 - verticalDistance, 2.4) * (0.35 + meso * 0.65);
-			const frost = clamp01(0.17 + (meso - 0.42) * 0.52 + flowRidge * 0.34 + (cave ? 0.02 : v * 0.16));
-			const snowCap = cave ? 0 : smoothstep(0.76, 0.985, v) * clamp01(0.58 + macro * 0.62);
+			const crossDistance = Math.abs(Math.sin((u * 6.4 - v * 2.15 + meso * 2.7 + fractureWarp) * Math.PI));
+			const verticalCrack = 1 - smoothstep(0.017, 0.078, verticalDistance);
+			const crossCrack = (1 - smoothstep(0.018, 0.070, crossDistance)) * 0.52;
+			const crack = clamp01(Math.max(verticalCrack, crossCrack) * (0.67 + micro * 0.55));
+			const flowRidge = Math.pow(1 - verticalDistance, 2.7) * (0.28 + meso * 0.58);
+			const frost = clamp01(0.18 + (meso - 0.42) * 0.50 + flowRidge * 0.26 + (cave ? 0.02 : v * 0.17));
+			const snowCap = cave ? 0 : smoothstep(0.76, 0.985, v) * clamp01(0.55 + macro * 0.65);
 			const baseDebris = cave
-				? smoothstep(0.58, 0.92, meso) * (0.16 + (1 - v) * 0.26)
-				: (1 - smoothstep(0.035, 0.23, v)) * clamp01(0.32 + macro * 0.82);
-			const wet = clamp01((cave ? 0.24 : 0.06) + crack * 0.44 + (1 - frost) * meso * (cave ? 0.46 : 0.18));
-			const denseIce = clamp01(0.30 + macro * 0.44 + meso * 0.22 - frost * 0.16 - snowCap * 0.4);
+				? smoothstep(0.60, 0.92, meso) * (0.14 + (1 - v) * 0.25)
+				: (1 - smoothstep(0.035, 0.23, v)) * clamp01(0.30 + macro * 0.84);
+			const wet = clamp01((cave ? 0.25 : 0.055) + crack * 0.40 + (1 - frost) * meso * (cave ? 0.47 : 0.16));
+			const denseIce = clamp01(0.30 + macro * 0.43 + meso * 0.22 - frost * 0.16 - snowCap * 0.4);
 
-			let rgb = mixRgb([48, 82, 94], [105, 143, 150], denseIce);
-			rgb = mixRgb(rgb, [27, 62, 77], crack * 0.86);
-			rgb = mixRgb(rgb, [183, 199, 198], frost * 0.72);
-			rgb = mixRgb(rgb, [224, 230, 226], snowCap * 0.92);
-			rgb = mixRgb(rgb, cave ? [84, 91, 88] : [95, 99, 94], baseDebris * 0.58);
-			if (cave) rgb = mixRgb(rgb, [49, 105, 119], wet * 0.22);
+			let rgb = mixRgb([50, 80, 89], [111, 144, 148], denseIce);
+			rgb = mixRgb(rgb, [25, 54, 67], crack * 0.83);
+			rgb = mixRgb(rgb, [184, 199, 197], frost * 0.72);
+			rgb = mixRgb(rgb, [226, 231, 227], snowCap * 0.92);
+			rgb = mixRgb(rgb, cave ? [82, 89, 87] : [96, 99, 94], baseDebris * 0.58);
+			if (cave) rgb = mixRgb(rgb, [46, 99, 112], wet * 0.22);
 
-			const signal = macro * 0.17 + meso * 0.18 + micro * 0.055 + flowRidge * 0.13
-				- crack * 0.31 + frost * 0.05 + baseDebris * 0.09;
+			const signal = macro * 0.16 + meso * 0.14 + micro * 0.038 + flowRidge * 0.075
+				- crack * 0.25 + frost * 0.045 + baseDebris * 0.075;
 			scalar[y * TEXTURE_WIDTH + x] = signal;
 			const index = (y * TEXTURE_WIDTH + x) * 4;
 			colorBytes[index] = Math.round(rgb[0]);
@@ -105,7 +108,7 @@ function createGlacialTextureSet(seed, { cave = false } = {}) {
 			colorBytes[index + 2] = Math.round(rgb[2]);
 			colorBytes[index + 3] = 255;
 
-			const roughness = clamp01(0.48 + frost * 0.28 + snowCap * 0.18 + baseDebris * 0.16 + micro * 0.07 - wet * 0.35 - crack * 0.08);
+			const roughness = clamp01(0.50 + frost * 0.27 + snowCap * 0.18 + baseDebris * 0.16 + micro * 0.06 - wet * 0.34 - crack * 0.07);
 			const roughByte = Math.round(roughness * 255);
 			roughnessBytes[index] = roughByte;
 			roughnessBytes[index + 1] = roughByte;
@@ -124,8 +127,8 @@ function createGlacialTextureSet(seed, { cave = false } = {}) {
 			const right = scalar[y * TEXTURE_WIDTH + Math.min(TEXTURE_WIDTH - 1, x + 1)];
 			const down = scalar[Math.max(0, y - 1) * TEXTURE_WIDTH + x];
 			const up = scalar[Math.min(TEXTURE_HEIGHT - 1, y + 1) * TEXTURE_WIDTH + x];
-			const dx = (right - left) * (cave ? 4.0 : 4.8);
-			const dy = (up - down) * (cave ? 3.4 : 4.1);
+			const dx = (right - left) * (cave ? 3.0 : 3.5);
+			const dy = (up - down) * (cave ? 2.7 : 3.1);
 			const length = Math.hypot(dx, dy, 1) || 1;
 			const index = (y * TEXTURE_WIDTH + x) * 4;
 			normalBytes[index] = Math.round(((-dx / length) * 0.5 + 0.5) * 255);
@@ -142,7 +145,7 @@ function createGlacialTextureSet(seed, { cave = false } = {}) {
 	for (const texture of [colorMap, roughnessMap, normalMap]) {
 		texture.wrapS = THREE.RepeatWrapping;
 		texture.wrapT = THREE.ClampToEdgeWrapping;
-		texture.repeat.set(1, cave ? 1 / 1.7 : 1 / 2.6);
+		texture.repeat.set(cave ? 0.56 : 0.30, cave ? 1 / 1.7 : 1 / 2.6);
 		texture.anisotropy = 4;
 		texture.needsUpdate = true;
 	}
@@ -165,17 +168,17 @@ function replaceMaterialSurface(material, textures, { cave = false } = {}) {
 	material.map = textures.colorMap;
 	material.roughnessMap = textures.roughnessMap;
 	material.normalMap = textures.normalMap;
-	material.normalScale.set(cave ? 1.16 : 1.34, cave ? 1.32 : 1.48);
+	material.normalScale.set(cave ? 0.74 : 0.82, cave ? 0.88 : 0.98);
 	material.color.set(cave ? 0xc7d7d5 : 0xd4dfdc);
-	material.roughness = cave ? 0.43 : 0.54;
-	material.clearcoat = cave ? 0.27 : 0.13;
-	material.clearcoatRoughness = cave ? 0.31 : 0.45;
-	material.transmission = cave ? 0.085 : 0.022;
+	material.roughness = cave ? 0.44 : 0.56;
+	material.clearcoat = cave ? 0.25 : 0.11;
+	material.clearcoatRoughness = cave ? 0.33 : 0.47;
+	material.transmission = cave ? 0.082 : 0.020;
 	material.thickness = cave ? 4.4 : 3.0;
 	material.attenuationColor.set(cave ? 0x3d8797 : 0x5b9299);
 	material.attenuationDistance = cave ? 17 : 28;
 	material.emissive.set(cave ? 0x071a20 : 0x000000);
-	material.emissiveIntensity = cave ? 0.065 : 0;
+	material.emissiveIntensity = cave ? 0.08 : 0;
 	material.userData.iceSurface = Object.freeze({
 		...(material.userData.iceSurface || {}),
 		realismVersion: 2,
@@ -187,6 +190,14 @@ function replaceMaterialSurface(material, textures, { cave = false } = {}) {
 		textureResolution: textures.stats.resolution,
 	});
 	material.needsUpdate = true;
+}
+
+function cloneSolidMaterial(source) {
+	const material = source.clone();
+	material.vertexColors = false;
+	material.color.set(0xcbd9d6);
+	material.needsUpdate = true;
+	return material;
 }
 
 function createInstancedDetail(name, role, geometry, material, transforms) {
@@ -207,7 +218,7 @@ function createInstancedDetail(name, role, geometry, material, transforms) {
 	return mesh;
 }
 
-function createWallDetails(sections, caveGapSegment, wallMaterial, seed) {
+function createWallDetails(sections, caveGapSegment, solidWallMaterial, seed) {
 	const seracs = [];
 	const talus = [];
 	const cornices = [];
@@ -216,30 +227,30 @@ function createWallDetails(sections, caveGapSegment, wallMaterial, seed) {
 		const section = sections[index];
 		const side = hash2D(index, 3, seed + 1103) > 0.5 ? 1 : -1;
 		const tangentAngle = Math.atan2(section.tz, section.tx);
-		const seracHeight = 18 + hash2D(index, 5, seed + 1201) * 42;
-		const seracWidth = 4.5 + hash2D(index, 7, seed + 1301) * 7.5;
-		const seracDepth = 5 + hash2D(index, 11, seed + 1409) * 10;
-		const faceOffset = section.thicknessMeters * 0.47 + seracDepth * 0.24;
+		const seracHeight = 14 + hash2D(index, 5, seed + 1201) * 28;
+		const seracWidth = 4 + hash2D(index, 7, seed + 1301) * 7;
+		const seracDepth = 4 + hash2D(index, 11, seed + 1409) * 8;
+		const faceOffset = section.thicknessMeters * 0.47 + seracDepth * 0.22;
 		seracs.push({
 			position: new THREE.Vector3(
 				section.x + section.nx * faceOffset * side,
-				section.centerGround + section.heightMeters * (0.22 + hash2D(index, 13, seed + 1511) * 0.42),
+				section.centerGround + section.heightMeters * (0.26 + hash2D(index, 13, seed + 1511) * 0.35),
 				section.z + section.nz * faceOffset * side,
 			),
-			scale: new THREE.Vector3(seracWidth, seracHeight, seracDepth),
+			scale: new THREE.Vector3(seracWidth * 0.5, seracHeight * 0.5, seracDepth * 0.5),
 			rx: (hash2D(index, 17, seed + 1601) - 0.5) * 0.18,
 			ry: -tangentAngle + (hash2D(index, 19, seed + 1709) - 0.5) * 0.28,
 			rz: (hash2D(index, 23, seed + 1801) - 0.5) * 0.12,
 		});
 		if (index % 4 === 1) {
-			const talusScale = 2.2 + hash2D(index, 29, seed + 1901) * 5.8;
+			const talusSize = 2.2 + hash2D(index, 29, seed + 1901) * 5.8;
 			talus.push({
 				position: new THREE.Vector3(
-					section.x + section.nx * (section.thicknessMeters * 0.5 + talusScale * 0.5) * side,
-					section.centerGround + talusScale * 0.48,
-					section.z + section.nz * (section.thicknessMeters * 0.5 + talusScale * 0.5) * side,
+					section.x + section.nx * (section.thicknessMeters * 0.5 + talusSize * 0.5) * side,
+					section.centerGround + talusSize * 0.48,
+					section.z + section.nz * (section.thicknessMeters * 0.5 + talusSize * 0.5) * side,
 				),
-				scale: new THREE.Vector3(talusScale * 1.35, talusScale * 0.9, talusScale),
+				scale: new THREE.Vector3(talusSize * 0.70, talusSize * 0.48, talusSize * 0.52),
 				ry: tangentAngle + hash2D(index, 31, seed + 2003) * Math.PI,
 				rx: hash2D(index, 37, seed + 2111) * 0.7,
 				rz: hash2D(index, 41, seed + 2203) * 0.55,
@@ -247,8 +258,8 @@ function createWallDetails(sections, caveGapSegment, wallMaterial, seed) {
 		}
 		if (index % 6 === 1) {
 			cornices.push({
-				position: new THREE.Vector3(section.x, section.topY + 1.1, section.z),
-				scale: new THREE.Vector3(7 + hash2D(index, 43, seed + 2309) * 10, 1.3 + hash2D(index, 47, seed + 2411) * 2.6, 5 + hash2D(index, 53, seed + 2503) * 8),
+				position: new THREE.Vector3(section.x, section.topY + 0.8, section.z),
+				scale: new THREE.Vector3(3.5 + hash2D(index, 43, seed + 2309) * 5, 0.8 + hash2D(index, 47, seed + 2411) * 1.3, 2.5 + hash2D(index, 53, seed + 2503) * 4),
 				ry: -tangentAngle,
 				rz: (hash2D(index, 59, seed + 2609) - 0.5) * 0.12,
 			});
@@ -257,31 +268,79 @@ function createWallDetails(sections, caveGapSegment, wallMaterial, seed) {
 	const seracGeometry = new THREE.IcosahedronGeometry(1, 1);
 	const talusGeometry = new THREE.IcosahedronGeometry(1, 0);
 	const corniceGeometry = new THREE.IcosahedronGeometry(1, 1);
-	const snowMaterial = wallMaterial.clone();
+	const snowMaterial = solidWallMaterial.clone();
 	snowMaterial.color.set(0xe6ece8);
-	snowMaterial.roughness = 0.86;
-	snowMaterial.transmission = 0.008;
-	snowMaterial.clearcoat = 0.04;
+	snowMaterial.roughness = 0.88;
+	snowMaterial.transmission = 0.006;
+	snowMaterial.clearcoat = 0.03;
 	return [
-		createInstancedDetail('ice-wall-serac-buttresses', 'wall-serac-buttresses', seracGeometry, wallMaterial, seracs),
-		createInstancedDetail('ice-wall-basal-talus', 'wall-basal-talus', talusGeometry, wallMaterial, talus),
+		createInstancedDetail('ice-wall-serac-buttresses', 'wall-serac-buttresses', seracGeometry, solidWallMaterial, seracs),
+		createInstancedDetail('ice-wall-basal-talus', 'wall-basal-talus', talusGeometry, solidWallMaterial, talus),
 		createInstancedDetail('ice-wall-snow-cornices', 'wall-snow-cornices', corniceGeometry, snowMaterial, cornices),
 	];
 }
 
-function createCaveFractureRibs(portal, caveRings, caveMaterial, seed) {
+function createPortalFractureRim(portal, solidWallMaterial, seed) {
+	const transforms = [];
+	const openingHalfWidth = 7.8;
+	const sideHeight = 3.2;
+	const archRise = 8.8;
+	for (const faceSign of [-1, 1]) {
+		const normalOffset = portal.depth * 0.51 * faceSign;
+		for (const side of [-1, 1]) {
+			for (let step = 0; step < 4; step += 1) {
+				const y = 1.7 + step * 2.6;
+				const lateral = side * (openingHalfWidth + 1.0 + hash2D(step, side + 7, seed + 3301) * 1.1);
+				transforms.push({
+					position: new THREE.Vector3(
+						portal.centerX + portal.tx * lateral + portal.nx * normalOffset,
+						portal.groundY + y,
+						portal.centerZ + portal.tz * lateral + portal.nz * normalOffset,
+					),
+					scale: new THREE.Vector3(1.0 + hash2D(step, side + 11, seed + 3407) * 1.2, 1.2 + hash2D(step, side + 13, seed + 3511) * 1.9, 0.9 + hash2D(step, side + 17, seed + 3607) * 1.1),
+					ry: -Math.atan2(portal.tz, portal.tx) + (hash2D(step, side + 19, seed + 3701) - 0.5) * 0.45,
+					rz: side * (0.12 + hash2D(step, side + 23, seed + 3803) * 0.22),
+				});
+			}
+		}
+		for (let step = 1; step < 7; step += 1) {
+			const angle = Math.PI - (step / 7) * Math.PI;
+			const lateral = Math.cos(angle) * openingHalfWidth;
+			const y = sideHeight + Math.sin(angle) * archRise + 1.1;
+			transforms.push({
+				position: new THREE.Vector3(
+					portal.centerX + portal.tx * lateral + portal.nx * normalOffset,
+					portal.groundY + y,
+					portal.centerZ + portal.tz * lateral + portal.nz * normalOffset,
+				),
+				scale: new THREE.Vector3(1.1 + hash2D(step, faceSign + 29, seed + 3907) * 1.4, 1.0 + hash2D(step, faceSign + 31, seed + 4001) * 1.7, 0.9 + hash2D(step, faceSign + 37, seed + 4103) * 1.1),
+				ry: -Math.atan2(portal.tz, portal.tx) + (hash2D(step, faceSign + 41, seed + 4201) - 0.5) * 0.5,
+				rz: (hash2D(step, faceSign + 43, seed + 4303) - 0.5) * 0.42,
+			});
+		}
+	}
+	return createInstancedDetail(
+		'ice-wall-portal-fracture-rim',
+		'portal-fracture-rim',
+		new THREE.IcosahedronGeometry(1, 0),
+		solidWallMaterial,
+		transforms,
+	);
+}
+
+function createCaveFractureRibs(portal, caveRings, solidCaveMaterial, seed) {
 	const transforms = [];
 	for (let ringIndex = 2; ringIndex < caveRings.length - 2; ringIndex += 2) {
 		const ring = caveRings[ringIndex];
 		for (const side of [-1, 1]) {
-			const lateral = ring.halfWidth * (0.78 + hash2D(ringIndex, side + 3, seed + 2707) * 0.15) * side;
+			const lateral = ring.halfWidth * (0.79 + hash2D(ringIndex, side + 3, seed + 2707) * 0.13) * side;
 			transforms.push({
 				position: new THREE.Vector3(
 					ring.centerX + portal.tx * lateral,
-					ring.centerY + ring.height * (0.48 + hash2D(ringIndex, side + 7, seed + 2801) * 0.30),
+					ring.centerY + ring.height * (0.50 + hash2D(ringIndex, side + 7, seed + 2801) * 0.26),
 					ring.centerZ + portal.tz * lateral,
 				),
-				scale: new THREE.Vector3(1.0 + hash2D(ringIndex, side + 11, seed + 2903) * 1.8, 2.4 + hash2D(ringIndex, side + 13, seed + 3001) * 4.8, 1.0 + hash2D(ringIndex, side + 17, seed + 3109) * 1.9),
+				scale: new THREE.Vector3(0.65 + hash2D(ringIndex, side + 11, seed + 2903) * 0.85, 1.4 + hash2D(ringIndex, side + 13, seed + 3001) * 2.6, 0.65 + hash2D(ringIndex, side + 17, seed + 3109) * 0.95),
 				ry: -Math.atan2(portal.tz, portal.tx) + side * 0.34,
 				rz: side * (0.20 + hash2D(ringIndex, side + 19, seed + 3203) * 0.24),
 			});
@@ -291,7 +350,7 @@ function createCaveFractureRibs(portal, caveRings, caveMaterial, seed) {
 		'ice-cave-fracture-ribs',
 		'cave-fracture-ribs',
 		new THREE.IcosahedronGeometry(1, 0),
-		caveMaterial,
+		solidCaveMaterial,
 		transforms,
 	);
 }
@@ -318,9 +377,15 @@ export function enhanceIceLandmarkRealism({
 	replaceMaterialSurface(caveMaterial, caveTextures, { cave: true });
 	for (const texture of oldTextures) texture.dispose();
 
-	const wallDetails = createWallDetails(wallSections, caveGapSegment, wallMaterial, seed);
-	const caveRibs = createCaveFractureRibs(portal, caveRings, caveMaterial, seed);
-	for (const object of [...wallDetails, caveRibs]) group.add(object);
+	const solidWallMaterial = cloneSolidMaterial(wallMaterial);
+	const solidCaveMaterial = cloneSolidMaterial(caveMaterial);
+	portal.mesh.material = solidWallMaterial;
+	const icicles = group.getObjectByName('ice-cave-icicles');
+	if (icicles) icicles.material = solidCaveMaterial;
+	const wallDetails = createWallDetails(wallSections, caveGapSegment, solidWallMaterial, seed);
+	const portalRim = createPortalFractureRim(portal, solidWallMaterial, seed);
+	const caveRibs = createCaveFractureRibs(portal, caveRings, solidCaveMaterial, seed);
+	for (const object of [...wallDetails, portalRim, caveRibs]) group.add(object);
 	return Object.freeze({
 		stats: Object.freeze({
 			version: 2,
@@ -329,6 +394,7 @@ export function enhanceIceLandmarkRealism({
 			seracCount: wallDetails[0].count,
 			talusCount: wallDetails[1].count,
 			corniceCount: wallDetails[2].count,
+			portalFractureCount: portalRim.count,
 			caveFractureRibCount: caveRibs.count,
 		}),
 	});
