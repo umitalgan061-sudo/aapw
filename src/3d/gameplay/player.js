@@ -11,7 +11,7 @@ import { AssetLoader } from '../assetLoader.js';
 import { integrateJumpArc } from '../physics.js';
 import { gameEvents } from '../eventBus.js';
 import { EVENTS } from '../config.js';
-import { readDamageResolution, stageDamageResolution } from './damageResolution.js';
+import { readDamageResolution, stageDamageResolution } from './health.js';
 
 const PLAYER_ACTION_CONFIG = Object.freeze({
 	MAX_STAMINA: 100,
