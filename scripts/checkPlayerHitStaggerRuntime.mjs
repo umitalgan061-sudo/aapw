@@ -42,6 +42,32 @@ try {
     const frame = window.__hitStaggerMotion.at(-1);
     return frame?.state === 'idle' && frame?.isGrounded && frame?.poise >= 99.5 ? structuredClone(frame) : null;
   }, 'grounded full-poise idle baseline', 20000);
+
+  // Shipped-scene enemies can chip health while the baseline waits. Force one real defeat first so
+  // the controlled four-hit sequence below always begins at authoritative 100 health and can only
+  // cross zero on its fourth hit. This keeps the proof tied to the real death/respawn path instead
+  // of disabling world combat or manufacturing health state in the test.
+  await page.evaluate(async () => {
+    const [{ gameEvents }, { EVENTS }] = await Promise.all([import('./src/3d/eventBus.js'), import('./src/3d/config.js')]);
+    gameEvents.emit(EVENTS.PLAYER_DAMAGED, { amount: 999, sourceId: 'hit-stagger-isolation-reset' });
+  });
+  const isolatedRespawn = await waitFor(() => {
+    const frame = window.__hitStaggerMotion.at(-1);
+    const health = Number(document.querySelector('.g3d-health-bar')?.getAttribute('aria-valuenow'));
+    const maxHealth = Number(document.querySelector('.g3d-health-bar')?.getAttribute('aria-valuemax'));
+    return frame?.state === 'idle'
+      && frame?.isGrounded
+      && frame?.stamina === 100
+      && frame?.poise === 100
+      && frame?.hitStaggerRemaining === 0
+      && frame?.guardBreakRemaining === 0
+      && frame?.canDodge
+      && Number.isFinite(health)
+      && health === maxHealth
+      ? { frame: structuredClone(frame), health, maxHealth }
+      : null;
+  }, 'authoritative full-health defeat reset before controlled stagger proof', 12000);
+
   await page.evaluate(() => {
     window.__hitStaggerMotion.length = 0;
     window.__hitStaggerAttack.length = 0;
@@ -101,7 +127,7 @@ try {
   need(box && box.width > 100 && box.height > 100, 'invalid shipped canvas bounds');
   const png = await page.screenshot({ clip: box });
   fs.writeFileSync(path.join(outDir, 'hit-stagger-runtime.png'), png);
-  fs.writeFileSync(path.join(outDir, 'hit-stagger-runtime.json'), `${JSON.stringify({ baseline, active, stagger: proof.stagger, interrupted: proof.interrupted, lethalFeedback: proof.lethalFeedback, respawn: proof.respawn, healthAfterRespawn, recovered, browserErrors: errors }, null, 2)}\n`);
+  fs.writeFileSync(path.join(outDir, 'hit-stagger-runtime.json'), `${JSON.stringify({ baseline, isolatedRespawn, active, stagger: proof.stagger, interrupted: proof.interrupted, lethalFeedback: proof.lethalFeedback, respawn: proof.respawn, healthAfterRespawn, recovered, browserErrors: errors }, null, 2)}\n`);
   need(errors.length === 0, errors.join(' | '));
   console.log('PLAYER_HIT_STAGGER_RUNTIME_OK');
 } catch (error) {
