@@ -9,6 +9,11 @@ class TestBus {
   emit(name, payload) { this.emitted.push({ name, payload }); for (const fn of this.listeners.get(name) ?? []) fn(payload); }
 }
 
+async function flushDamageResolutionCleanup() {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 for (const invalidMaxHealth of [0, -1, Infinity, -Infinity, NaN]) {
   const invalidBus = new TestBus();
   assert.throws(
@@ -82,7 +87,7 @@ assert.equal(frozenMitigatedResolution?.rawAmount, 45, 'health reconciliation mu
 assert.equal(frozenMitigatedResolution?.blockedAmount, 45, 'health reconciliation must preserve staged blocked damage metadata');
 assert.equal(frozenMitigatedResolution?.mitigation, 'parry', 'health reconciliation must preserve staged mitigation provenance');
 assert.equal(Object.isFrozen(frozenMitigatedResolution), true, 'fully mitigated same-event resolution must remain immutable');
-await Promise.resolve();
+await flushDamageResolutionCleanup();
 assert.equal(readDamageResolution(frozenMitigatedHit), null, 'fully mitigated resolution must clear after the originating event turn');
 
 const frozenHit = Object.freeze({ amount: 15, sourceId: 'frozen-guard' });
@@ -90,11 +95,29 @@ assert.doesNotThrow(() => bus.emit('damage', frozenHit), 'immutable damage paylo
 assert.equal(health.current, 85, 'immutable damage payloads must still apply finite authoritative damage');
 assert.equal('appliedAmount' in frozenHit, false, 'immutable producer payload must remain untouched when reconciliation cannot be written back');
 assertHealthReceipt(healthEvents().at(-1), { current: 85, maxHealth: 100, ratio: 0.85, delta: -15, reason: 'damage', appliedAmount: 15, sourceId: 'frozen-guard' });
-await Promise.resolve();
+await flushDamageResolutionCleanup();
 assert.equal(readDamageResolution(frozenHit), null, 'immutable same-event resolution must be cleared after the event turn');
 
 health.reset();
 assertHealthReceipt(healthEvents().at(-1), { current: 100, maxHealth: 100, ratio: 1, delta: 15, reason: 'reset', appliedAmount: 0, sourceId: null });
+
+const deferredFrozenHit = Object.freeze({ amount: 22, sourceId: 'deferred-observer' });
+let deferredResolution = null;
+const offDeferredObserver = bus.on('damage', (payload) => {
+  if (payload !== deferredFrozenHit) return;
+  queueMicrotask(() => { deferredResolution = readDamageResolution(payload); });
+});
+bus.emit('damage', deferredFrozenHit);
+offDeferredObserver();
+await Promise.resolve();
+assert.equal(health.current, 78, 'deferred immutable damage must still mutate authoritative health exactly once');
+assert.equal(deferredResolution?.appliedAmount, 22, 'a later listener microtask must observe authoritative applied damage before cleanup');
+assert.equal(Object.isFrozen(deferredResolution), true, 'deferred same-event damage resolution must remain immutable');
+await flushDamageResolutionCleanup();
+assert.equal(readDamageResolution(deferredFrozenHit), null, 'deferred resolution must still be bounded to the originating event turn');
+
+health.reset();
+assertHealthReceipt(healthEvents().at(-1), { current: 100, maxHealth: 100, ratio: 1, delta: 22, reason: 'reset', appliedAmount: 0, sourceId: null });
 
 const frozenOverkill = Object.freeze({ amount: 160, sourceId: 'frozen-overkill-direct' });
 let frozenOverkillResolution = null;
@@ -107,7 +130,7 @@ assert.equal(health.current, 0, 'frozen direct overkill must still clamp authori
 assert.equal('appliedAmount' in frozenOverkill, false, 'frozen direct overkill producer payload must remain immutable');
 assert.equal(frozenOverkillResolution?.appliedAmount, 100, 'later same-event consumers must see the exact clamped damage removed from immutable direct payloads');
 assert.equal(Object.isFrozen(frozenOverkillResolution), true, 'same-event immutable damage resolution must be immutable');
-await Promise.resolve();
+await flushDamageResolutionCleanup();
 assert.equal(readDamageResolution(frozenOverkill), null, 'direct immutable resolution must not survive beyond the originating event turn');
 
 health.reset();
@@ -120,4 +143,4 @@ assert.equal(health.current, before, 'dispose must detach the damage listener');
 console.log('Player Combat Health Receipt: PASS');
 console.log('legacy-enumerable=current,maxHealth|receipt=ratio,delta,reason,appliedAmount,sourceId');
 console.log('constructor-guard=maxHealth>0+finite|finite-guard=damage+heal|invalid=Infinity,-Infinity,NaN');
-console.log('damagePayloadAppliedAmount=normal,overkill,already-dead,fully-mitigated|immutable-payload=safe+same-event-clamped');
+console.log('damagePayloadAppliedAmount=normal,overkill,already-dead,fully-mitigated|immutable-payload=safe+same-event-clamped+deferred-observer');
