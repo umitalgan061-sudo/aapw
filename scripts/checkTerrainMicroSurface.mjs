@@ -53,7 +53,10 @@ assert.equal(TERRAIN_MICRO_SURFACE_POLICY.naturalAlbedoRemap, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.regionalMoistureVariation, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.elevationWeathering, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.fractureNormals, true);
-assert.deepEqual(TERRAIN_MICRO_SURFACE_POLICY.worldSpaceMacroScaleMeters, [95, 360, 980, 2600]);
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.ecologicalMosaic, true);
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.drainageBreakup, true);
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.nonPeriodicRockWeathering, true);
+assert.deepEqual(TERRAIN_MICRO_SURFACE_POLICY.worldSpaceMacroScaleMeters, [42, 125, 420, 1100, 3000]);
 
 const standalone = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
 applyTerrainMicroSurface(standalone);
@@ -78,7 +81,10 @@ assert.equal(standalone.userData.terrainMicroSurface.naturalAlbedoRemap, true);
 assert.equal(standalone.userData.terrainMicroSurface.regionalMoistureVariation, true);
 assert.equal(standalone.userData.terrainMicroSurface.elevationWeathering, true);
 assert.equal(standalone.userData.terrainMicroSurface.fractureNormals, true);
-assert.equal(standalone.customProgramCacheKey(), 'terrain-photoreal-world-surface-v6-regional-natural-albedo');
+assert.equal(standalone.userData.terrainMicroSurface.ecologicalMosaic, true);
+assert.equal(standalone.userData.terrainMicroSurface.drainageBreakup, true);
+assert.equal(standalone.userData.terrainMicroSurface.nonPeriodicRockWeathering, true);
+assert.equal(standalone.customProgramCacheKey(), 'terrain-photoreal-world-surface-v6-regional-natural-albedo-ecological-mosaic');
 const shaderHookSource = standalone.onBeforeCompile.toString();
 for (const marker of [
   'terrainPhotoFbm',
@@ -93,6 +99,10 @@ for (const marker of [
   'terrainPhotoStonyPatch',
   'terrainPhotoRock',
   'terrainPhotoSnow',
+  'terrainPhotoWarpedXZ',
+  'terrainPhotoEco',
+  'terrainPhotoDrainage',
+  'terrainPhotoGeoA',
   'modelMatrix * vec4(transformed, 1.0)',
 ]) {
   assert(shaderHookSource.includes(marker), `terrain shader lost ${marker} realism signal`);
@@ -170,4 +180,4 @@ close(oneTileNorth.v - origin.v, 1, 'one detail period north must advance exactl
 standalone.dispose();
 disposeTerrainChunk(west);
 disposeTerrainChunk(east);
-console.log('[checkTerrainMicroSurface] PASS: regional moisture + elevation weathering + fractured PBR detail remain seam-continuous and canonical-height neutral.');
+console.log('[checkTerrainMicroSurface] PASS: ecological mosaic + drainage breakup + non-periodic rock weathering remain seam-continuous and canonical-height neutral.');
