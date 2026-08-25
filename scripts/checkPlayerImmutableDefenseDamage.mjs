@@ -50,6 +50,7 @@ health.dispose();
 
 const playerSource = fs.readFileSync(new URL('../src/3d/gameplay/player.js', import.meta.url), 'utf8');
 assert.match(playerSource, /from '\.\/health\.js'/, 'player must consume the existing health authority rather than add a second runtime module');
+assert.match(playerSource, /!Number\.isFinite\(rawAmount\) \|\| !\(rawAmount > 0\)/, 'player defense must reject non-finite damage before stamina or poise mutation');
 assert.match(playerSource, /stageDamageResolution\(payload, \{ amount: rawAmount \}\)/, 'every valid incoming hit must establish a same-event resolution');
 for (const mitigation of ['dodge', 'parry', 'guard']) {
   assert.match(playerSource, new RegExp(`stageDamageResolution\\(payload, \\{[^}]*mitigation: '${mitigation}'`), `${mitigation} must use immutable-safe damage resolution`);
@@ -60,4 +61,4 @@ for (const directWrite of ['payload.rawAmount =', 'payload.blockedAmount =', 'pa
 assert.match(playerSource, /readDamageResolution\(payload\)[\s\S]*staged\?\.appliedAmount/, 'feedback must prefer authoritative staged applied damage');
 
 console.log('Player Immutable Defense Damage: PASS');
-console.log('frozen=guard,dodge,overkill|health=authoritative-clamp|payload=unchanged|resolution=bounded|authority=health');
+console.log('frozen=guard,dodge,overkill|nonfinite=rejected-before-defense-state|health=authoritative-clamp|payload=unchanged|resolution=bounded|authority=health');
