@@ -1,0 +1,128 @@
+name: Player Parry Riposte
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/player.js'
+      - 'src/3d/ui/healthBar.js'
+      - 'src/3d/gameplay/health.js'
+      - 'scripts/checkPlayerParryRiposte.mjs'
+      - 'scripts/checkPlayerParryRiposteRuntime.mjs'
+      - 'scripts/checkPlayerCombatHudRuntime.mjs'
+      - 'scripts/checkPlayerMeleeCombo.mjs'
+      - 'scripts/checkPlayerMeleeComboRuntime.mjs'
+      - '.github/workflows/player-parry-riposte.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: player-parry-riposte-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  shipped-scene-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact main and bounded player scope
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          BASE_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD "$BASE_SHA")" = "$BASE_SHA"
+          git diff --check "$BASE_SHA"...HEAD
+          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
+          echo "$CHANGED"
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerParryRiposte\.mjs|scripts/checkPlayerParryRiposteRuntime\.mjs|\.github/workflows/player-parry-riposte\.yml)$' | wc -l)" -eq 0
+          read -r ADD DEL < <(git diff --numstat "$BASE_SHA"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
+          test "$((ADD + DEL))" -le 1000
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+
+      - name: Asset-first shipped-scene hydration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs version
+          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**" --exclude=""
+          test -s assets/models/characters/peasant_girl.fbx
+          test -s assets/animations/peasant_girl/idle.fbx
+          test -s assets/animations/peasant_girl/walking.fbx
+          test -s assets/animations/peasant_girl/running.fbx
+
+      - name: Static player riposte and shared contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/player.js
+          node --check src/3d/ui/healthBar.js
+          node --check scripts/checkPlayerParryRiposte.mjs
+          node --check scripts/checkPlayerParryRiposteRuntime.mjs
+          node scripts/checkPlayerParryRiposte.mjs
+          node scripts/checkPlayerMeleeCombo.mjs
+          node scripts/checkPlayerStaminaDodge.mjs
+          node scripts/checkPlayerCombatFeedback.mjs
+          node scripts/checkPlayerImmutableDefenseDamage.mjs
+          node scripts/checkSharedMaterialPlacementContract.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          test -f src/3d/materials/MaterialAssignmentCore.js
+          test -f src/3d/world/WorldAssetPlacementPipeline.js
+          ! grep -q 'EditorMaterialStudio' src/3d/gameplay/player.js
+          ! grep -q 'EditorMaterialStudio' src/3d/ui/healthBar.js
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Shipped parry riposte HUD and browser proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerParryRiposteRuntime.mjs --out-dir=artifacts/player-parry-riposte | tee artifacts/player-parry-riposte.log
+          grep -q 'PLAYER_PARRY_RIPOSTE_RUNTIME_OK' artifacts/player-parry-riposte.log
+          test -s artifacts/player-parry-riposte/parry-riposte-runtime.png
+          test -s artifacts/player-parry-riposte/parry-riposte-runtime.json
+          grep -q '"browserErrors": \[\]' artifacts/player-parry-riposte/parry-riposte-runtime.json
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerCombatHudRuntime.mjs --out-dir=artifacts/player-combat-hud
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
+
+      - name: Final main freshness
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test "$(git merge-base HEAD "$BASE_SHA")" = "$BASE_SHA"
+          git diff --check "$BASE_SHA"...HEAD
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: player-parry-riposte-${{ github.sha }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            artifacts/player-parry-riposte/
+            artifacts/player-parry-riposte.log
+            artifacts/player-combat-hud/
