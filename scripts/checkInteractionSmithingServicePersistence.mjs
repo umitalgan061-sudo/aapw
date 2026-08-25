@@ -85,6 +85,16 @@ const restoredEconomy = createInteractionEconomyState();
 restoredEconomy.restore(JSON.parse(JSON.stringify(afterEconomy)));
 assert.deepEqual(restoredEconomy.snapshot(), afterEconomy);
 
+const restoredInventoryBeforeRejectedService = restoredInventory.snapshot();
+const restoredEconomyBeforeRejectedService = restoredEconomy.snapshot();
+const rejectedService = restoredEconomy.purchase(
+	whetstoneOffer,
+	(itemId, quantity, provenance) => restoredInventory.grant(itemId, quantity, provenance),
+);
+assert.equal(rejectedService.ok, false, 'restored save without consumed inputs must reject duplicate smithing');
+assert.deepEqual(restoredInventory.snapshot(), restoredInventoryBeforeRejectedService, 'failed smithing must not mutate restored inventory');
+assert.deepEqual(restoredEconomy.snapshot(), restoredEconomyBeforeRejectedService, 'failed smithing must not charge copper, decrement stock or append ledger state');
+
 const forged = JSON.parse(JSON.stringify(afterEconomy));
 forged.ledger.transactionCount = 0;
 forged.ledger.lifetimeSpentCopper = 0;
@@ -106,5 +116,6 @@ console.log('INTERACTION_SMITHING_SERVICE_PERSISTENCE_OK', JSON.stringify({
 	craftedItemId: purchase.craftedItemId,
 	inventorySaveLoad: true,
 	economySaveLoad: true,
+	rejectedServiceRollback: true,
 	vendorUx: true,
 }));
