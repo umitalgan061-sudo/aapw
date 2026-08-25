@@ -239,7 +239,6 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 	}
 	function publishMotionTelemetry(force = false) { const staminaBucket = Math.floor(stamina * 10), poiseBucket = Math.floor(poise * 10), transient = movementState === 'dodge' || movementState === 'parry' || movementState === 'guard-break' || movementState === 'hit-stagger' || movementState.startsWith('attack-'); if (!force && !transient && movementState === lastTelemetryState && staminaBucket === lastTelemetryStamina && poiseBucket === lastTelemetryPoise) return; lastTelemetryState = movementState; lastTelemetryStamina = staminaBucket; lastTelemetryPoise = poiseBucket; model.userData.playerMotion = motionSnapshot(); if (typeof globalThis.dispatchEvent === 'function' && typeof globalThis.CustomEvent === 'function') globalThis.dispatchEvent(new globalThis.CustomEvent('aapw:player-motion', { detail: model.userData.playerMotion })); }
 	function resetAfterDefeat() {
-		interruptAttackForHit();
 		heightAboveGround = 0; velocityY = 0; isGrounded = true;
 		stamina = PLAYER_ACTION_CONFIG.MAX_STAMINA; sprintExhausted = false; regenDelayRemaining = 0;
 		poise = PLAYER_ACTION_CONFIG.MAX_POISE; poiseRegenDelayRemaining = 0; guardBreakRemaining = 0; hitStaggerRemaining = 0;
@@ -251,6 +250,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 	}
 	function onPlayerDied() {
 		if (defeatResetQueued) return;
+		interruptAttackForHit();
 		defeatResetQueued = true;
 		queueMicrotask(() => {
 			if (!defeatResetQueued) return;
