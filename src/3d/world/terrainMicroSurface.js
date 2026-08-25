@@ -1,10 +1,6 @@
 /**
  * Render-only photoreal micro/macro PBR layer for canonical terrain.
- *
- * Geography remains owned by terrain.js + map/Pindex height data. This module only changes how the
- * already-authored surface reflects light and how its colour reads at metre/kilometre scale. The
- * generated normal/roughness atlas uses metre-space uv1, while shader colour breakup uses world
- * metres so chunk borders and owner-map UV islands cannot restart the pattern.
+ * Geography and collision remain owned by terrain.js + map/Pindex height data.
  * @module world/terrainMicroSurface
  */
 
@@ -18,20 +14,22 @@ const smoothstep = (a, b, value) => {
 };
 
 export const TERRAIN_MICRO_SURFACE_POLICY = Object.freeze({
-	id: 'terrain-micro-surface-world-uv-pbr-v5-safe-world-position',
+	id: 'terrain-micro-surface-world-uv-pbr-v6-regional-natural-albedo',
 	textureSize: 256,
-	detailRepeatMeters: 24,
-	normalStrength: 0.82,
-	normalSlopeGain: 4.1,
-	roughnessBase: 0.94,
-	roughnessMin: 0.58,
+	detailRepeatMeters: 22,
+	normalStrength: 0.88,
+	normalSlopeGain: 4.5,
+	roughnessBase: 0.93,
+	roughnessMin: 0.54,
 	roughnessMax: 0.99,
 	uvChannel: 1,
 	maxAnisotropy: 8,
 	macroColorBreakup: true,
-	worldSpaceMacroScaleMeters: Object.freeze([145, 620, 2400]),
+	worldSpaceMacroScaleMeters: Object.freeze([95, 360, 980, 2600]),
 	photorealDesaturation: true,
 	naturalAlbedoRemap: true,
+	regionalMoistureVariation: true,
+	elevationWeathering: true,
 	fractureNormals: true,
 	renderOnly: true,
 });
@@ -82,16 +80,19 @@ function tileableFbm(u, v, seed) {
 function terrainDetailHeight(u, v) {
 	const broad = tileableFbm(u, v, 0x51a7);
 	const grain = tileableFbm((u + 0.173) % 1, (v + 0.619) % 1, 0x91e3);
-	const warpU = u + (broad - 0.5) * 0.075;
-	const warpV = v + (grain - 0.5) * 0.055;
+	const pits = tileableFbm((u + 0.731) % 1, (v + 0.283) % 1, 0xb42d);
+	const warpU = u + (broad - 0.5) * 0.082 + (pits - 0.5) * 0.028;
+	const warpV = v + (grain - 0.5) * 0.062 - (pits - 0.5) * 0.022;
 	const fractureA = Math.abs(Math.sin(Math.PI * 2 * (warpU * 7 + warpV * 3 + broad * 0.74)));
 	const fractureB = Math.abs(Math.sin(Math.PI * 2 * (warpU * 2 - warpV * 11 + grain * 0.62 + 0.23)));
-	const crackA = 1 - smoothstep(0.018, 0.105, fractureA);
-	const crackB = 1 - smoothstep(0.016, 0.082, fractureB);
-	const fracture = Math.max(crackA, crackB * 0.72);
-	const granular = (grain - 0.5) * 0.26;
-	const packed = (broad - 0.5) * 0.43;
-	return packed + granular - fracture * 0.22;
+	const fractureC = Math.abs(Math.sin(Math.PI * 2 * (warpU * 13 + warpV * 9 + pits * 0.38 + 0.41)));
+	const crackA = 1 - smoothstep(0.018, 0.110, fractureA);
+	const crackB = 1 - smoothstep(0.016, 0.086, fractureB);
+	const crackC = 1 - smoothstep(0.012, 0.055, fractureC);
+	const fracture = Math.max(crackA, Math.max(crackB * 0.72, crackC * 0.38));
+	const granular = (grain - 0.5) * 0.24 + (pits - 0.5) * 0.12;
+	const packed = (broad - 0.5) * 0.40;
+	return packed + granular - fracture * 0.23;
 }
 
 function buildTerrainDetailField(size) {
@@ -133,9 +134,9 @@ function buildTerrainRoughnessData(field, size) {
 			const dx = Math.abs(wrappedTerrainDetailSample(field, size, x + 1, y) - wrappedTerrainDetailSample(field, size, x - 1, y));
 			const dy = Math.abs(wrappedTerrainDetailSample(field, size, x, y + 1) - wrappedTerrainDetailSample(field, size, x, y - 1));
 			const localRelief = Math.hypot(dx, dy);
-			const grain = clamp01(0.48 + center * 0.36 + localRelief * 1.25);
-			const recessPolish = smoothstep(-0.34, -0.08, center) * (1 - smoothstep(-0.08, 0.12, center));
-			const roughness = clamp01(lerp(roughnessMin, roughnessMax, grain) - recessPolish * 0.075);
+			const grain = clamp01(0.45 + center * 0.34 + localRelief * 1.32);
+			const recessPolish = smoothstep(-0.35, -0.10, center) * (1 - smoothstep(-0.10, 0.10, center));
+			const roughness = clamp01(lerp(roughnessMin, roughnessMax, grain) - recessPolish * 0.10);
 			const encoded = Math.round(roughness * 255);
 			const offset = (y * size + x) * 4;
 			data[offset] = encoded;
@@ -175,17 +176,17 @@ export function getSharedTerrainMicroSurfaceTextures() {
 	const field = buildTerrainDetailField(size);
 	const normalMap = configureTerrainDataTexture(
 		new THREE.DataTexture(buildTerrainNormalData(field, size), size, size, THREE.RGBAFormat, THREE.UnsignedByteType),
-		'terrain-world-micro-normal-v5-safe-world-position',
+		'terrain-world-micro-normal-v6-regional-natural-albedo',
 	);
 	const roughnessMap = configureTerrainDataTexture(
 		new THREE.DataTexture(buildTerrainRoughnessData(field, size), size, size, THREE.RGBAFormat, THREE.UnsignedByteType),
-		'terrain-world-micro-roughness-v5-safe-world-position',
+		'terrain-world-micro-roughness-v6-regional-natural-albedo',
 	);
 	sharedTerrainMicroSurface = Object.freeze({ normalMap, roughnessMap });
 	return sharedTerrainMicroSurface;
 }
 
-const TERRAIN_PHOTOREAL_SHADER_KEY = 'terrain-photoreal-world-surface-v5-safe-world-position';
+const TERRAIN_PHOTOREAL_SHADER_KEY = 'terrain-photoreal-world-surface-v6-regional-natural-albedo';
 
 function installWorldSpaceColorBreakup(material) {
 	const previousOnBeforeCompile = material.onBeforeCompile.bind(material);
@@ -193,9 +194,6 @@ function installWorldSpaceColorBreakup(material) {
 		previousOnBeforeCompile(shader, renderer);
 		shader.vertexShader = shader.vertexShader
 			.replace('#include <common>', '#include <common>\nvarying vec3 vTerrainPhotorealWorldPosition;')
-			// `worldPosition` inside Three's worldpos chunk is conditionally declared. Terrain does not
-			// need skinning/instancing, so derive world metres directly from the always-present transformed
-			// vertex after begin_vertex. This keeps the shader valid whether USE_TRANSMISSION is enabled or not.
 			.replace('#include <begin_vertex>', '#include <begin_vertex>\nvTerrainPhotorealWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;');
 		shader.fragmentShader = shader.fragmentShader
 			.replace(
@@ -237,56 +235,91 @@ float terrainPhotoMin = min(terrainPhotoBase.r, min(terrainPhotoBase.g, terrainP
 float terrainPhotoChroma = terrainPhotoMax - terrainPhotoMin;
 float terrainPhotoLuma = dot(terrainPhotoBase, vec3(0.2126, 0.7152, 0.0722));
 float terrainPhotoGreenLead = terrainPhotoBase.g - max(terrainPhotoBase.r, terrainPhotoBase.b);
-float terrainPhotoVegetation = smoothstep(0.012, 0.115, terrainPhotoGreenLead) * (1.0 - smoothstep(0.68, 0.84, terrainPhotoLuma));
-float terrainPhotoSnow = smoothstep(0.64, 0.86, terrainPhotoLuma) * (1.0 - smoothstep(0.09, 0.25, terrainPhotoChroma));
+float terrainPhotoVegetation = smoothstep(0.008, 0.100, terrainPhotoGreenLead) * (1.0 - smoothstep(0.62, 0.82, terrainPhotoLuma));
+float terrainPhotoSnow = smoothstep(0.60, 0.84, terrainPhotoLuma) * (1.0 - smoothstep(0.08, 0.23, terrainPhotoChroma));
 float terrainPhotoWarmGround = (1.0 - terrainPhotoSnow) * (1.0 - terrainPhotoVegetation)
-	* smoothstep(-0.035, 0.105, terrainPhotoBase.r - terrainPhotoBase.b)
-	* (1.0 - smoothstep(0.72, 0.88, terrainPhotoLuma));
-float terrainPhotoRock = (1.0 - terrainPhotoVegetation) * (1.0 - terrainPhotoSnow) * (1.0 - smoothstep(0.18, 0.33, terrainPhotoChroma));
+	* smoothstep(-0.045, 0.095, terrainPhotoBase.r - terrainPhotoBase.b)
+	* (1.0 - smoothstep(0.68, 0.86, terrainPhotoLuma));
+float terrainPhotoRock = (1.0 - terrainPhotoVegetation) * (1.0 - terrainPhotoSnow) * (1.0 - smoothstep(0.16, 0.31, terrainPhotoChroma));
 vec2 terrainPhotoXZ = vTerrainPhotorealWorldPosition.xz;
-float terrainPhotoBroad = terrainPhotoFbm(terrainPhotoXZ / 2400.0 + vec2(11.7, -4.1));
-float terrainPhotoMacro = terrainPhotoFbm(terrainPhotoXZ / 620.0 + vec2(-7.3, 14.9));
-float terrainPhotoMeso = terrainPhotoFbm(terrainPhotoXZ / 145.0 + vec2(23.8, 3.6));
-float terrainPhotoGrain = terrainPhotoNoise(terrainPhotoXZ / 38.0 + vec2(5.4, -18.2));
-float terrainPhotoDesaturate = 0.075 + terrainPhotoVegetation * 0.26 + terrainPhotoRock * 0.075 + terrainPhotoWarmGround * 0.08;
+float terrainPhotoRegional = terrainPhotoFbm(terrainPhotoXZ / 2600.0 + vec2(11.7, -4.1));
+float terrainPhotoBroad = terrainPhotoFbm(terrainPhotoXZ / 980.0 + vec2(-5.9, 8.6));
+float terrainPhotoMacro = terrainPhotoFbm(terrainPhotoXZ / 360.0 + vec2(-7.3, 14.9));
+float terrainPhotoMeso = terrainPhotoFbm(terrainPhotoXZ / 95.0 + vec2(23.8, 3.6));
+float terrainPhotoGrain = terrainPhotoNoise(terrainPhotoXZ / 31.0 + vec2(5.4, -18.2));
+float terrainPhotoElevation = smoothstep(45.0, 330.0, vTerrainPhotorealWorldPosition.y);
+float terrainPhotoLowland = 1.0 - smoothstep(22.0, 120.0, vTerrainPhotorealWorldPosition.y);
+float terrainPhotoMoisture = clamp(
+	0.53 + (0.5 - terrainPhotoRegional) * 0.52 + (0.5 - terrainPhotoBroad) * 0.60 + (0.5 - terrainPhotoMacro) * 0.34,
+	0.0, 1.0
+);
+float terrainPhotoDesaturate = 0.11 + terrainPhotoVegetation * 0.34 + terrainPhotoRock * 0.10 + terrainPhotoWarmGround * 0.12;
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(terrainPhotoLuma), terrainPhotoDesaturate);
-float terrainPhotoValue = 0.925
-	+ (terrainPhotoBroad - 0.5) * 0.125
-	+ (terrainPhotoMacro - 0.5) * 0.095
-	+ (terrainPhotoMeso - 0.5) * 0.052
-	+ (terrainPhotoGrain - 0.5) * 0.020;
+float terrainPhotoValue = 0.865
+	+ (terrainPhotoRegional - 0.5) * 0.16
+	+ (terrainPhotoBroad - 0.5) * 0.13
+	+ (terrainPhotoMacro - 0.5) * 0.085
+	+ (terrainPhotoMeso - 0.5) * 0.045
+	+ (terrainPhotoGrain - 0.5) * 0.018;
 diffuseColor.rgb *= terrainPhotoValue;
-float terrainPhotoMoisture = clamp(0.50 + (0.5 - terrainPhotoBroad) * 0.72 + (0.5 - terrainPhotoMacro) * 0.42, 0.0, 1.0);
-vec3 terrainPhotoWetOlive = vec3(0.105, 0.145, 0.075);
-vec3 terrainPhotoDryOlive = vec3(0.300, 0.275, 0.165);
+
+// Vegetated ground uses subdued olive/brown families rather than game-green. Moist drainage bands,
+// drier exposed shoulders and higher heathland all shift independently so no continent-sized patch
+// can collapse to a single colour.
+vec3 terrainPhotoWetOlive = vec3(0.055, 0.082, 0.043);
+vec3 terrainPhotoNeutralOlive = vec3(0.135, 0.145, 0.083);
+vec3 terrainPhotoDryOlive = vec3(0.235, 0.212, 0.130);
 vec3 terrainPhotoOlive = mix(terrainPhotoDryOlive, terrainPhotoWetOlive, terrainPhotoMoisture);
-float terrainPhotoVegRemap = terrainPhotoVegetation * (0.34 + abs(terrainPhotoMacro - 0.5) * 0.28);
+terrainPhotoOlive = mix(terrainPhotoOlive, terrainPhotoNeutralOlive, 0.22);
+float terrainPhotoVegRemap = terrainPhotoVegetation * (0.58 + abs(terrainPhotoMacro - 0.5) * 0.32);
 diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoOlive, terrainPhotoVegRemap);
-float terrainPhotoDamp = terrainPhotoVegetation * smoothstep(0.58, 0.84, 1.0 - terrainPhotoBroad) * smoothstep(0.42, 0.78, terrainPhotoMacro);
-float terrainPhotoDry = terrainPhotoVegetation * smoothstep(0.58, 0.84, terrainPhotoBroad) * smoothstep(0.48, 0.82, terrainPhotoMeso);
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.090, 0.125, 0.065), terrainPhotoDamp * 0.16);
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.325, 0.292, 0.190), terrainPhotoDry * 0.14);
-vec3 terrainPhotoDampEarth = vec3(0.205, 0.195, 0.160);
-vec3 terrainPhotoDryEarth = vec3(0.345, 0.310, 0.235);
-vec3 terrainPhotoEarth = mix(terrainPhotoDampEarth, terrainPhotoDryEarth, terrainPhotoBroad);
-diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoEarth, terrainPhotoWarmGround * 0.20);
+float terrainPhotoDamp = terrainPhotoVegetation * terrainPhotoLowland * smoothstep(0.56, 0.82, terrainPhotoMoisture);
+float terrainPhotoDry = terrainPhotoVegetation * smoothstep(0.58, 0.84, 1.0 - terrainPhotoMoisture) * (0.55 + terrainPhotoElevation * 0.45);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.045, 0.070, 0.038), terrainPhotoDamp * 0.28);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.285, 0.255, 0.166), terrainPhotoDry * 0.24);
+float terrainPhotoHeathBreak = terrainPhotoVegetation * terrainPhotoElevation * smoothstep(0.54, 0.82, terrainPhotoBroad);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.205, 0.190, 0.145), terrainPhotoHeathBreak * 0.26);
+
+// Open ground is mineral soil, not yellow paint. Regional moisture gives damp brown-grey valleys and
+// drier ochre shoulders while meso variation exposes scattered stone without changing geography.
+vec3 terrainPhotoDampEarth = vec3(0.135, 0.128, 0.110);
+vec3 terrainPhotoNeutralEarth = vec3(0.235, 0.215, 0.170);
+vec3 terrainPhotoDryEarth = vec3(0.335, 0.292, 0.215);
+vec3 terrainPhotoEarth = mix(terrainPhotoDryEarth, terrainPhotoDampEarth, terrainPhotoMoisture);
+terrainPhotoEarth = mix(terrainPhotoEarth, terrainPhotoNeutralEarth, 0.28);
+float terrainPhotoEarthRemap = terrainPhotoWarmGround * (0.34 + terrainPhotoElevation * 0.14);
+diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoEarth, terrainPhotoEarthRemap);
+float terrainPhotoStonyPatch = (1.0 - terrainPhotoSnow) * smoothstep(0.64, 0.87, terrainPhotoMeso)
+	* (0.20 + terrainPhotoElevation * 0.55) * (1.0 - terrainPhotoVegetation * 0.58);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.285, 0.275, 0.255), terrainPhotoStonyPatch * 0.22);
+
+// Exposed rock receives broad mineral temperature variation and warped stratification. This is
+// deliberately stronger than the old 9% tint because the full-world proof showed flat pale bands.
 float terrainPhotoStrata = 0.5 + 0.5 * sin(
 	vTerrainPhotorealWorldPosition.y * 0.205
 	+ vTerrainPhotorealWorldPosition.x * 0.012
 	- vTerrainPhotorealWorldPosition.z * 0.008
 	+ terrainPhotoMacro * 3.4
 );
-vec3 terrainPhotoRockCool = vec3(0.320, 0.335, 0.340);
-vec3 terrainPhotoRockWarm = vec3(0.365, 0.330, 0.292);
-diffuseColor.rgb = mix(diffuseColor.rgb, mix(terrainPhotoRockCool, terrainPhotoRockWarm, terrainPhotoBroad), terrainPhotoRock * 0.09);
-diffuseColor.rgb *= 1.0 + terrainPhotoRock * (terrainPhotoStrata - 0.5) * 0.095;
-vec3 terrainPhotoSnowBase = mix(vec3(0.735, 0.765, 0.775), vec3(0.825, 0.835, 0.830), terrainPhotoBroad);
-diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoSnowBase, terrainPhotoSnow * 0.12);
-float terrainPhotoSnowShadow = terrainPhotoSnow * smoothstep(0.54, 0.86, 1.0 - terrainPhotoMeso);
-float terrainPhotoSnowDust = terrainPhotoSnow * smoothstep(0.76, 0.92, terrainPhotoBroad) * smoothstep(0.72, 0.91, terrainPhotoGrain);
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.630, 0.680, 0.700), terrainPhotoSnowShadow * 0.075);
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.500, 0.485, 0.445), terrainPhotoSnowDust * 0.050);
-diffuseColor.rgb = clamp(diffuseColor.rgb, vec3(0.012), vec3(0.91));`,
+vec3 terrainPhotoRockCool = vec3(0.255, 0.270, 0.275);
+vec3 terrainPhotoRockWarm = vec3(0.315, 0.285, 0.252);
+vec3 terrainPhotoRockDark = vec3(0.185, 0.190, 0.188);
+vec3 terrainPhotoRockTone = mix(terrainPhotoRockCool, terrainPhotoRockWarm, terrainPhotoRegional);
+terrainPhotoRockTone = mix(terrainPhotoRockTone, terrainPhotoRockDark, smoothstep(0.72, 0.94, terrainPhotoMoisture) * 0.32);
+diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoRockTone, terrainPhotoRock * (0.20 + terrainPhotoElevation * 0.08));
+diffuseColor.rgb *= 1.0 + terrainPhotoRock * (terrainPhotoStrata - 0.5) * 0.12;
+
+// Snow remains bright enough to read as snow but no longer clips into featureless white. Wind-packed,
+// dusty and blue-shadowed zones retain visible surface information at aerial and gameplay distance.
+vec3 terrainPhotoSnowCold = vec3(0.665, 0.710, 0.735);
+vec3 terrainPhotoSnowSun = vec3(0.805, 0.815, 0.805);
+vec3 terrainPhotoSnowBase = mix(terrainPhotoSnowCold, terrainPhotoSnowSun, terrainPhotoRegional * 0.65 + terrainPhotoBroad * 0.35);
+diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoSnowBase, terrainPhotoSnow * 0.24);
+float terrainPhotoSnowShadow = terrainPhotoSnow * smoothstep(0.52, 0.84, 1.0 - terrainPhotoMeso);
+float terrainPhotoSnowDust = terrainPhotoSnow * smoothstep(0.72, 0.90, terrainPhotoBroad) * smoothstep(0.68, 0.89, terrainPhotoGrain);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.535, 0.595, 0.625), terrainPhotoSnowShadow * 0.13);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.420, 0.410, 0.380), terrainPhotoSnowDust * 0.085);
+diffuseColor.rgb = clamp(diffuseColor.rgb, vec3(0.010), vec3(0.86));`,
 			);
 	};
 	material.customProgramCacheKey = () => TERRAIN_PHOTOREAL_SHADER_KEY;
@@ -308,6 +341,8 @@ export function applyTerrainMicroSurface(material) {
 		macroWorldSpaceColorBreakup: true,
 		photorealDesaturation: true,
 		naturalAlbedoRemap: true,
+		regionalMoistureVariation: true,
+		elevationWeathering: true,
 		fractureNormals: true,
 		renderOnly: true,
 	});
