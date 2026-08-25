@@ -42,13 +42,14 @@ function meanAbsoluteNeighborDelta(data, size, channel) {
   return total / samples;
 }
 
-assert.equal(TERRAIN_MICRO_SURFACE_POLICY.id, 'terrain-micro-surface-world-uv-pbr-v3-photoreal');
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.id, 'terrain-micro-surface-world-uv-pbr-v4-natural-albedo');
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.uvChannel, 1, 'micro detail must use uv1, never owner-map albedo uv0');
 assert(TERRAIN_MICRO_SURFACE_POLICY.textureSize >= 256, 'photoreal terrain atlas needs enough fracture resolution');
 assert(TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters >= 12 && TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters <= 32);
 assert(TERRAIN_MICRO_SURFACE_POLICY.normalStrength > 0.4 && TERRAIN_MICRO_SURFACE_POLICY.normalStrength < 1.2);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.macroColorBreakup, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.photorealDesaturation, true);
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.naturalAlbedoRemap, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.fractureNormals, true);
 assert.deepEqual(TERRAIN_MICRO_SURFACE_POLICY.worldSpaceMacroScaleMeters, [145, 620, 2400]);
 
@@ -71,10 +72,19 @@ close(standalone.normalScale.y, TERRAIN_MICRO_SURFACE_POLICY.normalStrength, 'no
 assert.equal(standalone.userData.terrainMicroSurface.renderOnly, true);
 assert.equal(standalone.userData.terrainMicroSurface.macroWorldSpaceColorBreakup, true);
 assert.equal(standalone.userData.terrainMicroSurface.photorealDesaturation, true);
+assert.equal(standalone.userData.terrainMicroSurface.naturalAlbedoRemap, true);
 assert.equal(standalone.userData.terrainMicroSurface.fractureNormals, true);
-assert.equal(standalone.customProgramCacheKey(), 'terrain-photoreal-world-surface-v3');
+assert.equal(standalone.customProgramCacheKey(), 'terrain-photoreal-world-surface-v4-natural-albedo');
 const shaderHookSource = standalone.onBeforeCompile.toString();
-for (const marker of ['terrainPhotoFbm', 'terrainPhotoVegetation', 'terrainPhotoRock', 'terrainPhotoSnow']) {
+for (const marker of [
+  'terrainPhotoFbm',
+  'terrainPhotoVegetation',
+  'terrainPhotoOlive',
+  'terrainPhotoWarmGround',
+  'terrainPhotoEarth',
+  'terrainPhotoRock',
+  'terrainPhotoSnow',
+]) {
   assert(shaderHookSource.includes(marker), `terrain shader lost ${marker} realism signal`);
 }
 
@@ -125,12 +135,7 @@ function boundary(mesh, localX) {
   const rows = [];
   for (let index = 0; index < position.count; index += 1) {
     if (Math.abs(position.getX(index) - localX) > EPSILON) continue;
-    rows.push({
-      z: position.getZ(index),
-      y: position.getY(index),
-      u: microUv.getX(index),
-      v: microUv.getY(index),
-    });
+    rows.push({ z: position.getZ(index), y: position.getY(index), u: microUv.getX(index), v: microUv.getY(index) });
   }
   return rows.sort((a, b) => a.z - b.z);
 }
@@ -154,4 +159,4 @@ close(oneTileNorth.v - origin.v, 1, 'one detail period north must advance exactl
 standalone.dispose();
 disposeTerrainChunk(west);
 disposeTerrainChunk(east);
-console.log('[checkTerrainMicroSurface] PASS: photoreal world-space colour breakup + fractured normal/roughness detail stay seam-continuous and never change canonical height.');
+console.log('[checkTerrainMicroSurface] PASS: natural albedo remap + world-space breakup + fractured PBR detail remain seam-continuous and never change canonical height.');
