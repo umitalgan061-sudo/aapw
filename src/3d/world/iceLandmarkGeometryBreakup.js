@@ -288,6 +288,35 @@ function createCaveFloor(group, portal, rings, seed) {
 	return floor.geometry.index.count / 3 + wet.geometry.index.count / 3;
 }
 
+function createCaveSubsurfaceLights(group, portal, rings, seed) {
+	if (rings.length < 8) return 0;
+	const ringIndices = [4, 8, 12, Math.min(rings.length - 3, 15)];
+	let count = 0;
+	for (let index = 0; index < ringIndices.length; index += 1) {
+		const ringIndex = Math.min(rings.length - 2, ringIndices[index]);
+		const ring = rings[ringIndex];
+		if (!ring) continue;
+		const lateral = (hash2D(ringIndex, 251, seed + 12101) - 0.5) * ring.halfWidth * 0.28;
+		const lift = ring.height * (0.28 + hash2D(ringIndex, 257, seed + 12203) * 0.16);
+		const color = index % 2 === 0 ? 0x46b9cf : 0x6bd0db;
+		const intensity = 1.15 + hash2D(ringIndex, 263, seed + 12301) * 0.65;
+		const distance = 25 + hash2D(ringIndex, 269, seed + 12409) * 11;
+		const light = new THREE.PointLight(color, intensity, distance, 2);
+		light.name = `ice-cave-subsurface-light-${index + 1}`;
+		light.position.set(
+			ring.centerX + portal.tx * lateral,
+			ring.centerY + lift,
+			ring.centerZ + portal.tz * lateral,
+		);
+		light.castShadow = false;
+		light.userData.iceLandmarkRole = 'cave-cyan-subsurface-depth-light';
+		light.userData.glacialDepthLayer = ringIndex;
+		group.add(light);
+		count += 1;
+	}
+	return count;
+}
+
 function createCaveIciclesAndDebris(group, portal, rings, seed) {
 	if (rings.length < 4) return Object.freeze({ icicleCount: 0, debrisCount: 0 });
 	const iceMaterial = new THREE.MeshPhysicalMaterial({ color: 0x9cc9d4, roughness: 0.24, metalness: 0, transmission: 0.13, thickness: 1.6, ior: 1.31, attenuationColor: 0x2e7386, attenuationDistance: 8, clearcoat: 0.18, clearcoatRoughness: 0.20 });
@@ -391,6 +420,7 @@ export function applyIceLandmarkGeometryBreakup({ group, wallSections, portal, c
 	const wallFlowRibCount = createWallFlowRibs(group, wallSections, portal, seed);
 	const portalShroudCount = createPortalShroud(group, portal, seed);
 	const caveFloorTriangleCount = createCaveFloor(group, portal, caveRings, seed);
+	const caveSubsurfaceLightCount = createCaveSubsurfaceLights(group, portal, caveRings, seed);
 	const caveBreakup = createCaveIciclesAndDebris(group, portal, caveRings, seed);
 	const caveBlueCoreCount = createCaveBlueCoreBreakup(group, portal, caveRings, seed);
 	return Object.freeze({
@@ -400,10 +430,11 @@ export function applyIceLandmarkGeometryBreakup({ group, wallSections, portal, c
 		wallFlowRibCount,
 		portalShroudCount,
 		caveFloorTriangleCount,
+		caveSubsurfaceLightCount,
 		caveIcicleCount: caveBreakup.icicleCount,
 		caveDebrisCount: caveBreakup.debrisCount,
 		caveBlueCoreCount,
 		primaryMeshesFractured: wallVertexMoves > 0 && caveVertexMoves > 0,
-		secondaryBreakupPresent: macroFracturePlateCount > 8 && wallFlowRibCount > 8 && portalShroudCount > 10 && caveFloorTriangleCount > 20 && caveBreakup.icicleCount > 4 && caveBlueCoreCount > 4,
+		secondaryBreakupPresent: macroFracturePlateCount > 8 && wallFlowRibCount > 8 && portalShroudCount > 10 && caveFloorTriangleCount > 20 && caveSubsurfaceLightCount >= 3 && caveBreakup.icicleCount > 4 && caveBlueCoreCount > 4,
 	});
 }
