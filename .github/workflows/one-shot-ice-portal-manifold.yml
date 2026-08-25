@@ -1,10 +1,8 @@
-# Git-data ref trigger: explicit fast-forward update for the one-shot repair.
-# Existing-file trigger: this second connector commit lets GitHub register the push workflow before execution.
 name: One Shot Ice Portal Manifold Repair
 
 on:
-  push:
-    branches: [codex/foundation-grounding-20260821]
+  pull_request:
+    branches: [main]
     paths:
       - '.github/workflows/one-shot-ice-portal-manifold.yml'
 
@@ -13,10 +11,11 @@ permissions:
 
 jobs:
   repair:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'codex/foundation-grounding-20260821'
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     steps:
-      - name: Checkout branch
+      - name: Checkout exact branch head
         uses: actions/checkout@v4
         with:
           ref: codex/foundation-grounding-20260821
