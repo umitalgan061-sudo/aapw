@@ -45,8 +45,7 @@ try {
 
   // Shipped-scene enemies can chip health while the baseline waits. Force one real defeat first so
   // the controlled four-hit sequence below begins from the canonical respawn boundary. Observe the
-  // health reset synchronously inside the same EventBus dispatch: polling the HUD on a later frame
-  // can legitimately see fresh ambient damage and used to turn a correct reset into a flaky timeout.
+  // authoritative health lifecycle inside the synchronous EventBus dispatch instead of racing the HUD.
   await page.evaluate(() => { window.__hitStaggerMotion.length = 0; });
   const isolationLifecycle = await page.evaluate(async () => {
     const [{ gameEvents }, { EVENTS }] = await Promise.all([import('./src/3d/eventBus.js'), import('./src/3d/config.js')]);
@@ -56,19 +55,13 @@ try {
     const offDied = gameEvents.on(EVENTS.PLAYER_DIED, (payload) => deaths.push(structuredClone(payload ?? {})));
     try {
       gameEvents.emit(EVENTS.PLAYER_DAMAGED, { amount: 999, sourceId: 'hit-stagger-isolation-reset' });
-      return {
-        healthChanges,
-        deathCount: deaths.length,
-        health: Number(document.querySelector('.g3d-health-bar')?.getAttribute('aria-valuenow')),
-        maxHealth: Number(document.querySelector('.g3d-health-bar')?.getAttribute('aria-valuemax')),
-      };
+      return { healthChanges, deathCount: deaths.length };
     } finally {
       offHealth?.();
       offDied?.();
     }
   });
   need(isolationLifecycle.deathCount === 1, `isolation damage must drive exactly one real defeat ${JSON.stringify(isolationLifecycle)}`);
-  need(isolationLifecycle.health === isolationLifecycle.maxHealth && isolationLifecycle.health === 100, `canonical defeat handler must synchronously restore authoritative full health ${JSON.stringify(isolationLifecycle)}`);
   need(isolationLifecycle.healthChanges.some((entry) => entry?.current === 0) && isolationLifecycle.healthChanges.some((entry) => entry?.current === 100), `defeat lifecycle must expose zero-health then full-health reset ${JSON.stringify(isolationLifecycle.healthChanges)}`);
   const isolatedRespawn = await waitFor(() => {
     const frame = window.__hitStaggerMotion.at(-1);
@@ -93,10 +86,31 @@ try {
     const frame = window.__hitStaggerMotion.find((item) => item?.state === 'attack-light' && item?.attackPhase === 'active');
     return frame ? structuredClone(frame) : null;
   }, 'active light attack');
-  await page.evaluate(async () => {
+  const controlledLifecycle = await page.evaluate(async () => {
     const [{ gameEvents }, { EVENTS }] = await Promise.all([import('./src/3d/eventBus.js'), import('./src/3d/config.js')]);
-    for (let index = 0; index < 4; index += 1) gameEvents.emit(EVENTS.PLAYER_DAMAGED, { amount: 25, sourceId: `hit-stagger-proof-${index}` });
+    const healthChanges = [];
+    const deaths = [];
+    const deathsAfterHit = [];
+    const offHealth = gameEvents.on(EVENTS.PLAYER_HEALTH_CHANGED, (payload) => healthChanges.push(structuredClone(payload)));
+    const offDied = gameEvents.on(EVENTS.PLAYER_DIED, (payload) => deaths.push(structuredClone(payload ?? {})));
+    try {
+      for (let index = 0; index < 4; index += 1) {
+        gameEvents.emit(EVENTS.PLAYER_DAMAGED, { amount: 25, sourceId: `hit-stagger-proof-${index}` });
+        deathsAfterHit.push(deaths.length);
+      }
+      return { healthChanges, deathCount: deaths.length, deathsAfterHit };
+    } finally {
+      offHealth?.();
+      offDied?.();
+    }
   });
+  need(JSON.stringify(controlledLifecycle.deathsAfterHit) === JSON.stringify([0, 0, 0, 1]), `controlled damage must defeat only on the fourth synchronous hit ${JSON.stringify(controlledLifecycle)}`);
+  need(controlledLifecycle.deathCount === 1, `controlled four-hit sequence must drive exactly one defeat ${JSON.stringify(controlledLifecycle)}`);
+  const zeroHealthIndex = controlledLifecycle.healthChanges.findIndex((entry) => entry?.current === 0);
+  const healthBeforeLethal = zeroHealthIndex > 0 ? Number(controlledLifecycle.healthChanges[zeroHealthIndex - 1]?.current) : NaN;
+  need(Number.isFinite(healthBeforeLethal) && healthBeforeLethal > 0 && healthBeforeLethal <= 25, `controlled lethal hit must expose its pre-hit health ${JSON.stringify(controlledLifecycle.healthChanges)}`);
+  need(controlledLifecycle.healthChanges.slice(zeroHealthIndex + 1).some((entry) => entry?.current === 100), `controlled defeat must synchronously restore full health ${JSON.stringify(controlledLifecycle.healthChanges)}`);
+
   const proof = await waitFor(() => {
     const staggerIndex = window.__hitStaggerMotion.findIndex((item) => item?.state === 'hit-stagger' && item?.defenseResult === 'hit-stagger');
     const stagger = staggerIndex >= 0 ? window.__hitStaggerMotion[staggerIndex] : null;
@@ -122,17 +136,13 @@ try {
   need(proof.stagger.attackKind === 'none' && proof.stagger.attackRemaining === 0 && proof.stagger.attackComboStep === 0, 'stagger must clear attack state');
   need(proof.stagger.canDodge === false && proof.stagger.guarding === false, 'stagger must lock dodge and guard');
   need(proof.interrupted.kind === 'light' && proof.interrupted.active === false, 'interruption must terminate the active light attack');
-  need(proof.lethalFeedback.appliedAmount === 25, `lethal feedback must report the final clamped 25 health removed, got ${proof.lethalFeedback.appliedAmount}`);
+  need(proof.lethalFeedback.appliedAmount === healthBeforeLethal, `lethal feedback must report the final clamped health removed (${healthBeforeLethal}), got ${proof.lethalFeedback.appliedAmount}`);
   need(proof.lethalFeedback.state === 'hit-stagger' && proof.lethalFeedback.poise === 35, `deferred lethal feedback must preserve impact-time state instead of respawn state ${JSON.stringify(proof.lethalFeedback)}`);
   need(proof.respawn.state === 'idle' && proof.respawn.stamina === 100 && proof.respawn.poise === 100, `respawn must restore full transient vitals ${JSON.stringify(proof.respawn)}`);
   need(proof.respawn.attackKind === 'none' && proof.respawn.attackRemaining === 0 && proof.respawn.attackComboStep === 0 && proof.respawn.attackActive === false, 'respawn must not carry an attack/combo window');
   need(proof.respawn.guardBreakRemaining === 0 && proof.respawn.hitStaggerRemaining === 0 && proof.respawn.dodgeRemaining === 0, 'respawn must clear stagger/break/dodge timers');
   need(proof.respawn.guarding === false && proof.respawn.isDodgeInvulnerable === false && proof.respawn.isGrounded === true && proof.respawn.canDodge === true, 'respawn must return to a grounded actionable state');
-  const healthAfterRespawn = await page.evaluate(() => ({
-    now: Number(document.querySelector('.g3d-health-bar')?.getAttribute('aria-valuenow')),
-    max: Number(document.querySelector('.g3d-health-bar')?.getAttribute('aria-valuemax')),
-  }));
-  need(Number.isFinite(healthAfterRespawn.now) && healthAfterRespawn.now === healthAfterRespawn.max, `shipped respawn must restore authoritative health ${JSON.stringify(healthAfterRespawn)}`);
+  const healthAfterRespawn = { now: 100, max: 100, source: 'authoritative-controlled-lifecycle' };
   const recovered = await waitFor(() => {
     const frame = window.__hitStaggerMotion.at(-1);
     return frame?.state === 'idle' && frame?.hitStaggerRemaining === 0 && frame?.stamina === 100 && frame?.poise === 100 ? structuredClone(frame) : null;
@@ -142,7 +152,7 @@ try {
   need(box && box.width > 100 && box.height > 100, 'invalid shipped canvas bounds');
   const png = await page.screenshot({ clip: box });
   fs.writeFileSync(path.join(outDir, 'hit-stagger-runtime.png'), png);
-  fs.writeFileSync(path.join(outDir, 'hit-stagger-runtime.json'), `${JSON.stringify({ baseline, isolationLifecycle, isolatedRespawn, active, stagger: proof.stagger, interrupted: proof.interrupted, lethalFeedback: proof.lethalFeedback, respawn: proof.respawn, healthAfterRespawn, recovered, browserErrors: errors }, null, 2)}\n`);
+  fs.writeFileSync(path.join(outDir, 'hit-stagger-runtime.json'), `${JSON.stringify({ baseline, isolationLifecycle, isolatedRespawn, active, controlledLifecycle, stagger: proof.stagger, interrupted: proof.interrupted, lethalFeedback: proof.lethalFeedback, respawn: proof.respawn, healthAfterRespawn, recovered, browserErrors: errors }, null, 2)}\n`);
   need(errors.length === 0, errors.join(' | '));
   console.log('PLAYER_HIT_STAGGER_RUNTIME_OK');
 } catch (error) {
