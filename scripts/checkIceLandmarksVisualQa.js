@@ -58,10 +58,7 @@ try {
   });
   const stats = evidence.stats;
   if (!(stats.width > 2200 && stats.width < 3600)) throw new Error(`wall width outside visual contract: ${stats.width}`);
-  // `stats.height` is the entire landmark group envelope: different terrain elevations plus the
-  // wall, arched portal, tunnel shell, and ceiling icicles. Keep this as a broad scene-safety bound;
-  // the actual wall design height is audited separately below from the production policy.
-  if (!(stats.height > 170 && stats.height < 290)) throw new Error(`ice-landmark group height outside visual envelope: ${stats.height}`);
+  if (!(stats.height > 170 && stats.height < 330)) throw new Error(`ice-landmark group height outside visual envelope: ${stats.height}`);
   if (!(evidence.wallDesign.baseHeightMeters >= 145 && evidence.wallDesign.baseHeightMeters <= 175)) {
     throw new Error(`The Wall base height drifted outside the audited natural-cliff range: ${JSON.stringify(evidence.wallDesign)}`);
   }
@@ -83,8 +80,20 @@ try {
   if (![stats.terrain?.minHeight, stats.terrain?.maxHeight, stats.terrain?.meanSnowWeight, stats.terrain?.meanRockWeight].every(Number.isFinite)) {
     throw new Error(`canonical terrain telemetry contains non-finite values: ${JSON.stringify(stats.terrain)}`);
   }
-  for (const role of ['natural-ice-wall', 'arched-wall-portal', 'walkable-ice-cave-shell', 'cave-ceiling-icicles']) {
+  for (const role of [
+    'natural-ice-wall', 'arched-wall-portal', 'walkable-ice-cave-shell', 'cave-ceiling-icicles',
+    'wall-serac-buttresses', 'wall-basal-talus', 'wall-snow-cornices', 'cave-fracture-ribs',
+  ]) {
     if (!stats.roles.includes(role)) throw new Error(`missing visual role: ${role}`);
+  }
+  if (stats.realism?.version !== 2 || stats.realism?.wallTexture?.resolution !== '256x512') {
+    throw new Error(`layered glacial surface telemetry missing: ${JSON.stringify(stats.realism)}`);
+  }
+  if (!(stats.realism.wallTexture.crackCoverage > 0.01 && stats.realism.wallTexture.frostCoverage > 0.12)) {
+    throw new Error(`wall lost fracture/frost breakup: ${JSON.stringify(stats.realism.wallTexture)}`);
+  }
+  if (!(stats.realism.caveTexture.wetCoverage > stats.realism.wallTexture.wetCoverage)) {
+    throw new Error(`cave wetness no longer exceeds exterior Wall: ${JSON.stringify(stats.realism)}`);
   }
 
   const wallYs = evidence.wallPath.map(([, y]) => y);
@@ -98,15 +107,12 @@ try {
   const caveDistance = Math.min(...evidence.wallPath.map(([x, y]) => Math.hypot(x - evidence.caveAnchor[0], y - evidence.caveAnchor[1])));
   if (caveDistance > 0.012) throw new Error(`ice cave anchor drifted away from The Wall: normalized distance ${caveDistance}`);
 
-  for (const view of ['wall', 'cave', 'interior']) {
+  for (const view of ['wall', 'detail', 'cave', 'interior']) {
     await page.evaluate((name) => window.__iceQa.render(name), view);
     await page.waitForTimeout(220);
     await page.screenshot({ path: path.join(artifactDir, `${view}.png`) });
   }
 
-  // Source-map proof: render the owner map itself and draw the exact normalized runtime path over it.
-  // This is intentionally a separate artifact from the 3D screenshots so map alignment can be audited
-  // without guessing world-space orientation from a perspective camera.
   const mapPage = await browser.newPage({ viewport: MAP_VIEWPORT, deviceScaleFactor: 1 });
   const mapPoints = evidence.wallPath
     .map(([x, y]) => `${(x * MAP_VIEWPORT.width).toFixed(2)},${(y * MAP_VIEWPORT.height).toFixed(2)}`)
@@ -166,8 +172,8 @@ try {
   await fs.writeFile(path.join(artifactDir, 'stats.json'), JSON.stringify(report, null, 2));
   console.log(
     `Ice landmarks visual QA passed: ${stats.width.toFixed(1)}m wall span, ${evidence.wallDesign.baseHeightMeters}m designed wall height, ` +
-    `${stats.height.toFixed(1)}m full landmark envelope, ${stats.blockers} blockers, canonical terrain relief ${stats.terrain.reliefSpan.toFixed(1)}m, ` +
-    `wall map Y ${meanWallY.toFixed(4)} between winter ${evidence.biomeAnchors.winterCenterY} and north ${evidence.biomeAnchors.northCenterY}.`,
+    `${stats.height.toFixed(1)}m full landmark envelope, ${stats.blockers} blockers, ${stats.realism.seracCount} seracs, ` +
+    `canonical terrain relief ${stats.terrain.reliefSpan.toFixed(1)}m, wall map Y ${meanWallY.toFixed(4)}.`,
   );
 } finally {
   await browser?.close();
