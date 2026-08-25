@@ -68,8 +68,8 @@ document.body.append(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9fb4c1);
-scene.add(new THREE.HemisphereLight(0xdce8ef, 0x495849, 2.15));
-const sun = new THREE.DirectionalLight(0xfff2d6, 3.35);
+scene.add(new THREE.HemisphereLight(0xdce8ef, 0x495849, 1.1));
+const sun = new THREE.DirectionalLight(0xfff2d6, 1.4);
 sun.position.set(-5200, 9200, -3800);
 scene.add(sun);
 publishCelestialLightState({
