@@ -181,7 +181,7 @@ const WORLD_EVENTS = Object.freeze([
 	/** Run 335 addition (ADR-0281): a friendly archery contest among soldiers, distinct from
 	 * `training_yard_drill` (formal sword/shield drill, command-driven) and `tourney_announce` (a
 	 * herald's announcement of a future event, not an activity happening now). Gated `day`: an
-	 * archery contest needs visible targets, same unambiguous-text rule as every other gated entry
+	 * archery contest needs visible targets, same unambiguous-text rule as every other gated event
 	 * here. */
 	{ id: 'archery_contest', icon: '🏹', title: 'Okçuluk Yarışması', desc: 'Gün ışığında kale avlusunda askerler nişan tahtalarına ok atarak birbirleriyle şakalaşıyor; her isabetli atışta kısa bir alkış yükseliyor.', color: '#a08040', weight: WEIGHT.COMMON, timeOfDay: 'day' },
 	/** Run 335 addition (ADR-0281): a kraken-sailed Iron Islands raiding fleet sighted along the
@@ -256,6 +256,11 @@ function pickWeightedEvent(random, nightFactor) {
  * a metronome. Deliberately real-time, not turn-based: FAZ 8 has no turn system yet. */
 const MIN_INTERVAL_SECONDS = 45;
 const MAX_INTERVAL_SECONDS = 90;
+/** Resume/background safety: one rendered frame may advance the ambient-event clock by at most one
+ * second. Long tab suspends therefore pause ambient flavor instead of creating a deterministic-but-
+ * noisy event burst across subsequent frames. This mirrors bounded NPC/fauna simulation without
+ * changing the seeded event/interval draw count for ordinary frames. */
+export const MAX_WORLD_EVENT_STEP_SECONDS = 1;
 
 /**
  * @param {object} options
@@ -287,7 +292,10 @@ export function createWorldEventSystem({ eventsBus, seed, eventName }) {
 	 */
 	system.update = (deltaSeconds, nightFactor) => {
 		if (disposed) return;
-		secondsUntilNext -= deltaSeconds;
+		const simulationDelta = Number.isFinite(deltaSeconds) && deltaSeconds > 0
+			? Math.min(deltaSeconds, MAX_WORLD_EVENT_STEP_SECONDS)
+			: 0;
+		secondsUntilNext -= simulationDelta;
 		if (secondsUntilNext > 0) return;
 		secondsUntilNext += MIN_INTERVAL_SECONDS + random() * (MAX_INTERVAL_SECONDS - MIN_INTERVAL_SECONDS);
 		const picked = pickWeightedEvent(random, nightFactor);
