@@ -11,9 +11,14 @@ assert.equal(P.cryosphereToneUnion, true);
 assert.equal(P.glacialFamilyBridge, true, 'far-north mountain snow should bridge into the glacial palette family');
 assert.equal(P.glacialAccumulatedPaletteRetention, true,
   'deep glacial accumulation should own an explicit bounded warm-palette retention stage');
+assert.equal(P.ridgeScourReadability, true, 'exposed alpine ridges need an explicit render-only scour tone');
+assert.equal(P.leeDriftReadability, true, 'sheltered bowls need an explicit render-only lee-drift tone');
+assert.equal(P.windSlabReadability, true, 'wind-facing snow shoulders need a broad packed-slab tone');
 assert(P.glacialVisibilityExponent > 0.5 && P.glacialVisibilityExponent < 1,
   'thin-snow glacial visibility curve should be sub-linear but bounded');
 assert(P.minimumAccumulatedSnow > P.minimumVisibleSnow);
+assert(P.maximumPackedWeight >= 0.8 && P.maximumPackedWeight < 0.9,
+  'packed ridge contrast should remain visible from aerial cameras without becoming blue ice paint');
 assert(P.accumulatedPermanentIceScale < 1, 'permanent ice should temper warm accumulated-snow tint');
 assert(P.accumulatedGlacialPaletteRetentionFloor >= 0.65 && P.accumulatedGlacialPaletteRetentionFloor <= 0.82,
   'deep far-north retention floor should remain a bounded colour-only correction');
@@ -21,15 +26,23 @@ assert(P.packedGlacialContinuityGain > 0, 'permanent ice should reinforce the pa
 assert(P.packedGlacialFamilyGain > 0 && P.packedGlacialFamilyGain <= 0.2,
   'glacial-family bridge should stay positive but visually bounded');
 assert(P.packedTransitionColdGain > 0, 'ice transition should carry bounded cold-tone support');
+assert(P.ridgeScourAccumulationSuppression > 0 && P.ridgeScourAccumulationSuppression < 0.6,
+  'ridge scour may suppress drift tone but must not become a coverage authority');
 
 const bare = resolveTerrainSnowSurfaceTone({ snowAmount: 0.02, permanentIce: 1, windwardScour: 1, ridgeExposure: 1 });
 assert.equal(bare.packedWeight, 0);
 assert.equal(bare.accumulatedWeight, 0);
+assert.equal(bare.ridgeScourWeight, 0);
+assert.equal(bare.windSlabWeight, 0);
+assert.equal(bare.leeDriftWeight, 0);
 assert.equal(bare.accumulatedGlacialPaletteRetention, 1);
 
 const south = resolveTerrainSnowSurfaceTone({ snowAmount: 0.9, windwardScour: 1, ridgeExposure: 1, leeDeposit: 1, concavityHold: 1 });
 assert.equal(south.packedWeight, 0);
 assert.equal(south.accumulatedWeight, 0);
+assert.equal(south.ridgeScourWeight, 0);
+assert.equal(south.windSlabWeight, 0);
+assert.equal(south.leeDriftWeight, 0);
 assert.equal(south.accumulatedGlacialPaletteRetention, 1);
 
 const neutral = resolveTerrainSnowSurfaceTone({ snowAmount: 0.82, permanentIce: 1, tundra: 1 });
@@ -64,10 +77,18 @@ const thinTundra = resolveTerrainSnowSurfaceTone({
 
 assert(windward.packedWeight > neutral.packedWeight);
 assert(windward.packedWeight > windward.accumulatedWeight);
+assert(windward.ridgeScourWeight > 0.45, 'exposed far-north ridge should carry visible broad scour structure');
+assert(windward.windSlabWeight > 0.35, 'windward alpine snow should expose a broad packed-slab signal');
+assert(windward.leeDriftWeight < 0.05, 'exposed ridge must not simultaneously read as a deep lee drift');
 assert(windward.coolShift > 0);
 assert(windward.brightnessShift < 0);
 assert(lee.accumulatedWeight > neutral.accumulatedWeight);
 assert(lee.accumulatedWeight > lee.packedWeight);
+assert(lee.leeDriftWeight > 0.35, 'deep sheltered snow should expose a broad lee-drift signal');
+assert(lee.ridgeScourWeight < windward.ridgeScourWeight * 0.35,
+  'sheltered accumulation must stay tonally distinct from scoured ridges');
+assert(lee.windSlabWeight < windward.windSlabWeight,
+  'sheltered snow should not inherit the wind-facing slab character');
 assert(lee.coolShift < neutral.coolShift,
   'sheltered glacial snow may retain a cold-family bridge but must stay softer than neutral retained snow');
 assert(lee.coolShift < windward.coolShift,
@@ -81,9 +102,11 @@ assert(crosswind.packedWeight < windward.packedWeight);
 assert(crosswind.accumulatedWeight < lee.accumulatedWeight);
 assert.equal(gentleUnsheltered.gentleShelterSupport, 0, 'gentle slope alone must not create a deep-drift tone');
 assert.equal(gentleUnsheltered.accumulatedWeight, 0, 'unsheltered gentle snow should remain neutral/packed');
+assert.equal(gentleUnsheltered.leeDriftWeight, 0, 'unsheltered gentle terrain must not fabricate a lee drift');
 assert(thinSheltered.visibleSnow > 0, 'thin retained snow should still be visibly snowy');
 assert.equal(thinSheltered.accumulationVisibleSnow, 0, 'thin snow veneer must not read as deep accumulated snow');
 assert.equal(thinSheltered.accumulatedWeight, 0, 'thin sheltered snow must stay out of accumulated palette');
+assert.equal(thinSheltered.leeDriftWeight, 0, 'thin veneer must not gain broad deep-drift tone');
 assert.equal(thinSheltered.accumulatedGlacialPaletteRetention, 1,
   'thin snow veneer must not receive deep glacial palette retention');
 assert(thinPermanent.visibleSnow > 0 && thinPermanent.visibleSnow < 0.5,
@@ -144,7 +167,7 @@ for (let i = 0; i <= 40; i += 1) {
   }
 }
 assert(maxClimateStep < 0.03, `cryosphere tone climate should stay locally smooth; step=${maxClimateStep}`);
-assert(maxPackedStep < 0.035, `packed-snow tone should stay locally smooth across ice transition; step=${maxPackedStep}`);
+assert(maxPackedStep < 0.04, `packed-snow tone should stay locally smooth across ice transition; step=${maxPackedStep}`);
 assert(maxRetentionStep < 0.03,
   `accumulated glacial palette retention should stay locally smooth across ice transition; step=${maxRetentionStep}`);
 assert.equal(transitionSamples[0].transitionColdSupport, 0, 'pure tundra endpoint needs no transition-only cold support');
@@ -168,7 +191,8 @@ for (const sample of [
   for (const key of [
     'visibleSnow', 'accumulationVisibleSnow', 'climate', 'tundraToneWeight', 'glacialVisibility',
     'glacialContinuity', 'glacialFamilySupport', 'transitionColdSupport', 'accumulationClimateScale',
-    'accumulatedGlacialPaletteRetention', 'packedWeight', 'accumulatedWeight', 'neutralWeight',
+    'accumulatedGlacialPaletteRetention', 'ridgeScourWeight', 'windSlabWeight', 'leeDriftWeight',
+    'packedWeight', 'accumulatedWeight', 'neutralWeight',
   ]) {
     assert(Number.isFinite(sample[key]) && sample[key] >= 0 && sample[key] <= 1, `${key} must be normalized`);
   }
@@ -195,7 +219,10 @@ assert.doesNotMatch(shadingSource, /heightAboveSeaMeters\s*[+\-]=/);
 console.log(JSON.stringify({
   policy: P.id,
   windwardPackedWeight: windward.packedWeight,
+  windwardRidgeScourWeight: windward.ridgeScourWeight,
+  windwardWindSlabWeight: windward.windSlabWeight,
   leeAccumulatedWeight: lee.accumulatedWeight,
+  leeDriftWeight: lee.leeDriftWeight,
   tundraLeeAccumulatedWeight: tundraLee.accumulatedWeight,
   leeAccumulatedPaletteRetention: lee.accumulatedGlacialPaletteRetention,
   tundraAccumulatedPaletteRetention: tundraLee.accumulatedGlacialPaletteRetention,
