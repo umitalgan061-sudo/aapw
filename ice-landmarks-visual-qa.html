@@ -10,6 +10,12 @@
 <body>
 <script type="module">
 import * as THREE from 'three';
+import { WORLD_DEFAULTS } from './src/3d/config.js';
+import { createHeightSampler } from './src/3d/world/terrain.js';
+import {
+  resolveTerrainBiomeColor,
+  slopeDegreesFromNeighbours,
+} from './src/3d/world/terrainBiomeShading.js';
 import { createIceLandmarks, disposeIceLandmarks } from './src/3d/world/iceLandmarks.js';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -24,28 +30,77 @@ document.body.append(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xdce9ef);
+scene.fog = new THREE.Fog(0xdce9ef, 1800, 6200);
 const hemi = new THREE.HemisphereLight(0xd8ecff, 0x71808a, 1.65);
 scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xfff2d7, 3.0);
 sun.position.set(600, 850, 400);
 sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -2100, right: 2100, top: 900, bottom: -900, near: 50, far: 4200 });
 scene.add(sun);
 
-const sampleHeightMeters = (x, z) => 10 + Math.sin(x * 0.0014) * 2.5 + Math.cos(z * 0.0011) * 1.7;
-const landmarks = createIceLandmarks({ sampleHeightMeters, seed: 1337 });
+// Use the same production terrain seed/sampler authority as the live scene. The Wall lives well
+// away from settlement flatten pads, so the canonical sampler and the scene collider agree here.
+const sampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, null, []);
+const landmarks = createIceLandmarks({ sampleHeightMeters, seed: WORLD_DEFAULTS.WORLD_SEED });
 scene.add(landmarks.group);
 
 const box = new THREE.Box3().setFromObject(landmarks.group);
 const center = box.getCenter(new THREE.Vector3());
 const size = box.getSize(new THREE.Vector3());
-const ground = new THREE.Mesh(
-  new THREE.PlaneGeometry(Math.max(3600, size.x * 1.35), 1200, 1, 1),
-  new THREE.MeshStandardMaterial({ color: 0xdde7e9, roughness: 0.94 }),
-);
-ground.rotation.x = -Math.PI / 2;
-ground.position.set(center.x, 7.5, center.z);
-ground.receiveShadow = true;
-scene.add(ground);
+const terrainWidth = Math.max(3900, size.x * 1.42);
+const terrainDepth = Math.max(1500, size.z * 5.0);
+const segmentsX = 168;
+const segmentsZ = 72;
+const terrainGeometry = new THREE.PlaneGeometry(terrainWidth, terrainDepth, segmentsX, segmentsZ);
+terrainGeometry.rotateX(-Math.PI / 2);
+const terrainPositions = terrainGeometry.getAttribute('position');
+const terrainColors = new Float32Array(terrainPositions.count * 3);
+const terrainColor = new THREE.Color();
+const slopeOffset = Math.min(terrainWidth / segmentsX, terrainDepth / segmentsZ);
+let minTerrainHeight = Infinity;
+let maxTerrainHeight = -Infinity;
+let snowWeightSum = 0;
+let rockWeightSum = 0;
+
+for (let index = 0; index < terrainPositions.count; index += 1) {
+  const localX = terrainPositions.getX(index);
+  const localZ = terrainPositions.getZ(index);
+  const worldX = center.x + localX;
+  const worldZ = center.z + localZ;
+  const surface = {};
+  const height = sampleHeightMeters(worldX, worldZ, undefined, surface);
+  const west = sampleHeightMeters(worldX - slopeOffset, worldZ);
+  const east = sampleHeightMeters(worldX + slopeOffset, worldZ);
+  const north = sampleHeightMeters(worldX, worldZ - slopeOffset);
+  const south = sampleHeightMeters(worldX, worldZ + slopeOffset);
+  const slopeDegrees = slopeDegreesFromNeighbours(west, east, north, south, slopeOffset);
+  resolveTerrainBiomeColor(terrainColor, {
+    heightAboveSeaMeters: height - WORLD_DEFAULTS.WATER_LEVEL_METERS,
+    slopeDegrees,
+    rockWeight: surface.rockWeight ?? 0,
+    snowWeight: surface.snowWeight ?? 0,
+    worldX,
+    worldZ,
+  });
+  terrainPositions.setY(index, height);
+  terrainColors[index * 3] = terrainColor.r;
+  terrainColors[index * 3 + 1] = terrainColor.g;
+  terrainColors[index * 3 + 2] = terrainColor.b;
+  minTerrainHeight = Math.min(minTerrainHeight, height);
+  maxTerrainHeight = Math.max(maxTerrainHeight, height);
+  snowWeightSum += surface.snowWeight ?? 0;
+  rockWeightSum += surface.rockWeight ?? 0;
+}
+terrainGeometry.setAttribute('color', new THREE.BufferAttribute(terrainColors, 3));
+terrainGeometry.computeVertexNormals();
+const terrainMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.97, metalness: 0 });
+const terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
+terrain.position.set(center.x, 0, center.z);
+terrain.receiveShadow = true;
+terrain.castShadow = true;
+scene.add(terrain);
 
 const camera = new THREE.PerspectiveCamera(48, 1200 / 720, 0.1, 8000);
 const portal = landmarks.group.getObjectByName('ice-wall-cave-portal');
@@ -75,6 +130,15 @@ window.__iceQa = {
     width: size.x, depth: size.z, height: size.y,
     blockers: landmarks.blockers.length,
     roles: landmarks.group.children.map((child) => child.userData?.iceLandmarkRole).filter(Boolean),
+    terrainAuthority: 'canonical-createHeightSampler+terrainBiomeShading',
+    terrain: {
+      vertexCount: terrainPositions.count,
+      minHeight: minTerrainHeight,
+      maxHeight: maxTerrainHeight,
+      reliefSpan: maxTerrainHeight - minTerrainHeight,
+      meanSnowWeight: snowWeightSum / terrainPositions.count,
+      meanRockWeight: rockWeightSum / terrainPositions.count,
+    },
   },
   render(view = 'wall') {
     (views[view] || views.wall)();
@@ -82,7 +146,12 @@ window.__iceQa = {
     return this.stats;
   },
 };
-window.addEventListener('pagehide', () => { disposeIceLandmarks(landmarks); renderer.dispose(); }, { once: true });
+window.addEventListener('pagehide', () => {
+  disposeIceLandmarks(landmarks);
+  terrainGeometry.dispose();
+  terrainMaterial.dispose();
+  renderer.dispose();
+}, { once: true });
 window.__iceQa.render('wall');
 </script>
 </body>
