@@ -3,6 +3,27 @@ import * as THREE from 'three';
 const TEXTURE_WIDTH = 256;
 const TEXTURE_HEIGHT = 512;
 
+const GLACIER_PALETTE = Object.freeze({
+	wall: Object.freeze({
+		shadow: [38, 55, 63],
+		dense: [79, 111, 121],
+		crack: [18, 37, 49],
+		frost: [183, 194, 195],
+		snow: [224, 228, 226],
+		debris: [91, 89, 82],
+		wet: [48, 91, 101],
+	}),
+	cave: Object.freeze({
+		shadow: [25, 49, 60],
+		dense: [57, 111, 127],
+		crack: [12, 29, 41],
+		frost: [170, 188, 190],
+		snow: [215, 223, 222],
+		debris: [78, 79, 75],
+		wet: [31, 93, 112],
+	}),
+});
+
 function clamp01(value) {
 	return Math.max(0, Math.min(1, value));
 }
@@ -64,10 +85,12 @@ function createGlacialTextureSet(seed, { cave = false } = {}) {
 	const colorBytes = new Uint8Array(TEXTURE_WIDTH * TEXTURE_HEIGHT * 4);
 	const roughnessBytes = new Uint8Array(TEXTURE_WIDTH * TEXTURE_HEIGHT * 4);
 	const normalBytes = new Uint8Array(TEXTURE_WIDTH * TEXTURE_HEIGHT * 4);
+	const palette = cave ? GLACIER_PALETTE.cave : GLACIER_PALETTE.wall;
 	let crackCoverage = 0;
 	let frostCoverage = 0;
 	let wetCoverage = 0;
 	let debrisCoverage = 0;
+	let blueCoreCoverage = 0;
 
 	for (let y = 0; y < TEXTURE_HEIGHT; y += 1) {
 		for (let x = 0; x < TEXTURE_WIDTH; x += 1) {
@@ -89,15 +112,18 @@ function createGlacialTextureSet(seed, { cave = false } = {}) {
 			const baseDebris = cave
 				? smoothstep(0.60, 0.92, meso) * (0.14 + (1 - v) * 0.25)
 				: (1 - smoothstep(0.035, 0.23, v)) * clamp01(0.30 + macro * 0.84);
-			const wet = clamp01((cave ? 0.25 : 0.055) + crack * 0.40 + (1 - frost) * meso * (cave ? 0.47 : 0.16));
-			const denseIce = clamp01(0.30 + macro * 0.43 + meso * 0.22 - frost * 0.16 - snowCap * 0.4);
+			const wet = clamp01((cave ? 0.22 : 0.045) + crack * 0.36 + (1 - frost) * meso * (cave ? 0.40 : 0.13));
+			const denseIce = clamp01(0.22 + macro * 0.39 + meso * 0.20 - frost * 0.18 - snowCap * 0.42);
+			const blueCore = clamp01(smoothstep(0.52, 0.86, denseIce) * (1 - frost) * (0.42 + crack * 0.40));
+			const dirtyBand = clamp01(baseDebris * (0.55 + meso * 0.45));
 
-			let rgb = mixRgb([50, 80, 89], [111, 144, 148], denseIce);
-			rgb = mixRgb(rgb, [25, 54, 67], crack * 0.83);
-			rgb = mixRgb(rgb, [184, 199, 197], frost * 0.72);
-			rgb = mixRgb(rgb, [226, 231, 227], snowCap * 0.92);
-			rgb = mixRgb(rgb, cave ? [82, 89, 87] : [96, 99, 94], baseDebris * 0.58);
-			if (cave) rgb = mixRgb(rgb, [46, 99, 112], wet * 0.22);
+			let rgb = mixRgb(palette.shadow, palette.dense, denseIce);
+			rgb = mixRgb(rgb, palette.crack, crack * 0.78);
+			rgb = mixRgb(rgb, palette.dense, blueCore * (cave ? 0.62 : 0.36));
+			rgb = mixRgb(rgb, palette.frost, frost * 0.70);
+			rgb = mixRgb(rgb, palette.snow, snowCap * 0.94);
+			rgb = mixRgb(rgb, palette.debris, dirtyBand * 0.64);
+			rgb = mixRgb(rgb, palette.wet, wet * (cave ? 0.18 : 0.08));
 
 			const signal = macro * 0.16 + meso * 0.14 + micro * 0.038 + flowRidge * 0.075
 				- crack * 0.25 + frost * 0.045 + baseDebris * 0.075;
@@ -108,7 +134,8 @@ function createGlacialTextureSet(seed, { cave = false } = {}) {
 			colorBytes[index + 2] = Math.round(rgb[2]);
 			colorBytes[index + 3] = 255;
 
-			const roughness = clamp01(0.50 + frost * 0.27 + snowCap * 0.18 + baseDebris * 0.16 + micro * 0.06 - wet * 0.34 - crack * 0.07);
+			const roughness = clamp01(0.53 + frost * 0.27 + snowCap * 0.20 + baseDebris * 0.18 + micro * 0.07
+				- wet * 0.30 - blueCore * 0.12 - crack * 0.045);
 			const roughByte = Math.round(roughness * 255);
 			roughnessBytes[index] = roughByte;
 			roughnessBytes[index + 1] = roughByte;
@@ -118,6 +145,7 @@ function createGlacialTextureSet(seed, { cave = false } = {}) {
 			frostCoverage += Math.max(frost, snowCap);
 			wetCoverage += wet;
 			debrisCoverage += baseDebris;
+			blueCoreCoverage += blueCore;
 		}
 	}
 
@@ -160,6 +188,7 @@ function createGlacialTextureSet(seed, { cave = false } = {}) {
 			frostCoverage: frostCoverage / pixels,
 			wetCoverage: wetCoverage / pixels,
 			debrisCoverage: debrisCoverage / pixels,
+			blueCoreCoverage: blueCoreCoverage / pixels,
 		}),
 	};
 }
@@ -168,20 +197,21 @@ function replaceMaterialSurface(material, textures, { cave = false } = {}) {
 	material.map = textures.colorMap;
 	material.roughnessMap = textures.roughnessMap;
 	material.normalMap = textures.normalMap;
-	material.normalScale.set(cave ? 0.74 : 0.82, cave ? 0.88 : 0.98);
-	material.color.set(cave ? 0xc7d7d5 : 0xd4dfdc);
-	material.roughness = cave ? 0.44 : 0.56;
-	material.clearcoat = cave ? 0.25 : 0.11;
-	material.clearcoatRoughness = cave ? 0.33 : 0.47;
-	material.transmission = cave ? 0.082 : 0.020;
-	material.thickness = cave ? 4.4 : 3.0;
-	material.attenuationColor.set(cave ? 0x3d8797 : 0x5b9299);
-	material.attenuationDistance = cave ? 17 : 28;
-	material.emissive.set(cave ? 0x071a20 : 0x000000);
-	material.emissiveIntensity = cave ? 0.08 : 0;
+	material.normalScale.set(cave ? 0.70 : 0.80, cave ? 0.84 : 0.96);
+	material.color.set(cave ? 0xb8c4c3 : 0xc8cfcd);
+	material.roughness = cave ? 0.48 : 0.60;
+	material.clearcoat = cave ? 0.20 : 0.08;
+	material.clearcoatRoughness = cave ? 0.38 : 0.52;
+	material.transmission = cave ? 0.060 : 0.012;
+	material.thickness = cave ? 4.8 : 3.2;
+	material.attenuationColor.set(cave ? 0x3a7180 : 0x607f84);
+	material.attenuationDistance = cave ? 14 : 31;
+	material.emissive.set(cave ? 0x061317 : 0x000000);
+	material.emissiveIntensity = cave ? 0.035 : 0;
 	material.userData.iceSurface = Object.freeze({
 		...(material.userData.iceSurface || {}),
-		realismVersion: 2,
+		realismVersion: 3,
+		naturalReferencePalette: true,
 		macroFractures: true,
 		mesoStriations: true,
 		microCrystalNormals: true,
@@ -192,15 +222,17 @@ function replaceMaterialSurface(material, textures, { cave = false } = {}) {
 	material.needsUpdate = true;
 }
 
-function cloneSolidMaterial(source) {
+function cloneSolidMaterial(source, { cave = false } = {}) {
 	const material = source.clone();
 	material.vertexColors = false;
-	material.color.set(0xcbd9d6);
+	material.color.set(cave ? 0xaab9b9 : 0xbec7c5);
+	material.roughness = cave ? 0.51 : 0.63;
+	material.transmission *= 0.65;
 	material.needsUpdate = true;
 	return material;
 }
 
-function createInstancedDetail(name, role, geometry, material, transforms) {
+function createInstancedDetail(name, role, geometry, material, transforms, seed = 0) {
 	const mesh = new THREE.InstancedMesh(geometry, material, transforms.length);
 	mesh.name = name;
 	mesh.castShadow = true;
@@ -208,13 +240,18 @@ function createInstancedDetail(name, role, geometry, material, transforms) {
 	mesh.userData.iceLandmarkRole = role;
 	const matrix = new THREE.Matrix4();
 	const quaternion = new THREE.Quaternion();
+	const tint = new THREE.Color();
 	for (let index = 0; index < transforms.length; index += 1) {
 		const transform = transforms[index];
 		quaternion.setFromEuler(new THREE.Euler(transform.rx || 0, transform.ry || 0, transform.rz || 0));
 		matrix.compose(transform.position, quaternion, transform.scale);
 		mesh.setMatrixAt(index, matrix);
+		const variation = 0.80 + hash2D(index, role.length, seed + 4513) * 0.22;
+		tint.setRGB(variation, variation * (0.985 + hash2D(index, 3, seed + 4603) * 0.03), variation * (1.00 + hash2D(index, 7, seed + 4703) * 0.055));
+		mesh.setColorAt(index, tint);
 	}
 	mesh.instanceMatrix.needsUpdate = true;
+	if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
 	return mesh;
 }
 
@@ -269,14 +306,14 @@ function createWallDetails(sections, caveGapSegment, solidWallMaterial, seed) {
 	const talusGeometry = new THREE.IcosahedronGeometry(1, 0);
 	const corniceGeometry = new THREE.IcosahedronGeometry(1, 1);
 	const snowMaterial = solidWallMaterial.clone();
-	snowMaterial.color.set(0xe6ece8);
-	snowMaterial.roughness = 0.88;
-	snowMaterial.transmission = 0.006;
-	snowMaterial.clearcoat = 0.03;
+	snowMaterial.color.set(0xdfe4e1);
+	snowMaterial.roughness = 0.91;
+	snowMaterial.transmission = 0.003;
+	snowMaterial.clearcoat = 0.015;
 	return [
-		createInstancedDetail('ice-wall-serac-buttresses', 'wall-serac-buttresses', seracGeometry, solidWallMaterial, seracs),
-		createInstancedDetail('ice-wall-basal-talus', 'wall-basal-talus', talusGeometry, solidWallMaterial, talus),
-		createInstancedDetail('ice-wall-snow-cornices', 'wall-snow-cornices', corniceGeometry, snowMaterial, cornices),
+		createInstancedDetail('ice-wall-serac-buttresses', 'wall-serac-buttresses', seracGeometry, solidWallMaterial, seracs, seed + 5003),
+		createInstancedDetail('ice-wall-basal-talus', 'wall-basal-talus', talusGeometry, solidWallMaterial, talus, seed + 5101),
+		createInstancedDetail('ice-wall-snow-cornices', 'wall-snow-cornices', corniceGeometry, snowMaterial, cornices, seed + 5209),
 	];
 }
 
@@ -325,6 +362,7 @@ function createPortalFractureRim(portal, solidWallMaterial, seed) {
 		new THREE.IcosahedronGeometry(1, 0),
 		solidWallMaterial,
 		transforms,
+		seed + 5303,
 	);
 }
 
@@ -352,6 +390,7 @@ function createCaveFractureRibs(portal, caveRings, solidCaveMaterial, seed) {
 		new THREE.IcosahedronGeometry(1, 0),
 		solidCaveMaterial,
 		transforms,
+		seed + 5407,
 	);
 }
 
@@ -377,8 +416,8 @@ export function enhanceIceLandmarkRealism({
 	replaceMaterialSurface(caveMaterial, caveTextures, { cave: true });
 	for (const texture of oldTextures) texture.dispose();
 
-	const solidWallMaterial = cloneSolidMaterial(wallMaterial);
-	const solidCaveMaterial = cloneSolidMaterial(caveMaterial);
+	const solidWallMaterial = cloneSolidMaterial(wallMaterial, { cave: false });
+	const solidCaveMaterial = cloneSolidMaterial(caveMaterial, { cave: true });
 	portal.mesh.material = solidWallMaterial;
 	const icicles = group.getObjectByName('ice-cave-icicles');
 	if (icicles) icicles.material = solidCaveMaterial;
@@ -388,7 +427,7 @@ export function enhanceIceLandmarkRealism({
 	for (const object of [...wallDetails, portalRim, caveRibs]) group.add(object);
 	return Object.freeze({
 		stats: Object.freeze({
-			version: 2,
+			version: 3,
 			wallTexture: wallTextures.stats,
 			caveTexture: caveTextures.stats,
 			seracCount: wallDetails[0].count,
