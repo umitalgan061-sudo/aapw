@@ -43,11 +43,17 @@ try {
     await page.waitForTimeout(180);
     await page.screenshot({ path: path.join(artifactDir, `${view}.png`) });
   }
+
+  const lifecycle = await page.evaluate(() => window.__iceQa.dispose());
+  await page.waitForTimeout(50);
+  if (lifecycle?.disposed !== true || lifecycle?.landmarkDisposed !== true || lifecycle?.landmarkChildren !== 0) {
+    throw new Error(`ice landmark lifecycle disposal failed: ${JSON.stringify(lifecycle)}`);
+  }
   if (errors.length) throw new Error(`browser errors: ${errors.join(' | ')}`);
-  await fs.writeFile(path.join(artifactDir, 'stats.json'), JSON.stringify(stats, null, 2));
+  await fs.writeFile(path.join(artifactDir, 'stats.json'), JSON.stringify({ ...stats, lifecycle }, null, 2));
   console.log(
     `Ice landmarks visual QA passed: ${stats.width.toFixed(1)}m wall span, ${stats.height.toFixed(1)}m height, ` +
-    `${stats.blockers} blockers, canonical terrain relief ${stats.terrain.reliefSpan.toFixed(1)}m.`,
+    `${stats.blockers} blockers, canonical terrain relief ${stats.terrain.reliefSpan.toFixed(1)}m, lifecycle disposed cleanly.`,
   );
 } finally {
   await browser?.close();
