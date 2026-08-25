@@ -1,0 +1,152 @@
+name: One-shot Ground Contact Footprint Patch
+
+on:
+  push:
+    branches:
+      - codex/foundation-grounding-20260821
+    paths:
+      - '.github/workflows/one-shot-ground-contact-footprint.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/foundation-grounding-20260821
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Apply ground-contact footprint filter
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/3d/world/WorldAssetPlacementPipeline.js')
+          text = path.read_text()
+          old = '''function rootLocalGeometryBounds(object) {
+  object.updateMatrixWorld?.(true);
+  const inverseRoot = object.matrixWorld.clone().invert();
+  const localBox = new THREE.Box3();
+  const scratch = new THREE.Vector3();
+  let foundGeometry = false;
+  object.traverse?.((node) => {
+    const geometry = node?.geometry;
+    if (!geometry?.attributes?.position) return;
+    if (!geometry.boundingBox) geometry.computeBoundingBox();
+    if (!geometry.boundingBox || geometry.boundingBox.isEmpty()) return;
+    expandBoxWithGeometryCorners(localBox, geometry.boundingBox, node.matrixWorld, inverseRoot, scratch);
+    foundGeometry = true;
+  });
+  return foundGeometry && !localBox.isEmpty() ? localBox : null;
+}
+'''
+          new = '''const GROUND_CONTACT_BAND_POLICY = Object.freeze({
+  minimumMeters: 0.5,
+  maximumMeters: 2,
+  structureHeightFraction: 0.12,
+});
+
+function rootLocalGeometryBounds(object) {
+  object.updateMatrixWorld?.(true);
+  const inverseRoot = object.matrixWorld.clone().invert();
+  const scratch = new THREE.Vector3();
+  const geometryBoxes = [];
+  object.traverse?.((node) => {
+    if (node?.userData?.terrainFootprintExclude === true || node?.userData?.foundationFootprintExclude === true) return;
+    const geometry = node?.geometry;
+    if (!geometry?.attributes?.position) return;
+    if (!geometry.boundingBox) geometry.computeBoundingBox();
+    if (!geometry.boundingBox || geometry.boundingBox.isEmpty()) return;
+    const nodeBox = new THREE.Box3();
+    expandBoxWithGeometryCorners(nodeBox, geometry.boundingBox, node.matrixWorld, inverseRoot, scratch);
+    if (!nodeBox.isEmpty()) geometryBoxes.push(nodeBox);
+  });
+  if (!geometryBoxes.length) return null;
+
+  const allGeometryBox = new THREE.Box3();
+  geometryBoxes.forEach((box) => allGeometryBox.union(box));
+  if (allGeometryBox.isEmpty()) return null;
+
+  const structureHeight = Math.max(0, allGeometryBox.max.y - allGeometryBox.min.y);
+  const groundContactBandMeters = Math.max(
+    GROUND_CONTACT_BAND_POLICY.minimumMeters,
+    Math.min(
+      GROUND_CONTACT_BAND_POLICY.maximumMeters,
+      structureHeight * GROUND_CONTACT_BAND_POLICY.structureHeightFraction,
+    ),
+  );
+  const groundContactCeiling = allGeometryBox.min.y + groundContactBandMeters;
+  const groundedBox = new THREE.Box3();
+  let groundedGeometryCount = 0;
+  for (const box of geometryBoxes) {
+    if (box.min.y > groundContactCeiling + 1e-6) continue;
+    groundedBox.union(box);
+    groundedGeometryCount += 1;
+  }
+
+  // Defensive fallback: precision/authoring anomalies must never erase a valid structure footprint.
+  return groundedGeometryCount > 0 && !groundedBox.isEmpty() ? groundedBox : allGeometryBox;
+}
+'''
+          if text.count(old) != 1:
+              raise SystemExit(f'rootLocalGeometryBounds match count={text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+
+          workflow = Path('.github/workflows/terrain-foundation-conformer.yml')
+          wf = workflow.read_text()
+          old_path = "      - 'scripts/checkExtendedStructureFoundationConform.mjs'\n"
+          new_path = old_path + "      - 'scripts/checkGroundContactFootprintFiltering.mjs'\n"
+          if wf.count(old_path) != 1:
+              raise SystemExit('workflow path anchor mismatch')
+          wf = wf.replace(old_path, new_path, 1)
+          old_syntax = "          node --check scripts/checkExtendedStructureFoundationConform.mjs\n"
+          new_syntax = old_syntax + "          node --check scripts/checkGroundContactFootprintFiltering.mjs\n"
+          if wf.count(old_syntax) != 1:
+              raise SystemExit('workflow syntax anchor mismatch')
+          wf = wf.replace(old_syntax, new_syntax, 1)
+          old_run = "          node scripts/checkExtendedStructureFoundationConform.mjs\n"
+          new_run = old_run + "          node scripts/checkGroundContactFootprintFiltering.mjs\n"
+          if wf.count(old_run) != 1:
+              raise SystemExit('workflow run anchor mismatch')
+          wf = wf.replace(old_run, new_run, 1)
+          workflow.write_text(wf)
+          PY
+
+      - name: Validate production patch
+        run: |
+          set -euo pipefail
+          node scripts/setupNodeThreeShim.mjs
+          node --check src/3d/world/WorldAssetPlacementPipeline.js
+          node --check scripts/checkWorldFootprintGrounding.mjs
+          node --check scripts/checkGroundContactFootprintFiltering.mjs
+          node --check scripts/checkExtendedStructureFoundationConform.mjs
+          node scripts/checkWorldFootprintGrounding.mjs
+          node scripts/checkGroundContactFootprintFiltering.mjs
+          node scripts/checkStructureGroundingPolicy.mjs
+          node scripts/checkStructureSurfacePolicy.mjs
+          node scripts/checkTerrainFoundationConformer.mjs
+          node scripts/checkFoundationRenderPhysicsParity.mjs
+          node scripts/checkExtendedStructureFoundationConform.mjs
+
+      - name: Commit validated production changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -- src/3d/world/WorldAssetPlacementPipeline.js .github/workflows/terrain-foundation-conformer.yml
+          if git diff --cached --quiet; then
+            echo 'No production changes to commit.'
+            exit 0
+          fi
+          git commit -m 'feat(world): filter foundations to ground-contact geometry'
+          git push origin HEAD:codex/foundation-grounding-20260821
