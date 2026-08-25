@@ -79,7 +79,29 @@ try {
     const patrolDistance = Math.hypot(afterPatrol.x - beforePatrol.x, afterPatrol.z - beforePatrol.z);
     patrolWolf.dispose();
 
-    return { modelUrl: species.modelUrl, fleeDistance, fleeState, nanDistance, patrolDistance };
+    const overlapWolf = await createWolf({
+      assetLoader,
+      modelUrl: species.modelUrl,
+      idleClipName: species.clips.idle,
+      stripChildNames: species.stripChildNames,
+      worldX: 0,
+      worldZ: 0,
+      groundY: 0,
+      rotationYRadians: Math.PI / 2,
+      groundCollider,
+      playerCollider,
+      fleeClipName: species.clips.flee,
+      fleeTriggerRadiusMeters: ANIMAL_CONFIG.FLEE_TRIGGER_RADIUS_METERS,
+      fleeSpeedMps: ANIMAL_CONFIG.FLEE_SPEED_MPS,
+    });
+    overlapWolf.update(3, { x: 0, z: 0 }, []);
+    const overlapDx = overlapWolf.object3D.position.x;
+    const overlapDz = overlapWolf.object3D.position.z;
+    const overlapDistance = Math.hypot(overlapDx, overlapDz);
+    const overlapState = overlapWolf.isFleeing;
+    overlapWolf.dispose();
+
+    return { modelUrl: species.modelUrl, fleeDistance, fleeState, nanDistance, patrolDistance, overlapDistance, overlapDx, overlapDz, overlapState };
   });
 
   assert.equal(pageErrors.length, 0, `page errors: ${pageErrors.join(' | ')}`);
@@ -88,6 +110,9 @@ try {
   assert.ok(proof.fleeDistance > 0 && proof.fleeDistance <= 0.45 + 1e-6, `3 s resume flee displacement escaped the 100 ms budget: ${proof.fleeDistance}`);
   assert.equal(proof.nanDistance, 0, 'NaN delta must not move the shipped wolf runtime');
   assert.ok(proof.patrolDistance > 0 && proof.patrolDistance <= 0.22 + 1e-6, `3 s resume patrol displacement escaped the 100 ms budget: ${proof.patrolDistance}`);
+  assert.equal(proof.overlapState, true, 'an exact-overlap wolf must still classify the player as a flee threat');
+  assert.ok(proof.overlapDistance > 0 && proof.overlapDistance <= 0.45 + 1e-6, `exact-overlap flee displacement escaped the 100 ms budget: ${proof.overlapDistance}`);
+  assert.ok(proof.overlapDx > 0.44 && Math.abs(proof.overlapDz) <= 1e-6, `exact-overlap fallback must follow deterministic wolf yaw: dx=${proof.overlapDx}, dz=${proof.overlapDz}`);
 
   console.log('WILDLIFE_LONG_FRAME_BROWSER_PASS', JSON.stringify(proof));
 } finally {
