@@ -86,11 +86,14 @@ try {
   ]) {
     if (!stats.roles.includes(role)) throw new Error(`missing visual role: ${role}`);
   }
-  if (stats.realism?.version !== 2 || stats.realism?.wallTexture?.resolution !== '256x512') {
-    throw new Error(`layered glacial surface telemetry missing: ${JSON.stringify(stats.realism)}`);
+  if (stats.realism?.version !== 3 || stats.realism?.wallTexture?.resolution !== '256x512' || stats.realism?.caveTexture?.resolution !== '256x512') {
+    throw new Error(`natural glacial surface telemetry missing: ${JSON.stringify(stats.realism)}`);
   }
-  if (!(stats.realism.wallTexture.crackCoverage > 0.01 && stats.realism.wallTexture.frostCoverage > 0.12)) {
-    throw new Error(`wall lost fracture/frost breakup: ${JSON.stringify(stats.realism.wallTexture)}`);
+  if (!(stats.realism.wallTexture.crackCoverage > 0.01 && stats.realism.wallTexture.frostCoverage > 0.12 && stats.realism.wallTexture.debrisCoverage > 0.01)) {
+    throw new Error(`wall lost fracture/frost/debris breakup: ${JSON.stringify(stats.realism.wallTexture)}`);
+  }
+  if (!(stats.realism.wallTexture.blueCoreCoverage > 0.005 && stats.realism.caveTexture.blueCoreCoverage > stats.realism.wallTexture.blueCoreCoverage)) {
+    throw new Error(`dense blue ice exposure regressed: ${JSON.stringify(stats.realism)}`);
   }
   if (!(stats.realism.caveTexture.wetCoverage > stats.realism.wallTexture.wetCoverage)) {
     throw new Error(`cave wetness no longer exceeds exterior Wall: ${JSON.stringify(stats.realism)}`);
