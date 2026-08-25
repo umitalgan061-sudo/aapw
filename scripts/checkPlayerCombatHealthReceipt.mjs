@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { createHealthState, readDamageResolution } from '../src/3d/gameplay/health.js';
+import { createHealthState, readDamageResolution, stageDamageResolution } from '../src/3d/gameplay/health.js';
 
 class TestBus {
   constructor() { this.listeners = new Map(); this.emitted = []; }
@@ -65,6 +65,26 @@ assertHealthReceipt(healthEvents().at(-1), { current: 25, maxHealth: 100, ratio:
 health.reset();
 assertHealthReceipt(healthEvents().at(-1), { current: 100, maxHealth: 100, ratio: 1, delta: 75, reason: 'reset', appliedAmount: 0, sourceId: null });
 
+const frozenMitigatedHit = Object.freeze({ amount: 45, sourceId: 'frozen-parry' });
+stageDamageResolution(frozenMitigatedHit, { rawAmount: 45, blockedAmount: 45, amount: 0, mitigation: 'parry' });
+let frozenMitigatedResolution = null;
+const mitigatedHealthEventCount = healthEvents().length;
+const offMitigatedObserver = bus.on('damage', (payload) => {
+  if (payload === frozenMitigatedHit) frozenMitigatedResolution = readDamageResolution(payload);
+});
+bus.emit('damage', frozenMitigatedHit);
+offMitigatedObserver();
+assert.equal(health.current, 100, 'fully mitigated staged damage must not mutate authoritative health');
+assert.equal(healthEvents().length, mitigatedHealthEventCount, 'fully mitigated damage must not emit a synthetic health-change receipt');
+assert.equal('appliedAmount' in frozenMitigatedHit, false, 'frozen mitigated producer payload must remain immutable');
+assert.equal(frozenMitigatedResolution?.appliedAmount, 0, 'later same-event consumers must see authoritative zero applied health damage');
+assert.equal(frozenMitigatedResolution?.rawAmount, 45, 'health reconciliation must preserve staged raw damage metadata');
+assert.equal(frozenMitigatedResolution?.blockedAmount, 45, 'health reconciliation must preserve staged blocked damage metadata');
+assert.equal(frozenMitigatedResolution?.mitigation, 'parry', 'health reconciliation must preserve staged mitigation provenance');
+assert.equal(Object.isFrozen(frozenMitigatedResolution), true, 'fully mitigated same-event resolution must remain immutable');
+await Promise.resolve();
+assert.equal(readDamageResolution(frozenMitigatedHit), null, 'fully mitigated resolution must clear after the originating event turn');
+
 const frozenHit = Object.freeze({ amount: 15, sourceId: 'frozen-guard' });
 assert.doesNotThrow(() => bus.emit('damage', frozenHit), 'immutable damage payloads must not crash the authoritative health listener');
 assert.equal(health.current, 85, 'immutable damage payloads must still apply finite authoritative damage');
@@ -100,4 +120,4 @@ assert.equal(health.current, before, 'dispose must detach the damage listener');
 console.log('Player Combat Health Receipt: PASS');
 console.log('legacy-enumerable=current,maxHealth|receipt=ratio,delta,reason,appliedAmount,sourceId');
 console.log('constructor-guard=maxHealth>0+finite|finite-guard=damage+heal|invalid=Infinity,-Infinity,NaN');
-console.log('damagePayloadAppliedAmount=normal,overkill,already-dead|immutable-payload=safe+same-event-clamped');
+console.log('damagePayloadAppliedAmount=normal,overkill,already-dead,fully-mitigated|immutable-payload=safe+same-event-clamped');

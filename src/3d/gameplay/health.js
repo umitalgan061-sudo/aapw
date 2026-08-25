@@ -83,7 +83,10 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 		const stagedResolution = readDamageResolution(payload);
 		const amount = stagedResolution?.amount ?? payload?.amount;
 		if (!Number.isFinite(amount) || !(amount > 0)) {
-			if (stagedResolution) clearResolutionAfterSameEvent(payload);
+			if (stagedResolution) {
+				if (Number.isFinite(amount) && amount === 0) writeDamageAppliedAmount(payload, 0);
+				clearResolutionAfterSameEvent(payload);
+			}
 			return;
 		}
 		if (hasDied) {
