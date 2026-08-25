@@ -55,8 +55,7 @@ try {
 		const save = controller.getRpgSnapshot();
 		save.inventory = {
 			items: [
-				{ itemId: 'dragonstone-expedition-maintenance-kit', quantity: 1, provenance: [{ sourceType: 'settlement-crafting', sourceId: 'dragonstone-expedition-maintenance-kit' }] },
-				{ itemId: 'dragonstone-travel-ration-pack', quantity: 3, provenance: [{ sourceType: 'settlement-crafting', sourceId: 'dragonstone-watch-travel-ration-pack' }] },
+				{ itemId: 'dragonstone-travel-ration-pack', quantity: 4, provenance: [{ sourceType: 'settlement-crafting', sourceId: 'dragonstone-watch-travel-ration-pack' }] },
 			],
 		};
 		save.worldState = {
@@ -82,8 +81,8 @@ try {
 			&& masteryRewardOk
 			&& afterMastery.economy.copper === 70
 			&& afterMastery.worldState.dragonstoneExpeditionMasteryClaimed === true
-			&& quantity(afterMastery, 'dragonstone-travel-ration-pack') === 0
-			&& masteryKit?.quantity === 1;
+			&& quantity(afterMastery, 'dragonstone-travel-ration-pack') === 1
+			&& !masteryKit;
 
 		controller.handleKeyDown({ code: 'KeyB', repeat: false });
 		const serviceAdvertised = dialogueBox._textEl.textContent.includes('HİZMET: Zırhçı bileme hazırlığı')
@@ -93,13 +92,13 @@ try {
 		const whetstonesAfterService = item(afterService, 'dragonstone-whetstone');
 		const kitAfterService = item(afterService, recipe.outputItemId);
 		const receipt = afterService.economy.ledger.recentTransactions.at(-1);
-		const craftGuarded = quantity(afterService, 'dragonstone-travel-ration-pack') === 0
-			&& whetstonesAfterService?.quantity === 2
-			&& hasProvenance(whetstonesAfterService, 'expedition-mastery', 'dragonstone-expedition-mastery')
-			&& hasProvenance(whetstonesAfterService, 'settlement-service', armorer.fulfillment.serviceId)
+		const craftCompleted = quantity(afterService, 'dragonstone-travel-ration-pack') === 0
+			&& !whetstonesAfterService
 			&& kitAfterService?.quantity === 1
 			&& kitAfterService?.provenance?.at(-1)?.sourceType === 'settlement-crafting'
 			&& kitAfterService?.provenance?.at(-1)?.sourceId === recipe.recipeId
+			&& afterService.inventory.fieldReadiness.capabilities.fastTravelEligible === true
+			&& afterService.inventory.fieldReadiness.equipped?.itemId === recipe.outputItemId
 			&& afterService.economy.copper === 58
 			&& afterService.economy.stockByOffer[armorer.id] === 1
 			&& receipt?.offerId === armorer.id
@@ -121,11 +120,11 @@ try {
 		const restoredKit = item(roundTrip, recipe.outputItemId);
 		const persisted = roundTrip.worldState.dragonstoneExpeditionMasteryClaimed === true
 			&& roundTrip.economy.copper === 58
-			&& restoredWhetstones?.quantity === 2
-			&& hasProvenance(restoredWhetstones, 'expedition-mastery', 'dragonstone-expedition-mastery')
-			&& hasProvenance(restoredWhetstones, 'settlement-service', armorer.fulfillment.serviceId)
+			&& !restoredWhetstones
 			&& restoredKit?.quantity === 1
 			&& restoredKit?.provenance?.at(-1)?.sourceId === recipe.recipeId
+			&& roundTrip.inventory.fieldReadiness.capabilities.fastTravelEligible === true
+			&& roundTrip.inventory.fieldReadiness.equipped?.itemId === recipe.outputItemId
 			&& quantity(roundTrip, 'dragonstone-travel-ration-pack') === 0;
 
 		secondDialogue.dispose();
@@ -140,7 +139,7 @@ try {
 			masteryRationPacks: quantity(afterMastery, 'dragonstone-travel-ration-pack'),
 			masteryBalance: afterMastery.economy.copper,
 			serviceAdvertised,
-			craftGuarded,
+			craftCompleted,
 			persisted,
 			inventoryEvents: events.inventory.length,
 			economyEvents: events.economy.length,
@@ -152,10 +151,10 @@ try {
 	});
 
 	if (pageErrors.length || consoleErrors.length) throw new Error(`Mastery-to-smithing emitted browser errors: ${JSON.stringify({ pageErrors, consoleErrors })}`);
-	for (const key of ['boardAdvertisesProgress', 'masteryGranted', 'serviceAdvertised', 'craftGuarded', 'persisted']) {
+	for (const key of ['boardAdvertisesProgress', 'masteryGranted', 'serviceAdvertised', 'craftCompleted', 'persisted']) {
 		if (!result[key]) throw new Error(`Mastery-to-smithing browser assertion failed: ${key} ${JSON.stringify(result)}`);
 	}
-	console.log('[RPG Chromium] PASS: expedition mastery → canonical whetstone reward → armorer craft guard → save/load');
+	console.log('[RPG Chromium] PASS: expedition mastery → canonical whetstone reward → armorer craft → field readiness → save/load');
 	console.log(`[RPG Chromium] mastery-to-smithing balance=${result.balance}, maintenance kits=${result.kitQuantity}, whetstones=${result.whetstonesAfterService}, inventory events=${result.inventoryEvents}, economy events=${result.economyEvents}`);
 	console.log('[RPG Chromium] mastery-to-smithing page errors=0, console errors=0');
 } finally {
