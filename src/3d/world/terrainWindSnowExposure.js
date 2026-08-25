@@ -22,25 +22,26 @@ function smoothstep(edge0, edge1, value) {
 const PREVAILING_SOURCE_LENGTH = Math.hypot(0.8, 0.6);
 
 export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
-	id: 'terrain-wind-snow-exposure-2026-08-23-v3-selective-aspect',
+	id: 'terrain-wind-snow-exposure-2026-08-25-v4-ridge-breakup',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	// Direction points toward the source of the prevailing wind. Wind therefore travels NW -> SE.
 	prevailingSourceX: -0.8 / PREVAILING_SOURCE_LENGTH,
 	prevailingSourceZ: -0.6 / PREVAILING_SOURCE_LENGTH,
-	aspectSlopeStartDegrees: 3,
-	aspectSlopeFullDegrees: 28,
-	// Avoid broad half-mountain striping: crosswind faces stay neutral until they meaningfully align
-	// with the authored prevailing flow, then ramp smoothly toward full windward/lee influence.
-	directionalAlignmentStart: 0.22,
-	directionalAlignmentFull: 0.90,
+	aspectSlopeStartDegrees: 4,
+	aspectSlopeFullDegrees: 24,
+	// Keep broad crosswind faces neutral and concentrate redistribution on terrain that actually
+	// presents itself to the prevailing flow. This avoids painting soft half-mountain snow lobes while
+	// preserving stronger, narrower scour/deposition around real ridges and sheltered folds.
+	directionalAlignmentStart: 0.34,
+	directionalAlignmentFull: 0.92,
 	// Sheltered faces can hold loose snow on ordinary mountain slopes, but near-cliffs should shed it.
-	leeRetentionFadeStartDegrees: 42,
-	leeRetentionFadeFullDegrees: 62,
-	northWindwardScourMax: 0.075,
-	tundraWindwardScourMax: 0.045,
-	northLeeDepositMax: 0.055,
-	tundraLeeDepositMax: 0.032,
+	leeRetentionFadeStartDegrees: 40,
+	leeRetentionFadeFullDegrees: 58,
+	northWindwardScourMax: 0.090,
+	tundraWindwardScourMax: 0.052,
+	northLeeDepositMax: 0.065,
+	tundraLeeDepositMax: 0.038,
 });
 
 /**
