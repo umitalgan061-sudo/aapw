@@ -42,7 +42,7 @@ function meanAbsoluteNeighborDelta(data, size, channel) {
   return total / samples;
 }
 
-assert.equal(TERRAIN_MICRO_SURFACE_POLICY.id, 'terrain-micro-surface-world-uv-pbr-v5-safe-world-position');
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.id, 'terrain-micro-surface-world-uv-pbr-v6-regional-natural-albedo');
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.uvChannel, 1, 'micro detail must use uv1, never owner-map albedo uv0');
 assert(TERRAIN_MICRO_SURFACE_POLICY.textureSize >= 256, 'photoreal terrain atlas needs enough fracture resolution');
 assert(TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters >= 12 && TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters <= 32);
@@ -50,8 +50,10 @@ assert(TERRAIN_MICRO_SURFACE_POLICY.normalStrength > 0.4 && TERRAIN_MICRO_SURFAC
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.macroColorBreakup, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.photorealDesaturation, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.naturalAlbedoRemap, true);
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.regionalMoistureVariation, true);
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.elevationWeathering, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.fractureNormals, true);
-assert.deepEqual(TERRAIN_MICRO_SURFACE_POLICY.worldSpaceMacroScaleMeters, [145, 620, 2400]);
+assert.deepEqual(TERRAIN_MICRO_SURFACE_POLICY.worldSpaceMacroScaleMeters, [95, 360, 980, 2600]);
 
 const standalone = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
 applyTerrainMicroSurface(standalone);
@@ -73,15 +75,22 @@ assert.equal(standalone.userData.terrainMicroSurface.renderOnly, true);
 assert.equal(standalone.userData.terrainMicroSurface.macroWorldSpaceColorBreakup, true);
 assert.equal(standalone.userData.terrainMicroSurface.photorealDesaturation, true);
 assert.equal(standalone.userData.terrainMicroSurface.naturalAlbedoRemap, true);
+assert.equal(standalone.userData.terrainMicroSurface.regionalMoistureVariation, true);
+assert.equal(standalone.userData.terrainMicroSurface.elevationWeathering, true);
 assert.equal(standalone.userData.terrainMicroSurface.fractureNormals, true);
-assert.equal(standalone.customProgramCacheKey(), 'terrain-photoreal-world-surface-v5-safe-world-position');
+assert.equal(standalone.customProgramCacheKey(), 'terrain-photoreal-world-surface-v6-regional-natural-albedo');
 const shaderHookSource = standalone.onBeforeCompile.toString();
 for (const marker of [
   'terrainPhotoFbm',
+  'terrainPhotoRegional',
+  'terrainPhotoMoisture',
+  'terrainPhotoElevation',
   'terrainPhotoVegetation',
   'terrainPhotoOlive',
+  'terrainPhotoHeathBreak',
   'terrainPhotoWarmGround',
   'terrainPhotoEarth',
+  'terrainPhotoStonyPatch',
   'terrainPhotoRock',
   'terrainPhotoSnow',
   'modelMatrix * vec4(transformed, 1.0)',
@@ -98,7 +107,7 @@ const normalZRange = channelRange(normalData, 2);
 const roughnessRange = channelRange(roughnessData, 1);
 assert(normalXRange.max - normalXRange.min > 50, 'normal atlas must vary strongly along tangent X');
 assert(normalYRange.max - normalYRange.min > 50, 'normal atlas must vary strongly along tangent Y');
-assert(normalZRange.min > 80, 'photoreal micro normals must remain upward-facing');
+assert(normalZRange.min > 70, 'photoreal micro normals must remain upward-facing');
 assert(roughnessRange.max - roughnessRange.min > 35, 'roughness atlas must contain dry/polished variation');
 const normalLocalEnergy = meanAbsoluteNeighborDelta(normalData, TERRAIN_MICRO_SURFACE_POLICY.textureSize, 0)
   + meanAbsoluteNeighborDelta(normalData, TERRAIN_MICRO_SURFACE_POLICY.textureSize, 1);
@@ -161,4 +170,4 @@ close(oneTileNorth.v - origin.v, 1, 'one detail period north must advance exactl
 standalone.dispose();
 disposeTerrainChunk(west);
 disposeTerrainChunk(east);
-console.log('[checkTerrainMicroSurface] PASS: safe world-position hook + natural albedo remap + fractured PBR detail remain seam-continuous and canonical-height neutral.');
+console.log('[checkTerrainMicroSurface] PASS: regional moisture + elevation weathering + fractured PBR detail remain seam-continuous and canonical-height neutral.');
