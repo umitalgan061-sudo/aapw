@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'src/3d/gameplay/worldEvents.js'
+      - 'scripts/checkWorldEventDeterminism.js'
       - 'scripts/checkWorldEventResumeBudget.mjs'
       - '.github/workflows/world-event-resume-budget.yml'
   workflow_dispatch:
@@ -29,7 +30,7 @@ jobs:
           git fetch origin "$BASE_SHA" --depth=1
           mapfile -t files < <(git diff --name-only "$BASE_SHA"...HEAD)
           printf '%s\n' "${files[@]}"
-          allowed='^(src/3d/gameplay/worldEvents\.js|scripts/checkWorldEventResumeBudget\.mjs|\.github/workflows/world-event-resume-budget\.yml)$'
+          allowed='^(src/3d/gameplay/worldEvents\.js|scripts/checkWorldEventDeterminism\.js|scripts/checkWorldEventResumeBudget\.mjs|\.github/workflows/world-event-resume-budget\.yml)$'
           for file in "${files[@]}"; do
             [[ "$file" =~ $allowed ]] || { echo "unexpected scope: $file"; exit 1; }
           done
@@ -39,10 +40,14 @@ jobs:
       - name: Syntax
         run: |
           node --check src/3d/gameplay/worldEvents.js
+          node --check scripts/checkWorldEventDeterminism.js
           node --check scripts/checkWorldEventResumeBudget.mjs
 
       - name: Deterministic resume budget
         run: node scripts/checkWorldEventResumeBudget.mjs
+
+      - name: Canonical world-event determinism
+        run: node scripts/checkWorldEventDeterminism.js
 
       - name: Shared material placement contract
         run: node scripts/checkSharedMaterialPlacementContract.js
