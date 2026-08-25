@@ -12,6 +12,10 @@ assert.match(source, /!Number\.isFinite\(packmatePosition\?\.x\) \|\| !Number\.i
 assert.match(source, /const hasSeparationVector = distanceFromPlayer > 1e-6/);
 assert.match(source, /Math\.sin\(model\.rotation\.y\)/);
 assert.match(source, /Math\.cos\(model\.rotation\.y\)/);
+assert.match(source, /function tryCommitGroundedMove\(candidateX, candidateZ\)/);
+assert.match(source, /!Number\.isFinite\(resolved\?\.x\) \|\| !Number\.isFinite\(resolved\?\.z\)/);
+assert.match(source, /const resolvedY = groundCollider\.getGroundHeight\(resolvedX, resolvedZ\)/);
+assert.match(source, /if \(!Number\.isFinite\(resolvedY\)\) return false/);
 assert.match(source, /const step = fleeSpeedMps \* simulationDelta/);
 assert.match(source, /const step = speedMps \* simulationDelta/);
 assert.match(source, /mixer\.update\(simulationDelta\)/);
@@ -23,6 +27,7 @@ const patrolSpeed = 2.2;
 const bounded = (delta) => (!Number.isFinite(delta) || delta <= 0 ? 0 : Math.min(delta, maxStep));
 const overlapDirection = (yaw) => ({ x: Math.sin(yaw), z: Math.cos(yaw) });
 const finitePlayerPosition = (position) => Number.isFinite(position?.x) && Number.isFinite(position?.z);
+const movementAdapterOutputIsFinite = (position) => Number.isFinite(position?.x) && Number.isFinite(position?.z);
 
 assert.equal(bounded(3), 0.1, 'a multi-second tab/background stall must be reduced to one bounded wildlife step');
 assert.equal(bounded(Number.NaN), 0, 'non-finite frame deltas must never enter movement or animation state');
@@ -34,5 +39,8 @@ assert.ok(Math.abs(overlap.x - 1) <= Number.EPSILON && Math.abs(overlap.z) <= 1e
 assert.equal(finitePlayerPosition({ x: Number.NaN, z: 0 }), false, 'NaN player threat coordinates must fail closed before pack-alert movement');
 assert.equal(finitePlayerPosition({ x: Infinity, z: 0 }), false, 'infinite player threat coordinates must fail closed before pack-alert movement');
 assert.equal(finitePlayerPosition({ x: 0, z: 0 }), true, 'finite player threat coordinates must remain eligible for wildlife sensing');
+assert.equal(movementAdapterOutputIsFinite({ x: Number.NaN, z: 0 }), false, 'NaN collider output must be rejected before movement commit');
+assert.equal(movementAdapterOutputIsFinite({ x: 0, z: Infinity }), false, 'infinite collider output must be rejected before movement commit');
+assert.equal(movementAdapterOutputIsFinite({ x: 1, z: 2 }), true, 'finite collider output must remain eligible for movement commit');
 
 console.log('Wildlife long-frame simulation budget PASS');
