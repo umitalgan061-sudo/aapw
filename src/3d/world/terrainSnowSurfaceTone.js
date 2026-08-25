@@ -25,17 +25,23 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   transitionAccumulationHarmony: true,
   transitionLowlandHarmony: true,
   glacialAccumulatedPaletteRetention: true,
+  ridgeScourReadability: true,
+  leeDriftReadability: true,
+  windSlabReadability: true,
   glacialVisibilityExponent: 0.65,
   glacialDepthFloor: 0.54,
   glacialDepthGain: 0.46,
-  packedWindwardGain: 0.72,
-  packedRidgeGain: 0.34,
+  packedWindwardGain: 0.78,
+  packedRidgeGain: 0.40,
   packedPermanentIceFloor: 0.10,
   packedGlacialContinuityGain: 0.08,
   packedGlacialFamilyGain: 0.16,
   packedGlacialDepthGain: 0.08,
   packedShelteredGlacialGain: 0.10,
   packedTransitionColdGain: 0.075,
+  ridgeScourPackedGain: 0.28,
+  windSlabPackedGain: 0.20,
+  ridgeScourAccumulationSuppression: 0.46,
   shelteredPackedFloorGain: 0.12,
   packedGlacialPaletteFloorGain: 0.25,
   packedGlacialPaletteDepthGain: 0.10,
@@ -43,6 +49,7 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   accumulatedLeeGain: 0.72,
   accumulatedConcavityGain: 0.42,
   accumulatedGentleSlopeGain: 0.16,
+  leeDriftAccumulationGain: 0.26,
   accumulatedPermanentIceScale: 0.54,
   accumulatedGlacialPaletteRetentionFloor: 0.72,
   shelteredGlacialRetentionFloor: 0.58,
@@ -52,12 +59,12 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   tundraToneScale: 0.78,
   minimumVisibleSnow: 0.08,
   minimumAccumulatedSnow: 0.22,
-  maximumPackedWeight: 0.72,
-  maximumAccumulatedWeight: 0.78,
-  packedCoolShift: 0.18,
-  packedBrightnessShift: -0.035,
-  accumulatedWarmShift: 0.055,
-  accumulatedBrightnessShift: 0.045,
+  maximumPackedWeight: 0.82,
+  maximumAccumulatedWeight: 0.82,
+  packedCoolShift: 0.20,
+  packedBrightnessShift: -0.045,
+  accumulatedWarmShift: 0.050,
+  accumulatedBrightnessShift: 0.052,
 });
 
 /**
@@ -111,6 +118,9 @@ export function resolveTerrainSnowSurfaceTone({
       transitionAccumulationCooling: 0,
       accumulationClimateScale: 1,
       accumulatedGlacialPaletteRetention: 1,
+      ridgeScourWeight: 0,
+      windSlabWeight: 0,
+      leeDriftWeight: 0,
       packedWeight: 0,
       accumulatedWeight: 0,
       neutralWeight: visibleSnow,
@@ -151,9 +161,25 @@ export function resolveTerrainSnowSurfaceTone({
     * accumulationVisibleSnow
     * shelterSignal
     * P.packedShelteredGlacialGain;
+
+  // These three signals expose the already-authoritative wind/terrain telemetry at a broader tonal
+  // scale. They do not create or remove snow: ridge scour only hardens/cools existing snow, wind slab
+  // separates exposed shoulders from neutral snow, and lee drift brightens only retained shelter.
+  const exposedSignal = clamp01(clamp01(windwardScour) * 0.62 + clamp01(ridgeExposure) * 0.72);
+  const ridgeScourWeight = visibleSnow * climate * exposedSignal * (1 - shelterSignal * 0.58);
+  const windSlabWeight = visibleSnow * climate
+    * clamp01(clamp01(windwardScour) * 0.46 + clamp01(ridgeExposure) * 0.34 + permanentIceWeight * 0.12)
+    * (0.70 + (1 - clamp01(gentleSlope)) * 0.30)
+    * (1 - shelterSignal * 0.36);
+  const leeDriftWeight = accumulationVisibleSnow * climate * shelterSignal
+    * (0.58 + clamp01(gentleSlope) * 0.42)
+    * (1 - clamp01(ridgeExposure) * 0.46);
+
   const packedSignal = clamp01(
     clamp01(windwardScour) * P.packedWindwardGain
       + clamp01(ridgeExposure) * P.packedRidgeGain
+      + ridgeScourWeight * P.ridgeScourPackedGain
+      + windSlabWeight * P.windSlabPackedGain
       + permanentIceWeight * P.packedPermanentIceFloor
       + glacialContinuity * P.packedGlacialContinuityGain
       + glacialFamilySupport * P.packedGlacialFamilyGain
@@ -162,10 +188,14 @@ export function resolveTerrainSnowSurfaceTone({
       + transitionColdSupport,
   );
   const gentleShelterSupport = clamp01(gentleSlope) * shelterSignal * P.accumulatedGentleSlopeGain;
-  const accumulatedSignal = clamp01(
+  const accumulatedSignalRaw = clamp01(
     clamp01(leeDeposit) * P.accumulatedLeeGain
       + clamp01(concavityHold) * P.accumulatedConcavityGain
-      + gentleShelterSupport,
+      + gentleShelterSupport
+      + leeDriftWeight * P.leeDriftAccumulationGain,
+  );
+  const accumulatedSignal = clamp01(
+    accumulatedSignalRaw * (1 - ridgeScourWeight * P.ridgeScourAccumulationSuppression),
   );
   // Permanent-ice shelter remains visibly soft, but its warm accumulated tint should lose strength
   // in proportion to the actual glacial-family support beneath it. Deep retained snow gets a second
@@ -202,8 +232,8 @@ export function resolveTerrainSnowSurfaceTone({
   // soft without visually disconnecting from the glacial lowland below it. The broader palette floor
   // also acts on neutral retained snow, strengthening continuously with snow depth while shelter only
   // softens it to an authored retention floor instead of erasing the mountain-to-lowland colour link.
-  const packedDominance = packedSignal * (1 - accumulatedSignal * 0.72);
-  const accumulatedDominance = accumulatedSignal * (1 - packedSignal * 0.72);
+  const packedDominance = packedSignal * (1 - accumulatedSignal * 0.70);
+  const accumulatedDominance = accumulatedSignal * (1 - packedSignal * 0.68);
   const glacialPackedFloor = glacialFamilySupport
     * visibleSnow
     * lerp(0.35, 1, deepShelter)
@@ -248,6 +278,9 @@ export function resolveTerrainSnowSurfaceTone({
     accumulatedGlacialPaletteRetention,
     shelterSignal,
     gentleShelterSupport,
+    ridgeScourWeight,
+    windSlabWeight,
+    leeDriftWeight,
     packedWeight,
     accumulatedWeight,
     neutralWeight,
