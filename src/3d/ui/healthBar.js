@@ -3,6 +3,8 @@
  * Keeps the existing HealthBar API while consuming real Player motion, lock-on, attack and defense telemetry.
  * @module ui/healthBar
  */
+import { readDamageResolution } from '../gameplay/health.js';
+
 const FLASH_SECONDS = 0.3;
 const DEFENSE_FEEDBACK_SECONDS = 0.65;
 const TARGET_FEEDBACK_SECONDS = 0.9;
@@ -10,6 +12,7 @@ const STAMINA_STATE_LABELS = Object.freeze({ idle: 'Hazır', walk: 'Yürüme', s
 const ATTACK_KIND_LABELS = Object.freeze({ light: 'Hafif', heavy: 'Ağır' });
 const ATTACK_PHASE_LABELS = Object.freeze({ start: 'Hazırlık', 'active-start': 'VURUŞ', 'active-end': 'Toparlanma' });
 const DEFENSE_LABELS = Object.freeze({ guard: 'BLOK', parry: 'PARRY' });
+const COUNTER_SOURCE_LABELS = Object.freeze({ parry: 'PARRY' });
 export class HealthBar {
 	constructor({ eventsBus, healthChangedEventName, damageEventName, container = document.body }) {
 		this._el = document.createElement('div'); this._el.className = 'g3d-health-bar g3d-player-vitals'; this._el.setAttribute('role', 'meter'); this._el.setAttribute('aria-label', 'Can'); this._el.setAttribute('aria-valuemin', '0'); Object.assign(this._el.style, { width: '440px', display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gridTemplateRows: 'auto auto auto', columnGap: '10px' });
@@ -27,9 +30,9 @@ export class HealthBar {
 		this._combatEl = document.createElement('div'); this._combatEl.className = 'g3d-combat-status'; this._combatEl.setAttribute('role', 'status'); this._combatEl.setAttribute('aria-live', 'polite'); this._combatEl.setAttribute('aria-label', 'Çatışma durumu'); Object.assign(this._combatEl.style, { gridColumn: '4', gridRow: '1 / 4', display: 'grid', gridTemplateRows: 'auto auto', alignContent: 'start', paddingLeft: '10px', borderLeft: '1px solid rgba(180, 90, 75, 0.34)' });
 		const combatLabel = document.createElement('p'); combatLabel.className = 'g3d-health-bar-label g3d-combat-status-label'; combatLabel.textContent = 'Çatışma'; combatLabel.style.gridRow = '1'; this._combatEl.appendChild(combatLabel);
 		this._combatTextEl = document.createElement('p'); this._combatTextEl.className = 'g3d-health-bar-text g3d-combat-status-text'; this._combatTextEl.style.gridRow = '2'; this._combatTextEl.textContent = 'Serbest'; this._combatEl.appendChild(this._combatTextEl); this._el.appendChild(this._combatEl); container.appendChild(this._el);
-		this._combatLock = null; this._combatAttack = null; this._combatDefense = null;
+		this._combatLock = null; this._combatAttack = null; this._combatDefense = null; this._combatCounter = null;
 		this._flashTimeoutId = null; this._defenseTimeoutId = null; this._targetTimeoutId = null; this._onHealthChanged = (payload) => this._paint(payload); this._onDamage = (payload) => { this._flash(); this._paintDefense(payload); }; eventsBus.on(healthChangedEventName, this._onHealthChanged); eventsBus.on(damageEventName, this._onDamage); this._eventsBus = eventsBus; this._healthChangedEventName = healthChangedEventName; this._damageEventName = damageEventName;
-		this._motionEventTarget = typeof globalThis.addEventListener === 'function' ? globalThis : null; this._onPlayerMotion = (event) => this._paintMotion(event?.detail); this._onPlayerLockOn = (event) => this._paintLockOn(event?.detail); this._onAttackWindow = (event) => this._paintAttack(event?.detail); this._motionEventTarget?.addEventListener('aapw:player-motion', this._onPlayerMotion); this._motionEventTarget?.addEventListener('aapw:player-lock-on', this._onPlayerLockOn); this._motionEventTarget?.addEventListener('aapw:player-attack-window', this._onAttackWindow);
+		this._motionEventTarget = typeof globalThis.addEventListener === 'function' ? globalThis : null; this._onPlayerMotion = (event) => this._paintMotion(event?.detail); this._onPlayerLockOn = (event) => this._paintLockOn(event?.detail); this._onAttackWindow = (event) => this._paintAttack(event?.detail); this._onCounterWindow = (event) => this._paintCounter(event?.detail); this._motionEventTarget?.addEventListener('aapw:player-motion', this._onPlayerMotion); this._motionEventTarget?.addEventListener('aapw:player-lock-on', this._onPlayerLockOn); this._motionEventTarget?.addEventListener('aapw:player-attack-window', this._onAttackWindow); this._motionEventTarget?.addEventListener('aapw:player-counter-window', this._onCounterWindow);
 	}
 	_paint({ current, maxHealth }) { const ratio = maxHealth > 0 ? Math.max(0, Math.min(1, current / maxHealth)) : 0; this._fillEl.style.width = `${(ratio * 100).toFixed(1)}%`; this._textEl.textContent = `${Math.ceil(current)} / ${maxHealth}`; this._el.setAttribute('aria-valuemax', String(maxHealth)); this._el.setAttribute('aria-valuenow', String(Math.max(0, Math.min(maxHealth, Math.ceil(current))))); this._el.setAttribute('aria-valuetext', `${Math.ceil(current)} / ${maxHealth}`); this._el.classList.toggle('g3d-health-bar-low', ratio > 0 && ratio <= 0.25); }
 	_paintMotion(motion) {
@@ -56,23 +59,31 @@ export class HealthBar {
 	}
 	_paintAttack(detail) {
 		if (!detail || (detail.kind !== 'light' && detail.kind !== 'heavy')) return;
-		if (detail.phase === 'finish') this._combatAttack = null;
+		if (detail.phase === 'finish' || detail.phase === 'interrupted') this._combatAttack = null;
 		else if (ATTACK_PHASE_LABELS[detail.phase]) this._combatAttack = {
 			kind: detail.kind,
 			phase: detail.phase,
 			comboStep: Number.isFinite(detail.comboStep) ? detail.comboStep : 1,
 			reachMeters: Number.isFinite(detail.reachMeters) && detail.reachMeters > 0 ? detail.reachMeters : null,
 			damageScale: Number.isFinite(detail.damageScale) && detail.damageScale > 0 ? detail.damageScale : null,
+			counterSource: COUNTER_SOURCE_LABELS[detail.counterSource] ? detail.counterSource : 'none',
 		};
 		this._renderCombatStatus();
 	}
+	_paintCounter(detail) {
+		this._combatCounter = detail?.ready && COUNTER_SOURCE_LABELS[detail.source]
+			? { source: detail.source, remainingSeconds: Number.isFinite(detail.remainingSeconds) ? Math.max(0, detail.remainingSeconds) : null }
+			: null;
+		this._renderCombatStatus();
+	}
 	_paintDefense(payload) {
-		const mitigation = payload?.mitigation;
+		const staged = readDamageResolution(payload), mitigation = staged?.mitigation ?? payload?.mitigation;
 		if (!DEFENSE_LABELS[mitigation]) return;
+		const blockedAmount = staged?.blockedAmount ?? payload?.blockedAmount, appliedAmount = staged?.amount ?? payload?.amount;
 		this._combatDefense = {
 			mitigation,
-			blockedAmount: Number.isFinite(payload?.blockedAmount) ? Math.max(0, payload.blockedAmount) : null,
-			appliedAmount: Number.isFinite(payload?.amount) ? Math.max(0, payload.amount) : null,
+			blockedAmount: Number.isFinite(blockedAmount) ? Math.max(0, blockedAmount) : null,
+			appliedAmount: Number.isFinite(appliedAmount) ? Math.max(0, appliedAmount) : null,
 		};
 		this._renderCombatStatus();
 		if (this._defenseTimeoutId !== null) clearTimeout(this._defenseTimeoutId);
@@ -80,7 +91,9 @@ export class HealthBar {
 	}
 	_renderCombatStatus(transient = null) {
 		const lockText = this._combatLock ? `Kilit · ${this._combatLock.targetId}${this._combatLock.distanceMeters !== null ? ` · ${this._combatLock.distanceMeters.toFixed(1)} m` : ''}` : null;
-		const attackText = this._combatAttack ? `${ATTACK_KIND_LABELS[this._combatAttack.kind]} · ${ATTACK_PHASE_LABELS[this._combatAttack.phase]} · Seri x${this._combatAttack.comboStep}${this._combatAttack.reachMeters !== null ? ` · Erişim ${this._combatAttack.reachMeters.toFixed(1)} m` : ''}${this._combatAttack.damageScale !== null ? ` · Güç x${this._combatAttack.damageScale.toFixed(2)}` : ''}` : null;
+		const counterAttack = this._combatAttack?.counterSource !== 'none';
+		const attackText = this._combatAttack ? `${counterAttack ? 'RİPOST · ' : ''}${ATTACK_KIND_LABELS[this._combatAttack.kind]} · ${ATTACK_PHASE_LABELS[this._combatAttack.phase]} · Seri x${this._combatAttack.comboStep}${this._combatAttack.reachMeters !== null ? ` · Erişim ${this._combatAttack.reachMeters.toFixed(1)} m` : ''}${this._combatAttack.damageScale !== null ? ` · Güç x${this._combatAttack.damageScale.toFixed(2)}` : ''}` : null;
+		const counterText = this._combatCounter ? `RİPOST HAZIR · ${COUNTER_SOURCE_LABELS[this._combatCounter.source]}${this._combatCounter.remainingSeconds !== null ? ` · ${this._combatCounter.remainingSeconds.toFixed(1)} sn` : ''}` : null;
 		const hasRangeComparison = Number.isFinite(this._combatAttack?.reachMeters) && Number.isFinite(this._combatLock?.distanceMeters);
 		const targetInRange = hasRangeComparison ? this._combatLock.distanceMeters <= this._combatAttack.reachMeters : null;
 		const rangeText = targetInRange === null ? null : targetInRange ? 'MENZİLDE' : 'UZAK';
@@ -89,9 +102,9 @@ export class HealthBar {
 		const defenseText = this._combatDefense
 			? `${DEFENSE_LABELS[this._combatDefense.mitigation]}${Number.isFinite(defenseBlocked) ? ` · ${defenseBlocked.toFixed(1)} ${this._combatDefense.mitigation === 'parry' ? 'savuşturuldu' : 'engellendi'}` : ''}${this._combatDefense.mitigation === 'guard' && Number.isFinite(defenseApplied) ? ` · ${defenseApplied.toFixed(1)} hasar` : ''}`
 			: null;
-		const primary = defenseText ?? attackText; const text = primary ? `${primary}${lockText ? ` · ${lockText}` : ''}${rangeText ? ` · ${rangeText}` : ''}` : (transient ?? lockText ?? 'Serbest');
-		this._combatTextEl.textContent = text; this._combatEl.dataset.state = this._combatDefense ? `defense-${this._combatDefense.mitigation}` : this._combatAttack ? `attack-${this._combatAttack.phase}` : this._combatLock ? 'locked' : transient ? 'no-target' : 'free'; this._combatEl.dataset.range = targetInRange === null ? 'unknown' : targetInRange ? 'in-range' : 'out-of-range'; this._combatEl.classList.toggle('g3d-combat-status-active', Boolean(this._combatAttack || this._combatDefense)); this._combatEl.classList.toggle('g3d-combat-status-locked', Boolean(this._combatLock));
+		const primary = counterAttack ? attackText : (defenseText ?? attackText ?? counterText); const text = primary ? `${primary}${lockText ? ` · ${lockText}` : ''}${rangeText ? ` · ${rangeText}` : ''}` : (transient ?? lockText ?? 'Serbest');
+		this._combatTextEl.textContent = text; this._combatEl.dataset.state = counterAttack ? `attack-${this._combatAttack.phase}` : this._combatDefense ? `defense-${this._combatDefense.mitigation}` : this._combatAttack ? `attack-${this._combatAttack.phase}` : this._combatCounter ? 'counter-ready' : this._combatLock ? 'locked' : transient ? 'no-target' : 'free'; this._combatEl.dataset.range = targetInRange === null ? 'unknown' : targetInRange ? 'in-range' : 'out-of-range'; this._combatEl.classList.toggle('g3d-combat-status-active', Boolean(this._combatAttack || this._combatDefense || this._combatCounter)); this._combatEl.classList.toggle('g3d-combat-status-locked', Boolean(this._combatLock));
 	}
 	_flash() { this._el.classList.add('g3d-health-bar-flash'); if (this._flashTimeoutId !== null) clearTimeout(this._flashTimeoutId); this._flashTimeoutId = setTimeout(() => { this._el.classList.remove('g3d-health-bar-flash'); this._flashTimeoutId = null; }, FLASH_SECONDS * 1000); }
-	dispose() { this._eventsBus.off(this._healthChangedEventName, this._onHealthChanged); this._eventsBus.off(this._damageEventName, this._onDamage); this._motionEventTarget?.removeEventListener('aapw:player-motion', this._onPlayerMotion); this._motionEventTarget?.removeEventListener('aapw:player-lock-on', this._onPlayerLockOn); this._motionEventTarget?.removeEventListener('aapw:player-attack-window', this._onAttackWindow); if (this._flashTimeoutId !== null) clearTimeout(this._flashTimeoutId); if (this._defenseTimeoutId !== null) clearTimeout(this._defenseTimeoutId); if (this._targetTimeoutId !== null) clearTimeout(this._targetTimeoutId); this._el.remove(); }
+	dispose() { this._eventsBus.off(this._healthChangedEventName, this._onHealthChanged); this._eventsBus.off(this._damageEventName, this._onDamage); this._motionEventTarget?.removeEventListener('aapw:player-motion', this._onPlayerMotion); this._motionEventTarget?.removeEventListener('aapw:player-lock-on', this._onPlayerLockOn); this._motionEventTarget?.removeEventListener('aapw:player-attack-window', this._onAttackWindow); this._motionEventTarget?.removeEventListener('aapw:player-counter-window', this._onCounterWindow); if (this._flashTimeoutId !== null) clearTimeout(this._flashTimeoutId); if (this._defenseTimeoutId !== null) clearTimeout(this._defenseTimeoutId); if (this._targetTimeoutId !== null) clearTimeout(this._targetTimeoutId); this._el.remove(); }
 }
