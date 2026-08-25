@@ -5,22 +5,22 @@ const TEXTURE_HEIGHT = 512;
 
 const GLACIER_PALETTE = Object.freeze({
 	wall: Object.freeze({
-		shadow: [38, 55, 63],
-		dense: [79, 111, 121],
-		crack: [18, 37, 49],
-		frost: [183, 194, 195],
-		snow: [224, 228, 226],
-		debris: [91, 89, 82],
-		wet: [48, 91, 101],
+		shadow: [68, 86, 94],
+		dense: [104, 139, 149],
+		crack: [24, 46, 58],
+		frost: [205, 214, 214],
+		snow: [235, 238, 236],
+		debris: [103, 100, 92],
+		wet: [63, 105, 113],
 	}),
 	cave: Object.freeze({
-		shadow: [25, 49, 60],
-		dense: [57, 111, 127],
-		crack: [12, 29, 41],
-		frost: [170, 188, 190],
-		snow: [215, 223, 222],
-		debris: [78, 79, 75],
-		wet: [31, 93, 112],
+		shadow: [45, 74, 87],
+		dense: [70, 129, 147],
+		crack: [17, 38, 50],
+		frost: [190, 205, 207],
+		snow: [224, 230, 228],
+		debris: [89, 89, 83],
+		wet: [42, 105, 122],
 	}),
 });
 
@@ -197,17 +197,18 @@ function replaceMaterialSurface(material, textures, { cave = false } = {}) {
 	material.map = textures.colorMap;
 	material.roughnessMap = textures.roughnessMap;
 	material.normalMap = textures.normalMap;
+	material.vertexColors = false;
 	material.normalScale.set(cave ? 0.70 : 0.80, cave ? 0.84 : 0.96);
-	material.color.set(cave ? 0xb8c4c3 : 0xc8cfcd);
+	material.color.set(cave ? 0xd0d8d7 : 0xe0e3e1);
 	material.roughness = cave ? 0.48 : 0.60;
 	material.clearcoat = cave ? 0.20 : 0.08;
 	material.clearcoatRoughness = cave ? 0.38 : 0.52;
 	material.transmission = cave ? 0.060 : 0.012;
 	material.thickness = cave ? 4.8 : 3.2;
-	material.attenuationColor.set(cave ? 0x3a7180 : 0x607f84);
+	material.attenuationColor.set(cave ? 0x467d8a : 0x708b8f);
 	material.attenuationDistance = cave ? 14 : 31;
-	material.emissive.set(cave ? 0x061317 : 0x000000);
-	material.emissiveIntensity = cave ? 0.035 : 0;
+	material.emissive.set(cave ? 0x0b2d35 : 0x000000);
+	material.emissiveIntensity = cave ? 0.10 : 0;
 	material.userData.iceSurface = Object.freeze({
 		...(material.userData.iceSurface || {}),
 		realismVersion: 3,
@@ -225,7 +226,7 @@ function replaceMaterialSurface(material, textures, { cave = false } = {}) {
 function cloneSolidMaterial(source, { cave = false } = {}) {
 	const material = source.clone();
 	material.vertexColors = false;
-	material.color.set(cave ? 0xaab9b9 : 0xbec7c5);
+	material.color.set(cave ? 0xc1cecd : 0xd5dad7);
 	material.roughness = cave ? 0.51 : 0.63;
 	material.transmission *= 0.65;
 	material.needsUpdate = true;
@@ -306,7 +307,7 @@ function createWallDetails(sections, caveGapSegment, solidWallMaterial, seed) {
 	const talusGeometry = new THREE.IcosahedronGeometry(1, 0);
 	const corniceGeometry = new THREE.IcosahedronGeometry(1, 1);
 	const snowMaterial = solidWallMaterial.clone();
-	snowMaterial.color.set(0xdfe4e1);
+	snowMaterial.color.set(0xe9ece9);
 	snowMaterial.roughness = 0.91;
 	snowMaterial.transmission = 0.003;
 	snowMaterial.clearcoat = 0.015;
@@ -418,7 +419,7 @@ export function enhanceIceLandmarkRealism({
 
 	const solidWallMaterial = cloneSolidMaterial(wallMaterial, { cave: false });
 	const solidCaveMaterial = cloneSolidMaterial(caveMaterial, { cave: true });
-	portal.mesh.material = solidWallMaterial;
+	portal.mesh.material = wallMaterial;
 	const icicles = group.getObjectByName('ice-cave-icicles');
 	if (icicles) icicles.material = solidCaveMaterial;
 	const wallDetails = createWallDetails(wallSections, caveGapSegment, solidWallMaterial, seed);
