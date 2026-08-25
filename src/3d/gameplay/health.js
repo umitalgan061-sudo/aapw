@@ -12,17 +12,18 @@
  * @module gameplay/health
  */
 
+import {
+	clearDamageResolution,
+	readDamageResolution,
+	writeDamageAppliedAmount,
+} from './damageResolution.js';
+
 export function createHealthState({ eventsBus, maxHealth, damageEventName, healthChangedEventName, diedEventName }) {
 	let current = maxHealth;
 	let hasDied = false;
 
-	function writeAppliedAmountReceipt(payload, appliedAmount) {
-		if (!payload || typeof payload !== 'object') return false;
-		try {
-			return Reflect.set(payload, 'appliedAmount', appliedAmount);
-		} catch {
-			return false;
-		}
+	function clearResolutionAfterSameEvent(payload) {
+		queueMicrotask(() => clearDamageResolution(payload));
 	}
 
 	function emitHealthChanged({ previous = current, reason = 'sync', sourceId = null } = {}) {
@@ -39,16 +40,21 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 	}
 
 	function onDamage(payload) {
-		const amount = payload?.amount;
-		if (!Number.isFinite(amount) || !(amount > 0)) return;
+		const stagedResolution = readDamageResolution(payload);
+		const amount = stagedResolution?.amount ?? payload?.amount;
+		if (!Number.isFinite(amount) || !(amount > 0)) {
+			if (stagedResolution) clearResolutionAfterSameEvent(payload);
+			return;
+		}
 		if (hasDied) {
-			writeAppliedAmountReceipt(payload, 0);
+			writeDamageAppliedAmount(payload, 0);
+			clearResolutionAfterSameEvent(payload);
 			return;
 		}
 		const previous = current;
 		current = Math.max(0, current - amount);
 		const appliedAmount = previous - current;
-		writeAppliedAmountReceipt(payload, appliedAmount);
+		writeDamageAppliedAmount(payload, appliedAmount);
 		emitHealthChanged({ previous, reason: 'damage', sourceId: payload?.sourceId ?? null });
 		if (current === 0 && !hasDied) {
 			hasDied = true;
@@ -60,6 +66,7 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 			});
 			eventsBus.emit(diedEventName, Object.freeze(deathReceipt));
 		}
+		if (stagedResolution) clearResolutionAfterSameEvent(payload);
 	}
 
 	eventsBus.on(damageEventName, onDamage);

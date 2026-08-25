@@ -5,8 +5,10 @@ on:
     paths:
       - 'src/3d/gameplay/player.js'
       - 'src/3d/gameplay/health.js'
+      - 'src/3d/gameplay/damageResolution.js'
       - 'scripts/checkPlayerCombatFeedback.mjs'
       - 'scripts/checkPlayerCombatHealthReceipt.mjs'
+      - 'scripts/checkPlayerImmutableDefenseDamage.mjs'
       - '.github/workflows/player-combat-feedback.yml'
   workflow_dispatch:
 
@@ -27,11 +29,15 @@ jobs:
         run: |
           node --check src/3d/gameplay/player.js
           node --check src/3d/gameplay/health.js
+          node --check src/3d/gameplay/damageResolution.js
           node --check scripts/checkPlayerCombatFeedback.mjs
           node --check scripts/checkPlayerCombatHealthReceipt.mjs
+          node --check scripts/checkPlayerImmutableDefenseDamage.mjs
       - name: Authoritative feedback contract
         run: node scripts/checkPlayerCombatFeedback.mjs
       - name: Authoritative health receipt
         run: node scripts/checkPlayerCombatHealthReceipt.mjs
+      - name: Immutable defense damage resolution
+        run: node scripts/checkPlayerImmutableDefenseDamage.mjs
       - name: Existing melee contract
         run: node scripts/checkPlayerMeleeCombo.mjs

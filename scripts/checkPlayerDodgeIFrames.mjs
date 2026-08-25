@@ -21,9 +21,10 @@ assert.ok(duration - end >= 0.08, 'recovery vulnerability must remain meaningful
 assert.match(source, /let dodgeRemaining = 0, dodgeElapsed = 0,/);
 assert.match(source, /dodgeElapsed = 0;\s*dodgeRemaining = PLAYER_ACTION_CONFIG\.DODGE_DURATION_SECONDS;/);
 assert.match(source, /function isDodgeInvulnerable\(\)[\s\S]*dodgeElapsed >= PLAYER_ACTION_CONFIG\.DODGE_IFRAME_START_SECONDS[\s\S]*dodgeElapsed < PLAYER_ACTION_CONFIG\.DODGE_IFRAME_END_SECONDS/);
-assert.match(source, /if \(isDodgeInvulnerable\(\)\) \{[\s\S]*payload\.rawAmount = rawAmount; payload\.blockedAmount = rawAmount; payload\.amount = 0; payload\.mitigation = 'dodge';/);
+assert.match(source, /if \(isDodgeInvulnerable\(\)\) \{[\s\S]*stageDamageResolution\(payload, \{ rawAmount, blockedAmount: rawAmount, amount: 0, mitigation: 'dodge' \}\);/);
 assert.match(source, /if \(isDodgeInvulnerable\(\)\) \{[\s\S]*publishMotionTelemetry\(true\); return;/);
 assert.match(source, /isDodgeInvulnerable: isDodgeInvulnerable\(\), dodgeElapsed:/);
 assert.match(source, /dodgeElapsed \+= dt; dodgeRemaining = Math\.max\(0, dodgeRemaining - dt\);/);
+assert.equal(source.includes('payload.amount = 0'), false, 'dodge mitigation must not require mutable producer payloads');
 
 console.log(`PLAYER_DODGE_IFRAMES_OK start=${start.toFixed(2)} end=${end.toFixed(2)} duration=${duration.toFixed(2)} startupVulnerability=${start.toFixed(2)} recoveryVulnerability=${(duration - end).toFixed(2)}`);
