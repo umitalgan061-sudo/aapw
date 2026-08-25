@@ -331,25 +331,24 @@ function createWallGeometry(path, sampleHeightMeters, caveGapSegment, seed) {
 function makePortalShape(width, height, openingHalfWidth, sideHeight, archRise) {
 	const halfWidth = width * 0.5;
 	const shape = new THREE.Shape();
+	// The walk-through opening reaches the ground. A Shape hole touching the outer contour is
+	// degenerate for Earcut and can drop the portal front/back caps. Trace one concave outer contour
+	// around the arch instead: open at player height, manifold above and beside the entrance.
 	shape.moveTo(-halfWidth, 0);
-	shape.lineTo(halfWidth, 0);
-	shape.lineTo(halfWidth, height);
-	shape.lineTo(-halfWidth, height);
-	shape.closePath();
-
-	const hole = new THREE.Path();
-	hole.moveTo(-openingHalfWidth, 0);
-	hole.lineTo(-openingHalfWidth, sideHeight);
+	shape.lineTo(-openingHalfWidth, 0);
+	shape.lineTo(-openingHalfWidth, sideHeight);
 	for (let step = 0; step <= 16; step += 1) {
 		const angle = Math.PI - (step / 16) * Math.PI;
-		hole.lineTo(
+		shape.lineTo(
 			Math.cos(angle) * openingHalfWidth,
 			sideHeight + Math.sin(angle) * archRise,
 		);
 	}
-	hole.lineTo(openingHalfWidth, 0);
-	hole.closePath();
-	shape.holes.push(hole);
+	shape.lineTo(openingHalfWidth, 0);
+	shape.lineTo(halfWidth, 0);
+	shape.lineTo(halfWidth, height);
+	shape.lineTo(-halfWidth, height);
+	shape.closePath();
 	return shape;
 }
 
