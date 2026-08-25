@@ -45,8 +45,8 @@ export const QUARTERMASTER_OFFERS = Object.freeze([
 	}),
 	Object.freeze({
 		id: 'dragonstone-watch-ration-allotment',
-		itemId: 'dragonstone-field-ration',
-		label: 'Nöbetçi erzak payı',
+		itemId: 'dragonstone-travel-ration-pack',
+		label: 'Nöbetçi yol azığı hazırlama hizmeti',
 		priceCopper: 5,
 		quantity: 1,
 		stockLimit: 1,

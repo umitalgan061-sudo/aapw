@@ -5,6 +5,10 @@ on:
     paths:
       - 'scripts/checkInteractionMasteryArmorerServiceBrowser.mjs'
       - 'scripts/checkInteractionExpeditionTavernRecovery.mjs'
+      - 'scripts/checkInteractionProvisioningCraft.mjs'
+      - 'scripts/checkInteractionQuartermasterTrade.mjs'
+      - 'scripts/checkInteractionSettlementServiceBrowser.mjs'
+      - 'scripts/checkInteractionSettlementServiceContract.mjs'
       - '.github/workflows/rpg-mastery-armorer-service.yml'
       - 'src/3d/gameplay/interaction.js'
       - 'src/3d/gameplay/interactionConfig.js'
@@ -35,7 +39,7 @@ jobs:
           base=$(git merge-base HEAD origin/main)
           test "$base" = "$(git rev-parse origin/main)"
           mapfile -t paths < <(git diff --name-only "$base"...HEAD)
-          allowed='^(scripts/checkInteractionExpedition(Board|TavernRecovery)\.mjs|scripts/checkInteractionMasteryArmorerServiceBrowser\.mjs|scripts/checkInteractionTavernReceiptIntegrity\.mjs|\.github/workflows/(rpg-expedition-tavern-recovery|rpg-interaction-quest-loop|rpg-journey-ledger-ux|rpg-mastery-armorer-service|rpg-mastery-journal-continuity|rpg-mastery-to-smithing|rpg-mastery-travel-continuity|rpg-tavern-receipt-integrity)\.yml|src/3d/gameplay/interaction\.js|src/3d/gameplay/interactionConfig\.js|src/3d/gameplay/interactionEconomy\.js|src/3d/ui/dialogueBox\.js)$'
+          allowed='^(scripts/checkInteractionExpedition(Board|TavernRecovery)\.mjs|scripts/checkInteractionMasteryArmorerServiceBrowser\.mjs|scripts/checkInteraction(ProvisioningCraft|QuartermasterTrade|SettlementService(Browser|Contract))\.mjs|scripts/checkInteractionTavernReceiptIntegrity\.mjs|\.github/workflows/(rpg-expedition-tavern-recovery|rpg-interaction-quest-loop|rpg-journey-ledger-ux|rpg-mastery-armorer-service|rpg-mastery-journal-continuity|rpg-mastery-to-smithing|rpg-mastery-travel-continuity|rpg-tavern-receipt-integrity)\.yml|src/3d/gameplay/interaction\.js|src/3d/gameplay/interactionConfig\.js|src/3d/gameplay/interactionEconomy\.js|src/3d/ui/dialogueBox\.js)$'
           printf '%s\n' "${paths[@]}" | grep -Ev "$allowed" && exit 1 || true
           changed=$(git diff --numstat "$base"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
           test "$changed" -le 1000
@@ -45,10 +49,16 @@ jobs:
           node --check src/3d/gameplay/interaction.js
           node --check scripts/checkInteractionMasteryArmorerServiceBrowser.mjs
           node --check scripts/checkInteractionExpeditionTavernRecovery.mjs
+          node --check scripts/checkInteractionProvisioningCraft.mjs
+          node --check scripts/checkInteractionQuartermasterTrade.mjs
+          node --check scripts/checkInteractionSettlementServiceBrowser.mjs
+          node --check scripts/checkInteractionSettlementServiceContract.mjs
           node scripts/checkInteractionExpeditionBoard.mjs
           node scripts/checkInteractionExpeditionMasterySmithingReward.mjs
           node scripts/checkInteractionMasteryEconomyContinuity.mjs
           node scripts/checkInteractionExpeditionKitCraft.mjs
+          node scripts/checkInteractionProvisioningCraft.mjs
+          node scripts/checkInteractionQuartermasterTrade.mjs
           node scripts/checkInteractionSettlementServiceContract.mjs
           node scripts/checkInteractionJourneyPlanning.mjs
           node scripts/checkInteractionExpeditionTavernRecovery.mjs
@@ -59,8 +69,10 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-      - name: Shipped-page Chromium mastery armorer proof
-        run: NODE_PATH="$NODE_PATH" node scripts/checkInteractionMasteryArmorerServiceBrowser.mjs
+      - name: Shipped-page Chromium mastery armorer and settlement service proof
+        run: |
+          NODE_PATH="$NODE_PATH" node scripts/checkInteractionSettlementServiceBrowser.mjs
+          NODE_PATH="$NODE_PATH" node scripts/checkInteractionMasteryArmorerServiceBrowser.mjs
       - name: Shared material placement boundary
         run: node scripts/checkSharedMaterialPlacementContract.js
       - name: Final exact-main freshness

@@ -13,6 +13,7 @@ assert.deepEqual(recipe, {
 	outputQuantity: 1,
 	label: '2 saha azığını 1 yol azığı paketine hazırla',
 });
+assert.equal(rationPrep.itemId, recipe.outputItemId, 'service fallback must be the same ready provision as the craft output');
 assert.equal(rationPrep.fulfillment?.discipline, 'provisioning');
 assert.equal(rationPrep.fulfillment?.stationId, 'dragonstone-ration-prep-table');
 assert.equal(INTERACTION_ITEMS[recipe.outputItemId]?.stackLimit, 2);
@@ -21,13 +22,18 @@ function item(snapshot, itemId) {
 	return snapshot.items.find((entry) => entry.itemId === itemId) ?? null;
 }
 
-const legacyInventory = createInteractionInventoryState();
-const legacyEconomy = createInteractionEconomyState();
-let result = legacyEconomy.purchase(rationPrep, (...args) => legacyInventory.grant(...args));
+const fallbackInventory = createInteractionInventoryState();
+const fallbackEconomy = createInteractionEconomyState();
+let result = fallbackEconomy.purchase(rationPrep, (...args) => fallbackInventory.grant(...args));
 assert.equal(result.ok, true);
-assert.equal(result.crafted, false, 'service without two carried rations must preserve legacy ration fulfillment');
-assert.equal(item(legacyInventory.snapshot(), ration.itemId)?.quantity, 1);
-assert.equal(item(legacyInventory.snapshot(), recipe.outputItemId), null);
+assert.equal(result.crafted, false, 'service without carried inputs must supply one ready provision without inventing a craft');
+assert.equal(item(fallbackInventory.snapshot(), ration.itemId), null);
+const fallbackPack = item(fallbackInventory.snapshot(), recipe.outputItemId);
+assert.equal(fallbackPack?.quantity, 1);
+assert.deepEqual(fallbackPack?.provenance, [{
+	sourceType: 'settlement-service',
+	sourceId: 'dragonstone-watch-ration-prep',
+}]);
 
 const inventory = createInteractionInventoryState();
 assert.equal(inventory.grant(ration.itemId, 2, { sourceType: 'vendor', sourceId: 'stannis-guard-1' }), true);
@@ -91,8 +97,17 @@ assert.equal(result.reason, 'craft-output-full');
 assert.deepEqual(blockedInventory.snapshot(), blockedInventoryBefore, 'failed crafting must not consume ingredients');
 assert.deepEqual(blockedEconomy.snapshot(), blockedEconomyBefore, 'failed crafting must not debit copper or finite service stock');
 
+const fallbackFullInventory = createInteractionInventoryState();
+assert.equal(fallbackFullInventory.grant(recipe.outputItemId, INTERACTION_ITEMS[recipe.outputItemId].stackLimit), true);
+const fallbackFullEconomy = createInteractionEconomyState();
+const fallbackFullEconomyBefore = structuredClone(fallbackFullEconomy.snapshot());
+result = fallbackFullEconomy.purchase(rationPrep, (...args) => fallbackFullInventory.grant(...args));
+assert.equal(result.ok, false);
+assert.equal(result.reason, 'inventory-full');
+assert.deepEqual(fallbackFullEconomy.snapshot(), fallbackFullEconomyBefore, 'full prepared-provision stack must not debit service stock or copper');
+
 const text = buildQuartermasterText(createInteractionEconomyState().snapshot());
 assert.match(text, /HİZMET: Erzak hazırlama/);
 assert.match(text, /DÖNÜŞÜM: 2 saha azığını 1 yol azığı paketine hazırla/);
 
-console.log('PASS checkInteractionProvisioningCraft: ration prep preserves legacy fulfillment, atomically converts two rations into a persistent travel pack, sanitizes forged save metadata, and failed output-capacity craft leaves inventory/economy unchanged.');
+console.log('PASS checkInteractionProvisioningCraft: ration prep supplies a prepared travel pack when no inputs are carried, preserves atomic two-ration crafting, sanitizes forged save metadata, and leaves inventory/economy unchanged on blocked output.');
