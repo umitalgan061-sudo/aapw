@@ -5,49 +5,68 @@ on:
     paths:
       - 'src/3d/world/terrainFoundationConformer.js'
       - 'src/3d/world/WorldAssetPlacementPipeline.js'
+      - 'src/3d/world/structureGroundingPolicy.js'
+      - 'src/3d/world/settlements.js'
+      - 'src/3d/world/terrain.js'
+      - 'src/3d/world/chunkManager.js'
+      - 'src/3d/physics.js'
+      - 'scripts/checkStructureGroundingPolicy.mjs'
+      - 'scripts/checkStructureSurfacePolicy.mjs'
+      - 'scripts/checkSettlementFoundationAuthority.mjs'
+      - 'scripts/checkTerrainFoundationConformer.mjs'
+      - 'scripts/checkTerrainFoundationBatchRemoval.mjs'
+      - 'scripts/checkFoundationRenderPhysicsParity.mjs'
+      - 'scripts/checkExtendedStructureFoundationConform.mjs'
+      - 'scripts/checkGroundContactFootprintFiltering.mjs'
       - 'scripts/checkDisconnectedFoundationIslands.mjs'
-      - '.github/scripts/patchFoundationIslands.py'
+      - 'scripts/setupNodeThreeShim.mjs'
       - '.github/workflows/terrain-foundation-conformer.yml'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  foundation-islands-publish:
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
+  foundation-conform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
     steps:
-      - name: Checkout exact PR branch
+      - name: Checkout exact PR head
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
-          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Apply disconnected foundation islands patch
-        run: python .github/scripts/patchFoundationIslands.py
-      - name: Validate patched foundation contracts
+      - name: Resolve vendored Three.js for Node contracts
+        run: node scripts/setupNodeThreeShim.mjs
+      - name: Syntax
         run: |
-          set -euo pipefail
-          node scripts/setupNodeThreeShim.mjs
-          node --check src/3d/world/WorldAssetPlacementPipeline.js
           node --check src/3d/world/terrainFoundationConformer.js
+          node --check src/3d/world/WorldAssetPlacementPipeline.js
+          node --check src/3d/world/structureGroundingPolicy.js
+          node --check scripts/checkStructureGroundingPolicy.mjs
+          node --check scripts/checkStructureSurfacePolicy.mjs
+          node --check scripts/checkSettlementFoundationAuthority.mjs
+          node --check scripts/checkTerrainFoundationConformer.mjs
+          node --check scripts/checkTerrainFoundationBatchRemoval.mjs
+          node --check scripts/checkFoundationRenderPhysicsParity.mjs
+          node --check scripts/checkExtendedStructureFoundationConform.mjs
+          node --check scripts/checkGroundContactFootprintFiltering.mjs
           node --check scripts/checkDisconnectedFoundationIslands.mjs
-          node scripts/checkGroundContactFootprintFiltering.mjs
-          node scripts/checkDisconnectedFoundationIslands.mjs
+      - name: Shared structure footprint and surface classification
+        run: |
+          node scripts/checkStructureGroundingPolicy.mjs
+          node scripts/checkStructureSurfacePolicy.mjs
+      - name: Settlement render and physics foundation authority
+        run: node scripts/checkSettlementFoundationAuthority.mjs
+      - name: Shared terrain authority and selective chunk rebuild
+        run: |
           node scripts/checkTerrainFoundationConformer.mjs
+          node scripts/checkTerrainFoundationBatchRemoval.mjs
           node scripts/checkFoundationRenderPhysicsParity.mjs
           node scripts/checkExtendedStructureFoundationConform.mjs
-      - name: Publish validated production patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- src/3d/world/WorldAssetPlacementPipeline.js src/3d/world/terrainFoundationConformer.js scripts/checkDisconnectedFoundationIslands.mjs
-          git diff --cached --stat
-          git commit -m 'feat(world): preserve disconnected foundation islands'
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          node scripts/checkGroundContactFootprintFiltering.mjs
+          node scripts/checkDisconnectedFoundationIslands.mjs
