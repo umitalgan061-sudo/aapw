@@ -157,13 +157,15 @@ export async function createWolf({
 		},
 		update(delta, playerPosition, packmateFleePositions) {
 			const simulationDelta = boundedWildlifeDelta(delta);
-			const dxFromPlayer = playerPosition ? model.position.x - playerPosition.x : Infinity;
-			const dzFromPlayer = playerPosition ? model.position.z - playerPosition.z : Infinity;
+			const hasFinitePlayerPosition = Number.isFinite(playerPosition?.x) && Number.isFinite(playerPosition?.z);
+			const dxFromPlayer = hasFinitePlayerPosition ? model.position.x - playerPosition.x : Infinity;
+			const dzFromPlayer = hasFinitePlayerPosition ? model.position.z - playerPosition.z : Infinity;
 			const distanceFromPlayer = Math.hypot(dxFromPlayer, dzFromPlayer);
 			const isFleeingFromPlayer = canFlee && distanceFromPlayer < fleeTriggerRadiusMeters;
 			let isFleeingFromPack = false;
-			if (canFlee && !isFleeingFromPlayer && playerPosition && packAlertRadiusMeters != null && packmateFleePositions) {
+			if (canFlee && !isFleeingFromPlayer && hasFinitePlayerPosition && packAlertRadiusMeters != null && packmateFleePositions) {
 				for (const packmatePosition of packmateFleePositions) {
+					if (!Number.isFinite(packmatePosition?.x) || !Number.isFinite(packmatePosition?.z)) continue;
 					const dx = model.position.x - packmatePosition.x;
 					const dz = model.position.z - packmatePosition.z;
 					if (Math.hypot(dx, dz) < packAlertRadiusMeters) {
