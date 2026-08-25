@@ -371,10 +371,11 @@ function createPortalMesh(leftSection, rightSection, material) {
 	const centerZ = (leftSection.z + rightSection.z) * 0.5;
 	const groundY = (leftSection.centerGround + rightSection.centerGround) * 0.5;
 	const topY = Math.min(leftSection.topY, rightSection.topY);
+	const portalHeight = Math.max(35, topY - groundY);
 	const depth = (leftSection.thicknessMeters + rightSection.thicknessMeters) * 0.5 + 4;
 	const shape = makePortalShape(
 		width,
-		Math.max(35, topY - groundY),
+		portalHeight,
 		cavePolicy.openingHalfWidthMeters,
 		cavePolicy.openingSideHeightMeters,
 		cavePolicy.openingArchRiseMeters,
@@ -388,6 +389,23 @@ function createPortalMesh(leftSection, rightSection, material) {
 		bevelSize: 0.7,
 		bevelSegments: 2,
 	});
+	// ExtrudeGeometry's default UVs are shape-space metres. With the Wall's glacial texture repeat
+	// that made this one section repeat tens of times vertically and read as a bright manufactured
+	// panel. Reproject it to the same longitudinal/metre-scale UV convention as the adjacent Wall.
+	const positions = geometry.getAttribute('position');
+	const uvs = geometry.getAttribute('uv');
+	const uBase = ((leftSection.distanceMeters + rightSection.distanceMeters) * 0.5)
+		/ ICE_LANDMARK_POLICY.wall.textureRepeatMeters;
+	for (let index = 0; index < positions.count; index += 1) {
+		const localX = positions.getX(index);
+		const localY = positions.getY(index);
+		uvs.setXY(
+			index,
+			uBase + localX / ICE_LANDMARK_POLICY.wall.textureRepeatMeters,
+			clamp01(localY / portalHeight) * 2.6,
+		);
+	}
+	uvs.needsUpdate = true;
 	geometry.computeVertexNormals();
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.name = 'ice-wall-cave-portal';
@@ -396,6 +414,7 @@ function createPortalMesh(leftSection, rightSection, material) {
 	mesh.castShadow = true;
 	mesh.receiveShadow = true;
 	mesh.userData.iceLandmarkRole = 'arched-wall-portal';
+	mesh.userData.wallAlignedPortalUv = true;
 	return { mesh, centerX, centerZ, groundY, tx, tz, nx, nz, depth, width };
 }
 
@@ -405,7 +424,7 @@ function createCaveShell(portal, sampleHeightMeters, material) {
 	const colors = [];
 	const uvs = [];
 	const indices = [];
-	const depthHalf = cavePolicy.tunnelDepthMeters * 0.5;
+	const entranceOffset = -portal.depth * 0.5 + 1.2;
 	const ringCount = cavePolicy.ringCount;
 	const arcSegments = cavePolicy.arcSegments;
 	const ringStride = arcSegments + 1;
@@ -413,7 +432,9 @@ function createCaveShell(portal, sampleHeightMeters, material) {
 
 	for (let ring = 0; ring < ringCount; ring += 1) {
 		const t = ring / (ringCount - 1);
-		const depthOffset = -depthHalf + cavePolicy.tunnelDepthMeters * t;
+		// Begin just inside the exterior portal face. The previous symmetric +/- depth placement put
+		// half the cave shell outside The Wall, creating a visible blue pipe on approach.
+		const depthOffset = entranceOffset + cavePolicy.tunnelDepthMeters * t;
 		const centerX = portal.centerX + portal.nx * depthOffset;
 		const centerZ = portal.centerZ + portal.nz * depthOffset;
 		const groundY = Number(sampleHeightMeters(centerX, centerZ));
@@ -460,6 +481,7 @@ function createCaveShell(portal, sampleHeightMeters, material) {
 	mesh.castShadow = true;
 	mesh.receiveShadow = true;
 	mesh.userData.iceLandmarkRole = 'walkable-ice-cave-shell';
+	mesh.userData.startsInsidePortal = true;
 	return { mesh, ringMeta };
 }
 
