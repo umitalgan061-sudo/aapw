@@ -12,17 +12,55 @@
  * @module gameplay/health
  */
 
+const pendingDamageResolutions = new WeakMap();
+
+function isObjectPayload(payload) {
+	return payload !== null && (typeof payload === 'object' || typeof payload === 'function');
+}
+
+function tryWrite(payload, key, value) {
+	if (!isObjectPayload(payload)) return false;
+	try {
+		return Reflect.set(payload, key, value);
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Stage same-event defense/health data without requiring producer payload mutability.
+ * Mutable payloads retain the legacy best-effort write-back for existing consumers.
+ */
+export function stageDamageResolution(payload, patch = {}) {
+	if (!isObjectPayload(payload)) return null;
+	const previous = pendingDamageResolutions.get(payload) ?? {};
+	const next = Object.freeze({ ...previous, ...patch });
+	pendingDamageResolutions.set(payload, next);
+	for (const [key, value] of Object.entries(patch)) tryWrite(payload, key, value);
+	return next;
+}
+
+export function readDamageResolution(payload) {
+	return isObjectPayload(payload) ? (pendingDamageResolutions.get(payload) ?? null) : null;
+}
+
+export function clearDamageResolution(payload) {
+	if (isObjectPayload(payload)) pendingDamageResolutions.delete(payload);
+}
+
+function writeDamageAppliedAmount(payload, appliedAmount) {
+	if (!isObjectPayload(payload)) return false;
+	const previous = pendingDamageResolutions.get(payload);
+	if (previous) pendingDamageResolutions.set(payload, Object.freeze({ ...previous, appliedAmount }));
+	return tryWrite(payload, 'appliedAmount', appliedAmount);
+}
+
 export function createHealthState({ eventsBus, maxHealth, damageEventName, healthChangedEventName, diedEventName }) {
 	let current = maxHealth;
 	let hasDied = false;
 
-	function writeAppliedAmountReceipt(payload, appliedAmount) {
-		if (!payload || typeof payload !== 'object') return false;
-		try {
-			return Reflect.set(payload, 'appliedAmount', appliedAmount);
-		} catch {
-			return false;
-		}
+	function clearResolutionAfterSameEvent(payload) {
+		queueMicrotask(() => clearDamageResolution(payload));
 	}
 
 	function emitHealthChanged({ previous = current, reason = 'sync', sourceId = null } = {}) {
@@ -39,16 +77,21 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 	}
 
 	function onDamage(payload) {
-		const amount = payload?.amount;
-		if (!Number.isFinite(amount) || !(amount > 0)) return;
+		const stagedResolution = readDamageResolution(payload);
+		const amount = stagedResolution?.amount ?? payload?.amount;
+		if (!Number.isFinite(amount) || !(amount > 0)) {
+			if (stagedResolution) clearResolutionAfterSameEvent(payload);
+			return;
+		}
 		if (hasDied) {
-			writeAppliedAmountReceipt(payload, 0);
+			writeDamageAppliedAmount(payload, 0);
+			clearResolutionAfterSameEvent(payload);
 			return;
 		}
 		const previous = current;
 		current = Math.max(0, current - amount);
 		const appliedAmount = previous - current;
-		writeAppliedAmountReceipt(payload, appliedAmount);
+		writeDamageAppliedAmount(payload, appliedAmount);
 		emitHealthChanged({ previous, reason: 'damage', sourceId: payload?.sourceId ?? null });
 		if (current === 0 && !hasDied) {
 			hasDied = true;
@@ -60,6 +103,7 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 			});
 			eventsBus.emit(diedEventName, Object.freeze(deathReceipt));
 		}
+		if (stagedResolution) clearResolutionAfterSameEvent(payload);
 	}
 
 	eventsBus.on(damageEventName, onDamage);

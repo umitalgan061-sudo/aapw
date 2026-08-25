@@ -50,9 +50,12 @@ for (const fragment of [
   'spendPoise(rawAmount * PLAYER_ACTION_CONFIG.HIT_POISE_DAMAGE_RATIO)', 'if (poise <= 0) triggerHitStagger()',
   'guarding = guardIntent && attackRemaining <= 0 && guardBreakRemaining <= 0 && hitStaggerRemaining <= 0',
   'guardBreakRemaining <= 0 && hitStaggerRemaining <= 0 && jumpRequested',
-  "gameEvents.on(EVENTS.PLAYER_DAMAGED, onIncomingDamage)", "payload.mitigation = 'parry'", "payload.mitigation = 'guard'",
+  "gameEvents.on(EVENTS.PLAYER_DAMAGED, onIncomingDamage)", "mitigation: 'parry'", "mitigation: 'guard'",
+  'stageDamageResolution(payload, { amount: rawAmount })',
   'hitStaggerRemaining: Number(hitStaggerRemaining.toFixed(3))', "globalThis.CustomEvent('aapw:player-motion'",
 ]) assert.ok(source.includes(fragment), `missing runtime contract: ${fragment}`);
+assert.equal(source.includes("payload.mitigation = 'parry'"), false, 'parry must not require mutable producer payloads');
+assert.equal(source.includes("payload.mitigation = 'guard'"), false, 'guard must not require mutable producer payloads');
 
 assert.ok(hud.includes("className = 'g3d-poise-bar'"));
 assert.ok(hud.includes("setAttribute('aria-label', 'Denge')"));

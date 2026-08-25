@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/3d/gameplay/player.js'
       - 'src/3d/gameplay/health.js'
+      - 'src/3d/gameplay/damageResolution.js'
       - 'src/3d/input.js'
       - 'src/3d/gameLoopHelpers.js'
       - 'src/3d/ui/touchJoystick.js'
@@ -14,6 +15,7 @@ on:
       - 'scripts/checkPlayerCombatFeedbackHapticParity.mjs'
       - 'scripts/checkPlayerCombatFeedbackHotplug.mjs'
       - 'scripts/checkPlayerCombatHealthReceipt.mjs'
+      - 'scripts/checkPlayerImmutableDefenseDamage.mjs'
       - 'scripts/checkPlayerGamepadInput.mjs'
       - 'scripts/checkPlayerGamepadHandoff.mjs'
       - 'scripts/checkPlayerGamepadRuntime.mjs'
@@ -66,7 +68,7 @@ jobs:
           git diff --check "$MAIN_SHA"...HEAD
           CHANGED="$(git diff --name-only "$MAIN_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/gameplay/health\.js|src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerCombatFeedback\.mjs|scripts/checkPlayerCombatFeedbackHapticParity\.mjs|scripts/checkPlayerCombatFeedbackHotplug\.mjs|scripts/checkPlayerCombatHealthReceipt\.mjs|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|scripts/checkPlayerLockOnRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerCombatHudRuntime\.mjs|scripts/checkPlayerDodgeIFrames\.mjs|scripts/checkPlayerDodgeIFrameRuntime\.mjs|scripts/checkPlayerGroundingCombatContract\.mjs|scripts/checkPlayerHitStaggerRuntime\.mjs|\.github/workflows/player-combat-feedback\.yml|\.github/workflows/player-dodge-iframes\.yml|\.github/workflows/player-grounding-combat-contract\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-hit-stagger-runtime\.yml|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/gameplay/health\.js|src/3d/gameplay/damageResolution\.js|src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerCombatFeedback\.mjs|scripts/checkPlayerCombatFeedbackHapticParity\.mjs|scripts/checkPlayerCombatFeedbackHotplug\.mjs|scripts/checkPlayerCombatHealthReceipt\.mjs|scripts/checkPlayerImmutableDefenseDamage\.mjs|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|scripts/checkPlayerLockOnRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerCombatHudRuntime\.mjs|scripts/checkPlayerDodgeIFrames\.mjs|scripts/checkPlayerDodgeIFrameRuntime\.mjs|scripts/checkPlayerGroundingCombatContract\.mjs|scripts/checkPlayerHitStaggerRuntime\.mjs|\.github/workflows/player-combat-feedback\.yml|\.github/workflows/player-dodge-iframes\.yml|\.github/workflows/player-grounding-combat-contract\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-hit-stagger-runtime\.yml|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
           read -r ADD DEL < <(git diff --numstat "$MAIN_SHA"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           TOTAL=$((ADD + DEL))
           echo "base=$MAIN_SHA additions=$ADD deletions=$DEL total=$TOTAL"
@@ -91,6 +93,7 @@ jobs:
           node --check src/3d/ui/healthBar.js
           node --check scripts/checkPlayerCombatFeedbackHapticParity.mjs
           node --check scripts/checkPlayerCombatFeedbackHotplug.mjs
+          node --check scripts/checkPlayerImmutableDefenseDamage.mjs
           node --check scripts/checkPlayerGamepadInput.mjs
           node --check scripts/checkPlayerGamepadHandoff.mjs
           node --check scripts/checkPlayerGamepadRuntime.mjs
@@ -106,6 +109,7 @@ jobs:
           node --check scripts/checkPlayerMeleeComboRuntime.mjs
           node scripts/checkPlayerCombatFeedbackHapticParity.mjs
           node scripts/checkPlayerCombatFeedbackHotplug.mjs
+          node scripts/checkPlayerImmutableDefenseDamage.mjs
           node scripts/checkPlayerGamepadInput.mjs
           node scripts/checkPlayerGamepadHandoff.mjs
           node scripts/checkPlayerLockOn.mjs
