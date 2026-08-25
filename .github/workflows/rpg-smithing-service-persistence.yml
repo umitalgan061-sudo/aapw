@@ -9,6 +9,7 @@ on:
       - 'scripts/checkInteractionMasteryEconomyContinuity.mjs'
       - 'scripts/checkInteractionMasteryToSmithingBrowser.mjs'
       - '.github/workflows/rpg-smithing-service-persistence.yml'
+      - '.github/workflows/rpg-mastery-to-smithing.yml'
   workflow_dispatch:
 
 permissions:
@@ -34,7 +35,7 @@ jobs:
           base="$(git merge-base HEAD origin/main)"
           test "$base" = "$(git rev-parse origin/main)"
           mapfile -t paths < <(git diff --name-only "$base"...HEAD)
-          allowed='^(\.github/workflows/rpg-smithing-service-persistence\.yml|scripts/checkInteractionSmithingServicePersistence\.mjs|scripts/checkInteractionMasteryEconomyContinuity\.mjs|scripts/checkInteractionMasteryToSmithingBrowser\.mjs|src/3d/gameplay/interactionConfig\.js)$'
+          allowed='^(\.github/workflows/(rpg-smithing-service-persistence|rpg-mastery-to-smithing)\.yml|scripts/checkInteractionSmithingServicePersistence\.mjs|scripts/checkInteractionMasteryEconomyContinuity\.mjs|scripts/checkInteractionMasteryToSmithingBrowser\.mjs|src/3d/gameplay/interactionConfig\.js)$'
           if (( ${#paths[@]} )); then
             printf '%s\n' "${paths[@]}" | grep -Ev "$allowed" && exit 1 || true
           fi
