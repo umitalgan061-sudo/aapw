@@ -15,7 +15,7 @@ const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 
 export const NORTH_GROUND_COVER_POLICY = Object.freeze({
-	id: 'north-ground-cover-climate-2026-08-25-v3-ecological-mosaic',
+	id: 'north-ground-cover-climate-2026-08-25-v4-frost-heave-moisture',
 	mapAlignedClimateAvailable: true,
 	renderClimateOnly: true,
 	heightAuthorityUnchanged: true,
@@ -31,13 +31,17 @@ export const NORTH_GROUND_COVER_POLICY = Object.freeze({
 	iceHeightSuppression: 0.55,
 	// Render-only, deterministic multi-scale patchiness. This does not move climate boundaries or
 	// invent vegetation zones; it only breaks uniform tundra carpets inside already-authoritative
-	// climate weights. Broad cells read as ecological mosaics while fine cells break repeated tufts.
+	// climate weights. Broad cells read as ecological mosaics while fine/micro cells break repeated
+	// tufts and mimic frost-heave polygons and damp hollows without touching terrain height authority.
 	ecologicalMosaic: Object.freeze({
 		broadScaleMeters: 210,
 		fineScaleMeters: 58,
+		microScaleMeters: 23,
 		densityStrength: 0.34,
 		heightStrength: 0.18,
+		frostHeaveHeightStrength: 0.08,
 		colorStrength: 0.12,
+		wetDarkeningStrength: 0.13,
 	}),
 	// Existing Run-180 grass is 0x4f7f36. The frozen transition target is a desaturated lichen/tundra
 	// tone, not white: snow itself belongs to terrain shading, while sparse surviving cover stays plant.
@@ -50,6 +54,14 @@ function blendRgb(a, b, amount) {
 		r: lerp(a.r, b.r, amount),
 		g: lerp(a.g, b.g, amount),
 		b: lerp(a.b, b.b, amount),
+	});
+}
+
+function scaleRgb(rgb, scale) {
+	return Object.freeze({
+		r: clamp01(rgb.r * scale),
+		g: clamp01(rgb.g * scale),
+		b: clamp01(rgb.b * scale),
 	});
 }
 
@@ -81,7 +93,22 @@ function ecologicalMosaicAt(worldX, worldZ) {
 	const P = NORTH_GROUND_COVER_POLICY.ecologicalMosaic;
 	const broad = smoothNoiseAt(worldX, worldZ, P.broadScaleMeters, 0x5a17);
 	const fine = smoothNoiseAt(worldX + 31.7, worldZ - 19.3, P.fineScaleMeters, 0x91e3);
-	return clamp01(broad * 0.72 + fine * 0.28);
+	const micro = smoothNoiseAt(worldX - 11.2, worldZ + 27.9, P.microScaleMeters, 0xc47d);
+	return clamp01(broad * 0.66 + fine * 0.24 + micro * 0.10);
+}
+
+function tundraMoistureAt(worldX, worldZ) {
+	const P = NORTH_GROUND_COVER_POLICY.ecologicalMosaic;
+	const hollow = smoothNoiseAt(worldX + 73.1, worldZ + 41.6, P.broadScaleMeters * 0.73, 0x2bd1);
+	const seep = smoothNoiseAt(worldX - 17.4, worldZ + 9.8, P.fineScaleMeters * 0.81, 0x7f39);
+	return clamp01(hollow * 0.71 + seep * 0.29);
+}
+
+function frostHeaveAt(worldX, worldZ) {
+	const P = NORTH_GROUND_COVER_POLICY.ecologicalMosaic;
+	const a = smoothNoiseAt(worldX, worldZ, P.microScaleMeters, 0xa613);
+	const b = smoothNoiseAt(worldX + 8.6, worldZ - 12.4, P.microScaleMeters * 0.61, 0x4dc9);
+	return clamp01(a * 0.63 + b * 0.37);
 }
 
 function profileFromClimate(climate, worldX = null, worldZ = null) {
@@ -96,18 +123,29 @@ function profileFromClimate(climate, worldX = null, worldZ = null) {
 	const frostAmount = clamp01(Math.max(climate.tundra * 0.92, climate.permanentIce));
 	let rgb = blendRgb(P.temperateRgb, P.tundraRgb, frostAmount);
 	let ecologicalMosaic = null;
+	let tundraMoisture = null;
+	let frostHeave = null;
 
 	if (Number.isFinite(worldX) && Number.isFinite(worldZ)) {
 		ecologicalMosaic = ecologicalMosaicAt(worldX, worldZ);
+		tundraMoisture = tundraMoistureAt(worldX, worldZ);
+		frostHeave = frostHeaveAt(worldX, worldZ);
 		const tundraInfluence = clamp01(Math.max(climate.tundra, climate.permanentIce * 0.72));
 		const centered = (ecologicalMosaic - 0.5) * 2;
+		const heaveCentered = (frostHeave - 0.5) * 2;
 		grassDensity = clamp01(grassDensity * (1 + centered * P.ecologicalMosaic.densityStrength * tundraInfluence));
-		heightScale = clamp01(heightScale * (1 + centered * P.ecologicalMosaic.heightStrength * tundraInfluence));
+		heightScale = clamp01(heightScale * (
+			1
+			+ centered * P.ecologicalMosaic.heightStrength * tundraInfluence
+			+ heaveCentered * P.ecologicalMosaic.frostHeaveHeightStrength * tundraInfluence
+		));
 		const colorShift = clamp01(0.5 + centered * P.ecologicalMosaic.colorStrength * tundraInfluence);
 		const dryTundra = Object.freeze({ r: 0.42, g: 0.45, b: 0.37 });
 		const dampLichen = Object.freeze({ r: 0.49, g: 0.53, b: 0.46 });
 		const mosaicRgb = blendRgb(dryTundra, dampLichen, colorShift);
 		rgb = blendRgb(rgb, mosaicRgb, tundraInfluence * 0.22);
+		const dampness = clamp01((tundraMoisture - 0.38) / 0.62) * tundraInfluence;
+		rgb = scaleRgb(rgb, 1 - dampness * P.ecologicalMosaic.wetDarkeningStrength);
 	}
 
 	return Object.freeze({
@@ -121,6 +159,8 @@ function profileFromClimate(climate, worldX = null, worldZ = null) {
 		heightScale,
 		frostAmount,
 		ecologicalMosaic,
+		tundraMoisture,
+		frostHeave,
 		rgb,
 	});
 }
