@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { WORLD_DEFAULTS, WORLD_SCALE } from '../config.js';
 import { normalizedMapToWorldXZ } from './worldReferenceMap.js';
+import { enhanceIceLandmarkRealism } from './iceLandmarkRealism.js';
 
 /**
  * Map-aligned high-north ice landmarks. Normalized map Y grows north -> south, so the wall sits
@@ -566,6 +567,16 @@ export function createIceLandmarks({
 	group.add(cave.mesh);
 	const icicles = createCaveIcicles(portal, cave.ringMeta, caveMaterial, seed);
 	group.add(icicles);
+	const realism = enhanceIceLandmarkRealism({
+		group,
+		wallMaterial,
+		caveMaterial,
+		wallSections: wallResult.sections,
+		caveGapSegment,
+		portal,
+		caveRings: cave.ringMeta,
+		seed,
+	});
 
 	const blockers = buildCollisionCircles(wallResult.sections, caveGapSegment, portal, cave.ringMeta);
 	const stats = Object.freeze({
@@ -576,6 +587,7 @@ export function createIceLandmarks({
 		wallMaximumHeightMeters: Number(wallResult.maxHeight.toFixed(1)),
 		wallTriangleCount: wallResult.geometry.index.count / 3,
 		collisionCircleCount: blockers.length,
+		realism: realism.stats,
 		cave: Object.freeze({
 			center: Object.freeze({ x: portal.centerX, y: portal.groundY, z: portal.centerZ }),
 			openingWidthMeters: ICE_LANDMARK_POLICY.cave.openingHalfWidthMeters * 2,
@@ -586,6 +598,7 @@ export function createIceLandmarks({
 		}),
 	});
 	group.userData.iceLandmarkStats = stats;
+	group.userData.glacialRealismStats = realism.stats;
 	group.userData.collisionCircles = blockers;
 	return Object.freeze({ group, blockers, stats });
 }
