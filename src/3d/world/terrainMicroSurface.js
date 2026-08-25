@@ -3,8 +3,8 @@
  *
  * Geography remains owned by terrain.js + map/Pindex height data. This module only changes how the
  * already-authored surface reflects light and how its colour reads at metre/kilometre scale. The
- * generated normal/roughness atlas uses metre-space uv1, while the shader colour breakup uses world
- * position, so neither chunk borders nor owner-map UV islands can restart the pattern.
+ * generated normal/roughness atlas uses metre-space uv1, while shader colour breakup uses world
+ * metres so chunk borders and owner-map UV islands cannot restart the pattern.
  * @module world/terrainMicroSurface
  */
 
@@ -17,13 +17,8 @@ const smoothstep = (a, b, value) => {
 	return t * t * (3 - 2 * t);
 };
 
-/**
- * Surface realism policy. `detailRepeatMeters` deliberately stays below the 32 m regression ceiling:
- * this layer is grain/fracture scale, not a second geography signal. Macro colour variation is done
- * in the fragment shader directly from world metres and therefore never repeats at this tile period.
- */
 export const TERRAIN_MICRO_SURFACE_POLICY = Object.freeze({
-	id: 'terrain-micro-surface-world-uv-pbr-v4-natural-albedo',
+	id: 'terrain-micro-surface-world-uv-pbr-v5-safe-world-position',
 	textureSize: 256,
 	detailRepeatMeters: 24,
 	normalStrength: 0.82,
@@ -41,7 +36,6 @@ export const TERRAIN_MICRO_SURFACE_POLICY = Object.freeze({
 	renderOnly: true,
 });
 
-/** Stable metre-space UV for the render-only detail channel. Negative UV is valid with RepeatWrapping. */
 export function terrainMicroUvAt(worldX, worldZ) {
 	const repeatMeters = TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters;
 	return Object.freeze({ u: worldX / repeatMeters, v: worldZ / repeatMeters });
@@ -103,9 +97,7 @@ function terrainDetailHeight(u, v) {
 function buildTerrainDetailField(size) {
 	const field = new Float32Array(size * size);
 	for (let y = 0; y < size; y += 1) {
-		for (let x = 0; x < size; x += 1) {
-			field[y * size + x] = terrainDetailHeight(x / size, y / size);
-		}
+		for (let x = 0; x < size; x += 1) field[y * size + x] = terrainDetailHeight(x / size, y / size);
 	}
 	return field;
 }
@@ -177,24 +169,23 @@ function configureTerrainDataTexture(texture, name) {
 
 let sharedTerrainMicroSurface = null;
 
-/** Two app-lifetime maps shared by every chunk; canonical geometry is never displaced by them. */
 export function getSharedTerrainMicroSurfaceTextures() {
 	if (sharedTerrainMicroSurface) return sharedTerrainMicroSurface;
 	const size = TERRAIN_MICRO_SURFACE_POLICY.textureSize;
 	const field = buildTerrainDetailField(size);
 	const normalMap = configureTerrainDataTexture(
 		new THREE.DataTexture(buildTerrainNormalData(field, size), size, size, THREE.RGBAFormat, THREE.UnsignedByteType),
-		'terrain-world-micro-normal-v4-natural-albedo',
+		'terrain-world-micro-normal-v5-safe-world-position',
 	);
 	const roughnessMap = configureTerrainDataTexture(
 		new THREE.DataTexture(buildTerrainRoughnessData(field, size), size, size, THREE.RGBAFormat, THREE.UnsignedByteType),
-		'terrain-world-micro-roughness-v4-natural-albedo',
+		'terrain-world-micro-roughness-v5-safe-world-position',
 	);
 	sharedTerrainMicroSurface = Object.freeze({ normalMap, roughnessMap });
 	return sharedTerrainMicroSurface;
 }
 
-const TERRAIN_PHOTOREAL_SHADER_KEY = 'terrain-photoreal-world-surface-v4-natural-albedo';
+const TERRAIN_PHOTOREAL_SHADER_KEY = 'terrain-photoreal-world-surface-v5-safe-world-position';
 
 function installWorldSpaceColorBreakup(material) {
 	const previousOnBeforeCompile = material.onBeforeCompile.bind(material);
@@ -202,7 +193,10 @@ function installWorldSpaceColorBreakup(material) {
 		previousOnBeforeCompile(shader, renderer);
 		shader.vertexShader = shader.vertexShader
 			.replace('#include <common>', '#include <common>\nvarying vec3 vTerrainPhotorealWorldPosition;')
-			.replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvTerrainPhotorealWorldPosition = worldPosition.xyz;');
+			// `worldPosition` inside Three's worldpos chunk is conditionally declared. Terrain does not
+			// need skinning/instancing, so derive world metres directly from the always-present transformed
+			// vertex after begin_vertex. This keeps the shader valid whether USE_TRANSMISSION is enabled or not.
+			.replace('#include <begin_vertex>', '#include <begin_vertex>\nvTerrainPhotorealWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;');
 		shader.fragmentShader = shader.fragmentShader
 			.replace(
 				'#include <common>',
@@ -262,8 +256,6 @@ float terrainPhotoValue = 0.925
 	+ (terrainPhotoMeso - 0.5) * 0.052
 	+ (terrainPhotoGrain - 0.5) * 0.020;
 diffuseColor.rgb *= terrainPhotoValue;
-// Replace the high-saturation game-green family with subdued real-landscape olive. Broad moisture
-// and dry exposure control the target, so kilometre-scale areas do not collapse to one green value.
 float terrainPhotoMoisture = clamp(0.50 + (0.5 - terrainPhotoBroad) * 0.72 + (0.5 - terrainPhotoMacro) * 0.42, 0.0, 1.0);
 vec3 terrainPhotoWetOlive = vec3(0.105, 0.145, 0.075);
 vec3 terrainPhotoDryOlive = vec3(0.300, 0.275, 0.165);
@@ -274,12 +266,10 @@ float terrainPhotoDamp = terrainPhotoVegetation * smoothstep(0.58, 0.84, 1.0 - t
 float terrainPhotoDry = terrainPhotoVegetation * smoothstep(0.58, 0.84, terrainPhotoBroad) * smoothstep(0.48, 0.82, terrainPhotoMeso);
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.090, 0.125, 0.065), terrainPhotoDamp * 0.16);
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.325, 0.292, 0.190), terrainPhotoDry * 0.14);
-// Yellow-beige open ground is similarly pulled toward mineral soil, with dry and damp macro patches.
 vec3 terrainPhotoDampEarth = vec3(0.205, 0.195, 0.160);
 vec3 terrainPhotoDryEarth = vec3(0.345, 0.310, 0.235);
 vec3 terrainPhotoEarth = mix(terrainPhotoDampEarth, terrainPhotoDryEarth, terrainPhotoBroad);
 diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoEarth, terrainPhotoWarmGround * 0.20);
-// Low-chroma exposed rock gains broad mineral temperature shifts plus irregular stratification.
 float terrainPhotoStrata = 0.5 + 0.5 * sin(
 	vTerrainPhotorealWorldPosition.y * 0.205
 	+ vTerrainPhotorealWorldPosition.x * 0.012
@@ -290,8 +280,6 @@ vec3 terrainPhotoRockCool = vec3(0.320, 0.335, 0.340);
 vec3 terrainPhotoRockWarm = vec3(0.365, 0.330, 0.292);
 diffuseColor.rgb = mix(diffuseColor.rgb, mix(terrainPhotoRockCool, terrainPhotoRockWarm, terrainPhotoBroad), terrainPhotoRock * 0.09);
 diffuseColor.rgb *= 1.0 + terrainPhotoRock * (terrainPhotoStrata - 0.5) * 0.095;
-// Snow remains bright but avoids featureless clipping: packed areas are blue-grey and exposed dirty
-// grains retain the mineral dust visible in real alpine/glacial reference imagery.
 vec3 terrainPhotoSnowBase = mix(vec3(0.735, 0.765, 0.775), vec3(0.825, 0.835, 0.830), terrainPhotoBroad);
 diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoSnowBase, terrainPhotoSnow * 0.12);
 float terrainPhotoSnowShadow = terrainPhotoSnow * smoothstep(0.54, 0.86, 1.0 - terrainPhotoMeso);
