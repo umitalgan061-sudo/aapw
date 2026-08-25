@@ -9,6 +9,17 @@ class TestBus {
   emit(name, payload) { this.emitted.push({ name, payload }); for (const fn of this.listeners.get(name) ?? []) fn(payload); }
 }
 
+for (const invalidMaxHealth of [0, -1, Infinity, -Infinity, NaN]) {
+  const invalidBus = new TestBus();
+  assert.throws(
+    () => createHealthState({ eventsBus: invalidBus, maxHealth: invalidMaxHealth, damageEventName: 'damage', healthChangedEventName: 'health', diedEventName: 'died' }),
+    { name: 'RangeError', message: 'createHealthState maxHealth must be a finite positive number' },
+    `invalid maxHealth=${String(invalidMaxHealth)} must fail before listener registration or initial paint`,
+  );
+  assert.equal(invalidBus.listeners.size, 0, 'invalid health construction must not leak an event listener');
+  assert.equal(invalidBus.emitted.length, 0, 'invalid health construction must not emit a synthetic initial receipt');
+}
+
 const bus = new TestBus();
 const health = createHealthState({ eventsBus: bus, maxHealth: 100, damageEventName: 'damage', healthChangedEventName: 'health', diedEventName: 'died' });
 const healthEvents = () => bus.emitted.filter((entry) => entry.name === 'health').map((entry) => entry.payload);
@@ -69,5 +80,5 @@ assert.equal(health.current, before, 'dispose must detach the damage listener');
 
 console.log('Player Combat Health Receipt: PASS');
 console.log('legacy-enumerable=current,maxHealth|receipt=ratio,delta,reason,appliedAmount,sourceId');
-console.log('finite-guard=damage+heal|invalid=Infinity,-Infinity,NaN');
+console.log('constructor-guard=maxHealth>0+finite|finite-guard=damage+heal|invalid=Infinity,-Infinity,NaN');
 console.log('damagePayloadAppliedAmount=normal,overkill,already-dead|immutable-payload=safe');
