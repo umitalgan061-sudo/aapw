@@ -43,6 +43,8 @@ export const NORTH_GROUND_COVER_POLICY = Object.freeze({
 		densityStrength: 0.34,
 		heightStrength: 0.18,
 		frostHeaveHeightStrength: 0.08,
+		frostPolygonDensityStrength: 0.18,
+		frostPolygonDarkeningStrength: 0.075,
 		windScourDensityStrength: 0.21,
 		windScourHeightStrength: 0.12,
 		thawFringeDensityStrength: 0.16,
@@ -119,6 +121,21 @@ function frostHeaveAt(worldX, worldZ) {
 	return clamp01(a * 0.63 + b * 0.37);
 }
 
+function frostPolygonEdgeAt(worldX, worldZ) {
+	const P = NORTH_GROUND_COVER_POLICY.ecologicalMosaic;
+	// Frost-sorted tundra develops sparse polygonal cracks around raised mats. Approximate only the
+	// ecological cover response by measuring the local gradient of a warped micro field; this avoids
+	// drawing geometric rings or changing terrain height while producing irregular, non-periodic seams.
+	const step = P.microScaleMeters * 0.22;
+	const east = smoothNoiseAt(worldX + step, worldZ, P.microScaleMeters * 1.28, 0xd37b);
+	const west = smoothNoiseAt(worldX - step, worldZ, P.microScaleMeters * 1.28, 0xd37b);
+	const north = smoothNoiseAt(worldX, worldZ + step, P.microScaleMeters * 1.28, 0xd37b);
+	const south = smoothNoiseAt(worldX, worldZ - step, P.microScaleMeters * 1.28, 0xd37b);
+	const gradient = Math.hypot(east - west, north - south);
+	const warp = smoothNoiseAt(worldX + 6.2, worldZ - 9.4, P.microScaleMeters * 0.57, 0x8ca1);
+	return clamp01((gradient - 0.055) * 5.4 + (warp - 0.5) * 0.24);
+}
+
 function windScourAt(worldX, worldZ) {
 	const P = NORTH_GROUND_COVER_POLICY.ecologicalMosaic;
 	// Rotate into a fixed world-space prevailing-wind frame. Strongly anisotropic sampling creates
@@ -155,6 +172,7 @@ function profileFromClimate(climate, worldX = null, worldZ = null) {
 	let ecologicalMosaic = null;
 	let tundraMoisture = null;
 	let frostHeave = null;
+	let frostPolygonEdge = null;
 	let windScour = null;
 	let thawFringe = null;
 
@@ -162,6 +180,7 @@ function profileFromClimate(climate, worldX = null, worldZ = null) {
 		ecologicalMosaic = ecologicalMosaicAt(worldX, worldZ);
 		tundraMoisture = tundraMoistureAt(worldX, worldZ);
 		frostHeave = frostHeaveAt(worldX, worldZ);
+		frostPolygonEdge = frostPolygonEdgeAt(worldX, worldZ);
 		windScour = windScourAt(worldX, worldZ);
 		thawFringe = thawFringeAt(worldX, worldZ);
 		const tundraInfluence = clamp01(Math.max(climate.tundra, climate.permanentIce * 0.72));
@@ -172,6 +191,7 @@ function profileFromClimate(climate, worldX = null, worldZ = null) {
 		grassDensity = clamp01(grassDensity * (
 			1
 			+ centered * P.ecologicalMosaic.densityStrength * tundraInfluence
+			- frostPolygonEdge * P.ecologicalMosaic.frostPolygonDensityStrength * tundraInfluence
 			- scourCentered * P.ecologicalMosaic.windScourDensityStrength * tundraInfluence
 			- thawFringe * P.ecologicalMosaic.thawFringeDensityStrength * thawBandInfluence
 		));
@@ -188,6 +208,7 @@ function profileFromClimate(climate, worldX = null, worldZ = null) {
 		rgb = blendRgb(rgb, mosaicRgb, tundraInfluence * 0.22);
 		const dampness = clamp01((tundraMoisture - 0.38) / 0.62) * tundraInfluence;
 		rgb = scaleRgb(rgb, 1 - dampness * P.ecologicalMosaic.wetDarkeningStrength);
+		rgb = scaleRgb(rgb, 1 - frostPolygonEdge * tundraInfluence * P.ecologicalMosaic.frostPolygonDarkeningStrength);
 		const thawWetness = thawFringe * thawBandInfluence;
 		rgb = scaleRgb(rgb, 1 - thawWetness * P.ecologicalMosaic.thawFringeDarkeningStrength);
 		const exposedBleach = clamp01((windScour - 0.52) / 0.48) * tundraInfluence;
@@ -208,6 +229,7 @@ function profileFromClimate(climate, worldX = null, worldZ = null) {
 		ecologicalMosaic,
 		tundraMoisture,
 		frostHeave,
+		frostPolygonEdge,
 		windScour,
 		thawFringe,
 		rgb,
