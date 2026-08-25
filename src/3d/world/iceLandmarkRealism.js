@@ -114,7 +114,7 @@ function createGlacialTextureSet(seed, { cave = false } = {}) {
 				: (1 - smoothstep(0.035, 0.23, v)) * clamp01(0.30 + macro * 0.84);
 			const wet = clamp01((cave ? 0.22 : 0.045) + crack * 0.36 + (1 - frost) * meso * (cave ? 0.40 : 0.13));
 			const denseIce = clamp01(0.22 + macro * 0.39 + meso * 0.20 - frost * 0.18 - snowCap * 0.42);
-			const blueCore = clamp01(smoothstep(0.52, 0.86, denseIce) * (1 - frost) * (0.42 + crack * 0.40));
+			const blueCore = clamp01(smoothstep(0.34, 0.64, denseIce) * (1 - frost * 0.82) * (0.50 + crack * 0.42));
 			const dirtyBand = clamp01(baseDebris * (0.55 + meso * 0.45));
 
 			let rgb = mixRgb(palette.shadow, palette.dense, denseIce);
