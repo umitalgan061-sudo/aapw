@@ -14,13 +14,14 @@
  */
 
 export const TERRAIN_FOUNDATION_CONFORM_POLICY = Object.freeze({
-	id: 'runtime-structure-foundation-conform-2026-08-25-v12-shape-aware-rebuild',
+	id: 'runtime-structure-foundation-conform-2026-08-25-v13-disconnected-islands',
 	footprintMode: 'root-oriented-adaptive-four-cell-rectangle-union-with-aabb-fallback',
 	defaultClusterColumns: 2,
 	defaultClusterRows: 2,
 	longAxisClusterCells: 4,
 	longAxisAspectThreshold: 2.5,
-	maximumClusterPads: 4,
+	maximumClusterPads: 16,
+	maximumFoundationIslands: 4,
 	chunkRebuildMode: 'shape-aware-union-deduplicated',
 	batchRemovalMode: 'mutate-all-then-union-rebuild',
 	shutdownRemovalMode: 'mutate-without-rebuild',
@@ -116,7 +117,7 @@ function chooseAdaptiveGrid(width, depth) {
 	};
 }
 
-function createAdaptiveCellPads(bounds, orientedFootprint, targetHeight, key, safeInnerMargin, safeFeather) {
+function createAdaptiveCellPads(bounds, orientedFootprint, targetHeight, key, safeInnerMargin, safeFeather, islandIndex = 0, islandCount = 1) {
   const oriented = normalizedOrientedFootprint(orientedFootprint);
   const width = oriented ? oriented.halfWidthMeters * 2 : bounds.maxX - bounds.minX;
   const depth = oriented ? oriented.halfDepthMeters * 2 : bounds.maxZ - bounds.minZ;
@@ -152,6 +153,8 @@ function createAdaptiveCellPads(bounds, orientedFootprint, targetHeight, key, sa
         foundationKey: key,
         foundationClusterIndex: pads.length,
         foundationClusterSize: columns * rows,
+        foundationIslandIndex: islandIndex,
+        foundationIslandCount: islandCount,
         footprintBounds: { ...bounds },
         orientedFootprint: oriented ? { ...oriented, axisX: { ...oriented.axisX }, axisZ: { ...oriented.axisZ } } : null,
       });
@@ -191,7 +194,16 @@ export function createFoundationFlattenPad(payload, {
 	const z = (bounds.minZ + bounds.maxZ) * 0.5;
 	const key = structureKey(payload);
 	const orientedFootprint = normalizedOrientedFootprint(payload?.orientedFootprint);
-	const pads = createAdaptiveCellPads(bounds, orientedFootprint, targetHeight, key, safeInnerMargin, safeFeather);
+	const rawIslands = Array.isArray(payload?.footprintIslands)
+		? payload.footprintIslands.map((entry) => ({ oriented: normalizedOrientedFootprint(entry), bounds: normalizedBounds(entry?.bounds) })).filter((entry) => entry.oriented && entry.bounds)
+		: [];
+	const useIslands = rawIslands.length > 1 && rawIslands.length <= TERRAIN_FOUNDATION_CONFORM_POLICY.maximumFoundationIslands;
+	const sources = useIslands ? rawIslands : [{ oriented: orientedFootprint, bounds }];
+	const pads = sources.flatMap((source, islandIndex) => createAdaptiveCellPads(source.bounds, source.oriented, targetHeight, key, safeInnerMargin, safeFeather, islandIndex, sources.length));
+	if (pads.length > TERRAIN_FOUNDATION_CONFORM_POLICY.maximumClusterPads) {
+		return { ok: false, error: 'foundation-too-many-island-pads', requestedPadCount: pads.length, maximumPadCount: TERRAIN_FOUNDATION_CONFORM_POLICY.maximumClusterPads };
+	}
+	pads.forEach((pad, index) => { pad.foundationClusterIndex = index; pad.foundationClusterSize = pads.length; });
 	const requestedCellRadius = Math.max(...pads.map((pad) => pad.innerRadiusMeters));
 	if (requestedCellRadius > safeMaximum) {
 		return {
@@ -215,6 +227,7 @@ export function createFoundationFlattenPad(payload, {
 			source: TERRAIN_FOUNDATION_CONFORM_POLICY.id,
 			foundationKey: key,
 			foundationClusterSize: pads.length,
+			foundationIslandCount: sources.length,
 			footprintBounds: { ...bounds },
 			orientedFootprint: orientedFootprint ? { ...orientedFootprint, axisX: { ...orientedFootprint.axisX }, axisZ: { ...orientedFootprint.axisZ } } : null,
 		},

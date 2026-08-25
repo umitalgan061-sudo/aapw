@@ -277,6 +277,7 @@ export function resolveWorldSurfacePlacement(object, {
       metadata,
       bounds: footprintGeometry.bounds,
       orientedFootprint: footprintGeometry.orientedFootprint || null,
+      footprintIslands: footprintGeometry.footprintIslands || [],
       points: pointRecords.map((point) => ({ ...point })),
       samples: normalizedSamples.map((sample) => ({ ...sample })),
       targetHeight: maxHeight,
@@ -311,6 +312,7 @@ export function resolveWorldSurfacePlacement(object, {
     insetMeters: inset,
     bounds: footprintGeometry.bounds,
     orientedFootprint: footprintGeometry.orientedFootprint || null,
+    footprintIslands: footprintGeometry.footprintIslands || [],
     samples: normalizedSamples.map(stripPlacementCoordinates),
   });
 
@@ -520,6 +522,34 @@ const GROUND_CONTACT_BAND_POLICY = Object.freeze({
   structureHeightFraction: 0.12,
 });
 
+const GROUND_CONTACT_ISLAND_POLICY = Object.freeze({ mergeGapMeters: 1.5, maximumIslands: 4 });
+
+function boxesConnectedInXZ(a, b, gapMeters) {
+  const gapX = Math.max(0, a.min.x - b.max.x, b.min.x - a.max.x);
+  const gapZ = Math.max(0, a.min.z - b.max.z, b.min.z - a.max.z);
+  return gapX <= gapMeters && gapZ <= gapMeters;
+}
+
+function clusterGroundContactBoxes(boxes) {
+  if (!Array.isArray(boxes) || boxes.length <= 1) return boxes?.length ? [boxes[0].clone()] : [];
+  const groups = [];
+  for (const box of boxes) {
+    const touching = [];
+    for (let index = 0; index < groups.length; index += 1) {
+      if (groups[index].members.some((member) => boxesConnectedInXZ(member, box, GROUND_CONTACT_ISLAND_POLICY.mergeGapMeters))) touching.push(index);
+    }
+    if (!touching.length) { groups.push({ members: [box], bounds: box.clone() }); continue; }
+    const target = groups[touching[0]];
+    target.members.push(box); target.bounds.union(box);
+    for (let index = touching.length - 1; index >= 1; index -= 1) {
+      const merged = groups[touching[index]];
+      target.members.push(...merged.members); target.bounds.union(merged.bounds); groups.splice(touching[index], 1);
+    }
+  }
+  const islands = groups.map((group) => group.bounds);
+  return islands.length <= GROUND_CONTACT_ISLAND_POLICY.maximumIslands ? islands : [];
+}
+
 function rootLocalGeometryBounds(object) {
   object.updateMatrixWorld?.(true);
   const inverseRoot = object.matrixWorld.clone().invert();
@@ -551,15 +581,19 @@ function rootLocalGeometryBounds(object) {
   );
   const groundContactCeiling = allGeometryBox.min.y + groundContactBandMeters;
   const groundedBox = new THREE.Box3();
-  let groundedGeometryCount = 0;
+  const groundedGeometryBoxes = [];
   for (const box of geometryBoxes) {
     if (box.min.y > groundContactCeiling + 1e-6) continue;
     groundedBox.union(box);
-    groundedGeometryCount += 1;
+    groundedGeometryBoxes.push(box);
   }
 
   // Defensive fallback: precision/authoring anomalies must never erase a valid structure footprint.
-  return groundedGeometryCount > 0 && !groundedBox.isEmpty() ? groundedBox : allGeometryBox;
+  const resolvedBox = groundedGeometryBoxes.length > 0 && !groundedBox.isEmpty() ? groundedBox : allGeometryBox;
+  const candidateBoxes = groundedGeometryBoxes.length > 0 ? groundedGeometryBoxes : geometryBoxes;
+  const islands = clusterGroundContactBoxes(candidateBoxes);
+  if (islands.length > 1) resolvedBox.groundContactIslands = islands;
+  return resolvedBox;
 }
 
 function worldFootprintFor(object) {
@@ -578,6 +612,7 @@ function worldFootprintFor(object) {
     return {
       baseOffsetY: box.min.y - object.position.y,
       orientedFootprint: null,
+      footprintIslands: [],
       bounds: Object.freeze({ minX, maxX, minZ, maxZ, width: maxX - minX, depth: maxZ - minZ }),
       points: [
         { label: 'center', x: centerX, z: centerZ },
@@ -632,9 +667,30 @@ function worldFootprintFor(object) {
   const bottomWorldY = Math.min(...localRecords.slice(1, 5).map(([, localX, localZ]) => (
     object.localToWorld(new THREE.Vector3(localX, localBox.min.y, localZ)).y
   )));
+  const islandBoxes = Array.isArray(localBox.groundContactIslands) ? localBox.groundContactIslands : [];
+  const footprintIslands = islandBoxes.map((islandBox, index) => {
+    const islandCenterX = (islandBox.min.x + islandBox.max.x) * 0.5;
+    const islandCenterZ = (islandBox.min.z + islandBox.max.z) * 0.5;
+    const islandCenter = object.localToWorld(new THREE.Vector3(islandCenterX, islandBox.min.y, islandCenterZ));
+    const corners = [
+      [islandBox.min.x, islandBox.min.z], [islandBox.max.x, islandBox.min.z],
+      [islandBox.max.x, islandBox.max.z], [islandBox.min.x, islandBox.max.z],
+    ].map(([localX, localZ]) => object.localToWorld(new THREE.Vector3(localX, islandBox.min.y, localZ)));
+    return Object.freeze({
+      index, centerX: islandCenter.x, centerZ: islandCenter.z,
+      axisX: orientedFootprint.axisX, axisZ: orientedFootprint.axisZ,
+      halfWidthMeters: (islandBox.max.x - islandBox.min.x) * 0.5 * axisXLength,
+      halfDepthMeters: (islandBox.max.z - islandBox.min.z) * 0.5 * axisZLength,
+      bounds: Object.freeze({
+        minX: Math.min(...corners.map((point) => point.x)), maxX: Math.max(...corners.map((point) => point.x)),
+        minZ: Math.min(...corners.map((point) => point.z)), maxZ: Math.max(...corners.map((point) => point.z)),
+      }),
+    });
+  });
   return {
     baseOffsetY: bottomWorldY - object.position.y,
     orientedFootprint,
+    footprintIslands,
     bounds: Object.freeze({ minX, maxX, minZ, maxZ, width: maxX - minX, depth: maxZ - minZ }),
     points,
   };
