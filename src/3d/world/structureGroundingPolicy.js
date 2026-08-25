@@ -48,7 +48,7 @@ const BRIDGE_PROFILE_PATTERN = termPattern(BRIDGE_PROFILE_TERMS);
 const WATERSIDE_PROFILE_PATTERN = termPattern(WATERSIDE_PROFILE_TERMS);
 
 export const STRUCTURE_GROUNDING_POLICY = Object.freeze({
-  id: 'structure-grounding-classifier-2026-08-25-v4-extended-families',
+  id: 'structure-grounding-classifier-2026-08-25-v4-family-aliases-extended-families',
   footprintProbeCount: 9,
   primaryMetadataOverridesFallback: true,
   protectedPrimitivesOverrideOptIn: true,
