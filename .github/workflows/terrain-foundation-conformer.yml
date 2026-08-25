@@ -41,36 +41,13 @@ jobs:
           node scripts/checkTerrainFoundationConformer.mjs
           node scripts/checkFoundationRenderPhysicsParity.mjs
           node scripts/checkExtendedStructureFoundationConform.mjs
-      - name: Restore validation-only workflow and publish
+      - name: Publish validated production patch
         shell: bash
         run: |
           set -euo pipefail
-          git show db02145e9d6d49302c58d392515630853274fdd2:.github/workflows/terrain-foundation-conformer.yml > .github/workflows/terrain-foundation-conformer.yml
-          python - <<'PY'
-          from pathlib import Path
-          path = Path('.github/workflows/terrain-foundation-conformer.yml')
-          text = path.read_text()
-          text = text.replace(
-              "      - 'scripts/checkGroundContactFootprintFiltering.mjs'\n      - 'scripts/setupNodeThreeShim.mjs'",
-              "      - 'scripts/checkGroundContactFootprintFiltering.mjs'\n      - 'scripts/checkDisconnectedFoundationIslands.mjs'\n      - 'scripts/setupNodeThreeShim.mjs'",
-              1,
-          )
-          text = text.replace(
-              "          node --check scripts/checkGroundContactFootprintFiltering.mjs\n      - name: Shared structure footprint",
-              "          node --check scripts/checkGroundContactFootprintFiltering.mjs\n          node --check scripts/checkDisconnectedFoundationIslands.mjs\n      - name: Shared structure footprint",
-              1,
-          )
-          text = text.replace(
-              "          node scripts/checkGroundContactFootprintFiltering.mjs\n",
-              "          node scripts/checkGroundContactFootprintFiltering.mjs\n          node scripts/checkDisconnectedFoundationIslands.mjs\n",
-              1,
-          )
-          path.write_text(text)
-          PY
-          git rm -- .github/scripts/patchFoundationIslands.py
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- src/3d/world/WorldAssetPlacementPipeline.js src/3d/world/terrainFoundationConformer.js scripts/checkDisconnectedFoundationIslands.mjs .github/workflows/terrain-foundation-conformer.yml
+          git add -- src/3d/world/WorldAssetPlacementPipeline.js src/3d/world/terrainFoundationConformer.js scripts/checkDisconnectedFoundationIslands.mjs
           git diff --cached --stat
           git commit -m 'feat(world): preserve disconnected foundation islands'
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
