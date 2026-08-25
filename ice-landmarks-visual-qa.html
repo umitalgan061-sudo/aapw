@@ -149,7 +149,7 @@ window.__iceQa = {
   },
 };
 window.addEventListener('pagehide', () => {
-  disposeIceLandmarks(landmarks);
+  disposeIceLandmarks(landmarks.group);
   terrainGeometry.dispose();
   terrainMaterial.dispose();
   renderer.dispose();
