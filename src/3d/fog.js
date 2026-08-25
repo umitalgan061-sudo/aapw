@@ -31,8 +31,11 @@ const FOG_TWILIGHT_CURVE_POWER = 2.35;
 const FOG_HAZE_TINT = new THREE.Color(0x9aa6ad);
 /** A warmer aerosol tint near low-angle sun keeps dawn/dusk from becoming a neutral grey wash. */
 const FOG_TWILIGHT_WARM_TINT = new THREE.Color(0xb5a79c);
+/** Moonless/dark horizons cool distant silhouettes slightly instead of preserving warm twilight dust. */
+const FOG_NIGHT_COOL_TINT = new THREE.Color(0x596979);
 const FOG_HAZE_TINT_MAX = 0.075;
 const FOG_TWILIGHT_WARM_TINT_MAX = 0.032;
+const FOG_NIGHT_COOL_TINT_MAX = 0.038;
 
 /**
  * Creates the scene fog. Caller assigns it to `scene.fog` and calls `updateFog` every frame
@@ -50,8 +53,11 @@ export function createFog() {
  * A bounded twilight lobe avoids the old perfectly linear day→night density ramp. The lobe uses a
  * powered sine rather than `4*x*(1-x)`: it rises later and falls sooner, concentrating suspended
  * aerosol visibility around genuinely low-angle light instead of making half the diurnal cycle
- * equally hazy. A small midday clarity notch restores long-distance separation under high sun.
- * Both effects are render-only and remain subordinate to the authoritative lighting horizon color.
+ * equally hazy. Horizon luminance further gates the warm aerosol response: bright low-angle sky can
+ * illuminate haze, while a dark post-twilight horizon transitions toward a restrained cool aerial
+ * perspective instead of carrying the same warm tint into night. A small midday clarity notch
+ * restores long-distance separation under high sun. All effects remain render-only and subordinate
+ * to the authoritative lighting horizon color.
  *
  * @param {THREE.FogExp2} fog
  * @param {{horizonColor: THREE.Color, nightFactor: number}} dayNight - `lighting.js`'s per-frame output.
@@ -60,10 +66,19 @@ export function updateFog(fog, dayNight) {
 	const nightFactor = THREE.MathUtils.clamp(dayNight.nightFactor, 0, 1);
 	const twilight = Math.pow(Math.sin(Math.PI * nightFactor), FOG_TWILIGHT_CURVE_POWER);
 	const fullDay = 1 - THREE.MathUtils.smoothstep(nightFactor, 0.08, 0.42);
+	const horizonLuminance = THREE.MathUtils.clamp(
+		dayNight.horizonColor.r * 0.2126 + dayNight.horizonColor.g * 0.7152 + dayNight.horizonColor.b * 0.0722,
+		0,
+		1,
+	);
+	const litTwilight = twilight * THREE.MathUtils.smoothstep(horizonLuminance, 0.08, 0.46);
+	const deepNight = THREE.MathUtils.smoothstep(nightFactor, 0.70, 0.98)
+		* (1 - THREE.MathUtils.smoothstep(horizonLuminance, 0.08, 0.24));
 
 	fog.color.copy(dayNight.horizonColor)
 		.lerp(FOG_HAZE_TINT, twilight * FOG_HAZE_TINT_MAX)
-		.lerp(FOG_TWILIGHT_WARM_TINT, twilight * FOG_TWILIGHT_WARM_TINT_MAX);
+		.lerp(FOG_TWILIGHT_WARM_TINT, litTwilight * FOG_TWILIGHT_WARM_TINT_MAX)
+		.lerp(FOG_NIGHT_COOL_TINT, deepNight * FOG_NIGHT_COOL_TINT_MAX);
 
 	fog.density = THREE.MathUtils.lerp(FOG_DENSITY_DAY, FOG_DENSITY_NIGHT, nightFactor)
 		+ twilight * FOG_TWILIGHT_DENSITY_GAIN
