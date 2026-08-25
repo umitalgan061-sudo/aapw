@@ -56,6 +56,9 @@ function writeDamageAppliedAmount(payload, appliedAmount) {
 }
 
 export function createHealthState({ eventsBus, maxHealth, damageEventName, healthChangedEventName, diedEventName }) {
+	if (!Number.isFinite(maxHealth) || !(maxHealth > 0)) {
+		throw new RangeError('createHealthState maxHealth must be a finite positive number');
+	}
 	let current = maxHealth;
 	let hasDied = false;
 
