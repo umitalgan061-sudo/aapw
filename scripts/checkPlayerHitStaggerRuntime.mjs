@@ -19,8 +19,10 @@ page.on('console', (message) => { if (message.type() === 'error') errors.push(`c
 await page.addInitScript(() => {
   window.__hitStaggerMotion = [];
   window.__hitStaggerAttack = [];
+  window.__hitStaggerFeedback = [];
   window.addEventListener('aapw:player-motion', (event) => window.__hitStaggerMotion.push(structuredClone(event.detail)));
   window.addEventListener('aapw:player-attack-window', (event) => window.__hitStaggerAttack.push(structuredClone(event.detail)));
+  window.addEventListener('aapw:player-combat-feedback', (event) => window.__hitStaggerFeedback.push(structuredClone(event.detail)));
 });
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function waitFor(find, label, timeout = 10000) {
@@ -43,6 +45,7 @@ try {
   await page.evaluate(() => {
     window.__hitStaggerMotion.length = 0;
     window.__hitStaggerAttack.length = 0;
+    window.__hitStaggerFeedback.length = 0;
     window.dispatchEvent(new CustomEvent('aapw:player-combat-input', { detail: { kind: 'light' } }));
   });
   const active = await waitFor(() => {
@@ -54,25 +57,51 @@ try {
     for (let index = 0; index < 4; index += 1) gameEvents.emit(EVENTS.PLAYER_DAMAGED, { amount: 25, sourceId: `hit-stagger-proof-${index}` });
   });
   const proof = await waitFor(() => {
-    const stagger = window.__hitStaggerMotion.find((item) => item?.state === 'hit-stagger' && item?.defenseResult === 'hit-stagger');
+    const staggerIndex = window.__hitStaggerMotion.findIndex((item) => item?.state === 'hit-stagger' && item?.defenseResult === 'hit-stagger');
+    const stagger = staggerIndex >= 0 ? window.__hitStaggerMotion[staggerIndex] : null;
+    const respawn = staggerIndex >= 0
+      ? window.__hitStaggerMotion.slice(staggerIndex + 1).find((item) => item?.state === 'idle' && item?.stamina === 100 && item?.poise === 100 && item?.hitStaggerRemaining === 0 && item?.guardBreakRemaining === 0)
+      : null;
     const interrupted = window.__hitStaggerAttack.find((item) => item?.phase === 'interrupted');
-    return stagger && interrupted ? { stagger: structuredClone(stagger), interrupted: structuredClone(interrupted), motions: structuredClone(window.__hitStaggerMotion), attacks: structuredClone(window.__hitStaggerAttack) } : null;
-  }, 'hit stagger and interrupted attack window');
-  need(proof.stagger.poise === 35, `expected authored poise recovery 35, got ${proof.stagger.poise}`);
+    const lethalFeedback = [...window.__hitStaggerFeedback].reverse().find((item) => item?.outcome === 'hit-stagger' && item?.appliedAmount > 0);
+    return stagger && respawn && interrupted && lethalFeedback
+      ? {
+          stagger: structuredClone(stagger),
+          respawn: structuredClone(respawn),
+          interrupted: structuredClone(interrupted),
+          lethalFeedback: structuredClone(lethalFeedback),
+          motions: structuredClone(window.__hitStaggerMotion),
+          attacks: structuredClone(window.__hitStaggerAttack),
+          feedback: structuredClone(window.__hitStaggerFeedback),
+        }
+      : null;
+  }, 'hit stagger, lethal feedback, interrupted attack and defeat reset');
+  need(proof.stagger.poise === 35, `expected authored poise recovery 35 before respawn, got ${proof.stagger.poise}`);
   need(proof.stagger.hitStaggerRemaining > 0 && proof.stagger.hitStaggerRemaining <= 0.32, `bad stagger duration ${proof.stagger.hitStaggerRemaining}`);
   need(proof.stagger.attackKind === 'none' && proof.stagger.attackRemaining === 0 && proof.stagger.attackComboStep === 0, 'stagger must clear attack state');
   need(proof.stagger.canDodge === false && proof.stagger.guarding === false, 'stagger must lock dodge and guard');
   need(proof.interrupted.kind === 'light' && proof.interrupted.active === false, 'interruption must terminate the active light attack');
+  need(proof.lethalFeedback.appliedAmount === 25, `lethal feedback must report the final clamped 25 health removed, got ${proof.lethalFeedback.appliedAmount}`);
+  need(proof.lethalFeedback.state === 'hit-stagger' && proof.lethalFeedback.poise === 35, `deferred lethal feedback must preserve impact-time state instead of respawn state ${JSON.stringify(proof.lethalFeedback)}`);
+  need(proof.respawn.state === 'idle' && proof.respawn.stamina === 100 && proof.respawn.poise === 100, `respawn must restore full transient vitals ${JSON.stringify(proof.respawn)}`);
+  need(proof.respawn.attackKind === 'none' && proof.respawn.attackRemaining === 0 && proof.respawn.attackComboStep === 0 && proof.respawn.attackActive === false, 'respawn must not carry an attack/combo window');
+  need(proof.respawn.guardBreakRemaining === 0 && proof.respawn.hitStaggerRemaining === 0 && proof.respawn.dodgeRemaining === 0, 'respawn must clear stagger/break/dodge timers');
+  need(proof.respawn.guarding === false && proof.respawn.isDodgeInvulnerable === false && proof.respawn.isGrounded === true && proof.respawn.canDodge === true, 'respawn must return to a grounded actionable state');
+  const healthAfterRespawn = await page.evaluate(() => ({
+    now: Number(document.querySelector('.g3d-health-bar')?.getAttribute('aria-valuenow')),
+    max: Number(document.querySelector('.g3d-health-bar')?.getAttribute('aria-valuemax')),
+  }));
+  need(Number.isFinite(healthAfterRespawn.now) && healthAfterRespawn.now === healthAfterRespawn.max, `shipped respawn must restore authoritative health ${JSON.stringify(healthAfterRespawn)}`);
   const recovered = await waitFor(() => {
     const frame = window.__hitStaggerMotion.at(-1);
-    return frame?.state === 'idle' && frame?.hitStaggerRemaining === 0 ? structuredClone(frame) : null;
-  }, 'post-stagger idle recovery');
+    return frame?.state === 'idle' && frame?.hitStaggerRemaining === 0 && frame?.stamina === 100 && frame?.poise === 100 ? structuredClone(frame) : null;
+  }, 'post-defeat idle recovery');
   const canvas = page.locator('#game3d-canvas');
   const box = await canvas.boundingBox();
   need(box && box.width > 100 && box.height > 100, 'invalid shipped canvas bounds');
   const png = await page.screenshot({ clip: box });
   fs.writeFileSync(path.join(outDir, 'hit-stagger-runtime.png'), png);
-  fs.writeFileSync(path.join(outDir, 'hit-stagger-runtime.json'), `${JSON.stringify({ baseline, active, stagger: proof.stagger, interrupted: proof.interrupted, recovered, browserErrors: errors }, null, 2)}\n`);
+  fs.writeFileSync(path.join(outDir, 'hit-stagger-runtime.json'), `${JSON.stringify({ baseline, active, stagger: proof.stagger, interrupted: proof.interrupted, lethalFeedback: proof.lethalFeedback, respawn: proof.respawn, healthAfterRespawn, recovered, browserErrors: errors }, null, 2)}\n`);
   need(errors.length === 0, errors.join(' | '));
   console.log('PLAYER_HIT_STAGGER_RUNTIME_OK');
 } catch (error) {
