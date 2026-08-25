@@ -10,12 +10,13 @@
  *
  * This file is just the orchestration (result printing over each check) — the static file server
  * and Playwright bootstrap it uses live in `devServerHelper.js` (run 59, shared with
- * `collectPerfSnapshot.js`). The actual per-feature assertions live in twelve focused check modules:
+ * `collectPerfSnapshot.js`). The actual per-feature assertions live in focused check modules:
  * - `game3dSmokeChecksScene.js` — page-boot level: 2D shell load, 3D mode boot, water
  *   vertex-shader-has-no-displacement, settlement ground-flatten pads (run 92, ADR-0118).
- * - `game3dSmokeChecksDebugTools.js` — debug-tool + world-event singleton systems: F4 debug camera,
- *   F2 debug/profiling panel, world-event system, world-event day/night gating (split out of
- *   `game3dSmokeChecksScene.js` run 88, which had reached 573/600 — see that file's own header).
+ * - `game3dSmokeChecksDebugTools.js` — F4 debug camera and F2 debug/profiling panel.
+ * - `game3dSmokeChecksWorldEvents.js` — bounded-frame WorldEventSystem/toast and day/night gating
+ *   browser acceptance; ordinary 1-second foreground frames intentionally replace legacy huge-delta
+ *   shortcuts so browser smoke matches the shipped resume-safety contract.
  * - `game3dSmokeChecks.js` — non-movement per-entity gameplay: settlement collider, player-cart dynamic
  *   collider (run 337, ADR-0283), jump/gravity arc, interaction controller, interaction-prompt tap;
  *   plus (run 87, budget-placed — see that file's own header) the starfield twinkle check.
@@ -44,9 +45,10 @@
  * The split history: run 40 (`game3dSmokeChecks.js` hit 596/600), run 64 (a fifth check module rather
  * than growing `game3dSmokeChecksMovement.js`, already at 614/600), run 68 (that 614-line violation
  * finally fixed at its source by moving its three dragon checks out — DECISIONS.md ADR-0087), run 88
- * (`game3dSmokeChecksScene.js` hit 573/600, its F4/F2/world-event checks moved into the new
- * `game3dSmokeChecksDebugTools.js`). See each file's own header comment for why. Every module is
- * under this project's 600-line cap.
+ * (`game3dSmokeChecksScene.js` hit 573/600, its F4/F2/world-event checks moved into
+ * `game3dSmokeChecksDebugTools.js`). The bounded-resume world-event acceptance later moved into its
+ * own focused module so debug-tool ownership and world-event frame semantics stay independent.
+ * See each file's own header comment for why. Every module is under this project's 600-line cap.
  *
  * Requires Playwright's Chromium browser (dev-only tooling — this repo intentionally has no
  * `package.json`/build step for the *deployed* site; this script is never loaded by a browser or
@@ -61,6 +63,7 @@
 
 const sceneChecks = require('./game3dSmokeChecksScene.js');
 const debugToolChecks = require('./game3dSmokeChecksDebugTools.js');
+const worldEventChecks = require('./game3dSmokeChecksWorldEvents.js');
 const checks = require('./game3dSmokeChecks.js');
 const movementChecks = require('./game3dSmokeChecksMovement.js');
 const npcPerceptionChecks = require('./game3dSmokeChecksNpcPerception.js');
@@ -103,8 +106,8 @@ async function main() {
 		results.push(await sceneChecks.checkSettlementGroundFlatten(browser, baseUrl));
 		results.push(await debugToolChecks.checkFreeCamera(browser, baseUrl));
 		results.push(await debugToolChecks.checkPerfPanel(browser, baseUrl));
-		results.push(await debugToolChecks.checkWorldEvents(browser, baseUrl));
-		results.push(await debugToolChecks.checkWorldEventsTimeGating(browser, baseUrl));
+		results.push(await worldEventChecks.checkWorldEvents(browser, baseUrl));
+		results.push(await worldEventChecks.checkWorldEventsTimeGating(browser, baseUrl));
 		results.push(await checks.checkSettlementCollider(browser, baseUrl));
 		results.push(await checks.checkPlayerCartDynamicCollider(browser, baseUrl));
 		results.push(await checks.checkJumpArc(browser, baseUrl));
