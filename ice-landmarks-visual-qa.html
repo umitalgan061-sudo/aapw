@@ -126,6 +126,22 @@ const views = {
   },
 };
 
+let disposed = false;
+function disposeQa() {
+  if (!disposed) {
+    disposed = true;
+    disposeIceLandmarks(landmarks.group);
+    terrainGeometry.dispose();
+    terrainMaterial.dispose();
+    renderer.dispose();
+  }
+  return {
+    disposed,
+    landmarkDisposed: landmarks.group.userData.disposed === true,
+    landmarkChildren: landmarks.group.children.length,
+  };
+}
+
 window.__iceQa = {
   ready: true,
   stats: {
@@ -147,13 +163,9 @@ window.__iceQa = {
     renderer.render(scene, camera);
     return this.stats;
   },
+  dispose: disposeQa,
 };
-window.addEventListener('pagehide', () => {
-  disposeIceLandmarks(landmarks.group);
-  terrainGeometry.dispose();
-  terrainMaterial.dispose();
-  renderer.dispose();
-}, { once: true });
+window.addEventListener('pagehide', disposeQa, { once: true });
 window.__iceQa.render('wall');
 </script>
 </body>
