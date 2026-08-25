@@ -144,14 +144,16 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 		poiseRegenDelayRemaining = PLAYER_ACTION_CONFIG.POISE_REGEN_DELAY_SECONDS;
 	}
 	function publishCounterWindow(reason, source = counterSource) {
-		if (typeof globalThis.dispatchEvent !== 'function' || typeof globalThis.CustomEvent !== 'function') return;
-		globalThis.dispatchEvent(new globalThis.CustomEvent(COUNTER_WINDOW_EVENT, { detail: Object.freeze({
-			ready: counterWindowRemaining > 0 && counterSource !== 'none',
-			source,
-			remainingSeconds: Number(counterWindowRemaining.toFixed(3)),
-			stamina: Number(stamina.toFixed(2)),
-			reason,
-		}) }));
+		if (typeof globalThis.dispatchEvent === 'function' && typeof globalThis.CustomEvent === 'function') {
+			globalThis.dispatchEvent(new globalThis.CustomEvent(COUNTER_WINDOW_EVENT, { detail: Object.freeze({
+				ready: counterWindowRemaining > 0 && counterSource !== 'none',
+				source,
+				remainingSeconds: Number(counterWindowRemaining.toFixed(3)),
+				stamina: Number(stamina.toFixed(2)),
+				reason,
+			}) }));
+		}
+		publishMotionTelemetry(true);
 	}
 	function clearCounterOpportunity(reason = 'cleared') {
 		if (counterSource === 'none' && counterWindowRemaining <= 0) return;
