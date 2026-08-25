@@ -70,7 +70,10 @@ const waitCounter = (find, label, timeout) => waitFor(readCounters, (events) => 
 const waitWindow = (find, label, timeout) => waitFor(readWindows, (events) => [...events].reverse().find(find) ?? null, label, timeout);
 
 async function waitIdleFullStamina(timeout = 15000) {
-  return waitMotion((frame) => frame?.state === 'idle' && frame.isGrounded && frame.stamina === 100 && frame.attackKind === 'none' && frame.guardBreakRemaining === 0 && frame.hitStaggerRemaining === 0, 'full-stamina actionable idle', timeout);
+  return waitFor(readMotion, (frames) => {
+    const frame = frames.at(-1);
+    return frame?.state === 'idle' && frame.isGrounded && frame.stamina === 100 && frame.attackKind === 'none' && frame.guardBreakRemaining === 0 && frame.hitStaggerRemaining === 0 ? frame : null;
+  }, 'latest full-stamina actionable idle', timeout, 60);
 }
 
 async function armFrozenDamageOnParry(amount, sourceId) {
@@ -148,7 +151,7 @@ try {
   const frozenParryHud = await waitFor(readHud, (hud) => hud.state === 'defense-parry' && hud.text.includes('PARRY') && hud.text.includes('20.0 savuşturuldu') ? hud : null, 'frozen parry HUD from staged resolution', 3000, 25);
   const readyHud = await waitFor(readHud, (hud) => hud.state === 'counter-ready' && hud.text.includes('RİPOST HAZIR') && hud.text.includes('PARRY') ? hud : null, 'riposte-ready HUD after defense feedback', 5000, 30);
   const expired = await waitFor(readCounters, (events) => events.slice(counterCountBeforeExpiry).find((event) => !event.ready && event.source === 'parry' && event.reason === 'expired') ?? null, 'riposte expiry event', 6000, 40);
-  const expiredMotion = await waitMotion((frame) => frame?.counterReady === false && frame.counterRemaining === 0 && frame.attackKind === 'none', 'expired counter motion state', 5000);
+  const expiredMotion = await waitFor(readMotion, (frames) => { const frame = frames.at(-1); return frame?.counterReady === false && frame.counterRemaining === 0 && frame.attackKind === 'none' ? frame : null; }, 'latest expired counter motion state', 5000, 50);
   const afterExpiryWindows = await readWindows();
   need(afterExpiryWindows.length === windowCountBeforeExpiry, 'letting a riposte expire must not synthesize an attack');
   need(expired.remainingSeconds === 0 && expiredMotion.counterSource === 'none', `expired counter must clear authoritative state: ${JSON.stringify({ expired, expiredMotion })}`);
