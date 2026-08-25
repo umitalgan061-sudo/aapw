@@ -13,7 +13,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-24-v15-glacial-accumulated-palette-retention',
+  id: 'terrain-snow-surface-tone-2026-08-25-v16-wind-crust-powder-contrast',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
@@ -28,6 +28,7 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   ridgeScourReadability: true,
   leeDriftReadability: true,
   windSlabReadability: true,
+  windCrustPowderContrast: true,
   glacialVisibilityExponent: 0.65,
   glacialDepthFloor: 0.54,
   glacialDepthGain: 0.46,
@@ -65,6 +66,10 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   packedBrightnessShift: -0.045,
   accumulatedWarmShift: 0.050,
   accumulatedBrightnessShift: 0.052,
+  ridgeCrustCoolGain: 0.055,
+  ridgeCrustBrightnessLoss: 0.030,
+  leePowderWarmGain: 0.018,
+  leePowderBrightnessGain: 0.024,
 });
 
 /**
@@ -121,6 +126,8 @@ export function resolveTerrainSnowSurfaceTone({
       ridgeScourWeight: 0,
       windSlabWeight: 0,
       leeDriftWeight: 0,
+      ridgeCrustTone: 0,
+      leePowderTone: 0,
       packedWeight: 0,
       accumulatedWeight: 0,
       neutralWeight: visibleSnow,
@@ -257,6 +264,18 @@ export function resolveTerrainSnowSurfaceTone({
   );
   const neutralWeight = clamp01(visibleSnow * (1 - Math.max(packedWeight, accumulatedWeight)));
 
+  // Distinguish wind-polished crust from sheltered powder using only the existing authoritative
+  // redistribution telemetry. This adds no procedural geography: the colder/darker crust follows
+  // genuinely exposed ridges, while the small warm/bright response follows actual lee/concave snow.
+  // The two terms are mutually suppressed so full-world snowfields gain readable internal structure
+  // without turning into high-frequency noise or changing snow coverage.
+  const ridgeCrustTone = clamp01(
+    ridgeScourWeight * (0.58 + windSlabWeight * 0.42) * (1 - leeDriftWeight * 0.62),
+  );
+  const leePowderTone = clamp01(
+    leeDriftWeight * (1 - ridgeScourWeight * 0.72) * (0.72 + clamp01(gentleSlope) * 0.28),
+  );
+
   return Object.freeze({
     visibleSnow,
     accumulationVisibleSnow,
@@ -281,11 +300,18 @@ export function resolveTerrainSnowSurfaceTone({
     ridgeScourWeight,
     windSlabWeight,
     leeDriftWeight,
+    ridgeCrustTone,
+    leePowderTone,
     packedWeight,
     accumulatedWeight,
     neutralWeight,
-    coolShift: packedWeight * P.packedCoolShift - accumulatedWeight * P.accumulatedWarmShift,
+    coolShift: packedWeight * P.packedCoolShift
+      - accumulatedWeight * P.accumulatedWarmShift
+      + ridgeCrustTone * P.ridgeCrustCoolGain
+      - leePowderTone * P.leePowderWarmGain,
     brightnessShift: packedWeight * P.packedBrightnessShift
-      + accumulatedWeight * P.accumulatedBrightnessShift,
+      + accumulatedWeight * P.accumulatedBrightnessShift
+      - ridgeCrustTone * P.ridgeCrustBrightnessLoss
+      + leePowderTone * P.leePowderBrightnessGain,
   });
 }
