@@ -101,7 +101,43 @@ try {
     const overlapState = overlapWolf.isFleeing;
     overlapWolf.dispose();
 
-    return { modelUrl: species.modelUrl, fleeDistance, fleeState, nanDistance, patrolDistance, overlapDistance, overlapDx, overlapDz, overlapState };
+    const invalidThreatWolf = await createWolf({
+      assetLoader,
+      modelUrl: species.modelUrl,
+      idleClipName: species.clips.idle,
+      stripChildNames: species.stripChildNames,
+      worldX: 0,
+      worldZ: 0,
+      groundY: 0,
+      groundCollider,
+      playerCollider,
+      fleeClipName: species.clips.flee,
+      fleeTriggerRadiusMeters: ANIMAL_CONFIG.FLEE_TRIGGER_RADIUS_METERS,
+      fleeSpeedMps: ANIMAL_CONFIG.FLEE_SPEED_MPS,
+      packAlertRadiusMeters: ANIMAL_CONFIG.PACK_ALERT_RADIUS_METERS,
+    });
+    const beforeInvalidThreat = { x: invalidThreatWolf.object3D.position.x, z: invalidThreatWolf.object3D.position.z };
+    invalidThreatWolf.update(0.1, { x: Number.NaN, z: 0 }, [{ x: 0, z: 0 }]);
+    const afterInvalidThreat = { x: invalidThreatWolf.object3D.position.x, z: invalidThreatWolf.object3D.position.z };
+    const invalidThreatDistance = Math.hypot(afterInvalidThreat.x - beforeInvalidThreat.x, afterInvalidThreat.z - beforeInvalidThreat.z);
+    const invalidThreatFinite = Number.isFinite(afterInvalidThreat.x) && Number.isFinite(afterInvalidThreat.z);
+    const invalidThreatState = invalidThreatWolf.isFleeing;
+    invalidThreatWolf.dispose();
+
+    return {
+      modelUrl: species.modelUrl,
+      fleeDistance,
+      fleeState,
+      nanDistance,
+      patrolDistance,
+      overlapDistance,
+      overlapDx,
+      overlapDz,
+      overlapState,
+      invalidThreatDistance,
+      invalidThreatFinite,
+      invalidThreatState,
+    };
   });
 
   assert.equal(pageErrors.length, 0, `page errors: ${pageErrors.join(' | ')}`);
@@ -113,6 +149,9 @@ try {
   assert.equal(proof.overlapState, true, 'an exact-overlap wolf must still classify the player as a flee threat');
   assert.ok(proof.overlapDistance > 0 && proof.overlapDistance <= 0.45 + 1e-6, `exact-overlap flee displacement escaped the 100 ms budget: ${proof.overlapDistance}`);
   assert.ok(proof.overlapDx > 0.44 && Math.abs(proof.overlapDz) <= 1e-6, `exact-overlap fallback must follow deterministic wolf yaw: dx=${proof.overlapDx}, dz=${proof.overlapDz}`);
+  assert.equal(proof.invalidThreatFinite, true, 'non-finite player threat input must not poison shipped wolf coordinates');
+  assert.equal(proof.invalidThreatState, false, 'pack alert must fail closed when the player threat position is non-finite');
+  assert.equal(proof.invalidThreatDistance, 0, 'non-finite player threat input must not move the shipped wolf');
 
   console.log('WILDLIFE_LONG_FRAME_BROWSER_PASS', JSON.stringify(proof));
 } finally {
