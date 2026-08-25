@@ -35,8 +35,9 @@ export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
 	// preserving stronger, narrower scour/deposition around real ridges and sheltered folds.
 	directionalAlignmentStart: 0.34,
 	directionalAlignmentFull: 0.92,
-	// Sheltered faces can hold loose snow on ordinary mountain slopes, but near-cliffs should shed it.
-	leeRetentionFadeStartDegrees: 40,
+	// Ordinary mountain lee faces retain their full deposition signal through 42 degrees; only steeper
+	// near-cliff faces start shedding loose snow, preserving the established physical contract.
+	leeRetentionFadeStartDegrees: 42,
 	leeRetentionFadeFullDegrees: 58,
 	northWindwardScourMax: 0.090,
 	tundraWindwardScourMax: 0.052,
