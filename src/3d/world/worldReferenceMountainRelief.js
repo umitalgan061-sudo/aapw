@@ -17,7 +17,7 @@ import {
 import { WORLD_REFERENCE_BASE_SURFACE_MASK } from './worldReferenceSurfacePindexes.js';
 
 export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
-	id: 'owner-map-live-mountain-relief-2026-08-24-v5-natural-long-ranges',
+	id: 'owner-map-live-mountain-relief-2026-08-25-v6-broad-natural-ridges',
 	sourceMapSha256: WORLD_REFERENCE_MAP.sha256,
 	surfaceMaskSha256: WORLD_REFERENCE_BASE_SURFACE_MASK.maskSha256,
 	landGateZero: 0.54,
@@ -28,8 +28,8 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 	shoulderWidthVariation: Object.freeze({
 		broadFrequency: 5.5,
 		detailFrequency: 13.5,
-		minimumScale: 0.88,
-		maximumScale: 1.62,
+		minimumScale: 0.94,
+		maximumScale: 1.76,
 	}),
 	coastalReliefTaper: Object.freeze({
 		radiusNormalized: 0.012,
@@ -38,14 +38,14 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 	talusBreakup: Object.freeze({
 		broadFrequency: 22,
 		detailFrequency: 47,
-		strength: 0.18,
-		shoulderStart: 0.20,
-		shoulderEnd: 0.90,
+		strength: 0.20,
+		shoulderStart: 0.18,
+		shoulderEnd: 0.92,
 	}),
 	// Western chains overlap shipped kingdom roads, so their audited map-space approaches are
 	// lowered into traversable passes instead of flattening/removing the surrounding mountains.
-	// Bone/eastern chains use a higher modulation floor and softer exponent so long source-owned
-	// ridges keep visible shoulders between local summits instead of collapsing into isolated plugs.
+	// Bone/eastern chains use broad shoulders and a high modulation floor so the same source-owned
+	// polylines read as connected eroded ranges rather than narrow volcanic plugs from aerial views.
 	chains: Object.freeze({
 		'vale-chain': Object.freeze({
 			peakMeters: 430,
@@ -71,24 +71,24 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 			]),
 		}),
 		'bone-mountains': Object.freeze({
-			peakMeters: 820,
-			coreWidthNormalized: 0.007,
-			outerWidthNormalized: 0.094,
-			summitFloor: 0.36,
-			summitNoiseExponent: 1.3,
-			coordinateWarpScale: 2.0,
-			shoulderDetailStrength: 0.22,
+			peakMeters: 690,
+			coreWidthNormalized: 0.009,
+			outerWidthNormalized: 0.116,
+			summitFloor: 0.48,
+			summitNoiseExponent: 1.10,
+			coordinateWarpScale: 2.35,
+			shoulderDetailStrength: 0.27,
 			shoulderDetailFrequency: 31,
 			seed: 37,
 		}),
 		'eastern-chain': Object.freeze({
-			peakMeters: 760,
-			coreWidthNormalized: 0.006,
-			outerWidthNormalized: 0.088,
-			summitFloor: 0.36,
-			summitNoiseExponent: 1.3,
-			coordinateWarpScale: 2.0,
-			shoulderDetailStrength: 0.22,
+			peakMeters: 650,
+			coreWidthNormalized: 0.008,
+			outerWidthNormalized: 0.108,
+			summitFloor: 0.47,
+			summitNoiseExponent: 1.12,
+			coordinateWarpScale: 2.30,
+			shoulderDetailStrength: 0.26,
 			shoulderDetailFrequency: 29,
 			seed: 53,
 		}),
@@ -356,7 +356,7 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 		if (distance >= outerWidth) continue;
 		const normalizedDistance = clamp(distance / Math.max(outerWidth, 1e-9), 0, 1);
 		const coreRatio = clamp(coreWidth / Math.max(outerWidth, 1e-9), 0.06, 0.24);
-		const ridgeExponent = 1.10 + coreRatio * 2.0;
+		const ridgeExponent = 0.88 + coreRatio * 1.65;
 		const ridge = Math.pow(Math.cos(normalizedDistance * Math.PI * 0.5), ridgeExponent);
 		const summitNoise = (
 			valueNoise2D(normalizedX * 8, normalizedY * 8, chain.profile.seed + 101) * 0.75 +
