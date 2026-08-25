@@ -35,6 +35,8 @@ export const TERRAIN_MICRO_SURFACE_POLICY = Object.freeze({
 	ecologicalMosaic: true,
 	drainageBreakup: true,
 	nonPeriodicRockWeathering: true,
+	multiScaleAerialContrast: true,
+	snowScourReadability: true,
 	renderOnly: true,
 });
 
@@ -263,15 +265,16 @@ float terrainPhotoMoisture = clamp(
 	0.0, 1.0
 );
 
-float terrainPhotoDesaturate = 0.13 + terrainPhotoVegetation * 0.35 + terrainPhotoRock * 0.11 + terrainPhotoWarmGround * 0.14;
+float terrainPhotoDesaturate = 0.12 + terrainPhotoVegetation * 0.31 + terrainPhotoRock * 0.10 + terrainPhotoWarmGround * 0.12;
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(terrainPhotoLuma), terrainPhotoDesaturate);
-float terrainPhotoValue = 0.845
-	+ (terrainPhotoRegional - 0.5) * 0.19
-	+ (terrainPhotoBroad - 0.5) * 0.16
-	+ (terrainPhotoMacro - 0.5) * 0.10
-	+ (terrainPhotoMeso - 0.5) * 0.052
-	+ (terrainPhotoGrain - 0.5) * 0.020;
-diffuseColor.rgb *= terrainPhotoValue;
+float terrainPhotoValue = 0.885
+	+ (terrainPhotoRegional - 0.5) * 0.25
+	+ (terrainPhotoBroad - 0.5) * 0.20
+	+ (terrainPhotoMacro - 0.5) * 0.145
+	+ (terrainPhotoMeso - 0.5) * 0.080
+	+ (terrainPhotoGrain - 0.5) * 0.032;
+float terrainPhotoAerialRelief = (terrainPhotoMeso - 0.5) * 0.060 + (terrainPhotoMacro - 0.5) * 0.040;
+diffuseColor.rgb *= terrainPhotoValue + terrainPhotoAerialRelief * (0.35 + terrainPhotoElevation * 0.65);
 
 // Vegetation becomes an ecological mosaic: damp drainage, neutral meadow, dry grass/heath and
 // deterministic bare-earth interruptions. The masks are broad and warped so they do not resemble
@@ -292,10 +295,10 @@ float terrainPhotoSparseEarth = terrainPhotoVegetation * smoothstep(0.49, 0.78, 
 	* smoothstep(0.50, 0.79, 1.0 - terrainPhotoEco) * (0.38 + terrainPhotoElevation * 0.62);
 float terrainPhotoHeathBreak = terrainPhotoVegetation * terrainPhotoElevation
 	* smoothstep(0.50, 0.78, terrainPhotoBroad) * (0.62 + terrainPhotoMacro * 0.38);
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.045, 0.066, 0.036), terrainPhotoWetMeadow * 0.30);
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.270, 0.235, 0.148), terrainPhotoDryGrass * 0.34);
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.245, 0.210, 0.158), terrainPhotoSparseEarth * 0.42);
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.196, 0.181, 0.143), terrainPhotoHeathBreak * 0.28);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.045, 0.066, 0.036), terrainPhotoWetMeadow * 0.34);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.270, 0.235, 0.148), terrainPhotoDryGrass * 0.38);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.245, 0.210, 0.158), terrainPhotoSparseEarth * 0.45);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.196, 0.181, 0.143), terrainPhotoHeathBreak * 0.32);
 
 // Open soil follows the same regional moisture field and receives stony interruptions. This keeps
 // coast-to-upland colour changes natural without touching canonical height or surface weights.
@@ -308,7 +311,7 @@ float terrainPhotoEarthRemap = terrainPhotoWarmGround * (0.36 + terrainPhotoElev
 diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoEarth, terrainPhotoEarthRemap);
 float terrainPhotoStonyPatch = (1.0 - terrainPhotoSnow) * smoothstep(0.61, 0.85, terrainPhotoMeso)
 	* (0.18 + terrainPhotoElevation * 0.58) * (1.0 - terrainPhotoVegetation * 0.52);
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.275, 0.267, 0.250), terrainPhotoStonyPatch * 0.25);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.275, 0.267, 0.250), terrainPhotoStonyPatch * 0.29);
 
 // Rock weathering is deliberately non-periodic. The previous height-sine strata could read as
 // cartographic contour rings from the top-down camera; warped geological noise now breaks faces
@@ -324,21 +327,21 @@ vec3 terrainPhotoRockWarm = vec3(0.312, 0.282, 0.250);
 vec3 terrainPhotoRockDark = vec3(0.178, 0.184, 0.182);
 vec3 terrainPhotoRockTone = mix(terrainPhotoRockCool, terrainPhotoRockWarm, terrainPhotoRegional);
 terrainPhotoRockTone = mix(terrainPhotoRockTone, terrainPhotoRockDark, smoothstep(0.70, 0.93, terrainPhotoMoisture) * 0.35);
-diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoRockTone, terrainPhotoRock * (0.22 + terrainPhotoElevation * 0.10));
-diffuseColor.rgb *= 1.0 + terrainPhotoRock * (terrainPhotoStrata - 0.5) * 0.105;
+diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoRockTone, terrainPhotoRock * (0.24 + terrainPhotoElevation * 0.13));
+diffuseColor.rgb *= 1.0 + terrainPhotoRock * (terrainPhotoStrata - 0.5) * 0.145;
 
 // Snow stays off-white, with large wind/scour and deposition patches so aerial snowfields retain
 // surface information instead of clipping to a flat white decal.
 vec3 terrainPhotoSnowCold = vec3(0.655, 0.700, 0.728);
 vec3 terrainPhotoSnowSun = vec3(0.805, 0.814, 0.802);
 vec3 terrainPhotoSnowBase = mix(terrainPhotoSnowCold, terrainPhotoSnowSun, terrainPhotoRegional * 0.62 + terrainPhotoBroad * 0.38);
-diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoSnowBase, terrainPhotoSnow * 0.25);
-float terrainPhotoSnowShadow = terrainPhotoSnow * smoothstep(0.50, 0.82, 1.0 - terrainPhotoMeso);
-float terrainPhotoSnowDust = terrainPhotoSnow * smoothstep(0.69, 0.89, terrainPhotoBroad) * smoothstep(0.66, 0.88, terrainPhotoGrain);
-float terrainPhotoSnowScour = terrainPhotoSnow * terrainPhotoElevation * smoothstep(0.61, 0.84, terrainPhotoMacro);
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.520, 0.582, 0.615), terrainPhotoSnowShadow * 0.15);
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.405, 0.398, 0.372), terrainPhotoSnowDust * 0.090);
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.585, 0.620, 0.630), terrainPhotoSnowScour * 0.075);
+diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoSnowBase, terrainPhotoSnow * 0.31);
+float terrainPhotoSnowShadow = terrainPhotoSnow * smoothstep(0.48, 0.80, 1.0 - terrainPhotoMeso);
+float terrainPhotoSnowDust = terrainPhotoSnow * smoothstep(0.67, 0.88, terrainPhotoBroad) * smoothstep(0.64, 0.86, terrainPhotoGrain);
+float terrainPhotoSnowScour = terrainPhotoSnow * terrainPhotoElevation * smoothstep(0.58, 0.82, terrainPhotoMacro);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.500, 0.565, 0.600), terrainPhotoSnowShadow * 0.22);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.405, 0.398, 0.372), terrainPhotoSnowDust * 0.12);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.565, 0.600, 0.612), terrainPhotoSnowScour * 0.13);
 diffuseColor.rgb = clamp(diffuseColor.rgb, vec3(0.010), vec3(0.855));`,
 			);
 	};
@@ -367,6 +370,8 @@ export function applyTerrainMicroSurface(material) {
 		ecologicalMosaic: true,
 		drainageBreakup: true,
 		nonPeriodicRockWeathering: true,
+		multiScaleAerialContrast: true,
+		snowScourReadability: true,
 		renderOnly: true,
 	});
 	material.needsUpdate = true;
