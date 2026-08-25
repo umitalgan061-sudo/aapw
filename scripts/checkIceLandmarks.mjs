@@ -40,7 +40,7 @@ assert(Math.abs(cave.center.y - sampleHeightMeters(cave.center.x, cave.center.z)
   'cave portal must stay grounded to the shared terrain height authority');
 
 const realism = result.stats.realism;
-assert.equal(realism?.version, 2, 'The Wall must use layered glacial realism v2');
+assert.equal(realism?.version, 3, 'The Wall must use natural-palette glacial realism v3');
 assert.equal(realism?.wallTexture?.resolution, '256x512', 'wall texture resolution regressed');
 assert.equal(realism?.caveTexture?.resolution, '256x512', 'cave texture resolution regressed');
 assert(realism.wallTexture.crackCoverage > 0.01 && realism.wallTexture.crackCoverage < 0.30,
@@ -49,6 +49,10 @@ assert(realism.wallTexture.frostCoverage > 0.12,
   `wall lost frost/snow breakup (${realism.wallTexture.frostCoverage})`);
 assert(realism.wallTexture.debrisCoverage > 0.01,
   `wall base lost debris staining (${realism.wallTexture.debrisCoverage})`);
+assert(realism.wallTexture.blueCoreCoverage > 0.005,
+  `wall lost dense blue ice cores (${realism.wallTexture.blueCoreCoverage})`);
+assert(realism.caveTexture.blueCoreCoverage > realism.wallTexture.blueCoreCoverage,
+  'cave should expose more dense blue ice than the exterior Wall');
 assert(realism.caveTexture.wetCoverage > realism.wallTexture.wetCoverage,
   'cave must retain wetter melt-polished zones than the exterior Wall');
 assert(realism.seracCount >= 20, `wall needs macro serac breakup (${realism.seracCount})`);
@@ -63,7 +67,8 @@ assert.equal(wall.userData.iceLandmarkRole, 'natural-ice-wall');
 assert.equal(wall.material?.userData?.iceSurface?.mode, 'wall-glacial-cliff');
 assert.equal(wall.material?.userData?.iceSurface?.verticalFlowTexture, true);
 assert.equal(wall.material?.userData?.iceSurface?.proceduralCracks, true);
-assert.equal(wall.material?.userData?.iceSurface?.realismVersion, 2);
+assert.equal(wall.material?.userData?.iceSurface?.realismVersion, 3);
+assert.equal(wall.material?.userData?.iceSurface?.naturalReferencePalette, true);
 assert.equal(wall.material?.userData?.iceSurface?.macroFractures, true);
 assert.equal(wall.material?.userData?.iceSurface?.mesoStriations, true);
 assert.equal(wall.material?.userData?.iceSurface?.microCrystalNormals, true);
@@ -104,6 +109,7 @@ assert.equal(castThroughPortalLocal(0, 1.5).length, 0,
 const caveMesh = result.group.children.find((child) => child.userData?.iceLandmarkRole === 'walkable-ice-cave-shell');
 assert(caveMesh?.isMesh, 'walk-through cave shell missing');
 assert.equal(caveMesh.material?.userData?.iceSurface?.mode, 'cave-subsurface');
+assert.equal(caveMesh.material?.userData?.iceSurface?.naturalReferencePalette, true);
 assert(caveMesh.material?.transmission > wall.material?.transmission,
   'cave ice should transmit more light than the exterior wall');
 
