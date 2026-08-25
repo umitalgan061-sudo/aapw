@@ -175,9 +175,9 @@ export async function createWolf({
 			currentlyFleeing = isFleeingFromPlayer || isFleeingFromPack;
 
 			if (currentlyFleeing && simulationDelta > 0) {
-				const safeDistance = Math.max(distanceFromPlayer, 1e-6);
-				const dirX = dxFromPlayer / safeDistance;
-				const dirZ = dzFromPlayer / safeDistance;
+				const hasSeparationVector = distanceFromPlayer > 1e-6;
+				const dirX = hasSeparationVector ? dxFromPlayer / distanceFromPlayer : Math.sin(model.rotation.y);
+				const dirZ = hasSeparationVector ? dzFromPlayer / distanceFromPlayer : Math.cos(model.rotation.y);
 				const step = fleeSpeedMps * simulationDelta;
 				let nextX = model.position.x + dirX * step;
 				let nextZ = model.position.z + dirZ * step;
