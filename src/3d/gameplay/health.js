@@ -63,7 +63,9 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 	let hasDied = false;
 
 	function clearResolutionAfterSameEvent(payload) {
-		queueMicrotask(() => clearDamageResolution(payload));
+		// Preserve the authoritative snapshot through the first microtask wave so listeners
+		// registered after health can defer their own same-event reconciliation without racing cleanup.
+		queueMicrotask(() => queueMicrotask(() => clearDamageResolution(payload)));
 	}
 
 	function emitHealthChanged({ previous = current, reason = 'sync', sourceId = null } = {}) {
