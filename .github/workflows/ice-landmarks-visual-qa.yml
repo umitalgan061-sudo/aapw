@@ -13,29 +13,132 @@ on:
       - 'src/3d/game3d.js'
       - 'src/3d/physics.js'
       - 'ice-landmarks-visual-qa.html'
+      - 'scripts/checkIceLandmarks.mjs'
       - 'scripts/checkIceLandmarksVisualQa.js'
       - 'scripts/devServerHelper.js'
       - '.github/workflows/ice-landmarks-visual-qa.yml'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   ice-landmarks-visual-qa:
     runs-on: ubuntu-24.04
     timeout-minutes: 18
     steps:
-      - name: Checkout exact PR head
+      - name: Checkout repair branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 1
+          ref: codex/foundation-grounding-20260821
+          fetch-depth: 0
           lfs: false
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      - name: Apply one-shot portal manifold repair in worktree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git pull --ff-only origin codex/foundation-grounding-20260821
+          python - <<'PY'
+          from pathlib import Path
+
+          landmark = Path('src/3d/world/iceLandmarks.js')
+          source = landmark.read_text()
+          old = '''function makePortalShape(width, height, openingHalfWidth, sideHeight, archRise) {
+\tconst halfWidth = width * 0.5;
+\tconst shape = new THREE.Shape();
+\tshape.moveTo(-halfWidth, 0);
+\tshape.lineTo(halfWidth, 0);
+\tshape.lineTo(halfWidth, height);
+\tshape.lineTo(-halfWidth, height);
+\tshape.closePath();
+
+\tconst hole = new THREE.Path();
+\thole.moveTo(-openingHalfWidth, 0);
+\thole.lineTo(-openingHalfWidth, sideHeight);
+\tfor (let step = 0; step <= 16; step += 1) {
+\t\tconst angle = Math.PI - (step / 16) * Math.PI;
+\t\thole.lineTo(
+\t\t\tMath.cos(angle) * openingHalfWidth,
+\t\t\tsideHeight + Math.sin(angle) * archRise,
+\t\t);
+\t}
+\thole.lineTo(openingHalfWidth, 0);
+\thole.closePath();
+\tshape.holes.push(hole);
+\treturn shape;
+}'''
+          new = '''function makePortalShape(width, height, openingHalfWidth, sideHeight, archRise) {
+\tconst halfWidth = width * 0.5;
+\tconst shape = new THREE.Shape();
+\t// A walk-through arch reaches the ground, so a Shape hole would touch the outer contour and
+\t// become degenerate for Earcut. Trace one concave outer contour around the open arch instead;
+\t// this keeps the passage open while preserving manifold front/back ice faces above it.
+\tshape.moveTo(-halfWidth, 0);
+\tshape.lineTo(-openingHalfWidth, 0);
+\tshape.lineTo(-openingHalfWidth, sideHeight);
+\tfor (let step = 0; step <= 16; step += 1) {
+\t\tconst angle = Math.PI - (step / 16) * Math.PI;
+\t\tshape.lineTo(
+\t\t\tMath.cos(angle) * openingHalfWidth,
+\t\t\tsideHeight + Math.sin(angle) * archRise,
+\t\t);
+\t}
+\tshape.lineTo(openingHalfWidth, 0);
+\tshape.lineTo(halfWidth, 0);
+\tshape.lineTo(halfWidth, height);
+\tshape.lineTo(-halfWidth, height);
+\tshape.closePath();
+\treturn shape;
+}'''
+          if source.count(old) != 1:
+              raise SystemExit(f'legacy portal contour count was {source.count(old)}, expected 1')
+          landmark.write_text(source.replace(old, new, 1))
+
+          test = Path('scripts/checkIceLandmarks.mjs')
+          text = test.read_text()
+          import_anchor = "import assert from 'node:assert/strict';\n"
+          if "import * as THREE from 'three';" not in text:
+              if text.count(import_anchor) != 1:
+                  raise SystemExit('checkIceLandmarks import anchor changed')
+              text = text.replace(import_anchor, import_anchor + "import * as THREE from 'three';\n", 1)
+          ray_anchor = "assert(Math.abs(wall.material?.ior - 1.31) < 1e-9, 'ice IOR must remain physically plausible');\n\n"
+          ray_block = '''assert(Math.abs(wall.material?.ior - 1.31) < 1e-9, 'ice IOR must remain physically plausible');
+
+const portalMesh = result.group.getObjectByName('ice-wall-cave-portal');
+assert(portalMesh?.isMesh, 'arched cave portal mesh missing');
+portalMesh.geometry.computeBoundingBox();
+portalMesh.updateWorldMatrix(true, false);
+const portalBounds = portalMesh.geometry.boundingBox;
+assert(portalBounds, 'portal geometry must expose finite bounds');
+const portalRaycaster = new THREE.Raycaster();
+function castThroughPortalLocal(localX, localY) {
+  const origin = new THREE.Vector3(localX, localY, portalBounds.min.z - 5).applyMatrix4(portalMesh.matrixWorld);
+  const direction = new THREE.Vector3(0, 0, 1).transformDirection(portalMesh.matrixWorld);
+  portalRaycaster.set(origin, direction);
+  return portalRaycaster.intersectObject(portalMesh, false);
+}
+const archTopY = ICE_LANDMARK_POLICY.cave.openingSideHeightMeters + ICE_LANDMARK_POLICY.cave.openingArchRiseMeters;
+assert(castThroughPortalLocal(0, archTopY + 4).length > 0,
+  'ice portal crown must retain a closed front/back face above the walk-through arch');
+assert.equal(castThroughPortalLocal(0, 1.5).length, 0,
+  'ice portal center must remain open at player walking height');
+
+'''
+          if 'castThroughPortalLocal' not in text:
+              if text.count(ray_anchor) != 1:
+                  raise SystemExit('checkIceLandmarks raycast anchor changed')
+              text = text.replace(ray_anchor, ray_block, 1)
+          test.write_text(text)
+          PY
+          node scripts/setupNodeThreeShim.mjs
+          node --check src/3d/world/iceLandmarks.js
+          node --check scripts/checkIceLandmarks.mjs
+          node scripts/checkIceLandmarks.mjs
 
       - name: Build-time module and scene contracts
         run: |
@@ -57,17 +160,115 @@ jobs:
           ln -sfn "$RUNNER_TEMP/pw/node_modules" "$GITHUB_WORKSPACE/node_modules"
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
-      - name: Render exact-head The Wall and ice cave
+      - name: Render repaired The Wall and ice cave
         run: |
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           node scripts/checkIceLandmarksVisualQa.js
 
-      - name: Upload map and WebGL visual proof
+      - name: Upload repaired map and WebGL visual proof
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ice-landmarks-visual-qa-${{ github.event.pull_request.head.sha || github.sha }}
+          name: ice-landmarks-manifold-repair-${{ github.event.pull_request.head.sha || github.sha }}
           path: artifacts/ice-landmarks-visual-qa/
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish validated repair and retire temporary machinery
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin codex/foundation-grounding-20260821
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/codex/foundation-grounding-20260821)" || {
+            echo 'Branch advanced while visual validation ran; refusing to overwrite concurrent work.' >&2
+            exit 1
+          }
+          rm -f .github/workflows/one-shot-ice-portal-manifold.yml
+          cat > .github/workflows/ice-landmarks-visual-qa.yml <<'YAML'
+          name: Ice Landmarks Visual QA
+
+          on:
+            pull_request:
+              branches: [main]
+              paths:
+                - 'map.png/map.png'
+                - 'src/3d/world/iceLandmarks.js'
+                - 'src/3d/world/worldReferenceMap.js'
+                - 'src/3d/world/terrain.js'
+                - 'src/3d/world/terrainBiomeShading.js'
+                - 'src/3d/sceneManager.js'
+                - 'src/3d/game3d.js'
+                - 'src/3d/physics.js'
+                - 'ice-landmarks-visual-qa.html'
+                - 'scripts/checkIceLandmarksVisualQa.js'
+                - 'scripts/devServerHelper.js'
+                - '.github/workflows/ice-landmarks-visual-qa.yml'
+            workflow_dispatch:
+
+          permissions:
+            contents: read
+
+          jobs:
+            ice-landmarks-visual-qa:
+              runs-on: ubuntu-24.04
+              timeout-minutes: 18
+              steps:
+                - name: Checkout exact PR head
+                  uses: actions/checkout@v4
+                  with:
+                    ref: ${{ github.event.pull_request.head.sha || github.sha }}
+                    fetch-depth: 1
+                    lfs: false
+
+                - uses: actions/setup-node@v4
+                  with:
+                    node-version: 22
+
+                - name: Build-time module and scene contracts
+                  run: |
+                    set -euo pipefail
+                    node --check src/3d/world/iceLandmarks.js
+                    node --check src/3d/world/worldReferenceMap.js
+                    node --check src/3d/sceneManager.js
+                    node --check src/3d/game3d.js
+                    node --check scripts/checkIceLandmarksVisualQa.js
+                    test -s map.png/map.png
+                    test -s ice-landmarks-visual-qa.html
+
+                - name: Install Playwright Chromium
+                  run: |
+                    set -euo pipefail
+                    mkdir -p "$RUNNER_TEMP/pw"
+                    npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+                    "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+                    ln -sfn "$RUNNER_TEMP/pw/node_modules" "$GITHUB_WORKSPACE/node_modules"
+                    echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+                - name: Render exact-head The Wall and ice cave
+                  run: |
+                    set -euo pipefail
+                    export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+                    node scripts/checkIceLandmarksVisualQa.js
+
+                - name: Upload map and WebGL visual proof
+                  if: always()
+                  uses: actions/upload-artifact@v4
+                  with:
+                    name: ice-landmarks-visual-qa-${{ github.event.pull_request.head.sha || github.sha }}
+                    path: artifacts/ice-landmarks-visual-qa/
+                    if-no-files-found: error
+                    retention-days: 14
+          YAML
+          git config user.name "umitalgan061-sudo"
+          git config user.email "umitalgan.061@gmail.com"
+          git add -- src/3d/world/iceLandmarks.js scripts/checkIceLandmarks.mjs .github/workflows/ice-landmarks-visual-qa.yml
+          if test -e .github/workflows/one-shot-ice-portal-manifold.yml; then
+            git add -- .github/workflows/one-shot-ice-portal-manifold.yml
+          else
+            git add -u -- .github/workflows/one-shot-ice-portal-manifold.yml
+          fi
+          git diff --cached --check
+          git commit -m "fix(world): close ice cave portal frame"
+          git push origin HEAD:codex/foundation-grounding-20260821
