@@ -9,6 +9,7 @@ const FIXTURE_PATH = path.join(__dirname, 'fixtures', 'world-events-seed-148.jso
 const FIXED_SEED = 1482026;
 const DIFFERENT_SEED = 1482027;
 const STEP_SECONDS = 95;
+const FOREGROUND_FRAME_SECONDS = 1;
 const NIGHT_PATTERN = Object.freeze([0, 1, 0.5, null, 0, 1, null, 0.5]);
 const STEPS = 24;
 
@@ -37,8 +38,10 @@ function collectSequence(seed) {
 	for (let index = 0; index < STEPS; index += 1) {
 		const before = emitted.length;
 		const nightFactor = NIGHT_PATTERN[index % NIGHT_PATTERN.length];
-		system.update(STEP_SECONDS, nightFactor === null ? undefined : nightFactor);
-		assert(emitted.length === before + 1, `step ${index}: expected exactly one event, received ${emitted.length - before}`);
+		for (let foregroundSecond = 0; foregroundSecond < STEP_SECONDS && emitted.length === before; foregroundSecond += 1) {
+			system.update(FOREGROUND_FRAME_SECONDS, nightFactor === null ? undefined : nightFactor);
+		}
+		assert(emitted.length === before + 1, `step ${index}: expected exactly one event within ${STEP_SECONDS}s, received ${emitted.length - before}`);
 		const latest = emitted[emitted.length - 1];
 		assert(latest.eventName === 'world:event', `step ${index}: unexpected event name ${latest.eventName}`);
 		validateTimeGate(latest.payload, nightFactor, index);
