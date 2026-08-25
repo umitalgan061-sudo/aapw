@@ -12,11 +12,48 @@
  * @module gameplay/health
  */
 
-import {
-	clearDamageResolution,
-	readDamageResolution,
-	writeDamageAppliedAmount,
-} from './damageResolution.js';
+const pendingDamageResolutions = new WeakMap();
+
+function isObjectPayload(payload) {
+	return payload !== null && (typeof payload === 'object' || typeof payload === 'function');
+}
+
+function tryWrite(payload, key, value) {
+	if (!isObjectPayload(payload)) return false;
+	try {
+		return Reflect.set(payload, key, value);
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Stage same-event defense/health data without requiring producer payload mutability.
+ * Mutable payloads retain the legacy best-effort write-back for existing consumers.
+ */
+export function stageDamageResolution(payload, patch = {}) {
+	if (!isObjectPayload(payload)) return null;
+	const previous = pendingDamageResolutions.get(payload) ?? {};
+	const next = Object.freeze({ ...previous, ...patch });
+	pendingDamageResolutions.set(payload, next);
+	for (const [key, value] of Object.entries(patch)) tryWrite(payload, key, value);
+	return next;
+}
+
+export function readDamageResolution(payload) {
+	return isObjectPayload(payload) ? (pendingDamageResolutions.get(payload) ?? null) : null;
+}
+
+export function clearDamageResolution(payload) {
+	if (isObjectPayload(payload)) pendingDamageResolutions.delete(payload);
+}
+
+function writeDamageAppliedAmount(payload, appliedAmount) {
+	if (!isObjectPayload(payload)) return false;
+	const previous = pendingDamageResolutions.get(payload);
+	if (previous) pendingDamageResolutions.set(payload, Object.freeze({ ...previous, appliedAmount }));
+	return tryWrite(payload, 'appliedAmount', appliedAmount);
+}
 
 export function createHealthState({ eventsBus, maxHealth, damageEventName, healthChangedEventName, diedEventName }) {
 	let current = maxHealth;
