@@ -189,8 +189,8 @@ function createPortalShroud(group, portal, seed) {
 	}
 	const material = wall.material.clone();
 	material.vertexColors = false;
-	material.color.set(0xb9c8c8);
-	material.roughness = 0.68;
+	material.color.set(0xc4d0cf);
+	material.roughness = 0.67;
 	material.transmission = 0.010;
 	material.clearcoat = 0.04;
 	material.needsUpdate = true;
@@ -198,19 +198,17 @@ function createPortalShroud(group, portal, seed) {
 	const openingHalfWidth = 7.8;
 	for (const faceSign of [-1, 1]) {
 		for (let depthLayer = 0; depthLayer < 3; depthLayer += 1) {
-			const normalJitter = (hash2D(depthLayer, faceSign + 233, seed + 11527) - 0.5) * 2.4;
-			const normalOffset = (portal.depth * 0.50 + depthLayer * 11.7 + normalJitter) * faceSign;
+			const normalJitter = (hash2D(depthLayer, faceSign + 233, seed + 11527) - 0.5) * 0.8;
+			const normalOffset = (portal.depth * 0.50 + depthLayer * 6.2 + normalJitter) * faceSign;
 			const apronScale = 1 + depthLayer * 0.08;
-			const depthScale = 6.2 + depthLayer * 1.3;
 			for (const side of [-1, 1]) {
 				for (let level = 0; level < 3; level += 1) {
-					const lateralJitter = (hash2D(level, side + depthLayer * 17, seed + 11617) - 0.5) * 0.55;
-					const heightJitter = (hash2D(level, side + depthLayer * 19, seed + 11701) - 0.5) * 0.70;
-					const lateral = side * (openingHalfWidth + 3.0 + level * 0.55 + depthLayer * 0.40 + lateralJitter);
+					const lateral = side * (openingHalfWidth + 3.0 + level * 0.55 + depthLayer * 0.42);
+					const heightJitter = (hash2D(level, side + depthLayer * 19, seed + 11701) - 0.5) * 0.42;
 					transforms.push({
 						position: new THREE.Vector3(portal.centerX + portal.tx * lateral + portal.nx * normalOffset, portal.groundY + 2.8 + level * 4.0 + heightJitter, portal.centerZ + portal.tz * lateral + portal.nz * normalOffset),
-						scale: new THREE.Vector3(3.2 * apronScale, 3.7 * apronScale, depthScale),
-						rx: (hash2D(level, side + 239, seed + 11807) - 0.5) * 0.13,
+						scale: new THREE.Vector3(3.2 * apronScale, 3.7 * apronScale, 2.8 + depthLayer * 0.48),
+						rx: (hash2D(level, side + 239, seed + 11807) - 0.5) * 0.10,
 						ry: -Math.atan2(portal.tz, portal.tx) + side * 0.12,
 						rz: side * (0.08 + level * 0.035),
 					});
@@ -218,19 +216,19 @@ function createPortalShroud(group, portal, seed) {
 			}
 			for (let step = 1; step <= 5; step += 1) {
 				const angle = Math.PI - (step / 6) * Math.PI;
-				const lateral = Math.cos(angle) * (openingHalfWidth + depthLayer * 0.30) + (hash2D(step, faceSign + depthLayer * 23, seed + 11903) - 0.5) * 0.45;
-				const height = 3.2 + Math.sin(angle) * (8.8 + depthLayer * 0.38) + 2.2;
+				const lateral = Math.cos(angle) * (openingHalfWidth + depthLayer * 0.30) + (hash2D(step, faceSign + depthLayer * 23, seed + 11903) - 0.5) * 0.32;
+				const height = 3.2 + Math.sin(angle) * (8.8 + depthLayer * 0.40) + 2.2;
 				transforms.push({
 					position: new THREE.Vector3(portal.centerX + portal.tx * lateral + portal.nx * normalOffset, portal.groundY + height, portal.centerZ + portal.tz * lateral + portal.nz * normalOffset),
-					scale: new THREE.Vector3((2.6 + hash2D(step, faceSign + 43 + depthLayer, seed + 8009) * 1.3) * apronScale, 2.3 * apronScale, depthScale * 0.94),
-					rx: (hash2D(step, faceSign + 241, seed + 12011) - 0.5) * 0.12,
+					scale: new THREE.Vector3((2.6 + hash2D(step, faceSign + 43 + depthLayer, seed + 8009) * 1.3) * apronScale, 2.3 * apronScale, 2.7 + depthLayer * 0.52),
+					rx: (hash2D(step, faceSign + 241, seed + 12011) - 0.5) * 0.09,
 					ry: -Math.atan2(portal.tz, portal.tx),
 					rz: (hash2D(step, faceSign + 47 + depthLayer, seed + 8101) - 0.5) * 0.35,
 				});
 			}
 		}
 	}
-	const shroud = createInstanceField('ice-cave-natural-portal-shroud', 'natural-fractured-portal-shroud', new THREE.DodecahedronGeometry(1, 0), material, transforms, seed + 8209, [0xa9bfc2, 0xd1dad9]);
+	const shroud = createInstanceField('ice-cave-natural-portal-shroud', 'natural-fractured-portal-shroud', new THREE.DodecahedronGeometry(1, 0), material, transforms, seed + 8209, [0xb1c5c6, 0xd6dddb]);
 	group.add(shroud);
 	return shroud.count;
 }
