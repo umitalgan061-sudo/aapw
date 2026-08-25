@@ -514,21 +514,52 @@ function expandBoxWithGeometryCorners(targetBox, geometryBox, matrixWorld, inver
   }
 }
 
+const GROUND_CONTACT_BAND_POLICY = Object.freeze({
+  minimumMeters: 0.5,
+  maximumMeters: 2,
+  structureHeightFraction: 0.12,
+});
+
 function rootLocalGeometryBounds(object) {
   object.updateMatrixWorld?.(true);
   const inverseRoot = object.matrixWorld.clone().invert();
-  const localBox = new THREE.Box3();
   const scratch = new THREE.Vector3();
-  let foundGeometry = false;
+  const geometryBoxes = [];
   object.traverse?.((node) => {
+    if (node?.userData?.terrainFootprintExclude === true || node?.userData?.foundationFootprintExclude === true) return;
     const geometry = node?.geometry;
     if (!geometry?.attributes?.position) return;
     if (!geometry.boundingBox) geometry.computeBoundingBox();
     if (!geometry.boundingBox || geometry.boundingBox.isEmpty()) return;
-    expandBoxWithGeometryCorners(localBox, geometry.boundingBox, node.matrixWorld, inverseRoot, scratch);
-    foundGeometry = true;
+    const nodeBox = new THREE.Box3();
+    expandBoxWithGeometryCorners(nodeBox, geometry.boundingBox, node.matrixWorld, inverseRoot, scratch);
+    if (!nodeBox.isEmpty()) geometryBoxes.push(nodeBox);
   });
-  return foundGeometry && !localBox.isEmpty() ? localBox : null;
+  if (!geometryBoxes.length) return null;
+
+  const allGeometryBox = new THREE.Box3();
+  geometryBoxes.forEach((box) => allGeometryBox.union(box));
+  if (allGeometryBox.isEmpty()) return null;
+
+  const structureHeight = Math.max(0, allGeometryBox.max.y - allGeometryBox.min.y);
+  const groundContactBandMeters = Math.max(
+    GROUND_CONTACT_BAND_POLICY.minimumMeters,
+    Math.min(
+      GROUND_CONTACT_BAND_POLICY.maximumMeters,
+      structureHeight * GROUND_CONTACT_BAND_POLICY.structureHeightFraction,
+    ),
+  );
+  const groundContactCeiling = allGeometryBox.min.y + groundContactBandMeters;
+  const groundedBox = new THREE.Box3();
+  let groundedGeometryCount = 0;
+  for (const box of geometryBoxes) {
+    if (box.min.y > groundContactCeiling + 1e-6) continue;
+    groundedBox.union(box);
+    groundedGeometryCount += 1;
+  }
+
+  // Defensive fallback: precision/authoring anomalies must never erase a valid structure footprint.
+  return groundedGeometryCount > 0 && !groundedBox.isEmpty() ? groundedBox : allGeometryBox;
 }
 
 function worldFootprintFor(object) {
