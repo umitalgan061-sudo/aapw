@@ -10,19 +10,43 @@ if (!playwright?.chromium) {
 }
 
 const artifactDir = path.resolve('artifacts/ice-landmarks-visual-qa');
+const VIEWPORT = Object.freeze({ width: 1200, height: 720 });
+const MAP_VIEWPORT = Object.freeze({ width: 1200, height: 800 });
 await fs.mkdir(artifactDir, { recursive: true });
 const server = await startStaticServer();
 let browser;
 try {
   browser = await playwright.chromium.launch({ headless: true, args: ['--disable-dev-shm-usage'] });
-  const page = await browser.newPage({ viewport: { width: 1200, height: 720 }, deviceScaleFactor: 1 });
+  const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 1 });
   const errors = [];
   page.on('pageerror', (error) => errors.push(String(error)));
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
   await page.goto(`${server.baseUrl}/ice-landmarks-visual-qa.html`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.__iceQa?.ready === true, null, { timeout: 20000 });
 
-  const stats = await page.evaluate(() => window.__iceQa.stats);
+  const evidence = await page.evaluate(async () => {
+    const [{ ICE_LANDMARK_POLICY }, { REFERENCE_BIOME_ZONES, WORLD_REFERENCE_MAP }] = await Promise.all([
+      import('./src/3d/world/iceLandmarks.js'),
+      import('./src/3d/world/worldReferenceMap.js'),
+    ]);
+    const stats = window.__iceQa.stats;
+    const wallPath = ICE_LANDMARK_POLICY.wall.pathNormalized.map(([x, y]) => [x, y]);
+    const caveAnchor = [...ICE_LANDMARK_POLICY.cave.anchorNormalized];
+    const winter = REFERENCE_BIOME_ZONES.find((zone) => zone.id === 'lands-always-winter');
+    const north = REFERENCE_BIOME_ZONES.find((zone) => zone.id === 'north');
+    return {
+      stats,
+      policyId: ICE_LANDMARK_POLICY.id,
+      wallPath,
+      caveAnchor,
+      referenceMap: WORLD_REFERENCE_MAP,
+      biomeAnchors: {
+        winterCenterY: winter?.center?.[1] ?? null,
+        northCenterY: north?.center?.[1] ?? null,
+      },
+    };
+  });
+  const stats = evidence.stats;
   if (!(stats.width > 2200 && stats.width < 3600)) throw new Error(`wall width outside visual contract: ${stats.width}`);
   if (!(stats.height > 120 && stats.height < 230)) throw new Error(`wall height outside visual contract: ${stats.height}`);
   if (!(stats.blockers > 40)) throw new Error(`insufficient collision blockers: ${stats.blockers}`);
@@ -38,11 +62,54 @@ try {
     if (!stats.roles.includes(role)) throw new Error(`missing visual role: ${role}`);
   }
 
+  const wallYs = evidence.wallPath.map(([, y]) => y);
+  const meanWallY = wallYs.reduce((sum, value) => sum + value, 0) / wallYs.length;
+  if (!(evidence.biomeAnchors.winterCenterY < meanWallY && meanWallY < evidence.biomeAnchors.northCenterY)) {
+    throw new Error(`The Wall must remain between Always Winter and the North: ${JSON.stringify(evidence.biomeAnchors)} wallY=${meanWallY}`);
+  }
+  if (!evidence.wallPath.every(([x, y], index, source) => x >= 0 && x <= 1 && y >= 0 && y <= 1 && (index === 0 || x > source[index - 1][0]))) {
+    throw new Error(`The Wall map path must be in-bounds and west-to-east monotonic: ${JSON.stringify(evidence.wallPath)}`);
+  }
+  const caveDistance = Math.min(...evidence.wallPath.map(([x, y]) => Math.hypot(x - evidence.caveAnchor[0], y - evidence.caveAnchor[1])));
+  if (caveDistance > 0.012) throw new Error(`ice cave anchor drifted away from The Wall: normalized distance ${caveDistance}`);
+
   for (const view of ['wall', 'cave', 'interior']) {
     await page.evaluate((name) => window.__iceQa.render(name), view);
-    await page.waitForTimeout(180);
+    await page.waitForTimeout(220);
     await page.screenshot({ path: path.join(artifactDir, `${view}.png`) });
   }
+
+  // Source-map proof: render the owner map itself and draw the exact normalized runtime path over it.
+  // This is intentionally a separate artifact from the 3D screenshots so map alignment can be audited
+  // without guessing world-space orientation from a perspective camera.
+  const mapPage = await browser.newPage({ viewport: MAP_VIEWPORT, deviceScaleFactor: 1 });
+  const mapPoints = evidence.wallPath
+    .map(([x, y]) => `${(x * MAP_VIEWPORT.width).toFixed(2)},${(y * MAP_VIEWPORT.height).toFixed(2)}`)
+    .join(' ');
+  const caveX = evidence.caveAnchor[0] * MAP_VIEWPORT.width;
+  const caveY = evidence.caveAnchor[1] * MAP_VIEWPORT.height;
+  await mapPage.setContent(`<!doctype html><html><head><style>
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#10161d}
+    .map{position:relative;width:${MAP_VIEWPORT.width}px;height:${MAP_VIEWPORT.height}px}
+    img,svg{position:absolute;inset:0;width:100%;height:100%;display:block}
+    .tag{position:absolute;left:18px;top:18px;padding:8px 12px;background:rgba(0,0,0,.72);color:white;font:16px sans-serif;border-radius:5px}
+  </style></head><body><div class="map">
+    <img id="owner-map" src="${server.baseUrl}/map.png/map.png" alt="owner map">
+    <svg viewBox="0 0 ${MAP_VIEWPORT.width} ${MAP_VIEWPORT.height}" aria-label="The Wall source-map alignment">
+      <polyline points="${mapPoints}" fill="none" stroke="#00e5ff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+      <polyline points="${mapPoints}" fill="none" stroke="#071017" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="${caveX.toFixed(2)}" cy="${caveY.toFixed(2)}" r="10" fill="#ffcf33" stroke="#111" stroke-width="3"/>
+    </svg>
+    <div class="tag">cyan = runtime The Wall · yellow = ice cave</div>
+  </div></body></html>`, { waitUntil: 'load' });
+  await mapPage.waitForFunction(() => document.getElementById('owner-map')?.complete === true, null, { timeout: 15000 });
+  const mapImage = await mapPage.evaluate(() => {
+    const image = document.getElementById('owner-map');
+    return { naturalWidth: image.naturalWidth, naturalHeight: image.naturalHeight };
+  });
+  if (!(mapImage.naturalWidth > 0 && mapImage.naturalHeight > 0)) throw new Error('owner map failed to decode in map-alignment proof');
+  await mapPage.screenshot({ path: path.join(artifactDir, 'map-alignment.png') });
+  await mapPage.close();
 
   const lifecycle = await page.evaluate(() => window.__iceQa.dispose());
   await page.waitForTimeout(50);
@@ -50,10 +117,30 @@ try {
     throw new Error(`ice landmark lifecycle disposal failed: ${JSON.stringify(lifecycle)}`);
   }
   if (errors.length) throw new Error(`browser errors: ${errors.join(' | ')}`);
-  await fs.writeFile(path.join(artifactDir, 'stats.json'), JSON.stringify({ ...stats, lifecycle }, null, 2));
+
+  const report = {
+    ...stats,
+    lifecycle,
+    mapAlignment: {
+      policyId: evidence.policyId,
+      wallPathNormalized: evidence.wallPath,
+      caveAnchorNormalized: evidence.caveAnchor,
+      meanWallY,
+      caveNearestPathPointDistance: caveDistance,
+      winterCenterY: evidence.biomeAnchors.winterCenterY,
+      northCenterY: evidence.biomeAnchors.northCenterY,
+      sourceMapNaturalSize: mapImage,
+      sourceMapDeclaredSize: {
+        width: evidence.referenceMap.pixelWidth,
+        height: evidence.referenceMap.pixelHeight,
+      },
+    },
+  };
+  await fs.writeFile(path.join(artifactDir, 'stats.json'), JSON.stringify(report, null, 2));
   console.log(
     `Ice landmarks visual QA passed: ${stats.width.toFixed(1)}m wall span, ${stats.height.toFixed(1)}m height, ` +
-    `${stats.blockers} blockers, canonical terrain relief ${stats.terrain.reliefSpan.toFixed(1)}m, lifecycle disposed cleanly.`,
+    `${stats.blockers} blockers, canonical terrain relief ${stats.terrain.reliefSpan.toFixed(1)}m, ` +
+    `wall map Y ${meanWallY.toFixed(4)} between winter ${evidence.biomeAnchors.winterCenterY} and north ${evidence.biomeAnchors.northCenterY}.`,
   );
 } finally {
   await browser?.close();
