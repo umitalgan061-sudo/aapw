@@ -170,6 +170,7 @@ export async function createWolf({
 						isFleeingFromPack = true;
 						break;
 					}
+				}
 			}
 			currentlyFleeing = isFleeingFromPlayer || isFleeingFromPack;
 
