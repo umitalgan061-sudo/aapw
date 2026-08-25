@@ -124,6 +124,30 @@ try {
     const invalidThreatState = invalidThreatWolf.isFleeing;
     invalidThreatWolf.dispose();
 
+    const packAlertWolf = await createWolf({
+      assetLoader,
+      modelUrl: species.modelUrl,
+      idleClipName: species.clips.idle,
+      stripChildNames: species.stripChildNames,
+      worldX: 0,
+      worldZ: 0,
+      groundY: 0,
+      groundCollider,
+      playerCollider,
+      fleeClipName: species.clips.flee,
+      fleeTriggerRadiusMeters: ANIMAL_CONFIG.FLEE_TRIGGER_RADIUS_METERS,
+      fleeSpeedMps: ANIMAL_CONFIG.FLEE_SPEED_MPS,
+      packAlertRadiusMeters: ANIMAL_CONFIG.PACK_ALERT_RADIUS_METERS,
+    });
+    const farPlayer = { x: 0, z: -100 };
+    const beforePackAlert = { x: packAlertWolf.object3D.position.x, z: packAlertWolf.object3D.position.z };
+    packAlertWolf.update(3, farPlayer, [{ x: 0.5, z: 0 }]);
+    const afterPackAlert = { x: packAlertWolf.object3D.position.x, z: packAlertWolf.object3D.position.z };
+    const packAlertDistance = Math.hypot(afterPackAlert.x - beforePackAlert.x, afterPackAlert.z - beforePackAlert.z);
+    const packAlertState = packAlertWolf.isFleeing;
+    const packAlertAwayFromPlayer = Math.hypot(afterPackAlert.x - farPlayer.x, afterPackAlert.z - farPlayer.z) > Math.hypot(beforePackAlert.x - farPlayer.x, beforePackAlert.z - farPlayer.z);
+    packAlertWolf.dispose();
+
     return {
       modelUrl: species.modelUrl,
       fleeDistance,
@@ -137,6 +161,9 @@ try {
       invalidThreatDistance,
       invalidThreatFinite,
       invalidThreatState,
+      packAlertDistance,
+      packAlertState,
+      packAlertAwayFromPlayer,
     };
   });
 
@@ -152,6 +179,9 @@ try {
   assert.equal(proof.invalidThreatFinite, true, 'non-finite player threat input must not poison shipped wolf coordinates');
   assert.equal(proof.invalidThreatState, false, 'pack alert must fail closed when the player threat position is non-finite');
   assert.equal(proof.invalidThreatDistance, 0, 'non-finite player threat input must not move the shipped wolf');
+  assert.equal(proof.packAlertState, true, 'a nearby fleeing packmate must propagate the flee state to a real wolf even when the player is outside direct threat radius');
+  assert.ok(proof.packAlertDistance > 0 && proof.packAlertDistance <= 0.45 + 1e-6, `pack-alert flee displacement escaped the 100 ms budget: ${proof.packAlertDistance}`);
+  assert.equal(proof.packAlertAwayFromPlayer, true, 'pack-alert flee must move the alerted wolf away from the finite player threat');
 
   console.log('WILDLIFE_LONG_FRAME_BROWSER_PASS', JSON.stringify(proof));
 } finally {
