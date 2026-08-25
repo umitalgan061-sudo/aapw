@@ -19,6 +19,7 @@ on:
       - 'scripts/checkExtendedStructureFoundationConform.mjs'
       - 'scripts/checkGroundContactFootprintFiltering.mjs'
       - 'scripts/checkDisconnectedFoundationIslands.mjs'
+      - 'scripts/checkFoundationTopologyTransition.mjs'
       - 'scripts/setupNodeThreeShim.mjs'
       - '.github/workflows/terrain-foundation-conformer.yml'
   workflow_dispatch:
@@ -56,6 +57,7 @@ jobs:
           node --check scripts/checkExtendedStructureFoundationConform.mjs
           node --check scripts/checkGroundContactFootprintFiltering.mjs
           node --check scripts/checkDisconnectedFoundationIslands.mjs
+          node --check scripts/checkFoundationTopologyTransition.mjs
       - name: Shared structure footprint and surface classification
         run: |
           node scripts/checkStructureGroundingPolicy.mjs
@@ -70,3 +72,4 @@ jobs:
           node scripts/checkExtendedStructureFoundationConform.mjs
           node scripts/checkGroundContactFootprintFiltering.mjs
           node scripts/checkDisconnectedFoundationIslands.mjs
+          node scripts/checkFoundationTopologyTransition.mjs
