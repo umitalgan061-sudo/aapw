@@ -119,6 +119,24 @@ assert.equal(readDamageResolution(deferredFrozenHit), null, 'deferred resolution
 health.reset();
 assertHealthReceipt(healthEvents().at(-1), { current: 100, maxHealth: 100, ratio: 1, delta: 22, reason: 'reset', appliedAmount: 0, sourceId: null });
 
+const reusedFrozenHit = Object.freeze({ amount: 13, sourceId: 'reused-payload' });
+bus.emit('damage', reusedFrozenHit);
+await Promise.resolve();
+const firstReuseResolution = readDamageResolution(reusedFrozenHit);
+assert.equal(firstReuseResolution?.appliedAmount, 13, 'first reused-payload resolution must survive its first feedback microtask wave');
+bus.emit('damage', reusedFrozenHit);
+const secondReuseResolution = readDamageResolution(reusedFrozenHit);
+assert.equal(health.current, 74, 'reused immutable payload must apply both damage events exactly once');
+assert.equal(secondReuseResolution?.appliedAmount, 13, 'second event must publish its own authoritative applied damage');
+assert.notEqual(secondReuseResolution, firstReuseResolution, 'payload reuse must replace the event resolution snapshot');
+await Promise.resolve();
+assert.equal(readDamageResolution(reusedFrozenHit), secondReuseResolution, 'stale cleanup from the first event must not erase a newer resolution for the same payload object');
+await flushDamageResolutionCleanup();
+assert.equal(readDamageResolution(reusedFrozenHit), null, 'newer reused-payload resolution must still clear after its own feedback window');
+
+health.reset();
+assertHealthReceipt(healthEvents().at(-1), { current: 100, maxHealth: 100, ratio: 1, delta: 26, reason: 'reset', appliedAmount: 0, sourceId: null });
+
 const frozenOverkill = Object.freeze({ amount: 160, sourceId: 'frozen-overkill-direct' });
 let frozenOverkillResolution = null;
 const offFrozenObserver = bus.on('damage', (payload) => {
@@ -143,4 +161,4 @@ assert.equal(health.current, before, 'dispose must detach the damage listener');
 console.log('Player Combat Health Receipt: PASS');
 console.log('legacy-enumerable=current,maxHealth|receipt=ratio,delta,reason,appliedAmount,sourceId');
 console.log('constructor-guard=maxHealth>0+finite|finite-guard=damage+heal|invalid=Infinity,-Infinity,NaN');
-console.log('damagePayloadAppliedAmount=normal,overkill,already-dead,fully-mitigated|immutable-payload=safe+same-event-clamped+deferred-observer');
+console.log('damagePayloadAppliedAmount=normal,overkill,already-dead,fully-mitigated|immutable-payload=safe+same-event-clamped+deferred-observer+reuse-safe');
