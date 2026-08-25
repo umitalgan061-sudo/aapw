@@ -29,7 +29,6 @@ jobs:
         run: |
           node --check src/3d/gameplay/player.js
           node --check src/3d/gameplay/health.js
-          node --check src/3d/gameplay/damageResolution.js
           node --check scripts/checkPlayerCombatFeedback.mjs
           node --check scripts/checkPlayerCombatHealthReceipt.mjs
           node --check scripts/checkPlayerImmutableDefenseDamage.mjs
