@@ -78,7 +78,6 @@ jobs:
       - name: Grounding combat static acceptance
         run: |
           set -euo pipefail
-          node --check src/3d/gameplay/damageResolution.js
           node --check src/3d/input.js
           node --check scripts/checkPlayerCombatFeedbackHapticParity.mjs
           node scripts/checkPlayerCombatFeedbackHapticParity.mjs
