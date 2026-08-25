@@ -39,13 +39,16 @@ export const NORTH_GROUND_COVER_POLICY = Object.freeze({
 		microScaleMeters: 23,
 		windStreakLengthMeters: 330,
 		windStreakWidthMeters: 42,
+		thawFringeScaleMeters: 96,
 		densityStrength: 0.34,
 		heightStrength: 0.18,
 		frostHeaveHeightStrength: 0.08,
 		windScourDensityStrength: 0.21,
 		windScourHeightStrength: 0.12,
+		thawFringeDensityStrength: 0.16,
 		colorStrength: 0.12,
 		wetDarkeningStrength: 0.13,
+		thawFringeDarkeningStrength: 0.10,
 		windBleachStrength: 0.08,
 	}),
 	// Existing Run-180 grass is 0x4f7f36. The frozen transition target is a desaturated lichen/tundra
@@ -128,6 +131,16 @@ function windScourAt(worldX, worldZ) {
 	return clamp01(broad * 0.58 + narrow * 0.42);
 }
 
+function thawFringeAt(worldX, worldZ) {
+	const P = NORTH_GROUND_COVER_POLICY.ecologicalMosaic;
+	// The canonical tundra band already decides where thaw can happen. These overlapping world-space
+	// fields only break that band into irregular saturated pockets and drier raised mats, avoiding a
+	// uniform ring at the ice edge without changing climate, hydrology, terrain or collider authority.
+	const pocket = smoothNoiseAt(worldX + 48.2, worldZ - 63.7, P.thawFringeScaleMeters, 0x38af);
+	const ribbon = smoothNoiseAt(worldX * 0.63 - worldZ * 0.21, worldZ * 0.63 + worldX * 0.21, P.thawFringeScaleMeters * 0.44, 0xb721);
+	return clamp01(pocket * 0.68 + ribbon * 0.32);
+}
+
 function profileFromClimate(climate, worldX = null, worldZ = null) {
 	const P = NORTH_GROUND_COVER_POLICY;
 	const iceSurvival = 1 - clamp01(climate.permanentIce / P.permanentIceGrassZeroThreshold);
@@ -143,13 +156,16 @@ function profileFromClimate(climate, worldX = null, worldZ = null) {
 	let tundraMoisture = null;
 	let frostHeave = null;
 	let windScour = null;
+	let thawFringe = null;
 
 	if (Number.isFinite(worldX) && Number.isFinite(worldZ)) {
 		ecologicalMosaic = ecologicalMosaicAt(worldX, worldZ);
 		tundraMoisture = tundraMoistureAt(worldX, worldZ);
 		frostHeave = frostHeaveAt(worldX, worldZ);
 		windScour = windScourAt(worldX, worldZ);
+		thawFringe = thawFringeAt(worldX, worldZ);
 		const tundraInfluence = clamp01(Math.max(climate.tundra, climate.permanentIce * 0.72));
+		const thawBandInfluence = clamp01((climate.tundraBand ?? climate.tundra * (1 - climate.permanentIce)) * 1.35);
 		const centered = (ecologicalMosaic - 0.5) * 2;
 		const heaveCentered = (frostHeave - 0.5) * 2;
 		const scourCentered = (windScour - 0.5) * 2;
@@ -157,6 +173,7 @@ function profileFromClimate(climate, worldX = null, worldZ = null) {
 			1
 			+ centered * P.ecologicalMosaic.densityStrength * tundraInfluence
 			- scourCentered * P.ecologicalMosaic.windScourDensityStrength * tundraInfluence
+			- thawFringe * P.ecologicalMosaic.thawFringeDensityStrength * thawBandInfluence
 		));
 		heightScale = clamp01(heightScale * (
 			1
@@ -171,6 +188,8 @@ function profileFromClimate(climate, worldX = null, worldZ = null) {
 		rgb = blendRgb(rgb, mosaicRgb, tundraInfluence * 0.22);
 		const dampness = clamp01((tundraMoisture - 0.38) / 0.62) * tundraInfluence;
 		rgb = scaleRgb(rgb, 1 - dampness * P.ecologicalMosaic.wetDarkeningStrength);
+		const thawWetness = thawFringe * thawBandInfluence;
+		rgb = scaleRgb(rgb, 1 - thawWetness * P.ecologicalMosaic.thawFringeDarkeningStrength);
 		const exposedBleach = clamp01((windScour - 0.52) / 0.48) * tundraInfluence;
 		const windBleachedLichen = Object.freeze({ r: 0.56, g: 0.57, b: 0.49 });
 		rgb = blendRgb(rgb, windBleachedLichen, exposedBleach * P.ecologicalMosaic.windBleachStrength);
@@ -190,6 +209,7 @@ function profileFromClimate(climate, worldX = null, worldZ = null) {
 		tundraMoisture,
 		frostHeave,
 		windScour,
+		thawFringe,
 		rgb,
 	});
 }
