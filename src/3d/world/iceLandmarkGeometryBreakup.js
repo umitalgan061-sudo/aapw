@@ -106,9 +106,9 @@ function createWallFracturePlates(group, sections, portal, seed) {
 	if (!wall?.material) return 0;
 	const material = wall.material.clone();
 	material.vertexColors = false;
-	material.color.set(0xd6dcda);
-	material.roughness = Math.max(0.57, material.roughness || 0.57);
-	material.transmission = Math.min(0.018, material.transmission || 0);
+	material.color.set(0xb9c9cc);
+	material.roughness = Math.max(0.52, material.roughness || 0.52);
+	material.transmission = Math.min(0.028, material.transmission || 0);
 	material.clearcoat = Math.min(0.08, material.clearcoat || 0);
 	material.needsUpdate = true;
 	const transforms = [];
@@ -116,21 +116,21 @@ function createWallFracturePlates(group, sections, portal, seed) {
 		const section = sections[index];
 		if (Math.hypot(section.x - portal.centerX, section.z - portal.centerZ) < 62) continue;
 		const side = hash2D(index, 5, seed + 7103) > 0.5 ? 1 : -1;
-		const width = 16 + hash2D(index, 7, seed + 7207) * 24;
-		const height = 22 + hash2D(index, 11, seed + 7307) * 35;
-		const depth = 5 + hash2D(index, 13, seed + 7403) * 8;
+		const width = 18 + hash2D(index, 7, seed + 7207) * 20;
+		const height = 13 + hash2D(index, 11, seed + 7307) * 20;
+		const depth = 1.8 + hash2D(index, 13, seed + 7403) * 2.8;
 		const elevation = 0.23 + hash2D(index, 17, seed + 7507) * 0.48;
-		const faceOffset = section.thicknessMeters * 0.50 + depth * 0.25;
+		const faceOffset = section.thicknessMeters * 0.50 + depth * 0.08;
 		transforms.push({
 			position: new THREE.Vector3(section.x + section.nx * faceOffset * side, section.centerGround + section.heightMeters * elevation, section.z + section.nz * faceOffset * side),
 			scale: new THREE.Vector3(width * 0.50, height * 0.50, depth * 0.50),
-			rx: (hash2D(index, 19, seed + 7603) - 0.5) * 0.16,
-			ry: -Math.atan2(section.tz, section.tx) + (hash2D(index, 23, seed + 7703) - 0.5) * 0.18,
-			rz: (hash2D(index, 29, seed + 7801) - 0.5) * 0.13,
+			rx: (hash2D(index, 19, seed + 7603) - 0.5) * 0.24,
+			ry: -Math.atan2(section.tz, section.tx) + (hash2D(index, 23, seed + 7703) - 0.5) * 0.22,
+			rz: (hash2D(index, 29, seed + 7801) - 0.5) * 0.20,
 		});
 	}
 	if (!transforms.length) return 0;
-	const plates = createInstanceField('ice-wall-macro-fracture-plates', 'wall-macro-fracture-plates', new THREE.DodecahedronGeometry(1, 0), material, transforms, seed + 7901);
+	const plates = createInstanceField('ice-wall-macro-fracture-plates', 'wall-macro-fracture-plates', new THREE.DodecahedronGeometry(1, 0), material, transforms, seed + 7901, [0x9fb9bf, 0xd0dcdd]);
 	group.add(plates);
 	return plates.count;
 }
@@ -140,11 +140,11 @@ function createWallFlowRibs(group, sections, portal, seed) {
 	if (!wall?.material) return 0;
 	const material = wall.material.clone();
 	material.vertexColors = false;
-	material.color.set(0x91b6c2);
-	material.roughness = 0.34;
-	material.transmission = Math.max(0.035, material.transmission || 0);
-	material.clearcoat = Math.max(0.12, material.clearcoat || 0);
-	material.clearcoatRoughness = 0.26;
+	material.color.set(0xa9c5cc);
+	material.roughness = 0.42;
+	material.transmission = Math.max(0.025, material.transmission || 0);
+	material.clearcoat = Math.max(0.10, material.clearcoat || 0);
+	material.clearcoatRoughness = 0.30;
 	material.needsUpdate = true;
 	const transforms = [];
 	for (let index = 2; index < sections.length - 2; index += 3) {
@@ -152,21 +152,22 @@ function createWallFlowRibs(group, sections, portal, seed) {
 		if (Math.hypot(section.x - portal.centerX, section.z - portal.centerZ) < 46) continue;
 		for (const side of [-1, 1]) {
 			if (hash2D(index, side + 83, seed + 8707) < 0.38) continue;
-			const height = section.heightMeters * (0.16 + hash2D(index, side + 89, seed + 8803) * 0.25);
-			const width = 0.8 + hash2D(index, side + 97, seed + 8909) * 1.7;
-			const depth = 0.65 + hash2D(index, side + 101, seed + 9001) * 1.0;
-			const faceOffset = section.thicknessMeters * 0.5 + 0.8;
+			const height = section.heightMeters * (0.10 + hash2D(index, side + 89, seed + 8803) * 0.18);
+			const width = 1.8 + hash2D(index, side + 97, seed + 8909) * 2.8;
+			const depth = 0.45 + hash2D(index, side + 101, seed + 9001) * 0.70;
+			const faceOffset = section.thicknessMeters * 0.5 + depth * 0.16;
 			const along = (hash2D(index, side + 103, seed + 9103) - 0.5) * 8;
 			transforms.push({
-				position: new THREE.Vector3(section.x + section.tx * along + section.nx * faceOffset * side, section.centerGround + height * 0.62 + section.heightMeters * 0.18, section.z + section.tz * along + section.nz * faceOffset * side),
-				scale: new THREE.Vector3(width, height, depth),
+				position: new THREE.Vector3(section.x + section.tx * along + section.nx * faceOffset * side, section.centerGround + section.heightMeters * 0.20 + height * 0.50, section.z + section.tz * along + section.nz * faceOffset * side),
+				scale: new THREE.Vector3(width * 0.50, height * 0.25, depth * 0.50),
+				rx: (hash2D(index, side + 109, seed + 9257) - 0.5) * 0.07,
 				ry: -Math.atan2(section.tz, section.tx),
-				rz: (hash2D(index, side + 107, seed + 9209) - 0.5) * 0.055,
+				rz: (hash2D(index, side + 107, seed + 9209) - 0.5) * 0.085,
 			});
 		}
 	}
 	if (!transforms.length) return 0;
-	const ribs = createInstanceField('ice-wall-vertical-flow-ribs', 'wall-vertical-flow-ribs', new THREE.CapsuleGeometry(1, 2, 3, 6), material, transforms, seed + 9301, [0x6f9faf, 0xb8d0d5]);
+	const ribs = createInstanceField('ice-wall-vertical-flow-ribs', 'wall-vertical-flow-ribs', new THREE.CapsuleGeometry(1, 2, 3, 6), material, transforms, seed + 9301, [0x86aeb9, 0xc2d5d9]);
 	group.add(ribs);
 	return ribs.count;
 }
@@ -184,31 +185,34 @@ function createPortalShroud(group, portal, seed) {
 	const transforms = [];
 	const openingHalfWidth = 7.8;
 	for (const faceSign of [-1, 1]) {
-		const normalOffset = portal.depth * 0.50 * faceSign;
-		for (const side of [-1, 1]) {
-			for (let level = 0; level < 3; level += 1) {
-				const lateral = side * (openingHalfWidth + 3.0 + level * 0.55);
+		for (let depthLayer = 0; depthLayer < 3; depthLayer += 1) {
+			const normalOffset = (portal.depth * 0.50 + depthLayer * 6.2) * faceSign;
+			const apronScale = 1 + depthLayer * 0.10;
+			for (const side of [-1, 1]) {
+				for (let level = 0; level < 3; level += 1) {
+					const lateral = side * (openingHalfWidth + 3.0 + level * 0.55 + depthLayer * 0.45);
+					transforms.push({
+						position: new THREE.Vector3(portal.centerX + portal.tx * lateral + portal.nx * normalOffset, portal.groundY + 2.8 + level * 4.0, portal.centerZ + portal.tz * lateral + portal.nz * normalOffset),
+						scale: new THREE.Vector3(3.2 * apronScale, 3.7 * apronScale, 3.1 + depthLayer * 0.45),
+						ry: -Math.atan2(portal.tz, portal.tx) + side * 0.12,
+						rz: side * (0.08 + level * 0.035),
+					});
+				}
+			}
+			for (let step = 1; step <= 5; step += 1) {
+				const angle = Math.PI - (step / 6) * Math.PI;
+				const lateral = Math.cos(angle) * (openingHalfWidth + depthLayer * 0.35);
+				const height = 3.2 + Math.sin(angle) * (8.8 + depthLayer * 0.5) + 2.2;
 				transforms.push({
-					position: new THREE.Vector3(portal.centerX + portal.tx * lateral + portal.nx * normalOffset, portal.groundY + 2.8 + level * 4.0, portal.centerZ + portal.tz * lateral + portal.nz * normalOffset),
-					scale: new THREE.Vector3(3.2, 3.7, 2.7),
-					ry: -Math.atan2(portal.tz, portal.tx) + side * 0.12,
-					rz: side * (0.08 + level * 0.035),
+					position: new THREE.Vector3(portal.centerX + portal.tx * lateral + portal.nx * normalOffset, portal.groundY + height, portal.centerZ + portal.tz * lateral + portal.nz * normalOffset),
+					scale: new THREE.Vector3((2.6 + hash2D(step, faceSign + 43 + depthLayer, seed + 8009) * 1.3) * apronScale, 2.3 * apronScale, 2.9 + depthLayer * 0.45),
+					ry: -Math.atan2(portal.tz, portal.tx),
+					rz: (hash2D(step, faceSign + 47 + depthLayer, seed + 8101) - 0.5) * 0.35,
 				});
 			}
 		}
-		for (let step = 1; step <= 5; step += 1) {
-			const angle = Math.PI - (step / 6) * Math.PI;
-			const lateral = Math.cos(angle) * openingHalfWidth;
-			const height = 3.2 + Math.sin(angle) * 8.8 + 2.2;
-			transforms.push({
-				position: new THREE.Vector3(portal.centerX + portal.tx * lateral + portal.nx * normalOffset, portal.groundY + height, portal.centerZ + portal.tz * lateral + portal.nz * normalOffset),
-				scale: new THREE.Vector3(2.6 + hash2D(step, faceSign + 43, seed + 8009) * 1.3, 2.3, 2.6),
-				ry: -Math.atan2(portal.tz, portal.tx),
-				rz: (hash2D(step, faceSign + 47, seed + 8101) - 0.5) * 0.35,
-			});
-		}
 	}
-	const shroud = createInstanceField('ice-cave-natural-portal-shroud', 'natural-fractured-portal-shroud', new THREE.DodecahedronGeometry(1, 0), material, transforms, seed + 8209);
+	const shroud = createInstanceField('ice-cave-natural-portal-shroud', 'natural-fractured-portal-shroud', new THREE.DodecahedronGeometry(1, 0), material, transforms, seed + 8209, [0xaabfc1, 0xd7dfde]);
 	group.add(shroud);
 	return shroud.count;
 }
