@@ -15,7 +15,7 @@ const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 
 export const NORTH_GROUND_COVER_POLICY = Object.freeze({
-	id: 'north-ground-cover-climate-2026-08-25-v4-frost-heave-moisture',
+	id: 'north-ground-cover-climate-2026-08-26-v5-hummock-moisture',
 	mapAlignedClimateAvailable: true,
 	renderClimateOnly: true,
 	heightAuthorityUnchanged: true,
@@ -40,6 +40,7 @@ export const NORTH_GROUND_COVER_POLICY = Object.freeze({
 		windStreakLengthMeters: 330,
 		windStreakWidthMeters: 42,
 		thawFringeScaleMeters: 96,
+		hummockScaleMeters: 34,
 		densityStrength: 0.34,
 		heightStrength: 0.18,
 		frostHeaveHeightStrength: 0.08,
@@ -48,9 +49,12 @@ export const NORTH_GROUND_COVER_POLICY = Object.freeze({
 		windScourDensityStrength: 0.21,
 		windScourHeightStrength: 0.12,
 		thawFringeDensityStrength: 0.16,
+		hummockDensityStrength: 0.13,
+		hummockHeightStrength: 0.09,
 		colorStrength: 0.12,
 		wetDarkeningStrength: 0.13,
 		thawFringeDarkeningStrength: 0.10,
+		hummockDryWarmthStrength: 0.12,
 		windBleachStrength: 0.08,
 	}),
 	// Existing Run-180 grass is 0x4f7f36. The frozen transition target is a desaturated lichen/tundra
@@ -136,6 +140,23 @@ function frostPolygonEdgeAt(worldX, worldZ) {
 	return clamp01((gradient - 0.055) * 5.4 + (warp - 0.5) * 0.24);
 }
 
+function tundraHummockAt(worldX, worldZ, moisture) {
+	const P = NORTH_GROUND_COVER_POLICY.ecologicalMosaic;
+	// Raised sedge/heather hummocks should be patchy, not concentric noise rings. Domain-warp two
+	// incommensurate world-space fields, then favour the drier half of the existing moisture signal.
+	// This changes only cover density/height/tone; it never displaces canonical terrain or hydrology.
+	const warpX = smoothNoiseAt(worldX + 19.7, worldZ - 7.4, P.hummockScaleMeters * 2.6, 0xa941) - 0.5;
+	const warpZ = smoothNoiseAt(worldX - 23.2, worldZ + 11.8, P.hummockScaleMeters * 1.9, 0x6c13) - 0.5;
+	const clump = smoothNoiseAt(
+		worldX + warpX * P.hummockScaleMeters * 1.15,
+		worldZ + warpZ * P.hummockScaleMeters * 1.15,
+		P.hummockScaleMeters,
+		0xd591,
+	);
+	const dryBias = clamp01((0.63 - moisture) / 0.48);
+	return clamp01((clump - 0.42) * 1.72) * dryBias;
+}
+
 function windScourAt(worldX, worldZ) {
 	const P = NORTH_GROUND_COVER_POLICY.ecologicalMosaic;
 	// Rotate into a fixed world-space prevailing-wind frame. Strongly anisotropic sampling creates
@@ -173,6 +194,7 @@ function profileFromClimate(climate, worldX = null, worldZ = null) {
 	let tundraMoisture = null;
 	let frostHeave = null;
 	let frostPolygonEdge = null;
+	let tundraHummock = null;
 	let windScour = null;
 	let thawFringe = null;
 
@@ -181,6 +203,7 @@ function profileFromClimate(climate, worldX = null, worldZ = null) {
 		tundraMoisture = tundraMoistureAt(worldX, worldZ);
 		frostHeave = frostHeaveAt(worldX, worldZ);
 		frostPolygonEdge = frostPolygonEdgeAt(worldX, worldZ);
+		tundraHummock = tundraHummockAt(worldX, worldZ, tundraMoisture);
 		windScour = windScourAt(worldX, worldZ);
 		thawFringe = thawFringeAt(worldX, worldZ);
 		const tundraInfluence = clamp01(Math.max(climate.tundra, climate.permanentIce * 0.72));
@@ -192,6 +215,7 @@ function profileFromClimate(climate, worldX = null, worldZ = null) {
 			1
 			+ centered * P.ecologicalMosaic.densityStrength * tundraInfluence
 			- frostPolygonEdge * P.ecologicalMosaic.frostPolygonDensityStrength * tundraInfluence
+			+ tundraHummock * P.ecologicalMosaic.hummockDensityStrength * tundraInfluence
 			- scourCentered * P.ecologicalMosaic.windScourDensityStrength * tundraInfluence
 			- thawFringe * P.ecologicalMosaic.thawFringeDensityStrength * thawBandInfluence
 		));
@@ -199,6 +223,7 @@ function profileFromClimate(climate, worldX = null, worldZ = null) {
 			1
 			+ centered * P.ecologicalMosaic.heightStrength * tundraInfluence
 			+ heaveCentered * P.ecologicalMosaic.frostHeaveHeightStrength * tundraInfluence
+			+ tundraHummock * P.ecologicalMosaic.hummockHeightStrength * tundraInfluence
 			- scourCentered * P.ecologicalMosaic.windScourHeightStrength * tundraInfluence
 		));
 		const colorShift = clamp01(0.5 + centered * P.ecologicalMosaic.colorStrength * tundraInfluence);
@@ -209,6 +234,8 @@ function profileFromClimate(climate, worldX = null, worldZ = null) {
 		const dampness = clamp01((tundraMoisture - 0.38) / 0.62) * tundraInfluence;
 		rgb = scaleRgb(rgb, 1 - dampness * P.ecologicalMosaic.wetDarkeningStrength);
 		rgb = scaleRgb(rgb, 1 - frostPolygonEdge * tundraInfluence * P.ecologicalMosaic.frostPolygonDarkeningStrength);
+		const dryHummockRgb = Object.freeze({ r: 0.48, g: 0.46, b: 0.35 });
+		rgb = blendRgb(rgb, dryHummockRgb, tundraHummock * tundraInfluence * P.ecologicalMosaic.hummockDryWarmthStrength);
 		const thawWetness = thawFringe * thawBandInfluence;
 		rgb = scaleRgb(rgb, 1 - thawWetness * P.ecologicalMosaic.thawFringeDarkeningStrength);
 		const exposedBleach = clamp01((windScour - 0.52) / 0.48) * tundraInfluence;
@@ -230,6 +257,7 @@ function profileFromClimate(climate, worldX = null, worldZ = null) {
 		tundraMoisture,
 		frostHeave,
 		frostPolygonEdge,
+		tundraHummock,
 		windScour,
 		thawFringe,
 		rgb,
