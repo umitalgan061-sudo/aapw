@@ -279,7 +279,7 @@ function createCaveIciclesAndDebris(group, portal, rings, seed) {
 			const lateral = (hash2D(ringIndex * 13 + item, 127, seed + 9503) - 0.5) * ring.halfWidth * 1.35;
 			const length = 1.0 + hash2D(ringIndex * 17 + item, 131, seed + 9601) * 3.6;
 			icicles.push({
-				position: new THREE.Vector3(ring.centerX + portal.tx * lateral, ring.centerY + ring.halfHeight * 0.82 - length * 0.5, ring.centerZ + portal.tz * lateral),
+				position: new THREE.Vector3(ring.centerX + portal.tx * lateral, ring.centerY + ring.height * 0.82 - length * 0.5, ring.centerZ + portal.tz * lateral),
 				scale: new THREE.Vector3(0.22 + length * 0.055, length, 0.22 + length * 0.055),
 				rx: Math.PI,
 				ry: -Math.atan2(portal.tz, portal.tx),
@@ -334,7 +334,7 @@ function createCaveBlueCoreBreakup(group, portal, rings, seed) {
 		for (const side of [-1, 1]) {
 			if (hash2D(ringIndex, side + 181, seed + 10601) < 0.26) continue;
 			const lateral = side * ring.halfWidth * (0.73 + hash2D(ringIndex, side + 191, seed + 10709) * 0.16);
-			const lift = ring.halfHeight * (0.18 + hash2D(ringIndex, side + 193, seed + 10831) * 0.42);
+			const lift = ring.height * (0.18 + hash2D(ringIndex, side + 193, seed + 10831) * 0.42);
 			const width = 0.55 + hash2D(ringIndex, side + 197, seed + 10939) * 1.15;
 			const height = 2.2 + hash2D(ringIndex, side + 199, seed + 11003) * 4.6;
 			const depth = 0.45 + hash2D(ringIndex, side + 211, seed + 11113) * 0.95;
