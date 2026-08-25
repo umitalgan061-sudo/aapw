@@ -92,6 +92,7 @@ const rejectedService = restoredEconomy.purchase(
 	(itemId, quantity, provenance) => restoredInventory.grant(itemId, quantity, provenance),
 );
 assert.equal(rejectedService.ok, false, 'restored save without consumed inputs must reject duplicate smithing');
+assert.equal(rejectedService.reason, 'craft-input-missing');
 assert.deepEqual(restoredInventory.snapshot(), restoredInventoryBeforeRejectedService, 'failed smithing must not mutate restored inventory');
 assert.deepEqual(restoredEconomy.snapshot(), restoredEconomyBeforeRejectedService, 'failed smithing must not charge copper, decrement stock or append ledger state');
 
