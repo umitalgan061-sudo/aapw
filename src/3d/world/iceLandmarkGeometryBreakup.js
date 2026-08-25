@@ -75,7 +75,7 @@ function fractureCave(group, portal, rings, seed) {
 	return moved;
 }
 
-function createInstanceField(name, role, geometry, material, transforms, seed) {
+function createInstanceField(name, role, geometry, material, transforms, seed, tintRange = null) {
 	const mesh = new THREE.InstancedMesh(geometry, material, transforms.length);
 	mesh.name = name;
 	mesh.castShadow = true;
@@ -84,13 +84,16 @@ function createInstanceField(name, role, geometry, material, transforms, seed) {
 	const matrix = new THREE.Matrix4();
 	const quaternion = new THREE.Quaternion();
 	const tint = new THREE.Color();
+	const lowTint = tintRange ? new THREE.Color(tintRange[0]) : null;
+	const highTint = tintRange ? new THREE.Color(tintRange[1]) : null;
 	for (let index = 0; index < transforms.length; index += 1) {
 		const item = transforms[index];
 		quaternion.setFromEuler(new THREE.Euler(item.rx || 0, item.ry || 0, item.rz || 0));
 		matrix.compose(item.position, quaternion, item.scale);
 		mesh.setMatrixAt(index, matrix);
 		const shade = 0.82 + hash2D(index, role.length, seed + 7013) * 0.18;
-		tint.setRGB(shade * 0.96, shade * 0.995, Math.min(1, shade * 1.04));
+		if (lowTint && highTint) tint.copy(lowTint).lerp(highTint, hash2D(index, 71, seed + 7069));
+		else tint.setRGB(shade * 0.96, shade * 0.995, Math.min(1, shade * 1.04));
 		mesh.setColorAt(index, tint);
 	}
 	mesh.instanceMatrix.needsUpdate = true;
@@ -119,11 +122,7 @@ function createWallFracturePlates(group, sections, portal, seed) {
 		const elevation = 0.23 + hash2D(index, 17, seed + 7507) * 0.48;
 		const faceOffset = section.thicknessMeters * 0.50 + depth * 0.25;
 		transforms.push({
-			position: new THREE.Vector3(
-				section.x + section.nx * faceOffset * side,
-				section.centerGround + section.heightMeters * elevation,
-				section.z + section.nz * faceOffset * side,
-			),
+			position: new THREE.Vector3(section.x + section.nx * faceOffset * side, section.centerGround + section.heightMeters * elevation, section.z + section.nz * faceOffset * side),
 			scale: new THREE.Vector3(width * 0.50, height * 0.50, depth * 0.50),
 			rx: (hash2D(index, 19, seed + 7603) - 0.5) * 0.16,
 			ry: -Math.atan2(section.tz, section.tx) + (hash2D(index, 23, seed + 7703) - 0.5) * 0.18,
@@ -131,16 +130,45 @@ function createWallFracturePlates(group, sections, portal, seed) {
 		});
 	}
 	if (!transforms.length) return 0;
-	const plates = createInstanceField(
-		'ice-wall-macro-fracture-plates',
-		'wall-macro-fracture-plates',
-		new THREE.DodecahedronGeometry(1, 0),
-		material,
-		transforms,
-		seed + 7901,
-	);
+	const plates = createInstanceField('ice-wall-macro-fracture-plates', 'wall-macro-fracture-plates', new THREE.DodecahedronGeometry(1, 0), material, transforms, seed + 7901);
 	group.add(plates);
 	return plates.count;
+}
+
+function createWallFlowRibs(group, sections, portal, seed) {
+	const wall = group.getObjectByName('the-wall-natural-ice-cliff');
+	if (!wall?.material) return 0;
+	const material = wall.material.clone();
+	material.vertexColors = false;
+	material.color.set(0x91b6c2);
+	material.roughness = 0.34;
+	material.transmission = Math.max(0.035, material.transmission || 0);
+	material.clearcoat = Math.max(0.12, material.clearcoat || 0);
+	material.clearcoatRoughness = 0.26;
+	material.needsUpdate = true;
+	const transforms = [];
+	for (let index = 2; index < sections.length - 2; index += 3) {
+		const section = sections[index];
+		if (Math.hypot(section.x - portal.centerX, section.z - portal.centerZ) < 46) continue;
+		for (const side of [-1, 1]) {
+			if (hash2D(index, side + 83, seed + 8707) < 0.38) continue;
+			const height = section.heightMeters * (0.16 + hash2D(index, side + 89, seed + 8803) * 0.25);
+			const width = 0.8 + hash2D(index, side + 97, seed + 8909) * 1.7;
+			const depth = 0.65 + hash2D(index, side + 101, seed + 9001) * 1.0;
+			const faceOffset = section.thicknessMeters * 0.5 + 0.8;
+			const along = (hash2D(index, side + 103, seed + 9103) - 0.5) * 8;
+			transforms.push({
+				position: new THREE.Vector3(section.x + section.tx * along + section.nx * faceOffset * side, section.centerGround + height * 0.62 + section.heightMeters * 0.18, section.z + section.tz * along + section.nz * faceOffset * side),
+				scale: new THREE.Vector3(width, height, depth),
+				ry: -Math.atan2(section.tz, section.tx),
+				rz: (hash2D(index, side + 107, seed + 9209) - 0.5) * 0.055,
+			});
+		}
+	}
+	if (!transforms.length) return 0;
+	const ribs = createInstanceField('ice-wall-vertical-flow-ribs', 'wall-vertical-flow-ribs', new THREE.CapsuleGeometry(1, 2, 3, 6), material, transforms, seed + 9301, [0x6f9faf, 0xb8d0d5]);
+	group.add(ribs);
+	return ribs.count;
 }
 
 function createPortalShroud(group, portal, seed) {
@@ -161,11 +189,7 @@ function createPortalShroud(group, portal, seed) {
 			for (let level = 0; level < 3; level += 1) {
 				const lateral = side * (openingHalfWidth + 3.0 + level * 0.55);
 				transforms.push({
-					position: new THREE.Vector3(
-						portal.centerX + portal.tx * lateral + portal.nx * normalOffset,
-						portal.groundY + 2.8 + level * 4.0,
-						portal.centerZ + portal.tz * lateral + portal.nz * normalOffset,
-					),
+					position: new THREE.Vector3(portal.centerX + portal.tx * lateral + portal.nx * normalOffset, portal.groundY + 2.8 + level * 4.0, portal.centerZ + portal.tz * lateral + portal.nz * normalOffset),
 					scale: new THREE.Vector3(3.2, 3.7, 2.7),
 					ry: -Math.atan2(portal.tz, portal.tx) + side * 0.12,
 					rz: side * (0.08 + level * 0.035),
@@ -177,25 +201,14 @@ function createPortalShroud(group, portal, seed) {
 			const lateral = Math.cos(angle) * openingHalfWidth;
 			const height = 3.2 + Math.sin(angle) * 8.8 + 2.2;
 			transforms.push({
-				position: new THREE.Vector3(
-					portal.centerX + portal.tx * lateral + portal.nx * normalOffset,
-					portal.groundY + height,
-					portal.centerZ + portal.tz * lateral + portal.nz * normalOffset,
-				),
+				position: new THREE.Vector3(portal.centerX + portal.tx * lateral + portal.nx * normalOffset, portal.groundY + height, portal.centerZ + portal.tz * lateral + portal.nz * normalOffset),
 				scale: new THREE.Vector3(2.6 + hash2D(step, faceSign + 43, seed + 8009) * 1.3, 2.3, 2.6),
 				ry: -Math.atan2(portal.tz, portal.tx),
 				rz: (hash2D(step, faceSign + 47, seed + 8101) - 0.5) * 0.35,
 			});
 		}
 	}
-	const shroud = createInstanceField(
-		'ice-cave-natural-portal-shroud',
-		'natural-fractured-portal-shroud',
-		new THREE.DodecahedronGeometry(1, 0),
-		material,
-		transforms,
-		seed + 8209,
-	);
+	const shroud = createInstanceField('ice-cave-natural-portal-shroud', 'natural-fractured-portal-shroud', new THREE.DodecahedronGeometry(1, 0), material, transforms, seed + 8209);
 	group.add(shroud);
 	return shroud.count;
 }
@@ -209,11 +222,7 @@ function createRibbonGeometry(rings, portal, widthMultiplier, yOffset, seed) {
 		const width = ring.halfWidth * widthMultiplier * (0.88 + hash2D(ringIndex, 59, seed + 8303) * 0.16);
 		const y = ring.centerY + yOffset + (hash2D(ringIndex, 61, seed + 8401) - 0.5) * 0.08;
 		for (const side of [-1, 1]) {
-			positions.push(
-				ring.centerX + portal.tx * width * side,
-				y,
-				ring.centerZ + portal.tz * width * side,
-			);
+			positions.push(ring.centerX + portal.tx * width * side, y, ring.centerZ + portal.tz * width * side);
 			const dirt = hash2D(ringIndex, side + 67, seed + 8501);
 			colors.push(0.34 + dirt * 0.10, 0.43 + dirt * 0.08, 0.44 + dirt * 0.09);
 		}
@@ -232,29 +241,14 @@ function createRibbonGeometry(rings, portal, widthMultiplier, yOffset, seed) {
 
 function createCaveFloor(group, portal, rings, seed) {
 	if (rings.length < 2) return 0;
-	const floorMaterial = new THREE.MeshStandardMaterial({
-		vertexColors: true,
-		color: 0xb0bab7,
-		roughness: 0.82,
-		metalness: 0,
-		side: THREE.DoubleSide,
-	});
+	const floorMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, color: 0xb0bab7, roughness: 0.82, metalness: 0, side: THREE.DoubleSide });
 	const floor = new THREE.Mesh(createRibbonGeometry(rings, portal, 0.84, 0.06, seed), floorMaterial);
 	floor.name = 'ice-cave-sediment-floor';
 	floor.receiveShadow = true;
 	floor.userData.iceLandmarkRole = 'cave-sediment-floor';
 	group.add(floor);
 
-	const wetMaterial = new THREE.MeshPhysicalMaterial({
-		color: 0x476f78,
-		roughness: 0.30,
-		metalness: 0,
-		clearcoat: 0.25,
-		clearcoatRoughness: 0.22,
-		transmission: 0.025,
-		ior: 1.31,
-		side: THREE.DoubleSide,
-	});
+	const wetMaterial = new THREE.MeshPhysicalMaterial({ color: 0x476f78, roughness: 0.30, metalness: 0, clearcoat: 0.25, clearcoatRoughness: 0.22, transmission: 0.025, ior: 1.31, side: THREE.DoubleSide });
 	const wet = new THREE.Mesh(createRibbonGeometry(rings, portal, 0.25, 0.105, seed + 8609), wetMaterial);
 	wet.name = 'ice-cave-wet-melt-ribbon';
 	wet.receiveShadow = true;
@@ -274,19 +268,68 @@ function createCaveFloor(group, portal, rings, seed) {
 	return floor.geometry.index.count / 3 + wet.geometry.index.count / 3;
 }
 
+function createCaveIciclesAndDebris(group, portal, rings, seed) {
+	if (rings.length < 4) return Object.freeze({ icicleCount: 0, debrisCount: 0 });
+	const iceMaterial = new THREE.MeshPhysicalMaterial({ color: 0x9cc9d4, roughness: 0.24, metalness: 0, transmission: 0.13, thickness: 1.6, ior: 1.31, attenuationColor: 0x2e7386, attenuationDistance: 8, clearcoat: 0.18, clearcoatRoughness: 0.20 });
+	const icicles = [];
+	for (let ringIndex = 1; ringIndex < rings.length - 1; ringIndex += 2) {
+		const ring = rings[ringIndex];
+		const count = 1 + Math.floor(hash2D(ringIndex, 113, seed + 9403) * 3);
+		for (let item = 0; item < count; item += 1) {
+			const lateral = (hash2D(ringIndex * 13 + item, 127, seed + 9503) - 0.5) * ring.halfWidth * 1.35;
+			const length = 1.0 + hash2D(ringIndex * 17 + item, 131, seed + 9601) * 3.6;
+			icicles.push({
+				position: new THREE.Vector3(ring.centerX + portal.tx * lateral, ring.centerY + ring.halfHeight * 0.82 - length * 0.5, ring.centerZ + portal.tz * lateral),
+				scale: new THREE.Vector3(0.22 + length * 0.055, length, 0.22 + length * 0.055),
+				rx: Math.PI,
+				ry: -Math.atan2(portal.tz, portal.tx),
+				rz: (hash2D(ringIndex, item + 137, seed + 9701) - 0.5) * 0.11,
+			});
+		}
+	}
+	const icicleMesh = createInstanceField('ice-cave-ceiling-icicles', 'cave-ceiling-icicles', new THREE.ConeGeometry(1, 1, 7, 1), iceMaterial, icicles, seed + 9803, [0x6fabbc, 0xcbe3e7]);
+	group.add(icicleMesh);
+
+	const debrisMaterial = new THREE.MeshStandardMaterial({ color: 0x4f5552, roughness: 0.94, metalness: 0 });
+	const debris = [];
+	for (let ringIndex = 1; ringIndex < rings.length - 1; ringIndex += 2) {
+		const ring = rings[ringIndex];
+		for (const side of [-1, 1]) {
+			if (hash2D(ringIndex, side + 149, seed + 9901) < 0.34) continue;
+			const lateral = side * ring.halfWidth * (0.60 + hash2D(ringIndex, side + 151, seed + 10007) * 0.22);
+			const size = 0.25 + hash2D(ringIndex, side + 157, seed + 10103) * 0.85;
+			debris.push({
+				position: new THREE.Vector3(ring.centerX + portal.tx * lateral, ring.centerY + 0.16, ring.centerZ + portal.tz * lateral),
+				scale: new THREE.Vector3(size * 1.25, size * 0.55, size),
+				rx: hash2D(ringIndex, side + 163, seed + 10211) * 0.45,
+				ry: hash2D(ringIndex, side + 167, seed + 10301) * Math.PI,
+				rz: hash2D(ringIndex, side + 173, seed + 10427) * 0.35,
+			});
+		}
+	}
+	const debrisMesh = createInstanceField('ice-cave-sediment-debris', 'cave-sediment-debris', new THREE.DodecahedronGeometry(1, 0), debrisMaterial, debris, seed + 10501, [0x343a38, 0x69675d]);
+	group.add(debrisMesh);
+	return Object.freeze({ icicleCount: icicleMesh.count, debrisCount: debrisMesh.count });
+}
+
 export function applyIceLandmarkGeometryBreakup({ group, wallSections, portal, caveRings, seed }) {
 	const wallVertexMoves = fractureWall(group, wallSections, seed);
 	const caveVertexMoves = fractureCave(group, portal, caveRings, seed);
 	const macroFracturePlateCount = createWallFracturePlates(group, wallSections, portal, seed);
+	const wallFlowRibCount = createWallFlowRibs(group, wallSections, portal, seed);
 	const portalShroudCount = createPortalShroud(group, portal, seed);
 	const caveFloorTriangleCount = createCaveFloor(group, portal, caveRings, seed);
+	const caveBreakup = createCaveIciclesAndDebris(group, portal, caveRings, seed);
 	return Object.freeze({
 		wallVertexMoves,
 		caveVertexMoves,
 		macroFracturePlateCount,
+		wallFlowRibCount,
 		portalShroudCount,
 		caveFloorTriangleCount,
+		caveIcicleCount: caveBreakup.icicleCount,
+		caveDebrisCount: caveBreakup.debrisCount,
 		primaryMeshesFractured: wallVertexMoves > 0 && caveVertexMoves > 0,
-		secondaryBreakupPresent: macroFracturePlateCount > 8 && portalShroudCount > 10 && caveFloorTriangleCount > 20,
+		secondaryBreakupPresent: macroFracturePlateCount > 8 && wallFlowRibCount > 8 && portalShroudCount > 10 && caveFloorTriangleCount > 20 && caveBreakup.icicleCount > 4,
 	});
 }
