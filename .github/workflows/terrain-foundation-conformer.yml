@@ -23,193 +23,47 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  ground-contact-publisher:
-    runs-on: ubuntu-24.04
+  foundation-conform:
+    runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
       - name: Checkout exact PR head
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          fetch-depth: 0
+          fetch-depth: 1
           lfs: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - name: Resolve vendored Three.js for Node contracts
         run: node scripts/setupNodeThreeShim.mjs
-      - name: Apply ground-contact footprint filter
-        shell: bash
+      - name: Syntax
         run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-
-          path = Path('src/3d/world/WorldAssetPlacementPipeline.js')
-          text = path.read_text()
-          old = '''function rootLocalGeometryBounds(object) {
-  object.updateMatrixWorld?.(true);
-  const inverseRoot = object.matrixWorld.clone().invert();
-  const localBox = new THREE.Box3();
-  const scratch = new THREE.Vector3();
-  let foundGeometry = false;
-  object.traverse?.((node) => {
-    const geometry = node?.geometry;
-    if (!geometry?.attributes?.position) return;
-    if (!geometry.boundingBox) geometry.computeBoundingBox();
-    if (!geometry.boundingBox || geometry.boundingBox.isEmpty()) return;
-    expandBoxWithGeometryCorners(localBox, geometry.boundingBox, node.matrixWorld, inverseRoot, scratch);
-    foundGeometry = true;
-  });
-  return foundGeometry && !localBox.isEmpty() ? localBox : null;
-}
-'''
-          new = '''const GROUND_CONTACT_BAND_POLICY = Object.freeze({
-  minimumMeters: 0.5,
-  maximumMeters: 2,
-  structureHeightFraction: 0.12,
-});
-
-function rootLocalGeometryBounds(object) {
-  object.updateMatrixWorld?.(true);
-  const inverseRoot = object.matrixWorld.clone().invert();
-  const scratch = new THREE.Vector3();
-  const geometryBoxes = [];
-  object.traverse?.((node) => {
-    if (node?.userData?.terrainFootprintExclude === true || node?.userData?.foundationFootprintExclude === true) return;
-    const geometry = node?.geometry;
-    if (!geometry?.attributes?.position) return;
-    if (!geometry.boundingBox) geometry.computeBoundingBox();
-    if (!geometry.boundingBox || geometry.boundingBox.isEmpty()) return;
-    const nodeBox = new THREE.Box3();
-    expandBoxWithGeometryCorners(nodeBox, geometry.boundingBox, node.matrixWorld, inverseRoot, scratch);
-    if (!nodeBox.isEmpty()) geometryBoxes.push(nodeBox);
-  });
-  if (!geometryBoxes.length) return null;
-
-  const allGeometryBox = new THREE.Box3();
-  geometryBoxes.forEach((box) => allGeometryBox.union(box));
-  if (allGeometryBox.isEmpty()) return null;
-
-  const structureHeight = Math.max(0, allGeometryBox.max.y - allGeometryBox.min.y);
-  const groundContactBandMeters = Math.max(
-    GROUND_CONTACT_BAND_POLICY.minimumMeters,
-    Math.min(
-      GROUND_CONTACT_BAND_POLICY.maximumMeters,
-      structureHeight * GROUND_CONTACT_BAND_POLICY.structureHeightFraction,
-    ),
-  );
-  const groundContactCeiling = allGeometryBox.min.y + groundContactBandMeters;
-  const groundedBox = new THREE.Box3();
-  let groundedGeometryCount = 0;
-  for (const box of geometryBoxes) {
-    if (box.min.y > groundContactCeiling + 1e-6) continue;
-    groundedBox.union(box);
-    groundedGeometryCount += 1;
-  }
-
-  // Defensive fallback: precision/authoring anomalies must never erase a valid structure footprint.
-  return groundedGeometryCount > 0 && !groundedBox.isEmpty() ? groundedBox : allGeometryBox;
-}
-'''
-          if text.count(old) != 1:
-              raise SystemExit(f'rootLocalGeometryBounds match count={text.count(old)}')
-          path.write_text(text.replace(old, new, 1))
-          PY
-      - name: Validate production patch
-        run: |
-          set -euo pipefail
+          node --check src/3d/world/terrainFoundationConformer.js
           node --check src/3d/world/WorldAssetPlacementPipeline.js
-          node --check scripts/checkWorldFootprintGrounding.mjs
-          node --check scripts/checkGroundContactFootprintFiltering.mjs
+          node --check src/3d/world/structureGroundingPolicy.js
+          node --check scripts/checkStructureGroundingPolicy.mjs
+          node --check scripts/checkStructureSurfacePolicy.mjs
+          node --check scripts/checkSettlementFoundationAuthority.mjs
+          node --check scripts/checkTerrainFoundationConformer.mjs
+          node --check scripts/checkTerrainFoundationBatchRemoval.mjs
+          node --check scripts/checkFoundationRenderPhysicsParity.mjs
           node --check scripts/checkExtendedStructureFoundationConform.mjs
-          node scripts/checkWorldFootprintGrounding.mjs
-          node scripts/checkGroundContactFootprintFiltering.mjs
+          node --check scripts/checkGroundContactFootprintFiltering.mjs
+      - name: Shared structure footprint and surface classification
+        run: |
           node scripts/checkStructureGroundingPolicy.mjs
           node scripts/checkStructureSurfacePolicy.mjs
+      - name: Settlement render and physics foundation authority
+        run: node scripts/checkSettlementFoundationAuthority.mjs
+      - name: Shared terrain authority and selective chunk rebuild
+        run: |
           node scripts/checkTerrainFoundationConformer.mjs
+          node scripts/checkTerrainFoundationBatchRemoval.mjs
           node scripts/checkFoundationRenderPhysicsParity.mjs
           node scripts/checkExtendedStructureFoundationConform.mjs
-      - name: Restore validation-only workflow and commit production patch
-        shell: bash
-        run: |
-          set -euo pipefail
-          cat > .github/workflows/terrain-foundation-conformer.yml <<'YAML'
-          name: Terrain Foundation Conformer
-
-          on:
-            pull_request:
-              paths:
-                - 'src/3d/world/terrainFoundationConformer.js'
-                - 'src/3d/world/WorldAssetPlacementPipeline.js'
-                - 'src/3d/world/structureGroundingPolicy.js'
-                - 'src/3d/world/settlements.js'
-                - 'src/3d/world/terrain.js'
-                - 'src/3d/world/chunkManager.js'
-                - 'src/3d/physics.js'
-                - 'scripts/checkStructureGroundingPolicy.mjs'
-                - 'scripts/checkStructureSurfacePolicy.mjs'
-                - 'scripts/checkSettlementFoundationAuthority.mjs'
-                - 'scripts/checkTerrainFoundationConformer.mjs'
-                - 'scripts/checkTerrainFoundationBatchRemoval.mjs'
-                - 'scripts/checkFoundationRenderPhysicsParity.mjs'
-                - 'scripts/checkExtendedStructureFoundationConform.mjs'
-                - 'scripts/checkGroundContactFootprintFiltering.mjs'
-                - 'scripts/setupNodeThreeShim.mjs'
-                - '.github/workflows/terrain-foundation-conformer.yml'
-            workflow_dispatch:
-
-          permissions:
-            contents: read
-
-          jobs:
-            foundation-conform:
-              runs-on: ubuntu-latest
-              timeout-minutes: 8
-              steps:
-                - name: Checkout exact PR head
-                  uses: actions/checkout@v4
-                  with:
-                    ref: ${{ github.event.pull_request.head.sha || github.sha }}
-                    fetch-depth: 1
-                    lfs: false
-                - uses: actions/setup-node@v4
-                  with:
-                    node-version: 22
-                - name: Resolve vendored Three.js for Node contracts
-                  run: node scripts/setupNodeThreeShim.mjs
-                - name: Syntax
-                  run: |
-                    node --check src/3d/world/terrainFoundationConformer.js
-                    node --check src/3d/world/WorldAssetPlacementPipeline.js
-                    node --check src/3d/world/structureGroundingPolicy.js
-                    node --check scripts/checkStructureGroundingPolicy.mjs
-                    node --check scripts/checkStructureSurfacePolicy.mjs
-                    node --check scripts/checkSettlementFoundationAuthority.mjs
-                    node --check scripts/checkTerrainFoundationConformer.mjs
-                    node --check scripts/checkTerrainFoundationBatchRemoval.mjs
-                    node --check scripts/checkFoundationRenderPhysicsParity.mjs
-                    node --check scripts/checkExtendedStructureFoundationConform.mjs
-                    node --check scripts/checkGroundContactFootprintFiltering.mjs
-                - name: Shared structure footprint and surface classification
-                  run: |
-                    node scripts/checkStructureGroundingPolicy.mjs
-                    node scripts/checkStructureSurfacePolicy.mjs
-                - name: Settlement render and physics foundation authority
-                  run: node scripts/checkSettlementFoundationAuthority.mjs
-                - name: Shared terrain authority and selective chunk rebuild
-                  run: |
-                    node scripts/checkTerrainFoundationConformer.mjs
-                    node scripts/checkTerrainFoundationBatchRemoval.mjs
-                    node scripts/checkFoundationRenderPhysicsParity.mjs
-                    node scripts/checkExtendedStructureFoundationConform.mjs
-                    node scripts/checkGroundContactFootprintFiltering.mjs
-          YAML
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add -- src/3d/world/WorldAssetPlacementPipeline.js .github/workflows/terrain-foundation-conformer.yml
-          git commit -m 'feat(world): filter foundations to ground-contact geometry'
-          git push origin HEAD:codex/foundation-grounding-20260821
+          node scripts/checkGroundContactFootprintFiltering.mjs
