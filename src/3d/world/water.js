@@ -230,9 +230,9 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		// then transitions progressively toward deep navy rather than becoming dark immediately offshore.
 		vec3 bodyColor = mix(uShallowColor, uDeepColor, smoothstep(0.04, 0.82, fragmentDepth));
 		float shelfMottle = shelfOpticalMottle(vWorldPosition.xz, fragmentDepth);
-		vec3 sedimentTint = mix(uDeepColor, vec3(0.34, 0.48, 0.49), 0.72);
-		bodyColor = mix(bodyColor, sedimentTint, max(shelfMottle, 0.0) * 0.16);
-		bodyColor = mix(bodyColor, uDeepColor, max(-shelfMottle, 0.0) * 0.10);
+		vec3 sedimentTint = mix(uDeepColor, vec3(0.37, 0.50, 0.48), 0.78);
+		bodyColor = mix(bodyColor, sedimentTint, max(shelfMottle, 0.0) * 0.34);
+		bodyColor = mix(bodyColor, uDeepColor, max(-shelfMottle, 0.0) * 0.20);
 
 		// Fresnel-ish: nearer grazing angles read lighter/more reflective, straight-down reads deep.
 		float fresnel = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 3.0);
@@ -260,7 +260,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		// Broad shallow shelves gain bounded optical-density variation, analogous to suspended sediment
 		// and uneven seabed reflectance. Keep the range small enough that canonical wet/dry coverage
 		// remains visually authoritative and tiny lakes do not flicker or disappear.
-		alpha *= 1.0 + shelfMottle * 0.08;
+		alpha *= 1.0 + shelfMottle * 0.22;
 		alpha *= waterCoverage;
 
 		gl_FragColor = vec4(color, max(alpha, foam * 0.78));
