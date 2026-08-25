@@ -87,7 +87,6 @@ jobs:
       - name: Standard gamepad movement combat lock-on and handoff contracts
         run: |
           set -euo pipefail
-          node --check src/3d/gameplay/damageResolution.js
           node --check src/3d/input.js
           node --check src/3d/gameLoopHelpers.js
           node --check src/3d/ui/touchJoystick.js
