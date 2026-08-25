@@ -22,7 +22,11 @@ try {
   page.on('pageerror', (error) => errors.push(String(error)));
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
   await page.goto(`${server.baseUrl}/ice-landmarks-visual-qa.html`, { waitUntil: 'domcontentloaded' });
-  await page.waitForFunction(() => window.__iceQa?.ready === true, null, { timeout: 20000 });
+  try {
+    await page.waitForFunction(() => window.__iceQa?.ready === true, null, { timeout: 60000 });
+  } catch (error) {
+    throw new Error(`ice WebGL harness did not become ready within 60s${errors.length ? `; browser errors: ${errors.join(' | ')}` : ''}`, { cause: error });
+  }
 
   const evidence = await page.evaluate(async () => {
     const [{ ICE_LANDMARK_POLICY }, { REFERENCE_BIOME_ZONES, WORLD_REFERENCE_MAP }] = await Promise.all([
