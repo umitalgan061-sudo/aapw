@@ -50,8 +50,8 @@ export function clearDamageResolution(payload) {
 
 function writeDamageAppliedAmount(payload, appliedAmount) {
 	if (!isObjectPayload(payload)) return false;
-	const previous = pendingDamageResolutions.get(payload);
-	if (previous) pendingDamageResolutions.set(payload, Object.freeze({ ...previous, appliedAmount }));
+	const previous = pendingDamageResolutions.get(payload) ?? {};
+	pendingDamageResolutions.set(payload, Object.freeze({ ...previous, appliedAmount }));
 	return tryWrite(payload, 'appliedAmount', appliedAmount);
 }
 
@@ -106,7 +106,7 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 			});
 			eventsBus.emit(diedEventName, Object.freeze(deathReceipt));
 		}
-		if (stagedResolution) clearResolutionAfterSameEvent(payload);
+		clearResolutionAfterSameEvent(payload);
 	}
 
 	eventsBus.on(damageEventName, onDamage);
