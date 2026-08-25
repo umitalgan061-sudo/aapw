@@ -76,7 +76,7 @@ try {
     throw new Error(`ice cave is no longer a traversable Wall tunnel: ${JSON.stringify(evidence.caveDesign)}`);
   }
   if (!(stats.blockers > 40)) throw new Error(`insufficient collision blockers: ${stats.blockers}`);
-  if (stats.terrainAuthority !== 'canonical-createHeightSampler+terrainBiomeShading') {
+  if (stats.terrainAuthority !== 'canonical-createHeightSampler+terrainBiomeShading+terrainMicroSurface') {
     throw new Error(`ice QA lost canonical terrain authority: ${stats.terrainAuthority}`);
   }
   if (!(stats.terrain?.vertexCount > 10000)) throw new Error(`canonical terrain patch unexpectedly coarse: ${stats.terrain?.vertexCount}`);
