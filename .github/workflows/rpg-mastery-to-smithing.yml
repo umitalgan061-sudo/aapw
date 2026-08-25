@@ -10,6 +10,10 @@ on:
       - 'scripts/checkInteractionExpeditionKitCraft.mjs'
       - 'scripts/checkInteractionExpeditionTavernRecovery.mjs'
       - 'scripts/checkInteractionMasteryToSmithingBrowser.mjs'
+      - 'scripts/checkInteractionProvisioningCraft.mjs'
+      - 'scripts/checkInteractionQuartermasterTrade.mjs'
+      - 'scripts/checkInteractionSettlementServiceBrowser.mjs'
+      - 'scripts/checkInteractionSettlementServiceContract.mjs'
       - '.github/workflows/rpg-mastery-to-smithing.yml'
   workflow_dispatch:
 
@@ -36,7 +40,7 @@ jobs:
           base=$(git merge-base HEAD origin/main)
           test "$base" = "$(git rev-parse origin/main)"
           mapfile -t paths < <(git diff --name-only "$base"...HEAD)
-          allowed='^(scripts/checkInteractionExpedition(Board|TavernRecovery)\.mjs|scripts/checkInteractionMasteryToSmithingBrowser\.mjs|scripts/checkInteractionMasteryArmorerServiceBrowser\.mjs|scripts/checkInteractionTavernReceiptIntegrity\.mjs|\.github/workflows/(rpg-expedition-tavern-recovery|rpg-interaction-quest-loop|rpg-journey-ledger-ux|rpg-mastery-armorer-service|rpg-mastery-journal-continuity|rpg-mastery-to-smithing|rpg-mastery-travel-continuity|rpg-tavern-receipt-integrity)\.yml|src/3d/gameplay/(interaction|interactionConfig|interactionEconomy)\.js)$'
+          allowed='^(scripts/checkInteractionExpedition(Board|TavernRecovery)\.mjs|scripts/checkInteractionMasteryToSmithingBrowser\.mjs|scripts/checkInteractionMasteryArmorerServiceBrowser\.mjs|scripts/checkInteraction(ProvisioningCraft|QuartermasterTrade|SettlementService(Browser|Contract))\.mjs|scripts/checkInteractionTavernReceiptIntegrity\.mjs|\.github/workflows/(rpg-expedition-tavern-recovery|rpg-interaction-quest-loop|rpg-journey-ledger-ux|rpg-mastery-armorer-service|rpg-mastery-journal-continuity|rpg-mastery-to-smithing|rpg-mastery-travel-continuity|rpg-tavern-receipt-integrity)\.yml|src/3d/gameplay/(interaction|interactionConfig|interactionEconomy)\.js)$'
           for path in "${paths[@]}"; do
             [[ "$path" =~ $allowed ]] || { echo "Unexpected path: $path"; exit 1; }
           done
@@ -47,8 +51,15 @@ jobs:
           set -euo pipefail
           node --check scripts/checkInteractionExpeditionTavernRecovery.mjs
           node --check scripts/checkInteractionMasteryToSmithingBrowser.mjs
+          node --check scripts/checkInteractionProvisioningCraft.mjs
+          node --check scripts/checkInteractionQuartermasterTrade.mjs
+          node --check scripts/checkInteractionSettlementServiceBrowser.mjs
+          node --check scripts/checkInteractionSettlementServiceContract.mjs
           node scripts/checkInteractionExpeditionMasterySmithingReward.mjs
           node scripts/checkInteractionExpeditionKitCraft.mjs
+          node scripts/checkInteractionProvisioningCraft.mjs
+          node scripts/checkInteractionQuartermasterTrade.mjs
+          node scripts/checkInteractionSettlementServiceContract.mjs
           node scripts/checkInteractionExpeditionTavernRecovery.mjs
       - name: Install Chromium acceptance harness
         run: |
@@ -57,8 +68,10 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-      - name: Shipped-page mastery to smithing proof
-        run: NODE_PATH="$NODE_PATH" node scripts/checkInteractionMasteryToSmithingBrowser.mjs
+      - name: Shipped-page mastery to smithing and settlement service proof
+        run: |
+          NODE_PATH="$NODE_PATH" node scripts/checkInteractionSettlementServiceBrowser.mjs
+          NODE_PATH="$NODE_PATH" node scripts/checkInteractionMasteryToSmithingBrowser.mjs
       - name: Shared material placement boundary
         run: node scripts/checkSharedMaterialPlacementContract.js
       - name: Final freshness

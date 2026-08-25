@@ -29,6 +29,8 @@ assert.deepEqual(armorerOffer.fulfillment, {
 		label: '1 yol azığı paketi + 1 bileği taşını 1 sefer bakım kitine hazırla',
 	},
 });
+assert.equal(rationServiceOffer.itemId, 'dragonstone-travel-ration-pack');
+assert.equal(rationServiceOffer.quantity, 1);
 assert.deepEqual(rationServiceOffer.fulfillment, {
 	kind: 'settlement-service',
 	serviceId: 'dragonstone-watch-ration-prep',
@@ -91,7 +93,7 @@ const rationEconomy = createInteractionEconomyState();
 const before = structuredClone(rationEconomy.snapshot());
 result = rationEconomy.purchase(rationServiceOffer, (...args) => rationInventory.grant(...args));
 assert.equal(result.ok, true);
-assert.equal(result.crafted, false, 'ration service without two carried inputs must preserve legacy one-ration fulfillment');
+assert.equal(result.crafted, false, 'prepared fallback without carried inputs must remain one settlement-service transaction');
 assert.equal(result.spentCopper, 5);
 assert.equal(result.balanceCopper, 35);
 assert.equal(result.remainingStock, 0);
@@ -106,10 +108,33 @@ assert.deepEqual(result.ledger.recentTransactions, [{
 	spentCopper: rationServiceOffer.priceCopper,
 	balanceCopper: 35,
 }]);
+const preparedProvision = rationInventory.snapshot().items.find((item) => item.itemId === rationServiceOffer.itemId);
+assert.equal(preparedProvision?.quantity, 1, 'ration-prep service must deliver one ready travel ration pack');
 assert.deepEqual(
-	rationInventory.snapshot().items.find((item) => item.itemId === rationServiceOffer.itemId)?.provenance,
+	preparedProvision?.provenance,
 	[{ sourceType: 'settlement-service', sourceId: 'dragonstone-watch-ration-prep' }],
-	'ration fulfillment must persist its service identity in inventory provenance',
+	'prepared travel provisions must persist their service identity in inventory provenance',
+);
+assert.equal(
+	rationInventory.snapshot().items.some((item) => item.itemId === 'dragonstone-field-ration'),
+	false,
+	'prepared fallback must not masquerade as a plain field-ration purchase',
+);
+
+const craftInventory = createInteractionInventoryState();
+assert.equal(craftInventory.grant('dragonstone-field-ration', 2), true);
+const craftEconomy = createInteractionEconomyState();
+result = craftEconomy.purchase(rationServiceOffer, (...args) => craftInventory.grant(...args));
+assert.equal(result.ok, true);
+assert.equal(result.crafted, true, 'carried field rations must still use the existing provisioning craft path');
+assert.equal(result.craftedItemId, 'dragonstone-travel-ration-pack');
+assert.equal(result.consumedItemId, 'dragonstone-field-ration');
+assert.equal(result.consumedQuantity, 2);
+assert.equal(craftInventory.snapshot().items.some((item) => item.itemId === 'dragonstone-field-ration'), false);
+assert.deepEqual(
+	craftInventory.snapshot().items.find((item) => item.itemId === 'dragonstone-travel-ration-pack')?.provenance,
+	[{ sourceType: 'settlement-crafting', sourceId: 'dragonstone-watch-travel-ration-pack' }],
+	'legacy provisioning craft provenance must remain authoritative when inputs are carried',
 );
 
 const after = structuredClone(rationEconomy.snapshot());
@@ -123,4 +148,4 @@ const restored = createInteractionEconomyState();
 restored.restore(after);
 assert.deepEqual(restored.snapshot(), after, 'ration settlement service ledger/stock must survive save restore');
 
-console.log('PASS checkInteractionSettlementServiceContract: vendor provenance stays vendor, armorer honing and ration prep retain canonical settlement-service behavior, provisioning metadata is explicit, and finite service state persists.');
+console.log('PASS checkInteractionSettlementServiceContract: ration prep supplies a ready travel provision without inputs, preserves canonical two-ration crafting when inputs exist, retains service/crafting provenance, and finite service state persists.');
