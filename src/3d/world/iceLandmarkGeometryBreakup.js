@@ -175,25 +175,42 @@ function createWallFlowRibs(group, sections, portal, seed) {
 function createPortalShroud(group, portal, seed) {
 	const wall = group.getObjectByName('the-wall-natural-ice-cliff');
 	if (!wall?.material) return 0;
+	const portalMesh = group.getObjectByName('ice-wall-cave-portal');
+	if (portalMesh?.material) {
+		const portalMaterial = portalMesh.material.clone();
+		portalMaterial.vertexColors = false;
+		portalMaterial.color.set(0xaebfc1);
+		portalMaterial.roughness = Math.max(0.68, portalMaterial.roughness || 0.68);
+		portalMaterial.transmission = Math.min(0.008, portalMaterial.transmission || 0);
+		portalMaterial.clearcoat = Math.min(0.04, portalMaterial.clearcoat || 0);
+		portalMaterial.clearcoatRoughness = Math.max(0.50, portalMaterial.clearcoatRoughness || 0.50);
+		portalMaterial.needsUpdate = true;
+		portalMesh.material = portalMaterial;
+	}
 	const material = wall.material.clone();
 	material.vertexColors = false;
-	material.color.set(0xcbd5d4);
-	material.roughness = 0.65;
-	material.transmission = 0.015;
-	material.clearcoat = 0.05;
+	material.color.set(0xb9c8c8);
+	material.roughness = 0.68;
+	material.transmission = 0.010;
+	material.clearcoat = 0.04;
 	material.needsUpdate = true;
 	const transforms = [];
 	const openingHalfWidth = 7.8;
 	for (const faceSign of [-1, 1]) {
-		for (let depthLayer = 0; depthLayer < 6; depthLayer += 1) {
-			const normalOffset = (portal.depth * 0.50 + depthLayer * 6.0) * faceSign;
-			const apronScale = 1 + Math.min(depthLayer, 3) * 0.07;
+		for (let depthLayer = 0; depthLayer < 3; depthLayer += 1) {
+			const normalJitter = (hash2D(depthLayer, faceSign + 233, seed + 11527) - 0.5) * 2.4;
+			const normalOffset = (portal.depth * 0.50 + depthLayer * 11.7 + normalJitter) * faceSign;
+			const apronScale = 1 + depthLayer * 0.08;
+			const depthScale = 6.2 + depthLayer * 1.3;
 			for (const side of [-1, 1]) {
 				for (let level = 0; level < 3; level += 1) {
-					const lateral = side * (openingHalfWidth + 3.0 + level * 0.55 + depthLayer * 0.38);
+					const lateralJitter = (hash2D(level, side + depthLayer * 17, seed + 11617) - 0.5) * 0.55;
+					const heightJitter = (hash2D(level, side + depthLayer * 19, seed + 11701) - 0.5) * 0.70;
+					const lateral = side * (openingHalfWidth + 3.0 + level * 0.55 + depthLayer * 0.40 + lateralJitter);
 					transforms.push({
-						position: new THREE.Vector3(portal.centerX + portal.tx * lateral + portal.nx * normalOffset, portal.groundY + 2.8 + level * 4.0, portal.centerZ + portal.tz * lateral + portal.nz * normalOffset),
-						scale: new THREE.Vector3(3.2 * apronScale, 3.7 * apronScale, 3.0 + depthLayer * 0.36),
+						position: new THREE.Vector3(portal.centerX + portal.tx * lateral + portal.nx * normalOffset, portal.groundY + 2.8 + level * 4.0 + heightJitter, portal.centerZ + portal.tz * lateral + portal.nz * normalOffset),
+						scale: new THREE.Vector3(3.2 * apronScale, 3.7 * apronScale, depthScale),
+						rx: (hash2D(level, side + 239, seed + 11807) - 0.5) * 0.13,
 						ry: -Math.atan2(portal.tz, portal.tx) + side * 0.12,
 						rz: side * (0.08 + level * 0.035),
 					});
@@ -201,32 +218,19 @@ function createPortalShroud(group, portal, seed) {
 			}
 			for (let step = 1; step <= 5; step += 1) {
 				const angle = Math.PI - (step / 6) * Math.PI;
-				const lateral = Math.cos(angle) * (openingHalfWidth + depthLayer * 0.28);
-				const height = 3.2 + Math.sin(angle) * (8.8 + depthLayer * 0.34) + 2.2;
+				const lateral = Math.cos(angle) * (openingHalfWidth + depthLayer * 0.30) + (hash2D(step, faceSign + depthLayer * 23, seed + 11903) - 0.5) * 0.45;
+				const height = 3.2 + Math.sin(angle) * (8.8 + depthLayer * 0.38) + 2.2;
 				transforms.push({
 					position: new THREE.Vector3(portal.centerX + portal.tx * lateral + portal.nx * normalOffset, portal.groundY + height, portal.centerZ + portal.tz * lateral + portal.nz * normalOffset),
-					scale: new THREE.Vector3((2.6 + hash2D(step, faceSign + 43 + depthLayer, seed + 8009) * 1.3) * apronScale, 2.3 * apronScale, 2.8 + depthLayer * 0.38),
+					scale: new THREE.Vector3((2.6 + hash2D(step, faceSign + 43 + depthLayer, seed + 8009) * 1.3) * apronScale, 2.3 * apronScale, depthScale * 0.94),
+					rx: (hash2D(step, faceSign + 241, seed + 12011) - 0.5) * 0.12,
 					ry: -Math.atan2(portal.tz, portal.tx),
 					rz: (hash2D(step, faceSign + 47 + depthLayer, seed + 8101) - 0.5) * 0.35,
 				});
 			}
 		}
-		const seamNormalOffset = portal.depth * 0.49 * faceSign;
-		for (const side of [-1, 1]) {
-			for (let level = 0; level < 9; level += 1) {
-				const lateral = side * (portal.width * 0.5 + 0.8 + (hash2D(level, side + 251, seed + 11527) - 0.5) * 0.9);
-				const y = 8.5 + level * 17.2;
-				transforms.push({
-					position: new THREE.Vector3(portal.centerX + portal.tx * lateral + portal.nx * seamNormalOffset, portal.groundY + y, portal.centerZ + portal.tz * lateral + portal.nz * seamNormalOffset),
-					scale: new THREE.Vector3(3.4 + hash2D(level, side + 257, seed + 11617) * 1.7, 9.4 + hash2D(level, side + 263, seed + 11701) * 2.2, 3.0 + hash2D(level, side + 269, seed + 11807) * 1.4),
-					rx: (hash2D(level, side + 271, seed + 11903) - 0.5) * 0.14,
-					ry: -Math.atan2(portal.tz, portal.tx) + (hash2D(level, side + 277, seed + 12011) - 0.5) * 0.18,
-					rz: side * (0.06 + (hash2D(level, side + 281, seed + 12101) - 0.5) * 0.16),
-				});
-			}
-		}
 	}
-	const shroud = createInstanceField('ice-cave-natural-portal-shroud', 'natural-fractured-portal-shroud', new THREE.DodecahedronGeometry(1, 0), material, transforms, seed + 8209, [0xaabfc1, 0xd7dfde]);
+	const shroud = createInstanceField('ice-cave-natural-portal-shroud', 'natural-fractured-portal-shroud', new THREE.DodecahedronGeometry(1, 0), material, transforms, seed + 8209, [0xa9bfc2, 0xd1dad9]);
 	group.add(shroud);
 	return shroud.count;
 }
