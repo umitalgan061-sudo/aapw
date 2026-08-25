@@ -1,0 +1,89 @@
+name: Wildlife Long-Frame Budget
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/animals.js'
+      - 'scripts/checkWildlifeLongFrameBudget.mjs'
+      - 'scripts/checkWildlifeLongFrameBrowser.mjs'
+      - '.github/workflows/wildlife-long-frame-budget.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wildlife-long-frame-budget:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Exact-main scope and budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          base="$(git merge-base HEAD origin/main)"
+          test "$base" = "$(git rev-parse origin/main)"
+          changed="$(git diff --name-only origin/main...HEAD)"
+          printf '%s\n' "$changed"
+          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/animals\.js|scripts/checkWildlifeLongFrameBudget\.mjs|scripts/checkWildlifeLongFrameBrowser\.mjs|\.github/workflows/wildlife-long-frame-budget\.yml)$' && exit 1 || true
+          additions="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END {print s+0}')"
+          deletions="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END {print s+0}')"
+          test $((additions + deletions)) -le 1000
+          git diff --check origin/main...HEAD
+
+      - name: Wildlife long-frame deterministic budget
+        run: node scripts/checkWildlifeLongFrameBudget.mjs
+
+      - name: Wildlife syntax guard
+        run: |
+          node --check src/3d/gameplay/animals.js
+          node --check scripts/checkWildlifeLongFrameBrowser.mjs
+
+      - name: Shared material placement contract
+        run: node scripts/checkSharedMaterialPlacementContract.js
+
+      - name: Hydrate real configured wolf asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs version
+          git lfs pull --include="assets/models/animals/wolf/**" --exclude=""
+
+      - name: Install Chromium proof dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Real wolf long-frame browser proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4173 --bind 127.0.0.1 >"$RUNNER_TEMP/http.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:4173/game3d.html >/dev/null && break
+            sleep 1
+          done
+          BASE_URL=http://127.0.0.1:4173 node scripts/checkWildlifeLongFrameBrowser.mjs
+
+      - name: Final exact-main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
