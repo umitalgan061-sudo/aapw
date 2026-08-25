@@ -32,7 +32,7 @@ assert.equal(inventory.grant('dragonstone-travel-ration-pack', 1, {
 
 const beforeInventory = inventory.snapshot();
 const beforeEconomy = economy.snapshot();
-assert.equal(beforeInventory.fieldReadiness.capabilities.fastTravelEligible, true);
+assert.equal(beforeInventory.fieldReadiness.capabilities.fastTravelEligible, false, 'raw smithing inputs must not grant maintenance-kit travel eligibility before crafting');
 assert.equal(beforeInventory.items.find((item) => item.itemId === 'dragonstone-whetstone')?.quantity, 1);
 assert.equal(beforeInventory.items.find((item) => item.itemId === 'dragonstone-travel-ration-pack')?.quantity, 1);
 assert.equal(beforeEconomy.copper, STARTING_COPPER);
@@ -61,6 +61,8 @@ assert.deepEqual(kit.provenance, [{
 	sourceType: 'settlement-crafting',
 	sourceId: 'dragonstone-expedition-maintenance-kit',
 }]);
+assert.equal(afterInventory.fieldReadiness.capabilities.fastTravelEligible, true, 'crafted maintenance kit must unlock the existing travel-readiness capability');
+assert.equal(afterInventory.fieldReadiness.equipped?.itemId, 'dragonstone-expedition-maintenance-kit');
 assert.equal(afterEconomy.ledger.transactionCount, 1);
 assert.equal(afterEconomy.ledger.lifetimeSpentCopper, 12);
 assert.equal(afterEconomy.ledger.purchasesByOffer['dragonstone-whetstone'], 1);
