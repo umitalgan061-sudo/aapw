@@ -133,27 +133,52 @@ scene.add(terrain);
 const camera = new THREE.PerspectiveCamera(48, 1200 / 720, 0.1, 8000);
 const portal = landmarks.group.getObjectByName('ice-wall-cave-portal');
 const cave = landmarks.group.getObjectByName('ice-cave-shell');
+
+function getPortalFrame() {
+  if (!portal?.geometry) return null;
+  portal.geometry.computeBoundingBox();
+  portal.updateWorldMatrix(true, false);
+  const bounds = portal.geometry.boundingBox;
+  if (!bounds) return null;
+  const quaternion = portal.getWorldQuaternion(new THREE.Quaternion());
+  const outward = new THREE.Vector3(0, 0, -1).applyQuaternion(quaternion).normalize();
+  const tangent = new THREE.Vector3(1, 0, 0).applyQuaternion(quaternion).normalize();
+  const front = portal.localToWorld(new THREE.Vector3(0, 0, bounds.min.z));
+  return { front, outward, tangent };
+}
+
 const views = {
   wall: () => {
     camera.position.set(center.x - size.x * 0.24, box.max.y + 120, center.z + 520);
     camera.lookAt(center.x, box.min.y + size.y * 0.42, center.z);
   },
   detail: () => {
-    camera.position.set(center.x - size.x * 0.03, box.min.y + size.y * 0.46, center.z + 185);
-    camera.lookAt(center.x, box.min.y + size.y * 0.43, center.z);
+    const frame = getPortalFrame();
+    if (!frame) return views.wall();
+    const target = frame.front.clone().add(new THREE.Vector3(0, 38, 0));
+    camera.position.copy(frame.front)
+      .addScaledVector(frame.outward, 145)
+      .addScaledVector(frame.tangent, 72)
+      .add(new THREE.Vector3(0, 52, 0));
+    camera.lookAt(target);
   },
   cave: () => {
-    const target = portal?.getWorldPosition(new THREE.Vector3()) ?? center;
-    camera.position.set(target.x + 120, target.y + 26, target.z + 120);
-    camera.lookAt(target.x, target.y + 9, target.z);
+    const frame = getPortalFrame();
+    if (!frame) return views.wall();
+    const target = frame.front.clone().add(new THREE.Vector3(0, 7, 0));
+    camera.position.copy(frame.front)
+      .addScaledVector(frame.outward, 72)
+      .add(new THREE.Vector3(0, 13, 0));
+    camera.lookAt(target.clone().addScaledVector(frame.outward, -5));
   },
   interior: () => {
     cave?.geometry?.computeBoundingSphere();
     const target = cave?.geometry?.boundingSphere?.center?.clone() ?? new THREE.Vector3();
     cave?.localToWorld(target);
+    const frame = getPortalFrame();
     camera.position.copy(target).add(new THREE.Vector3(0, 5.5, 0));
-    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(cave?.quaternion ?? new THREE.Quaternion());
-    camera.lookAt(target.clone().add(forward.multiplyScalar(40)).add(new THREE.Vector3(0, 3, 0)));
+    const forward = frame ? frame.outward.clone().multiplyScalar(-1) : new THREE.Vector3(0, 0, -1);
+    camera.lookAt(target.clone().add(forward.multiplyScalar(32)).add(new THREE.Vector3(0, 3, 0)));
   },
 };
 
