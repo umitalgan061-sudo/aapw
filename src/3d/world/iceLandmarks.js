@@ -32,7 +32,7 @@ export const ICE_LANDMARK_POLICY = Object.freeze({
 		openingHalfWidthMeters: 7.8,
 		openingSideHeightMeters: 3.2,
 		openingArchRiseMeters: 8.8,
-		tunnelDepthMeters: 104,
+		tunnelDepthMeters: 70,
 		ringCount: 18,
 		arcSegments: 16,
 		chamberWidthMultiplier: 1.45,
@@ -332,24 +332,29 @@ function createWallGeometry(path, sampleHeightMeters, caveGapSegment, seed) {
 function makePortalShape(width, height, openingHalfWidth, sideHeight, archRise) {
 	const halfWidth = width * 0.5;
 	const shape = new THREE.Shape();
-	// The walk-through opening reaches the ground. A Shape hole touching the outer contour is
-	// degenerate for Earcut and can drop the portal front/back caps. Trace one concave outer contour
-	// around the arch instead: open at player height, manifold above and beside the entrance.
 	shape.moveTo(-halfWidth, 0);
-	shape.lineTo(-openingHalfWidth, 0);
-	shape.lineTo(-openingHalfWidth, sideHeight);
-	for (let step = 0; step <= 16; step += 1) {
-		const angle = Math.PI - (step / 16) * Math.PI;
-		shape.lineTo(
-			Math.cos(angle) * openingHalfWidth,
-			sideHeight + Math.sin(angle) * archRise,
-		);
-	}
-	shape.lineTo(openingHalfWidth, 0);
 	shape.lineTo(halfWidth, 0);
 	shape.lineTo(halfWidth, height);
 	shape.lineTo(-halfWidth, height);
 	shape.closePath();
+
+	// Earcut cannot triangulate a hole that literally touches the outer contour. A 12 cm ice sill
+	// keeps the contours topologically separate while remaining far below a normal gameplay step.
+	// This produces a real arched void instead of the former concave cap that could read as a panel.
+	const sillHeight = 0.12;
+	const opening = new THREE.Path();
+	opening.moveTo(-openingHalfWidth, sillHeight);
+	opening.lineTo(-openingHalfWidth, sideHeight);
+	for (let step = 0; step <= 16; step += 1) {
+		const angle = Math.PI - (step / 16) * Math.PI;
+		opening.lineTo(
+			Math.cos(angle) * openingHalfWidth,
+			sideHeight + Math.sin(angle) * archRise,
+		);
+	}
+	opening.lineTo(openingHalfWidth, sillHeight);
+	opening.closePath();
+	shape.holes.push(opening);
 	return shape;
 }
 
