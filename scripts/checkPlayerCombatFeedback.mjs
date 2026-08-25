@@ -28,6 +28,11 @@ assert.match(source, /if \(poise <= 0\) triggerGuardBreak\(\); publishCombatFeed
 
 assert.match(source, /gameEvents\.on\(EVENTS\.PLAYER_DIED, onPlayerDied\)/, 'player must consume the canonical death event to clear transient combat state');
 assert.match(source, /gameEvents\.off\(EVENTS\.PLAYER_DIED, onPlayerDied\)/, 'player disposal must detach the death-state reset listener');
+assert.match(
+  source,
+  /function onPlayerDied\(\) \{\s*if \(defeatResetQueued\) return;\s*interruptAttackForHit\(\);\s*defeatResetQueued = true;\s*queueMicrotask\(/,
+  'death must interrupt an active attack synchronously at the impact position before game3d teleports the player',
+);
 const resetStart = source.indexOf('\tfunction resetAfterDefeat()');
 const resetEnd = source.indexOf('\n\tfunction onPlayerDied()', resetStart);
 assert.ok(resetStart >= 0 && resetEnd > resetStart, 'defeat reset function must remain explicit and bounded');
@@ -44,10 +49,11 @@ for (const fragment of [
   "movementState = 'idle'",
   'publishMotionTelemetry(true)',
 ]) assert.ok(resetBody.includes(fragment), `defeat reset missing transient-state cleanup: ${fragment}`);
+assert.equal(resetBody.includes('interruptAttackForHit()'), false, 'queued post-teleport reset must not emit a late attack interruption from the respawn position');
 assert.equal(resetBody.includes('attackSerial = 0'), false, 'respawn must not rewind attack receipt serials');
 assert.equal(resetBody.includes('combatFeedbackSerial = 0'), false, 'respawn must not rewind combat feedback serials');
 
 console.log('Player Combat Feedback Contract: PASS');
 console.log('outcomes=dodge,parry,guard,guard-break,hit,hit-stagger,airborne-hit');
 console.log('appliedDamage=authoritative-health-clamp|context=impact-snapshot');
-console.log('defeatReset=transient-state-only|serials=monotonic');
+console.log('defeatReset=transient-state-only|attack-interrupt=impact-time|serials=monotonic');
