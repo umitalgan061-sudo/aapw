@@ -45,10 +45,10 @@ export const QUARTERMASTER_OFFERS = Object.freeze([
 	}),
 	Object.freeze({
 		id: 'dragonstone-watch-ration-allotment',
-		itemId: 'dragonstone-field-ration',
-		label: 'Nöbetçi erzak hazırlama hizmeti',
+		itemId: 'dragonstone-travel-ration-pack',
+		label: 'Nöbetçi yol azığı hazırlama hizmeti',
 		priceCopper: 5,
-		quantity: 2,
+		quantity: 1,
 		stockLimit: 1,
 		fulfillment: Object.freeze({
 			kind: 'settlement-service',
@@ -56,14 +56,6 @@ export const QUARTERMASTER_OFFERS = Object.freeze([
 			label: 'Erzak hazırlama',
 			stationId: 'dragonstone-ration-prep-table',
 			discipline: 'provisioning',
-			craftUpgrade: Object.freeze({
-				recipeId: 'dragonstone-watch-travel-ration-pack',
-				inputItemId: 'dragonstone-field-ration',
-				inputQuantity: 2,
-				outputItemId: 'dragonstone-travel-ration-pack',
-				outputQuantity: 1,
-				label: '2 saha azığını 1 yol azığı paketine hazırla',
-			}),
 		}),
 	}),
 ]);
