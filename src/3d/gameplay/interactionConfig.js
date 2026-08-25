@@ -189,8 +189,8 @@ export function createInteractionInventoryState() {
 		const outputItemId = String(upgrade.outputItemId ?? '');
 		const outputQuantity = Math.max(1, Math.floor(Number(upgrade.outputQuantity) || 1));
 		const inputs = normalizeCraftInputs(upgrade);
-		if (!inputs || !INTERACTION_ITEMS[outputItemId]) return null;
-		if (inputs.some((input) => quantityOf(input.itemId) < input.quantity)) return null;
+		if (!inputs || !INTERACTION_ITEMS[outputItemId]) return { ok: false, reason: 'invalid-craft-recipe' };
+		if (inputs.some((input) => quantityOf(input.itemId) < input.quantity)) return { ok: false, reason: 'craft-input-missing' };
 		if (!canGrant(outputItemId, outputQuantity)) return { ok: false, reason: 'craft-output-full' };
 		const before = snapshot();
 		for (const input of inputs) {
