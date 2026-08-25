@@ -15,114 +15,153 @@ permissions:
 jobs:
   patch:
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: codex/foundation-grounding-20260821
           fetch-depth: 0
+          lfs: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Patch, validate and publish once
+      - name: Repair portal manifold and add passage/crown regression
         shell: bash
         run: |
           set -euo pipefail
-          if grep -q "v11-oriented-rect-cells" src/3d/world/terrainFoundationConformer.js; then
-            echo "Rectangular foundation patch already present."
-            exit 0
-          fi
+          git pull --ff-only origin codex/foundation-grounding-20260821
           python - <<'PY'
           from pathlib import Path
-          def r(text, old, new, label):
-              if text.count(old) != 1: raise SystemExit(f'{label}: match count {text.count(old)}')
-              return text.replace(old, new, 1)
-          p = Path('src/3d/world/terrainFoundationConformer.js'); s = p.read_text()
-          s = r(s, "id: 'runtime-structure-foundation-conform-2026-08-24-v10-oriented-footprint',\n\tfootprintMode: 'root-oriented-adaptive-four-cell-circle-union-with-aabb-fallback',", "id: 'runtime-structure-foundation-conform-2026-08-24-v11-oriented-rect-cells',\n\tfootprintMode: 'root-oriented-adaptive-four-cell-rectangle-union-with-aabb-fallback',", 'policy')
-          old = '''  const cellRadius = Math.max(
-    TERRAIN_FOUNDATION_CONFORM_POLICY.minimumInnerRadiusMeters,
-    Math.hypot(cellWidth * 0.5, cellDepth * 0.5) + safeInnerMargin,
-  );
-  const pads = [];'''
-          new = '''  const halfWidthMeters = cellWidth * 0.5 + safeInnerMargin;
-  const halfDepthMeters = cellDepth * 0.5 + safeInnerMargin;
-  const cellRadius = Math.max(TERRAIN_FOUNDATION_CONFORM_POLICY.minimumInnerRadiusMeters, Math.hypot(halfWidthMeters, halfDepthMeters));
-  const axisX = oriented ? oriented.axisX : { x: 1, z: 0 };
-  const axisZ = oriented ? oriented.axisZ : { x: 0, z: 1 };
-  const pads = [];'''
-          s = r(s, old, new, 'cell dimensions')
-          s = r(s, '''      pads.push({
-        x, z,
-        innerRadiusMeters: cellRadius,
-        outerRadiusMeters: cellRadius + safeFeather,''', '''      pads.push({
-        shape: 'oriented-rectangle',
-        x, z,
-        halfWidthMeters,
-        halfDepthMeters,
-        axisX: { ...axisX },
-        axisZ: { ...axisZ },
-        featherMeters: safeFeather,
-        innerRadiusMeters: cellRadius,
-        outerRadiusMeters: cellRadius + safeFeather,''', 'pad shape')
-          p.write_text(s)
 
-          p = Path('src/3d/world/terrain.js'); s = p.read_text()
-          marker = '''function flattenWeight(distanceMeters, innerRadiusMeters, outerRadiusMeters) {
-\tif (distanceMeters <= innerRadiusMeters) return 1;
-\tif (distanceMeters >= outerRadiusMeters) return 0;
-\tconst t = 1 - (distanceMeters - innerRadiusMeters) / (outerRadiusMeters - innerRadiusMeters);
-\treturn t * t * (3 - 2 * t);
-}
-'''
-          helper = marker + '''
-function foundationPadWeight(worldX, worldZ, pad) {
-\tif (pad?.shape !== 'oriented-rectangle') return flattenWeight(Math.hypot(worldX - pad.x, worldZ - pad.z), pad.innerRadiusMeters, pad.outerRadiusMeters);
-\tconst values = [pad.halfWidthMeters, pad.halfDepthMeters, pad.axisX?.x, pad.axisX?.z, pad.axisZ?.x, pad.axisZ?.z].map(Number);
-\tif (!values.every(Number.isFinite)) return 0;
-\tconst [halfWidth, halfDepth, axisXX, axisXZ, axisZX, axisZZ] = values;
-\tconst dx = worldX - pad.x, dz = worldZ - pad.z;
-\tconst outsideX = Math.max(0, Math.abs(dx * axisXX + dz * axisXZ) - halfWidth);
-\tconst outsideZ = Math.max(0, Math.abs(dx * axisZX + dz * axisZZ) - halfDepth);
-\tconst distance = Math.hypot(outsideX, outsideZ);
-\tif (distance <= 0) return 1;
-\tconst feather = Math.max(0, Number(pad.featherMeters) || 0);
-\treturn feather > 0 ? flattenWeight(distance, 0, feather) : 0;
-}
-'''
-          s = r(s, marker, helper, 'terrain helper')
-          s = r(s, '''\t\tfor (const pad of flattenPads) {
-\t\t\tconst distanceMeters = Math.hypot(worldX - pad.x, worldZ - pad.z);
-\t\t\tconst weight = flattenWeight(distanceMeters, pad.innerRadiusMeters, pad.outerRadiusMeters);''', '''\t\tfor (const pad of flattenPads) {
-\t\t\tconst weight = foundationPadWeight(worldX, worldZ, pad);''', 'terrain consumer')
-          p.write_text(s)
+          p = Path('src/3d/world/iceLandmarks.js')
+          s = p.read_text()
+          old = '''function makePortalShape(width, height, openingHalfWidth, sideHeight, archRise) {
+\tconst halfWidth = width * 0.5;
+\tconst shape = new THREE.Shape();
+\tshape.moveTo(-halfWidth, 0);
+\tshape.lineTo(halfWidth, 0);
+\tshape.lineTo(halfWidth, height);
+\tshape.lineTo(-halfWidth, height);
+\tshape.closePath();
 
-          p = Path('scripts/checkTerrainFoundationConformer.mjs'); s = p.read_text()
-          s = r(s, "assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.footprintMode, 'root-oriented-adaptive-four-cell-circle-union-with-aabb-fallback');", "assert.equal(TERRAIN_FOUNDATION_CONFORM_POLICY.footprintMode, 'root-oriented-adaptive-four-cell-rectangle-union-with-aabb-fallback');", 'test policy')
-          s = r(s, '''assert(longBuilt.pads.every((pad) => pad.innerRadiusMeters < 14),
-\t'adaptive long-axis cells must materially reduce the old 2x2 cell radius');''', '''assert(longBuilt.pads.every((pad) => pad.innerRadiusMeters < 14),
-\t'adaptive long-axis cells must materially reduce the old 2x2 cell radius');
-assert(longBuilt.pads.every((pad) => pad.shape === 'oriented-rectangle' && pad.halfWidthMeters === 12.5 && pad.halfDepthMeters === 5));''', 'rect assertion')
-          s = r(s, '''const nearSideProbeBase = baseSampler(0, 20);''', '''assert.equal(compactSampler(0, 8), baseSampler(0, 8), 'rect cells must preserve terrain beyond the bounded side feather');
-const boundedFeather = compactSampler(0, 6);
-assert.notEqual(boundedFeather, baseSampler(0, 6));
-assert.notEqual(boundedFeather, 120);
-const nearSideProbeBase = baseSampler(0, 20);''', 'side regression')
-          s = r(s, '''const rotatedSideProbe = { x: -diagonal * 25, z: diagonal * 25 };''', '''const rotatedTightSideProbe = { x: -diagonal * 8, z: diagonal * 8 };
-assert.equal(rotatedSampler(rotatedTightSideProbe.x, rotatedTightSideProbe.z), baseSampler(rotatedTightSideProbe.x, rotatedTightSideProbe.z), 'rotated rect cells must preserve near-side terrain beyond feather');
-const rotatedSideProbe = { x: -diagonal * 25, z: diagonal * 25 };''', 'rotated regression')
+\tconst hole = new THREE.Path();
+\thole.moveTo(-openingHalfWidth, 0);
+\thole.lineTo(-openingHalfWidth, sideHeight);
+\tfor (let step = 0; step <= 16; step += 1) {
+\t\tconst angle = Math.PI - (step / 16) * Math.PI;
+\t\thole.lineTo(
+\t\t\tMath.cos(angle) * openingHalfWidth,
+\t\t\tsideHeight + Math.sin(angle) * archRise,
+\t\t);
+\t}
+\thole.lineTo(openingHalfWidth, 0);
+\thole.closePath();
+\tshape.holes.push(hole);
+\treturn shape;
+}'''
+          new = '''function makePortalShape(width, height, openingHalfWidth, sideHeight, archRise) {
+\tconst halfWidth = width * 0.5;
+\tconst shape = new THREE.Shape();
+\t// The walk-through opening reaches the ground. A Shape hole that touches the outer contour is
+\t// degenerate for Earcut and can drop the portal's front/back caps, so trace one concave outer
+\t// contour around the arch instead: open at player height, manifold above and beside the portal.
+\tshape.moveTo(-halfWidth, 0);
+\tshape.lineTo(-openingHalfWidth, 0);
+\tshape.lineTo(-openingHalfWidth, sideHeight);
+\tfor (let step = 0; step <= 16; step += 1) {
+\t\tconst angle = Math.PI - (step / 16) * Math.PI;
+\t\tshape.lineTo(
+\t\t\tMath.cos(angle) * openingHalfWidth,
+\t\t\tsideHeight + Math.sin(angle) * archRise,
+\t\t);
+\t}
+\tshape.lineTo(openingHalfWidth, 0);
+\tshape.lineTo(halfWidth, 0);
+\tshape.lineTo(halfWidth, height);
+\tshape.lineTo(-halfWidth, height);
+\tshape.closePath();
+\treturn shape;
+}'''
+          if s.count(old) != 1:
+              raise SystemExit(f'portal contour match count {s.count(old)}')
+          p.write_text(s.replace(old, new, 1))
+
+          p = Path('scripts/checkIceLandmarks.mjs')
+          s = p.read_text()
+          if "import * as THREE from 'three';" not in s:
+              anchor = "import assert from 'node:assert/strict';\n"
+              if s.count(anchor) != 1: raise SystemExit('test import anchor changed')
+              s = s.replace(anchor, anchor + "import * as THREE from 'three';\n", 1)
+          if 'castThroughPortalLocal' not in s:
+              anchor = "assert(Math.abs(wall.material?.ior - 1.31) < 1e-9, 'ice IOR must remain physically plausible');\n\n"
+              block = '''assert(Math.abs(wall.material?.ior - 1.31) < 1e-9, 'ice IOR must remain physically plausible');
+
+const portalMesh = result.group.getObjectByName('ice-wall-cave-portal');
+assert(portalMesh?.isMesh, 'arched cave portal mesh missing');
+portalMesh.geometry.computeBoundingBox();
+portalMesh.updateWorldMatrix(true, false);
+const portalBounds = portalMesh.geometry.boundingBox;
+assert(portalBounds, 'portal geometry must expose finite bounds');
+const portalRaycaster = new THREE.Raycaster();
+function castThroughPortalLocal(localX, localY) {
+  const origin = new THREE.Vector3(localX, localY, portalBounds.min.z - 5).applyMatrix4(portalMesh.matrixWorld);
+  const direction = new THREE.Vector3(0, 0, 1).transformDirection(portalMesh.matrixWorld);
+  portalRaycaster.set(origin, direction);
+  return portalRaycaster.intersectObject(portalMesh, false);
+}
+const archTopY = ICE_LANDMARK_POLICY.cave.openingSideHeightMeters + ICE_LANDMARK_POLICY.cave.openingArchRiseMeters;
+assert(castThroughPortalLocal(0, archTopY + 4).length > 0,
+  'ice portal crown must retain a closed front/back face above the walk-through arch');
+assert.equal(castThroughPortalLocal(0, 1.5).length, 0,
+  'ice portal center must remain open at player walking height');
+
+'''
+              if s.count(anchor) != 1: raise SystemExit('test portal anchor changed')
+              s = s.replace(anchor, block, 1)
           p.write_text(s)
           PY
           node scripts/setupNodeThreeShim.mjs
-          node --check src/3d/world/terrainFoundationConformer.js
-          node --check src/3d/world/terrain.js
-          node scripts/checkStructureGroundingPolicy.mjs
-          node scripts/checkSettlementFoundationAuthority.mjs
-          node scripts/checkTerrainFoundationConformer.mjs
-          node scripts/checkTerrainFoundationBatchRemoval.mjs
-          node scripts/checkWorldFootprintGrounding.mjs
+          node --check src/3d/world/iceLandmarks.js
+          node --check scripts/checkIceLandmarks.mjs
+          node scripts/checkIceLandmarks.mjs
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          ln -sfn "$RUNNER_TEMP/pw/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Render repaired Wall and cave before publishing
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkIceLandmarksVisualQa.js
+      - name: Upload repair proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ice-portal-manifold-repair-${{ github.event.pull_request.head.sha }}
+          path: artifacts/ice-landmarks-visual-qa/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish validated repair and restore workflow state
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin codex/foundation-grounding-20260821
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/codex/foundation-grounding-20260821)" || {
+            echo 'Branch advanced during validation; refusing to overwrite concurrent work.' >&2
+            exit 1
+          }
+          git show 439681cf4572424c6cf9ac3080740fa367dc414d:.github/workflows/one-shot-rect-foundation-patch.yml > .github/workflows/one-shot-rect-foundation-patch.yml
+          git show 439681cf4572424c6cf9ac3080740fa367dc414d:.github/workflows/ice-landmarks-visual-qa.yml > .github/workflows/ice-landmarks-visual-qa.yml
+          rm -f .github/workflows/one-shot-ice-portal-manifold.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- src/3d/world/terrainFoundationConformer.js src/3d/world/terrain.js scripts/checkTerrainFoundationConformer.mjs
+          git add -- src/3d/world/iceLandmarks.js scripts/checkIceLandmarks.mjs .github/workflows/one-shot-rect-foundation-patch.yml .github/workflows/ice-landmarks-visual-qa.yml
+          git add -u -- .github/workflows/one-shot-ice-portal-manifold.yml
           git diff --cached --check
-          git commit -m "feat(world): conform structure terrain with rectangular cells"
+          git commit -m "fix(world): close ice cave portal frame"
           git push origin HEAD:codex/foundation-grounding-20260821
