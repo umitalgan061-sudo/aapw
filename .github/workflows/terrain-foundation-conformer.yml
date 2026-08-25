@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/3d/world/terrainFoundationConformer.js'
       - 'src/3d/world/WorldAssetPlacementPipeline.js'
+      - 'src/3d/world/foundationIslandProbes.js'
       - 'src/3d/world/structureGroundingPolicy.js'
       - 'src/3d/world/settlements.js'
       - 'src/3d/world/terrain.js'
@@ -20,6 +21,7 @@ on:
       - 'scripts/checkGroundContactFootprintFiltering.mjs'
       - 'scripts/checkDisconnectedFoundationIslands.mjs'
       - 'scripts/checkFoundationTopologyTransition.mjs'
+      - 'scripts/checkFoundationIslandProbes.mjs'
       - 'scripts/setupNodeThreeShim.mjs'
       - '.github/workflows/terrain-foundation-conformer.yml'
   workflow_dispatch:
@@ -47,6 +49,7 @@ jobs:
         run: |
           node --check src/3d/world/terrainFoundationConformer.js
           node --check src/3d/world/WorldAssetPlacementPipeline.js
+          node --check src/3d/world/foundationIslandProbes.js
           node --check src/3d/world/structureGroundingPolicy.js
           node --check scripts/checkStructureGroundingPolicy.mjs
           node --check scripts/checkStructureSurfacePolicy.mjs
@@ -58,6 +61,7 @@ jobs:
           node --check scripts/checkGroundContactFootprintFiltering.mjs
           node --check scripts/checkDisconnectedFoundationIslands.mjs
           node --check scripts/checkFoundationTopologyTransition.mjs
+          node --check scripts/checkFoundationIslandProbes.mjs
       - name: Shared structure footprint and surface classification
         run: |
           node scripts/checkStructureGroundingPolicy.mjs
@@ -73,3 +77,4 @@ jobs:
           node scripts/checkGroundContactFootprintFiltering.mjs
           node scripts/checkDisconnectedFoundationIslands.mjs
           node scripts/checkFoundationTopologyTransition.mjs
+          node scripts/checkFoundationIslandProbes.mjs
