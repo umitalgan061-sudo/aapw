@@ -15,7 +15,7 @@ const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 
 export const NORTH_GROUND_COVER_POLICY = Object.freeze({
-	id: 'north-ground-cover-climate-2026-08-22-v2-map-aligned',
+	id: 'north-ground-cover-climate-2026-08-25-v3-ecological-mosaic',
 	mapAlignedClimateAvailable: true,
 	renderClimateOnly: true,
 	heightAuthorityUnchanged: true,
@@ -29,6 +29,16 @@ export const NORTH_GROUND_COVER_POLICY = Object.freeze({
 	// cover rather than temperate meadow grass with fewer copies.
 	tundraHeightSuppression: 0.36,
 	iceHeightSuppression: 0.55,
+	// Render-only, deterministic multi-scale patchiness. This does not move climate boundaries or
+	// invent vegetation zones; it only breaks uniform tundra carpets inside already-authoritative
+	// climate weights. Broad cells read as ecological mosaics while fine cells break repeated tufts.
+	ecologicalMosaic: Object.freeze({
+		broadScaleMeters: 210,
+		fineScaleMeters: 58,
+		densityStrength: 0.34,
+		heightStrength: 0.18,
+		colorStrength: 0.12,
+	}),
 	// Existing Run-180 grass is 0x4f7f36. The frozen transition target is a desaturated lichen/tundra
 	// tone, not white: snow itself belongs to terrain shading, while sparse surviving cover stays plant.
 	temperateRgb: Object.freeze({ r: 0x4f / 255, g: 0x7f / 255, b: 0x36 / 255 }),
@@ -43,17 +53,62 @@ function blendRgb(a, b, amount) {
 	});
 }
 
-function profileFromClimate(climate) {
+function hashCell(ix, iz, seed) {
+	let value = Math.imul((ix | 0) ^ seed, 0x27d4eb2d) ^ Math.imul((iz | 0) + seed, 0x165667b1);
+	value ^= value >>> 15;
+	value = Math.imul(value, 0x85ebca6b);
+	value ^= value >>> 13;
+	return (value >>> 0) / 0x100000000;
+}
+
+function smoothNoiseAt(worldX, worldZ, scaleMeters, seed) {
+	const x = worldX / scaleMeters;
+	const z = worldZ / scaleMeters;
+	const x0 = Math.floor(x);
+	const z0 = Math.floor(z);
+	const tx0 = x - x0;
+	const tz0 = z - z0;
+	const tx = tx0 * tx0 * (3 - 2 * tx0);
+	const tz = tz0 * tz0 * (3 - 2 * tz0);
+	const a = hashCell(x0, z0, seed);
+	const b = hashCell(x0 + 1, z0, seed);
+	const c = hashCell(x0, z0 + 1, seed);
+	const d = hashCell(x0 + 1, z0 + 1, seed);
+	return lerp(lerp(a, b, tx), lerp(c, d, tx), tz);
+}
+
+function ecologicalMosaicAt(worldX, worldZ) {
+	const P = NORTH_GROUND_COVER_POLICY.ecologicalMosaic;
+	const broad = smoothNoiseAt(worldX, worldZ, P.broadScaleMeters, 0x5a17);
+	const fine = smoothNoiseAt(worldX + 31.7, worldZ - 19.3, P.fineScaleMeters, 0x91e3);
+	return clamp01(broad * 0.72 + fine * 0.28);
+}
+
+function profileFromClimate(climate, worldX = null, worldZ = null) {
 	const P = NORTH_GROUND_COVER_POLICY;
 	const iceSurvival = 1 - clamp01(climate.permanentIce / P.permanentIceGrassZeroThreshold);
 	const tundraSurvival = 1 - climate.tundra * P.tundraDensitySuppression;
-	const grassDensity = clamp01(iceSurvival * tundraSurvival);
-	const heightScale = clamp01(
+	let grassDensity = clamp01(iceSurvival * tundraSurvival);
+	let heightScale = clamp01(
 		(1 - climate.tundra * P.tundraHeightSuppression)
 		* (1 - climate.permanentIce * P.iceHeightSuppression),
 	);
 	const frostAmount = clamp01(Math.max(climate.tundra * 0.92, climate.permanentIce));
-	const rgb = blendRgb(P.temperateRgb, P.tundraRgb, frostAmount);
+	let rgb = blendRgb(P.temperateRgb, P.tundraRgb, frostAmount);
+	let ecologicalMosaic = null;
+
+	if (Number.isFinite(worldX) && Number.isFinite(worldZ)) {
+		ecologicalMosaic = ecologicalMosaicAt(worldX, worldZ);
+		const tundraInfluence = clamp01(Math.max(climate.tundra, climate.permanentIce * 0.72));
+		const centered = (ecologicalMosaic - 0.5) * 2;
+		grassDensity = clamp01(grassDensity * (1 + centered * P.ecologicalMosaic.densityStrength * tundraInfluence));
+		heightScale = clamp01(heightScale * (1 + centered * P.ecologicalMosaic.heightStrength * tundraInfluence));
+		const colorShift = clamp01(0.5 + centered * P.ecologicalMosaic.colorStrength * tundraInfluence);
+		const dryTundra = Object.freeze({ r: 0.42, g: 0.45, b: 0.37 });
+		const dampLichen = Object.freeze({ r: 0.49, g: 0.53, b: 0.46 });
+		const mosaicRgb = blendRgb(dryTundra, dampLichen, colorShift);
+		rgb = blendRgb(rgb, mosaicRgb, tundraInfluence * 0.22);
+	}
 
 	return Object.freeze({
 		policyId: P.id,
@@ -65,6 +120,7 @@ function profileFromClimate(climate) {
 		grassDensity,
 		heightScale,
 		frostAmount,
+		ecologicalMosaic,
 		rgb,
 	});
 }
@@ -73,7 +129,7 @@ function profileFromClimate(climate) {
  * Canonical map-aligned low-cover profile. This is the preferred API for runtime scatter systems.
  */
 export function northGroundCoverProfileAtWorldXZ(worldX, worldZ) {
-	return profileFromClimate(northReferenceCryosphereAtWorldXZ(worldX, worldZ));
+	return profileFromClimate(northReferenceCryosphereAtWorldXZ(worldX, worldZ), worldX, worldZ);
 }
 
 /**
