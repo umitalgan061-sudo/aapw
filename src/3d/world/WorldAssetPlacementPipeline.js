@@ -9,6 +9,7 @@ import {
   isStructureGroundingCandidate,
   resolveStructureSurfaceProfile,
 } from './structureGroundingPolicy.js';
+import { createDisconnectedFoundationIslandProbes } from './foundationIslandProbes.js';
 
 export const WORLD_SURFACE_POLICY_PRESETS = Object.freeze({
   vegetation: Object.freeze({
@@ -174,6 +175,12 @@ export function auditWorldAssetPlacement(object) {
       errors.push(...audit.errors.map((error) => `footprint-${index}:${error}`));
     });
   }
+  if (storedFootprint?.islandSamples?.length && storedPolicy) {
+    storedFootprint.islandSamples.forEach((sample, index) => {
+      const audit = evaluateWorldSurfacePlacement(sample, storedPolicy);
+      errors.push(...audit.errors.map((error) => `footprint-island-${index}:${error}`));
+    });
+  }
 
   return {
     ok: errors.length === 0,
@@ -262,7 +269,41 @@ export function resolveWorldSurfacePlacement(object, {
     return { ok: true, surface: stripPlacementCoordinates(centerSurface), footprint: null, policy };
   }
 
-  const heights = normalizedSamples.map((sample) => sample.height);
+  const islandPointRecords = createDisconnectedFoundationIslandProbes(footprintGeometry.footprintIslands || []);
+  const islandSamples = [];
+  for (const point of islandPointRecords) {
+    const normalized = normalizeWorldSurfaceSample(query(point.x, point.z));
+    if (!normalized.ok) {
+      return {
+        ok: false,
+        error: `surface:${normalized.error}`,
+        surface: normalized.sample,
+        footprint: null,
+        policy,
+      };
+    }
+    const evaluation = evaluateWorldSurfacePlacement(normalized.sample, policy);
+    if (!evaluation.ok) {
+      return {
+        ok: false,
+        error: `surface:${evaluation.errors.join(',')}`,
+        surface: normalized.sample,
+        footprint: null,
+        policy,
+        evaluation,
+      };
+    }
+    islandSamples.push({
+      ...normalized.sample,
+      x: point.x,
+      z: point.z,
+      label: point.label,
+      islandIndex: point.islandIndex,
+    });
+  }
+
+  const heightSamples = islandSamples.length ? [...normalizedSamples, ...islandSamples] : normalizedSamples;
+  const heights = heightSamples.map((sample) => sample.height);
   const minHeight = Math.min(...heights);
   const maxHeight = Math.max(...heights);
   const inset = Number.isFinite(Number(foundationInsetMeters))
@@ -280,6 +321,8 @@ export function resolveWorldSurfacePlacement(object, {
       footprintIslands: footprintGeometry.footprintIslands || [],
       points: pointRecords.map((point) => ({ ...point })),
       samples: normalizedSamples.map((sample) => ({ ...sample })),
+      islandPoints: islandPointRecords.map((point) => ({ ...point })),
+      islandSamples: islandSamples.map((sample) => ({ ...sample })),
       targetHeight: maxHeight,
       minHeight,
       maxHeight,
@@ -314,6 +357,7 @@ export function resolveWorldSurfacePlacement(object, {
     orientedFootprint: footprintGeometry.orientedFootprint || null,
     footprintIslands: footprintGeometry.footprintIslands || [],
     samples: normalizedSamples.map(stripPlacementCoordinates),
+    islandSamples: islandSamples.map(stripPlacementCoordinates),
   });
 
   return {
