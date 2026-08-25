@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import * as THREE from 'three';
 
 import { WORLD_DEFAULTS } from '../src/3d/config.js';
 import { createHeightSampler } from '../src/3d/world/terrain.js';
@@ -45,6 +46,25 @@ assert.equal(wall.material?.userData?.iceSurface?.mode, 'wall-glacial-cliff');
 assert.equal(wall.material?.userData?.iceSurface?.verticalFlowTexture, true);
 assert.equal(wall.material?.userData?.iceSurface?.proceduralCracks, true);
 assert(Math.abs(wall.material?.ior - 1.31) < 1e-9, 'ice IOR must remain physically plausible');
+
+const portalMesh = result.group.getObjectByName('ice-wall-cave-portal');
+assert(portalMesh?.isMesh, 'arched cave portal mesh missing');
+portalMesh.geometry.computeBoundingBox();
+portalMesh.updateWorldMatrix(true, false);
+const portalBounds = portalMesh.geometry.boundingBox;
+assert(portalBounds, 'portal geometry must expose finite bounds');
+const portalRaycaster = new THREE.Raycaster();
+function castThroughPortalLocal(localX, localY) {
+  const origin = new THREE.Vector3(localX, localY, portalBounds.min.z - 5).applyMatrix4(portalMesh.matrixWorld);
+  const direction = new THREE.Vector3(0, 0, 1).transformDirection(portalMesh.matrixWorld);
+  portalRaycaster.set(origin, direction);
+  return portalRaycaster.intersectObject(portalMesh, false);
+}
+const archTopY = ICE_LANDMARK_POLICY.cave.openingSideHeightMeters + ICE_LANDMARK_POLICY.cave.openingArchRiseMeters;
+assert(castThroughPortalLocal(0, archTopY + 4).length > 0,
+  'ice portal crown must retain a closed front/back face above the walk-through arch');
+assert.equal(castThroughPortalLocal(0, 1.5).length, 0,
+  'ice portal center must remain open at player walking height');
 
 const caveMesh = result.group.children.find((child) => child.userData?.iceLandmarkRole === 'walkable-ice-cave-shell');
 assert(caveMesh?.isMesh, 'walk-through cave shell missing');
