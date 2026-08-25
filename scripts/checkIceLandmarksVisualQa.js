@@ -39,6 +39,16 @@ try {
       policyId: ICE_LANDMARK_POLICY.id,
       wallPath,
       caveAnchor,
+      wallDesign: {
+        baseHeightMeters: ICE_LANDMARK_POLICY.wall.baseHeightMeters,
+        heightVariationMeters: ICE_LANDMARK_POLICY.wall.heightVariationMeters,
+        baseThicknessMeters: ICE_LANDMARK_POLICY.wall.baseThicknessMeters,
+        thicknessVariationMeters: ICE_LANDMARK_POLICY.wall.thicknessVariationMeters,
+      },
+      caveDesign: {
+        openingHalfWidthMeters: ICE_LANDMARK_POLICY.cave.openingHalfWidthMeters,
+        tunnelDepthMeters: ICE_LANDMARK_POLICY.cave.tunnelDepthMeters,
+      },
       referenceMap: WORLD_REFERENCE_MAP,
       biomeAnchors: {
         winterCenterY: winter?.center?.[1] ?? null,
@@ -48,7 +58,22 @@ try {
   });
   const stats = evidence.stats;
   if (!(stats.width > 2200 && stats.width < 3600)) throw new Error(`wall width outside visual contract: ${stats.width}`);
-  if (!(stats.height > 120 && stats.height < 230)) throw new Error(`wall height outside visual contract: ${stats.height}`);
+  // `stats.height` is the entire landmark group envelope: different terrain elevations plus the
+  // wall, arched portal, tunnel shell, and ceiling icicles. Keep this as a broad scene-safety bound;
+  // the actual wall design height is audited separately below from the production policy.
+  if (!(stats.height > 170 && stats.height < 290)) throw new Error(`ice-landmark group height outside visual envelope: ${stats.height}`);
+  if (!(evidence.wallDesign.baseHeightMeters >= 145 && evidence.wallDesign.baseHeightMeters <= 175)) {
+    throw new Error(`The Wall base height drifted outside the audited natural-cliff range: ${JSON.stringify(evidence.wallDesign)}`);
+  }
+  if (!(evidence.wallDesign.heightVariationMeters >= 20 && evidence.wallDesign.heightVariationMeters <= 40)) {
+    throw new Error(`The Wall height variation is no longer natural but bounded: ${JSON.stringify(evidence.wallDesign)}`);
+  }
+  if (!(evidence.wallDesign.baseThicknessMeters >= 24 && evidence.wallDesign.baseThicknessMeters <= 42)) {
+    throw new Error(`The Wall thickness drifted outside the audited glacial range: ${JSON.stringify(evidence.wallDesign)}`);
+  }
+  if (!(evidence.caveDesign.openingHalfWidthMeters >= 6 && evidence.caveDesign.openingHalfWidthMeters <= 10 && evidence.caveDesign.tunnelDepthMeters >= 70)) {
+    throw new Error(`ice cave is no longer a traversable Wall tunnel: ${JSON.stringify(evidence.caveDesign)}`);
+  }
   if (!(stats.blockers > 40)) throw new Error(`insufficient collision blockers: ${stats.blockers}`);
   if (stats.terrainAuthority !== 'canonical-createHeightSampler+terrainBiomeShading') {
     throw new Error(`ice QA lost canonical terrain authority: ${stats.terrainAuthority}`);
@@ -120,6 +145,8 @@ try {
 
   const report = {
     ...stats,
+    wallDesign: evidence.wallDesign,
+    caveDesign: evidence.caveDesign,
     lifecycle,
     mapAlignment: {
       policyId: evidence.policyId,
@@ -138,8 +165,8 @@ try {
   };
   await fs.writeFile(path.join(artifactDir, 'stats.json'), JSON.stringify(report, null, 2));
   console.log(
-    `Ice landmarks visual QA passed: ${stats.width.toFixed(1)}m wall span, ${stats.height.toFixed(1)}m height, ` +
-    `${stats.blockers} blockers, canonical terrain relief ${stats.terrain.reliefSpan.toFixed(1)}m, ` +
+    `Ice landmarks visual QA passed: ${stats.width.toFixed(1)}m wall span, ${evidence.wallDesign.baseHeightMeters}m designed wall height, ` +
+    `${stats.height.toFixed(1)}m full landmark envelope, ${stats.blockers} blockers, canonical terrain relief ${stats.terrain.reliefSpan.toFixed(1)}m, ` +
     `wall map Y ${meanWallY.toFixed(4)} between winter ${evidence.biomeAnchors.winterCenterY} and north ${evidence.biomeAnchors.northCenterY}.`,
   );
 } finally {
