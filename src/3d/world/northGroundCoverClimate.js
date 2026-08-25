@@ -37,11 +37,16 @@ export const NORTH_GROUND_COVER_POLICY = Object.freeze({
 		broadScaleMeters: 210,
 		fineScaleMeters: 58,
 		microScaleMeters: 23,
+		windStreakLengthMeters: 330,
+		windStreakWidthMeters: 42,
 		densityStrength: 0.34,
 		heightStrength: 0.18,
 		frostHeaveHeightStrength: 0.08,
+		windScourDensityStrength: 0.21,
+		windScourHeightStrength: 0.12,
 		colorStrength: 0.12,
 		wetDarkeningStrength: 0.13,
+		windBleachStrength: 0.08,
 	}),
 	// Existing Run-180 grass is 0x4f7f36. The frozen transition target is a desaturated lichen/tundra
 	// tone, not white: snow itself belongs to terrain shading, while sparse surviving cover stays plant.
@@ -111,6 +116,18 @@ function frostHeaveAt(worldX, worldZ) {
 	return clamp01(a * 0.63 + b * 0.37);
 }
 
+function windScourAt(worldX, worldZ) {
+	const P = NORTH_GROUND_COVER_POLICY.ecologicalMosaic;
+	// Rotate into a fixed world-space prevailing-wind frame. Strongly anisotropic sampling creates
+	// long, soft streaks instead of another isotropic blob field, while remaining deterministic and
+	// independent of camera/chunk origin. It only modulates already-authoritative tundra cover.
+	const alongWind = worldX * 0.82 + worldZ * 0.57;
+	const crossWind = -worldX * 0.57 + worldZ * 0.82;
+	const broad = smoothNoiseAt(alongWind, crossWind, P.windStreakLengthMeters, 0x61bd);
+	const narrow = smoothNoiseAt(alongWind * 0.19, crossWind, P.windStreakWidthMeters, 0xe735);
+	return clamp01(broad * 0.58 + narrow * 0.42);
+}
+
 function profileFromClimate(climate, worldX = null, worldZ = null) {
 	const P = NORTH_GROUND_COVER_POLICY;
 	const iceSurvival = 1 - clamp01(climate.permanentIce / P.permanentIceGrassZeroThreshold);
@@ -125,19 +142,27 @@ function profileFromClimate(climate, worldX = null, worldZ = null) {
 	let ecologicalMosaic = null;
 	let tundraMoisture = null;
 	let frostHeave = null;
+	let windScour = null;
 
 	if (Number.isFinite(worldX) && Number.isFinite(worldZ)) {
 		ecologicalMosaic = ecologicalMosaicAt(worldX, worldZ);
 		tundraMoisture = tundraMoistureAt(worldX, worldZ);
 		frostHeave = frostHeaveAt(worldX, worldZ);
+		windScour = windScourAt(worldX, worldZ);
 		const tundraInfluence = clamp01(Math.max(climate.tundra, climate.permanentIce * 0.72));
 		const centered = (ecologicalMosaic - 0.5) * 2;
 		const heaveCentered = (frostHeave - 0.5) * 2;
-		grassDensity = clamp01(grassDensity * (1 + centered * P.ecologicalMosaic.densityStrength * tundraInfluence));
+		const scourCentered = (windScour - 0.5) * 2;
+		grassDensity = clamp01(grassDensity * (
+			1
+			+ centered * P.ecologicalMosaic.densityStrength * tundraInfluence
+			- scourCentered * P.ecologicalMosaic.windScourDensityStrength * tundraInfluence
+		));
 		heightScale = clamp01(heightScale * (
 			1
 			+ centered * P.ecologicalMosaic.heightStrength * tundraInfluence
 			+ heaveCentered * P.ecologicalMosaic.frostHeaveHeightStrength * tundraInfluence
+			- scourCentered * P.ecologicalMosaic.windScourHeightStrength * tundraInfluence
 		));
 		const colorShift = clamp01(0.5 + centered * P.ecologicalMosaic.colorStrength * tundraInfluence);
 		const dryTundra = Object.freeze({ r: 0.42, g: 0.45, b: 0.37 });
@@ -146,6 +171,9 @@ function profileFromClimate(climate, worldX = null, worldZ = null) {
 		rgb = blendRgb(rgb, mosaicRgb, tundraInfluence * 0.22);
 		const dampness = clamp01((tundraMoisture - 0.38) / 0.62) * tundraInfluence;
 		rgb = scaleRgb(rgb, 1 - dampness * P.ecologicalMosaic.wetDarkeningStrength);
+		const exposedBleach = clamp01((windScour - 0.52) / 0.48) * tundraInfluence;
+		const windBleachedLichen = Object.freeze({ r: 0.56, g: 0.57, b: 0.49 });
+		rgb = blendRgb(rgb, windBleachedLichen, exposedBleach * P.ecologicalMosaic.windBleachStrength);
 	}
 
 	return Object.freeze({
@@ -161,6 +189,7 @@ function profileFromClimate(climate, worldX = null, worldZ = null) {
 		ecologicalMosaic,
 		tundraMoisture,
 		frostHeave,
+		windScour,
 		rgb,
 	});
 }
