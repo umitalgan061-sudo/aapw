@@ -23,9 +23,16 @@ const FOG_DENSITY_DAY = 0.00036;
 const FOG_DENSITY_NIGHT = 0.00054;
 /** Dawn/dusk humidity/scattering peak. This is visual-only and does not alter weather/gameplay. */
 const FOG_TWILIGHT_DENSITY_GAIN = 0.000085;
+/** Midday dry-air clarity keeps long views from reading like the same opacity slider at every phase. */
+const FOG_MIDDAY_CLARITY_GAIN = 0.000022;
+/** Twilight is deliberately narrower than a simple parabola so haze belongs near low-angle light. */
+const FOG_TWILIGHT_CURVE_POWER = 2.35;
 /** Slightly neutral atmospheric tint mixed into the sky-derived horizon only when haze is strongest. */
 const FOG_HAZE_TINT = new THREE.Color(0x9aa6ad);
+/** A warmer aerosol tint near low-angle sun keeps dawn/dusk from becoming a neutral grey wash. */
+const FOG_TWILIGHT_WARM_TINT = new THREE.Color(0xb5a79c);
 const FOG_HAZE_TINT_MAX = 0.075;
+const FOG_TWILIGHT_WARM_TINT_MAX = 0.032;
 
 /**
  * Creates the scene fog. Caller assigns it to `scene.fog` and calls `updateFog` every frame
@@ -40,18 +47,25 @@ export function createFog() {
  * Syncs fog color/density to the current day/night state. Call once per frame, after
  * `lighting.js`'s `updateDayNightLighting`.
  *
- * A small twilight lobe avoids the old perfectly linear day→night density ramp, which made the
- * atmosphere read like one global opacity slider. Real low-angle light travels through more air and
- * makes suspended moisture/aerosol structure more visible; the bounded lobe captures that perceptual
- * effect without inventing weather or changing the sky/celestial authority.
+ * A bounded twilight lobe avoids the old perfectly linear day→night density ramp. The lobe uses a
+ * powered sine rather than `4*x*(1-x)`: it rises later and falls sooner, concentrating suspended
+ * aerosol visibility around genuinely low-angle light instead of making half the diurnal cycle
+ * equally hazy. A small midday clarity notch restores long-distance separation under high sun.
+ * Both effects are render-only and remain subordinate to the authoritative lighting horizon color.
  *
  * @param {THREE.FogExp2} fog
  * @param {{horizonColor: THREE.Color, nightFactor: number}} dayNight - `lighting.js`'s per-frame output.
  */
 export function updateFog(fog, dayNight) {
 	const nightFactor = THREE.MathUtils.clamp(dayNight.nightFactor, 0, 1);
-	const twilight = 4 * nightFactor * (1 - nightFactor);
-	fog.color.copy(dayNight.horizonColor).lerp(FOG_HAZE_TINT, twilight * FOG_HAZE_TINT_MAX);
+	const twilight = Math.pow(Math.sin(Math.PI * nightFactor), FOG_TWILIGHT_CURVE_POWER);
+	const fullDay = 1 - THREE.MathUtils.smoothstep(nightFactor, 0.08, 0.42);
+
+	fog.color.copy(dayNight.horizonColor)
+		.lerp(FOG_HAZE_TINT, twilight * FOG_HAZE_TINT_MAX)
+		.lerp(FOG_TWILIGHT_WARM_TINT, twilight * FOG_TWILIGHT_WARM_TINT_MAX);
+
 	fog.density = THREE.MathUtils.lerp(FOG_DENSITY_DAY, FOG_DENSITY_NIGHT, nightFactor)
-		+ twilight * FOG_TWILIGHT_DENSITY_GAIN;
+		+ twilight * FOG_TWILIGHT_DENSITY_GAIN
+		- fullDay * FOG_MIDDAY_CLARITY_GAIN;
 }
