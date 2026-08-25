@@ -1,3 +1,4 @@
+# Git-data ref trigger: explicit fast-forward update for the one-shot repair.
 # Existing-file trigger: this second connector commit lets GitHub register the push workflow before execution.
 name: One Shot Ice Portal Manifold Repair
 
