@@ -36,7 +36,7 @@ jobs:
           base=$(git merge-base HEAD origin/main)
           test "$base" = "$(git rev-parse origin/main)"
           mapfile -t paths < <(git diff --name-only "$base"...HEAD)
-          allowed='^(scripts/checkInteractionExpeditionTavernRecovery\.mjs|scripts/checkInteractionMasteryToSmithingBrowser\.mjs|scripts/checkInteractionMasteryArmorerServiceBrowser\.mjs|scripts/checkInteractionTavernReceiptIntegrity\.mjs|\.github/workflows/(rpg-expedition-tavern-recovery|rpg-interaction-quest-loop|rpg-journey-ledger-ux|rpg-mastery-armorer-service|rpg-mastery-journal-continuity|rpg-mastery-to-smithing|rpg-mastery-travel-continuity|rpg-tavern-receipt-integrity)\.yml|src/3d/gameplay/(interaction|interactionConfig|interactionEconomy)\.js)$'
+          allowed='^(scripts/checkInteractionExpedition(Board|TavernRecovery)\.mjs|scripts/checkInteractionMasteryToSmithingBrowser\.mjs|scripts/checkInteractionMasteryArmorerServiceBrowser\.mjs|scripts/checkInteractionTavernReceiptIntegrity\.mjs|\.github/workflows/(rpg-expedition-tavern-recovery|rpg-interaction-quest-loop|rpg-journey-ledger-ux|rpg-mastery-armorer-service|rpg-mastery-journal-continuity|rpg-mastery-to-smithing|rpg-mastery-travel-continuity|rpg-tavern-receipt-integrity)\.yml|src/3d/gameplay/(interaction|interactionConfig|interactionEconomy)\.js)$'
           for path in "${paths[@]}"; do
             [[ "$path" =~ $allowed ]] || { echo "Unexpected path: $path"; exit 1; }
           done
