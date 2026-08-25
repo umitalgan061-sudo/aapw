@@ -65,7 +65,12 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 	function clearResolutionAfterSameEvent(payload) {
 		// Preserve the authoritative snapshot through the first microtask wave so listeners
 		// registered after health can defer their own same-event reconciliation without racing cleanup.
-		queueMicrotask(() => queueMicrotask(() => clearDamageResolution(payload)));
+		// If the same payload object is reused before cleanup, a stale event must not erase the
+		// newer event's authoritative resolution.
+		const resolution = readDamageResolution(payload);
+		queueMicrotask(() => queueMicrotask(() => {
+			if (readDamageResolution(payload) === resolution) clearDamageResolution(payload);
+		}));
 	}
 
 	function emitHealthChanged({ previous = current, reason = 'sync', sourceId = null } = {}) {
