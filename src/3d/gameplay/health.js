@@ -55,6 +55,10 @@ function writeDamageAppliedAmount(payload, appliedAmount) {
 	return tryWrite(payload, 'appliedAmount', appliedAmount);
 }
 
+function readDamageSourceId(payload, stagedResolution = readDamageResolution(payload)) {
+	return stagedResolution?.sourceId ?? payload?.sourceId ?? null;
+}
+
 export function createHealthState({ eventsBus, maxHealth, damageEventName, healthChangedEventName, diedEventName }) {
 	if (!Number.isFinite(maxHealth) || !(maxHealth > 0)) {
 		throw new RangeError('createHealthState maxHealth must be a finite positive number');
@@ -102,13 +106,14 @@ export function createHealthState({ eventsBus, maxHealth, damageEventName, healt
 			return;
 		}
 		const previous = current;
+		const sourceId = readDamageSourceId(payload, stagedResolution);
 		current = Math.max(0, current - amount);
 		const appliedAmount = previous - current;
 		writeDamageAppliedAmount(payload, appliedAmount);
-		emitHealthChanged({ previous, reason: 'damage', sourceId: payload?.sourceId ?? null });
+		emitHealthChanged({ previous, reason: 'damage', sourceId });
 		if (current === 0 && !hasDied) {
 			hasDied = true;
-			const deathReceipt = { sourceId: payload?.sourceId ?? null };
+			const deathReceipt = { sourceId };
 			Object.defineProperties(deathReceipt, {
 				current: { value: current, enumerable: false },
 				maxHealth: { value: maxHealth, enumerable: false },
