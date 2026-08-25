@@ -312,6 +312,58 @@ function createCaveIciclesAndDebris(group, portal, rings, seed) {
 	return Object.freeze({ icicleCount: icicleMesh.count, debrisCount: debrisMesh.count });
 }
 
+function createCaveBlueCoreBreakup(group, portal, rings, seed) {
+	if (rings.length < 6) return 0;
+	const material = new THREE.MeshPhysicalMaterial({
+		color: 0x2f8197,
+		roughness: 0.19,
+		metalness: 0,
+		transmission: 0.24,
+		thickness: 2.4,
+		ior: 1.31,
+		attenuationColor: 0x14576b,
+		attenuationDistance: 6.5,
+		clearcoat: 0.28,
+		clearcoatRoughness: 0.18,
+		emissive: 0x062f3b,
+		emissiveIntensity: 0.16,
+	});
+	const transforms = [];
+	for (let ringIndex = 3; ringIndex < rings.length - 2; ringIndex += 2) {
+		const ring = rings[ringIndex];
+		for (const side of [-1, 1]) {
+			if (hash2D(ringIndex, side + 181, seed + 10601) < 0.26) continue;
+			const lateral = side * ring.halfWidth * (0.73 + hash2D(ringIndex, side + 191, seed + 10709) * 0.16);
+			const lift = ring.halfHeight * (0.18 + hash2D(ringIndex, side + 193, seed + 10831) * 0.42);
+			const width = 0.55 + hash2D(ringIndex, side + 197, seed + 10939) * 1.15;
+			const height = 2.2 + hash2D(ringIndex, side + 199, seed + 11003) * 4.6;
+			const depth = 0.45 + hash2D(ringIndex, side + 211, seed + 11113) * 0.95;
+			transforms.push({
+				position: new THREE.Vector3(
+					ring.centerX + portal.tx * lateral,
+					ring.centerY + lift,
+					ring.centerZ + portal.tz * lateral,
+				),
+				scale: new THREE.Vector3(width, height, depth),
+				ry: -Math.atan2(portal.tz, portal.tx) + side * (0.18 + hash2D(ringIndex, 223, seed + 11239) * 0.18),
+				rz: side * (0.08 + hash2D(ringIndex, 227, seed + 11329) * 0.18),
+			});
+		}
+	}
+	if (!transforms.length) return 0;
+	const cores = createInstanceField(
+		'ice-cave-dense-blue-core-slabs',
+		'cave-dense-blue-core-slabs',
+		new THREE.DodecahedronGeometry(1, 0),
+		material,
+		transforms,
+		seed + 11443,
+		[0x1d6378, 0x65b2c1],
+	);
+	group.add(cores);
+	return cores.count;
+}
+
 export function applyIceLandmarkGeometryBreakup({ group, wallSections, portal, caveRings, seed }) {
 	const wallVertexMoves = fractureWall(group, wallSections, seed);
 	const caveVertexMoves = fractureCave(group, portal, caveRings, seed);
@@ -320,6 +372,7 @@ export function applyIceLandmarkGeometryBreakup({ group, wallSections, portal, c
 	const portalShroudCount = createPortalShroud(group, portal, seed);
 	const caveFloorTriangleCount = createCaveFloor(group, portal, caveRings, seed);
 	const caveBreakup = createCaveIciclesAndDebris(group, portal, caveRings, seed);
+	const caveBlueCoreCount = createCaveBlueCoreBreakup(group, portal, caveRings, seed);
 	return Object.freeze({
 		wallVertexMoves,
 		caveVertexMoves,
@@ -329,7 +382,8 @@ export function applyIceLandmarkGeometryBreakup({ group, wallSections, portal, c
 		caveFloorTriangleCount,
 		caveIcicleCount: caveBreakup.icicleCount,
 		caveDebrisCount: caveBreakup.debrisCount,
+		caveBlueCoreCount,
 		primaryMeshesFractured: wallVertexMoves > 0 && caveVertexMoves > 0,
-		secondaryBreakupPresent: macroFracturePlateCount > 8 && wallFlowRibCount > 8 && portalShroudCount > 10 && caveFloorTriangleCount > 20 && caveBreakup.icicleCount > 4,
+		secondaryBreakupPresent: macroFracturePlateCount > 8 && wallFlowRibCount > 8 && portalShroudCount > 10 && caveFloorTriangleCount > 20 && caveBreakup.icicleCount > 4 && caveBlueCoreCount > 4,
 	});
 }
