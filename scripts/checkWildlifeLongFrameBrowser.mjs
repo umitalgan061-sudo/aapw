@@ -148,6 +148,54 @@ try {
     const packAlertAwayFromPlayer = Math.hypot(afterPackAlert.x - farPlayer.x, afterPackAlert.z - farPlayer.z) > Math.hypot(beforePackAlert.x - farPlayer.x, beforePackAlert.z - farPlayer.z);
     packAlertWolf.dispose();
 
+    const invalidColliderWolf = await createWolf({
+      assetLoader,
+      modelUrl: species.modelUrl,
+      idleClipName: species.clips.idle,
+      stripChildNames: species.stripChildNames,
+      worldX: 0,
+      worldZ: 0,
+      groundY: 0,
+      groundCollider,
+      playerCollider: { resolveXZ: () => ({ x: Number.NaN, z: Infinity }) },
+      fleeClipName: species.clips.flee,
+      fleeTriggerRadiusMeters: ANIMAL_CONFIG.FLEE_TRIGGER_RADIUS_METERS,
+      fleeSpeedMps: ANIMAL_CONFIG.FLEE_SPEED_MPS,
+    });
+    const beforeInvalidCollider = invalidColliderWolf.object3D.position.clone();
+    invalidColliderWolf.update(0.1, nearPlayer, []);
+    const invalidColliderDistance = Math.hypot(
+      invalidColliderWolf.object3D.position.x - beforeInvalidCollider.x,
+      invalidColliderWolf.object3D.position.z - beforeInvalidCollider.z,
+    );
+    const invalidColliderFinite = Number.isFinite(invalidColliderWolf.object3D.position.x)
+      && Number.isFinite(invalidColliderWolf.object3D.position.y)
+      && Number.isFinite(invalidColliderWolf.object3D.position.z);
+    const invalidColliderState = invalidColliderWolf.isFleeing;
+    invalidColliderWolf.dispose();
+
+    const invalidGroundWolf = await createWolf({
+      assetLoader,
+      modelUrl: species.modelUrl,
+      idleClipName: species.clips.idle,
+      stripChildNames: species.stripChildNames,
+      worldX: 0,
+      worldZ: 0,
+      groundY: 7,
+      groundCollider: { getGroundHeight: () => Number.NaN },
+      playerCollider,
+      fleeClipName: species.clips.flee,
+      fleeTriggerRadiusMeters: ANIMAL_CONFIG.FLEE_TRIGGER_RADIUS_METERS,
+      fleeSpeedMps: ANIMAL_CONFIG.FLEE_SPEED_MPS,
+    });
+    const beforeInvalidGround = invalidGroundWolf.object3D.position.clone();
+    invalidGroundWolf.update(0.1, nearPlayer, []);
+    const invalidGroundDistance = invalidGroundWolf.object3D.position.distanceTo(beforeInvalidGround);
+    const invalidGroundFinite = Number.isFinite(invalidGroundWolf.object3D.position.x)
+      && Number.isFinite(invalidGroundWolf.object3D.position.y)
+      && Number.isFinite(invalidGroundWolf.object3D.position.z);
+    invalidGroundWolf.dispose();
+
     return {
       modelUrl: species.modelUrl,
       fleeDistance,
@@ -164,6 +212,11 @@ try {
       packAlertDistance,
       packAlertState,
       packAlertAwayFromPlayer,
+      invalidColliderDistance,
+      invalidColliderFinite,
+      invalidColliderState,
+      invalidGroundDistance,
+      invalidGroundFinite,
     };
   });
 
@@ -182,6 +235,11 @@ try {
   assert.equal(proof.packAlertState, true, 'a nearby fleeing packmate must propagate the flee state to a real wolf even when the player is outside direct threat radius');
   assert.ok(proof.packAlertDistance > 0 && proof.packAlertDistance <= 0.45 + 1e-6, `pack-alert flee displacement escaped the 100 ms budget: ${proof.packAlertDistance}`);
   assert.equal(proof.packAlertAwayFromPlayer, true, 'pack-alert flee must move the alerted wolf away from the finite player threat');
+  assert.equal(proof.invalidColliderState, true, 'invalid movement adapter output must not erase a valid flee classification');
+  assert.equal(proof.invalidColliderFinite, true, 'invalid collider output must not poison wolf world coordinates');
+  assert.equal(proof.invalidColliderDistance, 0, 'invalid collider output must fail closed without committing movement');
+  assert.equal(proof.invalidGroundFinite, true, 'invalid ground-height output must not poison wolf world coordinates');
+  assert.equal(proof.invalidGroundDistance, 0, 'invalid ground-height output must fail closed without committing movement');
 
   console.log('WILDLIFE_LONG_FRAME_BROWSER_PASS', JSON.stringify(proof));
 } finally {
