@@ -106,10 +106,10 @@ function createWallFracturePlates(group, sections, portal, seed) {
 	if (!wall?.material) return 0;
 	const material = wall.material.clone();
 	material.vertexColors = false;
-	material.color.set(0xb9c9cc);
-	material.roughness = Math.max(0.52, material.roughness || 0.52);
-	material.transmission = Math.min(0.028, material.transmission || 0);
-	material.clearcoat = Math.min(0.08, material.clearcoat || 0);
+	material.color.set(0xcbd6d6);
+	material.roughness = Math.max(0.54, material.roughness || 0.54);
+	material.transmission = Math.min(0.018, material.transmission || 0);
+	material.clearcoat = Math.min(0.07, material.clearcoat || 0);
 	material.needsUpdate = true;
 	const transforms = [];
 	for (let index = 3; index < sections.length - 3; index += 5) {
@@ -118,9 +118,9 @@ function createWallFracturePlates(group, sections, portal, seed) {
 		const side = hash2D(index, 5, seed + 7103) > 0.5 ? 1 : -1;
 		const width = 18 + hash2D(index, 7, seed + 7207) * 20;
 		const height = 13 + hash2D(index, 11, seed + 7307) * 20;
-		const depth = 1.8 + hash2D(index, 13, seed + 7403) * 2.8;
+		const depth = 1.2 + hash2D(index, 13, seed + 7403) * 1.8;
 		const elevation = 0.23 + hash2D(index, 17, seed + 7507) * 0.48;
-		const faceOffset = section.thicknessMeters * 0.50 + depth * 0.08;
+		const faceOffset = section.thicknessMeters * 0.50 + depth * 0.05;
 		transforms.push({
 			position: new THREE.Vector3(section.x + section.nx * faceOffset * side, section.centerGround + section.heightMeters * elevation, section.z + section.nz * faceOffset * side),
 			scale: new THREE.Vector3(width * 0.50, height * 0.50, depth * 0.50),
@@ -130,7 +130,7 @@ function createWallFracturePlates(group, sections, portal, seed) {
 		});
 	}
 	if (!transforms.length) return 0;
-	const plates = createInstanceField('ice-wall-macro-fracture-plates', 'wall-macro-fracture-plates', new THREE.DodecahedronGeometry(1, 0), material, transforms, seed + 7901, [0x9fb9bf, 0xd0dcdd]);
+	const plates = createInstanceField('ice-wall-macro-fracture-plates', 'wall-macro-fracture-plates', new THREE.DodecahedronGeometry(1, 0), material, transforms, seed + 7901, [0xb7c9cc, 0xdce4e3]);
 	group.add(plates);
 	return plates.count;
 }
@@ -140,11 +140,11 @@ function createWallFlowRibs(group, sections, portal, seed) {
 	if (!wall?.material) return 0;
 	const material = wall.material.clone();
 	material.vertexColors = false;
-	material.color.set(0xa9c5cc);
-	material.roughness = 0.42;
-	material.transmission = Math.max(0.025, material.transmission || 0);
-	material.clearcoat = Math.max(0.10, material.clearcoat || 0);
-	material.clearcoatRoughness = 0.30;
+	material.color.set(0xb6ced2);
+	material.roughness = 0.47;
+	material.transmission = Math.max(0.018, material.transmission || 0);
+	material.clearcoat = Math.max(0.08, material.clearcoat || 0);
+	material.clearcoatRoughness = 0.34;
 	material.needsUpdate = true;
 	const transforms = [];
 	for (let index = 2; index < sections.length - 2; index += 3) {
@@ -152,22 +152,22 @@ function createWallFlowRibs(group, sections, portal, seed) {
 		if (Math.hypot(section.x - portal.centerX, section.z - portal.centerZ) < 46) continue;
 		for (const side of [-1, 1]) {
 			if (hash2D(index, side + 83, seed + 8707) < 0.38) continue;
-			const height = section.heightMeters * (0.10 + hash2D(index, side + 89, seed + 8803) * 0.18);
-			const width = 1.8 + hash2D(index, side + 97, seed + 8909) * 2.8;
-			const depth = 0.45 + hash2D(index, side + 101, seed + 9001) * 0.70;
-			const faceOffset = section.thicknessMeters * 0.5 + depth * 0.16;
+			const height = section.heightMeters * (0.08 + hash2D(index, side + 89, seed + 8803) * 0.14);
+			const width = 2.2 + hash2D(index, side + 97, seed + 8909) * 2.4;
+			const depth = 0.40 + hash2D(index, side + 101, seed + 9001) * 0.55;
+			const faceOffset = section.thicknessMeters * 0.5 + depth * 0.12;
 			const along = (hash2D(index, side + 103, seed + 9103) - 0.5) * 8;
 			transforms.push({
 				position: new THREE.Vector3(section.x + section.tx * along + section.nx * faceOffset * side, section.centerGround + section.heightMeters * 0.20 + height * 0.50, section.z + section.tz * along + section.nz * faceOffset * side),
 				scale: new THREE.Vector3(width * 0.50, height * 0.25, depth * 0.50),
 				rx: (hash2D(index, side + 109, seed + 9257) - 0.5) * 0.07,
 				ry: -Math.atan2(section.tz, section.tx),
-				rz: (hash2D(index, side + 107, seed + 9209) - 0.5) * 0.085,
+				rz: (hash2D(index, side + 107, seed + 9209) - 0.5) * 0.10,
 			});
 		}
 	}
 	if (!transforms.length) return 0;
-	const ribs = createInstanceField('ice-wall-vertical-flow-ribs', 'wall-vertical-flow-ribs', new THREE.CapsuleGeometry(1, 2, 3, 6), material, transforms, seed + 9301, [0x86aeb9, 0xc2d5d9]);
+	const ribs = createInstanceField('ice-wall-vertical-flow-ribs', 'wall-vertical-flow-ribs', new THREE.CapsuleGeometry(1, 2, 3, 6), material, transforms, seed + 9301, [0x9fbfc7, 0xd2dfe0]);
 	group.add(ribs);
 	return ribs.count;
 }
@@ -185,15 +185,15 @@ function createPortalShroud(group, portal, seed) {
 	const transforms = [];
 	const openingHalfWidth = 7.8;
 	for (const faceSign of [-1, 1]) {
-		for (let depthLayer = 0; depthLayer < 3; depthLayer += 1) {
-			const normalOffset = (portal.depth * 0.50 + depthLayer * 6.2) * faceSign;
-			const apronScale = 1 + depthLayer * 0.10;
+		for (let depthLayer = 0; depthLayer < 6; depthLayer += 1) {
+			const normalOffset = (portal.depth * 0.50 + depthLayer * 6.0) * faceSign;
+			const apronScale = 1 + Math.min(depthLayer, 3) * 0.07;
 			for (const side of [-1, 1]) {
 				for (let level = 0; level < 3; level += 1) {
-					const lateral = side * (openingHalfWidth + 3.0 + level * 0.55 + depthLayer * 0.45);
+					const lateral = side * (openingHalfWidth + 3.0 + level * 0.55 + depthLayer * 0.38);
 					transforms.push({
 						position: new THREE.Vector3(portal.centerX + portal.tx * lateral + portal.nx * normalOffset, portal.groundY + 2.8 + level * 4.0, portal.centerZ + portal.tz * lateral + portal.nz * normalOffset),
-						scale: new THREE.Vector3(3.2 * apronScale, 3.7 * apronScale, 3.1 + depthLayer * 0.45),
+						scale: new THREE.Vector3(3.2 * apronScale, 3.7 * apronScale, 3.0 + depthLayer * 0.36),
 						ry: -Math.atan2(portal.tz, portal.tx) + side * 0.12,
 						rz: side * (0.08 + level * 0.035),
 					});
@@ -201,13 +201,27 @@ function createPortalShroud(group, portal, seed) {
 			}
 			for (let step = 1; step <= 5; step += 1) {
 				const angle = Math.PI - (step / 6) * Math.PI;
-				const lateral = Math.cos(angle) * (openingHalfWidth + depthLayer * 0.35);
-				const height = 3.2 + Math.sin(angle) * (8.8 + depthLayer * 0.5) + 2.2;
+				const lateral = Math.cos(angle) * (openingHalfWidth + depthLayer * 0.28);
+				const height = 3.2 + Math.sin(angle) * (8.8 + depthLayer * 0.34) + 2.2;
 				transforms.push({
 					position: new THREE.Vector3(portal.centerX + portal.tx * lateral + portal.nx * normalOffset, portal.groundY + height, portal.centerZ + portal.tz * lateral + portal.nz * normalOffset),
-					scale: new THREE.Vector3((2.6 + hash2D(step, faceSign + 43 + depthLayer, seed + 8009) * 1.3) * apronScale, 2.3 * apronScale, 2.9 + depthLayer * 0.45),
+					scale: new THREE.Vector3((2.6 + hash2D(step, faceSign + 43 + depthLayer, seed + 8009) * 1.3) * apronScale, 2.3 * apronScale, 2.8 + depthLayer * 0.38),
 					ry: -Math.atan2(portal.tz, portal.tx),
 					rz: (hash2D(step, faceSign + 47 + depthLayer, seed + 8101) - 0.5) * 0.35,
+				});
+			}
+		}
+		const seamNormalOffset = portal.depth * 0.49 * faceSign;
+		for (const side of [-1, 1]) {
+			for (let level = 0; level < 9; level += 1) {
+				const lateral = side * (portal.width * 0.5 + 0.8 + (hash2D(level, side + 251, seed + 11527) - 0.5) * 0.9);
+				const y = 8.5 + level * 17.2;
+				transforms.push({
+					position: new THREE.Vector3(portal.centerX + portal.tx * lateral + portal.nx * seamNormalOffset, portal.groundY + y, portal.centerZ + portal.tz * lateral + portal.nz * seamNormalOffset),
+					scale: new THREE.Vector3(3.4 + hash2D(level, side + 257, seed + 11617) * 1.7, 9.4 + hash2D(level, side + 263, seed + 11701) * 2.2, 3.0 + hash2D(level, side + 269, seed + 11807) * 1.4),
+					rx: (hash2D(level, side + 271, seed + 11903) - 0.5) * 0.14,
+					ry: -Math.atan2(portal.tz, portal.tx) + (hash2D(level, side + 277, seed + 12011) - 0.5) * 0.18,
+					rz: side * (0.06 + (hash2D(level, side + 281, seed + 12101) - 0.5) * 0.16),
 				});
 			}
 		}
