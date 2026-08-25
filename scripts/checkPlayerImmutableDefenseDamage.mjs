@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
-import { createHealthState } from '../src/3d/gameplay/health.js';
 import {
+  createHealthState,
   readDamageResolution,
   stageDamageResolution,
-} from '../src/3d/gameplay/damageResolution.js';
+} from '../src/3d/gameplay/health.js';
 
 class TestBus {
   constructor() { this.listeners = new Map(); }
@@ -49,6 +49,7 @@ assert.equal(readDamageResolution(frozenOverkill), null, 'overkill resolution mu
 health.dispose();
 
 const playerSource = fs.readFileSync(new URL('../src/3d/gameplay/player.js', import.meta.url), 'utf8');
+assert.match(playerSource, /from '\.\/health\.js'/, 'player must consume the existing health authority rather than add a second runtime module');
 assert.match(playerSource, /stageDamageResolution\(payload, \{ amount: rawAmount \}\)/, 'every valid incoming hit must establish a same-event resolution');
 for (const mitigation of ['dodge', 'parry', 'guard']) {
   assert.match(playerSource, new RegExp(`stageDamageResolution\\(payload, \\{[^}]*mitigation: '${mitigation}'`), `${mitigation} must use immutable-safe damage resolution`);
@@ -59,4 +60,4 @@ for (const directWrite of ['payload.rawAmount =', 'payload.blockedAmount =', 'pa
 assert.match(playerSource, /readDamageResolution\(payload\)[\s\S]*staged\?\.appliedAmount/, 'feedback must prefer authoritative staged applied damage');
 
 console.log('Player Immutable Defense Damage: PASS');
-console.log('frozen=guard,dodge,overkill|health=authoritative-clamp|payload=unchanged|resolution=bounded');
+console.log('frozen=guard,dodge,overkill|health=authoritative-clamp|payload=unchanged|resolution=bounded|authority=health');
