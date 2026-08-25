@@ -64,6 +64,9 @@ let result = economy.purchase(ration, grant);
 assert.equal(result.ok, true);
 assert.equal(result.balanceCopper, 34);
 assert.equal(result.remainingStock, 3);
+assert.equal(result.ledger.transactionCount, 1);
+assert.equal(result.ledger.lifetimeSpentCopper, 6);
+assert.equal(result.ledger.purchasesByOffer[ration.id], 1);
 assert.deepEqual(result.ledger.recentTransactions, [receipt(1, ration, 34)]);
 assert.deepEqual(
 	inventory.snapshot().items.find((item) => item.itemId === ration.itemId)?.provenance,
@@ -74,6 +77,11 @@ result = economy.purchase(whetstone, grant);
 assert.equal(result.ok, true);
 assert.equal(result.balanceCopper, 22);
 assert.equal(result.remainingStock, 1);
+assert.deepEqual(economy.snapshot().stockByOffer, {
+	'dragonstone-field-ration': 3,
+	'dragonstone-whetstone': 1,
+	'dragonstone-watch-ration-allotment': 1,
+});
 assert.deepEqual(economy.snapshot().ledger, {
 	transactionCount: 2,
 	lifetimeSpentCopper: 18,
@@ -206,9 +214,18 @@ assert.deepEqual(restored.snapshot(), {
 
 const legacyStockAware = createInteractionEconomyState(0);
 legacyStockAware.restore({ copper: 17, stockByOffer: depletedStock });
-assert.equal(legacyStockAware.snapshot().ledger.transactionCount, 3);
-assert.equal(legacyStockAware.snapshot().ledger.lifetimeSpentCopper, 23);
-assert.deepEqual(legacyStockAware.snapshot().ledger.recentTransactions, []);
+assert.deepEqual(legacyStockAware.snapshot().ledger, {
+	transactionCount: 3,
+	lifetimeSpentCopper: 23,
+	purchasesByOffer: {
+		'dragonstone-field-ration': 1,
+		'dragonstone-whetstone': 1,
+		'dragonstone-watch-ration-allotment': 1,
+	},
+	recentTransactions: [],
+});
+restored.restore({ copper: 17, ledger: { transactionCount: -3, lifetimeSpentCopper: -2, purchasesByOffer: { [ration.id]: -1 }, recentTransactions: [{ sequence: 1, offerId: ration.id }] } });
+assert.deepEqual(restored.snapshot().ledger, emptyLedger());
 
 const text = buildQuartermasterText(saved, QUARTERMASTER_OFFERS, 'Satın alma tamamlandı.');
 assert.match(text, /Kese: 17 bakır/);
@@ -217,6 +234,10 @@ assert.match(text, /Son işlem: #3 Nöbetçi yol azığı hazırlama hizmeti · 
 assert.match(text, /saha azığı — 6 bakır · stok 3\/4 · aldın 1/);
 assert.match(text, /bileği taşı — 12 bakır · stok 1\/2 · aldın 1/);
 assert.match(text, /Nöbetçi yol azığı hazırlama hizmeti — 5 bakır · stok 0\/1 · aldın 1/);
+assert.match(text, /DÖNÜŞÜM: 2 saha azığını 1 yol azığı paketine hazırla/);
+const legacyText = buildQuartermasterText({ copper: 8, stockByOffer: {} });
+assert.match(legacyText, /Alışveriş defteri: 0 işlem · 0 bakır harcandı/);
+assert.doesNotMatch(legacyText, /Son işlem:/);
 
 const dialogueHistory = [];
 const economyChanges = [];
@@ -234,12 +255,23 @@ const controller = createInteractionController({
 });
 controller.update([quartermaster], { x: 0, z: 0 });
 controller.handleKeyDown({ code: 'KeyB', repeat: false });
+assert.match(dialogueHistory.at(-1).body, /stok 4\/4/);
+assert.match(dialogueHistory.at(-1).body, /Alışveriş defteri: 0 işlem · 0 bakır harcandı/);
 assert.match(dialogueHistory.at(-1).body, /Nöbetçi yol azığı hazırlama hizmeti — 5 bakır · stok 1\/1 · aldın 0/);
 assert.equal(dialogueHistory.at(-1).choices.length, 3);
 controller.handleKeyDown({ code: 'Digit3', repeat: false });
 assert.equal(controller.getEconomySnapshot().copper, 35);
 assert.equal(controller.getEconomySnapshot().stockByOffer[rationAllotment.id], 0);
-assert.deepEqual(controller.getEconomySnapshot().ledger.recentTransactions, [receipt(1, rationAllotment, 35)]);
+assert.deepEqual(controller.getEconomySnapshot().ledger, {
+	transactionCount: 1,
+	lifetimeSpentCopper: 5,
+	purchasesByOffer: {
+		'dragonstone-field-ration': 0,
+		'dragonstone-whetstone': 0,
+		'dragonstone-watch-ration-allotment': 1,
+	},
+	recentTransactions: [receipt(1, rationAllotment, 35)],
+});
 const runtimeProvision = controller.getInventorySnapshot().items.find((item) => item.itemId === rationAllotment.itemId);
 assert.equal(runtimeProvision?.quantity, 1);
 assert.deepEqual(runtimeProvision?.provenance, [{ sourceType: 'settlement-service', sourceId: 'dragonstone-watch-ration-prep' }]);
@@ -263,5 +295,10 @@ const runtimeRestored = createInteractionController({
 runtimeRestored.restoreRpgSnapshot(runtimeSaved);
 assert.deepEqual(runtimeRestored.getEconomySnapshot(), runtimeSaved.economy);
 assert.deepEqual(runtimeRestored.getInventorySnapshot(), runtimeSaved.inventory);
+controller.update([], { x: 100, z: 100 });
+controller.handleKeyDown({ code: 'KeyB', repeat: false });
+assert.equal(controller.getEconomySnapshot().stockByOffer[rationAllotment.id], 0);
+assert.equal(controller.getEconomySnapshot().ledger.transactionCount, 1);
+assert.deepEqual(controller.getEconomySnapshot().ledger.recentTransactions, [receipt(1, rationAllotment, 35)]);
 
-console.log('PASS checkInteractionQuartermasterTrade: deterministic purse, finite stock, stock-derived ledger integrity, forged-history repair, atomic failures, shipped Digit3 prepared-provision UX, provenance, and save/load verified.');
+console.log('PASS checkInteractionQuartermasterTrade: deterministic purse, finite vendor stock, stock-derived ledger integrity, forged-history repair, bounded receipts, prepared-provision atomicity, shipped Digit3 UX and save/load verified.');
