@@ -146,6 +146,22 @@ export async function createWolf({
 		);
 	}
 
+	function tryCommitGroundedMove(candidateX, candidateZ) {
+		let resolvedX = candidateX;
+		let resolvedZ = candidateZ;
+		if (playerCollider) {
+			const resolved = playerCollider.resolveXZ(candidateX, candidateZ);
+			if (!Number.isFinite(resolved?.x) || !Number.isFinite(resolved?.z)) return false;
+			resolvedX = resolved.x;
+			resolvedZ = resolved.z;
+		}
+		if (!Number.isFinite(resolvedX) || !Number.isFinite(resolvedZ)) return false;
+		const resolvedY = groundCollider.getGroundHeight(resolvedX, resolvedZ);
+		if (!Number.isFinite(resolvedY)) return false;
+		model.position.set(resolvedX, resolvedY, resolvedZ);
+		return true;
+	}
+
 	let waypointIndex = 0;
 	let pauseTimer = 0;
 	let currentlyFleeing = false;
@@ -181,14 +197,13 @@ export async function createWolf({
 				const dirX = hasSeparationVector ? dxFromPlayer / distanceFromPlayer : Math.sin(model.rotation.y);
 				const dirZ = hasSeparationVector ? dzFromPlayer / distanceFromPlayer : Math.cos(model.rotation.y);
 				const step = fleeSpeedMps * simulationDelta;
-				let nextX = model.position.x + dirX * step;
-				let nextZ = model.position.z + dirZ * step;
-				if (playerCollider) ({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
-				model.position.x = nextX;
-				model.position.z = nextZ;
-				model.position.y = groundCollider.getGroundHeight(model.position.x, model.position.z);
-				turnToward(Math.atan2(dirX, dirZ), simulationDelta);
-				playAction(fleeAction ?? walkAction ?? idleAction);
+				const moved = tryCommitGroundedMove(model.position.x + dirX * step, model.position.z + dirZ * step);
+				if (moved) {
+					turnToward(Math.atan2(dirX, dirZ), simulationDelta);
+					playAction(fleeAction ?? walkAction ?? idleAction);
+				} else {
+					playAction(idleAction);
+				}
 			} else if (isPatrolling && simulationDelta > 0) {
 				if (pauseTimer > 0) {
 					pauseTimer = Math.max(0, pauseTimer - simulationDelta);
@@ -200,24 +215,22 @@ export async function createWolf({
 					const distance = Math.hypot(dx, dz);
 					const step = speedMps * simulationDelta;
 					if (distance <= step) {
-						let targetX = target.x;
-						let targetZ = target.z;
-						if (playerCollider) ({ x: targetX, z: targetZ } = playerCollider.resolveXZ(targetX, targetZ));
-						model.position.x = targetX;
-						model.position.z = targetZ;
-						model.position.y = groundCollider.getGroundHeight(targetX, targetZ);
-						waypointIndex += 1;
-						pauseTimer = pauseSeconds;
+						if (tryCommitGroundedMove(target.x, target.z)) {
+							waypointIndex += 1;
+							pauseTimer = pauseSeconds;
+						}
 						playAction(idleAction);
 					} else {
-						let nextPatrolX = model.position.x + (dx / distance) * step;
-						let nextPatrolZ = model.position.z + (dz / distance) * step;
-						if (playerCollider) ({ x: nextPatrolX, z: nextPatrolZ } = playerCollider.resolveXZ(nextPatrolX, nextPatrolZ));
-						model.position.x = nextPatrolX;
-						model.position.z = nextPatrolZ;
-						model.position.y = groundCollider.getGroundHeight(model.position.x, model.position.z);
-						turnToward(Math.atan2(dx, dz), simulationDelta);
-						playAction(walkAction);
+						const moved = tryCommitGroundedMove(
+							model.position.x + (dx / distance) * step,
+							model.position.z + (dz / distance) * step,
+						);
+						if (moved) {
+							turnToward(Math.atan2(dx, dz), simulationDelta);
+							playAction(walkAction);
+						} else {
+							playAction(idleAction);
+						}
 					}
 				}
 			}
