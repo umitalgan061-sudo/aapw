@@ -3,7 +3,9 @@ name: RPG Journey History Current Main
 on:
   pull_request:
     paths:
+      - 'scripts/checkInteractionJourneyHistoryWindow.mjs'
       - 'scripts/checkInteractionJourneyHistoryWindowCurrent.mjs'
+      - '.github/workflows/rpg-journey-ledger-ux.yml'
       - '.github/workflows/rpg-journey-history-current.yml'
   workflow_dispatch:
 
@@ -30,7 +32,7 @@ jobs:
           base="$(git merge-base HEAD origin/main)"
           test "$base" = "$(git rev-parse origin/main)"
           mapfile -t paths < <(git diff --name-only "$base"...HEAD)
-          allowed='^(scripts/checkInteractionJourneyHistoryWindowCurrent\.mjs|\.github/workflows/rpg-journey-history-current\.yml)$'
+          allowed='^(scripts/checkInteractionJourneyHistoryWindow(Current)?\.mjs|\.github/workflows/rpg-journey-(history-current|ledger-ux)\.yml)$'
           if (( ${#paths[@]} )); then
             printf '%s\n' "${paths[@]}" | grep -Ev "$allowed" && exit 1 || true
           fi
@@ -39,12 +41,14 @@ jobs:
       - name: Syntax and current journey history acceptance
         run: |
           set -euo pipefail
+          node --check scripts/checkInteractionJourneyHistoryWindow.mjs
           node --check scripts/checkInteractionJourneyHistoryWindowCurrent.mjs
           node scripts/checkInteractionSettlementServiceContract.mjs
           node scripts/checkInteractionJourneyPlanning.mjs
           node scripts/checkInteractionTavernReceiptIntegrity.mjs
           node scripts/checkInteractionJourneyLedgerUx.mjs
           node scripts/checkInteractionExpeditionTavernRecovery.mjs
+          node scripts/checkInteractionJourneyHistoryWindow.mjs
           node scripts/checkInteractionJourneyHistoryWindowCurrent.mjs
       - name: Install Chromium acceptance harness
         run: |
