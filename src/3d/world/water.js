@@ -171,6 +171,19 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		return smoothstep(0.018, 0.11, max(eastWest, northSouth));
 	}
 
+	// Low-frequency world-space optical breakup for broad shelves. The two warped, incommensurate
+	// bands are deterministic and intentionally much larger than wave chop, so orthographic views
+	// read mottled sediment/caustic depth variation instead of a single flat translucent colour.
+	// It only modulates rendering: canonical depth, coverage, terrain and coastline remain untouched.
+	float shelfOpticalMottle(vec2 worldXZ, float fragmentDepth) {
+		float broadWarp = sin(dot(worldXZ, vec2(0.00131, -0.00107)) + sin(dot(worldXZ, vec2(-0.00047, 0.00083))) * 1.35);
+		float broad = sin(dot(worldXZ, vec2(0.00203, 0.00117)) + broadWarp * 1.15);
+		float mediumWarp = sin(dot(worldXZ, vec2(-0.0049, 0.0037)) + broad * 0.72);
+		float medium = sin(dot(worldXZ, vec2(0.0061, -0.0043)) + mediumWarp * 0.88);
+		float shelfMask = 1.0 - smoothstep(0.18, 0.62, fragmentDepth);
+		return clamp((broad * 0.64 + medium * 0.36) * shelfMask, -1.0, 1.0);
+	}
+
 	// Fine chop remains world-space, but uses longer incommensurate wavelengths plus a slow warp.
 	// The old ~3-8m sinusoidal periods were smaller than many screen pixels in far/orthographic views
 	// and collapsed into obvious repeated stripes/moiré. These 30-70m components remain readable near
@@ -216,6 +229,10 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		// Keep the photographed coast/pool behaviour: shallow water holds its lighter teal for longer,
 		// then transitions progressively toward deep navy rather than becoming dark immediately offshore.
 		vec3 bodyColor = mix(uShallowColor, uDeepColor, smoothstep(0.04, 0.82, fragmentDepth));
+		float shelfMottle = shelfOpticalMottle(vWorldPosition.xz, fragmentDepth);
+		vec3 sedimentTint = mix(uDeepColor, vec3(0.34, 0.48, 0.49), 0.72);
+		bodyColor = mix(bodyColor, sedimentTint, max(shelfMottle, 0.0) * 0.16);
+		bodyColor = mix(bodyColor, uDeepColor, max(-shelfMottle, 0.0) * 0.10);
 
 		// Fresnel-ish: nearer grazing angles read lighter/more reflective, straight-down reads deep.
 		float fresnel = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 3.0);
@@ -240,6 +257,10 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		// approaches an opaque deep-sea body instead of applying one sheet opacity everywhere.
 		float opticalDepth = 1.0 - exp(-fragmentDepth * 3.2);
 		float alpha = mix(0.14, 0.90, opticalDepth);
+		// Broad shallow shelves gain bounded optical-density variation, analogous to suspended sediment
+		// and uneven seabed reflectance. Keep the range small enough that canonical wet/dry coverage
+		// remains visually authoritative and tiny lakes do not flicker or disappear.
+		alpha *= 1.0 + shelfMottle * 0.08;
 		alpha *= waterCoverage;
 
 		gl_FragColor = vec4(color, max(alpha, foam * 0.78));
