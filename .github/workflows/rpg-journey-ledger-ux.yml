@@ -9,6 +9,7 @@ on:
       - 'src/3d/ui/dialogueBox.js'
       - 'scripts/checkInteractionJourneyLedgerUx.mjs'
       - 'scripts/checkInteractionTavernReceiptIntegrity.mjs'
+      - 'scripts/checkInteractionExpeditionTavernRecovery.mjs'
       - 'scripts/checkInteractionMasteryTravelContinuityBrowser.mjs'
       - '.github/workflows/rpg-journey-ledger-ux.yml'
   workflow_dispatch:
@@ -36,7 +37,7 @@ jobs:
           base="$(git merge-base HEAD origin/main)"
           test "$base" = "$(git rev-parse origin/main)"
           mapfile -t paths < <(git diff --name-only "$base"...HEAD)
-          allowed='^(\.github/workflows/rpg-journey-ledger-ux\.yml|scripts/checkInteraction(JourneyLedgerUx|TavernReceiptIntegrity|MasteryTravelContinuityBrowser)\.mjs|src/3d/gameplay/(interaction|interactionConfig|interactionFieldReadiness)\.js|src/3d/ui/dialogueBox\.js)$'
+          allowed='^(\.github/workflows/(rpg-expedition-tavern-recovery|rpg-interaction-quest-loop|rpg-journey-ledger-ux|rpg-mastery-armorer-service|rpg-mastery-journal-continuity|rpg-mastery-to-smithing|rpg-mastery-travel-continuity|rpg-tavern-receipt-integrity)\.yml|scripts/checkInteraction(ExpeditionBoard|ExpeditionTavernRecovery|JourneyLedgerUx|TavernReceiptIntegrity|MasteryTravelContinuityBrowser)\.mjs|src/3d/gameplay/(interaction|interactionConfig|interactionFieldReadiness)\.js|src/3d/ui/dialogueBox\.js)$'
           if (( ${#paths[@]} )); then
             printf '%s\n' "${paths[@]}" | grep -Ev "$allowed" && exit 1 || true
           fi
@@ -46,6 +47,7 @@ jobs:
         run: |
           set -euo pipefail
           node --check scripts/checkInteractionJourneyLedgerUx.mjs
+          node --check scripts/checkInteractionExpeditionTavernRecovery.mjs
           node scripts/checkInteractionTavernReceiptIntegrity.mjs
           node scripts/checkInteractionJourneyLedgerUx.mjs
           node scripts/checkInteractionJourneyPlanning.mjs

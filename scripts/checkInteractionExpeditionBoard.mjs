@@ -74,8 +74,9 @@ const quartermaster = { displayName: 'Dragonstone Levazımcısı', object3D: { n
 controller.update([quartermaster], { x: 1, z: 1 });
 controller.handleKeyDown({ code: 'KeyT', repeat: false });
 assert.match(renderedText, /Dragonstone Sefer Panosu/);
-assert.equal(renderedChoices.length, 3);
+assert.equal(renderedChoices.length, 4);
 assert.match(renderedChoices[1], /Liman Taverna Seferi — HAZIR/);
+assert.match(renderedChoices[3], /Liman tavernasında dinlen/);
 
 controller.handleKeyDown({ code: 'Digit2', repeat: false });
 assert.match(renderedText, /SEFER TAMAMLANDI/);
