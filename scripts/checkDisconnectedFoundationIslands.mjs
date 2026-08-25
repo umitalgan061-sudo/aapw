@@ -65,4 +65,27 @@ assert.equal(removed.removedCount, 8, 'removing the structure must retire every 
 assert.equal(flattenPads.length, 0);
 assert.equal(conformedSampler(left.x, left.z), baseSampler(left.x, left.z), 'shared sampler must restore canonical height after island removal');
 
-console.log('[checkDisconnectedFoundationIslands] PASS: disconnected grounded wings preserve the open courtyard, share one target plane/height authority, replace atomically on re-ground, and retire together.');
+const fragmented = new THREE.Group();
+fragmented.position.set(-140, 0, 70);
+for (const x of [-48, -24, 0, 24, 48]) addGroundedBox(fragmented, 12, 12, x);
+fragmented.updateMatrixWorld(true);
+const boundedPads = [];
+const boundedConformer = createTerrainFoundationConformer({ flattenPads: boundedPads, innerMarginMeters: 0, featherMeters: 2 });
+let boundedPayload = null;
+const boundedResult = resolveWorldSurfacePlacement(fragmented, {
+  metadata: { category: 'building', id: 'five-island-import' },
+  surfaceQuery(x, z) {
+    return { height: baseSampler(x, z), slopeDegrees: 2, waterDepth: 0, roadDistance: 8, biome: 'settlement' };
+  },
+  requireSurfaceContext: true,
+  conformTerrain(input) {
+    boundedPayload = input;
+    return boundedConformer.conformTerrain(input);
+  },
+});
+assert.equal(boundedResult.ok, true, boundedResult.error);
+assert.equal(boundedPayload?.footprintIslands?.length, 0, 'more than four disconnected islands must fall back to the bounded aggregate footprint');
+assert.equal(boundedPads.length, 4, 'complexity fallback must retain the established four-pad aggregate budget');
+assert(boundedPads.every((pad) => pad.foundationIslandCount === 1), 'aggregate fallback must not masquerade as a multi-island cluster');
+
+console.log('[checkDisconnectedFoundationIslands] PASS: disconnected wings preserve open terrain and atomic lifecycle while over-fragmented imports fall back to the bounded aggregate foundation.');
