@@ -5,12 +5,14 @@ on:
     paths:
       - 'src/3d/config.js'
       - 'src/3d/world/terrain.js'
+      - 'src/3d/world/terrainMicroSurface.js'
       - 'src/3d/world/terrainBiomeShading.js'
       - 'src/3d/world/northReferenceCryosphere.js'
       - 'src/3d/world/worldReferenceSurfacePindexes.js'
       - 'src/3d/world/worldReferenceMountainRelief.js'
       - 'src/3d/world/water.js'
       - 'src/3d/world/waterDepthField.js'
+      - 'scripts/checkTerrainMicroSurface.mjs'
       - 'scripts/captureFullWorld3DTopdown.mjs'
       - 'scripts/fullWorld3DTopdownHarness.html'
       - '.github/workflows/full-world-3d-topdown.yml'
@@ -35,10 +37,13 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install browser capture dependency
+      - name: Install terrain/browser QA dependencies
         run: |
-          npm install --no-save playwright
+          npm install --no-save playwright three
           npx playwright install --with-deps chromium
+
+      - name: Verify production terrain PBR contract
+        run: node scripts/checkTerrainMicroSurface.mjs
 
       - name: Render authoritative full-world 3D topdown
         run: |
