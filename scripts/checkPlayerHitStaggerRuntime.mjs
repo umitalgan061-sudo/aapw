@@ -44,17 +44,34 @@ try {
   }, 'grounded full-poise idle baseline', 20000);
 
   // Shipped-scene enemies can chip health while the baseline waits. Force one real defeat first so
-  // the controlled four-hit sequence below always begins at authoritative 100 health and can only
-  // cross zero on its fourth hit. This keeps the proof tied to the real death/respawn path instead
-  // of disabling world combat or manufacturing health state in the test.
-  await page.evaluate(async () => {
+  // the controlled four-hit sequence below begins from the canonical respawn boundary. Observe the
+  // health reset synchronously inside the same EventBus dispatch: polling the HUD on a later frame
+  // can legitimately see fresh ambient damage and used to turn a correct reset into a flaky timeout.
+  await page.evaluate(() => { window.__hitStaggerMotion.length = 0; });
+  const isolationLifecycle = await page.evaluate(async () => {
     const [{ gameEvents }, { EVENTS }] = await Promise.all([import('./src/3d/eventBus.js'), import('./src/3d/config.js')]);
-    gameEvents.emit(EVENTS.PLAYER_DAMAGED, { amount: 999, sourceId: 'hit-stagger-isolation-reset' });
+    const healthChanges = [];
+    const deaths = [];
+    const offHealth = gameEvents.on(EVENTS.PLAYER_HEALTH_CHANGED, (payload) => healthChanges.push(structuredClone(payload)));
+    const offDied = gameEvents.on(EVENTS.PLAYER_DIED, (payload) => deaths.push(structuredClone(payload ?? {})));
+    try {
+      gameEvents.emit(EVENTS.PLAYER_DAMAGED, { amount: 999, sourceId: 'hit-stagger-isolation-reset' });
+      return {
+        healthChanges,
+        deathCount: deaths.length,
+        health: Number(document.querySelector('.g3d-health-bar')?.getAttribute('aria-valuenow')),
+        maxHealth: Number(document.querySelector('.g3d-health-bar')?.getAttribute('aria-valuemax')),
+      };
+    } finally {
+      offHealth?.();
+      offDied?.();
+    }
   });
+  need(isolationLifecycle.deathCount === 1, `isolation damage must drive exactly one real defeat ${JSON.stringify(isolationLifecycle)}`);
+  need(isolationLifecycle.health === isolationLifecycle.maxHealth && isolationLifecycle.health === 100, `canonical defeat handler must synchronously restore authoritative full health ${JSON.stringify(isolationLifecycle)}`);
+  need(isolationLifecycle.healthChanges.some((entry) => entry?.current === 0) && isolationLifecycle.healthChanges.some((entry) => entry?.current === 100), `defeat lifecycle must expose zero-health then full-health reset ${JSON.stringify(isolationLifecycle.healthChanges)}`);
   const isolatedRespawn = await waitFor(() => {
     const frame = window.__hitStaggerMotion.at(-1);
-    const health = Number(document.querySelector('.g3d-health-bar')?.getAttribute('aria-valuenow'));
-    const maxHealth = Number(document.querySelector('.g3d-health-bar')?.getAttribute('aria-valuemax'));
     return frame?.state === 'idle'
       && frame?.isGrounded
       && frame?.stamina === 100
@@ -62,11 +79,9 @@ try {
       && frame?.hitStaggerRemaining === 0
       && frame?.guardBreakRemaining === 0
       && frame?.canDodge
-      && Number.isFinite(health)
-      && health === maxHealth
-      ? { frame: structuredClone(frame), health, maxHealth }
+      ? structuredClone(frame)
       : null;
-  }, 'authoritative full-health defeat reset before controlled stagger proof', 12000);
+  }, 'full transient-state defeat reset before controlled stagger proof', 12000);
 
   await page.evaluate(() => {
     window.__hitStaggerMotion.length = 0;
@@ -127,7 +142,7 @@ try {
   need(box && box.width > 100 && box.height > 100, 'invalid shipped canvas bounds');
   const png = await page.screenshot({ clip: box });
   fs.writeFileSync(path.join(outDir, 'hit-stagger-runtime.png'), png);
-  fs.writeFileSync(path.join(outDir, 'hit-stagger-runtime.json'), `${JSON.stringify({ baseline, isolatedRespawn, active, stagger: proof.stagger, interrupted: proof.interrupted, lethalFeedback: proof.lethalFeedback, respawn: proof.respawn, healthAfterRespawn, recovered, browserErrors: errors }, null, 2)}\n`);
+  fs.writeFileSync(path.join(outDir, 'hit-stagger-runtime.json'), `${JSON.stringify({ baseline, isolationLifecycle, isolatedRespawn, active, stagger: proof.stagger, interrupted: proof.interrupted, lethalFeedback: proof.lethalFeedback, respawn: proof.respawn, healthAfterRespawn, recovered, browserErrors: errors }, null, 2)}\n`);
   need(errors.length === 0, errors.join(' | '));
   console.log('PLAYER_HIT_STAGGER_RUNTIME_OK');
 } catch (error) {
