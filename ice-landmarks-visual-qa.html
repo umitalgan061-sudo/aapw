@@ -39,8 +39,6 @@ sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -2100, right: 2100, top: 900, bottom: -900, near: 50, far: 4200 });
 scene.add(sun);
 
-// Use the same production terrain seed/sampler authority as the live scene. The Wall lives well
-// away from settlement flatten pads, so the canonical sampler and the scene collider agree here.
 const sampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, null, []);
 const landmarks = createIceLandmarks({ sampleHeightMeters, seed: WORLD_DEFAULTS.WORLD_SEED });
 scene.add(landmarks.group);
@@ -112,6 +110,10 @@ const views = {
     camera.position.set(center.x - size.x * 0.24, box.max.y + 120, center.z + 520);
     camera.lookAt(center.x, box.min.y + size.y * 0.42, center.z);
   },
+  detail: () => {
+    camera.position.set(center.x - size.x * 0.03, box.min.y + size.y * 0.46, center.z + 185);
+    camera.lookAt(center.x, box.min.y + size.y * 0.43, center.z);
+  },
   cave: () => {
     const target = portal?.getWorldPosition(new THREE.Vector3()) ?? center;
     camera.position.set(target.x + 120, target.y + 26, target.z + 120);
@@ -148,6 +150,7 @@ window.__iceQa = {
     width: size.x, depth: size.z, height: size.y,
     blockers: landmarks.blockers.length,
     roles: landmarks.group.children.map((child) => child.userData?.iceLandmarkRole).filter(Boolean),
+    realism: landmarks.stats.realism,
     terrainAuthority: 'canonical-createHeightSampler+terrainBiomeShading',
     terrain: {
       vertexCount: terrainPositions.count,
