@@ -42,7 +42,7 @@ function meanAbsoluteNeighborDelta(data, size, channel) {
   return total / samples;
 }
 
-assert.equal(TERRAIN_MICRO_SURFACE_POLICY.id, 'terrain-micro-surface-world-uv-pbr-v4-natural-albedo');
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.id, 'terrain-micro-surface-world-uv-pbr-v5-safe-world-position');
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.uvChannel, 1, 'micro detail must use uv1, never owner-map albedo uv0');
 assert(TERRAIN_MICRO_SURFACE_POLICY.textureSize >= 256, 'photoreal terrain atlas needs enough fracture resolution');
 assert(TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters >= 12 && TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters <= 32);
@@ -74,7 +74,7 @@ assert.equal(standalone.userData.terrainMicroSurface.macroWorldSpaceColorBreakup
 assert.equal(standalone.userData.terrainMicroSurface.photorealDesaturation, true);
 assert.equal(standalone.userData.terrainMicroSurface.naturalAlbedoRemap, true);
 assert.equal(standalone.userData.terrainMicroSurface.fractureNormals, true);
-assert.equal(standalone.customProgramCacheKey(), 'terrain-photoreal-world-surface-v4-natural-albedo');
+assert.equal(standalone.customProgramCacheKey(), 'terrain-photoreal-world-surface-v5-safe-world-position');
 const shaderHookSource = standalone.onBeforeCompile.toString();
 for (const marker of [
   'terrainPhotoFbm',
@@ -84,9 +84,11 @@ for (const marker of [
   'terrainPhotoEarth',
   'terrainPhotoRock',
   'terrainPhotoSnow',
+  'modelMatrix * vec4(transformed, 1.0)',
 ]) {
   assert(shaderHookSource.includes(marker), `terrain shader lost ${marker} realism signal`);
 }
+assert(!shaderHookSource.includes('worldPosition.xyz'), 'terrain shader must not depend on conditional Three.js worldPosition declaration');
 
 const normalData = standalone.normalMap.image.data;
 const roughnessData = standalone.roughnessMap.image.data;
@@ -159,4 +161,4 @@ close(oneTileNorth.v - origin.v, 1, 'one detail period north must advance exactl
 standalone.dispose();
 disposeTerrainChunk(west);
 disposeTerrainChunk(east);
-console.log('[checkTerrainMicroSurface] PASS: natural albedo remap + world-space breakup + fractured PBR detail remain seam-continuous and never change canonical height.');
+console.log('[checkTerrainMicroSurface] PASS: safe world-position hook + natural albedo remap + fractured PBR detail remain seam-continuous and canonical-height neutral.');
