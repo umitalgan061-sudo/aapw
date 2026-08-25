@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'scripts/checkInteractionMasteryTravelContinuityBrowser.mjs'
+      - 'scripts/checkInteractionExpeditionTavernRecovery.mjs'
       - '.github/workflows/rpg-mastery-travel-continuity.yml'
       - 'src/3d/gameplay/interaction.js'
       - 'src/3d/gameplay/interactionConfig.js'
@@ -35,7 +36,7 @@ jobs:
           base=$(git merge-base HEAD origin/main)
           test "$base" = "$(git rev-parse origin/main)"
           mapfile -t paths < <(git diff --name-only "$base"...HEAD)
-          allowed='^(scripts/checkInteractionMasteryTravelContinuityBrowser\.mjs|scripts/checkInteractionTavernReceiptIntegrity\.mjs|\.github/workflows/(rpg-expedition-tavern-recovery|rpg-interaction-quest-loop|rpg-mastery-armorer-service|rpg-mastery-journal-continuity|rpg-mastery-to-smithing|rpg-mastery-travel-continuity|rpg-tavern-receipt-integrity)\.yml|src/3d/gameplay/(interaction|interactionConfig|interactionEconomy|interactionFieldReadiness)\.js|src/3d/ui/dialogueBox\.js)$'
+          allowed='^(scripts/checkInteractionExpedition(Board|TavernRecovery)\.mjs|scripts/checkInteractionMasteryTravelContinuityBrowser\.mjs|scripts/checkInteractionTavernReceiptIntegrity\.mjs|\.github/workflows/(rpg-expedition-tavern-recovery|rpg-interaction-quest-loop|rpg-journey-ledger-ux|rpg-mastery-armorer-service|rpg-mastery-journal-continuity|rpg-mastery-to-smithing|rpg-mastery-travel-continuity|rpg-tavern-receipt-integrity)\.yml|src/3d/gameplay/(interaction|interactionConfig|interactionEconomy|interactionFieldReadiness)\.js|src/3d/ui/dialogueBox\.js)$'
           printf '%s\n' "${paths[@]}" | grep -Ev "$allowed" && exit 1 || true
           changed=$(git diff --numstat "$base"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
           test "$changed" -le 1000
@@ -43,12 +44,14 @@ jobs:
         run: |
           set -euo pipefail
           node --check scripts/checkInteractionMasteryTravelContinuityBrowser.mjs
+          node --check scripts/checkInteractionExpeditionTavernRecovery.mjs
           node scripts/checkInteractionExpeditionBoard.mjs
           node scripts/checkInteractionExpeditionMasterySmithingReward.mjs
           node scripts/checkInteractionMasteryEconomyContinuity.mjs
           node scripts/checkInteractionExpeditionKitCraft.mjs
           node scripts/checkInteractionSettlementServiceContract.mjs
           node scripts/checkInteractionJourneyPlanning.mjs
+          node scripts/checkInteractionExpeditionTavernRecovery.mjs
       - name: Install Chromium acceptance harness
         run: |
           set -euo pipefail

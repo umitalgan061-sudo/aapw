@@ -35,7 +35,7 @@ jobs:
           changed="$(git diff --name-only "$base"...HEAD)"
           while IFS= read -r path; do
             case "$path" in
-              src/3d/gameplay/interactionConfig.js|src/3d/gameplay/interaction.js|scripts/checkInteractionTavernReceiptIntegrity.mjs|scripts/checkInteractionExpeditionTavernRecovery.mjs|.github/workflows/rpg-expedition-tavern-recovery.yml|.github/workflows/rpg-interaction-quest-loop.yml|.github/workflows/rpg-mastery-armorer-service.yml|.github/workflows/rpg-mastery-journal-continuity.yml|.github/workflows/rpg-mastery-to-smithing.yml|.github/workflows/rpg-mastery-travel-continuity.yml|.github/workflows/rpg-tavern-receipt-integrity.yml) ;;
+              src/3d/gameplay/interactionConfig.js|src/3d/gameplay/interaction.js|scripts/checkInteractionExpeditionBoard.mjs|scripts/checkInteractionTavernReceiptIntegrity.mjs|scripts/checkInteractionExpeditionTavernRecovery.mjs|.github/workflows/rpg-expedition-tavern-recovery.yml|.github/workflows/rpg-interaction-quest-loop.yml|.github/workflows/rpg-journey-ledger-ux.yml|.github/workflows/rpg-mastery-armorer-service.yml|.github/workflows/rpg-mastery-journal-continuity.yml|.github/workflows/rpg-mastery-to-smithing.yml|.github/workflows/rpg-mastery-travel-continuity.yml|.github/workflows/rpg-tavern-receipt-integrity.yml) ;;
               '') ;;
               *) echo "out-of-scope path: $path" >&2; exit 1 ;;
             esac

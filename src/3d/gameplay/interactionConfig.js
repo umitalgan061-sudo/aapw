@@ -77,7 +77,17 @@ export function createInteractionJourneyState() {
 		recentReceipts = recentReceipts.slice(-INTERACTION_JOURNEY_POLICY.MAX_RECENT_RECEIPTS);
 		return true;
 	}
-	return { snapshot, restore, applyCommit };
+	function applyRecovery(result) {
+		if (result?.ok !== true || result?.plan?.complete !== true) return false;
+		const plannedSteps = Array.isArray(result.plan.steps) ? result.plan.steps : [];
+		const startingFatigueKm = normalizeFatigue(result.plan.startingFatigueKm);
+		const nextFatigueKm = normalizeFatigue(result.plan.finalFatigueKm);
+		if (plannedSteps.length === 0 || plannedSteps.some((step) => step.type !== 'rest' || step.allowed !== true)) return false;
+		if (normalizeDistance(result.plan.totalDistanceKm) !== 0 || startingFatigueKm !== fatigueKm || nextFatigueKm >= fatigueKm) return false;
+		fatigueKm = nextFatigueKm;
+		return true;
+	}
+	return { snapshot, restore, applyCommit, applyRecovery };
 }
 
 export function buildJourneyStateText(journey = {}, readiness = {}) {
