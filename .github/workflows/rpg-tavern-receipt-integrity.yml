@@ -1,0 +1,63 @@
+name: RPG Tavern Receipt Integrity
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/interactionConfig.js'
+      - 'src/3d/gameplay/interaction.js'
+      - 'scripts/checkInteractionTavernReceiptIntegrity.mjs'
+      - 'scripts/checkInteractionExpeditionTavernRecovery.mjs'
+      - '.github/workflows/rpg-tavern-receipt-integrity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tavern-receipt-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main ancestry and bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          base="$(git merge-base HEAD origin/main)"
+          test "$base" = "$(git rev-parse origin/main)"
+          changed="$(git diff --name-only "$base"...HEAD)"
+          while IFS= read -r path; do
+            case "$path" in
+              src/3d/gameplay/interactionConfig.js|src/3d/gameplay/interaction.js|scripts/checkInteractionExpeditionBoard.mjs|scripts/checkInteractionTavernReceiptIntegrity.mjs|scripts/checkInteractionExpeditionTavernRecovery.mjs|.github/workflows/rpg-expedition-tavern-recovery.yml|.github/workflows/rpg-interaction-quest-loop.yml|.github/workflows/rpg-journey-ledger-ux.yml|.github/workflows/rpg-mastery-armorer-service.yml|.github/workflows/rpg-mastery-journal-continuity.yml|.github/workflows/rpg-mastery-to-smithing.yml|.github/workflows/rpg-mastery-travel-continuity.yml|.github/workflows/rpg-tavern-receipt-integrity.yml) ;;
+              '') ;;
+              *) echo "out-of-scope path: $path" >&2; exit 1 ;;
+            esac
+          done <<< "$changed"
+          stats="$(git diff --numstat "$base"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')"
+          read -r additions deletions <<< "$stats"
+          test $((additions + deletions)) -le 1000
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/interactionConfig.js
+          node --check src/3d/gameplay/interaction.js
+          node --check scripts/checkInteractionTavernReceiptIntegrity.mjs
+          node --check scripts/checkInteractionExpeditionTavernRecovery.mjs
+      - name: Canonical tavern expedition recovery
+        run: node scripts/checkInteractionExpeditionTavernRecovery.mjs
+      - name: Tavern receipt persistence integrity
+        run: node scripts/checkInteractionTavernReceiptIntegrity.mjs
+      - name: Shared Material Placement Contract
+        run: node scripts/checkSharedMaterialPlacementContract.js
+      - name: Final exact-main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"

@@ -1,0 +1,59 @@
+name: Player Parry Recovery
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/player.js'
+      - 'scripts/checkPlayerParryRecovery.mjs'
+      - '.github/workflows/player-parry-recovery.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parry-recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main scope and quota
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --quiet
+          BASE="$(git merge-base HEAD origin/main)"
+          test "$BASE" = "$(git rev-parse origin/main)"
+          mapfile -t files < <(git diff --name-only "$BASE"...HEAD)
+          printf '%s\n' "${files[@]}"
+          for file in "${files[@]}"; do
+            case "$file" in
+              src/3d/gameplay/player.js|scripts/checkPlayerParryRecovery.mjs|.github/workflows/player-parry-recovery.yml) ;;
+              *) echo "Unexpected path: $file" >&2; exit 1 ;;
+            esac
+          done
+          changed="$(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          test "$changed" -le 1000
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/player.js
+          node --check scripts/checkPlayerParryRecovery.mjs
+      - name: Parry recovery regression
+        run: node scripts/checkPlayerParryRecovery.mjs
+      - name: Standing player combat contracts
+        run: |
+          node scripts/checkPlayerStaminaDodge.mjs
+          node scripts/checkPlayerCombatVerticalSlice.mjs
+          node scripts/checkPlayerImmutableDefenseDamage.mjs
+      - name: Shared Material Placement Contract
+        run: node scripts/checkSharedMaterialPlacementContract.js
+      - name: Final exact-main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --quiet
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"

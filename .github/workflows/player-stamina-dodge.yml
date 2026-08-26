@@ -5,10 +5,17 @@ on:
     branches: [main]
     paths:
       - 'src/3d/gameplay/player.js'
+      - 'src/3d/gameplay/health.js'
+      - 'src/3d/gameplay/damageResolution.js'
       - 'src/3d/input.js'
       - 'src/3d/gameLoopHelpers.js'
       - 'src/3d/ui/touchJoystick.js'
       - 'src/3d/ui/healthBar.js'
+      - 'scripts/checkPlayerCombatFeedback.mjs'
+      - 'scripts/checkPlayerCombatFeedbackHapticParity.mjs'
+      - 'scripts/checkPlayerCombatFeedbackHotplug.mjs'
+      - 'scripts/checkPlayerCombatHealthReceipt.mjs'
+      - 'scripts/checkPlayerImmutableDefenseDamage.mjs'
       - 'scripts/checkPlayerStaminaDodge.mjs'
       - 'scripts/checkPlayerStaminaDodgeRuntime.mjs'
       - 'scripts/checkPlayerMeleeCombo.mjs'
@@ -18,7 +25,16 @@ on:
       - 'scripts/checkPlayerGamepadRuntime.mjs'
       - 'scripts/checkPlayerLockOn.mjs'
       - 'scripts/checkPlayerLockOnRuntime.mjs'
+      - 'scripts/checkPlayerCombatHudRuntime.mjs'
+      - 'scripts/checkPlayerDodgeIFrames.mjs'
+      - 'scripts/checkPlayerDodgeIFrameRuntime.mjs'
+      - 'scripts/checkPlayerGroundingCombatContract.mjs'
+      - 'scripts/checkPlayerHitStaggerRuntime.mjs'
+      - '.github/workflows/player-combat-feedback.yml'
+      - '.github/workflows/player-dodge-iframes.yml'
+      - '.github/workflows/player-grounding-combat-contract.yml'
       - '.github/workflows/player-gamepad-parity.yml'
+      - '.github/workflows/player-hit-stagger-runtime.yml'
       - '.github/workflows/player-stamina-dodge.yml'
   workflow_dispatch:
 
@@ -51,7 +67,8 @@ jobs:
           git diff --check "$BASE"...HEAD
           CHANGED="$(git diff --name-only "$BASE"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|scripts/checkPlayerLockOnRuntime\.mjs|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
+          OUT_OF_SCOPE="$(printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/gameplay/health\.js|src/3d/gameplay/damageResolution\.js|src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerCombatFeedback\.mjs|scripts/checkPlayerCombatFeedbackHapticParity\.mjs|scripts/checkPlayerCombatFeedbackHotplug\.mjs|scripts/checkPlayerCombatHealthReceipt\.mjs|scripts/checkPlayerImmutableDefenseDamage\.mjs|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|scripts/checkPlayerLockOnRuntime\.mjs|scripts/checkPlayerCombatHudRuntime\.mjs|scripts/checkPlayerDodgeIFrames\.mjs|scripts/checkPlayerDodgeIFrameRuntime\.mjs|scripts/checkPlayerGroundingCombatContract\.mjs|scripts/checkPlayerHitStaggerRuntime\.mjs|\.github/workflows/player-combat-feedback\.yml|\.github/workflows/player-dodge-iframes\.yml|\.github/workflows/player-grounding-combat-contract\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-hit-stagger-runtime\.yml|\.github/workflows/player-stamina-dodge\.yml)$' || true)"
+          test -z "$OUT_OF_SCOPE"
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           TOTAL=$((ADD + DEL))
           echo "base=$BASE additions=$ADD deletions=$DEL total=$TOTAL"
@@ -75,6 +92,9 @@ jobs:
           node --check src/3d/gameLoopHelpers.js
           node --check src/3d/ui/touchJoystick.js
           node --check src/3d/ui/healthBar.js
+          node --check scripts/checkPlayerCombatFeedbackHapticParity.mjs
+          node --check scripts/checkPlayerCombatFeedbackHotplug.mjs
+          node --check scripts/checkPlayerImmutableDefenseDamage.mjs
           node --check scripts/checkPlayerStaminaDodge.mjs
           node --check scripts/checkPlayerStaminaDodgeRuntime.mjs
           node --check scripts/checkPlayerMeleeCombo.mjs
@@ -84,11 +104,21 @@ jobs:
           node --check scripts/checkPlayerGamepadRuntime.mjs
           node --check scripts/checkPlayerLockOn.mjs
           node --check scripts/checkPlayerLockOnRuntime.mjs
+          node --check scripts/checkPlayerCombatHudRuntime.mjs
+          node --check scripts/checkPlayerDodgeIFrames.mjs
+          node --check scripts/checkPlayerDodgeIFrameRuntime.mjs
+          node --check scripts/checkPlayerGroundingCombatContract.mjs
+          node --check scripts/checkPlayerHitStaggerRuntime.mjs
+          node scripts/checkPlayerCombatFeedbackHapticParity.mjs
+          node scripts/checkPlayerCombatFeedbackHotplug.mjs
+          node scripts/checkPlayerImmutableDefenseDamage.mjs
           node scripts/checkPlayerStaminaDodge.mjs
           node scripts/checkPlayerMeleeCombo.mjs
           node scripts/checkPlayerGamepadInput.mjs
           node scripts/checkPlayerGamepadHandoff.mjs
           node scripts/checkPlayerLockOn.mjs
+          node scripts/checkPlayerDodgeIFrames.mjs
+          node scripts/checkPlayerGroundingCombatContract.mjs
           node scripts/checkSharedMaterialPlacementContract.js
           node scripts/checkServiceWorkerCache.js
           test -f src/3d/materials/MaterialAssignmentCore.js
@@ -104,7 +134,7 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-      - name: Shipped scene sprint dodge guard parry melee gamepad and lock-on proof
+      - name: Shipped scene sprint dodge guard parry melee gamepad lock-on and combat HUD proof
         shell: bash
         run: |
           set -euo pipefail
@@ -128,6 +158,16 @@ jobs:
           test -s artifacts/player-stamina-dodge/lock-on/lock-on-runtime.json
           grep -q 'PLAYER_LOCK_ON_RUNTIME_OK' artifacts/player-stamina-dodge/lock-on.log
           grep -q '"browserErrors": \[\]' artifacts/player-stamina-dodge/lock-on/lock-on-runtime.json
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerCombatHudRuntime.mjs --out-dir=artifacts/player-stamina-dodge/combat-hud | tee artifacts/player-stamina-dodge/combat-hud.log
+          test -s artifacts/player-stamina-dodge/combat-hud/combat-hud-runtime.png
+          test -s artifacts/player-stamina-dodge/combat-hud/combat-hud-runtime.json
+          grep -q 'PLAYER_COMBAT_HUD_RUNTIME_OK' artifacts/player-stamina-dodge/combat-hud.log
+          grep -q '"browserErrors": \[\]' artifacts/player-stamina-dodge/combat-hud/combat-hud-runtime.json
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerDodgeIFrameRuntime.mjs --out-dir=artifacts/player-stamina-dodge/dodge-iframes | tee artifacts/player-stamina-dodge/dodge-iframes.log
+          test -s artifacts/player-stamina-dodge/dodge-iframes/dodge-iframes-runtime.png
+          test -s artifacts/player-stamina-dodge/dodge-iframes/dodge-iframes-runtime.json
+          grep -q 'PLAYER_DODGE_IFRAMES_RUNTIME_OK' artifacts/player-stamina-dodge/dodge-iframes.log
+          grep -q '"browserErrors": \[\]' artifacts/player-stamina-dodge/dodge-iframes/dodge-iframes-runtime.json
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
       - name: Final main freshness

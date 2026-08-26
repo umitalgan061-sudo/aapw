@@ -1,0 +1,74 @@
+name: Player Combat Vertical Slice
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/player.js'
+      - 'src/3d/gameplay/playerConfig.js'
+      - 'src/3d/gameLoopHelpers.js'
+      - 'src/3d/input.js'
+      - 'src/3d/ui/touchJoystick.js'
+      - 'src/3d/gameplay/health.js'
+      - 'src/3d/materials/MaterialAssignmentCore.js'
+      - 'src/3d/world/WorldAssetPlacementPipeline.js'
+      - 'scripts/checkPlayerCombatVerticalSlice.mjs'
+      - 'scripts/checkPlayerMeleeCombo.mjs'
+      - 'scripts/checkPlayerLockOn.mjs'
+      - 'scripts/checkPlayerCombatFeedback.mjs'
+      - 'scripts/checkPlayerGroundingCombatContract.mjs'
+      - 'scripts/checkSharedMaterialPlacementContract.js'
+      - '.github/workflows/player-combat-vertical-slice.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vertical-slice:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact bounded scope
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch --no-tags origin "$BASE_SHA" "$HEAD_SHA"
+          git checkout --detach "$HEAD_SHA"
+          test "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" = "$BASE_SHA"
+          changed=$(git diff --numstat "$BASE_SHA" "$HEAD_SHA" | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 1000
+      - name: Syntax
+        run: |
+          node --check scripts/checkPlayerCombatVerticalSlice.mjs
+          node --check src/3d/gameplay/player.js
+          node --check src/3d/gameLoopHelpers.js
+          node --check src/3d/input.js
+          node --check scripts/checkSharedMaterialPlacementContract.js
+      - name: Shipped vertical slice composition
+        run: node scripts/checkPlayerCombatVerticalSlice.mjs
+      - name: Existing melee combo
+        run: node scripts/checkPlayerMeleeCombo.mjs
+      - name: Existing lock-on
+        run: node scripts/checkPlayerLockOn.mjs
+      - name: Existing combat feedback
+        run: node scripts/checkPlayerCombatFeedback.mjs
+      - name: Existing grounding combat contract
+        run: node scripts/checkPlayerGroundingCombatContract.mjs
+      - name: Shared material placement contract
+        run: node scripts/checkSharedMaterialPlacementContract.js
+      - name: Final main freshness
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git fetch --no-tags origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"

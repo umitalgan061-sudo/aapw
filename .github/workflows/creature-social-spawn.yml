@@ -1,0 +1,94 @@
+name: Creature Social Spawn
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/creatureSpawner.js'
+      - 'src/3d/gameplay/creatureBrain.js'
+      - 'scripts/checkCreatureSocialSpawnContract.mjs'
+      - 'scripts/checkCreatureSpawnClearance.mjs'
+      - 'scripts/checkCreaturePredatorSpawnBuffer.mjs'
+      - 'scripts/checkCreatureSocialSpawnBrowser.js'
+      - 'scripts/checkCreatureSocialCohesionContract.mjs'
+      - 'scripts/checkCreatureSocialCohesionBrowser.js'
+      - 'scripts/checkCreatureSocialCohesionLodBrowser.js'
+      - 'scripts/checkCreatureSocialCohesionAnchorResetBrowser.js'
+      - '.github/workflows/creature-social-spawn.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  social-fauna:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exact-main bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"
+          test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
+          CHANGED="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          test "$CHANGED" -le 1000
+          git diff --check "$BASE_SHA" HEAD
+      - name: Static and shared contracts
+        run: |
+          set -euo pipefail
+          node --check scripts/checkCreatureSocialSpawnContract.mjs
+          node --check scripts/checkCreatureSpawnClearance.mjs
+          node --check scripts/checkCreaturePredatorSpawnBuffer.mjs
+          node --check scripts/checkCreatureSocialSpawnBrowser.js
+          node --check scripts/checkCreatureSocialCohesionContract.mjs
+          node --check scripts/checkCreatureSocialCohesionBrowser.js
+          node --check scripts/checkCreatureSocialCohesionLodBrowser.js
+          node --check scripts/checkCreatureSocialCohesionAnchorResetBrowser.js
+          node scripts/checkCreatureSocialSpawnContract.mjs
+          node scripts/checkCreatureSpawnClearance.mjs
+          node scripts/checkCreaturePredatorSpawnBuffer.mjs
+          node scripts/checkCreatureSocialCohesionContract.mjs
+          node scripts/checkCreatureSimulationLod.mjs
+          node scripts/checkCreatureThreatMemory.mjs
+          node scripts/checkCreaturePredatorPrey.mjs
+          node scripts/checkCreatureHabitatPlacement.mjs
+          node scripts/checkSharedMaterialPlacementContract.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkServiceWorkerCache.js
+      - name: Hydrate scoped browser LFS assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs version
+          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
+      - name: Install Chromium outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Real shipped Three.js social fauna proof
+        run: node scripts/checkCreatureSocialSpawnBrowser.js
+      - name: Real shipped Three.js social cohesion proof
+        run: node scripts/checkCreatureSocialCohesionBrowser.js
+      - name: Real shipped Three.js social cohesion LOD proof
+        run: node scripts/checkCreatureSocialCohesionLodBrowser.js
+      - name: Real shipped Three.js social anchor succession proof
+        run: node scripts/checkCreatureSocialCohesionAnchorResetBrowser.js
+      - name: Final exact-main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"

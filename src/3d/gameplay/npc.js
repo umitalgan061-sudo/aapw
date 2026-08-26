@@ -42,7 +42,8 @@ function queryNpcLineOfSight(collider, observer, target, maxSamples = 32) {
 		const x = observer.x + dx * t;
 		const z = observer.z + dz * t;
 		const resolved = collider.resolveXZ(x, z);
-		if (!resolved || Math.hypot(resolved.x - x, resolved.z - z) > 1e-4) return { clear: false, samples: i };
+		if (!Number.isFinite(resolved?.x) || !Number.isFinite(resolved?.z)) return { clear: false, samples: i };
+		if (Math.hypot(resolved.x - x, resolved.z - z) > 1e-4) return { clear: false, samples: i };
 	}
 	return { clear: true, samples: sampleCount };
 }
@@ -95,18 +96,34 @@ export function releaseNpcGuardAlertOwnership({ alertChannel, groupId, sourceId 
 	return alertChannel.groups.delete(groupId);
 }
 
+function commitNpcGroundedMove(model, nextX, nextZ, groundCollider, playerCollider) {
+	if (!Number.isFinite(nextX) || !Number.isFinite(nextZ)) return false;
+	let resolvedX = nextX;
+	let resolvedZ = nextZ;
+	if (playerCollider?.resolveXZ) {
+		const resolved = playerCollider.resolveXZ(nextX, nextZ);
+		if (!Number.isFinite(resolved?.x) || !Number.isFinite(resolved?.z)) return false;
+		resolvedX = resolved.x;
+		resolvedZ = resolved.z;
+	}
+	let groundY = model.position.y;
+	if (groundCollider?.getGroundHeight) {
+		groundY = groundCollider.getGroundHeight(resolvedX, resolvedZ);
+		if (!Number.isFinite(groundY)) return false;
+	}
+	model.position.set(resolvedX, groundY, resolvedZ);
+	return true;
+}
+
 function moveNpcToward(model, target, speedMps, delta, groundCollider, playerCollider, turnRateRadiansPerSecond, arrivalRadius = 0.7) {
 	const dx = target.x - model.position.x;
 	const dz = target.z - model.position.z;
 	const distance = Math.hypot(dx, dz);
 	if (!(distance > arrivalRadius)) return false;
 	const step = Math.min(distance, Math.max(0, speedMps) * delta);
-	let nextX = model.position.x + dx / distance * step;
-	let nextZ = model.position.z + dz / distance * step;
-	if (playerCollider?.resolveXZ) ({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
-	model.position.x = nextX;
-	model.position.z = nextZ;
-	if (groundCollider?.getGroundHeight) model.position.y = groundCollider.getGroundHeight(nextX, nextZ);
+	const nextX = model.position.x + dx / distance * step;
+	const nextZ = model.position.z + dz / distance * step;
+	if (!commitNpcGroundedMove(model, nextX, nextZ, groundCollider, playerCollider)) return false;
 	turnTowardYaw(model, Math.atan2(dx, dz), turnRateRadiansPerSecond, delta);
 	return true;
 }
@@ -365,7 +382,7 @@ export async function createNPC({
 					lastKnownPlayer = { x: playerPosition.x, z: playerPosition.z };
 					investigationRemaining = Math.max(investigationRemaining, 2 + distanceToPlayer / Math.max(0.25, speedMps * 0.85));
 				} else if (heard) {
-					suspicion = Math.min(1, suspicion + 0.18 * noiseStrength);
+					suspicion = Math.min(1, suspicion + simulationDelta * 0.72 * noiseStrength);
 					lastKnownPlayer = { x: playerPosition.x, z: playerPosition.z };
 					investigationRemaining = Math.max(investigationRemaining, 1.25 + distanceToPlayer / Math.max(0.25, speedMps * 0.85));
 				} else {
@@ -459,24 +476,18 @@ export async function createNPC({
 					const distance = Math.hypot(dx, dz);
 					const step = speedMps * simulationDelta;
 					if (distance <= step) {
-						let targetX = target.x;
-						let targetZ = target.z;
-						if (playerCollider) ({ x: targetX, z: targetZ } = playerCollider.resolveXZ(targetX, targetZ));
-						model.position.x = targetX;
-						model.position.z = targetZ;
-						model.position.y = groundCollider.getGroundHeight(targetX, targetZ);
-						waypointIndex += 1;
-						pauseTimer = pauseSeconds;
+						const committed = commitNpcGroundedMove(model, target.x, target.z, groundCollider, playerCollider);
+						if (committed) {
+							waypointIndex += 1;
+							pauseTimer = pauseSeconds;
+						}
 						playAction(idleAction);
 					} else {
-						let nextX = model.position.x + (dx / distance) * step;
-						let nextZ = model.position.z + (dz / distance) * step;
-						if (playerCollider) ({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
-						model.position.x = nextX;
-						model.position.z = nextZ;
-						model.position.y = groundCollider.getGroundHeight(model.position.x, model.position.z);
-						turnTowardYaw(model, Math.atan2(dx, dz), turnRateRadiansPerSecond, simulationDelta);
-						playAction(walkAction);
+						const nextX = model.position.x + (dx / distance) * step;
+						const nextZ = model.position.z + (dz / distance) * step;
+						const committed = commitNpcGroundedMove(model, nextX, nextZ, groundCollider, playerCollider);
+						if (committed) turnTowardYaw(model, Math.atan2(dx, dz), turnRateRadiansPerSecond, simulationDelta);
+						playAction(committed ? walkAction : idleAction);
 					}
 				}
 			} else if (perceptionEnabled && Math.hypot(model.position.x - homePosition.x, model.position.z - homePosition.z) > 0.2) {

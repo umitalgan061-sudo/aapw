@@ -37,6 +37,51 @@ export const CREATURE_HABITAT_RULES = Object.freeze({
 	tavsan: Object.freeze({ minSeatDistanceMeters: 80, maxElevationAboveSeaMeters: 1200 }),
 });
 
+// Species with established herd/flock alert behavior should also have a realistic chance to spawn
+// inside one another's communication envelope. Every radius is strictly below half the matching
+// runtime alert radius in creatureBrain.js, so even two members on opposite sides of the shared anchor
+// remain mutually reachable on the first simulation tick. Solitary species keep uniform-disc scatter.
+export const CREATURE_SOCIAL_SPAWN_RADIUS_METERS = Object.freeze({
+	at: 8,
+	geyik: 7,
+	koyun: 2.5,
+	inek: 3.25,
+	keci: 4,
+	zurafa: 8,
+	kuzgun: 5,
+	kartal: 8,
+	tavuk: 3.25,
+});
+
+// Approximate horizontal body-clearance radii in physical world metres. Social clustering deliberately
+// keeps herd members close, but "close" must not mean two independently skinned bodies occupying the
+// same footprint on frame zero. Candidate clearance is symmetric (candidate radius + existing radius),
+// so mixed species cannot interpenetrate either; movement may still bring animals together later.
+export const CREATURE_SPAWN_CLEARANCE_RADIUS_METERS = Object.freeze({
+	kedi: 0.3, kopek: 0.4, at: 0.75, fil: 1.25, geyik: 0.55, koyun: 0.42, inek: 0.7,
+	keci: 0.45, domuz: 0.5, tavsan: 0.22, ayi: 0.7, aslan: 0.6, zurafa: 0.72,
+	kuzgun: 0.2, kartal: 0.3, tavuk: 0.22,
+});
+
+// Predators are authored later in the deterministic species order than their prey. Without an
+// inter-species spawn gate, a lion/bear can therefore materialize directly inside a freshly clustered
+// herd and force an unavoidable flee burst on the first simulation tick. These buffers are deliberately
+// modest (well below habitat scales and world-disc size): they prevent "predator spawned in the flock"
+// while still allowing natural encounters after both actors begin moving under creatureBrain.js.
+export const CREATURE_PREDATOR_PREY_SPAWN_BUFFER_METERS = Object.freeze({
+	ayi: Object.freeze({ geyik: 30, koyun: 24, keci: 22, tavsan: 18 }),
+	aslan: Object.freeze({ geyik: 34, koyun: 28, inek: 24, at: 26, zurafa: 30, tavsan: 20 }),
+});
+
+// Territorial predators should not materialize as a stacked pack either. The matrix is symmetric for
+// cross-species competition so spawn validity does not depend on which predator happened to be authored
+// first. Distances stay small relative to the habitat/world-disc scale; movement can still create later
+// encounters naturally, but the initial frame never starts with overlapping bears/lions.
+export const CREATURE_PREDATOR_TERRITORY_RADIUS_METERS = Object.freeze({
+	ayi: Object.freeze({ ayi: 42, aslan: 36 }),
+	aslan: Object.freeze({ ayi: 36, aslan: 48 }),
+});
+
 function nearestSeatDistanceMeters(x, z, seats) {
 	let nearest = Infinity;
 	for (const seat of seats ?? []) nearest = Math.min(nearest, Math.hypot(x - seat.x, z - seat.z));
@@ -59,6 +104,44 @@ export function isCreatureHabitatCompatible(speciesId, x, z, {
 	if (!Number.isFinite(elevationAboveSea)) return false;
 	if (rule.minElevationAboveSeaMeters != null && elevationAboveSea < rule.minElevationAboveSeaMeters) return false;
 	if (rule.maxElevationAboveSeaMeters != null && elevationAboveSea > rule.maxElevationAboveSeaMeters) return false;
+	return true;
+}
+
+export function isCreatureSpawnClear(speciesId, x, z, spawns, {
+	clearanceRadii = CREATURE_SPAWN_CLEARANCE_RADIUS_METERS,
+} = {}) {
+	const candidateRadius = clearanceRadii?.[speciesId] ?? 0.35;
+	for (const spawn of spawns ?? []) {
+		const existingRadius = clearanceRadii?.[spawn?.speciesId] ?? 0.35;
+		const minimumDistanceMeters = candidateRadius + existingRadius;
+		if (Math.hypot(x - spawn.x, z - spawn.z) < minimumDistanceMeters) return false;
+	}
+	return true;
+}
+
+export function isCreaturePredatorSpawnSeparated(speciesId, x, z, spawns, {
+	bufferRules = CREATURE_PREDATOR_PREY_SPAWN_BUFFER_METERS,
+} = {}) {
+	const preyBuffers = bufferRules?.[speciesId];
+	if (!preyBuffers) return true;
+	for (const spawn of spawns ?? []) {
+		const minimumDistanceMeters = preyBuffers[spawn?.speciesId];
+		if (!(minimumDistanceMeters > 0)) continue;
+		if (Math.hypot(x - spawn.x, z - spawn.z) < minimumDistanceMeters) return false;
+	}
+	return true;
+}
+
+export function isCreaturePredatorTerritorySeparated(speciesId, x, z, spawns, {
+	territoryRules = CREATURE_PREDATOR_TERRITORY_RADIUS_METERS,
+} = {}) {
+	const predatorBuffers = territoryRules?.[speciesId];
+	if (!predatorBuffers) return true;
+	for (const spawn of spawns ?? []) {
+		const minimumDistanceMeters = predatorBuffers[spawn?.speciesId];
+		if (!(minimumDistanceMeters > 0)) continue;
+		if (Math.hypot(x - spawn.x, z - spawn.z) < minimumDistanceMeters) return false;
+	}
 	return true;
 }
 
@@ -224,26 +307,54 @@ export function scatterCreatures({
 	let spawnIndex = 0;
 	for (const [speciesId, count] of Object.entries(speciesCounts)) {
 		let placedForSpecies = 0;
+		let socialAnchor = null;
+		const socialRadiusMeters = CREATURE_SOCIAL_SPAWN_RADIUS_METERS[speciesId] ?? null;
 		for (let i = 0; i < count; i++) {
 			let placed = false;
 			for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_CREATURE; attempt++) {
 				const angle = rng() * Math.PI * 2;
-				const radius = radiusMeters * Math.sqrt(rng());
-				const x = centerX + Math.cos(angle) * radius;
-				const z = centerZ + Math.sin(angle) * radius;
+				const sampleRadius = socialAnchor && socialRadiusMeters
+					? socialRadiusMeters * Math.sqrt(rng())
+					: radiusMeters * Math.sqrt(rng());
+				const sampleCenterX = socialAnchor?.x ?? centerX;
+				const sampleCenterZ = socialAnchor?.z ?? centerZ;
+				const x = sampleCenterX + Math.cos(angle) * sampleRadius;
+				const z = sampleCenterZ + Math.sin(angle) * sampleRadius;
 				const rotationYRadians = rng() * Math.PI * 2;
 				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
 				if (!isCreatureHabitatCompatible(speciesId, x, z, { sampleHeightMeters, seaLevelMeters, seats })) continue;
-				spawns.push({ id: `creature-${speciesId}-${spawnIndex++}`, speciesId, x, z, rotationYRadians });
+				if (!isCreatureSpawnClear(speciesId, x, z, spawns)) continue;
+				if (!isCreaturePredatorSpawnSeparated(speciesId, x, z, spawns)) continue;
+				if (!isCreaturePredatorTerritorySeparated(speciesId, x, z, spawns)) continue;
+				if (!socialAnchor && socialRadiusMeters) socialAnchor = Object.freeze({ x, z });
+				const socialMetadata = socialAnchor && socialRadiusMeters
+					? {
+						socialAnchorX: socialAnchor.x,
+						socialAnchorZ: socialAnchor.z,
+						socialSpawnRadiusMeters: socialRadiusMeters,
+					}
+					: {};
+				spawns.push({
+					id: `creature-${speciesId}-${spawnIndex++}`,
+					speciesId,
+					x,
+					z,
+					rotationYRadians,
+					...socialMetadata,
+				});
 				placed = true;
 				placedForSpecies++;
 				break;
 			}
+			// If a social anchor happens to sit beside a narrow physical/habitat boundary, do not let
+			// the whole herd disappear. Clear it once and retry the remaining individual from the
+			// canonical world disc on its next iteration; a new valid member becomes the next anchor.
+			if (!placed && socialAnchor) socialAnchor = null;
 		}
 		if (placedForSpecies < count) {
 			console.warn(
 				`[gameplay/creatureSpawner] "${speciesId}": placed ${placedForSpecies}/${count} — remainder dropped ` +
-					`(no valid physical+habitat position found within ${MAX_ATTEMPTS_PER_CREATURE} attempts each; not a silent cap).`,
+					`(no valid physical+habitat+ecology position found within ${MAX_ATTEMPTS_PER_CREATURE} attempts each; not a silent cap).`,
 			);
 		}
 	}

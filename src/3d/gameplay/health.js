@@ -12,89 +12,140 @@
  * @module gameplay/health
  */
 
+const pendingDamageResolutions = new WeakMap();
+
+function isObjectPayload(payload) {
+	return payload !== null && (typeof payload === 'object' || typeof payload === 'function');
+}
+
+function tryWrite(payload, key, value) {
+	if (!isObjectPayload(payload)) return false;
+	try {
+		return Reflect.set(payload, key, value);
+	} catch {
+		return false;
+	}
+}
+
 /**
- * @param {object} options
- * @param {import('../eventBus.js').EventBus} options.eventsBus
- * @param {number} options.maxHealth Starting and maximum health. Must be a positive number.
- * @param {string} options.damageEventName `EVENTS.PLAYER_DAMAGED` — listened to; payload shape
- *   `{amount: number, sourceId?: string}`. A non-positive or non-numeric `amount` is ignored (no
- *   accidental healing via a malformed damage event, no-op rather than a thrown error since a
- *   broken listener/payload should degrade gracefully like every other GOVERNANCE.md §8.13 subsystem).
- * @param {string} options.healthChangedEventName `EVENTS.PLAYER_HEALTH_CHANGED` — emitted (with
- *   `{current, maxHealth}`) once synchronously at construction (so a `ui/healthBar.js` instance
- *   created *before* this one still gets its initial full-bar paint) and again on every `damage()`/
- *   `heal()`/`reset()` call that actually changes `current`.
- * @param {string} options.diedEventName `EVENTS.PLAYER_DIED` — emitted once, edge-triggered, the
- *   instant `current` reaches exactly 0. Never re-fires while still dead; `heal()`/`reset()` re-arm
- *   it (see their own doc comments).
- * @returns {{
- *   readonly current: number,
- *   readonly maxHealth: number,
- *   readonly isDead: boolean,
- *   heal: (amount: number) => void,
- *   reset: () => void,
- *   dispose: () => void,
- * }}
+ * Stage same-event defense/health data without requiring producer payload mutability.
+ * Mutable payloads retain the legacy best-effort write-back for existing consumers.
  */
+export function stageDamageResolution(payload, patch = {}) {
+	if (!isObjectPayload(payload)) return null;
+	const previous = pendingDamageResolutions.get(payload) ?? {};
+	const next = Object.freeze({ ...previous, ...patch });
+	pendingDamageResolutions.set(payload, next);
+	for (const [key, value] of Object.entries(patch)) tryWrite(payload, key, value);
+	return next;
+}
+
+export function readDamageResolution(payload) {
+	return isObjectPayload(payload) ? (pendingDamageResolutions.get(payload) ?? null) : null;
+}
+
+export function clearDamageResolution(payload) {
+	if (isObjectPayload(payload)) pendingDamageResolutions.delete(payload);
+}
+
+function writeDamageAppliedAmount(payload, appliedAmount) {
+	if (!isObjectPayload(payload)) return false;
+	const previous = pendingDamageResolutions.get(payload) ?? {};
+	pendingDamageResolutions.set(payload, Object.freeze({ ...previous, appliedAmount }));
+	return tryWrite(payload, 'appliedAmount', appliedAmount);
+}
+
+function readDamageSourceId(payload, stagedResolution = readDamageResolution(payload)) {
+	return stagedResolution?.sourceId ?? payload?.sourceId ?? null;
+}
+
 export function createHealthState({ eventsBus, maxHealth, damageEventName, healthChangedEventName, diedEventName }) {
+	if (!Number.isFinite(maxHealth) || !(maxHealth > 0)) {
+		throw new RangeError('createHealthState maxHealth must be a finite positive number');
+	}
 	let current = maxHealth;
-	// Edge-trigger for `diedEventName` — mirrors every other one-shot-until-re-armed flag already in
-	// this codebase (`dragonController.js`'s `playerWasInNoticeRadius`/`pursuitExhausted`): `current`
-	// can sit at exactly 0 across many frames/damage events without re-emitting "died" each time.
 	let hasDied = false;
 
-	function emitHealthChanged() {
-		eventsBus.emit(healthChangedEventName, { current, maxHealth });
+	function clearResolutionAfterSameEvent(payload) {
+		// Preserve the authoritative snapshot through the first microtask wave so listeners
+		// registered after health can defer their own same-event reconciliation without racing cleanup.
+		// If the same payload object is reused before cleanup, a stale event must not erase the
+		// newer event's authoritative resolution.
+		const resolution = readDamageResolution(payload);
+		queueMicrotask(() => queueMicrotask(() => {
+			if (readDamageResolution(payload) === resolution) clearDamageResolution(payload);
+		}));
+	}
+
+	function emitHealthChanged({ previous = current, reason = 'sync', sourceId = null } = {}) {
+		const delta = current - previous;
+		const receipt = { current, maxHealth };
+		Object.defineProperties(receipt, {
+			ratio: { value: Number((current / maxHealth).toFixed(4)), enumerable: false },
+			delta: { value: delta, enumerable: false },
+			reason: { value: reason, enumerable: false },
+			appliedAmount: { value: reason === 'damage' ? Math.max(0, -delta) : 0, enumerable: false },
+			sourceId: { value: sourceId, enumerable: false },
+		});
+		eventsBus.emit(healthChangedEventName, Object.freeze(receipt));
 	}
 
 	function onDamage(payload) {
-		const amount = payload?.amount;
-		if (typeof amount !== 'number' || !(amount > 0) || hasDied) return;
+		const stagedResolution = readDamageResolution(payload);
+		const amount = stagedResolution?.amount ?? payload?.amount;
+		if (!Number.isFinite(amount) || !(amount > 0)) {
+			if (stagedResolution) {
+				if (Number.isFinite(amount) && amount === 0) writeDamageAppliedAmount(payload, 0);
+				clearResolutionAfterSameEvent(payload);
+			}
+			return;
+		}
+		if (hasDied) {
+			writeDamageAppliedAmount(payload, 0);
+			clearResolutionAfterSameEvent(payload);
+			return;
+		}
+		const previous = current;
+		const sourceId = readDamageSourceId(payload, stagedResolution);
 		current = Math.max(0, current - amount);
-		emitHealthChanged();
+		const appliedAmount = previous - current;
+		writeDamageAppliedAmount(payload, appliedAmount);
+		emitHealthChanged({ previous, reason: 'damage', sourceId });
 		if (current === 0 && !hasDied) {
 			hasDied = true;
-			eventsBus.emit(diedEventName, { sourceId: payload?.sourceId });
+			const deathReceipt = { sourceId };
+			Object.defineProperties(deathReceipt, {
+				current: { value: current, enumerable: false },
+				maxHealth: { value: maxHealth, enumerable: false },
+				appliedAmount: { value: appliedAmount, enumerable: false },
+			});
+			eventsBus.emit(diedEventName, Object.freeze(deathReceipt));
 		}
+		clearResolutionAfterSameEvent(payload);
 	}
 
 	eventsBus.on(damageEventName, onDamage);
-	// Synchronous initial paint (see `healthChangedEventName`'s own doc comment above) — deliberately
-	// after subscribing to `damageEventName` (not that it matters here, since nothing can emit damage
-	// during this same synchronous construction), but strictly *before* returning, so any caller that
-	// constructs `ui/healthBar.js` first and this second never misses it.
 	emitHealthChanged();
 
 	return {
 		get current() { return current; },
 		get maxHealth() { return maxHealth; },
 		get isDead() { return hasDied; },
-
-		/**
-		 * Restores health, capped at `maxHealth`. A positive `amount` while `current` is already 0
-		 * re-arms `diedEventName` (an amount that only brings `current` back to 0 exactly, i.e. no real
-		 * healing happened, does not re-arm — matches `damage()`'s own "only real changes emit" rule).
-		 * @param {number} amount
-		 */
 		heal(amount) {
-			if (typeof amount !== 'number' || !(amount > 0)) return;
+			if (!Number.isFinite(amount) || !(amount > 0)) return;
+			const previous = current;
 			const next = Math.min(maxHealth, current + amount);
 			if (next === current) return;
 			current = next;
 			if (current > 0) hasDied = false;
-			emitHealthChanged();
+			emitHealthChanged({ previous, reason: 'heal' });
 		},
-
-		/** Restores `current` to `maxHealth` and re-arms `diedEventName` unconditionally — the
-		 * respawn-after-death path (`game3d.js`'s `PLAYER_DIED` handler) calls this, not `heal()`,
-		 * so a respawn is always a full heal regardless of how much damage was actually taken. */
 		reset() {
+			const previous = current;
 			current = maxHealth;
 			hasDied = false;
-			emitHealthChanged();
+			emitHealthChanged({ previous, reason: 'reset' });
 		},
-
-		/** Unsubscribes from `damageEventName` — memory-leak checklist. */
 		dispose() {
 			eventsBus.off(damageEventName, onDamage);
 		},

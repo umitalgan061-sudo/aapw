@@ -1,0 +1,44 @@
+﻿Name: Spotted cow
+Type: model
+Mid: {856F0CB8-817B-4878-906F-CC35E3E6EE3B}
+Format: 3Ds Max 2021
+Export: FBX, OBJ, MAT
+Render: Corona (10)
+Polys: 155110
+Verts: 168676
+Matclasses: _CoronaPhysicalMtl
+Units: Centimeters
+Dimension: 78.42 x 19.65 x 43.61
+Preset: Mi preset 2025
+Custom1: 3d Max model
+Date: 2025.2.8
+Viruses: Clean, tested by PruneScene!
+Preview: Yes
+Tags: cow, spots, brown, animal, mammal
+Packinfo: Packed with Model Packer by https://3dground.net/
+Packver: 2.0.0
+Description:
+High-quality 3D model with highly detailed interior.
+The model is suitable for high quality visualization.
+The model can be used in games.
+
+Name: Spotted cow
+Type: model
+Format: 3Ds Max 2021
+Export: FBX OBJ MAT
+Render: Corona (10)
+Polys: 155110
+XForm: Yes
+Matclasses: CoronaPhisiclMtl
+Units: centimeters
+
+Why choose our models?
++ Everything is ready for rendering. Just press the render button and you will get a preview picture!
++ Does not require additional plugins;
++ Textures are included;
++ Suitable for large-scale visualization;
++ All objects are reasonably divided and named;
++ All materials are correctly named;
++ You can easily change or apply new materials, colors, etc;
++ The model has a good topology;
++ Suitable for animation and high quality photorealistic visualization

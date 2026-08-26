@@ -1,0 +1,67 @@
+name: RPG Mastery Journal Continuity
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/checkInteractionMasteryJournalBrowser.mjs'
+      - 'scripts/checkInteractionExpeditionTavernRecovery.mjs'
+      - '.github/workflows/rpg-mastery-journal-continuity.yml'
+      - 'src/3d/gameplay/interaction.js'
+      - 'src/3d/gameplay/interactionConfig.js'
+      - 'src/3d/ui/dialogueBox.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mastery-journal:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main bounded scope and quota
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          base=$(git merge-base HEAD origin/main)
+          test "$base" = "$(git rev-parse origin/main)"
+          mapfile -t paths < <(git diff --name-only "$base"...HEAD)
+          allowed='^(scripts/checkInteractionExpedition(Board|TavernRecovery)\.mjs|scripts/checkInteractionMasteryJournalBrowser\.mjs|scripts/checkInteractionMasteryArmorerServiceBrowser\.mjs|scripts/checkInteractionTavernReceiptIntegrity\.mjs|\.github/workflows/(rpg-expedition-tavern-recovery|rpg-interaction-quest-loop|rpg-journey-ledger-ux|rpg-mastery-armorer-service|rpg-mastery-journal-continuity|rpg-mastery-to-smithing|rpg-mastery-travel-continuity|rpg-tavern-receipt-integrity)\.yml|src/3d/gameplay/interaction\.js|src/3d/gameplay/interactionConfig\.js|src/3d/ui/dialogueBox\.js)$'
+          printf '%s\n' "${paths[@]}" | grep -Ev "$allowed" && exit 1 || true
+          changed=$(git diff --numstat "$base"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 1000
+      - name: Syntax and existing RPG lifecycle regressions
+        run: |
+          set -euo pipefail
+          node --check scripts/checkInteractionMasteryJournalBrowser.mjs
+          node --check scripts/checkInteractionExpeditionTavernRecovery.mjs
+          node scripts/checkInteractionExpeditionBoard.mjs
+          node scripts/checkInteractionExpeditionMasterySmithingReward.mjs
+          node scripts/checkInteractionMasteryEconomyContinuity.mjs
+          node scripts/checkInteractionJourneyPlanning.mjs
+          node scripts/checkInteractionExpeditionTavernRecovery.mjs
+      - name: Install Chromium acceptance harness
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Shipped-page Chromium mastery journal proof
+        run: NODE_PATH="$NODE_PATH" node scripts/checkInteractionMasteryJournalBrowser.mjs
+      - name: Shared material placement boundary
+        run: node scripts/checkSharedMaterialPlacementContract.js
+      - name: Final exact-main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"

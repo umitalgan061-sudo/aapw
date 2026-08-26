@@ -1,35 +1,13 @@
 /**
  * Pure flight-path / reaction-blend math for `gameplay/dragons.js` (run 71, DECISIONS.md ADR-0092).
- *
- * Every function here is stateless and side-effect-free apart from writing into the caller's own
- * objects (an `Object3D`'s `position`/`rotation`, or the small mutable circle-center record
- * `dragonController.js` owns) — nothing is cached between frames, nothing allocates per frame, and
- * no `Math.random()` is involved, so the whole module stays deterministic in exactly the way
- * GOVERNANCE.md §5 requires of world/gameplay code.
- *
- * These blocks were lifted out of `dragons.js`'s single 598-line file when it reached the 600-line
- * cap (GOVERNANCE.md Altın Kural 7). Each one is the *same arithmetic in the same order* as the
- * inline code it replaces — deliberately not "cleaned up" on the way out, because the expression
- * order is load-bearing: e.g. `stepCenterTowardTarget`'s `(to / distance) * maxStep` must stay in
- * that order (rewriting it as `to * (maxStep / distance)` is a different floating-point result), and
- * its snap-to-target branch must assign the target *exactly* rather than add a remaining delta, so
- * "fully returned home" stays an exact equality instead of an asymptote. See ADR-0092.
- *
+ * Stateless, deterministic helpers only; no module-level retained state or randomness.
  * @module gameplay/dragonFlightMath
  */
 
-/**
- * Eases a 0..1 reaction blend linearly toward `targetBlend`, one frame's worth — the shared shape
- * every reaction in `dragonController.js` uses (reactive flight, dive, pursuit, give-up), so a
- * reaction reads as the dragon actually responding rather than snapping between two fixed states.
- * A non-positive `transitionSeconds` means "no easing configured": the blend snaps to the target,
- * the same escape hatch each inline copy of this already had.
- * @param {number} currentBlend Blend value as of the previous frame (0..1).
- * @param {number} targetBlend Blend value this frame is easing toward (0 or 1 in practice).
- * @param {number} delta Seconds since the last frame.
- * @param {number} transitionSeconds Full 0->1 (or 1->0) ease duration.
- * @returns {number} The new blend value; never overshoots `targetBlend`.
- */
+export const DRAGON_TERRAIN_LOOKAHEAD_METERS = 12;
+export const DRAGON_TERRAIN_PROBE_SPACING_METERS = 1;
+export const DRAGON_TERRAIN_MAX_TRAVERSED_SWEEP_METERS = 48;
+
 export function easeBlendToward(currentBlend, targetBlend, delta, transitionSeconds) {
 	if (transitionSeconds > 0) {
 		const step = delta / transitionSeconds;
@@ -40,34 +18,16 @@ export function easeBlendToward(currentBlend, targetBlend, delta, transitionSeco
 	return targetBlend;
 }
 
-/**
- * Linear interpolation written the one way this module's callers already wrote it inline
- * (`from + (to - from) * blend`) — used for circle radius, cruise altitude, angular speed and bank
- * angle. Kept as its own named function rather than open-coded so every blended quantity provably
- * shares one expression, which is what makes "blend 0 lands exactly back on the calm value" true
- * everywhere instead of per-call-site.
- * @param {number} fromValue Value at `blend === 0`.
- * @param {number} toValue Value at `blend === 1`.
- * @param {number} blend 0..1.
- * @returns {number}
- */
 export function blendScalar(fromValue, toValue, blend) {
 	return fromValue + (toValue - fromValue) * blend;
 }
 
-/**
- * Places `object3D` at `angle` on its circle and orients it along the direction of travel.
- * The tangent of a circle parameterized by (sin, cos) is (cos, -sin) — the same `atan2(dx, dz)` yaw
- * convention every other gameplay system here uses (see `gameplay/animals.js`'s `turnToward`), just
- * derived analytically instead of from a per-frame position delta, since the path itself is a
- * closed-form circle.
- * @param {import('three').Object3D} object3D
- * @param {{x: number, y: number, z: number}} center Current circle center (see `stepCenterTowardTarget`).
- * @param {number} radiusMeters Circle radius this frame.
- * @param {number} angle Position on the circle, in radians.
- * @param {number} bankAngleRadians Visual roll applied this frame.
- */
 export function applyCirclePose(object3D, center, radiusMeters, angle, bankAngleRadians) {
+	object3D.userData ??= {};
+	if (Number.isFinite(object3D.position?.x) && Number.isFinite(object3D.position?.z)) {
+		object3D.userData.dragonPreviousRenderedX = object3D.position.x;
+		object3D.userData.dragonPreviousRenderedZ = object3D.position.z;
+	}
 	const x = center.x + radiusMeters * Math.sin(angle);
 	const z = center.z + radiusMeters * Math.cos(angle);
 	object3D.position.set(x, center.y, z);
@@ -76,18 +36,6 @@ export function applyCirclePose(object3D, center, radiusMeters, angle, bankAngle
 	object3D.rotation.set(0, Math.atan2(tangentX, tangentZ), bankAngleRadians);
 }
 
-/**
- * Moves the circle center at most `maxStep` meters toward (`targetX`, `targetZ`), mutating `center`
- * in place (no per-frame allocation). Speed-limited rather than a fraction-of-remaining-distance
- * lerp, which is what makes a sprinting player genuinely open a gap the dragon has to close instead
- * of the whole circle teleporting after them — see `dragonController.js`'s `pursuitCenterSpeedMps`
- * doc comment. Within one step of the target it lands on it *exactly*, so "fully returned home"
- * stays an exact equality rather than an asymptote that never quite arrives.
- * @param {{x: number, y: number, z: number}} center Mutated: `x`/`z` only.
- * @param {number} targetX
- * @param {number} targetZ
- * @param {number} maxStep Maximum horizontal distance to travel this frame, in meters.
- */
 export function stepCenterTowardTarget(center, targetX, targetZ, maxStep) {
 	const toTargetX = targetX - center.x;
 	const toTargetZ = targetZ - center.z;
@@ -101,46 +49,184 @@ export function stepCenterTowardTarget(center, targetX, targetZ, maxStep) {
 	}
 }
 
-/**
- * Blends `object3D` off its already-applied on-circle pose toward the dive target (run 64,
- * ADR-0082): partway toward the player's horizontal position — a swoop toward them, not a teleport
- * onto them — and `diveDropMeters` below the circle's cruise altitude. Blends *away* from the pose
- * `applyCirclePose` just wrote rather than replacing it, so easing `diveBlend` back to 0 always
- * lands exactly on the ordinary circling pose again with no path-planning.
- * @param {import('three').Object3D} object3D Read for its current on-circle (x, z), then repositioned.
- * @param {object} options
- * @param {number} options.playerX
- * @param {number} options.playerZ
- * @param {number} options.centerY Circle cruise altitude this frame (`center.y`).
- * @param {number} options.diveDropMeters Raw altitude drop, before the caller's terrain-safety clamp.
- * @param {number} options.lateralPullFraction 0..1, already clamped by the caller.
- * @param {number} options.diveBlend 0..1.
- */
+export function alignDiveOrientation(object3D, circleX, circleY, circleZ, circlePitch, circleYaw, diveBlend) {
+	if (diveBlend <= 0) return;
+	const boundedBlend = Math.min(1, Math.max(0, diveBlend));
+	const motionX = object3D.position.x - circleX;
+	const motionZ = object3D.position.z - circleZ;
+	const horizontalDistance = Math.hypot(motionX, motionZ);
+	if (horizontalDistance > 1e-8) {
+		const targetYaw = Math.atan2(motionX, motionZ);
+		const shortestYawDelta = Math.atan2(Math.sin(targetYaw - circleYaw), Math.cos(targetYaw - circleYaw));
+		object3D.rotation.y = circleYaw + shortestYawDelta * boundedBlend;
+	} else {
+		object3D.rotation.y = circleYaw;
+	}
+	const verticalDrop = Math.max(0, circleY - object3D.position.y);
+	const targetPitch = Math.atan2(verticalDrop, horizontalDistance);
+	const shortestPitchDelta = Math.atan2(Math.sin(targetPitch - circlePitch), Math.cos(targetPitch - circlePitch));
+	object3D.rotation.x = circlePitch + shortestPitchDelta * boundedBlend;
+}
+
 export function applyDiveOffset(object3D, { playerX, playerZ, centerY, diveDropMeters, lateralPullFraction, diveBlend }) {
 	const circleX = object3D.position.x;
 	const circleZ = object3D.position.z;
-	// Pulled only partway toward the player's horizontal position, not all the way onto it.
+	const circlePitch = object3D.rotation.x;
+	const circleYaw = object3D.rotation.y;
 	const diveTargetX = circleX + (playerX - circleX) * lateralPullFraction;
 	const diveTargetZ = circleZ + (playerZ - circleZ) * lateralPullFraction;
 	const diveTargetY = centerY - diveDropMeters;
-	const blendedX = circleX + (diveTargetX - circleX) * diveBlend;
-	const blendedZ = circleZ + (diveTargetZ - circleZ) * diveBlend;
-	const blendedY = centerY + (diveTargetY - centerY) * diveBlend;
-	object3D.position.set(blendedX, blendedY, blendedZ);
+	object3D.position.set(
+		circleX + (diveTargetX - circleX) * diveBlend,
+		centerY + (diveTargetY - centerY) * diveBlend,
+		circleZ + (diveTargetZ - circleZ) * diveBlend,
+	);
+	alignDiveOrientation(object3D, circleX, centerY, circleZ, circlePitch, circleYaw, diveBlend);
+}
+
+function sampleSegmentGround(startX, startZ, unitX, unitZ, distanceMeters, spacingMeters, includeStart, includeEndpoint, onProbe) {
+	if (distanceMeters <= 1e-8) return;
+	const segmentCount = Math.max(1, Math.ceil(distanceMeters / spacingMeters));
+	const firstSegment = includeStart ? 0 : 1;
+	const lastSegment = includeEndpoint ? segmentCount : segmentCount - 1;
+	for (let segment = firstSegment; segment <= lastSegment; segment += 1) {
+		const distance = distanceMeters * (segment / segmentCount);
+		onProbe(startX + unitX * distance, startZ + unitZ * distance);
+	}
 }
 
 /**
- * Terrain-collision safety floor: never lets the dragon end a frame below the real ground under its
- * *final* (x, z), plus a clearance margin. Re-sampled every frame (the position moves every frame)
- * and applied to the finished position rather than inside the dive branch as run 64 originally had
- * it — since run 66 the ordinary circling pose flies over arbitrary terrain too (the center
- * travels), so clamping only the dive would leave the far more common case unguarded.
- * @param {import('three').Object3D} object3D Mutated in place when it is below the floor.
- * @param {(worldX: number, worldZ: number) => number} sampleGroundY
- * @param {number} minAltitudeAboveGroundMeters
+ * Deterministically samples the actual traversed XZ segment and then a bounded strip ahead of the
+ * rendered dragon. Normal frame travel is swept at the conservative probe spacing before the
+ * forward strip is projected. Retained positions that are farther apart than
+ * `maxTraversedSweepMeters` are treated as a discontinuity (teleport, resume-from-background or
+ * external reposition): the destination and normal forward lookahead remain terrain-safe, but the
+ * unrendered gap is deliberately not sampled metre-by-metre. This caps one dragon's terrain work
+ * under pathological frame gaps while preserving the qualified long-frame anti-tunnelling path for
+ * ordinary movement. Facing yaw remains only a compatibility fallback when no retained motion
+ * exists. Non-finite terrain samples and isolated sampler exceptions are counted and ignored per
+ * probe so one transient terrain-provider failure cannot abort the dragon update or disable later
+ * valid ridge probes. When an entire ordinary frame has no valid terrain sample, the last rendered
+ * altitude proven safe by a finite terrain frame is latched as a floor, so a dive cannot descend
+ * through terrain merely because the provider is temporarily unavailable. An all-invalid
+ * discontinuity invalidates that latch so later frames at the new location cannot reuse an
+ * old-location floor. If no safe altitude has ever been established, the requested altitude is
+ * preserved as before. `lookAheadMeters=0` preserves historical point-only behavior.
  */
-export function clampAltitudeAboveGround(object3D, sampleGroundY, minAltitudeAboveGroundMeters) {
-	const groundY = sampleGroundY(object3D.position.x, object3D.position.z);
-	const minY = groundY + minAltitudeAboveGroundMeters;
+export function clampAltitudeAboveGround(
+	object3D,
+	sampleGroundY,
+	minAltitudeAboveGroundMeters,
+	lookAheadMeters = DRAGON_TERRAIN_LOOKAHEAD_METERS,
+	probeSpacingMeters = DRAGON_TERRAIN_PROBE_SPACING_METERS,
+	motionX,
+	motionZ,
+	maxTraversedSweepMeters = DRAGON_TERRAIN_MAX_TRAVERSED_SWEEP_METERS,
+) {
+	object3D.userData ??= {};
+	const previousSafeAltitudeY = object3D.userData.dragonTerrainLastSafeAltitudeY;
+	let terrainSampleCount = 0;
+	let invalidTerrainSampleCount = 0;
+	let terrainSampleExceptionCount = 0;
+	let highestGroundY = Number.NEGATIVE_INFINITY;
+	const probeGround = (x, z) => {
+		terrainSampleCount += 1;
+		let groundY;
+		try {
+			groundY = sampleGroundY(x, z);
+		} catch {
+			invalidTerrainSampleCount += 1;
+			terrainSampleExceptionCount += 1;
+			return;
+		}
+		if (!Number.isFinite(groundY)) {
+			invalidTerrainSampleCount += 1;
+			return;
+		}
+		if (groundY > highestGroundY) highestGroundY = groundY;
+	};
+	probeGround(object3D.position.x, object3D.position.z);
+	let traversedDistance = 0;
+	let skippedDiscontinuity = false;
+	if (lookAheadMeters > 0) {
+		const spacing = Number.isFinite(probeSpacingMeters) && probeSpacingMeters > 0
+			? Math.min(probeSpacingMeters, lookAheadMeters)
+			: lookAheadMeters;
+		const previousX = object3D.userData?.dragonPreviousRenderedX;
+		const previousZ = object3D.userData?.dragonPreviousRenderedZ;
+		const hasRetainedPosition = Number.isFinite(previousX) && Number.isFinite(previousZ);
+		let forwardX = Number.isFinite(motionX) ? motionX : Number.NaN;
+		let forwardZ = Number.isFinite(motionZ) ? motionZ : Number.NaN;
+		if (!Number.isFinite(forwardX) || !Number.isFinite(forwardZ)) {
+			if (hasRetainedPosition) {
+				forwardX = object3D.position.x - previousX;
+				forwardZ = object3D.position.z - previousZ;
+			} else {
+				forwardX = 0;
+				forwardZ = 0;
+			}
+		}
+		let motionLength = Math.hypot(forwardX, forwardZ);
+		if (motionLength <= 1e-8 && Number.isFinite(object3D.rotation?.y)) {
+			forwardX = Math.sin(object3D.rotation.y);
+			forwardZ = Math.cos(object3D.rotation.y);
+			motionLength = 1;
+		}
+		if (motionLength > 1e-8) {
+			forwardX /= motionLength;
+			forwardZ /= motionLength;
+			if (hasRetainedPosition) {
+				const traversedX = object3D.position.x - previousX;
+				const traversedZ = object3D.position.z - previousZ;
+				traversedDistance = Math.hypot(traversedX, traversedZ);
+				const boundedMaxTraversed = Number.isFinite(maxTraversedSweepMeters) && maxTraversedSweepMeters > 0
+					? maxTraversedSweepMeters
+					: DRAGON_TERRAIN_MAX_TRAVERSED_SWEEP_METERS;
+				if (traversedDistance > 1e-8 && traversedDistance <= boundedMaxTraversed) {
+					sampleSegmentGround(
+						previousX,
+						previousZ,
+						traversedX / traversedDistance,
+						traversedZ / traversedDistance,
+						traversedDistance,
+						spacing,
+						true,
+						false,
+						probeGround,
+					);
+				} else if (traversedDistance > boundedMaxTraversed) {
+					skippedDiscontinuity = true;
+				}
+			}
+			sampleSegmentGround(
+				object3D.position.x,
+				object3D.position.z,
+				forwardX,
+				forwardZ,
+				lookAheadMeters,
+				spacing,
+				false,
+				true,
+				probeGround,
+			);
+		}
+	}
+	object3D.userData.dragonTerrainTraversedMeters = traversedDistance;
+	object3D.userData.dragonTerrainSweepDiscontinuity = skippedDiscontinuity;
+	object3D.userData.dragonTerrainSampleCount = terrainSampleCount;
+	object3D.userData.dragonTerrainInvalidSampleCount = invalidTerrainSampleCount;
+	object3D.userData.dragonTerrainSampleExceptionCount = terrainSampleExceptionCount;
+	if (!Number.isFinite(highestGroundY)) {
+		if (skippedDiscontinuity) delete object3D.userData.dragonTerrainLastSafeAltitudeY;
+		const canUseSafeAltitudeFallback = !skippedDiscontinuity && Number.isFinite(previousSafeAltitudeY);
+		object3D.userData.dragonTerrainUsingSafeAltitudeFallback = canUseSafeAltitudeFallback;
+		if (canUseSafeAltitudeFallback && object3D.position.y < previousSafeAltitudeY) {
+			object3D.position.y = previousSafeAltitudeY;
+		}
+		return;
+	}
+	object3D.userData.dragonTerrainUsingSafeAltitudeFallback = false;
+	const minY = highestGroundY + minAltitudeAboveGroundMeters;
 	if (object3D.position.y < minY) object3D.position.y = minY;
+	object3D.userData.dragonTerrainLastSafeAltitudeY = object3D.position.y;
 }

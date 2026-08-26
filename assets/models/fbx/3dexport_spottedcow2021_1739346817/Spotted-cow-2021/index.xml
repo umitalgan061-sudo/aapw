@@ -1,0 +1,58 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<index>
+	<name>Spotted cow</name>
+	<type>model</type>
+	<mid>{856F0CB8-817B-4878-906F-CC35E3E6EE3B}</mid>
+	<format>3Ds Max 2021</format>
+	<export>FBX, OBJ, MAT</export>
+	<render>Corona (10)</render>
+	<polys>155110</polys>
+	<verts>168676</verts>
+	<matclasses>_CoronaPhysicalMtl</matclasses>
+	<units>Centimeters</units>
+	<dimension>78.42 x 19.65 x 43.61</dimension>
+	<modeller>N/A</modeller>
+	<preset>Mi preset 2025</preset>
+	<site>N/A</site>
+	<custom1>3d Max model</custom1>
+	<manufacturer>N/A</manufacturer>
+	<product_url>N/A</product_url>
+	<unwrap>No</unwrap>
+	<lights>No</lights>
+	<cameras>No</cameras>
+	<rigged>No</rigged>
+	<animated>No</animated>
+	<date>2025.2.8</date>
+	<viruses>Clean, tested by PruneScene!</viruses>
+	<preview>Yes</preview>
+	<tags>cow, spots, brown, animal, mammal</tags>
+	<packinfo>Packed with Model Packer by https://3dground.net/</packinfo>
+	<packver>2.0.0</packver>
+	<description><![CDATA[High-quality 3D model with highly detailed interior.
+The model is suitable for high quality visualization.
+The model can be used in games.
+
+Name: 
+Type: model
+Format: 3Ds Max 2021
+Export: FBX OBJ MAT
+Render: Corona (10)
+Polys: 
+XForm: Yes
+Matclasses: CoronaPhisiclMtl
+Units: centimeters
+
+Why choose our models?
++ Everything is ready for rendering. Just press the render button and you will get a preview picture!
++ Does not require additional plugins;
++ Textures are included;
++ Suitable for large-scale visualization;
++ All objects are reasonably divided and named;
++ All materials are correctly named;
++ You can easily change or apply new materials, colors, etc;
++ The model has a good topology;
++ Suitable for animation and high quality photorealistic visualization]]></description>
+<previews>
+	<preview>Spotted-cow-2021.jpg</preview>
+</previews>
+</index>
