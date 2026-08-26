@@ -20,7 +20,7 @@ const sea = (normalizedX, normalizedY = 0.47) => westernMarineShelfToneWeight({
   surface: 'sea', normalizedX, normalizedY,
 });
 
-assert.equal(P.id, 'western-marine-shelf-tone-2026-08-26-v6-bounded-depositional-weathering');
+assert.equal(P.id, 'western-marine-shelf-tone-2026-08-27-v7-current-shear-sediment-weathering');
 assert.equal(P.renderOnly, true);
 assert.equal(P.canonicalSeaOnly, true);
 assert.equal(P.geographyAuthorityUnchanged, true);
@@ -35,6 +35,9 @@ assert(P.turbidityVariation > 0.04);
 assert(P.fanVariation > 0.05);
 assert(P.bedformVariation > 0.04);
 assert(P.mineralRidgeVariation > 0.04);
+assert(P.currentShearVariation > 0.03 && P.currentShearVariation < 0.09);
+assert(P.sedimentPocketVariation > 0.04 && P.sedimentPocketVariation < 0.10);
+assert(P.shelfBreakVariation > 0.03 && P.shelfBreakVariation < 0.08);
 for (const policy of [PINDEX01_DETAIL_POLICY, PINDEX02_DETAIL_POLICY, PINDEX03_DETAIL_POLICY]) {
   assert.equal(policy.westernMarineShelfTone, true, `Pindex ${policy.pindex} lost shared shelf tone wiring`);
 }
@@ -74,6 +77,12 @@ const transverseRange = Math.max(...transverse) - Math.min(...transverse);
 assert(transverseRange > 0.012, `depositional/current transverse fabric became inert: range=${transverseRange}`);
 assert(transverseRange < 0.22, `transverse shelf fabric became noisy/overpowering: range=${transverseRange}`);
 
+const longitudinal = [];
+for (let x = 0.055; x <= 0.34; x += 0.019) longitudinal.push(sea(x, 0.71));
+const longitudinalRange = Math.max(...longitudinal) - Math.min(...longitudinal);
+assert(longitudinalRange > 0.06, `current-shear/shelf-break variation became inert: range=${longitudinalRange}`);
+assert(longitudinalRange < 0.68, `current-shear/shelf-break variation overwhelmed shelf envelope: range=${longitudinalRange}`);
+
 const data = new Float32Array([
   0.36, 0.34, 0.28,
   0.36, 0.34, 0.28,
@@ -100,7 +109,7 @@ const westernColorDelta = Math.hypot(
   color.getY(0) - color.getY(1),
   color.getZ(0) - color.getZ(1),
 );
-assert(westernColorDelta > 0.004, `v6 shelf material collapsed toward a uniform tint: delta=${westernColorDelta}`);
+assert(westernColorDelta > 0.004, `v7 shelf material collapsed toward a uniform tint: delta=${westernColorDelta}`);
 for (const index of [2, 3]) {
   assert.equal(color.getX(index), before[index * 3]);
   assert.equal(color.getY(index), before[index * 3 + 1]);
@@ -124,5 +133,6 @@ console.log('[checkWesternMarineShelfTone] PASS', JSON.stringify({
   west, middle, inner, outside,
   shelfRange,
   transverseRange,
+  longitudinalRange,
   westernColorDelta,
 }));
