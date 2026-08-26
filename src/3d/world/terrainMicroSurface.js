@@ -302,6 +302,15 @@ float terrainPhotoMoisture = clamp(
 	+ terrainPhotoCoastalBand * 0.18,
 	0.0, 1.0
 );
+float terrainPhotoAlluvialField = terrainPhotoRidgeNoise(terrainPhotoWarpedXZ / 410.0 + vec2(6.7, -13.2));
+float terrainPhotoAlluvialWash = (1.0 - terrainPhotoSnow) * terrainPhotoLowland
+	* smoothstep(0.60, 0.86, 1.0 - terrainPhotoDrainage)
+	* smoothstep(0.54, 0.82, terrainPhotoMoisture)
+	* smoothstep(0.52, 0.80, terrainPhotoAlluvialField);
+float terrainPhotoDryShoulder = (1.0 - terrainPhotoSnow) * terrainPhotoShoulder
+	* smoothstep(0.56, 0.83, terrainPhotoAlluvialField)
+	* smoothstep(0.48, 0.76, 1.0 - terrainPhotoMoisture)
+	* (0.36 + terrainPhotoElevation * 0.64);
 
 float terrainPhotoDesaturate = 0.12 + terrainPhotoVegetation * 0.28 + terrainPhotoRock * 0.11 + terrainPhotoWarmGround * 0.12;
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(terrainPhotoLuma), terrainPhotoDesaturate);
@@ -334,6 +343,8 @@ diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.043, 0.064, 0.035), terrainPhoto
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.257, 0.225, 0.141), terrainPhotoDryGrass * 0.38);
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.235, 0.202, 0.153), terrainPhotoSparseEarth * 0.43);
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.188, 0.174, 0.138), terrainPhotoHeathBreak * 0.31);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.082, 0.103, 0.079), terrainPhotoAlluvialWash * 0.29);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.292, 0.257, 0.178), terrainPhotoDryShoulder * 0.22);
 
 float terrainPhotoCoastalWet = terrainPhotoCoastalBand * smoothstep(0.53, 0.82, terrainPhotoMoisture)
 	* (1.0 - terrainPhotoCliff * 0.65);
@@ -405,9 +416,9 @@ diffuseColor.rgb = clamp(diffuseColor.rgb, vec3(0.010), vec3(0.845));`,
 			.replace(
 				'#include <roughnessmap_fragment>',
 				`#include <roughnessmap_fragment>
-float terrainPhotoWetPolish = terrainPhotoCoastalWet * 0.12 + terrainPhotoRunnel * 0.10;
+float terrainPhotoWetPolish = terrainPhotoCoastalWet * 0.12 + terrainPhotoRunnel * 0.10 + terrainPhotoAlluvialWash * 0.055;
 float terrainPhotoRockPolish = terrainPhotoRockFace * terrainPhotoMoisture * 0.045;
-float terrainPhotoGranularRoughness = terrainPhotoScreeBand * 0.055 + terrainPhotoSnowDeposit * 0.025;
+float terrainPhotoGranularRoughness = terrainPhotoScreeBand * 0.055 + terrainPhotoSnowDeposit * 0.025 + terrainPhotoDryShoulder * 0.045;
 roughnessFactor = clamp(
 	roughnessFactor - terrainPhotoWetPolish - terrainPhotoRockPolish + terrainPhotoGranularRoughness,
 	0.48,
