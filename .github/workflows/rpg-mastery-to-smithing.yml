@@ -14,6 +14,7 @@ on:
       - 'scripts/checkInteractionQuartermasterTrade.mjs'
       - 'scripts/checkInteractionSettlementServiceBrowser.mjs'
       - 'scripts/checkInteractionSettlementServiceContract.mjs'
+      - 'scripts/checkInteractionTradeLedgerAtomicity.mjs'
       - '.github/workflows/rpg-mastery-to-smithing.yml'
   workflow_dispatch:
 
@@ -40,7 +41,7 @@ jobs:
           base=$(git merge-base HEAD origin/main)
           test "$base" = "$(git rev-parse origin/main)"
           mapfile -t paths < <(git diff --name-only "$base"...HEAD)
-          allowed='^(scripts/checkInteractionExpedition(Board|KitCraft|TavernRecovery)\.mjs|scripts/checkInteractionMastery(ToSmithingBrowser|EconomyContinuity|ArmorerServiceBrowser)\.mjs|scripts/checkInteractionSmithingServicePersistence\.mjs|scripts/checkInteraction(ProvisioningCraft|QuartermasterTrade|SettlementService(Browser|Contract))\.mjs|scripts/checkInteractionTavernReceiptIntegrity\.mjs|\.github/workflows/(rpg-expedition-tavern-recovery|rpg-interaction-quest-loop|rpg-journey-ledger-ux|rpg-mastery-armorer-service|rpg-mastery-journal-continuity|rpg-mastery-to-smithing|rpg-mastery-travel-continuity|rpg-smithing-service-persistence|rpg-tavern-receipt-integrity)\.yml|src/3d/gameplay/(interaction|interactionConfig|interactionEconomy)\.js)$'
+          allowed='^(scripts/checkInteractionExpedition(Board|KitCraft|TavernRecovery)\.mjs|scripts/checkInteractionMastery(ToSmithingBrowser|EconomyContinuity|ArmorerServiceBrowser)\.mjs|scripts/checkInteractionSmithingServicePersistence\.mjs|scripts/checkInteraction(ProvisioningCraft|QuartermasterTrade|SettlementService(Browser|Contract)|TradeLedgerAtomicity)\.mjs|scripts/checkInteractionTavernReceiptIntegrity\.mjs|\.github/workflows/(rpg-expedition-tavern-recovery|rpg-interaction-quest-loop|rpg-journey-ledger-ux|rpg-mastery-armorer-service|rpg-mastery-journal-continuity|rpg-mastery-to-smithing|rpg-mastery-travel-continuity|rpg-smithing-service-persistence|rpg-tavern-receipt-integrity)\.yml|src/3d/gameplay/(interaction|interactionConfig|interactionEconomy)\.js)$'
           for path in "${paths[@]}"; do
             [[ "$path" =~ $allowed ]] || { echo "Unexpected path: $path"; exit 1; }
           done
@@ -56,6 +57,7 @@ jobs:
           node --check scripts/checkInteractionQuartermasterTrade.mjs
           node --check scripts/checkInteractionSettlementServiceBrowser.mjs
           node --check scripts/checkInteractionSettlementServiceContract.mjs
+          node --check scripts/checkInteractionTradeLedgerAtomicity.mjs
       - name: Expedition mastery smithing reward contract
         run: node scripts/checkInteractionExpeditionMasterySmithingReward.mjs
       - name: Expedition kit craft contract
@@ -66,6 +68,8 @@ jobs:
         run: node scripts/checkInteractionQuartermasterTrade.mjs
       - name: Settlement service contract
         run: node scripts/checkInteractionSettlementServiceContract.mjs
+      - name: Trade ledger atomicity contract
+        run: node scripts/checkInteractionTradeLedgerAtomicity.mjs
       - name: Expedition tavern recovery contract
         run: node scripts/checkInteractionExpeditionTavernRecovery.mjs
       - name: Install Chromium acceptance harness
