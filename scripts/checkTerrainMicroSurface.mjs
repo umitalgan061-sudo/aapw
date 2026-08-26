@@ -42,7 +42,7 @@ function meanAbsoluteNeighborDelta(data, size, channel) {
   return total / samples;
 }
 
-assert.equal(TERRAIN_MICRO_SURFACE_POLICY.id, 'terrain-micro-surface-world-uv-pbr-v6-regional-natural-albedo');
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.id, 'terrain-micro-surface-world-uv-pbr-v7-coastal-weathering');
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.uvChannel, 1, 'micro detail must use uv1, never owner-map albedo uv0');
 assert(TERRAIN_MICRO_SURFACE_POLICY.textureSize >= 256, 'photoreal terrain atlas needs enough fracture resolution');
 assert(TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters >= 12 && TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters <= 32);
@@ -62,6 +62,9 @@ assert.equal(TERRAIN_MICRO_SURFACE_POLICY.slopeAwareCliffWeathering, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.erosionRunnels, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.screeAprons, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.coastalDampness, true);
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.coastalIntertidalBreakup, true);
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.coastalSaltSprayWeathering, true);
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.coastalRoughnessResponse, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.aspectWeathering, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.roughnessResponse, true);
 assert.deepEqual(TERRAIN_MICRO_SURFACE_POLICY.worldSpaceMacroScaleMeters, [38, 92, 240, 620, 1450, 3200]);
@@ -98,9 +101,12 @@ assert.equal(standalone.userData.terrainMicroSurface.slopeAwareCliffWeathering, 
 assert.equal(standalone.userData.terrainMicroSurface.erosionRunnels, true);
 assert.equal(standalone.userData.terrainMicroSurface.screeAprons, true);
 assert.equal(standalone.userData.terrainMicroSurface.coastalDampness, true);
+assert.equal(standalone.userData.terrainMicroSurface.coastalIntertidalBreakup, true);
+assert.equal(standalone.userData.terrainMicroSurface.coastalSaltSprayWeathering, true);
+assert.equal(standalone.userData.terrainMicroSurface.coastalRoughnessResponse, true);
 assert.equal(standalone.userData.terrainMicroSurface.aspectWeathering, true);
 assert.equal(standalone.userData.terrainMicroSurface.roughnessResponse, true);
-assert.equal(standalone.customProgramCacheKey(), 'terrain-photoreal-world-surface-v6-regional-natural-albedo-landform-weathering');
+assert.equal(standalone.customProgramCacheKey(), 'terrain-photoreal-world-surface-v7-coastal-weathering');
 const shaderHookSource = standalone.onBeforeCompile.toString();
 for (const marker of [
   'terrainPhotoFbm',
@@ -123,6 +129,10 @@ for (const marker of [
   'terrainPhotoCliff',
   'terrainPhotoAspect',
   'terrainPhotoCoastalWet',
+  'terrainPhotoCoastalBand',
+  'terrainPhotoTideStain',
+  'terrainPhotoSaltSpray',
+  'terrainPhotoCoastalRockWet',
   'terrainPhotoScreeBand',
   'terrainPhotoRunnel',
   'terrainPhotoSnowRockReveal',
@@ -207,4 +217,4 @@ close(oneTileNorth.v - origin.v, 1, 'one detail period north must advance exactl
 standalone.dispose();
 disposeTerrainChunk(west);
 disposeTerrainChunk(east);
-console.log('[checkTerrainMicroSurface] PASS: slope/cliff weathering + scree + erosion + snow rock reveal remain seam-continuous, render-only and canonical-height neutral.');
+console.log('[checkTerrainMicroSurface] PASS: coastal weathering + slope/cliff weathering + scree + erosion + snow rock reveal remain seam-continuous, render-only and canonical-height neutral.');
