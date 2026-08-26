@@ -20,12 +20,14 @@ const sea = (normalizedX, normalizedY = 0.47) => westernMarineShelfToneWeight({
   surface: 'sea', normalizedX, normalizedY,
 });
 
-assert.equal(P.id, 'western-marine-shelf-tone-2026-08-26-v5-depositional-current-weathering');
+assert.equal(P.id, 'western-marine-shelf-tone-2026-08-26-v6-bounded-depositional-weathering');
 assert.equal(P.renderOnly, true);
 assert.equal(P.canonicalSeaOnly, true);
 assert.equal(P.geographyAuthorityUnchanged, true);
 assert.equal(P.fadeEndNormalizedX, 0.40);
 assert(P.maxBlend > 0.65 && P.maxBlend < 0.85);
+assert(P.fabricGainMin >= 0.70 && P.fabricGainMin < P.fabricGainMax);
+assert(P.fabricGainMax <= 0.99, 'fabric must not amplify the canonical west-east envelope');
 assert(P.domainWarpNormalized > 0 && P.domainWarpNormalized < 0.03);
 assert(P.sedimentBandVariation > 0.05);
 assert(P.currentScourVariation > 0.04);
@@ -37,13 +39,11 @@ for (const policy of [PINDEX01_DETAIL_POLICY, PINDEX02_DETAIL_POLICY, PINDEX03_D
   assert.equal(policy.westernMarineShelfTone, true, `Pindex ${policy.pindex} lost shared shelf tone wiring`);
 }
 
-// Canonical class authority: no lake, soil, rock or snow vertex may receive this sea-floor tone.
 for (const surface of ['lake', 'soil', 'rock', 'snow']) {
   assert.equal(westernMarineShelfToneWeight({ surface, normalizedX: 0.05, normalizedY: 0.5 }), 0);
 }
 assert.equal(westernMarineShelfToneWeight({ surface: 'sea', normalizedX: Number.NaN, normalizedY: 0.5 }), 0);
 
-// The western shelf must grade continuously into the interior sea instead of forming a Pindex stripe.
 const west = sea(0.035);
 const middle = sea(0.18);
 const inner = sea(0.32);
@@ -56,9 +56,6 @@ for (const boundary of [0.10, 0.20, 0.30]) {
   assert(Math.abs(left - right) < 1e-5, `owner-map boundary ${boundary} exposed a shelf-tone seam: ${left}/${right}`);
 }
 
-// The v5 owner-map fabric must remain spatially heterogeneous without overwhelming the dominant
-// west-east shelf envelope. Probe several longitudes so fan/scour/basin features cannot accidentally
-// collapse into one visually flat strip at the original single-x fixture.
 const shelfSamples = [];
 for (const x of [0.07, 0.12, 0.19, 0.26, 0.33]) {
   for (let y = 0.08; y <= 0.92; y += 0.07) shelfSamples.push(sea(x, y));
@@ -68,17 +65,15 @@ const shelfMax = Math.max(...shelfSamples);
 const shelfRange = shelfMax - shelfMin;
 assert(shelfRange > 0.025, `shelf fabric became visually uniform: range=${shelfRange}`);
 assert(shelfRange < 0.70, `shelf fabric overwhelms canonical west-east envelope: range=${shelfRange}`);
+assert(shelfMax <= P.maxBlend * P.fabricGainMax + 1e-12,
+  `fabric exceeded bounded optical envelope: ${shelfMax}`);
 
-// At a fixed longitude the transverse owner-map fabric must still have readable variation. This is
-// the signal most likely to disappear if future cleanup accidentally reduces v5 back to a pure fade.
 const transverse = [];
 for (let y = 0.06; y <= 0.94; y += 0.055) transverse.push(sea(0.13, y));
 const transverseRange = Math.max(...transverse) - Math.min(...transverse);
 assert(transverseRange > 0.012, `depositional/current transverse fabric became inert: range=${transverseRange}`);
 assert(transverseRange < 0.22, `transverse shelf fabric became noisy/overpowering: range=${transverseRange}`);
 
-// Colour application must produce a decisive submerged-ocean read while leaving lake/interior sea
-// bytes untouched. Multiple western probes also ensure the v5 material does not collapse to one tint.
 const data = new Float32Array([
   0.36, 0.34, 0.28,
   0.36, 0.34, 0.28,
@@ -105,28 +100,24 @@ const westernColorDelta = Math.hypot(
   color.getY(0) - color.getY(1),
   color.getZ(0) - color.getZ(1),
 );
-assert(westernColorDelta > 0.004, `v5 shelf material collapsed toward a uniform tint: delta=${westernColorDelta}`);
+assert(westernColorDelta > 0.004, `v6 shelf material collapsed toward a uniform tint: delta=${westernColorDelta}`);
 for (const index of [2, 3]) {
   assert.equal(color.getX(index), before[index * 3]);
   assert.equal(color.getY(index), before[index * 3 + 1]);
   assert.equal(color.getZ(index), before[index * 3 + 2]);
 }
 
-// Determinism: repeated application at the same owner-map coordinate must be byte-identical.
 const deterministicA = new THREE.BufferAttribute(new Float32Array([0.36, 0.34, 0.28]), 3);
 const deterministicB = new THREE.BufferAttribute(new Float32Array([0.36, 0.34, 0.28]), 3);
 const classification = { surface: 'sea', normalizedX: 0.13, normalizedY: 0.71 };
 applyWesternMarineShelfToneToColorAttribute(deterministicA, 0, classification);
 applyWesternMarineShelfToneToColorAttribute(deterministicB, 0, classification);
-for (let channel = 0; channel < 3; channel += 1) {
-  assert.equal(deterministicA.array[channel], deterministicB.array[channel]);
-}
+for (let channel = 0; channel < 3; channel += 1) assert.equal(deterministicA.array[channel], deterministicB.array[channel]);
 
-// Integration remains deliberately narrow: only the three western Pindex detail passes consume it.
 for (const pindex of ['01', '02', '03']) {
   const source = readFileSync(resolve(HERE, `../src/3d/world/worldReferencePindex${pindex}Detail.js`), 'utf8');
   assert.match(source, /from '\.\/westernMarineShelfTone\.js'/);
-  assert.match(source, /applyWesternMarineShelfToneToColorAttribute\(color, index, c\);/);
+  assert.match(source, /applyWesternMarineShelfToneToColorAttribute\(color, index, c\)/);
 }
 
 console.log('[checkWesternMarineShelfTone] PASS', JSON.stringify({
