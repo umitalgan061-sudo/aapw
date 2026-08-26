@@ -7,6 +7,7 @@ on:
       - 'src/3d/gameplay/interactionEconomy.js'
       - 'scripts/checkInteractionExpeditionKitCraft.mjs'
       - 'scripts/checkInteractionProvisioningCraft.mjs'
+      - 'scripts/checkInteractionQuartermasterTrade.mjs'
       - 'scripts/checkInteractionSmithingServicePersistence.mjs'
       - 'scripts/checkInteractionMasteryEconomyContinuity.mjs'
       - 'scripts/checkInteractionMasteryToSmithingBrowser.mjs'
@@ -37,7 +38,7 @@ jobs:
           base="$(git merge-base HEAD origin/main)"
           test "$base" = "$(git rev-parse origin/main)"
           mapfile -t paths < <(git diff --name-only "$base"...HEAD)
-          allowed='^(\.github/workflows/(rpg-smithing-service-persistence|rpg-mastery-to-smithing)\.yml|scripts/checkInteractionExpeditionKitCraft\.mjs|scripts/checkInteractionProvisioningCraft\.mjs|scripts/checkInteractionSmithingServicePersistence\.mjs|scripts/checkInteractionMasteryEconomyContinuity\.mjs|scripts/checkInteractionMasteryToSmithingBrowser\.mjs|src/3d/gameplay/interactionConfig\.js)$'
+          allowed='^(\.github/workflows/(rpg-smithing-service-persistence|rpg-mastery-to-smithing)\.yml|scripts/checkInteractionExpeditionKitCraft\.mjs|scripts/checkInteractionProvisioningCraft\.mjs|scripts/checkInteractionQuartermasterTrade\.mjs|scripts/checkInteractionSmithingServicePersistence\.mjs|scripts/checkInteractionMasteryEconomyContinuity\.mjs|scripts/checkInteractionMasteryToSmithingBrowser\.mjs|src/3d/gameplay/interactionConfig\.js)$'
           if (( ${#paths[@]} )); then
             printf '%s\n' "${paths[@]}" | grep -Ev "$allowed" && exit 1 || true
           fi
@@ -49,11 +50,13 @@ jobs:
           node --check src/3d/gameplay/interactionConfig.js
           node --check scripts/checkInteractionExpeditionKitCraft.mjs
           node --check scripts/checkInteractionProvisioningCraft.mjs
+          node --check scripts/checkInteractionQuartermasterTrade.mjs
           node --check scripts/checkInteractionSmithingServicePersistence.mjs
           node --check scripts/checkInteractionMasteryEconomyContinuity.mjs
           node --check scripts/checkInteractionMasteryToSmithingBrowser.mjs
           node scripts/checkInteractionExpeditionKitCraft.mjs
           node scripts/checkInteractionProvisioningCraft.mjs
+          node scripts/checkInteractionQuartermasterTrade.mjs
           node scripts/checkInteractionSmithingServicePersistence.mjs
           node scripts/checkInteractionMasteryEconomyContinuity.mjs
       - name: Install Chromium acceptance harness
