@@ -112,6 +112,27 @@ function collectEmissionSeconds(seed, count) {
   return emittedSeconds;
 }
 
+function proveDisposedSystemStaysSilent(seed) {
+  let emissions = 0;
+  const system = createWorldEventSystem({
+    eventsBus: { emit: () => { emissions += 1; } },
+    seed,
+    eventName: 'world:event',
+  });
+  for (let second = 0; second < MAX_INTERVAL_SECONDS + 5 && emissions === 0; second += 1) {
+    system.update(1, undefined);
+  }
+  assert.equal(emissions, 1, 'dispose fixture must reach one real emission before teardown');
+  system.dispose();
+  system.dispose();
+  const emissionsAtDispose = emissions;
+  for (const delta of [1, 300, Number.NaN, Infinity, -1]) {
+    system.update(delta, undefined);
+  }
+  assert.equal(emissions, emissionsAtDispose, 'disposed world-event system emitted after teardown or resume spike');
+  return emissionsAtDispose;
+}
+
 function expectedEmissionSeconds(seed, count) {
   const random = mulberry32(seed);
   let secondsUntilNext = MIN_INTERVAL_SECONDS + random() * (MAX_INTERVAL_SECONDS - MIN_INTERVAL_SECONDS);
@@ -175,6 +196,11 @@ assert.deepEqual(retainedMutation.observedIds, controlIds, 'delayed mutation of 
 assert.equal(retainedMutation.distinctPayloadObjects, listenerMutationEvents, 'world-event emissions reused a payload object across deliveries');
 assert.ok(retainedMutation.observedIds.every((id) => id !== 'delayed-listener-mutated'), 'a delayed listener mutation leaked into a later event delivery');
 
+// Teardown is part of the long-running/PWA lifecycle contract: after the world-event system is
+// disposed, neither ordinary ticks nor a background/resume spike may restart its countdown or emit
+// a stale toast. Repeated dispose calls must remain harmless.
+const disposedEmissionCount = proveDisposedSystemStaysSilent(44117);
+
 // Lighting is an adapter input, not authored world-event state. Non-finite or wrong-typed values
 // must therefore fail closed to ungated ambient entries instead of JavaScript coercion accidentally
 // classifying Infinity as night or a numeric string as a valid sky state.
@@ -216,6 +242,8 @@ console.log('WORLD_EVENT_REPEAT_DIVERSITY_PASS', JSON.stringify({
   listenerMutationEventsChecked: listenerMutationEvents,
   retainedPayloadMutationEventsChecked: listenerMutationEvents,
   distinctRetainedPayloadObjects: retainedMutation.distinctPayloadObjects,
+  disposeLifecycleChecked: true,
+  emissionsBeforeDispose: disposedEmissionCount,
   malformedLightingContextsChecked: malformedLightingFactors.length,
   finiteLightingClampChecked: true,
   eligibilityPoolShared: true,
