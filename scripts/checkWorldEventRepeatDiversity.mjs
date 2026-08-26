@@ -66,6 +66,36 @@ function collectWithMutatingListener(seed, count = 80) {
   return observedIds;
 }
 
+function collectWithRetainedPayloadMutation(seed, count = 80) {
+  const observedIds = [];
+  const retainedPayloads = [];
+  const system = createWorldEventSystem({
+    eventsBus: {
+      emit: (_name, payload) => {
+        observedIds.push(payload.id);
+        retainedPayloads.push(payload);
+        const previous = retainedPayloads.at(-2);
+        if (previous) {
+          previous.id = 'delayed-listener-mutated';
+          previous.weight = 777777;
+          previous.timeOfDay = 'day';
+        }
+      },
+    },
+    seed,
+    eventName: 'world:event',
+  });
+  for (let second = 0; second < 10000 && observedIds.length < count; second += 1) {
+    system.update(1, undefined);
+  }
+  system.dispose();
+  return {
+    observedIds,
+    retainedPayloads,
+    distinctPayloadObjects: new Set(retainedPayloads).size,
+  };
+}
+
 function collectEmissionSeconds(seed, count) {
   const emittedSeconds = [];
   let simulatedSeconds = 0;
@@ -136,6 +166,15 @@ const mutatingListenerIds = collectWithMutatingListener(listenerMutationSeed, li
 assert.deepEqual(mutatingListenerIds, controlIds, 'listener payload mutation poisoned future world-event selection state');
 assert.ok(mutatingListenerIds.every((id) => id !== 'listener-mutated'), 'canonical catalog leaked a prior listener mutation');
 
+// UI/quest/settlement adapters can retain an event object and annotate it after their handler has
+// returned. Every emission therefore needs a fresh snapshot, not merely a one-time clone that is
+// reused on later firings. Mutate the previous delivery only when the next one arrives and prove
+// both seeded selection parity and object identity isolation across the whole retained sample.
+const retainedMutation = collectWithRetainedPayloadMutation(listenerMutationSeed, listenerMutationEvents);
+assert.deepEqual(retainedMutation.observedIds, controlIds, 'delayed mutation of a retained payload poisoned a later world-event selection');
+assert.equal(retainedMutation.distinctPayloadObjects, listenerMutationEvents, 'world-event emissions reused a payload object across deliveries');
+assert.ok(retainedMutation.observedIds.every((id) => id !== 'delayed-listener-mutated'), 'a delayed listener mutation leaked into a later event delivery');
+
 // Lighting is an adapter input, not authored world-event state. Non-finite or wrong-typed values
 // must therefore fail closed to ungated ambient entries instead of JavaScript coercion accidentally
 // classifying Infinity as night or a numeric string as a valid sky state.
@@ -175,6 +214,8 @@ console.log('WORLD_EVENT_REPEAT_DIVERSITY_PASS', JSON.stringify({
   cadenceEventsChecked: CADENCE_EVENTS,
   cadenceLastSecond: actualCadence.at(-1),
   listenerMutationEventsChecked: listenerMutationEvents,
+  retainedPayloadMutationEventsChecked: listenerMutationEvents,
+  distinctRetainedPayloadObjects: retainedMutation.distinctPayloadObjects,
   malformedLightingContextsChecked: malformedLightingFactors.length,
   finiteLightingClampChecked: true,
   eligibilityPoolShared: true,
