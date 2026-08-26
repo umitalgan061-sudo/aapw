@@ -6,8 +6,8 @@ import {
 } from '../src/3d/world/terrainReliefDetail.js';
 
 const P = TERRAIN_RELIEF_DETAIL_POLICY;
-assert.equal(P.id, 'terrain-coast-warp-and-relief-detail-2026-08-26-v2-directional-weathering');
-assert.equal(P.revision, 3);
+assert.equal(P.id, 'terrain-coast-warp-and-relief-detail-2026-08-26-v3-anisotropic-mountain-fabric');
+assert.equal(P.revision, 4);
 assert.equal(P.regionalAnisotropicHillFabric, true);
 assert(P.hillFabricBlend >= 0.45 && P.hillFabricBlend <= 0.8);
 assert(P.hillFabricAlongScale < 1);
