@@ -13,13 +13,13 @@ const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 
 export const WESTERN_MARINE_SHELF_TONE_POLICY = Object.freeze({
-  id: 'western-marine-shelf-tone-2026-08-27-v7-current-shear-sediment-weathering',
+  id: 'western-marine-shelf-tone-2026-08-27-v8-envelope-bounded-current-shear',
   renderOnly: true,
   canonicalSeaOnly: true,
   geographyAuthorityUnchanged: true,
   fullStrengthNormalizedX: 0.035,
   fadeEndNormalizedX: 0.40,
-  maxBlend: 0.80,
+  maxBlend: 0.74,
   fabricGainMin: 0.78,
   fabricGainMax: 0.99,
   macroVariation: 0.115,
