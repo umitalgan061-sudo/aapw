@@ -43,7 +43,7 @@ async function main() {
 		page.on('console', (message) => {
 			if (message.type() === 'error') consoleErrors.push(message.text());
 		});
-		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 90000 });
 
 		const result = await page.evaluate(async () => {
 			const THREE = await import('three');

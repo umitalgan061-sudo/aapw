@@ -19158,3 +19158,61 @@ yollar 13/13 PASS (ağ 20,44 km), nehir geçişi PASS, etek dünya en kötüsü 
 altında). Service worker v46→v47.
 
 **Technical debt.** 0 new. **Açık iş.** Karlı ağaç modellerinin kuzeyde kullanılması; göller (S-0039).
+
+## ADR-0335 — Suyun rengi artık derinliğin kendisinden geliyor: kanal başına Beer–Lambert sönümü
+
+**Nereden çıktı.** Sahibin son isteği doğrudan suyla ilgiliydi: "bazı göllerin daha duru olup zemini
+gösterebilmesi", "sahil bandında denizin sahil kesiminin daha duru görünmesi, derinleştikçe
+koyulaşması, renk tonlamaları". Eldeki su, derinliği tek bir `depthFactor` ile sığ/derin renk arasında
+**doğrusal karıştırıyordu**. Bu fizik değil, bir lerp: suyun neden mavi olduğunu değil, iki rengi
+karıştırmayı anlatıyor.
+
+### Işık suda kanal başına farklı hızda sönüyor
+
+Gerçek su kırmızıyı yeşilden, yeşili maviden çok daha hızlı yutar — deniz bu yüzden derinleştikçe önce
+turkuaza sonra lacivere döner. Bu Beer–Lambert yasasıdır: `T = exp(-σ · d)`. Artık `σ` kanal başına bir
+vektör (**0,46 / 0,115 / 0,052** m⁻¹, kırmızı yeşilin ~4 katı, yeşil de mavinin ~2 katı hızla sönüyor)
+ve gövde rengi `mix(uDeepColor, uShallowColor, transmittance)` ile **geçirgenlikten türetiliyor**.
+Yüzey saydamlığı da aynı yerden geliyor: `alpha = 1 - dot(transmittance, luma)`, yani su **duruyken
+saydam, derinken opak** oluyor — iki ayrı elle ayarlanmış eğri değil, tek bir büyüklüğün iki sonucu.
+
+**Optik derinlik ayrı bir kanal.** Kabartma (swell) derinliği 10 m'de doyuyor; bu dalga fiziği için
+doğru ama optik için çok sığ — 10 m'de her deniz aynı lacivert olurdu. Derinlik alanının **mavi
+kanalına** 60 m menzilli ayrı bir optik derinlik pişiriliyor (`FULL_OPTICAL_DEPTH_METERS = 60`). İki
+büyüklük bilerek ayrıldı: dalga boyu ile ışık sönümünün ölçeği aynı değil. Kanal daha önce sabit 255
+yazılıyordu, yani bedava yer vardı.
+
+### Ölçüm: kusuru yaratmadım, görünür kıldım
+
+Öncesi/sonrası aynı kamerada karşılaştırıldı. **Öncesi:** ufka kadar neredeyse düz siyah bir levha,
+derinlik okunmuyor. **Sonrası:** su hattında soluk turkuaz, açığa doğru turkuazdan lacivere geçen
+gerçek bir berraklık gradyanı — istenen tam olarak buydu.
+
+Aynı karşılaştırma **eski bir kusuru da açığa çıkardı**: yüzeyde tekrar eden soluk lekelerden oluşan
+bir örgü. Önce yeni sanıp aradım; *öncesi* render'da da aynen duruyorlar, yalnızca siyah üstüne siyah
+oldukları için görünmüyorlardı. Kaynağı su tabanı ya da prop'lar değil (bu kapının sahnesindeki taban
+düz, tek renkli bir düzlem): **uzun kabartmanın normal gölgelemesi**. Üç sinüzoidin farklı yönlerde
+girişimi periyodik bir örgü üretiyor. Kendi başına bir sonraki alt görevdir; bu ADR'nin kapsamı değil,
+ama kayda geçiyor: **su siyahken hiçbir kapı bunu yakalayamazdı.**
+
+**Kapılar.** `checkWaterVisualContract` PASS (16641 vertex, 98304 index, shader/fog/uniform sözleşmesi,
+disposal 1/1) — renk pinleri yenilendi ve "kırmızı yeşilden, yeşil maviden hızlı sönmeli" diye üç yeni
+sıralama savı eklendi. `checkWaterSurfVisualContract` PASS — alan `vec2`'den `vec3`'e genişlediği için
+sözleşme **gevşetilmedi**, üçüncü kanalın metreye çözüldüğü ve Beer–Lambert'e girdiği de pinlendi.
+`checkRun325WaterSwell` PASS (kabartma genliği 2,15 m < 10 m, su hattı 0 m'de çivili, sahil profilinde
+en kötü taban açıklığı 0,199 m, pişirme 31 ms, %44,9 derin / %50,0 kuru, GPU okumasında %17,5 piksel
+hareketi). **§8.4 çifti:** koltuklar 14/14 PASS, yol ağı PASS (20,44 km). Service worker v47→v48.
+
+**Bu turda düzelttiğim kendi hatam.** GLSL şablon dizesinin içine yorum olarak ters tırnaklı bir
+`` `uExtinctionPerMeter` `` yazmıştım; ters tırnak şablonu orada sonlandırıyor. **`node --check` bunu
+PASS verdi** (44 ters tırnak, dengeli) — tarayıcı `SyntaxError` attı. Sözdizimi denetimi bir şablon
+dizesinin *nerede bittiğini* doğrulamaz; ders, modülün gerçekten import edildiğini görmeden "geçti"
+dememek.
+
+**Ayrıca.** `checkRun325WaterSwell`'in 20 sn'lik gezinme zaman aşımı bu konteynerde yetmiyordu
+(`game3d.html` domcontentloaded'a ~31 sn'de varıyor), 90 sn'ye çıkarıldı — sözleşme değil, ortam
+duyarlılığı. **Aynı 20 sn'lik değer 20'den fazla kapıda daha var**; hepsi bu ortamda çalıştırılamaz
+durumda ve bu kendi başına bir alt görevdir: çalışmayan kapı hiçbir şeyi korumaz.
+
+**Technical debt.** 0 new. **Açık iş.** Kabartma normalinin periyodik girişim örgüsü; şelaleler; göller
+(S-0039); kayalık dağ yüzeyleri; `assets/` içindeki yol glb'leri; karlı ağaç modelleri.

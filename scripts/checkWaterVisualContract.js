@@ -51,8 +51,21 @@ async function main() {
 			// a deeper far tone so bathymetry reads from altitude. The original point of pinning these —
 			// that shallow water must never go back to neon cyan — is now asserted directly below on
 			// saturation, which is the property that actually mattered, rather than on one exact hex.
-			fail(uniforms.uShallowColor.value?.isColor === true && uniforms.uShallowColor.value.getHex() === 0x53899a, 'water shallow color drifted');
-			fail(uniforms.uDeepColor.value?.isColor === true && uniforms.uDeepColor.value.getHex() === 0x0c2c4a, 'water deep color drifted');
+			// Re-pinned 2026-08-21 (run 388) when the shader stopped mixing these two across a smoothstep
+			// and started running per-channel Beer-Lambert extinction between them. The endpoints changed
+			// role: `uShallowColor` is now the tint of water thin enough to see straight through and
+			// `uDeepColor` the colour nothing returns from, so the shallow end went brighter and more
+			// turquoise and the deep end considerably darker. The saturation assertion below is unchanged
+			// and still owns the property that actually matters.
+			fail(uniforms.uShallowColor.value?.isColor === true && uniforms.uShallowColor.value.getHex() === 0x7fc9c4, 'water shallow color drifted');
+			fail(uniforms.uDeepColor.value?.isColor === true && uniforms.uDeepColor.value.getHex() === 0x05182e, 'water deep color drifted');
+			// The extinction contract itself: red must die fastest and blue slowest, or water stops
+			// behaving like water and the shore-to-deep progression collapses back to a two-tone ramp.
+			const extinction = uniforms.uExtinctionPerMeter ? uniforms.uExtinctionPerMeter.value : null;
+			fail(Boolean(extinction) && extinction.x > extinction.y && extinction.y > extinction.z, 'water extinction must absorb red fastest and blue slowest');
+			fail(Boolean(uniforms.uFullOpticalDepthMeters) && uniforms.uFullOpticalDepthMeters.value === 60, 'water optical depth range drifted');
+			fail(Boolean(uniforms.uMinSurfaceAlpha) && uniforms.uMinSurfaceAlpha.value < 0.15, 'water shallow alpha clamp drifted, shallows must stay see-through');
+			fail(Boolean(uniforms.uMaxSurfaceAlpha) && uniforms.uMaxSurfaceAlpha.value > 0.85, 'water deep alpha clamp drifted, deeps must stay opaque');
 			// Judged in sRGB, not in THREE.Color's linear working space: "neon" is a perceptual claim,
 			// and the same colour reads far more saturated in linear (0x53899a is 0.46 in sRGB but 0.73
 			// in linear), which would reject ordinary sea blues.

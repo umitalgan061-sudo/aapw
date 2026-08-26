@@ -43,6 +43,18 @@ export const WATER_DEPTH_FIELD_RESOLUTION = 384;
 export const FULL_WAVE_DEPTH_METERS = 10;
 
 /**
+ * Depth over which the *optical* channel is normalised, in metres.
+ *
+ * Deliberately separate from `FULL_WAVE_DEPTH_METERS`, and much larger. That constant is a statement
+ * about wave physics — the depth at which swell stops growing — and it saturates at 10 m, so a lake
+ * bed at 8 m and an ocean trench at 60 m encode identically in the red channel. That is right for
+ * swell and useless for colour: the whole point of deep water is that it keeps darkening long past the
+ * depth where waves stop caring. Overloading red would tie the two together and make any change to one
+ * silently change the other, so optical depth gets the reserved blue channel and its own range.
+ */
+export const FULL_OPTICAL_DEPTH_METERS = 60;
+
+/**
  * Deterministic coverage supersampling grid. Two samples per axis gives four terrain probes per
  * texel and fractional 0/25/50/75/100% coverage. This is intentionally exported so acceptance can
  * prove the production constant rather than duplicating it.
@@ -100,6 +112,7 @@ export function sampleWaterTexelFootprint({
 }) {
 	let wetSamples = 0;
 	let normalizedDepthSum = 0;
+	let opticalDepthSum = 0;
 	let fullyDeepSamples = 0;
 
 	for (const [offsetX, offsetZ] of coverageOffsets) {
@@ -111,12 +124,14 @@ export function sampleWaterTexelFootprint({
 		wetSamples++;
 		const normalizedDepth = Math.min(1, depthMeters / fullWaveDepthMeters);
 		normalizedDepthSum += normalizedDepth;
+		opticalDepthSum += Math.min(1, depthMeters / FULL_OPTICAL_DEPTH_METERS);
 		if (normalizedDepth >= 1) fullyDeepSamples++;
 	}
 
 	const sampleCount = coverageOffsets.length;
 	return {
 		normalizedDepth: wetSamples > 0 ? normalizedDepthSum / wetSamples : 0,
+		opticalDepth: wetSamples > 0 ? opticalDepthSum / wetSamples : 0,
 		coverage: wetSamples / sampleCount,
 		hasAnyWater: wetSamples > 0,
 		fullyDeep: wetSamples === sampleCount && fullyDeepSamples === sampleCount,
@@ -129,7 +144,7 @@ export function sampleWaterTexelFootprint({
  * RGBA byte layout:
  * - R = normalized wet-sample depth, 0..255
  * - G = fractional canonical wet coverage, 0..255
- * - B = reserved 255
+ * - B = normalized optical depth over `FULL_OPTICAL_DEPTH_METERS`, 0..255 (colour and clarity)
  * - A = 255
  *
  * @param {object} options
@@ -210,7 +225,7 @@ export function createWaterDepthField({
 			const offset = (row * resolution + column) * 4;
 			data[offset] = Math.round(sample.normalizedDepth * 255);
 			data[offset + 1] = Math.round(sample.coverage * 255);
-			data[offset + 2] = 255;
+			data[offset + 2] = Math.round(sample.opticalDepth * 255);
 			data[offset + 3] = 255;
 		}
 	}

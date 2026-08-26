@@ -24,7 +24,13 @@ requirePattern(/float\s+swellShadingFade\s*=\s*1\.0\s*-\s*smoothstep\(\s*700\.0\
 requirePattern(/vSwellSlope\s*\*\s*swellShadingFade\s*\+\s*rippleSlope\(\s*vWorldPosition\.xz\s*,\s*uTime\s*\)\s*\*\s*rippleFade/, 'water normal must apply the independent swell and ripple distance fades');
 requirePattern(/smoothstep\(\s*1500\.0\s*,\s*1950\.0\s*,\s*localEdgeDistance\s*\)/, 'near swell must blend to zero before the dense mesh edge');
 requirePattern(/new\s+THREE\.PlaneGeometry\(\s*WATER_FULL_WORLD_EXTENT_METERS\s*,\s*WATER_FULL_WORLD_EXTENT_METERS\s*,\s*1\s*,\s*1\s*\)/, 'two-triangle full-world far-water coverage missing');
-requirePattern(/vec2\s+waterField\s*=\s*sampleWaterField\(\s*vWorldPosition\.xz\s*\)\s*;/, 'far water must sample canonical depth and wet/dry coverage per fragment');
+// Run 388 widened this field from vec2 to vec3: .z now carries baked optical depth so the body
+// colour can be a real per-channel Beer-Lambert extinction rather than a depth-factor lerp. The
+// contract is still "one canonical field sampled per fragment", so it pins the third channel too
+// instead of merely tolerating the wider type.
+requirePattern(/vec3\s+waterField\s*=\s*sampleWaterField\(\s*vWorldPosition\.xz\s*\)\s*;/, 'far water must sample canonical depth, wet/dry coverage and optical depth per fragment');
+requirePattern(/float\s+opticalDepthMeters\s*=\s*waterField\.z\s*\*\s*uFullOpticalDepthMeters\s*;/, 'optical depth channel must be decoded into metres');
+requirePattern(/vec3\s+transmittance\s*=\s*exp\(\s*-uExtinctionPerMeter\s*\*\s*opticalDepthMeters\s*\)\s*;/, 'water body colour must come from per-channel Beer-Lambert extinction');
 requirePattern(/float\s+waterCoverage\s*=\s*smoothstep\(\s*0\.08\s*,\s*0\.72\s*,\s*waterField\.y\s*\)\s*;/, 'canonical wet/dry coverage shoreline fade drifted');
 requirePattern(/if\s*\(\s*waterCoverage\s*<=\s*0\.01\s*\)\s*discard\s*;/, 'dry-land fragment discard missing');
 requirePattern(/alpha\s*\*=\s*waterCoverage\s*;/, 'shoreline opacity must remain coverage-bounded');

@@ -18076,3 +18076,41 @@ uygulanıyor, süreklilik yapı gereği.
 **Ölçülen:** 4856 vertex, en kötü yüzer **0,4 m** (= bilerek konan offset), 0 yüzen, 0 gömülü.
 §8.4: koltuklar 14/14, yollar 13/13, etek 79,55 m. `scripts/checkRoadRibbonGrounding.js` koruyor
 (dişi kanıtlandı). SW v46→v47.
+
+## Tur 388 — Suyun rengi derinliğin kendisinden geliyor (ADR-0335)
+
+Sahibin son isteği doğrudan suydu: sığın duru olması, derinleştikçe koyulaşma, sahil bandının berrak
+görünmesi. Eldeki su derinliği tek bir `depthFactor` ile iki renk arasında **lerp'liyordu** — fizik
+değil, karıştırma.
+
+**Kanal başına Beer–Lambert.** Gerçek su kırmızıyı yeşilden, yeşili maviden hızlı yutar; deniz bu
+yüzden önce turkuaza sonra lacivere döner. Sönüm katsayısı artık bir vektör (**0,46 / 0,115 / 0,052**
+m⁻¹) ve gövde rengi `T = exp(-σ·d)` geçirgenliğinden türüyor. Yüzey saydamlığı da aynı büyüklükten:
+`alpha = 1 - luma(T)` — su duruyken saydam, derinken opak. İki ayrı elle ayarlanmış eğri değil, tek
+büyüklüğün iki sonucu.
+
+**Optik derinlik ayrı kanal.** Kabartma derinliği 10 m'de doyuyor (dalga fiziği için doğru, optik için
+çok sığ — 10 m'de her deniz aynı lacivert olurdu). Derinlik alanının **mavi kanalına** 60 m menzilli
+ayrı bir optik derinlik pişiriliyor. Kanal daha önce sabit 255 yazılıyordu.
+
+**Öncesi/sonrası aynı kamerada.** Öncesi: ufka kadar düz siyah levha, derinlik okunmuyor. Sonrası:
+su hattında soluk turkuaz, açığa doğru lacivere geçen gerçek berraklık gradyanı.
+
+**Karşılaştırma eski bir kusuru açığa çıkardı.** Yüzeyde tekrar eden soluk lekeler var — önce yeni
+sanıp aradım, *öncesi* render'da da aynen duruyorlar, siyah üstüne siyah oldukları için görünmüyorlardı.
+Kaynak: **uzun kabartmanın normal gölgelemesi**, üç sinüzoidin girişimi periyodik örgü üretiyor.
+Sonraki alt görev. Ders: **su siyahken hiçbir kapı bunu yakalayamazdı.**
+
+**Kendi hatam.** GLSL şablon dizesine ters tırnaklı yorum yazmıştım; ters tırnak şablonu orada
+bitiriyor. `node --check` PASS verdi, tarayıcı `SyntaxError` attı — sözdizimi denetimi şablon dizesinin
+nerede bittiğini doğrulamaz.
+
+**Kapılar.** `checkWaterVisualContract` PASS (renk pinleri yenilendi + "kırmızı yeşilden, yeşil maviden
+hızlı sönmeli" savları). `checkWaterSurfVisualContract` PASS — alan `vec2`→`vec3` genişledi, sözleşme
+gevşetilmedi, üçüncü kanal da pinlendi. `checkRun325WaterSwell` PASS (genlik 2,15 m < 10 m, su hattı
+0 m'de çivili, sahil taban açıklığı 0,199 m, %44,9 derin / %50,0 kuru, GPU'da %17,5 piksel hareketi).
+§8.4: koltuklar 14/14, yollar PASS (20,44 km). SW v47→v48.
+
+**Ortam notu.** `checkRun325WaterSwell`'in 20 sn gezinme zaman aşımı bu konteynerde yetmiyor
+(`game3d.html` ~31 sn'de yükleniyor), 90 sn'ye çıkarıldı. **Aynı değer 20'den fazla kapıda daha var** —
+hepsi bu ortamda çalıştırılamaz durumda, kendi başına alt görev: çalışmayan kapı hiçbir şeyi korumaz.

@@ -35,6 +35,7 @@
  */
 
 import * as THREE from 'three';
+import { FULL_OPTICAL_DEPTH_METERS } from './waterDepthField.js';
 
 /**
  * The three swell components, longest first: `[wavelengthMeters, amplitudeMeters, dirX, dirZ]`.
@@ -143,17 +144,22 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	uniform vec3 uCameraPosition;
 	uniform sampler2D uDepthMap;
 	uniform float uDepthFieldExtentMeters;
+	uniform vec3 uExtinctionPerMeter;
+	uniform float uFullOpticalDepthMeters;
+	uniform float uMinSurfaceAlpha;
+	uniform float uMaxSurfaceAlpha;
 	varying vec3 vWorldPosition;
 	varying float vDepthFactor;
 	varying vec2 vSwellSlope;
 	#include <fog_pars_fragment>
 
-	vec2 sampleWaterField(vec2 worldXZ) {
+	vec3 sampleWaterField(vec2 worldXZ) {
 		vec2 uv = worldXZ / uDepthFieldExtentMeters + 0.5;
 		// Outside the baked owner-world terrain there is no ground mesh, so this is open ocean.
-		if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return vec2(1.0, 1.0);
+		if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return vec3(1.0, 1.0, 1.0);
 		vec4 field = texture2D(uDepthMap, uv);
-		return field.rg;
+		// r = swell depth (10 m range), g = wet coverage, b = optical depth (60 m range).
+		return field.rgb;
 	}
 
 	float sampleFragmentDepth(vec2 worldXZ) {
@@ -180,7 +186,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	}
 
 	void main() {
-		vec2 waterField = sampleWaterField(vWorldPosition.xz);
+		vec3 waterField = sampleWaterField(vWorldPosition.xz);
 		float fragmentDepth = waterField.x;
 		// Green is the terrain-authoritative wet/dry classification baked alongside depth. Bilinear
 		// filtering turns its binary texels into a narrow shoreline transition. Discarding the dry
@@ -200,9 +206,22 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		vec3 normal = normalize(vec3(-slope.x, 1.0, -slope.y));
 		vec3 viewDir = normalize(uCameraPosition - vWorldPosition);
 
-		// Fragment depth (rather than vertex-interpolated depth) lets the two-triangle far plane retain
-		// the exact same canonical shallow/deep bathymetry response as the dense near-water mesh.
-		vec3 bodyColor = mix(uShallowColor, uDeepColor, smoothstep(0.02, 0.6, fragmentDepth));
+		// **Colour and clarity come from Beer-Lambert extinction, not from a two-colour ramp.**
+		//
+		// The old line mixed one shallow colour into one deep colour across a smoothstep, which gives a
+		// flat two-tone sea: every shallow is the same turquoise and every deep is the same navy, with a
+		// visible band where the ramp sits. Real water does something specific and simple — it absorbs
+		// long wavelengths far faster than short ones, so red dies within a couple of metres, green
+		// survives to ten or so, and blue carries furthest. That single fact is what makes a shore read
+		// clear over its own sand, then green, then blue, then black, with no bands anywhere: the
+		// progression is a continuous exponential per channel.
+		//
+		// uExtinctionPerMeter is that absorption, in inverse metres, and the optical depth channel
+		// carries a 60 m range so deep water keeps darkening long after swell has stopped changing.
+		float opticalDepthMeters = waterField.z * uFullOpticalDepthMeters;
+		vec3 transmittance = exp(-uExtinctionPerMeter * opticalDepthMeters);
+		// What is left of the light that went down, hit something, and came back up.
+		vec3 bodyColor = mix(uDeepColor, uShallowColor, transmittance);
 
 		// Fresnel-ish: nearer grazing angles read lighter/more reflective, straight-down reads deep.
 		float fresnel = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 3.0);
@@ -224,7 +243,13 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		// Shallow water is more see-through, so a lake bed or beach shelf shows through instead of
 		// every depth rendering as the same opaque sheet. Coverage then fades the canonical shoreline
 		// itself rather than tinting the dry side of it.
-		float alpha = mix(0.34, 0.88, smoothstep(0.0, 0.35, fragmentDepth));
+		// Opacity is the same extinction, seen from above: whatever light still gets through is exactly
+		// how much of the bottom the player can see. A hand's depth of water over a rock shelf is nearly
+		// invisible, a metre of it is a green tint you can still read the stones through, and past ten
+		// metres nothing returns. Weighted toward green because that is where the eye is most sensitive
+		// and where water transmits longest — a luminance-weighted average of what survives.
+		float clarity = dot(transmittance, vec3(0.28, 0.52, 0.20));
+		float alpha = clamp(1.0 - clarity, uMinSurfaceAlpha, uMaxSurfaceAlpha);
 		alpha *= waterCoverage;
 
 		gl_FragColor = vec4(color, max(alpha, foam * 0.78));
@@ -271,8 +296,33 @@ export const WATER_PLANE_SEGMENTS_MOBILE = 192;
  * the hue from green-teal to blue and deepening the far tone, so bathymetry actually reads from the
  * air. Pinned by `scripts/checkWaterVisualContract.js` and `scripts/checkWorldWaterCoverageP0.mjs`.
  */
-const DEFAULT_SHALLOW_COLOR = new THREE.Color(0x53899a);
-const DEFAULT_DEEP_COLOR = new THREE.Color(0x0c2c4a);
+const DEFAULT_SHALLOW_COLOR = new THREE.Color(0x7fc9c4);
+const DEFAULT_DEEP_COLOR = new THREE.Color(0x05182e);
+
+/**
+ * Per-metre absorption of water, per colour channel, in inverse metres.
+ *
+ * These are the numbers that make water look like water rather than like tinted glass. Clear natural
+ * water absorbs red roughly an order of magnitude faster than blue, which is why a shallow pool over
+ * pale rock reads almost colourless, a metre or two of it turns green, and depth goes blue and then
+ * black — all as one continuous exponential, with no band anywhere. Roughly following measured clear
+ * coastal water, warmed slightly in green so lakes and shelves read the turquoise the owner's
+ * reference images show rather than a colder open-ocean blue.
+ *
+ * Red at 0.46/m means half the red is gone by 1.5 m and 99% by 10 m. Blue at 0.052/m still has a
+ * third of its light left at 20 m, which is what keeps deep water blue instead of grey.
+ */
+const EXTINCTION_PER_METER = new THREE.Vector3(0.46, 0.115, 0.052);
+
+/**
+ * Clamps on how transparent or opaque the surface may get.
+ *
+ * The floor is not zero: even water you can see straight through still shows sky and a specular
+ * highlight, and at exactly zero the shore would vanish into the sand rather than reading as a wet
+ * edge. The ceiling is under one so deep water keeps a trace of the sky it reflects.
+ */
+const MIN_SURFACE_ALPHA = 0.06;
+const MAX_SURFACE_ALPHA = 0.94;
 /** Matches `game3d.js`'s directional "sun" light position, normalized — kept as a local constant
  * here (not `config.js`) since only this shader's specular highlight reads it today; promote it if
  * a second system needs the same direction. */
@@ -323,6 +373,10 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 				uTime: { value: 0 },
 				uShallowColor: { value: DEFAULT_SHALLOW_COLOR },
 				uDeepColor: { value: DEFAULT_DEEP_COLOR },
+				uExtinctionPerMeter: { value: EXTINCTION_PER_METER },
+				uFullOpticalDepthMeters: { value: FULL_OPTICAL_DEPTH_METERS },
+				uMinSurfaceAlpha: { value: MIN_SURFACE_ALPHA },
+				uMaxSurfaceAlpha: { value: MAX_SURFACE_ALPHA },
 				uSunDirection: { value: SUN_DIRECTION },
 				uCameraPosition: { value: new THREE.Vector3() },
 				uDepthMap: { value: PLACEHOLDER_DEPTH_TEXTURE },
