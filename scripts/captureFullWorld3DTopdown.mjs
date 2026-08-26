@@ -98,7 +98,7 @@ async function main() {
 		assert(summary.surfaceCounts.lake > 0, 'canonical inland lakes disappeared from full-world sampling');
 		assert(summary.northPermanentIceMax >= 0.8, 'authored permanent-ice core disappeared from the north');
 		assert(summary.northPermanentIceActiveSamples > 0, 'no strong permanent-ice samples were represented');
-		assert.equal(summary.terrainSurfaceRealism?.policyId, 'terrain-micro-surface-world-uv-pbr-v6-regional-natural-albedo',
+		assert.equal(summary.terrainSurfaceRealism?.policyId, 'terrain-micro-surface-world-uv-pbr-v7-coastal-weathering',
 			'full-world proof must render the production photoreal terrain surface policy');
 		assert.equal(summary.terrainSurfaceRealism?.naturalAlbedoRemap, true,
 			'full-world proof must include natural vegetation/soil/snow albedo remapping');
@@ -108,6 +108,12 @@ async function main() {
 			'full-world proof must include broad damp/dry terrain variation');
 		assert.equal(summary.terrainSurfaceRealism?.elevationWeathering, true,
 			'full-world proof must include elevation-driven terrain weathering');
+		assert.equal(summary.terrainSurfaceRealism?.coastalIntertidalBreakup, true,
+			'full-world proof must include the current bounded intertidal terrain weathering pass');
+		assert.equal(summary.terrainSurfaceRealism?.coastalSaltSprayWeathering, true,
+			'full-world proof must include sparse coastal salt/mineral weathering');
+		assert.equal(summary.terrainSurfaceRealism?.coastalRoughnessResponse, true,
+			'full-world proof must include coastal material roughness response');
 		assert.equal(summary.terrainSurfaceRealism?.uvChannel, 1,
 			'full-world proof must use production metre-space uv1 for terrain PBR detail');
 		assert(summary.waterDepthField.meanWetCoverage > 0.35, 'production water coverage is unexpectedly sparse');
