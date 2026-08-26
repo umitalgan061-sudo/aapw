@@ -20,7 +20,7 @@ const sea = (normalizedX, normalizedY = 0.47) => westernMarineShelfToneWeight({
   surface: 'sea', normalizedX, normalizedY,
 });
 
-assert.equal(P.id, 'western-marine-shelf-tone-2026-08-27-v7-current-shear-sediment-weathering');
+assert.equal(P.id, 'western-marine-shelf-tone-2026-08-27-v8-envelope-bounded-current-shear');
 assert.equal(P.renderOnly, true);
 assert.equal(P.canonicalSeaOnly, true);
 assert.equal(P.geographyAuthorityUnchanged, true);
@@ -109,7 +109,7 @@ const westernColorDelta = Math.hypot(
   color.getY(0) - color.getY(1),
   color.getZ(0) - color.getZ(1),
 );
-assert(westernColorDelta > 0.004, `v7 shelf material collapsed toward a uniform tint: delta=${westernColorDelta}`);
+assert(westernColorDelta > 0.004, `v8 shelf material collapsed toward a uniform tint: delta=${westernColorDelta}`);
 for (const index of [2, 3]) {
   assert.equal(color.getX(index), before[index * 3]);
   assert.equal(color.getY(index), before[index * 3 + 1]);
