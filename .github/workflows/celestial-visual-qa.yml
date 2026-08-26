@@ -7,6 +7,7 @@ on:
       - 'assets/models/Ay/Moon 2K.fbx'
       - '.gitattributes'
       - 'src/3d/lighting.js'
+      - 'src/3d/sky.js'
       - 'src/3d/assetLoader.js'
       - 'src/3d/nightVisualEnhancement.js'
       - 'scripts/firebaseDeployLfsReadiness.mjs'
@@ -42,6 +43,7 @@ jobs:
       - name: Static celestial and deployment contracts
         run: |
           node --check src/3d/lighting.js
+          node --check src/3d/sky.js
           node --check scripts/firebaseDeployLfsReadiness.mjs
           node --check scripts/checkFirebaseDeployLfsReadiness.mjs
           node --check scripts/checkCelestialAssetContract.mjs
