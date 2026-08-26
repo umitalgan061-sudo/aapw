@@ -26,6 +26,7 @@ on:
       - 'scripts/checkTerrainMacroWeatheringIntegration.mjs'
       - 'scripts/checkTerrainMacroWeatheringPerformance.mjs'
       - 'scripts/checkTerrainLandformFabric.mjs'
+      - 'scripts/checkMountainLakeBasinTaper.mjs'
       - 'scripts/checkWaterOffshoreOptics.mjs'
       - 'scripts/checkWesternMarineShelfTone.mjs'
       - 'scripts/checkPindex05NaturalSoilVariation.mjs'
@@ -64,6 +65,7 @@ jobs:
           node --check src/3d/fog.js
           node --check src/3d/world/terrainMacroWeathering.js
           node --check src/3d/world/terrainReliefDetail.js
+          node --check src/3d/world/worldReferenceMountainRelief.js
           node --check src/3d/world/westernMarineShelfTone.js
           node --check src/3d/world/worldReferencePindex01Detail.js
           node --check src/3d/world/worldReferencePindex02Detail.js
@@ -71,12 +73,14 @@ jobs:
           node --check src/3d/world/worldReferencePindex05Detail.js
           node --check src/3d/world/water.js
           node --check src/3d/world/waterDepthField.js
+          node --check scripts/checkMountainLakeBasinTaper.mjs
           node scripts/checkTerrainMacroWeathering.mjs
           node scripts/checkTerrainMacroWeatheringStatistics.mjs
           node scripts/checkTerrainMacroWeatheringIntegration.mjs
           node scripts/checkTerrainMacroWeatheringPerformance.mjs
           node scripts/checkTerrainLandformFabric.mjs
           node scripts/checkTerrainMicroSurface.mjs
+          node scripts/checkMountainLakeBasinTaper.mjs
           node scripts/checkWaterOffshoreOptics.mjs
           node scripts/checkWesternMarineShelfTone.mjs
           node scripts/checkPindex05NaturalSoilVariation.mjs
