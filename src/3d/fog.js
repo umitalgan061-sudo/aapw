@@ -27,6 +27,8 @@ const FOG_TWILIGHT_DENSITY_GAIN = 0.000085;
 const FOG_MIDDAY_CLARITY_GAIN = 0.000022;
 /** Saturated bright daylight implies a cleaner optical column than a pale overcast-looking horizon. */
 const FOG_CLEAR_BLUE_DAY_CLARITY_GAIN = 0.000026;
+/** Bright but low-chroma daylight carries a restrained humid aerosol veil rather than clear-sky contrast. */
+const FOG_HUMID_DAY_DENSITY_GAIN = 0.000038;
 /** Bright moonlit horizons recover a little long-range separation instead of looking like overcast night. */
 const FOG_MOONLIT_CLARITY_GAIN = 0.000030;
 /** Twilight is deliberately narrower than a simple parabola so haze belongs near low-angle light. */
@@ -43,12 +45,15 @@ const FOG_BLUE_HOUR_TINT = new THREE.Color(0x71899b);
 const FOG_MOONLIT_TINT = new THREE.Color(0x748493);
 /** Clean high-sun air retains sky colour but biases the residual aerosol toward a restrained Rayleigh blue. */
 const FOG_CLEAR_DAY_TINT = new THREE.Color(0x829bb0);
+/** Humid bright daylight is slightly neutralised to mimic moisture scattering without inventing weather state. */
+const FOG_HUMID_DAY_TINT = new THREE.Color(0xa4aaab);
 const FOG_HAZE_TINT_MAX = 0.075;
 const FOG_TWILIGHT_WARM_TINT_MAX = 0.032;
 const FOG_NIGHT_COOL_TINT_MAX = 0.038;
 const FOG_BLUE_HOUR_TINT_MAX = 0.045;
 const FOG_MOONLIT_TINT_MAX = 0.028;
 const FOG_CLEAR_DAY_TINT_MAX = 0.026;
+const FOG_HUMID_DAY_TINT_MAX = 0.036;
 /** A small post-sunset humidity lift separates blue hour from both warm dusk and fully dark night. */
 const FOG_BLUE_HOUR_DENSITY_GAIN = 0.000032;
 
@@ -75,8 +80,9 @@ export function createFog() {
  * clock or geography. Bright moonlit horizons then recover a bounded amount of clarity and a slightly
  * more neutral cool aerosol tint, preventing clear nights from reading like uniformly overcast fog.
  * High-sun daylight also reads the authoritative horizon chroma: a bright saturated sky receives a
- * small extra clarity/tint response while a pale low-chroma horizon keeps the normal aerosol column.
- * This avoids making every daytime view the same global haze preset without inventing weather state.
+ * small extra clarity/tint response, while a bright low-chroma horizon receives a restrained humid
+ * aerosol lift. The clear and humid responses are deliberately complementary, so daytime distance
+ * does not collapse into a single global haze preset and no independent weather authority is added.
  * All effects remain render-only and subordinate to the authoritative lighting horizon color.
  *
  * @param {THREE.FogExp2} fog
@@ -94,9 +100,11 @@ export function updateFog(fog, dayNight) {
 	const horizonMax = Math.max(dayNight.horizonColor.r, dayNight.horizonColor.g, dayNight.horizonColor.b);
 	const horizonMin = Math.min(dayNight.horizonColor.r, dayNight.horizonColor.g, dayNight.horizonColor.b);
 	const horizonChroma = THREE.MathUtils.clamp(horizonMax - horizonMin, 0, 1);
-	const clearBlueDay = fullDay
-		* THREE.MathUtils.smoothstep(horizonLuminance, 0.34, 0.72)
-		* THREE.MathUtils.smoothstep(horizonChroma, 0.16, 0.44);
+	const brightDay = fullDay * THREE.MathUtils.smoothstep(horizonLuminance, 0.30, 0.70);
+	const clearBlueDay = brightDay * THREE.MathUtils.smoothstep(horizonChroma, 0.16, 0.44);
+	const humidDay = brightDay
+		* (1 - THREE.MathUtils.smoothstep(horizonChroma, 0.09, 0.26))
+		* THREE.MathUtils.smoothstep(horizonLuminance, 0.40, 0.76);
 	const litTwilight = twilight * THREE.MathUtils.smoothstep(horizonLuminance, 0.08, 0.46);
 	const darkeningTwilight = twilight * (1 - THREE.MathUtils.smoothstep(horizonLuminance, 0.10, 0.34));
 	const blueHour = darkeningTwilight
@@ -111,6 +119,7 @@ export function updateFog(fog, dayNight) {
 		.lerp(FOG_HAZE_TINT, twilight * FOG_HAZE_TINT_MAX)
 		.lerp(FOG_TWILIGHT_WARM_TINT, litTwilight * FOG_TWILIGHT_WARM_TINT_MAX)
 		.lerp(FOG_CLEAR_DAY_TINT, clearBlueDay * FOG_CLEAR_DAY_TINT_MAX)
+		.lerp(FOG_HUMID_DAY_TINT, humidDay * FOG_HUMID_DAY_TINT_MAX)
 		.lerp(FOG_BLUE_HOUR_TINT, blueHour * FOG_BLUE_HOUR_TINT_MAX)
 		.lerp(FOG_NIGHT_COOL_TINT, deepNight * FOG_NIGHT_COOL_TINT_MAX)
 		.lerp(FOG_MOONLIT_TINT, moonlitNight * FOG_MOONLIT_TINT_MAX);
@@ -118,6 +127,7 @@ export function updateFog(fog, dayNight) {
 	fog.density = THREE.MathUtils.lerp(FOG_DENSITY_DAY, FOG_DENSITY_NIGHT, nightFactor)
 		+ twilight * FOG_TWILIGHT_DENSITY_GAIN
 		+ blueHour * FOG_BLUE_HOUR_DENSITY_GAIN
+		+ humidDay * FOG_HUMID_DAY_DENSITY_GAIN
 		- fullDay * FOG_MIDDAY_CLARITY_GAIN
 		- clearBlueDay * FOG_CLEAR_BLUE_DAY_CLARITY_GAIN
 		- moonlitNight * FOG_MOONLIT_CLARITY_GAIN;
