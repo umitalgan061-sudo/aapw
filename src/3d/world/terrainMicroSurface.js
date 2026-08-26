@@ -15,9 +15,9 @@ const smoothstep = (a, b, value) => {
 };
 
 export const TERRAIN_MICRO_SURFACE_POLICY = Object.freeze({
-	// Public id stays stable: this remains the same render-only surface authority, with a deeper
-	// landform-reading pass rather than a new geography source.
-	id: 'terrain-micro-surface-world-uv-pbr-v6-regional-natural-albedo',
+	// Public id advances because the coastal response is now a bounded, multi-scale weathering pass
+	// rather than a broad uniform dampness halo. Geography, height and hydrology remain untouched.
+	id: 'terrain-micro-surface-world-uv-pbr-v7-coastal-weathering',
 	textureSize: 256,
 	detailRepeatMeters: 22,
 	normalStrength: 0.92,
@@ -43,6 +43,9 @@ export const TERRAIN_MICRO_SURFACE_POLICY = Object.freeze({
 	erosionRunnels: true,
 	screeAprons: true,
 	coastalDampness: true,
+	coastalIntertidalBreakup: true,
+	coastalSaltSprayWeathering: true,
+	coastalRoughnessResponse: true,
 	aspectWeathering: true,
 	roughnessResponse: true,
 	renderOnly: true,
@@ -188,17 +191,17 @@ export function getSharedTerrainMicroSurfaceTextures() {
 	const field = buildTerrainDetailField(size);
 	const normalMap = configureTerrainDataTexture(
 		new THREE.DataTexture(buildTerrainNormalData(field, size), size, size, THREE.RGBAFormat, THREE.UnsignedByteType),
-		'terrain-world-micro-normal-v6-regional-natural-albedo',
+		'terrain-world-micro-normal-v7-coastal-weathering',
 	);
 	const roughnessMap = configureTerrainDataTexture(
 		new THREE.DataTexture(buildTerrainRoughnessData(field, size), size, size, THREE.RGBAFormat, THREE.UnsignedByteType),
-		'terrain-world-micro-roughness-v6-regional-natural-albedo',
+		'terrain-world-micro-roughness-v7-coastal-weathering',
 	);
 	sharedTerrainMicroSurface = Object.freeze({ normalMap, roughnessMap });
 	return sharedTerrainMicroSurface;
 }
 
-const TERRAIN_PHOTOREAL_SHADER_KEY = 'terrain-photoreal-world-surface-v6-regional-natural-albedo-landform-weathering';
+const TERRAIN_PHOTOREAL_SHADER_KEY = 'terrain-photoreal-world-surface-v7-coastal-weathering';
 const WATER_LEVEL_GLSL = Number(WORLD_DEFAULTS.WATER_LEVEL_METERS).toFixed(3);
 
 function installWorldSpaceColorBreakup(material) {
@@ -294,12 +297,26 @@ float terrainPhotoDrainage = terrainPhotoFbm(terrainPhotoWarpedXZ / 260.0 + vec2
 float terrainPhotoElevation = smoothstep(45.0, 330.0, vTerrainPhotorealWorldPosition.y);
 float terrainPhotoHighAlpine = smoothstep(180.0, 520.0, vTerrainPhotorealWorldPosition.y);
 float terrainPhotoLowland = 1.0 - smoothstep(22.0, 120.0, vTerrainPhotorealWorldPosition.y);
-float terrainPhotoCoastalBand = (1.0 - smoothstep(${WATER_LEVEL_GLSL} + 2.0, ${WATER_LEVEL_GLSL} + 34.0, vTerrainPhotorealWorldPosition.y))
-	* (1.0 - terrainPhotoSnow);
+
+// The previous coastal term covered almost every vertex from +2 m to +34 m above water uniformly,
+// which read as a continuous green halo in full-world renders. Keep the authority height-based, but
+// break the visual response into a narrow intertidal zone, a patchy spray reach and sparse salt crust.
+float terrainPhotoCoastHeight = vTerrainPhotorealWorldPosition.y - ${WATER_LEVEL_GLSL};
+float terrainPhotoCoastMacro = terrainPhotoFbm(terrainPhotoWarpedXZ / 430.0 + vec2(29.1, -12.4));
+float terrainPhotoCoastMeso = terrainPhotoFbm(terrainPhotoWarpedXZ / 155.0 + vec2(-8.7, 31.2));
+float terrainPhotoCoastFine = terrainPhotoNoise(terrainPhotoXZ / 47.0 + vec2(16.8, 5.3));
+float terrainPhotoCoastalReach = (1.0 - smoothstep(1.2, 18.0, terrainPhotoCoastHeight)) * (1.0 - terrainPhotoSnow);
+float terrainPhotoCoastalBand = terrainPhotoCoastalReach * mix(0.28, 1.0, smoothstep(0.34, 0.78, terrainPhotoCoastMacro));
+float terrainPhotoTideEnvelope = 1.0 - smoothstep(0.25, 5.2, terrainPhotoCoastHeight);
+float terrainPhotoTideStain = terrainPhotoTideEnvelope * (1.0 - terrainPhotoSnow)
+	* smoothstep(0.42, 0.79, terrainPhotoCoastMeso * 0.66 + terrainPhotoCoastFine * 0.34);
+float terrainPhotoSaltSpray = terrainPhotoCoastalReach * (1.0 - terrainPhotoTideEnvelope * 0.72)
+	* smoothstep(0.61, 0.86, terrainPhotoCoastMeso)
+	* smoothstep(0.46, 0.80, terrainPhotoCoastFine);
 float terrainPhotoMoisture = clamp(
 	0.51 + (0.5 - terrainPhotoRegional) * 0.55 + (0.5 - terrainPhotoBroad) * 0.62
 	+ (0.5 - terrainPhotoMacro) * 0.30 + (0.5 - terrainPhotoDrainage) * terrainPhotoLowland * 0.28
-	+ terrainPhotoCoastalBand * 0.18,
+	+ terrainPhotoCoastalBand * (0.055 + terrainPhotoCoastMeso * 0.075) + terrainPhotoTideStain * 0.16,
 	0.0, 1.0
 );
 float terrainPhotoAlluvialField = terrainPhotoRidgeNoise(terrainPhotoWarpedXZ / 410.0 + vec2(6.7, -13.2));
@@ -346,10 +363,18 @@ diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.188, 0.174, 0.138), terrainPhoto
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.082, 0.103, 0.079), terrainPhotoAlluvialWash * 0.29);
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.292, 0.257, 0.178), terrainPhotoDryShoulder * 0.22);
 
-float terrainPhotoCoastalWet = terrainPhotoCoastalBand * smoothstep(0.53, 0.82, terrainPhotoMoisture)
-	* (1.0 - terrainPhotoCliff * 0.65);
-vec3 terrainPhotoCoastalTone = vec3(0.102, 0.118, 0.099);
-diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoCoastalTone, terrainPhotoCoastalWet * 0.22);
+float terrainPhotoCoastalWet = clamp(
+	terrainPhotoTideStain * (0.60 + terrainPhotoMoisture * 0.40)
+	+ terrainPhotoCoastalBand * smoothstep(0.62, 0.86, terrainPhotoMoisture) * 0.24,
+	0.0, 1.0
+) * (1.0 - terrainPhotoCliff * 0.42);
+float terrainPhotoCoastalRockWet = max(terrainPhotoRock, terrainPhotoCliff * 0.72) * terrainPhotoTideStain;
+vec3 terrainPhotoCoastalTone = vec3(0.088, 0.101, 0.091);
+vec3 terrainPhotoWetRockTone = vec3(0.105, 0.112, 0.109);
+vec3 terrainPhotoSaltTone = vec3(0.330, 0.333, 0.307);
+diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoCoastalTone, terrainPhotoCoastalWet * 0.28);
+diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoWetRockTone, terrainPhotoCoastalRockWet * 0.30);
+diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoSaltTone, terrainPhotoSaltSpray * (0.08 + terrainPhotoRock * 0.10));
 
 vec3 terrainPhotoDampEarth = vec3(0.122, 0.116, 0.103);
 vec3 terrainPhotoNeutralEarth = vec3(0.218, 0.199, 0.162);
@@ -416,9 +441,12 @@ diffuseColor.rgb = clamp(diffuseColor.rgb, vec3(0.010), vec3(0.845));`,
 			.replace(
 				'#include <roughnessmap_fragment>',
 				`#include <roughnessmap_fragment>
-float terrainPhotoWetPolish = terrainPhotoCoastalWet * 0.12 + terrainPhotoRunnel * 0.10 + terrainPhotoAlluvialWash * 0.055;
+float terrainPhotoWetPolish = terrainPhotoCoastalWet * 0.085 + terrainPhotoTideStain * 0.095
+	+ terrainPhotoCoastalRockWet * 0.055 + terrainPhotoRunnel * 0.10 + terrainPhotoAlluvialWash * 0.055;
 float terrainPhotoRockPolish = terrainPhotoRockFace * terrainPhotoMoisture * 0.045;
-float terrainPhotoGranularRoughness = terrainPhotoScreeBand * 0.055 + terrainPhotoSnowDeposit * 0.025 + terrainPhotoDryShoulder * 0.045;
+float terrainPhotoSaltCrustRoughness = terrainPhotoSaltSpray * 0.065;
+float terrainPhotoGranularRoughness = terrainPhotoScreeBand * 0.055 + terrainPhotoSnowDeposit * 0.025
+	+ terrainPhotoDryShoulder * 0.045 + terrainPhotoSaltCrustRoughness;
 roughnessFactor = clamp(
 	roughnessFactor - terrainPhotoWetPolish - terrainPhotoRockPolish + terrainPhotoGranularRoughness,
 	0.48,
@@ -457,6 +485,9 @@ export function applyTerrainMicroSurface(material) {
 		erosionRunnels: true,
 		screeAprons: true,
 		coastalDampness: true,
+		coastalIntertidalBreakup: true,
+		coastalSaltSprayWeathering: true,
+		coastalRoughnessResponse: true,
 		aspectWeathering: true,
 		roughnessResponse: true,
 		renderOnly: true,
