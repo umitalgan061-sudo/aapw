@@ -11,7 +11,7 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX07_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex07-detail-2026-08-26-v2-worldspace-weathered-fabric',
+  id: 'owner-map-pindex07-detail-2026-08-26-v3-readable-worldspace-weathering',
   pindex: 7,
   renderOnly: true,
   geographyAuthorityUnchanged: true,
@@ -19,8 +19,8 @@ export const PINDEX07_DETAIL_POLICY = Object.freeze({
   mesoMeters: 410,
   fineMeters: 94,
   boundaryProbeNormalized: 0.006,
-  amplitudeBySurface: Object.freeze({ sea: 0.016, lake: 0.018, soil: 0.138, rock: 0.118, snow: 0.062 }),
-  chromaBySurface: Object.freeze({ sea: 0.018, lake: 0.020, soil: 0.118, rock: 0.082, snow: 0.044 }),
+  amplitudeBySurface: Object.freeze({ sea: 0.018, lake: 0.020, soil: 0.170, rock: 0.150, snow: 0.082 }),
+  chromaBySurface: Object.freeze({ sea: 0.020, lake: 0.022, soil: 0.142, rock: 0.108, snow: 0.062 }),
 });
 
 function hash01(ix, iz, seed = 0) {
@@ -84,12 +84,12 @@ function surfaceFabric(surface, worldX, worldZ) {
     const warp = macro * 0.82 + meso * 0.51;
     const strata = Math.sin(worldX * 0.0059 - worldZ * 0.0046 + warp * 2.8);
     const erosion = Math.abs(valueNoise(worldX + meso * 66, worldZ - macro * 78, 185, 21.4));
-    luminance = macro * 0.30 + meso * 0.26 + fine * 0.10 + strata * 0.24 - erosion * 0.10;
-    warm += Math.max(0, mineral - 0.46) * 0.48;
+    luminance = macro * 0.34 + meso * 0.28 + fine * 0.10 + strata * 0.28 - erosion * 0.12;
+    warm += Math.max(0, mineral - 0.46) * 0.52;
     cool *= 0.34;
   } else if (surface === 'snow') {
-    const windCrust = THREE.MathUtils.clamp(0.5 + meso * 0.31 - fine * 0.21 + macro * 0.08, 0, 1);
-    luminance = macro * 0.16 + meso * 0.31 + fine * 0.18 + (0.5 - windCrust) * 0.35;
+    const windCrust = THREE.MathUtils.clamp(0.5 + meso * 0.34 - fine * 0.23 + macro * 0.10, 0, 1);
+    luminance = macro * 0.18 + meso * 0.34 + fine * 0.20 + (0.5 - windCrust) * 0.38;
     cool = windCrust - 0.5;
     warm *= 0.16;
   } else if (surface === 'sea' || surface === 'lake') {
@@ -118,7 +118,7 @@ export function applyPindex07DetailToTerrainMesh(mesh) {
     const amplitude = (PINDEX07_DETAIL_POLICY.amplitudeBySurface[c.surface] ?? 0) * edge;
     const chroma = (PINDEX07_DETAIL_POLICY.chromaBySurface[c.surface] ?? 0) * edge;
     const fabric = surfaceFabric(c.surface, worldX, worldZ);
-    const shade = THREE.MathUtils.clamp(1 + fabric.luminance * amplitude, 0.82, 1.18);
+    const shade = THREE.MathUtils.clamp(1 + fabric.luminance * amplitude, 0.80, 1.20);
 
     let r = color.getX(index) * shade;
     let g = color.getY(index) * shade;
