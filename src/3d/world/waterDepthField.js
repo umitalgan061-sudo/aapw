@@ -24,7 +24,7 @@ export const WATER_COVERAGE_SUBSAMPLES_PER_AXIS = 2;
 export const WATER_OFFSHORE_SHORELINE_MAX_COVERAGE = 0.5;
 
 export const WATER_OFFSHORE_OPTICAL_VARIATION_POLICY = Object.freeze({
-	id: 'water-offshore-optical-world-fabric-2026-08-26-v1',
+	id: 'water-offshore-optical-world-fabric-2026-08-26-v2-scale-qualified',
 	renderOnly: true,
 	physicalDepthUnchanged: true,
 	coverageUnchanged: true,
@@ -36,6 +36,8 @@ export const WATER_OFFSHORE_OPTICAL_VARIATION_POLICY = Object.freeze({
 	maxFactorPerturbation: 0.115,
 	shoreFadeStart: 0.12,
 	shoreFadeFull: 0.58,
+	fullDistanceScaleStartMeters: 240,
+	fullDistanceScaleFullMeters: 900,
 	currentAxisX: 0.84,
 	currentAxisZ: 0.54,
 });
@@ -216,6 +218,8 @@ function buildOffshoreDistanceData(data, resolution, stepMeters, fullDistanceMet
 	const { distances, shorelineCoverageByte } = buildChamferDistance(data, marine, resolution);
 	const offshoreData = new Uint8Array(texelCount);
 	const originMeters = -extentMeters / 2;
+	const P = WATER_OFFSHORE_OPTICAL_VARIATION_POLICY;
+	const worldScaleFade = smoothstep(P.fullDistanceScaleStartMeters, P.fullDistanceScaleFullMeters, fullDistanceMeters);
 	let wetCoverage = 0;
 	let marineCoverage = 0;
 	let offshoreWeightedSum = 0;
@@ -237,13 +241,9 @@ function buildOffshoreDistanceData(data, resolution, stepMeters, fullDistanceMet
 		const column = index - row * resolution;
 		const worldX = originMeters + column * stepMeters;
 		const worldZ = originMeters + row * stepMeters;
-		const shoreFade = smoothstep(
-			WATER_OFFSHORE_OPTICAL_VARIATION_POLICY.shoreFadeStart,
-			WATER_OFFSHORE_OPTICAL_VARIATION_POLICY.shoreFadeFull,
-			baseOffshoreFactor,
-		);
+		const shoreFade = smoothstep(P.shoreFadeStart, P.shoreFadeFull, baseOffshoreFactor);
 		const fabric = sampleOffshoreOpticalFabric(worldX, worldZ);
-		const perturbation = fabric * WATER_OFFSHORE_OPTICAL_VARIATION_POLICY.maxFactorPerturbation * shoreFade;
+		const perturbation = fabric * P.maxFactorPerturbation * shoreFade * worldScaleFade;
 		const headroom = 4 * baseOffshoreFactor * (1 - baseOffshoreFactor);
 		const offshoreFactor = baseOffshoreFactor <= 0
 			? 0
