@@ -11,7 +11,7 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX04_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex04-detail-2026-08-26-v2-west-central-multiscale-weathering',
+  id: 'owner-map-pindex04-detail-2026-08-26-v3-readable-west-central-weathering',
   pindex: 4,
   renderOnly: true,
   geographyAuthorityUnchanged: true,
@@ -19,8 +19,8 @@ export const PINDEX04_DETAIL_POLICY = Object.freeze({
   mesoMeters: 430,
   fineMeters: 104,
   boundaryProbeNormalized: 0.006,
-  amplitudeBySurface: Object.freeze({ sea: 0.014, lake: 0.016, soil: 0.125, rock: 0.112, snow: 0.055 }),
-  chromaBySurface: Object.freeze({ sea: 0.016, lake: 0.020, soil: 0.112, rock: 0.082, snow: 0.042 }),
+  amplitudeBySurface: Object.freeze({ sea: 0.014, lake: 0.016, soil: 0.165, rock: 0.145, snow: 0.072 }),
+  chromaBySurface: Object.freeze({ sea: 0.016, lake: 0.020, soil: 0.145, rock: 0.105, snow: 0.055 }),
 });
 
 function hash01(ix, iz, seed = 0) {
@@ -89,8 +89,8 @@ function surfaceFabric(surface, worldX, worldZ) {
     // Moist hollows retain greener/darker character; weathered mineral/heath patches become subtly
     // warmer. Both follow independent fields, avoiding a single tint/noise knob across the region.
     const meadowPatch = valueNoise(worldX - 91, worldZ + 137, 690, 21.4);
-    cool += Math.max(0, meadowPatch) * 0.18;
-    warm += Math.max(0, -meadowPatch) * 0.12;
+    cool += Math.max(0, meadowPatch) * 0.24;
+    warm += Math.max(0, -meadowPatch) * 0.17;
   } else if (surface === 'rock') {
     // Warped bedding reads as geological weathering without touching the mountain geometry.
     const strataWarp = macro * 0.82 + meso * 0.48;
@@ -131,7 +131,7 @@ export function applyPindex04DetailToTerrainMesh(mesh) {
     const amplitude = (PINDEX04_DETAIL_POLICY.amplitudeBySurface[c.surface] ?? 0) * edge;
     const chroma = (PINDEX04_DETAIL_POLICY.chromaBySurface[c.surface] ?? 0) * edge;
     const fabric = surfaceFabric(c.surface, worldX, worldZ);
-    const shade = THREE.MathUtils.clamp(1 + fabric.luminance * amplitude, 0.82, 1.18);
+    const shade = THREE.MathUtils.clamp(1 + fabric.luminance * amplitude, 0.80, 1.20);
 
     let r = color.getX(index) * shade;
     let g = color.getY(index) * shade;
