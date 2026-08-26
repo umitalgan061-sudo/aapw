@@ -133,6 +133,23 @@ function proveDisposedSystemStaysSilent(seed) {
   return emissionsAtDispose;
 }
 
+function collectFreshLifecycle(seed, count = 24) {
+  const ids = [];
+  const emissionSeconds = [];
+  let simulatedSeconds = 0;
+  const system = createWorldEventSystem({
+    eventsBus: { emit: (_name, payload) => { ids.push(payload.id); emissionSeconds.push(simulatedSeconds); } },
+    seed,
+    eventName: 'world:event',
+  });
+  while (ids.length < count && simulatedSeconds < 5000) {
+    simulatedSeconds += 1;
+    system.update(1, undefined);
+  }
+  system.dispose();
+  return { ids, emissionSeconds };
+}
+
 function expectedEmissionSeconds(seed, count) {
   const random = mulberry32(seed);
   let secondsUntilNext = MIN_INTERVAL_SECONDS + random() * (MAX_INTERVAL_SECONDS - MIN_INTERVAL_SECONDS);
@@ -201,6 +218,16 @@ assert.ok(retainedMutation.observedIds.every((id) => id !== 'delayed-listener-mu
 // a stale toast. Repeated dispose calls must remain harmless.
 const disposedEmissionCount = proveDisposedSystemStaysSilent(44117);
 
+// Scene/PWA re-initialization must create a genuinely fresh deterministic controller. A disposed
+// instance may have consumed arbitrary interval/selection draws, but a new system with the same seed
+// must restart both event ordering and cadence from the canonical seed origin rather than inheriting
+// hidden module-level state from the previous lifecycle.
+const reinitSeed = 55109;
+const firstLifecycle = collectFreshLifecycle(reinitSeed);
+const secondLifecycle = collectFreshLifecycle(reinitSeed);
+assert.deepEqual(secondLifecycle.ids, firstLifecycle.ids, 'same-seed world-event reinit changed the event sequence after teardown');
+assert.deepEqual(secondLifecycle.emissionSeconds, firstLifecycle.emissionSeconds, 'same-seed world-event reinit changed interval cadence after teardown');
+
 // Lighting is an adapter input, not authored world-event state. Non-finite or wrong-typed values
 // must therefore fail closed to ungated ambient entries instead of JavaScript coercion accidentally
 // classifying Infinity as night or a numeric string as a valid sky state.
@@ -244,6 +271,8 @@ console.log('WORLD_EVENT_REPEAT_DIVERSITY_PASS', JSON.stringify({
   distinctRetainedPayloadObjects: retainedMutation.distinctPayloadObjects,
   disposeLifecycleChecked: true,
   emissionsBeforeDispose: disposedEmissionCount,
+  reinitLifecycleChecked: true,
+  reinitEventsChecked: firstLifecycle.ids.length,
   malformedLightingContextsChecked: malformedLightingFactors.length,
   finiteLightingClampChecked: true,
   eligibilityPoolShared: true,
