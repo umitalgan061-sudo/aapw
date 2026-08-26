@@ -2,9 +2,10 @@
  * Coastline domain warp + deterministic multi-scale terrain relief.
  *
  * Canonical owner-map semantics remain upstream in terrain.js. This module only supplies bounded
- * residual shape. The original isotropic fBm/ridged stack is preserved, and v2 adds a directional
- * macro-weathering residual from terrainMacroWeathering.js: drainage corridors, shoulders, benches,
- * aspect asymmetry and talus. All terms are pure functions of normalized world position.
+ * residual shape. The original fBm/ridged stack is preserved, but hill country now carries a slowly
+ * rotating anisotropic fabric so aerial landforms read as connected ridges and valleys rather than
+ * isotropic blobs. Directional macro weathering remains responsible for drainage, benches, aspect
+ * asymmetry, talus and alluvial hierarchy.
  *
  * Settlement/seat safety is still owned by terrain.js, which tapers the complete result around
  * protected seats before hydrology/foundation consumers see it.
@@ -14,10 +15,12 @@
 
 import { terrainMacroWeatheringResidualMeters } from './terrainMacroWeathering.js';
 
+const TAU = Math.PI * 2;
 const clamp01 = (value) => value < 0 ? 0 : value > 1 ? 1 : value;
 
 export const TERRAIN_RELIEF_DETAIL_POLICY = Object.freeze({
 	id: 'terrain-coast-warp-and-relief-detail-2026-08-26-v2-directional-weathering',
+	revision: 3,
 	coastWarpU: 1.55 / 96,
 	coastWarpV: 1.55 / 64,
 	coastWarpOctaves: 3,
@@ -64,26 +67,34 @@ export const TERRAIN_RELIEF_DETAIL_POLICY = Object.freeze({
 	// Low ground may be raised, but negative cuts are suppressed near the coast.
 	negativeReliefFullElevationMeters: 28,
 
-	// Mid-scale hill country visible from aerial cameras.
+	// Mid-scale hill country visible from aerial cameras. The amplitude is unchanged; v3 changes only
+	// morphology by blending isotropic hills with a regional anisotropic ridge fabric.
 	hillAmplitudeMeters: 26,
 	hillFrequency: 22,
 	hillOctaves: 3,
+	regionalAnisotropicHillFabric: true,
+	hillFabricBlend: 0.62,
+	hillFabricContrast: 1.34,
+	hillFabricAlongScale: 0.62,
+	hillFabricAcrossScale: 1.22,
+	hillFabricWarpFrequency: 5.8,
+	hillFabricWarpStrength: 0.035,
+	hillFabricBaseAngleRadians: 0.35,
+	hillFabricAngleSwingRadians: 0.65,
+	hillFabricAngleDetailRadians: 0.27,
 
 	// Protect the true waterline; most lowland ground reaches full detail quickly.
 	shoreFadeStartMeters: 0.3,
 	shoreFadeFullMeters: 2.5,
 
-	// Explicit marker used by diagnostics to prove the new directional layer is production-wired.
 	directionalMacroWeathering: true,
 });
 
-/** Deterministic 2D integer hash -> [0,1). */
 function hash2(ix, iy) {
 	const value = Math.sin(ix * 127.1 + iy * 311.7) * 43758.5453123;
 	return value - Math.floor(value);
 }
 
-/** Smooth value noise in [0,1) with quintic interpolation. */
 function valueNoise2(x, y) {
 	const x0 = Math.floor(x);
 	const y0 = Math.floor(y);
@@ -100,7 +111,6 @@ function valueNoise2(x, y) {
 	return nx0 + (nx1 - nx0) * uy;
 }
 
-/** Signed fBm in roughly [-1,1]. */
 function fbm2(x, y, octaves) {
 	let amplitude = 0.5;
 	let frequency = 1;
@@ -115,14 +125,10 @@ function fbm2(x, y, octaves) {
 	return sum / normalisation;
 }
 
-/**
- * Shared deterministic noise basis used by terrainBiomeShading.js.
- */
 export function signedFbmNoise(x, y, octaves) {
 	return fbm2(x, y, octaves);
 }
 
-/** Ridged multifractal in [0,1]. */
 function ridged2(x, y, octaves) {
 	let amplitude = 0.5;
 	let frequency = 1;
@@ -139,11 +145,49 @@ function ridged2(x, y, octaves) {
 }
 
 /**
- * Organic domain warp for the low-resolution canonical surface mask.
+ * Mid-scale regional ridge fabric in [0,1].
  *
- * This moves the *sample coordinate*, not the source data, so large-scale geography remains owner-map
- * driven while 138-162m cell stair-steps stop printing directly into the coastline.
+ * Real hill country tends to inherit a structural grain from bedding, faulting and drainage. Pure
+ * isotropic ridged noise makes every hill equally likely in every direction, which reads as rounded
+ * procedural lumps in an orthographic world view. Here the local frame rotates slowly across the
+ * map, then compresses the across-ridge axis while stretching the along-ridge axis. A restrained
+ * two-octave warp bends the ridges so they never become parallel stripes. The old isotropic field is
+ * still mixed in, preserving local variety and the established 26m amplitude envelope.
  */
+export function terrainHillFabricSignal(normalizedX, normalizedY) {
+	const P = TERRAIN_RELIEF_DETAIL_POLICY;
+	const nx = Number.isFinite(normalizedX) ? normalizedX : 0;
+	const ny = Number.isFinite(normalizedY) ? normalizedY : 0;
+	const regionalA = Math.sin(TAU * (nx * 0.83 + ny * 0.31) + 0.73);
+	const regionalB = Math.sin(TAU * (nx * -0.27 + ny * 0.69) + 2.19);
+	const angle = P.hillFabricBaseAngleRadians
+		+ regionalA * P.hillFabricAngleSwingRadians
+		+ regionalB * P.hillFabricAngleDetailRadians;
+	const c = Math.cos(angle);
+	const s = Math.sin(angle);
+	const centeredX = nx - 0.5;
+	const centeredY = ny - 0.5;
+	const along = centeredX * c + centeredY * s;
+	const across = -centeredX * s + centeredY * c;
+	const warp = fbm2(
+		nx * P.hillFabricWarpFrequency + 4.7,
+		ny * P.hillFabricWarpFrequency - 12.3,
+		2,
+	) * P.hillFabricWarpStrength;
+	const elongated = ridged2(
+		(along + warp) * P.hillFrequency * P.hillFabricAlongScale + 17.3,
+		(across - warp * 0.62) * P.hillFrequency * P.hillFabricAcrossScale - 41.6,
+		P.hillOctaves,
+	);
+	const elongatedContrasted = clamp01(0.625 + (elongated - 0.625) * P.hillFabricContrast);
+	const isotropic = ridged2(
+		nx * P.hillFrequency + 17.3,
+		ny * P.hillFrequency - 41.6,
+		P.hillOctaves,
+	);
+	return elongatedContrasted * P.hillFabricBlend + isotropic * (1 - P.hillFabricBlend);
+}
+
 export function coastWarpOffsets(normalizedX, normalizedY) {
 	const P = TERRAIN_RELIEF_DETAIL_POLICY;
 	const broadU = fbm2(normalizedX * 9.3 + 11.7, normalizedY * 9.3 + 3.1, P.coastWarpOctaves);
@@ -156,14 +200,6 @@ export function coastWarpOffsets(normalizedX, normalizedY) {
 	};
 }
 
-/**
- * Extra land relief in metres, added by terrain.js after map-derived base height.
- *
- * The residual is allowed to be positive or negative away from the protected coast. Open water is
- * always neutral. `terrainMacroWeatheringResidualMeters` is deliberately inserted before the legacy
- * low-elevation negative damping so the complete relief stack continues to honor the same coast
- * safety envelope.
- */
 export function reliefDetailMeters(
 	normalizedX,
 	normalizedY,
@@ -186,7 +222,6 @@ export function reliefDetailMeters(
 	if (shoreFade <= 0) return 0;
 	const landGate = dryness * shoreFade;
 
-	// Broad swells + plains.
 	const swell = fbm2(
 		normalizedX * P.swellFrequency + 3.7,
 		normalizedY * P.swellFrequency - 9.1,
@@ -202,7 +237,6 @@ export function reliefDetailMeters(
 		+ plains * P.plainsAmplitudeMeters
 	) * landGate;
 
-	// Everywhere-land ridged erosion, elevation scaled.
 	const erosionRamp = clamp01(heightAboveSeaMeters / P.erosionFullElevationMeters);
 	const erosionAmplitude = Math.max(
 		P.erosionAmplitudeLowMeters
@@ -217,15 +251,10 @@ export function reliefDetailMeters(
 	);
 	metres += (erosion - 0.5) * 2 * erosionAmplitude * landGate;
 
-	// Mid-scale hill country.
-	const hills = ridged2(
-		normalizedX * P.hillFrequency + 17.3,
-		normalizedY * P.hillFrequency - 41.6,
-		P.hillOctaves,
-	);
+	// Same amplitude as v2, but a regional structural grain replaces the isotropic-only morphology.
+	const hills = terrainHillFabricSignal(normalizedX, normalizedY);
 	metres += (hills - 0.5) * 2 * P.hillAmplitudeMeters * landGate;
 
-	// Fine dissection.
 	const dissectionRamp = clamp01(heightAboveSeaMeters / P.dissectionFullElevationMeters);
 	const dissectionAmplitude = P.dissectionAmplitudeLowMeters
 		+ (P.dissectionAmplitudeHighMeters - P.dissectionAmplitudeLowMeters) * dissectionRamp;
@@ -236,7 +265,6 @@ export function reliefDetailMeters(
 	);
 	metres += (dissection - 0.5) * 2 * dissectionAmplitude * landGate;
 
-	// Short-wavelength surface roughness.
 	const roughness = fbm2(
 		normalizedX * P.roughnessFrequency - 55.8,
 		normalizedY * P.roughnessFrequency + 12.7,
@@ -244,9 +272,6 @@ export function reliefDetailMeters(
 	);
 	metres += roughness * P.roughnessAmplitudeMeters * landGate;
 
-	// New v2 directional residual. It has its own strict water/shore envelope and hard +/- cap.
-	// Do not multiply by landGate again: doing so would double-fade the lowlands that this pass is
-	// specifically intended to make legible from the aerial camera.
 	metres += terrainMacroWeatheringResidualMeters(normalizedX, normalizedY, {
 		heightAboveSeaMeters,
 		reliefInfluence,
@@ -255,11 +280,8 @@ export function reliefDetailMeters(
 		waterWeight,
 	});
 
-	// Preserve the established low-ground negative safety envelope across the *combined* residual.
 	if (metres < 0) metres *= clamp01(heightAboveSeaMeters / P.negativeReliefFullElevationMeters);
 
-	// Canonical mountain crags remain last, so weathering cuts/benches are carved into the foothill
-	// form while the strongest mountain signal retains its existing amplitude authority.
 	const mountainGate = clamp01(Math.max(
 		reliefInfluence * reliefInfluence,
 		clamp01(rockWeight) * 0.8,

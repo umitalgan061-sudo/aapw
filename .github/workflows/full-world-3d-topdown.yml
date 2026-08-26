@@ -20,6 +20,7 @@ on:
       - 'scripts/checkTerrainMacroWeatheringStatistics.mjs'
       - 'scripts/checkTerrainMacroWeatheringIntegration.mjs'
       - 'scripts/checkTerrainMacroWeatheringPerformance.mjs'
+      - 'scripts/checkTerrainLandformFabric.mjs'
       - 'scripts/captureFullWorld3DTopdown.mjs'
       - 'scripts/fullWorld3DTopdownHarness.html'
       - '.github/workflows/full-world-3d-topdown.yml'
@@ -59,6 +60,7 @@ jobs:
           node scripts/checkTerrainMacroWeatheringStatistics.mjs
           node scripts/checkTerrainMacroWeatheringIntegration.mjs
           node scripts/checkTerrainMacroWeatheringPerformance.mjs
+          node scripts/checkTerrainLandformFabric.mjs
           node scripts/checkTerrainMicroSurface.mjs
 
       - name: Render authoritative full-world 3D topdown
