@@ -81,7 +81,16 @@ assert.deepEqual(economy.quote(ration), {
 	balanceCopper: 34,
 	balanceAfterPurchase: 28,
 });
-assert.equal(economy.purchase(whetstone, grant).ok, true);
+assert.equal(inventory.grant('dragonstone-travel-ration-pack', 1, { sourceType: 'test-fixture', sourceId: 'trade-ledger-atomicity' }), true);
+assert.equal(inventory.grant('dragonstone-whetstone', 1, { sourceType: 'test-fixture', sourceId: 'trade-ledger-atomicity' }), true);
+result = economy.purchase(whetstone, grant);
+assert.equal(result.ok, true, 'authored armorer service should commit after its canonical inputs are present');
+assert.equal(result.crafted, true);
+assert.equal(result.craftedItemId, 'dragonstone-expedition-maintenance-kit');
+assert.deepEqual(result.consumedItems, [
+	{ itemId: 'dragonstone-travel-ration-pack', quantity: 1 },
+	{ itemId: 'dragonstone-whetstone', quantity: 1 },
+]);
 const committed = snapshot(economy);
 assert.equal(committed.ledger.transactionCount, 2);
 assert.equal(committed.ledger.lifetimeSpentCopper, ration.priceCopper + whetstone.priceCopper);
@@ -218,4 +227,4 @@ restoredDetached.ledger.recentTransactions[0].sequence = 77;
 assert.equal(restored.snapshot().ledger.purchasesByOffer[ration.id], 1);
 assert.equal(restored.snapshot().ledger.recentTransactions[0].sequence, 1);
 
-console.log('PASS checkInteractionTradeLedgerAtomicity: quotes stay pure, failed trades stay atomic, stock canonically derives aggregate ledger totals, legacy saves infer totals, and receipt history stays detached/bounded.');
+console.log('PASS checkInteractionTradeLedgerAtomicity: quotes stay pure, failed trades stay atomic, authored smithing commits against real inputs, stock canonically derives aggregate ledger totals, legacy saves infer totals, and receipt history stays detached/bounded.');
