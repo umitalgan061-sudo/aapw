@@ -38,7 +38,7 @@ export const WINTER_VEGETATION_ASSET_POLICY = Object.freeze({
 	// snow-laden. The previous 0.58..0.86 blend washed nearly the whole crown to white in browser QA.
 	pineFoliageSnowColor: Object.freeze([0.86, 0.92, 0.94]),
 	pineFoliageSnowMixMin: 0.30,
-	pineFoliageSnowMixRange: 0.34,
+	pineFoliageSnowMixRange: 0.40,
 	pineFoliageMinRoughness: 0.90,
 	pineFoliageMacroScale: 0.019,
 	pineFoliageMesoScale: 0.127,
