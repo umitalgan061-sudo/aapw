@@ -17,6 +17,7 @@ on:
       - 'scripts/checkNorthernVegetationClimate.mjs'
       - 'scripts/checkNorthernVegetationRuntime.mjs'
       - 'scripts/checkNorthernVegetationDeterminism.mjs'
+      - 'scripts/checkVegetationEcologicalGroves.mjs'
       - 'scripts/checkNorthSnowPineCrowdReadability.mjs'
       - 'scripts/checkWinterVegetationAssetUpgrade.mjs'
       - 'scripts/checkWinterPineMaterialTreatment.mjs'
@@ -60,6 +61,7 @@ jobs:
           node --check scripts/checkNorthernVegetationClimate.mjs
           node --check scripts/checkNorthernVegetationRuntime.mjs
           node --check scripts/checkNorthernVegetationDeterminism.mjs
+          node --check scripts/checkVegetationEcologicalGroves.mjs
           node --check scripts/checkNorthSnowPineCrowdReadability.mjs
           node --check scripts/checkWinterVegetationAssetUpgrade.mjs
           node --check scripts/checkWinterPineMaterialTreatment.mjs
@@ -81,6 +83,8 @@ jobs:
         run: node scripts/checkNorthernVegetationRuntime.mjs
       - name: Northern vegetation determinism
         run: node scripts/checkNorthernVegetationDeterminism.mjs
+      - name: Ecological grove and clearing distribution
+        run: node scripts/checkVegetationEcologicalGroves.mjs
       - name: Northern snow-pine crowd readability
         run: node scripts/checkNorthSnowPineCrowdReadability.mjs
       - name: Winter vegetation asset upgrade

@@ -1,6 +1,6 @@
 /**
- * Deterministic instanced vegetation. Placement/species authority remains map-aligned and unchanged;
- * surface realism is render-only and derived from world position.
+ * Deterministic instanced vegetation. Placement/species authority remains map-aligned; base scatter
+ * uses deterministic ecological groves and clearings while surface realism stays render-only.
  * @module world/vegetation
  */
 
@@ -47,6 +47,17 @@ export const VEGETATION_NORTH_CLIMATE_POLICY = Object.freeze({
 		'assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb',
 	]),
 	liveRepresentation: 'instanced-procedural-snow-pine',
+});
+
+export const VEGETATION_SPATIAL_PATTERN_POLICY = Object.freeze({
+	id: 'vegetation-ecological-grove-scatter-2026-08-26-v1',
+	climateAuthority: VEGETATION_NORTH_CLIMATE_POLICY.climateAuthority,
+	groveTreeCountMin: 9,
+	groveTreeCountMax: 17,
+	temperateGroveRadiusMeters: 170,
+	coldGroveRadiusMeters: 125,
+	temperateBackgroundChance: 0.26,
+	coldBackgroundChance: 0.18,
 });
 
 const TARGET_DENSITY_PER_KM2 = 30;
@@ -224,6 +235,20 @@ export function sampleAnnulusPoint(rng, centerX, centerZ, innerRadius, outerRadi
 	return { x: centerX + Math.cos(angle) * radius, z: centerZ + Math.sin(angle) * radius };
 }
 
+export function vegetationGrovePatternForClimate(climate = {}) {
+	const tundra = Number.isFinite(climate.tundra) ? climate.tundra : 0;
+	const permanentIce = Number.isFinite(climate.permanentIce) ? climate.permanentIce : 0;
+	const coldness = Math.max(0, Math.min(1, Math.max(tundra, permanentIce)));
+	const policy = VEGETATION_SPATIAL_PATTERN_POLICY;
+	return {
+		coldness,
+		groveRadiusMeters: policy.temperateGroveRadiusMeters
+			+ (policy.coldGroveRadiusMeters - policy.temperateGroveRadiusMeters) * coldness,
+		backgroundChance: policy.temperateBackgroundChance
+			+ (policy.coldBackgroundChance - policy.temperateBackgroundChance) * coldness,
+	};
+}
+
 function buildSpeciesAssets(species) {
 	const { trunk, foliage } = species;
 	const trunkGeometry = new THREE.CylinderGeometry(trunk.radiusTop, trunk.radiusBottom, trunk.height, trunk.radialSegments);
@@ -290,20 +315,42 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 	const position = new THREE.Vector3();
 	const quaternion = new THREE.Quaternion();
 	const scaleVector = new THREE.Vector3();
+	const spatialPolicy = VEGETATION_SPATIAL_PATTERN_POLICY;
 	let placedCount = 0;
+	let groveCenterX = 0;
+	let groveCenterZ = 0;
+	let groveHasCenter = false;
+	let groveTreesRemaining = 0;
+	let groveRadiusMeters = spatialPolicy.temperateGroveRadiusMeters;
+	let groveBackgroundChance = spatialPolicy.temperateBackgroundChance;
 
 	for (let treeIndex = 0; treeIndex < baseTargetCount; treeIndex++) {
+		if (groveTreesRemaining <= 0) {
+			groveHasCenter = false;
+			groveTreesRemaining = spatialPolicy.groveTreeCountMin
+				+ Math.floor(rng() * (spatialPolicy.groveTreeCountMax - spatialPolicy.groveTreeCountMin + 1));
+		}
 		for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_TREE; attempt++) {
-			const angle = rng() * Math.PI * 2;
-			const radius = radiusMeters * Math.sqrt(rng());
-			const x = Math.cos(angle) * radius;
-			const z = Math.sin(angle) * radius;
+			const candidate = !groveHasCenter || rng() < groveBackgroundChance
+				? sampleAnnulusPoint(rng, 0, 0, 0, radiusMeters)
+				: sampleAnnulusPoint(rng, groveCenterX, groveCenterZ, 0, groveRadiusMeters);
+			const { x, z } = candidate;
+			if (Math.hypot(x, z) > radiusMeters) continue;
 			if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
+			if (!groveHasCenter) {
+				groveHasCenter = true;
+				groveCenterX = x;
+				groveCenterZ = z;
+				const pattern = vegetationGrovePatternForClimate(northReferenceCryosphereAtWorldXZ(x, z));
+				groveRadiusMeters = pattern.groveRadiusMeters;
+				groveBackgroundChance = pattern.backgroundChance;
+			}
 			const entry = perSpecies[pickSpeciesIndexForWorldXZ(rng(), x, z)];
 			placeTreeInstance(entry, x, z, sampleHeightMeters, rng, up, matrix, position, quaternion, scaleVector);
 			placedCount++;
 			break;
 		}
+		groveTreesRemaining--;
 	}
 
 	for (const seat of clusterSeats) {
@@ -335,6 +382,14 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 		winterTreeCount,
 		temperateTreeCount: placedCount - winterTreeCount,
 		liveRepresentation: VEGETATION_NORTH_CLIMATE_POLICY.liveRepresentation,
+	});
+	group.userData.vegetationSpatialPattern = Object.freeze({
+		policyId: spatialPolicy.id,
+		deterministic: true,
+		climateAuthority: spatialPolicy.climateAuthority,
+		baseDensityPerKm2: densityPerKm2,
+		groveTreeCountMin: spatialPolicy.groveTreeCountMin,
+		groveTreeCountMax: spatialPolicy.groveTreeCountMax,
 	});
 	group.userData.vegetationSurfaceFabric = Object.freeze({ key: VEGETATION_SURFACE_FABRIC_KEY, worldSpace: true, multiScale: true });
 	return { group, targetCount, placedCount, clusterSeatCount: clusterSeats.length, winterTreeCount };
