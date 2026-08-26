@@ -33,6 +33,15 @@ on:
       - 'scripts/captureFullWorld3DTopdown.mjs'
       - 'scripts/fullWorld3DTopdownHarness.html'
       - '.github/workflows/full-world-3d-topdown.yml'
+  push:
+    branches:
+      - codex/aapw-water-realism-qa-20260826
+      - codex/foundation-grounding-20260821
+    paths:
+      - 'src/3d/world/water.js'
+      - 'src/3d/world/waterDepthField.js'
+      - 'scripts/checkWaterOffshoreOptics.mjs'
+      - '.github/workflows/full-world-3d-topdown.yml'
   workflow_dispatch:
 
 permissions:
