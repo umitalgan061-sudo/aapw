@@ -5,7 +5,7 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX05_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex05-detail-2026-08-26-v2-natural-soil-fabric',
+  id: 'owner-map-pindex05-detail-2026-08-26-v3-readable-natural-soil-fabric',
   pindex: 5,
   amplitudeBySurface: Object.freeze({ sea: 0.008, lake: 0.008, soil: 0.043, rock: 0.043, snow: 0.02 }),
   naturalSoilFabric: true,
@@ -18,11 +18,11 @@ export const PINDEX05_DETAIL_POLICY = Object.freeze({
   mesoCyclesY: 23,
   fineCyclesX: 92,
   fineCyclesY: 78,
-  moistureStrength: 0.18,
-  mineralDryStrength: 0.13,
-  luminanceStrength: 0.075,
-  wetSoilColor: 0x5f7247,
-  dryHeathColor: 0x8a7b50,
+  moistureStrength: 0.30,
+  mineralDryStrength: 0.22,
+  luminanceStrength: 0.11,
+  wetSoilColor: 0x4f6640,
+  dryHeathColor: 0x9b8856,
 });
 
 const WET_SOIL = new THREE.Color(PINDEX05_DETAIL_POLICY.wetSoilColor);
