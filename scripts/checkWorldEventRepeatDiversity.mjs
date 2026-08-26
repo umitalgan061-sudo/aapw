@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { createWorldEventSystem } from '../src/3d/gameplay/worldEvents.js';
 
 const EVENTS_PER_CONTEXT = 160;
@@ -8,6 +9,12 @@ const MAX_SINGLE_EVENT_SHARE = 0.12;
 const CADENCE_EVENTS = 24;
 const MIN_INTERVAL_SECONDS = 45;
 const MAX_INTERVAL_SECONDS = 90;
+
+const runtimeSource = fs.readFileSync(new URL('../src/3d/gameplay/worldEvents.js', import.meta.url), 'utf8');
+assert.match(runtimeSource, /function eligibleEventPool\(nightFactor\)/, 'world-event selection must centralize day\/night eligibility');
+assert.match(runtimeSource, /function pickWeightedEvent[\s\S]*?const pool = eligibleEventPool\(nightFactor\)/, 'weighted selection must use the canonical eligible pool');
+assert.match(runtimeSource, /function avoidImmediateRepeat[\s\S]*?const pool = eligibleEventPool\(nightFactor\)/, 'repeat suppression must stay inside the same eligible pool');
+assert.doesNotMatch(runtimeSource, /eligible\.length > 1 \? eligible : WORLD_EVENTS/, 'repeat diversity must never escape to ineligible events when one eligible entry remains');
 
 function mulberry32(seed) {
   let a = seed;
@@ -115,5 +122,6 @@ console.log('WORLD_EVENT_REPEAT_DIVERSITY_PASS', JSON.stringify({
   maxSingleEventShare: MAX_SINGLE_EVENT_SHARE,
   cadenceEventsChecked: CADENCE_EVENTS,
   cadenceLastSecond: actualCadence.at(-1),
+  eligibilityPoolShared: true,
   contexts: contextProof,
 }));
