@@ -42,7 +42,7 @@ jobs:
           base="$(git merge-base HEAD origin/main)"
           test "$base" = "$(git rev-parse origin/main)"
           mapfile -t paths < <(git diff --name-only "$base"...HEAD)
-          allowed='^(\.github/workflows/(rpg-interaction-quest-loop|rpg-smithing-service-persistence|rpg-mastery-to-smithing|rpg-mastery-economy-continuity)\.yml|scripts/checkInteractionExpeditionKitCraft\.mjs|scripts/checkInteractionProvisioningCraft\.mjs|scripts/checkInteractionQuartermasterTrade\.mjs|scripts/checkInteractionSettlementService(Browser|Contract)\.mjs|scripts/checkInteractionSmithingServicePersistence\.mjs|scripts/checkInteractionTradeLedgerAtomicity\.mjs|scripts/checkInteractionMasteryEconomyContinuity\.mjs|scripts/checkInteractionMasteryToSmithingBrowser\.mjs|src/3d/gameplay/interactionConfig\.js)$'
+          allowed='^(\.github/workflows/(rpg-interaction-quest-loop|rpg-smithing-service-persistence|rpg-mastery-to-smithing|rpg-mastery-economy-continuity)\.yml|scripts/checkInteractionExpeditionKitCraft\.mjs|scripts/checkInteractionProvisioningCraft\.mjs|scripts/checkInteractionQuartermasterTrade\.mjs|scripts/checkInteractionSettlementService(Browser|Contract)\.mjs|scripts/checkInteractionSmithingServicePersistence\.mjs|scripts/checkInteractionTradeLedger(Atomicity|Browser)\.mjs|scripts/checkInteractionMasteryEconomyContinuity\.mjs|scripts/checkInteractionMasteryToSmithingBrowser\.mjs|src/3d/gameplay/interactionConfig\.js)$'
           if (( ${#paths[@]} )); then
             printf '%s\n' "${paths[@]}" | grep -Ev "$allowed" && exit 1 || true
           fi
