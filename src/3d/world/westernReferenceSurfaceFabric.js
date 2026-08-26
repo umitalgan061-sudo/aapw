@@ -14,7 +14,7 @@ const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 
 export const WESTERN_REFERENCE_SURFACE_FABRIC_POLICY = Object.freeze({
-  id: 'western-reference-surface-fabric-2026-08-26-v1-world-space-weathering',
+  id: 'western-reference-surface-fabric-2026-08-26-v2-drainage-weathering',
   renderOnly: true,
   geographyAuthorityUnchanged: true,
   heightAuthorityUnchanged: true,
@@ -25,6 +25,8 @@ export const WESTERN_REFERENCE_SURFACE_FABRIC_POLICY = Object.freeze({
   fineMeters: 108,
   microMeters: 42,
   warpMeters: 118,
+  drainageMeters: 760,
+  alluviumMeters: 1280,
   soilShadeAmplitude: 0.072,
   rockShadeAmplitude: 0.066,
   snowShadeAmplitude: 0.038,
@@ -34,9 +36,12 @@ export const WESTERN_REFERENCE_SURFACE_FABRIC_POLICY = Object.freeze({
 const SOIL_DAMP = new THREE.Color(0x495947);
 const SOIL_MINERAL = new THREE.Color(0x756b50);
 const SOIL_HEATH = new THREE.Color(0x596047);
+const SOIL_ALLUVIUM = new THREE.Color(0x6f6954);
+const SOIL_DRAINAGE = new THREE.Color(0x3f5143);
 const ROCK_COOL = new THREE.Color(0x5b6060);
 const ROCK_IRON = new THREE.Color(0x726355);
 const ROCK_LICHEN = new THREE.Color(0x66705d);
+const ROCK_EXPOSED = new THREE.Color(0x777269);
 const SNOW_SHADOW = new THREE.Color(0xb9c6c7);
 const SNOW_CRUST = new THREE.Color(0xe3e3d8);
 const LAKE_COLD = new THREE.Color(0x566f72);
@@ -103,7 +108,34 @@ function sampleFabric(worldX, worldZ) {
   );
   const streak = ridge01(valueNoise2D(x + z * 0.23, z - x * 0.31, 178, 29.6));
   const crust = ridge01(valueNoise2D(x - z * 0.16, z + x * 0.28, 132, 37.4));
-  return { macro, meso, fine, micro, moisture, mineral, weathering, streak, crust };
+
+  // Render-only pseudo-hydrologic weathering: thin, warped drainage-like ribbons break broad
+  // lowlands into damp swales without claiming to be canonical rivers. They alter colour only.
+  const drainageCarrier = ridge01(valueNoise2D(
+    x + z * 0.34 + warpX * 210,
+    z - x * 0.19 + warpZ * 170,
+    WESTERN_REFERENCE_SURFACE_FABRIC_POLICY.drainageMeters,
+    41.7,
+  ));
+  const drainageThread = smoothstep(0.82, 0.965, drainageCarrier)
+    * smoothstep(0.34, 0.82, moisture)
+    * (0.58 + meso * 0.42);
+  const alluvium = smoothstep(0.53, 0.86, valueNoise2D(
+    x - z * 0.13,
+    z + x * 0.09,
+    WESTERN_REFERENCE_SURFACE_FABRIC_POLICY.alluviumMeters,
+    47.3,
+  )) * smoothstep(0.36, 0.78, moisture) * (1 - drainageThread * 0.55);
+  const exposedInterfluve = smoothstep(0.58, 0.91, mineral)
+    * smoothstep(0.52, 0.88, weathering)
+    * (1 - smoothstep(0.46, 0.80, moisture));
+
+  return {
+    macro, meso, fine, micro, moisture, mineral, weathering, streak, crust,
+    drainageThread: clamp01(drainageThread),
+    alluvium: clamp01(alluvium),
+    exposedInterfluve: clamp01(exposedInterfluve),
+  };
 }
 
 function tint(base, target, amount) {
@@ -122,11 +154,15 @@ function soilColor(base, fabric) {
     + (fabric.macro - 0.5) * 0.054
     + (fabric.meso - 0.5) * 0.052
     + (fabric.fine - 0.5) * 0.027
-    + (fabric.micro - 0.5) * 0.011;
-  shadeColor(base, THREE.MathUtils.clamp(shade, 0.90, 1.09));
+    + (fabric.micro - 0.5) * 0.011
+    - fabric.drainageThread * 0.032
+    + fabric.exposedInterfluve * 0.018;
+  shadeColor(base, THREE.MathUtils.clamp(shade, 0.89, 1.10));
   tint(base, SOIL_DAMP, smoothstep(0.56, 0.88, fabric.moisture) * 0.105);
   tint(base, SOIL_MINERAL, smoothstep(0.58, 0.90, fabric.mineral) * 0.090);
   tint(base, SOIL_HEATH, smoothstep(0.64, 0.93, fabric.weathering) * (1 - fabric.moisture) * 0.065);
+  tint(base, SOIL_DRAINAGE, fabric.drainageThread * 0.085);
+  tint(base, SOIL_ALLUVIUM, fabric.alluvium * 0.060);
 }
 
 function rockColor(base, fabric) {
@@ -135,11 +171,13 @@ function rockColor(base, fabric) {
     + (fabric.macro - 0.5) * 0.040
     + (strata - 0.5) * 0.072
     + (fabric.fine - 0.5) * 0.026
-    + (fabric.micro - 0.5) * 0.012;
-  shadeColor(base, THREE.MathUtils.clamp(shade, 0.89, 1.10));
+    + (fabric.micro - 0.5) * 0.012
+    + fabric.exposedInterfluve * 0.025;
+  shadeColor(base, THREE.MathUtils.clamp(shade, 0.89, 1.11));
   tint(base, ROCK_COOL, smoothstep(0.57, 0.89, fabric.moisture) * 0.080);
   tint(base, ROCK_IRON, smoothstep(0.60, 0.91, fabric.mineral) * 0.085);
   tint(base, ROCK_LICHEN, smoothstep(0.66, 0.94, fabric.weathering) * fabric.moisture * 0.055);
+  tint(base, ROCK_EXPOSED, fabric.exposedInterfluve * 0.060);
 }
 
 function snowColor(base, fabric) {
@@ -149,7 +187,8 @@ function snowColor(base, fabric) {
     + (fabric.macro - 0.5) * 0.022
     + (fabric.meso - 0.5) * 0.026
     + (windCrust - 0.5) * 0.032
-    - grit * 0.020;
+    - grit * 0.020
+    - fabric.drainageThread * 0.012;
   shadeColor(base, THREE.MathUtils.clamp(shade, 0.94, 1.055));
   tint(base, SNOW_SHADOW, smoothstep(0.60, 0.90, fabric.moisture) * 0.050);
   tint(base, SNOW_CRUST, windCrust * 0.052);
