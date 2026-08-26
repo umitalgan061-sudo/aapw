@@ -24,7 +24,7 @@ async function main() {
 		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 		const result = await page.evaluate(async () => {
 			const THREE = await import('three');
-			const { createWater, updateWater, disposeWater } = await import('/src/3d/world/water.js');
+			const { createWater, updateWater, disposeWater, WAVE_TOTAL_AMPLITUDE_METERS } = await import('/src/3d/world/water.js');
 			const fail = (condition, message) => { if (!condition) throw new Error(message); };
 			const close = (a, b, tolerance = 1e-6) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= tolerance;
 			const vectorClose = (actual, expected, tolerance = 1e-6) =>
@@ -79,6 +79,26 @@ async function main() {
 			fail(first.userData.waterCoverage?.fullWorld === true && first.userData.waterCoverage?.fullWorldExtentMeters === 17000, 'full-world water coverage metadata drifted');
 			fail(first.userData.farWater?.isMesh === true && first.userData.farWater.geometry?.parameters?.width === 17000 && first.userData.farWater.geometry?.parameters?.height === 17000, 'full-world far-water geometry drifted');
 
+			// Run 389: the far plane must not draw underneath the near mesh. Both are water surfaces at
+			// the same level and the near one displaces its vertices by metres, so any overlap makes the
+			// two interpenetrate and the depth test cuts a hard silhouette along every intersection
+			// contour — which is what the sea's "repeating pale blobs" actually were.
+			const farCutoff = first.userData.farWater.material.uniforms.uFarPlaneCutoffMeters.value;
+			const nearCutoff = first.material.uniforms.uFarPlaneCutoffMeters.value;
+			const nearHalfExtent = first.geometry.parameters.width / 2;
+			fail(nearCutoff === 0, 'the near mesh must never discard itself for the far-plane cutoff');
+			fail(farCutoff > 0, 'far water no longer stops under the near mesh; the two surfaces will interpenetrate again');
+			fail(
+				farCutoff <= nearHalfExtent && farCutoff >= nearHalfExtent - 16,
+				`far-plane cutoff ${farCutoff}m must hug the near mesh's ${nearHalfExtent}m half-extent: too small re-opens the overlap, too large opens a seam onto the sea bed`,
+			);
+			// Documents *why* the cutoff is needed rather than a larger vertical offset: the offset would
+			// have to exceed the swell's own amplitude, and it is centimetres against metres.
+			fail(
+				WAVE_TOTAL_AMPLITUDE_METERS > Math.abs(first.userData.farWater.position.y),
+				'far-water vertical offset now exceeds the swell amplitude; the cutoff reasoning above needs revisiting',
+			);
+
 			const vertexShader = first.material.vertexShader;
 			const fragmentShader = first.material.fragmentShader;
 			// ADR-0270 replaced ADR-0048's "no vertex animation at all" rule with a depth-tapered
@@ -88,7 +108,10 @@ async function main() {
 			// numeric side of that contract — total amplitude vs. full-wave depth — is asserted by the
 			// smoke suite's `checkWaterDepthTaperedSwell`, not duplicated here.
 			fail(vertexShader.includes('uSwellStrength') && vertexShader.includes('sampleDepthFactor'), 'water vertex depth-taper contract drifted');
-			fail(/worldPos\.y\s*\+=\s*swellHeight\s*\*\s*amplitudeScale/.test(vertexShader), 'water vertex displacement is no longer depth-tapered');
+			// Run 389 moved the swell maths into a shared `swellAt()` used by both stages, so the height
+			// now arrives as `swellAt(...).x`. The invariant is unchanged and still the one that matters:
+			// whatever the displacement is, it is multiplied by the depth taper before it moves a vertex.
+			fail(/worldPos\.y\s*\+=\s*swellAt\(\s*worldPos\.xz\s*,\s*uTime\s*\)\.x\s*\*\s*amplitudeScale/.test(vertexShader), 'water vertex displacement is no longer depth-tapered');
 			fail(uniforms.uSwellStrength.value === 0, 'fresh water mesh must start with swell disabled until a depth field is attached');
 			fail(vertexShader.includes('#include <fog_pars_vertex>') && vertexShader.includes('#include <fog_vertex>'), 'water vertex fog chunks drifted');
 			fail(fragmentShader.includes('uniform float uTime') && fragmentShader.includes('rippleSlope'), 'water fragment ripple contract drifted');

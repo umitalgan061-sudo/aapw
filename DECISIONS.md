@@ -19216,3 +19216,67 @@ durumda ve bu kendi başına bir alt görevdir: çalışmayan kapı hiçbir şey
 
 **Technical debt.** 0 new. **Açık iş.** Kabartma normalinin periyodik girişim örgüsü; şelaleler; göller
 (S-0039); kayalık dağ yüzeyleri; `assets/` içindeki yol glb'leri; karlı ağaç modelleri.
+
+## ADR-0336 — Denizdeki tekrar eden soluk lekeler: iki su yüzeyi birbirinin içinden geçiyordu
+
+**Nereden çıktı.** Tur 388 suya gerçek renk verince yüzeyde tekrar eden soluk lekelerden oluşan bir
+örgü göründü. Tur 388'in ADR'sinde "uzun kabartmanın normal gölgelemesi" diye not etmiştim.
+**Bu tahmin yanlıştı** ve iki ayrı yanlış tahminden sonra ölçerek bulundu.
+
+### Üç hipotez, ikisi yanlış
+
+**(1) Kabartma girişim örgüsü.** Üç sinüzoidin toplamı tam periyodiktir; bu gerçek bir kusurdu ve
+düzeltildi (aşağıda), **ama lekeleri açıklamadı** — düzeltmeden sonra render aynı kaldı.
+
+**(2) Vertex faceting.** `vSwellSlope` bir *varying*'di: eğim her vertex'te tam hesaplanıp 12,5 m'lik
+quad boyunca **doğrusal interpolasyon**la dağıtılıyordu, yani gölgeleme normali parça parça
+doğrusaldı. (Eski yorum "eğimi analitik almak geometri kaba olsa bile gölgelemeyi tam tutar" diyordu —
+vertex'lerde tam, ama piksellerin çoğu orada değil.) Bu da gerçek bir kusurdu ve düzeltildi, **ama
+lekeleri yine açıklamadı.**
+
+**(3) Ölçüm.** Tahmini bırakıp tek tek eledim. Köpüğü sıfırladım: lekeler durdu. Optik derinlik
+kanalını doğrudan gri tonlama olarak render ettim: **kusursuz düz bir gradyan**, hiç leke yok — yani
+ne bathymetry ne shading. Geriye geometri kaldı. Uzak su düzlemini gizledim: **lekeler tamamen
+kayboldu.**
+
+### Gerçek sebep
+
+İki su yüzeyi var: kameraya kilitli 4 km'lik yoğun **yakın ağ** ve tüm dünyayı kaplayan iki üçgenlik
+düz **uzak düzlem**, `farWater.position.y = -0.06`. Altı santim ayrım, yakın ağ *düz* olsaydı yeterdi
+— ama yakın ağ vertex'lerini **±2,87 m** oynatıyor. Yani her dalga çukuru uzak düzlemin metrelerce
+altına iniyor, her tepe üstüne çıkıyor: iki yüzey bütün örtüşme boyunca **birbirinin içinden geçiyor**
+ve derinlik testi her kesişim eğrisi boyunca keskin bir siluet kesiyor. **Lekeler gölgelendirme,
+gürültü ya da deniz tabanı değildi: bir su yüzeyinin diğerinin içinden çıkan konturuydu.** Sert
+kenarlı ve düz içli olmalarının, warp'tan da fragment-başı eğimden de etkilenmemelerinin sebebi bu:
+sorun gölgelemede değil geometrideydi.
+
+Yakın ağ zaten yer değiştirmesini kendi kenarından **önce sıfıra indiriyordu** (`nearCoverageFade`,
+1500→1950 m) — tam da uzak düzlemle sorunsuz buluşabilsin diye. Tasarımın eksik yarısı, uzak düzlemin
+de orada **durmasıydı**. Artık duruyor: `uFarPlaneCutoffMeters` ile uzak düzlem yakın ağın ayak izinin
+içinde `discard` ediyor. Ayak izi **Chebyshev**, Öklid değil — çünkü yakın ağ kameraya merkezli bir
+**kare** ve kendi fade'i `max(|x|,|z|)` ile yazılmış. Kesim yarı-genişliğin 4 m içinden geçiyor:
+küçük bir örtüşme (iki düzlem de orada düz ve aynı kotta) görünmez, ama bir **boşluk** 2 km'lik bir
+dikişten deniz tabanını gösterirdi.
+
+Dikey offset'i büyütmek **çözüm değildi**: offset'in kabartma genliğini aşması gerekirdi, yani
+santimlere karşı metreler. Kapı bunu da savlıyor ki biri "6 cm'yi 20 cm yapalım" demesin.
+
+### Yan ürün: kapı kusurun kendisini ölçüyormuş
+
+Düzeltmeden sonra `checkRun325WaterSwell`'in piksel hareketi **%18,3 → %5,9**'a düştü ve kapı kaldı.
+Sebep: ölçüm **uzak kameradan** yapılıyordu ve o karenin çoğu `swellShadingFade`'in 1800 m sınırının
+ve yakın ağın ötesinde — yani **hareket etmemesi tasarlanmış** su. Oradaki rahat %18,3'ü üreten şey,
+iki düzlemin kesişim konturlarının dalgayla birlikte kaymasıydı. **Kapı kusuru ölçüyordu.** Eşiği
+düşürmedim; sondayı hareket etmesi *gereken* suya, **yakın kameraya** çevirdim: aynı 0,15 eşiğine
+karşı **%33,5**. Kapı hem dürüst hem daha güçlü.
+
+**Kapılar.** `checkWaterVisualContract` PASS + yeni koruma: uzak düzlemin kesim değeri yakın ağın
+yarı-genişliğine yapışık olmalı, yakın ağ kendini asla discard etmemeli, ve kabartma genliği dikey
+offset'i aşmalı (kesimin *neden* gerektiğini belgeliyor). **Dişi kanıtlandı:** kesimi 0'a çekince
+"far water no longer stops under the near mesh" diye düşüyor. `checkWaterSurfVisualContract` PASS +
+`vSwellSlope` varying'inin geri gelmesini yasaklayan sav. `checkRun325WaterSwell` PASS (genlik 2,87 m
+< 10 m, su hattı 0 m'de çivili, taban açıklığı 0,197 m). **§8.4 çifti:** koltuklar 14/14, yollar PASS.
+Service worker v48→v49.
+
+**Technical debt.** 0 new. **Açık iş.** Şelaleler; göller (S-0039); kayalık dağ yüzeyleri; `assets/`
+içindeki yol glb'leri; karlı ağaç modelleri; 20+ kapıdaki 20 sn'lik gezinme zaman aşımı.

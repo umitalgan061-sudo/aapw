@@ -273,7 +273,10 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run 388 rebakes the water depth field with a third channel (optical depth over 60 m) and rewrites
 // the water shader to a per-channel Beer-Lambert extinction, so shallows read clear and depth darkens
 // with distance through the body. A cache-first shell would keep the old depth-factor lerp. v47->v48.
-const SHELL_CACHE = 'westeros-shell-v48';
+// Run 389 stops the flat full-world water plane drawing underneath the displaced near mesh. The two
+// were interpenetrating, and every intersection contour cut a hard silhouette — the sea's "repeating
+// pale blobs". A cache-first shell would keep serving the blobs. v48->v49.
+const SHELL_CACHE = 'westeros-shell-v49';
 const SHELL_FILES = [
     './',
     './index.html',

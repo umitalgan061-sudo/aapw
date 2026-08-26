@@ -21,7 +21,12 @@ requirePattern(/shallowMask\s*\*=\s*shorelineGradientMask\(\s*vWorldPosition\.xz
 requirePattern(/float\s+foam\s*=\s*clamp\(\s*shallowMask\s*\*\s*surge\s*,\s*0\.0\s*,\s*1\.0\s*\)\s*;/, 'foam must remain shoreline/depth gated');
 requirePattern(/1\.0\s*-\s*smoothstep\(\s*90\.0\s*,\s*360\.0\s*,\s*distance\(\s*uCameraPosition\s*,\s*vWorldPosition\s*\)\s*\)/, 'fine ripple near-field anti-moire fade drifted');
 requirePattern(/float\s+swellShadingFade\s*=\s*1\.0\s*-\s*smoothstep\(\s*700\.0\s*,\s*1800\.0\s*,\s*distance\(\s*uCameraPosition\s*,\s*vWorldPosition\s*\)\s*\)\s*;/, 'long-swell normal must fade before far/orthographic views can resolve stripe bands');
-requirePattern(/vSwellSlope\s*\*\s*swellShadingFade\s*\+\s*rippleSlope\(\s*vWorldPosition\.xz\s*,\s*uTime\s*\)\s*\*\s*rippleFade/, 'water normal must apply the independent swell and ripple distance fades');
+requirePattern(/swellSlope\s*\*\s*swellShadingFade\s*\+\s*rippleSlope\(\s*vWorldPosition\.xz\s*,\s*uTime\s*\)\s*\*\s*rippleFade/, 'water normal must apply the independent swell and ripple distance fades');
+// Run 389: the swell slope must be evaluated per fragment. Interpolating it from the vertices (the
+// old `varying vec2 vSwellSlope`) made the shading normal piecewise-linear across 12.5 m quads, so
+// the sea broke into flat polygonal facets. Only the scalar envelope may be a varying.
+requirePattern(/vec2\s+swellSlope\s*=\s*swellAt\(\s*vWorldPosition\.xz\s*,\s*uTime\s*\)\.yz\s*\*\s*vAmplitudeScale\s*;/, 'swell slope must be evaluated per fragment, not interpolated from vertices');
+need(!/varying\s+vec2\s+vSwellSlope\s*;/.test(source), 'per-vertex swell slope varying returned; shading normal would facet across quads again');
 requirePattern(/smoothstep\(\s*1500\.0\s*,\s*1950\.0\s*,\s*localEdgeDistance\s*\)/, 'near swell must blend to zero before the dense mesh edge');
 requirePattern(/new\s+THREE\.PlaneGeometry\(\s*WATER_FULL_WORLD_EXTENT_METERS\s*,\s*WATER_FULL_WORLD_EXTENT_METERS\s*,\s*1\s*,\s*1\s*\)/, 'two-triangle full-world far-water coverage missing');
 // Run 388 widened this field from vec2 to vec3: .z now carries baked optical depth so the body

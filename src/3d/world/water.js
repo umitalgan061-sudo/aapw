@@ -58,9 +58,33 @@ import { FULL_OPTICAL_DEPTH_METERS } from './waterDepthField.js';
  */
 export const SWELL_COMPONENTS = Object.freeze([
 	Object.freeze([200, 1.05, 1.0, 0.28]),
+	Object.freeze([165, 0.5, -0.85, -0.5]),
 	Object.freeze([115, 0.7, -0.42, 1.0]),
 	Object.freeze([75, 0.4, 0.8, -0.6]),
+	Object.freeze([48, 0.22, 0.35, 0.94]),
 ]);
+
+/**
+ * Crest meander (run 389). A sum of pure sinusoids is exactly periodic, so three fixed-direction
+ * trains tile the plane with an interference lattice. That lattice was always there; it only became
+ * visible when run 388's extinction model stopped rendering the sea as a near-black sheet, and it
+ * reads as a repeating field of pale blobs because `fresnel` at grazing angles turns small normal
+ * tilts into the pale shallow colour.
+ *
+ * A real swell train is not one direction but a narrow spread of them, so its crests wander sideways
+ * over hundreds of metres instead of running dead straight to the horizon. This warps each train's
+ * phase along its own crest axis, at a different offset per train, which destroys the lattice for the
+ * same reason the real ocean does not have one.
+ *
+ * `amplitudeRadians` is a phase shift, not a height, so it cannot affect the
+ * `WAVE_TOTAL_AMPLITUDE_METERS < FULL_WAVE_DEPTH_METERS` bed-clearance guarantee. Exported so
+ * `scripts/checkRun325WaterSwell.js` mirrors the real numbers rather than a hand-copied duplicate.
+ */
+export const SWELL_CREST_WARP = Object.freeze({
+	amplitudeRadians: 0.9,
+	frequencyPerMeter: 0.0026,
+	phasePerComponent: 2.399963,
+});
 
 /**
  * Worst-case (all three crests aligned) vertical displacement, in meters. Must stay strictly below
@@ -70,6 +94,53 @@ export const SWELL_COMPONENTS = Object.freeze([
  */
 export const WAVE_TOTAL_AMPLITUDE_METERS = SWELL_COMPONENTS.reduce((sum, [, amplitude]) => sum + amplitude, 0);
 
+/**
+ * The swell maths, shared verbatim by both shader stages (run 389).
+ *
+ * The vertex stage needs the height to displace the surface; the fragment stage needs the slope to
+ * shade it. Before this was shared, the slope was computed per-vertex and handed over as a varying,
+ * which is where the faceting came from: the slope was exact *at each vertex* and then linearly
+ * interpolated across a 12.5 m quad, so the shading normal was piecewise-linear and the sea broke
+ * into flat polygonal patches with visibly straight edges. (The old comment claimed the analytic
+ * slope "keeps the shading exact even where the geometry is coarse" — exact at the vertices, yes,
+ * but that is not where most pixels are.) Evaluating the same closed form per fragment costs a
+ * handful of sin/cos and removes the faceting outright, because there is nothing left to interpolate.
+ */
+const SWELL_GLSL = /* glsl */ `
+	// Deep-water gravity wave: phase speed c = sqrt(g * lambda / 2pi), hence omega = sqrt(g * k).
+	const float GRAVITY = 9.81;
+	const float TAU = 6.28318530718;
+
+	/** Accumulates one sinusoidal swell component's height and its analytic XZ slope. */
+	void addSwell(vec2 direction, float wavelength, float amplitude, float warpPhase, vec2 worldXZ, float time, inout float height, inout vec2 slope) {
+		vec2 dir = normalize(direction);
+		float k = TAU / wavelength;
+		float omega = sqrt(GRAVITY * k);
+		// Crest meander. The warp varies along the crest axis (perpendicular to travel), which is what
+		// bends a crest sideways rather than just sliding it forwards. Its exact gradient is added to
+		// the slope: for phase = k*dot(dir,p) - wt + W(p), dh/dp = A*cos(phase) * (k*dir + grad W). Take
+		// the gradient analytically or the shading normal silently stops matching the geometry it is
+		// shading -- the displaced surface would say one thing and the lighting another.
+		vec2 crestAxis = vec2(-dir.y, dir.x) * ${SWELL_CREST_WARP.frequencyPerMeter};
+		float warpArgument = dot(crestAxis, worldXZ) + warpPhase;
+		float warp = ${SWELL_CREST_WARP.amplitudeRadians} * sin(warpArgument);
+		vec2 warpGradient = crestAxis * (${SWELL_CREST_WARP.amplitudeRadians} * cos(warpArgument));
+		float phase = k * dot(dir, worldXZ) - omega * time + warp;
+		height += amplitude * sin(phase);
+		slope += (dir * k + warpGradient) * (amplitude * cos(phase));
+	}
+
+	/** The full swell train at one world-space XZ: height in .x, slope in .yz. */
+	vec3 swellAt(vec2 worldXZ, float time) {
+		float height = 0.0;
+		vec2 slope = vec2(0.0);
+${SWELL_COMPONENTS.map(([wavelength, amplitude, dirX, dirZ], index) =>
+	`\t\taddSwell(vec2(${dirX}, ${dirZ}), ${wavelength}.0, ${amplitude}, ${(index * SWELL_CREST_WARP.phasePerComponent).toFixed(6)}, worldXZ, time, height, slope);`
+).join('\n')}
+		return vec3(height, slope);
+	}
+`;
+
 const WATER_VERTEX_SHADER = /* glsl */ `
 	uniform float uTime;
 	uniform sampler2D uDepthMap;
@@ -77,7 +148,7 @@ const WATER_VERTEX_SHADER = /* glsl */ `
 	uniform float uSwellStrength;
 	varying vec3 vWorldPosition;
 	varying float vDepthFactor;
-	varying vec2 vSwellSlope;
+	varying float vAmplitudeScale;
 	#include <fog_pars_vertex>
 
 	/**
@@ -90,45 +161,24 @@ const WATER_VERTEX_SHADER = /* glsl */ `
 		if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 1.0;
 		return texture2D(uDepthMap, uv).r;
 	}
-
-	// Deep-water gravity wave: phase speed c = sqrt(g * lambda / 2pi), hence omega = sqrt(g * k).
-	const float GRAVITY = 9.81;
-	const float TAU = 6.28318530718;
-
-	/**
-	 * Accumulates one sinusoidal swell component's height and its analytic XZ slope (d height/d x,
-	 * d height/d z). Taking the slope analytically — rather than differencing neighbouring vertices —
-	 * keeps the shading exact even where the geometry is coarse.
-	 */
-	void addSwell(vec2 direction, float wavelength, float amplitude, vec2 worldXZ, float time, inout float height, inout vec2 slope) {
-		vec2 dir = normalize(direction);
-		float k = TAU / wavelength;
-		float omega = sqrt(GRAVITY * k);
-		float phase = k * dot(dir, worldXZ) - omega * time;
-		height += amplitude * sin(phase);
-		slope += dir * (amplitude * k * cos(phase));
-	}
-
+${SWELL_GLSL}
 	void main() {
 		vec3 worldPos = (modelMatrix * vec4(position, 1.0)).xyz;
 		float depthFactor = sampleDepthFactor(worldPos.xz);
-
-		float swellHeight = 0.0;
-		vec2 swellSlope = vec2(0.0);
-		addSwell(vec2(${SWELL_COMPONENTS[0][2]}, ${SWELL_COMPONENTS[0][3]}), ${SWELL_COMPONENTS[0][0]}.0, ${SWELL_COMPONENTS[0][1]}, worldPos.xz, uTime, swellHeight, swellSlope);
-		addSwell(vec2(${SWELL_COMPONENTS[1][2]}, ${SWELL_COMPONENTS[1][3]}), ${SWELL_COMPONENTS[1][0]}.0, ${SWELL_COMPONENTS[1][1]}, worldPos.xz, uTime, swellHeight, swellSlope);
-		addSwell(vec2(${SWELL_COMPONENTS[2][2]}, ${SWELL_COMPONENTS[2][3]}), ${SWELL_COMPONENTS[2][0]}.0, ${SWELL_COMPONENTS[2][1]}, worldPos.xz, uTime, swellHeight, swellSlope);
 
 		// Keep the high-density 4km swell surface, but taper its displacement to zero before its edge
 		// so it blends invisibly into the two-triangle full-world water coverage mesh underneath.
 		float localEdgeDistance = max(abs(position.x), abs(position.z));
 		float nearCoverageFade = 1.0 - smoothstep(1500.0, 1950.0, localEdgeDistance);
 		float amplitudeScale = depthFactor * uSwellStrength * nearCoverageFade;
-		worldPos.y += swellHeight * amplitudeScale;
+		worldPos.y += swellAt(worldPos.xz, uTime).x * amplitudeScale;
 
 		vWorldPosition = worldPos;
 		vDepthFactor = depthFactor;
-		vSwellSlope = swellSlope * amplitudeScale;
+		// Only the scalar envelope is interpolated now. It varies over hundreds of metres (depth field,
+		// edge taper), not over a wavelength, so linear interpolation across a quad is faithful to it
+		// in a way it never was for the slope.
+		vAmplitudeScale = amplitudeScale;
 
 		vec4 mvPosition = viewMatrix * vec4(worldPos, 1.0);
 		gl_Position = projectionMatrix * mvPosition;
@@ -148,10 +198,12 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	uniform float uFullOpticalDepthMeters;
 	uniform float uMinSurfaceAlpha;
 	uniform float uMaxSurfaceAlpha;
+	uniform float uFarPlaneCutoffMeters;
 	varying vec3 vWorldPosition;
 	varying float vDepthFactor;
-	varying vec2 vSwellSlope;
+	varying float vAmplitudeScale;
 	#include <fog_pars_fragment>
+${SWELL_GLSL}
 
 	vec3 sampleWaterField(vec2 worldXZ) {
 		vec2 uv = worldXZ / uDepthFieldExtentMeters + 0.5;
@@ -195,6 +247,26 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float waterCoverage = smoothstep(0.08, 0.72, waterField.y);
 		if (waterCoverage <= 0.01) discard;
 
+		// The far plane must not draw underneath the near mesh (run 389).
+		//
+		// Both are water surfaces at the same level, 6 cm apart — but the near mesh displaces its
+		// vertices by up to WAVE_TOTAL_AMPLITUDE_METERS, so every trough sank metres *below* the flat
+		// far plane and every crest rose above it. The two surfaces therefore interpenetrated across
+		// the whole overlap, and the depth test cut a hard silhouette along each intersection contour.
+		// That is what the "repeating pale blobs" on the sea were: not shading, not noise, not the
+		// bathymetry — the outline of one water surface poking through another. They were invisible
+		// only while both planes rendered near-black, which is why this survived until run 388 gave
+		// the water real colour.
+		//
+		// The near mesh already fades its displacement to zero before its own edge, so the two agree
+		// exactly at the seam; the missing half of that design was for the far plane to stop there.
+		// The footprint is Chebyshev, not Euclidean, because the near mesh is a square centred on the
+		// camera and its fade is written in max(|x|, |z|).
+		if (uFarPlaneCutoffMeters > 0.0) {
+			vec2 nearFootprint = abs(vWorldPosition.xz - uCameraPosition.xz);
+			if (max(nearFootprint.x, nearFootprint.y) < uFarPlaneCutoffMeters) discard;
+		}
+
 		// Fine chop is intentionally near-field only. Beyond a few hundred metres its wavelength
 		// undersamples into repetitive screen-space bands, so the analytic long swell owns distance.
 		float rippleFade = 1.0 - smoothstep(90.0, 360.0, distance(uCameraPosition, vWorldPosition));
@@ -202,7 +274,10 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		// otherwise a 90-degree/full-world camera resolves the 75-200m phases as a striped rectangle.
 		float swellShadingFade = 1.0 - smoothstep(700.0, 1800.0, distance(uCameraPosition, vWorldPosition));
 		// For a height field y = h(x, z) the surface normal is normalize(vec3(-dh/dx, 1.0, -dh/dz)).
-		vec2 slope = vSwellSlope * swellShadingFade + rippleSlope(vWorldPosition.xz, uTime) * rippleFade;
+		// Evaluated per fragment, not interpolated from the vertices: see SWELL_GLSL. This is what
+		// removes the flat polygonal facets the sea used to break into.
+		vec2 swellSlope = swellAt(vWorldPosition.xz, uTime).yz * vAmplitudeScale;
+		vec2 slope = swellSlope * swellShadingFade + rippleSlope(vWorldPosition.xz, uTime) * rippleFade;
 		vec3 normal = normalize(vec3(-slope.x, 1.0, -slope.y));
 		vec3 viewDir = normalize(uCameraPosition - vWorldPosition);
 
@@ -377,6 +452,8 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 				uFullOpticalDepthMeters: { value: FULL_OPTICAL_DEPTH_METERS },
 				uMinSurfaceAlpha: { value: MIN_SURFACE_ALPHA },
 				uMaxSurfaceAlpha: { value: MAX_SURFACE_ALPHA },
+				// 0 on the near mesh: it is the one doing the covering, so it never discards for this.
+				uFarPlaneCutoffMeters: { value: 0 },
 				uSunDirection: { value: SUN_DIRECTION },
 				uCameraPosition: { value: new THREE.Vector3() },
 				uDepthMap: { value: PLACEHOLDER_DEPTH_TEXTURE },
@@ -399,6 +476,10 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 	const farGeometry = new THREE.PlaneGeometry(WATER_FULL_WORLD_EXTENT_METERS, WATER_FULL_WORLD_EXTENT_METERS, 1, 1);
 	farGeometry.rotateX(-Math.PI / 2);
 	const farMaterial = material.clone();
+	// Stop a few metres inside the near mesh's own edge rather than exactly at it: a small overlap
+	// where both planes are flat and agree is invisible, whereas a gap from float error would show
+	// the sea bed through a seam two kilometres long.
+	farMaterial.uniforms.uFarPlaneCutoffMeters.value = WATER_PLANE_EXTENT_METERS / 2 - 4;
 	const farWater = new THREE.Mesh(farGeometry, farMaterial);
 	farWater.position.y = -0.06;
 	farWater.renderOrder = -1;

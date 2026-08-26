@@ -18114,3 +18114,39 @@ gevşetilmedi, üçüncü kanal da pinlendi. `checkRun325WaterSwell` PASS (genli
 **Ortam notu.** `checkRun325WaterSwell`'in 20 sn gezinme zaman aşımı bu konteynerde yetmiyor
 (`game3d.html` ~31 sn'de yükleniyor), 90 sn'ye çıkarıldı. **Aynı değer 20'den fazla kapıda daha var** —
 hepsi bu ortamda çalıştırılamaz durumda, kendi başına alt görev: çalışmayan kapı hiçbir şeyi korumaz.
+
+## Tur 389 — Denizdeki lekeler: iki su yüzeyi iç içe geçiyordu (ADR-0336)
+
+Tur 388 suya renk verince görünen tekrar eden soluk lekeleri kovaladım. Tur 388'de "kabartmanın normal
+gölgelemesi" diye tahmin etmiştim; **yanlıştı.**
+
+**İki hipotez yanlış çıktı.** (1) Üç sinüzoidin toplamı tam periyodiktir — gerçek bir kusur, düzeltildi
+(kabartma artık 5 bileşenli ve her trenin fazı kendi tepe ekseni boyunca büküldü: gerçek dalga
+trenlerinin tepeleri ufka kadar dümdüz gitmez), **ama render aynı kaldı.** (2) `vSwellSlope` bir
+*varying*'di: eğim vertex'te tam, 12,5 m'lik quad boyunca interpole — gölgeleme normali parça parça
+doğrusal. Bu da gerçek bir kusur, düzeltildi (eğim artık fragment başına, iki shader'ın paylaştığı tek
+`swellAt()` ile), **ama lekeleri yine açıklamadı.**
+
+**Ölçerek buldum.** Köpüğü sıfırladım: lekeler kaldı. Optik derinlik kanalını gri tonlama render
+ettim: **kusursuz gradyan**, leke yok. Uzak su düzlemini gizledim: **lekeler tamamen kayboldu.**
+
+**Sebep:** iki su yüzeyi var — kameraya kilitli 4 km'lik yakın ağ ve düz uzak düzlem, arada **6 cm**.
+Yakın ağ vertex'lerini **±2,87 m** oynattığı için her çukur uzak düzlemin altına, her tepe üstüne
+geçiyor: iki yüzey bütün örtüşme boyunca iç içe giriyor ve derinlik testi her kesişim eğrisinde keskin
+bir siluet kesiyor. **Lekeler bir su yüzeyinin diğerinden çıkan konturuydu** — gölgeleme değil,
+geometri. Warp'tan ve fragment-başı eğimden etkilenmemelerinin sebebi buydu.
+
+Yakın ağ zaten kenarından önce yer değiştirmesini sıfırlıyordu (tam da buluşma için); eksik yarı, uzak
+düzlemin orada **durmasıydı**. Artık `uFarPlaneCutoffMeters` ile yakın ağın ayak izinde discard ediyor
+— ayak izi **Chebyshev**, çünkü yakın ağ kareye merkezli. Dikey offset'i büyütmek çözüm değildi:
+offset'in kabartma genliğini aşması gerekirdi, santimlere karşı metreler.
+
+**Kapı kusurun kendisini ölçüyormuş.** Düzeltmeden sonra piksel hareketi %18,3 → %5,9'a düştü. Ölçüm
+uzak kameradandı ve o karenin çoğu hareket etmemesi *tasarlanmış* su; rahat %18,3'ü üreten şey kesişim
+konturlarının dalgayla kaymasıydı. Eşiği düşürmedim, sondayı yakın kameraya çevirdim: aynı 0,15
+eşiğine karşı **%33,5**.
+
+**Kapılar.** `checkWaterVisualContract` PASS + yeni koruma (dişi kanıtlandı: kesimi 0'a çekince
+düşüyor). `checkWaterSurfVisualContract` PASS + `vSwellSlope`'un geri dönüşünü yasaklayan sav.
+`checkRun325WaterSwell` PASS. §8.4: koltuklar 14/14, yollar PASS. İki açıdan bakıldı: leke yok, yakın
+görünümdeki poligonal kırılma da gitti, yakın/uzak dikişi görünmüyor. SW v48→v49.
