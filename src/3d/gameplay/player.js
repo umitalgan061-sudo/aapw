@@ -287,7 +287,14 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 			else if (dodgeRemaining > 0) { dodgeElapsed += dt; dodgeRemaining = Math.max(0, dodgeRemaining - dt); moveBy(dodgeDirectionX, dodgeDirectionZ, PLAYER_ACTION_CONFIG.DODGE_SPEED_MPS, dt); turnToward(dodgeDirectionX, dodgeDirectionZ, dt); movementState = 'dodge'; playAction('running', PLAYER_ACTION_CONFIG.DODGE_RUN_ANIMATION_TIMESCALE); }
 			else if (parryFeedbackRemaining > 0) { movementState = 'parry'; playAction('idle', 1); }
 			else if (attackRemaining > 0) { guarding = false; updateAttack(dt, moveDirectionXZ); }
-			else if (guarding) { spendStamina(PLAYER_ACTION_CONFIG.GUARD_DRAIN_PER_SECOND * dt); if (hasMovementInput) { moveBy(moveDirectionXZ.x, moveDirectionXZ.z, PLAYER_CONFIG.WALK_SPEED_MPS * PLAYER_ACTION_CONFIG.GUARD_MOVE_SPEED_MULTIPLIER, dt); turnToward(moveDirectionXZ.x, moveDirectionXZ.z, dt); playAction('walking', 0.65); } else playAction('idle', 1); movementState = 'guard'; }
+			else if (guarding) {
+				spendStamina(PLAYER_ACTION_CONFIG.GUARD_DRAIN_PER_SECOND * dt);
+				if (stamina <= 0) triggerGuardBreak();
+				else {
+					if (hasMovementInput) { moveBy(moveDirectionXZ.x, moveDirectionXZ.z, PLAYER_CONFIG.WALK_SPEED_MPS * PLAYER_ACTION_CONFIG.GUARD_MOVE_SPEED_MULTIPLIER, dt); turnToward(moveDirectionXZ.x, moveDirectionXZ.z, dt); playAction('walking', 0.65); } else playAction('idle', 1);
+					movementState = 'guard';
+				}
+			}
 			else if (hasMovementInput) { const sprinting = runIntent && isGrounded && !sprintExhausted && stamina > 0, speed = sprinting ? PLAYER_ACTION_CONFIG.SPRINT_SPEED_MPS : PLAYER_CONFIG.WALK_SPEED_MPS; moveBy(moveDirectionXZ.x, moveDirectionXZ.z, speed, dt); turnToward(moveDirectionXZ.x, moveDirectionXZ.z, dt); if (sprinting) { spendStamina(PLAYER_ACTION_CONFIG.SPRINT_DRAIN_PER_SECOND * dt); movementState = 'sprint'; playAction('running', 1); } else { movementState = isGrounded && runIntent && sprintExhausted ? 'exhausted' : (isGrounded ? 'walk' : 'airborne'); playAction('walking', 1); } }
 			else { movementState = isGrounded ? 'idle' : 'airborne'; playAction('idle', 1); }
 			if (attackRemaining <= 0 && dodgeRemaining <= 0 && !guarding && guardBreakRemaining <= 0 && hitStaggerRemaining <= 0 && jumpRequested && isGrounded) { velocityY = PLAYER_CONFIG.JUMP_SPEED_MPS; isGrounded = false; }
