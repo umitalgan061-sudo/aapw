@@ -93,14 +93,24 @@ assert.deepEqual(economy.snapshot().ledger, {
 	recentTransactions: [receipt(1, ration, 34), receipt(2, whetstone, 22)],
 });
 
+const missingServiceInventoryBefore = structuredClone(inventory.snapshot());
+const missingServiceEconomyBefore = structuredClone(economy.snapshot());
+result = economy.purchase(rationAllotment, grant);
+assert.equal(result.ok, false);
+assert.equal(result.reason, 'craft-input-missing');
+assert.deepEqual(inventory.snapshot(), missingServiceInventoryBefore, 'prepared-provision service must fail closed until both authored ration inputs exist');
+assert.deepEqual(economy.snapshot(), missingServiceEconomyBefore, 'failed prepared-provision service must not spend copper, finite stock or ledger entries');
+assert.equal(inventory.grant(ration.itemId, 1, { sourceType: 'quest-reward', sourceId: 'quartermaster-trade-fixture' }), true);
+
 result = economy.purchase(rationAllotment, grant);
 assert.equal(result.ok, true);
+assert.equal(result.crafted, true);
 assert.equal(result.balanceCopper, 17);
 assert.equal(result.remainingStock, 0);
-assert.equal(inventory.snapshot().items.find((item) => item.itemId === ration.itemId)?.quantity, 1, 'service must not add a plain field ration');
+assert.equal(inventory.snapshot().items.some((item) => item.itemId === ration.itemId), false, 'service must consume both authored field-ration inputs');
 const preparedProvision = inventory.snapshot().items.find((item) => item.itemId === rationAllotment.itemId);
 assert.equal(preparedProvision?.quantity, 1);
-assert.deepEqual(preparedProvision?.provenance, [{ sourceType: 'settlement-service', sourceId: 'dragonstone-watch-ration-prep' }]);
+assert.deepEqual(preparedProvision?.provenance, [{ sourceType: 'settlement-crafting', sourceId: 'dragonstone-watch-travel-ration-pack' }]);
 assert.deepEqual(result.ledger, {
 	transactionCount: 3,
 	lifetimeSpentCopper: 23,
@@ -140,9 +150,11 @@ const fullProvisionEconomy = createInteractionEconomyState(100);
 const fullProvisionInventory = createInteractionInventoryState();
 for (let index = 0; index < INTERACTION_ITEMS[rationAllotment.itemId].stackLimit; index += 1) fullProvisionInventory.grant(rationAllotment.itemId, 1);
 const fullProvisionBefore = structuredClone(fullProvisionEconomy.snapshot());
+const fullProvisionInventoryBefore = structuredClone(fullProvisionInventory.snapshot());
 result = fullProvisionEconomy.purchase(rationAllotment, (...args) => fullProvisionInventory.grant(...args));
-assert.equal(result.reason, 'inventory-full');
-assert.deepEqual(fullProvisionEconomy.snapshot(), fullProvisionBefore, 'failed prepared-provision fulfillment must not spend copper or stock');
+assert.equal(result.reason, 'craft-input-missing');
+assert.deepEqual(fullProvisionEconomy.snapshot(), fullProvisionBefore, 'missing authored inputs must take precedence without spending copper or stock');
+assert.deepEqual(fullProvisionInventory.snapshot(), fullProvisionInventoryBefore);
 
 const poorEconomy = createInteractionEconomyState(4);
 const poorBefore = structuredClone(poorEconomy.snapshot());
@@ -259,28 +271,42 @@ assert.match(dialogueHistory.at(-1).body, /stok 4\/4/);
 assert.match(dialogueHistory.at(-1).body, /Alışveriş defteri: 0 işlem · 0 bakır harcandı/);
 assert.match(dialogueHistory.at(-1).body, /Nöbetçi yol azığı hazırlama hizmeti — 5 bakır · stok 1\/1 · aldın 0/);
 assert.equal(dialogueHistory.at(-1).choices.length, 3);
+
+const runtimeBeforeMissingService = structuredClone(controller.getRpgSnapshot());
 controller.handleKeyDown({ code: 'Digit3', repeat: false });
-assert.equal(controller.getEconomySnapshot().copper, 35);
+assert.deepEqual(controller.getEconomySnapshot(), runtimeBeforeMissingService.economy, 'Digit3 service must fail closed without two ration inputs');
+assert.deepEqual(controller.getInventorySnapshot(), runtimeBeforeMissingService.inventory);
+assert.match(dialogueHistory.at(-1).body, /başarısız/i);
+assert.equal(economyChanges.length, 0);
+assert.equal(inventoryChanges.length, 0);
+
+controller.handleKeyDown({ code: 'Digit1', repeat: false });
+controller.handleKeyDown({ code: 'Digit1', repeat: false });
+assert.equal(controller.getEconomySnapshot().copper, 28);
+assert.equal(controller.getEconomySnapshot().stockByOffer[ration.id], 2);
+assert.equal(controller.getInventorySnapshot().items.find((item) => item.itemId === ration.itemId)?.quantity, 2);
+controller.handleKeyDown({ code: 'Digit3', repeat: false });
+assert.equal(controller.getEconomySnapshot().copper, 23);
 assert.equal(controller.getEconomySnapshot().stockByOffer[rationAllotment.id], 0);
 assert.deepEqual(controller.getEconomySnapshot().ledger, {
-	transactionCount: 1,
-	lifetimeSpentCopper: 5,
+	transactionCount: 3,
+	lifetimeSpentCopper: 17,
 	purchasesByOffer: {
-		'dragonstone-field-ration': 0,
+		'dragonstone-field-ration': 2,
 		'dragonstone-whetstone': 0,
 		'dragonstone-watch-ration-allotment': 1,
 	},
-	recentTransactions: [receipt(1, rationAllotment, 35)],
+	recentTransactions: [receipt(1, ration, 34), receipt(2, ration, 28), receipt(3, rationAllotment, 23)],
 });
 const runtimeProvision = controller.getInventorySnapshot().items.find((item) => item.itemId === rationAllotment.itemId);
 assert.equal(runtimeProvision?.quantity, 1);
-assert.deepEqual(runtimeProvision?.provenance, [{ sourceType: 'settlement-service', sourceId: 'dragonstone-watch-ration-prep' }]);
+assert.deepEqual(runtimeProvision?.provenance, [{ sourceType: 'settlement-crafting', sourceId: 'dragonstone-watch-travel-ration-pack' }]);
 assert.equal(controller.getInventorySnapshot().items.some((item) => item.itemId === ration.itemId), false);
-assert.match(dialogueHistory.at(-1).body, /Alışveriş defteri: 1 işlem · 5 bakır harcandı/);
-assert.match(dialogueHistory.at(-1).body, /Son işlem: #1 Nöbetçi yol azığı hazırlama hizmeti · 5 bakır · bakiye 35/);
+assert.match(dialogueHistory.at(-1).body, /Alışveriş defteri: 3 işlem · 17 bakır harcandı/);
+assert.match(dialogueHistory.at(-1).body, /Son işlem: #3 Nöbetçi yol azığı hazırlama hizmeti · 5 bakır · bakiye 23/);
 assert.match(dialogueHistory.at(-1).body, /Nöbetçi yol azığı hazırlama hizmeti — 5 bakır · stok 0\/1 · aldın 1/);
-assert.equal(economyChanges.length, 1);
-assert.equal(inventoryChanges.length, 1);
+assert.equal(economyChanges.length, 3);
+assert.equal(inventoryChanges.length, 3);
 
 const runtimeSaved = controller.getRpgSnapshot();
 assert.equal(runtimeSaved.schemaVersion, 5);
@@ -298,7 +324,7 @@ assert.deepEqual(runtimeRestored.getInventorySnapshot(), runtimeSaved.inventory)
 controller.update([], { x: 100, z: 100 });
 controller.handleKeyDown({ code: 'KeyB', repeat: false });
 assert.equal(controller.getEconomySnapshot().stockByOffer[rationAllotment.id], 0);
-assert.equal(controller.getEconomySnapshot().ledger.transactionCount, 1);
-assert.deepEqual(controller.getEconomySnapshot().ledger.recentTransactions, [receipt(1, rationAllotment, 35)]);
+assert.equal(controller.getEconomySnapshot().ledger.transactionCount, 3);
+assert.deepEqual(controller.getEconomySnapshot().ledger.recentTransactions, [receipt(1, ration, 34), receipt(2, ration, 28), receipt(3, rationAllotment, 23)]);
 
-console.log('PASS checkInteractionQuartermasterTrade: deterministic purse, finite vendor stock, stock-derived ledger integrity, forged-history repair, bounded receipts, prepared-provision atomicity, shipped Digit3 UX and save/load verified.');
+console.log('PASS checkInteractionQuartermasterTrade: deterministic purse, finite vendor stock, fail-closed prepared provisioning, atomic authored inputs, stock-derived ledger integrity, shipped Digit3 UX and save/load verified.');
