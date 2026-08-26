@@ -141,7 +141,7 @@ ${snowMix}`,
 vec2 vegetationMicroP = vegetationWorldXZ * ${surface === 'trunk' ? '1.55' : '0.92'};
 float vegetationNx = vegetationNoise(vegetationMicroP + vec2(0.13, 0.0)) - vegetationNoise(vegetationMicroP - vec2(0.13, 0.0));
 float vegetationNz = vegetationNoise(vegetationMicroP + vec2(0.0, 0.13)) - vegetationNoise(vegetationMicroP - vec2(0.0, 0.13));
-normal = normalize(normal + vec3(vegetationNx, 0.0, vegetationNz) * ${surface === 'trunk' ? '0.12' : '0.075'});`,
+normal = normalize(normal + mat3(viewMatrix) * vec3(vegetationNx, 0.0, vegetationNz) * ${surface === 'trunk' ? '0.12' : '0.075'});`,
 			)
 			.replace(
 				'#include <roughnessmap_fragment>',
