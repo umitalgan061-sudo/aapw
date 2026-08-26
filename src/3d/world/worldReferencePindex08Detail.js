@@ -11,7 +11,7 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX08_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex08-detail-2026-08-26-v2-worldspace-weathering',
+  id: 'owner-map-pindex08-detail-2026-08-26-v3-readable-worldspace-weathering',
   pindex: 8,
   renderOnly: true,
   geographyAuthorityUnchanged: true,
@@ -19,8 +19,8 @@ export const PINDEX08_DETAIL_POLICY = Object.freeze({
   mesoMeters: 455,
   fineMeters: 108,
   boundaryProbeNormalized: 0.006,
-  amplitudeBySurface: Object.freeze({ sea: 0.016, lake: 0.018, soil: 0.158, rock: 0.146, snow: 0.078 }),
-  chromaBySurface: Object.freeze({ sea: 0.018, lake: 0.020, soil: 0.132, rock: 0.102, snow: 0.056 }),
+  amplitudeBySurface: Object.freeze({ sea: 0.018, lake: 0.020, soil: 0.176, rock: 0.160, snow: 0.086 }),
+  chromaBySurface: Object.freeze({ sea: 0.020, lake: 0.022, soil: 0.148, rock: 0.114, snow: 0.064 }),
 });
 
 function hash01(ix, iz, seed = 0) {
@@ -118,7 +118,7 @@ export function applyPindex08DetailToTerrainMesh(mesh) {
     const amplitude = (PINDEX08_DETAIL_POLICY.amplitudeBySurface[c.surface] ?? 0) * edge;
     const chroma = (PINDEX08_DETAIL_POLICY.chromaBySurface[c.surface] ?? 0) * edge;
     const fabric = surfaceFabric(c.surface, worldX, worldZ);
-    const shade = THREE.MathUtils.clamp(1 + fabric.luminance * amplitude, 0.81, 1.19);
+    const shade = THREE.MathUtils.clamp(1 + fabric.luminance * amplitude, 0.80, 1.20);
 
     let r = color.getX(index) * shade;
     let g = color.getY(index) * shade;
