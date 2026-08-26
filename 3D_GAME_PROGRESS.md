@@ -18347,3 +18347,23 @@ Kapılar: `checkTerrainPindexQualityV2`, `checkRun276MapSurfacePindexes`, `check
 `checkCanonicalHydrologyTerrainShadow`, `checkWorldEventDeterminism`, `terrainSeatSafetyCheck`,
 `roadNetworkSafetyCheck` PASS. `checkMountainNaturalizationDeterminism` kırmızı — **değişiklikten önce
 de kırmızıydı** (stash ile doğrulandı), ayrı iş. SW v55→v56.
+
+## Tur 397 — "60 saniye" yazan kapı 30 saniye ölçüyormuş (ADR-0345)
+
+Tur 396'nın 4 saniyelik kazancından sonra CI hâlâ `checkMobilePerfBudget`'te düşüyordu — ama
+`Timeout 30000ms exceeded` diyerek. **O sayı dosyada yok; dosya 60000 yazıyor.**
+
+`page.waitForFunction(sayfaFonksiyonu, argüman, options)` üç parametre alır. İki argümanla
+çağrıldığında options nesnesi sayfa fonksiyonunun argümanı oluyor ve bekleme 30 s varsayılanına
+düşüyor — sessizce. Yan yana koşturarak doğruladım: iki argümanlı çağrı 30.012 ms'de, üç argümanlı
+çağrı 3.007 ms'de düştü.
+
+**13 betikte 14 çağrı** aynı durumda. İçlerinde smoke suite'in ikisi var ve ikisi de
+`GAME3D_READY_TIMEOUT_MS` okuyor — yani **tur 390'ın 30→90 s yükseltmesi bu çağrılara hiç ulaşmamış**.
+
+Hepsi düzeltildi. Tekrarını `scripts/checkPlaywrightWaitOptions.js` engelliyor (92 betik, 303 çağrı,
+negatif testi yapıldı; kendini muaf tutmuyor). `final-head-gate`'e bağlandı.
+
+**Dürüst not:** bu düzeltme fiilî timeout'u 30 s'den 60 s'ye çıkarıyor, yani kapıları gevşetiyor.
+Kaynak zaten 60000 yazıyordu, ama sonucu saklamıyorum — asıl iş açılışı hızlandırmak, büyük bütçeye
+yaslanmak değil. Runtime kaynağı değişmedi, SW bump yok.

@@ -40,7 +40,7 @@ async function main() {
 		page.on('pageerror', (error) => errors.push(`page:${error.message}`));
 		page.on('console', (message) => { if (message.type() === 'error') errors.push(`console:${message.text()}`); });
 		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
-		await page.waitForFunction(() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'), { timeout: 60000 });
+		await page.waitForFunction(() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'), undefined, { timeout: 60000 });
 
 		const layout = await page.evaluate(() => {
 			const toRect = (element) => {

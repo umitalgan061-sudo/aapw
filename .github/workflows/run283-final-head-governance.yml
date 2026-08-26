@@ -46,6 +46,7 @@ jobs:
           node --check scripts/checkRun283FinalHeadGovernance.js
           node scripts/checkRun283FinalHeadGovernance.js
           node scripts/checkSeededRandomPolicy.js
+          node scripts/checkPlaywrightWaitOptions.js
           node scripts/checkAssetsManifest.js
           node scripts/checkServiceWorkerCache.js
           node scripts/checkPwaInstallability.js

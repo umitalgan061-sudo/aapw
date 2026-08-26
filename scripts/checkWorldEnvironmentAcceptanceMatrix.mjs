@@ -136,7 +136,7 @@ try {
     const terrain = [...globalThis.__worldAcceptance.state.chunkManager.loaded.values()][0];
     const image = terrain?.material?.map?.image;
     return Boolean(image?.complete && image.naturalWidth > 0 && image.naturalHeight > 0);
-  }, { timeout: 30000 });
+  }, undefined, { timeout: 30000 });
   const albedoImage = await page.evaluate(() => {
     const terrain = [...globalThis.__worldAcceptance.state.chunkManager.loaded.values()][0];
     const image = terrain.material.map.image;

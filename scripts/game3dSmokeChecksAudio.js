@@ -35,6 +35,7 @@ async function checkAudioManager(browser, baseUrl) {
 		await page.click('#run266-entry-enter');
 		await page.waitForFunction(
 			() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
+			undefined,
 			{ timeout: GAME3D_READY_TIMEOUT_MS, polling: 250 },
 		);
 		const setup = await page.evaluate(async () => {

@@ -49,6 +49,7 @@ async function sample(browser, baseUrl) {
 		// `#game3d-loading` element gets `.g3d-loading-hidden` once `GAME_READY` (phase1-scene) fires.
 		await page.waitForFunction(
 			() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
+			undefined,
 			{ timeout: 60000, polling: 250 },
 		);
 		// Same activation mechanism every existing F2-panel smoke check already uses

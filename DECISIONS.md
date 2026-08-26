@@ -19655,3 +19655,42 @@ içeriği — Duvar, on isimli nehir, vadi oyma, buz, gök cisimleri.
 
 **Technical debt.** 0 new. SW v55→v56. **Açık iş.** `sampleReferencePindexQualityV2`'nin tahsisat
 maliyeti; `checkMountainNaturalizationDeterminism`; göller (S-0039); gün ışığı tonlaması.
+
+## ADR-0345 — 60 saniye yazıp 30 saniye ölçmek: Playwright'ın argüman yuvasına düşen timeout'lar
+
+**Nereden çıktı.** Tur 396'da mobil açılıştan 4,0 s kestim ve yükleme katmanı yerelde 14,72 s → 8,6 s'ye
+indi. CI yine de `checkMobilePerfBudget`'te düştü — ama şu mesajla:
+`page.waitForFunction: Timeout 30000ms exceeded.`
+
+**30000 sayısı o dosyanın hiçbir yerinde yok.** Dosya 60000 yazıyor. Bu tek başına bir kanıttı.
+
+**Sebep.** `page.waitForFunction` **üç** parametre alır: sayfa fonksiyonu, **onun argümanı**, sonra
+options. İki argümanla çağrıldığında options nesnesi sessizce *sayfa fonksiyonunun argümanı* olur ve
+bekleme Playwright'ın 30 s varsayılanına düşer. Hiçbir uyarı yok: çağrı başarılı, sayfa fonksiyonu hiç
+tanımlamadığı argümanı yok sayıyor, geriye yalnızca kimsenin yazmadığı bir timeout'u anan bir hata
+mesajı kalıyor.
+
+**Doğrulama, çıkarım değil.** İki argümanlı ve üç argümanlı çağrıyı `timeout: 3000` ile yan yana
+koştum: birincisi **30.012 ms**'de "Timeout 30000ms" diyerek, ikincisi **3.007 ms**'de "Timeout 3000ms"
+diyerek düştü. CI'ın mesajıyla harfi harfine aynı.
+
+**Kapsamı ölçtüm.** Metin eşleştirmesi değil, çağrıların gerçek üst-seviye argümanlarını ayrıştıran bir
+tarayıcı yazdım: **13 gate betiğinde 14 çağrı**. İçlerinde `game3dSmokeChecksScene.js` ve
+`game3dSmokeChecksAudio.js` var — ikisi de `GAME3D_READY_TIMEOUT_MS` okuyor, yani **tur 390'ın
+30 s → 90 s yükseltmesi bu çağrılara hiç ulaşmamış.** O turda "bazı kapılar sessizce koşturulamaz
+haldeydi" diye yazmıştım; meğer düzeltmenin kendisi de aynı sessizliğe düşmüş.
+
+**Dürüst olmam gereken taraf.** Bu düzeltme kapıları **gevşetiyor**: fiilî timeout 30 s'den kaynağın
+zaten yazdığı 60 s'ye (smoke'ta 60 s'ye) çıkıyor. Bunu bir eşik pazarlığı olarak yapmıyorum — kod
+ne istediğini zaten yazmıştı ve çağrı onu uygulamıyordu; ama sonucun ölçüm gücünü azalttığını
+saklamıyorum. Bu yüzden tur 396'nın asıl işi — açılışı gerçekten hızlandırmak — yerini koruyor;
+büyük bütçeye yaslanmak çözüm değil.
+
+**Tekrarını engelleyen kapı.** `scripts/checkPlaywrightWaitOptions.js`: 92 betikteki 303 çağrıyı
+ayrıştırıp options'ı argüman yuvasında bulursa düşüyor. Negatif testi yapıldı — hatayı geri koyunca
+yakalıyor, geri alınca temiz geçiyor. Kendi doküman yorumunda kırık formun **hiçbir literal örneği
+yok**: kapıyı kendi taramasından muaf tutmak, tam da kapatmak için var olduğu kör noktayı bırakırdı.
+`final-head-gate`'in governance adımına bağlandı.
+
+**Technical debt.** 0 new. Runtime kaynağı değişmedi, SW bump yok. **Açık iş.** CI'ın 60 s'lik gerçek
+bütçede ne diyeceği; `checkMountainNaturalizationDeterminism` (dalda önceden kırmızı).

@@ -29,6 +29,7 @@ async function main() {
 		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
 		await page.waitForFunction(
 			() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
+			undefined,
 			{ timeout: 60000, polling: 250 },
 		);
 		await page.waitForTimeout(1200);

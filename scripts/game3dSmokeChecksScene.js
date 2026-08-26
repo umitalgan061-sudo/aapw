@@ -180,6 +180,7 @@ async function check3DMode(browser, baseUrl) {
 				if (el.classList.contains('g3d-loading-error')) return 'error';
 				return false;
 			},
+			undefined,
 			{ timeout: GAME3D_READY_TIMEOUT_MS, polling: 250 },
 		);
 		outcome = await handle.jsonValue();
