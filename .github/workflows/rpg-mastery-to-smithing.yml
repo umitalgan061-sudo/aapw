@@ -46,7 +46,7 @@ jobs:
           done
           changed=$(git diff --numstat "$base"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
           test "$changed" -le 1000
-      - name: Syntax and existing RPG lifecycle contracts
+      - name: Syntax checks
         run: |
           set -euo pipefail
           node --check scripts/checkInteractionExpeditionTavernRecovery.mjs
@@ -55,12 +55,18 @@ jobs:
           node --check scripts/checkInteractionQuartermasterTrade.mjs
           node --check scripts/checkInteractionSettlementServiceBrowser.mjs
           node --check scripts/checkInteractionSettlementServiceContract.mjs
-          node scripts/checkInteractionExpeditionMasterySmithingReward.mjs
-          node scripts/checkInteractionExpeditionKitCraft.mjs
-          node scripts/checkInteractionProvisioningCraft.mjs
-          node scripts/checkInteractionQuartermasterTrade.mjs
-          node scripts/checkInteractionSettlementServiceContract.mjs
-          node scripts/checkInteractionExpeditionTavernRecovery.mjs
+      - name: Expedition mastery smithing reward contract
+        run: node scripts/checkInteractionExpeditionMasterySmithingReward.mjs
+      - name: Expedition kit craft contract
+        run: node scripts/checkInteractionExpeditionKitCraft.mjs
+      - name: Provisioning craft contract
+        run: node scripts/checkInteractionProvisioningCraft.mjs
+      - name: Quartermaster trade contract
+        run: node scripts/checkInteractionQuartermasterTrade.mjs
+      - name: Settlement service contract
+        run: node scripts/checkInteractionSettlementServiceContract.mjs
+      - name: Expedition tavern recovery contract
+        run: node scripts/checkInteractionExpeditionTavernRecovery.mjs
       - name: Install Chromium acceptance harness
         run: |
           set -euo pipefail
