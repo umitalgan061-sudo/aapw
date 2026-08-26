@@ -78,39 +78,41 @@ assert.deepEqual(masteryStone?.provenance, [{ sourceType: 'expedition-mastery', 
 
 controller.handleKeyDown({ code: 'KeyB', repeat: false });
 assert.match(runtime.getRenderedText(), /Son gelir: Sefer ustalığı · \+20 bakır · bakiye 70/);
+const beforeBlockedArmorer = controller.getRpgSnapshot();
 controller.handleKeyDown({ code: 'Digit2', repeat: false });
-assert.match(runtime.getRenderedText(), /Nöbetçi bileği taşı çantana eklendi\. 12 bakır ödendi\./);
-assert.match(runtime.getRenderedText(), /Kese: 58 bakır/);
-assert.match(runtime.getRenderedText(), /Son işlem: #1 Nöbetçi bileği taşı · 12 bakır · bakiye 58/);
+assert.match(runtime.getRenderedText(), /Satın alma başarısız\./);
+assert.match(runtime.getRenderedText(), /Kese: 70 bakır/);
+assert.match(runtime.getRenderedText(), /Nöbetçi bileği taşı — 12 bakır · stok 2\/2 · aldın 0/);
 
-const purchased = controller.getRpgSnapshot();
-assert.equal(purchased.economy.copper, 58);
-assert.equal(purchased.economy.stockByOffer['dragonstone-whetstone'], 1);
-assert.equal(purchased.economy.ledger.transactionCount, 1);
-assert.equal(purchased.economy.ledger.lifetimeSpentCopper, 12);
-const stones = purchased.inventory.items.find((item) => item.itemId === 'dragonstone-whetstone');
-assert.equal(stones?.quantity, 2, 'blocked craft must preserve mastery stone and grant the paid armorer supply');
+const blocked = controller.getRpgSnapshot();
+assert.deepEqual(blocked.inventory, beforeBlockedArmorer.inventory, 'blocked smithing must preserve mastery inventory atomically');
+assert.equal(blocked.economy.copper, 70, 'blocked smithing must not charge copper');
+assert.equal(blocked.economy.stockByOffer['dragonstone-whetstone'], 2, 'blocked smithing must not decrement finite stock');
+assert.equal(blocked.economy.ledger.transactionCount, 0, 'blocked smithing must not append purchase ledger state');
+assert.equal(blocked.economy.ledger.lifetimeSpentCopper, 0);
+assert.equal(blocked.economy.ledger.purchasesByOffer['dragonstone-whetstone'] ?? 0, 0);
+const stones = blocked.inventory.items.find((item) => item.itemId === 'dragonstone-whetstone');
+assert.equal(stones?.quantity, 1, 'blocked craft must preserve the mastery stone without granting a paid fallback item');
 assert.deepEqual(stones?.provenance, [
 	{ sourceType: 'expedition-mastery', sourceId: 'dragonstone-expedition-mastery' },
-	{ sourceType: 'settlement-service', sourceId: 'dragonstone-watch-armorer-honing' },
 ]);
-assert.ok(inventoryEvents >= 2, 'mastery and armorer purchase must both publish inventory changes');
-assert.ok(economyEvents >= 3, 'contract credit, mastery credit and armorer purchase must publish economy changes');
+assert.ok(inventoryEvents >= 1, 'mastery completion must publish its inventory change');
+assert.ok(economyEvents >= 2, 'contract and mastery credits must publish economy changes');
 assert.ok(worldEvents >= 1, 'mastery completion must publish world-state change');
 
-const forged = structuredClone(purchased);
+const forged = structuredClone(blocked);
 forged.economy.ledger.transactionCount = 999;
 forged.economy.ledger.lifetimeSpentCopper = 999999;
 forged.economy.ledger.purchasesByOffer['dragonstone-whetstone'] = 999;
 const restored = makeController();
 restored.controller.restoreRpgSnapshot(forged);
 const restoredSnapshot = restored.controller.getRpgSnapshot();
-assert.equal(restoredSnapshot.economy.copper, 58);
-assert.equal(restoredSnapshot.economy.stockByOffer['dragonstone-whetstone'], 1);
-assert.equal(restoredSnapshot.economy.ledger.transactionCount, 1, 'finite stock remains authoritative over forged aggregate ledger totals');
-assert.equal(restoredSnapshot.economy.ledger.lifetimeSpentCopper, 12);
-assert.equal(restoredSnapshot.economy.ledger.purchasesByOffer['dragonstone-whetstone'], 1);
+assert.equal(restoredSnapshot.economy.copper, 70);
+assert.equal(restoredSnapshot.economy.stockByOffer['dragonstone-whetstone'], 2);
+assert.equal(restoredSnapshot.economy.ledger.transactionCount, 0, 'finite stock remains authoritative over forged aggregate ledger totals');
+assert.equal(restoredSnapshot.economy.ledger.lifetimeSpentCopper, 0);
+assert.equal(restoredSnapshot.economy.ledger.purchasesByOffer['dragonstone-whetstone'] ?? 0, 0);
 assert.deepEqual(restoredSnapshot.inventory.items.find((item) => item.itemId === 'dragonstone-whetstone')?.provenance, stones.provenance);
 assert.equal(restoredSnapshot.worldState.dragonstoneExpeditionMasteryClaimed, true);
 
-console.log('[RPG] PASS mastery credit -> armorer purchase -> provenance/ledger save-load continuity');
+console.log('[RPG] PASS mastery credit -> blocked armorer smithing -> atomic provenance/ledger save-load continuity');
