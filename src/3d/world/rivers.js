@@ -24,6 +24,7 @@ import { valyriaInfluence01 } from './worldReferenceValyria.js';
 import { WORLD_SCALE } from '../config.js';
 import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
 import { densifyRiverPath } from './riverRibbonPath.js';
+import { extendCourseToCanonicalWater } from './riverMouth.js';
 
 /** Seed tag for the named rivers, XORed with the world seed ("RVNM"). */
 export const NAMED_RIVER_SEED_TAG = 0x52564e4d;
@@ -32,19 +33,16 @@ export const NAMED_RIVER_SEED_TAG = 0x52564e4d;
  * highest sampled point within `searchRadiusMeters` of the origin) — coarse enough to stay cheap
  * (a few thousand height samples), fine enough not to miss the general shape of the high ground. */
 const SOURCE_SEARCH_STEP_METERS = 100;
-/** How many candidate downhill directions to test at each step of the flow walk. More directions
- * follow the true steepest descent more faithfully; 12 is enough to avoid an obviously-faceted
- * path at this world's terrain scale without materially slowing generation. */
+/** Candidate downhill directions tested per step. More follow the true steepest descent more
+ * faithfully; 12 avoids an obviously-faceted path at this world's scale without slowing generation. */
 const DESCENT_CANDIDATE_COUNT = 12;
-/** Small random rotation added to each candidate angle, so the path reads as a naturally winding
- * river instead of a mathematically-exact steepest-descent line. Seeded, not `Math.random()`. */
+/** Small seeded rotation per candidate angle, so the path winds naturally instead of running a
+ * mathematically-exact steepest-descent line. Seeded, not `Math.random()`. */
 const DESCENT_ANGLE_JITTER_RADIANS = 0.35;
-/** Multi-octave FBM terrain has many tiny local minima at fine-noise scale, not just the true
- * valleys a river should actually follow — naive single-radius steepest descent gets trapped by
- * them almost immediately (measured: ~10 points before "stuck", nowhere near sea level). If no
- * downhill candidate exists at `stepMeters`, retry at `stepMeters * 2^n` (up to this many times)
- * before giving up — effectively looks further ahead to step over small bumps while still
- * preferring the smallest jump that finds a real descent. See DECISIONS.md ADR-0009. */
+/** Multi-octave FBM terrain has many tiny local minima, not just the true valleys a river should
+ * follow — naive single-radius steepest descent gets trapped almost immediately (measured: ~10
+ * points before "stuck", nowhere near sea level). If no downhill candidate exists at `stepMeters`,
+ * retry at `stepMeters * 2^n` up to this many times. See DECISIONS.md ADR-0009. */
 const MAX_STUCK_ESCALATIONS = 4;
 
 const RIVER_COLOR = new THREE.Color(0x2f7ea8);
@@ -263,7 +261,9 @@ export function generateRiverPath({
 		points.push(new THREE.Vector3(x, y, z));
 	}
 
-	return { points, endReason };
+	// The height test says "as low as the sea", not "in the sea" — see `world/riverMouth.js`.
+	const asVector = (mx, my, mz) => new THREE.Vector3(mx, my, mz);
+	return { points: endReason === 'sea' ? extendCourseToCanonicalWater(points, sampleHeightMeters, asVector) : points, endReason };
 }
 
 /**

@@ -18204,3 +18204,25 @@ sampler'sız çağırıyordu — hiçbir yere gönderilmeyen bir nehri test ediy
 **Ortam.** 20 kapıdaki 30 sn'lik `NAV_TIMEOUT_MS` 90 sn'ye çıkarıldı (`game3d.html` burada ~31 sn'de
 yükleniyor). Yukarıdaki hız kusuru tam da bu yüzden yıllarca görülmemişti: **çalışmayan kapı hiçbir
 şeyi korumaz.** SW v49→v50.
+
+## Tur 391 — Nehir denize varmıyordu (ADR-0338)
+
+Tur 390'dan kalan kırmızı kapı kapatıldı: green-fork ve white-knife artık kanonik suya dökülüyor.
+
+**Sebep.** Yürüyüş `y <= seaLevelMeters` olunca kesiyordu — bu bir **kot** testi, oysa denizin nerede
+olduğunun otoritesi **map.png su maskesi**. İkisi kıyıda ayrışıyor, rota deniz seviyesinin altına inip
+maskenin "kara" dediği bir piksele düşebiliyordu. Bunun **şans** olduğu ölçüldü: green-fork 800 m'de
+%28 su ile düşerken blue-fork %24 ile geçiyordu. Ekranda da yanlıştı — şerit kumsalda bitip suyla
+arasında boşluk bırakıyordu.
+
+**Düzeltme.** `world/riverMouth.js` rotayı, ağzı maskenin su dediği yere varana kadar denize doğru
+yürütüyor; sabit yön yelpazesi, su yoksa en alçak adım (kuyruk kanalda kalsın diye), RNG yok.
+**2 km içinde suya varamazsa rotaya hiç dokunmuyor** — karada biten bir kuyruk haritayı bozarken
+kapıyı yeşile çevirirdi.
+
+**Ölçülen.** green-fork ağzı 5,2 → **-0,2 m**, white-knife 3,1 → **-2,3 m**; ikisi de yalnız 1-2 nokta
+uzadı. Diğer sekiz nehir ve eski origin nehri **hiç değişmedi**. Determinizm korunuyor.
+
+**İki açıdan bakıldı:** şerit kesintisiz inip denize karışıyor, boşluk yok. SW v50→v51.
+
+**Yeni görülen:** nehrin ortasında ağaç bitiyor — bitki dağılımı nehir şeridinden kaçınmıyor.

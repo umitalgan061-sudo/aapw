@@ -279,7 +279,10 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run 390 unburies the rivers: each bank is grounded on its own terrain and the ribbon is resampled
 // to ~10m quads, so a watercourse that rendered as disconnected shards is now continuous. New
 // offline-loadable module (riverRibbonPath.js) and a look change both. v49->v50.
-const SHELL_CACHE = 'westeros-shell-v50';
+// Run 391 carries the named rivers the last stretch into canonical water, so green-fork and
+// white-knife empty into the sea instead of stopping on a beach. New offline-loadable module
+// (riverMouth.js) and a change to the ground the rivers carve. v50->v51.
+const SHELL_CACHE = 'westeros-shell-v51';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -472,6 +475,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/world/chunkManager.js',
     './src/3d/world/water.js',
     './src/3d/world/waterDepthField.js',
+    './src/3d/world/riverMouth.js',
     './src/3d/world/riverRibbonPath.js',
     './src/3d/world/rivers.js',
     './src/3d/world/settlements.js',

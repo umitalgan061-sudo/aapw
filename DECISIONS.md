@@ -19350,3 +19350,48 @@ kusuru tam da bu yüzden görülmemişti. **Çalışmayan kapı hiçbir şeyi ko
 **Technical debt.** 0 new. **Açık iş.** İsimli nehirlerin çıkışları (green-fork/white-knife); uzakta
 köpük bantlanması; kuzey denizinin tropik turkuazı; yamaçta teraslanan yollar; şelaleler; göller
 (S-0039); kayalık dağ yüzeyleri.
+
+## ADR-0338 — Nehir denize varmıyordu: kot testi "denize kadar alçak" der, "denizin içinde" demez
+
+**Nereden çıktı.** Tur 390'dan kalan kırmızı kapı: `checkNamedRivers`, green-fork ve white-knife
+"kanonik suya dökülmüyor" diye düşüyordu. Bu turda sebebi bulundu ve kapı yeşile döndü.
+
+### Sebep: iki farklı su tanımı
+
+`generateRiverPath` yürüyüşü `y <= seaLevelMeters` olunca kesiyor. Bu bir **kot** testi. Ama denizin
+*nerede* olduğunun otoritesi kot alanı değil, **map.png'nin su maskesi**. İkisi kıyı şeridinde
+birbirinden ayrılıyor: rota deniz seviyesinin altına inip bitiyor, ama son noktası maskenin "kara"
+dediği bir piksele düşebiliyor.
+
+Ölçüm bunun **şans** olduğunu gösterdi: 10 isimli nehrin 8'i ıslak piksele denk geldi, 2'si kuru.
+Üstelik green-fork 800 m içinde **%28** su ile düşerken blue-fork **%24** ile geçiyordu — yani
+başarısızlık coğrafyayla değil, tek bir örneğin nereye düştüğüyle ilgiliydi.
+
+Bu ekranda da yanlış: şerit kumsalda bitiyor ve suyla arasında görünür bir boşluk kalıyor.
+
+### Düzeltme
+
+`world/riverMouth.js`: rota, ağzı maskenin su dediği yere varana kadar denize doğru yürütülüyor.
+Yön adayları sabit bir yelpazede (önce dümdüz, sonra ±20°, ±40°, ±60°) sırayla deneniyor; hiçbiri su
+değilse **en alçak** olanına adım atılıyor, ki kıyı düzlüğünde kuyruk kumsalda gezinmek yerine kanalda
+kalsın. RNG yok, tamamen deterministik.
+
+**Ulaşamazsa hiçbir şey yapmıyor.** 2 km (40 m × 50 adım) içinde su bulunamazsa rota **olduğu gibi**
+döndürülüyor. Bu bilinçli: 2 km'de suya varamayan bir rotanın bu düzeltmenin çözemeyeceği bir sorunu
+vardır, ve karada biten bir kuyruk eklemek **haritayı bozarken kapıyı yeşile çevirirdi.**
+
+**Ölçülen:** green-fork ağzı **5,2 m → -0,2 m** (20→21 nokta), white-knife **3,1 m → -2,3 m** (24→26
+nokta). Diğer sekiz nehir **hiç değişmedi** — nokta sayıları aynı. Gömülme %0,46 → %0,45. Determinizm
+korunuyor. Eski origin nehri de değişmedi (30 nokta / 1,52 km, 25 şelale) — ağzı zaten sudaymış.
+
+**İki açıdan bakıldı** (`artifacts/run391-river-mouth/`): şerit kesintisiz iniyor ve **denize
+karışıyor**, arada boşluk yok; denizden bakınca da tepelerden inen ve ağzında genişleyen bir nehir
+görünüyor.
+
+**Kapılar.** `checkNamedRivers` **PASS** (tur 390'dan beri kırmızıydı), `checkRun325RiverFlow` PASS,
+`checkRiverValleyCarving` PASS, `checkServiceWorkerCache` OK (yeni modülün eksikliğini yine kapı
+yakaladı), koltuklar 14/14, yollar PASS. Service worker v50→v51.
+
+**Technical debt.** 0 new. **Açık iş.** Köpük bantlanması nehri fazla beyaz gösteriyor (yakından da
+belirgin); **nehrin ortasında ağaç bitiyor** — bitki dağılımı nehir şeridinden kaçınmıyor; kuzey
+denizinin tropik turkuazı; yamaçta teraslanan yollar; göller (S-0039); kayalık dağ yüzeyleri.
