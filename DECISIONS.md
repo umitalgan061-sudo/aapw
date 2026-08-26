@@ -19603,3 +19603,55 @@ ağacı doğrulandı. Dosya 600 sınırının altında (340). SW v54→v55.
 
 **Technical debt.** 0 new. **Açık iş.** Mobil açılış maliyeti (PR #964'ün açık blocker'ı); göller
 (S-0039); gün ışığı/altın saat tonlaması; yol taramaları için decimate kararı (sahip).
+
+## ADR-0344 — Mobil açılışın yarısı tek bir fonksiyondaymış: ölçüp buldum, birebir aynı sonuçla hızlandırdım
+
+**Blocker.** PR #964'ün kendi regresyonu: `checkMobilePerfBudget`, mobil viewport'ta yükleme
+katmanının kaybolmasını beklerken zaman aşımına uğruyordu (main 9,20 s / dal 14,72 s, **+%60**).
+
+**Önce kendi hipotezimi çürüttüm.** PR yorumunda sebebi `computeRiverValleys`'in açılışta on güzergâhı
+izleyip oyması ve örnek başına yükseklik alanı maliyeti olarak bildirmiştim. **Yanlıştı.** Faz ölçümü:
+`computeRiverValleys` **105 ms**, `computeRoadCorridor` 199 ms, `routeReferenceRoads` 62 ms — tüm
+foundation **~370 ms**. Ve vadi örnekleyicisi faz-1 örnekleyicisinden yavaş bile değil (12,38 µs'e
+karşı 13,46 µs). Maliyetin tamamı `createScene`'in içindeydi: **9,1–10,5 s**.
+
+**Tahmin bırakıp profil aldım.** CDP ile mobil viewport'ta `createScene`'in örneklemeli CPU profili:
+
+| dosya / fonksiyon | self | pay |
+|---|---|---|
+| `worldReferenceSurfacePindexes.js` (tümü) | 5.092 ms | **%48,2** |
+| └ `pindexQualityReliefInfluence` | 3.083 ms | **%29,6** |
+| `terrainReliefDetail.js` | 1.286 ms | %12,2 |
+| `terrain.js` | 961 ms | %9,1 |
+
+Yani açılışın **yarısı** tek bir modülde, **üçte biri tek bir fonksiyonda**.
+
+**Sebep.** `pindexQualityReliefInfluence`, her örnek için **19 zincirin 98 segmentinin tamamını**, her
+birinde bir `Math.hypot` ile dolaşıyordu — örnek herhangi bir sıradağdan ne kadar uzakta olursa olsun.
+
+**Düzeltme, ve neden yaklaşık değil kesin olduğu.** `RELIEF_INFLUENCE_OUTER` (0,048) mesafesinin
+ötesinde smoothstep doyuyor ve terim `1 - 1`, yani **tam olarak sıfır** — sıfırdan başlayan bir
+maksimuma. Bir zincirin tüm polyline'ı kendi bounding box'ının içinde olduğuna göre, o kutunun
+0,048 büyütülmüş halinin dışındaki bir nokta, zincirin **her** segmentinden falloff'tan uzaktır.
+Onları atlamak aynı sıfırı katar. Zincir başına kutu testi + segment başına karesel erken çıkış.
+
+**Kanıt, argüman değil.** Eski algoritmayı test betiğinde yeniden yazıp yenisiyle karşılaştırdım:
+**177.241 örnek, 0 uyuşmazlık, en kötü mutlak fark tam olarak 0** — ve bunların 20.414'ünde etki
+sıfırdan farklı, yani test asıl ilgilenilen bölgeyi gerçekten dolaşıyor. Bit birebir aynı. Zemin bir
+mikrometre bile oynamıyor; §8.4 anlamında yeniden doğrulama gerektirmeyen tek değişiklik türü budur.
+
+**Ölçülen sonuç.** `createScene` **10.502 ms → 6.504 ms (−4,0 s, %38)**. Modül %48,2 → %23,5. Profil
+artık **düz**: geriye tek bir baskın nokta kalmadı (en büyüğü `sampleReferencePindexQualityV2`'nin
+kendi tahsisatı, 666 ms) — bu turda durmak için doğru yer.
+
+**Blocker'daki karşılığı.** Yükleme katmanı, kapının kendi ölçüm yöntemiyle: dal **8,71 / 8,50 s**
+(önce 14,72 s). Aynı koşullarda bugün main **7,06 / 6,93 s**. Yani **+%60 ve zaman aşımı → +%23 ve
+katmanı geçiyor**. Kapı artık yalnızca LFS pointer stub'larının konsol hatalarında düşüyor; o, bu
+konteynerin bilinen artefaktı ve CI onları hidrate ediyor. Kalan +1,6 s dalın gerçek fazladan
+içeriği — Duvar, on isimli nehir, vadi oyma, buz, gök cisimleri.
+
+**Dürüst not.** `checkMountainNaturalizationDeterminism` bu dalda kırmızı; **benim değişikliğimden
+önce de aynı assertion ile kırmızı** (stash ile doğruladım). Ayrı bir iş, ayrı bir RCA.
+
+**Technical debt.** 0 new. SW v55→v56. **Açık iş.** `sampleReferencePindexQualityV2`'nin tahsisat
+maliyeti; `checkMountainNaturalizationDeterminism`; göller (S-0039); gün ışığı tonlaması.

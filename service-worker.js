@@ -295,7 +295,10 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // scatter places exactly what it placed before — but `worldPropExclusions.js` is a cached shell module
 // that `worldPropCatalogue.js` imports for its own summary, so a cache-first shell would keep serving
 // the old, wrong "these eight are unaccounted for" picture. v54->v55.
-const SHELL_CACHE = 'westeros-shell-v55';
+// Run 396 cuts ~4.0s off the mobile world build by skipping relief chains that provably contribute
+// zero. Every returned value is bit-identical, so nothing looks different — but a cache-first shell
+// would keep serving the slow module, which is the whole point of the change. v55->v56.
+const SHELL_CACHE = 'westeros-shell-v56';
 const SHELL_FILES = [
     './',
     './index.html',

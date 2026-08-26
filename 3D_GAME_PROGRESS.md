@@ -18324,3 +18324,26 @@ sahibin kararı.
 Kapılar: `checkAssetCoverage`, `checkWorldPropScatter`, `checkVillageBuildings`, `checkAssetsManifest`,
 `terrainSeatSafetyCheck`, `roadNetworkSafetyCheck` PASS. Hidrate binary'ler `git checkout -- assets/`
 ile geri alındı. SW v54→v55.
+
+## Tur 396 — Mobil açılıştan 4 saniye, zemin bir mikrometre oynamadan (ADR-0344)
+
+PR #964'ün açık blocker'ı: mobilde yükleme katmanı main'e göre **+%60** geç kayboluyor, kapı zaman
+aşımına uğruyordu.
+
+**Kendi teşhisimi çürüttüm.** PR yorumunda sebebi `computeRiverValleys` demiştim; ölçtüm, **105 ms**.
+Tüm foundation ~370 ms. Maliyet `createScene`'in içindeydi. CDP profili tek suçluyu isimlendirdi:
+`pindexQualityReliefInfluence` — açılışın **%29,6'sı**, modülüyle birlikte **%48,2'si**. Her örnek
+için 19 zincirin 98 segmentini, her birinde bir `Math.hypot` ile dolaşıyordu.
+
+**Düzeltme kesin, yaklaşık değil:** falloff mesafesinin ötesinde terim tam olarak sıfır, o yüzden
+katkısı sıfır olan zincirleri (bounding box) ve segmentleri (karesel erken çıkış) atlamak sonucu
+değiştiremez. **177.241 örnekte 0 uyuşmazlık, en kötü fark tam 0** — bunların 20.414'ünde etki sıfırdan
+farklı. Bit birebir aynı.
+
+**Ölçülen:** `createScene` **10.502 → 6.504 ms (−4,0 s, %38)**. Yükleme katmanı, kapının kendi
+yöntemiyle: **14,72 s → 8,6 s** (aynı koşullarda main 7,0 s). Profil artık düz.
+
+Kapılar: `checkTerrainPindexQualityV2`, `checkRun276MapSurfacePindexes`, `checkTerrainVisualContract`,
+`checkCanonicalHydrologyTerrainShadow`, `checkWorldEventDeterminism`, `terrainSeatSafetyCheck`,
+`roadNetworkSafetyCheck` PASS. `checkMountainNaturalizationDeterminism` kırmızı — **değişiklikten önce
+de kırmızıydı** (stash ile doğrulandı), ayrı iş. SW v55→v56.
