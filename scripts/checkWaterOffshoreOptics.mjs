@@ -1,0 +1,128 @@
+#!/usr/bin/env node
+/**
+ * Geographic offshore-optics guard.
+ *
+ * Physical bathymetry and canonical wet coverage remain untouched in the qualified RGBA field.
+ * A separate one-channel field may deepen only boundary-connected marine water, never enclosed lakes.
+ */
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+	createWaterDepthField,
+	disposeWaterDepthField,
+	WATER_COVERAGE_SUBSAMPLES_PER_AXIS,
+	WATER_OFFSHORE_OPTICAL_FULL_DISTANCE_METERS,
+} from '../src/3d/world/waterDepthField.js';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const WATER_SOURCE = readFileSync(resolve(HERE, '../src/3d/world/water.js'), 'utf8');
+const texel = (field, row, column) => {
+	const offset = (row * field.resolution + column) * 4;
+	return Array.from(field.texture.image.data.slice(offset, offset + 4));
+};
+const offshore = (field, row, column) => field.offshoreTexture.image.data[row * field.resolution + column];
+
+assert.equal(WATER_COVERAGE_SUBSAMPLES_PER_AXIS, 2);
+assert.equal(WATER_OFFSHORE_OPTICAL_FULL_DISTANCE_METERS, 1100);
+
+// Half-plane coast: prove authoritative R/G/B/A bytes are unchanged while the separate optical field
+// increases monotonically away from a real shoreline. Use 20m full distance for exact fixture bytes.
+let probes = 0;
+const coast = createWaterDepthField({
+	waterLevelMeters: 0,
+	fullWaveDepthMeters: 10,
+	extentMeters: 40,
+	resolution: 5,
+	offshoreOpticalFullDistanceMeters: 20,
+	sampleHeightMeters: (x) => {
+		probes += 1;
+		return x <= 0 ? 2 : (x < 20 ? -2 : -12);
+	},
+});
+try {
+	assert.equal(probes, 5 * 5 * 4, 'offshore field must add zero canonical terrain probes');
+	for (let row = 0; row < 5; row += 1) {
+		assert.deepEqual(texel(coast, row, 0), [0, 0, 255, 255]);
+		assert.deepEqual(texel(coast, row, 1), [0, 0, 255, 255]);
+		assert.deepEqual(texel(coast, row, 2), [51, 128, 255, 255]);
+		assert.deepEqual(texel(coast, row, 3), [51, 255, 255, 255]);
+		assert.deepEqual(texel(coast, row, 4), [153, 255, 255, 255]);
+		assert.equal(offshore(coast, row, 2), 0, 'mixed canonical shoreline must start at optical distance zero');
+		assert.equal(offshore(coast, row, 3), 128, 'first marine interior cell should be half optical depth');
+		assert.equal(offshore(coast, row, 4), 255, 'farther marine cell should reach the bounded optical cap');
+	}
+	assert.equal(coast.marineFractionOfWetCoverage, 1);
+	assert.ok(coast.meanOffshoreOpticalFactor > 0.55 && coast.meanOffshoreOpticalFactor < 0.65);
+	assert.equal(coast.offshoreFullTexelRatio, 5 / 25);
+} finally {
+	disposeWaterDepthField(coast);
+}
+
+// A large enclosed lake can be kilometres wide in future map revisions; connectivity, not size, must
+// decide marine optics. Its physical depth still exists in R, but optical distance must remain zero.
+const lake = createWaterDepthField({
+	waterLevelMeters: 0,
+	extentMeters: 600,
+	resolution: 61,
+	sampleHeightMeters: (x, z) => Math.hypot(x, z) < 210 ? -6 : 8,
+});
+try {
+	assert.ok(lake.meanWetCoverage > 0.30, 'lake fixture must contain substantial canonical water');
+	assert.equal(lake.marineFractionOfWetCoverage, 0, 'enclosed lake must not be classified as marine');
+	assert.equal(Math.max(...lake.offshoreTexture.image.data), 0, 'enclosed lake must have zero offshore optical depth');
+	const centre = texel(lake, 30, 30);
+	assert.ok(centre[0] > 0 && centre[1] === 255, 'lake must retain physical depth and canonical coverage');
+} finally {
+	disposeWaterDepthField(lake);
+}
+
+// A fully wet owner field is open ocean by definition: every cell is boundary-connected and no
+// shoreline exists inside the field, so it should use the full offshore optical state.
+const ocean = createWaterDepthField({
+	waterLevelMeters: 0,
+	extentMeters: 800,
+	resolution: 17,
+	sampleHeightMeters: () => -3,
+});
+try {
+	assert.equal(ocean.marineFractionOfWetCoverage, 1);
+	assert.equal(Math.min(...ocean.offshoreTexture.image.data), 255);
+	assert.equal(Math.max(...ocean.offshoreTexture.image.data), 255);
+} finally {
+	disposeWaterDepthField(ocean);
+}
+
+// Determinism covers both textures, including the topology pass.
+const fixture = {
+	waterLevelMeters: 0,
+	extentMeters: 520,
+	resolution: 39,
+	sampleHeightMeters: (x, z) => x > Math.sin(z * 0.025) * 80 ? -4 : 5,
+};
+const first = createWaterDepthField(fixture);
+const second = createWaterDepthField(fixture);
+try {
+	assert.deepEqual(Array.from(first.texture.image.data), Array.from(second.texture.image.data));
+	assert.deepEqual(Array.from(first.offshoreTexture.image.data), Array.from(second.offshoreTexture.image.data));
+	assert.equal(first.meanOffshoreOpticalFactor, second.meanOffshoreOpticalFactor);
+} finally {
+	disposeWaterDepthField(first);
+	disposeWaterDepthField(second);
+}
+
+// Source contract: offshore signal is optical only. Red physical depth must still own swell and foam.
+assert.match(WATER_SOURCE, /uniform sampler2D uOffshoreMap;/);
+assert.match(WATER_SOURCE, /sampleOffshoreOptical\(vWorldPosition\.xz\)/);
+assert.match(WATER_SOURCE, /offshoreGain = offshoreOptical \* \(1\.0 - fragmentDepth\)/);
+assert.match(WATER_SOURCE, /float amplitudeScale = depthFactor \* uSwellStrength/);
+assert.match(WATER_SOURCE, /float shallowMask = 1\.0 - smoothstep\(0\.0, 0\.22, fragmentDepth\);/);
+assert.match(WATER_SOURCE, /float opticalDepth = 1\.0 - exp\(-fragmentDepth \* 3\.2\);/);
+assert.match(WATER_SOURCE, /offshoreAbsorption = 1\.0 - exp\(-offshoreGain \* 2\.4\)/);
+
+console.log('[checkWaterOffshoreOptics] PASS', JSON.stringify({
+	fullDistanceMeters: WATER_OFFSHORE_OPTICAL_FULL_DISTANCE_METERS,
+	canonicalProbesIn25Texels: probes,
+	lakeMarineFraction: 0,
+}));

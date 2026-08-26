@@ -23,9 +23,10 @@
  *
  * Fine chop is still fragment-only (`rippleSlope`) — it is far below the geometry's resolution, so
  * there is nothing to gain from vertices there. Geometry carries the long swell, the shader carries
- * the detail. The depth texture's green channel is also consumed as canonical water coverage so
- * the full-world plane cannot tint dry terrain cyan; the mask comes from the exact same terrain
- * sampler as bathymetry rather than a second coastline approximation.
+ * the detail. The depth texture's green channel is consumed as canonical water coverage so the
+ * full-world plane cannot tint dry terrain cyan. A separate render-only offshore-distance texture is
+ * boundary-connected to open sea: broad marine shelves can optically deepen while enclosed lakes,
+ * physical bathymetry, collider ownership and the red-channel swell safety authority stay unchanged.
  *
  * Participates in `scene.fog` (`fog.js`) via three.js's `fog_pars_vertex`/`fog_vertex`/
  * `fog_pars_fragment`/`fog_fragment` chunks (`material.fog: true` alone does nothing for a custom
@@ -69,6 +70,9 @@ export const SWELL_COMPONENTS = Object.freeze([
  * `scripts/checkRun325WaterSwell.js` can assert it rather than trusting a comment.
  */
 export const WAVE_TOTAL_AMPLITUDE_METERS = SWELL_COMPONENTS.reduce((sum, [, amplitude]) => sum + amplitude, 0);
+
+/** Render-only maximum contribution of shoreline distance to perceived optical depth. */
+export const WATER_OFFSHORE_OPTICAL_GAIN = 0.62;
 
 const WATER_VERTEX_SHADER = /* glsl */ `
 	uniform float uTime;
@@ -145,6 +149,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	uniform float uSunIntensity;
 	uniform vec3 uCameraPosition;
 	uniform sampler2D uDepthMap;
+	uniform sampler2D uOffshoreMap;
 	uniform float uDepthFieldExtentMeters;
 	uniform float uFarLayerMask;
 	varying vec3 vWorldPosition;
@@ -158,6 +163,12 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return vec2(1.0, 1.0);
 		vec4 field = texture2D(uDepthMap, uv);
 		return field.rg;
+	}
+
+	float sampleOffshoreOptical(vec2 worldXZ) {
+		vec2 uv = worldXZ / uDepthFieldExtentMeters + 0.5;
+		if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 1.0;
+		return texture2D(uOffshoreMap, uv).r;
 	}
 
 	float sampleFragmentDepth(vec2 worldXZ) {
@@ -215,6 +226,12 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float waterCoverage = smoothstep(0.08, 0.72, waterField.y);
 		if (waterCoverage <= 0.01) discard;
 
+		// The separate field stores normalized marine shoreline distance. It is deliberately optical
+		// only: red physical depth above remains the sole wave-amplitude authority. A ~90m dead zone
+		// keeps coves visually shallow; enclosed lakes are zeroed by the boundary-connectivity bake.
+		float offshoreOptical = smoothstep(0.08, 0.92, sampleOffshoreOptical(vWorldPosition.xz));
+		float offshoreGain = offshoreOptical * (1.0 - fragmentDepth) * ${WATER_OFFSHORE_OPTICAL_GAIN.toFixed(2)};
+
 		// Fine chop is intentionally near-field only. Beyond a few hundred metres its wavelength
 		// undersamples into repetitive screen-space bands, so the analytic long swell owns distance.
 		float rippleFade = 1.0 - smoothstep(90.0, 360.0, distance(uCameraPosition, vWorldPosition));
@@ -226,13 +243,15 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		vec3 normal = normalize(vec3(-slope.x, 1.0, -slope.y));
 		vec3 viewDir = normalize(uCameraPosition - vWorldPosition);
 
-		// Keep the photographed coast/pool behaviour: shallow water holds its lighter teal for longer,
-		// then transitions progressively toward deep navy rather than becoming dark immediately offshore.
+		// Preserve the qualified physical-depth grade, then apply a bounded marine-only correction.
+		// Enclosed lakes have offshoreOptical=0, while broad shelves darken gradually toward open sea.
 		vec3 bodyColor = mix(uShallowColor, uDeepColor, smoothstep(0.04, 0.82, fragmentDepth));
+		bodyColor = mix(bodyColor, uDeepColor, offshoreGain * 0.74);
 		float shelfMottle = shelfOpticalMottle(vWorldPosition.xz, fragmentDepth);
+		float shelfVisibility = 1.0 - offshoreOptical * 0.72;
 		vec3 sedimentTint = mix(uDeepColor, vec3(0.37, 0.50, 0.48), 0.78);
-		bodyColor = mix(bodyColor, sedimentTint, max(shelfMottle, 0.0) * 0.34);
-		bodyColor = mix(bodyColor, uDeepColor, max(-shelfMottle, 0.0) * 0.20);
+		bodyColor = mix(bodyColor, sedimentTint, max(shelfMottle, 0.0) * 0.34 * shelfVisibility);
+		bodyColor = mix(bodyColor, uDeepColor, max(-shelfMottle, 0.0) * 0.20 * shelfVisibility);
 
 		// Fresnel-ish: nearer grazing angles read lighter/more reflective, straight-down reads deep.
 		float fresnel = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 3.0);
@@ -252,10 +271,11 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float foam = clamp(shallowMask * surge, 0.0, 1.0);
 
 		vec3 color = mix(baseColor + celestialSpecular, vec3(0.90, 0.95, 0.96), foam * 0.76);
-		// Beer-Lambert-inspired optical response: very shallow shelves/pools are genuinely transparent
-		// enough to reveal the terrain mesh beneath; opacity rises continuously with water depth and
-		// approaches an opaque deep-sea body instead of applying one sheet opacity everywhere.
+		// Keep physical Beer-Lambert attenuation intact, then compound a marine-only offshore term.
+		// This leaves lakes/shoreline exactly on real depth while broad ocean shelves become denser.
 		float opticalDepth = 1.0 - exp(-fragmentDepth * 3.2);
+		float offshoreAbsorption = 1.0 - exp(-offshoreGain * 2.4);
+		opticalDepth = 1.0 - (1.0 - opticalDepth) * (1.0 - offshoreAbsorption);
 		float alpha = mix(0.14, 0.90, opticalDepth);
 		// Broad shallow shelves gain bounded optical-density variation, analogous to suspended sediment
 		// and uneven seabed reflectance. Keep the range small enough that canonical wet/dry coverage
@@ -331,6 +351,14 @@ const PLACEHOLDER_DEPTH_TEXTURE = new THREE.DataTexture(
 	THREE.UnsignedByteType,
 );
 PLACEHOLDER_DEPTH_TEXTURE.needsUpdate = true;
+const PLACEHOLDER_OFFSHORE_TEXTURE = new THREE.DataTexture(
+	new Uint8Array([255]),
+	1,
+	1,
+	THREE.RedFormat,
+	THREE.UnsignedByteType,
+);
+PLACEHOLDER_OFFSHORE_TEXTURE.needsUpdate = true;
 
 /**
  * Builds the sea-level water plane. Caller must reposition it onto the camera every frame (via
@@ -367,6 +395,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 				uSunIntensity: { value: 1 },
 				uCameraPosition: { value: new THREE.Vector3() },
 				uDepthMap: { value: PLACEHOLDER_DEPTH_TEXTURE },
+				uOffshoreMap: { value: PLACEHOLDER_OFFSHORE_TEXTURE },
 				uDepthFieldExtentMeters: { value: 1 },
 				uSwellStrength: { value: 0 },
 				uFarLayerMask: { value: 0 },
@@ -384,6 +413,8 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		shallowAlpha: 0.14,
 		deepAlpha: 0.90,
 		attenuation: 3.2,
+		offshoreDistanceField: true,
+		offshoreOpticalGain: WATER_OFFSHORE_OPTICAL_GAIN,
 		celestialSpecular: true,
 	});
 
@@ -452,6 +483,7 @@ export function setWaterDepthField(waterMesh, depthField, swellStrength = 1) {
 	for (const material of [waterMesh.material, waterMesh.userData.farWater?.material].filter(Boolean)) {
 		const { uniforms } = material;
 		uniforms.uDepthMap.value = depthField.texture;
+		uniforms.uOffshoreMap.value = depthField.offshoreTexture ?? PLACEHOLDER_OFFSHORE_TEXTURE;
 		uniforms.uDepthFieldExtentMeters.value = depthField.extentMeters;
 		uniforms.uSwellStrength.value = swellStrength;
 	}
@@ -507,6 +539,9 @@ export function disposeWater(waterMesh) {
 	// The shared placeholder is never owned by a mesh and must outlive every one of them.
 	if (depthField && depthField.texture !== PLACEHOLDER_DEPTH_TEXTURE) {
 		depthField.texture.dispose();
+		if (depthField.offshoreTexture && depthField.offshoreTexture !== PLACEHOLDER_OFFSHORE_TEXTURE) {
+			depthField.offshoreTexture.dispose();
+		}
 		waterMesh.userData.depthField = null;
 	}
 }

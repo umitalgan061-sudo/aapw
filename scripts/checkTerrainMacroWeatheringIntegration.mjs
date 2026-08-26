@@ -87,7 +87,7 @@ function assertFiniteRows(rows, label) {
 
 assert.equal(
   TERRAIN_RELIEF_DETAIL_POLICY.id,
-  'terrain-coast-warp-and-relief-detail-2026-08-26-v2-directional-weathering',
+  'terrain-coast-warp-and-relief-detail-2026-08-26-v3-anisotropic-mountain-fabric',
 );
 assert.equal(TERRAIN_RELIEF_DETAIL_POLICY.directionalMacroWeathering, true);
 assert.equal(
