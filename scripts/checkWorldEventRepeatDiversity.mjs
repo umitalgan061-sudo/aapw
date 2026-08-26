@@ -12,6 +12,9 @@ const MAX_INTERVAL_SECONDS = 90;
 
 const runtimeSource = fs.readFileSync(new URL('../src/3d/gameplay/worldEvents.js', import.meta.url), 'utf8');
 assert.match(runtimeSource, /function eligibleEventPool\(nightFactor\)/, 'world-event selection must centralize day\/night eligibility');
+assert.match(runtimeSource, /function normalizeNightFactor\(nightFactor\)/, 'world-event time gating must normalize the lighting adapter input');
+assert.match(runtimeSource, /typeof nightFactor !== 'number' \|\| !Number\.isFinite\(nightFactor\)/, 'malformed lighting context must fail closed before time gating');
+assert.match(runtimeSource, /Math\.min\(1, Math\.max\(0, nightFactor\)\)/, 'finite lighting context must be clamped to the canonical 0..1 range');
 assert.match(runtimeSource, /function pickWeightedEvent[\s\S]*?const pool = eligibleEventPool\(nightFactor\)/, 'weighted selection must use the canonical eligible pool');
 assert.match(runtimeSource, /function avoidImmediateRepeat[\s\S]*?const pool = eligibleEventPool\(nightFactor\)/, 'repeat suppression must stay inside the same eligible pool');
 assert.doesNotMatch(runtimeSource, /eligible\.length > 1 \? eligible : WORLD_EVENTS/, 'repeat diversity must never escape to ineligible events when one eligible entry remains');
@@ -101,6 +104,23 @@ for (const nightFactor of [undefined, 0, 1, 0.5]) {
   contextProof.push({ nightFactor: nightFactor ?? 'legacy', uniqueEvents, dominantShare: Number(dominantShare.toFixed(3)) });
 }
 
+// Lighting is an adapter input, not authored world-event state. Non-finite or wrong-typed values
+// must therefore fail closed to ungated ambient entries instead of JavaScript coercion accidentally
+// classifying Infinity as night or a numeric string as a valid sky state.
+const malformedLightingFactors = [Number.NaN, Infinity, -Infinity, '1', null];
+for (const nightFactor of malformedLightingFactors) {
+  const events = collect(90210, nightFactor);
+  assert.equal(events.length, EVENTS_PER_CONTEXT, `malformed lighting context stalled world events: ${String(nightFactor)}`);
+  assert.ok(events.every((event) => event.timeOfDay === undefined), `malformed lighting context escaped time gating: ${String(nightFactor)}`);
+}
+
+// Finite overshoot is benign and can happen at interpolation boundaries: clamp it to the canonical
+// lighting range rather than treating it as malformed or allowing it to widen eligibility.
+const aboveNight = collect(90211, 2);
+const belowDay = collect(90212, -1);
+assert.ok(aboveNight.every((event) => event.timeOfDay !== 'day'), 'nightFactor > 1 must clamp to night and exclude day-only events');
+assert.ok(belowDay.every((event) => event.timeOfDay !== 'night'), 'nightFactor < 0 must clamp to day and exclude night-only events');
+
 const cadenceSeed = 1482026;
 const actualCadence = collectEmissionSeconds(cadenceSeed, CADENCE_EVENTS);
 const expectedCadence = expectedEmissionSeconds(cadenceSeed, CADENCE_EVENTS);
@@ -122,6 +142,8 @@ console.log('WORLD_EVENT_REPEAT_DIVERSITY_PASS', JSON.stringify({
   maxSingleEventShare: MAX_SINGLE_EVENT_SHARE,
   cadenceEventsChecked: CADENCE_EVENTS,
   cadenceLastSecond: actualCadence.at(-1),
+  malformedLightingContextsChecked: malformedLightingFactors.length,
+  finiteLightingClampChecked: true,
   eligibilityPoolShared: true,
   contexts: contextProof,
 }));
