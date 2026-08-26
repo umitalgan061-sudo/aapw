@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+// Re-run the deterministic owner-approved registry after the PR #961 owner asset upload.
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
