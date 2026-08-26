@@ -19753,3 +19753,63 @@ LFS pointer'ından okuyarak, yani hiçbir nesne hidrate etmeden ve herhangi bir 
 
 **Technical debt.** 0 new. SW v56→v57. **Açık iş.** `initWorldDressing`'i katmandan çıkarmak (asıl
 yapısal düzeltme); `checkMountainNaturalizationDeterminism` (dalda önceden kırmızı).
+
+## ADR-0347 — Dokusu hiç commit edilmemiş modeller: yol dizesi bir istek değildir
+
+**Nereden çıktı.** Turlar 396-398 `checkMobilePerfBudget`'i zaman aşımından kurtarınca kapı nihayet
+kendi konsol-hatası kontrolüne ulaştı ve CI **yüzlerce 404** ile döndü: `paddle 1_Normal.png`,
+`Wooden_Barrel_Base_Color.png`, `TexturesCom_Wall_Cobblestone_3x3_1K_albedo.tif`. Hiçbiri `assets/`
+altında yok; `assets/models/fbx/` içinde toplam **iki** doku dosyası var.
+
+**Neden şimdi.** İki şey saklıyordu. Burada bu modeller LFS stub'ı olduğu için hiç parse edilmiyor,
+dolayısıyla dokularını hiç istemiyorlar. CI'da ise kapı daha önce yükleme katmanında ölüyordu. İkisi
+de düzelince kapı ölçmesi gereken şeyi ölçmeye başladı.
+
+**Suçluyu isimlendirmek gerçek bir ayırt edici gerektirdi ve bariz olan yanlıştı.** Her modeli
+doku-biçimli dizeler için taramak 37'nin **27'sini** suçladı — içlerinde `characters/erika_archer.fbx`
+ve diğer Mixamo karakterleri vardı. Ama onları `main` de yüklüyor ve CI onlardan hiç şikâyet etmiyor.
+Çünkü onlar **gömülü medyalı** export'lar: yol dizeleri Mixamo'nun kendi derleme sunucusunu gösteriyor
+(`/home/app/mixamo-mini/tmp/…fbm/`), three.js görüntü verisini FBX'in içinden okuyor ve hiçbir istek
+yapılmıyor. **Bir yol dizesi bir istek değildir.**
+
+**İkinci ayırt edici de yanlış çıktı, ve onu da ölçüm yakaladı.** "Dosya görüntü verisi taşıyor mu"
+testini üç baytlık JPEG başlangıcıyla yaptığımda `Boat.fbx` temiz göründü — 36 doku gömdüğü iddia
+edilen 1,3 MB'lık bir dosya. O bayt dizisi geometri verisinin içinde tesadüfen geçiyor. Sekiz baytlık
+tam PNG imzası ve dört baytlık JPEG işaretçileriyle sayı **27'den 5'e** düştü ve o beş, CI günlüğündeki
+her dosya adını açıklıyor.
+
+| model | eksik doku | nereye ait |
+|---|---|---|
+| `fbx/Medieval_Market_Asset_Pack.fbx` | 112 | bu dal |
+| `fbx/Boat.fbx` | 36 | bu dal |
+| `fbx/MedHouse.fbx` | 13 | bu dal |
+| `fbx/Free_rock_Rock_1.fbx` | 2 | bu dal |
+| `creatures/dragon/Dragon_Baked_Actions_fbx_7.4_binary.fbx` | 6 | **main** |
+
+**Beşincisi benim değil ve sessizce içine katmıyorum.** Ejderha modelini `main`'deki
+`gameplay/dragonConfig.js` zaten gösteriyor, ve main'in açılışının onu gerçekten istediğini ölçtüm
+(main'in 31 asset'lik açılış listesinde var). Yani önceden var olan bir boşluk; kendi turunu hak
+ediyor. Bu turda ilk dördü çekiliyor.
+
+**Altıncı bir sorun, hidrasyon gerektirmeden CI'ın adını verdiği:** `Old House 2 3D Models.FBX`
+**FBX FileVersion 6100**. three.js açamıyor — daha çirkin bir prop'a düşmüyor, **fırlatıyor** ve
+scatter çayıra bir placeholder kutu koyuyor. Ayrı ve dürüst bir gerekçe (`unsupportedFbxVersion`).
+
+**Susturmak yerine çekmeyi seçtim, ve alternatifi saklamıyorum.** Yükleyicinin eksik doku için hata
+loglamasını kesebilirdim; kapı susardı, dünya düzelmezdi. Dokularının hiçbiri olmayan bir prop düz,
+dokusuz renkte render ediliyor — bu kozmetik değil, gerçek bir görsel kusur, ve sahibin önceliği tam
+olarak görüntü kalitesi. Eksik doku setleri commit edilirse dördü de geri döner.
+
+**Kendi yanlış alarmımı da düzelttim.** Düzenlemeden sonra `checkAssetCoverage` bir anda
+`fbx/Grass.fbx`'i "hesapsız" gösterdi. Sebep benim hidrasyonumdu: kontrolcü kimliği LFS oid'inden
+okuyor, hidrate edilmiş dosya artık pointer olmadığı için `bytes:boyut:ad`'a düşüyor ve bir dedup
+grubu ikiye ayrılıyor. `git checkout -- assets/` sonrası PASS. Gerçek olmayan bir kusuru "düzeltmeden"
+önce doğruladım.
+
+**Yeni kapı.** `scripts/checkScatterPropTextures.js`. Negatif testi yapıldı: `Boat.fbx` hidrate
+edilince yakalıyor (36 eksik), yanında hidrate edilen `flower_heliophila_4k.fbx`'i temiz geçiriyor.
+Taze klonda her model stub olduğu için **PASS demiyor, SKIP diyor** — hiçbir şey okumadan kazanılmış
+bir geçiş rapor etmiyor. `final-head-gate`'e bağlandı.
+
+**Technical debt.** 0 new. SW v57→v58. **Açık iş.** Ejderhanın 6 eksik dokusu (main düzeyinde);
+`checkMountainNaturalizationDeterminism` (dalda önceden kırmızı).

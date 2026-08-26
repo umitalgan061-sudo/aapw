@@ -368,6 +368,58 @@ export const PROP_EXCLUSIONS_BY_REASON = Object.freeze({
 		// 33.3 MB — roadside
 		"fbx/MedievalPackSTY_Chest1.fbx",
 	]),
+	/**
+	 * The model is in the repository but its textures never were (run 399).
+	 *
+	 * Found the way the last two were: by letting a gate get far enough to measure. Once runs 396-398
+	 * stopped `checkMobilePerfBudget` timing out, it reached its console-error assertion and CI came back
+	 * with **several hundred 404s** for side-car texture files — `Wooden_Barrel_Base_Color.png`,
+	 * `paddle 1_Normal.png`, `TexturesCom_Wall_Cobblestone_3x3_1K_albedo.tif`. None of those exist
+	 * anywhere under `assets/`; only two texture files sit in `assets/models/fbx/` at all.
+	 *
+	 * **Naming them took a real discriminator, and the obvious one was wrong.** Scanning each model for
+	 * texture-shaped strings accused 27 of 37, including `characters/erika_archer.fbx` and the other
+	 * Mixamo characters — which `main` loads too and which CI is perfectly happy with. Those are exports
+	 * with **embedded media**: their path strings point at Mixamo's own build server
+	 * (`/home/app/mixamo-mini/tmp/…fbm/`), three.js reads the image data out of the FBX itself, and no
+	 * request is ever made. A path string is not a fetch.
+	 *
+	 * What decides it is whether the file actually carries image data, tested on **full** signatures. A
+	 * three-byte JPEG start occurs by chance inside geometry: it wrongly cleared `Boat.fbx`, 1.3 MB of
+	 * file supposedly embedding 36 textures. On the eight-byte PNG signature and four-byte JPEG markers,
+	 * the count falls from 27 to **five**, and those five account for every basename in the CI log.
+	 *
+	 * Four of them are here. The fifth, `creatures/dragon/Dragon_Baked_Actions_fbx_7.4_binary.fbx`
+	 * (6 missing textures), is **not this branch's**: `gameplay/dragonConfig.js` on `main` already points
+	 * at it, so it is a pre-existing gap and is left for its own run rather than quietly folded in here.
+	 *
+	 * These are withheld rather than silenced. The alternative was to stop the loader logging an error
+	 * for a missing side-car texture, which would have made the gate quiet without making the world
+	 * better: a prop with none of its textures renders in flat untextured colour, and that is a real
+	 * visual defect, not a cosmetic one. Committing the missing texture sets would put any of them back.
+	 */
+	texturesNeverCommitted: Object.freeze([
+		// 112 textures referenced, 112 absent — the market stalls, barrels, carts, jugs and well that
+		// fill most of the CI error log on their own.
+		"fbx/Medieval_Market_Asset_Pack.fbx",
+		// 36 absent: the hull, benches, paddles and boards of a wooden boat.
+		"fbx/Boat.fbx",
+		// 13 absent, all TexturesCom_* cobblestone and roof tiles.
+		"fbx/MedHouse.fbx",
+		// 2 absent: Rock_1_Base_Color.jpg and Rock_1_Normal.jpg.
+		"fbx/Free_rock_Rock_1.fbx",
+	]),
+	/**
+	 * An FBX too old for the loader to open at all (run 399).
+	 *
+	 * three.js's FBXLoader supports FBX 7.x binary. CI named this one exactly:
+	 * `THREE.FBXLoader: FBX version not supported, FileVersion: 6100`. It does not degrade into a
+	 * lesser-looking prop — it throws, and the scatter puts a **placeholder box** on the meadow where a
+	 * house should be. Re-exporting it from any modern DCC tool as FBX 7.4 would make it usable.
+	 */
+	unsupportedFbxVersion: Object.freeze([
+		"fbx/Old House 2/Old House Files/Old House 2 3D Models.FBX",
+	]),
 	underwaterOnly: Object.freeze([
 		"animals/shark.glb",
 	]),

@@ -18397,3 +18397,30 @@ ediliyorlar — prop görünümünü ekran görüntüsüyle yargılamak mümkün
 
 Kapılar: `checkScatterPropDownloadSize` (yeni), `checkAssetCoverage`, `checkWorldPropScatter`,
 `checkVillageBuildings`, `checkAssetsManifest`, `checkVegetationRiverClearance` PASS. SW v56→v57.
+
+## Tur 399 — Dokusu hiç commit edilmemiş dört model (ADR-0347)
+
+Kapı zaman aşımından kurtulunca asıl işini yapmaya başladı: CI **yüzlerce 404** bildirdi. Modeller
+yanlarındaki doku dosyalarını istiyor, o dosyalar depoda yok.
+
+**İki kez yanlış ayırt edici kullandım, ikisini de ölçüm düzeltti.** Önce doku-biçimli dizeleri
+taradım: 37 modelin 27'sini suçladı, içlerinde main'in de yüklediği Mixamo karakterleri vardı — onlar
+**gömülü medyalı**, yol dizeleri Mixamo'nun sunucusunu gösteriyor ama veri dosyanın içinde, hiç istek
+yapılmıyor. Sonra "görüntü verisi var mı" testini üç baytlık JPEG başlangıcıyla yaptım ve `Boat.fbx`
+temiz göründü — 36 doku gömdüğü iddia edilen 1,3 MB'lık dosya. Tam imzalarla sayı **27 → 5**.
+
+Dördü bu dala ait ve çekildi: `Medieval_Market_Asset_Pack.fbx` (112 eksik), `Boat.fbx` (36),
+`MedHouse.fbx` (13), `Free_rock_Rock_1.fbx` (2). **Beşincisi ejderha ve o main'in** —
+`dragonConfig.js` onu gösteriyor ve main'in açılışının onu istediğini ölçtüm. Sessizce içine katmadım.
+
+Ayrıca `Old House 2 3D Models.FBX` çekildi: **FBX 6100**, three.js açamıyor, çayıra placeholder kutu
+koyuyordu.
+
+**Susturmak yerine çekmeyi seçtim:** yükleyicinin hatayı loglamasını kesmek kapıyı susturur, dünyayı
+düzeltmezdi — dokusuz bir prop düz renkte render ediliyor, bu gerçek bir görsel kusur.
+
+**Kendi yanlış alarmım:** düzenlemeden sonra coverage `Grass.fbx`'i hesapsız gösterdi; sebep benim
+hidrasyonumdu (kontrolcü kimliği LFS oid'inden okuyor). `git checkout -- assets/` sonrası PASS.
+
+Yeni kapı `checkScatterPropTextures.js` — negatif testi yapıldı, taze klonda PASS değil SKIP diyor.
+Kapılar: coverage, scatter, village, manifest, download-size, wait-options PASS. SW v57→v58.

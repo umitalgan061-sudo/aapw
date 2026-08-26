@@ -54,7 +54,6 @@ export const PROP_CATALOGUE = Object.freeze([
 	// ---- coast -----------------------------------------------------------------------------------
 	Object.freeze({ file: 'animals/flying_seagull_6Tpj_vcWP3f.glb', terrain: 'coast', footprintMeters: 1, weight: 3 }),
 	Object.freeze({ file: 'animals/seagull_0WRzrtCIIRp.glb', terrain: 'coast', footprintMeters: 1, weight: 4 }),
-	Object.freeze({ file: 'fbx/Boat.fbx', terrain: 'coast', footprintMeters: 8, weight: 3 }),
 	Object.freeze({ file: 'fbx/Building_pier1_building.fbx', terrain: 'coast', footprintMeters: 12, weight: 2 }),
 	Object.freeze({ file: 'settlements/docks_F7twMHWPXY.glb', terrain: 'coast', footprintMeters: 14, weight: 2 }),
 	// ---- meadow ----------------------------------------------------------------------------------
@@ -71,7 +70,6 @@ export const PROP_CATALOGUE = Object.freeze([
 	Object.freeze({ file: 'fbx/Free_Roman_Building_building.fbx', terrain: 'meadow', footprintMeters: 12, weight: 2 }),
 	Object.freeze({ file: 'fbx/Free_temple_temple.fbx', terrain: 'meadow', footprintMeters: 12, weight: 2 }),
 	Object.freeze({ file: 'fbx/grass_bermuda_01_4k.fbx', terrain: 'meadow', footprintMeters: 2, weight: 6 }),
-	Object.freeze({ file: 'fbx/Old House 2/Old House Files/Old House 2 3D Models.FBX', terrain: 'meadow', footprintMeters: 10, weight: 2 }),
 	Object.freeze({ file: 'fbx/Stairs_Orient_stairs.fbx', terrain: 'meadow', footprintMeters: 9, weight: 1 }),
 	Object.freeze({ file: 'fbx/StoneFloor_FragmentOne.fbx', terrain: 'meadow', footprintMeters: 6, weight: 2 }),
 	Object.freeze({ file: 'fbx/StoneFloor_GrassOne.fbx', terrain: 'meadow', footprintMeters: 6, weight: 2 }),
@@ -107,8 +105,6 @@ export const PROP_CATALOGUE = Object.freeze([
 	Object.freeze({ file: 'fbx/Fountain_fount.fbx', terrain: 'farmland', footprintMeters: 8, weight: 2 }),
 	Object.freeze({ file: 'fbx/FreeBuilding_building.fbx', terrain: 'farmland', footprintMeters: 12, weight: 2 }),
 	Object.freeze({ file: 'fbx/House_free_house.fbx', terrain: 'farmland', footprintMeters: 10, weight: 3 }),
-	Object.freeze({ file: 'fbx/MedHouse.fbx', terrain: 'farmland', footprintMeters: 10, weight: 4 }),
-	Object.freeze({ file: 'fbx/Medieval_Market_Asset_Pack.fbx', terrain: 'farmland', footprintMeters: 14, weight: 2 }),
 	Object.freeze({ file: 'props/farm_dirt_8BQFbUMOeC.glb', terrain: 'farmland', footprintMeters: 8, weight: 4 }),
 	Object.freeze({ file: 'settlements/barn_0QTh_KUZRYE.glb', terrain: 'farmland', footprintMeters: 13, weight: 3 }),
 	Object.freeze({ file: 'settlements/barn_A6UkPq33aZ.glb', terrain: 'farmland', footprintMeters: 13, weight: 3 }),
@@ -180,7 +176,6 @@ export const PROP_CATALOGUE = Object.freeze([
 	// ---- upland ----------------------------------------------------------------------------------
 	Object.freeze({ file: 'animals/bighorn_sheep_4kUChlMv8Vp.glb', terrain: 'upland', footprintMeters: 2, weight: 3 }),
 	Object.freeze({ file: 'animals/cougar_1ICRwBHSin7.glb', terrain: 'upland', footprintMeters: 2, weight: 2 }),
-	Object.freeze({ file: 'fbx/Free_rock_Rock_1.fbx', terrain: 'upland', footprintMeters: 6, weight: 4 }),
 	Object.freeze({ file: 'fbx/Ruins_Column_columns.fbx', terrain: 'upland', footprintMeters: 8, weight: 3 }),
 	Object.freeze({ file: 'fbx/tower22_tower.fbx', terrain: 'upland', footprintMeters: 10, weight: 2 }),
 	Object.freeze({ file: 'settlements/modular_ruins_pack_F2LAK03B0r.glb', terrain: 'upland', footprintMeters: 7, weight: 2 }),

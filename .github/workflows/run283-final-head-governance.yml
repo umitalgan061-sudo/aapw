@@ -48,6 +48,7 @@ jobs:
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkPlaywrightWaitOptions.js
           node scripts/checkScatterPropDownloadSize.js
+          node scripts/checkScatterPropTextures.js
           node scripts/checkAssetsManifest.js
           node scripts/checkServiceWorkerCache.js
           node scripts/checkPwaInstallability.js
