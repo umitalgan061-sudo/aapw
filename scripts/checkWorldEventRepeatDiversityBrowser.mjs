@@ -24,11 +24,20 @@ try {
     const { createWorldEventSystem } = await import('/src/3d/gameplay/worldEvents.js');
     const { EventBus } = await import('/src/3d/eventBus.js');
 
-    const runSequence = (seed, nightFactor, { injectResumeSpike = false } = {}) => {
+    const runSequence = (seed, nightFactor, { injectResumeSpike = false, mutatePayload = false } = {}) => {
       const bus = new EventBus();
-      const eventName = `repeat-diversity-${seed}-${String(nightFactor ?? 'legacy')}-${injectResumeSpike ? 'resume' : 'steady'}`;
+      const eventName = `repeat-diversity-${seed}-${String(nightFactor ?? 'legacy')}-${injectResumeSpike ? 'resume' : 'steady'}-${mutatePayload ? 'mutating' : 'passive'}`;
       const events = [];
-      bus.on(eventName, (payload) => events.push(payload));
+      bus.on(eventName, (payload) => {
+        // Snapshot what the listener actually received before intentionally annotating/mutating it.
+        // The mutation must stay local to this delivery and never reach the canonical event catalog.
+        events.push({ ...payload });
+        if (mutatePayload) {
+          payload.id = 'listener-mutated';
+          payload.weight = 999999;
+          payload.timeOfDay = 'night';
+        }
+      });
       const system = createWorldEventSystem({ eventsBus: bus, seed, eventName });
       let spikeInjected = false;
       while (events.length < eventCount) {
@@ -49,6 +58,7 @@ try {
 
     const legacyEvents = runSequence(148, undefined);
     const legacyRepeatEvents = runSequence(148, undefined);
+    const mutatingListenerEvents = runSequence(148, undefined, { mutatePayload: true });
     const resumeEvents = runSequence(148, undefined, { injectResumeSpike: true });
     const resumeRepeatEvents = runSequence(148, undefined, { injectResumeSpike: true });
     const noonEvents = runSequence(248, 0);
@@ -61,6 +71,7 @@ try {
     const ids = (events) => events.map((event) => event.id);
     const legacy = ids(legacyEvents);
     const legacyRepeat = ids(legacyRepeatEvents);
+    const listenerMutated = ids(mutatingListenerEvents);
     const legacyWithResumeSpike = ids(resumeEvents);
     const legacyWithResumeSpikeRepeat = ids(resumeRepeatEvents);
     const noon = ids(noonEvents);
@@ -69,16 +80,20 @@ try {
 
     return {
       legacyCount: legacy.length,
+      mutatingListenerCount: listenerMutated.length,
       resumeCount: legacyWithResumeSpike.length,
       noonCount: noon.length,
       midnightCount: midnight.length,
       malformedCount: infinityEvents.length + stringLightingEvents.length,
       clampedCount: aboveRangeEvents.length + belowRangeEvents.length,
       legacyNoAdjacentRepeat: !hasAdjacentRepeat(legacy),
+      listenerMutationNoAdjacentRepeat: !hasAdjacentRepeat(listenerMutated),
       resumeNoAdjacentRepeat: !hasAdjacentRepeat(legacyWithResumeSpike),
       noonNoAdjacentRepeat: !hasAdjacentRepeat(noon),
       midnightNoAdjacentRepeat: !hasAdjacentRepeat(midnight),
       sameSeedSameSequence: JSON.stringify(legacy) === JSON.stringify(legacyRepeat),
+      listenerMutationPreservesSequence: JSON.stringify(legacy) === JSON.stringify(listenerMutated),
+      listenerMutationNeverLeaks: !listenerMutated.includes('listener-mutated'),
       resumeSameSeedSameSequence: JSON.stringify(legacyWithResumeSpike) === JSON.stringify(legacyWithResumeSpikeRepeat),
       resumePreservesEventOrder: JSON.stringify(legacy) === JSON.stringify(legacyWithResumeSpike),
       noonExcludesNightOnly: !noonEvents.some((event) => event.timeOfDay === 'night'),
@@ -92,16 +107,20 @@ try {
   assert.equal(pageErrors.length, 0, `page errors: ${pageErrors.join(' | ')}`);
   assert.equal(consoleErrors.length, 0, `console errors: ${consoleErrors.join(' | ')}`);
   assert.equal(proof.legacyCount, EVENT_COUNT, 'legacy runtime must emit the full browser sample');
+  assert.equal(proof.mutatingListenerCount, EVENT_COUNT, 'mutating-listener runtime must emit the full browser sample');
   assert.equal(proof.resumeCount, EVENT_COUNT, 'resume-spike runtime must emit the full browser sample');
   assert.equal(proof.noonCount, EVENT_COUNT, 'noon runtime must emit the full browser sample');
   assert.equal(proof.midnightCount, EVENT_COUNT, 'midnight runtime must emit the full browser sample');
   assert.equal(proof.malformedCount, EVENT_COUNT * 2, 'malformed lighting contexts must emit complete fail-closed samples');
   assert.equal(proof.clampedCount, EVENT_COUNT * 2, 'finite out-of-range lighting contexts must emit complete clamped samples');
   assert.equal(proof.legacyNoAdjacentRepeat, true, 'legacy runtime emitted adjacent duplicate world events');
+  assert.equal(proof.listenerMutationNoAdjacentRepeat, true, 'mutating EventBus listener broke repeat diversity');
   assert.equal(proof.resumeNoAdjacentRepeat, true, 'resume-spike runtime emitted adjacent duplicate world events');
   assert.equal(proof.noonNoAdjacentRepeat, true, 'noon runtime emitted adjacent duplicate world events');
   assert.equal(proof.midnightNoAdjacentRepeat, true, 'midnight runtime emitted adjacent duplicate world events');
   assert.equal(proof.sameSeedSameSequence, true, 'same seed must preserve the same shipped-browser event sequence');
+  assert.equal(proof.listenerMutationPreservesSequence, true, 'EventBus listener mutation poisoned canonical seeded event selection');
+  assert.equal(proof.listenerMutationNeverLeaks, true, 'a prior listener mutation leaked back out of the canonical world-event catalog');
   assert.equal(proof.resumeSameSeedSameSequence, true, 'same seed plus the same resume spike must remain deterministic');
   assert.equal(proof.resumePreservesEventOrder, true, 'bounded resume spikes must not perturb seeded ambient event ordering');
   assert.equal(proof.noonExcludesNightOnly, true, 'noon browser sequence violated night-only gating');
