@@ -17,7 +17,7 @@ import {
 import { WORLD_REFERENCE_BASE_SURFACE_MASK } from './worldReferenceSurfacePindexes.js';
 
 export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
-	id: 'owner-map-live-mountain-relief-2026-08-25-v6-broad-natural-ridges',
+	id: 'owner-map-live-mountain-relief-2026-08-26-v7-lake-basin-cirques',
 	sourceMapSha256: WORLD_REFERENCE_MAP.sha256,
 	surfaceMaskSha256: WORLD_REFERENCE_BASE_SURFACE_MASK.maskSha256,
 	landGateZero: 0.54,
@@ -34,6 +34,14 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 	coastalReliefTaper: Object.freeze({
 		radiusNormalized: 0.012,
 		minimumScale: 0.12,
+	}),
+	// Small canonical lakes inside broad mountain shoulders previously left a steep ring just beyond
+	// the one-cell wet-edge taper, which read as a vertical crater from aerial views. Keep the lake
+	// itself source-owned and widen only the surrounding mountain-relief attenuation into a cirque.
+	lakeBasinTaper: Object.freeze({
+		innerRadiusNormalized: 0.014,
+		outerRadiusNormalized: 0.050,
+		minimumScale: 0.18,
 	}),
 	talusBreakup: Object.freeze({
 		broadFrequency: 22,
@@ -148,6 +156,82 @@ function decodeSurfaceMask() {
 }
 
 const DECODED_SURFACE_MASK = decodeSurfaceMask();
+
+function collectLakeCellCenters() {
+	const { width, height } = WORLD_REFERENCE_BASE_SURFACE_MASK;
+	const centers = [];
+	for (let y = 0; y < height; y += 1) {
+		for (let x = 0; x < width; x += 1) {
+			if (DECODED_SURFACE_MASK[y * width + x] !== LAKE_CODE) continue;
+			centers.push(Object.freeze({ x: (x + 0.5) / width, y: (y + 0.5) / height }));
+		}
+	}
+	return Object.freeze(centers);
+}
+
+const LAKE_CELL_CENTERS = collectLakeCellCenters();
+export const WORLD_REFERENCE_LAKE_CELL_COUNT = LAKE_CELL_CENTERS.length;
+
+function buildLakeDistanceField() {
+	const { width, height } = WORLD_REFERENCE_BASE_SURFACE_MASK;
+	const field = new Float32Array(width * height);
+	if (LAKE_CELL_CENTERS.length === 0) {
+		field.fill(1);
+		return field;
+	}
+	for (let y = 0; y < height; y += 1) {
+		const normalizedY = (y + 0.5) / height;
+		for (let x = 0; x < width; x += 1) {
+			const normalizedX = (x + 0.5) / width;
+			let nearest = Infinity;
+			for (const lake of LAKE_CELL_CENTERS) {
+				const dx = (normalizedX - lake.x) * MAP_ASPECT;
+				const dy = normalizedY - lake.y;
+				nearest = Math.min(nearest, Math.hypot(dx, dy));
+			}
+			field[y * width + x] = nearest;
+		}
+	}
+	return field;
+}
+
+const LAKE_DISTANCE_FIELD = buildLakeDistanceField();
+
+function lakeDistanceAtCell(x, y) {
+	const { width, height } = WORLD_REFERENCE_BASE_SURFACE_MASK;
+	const clampedX = Math.min(width - 1, Math.max(0, x));
+	const clampedY = Math.min(height - 1, Math.max(0, y));
+	return LAKE_DISTANCE_FIELD[clampedY * width + clampedX];
+}
+
+/** Aspect-correct normalized distance to the nearest canonical lake cell, bilinearly sampled. */
+export function sampleReferenceLakeDistanceNormalized(normalizedX, normalizedY) {
+	if (!Number.isFinite(normalizedX) || !Number.isFinite(normalizedY)) throw new TypeError('normalized coordinates must be finite');
+	if (normalizedX < 0 || normalizedX > 1 || normalizedY < 0 || normalizedY > 1) throw new RangeError('normalized coordinates must be in [0,1]');
+	if (LAKE_CELL_CENTERS.length === 0) return 1;
+	const { width, height } = WORLD_REFERENCE_BASE_SURFACE_MASK;
+	const fx = normalizedX * width - 0.5;
+	const fy = normalizedY * height - 0.5;
+	const x0 = Math.floor(fx);
+	const y0 = Math.floor(fy);
+	const tx = smoothstep(0, 1, fx - x0);
+	const ty = smoothstep(0, 1, fy - y0);
+	const top = lakeDistanceAtCell(x0, y0) * (1 - tx) + lakeDistanceAtCell(x0 + 1, y0) * tx;
+	const bottom = lakeDistanceAtCell(x0, y0 + 1) * (1 - tx) + lakeDistanceAtCell(x0 + 1, y0 + 1) * tx;
+	return top * (1 - ty) + bottom * ty;
+}
+
+/**
+ * Mountain-only basin attenuation. Canonical water ownership/height is untouched; this only lowers
+ * added mountain relief close to source-owned lake cells so small alpine lakes open into broad
+ * cirques instead of vertical crater rings.
+ */
+export function sampleReferenceLakeBasinScale(normalizedX, normalizedY) {
+	const policy = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.lakeBasinTaper;
+	const distance = sampleReferenceLakeDistanceNormalized(normalizedX, normalizedY);
+	return policy.minimumScale + (1 - policy.minimumScale)
+		* smoothstep(policy.innerRadiusNormalized, policy.outerRadiusNormalized, distance);
+}
 
 function dryLandAtCell(x, y) {
 	const { width, height } = WORLD_REFERENCE_BASE_SURFACE_MASK;
@@ -383,7 +467,10 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 		dryLandWeight,
 	);
 	if (landGate === 0) return 0;
-	return strongestMeters * landGate * sampleCoastalReliefScale(normalizedX, normalizedY, dryLandWeight);
+	return strongestMeters
+		* landGate
+		* sampleCoastalReliefScale(normalizedX, normalizedY, dryLandWeight)
+		* sampleReferenceLakeBasinScale(normalizedX, normalizedY);
 }
 
 /**
