@@ -385,7 +385,7 @@ function createCaveBlueCoreBreakup(group, portal, rings, seed) {
 		const ring = rings[ringIndex];
 		for (const side of [-1, 1]) {
 			if (hash2D(ringIndex, side + 181, seed + 10601) < 0.26) continue;
-			const lateral = side * ring.halfWidth * (0.73 + hash2D(ringIndex, side + 191, seed + 10709) * 0.16;
+			const lateral = side * ring.halfWidth * (0.73 + hash2D(ringIndex, side + 191, seed + 10709) * 0.16);
 			const lift = ring.height * (0.18 + hash2D(ringIndex, side + 193, seed + 10831) * 0.42);
 			const width = 0.55 + hash2D(ringIndex, side + 197, seed + 10939) * 1.15;
 			const height = 2.2 + hash2D(ringIndex, side + 199, seed + 11003) * 4.6;
