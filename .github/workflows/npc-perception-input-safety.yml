@@ -1,22 +1,21 @@
-name: NPC Movement Safety
+name: NPC Perception Input Safety
 
 on:
   pull_request:
     branches: [main]
     paths:
       - 'src/3d/gameplay/npc.js'
-      - 'scripts/checkNpcMovementSafetyBrowser.js'
       - 'scripts/checkNpcPerceptionInputSafetyBrowser.js'
+      - '.github/workflows/npc-perception-input-safety.yml'
       - '.github/workflows/npc-movement-safety.yml'
       - '.github/workflows/npc-hearing-framerate-determinism.yml'
-      - '.github/workflows/npc-perception-input-safety.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  npc-movement-safety:
+  npc-perception-input-safety:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -37,19 +36,18 @@ jobs:
           CHANGED_FILES="$(git diff --name-only "$BASE_SHA" HEAD)"
           printf '%s\n' "$CHANGED_FILES"
           test "$(printf '%s\n' "$CHANGED_FILES" | sed '/^$/d' | wc -l)" -le 5
-          printf '%s\n' "$CHANGED_FILES" | grep -Ev '^(src/3d/gameplay/npc\.js|scripts/checkNpcMovementSafetyBrowser\.js|scripts/checkNpcPerceptionInputSafetyBrowser\.js|\.github/workflows/npc-movement-safety\.yml|\.github/workflows/npc-hearing-framerate-determinism\.yml|\.github/workflows/npc-perception-input-safety\.yml)$' && exit 1 || true
+          printf '%s\n' "$CHANGED_FILES" | grep -Ev '^(src/3d/gameplay/npc\.js|scripts/checkNpcPerceptionInputSafetyBrowser\.js|\.github/workflows/npc-perception-input-safety\.yml|\.github/workflows/npc-movement-safety\.yml|\.github/workflows/npc-hearing-framerate-determinism\.yml)$' && exit 1 || true
           CHANGED="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           test "$CHANGED" -le 1000
           git diff --check "$BASE_SHA" HEAD
-      - name: Syntax and standing NPC contracts
+      - name: Syntax and standing perception contracts
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/npc.js
-          node --check scripts/checkNpcMovementSafetyBrowser.js
           node --check scripts/checkNpcPerceptionInputSafetyBrowser.js
-          node scripts/checkNpcGuardLifecycleContract.mjs
+          node --check scripts/checkNpcHearingFrameRateDeterminism.mjs
           node scripts/checkNpcGuardPerception.mjs
-          node scripts/checkNpcSimulationLod.mjs
+          node scripts/checkNpcGuardLifecycleContract.mjs
           node scripts/checkSharedMaterialPlacementContract.js
       - name: Install Chromium outside repo
         shell: bash
@@ -59,10 +57,10 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-      - name: Real shipped Three.js movement safety proof
-        run: node scripts/checkNpcMovementSafetyBrowser.js
-      - name: Existing perception-input safety regression
+      - name: Real shipped Three.js malformed-input recovery proof
         run: node scripts/checkNpcPerceptionInputSafetyBrowser.js
+      - name: Existing hearing determinism regression
+        run: node scripts/checkNpcHearingFrameRateDeterminism.mjs
       - name: Existing guard lifecycle regression
         run: node scripts/checkNpcGuardLifecycleBrowser.js
       - name: Final exact-main freshness
