@@ -19552,3 +19552,54 @@ konu ve render'a her bakışta değişen politika sonuncusu. `rivers.js` 600 sı
 
 **Technical debt.** 0 new. **Açık iş.** Göller (S-0039); gün ışığı/altın saat tonlaması;
 `assets/`'teki yol glb'lerinin kullanılması.
+
+## ADR-0343 — `assets/`'teki son sekiz model: sayarak değil, hidrate edip ölçerek karara bağlandı
+
+**Sahibin isteği.** *"asset'deki bütün öğelerin coğrafi haritaya eklenmesini istiyorum."* Ölçülen
+başlangıç noktası: `checkAssetCoverage` **509 model dosyası → 371 ayrı model; 194 serpiştirilmiş, 31
+bir sistemin sahipliğinde, 138 gerekçeli olarak tutulmuş, 8 hiç kimsenin hesabında değil → FAIL.**
+
+**Yöntem.** Sekizini de LFS batch API'siyle hidrate ettim ve dosya adından tahmin etmek yerine
+üçgenlerini saydım. Bu turun tek gerçek bulgusu şu: **dosya adı hiçbir şey söylemiyor.**
+
+| model | üçgen | gerçekte ne |
+|---|---|---|
+| `grass.glb` | 10.404 | 12,08 × 0,45 × 6 m **çim fotogrametrisi** — nesne değil, zemin yaması |
+| `arya_stark.glb` | 112.200 | 48 mesh, **skins: 0** — heykel; ne riglenmiş ne dekor |
+| Meshy "March of the Wooden" | 154.958 | 26,2 MB doku, tek prop |
+| `Meshy_AI_Character_output.glb` | 189.862 | **skins: 1** → gerçek armature, spawner'ın havuzuna ait |
+| `Spotted-cow-2021-Corona.fbx` | 309.426 | tek inek; oyuna hazır inek zaten tarlalarda |
+| `dusty_path_in_the_fields.glb` | 444.982 | fotogrametri yol taraması (sahibin yüklemesi, PR #961) |
+| `snowy_road.glb` | 1.000.079 | fotogrametri yol taraması (sahibin yüklemesi, PR #961) |
+| Meshy "ultra detail" | 1.223.336 | depodaki en ağır model |
+
+**Düzeltilen kendi hatam.** İki yol modelini "dokulu düzlem, yol yüzeyi olarak kullanılabilir" diye
+varsaymıştım. Ölçüm bunu çürüttü: bir şerit yol için bir milyon üçgen.
+
+**§8.5 bu turda bir kusuru yayından çevirdi.** `grass.glb`'yi adı, üçgen sayısı ve doku boyutu
+"normal bir yer örtüsü propu" dediği için `PROP_CATALOGUE`'a **eklemiştim**. Commit'ten önce, kural
+gereği, iki açıdan — zemin düzlemi ve 1,8 m'lik kırmızı referans direğiyle — render aldım ve
+**baktım**. Görünen şey: scatter'ın vereceği 2 m ayak izinde **7 cm yüksekliğinde**, yatay, soluk
+yeşil bir dikdörtgen; çim tutamı değil, çimenliğin üstünde duran bir çıkartma. Kendi pişmiş ışığı ve
+kendi yeşili arazininkiyle çakışıyor. Bu **tam olarak** `fence_fence.fbx`'in tur 381'de yakalanan
+kusuru. Katalog eklemesi geri alındı, model `photogrammetryGroundPlaneNotAnObject` altına yazıldı —
+o gerekçe artık ikinci kez ve yine harfiyen doğru.
+
+**Dürüst sonuç: sekizin sıfırı serpiştirilebildi.** Sahibin isteği "hepsini haritaya koy" idi ve bu
+tur haritaya sıfır yeni model koyuyor. Bunu küçültmeden söylüyorum. Koyduğu şey, sekizinin de artık
+**ölçülmüş bir gerekçesi** olması: gerekçe sayısı 16 → 17 (`unriggedCharacterFigure` yeni, çünkü
+`arya_stark` için var olan hiçbiri doğru değildi — riglenmiş değil ama dekor da değil, ve yanlış bir
+kutuya atmaktansa dürüst bir kutu açmak doğru olan).
+
+**Sahibin kararını bekleyen tek iş.** İki yol taraması sahibin kendi yüklemesi ve sahibi onları
+dünyada istiyor. Kullanılabilmelerinin yolu bu deponun ağır kaleler için zaten kullandığı yol:
+orijinalin yanına **decimate edilmiş bir türev** (`*_decimated.glb`). Bu depoya yeni binary asset
+ekler; bu yüzden sahibin kararı, benim scatter tablosuna sessizce sokacağım bir şey değil.
+
+**Kapılar.** `checkAssetCoverage` **FAIL → PASS** (8 hesapsız → 0). `checkWorldPropScatter`,
+`checkVillageBuildings`, `checkAssetsManifest`, `terrainSeatSafetyCheck`, `roadNetworkSafetyCheck`
+PASS. Hidrate edilen binary'ler commit'ten önce `git checkout -- assets/` ile geri alındı, çalışma
+ağacı doğrulandı. Dosya 600 sınırının altında (340). SW v54→v55.
+
+**Technical debt.** 0 new. **Açık iş.** Mobil açılış maliyeti (PR #964'ün açık blocker'ı); göller
+(S-0039); gün ışığı/altın saat tonlaması; yol taramaları için decimate kararı (sahip).

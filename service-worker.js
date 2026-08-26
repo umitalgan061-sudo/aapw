@@ -291,7 +291,11 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run 394 ties river foam to the bed's own speed, so calm reaches read as water instead of a barcode
 // of transverse white bands. New offline-loadable module (riverFlowAppearance.js) and a look change
 // both. v53->v54.
-const SHELL_CACHE = 'westeros-shell-v54';
+// Run 395 accounts for the last eight models in `assets/` that no system named. No look change — the
+// scatter places exactly what it placed before — but `worldPropExclusions.js` is a cached shell module
+// that `worldPropCatalogue.js` imports for its own summary, so a cache-first shell would keep serving
+// the old, wrong "these eight are unaccounted for" picture. v54->v55.
+const SHELL_CACHE = 'westeros-shell-v55';
 const SHELL_FILES = [
     './',
     './index.html',

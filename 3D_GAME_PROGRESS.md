@@ -18296,3 +18296,31 @@ değiştirilmedi).
 
 `world/riverFlowAppearance.js` ayrıldı — `rivers.js` bu turda üçüncü kez 600 sınırına dayandı ve
 yüzey görünümü kendi başına bir konu. SW v53→v54.
+
+## Tur 395 — `assets/`'in son sekiz modeli hesaba katıldı (ADR-0343)
+
+Sahibin isteği: *"asset'deki bütün öğelerin coğrafi haritaya eklenmesini istiyorum."*
+
+`checkAssetCoverage` başlangıçta **FAIL**: 371 ayrı modelin **8'i** hiçbir sistemin hesabında değildi.
+Sekizini de LFS batch API'siyle hidrate edip **üçgenlerini saydım** — dosya adından tahmin etmedim.
+Sonuç: 10.404'ten 1.223.336'ya. İki "yol" modeli, dokulu düzlem sandığım şeyler değil, bir milyon
+üçgenlik **fotogrametri taramaları**.
+
+**§8.5 bir kusuru yayından çevirdi.** `grass.glb`'yi meadow scatter'ına *eklemiştim* — adı, 10k üçgeni
+ve 1,1 MB dokusu "yer örtüsü propu" diyordu. Commit'ten önce iki açıdan render alıp **baktım**: 2 m
+ayak izinde **7 cm yüksekliğinde**, yatay, soluk yeşil bir dikdörtgen. Çim değil, çimenliğin üstünde
+duran bir çıkartma — `fence_fence.fbx`'in tur 381'de yakalanan kusurunun aynısı. Ekleme geri alındı.
+
+**Dürüst sonuç: sekizin sıfırı serpiştirilebildi.** Haritaya bu tur yeni model gelmiyor. Gelen şey,
+sekizinin de artık ölçülmüş bir gerekçesinin olması — `checkAssetCoverage` **FAIL → PASS**, hesapsız
+model **8 → 0**. `arya_stark` için yeni ve dürüst bir gerekçe açıldı (`unriggedCharacterFigure`:
+skins: 0, yani ne riglenmiş bir varlık ne de dekor), var olan bir kutuya yanlışlıkla atılmadı.
+
+**Sahibin kararını bekleyen:** iki yol taraması sahibin kendi yüklemesi (PR #961) ve sahibi onları
+dünyada istiyor; kullanılabilmeleri için bu deponun ağır kaleler için zaten kullandığı yol gerekiyor —
+orijinalin yanına **decimate edilmiş türev** (`*_decimated.glb`). Yeni binary asset eklediği için
+sahibin kararı.
+
+Kapılar: `checkAssetCoverage`, `checkWorldPropScatter`, `checkVillageBuildings`, `checkAssetsManifest`,
+`terrainSeatSafetyCheck`, `roadNetworkSafetyCheck` PASS. Hidrate binary'ler `git checkout -- assets/`
+ile geri alındı. SW v54→v55.

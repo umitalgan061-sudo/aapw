@@ -48,6 +48,9 @@ export const PROP_EXCLUSIONS_BY_REASON = Object.freeze({
 		"fbx/Labrador-Retriever_03.fbx",
 		"fbx/low_poly_lion.fbx",
 		"fbx/Meshy_AI_Boho_Western_Muse_0730060053_texture.glb",
+		// Run 395 hydrated this one and read its glTF header rather than its filename: 189,862 triangles
+		// and `skins: 1`, i.e. a real armature. It belongs to the spawner's pool, not to the scatter.
+		"fbx/Meshy_AI_Character_output.glb",
 		"fbx/Meshy_AI_Create_exactly_ONE_hi_0808194328_generate.fbx",
 		"fbx/Meshy_AI_Gilded_Knight_of_the__0809083228_texture.fbx",
 		"fbx/Meshy_AI_Ivory_Ascendancy_0808200513_texture_fbx/Meshy_AI_Ivory_Ascendancy_0808200513_texture.fbx",
@@ -59,6 +62,20 @@ export const PROP_EXCLUSIONS_BY_REASON = Object.freeze({
 		"fbx/son.fbx",
 		"fbx/street_rat_4k.fbx",
 		"fbx/tiger.fbx",
+	]),
+	/**
+	 * A person, sculpted but not rigged — the one case neither of the two obvious reasons covers, so it
+	 * gets its own rather than being filed under a reason that would be untrue.
+	 *
+	 * Run 395 hydrated `arya_stark.glb` and read the header: 112,200 triangles across 48 meshes and
+	 * **`skins: 0`**. It is not a rigged living entity, so `gameplay/livingWorldSpawner.js` cannot walk
+	 * it — it would stand rooted to the spot with its arms out. And it is not scenery either: scattering
+	 * a named character across the countryside would put a hundred identical Aryas in the fields. Placing
+	 * it needs a purpose the world does not have yet (a quest actor, or a statue at a named location);
+	 * until it has one, this is a withholding with a reason rather than a model nobody looked at.
+	 */
+	unriggedCharacterFigure: Object.freeze([
+		"fbx/arya_stark.glb",
 	]),
 	/**
 	 * A lower-detail copy of a mesh already in the catalogue. Placing both would put the same slab on
@@ -249,9 +266,31 @@ export const PROP_EXCLUSIONS_BY_REASON = Object.freeze({
 	 * eight hundred times the entire eleven-river water system. They belong somewhere hand-placed and
 	 * decimated, as a landmark worth the cost, not dropped at a random point in a meadow.
 	 */
+	/**
+	 * Run 395 hydrated all eight previously-unaccounted models and counted their triangles rather than
+	 * guessing from filenames. These are the ones the chunk streamer cannot carry. For scale: the whole
+	 * world's vegetation is ~14k instances, and one chunk mesh is a few thousand triangles.
+	 *
+	 * The two road scans are the owner's own uploads (PR #961) and the owner has asked for them in the
+	 * world. They are photogrammetry captures, not the textured planes I first assumed — a million
+	 * triangles for one stretch of road. The route to using them is the one this repo already uses for
+	 * heavy castles: a decimated derivative committed beside the original (`*_decimated.glb`). That adds
+	 * new binary assets, so it is the owner's call, not something to slip into a scatter table.
+	 */
 	tooHeavyForChunkStreaming: Object.freeze([
 		"fbx/adega-castelo-de-montemor-o-novo-3d-model/scene.gltf",
 		"fbx/igreja-de-santa-maria-do-bispo-3d-model/scene.gltf",
+		// 1,000,079 triangles (owner upload, PR #961) — photogrammetry road scan.
+		"fbx/snowy_road.glb",
+		// 444,982 triangles, 4.2 MB of texture (owner upload, PR #961) — photogrammetry path scan.
+		"fbx/dusty_path_in_the_fields.glb",
+		// 1,223,336 triangles in a single node — the heaviest model in the repository.
+		"fbx/Meshy_AI_Create_an_ultra_detai_0819104851_texture.glb",
+		// 154,958 triangles but 26.2 MB of texture in one prop; the texture budget is the blocker here.
+		"fbx/Meshy_AI_March_of_the_Wooden_L_0819083039_texture.glb",
+		// 309,426 triangles for one farm animal, in a Corona render export whose bounding box comes in
+		// at 78 units long. A game-ready cow (`animals/cow_0OToIgkcVM7.glb`) is already placed on farmland.
+		"fbx/3dexport_spottedcow2021_1739346817/Spotted-cow-2021/export/Spotted-cow-2021-Corona.fbx",
 	]),
 	underwaterOnly: Object.freeze([
 		"animals/shark.glb",
@@ -264,9 +303,20 @@ export const PROP_EXCLUSIONS_BY_REASON = Object.freeze({
 	 * was 17,254 triangles for that. Removed from village buildings (`world/villageBuildings.js`, run
 	 * 381) and now from the scatter too; `world/villages.js` draws the field boundaries this was meant to
 	 * provide as instanced walls. Kept in the repository, placed nowhere.
+	 *
+	 * `3dexport_grass_glb_1744982692/grass.glb` is the same trap, and run 395 nearly walked into it. Its
+	 * name, its 10,404 triangles and its 1.1 MB of texture all say "ground-cover prop", and it was added
+	 * to `PROP_CATALOGUE` as a meadow scatter on that reading. Rendering it before committing — §8.5, two
+	 * angles, against a ground plane and a 1.8 m reference post — showed what it actually is: a
+	 * **12.08 × 0.45 × 6 m photogrammetry capture of a patch of lawn**, all of its extent horizontal. At
+	 * the 2 m footprint the scatter would give it, it stands 7 cm tall: not a tuft of grass but a pale
+	 * rectangular decal lying flat on the meadow, its baked lighting and its own green fighting the
+	 * terrain's. It would have put hundreds of those across the world's meadows. Reverted from the
+	 * catalogue and filed here instead.
 	 */
 	photogrammetryGroundPlaneNotAnObject: Object.freeze([
 		"fbx/fence_fence.fbx",
+		"fbx/3dexport_grass_glb_1744982692/grass.glb",
 	]),});
 
 /** Every excluded path, flattened — what `scripts/checkAssetCoverage.js` checks against. */
