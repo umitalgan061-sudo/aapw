@@ -107,30 +107,33 @@ function createWallFracturePlates(group, sections, portal, seed) {
 	const material = wall.material.clone();
 	material.vertexColors = false;
 	material.color.set(0xcbd6d6);
-	material.roughness = Math.max(0.54, material.roughness || 0.54);
-	material.transmission = Math.min(0.018, material.transmission || 0);
-	material.clearcoat = Math.min(0.07, material.clearcoat || 0);
+	material.roughness = Math.max(0.62, material.roughness || 0.62);
+	material.transmission = Math.min(0.014, material.transmission || 0);
+	material.clearcoat = Math.min(0.055, material.clearcoat || 0);
 	material.needsUpdate = true;
 	const transforms = [];
 	for (let index = 3; index < sections.length - 3; index += 5) {
 		const section = sections[index];
 		if (Math.hypot(section.x - portal.centerX, section.z - portal.centerZ) < 62) continue;
 		const side = hash2D(index, 5, seed + 7103) > 0.5 ? 1 : -1;
-		const width = 18 + hash2D(index, 7, seed + 7207) * 20;
-		const height = 13 + hash2D(index, 11, seed + 7307) * 20;
-		const depth = 1.2 + hash2D(index, 13, seed + 7403) * 1.8;
-		const elevation = 0.23 + hash2D(index, 17, seed + 7507) * 0.48;
-		const faceOffset = section.thicknessMeters * 0.50 + depth * 0.05;
+		// Glacial shear plates should read as long angular fracture slabs, not repeated oval rocks.
+		// Keep the same deterministic section ownership/count while making the projected silhouette
+		// narrower, taller and shallower so the primary cliff remains the visual authority.
+		const width = 7 + hash2D(index, 7, seed + 7207) * 11;
+		const height = 22 + hash2D(index, 11, seed + 7307) * 30;
+		const depth = 0.55 + hash2D(index, 13, seed + 7403) * 0.95;
+		const elevation = 0.18 + hash2D(index, 17, seed + 7507) * 0.57;
+		const faceOffset = section.thicknessMeters * 0.50 + depth * 0.04;
 		transforms.push({
 			position: new THREE.Vector3(section.x + section.nx * faceOffset * side, section.centerGround + section.heightMeters * elevation, section.z + section.nz * faceOffset * side),
 			scale: new THREE.Vector3(width * 0.50, height * 0.50, depth * 0.50),
-			rx: (hash2D(index, 19, seed + 7603) - 0.5) * 0.24,
-			ry: -Math.atan2(section.tz, section.tx) + (hash2D(index, 23, seed + 7703) - 0.5) * 0.22,
-			rz: (hash2D(index, 29, seed + 7801) - 0.5) * 0.20,
+			rx: (hash2D(index, 19, seed + 7603) - 0.5) * 0.30,
+			ry: -Math.atan2(section.tz, section.tx) + (hash2D(index, 23, seed + 7703) - 0.5) * 0.26,
+			rz: (hash2D(index, 29, seed + 7801) - 0.5) * 0.46,
 		});
 	}
 	if (!transforms.length) return 0;
-	const plates = createInstanceField('ice-wall-macro-fracture-plates', 'wall-macro-fracture-plates', new THREE.DodecahedronGeometry(1, 0), material, transforms, seed + 7901, [0xb7c9cc, 0xdce4e3]);
+	const plates = createInstanceField('ice-wall-macro-fracture-plates', 'wall-macro-fracture-plates', new THREE.OctahedronGeometry(1, 0), material, transforms, seed + 7901, [0xaac2c7, 0xd5dfdf]);
 	group.add(plates);
 	return plates.count;
 }
@@ -382,7 +385,7 @@ function createCaveBlueCoreBreakup(group, portal, rings, seed) {
 		const ring = rings[ringIndex];
 		for (const side of [-1, 1]) {
 			if (hash2D(ringIndex, side + 181, seed + 10601) < 0.26) continue;
-			const lateral = side * ring.halfWidth * (0.73 + hash2D(ringIndex, side + 191, seed + 10709) * 0.16);
+			const lateral = side * ring.halfWidth * (0.73 + hash2D(ringIndex, side + 191, seed + 10709) * 0.16;
 			const lift = ring.height * (0.18 + hash2D(ringIndex, side + 193, seed + 10831) * 0.42);
 			const width = 0.55 + hash2D(ringIndex, side + 197, seed + 10939) * 1.15;
 			const height = 2.2 + hash2D(ringIndex, side + 199, seed + 11003) * 4.6;
