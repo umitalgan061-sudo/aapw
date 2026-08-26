@@ -1,0 +1,76 @@
+name: World Event Repeat Diversity
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/worldEvents.js'
+      - 'scripts/checkWorldEventRepeatDiversity.mjs'
+      - 'scripts/checkWorldEventRepeatDiversityBrowser.mjs'
+      - 'scripts/checkWorldEventDeterminism.js'
+      - 'scripts/fixtures/world-events-seed-148.json'
+      - '.github/workflows/world-event-repeat-diversity.yml'
+      - '.github/workflows/world-event-resume-budget.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repeat-diversity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Exact-main scope and budget
+        shell: bash
+        run: |
+          git fetch origin main --no-tags
+          mapfile -t files < <(git diff --name-only origin/main...HEAD)
+          allowed='^(src/3d/gameplay/worldEvents\.js|scripts/checkWorldEventRepeatDiversity\.mjs|scripts/checkWorldEventRepeatDiversityBrowser\.mjs|\.github/workflows/world-event-repeat-diversity\.yml|\.github/workflows/world-event-resume-budget\.yml)$'
+          for file in "${files[@]}"; do
+            [[ "$file" =~ $allowed ]] || { echo "Unexpected file: $file"; exit 1; }
+          done
+          changed=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 1000
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/worldEvents.js
+          node --check scripts/checkWorldEventRepeatDiversity.mjs
+          node --check scripts/checkWorldEventRepeatDiversityBrowser.mjs
+      - name: Deterministic repeat diversity
+        run: node scripts/checkWorldEventRepeatDiversity.mjs
+      - name: Canonical world-event determinism
+        run: node scripts/checkWorldEventDeterminism.js
+      - name: Shared material placement contract
+        run: node scripts/checkSharedMaterialPlacementContract.js
+      - name: Install Chromium proof dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Shipped browser repeat diversity proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4173 --bind 127.0.0.1 >"$RUNNER_TEMP/http.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:4173/game3d.html >/dev/null && break
+            sleep 1
+          done
+          BASE_URL=http://127.0.0.1:4173 node scripts/checkWorldEventRepeatDiversityBrowser.mjs
+      - name: Final exact-main freshness
+        shell: bash
+        run: |
+          git fetch origin main --no-tags
+          test "$(git merge-base origin/main HEAD)" = "$(git rev-parse origin/main)"
