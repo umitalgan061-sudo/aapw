@@ -305,7 +305,10 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run 399 drops five more props: four whose texture sets were never committed — they 404'd on every
 // map and rendered in flat untextured colour — and one FBX too old for the loader to open at all,
 // which put a placeholder box on the meadow. A look change and a cached-module change both. v57->v58.
-const SHELL_CACHE = 'westeros-shell-v58';
+// Run 399b withholds a fifth: `Ancient_Assets_Pack.fbx`, 419 missing textures. Found by the gate run
+// 399 added, on its first CI run, because that gate walks the whole catalogue where my own measurement
+// had only sampled the models the boot requests. v58->v59.
+const SHELL_CACHE = 'westeros-shell-v59';
 const SHELL_FILES = [
     './',
     './index.html',

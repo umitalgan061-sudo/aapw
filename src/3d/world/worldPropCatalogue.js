@@ -62,7 +62,6 @@ export const PROP_CATALOGUE = Object.freeze([
 	Object.freeze({ file: 'animals/bizon_RqkLNYPnfx.glb', terrain: 'meadow', footprintMeters: 4, weight: 2 }),
 	Object.freeze({ file: 'animals/butterfly_e9NAQQrCbLu.glb', terrain: 'meadow', footprintMeters: 1, weight: 4 }),
 	Object.freeze({ file: 'animals/wasp_by_poly_by_google_4udwqxbm0_b_na.glb', terrain: 'meadow', footprintMeters: 1, weight: 3 }),
-	Object.freeze({ file: 'fbx/Ancient_Assets_Pack.fbx', terrain: 'meadow', footprintMeters: 9, weight: 2 }),
 	Object.freeze({ file: 'fbx/AncientHouseV5_house.fbx', terrain: 'meadow', footprintMeters: 10, weight: 3 }),
 	Object.freeze({ file: 'fbx/flower_heliophila_4k.fbx', terrain: 'meadow', footprintMeters: 2, weight: 5 }),
 	Object.freeze({ file: 'fbx/Free_Building_House_house.fbx', terrain: 'meadow', footprintMeters: 10, weight: 3 }),

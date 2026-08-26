@@ -408,6 +408,13 @@ export const PROP_EXCLUSIONS_BY_REASON = Object.freeze({
 		"fbx/MedHouse.fbx",
 		// 2 absent: Rock_1_Base_Color.jpg and Rock_1_Normal.jpg.
 		"fbx/Free_rock_Rock_1.fbx",
+		// 419 absent — the worst in the repository, and the one that proved the gate earns its keep.
+		// Run 399 measured only the 37 FBX models the *boot* actually requests, and this pack is not in
+		// the initial streaming radius, so it never appeared in that sample and I called the list
+		// complete when it was not. `checkScatterPropTextures` walks the whole catalogue rather than one
+		// run's sample, and named it on its first CI run. Distinct from `Ancient_Assets.fbx`, which run
+		// 398 withheld for its 456 MB.
+		"fbx/Ancient_Assets_Pack.fbx",
 	]),
 	/**
 	 * An FBX too old for the loader to open at all (run 399).

@@ -18424,3 +18424,12 @@ hidrasyonumdu (kontrolcü kimliği LFS oid'inden okuyor). `git checkout -- asset
 
 Yeni kapı `checkScatterPropTextures.js` — negatif testi yapıldı, taze klonda PASS değil SKIP diyor.
 Kapılar: coverage, scatter, village, manifest, download-size, wait-options PASS. SW v57→v58.
+
+## Tur 399b — Kapı kendi turunun eksiğini yakaladı (ADR-0347b)
+
+`checkScatterPropTextures` CI'daki ilk koşuşunda beşinci bir suçlu buldu:
+**`fbx/Ancient_Assets_Pack.fbx`, 419 eksik doku.** Tur 399'da ölçümü yalnızca açılışın istediği 37 FBX
+üzerinde yapmıştım; bu paket ilk streaming yarıçapında olmadığı için o örneklemeye hiç girmedi. Kapı
+tüm katalogu yürüyor — eklendiği gün onu ekleyen turun eksiğini yakaladı.
+
+Çekildi. Kapılar: coverage, download-size, scatter-prop-textures, world-props PASS. SW v58→v59.

@@ -19813,3 +19813,18 @@ bir geçiş rapor etmiyor. `final-head-gate`'e bağlandı.
 
 **Technical debt.** 0 new. SW v57→v58. **Açık iş.** Ejderhanın 6 eksik dokusu (main düzeyinde);
 `checkMountainNaturalizationDeterminism` (dalda önceden kırmızı).
+
+## ADR-0347b — Yazdığım kapı, kendi ölçümümün eksik olduğunu ilk koşuşunda söyledi
+
+Tur 399 dört modeli çekti ve listeyi tam sandım. `checkScatterPropTextures` CI'daki **ilk** koşuşunda
+beşincisini buldu: **`fbx/Ancient_Assets_Pack.fbx`, 419 eksik doku** — depodaki en kötüsü.
+
+**Neden kaçırdım.** Ölçümümü açılışın gerçekten istediği **37 FBX** üzerinde yaptım. Bu paket ilk
+streaming yarıçapında değil, dolayısıyla o örnekleme hiç girmedi. Kapı ise **tüm katalogu** yürüyor.
+Yani fark bir yetenek farkı değil, kapsam farkı: bir turun örneklemi ile katalogun tamamı aynı şey
+değil, ve kapıyı yazarken bunu doğru yapmışım — kendi elle ölçümümde yapmamışım.
+
+Bu, kapının varlık sebebinin kanıtı: eklendiği gün, onu ekleyen turun eksiğini yakaladı. `Ancient_Assets.fbx`
+(tur 398, 456 MB) ile karıştırılmasın; bu ayrı bir dosya.
+
+**Technical debt.** 0 new. SW v58→v59.
