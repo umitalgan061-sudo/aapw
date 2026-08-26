@@ -2,8 +2,7 @@
 /**
  * Live-browser regression guard for the medieval road-surface layer.
  * It keeps the proven 13-edge/14-seat topology and one-mesh geometry contract intact while checking
- * deterministic wheel-rut/mud/stone plus the geographic dry-mineral variation added from the
- * owner-supplied photogrammetry reference.
+ * deterministic wheel-rut/mud/stone plus the geographic multi-scale weathering/roughness treatment.
  */
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
@@ -68,30 +67,36 @@ async function main() {
 			}
 
 			const style = mesh.material.userData.medievalRoadSurfaceRun177;
-			fail(style?.key === 'run177-medieval-road-surface-v2-geographic', `unexpected style key ${style?.key}`);
+			fail(style?.key === 'run177-medieval-road-surface-v3-world-weathering', `unexpected style key ${style?.key}`);
 			fail(style.wheelRutOffsetNormalized === 0.47, 'wheel-rut offset drifted');
-			fail(style.proceduralStoneThreshold === 0.955, 'stone threshold drifted');
+			fail(style.proceduralStoneThreshold === 0.84, 'stone threshold drifted');
 			fail(style.dryMineralVariation === true, 'dry-mineral geographic variation disappeared');
+			fail(style.worldSpaceMultiScaleWeathering === true, 'world-space multi-scale weathering disappeared');
+			fail(style.roughnessVariation === true, 'road roughness variation disappeared');
 			fail(style.extraDrawCalls === 0, 'road surface must not add draw-call meshes');
-			fail(mesh.material.customProgramCacheKey() === 'run177-medieval-road-surface-v2-geographic', 'program cache key drifted');
+			fail(mesh.material.customProgramCacheKey() === 'run177-medieval-road-surface-v3-world-weathering', 'program cache key drifted');
 
 			const shader = {
 				vertexShader: '#include <common>\nvoid main(){\n#include <begin_vertex>\n}',
-				fragmentShader: '#include <common>\nvoid main(){ vec4 diffuseColor = vec4(1.0);\n#include <color_fragment>\n}',
+				fragmentShader: '#include <common>\nvoid main(){ vec4 diffuseColor = vec4(1.0); float roughnessFactor = 1.0;\n#include <color_fragment>\n#include <roughnessmap_fragment>\n}',
 			};
 			mesh.material.onBeforeCompile(shader, null);
-			for (const token of ['attribute float roadSide', 'vRun177RoadSide', 'vRun177RoadPosition']) {
+			for (const token of ['attribute float roadSide', 'vRun177RoadSide', 'vRun177RoadPosition', 'modelMatrix']) {
 				fail(shader.vertexShader.includes(token), `vertex shader missing ${token}`);
 			}
 			for (const token of [
 				'run177RoadHash',
+				'run177RoadNoise',
+				'run177RoadFbm',
+				'run177Warp',
+				'run177Macro',
+				'run177Meso',
 				'run177WheelRut',
 				'run177MudPatch',
 				'run177Stone',
 				'run177ShoulderWear',
-				'run177DryNoise',
-				'run177MineralNoise',
 				'run177MineralDust',
+				'run177RoughField',
 			]) {
 				fail(shader.fragmentShader.includes(token), `fragment shader missing ${token}`);
 			}
@@ -119,7 +124,7 @@ async function main() {
 		console.log(
 			`[checkMedievalRoadSurface] PASS: ${result.edgeCount} edges connect ${result.reached}/${result.seatCount} seats, ` +
 			`${(result.totalLengthMeters / 1000).toFixed(2)}km one-mesh road, ${result.vertexCount} vertices; ` +
-			'wheel-rut/mud/stone + dry mineral surface, +0 draw-call meshes.',
+			'wheel-rut/mud/stone + world-space weathering/roughness, +0 draw-call meshes.',
 		);
 	} finally {
 		await browser.close();
