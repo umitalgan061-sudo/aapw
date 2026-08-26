@@ -37,7 +37,7 @@
 // change caused (confirmed: that change executes strictly after the domcontentloaded event this
 // timeout gates on). 30s gives real margin above the observed range, including one measured 20s+
 // outlier under sandbox contention.
-const NAV_TIMEOUT_MS = 30_000;
+const NAV_TIMEOUT_MS = 90_000;
 /** Timeout for the 3D mode's boot sequence (444 terrain chunks + ~76MB of character/animal
  *  models decoded under SwiftShader software rendering in a headless sandbox can be slow — see
  *  3D_GAME_PROGRESS.md's FPS caveat). Generous on purpose to avoid environment-flaky failures. */

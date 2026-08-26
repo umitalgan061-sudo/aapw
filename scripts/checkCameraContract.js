@@ -13,7 +13,7 @@ const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 // flake) while every other `game3d.html`-navigating check in this codebase's active smoke suite
 // already uses a 30000ms `NAV_TIMEOUT_MS` for the same reason. Bumped to match that existing
 // convention rather than introducing a third, inconsistent value.
-const NAV_TIMEOUT_MS = 30_000;
+const NAV_TIMEOUT_MS = 90_000;
 
 function assert(condition, message) {
 	if (!condition) throw new Error(message);

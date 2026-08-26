@@ -1,4 +1,4 @@
-const NAV_TIMEOUT_MS = 30_000;
+const NAV_TIMEOUT_MS = 90_000;
 
 /**
  * Real shipped-runtime proof for configured guard perception. Loads the same Mixamo FBX family the

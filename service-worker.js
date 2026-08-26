@@ -276,7 +276,10 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run 389 stops the flat full-world water plane drawing underneath the displaced near mesh. The two
 // were interpenetrating, and every intersection contour cut a hard silhouette — the sea's "repeating
 // pale blobs". A cache-first shell would keep serving the blobs. v48->v49.
-const SHELL_CACHE = 'westeros-shell-v49';
+// Run 390 unburies the rivers: each bank is grounded on its own terrain and the ribbon is resampled
+// to ~10m quads, so a watercourse that rendered as disconnected shards is now continuous. New
+// offline-loadable module (riverRibbonPath.js) and a look change both. v49->v50.
+const SHELL_CACHE = 'westeros-shell-v50';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -469,6 +472,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/world/chunkManager.js',
     './src/3d/world/water.js',
     './src/3d/world/waterDepthField.js',
+    './src/3d/world/riverRibbonPath.js',
     './src/3d/world/rivers.js',
     './src/3d/world/settlements.js',
     './src/3d/world/materials.js',

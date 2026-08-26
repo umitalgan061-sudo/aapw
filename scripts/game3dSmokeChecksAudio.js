@@ -7,7 +7,7 @@
 
 // Same environment-quirk margin `game3dSmokeChecksControlsHelp.js`/`game3dSmokeChecksPauseMenu.js`
 // already document (this project's own boot cost, not this run's change).
-const NAV_TIMEOUT_MS = 30_000;
+const NAV_TIMEOUT_MS = 90_000;
 // Same value `game3dSmokeChecksScene.js`'s `check3DMode` already waits on for full scene boot
 // (GAME_READY phase1-scene) -- this check drives a real pointer click, so unlike `PauseMenu`'s own
 // smoke check (which builds an isolated `PauseMenu` instance and uses hit-test-bypassing

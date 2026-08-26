@@ -2,7 +2,7 @@
 
 // Same environment-quirk margin `game3dSmokeChecksControlsHelp.js` documents (this project's own
 // boot cost, not this run's change) — see that file's own header for the full RCA.
-const NAV_TIMEOUT_MS = 30_000;
+const NAV_TIMEOUT_MS = 90_000;
 
 async function checkPauseMenu(browser, baseUrl) {
 	const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });

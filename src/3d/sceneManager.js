@@ -226,7 +226,11 @@ export function createScene(canvas) {
 	// through it (worst 37 m). Nobody had looked closely at it in 376 runs. Leaving it would make the
 	// one original river the only broken one in a world of eleven. Its *path* is untouched, so the
 	// waterfall thresholds ADR-0011 calibrated against this exact course still see what they measured.
-	const river = createRiverMesh(buildRiverSurface(riverPoints, groundCollider.getGroundHeight));
+	const river = createRiverMesh(
+		buildRiverSurface(riverPoints, groundCollider.getGroundHeight),
+		undefined,
+		groundCollider.getGroundHeight,
+	);
 	if (river) scene.add(river);
 	console.info(
 		`[sceneManager] River path traced: ${riverPoints.length} points, ended via "${riverEndReason}".`,

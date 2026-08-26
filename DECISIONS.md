@@ -19280,3 +19280,73 @@ Service worker v48→v49.
 
 **Technical debt.** 0 new. **Açık iş.** Şelaleler; göller (S-0039); kayalık dağ yüzeyleri; `assets/`
 içindeki yol glb'leri; karlı ağaç modelleri; 20+ kapıdaki 20 sn'lik gezinme zaman aşımı.
+
+## ADR-0337 — Nehir gömülüydü: genişliği olan şeye tek kot örneği, üçüncü kez
+
+**Nereden çıktı.** Tur 389'un gerçek dünya render'ında nehir "kesik kesik parlak mavi bir şerit" diye
+not edilmişti. Bu turda yakından bakınca durum daha kötü çıktı: nehir **hiç şerit değildi** — kara bir
+yamaç üzerinde birbirinden kopuk mavi kıymıklar.
+
+### İlk teşhisim yanlıştı
+
+Köpük bantlarının (6,3 m periyot) uzakta piksel altına düşüp noktalı çizgiye dönüştüğünü sandım ve
+mesafeye bağlı bir köpük sönümü yazdım. **Sonra bunun yanlış olduğunu kanıtladım** ve sönümü geri
+aldım: gerekçelendirdiğim kusurun sebebi köpük değildi, ve sebebini çürüttüğüm bir düzeltmeyi
+göndermek doğru olmaz. (Uzakta köpük bantlanması *gerçekten* var, ama artık nehir sürekli olduğu için
+ayrı ve kendi kanıtı olan bir iş.)
+
+### Gerçek sebep
+
+`createRiverMesh` şeridin **iki kenarını da** `point.y` ile, yani kanalın **ortasında** örneklenen
+kotla kuruyordu. Bu yalnız zemin akışa dik olarak düzken doğru. Enine eğimde şerit yatay kalırken
+yamaç yatıyor, dolayısıyla yukarı kenar yarı-genişlik × enine eğim kadar gömülüyor: 14 m'lik bir
+kanalda 30°'de **~4 m**, 0,3 m'lik offset'e karşı. Nehir uzunluğunun çoğunda gömülüydü ve yalnız
+eğimin düzleştiği yerlerde yüzeye çıkıyordu — kıymıkların sebebi buydu.
+
+**Bu, aynı hatanın üçüncü görünümü:** `villageBuildings.js` (tur 382, binalar), `roads.js` (tur 387,
+yol şeridi) ve şimdi nehir. Her seferinde aynı kök: **genişliği olan bir şeye tek bir kot örneği.**
+
+**İkinci kusur:** kenarları oturtmak tek başına yetmedi. Çizilen rota ~60 m adımlıyor ve 60 m'lik düz
+bir dörtgen, iki ucu arasında zeminin yaptığı her şeyin içinden geçiyor. Rota artık ~10 m'lik
+adımlara yeniden örnekleniyor (`world/riverRibbonPath.js`). Rotanın kendisi değişmiyor — noktalar
+mevcut polyline üzerinde ara değerleniyor — dolayısıyla şelale tespiti (ADR-0011, tam bu rota
+üzerinde kalibre) ölçtüğü rotayı görmeye devam ediyor.
+
+### Ölçüm ve bir geri adım
+
+Eski kapı `%0,774` piksel hareketi veriyordu; şimdi **%5,72** — yani 7,4 kat daha fazla nehir gerçekten
+görünüyor. Akış hızı çeşitliliği de düzeldi: en dik kesim medyanın **1,69 katı** (önce 1,24).
+
+**İsimli nehirlerde geri adım attım.** Aynı düzeltmeyi onlara da uygulayınca `checkNamedRivers`
+gömülmeyi **%0,46 → %2,6**'ya çıkardı. Sebebi anlaşılınca mantıklı: isimli nehirler **oyulmuş
+vadilerde** akıyor (`checkRiverValleyCarving` PASS, en derin kesit 50,7 m) ve oyulmuş bir kanalda
+**doğru olan, rota kotunda yatay bir enine kesittir**; her kenarı kendi zeminine oturtmak, kesit dış
+bükeyken şerit merkezini zeminin altına sarkıtıyor. Bu yüzden isimli nehirler **kasten** sampler'sız
+bırakıldı ve tam olarak bulduğum haline döndürüldü (%0,46, aynı iki eski çıkış hatası). Düzeltme
+oyulmamış eski rota içindir.
+
+### Akış hızı: kapı kusuru ölçüyordu (yine)
+
+`checkRun325RiverFlow` "en dik kesim medyandan anlamlı hızlı değil" diye düşüyordu — **benim
+değişikliğimden önce de**. Görülmemişti çünkü kapı 20 sn'lik gezinme zaman aşımına takılıp hiç
+çalışamıyordu. Sebep: eğim `prev→next` boyunca, yani ~120 m'lik tüm açıklığa **ortalanarak**
+ölçülüyordu; kısa ve dik bir düşüş tüm açıklığa bölününce komşularının hemen üstünde kalıyordu. Artık
+iki komşu segmentin **dikinden** alınıyor; her segment hâlâ ~60 m gerçek iniş olduğu için ortalamanın
+konduğu gürültü direnci duruyor.
+
+Ayrıca kapı `createRiverMesh(points)` diye çağırıyordu — **sampler'sız**, yani hiçbir yere gönderilmeyen
+bir nehri render ediyordu. Artık gerçek çağıranların geçtiğini geçiyor.
+
+**Kapılar.** `checkRun325RiverFlow` PASS, `checkRiverValleyCarving` PASS, `checkServiceWorkerCache` OK
+(yeni modül kayıtlı — kapı eksikliği yakaladı), koltuklar 14/14, yollar PASS. `checkNamedRivers` iki
+**eski** çıkış hatasıyla kırmızı kalmaya devam ediyor (green-fork/white-knife kanonik suya dökülmüyor);
+bu turda ne yaratıldı ne düzeltildi, gömülme metriği tam bulunduğu değere geri getirildi. Service
+worker v49→v50.
+
+**Ortam.** 20 kapıdaki 30 sn'lik `NAV_TIMEOUT_MS` 90 sn'ye çıkarıldı; `game3d.html` bu konteynerde
+~31 sn'de yükleniyor, yani bu kapıların hepsi çalıştırılamaz durumdaydı — nitekim yukarıdaki akış hızı
+kusuru tam da bu yüzden görülmemişti. **Çalışmayan kapı hiçbir şeyi korumaz.**
+
+**Technical debt.** 0 new. **Açık iş.** İsimli nehirlerin çıkışları (green-fork/white-knife); uzakta
+köpük bantlanması; kuzey denizinin tropik turkuazı; yamaçta teraslanan yollar; şelaleler; göller
+(S-0039); kayalık dağ yüzeyleri.

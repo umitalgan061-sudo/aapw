@@ -18170,3 +18170,37 @@ kuzeyin karı da doğru. Üç ayrı kusur görüldü:
 yakalama betiğimin kusuru: gündüz/gece döngüsünü `game3d.js`'in render döngüsü sürüyor
 (`updateAuroraSky`/`updateSkyBodies`/`updateStarfield`), `createScene` tek başına sürmüyor. Rapor
 etmeden önce koda bakıldı.
+
+## Tur 390 — Nehir gömülüydü (ADR-0337)
+
+Tur 389'da "nehir kesik kesik" diye not etmiştim. Yakından bakınca daha kötüydü: nehir **hiç şerit
+değildi**, kara bir yamaçta birbirinden kopuk mavi kıymıklardı.
+
+**İlk teşhisim yanlıştı ve geri aldım.** Köpük bantlarının uzakta noktalı çizgiye dönüştüğünü sanıp
+mesafe sönümü yazdım; sonra sebebin köpük olmadığını kanıtladım ve **sönümü geri çektim.** Gerekçesini
+kendi çürüttüğüm bir düzeltmeyi göndermek doğru olmaz.
+
+**Gerçek sebep:** `createRiverMesh` şeridin iki kenarını da kanalın **ortasında** örneklenen kotla
+kuruyordu. Enine eğimde yukarı kenar yarı-genişlik × enine eğim kadar gömülüyor — 14 m'lik kanalda
+30°'de ~4 m, 0,3 m offset'e karşı. Nehir uzunluğunun çoğunda gömülüydü. **Aynı hatanın üçüncü
+görünümü:** binalar (382), yol şeridi (387), şimdi nehir — hep **genişliği olan şeye tek kot örneği.**
+
+Kenarları oturtmak tek başına yetmedi: rota ~60 m adımlıyor ve 60 m'lik düz dörtgen iki ucu arasındaki
+zeminin içinden geçiyor. Rota artık ~10 m'ye yeniden örnekleniyor (`world/riverRibbonPath.js`); rotanın
+kendisi değişmiyor, dolayısıyla şelale tespiti (ADR-0011) ölçtüğü rotayı görmeye devam ediyor.
+
+**Ölçülen:** piksel hareketi **%0,774 → %5,72** (7,4 kat daha fazla nehir görünüyor). En dik kesim
+medyanın **1,69 katı** (önce 1,24). İki açıdan bakıldı: uzak görünümde artık manzarayı boydan boya
+kesen **sürekli, kıvrımlı bir su yolu** var.
+
+**Geri adım:** aynı düzeltme isimli nehirlerde gömülmeyi %0,46 → %2,6 yaptı. Onlar **oyulmuş
+vadilerde** akıyor ve oyulmuş kanalda doğru olan rota kotunda yatay kesittir; kenar kenar oturtmak
+dışbükey kesitte merkezi sarkıtıyor. Kasten sampler'sız bırakıldılar, tam bulduğum hale döndüler.
+
+**Akış hızı kusuru: kapı çalışamadığı için görülmemiş.** Eğim ~120 m'ye ortalanıyordu, kısa dik
+düşüşler siliniyordu; artık iki komşu segmentin dikinden alınıyor. Kapı ayrıca `createRiverMesh`'i
+sampler'sız çağırıyordu — hiçbir yere gönderilmeyen bir nehri test ediyordu.
+
+**Ortam.** 20 kapıdaki 30 sn'lik `NAV_TIMEOUT_MS` 90 sn'ye çıkarıldı (`game3d.html` burada ~31 sn'de
+yükleniyor). Yukarıdaki hız kusuru tam da bu yüzden yıllarca görülmemişti: **çalışmayan kapı hiçbir
+şeyi korumaz.** SW v49→v50.

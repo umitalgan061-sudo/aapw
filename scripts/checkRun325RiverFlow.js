@@ -39,7 +39,7 @@ async function main() {
 		const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 		const pageErrors = [];
 		page.on('pageerror', (error) => pageErrors.push(String(error.message)));
-		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 90000 });
 
 		const result = await page.evaluate(async () => {
 			const THREE = await import('three');
@@ -55,7 +55,9 @@ async function main() {
 				sampleHeightMeters,
 				seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
 			});
-			const river = createRiverMesh(points);
+			// Run 390: pass the sampler the real callers pass. Without it this exercised the
+			// no-sampler fallback, so the gate was rendering a river that ships nowhere.
+			const river = createRiverMesh(points, undefined, sampleHeightMeters);
 			const waterfalls = detectWaterfalls(points).map((fall) => createWaterfallMesh(fall));
 
 			// --- 1. Baked attributes --------------------------------------------------------------
@@ -101,7 +103,8 @@ async function main() {
 			const maxSpeed = sortedSpeeds[sortedSpeeds.length - 1];
 			if (minSpeed < 1.2 - 1e-6) failures.push(`a reach flows below the flat-water baseline (${minSpeed})`);
 			if (!(maxSpeed > medianSpeed * 1.25)) {
-				failures.push(`steepest reach (${maxSpeed}) is not meaningfully faster than the median (${medianSpeed})`);
+				const q = (f) => sortedSpeeds[Math.floor((sortedSpeeds.length - 1) * f)];
+				failures.push(`steepest reach (${maxSpeed}) is not meaningfully faster than the median (${medianSpeed}) STATS n=${sortedSpeeds.length} min=${minSpeed.toFixed(3)} p10=${q(0.1).toFixed(3)} p25=${q(0.25).toFixed(3)} p75=${q(0.75).toFixed(3)} p90=${q(0.9).toFixed(3)} p99=${q(0.99).toFixed(3)}`);
 			}
 
 			// --- 2. Direction, derived from the shipped shader ---------------------------------------

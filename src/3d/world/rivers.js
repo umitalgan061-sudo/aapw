@@ -1,32 +1,20 @@
 /**
- * Rivers: a deterministic downhill-flow path traced over `terrain.js`'s existing height field
- * (via `createHeightSampler`), rendered as a flat ribbon mesh that follows the terrain surface.
- * `terrain.js` itself is not modified — same technique `world/water.js` uses for sea-level lakes
- * (ADR-0005): the path is *found* by walking the existing FBM noise downhill, not carved into it.
- * See DECISIONS.md ADR-0009 for why a path-tracing approach was chosen over terrain carving.
+ * Rivers: a deterministic downhill-flow path traced over `terrain.js`'s existing height field, drawn
+ * as a ribbon that follows the terrain surface. `terrain.js` is not modified — the path is *found*
+ * by walking the existing FBM noise downhill, not carved into it (ADR-0005, ADR-0009).
  *
- * Also detects and renders **waterfalls**: river segments whose drop/distance ratio is steep
- * enough to flag as a fall rather than a normal gentle descent (`detectWaterfalls`/
- * `createWaterfallMesh`) — see DECISIONS.md ADR-0011 for the exact thresholds (calibrated against
- * this world's actual generated river, not guessed) and why the visual is a vertical "curtain"
- * standing at the drop's midpoint rather than a slanted patch following the real (gentle, non-
- * cliff) terrain between the two points.
+ * Also detects and renders **waterfalls**: segments whose drop/distance ratio flags a fall rather
+ * than a gentle descent (`detectWaterfalls`/`createWaterfallMesh`). ADR-0011 has the thresholds
+ * (calibrated against this world's actual river) and why the visual is a vertical "curtain" at the
+ * drop's midpoint rather than a slanted patch following the real, non-cliff terrain between.
  *
- * Scope of the first pass (see 3D_GAME_PROGRESS.md Known Issues): one static river near the
- * world origin, confined to the FAZ 1 preview area so it never renders over unloaded terrain.
- * That pass deliberately deferred "a real flow-animated shader for either the river or its
- * waterfalls" as follow-up work — **that follow-up is what `attachFlowAnimation` below now is**
- * (ADR-0271). Both the river ribbon and the waterfall curtains keep their `MeshStandardMaterial`
- * (so they still get `scene.fog` and the day/night lights for free, which was the original reason
- * for choosing it over a custom `ShaderMaterial`); the flow is injected into that stock material
- * through `onBeforeCompile` rather than replacing it.
- *
- * The animation is driven by three baked vertex attributes rather than by screen- or UV-space
- * scrolling, so it follows the river's real geometry: `aFlowDistance` (arc length in meters from
- * the source, which is what makes the foam travel *downstream* rather than in some fixed world
- * direction), `aFlowSpeed` (per-vertex, derived from the local bed gradient — the river visibly
- * rushes through its steep sections and idles through its flat ones) and `aFlowSide` (-1..1 across
- * the ribbon, used to catch more foam against the banks than midstream).
+ * Both the ribbon and the curtains keep their `MeshStandardMaterial`, so they get `scene.fog` and
+ * the day/night lights for free; the flow (ADR-0271) is injected via `onBeforeCompile` rather than
+ * replacing the material. It is driven by three baked vertex attributes rather than screen- or
+ * UV-space scrolling, so it follows the real geometry: `aFlowDistance` (arc length from the source,
+ * which makes foam travel *downstream* rather than in a fixed world direction), `aFlowSpeed`
+ * (per-vertex, from the local bed gradient) and `aFlowSide` (-1..1 across the ribbon, catching more
+ * foam against the banks than midstream).
  * @module world/rivers
  */
 
@@ -35,6 +23,7 @@ import { mulberry32 } from './terrain.js';
 import { valyriaInfluence01 } from './worldReferenceValyria.js';
 import { WORLD_SCALE } from '../config.js';
 import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
+import { densifyRiverPath } from './riverRibbonPath.js';
 
 /** Seed tag for the named rivers, XORed with the world seed ("RVNM"). */
 export const NAMED_RIVER_SEED_TAG = 0x52564e4d;
@@ -287,11 +276,15 @@ export function generateRiverPath({
  * @param {number} [widthMeters=14]
  * @returns {THREE.Mesh | null} `null` if `points` has fewer than 2 entries (nothing to ribbon).
  */
-export function createRiverMesh(points, widthMeters = 14) {
+export function createRiverMesh(points, widthMeters = 14, sampleHeightMeters = null) {
+	// eslint-disable-next-line no-param-reassign -- resampled below when a sampler is available.
 	if (points.length < 2) return null;
 
 	const halfWidth = widthMeters / 2;
 	const verticalOffset = 0.3; // meters above the sampled terrain height — see module/function doc.
+
+	// See `world/riverRibbonPath.js` for why the course must be resampled before it can be ribboned.
+	if (sampleHeightMeters) points = densifyRiverPath(points, sampleHeightMeters);
 	const positions = new Float32Array(points.length * 2 * 3);
 	const colors = new Float32Array(points.length * 2 * 3);
 	// Flow-animation attributes — see the module doc comment and `attachFlowAnimation`.
@@ -313,10 +306,13 @@ export function createRiverMesh(points, widthMeters = 14) {
 		const perpZ = tangentX / tangentLength;
 
 		if (i > 0) arcLengthMeters += Math.hypot(point.x - points[i - 1].x, point.z - points[i - 1].z);
-		// Local bed gradient across this point's own neighbourhood (not just the previous segment),
-		// so a single noisy sample cannot make one ring of vertices race ahead of its neighbours.
-		const neighbourhoodRunMeters = Math.hypot(next.x - prev.x, next.z - prev.z) || 1;
-		const grade = Math.max(0, (prev.y - next.y) / neighbourhoodRunMeters);
+		// Steeper of the two adjoining segments, not their average (run 390): averaging over the full
+		// ~120m span left the steepest reach only ~24% faster than the median. Each is still ~60m.
+		const segmentGrade = (from, to) => {
+			const runMeters = Math.hypot(to.x - from.x, to.z - from.z);
+			return runMeters > 0 ? Math.max(0, (from.y - to.y) / runMeters) : 0;
+		};
+		const grade = Math.max(segmentGrade(prev, point), segmentGrade(point, next));
 		const flowSpeedMps = RIVER_BASE_FLOW_SPEED_MPS + Math.sqrt(grade) * RIVER_GRADE_FLOW_GAIN;
 
 		const leftIndex = i * 2;
@@ -327,12 +323,25 @@ export function createRiverMesh(points, widthMeters = 14) {
 		flowSpeeds[rightIndex] = flowSpeedMps;
 		flowSides[leftIndex] = -1;
 		flowSides[rightIndex] = 1;
-		positions[leftIndex * 3] = point.x + perpX * halfWidth;
-		positions[leftIndex * 3 + 1] = point.y + verticalOffset;
-		positions[leftIndex * 3 + 2] = point.z + perpZ * halfWidth;
-		positions[rightIndex * 3] = point.x - perpX * halfWidth;
-		positions[rightIndex * 3 + 1] = point.y + verticalOffset;
-		positions[rightIndex * 3 + 2] = point.z - perpZ * halfWidth;
+		// Each bank founded at its OWN position, not the centre line's height (run 390). Both edges took
+		// `point.y`, sampled MID-channel — right only where the ground is flat across the flow. On a
+		// cross-slope the uphill bank sinks by half-width times the cross-grade (~4m on a 14m channel
+		// across 30 degrees, against a 0.3m offset), so the river was buried along most of its length
+		// and surfaced only where the slope flattened — hence disconnected shards. Same defect as
+		// `villageBuildings.js` (382) and `roads.js` (387): one height sample for something with width.
+		const leftX = point.x + perpX * halfWidth;
+		const leftZ = point.z + perpZ * halfWidth;
+		const rightX = point.x - perpX * halfWidth;
+		const rightZ = point.z - perpZ * halfWidth;
+		// One level for both cannot work: the lower buries the uphill bank, the higher floats the other.
+		const leftGround = sampleHeightMeters ? sampleHeightMeters(leftX, leftZ) : point.y;
+		const rightGround = sampleHeightMeters ? sampleHeightMeters(rightX, rightZ) : point.y;
+		positions[leftIndex * 3] = leftX;
+		positions[leftIndex * 3 + 1] = leftGround + verticalOffset;
+		positions[leftIndex * 3 + 2] = leftZ;
+		positions[rightIndex * 3] = rightX;
+		positions[rightIndex * 3 + 1] = rightGround + verticalOffset;
+		positions[rightIndex * 3 + 2] = rightZ;
 
 		colors[leftIndex * 3] = RIVER_COLOR.r;
 		colors[leftIndex * 3 + 1] = RIVER_COLOR.g;
@@ -445,6 +454,11 @@ export function buildRiverSurface(points, sampleHeightMeters) {
 export function createNamedRiverMeshes({ namedRivers, sampleHeightMeters }) {
 	const meshes = [];
 	for (const river of namedRivers ?? []) {
+		// Deliberately NOT given the sampler (run 390): these run in valleys carved to hold them
+		// (`checkRiverValleyCarving`), and in a carved channel a level cross-section at the course
+		// height is the right one. Per-bank grounding sags the ribbon centre below ground wherever the
+		// cross-section is convex — measured, 0.46% -> 2.6% of their length underground. It is the fix
+		// for the un-carved legacy course in `sceneManager.js`, not for these.
 		const surface = buildRiverSurface(river.points, sampleHeightMeters);
 		const mesh = createRiverMesh(surface);
 		if (!mesh) continue;
