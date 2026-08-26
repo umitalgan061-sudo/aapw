@@ -34,6 +34,10 @@ import {
 } from '../src/3d/world/terrainBiomeShading.js';
 import { sampleReferencePindexQualityV2 } from '../src/3d/world/worldReferenceSurfacePindexes.js';
 import {
+	applyRuntimePindexTerrainPolishToMesh,
+	RUNTIME_PINDEX_TERRAIN_POLISH_POLICY,
+} from '../src/3d/world/worldReferenceSurfaceTerrainVisual.js';
+import {
 	createWater,
 	setWaterDepthField,
 	updateWater,
@@ -156,6 +160,10 @@ const terrainMaterial = new THREE.MeshStandardMaterial({
 });
 applyTerrainMicroSurface(terrainMaterial);
 const terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
+// Match the shipped terrain colour pipeline rather than stopping at the biome base layer. This is
+// intentionally the same runtime adapter used by the game, so Pindex semantics/detail — including
+// marine-only seabed treatment — must be present in the visual proof instead of existing only in code.
+const runtimeTerrainPolish = applyRuntimePindexTerrainPolishToMesh(terrain);
 scene.add(terrain);
 
 const depthField = createWaterDepthField({
@@ -222,6 +230,9 @@ window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
 	northPermanentIceActiveSamples: northIceActiveSamples,
 	terrainSurfaceRealism: Object.freeze({
 		policyId: TERRAIN_MICRO_SURFACE_POLICY.id,
+		runtimePindexPolicyId: RUNTIME_PINDEX_TERRAIN_POLISH_POLICY.id,
+		runtimePindexChangedVertices: runtimeTerrainPolish.changedVertices ?? null,
+		runtimePindexDetailTouchedVertices: runtimeTerrainPolish.detailTouchedVertices ?? null,
 		detailRepeatMeters: TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters,
 		macroColorBreakup: TERRAIN_MICRO_SURFACE_POLICY.macroColorBreakup,
 		naturalAlbedoRemap: TERRAIN_MICRO_SURFACE_POLICY.naturalAlbedoRemap,
