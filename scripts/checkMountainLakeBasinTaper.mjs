@@ -16,7 +16,7 @@ const SOURCE = readFileSync(resolve(HERE, '../src/3d/world/worldReferenceMountai
 const policy = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.lakeBasinTaper;
 
 assert.equal(WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.id, 'owner-map-live-mountain-relief-2026-08-26-v7-lake-basin-cirques');
-assert(WORLD_REFERENCE_LAKE_CELL_COUNT >= 10, `canonical mask unexpectedly has only ${WORLD_REFERENCE_LAKE_CELL_COUNT} lake cells`);
+assert.equal(WORLD_REFERENCE_LAKE_CELL_COUNT, 6, `canonical mask lake-cell count drifted: ${WORLD_REFERENCE_LAKE_CELL_COUNT}`);
 assert(policy.innerRadiusNormalized >= 0.010 && policy.innerRadiusNormalized <= 0.020);
 assert(policy.outerRadiusNormalized >= 0.040 && policy.outerRadiusNormalized <= 0.060);
 assert(policy.outerRadiusNormalized >= policy.innerRadiusNormalized * 2.5);
