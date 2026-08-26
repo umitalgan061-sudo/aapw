@@ -25,6 +25,8 @@ const FOG_DENSITY_NIGHT = 0.00054;
 const FOG_TWILIGHT_DENSITY_GAIN = 0.000085;
 /** Midday dry-air clarity keeps long views from reading like the same opacity slider at every phase. */
 const FOG_MIDDAY_CLARITY_GAIN = 0.000022;
+/** Bright moonlit horizons recover a little long-range separation instead of looking like overcast night. */
+const FOG_MOONLIT_CLARITY_GAIN = 0.000030;
 /** Twilight is deliberately narrower than a simple parabola so haze belongs near low-angle light. */
 const FOG_TWILIGHT_CURVE_POWER = 2.35;
 /** Slightly neutral atmospheric tint mixed into the sky-derived horizon only when haze is strongest. */
@@ -35,10 +37,13 @@ const FOG_TWILIGHT_WARM_TINT = new THREE.Color(0xb5a79c);
 const FOG_NIGHT_COOL_TINT = new THREE.Color(0x596979);
 /** Blue-hour aerosol tint: after direct warmth collapses, distant terrain keeps a cool humid veil. */
 const FOG_BLUE_HOUR_TINT = new THREE.Color(0x71899b);
+/** Moonlit aerosol tint keeps nocturnal distance cues cool-neutral rather than crushing them into blue-grey. */
+const FOG_MOONLIT_TINT = new THREE.Color(0x748493);
 const FOG_HAZE_TINT_MAX = 0.075;
 const FOG_TWILIGHT_WARM_TINT_MAX = 0.032;
 const FOG_NIGHT_COOL_TINT_MAX = 0.038;
 const FOG_BLUE_HOUR_TINT_MAX = 0.045;
+const FOG_MOONLIT_TINT_MAX = 0.028;
 /** A small post-sunset humidity lift separates blue hour from both warm dusk and fully dark night. */
 const FOG_BLUE_HOUR_DENSITY_GAIN = 0.000032;
 
@@ -62,8 +67,10 @@ export function createFog() {
  * illuminate haze, while a dark post-twilight horizon transitions through a short blue-hour humidity
  * shoulder before reaching restrained cool night aerial perspective. The blue-hour shoulder is
  * derived only from the authoritative horizon luminance/night factor, so it introduces no separate
- * clock or geography. A small midday clarity notch restores long-distance separation under high sun.
- * All effects remain render-only and subordinate to the authoritative lighting horizon color.
+ * clock or geography. Bright moonlit horizons then recover a bounded amount of clarity and a slightly
+ * more neutral cool aerosol tint, preventing clear nights from reading like uniformly overcast fog.
+ * A small midday clarity notch restores long-distance separation under high sun. All effects remain
+ * render-only and subordinate to the authoritative lighting horizon color.
  *
  * @param {THREE.FogExp2} fog
  * @param {{horizonColor: THREE.Color, nightFactor: number}} dayNight - `lighting.js`'s per-frame output.
@@ -84,15 +91,19 @@ export function updateFog(fog, dayNight) {
 		* (1 - THREE.MathUtils.smoothstep(nightFactor, 0.72, 0.94));
 	const deepNight = THREE.MathUtils.smoothstep(nightFactor, 0.70, 0.98)
 		* (1 - THREE.MathUtils.smoothstep(horizonLuminance, 0.08, 0.24));
+	const moonlitNight = THREE.MathUtils.smoothstep(nightFactor, 0.76, 0.98)
+		* THREE.MathUtils.smoothstep(horizonLuminance, 0.16, 0.34);
 
 	fog.color.copy(dayNight.horizonColor)
 		.lerp(FOG_HAZE_TINT, twilight * FOG_HAZE_TINT_MAX)
 		.lerp(FOG_TWILIGHT_WARM_TINT, litTwilight * FOG_TWILIGHT_WARM_TINT_MAX)
 		.lerp(FOG_BLUE_HOUR_TINT, blueHour * FOG_BLUE_HOUR_TINT_MAX)
-		.lerp(FOG_NIGHT_COOL_TINT, deepNight * FOG_NIGHT_COOL_TINT_MAX);
+		.lerp(FOG_NIGHT_COOL_TINT, deepNight * FOG_NIGHT_COOL_TINT_MAX)
+		.lerp(FOG_MOONLIT_TINT, moonlitNight * FOG_MOONLIT_TINT_MAX);
 
 	fog.density = THREE.MathUtils.lerp(FOG_DENSITY_DAY, FOG_DENSITY_NIGHT, nightFactor)
 		+ twilight * FOG_TWILIGHT_DENSITY_GAIN
 		+ blueHour * FOG_BLUE_HOUR_DENSITY_GAIN
-		- fullDay * FOG_MIDDAY_CLARITY_GAIN;
+		- fullDay * FOG_MIDDAY_CLARITY_GAIN
+		- moonlitNight * FOG_MOONLIT_CLARITY_GAIN;
 }
