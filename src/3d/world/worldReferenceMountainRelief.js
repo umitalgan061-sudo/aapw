@@ -35,13 +35,14 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 		radiusNormalized: 0.012,
 		minimumScale: 0.12,
 	}),
-	// Small canonical lakes inside broad mountain shoulders previously left a steep ring just beyond
-	// the one-cell wet-edge taper, which read as a vertical crater from aerial views. Keep the lake
-	// itself source-owned and widen only the surrounding mountain-relief attenuation into a cirque.
+	// Keep canonical lake ownership untouched while making the *added* mountain shoulder recover
+	// over a broader, lower-amplitude apron. The previous 0.014->0.050 / 0.18 profile reopened too
+	// quickly around the eastern multi-cell lake cluster and produced a closed >55° crater ring in
+	// exact-height QA. 0.060 stays inside the audited local support envelope and changes no wet cell.
 	lakeBasinTaper: Object.freeze({
 		innerRadiusNormalized: 0.014,
-		outerRadiusNormalized: 0.050,
-		minimumScale: 0.18,
+		outerRadiusNormalized: 0.060,
+		minimumScale: 0.14,
 	}),
 	talusBreakup: Object.freeze({
 		broadFrequency: 22,
