@@ -58,6 +58,13 @@ export const WATER_OFFSHORE_OPTICAL_FULL_DISTANCE_METERS = 1100;
 export const WATER_COVERAGE_SUBSAMPLES_PER_AXIS = 2;
 
 /**
+ * Mixed cells at or below 50% wet remain shoreline seeds. A 75%-wet, boundary-connected marine cell
+ * may carry offshore distance so one dry supersample cannot carve a kilometre-scale false shallow
+ * halo through open sea. Real coasts still contain <=50%-wet/dry neighbours and remain distance zero.
+ */
+export const WATER_OFFSHORE_SHORELINE_MAX_COVERAGE = 0.5;
+
+/**
  * Returns normalized sub-texel offsets in [-0.5, 0.5] for a regular N×N coverage pattern.
  * Samples are centered inside each stratum rather than on texel boundaries, which avoids duplicate
  * probes between neighbouring texels and keeps edge behaviour symmetric.
@@ -136,7 +143,8 @@ export function sampleWaterTexelFootprint({
  *
  * The boundary flood-fill is the lake/sea discriminator: only canonical wet cells connected to the
  * owner-field boundary are eligible for offshore optical depth. Enclosed lake cells remain zero.
- * Eligible marine cells receive an 8-neighbour chamfer distance from the nearest non-fully-wet cell.
+ * Eligible marine cells receive an 8-neighbour chamfer distance from the nearest non-marine or
+ * <=50%-wet shoreline cell; 75%-wet marine supersample noise can carry distance instead of resetting it.
  */
 function buildOffshoreDistanceData(data, resolution, stepMeters, fullDistanceMeters) {
 	const texelCount = resolution * resolution;
@@ -173,10 +181,11 @@ function buildOffshoreDistanceData(data, resolution, stepMeters, fullDistanceMet
 		}
 	}
 
+	const shorelineCoverageByte = Math.round(WATER_OFFSHORE_SHORELINE_MAX_COVERAGE * 255);
 	const distances = new Float32Array(texelCount);
 	distances.fill(Number.POSITIVE_INFINITY);
 	for (let index = 0; index < texelCount; index += 1) {
-		if (!marine[index] || data[index * 4 + 1] < 255) distances[index] = 0;
+		if (!marine[index] || data[index * 4 + 1] <= shorelineCoverageByte) distances[index] = 0;
 	}
 	const diagonal = Math.SQRT2;
 	for (let row = 0; row < resolution; row += 1) {
@@ -212,11 +221,12 @@ function buildOffshoreDistanceData(data, resolution, stepMeters, fullDistanceMet
 	let offshoreWeightedSum = 0;
 	let fullOffshoreTexels = 0;
 	for (let index = 0; index < texelCount; index += 1) {
-		const coverage = data[index * 4 + 1] / 255;
+		const coverageByte = data[index * 4 + 1];
+		const coverage = coverageByte / 255;
 		wetCoverage += coverage;
 		if (coverage <= 0 || !marine[index]) continue;
 		marineCoverage += coverage;
-		const offshoreFactor = data[index * 4 + 1] === 255
+		const offshoreFactor = coverageByte > shorelineCoverageByte
 			? Math.min(1, (distances[index] * stepMeters) / fullDistanceMeters)
 			: 0;
 		offshoreData[index] = Math.round(offshoreFactor * 255);

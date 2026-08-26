@@ -14,6 +14,7 @@ import {
 	disposeWaterDepthField,
 	WATER_COVERAGE_SUBSAMPLES_PER_AXIS,
 	WATER_OFFSHORE_OPTICAL_FULL_DISTANCE_METERS,
+	WATER_OFFSHORE_SHORELINE_MAX_COVERAGE,
 } from '../src/3d/world/waterDepthField.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -26,6 +27,7 @@ const offshore = (field, row, column) => field.offshoreTexture.image.data[row * 
 
 assert.equal(WATER_COVERAGE_SUBSAMPLES_PER_AXIS, 2);
 assert.equal(WATER_OFFSHORE_OPTICAL_FULL_DISTANCE_METERS, 1100);
+assert.equal(WATER_OFFSHORE_SHORELINE_MAX_COVERAGE, 0.5);
 
 // Half-plane coast: prove authoritative R/G/B/A bytes are unchanged while the separate optical field
 // increases monotonically away from a real shoreline. Use 20m full distance for exact fixture bytes.
@@ -49,7 +51,7 @@ try {
 		assert.deepEqual(texel(coast, row, 2), [51, 128, 255, 255]);
 		assert.deepEqual(texel(coast, row, 3), [51, 255, 255, 255]);
 		assert.deepEqual(texel(coast, row, 4), [153, 255, 255, 255]);
-		assert.equal(offshore(coast, row, 2), 0, 'mixed canonical shoreline must start at optical distance zero');
+		assert.equal(offshore(coast, row, 2), 0, '50%-wet canonical shoreline must stay optical distance zero');
 		assert.equal(offshore(coast, row, 3), 128, 'first marine interior cell should be half optical depth');
 		assert.equal(offshore(coast, row, 4), 255, 'farther marine cell should reach the bounded optical cap');
 	}
@@ -58,6 +60,25 @@ try {
 	assert.equal(coast.offshoreFullTexelRatio, 5 / 25);
 } finally {
 	disposeWaterDepthField(coast);
+}
+
+// One dry supersample inside otherwise open ocean must not become a fake kilometre-scale shoreline.
+// The authoritative green byte remains exactly 75% wet; only the render-only offshore field carries on.
+const speckledOcean = createWaterDepthField({
+	waterLevelMeters: 0,
+	extentMeters: 60,
+	resolution: 7,
+	offshoreOpticalFullDistanceMeters: 20,
+	sampleHeightMeters: (x, z) => (
+		Math.abs(x) < 4 && Math.abs(z) < 4 && x > 0 && z > 0 ? 1 : -2
+	),
+});
+try {
+	assert.deepEqual(texel(speckledOcean, 3, 3), [51, 191, 255, 255], '75%-wet RGBA authority drifted');
+	assert.equal(speckledOcean.marineFractionOfWetCoverage, 1);
+	assert.equal(offshore(speckledOcean, 3, 3), 255, '75%-wet open marine texel must carry offshore distance');
+} finally {
+	disposeWaterDepthField(speckledOcean);
 }
 
 // A large enclosed lake can be kilometres wide in future map revisions; connectivity, not size, must
