@@ -97,15 +97,23 @@ const WORLD_EVENTS = Object.freeze([
 	{ id: 'name_day_song', icon: '🎂', title: 'Ad Günü Şarkısı', desc: 'Kale avlusundan bir çocuğun ad gününü kutlayan neşeli bir şarkı ve kahkaha sesleri geliyor; aile ve hizmetliler bir araya toplanmış.', color: '#d49aa0', weight: WEIGHT.UNCOMMON },
 ]);
 
-function isEligible(event, nightFactor) {
-	if (event.timeOfDay === undefined || nightFactor === undefined) return true;
-	if (event.timeOfDay === 'night') return nightFactor >= NIGHT_THRESHOLD;
-	if (event.timeOfDay === 'day') return nightFactor <= DAY_THRESHOLD;
+function normalizeNightFactor(nightFactor) {
+	if (nightFactor === undefined) return undefined;
+	if (typeof nightFactor !== 'number' || !Number.isFinite(nightFactor)) return null;
+	return Math.min(1, Math.max(0, nightFactor));
+}
+
+function isEligible(event, normalizedNightFactor) {
+	if (event.timeOfDay === undefined || normalizedNightFactor === undefined) return true;
+	if (normalizedNightFactor === null) return false;
+	if (event.timeOfDay === 'night') return normalizedNightFactor >= NIGHT_THRESHOLD;
+	if (event.timeOfDay === 'day') return normalizedNightFactor <= DAY_THRESHOLD;
 	return true;
 }
 
 function eligibleEventPool(nightFactor) {
-	const eligible = WORLD_EVENTS.filter((event) => isEligible(event, nightFactor));
+	const normalizedNightFactor = normalizeNightFactor(nightFactor);
+	const eligible = WORLD_EVENTS.filter((event) => isEligible(event, normalizedNightFactor));
 	return eligible.length > 0 ? eligible : WORLD_EVENTS;
 }
 
