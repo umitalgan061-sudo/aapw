@@ -336,7 +336,7 @@ export async function createNPC({
 		object3D: model,
 		displayName: displayName ?? null,
 		update(delta, playerPosition) {
-			const hasPlayerPosition = Boolean(playerPosition);
+			const hasPlayerPosition = Number.isFinite(playerPosition?.x) && Number.isFinite(playerPosition?.z);
 			const distanceToPlayer = hasPlayerPosition
 				? Math.hypot(model.position.x - playerPosition.x, model.position.z - playerPosition.z)
 				: (simulationLodBootstrapDormant ? Infinity : 0);
