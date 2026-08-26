@@ -171,7 +171,11 @@ export function createWorldEventSystem({ eventsBus, seed, eventName }) {
 		const weighted = pickWeightedEvent(random, nightFactor);
 		const picked = avoidImmediateRepeat(weighted, lastEventId, nightFactor);
 		lastEventId = picked.id;
-		eventsBus.emit(eventName, picked);
+		// EventBus listeners are extension points (UI today, quest/settlement adapters later). Emit a
+		// shallow snapshot instead of the canonical catalog object so a listener that annotates or
+		// mutates its payload cannot poison future weighting, time-of-day eligibility, or repeat state.
+		// World-event fields are primitives, so a shallow copy fully isolates the authored catalog.
+		eventsBus.emit(eventName, { ...picked });
 	};
 
 	system.dispose = () => {
