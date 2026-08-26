@@ -36,6 +36,18 @@
 
 import * as THREE from 'three';
 import { FULL_OPTICAL_DEPTH_METERS } from './waterDepthField.js';
+import {
+	glslFloat, POLAR_FULL_NY, POLAR_FADE_NY, POLAR_EXTINCTION_PER_METER, POLAR_SHALLOW_COLOR,
+	MAP_LATITUDE_METERS_PER_UNIT, MAP_LATITUDE_CENTER_Y, MAP_LATITUDE_CANVAS_H,
+} from './waterLatitude.js';
+
+/**
+ * Where "the far north" begins, in normalized owner-map latitude, and the world-Z projection that
+ * measures it (the one `terrainBiomeShading.js` documents). Deliberately the same numbers as
+ * `world/terrain.js`'s `NORTHERN_SNOW`: the snow line and the cold-water line must agree about where
+ * the north starts, or the shore would carry ice with tropical water lapping at it. Declared here,
+ * above the shaders, because they are interpolated into the GLSL when this module loads.
+ */
 
 /**
  * The three swell components, longest first: `[wavelengthMeters, amplitudeMeters, dirX, dirZ]`.
@@ -195,6 +207,8 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	uniform sampler2D uDepthMap;
 	uniform float uDepthFieldExtentMeters;
 	uniform vec3 uExtinctionPerMeter;
+	uniform vec3 uPolarExtinctionPerMeter;
+	uniform vec3 uPolarShallowColor;
 	uniform float uFullOpticalDepthMeters;
 	uniform float uMinSurfaceAlpha;
 	uniform float uMaxSurfaceAlpha;
@@ -294,13 +308,21 @@ ${SWELL_GLSL}
 		// uExtinctionPerMeter is that absorption, in inverse metres, and the optical depth channel
 		// carries a 60 m range so deep water keeps darkening long after swell has stopped changing.
 		float opticalDepthMeters = waterField.z * uFullOpticalDepthMeters;
-		vec3 transmittance = exp(-uExtinctionPerMeter * opticalDepthMeters);
+		// A polar sea is not clear water that happens to be cold (run 392): more suspended matter, harder
+		// absorption on every channel, blue lost disproportionately -- dark grey-green, not turquoise.
+		// One global coefficient gave the Lands of Always Winter Dorne's Caribbean shallows. The band is
+		// terrain.js's own snow line, so shore ice and cold water begin together.
+		float mapLatitude = clamp((vWorldPosition.z / ${glslFloat(MAP_LATITUDE_METERS_PER_UNIT)} + ${glslFloat(MAP_LATITUDE_CENTER_Y)}) / ${glslFloat(MAP_LATITUDE_CANVAS_H)}, 0.0, 1.0);
+		float polar = 1.0 - smoothstep(${glslFloat(POLAR_FULL_NY)}, ${glslFloat(POLAR_FADE_NY)}, mapLatitude);
+		vec3 extinctionPerMeter = mix(uExtinctionPerMeter, uPolarExtinctionPerMeter, polar);
+		vec3 shallowColor = mix(uShallowColor, uPolarShallowColor, polar);
+		vec3 transmittance = exp(-extinctionPerMeter * opticalDepthMeters);
 		// What is left of the light that went down, hit something, and came back up.
-		vec3 bodyColor = mix(uDeepColor, uShallowColor, transmittance);
+		vec3 bodyColor = mix(uDeepColor, shallowColor, transmittance);
 
 		// Fresnel-ish: nearer grazing angles read lighter/more reflective, straight-down reads deep.
 		float fresnel = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 3.0);
-		vec3 baseColor = mix(bodyColor, uShallowColor, fresnel * 0.48);
+		vec3 baseColor = mix(bodyColor, shallowColor, fresnel * 0.48);
 
 		vec3 halfVector = normalize(uSunDirection + viewDir);
 		float specular = pow(clamp(dot(normal, halfVector), 0.0, 1.0), 80.0);
@@ -389,6 +411,9 @@ const DEFAULT_DEEP_COLOR = new THREE.Color(0x05182e);
  */
 const EXTINCTION_PER_METER = new THREE.Vector3(0.46, 0.115, 0.052);
 
+
+
+
 /**
  * Clamps on how transparent or opaque the surface may get.
  *
@@ -449,6 +474,8 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 				uShallowColor: { value: DEFAULT_SHALLOW_COLOR },
 				uDeepColor: { value: DEFAULT_DEEP_COLOR },
 				uExtinctionPerMeter: { value: EXTINCTION_PER_METER },
+				uPolarExtinctionPerMeter: { value: POLAR_EXTINCTION_PER_METER },
+				uPolarShallowColor: { value: POLAR_SHALLOW_COLOR },
 				uFullOpticalDepthMeters: { value: FULL_OPTICAL_DEPTH_METERS },
 				uMinSurfaceAlpha: { value: MIN_SURFACE_ALPHA },
 				uMaxSurfaceAlpha: { value: MAX_SURFACE_ALPHA },

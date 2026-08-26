@@ -282,7 +282,10 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run 391 carries the named rivers the last stretch into canonical water, so green-fork and
 // white-knife empty into the sea instead of stopping on a beach. New offline-loadable module
 // (riverMouth.js) and a change to the ground the rivers carve. v50->v51.
-const SHELL_CACHE = 'westeros-shell-v51';
+// Run 392 makes water optics latitude-dependent: the far north's sea is cold grey-green instead of
+// the same Caribbean turquoise as Dorne. New offline-loadable module (waterLatitude.js) and a look
+// change both. v51->v52.
+const SHELL_CACHE = 'westeros-shell-v52';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -473,6 +476,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/world/terrainMicroSurface.js',
     './src/3d/world/terrainReliefDetail.js',
     './src/3d/world/chunkManager.js',
+    './src/3d/world/waterLatitude.js',
     './src/3d/world/water.js',
     './src/3d/world/waterDepthField.js',
     './src/3d/world/riverMouth.js',

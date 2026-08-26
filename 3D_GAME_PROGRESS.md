@@ -18226,3 +18226,26 @@ uzadı. Diğer sekiz nehir ve eski origin nehri **hiç değişmedi**. Determiniz
 **İki açıdan bakıldı:** şerit kesintisiz inip denize karışıyor, boşluk yok. SW v50→v51.
 
 **Yeni görülen:** nehrin ortasında ağaç bitiyor — bitki dağılımı nehir şeridinden kaçınmıyor.
+
+## Tur 392 — Kuzey denizi tropikti: su optiği enleme bağlandı (ADR-0340)
+
+Tur 389'da not ettiğim kusur: Her Daim Kış Diyarı'nın suyu, karın dibinde, Dorne ile aynı Karayip
+turkuazıydı. Sönüm katsayısı ve sığ/derin renk çifti küresel sabitlerdi.
+
+**Sönümü enleme bağladım** (kuzeyde 0,62/0,30/0,24) — **ama ölçtüm ve yetmedi**: A/B render ortalama
+pikseli sadece 4,2/255 oynattı. Sebebi yapısal: `mix(derin, sığ, T)` olduğu için derinlik sıfıra
+giderken her deniz sığ renge yakınsıyor; katsayı sığ suyu değiştiremiyor. **Sığ uç rengi de** soğuk
+gri-yeşile kaydırınca ölçüm **22,2/255** oldu ve renk sadece kararmadı, doygunluğu çöktü:
+(56, 87, 92) → (48, 60, 60). Soğuk su gibi okutan bu.
+
+**Enlem bandı `terrain.js`'in kar çizgisiyle aynı** (0,15/0,30) — ikisi ayrışırsa kıyıda buz olurken
+su tropik kalırdı. Kapı iki modülün sayısal eşitliğini savlıyor, dişi kanıtlandı. Güney kıyısı
+değişmedi: iki konum, iki farklı deniz.
+
+**Kapının yakaladığı kendi hatam.** Enlem sabitleri GLSL'e tam sayı gömülüyordu (`7000`); GLSL ES'te
+`float/int` tip hatası, shader hiç derlenmedi, **su görünmez oldu.** Kaynak sözleşmelerinin hepsi PASS
+verdi; yalnız swell kapısının **gerçek GPU okuması** yakaladı (%0,00 piksel hareketi). `glslFloat()`
+eklendi, ham gömme yasaklandı.
+
+Ayrıca GLSL yorumuna ters tırnak yazma tuzağına **ikinci kez** düştüm (tur 388'de de olmuştu); artık
+kapı bunu satır numarasıyla yakalıyor. Yeni modül `world/waterLatitude.js`. SW v51→v52.

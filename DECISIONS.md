@@ -19422,3 +19422,50 @@ de** aynen düşüyordu; ölçüldü.) Artık kopya bir pointer stub'ı ise kar�
 düşülüyor; hidrate ama **farklı** bir kopya hâlâ FAIL veriyor — dişi kanıtlandı.
 
 **Technical debt.** 0 new. Bu, PR #964'ün CI'ını açan iki düzeltmedir; oyun davranışı değişmedi.
+
+## ADR-0340 — Kuzey denizi tropik turkuazdı: su optiği artık enleme bağlı
+
+**Nereden çıktı.** Tur 389'un gerçek dünya yakalamasında (-4800, -4600) Her Daim Kış Diyarı'nın suyu,
+karın dibinde, Dorne ile aynı Karayip turkuazıydı. Sebep basitti: sönüm katsayısı ve sığ/derin renk
+çifti **küresel** sabitlerdi, yani dünyadaki her deniz aynı sudur.
+
+### İki büyüklüğün de enlemle değişmesi gerekiyordu — ve ikincisi asıl belirleyici
+
+**1. Sönüm.** Kutup denizi çok daha fazla asılı madde ve plankton taşır; her kanalda daha sert
+soğurur ve mavisini orantısız kaybeder. Sıcaklık (0,46 / 0,115 / 0,052) yerine kuzeyde
+(0,62 / 0,30 / 0,24). 3 m'de geçirgenlik (0,25 / 0,71 / 0,86) → (0,16 / 0,41 / 0,49).
+
+**2. Sığ uç renk.** Sadece sönümü değiştirmek **ölçüldü ve yetmedi**: kuzey gölünde A/B render
+ortalama pikseli yalnızca **4,2/255** oynattı. Sebebi yapısal: `mix(derin, sığ, T)` olduğu için
+derinlik sıfıra giderken **her deniz katsayısı ne olursa olsun sığ renge yakınsar**. Soğuk bir denizin
+sığı bir metrede de gri-yeşildir, turkuaz değil. Uç rengi de kaydırınca aynı ölçüm **22,2/255**'e
+çıktı ve renk sadece kararmadı, **doygunluğu çöktü**: (56, 87, 92) → (48, 60, 60), yani yeşille mavi
+eşitlendi. Soğuk su gibi okunmasını sağlayan bu; yalnızca karartmak "loş tropik su" verir.
+
+**Enlem bandı ödünç değil, paylaşımlı.** `POLAR_FULL_NY 0,15 / POLAR_FADE_NY 0,30` — `terrain.js`'in
+`NORTHERN_SNOW` değerlerinin aynısı. Kar çizgisiyle soğuk su çizgisi aynı yerde başlamazsa kıyıda buz
+olurken suyu tropik olurdu. Kapı artık **iki modülün sayısal olarak eşit kaldığını** savlıyor, sayının
+orada durduğunu değil; dişi kanıtlandı ("has drifted from terrain.js NORTHERN_SNOW").
+
+**Yerellik doğrulandı.** Güney kıyısı (enlem 0,62) sıcak turkuazını aynen koruyor. İki konum, iki
+farklı deniz.
+
+### Bu turda ürettiğim ve kapının yakaladığı hata
+
+Enlem sabitleri GLSL'e **tam sayı** olarak gömülüyordu (`7000`, `3500`). GLSL ES 1.00'de `float/int`
+tip hatasıdır, dolayısıyla shader **hiç derlenmedi** ve su görünmez oldu. Kaynak düzeyindeki bütün
+sözleşmeler PASS verdi; yalnız `checkRun325WaterSwell`'in **gerçek GPU okuması** yakaladı: piksel
+hareketi %0,00. `glslFloat()` yardımcısı eklendi ve kapı ham sabit gömülmesini yasaklıyor.
+
+**Bir de aynı tuzağa ikinci kez düştüm:** GLSL yorumuna ters tırnaklı `terrain.js` yazmak şablonu
+erken bitiriyor; `node --check` geçiyor, tarayıcı `SyntaxError` atıyor (tur 388'de de olmuştu). Artık
+kapı GLSL **yorum satırlarında** ters tırnağı yasaklıyor ve satır numarasıyla söylüyor. Kapsamı
+yoruma daralttım çünkü `${...}` içindeki ters tırnaklar meşru (swell çağrıları öyle üretiliyor).
+
+**Kapılar.** `checkWaterVisualContract` PASS, `checkRun325WaterSwell` PASS (%33,5 GPU piksel
+hareketi), `checkWaterSurfVisualContract` PASS + üç yeni koruma, `checkNorthernIce` PASS, koltuklar
+14/14, yollar PASS, isimli nehirler PASS, service worker OK. Yeni modül `world/waterLatitude.js`
+(su modülü 600 sınırındaydı ve bu konu kendi başına tutarlı bir bütün). SW v51→v52.
+
+**Technical debt.** 0 new. **Açık iş.** Şelaleler; göller (S-0039); yamaçta teraslanan yollar;
+nehrin ortasında biten ağaçlar; uzakta köpük bantlanması; gün ışığı/altın saat tonlaması.
