@@ -104,9 +104,13 @@ function isEligible(event, nightFactor) {
 	return true;
 }
 
-function pickWeightedEvent(random, nightFactor) {
+function eligibleEventPool(nightFactor) {
 	const eligible = WORLD_EVENTS.filter((event) => isEligible(event, nightFactor));
-	const pool = eligible.length > 0 ? eligible : WORLD_EVENTS;
+	return eligible.length > 0 ? eligible : WORLD_EVENTS;
+}
+
+function pickWeightedEvent(random, nightFactor) {
+	const pool = eligibleEventPool(nightFactor);
 	const totalWeight = pool.reduce((sum, event) => sum + event.weight, 0);
 	let remaining = random() * totalWeight;
 	for (const event of pool) {
@@ -120,13 +124,14 @@ function pickWeightedEvent(random, nightFactor) {
  * Keeps the existing weighted pick and PRNG draw count unchanged, but prevents the same ambient
  * event from being emitted twice back-to-back. If the weighted result repeats `lastEventId`, the
  * next time-of-day-eligible catalog entry is used deterministically without consuming another
- * random number. That preserves seeded frame/interval behavior while avoiding visibly repetitive
- * living-world toasts such as two identical guard changes or raven arrivals in succession.
+ * random number. Eligibility remains authoritative: if a future filtered catalog ever has only
+ * one valid event, that event may repeat rather than escaping into an ineligible day/night entry.
+ * That preserves seeded frame/interval behavior while avoiding visibly repetitive living-world
+ * toasts such as two identical guard changes or raven arrivals in succession.
  */
 function avoidImmediateRepeat(picked, lastEventId, nightFactor) {
 	if (!picked || !lastEventId || picked.id !== lastEventId) return picked;
-	const eligible = WORLD_EVENTS.filter((event) => isEligible(event, nightFactor));
-	const pool = eligible.length > 1 ? eligible : WORLD_EVENTS;
+	const pool = eligibleEventPool(nightFactor);
 	const index = pool.findIndex((event) => event.id === picked.id);
 	if (index < 0) return picked;
 	for (let offset = 1; offset < pool.length; offset += 1) {
