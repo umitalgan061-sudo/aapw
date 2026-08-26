@@ -115,14 +115,32 @@ try {
 // Source contract: offshore signal is optical only. Red physical depth must still own swell and foam.
 assert.match(WATER_SOURCE, /uniform sampler2D uOffshoreMap;/);
 assert.match(WATER_SOURCE, /sampleOffshoreOptical\(vWorldPosition\.xz\)/);
+assert.match(WATER_SOURCE, /WATER_OFFSHORE_OPTICAL_GAIN = 0\.82;/);
 assert.match(WATER_SOURCE, /offshoreGain = offshoreOptical \* \(1\.0 - fragmentDepth\)/);
+assert.match(WATER_SOURCE, /bodyColor = mix\(bodyColor, uDeepColor, offshoreGain \* 0\.88\);/);
 assert.match(WATER_SOURCE, /float amplitudeScale = depthFactor \* uSwellStrength/);
 assert.match(WATER_SOURCE, /float shallowMask = 1\.0 - smoothstep\(0\.0, 0\.22, fragmentDepth\);/);
 assert.match(WATER_SOURCE, /float opticalDepth = 1\.0 - exp\(-fragmentDepth \* 3\.2\);/);
-assert.match(WATER_SOURCE, /offshoreAbsorption = 1\.0 - exp\(-offshoreGain \* 2\.4\)/);
+assert.match(WATER_SOURCE, /offshoreAbsorption = 1\.0 - exp\(-offshoreGain \* 3\.4\)/);
+
+// Same physical shallowness must remain translucent for an enclosed lake while open-ocean-connected
+// shelf water becomes optically dense enough to hide terrestrial-looking submerged albedo.
+const alphaAt = (fragmentDepth, offshoreOptical) => {
+	const physical = 1 - Math.exp(-fragmentDepth * 3.2);
+	const offshoreGain = offshoreOptical * (1 - fragmentDepth) * 0.82;
+	const marine = 1 - Math.exp(-offshoreGain * 3.4);
+	const optical = 1 - (1 - physical) * (1 - marine);
+	return 0.14 + (0.90 - 0.14) * optical;
+};
+const shallowLakeAlpha = alphaAt(0.08, 0);
+const offshoreShelfAlpha = alphaAt(0.08, 1);
+assert(offshoreShelfAlpha > shallowLakeAlpha + 0.35, `marine shelf separation too weak: ${offshoreShelfAlpha}/${shallowLakeAlpha}`);
+assert(offshoreShelfAlpha < 0.90, 'offshore shelf must remain bounded below fully opaque water');
 
 console.log('[checkWaterOffshoreOptics] PASS', JSON.stringify({
 	fullDistanceMeters: WATER_OFFSHORE_OPTICAL_FULL_DISTANCE_METERS,
 	canonicalProbesIn25Texels: probes,
 	lakeMarineFraction: 0,
+	shallowLakeAlpha,
+	offshoreShelfAlpha,
 }));

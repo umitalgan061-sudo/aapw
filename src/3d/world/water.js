@@ -72,7 +72,7 @@ export const SWELL_COMPONENTS = Object.freeze([
 export const WAVE_TOTAL_AMPLITUDE_METERS = SWELL_COMPONENTS.reduce((sum, [, amplitude]) => sum + amplitude, 0);
 
 /** Render-only maximum contribution of shoreline distance to perceived optical depth. */
-export const WATER_OFFSHORE_OPTICAL_GAIN = 0.62;
+export const WATER_OFFSHORE_OPTICAL_GAIN = 0.82;
 
 const WATER_VERTEX_SHADER = /* glsl */ `
 	uniform float uTime;
@@ -246,7 +246,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		// Preserve the qualified physical-depth grade, then apply a bounded marine-only correction.
 		// Enclosed lakes have offshoreOptical=0, while broad shelves darken gradually toward open sea.
 		vec3 bodyColor = mix(uShallowColor, uDeepColor, smoothstep(0.04, 0.82, fragmentDepth));
-		bodyColor = mix(bodyColor, uDeepColor, offshoreGain * 0.74);
+		bodyColor = mix(bodyColor, uDeepColor, offshoreGain * 0.88);
 		float shelfMottle = shelfOpticalMottle(vWorldPosition.xz, fragmentDepth);
 		float shelfVisibility = 1.0 - offshoreOptical * 0.72;
 		vec3 sedimentTint = mix(uDeepColor, vec3(0.37, 0.50, 0.48), 0.78);
@@ -274,7 +274,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		// Keep physical Beer-Lambert attenuation intact, then compound a marine-only offshore term.
 		// This leaves lakes/shoreline exactly on real depth while broad ocean shelves become denser.
 		float opticalDepth = 1.0 - exp(-fragmentDepth * 3.2);
-		float offshoreAbsorption = 1.0 - exp(-offshoreGain * 2.4);
+		float offshoreAbsorption = 1.0 - exp(-offshoreGain * 3.4);
 		opticalDepth = 1.0 - (1.0 - opticalDepth) * (1.0 - offshoreAbsorption);
 		float alpha = mix(0.14, 0.90, opticalDepth);
 		// Broad shallow shelves gain bounded optical-density variation, analogous to suspended sediment
