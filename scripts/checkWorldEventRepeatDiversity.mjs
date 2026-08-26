@@ -17,6 +17,7 @@ assert.match(runtimeSource, /typeof nightFactor !== 'number' \|\| !Number\.isFin
 assert.match(runtimeSource, /Math\.min\(1, Math\.max\(0, nightFactor\)\)/, 'finite lighting context must be clamped to the canonical 0..1 range');
 assert.match(runtimeSource, /function pickWeightedEvent[\s\S]*?const pool = eligibleEventPool\(nightFactor\)/, 'weighted selection must use the canonical eligible pool');
 assert.match(runtimeSource, /function avoidImmediateRepeat[\s\S]*?const pool = eligibleEventPool\(nightFactor\)/, 'repeat suppression must stay inside the same eligible pool');
+assert.match(runtimeSource, /eventsBus\.emit\(eventName, \{ \.\.\.picked \}\)/, 'EventBus listeners must receive an isolated event snapshot, never the canonical catalog object');
 assert.doesNotMatch(runtimeSource, /eligible\.length > 1 \? eligible : WORLD_EVENTS/, 'repeat diversity must never escape to ineligible events when one eligible entry remains');
 
 function mulberry32(seed) {
@@ -42,6 +43,27 @@ function collect(seed, nightFactor) {
   }
   system.dispose();
   return emitted;
+}
+
+function collectWithMutatingListener(seed, count = 80) {
+  const observedIds = [];
+  const system = createWorldEventSystem({
+    eventsBus: {
+      emit: (_name, payload) => {
+        observedIds.push(payload.id);
+        payload.id = 'listener-mutated';
+        payload.weight = 999999;
+        payload.timeOfDay = 'night';
+      },
+    },
+    seed,
+    eventName: 'world:event',
+  });
+  for (let second = 0; second < 10000 && observedIds.length < count; second += 1) {
+    system.update(1, undefined);
+  }
+  system.dispose();
+  return observedIds;
 }
 
 function collectEmissionSeconds(seed, count) {
@@ -104,6 +126,16 @@ for (const nightFactor of [undefined, 0, 1, 0.5]) {
   contextProof.push({ nightFactor: nightFactor ?? 'legacy', uniqueEvents, dominantShare: Number(dominantShare.toFixed(3)) });
 }
 
+// EventBus is intentionally an extension seam. A listener is allowed to annotate its payload, but
+// that must never mutate the authored catalog object used by future weighting/eligibility/repeat
+// decisions. Compare an aggressively mutating listener against the same seeded control sequence.
+const listenerMutationSeed = 7331;
+const listenerMutationEvents = 80;
+const controlIds = collect(listenerMutationSeed, undefined).slice(0, listenerMutationEvents).map((event) => event.id);
+const mutatingListenerIds = collectWithMutatingListener(listenerMutationSeed, listenerMutationEvents);
+assert.deepEqual(mutatingListenerIds, controlIds, 'listener payload mutation poisoned future world-event selection state');
+assert.ok(mutatingListenerIds.every((id) => id !== 'listener-mutated'), 'canonical catalog leaked a prior listener mutation');
+
 // Lighting is an adapter input, not authored world-event state. Non-finite or wrong-typed values
 // must therefore fail closed to ungated ambient entries instead of JavaScript coercion accidentally
 // classifying Infinity as night or a numeric string as a valid sky state.
@@ -142,6 +174,7 @@ console.log('WORLD_EVENT_REPEAT_DIVERSITY_PASS', JSON.stringify({
   maxSingleEventShare: MAX_SINGLE_EVENT_SHARE,
   cadenceEventsChecked: CADENCE_EVENTS,
   cadenceLastSecond: actualCadence.at(-1),
+  listenerMutationEventsChecked: listenerMutationEvents,
   malformedLightingContextsChecked: malformedLightingFactors.length,
   finiteLightingClampChecked: true,
   eligibilityPoolShared: true,
