@@ -1,0 +1,159 @@
+name: Lake Basin Exact Head Safety
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/config.js'
+      - 'src/3d/world/terrain.js'
+      - 'src/3d/world/terrainContinentalUplift.js'
+      - 'src/3d/world/terrainReliefDetail.js'
+      - 'src/3d/world/terrainMacroWeathering.js'
+      - 'src/3d/world/terrainMicroSurface.js'
+      - 'src/3d/world/terrainBiomeShading.js'
+      - 'src/3d/world/worldReferenceMountainRelief.js'
+      - 'src/3d/world/worldReferenceSurfacePindexes.js'
+      - 'src/3d/world/worldReferencePindex08Detail.js'
+      - 'src/3d/world/settlements.js'
+      - 'src/3d/world/roads.js'
+      - 'src/3d/world/roadPathfinder.js'
+      - 'scripts/terrainSeatSafetyCheck.js'
+      - 'scripts/roadNetworkSafetyCheck.js'
+      - 'scripts/lib/lakeBasinQa.mjs'
+      - 'scripts/checkLakeBasinAuthority.mjs'
+      - 'scripts/checkLakeBasinSourceRegression.mjs'
+      - 'scripts/checkLakeBasinWorldCoverage.mjs'
+      - 'scripts/checkLakeBasinDeterminismPerformance.mjs'
+      - 'scripts/checkLakeBasinHeightGeometry.mjs'
+      - 'scripts/checkLakeBasinChunkSeams.mjs'
+      - 'scripts/checkLakeBasinGameplaySafety.mjs'
+      - 'scripts/summarizeLakeBasinExactHead.mjs'
+      - '.github/workflows/lake-basin-exact-head-safety.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lake-basin-exact-head-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  scalar-geometry:
+    name: scalar-geometry
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact requested head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXPECTED_HEAD_SHA }}
+          lfs: false
+          fetch-depth: 1
+
+      - name: Verify exact head
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          echo "exact_head=$EXPECTED_HEAD_SHA"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install scalar terrain dependency
+        run: npm install --no-save three
+
+      - name: Syntax contracts
+        run: |
+          set -euo pipefail
+          node --check scripts/lib/lakeBasinQa.mjs
+          node --check scripts/checkLakeBasinAuthority.mjs
+          node --check scripts/checkLakeBasinSourceRegression.mjs
+          node --check scripts/checkLakeBasinWorldCoverage.mjs
+          node --check scripts/checkLakeBasinDeterminismPerformance.mjs
+          node --check scripts/checkLakeBasinHeightGeometry.mjs
+          node --check scripts/checkLakeBasinChunkSeams.mjs
+          node --check scripts/summarizeLakeBasinExactHead.mjs
+          node --check src/3d/world/terrain.js
+          node --check src/3d/world/worldReferenceMountainRelief.js
+
+      - name: Canonical lake and source authority
+        run: |
+          set -euo pipefail
+          node scripts/checkLakeBasinAuthority.mjs
+          node scripts/checkLakeBasinSourceRegression.mjs
+
+      - name: Full-owner-map support envelope
+        run: node scripts/checkLakeBasinWorldCoverage.mjs
+
+      - name: Determinism and hot-path budget
+        run: node scripts/checkLakeBasinDeterminismPerformance.mjs
+
+      - name: Basin height geometry and cirque opening
+        run: node scripts/checkLakeBasinHeightGeometry.mjs
+
+      - name: Chunk seam parity around all canonical lakes
+        run: node scripts/checkLakeBasinChunkSeams.mjs
+
+      - name: Build exact-head QA summary
+        run: node scripts/summarizeLakeBasinExactHead.mjs
+
+      - name: Upload scalar and geometry proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lake-basin-exact-head-scalar-${{ env.EXPECTED_HEAD_SHA }}
+          path: artifacts/lake-basin-exact-head/
+          if-no-files-found: warn
+          retention-days: 14
+
+  gameplay-runtime:
+    name: gameplay-runtime
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact requested head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXPECTED_HEAD_SHA }}
+          lfs: false
+          fetch-depth: 1
+
+      - name: Verify exact head
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          echo "exact_head=$EXPECTED_HEAD_SHA"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install exact browser/runtime dependencies
+        run: |
+          npm install --no-save playwright three
+          npx playwright install --with-deps chromium
+
+      - name: Syntax gameplay orchestrator
+        run: |
+          set -euo pipefail
+          node --check scripts/checkLakeBasinGameplaySafety.mjs
+          node --check scripts/terrainSeatSafetyCheck.js
+          node --check scripts/roadNetworkSafetyCheck.js
+
+      - name: Exact-head seat and road safety
+        run: node scripts/checkLakeBasinGameplaySafety.mjs
+
+      - name: Upload gameplay proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lake-basin-exact-head-gameplay-${{ env.EXPECTED_HEAD_SHA }}
+          path: artifacts/lake-basin-exact-head/
+          if-no-files-found: warn
+          retention-days: 14
