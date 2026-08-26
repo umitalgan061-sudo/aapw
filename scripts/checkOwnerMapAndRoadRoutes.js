@@ -59,12 +59,23 @@ function checkMapFile() {
 	}
 	let duplicateNote = '';
 	if (fs.existsSync(OWNER_UPLOAD_PATH)) {
-		const otherSha = crypto.createHash('sha256').update(fs.readFileSync(OWNER_UPLOAD_PATH)).digest('hex');
-		if (otherSha !== sha256) {
-			console.error(`[owner-map] FAIL: map.png/map.png (${otherSha.slice(0, 12)}…) has drifted from resimler/map.png (${sha256.slice(0, 12)}…)`);
-			return null;
+		const otherBytes = fs.readFileSync(OWNER_UPLOAD_PATH);
+		// That copy is LFS-tracked (see .gitattributes), so in any checkout that has not run
+		// `git lfs pull` it is a ~130-byte pointer rather than the image. Comparing a pointer's hash
+		// against real JPEG bytes and calling the difference "drift" reports a transcription error
+		// that did not happen -- the same false alarm RCA_RUN344 recorded for the model catalogue.
+		// Only a hydrated copy can answer the question this check is asking.
+		const isPointerStub = otherBytes.subarray(0, 40).toString('utf8').startsWith('version https://git-lfs');
+		if (isPointerStub) {
+			duplicateNote = '; map.png/map.png not hydrated (LFS pointer), duplicate comparison skipped';
+		} else {
+			const otherSha = crypto.createHash('sha256').update(otherBytes).digest('hex');
+			if (otherSha !== sha256) {
+				console.error(`[owner-map] FAIL: map.png/map.png (${otherSha.slice(0, 12)}…) has drifted from resimler/map.png (${sha256.slice(0, 12)}…)`);
+				return null;
+			}
+			duplicateNote = '; map.png/map.png is byte-identical';
 		}
-		duplicateNote = '; map.png/map.png is byte-identical';
 	}
 	console.log(`[owner-map] PASS: resimler/map.png present, ${bytes.length} bytes, JPEG, sha256 ${sha256.slice(0, 12)}… matches the contract${duplicateNote}.`);
 	return true;

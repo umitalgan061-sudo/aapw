@@ -19395,3 +19395,30 @@ yakaladı), koltuklar 14/14, yollar PASS. Service worker v50→v51.
 **Technical debt.** 0 new. **Açık iş.** Köpük bantlanması nehri fazla beyaz gösteriyor (yakından da
 belirgin); **nehrin ortasında ağaç bitiyor** — bitki dağılımı nehir şeridinden kaçınmıyor; kuzey
 denizinin tropik turkuazı; yamaçta teraslanan yollar; göller (S-0039); kayalık dağ yüzeyleri.
+
+## ADR-0339 — Sahibin haritası kasten LFS dışında: `final-head-gate`'i kıran çelişki
+
+**Nereden çıktı.** PR #964'te `final-head-gate` şu hatayla düştü:
+`pointer: unexpectedGitObject: "resimler/map.png" should have been a pointer but was not`.
+
+**Sebep bir çelişki.** `.gitattributes` **her `*.png`'yi** LFS'e zorluyor, ama tur 361 (ADR-0308)
+`resimler/map.png`'yi **667 KB ham blob** olarak commit'lemiş. Git LFS ağacı bu yüzden reddediyor.
+
+**Ham olması kaza değil, işlevsel.** `checkRegionGeographyFidelity`, `checkMapFeatureFidelity`,
+`checkValyriaDoom`, `checkOwnerMapAndRoadRoutes` ve diğerleri bu dosyanın **gerçek piksellerini**
+okuyor. LFS'te izlenen bir dosya, `git lfs pull` çalıştırılmamış her checkout'ta yalnızca ~130 baytlık
+bir pointer'dır. Haritayı LFS'e almak, bu kapıların hidrasyonsuz ortamlarda **sessizce bir pointer
+stub'ını ölçmesi** demek olurdu — RCA_RUN344'ün model kataloğu için kaydettiği kusurun aynısı.
+
+Bu yüzden çözüm dosyayı LFS'e taşımak değil, **çelişkiyi gidermek**: `.gitattributes` artık bu tek yolu
+LFS'ten muaf tutuyor (`resimler/map.png -filter -diff -merge -text`). Diğer tüm PNG'ler kuralda
+kalıyor; sahibin kendi yüklediği `map.png/map.png` (PR #792) pointer olarak kalmaya devam ediyor.
+Doğrulandı: `git check-attr` ilkinde filter `unset`, ikincisinde `lfs`.
+
+**Yanında bulunan ikinci kusur.** `checkOwnerMapAndRoadRoutes.js` iki kopyayı sha256 ile
+karşılaştırıyordu ve hidrate edilmemiş pointer'ın hash'i doğal olarak tutmadığı için **"sapma"**
+diye FAIL veriyordu — olmamış bir transkripsiyon hatası bildiriyordu. (Benim değişikliğimden **önce
+de** aynen düşüyordu; ölçüldü.) Artık kopya bir pointer stub'ı ise karşılaştırma atlanıp not
+düşülüyor; hidrate ama **farklı** bir kopya hâlâ FAIL veriyor — dişi kanıtlandı.
+
+**Technical debt.** 0 new. Bu, PR #964'ün CI'ını açan iki düzeltmedir; oyun davranışı değişmedi.

@@ -7,3 +7,16 @@
 *.jpg filter=lfs diff=lfs merge=lfs -text
 *.jpeg filter=lfs diff=lfs merge=lfs -text
 *.pdf filter=lfs diff=lfs merge=lfs -text
+
+# The owner's canonical map is deliberately a plain blob, not an LFS pointer (run 361, ADR-0308).
+# Every geography gate reads its actual pixels -- checkRegionGeographyFidelity, checkMapFeatureFidelity,
+# checkValyriaDoom, checkOwnerMapAndRoadRoutes and others -- and an LFS-tracked file is only a 130-byte
+# pointer until someone hydrates it. Tracking this one in LFS would mean those gates silently measure a
+# pointer stub in any environment that has not run `git lfs pull`, which is exactly the failure mode
+# RCA_RUN344 recorded for the model catalogue. Committed raw at 667 KB, it is always readable.
+#
+# Without this exemption the file contradicts the `*.png` rule above and `git lfs fsck` rejects the tree
+# ("resimler/map.png should have been a pointer but was not"), which is what broke the final-head-gate.
+# `map.png/map.png` (the owner's own upload, PR #792) keeps the LFS rule and stays a pointer; nothing
+# loads it, and scripts/checkOwnerMapAndRoadRoutes.js compares it against this one when it is hydrated.
+resimler/map.png -filter -diff -merge -text
