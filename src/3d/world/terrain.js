@@ -14,7 +14,11 @@ import { WORLD_DEFAULTS, WORLD_SCALE } from '../config.js';
 import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
 import { referenceProtectionRadiiFromMeters, sampleSeatSafeReferenceHydrology } from './worldReferenceHydrology.js';
 import { sampleReferencePindexQualityV2 } from './worldReferenceSurfacePindexes.js';
-import { sampleWorldReferenceMountainReliefMeters } from './worldReferenceMountainRelief.js';
+import {
+	WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY,
+	sampleReferenceLakeBasinScale,
+	sampleWorldReferenceMountainReliefMeters,
+} from './worldReferenceMountainRelief.js';
 import { coastWarpOffsets, reliefDetailMeters } from './terrainReliefDetail.js';
 import { continentalUpliftMeters } from './terrainContinentalUplift.js';
 import {
@@ -108,6 +112,24 @@ export const CURRENT_TERRAIN_POLICY = Object.freeze({
 });
 
 /**
+ * Mountain lakes use the immutable lake cells from the same owner-map surface mask as v7 mountain
+ * relief. The water class and wet profile remain untouched; only added dry-land enhancement fades
+ * into the basin so a lake cannot expose a vertical wall made from uplift/Pindex/snow/detail terms.
+ */
+export const TERRAIN_LAKE_BASIN_CONFORM_POLICY = Object.freeze({
+	id: 'terrain-lake-basin-dry-enhancement-conform-2026-08-26-v1',
+	lakeAuthorityPolicyId: WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.id,
+	dryEnhancementExponent: 2,
+	canonicalWaterHeightPreserved: true,
+	canonicalLakeMaskPreserved: true,
+});
+
+export function terrainLakeBasinDryScale(normalizedX, normalizedY) {
+	const mountainBasinScale = sampleReferenceLakeBasinScale(normalizedX, normalizedY);
+	return Math.pow(mountainBasinScale, TERRAIN_LAKE_BASIN_CONFORM_POLICY.dryEnhancementExponent);
+}
+
+/**
  * Asset-first terrain material policy. `overlay.png` is the authored diffuse source referenced by
  * the repository's `assets/textures/yüzey/model.mtl`; it is not used as a new geography authority.
  * Geography, shoreline, relief and gameplay height remain sourced exclusively from map.png-derived
@@ -178,14 +200,16 @@ function sampleCanonicalHeightMeters(worldX, worldZ, outSurface) {
 	const micro = canonicalMicroSignal(nx, ny) * (0.45 + sample.microAmplitude * 12);
 	const mountainMeters = sampleWorldReferenceMountainReliefMeters(worldX, worldZ);
 	const upliftMeters = continentalUpliftMeters(wx, wy);
-	const dryRelative = 1.0
-		+ upliftMeters
+	const lakeDryEnhancementScale = terrainLakeBasinDryScale(nx, ny);
+	const nonMountainDryEnhancement = upliftMeters
 		+ sample.reliefInfluence * 28
 		+ sample.biomeInfluence * 7
 		+ rockWeight * 8
 		+ snowWeight * 12
-		+ mountainMeters
 		+ micro;
+	const dryRelative = 1.0
+		+ nonMountainDryEnhancement * lakeDryEnhancementScale
+		+ mountainMeters;
 	const wetRelative = -3.0 - waterWeight * 5.25 - sample.reliefInfluence * 0.75 + micro * 0.12;
 	let heightMeters = SEA_LEVEL + lerp(dryRelative, wetRelative, waterWeight);
 	heightMeters += reliefDetailMeters(wx, wy, {
@@ -194,7 +218,7 @@ function sampleCanonicalHeightMeters(worldX, worldZ, outSurface) {
 		rockWeight,
 		snowWeight,
 		waterWeight,
-	}) * detailTaper;
+	}) * detailTaper * lakeDryEnhancementScale;
 	const hydrology = sampleSeatSafeReferenceHydrology(nx, ny, PROTECTED_SEATS, PROTECTION_RADII);
 	if (hydrology.protectedLand) {
 		const minimumLand = SEA_LEVEL + 0.35 + hydrology.protectedLandWeight * 0.9;
