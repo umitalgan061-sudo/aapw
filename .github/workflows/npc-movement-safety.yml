@@ -6,8 +6,10 @@ on:
     paths:
       - 'src/3d/gameplay/npc.js'
       - 'scripts/checkNpcMovementSafetyBrowser.js'
+      - 'scripts/checkNpcPerceptionInputSafetyBrowser.js'
       - '.github/workflows/npc-movement-safety.yml'
       - '.github/workflows/npc-hearing-framerate-determinism.yml'
+      - '.github/workflows/npc-perception-input-safety.yml'
   workflow_dispatch:
 
 permissions:
@@ -34,8 +36,8 @@ jobs:
           test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
           CHANGED_FILES="$(git diff --name-only "$BASE_SHA" HEAD)"
           printf '%s\n' "$CHANGED_FILES"
-          test "$(printf '%s\n' "$CHANGED_FILES" | sed '/^$/d' | wc -l)" -le 4
-          printf '%s\n' "$CHANGED_FILES" | grep -Ev '^(src/3d/gameplay/npc\.js|scripts/checkNpcMovementSafetyBrowser\.js|\.github/workflows/npc-movement-safety\.yml|\.github/workflows/npc-hearing-framerate-determinism\.yml)$' && exit 1 || true
+          test "$(printf '%s\n' "$CHANGED_FILES" | sed '/^$/d' | wc -l)" -le 5
+          printf '%s\n' "$CHANGED_FILES" | grep -Ev '^(src/3d/gameplay/npc\.js|scripts/checkNpcMovementSafetyBrowser\.js|scripts/checkNpcPerceptionInputSafetyBrowser\.js|\.github/workflows/npc-movement-safety\.yml|\.github/workflows/npc-hearing-framerate-determinism\.yml|\.github/workflows/npc-perception-input-safety\.yml)$' && exit 1 || true
           CHANGED="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           test "$CHANGED" -le 1000
           git diff --check "$BASE_SHA" HEAD
@@ -44,6 +46,7 @@ jobs:
           set -euo pipefail
           node --check src/3d/gameplay/npc.js
           node --check scripts/checkNpcMovementSafetyBrowser.js
+          node --check scripts/checkNpcPerceptionInputSafetyBrowser.js
           node scripts/checkNpcGuardLifecycleContract.mjs
           node scripts/checkNpcGuardPerception.mjs
           node scripts/checkNpcSimulationLod.mjs
@@ -58,6 +61,8 @@ jobs:
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
       - name: Real shipped Three.js movement safety proof
         run: node scripts/checkNpcMovementSafetyBrowser.js
+      - name: Existing perception-input safety regression
+        run: node scripts/checkNpcPerceptionInputSafetyBrowser.js
       - name: Existing guard lifecycle regression
         run: node scripts/checkNpcGuardLifecycleBrowser.js
       - name: Final exact-main freshness
