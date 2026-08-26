@@ -1,0 +1,68 @@
+name: NPC Movement Safety
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/npc.js'
+      - 'scripts/checkNpcMovementSafetyBrowser.js'
+      - '.github/workflows/npc-movement-safety.yml'
+      - '.github/workflows/npc-hearing-framerate-determinism.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  npc-movement-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exact-main scope and budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"
+          test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
+          CHANGED_FILES="$(git diff --name-only "$BASE_SHA" HEAD)"
+          printf '%s\n' "$CHANGED_FILES"
+          test "$(printf '%s\n' "$CHANGED_FILES" | sed '/^$/d' | wc -l)" -le 4
+          printf '%s\n' "$CHANGED_FILES" | grep -Ev '^(src/3d/gameplay/npc\.js|scripts/checkNpcMovementSafetyBrowser\.js|\.github/workflows/npc-movement-safety\.yml|\.github/workflows/npc-hearing-framerate-determinism\.yml)$' && exit 1 || true
+          CHANGED="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          test "$CHANGED" -le 1000
+          git diff --check "$BASE_SHA" HEAD
+      - name: Syntax and standing NPC contracts
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/npc.js
+          node --check scripts/checkNpcMovementSafetyBrowser.js
+          node scripts/checkNpcGuardLifecycleContract.mjs
+          node scripts/checkNpcGuardPerception.mjs
+          node scripts/checkNpcSimulationLod.mjs
+          node scripts/checkSharedMaterialPlacementContract.js
+      - name: Install Chromium outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Real shipped Three.js movement safety proof
+        run: node scripts/checkNpcMovementSafetyBrowser.js
+      - name: Existing guard lifecycle regression
+        run: node scripts/checkNpcGuardLifecycleBrowser.js
+      - name: Final exact-main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
