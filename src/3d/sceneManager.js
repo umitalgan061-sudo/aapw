@@ -330,12 +330,19 @@ export function createScene(canvas) {
 	// Built *before* vegetation as of run 358 / ADR-0305: the forest pass now covers every piece of land
 	// that is not a seat, a road or a village, so it needs these house positions to keep clear. Villages
 	// depend only on terrain, seats and roads, so moving them earlier changes nothing about them.
+	// Every river course in one list, for the placement predicate shared by villages and vegetation.
+	// Measured before this: 52 of 14344 scattered instances stood inside a channel, some 0.3 m from the
+	// centreline. `isPlaceablePosition` knew the sea and the roads but not the rivers, and a river runs
+	// above sea level so the waterline test could never catch one.
+	const riverCourses = [{ points: riverPoints }, ...(valleyField.namedRivers ?? []).map((river) => ({ points: river.points }))];
+
 	const villagesResult = createVillages({
 		sampleHeightMeters: groundCollider.getGroundHeight,
 		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
 		seed: WORLD_DEFAULTS.WORLD_SEED,
 		seats: settlementsResult.seats,
 		roadEdges: roadsResult.edges,
+		riverCourses,
 		radiusMeters: previewRadiusChunks * CHUNK_CONFIG.CHUNK_SIZE_METERS,
 		mulberry32,
 	});
@@ -359,6 +366,7 @@ export function createScene(canvas) {
 		seed: WORLD_DEFAULTS.WORLD_SEED,
 		seats: settlementsResult.seats,
 		roadEdges: roadsResult.edges,
+		riverCourses,
 		radiusMeters: previewRadiusChunks * CHUNK_CONFIG.CHUNK_SIZE_METERS,
 		villageHouses: villagesResult.houses,
 	});

@@ -78,6 +78,7 @@ jobs:
           node scripts/checkAssetCoverage.js
           node scripts/checkWorldPropScatter.js
           node scripts/checkVillageBuildings.js
+          node scripts/checkVegetationRiverClearance.js
       - name: Direct createScene canonical-map ownership and top-down proof
         run: |
           set -euo pipefail

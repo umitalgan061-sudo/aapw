@@ -18249,3 +18249,27 @@ eklendi, ham gömme yasaklandı.
 
 Ayrıca GLSL yorumuna ters tırnak yazma tuzağına **ikinci kez** düştüm (tur 388'de de olmuştu); artık
 kapı bunu satır numarasıyla yakalıyor. Yeni modül `world/waterLatitude.js`. SW v51→v52.
+
+## Tur 393 — Nehrin ortasında ağaç bitiyordu (ADR-0341)
+
+Tur 391'in render'ında akıntının ortasında duran ağacı kovaladım.
+
+**Sebep:** `isPlaceablePosition` denizi, koltukları ve yolları dışlıyordu ama **nehirleri bilmiyordu**
+— nehir deniz seviyesinin üstünde aktığı için su hattı testi onu asla yakalayamazdı. Yol için gereken
+mekanizma zaten oradaydı; nehir güzergâhları hiç geçirilmemişti. Yordam paylaşımlı olduğu için aynı
+tek parametre **köy binalarını** da kapsadı.
+
+**Ölçüm:** render edilen gerçek şeritlere karşı 14344 örneğin **96'sı** bir nehrin 8 m yakınındaydı.
+
+**Yarıçapı ölçerek seçtim.** Dışlama çizilen güzergâha uygulanıyor ama görünen şey yeniden örneklenmiş
+şerit; ilk seçtiğim 11 m **28 örnek bıraktı**, 18 m **0** bıraktı. Bedel: 14344 ağaçtan 50'si (%0,35).
+En yakın ağaç artık sudan 11,9 m ötede.
+
+**Kapı:** `checkVegetationRiverClearance.js` canlı sahnedeki instance'ları **sahnedeki gerçek nehir
+ağlarına** karşı ölçüyor. Dünyayı boşaltarak geçmeyi de engelliyor (bitki sayısı tabanı var). Dişi
+kanıtlandı, CI'a wire edildi.
+
+**Çürüttüğüm iki hipotez.** Tura "yamaçta teraslanan yollar" ile başladım; ölçüm çürüttü. Şerit
+dörtgeni ortasında zemin sapması medyan **2 cm** (1130 dörtgenin 6'sı 1 m üstü, en kötüsü deniz
+geçişinde), yatakta 2 m'de medyan sıçrama **9 cm**. Yollarda nehirdeki kusurun karşılığı yok — o
+mesafede dörtgen kenarlarını yanlış okumuşum. Düzeltme uydurmadım, listeden çıkardım. SW v52→v53.

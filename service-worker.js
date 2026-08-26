@@ -285,7 +285,10 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run 392 makes water optics latitude-dependent: the far north's sea is cold grey-green instead of
 // the same Caribbean turquoise as Dorne. New offline-loadable module (waterLatitude.js) and a look
 // change both. v51->v52.
-const SHELL_CACHE = 'westeros-shell-v52';
+// Run 393 keeps vegetation and village buildings out of the rivers — 96 instances stood in a channel,
+// some half a metre from the centreline. Placement is generated at runtime from this code, so a
+// cache-first shell would keep scattering trees mid-stream. v52->v53.
+const SHELL_CACHE = 'westeros-shell-v53';
 const SHELL_FILES = [
     './',
     './index.html',

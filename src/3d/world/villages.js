@@ -132,6 +132,8 @@ function buildVillageGeometries() {
  * @param {number} options.seed World seed.
  * @param {{x: number, z: number}[]} options.seats Kingdom seats — village centres and exclusion zones.
  * @param {{points: {x: number, z: number}[]}[]} options.roadEdges Road network (exclusion).
+ * @param {{points: {x: number, z: number}[]}[]} [options.riverCourses] River courses (exclusion) — a
+ *   house standing mid-stream is as wrong as a tree, and both passes share this predicate.
  * @param {number} options.radiusMeters Radius of terrain actually loaded; a seat whose whole ring
  *   doesn't fit inside it is skipped, so no house renders over ungenerated ground.
  * @param {(seed: number) => () => number} options.mulberry32
@@ -149,6 +151,7 @@ export function createVillages({
 	seed,
 	seats,
 	roadEdges,
+	riverCourses = [],
 	radiusMeters,
 	mulberry32,
 	housesPerVillage = 10,
@@ -222,7 +225,7 @@ export function createVillages({
 				const spreadRadius = HAMLET_RADIUS_METERS * Math.sqrt(rng());
 				const x = hamletX + Math.cos(spreadAngle) * spreadRadius;
 				const z = hamletZ + Math.sin(spreadAngle) * spreadRadius;
-				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
+				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges, riverCourses })) continue;
 				// Keep neighbours apart. Only this village's own houses are checked: two seats are far
 				// enough apart that their rings cannot overlap.
 				let tooClose = false;

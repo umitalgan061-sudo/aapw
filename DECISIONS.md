@@ -19469,3 +19469,50 @@ hareketi), `checkWaterSurfVisualContract` PASS + üç yeni koruma, `checkNorther
 
 **Technical debt.** 0 new. **Açık iş.** Şelaleler; göller (S-0039); yamaçta teraslanan yollar;
 nehrin ortasında biten ağaçlar; uzakta köpük bantlanması; gün ışığı/altın saat tonlaması.
+
+## ADR-0341 — Nehrin ortasında ağaç bitiyordu: yerleştirme nehirleri hiç bilmiyordu
+
+**Nereden çıktı.** Tur 391'in nehir ağzı render'ında akıntının tam ortasında duran bir ağaç vardı.
+
+**Sebep.** `isPlaceablePosition` denizi, koltukları ve **yol ağını** dışlıyordu ama nehirleri
+bilmiyordu — ve bir nehir **deniz seviyesinin üstünde** aktığı için su hattı testi onu asla
+yakalayamazdı. Yol dışlaması için gereken mekanizma (`distancePointToSegment2D` + polyline listesi)
+zaten oradaydı; eksik olan tek şey nehir güzergâhlarının hiç geçirilmemesiydi.
+
+**Ölçüm:** render edilen gerçek şeritlere karşı **14344 örneğin 96'sı** bir nehir şeridinin 8 m
+yakınında duruyordu, kimi merkez hattına yarım metre mesafede.
+
+**Yordam paylaşımlı olduğu için köyler de kapsandı.** `villages.js` aynı `isPlaceablePosition`'ı
+kullanıyor; nehrin ortasındaki bir ev, ağaç kadar yanlıştır. Tek parametre ikisini birden çözdü.
+
+### Yarıçap tahmin değil, ölçüm
+
+Dışlama **çizilen güzergâha** uygulanıyor, ama oyuncunun gördüğü şey yeniden örneklenip zemine
+oturtulmuş **şerit** (tur 390) ve o polyline'dan sapıyor. Bu yüzden ilk seçtiğim 11 m yetmedi:
+
+| yarıçap | şeridin 8 m'sinde kalan örnek |
+|---|---|
+| yok | 96 |
+| 11 m | 28 |
+| **18 m** | **0** |
+
+Bedeli 14344 ağaçtan 50'si, yani **%0,35**. En yakın ağaç artık sudan 11,9 m ötede.
+
+**Kapı.** `scripts/checkVegetationRiverClearance.js` — canlı sahnedeki instance dönüşümlerini,
+**sahnedeki gerçek nehir ağlarının** vertex'lerine karşı ölçüyor; yeniden hesaplanmış bir güzergâha
+karşı değil. Bu ayrım bir ölçüm turuna mal oldu ve kapının yorumunda kayıtlı. Kapı ayrıca nehir
+geometrisi yoksa ve bitki sayısı 12000'in altına düşerse de düşüyor — yani dışlamayı dünyayı
+boşaltana kadar genişletmek kapıyı geçmez. **Dişi kanıtlandı:** yarıçap 0'a çekilince 96 örneği
+adıyla yakalıyor. CI'a wire edildi.
+
+### Bu turda çürüttüğüm iki hipotez
+
+Tura "yamaçta teraslanan yollar" ile başladım (tur 389'da öyle not etmiştim). **Ölçüm ikisini de
+çürüttü:** (1) şerit dörtgenleri — nokta aralığı medyan 15,5 m, dörtgen ortasında zemin sapması
+medyan **2 cm**, 1130 dörtgenin yalnız 6'sı 1 m'yi aşıyor ve en kötüsü bir deniz geçişinde;
+(2) yatak — 2 m'de medyan sıçrama **9 cm**, 9599 örneğin 5'i 1 m üstünde. Yollarda nehirdeki
+uzun-dörtgen kusurunun karşılığı **yok**. O mesafede dörtgen kenarlarının silüetini yanlış okumuşum.
+Uydurma düzeltme yapmadım; açık iş listesinden çıkardım.
+
+**Technical debt.** 0 new. **Açık iş.** Şelaleler; göller (S-0039); uzakta köpük bantlanması;
+gün ışığı/altın saat tonlaması; `assets/`'teki yol glb'lerinin kullanılması. Service worker v52→v53.

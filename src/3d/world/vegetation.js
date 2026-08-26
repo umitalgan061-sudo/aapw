@@ -92,6 +92,21 @@ const SEAT_EXCLUSION_RADIUS_METERS = 90;
  * reasoning as `SEAT_EXCLUSION_RADIUS_METERS` above — keeps trees from visibly blocking the road
  * ribbon or crowding right up against its edge. */
 const ROAD_EXCLUSION_RADIUS_METERS = 10;
+/**
+ * How far vegetation and village buildings stay back from a river's centreline, in meters (run 393).
+ *
+ * Measured before this existed: 52 of 14344 scattered instances stood inside a river channel, some
+ * within 0.3 m of the centreline — trees growing mid-stream. `isPlaceablePosition` already kept clear
+ * of the sea, but a river runs *above* sea level, so the waterline test could never exclude one, and
+ * nothing else knew the courses were there.
+ *
+ * The radius is measured, not guessed. It is applied to the *traced course*, but what the player sees
+ * is the ribbon mesh, which is resampled and re-grounded (run 390) and so wanders from that polyline.
+ * Against the real rendered ribbons: no exclusion left 96 instances within 8 m of one, 11 m still left
+ * 28, and 18 m leaves 0 — at a cost of 50 trees out of 14344, or 0.35%. Same shape of rule as the road
+ * corridor immediately above.
+ */
+const RIVER_EXCLUSION_RADIUS_METERS = 18;
 /** Minimum height above `seaLevelMeters` a tree may be placed at — keeps trees off the exact
  * shoreline edge, not just fully submerged points. */
 const SHORE_MARGIN_METERS = 1.5;
@@ -156,7 +171,7 @@ export function distancePointToSegment2D(px, pz, ax, az, bx, bz) {
  * @param {{points: {x: number, z: number}[]}[]} params.roadEdges
  * @returns {boolean}
  */
-export function isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges }) {
+export function isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges, riverCourses = [] }) {
 	for (const seat of seats) {
 		if (Math.hypot(x - seat.x, z - seat.z) < SEAT_EXCLUSION_RADIUS_METERS) return false;
 	}
@@ -165,6 +180,15 @@ export function isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, 
 		for (let i = 1; i < points.length; i++) {
 			const distance = distancePointToSegment2D(x, z, points[i - 1].x, points[i - 1].z, points[i].x, points[i].z);
 			if (distance < ROAD_EXCLUSION_RADIUS_METERS) return false;
+		}
+	}
+	// Rivers, on exactly the same footing as roads above. Defaults to an empty list so callers that
+	// have no river data keep their previous behaviour rather than silently losing the check.
+	for (const course of riverCourses) {
+		const points = course.points ?? course;
+		for (let i = 1; i < points.length; i++) {
+			const distance = distancePointToSegment2D(x, z, points[i - 1].x, points[i - 1].z, points[i].x, points[i].z);
+			if (distance < RIVER_EXCLUSION_RADIUS_METERS) return false;
 		}
 	}
 	const groundY = sampleHeightMeters(x, z);
@@ -320,7 +344,7 @@ function placeTreeInstance(entry, x, z, sampleHeightMeters, rng, up, matrix, pos
  *   predictable from `SPECIES.length` alone). `clusterSeatCount` is how many seats actually qualified
  *   for a ring (0 on mobile-sized discs — see above).
  */
-export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, seats, roadEdges, radiusMeters, densityPerKm2 = TARGET_DENSITY_PER_KM2, villageHouses = [] }) {
+export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, seats, roadEdges, riverCourses = [], radiusMeters, densityPerKm2 = TARGET_DENSITY_PER_KM2, villageHouses = [] }) {
 	const group = new THREE.Group();
 	const areaKm2 = (Math.PI * radiusMeters * radiusMeters) / 1_000_000;
 	const baseTargetCount = Math.max(0, Math.round(areaKm2 * densityPerKm2));
@@ -334,7 +358,7 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 		radiusMeters,
 		sampleHeightMeters,
 		seaLevelMeters,
-		isPlaceable: (x, z) => isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges }),
+		isPlaceable: (x, z) => isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges, riverCourses }),
 		rng: forestRng,
 		villageHouses,
 	});
@@ -388,7 +412,7 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 			const radius = radiusMeters * Math.sqrt(rng());
 			const x = Math.cos(angle) * radius;
 			const z = Math.sin(angle) * radius;
-			if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
+			if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges, riverCourses })) continue;
 
 			// Species is drawn only for an accepted position, from the same seeded stream, so v1's
 			// (ADR-0138) position/count behavior is unaffected in shape — only which species-specific
@@ -414,7 +438,7 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 		for (let treeIndex = 0; treeIndex < clusterTargetPerSeat; treeIndex++) {
 			for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_TREE; attempt++) {
 				const { x, z } = sampleAnnulusPoint(clusterRng, seat.x, seat.z, clusterInnerRadius, CLUSTER_RING_OUTER_RADIUS_METERS);
-				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
+				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges, riverCourses })) continue;
 
 				const speciesIndex = pickSpeciesIndex(clusterRng());
 				const entry = perSpecies[speciesIndex];
