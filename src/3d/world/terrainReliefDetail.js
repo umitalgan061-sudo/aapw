@@ -2,10 +2,10 @@
  * Coastline domain warp + deterministic multi-scale terrain relief.
  *
  * Canonical owner-map semantics remain upstream in terrain.js. This module only supplies bounded
- * residual shape. The original fBm/ridged stack is preserved, but hill country now carries a slowly
- * rotating anisotropic fabric so aerial landforms read as connected ridges and valleys rather than
- * isotropic blobs. Directional macro weathering remains responsible for drainage, benches, aspect
- * asymmetry, talus and alluvial hierarchy.
+ * residual shape. The original fBm/ridged stack is preserved, but hill country and mountain massifs
+ * now carry slowly rotating anisotropic fabrics so aerial landforms read as connected ridges and
+ * valleys rather than isotropic blobs. Directional macro weathering remains responsible for
+ * drainage, benches, aspect asymmetry, talus and alluvial hierarchy.
  *
  * Settlement/seat safety is still owned by terrain.js, which tapers the complete result around
  * protected seats before hydrology/foundation consumers see it.
@@ -19,8 +19,8 @@ const TAU = Math.PI * 2;
 const clamp01 = (value) => value < 0 ? 0 : value > 1 ? 1 : value;
 
 export const TERRAIN_RELIEF_DETAIL_POLICY = Object.freeze({
-	id: 'terrain-coast-warp-and-relief-detail-2026-08-26-v2-directional-weathering',
-	revision: 3,
+	id: 'terrain-coast-warp-and-relief-detail-2026-08-26-v3-anisotropic-mountain-fabric',
+	revision: 4,
 	coastWarpU: 1.55 / 96,
 	coastWarpV: 1.55 / 64,
 	coastWarpOctaves: 3,
@@ -35,6 +35,16 @@ export const TERRAIN_RELIEF_DETAIL_POLICY = Object.freeze({
 	ridgeAmplitudeMeters: 42,
 	ridgeFrequency: 11,
 	ridgeOctaves: 4,
+	mountainAnisotropicFabric: true,
+	mountainFabricBlend: 0.68,
+	mountainFabricContrast: 1.42,
+	mountainFabricAlongScale: 0.52,
+	mountainFabricAcrossScale: 1.48,
+	mountainFabricWarpFrequency: 4.2,
+	mountainFabricWarpStrength: 0.047,
+	mountainFabricBaseAngleRadians: -0.18,
+	mountainFabricAngleSwingRadians: 0.82,
+	mountainFabricAngleDetailRadians: 0.31,
 
 	// Everywhere-land erosion.
 	erosionAmplitudeLowMeters: 3.6,
@@ -67,8 +77,8 @@ export const TERRAIN_RELIEF_DETAIL_POLICY = Object.freeze({
 	// Low ground may be raised, but negative cuts are suppressed near the coast.
 	negativeReliefFullElevationMeters: 28,
 
-	// Mid-scale hill country visible from aerial cameras. The amplitude is unchanged; v3 changes only
-	// morphology by blending isotropic hills with a regional anisotropic ridge fabric.
+	// Mid-scale hill country visible from aerial cameras. The amplitude is unchanged; morphology is
+	// blended with a regional anisotropic ridge fabric.
 	hillAmplitudeMeters: 26,
 	hillFrequency: 22,
 	hillOctaves: 3,
@@ -188,6 +198,54 @@ export function terrainHillFabricSignal(normalizedX, normalizedY) {
 	return elongatedContrasted * P.hillFabricBlend + isotropic * (1 - P.hillFabricBlend);
 }
 
+/**
+ * Mountain-scale structural fabric in [0,1].
+ *
+ * This never creates a mountain on its own: terrain.js's existing relief/rock/snow gate still owns
+ * where mountain residuals may appear. The signal only changes shape inside that gate. Two slow
+ * regional angle fields orient the strata-like grain, while a low-frequency warp bends long ridges
+ * and prevents repeated parallel bands. The isotropic legacy signal remains mixed in for local
+ * breakup, so the result stays deterministic without becoming a new geographic authority.
+ */
+export function terrainMountainFabricSignal(normalizedX, normalizedY) {
+	const P = TERRAIN_RELIEF_DETAIL_POLICY;
+	const nx = Number.isFinite(normalizedX) ? normalizedX : 0;
+	const ny = Number.isFinite(normalizedY) ? normalizedY : 0;
+	const regionalA = Math.sin(TAU * (nx * 0.57 + ny * 0.18) + 1.37);
+	const regionalB = Math.sin(TAU * (nx * -0.21 + ny * 0.74) + 4.11);
+	const angle = P.mountainFabricBaseAngleRadians
+		+ regionalA * P.mountainFabricAngleSwingRadians
+		+ regionalB * P.mountainFabricAngleDetailRadians;
+	const c = Math.cos(angle);
+	const s = Math.sin(angle);
+	const centeredX = nx - 0.5;
+	const centeredY = ny - 0.5;
+	const along = centeredX * c + centeredY * s;
+	const across = -centeredX * s + centeredY * c;
+	const warpA = fbm2(
+		nx * P.mountainFabricWarpFrequency + 31.7,
+		ny * P.mountainFabricWarpFrequency - 8.6,
+		3,
+	) * P.mountainFabricWarpStrength;
+	const warpB = fbm2(
+		nx * (P.mountainFabricWarpFrequency * 0.71) - 19.4,
+		ny * (P.mountainFabricWarpFrequency * 0.71) + 24.8,
+		2,
+	) * P.mountainFabricWarpStrength * 0.58;
+	const elongated = ridged2(
+		(along + warpA) * P.ridgeFrequency * P.mountainFabricAlongScale + 47.2,
+		(across - warpA * 0.74 + warpB) * P.ridgeFrequency * P.mountainFabricAcrossScale + 19.8,
+		P.ridgeOctaves,
+	);
+	const contrasted = clamp01(0.61 + (elongated - 0.61) * P.mountainFabricContrast);
+	const isotropic = ridged2(
+		nx * P.ridgeFrequency + 47.2,
+		ny * P.ridgeFrequency + 19.8,
+		P.ridgeOctaves,
+	);
+	return contrasted * P.mountainFabricBlend + isotropic * (1 - P.mountainFabricBlend);
+}
+
 export function coastWarpOffsets(normalizedX, normalizedY) {
 	const P = TERRAIN_RELIEF_DETAIL_POLICY;
 	const broadU = fbm2(normalizedX * 9.3 + 11.7, normalizedY * 9.3 + 3.1, P.coastWarpOctaves);
@@ -251,7 +309,6 @@ export function reliefDetailMeters(
 	);
 	metres += (erosion - 0.5) * 2 * erosionAmplitude * landGate;
 
-	// Same amplitude as v2, but a regional structural grain replaces the isotropic-only morphology.
 	const hills = terrainHillFabricSignal(normalizedX, normalizedY);
 	metres += (hills - 0.5) * 2 * P.hillAmplitudeMeters * landGate;
 
@@ -292,11 +349,7 @@ export function reliefDetailMeters(
 			P.ridgeAmplitudeMeters,
 			Math.min(P.elevationRidgeCapMeters, heightAboveSeaMeters * P.elevationRidgeFraction),
 		);
-		const ridge = ridged2(
-			normalizedX * P.ridgeFrequency + 47.2,
-			normalizedY * P.ridgeFrequency + 19.8,
-			P.ridgeOctaves,
-		);
+		const ridge = terrainMountainFabricSignal(normalizedX, normalizedY);
 		metres += (ridge - 0.5) * 2 * ridgeAmplitude * mountainGate * landGate;
 
 		const crag = ridged2(
