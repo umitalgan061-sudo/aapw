@@ -22,7 +22,7 @@ function smoothstep(edge0, edge1, value) {
 const PREVAILING_SOURCE_LENGTH = Math.hypot(0.8, 0.6);
 
 export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
-	id: 'terrain-wind-snow-exposure-2026-08-25-v4-ridge-breakup',
+	id: 'terrain-wind-snow-exposure-2026-08-26-v5-lee-slope-collection',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	// Direction points toward the source of the prevailing wind. Wind therefore travels NW -> SE.
@@ -35,6 +35,10 @@ export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
 	// preserving stronger, narrower scour/deposition around real ridges and sheltered folds.
 	directionalAlignmentStart: 0.34,
 	directionalAlignmentFull: 0.92,
+	// Loose lee snow needs enough slope to form a recognisable sheltered face. Keeping this separate
+	// from generic aspect strength avoids broad directional deposits across nearly-flat snowfields.
+	leeCollectionStartDegrees: 7,
+	leeCollectionFullDegrees: 18,
 	// Ordinary mountain lee faces retain their full deposition signal through 42 degrees; only steeper
 	// near-cliff faces start shedding loose snow, preserving the established physical contract.
 	leeRetentionFadeStartDegrees: 42,
@@ -52,10 +56,10 @@ export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
  * for both because it has no meaningful facing direction. `slopeAspectStrength` fades the signal in
  * over shallow slopes so lowland snow does not develop artificial directional bands. A second
  * alignment gate keeps nearly crosswind faces neutral, preventing the old broad 180-degree
- * windward/lee split from painting large directional bands across mountains. Lee retention then
- * fades on near-cliffs: a sheltered face can collect snow, but loose deposition should not be
- * painted onto extremely steep rock where gravity would shed it. Windward exposure remains active
- * on those faces because scour can still strip snow from exposed cliffs and ridges.
+ * windward/lee split from painting large directional bands across mountains. Lee collection then
+ * fades in only once a real sheltered face exists, and fades back out on near-cliffs: deposition
+ * therefore concentrates on moderate lee slopes instead of painting both flats and vertical rock.
+ * Windward exposure remains active on steep faces because scour can still strip exposed ridges.
  */
 export function terrainWindExposureFromNeighbours(
 	heightWest,
@@ -74,6 +78,11 @@ export function terrainWindExposureFromNeighbours(
 		TERRAIN_WIND_SNOW_POLICY.aspectSlopeFullDegrees,
 		slopeDegrees,
 	);
+	const leeCollection = smoothstep(
+		TERRAIN_WIND_SNOW_POLICY.leeCollectionStartDegrees,
+		TERRAIN_WIND_SNOW_POLICY.leeCollectionFullDegrees,
+		slopeDegrees,
+	);
 	const leeRetention = 1 - smoothstep(
 		TERRAIN_WIND_SNOW_POLICY.leeRetentionFadeStartDegrees,
 		TERRAIN_WIND_SNOW_POLICY.leeRetentionFadeFullDegrees,
@@ -86,6 +95,7 @@ export function terrainWindExposureFromNeighbours(
 			gradientZ,
 			slopeDegrees,
 			slopeAspectStrength,
+			leeCollection,
 			leeRetention,
 			aspectDot: 0,
 			windwardAlignment: 0,
@@ -120,12 +130,13 @@ export function terrainWindExposureFromNeighbours(
 		gradientZ,
 		slopeDegrees,
 		slopeAspectStrength,
+		leeCollection,
 		leeRetention,
 		aspectDot,
 		windwardAlignment,
 		leeAlignment,
 		windward: windwardAlignment * slopeAspectStrength,
-		lee: leeAlignment * slopeAspectStrength * leeRetention,
+		lee: leeAlignment * slopeAspectStrength * leeCollection * leeRetention,
 	});
 }
 
