@@ -1,32 +1,20 @@
 /**
- * Deterministic macro weathering residual for the shipped owner-map terrain.
+ * Deterministic macro geomorphology/weathering residual for the shipped owner-map terrain.
  *
- * This module does not classify geography and it never owns canonical land/water, biome, settlement,
- * road or collider state. `terrain.js` remains the single height authority. The residual produced
- * here is consumed by `terrainReliefDetail.js` as one bounded component of that authority, after the
- * map-derived Pindex height has already been resolved.
+ * `terrain.js` remains the only height authority. This module contributes a bounded residual after
+ * canonical Pindex/mountain/uplift height has been resolved. It never reclassifies land, water,
+ * biomes, roads, settlements or collision. The purpose of the residual is visual geography: make
+ * broad landforms read as a connected drainage system rather than statistically isotropic noise.
  *
- * The existing relief stack is strong at isotropic shape: fBm for broad undulation, ridged noise for
- * mountain crags, and high-frequency dissection for local roughness. A full-world orthographic render
- * can still read those forms as procedurally rounded because every octave is statistically similar in
- * all directions. Real landscapes are not isotropic. Water establishes drainage corridors, aspect
- * produces unequal weathering, resistant strata create benches, and broken cliff material forms
- * talus aprons below scarps.
- *
- * The functions below add those missing *directional* cues while preserving four hard boundaries:
- *
- * 1. no effect on open water;
- * 2. a protected shoreline ramp so shallow coastal ground is not cut below sea level;
- * 3. bounded amplitudes that grow with canonical elevation/relief rather than replacing them;
- * 4. pure world-position determinism so adjacent chunks produce identical border heights.
- *
- * All frequency inputs are normalized owner-map coordinates. The policy also carries the physical
- * owner-world dimensions so derivative probes and test diagnostics can convert normalized deltas back
- * to metres without importing the rest of the terrain stack.
+ * v2 keeps the existing basin/tributary, bench, aspect, talus and massif cues and adds explicit
+ * interfluves, floodplains and confluence fans. The production entry point is intentionally separate
+ * from the rich diagnostic bundle: terrain generation can call it millions of times without creating
+ * frozen object graphs or evaluating work that is guaranteed to be invisible over water/coastline.
  *
  * @module world/terrainMacroWeathering
  */
 
+const TAU = Math.PI * 2;
 const clamp01 = (value) => value <= 0 ? 0 : value >= 1 ? 1 : value;
 const lerp = (a, b, t) => a + (b - a) * t;
 const smooth01 = (value) => {
@@ -41,22 +29,22 @@ const finite = (value, fallback = 0) => Number.isFinite(value) ? value : fallbac
 
 export const TERRAIN_MACRO_WEATHERING_POLICY = Object.freeze({
 	id: 'terrain-macro-hydrology-weathering-2026-08-26-v1',
-	// Governance metadata: this is a height residual inside terrain.js, never a second terrain owner.
+	revision: 2,
 	renderOnly: false,
 	deterministicWorldSpace: true,
 	canonicalSurfaceAuthorityPreserved: true,
 	settlementTaperOwnedByCaller: true,
 	heightAuthority: 'world/terrain.js',
+	productionFastPath: true,
+	hydrologicHierarchy: true,
+	alluvialGeomorphology: true,
 	ownerWorldWidthMeters: 13296,
 	ownerWorldHeightMeters: 10341,
 
-	// Coastal protection. Negative cuts only reach full strength after this elevation.
 	shoreFadeStartMeters: 1.6,
 	shoreFadeFullMeters: 11,
 	negativeCutFullElevationMeters: 34,
 
-	// Two cellular drainage scales. The broad field establishes basin-scale valleys; the finer field
-	// branches inside them. Frequencies are cells across normalized owner-map space.
 	drainageBroadFrequency: 12.5,
 	drainageFineFrequency: 31,
 	drainageBroadWarpFrequency: 4.4,
@@ -65,24 +53,26 @@ export const TERRAIN_MACRO_WEATHERING_POLICY = Object.freeze({
 	drainageFineWidth: 0.15,
 	drainageBranchMix: 0.43,
 
-	// Channel incision grows with elevation because high ground can afford a deeper cut without
-	// threatening coast safety. Canonical relief gives mountains an additional bounded multiplier.
 	channelCutLowMeters: 1.2,
 	channelCutHighMeters: 6.4,
 	channelCutMountainMeters: 5.5,
 	channelFullElevationMeters: 260,
 	channelReliefBoost: 0.55,
 
-	// Convex shoulders sit beside drainage channels. Their positive residual prevents valleys from
-	// reading as thin dark scratches by giving the eye an adjacent spur/ridge silhouette.
 	shoulderOffset: 0.095,
 	shoulderWidth: 0.18,
 	shoulderLiftLowMeters: 0.7,
 	shoulderLiftHighMeters: 3.8,
 
-	// Plateau/stratal benches. They are deliberately broad and sparse; a hard terracing quantizer
-	// would look gamey. The mask instead creates resistant bands only where a low-frequency hardness
-	// field agrees with an elevation phase.
+	// Hydrologic geography beyond the channel line itself.
+	interfluveLiftLowMeters: 0.55,
+	interfluveLiftHighMeters: 2.15,
+	floodplainCutMeters: 1.15,
+	floodplainFullElevationMeters: 105,
+	confluenceFanDepositMeters: 1.55,
+	confluenceFanMaxElevationMeters: 180,
+	terraceLiftMeters: 0.95,
+
 	benchFrequency: 8.4,
 	benchWarpFrequency: 3.7,
 	benchBandCount: 7,
@@ -91,16 +81,13 @@ export const TERRAIN_MACRO_WEATHERING_POLICY = Object.freeze({
 	benchCutMeters: 2.1,
 	benchMinElevationMeters: 36,
 
-	// Windward/leeward asymmetry. The world does not need a meteorological wind simulation here; the
-	// goal is simply to prevent equal erosion on every side of a landform. The slowly rotating vector
-	// varies by region so the bias does not become a single map-wide diagonal stripe.
+	// Aspect is now analytic multi-wave instead of four finite-difference FBM probes. This keeps the
+	// directional weathering cue while removing the largest single hot-path cost from terrain build.
 	aspectRegionFrequency: 3.2,
 	aspectSampleMeters: 44,
 	aspectWeatheringMeters: 1.6,
 	aspectReliefBoost: 1.15,
 
-	// Talus aprons: broad deposition immediately downslope of high-relief scarps. The procedural
-	// scarp mask is sparse and multiplied by canonical relief/rock so plains cannot sprout scree fans.
 	talusCellFrequency: 18,
 	talusWarpFrequency: 6.6,
 	talusScarpThreshold: 0.66,
@@ -108,34 +95,23 @@ export const TERRAIN_MACRO_WEATHERING_POLICY = Object.freeze({
 	talusCutMeters: 1.6,
 	talusMinElevationMeters: 54,
 
-	// Very broad erosional asymmetry. This is intentionally sub-dominant but gives whole mountain
-	// masses a non-spherical read at orthographic distance.
 	massifFrequency: 4.8,
 	massifAmplitudeMeters: 5.4,
 	massifMountainAmplitudeMeters: 9,
 
-	// Hard final envelope. This protects the established gameplay/road contracts even if component
-	// tuning is changed independently later.
 	maxPositiveResidualMeters: 18,
 	maxNegativeResidualMeters: 14,
 });
 
-/**
- * Stable integer hash to [0,1). Math.imul keeps the avalanche deterministic across JS engines.
- */
 function hash2(ix, iy, seed = 0) {
-	let h = Math.imul((ix | 0) ^ (seed * 374761393), 668265263);
-	h = Math.imul(h ^ ((iy | 0) + seed * 2246822519), 1274126177);
+	let h = Math.imul((ix | 0) ^ Math.imul(seed | 0, 374761393), 668265263);
+	h = Math.imul(h ^ ((iy | 0) + Math.imul(seed | 0, 2246822519)), 1274126177);
 	h ^= h >>> 15;
 	h = Math.imul(h, 2246822519);
 	h ^= h >>> 13;
 	return (h >>> 0) / 4294967296;
 }
 
-/**
- * 2D gradient-like value noise in [-1,1]. Quintic interpolation keeps first/second derivatives
- * visually smooth so the residual does not print square cell boundaries into normals.
- */
 function noise2(x, y, seed = 0) {
 	const x0 = Math.floor(x);
 	const y0 = Math.floor(y);
@@ -180,16 +156,11 @@ function ridged(x, y, octaves, seed = 0) {
 	return normalizer > 0 ? sum / normalizer : 0;
 }
 
-/**
- * Returns the closest and second-closest jittered cellular feature distances. The difference between
- * them approaches zero on Voronoi boundaries, giving a cheap continuous drainage skeleton rather
- * than a collection of circular pits.
- */
 function cellularDistances(x, y, seed = 0) {
 	const cx = Math.floor(x);
 	const cy = Math.floor(y);
-	let nearest = Infinity;
-	let second = Infinity;
+	let nearestSq = Infinity;
+	let secondSq = Infinity;
 	for (let oy = -1; oy <= 1; oy += 1) {
 		for (let ox = -1; ox <= 1; ox += 1) {
 			const gx = cx + ox;
@@ -198,21 +169,26 @@ function cellularDistances(x, y, seed = 0) {
 			const py = gy + 0.12 + hash2(gx, gy, seed + 97) * 0.76;
 			const dx = x - px;
 			const dy = y - py;
-			const d = Math.sqrt(dx * dx + dy * dy);
-			if (d < nearest) {
-				second = nearest;
-				nearest = d;
-			} else if (d < second) {
-				second = d;
+			const dSq = dx * dx + dy * dy;
+			if (dSq < nearestSq) {
+				secondSq = nearestSq;
+				nearestSq = dSq;
+			} else if (dSq < secondSq) {
+				secondSq = dSq;
 			}
 		}
 	}
-	return { nearest, second };
+	return {
+		nearest: Math.sqrt(nearestSq),
+		second: Math.sqrt(secondSq),
+	};
 }
 
 function warpedCoordinate(nx, ny, frequency, warpFrequency, seed) {
-	const warpA = fbm(nx * warpFrequency + 13.7, ny * warpFrequency - 8.9, 3, seed);
-	const warpB = fbm(nx * warpFrequency - 31.2, ny * warpFrequency + 19.4, 3, seed + 113);
+	// Two octaves are enough for basin-scale domain warping; the former third octave cost millions of
+	// noise evaluations while being smaller than the mesh's aerially visible geographic scale.
+	const warpA = fbm(nx * warpFrequency + 13.7, ny * warpFrequency - 8.9, 2, seed);
+	const warpB = fbm(nx * warpFrequency - 31.2, ny * warpFrequency + 19.4, 2, seed + 113);
 	return {
 		x: nx * frequency + warpA * 0.92,
 		y: ny * frequency + warpB * 0.92,
@@ -223,9 +199,8 @@ function cellularEdgeMask(nx, ny, frequency, warpFrequency, width, seed) {
 	const warped = warpedCoordinate(nx, ny, frequency, warpFrequency, seed);
 	const { nearest, second } = cellularDistances(warped.x, warped.y, seed + 211);
 	const edgeDistance = Math.max(0, second - nearest);
-	const mask = 1 - smooth01(edgeDistance / width);
 	return {
-		mask,
+		mask: 1 - smooth01(edgeDistance / width),
 		edgeDistance,
 		nearest,
 		second,
@@ -235,6 +210,7 @@ function cellularEdgeMask(nx, ny, frequency, warpFrequency, width, seed) {
 }
 
 function safeContext(context = {}) {
+	const P = TERRAIN_MACRO_WEATHERING_POLICY;
 	const heightAboveSeaMeters = Math.max(-500, Math.min(2000, finite(context.heightAboveSeaMeters)));
 	const reliefInfluence = clamp01(finite(context.reliefInfluence));
 	const rockWeight = clamp01(finite(context.rockWeight));
@@ -246,14 +222,12 @@ function safeContext(context = {}) {
 		rockWeight * 0.82,
 		snowWeight * 0.72,
 	));
-	const elevationRamp = smooth01(heightAboveSeaMeters / TERRAIN_MACRO_WEATHERING_POLICY.channelFullElevationMeters);
+	const elevationRamp = smooth01(heightAboveSeaMeters / P.channelFullElevationMeters);
 	const shoreGate = smooth01(
-		(heightAboveSeaMeters - TERRAIN_MACRO_WEATHERING_POLICY.shoreFadeStartMeters)
-		/ (TERRAIN_MACRO_WEATHERING_POLICY.shoreFadeFullMeters - TERRAIN_MACRO_WEATHERING_POLICY.shoreFadeStartMeters),
+		(heightAboveSeaMeters - P.shoreFadeStartMeters)
+		/ (P.shoreFadeFullMeters - P.shoreFadeStartMeters),
 	);
-	const negativeGate = smooth01(
-		heightAboveSeaMeters / TERRAIN_MACRO_WEATHERING_POLICY.negativeCutFullElevationMeters,
-	);
+	const negativeGate = smooth01(heightAboveSeaMeters / P.negativeCutFullElevationMeters);
 	return {
 		heightAboveSeaMeters,
 		reliefInfluence,
@@ -268,16 +242,8 @@ function safeContext(context = {}) {
 	};
 }
 
-/**
- * Basin-scale and tributary-scale drainage masks.
- *
- * `channel` is intentionally not just max(broad,fine): fine branches are strongest where a broad
- * basin edge already exists, so the result reads as hierarchy rather than two unrelated vein sets.
- */
-export function terrainDrainageSignals(normalizedX, normalizedY) {
+function drainageCore(nx, ny) {
 	const P = TERRAIN_MACRO_WEATHERING_POLICY;
-	const nx = finite(normalizedX);
-	const ny = finite(normalizedY);
 	const broad = cellularEdgeMask(
 		nx, ny,
 		P.drainageBroadFrequency,
@@ -297,238 +263,266 @@ export function terrainDrainageSignals(normalizedX, normalizedY) {
 		broad.mask,
 		fine.mask * (P.drainageBranchMix + branchGate * (1 - P.drainageBranchMix)),
 	));
-	// A shoulder ring peaks outside the channel core. Offset masks on either side are combined so it
-	// remains orientation-neutral even though the underlying network itself is directional.
 	const shoulder = clamp01(
 		smooth01((channel - P.shoulderOffset) / P.shoulderWidth)
 		* (1 - smooth01((channel - 0.72) / 0.24)),
 	);
-	return Object.freeze({
+	const confluence = smooth01((broad.mask - 0.48) / 0.42)
+		* smooth01((fine.mask - 0.52) / 0.40)
+		* (0.35 + branchGate * 0.65);
+	const floodplain = smooth01((broad.mask - 0.24) / 0.34)
+		* (1 - smooth01((broad.mask - 0.82) / 0.18));
+	const divide = smooth01((0.52 - broad.mask) / 0.52)
+		* smooth01((0.58 - fine.mask) / 0.58);
+	return {
 		broad: broad.mask,
 		fine: fine.mask,
 		branchGate,
 		channel,
 		shoulder,
-	});
+		confluence,
+		floodplain,
+		divide,
+	};
 }
 
-function benchSignals(nx, ny, heightAboveSeaMeters) {
+export function terrainDrainageSignals(normalizedX, normalizedY) {
+	return Object.freeze(drainageCore(finite(normalizedX), finite(normalizedY)));
+}
+
+function benchCore(nx, ny, heightAboveSeaMeters) {
 	const P = TERRAIN_MACRO_WEATHERING_POLICY;
-	const warp = fbm(nx * P.benchWarpFrequency + 6.1, ny * P.benchWarpFrequency - 17.4, 3, 307);
+	const gate = smooth01((heightAboveSeaMeters - P.benchMinElevationMeters) / 85);
+	if (gate <= 0) return { hardness: 0.5, resistantBand: 0, lift: 0, cut: 0, gate: 0 };
+	const warp = fbm(nx * P.benchWarpFrequency + 6.1, ny * P.benchWarpFrequency - 17.4, 2, 307);
 	const hardness = ridged(
 		nx * P.benchFrequency + warp * 0.55 + 18.2,
 		ny * P.benchFrequency - warp * 0.43 - 7.6,
-		3,
+		2,
 		331,
 	);
 	const elevationPhase = heightAboveSeaMeters / 28 + warp * 0.8;
 	const bandPosition = Math.abs((elevationPhase - Math.floor(elevationPhase)) - 0.5) * 2;
 	const resistantBand = 1 - smooth01((bandPosition - (1 - P.benchSharpness)) / P.benchSharpness);
-	const gate = smooth01((heightAboveSeaMeters - P.benchMinElevationMeters) / 85);
 	const lift = resistantBand * smooth01((hardness - 0.42) / 0.45) * gate;
 	const cut = (1 - resistantBand) * smooth01((0.62 - hardness) / 0.42) * gate;
 	return { hardness, resistantBand, lift, cut, gate };
 }
 
-function regionalWind(normalizedX, normalizedY) {
-	const P = TERRAIN_MACRO_WEATHERING_POLICY;
-	const angleNoise = fbm(
-		normalizedX * P.aspectRegionFrequency + 2.7,
-		normalizedY * P.aspectRegionFrequency - 9.5,
-		3,
-		419,
-	);
-	const angle = (angleNoise * 0.5 + 0.5) * Math.PI * 2;
-	return { x: Math.cos(angle), y: Math.sin(angle), angle };
-}
-
 /**
- * A low-frequency synthetic landform field used only to estimate *aspect*. It does not replace the
- * canonical height and is never added directly. Sampling it a physical 44 m apart gives a stable
- * regional direction cue without importing terrain.js back into this module (which would cycle).
+ * Cheap analytic aspect field. Three non-parallel geographic waves provide an explicit derivative,
+ * so we get a stable slope-facing vector without sampling a synthetic FBM field four extra times.
  */
-function syntheticAspectField(nx, ny) {
-	const a = fbm(nx * 7.2 + 14.1, ny * 7.2 - 4.8, 4, 457);
-	const b = ridged(nx * 13.3 - 8.7, ny * 13.3 + 27.1, 3, 503) * 2 - 1;
-	return a * 0.68 + b * 0.32;
-}
-
-function aspectSignals(nx, ny) {
-	const P = TERRAIN_MACRO_WEATHERING_POLICY;
-	const dx = P.aspectSampleMeters / P.ownerWorldWidthMeters;
-	const dy = P.aspectSampleMeters / P.ownerWorldHeightMeters;
-	const east = syntheticAspectField(nx + dx, ny);
-	const west = syntheticAspectField(nx - dx, ny);
-	const north = syntheticAspectField(nx, ny + dy);
-	const south = syntheticAspectField(nx, ny - dy);
-	let gx = east - west;
-	let gy = north - south;
-	const length = Math.hypot(gx, gy);
-	if (length > 1e-9) {
-		gx /= length;
-		gy /= length;
+function aspectCore(nx, ny) {
+	const phaseA = TAU * (nx * 2.15 + ny * 1.05) + 0.71;
+	const phaseB = TAU * (nx * -1.30 + ny * 2.70) + 2.13;
+	const phaseC = TAU * (nx * 3.85 + ny * -2.20) + 4.41;
+	let gx = Math.cos(phaseA) * 2.15 * 0.52
+		+ Math.cos(phaseB) * -1.30 * 0.31
+		+ Math.cos(phaseC) * 3.85 * 0.17;
+	let gy = Math.cos(phaseA) * 1.05 * 0.52
+		+ Math.cos(phaseB) * 2.70 * 0.31
+		+ Math.cos(phaseC) * -2.20 * 0.17;
+	const gradientLength = Math.hypot(gx, gy);
+	if (gradientLength > 1e-9) {
+		gx /= gradientLength;
+		gy /= gradientLength;
 	} else {
 		gx = 0;
 		gy = 0;
 	}
-	const wind = regionalWind(nx, ny);
-	const facing = clamp01((gx * wind.x + gy * wind.y) * 0.5 + 0.5);
+
+	// Regional prevailing direction rotates slowly across the owner map. Two broad harmonic carriers
+	// prevent a single map-wide diagonal bias while keeping the calculation trivial compared to FBM.
+	const windCarrier = Math.sin(TAU * (nx * 0.63 + ny * 0.31) + 1.37) * 0.62
+		+ Math.sin(TAU * (nx * -0.28 + ny * 0.74) + 3.81) * 0.38;
+	const windAngle = (windCarrier * 0.5 + 0.5) * TAU;
+	const windX = Math.cos(windAngle);
+	const windY = Math.sin(windAngle);
+	const facing = clamp01((gx * windX + gy * windY) * 0.5 + 0.5);
 	return {
 		gradientX: gx,
 		gradientY: gy,
-		windX: wind.x,
-		windY: wind.y,
+		windX,
+		windY,
 		facing,
 		signedExposure: facing * 2 - 1,
 	};
 }
 
-function talusSignals(nx, ny, context) {
+function talusCore(nx, ny, context) {
 	const P = TERRAIN_MACRO_WEATHERING_POLICY;
-	const warped = warpedCoordinate(nx, ny, P.talusCellFrequency, P.talusWarpFrequency, 557);
-	const scarpNoise = ridged(warped.x + 4.2, warped.y - 13.6, 3, 601);
 	const brokenRock = clamp01(
 		context.mountainGate * 0.58
 		+ context.rockWeight * 0.52
 		+ context.reliefInfluence * 0.34,
 	);
 	const elevationGate = smooth01((context.heightAboveSeaMeters - P.talusMinElevationMeters) / 120);
+	if (brokenRock <= 0.025 || elevationGate <= 0) {
+		return { scarpNoise: 0, brokenRock, elevationGate, scarp: 0, deposit: 0, cut: 0 };
+	}
+	const warped = warpedCoordinate(nx, ny, P.talusCellFrequency, P.talusWarpFrequency, 557);
+	const scarpNoise = ridged(warped.x + 4.2, warped.y - 13.6, 2, 601);
 	const scarp = smooth01(
 		(scarpNoise - P.talusScarpThreshold) / (1 - P.talusScarpThreshold),
 	) * brokenRock * elevationGate;
-	// Deposit sits on the low-frequency "downhill" side of the same warped cell; this shifts debris
-	// away from the scarp instead of symmetrically brightening it.
 	const downhill = clamp01(0.5 + noise2(warped.x * 0.43 - 8.2, warped.y * 0.43 + 11.9, 643) * 0.5);
 	const deposit = scarp * smooth01((downhill - 0.28) / 0.62);
 	const cut = scarp * (1 - deposit * 0.55);
 	return { scarpNoise, brokenRock, elevationGate, scarp, deposit, cut };
 }
 
-function massifSignal(nx, ny, context) {
+function massifCore(nx, ny, context) {
 	const P = TERRAIN_MACRO_WEATHERING_POLICY;
-	const warp = fbm(nx * 2.6 + 8.1, ny * 2.6 - 3.4, 3, 701);
+	const warp = fbm(nx * 2.6 + 8.1, ny * 2.6 - 3.4, 2, 701);
 	const ridge = ridged(
 		nx * P.massifFrequency + warp * 0.9 + 17.2,
 		ny * P.massifFrequency - warp * 0.7 - 20.3,
-		4,
+		3,
 		743,
 	);
-	const signed = (ridge - 0.5) * 2;
-	const amplitude = lerp(
-		P.massifAmplitudeMeters,
-		P.massifMountainAmplitudeMeters,
-		context.mountainGate,
-	);
-	return { value: signed, amplitude };
+	const value = (ridge - 0.5) * 2;
+	const amplitude = lerp(P.massifAmplitudeMeters, P.massifMountainAmplitudeMeters, context.mountainGate);
+	return { value, amplitude };
 }
 
-/**
- * Returns a complete diagnostic signal bundle. Keeping this public makes realism checks test the
- * production implementation rather than reimplementing its masks in scripts.
- */
-export function terrainMacroWeatheringSignals(normalizedX, normalizedY, rawContext = {}) {
-	const nx = finite(normalizedX);
-	const ny = finite(normalizedY);
-	const context = safeContext(rawContext);
-	const drainage = terrainDrainageSignals(nx, ny);
-	const bench = benchSignals(nx, ny, context.heightAboveSeaMeters);
-	const aspect = aspectSignals(nx, ny);
-	const talus = talusSignals(nx, ny, context);
-	const massif = massifSignal(nx, ny, context);
-
+function alluvialCore(nx, ny, context, drainage) {
 	const P = TERRAIN_MACRO_WEATHERING_POLICY;
+	const lowlandGate = 1 - smooth01(context.heightAboveSeaMeters / P.floodplainFullElevationMeters);
+	const fanElevationGate = 1 - smooth01(context.heightAboveSeaMeters / P.confluenceFanMaxElevationMeters);
+	const nonMountain = 1 - context.mountainGate * 0.82;
+	const meander = Math.sin(TAU * (nx * 8.7 - ny * 5.1) + Math.sin(TAU * (nx * 1.4 + ny * 1.1)) * 1.15);
+	const floodplainCut = drainage.floodplain * P.floodplainCutMeters * lowlandGate * (0.72 + 0.28 * (meander * 0.5 + 0.5));
+	const fanDeposit = drainage.confluence * P.confluenceFanDepositMeters * fanElevationGate * nonMountain
+		* (0.78 + 0.22 * (1 - meander) * 0.5);
+	const terraceBand = drainage.shoulder * drainage.broad
+		* smooth01((context.heightAboveSeaMeters - 12) / 58)
+		* (1 - smooth01((context.heightAboveSeaMeters - 125) / 105));
+	const terraceLift = terraceBand * P.terraceLiftMeters * nonMountain;
+	const interfluveAmplitude = lerp(P.interfluveLiftLowMeters, P.interfluveLiftHighMeters, context.elevationRamp);
+	const interfluveLift = drainage.divide * interfluveAmplitude * (0.82 + context.mountainGate * 0.28);
+	return {
+		lowlandGate,
+		fanElevationGate,
+		floodplainCut,
+		fanDeposit,
+		terraceLift,
+		interfluveLift,
+		meters: -floodplainCut + fanDeposit + terraceLift + interfluveLift,
+	};
+}
+
+function componentMeters(nx, ny, context) {
+	const P = TERRAIN_MACRO_WEATHERING_POLICY;
+	const drainage = drainageCore(nx, ny);
+	const bench = benchCore(nx, ny, context.heightAboveSeaMeters);
+	const aspect = aspectCore(nx, ny);
+	const talus = talusCore(nx, ny, context);
+	const massif = massifCore(nx, ny, context);
+	const alluvial = alluvialCore(nx, ny, context, drainage);
+
 	const channelAmplitude = lerp(P.channelCutLowMeters, P.channelCutHighMeters, context.elevationRamp)
 		+ P.channelCutMountainMeters * context.mountainGate * P.channelReliefBoost;
-	const channelCutMeters = drainage.channel * channelAmplitude;
-
+	const channelMeters = -drainage.channel * channelAmplitude;
 	const shoulderAmplitude = lerp(P.shoulderLiftLowMeters, P.shoulderLiftHighMeters, context.elevationRamp)
 		* (0.65 + context.mountainGate * 0.6);
-	const shoulderLiftMeters = drainage.shoulder * shoulderAmplitude;
-
+	const shoulderMeters = drainage.shoulder * shoulderAmplitude;
 	const benchMeters = bench.lift * P.benchLiftMeters - bench.cut * P.benchCutMeters;
 	const aspectAmplitude = P.aspectWeatheringMeters
 		* (0.35 + context.elevationRamp * 0.65)
 		* (1 + context.mountainGate * P.aspectReliefBoost);
 	const aspectMeters = aspect.signedExposure * aspectAmplitude;
-
 	const talusMeters = talus.deposit * P.talusDepositMeters - talus.cut * P.talusCutMeters;
-	const massifMeters = massif.value * massif.amplitude;
+	const massifMeters = massif.value * massif.amplitude * (0.25 + context.mountainGate * 0.75);
+	return {
+		drainage,
+		bench,
+		aspect,
+		talus,
+		massif,
+		alluvial,
+		meters: {
+			channel: channelMeters,
+			shoulder: shoulderMeters,
+			alluvial: alluvial.meters,
+			bench: benchMeters,
+			aspect: aspectMeters,
+			talus: talusMeters,
+			massif: massifMeters,
+		},
+	};
+}
 
-	// Broad mass asymmetry is not allowed to dominate lowland ground. Drainage is the strongest
-	// everywhere-land signal; benches/talus/aspect are progressively more mountain-oriented.
-	const rawResidualMeters =
-		-channelCutMeters
-		+ shoulderLiftMeters
-		+ benchMeters
-		+ aspectMeters
-		+ talusMeters
-		+ massifMeters * (0.25 + context.mountainGate * 0.75);
-
+function finishResidual(rawResidualMeters, context) {
+	const P = TERRAIN_MACRO_WEATHERING_POLICY;
 	let gatedResidualMeters = rawResidualMeters * context.dryness * context.shoreGate;
 	if (gatedResidualMeters < 0) gatedResidualMeters *= context.negativeGate;
+	return {
+		gatedResidualMeters,
+		residualMeters: Math.max(
+			-P.maxNegativeResidualMeters,
+			Math.min(P.maxPositiveResidualMeters, gatedResidualMeters),
+		),
+	};
+}
 
-	const residualMeters = Math.max(
-		-P.maxNegativeResidualMeters,
-		Math.min(P.maxPositiveResidualMeters, gatedResidualMeters),
-	);
+export function terrainMacroWeatheringSignals(normalizedX, normalizedY, rawContext = {}) {
+	const nx = finite(normalizedX);
+	const ny = finite(normalizedY);
+	const context = safeContext(rawContext);
 
+	// Diagnostics preserve a complete, stable shape even where production can early-out.
+	const components = componentMeters(nx, ny, context);
+	const rawResidualMeters = Object.values(components.meters).reduce((sum, value) => sum + value, 0);
+	const finished = finishResidual(rawResidualMeters, context);
 	return Object.freeze({
 		normalizedX: nx,
 		normalizedY: ny,
 		context: Object.freeze({ ...context }),
-		drainage,
-		bench: Object.freeze({ ...bench }),
-		aspect: Object.freeze({ ...aspect }),
-		talus: Object.freeze({ ...talus }),
-		massif: Object.freeze({ ...massif }),
-		componentsMeters: Object.freeze({
-			channel: -channelCutMeters,
-			shoulder: shoulderLiftMeters,
-			bench: benchMeters,
-			aspect: aspectMeters,
-			talus: talusMeters,
-			massif: massifMeters * (0.25 + context.mountainGate * 0.75),
-		}),
+		drainage: Object.freeze({ ...components.drainage }),
+		bench: Object.freeze({ ...components.bench }),
+		aspect: Object.freeze({ ...components.aspect }),
+		talus: Object.freeze({ ...components.talus }),
+		massif: Object.freeze({ ...components.massif }),
+		alluvial: Object.freeze({ ...components.alluvial }),
+		componentsMeters: Object.freeze({ ...components.meters }),
 		rawResidualMeters,
-		gatedResidualMeters,
-		residualMeters,
+		gatedResidualMeters: finished.gatedResidualMeters,
+		residualMeters: finished.residualMeters,
 	});
 }
 
 /**
- * Production entry point: bounded residual in metres.
+ * Production hot path. Open water and the protected shoreline return before any cellular/noise work.
+ * On dry land this computes the same components as diagnostics but avoids Object.freeze/object graph
+ * construction after the scalar residual has been assembled.
  */
-export function terrainMacroWeatheringResidualMeters(normalizedX, normalizedY, context = {}) {
-	return terrainMacroWeatheringSignals(normalizedX, normalizedY, context).residualMeters;
+export function terrainMacroWeatheringResidualMeters(normalizedX, normalizedY, rawContext = {}) {
+	const nx = finite(normalizedX);
+	const ny = finite(normalizedY);
+	const context = safeContext(rawContext);
+	if (context.dryness <= 0 || context.shoreGate <= 0) return 0;
+	const components = componentMeters(nx, ny, context);
+	const m = components.meters;
+	const rawResidualMeters = m.channel + m.shoulder + m.alluvial + m.bench + m.aspect + m.talus + m.massif;
+	return finishResidual(rawResidualMeters, context).residualMeters;
 }
 
-/**
- * Finite-difference diagnostic for the residual itself. Tests use this to bound added grade without
- * needing to import the canonical terrain sampler. Returned slope is dimensionless rise/run.
- */
 export function terrainMacroWeatheringSlope(normalizedX, normalizedY, context = {}, sampleMeters = 12) {
 	const P = TERRAIN_MACRO_WEATHERING_POLICY;
-	const dx = Math.max(0.5, finite(sampleMeters, 12)) / P.ownerWorldWidthMeters;
-	const dy = Math.max(0.5, finite(sampleMeters, 12)) / P.ownerWorldHeightMeters;
+	const distance = Math.max(0.5, finite(sampleMeters, 12));
+	const dx = distance / P.ownerWorldWidthMeters;
+	const dy = distance / P.ownerWorldHeightMeters;
 	const east = terrainMacroWeatheringResidualMeters(normalizedX + dx, normalizedY, context);
 	const west = terrainMacroWeatheringResidualMeters(normalizedX - dx, normalizedY, context);
 	const north = terrainMacroWeatheringResidualMeters(normalizedX, normalizedY + dy, context);
 	const south = terrainMacroWeatheringResidualMeters(normalizedX, normalizedY - dy, context);
-	const riseX = (east - west) / (sampleMeters * 2);
-	const riseY = (north - south) / (sampleMeters * 2);
+	const riseX = (east - west) / (distance * 2);
+	const riseY = (north - south) / (distance * 2);
 	const slope = Math.hypot(riseX, riseY);
-	return Object.freeze({
-		riseX,
-		riseY,
-		slope,
-		degrees: Math.atan(slope) * 180 / Math.PI,
-	});
+	return Object.freeze({ riseX, riseY, slope, degrees: Math.atan(slope) * 180 / Math.PI });
 }
 
-/**
- * Grid summarizer used by CI/evidence scripts. It intentionally accepts a context factory so checks
- * can exercise lowlands, uplands and mountain regimes without duplicating the sampling loop.
- */
 export function summarizeTerrainMacroWeathering({
 	width = 64,
 	height = 48,
@@ -550,6 +544,8 @@ export function summarizeTerrainMacroWeathering({
 	let positiveCount = 0;
 	let channelSum = 0;
 	let shoulderSum = 0;
+	let confluenceSum = 0;
+	let divideSum = 0;
 	let maxSlopeDegrees = 0;
 	const values = [];
 	for (let y = 0; y < h; y += 1) {
@@ -568,8 +564,9 @@ export function summarizeTerrainMacroWeathering({
 			if (value > 0) positiveCount += 1;
 			channelSum += signals.drainage.channel;
 			shoulderSum += signals.drainage.shoulder;
-			const slope = terrainMacroWeatheringSlope(nx, ny, context, 20);
-			maxSlopeDegrees = Math.max(maxSlopeDegrees, slope.degrees);
+			confluenceSum += signals.drainage.confluence;
+			divideSum += signals.drainage.divide;
+			maxSlopeDegrees = Math.max(maxSlopeDegrees, terrainMacroWeatheringSlope(nx, ny, context, 20).degrees);
 		}
 	}
 	values.sort((a, b) => a - b);
@@ -590,6 +587,8 @@ export function summarizeTerrainMacroWeathering({
 		positiveFraction: positiveCount / count,
 		meanChannelMask: channelSum / count,
 		meanShoulderMask: shoulderSum / count,
+		meanConfluenceMask: confluenceSum / count,
+		meanDivideMask: divideSum / count,
 		p10: quantile(0.10),
 		p50: quantile(0.50),
 		p90: quantile(0.90),
