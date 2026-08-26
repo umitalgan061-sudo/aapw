@@ -9,6 +9,7 @@ on:
       - 'scripts/checkInteractionProvisioningCraft.mjs'
       - 'scripts/checkInteractionQuartermasterTrade.mjs'
       - 'scripts/checkInteractionSettlementServiceContract.mjs'
+      - 'scripts/checkInteractionSettlementServiceBrowser.mjs'
       - 'scripts/checkInteractionSmithingServicePersistence.mjs'
       - 'scripts/checkInteractionMasteryEconomyContinuity.mjs'
       - 'scripts/checkInteractionMasteryToSmithingBrowser.mjs'
@@ -39,7 +40,7 @@ jobs:
           base="$(git merge-base HEAD origin/main)"
           test "$base" = "$(git rev-parse origin/main)"
           mapfile -t paths < <(git diff --name-only "$base"...HEAD)
-          allowed='^(\.github/workflows/(rpg-smithing-service-persistence|rpg-mastery-to-smithing)\.yml|scripts/checkInteractionExpeditionKitCraft\.mjs|scripts/checkInteractionProvisioningCraft\.mjs|scripts/checkInteractionQuartermasterTrade\.mjs|scripts/checkInteractionSettlementServiceContract\.mjs|scripts/checkInteractionSmithingServicePersistence\.mjs|scripts/checkInteractionMasteryEconomyContinuity\.mjs|scripts/checkInteractionMasteryToSmithingBrowser\.mjs|src/3d/gameplay/interactionConfig\.js)$'
+          allowed='^(\.github/workflows/(rpg-smithing-service-persistence|rpg-mastery-to-smithing)\.yml|scripts/checkInteractionExpeditionKitCraft\.mjs|scripts/checkInteractionProvisioningCraft\.mjs|scripts/checkInteractionQuartermasterTrade\.mjs|scripts/checkInteractionSettlementService(Browser|Contract)\.mjs|scripts/checkInteractionSmithingServicePersistence\.mjs|scripts/checkInteractionMasteryEconomyContinuity\.mjs|scripts/checkInteractionMasteryToSmithingBrowser\.mjs|src/3d/gameplay/interactionConfig\.js)$'
           if (( ${#paths[@]} )); then
             printf '%s\n' "${paths[@]}" | grep -Ev "$allowed" && exit 1 || true
           fi
@@ -53,6 +54,7 @@ jobs:
           node --check scripts/checkInteractionProvisioningCraft.mjs
           node --check scripts/checkInteractionQuartermasterTrade.mjs
           node --check scripts/checkInteractionSettlementServiceContract.mjs
+          node --check scripts/checkInteractionSettlementServiceBrowser.mjs
           node --check scripts/checkInteractionSmithingServicePersistence.mjs
           node --check scripts/checkInteractionMasteryEconomyContinuity.mjs
           node --check scripts/checkInteractionMasteryToSmithingBrowser.mjs
@@ -69,6 +71,8 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Shipped settlement service browser proof
+        run: NODE_PATH="$NODE_PATH" node scripts/checkInteractionSettlementServiceBrowser.mjs
       - name: Shipped-page mastery to smithing browser proof
         run: NODE_PATH="$NODE_PATH" node scripts/checkInteractionMasteryToSmithingBrowser.mjs
       - name: Shared Material Placement Contract
