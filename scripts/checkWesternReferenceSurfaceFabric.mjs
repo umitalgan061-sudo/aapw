@@ -19,8 +19,13 @@ assert.equal(P.hydrologyAuthorityUnchanged, true);
 assert.equal(P.colliderAuthorityUnchanged, true);
 assert(P.macroMeters > P.mesoMeters && P.mesoMeters > P.fineMeters && P.fineMeters > P.microMeters);
 assert(P.warpMeters > 0 && P.warpMeters < P.mesoMeters);
+assert(P.drainageMeters > P.mesoMeters && P.drainageMeters < P.macroMeters);
+assert(P.alluviumMeters > P.drainageMeters);
 
-const scalarKeys = ['macro', 'meso', 'fine', 'micro', 'moisture', 'mineral', 'weathering', 'streak', 'crust'];
+const scalarKeys = [
+  'macro', 'meso', 'fine', 'micro', 'moisture', 'mineral', 'weathering', 'streak', 'crust',
+  'drainageThread', 'alluvium', 'exposedInterfluve',
+];
 const valuesByKey = new Map(scalarKeys.map((key) => [key, []]));
 for (let z = -4200; z <= 4200; z += 350) {
   for (let x = -8200; x <= -400; x += 350) {
@@ -47,18 +52,24 @@ for (const key of ['macro', 'meso', 'fine', 'moisture', 'mineral', 'weathering']
   assert(summaries[key].range > 0.32, `${key} fabric became visually inert: ${JSON.stringify(summaries[key])}`);
   assert(summaries[key].sd > 0.09, `${key} fabric became too uniform: ${JSON.stringify(summaries[key])}`);
 }
+assert(summaries.drainageThread.range > 0.25, `drainage threading became inert: ${JSON.stringify(summaries.drainageThread)}`);
+assert(summaries.alluvium.range > 0.25, `alluvial weathering became inert: ${JSON.stringify(summaries.alluvium)}`);
+assert(summaries.exposedInterfluve.range > 0.15, `interfluve exposure became inert: ${JSON.stringify(summaries.exposedInterfluve)}`);
+assert(summaries.drainageThread.mean < 0.20, 'drainage threads spread too broadly and would read as invented rivers');
+assert(summaries.alluvium.mean < 0.35, 'alluvium spread too broadly across western land');
 
 const base = [0.42, 0.39, 0.31];
 const surfaces = ['soil', 'rock', 'snow', 'lake', 'sea'];
 const deltas = {};
 for (const [surfaceIndex, surface] of surfaces.entries()) {
   const color = new THREE.BufferAttribute(new Float32Array(base), 3);
+  const before = [color.getX(0), color.getY(0), color.getZ(0)];
   const changed = applyWesternReferenceSurfaceFabricToColorAttribute(color, 0, {
     surface,
     worldX: -6100 + surfaceIndex * 430,
     worldZ: 1700 - surfaceIndex * 280,
   });
-  const delta = Math.hypot(color.getX(0) - base[0], color.getY(0) - base[1], color.getZ(0) - base[2]);
+  const delta = Math.hypot(color.getX(0) - before[0], color.getY(0) - before[1], color.getZ(0) - before[2]);
   deltas[surface] = delta;
   if (surface === 'sea') {
     assert.equal(changed, false);
