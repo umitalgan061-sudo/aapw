@@ -1,3 +1,6 @@
+import { WORLD_DEFAULTS } from '../config.js';
+import { generateRiverPath } from './rivers.js';
+
 /**
  * Deterministic slope-aware A* routing for the live road network.
  *
@@ -29,6 +32,11 @@ const MAX_CORRIDOR_PADDING_METERS = 1500;
 const ENDPOINT_LINK_RADIUS_CELLS = 2.35;
 const SMOOTHING_ITERATIONS = 2;
 const EPSILON = 1e-9;
+const RIVER_CLEARANCE_METERS = 25;
+const RIVER_AVOIDANCE_RADIUS_METERS = 85;
+const RIVER_NEAR_COST_MULTIPLIER = 18;
+const RIVER_BANK_COST_MULTIPLIER = 3.5;
+const riverAvoidanceCache = new WeakMap();
 
 const EIGHT_NEIGHBOR_OFFSETS = Object.freeze([
 	[1, 0], [-1, 0], [0, 1], [0, -1],
@@ -43,6 +51,54 @@ function gradeDegrees(aHeight, bHeight, horizontalDistance) {
 function gradeCostMultiplier(angleDegrees) {
 	const ratio = angleDegrees / ROAD_COMFORT_GRADE_DEGREES;
 	return 1 + ratio ** GRADE_PENALTY_EXPONENT;
+}
+
+function buildRiverAvoidanceField(sampleHeightMeters) {
+	if (riverAvoidanceCache.has(sampleHeightMeters)) return riverAvoidanceCache.get(sampleHeightMeters);
+	const { points } = generateRiverPath({
+		seed: WORLD_DEFAULTS.WORLD_SEED,
+		sampleHeightMeters,
+		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+	});
+	const cellSize = RIVER_AVOIDANCE_RADIUS_METERS;
+	const bins = new Map();
+	for (const point of points) {
+		const ix = Math.floor(point.x / cellSize);
+		const iz = Math.floor(point.z / cellSize);
+		const key = `${ix},${iz}`;
+		let bucket = bins.get(key);
+		if (!bucket) {
+			bucket = [];
+			bins.set(key, bucket);
+		}
+		bucket.push({ x: point.x, z: point.z });
+	}
+	const field = Object.freeze({ bins, cellSize });
+	riverAvoidanceCache.set(sampleHeightMeters, field);
+	return field;
+}
+
+function distanceToCanonicalRiver(field, x, z) {
+	const ix = Math.floor(x / field.cellSize);
+	const iz = Math.floor(z / field.cellSize);
+	let nearest = Infinity;
+	for (let dz = -1; dz <= 1; dz++) {
+		for (let dx = -1; dx <= 1; dx++) {
+			const bucket = field.bins.get(`${ix + dx},${iz + dz}`);
+			if (!bucket) continue;
+			for (const point of bucket) nearest = Math.min(nearest, Math.hypot(x - point.x, z - point.z));
+		}
+	}
+	return nearest;
+}
+
+function riverCostMultiplier(field, x, z) {
+	const distance = distanceToCanonicalRiver(field, x, z);
+	if (distance >= RIVER_AVOIDANCE_RADIUS_METERS) return 1;
+	if (distance <= RIVER_CLEARANCE_METERS) return RIVER_NEAR_COST_MULTIPLIER;
+	const t = (distance - RIVER_CLEARANCE_METERS) / (RIVER_AVOIDANCE_RADIUS_METERS - RIVER_CLEARANCE_METERS);
+	const smooth = t * t * (3 - 2 * t);
+	return RIVER_BANK_COST_MULTIPLIER + (1 - RIVER_BANK_COST_MULTIPLIER) * smooth;
 }
 
 class MinHeap {
@@ -192,6 +248,7 @@ function searchStrictGradePath({
 	const nodeIndex = (i, j) => j * cols + i;
 	const startY = sampleHeightMeters(start.x, start.z);
 	const endY = sampleHeightMeters(end.x, end.z);
+	const riverAvoidance = buildRiverAvoidanceField(sampleHeightMeters);
 
 	const heights = new Float64Array(cols * rows);
 	heights.fill(NaN);
@@ -267,7 +324,8 @@ function searchStrictGradePath({
 			const horizontalDistance = Math.hypot(di * actualCellX, dj * actualCellZ);
 			const angle = gradeDegrees(currentHeight, heightAt(ni, nj), horizontalDistance);
 			if (angle > maxGradeDegrees) continue;
-			const tentative = gScore[index] + horizontalDistance * gradeCostMultiplier(angle);
+			const riverMultiplier = riverCostMultiplier(riverAvoidance, toWorldX(ni), toWorldZ(nj));
+			const tentative = gScore[index] + horizontalDistance * gradeCostMultiplier(angle) * riverMultiplier;
 			if (tentative + EPSILON >= gScore[neighborIndex]) continue;
 			gScore[neighborIndex] = tentative;
 			cameFrom[neighborIndex] = index;
