@@ -55,9 +55,6 @@ try {
 			return { host, dialogueBox, controller, events };
 		};
 
-		// Mastery is a real expedition-completion flow: the third route requires the already-authored
-		// maintenance-kit readiness. Prove that the mastery reward is granted, then that the armorer
-		// refuses to charge or mutate state while that output slot is already occupied.
 		const mastery = makeDialogueController();
 		const masterySave = mastery.controller.getRpgSnapshot();
 		masterySave.inventory = {
@@ -105,9 +102,6 @@ try {
 			&& quantity(blocked, 'dragonstone-travel-ration-pack') === quantity(beforeBlocked, 'dragonstone-travel-ration-pack')
 			&& quantity(blocked, recipe.outputItemId) === 1;
 
-		// Prove the successful shipped service separately from a clean, eligible settlement-service state.
-		// This avoids inventing a fake "mastery without readiness" route while still exercising the same
-		// real DialogueBox/controller/vendor path end-to-end in Chromium.
 		const service = makeDialogueController();
 		const serviceSave = service.controller.getRpgSnapshot();
 		serviceSave.inventory = {
@@ -138,10 +132,10 @@ try {
 			&& kitAfterService?.provenance?.at(-1)?.sourceId === recipe.recipeId
 			&& afterService.inventory.fieldReadiness.capabilities.fastTravelEligible === true
 			&& afterService.inventory.fieldReadiness.equipped?.itemId === recipe.outputItemId
-			&& afterService.economy.copper === 38
+			&& afterService.economy.copper === 28
 			&& afterService.economy.stockByOffer[armorer.id] === 1
 			&& receipt?.offerId === armorer.id
-			&& receipt?.balanceCopper === 38;
+			&& receipt?.balanceCopper === 28;
 
 		const persistedSave = structuredClone(afterService);
 		const restored = makeDialogueController();
@@ -149,7 +143,7 @@ try {
 		const roundTrip = restored.controller.getRpgSnapshot();
 		const restoredWhetstones = item(roundTrip, 'dragonstone-whetstone');
 		const restoredKit = item(roundTrip, recipe.outputItemId);
-		const persisted = roundTrip.economy.copper === 38
+		const persisted = roundTrip.economy.copper === 28
 			&& !restoredWhetstones
 			&& restoredKit?.quantity === 1
 			&& restoredKit?.provenance?.at(-1)?.sourceId === recipe.recipeId
