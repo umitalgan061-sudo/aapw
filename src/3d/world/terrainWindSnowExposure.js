@@ -7,7 +7,9 @@
  *
  * Westeros' northern mountain snow reads more naturally when exposed NW-facing slopes lose a small
  * amount of loose snow while sheltered SE-facing slopes retain it. The prevailing direction is kept
- * explicit and deterministic so chunk borders cannot acquire random aspect seams.
+ * explicit and deterministic so chunk borders cannot acquire random aspect seams. On real mountain
+ * shoulders the effective flow is now allowed to bend modestly along the local contour, modelling
+ * terrain-channelled wind without inventing a second climate field or changing snow authority.
  * @module world/terrainWindSnowExposure
  */
 
@@ -43,6 +45,13 @@ export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
 	// near-cliff faces start shedding loose snow, preserving the established physical contract.
 	leeRetentionFadeStartDegrees: 42,
 	leeRetentionFadeFullDegrees: 58,
+	// Orographic wind does not stay perfectly compass-straight through broken relief. Above a genuine
+	// mountain-shoulder slope, blend a bounded share of the flow toward whichever local contour
+	// direction already points most nearly with the prevailing stream. The effect is zero on lowlands,
+	// reaches only 28% on steep terrain and is derived solely from the canonical height stencil.
+	channelingSlopeStartDegrees: 16,
+	channelingSlopeFullDegrees: 46,
+	channelingMaxBlend: 0.28,
 	northWindwardScourMax: 0.090,
 	tundraWindwardScourMax: 0.052,
 	northLeeDepositMax: 0.065,
@@ -60,6 +69,10 @@ export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
  * fades in only once a real sheltered face exists, and fades back out on near-cliffs: deposition
  * therefore concentrates on moderate lee slopes instead of painting both flats and vertical rock.
  * Windward exposure remains active on steep faces because scour can still strip exposed ridges.
+ *
+ * Steeper terrain additionally channels part of the effective wind along its contour. This avoids
+ * making every mountain share the exact same compass-cut snow boundary while remaining deterministic
+ * and source-derived: the contour comes directly from the same canonical four-height gradient.
  */
 export function terrainWindExposureFromNeighbours(
 	heightWest,
@@ -97,6 +110,9 @@ export function terrainWindExposureFromNeighbours(
 			slopeAspectStrength,
 			leeCollection,
 			leeRetention,
+			channelingWeight: 0,
+			effectiveSourceX: TERRAIN_WIND_SNOW_POLICY.prevailingSourceX,
+			effectiveSourceZ: TERRAIN_WIND_SNOW_POLICY.prevailingSourceZ,
 			aspectDot: 0,
 			windwardAlignment: 0,
 			leeAlignment: 0,
@@ -109,11 +125,32 @@ export function terrainWindExposureFromNeighbours(
 	// direction toward the wind source is positive on windward faces and negative on lee faces.
 	const normalX = -gradientX / gradientMagnitude;
 	const normalZ = -gradientZ / gradientMagnitude;
-	const aspectDot = clamp01((
-		normalX * TERRAIN_WIND_SNOW_POLICY.prevailingSourceX
-		+ normalZ * TERRAIN_WIND_SNOW_POLICY.prevailingSourceZ
-		+ 1
-	) * 0.5) * 2 - 1;
+
+	// Two contour tangents are possible. Pick the orientation that already points most closely with
+	// the prevailing stream, then blend toward it only on real mountain shoulders. This makes flow
+	// wrap around relief instead of painting a rigid compass-aligned split across every massif.
+	let contourX = -normalZ;
+	let contourZ = normalX;
+	const contourPrevailingDot = contourX * TERRAIN_WIND_SNOW_POLICY.prevailingSourceX
+		+ contourZ * TERRAIN_WIND_SNOW_POLICY.prevailingSourceZ;
+	if (contourPrevailingDot < 0) {
+		contourX = -contourX;
+		contourZ = -contourZ;
+	}
+	const channelingWeight = smoothstep(
+		TERRAIN_WIND_SNOW_POLICY.channelingSlopeStartDegrees,
+		TERRAIN_WIND_SNOW_POLICY.channelingSlopeFullDegrees,
+		slopeDegrees,
+	) * TERRAIN_WIND_SNOW_POLICY.channelingMaxBlend;
+	const channelledX = TERRAIN_WIND_SNOW_POLICY.prevailingSourceX * (1 - channelingWeight)
+		+ contourX * channelingWeight;
+	const channelledZ = TERRAIN_WIND_SNOW_POLICY.prevailingSourceZ * (1 - channelingWeight)
+		+ contourZ * channelingWeight;
+	const channelledLength = Math.max(1e-9, Math.hypot(channelledX, channelledZ));
+	const effectiveSourceX = channelledX / channelledLength;
+	const effectiveSourceZ = channelledZ / channelledLength;
+
+	const aspectDot = clamp01((normalX * effectiveSourceX + normalZ * effectiveSourceZ + 1) * 0.5) * 2 - 1;
 	const windwardAlignment = smoothstep(
 		TERRAIN_WIND_SNOW_POLICY.directionalAlignmentStart,
 		TERRAIN_WIND_SNOW_POLICY.directionalAlignmentFull,
@@ -132,6 +169,9 @@ export function terrainWindExposureFromNeighbours(
 		slopeAspectStrength,
 		leeCollection,
 		leeRetention,
+		channelingWeight,
+		effectiveSourceX,
+		effectiveSourceZ,
 		aspectDot,
 		windwardAlignment,
 		leeAlignment,
