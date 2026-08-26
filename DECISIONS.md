@@ -19516,3 +19516,39 @@ Uydurma düzeltme yapmadım; açık iş listesinden çıkardım.
 
 **Technical debt.** 0 new. **Açık iş.** Şelaleler; göller (S-0039); uzakta köpük bantlanması;
 gün ışığı/altın saat tonlaması; `assets/`'teki yol glb'lerinin kullanılması. Service worker v52→v53.
+
+## ADR-0342 — Beyaz suyu saat değil yatak yapar: köpük artık akış hızına bağlı
+
+**Nereden çıktı.** Tur 390'da nehrin "kesik kesik" görünmesini köpük bantlanmasına bağlamış, mesafe
+sönümü yazmış, sonra sebebin **gömülme** olduğunu kanıtlayıp o düzeltmeyi **geri çekmiştim**. O turda
+şunu yazmıştım: *"nehir sürekli olduktan sonra köpük hâlâ kötü okunuyorsa, bu kendi kanıtı olan ayrı
+bir iştir."* Tur 391/393'ün render'ları o koşulu karşıladı.
+
+**Ölçüm.** Nehir boyunca tek bir piksel sütunu: parlaklık ~90 ile ~160 arasında, **~40 pikselde bir**
+düzenli salınım, **Michelson kontrastı 0,25**. Yani en sakin mecrada bile eşit aralıklı enine beyaz
+bantlar — su değil, barkod.
+
+**Sebep bir modelleme hatası.** Köpük tüm güzergâh boyunca **tek bir güçle** uygulanıyordu
+(`foamStrength` 0,45). Oysa beyaz su, suyun hızlı ve kırıldığı yerde oluşur; sakin bir mecra düzdür.
+
+**Veri zaten oradaydı.** `aFlowSpeed` her vertex'te yerel yatak eğiminden türetiliyor (tur 390'da
+ortalama yerine iki komşu segmentin dikini alarak düzelttim). Köpük artık ona bağlı:
+`smoothstep(3.0, 6.5, vFlowSpeed)`. Bu güzergâhın ölçülen dağılımına karşı (1,20 / medyan 4,39 /
+7,44 m/s) medyan mecra eski köpüğün yaklaşık dörtte birini, dik kesimler tamamını tutuyor. Şelale
+perdeleri sabit 9 m/s aktığı için **tamamen beyaz kalıyor** — zaten şelale odur.
+
+**Ölçülen sonuç:** aynı sütun, aynı satırlar — kontrast **0,250 → 0,198**, tepe parlaklık 160 → 131,
+ortalama 107 → 92. İki açıdan bakıldı: yakında nehir düz mavi bir su yolu ve beyaz su yalnız **bir**
+noktada; uzaktan da manzarayı kesen mavi bir kurdele, eskiden boydan boya beyaz çizgiliydi. Köpük
+artık **yere ait bir özellik**, tekdüze bir desen değil.
+
+**Dürüst maliyet:** `checkRun325RiverFlow`'un piksel hareketi **%5,72 → %3,79** düştü. Beklenen — en
+görünür hareket eden şey köpüktü ve sakin mecralarda artık daha azı var. Eşiğin (0,15) hâlâ 25 katı,
+eşiğe dokunulmadı.
+
+**Yapı.** `world/riverFlowAppearance.js` ayrıldı: rota, şerit geometrisi ve yüzey görünümü üç ayrı
+konu ve render'a her bakışta değişen politika sonuncusu. `rivers.js` 600 sınırındaydı; bu turda
+üçüncü kez oraya dayandı, o yüzden ayırdım. SW v53→v54.
+
+**Technical debt.** 0 new. **Açık iş.** Göller (S-0039); gün ışığı/altın saat tonlaması;
+`assets/`'teki yol glb'lerinin kullanılması.

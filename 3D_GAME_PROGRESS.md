@@ -18273,3 +18273,26 @@ kanıtlandı, CI'a wire edildi.
 dörtgeni ortasında zemin sapması medyan **2 cm** (1130 dörtgenin 6'sı 1 m üstü, en kötüsü deniz
 geçişinde), yatakta 2 m'de medyan sıçrama **9 cm**. Yollarda nehirdeki kusurun karşılığı yok — o
 mesafede dörtgen kenarlarını yanlış okumuşum. Düzeltme uydurmadım, listeden çıkardım. SW v52→v53.
+
+## Tur 394 — Beyaz suyu yatak yapar (ADR-0342)
+
+Tur 390'da köpük mesafe sönümü yazıp **geri çekmiştim** (sebep gömülmeydi) ve şunu not etmiştim:
+"nehir sürekli olduktan sonra köpük hâlâ kötü okunuyorsa ayrı ve kendi kanıtı olan bir iştir." Koşul
+karşılandı.
+
+**Ölçüm:** nehir boyunca tek piksel sütunu — parlaklık ~90–160, ~40 pikselde bir düzenli salınım,
+**Michelson kontrastı 0,25**. En sakin mecrada bile eşit aralıklı enine beyaz bantlar.
+
+**Sebep:** köpük tüm güzergâhta **tek güçle** uygulanıyordu. Oysa beyaz su hızlı ve kırık suda oluşur.
+Veri zaten vardı — `aFlowSpeed` yatak eğiminden geliyor — köpük artık ona bağlı
+(`smoothstep(3.0, 6.5, hız)`). Medyan mecra eski köpüğün ~dörtte birini, dik kesimler tamamını tutuyor;
+şelale perdeleri sabit 9 m/s'de **tamamen beyaz** kalıyor.
+
+**Ölçülen:** kontrast **0,250 → 0,198**, tepe 160 → 131, ortalama 107 → 92. İki açı: yakında düz mavi
+su + tek bir beyaz nokta; uzakta boydan boya beyaz yerine mavi bir kurdele.
+
+**Dürüst maliyet:** akış kapısının piksel hareketi %5,72 → %3,79 (eşiğin hâlâ 25 katı, eşik
+değiştirilmedi).
+
+`world/riverFlowAppearance.js` ayrıldı — `rivers.js` bu turda üçüncü kez 600 sınırına dayandı ve
+yüzey görünümü kendi başına bir konu. SW v53→v54.

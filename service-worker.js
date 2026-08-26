@@ -288,7 +288,10 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run 393 keeps vegetation and village buildings out of the rivers — 96 instances stood in a channel,
 // some half a metre from the centreline. Placement is generated at runtime from this code, so a
 // cache-first shell would keep scattering trees mid-stream. v52->v53.
-const SHELL_CACHE = 'westeros-shell-v53';
+// Run 394 ties river foam to the bed's own speed, so calm reaches read as water instead of a barcode
+// of transverse white bands. New offline-loadable module (riverFlowAppearance.js) and a look change
+// both. v53->v54.
+const SHELL_CACHE = 'westeros-shell-v54';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -482,6 +485,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/world/waterLatitude.js',
     './src/3d/world/water.js',
     './src/3d/world/waterDepthField.js',
+    './src/3d/world/riverFlowAppearance.js',
     './src/3d/world/riverMouth.js',
     './src/3d/world/riverRibbonPath.js',
     './src/3d/world/rivers.js',

@@ -25,6 +25,10 @@ import { WORLD_SCALE } from '../config.js';
 import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
 import { densifyRiverPath } from './riverRibbonPath.js';
 import { extendCourseToCanonicalWater } from './riverMouth.js';
+import {
+	RIVER_BASE_FLOW_SPEED_MPS, RIVER_GRADE_FLOW_GAIN, RIVER_FLOW_WAVENUMBER,
+	WATERFALL_FLOW_SPEED_MPS, FROTH_SPEED_MIN_MPS, FROTH_SPEED_FULL_MPS,
+} from './riverFlowAppearance.js';
 
 /** Seed tag for the named rivers, XORed with the world seed ("RVNM"). */
 export const NAMED_RIVER_SEED_TAG = 0x52564e4d;
@@ -47,25 +51,6 @@ const MAX_STUCK_ESCALATIONS = 4;
 
 const RIVER_COLOR = new THREE.Color(0x2f7ea8);
 
-/** Flow speed, in m/s, of the foam pattern over a perfectly flat reach. Not a physical current
- * measurement — the speed the *visual* streaks travel at, tuned so a still-looking pool still reads
- * as moving water. */
-const RIVER_BASE_FLOW_SPEED_MPS = 1.2;
-/** How much the local bed gradient adds to that speed, via `sqrt(grade)`. The square root (rather
- * than a linear term) is the shape open-channel flow actually follows — Manning/Chézy both give
- * velocity proportional to the square root of the slope — so the steep sections speed up markedly
- * while the near-flat majority of the river stays calm, instead of everything scaling together. */
-const RIVER_GRADE_FLOW_GAIN = 6;
-/** Spatial frequency of the foam streaks, in radians per meter — 1.0 gives ~6.3m between crests,
- * about two streaks per river width at the default 14m. An earlier 0.35 (~18m) was tried first and
- * rejected on this run's own close-range evidence render: at one streak per two river widths the
- * pattern read as a single drifting blob rather than as moving water. The streaks are evaluated
- * per fragment from an interpolated arc length, so this frequency is independent of how far apart
- * the traced river's actual path points are (~60m at the current step size). */
-const RIVER_FLOW_WAVENUMBER = 1.0;
-/** Waterfall curtains fall much faster than the river flows, and their drop is short, so they get
- * their own fixed speed rather than a gradient-derived one. */
-const WATERFALL_FLOW_SPEED_MPS = 9;
 
 /**
  * Injects downstream foam-streak animation into a stock `MeshStandardMaterial` via
@@ -132,7 +117,9 @@ function attachFlowAnimation(material, cacheKey, foamStrength) {
 					float foam = pow(primary * 0.6 + secondary * 0.4, 3.0);
 					// Banks catch and hold more foam than midstream does.
 					float bankBias = mix(0.5, 1.0, abs(vFlowSide));
-					diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.94, 0.97), foam * ${foamStrength.toFixed(3)} * bankBias);
+					// Only fast, broken water goes white — see FROTH_SPEED_MIN_MPS.
+					float froth = smoothstep(${FROTH_SPEED_MIN_MPS.toFixed(1)}, ${FROTH_SPEED_FULL_MPS.toFixed(1)}, vFlowSpeed);
+					diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.94, 0.97), foam * ${foamStrength.toFixed(3)} * bankBias * froth);
 				}`,
 			);
 	};
