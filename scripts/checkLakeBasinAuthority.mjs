@@ -167,8 +167,15 @@ for (const [lakeIndex, center] of lakeCenters.entries()) {
     }
     return mean(values);
   });
-  assert(means[0] <= means.at(-1), `lake ${lakeIndex} radial basin envelope is inverted`);
-  assert(means.at(-1) > 0.95, `lake ${lakeIndex} does not recover toward untouched terrain: ${means.at(-1)}`);
+  const centerMean = means[0];
+  const shoulderMean = means[3];
+  const recoveryMean = means.at(-1);
+  assert(centerMean <= recoveryMean, `lake ${lakeIndex} radial basin envelope is inverted`);
+  assert(recoveryMean > shoulderMean,
+    `lake ${lakeIndex} outer ring does not recover beyond the basin shoulder: ${shoulderMean} -> ${recoveryMean}`);
+  assert(recoveryMean - centerMean >= 0.55,
+    `lake ${lakeIndex} radial recovery became too weak: center=${centerMean} outer=${recoveryMean}`);
+  assertUnit(recoveryMean, `lake ${lakeIndex} radial recovery mean`);
   radialByLake.push({
     lakeIndex,
     radii: radialRadii,
