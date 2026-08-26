@@ -239,6 +239,7 @@ Bu tablo `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §4 uyarınca runtime kullanımına
 | `owner_model_ancient_columns_blend_ancient_columns_b26282faf2df835c` | `assets/models/fbx/Ancient_Columns_Blend_Ancient_Columns.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_ancienthousev5_house_a55f2886a10bf62f` | `assets/models/fbx/AncientHouseV5_house.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_arch_free_arch_10a8f7d2d63345e8` | `assets/models/fbx/Arch_Free_arch.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_arya_stark_7facec96fea72e8d` | `assets/models/fbx/arya_stark.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_badger_by_poly_by_google_8k4cduyrhi4_20bed36371531589` | `assets/models/fbx/Badger by Poly by Google - 8k4cduyRhi4.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_barn_by_creativetrio_a6ukpq33az_14f3a73bc1c34f05` | `assets/models/fbx/Barn by CreativeTrio - A6UkPq33aZ.glb` | CreativeTrio (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_barn_by_poly_by_google_0qth_kuzrye_ed5575b0d3efcc1f` | `assets/models/fbx/Barn by Poly by Google - 0QTh_KUZRYE.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
@@ -310,6 +311,7 @@ Bu tablo `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §4 uyarınca runtime kullanımına
 | `owner_model_docks_by_quaternius_f7twmhwpxy_e6589ea2b801bbd1` | `assets/models/fbx/Docks by Quaternius - F7twMHWPXY.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_dog_by_madtrollstudio_9bqpcxoyrk_5f8279a3212e3491` | `assets/models/fbx/Dog by madtrollstudio - 9bqPCxOyrk.glb` | madtrollstudio (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_dry_branches_medium_01_4k_260229cd0face47b` | `assets/models/fbx/dry_branches_medium_01_4k.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_dusty_path_in_the_fields_525ade036fd32454` | `assets/models/fbx/dusty_path_in_the_fields.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_elephant_by_poly_by_google_a27ma0rxyyj_c393d6f7e2cbf6c4` | `assets/models/fbx/Elephant by Poly by Google - a27MA0rXyyj.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_elk_by_poly_by_google_bo8xpdrab5g_aeba3767cb389619` | `assets/models/fbx/Elk by Poly by Google - bO8XPdrAb5G.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_fall_tree_by_danni_bittman_4gyen9xm3kj_8a16c28d76a765ee` | `assets/models/fbx/Fall Tree by Danni Bittman - 4GYen9Xm3Kj.glb` | Danni Bittman (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
@@ -455,6 +457,7 @@ Bu tablo `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §4 uyarınca runtime kullanımına
 | `owner_model_snow_leopard_by_poly_by_google_26ttvxyxkpc_25c1d81534eb38e7` | `assets/models/fbx/Snow leopard by Poly by Google - 26tTvxyxkPC.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_snow_terrain_low_poly_643b946516c2c47a` | `assets/models/fbx/snow_terrain_low_poly.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_snowlandscape_52be12c37509808f` | `assets/models/fbx/sNOWlaNDSCAPE.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_snowy_road_b042f2aa8b108177` | `assets/models/fbx/snowy_road.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_son_18588509276d2c76` | `assets/models/fbx/son.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_spear_7bf3b9be7c744499` | `assets/models/fbx/Spear.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_spider_monkey_by_poly_by_google_4ci4dwwucrd_57aed5226f7d8b47` | `assets/models/fbx/Spider monkey by Poly by Google - 4Ci4DWwucRd.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
