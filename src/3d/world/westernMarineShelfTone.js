@@ -14,15 +14,15 @@ const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 
 export const WESTERN_MARINE_SHELF_TONE_POLICY = Object.freeze({
-  id: 'western-marine-shelf-tone-2026-08-26-v1',
+  id: 'western-marine-shelf-tone-2026-08-26-v2-stronger-depth-read',
   renderOnly: true,
   canonicalSeaOnly: true,
   geographyAuthorityUnchanged: true,
   fullStrengthNormalizedX: 0.04,
-  fadeEndNormalizedX: 0.31,
-  maxBlend: 0.42,
-  regionalVariation: 0.12,
-  targetColorHex: 0x203b46,
+  fadeEndNormalizedX: 0.34,
+  maxBlend: 0.78,
+  regionalVariation: 0.08,
+  targetColorHex: 0x162f3b,
 });
 
 const TARGET_COLOR = new THREE.Color(WESTERN_MARINE_SHELF_TONE_POLICY.targetColorHex);
