@@ -13,25 +13,30 @@ const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 
 export const WESTERN_MARINE_SHELF_TONE_POLICY = Object.freeze({
-  id: 'western-marine-shelf-tone-2026-08-26-v4-domain-warped-sediment-fabric',
+  id: 'western-marine-shelf-tone-2026-08-26-v5-depositional-current-weathering',
   renderOnly: true,
   canonicalSeaOnly: true,
   geographyAuthorityUnchanged: true,
-  fullStrengthNormalizedX: 0.04,
-  fadeEndNormalizedX: 0.34,
-  maxBlend: 0.78,
-  macroVariation: 0.10,
-  mesoVariation: 0.065,
-  fineVariation: 0.030,
-  domainWarpNormalized: 0.012,
-  sedimentBandVariation: 0.10,
-  currentScourVariation: 0.075,
-  turbidityVariation: 0.065,
+  fullStrengthNormalizedX: 0.035,
+  fadeEndNormalizedX: 0.40,
+  maxBlend: 0.80,
+  macroVariation: 0.115,
+  mesoVariation: 0.078,
+  fineVariation: 0.034,
+  domainWarpNormalized: 0.014,
+  sedimentBandVariation: 0.115,
+  currentScourVariation: 0.092,
+  turbidityVariation: 0.078,
+  fanVariation: 0.085,
+  bedformVariation: 0.062,
+  mineralRidgeVariation: 0.070,
   targetColorHex: 0x162f3b,
-  coolPatchColorHex: 0x193744,
-  mineralPatchColorHex: 0x213840,
-  siltPatchColorHex: 0x263b3d,
-  deepPatchColorHex: 0x102933,
+  coolPatchColorHex: 0x183945,
+  mineralPatchColorHex: 0x243a40,
+  siltPatchColorHex: 0x2a3e3d,
+  deepPatchColorHex: 0x0f2832,
+  sandPatchColorHex: 0x334745,
+  ironPatchColorHex: 0x3b4140,
 });
 
 const TARGET_COLOR = new THREE.Color(WESTERN_MARINE_SHELF_TONE_POLICY.targetColorHex);
@@ -39,6 +44,8 @@ const COOL_PATCH_COLOR = new THREE.Color(WESTERN_MARINE_SHELF_TONE_POLICY.coolPa
 const MINERAL_PATCH_COLOR = new THREE.Color(WESTERN_MARINE_SHELF_TONE_POLICY.mineralPatchColorHex);
 const SILT_PATCH_COLOR = new THREE.Color(WESTERN_MARINE_SHELF_TONE_POLICY.siltPatchColorHex);
 const DEEP_PATCH_COLOR = new THREE.Color(WESTERN_MARINE_SHELF_TONE_POLICY.deepPatchColorHex);
+const SAND_PATCH_COLOR = new THREE.Color(WESTERN_MARINE_SHELF_TONE_POLICY.sandPatchColorHex);
+const IRON_PATCH_COLOR = new THREE.Color(WESTERN_MARINE_SHELF_TONE_POLICY.ironPatchColorHex);
 
 function smoothstep(edge0, edge1, value) {
   if (edge0 === edge1) return value >= edge1 ? 1 : 0;
@@ -70,8 +77,8 @@ function ridge01(value) {
 }
 
 function shelfFabric(normalizedX, normalizedY) {
-  // A low-frequency owner-map-space warp prevents all subordinate layers from sharing straight
-  // axes. Because the warp itself is global owner-map space, Pindex boundaries cannot reset it.
+  // Low-frequency owner-map-space warping prevents subordinate layers from sharing straight axes.
+  // The warp is global, so Pindex boundaries cannot reset or mirror the marine fabric.
   const warpX = valueNoise2D(normalizedX * 2.7 + 5.1, normalizedY * 3.3 - 2.8, 13.7) - 0.5;
   const warpY = valueNoise2D(normalizedX * 3.7 - 4.4, normalizedY * 2.9 + 6.2, 17.9) - 0.5;
   const warpedX = normalizedX + warpX * WESTERN_MARINE_SHELF_TONE_POLICY.domainWarpNormalized;
@@ -82,10 +89,10 @@ function shelfFabric(normalizedX, normalizedY) {
   const macro = valueNoise2D(warpedX * 3.1 + 0.7, warpedY * 4.3 - 1.4, 1.7);
   const meso = valueNoise2D(warpedX * 8.7 - 2.1, warpedY * 11.9 + 0.8, 5.3);
   const fine = valueNoise2D(warpedX * 21.1 + 4.2, warpedY * 17.3 - 3.6, 9.1);
+  const basin = valueNoise2D(warpedX * 2.15 - 6.8, warpedY * 2.65 + 8.1, 42.6);
 
-  // Sediment ribbons loosely follow the continental shelf rather than a fixed image-space axis.
-  // Two differently oriented terms are warped by macro/meso noise so they read as deposited beds,
-  // not mathematical contour stripes.
+  // Sediment ribbons loosely follow the shelf instead of an image-space axis. Two differently
+  // oriented terms are warped by the broad fields so the result reads as deposition, not stripes.
   const sedimentPhaseA = warpedX * 14.7 + warpedY * 4.9 + macro * 1.85 - meso * 0.72;
   const sedimentPhaseB = warpedX * 6.2 - warpedY * 12.8 + meso * 1.34 + fine * 0.41;
   const sedimentBands = clamp01(
@@ -93,13 +100,49 @@ function shelfFabric(normalizedX, normalizedY) {
       + ridge01(valueNoise2D(sedimentPhaseB * 0.71, sedimentPhaseA * 0.53, 29.2)) * 0.34,
   );
 
-  // Current scour is intentionally sparse: only the higher ridge tail contributes strongly, so the
-  // shelf does not become uniformly streaked. Turbidity is broader and favors quieter macro basins.
+  // Broad depositional fans are deliberately irregular and low-frequency. They enrich the shelf
+  // without creating a second coast or changing canonical bathymetry/height in any way.
+  const fanFieldA = ridge01(valueNoise2D(warpedX * 5.3 + basin * 1.4, warpedY * 3.9 - macro * 0.9, 47.2));
+  const fanFieldB = valueNoise2D(warpedX * 6.8 - meso * 1.1, warpedY * 5.1 + basin * 1.7, 53.9);
+  const depositionalFan = smoothstep(0.52, 0.87, fanFieldA * 0.62 + fanFieldB * 0.38)
+    * smoothstep(0.36, 0.78, basin * 0.58 + (1 - macro) * 0.42);
+
+  // Current scour is sparse; higher-ridge tails alone contribute. Bedforms use a different scale
+  // and orientation so scour streaks do not repeat the same visual rhythm as sediment ribbons.
   const scourBase = ridge01(valueNoise2D(warpedX * 16.3 + meso * 1.8, warpedY * 7.1 - macro * 1.2, 31.7));
   const currentScour = smoothstep(0.64, 0.91, scourBase) * (0.42 + fine * 0.58);
-  const turbidity = smoothstep(0.52, 0.86, (1 - macro) * 0.56 + meso * 0.28 + sedimentBands * 0.16);
+  const bedformBase = ridge01(valueNoise2D(
+    warpedX * 24.7 + warpedY * 7.4 + basin * 2.1,
+    warpedY * 18.6 - warpedX * 5.8 + meso * 1.3,
+    61.4,
+  ));
+  const bedforms = smoothstep(0.70, 0.94, bedformBase) * (0.30 + sedimentBands * 0.70);
 
-  return { macro, meso, fine, sedimentBands, currentScour, turbidity };
+  // Mineral ridges are broad enough to survive full-world mip/read and sparse enough not to become
+  // salt-and-pepper noise. Turbidity favours quiet basins and depositional fans rather than scour.
+  const mineralRidge = smoothstep(
+    0.63,
+    0.89,
+    ridge01(valueNoise2D(warpedX * 9.4 + basin, warpedY * 6.7 - macro * 0.8, 67.8)),
+  ) * (0.44 + meso * 0.56);
+  const turbidity = smoothstep(
+    0.50,
+    0.87,
+    (1 - macro) * 0.40 + meso * 0.20 + sedimentBands * 0.13 + depositionalFan * 0.27,
+  ) * (1 - currentScour * 0.42);
+
+  return {
+    macro,
+    meso,
+    fine,
+    basin,
+    sedimentBands,
+    currentScour,
+    depositionalFan,
+    bedforms,
+    mineralRidge,
+    turbidity,
+  };
 }
 
 /**
@@ -125,9 +168,11 @@ export function westernMarineShelfToneWeight({ surface, normalizedX, normalizedY
     + (fabric.macro - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.macroVariation
     + (fabric.meso - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.mesoVariation
     + (fabric.fine - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.fineVariation
-    + (fabric.sedimentBands - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.sedimentBandVariation * 0.30
-    - fabric.currentScour * WESTERN_MARINE_SHELF_TONE_POLICY.currentScourVariation * 0.18;
-  return clamp01(WESTERN_MARINE_SHELF_TONE_POLICY.maxBlend * westWeight * Math.max(0.72, modulation + 0.12));
+    + (fabric.sedimentBands - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.sedimentBandVariation * 0.32
+    + (fabric.depositionalFan - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.fanVariation * 0.22
+    + (fabric.mineralRidge - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.mineralRidgeVariation * 0.18
+    - fabric.currentScour * WESTERN_MARINE_SHELF_TONE_POLICY.currentScourVariation * 0.19;
+  return clamp01(WESTERN_MARINE_SHELF_TONE_POLICY.maxBlend * westWeight * Math.max(0.70, modulation + 0.14));
 }
 
 /** Applies the marine-only tone directly to an existing terrain colour attribute. */
@@ -139,20 +184,28 @@ export function applyWesternMarineShelfToneToColorAttribute(color, index, classi
   const y = Number.isFinite(classification?.normalizedY) ? classification.normalizedY : 0.5;
   const fabric = shelfFabric(x, y);
 
-  const coolWeight = smoothstep(0.58, 0.88, fabric.macro) * 0.30;
-  const mineralWeight = smoothstep(0.60, 0.90, fabric.meso) * (0.16 + fabric.sedimentBands * 0.12);
-  const siltWeight = fabric.turbidity * WESTERN_MARINE_SHELF_TONE_POLICY.turbidityVariation * 1.65;
-  const scourWeight = fabric.currentScour * WESTERN_MARINE_SHELF_TONE_POLICY.currentScourVariation * 1.55;
+  const coolWeight = smoothstep(0.56, 0.88, fabric.macro) * 0.33;
+  const mineralWeight = smoothstep(0.58, 0.90, fabric.meso) * (0.17 + fabric.sedimentBands * 0.13);
+  const siltWeight = fabric.turbidity * WESTERN_MARINE_SHELF_TONE_POLICY.turbidityVariation * 1.75;
+  const scourWeight = fabric.currentScour * WESTERN_MARINE_SHELF_TONE_POLICY.currentScourVariation * 1.68;
+  const fanWeight = fabric.depositionalFan * WESTERN_MARINE_SHELF_TONE_POLICY.fanVariation * 1.45;
+  const ironWeight = fabric.mineralRidge * WESTERN_MARINE_SHELF_TONE_POLICY.mineralRidgeVariation * 1.30;
 
   const target = TARGET_COLOR.clone()
     .lerp(COOL_PATCH_COLOR, coolWeight)
     .lerp(MINERAL_PATCH_COLOR, mineralWeight)
     .lerp(SILT_PATCH_COLOR, clamp01(siltWeight))
+    .lerp(SAND_PATCH_COLOR, clamp01(fanWeight))
+    .lerp(IRON_PATCH_COLOR, clamp01(ironWeight))
     .lerp(DEEP_PATCH_COLOR, clamp01(scourWeight));
 
-  // Fine sediment flecks modulate value only a few percent; they should survive full-world mip/read
-  // without turning the sea floor into TV-noise at close range.
-  const fineValue = 0.965 + (fabric.fine - 0.5) * 0.07 + (fabric.sedimentBands - 0.5) * 0.045;
+  // Fine sediment and sparse bedforms modulate value only a few percent. The incommensurate fields
+  // survive aerial mip/read without turning close-range seabed into obvious procedural noise.
+  const fineValue = 0.958
+    + (fabric.fine - 0.5) * 0.078
+    + (fabric.sedimentBands - 0.5) * 0.050
+    + (fabric.bedforms - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.bedformVariation * 0.34
+    + (fabric.basin - 0.5) * 0.026;
   target.multiplyScalar(fineValue);
 
   color.setXYZ(
