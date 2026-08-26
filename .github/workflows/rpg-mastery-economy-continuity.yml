@@ -10,6 +10,7 @@ on:
       - 'scripts/checkInteractionSettlementServiceBrowser.mjs'
       - 'scripts/checkInteractionSettlementServiceContract.mjs'
       - 'scripts/checkInteractionSmithingServicePersistence.mjs'
+      - 'scripts/checkInteractionTradeLedgerAtomicity.mjs'
       - 'scripts/checkInteractionMasteryEconomyContinuity.mjs'
       - 'scripts/checkInteractionMasteryToSmithingBrowser.mjs'
       - '.github/workflows/rpg-mastery-to-smithing.yml'
@@ -41,7 +42,7 @@ jobs:
           test "$MERGE_BASE" = "$CURRENT_MAIN"
           mapfile -t FILES < <(git diff --name-only "$CURRENT_MAIN"...HEAD)
           printf '%s\n' "${FILES[@]}"
-          allowed='^(\.github/workflows/(rpg-mastery-(economy-continuity|to-smithing)|rpg-smithing-service-persistence)\.yml|scripts/checkInteractionExpeditionKitCraft\.mjs|scripts/checkInteractionMastery(EconomyContinuity|ToSmithingBrowser)\.mjs|scripts/checkInteraction(ProvisioningCraft|QuartermasterTrade|SettlementService(Browser|Contract)|SmithingServicePersistence)\.mjs|src/3d/gameplay/interactionConfig\.js)$'
+          allowed='^(\.github/workflows/(rpg-mastery-(economy-continuity|to-smithing)|rpg-smithing-service-persistence)\.yml|scripts/checkInteractionExpeditionKitCraft\.mjs|scripts/checkInteractionMastery(EconomyContinuity|ToSmithingBrowser)\.mjs|scripts/checkInteraction(ProvisioningCraft|QuartermasterTrade|SettlementService(Browser|Contract)|SmithingServicePersistence|TradeLedgerAtomicity)\.mjs|src/3d/gameplay/interactionConfig\.js)$'
           if (( ${#FILES[@]} )); then
             printf '%s\n' "${FILES[@]}" | grep -Ev "$allowed" && exit 1 || true
           fi
@@ -53,12 +54,12 @@ jobs:
           set -euo pipefail
           node --check scripts/checkInteractionMasteryEconomyContinuity.mjs
           node scripts/checkInteractionMasteryEconomyContinuity.mjs
-      - name: Existing RPG regression contracts
-        run: |
-          set -euo pipefail
-          node scripts/checkInteractionExpeditionMasterySmithingReward.mjs
-          node scripts/checkInteractionTradeLedgerAtomicity.mjs
-          node scripts/checkInteractionSettlementServiceContract.mjs
+      - name: Expedition mastery smithing reward contract
+        run: node scripts/checkInteractionExpeditionMasterySmithingReward.mjs
+      - name: Trade ledger atomicity contract
+        run: node scripts/checkInteractionTradeLedgerAtomicity.mjs
+      - name: Settlement service contract
+        run: node scripts/checkInteractionSettlementServiceContract.mjs
       - name: Shared material-placement boundary
         run: node scripts/checkSharedMaterialPlacementContract.js
       - name: Final exact-main freshness
