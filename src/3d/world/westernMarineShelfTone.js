@@ -13,7 +13,7 @@ const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 
 export const WESTERN_MARINE_SHELF_TONE_POLICY = Object.freeze({
-  id: 'western-marine-shelf-tone-2026-08-26-v6-bounded-depositional-weathering',
+  id: 'western-marine-shelf-tone-2026-08-27-v7-current-shear-sediment-weathering',
   renderOnly: true,
   canonicalSeaOnly: true,
   geographyAuthorityUnchanged: true,
@@ -32,6 +32,9 @@ export const WESTERN_MARINE_SHELF_TONE_POLICY = Object.freeze({
   fanVariation: 0.085,
   bedformVariation: 0.062,
   mineralRidgeVariation: 0.070,
+  currentShearVariation: 0.055,
+  sedimentPocketVariation: 0.065,
+  shelfBreakVariation: 0.050,
   targetColorHex: 0x162f3b,
   coolPatchColorHex: 0x183945,
   mineralPatchColorHex: 0x243a40,
@@ -121,6 +124,37 @@ function shelfFabric(normalizedX, normalizedY) {
     (1 - macro) * 0.40 + meso * 0.20 + sedimentBands * 0.13 + depositionalFan * 0.27,
   ) * (1 - currentScour * 0.42);
 
+  // Two non-parallel current fields keep broad shelf weathering from reading as one procedural
+  // stripe direction. They are intentionally low-amplitude and only alter render colour.
+  const shearA = ridge01(valueNoise2D(
+    warpedX * 11.8 + warpedY * 4.1 + basin * 1.2,
+    warpedY * 5.6 - warpedX * 2.7 + meso * 0.9,
+    73.6,
+  ));
+  const shearB = ridge01(valueNoise2D(
+    warpedX * 5.2 - warpedY * 10.4 - macro * 0.8,
+    warpedY * 12.6 + warpedX * 3.3 + fine * 0.7,
+    79.3,
+  ));
+  const currentShear = clamp01(shearA * 0.57 + shearB * 0.43);
+
+  // Depositional pockets accumulate where scour is weak and basin-scale transport converges.
+  const pocketField = valueNoise2D(
+    warpedX * 7.6 + currentShear * 1.1,
+    warpedY * 8.9 - basin * 1.4,
+    83.1,
+  );
+  const sedimentPocket = smoothstep(0.58, 0.88, pocketField * 0.58 + (1 - currentScour) * 0.24 + basin * 0.18);
+
+  // A sparse oblique shelf-break fabric adds low-contrast geological direction without becoming a
+  // new coastline: it is subordinate to the same canonical westWeight envelope as every other term.
+  const shelfBreakBase = ridge01(valueNoise2D(
+    warpedX * 10.2 + warpedY * 2.9 + macro * 0.75,
+    warpedY * 4.4 - warpedX * 8.1 + basin * 0.95,
+    89.7,
+  ));
+  const shelfBreakStreak = smoothstep(0.68, 0.94, shelfBreakBase) * (0.32 + basin * 0.68);
+
   return {
     macro,
     meso,
@@ -132,6 +166,9 @@ function shelfFabric(normalizedX, normalizedY) {
     bedforms,
     mineralRidge,
     turbidity,
+    currentShear,
+    sedimentPocket,
+    shelfBreakStreak,
   };
 }
 
@@ -161,6 +198,9 @@ export function westernMarineShelfToneWeight({ surface, normalizedX, normalizedY
     + (fabric.sedimentBands - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.sedimentBandVariation * 0.32
     + (fabric.depositionalFan - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.fanVariation * 0.22
     + (fabric.mineralRidge - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.mineralRidgeVariation * 0.18
+    + (fabric.currentShear - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.currentShearVariation * 0.14
+    + (fabric.sedimentPocket - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.sedimentPocketVariation * 0.12
+    + (fabric.shelfBreakStreak - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.shelfBreakVariation * 0.10
     - fabric.currentScour * WESTERN_MARINE_SHELF_TONE_POLICY.currentScourVariation * 0.19;
 
   // Fabric is subordinate to the canonical west-east optical envelope. It can locally soften or
@@ -189,19 +229,24 @@ export function applyWesternMarineShelfToneToColorAttribute(color, index, classi
   const scourWeight = fabric.currentScour * WESTERN_MARINE_SHELF_TONE_POLICY.currentScourVariation * 1.68;
   const fanWeight = fabric.depositionalFan * WESTERN_MARINE_SHELF_TONE_POLICY.fanVariation * 1.45;
   const ironWeight = fabric.mineralRidge * WESTERN_MARINE_SHELF_TONE_POLICY.mineralRidgeVariation * 1.30;
+  const pocketWeight = fabric.sedimentPocket * WESTERN_MARINE_SHELF_TONE_POLICY.sedimentPocketVariation * 1.28;
+  const shearWeight = fabric.currentShear * WESTERN_MARINE_SHELF_TONE_POLICY.currentShearVariation * 0.72;
+  const shelfBreakWeight = fabric.shelfBreakStreak * WESTERN_MARINE_SHELF_TONE_POLICY.shelfBreakVariation * 0.82;
 
   const target = TARGET_COLOR.clone()
     .lerp(COOL_PATCH_COLOR, coolWeight)
     .lerp(MINERAL_PATCH_COLOR, mineralWeight)
-    .lerp(SILT_PATCH_COLOR, clamp01(siltWeight))
-    .lerp(SAND_PATCH_COLOR, clamp01(fanWeight))
-    .lerp(IRON_PATCH_COLOR, clamp01(ironWeight))
-    .lerp(DEEP_PATCH_COLOR, clamp01(scourWeight));
+    .lerp(SILT_PATCH_COLOR, clamp01(siltWeight + pocketWeight * 0.46))
+    .lerp(SAND_PATCH_COLOR, clamp01(fanWeight + pocketWeight * 0.54))
+    .lerp(IRON_PATCH_COLOR, clamp01(ironWeight + shelfBreakWeight * 0.42))
+    .lerp(DEEP_PATCH_COLOR, clamp01(scourWeight + shearWeight * 0.33));
 
   const fineValue = 0.958
     + (fabric.fine - 0.5) * 0.078
     + (fabric.sedimentBands - 0.5) * 0.050
     + (fabric.bedforms - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.bedformVariation * 0.34
+    + (fabric.currentShear - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.currentShearVariation * 0.16
+    + (fabric.shelfBreakStreak - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.shelfBreakVariation * 0.12
     + (fabric.basin - 0.5) * 0.026;
   target.multiplyScalar(fineValue);
 
