@@ -240,7 +240,7 @@ float winterPineNoise(vec2 p) {
 vec2 winterMicroP = vWinterPineWorldPosition.xz * 0.84;
 float winterNx = winterPineNoise(winterMicroP + vec2(0.11, 0.0)) - winterPineNoise(winterMicroP - vec2(0.11, 0.0));
 float winterNz = winterPineNoise(winterMicroP + vec2(0.0, 0.11)) - winterPineNoise(winterMicroP - vec2(0.0, 0.11));
-normal = normalize(normal + vec3(winterNx, 0.0, winterNz) * 0.045);
+normal = normalize(normal + mat3(viewMatrix) * vec3(winterNx, 0.0, winterNz) * 0.045);
 #endif`);
 		}
 
