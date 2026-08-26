@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/3d/config.js'
       - 'src/3d/fog.js'
+      - 'src/3d/sky.js'
       - 'src/3d/world/terrain.js'
       - 'src/3d/world/terrainReliefDetail.js'
       - 'src/3d/world/terrainMacroWeathering.js'
@@ -63,6 +64,7 @@ jobs:
         run: |
           set -euo pipefail
           node --check src/3d/fog.js
+          node --check src/3d/sky.js
           node --check src/3d/world/terrainMacroWeathering.js
           node --check src/3d/world/terrainReliefDetail.js
           node --check src/3d/world/worldReferenceMountainRelief.js
