@@ -7,6 +7,7 @@ on:
       - 'scripts/checkWorldEventDeterminism.js'
       - 'scripts/checkWorldEventResumeBudget.mjs'
       - 'scripts/checkWorldEventRepeatDiversity.mjs'
+      - 'scripts/checkWorldEventRepeatDiversityBrowser.mjs'
       - 'scripts/game3dSmokeChecksDebugTools.js'
       - 'scripts/game3dSmokeChecksWorldEvents.js'
       - 'scripts/smokeTestGame3D.js'
@@ -35,7 +36,7 @@ jobs:
           git fetch origin "$BASE_SHA" --depth=1
           mapfile -t files < <(git diff --name-only "$BASE_SHA"...HEAD)
           printf '%s\n' "${files[@]}"
-          allowed='^(src/3d/gameplay/worldEvents\.js|scripts/checkWorldEventDeterminism\.js|scripts/checkWorldEventResumeBudget\.mjs|scripts/checkWorldEventRepeatDiversity\.mjs|scripts/game3dSmokeChecksDebugTools\.js|scripts/game3dSmokeChecksWorldEvents\.js|scripts/smokeTestGame3D\.js|\.github/workflows/world-event-resume-budget\.yml|\.github/workflows/world-event-repeat-diversity\.yml)$'
+          allowed='^(src/3d/gameplay/worldEvents\.js|scripts/checkWorldEventDeterminism\.js|scripts/checkWorldEventResumeBudget\.mjs|scripts/checkWorldEventRepeatDiversity\.mjs|scripts/checkWorldEventRepeatDiversityBrowser\.mjs|scripts/game3dSmokeChecksDebugTools\.js|scripts/game3dSmokeChecksWorldEvents\.js|scripts/smokeTestGame3D\.js|\.github/workflows/world-event-resume-budget\.yml|\.github/workflows/world-event-repeat-diversity\.yml)$'
           for file in "${files[@]}"; do
             [[ "$file" =~ $allowed ]] || { echo "unexpected scope: $file"; exit 1; }
           done
@@ -48,6 +49,7 @@ jobs:
           node --check scripts/checkWorldEventDeterminism.js
           node --check scripts/checkWorldEventResumeBudget.mjs
           node --check scripts/checkWorldEventRepeatDiversity.mjs
+          node --check scripts/checkWorldEventRepeatDiversityBrowser.mjs
           node --check scripts/game3dSmokeChecksDebugTools.js
           node --check scripts/game3dSmokeChecksWorldEvents.js
           node --check scripts/smokeTestGame3D.js
