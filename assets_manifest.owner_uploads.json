@@ -1,0 +1,46 @@
+{
+  "assets": [
+    {
+      "id": "owner_arya_stark_pr961",
+      "file": "assets/models/fbx/arya_stark.glb",
+      "type": "character_model",
+      "source": "Owner upload via PR #961",
+      "sourceUrl": "https://github.com/umitalgan061-sudo/aapw/pull/961",
+      "license": "UNKNOWN — owner-approved for runtime use",
+      "version": 1,
+      "format": "glTF Binary (.glb)",
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "Original source/license was not supplied when the owner merged PR #961 on 2026-08-26. Registered transparently under the repository's owner-approved unknown-provenance policy; update this record if provenance is recovered.",
+      "dateAdded": "2026-08-26"
+    },
+    {
+      "id": "owner_dusty_path_fields_pr961",
+      "file": "assets/models/fbx/dusty_path_in_the_fields.glb",
+      "type": "environment_model",
+      "source": "Owner upload via PR #961",
+      "sourceUrl": "https://github.com/umitalgan061-sudo/aapw/pull/961",
+      "license": "UNKNOWN — owner-approved for runtime use",
+      "version": 1,
+      "format": "glTF Binary (.glb)",
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "Original source/license was not supplied when the owner merged PR #961 on 2026-08-26. Registered transparently under the repository's owner-approved unknown-provenance policy; update this record if provenance is recovered.",
+      "dateAdded": "2026-08-26"
+    },
+    {
+      "id": "owner_snowy_road_pr961",
+      "file": "assets/models/fbx/snowy_road.glb",
+      "type": "environment_model",
+      "source": "Owner upload via PR #961",
+      "sourceUrl": "https://github.com/umitalgan061-sudo/aapw/pull/961",
+      "license": "UNKNOWN — owner-approved for runtime use",
+      "version": 1,
+      "format": "glTF Binary (.glb)",
+      "deprecated": false,
+      "replacedBy": null,
+      "notes": "Original source/license was not supplied when the owner merged PR #961 on 2026-08-26. Registered transparently under the repository's owner-approved unknown-provenance policy; update this record if provenance is recovered.",
+      "dateAdded": "2026-08-26"
+    }
+  ]
+}
