@@ -17,6 +17,7 @@ import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
 
 const MAX_WILDLIFE_SIMULATION_STEP_SECONDS = 0.1;
+const DEFAULT_FLEE_RELEASE_MARGIN_METERS = 3;
 
 function boundedWildlifeDelta(delta) {
 	if (!Number.isFinite(delta) || delta <= 0) return 0;
@@ -75,6 +76,8 @@ function stripNamedChildren(object3D, names) {
  * @param {number} [options.fleeTriggerRadiusMeters] A wolf within this distance of the
  *   `playerPosition` passed to `update()` overrides idle/patrol and runs directly away. `null`/
  *   `undefined` disables flee entirely (static/patrol-only animal).
+ * @param {number} [options.fleeReleaseMarginMeters] Extra distance beyond the trigger radius that
+ *   an already-fleeing wolf must clear before it may return to patrol. Prevents boundary jitter.
  * @param {number} [options.fleeSpeedMps]
  * @param {number} [options.packAlertRadiusMeters] A wolf not yet within `fleeTriggerRadiusMeters` of
  *   the player still flees if a packmate within this distance is already fleeing (`update()`'s
@@ -101,6 +104,7 @@ export async function createWolf({
 	turnRateRadiansPerSecond = 4,
 	fleeClipName,
 	fleeTriggerRadiusMeters,
+	fleeReleaseMarginMeters = DEFAULT_FLEE_RELEASE_MARGIN_METERS,
 	fleeSpeedMps = 4.5,
 	packAlertRadiusMeters,
 }) {
@@ -122,6 +126,10 @@ export async function createWolf({
 	}
 
 	const canFlee = Boolean(groundCollider && fleeClipName && fleeTriggerRadiusMeters != null);
+	const releaseMarginMeters = Number.isFinite(fleeReleaseMarginMeters)
+		? Math.max(0, Math.min(12, fleeReleaseMarginMeters))
+		: DEFAULT_FLEE_RELEASE_MARGIN_METERS;
+	const fleeReleaseRadiusMeters = canFlee ? Math.max(0, fleeTriggerRadiusMeters) + releaseMarginMeters : 0;
 	let fleeAction = null;
 	if (canFlee) {
 		const fleeClip = THREE.AnimationClip.findByName(model.animations, fleeClipName);
@@ -165,6 +173,7 @@ export async function createWolf({
 	let waypointIndex = 0;
 	let pauseTimer = 0;
 	let currentlyFleeing = false;
+	model.userData.wildlifeFlee = Object.freeze({ phase: isPatrolling ? 'patrol' : 'idle', direct: false, pack: false, recovering: false, distanceMeters: null, triggerRadiusMeters: fleeTriggerRadiusMeters ?? null, releaseRadiusMeters: canFlee ? fleeReleaseRadiusMeters : null });
 
 	return {
 		object3D: model,
@@ -177,9 +186,9 @@ export async function createWolf({
 			const dxFromPlayer = hasFinitePlayerPosition ? model.position.x - playerPosition.x : Infinity;
 			const dzFromPlayer = hasFinitePlayerPosition ? model.position.z - playerPosition.z : Infinity;
 			const distanceFromPlayer = Math.hypot(dxFromPlayer, dzFromPlayer);
-			const isFleeingFromPlayer = canFlee && distanceFromPlayer < fleeTriggerRadiusMeters;
+			const directThreat = canFlee && distanceFromPlayer < fleeTriggerRadiusMeters;
 			let isFleeingFromPack = false;
-			if (canFlee && !isFleeingFromPlayer && hasFinitePlayerPosition && packAlertRadiusMeters != null && packmateFleePositions) {
+			if (canFlee && !directThreat && hasFinitePlayerPosition && packAlertRadiusMeters != null && packmateFleePositions) {
 				for (const packmatePosition of packmateFleePositions) {
 					if (!Number.isFinite(packmatePosition?.x) || !Number.isFinite(packmatePosition?.z)) continue;
 					const dx = model.position.x - packmatePosition.x;
@@ -190,7 +199,22 @@ export async function createWolf({
 					}
 				}
 			}
-			currentlyFleeing = isFleeingFromPlayer || isFleeingFromPack;
+			const recovering = canFlee
+				&& currentlyFleeing
+				&& !directThreat
+				&& !isFleeingFromPack
+				&& hasFinitePlayerPosition
+				&& distanceFromPlayer < fleeReleaseRadiusMeters;
+			currentlyFleeing = directThreat || isFleeingFromPack || recovering;
+			model.userData.wildlifeFlee = Object.freeze({
+				phase: currentlyFleeing ? (directThreat ? 'flee' : isFleeingFromPack ? 'pack-flee' : 'recover') : (isPatrolling ? 'patrol' : 'idle'),
+				direct: directThreat,
+				pack: isFleeingFromPack,
+				recovering,
+				distanceMeters: hasFinitePlayerPosition ? Number(distanceFromPlayer.toFixed(3)) : null,
+				triggerRadiusMeters: fleeTriggerRadiusMeters ?? null,
+				releaseRadiusMeters: canFlee ? fleeReleaseRadiusMeters : null,
+			});
 
 			if (currentlyFleeing && simulationDelta > 0) {
 				const hasSeparationVector = distanceFromPlayer > 1e-6;
