@@ -259,7 +259,8 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 
 		vec3 halfVector = normalize(uSunDirection + viewDir);
 		float specular = pow(clamp(dot(normal, halfVector), 0.0, 1.0), 80.0);
-		vec3 celestialSpecular = uSunColor * specular * (0.12 + clamp(uSunIntensity, 0.0, 1.6) * 0.34);
+		float specularFresnel = 0.02 + 0.98 * pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 5.0);
+		vec3 celestialSpecular = uSunColor * specular * specularFresnel * (0.12 + clamp(uSunIntensity, 0.0, 1.6) * 0.34);
 
 		// Surf remains depth-bounded, but now also requires a real bathymetry transition. Uniformly
 		// shallow lake interiors therefore stay calm instead of turning the whole polygon into foam.
