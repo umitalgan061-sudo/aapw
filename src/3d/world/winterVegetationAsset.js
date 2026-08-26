@@ -37,9 +37,14 @@ export const WINTER_VEGETATION_ASSET_POLICY = Object.freeze({
 	// Preserve the source evergreen texture in shadowed needles while keeping bright foliage visibly
 	// snow-laden. The previous 0.58..0.86 blend washed nearly the whole crown to white in browser QA.
 	pineFoliageSnowColor: Object.freeze([0.86, 0.92, 0.94]),
-	pineFoliageSnowMixMin: 0.36,
-	pineFoliageSnowMixRange: 0.36,
-	pineFoliageMinRoughness: 0.92,
+	pineFoliageSnowMixMin: 0.30,
+	pineFoliageSnowMixRange: 0.34,
+	pineFoliageMinRoughness: 0.90,
+	pineFoliageMacroScale: 0.019,
+	pineFoliageMesoScale: 0.127,
+	pineFoliageFineScale: 0.71,
+	pineFoliageWeatheringStrength: 0.18,
+	pineFoliageRoughnessVariation: 0.09,
 	// A Git-LFS pointer is ~130 bytes. A real textured tree GLB is orders of magnitude larger. HEAD
 	// preflight lets Firebase/static hosting reject an unhydrated pointer without downloading it into
 	// GLTFLoader first. Keep the threshold deliberately tiny so it cannot reject a plausible real GLB.
@@ -157,9 +162,9 @@ export function createWinterAssetNormalization(measurement, targetHeightMeters =
 
 /**
  * Converts only the preferred pine's alpha-cut foliage toward a cold snow palette. Keeping the
- * original map fragment first preserves its detailed silhouette/alpha and texture variation; the
- * post-map blend changes visible RGB only. Opaque trunk material remains textured brown but loses
- * the source asset's non-physical metallic response so snow lighting reads naturally.
+ * original map fragment first preserves its detailed silhouette/alpha and texture variation. Snow
+ * coverage, albedo weathering, micro-normal and roughness now vary continuously in world space so
+ * hydrated crowns do not repeat the same flat white treatment at every deterministic tree instance.
  */
 export function applyWinterPineMaterialTreatment(material, assetUrl, policy = WINTER_VEGETATION_ASSET_POLICY) {
 	if (!material || assetUrl !== policy.preferredSnowPineAsset) return material;
@@ -177,13 +182,75 @@ export function applyWinterPineMaterialTreatment(material, assetUrl, policy = WI
 	const priorCompile = material.onBeforeCompile;
 	material.onBeforeCompile = function compileSnowPine(shader, renderer) {
 		priorCompile?.call(this, shader, renderer);
+		if (typeof shader.vertexShader === 'string') {
+			shader.vertexShader = shader.vertexShader
+				.replace('#include <common>', '#include <common>\nvarying vec3 vWinterPineWorldPosition;')
+				.replace('#include <begin_vertex>', `#include <begin_vertex>
+vec4 winterPineWorldPosition = vec4(transformed, 1.0);
+#ifdef USE_INSTANCING
+winterPineWorldPosition = instanceMatrix * winterPineWorldPosition;
+#endif
+vWinterPineWorldPosition = (modelMatrix * winterPineWorldPosition).xyz;`);
+		}
+		const commonMarker = '#include <common>';
+		if (shader.fragmentShader.includes(commonMarker)) {
+			shader.fragmentShader = shader.fragmentShader.replace(commonMarker, `${commonMarker}
+varying vec3 vWinterPineWorldPosition;
+float winterPineHash(vec2 p) {
+	p = fract(p * vec2(123.34, 345.45));
+	p += dot(p, p + 34.345);
+	return fract(p.x * p.y);
+}
+float winterPineNoise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	float a = winterPineHash(i);
+	float b = winterPineHash(i + vec2(1.0, 0.0));
+	float c = winterPineHash(i + vec2(0.0, 1.0));
+	float d = winterPineHash(i + vec2(1.0, 1.0));
+	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}`);
+		}
+
 		const marker = '#include <map_fragment>';
 		if (!shader.fragmentShader.includes(marker)) return;
 		shader.fragmentShader = shader.fragmentShader.replace(marker, `${marker}\n
 			float winterFoliageLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+			float winterMacro = 0.5;
+			float winterMeso = 0.5;
+			float winterFine = 0.5;
+			#ifdef USE_INSTANCING
+			winterMacro = winterPineNoise(vWinterPineWorldPosition.xz * ${policy.pineFoliageMacroScale.toFixed(4)});
+			winterMeso = winterPineNoise(vWinterPineWorldPosition.xz * ${policy.pineFoliageMesoScale.toFixed(4)} + vec2(19.7, -11.3));
+			winterFine = winterPineNoise(vWinterPineWorldPosition.xz * ${policy.pineFoliageFineScale.toFixed(4)} + vec2(-7.1, 23.4));
+			#endif
+			float winterExposure = smoothstep(0.22, 0.78, winterMacro * 0.58 + winterMeso * 0.42);
 			float winterSnowMix = ${policy.pineFoliageSnowMixMin.toFixed(3)}
 				+ ${policy.pineFoliageSnowMixRange.toFixed(3)} * smoothstep(0.12, 0.52, winterFoliageLuma);
-			diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${snowR.toFixed(3)}, ${snowG.toFixed(3)}, ${snowB.toFixed(3)}), winterSnowMix);`);
+			winterSnowMix *= mix(0.78, 1.12, winterExposure);
+			winterSnowMix = clamp(winterSnowMix, 0.18, 0.72);
+			diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${snowR.toFixed(3)}, ${snowG.toFixed(3)}, ${snowB.toFixed(3)}), winterSnowMix);
+			diffuseColor.rgb *= 1.0 + (winterMeso - 0.5) * ${policy.pineFoliageWeatheringStrength.toFixed(3)} + (winterFine - 0.5) * 0.055;`);
+
+		const normalMarker = '#include <normal_fragment_maps>';
+		if (shader.fragmentShader.includes(normalMarker)) {
+			shader.fragmentShader = shader.fragmentShader.replace(normalMarker, `${normalMarker}
+#ifdef USE_INSTANCING
+vec2 winterMicroP = vWinterPineWorldPosition.xz * 0.84;
+float winterNx = winterPineNoise(winterMicroP + vec2(0.11, 0.0)) - winterPineNoise(winterMicroP - vec2(0.11, 0.0));
+float winterNz = winterPineNoise(winterMicroP + vec2(0.0, 0.11)) - winterPineNoise(winterMicroP - vec2(0.0, 0.11));
+normal = normalize(normal + vec3(winterNx, 0.0, winterNz) * 0.045);
+#endif`);
+		}
+
+		const roughnessMarker = '#include <roughnessmap_fragment>';
+		if (shader.fragmentShader.includes(roughnessMarker)) {
+			shader.fragmentShader = shader.fragmentShader.replace(roughnessMarker, `${roughnessMarker}
+#ifdef USE_INSTANCING
+roughnessFactor = clamp(roughnessFactor + (winterMeso - 0.5) * ${policy.pineFoliageRoughnessVariation.toFixed(3)} + (winterFine - 0.5) * 0.045, 0.78, 1.0);
+#endif`);
+		}
 	};
 	material.customProgramCacheKey = () => `${policy.id}:snow-foliage-v1`;
 	material.needsUpdate = true;
