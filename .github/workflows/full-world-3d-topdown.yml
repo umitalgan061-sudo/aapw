@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'src/3d/config.js'
+      - 'src/3d/fog.js'
       - 'src/3d/world/terrain.js'
       - 'src/3d/world/terrainMicroSurface.js'
       - 'src/3d/world/terrainBiomeShading.js'
@@ -42,8 +43,10 @@ jobs:
           npm install --no-save playwright three
           npx playwright install --with-deps chromium
 
-      - name: Verify production terrain PBR contract
-        run: node scripts/checkTerrainMicroSurface.mjs
+      - name: Verify production terrain and atmosphere contracts
+        run: |
+          node --check src/3d/fog.js
+          node scripts/checkTerrainMicroSurface.mjs
 
       - name: Render authoritative full-world 3D topdown
         run: |
