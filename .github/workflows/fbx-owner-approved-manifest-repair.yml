@@ -7,21 +7,29 @@ on:
     paths:
       - scripts/materializeOwnerApprovedModelManifest.js
       - .github/workflows/fbx-owner-approved-manifest-repair.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - scripts/materializeOwnerApprovedModelManifest.js
+      - .github/workflows/fbx-owner-approved-manifest-repair.yml
 
 permissions:
   contents: write
 
 concurrency:
-  group: fbx-owner-approved-manifest-repair-${{ github.ref }}
+  group: fbx-owner-approved-manifest-repair-${{ github.event.pull_request.head.ref || github.ref }}
   cancel-in-progress: true
 
 jobs:
   materialize:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -51,6 +59,8 @@ jobs:
           CURRENT_MAIN="$(git rev-parse origin/main)"
           test "$CURRENT_MAIN" = "$(git merge-base HEAD "$CURRENT_MAIN")"
       - name: Commit repaired registry
+        env:
+          TARGET_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -58,4 +68,4 @@ jobs:
           git add assets_manifest.json CREDITS.md
           git diff --cached --quiet && exit 0
           git commit -m "fix(assets): register owner-approved FBX and GLB models"
-          git push origin HEAD:${GITHUB_REF_NAME}
+          git push origin HEAD:"$TARGET_BRANCH"
