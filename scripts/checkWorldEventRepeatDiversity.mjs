@@ -5,6 +5,20 @@ import { createWorldEventSystem } from '../src/3d/gameplay/worldEvents.js';
 const EVENTS_PER_CONTEXT = 160;
 const MIN_UNIQUE_EVENTS = 20;
 const MAX_SINGLE_EVENT_SHARE = 0.12;
+const CADENCE_EVENTS = 24;
+const MIN_INTERVAL_SECONDS = 45;
+const MAX_INTERVAL_SECONDS = 90;
+
+function mulberry32(seed) {
+  let a = seed;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 function collect(seed, nightFactor) {
   const emitted = [];
@@ -18,6 +32,38 @@ function collect(seed, nightFactor) {
   }
   system.dispose();
   return emitted;
+}
+
+function collectEmissionSeconds(seed, count) {
+  const emittedSeconds = [];
+  let simulatedSeconds = 0;
+  const system = createWorldEventSystem({
+    eventsBus: { emit: () => emittedSeconds.push(simulatedSeconds) },
+    seed,
+    eventName: 'world:event',
+  });
+  while (emittedSeconds.length < count && simulatedSeconds < 5000) {
+    simulatedSeconds += 1;
+    system.update(1, undefined);
+  }
+  system.dispose();
+  return emittedSeconds;
+}
+
+function expectedEmissionSeconds(seed, count) {
+  const random = mulberry32(seed);
+  let secondsUntilNext = MIN_INTERVAL_SECONDS + random() * (MAX_INTERVAL_SECONDS - MIN_INTERVAL_SECONDS);
+  let simulatedSeconds = 0;
+  const expected = [];
+  while (expected.length < count && simulatedSeconds < 5000) {
+    simulatedSeconds += 1;
+    secondsUntilNext -= 1;
+    if (secondsUntilNext > 0) continue;
+    expected.push(simulatedSeconds);
+    secondsUntilNext += MIN_INTERVAL_SECONDS + random() * (MAX_INTERVAL_SECONDS - MIN_INTERVAL_SECONDS);
+    random(); // weighted event selection: repeat suppression must not consume another RNG draw
+  }
+  return expected;
 }
 
 const contextProof = [];
@@ -48,6 +94,16 @@ for (const nightFactor of [undefined, 0, 1, 0.5]) {
   contextProof.push({ nightFactor: nightFactor ?? 'legacy', uniqueEvents, dominantShare: Number(dominantShare.toFixed(3)) });
 }
 
+const cadenceSeed = 1482026;
+const actualCadence = collectEmissionSeconds(cadenceSeed, CADENCE_EVENTS);
+const expectedCadence = expectedEmissionSeconds(cadenceSeed, CADENCE_EVENTS);
+assert.equal(actualCadence.length, CADENCE_EVENTS, `expected ${CADENCE_EVENTS} cadence events`);
+assert.deepEqual(
+  actualCadence,
+  expectedCadence,
+  'repeat suppression changed the canonical RNG draw order or event interval cadence',
+);
+
 const baseline = collect(1482026, undefined).map((event) => event.id);
 const different = collect(1482027, undefined).map((event) => event.id);
 assert.notDeepEqual(baseline, different, 'different seeds must not collapse to the same sequence');
@@ -57,5 +113,7 @@ console.log('WORLD_EVENT_REPEAT_DIVERSITY_PASS', JSON.stringify({
   seed: 1482026,
   minUniqueEvents: MIN_UNIQUE_EVENTS,
   maxSingleEventShare: MAX_SINGLE_EVENT_SHARE,
+  cadenceEventsChecked: CADENCE_EVENTS,
+  cadenceLastSecond: actualCadence.at(-1),
   contexts: contextProof,
 }));
