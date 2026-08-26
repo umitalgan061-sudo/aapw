@@ -19694,3 +19694,62 @@ yok**: kapıyı kendi taramasından muaf tutmak, tam da kapatmak için var oldu�
 
 **Technical debt.** 0 new. Runtime kaynağı değişmedi, SW bump yok. **Açık iş.** CI'ın 60 s'lik gerçek
 bütçede ne diyeceği; `checkMountainNaturalizationDeterminism` (dalda önceden kırmızı).
+
+## ADR-0346 — Asıl regresyon CPU değil bayttı: açılışta indirilen 878 MB → 339 MB
+
+**Nereden çıktı.** Tur 397'nin timeout düzeltmesinden sonra CI artık doğru sayıyı söylüyordu:
+`Timeout 60000ms exceeded`. Yani gerçek 60 s uygulanıyor ve **dal CI'da yükleme katmanını 60 saniyede
+kaldıramıyor** — aynı açılış bu konteynerde 8,6 saniye sürerken.
+
+**O uçurumun kendisi cevaptı.** Bu konteynerde taze klon Git-LFS **pointer stub**'ları sunuyor: her
+model 130 bayt. CI ise `lfs: true` ile gerçek nesneleri indiriyor. Yani buradaki 8,6 saniye modelleri
+hiç indirmeden ölçülmüş bir sayı. Tur 396'da kestiğim 4 saniye gerçekti ama **yanlış %5'e** aitti.
+
+**Ölçüm.** Yükleme katmanı kaybolmadan *önce* istenen dosyaları saydım ve her birini kendi LFS
+pointer'ının kaydettiği gerçek boyuttan fiyatlandırdım — hiçbir nesneyi hidrate etmeden:
+
+| | main | dal |
+|---|---|---|
+| katman kalkmadan önce istenen ayrı asset | 31 | **123** |
+| CI'ın gerçekten indirdiği | **91,8 MB** | **878,1 MB** |
+
+Mobil açılış yolunda **9,6 katı veri**.
+
+**Dağınık değil, yoğunlaşmıştı.** Katalog medyanı **0,92 MB**; ama 7 giriş 100 MB'ın üzerinde ve
+3.081 MB'lık toplamın **2.011 MB'ını** taşıyor: 520 MB'lık bir ev, 441 MB'lık bir köknar, 63 MB'lık bir
+hazine sandığı, 38 MB'lık bir tahta merdiven. Bunlar 4K dokulu asset-store modelleri ve serpiştirilmiş
+dekor olarak kullanılıyorlar — tarlada duran bir oyuncunun göremeyeceği bir doku bütçesi.
+
+**Var olan denetim bunu göremezdi.** `tooHeavyForChunkStreaming` **üçgen** sayıyor; buradaki ağırlık
+**doku baytında**. Eksik eksen buydu: yeni `tooLargeToDownloadForScatter` gerekçesi ve
+`MAX_SCATTER_PROP_BYTES` = 25 MB (medyanın ~27 katı, ve ötesinde artık aykırı değer değil en seyrek
+biyomu inceltmeye başladığınız nokta). 194 katalog girişinin 21'ine mal oluyor; katalog 3.081 MB →
+395 MB.
+
+**Dünya boşalmıyor — çeşitliliği azalıyor.** `planChunkProps` chunk başına yerleştirme sayısını
+`candidatesPerChunk` / `maxPropsPerChunk` / `maxLiveProps` ile belirliyor; katalog boyutundan bağımsız.
+`pickEntry` yalnızca *hangi* modelin seçileceğini belirliyor. Yani aynı sayıda nesne aynı yerlerde
+duruyor, bazıları artık farklı bir model. Her biyom en az üç tür koruyor ve bunu
+`checkWorldPropScatter` bağımsız olarak doğruluyor.
+
+**Ölçülen sonuç:** açılışta indirilen **878,1 MB → 338,7 MB (%61 azalma)**. Kuyruk artık düz: en ağır
+kalan 23,7 MB ve oradan yumuşak iniyor, tek bir aykırı değer kalmadı.
+
+**Dürüst olmam gereken taraf.** main hâlâ 91,8 MB, dal 338,7 MB — yani **hâlâ 3,7 katı**. Kalan fark
+tek bir suçluda değil, 126 assetlik uzun kuyrukta. Yapısal çözüm ayrı bir iş: dressing katmanları
+kendi dosyalarında "hiçbiri oynanış için taşıyıcı değil" diye yazıyor, dolayısıyla yükleme katmanını
+onları beklemeye *hiç* zorlamamak gerekir (`game3d.js`'deki `await initWorldDressing`). Onu bu turda
+yapmadım çünkü sahneyi boot sonrası inceleyen kapıların hepsini önce analiz etmek gerekiyor ve
+doğrulanmamış bir refactor'ü doğrulanmış bir kazancın üstüne yığmak istemedim. CI'ın 339 MB'a ne
+diyeceği bir sonraki turun girdisi.
+
+**Görsel doğrulama sınırı, açıkça.** Bu konteynerde bu modellerin hepsi LFS stub'ı; placeholder kutu
+olarak render ediliyorlar. Yani prop görünümünü ekran görüntüsüyle yargılamak burada mümkün değil ve
+yapmış gibi davranmıyorum. Buradaki anlamlı doğrulama ölçülen olan: yoğunluk değişmedi, biyom kapsamı
+korundu, yerleşimler yasal ve chunk'lar aynı şekilde yeniden planlanıyor.
+
+**Yeni kapı.** `scripts/checkScatterPropDownloadSize.js` — her katalog propunu tavana tutuyor, boyutu
+LFS pointer'ından okuyarak, yani hiçbir nesne hidrate etmeden ve herhangi bir klonda çalışarak.
+
+**Technical debt.** 0 new. SW v56→v57. **Açık iş.** `initWorldDressing`'i katmandan çıkarmak (asıl
+yapısal düzeltme); `checkMountainNaturalizationDeterminism` (dalda önceden kırmızı).

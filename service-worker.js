@@ -298,7 +298,11 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run 396 cuts ~4.0s off the mobile world build by skipping relief chains that provably contribute
 // zero. Every returned value is bit-identical, so nothing looks different — but a cache-first shell
 // would keep serving the slow module, which is the whole point of the change. v55->v56.
-const SHELL_CACHE = 'westeros-shell-v56';
+// Run 398 takes 21 oversize models out of the scatter catalogue, cutting what a boot downloads from
+// 878MB to 339MB. Density is unchanged (the chunk planner places the same count and picks from what
+// remains), so this is a variety change rather than an emptier world — but it is still a look change
+// plus a cached-module change, and a stale shell would keep fetching the 520MB house. v56->v57.
+const SHELL_CACHE = 'westeros-shell-v57';
 const SHELL_FILES = [
     './',
     './index.html',

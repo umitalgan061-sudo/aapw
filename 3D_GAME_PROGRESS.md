@@ -18367,3 +18367,33 @@ negatif testi yapıldı; kendini muaf tutmuyor). `final-head-gate`'e bağlandı.
 **Dürüst not:** bu düzeltme fiilî timeout'u 30 s'den 60 s'ye çıkarıyor, yani kapıları gevşetiyor.
 Kaynak zaten 60000 yazıyordu, ama sonucu saklamıyorum — asıl iş açılışı hızlandırmak, büyük bütçeye
 yaslanmak değil. Runtime kaynağı değişmedi, SW bump yok.
+
+## Tur 398 — Regresyon CPU değil baytmış: açılış indirmesi 878 MB → 339 MB (ADR-0346)
+
+Tur 397 timeout'u düzeltince CI doğru sayıyı söyledi: `Timeout 60000ms exceeded`. Dal CI'da yükleme
+katmanını 60 saniyede kaldıramıyor, ama burada aynı açılış 8,6 saniye. **O uçurum cevaptı:** bu
+konteyner LFS pointer stub'ı (130 bayt) sunuyor, CI gerçek nesneleri indiriyor. Tur 396'nın 4 saniyesi
+gerçekti ama yanlış %5'e aitti.
+
+Katman kalkmadan önce istenen her dosyayı, kendi LFS pointer'ının boyutundan fiyatlandırdım:
+**main 91,8 MB / dal 878,1 MB** — 9,6 katı.
+
+Yoğunlaşmış bir sorundu: katalog medyanı 0,92 MB ama 7 giriş 100 MB üstü ve toplamın 2.011/3.081
+MB'ını taşıyor (520 MB ev, 441 MB köknar, 63 MB hazine sandığı, 38 MB tahta merdiven). Var olan
+denetim üçgen sayıyor; buradaki ağırlık doku baytında — eksik eksen buydu.
+
+`MAX_SCATTER_PROP_BYTES` = 25 MB ve yeni `tooLargeToDownloadForScatter` gerekçesi: 194 girişin 21'i.
+**Dünya boşalmıyor, çeşitliliği azalıyor** — `planChunkProps` yerleştirme sayısını katalog boyutundan
+bağımsız belirliyor, `pickEntry` yalnızca hangi model olduğunu seçiyor.
+
+**Ölçülen: 878,1 MB → 338,7 MB (%61).** Kuyruk düzleşti, aykırı değer kalmadı.
+
+**Dürüst:** main hâlâ 91,8 MB, yani dal hâlâ 3,7 katı. Kalanı 126 assetlik uzun kuyruk. Yapısal çözüm
+`game3d.js`'deki `await initWorldDressing`'i katmandan çıkarmak; boot sonrası sahneyi inceleyen
+kapıları önce analiz etmek gerektiği için bu turda yapmadım.
+
+**Görsel doğrulama sınırı:** bu konteynerde modeller LFS stub'ı, placeholder kutu olarak render
+ediliyorlar — prop görünümünü ekran görüntüsüyle yargılamak mümkün değil, yapmış gibi davranmıyorum.
+
+Kapılar: `checkScatterPropDownloadSize` (yeni), `checkAssetCoverage`, `checkWorldPropScatter`,
+`checkVillageBuildings`, `checkAssetsManifest`, `checkVegetationRiverClearance` PASS. SW v56→v57.

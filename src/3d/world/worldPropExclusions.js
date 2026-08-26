@@ -16,6 +16,15 @@
  * @module world/worldPropExclusions
  */
 
+/**
+ * Ceiling on what one scatter prop may cost to download, in bytes.
+ *
+ * Scenery a player walks past does not earn a 4K texture set. Enforced by
+ * `scripts/checkScatterPropDownloadSize.js` against each model's real size — read from its Git-LFS
+ * pointer, so the check works in a fresh clone without hydrating a single object.
+ */
+export const MAX_SCATTER_PROP_BYTES = 25 * 1024 * 1024;
+
 /** Models withheld from the scatter, by reason — the decision, reviewable file by file. */
 export const PROP_EXCLUSIONS_BY_REASON = Object.freeze({
 	/**
@@ -291,6 +300,73 @@ export const PROP_EXCLUSIONS_BY_REASON = Object.freeze({
 		// 309,426 triangles for one farm animal, in a Corona render export whose bounding box comes in
 		// at 78 units long. A game-ready cow (`animals/cow_0OToIgkcVM7.glb`) is already placed on farmland.
 		"fbx/3dexport_spottedcow2021_1739346817/Spotted-cow-2021/export/Spotted-cow-2021-Corona.fbx",
+	]),
+	/**
+	 * Too many megabytes to fetch at boot, measured in **bytes rather than triangles** (run 398).
+	 *
+	 * `tooHeavyForChunkStreaming` above audits geometry, and geometry is not what was hurting. PR #964's
+	 * mobile gate kept timing out in CI while the same boot took 8.6s in this container, and the reason
+	 * was that a fresh clone here serves Git-LFS *pointer stubs* — 130 bytes each — where CI serves the
+	 * real objects. Counting what the loading overlay actually waits for, priced from each pointer's own
+	 * recorded size: **main fetches 91.8 MB before the overlay hides; this branch fetched 878.1 MB.**
+	 * Nine and a half times the data, on the mobile boot path.
+	 *
+	 * It was concentrated, not diffuse. The catalogue's median entry is **0.92 MB**, but seven entries
+	 * were over 100 MB and carried 2,011 MB of its 3,081 MB total: a 520 MB house, a 441 MB fir tree, a
+	 * 63 MB treasure chest, a 38 MB wooden ladder. These are 4K-texture asset-store models being used as
+	 * scattered scenery, where their texture budget buys nothing a player standing in a field can see.
+	 *
+	 * The line is drawn at `MAX_SCATTER_PROP_BYTES` — 25 MB, about 27x the median entry, and the point
+	 * past which excluding more starts thinning the sparsest biome rather than removing outliers. It
+	 * costs 21 of 194 catalogue entries and takes the catalogue from 3,081 MB to 395 MB. Every biome
+	 * keeps at least three kinds, which `checkWorldPropScatter` independently enforces.
+	 *
+	 * Kept in the repository, and every one of them would be usable again from a decimated,
+	 * sensibly-textured derivative — the same route the owner's road scans need.
+	 */
+	tooLargeToDownloadForScatter: Object.freeze([
+		// 520.7 MB — woodland
+		"fbx/medieval_house.glb",
+		// 456.3 MB — woodland
+		"fbx/Ancient_Assets.fbx",
+		// 441.5 MB — snowline
+		"fbx/fir_tree_01_4k.fbx",
+		// 199.0 MB — farmland
+		"fbx/House_with_Garden_GLB.glb",
+		// 149.1 MB — farmland
+		"fbx/Medieval_Market_.fbx",
+		// 136.0 MB — upland
+		"fbx/Ancient_Columns_Blend_Ancient_Columns.fbx",
+		// 108.1 MB — woodland
+		"fbx/Temple_Building5_building.fbx",
+		// 63.0 MB — roadside
+		"fbx/treasure_chest_4k.fbx",
+		// 62.9 MB — coast
+		"fbx/ganges_river_pebbles_4k.fbx",
+		// 60.4 MB — woodland
+		"fbx/dead_tree_trunk_02_4k.fbx",
+		// 56.0 MB — woodland
+		"fbx/dry_branches_medium_01_4k.fbx",
+		// 55.6 MB — arid
+		"fbx/namaqualand_boulder_02_4k.fbx",
+		// 55.5 MB — roadside
+		"fbx/wooden_military_crate_4k.fbx",
+		// 51.2 MB — woodland
+		"fbx/tree_stump_01_4k.fbx",
+		// 46.3 MB — arid
+		"fbx/namaqualand_boulder_05_4k.fbx",
+		// 46.1 MB — arid
+		"fbx/quiver_tree_02_4k.fbx",
+		// 38.6 MB — roadside
+		"fbx/wooden_ladder_02_4k.fbx",
+		// 37.1 MB — meadow
+		"fbx/Basic_Temple_temple.fbx",
+		// 35.1 MB — woodland
+		"fbx/pine_realistic.fbx",
+		// 33.9 MB — meadow
+		"fbx/grass_medium_02_4k.fbx",
+		// 33.3 MB — roadside
+		"fbx/MedievalPackSTY_Chest1.fbx",
 	]),
 	underwaterOnly: Object.freeze([
 		"animals/shark.glb",
