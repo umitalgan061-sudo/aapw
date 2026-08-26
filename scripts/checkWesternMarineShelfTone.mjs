@@ -20,11 +20,16 @@ const sea = (normalizedX, normalizedY = 0.47) => westernMarineShelfToneWeight({
   surface: 'sea', normalizedX, normalizedY,
 });
 
+assert.equal(P.id, 'western-marine-shelf-tone-2026-08-26-v4-domain-warped-sediment-fabric');
 assert.equal(P.renderOnly, true);
 assert.equal(P.canonicalSeaOnly, true);
 assert.equal(P.geographyAuthorityUnchanged, true);
 assert.equal(P.fadeEndNormalizedX, 0.34);
 assert(P.maxBlend > 0.65 && P.maxBlend < 0.85);
+assert(P.domainWarpNormalized > 0 && P.domainWarpNormalized < 0.03);
+assert(P.sedimentBandVariation > 0.05);
+assert(P.currentScourVariation > 0.04);
+assert(P.turbidityVariation > 0.04);
 for (const policy of [PINDEX01_DETAIL_POLICY, PINDEX02_DETAIL_POLICY, PINDEX03_DETAIL_POLICY]) {
   assert.equal(policy.westernMarineShelfTone, true, `Pindex ${policy.pindex} lost shared shelf tone wiring`);
 }
@@ -47,6 +52,16 @@ for (const boundary of [0.10, 0.20]) {
   const right = sea(boundary + 1e-7, 0.63);
   assert(Math.abs(left - right) < 1e-5, `Pindex boundary ${boundary} exposed a shelf-tone seam: ${left}/${right}`);
 }
+
+// The v4 owner-map fabric must be spatially heterogeneous without overpowering the dominant west-east fade.
+const shelfSamples = [];
+for (let y = 0.08; y <= 0.92; y += 0.07) {
+  shelfSamples.push(sea(0.11, y));
+}
+const shelfMin = Math.min(...shelfSamples);
+const shelfMax = Math.max(...shelfSamples);
+assert(shelfMax - shelfMin > 0.015, `shelf fabric became visually uniform: range=${shelfMax - shelfMin}`);
+assert(shelfMax - shelfMin < 0.20, `shelf fabric overwhelms canonical west-east envelope: range=${shelfMax - shelfMin}`);
 
 // Colour application must produce a decisive submerged-ocean read while leaving lake/interior sea bytes untouched.
 const data = new Float32Array([
@@ -73,6 +88,16 @@ for (const index of [1, 2]) {
   assert.equal(color.getZ(index), before[index * 3 + 2]);
 }
 
+// Determinism: repeated application at the same owner-map coordinate must be byte-identical.
+const deterministicA = new THREE.BufferAttribute(new Float32Array([0.36, 0.34, 0.28]), 3);
+const deterministicB = new THREE.BufferAttribute(new Float32Array([0.36, 0.34, 0.28]), 3);
+const classification = { surface: 'sea', normalizedX: 0.13, normalizedY: 0.71 };
+applyWesternMarineShelfToneToColorAttribute(deterministicA, 0, classification);
+applyWesternMarineShelfToneToColorAttribute(deterministicB, 0, classification);
+for (let channel = 0; channel < 3; channel += 1) {
+  assert.equal(deterministicA.array[channel], deterministicB.array[channel]);
+}
+
 // Integration remains deliberately narrow: only the three western Pindex detail passes consume it.
 for (const pindex of ['01', '02', '03']) {
   const source = readFileSync(resolve(HERE, `../src/3d/world/worldReferencePindex${pindex}Detail.js`), 'utf8');
@@ -80,4 +105,7 @@ for (const pindex of ['01', '02', '03']) {
   assert.match(source, /applyWesternMarineShelfToneToColorAttribute\(color, index, c\);/);
 }
 
-console.log('[checkWesternMarineShelfTone] PASS', JSON.stringify({ west, middle, inner, outside }));
+console.log('[checkWesternMarineShelfTone] PASS', JSON.stringify({
+  west, middle, inner, outside,
+  crossShelfFabricRange: shelfMax - shelfMin,
+}));
