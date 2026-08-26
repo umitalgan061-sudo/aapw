@@ -1,10 +1,4 @@
 #!/usr/bin/env node
-/**
- * Geographic offshore-optics guard.
- *
- * Physical bathymetry and canonical wet coverage remain untouched in the qualified RGBA field.
- * A separate one-channel field may deepen only boundary-connected marine water, never enclosed lakes.
- */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -24,13 +18,10 @@ const texel = (field, row, column) => {
 	return Array.from(field.texture.image.data.slice(offset, offset + 4));
 };
 const offshore = (field, row, column) => field.offshoreTexture.image.data[row * field.resolution + column];
-
 assert.equal(WATER_COVERAGE_SUBSAMPLES_PER_AXIS, 2);
 assert.equal(WATER_OFFSHORE_OPTICAL_FULL_DISTANCE_METERS, 1100);
 assert.equal(WATER_OFFSHORE_SHORELINE_MAX_COVERAGE, 0.5);
 
-// Half-plane coast: prove authoritative R/G/B/A bytes are unchanged while the separate optical field
-// increases monotonically away from a real shoreline. Use 20m full distance for exact fixture bytes.
 let probes = 0;
 const coast = createWaterDepthField({
 	waterLevelMeters: 0,
@@ -62,8 +53,6 @@ try {
 	disposeWaterDepthField(coast);
 }
 
-// One dry supersample inside otherwise open ocean must not become a fake kilometre-scale shoreline.
-// The authoritative green byte remains exactly 75% wet; only the render-only offshore field carries on.
 const speckledOcean = createWaterDepthField({
 	waterLevelMeters: 0,
 	extentMeters: 60,
@@ -81,8 +70,6 @@ try {
 	disposeWaterDepthField(speckledOcean);
 }
 
-// A large enclosed lake can be kilometres wide in future map revisions; connectivity, not size, must
-// decide marine optics. Its physical depth still exists in R, but optical distance must remain zero.
 const lake = createWaterDepthField({
 	waterLevelMeters: 0,
 	extentMeters: 600,
@@ -99,8 +86,6 @@ try {
 	disposeWaterDepthField(lake);
 }
 
-// A fully wet owner field is open ocean by definition: every cell is boundary-connected and no
-// shoreline exists inside the field, so it should use the full offshore optical state.
 const ocean = createWaterDepthField({
 	waterLevelMeters: 0,
 	extentMeters: 800,
@@ -115,7 +100,6 @@ try {
 	disposeWaterDepthField(ocean);
 }
 
-// Determinism covers both textures, including the topology pass.
 const fixture = {
 	waterLevelMeters: 0,
 	extentMeters: 520,
@@ -133,7 +117,6 @@ try {
 	disposeWaterDepthField(second);
 }
 
-// Source contract: offshore signal is optical only. Red physical depth must still own swell and foam.
 assert.match(WATER_SOURCE, /uniform sampler2D uOffshoreMap;/);
 assert.match(WATER_SOURCE, /sampleOffshoreOptical\(vWorldPosition\.xz\)/);
 assert.match(WATER_SOURCE, /WATER_OFFSHORE_OPTICAL_GAIN = 0\.82;/);
@@ -144,8 +127,6 @@ assert.match(WATER_SOURCE, /float shallowMask = 1\.0 - smoothstep\(0\.0, 0\.22, 
 assert.match(WATER_SOURCE, /float opticalDepth = 1\.0 - exp\(-fragmentDepth \* 3\.2\);/);
 assert.match(WATER_SOURCE, /offshoreAbsorption = 1\.0 - exp\(-offshoreGain \* 3\.4\)/);
 
-// Same physical shallowness must remain translucent for an enclosed lake while open-ocean-connected
-// shelf water becomes optically dense enough to hide terrestrial-looking submerged albedo.
 const alphaAt = (fragmentDepth, offshoreOptical) => {
 	const physical = 1 - Math.exp(-fragmentDepth * 3.2);
 	const offshoreGain = offshoreOptical * (1 - fragmentDepth) * 0.82;
