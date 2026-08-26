@@ -18053,3 +18053,26 @@ kara piksellerini ölçtüm — beyazlık Duvar'da 0,63, ny 0.28'de 0,10 — ve 
 olduğunu gördüm: `fadeNy` 0.25 → **0.30**, haritanın çizdiği yere.
 
 Görsel kanıt `artifacts/mountains/*-run386.png`, `artifacts/north/*-run386.png`. SW v45→v46.
+
+## Tur 387 — Yolun altındaki görünmez basamak (ADR-0334)
+
+Tur 382'de not ettiğim "kavşakta yol şeridi araziden kalkıyor" kusurunu ölçtüm: **kusur yolda değil
+arazideydi.**
+
+**İki hata vardı.** (1) `appendRoadRibbon` şeridin iki kenarını da *merkez hattının* kotuyla kuruyordu —
+enine eğimde aşağı kenar havalanıyor, yukarı kenar gömülüyordu (binalardaki hatanın aynısı: genişliği
+olan şeye tek kot örneği). Her kenar artık kendi konumunda örnekleniyor: en kötü yüzer 4,48 → 2,08 m.
+
+(2) Kalan 2,08 m'yi kovalayınca yolun **doğru oturduğu**, zeminin koptuğu çıktı: (-5086,-629)'da zemin
+bir noktada 7,437 m, bir milimetre ötede 9,113 m — sıfır genişlikte **1,68 m uçurum**. Katmanları tek
+tek ayırdım (ham/pad/vadi/koridor); yalnız koridor oynuyordu. `sampleCorridorHeight` yatağı **en yakın
+tek segmentin** kotuna oturtuyordu ve iki segment eşit uzaklıktayken — yani **kavşakta** — kot tek
+örnekte atlıyordu. Artık menzildeki tüm segmentlerin ağırlıklı harmanı alınıyor. **Basamak 1,676 → 0.**
+
+Ayrıca tur 386'da kendi eklediğim `sampleMassifGate` sarsıntıyı hücre indeksini *aldıktan sonra*
+ekliyordu, bu da kabartmada sıfır genişlikte basamak yapıyordu; sarsıntı artık `u`'yu bozarak
+uygulanıyor, süreklilik yapı gereği.
+
+**Ölçülen:** 4856 vertex, en kötü yüzer **0,4 m** (= bilerek konan offset), 0 yüzen, 0 gömülü.
+§8.4: koltuklar 14/14, yollar 13/13, etek 79,55 m. `scripts/checkRoadRibbonGrounding.js` koruyor
+(dişi kanıtlandı). SW v46→v47.

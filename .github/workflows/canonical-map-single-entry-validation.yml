@@ -54,6 +54,7 @@ jobs:
           set -euo pipefail
           node scripts/terrainSeatSafetyCheck.js
           node scripts/roadNetworkSafetyCheck.js
+          node scripts/checkRoadRibbonGrounding.js
       # Geography fidelity gates (runs 367-373). These exist because the project spent hundreds of runs
       # with Valyria rendering as a green meadow while every gate stayed green: the gates were all
       # correct and none of them was asking whether a region was the country it is supposed to be.

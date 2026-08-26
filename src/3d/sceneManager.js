@@ -305,7 +305,7 @@ export function createScene(canvas) {
 		...road,
 		points: road.points.map((point) => ({ x: point.x, y: groundCollider.getGroundHeight(point.x, point.z), z: point.z })),
 	}));
-	const referenceRoadMeshes = createReferenceRoadMeshes(referenceRoadsOnBed);
+	const referenceRoadMeshes = createReferenceRoadMeshes(referenceRoadsOnBed, groundCollider.getGroundHeight);
 	scene.add(referenceRoadMeshes.group);
 	console.info(
 		`[sceneManager] Owner-map roads: ${referenceRoadMeshes.roadCount} canonical route(s), ` +

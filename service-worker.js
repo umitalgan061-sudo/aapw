@@ -267,7 +267,10 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run 386 rewrites the height field again: every mountain peak is lower and each chain is broken
 // into separate massifs, and the northern snow tail now follows map.png's own profile. A stale
 // cache-first shell would keep the old, oversized single ridges. v45->v46.
-const SHELL_CACHE = 'westeros-shell-v46';
+// Run 387 removes a 1.68 m vertical step from the height field where road corridors meet, and grounds
+// each road-ribbon edge on its own terrain. Both change what the ground is, so a cache-first shell
+// would keep serving the old cliff. v46->v47.
+const SHELL_CACHE = 'westeros-shell-v47';
 const SHELL_FILES = [
     './',
     './index.html',

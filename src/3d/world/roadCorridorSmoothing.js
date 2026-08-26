@@ -212,19 +212,44 @@ export function buildRoadCorridor(edges, { sampleHeightMeters }) {
 	function sampleCorridorHeight(x, z, baseHeightMeters) {
 		const candidates = buckets.get(cellKey(Math.floor(x / lookupCellMeters), Math.floor(z / lookupCellMeters)));
 		if (!candidates) return baseHeightMeters;
-		let bestDistanceSquared = fadeSquared;
-		let bestHeight = 0;
+		// **The bed is a weighted blend of every segment in range, not the nearest one.**
+		//
+		// Taking only the nearest segment's height puts a **vertical step of zero width** into the terrain
+		// wherever two segments are equidistant — which is precisely what a road junction is, and what
+		// happens anywhere two edges of the network run near each other. Crossing that bisector switches
+		// `bestHeight` from one segment's bed to the other's in a single sample. Measured at a fork near
+		// (-5086, -629): ground 7.437 m at one point and 9.113 m a millimetre away, a 1.68 m cliff a
+		// player would meet as an invisible wall or a fall, with the road surface stranded above it.
+		//
+		// It was found from the other end: a road vertex looked like it floated 2.08 m, and the road
+		// turned out to be correctly grounded — on the far side of a step in the ground beneath it. The
+		// height layers were bisected one at a time (raw, pads, valleys, corridor) and only the corridor
+		// moved.
+		//
+		// Weighting each segment by its own fade falloff makes the bed continuous by construction: a
+		// segment's contribution reaches zero exactly as it leaves range, so segments can enter and leave
+		// the blend without the sum jumping. Squaring the weight keeps the nearest segment dominant, so a
+		// straight run of road is bedded as tightly as before and only junctions change.
+		let nearestSquared = fadeSquared;
+		let heightSum = 0;
+		let weightSum = 0;
 		for (const index of candidates) {
 			const segment = segments[index];
 			const { distanceSquared, t } = segmentClosest(x, z, segment.x0, segment.z0, segment.x1, segment.z1);
-			if (distanceSquared >= bestDistanceSquared) continue;
-			bestDistanceSquared = distanceSquared;
-			bestHeight = segment.y0 + (segment.y1 - segment.y0) * t;
+			if (distanceSquared >= fadeSquared) continue;
+			const falloff = 1 - smoothstep(fullHalfWidthMeters, fadeHalfWidthMeters, Math.sqrt(distanceSquared));
+			if (falloff <= 0) continue;
+			const segmentHeight = segment.y0 + (segment.y1 - segment.y0) * t;
+			const weight = falloff * falloff;
+			heightSum += segmentHeight * weight;
+			weightSum += weight;
+			if (distanceSquared < nearestSquared) nearestSquared = distanceSquared;
 		}
-		if (bestDistanceSquared >= fadeSquared) return baseHeightMeters;
+		if (weightSum <= 0) return baseHeightMeters;
+		const bedHeight = heightSum / weightSum;
 		// 1 inside the bed, easing to 0 at the fade edge.
-		const weight = 1 - smoothstep(fullHalfWidthMeters, fadeHalfWidthMeters, Math.sqrt(bestDistanceSquared));
-		return baseHeightMeters + (bestHeight - baseHeightMeters) * weight;
+		const weight = 1 - smoothstep(fullHalfWidthMeters, fadeHalfWidthMeters, Math.sqrt(nearestSquared));
+		return baseHeightMeters + (bedHeight - baseHeightMeters) * weight;
 	}
 
 	return { sampleCorridorHeight, segmentCount: segments.length, smoothedEdges };

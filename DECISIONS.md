@@ -19109,3 +19109,52 @@ belirgin kütleler dizisi, karlı zirveleri ve talusu yerinde; kuzeybatı Wester
 `artifacts/north/*-run386.png` kuzeyin buzunu gösteriyor. Service worker v45→v46.
 
 **Technical debt.** 0 new. **Açık iş.** Kavşakta araziden kalkan yol şeridi; karlı ağaç modelleri.
+
+## ADR-0334 — Yolun altındaki 1,68 m'lik görünmez basamak: kavşakta arazi kopuyordu
+
+**Nereden çıktı.** Tur 382'nin köy render'ında yol şeridi araziden kalkmış görünüyordu; görev listesine
+"kavşakta yol şeridi araziden kalkıyor" diye not etmiştim. Bu turda ölçtüm ve **kusur yolda değil
+arazideydi**.
+
+### İki ayrı hata, biri diğerini gizliyordu
+
+**1. Şerit merkez hattının kotunu kullanıyordu.** `appendRoadRibbon` şeridin *her iki kenarını da*
+`point.y` ile, yani yolun **ortasında** örneklenen kotla kuruyordu. Bu yalnız yolun enine düz olduğu
+yerde doğru: enine eğimde şerit yatay kalırken altındaki zemin yatıyor, dolayısıyla aşağı kenar
+yarı-genişlik × enine eğim kadar havalanıyor (8 m'lik bir yolda 30°'lik enine eğimde **2,3 m**), yukarı
+kenar da gömülüyor. Bu, `villageBuildings.js`'in binalarda yaptığı hatanın aynısı: **genişliği olan bir
+şeye tek bir kot örneği uygulamak.** Artık her kenar kendi konumunda örnekleniyor. En kötü yüzer
+**4,48 m → 2,08 m**.
+
+**2. Asıl kusur: `roadCorridorSmoothing` kavşakta arazide dikey basamak açıyordu.** Düzeltmeden sonra
+kalan 2,08 m'yi kovaladım ve yolun aslında **doğru oturduğunu**, altındaki *zeminin* koptuğunu buldum.
+(-5086, -629) civarında ölçüm: bir noktada zemin **7,437 m**, bir milimetre ötede **9,113 m** — sıfır
+genişlikte **1,68 m'lik bir uçurum**. Oyuncu bunu görünmez bir duvar ya da bir düşüş olarak yaşar.
+
+Katman katman ayırarak buldum (ham → pad → vadi → koridor): yalnız koridor oynuyordu. Sebep,
+`sampleCorridorHeight`'ın yatağı **en yakın tek segmentin** kotuna oturtmasıydı. İki segment eşit
+uzaklıktayken — ki **bir yol kavşağı tam olarak budur** — o ikizkenar sınırı geçmek `bestHeight`'ı bir
+segmentin yatağından diğerininkine tek örnekte atlatıyor. Artık menzildeki **her segmentin ağırlıklı
+harmanı** alınıyor; her segmentin katkısı menzilden çıkarken tam olarak sıfıra indiği için segmentler
+harmana girip çıkarken toplam zıplayamıyor. Ağırlığın karesi alınıyor, böylece düz yol parçalarında en
+yakın segment baskın kalıyor ve yalnız kavşaklar değişiyor. **Basamak 1,676 m → 0.**
+
+### Bu turda ürettiğim bir hata da aynı yolla yakalandı
+
+`sampleMassifGate` (tur 386) sarsıntıyı hücre indeksini **aldıktan sonra** ekliyordu. Yükseltilmiş
+kosinüs periyodik ve iki ucunda sıfır olduğu için `bump(frac(u))` kendiliğinden sürekli; sınırın iki
+yanına farklı bir sabit eklemek tam da bunu bozuyor ve **kabartma alanına sıfır genişlikte bir basamak**
+koyuyordu. Sarsıntı artık `u`'nun kendisini bozarak uygulanıyor: kütleler yine eşit uzunlukta değil ama
+`u` sürekli, dolayısıyla kapı da yapı gereği sürekli. (Bu tek başına yukarıdaki 2,08 m'yi çözmedi —
+o koridordu — ama gerçek bir süreksizlikti ve düzeltildi.)
+
+**`scripts/checkRoadRibbonGrounding.js`** her iki yol ağının (MST + kanonik yollar) **her vertex'ini**
+altındaki canlı zemine karşı ölçüyor. Dişi kanıtlandı: eski "en yakın segment" davranışına döndürünce
+`2,08 m yüzer` diye düşüyor.
+
+**Ölçülen sonuç:** 4856 vertex, en kötü yüzer **0,4 m** — yani tam da z-fighting için bilerek konan
+`VERTICAL_OFFSET_METERS`, fazlası değil — 0 yüzen, 0 gömülü. **§8.4 tam çift:** koltuklar 14/14 PASS,
+yollar 13/13 PASS (ağ 20,44 km), nehir geçişi PASS, etek dünya en kötüsü 79,55 m (144 m tavanın
+altında). Service worker v46→v47.
+
+**Technical debt.** 0 new. **Açık iş.** Karlı ağaç modellerinin kuzeyde kullanılması; göller (S-0039).

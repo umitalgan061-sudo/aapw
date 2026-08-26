@@ -314,11 +314,23 @@ function pointSegmentDistance(px, py, ax, ay, bx, by) {
 function sampleMassifGate(alongNormalized, chain) {
 	const policy = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.massifSegmentation;
 	if (chain.massifCount <= 1) return 1;
-	const scaled = alongNormalized * chain.massifCount;
-	const index = Math.floor(scaled);
-	// Jitter each massif's centre so the cells are not all the same length.
-	const jitter = (hash2D(index, chain.massifCount, chain.profile.seed + 613) - 0.5) * policy.centreJitter;
-	const within = clamp(scaled - index + jitter, 0, 1);
+	// **The jitter must be applied before the cell index is taken, not after.**
+	//
+	// The first version of this drew a per-*index* jitter — `hash2D(Math.floor(scaled), ...)` — and added
+	// it to the position within the cell. The raised cosine below is periodic and zero at both ends, so
+	// `bump(frac(u))` is continuous in `u` for free; adding a different constant on each side of a cell
+	// boundary destroyed exactly that, and put a **vertical step of zero width** into the height field.
+	// It measured 1.68 m: ground 7.437 m at one point and 9.113 m a millimetre away, which a player would
+	// meet as an invisible wall or a fall. It was found through a road vertex that appeared to float
+	// 2.08 m — the road was correctly grounded on the far side of the step, and the terrain was the
+	// thing that was wrong.
+	//
+	// Warping the along-coordinate itself keeps the massifs unequal — which is the whole point of the
+	// jitter — while leaving `u` continuous, so the gate is continuous everywhere by construction.
+	const warp = (valueNoise2D(alongNormalized * 3.7, chain.profile.seed * 0.013, chain.profile.seed + 613) - 0.5)
+		* policy.centreJitter;
+	const scaled = alongNormalized * chain.massifCount + warp;
+	const within = scaled - Math.floor(scaled);
 	// A raised cosine across the cell: full at the centre, `colFloor` at both joins.
 	const bump = 0.5 - 0.5 * Math.cos(within * Math.PI * 2);
 	const shaped = Math.pow(bump, policy.colSharpness);

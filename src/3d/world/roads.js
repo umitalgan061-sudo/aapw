@@ -131,7 +131,7 @@ export function computeSeatMST(seats) {
 // Exported additively in run 361 so `world/worldReferenceRoadNetwork.js` can draw the owner map's own
 // highways with exactly this ribbon geometry, rather than growing a second, slightly different one.
 // The MST network above is untouched.
-export function appendRoadRibbon(buffers, points, widthMeters = ROAD_WIDTH_METERS, color = ROAD_COLOR) {
+export function appendRoadRibbon(buffers, points, widthMeters = ROAD_WIDTH_METERS, color = ROAD_COLOR, sampleHeightMeters = null) {
 	if (points.length < 2) return;
 	const halfWidth = widthMeters / 2;
 	const baseVertex = buffers.positions.length / 3;
@@ -146,9 +146,25 @@ export function appendRoadRibbon(buffers, points, widthMeters = ROAD_WIDTH_METER
 		const perpX = -tangentZ / tangentLength;
 		const perpZ = tangentX / tangentLength;
 
+		// **Each edge of the ribbon is grounded on its own terrain, not on the centreline's.**
+		// Both edge vertices used to take `point.y`, the height sampled at the middle of the road. That
+		// is only correct where the ground is level *across* the road: on any cross-slope the ribbon
+		// stays horizontal while the ground under it tilts, so the downhill edge lifts into the air by
+		// half the width times the cross-grade — a 30-degree cross-slope floats a 4 m half-width by
+		// 2.3 m — and the uphill edge buries itself. That is the pale sheet standing off the hillside in
+		// the village renders. Sampling each edge where it actually lies makes the ribbon follow the
+		// ground it is lying on. Falls back to the centreline height when no sampler is supplied, so
+		// existing callers keep their current behaviour.
+		const leftX = point.x + perpX * halfWidth;
+		const leftZ = point.z + perpZ * halfWidth;
+		const rightX = point.x - perpX * halfWidth;
+		const rightZ = point.z - perpZ * halfWidth;
+		const leftY = sampleHeightMeters ? sampleHeightMeters(leftX, leftZ) : point.y;
+		const rightY = sampleHeightMeters ? sampleHeightMeters(rightX, rightZ) : point.y;
+
 		buffers.positions.push(
-			point.x + perpX * halfWidth, point.y + VERTICAL_OFFSET_METERS, point.z + perpZ * halfWidth,
-			point.x - perpX * halfWidth, point.y + VERTICAL_OFFSET_METERS, point.z - perpZ * halfWidth,
+			leftX, leftY + VERTICAL_OFFSET_METERS, leftZ,
+			rightX, rightY + VERTICAL_OFFSET_METERS, rightZ,
 		);
 		buffers.colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
 
@@ -225,7 +241,7 @@ export function buildRoadNetwork({ seats, sampleHeightMeters }) {
 				start: { x: from.x, z: from.z },
 				end: { x: to.x, z: to.z },
 			});
-			appendRoadRibbon(buffers, points, widthMeters, color);
+			appendRoadRibbon(buffers, points, widthMeters, color, sampleHeightMeters);
 
 			let lengthMeters = 0;
 			for (let i = 1; i < points.length; i++) {

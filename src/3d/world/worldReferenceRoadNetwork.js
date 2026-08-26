@@ -124,16 +124,19 @@ export function routeReferenceRoads({ seats, sampleHeightMeters, mapBounds, mete
  * Builds one group holding every canonical highway's ribbon.
  *
  * @param {ReturnType<typeof routeReferenceRoads>} routedRoads Polylines, already on bedded ground.
+ * @param {(x: number, z: number) => number} [sampleHeightMeters] Grounds each edge of the ribbon on
+ *   its own terrain instead of on the centreline's — see `appendRoadRibbon`, where a centreline-only
+ *   ribbon was found floating off every cross-slope.
  * @returns {{group: import('three').Group, totalLengthMeters: number, roadCount: number}}
  */
-export function createReferenceRoadMeshes(routedRoads) {
+export function createReferenceRoadMeshes(routedRoads, sampleHeightMeters = null) {
 	const group = new THREE.Group();
 	group.name = 'owner-map-roads';
 	const buffers = { positions: [], colors: [], indices: [] };
 	let totalLengthMeters = 0;
 
 	for (const road of routedRoads) {
-		appendRoadRibbon(buffers, road.points, WIDTH_BY_KIND[road.kind] ?? 6, COLOR_BY_KIND[road.kind] ?? COLOR_BY_KIND.highway);
+		appendRoadRibbon(buffers, road.points, WIDTH_BY_KIND[road.kind] ?? 6, COLOR_BY_KIND[road.kind] ?? COLOR_BY_KIND.highway, sampleHeightMeters);
 		totalLengthMeters += road.lengthMeters;
 	}
 	if (buffers.positions.length === 0) return { group, totalLengthMeters: 0, roadCount: 0 };
