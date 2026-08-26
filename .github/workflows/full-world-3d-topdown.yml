@@ -13,6 +13,10 @@ on:
       - 'src/3d/world/northReferenceCryosphere.js'
       - 'src/3d/world/worldReferenceSurfacePindexes.js'
       - 'src/3d/world/worldReferenceMountainRelief.js'
+      - 'src/3d/world/worldReferencePindex01Detail.js'
+      - 'src/3d/world/worldReferencePindex02Detail.js'
+      - 'src/3d/world/worldReferencePindex03Detail.js'
+      - 'src/3d/world/westernMarineShelfTone.js'
       - 'src/3d/world/water.js'
       - 'src/3d/world/waterDepthField.js'
       - 'scripts/checkTerrainMicroSurface.mjs'
@@ -22,6 +26,7 @@ on:
       - 'scripts/checkTerrainMacroWeatheringPerformance.mjs'
       - 'scripts/checkTerrainLandformFabric.mjs'
       - 'scripts/checkWaterOffshoreOptics.mjs'
+      - 'scripts/checkWesternMarineShelfTone.mjs'
       - 'scripts/captureFullWorld3DTopdown.mjs'
       - 'scripts/fullWorld3DTopdownHarness.html'
       - '.github/workflows/full-world-3d-topdown.yml'
@@ -51,12 +56,16 @@ jobs:
           npm install --no-save playwright three
           npx playwright install --with-deps chromium
 
-      - name: Verify production terrain geomorphology, offshore water and atmosphere contracts
+      - name: Verify production terrain geomorphology, marine shelf, offshore water and atmosphere contracts
         run: |
           set -euo pipefail
           node --check src/3d/fog.js
           node --check src/3d/world/terrainMacroWeathering.js
           node --check src/3d/world/terrainReliefDetail.js
+          node --check src/3d/world/westernMarineShelfTone.js
+          node --check src/3d/world/worldReferencePindex01Detail.js
+          node --check src/3d/world/worldReferencePindex02Detail.js
+          node --check src/3d/world/worldReferencePindex03Detail.js
           node --check src/3d/world/water.js
           node --check src/3d/world/waterDepthField.js
           node scripts/checkTerrainMacroWeathering.mjs
@@ -66,6 +75,7 @@ jobs:
           node scripts/checkTerrainLandformFabric.mjs
           node scripts/checkTerrainMicroSurface.mjs
           node scripts/checkWaterOffshoreOptics.mjs
+          node scripts/checkWesternMarineShelfTone.mjs
 
       - name: Render authoritative full-world 3D topdown
         run: |

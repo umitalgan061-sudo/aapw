@@ -3,10 +3,12 @@ import * as THREE from 'three';
 import { mapCanvasToNormalizedReference } from './worldReferenceAlignment.js';
 import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
+import { applyWesternMarineShelfToneToColorAttribute } from './westernMarineShelfTone.js';
 
 export const PINDEX01_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex01-detail-2026-08-11-v1',
+  id: 'owner-map-pindex01-detail-2026-08-26-v2-western-marine-shelf',
   pindex: 1,
+  westernMarineShelfTone: true,
   amplitudeBySurface: Object.freeze({ sea: 0.015, lake: 0.015, soil: 0.06, rock: 0.05, snow: 0.025 }),
 });
 
@@ -43,6 +45,7 @@ export function applyPindex01DetailToTerrainMesh(mesh) {
       THREE.MathUtils.clamp(color.getX(index) * shade, 0, 1),
       THREE.MathUtils.clamp(color.getY(index) * shade, 0, 1),
       THREE.MathUtils.clamp(color.getZ(index) * shade, 0, 1));
+    applyWesternMarineShelfToneToColorAttribute(color, index, c);
     touchedVertices += 1;
   }
   color.needsUpdate = true;
