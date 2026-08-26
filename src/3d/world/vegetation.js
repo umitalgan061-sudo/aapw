@@ -1,23 +1,6 @@
 /**
- * Procedural instanced trees — closes a real, long-standing gap: `GOVERNANCE.md` §3's target
- * architecture has named "Vegetation" as a `world/` system since this project's very first
- * architecture doc, and `config.js`'s `WORLD_DEFAULTS.WORLD_SEED` comment ("terrain, later
- * vegetation/rivers/etc.") has said so since before rivers even existed. Run 111/ADR-0138 shipped
- * the first pass (scatter-only, one species). Run 112/ADR-0139 added the "species variety" follow-up
- * ADR-0138 itself named as the natural next step: two low-poly species (a narrow conical "pine" —
- * ADR-0138's original tree, unchanged — and a rounder "round-crown" tree with a sphere foliage cap)
- * mixed by a deterministic per-tree weighted roll, so the scatter no longer reads as visually
- * uniform. Run 113/ADR-0140 adds the other follow-up ADR-0139 itself named: seat-local clustering —
- * a denser ring of trees just outside each kingdom seat's flattened footprint (reads as a managed
- * treeline/windbreak/hunting ground near a castle, not open wild forest), an independent *second*
- * placement pass layered on top of the unchanged base disc scatter (own tagged rng stream, own
- * annulus sampling, same shared `isPlaceablePosition`/`pickSpeciesIndex` — see `createVegetation`'s
- * own doc comment for why only seats near the loaded terrain disc qualify).
- *
- * Far-north species selection now consumes the canonical map-aligned X+Z cryosphere field. The
- * lands-always-winter zone receives snow-laden pine while same-latitude eastern regions no longer
- * become snowy merely because they share world Z. The legacy Z-only picker remains exported for
- * compatibility, but live scatter uses X+Z ownership from `northReferenceCryosphere.js`.
+ * Deterministic instanced vegetation. Placement/species authority remains map-aligned and unchanged;
+ * surface realism is render-only and derived from world position.
  * @module world/vegetation
  */
 
@@ -26,10 +9,6 @@ import { mulberry32 } from './terrain.js';
 import { northClimateWeightsAtWorldZ } from './terrainBiomeShading.js';
 import { northReferenceCryosphereAtWorldXZ } from './northReferenceCryosphere.js';
 
-/**
- * Low-poly species recipes. `weight` applies only to the temperate picker; climate-only species use
- * weight 0 and are selected explicitly by the climate-aware pickers below.
- */
 const SPECIES = [
 	{
 		id: 'pine',
@@ -70,7 +49,6 @@ export const VEGETATION_NORTH_CLIMATE_POLICY = Object.freeze({
 	liveRepresentation: 'instanced-procedural-snow-pine',
 });
 
-/** Trees per km² of the scatter disc. */
 const TARGET_DENSITY_PER_KM2 = 30;
 const MAX_ATTEMPTS_PER_TREE = 8;
 const SEAT_EXCLUSION_RADIUS_METERS = 90;
@@ -84,7 +62,96 @@ const CLUSTER_RING_INNER_MARGIN_METERS = 10;
 const CLUSTER_RING_OUTER_RADIUS_METERS = 260;
 const CLUSTER_DENSITY_PER_KM2 = 220;
 
-/** Shortest 2D X/Z distance from a point to a segment. */
+const VEGETATION_SURFACE_FABRIC_KEY = 'vegetation-world-surface-fabric-v1';
+
+/**
+ * Render-only vegetation weathering. This does not touch scatter, climate ownership, height,
+ * hydrology or colliders. Macro/meso/fine fields are sampled in world space so adjacent trees do
+ * not restart the same texture pattern. A tiny finite-difference normal perturbation plus roughness
+ * modulation removes the old single-color/single-roughness plastic read without extra draw calls.
+ */
+function applyVegetationSurfaceFabric(material, { surface, snow = false }) {
+	material.userData.vegetationSurfaceFabric = Object.freeze({
+		key: VEGETATION_SURFACE_FABRIC_KEY,
+		surface,
+		worldSpace: true,
+		multiScaleAlbedo: true,
+		microNormal: true,
+		roughnessVariation: true,
+		snowShelterVariation: snow,
+	});
+
+	const previousOnBeforeCompile = material.onBeforeCompile.bind(material);
+	material.onBeforeCompile = (shader, renderer) => {
+		previousOnBeforeCompile(shader, renderer);
+		shader.vertexShader = shader.vertexShader
+			.replace(
+				'#include <common>',
+				'#include <common>\nvarying vec3 vVegetationWorldPosition;',
+			)
+			.replace(
+				'#include <begin_vertex>',
+				`#include <begin_vertex>
+vec4 vegetationWorldPosition = vec4(transformed, 1.0);
+#ifdef USE_INSTANCING
+vegetationWorldPosition = instanceMatrix * vegetationWorldPosition;
+#endif
+vVegetationWorldPosition = (modelMatrix * vegetationWorldPosition).xyz;`,
+			);
+
+		const surfaceGain = surface === 'trunk' ? 0.22 : snow ? 0.16 : 0.19;
+		const roughBase = surface === 'trunk' ? 0.93 : snow ? 0.82 : 0.86;
+		const snowMix = snow
+			? 'float vegetationShelter = smoothstep(0.40, 0.74, vegetationMeso * 0.68 + vegetationFine * 0.32);\ndiffuseColor.rgb *= mix(vec3(0.76, 0.80, 0.79), vec3(1.07, 1.08, 1.06), vegetationShelter);'
+			: `diffuseColor.rgb *= 1.0 + (vegetationMacro - 0.5) * ${surfaceGain.toFixed(2)} + (vegetationMeso - 0.5) * 0.11 + (vegetationFine - 0.5) * 0.05;`;
+
+		shader.fragmentShader = shader.fragmentShader
+			.replace(
+				'#include <common>',
+				`#include <common>
+varying vec3 vVegetationWorldPosition;
+float vegetationHash(vec2 p) {
+	p = fract(p * vec2(123.34, 456.21));
+	p += dot(p, p + 45.32);
+	return fract(p.x * p.y);
+}
+float vegetationNoise(vec2 p) {
+	vec2 i = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	float a = vegetationHash(i);
+	float b = vegetationHash(i + vec2(1.0, 0.0));
+	float c = vegetationHash(i + vec2(0.0, 1.0));
+	float d = vegetationHash(i + vec2(1.0, 1.0));
+	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}`,
+			)
+			.replace(
+				'#include <color_fragment>',
+				`#include <color_fragment>
+vec2 vegetationWorldXZ = vVegetationWorldPosition.xz;
+float vegetationMacro = vegetationNoise(vegetationWorldXZ * 0.018);
+float vegetationMeso = vegetationNoise(vegetationWorldXZ * 0.115 + vec2(13.7, -8.3));
+float vegetationFine = vegetationNoise(vegetationWorldXZ * 0.62 + vec2(-31.2, 17.9));
+${snowMix}`,
+			)
+			.replace(
+				'#include <normal_fragment_maps>',
+				`#include <normal_fragment_maps>
+vec2 vegetationMicroP = vegetationWorldXZ * ${surface === 'trunk' ? '1.55' : '0.92'};
+float vegetationNx = vegetationNoise(vegetationMicroP + vec2(0.13, 0.0)) - vegetationNoise(vegetationMicroP - vec2(0.13, 0.0));
+float vegetationNz = vegetationNoise(vegetationMicroP + vec2(0.0, 0.13)) - vegetationNoise(vegetationMicroP - vec2(0.0, 0.13));
+normal = normalize(normal + vec3(vegetationNx, 0.0, vegetationNz) * ${surface === 'trunk' ? '0.12' : '0.075'});`,
+			)
+			.replace(
+				'#include <roughnessmap_fragment>',
+				`#include <roughnessmap_fragment>
+roughnessFactor = clamp(${roughBase.toFixed(2)} + (vegetationMeso - 0.5) * 0.18 + (vegetationFine - 0.5) * 0.10, 0.62, 1.0);`,
+			);
+	};
+	material.customProgramCacheKey = () => `${VEGETATION_SURFACE_FABRIC_KEY}:${surface}:${snow ? 'snow' : 'temperate'}`;
+}
+
 export function distancePointToSegment2D(px, pz, ax, az, bx, bz) {
 	const abx = bx - ax;
 	const abz = bz - az;
@@ -95,7 +162,6 @@ export function distancePointToSegment2D(px, pz, ax, az, bx, bz) {
 	return Math.hypot(px - (ax + abx * t), pz - (az + abz * t));
 }
 
-/** Whether `(x,z)` is a safe tree-placement point. */
 export function isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges }) {
 	for (const seat of seats) {
 		if (Math.hypot(x - seat.x, z - seat.z) < SEAT_EXCLUSION_RADIUS_METERS) return false;
@@ -114,11 +180,9 @@ export function isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, 
 	const dzHeight = sampleHeightMeters(x, z + SLOPE_SAMPLE_OFFSET_METERS) - groundY;
 	const gradeXDegrees = (Math.atan2(Math.abs(dxHeight), SLOPE_SAMPLE_OFFSET_METERS) * 180) / Math.PI;
 	const gradeZDegrees = (Math.atan2(Math.abs(dzHeight), SLOPE_SAMPLE_OFFSET_METERS) * 180) / Math.PI;
-	if (Math.max(gradeXDegrees, gradeZDegrees) > MAX_GROUND_SLOPE_DEGREES) return false;
-	return true;
+	return Math.max(gradeXDegrees, gradeZDegrees) <= MAX_GROUND_SLOPE_DEGREES;
 }
 
-/** Deterministically picks one temperate species from one `[0,1)` draw. */
 export function pickSpeciesIndex(roll) {
 	const totalWeight = SPECIES.slice(0, TEMPERATE_SPECIES_COUNT).reduce((sum, species) => sum + species.weight, 0);
 	let cumulative = 0;
@@ -142,12 +206,10 @@ function pickSpeciesIndexForClimate(roll, climate) {
 	return pickSpeciesIndex(roll);
 }
 
-/** Compatibility picker for callers that still only know world Z. */
 export function pickSpeciesIndexForWorldZ(roll, worldZ) {
 	return pickSpeciesIndexForClimate(roll, northClimateWeightsAtWorldZ(worldZ));
 }
 
-/** Canonical live picker: X+Z decides whether a point actually belongs to northern Westeros. */
 export function pickSpeciesIndexForWorldXZ(roll, worldX, worldZ) {
 	return pickSpeciesIndexForClimate(roll, northReferenceCryosphereAtWorldXZ(worldX, worldZ));
 }
@@ -156,7 +218,6 @@ export function vegetationSpeciesId(index) {
 	return SPECIES[index]?.id ?? null;
 }
 
-/** Uniform random point inside an annulus. */
 export function sampleAnnulusPoint(rng, centerX, centerZ, innerRadius, outerRadius) {
 	const angle = rng() * Math.PI * 2;
 	const radius = Math.sqrt(rng() * (outerRadius * outerRadius - innerRadius * innerRadius) + innerRadius * innerRadius);
@@ -179,8 +240,10 @@ function buildSpeciesAssets(species) {
 		throw new Error(`world/vegetation.js: unknown foliage kind "${foliage.kind}" for species "${species.id}"`);
 	}
 
-	const trunkMaterial = new THREE.MeshStandardMaterial({ color: trunk.color, roughness: 1, metalness: 0 });
-	const foliageMaterial = new THREE.MeshStandardMaterial({ color: foliage.color, roughness: 0.9, metalness: 0 });
+	const trunkMaterial = new THREE.MeshStandardMaterial({ color: trunk.color, roughness: 0.93, metalness: 0 });
+	const foliageMaterial = new THREE.MeshStandardMaterial({ color: foliage.color, roughness: species.id === 'snow-pine' ? 0.82 : 0.86, metalness: 0 });
+	applyVegetationSurfaceFabric(trunkMaterial, { surface: 'trunk' });
+	applyVegetationSurfaceFabric(foliageMaterial, { surface: 'foliage', snow: species.id === 'snow-pine' });
 	return { trunkGeometry, foliageGeometry, trunkMaterial, foliageMaterial };
 }
 
@@ -197,28 +260,21 @@ function placeTreeInstance(entry, x, z, sampleHeightMeters, rng, up, matrix, pos
 	entry.placedCount++;
 }
 
-/**
- * Scatters deterministic trees in the existing base-disc + seat-cluster passes, with species now
- * resolved against the canonical map-aligned north cryosphere.
- */
 export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, seats, roadEdges, radiusMeters, densityPerKm2 = TARGET_DENSITY_PER_KM2 }) {
 	const group = new THREE.Group();
 	const areaKm2 = (Math.PI * radiusMeters * radiusMeters) / 1_000_000;
 	const baseTargetCount = Math.max(0, Math.round(areaKm2 * densityPerKm2));
-
 	const clusterInnerRadius = SEAT_EXCLUSION_RADIUS_METERS + CLUSTER_RING_INNER_MARGIN_METERS;
 	const clusterSeats = seats.filter((seat) => Math.hypot(seat.x, seat.z) + CLUSTER_RING_OUTER_RADIUS_METERS <= radiusMeters);
 	const ringAreaKm2 = (Math.PI * (CLUSTER_RING_OUTER_RADIUS_METERS ** 2 - clusterInnerRadius ** 2)) / 1_000_000;
 	const clusterTargetPerSeat = Math.max(0, Math.round(ringAreaKm2 * CLUSTER_DENSITY_PER_KM2));
 	const clusterTargetTotal = clusterSeats.length * clusterTargetPerSeat;
-
 	const targetCount = baseTargetCount + clusterTargetTotal;
 	if (targetCount === 0) return { group, targetCount: 0, placedCount: 0, clusterSeatCount: 0, winterTreeCount: 0 };
 
 	const rng = mulberry32(seed ^ 0x56454745);
 	const clusterRng = mulberry32(seed ^ 0x434c5354);
 	const up = new THREE.Vector3(0, 1, 0);
-
 	const perSpecies = SPECIES.map((species) => {
 		const { trunkGeometry, foliageGeometry, trunkMaterial, foliageMaterial } = buildSpeciesAssets(species);
 		const trunkMesh = new THREE.InstancedMesh(trunkGeometry, trunkMaterial, targetCount);
@@ -234,8 +290,8 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 	const position = new THREE.Vector3();
 	const quaternion = new THREE.Quaternion();
 	const scaleVector = new THREE.Vector3();
-
 	let placedCount = 0;
+
 	for (let treeIndex = 0; treeIndex < baseTargetCount; treeIndex++) {
 		for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_TREE; attempt++) {
 			const angle = rng() * Math.PI * 2;
@@ -243,9 +299,7 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 			const x = Math.cos(angle) * radius;
 			const z = Math.sin(angle) * radius;
 			if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
-
-			const speciesIndex = pickSpeciesIndexForWorldXZ(rng(), x, z);
-			const entry = perSpecies[speciesIndex];
+			const entry = perSpecies[pickSpeciesIndexForWorldXZ(rng(), x, z)];
 			placeTreeInstance(entry, x, z, sampleHeightMeters, rng, up, matrix, position, quaternion, scaleVector);
 			placedCount++;
 			break;
@@ -257,9 +311,7 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 			for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_TREE; attempt++) {
 				const { x, z } = sampleAnnulusPoint(clusterRng, seat.x, seat.z, clusterInnerRadius, CLUSTER_RING_OUTER_RADIUS_METERS);
 				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
-
-				const speciesIndex = pickSpeciesIndexForWorldXZ(clusterRng(), x, z);
-				const entry = perSpecies[speciesIndex];
+				const entry = perSpecies[pickSpeciesIndexForWorldXZ(clusterRng(), x, z)];
 				placeTreeInstance(entry, x, z, sampleHeightMeters, clusterRng, up, matrix, position, quaternion, scaleVector);
 				placedCount++;
 				break;
@@ -284,6 +336,7 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 		temperateTreeCount: placedCount - winterTreeCount,
 		liveRepresentation: VEGETATION_NORTH_CLIMATE_POLICY.liveRepresentation,
 	});
+	group.userData.vegetationSurfaceFabric = Object.freeze({ key: VEGETATION_SURFACE_FABRIC_KEY, worldSpace: true, multiScale: true });
 	return { group, targetCount, placedCount, clusterSeatCount: clusterSeats.length, winterTreeCount };
 }
 
@@ -294,7 +347,6 @@ export function disposeVegetation(group) {
 	}
 }
 
-// Run 136 / ADR-0160 — mobile-only vegetation geometry LOD.
 const MOBILE_VEGETATION_LOD_RUN136 = Object.freeze({
 	trunkRadialSegments: 4,
 	coneRadialSegments: 5,
@@ -320,18 +372,10 @@ function buildMobileVegetationGeometryRun136(species) {
 
 	let foliageGeometry;
 	if (foliage.kind === 'cone') {
-		foliageGeometry = new THREE.ConeGeometry(
-			foliage.radius,
-			foliage.height,
-			MOBILE_VEGETATION_LOD_RUN136.coneRadialSegments,
-		);
+		foliageGeometry = new THREE.ConeGeometry(foliage.radius, foliage.height, MOBILE_VEGETATION_LOD_RUN136.coneRadialSegments);
 		foliageGeometry.translate(0, trunk.height + foliage.height / 2 - foliage.overlapMeters, 0);
 	} else if (foliage.kind === 'sphere') {
-		foliageGeometry = new THREE.SphereGeometry(
-			foliage.radius,
-			MOBILE_VEGETATION_LOD_RUN136.sphereWidthSegments,
-			MOBILE_VEGETATION_LOD_RUN136.sphereHeightSegments,
-		);
+		foliageGeometry = new THREE.SphereGeometry(foliage.radius, MOBILE_VEGETATION_LOD_RUN136.sphereWidthSegments, MOBILE_VEGETATION_LOD_RUN136.sphereHeightSegments);
 		foliageGeometry.translate(0, trunk.height + foliage.radius - foliage.overlapMeters, 0);
 	} else {
 		throw new Error(`world/vegetation.js: unknown mobile LOD foliage kind "${foliage.kind}" for species "${species.id}"`);
@@ -342,9 +386,9 @@ function buildMobileVegetationGeometryRun136(species) {
 const _createVegetationBeforeMobileLodRun136 = createVegetation;
 createVegetation = function createVegetationWithMobileLodRun136(options) {
 	const result = _createVegetationBeforeMobileLodRun136(options);
-	const isMobileCoarsePointer = typeof window !== 'undefined' &&
-		typeof window.matchMedia === 'function' &&
-		window.matchMedia('(pointer: coarse)').matches;
+	const isMobileCoarsePointer = typeof window !== 'undefined'
+		&& typeof window.matchMedia === 'function'
+		&& window.matchMedia('(pointer: coarse)').matches;
 	if (!isMobileCoarsePointer || result.group.children.length === 0) return result;
 
 	let desktopTriangles = 0;
@@ -354,7 +398,6 @@ createVegetation = function createVegetationWithMobileLodRun136(options) {
 		const foliageMesh = result.group.children[speciesIndex * 2 + 1];
 		desktopTriangles += geometryTriangleCountRun136(trunkMesh.geometry) * trunkMesh.count;
 		desktopTriangles += geometryTriangleCountRun136(foliageMesh.geometry) * foliageMesh.count;
-
 		const oldTrunkGeometry = trunkMesh.geometry;
 		const oldFoliageGeometry = foliageMesh.geometry;
 		const mobileGeometry = buildMobileVegetationGeometryRun136(SPECIES[speciesIndex]);
@@ -362,7 +405,6 @@ createVegetation = function createVegetationWithMobileLodRun136(options) {
 		foliageMesh.geometry = mobileGeometry.foliageGeometry;
 		oldTrunkGeometry.dispose();
 		oldFoliageGeometry.dispose();
-
 		mobileTriangles += geometryTriangleCountRun136(trunkMesh.geometry) * trunkMesh.count;
 		mobileTriangles += geometryTriangleCountRun136(foliageMesh.geometry) * foliageMesh.count;
 	}
@@ -377,12 +419,10 @@ createVegetation = function createVegetationWithMobileLodRun136(options) {
 	return result;
 };
 
-/** Read-only diagnostics used by the Run 136 mobile vegetation regression gate. */
 export function getMobileVegetationLodStatsRun136(group) {
 	return group?.userData?.mobileVegetationLodRun136 ?? null;
 }
 
-// Run 180 — dispose the bounded wind-grass resource through the existing vegetation teardown.
 const _disposeVegetationBeforeWindGrassRun180 = disposeVegetation;
 disposeVegetation = function disposeVegetationWithWindGrassRun180(group) {
 	const grass = group?.userData?.run180GrassGroup;
