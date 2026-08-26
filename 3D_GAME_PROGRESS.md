@@ -18150,3 +18150,23 @@ eşiğine karşı **%33,5**.
 düşüyor). `checkWaterSurfVisualContract` PASS + `vSwellSlope`'un geri dönüşünü yasaklayan sav.
 `checkRun325WaterSwell` PASS. §8.4: koltuklar 14/14, yollar PASS. İki açıdan bakıldı: leke yok, yakın
 görünümdeki poligonal kırılma da gitti, yakın/uzak dikişi görünmüyor. SW v48→v49.
+
+### Tur 389 sonrası: gerçek dünyada bakıldı, sonraki tur için bulgular
+
+Tur 388/389'un doğrulaması sentetik sahnedeydi (düz tek renkli taban). Gerçek dünyada da bakıldı
+(`artifacts/run389-real-water/`, kıyı: -2750/1250, 29,6 m derin açık deniz; göl: -4800/-4600, kuzey).
+**Su iyi:** kıyı bandı duru turkuaz, derinleştikçe koyuluyor, leke yok, yakın/uzak dikişi görünmüyor;
+kuzeyin karı da doğru. Üç ayrı kusur görüldü:
+
+1. **Kuzey denizi tropik turkuaz.** Sönüm katsayısı her yerde aynı sabit, dolayısıyla Her Daim Kış
+   Diyarı'nın suyu Karayipler gibi duruyor. Kutup denizi daha koyu, daha gri, daha az duru olmalı —
+   sönümün enleme/sıcaklığa göre değişmesi gerekiyor. Tur 388'in doğrudan devamı.
+2. **Yollar dik yamaçta basamak basamak çıkıyor** (kuzey görüntüsünde net). Tur 387 kavşaktaki dikey
+   basamağı çözdü; bu ayrı bir şey — şeridin yamaç boyunca teraslanması.
+3. **Nehir kesik kesik parlak mavi bir şerit** olarak render oluyor (kıyı görüntüsünde, dağın
+   üzerinde), akan su gibi değil noktalı çizgi gibi duruyor.
+
+**Yanlış alarm, kayda geçsin:** bu görüntülerde gökyüzü simsiyah. Bu **oyunun kusuru değil**, benim
+yakalama betiğimin kusuru: gündüz/gece döngüsünü `game3d.js`'in render döngüsü sürüyor
+(`updateAuroraSky`/`updateSkyBodies`/`updateStarfield`), `createScene` tek başına sürmüyor. Rapor
+etmeden önce koda bakıldı.
