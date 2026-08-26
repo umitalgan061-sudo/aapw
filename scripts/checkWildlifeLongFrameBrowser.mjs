@@ -148,6 +148,43 @@ try {
     const packAlertAwayFromPlayer = Math.hypot(afterPackAlert.x - farPlayer.x, afterPackAlert.z - farPlayer.z) > Math.hypot(beforePackAlert.x - farPlayer.x, beforePackAlert.z - farPlayer.z);
     packAlertWolf.dispose();
 
+    const recoveryWolf = await createWolf({
+      assetLoader,
+      modelUrl: species.modelUrl,
+      idleClipName: species.clips.idle,
+      stripChildNames: species.stripChildNames,
+      worldX: 0,
+      worldZ: 0,
+      groundY: 0,
+      groundCollider,
+      playerCollider,
+      walkClipName: species.clips.walk,
+      patrolWaypoints: [{ x: 0, z: 0 }, { x: 10, z: 0 }],
+      speedMps: ANIMAL_CONFIG.PATROL_SPEED_MPS,
+      pauseSeconds: 0,
+      turnRateRadiansPerSecond: ANIMAL_CONFIG.PATROL_TURN_RATE_RADIANS_PER_SECOND,
+      fleeClipName: species.clips.flee,
+      fleeTriggerRadiusMeters: ANIMAL_CONFIG.FLEE_TRIGGER_RADIUS_METERS,
+      fleeSpeedMps: ANIMAL_CONFIG.FLEE_SPEED_MPS,
+    });
+    recoveryWolf.update(0.1, nearPlayer, []);
+    const recoveryTriggerState = recoveryWolf.isFleeing;
+    const triggerRadius = recoveryWolf.object3D.userData.wildlifeFlee.triggerRadiusMeters;
+    const releaseRadius = recoveryWolf.object3D.userData.wildlifeFlee.releaseRadiusMeters;
+    const beforeRecovery = recoveryWolf.object3D.position.clone();
+    const boundaryPlayer = { x: beforeRecovery.x, z: beforeRecovery.z - (triggerRadius + 1) };
+    recoveryWolf.update(0.1, boundaryPlayer, []);
+    const recoveryState = recoveryWolf.isFleeing;
+    const recoveryTelemetry = { ...recoveryWolf.object3D.userData.wildlifeFlee };
+    const recoveryDistance = recoveryWolf.object3D.position.distanceTo(beforeRecovery);
+    const beforeRelease = recoveryWolf.object3D.position.clone();
+    const releasePlayer = { x: beforeRelease.x, z: beforeRelease.z - (releaseRadius + 1) };
+    recoveryWolf.update(0.1, releasePlayer, []);
+    const releasedState = recoveryWolf.isFleeing;
+    const releasedTelemetry = { ...recoveryWolf.object3D.userData.wildlifeFlee };
+    const releasedPatrolDistance = recoveryWolf.object3D.position.distanceTo(beforeRelease);
+    recoveryWolf.dispose();
+
     const invalidColliderWolf = await createWolf({
       assetLoader,
       modelUrl: species.modelUrl,
@@ -212,6 +249,15 @@ try {
       packAlertDistance,
       packAlertState,
       packAlertAwayFromPlayer,
+      recoveryTriggerState,
+      triggerRadius,
+      releaseRadius,
+      recoveryState,
+      recoveryTelemetry,
+      recoveryDistance,
+      releasedState,
+      releasedTelemetry,
+      releasedPatrolDistance,
       invalidColliderDistance,
       invalidColliderFinite,
       invalidColliderState,
@@ -235,6 +281,15 @@ try {
   assert.equal(proof.packAlertState, true, 'a nearby fleeing packmate must propagate the flee state to a real wolf even when the player is outside direct threat radius');
   assert.ok(proof.packAlertDistance > 0 && proof.packAlertDistance <= 0.45 + 1e-6, `pack-alert flee displacement escaped the 100 ms budget: ${proof.packAlertDistance}`);
   assert.equal(proof.packAlertAwayFromPlayer, true, 'pack-alert flee must move the alerted wolf away from the finite player threat');
+  assert.equal(proof.recoveryTriggerState, true, 'recovery proof wolf must first enter flee from a direct threat');
+  assert.ok(proof.releaseRadius > proof.triggerRadius, `release radius must exceed trigger radius: trigger=${proof.triggerRadius}, release=${proof.releaseRadius}`);
+  assert.equal(proof.recoveryState, true, 'wolf must stay in flee while player is outside trigger but inside release hysteresis');
+  assert.equal(proof.recoveryTelemetry.phase, 'recover', 'boundary hysteresis must publish recover phase telemetry');
+  assert.equal(proof.recoveryTelemetry.recovering, true, 'boundary hysteresis telemetry must identify recovery ownership');
+  assert.ok(proof.recoveryDistance > 0 && proof.recoveryDistance <= 0.45 + 1e-6, `recovery flee displacement escaped the 100 ms budget: ${proof.recoveryDistance}`);
+  assert.equal(proof.releasedState, false, 'wolf must leave flee once player clears the release radius');
+  assert.equal(proof.releasedTelemetry.phase, 'patrol', 'released wolf must return to its authored patrol state');
+  assert.ok(proof.releasedPatrolDistance > 0 && proof.releasedPatrolDistance <= 0.22 + 1e-6, `released patrol displacement escaped the 100 ms budget: ${proof.releasedPatrolDistance}`);
   assert.equal(proof.invalidColliderState, true, 'invalid movement adapter output must not erase a valid flee classification');
   assert.equal(proof.invalidColliderFinite, true, 'invalid collider output must not poison wolf world coordinates');
   assert.equal(proof.invalidColliderDistance, 0, 'invalid collider output must fail closed without committing movement');
