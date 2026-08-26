@@ -1,21 +1,17 @@
-/** Deterministic micro-detail layer for canonical owner-map Pindex-03 only. */
-import * as THREE from 'three';
+/** Deterministic material-detail layer for canonical owner-map Pindex-03 only. */
 import { mapCanvasToNormalizedReference } from './worldReferenceAlignment.js';
 import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 import { applyWesternMarineShelfToneToColorAttribute } from './westernMarineShelfTone.js';
+import { applyWesternReferenceSurfaceFabricToColorAttribute } from './westernReferenceSurfaceFabric.js';
 
 export const PINDEX03_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex03-detail-2026-08-26-v2-western-marine-shelf',
+  id: 'owner-map-pindex03-detail-2026-08-26-v3-world-space-surface-fabric',
   pindex: 3,
   westernMarineShelfTone: true,
-  amplitudeBySurface: Object.freeze({ sea: 0.01, lake: 0.01, soil: 0.05, rock: 0.06, snow: 0.025 }),
+  westernReferenceSurfaceFabric: true,
+  geographyAuthorityUnchanged: true,
 });
-
-function hash01(x, y) {
-  const value = Math.sin(x * 27.911 + y * 47.173 + 41.337) * 43758.5453;
-  return value - Math.floor(value);
-}
 
 function classificationForWorld(worldX, worldZ) {
   const mapPoint = plannedWorldXZToMapCanvas(worldX, worldZ);
@@ -25,6 +21,8 @@ function classificationForWorld(worldX, worldZ) {
     pindex: referencePindexFromNormalizedX(normalized.x),
     normalizedX: normalized.x,
     normalizedY: normalized.y,
+    worldX,
+    worldZ,
   };
 }
 
@@ -33,23 +31,25 @@ export function applyPindex03DetailToTerrainMesh(mesh) {
   const color = mesh?.geometry?.getAttribute?.('color');
   if (!position || !color) throw new TypeError('semantic terrain position+color attributes are required');
   let touchedVertices = 0;
+  let fabricVertices = 0;
+  let marineVertices = 0;
   for (let index = 0; index < position.count; index += 1) {
     const worldX = mesh.position.x + position.getX(index);
     const worldZ = mesh.position.z + position.getZ(index);
     const c = classificationForWorld(worldX, worldZ);
     if (c.pindex !== PINDEX03_DETAIL_POLICY.pindex) continue;
-    const amplitude = PINDEX03_DETAIL_POLICY.amplitudeBySurface[c.surface] ?? 0;
-    const noise = (hash01(c.normalizedX * 1024, c.normalizedY * 1024) - 0.5) * 2 * amplitude;
-    const shade = THREE.MathUtils.clamp(1 + noise, 0.85, 1.15);
-    color.setXYZ(index,
-      THREE.MathUtils.clamp(color.getX(index) * shade, 0, 1),
-      THREE.MathUtils.clamp(color.getY(index) * shade, 0, 1),
-      THREE.MathUtils.clamp(color.getZ(index) * shade, 0, 1));
-    applyWesternMarineShelfToneToColorAttribute(color, index, c);
+    if (applyWesternReferenceSurfaceFabricToColorAttribute(color, index, c)) fabricVertices += 1;
+    if (applyWesternMarineShelfToneToColorAttribute(color, index, c) > 0) marineVertices += 1;
     touchedVertices += 1;
   }
   color.needsUpdate = true;
-  const summary = Object.freeze({ policyId: PINDEX03_DETAIL_POLICY.id, pindex: 3, touchedVertices });
+  const summary = Object.freeze({
+    policyId: PINDEX03_DETAIL_POLICY.id,
+    pindex: 3,
+    touchedVertices,
+    fabricVertices,
+    marineVertices,
+  });
   mesh.userData.run281Pindex03Detail = summary;
   return summary;
 }
@@ -57,8 +57,22 @@ export function applyPindex03DetailToTerrainMesh(mesh) {
 export function applyPindex03DetailToTerrainGroup(terrainGroup) {
   if (!terrainGroup?.children || !Array.isArray(terrainGroup.children)) throw new TypeError('canonical terrain group is required');
   let touchedVertices = 0;
-  for (const mesh of terrainGroup.children) touchedVertices += applyPindex03DetailToTerrainMesh(mesh).touchedVertices;
-  const summary = Object.freeze({ policyId: PINDEX03_DETAIL_POLICY.id, pindex: 3, touchedVertices, meshCount: terrainGroup.children.length });
+  let fabricVertices = 0;
+  let marineVertices = 0;
+  for (const mesh of terrainGroup.children) {
+    const summary = applyPindex03DetailToTerrainMesh(mesh);
+    touchedVertices += summary.touchedVertices;
+    fabricVertices += summary.fabricVertices;
+    marineVertices += summary.marineVertices;
+  }
+  const summary = Object.freeze({
+    policyId: PINDEX03_DETAIL_POLICY.id,
+    pindex: 3,
+    touchedVertices,
+    fabricVertices,
+    marineVertices,
+    meshCount: terrainGroup.children.length,
+  });
   terrainGroup.userData.run281Pindex03Detail = summary;
   return summary;
 }
