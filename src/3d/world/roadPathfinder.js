@@ -28,7 +28,7 @@ export const ROAD_RETURN_GRADE_TARGET_DEGREES = 19.25;
 export const ROAD_MAX_RIVER_ADJACENT_SAMPLES = 3;
 
 export const ROAD_ROUTING_POLICY = Object.freeze({
-	id: 'road-routing-2026-08-27-v4-settlement-egress-refinement',
+	id: 'road-routing-2026-08-27-v5-micro-switchback-neighbors',
 	comfortGradeDegrees: ROAD_COMFORT_GRADE_DEGREES,
 	searchGradeDegrees: ROAD_MAX_GRADE_DEGREES,
 	returnGradeDegrees: ROAD_RETURN_GRADE_TARGET_DEGREES,
@@ -66,11 +66,21 @@ const MEDIUM_ROUTE_REFINEMENT_CELL_METERS = 12;
 const MEDIUM_ROUTE_CORRIDOR_PADDING_METERS = 480;
 const MEDIUM_ROUTE_EXPANDED_CORRIDOR_PADDING_METERS = 720;
 const MEDIUM_ROUTE_MAX_CORRIDOR_PADDING_METERS = 960;
+const FINE_GRID_NEIGHBOR_CELL_LIMIT_METERS = 24;
 const riverAvoidanceCache = new WeakMap();
 
 const EIGHT_NEIGHBOR_OFFSETS = Object.freeze([
 	[1, 0], [-1, 0], [0, 1], [0, -1],
 	[1, 1], [1, -1], [-1, 1], [-1, -1],
+]);
+
+// Fine settlement-egress grids need more than 45-degree steering choices to trace a safe contour
+// across steep pad shoulders. Knight-step edges add 26.6/63.4-degree switchback headings while the
+// continuous terrain profiler still validates every crossed sub-edge, so no hidden cliff is skipped.
+const FINE_NEIGHBOR_OFFSETS = Object.freeze([
+	...EIGHT_NEIGHBOR_OFFSETS,
+	[2, 1], [2, -1], [-2, 1], [-2, -1],
+	[1, 2], [1, -2], [-1, 2], [-1, -2],
 ]);
 
 function gradeCostMultiplier(angleDegrees) {
@@ -360,6 +370,9 @@ function searchStrictGradePath({ sampleHeightMeters, start, end, cellMeters, cor
 	const toWorldZ = (j) => minZ + j * actualCellZ;
 	const nodeIndex = (i, j) => j * cols + i;
 	const riverField = buildRiverAvoidanceField(sampleHeightMeters);
+	const neighborOffsets = cellMeters <= FINE_GRID_NEIGHBOR_CELL_LIMIT_METERS
+		? FINE_NEIGHBOR_OFFSETS
+		: EIGHT_NEIGHBOR_OFFSETS;
 
 	const heights = new Float64Array(cols * rows); heights.fill(NaN);
 	const heightAt = (i, j) => {
@@ -421,7 +434,7 @@ function searchStrictGradePath({ sampleHeightMeters, start, end, cellMeters, cor
 		}
 
 		const currentHeight = heightAt(current.i, current.j);
-		for (const [di, dj] of EIGHT_NEIGHBOR_OFFSETS) {
+		for (const [di, dj] of neighborOffsets) {
 			const ni = current.i + di;
 			const nj = current.j + dj;
 			if (ni < 0 || nj < 0 || ni >= cols || nj >= rows) continue;
