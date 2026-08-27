@@ -11,8 +11,8 @@
  */
 
 export const ROAD_PROFILE_POLICY = Object.freeze({
-  id: 'road-surface-profile-2026-08-27-v2-dense-microrelief-grade',
-  maxSampleSpacingMeters: 8,
+  id: 'road-surface-profile-2026-08-27-v3-phase-robust-subedge-grade',
+  maxSampleSpacingMeters: 4,
   presentationSampleSpacingMeters: 6,
   epsilonMeters: 1e-6,
   deterministic: true,
@@ -151,9 +151,9 @@ function complementaryProfileSpacing(maxSpacingMeters) {
 /**
  * Profiles a whole polyline and returns a densified copy suitable for final route validation.
  *
- * Max grade is audited at both the 6 m presentation spacing and the independent 8 m search spacing.
- * This removes sampling-phase blind spots where a narrow terrain shoulder can fall between one
- * regularly spaced sample lattice even though it is caught by the other.
+ * Max grade is audited at both the 6 m presentation spacing and the independent 4 m search spacing.
+ * The denser search lattice makes A* candidate-edge acceptance stricter than final presentation,
+ * while the complementary 6 m audit keeps a different sampling phase in the returned-route proof.
  */
 export function profileRoadPolyline({
   points,
