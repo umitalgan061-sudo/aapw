@@ -138,15 +138,12 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-      - name: Shipped browser trade ledger
-        run: NODE_PATH="$NODE_PATH" node scripts/checkInteractionTradeLedgerBrowser.mjs
-      - name: Shipped browser settlement service
-        run: NODE_PATH="$NODE_PATH" node scripts/checkInteractionSettlementServiceBrowser.mjs
-      - name: Shipped browser armorer service
-        run: NODE_PATH="$NODE_PATH" node scripts/checkInteractionArmorerServiceBrowser.mjs
-      - name: Shipped browser remaining RPG services
+      - name: Shipped browser quartermaster and settlement services
         run: |
           set -euo pipefail
+          NODE_PATH="$NODE_PATH" node scripts/checkInteractionTradeLedgerBrowser.mjs
+          NODE_PATH="$NODE_PATH" node scripts/checkInteractionSettlementServiceBrowser.mjs
+          NODE_PATH="$NODE_PATH" node scripts/checkInteractionArmorerServiceBrowser.mjs
           NODE_PATH="$NODE_PATH" node scripts/checkInteractionProvisioningCraftBrowser.mjs
           NODE_PATH="$NODE_PATH" node scripts/checkInteractionExpeditionKitBrowser.mjs
           NODE_PATH="$NODE_PATH" node scripts/checkInteractionFieldReadinessBrowser.mjs
