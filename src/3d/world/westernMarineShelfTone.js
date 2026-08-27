@@ -13,7 +13,7 @@ const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 
 export const WESTERN_MARINE_SHELF_TONE_POLICY = Object.freeze({
-  id: 'western-marine-shelf-tone-2026-08-27-v9-channel-scar-gravel-silt',
+  id: 'western-marine-shelf-tone-2026-08-27-v10-mudflow-shell-pavement',
   renderOnly: true,
   canonicalSeaOnly: true,
   geographyAuthorityUnchanged: true,
@@ -38,6 +38,8 @@ export const WESTERN_MARINE_SHELF_TONE_POLICY = Object.freeze({
   channelScarVariation: 0.052,
   gravelLagVariation: 0.046,
   anoxicSiltVariation: 0.050,
+  mudflowVariation: 0.052,
+  shellPavementVariation: 0.044,
   targetColorHex: 0x162f3b,
   coolPatchColorHex: 0x183945,
   mineralPatchColorHex: 0x243a40,
@@ -47,6 +49,8 @@ export const WESTERN_MARINE_SHELF_TONE_POLICY = Object.freeze({
   ironPatchColorHex: 0x3b4140,
   gravelPatchColorHex: 0x4a504b,
   anoxicPatchColorHex: 0x132a2b,
+  mudflowPatchColorHex: 0x263b3b,
+  shellPatchColorHex: 0x56605a,
 });
 
 const TARGET_COLOR = new THREE.Color(WESTERN_MARINE_SHELF_TONE_POLICY.targetColorHex);
@@ -58,6 +62,8 @@ const SAND_PATCH_COLOR = new THREE.Color(WESTERN_MARINE_SHELF_TONE_POLICY.sandPa
 const IRON_PATCH_COLOR = new THREE.Color(WESTERN_MARINE_SHELF_TONE_POLICY.ironPatchColorHex);
 const GRAVEL_PATCH_COLOR = new THREE.Color(WESTERN_MARINE_SHELF_TONE_POLICY.gravelPatchColorHex);
 const ANOXIC_PATCH_COLOR = new THREE.Color(WESTERN_MARINE_SHELF_TONE_POLICY.anoxicPatchColorHex);
+const MUDFLOW_PATCH_COLOR = new THREE.Color(WESTERN_MARINE_SHELF_TONE_POLICY.mudflowPatchColorHex);
+const SHELL_PATCH_COLOR = new THREE.Color(WESTERN_MARINE_SHELF_TONE_POLICY.shellPatchColorHex);
 
 function smoothstep(edge0, edge1, value) {
   if (edge0 === edge1) return value >= edge1 ? 1 : 0;
@@ -131,8 +137,6 @@ function shelfFabric(normalizedX, normalizedY) {
     (1 - macro) * 0.40 + meso * 0.20 + sedimentBands * 0.13 + depositionalFan * 0.27,
   ) * (1 - currentScour * 0.42);
 
-  // Two non-parallel current fields keep broad shelf weathering from reading as one procedural
-  // stripe direction. They are intentionally low-amplitude and only alter render colour.
   const shearA = ridge01(valueNoise2D(
     warpedX * 11.8 + warpedY * 4.1 + basin * 1.2,
     warpedY * 5.6 - warpedX * 2.7 + meso * 0.9,
@@ -145,7 +149,6 @@ function shelfFabric(normalizedX, normalizedY) {
   ));
   const currentShear = clamp01(shearA * 0.57 + shearB * 0.43);
 
-  // Depositional pockets accumulate where scour is weak and basin-scale transport converges.
   const pocketField = valueNoise2D(
     warpedX * 7.6 + currentShear * 1.1,
     warpedY * 8.9 - basin * 1.4,
@@ -153,8 +156,6 @@ function shelfFabric(normalizedX, normalizedY) {
   );
   const sedimentPocket = smoothstep(0.58, 0.88, pocketField * 0.58 + (1 - currentScour) * 0.24 + basin * 0.18);
 
-  // A sparse oblique shelf-break fabric adds low-contrast geological direction without becoming a
-  // new coastline: it is subordinate to the same canonical westWeight envelope as every other term.
   const shelfBreakBase = ridge01(valueNoise2D(
     warpedX * 10.2 + warpedY * 2.9 + macro * 0.75,
     warpedY * 4.4 - warpedX * 8.1 + basin * 0.95,
@@ -162,8 +163,6 @@ function shelfFabric(normalizedX, normalizedY) {
   ));
   const shelfBreakStreak = smoothstep(0.68, 0.94, shelfBreakBase) * (0.32 + basin * 0.68);
 
-  // Narrow submarine-channel scars are colour-only transport traces, not bathymetry. Two warped
-  // coordinate systems make them meander and bifurcate instead of reading as one sine stripe.
   const channelAxis = valueNoise2D(
     warpedX * 8.2 + warpedY * 2.4 + basin * 1.6,
     warpedY * 5.4 - warpedX * 3.1 + currentShear * 0.9,
@@ -177,7 +176,6 @@ function shelfFabric(normalizedX, normalizedY) {
   const channelScar = smoothstep(0.78, 0.96, channelCross)
     * smoothstep(0.30, 0.82, currentShear * 0.56 + currentScour * 0.44);
 
-  // Coarse shell/gravel lags remain where currents winnow fines from bedforms and mineral highs.
   const gravelBase = valueNoise2D(
     warpedX * 18.6 + mineralRidge * 1.7,
     warpedY * 16.2 - currentScour * 1.2,
@@ -186,8 +184,6 @@ function shelfFabric(normalizedX, normalizedY) {
   const gravelLag = smoothstep(0.68, 0.93, gravelBase * 0.50 + mineralRidge * 0.28 + currentScour * 0.22)
     * (0.38 + bedforms * 0.62);
 
-  // Fine anoxic silt pockets occupy sheltered basin lows. They are muted and mutually suppressed by
-  // active scour so they cannot paint broad black patches or invent a new water-body boundary.
   const anoxicBase = valueNoise2D(
     warpedX * 6.1 - sedimentPocket * 0.8,
     warpedY * 7.3 + basin * 1.2,
@@ -196,6 +192,28 @@ function shelfFabric(normalizedX, normalizedY) {
   const anoxicSilt = smoothstep(0.62, 0.90, anoxicBase * 0.48 + basin * 0.30 + sedimentPocket * 0.22)
     * (1 - currentScour * 0.62)
     * (1 - gravelLag * 0.38);
+
+  // Broad mass-transport lobes sit in sheltered basin lows, with unrelated warp/scale to the
+  // existing fan and channel fields. They are purely tonal and cannot change bathymetry.
+  const mudflowBase = valueNoise2D(
+    warpedX * 4.7 + basin * 1.9 - currentShear * 0.6,
+    warpedY * 5.9 - macro * 1.1 + sedimentPocket * 0.8,
+    121.6,
+  );
+  const mudflowLobe = smoothstep(0.59, 0.90, mudflowBase * 0.50 + basin * 0.30 + sedimentPocket * 0.20)
+    * (1 - currentScour * 0.46)
+    * (1 - gravelLag * 0.24);
+
+  // Sparse shell pavement appears on winnowed shoulders where scour and bedforms overlap. The
+  // independent high-frequency field prevents gravel and shell highlights from repeating together.
+  const shellBase = valueNoise2D(
+    warpedX * 27.4 - currentShear * 1.3 + 2.7,
+    warpedY * 23.1 + mineralRidge * 1.1 - 4.2,
+    127.9,
+  );
+  const shellPavement = smoothstep(0.76, 0.96, shellBase * 0.52 + currentScour * 0.25 + bedforms * 0.23)
+    * (0.34 + mineralRidge * 0.66)
+    * (1 - anoxicSilt * 0.58);
 
   return {
     macro,
@@ -214,13 +232,11 @@ function shelfFabric(normalizedX, normalizedY) {
     channelScar,
     gravelLag,
     anoxicSilt,
+    mudflowLobe,
+    shellPavement,
   };
 }
 
-/**
- * Returns the bounded optical tint weight for one canonical surface classification.
- * Non-sea surfaces are exact-neutral, including lakes inside the western Pindexes.
- */
 export function westernMarineShelfToneWeight({ surface, normalizedX, normalizedY }) {
   if (surface !== 'sea') return 0;
   const x = Number.isFinite(normalizedX) ? normalizedX : 1;
@@ -248,12 +264,11 @@ export function westernMarineShelfToneWeight({ surface, normalizedX, normalizedY
     + (fabric.shelfBreakStreak - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.shelfBreakVariation * 0.10
     + (fabric.channelScar - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.channelScarVariation * 0.08
     + (fabric.gravelLag - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.gravelLagVariation * 0.06
+    + (fabric.mudflowLobe - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.mudflowVariation * 0.07
+    + (fabric.shellPavement - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.shellPavementVariation * 0.05
     - fabric.currentScour * WESTERN_MARINE_SHELF_TONE_POLICY.currentScourVariation * 0.19
     - fabric.anoxicSilt * WESTERN_MARINE_SHELF_TONE_POLICY.anoxicSiltVariation * 0.04;
 
-  // Fabric is subordinate to the canonical west-east optical envelope. It can locally soften or
-  // articulate the shelf, but it cannot amplify the envelope beyond 99% of maxBlend and turn a
-  // depositional patch into a new pseudo-coastline.
   const fabricGain = THREE.MathUtils.clamp(
     modulation + 0.14,
     WESTERN_MARINE_SHELF_TONE_POLICY.fabricGainMin,
@@ -262,7 +277,6 @@ export function westernMarineShelfToneWeight({ surface, normalizedX, normalizedY
   return clamp01(WESTERN_MARINE_SHELF_TONE_POLICY.maxBlend * westWeight * fabricGain);
 }
 
-/** Applies the marine-only tone directly to an existing terrain colour attribute. */
 export function applyWesternMarineShelfToneToColorAttribute(color, index, classification) {
   const weight = westernMarineShelfToneWeight(classification);
   if (weight <= 0) return 0;
@@ -283,6 +297,8 @@ export function applyWesternMarineShelfToneToColorAttribute(color, index, classi
   const channelWeight = fabric.channelScar * WESTERN_MARINE_SHELF_TONE_POLICY.channelScarVariation * 1.32;
   const gravelWeight = fabric.gravelLag * WESTERN_MARINE_SHELF_TONE_POLICY.gravelLagVariation * 1.18;
   const anoxicWeight = fabric.anoxicSilt * WESTERN_MARINE_SHELF_TONE_POLICY.anoxicSiltVariation * 1.20;
+  const mudflowWeight = fabric.mudflowLobe * WESTERN_MARINE_SHELF_TONE_POLICY.mudflowVariation * 1.20;
+  const shellWeight = fabric.shellPavement * WESTERN_MARINE_SHELF_TONE_POLICY.shellPavementVariation * 1.22;
 
   const target = TARGET_COLOR.clone()
     .lerp(COOL_PATCH_COLOR, coolWeight)
@@ -290,7 +306,9 @@ export function applyWesternMarineShelfToneToColorAttribute(color, index, classi
     .lerp(SILT_PATCH_COLOR, clamp01(siltWeight + pocketWeight * 0.46))
     .lerp(SAND_PATCH_COLOR, clamp01(fanWeight + pocketWeight * 0.54))
     .lerp(IRON_PATCH_COLOR, clamp01(ironWeight + shelfBreakWeight * 0.42))
+    .lerp(MUDFLOW_PATCH_COLOR, clamp01(mudflowWeight))
     .lerp(GRAVEL_PATCH_COLOR, clamp01(gravelWeight))
+    .lerp(SHELL_PATCH_COLOR, clamp01(shellWeight))
     .lerp(DEEP_PATCH_COLOR, clamp01(scourWeight + shearWeight * 0.33 + channelWeight * 0.46))
     .lerp(ANOXIC_PATCH_COLOR, clamp01(anoxicWeight));
 
@@ -301,7 +319,9 @@ export function applyWesternMarineShelfToneToColorAttribute(color, index, classi
     + (fabric.currentShear - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.currentShearVariation * 0.16
     + (fabric.shelfBreakStreak - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.shelfBreakVariation * 0.12
     + (fabric.gravelLag - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.gravelLagVariation * 0.10
+    + (fabric.shellPavement - 0.5) * WESTERN_MARINE_SHELF_TONE_POLICY.shellPavementVariation * 0.08
     - fabric.channelScar * WESTERN_MARINE_SHELF_TONE_POLICY.channelScarVariation * 0.08
+    - fabric.mudflowLobe * WESTERN_MARINE_SHELF_TONE_POLICY.mudflowVariation * 0.06
     + (fabric.basin - 0.5) * 0.026;
   target.multiplyScalar(fineValue);
 
