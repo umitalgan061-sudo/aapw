@@ -11,16 +11,19 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX04_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex04-detail-2026-08-26-v3-readable-west-central-weathering',
+  id: 'owner-map-pindex04-detail-2026-08-27-v4-lowland-drainage-weathering',
   pindex: 4,
   renderOnly: true,
   geographyAuthorityUnchanged: true,
   macroMeters: 1540,
   mesoMeters: 430,
   fineMeters: 104,
+  drainageMeters: 286,
+  alluviumMeters: 760,
+  interfluveMeters: 980,
   boundaryProbeNormalized: 0.006,
-  amplitudeBySurface: Object.freeze({ sea: 0.014, lake: 0.016, soil: 0.165, rock: 0.145, snow: 0.072 }),
-  chromaBySurface: Object.freeze({ sea: 0.016, lake: 0.020, soil: 0.145, rock: 0.105, snow: 0.055 }),
+  amplitudeBySurface: Object.freeze({ sea: 0.014, lake: 0.016, soil: 0.174, rock: 0.148, snow: 0.074 }),
+  chromaBySurface: Object.freeze({ sea: 0.016, lake: 0.020, soil: 0.154, rock: 0.108, snow: 0.056 }),
 });
 
 function hash01(ix, iz, seed = 0) {
@@ -69,36 +72,79 @@ function pindexBoundaryWeight(normalizedX) {
   return same / 5;
 }
 
+function ridgedNoise(worldX, worldZ, cellMeters, seed) {
+  return 1 - Math.abs(valueNoise(worldX, worldZ, cellMeters, seed));
+}
+
 function surfaceFabric(surface, worldX, worldZ) {
   const P = PINDEX04_DETAIL_POLICY;
-  // Low-frequency warp prevents the three detail bands from sharing axis-aligned repetition.
-  const warp = valueNoise(worldX, worldZ, 2180, 1.9);
-  const macro = valueNoise(worldX + warp * 230, worldZ - warp * 170, P.macroMeters, 4.3);
-  const meso = valueNoise(worldX - macro * 126, worldZ + macro * 92, P.mesoMeters, 9.7);
+  // Low-frequency warp prevents the detail bands and drainage motifs from sharing axis-aligned
+  // repetition. This is visual-domain deformation only; no terrain coordinate is ever moved.
+  const warpA = valueNoise(worldX, worldZ, 2180, 1.9);
+  const warpB = valueNoise(worldX + 511, worldZ - 337, 1870, 2.7);
+  const warpedX = worldX + warpA * 230 + warpB * 105;
+  const warpedZ = worldZ - warpA * 170 + warpB * 132;
+  const macro = valueNoise(warpedX, warpedZ, P.macroMeters, 4.3);
+  const meso = valueNoise(warpedX - macro * 126, warpedZ + macro * 92, P.mesoMeters, 9.7);
   const fine = valueNoise(worldX + meso * 47, worldZ - meso * 39, P.fineMeters, 16.1);
   const moisture = THREE.MathUtils.clamp(0.5 + macro * 0.36 + meso * 0.19 - fine * 0.035, 0, 1);
   const mineral = THREE.MathUtils.clamp(0.5 - macro * 0.19 + meso * 0.29 + fine * 0.11, 0, 1);
 
+  // Lowland material language: narrow dark drainage threads sit inside broader damp swales, while
+  // depositional fan patches and dry interfluves occupy different spatial frequencies. These are
+  // deliberately non-authoritative visual fields; actual rivers/hydrology remain owned elsewhere.
+  const drainageWarp = valueNoise(warpedX + 83, warpedZ - 59, 610, 31.4);
+  const drainageRidge = ridgedNoise(
+    warpedX + drainageWarp * 95,
+    warpedZ - drainageWarp * 71,
+    P.drainageMeters,
+    34.1,
+  );
+  const drainageThread = THREE.MathUtils.smoothstep(drainageRidge, 0.72, 0.94);
+  const swaleField = valueNoise(warpedX - 210, warpedZ + 146, 540, 36.8);
+  const dampSwale = THREE.MathUtils.clamp(
+    drainageThread * 0.72 + Math.max(0, -swaleField) * 0.38 + Math.max(0, moisture - 0.54) * 0.42,
+    0,
+    1,
+  );
+  const fanNoise = valueNoise(warpedX + macro * 180, warpedZ - macro * 124, P.alluviumMeters, 41.2);
+  const fanMeso = valueNoise(worldX - 151, worldZ + 203, 238, 43.7);
+  const alluvium = THREE.MathUtils.clamp(
+    Math.max(0, -fanNoise) * (0.58 + Math.max(0, -fanMeso) * 0.42)
+      * (0.35 + dampSwale * 0.65),
+    0,
+    1,
+  );
+  const interfluveField = valueNoise(warpedX - 377, warpedZ - 219, P.interfluveMeters, 47.9);
+  const exposedInterfluve = THREE.MathUtils.clamp(
+    Math.max(0, interfluveField) * Math.max(0, 0.58 - moisture) * 2.25
+      * (0.72 + Math.max(0, meso) * 0.28),
+    0,
+    1,
+  );
+
   // Most visual energy stays at kilometre/hundreds-of-metres scale; fine grain only prevents flat
   // patches at gameplay distance and is intentionally too weak to become television-static noise.
-  let luminance = macro * 0.53 + meso * 0.33 + fine * 0.14;
+  let luminance = macro * 0.49 + meso * 0.31 + fine * 0.12 - dampSwale * 0.15 + alluvium * 0.09
+    + exposedInterfluve * 0.11;
   let warm = mineral - 0.5;
   let cool = moisture - 0.5;
 
   if (surface === 'soil') {
-    // Moist hollows retain greener/darker character; weathered mineral/heath patches become subtly
-    // warmer. Both follow independent fields, avoiding a single tint/noise knob across the region.
     const meadowPatch = valueNoise(worldX - 91, worldZ + 137, 690, 21.4);
-    cool += Math.max(0, meadowPatch) * 0.24;
-    warm += Math.max(0, -meadowPatch) * 0.17;
+    cool += Math.max(0, meadowPatch) * 0.21 + dampSwale * 0.37;
+    warm += Math.max(0, -meadowPatch) * 0.15 + alluvium * 0.28 + exposedInterfluve * 0.34;
+    luminance -= dampSwale * 0.11;
+    luminance += alluvium * 0.06 + exposedInterfluve * 0.08;
   } else if (surface === 'rock') {
     // Warped bedding reads as geological weathering without touching the mountain geometry.
     const strataWarp = macro * 0.82 + meso * 0.48;
     const strata = Math.sin(worldX * 0.0061 - worldZ * 0.0046 + strataWarp * 2.35);
     const erosion = valueNoise(worldX + strata * 34, worldZ - strata * 27, 238, 27.8);
-    luminance = macro * 0.29 + meso * 0.27 + fine * 0.10 + strata * 0.24 + erosion * 0.10;
-    warm += Math.max(0, mineral - 0.46) * 0.46;
-    cool *= 0.34;
+    luminance = macro * 0.27 + meso * 0.25 + fine * 0.09 + strata * 0.24 + erosion * 0.10
+      - dampSwale * 0.06 + exposedInterfluve * 0.05;
+    warm += Math.max(0, mineral - 0.46) * 0.46 + exposedInterfluve * 0.10;
+    cool = cool * 0.34 + dampSwale * 0.08;
   } else if (surface === 'snow') {
     const crust = THREE.MathUtils.clamp(0.5 + meso * 0.31 - fine * 0.20 + macro * 0.08, 0, 1);
     luminance = macro * 0.17 + meso * 0.30 + fine * 0.18 + (0.5 - crust) * 0.35;
@@ -111,7 +157,7 @@ function surfaceFabric(surface, worldX, worldZ) {
     cool += macro * 0.14;
   }
 
-  return { luminance, warm, cool };
+  return { luminance, warm, cool, dampSwale, alluvium, exposedInterfluve };
 }
 
 export function applyPindex04DetailToTerrainMesh(mesh) {
@@ -121,6 +167,7 @@ export function applyPindex04DetailToTerrainMesh(mesh) {
 
   let touchedVertices = 0;
   let detailEnergy = 0;
+  let drainageEnergy = 0;
   for (let index = 0; index < position.count; index += 1) {
     const worldX = mesh.position.x + position.getX(index);
     const worldZ = mesh.position.z + position.getZ(index);
@@ -139,6 +186,16 @@ export function applyPindex04DetailToTerrainMesh(mesh) {
     r += (fabric.warm * 0.92 - fabric.cool * 0.25) * chroma;
     g += (fabric.cool * 0.64 + fabric.warm * 0.09) * chroma;
     b += (fabric.cool * 0.54 - fabric.warm * 0.23) * chroma;
+
+    // Soil-specific hydrologic material breakup: damp swales are cooler/darker, recent alluvium is
+    // slightly warmer/greyer, and exposed interfluves are drier and mineral-rich. No spatial term
+    // here can alter height or hydrology because this pass owns only the color BufferAttribute.
+    if (c.surface === 'soil') {
+      r += (-fabric.dampSwale * 0.016 + fabric.alluvium * 0.018 + fabric.exposedInterfluve * 0.025) * edge;
+      g += (fabric.dampSwale * 0.010 + fabric.alluvium * 0.006 - fabric.exposedInterfluve * 0.006) * edge;
+      b += (fabric.dampSwale * 0.012 + fabric.alluvium * 0.004 - fabric.exposedInterfluve * 0.011) * edge;
+    }
+
     color.setXYZ(index,
       THREE.MathUtils.clamp(r, 0, 1),
       THREE.MathUtils.clamp(g, 0, 1),
@@ -146,6 +203,7 @@ export function applyPindex04DetailToTerrainMesh(mesh) {
 
     detailEnergy += Math.abs(fabric.luminance) * amplitude
       + (Math.abs(fabric.warm) + Math.abs(fabric.cool)) * chroma;
+    drainageEnergy += (fabric.dampSwale + fabric.alluvium + fabric.exposedInterfluve) * edge;
     touchedVertices += 1;
   }
 
@@ -155,6 +213,7 @@ export function applyPindex04DetailToTerrainMesh(mesh) {
     pindex: 4,
     touchedVertices,
     meanDetailEnergy: touchedVertices > 0 ? detailEnergy / touchedVertices : 0,
+    meanHydrologicMaterialEnergy: touchedVertices > 0 ? drainageEnergy / touchedVertices : 0,
   });
   mesh.userData.run282Pindex04Detail = summary;
   return summary;
@@ -164,10 +223,12 @@ export function applyPindex04DetailToTerrainGroup(terrainGroup) {
   if (!terrainGroup?.children || !Array.isArray(terrainGroup.children)) throw new TypeError('canonical terrain group is required');
   let touchedVertices = 0;
   let weightedEnergy = 0;
+  let weightedHydrologicMaterialEnergy = 0;
   for (const mesh of terrainGroup.children) {
     const summary = applyPindex04DetailToTerrainMesh(mesh);
     touchedVertices += summary.touchedVertices;
     weightedEnergy += summary.meanDetailEnergy * summary.touchedVertices;
+    weightedHydrologicMaterialEnergy += summary.meanHydrologicMaterialEnergy * summary.touchedVertices;
   }
   const summary = Object.freeze({
     policyId: PINDEX04_DETAIL_POLICY.id,
@@ -175,6 +236,7 @@ export function applyPindex04DetailToTerrainGroup(terrainGroup) {
     touchedVertices,
     meshCount: terrainGroup.children.length,
     meanDetailEnergy: touchedVertices > 0 ? weightedEnergy / touchedVertices : 0,
+    meanHydrologicMaterialEnergy: touchedVertices > 0 ? weightedHydrologicMaterialEnergy / touchedVertices : 0,
   });
   terrainGroup.userData.run282Pindex04Detail = summary;
   return summary;
