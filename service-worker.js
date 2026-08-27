@@ -328,7 +328,10 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // map-anchored spawn kind in `gameplay/animals.js`, and the aggression branch that makes them charge
 // instead of bolt. A stale shell would serve the old `animals.js` and a cache with no hound model in
 // it, so an offline session would spawn nine placeholder boxes in Valyria. v61->v62.
-const SHELL_CACHE = 'westeros-shell-v62';
+// Run 409 adds ascent: hold the jump control to climb. It changes `gameplay/player.js`,
+// `gameplay/playerConfig.js`, `input.js` and `game3d.js`, all four already cached, so the offline copy
+// has to turn over or a returning player keeps the old modules and the control does nothing. v62->v63.
+const SHELL_CACHE = 'westeros-shell-v63';
 const SHELL_FILES = [
     './',
     './index.html',

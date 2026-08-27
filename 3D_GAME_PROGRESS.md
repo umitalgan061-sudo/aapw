@@ -18727,3 +18727,41 @@ yaklaşık dört katı. On birin dokuzu aynı şekilde 1,88–1,99 milyon üçge
 
 Modellerin kendilerinde sorun yok, konu doğru. Aynı Tripo/Sketchfab hattı üçünü de yapabilir:
 **rig'li, klipli ve decimate edilmiş** yeniden ihraç edildiği an hepsi geri gelir.
+
+## Tur 409 — Yükselme: zıplama tuşunu basılı tut (ADR-0358)
+
+Sahip "yükselebilme özelliği olsun" dedi. Bu istek `bas_melek.glb`'ye bağlı değil — tamamen kod, mevcut
+oyuncu modeliyle çalışıyor, o yüzden asset engellenmişken bu yapılabildi.
+
+**Yeni tuş yok: zıplamaya basılı tutmak tırmandırıyor.** Tek dokunuş hâlâ eskisi gibi zıplıyor; zıplama
+yayının tepesini geçip basılı tutmak yükseltiyor. Klavyede yeni bağlama, dokunmatik joystick'te yeni
+buton, gamepad'de yeni tuş gerekmiyor — zaten "yukarı" demek olan kontrol kullanılıyor. `input.js`
+`ascendHeld` yayınlıyor, çünkü mevcut `jumpRequested` kenar-tetiklemeli ve kendini sıfırlıyor, yani
+"hâlâ basılı mı?" sorusuna cevap veremiyor.
+
+Tırmanırken yerçekimi **değiştiriliyor**, yukarı kuvvetle dövüşülmüyor: sabit ve okunabilir bir hız
+çıkıyor, bırakınca gövde doğrudan `integrateJumpArc`'a geri dönüyor. Bırakılan düşüş 12 m/s'de
+sınırlanıyor — taş gibi değil, süzülme.
+
+Ölçülen davranış:
+
+| aşama | yükseklik | stamina |
+|---|---|---|
+| tek dokunuş zıplama, 0,5 sn | 0,92 m | 100 |
+| 3 sn basılı tut | **13,5 m** (3 × 4,5 m/s, tam) | 76 |
+| tükenene kadar tut | 38,5 m | 0'a inip döngüye giriyor |
+| bırak, 3 sn | 8,4 m (süzülüyor) | 62,8 |
+| bırak, yere in | 0 m | 100 |
+
+**Bir hata ölçümle çıktı ve düzeltildi.** İlk hâlde stamina tabanında kare kare salınıyordu — sıfıra
+in, bir kare düş, kırıntı kadar rejenere ol, tekrar tırman — ve bu ~38 m'de titreyen bir asılı kalma
+olarak ölçüldü. `isAscending`'e bağlanacak herhangi bir kanat animasyonu bundan takılırdı. `sprintExhausted`
+ile aynı şekilde histerezis eklendi: bar boşalınca tırmanma, yeniden başlamaya değecek kadar dolana dek
+kilitli.
+
+İlk tuning 14/sn tüketiyordu; bu tırmanışı ~32 m'de kapıyor ve 120 m tavanını tamamen dekoratif
+bırakıyordu. 8/sn ile dolu bar 12,5 sn tırmanış alıyor. **Hangi sınırın gerçekten bağladığını açıkça
+yazıyorum:** pratikte stamina durduruyor, 120 m tavan arkadaki emniyet.
+
+Altı oyuncu sözleşmesi de geçiyor (combat feedback, stamina/dodge, guard-impact exhaustion, parry
+recovery, lock-on, combat recovery input isolation).

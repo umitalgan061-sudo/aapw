@@ -380,7 +380,7 @@ export async function initGame3D() {
 			// 3D_GAME_PROGRESS.md Known Issues) — read straight off `keyboardAxes`, not the merged `axes`.
 			// Run 166 supersedes the legacy keyboard-only note above: the mobile button feeds the same edge-trigger flag.
 			if (state.touchJoystick?.consumeJumpRequested()) keyboardAxes.jumpRequested = true;
-			state.player.update(delta, moveDirection, axes.running, keyboardAxes.jumpRequested);
+			state.player.update(delta, moveDirection, axes.running, keyboardAxes.jumpRequested, axes.ascendHeld);
 			// player.update() above already moved player.object3D synchronously this frame, so this
 			// read is current — safe to feed into each NPC's combat-stance check and each animal's
 			// flee-awareness check below.
