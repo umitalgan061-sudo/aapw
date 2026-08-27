@@ -141,8 +141,19 @@ function normalizedInputPoint(point, sampleHeightMeters, label) {
   return { x: p.x, z: p.z, y: finiteNumber(y, `${label}.y`) };
 }
 
+function complementaryProfileSpacing(maxSpacingMeters) {
+  const primary = finiteNumber(maxSpacingMeters, 'maxSpacingMeters');
+  const presentation = ROAD_PROFILE_POLICY.presentationSampleSpacingMeters;
+  const search = ROAD_PROFILE_POLICY.maxSampleSpacingMeters;
+  return Math.abs(primary - presentation) <= EPSILON ? search : presentation;
+}
+
 /**
  * Profiles a whole polyline and returns a densified copy suitable for final route validation.
+ *
+ * Max grade is audited at both the 6 m presentation spacing and the independent 8 m search spacing.
+ * This removes sampling-phase blind spots where a narrow terrain shoulder can fall between one
+ * regularly spaced sample lattice even though it is caught by the other.
  */
 export function profileRoadPolyline({
   points,
@@ -181,18 +192,22 @@ export function profileRoadPolyline({
   let gradeWeightedDistance = 0;
   let squaredStepDeltaSum = 0;
   let sampledSubsegments = 0;
+  const auditSpacingMeters = complementaryProfileSpacing(maxSpacingMeters);
 
   for (let segmentIndex = 1; segmentIndex < source.length; segmentIndex += 1) {
     const start = source[segmentIndex - 1];
     const end = source[segmentIndex];
     const profile = profileTerrainSegment({ start, end, sampleHeightMeters, maxSpacingMeters });
+    const phaseAudit = Math.abs(auditSpacingMeters - maxSpacingMeters) <= EPSILON
+      ? profile
+      : profileTerrainSegment({ start, end, sampleHeightMeters, maxSpacingMeters: auditSpacingMeters });
     lengthMeters += profile.horizontalMeters;
-    maxGradeDegrees = Math.max(maxGradeDegrees, profile.maxGradeDegrees);
+    maxGradeDegrees = Math.max(maxGradeDegrees, profile.maxGradeDegrees, phaseAudit.maxGradeDegrees);
     totalAscentMeters += profile.totalAscentMeters;
     totalDescentMeters += profile.totalDescentMeters;
-    maxRiseMeters = Math.max(maxRiseMeters, profile.maxRiseMeters);
-    minHeightMeters = Math.min(minHeightMeters, profile.minHeightMeters);
-    maxHeightMeters = Math.max(maxHeightMeters, profile.maxHeightMeters);
+    maxRiseMeters = Math.max(maxRiseMeters, profile.maxRiseMeters, phaseAudit.maxRiseMeters);
+    minHeightMeters = Math.min(minHeightMeters, profile.minHeightMeters, phaseAudit.minHeightMeters);
+    maxHeightMeters = Math.max(maxHeightMeters, profile.maxHeightMeters, phaseAudit.maxHeightMeters);
 
     for (let sampleIndex = 0; sampleIndex < profile.samples.length; sampleIndex += 1) {
       if (segmentIndex > 1 && sampleIndex === 0) continue;
