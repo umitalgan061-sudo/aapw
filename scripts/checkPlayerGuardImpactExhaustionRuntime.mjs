@@ -35,6 +35,9 @@ async function waitEvidence(findEvidence, { timeout = 10000, interval = 50, labe
     if (evidence) return evidence;
     await sleep(interval);
   }
+  frames = await history();
+  const boundaryEvidence = findEvidence(frames);
+  if (boundaryEvidence) return boundaryEvidence;
   throw new Error(`[player-guard-impact-runtime] timed out waiting for ${label}; tail=${JSON.stringify(frames.slice(-12))}`);
 }
 async function waitHealth(expected, { timeout = 3000, interval = 20 } = {}) {
