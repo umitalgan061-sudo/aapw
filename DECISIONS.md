@@ -19883,3 +19883,30 @@ gerektirir ve sonucu zaten bütçe kapısı bekliyor.
 
 **Technical debt.** 0 new. SW v59→v60. **Açık iş.** Ejderhanın 6 eksik dokusu (main düzeyinde);
 `checkMountainNaturalizationDeterminism` (dalda önceden kırmızı).
+
+## ADR-0349 — 1 MiB'lik sessiz uçurum: `checkTechnicalDebt` dalın kendi boyutunda çöküyordu
+
+**Nereden çıktı.** Tur 400 mobil çizim bütçesini geçirince `final-head-gate`'in 7. adımı nihayet
+sonuna kadar koştu — `checkMobilePerfBudget`, `checkSeededRandomPolicy`, `terrainSeatSafetyCheck`,
+`roadNetworkSafetyCheck`, `analyzePerfTrend` hepsi geçti — ve bir sonrakinde durdu:
+
+```
+[checkTechnicalDebt] FAIL: Error: spawnSync git ENOBUFS
+```
+
+**Bu bir bulgu değil, bir çökme.** `ENOBUFS` kapının bir borç bulduğu anlamına gelmiyor; `git`'in
+çıktısı `execFileSync`'in **1 MiB** varsayılanını aştığı için sürecin öldüğü anlamına geliyor. Ve bu
+kesme değil, sert bir uçurum: bir bayt fazlası tüm kontrolü hataya çeviriyor.
+
+**Ölçtüm:** bu dalın `origin/main`'e karşı diff'i **1.216.339 bayt** — varsayılanın %16 üstünde.
+Yerelde birebir aynı hatayla yeniden ürettim.
+
+**Kimin hatası.** Dalın büyük olması değil, kontrolün kendi eksiği: diff'i yeterince büyüyen *herhangi*
+bir dal aynı şekilde çökerdi. Bu dal yalnızca eşiği ilk aşan oldu. Aynı aile: tur 397'nin
+"60 saniye yazıp 30 saniye ölçen" timeout'u gibi, kapı kendi söylediği işi yapmıyordu.
+
+**Düzeltme.** `runGit`'e `maxBuffer: 64 MiB` — kaçak bellek koruması olarak seçilmiş bir tavan,
+diff'in yaklaşması beklenen bir boyut olarak değil. Düzeltmeden sonra kapı **koşuyor ve geçiyor**:
+yasak geçici-çözüm eklemesi 0, yeni borç işareti 0.
+
+**Technical debt.** 0 new. Runtime kaynağı değişmedi, SW bump yok.

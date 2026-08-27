@@ -18454,3 +18454,17 @@ boyutundan bağımsız.
 
 Kapılar: coverage, download-size, scatter-textures, world-props, village-buildings, manifest,
 service-worker PASS. SW v59→v60.
+
+## Tur 401 — Kapı bulgu bulmuyordu, çöküyordu (ADR-0349)
+
+Tur 400 çizim bütçesini geçirince 7. adım sonuna kadar koştu ve `checkTechnicalDebt`'te durdu:
+`spawnSync git ENOBUFS`. Bu bir borç bulgusu değil, `git` çıktısının `execFileSync`'in 1 MiB
+varsayılanını aşması yüzünden sürecin ölmesi.
+
+Ölçtüm: dalın diff'i **1.216.339 bayt**, varsayılanın %16 üstünde. Yerelde birebir yeniden ürettim.
+Diff'i yeterince büyüyen herhangi bir dal aynı şekilde çökerdi — kapının kendi eksiği.
+
+`maxBuffer: 64 MiB` eklendi. Kapı artık koşuyor ve geçiyor: yasak ekleme 0, yeni borç işareti 0.
+
+Ayrıca doğrulandı: **CI'da `checkMobilePerfBudget` geçti** — tur 400'ün 1442 → 230 düşüşü gerçekmiş.
+`analyzePerfTrend` de "beklenen gürültünün ötesinde sürekli artış yok" diyor.

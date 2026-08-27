@@ -22,10 +22,24 @@ function fail(message) {
   throw new Error(message);
 }
 
+/**
+ * Ceiling on how much a single `git` invocation here may return.
+ *
+ * `execFileSync` defaults to 1 MiB and fails the whole process with `ENOBUFS` the moment the child
+ * writes more, which is a hard cliff rather than a truncation. This check diffs a whole branch against
+ * its base, so the output grows with the branch: PR #964's diff is **1,216,339 bytes**, 16% past the
+ * default, and the gate died with a spawn error rather than a finding. Any branch large enough would
+ * have done the same, so this is a latent bug in the check and not a property of that branch.
+ *
+ * 64 MiB is a runaway-memory guard, not a size the diff is expected to approach.
+ */
+const GIT_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
+
 function runGit(args) {
   return execFileSync('git', args, {
     cwd: ROOT,
     encoding: 'utf8',
+    maxBuffer: GIT_MAX_BUFFER_BYTES,
     stdio: ['ignore', 'pipe', 'pipe']
   }).trim();
 }
