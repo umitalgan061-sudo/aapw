@@ -69,6 +69,59 @@ export const ENTITY_EXCLUSIONS_BY_REASON = Object.freeze({
 	 * answer it, and scattering them across the ground in the meantime would put a frigate in a meadow.
 	 * They are withheld pending that owner decision, not because they are unwanted.
 	 */
+	/**
+	 * The `valyria` branch's eleven uploads — Tripo sculpts with no skeleton in any of them (run 408).
+	 *
+	 * The owner asked for `bas_melek.glb` to become the player character, "kanatlarına hareket
+	 * verdirelim, yükselebilme özelliği olsun". Read straight out of the glTF JSON rather than inferred:
+	 *
+	 * ```
+	 * bas_melek.glb   skins: 0   animations: 0   nodes: 25   meshes: 21   generator: Sketchfab-0.5.0
+	 * ```
+	 *
+	 * **`skins: 0` and `animations: 0` means there is no skeleton and no clip.** Wings cannot be made to
+	 * beat on a mesh with no bones, and the figure cannot walk. Nor can the wings be moved as separate
+	 * objects: the 21 meshes are not body parts — every one carries the identical name
+	 * `tripo_node_ca66fc79_tripo_mat_ca66fc79_0` and holds 88,000-107,000 triangles, which is one dense
+	 * Tripo generation sliced into equal chunks by the exporter, not a head, a torso and two wings.
+	 *
+	 * And the size is the second wall: **1,963,878 triangles**, about four times the entire 500,000
+	 * mobile scene budget for one character. Nine of the eleven are the same shape:
+	 *
+	 * | model | triangles |
+	 * |---|---|
+	 * | `corrupted_king_in_black_armor_with_bone_crown.glb` | 1,991,181 |
+	 * | `black_owl_familiar__amber-eyed_dark_fantasy.glb` | 1,989,794 |
+	 * | `bas_melek.glb` | 1,963,878 |
+	 * | `bandaged_asylum_matron_needle_horror.glb` | 1,948,332 |
+	 * | `realistic_woolly_sheep_-_thick_curled_fleece.glb` | 1,919,960 |
+	 * | `black_wolf__pale-eyed_fierce_dark_predator.glb` | 1,909,436 |
+	 * | `night_falcon_dark_fantasy_amber-eyed_bird.glb` | 1,895,313 |
+	 * | `dark_necromancer_-_corrupted_staff__skulls.glb` | 1,893,733 |
+	 * | `ember_winged_fallen_angel_warrior.glb` | 1,881,092 |
+	 *
+	 * `kni1.glb` (3,086 triangles) and `p-0r_noon.glb` (28,232) are the two light ones and are also
+	 * rigless, so they are statues rather than characters as they stand.
+	 *
+	 * **None of this is a judgement on the models — they are the right subjects.** Every one comes back
+	 * the moment it is re-exported rigged, with clips, and decimated: the same Tripo/Sketchfab pipeline
+	 * can do all three. Until then a rigless two-million-triangle sculpt cannot be a player character,
+	 * a villager or a wild animal, and putting it in the world as scenery would stand a named
+	 * archangel motionless in a field.
+	 */
+	riglessSculptAwaitingARigAndDecimation: Object.freeze([
+		"fbx/bandaged_asylum_matron_needle_horror.glb",
+		"fbx/bas_melek.glb",
+		"fbx/black_owl_familiar__amber-eyed_dark_fantasy.glb",
+		"fbx/black_wolf__pale-eyed_fierce_dark_predator.glb",
+		"fbx/corrupted_king_in_black_armor_with_bone_crown.glb",
+		"fbx/dark_necromancer_-_corrupted_staff__skulls.glb",
+		"fbx/ember_winged_fallen_angel_warrior.glb",
+		"fbx/kni1.glb",
+		"fbx/night_falcon_dark_fantasy_amber-eyed_bird.glb",
+		"fbx/p-0r_noon.glb",
+		"fbx/realistic_woolly_sheep_-_thick_curled_fleece.glb",
+	]),
 	needsANavalSystemThatDoesNotExistYet: Object.freeze([
 		"fbx/aleksandr_class_archipelago_frigate.glb",
 		"fbx/anno_1401_-_explorer_ship.glb",

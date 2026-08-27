@@ -96,12 +96,45 @@ export const VALYRIA_POLICY = Object.freeze({
  * project's terrain palette is, and `THREE.Color` converts them to the linear working space on
  * construction. */
 export const VALYRIA_SURFACE = Object.freeze({
-	/** Cooled basalt — near-black with a faint warm cast, not pure black, so it still takes light. */
-	BASALT: new THREE.Color(0x2a2422),
-	/** Settled ash on exposed heights. */
-	ASH: new THREE.Color(0x6b6560),
-	/** Molten rock. Bright and saturated so it reads as emission under this world's daylight. */
-	LAVA: new THREE.Color(0xff4d14),
+	/**
+	 * Cooled basalt.
+	 *
+	 * **Re-read off the owner's own photographs (run 408).** They sent five captures of real basaltic
+	 * eruptions — Fagradalsfjall-type flows, a spatter cone, a crater, and a close pass over an active
+	 * flow field — as the reference for what this region should look like. Against them the previous
+	 * `0x2a2422` was wrong in hue rather than in value: it is a **warm brown-black**, and cooled basalt
+	 * in every one of those frames is a **cool grey**, blue-leaning where it has chilled fast. The value
+	 * was about right, so this keeps it dark and turns the hue.
+	 */
+	BASALT: new THREE.Color(0x2b2d31),
+	/**
+	 * Settled ash on exposed heights — likewise cooled from the old warm `0x6b6560`. In the reference
+	 * the pale material on the tops is wind-sorted ash and chilled crust, silver-grey against the black.
+	 */
+	ASH: new THREE.Color(0x6a6c70),
+	/**
+	 * Chilled crust — the third solid tone the old two-tone palette had no room for.
+	 *
+	 * The spatter-cone frame is the clearest: the cone itself is not black and not ash, it is a pale
+	 * blue-grey skin over the vent, distinctly lighter than the flow field around it. Without it the
+	 * ground reads as two materials with a hard boundary; with it the rim has somewhere to go between
+	 * black rock and open lava.
+	 */
+	CRUST: new THREE.Color(0x4c5157),
+	/**
+	 * Molten rock, at the **edge** of a flow — deep red-orange, the colour of a crack in a crust rather
+	 * than of an open channel.
+	 */
+	LAVA: new THREE.Color(0xd8400f),
+	/**
+	 * Molten rock at the **core** of a flow.
+	 *
+	 * The single `LAVA` tone was the palette's real flatness: in every reference frame lava runs from
+	 * dull red at the crust line, through orange, to a yellow-white so bright it blows out — the close
+	 * flow-field capture is almost entirely that upper end. One colour cannot carry that, so the lava
+	 * step is now a ramp between these two.
+	 */
+	LAVA_CORE: new THREE.Color(0xffc23a),
 	ashStartMeters: 180,
 	ashFullMeters: 380,
 	ashStrength: 0.55,
@@ -112,6 +145,11 @@ export const VALYRIA_SURFACE = Object.freeze({
 	lavaCurvatureStart: 0.45,
 	lavaCurvatureFull: 1.6,
 	lavaStrength: 0.7,
+	/** Where along the lava fill the colour starts climbing toward `LAVA_CORE` (run 408). */
+	lavaCoreStart: 0.35,
+	/** How strongly the chilled crust shows on ground that is not collecting lava (run 408). Held well
+	 * below `ashStrength` so it reads as a skin over the basalt rather than a third flat coat. */
+	crustStrength: 0.30,
 });
 
 /**
@@ -195,10 +233,21 @@ export function applyValyriaSurface(target, { nx, ny, heightAboveSeaMeters, curv
 	const ash = smoothstep(P.ashStartMeters, P.ashFullMeters, heightAboveSeaMeters) * influence;
 	if (ash > 0) target.lerp(P.ASH, ash * P.ashStrength);
 
+	// 2b. Chilled crust between the black rock and anywhere lava collects (run 408). Sits on the gentle
+	// ground the flows have skinned over, which is where the reference frames show it.
+	const crust = influence * (1 - smoothstep(P.lavaCurvatureStart, P.lavaCurvatureFull, curvatureMeters));
+	if (crust > 0) target.lerp(P.CRUST, crust * P.crustStrength);
+
 	// 3. Lava where the ground collects. Only in the hot heart — the rim has cooled.
 	const heat = smoothstep(P.lavaCoreInfluence, 1, influence);
 	const pooling = smoothstep(P.lavaCurvatureStart, P.lavaCurvatureFull, curvatureMeters);
 	const lava = heat * pooling;
-	if (lava > 0) target.lerp(P.LAVA, lava * P.lavaStrength);
+	if (lava > 0) {
+		// A ramp, not a colour: the deeper a hollow collects, the closer it gets to an open channel, and
+		// the reference frames run from dull red at the crust line to yellow-white at the core.
+		const core = smoothstep(P.lavaCoreStart, 1, lava);
+		const molten = P.LAVA.clone().lerp(P.LAVA_CORE, core);
+		target.lerp(molten, lava * P.lavaStrength);
+	}
 	return target;
 }

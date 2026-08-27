@@ -18674,3 +18674,56 @@ Kalan 28 model hesaba katıldı: gemiler (10) bir deniz sistemi bekliyor — ki 
 sistem yok; gerçek yerler (4) Westeros değil; animasyonu olmayan yaratıklar (9).
 `worldPropExclusions.js` 662 satıra çıkınca 600 kapısını aştı, gerçek bir dikişten böldüm:
 `worldPropExclusionsEntities.js` "sistemi olmayan varlıklar", ana dosya "scatter'ın kendi bütçeleri".
+
+## Tur 408 — Valyria paleti sahibin fotoğraflarından; ve `bas_melek.glb` neden ana karakter olamıyor (ADR-0357)
+
+Sahip beş gerçek volkanik patlama karesi gönderdi (Fagradalsfjall tipi akıntılar, bir sıçrama konisi,
+bir krater, aktif akıntı alanı üzerinden yakın geçiş) ve Valyria'nın bunlar gibi görünmesini istedi.
+
+**Karelere karşı okuyunca eski palet value'da değil hue'da yanlıştı.** `BASALT: 0x2a2422` **sıcak
+kahve-siyah**; karelerin hepsinde soğumuş bazalt **soğuk gri**, hızlı soğuduğu yerde maviye çalıyor.
+
+| | eski | yeni |
+|---|---|---|
+| `BASALT` | `#2a2422` | `#2b2d31` |
+| `ASH` | `#6b6560` | `#6a6c70` |
+| `CRUST` | — | `#4c5157` |
+| `LAVA` | `#ff4d14` | `#d8400f` |
+| `LAVA_CORE` | — | `#ffc23a` |
+
+İki gerçek eksiklik vardı. **Üçüncü katı ton yoktu:** sıçrama konisi karesinde koni ne siyah ne kül,
+çevresindeki akıntıdan belirgin açık mavimsi-gri bir kabuk. **Ve lav tek renkti** — karelerde lav
+kabuk çizgisinde donuk kızıldan çekirdekte patlamış sarı-beyaza gidiyor; artık iki durak arası rampa.
+
+Ölçülen çıktı (aynı girdiler, önce/sonra):
+
+| durum | önce | sonra |
+|---|---|---|
+| kalp, düz zemin | `#2a2422` | `#373b3f` |
+| kalp, sığ çukur | `#742d20` | `#673938` |
+| kalp, derin çukur | `#db4419` | `#dba737` |
+| kalp, yüksek kül sırtı | `#55504c` | `#525559` |
+
+**Açıkça yazıyorum:** düz zemin belirgin şekilde açıldı (`#2a2422` → `#373b3f`), çünkü yeni kabuk
+karışımı orayı aydınlatıyor. Referanslarda akıntı alanları gerçekten çok orta-gri kabuk taşıyor, o
+yüzden savunulabilir — ama bu bir yan etki değil, bilinçli bir sonuç. **Ve dünya içi render ile
+doğrulamadım:** izole sahne harness'ım Valyria gölgelemesini çalıştırmıyor, gördüğüm kare bej bir
+plato çıktı. Renk matematiğini doğruladım, sahneyi değil. Bu borç açık.
+
+## `bas_melek.glb` ana karakter olamaz — glTF'in kendisi söylüyor
+
+Sahip `bas_melek.glb`'nin ana karakter olmasını, kanatlarının hareket etmesini ve yükselebilmesini
+istedi. glTF JSON'undan doğrudan okundu, çıkarım değil:
+
+    bas_melek.glb   skins: 0   animations: 0   nodes: 25   meshes: 21   generator: Sketchfab-0.5.0
+
+**`skins: 0` = iskelet yok, `animations: 0` = klip yok.** Kemiği olmayan bir mesh'te kanat çırpılamaz
+ve figür yürüyemez. Kanatları ayrı nesne olarak da oynatamam: 21 mesh gövde parçası değil — hepsinin
+adı birebir aynı (`tripo_node_ca66fc79_tripo_mat_ca66fc79_0`) ve her biri 88.000–107.000 üçgen, yani
+tek yoğun Tripo üretiminin ihracatçı tarafından eşit parçalara dilimlenmiş hali.
+
+İkinci duvar boyut: **1.963.878 üçgen**, tek karakter için bütün 500.000'lik mobil sahne bütçesinin
+yaklaşık dört katı. On birin dokuzu aynı şekilde 1,88–1,99 milyon üçgen ve hepsi iskeletsiz.
+
+Modellerin kendilerinde sorun yok, konu doğru. Aynı Tripo/Sketchfab hattı üçünü de yapabilir:
+**rig'li, klipli ve decimate edilmiş** yeniden ihraç edildiği an hepsi geri gelir.
