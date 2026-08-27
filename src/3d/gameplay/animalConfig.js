@@ -83,6 +83,40 @@ export const ANIMAL_SPECIES = Object.freeze({
 	 * DECISIONS.md ADR-0047, which explicitly recorded "needs rigging before a real walk/flee
 	 * animation is possible" as the blocker. This model is rigged and ships `Walk`/`Gallop`/`Idle`/
 	 * `Eating`, so that blocker is now genuinely resolved rather than worked around. */
+	/**
+	 * The Doom's magma hounds — run 407, owner request: "Valyria'ya ... karakterleri yerleştir. Onlar
+	 * vahşi olsunlar ve herkese saldırgan olsunlar. Bazılarını topluluk halinde göster."
+	 *
+	 * **Chosen by measurement, not by name.** The `yeniglb` branch added ten creature-shaped models and
+	 * only one of them can actually be a live animal. Measured, all ten:
+	 *
+	 * | model | triangles | rig | clips |
+	 * |---|---|---|---|
+	 * | `infernal_magma_hound` | 12,538 | **skinned** | **Idle, Walk** |
+	 * | `hell_hound` | 12,554 | none | none (40 meshes, 40 submissions) |
+	 * | `cod_ghosts_hellhound` | 14,764 | skinned | **none** (and 33 m tall as authored) |
+	 * | `volcanic_damaged_elemental` | 72,060 | none | none (117 m across) |
+	 * | `giant_stone_magma_golem` | **1,000,042** | none | none |
+	 * | `volcanic_stone_lava_magma_golem` | **971,932** | none | none |
+	 *
+	 * The two golems are each roughly twice the entire mobile triangle budget for one creature. The
+	 * rigless ones would stand frozen mid-stride, which is the same trap `worldPropExclusions.js` files
+	 * `arya_stark.glb` under. This one is dog-sized (0.59 x 1.70 x 1.09 m), one draw call, and ships the
+	 * two clips this controller needs — so it is the one that ships.
+	 *
+	 * No `flee` clip, deliberately: it does not flee. `spawnConfiguredAnimals` gates the reactive branch
+	 * on `aggressive` as well as on a flee clip for exactly this case.
+	 */
+	magmaHound: Object.freeze({
+		modelUrl: 'assets/models/fbx/infernal_magma_hound_-_free_lava_creature_asset.glb',
+		clips: Object.freeze({ idle: 'Idle', walk: 'Walk' }),
+		aggressive: true,
+		/** Wider than the flee trigger (15 m): a hunting pack notices you before a wolf would bolt. */
+		chargeTriggerRadiusMeters: 34,
+		/** Below the player's own run speed, so a charge is a real threat that can still be escaped —
+		 * a pack that is strictly faster than the player is not a fight, it is a death sentence. */
+		chargeSpeedMps: 3.9,
+	}),
 	horse: Object.freeze({
 		modelUrl: 'assets/models/animals/white_horse_bEdE4rmZy9.glb',
 		clips: Object.freeze({ idle: 'Idle', walk: 'Walk', flee: 'Gallop' }),
@@ -199,6 +233,98 @@ export const ANIMAL_CONFIG = Object.freeze({
 	 * -> wolf-3 pack-flees off wolf-2, one frame later) is the only path that reaches wolf-3 — see
 	 * DECISIONS.md ADR-0030 for the live verification this was added to run. */
 	SPAWNS: Object.freeze([
+		// Run 407 — the Doom of Valyria. Two packs and two lone hunters: pack members sit inside one
+		// another's `PACK_ALERT_RADIUS_METERS` so they rouse together, the lone pair is far outside it so
+		// the Doom is not uniformly crowded. `mapAnchor` rather than `seatId` because Valyria is a region
+		// with no castle in it.
+		//
+		// **Every offset is east of the anchor, and that is not arbitrary.** The anchor is the centre of
+		// the Doom, and the centre of the Doom is open water: `valyriaUpliftMeters` deliberately returns 0
+		// at or below the waterline so the Smoking Sea keeps its shape, so the core samples -2.2 m against
+		// a 6 m sea level. Probed on a 50 m grid, the nearest Valyrian land is ~600 m east, rising to 83 m
+		// around (1450, 650). The first pass put all nine hounds on the anchor itself and they spawned in
+		// the sea; these offsets are land, measured.
+		Object.freeze({
+			id: 'valyria-magma-hound-pack-a-1',
+			speciesId: 'magmaHound',
+			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
+			offsetXMeters: 680,
+			offsetZMeters: 20,
+			rotationYRadians: 1.3,
+			patrol: Object.freeze({ toOffsetXMeters: 720, toOffsetZMeters: 55 }),
+		}),
+		Object.freeze({
+			id: 'valyria-magma-hound-pack-a-2',
+			speciesId: 'magmaHound',
+			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
+			offsetXMeters: 700,
+			offsetZMeters: 60,
+			rotationYRadians: 2.6,
+			patrol: Object.freeze({ toOffsetXMeters: 740, toOffsetZMeters: 95 }),
+		}),
+		Object.freeze({
+			id: 'valyria-magma-hound-pack-a-3',
+			speciesId: 'magmaHound',
+			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
+			offsetXMeters: 730,
+			offsetZMeters: 30,
+			rotationYRadians: 3.9,
+			patrol: Object.freeze({ toOffsetXMeters: 770, toOffsetZMeters: 65 }),
+		}),
+		Object.freeze({
+			id: 'valyria-magma-hound-pack-a-4',
+			speciesId: 'magmaHound',
+			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
+			offsetXMeters: 710,
+			offsetZMeters: -10,
+			rotationYRadians: 5.2,
+			patrol: Object.freeze({ toOffsetXMeters: 750, toOffsetZMeters: 25 }),
+		}),
+		Object.freeze({
+			id: 'valyria-magma-hound-pack-b-1',
+			speciesId: 'magmaHound',
+			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
+			offsetXMeters: 1420,
+			offsetZMeters: 620,
+			rotationYRadians: 2.1,
+			patrol: Object.freeze({ toOffsetXMeters: 1375, toOffsetZMeters: 590 }),
+		}),
+		Object.freeze({
+			id: 'valyria-magma-hound-pack-b-2',
+			speciesId: 'magmaHound',
+			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
+			offsetXMeters: 1460,
+			offsetZMeters: 660,
+			rotationYRadians: 4.2,
+			patrol: Object.freeze({ toOffsetXMeters: 1415, toOffsetZMeters: 630 }),
+		}),
+		Object.freeze({
+			id: 'valyria-magma-hound-pack-b-3',
+			speciesId: 'magmaHound',
+			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
+			offsetXMeters: 1480,
+			offsetZMeters: 610,
+			rotationYRadians: 6.3,
+			patrol: Object.freeze({ toOffsetXMeters: 1435, toOffsetZMeters: 580 }),
+		}),
+		Object.freeze({
+			id: 'valyria-magma-hound-lone-1',
+			speciesId: 'magmaHound',
+			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
+			offsetXMeters: 650,
+			offsetZMeters: 200,
+			rotationYRadians: 3.0,
+			patrol: Object.freeze({ toOffsetXMeters: 700, toOffsetZMeters: 245 }),
+		}),
+		Object.freeze({
+			id: 'valyria-magma-hound-lone-2',
+			speciesId: 'magmaHound',
+			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
+			offsetXMeters: 1500,
+			offsetZMeters: 750,
+			rotationYRadians: 6.0,
+			patrol: Object.freeze({ toOffsetXMeters: 1550, toOffsetZMeters: 795 }),
+		}),
 		Object.freeze({
 			id: 'berkalp-wolf-1',
 			seatId: 'berkalp',

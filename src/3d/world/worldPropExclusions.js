@@ -1,3 +1,5 @@
+import { ENTITY_EXCLUSIONS_BY_REASON } from './worldPropExclusionsEntities.js';
+
 /**
  * Every model in `assets/` that is deliberately **not** scattered across the world, and why.
  *
@@ -27,6 +29,7 @@ export const MAX_SCATTER_PROP_BYTES = 25 * 1024 * 1024;
 
 /** Models withheld from the scatter, by reason — the decision, reviewable file by file. */
 export const PROP_EXCLUSIONS_BY_REASON = Object.freeze({
+	...ENTITY_EXCLUSIONS_BY_REASON,
 	/**
 	 * Rigged, animated figures — people and beasts. `gameplay/livingWorldSpawner.js` spawns and moves
 	 *   the ones this game uses; the rest are alternates it may be pointed at. Scattering any of them as

@@ -46,6 +46,14 @@ self.addEventListener('install', () => {
     GAME3D_SHELL_FILES.push('./assets/models/animals/sheep_C39AUXUUes.glb');
 });
 
+// Run407 Valyria magma-hound offline shell extension — `gameplay/animalConfig.js`'s new `magmaHound`
+// species model, spawned nine times in the Doom of Valyria. Without it an offline session puts nine
+// placeholder boxes there instead of the pack.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./assets/models/fbx/infernal_magma_hound_-_free_lava_creature_asset.glb');
+    GAME3D_SHELL_FILES.push('./src/3d/world/worldPropExclusionsEntities.js');
+});
+
 // Run339 pause-menu offline shell extension — `ui/pauseMenu.js` (ADR-0285), now imported by
 // `game3d.js`, so an offline PWA load needs it cached or the scene cannot boot at all.
 self.addEventListener('install', () => {
@@ -316,7 +324,11 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // are pixel-identical and the mobile sample is bit-identical, 235 draw calls / 465,174 triangles), but
 // a stale shell would keep serving the old `worldPropScatter.js` with an import of a module it has
 // never cached, which fails offline outright rather than degrading. v60->v61.
-const SHELL_CACHE = 'westeros-shell-v61';
+// Run 407 puts the Doom of Valyria's magma hounds in the world — a new species model, a new
+// map-anchored spawn kind in `gameplay/animals.js`, and the aggression branch that makes them charge
+// instead of bolt. A stale shell would serve the old `animals.js` and a cache with no hound model in
+// it, so an offline session would spawn nine placeholder boxes in Valyria. v61->v62.
+const SHELL_CACHE = 'westeros-shell-v62';
 const SHELL_FILES = [
     './',
     './index.html',

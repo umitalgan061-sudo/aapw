@@ -18626,3 +18626,51 @@ README'de güncellendi). `checkMedievalRoadSurface` PASS, `roadNetworkSafetyChec
 iddia ediyor, ama dalın kendi enine-eğim düzeltmesi ribbon'ın iki kenarını **ayrı ayrı** araziye
 oturtuyor. Yani sözleşme kodun kasten yaptığı şeyi yasaklıyor. Değişikliğimi stash'leyip doğruladım:
 aynı hata bensiz de var. Ayrı bir turun işi.
+
+## Tur 407 — Valyria'nın magma tazıları: sürüler halinde ve saldırgan (ADR-0356)
+
+Sahip: *"Valyria'ya asset'lere yeni eklediğim yeniglb branch'ındaki karakterleri yerleştir. Onlar
+vahşi olsunlar ve herkese saldırgan olsunlar. Bazılarını topluluk halinde göster."*
+
+`yeniglb` (f725728) 29 model eklemiş, onunu yaratık. **Onunu da ölçtüm, biri hariç hiçbiri canlı
+hayvan olamıyor:**
+
+| model | üçgen | iskelet | klip |
+|---|---|---|---|
+| `infernal_magma_hound` | 12.538 | **var** | **Idle, Walk** |
+| `hell_hound` | 12.554 | yok | yok (40 mesh, 40 gönderim) |
+| `cod_ghosts_hellhound` | 14.764 | var | **yok** (ve 33 m boyunda) |
+| `volcanic_damaged_elemental` | 72.060 | yok | yok (117 m) |
+| `giant_stone_magma_golem` | **1.000.042** | yok | yok |
+| `volcanic_stone_lava_magma_golem` | **971.932** | yok | yok |
+
+İki golem tek başına bütün mobil üçgen bütçesinin iki katı. İskeletsiz olanlar `arya_stark.glb`
+tuzağı: yürüyemezler, tarlada donmuş dururlar. Kalan üç tazı 109–115 MB. **Biri kaldı** ve o gerçekten
+iyi: obsidyen gövde, akkor damarlar, erimiş pençeler — Felaket'in ta kendisi.
+
+Yapılanlar:
+1. `magmaHound` türü (`animalConfig.js`), `aggressive: true`, 34 m fark etme yarıçapı, 3,9 m/s hücum
+   hızı — oyuncunun koşusundan yavaş, yani kaçılabilir bir tehdit.
+2. **`mapAnchor`** (`animals.js`): bir spawn artık koltuk yerine harita noktasına bağlanabiliyor.
+   Valyria'da kale yok, ve bütün mevcut spawn'lar `seatId` istiyordu — yani Felaket'e bir şey koymak
+   bu config'den **imkânsızdı**.
+3. Saldırganlık: tepki dalı aynı, işaret ters. Kaçış ile hücum aynı hareketin zıt işaretlisi olduğu
+   için kodu çatallamadım; zemin/çarpışma işleme tek yerde kaldı.
+4. İki sürü (4 + 3) ve iki yalnız avcı. Sürü üyeleri birbirinin `PACK_ALERT_RADIUS_METERS`'ı içinde.
+
+**İki hata buldum ve ikisini de ölçümle yakaladım:**
+
+- **Hücum çalışmıyordu.** `canFlee` kaçış klibine bağlıydı; magma tazısının kaçış klibi yok, dolayısıyla
+  `directThreat` hep false'tu. Ölçüm: oyuncu 20 m ötede, 3 saniye simülasyon → mesafe **20,00 → 20,00**,
+  yani hiç kımıldamadı. Kapıyı "tepki verebiliyor mu" diye değiştirdim. Şimdi **20 → 8,3 m**.
+- **Dokuz tazı denize doğdu.** Valyria'nın merkezi açık su: `valyriaUpliftMeters` su seviyesinde ve
+  altında kasten 0 döndürüyor ki Dumanlı Deniz şeklini korusun. Çekirdek −2,2 m ölçüyor, su 6 m. 50 m
+  ızgarayla taradım: en yakın Valyria karası ~600 m doğuda, (1450, 650) civarında 83 m'ye çıkıyor.
+  Spawn'lar oraya taşındı; dokuzu da artık **18–85 m** yükseklikte, hepsi `skinned: 1`, hiçbiri
+  placeholder değil.
+
+Kalan 28 model hesaba katıldı: gemiler (10) bir deniz sistemi bekliyor — ki bu zaten
+`QUESTIONS_FOR_OWNER.md`'deki üç "SEA (ferry owed)" bağlantısının cevabı; savaş arabaları (4) çekecek
+sistem yok; gerçek yerler (4) Westeros değil; animasyonu olmayan yaratıklar (9).
+`worldPropExclusions.js` 662 satıra çıkınca 600 kapısını aştı, gerçek bir dikişten böldüm:
+`worldPropExclusionsEntities.js` "sistemi olmayan varlıklar", ana dosya "scatter'ın kendi bütçeleri".

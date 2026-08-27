@@ -15,6 +15,8 @@
 
 import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
+import { mapToWorldXZ } from '../world/settlements.js';
+import { WORLD_SCALE } from '../config.js';
 
 const MAX_WILDLIFE_SIMULATION_STEP_SECONDS = 0.1;
 const DEFAULT_FLEE_RELEASE_MARGIN_METERS = 3;
@@ -117,6 +119,19 @@ export async function createWolf({
 	fleeReleaseMarginMeters = DEFAULT_FLEE_RELEASE_MARGIN_METERS,
 	fleeSpeedMps = 4.5,
 	packAlertRadiusMeters,
+	/**
+	 * Run 407 — the reactive branch runs *toward* the player instead of away.
+	 *
+	 * Owner request for the Doom of Valyria: "Onlar vahşi olsunlar ve herkese saldırgan olsunlar."
+	 * Everything else about the branch is deliberately shared with fleeing rather than duplicated —
+	 * same trigger radius, same pack alert, same grounded-move commit, same gait fallback — because a
+	 * charge and a bolt are the same movement with the opposite sign, and forking the code would have
+	 * given the two behaviours separate collision and terrain handling to drift apart.
+	 */
+	aggressive = false,
+	/** How close a charging animal may get before it stops closing, so it presses the player rather
+	 * than walking through them. Mirrors the standoff `creatureBrain.js` keeps for the same reason. */
+	aggressiveStandoffMeters = 2.2,
 }) {
 	const model = await assetLoader.loadModel(modelUrl, { fallbackColor: 0x5a5148, fallbackSize: 1.2 });
 	stripNamedChildren(model, stripChildNames);
@@ -135,7 +150,15 @@ export async function createWolf({
 		if (walkClip) walkAction = mixer.clipAction(walkClip);
 	}
 
-	const canFlee = Boolean(groundCollider && fleeClipName && fleeTriggerRadiusMeters != null);
+// Run 407: the reactive branch is gated on *reacting*, not on having a flee clip.
+	//
+	// This read `fleeClipName && fleeTriggerRadiusMeters != null`, which is right for an animal that
+	// bolts and wrong for one that charges: the magma hound ships `Idle` and `Walk` and no flee clip, so
+	// with the old gate `directThreat` was permanently false and the pack stood still while the player
+	// walked through it. Measured before the fix — player placed 20 m away, 3 s of simulation stepped:
+	// distance 20.00 m -> 20.00 m, i.e. it never moved. The one clip-dependent use downstream
+	// (`playAction(fleeAction ?? walkAction ?? idleAction)`) already falls back on its own.
+	const canFlee = Boolean(groundCollider && fleeTriggerRadiusMeters != null && (fleeClipName || aggressive));
 	const releaseMarginMeters = Number.isFinite(fleeReleaseMarginMeters)
 		? Math.max(0, Math.min(12, fleeReleaseMarginMeters))
 		: DEFAULT_FLEE_RELEASE_MARGIN_METERS;
@@ -226,10 +249,17 @@ export async function createWolf({
 				releaseRadiusMeters: canFlee ? fleeReleaseRadiusMeters : null,
 			});
 
-			if (currentlyFleeing && simulationDelta > 0) {
+			if (currentlyFleeing && simulationDelta > 0 && aggressive && distanceFromPlayer <= aggressiveStandoffMeters) {
+				// Closed the distance: hold and face the player rather than pushing through them.
+				turnToward(Math.atan2(playerPosition.x - model.position.x, playerPosition.z - model.position.z), simulationDelta);
+				playAction(idleAction ?? walkAction);
+			} else if (currentlyFleeing && simulationDelta > 0) {
 				const hasSeparationVector = distanceFromPlayer > 1e-6;
-				const dirX = hasSeparationVector ? dxFromPlayer / distanceFromPlayer : Math.sin(model.rotation.y);
-				const dirZ = hasSeparationVector ? dzFromPlayer / distanceFromPlayer : Math.cos(model.rotation.y);
+				// `dxFromPlayer` points from the player to the animal, so the unmodified vector runs
+				// away. An aggressive animal takes the same vector with the opposite sign.
+				const towardSign = aggressive ? -1 : 1;
+				const dirX = hasSeparationVector ? towardSign * dxFromPlayer / distanceFromPlayer : Math.sin(model.rotation.y);
+				const dirZ = hasSeparationVector ? towardSign * dzFromPlayer / distanceFromPlayer : Math.cos(model.rotation.y);
 				const step = fleeSpeedMps * simulationDelta;
 				const moved = tryCommitGroundedMove(model.position.x + dirX * step, model.position.z + dirZ * step);
 				if (moved) {
@@ -280,11 +310,19 @@ export async function createWolf({
 export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsById, sampleGroundY, groundCollider, playerCollider }) {
 	const animals = await Promise.all(
 		animalConfig.SPAWNS.map(async (spawn) => {
-			const seat = seatsById.get(spawn.seatId);
-			if (!seat) {
+			// Run 407: a spawn may anchor to a point on the owner map instead of a kingdom seat. Valyria
+			// is a region, not a castle, and every existing anchor was a seat id — so placing anything in
+			// the Doom was impossible through this config at all. `mapAnchor` carries normalized owner-map
+			// coordinates and resolves through the same `mapToWorldXZ` the seats themselves use, so the two
+			// anchor kinds land in one coordinate space rather than two.
+			const anchor = spawn.mapAnchor
+				? mapToWorldXZ(spawn.mapAnchor.nx, spawn.mapAnchor.ny, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT)
+				: seatsById.get(spawn.seatId);
+			if (!anchor) {
 				console.warn(`[gameplay/animals] Animal spawn "${spawn.id}" references unknown seat "${spawn.seatId}" — skipping.`);
 				return null;
 			}
+			const seat = anchor;
 			const worldX = seat.x + spawn.offsetXMeters;
 			const worldZ = seat.z + spawn.offsetZMeters;
 			const patrolWaypoints = spawn.patrol
@@ -303,6 +341,12 @@ export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsB
 			const effectiveWaypoints = walkClipName ? patrolWaypoints : undefined;
 			const fleeClipName = species ? clips?.flee : animalConfig.FLEE_CLIP_NAME;
 			const canFlee = spawn.canFlee !== false && Boolean(fleeClipName);
+			// Run 407: an aggressive species reacts to the player with no flee clip at all. The magma
+			// hound ships `Idle` and `Walk` and nothing else, so gating the reactive branch on a flee
+			// clip alone (as `canFlee` does) would have left it standing still while the player walked
+			// through the pack.
+			const isAggressive = species?.aggressive === true;
+			const canReact = canFlee || isAggressive;
 			return createWolf({
 				assetLoader,
 				modelUrl: species?.modelUrl ?? spawn.modelUrl ?? animalConfig.WOLF_MODEL_URL,
@@ -321,8 +365,11 @@ export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsB
 				pauseSeconds: animalConfig.PATROL_PAUSE_SECONDS,
 				turnRateRadiansPerSecond: animalConfig.PATROL_TURN_RATE_RADIANS_PER_SECOND,
 				fleeClipName: canFlee ? fleeClipName : undefined,
-				fleeTriggerRadiusMeters: canFlee ? animalConfig.FLEE_TRIGGER_RADIUS_METERS : undefined,
-				fleeSpeedMps: animalConfig.FLEE_SPEED_MPS,
+				fleeTriggerRadiusMeters: canReact
+					? (isAggressive ? (species.chargeTriggerRadiusMeters ?? animalConfig.FLEE_TRIGGER_RADIUS_METERS) : animalConfig.FLEE_TRIGGER_RADIUS_METERS)
+					: undefined,
+				fleeSpeedMps: isAggressive ? (species.chargeSpeedMps ?? animalConfig.FLEE_SPEED_MPS) : animalConfig.FLEE_SPEED_MPS,
+				aggressive: isAggressive,
 				packAlertRadiusMeters: canFlee ? animalConfig.PACK_ALERT_RADIUS_METERS : undefined,
 			});
 		}),
