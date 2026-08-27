@@ -11,13 +11,16 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX08_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex08-detail-2026-08-26-v3-readable-worldspace-weathering',
+  id: 'owner-map-pindex08-detail-2026-08-27-v4-drainage-alluvium-weathering',
   pindex: 8,
   renderOnly: true,
   geographyAuthorityUnchanged: true,
   macroMeters: 1710,
   mesoMeters: 455,
   fineMeters: 108,
+  grainMeters: 46,
+  drainageMeters: 330,
+  alluviumMeters: 620,
   boundaryProbeNormalized: 0.006,
   amplitudeBySurface: Object.freeze({ sea: 0.018, lake: 0.020, soil: 0.176, rock: 0.160, snow: 0.086 }),
   chromaBySurface: Object.freeze({ sea: 0.020, lake: 0.022, soil: 0.148, rock: 0.114, snow: 0.064 }),
@@ -73,27 +76,51 @@ function surfaceFabric(surface, worldX, worldZ) {
   const macro = valueNoise(worldX, worldZ, P.macroMeters, 5.1);
   const meso = valueNoise(worldX - macro * 225, worldZ + macro * 164, P.mesoMeters, 12.3);
   const fine = valueNoise(worldX + meso * 54, worldZ - meso * 63, P.fineMeters, 19.7);
+  const grain = valueNoise(worldX - fine * 21, worldZ + meso * 18, P.grainMeters, 31.4);
   const moisture = THREE.MathUtils.clamp(0.5 + macro * 0.34 + meso * 0.20 - fine * 0.05, 0, 1);
   const mineral = THREE.MathUtils.clamp(0.5 - macro * 0.12 + meso * 0.30 + fine * 0.12, 0, 1);
 
-  let luminance = macro * 0.50 + meso * 0.34 + fine * 0.16;
+  let luminance = macro * 0.50 + meso * 0.34 + fine * 0.12 + grain * 0.04;
   let warm = mineral - 0.5;
   let cool = moisture - 0.5;
 
-  if (surface === 'rock') {
+  if (surface === 'soil') {
+    const drainageField = valueNoise(
+      worldX + meso * 96 + macro * 42,
+      worldZ - macro * 118 + fine * 24,
+      P.drainageMeters,
+      34.8,
+    );
+    const floodplainField = valueNoise(
+      worldX - macro * 155 + fine * 31,
+      worldZ + meso * 104 - macro * 38,
+      P.alluviumMeters,
+      42.6,
+    );
+    const drainage = THREE.MathUtils.smoothstep(drainageField, 0.22, 0.78)
+      * THREE.MathUtils.smoothstep(moisture, 0.43, 0.82);
+    const alluvium = THREE.MathUtils.smoothstep(floodplainField, -0.02, 0.66)
+      * THREE.MathUtils.smoothstep(moisture, 0.30, 0.72)
+      * (1 - drainage * 0.38);
+    const exposedInterfluve = THREE.MathUtils.smoothstep(mineral, 0.55, 0.88)
+      * (1 - THREE.MathUtils.smoothstep(moisture, 0.34, 0.64));
+    luminance += alluvium * 0.15 - drainage * 0.20 + exposedInterfluve * 0.13 + grain * 0.035;
+    cool += drainage * 0.32 + alluvium * 0.08 - exposedInterfluve * 0.16;
+    warm += alluvium * 0.18 + exposedInterfluve * 0.30 - drainage * 0.10;
+  } else if (surface === 'rock') {
     const warp = macro * 0.73 - meso * 0.47;
     const strata = Math.sin(worldX * 0.0048 + worldZ * 0.0062 + warp * 3.1);
     const erosion = Math.abs(valueNoise(worldX - meso * 72, worldZ + macro * 85, 205, 27.6));
-    luminance = macro * 0.32 + meso * 0.29 + fine * 0.11 + strata * 0.27 - erosion * 0.13;
+    luminance = macro * 0.32 + meso * 0.29 + fine * 0.10 + grain * 0.05 + strata * 0.27 - erosion * 0.13;
     warm += Math.max(0, mineral - 0.44) * 0.48;
     cool *= 0.32;
   } else if (surface === 'snow') {
     const scour = THREE.MathUtils.clamp(0.5 + meso * 0.31 - fine * 0.24 - macro * 0.11, 0, 1);
-    luminance = macro * 0.20 + meso * 0.31 + fine * 0.20 + (0.5 - scour) * 0.40;
+    luminance = macro * 0.20 + meso * 0.31 + fine * 0.17 + grain * 0.04 + (0.5 - scour) * 0.40;
     cool = scour - 0.5;
     warm *= 0.14;
   } else if (surface === 'sea' || surface === 'lake') {
-    luminance = macro * 0.38 + meso * 0.23 + fine * 0.06;
+    luminance = macro * 0.38 + meso * 0.23 + fine * 0.05 + grain * 0.01;
     warm *= 0.08;
     cool += macro * 0.13;
   }
