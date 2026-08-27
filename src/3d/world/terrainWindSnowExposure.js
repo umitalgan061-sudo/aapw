@@ -10,12 +10,12 @@
  * explicit and deterministic so chunk borders cannot acquire random aspect seams. On real mountain
  * shoulders the effective flow bends modestly along the local contour, and strength follows distinct
  * slope bands: windward scour concentrates on exposed ridge shoulders while lee deposition concentrates
- * on moderate sheltered faces and disappears again on near-cliffs. V8 additionally derives an
- * orographic fold signal from the same four-neighbour stencil: broken ridges and folded massifs channel
- * a little more strongly than planar faces, preventing every mountain from receiving the same compass-
- * straight snow split without adding noise, map-space bands or a second geography authority. All of
- * this still alters only loose render snow; canonical snow geography, terrain height, hydrology and
- * colliders are unchanged.
+ * on moderate sheltered faces and disappears again on near-cliffs. V9 additionally derives an
+ * orographic fold signal from the same four-neighbour stencil at a scale that is measurable on the live
+ * terrain apron: broken ridges and folded massifs channel more strongly than planar faces, preventing
+ * every mountain from receiving the same compass-straight snow split without adding noise, map-space
+ * bands or a second geography authority. All of this still alters only loose render snow; canonical
+ * snow geography, terrain height, hydrology and colliders are unchanged.
  * @module world/terrainWindSnowExposure
  */
 
@@ -30,7 +30,7 @@ function smoothstep(edge0, edge1, value) {
 const PREVAILING_SOURCE_LENGTH = Math.hypot(0.8, 0.6);
 
 export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
-	id: 'terrain-wind-snow-exposure-2026-08-27-v8-orographic-fold-channeling',
+	id: 'terrain-wind-snow-exposure-2026-08-27-v9-live-fold-channeling',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	// Direction points toward the source of the prevailing wind. Wind therefore travels NW -> SE.
@@ -66,12 +66,13 @@ export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
 	channelingMaxBlend: 0.28,
 	// A four-neighbour saddle/fold signal distinguishes broken massifs from planar slopes without a
 	// centre-height sample: (W+E)-(N+S) cancels an arbitrary vertical offset and is exact zero on the
-	// planar fixtures used by the contract. Folded terrain may bend flow up to another 10 percentage
-	// points and modestly strengthen already-valid directional weights; values remain clamped to [0,1].
-	orographicFoldGradientStart: 0.08,
-	orographicFoldGradientFull: 0.42,
-	orographicFoldChannelingBoost: 0.10,
-	orographicFoldExposureBoost: 0.08,
+	// planar fixtures used by the contract. The v8 thresholds were numerically correct but sat above
+	// most live-apron second derivatives, producing zero rendered change. V9 moves the response into the
+	// measured live-relief range while keeping it strictly topology-derived and bounded.
+	orographicFoldGradientStart: 0.025,
+	orographicFoldGradientFull: 0.20,
+	orographicFoldChannelingBoost: 0.16,
+	orographicFoldExposureBoost: 0.16,
 	// The permanent-ice floor supplies most northern snow before redistribution. Sub-10% adjustments
 	// became visually quantised away in the authoritative full-world render, so exposed shoulders may
 	// now lose up to 18% of loose surface snow. This is still far below removing canonical coverage and
