@@ -19,10 +19,6 @@ on:
       - '.github/workflows/rpg-mastery-economy-continuity.yml'
       - '.github/workflows/rpg-smithing-service-persistence.yml'
       - '.github/workflows/rpg-mastery-to-smithing.yml'
-  workflow_dispatch:
-
-permissions:
-  contents: read
 
 jobs:
   smithing-service-persistence:
@@ -45,31 +41,15 @@ jobs:
           test "$base" = "$(git rev-parse origin/main)"
           mapfile -t paths < <(git diff --name-only "$base"...HEAD)
           allowed='^(\.github/workflows/(rpg-interaction-quest-loop|rpg-journey-ledger-ux|rpg-smithing-service-persistence|rpg-mastery-armorer-service|rpg-mastery-to-smithing|rpg-mastery-economy-continuity|rpg-tavern-receipt-integrity)\.yml|scripts/checkInteractionExpeditionKit(Browser|Craft)\.mjs|scripts/checkInteractionProvisioningCraft\.mjs|scripts/checkInteractionQuartermasterTrade\.mjs|scripts/checkInteractionSettlementService(Browser|Contract)\.mjs|scripts/checkInteractionSmithingServicePersistence\.mjs|scripts/checkInteractionTradeLedger(Atomicity|Browser)\.mjs|scripts/checkInteractionMasteryEconomyContinuity\.mjs|scripts/checkInteractionMasteryToSmithingBrowser\.mjs|scripts/checkInteractionArmorerServiceBrowser\.mjs|src/3d/gameplay/interactionConfig\.js)$'
-          if (( ${#paths[@]} )); then
-            printf '%s\n' "${paths[@]}" | grep -Ev "$allowed" && exit 1 || true
-          fi
+          if (( ${#paths[@]} )); then printf '%s\n' "${paths[@]}" | grep -Ev "$allowed" && exit 1 || true; fi
           changed="$(git diff --numstat "$base"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           test "$changed" -le 1000
       - name: Syntax and smithing persistence acceptance
+        shell: bash
         run: |
           set -euo pipefail
-          node --check src/3d/gameplay/interactionConfig.js
-          node --check scripts/checkInteractionExpeditionKitCraft.mjs
-          node --check scripts/checkInteractionProvisioningCraft.mjs
-          node --check scripts/checkInteractionQuartermasterTrade.mjs
-          node --check scripts/checkInteractionSettlementServiceContract.mjs
-          node --check scripts/checkInteractionSettlementServiceBrowser.mjs
-          node --check scripts/checkInteractionSmithingServicePersistence.mjs
-          node --check scripts/checkInteractionTradeLedgerAtomicity.mjs
-          node --check scripts/checkInteractionMasteryEconomyContinuity.mjs
-          node --check scripts/checkInteractionMasteryToSmithingBrowser.mjs
-          node scripts/checkInteractionExpeditionKitCraft.mjs
-          node scripts/checkInteractionProvisioningCraft.mjs
-          node scripts/checkInteractionQuartermasterTrade.mjs
-          node scripts/checkInteractionSettlementServiceContract.mjs
-          node scripts/checkInteractionSmithingServicePersistence.mjs
-          node scripts/checkInteractionTradeLedgerAtomicity.mjs
-          node scripts/checkInteractionMasteryEconomyContinuity.mjs
+          for f in src/3d/gameplay/interactionConfig.js scripts/checkInteraction{ExpeditionKitCraft,ProvisioningCraft,QuartermasterTrade,SettlementServiceContract,SettlementServiceBrowser,SmithingServicePersistence,TradeLedgerAtomicity,MasteryEconomyContinuity,MasteryToSmithingBrowser}.mjs; do node --check "$f"; done
+          for f in ExpeditionKitCraft ProvisioningCraft QuartermasterTrade SettlementServiceContract SmithingServicePersistence TradeLedgerAtomicity MasteryEconomyContinuity; do node "scripts/checkInteraction${f}.mjs"; done
       - name: Install Chromium acceptance harness
         run: |
           set -euo pipefail
