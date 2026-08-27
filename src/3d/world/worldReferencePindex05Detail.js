@@ -5,11 +5,12 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX05_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex05-detail-2026-08-27-v5-readable-world-space-lowland-weathering',
+  id: 'owner-map-pindex05-detail-2026-08-27-v6-lowland-drainage-mosaic',
   pindex: 5,
-  amplitudeBySurface: Object.freeze({ sea: 0.004, lake: 0.004, soil: 0.045, rock: 0.043, snow: 0.018 }),
+  amplitudeBySurface: Object.freeze({ sea: 0.004, lake: 0.004, soil: 0.050, rock: 0.045, snow: 0.019 }),
   naturalSoilFabric: true,
   worldSpaceWeathering: true,
+  lowlandDrainageMosaic: true,
   legacyNormalized1024GrainRemoved: true,
   pindexStartX: 0.4,
   pindexEndX: 0.5,
@@ -20,17 +21,26 @@ export const PINDEX05_DETAIL_POLICY = Object.freeze({
   grainScaleMeters: 43,
   drainageScaleMeters: 310,
   alluviumScaleMeters: 520,
-  moistureStrength: 0.36,
-  mineralDryStrength: 0.28,
-  alluviumStrength: 0.26,
-  interfluveStrength: 0.23,
-  stonyStrength: 0.16,
-  luminanceStrength: 0.13,
-  wetSoilColor: 0x465f3b,
-  dryHeathColor: 0xa08a55,
-  alluviumColor: 0x637057,
-  exposedMineralColor: 0xa08763,
+  floodplainScaleMeters: 760,
+  seepScaleMeters: 185,
+  erosionScaleMeters: 265,
+  moistureStrength: 0.39,
+  mineralDryStrength: 0.30,
+  alluviumStrength: 0.29,
+  interfluveStrength: 0.25,
+  stonyStrength: 0.17,
+  humicStrength: 0.20,
+  clayStrength: 0.15,
+  erosionApronStrength: 0.14,
+  luminanceStrength: 0.145,
+  wetSoilColor: 0x435b38,
+  dryHeathColor: 0xa18a54,
+  alluviumColor: 0x65745a,
+  exposedMineralColor: 0xa28862,
   stonyColor: 0x747169,
+  humicColor: 0x3c4b34,
+  clayColor: 0x8a745c,
+  erosionApronColor: 0x796a54,
   geographyAuthorityUnchanged: true,
 });
 
@@ -39,6 +49,9 @@ const DRY_HEATH = new THREE.Color(PINDEX05_DETAIL_POLICY.dryHeathColor);
 const ALLUVIUM = new THREE.Color(PINDEX05_DETAIL_POLICY.alluviumColor);
 const EXPOSED_MINERAL = new THREE.Color(PINDEX05_DETAIL_POLICY.exposedMineralColor);
 const STONY = new THREE.Color(PINDEX05_DETAIL_POLICY.stonyColor);
+const HUMIC = new THREE.Color(PINDEX05_DETAIL_POLICY.humicColor);
+const CLAY = new THREE.Color(PINDEX05_DETAIL_POLICY.clayColor);
+const EROSION_APRON = new THREE.Color(PINDEX05_DETAIL_POLICY.erosionApronColor);
 const scratch = new THREE.Color();
 
 const clamp01 = (value) => THREE.MathUtils.clamp(value, 0, 1);
@@ -127,13 +140,44 @@ export function resolvePindex05WorldWeathering(worldX, worldZ, normalizedX) {
   const drainageField = fbm(warpedX / P.drainageScaleMeters - 6.3, warpedZ / (P.drainageScaleMeters * 1.55) + 14.1, 0x579b);
   const drainage = clamp01((ridge(drainageField) - 0.55) / 0.45);
   const alluvialField = fbm(warpedX / P.alluviumScaleMeters + 19.4, warpedZ / P.alluviumScaleMeters - 3.8, 0x68ac);
-  const moisture = clamp01(0.50 - macro * 0.32 - meso * 0.13 + drainage * 0.34 - fine * 0.035);
-  const mineralDry = clamp01(0.50 + macro * 0.26 + meso * 0.20 + fine * 0.08 - drainage * 0.24);
+  const floodplainField = fbm(
+    (warpedX * 0.83 + warpedZ * 0.56) / P.floodplainScaleMeters - 2.7,
+    (warpedZ * 0.83 - warpedX * 0.56) / (P.floodplainScaleMeters * 0.72) + 9.8,
+    0x79bd,
+  );
+  const seepField = fbm(worldX / P.seepScaleMeters + 22.1, worldZ / (P.seepScaleMeters * 1.38) - 15.6, 0x8ace);
+  const erosionField = fbm(
+    (worldX * 0.66 - worldZ * 0.75) / P.erosionScaleMeters + 3.4,
+    (worldZ * 0.66 + worldX * 0.75) / (P.erosionScaleMeters * 1.24) - 7.9,
+    0x9bdf,
+  );
+  const moisture = clamp01(0.50 - macro * 0.32 - meso * 0.13 + drainage * 0.34 - fine * 0.035 + seepField * 0.045);
+  const mineralDry = clamp01(0.50 + macro * 0.26 + meso * 0.20 + fine * 0.08 - drainage * 0.24 - seepField * 0.03);
   const alluvium = edgeMask * drainage * smoothstep(-0.20, 0.48, alluvialField) * smoothstep(0.48, 0.78, moisture);
+  const floodplain = edgeMask * smoothstep(0.36, 0.76, moisture) * smoothstep(-0.34, 0.46, floodplainField) * (0.30 + drainage * 0.70);
+  const humic = edgeMask * smoothstep(0.62, 0.88, moisture) * smoothstep(0.02, 0.72, seepField) * (0.32 + floodplain * 0.68);
   const interfluve = edgeMask * (1 - drainage) * smoothstep(0.52, 0.80, mineralDry) * smoothstep(0.18, 0.74, macro);
   const stony = edgeMask * smoothstep(0.58, 0.86, fine * 0.62 + grain * 0.38) * (0.28 + interfluve * 0.72);
-  const luminance = THREE.MathUtils.clamp(macro * 0.44 + meso * 0.31 + fine * 0.17 + grain * 0.08, -1, 1);
-  return { edgeMask, moisture, mineralDry, alluvium, interfluve, stony, luminance };
+  const clay = edgeMask * smoothstep(0.46, 0.78, alluvium + floodplain * 0.52) * smoothstep(-0.12, 0.62, -fine);
+  const erosionApron = edgeMask * (1 - drainage) * smoothstep(0.48, 0.84, Math.abs(erosionField)) * smoothstep(0.44, 0.80, mineralDry);
+  const luminance = THREE.MathUtils.clamp(
+    macro * 0.40 + meso * 0.29 + fine * 0.16 + grain * 0.06 + floodplainField * 0.06 + erosionField * 0.03,
+    -1,
+    1,
+  );
+  return {
+    edgeMask,
+    moisture,
+    mineralDry,
+    alluvium,
+    floodplain,
+    humic,
+    interfluve,
+    stony,
+    clay,
+    erosionApron,
+    luminance,
+  };
 }
 
 function classificationForWorld(worldX, worldZ) {
@@ -157,6 +201,8 @@ export function applyPindex05DetailToTerrainMesh(mesh) {
   let drainageVertices = 0;
   let alluvialVertices = 0;
   let interfluveVertices = 0;
+  let humicVertices = 0;
+  let erosionApronVertices = 0;
   for (let index = 0; index < position.count; index += 1) {
     const worldX = mesh.position.x + position.getX(index);
     const worldZ = mesh.position.z + position.getZ(index);
@@ -164,7 +210,7 @@ export function applyPindex05DetailToTerrainMesh(mesh) {
     if (c.pindex !== PINDEX05_DETAIL_POLICY.pindex) continue;
     const signal = resolvePindex05WorldWeathering(worldX, worldZ, c.normalizedX);
     const amplitude = PINDEX05_DETAIL_POLICY.amplitudeBySurface[c.surface] ?? 0;
-    const shade = THREE.MathUtils.clamp(1 + signal.edgeMask * signal.luminance * amplitude, 0.87, 1.13);
+    const shade = THREE.MathUtils.clamp(1 + signal.edgeMask * signal.luminance * amplitude, 0.86, 1.14);
     scratch.setRGB(
       THREE.MathUtils.clamp(color.getX(index) * shade, 0, 1),
       THREE.MathUtils.clamp(color.getY(index) * shade, 0, 1),
@@ -176,10 +222,16 @@ export function applyPindex05DetailToTerrainMesh(mesh) {
       const alluviumWeight = signal.alluvium * PINDEX05_DETAIL_POLICY.alluviumStrength;
       const interfluveWeight = signal.interfluve * PINDEX05_DETAIL_POLICY.interfluveStrength;
       const stonyWeight = signal.stony * PINDEX05_DETAIL_POLICY.stonyStrength;
+      const humicWeight = signal.humic * PINDEX05_DETAIL_POLICY.humicStrength;
+      const clayWeight = signal.clay * PINDEX05_DETAIL_POLICY.clayStrength;
+      const erosionApronWeight = signal.erosionApron * PINDEX05_DETAIL_POLICY.erosionApronStrength;
       scratch.lerp(WET_SOIL, wetWeight);
-      scratch.lerp(DRY_HEATH, dryWeight);
+      scratch.lerp(HUMIC, humicWeight);
       scratch.lerp(ALLUVIUM, alluviumWeight);
+      scratch.lerp(CLAY, clayWeight);
+      scratch.lerp(DRY_HEATH, dryWeight);
       scratch.lerp(EXPOSED_MINERAL, interfluveWeight);
+      scratch.lerp(EROSION_APRON, erosionApronWeight);
       scratch.lerp(STONY, stonyWeight);
       const tonal = 1 + signal.edgeMask * signal.luminance * PINDEX05_DETAIL_POLICY.luminanceStrength;
       scratch.multiplyScalar(tonal);
@@ -187,9 +239,21 @@ export function applyPindex05DetailToTerrainMesh(mesh) {
       drainageVertices += signal.moisture > 0.62 && signal.edgeMask > 0.05 ? 1 : 0;
       alluvialVertices += signal.alluvium > 0.08 ? 1 : 0;
       interfluveVertices += signal.interfluve > 0.08 ? 1 : 0;
-      naturalSoilEnergy += signal.edgeMask * (Math.abs(signal.luminance) + wetWeight + dryWeight + alluviumWeight + interfluveWeight + stonyWeight);
+      humicVertices += signal.humic > 0.06 ? 1 : 0;
+      erosionApronVertices += signal.erosionApron > 0.08 ? 1 : 0;
+      naturalSoilEnergy += signal.edgeMask * (
+        Math.abs(signal.luminance)
+        + wetWeight
+        + dryWeight
+        + alluviumWeight
+        + interfluveWeight
+        + stonyWeight
+        + humicWeight
+        + clayWeight
+        + erosionApronWeight
+      );
     } else if (c.surface === 'rock') {
-      const rockWeather = signal.edgeMask * (signal.interfluve * 0.14 + signal.stony * 0.12);
+      const rockWeather = signal.edgeMask * (signal.interfluve * 0.14 + signal.stony * 0.12 + signal.erosionApron * 0.08);
       scratch.lerp(STONY, rockWeather);
     } else if (c.surface === 'snow') {
       scratch.lerp(STONY, signal.edgeMask * signal.stony * 0.04);
@@ -207,6 +271,8 @@ export function applyPindex05DetailToTerrainMesh(mesh) {
     drainageVertices,
     alluvialVertices,
     interfluveVertices,
+    humicVertices,
+    erosionApronVertices,
   });
   mesh.userData.run292Pindex05Detail = summary;
   return summary;
@@ -220,6 +286,8 @@ export function applyPindex05DetailToTerrainGroup(terrainGroup) {
   let drainageVertices = 0;
   let alluvialVertices = 0;
   let interfluveVertices = 0;
+  let humicVertices = 0;
+  let erosionApronVertices = 0;
   for (const mesh of terrainGroup.children) {
     const summary = applyPindex05DetailToTerrainMesh(mesh);
     touchedVertices += summary.touchedVertices;
@@ -228,6 +296,8 @@ export function applyPindex05DetailToTerrainGroup(terrainGroup) {
     drainageVertices += summary.drainageVertices;
     alluvialVertices += summary.alluvialVertices;
     interfluveVertices += summary.interfluveVertices;
+    humicVertices += summary.humicVertices;
+    erosionApronVertices += summary.erosionApronVertices;
   }
   const summary = Object.freeze({
     policyId: PINDEX05_DETAIL_POLICY.id,
@@ -238,6 +308,8 @@ export function applyPindex05DetailToTerrainGroup(terrainGroup) {
     drainageVertices,
     alluvialVertices,
     interfluveVertices,
+    humicVertices,
+    erosionApronVertices,
     meshCount: terrainGroup.children.length,
   });
   terrainGroup.userData.run292Pindex05Detail = summary;
