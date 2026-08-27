@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -108,6 +109,10 @@ try {
     events.clear();
     return { assetErrors, reports };
   });
+
+  const evidence = { pageErrors, consoleErrors, ...proof };
+  mkdirSync('artifacts', { recursive: true });
+  writeFileSync('artifacts/configured-fauna-runtime.json', `${JSON.stringify(evidence, null, 2)}\n`);
 
   assert.equal(pageErrors.length, 0, `page errors: ${pageErrors.join(' | ')}`);
   assert.equal(consoleErrors.length, 0, `fauna proof console errors: ${consoleErrors.join(' | ')}`);
