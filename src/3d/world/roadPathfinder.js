@@ -64,6 +64,8 @@ const SHORT_ROUTE_CORRIDOR_PADDING_METERS = 360;
 const MEDIUM_ROUTE_MAX_DISTANCE_METERS = 780;
 const MEDIUM_ROUTE_REFINEMENT_CELL_METERS = 12;
 const MEDIUM_ROUTE_CORRIDOR_PADDING_METERS = 480;
+const MEDIUM_ROUTE_EXPANDED_CORRIDOR_PADDING_METERS = 720;
+const MEDIUM_ROUTE_MAX_CORRIDOR_PADDING_METERS = 960;
 const riverAvoidanceCache = new WeakMap();
 
 const EIGHT_NEIGHBOR_OFFSETS = Object.freeze([
@@ -307,10 +309,13 @@ function buildSearchStages(requestedCellMeters, requestedPaddingMeters, directDi
 			paddingMeters: SHORT_ROUTE_CORRIDOR_PADDING_METERS,
 		}));
 	} else if (directDistanceMeters <= MEDIUM_ROUTE_MAX_DISTANCE_METERS) {
-		stages.push(Object.freeze({
-			cellMeters: MEDIUM_ROUTE_REFINEMENT_CELL_METERS,
-			paddingMeters: MEDIUM_ROUTE_CORRIDOR_PADDING_METERS,
-		}));
+		for (const paddingMeters of [
+			MEDIUM_ROUTE_CORRIDOR_PADDING_METERS,
+			MEDIUM_ROUTE_EXPANDED_CORRIDOR_PADDING_METERS,
+			MEDIUM_ROUTE_MAX_CORRIDOR_PADDING_METERS,
+		]) {
+			stages.push(Object.freeze({ cellMeters: MEDIUM_ROUTE_REFINEMENT_CELL_METERS, paddingMeters }));
+		}
 	}
 	for (const [cellIndex, stageCellMeters] of cells.entries()) {
 		const minimumPaddingIndex = cellIndex === 0 ? 0 : Math.min(cellIndex, paddings.length - 1);
