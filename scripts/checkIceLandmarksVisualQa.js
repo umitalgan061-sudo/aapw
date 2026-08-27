@@ -90,8 +90,14 @@ try {
   ]) {
     if (!stats.roles.includes(role)) throw new Error(`missing visual role: ${role}`);
   }
-  if (stats.realism?.version !== 3 || stats.realism?.wallTexture?.resolution !== '256x512' || stats.realism?.caveTexture?.resolution !== '256x512') {
+  if (stats.realism?.version !== 4 || stats.realism?.wallTexture?.resolution !== '256x512' || stats.realism?.caveTexture?.resolution !== '256x512') {
     throw new Error(`natural glacial surface telemetry missing: ${JSON.stringify(stats.realism)}`);
+  }
+  if (!(stats.realism.seracCount >= 20 && stats.realism.seracCount <= 45)) {
+    throw new Error(`wall serac breakup lost the sparse-but-present v4 envelope: ${stats.realism.seracCount}`);
+  }
+  if (!(stats.realism.talusCount >= 8 && stats.realism.corniceCount >= 6)) {
+    throw new Error(`wall erosion/deposition breakup regressed: talus=${stats.realism.talusCount} cornices=${stats.realism.corniceCount}`);
   }
   if (!(stats.realism.wallTexture.crackCoverage > 0.01 && stats.realism.wallTexture.frostCoverage > 0.12 && stats.realism.wallTexture.debrisCoverage > 0.01)) {
     throw new Error(`wall lost fracture/frost/debris breakup: ${JSON.stringify(stats.realism.wallTexture)}`);
