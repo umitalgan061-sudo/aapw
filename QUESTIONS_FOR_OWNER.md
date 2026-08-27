@@ -599,5 +599,18 @@ sağlayamaz**. Yani bu 35 kırmızı, bu PR'da bir kusuru değil, PR'ın genişl
 3. **Dar kapsam kapılarını emekliye ayırın.** Geçmiş PR'ların artığı 79 kapı; her yeni geniş iş
    aynı duvara çarpacak.
 
+**Ek ölçüm (aynı run, karar maliyetini değiştiriyor):** Bu iş yalnız `main`'e inmeyi bekleyen bir yığın
+değil, bundan sonraki işin de üzerinde duracağı zemin. Dal, `main`'de **hiç bulunmayan 26 çalışma-zamanı
+modülü** taşıyor — `theWall.js`, `skyBodies.js`, `worldPropCatalogue.js`, `worldPropScatter.js`,
+`worldPropExclusions.js`, `worldReferenceGroundColorField.js`, `worldReferenceRivers.js`,
+`worldReferenceRoadNetwork.js`, `worldReferenceBiomeField.js` ve diğerleri (56 yeni dosyanın 26'sı
+`src/3d/` altında).
+
+Pratik sonucu şu: sizin en son istediğiniz iş — *"asset'deki bütün öğelerin coğrafi haritaya
+eklenmesi"* — `main`'den açılacak dar bir dalda **yapılamaz**, çünkü katalog da yerleştirme boru hattı
+da orada yok. Yani coğrafya ve asset yerleştirme yönündeki her yeni tur zorunlu olarak bu aynı dalın
+üstüne biniyor ve PR'ı daha da genişletiyor. Beklemek seçenek (2)'yi (dar PR'lara bölme) her turda
+biraz daha pahalı hale getiriyor.
+
 **Tavsiyem:** (1). Kapılar geçmiş PR'ların kapsamını koruyor, bu PR'ın doğruluğunu değil; doğruluğu
 ölçen kapı yeşil. Uzun vadede (3) de gerekiyor, yoksa bu her geniş işte tekrarlanır.
