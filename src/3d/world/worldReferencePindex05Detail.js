@@ -5,9 +5,9 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX05_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex05-detail-2026-08-27-v4-world-space-lowland-weathering',
+  id: 'owner-map-pindex05-detail-2026-08-27-v5-readable-world-space-lowland-weathering',
   pindex: 5,
-  amplitudeBySurface: Object.freeze({ sea: 0.004, lake: 0.004, soil: 0.035, rock: 0.038, snow: 0.016 }),
+  amplitudeBySurface: Object.freeze({ sea: 0.004, lake: 0.004, soil: 0.045, rock: 0.043, snow: 0.018 }),
   naturalSoilFabric: true,
   worldSpaceWeathering: true,
   legacyNormalized1024GrainRemoved: true,
@@ -20,17 +20,17 @@ export const PINDEX05_DETAIL_POLICY = Object.freeze({
   grainScaleMeters: 43,
   drainageScaleMeters: 310,
   alluviumScaleMeters: 520,
-  moistureStrength: 0.31,
-  mineralDryStrength: 0.23,
-  alluviumStrength: 0.20,
-  interfluveStrength: 0.17,
-  stonyStrength: 0.13,
-  luminanceStrength: 0.10,
-  wetSoilColor: 0x4c633e,
-  dryHeathColor: 0x9d8956,
-  alluviumColor: 0x69735a,
-  exposedMineralColor: 0x9b8565,
-  stonyColor: 0x77736a,
+  moistureStrength: 0.36,
+  mineralDryStrength: 0.28,
+  alluviumStrength: 0.26,
+  interfluveStrength: 0.23,
+  stonyStrength: 0.16,
+  luminanceStrength: 0.13,
+  wetSoilColor: 0x465f3b,
+  dryHeathColor: 0xa08a55,
+  alluviumColor: 0x637057,
+  exposedMineralColor: 0xa08763,
+  stonyColor: 0x747169,
   geographyAuthorityUnchanged: true,
 });
 
@@ -164,7 +164,7 @@ export function applyPindex05DetailToTerrainMesh(mesh) {
     if (c.pindex !== PINDEX05_DETAIL_POLICY.pindex) continue;
     const signal = resolvePindex05WorldWeathering(worldX, worldZ, c.normalizedX);
     const amplitude = PINDEX05_DETAIL_POLICY.amplitudeBySurface[c.surface] ?? 0;
-    const shade = THREE.MathUtils.clamp(1 + signal.edgeMask * signal.luminance * amplitude, 0.88, 1.12);
+    const shade = THREE.MathUtils.clamp(1 + signal.edgeMask * signal.luminance * amplitude, 0.87, 1.13);
     scratch.setRGB(
       THREE.MathUtils.clamp(color.getX(index) * shade, 0, 1),
       THREE.MathUtils.clamp(color.getY(index) * shade, 0, 1),
@@ -189,10 +189,10 @@ export function applyPindex05DetailToTerrainMesh(mesh) {
       interfluveVertices += signal.interfluve > 0.08 ? 1 : 0;
       naturalSoilEnergy += signal.edgeMask * (Math.abs(signal.luminance) + wetWeight + dryWeight + alluviumWeight + interfluveWeight + stonyWeight);
     } else if (c.surface === 'rock') {
-      const rockWeather = signal.edgeMask * (signal.interfluve * 0.12 + signal.stony * 0.10);
+      const rockWeather = signal.edgeMask * (signal.interfluve * 0.14 + signal.stony * 0.12);
       scratch.lerp(STONY, rockWeather);
     } else if (c.surface === 'snow') {
-      scratch.lerp(STONY, signal.edgeMask * signal.stony * 0.035);
+      scratch.lerp(STONY, signal.edgeMask * signal.stony * 0.04);
     }
     color.setXYZ(index, clamp01(scratch.r), clamp01(scratch.g), clamp01(scratch.b));
     touchedVertices += 1;
