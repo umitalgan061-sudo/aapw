@@ -13,7 +13,6 @@
 import { WORLD_SCALE } from '../config.js';
 
 const clamp01 = (value) => value < 0 ? 0 : value > 1 ? 1 : value;
-const TAU = Math.PI * 2;
 
 function hash2(ix, iy) {
   const value = Math.sin(ix * 127.1 + iy * 311.7) * 43758.5453123;
@@ -57,9 +56,11 @@ const smoothstep = (a, b, value) => {
 };
 
 export const VALYRIA_GEOLOGY_POLICY = Object.freeze({
-  id: 'valyria-asset-informed-doom-geology-2026-08-27-v2',
+  id: 'valyria-asset-informed-doom-geology-2026-08-27-v3-canonical-dry-authority',
+  supersedes: 'valyria-asset-informed-doom-geology-2026-08-27-v2',
   geographyAuthorityUnchanged: true,
   canonicalCoastlinePreserved: true,
+  canonicalWaterClassificationPreserved: true,
   deterministic: true,
   coreCenter: Object.freeze({ nx: 0.445, ny: 0.735 }),
   coreRadius: Object.freeze({ nx: 0.052, ny: 0.070 }),
@@ -71,6 +72,12 @@ export const VALYRIA_GEOLOGY_POLICY = Object.freeze({
   // canonical mountain ceiling or turning the shoreline into a cliff.
   upliftMeters: 238,
   shoreRampMeters: 34,
+  // Uplift may only act on owner-map samples which are overwhelmingly dry. This is intentionally much
+  // stricter than `height > sea`: a blended coastal Pindex may sit numerically above sea while still
+  // belonging to the canonical shoreline transition. Full uplift is restored only below 1.5% water;
+  // by 10% water the volcanic height term is exact zero.
+  canonicalDryWaterWeightFullAtOrBelow: 0.015,
+  canonicalDryWaterWeightZeroAtOrAbove: 0.10,
   shatterFrequency: 48,
   shatterOctaves: 3,
   shatterShare: 0.42,
@@ -119,15 +126,38 @@ export function valyriaInfluenceAtWorldXZ(worldX, worldZ) {
 }
 
 /**
- * Bounded dry-land volcanic uplift. Returns exact zero at/below sea level, so the canonical Smoking
- * Sea and island breakup cannot be filled back in by this profile.
+ * Canonical dry-land gate shared by terrain QA and the production height chain.
+ *
+ * `heightAboveSeaMeters` protects the immediate shoreline in metric space while `waterWeight`
+ * protects the actual owner-map classification. The two are deliberately independent: neither a
+ * noisy positive height in a wet cell nor a perfectly dry cell only centimetres above the waterline
+ * is allowed to receive a full volcanic wall.
  */
-export function valyriaUpliftMeters(nx, ny, heightAboveSeaMeters) {
+export function valyriaCanonicalDryGate01(waterWeight, heightAboveSeaMeters) {
   if (!(heightAboveSeaMeters > 0)) return 0;
+  const P = VALYRIA_GEOLOGY_POLICY;
+  const water = clamp01(Number.isFinite(waterWeight) ? waterWeight : 1);
+  if (water >= P.canonicalDryWaterWeightZeroAtOrAbove) return 0;
+  const waterDry = 1 - smoothstep(
+    P.canonicalDryWaterWeightFullAtOrBelow,
+    P.canonicalDryWaterWeightZeroAtOrAbove,
+    water,
+  );
+  const shoreDry = smoothstep(0, P.shoreRampMeters, heightAboveSeaMeters);
+  return waterDry * shoreDry;
+}
+
+/**
+ * Bounded dry-land volcanic uplift. Returns exact zero at/below sea level and on owner-map samples
+ * with meaningful water coverage, so the canonical Smoking Sea and island breakup cannot be filled
+ * back in by this profile.
+ */
+export function valyriaUpliftMeters(nx, ny, heightAboveSeaMeters, waterWeight = 0) {
+  const dryGate = valyriaCanonicalDryGate01(waterWeight, heightAboveSeaMeters);
+  if (dryGate <= 0) return 0;
   const influence = valyriaInfluence01(nx, ny);
   if (influence <= 0) return 0;
   const P = VALYRIA_GEOLOGY_POLICY;
-  const shore = smoothstep(0, P.shoreRampMeters, heightAboveSeaMeters);
   const signed = signedFbmNoise(nx * P.shatterFrequency + 41.7, ny * P.shatterFrequency - 88.3, P.shatterOctaves);
   const ridge = 1 - Math.abs(signed);
   const broadMass = (1 - P.shatterShare) + P.shatterShare * ridge;
@@ -140,16 +170,20 @@ export function valyriaUpliftMeters(nx, ny, heightAboveSeaMeters) {
 
   // Faulting remains medium-scale and bounded; it prevents the range from becoming one smooth mound.
   const fault = signedFbmNoise(nx * P.faultFrequency - 23.9, ny * P.faultFrequency + 51.4, 2);
-  const mass = P.upliftMeters * Math.pow(influence, 1.45) * shore * broadMass;
-  const cut = P.calderaCutMeters * caldera * Math.pow(influence, 1.8) * shore;
-  const faulting = P.faultAmplitudeMeters * fault * influence * shore;
-  return Math.max(0, mass - cut + faulting);
+  const mass = P.upliftMeters * Math.pow(influence, 1.45) * broadMass;
+  const cut = P.calderaCutMeters * caldera * Math.pow(influence, 1.8);
+  const faulting = P.faultAmplitudeMeters * fault * influence;
+  return Math.max(0, mass - cut + faulting) * dryGate;
 }
 
-export function valyriaUpliftAtWorldXZ(worldX, worldZ, heightAboveSeaMeters) {
+export function valyriaUpliftAtWorldXZ(worldX, worldZ, heightAboveSeaMeters, waterWeight = 0) {
   const p = normalizedOwnerMapAtWorldXZ(worldX, worldZ);
   if (!p.insideOwnerMap) return 0;
-  return valyriaUpliftMeters(p.nx, p.ny, heightAboveSeaMeters);
+  return valyriaUpliftMeters(p.nx, p.ny, heightAboveSeaMeters, waterWeight);
+}
+
+export function isValyriaBarrenAtWorldXZ(worldX, worldZ, threshold = VALYRIA_GEOLOGY_POLICY.vegetationExclusionInfluence) {
+  return valyriaInfluenceAtWorldXZ(worldX, worldZ) >= threshold;
 }
 
 /**
@@ -197,6 +231,25 @@ export function applyValyriaSurfaceColor(target, sample) {
   blend(P.lavaCooling, weights.lava * 0.30);
   blend(P.lava, weights.lava * 0.74);
   return target;
+}
+
+/** World-space convenience used by terrain shading without duplicating owner-map alignment logic. */
+export function applyValyriaSurfaceColorAtWorldXZ(target, {
+  worldX,
+  worldZ,
+  heightAboveSeaMeters,
+  concavityMeters = 0,
+  slopeDegrees = 0,
+}) {
+  const p = normalizedOwnerMapAtWorldXZ(worldX, worldZ);
+  if (!p.insideOwnerMap) return target;
+  return applyValyriaSurfaceColor(target, {
+    nx: p.nx,
+    ny: p.ny,
+    heightAboveSeaMeters,
+    concavityMeters,
+    slopeDegrees,
+  });
 }
 
 export function valyriaGeologyClassAtWorldXZ(worldX, worldZ, { heightAboveSeaMeters = 0, slopeDegrees = 0 } = {}) {
