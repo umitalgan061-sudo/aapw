@@ -117,7 +117,6 @@ export async function createWolf({
 	const mixer = new THREE.AnimationMixer(model);
 	const idleClip = THREE.AnimationClip.findByName(model.animations, idleClipName);
 	const idleAction = idleClip ? mixer.clipAction(idleClip) : null;
-
 	const isPatrolling = Boolean(patrolWaypoints && patrolWaypoints.length > 0 && groundCollider && walkClipName);
 	let walkAction = null;
 	if (isPatrolling) {
@@ -191,17 +190,26 @@ export async function createWolf({
 			let packThreatDx = 0;
 			let packThreatDz = 0;
 			let nearestPackThreatDistance = Infinity;
+			let nearestPackThreatX = Infinity;
+			let nearestPackThreatZ = Infinity;
 			if (canFlee && !directThreat && packAlertRadiusMeters != null && packmateFleePositions) {
 				for (const packmatePosition of packmateFleePositions) {
 					if (!Number.isFinite(packmatePosition?.x) || !Number.isFinite(packmatePosition?.z)) continue;
 					const dx = model.position.x - packmatePosition.x;
 					const dz = model.position.z - packmatePosition.z;
 					const distance = Math.hypot(dx, dz);
-					if (distance < packAlertRadiusMeters && distance < nearestPackThreatDistance) {
+					const distanceDelta = distance - nearestPackThreatDistance;
+					const isCloser = distanceDelta < -1e-9;
+					const isStableTie = Math.abs(distanceDelta) <= 1e-9
+						&& (packmatePosition.x < nearestPackThreatX
+							|| (packmatePosition.x === nearestPackThreatX && packmatePosition.z < nearestPackThreatZ));
+					if (distance < packAlertRadiusMeters && (isCloser || isStableTie)) {
 						isFleeingFromPack = true;
 						packThreatDx = dx;
 						packThreatDz = dz;
 						nearestPackThreatDistance = distance;
+						nearestPackThreatX = packmatePosition.x;
+						nearestPackThreatZ = packmatePosition.z;
 					}
 				}
 			}
