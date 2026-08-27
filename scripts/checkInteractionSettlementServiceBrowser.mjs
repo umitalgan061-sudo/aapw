@@ -28,6 +28,7 @@ try {
 		const { createInteractionController } = await import('/src/3d/gameplay/interaction.js');
 		const { QUARTERMASTER_NPC_ID, QUARTERMASTER_OFFERS } = await import('/src/3d/gameplay/interactionEconomy.js');
 		const serviceOffer = QUARTERMASTER_OFFERS[2];
+		const recipe = serviceOffer.fulfillment?.craftUpgrade;
 
 		function makeRuntime() {
 			const host = document.createElement('div');
@@ -65,9 +66,36 @@ try {
 			&& serviceOffer.itemId === 'dragonstone-travel-ration-pack'
 			&& serviceOffer.fulfillment?.kind === 'settlement-service'
 			&& serviceOffer.fulfillment?.serviceId === 'dragonstone-watch-ration-prep'
+			&& recipe?.inputItemId === 'dragonstone-field-ration'
+			&& recipe?.inputQuantity === 2
 			&& openingText.includes('Nöbetçi yol azığı hazırlama hizmeti')
 			&& openingText.includes('HİZMET: Erzak hazırlama');
 
+		const beforeBlocked = structuredClone(first.controller.getRpgSnapshot());
+		first.controller.handleKeyDown({ code: 'Digit3', repeat: false });
+		const blocked = structuredClone(first.controller.getRpgSnapshot());
+		const blockedAtomically = first.dialogueBox._textEl.textContent.includes('Satın alma başarısız.')
+			&& blocked.economy.copper === beforeBlocked.economy.copper
+			&& blocked.economy.stockByOffer[serviceOffer.id] === beforeBlocked.economy.stockByOffer[serviceOffer.id]
+			&& blocked.economy.ledger.transactionCount === beforeBlocked.economy.ledger.transactionCount
+			&& !serviceItem(blocked.inventory)
+			&& !blocked.inventory.items.some((item) => item.itemId === 'dragonstone-field-ration')
+			&& first.events.inventory.length === 0
+			&& first.events.economy.length === 0;
+
+		first.controller.handleKeyDown({ code: 'KeyB', repeat: false });
+		const seeded = structuredClone(first.controller.getRpgSnapshot());
+		seeded.inventory = {
+			items: [{
+				itemId: 'dragonstone-field-ration',
+				quantity: 2,
+				provenance: [{ sourceType: 'vendor', sourceId: QUARTERMASTER_NPC_ID }],
+			}],
+		};
+		first.controller.restoreRpgSnapshot(seeded);
+		first.events.inventory.length = 0;
+		first.events.economy.length = 0;
+		first.controller.handleKeyDown({ code: 'KeyB', repeat: false });
 		first.controller.handleKeyDown({ code: 'Digit3', repeat: false });
 		const after = first.controller.getRpgSnapshot();
 		const provision = serviceItem(after.inventory);
@@ -83,8 +111,8 @@ try {
 			&& receipt?.balanceCopper === 35
 			&& provision?.quantity === 1
 			&& !after.inventory.items.some((item) => item.itemId === 'dragonstone-field-ration')
-			&& provenance?.sourceType === 'settlement-service'
-			&& provenance?.sourceId === 'dragonstone-watch-ration-prep';
+			&& provenance?.sourceType === 'settlement-crafting'
+			&& provenance?.sourceId === recipe.recipeId;
 		const fulfilledUx = first.dialogueBox._textEl.textContent.includes('Son işlem: #1 Nöbetçi yol azığı hazırlama hizmeti')
 			&& first.dialogueBox._textEl.textContent.includes('stok 0/1')
 			&& first.dialogueBox._textEl.textContent.includes('TÜKENDİ')
@@ -94,8 +122,8 @@ try {
 		const callbacks = first.events.inventory.length === 1
 			&& first.events.economy.length === 1
 			&& callbackItem?.quantity === 1
-			&& callbackProvenance?.sourceType === 'settlement-service'
-			&& callbackProvenance?.sourceId === 'dragonstone-watch-ration-prep'
+			&& callbackProvenance?.sourceType === 'settlement-crafting'
+			&& callbackProvenance?.sourceId === recipe.recipeId
 			&& first.events.economy.at(-1)?.stockByOffer?.[serviceOffer.id] === 0;
 
 		const saved = structuredClone(after);
@@ -112,8 +140,9 @@ try {
 			&& roundTrip.economy.stockByOffer[serviceOffer.id] === 0
 			&& roundTrip.economy.ledger.transactionCount === 1
 			&& restoredProvision?.quantity === 1
-			&& restoredProvenance?.sourceType === 'settlement-service'
-			&& restoredProvenance?.sourceId === 'dragonstone-watch-ration-prep'
+			&& restoredProvenance?.sourceType === 'settlement-crafting'
+			&& restoredProvenance?.sourceId === recipe.recipeId
+			&& !roundTrip.inventory.items.some((item) => item.itemId === 'dragonstone-field-ration')
 			&& restored.dialogueBox._textEl.textContent.includes('Son işlem: #1 Nöbetçi yol azığı hazırlama hizmeti')
 			&& restored.dialogueBox._textEl.textContent.includes('HİZMET: Erzak hazırlama');
 
@@ -122,6 +151,7 @@ try {
 		restored.host.remove();
 		return {
 			serviceAdvertised,
+			blockedAtomically,
 			fulfilled,
 			fulfilledUx,
 			callbacks,
@@ -136,10 +166,10 @@ try {
 	});
 
 	if (pageErrors.length || consoleErrors.length) throw new Error(`Settlement service emitted browser errors: ${JSON.stringify({ pageErrors, consoleErrors })}`);
-	for (const key of ['serviceAdvertised', 'fulfilled', 'fulfilledUx', 'callbacks', 'persisted']) {
+	for (const key of ['serviceAdvertised', 'blockedAtomically', 'fulfilled', 'fulfilledUx', 'callbacks', 'persisted']) {
 		if (!result[key]) throw new Error(`Settlement-service browser assertion failed: ${key} ${JSON.stringify(result)}`);
 	}
-	console.log('[RPG Chromium] PASS: B → Digit3 ration-prep service → ready travel provisions → service provenance → ledger → save/load → reopen');
+	console.log('[RPG Chromium] PASS: B → Digit3 fail-closed without inputs → seed two rations → atomic ration-prep service → crafting provenance → ledger → save/load → reopen');
 	console.log(`[RPG Chromium] settlement-service choices=${result.openingChoices}, balance=${result.balance}, stock=${result.stock}, transactions=${result.transactions}`);
 	console.log('[RPG Chromium] settlement-service page errors=0, console errors=0');
 } finally {
