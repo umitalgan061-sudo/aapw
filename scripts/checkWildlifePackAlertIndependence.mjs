@@ -88,6 +88,22 @@ assert.equal(malformedPayloadWolf.object3D.userData.wildlifeFlee.direct, false);
 assert(Number.isFinite(malformedPayloadWolf.object3D.position.x) && Number.isFinite(malformedPayloadWolf.object3D.position.z));
 malformedPayloadWolf.dispose();
 
+const setBackedPackWolf = await createTestWolf();
+const setBackedPack = new Set([
+  { x: 0, z: -2 },
+  { x: Number.NaN, z: 0 },
+]);
+setBackedPackWolf.update(3, undefined, setBackedPack);
+assert.equal(setBackedPackWolf.object3D.userData.wildlifeFlee.phase, 'pack-flee');
+assert.equal(setBackedPackWolf.object3D.userData.wildlifeFlee.pack, true);
+assert.equal(setBackedPackWolf.object3D.userData.wildlifeFlee.direct, false);
+assert(
+  Math.abs(setBackedPackWolf.object3D.position.x) < 1e-9
+    && Math.abs(setBackedPackWolf.object3D.position.z - 0.45) < 1e-9,
+  'Set-backed pack aggregators must preserve bounded player-independent flee without array materialization',
+);
+setBackedPackWolf.dispose();
+
 const directThreatWolf = await createTestWolf();
 let directThreatPackReads = 0;
 const unboundedPackSource = {
