@@ -79,6 +79,18 @@ assert.equal(wolf.object3D.userData.wildlifeFlee.pack, false);
 assert.equal(wolf.object3D.position.distanceTo(before) > 0, true, 'patrol may resume after alarm disappears');
 wolf.dispose();
 
+const finiteDistantPlayerPackWolf = await createTestWolf();
+finiteDistantPlayerPackWolf.update(3, { x: 0, z: -20 }, [{ x: -2, z: 0 }]);
+assert.equal(finiteDistantPlayerPackWolf.object3D.userData.wildlifeFlee.phase, 'pack-flee');
+assert.equal(finiteDistantPlayerPackWolf.object3D.userData.wildlifeFlee.direct, false);
+assert.equal(finiteDistantPlayerPackWolf.object3D.userData.wildlifeFlee.pack, true);
+assert(
+  Math.abs(finiteDistantPlayerPackWolf.object3D.position.x - 0.45) < 1e-9
+    && Math.abs(finiteDistantPlayerPackWolf.object3D.position.z) < 1e-9,
+  'pack alerts must flee from the alerting packmate even when a finite non-direct player sample exists',
+);
+finiteDistantPlayerPackWolf.dispose();
+
 const malformedPayloadWolf = await createTestWolf();
 assert.doesNotThrow(
   () => malformedPayloadWolf.update(0.1, undefined, { x: 1, z: 1 }),
