@@ -40,6 +40,7 @@ assert(canonical.distributions.maxGradeDegrees.max < 19.5);
 assert(stress.distributions.gradeDegrees.max < 19.4);
 assert(settlement.distributions.coreErrorMeters.max <= settlement.policy.coreHeightToleranceMeters + 1e-9);
 assert(settlement.distributions.outerRecoveryErrorMeters.max <= settlement.policy.outerRecoveryToleranceMeters + 1e-9);
+assert(settlement.distributions.flattenFormulaErrorMeters.max <= settlement.policy.flattenFormulaToleranceMeters + 1e-12);
 
 const fixtureByName = new Map(subedge.fixtures.map((fixture) => [fixture.name, fixture]));
 assert(fixtureByName.has('hidden-knife-ridge'));
@@ -77,7 +78,9 @@ const summary = Object.freeze({
     seatCount: settlement.seatCount,
     maxCoreErrorMeters: settlement.distributions.coreErrorMeters.max,
     maxOuterRecoveryErrorMeters: settlement.distributions.outerRecoveryErrorMeters.max,
-    maxTransitionGradeDegrees: settlement.distributions.transitionGradeDegrees.max,
+    maxFlattenFormulaErrorMeters: settlement.distributions.flattenFormulaErrorMeters.max,
+    recordedNaturalTransitionGradeDegrees: settlement.distributions.recordedNaturalTransitionGradeDegrees.max,
+    overlappingPadSampleCount: settlement.overlap.overlappingPadSampleCount,
   },
   subedgeFixtures: subedge.fixtures,
 });
@@ -94,14 +97,17 @@ const markdown = [
   `- canonical network length: ${(summary.canonical.totalLengthMeters / 1000).toFixed(2)} km`,
   `- canonical dense max grade: ${summary.canonical.maxGradeDegrees.toFixed(2)}°`,
   `- canonical p99 edge max grade: ${summary.canonical.p99GradeDegrees.toFixed(2)}°`,
-  `- longest canonical river-adjacent point run: ${summary.canonical.worstLegacyRiverRun}`, 
+  `- longest canonical river-adjacent point run: ${summary.canonical.worstLegacyRiverRun}`,
   `- synthetic stress scenarios: ${summary.synthetic.stressScenarioCount}`,
   `- synthetic stress max grade: ${summary.synthetic.stressMaxGradeDegrees.toFixed(2)}°`,
   `- deterministic routes: ${summary.synthetic.determinismRouteCount}`,
   `- unique route checksums: ${summary.synthetic.uniqueChecksums}`,
   `- synthetic physically-unroutable fallbacks: ${summary.synthetic.fallbackCount}`,
-  `- settlement core max error: ${summary.settlement.maxCoreErrorMeters.toFixed(5)} m`,
-  `- settlement outer recovery max error: ${summary.settlement.maxOuterRecoveryErrorMeters.toFixed(5)} m`,
+  `- settlement core max error: ${summary.settlement.maxCoreErrorMeters.toFixed(9)} m`,
+  `- settlement outer recovery max error: ${summary.settlement.maxOuterRecoveryErrorMeters.toFixed(9)} m`,
+  `- settlement strongest-pad formula max error: ${summary.settlement.maxFlattenFormulaErrorMeters.toExponential(2)} m`,
+  `- overlapping settlement-pad samples audited: ${summary.settlement.overlappingPadSampleCount}`,
+  `- recorded natural radial terrain max grade (diagnostic only): ${summary.settlement.recordedNaturalTransitionGradeDegrees.toFixed(2)}°`,
   '',
   '## Sub-edge fixtures',
   '',
