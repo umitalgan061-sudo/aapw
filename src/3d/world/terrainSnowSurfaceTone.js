@@ -13,7 +13,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-27-v21-mixed-ice-firn-bridge',
+  id: 'terrain-snow-surface-tone-2026-08-27-v22-stronger-mixed-ice-firn-bridge',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
@@ -47,8 +47,8 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   packedGlacialDepthGain: 0.08,
   packedShelteredGlacialGain: 0.10,
   packedTransitionColdGain: 0.075,
-  mixedIceFirnPackedFloorGain: 0.18,
-  mixedIceFirnPowderAttenuation: 0.20,
+  mixedIceFirnPackedFloorGain: 0.30,
+  mixedIceFirnPowderAttenuation: 0.34,
   ridgeScourPackedGain: 0.28,
   windSlabPackedGain: 0.20,
   ridgeScourAccumulationSuppression: 0.46,
@@ -121,8 +121,6 @@ export function resolveTerrainSnowSurfaceTone({
   const glacialVisibility = Math.pow(visibleSnow, P.glacialVisibilityExponent);
   const glacialContinuity = permanentIceWeight * glacialVisibility;
   const glacialDepthSupport = glacialContinuity * lerp(P.glacialDepthFloor, 1, accumulationVisibleSnow * P.glacialDepthGain);
-  // Bell-shaped transition support is exact-zero in pure tundra and full permanent ice. It therefore
-  // cannot expand the canonical cryosphere; it only identifies the already-authored mixed ice belt.
   const mixedIceWeight = 4 * permanentIceWeight * (1 - permanentIceWeight);
   const transitionColdSupport = mixedIceWeight * glacialVisibility * P.packedTransitionColdGain;
   const shelterSignal = Math.max(clamp01(leeDeposit), clamp01(concavityHold));
@@ -177,10 +175,6 @@ export function resolveTerrainSnowSurfaceTone({
   const glacialPaletteFloor = glacialFamilySupport * visibleSnow
     * (P.packedGlacialPaletteFloorGain + accumulationVisibleSnow * P.packedGlacialPaletteDepthGain)
     * lerp(1, P.packedGlacialPaletteShelterRetention, deepShelter);
-  // Mixed ice is old/compacted firn even where fresh lee powder collects. Preserve a bounded cold
-  // material floor beneath that powder so the ice-edge remains visually between tundra and the full
-  // glacial core. Depth and shelter modulate the floor, while the bell weight keeps both endmembers
-  // exactly unchanged.
   const mixedIceFirnFloor = mixedIceWeight * glacialVisibility
     * lerp(0.62, 1, accumulationVisibleSnow)
     * lerp(0.78, 1, shelterSignal)
@@ -197,9 +191,6 @@ export function resolveTerrainSnowSurfaceTone({
   const ridgeCrustTone = clamp01(ridgeScourWeight * (0.58 + windSlabWeight * 0.42) * (1 - leeDriftWeight * 0.62));
   const leePowderTone = clamp01(leeDriftWeight * (1 - ridgeScourWeight * 0.72) * (0.72 + clamp01(gentleSlope) * 0.28));
 
-  // Powder remains strongest in pure tundra and progressively loses its warm/soft palette push as
-  // the already-authoritative glacial family strengthens. In the mixed-ice belt, refrozen firn also
-  // attenuates that warm powder push; this affects material family only and never snow coverage.
   const protectedBasePacked = packedWeight * (
     P.basePackedRetentionMin + glacialFamilySupport * P.basePackedRetentionGlacialGain
   );
