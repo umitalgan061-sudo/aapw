@@ -9,12 +9,15 @@ assert.match(source, /DEFAULT_FLEE_RELEASE_MARGIN_METERS = 3/);
 assert.match(source, /const simulationDelta = boundedWildlifeDelta\(delta\)/);
 assert.match(source, /const hasFinitePlayerPosition = Number\.isFinite\(playerPosition\?\.x\) && Number\.isFinite\(playerPosition\?\.z\)/);
 assert.match(source, /const directThreat = canFlee && distanceFromPlayer < fleeTriggerRadiusMeters/);
-assert.match(source, /!directThreat && hasFinitePlayerPosition/);
+assert.match(source, /if \(canFlee && !directThreat && packAlertRadiusMeters != null && packmateFleePositions\)/);
 assert.match(source, /const recovering = canFlee/);
+assert.match(source, /&& hasFinitePlayerPosition/);
 assert.match(source, /distanceFromPlayer < fleeReleaseRadiusMeters/);
 assert.match(source, /currentlyFleeing = directThreat \|\| isFleeingFromPack \|\| recovering/);
 assert.match(source, /!Number\.isFinite\(packmatePosition\?\.x\) \|\| !Number\.isFinite\(packmatePosition\?\.z\)/);
-assert.match(source, /const hasSeparationVector = distanceFromPlayer > 1e-6/);
+assert.match(source, /const separationDx = hasFinitePlayerPosition \? dxFromPlayer : packThreatDx/);
+assert.match(source, /const separationDistance = hasFinitePlayerPosition \? distanceFromPlayer : nearestPackThreatDistance/);
+assert.match(source, /const hasSeparationVector = Number\.isFinite\(separationDistance\) && separationDistance > 1e-6/);
 assert.match(source, /Math\.sin\(model\.rotation\.y\)/);
 assert.match(source, /Math\.cos\(model\.rotation\.y\)/);
 assert.match(source, /function tryCommitGroundedMove\(candidateX, candidateZ\)/);
@@ -35,9 +38,13 @@ const releaseRadius = triggerRadius + releaseMargin;
 const bounded = (delta) => (!Number.isFinite(delta) || delta <= 0 ? 0 : Math.min(delta, maxStep));
 const overlapDirection = (yaw) => ({ x: Math.sin(yaw), z: Math.cos(yaw) });
 const finitePlayerPosition = (position) => Number.isFinite(position?.x) && Number.isFinite(position?.z);
+const finitePackmatePosition = (position) => Number.isFinite(position?.x) && Number.isFinite(position?.z);
 const movementAdapterOutputIsFinite = (position) => Number.isFinite(position?.x) && Number.isFinite(position?.z);
 const shouldRecover = ({ wasFleeing, direct, pack, finitePlayer, distance }) => Boolean(
   wasFleeing && !direct && !pack && finitePlayer && distance < releaseRadius,
+);
+const shouldPackAlert = ({ direct, alertRadius, packmate }) => Boolean(
+  !direct && alertRadius != null && finitePackmatePosition(packmate) && Math.hypot(packmate.x, packmate.z) < alertRadius,
 );
 
 assert.equal(bounded(3), 0.1, 'a multi-second tab/background stall must be reduced to one bounded wildlife step');
@@ -49,10 +56,13 @@ assert.equal(releaseRadius, 15, 'default flee release radius must remain a bound
 assert.equal(shouldRecover({ wasFleeing: true, direct: false, pack: false, finitePlayer: true, distance: 13 }), true, 'wolf must remain fleeing immediately outside the trigger boundary');
 assert.equal(shouldRecover({ wasFleeing: true, direct: false, pack: false, finitePlayer: true, distance: 16 }), false, 'wolf must release once the player clears hysteresis radius');
 assert.equal(shouldRecover({ wasFleeing: true, direct: false, pack: false, finitePlayer: false, distance: 13 }), false, 'invalid player input must not keep recovery latched');
+assert.equal(shouldPackAlert({ direct: false, alertRadius: 5, packmate: { x: 0, z: 3 } }), true, 'finite nearby packmates must propagate alarm without any player-position dependency');
+assert.equal(shouldPackAlert({ direct: true, alertRadius: 5, packmate: { x: 0, z: 3 } }), false, 'direct player threat must retain priority over pack alert');
+assert.equal(shouldPackAlert({ direct: false, alertRadius: 5, packmate: { x: Number.NaN, z: 3 } }), false, 'malformed packmates must fail closed');
 const overlap = overlapDirection(Math.PI / 2);
 assert.ok(Math.abs(overlap.x - 1) <= Number.EPSILON && Math.abs(overlap.z) <= 1e-15, 'exact-overlap flee fallback must be a deterministic unit direction from wolf yaw');
-assert.equal(finitePlayerPosition({ x: Number.NaN, z: 0 }), false, 'NaN player threat coordinates must fail closed before pack-alert movement');
-assert.equal(finitePlayerPosition({ x: Infinity, z: 0 }), false, 'infinite player threat coordinates must fail closed before pack-alert movement');
+assert.equal(finitePlayerPosition({ x: Number.NaN, z: 0 }), false, 'NaN player threat coordinates must fail closed before direct wildlife sensing');
+assert.equal(finitePlayerPosition({ x: Infinity, z: 0 }), false, 'infinite player threat coordinates must fail closed before direct wildlife sensing');
 assert.equal(finitePlayerPosition({ x: 0, z: 0 }), true, 'finite player threat coordinates must remain eligible for wildlife sensing');
 assert.equal(movementAdapterOutputIsFinite({ x: Number.NaN, z: 0 }), false, 'NaN collider output must be rejected before movement commit');
 assert.equal(movementAdapterOutputIsFinite({ x: 0, z: Infinity }), false, 'infinite collider output must be rejected before movement commit');

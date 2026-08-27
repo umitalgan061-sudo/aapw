@@ -188,14 +188,20 @@ export async function createWolf({
 			const distanceFromPlayer = Math.hypot(dxFromPlayer, dzFromPlayer);
 			const directThreat = canFlee && distanceFromPlayer < fleeTriggerRadiusMeters;
 			let isFleeingFromPack = false;
-			if (canFlee && !directThreat && hasFinitePlayerPosition && packAlertRadiusMeters != null && packmateFleePositions) {
+			let packThreatDx = 0;
+			let packThreatDz = 0;
+			let nearestPackThreatDistance = Infinity;
+			if (canFlee && !directThreat && packAlertRadiusMeters != null && packmateFleePositions) {
 				for (const packmatePosition of packmateFleePositions) {
 					if (!Number.isFinite(packmatePosition?.x) || !Number.isFinite(packmatePosition?.z)) continue;
 					const dx = model.position.x - packmatePosition.x;
 					const dz = model.position.z - packmatePosition.z;
-					if (Math.hypot(dx, dz) < packAlertRadiusMeters) {
+					const distance = Math.hypot(dx, dz);
+					if (distance < packAlertRadiusMeters && distance < nearestPackThreatDistance) {
 						isFleeingFromPack = true;
-						break;
+						packThreatDx = dx;
+						packThreatDz = dz;
+						nearestPackThreatDistance = distance;
 					}
 				}
 			}
@@ -217,9 +223,12 @@ export async function createWolf({
 			});
 
 			if (currentlyFleeing && simulationDelta > 0) {
-				const hasSeparationVector = distanceFromPlayer > 1e-6;
-				const dirX = hasSeparationVector ? dxFromPlayer / distanceFromPlayer : Math.sin(model.rotation.y);
-				const dirZ = hasSeparationVector ? dzFromPlayer / distanceFromPlayer : Math.cos(model.rotation.y);
+				const separationDx = hasFinitePlayerPosition ? dxFromPlayer : packThreatDx;
+				const separationDz = hasFinitePlayerPosition ? dzFromPlayer : packThreatDz;
+				const separationDistance = hasFinitePlayerPosition ? distanceFromPlayer : nearestPackThreatDistance;
+				const hasSeparationVector = Number.isFinite(separationDistance) && separationDistance > 1e-6;
+				const dirX = hasSeparationVector ? separationDx / separationDistance : Math.sin(model.rotation.y);
+				const dirZ = hasSeparationVector ? separationDz / separationDistance : Math.cos(model.rotation.y);
 				const step = fleeSpeedMps * simulationDelta;
 				const moved = tryCommitGroundedMove(model.position.x + dirX * step, model.position.z + dirZ * step);
 				if (moved) {
