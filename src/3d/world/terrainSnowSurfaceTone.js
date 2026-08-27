@@ -13,7 +13,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-27-v18-crust-powder-family-competition',
+  id: 'terrain-snow-surface-tone-2026-08-27-v19-glacial-floor-protected-competition',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
@@ -31,6 +31,7 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   windCrustPowderContrast: true,
   materialFamilySeparation: true,
   materialFamilyCompetition: true,
+  glacialMaterialFloorProtection: true,
   glacialVisibilityExponent: 0.65,
   glacialDepthFloor: 0.54,
   glacialDepthGain: 0.46,
@@ -78,16 +79,6 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   leePowderBrightnessGain: 0.024,
 });
 
-/**
- * Resolve visual-only snow tone weights from authoritative snow coverage telemetry.
- * Packed and accumulated weights intentionally compete so a vertex cannot simultaneously read as
- * a scoured hard ridge and a deep sheltered drift.
- *
- * Permanent-ice terrain deliberately biases retained snow toward the packed/cold family and tones
- * down the warm accumulated interpretation. The tundra and permanent-ice tone influences are
- * combined as a bounded union rather than selected with max(), preventing a subtle colour-derivative
- * kink where the two authored climate fields overlap on the map-aligned north transition.
- */
 export function resolveTerrainSnowSurfaceTone({
   snowAmount = 0,
   permanentIce = 0,
@@ -104,50 +95,26 @@ export function resolveTerrainSnowSurfaceTone({
   const tundraWeight = clamp01(tundra);
   const tundraToneWeight = tundraWeight * P.tundraToneScale;
   const visibleSnow = clamp01((normalizedSnow - P.minimumVisibleSnow) / (1 - P.minimumVisibleSnow));
-  const accumulationVisibleSnow = clamp01(
-    (normalizedSnow - P.minimumAccumulatedSnow) / (1 - P.minimumAccumulatedSnow),
-  );
+  const accumulationVisibleSnow = clamp01((normalizedSnow - P.minimumAccumulatedSnow) / (1 - P.minimumAccumulatedSnow));
   const climate = boundedUnion(permanentIceWeight, tundraToneWeight);
 
   if (visibleSnow <= 0 || climate <= 0) {
     return Object.freeze({
-      visibleSnow,
-      accumulationVisibleSnow,
-      climate,
-      tundraToneWeight,
-      glacialVisibility: 0,
-      glacialContinuity: 0,
-      glacialFamilySupport: 0,
-      glacialDepthSupport: 0,
-      shelteredGlacialRetention: 0,
-      shelteredGlacialBridge: 0,
-      glacialPackedFloor: 0,
-      glacialPaletteFloor: 0,
-      transitionColdSupport: 0,
-      accumulationGlacialCooling: 0,
-      accumulationDepthCooling: 0,
-      transitionAccumulationCooling: 0,
-      accumulationClimateScale: 1,
-      accumulatedGlacialPaletteRetention: 1,
-      ridgeScourWeight: 0,
-      windSlabWeight: 0,
-      leeDriftWeight: 0,
-      ridgeCrustTone: 0,
-      leePowderTone: 0,
-      packedWeight: 0,
-      accumulatedWeight: 0,
-      neutralWeight: visibleSnow,
-      coolShift: 0,
-      brightnessShift: 0,
+      visibleSnow, accumulationVisibleSnow, climate, tundraToneWeight,
+      glacialVisibility: 0, glacialContinuity: 0, glacialFamilySupport: 0, glacialDepthSupport: 0,
+      shelteredGlacialRetention: 0, shelteredGlacialBridge: 0, glacialPackedFloor: 0,
+      glacialPaletteFloor: 0, transitionColdSupport: 0, accumulationGlacialCooling: 0,
+      accumulationDepthCooling: 0, transitionAccumulationCooling: 0, accumulationClimateScale: 1,
+      accumulatedGlacialPaletteRetention: 1, ridgeScourWeight: 0, windSlabWeight: 0,
+      leeDriftWeight: 0, ridgeCrustTone: 0, leePowderTone: 0, packedWeight: 0,
+      accumulatedWeight: 0, neutralWeight: visibleSnow, coolShift: 0, brightnessShift: 0,
     });
   }
 
   const glacialVisibility = Math.pow(visibleSnow, P.glacialVisibilityExponent);
   const glacialContinuity = permanentIceWeight * glacialVisibility;
-  const glacialDepthSupport = glacialContinuity
-    * lerp(P.glacialDepthFloor, 1, accumulationVisibleSnow * P.glacialDepthGain);
-  const transitionColdSupport = 4 * permanentIceWeight * (1 - permanentIceWeight)
-    * glacialVisibility * P.packedTransitionColdGain;
+  const glacialDepthSupport = glacialContinuity * lerp(P.glacialDepthFloor, 1, accumulationVisibleSnow * P.glacialDepthGain);
+  const transitionColdSupport = 4 * permanentIceWeight * (1 - permanentIceWeight) * glacialVisibility * P.packedTransitionColdGain;
   const shelterSignal = Math.max(clamp01(leeDeposit), clamp01(concavityHold));
   const deepShelter = accumulationVisibleSnow * shelterSignal;
   const shelteredGlacialRetention = lerp(1, P.shelteredGlacialRetentionFloor, deepShelter);
@@ -155,20 +122,15 @@ export function resolveTerrainSnowSurfaceTone({
     glacialContinuity * shelteredGlacialRetention,
     glacialDepthSupport * P.packedGlacialDepthGain,
   );
-  const shelteredGlacialBridge = glacialFamilySupport
-    * accumulationVisibleSnow
-    * shelterSignal
-    * P.packedShelteredGlacialGain;
+  const shelteredGlacialBridge = glacialFamilySupport * accumulationVisibleSnow * shelterSignal * P.packedShelteredGlacialGain;
 
   const exposedSignal = clamp01(clamp01(windwardScour) * 0.62 + clamp01(ridgeExposure) * 0.72);
   const ridgeScourWeight = visibleSnow * climate * exposedSignal * (1 - shelterSignal * 0.58);
   const windSlabWeight = visibleSnow * climate
     * clamp01(clamp01(windwardScour) * 0.46 + clamp01(ridgeExposure) * 0.34 + permanentIceWeight * 0.12)
-    * (0.70 + (1 - clamp01(gentleSlope)) * 0.30)
-    * (1 - shelterSignal * 0.36);
+    * (0.70 + (1 - clamp01(gentleSlope)) * 0.30) * (1 - shelterSignal * 0.36);
   const leeDriftWeight = accumulationVisibleSnow * climate * shelterSignal
-    * (0.58 + clamp01(gentleSlope) * 0.42)
-    * (1 - clamp01(ridgeExposure) * 0.46);
+    * (0.58 + clamp01(gentleSlope) * 0.42) * (1 - clamp01(ridgeExposure) * 0.46);
 
   const packedSignal = clamp01(
     clamp01(windwardScour) * P.packedWindwardGain
@@ -179,47 +141,30 @@ export function resolveTerrainSnowSurfaceTone({
       + glacialContinuity * P.packedGlacialContinuityGain
       + glacialFamilySupport * P.packedGlacialFamilyGain
       + glacialDepthSupport * P.packedGlacialDepthGain
-      + shelteredGlacialBridge
-      + transitionColdSupport,
+      + shelteredGlacialBridge + transitionColdSupport,
   );
   const gentleShelterSupport = clamp01(gentleSlope) * shelterSignal * P.accumulatedGentleSlopeGain;
   const accumulatedSignalRaw = clamp01(
     clamp01(leeDeposit) * P.accumulatedLeeGain
       + clamp01(concavityHold) * P.accumulatedConcavityGain
-      + gentleShelterSupport
-      + leeDriftWeight * P.leeDriftAccumulationGain,
+      + gentleShelterSupport + leeDriftWeight * P.leeDriftAccumulationGain,
   );
-  const accumulatedSignal = clamp01(
-    accumulatedSignalRaw * (1 - ridgeScourWeight * P.ridgeScourAccumulationSuppression),
-  );
-  const accumulationGlacialCooling = clamp01(
-    glacialFamilySupport * deepShelter * P.shelteredGlacialAccumulationCooling,
-  );
-  const accumulationDepthCooling = clamp01(
-    glacialDepthSupport * accumulationVisibleSnow * shelterSignal * P.glacialDepthAccumulationCooling,
-  );
+  const accumulatedSignal = clamp01(accumulatedSignalRaw * (1 - ridgeScourWeight * P.ridgeScourAccumulationSuppression));
+  const accumulationGlacialCooling = clamp01(glacialFamilySupport * deepShelter * P.shelteredGlacialAccumulationCooling);
+  const accumulationDepthCooling = clamp01(glacialDepthSupport * accumulationVisibleSnow * shelterSignal * P.glacialDepthAccumulationCooling);
   const transitionAccumulationCooling = clamp01(
-    4 * permanentIceWeight * (1 - permanentIceWeight)
-      * accumulationVisibleSnow * shelterSignal * P.transitionAccumulationCoolingGain,
+    4 * permanentIceWeight * (1 - permanentIceWeight) * accumulationVisibleSnow * shelterSignal * P.transitionAccumulationCoolingGain,
   );
   const accumulationClimateScale = lerp(1, P.accumulatedPermanentIceScale, permanentIceWeight)
-    * (1 - accumulationGlacialCooling)
-    * (1 - accumulationDepthCooling)
-    * (1 - transitionAccumulationCooling);
+    * (1 - accumulationGlacialCooling) * (1 - accumulationDepthCooling) * (1 - transitionAccumulationCooling);
   const accumulatedGlacialPaletteRetention = lerp(
-    1,
-    P.accumulatedGlacialPaletteRetentionFloor,
-    clamp01(glacialFamilySupport * accumulationVisibleSnow),
+    1, P.accumulatedGlacialPaletteRetentionFloor, clamp01(glacialFamilySupport * accumulationVisibleSnow),
   );
 
   const packedDominance = packedSignal * (1 - accumulatedSignal * 0.70);
   const accumulatedDominance = accumulatedSignal * (1 - packedSignal * 0.68);
-  const glacialPackedFloor = glacialFamilySupport
-    * visibleSnow
-    * lerp(0.35, 1, deepShelter)
-    * P.shelteredPackedFloorGain;
-  const glacialPaletteFloor = glacialFamilySupport
-    * visibleSnow
+  const glacialPackedFloor = glacialFamilySupport * visibleSnow * lerp(0.35, 1, deepShelter) * P.shelteredPackedFloorGain;
+  const glacialPaletteFloor = glacialFamilySupport * visibleSnow
     * (P.packedGlacialPaletteFloorGain + accumulationVisibleSnow * P.packedGlacialPaletteDepthGain)
     * lerp(1, P.packedGlacialPaletteShelterRetention, deepShelter);
   const packedWeight = Math.min(
@@ -228,79 +173,45 @@ export function resolveTerrainSnowSurfaceTone({
   );
   const accumulatedWeight = Math.min(
     P.maximumAccumulatedWeight,
-    accumulatedDominance * accumulationVisibleSnow * climate * accumulationClimateScale
-      * accumulatedGlacialPaletteRetention,
+    accumulatedDominance * accumulationVisibleSnow * climate * accumulationClimateScale * accumulatedGlacialPaletteRetention,
   );
 
-  const ridgeCrustTone = clamp01(
-    ridgeScourWeight * (0.58 + windSlabWeight * 0.42) * (1 - leeDriftWeight * 0.62),
-  );
-  const leePowderTone = clamp01(
-    leeDriftWeight * (1 - ridgeScourWeight * 0.72) * (0.72 + clamp01(gentleSlope) * 0.28),
-  );
+  const ridgeCrustTone = clamp01(ridgeScourWeight * (0.58 + windSlabWeight * 0.42) * (1 - leeDriftWeight * 0.62));
+  const leePowderTone = clamp01(leeDriftWeight * (1 - ridgeScourWeight * 0.72) * (0.72 + clamp01(gentleSlope) * 0.28));
 
-  // Exposed crust and sheltered powder now compete directly for the two material families. This is
-  // intentionally not a residual-headroom adjustment: many permanent-ice vertices already sit near
-  // the packed ceiling, which made the previous v17 change visually inert. The competition only
-  // redistributes visual tone between existing snow families; snowAmount and all spatial authorities
-  // are still untouched. Opposing suppression prevents a vertex from reading simultaneously as a
-  // blue hard slab and a warm soft drift while preserving the established glacial-family floors.
+  // Preserve the established glacial packed floor while the two visible snow material families
+  // compete. The v18 powder suppression could drive ICE EDGE shelter below this canonical-climate
+  // colour floor even though snow coverage remained correct. Suppression is now allowed only above
+  // the already-computed glacial floor; pure tundra still receives no such protection.
+  const glacialMaterialPackedFloor = Math.max(glacialPackedFloor, glacialPaletteFloor);
   const materialPackedWeight = Math.min(
     P.maximumPackedWeight,
-    clamp01(
-      packedWeight
-        + ridgeCrustTone * P.ridgeCrustPaletteGain
-        - leePowderTone * P.leePowderPackedSuppression,
+    Math.max(
+      glacialMaterialPackedFloor,
+      clamp01(packedWeight + ridgeCrustTone * P.ridgeCrustPaletteGain - leePowderTone * P.leePowderPackedSuppression),
     ),
   );
   const materialAccumulatedWeight = Math.min(
     P.maximumAccumulatedWeight,
-    clamp01(
-      accumulatedWeight
-        + leePowderTone * P.leePowderPaletteGain
-        - ridgeCrustTone * P.ridgeCrustPowderSuppression,
-    ),
+    clamp01(accumulatedWeight + leePowderTone * P.leePowderPaletteGain - ridgeCrustTone * P.ridgeCrustPowderSuppression),
   );
-  const neutralWeight = clamp01(
-    visibleSnow * (1 - Math.max(materialPackedWeight, materialAccumulatedWeight)),
-  );
+  const neutralWeight = clamp01(visibleSnow * (1 - Math.max(materialPackedWeight, materialAccumulatedWeight)));
 
   return Object.freeze({
-    visibleSnow,
-    accumulationVisibleSnow,
-    climate,
-    tundraToneWeight,
-    glacialVisibility,
-    glacialContinuity,
-    glacialFamilySupport,
-    glacialDepthSupport,
-    shelteredGlacialRetention,
-    shelteredGlacialBridge,
-    glacialPackedFloor,
-    glacialPaletteFloor,
-    transitionColdSupport,
-    accumulationGlacialCooling,
-    accumulationDepthCooling,
-    transitionAccumulationCooling,
-    accumulationClimateScale,
-    accumulatedGlacialPaletteRetention,
-    shelterSignal,
-    gentleShelterSupport,
-    ridgeScourWeight,
-    windSlabWeight,
-    leeDriftWeight,
-    ridgeCrustTone,
-    leePowderTone,
+    visibleSnow, accumulationVisibleSnow, climate, tundraToneWeight, glacialVisibility, glacialContinuity,
+    glacialFamilySupport, glacialDepthSupport, shelteredGlacialRetention, shelteredGlacialBridge,
+    glacialPackedFloor, glacialPaletteFloor, transitionColdSupport, accumulationGlacialCooling,
+    accumulationDepthCooling, transitionAccumulationCooling, accumulationClimateScale,
+    accumulatedGlacialPaletteRetention, shelterSignal, gentleShelterSupport, ridgeScourWeight,
+    windSlabWeight, leeDriftWeight, ridgeCrustTone, leePowderTone,
     packedWeight: materialPackedWeight,
     accumulatedWeight: materialAccumulatedWeight,
     neutralWeight,
     coolShift: materialPackedWeight * P.packedCoolShift
       - materialAccumulatedWeight * P.accumulatedWarmShift
-      + ridgeCrustTone * P.ridgeCrustCoolGain
-      - leePowderTone * P.leePowderWarmGain,
+      + ridgeCrustTone * P.ridgeCrustCoolGain - leePowderTone * P.leePowderWarmGain,
     brightnessShift: materialPackedWeight * P.packedBrightnessShift
       + materialAccumulatedWeight * P.accumulatedBrightnessShift
-      - ridgeCrustTone * P.ridgeCrustBrightnessLoss
-      + leePowderTone * P.leePowderBrightnessGain,
+      - ridgeCrustTone * P.ridgeCrustBrightnessLoss + leePowderTone * P.leePowderBrightnessGain,
   });
 }
