@@ -88,6 +88,29 @@ assert.equal(malformedPayloadWolf.object3D.userData.wildlifeFlee.direct, false);
 assert(Number.isFinite(malformedPayloadWolf.object3D.position.x) && Number.isFinite(malformedPayloadWolf.object3D.position.z));
 malformedPayloadWolf.dispose();
 
+const directThreatWolf = await createTestWolf();
+let directThreatPackReads = 0;
+const unboundedPackSource = {
+  [Symbol.iterator]() {
+    return {
+      next() {
+        directThreatPackReads += 1;
+        throw new Error('direct player threat must short-circuit pack iteration');
+      },
+    };
+  },
+};
+assert.doesNotThrow(
+  () => directThreatWolf.update(3, { x: 0, z: -1 }, unboundedPackSource),
+  'direct player threat must not consume an unbounded or faulting pack source',
+);
+assert.equal(directThreatPackReads, 0, 'direct player threat should perform zero pack iterator reads');
+assert.equal(directThreatWolf.object3D.userData.wildlifeFlee.phase, 'flee');
+assert.equal(directThreatWolf.object3D.userData.wildlifeFlee.direct, true);
+assert.equal(directThreatWolf.object3D.userData.wildlifeFlee.pack, false);
+assert(directThreatWolf.object3D.position.z > 0, 'direct threat should still move the wolf away from the player');
+directThreatWolf.dispose();
+
 const tiedPackmates = [
   { x: 0, z: -2 },
   { x: -2, z: 0 },
