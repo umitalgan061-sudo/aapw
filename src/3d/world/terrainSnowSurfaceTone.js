@@ -13,7 +13,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-27-v20-glacial-attenuated-powder-competition',
+  id: 'terrain-snow-surface-tone-2026-08-27-v21-mixed-ice-firn-bridge',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
@@ -32,6 +32,7 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   materialFamilySeparation: true,
   materialFamilyCompetition: true,
   glacialMaterialFloorProtection: true,
+  mixedIceFirnBridge: true,
   glacialPowderAttenuation: 0.75,
   basePackedRetentionMin: 0.78,
   basePackedRetentionGlacialGain: 0.16,
@@ -46,6 +47,8 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   packedGlacialDepthGain: 0.08,
   packedShelteredGlacialGain: 0.10,
   packedTransitionColdGain: 0.075,
+  mixedIceFirnPackedFloorGain: 0.18,
+  mixedIceFirnPowderAttenuation: 0.20,
   ridgeScourPackedGain: 0.28,
   windSlabPackedGain: 0.20,
   ridgeScourAccumulationSuppression: 0.46,
@@ -106,7 +109,8 @@ export function resolveTerrainSnowSurfaceTone({
       visibleSnow, accumulationVisibleSnow, climate, tundraToneWeight,
       glacialVisibility: 0, glacialContinuity: 0, glacialFamilySupport: 0, glacialDepthSupport: 0,
       shelteredGlacialRetention: 0, shelteredGlacialBridge: 0, glacialPackedFloor: 0,
-      glacialPaletteFloor: 0, transitionColdSupport: 0, accumulationGlacialCooling: 0,
+      glacialPaletteFloor: 0, mixedIceWeight: 0, mixedIceFirnFloor: 0,
+      transitionColdSupport: 0, accumulationGlacialCooling: 0,
       accumulationDepthCooling: 0, transitionAccumulationCooling: 0, accumulationClimateScale: 1,
       accumulatedGlacialPaletteRetention: 1, ridgeScourWeight: 0, windSlabWeight: 0,
       leeDriftWeight: 0, ridgeCrustTone: 0, leePowderTone: 0, packedWeight: 0,
@@ -117,7 +121,10 @@ export function resolveTerrainSnowSurfaceTone({
   const glacialVisibility = Math.pow(visibleSnow, P.glacialVisibilityExponent);
   const glacialContinuity = permanentIceWeight * glacialVisibility;
   const glacialDepthSupport = glacialContinuity * lerp(P.glacialDepthFloor, 1, accumulationVisibleSnow * P.glacialDepthGain);
-  const transitionColdSupport = 4 * permanentIceWeight * (1 - permanentIceWeight) * glacialVisibility * P.packedTransitionColdGain;
+  // Bell-shaped transition support is exact-zero in pure tundra and full permanent ice. It therefore
+  // cannot expand the canonical cryosphere; it only identifies the already-authored mixed ice belt.
+  const mixedIceWeight = 4 * permanentIceWeight * (1 - permanentIceWeight);
+  const transitionColdSupport = mixedIceWeight * glacialVisibility * P.packedTransitionColdGain;
   const shelterSignal = Math.max(clamp01(leeDeposit), clamp01(concavityHold));
   const deepShelter = accumulationVisibleSnow * shelterSignal;
   const shelteredGlacialRetention = lerp(1, P.shelteredGlacialRetentionFloor, deepShelter);
@@ -156,7 +163,7 @@ export function resolveTerrainSnowSurfaceTone({
   const accumulationGlacialCooling = clamp01(glacialFamilySupport * deepShelter * P.shelteredGlacialAccumulationCooling);
   const accumulationDepthCooling = clamp01(glacialDepthSupport * accumulationVisibleSnow * shelterSignal * P.glacialDepthAccumulationCooling);
   const transitionAccumulationCooling = clamp01(
-    4 * permanentIceWeight * (1 - permanentIceWeight) * accumulationVisibleSnow * shelterSignal * P.transitionAccumulationCoolingGain,
+    mixedIceWeight * accumulationVisibleSnow * shelterSignal * P.transitionAccumulationCoolingGain,
   );
   const accumulationClimateScale = lerp(1, P.accumulatedPermanentIceScale, permanentIceWeight)
     * (1 - accumulationGlacialCooling) * (1 - accumulationDepthCooling) * (1 - transitionAccumulationCooling);
@@ -170,6 +177,14 @@ export function resolveTerrainSnowSurfaceTone({
   const glacialPaletteFloor = glacialFamilySupport * visibleSnow
     * (P.packedGlacialPaletteFloorGain + accumulationVisibleSnow * P.packedGlacialPaletteDepthGain)
     * lerp(1, P.packedGlacialPaletteShelterRetention, deepShelter);
+  // Mixed ice is old/compacted firn even where fresh lee powder collects. Preserve a bounded cold
+  // material floor beneath that powder so the ice-edge remains visually between tundra and the full
+  // glacial core. Depth and shelter modulate the floor, while the bell weight keeps both endmembers
+  // exactly unchanged.
+  const mixedIceFirnFloor = mixedIceWeight * glacialVisibility
+    * lerp(0.62, 1, accumulationVisibleSnow)
+    * lerp(0.78, 1, shelterSignal)
+    * P.mixedIceFirnPackedFloorGain;
   const packedWeight = Math.min(
     P.maximumPackedWeight,
     Math.max(packedDominance * visibleSnow * climate, glacialPackedFloor, glacialPaletteFloor),
@@ -183,15 +198,20 @@ export function resolveTerrainSnowSurfaceTone({
   const leePowderTone = clamp01(leeDriftWeight * (1 - ridgeScourWeight * 0.72) * (0.72 + clamp01(gentleSlope) * 0.28));
 
   // Powder remains strongest in pure tundra and progressively loses its warm/soft palette push as
-  // the already-authoritative glacial family strengthens. This keeps the ICE EDGE visually between
-  // tundra and permanent ice instead of allowing a sheltered mixed-ice vertex to become the warmest
-  // snow sample. Packed snow also keeps most of its pre-competition weight, so lee suppression can
-  // soften a slab without deleting the cold glacial-family signal that the coverage model established.
+  // the already-authoritative glacial family strengthens. In the mixed-ice belt, refrozen firn also
+  // attenuates that warm powder push; this affects material family only and never snow coverage.
   const protectedBasePacked = packedWeight * (
     P.basePackedRetentionMin + glacialFamilySupport * P.basePackedRetentionGlacialGain
   );
-  const glacialMaterialPackedFloor = Math.max(glacialPackedFloor, glacialPaletteFloor, protectedBasePacked);
-  const powderPaletteGain = P.leePowderPaletteGain * (1 - glacialFamilySupport * P.glacialPowderAttenuation);
+  const glacialMaterialPackedFloor = Math.max(
+    glacialPackedFloor,
+    glacialPaletteFloor,
+    mixedIceFirnFloor,
+    protectedBasePacked,
+  );
+  const powderPaletteGain = P.leePowderPaletteGain
+    * (1 - glacialFamilySupport * P.glacialPowderAttenuation)
+    * (1 - mixedIceWeight * P.mixedIceFirnPowderAttenuation);
   const materialPackedWeight = Math.min(
     P.maximumPackedWeight,
     Math.max(
@@ -208,7 +228,8 @@ export function resolveTerrainSnowSurfaceTone({
   return Object.freeze({
     visibleSnow, accumulationVisibleSnow, climate, tundraToneWeight, glacialVisibility, glacialContinuity,
     glacialFamilySupport, glacialDepthSupport, shelteredGlacialRetention, shelteredGlacialBridge,
-    glacialPackedFloor, glacialPaletteFloor, transitionColdSupport, accumulationGlacialCooling,
+    glacialPackedFloor, glacialPaletteFloor, mixedIceWeight, mixedIceFirnFloor,
+    transitionColdSupport, accumulationGlacialCooling,
     accumulationDepthCooling, transitionAccumulationCooling, accumulationClimateScale,
     accumulatedGlacialPaletteRetention, shelterSignal, gentleShelterSupport, ridgeScourWeight,
     windSlabWeight, leeDriftWeight, ridgeCrustTone, leePowderTone,
