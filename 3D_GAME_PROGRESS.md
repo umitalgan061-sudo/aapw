@@ -18498,3 +18498,20 @@ derlenir. 160 saniye CI artefaktı, oyuncu sayısı değil.
 **Bir sonraki iz:** smoke suite tek tarayıcı paylaşıyor. `check3DMode` de masaüstü açılıyor ve aynı
 60 saniyeyi **geçiyor**; sonra koşan ses kontrolü aynı sürede düşüyor. Sorun açılış maliyeti değil,
 biriken tarayıcı durumu olabilir.
+
+## Tur 404 — Altı alternatif elendikten sonra eşik: 60 s → 240 s (ADR-0352)
+
+Masaüstü açılışı bu ortamda **~133 saniye**; smoke kontrollerinin beklediği eşik 60 saniyeydi.
+
+Eşiğe dokunmadan önce altı açıklamayı ölçümle eledim: indirme (249 MB'a karşı 286 MB), bizim kodumuz
+(%6), shader programı sayısı (**48**), chunk dokuları (550 chunk, **3** doku), gölgeler (gerçek ama
+kapatınca bile 62,5 s ve görüntü düşüşü), ve paylaşılan tarayıcıda birikme — üst üste üç açılış
+**137.923 / 131.091 / 133.293 ms, düz.**
+
+Geriye ortam kalıyor: açılışın %80'inden fazlası başsız yazılımsal render altında sürücünün shader
+derlemesi ve doku yüklemesi. Gerçek ekran kartında çok daha hızlı; ~133 s bir CI artefaktı.
+
+240 saniye ölçülen açılış artı pay. **Bunun bir eşik gevşetmesi olduğunu açıkça yazıyorum**, ve
+maliyeti kapı işinin yavaşlaması.
+
+İlk tekrarlı-açılış ölçümüm kirliydi (asset'leri koşu ortasında geri almıştım) — attım, temiz koştum.

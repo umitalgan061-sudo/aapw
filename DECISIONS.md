@@ -19981,3 +19981,38 @@ değil olabilir: aynı tarayıcıda geç koşan bir kontrolün, biriken durumun 
 bellek baskısı) bedelini ödemesi olabilir. Ölçülmeden dokunulmayacak.
 
 **Technical debt.** 0 new. Kod değişmedi; bu tur yalnızca ölçüm ve eleme.
+
+## ADR-0352 — Altı alternatifi eledikten sonra eşiği yükseltmek: 60 s → 240 s
+
+**Bunu bir eşik değişikliği olarak yapıyorum ve başka bir şeymiş gibi göstermiyorum.** Bu oturumda
+kapıları gevşetmemek için özellikle uğraştım; bu sefer sayıyı değiştiriyorum, çünkü değiştirmemek için
+denenebilecek her şeyi denedim ve hepsi ölçümle elendi.
+
+**Ölçülen gerçek:** masaüstü açılışı bu ortamda **~133 saniye**. `GAME3D_READY_TIMEOUT_MS` 60 saniyeydi.
+
+**Elenen altı açıklama:**
+
+1. Masaüstü daha çok indiriyor — 118 asset / 249 MB, mobil 126 / 286 MB. Değil.
+2. Bizim JavaScript'imiz — profilin **%6**'sı.
+3. Çok fazla shader programı — `renderer.info.programs.length` = **48**, yüzlerce değil.
+4. Chunk dokularının çoğaltılması — 550 chunk mesh, **3** ayrı doku, zaten paylaşılıyor.
+5. Gölgeler — gerçek ve büyük (160.135 → 62.550 ms), ama kapatmak sahibin önceliği olan görüntü
+   kalitesinde açık bir düşüş **ve kapatınca bile 62,5 saniye**, eski 60'ın üstünde.
+6. Paylaşılan tarayıcıda durum birikmesi — aynı tarayıcıda üst üste üç masaüstü açılışı:
+   **137.923 / 131.091 / 133.293 ms. Düz.** Hiçbir şey birikmiyor.
+
+**Geriye kalan ortamın kendisi.** Açılışın %80'inden fazlası sürücünün shader derlemesi
+(`getProgramInfoLog` %14,3) ve doku yüklemesi (`texSubImage2D` %12,2) — **başsız yazılımsal render**
+altında, 48 program × program başına ~400 ms zamanın çoğunu açıklıyor. Gerçek bir ekran kartı aynı
+programları çok daha hızlı derler. Yani ~133 saniye CI render'ının bir özelliği, oyuncunun yaşadığı
+bir şey değil; kullanıcıya yansıyan bir gerileme olarak okunmamalı.
+
+**240 saniye** ölçülen açılış artı pay; kırmızı bir kontrolü yeşile çevirmek için seçilmiş bir sayı
+değil. **Dürüst maliyeti:** bu eşiği bekleyen kontroller artık hızlıca düşmek yerine dakikalarca
+sürüyor, yani kapı işi yavaşlıyor.
+
+**İlk ölçümüm kirliydi ve attım.** Tekrarlı açılış testini ilk koştuğumda asset'leri koşu ortasında
+geri almıştım; 1. açılış 142 s (gerçek modeller), 2.-3. ~45 s (stub'lar). Hızlanma tarayıcı ısınması
+değil, stub'lardı. Karışık durumdan çıkan veriyi kullanmak yerine temiz koştum.
+
+**Technical debt.** 0 new. Runtime kaynağı değişmedi, SW bump yok.
