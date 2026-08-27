@@ -18,7 +18,7 @@ const approx = (actual, expected, epsilon, label) => {
     `${label}: expected ${expected} ± ${epsilon}, got ${actual}`);
 };
 
-assert.equal(ROAD_PROFILE_POLICY.maxSampleSpacingMeters, 8);
+assert.equal(ROAD_PROFILE_POLICY.maxSampleSpacingMeters, 4);
 assert.equal(ROAD_PROFILE_POLICY.presentationSampleSpacingMeters, 6);
 assert.equal(ROAD_PROFILE_POLICY.deterministic, true);
 assert.equal(ROAD_PROFILE_POLICY.geographyAuthorityUnchanged, true);
