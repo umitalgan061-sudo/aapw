@@ -56,6 +56,12 @@ const RIVER_PROFILE_SPACING_METERS = 12;
 const FINE_REFINEMENT_CELL_METERS = 24;
 const MIN_REFINEMENT_CELL_METERS = 36;
 const MID_REFINEMENT_CELL_METERS = 45;
+// Very short seat-to-seat links can sit inside overlapping settlement-pad transition zones. A
+// bounded local pass resolves those egress contours without paying for a 12 m grid across the
+// normal 1.8 km corridor used by long roads.
+const SHORT_ROUTE_MAX_DISTANCE_METERS = 320;
+const SHORT_ROUTE_REFINEMENT_CELL_METERS = 12;
+const SHORT_ROUTE_CORRIDOR_PADDING_METERS = 360;
 const riverAvoidanceCache = new WeakMap();
 
 const EIGHT_NEIGHBOR_OFFSETS = Object.freeze([
@@ -284,7 +290,7 @@ function buildPaddingAttempts(requestedPadding) {
 	return [...new Set(values.map((value) => Math.min(MAX_CORRIDOR_PADDING_METERS, value)))];
 }
 
-function buildSearchStages(requestedCellMeters, requestedPaddingMeters) {
+function buildSearchStages(requestedCellMeters, requestedPaddingMeters, directDistanceMeters) {
 	const paddings = buildPaddingAttempts(requestedPaddingMeters);
 	const cells = [...new Set([
 		requestedCellMeters,
@@ -293,6 +299,12 @@ function buildSearchStages(requestedCellMeters, requestedPaddingMeters) {
 		Math.min(requestedCellMeters, FINE_REFINEMENT_CELL_METERS),
 	].filter((value) => value > 0))];
 	const stages = [];
+	if (directDistanceMeters <= SHORT_ROUTE_MAX_DISTANCE_METERS) {
+		stages.push(Object.freeze({
+			cellMeters: SHORT_ROUTE_REFINEMENT_CELL_METERS,
+			paddingMeters: SHORT_ROUTE_CORRIDOR_PADDING_METERS,
+		}));
+	}
 	for (const [cellIndex, stageCellMeters] of cells.entries()) {
 		const minimumPaddingIndex = cellIndex === 0 ? 0 : Math.min(cellIndex, paddings.length - 1);
 		for (let paddingIndex = minimumPaddingIndex; paddingIndex < paddings.length; paddingIndex += 1) {
@@ -473,7 +485,7 @@ export function findSlopeAwarePath({ sampleHeightMeters, start, end, cellMeters 
 		}
 	}
 
-	const stages = buildSearchStages(cellMeters, corridorPaddingMeters);
+	const stages = buildSearchStages(cellMeters, corridorPaddingMeters, directDistance);
 	const gradeCaps = [ROAD_MAX_GRADE_DEGREES, ROAD_RETURN_GRADE_TARGET_DEGREES];
 	const attempts = [];
 	for (const gradeCap of gradeCaps) {
