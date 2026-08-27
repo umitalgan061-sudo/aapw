@@ -34,8 +34,21 @@ async function waitFor(find, label, timeout = 10000) {
   }
   throw new Error(`[player-hit-stagger-runtime] timed out waiting for ${label}`);
 }
+async function isolateDamageSources() {
+  await page.evaluate(async () => {
+    const [{ gameEvents }, { EVENTS }] = await Promise.all([import('./src/3d/eventBus.js'), import('./src/3d/config.js')]);
+    if (window.__hitStaggerOriginalEmit) return;
+    const originalEmit = gameEvents.emit.bind(gameEvents);
+    window.__hitStaggerOriginalEmit = originalEmit;
+    gameEvents.emit = (eventName, payload) => {
+      if (eventName === EVENTS.PLAYER_DAMAGED && !String(payload?.sourceId ?? '').startsWith('hit-stagger-')) return undefined;
+      return originalEmit(eventName, payload);
+    };
+  });
+}
 try {
   await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await isolateDamageSources();
   await page.locator('#run266-entry-enter').click();
   await page.waitForFunction(() => document.querySelector('#game3d-loading')?.classList.contains('g3d-loading-hidden'), null, { timeout: 90000 });
   const baseline = await waitFor(() => {
