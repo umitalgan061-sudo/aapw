@@ -18482,3 +18482,19 @@ negatif testi yapıldı.
 ölçülmemişti. `checkMobilePerfBudget`'in geçmesi bu yüzden çelişki değil.
 
 Masaüstünü bu turda düzeltmiyorum: önce ölçüm. Muhtemel kaynak `PHASE1_PREVIEW_RADIUS_CHUNKS`.
+
+## Tur 403 — Beş hipotez, beşi de elendi (ADR-0351)
+
+Masaüstü açılışının nedenini aradım. İndirme değil (masaüstü 249 MB, mobil 286 MB). Bizim kodumuz
+değil (profilin %6'sı). Shader programı sayısı değil (**48** program, yüzlerce değil — kendi önerdiğim
+"farklı malzemeleri azalt" işi bu yüzden anlamsız). Chunk dokuları değil (550 chunk, **3** ayrı doku,
+zaten paylaşılıyor). Gölgeler gerçek (160 s → 62,5 s) ama kapatmak görüntü kalitesinde düşüş ve
+kapatınca bile 60 saniyenin üstünde.
+
+Profil: `(program)` %55,9, `getProgramInfoLog` %14,3, `texSubImage2D` %12,2 — **%80'den fazlası GPU
+sürücüsü**. Ve bu başsız yazılımsal render; gerçek ekran kartında aynı 48 program çok daha hızlı
+derlenir. 160 saniye CI artefaktı, oyuncu sayısı değil.
+
+**Bir sonraki iz:** smoke suite tek tarayıcı paylaşıyor. `check3DMode` de masaüstü açılıyor ve aynı
+60 saniyeyi **geçiyor**; sonra koşan ses kontrolü aynı sürede düşüyor. Sorun açılış maliyeti değil,
+biriken tarayıcı durumu olabilir.

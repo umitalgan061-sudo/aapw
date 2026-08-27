@@ -19944,3 +19944,40 @@ mobilin `STREAM_RADIUS_CHUNKS`'ından daha geniş bir önizleme yarıçapı üre
 daha çok prop. Ölçülmeden dokunulmayacak.
 
 **Technical debt.** 0 new. Runtime kaynağı değişmedi, SW bump yok.
+
+## ADR-0351 — Masaüstü açılışını beş hipotezle kovaladım; beşi de ölçümle elendi
+
+Tur 402 masaüstü açılışının mobilin 6,7 katı olduğunu bulmuştu. Bu tur nedenini aradı ve **kendi
+önerdiğim çözüm dahil** sırayla hepsini eledi. Hiçbiri tutmadı; kayda geçmesinin sebebi bir sonraki
+turun aynı yolları tekrar yürümemesi.
+
+| hipotez | ölçüm | sonuç |
+|---|---|---|
+| `PHASE1_PREVIEW_RADIUS_CHUNKS`, daha çok indirme | masaüstü 118 asset / 249 MB, mobil 126 / 286 MB | **elendi** |
+| Bizim JavaScript'imiz | tüm proje kodu profilin **%6**'sı | **elendi** |
+| Çok sayıda farklı shader programı | `renderer.info.programs.length` = **48** | **elendi** |
+| Chunk dokularının çoğaltılması | 550 chunk mesh, ama **3** ayrı chunk dokusu (zaten paylaşılıyor) | **elendi** |
+| Gölgeler | 160.135 ms → 62.550 ms | **gerçek ama yetmiyor** |
+
+**Profil ne diyor.** 138 saniyelik masaüstü açılışının `(program)` %55,9'u, `getProgramInfoLog`
+%14,3'ü, `texSubImage2D` %12,2'si. Yani **%80'den fazlası sürücünün shader derlemesi ve doku
+yüklemesi**. 48 program × SwiftShader'da program başına ~400 ms ≈ ölçülen 19,7 saniye. Sayı anormal
+değil; ortam yavaş.
+
+**Gölgeler gerçek ama çözüm değil.** ~98 saniye, açılışın %61'i. Ama kapatmak sahibin önceliği olan
+görüntü kalitesinde açık bir düşüş, ve kapatınca bile 62,5 saniye kalıyor — kontrolün izin verdiği
+60'ın hâlâ üstünde.
+
+**Kayda geçirilmesi gereken bağlam.** Bu ölçüm **başsız yazılımsal render** ile yapıldı. Orada shader
+derlemesi olağanüstü yavaştır; gerçek ekran kartı olan bir masaüstünde aynı 48 program çok daha hızlı
+derlenir. 160 saniye bir CI artefaktıdır, oyuncunun yaşayacağı bir sayı değil. Bunu bir kullanıcı
+gerilemesi sanmamak önemli.
+
+**Asıl anomali ise başka yerde, ve bir sonraki turun izi bu.** Smoke suite **tek bir tarayıcı**
+açıyor (`smokeTestGame3D.js:99`) ve tüm kontroller onu paylaşıyor. `check3DMode` de masaüstü
+viewport'unda açılıyor ve **aynı 60 saniyelik beklemeyi geçiyor** (`outcome=ready`). Ama daha sonra
+koşan ses kontrolü aynı 60 saniyede zaman aşımına uğruyor. Yani sorun "masaüstü açılışı 160 saniye"
+değil olabilir: aynı tarayıcıda geç koşan bir kontrolün, biriken durumun (canlı WebGL context'leri,
+bellek baskısı) bedelini ödemesi olabilir. Ölçülmeden dokunulmayacak.
+
+**Technical debt.** 0 new. Kod değişmedi; bu tur yalnızca ölçüm ve eleme.
