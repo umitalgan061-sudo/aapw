@@ -565,3 +565,39 @@ onları yargılamıyor — ama ortada hâlâ gerçek bir bağlantı yok.
    bu yüzden sizin kararınız.
 
 **Tavsiyem:** kısa geçişte köprü (2), uzun ikisinde feribot (1). Söylerseniz kurarım.
+
+## PR #964 son kapı yeşil — kalan 35 kırmızı yapısal, sahip kararı gerekiyor (run 405)
+
+**Durum:** Projenin kendi Definition-of-Done kapısı — `run283-final-head-governance` — 48d8b2a
+üzerinde **ilk kez yeşil**. Beş ardışık CI hatası (mobil zaman aşımı, 878 MB açılış indirmesi,
+yüzlerce doku 404'ü, 1442 çizim çağrısı, ENOBUFS çökmesi ve son olarak ses kontrolünün tıklaması)
+sırayla ölçülüp kapatıldı. Kapı 34 dakikada, 90 dakikalık sınırın içinde tamamlandı.
+
+PR birleştirilebilir durumda (`mergeable_state: unstable` — çakışma yok, yalnızca kırmızı kontroller).
+
+**Sorun:** Aynı head'de 35 kontrol daha kırmızı ve bunları bu daldan yeşile çevirmenin bir yolu yok.
+Sebep tek tek hata değil, yapı: depoda `pull_request` ile tetiklenen 164 iş akışının **79'u**,
+"değişen bütün dosya listesi şu dar izin listesinin içinde olsun, yoksa çık 1" adımı taşıyor. Her
+biri geçmişte tek bir dar PR için yazılmış. Örnek (`rpg-mastery-armorer-service.yml`):
+
+    mapfile -t paths < <(git diff --name-only "$base"...HEAD)
+    printf '%s\n' "${paths[@]}" | grep -Ev "$allowed" && exit 1 || true
+
+Bu kapılar **dar PR'lar için doğru çalışıyor** — dar bir PR yalnızca kendi kapısını tetikler ve
+geçer. Ama #964 167 dosya / 69 commit / +17.780 satır. `paths:` filtresine takılan 35 kapı birden
+tetikleniyor ve izin listeleri birbirinden ayrık olduğu için **hiçbir PR ikisini aynı anda
+sağlayamaz**. Yani bu 35 kırmızı, bu PR'da bir kusuru değil, PR'ın genişliğini ölçüyor.
+
+**Soru:** Bu 42 turluk coğrafya işi `main`'e nasıl insin?
+
+1. **#964'ü olduğu gibi birleştirin.** DoD kapısı yeşil, çakışma yok. Kırmızılar dar kapsam
+   kapıları; ölçtükleri şey PR'ın genişliği.
+2. **Dalı ~35 dar PR'a bölün.** Her biri kendi kapısını tetikler ve geçer. Ama 69 commit'i
+   dosya sınırlarına göre yeniden dizmek gerekir; commit'ler dosya değil konu ekseninde
+   yazılmış, yani bu mekanik değil elle yeniden yazma işi ve her parçanın kendi doğrulaması
+   baştan koşmalı.
+3. **Dar kapsam kapılarını emekliye ayırın.** Geçmiş PR'ların artığı 79 kapı; her yeni geniş iş
+   aynı duvara çarpacak.
+
+**Tavsiyem:** (1). Kapılar geçmiş PR'ların kapsamını koruyor, bu PR'ın doğruluğunu değil; doğruluğu
+ölçen kapı yeşil. Uzun vadede (3) de gerekiyor, yoksa bu her geniş işte tekrarlanır.
