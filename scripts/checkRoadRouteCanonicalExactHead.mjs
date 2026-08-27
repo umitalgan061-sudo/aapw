@@ -36,6 +36,18 @@ for (const edge of network.edges) {
   assert(seatIds.has(edge.toId), `road has unknown toId ${edge.toId}`);
   assert(edge.points.length >= 2, `${edge.fromId}->${edge.toId} returned <2 points`);
   const dense = profileRoadPolyline({ points: edge.points, sampleHeightMeters, maxSpacingMeters: 6 });
+  if (dense.maxGradeDegrees > ROAD_RETURN_GRADE_TARGET_DEGREES + 0.05) {
+    writeJsonArtifact('artifacts/road-route-exact-head/canonical-failing-edge.json', {
+      exactHead: process.env.EXPECTED_HEAD_SHA ?? null,
+      fromId: edge.fromId,
+      toId: edge.toId,
+      sourceMaxGradeDegrees: edge.maxGradeDegrees,
+      denseMaxGradeDegrees: dense.maxGradeDegrees,
+      targetGradeDegrees: ROAD_RETURN_GRADE_TARGET_DEGREES,
+      pointCount: edge.points.length,
+      points: edge.points,
+    });
+  }
   assert(dense.maxGradeDegrees <= ROAD_RETURN_GRADE_TARGET_DEGREES + 0.05, `${edge.fromId}->${edge.toId} dense grade ${dense.maxGradeDegrees.toFixed(3)}° exceeds ${ROAD_RETURN_GRADE_TARGET_DEGREES}°`);
   const diagnostics = edge.diagnostics ?? edge.routeDiagnostics ?? null;
   if (diagnostics) {
