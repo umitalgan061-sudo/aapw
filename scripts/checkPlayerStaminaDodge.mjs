@@ -46,7 +46,7 @@ for (const fragment of [
   'Math.ceil(travelMeters / PLAYER_ACTION_CONFIG.MAX_COLLISION_STEP_METERS)',
   'runJumpDodgeRequested = Boolean(jumpRequested) && runIntent', 'canStartDodge()', 'startDodge(moveDirectionXZ)',
   "movementState = 'dodge'", "movementState = 'guard'", "movementState = 'parry'", "movementState = 'guard-break'", "movementState = 'hit-stagger'",
-  'spendPoise(blockedAmount * PLAYER_ACTION_CONFIG.GUARD_POISE_DAMAGE_RATIO)', 'if (poise <= 0) triggerGuardBreak()',
+  'spendPoise(blockedAmount * PLAYER_ACTION_CONFIG.GUARD_POISE_DAMAGE_RATIO)', 'if (stamina <= 0 || poise <= 0) triggerGuardBreak()',
   'spendPoise(rawAmount * PLAYER_ACTION_CONFIG.HIT_POISE_DAMAGE_RATIO)', 'if (poise <= 0) triggerHitStagger()',
   'guarding = guardIntent && attackRemaining <= 0 && guardBreakRemaining <= 0 && hitStaggerRemaining <= 0',
   'guardBreakRemaining <= 0 && hitStaggerRemaining <= 0 && jumpRequested',
