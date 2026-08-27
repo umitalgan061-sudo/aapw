@@ -23,8 +23,6 @@ import {
 export const WORLD_REFERENCE_SURFACE_VISUAL_POLICY = Object.freeze({
 	id: 'owner-map-semantic-surface-visual-2026-08-11-v1',
 	sourceMapSha256: '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1',
-	// Map-inspired matte palette. Macro placement comes from the source-derived mask; later pindex
-	// polish may replace these flat swatches with PBR texture sets without changing classification.
 	colors: Object.freeze({
 		sea: 0x294d5d,
 		lake: 0x4f7f86,
@@ -64,10 +62,6 @@ function classifyWorldSurface(worldX, worldZ) {
 	});
 }
 
-/**
- * Applies canonical map semantics to one already-created terrain mesh.
- * @returns immutable per-mesh coverage stats used by visual/regression checks.
- */
 export function applyReferenceSurfaceToTerrainMesh(mesh) {
 	assertTerrainMesh(mesh);
 	const position = mesh.geometry.getAttribute('position');
@@ -93,9 +87,6 @@ export function applyReferenceSurfaceToTerrainMesh(mesh) {
 
 	mesh.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 	mesh.material.vertexColors = true;
-	// Restore the terrain's own detail gain rather than assuming flat white. `world/terrain.js`
-	// carries a >1 gain when its neutralised detail map is attached (the map stores a ratio around a
-	// mid-grey pivot); resetting to white here halved the entire world's brightness.
 	mesh.material.color.setScalar(mesh.material.userData?.terrainDetailGain ?? 1);
 	mesh.material.roughness = roughnessSum / position.count;
 	mesh.material.metalness = 0;
@@ -110,10 +101,6 @@ export function applyReferenceSurfaceToTerrainMesh(mesh) {
 	return summary;
 }
 
-/**
- * Applies the source-map semantic surface to a clipped canonical terrain window.
- * Roads/bridges/water are intentionally not traversed here; their existing ownership remains intact.
- */
 export function applyReferenceSurfaceToTerrainGroup(terrainGroup) {
 	if (!terrainGroup?.children || !Array.isArray(terrainGroup.children)) {
 		throw new TypeError('canonical terrain group is required');
@@ -144,7 +131,7 @@ export function applyReferenceSurfaceToTerrainGroup(terrainGroup) {
 // Terrain Polish Iteration #08 — deliberate shipped-game visual change.
 // The historical canonical-dev surface above remains intact. This additive adapter projects the
 // current cropped runtime world back onto the same owner-map mask, blends those semantics into the
-// existing procedural terrain colors, then reuses the already-prepared Pindex-01..09 detail layers.
+// existing procedural terrain colors, then reuses the prepared Pindex-01..10 detail layers.
 // Geometry/height stays untouched in this iteration, so settlement, road, river and physics safety
 // contracts remain on their proven sampler while the player-visible ground finally changes.
 import { WORLD_DEFAULTS, WORLD_SCALE } from '../config.js';
@@ -160,21 +147,10 @@ import { applyPindex06DetailToTerrainMesh } from './worldReferencePindex06Detail
 import { applyPindex07DetailToTerrainMesh } from './worldReferencePindex07Detail.js';
 import { applyPindex08DetailToTerrainMesh } from './worldReferencePindex08Detail.js';
 import { applyPindex09DetailToTerrainMesh } from './worldReferencePindex09Detail.js';
+import { applyPindex10DetailToTerrainMesh } from './worldReferencePindex10Detail.js';
 
 export const RUNTIME_PINDEX_TERRAIN_POLISH_POLICY = Object.freeze({
 	id: 'terrain-polish-iteration-008-visible-pindex-runtime-2026-08-12-v1',
-	/**
-	 * How far each vertex is pulled toward its flat class swatch.
-	 *
-	 * Lowered across the board on 2026-08-19. This pass classifies with
-	 * `classifyReferenceBaseSurface`, which is the **nearest-cell** reader on the 96x64 mask — hard
-	 * 138 x 162 m cells, no interpolation — so at the old weights it stamped visible hard-edged
-	 * rectangles of flat colour over the terrain, plainly visible as white blocks across the snowline
-	 * of every massif in the aerial captures. The information it was adding (which canonical class a
-	 * point belongs to) is now supplied continuously and at higher fidelity by
-	 * `world/terrainBiomeShading.js`, which reads the *bilinear, coast-warped* Pindex V2 weights, so
-	 * these weights are reduced to a light canonical tint rather than a dominant overlay.
-	 */
 	semanticBlendBySurface: Object.freeze({ sea: 0.10, lake: 0.14, soil: 0.12, rock: 0.14, snow: 0.16 }),
 	wetLowHeightBoost: 0.18,
 	wetHeightFadeMeters: 18,
@@ -191,6 +167,7 @@ const RUNTIME_PINDEX_DETAIL_APPLIERS = Object.freeze({
 	7: applyPindex07DetailToTerrainMesh,
 	8: applyPindex08DetailToTerrainMesh,
 	9: applyPindex09DetailToTerrainMesh,
+	10: applyPindex10DetailToTerrainMesh,
 });
 
 function currentWorldReferenceSample(worldX, worldZ) {
@@ -226,10 +203,6 @@ function runtimeSemanticBlend(surface, vertexHeightMeters) {
 	);
 }
 
-/**
- * Blends owner-map semantics and prepared pindex detail into one live procedural terrain chunk.
- * Height/position attributes are read-only here; only vertex color + material roughness change.
- */
 export function applyRuntimePindexTerrainPolishToMesh(mesh) {
 	assertTerrainMesh(mesh);
 	const prior = mesh.userData.runtimePindexTerrainPolish;
@@ -288,9 +261,6 @@ export function applyRuntimePindexTerrainPolishToMesh(mesh) {
 	}
 
 	mesh.material.vertexColors = true;
-	// Restore the terrain's own detail gain rather than assuming flat white. `world/terrain.js`
-	// carries a >1 gain when its neutralised detail map is attached (the map stores a ratio around a
-	// mid-grey pivot); resetting to white here halved the entire world's brightness.
 	mesh.material.color.setScalar(mesh.material.userData?.terrainDetailGain ?? 1);
 	mesh.material.roughness = THREE.MathUtils.lerp(
 		mesh.material.roughness,
@@ -315,7 +285,6 @@ export function applyRuntimePindexTerrainPolishToMesh(mesh) {
 
 const RUNTIME_PINDEX_INSTALL_FLAG = Symbol.for('westeros.runtime-pindex-terrain-polish.iteration-008');
 
-/** Installs the visible pindex polish onto shipped ChunkManager loads without replacing terrain generation. */
 export function installRuntimePindexTerrainPolish() {
 	const prototype = ChunkManager.prototype;
 	if (prototype[RUNTIME_PINDEX_INSTALL_FLAG]) return prototype[RUNTIME_PINDEX_INSTALL_FLAG];
@@ -336,32 +305,13 @@ export function installRuntimePindexTerrainPolish() {
 	Object.defineProperty(prototype, RUNTIME_PINDEX_INSTALL_FLAG, { value: installation, configurable: false });
 	return installation;
 }
-// Pindex Quality V2 — shader-first runtime: expensive source interpretation is baked once into a
-// tiny deterministic in-memory atlas, then every terrain fragment samples it on the GPU. This keeps
-// Iteration #08's accepted CPU vertex pass as the only per-vertex authoring cost during chunk boot.
+
 import { REFERENCE_PINDEX_QUALITY_V2_POLICY, sampleReferencePindexQualityV2 } from './worldReferenceSurfacePindexes.js';
 
 export const RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY = Object.freeze({
 	id: 'terrain-pindex-quality-v2-runtime-2026-08-12-v2',
 	atlasWidth: 192,
 	atlasHeight: 128,
-	/**
-	 * How much of the fragment's colour the baked semantic atlas replaces.
-	 *
-	 * Lowered from 0.88 on 2026-08-19. The atlas encodes canonical *semantics* — which surface class
-	 * and biome a map cell belongs to — sampled at the 192x128 atlas resolution, i.e. ~69 x ~81 m per
-	 * texel, and it has no access to local ground slope at all. At 0.88 it was overwriting almost the
-	 * entire per-vertex terrain shading with those flat class swatches, so the world rendered as broad
-	 * uniform olive fields regardless of whether a given metre of ground was a cliff face, a valley
-	 * floor, a beach or a snowfield: only ~12% of `world/terrainBiomeShading.js`'s slope- and
-	 * altitude-driven colour reached the lit diffuse.
-	 *
-	 * At 0.34 the relationship inverts to the one that makes physical sense: per-vertex geography
-	 * (slope, altitude, shoreline, canonical rock/snow weights) is the primary read, and the atlas
-	 * layers canonical biome character, its own relief/elevation rock rules, northern snow and grain
-	 * on top of it. Nothing about the atlas's content or resolution changed — only how much of the
-	 * final colour it is allowed to dictate.
-	 */
 	qualityBlend: 0.34,
 	biomeBlendMax: 0.62,
 	reliefRockBlend: 0.38,
@@ -502,7 +452,6 @@ function installRuntimePindexQualityV2Shader(material) {
 	return true;
 }
 
-/** V2 adds no second per-vertex pass: Iteration #08 remains CPU authoring; V2 is GPU shading. */
 export function applyRuntimePindexTerrainQualityV2ToMesh(mesh) {
 	assertTerrainMesh(mesh);
 	const prior = mesh.userData.runtimePindexTerrainQualityV2;
