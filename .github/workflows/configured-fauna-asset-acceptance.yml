@@ -81,6 +81,15 @@ jobs:
           BASE_URL=http://127.0.0.1:4173 node scripts/checkConfiguredFaunaAssetsBrowser.mjs
           BASE_URL=http://127.0.0.1:4173 node scripts/checkConfiguredFaunaRuntimeBrowser.mjs
 
+      - name: Upload configured fauna runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: configured-fauna-runtime-evidence
+          path: artifacts/configured-fauna-runtime.json
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Final exact-main freshness
         shell: bash
         run: |
