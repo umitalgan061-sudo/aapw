@@ -215,25 +215,38 @@ export async function createWolf({
 					} catch {
 						break;
 					}
-					if (!nextPackmate || nextPackmate.done) break;
-					packSamplesScanned += 1;
-					const packmatePosition = nextPackmate.value;
-					if (!Number.isFinite(packmatePosition?.x) || !Number.isFinite(packmatePosition?.z)) continue;
-					const dx = model.position.x - packmatePosition.x;
-					const dz = model.position.z - packmatePosition.z;
+					let packmatePosition;
+					try {
+						if (!nextPackmate || nextPackmate.done) break;
+						packSamplesScanned += 1;
+						packmatePosition = nextPackmate.value;
+					} catch {
+						break;
+					}
+					let packmateX;
+					let packmateZ;
+					try {
+						packmateX = packmatePosition?.x;
+						packmateZ = packmatePosition?.z;
+					} catch {
+						continue;
+					}
+					if (!Number.isFinite(packmateX) || !Number.isFinite(packmateZ)) continue;
+					const dx = model.position.x - packmateX;
+					const dz = model.position.z - packmateZ;
 					const distance = Math.hypot(dx, dz);
 					const distanceDelta = distance - nearestPackThreatDistance;
 					const isCloser = distanceDelta < -1e-9;
 					const isStableTie = Math.abs(distanceDelta) <= 1e-9
-						&& (packmatePosition.x < nearestPackThreatX
-							|| (packmatePosition.x === nearestPackThreatX && packmatePosition.z < nearestPackThreatZ));
+						&& (packmateX < nearestPackThreatX
+							|| (packmateX === nearestPackThreatX && packmateZ < nearestPackThreatZ));
 					if (distance < safePackAlertRadiusMeters && (isCloser || isStableTie)) {
 						isFleeingFromPack = true;
 						packThreatDx = dx;
 						packThreatDz = dz;
 						nearestPackThreatDistance = distance;
-						nearestPackThreatX = packmatePosition.x;
-						nearestPackThreatZ = packmatePosition.z;
+						nearestPackThreatX = packmateX;
+						nearestPackThreatZ = packmateZ;
 					}
 				}
 			}
