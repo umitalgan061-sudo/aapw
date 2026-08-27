@@ -44,7 +44,7 @@ jobs:
           test "$MERGE_BASE" = "$CURRENT_MAIN"
           mapfile -t FILES < <(git diff --name-only "$CURRENT_MAIN"...HEAD)
           printf '%s\n' "${FILES[@]}"
-          allowed='^(\.github/workflows/(rpg-interaction-quest-loop|rpg-mastery-armorer-service|rpg-mastery-(economy-continuity|to-smithing)|rpg-smithing-service-persistence)\.yml|scripts/checkInteractionExpeditionKit(Browser|Craft)\.mjs|scripts/checkInteractionMastery(EconomyContinuity|ToSmithingBrowser)\.mjs|scripts/checkInteraction(ArmorerServiceBrowser|ProvisioningCraft|QuartermasterTrade|SettlementService(Browser|Contract)|SmithingServicePersistence|TradeLedger(Atomicity|Browser))\.mjs|src/3d/gameplay/interactionConfig\.js)$'
+          allowed='^(\.github/workflows/(rpg-interaction-quest-loop|rpg-journey-ledger-ux|rpg-mastery-armorer-service|rpg-mastery-(economy-continuity|to-smithing)|rpg-smithing-service-persistence)\.yml|scripts/checkInteractionExpeditionKit(Browser|Craft)\.mjs|scripts/checkInteractionMastery(EconomyContinuity|ToSmithingBrowser)\.mjs|scripts/checkInteraction(ArmorerServiceBrowser|ProvisioningCraft|QuartermasterTrade|SettlementService(Browser|Contract)|SmithingServicePersistence|TradeLedger(Atomicity|Browser))\.mjs|src/3d/gameplay/interactionConfig\.js)$'
           if (( ${#FILES[@]} )); then
             printf '%s\n' "${FILES[@]}" | grep -Ev "$allowed" && exit 1 || true
           fi
