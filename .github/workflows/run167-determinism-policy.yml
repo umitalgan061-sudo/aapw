@@ -11,6 +11,8 @@ on:
       - 'scripts/checkNpcGuardLifecycleFrameRateBrowser.js'
       - 'scripts/checkNpcGuardOcclusionLifecycleBrowser.js'
       - 'scripts/checkNpcGuardHearingLifecycleBrowser.js'
+      - 'scripts/checkConfiguredFaunaAssetsBrowser.mjs'
+      - 'scripts/checkConfiguredFaunaRuntimeBrowser.mjs'
       - 'src/3d/**'
       - '.github/workflows/run167-determinism-policy.yml'
   pull_request:
@@ -23,6 +25,8 @@ on:
       - 'scripts/checkNpcGuardLifecycleFrameRateBrowser.js'
       - 'scripts/checkNpcGuardOcclusionLifecycleBrowser.js'
       - 'scripts/checkNpcGuardHearingLifecycleBrowser.js'
+      - 'scripts/checkConfiguredFaunaAssetsBrowser.mjs'
+      - 'scripts/checkConfiguredFaunaRuntimeBrowser.mjs'
       - 'src/3d/**'
       - '.github/workflows/run167-determinism-policy.yml'
 
