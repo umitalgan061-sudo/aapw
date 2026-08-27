@@ -19828,3 +19828,58 @@ Bu, kapının varlık sebebinin kanıtı: eklendiği gün, onu ekleyen turun eks
 (tur 398, 456 MB) ile karıştırılmasın; bu ayrı bir dosya.
 
 **Technical debt.** 0 new. SW v58→v59.
+
+## ADR-0348 — Birim mesh değil, geometri grubu: mobil draw call 1442 → 230
+
+**Blocker.** Turlar 396-399 önündeki her şeyi temizleyince `checkMobilePerfBudget` nihayet kendi
+tavanına ulaştı ve dal orada düştü: **1442 draw call / 500**. Arkasında ikinci bir ihlal daha vardı,
+kapının sıra bulamadığı: **631.650 üçgen / 500.000**.
+
+**Kaynağı tahminle değil, kapatıp açarak buldum.** Sahnedeki her üst düzey grubu sırayla görünmez
+yapıp yeniden render alıp `renderer.info.render.calls` okudum: **1.437'nin 1.395'i (%97)
+`world-props` içinde.**
+
+**İki yanlış cevap önce geldi ve ikisini de ölçüm öldürdü, tartışma değil.**
+
+1. *"Her prop'un alt-mesh'lerini malzemeye göre birleştir."* Yazdım, tek tick içinde A/B yaptım:
+   sahne düğümleri 1952 → 1238, `world-props` mesh'leri 1419 → 705, **draw call 1437 → 1427**. On
+   tane. Geri aldım — gerekçesini az önce çürüttüğüm bir "düzeltmeyi" göndermek, diff'te ilerleme
+   gibi görünüp bütçeye hiçbir şey yapmazdı.
+2. *"Gölge geçişi sayıyı ikiye katlıyor."* 848 mesh'te `castShadow` var, ama render anında
+   `shadowMap.enabled === false` ve `pointer: coarse === true`. `renderQuality.js` mobilde gölgeleri
+   zaten kapatıyor; o bayraklar bedava.
+
+**Doğru birim mesh değil, geometri grubu.** Dizi malzemeli bir mesh **grup başına bir kez** gönderilir.
+`world-props` 706 mesh tutuyordu ama **9.277 grup** — ve dağınık değil: 168 çok-malzemeli mesh
+neredeyse hepsini, dokuz katalog modeli de bunun %95'ini taşıyordu.
+
+| model | yerleşim başına gönderim |
+|---|---|
+| `FreeBuilding_building.fbx` | **1.252** |
+| `tower22_tower.fbx` | 1.007 |
+| `medieval_house_pack.fbx` | 829 |
+| `AncientHouseV5_house.fbx` | 376 |
+| `Free_temple_temple.fbx` | 315 |
+| `House_free_house.fbx` | 261 |
+| `Building_pier1_building.fbx` | 138 |
+| `Classic_Building_building.fbx` | 109 |
+| `Founain-Square_fountain.fbx` | 31 |
+
+Normal bir GLB prop **yedi** gönderiyor. Tek bir `FreeBuilding_building.fbx` yerleşimi, tüm mobil
+bütçenin iki katından fazlasını tek başına gönderiyor. Bunlar prop dosya adı takmış **çok binalı asset
+paketleri** — 456 MB'lık `Ancient_Assets.fbx` ve 419 dokulu `Ancient_Assets_Pack.fbx` ile aynı tuzak,
+üçüncü bir eksende ölçülmüş hali.
+
+**Ölçülen sonuç:** draw call **1442 → 230** (tavan 500), üçgen **631.650 → 427.188** (tavan 500.000).
+İki bütçe de artık geçiyor. Katalog 167 → 158 giriş, 377 → 286 MB.
+
+**Dünya seyrelmiyor:** `planChunkProps` yerleşim sayısını katalog boyutundan bağımsız belirliyor;
+çekilen dokuzunun yerini kalanlar alıyor. Her biyom en az üç tür koruyor, `checkWorldPropScatter`
+bunu bağımsız doğruluyor.
+
+**Kapı zaten var.** Sonucu koruyan şey `checkMobilePerfBudget`'in kendisi: ölçtüğü şey tam olarak bu.
+Ayrı bir "prop başına gönderim" kapısı yazmadım çünkü ölçmek her modeli tarayıcıda yüklemeyi
+gerektirir ve sonucu zaten bütçe kapısı bekliyor.
+
+**Technical debt.** 0 new. SW v59→v60. **Açık iş.** Ejderhanın 6 eksik dokusu (main düzeyinde);
+`checkMountainNaturalizationDeterminism` (dalda önceden kırmızı).

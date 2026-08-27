@@ -308,7 +308,10 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run 399b withholds a fifth: `Ancient_Assets_Pack.fbx`, 419 missing textures. Found by the gate run
 // 399 added, on its first CI run, because that gate walks the whole catalogue where my own measurement
 // had only sampled the models the boot requests. v58->v59.
-const SHELL_CACHE = 'westeros-shell-v59';
+// Run 400 withholds nine multi-building asset packs that each submitted hundreds of draw calls per
+// placement — one alone submitted 1,252 against a whole-scene budget of 500. Mobile draw calls fall
+// 1442 -> 230 and triangles 631,650 -> 427,188. A look change and a cached-module change. v59->v60.
+const SHELL_CACHE = 'westeros-shell-v60';
 const SHELL_FILES = [
     './',
     './index.html',

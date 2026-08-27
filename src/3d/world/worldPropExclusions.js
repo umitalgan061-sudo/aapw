@@ -427,6 +427,53 @@ export const PROP_EXCLUSIONS_BY_REASON = Object.freeze({
 	unsupportedFbxVersion: Object.freeze([
 		"fbx/Old House 2/Old House Files/Old House 2 3D Models.FBX",
 	]),
+	/**
+	 * One placement submits more draw calls than the whole mobile budget allows (run 400).
+	 *
+	 * `checkMobilePerfBudget` reached its own ceiling once runs 396-399 cleared everything in front of
+	 * it, and the branch failed at **1442 draw calls against 500**. Hiding one top-level scene group at
+	 * a time and re-rendering put **1,395 of 1,437 — 97% — inside `world-props`**.
+	 *
+	 * **Two wrong answers came first, and both were killed by measurement rather than by argument.**
+	 * Merging each prop's sub-meshes by material took the scatter from 1,419 meshes to 705 and the draw
+	 * calls from 1,437 to **1,427**: ten. And 848 meshes carry `castShadow`, which looked like a doubled
+	 * pass until `shadowMap.enabled` read `false` — `renderQuality.js` disables shadows on coarse-pointer
+	 * devices, so those flags cost nothing.
+	 *
+	 * The real unit is not the mesh, it is the **geometry group**: a mesh with an array material is
+	 * submitted once per group. `world-props` held 706 meshes but **9,277 groups**, and they were not
+	 * spread — 168 multi-material meshes carried nearly all of them, and nine catalogue models carried
+	 * 95% of that:
+	 *
+	 * | model | submissions per placement |
+	 * |---|---|
+	 * | `FreeBuilding_building.fbx` | 1,252 |
+	 * | `tower22_tower.fbx` | 1,007 |
+	 * | `medieval_house_pack.fbx` | 829 |
+	 * | `AncientHouseV5_house.fbx` | 376 |
+	 * | `Free_temple_temple.fbx` | 315 |
+	 * | `House_free_house.fbx` | 261 |
+	 * | `Building_pier1_building.fbx` | 138 |
+	 * | `Classic_Building_building.fbx` | 109 |
+	 * | `Founain-Square_fountain.fbx` | 31 |
+	 *
+	 * A normal GLB prop submits **seven**. One `FreeBuilding_building.fbx` submits more than twice the
+	 * entire mobile budget on its own — these are multi-building asset packs wearing a prop's filename,
+	 * the same trap as the 456 MB `Ancient_Assets.fbx` and the 419-texture `Ancient_Assets_Pack.fbx`,
+	 * measured on a third axis. Any of them would come back from a version authored as one building
+	 * with a handful of materials.
+	 */
+	tooManyDrawCallsForOnePlacement: Object.freeze([
+		"fbx/FreeBuilding_building.fbx",
+		"fbx/tower22_tower.fbx",
+		"settlements/medieval_house_pack.fbx",
+		"fbx/AncientHouseV5_house.fbx",
+		"fbx/Free_temple_temple.fbx",
+		"fbx/House_free_house.fbx",
+		"fbx/Building_pier1_building.fbx",
+		"fbx/Classic_Building_building.fbx",
+		"fbx/Founain-Square_fountain.fbx",
+	]),
 	underwaterOnly: Object.freeze([
 		"animals/shark.glb",
 	]),

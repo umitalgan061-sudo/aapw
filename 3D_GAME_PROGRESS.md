@@ -18433,3 +18433,24 @@ Kapılar: coverage, scatter, village, manifest, download-size, wait-options PASS
 tüm katalogu yürüyor — eklendiği gün onu ekleyen turun eksiğini yakaladı.
 
 Çekildi. Kapılar: coverage, download-size, scatter-prop-textures, world-props PASS. SW v58→v59.
+
+## Tur 400 — Mobil draw call 1442 → 230 (ADR-0348)
+
+Kapı önündeki her şey temizlenince asıl tavanına ulaştı ve dal düştü: **1442 draw call / 500**, ve
+arkasında **631.650 üçgen / 500.000**.
+
+Kaynağı grup grup kapatarak buldum: **%97'si `world-props`**. Ama iki yanlış cevap önce geldi ve
+ikisini de ölçüm öldürdü: alt-mesh'leri malzemeye göre birleştirmek sahne düğümlerini yarıya indirdi
+ama draw call'ı yalnızca 1437 → 1427 (geri aldım), ve 848 `castShadow` bayrağı mobilde gölgeler
+kapalı olduğu için bedavaymış.
+
+**Doğru birim mesh değil geometri grubu:** dizi malzemeli mesh grup başına gönderiliyor. 706 mesh
+9.277 grup taşıyordu ve dokuz model bunun %95'iydi — biri tek yerleşimde **1.252** gönderim, normal
+bir prop yedi gönderirken. Prop adı takmış çok binalı asset paketleri.
+
+Dokuzu `tooManyDrawCallsForOnePlacement` altına çekildi. **Ölçülen: 1442 → 230 draw call,
+631.650 → 427.188 üçgen. İki bütçe de geçiyor.** Dünya seyrelmiyor — yerleşim sayısı katalog
+boyutundan bağımsız.
+
+Kapılar: coverage, download-size, scatter-textures, world-props, village-buildings, manifest,
+service-worker PASS. SW v59→v60.
