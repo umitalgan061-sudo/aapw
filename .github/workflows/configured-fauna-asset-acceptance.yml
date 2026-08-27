@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'scripts/checkConfiguredFaunaAssetsBrowser.mjs'
+      - 'scripts/checkConfiguredFaunaRuntimeBrowser.mjs'
       - '.github/workflows/configured-fauna-asset-acceptance.yml'
   workflow_dispatch:
 
@@ -33,7 +34,7 @@ jobs:
           test "$base" = "$(git rev-parse origin/main)"
           changed="$(git diff --name-only origin/main...HEAD)"
           printf '%s\n' "$changed"
-          printf '%s\n' "$changed" | grep -Ev '^(scripts/checkConfiguredFaunaAssetsBrowser\.mjs|\.github/workflows/configured-fauna-asset-acceptance\.yml)$' && exit 1 || true
+          printf '%s\n' "$changed" | grep -Ev '^(scripts/checkConfiguredFaunaAssetsBrowser\.mjs|scripts/checkConfiguredFaunaRuntimeBrowser\.mjs|\.github/workflows/configured-fauna-asset-acceptance\.yml)$' && exit 1 || true
           additions="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END {print s+0}')"
           deletions="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END {print s+0}')"
           test $((additions + deletions)) -le 1000
@@ -44,6 +45,7 @@ jobs:
           node --check src/3d/gameplay/animalConfig.js
           node --check src/3d/gameplay/animals.js
           node --check scripts/checkConfiguredFaunaAssetsBrowser.mjs
+          node --check scripts/checkConfiguredFaunaRuntimeBrowser.mjs
 
       - name: Shared material placement contract
         run: node scripts/checkSharedMaterialPlacementContract.js
@@ -64,7 +66,7 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
-      - name: Real configured fauna GLB and clip proof
+      - name: Real configured fauna GLB, clip and controller proof
         shell: bash
         run: |
           set -euo pipefail
@@ -76,6 +78,7 @@ jobs:
             sleep 1
           done
           BASE_URL=http://127.0.0.1:4173 node scripts/checkConfiguredFaunaAssetsBrowser.mjs
+          BASE_URL=http://127.0.0.1:4173 node scripts/checkConfiguredFaunaRuntimeBrowser.mjs
 
       - name: Final exact-main freshness
         shell: bash
