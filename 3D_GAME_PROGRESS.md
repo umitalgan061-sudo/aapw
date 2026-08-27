@@ -18515,3 +18515,36 @@ derlemesi ve doku yüklemesi. Gerçek ekran kartında çok daha hızlı; ~133 s 
 maliyeti kapı işinin yavaşlaması.
 
 İlk tekrarlı-açılış ölçümüm kirliydi (asset'leri koşu ortasında geri almıştım) — attım, temiz koştum.
+
+## Tur 405 — Tıklama seçiciyle değil koordinatla: doymuş ana iş parçacığı (ADR-0353)
+
+Tur 404'ün eşiği işe yaradı: ses kontrolü **ilk kez** açılış perdesini geçti. Sonra bir sonraki
+satırda düştü — `page.click('#__audio-check-btn')`, 30 s aşıldı, çağrı günlüğü
+`waiting for locator(...)` üzerinde takılı.
+
+Düğme kayıp değildi. CI'ın kullandığı aynı hidratlanmış asset'lerle, perde kalktıktan hemen sonra
+ölçtüm:
+
+- `getElementById('__audio-check-btn')` → var, `document.body` içinde, dikdörtgen `0,0 200x60`, ve
+  `document.elementFromPoint(100, 30)` **düğmenin kendisini** döndürüyor. Üstünü örten hiçbir şey yok.
+- Yalnızca `waitForSelector(state: 'attached')` **113.766 ms** sürdü.
+- `page.click()` **120.000 ms**'de yine düştü; günlüğü `scrolling into view`'da durdu.
+
+Bu adımların hepsi *sayfanın ana iş parçacığında* koşuyor ve açılıştan sonra o iş parçacığı, Tur
+404'ün yazdığı başsız yazılımsal render shader derlemesiyle doymuş durumda — birkaç düzine satırlık
+kurulum yapan `page.evaluate()` **97.120 ms** ölçüyor. Yani seçici çözümü, eylenebilirlik yoklaması
+ve görünüme kaydırma her biri dakikalarca sürüyor; **hiçbir eşik değeri bunu güvenilir yapmaz.**
+
+Bu yüzden eşiği yine büyütmek yerine tıklamayı CDP üzerinden gönderiyorum:
+`page.mouse.click(100, 30)` (`Input.dispatchMouseEvent`). Bu adımların hiçbirine ihtiyaç duymuyor ve
+bu kontrolün bütün varlık sebebi olan **gerçek güvenilir girdi olayı** olmayı sürdürüyor.
+
+Seçicinin verdiği güvenlik atılmadı, doğrudan iddia edildi. Kurulum artık `elementFromPoint`'ten
+`buttonIsTopmostAtClickPoint` döndürüyor — eksik ya da örtülmüş bir düğme artık üstünden tıklanıp
+geçilmek yerine kontrolü düşürüyor; eski kod bunu yalnızca bir yorum satırında iddia ediyordu. Ve
+`clickFired` işleyicinin gerçekten koştuğunu kanıtlıyor: onsuz, sayfaya hiç ulaşmamış bir gönderimde
+`clickPromise` `undefined` kalır, `await undefined` çözülür ve kontrol **hiç olmamış bir tıklamayla
+boşuna geçerdi**. Bu boşluk eski kodda da vardı, kapandı.
+
+Doğrulama: gerçek kontrol modülü uçtan uca koştu, altı kurulum iddiası ve dört tıklama-sonrası
+iddiasının hepsi doğru, `ok: true`, 353 s.
