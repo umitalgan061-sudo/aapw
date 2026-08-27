@@ -94,11 +94,12 @@ try {
 
   // Headless Chromium advances the shipped simulation substantially slower than wall time on shared
   // runners. Spend stamina through two existing real run+jump dodges, then use sustained real sprint
-  // for the final low-stamina approach. A third setup dodge is intentionally avoided: after two dodges
-  // and intervening sprint drain the player can legitimately fall below the authored dodge-stamina
-  // threshold, which would turn this guard-break proof into a dodge-eligibility timing test.
+  // for the final low-stamina approach. Each setup dodge must return to authored grounded/canDodge
+  // eligibility before the next Space press; an airborne sprint telemetry frame is not a valid re-arm.
   const setupDodges = [];
   for (let index = 0; index < 2; index += 1) {
+    await waitEvidence((frames) => [...frames].reverse().find((frame) => frame?.state === 'sprint' && frame.isGrounded && frame.canDodge) ?? null,
+      { timeout: 7000, interval: 30, label: `grounded dodge-ready sprint before setup dodge ${index + 1}` });
     await page.evaluate(() => { window.__guardImpactFrames.length = 0; });
     await page.keyboard.press('Space');
     const dodge = await waitEvidence((frames) => frames.at(-1)?.state === 'dodge' ? frames.at(-1) : null,
@@ -107,9 +108,9 @@ try {
     await waitEvidence((frames) => {
       const lastDodgeIndex = frames.findLastIndex((frame) => frame?.state === 'dodge');
       return lastDodgeIndex >= 0
-        ? frames.slice(lastDodgeIndex + 1).find((frame) => frame?.state === 'sprint') ?? null
+        ? frames.slice(lastDodgeIndex + 1).find((frame) => frame?.state === 'sprint' && frame.isGrounded && frame.canDodge) ?? null
         : null;
-    }, { timeout: 6000, interval: 30, label: `sprint resume after setup dodge ${index + 1}` });
+    }, { timeout: 7000, interval: 30, label: `grounded dodge-ready sprint after setup dodge ${index + 1}` });
   }
   need(setupDodges.length === 2 && setupDodges.every((frame) => frame.isGrounded && frame.stamina >= 0), `setup dodges must stay on the shipped grounded dodge path ${JSON.stringify(setupDodges)}`);
 
