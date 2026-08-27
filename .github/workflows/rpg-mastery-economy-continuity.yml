@@ -3,7 +3,19 @@ name: RPG Mastery Economy Continuity
 on:
   pull_request:
     paths:
+      - 'src/3d/gameplay/interactionConfig.js'
+      - 'scripts/checkInteractionArmorerServiceBrowser.mjs'
+      - 'scripts/checkInteractionExpeditionKitCraft.mjs'
+      - 'scripts/checkInteractionProvisioningCraft.mjs'
+      - 'scripts/checkInteractionQuartermasterTrade.mjs'
+      - 'scripts/checkInteractionSettlementServiceBrowser.mjs'
+      - 'scripts/checkInteractionSettlementServiceContract.mjs'
+      - 'scripts/checkInteractionSmithingServicePersistence.mjs'
+      - 'scripts/checkInteractionTradeLedgerAtomicity.mjs'
       - 'scripts/checkInteractionMasteryEconomyContinuity.mjs'
+      - 'scripts/checkInteractionMasteryToSmithingBrowser.mjs'
+      - '.github/workflows/rpg-mastery-to-smithing.yml'
+      - '.github/workflows/rpg-smithing-service-persistence.yml'
       - '.github/workflows/rpg-mastery-economy-continuity.yml'
   workflow_dispatch:
 
@@ -17,6 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
@@ -24,19 +37,16 @@ jobs:
       - name: Exact-main bounded scope and quota
         run: |
           set -euo pipefail
-          git fetch origin main
+          git fetch origin main --no-tags
           CURRENT_MAIN="$(git rev-parse origin/main)"
           MERGE_BASE="$(git merge-base HEAD origin/main)"
           test "$MERGE_BASE" = "$CURRENT_MAIN"
           mapfile -t FILES < <(git diff --name-only "$CURRENT_MAIN"...HEAD)
           printf '%s\n' "${FILES[@]}"
-          test "${#FILES[@]}" -eq 2
-          for path in "${FILES[@]}"; do
-            case "$path" in
-              scripts/checkInteractionMasteryEconomyContinuity.mjs|.github/workflows/rpg-mastery-economy-continuity.yml) ;;
-              *) echo "unexpected RPG mastery economy path: $path" >&2; exit 1 ;;
-            esac
-          done
+          allowed='^(\.github/workflows/(rpg-interaction-quest-loop|rpg-mastery-(economy-continuity|to-smithing)|rpg-smithing-service-persistence)\.yml|scripts/checkInteractionExpeditionKitCraft\.mjs|scripts/checkInteractionMastery(EconomyContinuity|ToSmithingBrowser)\.mjs|scripts/checkInteraction(ArmorerServiceBrowser|ProvisioningCraft|QuartermasterTrade|SettlementService(Browser|Contract)|SmithingServicePersistence|TradeLedger(Atomicity|Browser))\.mjs|src/3d/gameplay/interactionConfig\.js)$'
+          if (( ${#FILES[@]} )); then
+            printf '%s\n' "${FILES[@]}" | grep -Ev "$allowed" && exit 1 || true
+          fi
           CHANGED_LINES="$(git diff --numstat "$CURRENT_MAIN"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           echo "changed_lines=$CHANGED_LINES"
           test "$CHANGED_LINES" -le 1000
@@ -45,16 +55,16 @@ jobs:
           set -euo pipefail
           node --check scripts/checkInteractionMasteryEconomyContinuity.mjs
           node scripts/checkInteractionMasteryEconomyContinuity.mjs
-      - name: Existing RPG regression contracts
-        run: |
-          set -euo pipefail
-          node scripts/checkInteractionExpeditionMasterySmithingReward.mjs
-          node scripts/checkInteractionTradeLedgerAtomicity.mjs
-          node scripts/checkInteractionSettlementServiceContract.mjs
+      - name: Expedition mastery smithing reward contract
+        run: node scripts/checkInteractionExpeditionMasterySmithingReward.mjs
+      - name: Trade ledger atomicity contract
+        run: node scripts/checkInteractionTradeLedgerAtomicity.mjs
+      - name: Settlement service contract
+        run: node scripts/checkInteractionSettlementServiceContract.mjs
       - name: Shared material-placement boundary
         run: node scripts/checkSharedMaterialPlacementContract.js
       - name: Final exact-main freshness
         run: |
           set -euo pipefail
-          git fetch origin main
+          git fetch origin main --no-tags
           test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"

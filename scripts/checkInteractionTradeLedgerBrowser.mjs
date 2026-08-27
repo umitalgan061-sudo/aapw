@@ -123,6 +123,10 @@ try {
 		const legacy = makeRuntime();
 		const legacySnapshot = structuredClone(saved);
 		delete legacySnapshot.economy.ledger;
+		legacySnapshot.inventory.items.push(
+			{ itemId: 'dragonstone-travel-ration-pack', quantity: 1, provenance: [{ sourceType: 'migration-fixture', sourceId: 'trade-ledger-browser' }] },
+			{ itemId: 'dragonstone-whetstone', quantity: 1, provenance: [{ sourceType: 'migration-fixture', sourceId: 'trade-ledger-browser' }] },
+		);
 		legacy.controller.restoreRpgSnapshot(legacySnapshot);
 		const inferred = legacy.controller.getRpgSnapshot();
 		legacy.controller.handleKeyDown({ code: 'KeyB', repeat: false });
@@ -144,6 +148,9 @@ try {
 			&& resumed.economy.ledger.purchasesByOffer[resumedOffer.id] === 1
 			&& resumedReceipt?.sequence === 2
 			&& resumedReceipt?.offerId === resumedOffer.id
+			&& resumed.inventory.items.some((item) => item.itemId === 'dragonstone-expedition-maintenance-kit' && item.quantity === 1)
+			&& !resumed.inventory.items.some((item) => item.itemId === 'dragonstone-travel-ration-pack')
+			&& !resumed.inventory.items.some((item) => item.itemId === 'dragonstone-whetstone')
 			&& legacy.dialogueBox._textEl.textContent.includes(`Son işlem: #2 ${resumedOffer.label}`);
 		legacy.controller.handleKeyDown({ code: 'KeyB', repeat: false });
 		legacy.dialogueBox.dispose();
