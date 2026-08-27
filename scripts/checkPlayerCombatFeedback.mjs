@@ -24,7 +24,7 @@ assert.match(
 );
 assert.match(source, /if \(!isGrounded \|\| guardBreakRemaining > 0\) \{[\s\S]*publishCombatFeedbackAfterHealth\(lastDefenseResult, payload, rawAmount, 0\)/, 'airborne and already guard-broken damage must still produce reconciled feedback');
 assert.match(source, /if \(!guarding \|\| stamina <= 0\)[\s\S]*if \(poise <= 0\) triggerHitStagger\(\); publishCombatFeedbackAfterHealth\(lastDefenseResult, payload, rawAmount, 0\)/, 'unguarded hit/hit-stagger feedback must wait for the health clamp');
-assert.match(source, /if \(poise <= 0\) triggerGuardBreak\(\); publishCombatFeedbackAfterHealth\(lastDefenseResult, payload, rawAmount, blockedAmount\)/, 'guard and guard-break feedback must preserve mitigation while using the health result');
+assert.match(source, /if \(stamina <= 0 \|\| poise <= 0\) triggerGuardBreak\(\); publishCombatFeedbackAfterHealth\(lastDefenseResult, payload, rawAmount, blockedAmount\)/, 'guard and guard-break feedback must preserve mitigation while using the health result for either stamina or poise exhaustion');
 
 assert.match(source, /gameEvents\.on\(EVENTS\.PLAYER_DIED, onPlayerDied\)/, 'player must consume the canonical death event to clear transient combat state');
 assert.match(source, /gameEvents\.off\(EVENTS\.PLAYER_DIED, onPlayerDied\)/, 'player disposal must detach the death-state reset listener');
