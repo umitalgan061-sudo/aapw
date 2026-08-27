@@ -6,12 +6,15 @@ const source = fs.readFileSync(new URL('../src/3d/gameplay/animals.js', import.m
 
 assert.match(source, /MAX_WILDLIFE_SIMULATION_STEP_SECONDS = 0\.1/);
 assert.match(source, /DEFAULT_FLEE_RELEASE_MARGIN_METERS = 3/);
+assert.match(source, /MAX_PACK_ALERT_SAMPLES_PER_TICK = 32/);
 assert.match(source, /const simulationDelta = boundedWildlifeDelta\(delta\)/);
 assert.match(source, /const hasFinitePlayerPosition = Number\.isFinite\(playerPosition\?\.x\) && Number\.isFinite\(playerPosition\?\.z\)/);
 assert.match(source, /const directThreat = canFlee && distanceFromPlayer < fleeTriggerRadiusMeters/);
-assert.match(source, /const hasPackmateIterable = packmateFleePositions != null/);
-assert.match(source, /typeof packmateFleePositions\[Symbol\.iterator\] === 'function'/);
-assert.match(source, /if \(canFlee && !directThreat && packAlertRadiusMeters != null && hasPackmateIterable\)/);
+assert.match(source, /if \(canFlee && !directThreat && packAlertRadiusMeters != null && packmateFleePositions != null\)/);
+assert.match(source, /const iteratorFactory = packmateFleePositions\[Symbol\.iterator\]/);
+assert.match(source, /iteratorFactory\.call\(packmateFleePositions\)/);
+assert.match(source, /packSamplesScanned < MAX_PACK_ALERT_SAMPLES_PER_TICK/);
+assert.match(source, /nextPackmate = packIterator\.next\(\)/);
 assert.match(source, /const recovering = canFlee/);
 assert.match(source, /&& hasFinitePlayerPosition/);
 assert.match(source, /distanceFromPlayer < fleeReleaseRadiusMeters/);
@@ -32,6 +35,7 @@ assert.match(source, /mixer\.update\(simulationDelta\)/);
 assert.match(source, /if \(!Number\.isFinite\(delta\) \|\| delta <= 0\) return 0/);
 
 const maxStep = 0.1;
+const maxPackSamples = 32;
 const fleeSpeed = 4.5;
 const patrolSpeed = 2.2;
 const triggerRadius = 12;
@@ -53,6 +57,7 @@ const shouldPackAlert = ({ direct, alertRadius, packmate }) => Boolean(
 assert.equal(bounded(3), 0.1, 'a multi-second tab/background stall must be reduced to one bounded wildlife step');
 assert.equal(bounded(Number.NaN), 0, 'non-finite frame deltas must never enter movement or animation state');
 assert.equal(bounded(-1), 0, 'negative clock deltas must not rewind wildlife state');
+assert.equal(maxPackSamples, 32, 'group-AI pack sensing must remain bounded per wildlife tick');
 assert.ok(fleeSpeed * bounded(3) <= 0.45 + Number.EPSILON, 'flee displacement per resumed frame must remain collider-safe and bounded');
 assert.ok(patrolSpeed * bounded(3) <= 0.22 + Number.EPSILON, 'patrol displacement per resumed frame must remain bounded');
 assert.equal(releaseRadius, 15, 'default flee release radius must remain a bounded 3 m margin beyond trigger');
