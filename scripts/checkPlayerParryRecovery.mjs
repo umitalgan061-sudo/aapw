@@ -4,6 +4,8 @@ import { readFile } from 'node:fs/promises';
 
 const source = await readFile(new URL('../src/3d/gameplay/player.js', import.meta.url), 'utf8');
 const guardUpdate = source.match(/const guardIntent = Boolean\(moveDirectionXZ\.guarding\).*?wasGuardHeld = guardIntent;/s)?.[0] ?? '';
+const canStartDodge = source.match(/function canStartDodge\(\) \{([^}]*)\}/s)?.[1] ?? '';
+const motionSnapshot = source.match(/function motionSnapshot\(\) \{([\s\S]*?)\n\t\}/)?.[1] ?? '';
 
 assert.ok(guardUpdate, 'player guard update contract must exist');
 assert.ok(
@@ -18,12 +20,25 @@ assert.ok(
   source.includes('canStartAttack(kind)') && source.includes('parryFeedbackRemaining <= 0 && !guarding'),
   'parry recovery must continue blocking attack startup as well as guard rearm',
 );
+assert.ok(canStartDodge, 'player dodge eligibility contract must exist');
+assert.ok(
+  canStartDodge.includes('parryFeedbackRemaining <= 0'),
+  'successful parry recovery must block dodge startup until feedback recovery expires',
+);
+assert.ok(
+  motionSnapshot.includes('parryFeedbackRemaining <= 0'),
+  'published canDodge telemetry must agree with parry recovery dodge lockout',
+);
 
 function resolveGuard({ guardIntent, wasGuardHeld, parryFeedbackRemaining, stamina = 100 }) {
   const guardPressed = guardIntent && !wasGuardHeld;
   const guarding = guardIntent && parryFeedbackRemaining <= 0 && stamina > 0;
   const parryWindow = guardPressed && guarding && stamina >= 8 ? 0.16 : 0;
   return { guarding, parryWindow };
+}
+
+function resolveDodge({ parryFeedbackRemaining, stamina = 100, moving = true, grounded = true }) {
+  return parryFeedbackRemaining <= 0 && stamina >= 28 && moving && grounded;
 }
 
 assert.deepEqual(
@@ -36,10 +51,20 @@ assert.deepEqual(
   { guarding: true, parryWindow: 0.16 },
   'guard/parry must rearm normally after recovery ends',
 );
+assert.equal(
+  resolveDodge({ parryFeedbackRemaining: 0.12 }),
+  false,
+  'run-jump/double-tap dodge must not cancel successful parry recovery',
+);
+assert.equal(
+  resolveDodge({ parryFeedbackRemaining: 0 }),
+  true,
+  'dodge must rearm normally after parry recovery ends',
+);
 
 console.log(JSON.stringify({
   ok: true,
-  contract: 'player-parry-recovery-lockout',
-  recoveryBlocks: ['guard', 'parry-rearm', 'attack'],
+  contract: 'player-parry-recovery-lockout-v2',
+  recoveryBlocks: ['guard', 'parry-rearm', 'attack', 'dodge'],
   rearmAfterRecovery: true,
 }, null, 2));
