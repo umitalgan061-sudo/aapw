@@ -6,8 +6,11 @@ on:
     paths:
       - 'src/3d/gameplay/player.js'
       - 'scripts/checkPlayerCombatRecoveryInputIsolation.mjs'
+      - 'scripts/checkPlayerRecoveryAttackBufferDrop.mjs'
+      - 'scripts/checkPlayerRecoveryAttackBufferRuntime.mjs'
       - 'scripts/checkPlayerHitStaggerRuntime.mjs'
       - '.github/workflows/player-combat-recovery-input-isolation.yml'
+      - '.github/workflows/player-recovery-attack-buffer-drop.yml'
   workflow_dispatch:
 
 permissions:
@@ -45,8 +48,12 @@ jobs:
         run: |
           set -euo pipefail
           node --check scripts/checkPlayerCombatRecoveryInputIsolation.mjs
+          node --check scripts/checkPlayerRecoveryAttackBufferDrop.mjs
+          node --check scripts/checkPlayerRecoveryAttackBufferRuntime.mjs
           node scripts/checkPlayerCombatRecoveryInputIsolation.mjs | tee recovery-input-contract.log
           grep -q 'PLAYER_COMBAT_RECOVERY_INPUT_ISOLATION_OK' recovery-input-contract.log
+          node scripts/checkPlayerRecoveryAttackBufferDrop.mjs | tee recovery-buffer-contract.log
+          grep -q 'PLAYER_RECOVERY_ATTACK_BUFFER_DROP_OK' recovery-buffer-contract.log
           node scripts/checkPlayerStaminaDodge.mjs
           node scripts/checkPlayerCombatFeedback.mjs
           node scripts/checkPlayerGroundingCombatContract.mjs
@@ -79,11 +86,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts/player-combat-recovery-input
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerRecoveryAttackBufferRuntime.mjs --out-dir=artifacts/player-combat-recovery-input/recovery-buffer | tee artifacts/player-combat-recovery-input/recovery-buffer.log
+          grep -q 'PLAYER_RECOVERY_ATTACK_BUFFER_RUNTIME_OK' artifacts/player-combat-recovery-input/recovery-buffer.log
+          grep -q '"browserErrors": \[\]' artifacts/player-combat-recovery-input/recovery-buffer/recovery-attack-buffer-runtime.json
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerHitStaggerRuntime.mjs --out-dir=artifacts/player-combat-recovery-input/hit-stagger | tee artifacts/player-combat-recovery-input/hit-stagger.log
           grep -q 'PLAYER_HIT_STAGGER_RUNTIME_OK' artifacts/player-combat-recovery-input/hit-stagger.log
           grep -q '"browserErrors": \[\]' artifacts/player-combat-recovery-input/hit-stagger/hit-stagger-runtime.json
-          node scripts/checkMobilePerfBudget.js
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
+          node scripts/checkMobilePerfBudget.js | tee artifacts/player-combat-recovery-input/mobile-perf.log
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js | tee artifacts/player-combat-recovery-input/browser-smoke.log
       - name: Final main freshness
         shell: bash
         run: |
@@ -100,4 +110,5 @@ jobs:
           if-no-files-found: warn
           path: |
             recovery-input-contract.log
+            recovery-buffer-contract.log
             artifacts/player-combat-recovery-input/
