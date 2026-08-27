@@ -263,7 +263,12 @@ async function checkWaterDepthTaperedSwell(browser, baseUrl) {
 			}
 			// 4. The vertex shader must actually apply the depth taper, not just declare it.
 			const vertexSource = water.material.vertexShader;
-			if (!/worldPos\.y\s*\+=\s*swellHeight\s*\*\s*amplitudeScale/.test(vertexSource)) {
+			// Assert the property, not a variable name. Run 389 made the swell per-fragment and inlined
+			// the old `swellHeight` local into `swellAt(worldPos.xz, uTime).x`; the displacement is still
+			// scaled by the depth-tapered amplitude, but this check was still grepping for the dead
+			// identifier and reporting a regression that had not happened. What matters is that whatever
+			// height is computed goes through `amplitudeScale`.
+			if (!/worldPos\.y\s*\+=\s*[^;]*\*\s*amplitudeScale\s*;/.test(vertexSource)) {
 				failures.push('vertex shader no longer scales its displacement by the depth-tapered amplitude');
 			}
 			if (!/amplitudeScale\s*=\s*depthFactor\s*\*\s*uSwellStrength/.test(vertexSource)) {

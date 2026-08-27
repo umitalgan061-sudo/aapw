@@ -19910,3 +19910,37 @@ diff'in yaklaşması beklenen bir boyut olarak değil. Düzeltmeden sonra kapı 
 yasak geçici-çözüm eklemesi 0, yeni borç işareti 0.
 
 **Technical debt.** 0 new. Runtime kaynağı değişmedi, SW bump yok.
+
+## ADR-0350 — Ölü bir değişken adını arayan bir kontrat, ve asıl mesele: masaüstü açılışı mobilin 6,7 katı
+
+**İki ayrı şey, aynı koşuda çıktı.**
+
+**1. Bayat assertion.** `smokeTestGame3D`'nin su kontratı şunu arıyordu:
+`worldPos.y += swellHeight * amplitudeScale`. Ama tur 389 kabarmayı fragment başına taşırken o yerel
+değişkeni `swellAt(worldPos.xz, uTime).x` içine gömdü. Yer değiştirme **hâlâ** derinlik-koniklemeli
+genlikle ölçekleniyor — kontrol yalnızca ölü bir **değişken adını** arıyordu ve olmamış bir
+regresyonu bildiriyordu. Regex artık özelliği doğruluyor, adı değil:
+`worldPos.y += <herhangi bir ifade> * amplitudeScale;`. Negatif testi yapıldı — ölçeklenmemiş ve
+yanlış ölçeklenmiş yer değiştirmeyi hâlâ reddediyor, eski ve yeni formu kabul ediyor.
+
+**2. Asıl mesele, ve bu turların hepsinin yanlış yolu optimize ettiğini gösteriyor.** CI'da smoke
+suite `game3dSmokeChecksAudio.js:36`'da zaman aşımına uğradı. O kontrol **1280×800**, yani masaüstü
+viewport'u: `coarsePointer` false, gölgeler açık, masaüstü arazi LOD'u ve daha geniş önizleme
+yarıçapı. Turlar 396-400'ün hepsi **mobil** yolu ölçtü ve düzeltti.
+
+Gerçek asset'lerle ölçtüm:
+
+| viewport | yükleme katmanı kayboluyor |
+|---|---|
+| **masaüstü 1280×800** | **160.135 ms** |
+| mobil 430×932 | 23.836 ms |
+
+**Masaüstü açılışı mobilin 6,7 katı** ve ses kontrolünün izin verdiği 60 saniyeyi kat kat aşıyor.
+`checkMobilePerfBudget`'in geçmesi bu yüzden çelişki değil: o ucuz yolu ölçüyor.
+
+Bu turda masaüstü yolunu düzeltmiyorum — önce nedenini ölçmek gerekiyor, ve bu oturumda tahminle
+gittiğim her seferinde yanıldım. Muhtemel kaynak `PHASE1_PREVIEW_RADIUS_CHUNKS`: masaüstü açılışta
+mobilin `STREAM_RADIUS_CHUNKS`'ından daha geniş bir önizleme yarıçapı üretiyor, yani daha çok chunk ve
+daha çok prop. Ölçülmeden dokunulmayacak.
+
+**Technical debt.** 0 new. Runtime kaynağı değişmedi, SW bump yok.

@@ -18468,3 +18468,17 @@ Diff'i yeterince büyüyen herhangi bir dal aynı şekilde çökerdi — kapın�
 
 Ayrıca doğrulandı: **CI'da `checkMobilePerfBudget` geçti** — tur 400'ün 1442 → 230 düşüşü gerçekmiş.
 `analyzePerfTrend` de "beklenen gürültünün ötesinde sürekli artış yok" diyor.
+
+## Tur 402 — Bayat bir assertion, ve masaüstü açılışının mobilin 6,7 katı olduğu bulgusu (ADR-0350)
+
+Smoke suite'in su kontratı `swellHeight` adlı bir değişkeni arıyordu; tur 389 onu
+`swellAt(worldPos.xz, uTime).x` içine gömmüştü. Yer değiştirme hâlâ doğru ölçekleniyordu — kontrol
+ölü bir adı arayıp olmamış bir regresyon bildiriyordu. Regex artık özelliği doğruluyor, adı değil;
+negatif testi yapıldı.
+
+**Asıl bulgu:** CI'da smoke suite `game3dSmokeChecksAudio.js`'de zaman aşımına uğradı ve o kontrol
+**masaüstü** viewport'u kullanıyor. Gerçek asset'lerle ölçtüm: masaüstü açılışı **160.135 ms**, mobil
+**23.836 ms** — **6,7 katı**. Turlar 396-400'ün hepsi mobil yolu düzeltti; masaüstü yolu hiç
+ölçülmemişti. `checkMobilePerfBudget`'in geçmesi bu yüzden çelişki değil.
+
+Masaüstünü bu turda düzeltmiyorum: önce ölçüm. Muhtemel kaynak `PHASE1_PREVIEW_RADIUS_CHUNKS`.
