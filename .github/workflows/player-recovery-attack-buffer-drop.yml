@@ -9,6 +9,7 @@ on:
       - 'scripts/checkPlayerRecoveryAttackBufferRuntime.mjs'
       - 'scripts/checkPlayerCombatRecoveryInputIsolation.mjs'
       - 'scripts/checkPlayerParryRecovery.mjs'
+      - 'scripts/checkPlayerHitStaggerRuntime.mjs'
       - 'scripts/checkSharedMaterialPlacementContract.js'
       - '.github/workflows/player-recovery-attack-buffer-drop.yml'
   workflow_dispatch:
@@ -52,6 +53,7 @@ jobs:
           node --check src/3d/gameplay/player.js
           node --check scripts/checkPlayerRecoveryAttackBufferDrop.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferRuntime.mjs
+          node --check scripts/checkPlayerHitStaggerRuntime.mjs
           node scripts/checkPlayerRecoveryAttackBufferDrop.mjs
           node scripts/checkPlayerCombatRecoveryInputIsolation.mjs
           node scripts/checkPlayerParryRecovery.mjs
