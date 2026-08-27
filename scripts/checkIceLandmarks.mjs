@@ -40,7 +40,7 @@ assert(Math.abs(cave.center.y - sampleHeightMeters(cave.center.x, cave.center.z)
   'cave portal must stay grounded to the shared terrain height authority');
 
 const realism = result.stats.realism;
-assert.equal(realism?.version, 3, 'The Wall must use natural-palette glacial realism v3');
+assert.equal(realism?.version, 4, 'The Wall must use natural-palette glacial realism v4');
 assert.equal(realism?.wallTexture?.resolution, '256x512', 'wall texture resolution regressed');
 assert.equal(realism?.caveTexture?.resolution, '256x512', 'cave texture resolution regressed');
 assert(realism.wallTexture.crackCoverage > 0.01 && realism.wallTexture.crackCoverage < 0.30,
@@ -67,7 +67,7 @@ assert.equal(wall.userData.iceLandmarkRole, 'natural-ice-wall');
 assert.equal(wall.material?.userData?.iceSurface?.mode, 'wall-glacial-cliff');
 assert.equal(wall.material?.userData?.iceSurface?.verticalFlowTexture, true);
 assert.equal(wall.material?.userData?.iceSurface?.proceduralCracks, true);
-assert.equal(wall.material?.userData?.iceSurface?.realismVersion, 3);
+assert.equal(wall.material?.userData?.iceSurface?.realismVersion, 4);
 assert.equal(wall.material?.userData?.iceSurface?.naturalReferencePalette, true);
 assert.equal(wall.material?.userData?.iceSurface?.macroFractures, true);
 assert.equal(wall.material?.userData?.iceSurface?.mesoStriations, true);
@@ -86,6 +86,9 @@ for (const [name, role] of [
   assert(detail?.isInstancedMesh, `${name} realism mesh missing`);
   assert.equal(detail.userData.iceLandmarkRole, role);
 }
+const seracMesh = result.group.getObjectByName('ice-wall-serac-buttresses');
+assert.equal(seracMesh.geometry?.type, 'OctahedronGeometry',
+  'wall serac breakup must stay faceted instead of reverting to smooth oval boulders');
 
 const portalMesh = result.group.getObjectByName('ice-wall-cave-portal');
 assert(portalMesh?.isMesh, 'arched cave portal mesh missing');
