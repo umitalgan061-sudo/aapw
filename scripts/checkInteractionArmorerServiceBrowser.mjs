@@ -63,6 +63,8 @@ try {
 			{ itemId: 'dragonstone-whetstone', quantity: 1, provenance: [{ sourceType: 'browser-fixture', sourceId: 'armorer-service' }] },
 		] };
 		first.controller.restoreRpgSnapshot(seeded);
+		first.events.inventory.length = 0;
+		first.events.economy.length = 0;
 		first.controller.handleKeyDown({ code: 'KeyB', repeat: false });
 		const openingText = first.dialogueBox._textEl.textContent;
 		const advertised = first.dialogueBox.isVisible
