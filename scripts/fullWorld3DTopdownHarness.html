@@ -160,9 +160,6 @@ const terrainMaterial = new THREE.MeshStandardMaterial({
 });
 applyTerrainMicroSurface(terrainMaterial);
 const terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
-// Match the shipped terrain colour pipeline rather than stopping at the biome base layer. This is
-// intentionally the same runtime adapter used by the game, so Pindex semantics/detail — including
-// marine-only seabed treatment — must be present in the visual proof instead of existing only in code.
 const runtimeTerrainPolish = applyRuntimePindexTerrainPolishToMesh(terrain);
 scene.add(terrain);
 
@@ -240,8 +237,8 @@ window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
 		regionalMoistureVariation: TERRAIN_MICRO_SURFACE_POLICY.regionalMoistureVariation,
 		elevationWeathering: TERRAIN_MICRO_SURFACE_POLICY.elevationWeathering,
 		coastalIntertidalBreakup: TERRAIN_MICRO_SURFACE_POLICY.coastalIntertidalBreakup,
-		coastalSaltSprayWeathering: TERRAIN_MICRO_SURFACE_POLICY.saltSprayMineralCrust,
-		coastalRoughnessResponse: TERRAIN_MICRO_SURFACE_POLICY.roughnessVariation,
+		coastalSaltSprayWeathering: TERRAIN_MICRO_SURFACE_POLICY.coastalSaltSprayWeathering,
+		coastalRoughnessResponse: TERRAIN_MICRO_SURFACE_POLICY.coastalRoughnessResponse,
 		uvChannel: TERRAIN_MICRO_SURFACE_POLICY.uvChannel,
 	}),
 	waterDepthField: Object.freeze({
