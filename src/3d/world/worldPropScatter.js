@@ -44,6 +44,7 @@ import { sampleMapAridity01, sampleMapForest01 } from './worldReferenceBiomeFiel
 import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
 import { PROP_CATALOGUE_BY_BIOME, PROP_CATALOGUE_POLICY } from './worldPropCatalogue.js';
 import { valyriaInfluence01 } from './worldReferenceValyria.js';
+import { coalesceGeometryGroups } from './propGeometryGroupCoalescing.js';
 import { WORLD_DEFAULTS, WORLD_SCALE, CHUNK_CONFIG } from '../config.js';
 
 export const PROP_SCATTER_POLICY = Object.freeze({
@@ -331,6 +332,10 @@ export async function loadPropModel(assetLoader, cache, file) {
 	)
 		.then((model) => {
 			if (!model || model.userData?.isPlaceholder) return null;
+			// Once per cached source, so every clone of it is cheaper to draw and no placement pays for
+			// this again. See `world/propGeometryGroupCoalescing.js` for why the group list, not the mesh
+			// count, is what the GPU is charging for.
+			coalesceGeometryGroups(model);
 			return normalisePropMaterials(model);
 		})
 		.catch(() => null);

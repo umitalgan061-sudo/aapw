@@ -311,7 +311,12 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run 400 withholds nine multi-building asset packs that each submitted hundreds of draw calls per
 // placement — one alone submitted 1,252 against a whole-scene budget of 500. Mobile draw calls fall
 // 1442 -> 230 and triangles 631,650 -> 427,188. A look change and a cached-module change. v59->v60.
-const SHELL_CACHE = 'westeros-shell-v60';
+// Run 405 collapses every imported prop's geometry groups to one per material at load — a new cached
+// module plus a change to `worldPropScatter.js`. Nothing about the world looks different (the renders
+// are pixel-identical and the mobile sample is bit-identical, 235 draw calls / 465,174 triangles), but
+// a stale shell would keep serving the old `worldPropScatter.js` with an import of a module it has
+// never cached, which fails offline outright rather than degrading. v60->v61.
+const SHELL_CACHE = 'westeros-shell-v61';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -491,6 +496,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/world/nightsWatchCastles.js',
     './src/3d/world/worldReferenceRivers.js',
     './src/3d/world/worldPropScatter.js',
+    './src/3d/world/propGeometryGroupCoalescing.js',
     './src/3d/world/villageBuildings.js',
     './src/3d/world/terrainGroundRealism.js',
     './src/3d/world/worldDressing.js',

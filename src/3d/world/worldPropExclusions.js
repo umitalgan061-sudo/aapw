@@ -462,6 +462,52 @@ export const PROP_EXCLUSIONS_BY_REASON = Object.freeze({
 	 * the same trap as the 456 MB `Ancient_Assets.fbx` and the 419-texture `Ancient_Assets_Pack.fbx`,
 	 * measured on a third axis. Any of them would come back from a version authored as one building
 	 * with a handful of materials.
+	 *
+	 * ---
+	 *
+	 * **Run 405: the draw-call reason above is no longer true, and the list is kept for a different one.**
+	 * Those group lists turned out to be redundant rather than rich — `tower22_tower.fbx`'s `TOWER` mesh
+	 * spends 990 groups on **7** distinct material indexes, `FreeBuilding_building.fbx`'s `lamp19` spends
+	 * 281 on **2**. Sorting each mesh's triangles by material index and emitting one group per material
+	 * recovers nearly all of it (`world/propGeometryGroupCoalescing.js`), verified pixel-identical from
+	 * two angles per model:
+	 *
+	 * | model | submissions per placement, before -> after |
+	 * |---|---|
+	 * | `FreeBuilding_building.fbx` | 1,252 -> **17** |
+	 * | `tower22_tower.fbx` | 1,007 -> **10** |
+	 * | `AncientHouseV5_house.fbx` | 376 -> **43** |
+	 * | `Free_temple_temple.fbx` | 316 -> **44** |
+	 * | `House_free_house.fbx` | 261 -> **49** |
+	 * | `Building_pier1_building.fbx` | 138 -> **34** |
+	 * | `Classic_Building_building.fbx` | 109 -> **15** |
+	 * | `Founain-Square_fountain.fbx` | 31 -> **6** |
+	 * | `settlements/medieval_house_pack.fbx` | 829 -> **414** |
+	 *
+	 * **So why are they all still here? The triangle budget, measured rather than argued.** Run 405 put
+	 * five of them back — `tower22`, `AncientHouseV5`, `House_free`, `Building_pier1`,
+	 * `Classic_Building`, the cheapest of the nine at 4,404 to 7,797 triangles each — and ran
+	 * `checkMobilePerfBudget`:
+	 *
+	 * - without them: **235 draw calls, 465,174 triangles**, PASS
+	 * - with them: **88 draw calls, 530,392 triangles**, FAIL — over the 500,000 ceiling
+	 *
+	 * The scatter places a fixed 220 props whatever the catalogue holds, so five new entries do not add
+	 * props, they *displace* lighter ones — and these are two to three times a typical prop. That is 14%
+	 * of the whole scene budget for five buildings. The catalogue change was reverted; the transform,
+	 * which measures **bit-identical** to the baseline on its own (235 / 465,174 / 205 geometries), was
+	 * kept. What was a draw-call queue is now a triangle queue: these come back when the budget has room,
+	 * or from decimated derivatives.
+	 *
+	 * **Two of the nine have a second reason of their own, found while checking them.**
+	 * `settlements/medieval_house_pack.fbx` is the one whose draw calls barely moved (829 -> 414):
+	 * its groups are spread over **94 real materials**, roughly 35 per house, so there is nothing
+	 * redundant to collapse. And `Founain-Square_fountain.fbx` is not a building at all — rendering it
+	 * per GOVERNANCE.md §8.5 showed **15 x 2.8 x 13.4 m**, a paved rectangle with a small pool set into
+	 * it, height over widest dimension **0.18**. The scatter scales a prop so its widest dimension is the
+	 * footprint, so it would land as a 15 m flagstone slab lying on open ground, its baked paving
+	 * fighting the terrain — the same mistake as `fence_fence.fbx` and run 395's `grass.glb` below. It
+	 * belongs at the centre of a built square, which `world/villages.js` could grow and has not yet.
 	 */
 	tooManyDrawCallsForOnePlacement: Object.freeze([
 		"fbx/FreeBuilding_building.fbx",

@@ -18548,3 +18548,41 @@ boşuna geçerdi**. Bu boşluk eski kodda da vardı, kapandı.
 
 Doğrulama: gerçek kontrol modülü uçtan uca koştu, altı kurulum iddiası ve dört tıklama-sonrası
 iddiasının hepsi doğru, `ok: true`, 353 s.
+
+## Tur 405b — Çizim çağrısı engeli kalktı, üçgen bütçesi engeli çıktı (ADR-0354)
+
+Tur 400 dokuz modeli "tek yerleşim yüzlerce çizim çağrısı gönderiyor" diye geri çekmişti — biri tek
+başına 1.252, bütün mobil bütçe 500 iken. O grup listelerinin **zengin değil fazlalıklı** olduğu
+ortaya çıktı: `tower22_tower.fbx`'in `TOWER` ağı 990 grubu **7** malzeme indeksine harcıyor,
+`FreeBuilding_building.fbx`'in `lamp19`'u 281 grubu **2**'ye.
+
+Yeni `world/propGeometryGroupCoalescing.js` her ağın üçgenlerini malzeme indeksine göre sıralayıp
+malzeme başına tek grup yazıyor. Saf yeniden sıralama: aynı üçgenler, aynı köşe verisi, aynı malzeme
+dizisi. 1.252 → **17**, 1.007 → **10**, 316 → **44**.
+
+**Ölçümü iki kez yaptım, ilki adil değildi.** İlk karşılaştırmada modeli iki kez yükleyip birini
+dönüştürmüştüm; dokuz modelin sekizi "piksel aynı değil" dedi. Sebep dönüşüm değildi: `FBXLoader`
+yan dosya dokuları gelmeden çözülüyor, ikinci yükleme daha sıcak bir doku önbelleğiyle çiziliyor.
+**Tek yükleme, yerinde dönüşüm, öncesi ve sonrası** diye kurunca dokuzunda da iki açıdan **piksel
+birebir aynı**. İlk okumaya güvenseydim doğru bir değişikliği çöpe atmıştım.
+
+**Sonra asıl engel çıktı.** Dokuzun en ucuz beşini (4.404–7.797 üçgen) katalogа geri koyup
+`checkMobilePerfBudget` koştum:
+
+| | çizim çağrısı | üçgen | sonuç |
+|---|---|---|---|
+| beşi olmadan | 235 | 465.174 | PASS |
+| beşi ile | 88 | **530.392** | **FAIL**, tavan 500.000 |
+
+Dağıtıcı katalog ne kadar büyürse büyüsün sabit 220 prop yerleştiriyor; yeni girdi prop *eklemiyor*,
+daha hafif olanların yerine geçiyor — ve bunlar tipik bir propun iki üç katı. Beş bina için bütçenin
+%14'ü. **Katalog değişikliği geri alındı.** Dönüşüm kaldı: tek başına ölçüldüğünde temel çizgiyle
+**birebir aynı** (235 / 465.174 / 205 geometri), yani bugün hiçbir sayıyı oynatmıyor. Bunu açıkça
+yazıyorum — değeri, dokuzun önündeki iki engelden birini kaldırmasında ve kalanı isimlendirmesinde.
+
+İki model kendi ayrı sebebini de kazandı: `medieval_house_pack.fbx`'in 829 grubu **94 gerçek
+malzemeye** yayılmış, sıkıştıracak fazlalık yok (829 → 414). Ve `Founain-Square_fountain.fbx` bir
+bina değil — §8.5 iki açıdan bakınca **15 × 2,8 × 13,4 m**, içine küçük bir havuz oyulmuş taş
+döşeli bir dikdörtgen, yükseklik/en oranı **0,18**. Dağıtıcı en geniş boyutu ayak izi sayarak
+ölçeklediği için açık araziye 15 metrelik bir taş levha olarak inerdi; `fence_fence.fbx` ve Tur
+395'in `grass.glb`'si ile aynı hata.
