@@ -6,6 +6,7 @@ on:
       - 'src/3d/gameplay/animals.js'
       - 'scripts/checkWildlifePackAlertIndependence.mjs'
       - 'scripts/checkWildlifeLongFrameBudget.mjs'
+      - 'scripts/checkWildlifePackLongFrameBrowser.mjs'
       - '.github/workflows/wildlife-pack-alert-independence.yml'
       - '.github/workflows/wildlife-long-frame-budget.yml'
   push:
@@ -15,6 +16,7 @@ on:
       - 'src/3d/gameplay/animals.js'
       - 'scripts/checkWildlifePackAlertIndependence.mjs'
       - 'scripts/checkWildlifeLongFrameBudget.mjs'
+      - 'scripts/checkWildlifePackLongFrameBrowser.mjs'
       - '.github/workflows/wildlife-pack-alert-independence.yml'
       - '.github/workflows/wildlife-long-frame-budget.yml'
 
@@ -36,8 +38,8 @@ jobs:
           git merge-base --is-ancestor origin/main HEAD
           changed="$(git diff --name-only origin/main...HEAD)"
           printf '%s\n' "$changed"
-          test "$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)" -le 5
-          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/animals\.js|scripts/checkWildlifePackAlertIndependence\.mjs|scripts/checkWildlifeLongFrameBudget\.mjs|\.github/workflows/wildlife-pack-alert-independence\.yml|\.github/workflows/wildlife-long-frame-budget\.yml)$' && exit 1 || true
+          test "$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)" -le 6
+          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/animals\.js|scripts/checkWildlifePackAlertIndependence\.mjs|scripts/checkWildlifeLongFrameBudget\.mjs|scripts/checkWildlifePackLongFrameBrowser\.mjs|\.github/workflows/wildlife-pack-alert-independence\.yml|\.github/workflows/wildlife-long-frame-budget\.yml)$' && exit 1 || true
           total="$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           echo "changed-lines=$total"
           test "$total" -le 1000
@@ -46,12 +48,13 @@ jobs:
           node --check src/3d/gameplay/animals.js
           node --check scripts/checkWildlifePackAlertIndependence.mjs
           node --check scripts/checkWildlifeLongFrameBudget.mjs
+          node --check scripts/checkWildlifePackLongFrameBrowser.mjs
       - name: Pack alert runtime regression
         run: node scripts/checkWildlifePackAlertIndependence.mjs
       - name: Wildlife long-frame deterministic budget
         run: node scripts/checkWildlifeLongFrameBudget.mjs
       - name: Shared material placement contract
-        run: node scripts/checkSharedMaterialPlacementContract.mjs
+        run: node scripts/checkSharedMaterialPlacementContract.js
       - name: Final exact-main freshness
         shell: bash
         run: |
