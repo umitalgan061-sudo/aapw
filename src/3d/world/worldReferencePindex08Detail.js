@@ -11,7 +11,7 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX08_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex08-detail-2026-08-27-v4-drainage-alluvium-weathering',
+  id: 'owner-map-pindex08-detail-2026-08-28-v5-pedogenic-lowland-weathering',
   pindex: 8,
   renderOnly: true,
   geographyAuthorityUnchanged: true,
@@ -21,6 +21,8 @@ export const PINDEX08_DETAIL_POLICY = Object.freeze({
   grainMeters: 46,
   drainageMeters: 330,
   alluviumMeters: 620,
+  seepMeters: 790,
+  ironCrustMeters: 270,
   boundaryProbeNormalized: 0.006,
   amplitudeBySurface: Object.freeze({ sea: 0.018, lake: 0.020, soil: 0.176, rock: 0.160, snow: 0.086 }),
   chromaBySurface: Object.freeze({ sea: 0.020, lake: 0.022, soil: 0.148, rock: 0.114, snow: 0.064 }),
@@ -97,16 +99,37 @@ function surfaceFabric(surface, worldX, worldZ) {
       P.alluviumMeters,
       42.6,
     );
+    const seepField = valueNoise(
+      worldX + macro * 203 - meso * 61,
+      worldZ - meso * 177 + fine * 37,
+      P.seepMeters,
+      53.7,
+    );
+    const crustField = valueNoise(
+      worldX - macro * 67 + fine * 49,
+      worldZ + meso * 73 + grain * 19,
+      P.ironCrustMeters,
+      67.2,
+    );
     const drainage = THREE.MathUtils.smoothstep(drainageField, 0.22, 0.78)
       * THREE.MathUtils.smoothstep(moisture, 0.43, 0.82);
     const alluvium = THREE.MathUtils.smoothstep(floodplainField, -0.02, 0.66)
       * THREE.MathUtils.smoothstep(moisture, 0.30, 0.72)
       * (1 - drainage * 0.38);
+    const peatSeep = THREE.MathUtils.smoothstep(seepField, 0.16, 0.74)
+      * THREE.MathUtils.smoothstep(moisture, 0.51, 0.84)
+      * (1 - drainage * 0.34);
     const exposedInterfluve = THREE.MathUtils.smoothstep(mineral, 0.55, 0.88)
       * (1 - THREE.MathUtils.smoothstep(moisture, 0.34, 0.64));
-    luminance += alluvium * 0.15 - drainage * 0.20 + exposedInterfluve * 0.13 + grain * 0.035;
-    cool += drainage * 0.32 + alluvium * 0.08 - exposedInterfluve * 0.16;
-    warm += alluvium * 0.18 + exposedInterfluve * 0.30 - drainage * 0.10;
+    const ironCrust = THREE.MathUtils.smoothstep(crustField, 0.30, 0.82)
+      * exposedInterfluve
+      * (1 - alluvium * 0.45);
+    luminance += alluvium * 0.15 - drainage * 0.20 - peatSeep * 0.11
+      + exposedInterfluve * 0.13 + ironCrust * 0.08 + grain * 0.035;
+    cool += drainage * 0.32 + alluvium * 0.08 + peatSeep * 0.24
+      - exposedInterfluve * 0.16 - ironCrust * 0.10;
+    warm += alluvium * 0.18 + exposedInterfluve * 0.30 + ironCrust * 0.27
+      - drainage * 0.10 - peatSeep * 0.15;
   } else if (surface === 'rock') {
     const warp = macro * 0.73 - meso * 0.47;
     const strata = Math.sin(worldX * 0.0048 + worldZ * 0.0062 + warp * 3.1);
