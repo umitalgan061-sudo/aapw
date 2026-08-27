@@ -20,7 +20,7 @@ const sea = (normalizedX, normalizedY = 0.47) => westernMarineShelfToneWeight({
   surface: 'sea', normalizedX, normalizedY,
 });
 
-assert.equal(P.id, 'western-marine-shelf-tone-2026-08-27-v8-envelope-bounded-current-shear');
+assert.equal(P.id, 'western-marine-shelf-tone-2026-08-27-v9-channel-scar-gravel-silt');
 assert.equal(P.renderOnly, true);
 assert.equal(P.canonicalSeaOnly, true);
 assert.equal(P.geographyAuthorityUnchanged, true);
@@ -38,6 +38,9 @@ assert(P.mineralRidgeVariation > 0.04);
 assert(P.currentShearVariation > 0.03 && P.currentShearVariation < 0.09);
 assert(P.sedimentPocketVariation > 0.04 && P.sedimentPocketVariation < 0.10);
 assert(P.shelfBreakVariation > 0.03 && P.shelfBreakVariation < 0.08);
+assert(P.channelScarVariation > 0.03 && P.channelScarVariation < 0.08);
+assert(P.gravelLagVariation > 0.03 && P.gravelLagVariation < 0.08);
+assert(P.anoxicSiltVariation > 0.03 && P.anoxicSiltVariation < 0.08);
 for (const policy of [PINDEX01_DETAIL_POLICY, PINDEX02_DETAIL_POLICY, PINDEX03_DETAIL_POLICY]) {
   assert.equal(policy.westernMarineShelfTone, true, `Pindex ${policy.pindex} lost shared shelf tone wiring`);
 }
@@ -109,7 +112,7 @@ const westernColorDelta = Math.hypot(
   color.getY(0) - color.getY(1),
   color.getZ(0) - color.getZ(1),
 );
-assert(westernColorDelta > 0.004, `v8 shelf material collapsed toward a uniform tint: delta=${westernColorDelta}`);
+assert(westernColorDelta > 0.004, `v9 shelf material collapsed toward a uniform tint: delta=${westernColorDelta}`);
 for (const index of [2, 3]) {
   assert.equal(color.getX(index), before[index * 3]);
   assert.equal(color.getY(index), before[index * 3 + 1]);
