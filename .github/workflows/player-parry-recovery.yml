@@ -5,6 +5,9 @@ on:
     paths:
       - 'src/3d/gameplay/player.js'
       - 'scripts/checkPlayerParryRecovery.mjs'
+      - 'scripts/checkPlayerRecoveryAttackBufferDrop.mjs'
+      - 'scripts/checkPlayerRecoveryAttackBufferRuntime.mjs'
+      - '.github/workflows/player-recovery-attack-buffer-drop.yml'
       - '.github/workflows/player-parry-recovery.yml'
   workflow_dispatch:
 
@@ -32,7 +35,7 @@ jobs:
           printf '%s\n' "${files[@]}"
           for file in "${files[@]}"; do
             case "$file" in
-              src/3d/gameplay/player.js|scripts/checkPlayerParryRecovery.mjs|.github/workflows/player-parry-recovery.yml) ;;
+              src/3d/gameplay/player.js|scripts/checkPlayerParryRecovery.mjs|scripts/checkPlayerRecoveryAttackBufferDrop.mjs|scripts/checkPlayerRecoveryAttackBufferRuntime.mjs|.github/workflows/player-recovery-attack-buffer-drop.yml|.github/workflows/player-parry-recovery.yml) ;;
               *) echo "Unexpected path: $file" >&2; exit 1 ;;
             esac
           done
@@ -42,8 +45,12 @@ jobs:
         run: |
           node --check src/3d/gameplay/player.js
           node --check scripts/checkPlayerParryRecovery.mjs
+          node --check scripts/checkPlayerRecoveryAttackBufferDrop.mjs
+          node --check scripts/checkPlayerRecoveryAttackBufferRuntime.mjs
       - name: Parry recovery regression
-        run: node scripts/checkPlayerParryRecovery.mjs
+        run: |
+          node scripts/checkPlayerParryRecovery.mjs
+          node scripts/checkPlayerRecoveryAttackBufferDrop.mjs
       - name: Standing player combat contracts
         run: |
           node scripts/checkPlayerStaminaDodge.mjs
