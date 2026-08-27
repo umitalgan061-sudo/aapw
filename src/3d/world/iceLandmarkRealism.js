@@ -212,7 +212,7 @@ function replaceMaterialSurface(material, textures, { cave = false } = {}) {
 	material.emissiveIntensity = cave ? 0.10 : 0;
 	material.userData.iceSurface = Object.freeze({
 		...(material.userData.iceSurface || {}),
-		realismVersion: 3,
+		realismVersion: 4,
 		naturalReferencePalette: true,
 		macroFractures: true,
 		mesoStriations: true,
@@ -261,36 +261,41 @@ function createWallDetails(sections, caveGapSegment, solidWallMaterial, seed) {
 	const seracs = [];
 	const talus = [];
 	const cornices = [];
-	for (let index = 1; index < sections.length - 1; index += 2) {
+	for (let index = 1; index < sections.length - 1; index += 3) {
 		if (Math.abs(index - caveGapSegment) <= 3) continue;
 		const section = sections[index];
 		const side = hash2D(index, 3, seed + 1103) > 0.5 ? 1 : -1;
 		const tangentAngle = Math.atan2(section.tz, section.tx);
-		const seracHeight = 22 + hash2D(index, 5, seed + 1201) * 40;
-		const seracWidth = 7 + hash2D(index, 7, seed + 1301) * 10;
-		const seracDepth = 7 + hash2D(index, 11, seed + 1409) * 12;
-		const faceOffset = section.thicknessMeters * 0.47 + seracDepth * 0.22;
+		// Seracs are attached cliff buttresses, not boulders embedded in the face. Keep them tall,
+		// narrow and shallow, and space them irregularly enough that the Wall remains the primary
+		// silhouette instead of reading as a row of repeated oval props.
+		const seracHeight = 30 + hash2D(index, 5, seed + 1201) * 42;
+		const seracWidth = 5.5 + hash2D(index, 7, seed + 1301) * 7.5;
+		const seracDepth = 2.0 + hash2D(index, 11, seed + 1409) * 4.5;
+		const faceOffset = section.thicknessMeters * 0.50 + seracDepth * 0.08;
 		seracs.push({
 			position: new THREE.Vector3(
 				section.x + section.nx * faceOffset * side,
-				section.centerGround + section.heightMeters * (0.24 + hash2D(index, 13, seed + 1511) * 0.39),
+				section.centerGround + section.heightMeters * (0.20 + hash2D(index, 13, seed + 1511) * 0.46),
 				section.z + section.nz * faceOffset * side,
 			),
-			scale: new THREE.Vector3(seracWidth * 0.5, seracHeight * 0.5, seracDepth * 0.5),
-			rx: (hash2D(index, 17, seed + 1601) - 0.5) * 0.25,
-			ry: -tangentAngle + (hash2D(index, 19, seed + 1709) - 0.5) * 0.34,
-			rz: (hash2D(index, 23, seed + 1801) - 0.5) * 0.18,
+			scale: new THREE.Vector3(seracWidth * 0.50, seracHeight * 0.50, seracDepth * 0.50),
+			rx: (hash2D(index, 17, seed + 1601) - 0.5) * 0.26,
+			ry: -tangentAngle + (hash2D(index, 19, seed + 1709) - 0.5) * 0.22,
+			rz: (hash2D(index, 23, seed + 1801) - 0.5) * 0.42,
 		});
-		if (index % 6 === 3) {
+		// A much rarer opposing shear fragment breaks bilateral regularity without recreating a
+		// second line of blobs on the other face.
+		if (index % 12 === 4) {
 			seracs.push({
 				position: new THREE.Vector3(
-					section.x - section.nx * faceOffset * 0.86 * side,
-					section.centerGround + section.heightMeters * (0.38 + hash2D(index, 61, seed + 1853) * 0.30),
-					section.z - section.nz * faceOffset * 0.86 * side,
+					section.x - section.nx * faceOffset * 0.92 * side,
+					section.centerGround + section.heightMeters * (0.34 + hash2D(index, 61, seed + 1853) * 0.28),
+					section.z - section.nz * faceOffset * 0.92 * side,
 				),
-				scale: new THREE.Vector3(seracWidth * 0.42, seracHeight * 0.38, seracDepth * 0.44),
-				ry: -tangentAngle - (hash2D(index, 67, seed + 1867) - 0.5) * 0.30,
-				rz: (hash2D(index, 71, seed + 1877) - 0.5) * 0.18,
+				scale: new THREE.Vector3(seracWidth * 0.32, seracHeight * 0.44, seracDepth * 0.38),
+				ry: -tangentAngle - (hash2D(index, 67, seed + 1867) - 0.5) * 0.22,
+				rz: (hash2D(index, 71, seed + 1877) - 0.5) * 0.38,
 			});
 		}
 		if (index % 4 === 1) {
@@ -316,16 +321,23 @@ function createWallDetails(sections, caveGapSegment, solidWallMaterial, seed) {
 			});
 		}
 	}
-	const seracGeometry = new THREE.IcosahedronGeometry(1, 1);
+	const seracGeometry = new THREE.OctahedronGeometry(1, 0);
 	const talusGeometry = new THREE.IcosahedronGeometry(1, 0);
 	const corniceGeometry = new THREE.IcosahedronGeometry(1, 1);
+	const seracMaterial = solidWallMaterial.clone();
+	seracMaterial.color.set(0xd7dedd);
+	seracMaterial.roughness = Math.max(0.70, seracMaterial.roughness || 0.70);
+	seracMaterial.transmission = Math.min(0.008, seracMaterial.transmission || 0);
+	seracMaterial.clearcoat = Math.min(0.035, seracMaterial.clearcoat || 0);
+	seracMaterial.clearcoatRoughness = Math.max(0.55, seracMaterial.clearcoatRoughness || 0.55);
+	seracMaterial.needsUpdate = true;
 	const snowMaterial = solidWallMaterial.clone();
 	snowMaterial.color.set(0xe9ece9);
 	snowMaterial.roughness = 0.91;
 	snowMaterial.transmission = 0.003;
 	snowMaterial.clearcoat = 0.015;
 	return [
-		createInstancedDetail('ice-wall-serac-buttresses', 'wall-serac-buttresses', seracGeometry, solidWallMaterial, seracs, seed + 5003),
+		createInstancedDetail('ice-wall-serac-buttresses', 'wall-serac-buttresses', seracGeometry, seracMaterial, seracs, seed + 5003),
 		createInstancedDetail('ice-wall-basal-talus', 'wall-basal-talus', talusGeometry, solidWallMaterial, talus, seed + 5101),
 		createInstancedDetail('ice-wall-snow-cornices', 'wall-snow-cornices', corniceGeometry, snowMaterial, cornices, seed + 5209),
 	];
@@ -448,7 +460,7 @@ export function enhanceIceLandmarkRealism({
 	});
 	return Object.freeze({
 		stats: Object.freeze({
-			version: 3,
+			version: 4,
 			wallTexture: wallTextures.stats,
 			caveTexture: caveTextures.stats,
 			seracCount: wallDetails[0].count,
