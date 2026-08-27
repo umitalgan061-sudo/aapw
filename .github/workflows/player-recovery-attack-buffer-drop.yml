@@ -1,0 +1,47 @@
+name: Player Recovery Attack Buffer Drop
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/player.js'
+      - 'scripts/checkPlayerRecoveryAttackBufferDrop.mjs'
+      - 'scripts/checkPlayerCombatRecoveryInputIsolation.mjs'
+      - 'scripts/checkPlayerParryRecovery.mjs'
+      - 'scripts/checkSharedMaterialPlacementContract.js'
+      - '.github/workflows/player-recovery-attack-buffer-drop.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Exact main ancestry and bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          git merge-base --is-ancestor origin/main HEAD
+          read additions deletions < <(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
+          changed=$((additions + deletions))
+          echo "scope additions=${additions} deletions=${deletions} changed=${changed}"
+          test "$changed" -le 1000
+      - name: Syntax and combat contracts
+        run: |
+          node --check src/3d/gameplay/player.js
+          node --check scripts/checkPlayerRecoveryAttackBufferDrop.mjs
+          node scripts/checkPlayerRecoveryAttackBufferDrop.mjs
+          node scripts/checkPlayerCombatRecoveryInputIsolation.mjs
+          node scripts/checkPlayerParryRecovery.mjs
+          node scripts/checkSharedMaterialPlacementContract.js
+      - name: Exact main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base origin/main HEAD)" = "$(git rev-parse origin/main)"
