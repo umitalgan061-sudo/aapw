@@ -18,7 +18,7 @@ const profileSource = read('src/3d/world/roadSurfaceProfile.js');
 const roadsSource = read('src/3d/world/roads.js');
 const terrainSource = read('src/3d/world/terrain.js');
 
-assert.equal(ROAD_ROUTING_POLICY.id, 'road-routing-2026-08-27-v4-settlement-egress-refinement');
+assert.equal(ROAD_ROUTING_POLICY.id, 'road-routing-2026-08-27-v5-micro-switchback-neighbors');
 assert.equal(ROAD_ROUTING_POLICY.terrainProfilePolicyId, ROAD_PROFILE_POLICY.id);
 assert.equal(ROAD_ROUTING_POLICY.geographyAuthorityUnchanged, true);
 assert.equal(ROAD_ROUTING_POLICY.deterministic, true);
@@ -42,6 +42,10 @@ const requiredRouterSnippets = [
   'MID_REFINEMENT_CELL_METERS = 45',
   'MIN_REFINEMENT_CELL_METERS = 36',
   'FINE_REFINEMENT_CELL_METERS = 24',
+  'FINE_GRID_NEIGHBOR_CELL_LIMIT_METERS = 24',
+  'FINE_NEIGHBOR_OFFSETS',
+  '[2, 1], [2, -1], [-2, 1], [-2, -1]',
+  '[1, 2], [1, -2], [-1, 2], [-1, -2]',
   'selectSafePresentation',
   'profileRiverExposure',
   'maxConsecutiveAdjacentSamples <= ROAD_MAX_RIVER_ADJACENT_SAMPLES',
