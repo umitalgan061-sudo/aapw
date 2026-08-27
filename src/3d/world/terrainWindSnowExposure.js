@@ -8,8 +8,9 @@
  * Westeros' northern mountain snow reads more naturally when exposed NW-facing slopes lose a small
  * amount of loose snow while sheltered SE-facing slopes retain it. The prevailing direction is kept
  * explicit and deterministic so chunk borders cannot acquire random aspect seams. On real mountain
- * shoulders the effective flow is now allowed to bend modestly along the local contour, modelling
- * terrain-channelled wind without inventing a second climate field or changing snow authority.
+ * shoulders the effective flow bends modestly along the local contour, and the strength now follows
+ * physically distinct slope bands: windward scour concentrates on exposed ridge shoulders while
+ * lee deposition concentrates on moderate sheltered faces and disappears again on near-cliffs.
  * @module world/terrainWindSnowExposure
  */
 
@@ -24,7 +25,7 @@ function smoothstep(edge0, edge1, value) {
 const PREVAILING_SOURCE_LENGTH = Math.hypot(0.8, 0.6);
 
 export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
-	id: 'terrain-wind-snow-exposure-2026-08-26-v5-lee-slope-collection',
+	id: 'terrain-wind-snow-exposure-2026-08-27-v6-slope-banded-scour-deposition',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	// Direction points toward the source of the prevailing wind. Wind therefore travels NW -> SE.
@@ -37,10 +38,16 @@ export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
 	// preserving stronger, narrower scour/deposition around real ridges and sheltered folds.
 	directionalAlignmentStart: 0.34,
 	directionalAlignmentFull: 0.92,
-	// Loose lee snow needs enough slope to form a recognisable sheltered face. Keeping this separate
-	// from generic aspect strength avoids broad directional deposits across nearly-flat snowfields.
-	leeCollectionStartDegrees: 7,
-	leeCollectionFullDegrees: 18,
+	// Wind strips loose snow most visibly on genuine ridge shoulders rather than every gently tilted
+	// surface. This second slope gate narrows scour to terrain with enough relief to expose a crest,
+	// while still reaching full strength well below cliff angles.
+	windwardScourStartDegrees: 12,
+	windwardScourFullDegrees: 34,
+	// Loose lee snow needs enough slope to form a recognisable sheltered face. Tightening the ramp
+	// from the old 7->18 degree response suppresses broad lowland directional blobs while preserving
+	// full deposition on ordinary mountain lee slopes.
+	leeCollectionStartDegrees: 10,
+	leeCollectionFullDegrees: 24,
 	// Ordinary mountain lee faces retain their full deposition signal through 42 degrees; only steeper
 	// near-cliff faces start shedding loose snow, preserving the established physical contract.
 	leeRetentionFadeStartDegrees: 42,
@@ -52,10 +59,10 @@ export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
 	channelingSlopeStartDegrees: 16,
 	channelingSlopeFullDegrees: 46,
 	channelingMaxBlend: 0.28,
-	northWindwardScourMax: 0.090,
-	tundraWindwardScourMax: 0.052,
-	northLeeDepositMax: 0.065,
-	tundraLeeDepositMax: 0.038,
+	northWindwardScourMax: 0.096,
+	tundraWindwardScourMax: 0.055,
+	northLeeDepositMax: 0.068,
+	tundraLeeDepositMax: 0.039,
 });
 
 /**
@@ -64,11 +71,11 @@ export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
  * `windward` and `lee` are directional weights in [0, 1]. Flat terrain deliberately returns zero
  * for both because it has no meaningful facing direction. `slopeAspectStrength` fades the signal in
  * over shallow slopes so lowland snow does not develop artificial directional bands. A second
- * alignment gate keeps nearly crosswind faces neutral, preventing the old broad 180-degree
- * windward/lee split from painting large directional bands across mountains. Lee collection then
- * fades in only once a real sheltered face exists, and fades back out on near-cliffs: deposition
- * therefore concentrates on moderate lee slopes instead of painting both flats and vertical rock.
- * Windward exposure remains active on steep faces because scour can still strip exposed ridges.
+ * alignment gate keeps nearly crosswind faces neutral. Windward scour then receives an additional
+ * shoulder gate, so the strongest loss of loose snow occurs on actual ridge terrain rather than all
+ * aligned slopes. Lee collection likewise fades in only once a real sheltered face exists and fades
+ * back out on near-cliffs: deposition therefore concentrates on moderate lee slopes instead of
+ * painting both flats and vertical rock.
  *
  * Steeper terrain additionally channels part of the effective wind along its contour. This avoids
  * making every mountain share the exact same compass-cut snow boundary while remaining deterministic
@@ -91,6 +98,11 @@ export function terrainWindExposureFromNeighbours(
 		TERRAIN_WIND_SNOW_POLICY.aspectSlopeFullDegrees,
 		slopeDegrees,
 	);
+	const windwardScourSlope = smoothstep(
+		TERRAIN_WIND_SNOW_POLICY.windwardScourStartDegrees,
+		TERRAIN_WIND_SNOW_POLICY.windwardScourFullDegrees,
+		slopeDegrees,
+	);
 	const leeCollection = smoothstep(
 		TERRAIN_WIND_SNOW_POLICY.leeCollectionStartDegrees,
 		TERRAIN_WIND_SNOW_POLICY.leeCollectionFullDegrees,
@@ -108,6 +120,7 @@ export function terrainWindExposureFromNeighbours(
 			gradientZ,
 			slopeDegrees,
 			slopeAspectStrength,
+			windwardScourSlope,
 			leeCollection,
 			leeRetention,
 			channelingWeight: 0,
@@ -167,6 +180,7 @@ export function terrainWindExposureFromNeighbours(
 		gradientZ,
 		slopeDegrees,
 		slopeAspectStrength,
+		windwardScourSlope,
 		leeCollection,
 		leeRetention,
 		channelingWeight,
@@ -175,7 +189,7 @@ export function terrainWindExposureFromNeighbours(
 		aspectDot,
 		windwardAlignment,
 		leeAlignment,
-		windward: windwardAlignment * slopeAspectStrength,
+		windward: windwardAlignment * slopeAspectStrength * windwardScourSlope,
 		lee: leeAlignment * slopeAspectStrength * leeCollection * leeRetention,
 	});
 }
