@@ -18,7 +18,7 @@ const profileSource = read('src/3d/world/roadSurfaceProfile.js');
 const roadsSource = read('src/3d/world/roads.js');
 const terrainSource = read('src/3d/world/terrain.js');
 
-assert.equal(ROAD_ROUTING_POLICY.id, 'road-routing-2026-08-27-v3-subedge-profiled');
+assert.equal(ROAD_ROUTING_POLICY.id, 'road-routing-2026-08-27-v4-settlement-egress-refinement');
 assert.equal(ROAD_ROUTING_POLICY.terrainProfilePolicyId, ROAD_PROFILE_POLICY.id);
 assert.equal(ROAD_ROUTING_POLICY.geographyAuthorityUnchanged, true);
 assert.equal(ROAD_ROUTING_POLICY.deterministic, true);
@@ -29,8 +29,8 @@ assert.equal(ROAD_COMFORT_GRADE_DEGREES, 10);
 assert.equal(ROAD_MAX_GRADE_DEGREES, 17);
 assert(ROAD_RETURN_GRADE_TARGET_DEGREES < 20);
 assert.equal(ROAD_MAX_RIVER_ADJACENT_SAMPLES, 3);
-assert(ROAD_PROFILE_POLICY.maxSampleSpacingMeters <= 12);
-assert(ROAD_PROFILE_POLICY.presentationSampleSpacingMeters <= 8);
+assert(ROAD_PROFILE_POLICY.maxSampleSpacingMeters <= 8);
+assert(ROAD_PROFILE_POLICY.presentationSampleSpacingMeters <= 6);
 
 const requiredRouterSnippets = [
   "from './roadSurfaceProfile.js'",
@@ -41,6 +41,7 @@ const requiredRouterSnippets = [
   'buildSearchStages',
   'MID_REFINEMENT_CELL_METERS = 45',
   'MIN_REFINEMENT_CELL_METERS = 36',
+  'FINE_REFINEMENT_CELL_METERS = 24',
   'selectSafePresentation',
   'profileRiverExposure',
   'maxConsecutiveAdjacentSamples <= ROAD_MAX_RIVER_ADJACENT_SAMPLES',
@@ -53,8 +54,9 @@ for (const snippet of requiredRouterSnippets) {
 }
 
 const requiredProfileSnippets = [
-  'maxSampleSpacingMeters: 12',
-  'presentationSampleSpacingMeters: 8',
+  "id: 'road-surface-profile-2026-08-27-v2-dense-microrelief-grade'",
+  'maxSampleSpacingMeters: 8',
+  'presentationSampleSpacingMeters: 6',
   'profileTerrainSegment',
   'profileRoadPolyline',
   'summarizePolylineCurvature',
