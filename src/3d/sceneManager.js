@@ -26,6 +26,7 @@ import { generateRiverPath, createRiverMesh, detectWaterfalls, createWaterfallMe
 import { createHeightSampler, mulberry32 } from './world/terrain.js';
 import { createSettlements, computeSettlementFlattenPads } from './world/settlements.js';
 import { buildRoadNetwork } from './world/roads.js';
+import { createNaturalGeology, upgradeNaturalGeologyAssets } from './world/naturalGeology.js';
 import { createVegetation } from './world/vegetation.js';
 import { upgradeWinterVegetationAssets } from './world/winterVegetationAsset.js';
 import { createWindGrassRun180 } from './world/windGrass.js';
@@ -202,6 +203,39 @@ export function createScene(canvas) {
 			`steepest actual segment grade ${roadsResult.maxGradeDegrees.toFixed(1)}°.`,
 	);
 
+	// Asset-informed geology is deliberately created after roads/settlements so placement can reserve
+	// their corridors, but before vegetation so the geological read remains visually primary. The
+	// canonical collider/terrain sampler stays the only height authority; this layer is render-only.
+	const naturalGeologyResult = createNaturalGeology({
+		sampleHeightMeters: groundCollider.getGroundHeight,
+		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+		seed: WORLD_DEFAULTS.WORLD_SEED,
+		seats: settlementsResult.seats,
+		roadEdges: roadsResult.edges,
+		worldWidthMeters: WORLD_SCALE.WORLD_WIDTH_METERS,
+		worldDepthMeters: WORLD_SCALE.WORLD_DEPTH_METERS,
+		isMobileClass,
+	});
+	scene.add(naturalGeologyResult.group);
+	console.info(
+		`[sceneManager] Natural geology: ${naturalGeologyResult.stats.placedCount} outcrop/talus placement(s), ` +
+		`${naturalGeologyResult.stats.valyriaPlacementCount ?? 0} in Valyria.`,
+	);
+	const naturalGeologyAbortController = new AbortController();
+	window.addEventListener('pagehide', () => naturalGeologyAbortController.abort(), { once: true });
+	void upgradeNaturalGeologyAssets(naturalGeologyResult.group, {
+		signal: naturalGeologyAbortController.signal,
+		isMobileClass,
+	}).then((upgrade) => {
+		if (upgrade.status === 'active') {
+			console.info(`[sceneManager] Hydrated ${upgrade.hydratedPlacementCount} natural geology placement(s) from repository GLB assets.`);
+		} else if (upgrade.status === 'procedural-fallback') {
+			console.info('[sceneManager] Natural geology GLBs unavailable/pointer-only/mobile; deterministic procedural fallback remains active.');
+		}
+	}).catch((error) => {
+		console.warn('[sceneManager] Optional natural geology asset hydration failed; procedural fallback remains active.', error);
+	});
+
 	const vegetationResult = createVegetation({
 		sampleHeightMeters: groundCollider.getGroundHeight,
 		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
@@ -254,6 +288,7 @@ export function createScene(canvas) {
 	applyShadowRoles(settlementsResult.group, { quality: renderQuality });
 	applyShadowRoles(villagesResult.group, { quality: renderQuality });
 	applyShadowRoles(iceLandmarksResult.group, { quality: renderQuality });
+	applyShadowRoles(naturalGeologyResult.group, { quality: renderQuality });
 	applyShadowRoles(vegetationResult.group, { quality: renderQuality });
 	applyShadowRoles(roadsResult.group, { quality: renderQuality, cast: false });
 
@@ -263,6 +298,8 @@ export function createScene(canvas) {
 		settlements: settlementsResult.group,
 		roads: roadsResult.group,
 		roadEdges: roadsResult.edges,
+		naturalGeology: naturalGeologyResult.group,
+		naturalGeologyStats: naturalGeologyResult.stats,
 		vegetation: vegetationResult.group,
 		villages: villagesResult.group,
 		iceLandmarks: iceLandmarksResult.group,
