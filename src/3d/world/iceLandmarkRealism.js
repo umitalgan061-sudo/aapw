@@ -261,43 +261,47 @@ function createWallDetails(sections, caveGapSegment, solidWallMaterial, seed) {
 	const seracs = [];
 	const talus = [];
 	const cornices = [];
-	for (let index = 1; index < sections.length - 1; index += 3) {
+	for (let index = 1; index < sections.length - 1; index += 2) {
 		if (Math.abs(index - caveGapSegment) <= 3) continue;
 		const section = sections[index];
 		const side = hash2D(index, 3, seed + 1103) > 0.5 ? 1 : -1;
 		const tangentAngle = Math.atan2(section.tz, section.tx);
 		// Seracs are attached cliff buttresses, not boulders embedded in the face. Keep them tall,
-		// narrow and shallow, and space them irregularly enough that the Wall remains the primary
-		// silhouette instead of reading as a row of repeated oval props.
-		const seracHeight = 30 + hash2D(index, 5, seed + 1201) * 42;
-		const seracWidth = 5.5 + hash2D(index, 7, seed + 1301) * 7.5;
-		const seracDepth = 2.0 + hash2D(index, 11, seed + 1409) * 4.5;
-		const faceOffset = section.thicknessMeters * 0.50 + seracDepth * 0.08;
-		seracs.push({
-			position: new THREE.Vector3(
-				section.x + section.nx * faceOffset * side,
-				section.centerGround + section.heightMeters * (0.20 + hash2D(index, 13, seed + 1511) * 0.46),
-				section.z + section.nz * faceOffset * side,
-			),
-			scale: new THREE.Vector3(seracWidth * 0.50, seracHeight * 0.50, seracDepth * 0.50),
-			rx: (hash2D(index, 17, seed + 1601) - 0.5) * 0.26,
-			ry: -tangentAngle + (hash2D(index, 19, seed + 1709) - 0.5) * 0.22,
-			rz: (hash2D(index, 23, seed + 1801) - 0.5) * 0.42,
-		});
-		// A much rarer opposing shear fragment breaks bilateral regularity without recreating a
-		// second line of blobs on the other face.
-		if (index % 12 === 4) {
+		// narrow and shallow, and omit one third of candidate sections so the Wall remains the
+		// primary silhouette instead of reading as a row of repeated props.
+		if (index % 6 !== 3) {
+			const seracHeight = 30 + hash2D(index, 5, seed + 1201) * 42;
+			const seracWidth = 5.5 + hash2D(index, 7, seed + 1301) * 7.5;
+			const seracDepth = 2.0 + hash2D(index, 11, seed + 1409) * 4.5;
+			const faceOffset = section.thicknessMeters * 0.50 + seracDepth * 0.08;
 			seracs.push({
 				position: new THREE.Vector3(
-					section.x - section.nx * faceOffset * 0.92 * side,
-					section.centerGround + section.heightMeters * (0.34 + hash2D(index, 61, seed + 1853) * 0.28),
-					section.z - section.nz * faceOffset * 0.92 * side,
+					section.x + section.nx * faceOffset * side,
+					section.centerGround + section.heightMeters * (0.20 + hash2D(index, 13, seed + 1511) * 0.46),
+					section.z + section.nz * faceOffset * side,
 				),
-				scale: new THREE.Vector3(seracWidth * 0.32, seracHeight * 0.44, seracDepth * 0.38),
-				ry: -tangentAngle - (hash2D(index, 67, seed + 1867) - 0.5) * 0.22,
-				rz: (hash2D(index, 71, seed + 1877) - 0.5) * 0.38,
+				scale: new THREE.Vector3(seracWidth * 0.50, seracHeight * 0.50, seracDepth * 0.50),
+				rx: (hash2D(index, 17, seed + 1601) - 0.5) * 0.26,
+				ry: -tangentAngle + (hash2D(index, 19, seed + 1709) - 0.5) * 0.22,
+				rz: (hash2D(index, 23, seed + 1801) - 0.5) * 0.42,
 			});
+			// A rare opposing shear fragment breaks bilateral regularity without recreating a
+			// second line of blobs on the other face.
+			if (index % 12 === 5) {
+				seracs.push({
+					position: new THREE.Vector3(
+						section.x - section.nx * faceOffset * 0.92 * side,
+						section.centerGround + section.heightMeters * (0.34 + hash2D(index, 61, seed + 1853) * 0.28),
+						section.z - section.nz * faceOffset * 0.92 * side,
+					),
+					scale: new THREE.Vector3(seracWidth * 0.32, seracHeight * 0.44, seracDepth * 0.38),
+					ry: -tangentAngle - (hash2D(index, 67, seed + 1867) - 0.5) * 0.22,
+					rz: (hash2D(index, 71, seed + 1877) - 0.5) * 0.38,
+				});
+			}
 		}
+		// Talus and cornices keep their independent denser sampling. These are erosion/deposition
+		// cues, not serac props, so their realism should not disappear when seracs are de-repeated.
 		if (index % 4 === 1) {
 			const talusSize = 2.8 + hash2D(index, 29, seed + 1901) * 7.4;
 			talus.push({
