@@ -38,14 +38,17 @@ try {
       let meshCount = 0;
       let skinnedMeshCount = 0;
       let materialSlotCount = 0;
+      let meshMissingMaterialCount = 0;
       const materialNames = new Set();
       model.traverse((node) => {
         if (!node.isMesh) return;
         meshCount += 1;
         if (node.isSkinnedMesh) skinnedMeshCount += 1;
         const materials = Array.isArray(node.material) ? node.material : node.material ? [node.material] : [];
-        materialSlotCount += materials.length;
-        for (const material of materials) materialNames.add(material?.name || material?.type || 'unnamed');
+        const validMaterials = materials.filter(Boolean);
+        if (validMaterials.length === 0) meshMissingMaterialCount += 1;
+        materialSlotCount += validMaterials.length;
+        for (const material of validMaterials) materialNames.add(material?.name || material?.type || 'unnamed');
       });
 
       speciesReports.push({
@@ -55,6 +58,7 @@ try {
         meshCount,
         skinnedMeshCount,
         materialSlotCount,
+        meshMissingMaterialCount,
         materialNames: [...materialNames].sort(),
         animationCount: animationNames.length,
         configuredClips,
@@ -74,6 +78,7 @@ try {
     assert.match(report.modelUrl, /^assets\/models\/animals\/.+\.glb$/i, `${report.speciesId}: model must be a shipped animal GLB`);
     assert.equal(report.placeholder, false, `${report.speciesId}: real asset load fell back to placeholder`);
     assert.ok(report.meshCount > 0, `${report.speciesId}: loaded asset has no mesh`);
+    assert.equal(report.meshMissingMaterialCount, 0, `${report.speciesId}: ${report.meshMissingMaterialCount} mesh(es) have no material assignment`);
     assert.ok(report.materialSlotCount > 0, `${report.speciesId}: loaded asset has no material slots`);
     assert.ok(report.animationCount > 0, `${report.speciesId}: configured fauna asset has no animation clips`);
     for (const clip of report.configuredClips) {
