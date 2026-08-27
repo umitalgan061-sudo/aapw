@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import * as THREE from 'three';
+import * as THREE from '../src/3d/vendor/three/three.module.js';
 import { createWolf } from '../src/3d/gameplay/animals.js';
 
 function makeModel() {
