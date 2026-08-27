@@ -13,7 +13,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-27-v25-core-firn-compaction-window',
+  id: 'terrain-snow-surface-tone-2026-08-27-v26-core-ice-crust-drift-separation',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
@@ -35,6 +35,7 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   mixedIceFirnBridge: true,
   coreIceFirnBridge: true,
   coreIceFirnCompactionWindow: true,
+  coreIceCrustDriftSeparation: true,
   glacialPowderAttenuation: 0.75,
   coreIcePowderAttenuation: 0.18,
   basePackedRetentionMin: 0.78,
@@ -56,6 +57,8 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   coreIceFirnCompactionBoost: 0.22,
   coreIceFreshDriftStart: 0.82,
   coreIceFreshDriftFull: 0.94,
+  coreIceRidgeCrustPackedGain: 0.085,
+  coreIceLeePowderAccumulationGain: 0.055,
   ridgeScourPackedGain: 0.28,
   windSlabPackedGain: 0.20,
   ridgeScourAccumulationSuppression: 0.46,
@@ -117,7 +120,8 @@ export function resolveTerrainSnowSurfaceTone({
       glacialVisibility: 0, glacialContinuity: 0, glacialFamilySupport: 0, glacialDepthSupport: 0,
       shelteredGlacialRetention: 0, shelteredGlacialBridge: 0, glacialPackedFloor: 0,
       glacialPaletteFloor: 0, mixedIceWeight: 0, mixedIceFirnFloor: 0, coreIceFirnFloor: 0,
-      coreIceFirnCompaction: 0, transitionColdSupport: 0, accumulationGlacialCooling: 0,
+      coreIceFirnCompaction: 0, coreIceRidgeCrust: 0, coreIceLeePowder: 0,
+      transitionColdSupport: 0, accumulationGlacialCooling: 0,
       accumulationDepthCooling: 0, transitionAccumulationCooling: 0, accumulationClimateScale: 1,
       accumulatedGlacialPaletteRetention: 1, ridgeScourWeight: 0, windSlabWeight: 0,
       leeDriftWeight: 0, ridgeCrustTone: 0, leePowderTone: 0, packedWeight: 0,
@@ -186,9 +190,6 @@ export function resolveTerrainSnowSurfaceTone({
     * lerp(0.62, 1, accumulationVisibleSnow)
     * lerp(0.78, 1, shelterSignal)
     * P.mixedIceFirnPackedFloorGain;
-  // Compacted firn is strongest where old snow is retained and compressed, but the deepest lee bowls
-  // keep a fresh powder veneer. This narrow window lets the permanent-ice core remain colder than the
-  // ICE EDGE without making fully loaded lee bowls as hard as windward slabs.
   const coreIceFirnCompaction = 1 - clamp01(
     (deepShelter - P.coreIceFreshDriftStart) / (P.coreIceFreshDriftFull - P.coreIceFreshDriftStart),
   );
@@ -208,6 +209,8 @@ export function resolveTerrainSnowSurfaceTone({
 
   const ridgeCrustTone = clamp01(ridgeScourWeight * (0.58 + windSlabWeight * 0.42) * (1 - leeDriftWeight * 0.62));
   const leePowderTone = clamp01(leeDriftWeight * (1 - ridgeScourWeight * 0.72) * (0.72 + clamp01(gentleSlope) * 0.28));
+  const coreIceRidgeCrust = permanentIceWeight * glacialVisibility * ridgeCrustTone * P.coreIceRidgeCrustPackedGain;
+  const coreIceLeePowder = permanentIceWeight * accumulationVisibleSnow * leePowderTone * P.coreIceLeePowderAccumulationGain;
 
   const protectedBasePacked = packedWeight * (
     P.basePackedRetentionMin + glacialFamilySupport * P.basePackedRetentionGlacialGain
@@ -227,12 +230,12 @@ export function resolveTerrainSnowSurfaceTone({
     P.maximumPackedWeight,
     Math.max(
       glacialMaterialPackedFloor,
-      clamp01(packedWeight + ridgeCrustTone * P.ridgeCrustPaletteGain - leePowderTone * P.leePowderPackedSuppression),
+      clamp01(packedWeight + ridgeCrustTone * P.ridgeCrustPaletteGain + coreIceRidgeCrust - leePowderTone * P.leePowderPackedSuppression),
     ),
   );
   const materialAccumulatedWeight = Math.min(
     P.maximumAccumulatedWeight,
-    clamp01(accumulatedWeight + leePowderTone * powderPaletteGain - ridgeCrustTone * P.ridgeCrustPowderSuppression),
+    clamp01(accumulatedWeight + leePowderTone * powderPaletteGain + coreIceLeePowder - ridgeCrustTone * P.ridgeCrustPowderSuppression),
   );
   const neutralWeight = clamp01(visibleSnow * (1 - Math.max(materialPackedWeight, materialAccumulatedWeight)));
 
@@ -240,7 +243,7 @@ export function resolveTerrainSnowSurfaceTone({
     visibleSnow, accumulationVisibleSnow, climate, tundraToneWeight, glacialVisibility, glacialContinuity,
     glacialFamilySupport, glacialDepthSupport, shelteredGlacialRetention, shelteredGlacialBridge,
     glacialPackedFloor, glacialPaletteFloor, mixedIceWeight, mixedIceFirnFloor, coreIceFirnFloor,
-    coreIceFirnCompaction, transitionColdSupport, accumulationGlacialCooling,
+    coreIceFirnCompaction, coreIceRidgeCrust, coreIceLeePowder, transitionColdSupport, accumulationGlacialCooling,
     accumulationDepthCooling, transitionAccumulationCooling, accumulationClimateScale,
     accumulatedGlacialPaletteRetention, shelterSignal, gentleShelterSupport, ridgeScourWeight,
     windSlabWeight, leeDriftWeight, ridgeCrustTone, leePowderTone,
