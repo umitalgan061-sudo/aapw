@@ -38,21 +38,25 @@ const groundCollider = {
   },
 };
 
-const wolf = await createWolf({
-  assetLoader,
-  modelUrl: 'test-wolf.glb',
-  idleClipName: 'Idle',
-  walkClipName: 'Walk',
-  fleeClipName: 'Run',
-  worldX: 0,
-  worldZ: 0,
-  groundY: 0,
-  groundCollider,
-  patrolWaypoints: [{ x: 0, z: 0 }, { x: 5, z: 0 }],
-  fleeTriggerRadiusMeters: 6,
-  fleeSpeedMps: 4.5,
-  packAlertRadiusMeters: 5,
-});
+function createTestWolf() {
+  return createWolf({
+    assetLoader,
+    modelUrl: 'test-wolf.glb',
+    idleClipName: 'Idle',
+    walkClipName: 'Walk',
+    fleeClipName: 'Run',
+    worldX: 0,
+    worldZ: 0,
+    groundY: 0,
+    groundCollider,
+    patrolWaypoints: [{ x: 0, z: 0 }, { x: 5, z: 0 }],
+    fleeTriggerRadiusMeters: 6,
+    fleeSpeedMps: 4.5,
+    packAlertRadiusMeters: 5,
+  });
+}
+
+const wolf = await createTestWolf();
 
 wolf.update(3, undefined, [
   { x: 0, z: -3 },
@@ -72,6 +76,29 @@ wolf.update(0.1, undefined, [{ x: Infinity, z: 0 }, { x: 0, z: Number.NaN }]);
 assert(Number.isFinite(wolf.object3D.position.x) && Number.isFinite(wolf.object3D.position.z));
 assert.equal(wolf.object3D.userData.wildlifeFlee.pack, false);
 assert.equal(wolf.object3D.position.distanceTo(before) > 0, true, 'patrol may resume after alarm disappears');
-
 wolf.dispose();
+
+const tiedPackmates = [
+  { x: 0, z: -2 },
+  { x: -2, z: 0 },
+];
+const forwardOrderWolf = await createTestWolf();
+const reverseOrderWolf = await createTestWolf();
+forwardOrderWolf.update(3, undefined, tiedPackmates);
+reverseOrderWolf.update(3, undefined, [...tiedPackmates].reverse());
+
+assert.equal(forwardOrderWolf.object3D.userData.wildlifeFlee.phase, 'pack-flee');
+assert.equal(reverseOrderWolf.object3D.userData.wildlifeFlee.phase, 'pack-flee');
+assert(
+  forwardOrderWolf.object3D.position.distanceTo(reverseOrderWolf.object3D.position) < 1e-9,
+  'equal-distance pack alerts must choose the same deterministic flee vector regardless of input order',
+);
+assert(
+  Math.abs(forwardOrderWolf.object3D.position.x - 0.45) < 1e-9
+    && Math.abs(forwardOrderWolf.object3D.position.z) < 1e-9,
+  'stable tie-break should prefer the lexicographically smaller packmate coordinate and flee +X',
+);
+
+forwardOrderWolf.dispose();
+reverseOrderWolf.dispose();
 console.log('Wildlife pack-alert independence: PASS');
