@@ -407,13 +407,21 @@ function searchStrictGradePath({ sampleHeightMeters, start, end, cellMeters, cor
 			const horizontalDistance = Math.hypot(di * actualCellX, dj * actualCellZ);
 			const nodeGrade = gradeDegrees(heightAt(ni, nj) - currentHeight, horizontalDistance);
 			if (nodeGrade > maxGradeDegrees) { rejectedGradeEdges += 1; continue; }
+			const edgeFeasibility = segmentFeasibility({
+				start: { x: worldX, z: worldZ },
+				end: { x: neighborX, z: neighborZ },
+				sampleHeightMeters,
+				maxGradeDegrees,
+			});
+			if (!edgeFeasibility.safe) { rejectedGradeEdges += 1; continue; }
+			const edgeGrade = edgeFeasibility.profile.maxGradeDegrees;
 			const midpointX = (worldX + neighborX) * 0.5;
 			const midpointZ = (worldZ + neighborZ) * 0.5;
 			const riverMultiplier = Math.max(
 				riverCostMultiplier(riverField, neighborX, neighborZ),
 				riverCostMultiplier(riverField, midpointX, midpointZ),
 			);
-			const tentative = gScore[index] + horizontalDistance * gradeCostMultiplier(nodeGrade) * riverMultiplier;
+			const tentative = gScore[index] + horizontalDistance * gradeCostMultiplier(edgeGrade) * riverMultiplier;
 			if (tentative + EPSILON >= gScore[neighborIndex]) continue;
 			gScore[neighborIndex] = tentative;
 			cameFrom[neighborIndex] = index;
