@@ -78,6 +78,16 @@ assert.equal(wolf.object3D.userData.wildlifeFlee.pack, false);
 assert.equal(wolf.object3D.position.distanceTo(before) > 0, true, 'patrol may resume after alarm disappears');
 wolf.dispose();
 
+const malformedPayloadWolf = await createTestWolf();
+assert.doesNotThrow(
+  () => malformedPayloadWolf.update(0.1, undefined, { x: 1, z: 1 }),
+  'non-iterable pack payloads must fail closed instead of aborting the fauna tick',
+);
+assert.equal(malformedPayloadWolf.object3D.userData.wildlifeFlee.pack, false);
+assert.equal(malformedPayloadWolf.object3D.userData.wildlifeFlee.direct, false);
+assert(Number.isFinite(malformedPayloadWolf.object3D.position.x) && Number.isFinite(malformedPayloadWolf.object3D.position.z));
+malformedPayloadWolf.dispose();
+
 const tiedPackmates = [
   { x: 0, z: -2 },
   { x: -2, z: 0 },
