@@ -51,6 +51,7 @@ jobs:
           node scripts/checkPlayerCombatFeedback.mjs
           node scripts/checkPlayerGroundingCombatContract.mjs
           node scripts/checkSharedMaterialPlacementContract.js
+          node scripts/checkPwaInstallability.js
           node scripts/checkServiceWorkerCache.js
           ! grep -q 'EditorMaterialStudio' src/3d/gameplay/player.js
           test -f src/3d/materials/MaterialAssignmentCore.js
