@@ -13,7 +13,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-27-v17-ridge-crust-lee-powder-material',
+  id: 'terrain-snow-surface-tone-2026-08-27-v18-crust-powder-family-competition',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
@@ -30,6 +30,7 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   windSlabReadability: true,
   windCrustPowderContrast: true,
   materialFamilySeparation: true,
+  materialFamilyCompetition: true,
   glacialVisibilityExponent: 0.65,
   glacialDepthFloor: 0.54,
   glacialDepthGain: 0.46,
@@ -63,8 +64,10 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   minimumAccumulatedSnow: 0.22,
   maximumPackedWeight: 0.82,
   maximumAccumulatedWeight: 0.82,
-  ridgeCrustPaletteGain: 0.18,
-  leePowderPaletteGain: 0.14,
+  ridgeCrustPaletteGain: 0.16,
+  ridgeCrustPowderSuppression: 0.12,
+  leePowderPaletteGain: 0.18,
+  leePowderPackedSuppression: 0.14,
   packedCoolShift: 0.20,
   packedBrightnessShift: -0.045,
   accumulatedWarmShift: 0.050,
@@ -139,42 +142,24 @@ export function resolveTerrainSnowSurfaceTone({
     });
   }
 
-  // Keep thin-but-visible permanent-ice snow inside the same cold colour family as the lowland ice
-  // below it without changing how much snow exists. A sub-linear visibility curve prevents the
-  // glacial bridge from being effectively multiplied by visibleSnow twice near the snow threshold.
   const glacialVisibility = Math.pow(visibleSnow, P.glacialVisibilityExponent);
   const glacialContinuity = permanentIceWeight * glacialVisibility;
-  // Deep retained snow should not lose the glacial-family relationship that was established at the
-  // thin-snow threshold. Blend a bounded depth term into the same support instead of inventing a
-  // second snow amount: this only changes the colour interpretation of already-authoritative snow.
   const glacialDepthSupport = glacialContinuity
     * lerp(P.glacialDepthFloor, 1, accumulationVisibleSnow * P.glacialDepthGain);
-  // Strengthen the mixed cryosphere just enough to keep ICE EDGE lowlands visually connected to
-  // glacial shoreline/lowland ice. The bell-shaped support returns to zero at pure tundra and pure
-  // permanent ice, so it cannot become a second climate or snow-coverage authority.
   const transitionColdSupport = 4 * permanentIceWeight * (1 - permanentIceWeight)
     * glacialVisibility * P.packedTransitionColdGain;
   const shelterSignal = Math.max(clamp01(leeDeposit), clamp01(concavityHold));
-  // Far-north mountain snow should belong to the same visual cryosphere family as the glacial
-  // lowlands below it. Deep shelter is allowed to soften that bridge, but never erase it entirely;
-  // otherwise a lee bowl can become a warm cream island surrounded by blue-grey permanent ice.
   const deepShelter = accumulationVisibleSnow * shelterSignal;
   const shelteredGlacialRetention = lerp(1, P.shelteredGlacialRetentionFloor, deepShelter);
   const glacialFamilySupport = boundedUnion(
     glacialContinuity * shelteredGlacialRetention,
     glacialDepthSupport * P.packedGlacialDepthGain,
   );
-  // Retain a small independent packed/cold component inside sheltered permanent ice. It is bounded
-  // by both the glacial family and accumulated-snow visibility, so tundra and snow-free terrain get
-  // no extra tint while deep far-north drifts remain visually connected to lowland/coastal ice.
   const shelteredGlacialBridge = glacialFamilySupport
     * accumulationVisibleSnow
     * shelterSignal
     * P.packedShelteredGlacialGain;
 
-  // These three signals expose the already-authoritative wind/terrain telemetry at a broader tonal
-  // scale. They do not create or remove snow: ridge scour only hardens/cools existing snow, wind slab
-  // separates exposed shoulders from neutral snow, and lee drift brightens only retained shelter.
   const exposedSignal = clamp01(clamp01(windwardScour) * 0.62 + clamp01(ridgeExposure) * 0.72);
   const ridgeScourWeight = visibleSnow * climate * exposedSignal * (1 - shelterSignal * 0.58);
   const windSlabWeight = visibleSnow * climate
@@ -207,19 +192,12 @@ export function resolveTerrainSnowSurfaceTone({
   const accumulatedSignal = clamp01(
     accumulatedSignalRaw * (1 - ridgeScourWeight * P.ridgeScourAccumulationSuppression),
   );
-  // Permanent-ice shelter remains visibly soft, but its warm accumulated tint should lose strength
-  // in proportion to the actual glacial-family support beneath it. Deep retained snow gets a second
-  // bounded cooling term so a thick lee drift does not become warmer as it visually approaches the
-  // glacial lowland below. Both terms are colour-only and leave snowAmount untouched.
   const accumulationGlacialCooling = clamp01(
     glacialFamilySupport * deepShelter * P.shelteredGlacialAccumulationCooling,
   );
   const accumulationDepthCooling = clamp01(
     glacialDepthSupport * accumulationVisibleSnow * shelterSignal * P.glacialDepthAccumulationCooling,
   );
-  // The mixed tundra/permanent-ice belt should not become a temporary warm accumulated-snow notch
-  // between colder endpoints. Apply a small transition-only cooling term that peaks at 50/50 ice,
-  // requires real retained shelter and vanishes at pure tundra and pure permanent ice.
   const transitionAccumulationCooling = clamp01(
     4 * permanentIceWeight * (1 - permanentIceWeight)
       * accumulationVisibleSnow * shelterSignal * P.transitionAccumulationCoolingGain,
@@ -228,20 +206,12 @@ export function resolveTerrainSnowSurfaceTone({
     * (1 - accumulationGlacialCooling)
     * (1 - accumulationDepthCooling)
     * (1 - transitionAccumulationCooling);
-  // The warm accumulated palette should lose a little more influence only when retained snow has
-  // both real depth and real glacial-family support. This leaves pure tundra and thin veneers intact,
-  // but prevents deep permanent-ice bowls from becoming isolated cream patches in blue-grey terrain.
   const accumulatedGlacialPaletteRetention = lerp(
     1,
     P.accumulatedGlacialPaletteRetentionFloor,
     clamp01(glacialFamilySupport * accumulationVisibleSnow),
   );
 
-  // A sheltered accumulation signal suppresses the ordinary packed interpretation and vice versa.
-  // Permanent-ice shelter still keeps independent cold-family floors so a deep lee bowl can remain
-  // soft without visually disconnecting from the glacial lowland below it. The broader palette floor
-  // also acts on neutral retained snow, strengthening continuously with snow depth while shelter only
-  // softens it to an authored retention floor instead of erasing the mountain-to-lowland colour link.
   const packedDominance = packedSignal * (1 - accumulatedSignal * 0.70);
   const accumulatedDominance = accumulatedSignal * (1 - packedSignal * 0.68);
   const glacialPackedFloor = glacialFamilySupport
@@ -256,21 +226,12 @@ export function resolveTerrainSnowSurfaceTone({
     P.maximumPackedWeight,
     Math.max(packedDominance * visibleSnow * climate, glacialPackedFloor, glacialPaletteFloor),
   );
-  // Thin veneers can look cold/packed, but should not read as deep creamy drifts. Accumulated tone
-  // therefore needs a little more retained snow than the generic visible-snow threshold. Deep snow
-  // remains visible in permanent ice, but its warm/soft tint is moderated so it harmonises with the
-  // surrounding glacial/coastal ice rather than forming isolated cream-coloured patches.
   const accumulatedWeight = Math.min(
     P.maximumAccumulatedWeight,
     accumulatedDominance * accumulationVisibleSnow * climate * accumulationClimateScale
       * accumulatedGlacialPaletteRetention,
   );
 
-  // Distinguish wind-polished crust from sheltered powder using only the existing authoritative
-  // redistribution telemetry. This adds no procedural geography: the colder/darker crust follows
-  // genuinely exposed ridges, while the small warm/bright response follows actual lee/concave snow.
-  // The two terms are mutually suppressed so full-world snowfields gain readable internal structure
-  // without turning into high-frequency noise or changing snow coverage.
   const ridgeCrustTone = clamp01(
     ridgeScourWeight * (0.58 + windSlabWeight * 0.42) * (1 - leeDriftWeight * 0.62),
   );
@@ -278,18 +239,27 @@ export function resolveTerrainSnowSurfaceTone({
     leeDriftWeight * (1 - ridgeScourWeight * 0.72) * (0.72 + clamp01(gentleSlope) * 0.28),
   );
 
-  // The live biome palette consumes packed/accumulated family weights, while ridgeCrustTone and
-  // leePowderTone were previously telemetry-only. Fold the broad exposed/sheltered signals back into
-  // those already-authoritative families so the visible snowfield actually separates into hard crust
-  // and soft powder without adding snow or inventing new spatial masks. The residual headroom term
-  // keeps the response bounded near existing maxima and avoids flattening every permanent-ice vertex.
+  // Exposed crust and sheltered powder now compete directly for the two material families. This is
+  // intentionally not a residual-headroom adjustment: many permanent-ice vertices already sit near
+  // the packed ceiling, which made the previous v17 change visually inert. The competition only
+  // redistributes visual tone between existing snow families; snowAmount and all spatial authorities
+  // are still untouched. Opposing suppression prevents a vertex from reading simultaneously as a
+  // blue hard slab and a warm soft drift while preserving the established glacial-family floors.
   const materialPackedWeight = Math.min(
     P.maximumPackedWeight,
-    packedWeight + ridgeCrustTone * P.ridgeCrustPaletteGain * (1 - packedWeight),
+    clamp01(
+      packedWeight
+        + ridgeCrustTone * P.ridgeCrustPaletteGain
+        - leePowderTone * P.leePowderPackedSuppression,
+    ),
   );
   const materialAccumulatedWeight = Math.min(
     P.maximumAccumulatedWeight,
-    accumulatedWeight + leePowderTone * P.leePowderPaletteGain * (1 - accumulatedWeight),
+    clamp01(
+      accumulatedWeight
+        + leePowderTone * P.leePowderPaletteGain
+        - ridgeCrustTone * P.ridgeCrustPowderSuppression,
+    ),
   );
   const neutralWeight = clamp01(
     visibleSnow * (1 - Math.max(materialPackedWeight, materialAccumulatedWeight)),
