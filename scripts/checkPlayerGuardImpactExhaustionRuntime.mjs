@@ -97,8 +97,10 @@ try {
 
   // Headless Chromium advances the shipped simulation substantially slower than wall time on shared
   // runners. Spend stamina through two existing real run+jump dodges, then use sustained real sprint
-  // for the final low-stamina approach. Each setup dodge must return to authored grounded/canDodge
-  // eligibility before the next Space press; an airborne sprint telemetry frame is not a valid re-arm.
+  // for the final low-stamina approach. A setup dodge must start from authored grounded/canDodge
+  // eligibility. After it finishes we only require a grounded sprint transition: after the final setup
+  // dodge stamina can legitimately fall below the dodge cost before cooldown expires, so canDodge is
+  // not expected to re-arm again when no third dodge will be attempted.
   const setupDodges = [];
   for (let index = 0; index < 2; index += 1) {
     await waitEvidence((frames) => [...frames].reverse().find((frame) => frame?.state === 'sprint' && frame.isGrounded && frame.canDodge) ?? null,
@@ -111,9 +113,9 @@ try {
     await waitEvidence((frames) => {
       const lastDodgeIndex = frames.findLastIndex((frame) => frame?.state === 'dodge');
       return lastDodgeIndex >= 0
-        ? frames.slice(lastDodgeIndex + 1).find((frame) => frame?.state === 'sprint' && frame.isGrounded && frame.canDodge) ?? null
+        ? frames.slice(lastDodgeIndex + 1).find((frame) => frame?.state === 'sprint' && frame.isGrounded) ?? null
         : null;
-    }, { timeout: 7000, interval: 30, label: `grounded dodge-ready sprint after setup dodge ${index + 1}` });
+    }, { timeout: 7000, interval: 30, label: `grounded sprint after setup dodge ${index + 1}` });
   }
   need(setupDodges.length === 2 && setupDodges.every((frame) => frame.isGrounded && frame.stamina >= 0), `setup dodges must stay on the shipped grounded dodge path ${JSON.stringify(setupDodges)}`);
 
