@@ -27,6 +27,7 @@ import { createHeightSampler, mulberry32 } from './world/terrain.js';
 import { createSettlements, computeSettlementFlattenPads } from './world/settlements.js';
 import { buildRoadNetwork } from './world/roads.js';
 import { createNaturalGeology, upgradeNaturalGeologyAssets } from './world/naturalGeology.js';
+import { createValyriaBarrenEcologyPlacementProbe } from './world/valyriaEcology.js';
 import { createVegetation } from './world/vegetation.js';
 import { upgradeWinterVegetationAssets } from './world/winterVegetationAsset.js';
 import { createWindGrassRun180 } from './world/windGrass.js';
@@ -135,6 +136,13 @@ export function createScene(canvas) {
 	);
 
 	const groundCollider = createGroundCollider(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
+	// One placement-only adapter keeps the Doom barren without lying to physics, water, roads or
+	// natural geology about the actual volcanic terrain height.
+	const valyriaEcologyPlacement = createValyriaBarrenEcologyPlacementProbe({
+		sampleHeightMeters: groundCollider.getGroundHeight,
+		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+	});
+	console.info(`[sceneManager] Valyria barren ecology policy active: ${valyriaEcologyPlacement.policyId}.`);
 
 	// The Wall and cave use the same collider-owned terrain sampler as every live grounded system.
 	const iceLandmarksResult = createIceLandmarks({
@@ -237,7 +245,7 @@ export function createScene(canvas) {
 	});
 
 	const vegetationResult = createVegetation({
-		sampleHeightMeters: groundCollider.getGroundHeight,
+		sampleHeightMeters: valyriaEcologyPlacement.sampleHeightMeters,
 		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
 		seed: WORLD_DEFAULTS.WORLD_SEED,
 		seats: settlementsResult.seats,
@@ -267,7 +275,7 @@ export function createScene(canvas) {
 	});
 
 	const villagesResult = createVillages({
-		sampleHeightMeters: groundCollider.getGroundHeight,
+		sampleHeightMeters: valyriaEcologyPlacement.sampleHeightMeters,
 		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
 		seed: WORLD_DEFAULTS.WORLD_SEED,
 		seats: settlementsResult.seats,
@@ -300,6 +308,7 @@ export function createScene(canvas) {
 		roadEdges: roadsResult.edges,
 		naturalGeology: naturalGeologyResult.group,
 		naturalGeologyStats: naturalGeologyResult.stats,
+		valyriaEcologyPlacement,
 		vegetation: vegetationResult.group,
 		villages: villagesResult.group,
 		iceLandmarks: iceLandmarksResult.group,
@@ -315,7 +324,7 @@ createScene = function createSceneWithWindGrassRun180(canvas) {
 	const state = _createSceneBeforeWindGrassRun180(canvas);
 	const mobile = isCoarsePointerDevice();
 	const grass = createWindGrassRun180({
-		sampleHeightMeters: state.groundCollider.getGroundHeight,
+		sampleHeightMeters: state.valyriaEcologyPlacement.sampleHeightMeters,
 		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
 		seed: WORLD_DEFAULTS.WORLD_SEED,
 		seats: state.settlementSeats,
