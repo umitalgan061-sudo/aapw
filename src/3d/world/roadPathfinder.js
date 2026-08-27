@@ -56,12 +56,14 @@ const RIVER_PROFILE_SPACING_METERS = 12;
 const FINE_REFINEMENT_CELL_METERS = 24;
 const MIN_REFINEMENT_CELL_METERS = 36;
 const MID_REFINEMENT_CELL_METERS = 45;
-// Very short seat-to-seat links can sit inside overlapping settlement-pad transition zones. A
-// bounded local pass resolves those egress contours without paying for a 12 m grid across the
-// normal 1.8 km corridor used by long roads.
+// Close seat-to-seat links can sit inside overlapping settlement-pad transition zones. Bounded
+// local passes resolve those egress contours without paying for a 12 m grid across long roads.
 const SHORT_ROUTE_MAX_DISTANCE_METERS = 320;
 const SHORT_ROUTE_REFINEMENT_CELL_METERS = 12;
 const SHORT_ROUTE_CORRIDOR_PADDING_METERS = 360;
+const MEDIUM_ROUTE_MAX_DISTANCE_METERS = 780;
+const MEDIUM_ROUTE_REFINEMENT_CELL_METERS = 12;
+const MEDIUM_ROUTE_CORRIDOR_PADDING_METERS = 480;
 const riverAvoidanceCache = new WeakMap();
 
 const EIGHT_NEIGHBOR_OFFSETS = Object.freeze([
@@ -303,6 +305,11 @@ function buildSearchStages(requestedCellMeters, requestedPaddingMeters, directDi
 		stages.push(Object.freeze({
 			cellMeters: SHORT_ROUTE_REFINEMENT_CELL_METERS,
 			paddingMeters: SHORT_ROUTE_CORRIDOR_PADDING_METERS,
+		}));
+	} else if (directDistanceMeters <= MEDIUM_ROUTE_MAX_DISTANCE_METERS) {
+		stages.push(Object.freeze({
+			cellMeters: MEDIUM_ROUTE_REFINEMENT_CELL_METERS,
+			paddingMeters: MEDIUM_ROUTE_CORRIDOR_PADDING_METERS,
 		}));
 	}
 	for (const [cellIndex, stageCellMeters] of cells.entries()) {
