@@ -13,7 +13,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-25-v16-wind-crust-powder-contrast',
+  id: 'terrain-snow-surface-tone-2026-08-27-v17-ridge-crust-lee-powder-material',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
@@ -29,6 +29,7 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   leeDriftReadability: true,
   windSlabReadability: true,
   windCrustPowderContrast: true,
+  materialFamilySeparation: true,
   glacialVisibilityExponent: 0.65,
   glacialDepthFloor: 0.54,
   glacialDepthGain: 0.46,
@@ -62,6 +63,8 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   minimumAccumulatedSnow: 0.22,
   maximumPackedWeight: 0.82,
   maximumAccumulatedWeight: 0.82,
+  ridgeCrustPaletteGain: 0.18,
+  leePowderPaletteGain: 0.14,
   packedCoolShift: 0.20,
   packedBrightnessShift: -0.045,
   accumulatedWarmShift: 0.050,
@@ -262,7 +265,6 @@ export function resolveTerrainSnowSurfaceTone({
     accumulatedDominance * accumulationVisibleSnow * climate * accumulationClimateScale
       * accumulatedGlacialPaletteRetention,
   );
-  const neutralWeight = clamp01(visibleSnow * (1 - Math.max(packedWeight, accumulatedWeight)));
 
   // Distinguish wind-polished crust from sheltered powder using only the existing authoritative
   // redistribution telemetry. This adds no procedural geography: the colder/darker crust follows
@@ -274,6 +276,23 @@ export function resolveTerrainSnowSurfaceTone({
   );
   const leePowderTone = clamp01(
     leeDriftWeight * (1 - ridgeScourWeight * 0.72) * (0.72 + clamp01(gentleSlope) * 0.28),
+  );
+
+  // The live biome palette consumes packed/accumulated family weights, while ridgeCrustTone and
+  // leePowderTone were previously telemetry-only. Fold the broad exposed/sheltered signals back into
+  // those already-authoritative families so the visible snowfield actually separates into hard crust
+  // and soft powder without adding snow or inventing new spatial masks. The residual headroom term
+  // keeps the response bounded near existing maxima and avoids flattening every permanent-ice vertex.
+  const materialPackedWeight = Math.min(
+    P.maximumPackedWeight,
+    packedWeight + ridgeCrustTone * P.ridgeCrustPaletteGain * (1 - packedWeight),
+  );
+  const materialAccumulatedWeight = Math.min(
+    P.maximumAccumulatedWeight,
+    accumulatedWeight + leePowderTone * P.leePowderPaletteGain * (1 - accumulatedWeight),
+  );
+  const neutralWeight = clamp01(
+    visibleSnow * (1 - Math.max(materialPackedWeight, materialAccumulatedWeight)),
   );
 
   return Object.freeze({
@@ -302,15 +321,15 @@ export function resolveTerrainSnowSurfaceTone({
     leeDriftWeight,
     ridgeCrustTone,
     leePowderTone,
-    packedWeight,
-    accumulatedWeight,
+    packedWeight: materialPackedWeight,
+    accumulatedWeight: materialAccumulatedWeight,
     neutralWeight,
-    coolShift: packedWeight * P.packedCoolShift
-      - accumulatedWeight * P.accumulatedWarmShift
+    coolShift: materialPackedWeight * P.packedCoolShift
+      - materialAccumulatedWeight * P.accumulatedWarmShift
       + ridgeCrustTone * P.ridgeCrustCoolGain
       - leePowderTone * P.leePowderWarmGain,
-    brightnessShift: packedWeight * P.packedBrightnessShift
-      + accumulatedWeight * P.accumulatedBrightnessShift
+    brightnessShift: materialPackedWeight * P.packedBrightnessShift
+      + materialAccumulatedWeight * P.accumulatedBrightnessShift
       - ridgeCrustTone * P.ridgeCrustBrightnessLoss
       + leePowderTone * P.leePowderBrightnessGain,
   });
