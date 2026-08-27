@@ -46,6 +46,18 @@ export const TERRAIN_RELIEF_DETAIL_POLICY = Object.freeze({
 	mountainFabricAngleSwingRadians: 0.82,
 	mountainFabricAngleDetailRadians: 0.31,
 
+	// Bounded exposed-rock breakup. This does not decide where mountains exist: the existing
+	// relief/rock/snow mountain gate below remains authoritative. These residuals only stop large
+	// canonical rock shoulders from reading as smooth, uniform domes at aerial and gameplay scale.
+	cliffFractureWeathering: true,
+	cliffFractureAmplitudeMeters: 7.4,
+	cliffFractureFrequency: 168,
+	cliffFractureOctaves: 3,
+	cliffBenchAmplitudeMeters: 4.6,
+	cliffBenchFrequency: 72,
+	cliffBenchOctaves: 3,
+	cliffFractureMinElevationMeters: 72,
+
 	// Everywhere-land erosion.
 	erosionAmplitudeLowMeters: 3.6,
 	erosionAmplitudeHighMeters: 11,
@@ -246,6 +258,42 @@ export function terrainMountainFabricSignal(normalizedX, normalizedY) {
 	return contrasted * P.mountainFabricBlend + isotropic * (1 - P.mountainFabricBlend);
 }
 
+/**
+ * Bounded exposed-rock fracture signal in roughly [-1,1].
+ *
+ * The coordinate frame rotates slowly across the owner map, then combines two incompatible scales:
+ * a narrow joint/fracture family and a broader bedding/bench family. This avoids both round crag
+ * blobs and obvious parallel procedural stripes. It is deliberately only a signal; callers still
+ * gate it by canonical mountain/rock authority.
+ */
+export function terrainCliffFractureResidualSignal(normalizedX, normalizedY) {
+	const P = TERRAIN_RELIEF_DETAIL_POLICY;
+	const nx = Number.isFinite(normalizedX) ? normalizedX : 0;
+	const ny = Number.isFinite(normalizedY) ? normalizedY : 0;
+	const angle = -0.34
+		+ Math.sin(TAU * (nx * 0.39 + ny * 0.61) + 2.7) * 0.71
+		+ Math.sin(TAU * (nx * -0.73 + ny * 0.17) + 0.9) * 0.24;
+	const c = Math.cos(angle);
+	const s = Math.sin(angle);
+	const centeredX = nx - 0.5;
+	const centeredY = ny - 0.5;
+	const along = centeredX * c + centeredY * s;
+	const across = -centeredX * s + centeredY * c;
+	const warp = fbm2(nx * 8.6 + 13.4, ny * 8.6 - 7.2, 2) * 0.026;
+	const fracture = ridged2(
+		(along + warp) * P.cliffFractureFrequency * 0.42 + 9.3,
+		(across - warp * 0.73) * P.cliffFractureFrequency * 1.37 - 27.8,
+		P.cliffFractureOctaves,
+	);
+	const bench = fbm2(
+		(along - warp * 0.44) * P.cliffBenchFrequency * 0.64 - 18.5,
+		(across + warp) * P.cliffBenchFrequency * 1.08 + 42.1,
+		P.cliffBenchOctaves,
+	);
+	const jointCut = clamp01((fracture - 0.48) * 2.35) * -1.0;
+	return clamp01(fracture) * 0.38 + bench * 0.48 + jointCut * 0.44;
+}
+
 export function coastWarpOffsets(normalizedX, normalizedY) {
 	const P = TERRAIN_RELIEF_DETAIL_POLICY;
 	const broadU = fbm2(normalizedX * 9.3 + 11.7, normalizedY * 9.3 + 3.1, P.coastWarpOctaves);
@@ -364,6 +412,22 @@ export function reliefDetailMeters(
 			* mountainGate
 			* landGate
 		);
+
+		const exposedRockGate = mountainGate
+			* clamp01((clamp01(rockWeight) - 0.16) / 0.54)
+			* clamp01((heightAboveSeaMeters - P.cliffFractureMinElevationMeters) / 160);
+		if (exposedRockGate > 0) {
+			const fracture = terrainCliffFractureResidualSignal(normalizedX, normalizedY);
+			const fractureAmplitude = P.cliffFractureAmplitudeMeters
+				* (0.62 + clamp01(reliefInfluence) * 0.38);
+			const bench = fbm2(
+				normalizedX * P.cliffBenchFrequency + 81.7,
+				normalizedY * P.cliffBenchFrequency - 33.4,
+				P.cliffBenchOctaves,
+			);
+			metres += fracture * fractureAmplitude * exposedRockGate * landGate;
+			metres += bench * P.cliffBenchAmplitudeMeters * exposedRockGate * landGate;
+		}
 	}
 
 	return metres;
