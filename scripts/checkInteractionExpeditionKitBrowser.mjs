@@ -61,7 +61,9 @@ try {
 
 		const runtime = makeRuntime();
 		const boosted = runtime.controller.getRpgSnapshot();
-		boosted.economy.copper = 60;
+		boosted.economy.copper = 48;
+		boosted.economy.stockByOffer[armorer.id] = 1;
+		boosted.inventory = { items: [{ itemId: 'dragonstone-whetstone', quantity: 1, provenance: [{ sourceType: 'browser-fixture', sourceId: 'expedition-kit' }] }] };
 		runtime.controller.restoreRpgSnapshot(boosted);
 		runtime.events.inventory.length = 0;
 		runtime.events.economy.length = 0;
@@ -89,8 +91,8 @@ try {
 		const receipt = after.economy.ledger.recentTransactions.at(-1);
 		const crafted = after.economy.copper === 19
 			&& after.economy.stockByOffer[armorer.id] === 0
-			&& after.economy.ledger.transactionCount === 5
-			&& after.economy.ledger.lifetimeSpentCopper === 41
+			&& after.economy.ledger.transactionCount === 4
+			&& after.economy.ledger.lifetimeSpentCopper === 29
 			&& item(after.inventory, 'dragonstone-whetstone') == null
 			&& item(after.inventory, 'dragonstone-travel-ration-pack') == null
 			&& kit?.quantity === 1
@@ -98,8 +100,8 @@ try {
 			&& provenance?.sourceId === recipe.recipeId
 			&& receipt?.offerId === armorer.id
 			&& receipt?.balanceCopper === 19;
-		const callbacks = runtime.events.inventory.length === 5
-			&& runtime.events.economy.length === 5
+		const callbacks = runtime.events.inventory.length === 4
+			&& runtime.events.economy.length === 4
 			&& item(runtime.events.inventory.at(-1), recipe.outputItemId)?.quantity === 1;
 
 		const saved = structuredClone(after);
