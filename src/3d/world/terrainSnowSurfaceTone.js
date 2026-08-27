@@ -13,7 +13,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-27-v19-glacial-floor-protected-competition',
+  id: 'terrain-snow-surface-tone-2026-08-27-v20-glacial-attenuated-powder-competition',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
@@ -32,6 +32,9 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   materialFamilySeparation: true,
   materialFamilyCompetition: true,
   glacialMaterialFloorProtection: true,
+  glacialPowderAttenuation: 0.75,
+  basePackedRetentionMin: 0.78,
+  basePackedRetentionGlacialGain: 0.16,
   glacialVisibilityExponent: 0.65,
   glacialDepthFloor: 0.54,
   glacialDepthGain: 0.46,
@@ -179,11 +182,16 @@ export function resolveTerrainSnowSurfaceTone({
   const ridgeCrustTone = clamp01(ridgeScourWeight * (0.58 + windSlabWeight * 0.42) * (1 - leeDriftWeight * 0.62));
   const leePowderTone = clamp01(leeDriftWeight * (1 - ridgeScourWeight * 0.72) * (0.72 + clamp01(gentleSlope) * 0.28));
 
-  // Preserve the established glacial packed floor while the two visible snow material families
-  // compete. The v18 powder suppression could drive ICE EDGE shelter below this canonical-climate
-  // colour floor even though snow coverage remained correct. Suppression is now allowed only above
-  // the already-computed glacial floor; pure tundra still receives no such protection.
-  const glacialMaterialPackedFloor = Math.max(glacialPackedFloor, glacialPaletteFloor);
+  // Powder remains strongest in pure tundra and progressively loses its warm/soft palette push as
+  // the already-authoritative glacial family strengthens. This keeps the ICE EDGE visually between
+  // tundra and permanent ice instead of allowing a sheltered mixed-ice vertex to become the warmest
+  // snow sample. Packed snow also keeps most of its pre-competition weight, so lee suppression can
+  // soften a slab without deleting the cold glacial-family signal that the coverage model established.
+  const protectedBasePacked = packedWeight * (
+    P.basePackedRetentionMin + glacialFamilySupport * P.basePackedRetentionGlacialGain
+  );
+  const glacialMaterialPackedFloor = Math.max(glacialPackedFloor, glacialPaletteFloor, protectedBasePacked);
+  const powderPaletteGain = P.leePowderPaletteGain * (1 - glacialFamilySupport * P.glacialPowderAttenuation);
   const materialPackedWeight = Math.min(
     P.maximumPackedWeight,
     Math.max(
@@ -193,7 +201,7 @@ export function resolveTerrainSnowSurfaceTone({
   );
   const materialAccumulatedWeight = Math.min(
     P.maximumAccumulatedWeight,
-    clamp01(accumulatedWeight + leePowderTone * P.leePowderPaletteGain - ridgeCrustTone * P.ridgeCrustPowderSuppression),
+    clamp01(accumulatedWeight + leePowderTone * powderPaletteGain - ridgeCrustTone * P.ridgeCrustPowderSuppression),
   );
   const neutralWeight = clamp01(visibleSnow * (1 - Math.max(materialPackedWeight, materialAccumulatedWeight)));
 
