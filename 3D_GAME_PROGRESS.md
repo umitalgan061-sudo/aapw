@@ -18586,3 +18586,43 @@ bina değil — §8.5 iki açıdan bakınca **15 × 2,8 × 13,4 m**, içine kü�
 döşeli bir dikdörtgen, yükseklik/en oranı **0,18**. Dağıtıcı en geniş boyutu ayak izi sayarak
 ölçeklediği için açık araziye 15 metrelik bir taş levha olarak inerdi; `fence_fence.fbx` ve Tur
 395'in `grass.glb`'si ile aynı hata.
+
+## Tur 406 — "Yollar çok yapay": nedeni 40 santimlik kalkıklık (ADR-0355)
+
+Sahip: *"asset'de yolla alakalı glb olması lazım, onu kullan ya da ona bakıp onun gibi coğrafi toprak
+yollar oluştur. Şuanki yollar çok yapay."*
+
+Referans depoda zaten vardı: PR #961 (*"yol glb ekledim"*) `dusty_path_in_the_fields.glb` ve
+`snowy_road.glb`'yi yüklemiş, yanlarında da `fbx/dirt_road_test.glb` duruyor. Sonuncusunu — çimenin
+üstünde dokulu bir toprak yol — açıp bizimkiyle yan yana koyunca fark netleşti:
+
+| referans | bizim yol (406 öncesi) |
+|---|---|
+| toprak çimene doğru **saçaklanıyor**, sınır dolanıyor | tek düz kenar, cetvelle çizilmiş gibi |
+| kenarda çim geri geliyor, ezik kahve zemin | toprak yeşile çarpıyor, arada hiçbir şey yok |
+| boyunca açık/koyu bölümler | baştan sona tek düz ten rengi |
+
+**Asıl sebep bunların hiçbiri değildi.** Göz hizasından yakın çekim alınca ortaya çıktı: yol
+`VERTICAL_OFFSET_METERS = 0.4` ile zeminden **40 santim yukarıda** duruyor. Yakından bakınca yol değil
+**set/rampa** gibi görünüyor — iki yanında sert dikey bir düşüş var. Yapaylığın en büyük kaynağı buydu
+ve uzaktan çekilmiş karelerde görünmüyordu; ancak sahibin istediği yakın çekimde ortaya çıktı.
+
+Yapılanlar:
+
+1. **Kalkıklık 0,4 m → 0,06 m.** O yükseklik yalnızca arazinin derinlik değerlerinden kaçmak içindi;
+   bu işi materyaldeki `polygonOffset` düzgün yapıyor — rasterleştirmede derinlik kaydırması, fiziksel
+   yükseltme değil. Yol artık zeminin üstünde durmuyor, zemine yatıyor.
+2. **Saçaklı, dolanan kenar.** Fragment shader'da dünya uzayında fbm gürültüsüyle kesim: yolun kenarı
+   düz bir çizgi değil, yer yer içeri girip dışarı taşıyor (`discard`, yani `alphaTest` bayrağı da
+   saydamlık da gerekmiyor).
+3. **Ezik banket ve boyuna değişim.** Kenara doğru toprak çimene karışıyor, ve boyunca açık/koyu
+   bölümler var — iki yüz metre aynı okunmuyor.
+
+**Hiçbir sözleşme kırılmadı ve hiçbir geometri değişmedi** (kalkıklık dışında, o da sözleşmede ve
+README'de güncellendi). `checkMedievalRoadSurface` PASS, `roadNetworkSafetyCheck` PASS,
+`terrainSeatSafetyCheck` PASS, +0 çizim çağrısı.
+
+**Açık kalan, bu turun sebep olmadığı hata:** `checkRoadVisualContract` `left.y === right.y` diye
+iddia ediyor, ama dalın kendi enine-eğim düzeltmesi ribbon'ın iki kenarını **ayrı ayrı** araziye
+oturtuyor. Yani sözleşme kodun kasten yaptığı şeyi yasaklıyor. Değişikliğimi stash'leyip doğruladım:
+aynı hata bensiz de var. Ayrı bir turun işi.
