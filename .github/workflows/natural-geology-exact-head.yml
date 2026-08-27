@@ -6,10 +6,14 @@ on:
       - codex/foundation-grounding-20260821
     paths:
       - 'src/3d/world/valyriaGeology.js'
+      - 'src/3d/world/valyriaEcology.js'
+      - 'src/3d/world/terrain.js'
       - 'src/3d/world/naturalGeologyPlacement.js'
       - 'src/3d/world/naturalGeology.js'
       - 'src/3d/sceneManager.js'
       - 'scripts/checkValyriaGeology.mjs'
+      - 'scripts/checkValyriaCanonicalTerrain.mjs'
+      - 'scripts/checkValyriaBarrenEcology.mjs'
       - 'scripts/checkNaturalGeologyPlacement.mjs'
       - 'scripts/checkNaturalGeologySourceContract.mjs'
       - '.github/workflows/natural-geology-exact-head.yml'
@@ -21,7 +25,7 @@ permissions:
 jobs:
   scalar-authority:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - name: Checkout exact pushed head
         uses: actions/checkout@v4
@@ -37,13 +41,24 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
           node --check src/3d/world/valyriaGeology.js
+          node --check src/3d/world/valyriaEcology.js
+          node --check src/3d/world/terrain.js
           node --check src/3d/world/naturalGeologyPlacement.js
           node --check src/3d/world/naturalGeology.js
+          node --check src/3d/sceneManager.js
           node --check scripts/checkValyriaGeology.mjs
+          node --check scripts/checkValyriaCanonicalTerrain.mjs
+          node --check scripts/checkValyriaBarrenEcology.mjs
           node --check scripts/checkNaturalGeologyPlacement.mjs
           node --check scripts/checkNaturalGeologySourceContract.mjs
+      - name: Resolve vendored Three.js for canonical terrain imports
+        run: node scripts/setupNodeThreeShim.mjs
       - name: Valyria geography authority
         run: node scripts/checkValyriaGeology.mjs
+      - name: Canonical Valyria terrain integration
+        run: node scripts/checkValyriaCanonicalTerrain.mjs
+      - name: Valyria barren ecology placement
+        run: node scripts/checkValyriaBarrenEcology.mjs
       - name: Natural geology deterministic placement
         run: node scripts/checkNaturalGeologyPlacement.mjs
       - name: Asset and authority source contract
