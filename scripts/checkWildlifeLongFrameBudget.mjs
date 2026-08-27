@@ -9,7 +9,9 @@ assert.match(source, /DEFAULT_FLEE_RELEASE_MARGIN_METERS = 3/);
 assert.match(source, /const simulationDelta = boundedWildlifeDelta\(delta\)/);
 assert.match(source, /const hasFinitePlayerPosition = Number\.isFinite\(playerPosition\?\.x\) && Number\.isFinite\(playerPosition\?\.z\)/);
 assert.match(source, /const directThreat = canFlee && distanceFromPlayer < fleeTriggerRadiusMeters/);
-assert.match(source, /if \(canFlee && !directThreat && packAlertRadiusMeters != null && packmateFleePositions\)/);
+assert.match(source, /const hasPackmateIterable = packmateFleePositions != null/);
+assert.match(source, /typeof packmateFleePositions\[Symbol\.iterator\] === 'function'/);
+assert.match(source, /if \(canFlee && !directThreat && packAlertRadiusMeters != null && hasPackmateIterable\)/);
 assert.match(source, /const recovering = canFlee/);
 assert.match(source, /&& hasFinitePlayerPosition/);
 assert.match(source, /distanceFromPlayer < fleeReleaseRadiusMeters/);
@@ -39,6 +41,7 @@ const bounded = (delta) => (!Number.isFinite(delta) || delta <= 0 ? 0 : Math.min
 const overlapDirection = (yaw) => ({ x: Math.sin(yaw), z: Math.cos(yaw) });
 const finitePlayerPosition = (position) => Number.isFinite(position?.x) && Number.isFinite(position?.z);
 const finitePackmatePosition = (position) => Number.isFinite(position?.x) && Number.isFinite(position?.z);
+const packmateInputIsIterable = (value) => value != null && typeof value[Symbol.iterator] === 'function';
 const movementAdapterOutputIsFinite = (position) => Number.isFinite(position?.x) && Number.isFinite(position?.z);
 const shouldRecover = ({ wasFleeing, direct, pack, finitePlayer, distance }) => Boolean(
   wasFleeing && !direct && !pack && finitePlayer && distance < releaseRadius,
@@ -59,6 +62,10 @@ assert.equal(shouldRecover({ wasFleeing: true, direct: false, pack: false, finit
 assert.equal(shouldPackAlert({ direct: false, alertRadius: 5, packmate: { x: 0, z: 3 } }), true, 'finite nearby packmates must propagate alarm without any player-position dependency');
 assert.equal(shouldPackAlert({ direct: true, alertRadius: 5, packmate: { x: 0, z: 3 } }), false, 'direct player threat must retain priority over pack alert');
 assert.equal(shouldPackAlert({ direct: false, alertRadius: 5, packmate: { x: Number.NaN, z: 3 } }), false, 'malformed packmates must fail closed');
+assert.equal(packmateInputIsIterable([{ x: 0, z: 3 }]), true, 'array pack inputs must remain eligible for group-AI propagation');
+assert.equal(packmateInputIsIterable(new Set([{ x: 0, z: 3 }])), true, 'generic iterable pack inputs must remain supported');
+assert.equal(packmateInputIsIterable({ x: 0, z: 3 }), false, 'truthy non-iterable pack payloads must fail closed before iteration');
+assert.equal(packmateInputIsIterable(null), false, 'null pack payloads must fail closed');
 const overlap = overlapDirection(Math.PI / 2);
 assert.ok(Math.abs(overlap.x - 1) <= Number.EPSILON && Math.abs(overlap.z) <= 1e-15, 'exact-overlap flee fallback must be a deterministic unit direction from wolf yaw');
 assert.equal(finitePlayerPosition({ x: Number.NaN, z: 0 }), false, 'NaN player threat coordinates must fail closed before direct wildlife sensing');
