@@ -14,18 +14,21 @@ on:
       - 'src/3d/world/worldReferenceSurfacePindexes.js'
       - 'src/3d/world/worldReferencePindex08Detail.js'
       - 'src/3d/world/settlements.js'
+      - 'src/3d/world/rivers.js'
       - 'src/3d/world/roads.js'
       - 'src/3d/world/roadPathfinder.js'
-      - 'scripts/terrainSeatSafetyCheck.js'
-      - 'scripts/roadNetworkSafetyCheck.js'
+      - 'src/3d/world/roadSurfaceProfile.js'
       - 'scripts/lib/lakeBasinQa.mjs'
+      - 'scripts/lib/roadRouteQa.mjs'
       - 'scripts/checkLakeBasinAuthority.mjs'
       - 'scripts/checkLakeBasinSourceRegression.mjs'
       - 'scripts/checkLakeBasinWorldCoverage.mjs'
       - 'scripts/checkLakeBasinDeterminismPerformance.mjs'
       - 'scripts/checkLakeBasinHeightGeometry.mjs'
       - 'scripts/checkLakeBasinChunkSeams.mjs'
-      - 'scripts/checkLakeBasinGameplaySafety.mjs'
+      - 'scripts/checkRoadRoutingSourceContract.mjs'
+      - 'scripts/checkRoadSettlementGeometry.mjs'
+      - 'scripts/checkRoadRouteCanonicalExactHead.mjs'
       - 'scripts/summarizeLakeBasinExactHead.mjs'
       - '.github/workflows/lake-basin-exact-head-safety.yml'
   workflow_dispatch:
@@ -43,7 +46,7 @@ env:
 jobs:
   scalar-geometry:
     name: scalar-geometry
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
       - name: Checkout exact requested head
@@ -65,7 +68,7 @@ jobs:
           node-version: 22
 
       - name: Install scalar terrain dependency
-        run: npm install --no-save three
+        run: npm install --no-save --no-package-lock three
 
       - name: Syntax contracts
         run: |
@@ -108,13 +111,13 @@ jobs:
         with:
           name: lake-basin-exact-head-scalar-${{ env.EXPECTED_HEAD_SHA }}
           path: artifacts/lake-basin-exact-head/
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 14
 
-  gameplay-runtime:
-    name: gameplay-runtime
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+  gameplay-geometry:
+    name: gameplay-geometry
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
     steps:
       - name: Checkout exact requested head
         uses: actions/checkout@v4
@@ -134,26 +137,32 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install exact browser/runtime dependencies
-        run: |
-          npm install --no-save playwright three
-          npx playwright install --with-deps chromium
+      - name: Install exact terrain dependency
+        run: npm install --no-save --no-package-lock three
 
-      - name: Syntax gameplay orchestrator
+      - name: Syntax gameplay geometry contracts
         run: |
           set -euo pipefail
-          node --check scripts/checkLakeBasinGameplaySafety.mjs
-          node --check scripts/terrainSeatSafetyCheck.js
-          node --check scripts/roadNetworkSafetyCheck.js
+          node --check src/3d/world/roadSurfaceProfile.js
+          node --check src/3d/world/roadPathfinder.js
+          node --check scripts/checkRoadRoutingSourceContract.mjs
+          node --check scripts/checkRoadSettlementGeometry.mjs
+          node --check scripts/checkRoadRouteCanonicalExactHead.mjs
 
-      - name: Exact-head seat and road safety
-        run: node scripts/checkLakeBasinGameplaySafety.mjs
+      - name: Exact-head routing source contract
+        run: node scripts/checkRoadRoutingSourceContract.mjs
 
-      - name: Upload gameplay proof
+      - name: Exact-head settlement pad geometry
+        run: node scripts/checkRoadSettlementGeometry.mjs
+
+      - name: Exact-head canonical road safety
+        run: node scripts/checkRoadRouteCanonicalExactHead.mjs
+
+      - name: Upload gameplay geometry proof
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: lake-basin-exact-head-gameplay-${{ env.EXPECTED_HEAD_SHA }}
-          path: artifacts/lake-basin-exact-head/
-          if-no-files-found: warn
+          path: artifacts/road-route-exact-head/
+          if-no-files-found: error
           retention-days: 14
