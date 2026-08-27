@@ -11,7 +11,7 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX04_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex04-detail-2026-08-27-v4-lowland-drainage-weathering',
+  id: 'owner-map-pindex04-detail-2026-08-27-v5-soil-horizon-weathering',
   pindex: 4,
   renderOnly: true,
   geographyAuthorityUnchanged: true,
@@ -21,6 +21,8 @@ export const PINDEX04_DETAIL_POLICY = Object.freeze({
   drainageMeters: 286,
   alluviumMeters: 760,
   interfluveMeters: 980,
+  peatMeters: 360,
+  oxideMeters: 610,
   boundaryProbeNormalized: 0.006,
   amplitudeBySurface: Object.freeze({ sea: 0.014, lake: 0.016, soil: 0.174, rock: 0.148, snow: 0.074 }),
   chromaBySurface: Object.freeze({ sea: 0.016, lake: 0.020, soil: 0.154, rock: 0.108, snow: 0.056 }),
@@ -123,19 +125,35 @@ function surfaceFabric(surface, worldX, worldZ) {
     1,
   );
 
+  // Soil-horizon breakup adds irregular organic accumulation in persistently damp pockets and
+  // oxidised mineral crust on the driest interfluves. The two masks use unrelated world-space
+  // scales so they do not collapse into a repeated checker/ridge motif.
+  const peatField = valueNoise(warpedX + 241, warpedZ - 173, P.peatMeters, 52.3);
+  const peat = THREE.MathUtils.clamp(
+    Math.max(0, -peatField) * dampSwale * (0.58 + Math.max(0, moisture - 0.55) * 1.15),
+    0,
+    1,
+  );
+  const oxideField = valueNoise(warpedX - 463, warpedZ + 307, P.oxideMeters, 58.7);
+  const ironCrust = THREE.MathUtils.clamp(
+    Math.max(0, oxideField) * exposedInterfluve * (0.68 + mineral * 0.32),
+    0,
+    1,
+  );
+
   // Most visual energy stays at kilometre/hundreds-of-metres scale; fine grain only prevents flat
   // patches at gameplay distance and is intentionally too weak to become television-static noise.
   let luminance = macro * 0.49 + meso * 0.31 + fine * 0.12 - dampSwale * 0.15 + alluvium * 0.09
-    + exposedInterfluve * 0.11;
+    + exposedInterfluve * 0.11 - peat * 0.08 + ironCrust * 0.055;
   let warm = mineral - 0.5;
   let cool = moisture - 0.5;
 
   if (surface === 'soil') {
     const meadowPatch = valueNoise(worldX - 91, worldZ + 137, 690, 21.4);
-    cool += Math.max(0, meadowPatch) * 0.21 + dampSwale * 0.37;
-    warm += Math.max(0, -meadowPatch) * 0.15 + alluvium * 0.28 + exposedInterfluve * 0.34;
-    luminance -= dampSwale * 0.11;
-    luminance += alluvium * 0.06 + exposedInterfluve * 0.08;
+    cool += Math.max(0, meadowPatch) * 0.21 + dampSwale * 0.37 + peat * 0.18;
+    warm += Math.max(0, -meadowPatch) * 0.15 + alluvium * 0.28 + exposedInterfluve * 0.34 + ironCrust * 0.22;
+    luminance -= dampSwale * 0.11 + peat * 0.07;
+    luminance += alluvium * 0.06 + exposedInterfluve * 0.08 + ironCrust * 0.045;
   } else if (surface === 'rock') {
     // Warped bedding reads as geological weathering without touching the mountain geometry.
     const strataWarp = macro * 0.82 + meso * 0.48;
@@ -157,7 +175,7 @@ function surfaceFabric(surface, worldX, worldZ) {
     cool += macro * 0.14;
   }
 
-  return { luminance, warm, cool, dampSwale, alluvium, exposedInterfluve };
+  return { luminance, warm, cool, dampSwale, alluvium, exposedInterfluve, peat, ironCrust };
 }
 
 export function applyPindex04DetailToTerrainMesh(mesh) {
@@ -168,6 +186,7 @@ export function applyPindex04DetailToTerrainMesh(mesh) {
   let touchedVertices = 0;
   let detailEnergy = 0;
   let drainageEnergy = 0;
+  let soilHorizonEnergy = 0;
   for (let index = 0; index < position.count; index += 1) {
     const worldX = mesh.position.x + position.getX(index);
     const worldZ = mesh.position.z + position.getZ(index);
@@ -188,12 +207,16 @@ export function applyPindex04DetailToTerrainMesh(mesh) {
     b += (fabric.cool * 0.54 - fabric.warm * 0.23) * chroma;
 
     // Soil-specific hydrologic material breakup: damp swales are cooler/darker, recent alluvium is
-    // slightly warmer/greyer, and exposed interfluves are drier and mineral-rich. No spatial term
-    // here can alter height or hydrology because this pass owns only the color BufferAttribute.
+    // slightly warmer/greyer, exposed interfluves are mineral-rich, and soil horizons add bounded
+    // organic/oxide colour separation without changing any canonical surface classification.
     if (c.surface === 'soil') {
-      r += (-fabric.dampSwale * 0.016 + fabric.alluvium * 0.018 + fabric.exposedInterfluve * 0.025) * edge;
-      g += (fabric.dampSwale * 0.010 + fabric.alluvium * 0.006 - fabric.exposedInterfluve * 0.006) * edge;
-      b += (fabric.dampSwale * 0.012 + fabric.alluvium * 0.004 - fabric.exposedInterfluve * 0.011) * edge;
+      r += (-fabric.dampSwale * 0.016 + fabric.alluvium * 0.018 + fabric.exposedInterfluve * 0.025
+        - fabric.peat * 0.012 + fabric.ironCrust * 0.020) * edge;
+      g += (fabric.dampSwale * 0.010 + fabric.alluvium * 0.006 - fabric.exposedInterfluve * 0.006
+        - fabric.peat * 0.007 + fabric.ironCrust * 0.002) * edge;
+      b += (fabric.dampSwale * 0.012 + fabric.alluvium * 0.004 - fabric.exposedInterfluve * 0.011
+        - fabric.peat * 0.009 - fabric.ironCrust * 0.012) * edge;
+      soilHorizonEnergy += (fabric.peat + fabric.ironCrust) * edge;
     }
 
     color.setXYZ(index,
@@ -214,6 +237,7 @@ export function applyPindex04DetailToTerrainMesh(mesh) {
     touchedVertices,
     meanDetailEnergy: touchedVertices > 0 ? detailEnergy / touchedVertices : 0,
     meanHydrologicMaterialEnergy: touchedVertices > 0 ? drainageEnergy / touchedVertices : 0,
+    meanSoilHorizonEnergy: touchedVertices > 0 ? soilHorizonEnergy / touchedVertices : 0,
   });
   mesh.userData.run282Pindex04Detail = summary;
   return summary;
@@ -224,11 +248,13 @@ export function applyPindex04DetailToTerrainGroup(terrainGroup) {
   let touchedVertices = 0;
   let weightedEnergy = 0;
   let weightedHydrologicMaterialEnergy = 0;
+  let weightedSoilHorizonEnergy = 0;
   for (const mesh of terrainGroup.children) {
     const summary = applyPindex04DetailToTerrainMesh(mesh);
     touchedVertices += summary.touchedVertices;
     weightedEnergy += summary.meanDetailEnergy * summary.touchedVertices;
     weightedHydrologicMaterialEnergy += summary.meanHydrologicMaterialEnergy * summary.touchedVertices;
+    weightedSoilHorizonEnergy += summary.meanSoilHorizonEnergy * summary.touchedVertices;
   }
   const summary = Object.freeze({
     policyId: PINDEX04_DETAIL_POLICY.id,
@@ -237,6 +263,7 @@ export function applyPindex04DetailToTerrainGroup(terrainGroup) {
     meshCount: terrainGroup.children.length,
     meanDetailEnergy: touchedVertices > 0 ? weightedEnergy / touchedVertices : 0,
     meanHydrologicMaterialEnergy: touchedVertices > 0 ? weightedHydrologicMaterialEnergy / touchedVertices : 0,
+    meanSoilHorizonEnergy: touchedVertices > 0 ? weightedSoilHorizonEnergy / touchedVertices : 0,
   });
   terrainGroup.userData.run282Pindex04Detail = summary;
   return summary;
