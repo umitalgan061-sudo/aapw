@@ -6,8 +6,12 @@ import * as THREE from '../src/3d/vendor/three/three.module.js';
 const sourcePath = new URL('../src/3d/gameplay/animals.js', import.meta.url);
 const harnessPath = new URL('../src/3d/gameplay/.pack-alert-animals-harness.mjs', import.meta.url);
 const source = await readFile(sourcePath, 'utf8');
-const harnessSource = source.replace("from 'three'", "from '../vendor/three/three.module.js'");
+const harnessSource = source
+  .replace("from 'three'", "from '../vendor/three/three.module.js'")
+  .replace("import { AssetLoader } from '../assetLoader.js';", 'const AssetLoader = { disposeObject3D() {} };');
 assert.notEqual(harnessSource, source, 'expected animals.js to use the shipped bare Three import');
+assert(!harnessSource.includes("from 'three'"), 'test harness must resolve Three through the shipped vendor module');
+assert(!harnessSource.includes("from '../assetLoader.js'"), 'test harness must not re-enter AssetLoader bare-Three imports');
 await writeFile(harnessPath, harnessSource, 'utf8');
 let createWolf;
 try {
