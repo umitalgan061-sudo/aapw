@@ -38,7 +38,7 @@ const groundCollider = {
   },
 };
 
-function createTestWolf() {
+function createTestWolf(overrides = {}) {
   return createWolf({
     assetLoader,
     modelUrl: 'test-wolf.glb',
@@ -53,6 +53,7 @@ function createTestWolf() {
     fleeTriggerRadiusMeters: 6,
     fleeSpeedMps: 4.5,
     packAlertRadiusMeters: 5,
+    ...overrides,
   });
 }
 
@@ -87,6 +88,27 @@ assert.equal(malformedPayloadWolf.object3D.userData.wildlifeFlee.pack, false);
 assert.equal(malformedPayloadWolf.object3D.userData.wildlifeFlee.direct, false);
 assert(Number.isFinite(malformedPayloadWolf.object3D.position.x) && Number.isFinite(malformedPayloadWolf.object3D.position.z));
 malformedPayloadWolf.dispose();
+
+const malformedDirectRadiusWolf = await createTestWolf({ fleeTriggerRadiusMeters: Infinity });
+malformedDirectRadiusWolf.update(0.1, { x: 0, z: -1 }, [{ x: 0, z: -1 }]);
+assert.equal(malformedDirectRadiusWolf.object3D.userData.wildlifeFlee.direct, false, 'non-finite direct radius must fail closed');
+assert.equal(malformedDirectRadiusWolf.object3D.userData.wildlifeFlee.pack, false, 'invalid direct radius must disable flee state entirely');
+assert.equal(malformedDirectRadiusWolf.object3D.userData.wildlifeFlee.triggerRadiusMeters, null);
+assert(Number.isFinite(malformedDirectRadiusWolf.object3D.position.x) && Number.isFinite(malformedDirectRadiusWolf.object3D.position.z));
+malformedDirectRadiusWolf.dispose();
+
+const malformedPackRadiusWolf = await createTestWolf({ packAlertRadiusMeters: Infinity });
+malformedPackRadiusWolf.update(0.1, undefined, [{ x: 0, z: -1 }]);
+assert.equal(malformedPackRadiusWolf.object3D.userData.wildlifeFlee.pack, false, 'non-finite pack radius must disable pack awareness');
+assert.equal(malformedPackRadiusWolf.object3D.userData.wildlifeFlee.direct, false);
+malformedPackRadiusWolf.dispose();
+
+const negativeRadiusWolf = await createTestWolf({ fleeTriggerRadiusMeters: -1, packAlertRadiusMeters: -1 });
+negativeRadiusWolf.update(0.1, { x: 0, z: 0 }, [{ x: 0, z: 0 }]);
+assert.equal(negativeRadiusWolf.object3D.userData.wildlifeFlee.direct, false, 'negative direct radius must fail closed');
+assert.equal(negativeRadiusWolf.object3D.userData.wildlifeFlee.pack, false, 'negative pack radius must fail closed');
+assert.equal(negativeRadiusWolf.object3D.userData.wildlifeFlee.triggerRadiusMeters, null);
+negativeRadiusWolf.dispose();
 
 const setBackedPackWolf = await createTestWolf();
 const setBackedPack = new Set([
