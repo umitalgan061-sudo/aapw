@@ -9,8 +9,12 @@ assert.match(source, /DEFAULT_FLEE_RELEASE_MARGIN_METERS = 3/);
 assert.match(source, /MAX_PACK_ALERT_SAMPLES_PER_TICK = 32/);
 assert.match(source, /const simulationDelta = boundedWildlifeDelta\(delta\)/);
 assert.match(source, /const hasFinitePlayerPosition = Number\.isFinite\(playerPosition\?\.x\) && Number\.isFinite\(playerPosition\?\.z\)/);
-assert.match(source, /const directThreat = canFlee && distanceFromPlayer < fleeTriggerRadiusMeters/);
-assert.match(source, /if \(canFlee && !directThreat && packAlertRadiusMeters != null && packmateFleePositions != null\)/);
+assert.match(source, /const safeFleeTriggerRadiusMeters = Number\.isFinite\(fleeTriggerRadiusMeters\) && fleeTriggerRadiusMeters >= 0/);
+assert.match(source, /const safePackAlertRadiusMeters = Number\.isFinite\(packAlertRadiusMeters\) && packAlertRadiusMeters >= 0/);
+assert.match(source, /const canFlee = Boolean\(groundCollider && fleeClipName && safeFleeTriggerRadiusMeters != null\)/);
+assert.match(source, /const directThreat = canFlee && distanceFromPlayer < safeFleeTriggerRadiusMeters/);
+assert.match(source, /if \(canFlee && !directThreat && safePackAlertRadiusMeters != null && packmateFleePositions != null\)/);
+assert.match(source, /distance < safePackAlertRadiusMeters/);
 assert.match(source, /const iteratorFactory = packmateFleePositions\[Symbol\.iterator\]/);
 assert.match(source, /iteratorFactory\.call\(packmateFleePositions\)/);
 assert.match(source, /packSamplesScanned < MAX_PACK_ALERT_SAMPLES_PER_TICK/);
@@ -45,6 +49,7 @@ const bounded = (delta) => (!Number.isFinite(delta) || delta <= 0 ? 0 : Math.min
 const overlapDirection = (yaw) => ({ x: Math.sin(yaw), z: Math.cos(yaw) });
 const finitePlayerPosition = (position) => Number.isFinite(position?.x) && Number.isFinite(position?.z);
 const finitePackmatePosition = (position) => Number.isFinite(position?.x) && Number.isFinite(position?.z);
+const safeThreatRadius = (value) => (Number.isFinite(value) && value >= 0 ? value : null);
 const packmateInputIsIterable = (value) => value != null && typeof value[Symbol.iterator] === 'function';
 const movementAdapterOutputIsFinite = (position) => Number.isFinite(position?.x) && Number.isFinite(position?.z);
 const shouldRecover = ({ wasFleeing, direct, pack, finitePlayer, distance }) => Boolean(
@@ -61,6 +66,11 @@ assert.equal(maxPackSamples, 32, 'group-AI pack sensing must remain bounded per 
 assert.ok(fleeSpeed * bounded(3) <= 0.45 + Number.EPSILON, 'flee displacement per resumed frame must remain collider-safe and bounded');
 assert.ok(patrolSpeed * bounded(3) <= 0.22 + Number.EPSILON, 'patrol displacement per resumed frame must remain bounded');
 assert.equal(releaseRadius, 15, 'default flee release radius must remain a bounded 3 m margin beyond trigger');
+assert.equal(safeThreatRadius(6), 6, 'finite non-negative wildlife threat radii must remain valid');
+assert.equal(safeThreatRadius(0), 0, 'zero radius must remain a valid explicitly-disabled boundary');
+assert.equal(safeThreatRadius(Infinity), null, 'infinite wildlife threat radii must fail closed');
+assert.equal(safeThreatRadius(Number.NaN), null, 'NaN wildlife threat radii must fail closed');
+assert.equal(safeThreatRadius(-1), null, 'negative wildlife threat radii must fail closed');
 assert.equal(shouldRecover({ wasFleeing: true, direct: false, pack: false, finitePlayer: true, distance: 13 }), true, 'wolf must remain fleeing immediately outside the trigger boundary');
 assert.equal(shouldRecover({ wasFleeing: true, direct: false, pack: false, finitePlayer: true, distance: 16 }), false, 'wolf must release once the player clears hysteresis radius');
 assert.equal(shouldRecover({ wasFleeing: true, direct: false, pack: false, finitePlayer: false, distance: 13 }), false, 'invalid player input must not keep recovery latched');
