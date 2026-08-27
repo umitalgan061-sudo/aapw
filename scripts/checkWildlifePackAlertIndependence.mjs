@@ -181,6 +181,51 @@ assert.equal(faultingPackWolf.object3D.userData.wildlifeFlee.pack, false);
 assert(Number.isFinite(faultingPackWolf.object3D.position.x) && Number.isFinite(faultingPackWolf.object3D.position.z));
 faultingPackWolf.dispose();
 
+const faultingResultWolf = await createTestWolf();
+const faultingResultSource = {
+  [Symbol.iterator]() {
+    return {
+      next() {
+        return Object.defineProperty({}, 'done', {
+          get() { throw new Error('iterator-result getters must fail closed'); },
+        });
+      },
+    };
+  },
+};
+assert.doesNotThrow(
+  () => faultingResultWolf.update(0.1, undefined, faultingResultSource),
+  'faulting iterator-result getters must not abort the fauna tick',
+);
+assert.equal(faultingResultWolf.object3D.userData.wildlifeFlee.pack, false);
+faultingResultWolf.dispose();
+
+const faultingCoordinateWolf = await createTestWolf();
+let faultingCoordinateReads = 0;
+const faultingCoordinateSource = {
+  [Symbol.iterator]() {
+    return {
+      next() {
+        faultingCoordinateReads += 1;
+        if (faultingCoordinateReads === 1) {
+          return { done: false, value: { get x() { throw new Error('sample getter failure'); }, z: 0 } };
+        }
+        if (faultingCoordinateReads === 2) return { done: false, value: { x: 0, z: -2 } };
+        return { done: true };
+      },
+    };
+  },
+};
+assert.doesNotThrow(
+  () => faultingCoordinateWolf.update(3, undefined, faultingCoordinateSource),
+  'one faulting pack sample must be skipped without hiding a later finite threat',
+);
+assert.equal(faultingCoordinateReads, 3);
+assert.equal(faultingCoordinateWolf.object3D.userData.wildlifeFlee.phase, 'pack-flee');
+assert.equal(faultingCoordinateWolf.object3D.userData.wildlifeFlee.pack, true);
+assert(Math.abs(faultingCoordinateWolf.object3D.position.z - 0.45) < 1e-9);
+faultingCoordinateWolf.dispose();
+
 const directThreatWolf = await createTestWolf();
 let directThreatPackIteratorGets = 0;
 let directThreatPackReads = 0;
