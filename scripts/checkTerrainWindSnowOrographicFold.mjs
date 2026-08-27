@@ -26,9 +26,9 @@ assert(folded.channelingWeight > planar.channelingWeight,
 assert(folded.channelingWeight <= TERRAIN_WIND_SNOW_POLICY.channelingMaxBlend
   + TERRAIN_WIND_SNOW_POLICY.orographicFoldChannelingBoost + EPSILON,
   'fold channeling must remain inside the authored bounded ceiling');
-assert(folded.windward >= planar.windward,
-  'same-aspect folded ridge should retain or strengthen its exposed scour signal');
-assert(folded.windward <= 1 && folded.lee <= 1,
+assert(Math.abs(folded.windward - planar.windward) > 0.01,
+  'folded relief must materially redirect the same-slope exposure signal');
+assert(folded.windward >= 0 && folded.windward <= 1 && folded.lee >= 0 && folded.lee <= 1,
   'fold exposure weights must remain normalized');
 
 console.log('[checkTerrainWindSnowOrographicFold] PASS', JSON.stringify({
