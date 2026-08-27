@@ -29,7 +29,7 @@ assert.equal(ROAD_COMFORT_GRADE_DEGREES, 10);
 assert.equal(ROAD_MAX_GRADE_DEGREES, 17);
 assert(ROAD_RETURN_GRADE_TARGET_DEGREES < 20);
 assert.equal(ROAD_MAX_RIVER_ADJACENT_SAMPLES, 3);
-assert(ROAD_PROFILE_POLICY.maxSampleSpacingMeters <= 8);
+assert(ROAD_PROFILE_POLICY.maxSampleSpacingMeters <= 4);
 assert(ROAD_PROFILE_POLICY.presentationSampleSpacingMeters <= 6);
 
 const requiredRouterSnippets = [
@@ -54,8 +54,8 @@ for (const snippet of requiredRouterSnippets) {
 }
 
 const requiredProfileSnippets = [
-  "id: 'road-surface-profile-2026-08-27-v2-dense-microrelief-grade'",
-  'maxSampleSpacingMeters: 8',
+  "id: 'road-surface-profile-2026-08-27-v3-phase-robust-subedge-grade'",
+  'maxSampleSpacingMeters: 4',
   'presentationSampleSpacingMeters: 6',
   'profileTerrainSegment',
   'profileRoadPolyline',
