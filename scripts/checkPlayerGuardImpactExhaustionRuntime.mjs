@@ -59,11 +59,20 @@ async function isolateDamageSource(sourceId) {
     };
   }, sourceId);
 }
-async function emitDamage(amount, sourceId) {
-  await page.evaluate(async ({ amount: value, source }) => {
+async function armDamageOnGuard(amount, sourceId, maxGuardStamina) {
+  await page.evaluate(async ({ amount: value, source, maxStamina }) => {
     const [{ gameEvents }, { EVENTS }] = await Promise.all([import('./src/3d/eventBus.js'), import('./src/3d/config.js')]);
-    gameEvents.emit(EVENTS.PLAYER_DAMAGED, { amount: value, sourceId: source });
-  }, { amount, source: sourceId });
+    window.__guardImpactArmed = true;
+    const onMotion = (event) => {
+      const frame = event?.detail;
+      if (!window.__guardImpactArmed || frame?.state !== 'guard' || !frame.guarding || frame.parryWindowRemaining !== 0) return;
+      if (!(frame.stamina > 0 && frame.stamina <= maxStamina && frame.poise > 20)) return;
+      window.__guardImpactArmed = false;
+      window.removeEventListener('aapw:player-motion', onMotion);
+      gameEvents.emit(EVENTS.PLAYER_DAMAGED, { amount: value, sourceId: source });
+    };
+    window.addEventListener('aapw:player-motion', onMotion);
+  }, { amount, source: sourceId, maxStamina: maxGuardStamina });
 }
 
 try {
@@ -111,12 +120,15 @@ try {
   await page.keyboard.up('KeyW');
 
   await page.evaluate(() => { window.__guardImpactFrames.length = 0; });
-  await page.keyboard.down('KeyQ');
-  const guardReady = await waitEvidence((frames) => [...frames].reverse().find((frame) => frame?.state === 'guard' && frame.guarding && frame.parryWindowRemaining === 0 && frame.stamina > 0 && frame.stamina < 5 && frame.poise > 20) ?? null,
-    { timeout: 2500, interval: 20, label: 'low-stamina guard with positive post-impact poise budget' });
   const healthBefore = await readHealth();
   need(Number.isFinite(healthBefore), `health HUD unavailable before impact: ${healthBefore}`);
-  await emitDamage(20, 'stamina-only-impact-break');
+  // A 20-damage guarded hit blocks 12 damage and therefore spends 4.2 stamina. Arm the hit inside
+  // the shipped telemetry callback so it lands on the first real guard frame at/below that budget,
+  // before the next frame's authored 11/s hold-drain can independently exhaust guard.
+  await armDamageOnGuard(20, 'stamina-only-impact-break', 4.2);
+  await page.keyboard.down('KeyQ');
+  const guardReady = await waitEvidence((frames) => [...frames].reverse().find((frame) => frame?.state === 'guard' && frame.guarding && frame.parryWindowRemaining === 0 && frame.stamina > 0 && frame.stamina <= 4.2 && frame.poise > 20) ?? null,
+    { timeout: 2500, interval: 20, label: 'impact-armed low-stamina guard with positive post-impact poise budget' });
   const guardBreak = await waitEvidence((frames) => [...frames].reverse().find((frame) => frame?.state === 'guard-break' && frame.defenseResult === 'guard-break' && frame.guardBreakRemaining > 0) ?? null,
     { timeout: 3000, interval: 20, label: 'stamina-only guard-break result' });
   const expectedHealth = healthBefore - 8;
