@@ -12,11 +12,15 @@ try {
   const pageErrors = [];
   const consoleErrors = [];
   page.on('pageerror', (error) => pageErrors.push(String(error)));
+
+  await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  // Run167 owns whole-page startup/browser health. This focused proof records console errors only
+  // after the shipped page is established so unrelated asynchronous world bootstrap asset noise
+  // cannot masquerade as a configured-fauna controller failure.
   page.on('console', (message) => {
     if (message.type() === 'error') consoleErrors.push(message.text());
   });
 
-  await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
   const proof = await page.evaluate(async () => {
     const { ANIMAL_CONFIG } = await import('/src/3d/gameplay/animalConfig.js');
     const { createWolf } = await import('/src/3d/gameplay/animals.js');
@@ -106,7 +110,7 @@ try {
   });
 
   assert.equal(pageErrors.length, 0, `page errors: ${pageErrors.join(' | ')}`);
-  assert.equal(consoleErrors.length, 0, `console errors: ${consoleErrors.join(' | ')}`);
+  assert.equal(consoleErrors.length, 0, `fauna proof console errors: ${consoleErrors.join(' | ')}`);
   assert.equal(proof.assetErrors.length, 0, `fauna runtime asset errors: ${proof.assetErrors.join(', ')}`);
   assert.ok(proof.reports.length >= 10, `expected multi-species runtime roster, got ${proof.reports.length}`);
 
