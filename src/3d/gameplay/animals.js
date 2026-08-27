@@ -192,7 +192,9 @@ export async function createWolf({
 			let nearestPackThreatDistance = Infinity;
 			let nearestPackThreatX = Infinity;
 			let nearestPackThreatZ = Infinity;
-			if (canFlee && !directThreat && packAlertRadiusMeters != null && packmateFleePositions) {
+			const hasPackmateIterable = packmateFleePositions != null
+				&& typeof packmateFleePositions[Symbol.iterator] === 'function';
+			if (canFlee && !directThreat && packAlertRadiusMeters != null && hasPackmateIterable) {
 				for (const packmatePosition of packmateFleePositions) {
 					if (!Number.isFinite(packmatePosition?.x) || !Number.isFinite(packmatePosition?.z)) continue;
 					const dx = model.position.x - packmatePosition.x;
