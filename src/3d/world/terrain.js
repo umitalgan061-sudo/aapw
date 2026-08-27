@@ -37,6 +37,11 @@ import {
 	buildFlatNeutralCanvas,
 } from './terrainBiomeShading.js';
 import { terrainWindExposureFromNeighbours } from './terrainWindSnowExposure.js';
+import {
+	VALYRIA_GEOLOGY_POLICY,
+	valyriaUpliftMeters,
+	applyValyriaSurfaceColorAtWorldXZ,
+} from './valyriaGeology.js';
 
 // Re-exported so the micro-surface extraction stays invisible to every existing importer and check.
 export { TERRAIN_MICRO_SURFACE_POLICY, terrainMicroUvAt, getSharedTerrainMicroSurfaceTextures, applyTerrainMicroSurface };
@@ -104,11 +109,14 @@ function seatDetailTaper(nx, ny) {
 }
 
 export const CURRENT_TERRAIN_POLICY = Object.freeze({
-	id: 'westeros-full-owner-map-current-terrain-2026-08-15-v1',
+	id: 'westeros-full-owner-map-current-terrain-2026-08-27-v2-valyria-geology',
+	supersedes: 'westeros-full-owner-map-current-terrain-2026-08-15-v1',
 	sourceMapSha256: '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1',
 	fullOwnerMapCoverage: true,
 	legacyProceduralFallback: false,
 	mapDerivedHeight: true,
+	valyriaGeologyPolicyId: VALYRIA_GEOLOGY_POLICY.id,
+	canonicalWaterClassificationPreserved: true,
 });
 
 /**
@@ -207,9 +215,14 @@ function sampleCanonicalHeightMeters(worldX, worldZ, outSurface) {
 		+ rockWeight * 8
 		+ snowWeight * 12
 		+ micro;
-	const dryRelative = 1.0
+	const dryRelativeBase = 1.0
 		+ nonMountainDryEnhancement * lakeDryEnhancementScale
 		+ mountainMeters;
+	// Valyria is part of the canonical height chain, not a render-only displacement. The helper gates
+	// itself against owner-map waterWeight and shoreline height, so the Smoking Sea keeps the exact wet
+	// classification while every collider/road/settlement consumer sees the same volcanic dry relief.
+	const valyriaMeters = valyriaUpliftMeters(nx, ny, dryRelativeBase, waterWeight);
+	const dryRelative = dryRelativeBase + valyriaMeters;
 	const wetRelative = -3.0 - waterWeight * 5.25 - sample.reliefInfluence * 0.75 + micro * 0.12;
 	let heightMeters = SEA_LEVEL + lerp(dryRelative, wetRelative, waterWeight);
 	heightMeters += reliefDetailMeters(wx, wy, {
@@ -228,6 +241,7 @@ function sampleCanonicalHeightMeters(worldX, worldZ, outSurface) {
 		outSurface.rockWeight = rockWeight;
 		outSurface.snowWeight = snowWeight;
 		outSurface.waterWeight = waterWeight;
+		outSurface.valyriaUpliftMeters = valyriaMeters;
 	}
 	return heightMeters;
 }
@@ -334,7 +348,7 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 	const apronSnow = new Float32Array(apronCount * apronCount);
 	const columnWorldX = new Float64Array(segments + 1);
 	const rowWorldZ = new Float64Array(segments + 1);
-	const surfaceScratch = { rockWeight: 0, snowWeight: 0, waterWeight: 0 };
+	const surfaceScratch = { rockWeight: 0, snowWeight: 0, waterWeight: 0, valyriaUpliftMeters: 0 };
 	const halfSize = size / 2;
 
 	for (let index = 0; index < position.count; index += 1) {
@@ -407,16 +421,26 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 			heightSouth,
 			spacingMeters,
 		);
+		const worldX = columnWorldX[column];
+		const worldZ = rowWorldZ[row];
+		const heightAboveSeaMeters = apronHeights[apronOffset] - SEA_LEVEL;
 		resolveTerrainBiomeColor(blended, {
-			heightAboveSeaMeters: apronHeights[apronOffset] - SEA_LEVEL,
+			heightAboveSeaMeters,
 			slopeDegrees,
 			rockWeight: apronRock[apronOffset],
 			snowWeight: apronSnow[apronOffset],
-			worldX: columnWorldX[column],
-			worldZ: rowWorldZ[row],
+			worldX,
+			worldZ,
 			terrainConcavityMeters,
 			terrainWindward: terrainWindExposure.windward,
 			terrainLee: terrainWindExposure.lee,
+		});
+		applyValyriaSurfaceColorAtWorldXZ(blended, {
+			worldX,
+			worldZ,
+			heightAboveSeaMeters,
+			concavityMeters: terrainConcavityMeters,
+			slopeDegrees,
 		});
 		colors[index * 3] = blended.r;
 		colors[index * 3 + 1] = blended.g;
@@ -466,6 +490,14 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 		apronSampledTerrainForm: true,
 		windAspectSnowAware: true,
 		apronSampledWindAspect: true,
+		valyriaVolcanicSurface: true,
+		valyriaGeologyPolicyId: VALYRIA_GEOLOGY_POLICY.id,
+	});
+	mesh.userData.currentValyriaGeology = Object.freeze({
+		policyId: VALYRIA_GEOLOGY_POLICY.id,
+		canonicalHeightIntegrated: true,
+		canonicalWaterClassificationPreserved: true,
+		volcanicVertexColorIntegrated: true,
 	});
 	mesh.userData.currentTerrainMicroSurface = material.userData.terrainMicroSurface;
 	return mesh;
