@@ -19,11 +19,13 @@ assert.match(source, /const iteratorFactory = packmateFleePositions\[Symbol\.ite
 assert.match(source, /iteratorFactory\.call\(packmateFleePositions\)/);
 assert.match(source, /packSamplesScanned < MAX_PACK_ALERT_SAMPLES_PER_TICK/);
 assert.match(source, /nextPackmate = packIterator\.next\(\)/);
+assert.match(source, /packmateX = packmatePosition\?\.x/);
+assert.match(source, /packmateZ = packmatePosition\?\.z/);
+assert.match(source, /!Number\.isFinite\(packmateX\) \|\| !Number\.isFinite\(packmateZ\)/);
 assert.match(source, /const recovering = canFlee/);
 assert.match(source, /&& hasFinitePlayerPosition/);
 assert.match(source, /distanceFromPlayer < fleeReleaseRadiusMeters/);
 assert.match(source, /currentlyFleeing = directThreat \|\| isFleeingFromPack \|\| recovering/);
-assert.match(source, /!Number\.isFinite\(packmatePosition\?\.x\) \|\| !Number\.isFinite\(packmatePosition\?\.z\)/);
 assert.match(source, /const usePackThreatVector = isFleeingFromPack && !directThreat/);
 assert.match(source, /const separationDx = usePackThreatVector \? packThreatDx : dxFromPlayer/);
 assert.match(source, /const separationDistance = usePackThreatVector \? nearestPackThreatDistance : distanceFromPlayer/);
