@@ -6,7 +6,9 @@ on:
       - 'src/3d/gameplay/animals.js'
       - 'scripts/checkWildlifeLongFrameBudget.mjs'
       - 'scripts/checkWildlifeLongFrameBrowser.mjs'
+      - 'scripts/checkWildlifePackAlertIndependence.mjs'
       - '.github/workflows/wildlife-long-frame-budget.yml'
+      - '.github/workflows/wildlife-pack-alert-independence.yml'
   workflow_dispatch:
 
 permissions:
@@ -35,7 +37,7 @@ jobs:
           test "$base" = "$(git rev-parse origin/main)"
           changed="$(git diff --name-only origin/main...HEAD)"
           printf '%s\n' "$changed"
-          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/animals\.js|scripts/checkWildlifeLongFrameBudget\.mjs|scripts/checkWildlifeLongFrameBrowser\.mjs|\.github/workflows/wildlife-long-frame-budget\.yml)$' && exit 1 || true
+          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/animals\.js|scripts/checkWildlifeLongFrameBudget\.mjs|scripts/checkWildlifeLongFrameBrowser\.mjs|scripts/checkWildlifePackAlertIndependence\.mjs|\.github/workflows/wildlife-long-frame-budget\.yml|\.github/workflows/wildlife-pack-alert-independence\.yml)$' && exit 1 || true
           additions="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END {print s+0}')"
           deletions="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END {print s+0}')"
           test $((additions + deletions)) -le 1000
@@ -44,10 +46,14 @@ jobs:
       - name: Wildlife long-frame deterministic budget
         run: node scripts/checkWildlifeLongFrameBudget.mjs
 
+      - name: Pack alert independence regression
+        run: node scripts/checkWildlifePackAlertIndependence.mjs
+
       - name: Wildlife syntax guard
         run: |
           node --check src/3d/gameplay/animals.js
           node --check scripts/checkWildlifeLongFrameBrowser.mjs
+          node --check scripts/checkWildlifePackAlertIndependence.mjs
 
       - name: Shared material placement contract
         run: node scripts/checkSharedMaterialPlacementContract.js
