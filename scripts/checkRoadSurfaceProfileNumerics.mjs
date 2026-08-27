@@ -18,8 +18,8 @@ const approx = (actual, expected, epsilon, label) => {
     `${label}: expected ${expected} ± ${epsilon}, got ${actual}`);
 };
 
-assert.equal(ROAD_PROFILE_POLICY.maxSampleSpacingMeters, 12);
-assert.equal(ROAD_PROFILE_POLICY.presentationSampleSpacingMeters, 8);
+assert.equal(ROAD_PROFILE_POLICY.maxSampleSpacingMeters, 8);
+assert.equal(ROAD_PROFILE_POLICY.presentationSampleSpacingMeters, 6);
 assert.equal(ROAD_PROFILE_POLICY.deterministic, true);
 assert.equal(ROAD_PROFILE_POLICY.geographyAuthorityUnchanged, true);
 assert.equal(ROAD_PROFILE_POLICY.heightAuthority, 'world/terrain.js');
@@ -33,14 +33,15 @@ assert.equal(gradeDegrees(0, 0), 0);
 assert.throws(() => gradeDegrees(Number.NaN, 10), /finite/);
 assert.throws(() => gradeDegrees(1, -1), />= 0/);
 
-// Sampling count always respects requested maximum spacing.
-for (const length of [0, 0.1, 7.9, 8, 8.1, 11.9, 12, 12.1, 59.9, 60, 600]) {
-  const count = segmentSampleCount(length, 12);
+// Sampling count always respects the live requested maximum spacing.
+const liveSpacing = ROAD_PROFILE_POLICY.maxSampleSpacingMeters;
+for (const length of [0, 0.1, 5.9, 6, 6.1, 7.9, 8, 8.1, 59.9, 60, 600]) {
+  const count = segmentSampleCount(length, liveSpacing);
   assert(Number.isInteger(count) && count >= 1);
-  if (length > 0) assert(length / count <= 12 + 1e-12, `spacing cap broken at ${length}m`);
+  if (length > 0) assert(length / count <= liveSpacing + 1e-12, `spacing cap broken at ${length}m`);
 }
 assert.throws(() => segmentSampleCount(10, 0), /> 0/);
-assert.throws(() => segmentSampleCount(-1, 12), />= 0/);
+assert.throws(() => segmentSampleCount(-1, liveSpacing), />= 0/);
 
 // Exact flat segment.
 {
@@ -56,7 +57,7 @@ assert.throws(() => segmentSampleCount(-1, 12), />= 0/);
   assert.equal(profile.elevationRangeMeters, 0);
   assert.equal(profile.startHeightMeters, 33.5);
   assert.equal(profile.endHeightMeters, 33.5);
-  assert(profile.maxSpacingMeters <= 12 + 1e-12);
+  assert(profile.maxSpacingMeters <= liveSpacing + 1e-12);
 }
 
 // Constant analytical 10 degree ramp should remain exactly 10 degrees after densification.
