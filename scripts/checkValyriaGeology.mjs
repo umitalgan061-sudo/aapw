@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {
   VALYRIA_GEOLOGY_POLICY,
   applyValyriaSurfaceColor,
+  isValyriaBarrenAtWorldXZ,
   normalizedOwnerMapAtWorldXZ,
+  valyriaCanonicalDryGate01,
   valyriaGeologyClassAtWorldXZ,
   valyriaInfluence01,
   valyriaInfluenceAtWorldXZ,
@@ -14,8 +16,11 @@ import {
 const P = VALYRIA_GEOLOGY_POLICY;
 assert.equal(P.geographyAuthorityUnchanged, true);
 assert.equal(P.canonicalCoastlinePreserved, true);
+assert.equal(P.canonicalWaterClassificationPreserved, true);
 assert.equal(P.deterministic, true);
+assert(P.id.includes('v3-canonical-dry-authority'));
 assert(P.upliftMeters > 150 && P.upliftMeters < 300);
+assert(P.canonicalDryWaterWeightFullAtOrBelow < P.canonicalDryWaterWeightZeroAtOrAbove);
 assert(valyriaInfluence01(P.coreCenter.nx, P.coreCenter.ny) > 0.999);
 assert(valyriaInfluence01(P.neckCenter.nx, P.neckCenter.ny) > 0.999);
 assert.equal(valyriaInfluence01(0.15, 0.20), 0);
@@ -26,6 +31,17 @@ const shoreOne = valyriaUpliftMeters(P.coreCenter.nx, P.coreCenter.ny, 1);
 const shoreTen = valyriaUpliftMeters(P.coreCenter.nx, P.coreCenter.ny, 10);
 const inland = valyriaUpliftMeters(P.coreCenter.nx, P.coreCenter.ny, 80);
 assert(shoreOne < shoreTen && shoreTen < inland, 'shore ramp failed');
+
+// Source-water gating is independent from numeric height: a wet Pindex must remain exact zero even if
+// some other relief term left the sample above sea level.
+assert(valyriaCanonicalDryGate01(0, 100) > 0.999);
+assert.equal(valyriaCanonicalDryGate01(P.canonicalDryWaterWeightZeroAtOrAbove, 100), 0);
+assert.equal(valyriaUpliftMeters(P.coreCenter.nx, P.coreCenter.ny, 100, 1), 0);
+assert.equal(valyriaUpliftMeters(P.coreCenter.nx, P.coreCenter.ny, 100, P.canonicalDryWaterWeightZeroAtOrAbove), 0);
+const mixedWater = (P.canonicalDryWaterWeightFullAtOrBelow + P.canonicalDryWaterWeightZeroAtOrAbove) * 0.5;
+const mixedGate = valyriaCanonicalDryGate01(mixedWater, 100);
+assert(mixedGate > 0 && mixedGate < 1);
+assert(valyriaUpliftMeters(P.coreCenter.nx, P.coreCenter.ny, 100, mixedWater) < valyriaUpliftMeters(P.coreCenter.nx, P.coreCenter.ny, 100, 0));
 
 const uplifts = [];
 for (let iy = 0; iy <= 40; iy += 1) {
@@ -69,8 +85,17 @@ const normalized = normalizedOwnerMapAtWorldXZ(worldX, worldZ);
 assert(Math.abs(normalized.nx - P.coreCenter.nx) < 1e-10);
 assert(Math.abs(normalized.ny - P.coreCenter.ny) < 1e-10);
 assert(valyriaInfluenceAtWorldXZ(worldX, worldZ) > 0.999);
+assert.equal(isValyriaBarrenAtWorldXZ(worldX, worldZ), true);
 assert.equal(valyriaGeologyClassAtWorldXZ(worldX, worldZ, { heightAboveSeaMeters: 140, slopeDegrees: 35 }), 'fractured-volcanic-scarp');
 assert.equal(valyriaGeologyClassAtWorldXZ(worldX, worldZ, { heightAboveSeaMeters: -2, slopeDegrees: 0 }), 'smoking-sea');
 
 console.log('[checkValyriaGeology] PASS');
-console.log(JSON.stringify({ policyId: P.id, sampledPoints: uplifts.length, maxUpliftMeters: Number(maxUplift.toFixed(3)), equalRadiusRingRangeMeters: Number(ringRange.toFixed(3)), shoreRamp: [shoreOne, shoreTen, inland], basaltColor: basalt }, null, 2));
+console.log(JSON.stringify({
+  policyId: P.id,
+  sampledPoints: uplifts.length,
+  maxUpliftMeters: Number(maxUplift.toFixed(3)),
+  equalRadiusRingRangeMeters: Number(ringRange.toFixed(3)),
+  shoreRamp: [shoreOne, shoreTen, inland],
+  mixedWaterGate: mixedGate,
+  basaltColor: basalt,
+}, null, 2));
