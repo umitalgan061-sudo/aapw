@@ -13,7 +13,7 @@ assert.deepEqual(recipe, {
 	outputQuantity: 1,
 	label: '2 saha azığını 1 yol azığı paketine hazırla',
 });
-assert.equal(rationPrep.itemId, recipe.outputItemId, 'service fallback must be the same ready provision as the craft output');
+assert.equal(rationPrep.itemId, recipe.outputItemId, 'service item must be the same ready provision as the craft output');
 assert.equal(rationPrep.fulfillment?.discipline, 'provisioning');
 assert.equal(rationPrep.fulfillment?.stationId, 'dragonstone-ration-prep-table');
 assert.equal(INTERACTION_ITEMS[recipe.outputItemId]?.stackLimit, 2);
@@ -22,18 +22,16 @@ function item(snapshot, itemId) {
 	return snapshot.items.find((entry) => entry.itemId === itemId) ?? null;
 }
 
-const fallbackInventory = createInteractionInventoryState();
-const fallbackEconomy = createInteractionEconomyState();
-let result = fallbackEconomy.purchase(rationPrep, (...args) => fallbackInventory.grant(...args));
-assert.equal(result.ok, true);
-assert.equal(result.crafted, false, 'service without carried inputs must supply one ready provision without inventing a craft');
-assert.equal(item(fallbackInventory.snapshot(), ration.itemId), null);
-const fallbackPack = item(fallbackInventory.snapshot(), recipe.outputItemId);
-assert.equal(fallbackPack?.quantity, 1);
-assert.deepEqual(fallbackPack?.provenance, [{
-	sourceType: 'settlement-service',
-	sourceId: 'dragonstone-watch-ration-prep',
-}]);
+const missingInputInventory = createInteractionInventoryState();
+const missingInputEconomy = createInteractionEconomyState();
+const missingInputInventoryBefore = structuredClone(missingInputInventory.snapshot());
+const missingInputEconomyBefore = structuredClone(missingInputEconomy.snapshot());
+let result = missingInputEconomy.purchase(rationPrep, (...args) => missingInputInventory.grant(...args));
+assert.equal(result.ok, false);
+assert.equal(result.reason, 'craft-input-missing');
+assert.deepEqual(missingInputInventory.snapshot(), missingInputInventoryBefore, 'authored provisioning must not fall back to a free/paid ready item when inputs are missing');
+assert.deepEqual(missingInputEconomy.snapshot(), missingInputEconomyBefore, 'missing crafting inputs must not debit copper or finite service stock');
+assert.equal(item(missingInputInventory.snapshot(), recipe.outputItemId), null);
 
 const inventory = createInteractionInventoryState();
 assert.equal(inventory.grant(ration.itemId, 2, { sourceType: 'vendor', sourceId: 'stannis-guard-1' }), true);
@@ -97,17 +95,19 @@ assert.equal(result.reason, 'craft-output-full');
 assert.deepEqual(blockedInventory.snapshot(), blockedInventoryBefore, 'failed crafting must not consume ingredients');
 assert.deepEqual(blockedEconomy.snapshot(), blockedEconomyBefore, 'failed crafting must not debit copper or finite service stock');
 
-const fallbackFullInventory = createInteractionInventoryState();
-assert.equal(fallbackFullInventory.grant(recipe.outputItemId, INTERACTION_ITEMS[recipe.outputItemId].stackLimit), true);
-const fallbackFullEconomy = createInteractionEconomyState();
-const fallbackFullEconomyBefore = structuredClone(fallbackFullEconomy.snapshot());
-result = fallbackFullEconomy.purchase(rationPrep, (...args) => fallbackFullInventory.grant(...args));
+const missingInputFullInventory = createInteractionInventoryState();
+assert.equal(missingInputFullInventory.grant(recipe.outputItemId, INTERACTION_ITEMS[recipe.outputItemId].stackLimit), true);
+const missingInputFullEconomy = createInteractionEconomyState();
+const missingInputFullInventoryBefore = structuredClone(missingInputFullInventory.snapshot());
+const missingInputFullEconomyBefore = structuredClone(missingInputFullEconomy.snapshot());
+result = missingInputFullEconomy.purchase(rationPrep, (...args) => missingInputFullInventory.grant(...args));
 assert.equal(result.ok, false);
-assert.equal(result.reason, 'inventory-full');
-assert.deepEqual(fallbackFullEconomy.snapshot(), fallbackFullEconomyBefore, 'full prepared-provision stack must not debit service stock or copper');
+assert.equal(result.reason, 'craft-input-missing', 'missing authored inputs must fail before any generic inventory fallback');
+assert.deepEqual(missingInputFullInventory.snapshot(), missingInputFullInventoryBefore);
+assert.deepEqual(missingInputFullEconomy.snapshot(), missingInputFullEconomyBefore, 'missing inputs must leave service stock and copper untouched even when output is already full');
 
 const text = buildQuartermasterText(createInteractionEconomyState().snapshot());
 assert.match(text, /HİZMET: Erzak hazırlama/);
 assert.match(text, /DÖNÜŞÜM: 2 saha azığını 1 yol azığı paketine hazırla/);
 
-console.log('PASS checkInteractionProvisioningCraft: ration prep supplies a prepared travel pack when no inputs are carried, preserves atomic two-ration crafting, sanitizes forged save metadata, and leaves inventory/economy unchanged on blocked output.');
+console.log('PASS checkInteractionProvisioningCraft: provisioning fails closed without authored inputs, preserves atomic two-ration crafting and save/load, sanitizes forged save metadata, and rolls back inventory/economy on blocked output.');
