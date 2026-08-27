@@ -104,22 +104,71 @@ assert(
 );
 setBackedPackWolf.dispose();
 
-const directThreatWolf = await createTestWolf();
-let directThreatPackReads = 0;
-const unboundedPackSource = {
+const boundedScanWolf = await createTestWolf();
+let boundedScanReads = 0;
+const infinitePackSource = {
   [Symbol.iterator]() {
     return {
       next() {
-        directThreatPackReads += 1;
-        throw new Error('direct player threat must short-circuit pack iteration');
+        boundedScanReads += 1;
+        return { value: boundedScanReads === 1 ? { x: 0, z: -2 } : { x: 100, z: 100 }, done: false };
       },
     };
   },
 };
 assert.doesNotThrow(
+  () => boundedScanWolf.update(3, undefined, infinitePackSource),
+  'an infinite pack adapter must be bounded by the per-tick sample budget',
+);
+assert.equal(boundedScanReads, 32, 'pack scanning must consume at most 32 iterator samples per wildlife tick');
+assert.equal(boundedScanWolf.object3D.userData.wildlifeFlee.phase, 'pack-flee');
+assert.equal(boundedScanWolf.object3D.userData.wildlifeFlee.pack, true);
+assert(Number.isFinite(boundedScanWolf.object3D.position.x) && Number.isFinite(boundedScanWolf.object3D.position.z));
+boundedScanWolf.dispose();
+
+const faultingPackWolf = await createTestWolf();
+let faultingPackReads = 0;
+const faultingPackSource = {
+  [Symbol.iterator]() {
+    return {
+      next() {
+        faultingPackReads += 1;
+        throw new Error('adapter failure must fail closed inside group-AI sensing');
+      },
+    };
+  },
+};
+assert.doesNotThrow(
+  () => faultingPackWolf.update(0.1, undefined, faultingPackSource),
+  'faulting iterable pack adapters must fail closed instead of aborting the fauna tick',
+);
+assert.equal(faultingPackReads, 1);
+assert.equal(faultingPackWolf.object3D.userData.wildlifeFlee.pack, false);
+assert(Number.isFinite(faultingPackWolf.object3D.position.x) && Number.isFinite(faultingPackWolf.object3D.position.z));
+faultingPackWolf.dispose();
+
+const directThreatWolf = await createTestWolf();
+let directThreatPackIteratorGets = 0;
+let directThreatPackReads = 0;
+const unboundedPackSource = {};
+Object.defineProperty(unboundedPackSource, Symbol.iterator, {
+  get() {
+    directThreatPackIteratorGets += 1;
+    return function iteratorFactory() {
+      return {
+        next() {
+          directThreatPackReads += 1;
+          throw new Error('direct player threat must short-circuit pack iteration');
+        },
+      };
+    };
+  },
+});
+assert.doesNotThrow(
   () => directThreatWolf.update(3, { x: 0, z: -1 }, unboundedPackSource),
   'direct player threat must not consume an unbounded or faulting pack source',
 );
+assert.equal(directThreatPackIteratorGets, 0, 'direct player threat should not even resolve the pack iterator');
 assert.equal(directThreatPackReads, 0, 'direct player threat should perform zero pack iterator reads');
 assert.equal(directThreatWolf.object3D.userData.wildlifeFlee.phase, 'flee');
 assert.equal(directThreatWolf.object3D.userData.wildlifeFlee.direct, true);
