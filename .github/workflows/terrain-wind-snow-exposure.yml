@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/3d/world/terrainWindSnowExposure.js'
       - 'scripts/checkTerrainWindSnowExposure.mjs'
+      - 'scripts/checkTerrainWindSnowOrographicFold.mjs'
       - 'src/3d/world/terrainBiomeShading.js'
       - 'src/3d/world/terrain.js'
       - '.github/workflows/terrain-wind-snow-exposure.yml'
@@ -35,8 +36,12 @@ jobs:
         run: |
           node --check src/3d/world/terrainWindSnowExposure.js
           node --check scripts/checkTerrainWindSnowExposure.mjs
+          node --check scripts/checkTerrainWindSnowOrographicFold.mjs
           node --check src/3d/world/terrainBiomeShading.js
           node --check src/3d/world/terrain.js
 
       - name: Prevailing-wind snow contract
         run: node scripts/checkTerrainWindSnowExposure.mjs
+
+      - name: Orographic fold channeling contract
+        run: node scripts/checkTerrainWindSnowOrographicFold.mjs
