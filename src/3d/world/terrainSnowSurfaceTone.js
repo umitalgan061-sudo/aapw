@@ -13,7 +13,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-27-v23-core-ice-firn-bridge',
+  id: 'terrain-snow-surface-tone-2026-08-27-v24-balanced-core-ice-firn-bridge',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
@@ -35,7 +35,7 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   mixedIceFirnBridge: true,
   coreIceFirnBridge: true,
   glacialPowderAttenuation: 0.75,
-  coreIcePowderAttenuation: 0.42,
+  coreIcePowderAttenuation: 0.18,
   basePackedRetentionMin: 0.78,
   basePackedRetentionGlacialGain: 0.16,
   glacialVisibilityExponent: 0.65,
@@ -51,7 +51,7 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   packedTransitionColdGain: 0.075,
   mixedIceFirnPackedFloorGain: 0.30,
   mixedIceFirnPowderAttenuation: 0.34,
-  coreIceFirnPackedFloorGain: 0.35,
+  coreIceFirnPackedFloorGain: 0.24,
   ridgeScourPackedGain: 0.28,
   windSlabPackedGain: 0.20,
   ridgeScourAccumulationSuppression: 0.46,
