@@ -28,7 +28,7 @@ export const ROAD_RETURN_GRADE_TARGET_DEGREES = 19.25;
 export const ROAD_MAX_RIVER_ADJACENT_SAMPLES = 3;
 
 export const ROAD_ROUTING_POLICY = Object.freeze({
-	id: 'road-routing-2026-08-27-v3-subedge-profiled',
+	id: 'road-routing-2026-08-27-v4-settlement-egress-refinement',
 	comfortGradeDegrees: ROAD_COMFORT_GRADE_DEGREES,
 	searchGradeDegrees: ROAD_MAX_GRADE_DEGREES,
 	returnGradeDegrees: ROAD_RETURN_GRADE_TARGET_DEGREES,
@@ -53,6 +53,7 @@ const RIVER_AVOIDANCE_RADIUS_METERS = 95;
 const RIVER_NEAR_COST_MULTIPLIER = 24;
 const RIVER_BANK_COST_MULTIPLIER = 4.5;
 const RIVER_PROFILE_SPACING_METERS = 12;
+const FINE_REFINEMENT_CELL_METERS = 24;
 const MIN_REFINEMENT_CELL_METERS = 36;
 const MID_REFINEMENT_CELL_METERS = 45;
 const riverAvoidanceCache = new WeakMap();
@@ -289,10 +290,11 @@ function buildSearchStages(requestedCellMeters, requestedPaddingMeters) {
 		requestedCellMeters,
 		Math.min(requestedCellMeters, MID_REFINEMENT_CELL_METERS),
 		Math.min(requestedCellMeters, MIN_REFINEMENT_CELL_METERS),
+		Math.min(requestedCellMeters, FINE_REFINEMENT_CELL_METERS),
 	].filter((value) => value > 0))];
 	const stages = [];
 	for (const [cellIndex, stageCellMeters] of cells.entries()) {
-		const minimumPaddingIndex = cellIndex === 0 ? 0 : Math.min(cellIndex + 1, paddings.length - 1);
+		const minimumPaddingIndex = cellIndex === 0 ? 0 : Math.min(cellIndex, paddings.length - 1);
 		for (let paddingIndex = minimumPaddingIndex; paddingIndex < paddings.length; paddingIndex += 1) {
 			stages.push(Object.freeze({ cellMeters: stageCellMeters, paddingMeters: paddings[paddingIndex] }));
 		}
