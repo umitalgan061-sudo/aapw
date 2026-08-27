@@ -1,32 +1,44 @@
-/** Deterministic micro-detail layer for canonical owner-map Pindex-05 only. */
+/** Deterministic render-only detail layer for canonical owner-map Pindex-05. */
 import * as THREE from 'three';
 import { mapCanvasToNormalizedReference } from './worldReferenceAlignment.js';
 import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX05_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex05-detail-2026-08-26-v3-readable-natural-soil-fabric',
+  id: 'owner-map-pindex05-detail-2026-08-27-v4-world-space-lowland-weathering',
   pindex: 5,
-  amplitudeBySurface: Object.freeze({ sea: 0.008, lake: 0.008, soil: 0.043, rock: 0.043, snow: 0.02 }),
+  amplitudeBySurface: Object.freeze({ sea: 0.004, lake: 0.004, soil: 0.035, rock: 0.038, snow: 0.016 }),
   naturalSoilFabric: true,
+  worldSpaceWeathering: true,
+  legacyNormalized1024GrainRemoved: true,
   pindexStartX: 0.4,
   pindexEndX: 0.5,
   edgeFeatherFraction: 0.14,
-  macroCyclesX: 7.5,
-  macroCyclesY: 5.25,
-  mesoCyclesX: 28,
-  mesoCyclesY: 23,
-  fineCyclesX: 92,
-  fineCyclesY: 78,
-  moistureStrength: 0.30,
-  mineralDryStrength: 0.22,
-  luminanceStrength: 0.11,
-  wetSoilColor: 0x4f6640,
-  dryHeathColor: 0x9b8856,
+  macroScaleMeters: 1640,
+  mesoScaleMeters: 470,
+  fineScaleMeters: 118,
+  grainScaleMeters: 43,
+  drainageScaleMeters: 310,
+  alluviumScaleMeters: 520,
+  moistureStrength: 0.31,
+  mineralDryStrength: 0.23,
+  alluviumStrength: 0.20,
+  interfluveStrength: 0.17,
+  stonyStrength: 0.13,
+  luminanceStrength: 0.10,
+  wetSoilColor: 0x4c633e,
+  dryHeathColor: 0x9d8956,
+  alluviumColor: 0x69735a,
+  exposedMineralColor: 0x9b8565,
+  stonyColor: 0x77736a,
+  geographyAuthorityUnchanged: true,
 });
 
 const WET_SOIL = new THREE.Color(PINDEX05_DETAIL_POLICY.wetSoilColor);
 const DRY_HEATH = new THREE.Color(PINDEX05_DETAIL_POLICY.dryHeathColor);
+const ALLUVIUM = new THREE.Color(PINDEX05_DETAIL_POLICY.alluviumColor);
+const EXPOSED_MINERAL = new THREE.Color(PINDEX05_DETAIL_POLICY.exposedMineralColor);
+const STONY = new THREE.Color(PINDEX05_DETAIL_POLICY.stonyColor);
 const scratch = new THREE.Color();
 
 const clamp01 = (value) => THREE.MathUtils.clamp(value, 0, 1);
@@ -36,43 +48,92 @@ function smoothstep(edge0, edge1, value) {
   return t * t * (3 - 2 * t);
 }
 
-function hash01(ix, iy) {
-  const value = Math.sin(ix * 127.1 + iy * 311.7 + 74.913) * 43758.5453123;
-  return value - Math.floor(value);
+function hash01(ix, iy, seed = 0) {
+  let value = Math.imul((ix | 0) ^ seed, 0x27d4eb2d) ^ Math.imul((iy | 0) + seed, 0x165667b1);
+  value ^= value >>> 15;
+  value = Math.imul(value, 0x85ebca6b);
+  value ^= value >>> 13;
+  return (value >>> 0) / 0x100000000;
 }
 
-function valueNoise(x, y) {
+function valueNoise(x, y, seed = 0) {
   const x0 = Math.floor(x);
   const y0 = Math.floor(y);
   const fx = x - x0;
   const fy = y - y0;
   const sx = fx * fx * (3 - 2 * fx);
   const sy = fy * fy * (3 - 2 * fy);
-  const n00 = hash01(x0, y0);
-  const n10 = hash01(x0 + 1, y0);
-  const n01 = hash01(x0, y0 + 1);
-  const n11 = hash01(x0 + 1, y0 + 1);
+  const n00 = hash01(x0, y0, seed);
+  const n10 = hash01(x0 + 1, y0, seed);
+  const n01 = hash01(x0, y0 + 1, seed);
+  const n11 = hash01(x0 + 1, y0 + 1, seed);
   const nx0 = THREE.MathUtils.lerp(n00, n10, sx);
   const nx1 = THREE.MathUtils.lerp(n01, n11, sx);
   return THREE.MathUtils.lerp(nx0, nx1, sy) * 2 - 1;
 }
 
-export function resolvePindex05NaturalSoilSignals(normalizedX, normalizedY) {
+function fbm(x, y, seed) {
+  let amplitude = 0.56;
+  let frequency = 1;
+  let sum = 0;
+  let weight = 0;
+  for (let octave = 0; octave < 4; octave += 1) {
+    sum += valueNoise(x * frequency, y * frequency, seed + octave * 137) * amplitude;
+    weight += amplitude;
+    frequency *= 2.07;
+    amplitude *= 0.47;
+  }
+  return sum / weight;
+}
+
+function ridge(value) {
+  return 1 - Math.abs(value);
+}
+
+function pindexEdgeMask(normalizedX) {
   const P = PINDEX05_DETAIL_POLICY;
   const localX = clamp01((normalizedX - P.pindexStartX) / (P.pindexEndX - P.pindexStartX));
-  const edgeMask = smoothstep(0, P.edgeFeatherFraction, localX)
-    * smoothstep(0, P.edgeFeatherFraction, 1 - localX);
-  const warpX = valueNoise(normalizedX * 11.3 + 17.2, normalizedY * 9.7 - 8.4) * 0.035;
-  const warpY = valueNoise(normalizedX * 8.9 - 3.1, normalizedY * 12.1 + 6.7) * 0.035;
+  return smoothstep(0, P.edgeFeatherFraction, localX) * smoothstep(0, P.edgeFeatherFraction, 1 - localX);
+}
+
+/** Compatibility helper retained for existing QA. The richer production path below uses world metres. */
+export function resolvePindex05NaturalSoilSignals(normalizedX, normalizedY) {
+  const P = PINDEX05_DETAIL_POLICY;
+  const edgeMask = pindexEdgeMask(normalizedX);
+  const warpX = valueNoise(normalizedX * 11.3 + 17.2, normalizedY * 9.7 - 8.4, 0x51a7) * 0.035;
+  const warpY = valueNoise(normalizedX * 8.9 - 3.1, normalizedY * 12.1 + 6.7, 0x91e3) * 0.035;
   const x = normalizedX + warpX;
   const y = normalizedY + warpY;
-  const macro = valueNoise(x * P.macroCyclesX, y * P.macroCyclesY);
-  const meso = valueNoise(x * P.mesoCyclesX + 13.7, y * P.mesoCyclesY - 5.9);
-  const fine = valueNoise(x * P.fineCyclesX - 21.4, y * P.fineCyclesY + 18.8);
+  const macro = valueNoise(x * 7.5, y * 5.25, 0x31b5);
+  const meso = valueNoise(x * 28 + 13.7, y * 23 - 5.9, 0x71c9);
+  const fine = valueNoise(x * 92 - 21.4, y * 78 + 18.8, 0xb42d);
   const moisture = clamp01(0.5 + macro * 0.39 + meso * 0.17 - fine * 0.04);
   const mineralDry = clamp01(0.5 - macro * 0.30 + meso * 0.24 + fine * 0.10);
   const luminance = THREE.MathUtils.clamp(macro * 0.50 + meso * 0.34 + fine * 0.16, -1, 1);
   return { edgeMask, moisture, mineralDry, luminance };
+}
+
+export function resolvePindex05WorldWeathering(worldX, worldZ, normalizedX) {
+  const P = PINDEX05_DETAIL_POLICY;
+  const edgeMask = pindexEdgeMask(normalizedX);
+  const warpA = fbm(worldX / 2100 + 8.7, worldZ / 1740 - 4.2, 0x6a21);
+  const warpB = fbm(worldX / 1870 - 11.3, worldZ / 2250 + 7.6, 0x9d47);
+  const warpedX = worldX + warpA * 330;
+  const warpedZ = worldZ + warpB * 290;
+  const macro = fbm(warpedX / P.macroScaleMeters, warpedZ / P.macroScaleMeters, 0x1357);
+  const meso = fbm(warpedX / P.mesoScaleMeters + 13.1, warpedZ / P.mesoScaleMeters - 8.4, 0x2468);
+  const fine = fbm(worldX / P.fineScaleMeters - 17.7, worldZ / P.fineScaleMeters + 21.2, 0x3579);
+  const grain = valueNoise(worldX / P.grainScaleMeters + 4.8, worldZ / P.grainScaleMeters - 12.6, 0x468a);
+  const drainageField = fbm(warpedX / P.drainageScaleMeters - 6.3, warpedZ / (P.drainageScaleMeters * 1.55) + 14.1, 0x579b);
+  const drainage = clamp01((ridge(drainageField) - 0.55) / 0.45);
+  const alluvialField = fbm(warpedX / P.alluviumScaleMeters + 19.4, warpedZ / P.alluviumScaleMeters - 3.8, 0x68ac);
+  const moisture = clamp01(0.50 - macro * 0.32 - meso * 0.13 + drainage * 0.34 - fine * 0.035);
+  const mineralDry = clamp01(0.50 + macro * 0.26 + meso * 0.20 + fine * 0.08 - drainage * 0.24);
+  const alluvium = edgeMask * drainage * smoothstep(-0.20, 0.48, alluvialField) * smoothstep(0.48, 0.78, moisture);
+  const interfluve = edgeMask * (1 - drainage) * smoothstep(0.52, 0.80, mineralDry) * smoothstep(0.18, 0.74, macro);
+  const stony = edgeMask * smoothstep(0.58, 0.86, fine * 0.62 + grain * 0.38) * (0.28 + interfluve * 0.72);
+  const luminance = THREE.MathUtils.clamp(macro * 0.44 + meso * 0.31 + fine * 0.17 + grain * 0.08, -1, 1);
+  return { edgeMask, moisture, mineralDry, alluvium, interfluve, stony, luminance };
 }
 
 function classificationForWorld(worldX, worldZ) {
@@ -93,29 +154,45 @@ export function applyPindex05DetailToTerrainMesh(mesh) {
   let touchedVertices = 0;
   let naturalSoilVertices = 0;
   let naturalSoilEnergy = 0;
+  let drainageVertices = 0;
+  let alluvialVertices = 0;
+  let interfluveVertices = 0;
   for (let index = 0; index < position.count; index += 1) {
     const worldX = mesh.position.x + position.getX(index);
     const worldZ = mesh.position.z + position.getZ(index);
     const c = classificationForWorld(worldX, worldZ);
     if (c.pindex !== PINDEX05_DETAIL_POLICY.pindex) continue;
+    const signal = resolvePindex05WorldWeathering(worldX, worldZ, c.normalizedX);
     const amplitude = PINDEX05_DETAIL_POLICY.amplitudeBySurface[c.surface] ?? 0;
-    const legacyNoise = valueNoise(c.normalizedX * 1024, c.normalizedY * 1024) * amplitude;
-    const shade = THREE.MathUtils.clamp(1 + legacyNoise, 0.85, 1.15);
+    const shade = THREE.MathUtils.clamp(1 + signal.edgeMask * signal.luminance * amplitude, 0.88, 1.12);
     scratch.setRGB(
       THREE.MathUtils.clamp(color.getX(index) * shade, 0, 1),
       THREE.MathUtils.clamp(color.getY(index) * shade, 0, 1),
       THREE.MathUtils.clamp(color.getZ(index) * shade, 0, 1),
     );
     if (c.surface === 'soil') {
-      const signal = resolvePindex05NaturalSoilSignals(c.normalizedX, c.normalizedY);
       const wetWeight = signal.edgeMask * signal.moisture * PINDEX05_DETAIL_POLICY.moistureStrength;
       const dryWeight = signal.edgeMask * signal.mineralDry * PINDEX05_DETAIL_POLICY.mineralDryStrength;
+      const alluviumWeight = signal.alluvium * PINDEX05_DETAIL_POLICY.alluviumStrength;
+      const interfluveWeight = signal.interfluve * PINDEX05_DETAIL_POLICY.interfluveStrength;
+      const stonyWeight = signal.stony * PINDEX05_DETAIL_POLICY.stonyStrength;
       scratch.lerp(WET_SOIL, wetWeight);
       scratch.lerp(DRY_HEATH, dryWeight);
+      scratch.lerp(ALLUVIUM, alluviumWeight);
+      scratch.lerp(EXPOSED_MINERAL, interfluveWeight);
+      scratch.lerp(STONY, stonyWeight);
       const tonal = 1 + signal.edgeMask * signal.luminance * PINDEX05_DETAIL_POLICY.luminanceStrength;
       scratch.multiplyScalar(tonal);
       naturalSoilVertices += signal.edgeMask > 0.01 ? 1 : 0;
-      naturalSoilEnergy += signal.edgeMask * (Math.abs(signal.luminance) + wetWeight + dryWeight);
+      drainageVertices += signal.moisture > 0.62 && signal.edgeMask > 0.05 ? 1 : 0;
+      alluvialVertices += signal.alluvium > 0.08 ? 1 : 0;
+      interfluveVertices += signal.interfluve > 0.08 ? 1 : 0;
+      naturalSoilEnergy += signal.edgeMask * (Math.abs(signal.luminance) + wetWeight + dryWeight + alluviumWeight + interfluveWeight + stonyWeight);
+    } else if (c.surface === 'rock') {
+      const rockWeather = signal.edgeMask * (signal.interfluve * 0.12 + signal.stony * 0.10);
+      scratch.lerp(STONY, rockWeather);
+    } else if (c.surface === 'snow') {
+      scratch.lerp(STONY, signal.edgeMask * signal.stony * 0.035);
     }
     color.setXYZ(index, clamp01(scratch.r), clamp01(scratch.g), clamp01(scratch.b));
     touchedVertices += 1;
@@ -127,6 +204,9 @@ export function applyPindex05DetailToTerrainMesh(mesh) {
     touchedVertices,
     naturalSoilVertices,
     naturalSoilEnergy,
+    drainageVertices,
+    alluvialVertices,
+    interfluveVertices,
   });
   mesh.userData.run292Pindex05Detail = summary;
   return summary;
@@ -137,11 +217,17 @@ export function applyPindex05DetailToTerrainGroup(terrainGroup) {
   let touchedVertices = 0;
   let naturalSoilVertices = 0;
   let naturalSoilEnergy = 0;
+  let drainageVertices = 0;
+  let alluvialVertices = 0;
+  let interfluveVertices = 0;
   for (const mesh of terrainGroup.children) {
     const summary = applyPindex05DetailToTerrainMesh(mesh);
     touchedVertices += summary.touchedVertices;
     naturalSoilVertices += summary.naturalSoilVertices;
     naturalSoilEnergy += summary.naturalSoilEnergy;
+    drainageVertices += summary.drainageVertices;
+    alluvialVertices += summary.alluvialVertices;
+    interfluveVertices += summary.interfluveVertices;
   }
   const summary = Object.freeze({
     policyId: PINDEX05_DETAIL_POLICY.id,
@@ -149,6 +235,9 @@ export function applyPindex05DetailToTerrainGroup(terrainGroup) {
     touchedVertices,
     naturalSoilVertices,
     naturalSoilEnergy,
+    drainageVertices,
+    alluvialVertices,
+    interfluveVertices,
     meshCount: terrainGroup.children.length,
   });
   terrainGroup.userData.run292Pindex05Detail = summary;
