@@ -18,6 +18,7 @@ import { AssetLoader } from '../assetLoader.js';
 
 const MAX_WILDLIFE_SIMULATION_STEP_SECONDS = 0.1;
 const DEFAULT_FLEE_RELEASE_MARGIN_METERS = 3;
+const MAX_PACK_ALERT_SAMPLES_PER_TICK = 32;
 
 function boundedWildlifeDelta(delta) {
 	if (!Number.isFinite(delta) || delta <= 0) return 0;
@@ -192,10 +193,25 @@ export async function createWolf({
 			let nearestPackThreatDistance = Infinity;
 			let nearestPackThreatX = Infinity;
 			let nearestPackThreatZ = Infinity;
-			const hasPackmateIterable = packmateFleePositions != null
-				&& typeof packmateFleePositions[Symbol.iterator] === 'function';
-			if (canFlee && !directThreat && packAlertRadiusMeters != null && hasPackmateIterable) {
-				for (const packmatePosition of packmateFleePositions) {
+			if (canFlee && !directThreat && packAlertRadiusMeters != null && packmateFleePositions != null) {
+				let packIterator = null;
+				try {
+					const iteratorFactory = packmateFleePositions[Symbol.iterator];
+					if (typeof iteratorFactory === 'function') packIterator = iteratorFactory.call(packmateFleePositions);
+				} catch {
+					packIterator = null;
+				}
+				let packSamplesScanned = 0;
+				while (packIterator && packSamplesScanned < MAX_PACK_ALERT_SAMPLES_PER_TICK) {
+					let nextPackmate;
+					try {
+						nextPackmate = packIterator.next();
+					} catch {
+						break;
+					}
+					if (!nextPackmate || nextPackmate.done) break;
+					packSamplesScanned += 1;
+					const packmatePosition = nextPackmate.value;
 					if (!Number.isFinite(packmatePosition?.x) || !Number.isFinite(packmatePosition?.z)) continue;
 					const dx = model.position.x - packmatePosition.x;
 					const dz = model.position.z - packmatePosition.z;
