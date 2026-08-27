@@ -10,9 +10,12 @@
  * explicit and deterministic so chunk borders cannot acquire random aspect seams. On real mountain
  * shoulders the effective flow bends modestly along the local contour, and strength follows distinct
  * slope bands: windward scour concentrates on exposed ridge shoulders while lee deposition concentrates
- * on moderate sheltered faces and disappears again on near-cliffs. The v7 amplitude is intentionally
- * large enough to remain visible beneath the permanent-ice coverage floor, but still alters only loose
- * render snow; canonical snow geography, terrain height, hydrology and colliders are unchanged.
+ * on moderate sheltered faces and disappears again on near-cliffs. V8 additionally derives an
+ * orographic fold signal from the same four-neighbour stencil: broken ridges and folded massifs channel
+ * a little more strongly than planar faces, preventing every mountain from receiving the same compass-
+ * straight snow split without adding noise, map-space bands or a second geography authority. All of
+ * this still alters only loose render snow; canonical snow geography, terrain height, hydrology and
+ * colliders are unchanged.
  * @module world/terrainWindSnowExposure
  */
 
@@ -27,7 +30,7 @@ function smoothstep(edge0, edge1, value) {
 const PREVAILING_SOURCE_LENGTH = Math.hypot(0.8, 0.6);
 
 export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
-	id: 'terrain-wind-snow-exposure-2026-08-27-v7-readable-ridge-scour',
+	id: 'terrain-wind-snow-exposure-2026-08-27-v8-orographic-fold-channeling',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	// Direction points toward the source of the prevailing wind. Wind therefore travels NW -> SE.
@@ -56,11 +59,19 @@ export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
 	leeRetentionFadeFullDegrees: 58,
 	// Orographic wind does not stay perfectly compass-straight through broken relief. Above a genuine
 	// mountain-shoulder slope, blend a bounded share of the flow toward whichever local contour
-	// direction already points most nearly with the prevailing stream. The effect is zero on lowlands,
-	// reaches only 28% on steep terrain and is derived solely from the canonical height stencil.
+	// direction already points most nearly with the prevailing stream. The effect is zero on lowlands
+	// and derived solely from the canonical height stencil.
 	channelingSlopeStartDegrees: 16,
 	channelingSlopeFullDegrees: 46,
 	channelingMaxBlend: 0.28,
+	// A four-neighbour saddle/fold signal distinguishes broken massifs from planar slopes without a
+	// centre-height sample: (W+E)-(N+S) cancels an arbitrary vertical offset and is exact zero on the
+	// planar fixtures used by the contract. Folded terrain may bend flow up to another 10 percentage
+	// points and modestly strengthen already-valid directional weights; values remain clamped to [0,1].
+	orographicFoldGradientStart: 0.08,
+	orographicFoldGradientFull: 0.42,
+	orographicFoldChannelingBoost: 0.10,
+	orographicFoldExposureBoost: 0.08,
 	// The permanent-ice floor supplies most northern snow before redistribution. Sub-10% adjustments
 	// became visually quantised away in the authoritative full-world render, so exposed shoulders may
 	// now lose up to 18% of loose surface snow. This is still far below removing canonical coverage and
@@ -83,9 +94,10 @@ export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
  * back out on near-cliffs: deposition therefore concentrates on moderate lee slopes instead of
  * painting both flats and vertical rock.
  *
- * Steeper terrain additionally channels part of the effective wind along its contour. This avoids
- * making every mountain share the exact same compass-cut snow boundary while remaining deterministic
- * and source-derived: the contour comes directly from the same canonical four-height gradient.
+ * Steeper terrain additionally channels part of the effective wind along its contour. Broken relief
+ * receives a bounded extra channeling/exposure boost from the four-neighbour fold signal. Planar
+ * slopes remain bit-for-bit on the baseline path, while real saddles/folds gain non-uniform flow
+ * wrapping sourced entirely from canonical terrain geometry.
  */
 export function terrainWindExposureFromNeighbours(
 	heightWest,
@@ -99,6 +111,12 @@ export function terrainWindExposureFromNeighbours(
 	const gradientZ = (heightSouth - heightNorth) / (2 * spacing);
 	const gradientMagnitude = Math.hypot(gradientX, gradientZ);
 	const slopeDegrees = Math.atan(gradientMagnitude) * 180 / Math.PI;
+	const foldGradient = Math.abs((heightWest + heightEast) - (heightNorth + heightSouth)) / (2 * spacing);
+	const orographicFoldStrength = smoothstep(
+		TERRAIN_WIND_SNOW_POLICY.orographicFoldGradientStart,
+		TERRAIN_WIND_SNOW_POLICY.orographicFoldGradientFull,
+		foldGradient,
+	);
 	const slopeAspectStrength = smoothstep(
 		TERRAIN_WIND_SNOW_POLICY.aspectSlopeStartDegrees,
 		TERRAIN_WIND_SNOW_POLICY.aspectSlopeFullDegrees,
@@ -125,6 +143,8 @@ export function terrainWindExposureFromNeighbours(
 			gradientX,
 			gradientZ,
 			slopeDegrees,
+			foldGradient,
+			orographicFoldStrength,
 			slopeAspectStrength,
 			windwardScourSlope,
 			leeCollection,
@@ -146,8 +166,8 @@ export function terrainWindExposureFromNeighbours(
 	const normalZ = -gradientZ / gradientMagnitude;
 
 	// Two contour tangents are possible. Pick the orientation that already points most closely with
-	// the prevailing stream, then blend toward it only on real mountain shoulders. This makes flow
-	// wrap around relief instead of painting a rigid compass-aligned split across every massif.
+	// the prevailing stream, then blend toward it only on real mountain shoulders. Folded relief gets
+	// a little extra wrapping, but never enough to replace the prevailing source direction.
 	let contourX = -normalZ;
 	let contourZ = normalX;
 	const contourPrevailingDot = contourX * TERRAIN_WIND_SNOW_POLICY.prevailingSourceX
@@ -156,11 +176,13 @@ export function terrainWindExposureFromNeighbours(
 		contourX = -contourX;
 		contourZ = -contourZ;
 	}
+	const channelingCeiling = TERRAIN_WIND_SNOW_POLICY.channelingMaxBlend
+		+ orographicFoldStrength * TERRAIN_WIND_SNOW_POLICY.orographicFoldChannelingBoost;
 	const channelingWeight = smoothstep(
 		TERRAIN_WIND_SNOW_POLICY.channelingSlopeStartDegrees,
 		TERRAIN_WIND_SNOW_POLICY.channelingSlopeFullDegrees,
 		slopeDegrees,
-	) * TERRAIN_WIND_SNOW_POLICY.channelingMaxBlend;
+	) * channelingCeiling;
 	const channelledX = TERRAIN_WIND_SNOW_POLICY.prevailingSourceX * (1 - channelingWeight)
 		+ contourX * channelingWeight;
 	const channelledZ = TERRAIN_WIND_SNOW_POLICY.prevailingSourceZ * (1 - channelingWeight)
@@ -180,11 +202,14 @@ export function terrainWindExposureFromNeighbours(
 		TERRAIN_WIND_SNOW_POLICY.directionalAlignmentFull,
 		Math.max(0, -aspectDot),
 	);
+	const foldExposureGain = 1 + orographicFoldStrength * TERRAIN_WIND_SNOW_POLICY.orographicFoldExposureBoost;
 
 	return Object.freeze({
 		gradientX,
 		gradientZ,
 		slopeDegrees,
+		foldGradient,
+		orographicFoldStrength,
 		slopeAspectStrength,
 		windwardScourSlope,
 		leeCollection,
@@ -195,8 +220,8 @@ export function terrainWindExposureFromNeighbours(
 		aspectDot,
 		windwardAlignment,
 		leeAlignment,
-		windward: windwardAlignment * slopeAspectStrength * windwardScourSlope,
-		lee: leeAlignment * slopeAspectStrength * leeCollection * leeRetention,
+		windward: clamp01(windwardAlignment * slopeAspectStrength * windwardScourSlope * foldExposureGain),
+		lee: clamp01(leeAlignment * slopeAspectStrength * leeCollection * leeRetention * foldExposureGain),
 	});
 }
 
