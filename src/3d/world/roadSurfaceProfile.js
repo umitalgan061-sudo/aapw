@@ -11,9 +11,9 @@
  */
 
 export const ROAD_PROFILE_POLICY = Object.freeze({
-  id: 'road-surface-profile-2026-08-27-v1-subedge-grade',
-  maxSampleSpacingMeters: 12,
-  presentationSampleSpacingMeters: 8,
+  id: 'road-surface-profile-2026-08-27-v2-dense-microrelief-grade',
+  maxSampleSpacingMeters: 8,
+  presentationSampleSpacingMeters: 6,
   epsilonMeters: 1e-6,
   deterministic: true,
   geographyAuthorityUnchanged: true,
