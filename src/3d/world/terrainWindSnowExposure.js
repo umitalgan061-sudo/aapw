@@ -5,12 +5,14 @@
  * around a terrain vertex. It never becomes a height/collider authority: it converts local aspect
  * into bounded windward scour and lee-side deposition weights that the biome shading layer can use.
  *
- * Westeros' northern mountain snow reads more naturally when exposed NW-facing slopes lose a small
- * amount of loose snow while sheltered SE-facing slopes retain it. The prevailing direction is kept
+ * Westeros' northern mountain snow reads more naturally when exposed NW-facing slopes lose a bounded
+ * share of loose surface snow while sheltered SE-facing slopes retain it. The prevailing direction is
  * explicit and deterministic so chunk borders cannot acquire random aspect seams. On real mountain
- * shoulders the effective flow bends modestly along the local contour, and the strength now follows
- * physically distinct slope bands: windward scour concentrates on exposed ridge shoulders while
- * lee deposition concentrates on moderate sheltered faces and disappears again on near-cliffs.
+ * shoulders the effective flow bends modestly along the local contour, and strength follows distinct
+ * slope bands: windward scour concentrates on exposed ridge shoulders while lee deposition concentrates
+ * on moderate sheltered faces and disappears again on near-cliffs. The v7 amplitude is intentionally
+ * large enough to remain visible beneath the permanent-ice coverage floor, but still alters only loose
+ * render snow; canonical snow geography, terrain height, hydrology and colliders are unchanged.
  * @module world/terrainWindSnowExposure
  */
 
@@ -25,7 +27,7 @@ function smoothstep(edge0, edge1, value) {
 const PREVAILING_SOURCE_LENGTH = Math.hypot(0.8, 0.6);
 
 export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
-	id: 'terrain-wind-snow-exposure-2026-08-27-v6-slope-banded-scour-deposition',
+	id: 'terrain-wind-snow-exposure-2026-08-27-v7-readable-ridge-scour',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	// Direction points toward the source of the prevailing wind. Wind therefore travels NW -> SE.
@@ -44,8 +46,8 @@ export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
 	windwardScourStartDegrees: 12,
 	windwardScourFullDegrees: 34,
 	// Loose lee snow needs enough slope to form a recognisable sheltered face. Tightening the ramp
-	// from the old 7->18 degree response suppresses broad lowland directional blobs while preserving
-	// full deposition on ordinary mountain lee slopes.
+	// suppresses broad lowland directional blobs while preserving full deposition on ordinary
+	// mountain lee slopes.
 	leeCollectionStartDegrees: 10,
 	leeCollectionFullDegrees: 24,
 	// Ordinary mountain lee faces retain their full deposition signal through 42 degrees; only steeper
@@ -59,10 +61,14 @@ export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
 	channelingSlopeStartDegrees: 16,
 	channelingSlopeFullDegrees: 46,
 	channelingMaxBlend: 0.28,
-	northWindwardScourMax: 0.096,
-	tundraWindwardScourMax: 0.055,
-	northLeeDepositMax: 0.068,
-	tundraLeeDepositMax: 0.039,
+	// The permanent-ice floor supplies most northern snow before redistribution. Sub-10% adjustments
+	// became visually quantised away in the authoritative full-world render, so exposed shoulders may
+	// now lose up to 18% of loose surface snow. This is still far below removing canonical coverage and
+	// leaves cliff/flat/aspect gates in control. Tundra and lee gains remain deliberately smaller.
+	northWindwardScourMax: 0.18,
+	tundraWindwardScourMax: 0.09,
+	northLeeDepositMax: 0.11,
+	tundraLeeDepositMax: 0.055,
 });
 
 /**
