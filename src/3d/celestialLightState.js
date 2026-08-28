@@ -28,10 +28,18 @@ function normalizedDirection(position) {
 
 function frozenColor(color) {
 	return Object.freeze({
-		r: Number.isFinite(color?.r) ? color.r : 1,
-		g: Number.isFinite(color?.g) ? color.g : 1,
-		b: Number.isFinite(color?.b) ? color.b : 1,
+		r: Number.isFinite(color?.r) ? Math.max(0, color.r) : 1,
+		g: Number.isFinite(color?.g) ? Math.max(0, color.g) : 1,
+		b: Number.isFinite(color?.b) ? Math.max(0, color.b) : 1,
 	});
+}
+
+function photometricKeyScore(intensity, color) {
+	// Custom water/glint shaders need the visually dominant celestial key, not merely the numerically
+	// larger Three.js intensity. Luminance weighting prevents a dim blue moon from taking over while
+	// the warmer twilight sun still contributes the stronger perceived direct reflection.
+	const luminance = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
+	return intensity * Math.max(0.02, luminance);
 }
 
 /**
@@ -49,11 +57,15 @@ export function publishCelestialLightState({
 }) {
 	const safeSunIntensity = Math.max(0, Number(sunIntensity) || 0);
 	const safeMoonIntensity = Math.max(0, Number(moonIntensity) || 0);
-	const moonWins = safeMoonIntensity > safeSunIntensity;
+	const safeSunColor = frozenColor(sunColor);
+	const safeMoonColor = frozenColor(moonColor);
+	const sunScore = photometricKeyScore(safeSunIntensity, safeSunColor);
+	const moonScore = photometricKeyScore(safeMoonIntensity, safeMoonColor);
+	const moonWins = moonScore > sunScore;
 	state = Object.freeze({
 		source: moonWins ? 'moon' : 'sun',
 		direction: normalizedDirection(moonWins ? moonPosition : sunPosition),
-		color: frozenColor(moonWins ? moonColor : sunColor),
+		color: moonWins ? safeMoonColor : safeSunColor,
 		intensity: moonWins ? safeMoonIntensity : safeSunIntensity,
 		nightFactor: Math.max(0, Math.min(1, Number(nightFactor) || 0)),
 	});
