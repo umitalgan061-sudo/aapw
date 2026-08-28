@@ -385,6 +385,18 @@ float run177RoadFbm(vec2 p) {
 			.replace(
 				'#include <color_fragment>',
 				`#include <color_fragment>
+float run177EdgeMacro = run177RoadFbm(run177World * 0.011 + run177Warp * 3.1 + vec2(-18.4, 7.9));
+float run177EdgeMeso = run177RoadFbm(run177World * 0.094 + vec2(6.8, -27.3));
+float run177EdgeThreshold = mix(0.72, 0.91, run177EdgeMacro);
+float run177EdgeErosion = smoothstep(run177EdgeThreshold, 1.0, run177Across) * smoothstep(0.30, 0.78, run177EdgeMeso);
+float run177TerrainIngress = smoothstep(mix(0.78, 0.93, run177EdgeMeso), 1.0, run177Across) * smoothstep(0.38, 0.74, 1.0 - run177Macro);
+vec3 run177IrregularShoulder = mix(run177StoneReference, run177MossReference, smoothstep(0.42, 0.76, 1.0 - run177Meso));
+diffuseColor.rgb = mix(diffuseColor.rgb, run177IrregularShoulder, run177EdgeErosion * 0.24);
+diffuseColor.rgb = mix(diffuseColor.rgb, run177MossReference, run177TerrainIngress * 0.22);`,
+			)
+			.replace(
+				'#include <color_fragment>',
+				`#include <color_fragment>
 float run177Across = abs(vRun177RoadSide);
 float run177WheelRut = 1.0 - smoothstep(0.07, 0.17, abs(run177Across - 0.47));
 float run177CenterCrown = 1.0 - smoothstep(0.00, 0.28, run177Across);
@@ -411,15 +423,12 @@ float run177MossShoulder = run177ShoulderWear * smoothstep(0.60, 0.90, 1.0 - run
 diffuseColor.rgb = mix(diffuseColor.rgb, run177RutReference, run177DampRut * 0.22);
 diffuseColor.rgb = mix(diffuseColor.rgb, run177StoneReference, run177Stone * 0.16);
 diffuseColor.rgb = mix(diffuseColor.rgb, run177DustReference, run177MineralDust * 0.10);
-diffuseColor.rgb = mix(diffuseColor.rgb, run177MossReference, run177MossShoulder * 0.18);
-float run177EdgeMacro = run177RoadFbm(run177World * 0.011 + run177Warp * 3.1 + vec2(-18.4, 7.9));
-float run177EdgeMeso = run177RoadFbm(run177World * 0.094 + vec2(6.8, -27.3));
-float run177EdgeThreshold = mix(0.72, 0.91, run177EdgeMacro);
-float run177EdgeErosion = smoothstep(run177EdgeThreshold, 1.0, run177Across) * smoothstep(0.30, 0.78, run177EdgeMeso);
-float run177TerrainIngress = smoothstep(mix(0.78, 0.93, run177EdgeMeso), 1.0, run177Across) * smoothstep(0.38, 0.74, 1.0 - run177Macro);
-vec3 run177IrregularShoulder = mix(run177StoneReference, run177MossReference, smoothstep(0.42, 0.76, 1.0 - run177Meso));
-diffuseColor.rgb = mix(diffuseColor.rgb, run177IrregularShoulder, run177EdgeErosion * 0.24);
-diffuseColor.rgb = mix(diffuseColor.rgb, run177MossReference, run177TerrainIngress * 0.22);`,
+diffuseColor.rgb = mix(diffuseColor.rgb, run177MossReference, run177MossShoulder * 0.18);`,
+			)
+			.replace(
+				'#include <roughnessmap_fragment>',
+				`#include <roughnessmap_fragment>
+roughnessFactor = clamp(roughnessFactor + run177EdgeErosion * 0.045 + run177TerrainIngress * 0.035, 0.76, 1.0);`,
 			)
 			.replace(
 				'#include <roughnessmap_fragment>',
@@ -427,7 +436,6 @@ diffuseColor.rgb = mix(diffuseColor.rgb, run177MossReference, run177TerrainIngre
 float run177RoughRut = 1.0 - smoothstep(0.07, 0.17, abs(abs(vRun177RoadSide) - 0.47));
 float run177RoughField = run177RoadFbm(vRun177RoadPosition.xz * 0.031 + vec2(13.0, 27.0));
 roughnessFactor = clamp(roughnessFactor - run177RoughRut * 0.055 + (run177RoughField - 0.5) * 0.085, 0.76, 1.0);`,
-roughnessFactor = clamp(roughnessFactor + run177EdgeErosion * 0.045 + run177TerrainIngress * 0.035, 0.76, 1.0);`,
 			);
 	};
 	material.customProgramCacheKey = () => RUN177_MEDIEVAL_ROAD_SURFACE_KEY;
