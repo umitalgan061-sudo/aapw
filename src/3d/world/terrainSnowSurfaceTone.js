@@ -13,7 +13,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-28-v29-form-driven-bounded-firn-crust-powder',
+  id: 'terrain-snow-surface-tone-2026-08-28-v30-form-driven-bounded-glacial-harmony',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
@@ -47,9 +47,9 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   packedRidgeGain: 0.56,
   packedPermanentIceFloor: 0.04,
   packedGlacialContinuityGain: 0.04,
-  packedGlacialFamilyGain: 0.10,
+  packedGlacialFamilyGain: 0.15,
   packedGlacialDepthGain: 0.06,
-  packedShelteredGlacialGain: 0.05,
+  packedShelteredGlacialGain: 0.07,
   packedTransitionColdGain: 0.055,
   mixedIceFirnPackedFloorGain: 0.18,
   mixedIceFirnPowderAttenuation: 0.18,
@@ -70,7 +70,7 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   accumulatedConcavityGain: 0.62,
   accumulatedGentleSlopeGain: 0.24,
   leeDriftAccumulationGain: 0.42,
-  accumulatedPermanentIceScale: 0.62,
+  accumulatedPermanentIceScale: 0.58,
   accumulatedGlacialPaletteRetentionFloor: 0.76,
   shelteredGlacialRetentionFloor: 0.66,
   shelteredGlacialAccumulationCooling: 0.10,
