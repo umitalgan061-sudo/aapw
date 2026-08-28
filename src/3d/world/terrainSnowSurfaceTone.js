@@ -13,7 +13,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-28-v32-form-driven-minimum-palette-continuity',
+  id: 'terrain-snow-surface-tone-2026-08-28-v33-form-driven-transition-glacial-family',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
@@ -50,7 +50,7 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   packedGlacialFamilyGain: 0.15,
   packedGlacialDepthGain: 0.06,
   packedShelteredGlacialGain: 0.07,
-  packedTransitionColdGain: 0.055,
+  packedTransitionColdGain: 0.06,
   mixedIceFirnPackedFloorGain: 0.18,
   mixedIceFirnPowderAttenuation: 0.18,
   coreIceFirnPackedFloorGain: 0.12,
@@ -63,7 +63,7 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   windSlabPackedGain: 0.36,
   ridgeScourAccumulationSuppression: 0.58,
   shelteredPackedFloorGain: 0.10,
-  packedGlacialPaletteFloorGain: 0.16,
+  packedGlacialPaletteFloorGain: 0.23,
   packedGlacialPaletteDepthGain: 0.06,
   packedGlacialPaletteShelterRetention: 0.60,
   accumulatedLeeGain: 0.90,
