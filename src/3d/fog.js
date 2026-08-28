@@ -27,6 +27,8 @@ const FOG_TWILIGHT_DENSITY_GAIN = 0.000085;
 const FOG_WARM_AEROSOL_DENSITY_GAIN = 0.000020;
 /** Ochre/golden horizons carry a slightly denser mineral aerosol veil than rosy/magenta sunsets. */
 const FOG_DUST_AEROSOL_DENSITY_GAIN = 0.000014;
+/** Saturated cool twilight implies a cleaner Rayleigh-dominant column than pale humid dusk. */
+const FOG_CLEAR_TWILIGHT_CLARITY_GAIN = 0.000020;
 /** Midday dry-air clarity keeps long views from reading like the same opacity slider at every phase. */
 const FOG_MIDDAY_CLARITY_GAIN = 0.000022;
 /** Saturated bright daylight implies a cleaner optical column than a pale overcast-looking horizon. */
@@ -47,6 +49,8 @@ const FOG_WARM_AEROSOL_TINT = new THREE.Color(0xc2a18f);
 const FOG_DUST_AEROSOL_TINT = new THREE.Color(0xb99a78);
 /** Rosy sunsets remain optically lighter and slightly cooler than dust-rich golden hour. */
 const FOG_ROSY_AEROSOL_TINT = new THREE.Color(0xb49aa2);
+/** Cool saturated twilight retains a restrained Rayleigh blue instead of collapsing into grey haze. */
+const FOG_CLEAR_TWILIGHT_TINT = new THREE.Color(0x738fa7);
 /** Moonless/dark horizons cool distant silhouettes slightly instead of preserving warm twilight dust. */
 const FOG_NIGHT_COOL_TINT = new THREE.Color(0x596979);
 /** Blue-hour aerosol tint: after direct warmth collapses, distant terrain keeps a cool humid veil. */
@@ -62,6 +66,7 @@ const FOG_TWILIGHT_WARM_TINT_MAX = 0.032;
 const FOG_WARM_AEROSOL_TINT_MAX = 0.024;
 const FOG_DUST_AEROSOL_TINT_MAX = 0.026;
 const FOG_ROSY_AEROSOL_TINT_MAX = 0.018;
+const FOG_CLEAR_TWILIGHT_TINT_MAX = 0.024;
 const FOG_NIGHT_COOL_TINT_MAX = 0.038;
 const FOG_BLUE_HOUR_TINT_MAX = 0.045;
 const FOG_MOONLIT_TINT_MAX = 0.028;
@@ -92,14 +97,17 @@ export function createFog() {
  * additionally drives a small warm aerosol lobe, so amber sunrise/sunset does not share exactly the
  * same tint and optical depth as a neutral low-angle sky. Within that warm lobe, green retention
  * separates ochre/golden mineral aerosol from red-blue-balanced rosy twilight: dusty golden hour is
- * slightly denser and earthier, while pink/magenta sunsets stay optically lighter. Both are derived
- * only from the authoritative horizon color, so this adds no weather or geography authority. Bright
- * moonlit horizons then recover a bounded amount of clarity and a slightly more neutral cool aerosol
- * tint, preventing clear nights from reading like uniformly overcast fog. High-sun daylight also
- * reads the authoritative horizon chroma: a bright saturated sky receives a small extra clarity/tint
- * response, while a bright low-chroma horizon receives a restrained humid aerosol lift. The clear and
- * humid responses are deliberately complementary, so daytime distance does not collapse into a
- * single global haze preset. All effects remain render-only and subordinate to lighting.js.
+ * slightly denser and earthier, while pink/magenta sunsets stay optically lighter. Cool, saturated
+ * twilight now receives the complementary treatment: a bounded clarity recovery and Rayleigh-blue
+ * tint preserve long-range silhouette separation instead of forcing every low-angle phase through
+ * the same humid grey veil. Both branches are derived only from the authoritative horizon color, so
+ * they add no weather or geography authority. Bright moonlit horizons then recover a bounded amount
+ * of clarity and a slightly more neutral cool aerosol tint, preventing clear nights from reading like
+ * uniformly overcast fog. High-sun daylight also reads the authoritative horizon chroma: a bright
+ * saturated sky receives a small extra clarity/tint response, while a bright low-chroma horizon
+ * receives a restrained humid aerosol lift. The clear and humid responses are deliberately
+ * complementary, so daytime distance does not collapse into a single global haze preset. All effects
+ * remain render-only and subordinate to lighting.js.
  *
  * @param {THREE.FogExp2} fog
  * @param {{horizonColor: THREE.Color, nightFactor: number}} dayNight - `lighting.js`'s per-frame output.
@@ -119,6 +127,7 @@ export function updateFog(fog, dayNight) {
 	const horizonWarmth = THREE.MathUtils.clamp(dayNight.horizonColor.r - dayNight.horizonColor.b, 0, 1);
 	const horizonGoldenBalance = THREE.MathUtils.clamp(dayNight.horizonColor.g - dayNight.horizonColor.b, 0, 1);
 	const horizonRosyBalance = THREE.MathUtils.clamp(dayNight.horizonColor.b - dayNight.horizonColor.g * 0.72, 0, 1);
+	const horizonCoolness = THREE.MathUtils.clamp(dayNight.horizonColor.b - dayNight.horizonColor.r * 0.82, 0, 1);
 	const brightDay = fullDay * THREE.MathUtils.smoothstep(horizonLuminance, 0.30, 0.70);
 	const clearBlueDay = brightDay * THREE.MathUtils.smoothstep(horizonChroma, 0.16, 0.44);
 	const humidDay = brightDay
@@ -134,6 +143,10 @@ export function updateFog(fog, dayNight) {
 	const rosyAerosol = warmAerosol
 		* THREE.MathUtils.smoothstep(horizonRosyBalance, 0.025, 0.18)
 		* (1 - THREE.MathUtils.smoothstep(horizonGoldenBalance, 0.16, 0.34));
+	const clearTwilight = litTwilight
+		* THREE.MathUtils.smoothstep(horizonChroma, 0.20, 0.46)
+		* THREE.MathUtils.smoothstep(horizonCoolness, 0.018, 0.18)
+		* (1 - THREE.MathUtils.smoothstep(horizonWarmth, 0.08, 0.24));
 	const darkeningTwilight = twilight * (1 - THREE.MathUtils.smoothstep(horizonLuminance, 0.10, 0.34));
 	const blueHour = darkeningTwilight
 		* THREE.MathUtils.smoothstep(nightFactor, 0.42, 0.68)
@@ -149,6 +162,7 @@ export function updateFog(fog, dayNight) {
 		.lerp(FOG_WARM_AEROSOL_TINT, warmAerosol * FOG_WARM_AEROSOL_TINT_MAX)
 		.lerp(FOG_DUST_AEROSOL_TINT, dustAerosol * FOG_DUST_AEROSOL_TINT_MAX)
 		.lerp(FOG_ROSY_AEROSOL_TINT, rosyAerosol * FOG_ROSY_AEROSOL_TINT_MAX)
+		.lerp(FOG_CLEAR_TWILIGHT_TINT, clearTwilight * FOG_CLEAR_TWILIGHT_TINT_MAX)
 		.lerp(FOG_CLEAR_DAY_TINT, clearBlueDay * FOG_CLEAR_DAY_TINT_MAX)
 		.lerp(FOG_HUMID_DAY_TINT, humidDay * FOG_HUMID_DAY_TINT_MAX)
 		.lerp(FOG_BLUE_HOUR_TINT, blueHour * FOG_BLUE_HOUR_TINT_MAX)
@@ -161,6 +175,7 @@ export function updateFog(fog, dayNight) {
 		+ dustAerosol * FOG_DUST_AEROSOL_DENSITY_GAIN
 		+ blueHour * FOG_BLUE_HOUR_DENSITY_GAIN
 		+ humidDay * FOG_HUMID_DAY_DENSITY_GAIN
+		- clearTwilight * FOG_CLEAR_TWILIGHT_CLARITY_GAIN
 		- fullDay * FOG_MIDDAY_CLARITY_GAIN
 		- clearBlueDay * FOG_CLEAR_BLUE_DAY_CLARITY_GAIN
 		- moonlitNight * FOG_MOONLIT_CLARITY_GAIN;
