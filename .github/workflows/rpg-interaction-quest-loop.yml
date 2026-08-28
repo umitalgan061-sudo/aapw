@@ -140,7 +140,7 @@ jobs:
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
       - name: Shipped browser quartermaster and settlement services
         run: |
-          set -euo pipefail
+          set -euxo pipefail
           NODE_PATH="$NODE_PATH" node scripts/checkInteractionTradeLedgerBrowser.mjs
           NODE_PATH="$NODE_PATH" node scripts/checkInteractionSettlementServiceBrowser.mjs
           NODE_PATH="$NODE_PATH" node scripts/checkInteractionArmorerServiceBrowser.mjs
