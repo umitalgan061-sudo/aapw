@@ -13,7 +13,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-28-v35-glacial-lee-tone-hierarchy',
+  id: 'terrain-snow-surface-tone-2026-08-28-v36-bounded-glacial-lee-hierarchy',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
@@ -50,7 +50,7 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   packedGlacialFamilyGain: 0.15,
   packedGlacialDepthGain: 0.06,
   packedShelteredGlacialGain: 0.07,
-  packedTransitionColdGain: 0.10,
+  packedTransitionColdGain: 0.09,
   mixedIceFirnPackedFloorGain: 0.18,
   mixedIceFirnPowderAttenuation: 0.18,
   coreIceFirnPackedFloorGain: 0.12,
