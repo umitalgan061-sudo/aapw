@@ -302,6 +302,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float retreatGap = smoothstep(0.24, 0.70, waterSurfaceNoise(shoreCoordinates * vec2(2.7, 0.84) + vec2(-uTime * 0.011, 12.4)));
 		float irregularBreaker = breakerCrest * mix(0.28, 1.0, foamLace) * mix(0.38, 1.0, alongShoreBreakup) * mix(0.56, 1.0, retreatGap);
 		foam = clamp(foam * mix(0.32, 1.18, foamLace * 0.62 + alongShoreBreakup * 0.38) + shallowMask * irregularBreaker * 0.24, 0.0, 1.0);
+
 		vec3 referenceFoam = vec3(${REFERENCE_WATER_COLORS.foam.r.toFixed(4)}, ${REFERENCE_WATER_COLORS.foam.g.toFixed(4)}, ${REFERENCE_WATER_COLORS.foam.b.toFixed(4)});
 		vec3 color = mix(baseColor + celestialSpecular, referenceFoam, foam * 0.76);
 		float opticalDepth = 1.0 - exp(-fragmentDepth * 3.2);
