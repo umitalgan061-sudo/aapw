@@ -91,6 +91,9 @@ async function armDamageOnActiveParry(amount, sourceId) {
 async function waitForHistoryEvidence(findEvidence, { timeout = 5000, interval = 100, label = 'motion evidence' } = {}) {
   const deadline = Date.now() + timeout; let lastFrames = [];
   while (Date.now() < deadline) { lastFrames = await history(); const evidence = findEvidence(lastFrames); if (evidence) return evidence; await sleep(interval); }
+  lastFrames = await history();
+  const boundaryEvidence = findEvidence(lastFrames);
+  if (boundaryEvidence) return boundaryEvidence;
   throw new Error(`[player-stamina-dodge-runtime] timed out waiting for ${label}; tail=${JSON.stringify(lastFrames.slice(-12))}`);
 }
 const waitState = (state, timeout = 5000) => waitForHistoryEvidence((frames) => frames.at(-1)?.state === state ? frames.at(-1) : null, { timeout, interval: 100, label: `latest state=${state}` });
