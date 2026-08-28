@@ -30,12 +30,18 @@ on:
       - 'scripts/checkPlayerDodgeIFrameRuntime.mjs'
       - 'scripts/checkPlayerGroundingCombatContract.mjs'
       - 'scripts/checkPlayerHitStaggerRuntime.mjs'
+      - 'scripts/checkPlayerRecoveryAttackBufferDrop.mjs'
+      - 'scripts/checkPlayerRecoveryAttackBufferRuntime.mjs'
       - '.github/workflows/player-combat-feedback.yml'
       - '.github/workflows/player-dodge-iframes.yml'
       - '.github/workflows/player-grounding-combat-contract.yml'
       - '.github/workflows/player-gamepad-parity.yml'
       - '.github/workflows/player-hit-stagger-runtime.yml'
       - '.github/workflows/player-stamina-dodge.yml'
+      - '.github/workflows/player-combat-recovery-input-isolation.yml'
+      - '.github/workflows/player-guard-impact-exhaustion.yml'
+      - '.github/workflows/player-parry-recovery.yml'
+      - '.github/workflows/player-recovery-attack-buffer-drop.yml'
   workflow_dispatch:
 
 permissions:
@@ -68,7 +74,7 @@ jobs:
           git diff --check "$MAIN_SHA"...HEAD
           CHANGED="$(git diff --name-only "$MAIN_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/gameplay/health\.js|src/3d/gameplay/damageResolution\.js|src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerCombatFeedback\.mjs|scripts/checkPlayerCombatFeedbackHapticParity\.mjs|scripts/checkPlayerCombatFeedbackHotplug\.mjs|scripts/checkPlayerCombatHealthReceipt\.mjs|scripts/checkPlayerImmutableDefenseDamage\.mjs|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|scripts/checkPlayerLockOnRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerCombatHudRuntime\.mjs|scripts/checkPlayerDodgeIFrames\.mjs|scripts/checkPlayerDodgeIFrameRuntime\.mjs|scripts/checkPlayerGroundingCombatContract\.mjs|scripts/checkPlayerHitStaggerRuntime\.mjs|\.github/workflows/player-combat-feedback\.yml|\.github/workflows/player-dodge-iframes\.yml|\.github/workflows/player-grounding-combat-contract\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-hit-stagger-runtime\.yml|\.github/workflows/player-stamina-dodge\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/gameplay/health\.js|src/3d/gameplay/damageResolution\.js|src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerCombatFeedback\.mjs|scripts/checkPlayerCombatFeedbackHapticParity\.mjs|scripts/checkPlayerCombatFeedbackHotplug\.mjs|scripts/checkPlayerCombatHealthReceipt\.mjs|scripts/checkPlayerImmutableDefenseDamage\.mjs|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|scripts/checkPlayerLockOnRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerCombatHudRuntime\.mjs|scripts/checkPlayerDodgeIFrames\.mjs|scripts/checkPlayerDodgeIFrameRuntime\.mjs|scripts/checkPlayerGroundingCombatContract\.mjs|scripts/checkPlayerHitStaggerRuntime\.mjs|scripts/checkPlayerRecoveryAttackBufferDrop\.mjs|scripts/checkPlayerRecoveryAttackBufferRuntime\.mjs|\.github/workflows/player-combat-feedback\.yml|\.github/workflows/player-dodge-iframes\.yml|\.github/workflows/player-grounding-combat-contract\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-hit-stagger-runtime\.yml|\.github/workflows/player-stamina-dodge\.yml|\.github/workflows/player-combat-recovery-input-isolation\.yml|\.github/workflows/player-guard-impact-exhaustion\.yml|\.github/workflows/player-parry-recovery\.yml|\.github/workflows/player-recovery-attack-buffer-drop\.yml)$' | wc -l)" -eq 0
           read -r ADD DEL < <(git diff --numstat "$MAIN_SHA"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           TOTAL=$((ADD + DEL))
           echo "base=$MAIN_SHA additions=$ADD deletions=$DEL total=$TOTAL"
@@ -107,6 +113,8 @@ jobs:
           node --check scripts/checkPlayerGroundingCombatContract.mjs
           node --check scripts/checkPlayerHitStaggerRuntime.mjs
           node --check scripts/checkPlayerMeleeComboRuntime.mjs
+          node --check scripts/checkPlayerRecoveryAttackBufferDrop.mjs
+          node --check scripts/checkPlayerRecoveryAttackBufferRuntime.mjs
           node scripts/checkPlayerCombatFeedbackHapticParity.mjs
           node scripts/checkPlayerCombatFeedbackHotplug.mjs
           node scripts/checkPlayerImmutableDefenseDamage.mjs
@@ -118,6 +126,7 @@ jobs:
           node scripts/checkPlayerStaminaDodge.mjs
           node scripts/checkPlayerDodgeIFrames.mjs
           node scripts/checkPlayerGroundingCombatContract.mjs
+          node scripts/checkPlayerRecoveryAttackBufferDrop.mjs
       - name: Shared material PWA and cache contracts
         run: |
           set -euo pipefail
@@ -142,6 +151,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerRecoveryAttackBufferRuntime.mjs --out-dir=artifacts/player-recovery-attack-buffer | tee artifacts-player-recovery-attack-buffer.log
+          grep -q 'PLAYER_RECOVERY_ATTACK_BUFFER_RUNTIME_OK' artifacts-player-recovery-attack-buffer.log
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerGamepadRuntime.mjs --out-dir=artifacts/player-gamepad | tee artifacts-player-gamepad.log
           test -s artifacts/player-gamepad/gamepad-runtime.png
           test -s artifacts/player-gamepad/gamepad-runtime.json
@@ -170,7 +181,9 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
           path: |
+            artifacts/player-recovery-attack-buffer/
             artifacts/player-gamepad/
             artifacts/player-lock-on/
+            artifacts-player-recovery-attack-buffer.log
             artifacts-player-gamepad.log
             artifacts-player-lock-on.log
