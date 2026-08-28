@@ -15,8 +15,8 @@ permissions:
 
 jobs:
   defeat-reset:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     steps:
       - name: Checkout exact head
         uses: actions/checkout@v4
@@ -24,13 +24,19 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Verify current-main ancestry and bounded scope
         shell: bash
         run: |
           set -euo pipefail
-          git fetch origin main --depth=1
-          git merge-base --is-ancestor origin/main HEAD
-          mapfile -t files < <(git diff --name-only origin/main...HEAD)
+          git fetch origin main --no-tags
+          BASE="$(git rev-parse origin/main)"
+          test "$(git merge-base origin/main HEAD)" = "$BASE"
+          git diff --check "$BASE"...HEAD
+          mapfile -t files < <(git diff --name-only "$BASE"...HEAD)
           printf '%s\n' "${files[@]}"
           test "${#files[@]}" -le 2
           for file in "${files[@]}"; do
@@ -39,26 +45,71 @@ jobs:
               *) echo "unexpected scope: $file" >&2; exit 1 ;;
             esac
           done
-          stats=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
+          stats=$(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           read -r additions deletions <<< "$stats"
           test $((additions + deletions)) -le 1000
+          echo "BASE_SHA=$BASE" >> "$GITHUB_ENV"
 
-      - name: Syntax and defeat lifecycle contract
+      - name: Syntax shared PWA and defeat lifecycle contracts
+        shell: bash
         run: |
+          set -euo pipefail
           node --check src/3d/gameplay/player.js
           node --check scripts/checkPlayerDefeatResetContract.mjs
           node scripts/checkPlayerDefeatResetContract.mjs
+          node scripts/checkSharedMaterialPlacementContract.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
+          test -f src/3d/materials/MaterialAssignmentCore.js
+          test -f src/3d/world/WorldAssetPlacementPipeline.js
+          ! grep -q 'EditorMaterialStudio' src/3d/gameplay/player.js
 
       - name: Regress recovery and combat lifecycle contracts
+        shell: bash
         run: |
+          set -euo pipefail
           node scripts/checkPlayerRecoveryAttackBufferDrop.mjs
           node scripts/checkPlayerCombatRecoveryInputIsolation.mjs
           node --check scripts/checkPlayerHitStaggerRuntime.mjs
           node scripts/checkPlayerDodgeIFrames.mjs
 
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Shipped scene browser PWA and mobile perf proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/player-defeat-reset/recovery-buffer
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerRecoveryAttackBufferRuntime.mjs --out-dir=artifacts/player-defeat-reset/recovery-buffer 2>&1 | tee artifacts/player-defeat-reset/recovery-buffer.log
+          grep -q 'PLAYER_RECOVERY_ATTACK_BUFFER_RUNTIME_OK' artifacts/player-defeat-reset/recovery-buffer.log
+          test -s artifacts/player-defeat-reset/recovery-buffer/recovery-attack-buffer-runtime.png
+          test -s artifacts/player-defeat-reset/recovery-buffer/recovery-attack-buffer-runtime.json
+          grep -q '"browserErrors": \[\]' artifacts/player-defeat-reset/recovery-buffer/recovery-attack-buffer-runtime.json
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js | tee artifacts/player-defeat-reset/game3d-smoke.log
+          grep -F '[smokeTestGame3D] PASS: 3D mode (game3d.html)' artifacts/player-defeat-reset/game3d-smoke.log | grep -F 'zero console/page errors'
+          if grep -E '^\[smokeTestGame3D\] (FAIL|ERROR):' artifacts/player-defeat-reset/game3d-smoke.log; then exit 1; fi
+
       - name: Final exact-main freshness
         shell: bash
         run: |
           set -euo pipefail
-          git fetch origin main --depth=1
-          git merge-base --is-ancestor origin/main HEAD
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test "$(git merge-base origin/main HEAD)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA"...HEAD
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: player-defeat-reset-${{ github.sha }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: artifacts/player-defeat-reset/
