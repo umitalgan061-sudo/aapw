@@ -2,11 +2,11 @@
  * Deterministic render-only surface weathering for canonical owner-map Pindex-10.
  *
  * Pindex ownership, map classification, terrain height, hydrology and colliders remain canonical.
- * This module only modifies existing terrain vertex colours. The original v1 layer used one
- * normalized-map sine hash at 1024x frequency, which read as nearly uniform procedural grain at
- * full-world scale. v4 keeps the world-space multi-scale fabric and adds readable bounded pedogenic
- * differentiation: humic seep pockets, depositional lowland patches and oxidized mineral crusts.
- * No new coastline, river, ridge or other geography is made.
+ * This module only modifies existing terrain vertex colours and normals. The original v1 layer used
+ * one normalized-map sine hash at 1024x frequency, which read as nearly uniform procedural grain at
+ * full-world scale. v5 keeps the world-space multi-scale fabric, readable bounded pedogenic
+ * differentiation and adds surface-specific micro-normal weathering so soil, exposed rock and snow
+ * no longer share an overly smooth lighting response. No new coastline, river, ridge or geography is made.
  */
 import * as THREE from 'three';
 import { mapCanvasToNormalizedReference } from './worldReferenceAlignment.js';
@@ -14,7 +14,7 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX10_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex10-detail-2026-08-28-v4-readable-pedogenic-lowland-weathering',
+  id: 'owner-map-pindex10-detail-2026-08-28-v5-pedogenic-micro-normal-weathering',
   pindex: 10,
   macroMeters: 1860,
   mesoMeters: 520,
@@ -24,6 +24,11 @@ export const PINDEX10_DETAIL_POLICY = Object.freeze({
   seepMeters: 880,
   depositionMeters: 670,
   ironCrustMeters: 275,
+  normalWeatheringMeters: 164,
+  normalGrainMeters: 44,
+  normalSoilStrength: 0.22,
+  normalRockStrength: 0.34,
+  normalSnowStrength: 0.12,
   boundaryFeatherNormalized: 0.018,
   mapAuthorityUnchanged: true,
   geographyAuthorityUnchanged: true,
@@ -211,12 +216,48 @@ function applyFabricToColor(color, index, surface, fabric) {
   return true;
 }
 
+function applyFabricToNormal(normal, index, surface, fabric, worldX, worldZ) {
+  if (!normal || surface === 'sea' || surface === 'lake' || fabric.boundary <= 0) return false;
+  const P = PINDEX10_DETAIL_POLICY;
+  const strength = surface === 'rock'
+    ? P.normalRockStrength
+    : surface === 'snow'
+      ? P.normalSnowStrength
+      : P.normalSoilStrength;
+  const exposureGain = surface === 'rock'
+    ? 0.68 + fabric.exposure * 0.52
+    : surface === 'snow'
+      ? 0.72 + fabric.interfluve * 0.28
+      : 0.74 + fabric.mineral * 0.22 + (1 - fabric.moisture) * 0.16;
+  const step = 3.5;
+  const broadDx = fbm(worldX + step, worldZ, P.normalWeatheringMeters, 0xcfc1)
+    - fbm(worldX - step, worldZ, P.normalWeatheringMeters, 0xcfc1);
+  const broadDz = fbm(worldX, worldZ + step, P.normalWeatheringMeters, 0xd0d2)
+    - fbm(worldX, worldZ - step, P.normalWeatheringMeters, 0xd0d2);
+  const grainDx = valueNoise(worldX + step, worldZ, P.normalGrainMeters, 0xe1e3)
+    - valueNoise(worldX - step, worldZ, P.normalGrainMeters, 0xe1e3);
+  const grainDz = valueNoise(worldX, worldZ + step, P.normalGrainMeters, 0xf2f4)
+    - valueNoise(worldX, worldZ - step, P.normalGrainMeters, 0xf2f4);
+  const materialBreakup = 0.62 + fabric.ironCrust * 0.34 + fabric.interfluve * 0.22 - fabric.humicSeep * 0.18;
+  const dx = (broadDx * 0.74 + grainDx * 0.42) * strength * exposureGain * materialBreakup * fabric.boundary;
+  const dz = (broadDz * 0.74 + grainDz * 0.42) * strength * exposureGain * materialBreakup * fabric.boundary;
+
+  const nx = normal.getX(index) - dx;
+  const ny = normal.getY(index);
+  const nz = normal.getZ(index) - dz;
+  const invLength = 1 / Math.max(1e-9, Math.hypot(nx, ny, nz));
+  normal.setXYZ(index, nx * invLength, ny * invLength, nz * invLength);
+  return true;
+}
+
 export function applyPindex10DetailToTerrainMesh(mesh) {
   const position = mesh?.geometry?.getAttribute?.('position');
   const color = mesh?.geometry?.getAttribute?.('color');
+  const normal = mesh?.geometry?.getAttribute?.('normal');
   if (!position || !color) throw new TypeError('semantic terrain position+color attributes are required');
 
   let touchedVertices = 0;
+  let normalWeatheredVertices = 0;
   let boundaryWeightedVertices = 0;
   const surfaceCounts = { sea: 0, lake: 0, soil: 0, rock: 0, snow: 0 };
   for (let index = 0; index < position.count; index += 1) {
@@ -227,16 +268,19 @@ export function applyPindex10DetailToTerrainMesh(mesh) {
 
     const fabric = samplePindex10SurfaceFabric(worldX, worldZ, c.normalizedX);
     if (!applyFabricToColor(color, index, c.surface, fabric)) continue;
+    if (applyFabricToNormal(normal, index, c.surface, fabric, worldX, worldZ)) normalWeatheredVertices += 1;
     touchedVertices += 1;
     if (surfaceCounts[c.surface] !== undefined) surfaceCounts[c.surface] += 1;
     if (fabric.boundary < 0.999) boundaryWeightedVertices += 1;
   }
 
   color.needsUpdate = true;
+  if (normal) normal.needsUpdate = true;
   const summary = Object.freeze({
     policyId: PINDEX10_DETAIL_POLICY.id,
     pindex: 10,
     touchedVertices,
+    normalWeatheredVertices,
     boundaryWeightedVertices,
     surfaceCounts: Object.freeze({ ...surfaceCounts }),
     geographyAuthorityUnchanged: true,
@@ -248,11 +292,17 @@ export function applyPindex10DetailToTerrainMesh(mesh) {
 export function applyPindex10DetailToTerrainGroup(terrainGroup) {
   if (!terrainGroup?.children || !Array.isArray(terrainGroup.children)) throw new TypeError('canonical terrain group is required');
   let touchedVertices = 0;
-  for (const mesh of terrainGroup.children) touchedVertices += applyPindex10DetailToTerrainMesh(mesh).touchedVertices;
+  let normalWeatheredVertices = 0;
+  for (const mesh of terrainGroup.children) {
+    const meshSummary = applyPindex10DetailToTerrainMesh(mesh);
+    touchedVertices += meshSummary.touchedVertices;
+    normalWeatheredVertices += meshSummary.normalWeatheredVertices;
+  }
   const summary = Object.freeze({
     policyId: PINDEX10_DETAIL_POLICY.id,
     pindex: 10,
     touchedVertices,
+    normalWeatheredVertices,
     meshCount: terrainGroup.children.length,
     geographyAuthorityUnchanged: true,
   });
