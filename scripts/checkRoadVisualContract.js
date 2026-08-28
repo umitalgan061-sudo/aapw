@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * checkRoadVisualContract.js — live-browser visual geometry contract for the kingdom road ribbon.
+ * checkRoadVisualContract.js �?" live-browser visual geometry contract for the kingdom road ribbon.
  *
  * The existing roadNetworkSafetyCheck validates topology/routing/world-safety. This companion guard
  * validates what the safely routed network actually renders: the cart-road tier's merged mesh (stable 8m
  * ribbon width, 0.4m terrain lift, vertex/color/normal/index topology, intended dirt material) and,
  * since run 314/ADR-0264, the second "patika" footpath tier's own merged mesh (same shape of
  * contract, its own 2.5m width/pale color) when the current seat layout produces at least one
- * footpath edge — plus teardown for both. Runtime sources are not modified by this check.
+ * footpath edge �?" plus teardown for both. Runtime sources are not modified by this check.
  *
  * Usage: node scripts/checkRoadVisualContract.js
  * Exit codes: 0 = PASS, 1 = contract failure, 2 = Playwright unavailable.
@@ -186,14 +186,14 @@ async function main() {
 				expectedName: 'roads',
 				edges: network.edges,
 				expectedWidth,
-				expectedColorHex: 0x816b4f,
+				expectedColorHex: 0x8b6849,
 			});
 			const footpathResult = network.footpathEdges.length > 0
 				? checkTierMesh(network.group.children[1], {
 					expectedName: 'patika',
 					edges: network.footpathEdges,
 					expectedWidth: expectedFootpathWidth,
-					expectedColorHex: 0xa08c6b,
+					expectedColorHex: 0xb0926d,
 				})
 				: null;
 
@@ -256,3 +256,4 @@ main().catch((error) => {
 	console.error(`[checkRoadVisualContract] FAIL: ${error?.stack || error}`);
 	process.exit(1);
 });
+

@@ -18,7 +18,10 @@ async function main() {
 	}
 	const server = await startStaticServer();
 	const { port } = server.address();
-	const browser = await playwright.chromium.launch({ headless: true });
+	const browser = await playwright.chromium.launch({
+		headless: true,
+		executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
+	});
 	try {
 		const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
 		await page.goto(`http://127.0.0.1:${port}/scripts/geographicRiverHarness.html`, {
@@ -60,6 +63,8 @@ async function main() {
 			fail(river.material.opacity === 0.74, `river opacity ${river.material.opacity} no longer exposes the bed`);
 			fail(river.material.userData.opticalProfile?.calmBedReadable === true, 'calm river bed-readability metadata disappeared');
 			fail(river.material.userData.opticalProfile?.slopeDrivenFoam === true, 'slope-driven foam metadata disappeared');
+			fail(river.material.userData.opticalProfile?.turbulentFoamBreakup === true, 'river turbulence breakup metadata disappeared');
+			fail(river.material.userData.opticalProfile?.referencePalettePolicyId?.includes('geographic-reference-palette'), 'river shared palette metadata disappeared');
 
 			const shader = {
 				uniforms: {},
@@ -67,7 +72,7 @@ async function main() {
 				fragmentShader: '#include <common>\n#include <color_fragment>',
 			};
 			river.material.onBeforeCompile(shader);
-			for (const token of ['flowEnergy', 'smoothstep(1.2, 4.5, vFlowSpeed)', 'mix(0.24, 1.0, flowEnergy)']) {
+			for (const token of ['flowEnergy', 'smoothstep(1.2, 4.5, vFlowSpeed)', 'mix(0.24, 1.0, flowEnergy)', 'turbulentBreakup']) {
 				fail(shader.fragmentShader.includes(token), `river shader missing ${token}`);
 			}
 			updateFlowAnimation(river, 7.5);
@@ -104,6 +109,7 @@ async function main() {
 			fail(waterfall.material.userData.opticalProfile?.aerated === true, 'waterfall aeration metadata disappeared');
 			fail(waterfall.material.userData.opticalProfile?.splashApron === true, 'waterfall splash-apron metadata disappeared');
 			fail(waterfall.material.userData.opticalProfile?.singleDrawCall === true, 'waterfall apron must not add a draw-call mesh');
+			fail(waterfall.material.userData.opticalProfile?.turbulentFoamBreakup === true, 'waterfall turbulence breakup metadata disappeared');
 
 			const summary = {
 				calmSpeed,
@@ -121,8 +127,8 @@ async function main() {
 
 		assert(result.rapidSpeed > result.calmSpeed, 'slope-speed relation escaped browser contract');
 		console.log(
-			`[checkGeographicRiverVisualContract] PASS: calm ${result.calmSpeed.toFixed(2)}m/s → rapid ` +
-			`${result.rapidSpeed.toFixed(2)}m/s, colour Δ ${result.colorDistance.toFixed(3)}, ` +
+			`[checkGeographicRiverVisualContract] PASS: calm ${result.calmSpeed.toFixed(2)}m/s ��' rapid ` +
+			`${result.rapidSpeed.toFixed(2)}m/s, colour �" ${result.colorDistance.toFixed(3)}, ` +
 			`${result.waterfallVertices}-vertex single-draw waterfall, apron spread x${result.apronSpread.toFixed(2)}.`,
 		);
 	} finally {
@@ -135,3 +141,4 @@ main().catch((error) => {
 	console.error(`[checkGeographicRiverVisualContract] FAIL: ${error?.stack || error}`);
 	process.exit(1);
 });
+

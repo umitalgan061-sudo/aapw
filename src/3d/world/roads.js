@@ -1,7 +1,7 @@
 /**
  * Road network: connects the 14 kingdom seats (`world/settlements.js`'s `KINGDOM_SEATS`) with a
  * minimum-spanning-tree road topology, each edge routed by `world/roadPathfinder.js`'s slope-aware
- * A* (not a straight line — see that module's doc comment and DECISIONS.md ADR-0076), and rendered
+ * A* (not a straight line �?" see that module's doc comment and DECISIONS.md ADR-0076), and rendered
  * as a single merged dirt-colored ribbon mesh following the real combined terrain height
  * (`world/terrain.js`'s fine FBM + run-55's `MACRO_RELIEF_FEATURES`, sampled through the exact same
  * `createHeightSampler` output every other world system already reads through).
@@ -9,21 +9,21 @@
  * Topology: a minimum spanning tree over the 14 seats (13 edges, one connected network, no cycles).
  * Edges that require an unsafe grade fallback or cross canonical water remain explicit non-rendered
  * transport gaps, preserving the topology without drawing a road over a cliff or along the seabed.
- * rather than a complete point-to-point graph (91 possible pairs) — GOVERNANCE.md §18's own task
+ * rather than a complete point-to-point graph (91 possible pairs) �?" GOVERNANCE.md ��18's own task
  * text explicitly allows this ("a minimum-spanning-tree-style network... is fine and arguably more
  * realistic than a complete graph"). MST topology is chosen by raw Euclidean seat-to-seat distance
- * (a standard, deterministic MST — see `computeSeatMST`); *within* each chosen edge, the actual
- * routed path is slope-aware, not Euclidean-straight — topology selection and path routing are
+ * (a standard, deterministic MST �?" see `computeSeatMST`); *within* each chosen edge, the actual
+ * routed path is slope-aware, not Euclidean-straight �?" topology selection and path routing are
  * deliberately separate concerns (see ADR-0076's Alternatives considered for why a slope-aware
  * topology cost was not worth the extra complexity here).
  *
- * Two road tiers (run 314, ADR-0264, owner-approved 2026-08-12 — see QUESTIONS_FOR_OWNER.md's run 56
- * entry): the original "ana yol" / at arabası yolu (main cart road) MST backbone above, plus a second,
- * thinner "patika" (footpath) tier — short, purely local connections between kingdom seats close
+ * Two road tiers (run 314, ADR-0264, owner-approved 2026-08-12 �?" see QUESTIONS_FOR_OWNER.md's run 56
+ * entry): the original "ana yol" / at arabas�� yolu (main cart road) MST backbone above, plus a second,
+ * thinner "patika" (footpath) tier �?" short, purely local connections between kingdom seats close
  * enough to be neighboring villages/holdings but not directly linked by the MST backbone (which
  * already routes their traffic through a shared close neighbor). See `computeLocalFootpathEdges` and
  * `FOOTPATH_MAX_LENGTH_METERS` below for the exact selection rule. Rendered as a second, separate
- * merged mesh (own width/color) alongside the unchanged cart-road mesh — the cart-road mesh's own
+ * merged mesh (own width/color) alongside the unchanged cart-road mesh �?" the cart-road mesh's own
  * vertex/color/width contract (`scripts/checkRoadVisualContract.js`) is untouched by this addition.
  * @module world/roads
  */
@@ -31,13 +31,14 @@
 import * as THREE from 'three';
 import { WORLD_DEFAULTS } from '../config.js';
 import { findSlopeAwarePath } from './roadPathfinder.js';
+import { GEOGRAPHIC_REFERENCE_PALETTE, GEOGRAPHIC_REFERENCE_PALETTE_POLICY } from './geographicReferencePalette.js';
 
-/** Ribbon width, in meters, for the single road tier this first pass renders — wide enough to read
+/** Ribbon width, in meters, for the single road tier this first pass renders �?" wide enough to read
  * clearly as a real cart road against the terrain at this world's scale (chunks are 500m/edge),
  * narrower than a settlement keep (34m) so it never competes visually with castles. */
 const ROAD_WIDTH_METERS = 8;
 
-/** Meters above the sampled terrain height the ribbon is raised — avoids z-fighting with the ground
+/** Meters above the sampled terrain height the ribbon is raised �?" avoids z-fighting with the ground
  * mesh directly beneath it. Slightly larger than `world/rivers.js`'s 0.3m offset since roads sit on
  * dry, often-rougher fine-noise terrain (no water surface smoothing nearby to hide a thinner gap). */
 const VERTICAL_OFFSET_METERS = 0.4;
@@ -53,7 +54,7 @@ const ROAD_MAX_SUBMERGED_RIBBON_RUN_METERS = ROAD_WATER_AUDIT_SPACING_METERS;
  * create warmth instead of baking orange into every road under every time of day. */
 const ROAD_COLOR = new THREE.Color(0x816b4f);
 
-/** Ribbon width, in meters, for the second "patika" (footpath) tier (run 314, ADR-0264) — narrow
+/** Ribbon width, in meters, for the second "patika" (footpath) tier (run 314, ADR-0264) �?" narrow
  * enough to read as a walked dirt track rather than a cart road, wider than a single-file trail so it
  * stays visible at typical play-camera distance. Roughly a third of `ROAD_WIDTH_METERS`. */
 const FOOTPATH_WIDTH_METERS = 2.5;
@@ -61,23 +62,35 @@ const FOOTPATH_WIDTH_METERS = 2.5;
 /** Footpaths are drier/worn but stay in the same low-saturation mineral family as cart roads. */
 const FOOTPATH_COLOR = new THREE.Color(0xa08c6b);
 
+const ROAD_REFERENCE_COLORS = Object.freeze({
+	compacted: new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.road.compacted),
+	rut: new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.road.rut),
+	dust: new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.road.dust),
+	stone: new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.road.stone),
+	mossEdge: new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.road.mossEdge),
+});
+ROAD_COLOR.lerp(ROAD_REFERENCE_COLORS.compacted, 0.58);
+FOOTPATH_COLOR.lerp(ROAD_REFERENCE_COLORS.dust, 0.28);
+ROAD_COLOR.copy(ROAD_REFERENCE_COLORS.compacted);
+FOOTPATH_COLOR.copy(ROAD_REFERENCE_COLORS.dust);
+
 /** Maximum seat-to-seat Euclidean distance, in meters, for a non-MST pair to qualify as a "patika"
- * footpath (run 314, ADR-0264 — answers ADR-0076's deferred "every edge, or only short/local ones"
- * question: only short/local ones). Deliberately conservative — well under every real MST edge's own
- * length except the tight `olena`<->`berk`/`ziya`<->`olena` pair (~110-125m) — so this only picks up
+ * footpath (run 314, ADR-0264 �?" answers ADR-0076's deferred "every edge, or only short/local ones"
+ * question: only short/local ones). Deliberately conservative �?" well under every real MST edge's own
+ * length except the tight `olena`<->`berk`/`ziya`<->`olena` pair (~110-125m) �?" so this only picks up
  * genuine "same small cluster, one direct hop apart" gaps (today: `ziya`<->`berk`, ~150-160m) rather
  * than fanning out a dense web of long, mutually near-parallel shortcuts across the whole map (the
- * next-closest non-MST pairs are all 1.1km+, roughly 7x farther — see DECISIONS.md ADR-0264's Context
+ * next-closest non-MST pairs are all 1.1km+, roughly 7x farther �?" see DECISIONS.md ADR-0264's Context
  * for the full measured distance table). Revisit this threshold if a future seat layout change makes
  * more genuinely-local gaps worth connecting. */
 const FOOTPATH_MAX_LENGTH_METERS = 700;
 
 /**
  * Builds a minimum spanning tree (Prim's algorithm) over `seats` by raw Euclidean `(x, z)` distance
- * — a real, standard, fully-deterministic topology algorithm (no `Math.random()`, and Prim's own
+ * �?" a real, standard, fully-deterministic topology algorithm (no `Math.random()`, and Prim's own
  * tie-breaking here is "first candidate found with a strictly smaller key," a pure function of
  * array order, so the same `seats` array always produces the same tree). 13 edges connect all 14
- * seats with none left out and no redundant cycles — see this module's own doc comment for why MST
+ * seats with none left out and no redundant cycles �?" see this module's own doc comment for why MST
  * over a complete graph.
  * @param {{id: string, x: number, z: number}[]} seats
  * @returns {{fromId: string, toId: string, distanceMeters: number}[]} One entry per MST edge.
@@ -306,7 +319,7 @@ export function disposeRoadNetwork(group) {
 	}
 }
 
-// RUN 177 — owner-approved medieval road surface. The geometry/topology stays authoritative; this
+// RUN 177 �?" owner-approved medieval road surface. The geometry/topology stays authoritative; this
 // material-only pass adds deterministic world-space cart wear, stones, dust and moisture variation.
 const RUN177_MEDIEVAL_ROAD_SURFACE_KEY = 'run177-medieval-road-surface-v3-world-weathering';
 const buildRoadNetworkBeforeMedievalSurfaceRun177 = buildRoadNetwork;
@@ -333,6 +346,8 @@ function applyMedievalRoadSurfaceRun177(network) {
 		dryMineralVariation: true,
 		worldSpaceMultiScaleWeathering: true,
 		roughnessVariation: true,
+		referencePalettePolicyId: GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id,
+		photogrammetryShoulderMoss: true,
 		extraDrawCalls: 0,
 	});
 
@@ -384,7 +399,17 @@ float run177MineralDust = smoothstep(0.61, 0.88, run177Meso) * (0.25 + run177Sho
 diffuseColor.rgb *= 1.0 - run177WheelRut * 0.18 - run177ShoulderWear * 0.065 - run177MudPatch * 0.105;
 diffuseColor.rgb *= 1.0 + run177CenterCrown * 0.026 + run177DryTone;
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.36, 0.34, 0.29), run177Stone * 0.30);
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.55, 0.48, 0.37), run177MineralDust * 0.11);`,
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.55, 0.48, 0.37), run177MineralDust * 0.11);
+vec3 run177RutReference = vec3(${ROAD_REFERENCE_COLORS.rut.r.toFixed(4)}, ${ROAD_REFERENCE_COLORS.rut.g.toFixed(4)}, ${ROAD_REFERENCE_COLORS.rut.b.toFixed(4)});
+vec3 run177DustReference = vec3(${ROAD_REFERENCE_COLORS.dust.r.toFixed(4)}, ${ROAD_REFERENCE_COLORS.dust.g.toFixed(4)}, ${ROAD_REFERENCE_COLORS.dust.b.toFixed(4)});
+vec3 run177StoneReference = vec3(${ROAD_REFERENCE_COLORS.stone.r.toFixed(4)}, ${ROAD_REFERENCE_COLORS.stone.g.toFixed(4)}, ${ROAD_REFERENCE_COLORS.stone.b.toFixed(4)});
+vec3 run177MossReference = vec3(${ROAD_REFERENCE_COLORS.mossEdge.r.toFixed(4)}, ${ROAD_REFERENCE_COLORS.mossEdge.g.toFixed(4)}, ${ROAD_REFERENCE_COLORS.mossEdge.b.toFixed(4)});
+float run177DampRut = run177WheelRut * smoothstep(0.54, 0.88, run177Macro);
+float run177MossShoulder = run177ShoulderWear * smoothstep(0.60, 0.90, 1.0 - run177Meso) * (1.0 - run177MineralDust);
+diffuseColor.rgb = mix(diffuseColor.rgb, run177RutReference, run177DampRut * 0.22);
+diffuseColor.rgb = mix(diffuseColor.rgb, run177StoneReference, run177Stone * 0.16);
+diffuseColor.rgb = mix(diffuseColor.rgb, run177DustReference, run177MineralDust * 0.10);
+diffuseColor.rgb = mix(diffuseColor.rgb, run177MossReference, run177MossShoulder * 0.18);`,
 			)
 			.replace(
 				'#include <roughnessmap_fragment>',
@@ -402,3 +427,4 @@ roughnessFactor = clamp(roughnessFactor - run177RoughRut * 0.055 + (run177RoughF
 buildRoadNetwork = function buildRoadNetworkWithMedievalSurfaceRun177(options) {
 	return applyMedievalRoadSurfaceRun177(buildRoadNetworkBeforeMedievalSurfaceRun177(options));
 };
+

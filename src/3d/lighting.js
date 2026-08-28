@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { installNightVisualEnhancement, updateNightVisualEnhancement } from './nightVisualEnhancement.js';
 import { AssetLoader } from './assetLoader.js';
 import { publishCelestialLightState } from './celestialLightState.js';
+import { GEOGRAPHIC_REFERENCE_PALETTE_POLICY } from './world/geographicReferencePalette.js';
 
 const KEYFRAMES = [
 	{ ratio: 0.0, sunColor: 0x233a66, sunIntensity: 0.0, hemiSky: 0x101b38, hemiGround: 0x080b13, hemiIntensity: 0.28, nightFactor: 1.0 },
@@ -42,6 +43,16 @@ export const CELESTIAL_ASSET_POLICY = Object.freeze({
 	moonLightingAltitudeModulated: true,
 	sunLightingAltitudeModulated: true,
 	twilightSkyAltitudeModulated: true,
+});
+
+export const CELESTIAL_GEOGRAPHIC_RESPONSE_POLICY = Object.freeze({
+	id: 'celestial-geographic-response-2026-08-28-v1',
+	referencePalettePolicyId: GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id,
+	eastZenithWestSunOrbit: true,
+	oppositeMoonOrbit: true,
+	altitudeModulatedIllumination: true,
+	waterNightResponsePublished: true,
+	materialAuthorityUnchanged: true,
 });
 
 function smoothstep(edge0, edge1, value) {
@@ -146,9 +157,11 @@ export function createDayNightLighting(scene) {
 	const sun = new THREE.DirectionalLight(0xffffff, 1);
 	sun.name = 'Sun Directional Light';
 	sun.userData.altitudeModulated = true;
+	sun.userData.geographicResponsePolicyId = CELESTIAL_GEOGRAPHIC_RESPONSE_POLICY.id;
 	const moon = new THREE.DirectionalLight(0xc8dcff, 0);
 	moon.name = 'Moon Directional Light';
 	moon.userData.altitudeModulated = true;
+	moon.userData.geographicResponsePolicyId = CELESTIAL_GEOGRAPHIC_RESPONSE_POLICY.id;
 	const hemisphere = new THREE.HemisphereLight(0xffffff, 0x000000, 1);
 
 	const sunVisual = new THREE.Group();
@@ -223,7 +236,7 @@ export function updateDayNightLighting(lights, elapsedSeconds, dayLengthSeconds,
 
 	// Custom shaders cannot see Three.js DirectionalLight uniforms automatically. Publish the same
 	// live celestial key that built-in terrain/road/river materials receive so water highlights move
-	// east → zenith → west with the sun and switch to the cool moon at night.
+	// east ��' zenith ��' west with the sun and switch to the cool moon at night.
 	const celestialKey = publishCelestialLightState({
 		sunPosition: lights.sun.position,
 		sunColor: lights.sun.color,
@@ -265,3 +278,4 @@ export function disposeDayNightLighting(scene, lights) {
 		});
 	}
 }
+

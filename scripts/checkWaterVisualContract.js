@@ -18,10 +18,13 @@ async function main() {
 	}
 	const server = await startStaticServer();
 	const { port } = server.address();
-	const browser = await playwright.chromium.launch({ headless: true });
+	const browser = await playwright.chromium.launch({
+		headless: true,
+		executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
+	});
 	try {
 		const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+		await page.goto(`http://127.0.0.1:${port}/scripts/geographicMaterialHarness.html`, { waitUntil: 'domcontentloaded', timeout: 15000 });
 		const result = await page.evaluate(async () => {
 			const THREE = await import('three');
 			const {
@@ -69,16 +72,18 @@ async function main() {
 			const uniforms = water.material.uniforms;
 			for (const name of [
 				'uTime', 'uShallowColor', 'uDeepColor', 'uSunDirection', 'uSunColor', 'uSunIntensity',
-				'uCameraPosition', 'uDepthMap', 'uDepthFieldExtentMeters', 'uSwellStrength', 'uFarLayerMask',
+				'uNightFactor', 'uCameraPosition', 'uDepthMap', 'uDepthFieldExtentMeters', 'uSwellStrength', 'uFarLayerMask',
 			]) fail(Boolean(uniforms?.[name]), `water uniform ${name} is missing`);
 			fail(Boolean(uniforms?.fogColor && uniforms?.fogNear && uniforms?.fogFar && uniforms?.fogDensity), 'water fog uniforms are missing');
-			fail(uniforms.uShallowColor.value.getHex() === 0x53899a, 'shallow-water base hue drifted');
-			fail(uniforms.uDeepColor.value.getHex() === 0x0c2c4a, 'deep-water base hue drifted');
+			fail(uniforms.uShallowColor.value.getHex() === 0x6aa39c, 'reference clear-shore hue drifted');
+			fail(uniforms.uDeepColor.value.getHex() === 0x092941, 'reference deep-sea hue drifted');
 
 			const optical = water.userData.opticalProfile;
 			fail(optical?.shallowAlpha === 0.14 && optical?.deepAlpha === 0.90, 'depth-clear optical alpha profile drifted');
 			fail(optical.attenuation === 3.2 && optical.celestialSpecular === true, 'optical attenuation/celestial profile drifted');
 			fail(optical.shallowAlpha < 0.2 && optical.deepAlpha >= 0.88, 'shallow water must stay bed-readable while deep water stays substantial');
+			fail(optical.enclosedLakeBedReadable === true && optical.clearCoastalDepthBand === true, 'explicit lake/coast clarity metadata disappeared');
+			fail(optical.nightAbsorptionFromCelestialState === true, 'water night-response metadata disappeared');
 
 			const vertexShader = water.material.vertexShader;
 			const fragmentShader = water.material.fragmentShader;
@@ -86,6 +91,9 @@ async function main() {
 			fail(fragmentShader.includes('smoothstep(0.04, 0.82, fragmentDepth)'), 'extended shallow-to-deep color grading disappeared');
 			fail(fragmentShader.includes('1.0 - exp(-fragmentDepth * 3.2)'), 'Beer-Lambert-inspired optical depth disappeared');
 			fail(fragmentShader.includes('uSunColor') && fragmentShader.includes('uSunIntensity') && fragmentShader.includes('celestialSpecular'), 'live celestial water specular disappeared');
+			for (const token of ['enclosedLakeMask', 'clearCoastMask', 'referenceLakeClear', 'bedReadability', 'uNightFactor', 'nightAbsorption']) {
+				fail(fragmentShader.includes(token), `water reference-optics shader missing ${token}`);
+			}
 			fail(fragmentShader.includes('nearLayerDistance < 1999.5') && fragmentShader.includes('discard'), 'near/far double-alpha mask disappeared');
 			fail(fragmentShader.includes('#include <fog_pars_fragment>') && fragmentShader.includes('#include <fog_fragment>'), 'water fog chunks drifted');
 
@@ -104,6 +112,7 @@ async function main() {
 			updateWater(water, camera, 12.5);
 			fail(vectorClose(uniforms.uSunDirection.value, new THREE.Vector3(0.6, 0.8, 0)), 'water did not copy live sun direction');
 			fail(close(uniforms.uSunIntensity.value, 1.25), 'water did not copy live sun intensity');
+			fail(close(uniforms.uNightFactor.value, 0), 'water daylight night-factor drifted');
 			fail(uniforms.uSunColor.value.getHex() === 0xffb366, 'water did not copy live sun colour');
 			fail(vectorClose(uniforms.uCameraPosition.value, camera), 'water camera uniform drifted');
 			fail(close(water.position.x, camera.x) && close(water.position.z, camera.z) && close(water.position.y, waterLevel), 'water camera-follow drifted');
@@ -122,6 +131,7 @@ async function main() {
 			fail(vectorClose(uniforms.uSunDirection.value, new THREE.Vector3(-0.6, 0.8, 0)), 'water did not switch specular direction to moon');
 			fail(close(uniforms.uSunIntensity.value, 0.5), 'water did not switch specular intensity to moon');
 			fail(uniforms.uSunColor.value.getHex() === 0xc8dcff, 'water did not switch specular colour to moon');
+			fail(close(uniforms.uNightFactor.value, 1), 'water did not copy live celestial night factor');
 
 			const positions = water.geometry.getAttribute('position');
 			const index = water.geometry.index;
@@ -156,7 +166,7 @@ async function main() {
 
 		assert(result.vertexCount === 16641 && result.indexCount === 98304, 'water topology mismatch escaped browser contract');
 		assert(result.backdropExtent === 28000, 'deep-ocean backdrop contract escaped browser validation');
-		console.log(`[checkWaterVisualContract] PASS: depth-clear ${result.optical.shallowAlpha.toFixed(2)}→${result.optical.deepAlpha.toFixed(2)} alpha, live sun/moon specular, near/far/deep-ocean composition, ${result.vertexCount} near-water vertices.`);
+		console.log(`[checkWaterVisualContract] PASS: depth-clear ${result.optical.shallowAlpha.toFixed(2)}��'${result.optical.deepAlpha.toFixed(2)} alpha, live sun/moon specular, near/far/deep-ocean composition, ${result.vertexCount} near-water vertices.`);
 	} finally {
 		await browser.close();
 		await new Promise((resolve) => server.close(resolve));
@@ -167,3 +177,4 @@ main().catch((error) => {
 	console.error(`[checkWaterVisualContract] FAIL: ${error?.stack || error}`);
 	process.exit(1);
 });
+

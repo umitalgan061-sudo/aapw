@@ -12,6 +12,7 @@ import { northReferenceCryosphereAtWorldXZ } from './northReferenceCryosphere.js
 import { signedFbmNoise } from './terrainReliefDetail.js';
 import { resolveTerrainWindSnowAdjustment } from './terrainWindSnowExposure.js';
 import { resolveTerrainSnowSurfaceTone } from './terrainSnowSurfaceTone.js';
+import { GEOGRAPHIC_REFERENCE_PALETTE, GEOGRAPHIC_REFERENCE_PALETTE_POLICY } from './geographicReferencePalette.js';
 
 const TAU = Math.PI * 2;
 const clamp01 = (value) => (value < 0 ? 0 : value > 1 ? 1 : value);
@@ -173,6 +174,31 @@ export const TERRAIN_BIOME_PALETTE = Object.freeze({
 	SNOW: new THREE.Color(0xf4f6f7),
 	PACKED_SNOW: new THREE.Color(0xdce8ed),
 	ACCUMULATED_SNOW: new THREE.Color(0xf8f5ef),
+});
+
+// Additive photogrammetry calibration: the proven biome classifier above still decides *where*
+// every surface appears; these restrained blends only align its output with the shared real-world
+// palette. Object.freeze protects the palette shape while THREE.Color remains intentionally mutable.
+const REFERENCE_TERRAIN = GEOGRAPHIC_REFERENCE_PALETTE.terrain;
+TERRAIN_BIOME_PALETTE.GRASS_LOW.lerp(new THREE.Color(REFERENCE_TERRAIN.meadow), 0.34);
+TERRAIN_BIOME_PALETTE.MEADOW.lerp(new THREE.Color(REFERENCE_TERRAIN.meadow), 0.42);
+TERRAIN_BIOME_PALETTE.GRASS_MID.lerp(new THREE.Color(REFERENCE_TERRAIN.dryHeather), 0.30);
+TERRAIN_BIOME_PALETTE.HEATH.lerp(new THREE.Color(REFERENCE_TERRAIN.dryHeather), 0.48);
+TERRAIN_BIOME_PALETTE.DRY_UPLAND.lerp(new THREE.Color(REFERENCE_TERRAIN.exposedEarth), 0.32);
+TERRAIN_BIOME_PALETTE.FOREST.lerp(new THREE.Color(REFERENCE_TERRAIN.mossShadow), 0.46);
+TERRAIN_BIOME_PALETTE.ROCK_WARM.lerp(new THREE.Color(REFERENCE_TERRAIN.graniteSunlit), 0.34);
+TERRAIN_BIOME_PALETTE.ROCK_COOL.lerp(new THREE.Color(REFERENCE_TERRAIN.graniteShadow), 0.38);
+TERRAIN_BIOME_PALETTE.ROCK_EROSION.lerp(new THREE.Color(REFERENCE_TERRAIN.basaltWet), 0.46);
+TERRAIN_BIOME_PALETTE.ROCK_IRON.lerp(new THREE.Color(REFERENCE_TERRAIN.exposedEarth), 0.32);
+TERRAIN_BIOME_PALETTE.ROCK_QUARTZ.lerp(new THREE.Color(REFERENCE_TERRAIN.quartz), 0.44);
+TERRAIN_BIOME_PALETTE.ROCK_STRATA_LIGHT.lerp(new THREE.Color(REFERENCE_TERRAIN.graniteSunlit), 0.58);
+TERRAIN_BIOME_PALETTE.ROCK_EROSION.lerp(new THREE.Color(REFERENCE_TERRAIN.basaltWet), 0.24);
+TERRAIN_BIOME_PALETTE.ROCK_IRON.lerp(new THREE.Color(REFERENCE_TERRAIN.exposedEarth), 0.18);
+
+export const TERRAIN_REFERENCE_PALETTE_CALIBRATION = Object.freeze({
+	policyId: GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id,
+	classificationAuthorityUnchanged: true,
+	photogrammetryCalibrated: true,
 });
 
 function latticeHash01(ix, iz) {
@@ -696,3 +722,4 @@ export function slopeDegreesFromNeighbours(heightWest, heightEast, heightNorth, 
 	const gradientZ = (heightSouth - heightNorth) / (2 * spacingMeters);
 	return Math.atan(Math.hypot(gradientX, gradientZ)) * 180 / Math.PI;
 }
+

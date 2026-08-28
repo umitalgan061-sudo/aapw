@@ -97,6 +97,8 @@ async function main() {
 			fail(style.dryMineralVariation === true, 'dry-mineral geographic variation disappeared');
 			fail(style.worldSpaceMultiScaleWeathering === true, 'world-space multi-scale weathering disappeared');
 			fail(style.roughnessVariation === true, 'road roughness variation disappeared');
+			fail(style.photogrammetryShoulderMoss === true, 'photogrammetry-calibrated moss shoulder disappeared');
+			fail(style.referencePalettePolicyId?.includes('geographic-reference-palette'), 'shared reference palette metadata disappeared');
 			fail(style.extraDrawCalls === 0, 'road surface must not add draw-call meshes');
 			fail(mesh.material.customProgramCacheKey() === 'run177-medieval-road-surface-v3-world-weathering', 'program cache key drifted');
 
@@ -121,6 +123,9 @@ async function main() {
 				'run177ShoulderWear',
 				'run177MineralDust',
 				'run177RoughField',
+				'run177DampRut',
+				'run177MossShoulder',
+				'run177DustReference',
 			]) {
 				fail(shader.fragmentShader.includes(token), `fragment shader missing ${token}`);
 			}
@@ -168,3 +173,4 @@ main().catch((error) => {
 	console.error(`[checkMedievalRoadSurface] FAIL: ${error?.stack || error}`);
 	process.exit(1);
 });
+

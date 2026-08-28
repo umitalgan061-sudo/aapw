@@ -9,13 +9,17 @@ on:
       - 'src/3d/world/rivers.js'
       - 'src/3d/world/roads.js'
       - 'src/3d/world/terrainBiomeShading.js'
+      - 'src/3d/world/geographicReferencePalette.js'
       - 'scripts/checkWaterVisualContract.js'
       - 'scripts/checkRoadVisualContract.js'
       - 'scripts/checkMedievalRoadSurface.js'
       - 'scripts/roadContractHarness.html'
       - 'scripts/checkGeographicRiverVisualContract.js'
       - 'scripts/checkGeologicalRockSurface.js'
+      - 'scripts/checkLightingVisualContract.js'
       - 'scripts/geographicRiverHarness.html'
+      - 'scripts/geographicMaterialHarness.html'
+      - 'scripts/checkGeographicReferencePalette.mjs'
       - '.github/workflows/geographic-visual-realism.yml'
   workflow_dispatch:
 
@@ -58,14 +62,23 @@ jobs:
           node --check src/3d/world/rivers.js
           node --check src/3d/world/roads.js
           node --check src/3d/world/terrainBiomeShading.js
+          node --check src/3d/world/geographicReferencePalette.js
           node --check scripts/checkWaterVisualContract.js
           node --check scripts/checkRoadVisualContract.js
           node --check scripts/checkMedievalRoadSurface.js
           node --check scripts/checkGeographicRiverVisualContract.js
           node --check scripts/checkGeologicalRockSurface.js
+          node --check scripts/checkLightingVisualContract.js
+          node --check scripts/checkGeographicReferencePalette.mjs
+
+      - name: Shared photogrammetry reference palette contract
+        run: node scripts/checkGeographicReferencePalette.mjs
 
       - name: Water optical and celestial contract
         run: node scripts/checkWaterVisualContract.js
+
+      - name: Sun moon orbit and material-light response
+        run: node scripts/checkLightingVisualContract.js
 
       - name: Geographic road material contracts
         shell: bash
@@ -82,3 +95,4 @@ jobs:
 
       - name: Diff whitespace
         run: git diff --check HEAD^ HEAD
+

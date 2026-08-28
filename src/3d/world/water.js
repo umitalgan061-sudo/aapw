@@ -12,6 +12,15 @@
 
 import * as THREE from 'three';
 import { getCelestialLightState } from '../celestialLightState.js';
+import { GEOGRAPHIC_REFERENCE_PALETTE, GEOGRAPHIC_REFERENCE_PALETTE_POLICY } from './geographicReferencePalette.js';
+
+const REFERENCE_WATER_COLORS = Object.freeze({
+	shoreClear: new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.water.shoreClear),
+	lakeClear: new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.water.lakeClear),
+	deepSea: new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.water.deepSea),
+	abyss: new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.water.abyss),
+	foam: new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.water.foam),
+});
 
 export const SWELL_COMPONENTS = Object.freeze([
 	Object.freeze([200, 1.05, 1.0, 0.28]),
@@ -94,6 +103,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	uniform vec3 uSunDirection;
 	uniform vec3 uSunColor;
 	uniform float uSunIntensity;
+	uniform float uNightFactor;
 	uniform vec3 uCameraPosition;
 	uniform sampler2D uDepthMap;
 	uniform sampler2D uOffshoreMap;
@@ -204,6 +214,9 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		if (waterCoverage <= 0.01) discard;
 
 		float offshoreOptical = smoothstep(0.08, 0.92, sampleOffshoreOptical(vWorldPosition.xz));
+		float enclosedLakeMask = (1.0 - offshoreOptical) * (1.0 - uFarLayerMask);
+		float clearShallowBand = 1.0 - smoothstep(0.10, 0.52, fragmentDepth);
+		float clearCoastMask = clearShallowBand * smoothstep(0.08, 0.74, offshoreOptical);
 		float offshoreGain = offshoreOptical * (1.0 - fragmentDepth) * ${WATER_OFFSHORE_OPTICAL_GAIN.toFixed(2)};
 		float deepMarineMask = smoothstep(0.54, 0.96, fragmentDepth) * smoothstep(0.42, 0.94, offshoreOptical);
 		float oceanFabric = openOceanSurfaceFabric(vWorldPosition.xz);
@@ -225,6 +238,10 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		vec3 sedimentTint = mix(uDeepColor, vec3(0.37, 0.50, 0.48), 0.78);
 		bodyColor = mix(bodyColor, sedimentTint, max(shelfMottle, 0.0) * 0.34 * shelfVisibility);
 		bodyColor = mix(bodyColor, uDeepColor, max(-shelfMottle, 0.0) * 0.20 * shelfVisibility);
+		vec3 referenceLakeClear = vec3(${REFERENCE_WATER_COLORS.lakeClear.r.toFixed(4)}, ${REFERENCE_WATER_COLORS.lakeClear.g.toFixed(4)}, ${REFERENCE_WATER_COLORS.lakeClear.b.toFixed(4)});
+		vec3 referenceShoreClear = vec3(${REFERENCE_WATER_COLORS.shoreClear.r.toFixed(4)}, ${REFERENCE_WATER_COLORS.shoreClear.g.toFixed(4)}, ${REFERENCE_WATER_COLORS.shoreClear.b.toFixed(4)});
+		bodyColor = mix(bodyColor, referenceLakeClear, enclosedLakeMask * clearShallowBand * 0.34);
+		bodyColor = mix(bodyColor, referenceShoreClear, clearCoastMask * 0.24);
 
 		// Deep open water gets bounded kilometre- and hectometre-scale variation independent of
 		// physical depth. Current shear is masked to boundary-connected offshore water, so enclosed
@@ -235,6 +252,8 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float currentMix = clamp(0.5 + oceanFabric * 0.26 + oceanShear * 0.34, 0.0, 1.0);
 		vec3 currentTint = mix(vec3(0.018, 0.043, 0.066), vec3(0.060, 0.125, 0.148), currentMix);
 		bodyColor = mix(bodyColor, currentTint, (abs(oceanFabric) * 0.075 + abs(oceanShear) * 0.095) * deepMarineMask);
+		vec3 nightAbsorption = vec3(0.010, 0.030, 0.052);
+		bodyColor = mix(bodyColor, bodyColor * 0.62 + nightAbsorption, clamp(uNightFactor, 0.0, 1.0) * 0.34);
 
 		float fresnel = pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 3.0);
 		vec3 baseColor = mix(bodyColor, uShallowColor, fresnel * 0.48);
@@ -259,12 +278,15 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		shallowMask *= shorelineGradientMask(vWorldPosition.xz) * waterCoverage;
 		float foam = clamp(shallowMask * surge, 0.0, 1.0);
 
-		vec3 color = mix(baseColor + celestialSpecular, vec3(0.90, 0.95, 0.96), foam * 0.76);
+		vec3 referenceFoam = vec3(${REFERENCE_WATER_COLORS.foam.r.toFixed(4)}, ${REFERENCE_WATER_COLORS.foam.g.toFixed(4)}, ${REFERENCE_WATER_COLORS.foam.b.toFixed(4)});
+		vec3 color = mix(baseColor + celestialSpecular, referenceFoam, foam * 0.76);
 		float opticalDepth = 1.0 - exp(-fragmentDepth * 3.2);
 		float offshoreAbsorption = 1.0 - exp(-offshoreGain * 3.4);
 		opticalDepth = 1.0 - (1.0 - opticalDepth) * (1.0 - offshoreAbsorption);
 		float alpha = mix(0.14, 0.90, opticalDepth);
 		alpha *= 1.0 + shelfMottle * 0.22;
+		float bedReadability = max(enclosedLakeMask * clearShallowBand * 0.30, clearCoastMask * 0.18);
+		alpha *= 1.0 - bedReadability;
 		alpha *= waterCoverage;
 
 		gl_FragColor = vec4(color, max(alpha, foam * 0.78));
@@ -283,6 +305,9 @@ export const WATER_PLANE_SEGMENTS_MOBILE = 192;
 const DEFAULT_SHALLOW_COLOR = new THREE.Color(0x53899a);
 const DEFAULT_DEEP_COLOR = new THREE.Color(0x0c2c4a);
 const DEFAULT_DEEP_OCEAN_BACKDROP_COLOR = new THREE.Color(0x071827);
+DEFAULT_SHALLOW_COLOR.copy(REFERENCE_WATER_COLORS.shoreClear);
+DEFAULT_DEEP_COLOR.copy(REFERENCE_WATER_COLORS.deepSea);
+DEFAULT_DEEP_OCEAN_BACKDROP_COLOR.copy(REFERENCE_WATER_COLORS.abyss);
 const DEFAULT_SUN_DIRECTION = new THREE.Vector3(300, 400, 200).normalize();
 const DEFAULT_SUN_COLOR = new THREE.Color(0xffe2a1);
 
@@ -324,6 +349,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 				uSunDirection: { value: DEFAULT_SUN_DIRECTION },
 				uSunColor: { value: DEFAULT_SUN_COLOR },
 				uSunIntensity: { value: 1 },
+				uNightFactor: { value: 0 },
 				uCameraPosition: { value: new THREE.Vector3() },
 				uDepthMap: { value: PLACEHOLDER_DEPTH_TEXTURE },
 				uOffshoreMap: { value: PLACEHOLDER_OFFSHORE_TEXTURE },
@@ -349,6 +375,10 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		celestialSpecular: true,
 		deepMarineSurfaceVariation: WATER_SURFACE_VARIATION_POLICY.id,
 		variableRoughness: true,
+		referencePalettePolicyId: GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id,
+		enclosedLakeBedReadable: true,
+		clearCoastalDepthBand: true,
+		nightAbsorptionFromCelestialState: true,
 	});
 
 	const farGeometry = new THREE.PlaneGeometry(WATER_FULL_WORLD_EXTENT_METERS, WATER_FULL_WORLD_EXTENT_METERS, 1, 1);
@@ -414,6 +444,7 @@ export function updateWater(waterMesh, cameraPosition, elapsedSeconds) {
 		uniforms.uSunDirection.value.set(celestial.direction.x, celestial.direction.y, celestial.direction.z);
 		uniforms.uSunColor.value.setRGB(celestial.color.r, celestial.color.g, celestial.color.b);
 		uniforms.uSunIntensity.value = celestial.intensity;
+		uniforms.uNightFactor.value = celestial.nightFactor;
 	}
 }
 
@@ -443,3 +474,4 @@ export function disposeWater(waterMesh) {
 		waterMesh.userData.depthField = null;
 	}
 }
+
