@@ -319,6 +319,7 @@ export async function createNPC({
 	let suspicion = 0;
 	let lastKnownPlayer = null;
 	let investigationRemaining = 0;
+	let returningToRoute = false;
 	let previousPlayerPosition = null;
 	const simulationLod = createNpcSimulationLod({
 		id: name ?? displayName ?? modelUrl,
@@ -378,10 +379,12 @@ export async function createNPC({
 				const noiseStrength = Math.max(0, Math.min(1, (playerSpeedMps - 1.5) / 5.5));
 				heard = !awareness.visible && noiseStrength > 0 && distanceToPlayer <= Math.max(4, combatStanceTriggerRadiusMeters * 0.8) * noiseStrength;
 				if (awareness.visible) {
+					returningToRoute = true;
 					suspicion = Math.min(1, suspicion + simulationDelta / 0.22);
 					lastKnownPlayer = { x: playerPosition.x, z: playerPosition.z };
 					investigationRemaining = Math.max(investigationRemaining, 2 + distanceToPlayer / Math.max(0.25, speedMps * 0.85));
 				} else if (heard) {
+					returningToRoute = true;
 					suspicion = Math.min(1, suspicion + simulationDelta * 0.72 * noiseStrength);
 					lastKnownPlayer = { x: playerPosition.x, z: playerPosition.z };
 					investigationRemaining = Math.max(investigationRemaining, 1.25 + distanceToPlayer / Math.max(0.25, speedMps * 0.85));
@@ -406,6 +409,7 @@ export async function createNPC({
 				if (!awareness.visible && assist.accepted && assist.lastKnown) {
 					assisted = true;
 					assistSourceId = assist.sourceId;
+					returningToRoute = true;
 					suspicion = Math.max(suspicion, 0.35);
 					lastKnownPlayer = { ...assist.lastKnown };
 					investigationRemaining = Math.max(investigationRemaining, 1.5 + assist.sourceDistanceMeters / Math.max(0.25, speedMps));
@@ -429,8 +433,10 @@ export async function createNPC({
 					perceptionIntent = distanceToPlayer > combatEngageRadiusMeters ? 'chase' : 'combat';
 				} else if (awareness.visible) {
 					perceptionIntent = 'observe';
+				} else if (lastKnownPlayer && investigationRemaining > 0) {
+					perceptionIntent = 'investigate';
 				} else {
-					perceptionIntent = lastKnownPlayer && investigationRemaining > 0 ? 'investigate' : 'patrol';
+					perceptionIntent = returningToRoute ? 'return' : 'patrol';
 				}
 				model.userData.npcPerception = {
 					intent: perceptionIntent,
@@ -444,6 +450,7 @@ export async function createNPC({
 					lineOfSightSamples: los.samples,
 					engageRadiusMeters: Number(combatEngageRadiusMeters.toFixed(3)),
 					investigationRemaining: Number(investigationRemaining.toFixed(3)),
+					returningToRoute,
 					lastKnown: lastKnownPlayer ? { ...lastKnownPlayer } : null,
 				};
 			}
@@ -464,6 +471,20 @@ export async function createNPC({
 				playAction(moved ? (walkAction || idleAction) : idleAction);
 			} else if (perceptionEnabled && perceptionIntent === 'investigate' && lastKnownPlayer) {
 				const moved = moveNpcToward(model, lastKnownPlayer, speedMps * 0.85, simulationDelta, groundCollider, playerCollider, turnRateRadiansPerSecond);
+				playAction(moved ? (walkAction || idleAction) : idleAction);
+			} else if (perceptionEnabled && perceptionIntent === 'return') {
+				const returnTarget = isPatrolling ? patrolWaypoints[waypointIndex % patrolWaypoints.length] : homePosition;
+				const distanceToRoute = Math.hypot(model.position.x - returnTarget.x, model.position.z - returnTarget.z);
+				const moved = moveNpcToward(model, returnTarget, speedMps * 0.8, simulationDelta, groundCollider, playerCollider, turnRateRadiansPerSecond, 0.35);
+				if (!moved && distanceToRoute <= 0.35) {
+					returningToRoute = false;
+					lastKnownPlayer = null;
+					if (model.userData.npcPerception) {
+						model.userData.npcPerception.intent = 'patrol';
+						model.userData.npcPerception.returningToRoute = false;
+						model.userData.npcPerception.lastKnown = null;
+					}
+				}
 				playAction(moved ? (walkAction || idleAction) : idleAction);
 			} else if (isPatrolling) {
 				if (pauseTimer > 0) {
