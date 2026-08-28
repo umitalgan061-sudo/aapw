@@ -28,6 +28,7 @@ try {
 		const { DialogueBox } = await import('/src/3d/ui/dialogueBox.js');
 		const { createInteractionController } = await import('/src/3d/gameplay/interaction.js');
 		const { QUARTERMASTER_NPC_ID, QUARTERMASTER_OFFERS } = await import('/src/3d/gameplay/interactionEconomy.js');
+		const { FIELD_READINESS_TIER } = await import('/src/3d/gameplay/interactionFieldReadiness.js');
 		const armorer = QUARTERMASTER_OFFERS[1];
 		const ration = QUARTERMASTER_OFFERS[0];
 		const prep = QUARTERMASTER_OFFERS[2];
@@ -61,7 +62,9 @@ try {
 
 		const runtime = makeRuntime();
 		const boosted = runtime.controller.getRpgSnapshot();
-		boosted.economy.copper = 60;
+		boosted.economy.copper = 48;
+		boosted.economy.stockByOffer[armorer.id] = 1;
+		boosted.inventory = { items: [{ itemId: 'dragonstone-whetstone', quantity: 1, provenance: [{ sourceType: 'browser-fixture', sourceId: 'expedition-kit' }] }] };
 		runtime.controller.restoreRpgSnapshot(boosted);
 		runtime.events.inventory.length = 0;
 		runtime.events.economy.length = 0;
@@ -94,12 +97,17 @@ try {
 			&& item(after.inventory, 'dragonstone-whetstone') == null
 			&& item(after.inventory, 'dragonstone-travel-ration-pack') == null
 			&& kit?.quantity === 1
+			&& after.inventory.fieldReadiness.tier === FIELD_READINESS_TIER.EXPEDITION_READY
+			&& after.inventory.fieldReadiness.score === 100
+			&& after.inventory.fieldReadiness.equipped?.itemId === recipe.outputItemId
+			&& after.inventory.fieldReadiness.capabilities.fastTravelEligible === true
+			&& after.inventory.fieldReadiness.capabilities.survivalBuffer === true
 			&& provenance?.sourceType === 'settlement-crafting'
 			&& provenance?.sourceId === recipe.recipeId
 			&& receipt?.offerId === armorer.id
 			&& receipt?.balanceCopper === 19;
-		const callbacks = runtime.events.inventory.length === 5
-			&& runtime.events.economy.length === 5
+		const callbacks = runtime.events.inventory.length === 4
+			&& runtime.events.economy.length === 4
 			&& item(runtime.events.inventory.at(-1), recipe.outputItemId)?.quantity === 1;
 
 		const saved = structuredClone(after);
@@ -115,6 +123,9 @@ try {
 		const persisted = roundTrip.economy.copper === 19
 			&& restoredKit?.quantity === 1
 			&& restoredKit?.provenance?.at(-1)?.sourceId === recipe.recipeId
+			&& roundTrip.inventory.fieldReadiness.tier === FIELD_READINESS_TIER.EXPEDITION_READY
+			&& roundTrip.inventory.fieldReadiness.equipped?.itemId === recipe.outputItemId
+			&& inventoryText.includes('Sefer hazırlığı: SEFERE HAZIR · 100/100')
 			&& inventoryText.includes('Dragonstone Sefer Bakım Kiti')
 			&& inventoryText.includes(`Kaynak: settlement-crafting/${recipe.recipeId}`);
 

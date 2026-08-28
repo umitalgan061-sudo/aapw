@@ -20,16 +20,21 @@ const inventory = createInteractionInventoryState();
 const economy = createInteractionEconomyState(60);
 const grant = (...args) => inventory.grant(...args);
 
+const beforeMissingInputsInventory = structuredClone(inventory.snapshot());
+const beforeMissingInputsEconomy = structuredClone(economy.snapshot());
 let result = economy.purchase(armorer, grant);
-assert.equal(result.ok, true, 'first armorer service remains backwards-compatible and grants a whetstone');
-assert.equal(result.crafted, false);
-assert.equal(item(inventory.snapshot(), 'dragonstone-whetstone')?.quantity, 1);
-assert.equal(economy.snapshot().copper, 48);
-assert.equal(economy.snapshot().stockByOffer[armorer.id], 1);
+assert.equal(result.ok, false, 'authored smithing must fail closed when recipe inputs are missing');
+assert.equal(result.reason, 'craft-input-missing');
+assert.deepEqual(inventory.snapshot(), beforeMissingInputsInventory, 'missing-input smithing must not grant a paid fallback item');
+assert.deepEqual(economy.snapshot(), beforeMissingInputsEconomy, 'missing-input smithing must not debit copper, finite stock or ledger state');
 
 assert.equal(inventory.grant('dragonstone-travel-ration-pack', 1, {
 	sourceType: 'settlement-crafting',
 	sourceId: 'dragonstone-watch-travel-ration-pack',
+}), true);
+assert.equal(inventory.grant('dragonstone-whetstone', 1, {
+	sourceType: 'expedition-mastery',
+	sourceId: 'dragonstone-expedition-mastery',
 }), true);
 const beforeCraft = structuredClone(inventory.snapshot());
 assert.equal(item(beforeCraft, 'dragonstone-whetstone')?.quantity, 1);
@@ -40,8 +45,8 @@ assert.equal(result.ok, true);
 assert.equal(result.crafted, true);
 assert.equal(result.craftedItemId, recipe.outputItemId);
 assert.deepEqual(result.consumedItems, recipe.inputs, 'successful multi-input craft must report both canonical consumed ingredients');
-assert.equal(result.balanceCopper, 36);
-assert.equal(result.remainingStock, 0);
+assert.equal(result.balanceCopper, 48);
+assert.equal(result.remainingStock, 1);
 const crafted = inventory.snapshot();
 assert.equal(item(crafted, 'dragonstone-whetstone'), null);
 assert.equal(item(crafted, 'dragonstone-travel-ration-pack'), null);
@@ -50,8 +55,8 @@ assert.deepEqual(item(crafted, recipe.outputItemId)?.provenance, [{
 	sourceType: 'settlement-crafting',
 	sourceId: recipe.recipeId,
 }]);
-assert.equal(economy.snapshot().ledger.transactionCount, 2);
-assert.equal(economy.snapshot().ledger.lifetimeSpentCopper, 24);
+assert.equal(economy.snapshot().ledger.transactionCount, 1);
+assert.equal(economy.snapshot().ledger.lifetimeSpentCopper, 12);
 
 const restored = createInteractionInventoryState();
 restored.restore(crafted);
@@ -59,12 +64,8 @@ assert.deepEqual(restored.snapshot(), crafted, 'crafted expedition kit must surv
 
 const outputFullInventory = createInteractionInventoryState();
 const outputFullEconomy = createInteractionEconomyState(60);
-assert.equal(
-	outputFullEconomy.purchase(armorer, (...args) => outputFullInventory.grant(...args)).ok,
-	true,
-	'output-full rollback fixture must first obtain its whetstone through the normal armorer fallback',
-);
 assert.equal(outputFullInventory.grant('dragonstone-travel-ration-pack', 1), true);
+assert.equal(outputFullInventory.grant('dragonstone-whetstone', 1), true);
 assert.equal(outputFullInventory.grant(recipe.outputItemId, 1), true);
 const outputFullBeforeInventory = structuredClone(outputFullInventory.snapshot());
 const outputFullBeforeEconomy = structuredClone(outputFullEconomy.snapshot());
@@ -77,11 +78,13 @@ assert.deepEqual(outputFullEconomy.snapshot(), outputFullBeforeEconomy, 'output-
 const missingInputInventory = createInteractionInventoryState();
 assert.equal(missingInputInventory.grant('dragonstone-travel-ration-pack', 1), true);
 const missingInputEconomy = createInteractionEconomyState(60);
+const missingInputBeforeInventory = structuredClone(missingInputInventory.snapshot());
+const missingInputBeforeEconomy = structuredClone(missingInputEconomy.snapshot());
 result = missingInputEconomy.purchase(armorer, (...args) => missingInputInventory.grant(...args));
-assert.equal(result.ok, true);
-assert.equal(result.crafted, false);
-assert.equal(item(missingInputInventory.snapshot(), 'dragonstone-travel-ration-pack')?.quantity, 1);
-assert.equal(item(missingInputInventory.snapshot(), 'dragonstone-whetstone')?.quantity, 1, 'missing recipe input falls back to normal service fulfillment without consuming the pack');
+assert.equal(result.ok, false);
+assert.equal(result.reason, 'craft-input-missing');
+assert.deepEqual(missingInputInventory.snapshot(), missingInputBeforeInventory, 'partial recipe availability must preserve inventory atomically');
+assert.deepEqual(missingInputEconomy.snapshot(), missingInputBeforeEconomy, 'partial recipe availability must not mutate economy state');
 
 const duplicateInputInventory = createInteractionInventoryState();
 assert.equal(duplicateInputInventory.grant('dragonstone-field-ration', 2), true);
@@ -109,4 +112,4 @@ assert.deepEqual(item(duplicateInputInventory.snapshot(), recipe.outputItemId)?.
 	sourceId: duplicateInputRecipe.recipeId,
 }]);
 
-console.log('PASS checkInteractionExpeditionKitCraft: armorer service supports atomic two-input smithing, rollback, fallback, duplicate-input canonicalization, ledger debit and save/load.');
+console.log('PASS checkInteractionExpeditionKitCraft: authored smithing fails closed, crafts atomically, rolls back safely, canonicalizes duplicate inputs, debits ledger once and survives save/load.');
