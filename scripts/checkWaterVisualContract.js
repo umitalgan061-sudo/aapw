@@ -166,7 +166,7 @@ async function main() {
 
 		assert(result.vertexCount === 16641 && result.indexCount === 98304, 'water topology mismatch escaped browser contract');
 		assert(result.backdropExtent === 28000, 'deep-ocean backdrop contract escaped browser validation');
-		console.log(`[checkWaterVisualContract] PASS: depth-clear ${result.optical.shallowAlpha.toFixed(2)}��'${result.optical.deepAlpha.toFixed(2)} alpha, live sun/moon specular, near/far/deep-ocean composition, ${result.vertexCount} near-water vertices.`);
+		console.log(`[checkWaterVisualContract] PASS: depth-clear ${result.optical.shallowAlpha.toFixed(2)}→${result.optical.deepAlpha.toFixed(2)} alpha, live sun/moon specular, near/far/deep-ocean composition, ${result.vertexCount} near-water vertices.`);
 	} finally {
 		await browser.close();
 		await new Promise((resolve) => server.close(resolve));
@@ -177,4 +177,3 @@ main().catch((error) => {
 	console.error(`[checkWaterVisualContract] FAIL: ${error?.stack || error}`);
 	process.exit(1);
 });
-

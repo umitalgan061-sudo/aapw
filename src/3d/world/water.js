@@ -474,4 +474,3 @@ export function disposeWater(waterMesh) {
 		waterMesh.userData.depthField = null;
 	}
 }
-

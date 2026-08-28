@@ -161,8 +161,8 @@ async function main() {
 		console.log(
 			`[checkGeologicalRockSurface] PASS: strata ${result.maxStrata.toFixed(2)}, mineral ${result.maxMineral.toFixed(2)}, ` +
 			`vein ${result.maxVein.toFixed(2)}, erosion ${result.maxErosion.toFixed(2)}, energy ` +
-			`${result.minEnergy.toFixed(3)}..${result.maxEnergy.toFixed(3)}, 10cm continuity �"${result.smoothDelta.toFixed(4)}, ` +
-			`exposed colour �" ${result.exposedDelta.toFixed(3)}, snow geology leak �" ${result.snowLeakDelta.toFixed(6)}.`,
+			`${result.minEnergy.toFixed(3)}..${result.maxEnergy.toFixed(3)}, 10cm continuity Δ${result.smoothDelta.toFixed(4)}, ` +
+			`exposed colour Δ ${result.exposedDelta.toFixed(3)}, snow geology leak Δ ${result.snowLeakDelta.toFixed(6)}.`,
 		);
 	} finally {
 		await browser.close();
@@ -174,4 +174,3 @@ main().catch((error) => {
 	console.error(`[checkGeologicalRockSurface] FAIL: ${error?.stack || error}`);
 	process.exit(1);
 });
-

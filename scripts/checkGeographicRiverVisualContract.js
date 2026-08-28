@@ -127,8 +127,8 @@ async function main() {
 
 		assert(result.rapidSpeed > result.calmSpeed, 'slope-speed relation escaped browser contract');
 		console.log(
-			`[checkGeographicRiverVisualContract] PASS: calm ${result.calmSpeed.toFixed(2)}m/s ��' rapid ` +
-			`${result.rapidSpeed.toFixed(2)}m/s, colour �" ${result.colorDistance.toFixed(3)}, ` +
+			`[checkGeographicRiverVisualContract] PASS: calm ${result.calmSpeed.toFixed(2)}m/s → rapid ` +
+			`${result.rapidSpeed.toFixed(2)}m/s, colour Δ ${result.colorDistance.toFixed(3)}, ` +
 			`${result.waterfallVertices}-vertex single-draw waterfall, apron spread x${result.apronSpread.toFixed(2)}.`,
 		);
 	} finally {
@@ -141,4 +141,3 @@ main().catch((error) => {
 	console.error(`[checkGeographicRiverVisualContract] FAIL: ${error?.stack || error}`);
 	process.exit(1);
 });
-

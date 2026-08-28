@@ -1,13 +1,13 @@
 /**
  * Rivers: a deterministic downhill-flow path traced over `terrain.js`'s existing height field
  * (via `createHeightSampler`), rendered as a flat ribbon mesh that follows the terrain surface.
- * `terrain.js` itself is not modified �?" same technique `world/water.js` uses for sea-level lakes
+ * `terrain.js` itself is not modified — same technique `world/water.js` uses for sea-level lakes
  * (ADR-0005): the path is *found* by walking the existing FBM noise downhill, not carved into it.
  * See DECISIONS.md ADR-0009 for why a path-tracing approach was chosen over terrain carving.
  *
  * Also detects and renders **waterfalls**: river segments whose drop/distance ratio is steep
  * enough to flag as a fall rather than a normal gentle descent (`detectWaterfalls`/
- * `createWaterfallMesh`) �?" see DECISIONS.md ADR-0011 for the exact thresholds (calibrated against
+ * `createWaterfallMesh`) — see DECISIONS.md ADR-0011 for the exact thresholds (calibrated against
  * this world's actual generated river, not guessed). The waterfall stays a schematic steep-section
  * visual over the smooth FBM terrain, but now combines its vertical curtain with a short downstream
  * plunge/splash apron in the same BufferGeometry so falling water does not visually stop at impact.
@@ -15,7 +15,7 @@
  * Scope of the first pass (see 3D_GAME_PROGRESS.md Known Issues): one static river near the
  * world origin, confined to the FAZ 1 preview area so it never renders over unloaded terrain.
  * That pass deliberately deferred "a real flow-animated shader for either the river or its
- * waterfalls" as follow-up work �?" **that follow-up is what `attachFlowAnimation` below now is**
+ * waterfalls" as follow-up work — **that follow-up is what `attachFlowAnimation` below now is**
  * (ADR-0271). Both the river ribbon and the waterfall curtains keep their `MeshStandardMaterial`
  * (so they still get `scene.fog` and the day/night lights for free, which was the original reason
  * for choosing it over a custom `ShaderMaterial`); the flow is injected into that stock material
@@ -24,7 +24,7 @@
  * The animation is driven by three baked vertex attributes rather than by screen- or UV-space
  * scrolling, so it follows the river's real geometry: `aFlowDistance` (arc length in meters from
  * the source, which is what makes the foam travel *downstream* rather than in some fixed world
- * direction), `aFlowSpeed` (per-vertex, derived from the local bed gradient �?" the river visibly
+ * direction), `aFlowSpeed` (per-vertex, derived from the local bed gradient — the river visibly
  * rushes through its steep sections and idles through its flat ones) and `aFlowSide` (-1..1 across
  * the ribbon, used to catch more foam against the banks than midstream).
  * @module world/rivers
@@ -35,7 +35,7 @@ import { mulberry32 } from './terrain.js';
 import { GEOGRAPHIC_REFERENCE_PALETTE, GEOGRAPHIC_REFERENCE_PALETTE_POLICY } from './geographicReferencePalette.js';
 
 /** Grid step, in meters, for the deterministic search that picks the river's source point (the
- * highest sampled point within `searchRadiusMeters` of the origin) �?" coarse enough to stay cheap
+ * highest sampled point within `searchRadiusMeters` of the origin) — coarse enough to stay cheap
  * (a few thousand height samples), fine enough not to miss the general shape of the high ground. */
 const SOURCE_SEARCH_STEP_METERS = 100;
 /** How many candidate downhill directions to test at each step of the flow walk. More directions
@@ -46,10 +46,10 @@ const DESCENT_CANDIDATE_COUNT = 12;
  * river instead of a mathematically-exact steepest-descent line. Seeded, not `Math.random()`. */
 const DESCENT_ANGLE_JITTER_RADIANS = 0.35;
 /** Multi-octave FBM terrain has many tiny local minima at fine-noise scale, not just the true
- * valleys a river should actually follow �?" naive single-radius steepest descent gets trapped by
+ * valleys a river should actually follow — naive single-radius steepest descent gets trapped by
  * them almost immediately (measured: ~10 points before "stuck", nowhere near sea level). If no
  * downhill candidate exists at `stepMeters`, retry at `stepMeters * 2^n` (up to this many times)
- * before giving up �?" effectively looks further ahead to step over small bumps while still
+ * before giving up — effectively looks further ahead to step over small bumps while still
  * preferring the smallest jump that finds a real descent. See DECISIONS.md ADR-0009. */
 const MAX_STUCK_ESCALATIONS = 4;
 
@@ -67,15 +67,15 @@ WATERFALL_PLUNGE_COLOR.lerp(new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.water.p
 WATERFALL_SPLASH_COLOR.lerp(new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.water.splash), 0.78);
 
 /** Flow speed, in m/s, of the foam pattern over a perfectly flat reach. Not a physical current
- * measurement �?" the speed the *visual* streaks travel at, tuned so a still-looking pool still reads
+ * measurement — the speed the *visual* streaks travel at, tuned so a still-looking pool still reads
  * as moving water. */
 const RIVER_BASE_FLOW_SPEED_MPS = 1.2;
 /** How much the local bed gradient adds to that speed, via `sqrt(grade)`. The square root (rather
- * than a linear term) is the shape open-channel flow actually follows �?" Manning/ChǸzy both give
- * velocity proportional to the square root of the slope �?" so the steep sections speed up markedly
+ * than a linear term) is the shape open-channel flow actually follows — Manning/Chézy both give
+ * velocity proportional to the square root of the slope — so the steep sections speed up markedly
  * while the near-flat majority of the river stays calm, instead of everything scaling together. */
 const RIVER_GRADE_FLOW_GAIN = 6;
-/** Spatial frequency of the foam streaks, in radians per meter �?" 1.0 gives ~6.3m between crests,
+/** Spatial frequency of the foam streaks, in radians per meter — 1.0 gives ~6.3m between crests,
  * about two streaks per river width at the default 14m. An earlier 0.35 (~18m) was tried first and
  * rejected on this run's own close-range evidence render: at one streak per two river widths the
  * pattern read as a single drifting blob rather than as moving water. The streaks are evaluated
@@ -93,7 +93,7 @@ const WATERFALL_APRON_FLOW_SPEED_MPS = 5.5;
  * `onBeforeCompile`, leaving its PBR/fog/lighting behaviour untouched (see the module doc comment
  * for why the material is not simply replaced with a `ShaderMaterial`).
  *
- * The mesh's geometry must already carry the `aFlowDistance`/`aFlowSpeed`/`aFlowSide` attributes �?"
+ * The mesh's geometry must already carry the `aFlowDistance`/`aFlowSpeed`/`aFlowSide` attributes —
  * `createRiverMesh` and `createWaterfallMesh` both bake them.
  * @param {THREE.MeshStandardMaterial} material Mutated in place.
  * @param {string} cacheKey Distinguishes this injected program from any other material three.js
@@ -183,13 +183,13 @@ export function updateFlowAnimation(mesh, elapsedSeconds) {
 /**
  * Traces a deterministic downhill flow path from the highest point within `searchRadiusMeters` of
  * the world origin down to sea level (or until it exits `maxRiverRadiusMeters`, gets stuck in a
- * local minimum, or hits `maxSteps` �?" whichever comes first).
+ * local minimum, or hits `maxSteps` — whichever comes first).
  * @param {object} options
- * @param {number} options.seed World seed �?" same seed always produces the same path.
+ * @param {number} options.seed World seed — same seed always produces the same path.
  * @param {(worldX: number, worldZ: number) => number} options.sampleHeightMeters `terrain.js`'s `createHeightSampler` output.
- * @param {number} options.seaLevelMeters `WORLD_DEFAULTS.WATER_LEVEL_METERS` �?" the walk stops once it reaches this height.
+ * @param {number} options.seaLevelMeters `WORLD_DEFAULTS.WATER_LEVEL_METERS` — the walk stops once it reaches this height.
  * @param {number} [options.searchRadiusMeters=2000] Radius around the origin to search for the source (highest point).
- * @param {number} [options.maxRiverRadiusMeters=2800] Walk stops if it would step outside this radius from the origin �?" keeps the path inside the always-loaded FAZ 1 preview area (see module doc).
+ * @param {number} [options.maxRiverRadiusMeters=2800] Walk stops if it would step outside this radius from the origin — keeps the path inside the always-loaded FAZ 1 preview area (see module doc).
  * @param {number} [options.stepMeters=40] Distance advanced per walk step.
  * @param {number} [options.maxSteps=400] Hard cap so a pathological height field can't loop forever.
  * @returns {{points: THREE.Vector3[], endReason: 'sea'|'bounds'|'local-minimum'|'max-steps'}}
@@ -217,7 +217,7 @@ export function generateRiverPath({
 		}
 	}
 
-	const rng = mulberry32(seed ^ 0x52495652); // XOR with a fixed tag ("RIVR"-ish) �?" independent random stream from terrain's own noise, still fully seeded.
+	const rng = mulberry32(seed ^ 0x52495652); // XOR with a fixed tag ("RIVR"-ish) — independent random stream from terrain's own noise, still fully seeded.
 	const points = [new THREE.Vector3(sourceX, sourceHeight, sourceZ)];
 	let x = sourceX;
 	let z = sourceZ;
@@ -273,7 +273,7 @@ export function generateRiverPath({
  * `widthMeters`, raised slightly above the sampled terrain height to avoid z-fighting with the
  * ground mesh directly beneath it. Uses a built-in `MeshStandardMaterial` (not a custom shader)
  * deliberately, so it participates in `scene.fog` and the day/night lights automatically, same as
- * `world/terrain.js` �?" see DECISIONS.md ADR-0009 for why a flow-animated shader was deferred.
+ * `world/terrain.js` — see DECISIONS.md ADR-0009 for why a flow-animated shader was deferred.
  * @param {THREE.Vector3[]} points At least 2 points (a single-point path produces no geometry).
  * @param {number} [widthMeters=14]
  * @returns {THREE.Mesh | null} `null` if `points` has fewer than 2 entries (nothing to ribbon).
@@ -282,10 +282,10 @@ export function createRiverMesh(points, widthMeters = 14) {
 	if (points.length < 2) return null;
 
 	const halfWidth = widthMeters / 2;
-	const verticalOffset = 0.3; // meters above the sampled terrain height �?" see module/function doc.
+	const verticalOffset = 0.3; // meters above the sampled terrain height — see module/function doc.
 	const positions = new Float32Array(points.length * 2 * 3);
 	const colors = new Float32Array(points.length * 2 * 3);
-	// Flow-animation attributes �?" see the module doc comment and `attachFlowAnimation`.
+	// Flow-animation attributes — see the module doc comment and `attachFlowAnimation`.
 	const flowDistances = new Float32Array(points.length * 2);
 	const flowSpeeds = new Float32Array(points.length * 2);
 	const flowSides = new Float32Array(points.length * 2);
@@ -375,7 +375,7 @@ export function createRiverMesh(points, widthMeters = 14) {
 }
 
 /**
- * Disposes a mesh created by `createRiverMesh` (geometry + material). Call on teardown �?" memory-leak checklist.
+ * Disposes a mesh created by `createRiverMesh` (geometry + material). Call on teardown — memory-leak checklist.
  * @param {THREE.Mesh} riverMesh
  */
 export function disposeRiverMesh(riverMesh) {
@@ -386,11 +386,11 @@ export function disposeRiverMesh(riverMesh) {
 /** Minimum vertical drop, in meters, between two consecutive river points for the segment to be
  * flagged as a waterfall rather than a normal gentle descent. Calibrated against this world's
  * actual traced river (seed 1337): its steepest two segments drop 2.61m and 4.02m over a 40m step
- * (6.5% and 10.1% grade) while every other segment drops under 1.3m (�%�3.2% grade) �?" see
+ * (6.5% and 10.1% grade) while every other segment drops under 1.3m (≤3.2% grade) — see
  * DECISIONS.md ADR-0011 for the full measured profile. Set between those two clusters so real,
  * distinctly-steeper sections are flagged without also flagging the river's normal gentle flow. */
 const WATERFALL_MIN_DROP_METERS = 2.5;
-/** Minimum drop/horizontal-distance ratio (rise-over-run) for a segment to count as a waterfall �?"
+/** Minimum drop/horizontal-distance ratio (rise-over-run) for a segment to count as a waterfall —
  * paired with `WATERFALL_MIN_DROP_METERS` so a long, gradual descent that happens to accumulate
  * `WATERFALL_MIN_DROP_METERS` of total drop over a much longer distance isn't misflagged as a fall. */
 const WATERFALL_MIN_SLOPE = 0.06;
@@ -400,7 +400,7 @@ WATERFALL_FOAM_COLOR.lerp(new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.water.foa
 
 /**
  * Scans a traced river path (`generateRiverPath`'s `points`) for segments steep enough to count as
- * a waterfall �?" see `WATERFALL_MIN_DROP_METERS`/`WATERFALL_MIN_SLOPE` for the exact, measured
+ * a waterfall — see `WATERFALL_MIN_DROP_METERS`/`WATERFALL_MIN_SLOPE` for the exact, measured
  * thresholds. Pure function: same `points` always produces the same waterfalls.
  * @param {THREE.Vector3[]} points
  * @returns {{top: THREE.Vector3, bottom: THREE.Vector3, dropMeters: number}[]} One entry per
@@ -524,7 +524,7 @@ export function createWaterfallMesh({ top, bottom, dropMeters }, widthMeters = 1
 }
 
 /**
- * Disposes a mesh created by `createWaterfallMesh` (geometry + material). Call on teardown �?"
+ * Disposes a mesh created by `createWaterfallMesh` (geometry + material). Call on teardown —
  * memory-leak checklist.
  * @param {THREE.Mesh} waterfallMesh
  */
@@ -532,4 +532,3 @@ export function disposeWaterfallMesh(waterfallMesh) {
 	waterfallMesh.geometry.dispose();
 	waterfallMesh.material.dispose();
 }
-

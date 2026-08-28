@@ -95,4 +95,3 @@ jobs:
 
       - name: Diff whitespace
         run: git diff --check HEAD^ HEAD
-

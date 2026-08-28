@@ -24,4 +24,3 @@ assert(relativeLuminanceFromHex(water.foam) > relativeLuminanceFromHex(water.plu
 assert.notEqual(celestial.dawn, celestial.moon);
 
 console.log(`[checkGeographicReferencePalette] PASS: ${GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id}; terrain/road/depth/foam/celestial luminance ordering is coherent.`);
-

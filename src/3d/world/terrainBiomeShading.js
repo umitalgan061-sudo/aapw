@@ -722,4 +722,3 @@ export function slopeDegreesFromNeighbours(heightWest, heightEast, heightNorth, 
 	const gradientZ = (heightSouth - heightNorth) / (2 * spacingMeters);
 	return Math.atan(Math.hypot(gradientX, gradientZ)) * 180 / Math.PI;
 }
-

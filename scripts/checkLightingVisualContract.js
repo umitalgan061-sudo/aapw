@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * checkLightingVisualContract.js �?" live-browser day/night lighting regression contract.
+ * checkLightingVisualContract.js — live-browser day/night lighting regression contract.
  * Pins the existing DirectionalLight + HemisphereLight creation, keyframe interpolation,
  * sun orbit, sky-gradient synchronization, time wrapping and teardown behavior without
  * changing runtime code.
@@ -154,7 +154,7 @@ async function main() {
 			};
 		});
 		assert(result.noon.nightFactor === 0 && result.midnight.nightFactor === 1, 'lighting endpoint factors escaped browser contract');
-		console.log(`[checkLightingVisualContract] PASS: Directional+Hemisphere lights, midnight/noon nightFactor ${result.midnight.nightFactor.toFixed(2)}��'${result.noon.nightFactor.toFixed(2)}, sun intensity ${result.midnight.sunIntensity.toFixed(2)}��'${result.noon.sunIntensity.toFixed(2)}, dawn-mid ${result.dawnMid.nightFactor.toFixed(3)}, dusk-mid ${result.duskMid.nightFactor.toFixed(3)}, ��time wrap + 900m altitude-modulated sun orbit + teardown PASS.`);
+		console.log(`[checkLightingVisualContract] PASS: Directional+Hemisphere lights, midnight/noon nightFactor ${result.midnight.nightFactor.toFixed(2)}→${result.noon.nightFactor.toFixed(2)}, sun intensity ${result.midnight.sunIntensity.toFixed(2)}→${result.noon.sunIntensity.toFixed(2)}, dawn-mid ${result.dawnMid.nightFactor.toFixed(3)}, dusk-mid ${result.duskMid.nightFactor.toFixed(3)}, ±time wrap + 900m altitude-modulated sun orbit + teardown PASS.`);
 	} finally {
 		await browser.close();
 		await new Promise((resolve) => server.close(resolve));
@@ -165,4 +165,3 @@ main().catch((error) => {
 	console.error(`[checkLightingVisualContract] FAIL: ${error?.stack || error}`);
 	process.exit(1);
 });
-

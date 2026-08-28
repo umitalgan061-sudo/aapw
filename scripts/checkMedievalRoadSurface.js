@@ -173,4 +173,3 @@ main().catch((error) => {
 	console.error(`[checkMedievalRoadSurface] FAIL: ${error?.stack || error}`);
 	process.exit(1);
 });
-

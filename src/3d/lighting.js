@@ -236,7 +236,7 @@ export function updateDayNightLighting(lights, elapsedSeconds, dayLengthSeconds,
 
 	// Custom shaders cannot see Three.js DirectionalLight uniforms automatically. Publish the same
 	// live celestial key that built-in terrain/road/river materials receive so water highlights move
-	// east ��' zenith ��' west with the sun and switch to the cool moon at night.
+	// east → zenith → west with the sun and switch to the cool moon at night.
 	const celestialKey = publishCelestialLightState({
 		sunPosition: lights.sun.position,
 		sunColor: lights.sun.color,
@@ -278,4 +278,3 @@ export function disposeDayNightLighting(scene, lights) {
 		});
 	}
 }
-

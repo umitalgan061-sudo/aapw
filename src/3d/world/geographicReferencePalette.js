@@ -75,4 +75,3 @@ export function relativeLuminanceFromHex(hex) {
 	const [r, g, b] = hexToLinearTriplet(hex);
 	return r * 0.2126 + g * 0.7152 + b * 0.0722;
 }
-
