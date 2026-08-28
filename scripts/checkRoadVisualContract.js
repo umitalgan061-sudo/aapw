@@ -3,7 +3,7 @@
  * checkRoadVisualContract.js — live-browser visual geometry contract for the kingdom road ribbon.
  *
  * The existing roadNetworkSafetyCheck validates topology/routing/world-safety. This companion guard
- * validates what the routed network actually renders: the cart-road tier's merged mesh (stable 8m
+ * validates what the safely routed network actually renders: the cart-road tier's merged mesh (stable 8m
  * ribbon width, 0.4m terrain lift, vertex/color/normal/index topology, intended dirt material) and,
  * since run 314/ADR-0264, the second "patika" footpath tier's own merged mesh (same shape of
  * contract, its own 2.5m width/pale color) when the current seat layout produces at least one
@@ -35,11 +35,14 @@ async function main() {
 
 	const server = await startStaticServer();
 	const { port } = server.address();
-	const browser = await playwright.chromium.launch({ headless: true });
+	const browser = await playwright.chromium.launch({
+		headless: true,
+		executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
+	});
 
 	try {
 		const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+		await page.goto(`http://127.0.0.1:${port}/scripts/roadContractHarness.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
 		const result = await page.evaluate(async ({
 			expectedWidth,
@@ -80,7 +83,29 @@ async function main() {
 			});
 
 			const network = buildRoadNetwork({ seats, sampleHeightMeters });
+			const transportGaps = network.unroutableEdges ?? [];
+			const expectedTransportGaps = [
+				'jon->Night King', 'robin->berkalp', 'stannis->robin',
+				'twin->balon', 'umit->Xaro', 'umit->doran',
+			];
 			fail(network.group?.name === 'road-network', `unexpected group name: ${network.group?.name}`);
+			fail(network.edges.length + transportGaps.length === 13,
+				`expected 13 topology edges, got ${network.edges.length} rendered + ${transportGaps.length} gaps`);
+			fail(network.edges.length === 7, `expected 7 land-safe rendered cart roads, got ${network.edges.length}`);
+			fail(transportGaps.length === expectedTransportGaps.length,
+				`expected ${expectedTransportGaps.length} non-rendered transport gaps, got ${transportGaps.length}`);
+			const actualTransportGaps = transportGaps.map((edge) => `${edge.fromId}->${edge.toId}`).sort();
+			fail(JSON.stringify(actualTransportGaps) === JSON.stringify(expectedTransportGaps),
+				`unexpected transport gaps ${JSON.stringify(actualTransportGaps)}`);
+			for (const edge of transportGaps) {
+				const reason = edge.diagnostics?.transportGapReason;
+				fail(reason === 'grade-fallback' || reason === 'submerged-route',
+					`${edge.fromId}->${edge.toId} lost its transport-gap reason`);
+				if (reason === 'submerged-route') {
+					fail(edge.waterExposure?.maxSubmergedRunMeters > edge.waterExposure?.maxAllowedRunMeters,
+						`${edge.fromId}->${edge.toId} water gap lost measured exposure`);
+				}
+			}
 			const expectedChildCount = network.footpathEdges.length > 0 ? 2 : 1;
 			fail(
 				network.group.children.length === expectedChildCount,
@@ -184,7 +209,9 @@ async function main() {
 
 			return {
 				seatCount: seats.length,
-				edgeCount: network.edges.length,
+				topologyEdgeCount: network.edges.length + transportGaps.length,
+				renderedRoadEdgeCount: network.edges.length,
+				transportGapCount: transportGaps.length,
 				footpathEdgeCount: network.footpathEdges.length,
 				vertexCount: cartResult.vertexCount,
 				indexCount: cartResult.indexCount,
@@ -207,13 +234,15 @@ async function main() {
 		});
 
 		assert(result.seatCount === 14, `expected 14 kingdom seats, got ${result.seatCount}`);
-		assert(result.edgeCount === 13, `expected 13 MST road edges, got ${result.edgeCount}`);
+		assert(result.topologyEdgeCount === 13, `expected 13 MST topology edges, got ${result.topologyEdgeCount}`);
+		assert(result.renderedRoadEdgeCount === 7, `expected 7 land-safe rendered roads, got ${result.renderedRoadEdgeCount}`);
+		assert(result.transportGapCount === 6, `expected 6 transport gaps, got ${result.transportGapCount}`);
 		const footpathSummary = result.footpathEdgeCount > 0
 			? `, patika ${result.footpathEdgeCount} edge(s) width ${result.footpathMinMeasuredWidth.toFixed(3)}-${result.footpathMaxMeasuredWidth.toFixed(3)}m ${(result.footpathTotalLengthMeters / 1000).toFixed(2)}km`
 			: ', patika 0 edges (no qualifying local pair for this seat layout)';
 		console.log(
 			'[checkRoadVisualContract] PASS: ' +
-				`${result.edgeCount} edges, ${result.vertexCount} vertices, ${result.indexCount} indices, ` +
+				`${result.renderedRoadEdgeCount} rendered roads + ${result.transportGapCount} transport gap, ${result.vertexCount} vertices, ${result.indexCount} indices, ` +
 				`width ${result.minMeasuredWidth.toFixed(3)}-${result.maxMeasuredWidth.toFixed(3)}m, ` +
 				`road ${(result.totalLengthMeters / 1000).toFixed(2)}km${footpathSummary}, disposal ${result.geometryDisposeCount}/${result.materialDisposeCount}.`,
 		);

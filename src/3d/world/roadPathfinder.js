@@ -28,7 +28,7 @@ export const ROAD_RETURN_GRADE_TARGET_DEGREES = 19.25;
 export const ROAD_MAX_RIVER_ADJACENT_SAMPLES = 3;
 
 export const ROAD_ROUTING_POLICY = Object.freeze({
-	id: 'road-routing-2026-08-28-v6-contour-fan-switchbacks',
+	id: 'road-routing-2026-08-28-v11-grounded-bounded-egress',
 	comfortGradeDegrees: ROAD_COMFORT_GRADE_DEGREES,
 	searchGradeDegrees: ROAD_MAX_GRADE_DEGREES,
 	returnGradeDegrees: ROAD_RETURN_GRADE_TARGET_DEGREES,
@@ -36,6 +36,7 @@ export const ROAD_ROUTING_POLICY = Object.freeze({
 	baseCorridorPaddingMeters: 700,
 	maxCorridorPaddingMeters: 1800,
 	maxRiverAdjacentSamples: ROAD_MAX_RIVER_ADJACENT_SAMPLES,
+	longRouteFailFastSubmergedSpanMeters: 900,
 	terrainProfilePolicyId: ROAD_PROFILE_POLICY.id,
 	deterministic: true,
 	geographyAuthorityUnchanged: true,
@@ -46,6 +47,10 @@ const GRID_CELL_METERS = ROAD_ROUTING_POLICY.gridCellMeters;
 const CORRIDOR_PADDING_METERS = ROAD_ROUTING_POLICY.baseCorridorPaddingMeters;
 const MAX_CORRIDOR_PADDING_METERS = ROAD_ROUTING_POLICY.maxCorridorPaddingMeters;
 const ENDPOINT_LINK_RADIUS_CELLS = 2.6;
+// Long canonical edges do not run the 8/12 m local grids. Keep their endpoint portal search wide
+// enough to sample the audited safe side of steep settlement/coast transitions (notably Xaro), while
+// every candidate connector remains subject to the same exact 4 m dense terrain profile and cap.
+const MIN_ENDPOINT_LINK_RADIUS_METERS = 220;
 const SMOOTHING_ITERATIONS = 2;
 const EPSILON = 1e-9;
 const RIVER_CLEARANCE_METERS = 25;
@@ -59,15 +64,23 @@ const MID_REFINEMENT_CELL_METERS = 45;
 // Close seat-to-seat links can sit inside overlapping settlement-pad transition zones. Bounded
 // local passes resolve those egress contours without paying for a 12 m grid across long roads.
 const SHORT_ROUTE_MAX_DISTANCE_METERS = 320;
-const SHORT_ROUTE_REFINEMENT_CELL_METERS = 12;
-const SHORT_ROUTE_CORRIDOR_PADDING_METERS = 360;
+const DIRECT_PROFILE_DISTANCE_METERS = 780;
+const SHORT_ROUTE_REFINEMENT_CELL_METERS = 16;
+const SHORT_ROUTE_CORRIDOR_PADDING_METERS = 240;
 const MEDIUM_ROUTE_MAX_DISTANCE_METERS = 780;
-const MEDIUM_ROUTE_MICRO_REFINEMENT_CELL_METERS = 8;
-const MEDIUM_ROUTE_MICRO_CORRIDOR_PADDING_METERS = 360;
+const MEDIUM_ROUTE_MICRO_REFINEMENT_CELL_METERS = 16;
+const MEDIUM_ROUTE_MICRO_CORRIDOR_PADDING_METERS = 240;
 const MEDIUM_ROUTE_REFINEMENT_CELL_METERS = 12;
 const MEDIUM_ROUTE_CORRIDOR_PADDING_METERS = 480;
 const MEDIUM_ROUTE_EXPANDED_CORRIDOR_PADDING_METERS = 720;
 const MEDIUM_ROUTE_MAX_CORRIDOR_PADDING_METERS = 960;
+// One empty base corridor at both strict and return caps is enough to classify a long
+// cross-water/continent topology edge as unavailable. This prevents impossible geography from
+// expanding through every finer 24–60 m grid while preserving refinement whenever any stage finds
+// a candidate whose dense presentation still needs improvement.
+const MAX_EMPTY_LONG_ROUTE_STAGES = 1;
+const LONG_ROUTE_FAIL_FAST_SAMPLE_SPACING_METERS = 30;
+const LONG_ROUTE_FAIL_FAST_SUBMERGED_SPAN_METERS = ROAD_ROUTING_POLICY.longRouteFailFastSubmergedSpanMeters;
 const FINE_GRID_NEIGHBOR_CELL_LIMIT_METERS = 24;
 const riverAvoidanceCache = new WeakMap();
 
@@ -277,16 +290,48 @@ function chaikinSmooth(points, iterations) {
 function measurePresentation(pointsXZ, sampleHeightMeters, riverField) {
 	const terrain = profileRoadPolyline({ points: pointsXZ, sampleHeightMeters });
 	const presentationPoints = pointsXZ.map(({ x, z }) => ({ x, z, y: sampleHeightMeters(x, z) }));
+	// Keep the exact dense terrain samples available to the renderer. Search, river exposure and
+	// curvature still use the authored/search polyline, while direct safe links can render every
+	// profiled height sample instead of linearly bridging terrain micro-relief between two seats.
+	const groundedTerrain = profileRoadPolyline({
+		points: pointsXZ,
+		sampleHeightMeters,
+		maxSpacingMeters: ROAD_PROFILE_POLICY.maxSampleSpacingMeters,
+	});
+	const groundedPoints = groundedTerrain.points.map(({ x, z, y }) => ({ x, z, y }));
 	const curvature = summarizePolylineCurvature(presentationPoints);
 	const river = profileRiverExposure(riverField, presentationPoints);
 	return Object.freeze({
 		...terrain,
 		points: presentationPoints,
+		groundedPoints,
 		densifiedPointCount: terrain.points.length,
 		curvature,
 		river,
 		checksum: checksumProfile(terrain),
 	});
+}
+
+function maximumDirectSubmergedSpanMeters(start, end, sampleHeightMeters) {
+	const profile = profileTerrainSegment({
+		start,
+		end,
+		sampleHeightMeters,
+		maxSpacingMeters: LONG_ROUTE_FAIL_FAST_SAMPLE_SPACING_METERS,
+	});
+	let currentSpanMeters = 0;
+	let maximumSpanMeters = 0;
+	for (let index = 1; index < profile.samples.length; index += 1) {
+		const previous = profile.samples[index - 1];
+		const current = profile.samples[index];
+		if (current.y <= WORLD_DEFAULTS.WATER_LEVEL_METERS) {
+			currentSpanMeters += Math.hypot(current.x - previous.x, current.z - previous.z);
+			maximumSpanMeters = Math.max(maximumSpanMeters, currentSpanMeters);
+		} else {
+			currentSpanMeters = 0;
+		}
+	}
+	return maximumSpanMeters;
 }
 
 function selectSafePresentation(rawPoints, start, end, sampleHeightMeters, riverField) {
@@ -405,7 +450,7 @@ function searchStrictGradePath({ sampleHeightMeters, start, end, cellMeters, cor
 	const closed = new Uint8Array(cols * rows);
 	const startLink = new Uint8Array(cols * rows);
 	const heap = new MinHeap();
-	const endpointRadius = cellMeters * ENDPOINT_LINK_RADIUS_CELLS;
+	const endpointRadius = Math.max(cellMeters * ENDPOINT_LINK_RADIUS_CELLS, MIN_ENDPOINT_LINK_RADIUS_METERS);
 	const heuristic = (i, j) => Math.hypot(toWorldX(i) - end.x, toWorldZ(j) - end.z);
 	let expandedNodes = 0;
 	let rejectedGradeEdges = 0;
@@ -519,11 +564,11 @@ export function findSlopeAwarePath({ sampleHeightMeters, start, end, cellMeters 
 	}
 
 	const riverField = buildRiverAvoidanceField(sampleHeightMeters);
-	if (directDistance <= cellMeters * 1.25) {
+	if (directDistance <= Math.max(cellMeters * 1.25, DIRECT_PROFILE_DISTANCE_METERS)) {
 		const direct = measurePresentation([start, end], sampleHeightMeters, riverField);
 		if (pathIsGradeSafe(direct, ROAD_MAX_GRADE_DEGREES) && direct.river.maxConsecutiveAdjacentSamples <= ROAD_MAX_RIVER_ADJACENT_SAMPLES) {
 			return {
-				points: direct.points,
+				points: direct.groundedPoints,
 				maxGradeDegrees: direct.maxGradeDegrees,
 				diagnostics: Object.freeze({ mode: 'direct', fallback: false, smoothingIterations: 0, paddingMeters: 0, gradeCapDegrees: ROAD_MAX_GRADE_DEGREES, expandedNodes: 0, river: direct.river, checksum: direct.checksum, attempts: [] }),
 			};
@@ -533,13 +578,19 @@ export function findSlopeAwarePath({ sampleHeightMeters, start, end, cellMeters 
 	const stages = buildSearchStages(cellMeters, corridorPaddingMeters, directDistance);
 	const gradeCaps = [ROAD_MAX_GRADE_DEGREES, ROAD_RETURN_GRADE_TARGET_DEGREES];
 	const attempts = [];
-	for (const gradeCap of gradeCaps) {
-		for (const stage of stages) {
+	const directSubmergedSpanMeters = directDistance > MEDIUM_ROUTE_MAX_DISTANCE_METERS
+		? maximumDirectSubmergedSpanMeters(start, end, sampleHeightMeters)
+		: 0;
+	let emptyLongRouteStages = 0;
+	searchStages: for (const stage of stages) {
+		let stageFoundCandidate = false;
+		for (const gradeCap of gradeCaps) {
 			const search = searchStrictGradePath({ sampleHeightMeters, start, end, cellMeters: stage.cellMeters, corridorPaddingMeters: stage.paddingMeters, maxGradeDegrees: gradeCap });
 			if (!search) {
 				attempts.push(Object.freeze({ gradeCapDegrees: gradeCap, cellMeters: stage.cellMeters, paddingMeters: stage.paddingMeters, found: false }));
 				continue;
 			}
+			stageFoundCandidate = true;
 			const presentation = selectSafePresentation(search.rawPoints, start, end, sampleHeightMeters, search.riverField);
 			const safeGrade = pathIsGradeSafe(presentation, ROAD_RETURN_GRADE_TARGET_DEGREES);
 			const safeRiver = presentation.river.maxConsecutiveAdjacentSamples <= ROAD_MAX_RIVER_ADJACENT_SAMPLES;
@@ -558,12 +609,16 @@ export function findSlopeAwarePath({ sampleHeightMeters, start, end, cellMeters 
 				};
 			}
 		}
+		if (directDistance > MEDIUM_ROUTE_MAX_DISTANCE_METERS && !stageFoundCandidate) {
+			emptyLongRouteStages += 1;
+			if (emptyLongRouteStages >= MAX_EMPTY_LONG_ROUTE_STAGES) break searchStages;
+		}
 	}
 
 	const fallback = measurePresentation([start, end], sampleHeightMeters, riverField);
 	return {
 		points: fallback.points,
 		maxGradeDegrees: fallback.maxGradeDegrees,
-		diagnostics: Object.freeze({ mode: 'fallback', fallback: true, smoothingIterations: 0, paddingMeters: MAX_CORRIDOR_PADDING_METERS, gradeCapDegrees: ROAD_RETURN_GRADE_TARGET_DEGREES, expandedNodes: 0, river: fallback.river, curvature: fallback.curvature, checksum: fallback.checksum, attempts: Object.freeze([...attempts]) }),
+		diagnostics: Object.freeze({ mode: 'fallback', fallback: true, smoothingIterations: 0, paddingMeters: MAX_CORRIDOR_PADDING_METERS, gradeCapDegrees: ROAD_RETURN_GRADE_TARGET_DEGREES, expandedNodes: 0, directSubmergedSpanMeters, crossWaterEvidence: directSubmergedSpanMeters >= LONG_ROUTE_FAIL_FAST_SUBMERGED_SPAN_METERS, river: fallback.river, curvature: fallback.curvature, checksum: fallback.checksum, attempts: Object.freeze([...attempts]) }),
 	};
 }

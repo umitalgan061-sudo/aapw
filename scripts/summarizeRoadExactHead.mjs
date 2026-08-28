@@ -29,7 +29,9 @@ assert.equal(stress.policy.id, canonical.policies.routing.id, 'stress/canonical 
 assert.equal(determinism.policy.id, canonical.policies.routing.id, 'determinism/canonical routing policy mismatch');
 assert.equal(subedge.profilePolicy.id, canonical.policies.surfaceProfile.id, 'surface-profile policy mismatch');
 assert.equal(canonical.runtime.seatCount, 14);
-assert.equal(canonical.runtime.edgeCount, 13);
+assert.equal(canonical.runtime.topologyEdgeCount, 13);
+assert.equal(canonical.runtime.renderedRoadEdgeCount, 7);
+assert.equal(canonical.runtime.transportGapCount, 6);
 assert.equal(canonical.runtime.connectedSeatCount, 14);
 assert.equal(settlement.seatCount, 14);
 assert(stress.scenarioCount >= 40);
@@ -57,7 +59,9 @@ const summary = Object.freeze({
   canonical: {
     seatCount: canonical.runtime.seatCount,
     connectedSeatCount: canonical.runtime.connectedSeatCount,
-    edgeCount: canonical.runtime.edgeCount,
+    topologyEdgeCount: canonical.runtime.topologyEdgeCount,
+    renderedRoadEdgeCount: canonical.runtime.renderedRoadEdgeCount,
+    transportGapCount: canonical.runtime.transportGapCount,
     totalLengthMeters: canonical.runtime.totalLengthMeters,
     networkBuildMs: canonical.runtime.networkBuildMs,
     maxGradeDegrees: canonical.distributions.maxGradeDegrees.max,
@@ -93,7 +97,9 @@ const markdown = [
   `- routing policy: ${summary.policies.routing.id}`,
   `- surface profile: ${summary.policies.surfaceProfile.id}`,
   `- canonical seats connected: ${summary.canonical.connectedSeatCount}/${summary.canonical.seatCount}`,
-  `- canonical cart-road edges: ${summary.canonical.edgeCount}`,
+  `- canonical topology edges: ${summary.canonical.topologyEdgeCount}`,
+  `- rendered cart-road edges: ${summary.canonical.renderedRoadEdgeCount}`,
+  `- non-rendered transport gaps: ${summary.canonical.transportGapCount}`,
   `- canonical network length: ${(summary.canonical.totalLengthMeters / 1000).toFixed(2)} km`,
   `- canonical dense max grade: ${summary.canonical.maxGradeDegrees.toFixed(2)}°`,
   `- canonical p99 edge max grade: ${summary.canonical.p99GradeDegrees.toFixed(2)}°`,

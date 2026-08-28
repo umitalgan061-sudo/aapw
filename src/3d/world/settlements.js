@@ -111,13 +111,14 @@ const REAL_CASTLE_FOOTPRINT_METERS = 46;
  * narrower than that on at least one axis, so this is already a conservative upper bound, not a
  * measured-per-model number). `OUTER` is where the pad has fully eased back to untouched natural
  * terrain. The canonical full-owner-map relief is far taller than the historical 24m FBM field, so
- * the old 75m outer radius produced >20° road segments at the pad feather. A 150m outer radius gives
- * the same 38m flat castle footprint a 112m smooth transition; exact browser road qualification on
- * the canonical field keeps every one of the 13 settlement routes at or below the 20° safety limit.
+ * the old 75m outer radius produced >20° road segments at the pad feather. A 210m outer radius gives
+ * the same 38m flat castle footprint a 172m smooth transition; the longer feather also attenuates
+ * Balon's immutable shoreline-cell step below the strict 17° road-search cap without changing the
+ * owner-map water classification or splitting render, collider and gameplay height authority.
  * One shared radius pair for every seat keeps render, physics, settlement and road metadata aligned.
  */
 const SETTLEMENT_FLATTEN_INNER_RADIUS_METERS = 38;
-const SETTLEMENT_FLATTEN_OUTER_RADIUS_METERS = 150;
+const SETTLEMENT_FLATTEN_OUTER_RADIUS_METERS = 210;
 
 /**
  * Builds the `flattenPads` list `world/terrain.js`'s `createHeightSampler` consumes to flatten the

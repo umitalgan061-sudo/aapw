@@ -6,7 +6,9 @@
  * (`world/terrain.js`'s fine FBM + run-55's `MACRO_RELIEF_FEATURES`, sampled through the exact same
  * `createHeightSampler` output every other world system already reads through).
  *
- * Topology: a minimum spanning tree over the 14 seats (13 edges, one connected network, no cycles)
+ * Topology: a minimum spanning tree over the 14 seats (13 edges, one connected network, no cycles).
+ * Edges that require an unsafe grade fallback or cross canonical water remain explicit non-rendered
+ * transport gaps, preserving the topology without drawing a road over a cliff or along the seabed.
  * rather than a complete point-to-point graph (91 possible pairs) — GOVERNANCE.md §18's own task
  * text explicitly allows this ("a minimum-spanning-tree-style network... is fine and arguably more
  * realistic than a complete graph"). MST topology is chosen by raw Euclidean seat-to-seat distance
@@ -27,6 +29,7 @@
  */
 
 import * as THREE from 'three';
+import { WORLD_DEFAULTS } from '../config.js';
 import { findSlopeAwarePath } from './roadPathfinder.js';
 
 /** Ribbon width, in meters, for the single road tier this first pass renders — wide enough to read
@@ -38,6 +41,12 @@ const ROAD_WIDTH_METERS = 8;
  * mesh directly beneath it. Slightly larger than `world/rivers.js`'s 0.3m offset since roads sit on
  * dry, often-rougher fine-noise terrain (no water surface smoothing nearby to hide a thinner gap). */
 const VERTICAL_OFFSET_METERS = 0.4;
+
+/** Dense canonical-water audit for rendered ribbons. A route can satisfy grade limits while still
+ * following the seabed; any continuous submerged ribbon run longer than one audit interval remains
+ * an explicit transport gap until a bridge/ferry system owns that geography. */
+const ROAD_WATER_AUDIT_SPACING_METERS = 6;
+const ROAD_MAX_SUBMERGED_RIBBON_RUN_METERS = ROAD_WATER_AUDIT_SPACING_METERS;
 
 /** Muted mineral-earth base derived from the supplied mountain-road photogrammetry. It deliberately
  * avoids the old saturated golden-tan, allowing sunlight and procedural dust/stone variation to
@@ -146,6 +155,41 @@ function appendRoadRibbon(buffers, points, widthMeters = ROAD_WIDTH_METERS, colo
 	}
 }
 
+function measureSubmergedRibbonExposure(points, sampleHeightMeters) {
+	let currentRunMeters = 0;
+	let maxSubmergedRunMeters = 0;
+	let totalSubmergedMeters = 0;
+	let submergedSampleCount = 0;
+	for (let segmentIndex = 1; segmentIndex < points.length; segmentIndex += 1) {
+		const start = points[segmentIndex - 1];
+		const end = points[segmentIndex];
+		const segmentLengthMeters = Math.hypot(end.x - start.x, end.z - start.z);
+		const intervalCount = Math.max(1, Math.ceil(segmentLengthMeters / ROAD_WATER_AUDIT_SPACING_METERS));
+		const intervalMeters = segmentLengthMeters / intervalCount;
+		for (let intervalIndex = 1; intervalIndex <= intervalCount; intervalIndex += 1) {
+			const t = intervalIndex / intervalCount;
+			const x = start.x + (end.x - start.x) * t;
+			const z = start.z + (end.z - start.z) * t;
+			const ribbonY = sampleHeightMeters(x, z) + VERTICAL_OFFSET_METERS;
+			if (ribbonY < WORLD_DEFAULTS.WATER_LEVEL_METERS) {
+				currentRunMeters += intervalMeters;
+				totalSubmergedMeters += intervalMeters;
+				submergedSampleCount += 1;
+				maxSubmergedRunMeters = Math.max(maxSubmergedRunMeters, currentRunMeters);
+			} else {
+				currentRunMeters = 0;
+			}
+		}
+	}
+	return Object.freeze({
+		auditSpacingMeters: ROAD_WATER_AUDIT_SPACING_METERS,
+		maxAllowedRunMeters: ROAD_MAX_SUBMERGED_RIBBON_RUN_METERS,
+		maxSubmergedRunMeters,
+		totalSubmergedMeters,
+		submergedSampleCount,
+	});
+}
+
 export function computeLocalFootpathEdges(seats, mstEdges, maxLengthMeters = FOOTPATH_MAX_LENGTH_METERS) {
 	const mstPairKeys = new Set(mstEdges.map((edge) => [edge.fromId, edge.toId].sort().join('|')));
 	const footpaths = [];
@@ -171,6 +215,7 @@ export function buildRoadNetwork({ seats, sampleHeightMeters }) {
 	function routeEdges(edgeSpecs, widthMeters, color) {
 		const buffers = { positions: [], colors: [], indices: [] };
 		const routed = [];
+		const unroutable = [];
 		let totalLengthMeters = 0;
 		let maxGradeDegrees = 0;
 
@@ -179,23 +224,47 @@ export function buildRoadNetwork({ seats, sampleHeightMeters }) {
 			const to = seatsById.get(edgeSpec.toId);
 			if (!from || !to) continue;
 
-			const { points, maxGradeDegrees: edgeMaxGrade } = findSlopeAwarePath({
+			const routeStartedAt = globalThis.performance?.now?.() ?? Date.now();
+			const { points, maxGradeDegrees: edgeMaxGrade, diagnostics } = findSlopeAwarePath({
 				sampleHeightMeters,
 				start: { x: from.x, z: from.z },
 				end: { x: to.x, z: to.z },
 			});
-			appendRoadRibbon(buffers, points, widthMeters, color);
-
+			const routeElapsedMs = (globalThis.performance?.now?.() ?? Date.now()) - routeStartedAt;
 			let lengthMeters = 0;
 			for (let i = 1; i < points.length; i++) {
 				lengthMeters += Math.hypot(points[i].x - points[i - 1].x, points[i].z - points[i - 1].z);
 			}
+			const waterExposure = measureSubmergedRibbonExposure(points, sampleHeightMeters);
+			const submergedRoute = waterExposure.maxSubmergedRunMeters > ROAD_MAX_SUBMERGED_RIBBON_RUN_METERS;
+			if (diagnostics?.fallback || submergedRoute) {
+				const transportGapReason = diagnostics?.fallback ? 'grade-fallback' : 'submerged-route';
+				const gapDiagnostics = Object.freeze({
+					...diagnostics,
+					transportGap: true,
+					transportGapReason,
+					waterExposure,
+				});
+				unroutable.push({
+					fromId: edgeSpec.fromId,
+					toId: edgeSpec.toId,
+					points,
+					lengthMeters,
+					maxGradeDegrees: edgeMaxGrade,
+					routeElapsedMs,
+					diagnostics: gapDiagnostics,
+					waterExposure,
+				});
+				continue;
+			}
+			appendRoadRibbon(buffers, points, widthMeters, color);
+
 			totalLengthMeters += lengthMeters;
 			if (edgeMaxGrade > maxGradeDegrees) maxGradeDegrees = edgeMaxGrade;
-			routed.push({ fromId: edgeSpec.fromId, toId: edgeSpec.toId, points, lengthMeters, maxGradeDegrees: edgeMaxGrade });
+			routed.push({ fromId: edgeSpec.fromId, toId: edgeSpec.toId, points, lengthMeters, maxGradeDegrees: edgeMaxGrade, routeElapsedMs, diagnostics, waterExposure });
 		}
 
-		return { buffers, routed, totalLengthMeters, maxGradeDegrees };
+		return { buffers, routed, unroutable, totalLengthMeters, maxGradeDegrees };
 	}
 
 	function buildMesh(buffers, name) {
@@ -221,9 +290,11 @@ export function buildRoadNetwork({ seats, sampleHeightMeters }) {
 	return {
 		group,
 		edges: cart.routed,
+		unroutableEdges: cart.unroutable,
 		totalLengthMeters: cart.totalLengthMeters,
 		maxGradeDegrees: cart.maxGradeDegrees,
 		footpathEdges: footpath.routed,
+		unroutableFootpathEdges: footpath.unroutable,
 		footpathTotalLengthMeters: footpath.totalLengthMeters,
 	};
 }

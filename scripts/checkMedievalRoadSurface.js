@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Live-browser regression guard for the medieval road-surface layer.
- * It keeps the proven 13-edge/14-seat topology and one-mesh geometry contract intact while checking
+ * It keeps the proven 13-edge/14-seat topology, safe rendered subset and one-mesh geometry contract intact while checking
  * deterministic wheel-rut/mud/stone plus the geographic multi-scale weathering/roughness treatment.
  */
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
@@ -19,11 +19,14 @@ async function main() {
 
 	const server = await startStaticServer();
 	const { port } = server.address();
-	const browser = await playwright.chromium.launch({ headless: true });
+	const browser = await playwright.chromium.launch({
+		headless: true,
+		executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
+	});
 
 	try {
 		const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+		await page.goto(`http://127.0.0.1:${port}/scripts/roadContractHarness.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
 		const result = await page.evaluate(async () => {
 			const { WORLD_SCALE, WORLD_DEFAULTS, SETTLEMENT_CONFIG } = await import('/src/3d/config.js');
@@ -47,8 +50,29 @@ async function main() {
 			});
 
 			const network = buildRoadNetwork({ seats, sampleHeightMeters });
+			const transportGaps = network.unroutableEdges ?? [];
+			const expectedTransportGaps = [
+				'jon->Night King', 'robin->berkalp', 'stannis->robin',
+				'twin->balon', 'umit->Xaro', 'umit->doran',
+			];
 			fail(seats.length === 14, `expected 14 seats, got ${seats.length}`);
-			fail(network.edges.length === 13, `expected 13 connected MST edges, got ${network.edges.length}`);
+			fail(network.edges.length + transportGaps.length === 13,
+				`expected 13 MST topology edges, got ${network.edges.length} rendered + ${transportGaps.length} gaps`);
+			fail(network.edges.length === 7, `expected 7 land-safe rendered cart roads, got ${network.edges.length}`);
+			fail(transportGaps.length === expectedTransportGaps.length,
+				`expected ${expectedTransportGaps.length} non-rendered transport gaps, got ${transportGaps.length}`);
+			const actualTransportGaps = transportGaps.map((edge) => `${edge.fromId}->${edge.toId}`).sort();
+			fail(JSON.stringify(actualTransportGaps) === JSON.stringify(expectedTransportGaps),
+				`unexpected transport gaps ${JSON.stringify(actualTransportGaps)}`);
+			for (const edge of transportGaps) {
+				const reason = edge.diagnostics?.transportGapReason;
+				fail(reason === 'grade-fallback' || reason === 'submerged-route',
+					`${edge.fromId}->${edge.toId} lost its transport-gap reason`);
+				if (reason === 'submerged-route') {
+					fail(edge.waterExposure?.maxSubmergedRunMeters > edge.waterExposure?.maxAllowedRunMeters,
+						`${edge.fromId}->${edge.toId} water gap lost measured exposure`);
+				}
+			}
 			const expectedChildCount = network.footpathEdges.length > 0 ? 2 : 1;
 			fail(
 				network.group.children.length === expectedChildCount,
@@ -102,7 +126,7 @@ async function main() {
 			}
 
 			const adjacency = new Map(seats.map((seat) => [seat.id, []]));
-			for (const edge of network.edges) {
+			for (const edge of [...network.edges, ...transportGaps]) {
 				adjacency.get(edge.fromId)?.push(edge.toId);
 				adjacency.get(edge.toId)?.push(edge.fromId);
 			}
@@ -117,12 +141,20 @@ async function main() {
 			const totalLengthMeters = network.totalLengthMeters;
 			const vertexCount = positions.count;
 			disposeRoadNetwork(network.group);
-			return { seatCount: seats.length, edgeCount: network.edges.length, reached: seen.size, totalLengthMeters, vertexCount };
+			return {
+				seatCount: seats.length,
+				topologyEdgeCount: network.edges.length + transportGaps.length,
+				renderedRoadEdgeCount: network.edges.length,
+				transportGapCount: transportGaps.length,
+				reached: seen.size,
+				totalLengthMeters,
+				vertexCount,
+			};
 		});
 
 		assert(result.reached === 14, `road network reaches only ${result.reached}/14 seats`);
 		console.log(
-			`[checkMedievalRoadSurface] PASS: ${result.edgeCount} edges connect ${result.reached}/${result.seatCount} seats, ` +
+			`[checkMedievalRoadSurface] PASS: ${result.renderedRoadEdgeCount} rendered roads + ${result.transportGapCount} transport gap preserve ${result.topologyEdgeCount}-edge topology for ${result.reached}/${result.seatCount} seats, ` +
 			`${(result.totalLengthMeters / 1000).toFixed(2)}km one-mesh road, ${result.vertexCount} vertices; ` +
 			'wheel-rut/mud/stone + world-space weathering/roughness, +0 draw-call meshes.',
 		);

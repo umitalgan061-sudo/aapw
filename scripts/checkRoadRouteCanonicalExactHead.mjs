@@ -26,7 +26,20 @@ assert.equal(topology.length, seats.length - 1, 'canonical cart-road topology mu
 const networkStarted = performance.now();
 const network = buildRoadNetwork({ seats, sampleHeightMeters });
 const networkBuildMs = performance.now() - networkStarted;
-assert.equal(network.edges.length, 13, `expected 13 canonical road edges, got ${network.edges.length}`);
+const unroutableEdges = network.unroutableEdges ?? [];
+const expectedTransportGaps = [
+  'jon->Night King',
+  'robin->berkalp',
+  'stannis->robin',
+  'twin->balon',
+  'umit->Xaro',
+  'umit->doran',
+];
+assert.equal(network.edges.length + unroutableEdges.length, 13,
+  `expected 13 canonical topology edges, got ${network.edges.length} routed + ${unroutableEdges.length} unroutable`);
+assert.equal(network.edges.length, 7, `expected 7 land-safe rendered cart roads, got ${network.edges.length}`);
+assert.equal(unroutableEdges.length, expectedTransportGaps.length,
+  `expected ${expectedTransportGaps.length} explicit transport gaps, got ${unroutableEdges.length}`);
 const seatIds = new Set(seats.map((seat) => seat.id));
 const connectedIds = new Set();
 const edgeRecords = [];
@@ -54,6 +67,8 @@ for (const edge of network.edges) {
     assert.equal(diagnostics.fallback, false, `${edge.fromId}->${edge.toId} used fail-soft fallback`);
     assert(diagnostics.river.maxConsecutiveAdjacentSamples <= ROAD_MAX_RIVER_ADJACENT_SAMPLES, `${edge.fromId}->${edge.toId} ran along canonical river for ${diagnostics.river.maxConsecutiveAdjacentSamples} points`);
   }
+  assert(edge.waterExposure?.maxSubmergedRunMeters <= edge.waterExposure?.maxAllowedRunMeters + 1e-9,
+    `${edge.fromId}->${edge.toId} rendered through ${edge.waterExposure?.maxSubmergedRunMeters}m of canonical water`);
   let minimumGroundMarginMeters = Infinity, maximumGroundMarginMeters = -Infinity;
   for (const point of edge.points) {
     const ground = sampleHeightMeters(point.x, point.z), margin = ground - WORLD_DEFAULTS.WATER_LEVEL_METERS;
@@ -61,8 +76,50 @@ for (const edge of network.edges) {
     assert(Math.abs(point.y - ground) < 1e-8, `${edge.fromId}->${edge.toId} road point no longer sits on authoritative terrain`);
   }
   const metrics = routeMetrics({ result: { points: edge.points, maxGradeDegrees: edge.maxGradeDegrees, diagnostics: diagnostics ?? {} }, sampleHeightMeters, start: edge.points[0], end: edge.points.at(-1), profileSpacingMeters: 6 });
-  edgeRecords.push(Object.freeze({ fromId: edge.fromId, toId: edge.toId, sourceMaxGradeDegrees: edge.maxGradeDegrees, minimumGroundMarginMeters, maximumGroundMarginMeters, diagnostics, ...metrics }));
+  edgeRecords.push(Object.freeze({ fromId: edge.fromId, toId: edge.toId, sourceMaxGradeDegrees: edge.maxGradeDegrees, routeElapsedMs: edge.routeElapsedMs, minimumGroundMarginMeters, maximumGroundMarginMeters, diagnostics, ...metrics }));
 }
+const transportGapRecords = [];
+for (const edge of unroutableEdges) {
+  connectedIds.add(edge.fromId); connectedIds.add(edge.toId);
+  assert(seatIds.has(edge.fromId), `transport gap has unknown fromId ${edge.fromId}`);
+  assert(seatIds.has(edge.toId), `transport gap has unknown toId ${edge.toId}`);
+  const dense = profileRoadPolyline({ points: edge.points, sampleHeightMeters, maxSpacingMeters: 6 });
+  const reason = edge.diagnostics?.transportGapReason;
+  assert.equal(edge.diagnostics?.transportGap, true,
+    `${edge.fromId}->${edge.toId} transport gap lost its explicit topology marker`);
+  if (reason === 'grade-fallback') {
+    assert.equal(edge.diagnostics?.fallback, true,
+      `${edge.fromId}->${edge.toId} grade gap must retain explicit fail-safe diagnostics`);
+    assert(edge.diagnostics.directSubmergedSpanMeters >= 900,
+      `${edge.fromId}->${edge.toId} fail-fast gap lacks measured submerged geography evidence`);
+    assert.equal(edge.diagnostics.crossWaterEvidence, true,
+      `${edge.fromId}->${edge.toId} fail-fast gap lost cross-water evidence`);
+    assert(dense.maxGradeDegrees > ROAD_RETURN_GRADE_TARGET_DEGREES,
+      `${edge.fromId}->${edge.toId} was rejected without measured over-cap terrain`);
+  } else {
+    assert.equal(reason, 'submerged-route', `${edge.fromId}->${edge.toId} has unknown transport-gap reason ${reason}`);
+    assert.equal(edge.diagnostics?.fallback, false,
+      `${edge.fromId}->${edge.toId} water gap unexpectedly claims a grade fallback`);
+    assert(edge.waterExposure?.maxSubmergedRunMeters > edge.waterExposure?.maxAllowedRunMeters,
+      `${edge.fromId}->${edge.toId} water gap lacks a measured submerged ribbon run`);
+    assert(dense.maxGradeDegrees <= ROAD_RETURN_GRADE_TARGET_DEGREES + 0.05,
+      `${edge.fromId}->${edge.toId} water-only gap unexpectedly exceeds the grade contract`);
+  }
+  transportGapRecords.push(Object.freeze({
+    fromId: edge.fromId,
+    toId: edge.toId,
+    reason,
+    denseMaxGradeDegrees: dense.maxGradeDegrees,
+    directDistanceMeters: edge.lengthMeters,
+    routeElapsedMs: edge.routeElapsedMs,
+    attemptCount: edge.diagnostics.attempts?.length ?? 0,
+    fallback: edge.diagnostics.fallback,
+    maximumSubmergedRunMeters: edge.waterExposure?.maxSubmergedRunMeters ?? 0,
+    totalSubmergedMeters: edge.waterExposure?.totalSubmergedMeters ?? 0,
+  }));
+}
+assert.deepEqual(transportGapRecords.map(({ fromId, toId }) => `${fromId}->${toId}`).sort(), expectedTransportGaps,
+  'canonical water/grade transport-gap set drifted');
 assert.equal(connectedIds.size, seats.length, `only ${connectedIds.size}/${seats.length} seats are road-connected`);
 
 const { points: riverPoints, endReason: riverEndReason } = generateRiverPath({ seed: WORLD_DEFAULTS.WORLD_SEED, sampleHeightMeters, seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS });
@@ -83,21 +140,27 @@ const detourValues = edgeRecords.map((record) => record.detourRatio);
 const expansionValues = edgeRecords.map((record) => record.expandedNodes ?? 0);
 const minGroundMargins = edgeRecords.map((record) => record.minimumGroundMarginMeters);
 const totalElapsedMs = performance.now() - startedAt;
+console.log('[checkRoadRouteCanonicalExactHead] edge timings');
+console.log(JSON.stringify([
+  ...edgeRecords.map(({ fromId, toId, routeElapsedMs, maxGradeDegrees, diagnostics }) => ({ fromId, toId, routeElapsedMs, maxGradeDegrees, attemptCount: diagnostics?.attempts?.length ?? 0, fallback: false })),
+  ...transportGapRecords.map((gap) => ({ ...gap, maxGradeDegrees: gap.denseMaxGradeDegrees })),
+], null, 2));
 assert(Math.max(...gradeValues) < 19.5, `canonical network grade envelope too close to 20°: ${Math.max(...gradeValues)}`);
-assert(network.totalLengthMeters > 10000 && network.totalLengthMeters < 40000, `canonical network length drifted implausibly: ${network.totalLengthMeters}m`);
+assert(network.totalLengthMeters > 6000 && network.totalLengthMeters < 15000, `canonical rendered land-road length drifted implausibly: ${network.totalLengthMeters}m`);
 assert(networkBuildMs < 20000, `road network build exceeded 20s Node budget: ${networkBuildMs.toFixed(1)}ms`);
 const report = Object.freeze({
   exactHead: process.env.EXPECTED_HEAD_SHA ?? null,
   policies: { routing: ROAD_ROUTING_POLICY, surfaceProfile: ROAD_PROFILE_POLICY },
-  runtime: { seatCount: seats.length, edgeCount: network.edges.length, connectedSeatCount: connectedIds.size, totalLengthMeters: network.totalLengthMeters, networkBuildMs, totalElapsedMs, riverPointCount: riverPoints.length, riverEndReason, roadRiverContactCount, worstLegacyRiverRun },
+  runtime: { seatCount: seats.length, topologyEdgeCount: network.edges.length + unroutableEdges.length, renderedRoadEdgeCount: network.edges.length, transportGapCount: unroutableEdges.length, connectedSeatCount: connectedIds.size, totalLengthMeters: network.totalLengthMeters, networkBuildMs, totalElapsedMs, riverPointCount: riverPoints.length, riverEndReason, roadRiverContactCount, worstLegacyRiverRun },
   distributions: { maxGradeDegrees: summarize(gradeValues), edgeLengthMeters: summarize(lengthValues), detourRatio: summarize(detourValues), expandedNodes: summarize(expansionValues, 2), minimumGroundMarginMeters: summarize(minGroundMargins) },
   seats,
   edges: edgeRecords,
+  transportGaps: transportGapRecords,
 });
 writeJsonArtifact('artifacts/road-route-exact-head/canonical-network.json', report);
 writeMarkdownArtifact('artifacts/road-route-exact-head/canonical-network.md', [
   '# Canonical road exact-head report', '', `- exact head: ${report.exactHead ?? 'local'}`, `- seats connected: ${connectedIds.size}/${seats.length}`,
-  `- cart-road edges: ${network.edges.length}`, `- network length: ${(network.totalLengthMeters / 1000).toFixed(2)} km`, `- network build: ${networkBuildMs.toFixed(1)} ms`,
+  `- rendered cart-road edges: ${network.edges.length}`, `- non-rendered transport gaps: ${unroutableEdges.length}`, `- network length: ${(network.totalLengthMeters / 1000).toFixed(2)} km`, `- network build: ${networkBuildMs.toFixed(1)} ms`,
   `- dense max grade: ${Math.max(...gradeValues).toFixed(2)}°`, `- river point run: ${worstLegacyRiverRun} (limit 3)`, '',
   '| edge | km | dense max grade | detour | points |', '| --- | ---: | ---: | ---: | ---: |',
   ...edgeRecords.map((edge) => `| ${edge.fromId} → ${edge.toId} | ${(edge.lengthMeters / 1000).toFixed(2)} | ${edge.maxGradeDegrees.toFixed(2)}° | ${edge.detourRatio.toFixed(3)} | ${edge.pointCount} |`),

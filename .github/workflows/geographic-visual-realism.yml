@@ -12,6 +12,7 @@ on:
       - 'scripts/checkWaterVisualContract.js'
       - 'scripts/checkRoadVisualContract.js'
       - 'scripts/checkMedievalRoadSurface.js'
+      - 'scripts/roadContractHarness.html'
       - 'scripts/checkGeographicRiverVisualContract.js'
       - 'scripts/checkGeologicalRockSurface.js'
       - 'scripts/geographicRiverHarness.html'

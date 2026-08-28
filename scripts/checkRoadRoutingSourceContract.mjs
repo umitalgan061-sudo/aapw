@@ -18,7 +18,7 @@ const profileSource = read('src/3d/world/roadSurfaceProfile.js');
 const roadsSource = read('src/3d/world/roads.js');
 const terrainSource = read('src/3d/world/terrain.js');
 
-assert.equal(ROAD_ROUTING_POLICY.id, 'road-routing-2026-08-28-v6-contour-fan-switchbacks');
+assert.equal(ROAD_ROUTING_POLICY.id, 'road-routing-2026-08-28-v11-grounded-bounded-egress');
 assert.equal(ROAD_ROUTING_POLICY.terrainProfilePolicyId, ROAD_PROFILE_POLICY.id);
 assert.equal(ROAD_ROUTING_POLICY.geographyAuthorityUnchanged, true);
 assert.equal(ROAD_ROUTING_POLICY.deterministic, true);
@@ -43,6 +43,15 @@ const requiredRouterSnippets = [
   'MIN_REFINEMENT_CELL_METERS = 36',
   'FINE_REFINEMENT_CELL_METERS = 24',
   'FINE_GRID_NEIGHBOR_CELL_LIMIT_METERS = 24',
+  'MIN_ENDPOINT_LINK_RADIUS_METERS = 220',
+  'MAX_EMPTY_LONG_ROUTE_STAGES = 1',
+  'LONG_ROUTE_FAIL_FAST_SAMPLE_SPACING_METERS = 30',
+  'LONG_ROUTE_FAIL_FAST_SUBMERGED_SPAN_METERS',
+  'maximumDirectSubmergedSpanMeters',
+  'DIRECT_PROFILE_DISTANCE_METERS = 780',
+  'const groundedPoints = groundedTerrain.points.map',
+  'maxSpacingMeters: ROAD_PROFILE_POLICY.maxSampleSpacingMeters',
+  'points: direct.groundedPoints',
   'FINE_NEIGHBOR_OFFSETS',
   'signedOffsetFamily(2, 1)',
   'signedOffsetFamily(3, 1)',
@@ -88,6 +97,14 @@ assert(roadsSource.includes("import { findSlopeAwarePath } from './roadPathfinde
   'roads.js must route through the profiled production pathfinder');
 assert(roadsSource.includes('computeSeatMST'), 'canonical MST topology contract disappeared');
 assert(roadsSource.includes('buildRoadNetwork'), 'canonical road-network builder disappeared');
+for (const snippet of [
+  'ROAD_WATER_AUDIT_SPACING_METERS = 6',
+  'measureSubmergedRibbonExposure',
+  "transportGapReason = diagnostics?.fallback ? 'grade-fallback' : 'submerged-route'",
+  'maxSubmergedRunMeters > ROAD_MAX_SUBMERGED_RIBBON_RUN_METERS',
+]) {
+  assert(roadsSource.includes(snippet), `road network lost canonical-water fail-safe wiring: ${snippet}`);
+}
 assert(terrainSource.includes('export function createHeightSampler'),
   'road profile height authority must remain the production terrain sampler');
 
