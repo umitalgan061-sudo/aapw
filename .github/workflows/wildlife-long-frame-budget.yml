@@ -7,6 +7,7 @@ on:
       - 'scripts/checkWildlifeLongFrameBudget.mjs'
       - 'scripts/checkWildlifeLongFrameBrowser.mjs'
       - 'scripts/checkWildlifePackAlertIndependence.mjs'
+      - 'scripts/checkWildlifePackIteratorCleanup.mjs'
       - 'scripts/checkWildlifePackLongFrameBrowser.mjs'
       - 'scripts/checkWildlifePackAdapterBrowser.mjs'
       - '.github/workflows/wildlife-long-frame-budget.yml'
@@ -40,7 +41,7 @@ jobs:
           test "$base" = "$(git rev-parse origin/main)"
           changed="$(git diff --name-only origin/main...HEAD)"
           printf '%s\n' "$changed"
-          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/animals\.js|scripts/checkWildlifeLongFrameBudget\.mjs|scripts/checkWildlifeLongFrameBrowser\.mjs|scripts/checkWildlifePackAlertIndependence\.mjs|scripts/checkWildlifePackLongFrameBrowser\.mjs|scripts/checkWildlifePackAdapterBrowser\.mjs|\.github/workflows/wildlife-long-frame-budget\.yml|\.github/workflows/wildlife-pack-alert-independence\.yml|\.github/workflows/wildlife-pack-adapter-browser\.yml)$' && exit 1 || true
+          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/animals\.js|scripts/checkWildlifeLongFrameBudget\.mjs|scripts/checkWildlifeLongFrameBrowser\.mjs|scripts/checkWildlifePackAlertIndependence\.mjs|scripts/checkWildlifePackIteratorCleanup\.mjs|scripts/checkWildlifePackLongFrameBrowser\.mjs|scripts/checkWildlifePackAdapterBrowser\.mjs|\.github/workflows/wildlife-long-frame-budget\.yml|\.github/workflows/wildlife-pack-alert-independence\.yml|\.github/workflows/wildlife-pack-adapter-browser\.yml)$' && exit 1 || true
           additions="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END {print s+0}')"
           deletions="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END {print s+0}')"
           test $((additions + deletions)) -le 1000
@@ -57,6 +58,7 @@ jobs:
           node --check src/3d/gameplay/animals.js
           node --check scripts/checkWildlifeLongFrameBrowser.mjs
           node --check scripts/checkWildlifePackAlertIndependence.mjs
+          node --check scripts/checkWildlifePackIteratorCleanup.mjs
           node --check scripts/checkWildlifePackLongFrameBrowser.mjs
           node --check scripts/checkWildlifePackAdapterBrowser.mjs
 
