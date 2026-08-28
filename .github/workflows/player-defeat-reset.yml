@@ -53,7 +53,7 @@ jobs:
         run: |
           node scripts/checkPlayerRecoveryAttackBufferDrop.mjs
           node scripts/checkPlayerCombatRecoveryInputIsolation.mjs
-          node scripts/checkPlayerHitStagger.mjs
+          node --check scripts/checkPlayerHitStaggerRuntime.mjs
           node scripts/checkPlayerDodgeIFrames.mjs
 
       - name: Final exact-main freshness
