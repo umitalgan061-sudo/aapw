@@ -30,11 +30,17 @@ on:
       - 'scripts/checkPlayerDodgeIFrameRuntime.mjs'
       - 'scripts/checkPlayerGroundingCombatContract.mjs'
       - 'scripts/checkPlayerHitStaggerRuntime.mjs'
+      - 'scripts/checkPlayerRecoveryAttackBufferDrop.mjs'
+      - 'scripts/checkPlayerRecoveryAttackBufferRuntime.mjs'
       - '.github/workflows/player-combat-feedback.yml'
       - '.github/workflows/player-dodge-iframes.yml'
       - '.github/workflows/player-grounding-combat-contract.yml'
       - '.github/workflows/player-gamepad-parity.yml'
       - '.github/workflows/player-hit-stagger-runtime.yml'
+      - '.github/workflows/player-recovery-attack-buffer-drop.yml'
+      - '.github/workflows/player-combat-recovery-input-isolation.yml'
+      - '.github/workflows/player-parry-recovery.yml'
+      - '.github/workflows/player-guard-impact-exhaustion.yml'
       - '.github/workflows/player-stamina-dodge.yml'
   workflow_dispatch:
 
@@ -67,7 +73,7 @@ jobs:
           git diff --check "$BASE"...HEAD
           CHANGED="$(git diff --name-only "$BASE"...HEAD)"
           echo "$CHANGED"
-          OUT_OF_SCOPE="$(printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/gameplay/health\.js|src/3d/gameplay/damageResolution\.js|src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerCombatFeedback\.mjs|scripts/checkPlayerCombatFeedbackHapticParity\.mjs|scripts/checkPlayerCombatFeedbackHotplug\.mjs|scripts/checkPlayerCombatHealthReceipt\.mjs|scripts/checkPlayerImmutableDefenseDamage\.mjs|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|scripts/checkPlayerLockOnRuntime\.mjs|scripts/checkPlayerCombatHudRuntime\.mjs|scripts/checkPlayerDodgeIFrames\.mjs|scripts/checkPlayerDodgeIFrameRuntime\.mjs|scripts/checkPlayerGroundingCombatContract\.mjs|scripts/checkPlayerHitStaggerRuntime\.mjs|\.github/workflows/player-combat-feedback\.yml|\.github/workflows/player-dodge-iframes\.yml|\.github/workflows/player-grounding-combat-contract\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-hit-stagger-runtime\.yml|\.github/workflows/player-stamina-dodge\.yml)$' || true)"
+          OUT_OF_SCOPE="$(printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/gameplay/health\.js|src/3d/gameplay/damageResolution\.js|src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerCombatFeedback\.mjs|scripts/checkPlayerCombatFeedbackHapticParity\.mjs|scripts/checkPlayerCombatFeedbackHotplug\.mjs|scripts/checkPlayerCombatHealthReceipt\.mjs|scripts/checkPlayerImmutableDefenseDamage\.mjs|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|scripts/checkPlayerLockOnRuntime\.mjs|scripts/checkPlayerCombatHudRuntime\.mjs|scripts/checkPlayerDodgeIFrames\.mjs|scripts/checkPlayerDodgeIFrameRuntime\.mjs|scripts/checkPlayerGroundingCombatContract\.mjs|scripts/checkPlayerHitStaggerRuntime\.mjs|scripts/checkPlayerRecoveryAttackBufferDrop\.mjs|scripts/checkPlayerRecoveryAttackBufferRuntime\.mjs|\.github/workflows/player-combat-feedback\.yml|\.github/workflows/player-dodge-iframes\.yml|\.github/workflows/player-grounding-combat-contract\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-hit-stagger-runtime\.yml|\.github/workflows/player-recovery-attack-buffer-drop\.yml|\.github/workflows/player-combat-recovery-input-isolation\.yml|\.github/workflows/player-parry-recovery\.yml|\.github/workflows/player-guard-impact-exhaustion\.yml|\.github/workflows/player-stamina-dodge\.yml)$' || true)"
           test -z "$OUT_OF_SCOPE"
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           TOTAL=$((ADD + DEL))
@@ -109,6 +115,8 @@ jobs:
           node --check scripts/checkPlayerDodgeIFrameRuntime.mjs
           node --check scripts/checkPlayerGroundingCombatContract.mjs
           node --check scripts/checkPlayerHitStaggerRuntime.mjs
+          node --check scripts/checkPlayerRecoveryAttackBufferDrop.mjs
+          node --check scripts/checkPlayerRecoveryAttackBufferRuntime.mjs
           node scripts/checkPlayerCombatFeedbackHapticParity.mjs
           node scripts/checkPlayerCombatFeedbackHotplug.mjs
           node scripts/checkPlayerImmutableDefenseDamage.mjs
@@ -119,6 +127,7 @@ jobs:
           node scripts/checkPlayerLockOn.mjs
           node scripts/checkPlayerDodgeIFrames.mjs
           node scripts/checkPlayerGroundingCombatContract.mjs
+          node scripts/checkPlayerRecoveryAttackBufferDrop.mjs
           node scripts/checkSharedMaterialPlacementContract.js
           node scripts/checkServiceWorkerCache.js
           test -f src/3d/materials/MaterialAssignmentCore.js
@@ -138,11 +147,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerStaminaDodgeRuntime.mjs --out-dir=artifacts/player-stamina-dodge
+          mkdir -p artifacts/player-stamina-dodge
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerStaminaDodgeRuntime.mjs --out-dir=artifacts/player-stamina-dodge 2>&1 | tee artifacts/player-stamina-dodge/stamina-runtime.log
+          grep -q 'PLAYER_STAMINA_DODGE_GUARD_PARRY_POISE_RUNTIME_OK' artifacts/player-stamina-dodge/stamina-runtime.log
           test -s artifacts/player-stamina-dodge/player-runtime.png
           test -s artifacts/player-stamina-dodge/metrics.json
           grep -q '"defenseResult": "guard"' artifacts/player-stamina-dodge/metrics.json
           grep -q '"defenseResult": "parry"' artifacts/player-stamina-dodge/metrics.json
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerRecoveryAttackBufferRuntime.mjs --out-dir=artifacts/player-stamina-dodge/recovery-buffer 2>&1 | tee artifacts/player-stamina-dodge/recovery-buffer.log
+          grep -q 'PLAYER_RECOVERY_ATTACK_BUFFER_RUNTIME_OK' artifacts/player-stamina-dodge/recovery-buffer.log
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerMeleeComboRuntime.mjs --out-dir=artifacts/player-stamina-dodge | tee artifacts/player-stamina-dodge/melee-combo.log
           test -s artifacts/player-stamina-dodge/melee-combo.png
           test -s artifacts/player-stamina-dodge/melee-combo.json

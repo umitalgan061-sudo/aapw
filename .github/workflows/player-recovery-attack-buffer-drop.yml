@@ -1,15 +1,16 @@
-name: Player Combat Recovery Input Isolation
+name: Player Recovery Attack Buffer Drop
 
 on:
   pull_request:
     branches: [main]
     paths:
       - 'src/3d/gameplay/player.js'
-      - 'scripts/checkPlayerCombatRecoveryInputIsolation.mjs'
       - 'scripts/checkPlayerRecoveryAttackBufferDrop.mjs'
       - 'scripts/checkPlayerRecoveryAttackBufferRuntime.mjs'
+      - 'scripts/checkPlayerCombatRecoveryInputIsolation.mjs'
+      - 'scripts/checkPlayerParryRecovery.mjs'
       - 'scripts/checkPlayerHitStaggerRuntime.mjs'
-      - '.github/workflows/player-combat-recovery-input-isolation.yml'
+      - 'scripts/checkSharedMaterialPlacementContract.js'
       - '.github/workflows/player-recovery-attack-buffer-drop.yml'
   workflow_dispatch:
 
@@ -17,11 +18,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: player-combat-recovery-input-isolation-${{ github.head_ref || github.ref_name }}
+  group: player-recovery-attack-buffer-drop-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
-  recovery-input-proof:
+  contract:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -32,7 +33,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Exact-main bounded scope
+      - name: Exact main ancestry and bounded scope
         shell: bash
         run: |
           set -euo pipefail
@@ -41,22 +42,21 @@ jobs:
           test "$(git merge-base origin/main HEAD)" = "$BASE"
           git diff --check "$BASE"...HEAD
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
-          test "$((ADD + DEL))" -le 1000
+          changed=$((ADD + DEL))
+          echo "scope additions=${ADD} deletions=${DEL} changed=${changed}"
+          test "$changed" -le 1000
           echo "BASE_SHA=$BASE" >> "$GITHUB_ENV"
-      - name: Static recovery/input contract
+      - name: Syntax combat material and PWA contracts
         shell: bash
         run: |
           set -euo pipefail
-          node --check scripts/checkPlayerCombatRecoveryInputIsolation.mjs
+          node --check src/3d/gameplay/player.js
           node --check scripts/checkPlayerRecoveryAttackBufferDrop.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferRuntime.mjs
-          node scripts/checkPlayerCombatRecoveryInputIsolation.mjs | tee recovery-input-contract.log
-          grep -q 'PLAYER_COMBAT_RECOVERY_INPUT_ISOLATION_OK' recovery-input-contract.log
-          node scripts/checkPlayerRecoveryAttackBufferDrop.mjs | tee recovery-buffer-contract.log
-          grep -q 'PLAYER_RECOVERY_ATTACK_BUFFER_DROP_OK' recovery-buffer-contract.log
-          node scripts/checkPlayerStaminaDodge.mjs
-          node scripts/checkPlayerCombatFeedback.mjs
-          node scripts/checkPlayerGroundingCombatContract.mjs
+          node --check scripts/checkPlayerHitStaggerRuntime.mjs
+          node scripts/checkPlayerRecoveryAttackBufferDrop.mjs
+          node scripts/checkPlayerCombatRecoveryInputIsolation.mjs
+          node scripts/checkPlayerParryRecovery.mjs
           node scripts/checkSharedMaterialPlacementContract.js
           node scripts/checkPwaInstallability.js
           node scripts/checkServiceWorkerCache.js
@@ -81,20 +81,20 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-      - name: Shipped scene recovery/browser proof
+      - name: Shipped scene browser and performance proof
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p artifacts/player-combat-recovery-input
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerRecoveryAttackBufferRuntime.mjs --out-dir=artifacts/player-combat-recovery-input/recovery-buffer | tee artifacts/player-combat-recovery-input/recovery-buffer.log
-          grep -q 'PLAYER_RECOVERY_ATTACK_BUFFER_RUNTIME_OK' artifacts/player-combat-recovery-input/recovery-buffer.log
-          grep -q '"browserErrors": \[\]' artifacts/player-combat-recovery-input/recovery-buffer/recovery-attack-buffer-runtime.json
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerHitStaggerRuntime.mjs --out-dir=artifacts/player-combat-recovery-input/hit-stagger | tee artifacts/player-combat-recovery-input/hit-stagger.log
-          grep -q 'PLAYER_HIT_STAGGER_RUNTIME_OK' artifacts/player-combat-recovery-input/hit-stagger.log
-          grep -q '"browserErrors": \[\]' artifacts/player-combat-recovery-input/hit-stagger/hit-stagger-runtime.json
-          node scripts/checkMobilePerfBudget.js | tee artifacts/player-combat-recovery-input/mobile-perf.log
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js | tee artifacts/player-combat-recovery-input/browser-smoke.log
-      - name: Final main freshness
+          mkdir -p artifacts/player-recovery-attack-buffer-drop
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerRecoveryAttackBufferRuntime.mjs --out-dir=artifacts/player-recovery-attack-buffer-drop/recovery-buffer | tee artifacts/player-recovery-attack-buffer-drop/recovery-buffer.log
+          grep -q 'PLAYER_RECOVERY_ATTACK_BUFFER_RUNTIME_OK' artifacts/player-recovery-attack-buffer-drop/recovery-buffer.log
+          grep -q '"browserErrors": \[\]' artifacts/player-recovery-attack-buffer-drop/recovery-buffer/recovery-attack-buffer-runtime.json
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerHitStaggerRuntime.mjs --out-dir=artifacts/player-recovery-attack-buffer-drop/hit-stagger | tee artifacts/player-recovery-attack-buffer-drop/hit-stagger.log
+          grep -q 'PLAYER_HIT_STAGGER_RUNTIME_OK' artifacts/player-recovery-attack-buffer-drop/hit-stagger.log
+          grep -q '"browserErrors": \[\]' artifacts/player-recovery-attack-buffer-drop/hit-stagger/hit-stagger-runtime.json
+          node scripts/checkMobilePerfBudget.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
+      - name: Exact main freshness
         shell: bash
         run: |
           set -euo pipefail
@@ -105,10 +105,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: player-combat-recovery-input-${{ github.sha }}
+          name: player-recovery-attack-buffer-drop-${{ github.sha }}
           retention-days: 30
           if-no-files-found: warn
-          path: |
-            recovery-input-contract.log
-            recovery-buffer-contract.log
-            artifacts/player-combat-recovery-input/
+          path: artifacts/player-recovery-attack-buffer-drop/

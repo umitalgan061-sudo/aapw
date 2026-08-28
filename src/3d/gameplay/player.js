@@ -227,7 +227,7 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 		if (chainedKind !== 'none' && startAttack(chainedKind, true)) return;
 		attackComboStep = 0; bufferedAttackKind = 'none'; attackBufferRemaining = 0;
 	}
-	function onCombatInput(event) { const kind = event?.detail?.kind; if (kind !== 'light' && kind !== 'heavy') return; bufferedAttackKind = kind; attackBufferRemaining = PLAYER_ACTION_CONFIG.ATTACK_COMBO_BUFFER_SECONDS; }
+	function onCombatInput(event) { const kind = event?.detail?.kind; if (kind !== 'light' && kind !== 'heavy') return; if (attackRemaining <= 0 && !canStartAttack(kind)) return; bufferedAttackKind = kind; attackBufferRemaining = PLAYER_ACTION_CONFIG.ATTACK_COMBO_BUFFER_SECONDS; }
 	globalThis.addEventListener?.(COMBAT_INPUT_EVENT, onCombatInput);
 
 	function canStartDodge() { return attackRemaining <= 0 && !guarding && guardBreakRemaining <= 0 && hitStaggerRemaining <= 0 && parryFeedbackRemaining <= 0 && hasMovementInput && isGrounded && dodgeRemaining <= 0 && dodgeCooldownRemaining <= 0 && stamina >= PLAYER_ACTION_CONFIG.DODGE_COST; }
