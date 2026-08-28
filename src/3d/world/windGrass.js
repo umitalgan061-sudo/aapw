@@ -216,12 +216,12 @@ export function populateWindGrass(mesh, params, cellX, cellZ) {
 function createWindGrassMaterial(config) {
 	const material = new THREE.MeshStandardMaterial({
 		color: 0xffffff,
-		roughness: 1,
+		roughness: 0.86,
 		metalness: 0,
 		side: THREE.DoubleSide,
 	});
 	material.userData.run180WindGrass = Object.freeze({
-		key: 'run180-wind-grass-v6-map-aligned-snow-authority',
+		key: 'run180-wind-grass-v7-multiscale-surface-fabric',
 		radiusMeters: config.radiusMeters,
 		maxPatches: config.maxPatches,
 		bladesPerPatch: RUN180_WIND_GRASS_CONFIG.bladesPerPatch,
@@ -229,18 +229,21 @@ function createWindGrassMaterial(config) {
 		mapAlignedClimate: true,
 		mapAlignedSnowAuthority: true,
 		snowAware: true,
+		worldSpaceMultiscaleVariation: true,
+		variableRoughness: true,
 	});
 	material.onBeforeCompile = (shader) => {
 		shader.uniforms.uRun180WindTime = { value: 0 };
 		shader.vertexShader = shader.vertexShader
-			.replace('#include <common>', '#include <common>\nuniform float uRun180WindTime;\nattribute float run180Flex;\nattribute float run180Phase;\nvarying float vRun180GrassVariation;')
-			.replace('#include <begin_vertex>', '#include <begin_vertex>\nvec2 run180XZ=instanceMatrix[3].xz;\nfloat run180P=dot(run180XZ,vec2(0.021,0.017))+run180Phase*6.2831853;\nfloat run180Wave=sin(uRun180WindTime*1.05+run180P)+0.35*sin(uRun180WindTime*2.15+run180P*1.73);\ntransformed.xz+=vec2(0.78,0.62)*run180Wave*run180Flex*run180Flex*0.24;\nvRun180GrassVariation=fract(sin(dot(run180XZ,vec2(12.9898,78.233)))*43758.5453);');
+			.replace('#include <common>', '#include <common>\nuniform float uRun180WindTime;\nattribute float run180Flex;\nattribute float run180Phase;\nvarying float vRun180GrassVariation;\nvarying float vRun180GrassRoughness;')
+			.replace('#include <begin_vertex>', '#include <begin_vertex>\nvec2 run180XZ=instanceMatrix[3].xz;\nfloat run180P=dot(run180XZ,vec2(0.021,0.017))+run180Phase*6.2831853;\nfloat run180Wave=sin(uRun180WindTime*1.05+run180P)+0.35*sin(uRun180WindTime*2.15+run180P*1.73);\ntransformed.xz+=vec2(0.78,0.62)*run180Wave*run180Flex*run180Flex*0.24;\nfloat run180Macro=0.5+0.5*sin(dot(run180XZ,vec2(0.0047,0.0061))+run180Phase*2.11);\nfloat run180Meso=0.5+0.5*sin(dot(run180XZ,vec2(-0.019,0.014))+run180Phase*5.37+run180Macro*1.7);\nfloat run180Fine=fract(sin(dot(run180XZ+run180Phase*17.0,vec2(12.9898,78.233)))*43758.5453);\nvRun180GrassVariation=clamp(run180Macro*0.38+run180Meso*0.37+run180Fine*0.25,0.0,1.0);\nvRun180GrassRoughness=clamp(0.64+run180Macro*0.18+run180Meso*0.11+run180Fine*0.08,0.58,0.98);');
 		shader.fragmentShader = shader.fragmentShader
-			.replace('#include <common>', '#include <common>\nvarying float vRun180GrassVariation;')
-			.replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb*=mix(0.84,1.10,vRun180GrassVariation);');
+			.replace('#include <common>', '#include <common>\nvarying float vRun180GrassVariation;\nvarying float vRun180GrassRoughness;')
+			.replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb*=mix(0.84,1.10,vRun180GrassVariation);')
+			.replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor*=vRun180GrassRoughness;');
 		material.userData.run180Shader = shader;
 	};
-	material.customProgramCacheKey = () => 'run180-wind-grass-v6-map-aligned-snow-authority';
+	material.customProgramCacheKey = () => 'run180-wind-grass-v7-multiscale-surface-fabric';
 	return material;
 }
 
