@@ -1,0 +1,68 @@
+name: RPG Expedition Reward Provenance
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/interaction.js'
+      - 'src/3d/gameplay/interactionEconomy.js'
+      - 'scripts/checkInteractionExpeditionBoard.mjs'
+      - 'scripts/checkInteractionExpeditionRewardProvenance.mjs'
+      - '.github/workflows/rpg-expedition-reward-provenance.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  expedition-reward-provenance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Exact-main ancestry and bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          base_sha='${{ github.event.pull_request.base.sha }}'
+          head_sha='${{ github.event.pull_request.head.sha }}'
+          test "$(git rev-parse HEAD)" = "$head_sha"
+          test "$(git merge-base "$base_sha" "$head_sha")" = "$base_sha"
+          mapfile -t files < <(git diff --name-only "$base_sha...$head_sha")
+          test ${#files[@]} -ge 1
+          for path in "${files[@]}"; do
+            case "$path" in
+              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionEconomy.js|scripts/checkInteractionExpeditionBoard.mjs|scripts/checkInteractionExpeditionRewardProvenance.mjs|.github/workflows/rpg-expedition-reward-provenance.yml) ;;
+              *) echo "Unexpected path: $path" >&2; exit 1 ;;
+            esac
+          done
+          changed=$(git diff --numstat "$base_sha...$head_sha" | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 1000
+
+      - name: Syntax and expedition reward provenance acceptance
+        run: |
+          node --check src/3d/gameplay/interaction.js
+          node --check src/3d/gameplay/interactionEconomy.js
+          node --check scripts/checkInteractionExpeditionBoard.mjs
+          node --check scripts/checkInteractionExpeditionRewardProvenance.mjs
+          node scripts/checkInteractionExpeditionRewardProvenance.mjs
+
+      - name: Existing expedition board regression
+        run: node scripts/checkInteractionExpeditionBoard.mjs
+
+      - name: Existing expedition credit ledger regression
+        run: node scripts/checkInteractionExpeditionCreditLedger.mjs
+
+      - name: Shared Material Placement Contract regression
+        run: node scripts/checkSharedMaterialPlacementContract.js
+
+      - name: Final exact-main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git rev-parse origin/main)" = '${{ github.event.pull_request.base.sha }}'
+          test "$(git rev-parse HEAD)" = '${{ github.event.pull_request.head.sha }}'

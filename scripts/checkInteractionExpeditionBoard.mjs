@@ -91,12 +91,12 @@ assert.equal(controller.getReputationSnapshot().dragonstone, 2);
 assert.equal(controller.getEconomySnapshot().copper, 52);
 assert.deepEqual(controller.getEconomySnapshot().ledger.recentCredits, [{
 	sequence: 1,
-	sourceId: 'expedition-contract',
-	label: 'Sefer kontratı',
+	sourceId: 'expedition-contract:dragonstone-harbor-tavern-run',
+	label: 'Liman Taverna Seferi',
 	creditedCopper: 12,
 	balanceCopper: 52,
 }]);
-assert.match(buildQuartermasterText(controller.getEconomySnapshot()), /Son gelir: Sefer kontratı · \+12 bakır · bakiye 52/);
+assert.match(buildQuartermasterText(controller.getEconomySnapshot()), /Son gelir: Liman Taverna Seferi · \+12 bakır · bakiye 52/);
 assert.deepEqual(controller.getWorldStateSnapshot().dragonstoneExpeditionRoutes, ['dragonstone-harbor-tavern-run']);
 assert.equal(controller.getWorldStateSnapshot().dragonstoneExpeditionMasteryClaimed, undefined);
 assert.equal(inventoryEvents, 1);
@@ -184,7 +184,7 @@ assert.deepEqual(masteryController.getWorldStateSnapshot().dragonstoneExpedition
 ]);
 assert.equal(masteryController.getWorldStateSnapshot().dragonstoneExpeditionMasteryClaimed, true);
 assert.deepEqual(masteryController.getEconomySnapshot().ledger.recentCredits.map(({ sourceId, label, creditedCopper, balanceCopper }) => ({ sourceId, label, creditedCopper, balanceCopper })), [
-	{ sourceId: 'expedition-contract', label: 'Sefer kontratı', creditedCopper: 10, balanceCopper: 50 },
+	{ sourceId: 'expedition-contract:dragonstone-ridge-camp', label: 'Sırt Kampı Seferi', creditedCopper: 10, balanceCopper: 50 },
 	{ sourceId: 'expedition-mastery', label: 'Sefer ustalığı', creditedCopper: 20, balanceCopper: 70 },
 ]);
 assert.match(buildQuartermasterText(masteryController.getEconomySnapshot()), /Son gelir: Sefer ustalığı · \+20 bakır · bakiye 70/);
