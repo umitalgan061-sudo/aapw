@@ -39,7 +39,7 @@ async function buildRuntimeNetwork(guardBounds) {
     page.on('pageerror', (error) => errors.push(`page:${error.message}`));
     page.on('console', (message) => { if (message.type() === 'error') errors.push(`console:${message.text()}`); });
     const base = `http://127.0.0.1:${server.address().port}`;
-    await page.goto(`${base}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.goto(`${base}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
     const result = await page.evaluate(async (guard) => {
       const THREE = await import('/src/3d/vendor/three/three.module.js');
       const { KINGDOM_SEATS, mapToWorldXZ, computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');

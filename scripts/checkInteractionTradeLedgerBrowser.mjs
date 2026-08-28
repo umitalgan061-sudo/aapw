@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
-const NAV_TIMEOUT_MS = 30_000;
+const NAV_TIMEOUT_MS = 90_000;
 
 function fail(message, details = null) {
 	const suffix = details == null ? '' : `\n${JSON.stringify(details, null, 2)}`;

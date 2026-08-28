@@ -167,7 +167,7 @@ async function main() {
     const page = await context.newPage();
     page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
     page.on('pageerror', (error) => errors.push(String(error)));
-    await page.goto(`http://127.0.0.1:${server.address().port}/__terrain_polish_008_preview__`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.goto(`http://127.0.0.1:${server.address().port}/__terrain_polish_008_preview__`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
     const proof = await buildProof(page);
     assert(proof.policyId.includes('iteration-008-visible-pindex-runtime'), 'Iteration #08 policy did not load');
     assert(proof.vertexCount > 0, 'No terrain vertices were tested');

@@ -25,7 +25,7 @@ async function main() {
 		await page.route('**/src/3d/game3d.js', async (route) => {
 			await route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: 'export function initGame3D() {}\n' });
 		});
-		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 		fs.mkdirSync(OUT, { recursive: true });
 
 		const metrics = await page.evaluate(async () => {

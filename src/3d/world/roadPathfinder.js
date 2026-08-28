@@ -23,6 +23,7 @@
  * order, and therefore the exact same output path.
  * @module world/roadPathfinder
  */
+import { WORLD_DEFAULTS } from '../config.js';
 
 /** Soft target grade, in degrees, at/under which a road segment is treated as effectively free (its
  * cost stays within a few percent of raw horizontal distance) — a horse-drawn cart road should
@@ -68,6 +69,23 @@ export const ROAD_MAX_GRADE_DEGREES = 17;
  * Large enough that crossing one capped cell costs more than a kilometre of gentle detour, small
  * enough to stay far from floating-point trouble when summed over a long route. */
 const OVER_CAP_PENALTY = 4000;
+
+/**
+ * Multiplier on a step that ends at or below sea level.
+ *
+ * **Why this exists.** Nothing in this search knew what water was. Grade was the only thing it paid
+ * for, and open sea is perfectly flat — so the cheapest route between two coastal points was often a
+ * straight line across a bay. Measured on the canonical highways: `slavers-bay-road` put 8 of its
+ * points under water, the deepest 22.07 m below sea level, and the route read as a road running along
+ * the seabed of Slaver's Bay.
+ *
+ * Sized like `OVER_CAP_PENALTY` rather than made infinite, for the same reason that one is finite:
+ * this module's contract is that a route always exists at *some* cost, so a genuinely island-locked
+ * pair still yields a path instead of a pathfinding failure. At 20000x, any dry detour that exists
+ * wins; where none exists the crossing is returned and the caller's own check reports it, which is far
+ * more useful than a thrown error.
+ */
+const UNDERWATER_PENALTY = 20000;
 
 /** Grid cell size, in meters, for the A* search corridor. Small enough to resolve the macro-relief
  * mountain's own falloff shape (1300m radius, see `world/terrain.js`'s `MACRO_RELIEF_FEATURES`) with
@@ -277,7 +295,11 @@ export function findSlopeAwarePath({
 			const horizontalDistance = Math.hypot(di * cellMeters, dj * cellMeters);
 			const rise = Math.abs(heightAt(ni, nj) - hCurrent);
 			const angleDegrees = (Math.atan2(rise, horizontalDistance) * 180) / Math.PI;
-			const stepCost = horizontalDistance * gradeCostMultiplier(angleDegrees);
+			// Roads do not run along the seabed. A step whose destination is at or below the shared water
+			// plane is near-prohibitive, so the search bends around every bay it can walk around.
+			const destinationHeight = heightAt(ni, nj);
+			const wet = destinationHeight <= WORLD_DEFAULTS.WATER_LEVEL_METERS;
+			const stepCost = horizontalDistance * gradeCostMultiplier(angleDegrees) * (wet ? UNDERWATER_PENALTY : 1);
 			const tentativeG = gScore[idx] + stepCost;
 			if (tentativeG < gScore[nIdx]) {
 				gScore[nIdx] = tentativeG;
@@ -323,7 +345,19 @@ function smoothAndResamplePath(rawPoints, start, end, sampleHeightMeters) {
 	smoothedXZ[0] = { x: start.x, z: start.z };
 	smoothedXZ[smoothedXZ.length - 1] = { x: end.x, z: end.z };
 
-	const points = smoothedXZ.map(({ x, z }) => ({ x, z, y: sampleHeightMeters(x, z) }));
+	// Chaikin cuts corners, and at the mouth of a bay the corner it cuts is the water the search just
+	// spent `UNDERWATER_PENALTY` avoiding. Measured: the Slaver's Bay route came out of A* dry and went
+	// back into the sea *here*, so the smoothed point is rejected in favour of its unsmoothed original
+	// wherever smoothing would put the road below the water plane. The road keeps the sharper corner —
+	// which is what a real coast road does anyway.
+	const seaLevel = WORLD_DEFAULTS.WATER_LEVEL_METERS;
+	const points = smoothedXZ.map(({ x, z }, index) => {
+		const y = sampleHeightMeters(x, z);
+		if (y > seaLevel) return { x, z, y };
+		const fallback = rawPoints[Math.min(rawPoints.length - 1, Math.round((index / Math.max(1, smoothedXZ.length - 1)) * (rawPoints.length - 1)))];
+		const fallbackY = sampleHeightMeters(fallback.x, fallback.z);
+		return fallbackY > y ? { x: fallback.x, z: fallback.z, y: fallbackY } : { x, z, y };
+	});
 
 	let maxGradeDegrees = 0;
 	for (let i = 1; i < points.length; i++) {

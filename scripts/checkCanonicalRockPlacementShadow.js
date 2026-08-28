@@ -65,7 +65,7 @@ async function measure() {
 	const browser = await playwright.chromium.launch({ headless: true });
 	try {
 		const page = await browser.newPage();
-		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 		return await page.evaluate(async () => {
 			const { WORLD_DEFAULTS, SETTLEMENT_CONFIG } = await import('/src/3d/config.js');
 			const { createHeightSampler } = await import('/src/3d/world/terrain.js');

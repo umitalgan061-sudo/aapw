@@ -33,6 +33,32 @@ export const PLAYER_CONFIG = Object.freeze({
 	 * `JUMP_SPEED_MPS² / (2 * -GRAVITY_MPS2)` ≈ 1.2m, a small hop over uneven ground/steps,
 	 * not a platformer-scale jump. */
 	JUMP_SPEED_MPS: 7,
+	/**
+	 * Ascent — the owner's "yükselebilme özelliği olsun" (run 409).
+	 *
+	 * **Held jump, not a new key.** A tap still jumps exactly as before; holding past the top of the
+	 * arc climbs. That costs no new binding on a keyboard, no new button on the touch joystick, and no
+	 * new gamepad face button — the one control already means "up".
+	 *
+	 * The three numbers are what make it a resource rather than a cheat. Climbing is slower than the
+	 * jump's own launch (7 m/s), so the first instant of a hold still reads as a jump; the drain is
+	 * heavier per second than sprinting (`SPRINT_DRAIN_PER_SECOND`), so a full stamina bar buys a
+	 * bounded climb and not a free flight; and the ceiling stops the world being left behind — the
+	 * tallest ground in this world is a little over 700 m and Valyria's peaks reach ~450 m, so 120 m
+	 * above the ground under your feet clears a treeline and a castle wall without clearing the map.
+	 *
+	 * **Which limit actually binds, measured.** A full 100-stamina bar at 8/s buys 12.5 s of climb, and
+	 * 12.5 s at 4.5 m/s is about **56 m** — so in practice stamina stops the climb and the 120 m ceiling
+	 * is the backstop behind it, not the everyday limit. The first tuning drained 14/s, which capped a
+	 * climb at ~32 m and made the ceiling purely decorative; this is the number that makes the ability
+	 * worth having while keeping it a resource.
+	 */
+	ASCEND_SPEED_MPS: 4.5,
+	ASCEND_STAMINA_DRAIN_PER_SECOND: 8,
+	ASCEND_MAX_HEIGHT_ABOVE_GROUND_METERS: 120,
+	/** Falling with the control released is a glide, not a stone: gravity still applies, capped here so
+	 * a 120 m descent is survivable to watch rather than a blink. */
+	GLIDE_MAX_FALL_SPEED_MPS: 12,
 	/** Spawn point, in 2D-map units — same coordinate space as `world/settlements.js`'s
 	 * `KINGDOM_SEATS` (`mapX`/`mapY`), converted to world-space meters via `mapToWorldXZ` at
 	 * `game3d.js`'s call site (not here, to avoid a `gameplayConfig.js` -> `world/settlements.js`

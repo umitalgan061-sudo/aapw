@@ -12,7 +12,7 @@ try {
   const page = await browser.newPage();
   const pageErrors = [];
   page.on('pageerror', (error) => pageErrors.push(String(error)));
-  await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
   const result = await page.evaluate(async () => {
     const THREE = await import('three');
     const terrain = await import('/src/3d/world/terrain.js');

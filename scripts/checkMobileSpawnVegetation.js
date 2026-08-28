@@ -113,6 +113,7 @@ async function main() {
 		await mobilePage.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
 		await mobilePage.waitForFunction(
 			() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
+			undefined,
 			{ timeout: 60000, polling: 250 },
 		);
 		await mobileContext.close();
@@ -128,6 +129,7 @@ async function main() {
 		await desktopPage.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
 		await desktopPage.waitForFunction(
 			() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
+			undefined,
 			{ timeout: 60000, polling: 250 },
 		);
 		await desktopContext.close();

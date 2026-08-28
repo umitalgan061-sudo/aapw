@@ -329,17 +329,66 @@ function pindexQualityPointSegmentDistance(px, py, ax, ay, bx, by) {
 	return Math.hypot(px - (ax + abx * t), py - (ay + aby * t));
 }
 
-function pindexQualityReliefInfluence(normalizedX, normalizedY) {
+/** Distances, in aspect-corrected normalized units, over which a ridge's influence falls to nothing. */
+const RELIEF_INFLUENCE_INNER = 0.012;
+const RELIEF_INFLUENCE_OUTER = 0.048;
+
+/**
+ * The relief chains, pre-scaled into the aspect-corrected space and each carrying the box a query
+ * point must fall inside for the chain to be able to contribute anything at all (run 396).
+ *
+ * `pindexQualityReliefInfluence` measured as **the single most expensive function in the whole boot**:
+ * a CPU profile of `createScene` on a mobile viewport put 3.08 s of 10.5 s — 29.6% — inside it, with
+ * its module at 48.2% of the total. The reason is that it walked **all 98 segments of all 19 chains,
+ * with a `Math.hypot` each**, for every sample, however far from any ridge the sample was.
+ *
+ * Skipping the ones that cannot matter is exact, not approximate, and that is the point: past
+ * `RELIEF_INFLUENCE_OUTER` the smoothstep saturates and the term is `1 - 1`, i.e. **precisely zero**,
+ * into a maximum that starts at zero. A chain's whole polyline lies inside its own bounding box, so a
+ * point outside that box grown by `RELIEF_INFLUENCE_OUTER` is further than the falloff from every
+ * segment in it. Dropping those contributes the same zero, so every returned value is bit-identical to
+ * what the exhaustive loop produced — this buys speed without moving the ground by one micrometre,
+ * which is the only kind of terrain change that needs no §8.4 re-verification.
+ */
+const RELIEF_CHAIN_INDEX = (() => {
 	const aspect = WORLD_REFERENCE_BASE_SURFACE_MASK.sourcePixelWidth / WORLD_REFERENCE_BASE_SURFACE_MASK.sourcePixelHeight;
-	const px = normalizedX * aspect;
+	const chains = REFERENCE_RELIEF_CHAINS.map((chain) => {
+		const points = chain.points.map((point) => [point[0] * aspect, point[1]]);
+		let minX = Infinity;
+		let minY = Infinity;
+		let maxX = -Infinity;
+		let maxY = -Infinity;
+		for (const [x, y] of points) {
+			if (x < minX) minX = x;
+			if (x > maxX) maxX = x;
+			if (y < minY) minY = y;
+			if (y > maxY) maxY = y;
+		}
+		return Object.freeze({
+			points: Object.freeze(points),
+			minX: minX - RELIEF_INFLUENCE_OUTER,
+			maxX: maxX + RELIEF_INFLUENCE_OUTER,
+			minY: minY - RELIEF_INFLUENCE_OUTER,
+			maxY: maxY + RELIEF_INFLUENCE_OUTER,
+		});
+	});
+	return Object.freeze({ aspect, chains: Object.freeze(chains) });
+})();
+
+function pindexQualityReliefInfluence(normalizedX, normalizedY) {
+	const px = normalizedX * RELIEF_CHAIN_INDEX.aspect;
 	const py = normalizedY;
 	let strongest = 0;
-	for (const chain of REFERENCE_RELIEF_CHAINS) {
-		for (let index = 0; index < chain.points.length - 1; index += 1) {
-			const a = chain.points[index];
-			const b = chain.points[index + 1];
-			const distance = pindexQualityPointSegmentDistance(px, py, a[0] * aspect, a[1], b[0] * aspect, b[1]);
-			strongest = Math.max(strongest, 1 - pindexQualitySmoothstep(0.012, 0.048, distance));
+	for (const chain of RELIEF_CHAIN_INDEX.chains) {
+		if (px < chain.minX || px > chain.maxX || py < chain.minY || py > chain.maxY) continue;
+		const { points } = chain;
+		for (let index = 0; index < points.length - 1; index += 1) {
+			const a = points[index];
+			const b = points[index + 1];
+			const distance = pindexQualityPointSegmentDistance(px, py, a[0], a[1], b[0], b[1]);
+			// Same exactness argument as the box test, applied per segment.
+			if (distance >= RELIEF_INFLUENCE_OUTER) continue;
+			strongest = Math.max(strongest, 1 - pindexQualitySmoothstep(RELIEF_INFLUENCE_INNER, RELIEF_INFLUENCE_OUTER, distance));
 		}
 	}
 	return strongest;

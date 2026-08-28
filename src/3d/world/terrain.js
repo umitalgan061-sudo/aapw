@@ -17,6 +17,8 @@ import { sampleReferencePindexQualityV2 } from './worldReferenceSurfacePindexes.
 import { sampleWorldReferenceMountainReliefMeters } from './worldReferenceMountainRelief.js';
 import { coastWarpOffsets, reliefDetailMeters } from './terrainReliefDetail.js';
 import { continentalUpliftMeters } from './terrainContinentalUplift.js';
+import { valyriaUpliftMeters, applyValyriaSurface, valyriaInfluence01 } from './worldReferenceValyria.js';
+import { createTerrainChunkSkirt, disposeTerrainChunkSkirt } from './terrainChunkSkirt.js';
 import {
 	TERRAIN_MICRO_SURFACE_POLICY,
 	terrainMicroUvAt,
@@ -31,6 +33,11 @@ import {
 	buildNeutralDetailCanvas,
 	buildFlatNeutralCanvas,
 } from './terrainBiomeShading.js';
+import {
+	applyGroundRealism,
+	curvatureMetersFromNeighbours,
+	sunExposure01FromNeighbours,
+} from './terrainGroundRealism.js';
 
 // Re-exported so the micro-surface extraction stays invisible to every existing importer and check.
 export { TERRAIN_MICRO_SURFACE_POLICY, terrainMicroUvAt, getSharedTerrainMicroSurfaceTextures, applyTerrainMicroSurface };
@@ -42,6 +49,25 @@ const MAP_HEIGHT = WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits;
 const TAU = Math.PI * 2;
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const lerp = (a, b, t) => a + (b - a) * t;
+/**
+ * The Lands of Always Winter — snow laid on the far north by latitude, on top of the canonical mask.
+ *
+ * The mask carries `snow` only on the glacier cells, so land around and north of the Wall read as
+ * `soil` and rendered bright green — at nx 0.175 the northern transect had snowWeight 0 and a
+ * (50,78,12) green, the defect the owner reported. The Wall is at ny ~0.16 (`world/theWall.js`) and
+ * all north of it is ice, so snow comes from latitude, fading over the Gift so the North proper
+ * (Winterfell, ny ~0.285) keeps its cold grassland.
+ *
+ * **Visual/vegetation snow weight only — never the height terms**, which `snowWeight` also feeds
+ * (`+ snowWeight * 12`, relief detail): latitude there would raise the whole north and invalidate
+ * every seat, road and skirt measurement. `scripts/checkNorthernIce.js` guards that.
+ */
+// `fadeNy` 0.30 is map.png's own tail: land whiteness 0.86 at ny 0.04, 0.63 at the Wall, 0.10 at 0.28.
+const NORTHERN_SNOW = Object.freeze({ fullNy: 0.15, fadeNy: 0.30 });
+const northernLatitudeSnow = (ny) => {
+	const t = clamp01((ny - NORTHERN_SNOW.fullNy) / (NORTHERN_SNOW.fadeNy - NORTHERN_SNOW.fullNy));
+	return 1 - t * t * (3 - 2 * t); // smoothstep, inlined: its only caller
+};
 
 /** Deterministic PRNG retained for roads/rivers and other established callers. */
 export function mulberry32(seed) {
@@ -227,6 +253,12 @@ function sampleCanonicalHeightMeters(worldX, worldZ, outSurface) {
 		waterWeight,
 	}) * detailTaper;
 
+	// Run 372 / ADR-0319 — the Doom of Valyria. Applied after the relief detail and before the
+	// seat-protection clamp, on the same footing as every other land-shaping term. It returns 0 off the
+	// Valyrian peninsula and 0 at or below the waterline, so the Smoking Sea keeps its shape and no
+	// coastline moves; see `world/worldReferenceValyria.js` for the map reading it is built on.
+	heightMeters += valyriaUpliftMeters(nx, ny, heightMeters - SEA_LEVEL) * detailTaper;
+
 	// Keep the Pindex V2 coastal blend continuous. `rawWater` is a semantic QA bit and must not
 	// reintroduce a binary height cliff after the continuous surface weights have been evaluated.
 	const hydrology = sampleSeatSafeReferenceHydrology(nx, ny, PROTECTED_SEATS, PROTECTION_RADII);
@@ -236,7 +268,9 @@ function sampleCanonicalHeightMeters(worldX, worldZ, outSurface) {
 	}
 	if (outSurface) {
 		outSurface.rockWeight = rockWeight;
-		outSurface.snowWeight = snowWeight;
+		// Far-north latitude snow over the mask's glaciers — land only, so the sea keeps its colour, and
+		// applied here rather than above so it never reaches the height. See `NORTHERN_SNOW`.
+		outSurface.snowWeight = waterWeight >= 0.5 ? snowWeight : Math.max(snowWeight, northernLatitudeSnow(ny));
 		outSurface.waterWeight = waterWeight;
 	}
 	return heightMeters;
@@ -252,10 +286,28 @@ function flattenWeight(distanceMeters, innerRadiusMeters, outerRadiusMeters) {
 /**
  * Shared render/physics height sampler. `seed`, `fbmOptions` and `maxHeightMeters` remain accepted
  * for API compatibility, but do not alter the canonical production terrain.
+ *
+ * @param {*} _seed
+ * @param {*} _fbmOptions
+ * @param {{x: number, z: number, innerRadiusMeters: number, outerRadiusMeters: number, anchorHeightMeters: number}[]} [flattenPads]
+ * @param {{sampleValleyHeight: (x: number, z: number, naturalHeightMeters: number) => number}} [valleyField]
+ *   Optional river valley carve from `world/terrainValleyCarving.js` (ADR-0307). Applied *before*
+ *   settlement pads and the road bed — it is natural landform, not a gameplay override.
+ * @param {{sampleCorridorHeight: (x: number, z: number, baseHeightMeters: number) => number}} [roadCorridor]
+ *   Optional road cut-and-fill bed from `world/roadCorridorSmoothing.js` (ADR-0304). Applied *after*
+ *   settlement pads, because a road approaching a castle must end up on the castle's pad height rather
+ *   than carving through it. Passed in rather than imported so this module keeps no dependency on the
+ *   road system — terrain does not know what a road is, it is only told where the ground was rebuilt.
  */
-export function createHeightSampler(_seed, _fbmOptions, flattenPads = []) {
+export function createHeightSampler(_seed, _fbmOptions, flattenPads = [], roadCorridor = null, valleyField = null) {
 	return function sampleHeightMeters(worldX, worldZ, _maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS, outSurface) {
-		const baseHeightMeters = sampleCanonicalHeightMeters(worldX, worldZ, outSurface);
+		const canonicalHeightMeters = sampleCanonicalHeightMeters(worldX, worldZ, outSurface);
+		// River valleys (ADR-0307) come first, because they are part of the *natural* landscape rather
+		// than a gameplay override: a castle's flatten pad and a road's cut-and-fill both still win over
+		// the valley they sit in, which is the order those two layers already assume.
+		const baseHeightMeters = valleyField
+			? valleyField.sampleValleyHeight(worldX, worldZ, canonicalHeightMeters)
+			: canonicalHeightMeters;
 		let strongestWeight = 0;
 		let strongestAnchorMeters = baseHeightMeters;
 		for (const pad of flattenPads) {
@@ -266,9 +318,10 @@ export function createHeightSampler(_seed, _fbmOptions, flattenPads = []) {
 				strongestAnchorMeters = pad.anchorHeightMeters;
 			}
 		}
-		return strongestWeight > 0
+		const flattened = strongestWeight > 0
 			? lerp(baseHeightMeters, strongestAnchorMeters, strongestWeight)
 			: baseHeightMeters;
+		return roadCorridor ? roadCorridor.sampleCorridorHeight(worldX, worldZ, flattened) : flattened;
 	};
 }
 
@@ -347,8 +400,8 @@ export function getSharedTerrainAlbedoTexture() {
  * neighbouring chunks sample the same world coordinates through the same deterministic field, a
  * shared vertex resolves to the same slope from either side.
  */
-export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS, seed = 1, flattenPads = [] }) {
-	const sampleHeightMeters = createHeightSampler(seed, undefined, flattenPads);
+export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, maxHeightMeters = DEFAULT_MAX_HEIGHT_METERS, seed = 1, flattenPads = [], roadCorridor = null, valleyField = null }) {
+	const sampleHeightMeters = createHeightSampler(seed, undefined, flattenPads, roadCorridor, valleyField);
 	const geometry = new THREE.PlaneGeometry(size, size, segments, segments);
 	geometry.rotateX(-Math.PI / 2);
 	const position = geometry.attributes.position;
@@ -422,21 +475,54 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 		const column = Math.round((localX + halfSize) / spacingMeters);
 		const row = Math.round((localZ + halfSize) / spacingMeters);
 		const apronOffset = (row + 1) * apronCount + (column + 1);
-		const slopeDegrees = slopeDegreesFromNeighbours(
-			apronHeights[apronOffset - 1],
-			apronHeights[apronOffset + 1],
-			apronHeights[apronOffset - apronCount],
-			apronHeights[apronOffset + apronCount],
-			spacingMeters,
-		);
+		const heightWest = apronHeights[apronOffset - 1];
+		const heightEast = apronHeights[apronOffset + 1];
+		const heightNorth = apronHeights[apronOffset - apronCount];
+		const heightSouth = apronHeights[apronOffset + apronCount];
+		const ownHeight = apronHeights[apronOffset];
+		const slopeDegrees = slopeDegreesFromNeighbours(heightWest, heightEast, heightNorth, heightSouth, spacingMeters);
+		const heightAboveSeaMeters = ownHeight - SEA_LEVEL;
+		const worldX = columnWorldX[column];
+		const worldZ = rowWorldZ[row];
 		resolveTerrainBiomeColor(blended, {
-			heightAboveSeaMeters: apronHeights[apronOffset] - SEA_LEVEL,
+			heightAboveSeaMeters,
 			slopeDegrees,
 			rockWeight: apronRock[apronOffset],
 			snowWeight: apronSnow[apronOffset],
-			worldX: columnWorldX[column],
-			worldZ: rowWorldZ[row],
+			worldX,
+			worldZ,
 		});
+		// Run 367 / ADR-0314 — drainage, aspect and scale hierarchy over the biome colour. Render-only:
+		// the four neighbours are the same ones the slope above is measured from, so this adds no
+		// sampling and touches no height authority. See `world/terrainGroundRealism.js`.
+		const valyriaCurvature = curvatureMetersFromNeighbours(heightWest, heightEast, heightNorth, heightSouth, ownHeight, spacingMeters);
+		applyGroundRealism(blended, {
+			// `spacingMeters` is this chunk's own vertex spacing, and it must be passed: curvature grows
+			// with the stencil it is measured over, so a 32-segment chunk and a 128-segment one would
+			// otherwise tint the ground they share four times differently and draw a seam along every LOD
+			// band boundary. See `curvatureStencilMeters`.
+			curvatureMeters: curvatureMetersFromNeighbours(heightWest, heightEast, heightNorth, heightSouth, ownHeight, spacingMeters),
+			sunExposure01: sunExposure01FromNeighbours(heightWest, heightEast, heightNorth, heightSouth),
+			slopeDegrees,
+			heightAboveSeaMeters,
+			worldX,
+			worldZ,
+			// Bare rock and snow have no soil to be wet or dry, so the effect fades out where the biome
+			// pass has already committed to them.
+			soilCoverage01: 1 - Math.max(apronRock[apronOffset], apronSnow[apronOffset]) * 0.75,
+		});
+		// Run 372 / ADR-0319 — the Doom, over everything the biome and drainage passes decided. Basalt,
+		// ash on the heights, and lava pooling in the same hollows drainage uses, which is why the
+		// curvature above is reused rather than resampled.
+		{
+			const valyriaPoint = currentMapPoint(worldX, worldZ);
+			applyValyriaSurface(blended, {
+				nx: valyriaPoint.nx,
+				ny: valyriaPoint.ny,
+				heightAboveSeaMeters,
+				curvatureMeters: valyriaCurvature,
+			});
+		}
 		colors[index * 3] = blended.r;
 		colors[index * 3 + 1] = blended.g;
 		colors[index * 3 + 2] = blended.b;
@@ -490,10 +576,23 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 		apronSampledSlope: true,
 	});
 	mesh.userData.currentTerrainMicroSurface = material.userData.terrainMicroSurface;
+	// Crack skirt (DECISIONS.md ADR-0301). Carried as a child rather than extra vertices on the chunk
+	// so this geometry's counts stay exactly 4225/24576 at 64 segments, which every terrain topology
+	// contract asserts. Built last, from the finished geometry, so it inherits real heights and colours.
+	const skirt = createTerrainChunkSkirt(geometry, { segments, size, roughness: material.roughness });
+	if (skirt) {
+		mesh.add(skirt);
+		mesh.userData.currentTerrainChunkSkirt = skirt.userData.terrainChunkSkirt;
+	}
 	return mesh;
 }
 
 export function disposeTerrainChunk(chunkMesh) {
+	for (const child of [...chunkMesh.children]) {
+		if (!child.userData?.terrainChunkSkirt) continue;
+		chunkMesh.remove(child);
+		disposeTerrainChunkSkirt(child);
+	}
 	chunkMesh.geometry.dispose();
 	// The albedo and micro normal/roughness textures are app-lifetime shared resources. Disposing a
 	// single chunk must never invalidate texture maps still referenced by neighboring chunk materials.

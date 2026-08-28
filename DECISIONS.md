@@ -17134,3 +17134,2885 @@ dağların eteklerinden dolaşarak geçiyor, tam olarak sahibin istediği gibi.
 
 **Next safe step:** terrain LOD (ADR-0297) is now the only remaining structural blocker on visual
 detail — mesh resolution, not the height field, is what still smooths fine ground.
+
+## ADR-0301 — Per-chunk crack skirts: fixing a live LOD seam defect, and unblocking finer terrain
+
+**Bağlam.** ADR-0300 kapandığında geriye tek yapısal engel kalmıştı: mesh çözünürlüğü. 500 m'lik
+parça / 64 segment = 7,8 m vertex aralığı, yani ~16 m'nin altındaki her detay ortalamayla siliniyor.
+128 segment denenmiş ve geri alınmıştı (`config.js`), çünkü masaüstü açılışı 529 parçayı senkron
+kuruyor. Bu turda `sceneManager.js:190`'ın gerçekten senkron olduğu doğrulandı — yani 128-segment
+başarısızlığı ham maliyet değil, **ana iş parçacığını bloklama**ydı.
+
+Doğru çözüm mesafe-tabanlı LOD. Ve aranınca çıktı ki **LOD zaten var**: run 134 / ADR-0158 kaba-imleç
+cihazlara 64/32/16 bantlarını veriyor. Ama hiçbir şey o dikişleri birleştirmiyor. Kaba parçanın kenarı
+31 m arayla düz bir kiriş çizerken, yanındaki ince parça zemini 7,8 m'de takip ediyor; ikisi
+anlaşmadığı her yerde oyuncu bir T-birleşim çatlağı görüyor. Bu varsayım değil — **bugün mobilde canlı
+bir render hatası**, ve masaüstü LOD'unun da önkoşulu.
+
+**Karar.** Her parça kendi çevresinden aşağı sarkan bir şerit ("skirt") taşıyor
+(`world/terrainChunkSkirt.js`). Dikiş birleştirmek yerine skirt seçildi çünkü birleştirme bir parçanın
+geometrisini *komşusunun* LOD'una bağımlı kılar — komşu bant değiştirince parçanın yeniden kurulması
+gerekir, üstelik akış sırasında komşu henüz yüklü bile olmayabilir. Skirt'te böyle bir bağ yok.
+
+Skirt parçanın kendi geometrisine eklenmiyor, **çocuk mesh** olarak taşınıyor. Böylece parça
+geometrisi 64 segmentte tam olarak 4225 vertex / 24576 index kalıyor — `checkTerrainVisualContract`,
+`checkMobileTerrainLod` ve runtime-parity kanıt kontrollerinin hepsi bunu birebir iddia ediyor. Ayrıca
+`camera.js`'in zemin raycast'i (`intersectObjects(collidables, false)` — özyinelemesiz) ve
+`worldReferenceSurfaceTerrainVisual.js` (parça mesh'ini doğrudan alıyor) eskisiyle aynı yüzeyi görmeye
+devam ediyor. Bu tur tamamen eklemeli.
+
+**Derinlik parça başına, ölçümle.** İlk hâli tek bir sabitti ve tahmin 26 m'ydi.
+`scripts/measureTerrainChunkSkirtDepth.js` dünyanın 27x21 parça ızgarasındaki her paylaşılan kenarı
+ölçtü: dağılım son derece uzun kuyruklu. 64-vs-32 dikişinde **ortalama boşluk 0,80 m**, 64-vs-16'da
+**1,64 m** — ama dünyadaki en kötü tek kenar **60,74 m** (parça (6,0) batı kenarı). Tek sabit o tek dağ
+kenarına göre boyutlanmak zorunda kalırdı, ve 567 parçanın hepsinden sarkan 61 m'lik bir duvar tam da
+modülün kendi notunun uyardığı hata: artık asıldığı zeminin arkasında gizlenmiyor, dik inişlerde dışarı
+taşıyor — çatlağı bir bulaşmayla takas ediyor.
+
+Oysa parça kendi kenar yüksekliklerini zaten biliyor. Bu yüzden her parça, en kaba olası komşunun (16
+segment) çizeceği kirişi kendi verisinden hesaplıyor ve tam o kadar sarkıyor. Karşılaştırma tahmini
+değil **birebir**: LOD seviyeleri birbirinin ikinin kuvveti olduğundan kaba parçanın kenar vertex'leri
+ince parçanınkilerin bir alt kümesinde duruyor. Ek yükseklik örneklemesi yok — az önce kurulmuş
+geometri okunuyor.
+
+Ölçülen sonuç: düz zemin 2 m taban, sıradan arazi 2–5 m, ve dağ parçası (6,0) gerçekten gerektiği
+yerde 62,24 m alıyor.
+
+**Alternatifler.**
+1. *Kenar birleştirme (stitching).* Reddedildi: komşu-bağımlılığı yukarıda. Akış sırasında komşusu
+   henüz yüklenmemiş parça için doğru cevabı üretemiyor.
+2. *Tek global derinlik sabiti.* Ölçümle reddedildi — 0,8 m ortalamaya karşı 60,74 m kuyruk.
+3. *16-segment bandını tamamen kaldırmak.* Reddedildi: bu, run 134'ün ölçülmüş mobil bütçesini geri
+   alırdı. Kuyruğu doğuran band'i silmek yerine kuyruğu kapatmak daha ucuz.
+4. *Skirt'i parça geometrisine eklemek.* Reddedildi: dört kontrolün birebir iddia ettiği topolojiyi
+   kırardı, üstelik hiçbir karşılığı olmadan.
+
+**Doğrulama.** `measureTerrainChunkSkirtDepth.js` **PASS** — örneklenen 10 parçanın her birinin kendi
+skirt'i kendi en kötü kaba-komşu boşluğunu kapatıyor (marj 1,5 m), ve parça geometrisi 4225/24576'da
+kaldı. `terrainSeatSafetyCheck.js` **14/14 PASS**, on dört koltuğun da yüksekliği run 354 ile
+**bayt-bayt aynı** — skirt yalnızca render, tek bir metre yükseklik değiştirmedi.
+`roadNetworkSafetyCheck.js` PASS (13 kenar, 18,29 km, 20° altında). Kanonik şart korundu: su maskesi
+checksum'ı `2ca2bed8d8a1…` değişmedi, hizalama 14/14 round-trip %100 kapsam.
+`checkTerrainVisualContract.js` PASS (4225 vertex, 24576 index, 65/65 dikiş sürekli, disposal 1/1),
+`checkMobileTerrainLod.js` PASS (49 parça = 9 near@64 + 16 mid@32 + 24 far@16, dispose=0),
+`checkServiceWorkerCache.js` ve `checkSmokeCheckRegistry.js` PASS.
+
+**Görsel kanıt (§8.5).** `captureTerrainChunkSkirtEvidence.mjs`, kasıtlı olarak stash'li before/after
+yerine **aynı kareyi** skirt'ler görünür ve görünmezken iki kez render ediyor — çünkü çalışan bir skirt
+görünmezdir, ve stash/yeniden kurma iki farklı sahneyi karşılaştırırdı. Fark böylece yalnızca
+skirt'lere atfedilebilir. Kaba-imleç emülasyonuyla (LOD bantlarını ekrana getiren sinyal) 81 parça, 4
+çerçeveleme (2 açı x yakın/uzak), dünyanın en kötü dikişinin bulunduğu bölgede: kapatılan çatlak
+pikselleri **1198 / 0 / 3489 / 699**. Dördüncü çerçeveleme sıfır — o açıdan görünür çatlak yok, ve
+bu dürüstçe böyle raporlanıyor. Yüzeyin geri kalanı piksel-bazında aynı: bulaşma yok, koyu kenar yok.
+
+**Memory leak checklist.** `disposeTerrainChunk` artık skirt çocuklarını da kaldırıp geometri ve
+materyalini dispose ediyor. `checkTerrainVisualContract` disposal 1/1, `checkMobileTerrainLod`
+dispose=0 ile doğruladı. Skirt hiçbir paylaşılan dokuya referans vermiyor.
+
+**Technical debt.** 0 new.
+
+**World Coverage.** Değişmedi. World Evolution Report: mobilde canlı bir LOD çatlak hatası kapandı;
++1 ADR, +1 modül, +2 script; "oyuncu fark eder mi" — evet, mobilde: LOD sınırlarında zemini kesen
+gökyüzü/boşluk dilimleri kayboldu.
+
+**Next safe step:** masaüstü mesafe-tabanlı LOD. Artık çatlak riski kapalı olduğuna göre yakın bantı
+128 segmente (3,9 m vertex) çıkarıp uzak bantları kabalaştırmak açılış maliyetini de düşürüyor:
+25 parça@128 + 96@64 + 408@32 ≈ 1,36 M vertex, bugünkü 529@64 = 2,38 M'ye karşı — hem iki kat yakın
+detay hem %43 daha az açılış işi. Bu, `config.js`'in 128-segment notunun beklediği dikişli seam.
+
+## ADR-0302 — 42 tarayıcı kontrolü kendi açılış maliyetinin altında bir gezinme bütçesiyle çalışıyordu
+
+**Bağlam.** Run 355'in yayın öncesi eşzamanlılık kontrolü uzak `main`'i `c7ce773` → `2bca1ec`
+ilerlemiş buldu (başka bir oturumun kuş-sürüsü PR'ı). Rebase sonrası `checkTerrainVisualContract`
+`page.goto` zaman aşımıyla düştü. İlk okumam "birleştirme açılışı bozdu" oldu — **bu yanlıştı** ve
+ölçüm düzeltti.
+
+**Kök neden (§8.2).** Üç yapılandırma ayrı ayrı ölçüldü:
+
+| yapılandırma | 529 parça yükleme | su derinliği |
+|---|---|---|
+| `c7ce773` (temiz) | 23.553 ms | 3.758 ms |
+| `2bca1ec` (temiz) | 23.508 ms | 3.755 ms |
+| `2bca1ec` + run 355 | 23.697 ms | 3.717 ms |
+
+Yani birleştirme de, run 355'in skirt'i de açılışa pratikte hiçbir şey eklemiyor (skirt 529 parçanın
+tamamında **+144 ms, %0,6**). Gerçek durum şu: açılış zaten **~27,3 sn** sürüyor ve `game3d.html`'in
+modül script'leri `defer` semantiğinde olduğundan `domcontentloaded` bu senkron açılışın tamamını
+bekliyor. Bütçe 30 sn'ydi — yani 3 sn'den az pay. `c7ce773`'ün geçip `2bca1ec`'in düşmesi nedensellik
+değil, kap değişkenliğiydi.
+
+Aynı numarayı 42 kontrol paylaşıyordu. Hepsi iddia ettikleri sözleşmeye göre değil, o anki makine
+gürültüsüne göre geçip düşüyordu — run 354'ün 15 sn taramasıyla birebir aynı kök neden sınıfı.
+
+**Karar.** `page.goto` gezinme bütçesi 42 dosyada 30 sn → 60 sn. Yalnızca `goto` çağrılarının içindeki
+`timeout` değiştirildi; aynı dosyalardaki diğer bekleme süreleri elle sürülmedi.
+
+**Bunun ne olmadığı.** Zaman aşımını yükseltmek 23,5 sn'lik açılışı düzeltmiyor, yalnızca ölçüm
+aracını ölçtüğü şeye uygun hale getiriyor — hiçbir kontrol açılış süresini sözleşme olarak iddia
+etmiyor, 30 sn kasıtlı bir performans eşiği değil gezinme payıydı. Asıl çare masaüstü mesafe-tabanlı
+LOD: 25@128 + 96@64 + 408@32 ≈ 1,36 M vertex, bugünkü 529@64 = 2,38 M'ye karşı, yani açılış işinde
+~%43 azalma. Bu ADR onun yerine geçmez, onu görünür kılar.
+
+**Doğrulama.** `checkTerrainVisualContract`, `checkVegetationVisualContract`, `checkWaterVisualContract`
+birleştirilmiş `main` + run 355 üzerinde PASS.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+## ADR-0303 — Masaüstü mesafe-tabanlı LOD, ve "pürüzsüzlüğün" gerçek engelinin nerede olduğu
+
+**Bağlam.** ADR-0301 çatlak riskini kapattıktan sonra sıra `config.js`'in beklettiği işe geldi:
+masaüstü mesh çözünürlüğü. 7,8 m vertex aralığı ~16 m'nin altındaki hiçbir şeyi taşıyamıyor.
+
+**Karar.** `chunkManager.js`'e, run 130/134/140'ın üzerine eklemeli bir masaüstü LOD sarmalayıcısı:
+Chebyshev yarıçap ≤2'de 128 segment (3,9 m vertex), ≤5'te 64, ötesinde 32. Run 140'ın canlı-dünya
+ayırt edicisi aynen kullanıldı — yalnızca `sceneManager.js`'in 14 düzleştirme pad'ini verdiği yönetici
+LOD alıyor, jenerik/test yöneticileri tekdüze kalıyor, yani mevcut masaüstü sözleşmeleri birebir
+korunuyor. Merkez kayınca bant değiştiren parçalar yeniden kuruluyor; regrade yarıçapı 6 ile sınırlı,
+çünkü oyun akışı bir seferde tek parça ilerliyor.
+
+**Ölçülen kazanç: açılış.** 529 parçalık masaüstü önizlemesi **23.697 ms → 15.180 ms (%36 azalma)**,
+yakın alan aynı anda 7,8 m'den 3,9 m vertex'e iniyor. Bu ayrıca ADR-0302'nin işaret ettiği 27,3 s'lik
+açılışın da asıl çaresi.
+
+**Ölçülen kazanç-sızlık: görüntü. Bu turun asıl bulgusu bu.** Beklentim yakın alan detayının gözle
+görülür artmasıydı. Ölçüm aksini söyledi: dört çerçevelemede render edilmiş yüksek frekans görüntü
+enerjisi 7,75→7,99 / 16,02→16,04 / 11,90→11,83 / 20,51→20,65 — yani hiç. Üçgen sayısı ise regrade
+yarıçapı içinde 1,38 M → 1,70 M (+%23).
+
+Neden: **yükseklik alanında 4–16 m bandında zaten içerik yok.** En ince katman `roughness` ~45 m'de,
+en ince oktavı ~11 m'de ve orada genliği ~0,5 m. İnce mesh üretilmemiş detayı gösteremez.
+
+**Sonra denediğim ve ölçümle geri aldığım şey.** İnce bandı doldurmak için `roughness` genliğini
+yükseltip yükseltiye göre rampaladım (düz 2,0 → alçak 1,6 / yüksek 4,0). Kapılardan geçti (yol 19,4°,
+14/14 koltuk) ama oyuncu ölçeğindeki zemin eğriliğini (4 m aralıkla RMS ikinci fark) yalnızca
+**1,1239 → 1,1340, yani %1** değiştirdi. Gerekçesi "görünür detay ekler"di, ölçüm eklemediğini
+söyledi; o yüzden değişiklik gönderilmedi. `terrainReliefDetail.js` bu turda dokunulmamış durumda.
+
+**Asıl engel, ve neden bu bir sahip kararına yaklaşıyor.** Bisect sırasında çıkan kök neden şu:
+`roughness` frekansını 295 → 340 yapmak (45 m → 39 m dalga boyu) **tek başına** yol eğimini
+19,4° → 24,3°'ye çıkardı, oysa genliği 7,5'ten 3,0'a düşürmek 25,2° → 24,3°, neredeyse hiçbir şey
+değiştirmedi. Yani kapıyı tetikleyen diklik değil dalga boyu.
+
+Sebebi `roadPathfinder.js`'in `GRID_CELL_METERS = 60` ızgarasında örneklemesi. Dalga boyu 60 m'ye
+yaklaşan her arazi katmanı komşu örnekler arasında büyük yükseklik farkı üretiyor ve kontrol bunu
+uçurum gibi puanlıyor — ölçtüğü şey gerçek geçilebilirlik değil **örnekleme aliasing'i**. Bu yüzden
+oyuncu ölçeğinde pürüzlülük eklemenin önündeki engel arazi tarafında değil, ölçüm tarafında.
+
+Bunu kendi başıma çözmedim çünkü çözümü "yol eğimi" tanımını değiştirmek: bir at arabası 5 m'lik bir
+tümseği umursamaz, onlarca metrelik sürekli eğimi umursar. Kapının semantiğini değiştirmek ya da
+yollara yerleşimlerdeki gibi kes-doldur koridoru vermek gerçek bir ürün kararı (GOVERNANCE.md §14),
+tahmin edilecek bir şey değil. `QUESTIONS_FOR_OWNER.md`'ye soru olarak eklendi.
+
+**Doğrulama.** `checkDesktopTerrainLod.js` (bu turda eklendi) PASS: bantlar 128/64/32 doğru vertex
+sayılarıyla (16641/4225/1089), 6 artımlı geçişten sonra regrade yarıçapı içindeki her parça kendi
+mesafesinin gerektirdiği bantta, her parça skirt'li, jenerik yöneticiler tekdüze, dispose=0.
+`checkMobileTerrainLod.js` PASS (mobil yol byte-for-byte dokunulmadı). 14/14 koltuk PASS, yollar PASS
+(19,2°, 18,29 km), `checkTerrainVisualContract` PASS (kendi parçalarını 64'te kuruyor, LOD'dan
+etkilenmiyor), `checkSmokeCheckRegistry` PASS.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+**Next safe step:** sahibin yol-eğimi sorusuna vereceği cevap. O gelene kadar ince bant içeriği
+eklemek kapıya takılıyor; bu turda o kapının nerede olduğu kesin olarak tespit edildi.
+
+## ADR-0304 — Yollara kes-doldur koridoru, ve oyuncu ölçeğinde gerçek pürüzlülük
+
+**Bağlam.** ADR-0303 engeli tespit etmişti: pürüzlülük katmanının *dalga boyu* (genliği değil) yol
+kapısını tetikliyordu, çünkü `roadPathfinder.js` 60 m ızgarada örnekliyor ve o bandı uçurum gibi
+puanlıyordu. S-0035 olarak sahibe soruldu; sahip "istediğini yap" diyerek tavsiye ettiğim 3. seçeneği
+onayladı: kapıyı gevşetmek yerine yollara gerçek bir yatak vermek.
+
+**Karar.** `world/roadCorridorSmoothing.js` — yerleşim pad'lerinin birebir aynı iki fazlı kalıbı.
+Faz 1: her araba yolu pad'li arazi üzerinde rotalanır. Faz 2: rota boyunca yatak döşenir ve arazi dar
+bir koridor içinde o yatağa çekilir. Koridor `sceneManager.js`'te chunk manager ve ground collider'dan
+**önce** kuruluyor, çünkü ikisi de aynı zemini görmek zorunda (ADR-0118 hata modu).
+
+**Ölçümle bulunan iki hata, ikisi de düzeltildi.**
+
+1. *Profili A* noktalarından yumuşatmak.* Noktalar 60 m aralıklı, pürüzlülük ~39 m'de — yani noktalar
+   **zaten aliaslı** ve aliaslı örneklerin ortalaması gerçek profili geri getirmiyor. Stres rotası
+   22,0°'de kaldı. Düzeltme: rotayı önce 8 m'de yeniden örnekle, filtreyi ona uygula.
+2. *Uçları sert pinlemek.* 8 m ötesindeki ağır filtrelenmiş komşusunun yanında pinlenmiş uç noktanın
+   kendisi bir uçurum oluyor — stres rotası **57,1°**. Düzeltme: filtre pinsiz çalışır, uç farkı
+   sonradan filtrenin kendi genişliği boyunca doğrusal sönümlenen bir ofsetle kapatılır. Yol yine
+   kalesinin pad yüksekliğine tam oturur, profil sürekli kalır.
+
+**Sonuç.** Stres rotası 19,2° → **13,0°**, sonra ağır pürüzlülükle birlikte **11,4°**. `umit → Xaro`
+15,6° → 9,1°, `jon → Night King` 9,1° → 4,9°.
+
+**Ve asıl kazanç: pürüzlülük artık gerçekten var.** `terrainReliefDetail.js`'in `roughness` katmanı
+düz 2,0 m / 45 m dalga boyu / 3 oktavdan, yükseltiye rampalı 3,5–14,0 m / ~27 m dalga boyu / 4 oktava
+çıktı — en ince oktav ~3,5 m, yani ADR-0303'ün 3,9 m yakın-bant mesh'inin taşıyabildiği ölçek. İki
+değişiklik yalnızca birlikte işe yarıyor.
+
+Oyuncu ölçeğinde zemin eğriliği (4 m aralıkla RMS ikinci fark):
+
+| konum | önce | sonra | değişim |
+|---|---|---|---|
+| yayla (3000, 0) | 1,1239 | 1,6805 | **+%50** |
+| yayla (2600, 400) | 1,0680 | 2,0045 | **+%88** |
+| ova (0, 0) | 0,6831 | 0,9229 | +%35 |
+| ova (-500, 1500) | 0,4886 | 0,6495 | +%33 |
+
+ADR-0303'te denenip reddedilen versiyon %1 kazandırmıştı; fark, yatağın açtığı paydan geliyor.
+
+**Doğrulama.** `checkRoadCorridorSmoothing.js` (yeni) PASS: 13 yataklı kenar / 2388 segment, yatak
+9,4°'ye karşı yanındaki dokunulmamış zemin 49,6° (**5,3 kat daha yumuşak**), yoldan 66 m ötede arazi
+yataksız alanla **bayt-bayt aynı** (koridor gerçekten dar), merkez hattında 6,0 m'ye kadar kes-doldur,
+en kötü uç adımı 0,35 m (pinleme uçurumu yok), render/oynanış örnekleyicileri tam olarak aynı.
+Yollar PASS (18,31 km, 20° altında), 14/14 koltuk PASS, su maskesi `2ca2bed8d8a1…` değişmedi,
+hizalama 14/14 %100, terrain visual contract 4225/24576, masaüstü + mobil LOD PASS, determinizm PASS.
+Açılış 9.981 ms.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+**Next safe step:** sahibin aynı mesajdaki diğer üç isteği — vadilerin düzenlenmesi, köy/krallık
+olmayan yerlerin map.png'deki gibi ormanlaştırılması, ve Westeros'un doğu tarafındaki yolların
+map.png'ye bakılarak kurulması.
+
+## ADR-0305 — Orman: renk ile ağaçları tek otoriteye bağlamak, ve yükseltmenin kaydırdığı bütün eşikler
+
+**Bağlam.** Sahibin isteği: "köy ve krallık yoksa map.png'deki gibi orman haline getir."
+
+**Bulunan iki ayrı hata.**
+
+1. *Renk ve ağaçlar birbirinden habersizdi.* `terrainBiomeShading.js` run 351'den beri zemini
+   deterministik bir yama maskesi içinde orman yeşiline boyuyordu, ama `vegetation.js` ağaçları dünya
+   geneline **km² başına 30** yoğunlukla dağıtıyordu — yani ortalama her 180 m'de bir ağaç, ki bu
+   orman değil bozkır. Ortada orman renkli ama ağaçsız bir zemin vardı.
+2. *Ve maske zaten ~0 döndürüyordu.* Ağaç sınırı 170/330 m'ydi — bu değerler ADR-0299'un kıta
+   yükseltmesinden **önce** yazılmıştı. Yükseltme iç bölgeyi ~5 m medyandan yüzlerce metreye çıkardı,
+   dolayısıyla Westeros'un iç bölgesinin tamamı ağaç sınırının üstünde kaldı.
+
+İkinci bulgu genellendi: bu dosyadaki **bütün** yükseklik eşikleri eski dağılıma göre yazılmıştı.
+Ölçüm (55 m örgüde 15.964 kara örneği) yeni dağılımı verdi: p50 5,24 → **65,72 m**, p90 114 → **254 m**,
+max 566 → **750 m**. Eşikler kaymadı; zemin altlarından kaydı. Etkisi şuydu: owner haritasının ormanlık
+çizdiği ~330 m'lik sıradan iç Westeros, tamamen "kurak yayla"dan çıplak kayaya geçen bantta çiziliyordu
+— yani kıta çöl gibi görünüyordu.
+
+**Karar.**
+
+*Tek otorite.* `forestCoverage01(worldX, worldZ, height, slope)` `terrainBiomeShading.js`'ten export
+edildi. Hem zemin rengi hem `world/vegetationForestScatter.js`'in ağaç dağıtımı artık onu okuyor, yani
+orman rengi ile gerçek orman bir daha ayrışamaz. Yoğunluk örtüyle orantılı, böylece yama kenarı bir
+çizgide bitmek yerine çalılığa dönüşerek inceliyor.
+
+*Eşikler yeniden türetildi.* Her eşik, **eski dağılımda işgal ettiği yüzdelik** alınıp yeni dağılımda
+aynı yüzdelikten okunarak yeniden hesaplandı — böylece her bandın arkasındaki niyet korunuyor, yeniden
+tahmin edilmiyor: `grassMidFull`/`dryUplandStart` ~p87 (60 → 230 m), `dryUplandFull` ~p93 (190 → 295),
+`rockCoolFull` ~p97 (320 → 420), `snowAltitudeStart` ~p98 (380 → 490). Ağaç sınırı kar sınırının hemen
+üstüne, 520/760 m'ye alındı: yalnızca gerçekten karlı zirveler çıplak kalıyor. `measured` bloğu yeni
+dağılımı kaydediyor, eskisi köken bilgisi olarak korunuyor.
+
+*Ne temiz kalıyor.* Koltuklar ve yollar zaten `isPlaceablePosition` ile dışlanıyor. Köyler burada
+dışlanıyor — bu yüzden `sceneManager.js` artık köyleri bitki örtüsünden **önce** kuruyor. Köyler
+yalnızca araziye, koltuklara ve yollara bağlı olduğu için sıralama değişikliği onları etkilemiyor.
+
+**Ölçülen sonuç.** Ağaç sayısı **3.203 → 18.481** (15.289'u orman). Dünya genelinde ortalama orman
+örtüsü **0,693**, karanın **%70'i** orman (örtü > 0,5), ve karanın **%83'ü** yeşil-baskın zemin
+çiziyor. Öncesinde iç bölge tamamen kurak yayla/kaya bandındaydı.
+
+**Bir uyarı, kayda geçsin.** Run 356'nın kanıt çekimi (6,0) parçasında duruyor; orası kasten dünyanın
+en dik kenarı ve kara yüksekliği dağılımının **p94'ü**. Orada zemin haklı olarak çıplak yayla çiziyor,
+ve tek başına bakıldığında "kıta hâlâ kahverengi" izlenimi veriyor. Biyom yargısı için tipik bir
+konumdan çekim gerekiyor; çekim script'i artık `--chunk=X,Z` kabul ediyor ve doc'u bunu söylüyor.
+
+**Doğrulama.** 14/14 koltuk PASS, yollar PASS (18,31 km, 20° altında), terrain visual contract PASS,
+SW cache (v21→v22) PASS, satır sınırı PASS, determinizm PASS, borç 0.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+**Next safe step:** sahibin kalan iki isteği — vadilerin düzenlenmesi, ve Westeros'un doğu tarafındaki
+yolların map.png'ye bakılarak kurulması.
+
+## ADR-0306 — Ormanı map.png'nin adlandırılmış bölgelerine bağlamak
+
+**Bağlam.** Sahibin isteği: "map.png'ye bakıp bizim 3D oyunumuza o yolları, dağları, ormanları entegre et."
+
+**Önce bir olgu.** `resimler/map.png` bu depoda **yok** ve okunamıyor: `.gitignore` `/resimler/` satırını
+taşıyor, yani görsel hiç commit'lenmemiş, uzak oturum da depoyu sıfırdan klonluyor. Konteynerin tamamı
+tarandı, dosya hiçbir yerde yok. Sahibe bildirildi.
+
+Ama haritanın içeriği türetilmiş biçimde **depoda mevcut**: `world/worldReferenceMap.js`, kaynak
+görselin SHA-256'sını (`20702972…`) taşıyan elle denetlenmiş transkripsiyon — 17 adlandırılmış biyom
+bölgesi (kind + merkez + yarıçap), 5 su bölgesi ve 4 dağ zinciri. Denetlendi ve iki şey zaten bağlıymış:
+dağ zincirleri `worldReferenceMountainRelief.js` üzerinden araziyi gerçekten şekillendiriyor, biyom
+bölgeleri de `worldReferenceSurfacePindexes.js`'in yüzey maskesini besliyor.
+
+**Boşluk ormandaydı.** Run 358'in `forestCoverage01`'i saf gürültüydü ve bu bölgeleri hiç okumuyordu —
+yani Dorne çölü ile Sothoryos cengeli aynı orman olasılığını alıyordu. Harita, ormanlar konusunda hiç
+konuşmuyordu.
+
+**Karar.** `world/worldReferenceForestAffinity.js`: her biyom `kind`'ına bir orman yatkınlığı, ve
+`sampleReferenceInfluence` ile harmanlanmış bir sorgu. `forestCoverage01` artık yama maskesini bu
+yatkınlıkla çarpıyor. Böylece dağlar, yüzey sınıflandırması ve bitki örtüsü — üçü de haritanın **tek**
+transkripsiyonundan türüyor, üç ayrı görüşten değil.
+
+**Bir ölçüm, bir ayar.** İlk sürümde ayrım zayıf çıktı: Dorne 0,142, Sothoryos 0,493. Sebep,
+`sampleReferenceInfluence`'ın yalnızca tam merkezde 1'e ulaşması — bölgenin geri kalanı 0,62'lik
+bölgesiz varsayılana kayıyordu, yani harita danışılıp sonra büyük ölçüde geçersiz kılınıyordu. Yetki
+0,35 etkide doygunlaşacak şekilde ayarlandı; her bölgenin iç üçte ikisi kendi kind'ına ait, kenarı
+gerçek bir geçiş olarak kalıyor.
+
+Bölge başına ölçülen orman örtüsü (sonra):
+
+| bölge | örtü | | bölge | örtü |
+|---|---|---|---|---|
+| braavos-coast (temperate) | 0,616 | | dorne-mountains | 0,166 |
+| north (cold-grassland) | 0,603 | | neck (marsh) | 0,157 |
+| sothoryos (jungle) | 0,590 | | vale-mountains | 0,109 |
+| ulthos (jungle) | 0,564 | | dorne (desert) | 0,082 |
+| reach (lush-grassland) | 0,526 | | dothraki-sea (steppe) | 0,073 |
+| westerlands (rocky-hills) | 0,467 | | lands-always-winter (snow) | 0,069 |
+| yi-ti (lush-grassland) | 0,308 | | bone-mountains | 0,052 |
+| | | | grey-waste (arid) / red-waste | 0,050 / 0,034 |
+
+Çöl, bozkır, kar ve kaya artık sıfıra yakın; cengel, ılıman kıyı ve kuzey ormanlık. Öncesinde hepsi
+ayırt edilemezdi.
+
+**Bir sonuç, kayda geçsin.** Toplam ağaç sayısı 18.481 → 9.291 düştü. Bu bir gerileme değil, haritanın
+konuşması: önizleme diski dünya merkezinde, orası da transkripsiyona göre Dothraki bozkırı, yani doğru
+şekilde ağaçsız. Westeros tarafı (kuzey 0,60, Reach 0,53) ormanlık.
+
+**Yollar entegre edilmedi.** Transkripsiyon yol içermiyor — biyom bölgeleri, su bölgeleri ve dağ
+zincirleri var, yol yok. Görsel de okunamadığı için haritadaki yol çizgileri izlenemiyor. Uydurmak
+yerine sahibin görseli sağlaması bekleniyor (QUESTIONS_FOR_OWNER.md S-0036).
+
+**Doğrulama.** 14/14 koltuk PASS, yollar PASS (18,31 km), terrain visual contract PASS, SW cache
+(v22→v23) PASS, satır sınırı PASS, determinizm PASS.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+## ADR-0307 — Nehir vadileri: nehrin düzlükte akmayı bırakması
+
+**Bağlam.** Sahibin "vadileri düzenle" isteği. `world/rivers.js` yükseklik alanı boyunca inen bir yol
+izleyip üzerine şerit çiziyordu, ama **içinden geçtiği zemini hiç kesmiyordu** — yani nehir, yüzeye
+çizilmiş bir çizgi gibiydi: taşkın ovası yok, yamaç yok, vadi yok. Gerçek nehirler manzarayı süslemez,
+onu *yapar*; ılıman coğrafyanın en tanınabilir yer şekli vadidir ve yokluğu, ADR-0304 zemine gerçek
+pürüzlülük verdikten sonra bile dünyanın hâlâ jenerik gürültü gibi okunmasının büyük bir parçasıydı.
+
+**Karar.** `world/terrainValleyCarving.js` — yollar ve yerleşimlerin zaten kullandığı iki fazlı kalıbın
+aynısı. Faz 1: nehir, yerleşim pad'li ama vadisiz arazi üzerinde izleniyor. Faz 2: o çoklu-çizgi, dar
+bir koridor içinde zemini nehrin kendi profiline çeken bir alana dönüştürülüyor; vadi ağzında doğal
+araziye yumuşakça bağlanıyor.
+
+**Sıralama kasıtlı.** Vadi, *doğal* manzaranın parçası — oyun amaçlı bir müdahale değil. Bu yüzden
+yerleşim pad'lerinden ve yol yatağından **önce** uygulanıyor: bir kalenin pad'i ve bir yolun kes-doldur
+şeridi, içinde bulundukları vadiye karşı hâlâ kazanıyor. `sceneManager.js`'te yol koridoru artık
+vadili arazi üzerinde hesaplanıyor, yani yollar vadisi olan bir dünyada rotalanıp sonra o sonucun
+üstünde yataklanıyor.
+
+**Güvenliği sağlayan üç kural.**
+
+1. *Yalnızca aşağı keser.* Alan `min(doğal, vadiProfili)` döndürüyor, yani kazı zemini asla
+   yükseltemez ve yükseklik alanının istemediği bir tepe uyduramaz.
+2. *Karada deniz seviyesini asla delmez.* map.png'nin kıyı şeridi bu projenin oynatmadığı tek şey.
+   Kıyıya yakın derinleşen bir vadi, owner haritasının kara dediği yere yeni su açardı; bu yüzden kazı,
+   doğal zeminin deniz seviyesinin üstünde olduğu her yerde üstte kalacak şekilde kısıtlanıyor.
+3. *Taban tekdüze iner.* Nehrin örneklenen profili aşağı doğru koşan minimuma zorlanıyor; su geri yokuş
+   çıkmaz, çıkan bir taban da vadi değil bir dizi çanak gibi okunurdu.
+
+**Kapılar da aynı zemini ölçüyor.** `roadNetworkSafetyCheck.js` ve `terrainSeatSafetyCheck.js`
+vadiyi taşıyacak şekilde güncellendi. Bu ADR-0304'te konan ilkenin sürdürülmesi: kapı, oyunun
+kurmadığı bir zemini puanlarsa hiçbir şey doğrulamış olmaz.
+
+**Ölçülen sonuç.** Nehir yolunun %75'indeki enine kesit: merkez hattında zemin 84,53 → **65,90 m**
+(18,6 m kazı), 50 m'ye kadar düz taban, 120 m'de 68,17 m, 250 m'de 91,93 m yamaç, ve 400 m'de
+**106,37 = 106,37**, yani bayt-bayt dokunulmamış. Dünya genelinde en derin kazı 43,5 m; **kara suya
+dönüşmedi (0)**, **zemin hiç yükseltilmedi (0)**, vadi ağzının ötesinde hiçbir şeye dokunulmadı (0).
+
+**Doğrulama.** `checkRiverValleyCarving.js` (yeni) PASS. 14/14 koltuk PASS ve yollar PASS (18,31 km,
+stres rotası 11,4°) — ikisi de artık vadili zeminde ölçülüyor. Su maskesi checksum'ı `2ca2bed8d8a1…`
+değişmedi, terrain visual contract, masaüstü LOD, yol koridoru, SW cache (v24→v25), satır sınırı ve
+determinizm PASS.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+## ADR-0308 — map.png depoya girdi, ve haritanın kendi yolları dünyaya işlendi
+
+**Kök neden, nihayet.** Sahip haritayı sohbete iki kez gönderdi, ikisi de tamamen siyah geldi; sonra
+kendine mail attı (`IMG_1874.jpeg`, telefon fotoğrafı) ama Gmail araç setinde ek indirme yok. Sonunda
+GitHub'da `aapw` deposuna koydu ve oradan çekildi.
+
+Dosyaya bakınca iki şey ortaya çıktı:
+
+1. **Adı `.png` ama içeriği JPEG** (baseline JPEG, 1536x1024, 3 bileşen). `style.css` ve `index.html`
+   bu adla referans verdiği için ad değiştirilmedi; bunun yerine kontrol *gerçek* formatı doğruluyor
+   ki ileride biri uzantıyı "düzeltip" 2D kabuğu kırmasın.
+2. **SHA-256'sı `20702972…` — `WORLD_REFERENCE_MAP.sha256` ile birebir aynı.** Yani bu, projenin
+   bütün coğrafya sözleşmelerinin türetildiği tam kaynak görselin ta kendisi.
+
+**Asıl sorun `.gitignore`'daydı:** `/resimler/` satırı yüzünden görsel hiç commit'lenmemiş. Uzak
+oturumlar depoyu sıfırdan klonladığı için map.png hiçbir oturumda mevcut olmamış — bu yüzden
+`worldReferenceMap.js`'in transkripsiyonu yıllardır tek bilgi kaynağıydı ve hiçbir şey ona karşı
+doğrulanamıyordu. Dosya artık istisna ile commit'lendi (`!/resimler/map.png`).
+
+**Ve haritaya bakılınca görülen şey:** transkripsiyonda biyom bölgeleri, su bölgeleri ve dağ zincirleri
+var ama **yol yok** — oysa harita Kralyolu, Altınyol, Gülyolu, Okyanus Yolu, Dorne geçitleri ve Essos'un
+dosdoğru Valyria yollarını açıkça çiziyor.
+
+**Karar.** `world/worldReferenceRoadRoutes.js`: görsel bölge bölge kırpılıp üzerine 0,01 aralıklı
+normalize ızgara bindirilerek her ana yol gözle izlendi ve dönemeçleri kaydedildi — bu,
+`worldReferenceMap.js`'in kendi başlığında tarif ettiği "elle denetlenmiş çapa, runtime OCR değil"
+yönteminin aynısı, aynı ±0,015 okuma toleransıyla. `world/worldReferenceRoadNetwork.js` bunları gerçek
+arazi üzerinde A* ile rotalayıp çiziyor.
+
+**Uçlar okumadan değil koltuklardan geliyor.** Projenin 14 koltuğu haritanın çizdiği kalelere yakın ama
+onlarla aynı değil: Highgarden okumam birebir tuttu, Castle Black ~0,02 saptı. Okumaya dayanan bir uç,
+hizmet ettiği kaleden birkaç yüz metre önce biterdi. Bu yüzden rota hizmet ettiği koltuğu adlandırıyor,
+aradaki dönemeçler görselden geliyor. **Şekil haritadan, uçlar dünyadan.**
+
+**Ölçümle yakalanan bir kusur.** İlk sürümde Essos'un Valyria ana yolunu King's Landing'e bağlamıştım.
+Kontrol geçti — çünkü yalnızca *noktaları* doğruluyordu, aralarındaki *parçaları* değil. İki uç da
+karadaydı, arasındaki her şey Dar Deniz'di. Kontrol artık her parça boyunca 0,005 aralıkla örnekliyor,
+ve Essos rotaları hiçbir koltuğa bağlanmıyor: onlar haritanın kendi çizgileri.
+
+**Eklemeli.** Koltuk MST'si aynen duruyor (13 kenar, 18,31 km) — oyun bağlantısını o garanti ediyor.
+Kanonik yollar ikinci bir katman: **8 rota / 16,71 km**. İkisi de aynı şerit geometrisini ve aynı
+kes-doldur yatağını paylaşıyor, yani aynı tür yol gibi görünüyorlar. İki ağı tek ağda birleştirmek
+gerçek bir karar ("her koltuk bağlı" ölçütünü değiştirir), o yüzden yapılmadı.
+
+**Yan etki, olumlu:** kanonik yolların yatakları koltuk ağının geçtiği zemini de yumuşattığı için MST'nin
+en dik eğimi 11,4° → **10,2°** düştü.
+
+**Bir de sınır aşımı düzeltildi.** Bu ekleme `sceneManager.js`'i 606 satıra çıkardı (sınır 600). Zemin
+kurulum dizisi `worldFoundation.js`'e çıkarıldı — pad → vadi → kanonik yol → yol yatağı sırası tek yerde,
+gerekçeleriyle. Sıra kozmetik değil: yanlış sıralamak ADR-0118'in "çizilen zemin ile yürünen zemin
+ayrışır" hatasıdır. sceneManager 554 satıra indi.
+
+**Doğrulama.** `checkOwnerMapAndRoadRoutes.js` (yeni) PASS: map.png mevcut, 667.206 bayt, JPEG,
+sha256 sözleşmeyle aynı; 8 rotanın **her metresi** kanonik 96x64 yüzey maskesine göre karada. 14/14
+koltuk PASS, yollar PASS (18,31 km), vadi PASS, yol koridoru PASS, terrain visual contract, masaüstü
+LOD, SW cache (v25→v26), satır sınırı ve determinizm PASS.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+**Next safe step:** haritada okunacak daha çok yol var (Essos'un doğusu, Yi Ti, Dorne'un içi) ve artık
+görsel depoda olduğu için ormanların/dağların transkripsiyonu da doğrudan ona karşı denetlenebilir.
+
+## ADR-0309 — Haritadan üç yol daha, ve transkripsiyonda bulunan bir sapma
+
+**Karar.** map.png depoda olduğu için okumaya devam edildi: Dorne'un Yeşilkan yol hattı, Vaes Dothrak
+batı yolu ve Köle Körfezi'nin Skahazadhan boyunca doğuya giden yolu eklendi. Kanonik yol ağı **8 → 11
+rota, 16,71 → 20,92 km**. Yöntem ve tolerans ADR-0308 ile aynı.
+
+**Ve ilk kez orijinaline karşı denetim yapılabildi — bir sapma çıktı.** `worldReferenceMap.js`'teki
+`red-mountains` zinciri `[[0.125,0.630],[0.180,0.625],[0.240,0.620]]` kayıtlı, ama haritada Kızıl
+Dağlar sırtı y ≈ 0,59–0,61 bandında ve **x = 0,240 karada değil** — Dar Deniz'de, Tyrosh yakını.
+
+Düzeltmedim. Bu zincir `worldReferenceMountainRelief.js` üzerinden gerçek araziyi şekillendiriyor;
+noktalarını oynatmak dağları yerinden oynatır ve ADR-0297..0300'de ölçümle kazanılan yol eğim payını
+etkileyebilir. Yani yazım düzeltmesi değil, kendi turunu ve kendi öncesi/sonrası ölçümünü hak eden bir
+arazi değişikliği. QUESTIONS_FOR_OWNER.md S-0037 olarak soruldu.
+
+**Doğrulama.** 11 rotanın her metresi kanonik maskeye göre karada; 14/14 koltuk, yollar (18,31 km),
+satır sınırı, SW cache PASS.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+## ADR-0310 — `red-mountains` zinciri haritayla hizalandı (S-0037 çözümü)
+
+**Bağlam.** ADR-0309 sapmayı bulmuş ama dokunmamıştı: zincir gerçek araziyi şekillendirdiği için
+oynatmak ölçüm gerektiriyordu. Sahip "ne gerekiyorsa yap" dedi.
+
+**Kanıt.** Kaynak görselde Kızıl Dağlar sırtı güneybatıdan kuzeydoğuya, yaklaşık (0,128, 0,636)'dan
+(0,190, 0,591)'e uzanıyor ve orada kıyıya çıkıyor. Eski kayıt `[[0.125,0.630],[0.180,0.625],
+[0.240,0.620]]`: orta nokta sırtın **güneyinde**, Dorne ovasında; doğu noktası ise **karada bile
+değil** — 0,240 Dorne Denizi'nde, Tyrosh yakınında.
+
+Bağımsız doğrulama: bu zincirin `worldReferenceMountainRelief.js`'teki kendi authored geçitleri zaten
+(0,145, 0,610) gibi **gerçek sırtın** üzerinde duruyordu, kayıtlı noktaların değil. Yani geçitler
+yıllardır yanlış geometriyi telafi etmek için ayarlanmış.
+
+**Karar.** Zincir `[[0.128, 0.636], [0.158, 0.604], [0.190, 0.591]]` olarak düzeltildi. Geçitlere
+dokunulmadı — ölçüm gerek olmadığını gösterdi.
+
+**Ölçülen etki (§8.4 öncesi/sonrası).**
+
+| koltuk | önce | sonra |
+|---|---|---|
+| doran (Sunspear) | 64,509 m | **32,573 m** |
+| ziya (Highgarden) | 71,394 m | **87,260 m** |
+| berk | 61,144 m | 59,978 m |
+| umit / berkalp / olena / cersei / twin | değişmedi | değişmedi |
+
+İkisi de doğru yönde: Sunspear kıyı Dorne'u, dağ koltuğu değil — eski zincir ovanın üstüne dağ
+koyuyormuş. Highgarden ise sırtın kuzey eteğinde, yükselmesi beklenen yer.
+
+**Doğrulama.** 14/14 koltuk PASS (hepsi su üstünde ve yürünebilir). Yollar PASS, 18,31 → **18,29 km**,
+stres rotası 11,4°. Yol koridoru guard'ı belirgin iyileşti: yatak eğimi 9,4° → **4,4°**, yanındaki
+dokunulmamış zemin 49,6° → 20,1° — dağlar Dorne ovasından çekilince yolların geçtiği arazi gerçekten
+yumuşadı. Su maskesi checksum'ı `2ca2bed8d8a1…` değişmedi, hizalama 14/14 %100. Vadi, terrain visual
+contract, masaüstü LOD, satır sınırı, determinizm, SW cache PASS.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+## ADR-0311 — Biyom artık haritanın kendi piksellerinden, hücre hücre
+
+**Bağlam.** Sahip "map.png'ye çok dikkatlice bakarak 3D haritanın her yerini karış karış geliştir"
+dedi. Elle bölge okumaya devam etmek yerine görselin kendisinden veri türetildi.
+
+**Önceki durum.** "Neresi ormanlık, neresi çöl" sorusunu `REFERENCE_BIOME_ZONES` yanıtlıyordu: 17 elle
+konmuş elips, her birine tek bir `kind`. Görsel gitignore'da ve her klonda yokken bu mevcut en iyi
+cevaptı. Run 361 dosyayı commit'ledi; bu tur yaklaşımı, yaklaştığı şeyle değiştiriyor.
+
+**Karar.** `world/worldReferenceBiomeField.js`: kanonik 9000x7000 tuval üzerinde **192x128** hücrelik
+bir alan, her hücrede iki değer doğrudan resimden okunmuş (4'er bit, hex satırlar,
+`dataSha256 640693473da09828…`):
+
+- **forest** — haritanın orayı ne kadar ormanlık çizdiği.
+- **arid** — ne kadar çöl çizdiği.
+
+**Kalibrasyon tahminle değil ölçümle yapıldı.** İlk formülüm ormanı yeşil *tonu* üzerinden aradı ve
+Dothraki Denizi'ni orman sandı. Bilinen noktaların gerçek renklerine bakınca sebep çıktı: bu haritada
+ormanla tarlanın **tonu aynı** (Reach 73°, Kurtormanı 169° — koyu orman mürekkebi teale kaçtığı için),
+ayıran şey **koyuluk**. Reach val 0,72; Qohor ormanı 0,51; Sothoryos cengeli 0,36. Formül buna göre
+kuruldu: val 0,72 → 0,32 arası sönümleme, su/çıplak kaya/kurak zemin dışlanmış, gölgeyi orman sanmamak
+için hafif doygunluk ağırlığı.
+
+Sonuç, resmin gerçek ormanlarını buluyor: Sothoryos, Ulthos, Yi Ti'nin doğusu, Qohor kuzeyi,
+Kurtormanı, Ib. Kuraklık da isabetli: Dorne 0,61, Kızıl Çorak 0,86, yeşil her yer 0.
+
+**İki bağlantı.** `canonicalForestAffinity` artık bu alana devrediyor (17-elips harmanı, resmin
+okunamadığı yıllarda tam da bu verinin yaklaşımıydı; adı import eden modüller için ve rengin
+okunamadığı küçük pay için yedek olarak duruyor). Ve kuraklık ilk kez **arazi rengini** sürüyor:
+Dorne ile Kızıl Çorak artık Reach'le aynı zeytuni yeşil değil, haritadaki gibi sıcak kum.
+
+**Sınır.** Bu bir kara/deniz otoritesi değil. Kıyı şeridi tam olarak
+`worldReferenceSurfacePindexes.js`'in checksum korumalı 96x64 maskesinin koyduğu yerde kalıyor; buradaki
+hiçbir şey onun bir metresini oynatamaz. Bu alan karanın *ne olduğunu* söylüyor, *nerede* olduğunu asla.
+
+**Doğrulama.** 14/14 koltuk PASS, yollar PASS (18,29 km), su maskesi checksum'ı `2ca2bed8d8a1…`
+değişmedi, terrain visual contract, SW cache (v26→v27), satır sınırı, determinizm PASS. Dorne'dan
+görsel: sıcak kum, plaj ve içinden geçen kanonik yol — Reach'in yeşilinden açıkça ayrı.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+**Next safe step:** taban bitki örtüsü geçişi (km² başına 30, tekdüze) kuraklığı hiç okumuyor, bu yüzden
+çölde hâlâ seyrek ağaç kalıyor. `isPlaceablePosition`'a kuraklık kapısı eklemek doğru düzeltme ama o
+fonksiyonu köyler de kullanıyor, yani köy sayılarını da etkiler — kendi turunu hak ediyor.
+
+## ADR-0312 — Yollar denizden çıktı, ve model kütüphanesi haritaya biyoma göre serpildi
+
+**Bağlam.** Sahip: "Deniz'den yollar geçmesin… Blend dosyalarını haritaya serpiştir."
+
+### 1. Deniz geçişleri
+
+Ölçüm beklemediğim bir şey buldu: **koltuk yol ağı en başından beri denizden geçiyormuş** — 320 nokta
+su altında, dört kenarda (`umit->doran` tek başına 168). Yüzlerce turdur böyleymiş çünkü hiçbir kontrol
+suya bakmıyordu; `roadPathfinder.js` yalnızca eğim ödüyordu ve **açık deniz kusursuz düzdür**, yani iki
+kıyı noktası arasındaki en ucuz güzergâh çoğu zaman körfezin üstünden geçen düz çizgiydi.
+
+Üç düzeltme, üçü de ölçümle:
+
+1. `UNDERWATER_PENALTY` (20000x): deniz seviyesinin altında biten adım neredeyse yasak. `OVER_CAP_PENALTY`
+   gibi sonlu, çünkü bu modülün sözleşmesi "her zaman *bir* güzergâh vardır".
+2. *Yumuşatma da su-farkında.* Chaikin köşe kesiyor ve körfez ağzında kestiği köşe, aramanın az önce
+   kaçındığı suyun ta kendisi. Yumuşatılmış nokta suya düşerse ham noktası tercih ediliyor.
+3. `routeReferenceRoads` suya giren rotayı **çizmiyor**; adıyla `droppedRoutes`'a yazıyor.
+
+Sonuç: kanonik yollarda **su altında 0 nokta** (kontrol canlı yükseklik alanında doğruluyor).
+`slavers-bay-road` düşürüldü — ve okumam da yanlışmış: y ≈ 0,633 Köle Körfezi'nin içi, kuru kıyı
+y ≈ 0,640'ta. Düzeltildi, yine de bu dünyanın arazisinde kuru yol yok.
+
+Koltuk ağında 320 → **64** nokta. Kalan üç kenar fiziksel olarak kaçınılmaz: `umit`, `balon` ve `Xaro`
+ada/denizaşırı koltuklar. Karaya zorlamak daha kötü cevap veriyor — `umit->doran` ada kıyısında 20,7°'lik
+keçi yoluna dönüşüyor. Bu yüzden kontrol onları **SEA** olarak işaretliyor ve at arabası eğim tavanı
+onları yargılamıyor; gerçek feribot/köprü sistemi S-0038 olarak soruldu.
+
+### 2. Model kütüphanesi
+
+`.blend` doğrudan kullanılamıyor — Blender'ın kendi proje formatı, tarayıcıda hiçbir şey okuyamaz.
+Kullanılabilen, o kaynakların dışa aktarıldığı **233 prop `.glb`**'si. `world/worldLandmarkScatter.js`
+bunlardan 14'ünü katalogluyor ve haritanın hücre başına biyom cevabına göre yerleştiriyor: kıyıya
+iskele, kurak ülkeye yıpranmış taş, açık çayıra çiftlik yapıları, ormana kulübe, yaylaya duvar/kışla.
+Ölçülen: **44 landmark**, beş biyom türünde de. Kendi XOR-etiketli akışı var, yani bitki örtüsü/köy
+çizim sırasını bozmuyor.
+
+*Ortam sınırı, dürüstçe:* taze uzak klonda `.glb`'ler 131 baytlık LFS pointer stub olarak geliyor
+(RCA_RUN344), bu yüzden burada yer tutucu kutu çiziliyor. Yerleşim/oturtma/biyom mantığı aynı çalışıyor;
+gerçek mesh'ler LFS'in çözüldüğü ortamda görünüyor.
+
+**Doğrulama.** Yollar PASS (kara kenarlarında 20° altında; SEA kenarları adlandırılmış), kanonik yollar
+0 ıslak nokta, 14/14 koltuk, vadi, yol koridoru, terrain visual contract, masaüstü LOD, hizalama, su
+maskesi, satır sınırı (game3d.js 600'e indirildi), determinizm, borç 0.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+## ADR-0313 — Çim dikdörtgen olmaktan çıktı, gerçek ağaç modelleri dünyaya girdi, Köle Körfezi yolu karaya taşındı
+
+**Bağlam.** Sahip editörün ekran görüntüsünü gönderdi: *"Zemin'deki dikdörtgen şeklindeki hareket
+halinde olanlar eğer çimse; Ben coğrafi gerçeklik deyip durdukça böyle kalitesiz görüntüleri görmek beni
+üzüyor. Ağaçlar ve çimlerle alakalı fbx / blend vs. dosyaları varsa onları değerlendirelim. Modellerin
+arasında İskele vs olması lazım. Kullanabildiğimiz ne varsa şuan Coğrafyaya ekle."*
+
+Şikâyet doğruydu ve sebebi tam olarak söylediği şeydi: `run180GrassGeometry()` her çim yaprağını **tek
+bir düz dikdörtgen** olarak kuruyordu — dört köşe, incelme yok, kesit yok — ve 4,5 m'lik yamada on tane.
+Yani ekranda gerçekten dikdörtgenler duruyordu.
+
+### 1. Çim
+
+Geometri `InstancedMesh` ile bir kez kuruluyor ve 4000 yama tarafından paylaşılıyor, yani **daha iyi bir
+yaprak örnek başına hiçbir şeye mal olmuyor**. Üç değişiklik:
+
+1. **Çapraz yaprak** — dik açıyla iki quad, her yönden hacimli; kenardan bakınca kaybolmuyor.
+2. **İncelen, bükülen yaprak** — tabandan uca daralan üç yükseklik segmenti; mevcut `run180Flex` rüzgâr
+   terimi artık rijit dikdörtgeni kaydırmak yerine yaprağı boyunca büküyor. Kök koyu, uç aydınlık köşe
+   renkleri.
+3. **Yoğunluk** — 4,5 m'de 10 yaprak yerine 2,2 m'de 48.
+
+**İlk denemem yetmedi ve §8.5 çekimi bunu gösterdi.** Yalnız yaprağı düzelttim, yama bütçesini 350 m
+yarıçapa yaymaya devam ettim: 4000 yama / 96 m²'ye bir yama, yani iyi yapraklar, hâlâ yalıtılmış, aralarında
+hâlâ çıplak toprak. Sabit yama sayısında **yarıçap doğrudan yoğunluktur**. 130 m'ye çekildi: aynı 4000
+yama 53.000 m²'yi 15 m²'lik yamalarla kaplıyor, üst üste binerek sürekli çim oluyor. 130 m ötesinde
+verilen çim zaten okunmuyordu — 300 m'de 0,5 m'lik yaprak bir pikselin altında.
+
+**İkinci şey: yaprakları mızrak gibi gösteren yükseklik değil genişlikti.** Göz hizası çekiminde
+yapraklar kamış gibi duruyordu, oysa 0,34-0,74 m çim için doğru. Taban yarı-genişliği 0,055-0,09'du,
+yani 11-18 cm eninde bir yaprak — gerçeğinin yirmi katı — bu yüzden her biri yaprak değil *yaprak
+bıçağı* okuyordu. 4-7 cm'ye indirildi ve üçgen bütçesi 4 cm eninde kimsenin göremeyeceği eğriliğe değil
+iki katı yaprağa harcandı (üç segmentte 32 yerine iki segmentte 48). Yama başına üçgen aynı: 384.
+
+Ölçülen (`scripts/captureGroundCoverEvidence.mjs`, yeni): yama başına 40 köşe/20 üçgen → **576 köşe/384
+üçgen**; siluet karmaşıklığı yakın eğik çekimde 9,52 → **27,83**, göz hizasında **13,49**, diz
+hizasında **20,78**.
+
+*Kanıt betiği kendi hatasını da yakaladı:* ilk çekimde diz hizası karesi üç ayrı geometride tıpatıp
+aynı sayıyı veriyordu, çünkü çim `onBeforeRender` içinde kameranın hücresine göre yeniden doluyor ve
+taşınmış kameranın **ilk** karesi hâlâ eski hücrenin yamalarını gösteriyordu. Isınma karesi eklendi.
+
+### 2. Gerçek ağaç modelleri — `world/heroTrees.js`
+
+Depoda 13 yazılmış ağaç `.glb`'si kullanılmadan duruyordu (Quaternius çam/huş/palmiye/ölü ağaç paketleri,
+bükülmüş ağaç, büyük ağaç, kütük). Bunlar artık yakın alana biyoma göre dikiliyor: kurak ülkeye palmiye ve
+bükülmüş ağaç, soğuk yaylaya çam ve ölü ağaç, gerisine geniş yapraklı — `worldReferenceBiomeField.js`'in
+hücre başına verdiği aynı cevaptan.
+
+*Yer tutucu asla dikilmiyor.* LFS nesnesi olmayan checkout'ta bu dosyalar 132 baytlık pointer stub
+(RCA_RUN344) ve `AssetLoader` görünür bir kutu döndürüyor. Kutu tarlası, yerini alacağı prosedürel
+koniden **daha kötü**. Bu yüzden `userData.isPlaceholder` taşıyan her model atılıyor; hiçbiri hayatta
+kalmazsa katman sessizce boş kalıyor ve `vegetation.js` dünyayı bugünkü gibi taşıyor.
+
+**Orman eşiği ölçümle düzeltildi.** İlk `minForestCoverage: 0.28` sert kapısı yakın alanın %99,9'unu
+atıyordu — 90 hedefe karşılık **4 ağaç**. Canlı alanı ölçtüm: yerleştirme yarıçapındaki 3447 kuru
+örneğin 3106'sı 0,1'in altında okuyor, hiçbiri 0,4'ün üstünde değil; haritanın tamamında da hücrelerin
+%89,6'sı 0,1'in altında (çoğu deniz ve otlak). Alan yanlış değil, kapı yanlıştı. Kapsama artık
+**kabul olasılığını** ölçekliyor, taban `openCountryChance: 0.22`: ormanda sık, otlakta serpiştirilmiş
+tek ağaçlar ve koruluklar, çölde kendi payı. **4 → 90 yerleştirme.**
+
+### 3. `world/worldDressing.js`
+
+`game3d.js` 600 satır tavanında (GOVERNANCE.md §5). Landmark serpme ile hero ağaçları aynı *tür*
+katman — ikisi de yazılmış `.glb` yüklüyor, ikisi de biyoma göre yerleştiriyor, ikisi de model
+okunamadığında hiçbir şeye düşüyor — bu yüzden burada birleştiriliyor: oyun modülü tek init/tek dispose
+çağırmaya devam ediyor, her katman kendi dosyasında kalıyor. Bir katman hata verirse loglanıp
+atlanıyor; dünya yine giydiriliyor.
+
+### 4. `slavers-bay-road` denizden karaya
+
+ADR-0312 bu rotayı **düşürülmüş** bırakmıştı: y düzeltmesi doğuyu kurtardı ama batı ucu hâlâ 7 nokta
+suda, en derini 23,3 m altta, dolayısıyla haritanın en okunaklı Essos yolu dünyada hiç yoktu. Canlı
+yükseklik alanını x 0,510-0,640 / y 0,615-0,680 aralığında 0,010 x 0,005 ızgarayla taradım: körfez
+x 0,520-0,535'te içeri giriyor ve o enlem şeridinin tamamı -27 m ile -8 m okuyor. **Bu enlemde
+x 0,545'in batısında kuru yol yoktur.** Harita yolu Meereen'den başlatıyor; bu dünyanın arazisi orayı
+suyun altına koyuyor. Batı ucu ilk gerçekten kuru zemine (x 0,550, 23 m) kırpıldı.
+
+Sonuç: **11/11 kanonik yol canlı yükseklik alanında kuruluyor, su altında 0 nokta.** Artık düşürülen rota yok.
+
+**Doğrulama.** Kanonik yollar 11/11 PASS (0 ıslak nokta), koltuk yol ağı PASS, 14/14 koltuk, vadi
+oyma PASS, yol koridoru PASS, terrain visual contract PASS, masaüstü LOD PASS, chunk etek PASS,
+hizalama PASS, bitki örtüsü görsel sözleşmesi PASS, service worker cache PASS (v29→v30,
+`heroTrees.js` + `worldDressing.js` + `windGrass.js`), determinizm PASS, varlık manifesti PASS,
+paylaşılan materyal sözleşmesi PASS, `game3d.js` 600 satırda, §8.5 kanıtı
+`artifacts/ground-cover/after/`.
+
+`scripts/smokeTestGame3D.js`: **42 PASS / 2 FAIL**, ve 3D mod kontrolü `outcome=ready` diyor — yani
+oyun açılıyor. İki hatanın ikisi de console-hatası iddiası: biri bir kale modelinin
+(`icebound_citadel_decimated.glb`), diğeri ejderha modelinin (`"isPlaceholder":true`) LFS stub olması.
+Hero ağaç varlıkları bu hata satırlarının hiçbirinde geçmiyor.
+
+*Açıkça bildirilen ortam hatası:* `scripts/checkMobileVegetationLod.js` bu konteynerde FAIL veriyor —
+console hatası olarak `.glb` dosyalarının LFS pointer stub oluşunu sayıyor (RCA_RUN344). **Bu turun
+değişikliğinden önce de FAIL veriyor**: dokunulmamış HEAD'de ayrı bir worktree'de çalıştırıp doğruladım,
+hatalar 8 kale modeli ve prop'lardan geliyor. Hero ağaç katmanı listeye bir satır ekliyor
+(`low_poly_winter_tree_pack.glb`) ama sebebi aynı ve zaten kırmızı olan bir kapıyı bu tur kırmıyor.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+## ADR-0314 — Zemin: drenaj, bakı ve ölçek hiyerarşisi
+
+**Bağlam.** Sahip: *"Ben coğrafi gerçeklik için 3D oyunun zeminini gerçek dünya coğrafyasına dönüştür."*
+Tur 366'da çimi düzelttikten sonra kendi §8.5 çekimim altındaki toprağın hâlâ bütün bir yamaç boyunca
+tek düz hardal rengi olduğunu gösterdi. Her bant doğruydu ve sonuç yine de toprak değil boyalı yüzey
+okuyordu.
+
+**Bir biyom bandının veremediği şey: su ve güneş geçmişi.** Gerçek bir yamacın fotoğrafındaki en güçlü
+sinyaller "burası otlak" değildir:
+
+1. **Drenaj.** Su aşağı akar, çukurlarda toplanır. İçbükey zemin ıslaktır — koyu, daha çok bitkili;
+   dışbükey omuzlar ve sırtlar suyu boşaltır, toprak orada ince ve soluktur. Bu tek başına bütün drenaj
+   ağını — her oluğu, sekiyi, mahmuzu — kimse çizmeden boyar. Yerel eğrilikten hesaplanıyor: dört
+   komşunun ortalaması eksi kendi yüksekliği. Çağıran kod o dört komşuyu eğim için zaten örneklemiş.
+2. **Bakı.** Yamacın hangi yöne baktığı ne kadar güneş aldığını belirler; güneş gören kurur ve solar,
+   gölge nemli ve koyu kalır. Gerçek bir dağın sırtı boyunca iki tonlu görünmesinin sebebi budur.
+3. **Ölçek hiyerarşisi.** Gerçek zemin aynı anda metre, on metre ve yüz metre ölçeğinde değişir. Mevcut
+   benekleme tek hücre boyutundaydı: tane katıyor, yapı katmıyordu. Üç oktav eklendi.
+
+### Üç kere tahmin ettim, üçünde de ölçüm beni düzeltti
+
+**1. Eşik.** İlk sürüm `drainageFullMeters: 3.5` koydu, gerekçesi "gerçek oluklar 3-5 m'ye iner" idi.
+Bir manzara için doğru, bu alan için bu ölçekte değil: 3,91 m köşe aralığında 5219 kuru örnek p50 0,009,
+p95 0,625, **p99 1,013 m** veriyor. 3,5 m'de 99'uncu yüzdelik çukur bile etkinin 0,21'ini, medyan zemin
+0,01'ini alıyordu — katman render'ı ortalama **2 RGB seviyesi** oynatıyor, yani görünmüyordu. Bunu iddia
+etmedim: değişiklikli/değişikliksiz aynı kareleri çekip piksel piksel farkını aldım. 1,0 m'ye kalibre
+edildi.
+
+**2. Aridite hardal rengin sebebi değilmiş.** Sarılığı çöl karışımına yormak makuldü; ölçtüm, doğduğumuz
+bölgenin ortalama ariditesi **0,038**, kara hücrelerinin %83'ü 0,1'in altında. Sarılık taban paletinin
+kendisinden geliyor. Palete bu turda dokunmadım — ayrı ve tartışmalı bir karar.
+
+**3. LOD dikişi, ve maliyeti.** Eğrilik ölçüldüğü şablonla birlikte büyür, yani her chunk kendi köşe
+aralığını kullanırsa aynı zemin her LOD bandında farklı renk alır — her bant sınırında renk dikişi, ve
+bantlar oyuncuyla birlikte hareket ettiği için titreşen bir dikiş. Ölçtüm: normalize edilmemiş fark p95'te
+**2,479 m**, tepe 4,767 m. Gerçek sorun.
+
+Bariz çözümü — yükseklik alanını sabit şablonda yeniden örneklemek — denedim ve **başarısız oldu**:
+köşe başına dört ek örnek, önyüklemede eşzamanlı kurulan 529 chunk ile sayfayı 60 saniyelik yükleme
+zaman aşımının ötesine astı. Bunu tahmin etmedim, `page.goto` zaman aşımıyla çarpıp geri aldım. Yerine
+analitik normalleştirme: eğrilik bu arazide şablonla **doğrusal** ölçekleniyor — p90 |eğrilik| 3,91 m'de
+0,6301, 7,81 m'de 1,3362, 15,63 m'de 2,5818, yani 2,121x ve 4,098x oranlar, uydurulan üsler 1,085 ve
+1,017. `referans / şablon` ile çarpmak her bandı sıfır örnekleme maliyetiyle aynı değere getiriyor.
+Sonuç: p95 farkı 2,479 → **0,637 m** (3,9x iyi), medyan 0,210 m.
+
+### Kanıt kapısı kendi iddiasını da yıktı
+
+`scripts/checkTerrainGroundRealism.js` (yeni) altı şey doğruluyor. İki tanesi bilerek "bu test boş mu?"
+diye soruyor, çünkü bu oturumda tekrar tekrar çıkan hata sınıfı buydu — oyunun yapmadığı şeyi puanlayan
+kontrol:
+
+- Yükseklik sapması **0 m** (§8.4: render-only, yükseklik otoritesine dokunamaz).
+- Renk determinizmi **0 sapma** (§8.9 — aksi hâlde her chunk sınırında renk kopukluğu).
+- Su altı zemin sapması **0** (batimetrinin drenajı, bakısı, toprağı yoktur).
+- Çukur sırttan koyu (luma 0,3019 < 0,4470) **ve** daha yeşil (0,3696 > 0,3614). İşaret hatası bütün
+  drenaj ağını ters çevirir ve yine "çeşitli" görünürdü.
+- **Asıl iddia:** luma/eğrilik korelasyonu biyom bantlarıyla **-0,019**, bu katmanla **-0,440**. Küresel
+  kontrast ölçüsü yanlış aletti ve zaten ~%1 *düşüş* raporluyor — çukurları koyulaştırıp sırtları
+  açmak ikisini de ortalamaya çeker. İddia "daha çeşitli" değil, "renk drenajı takip ediyor".
+- LOD değişmezliği, hem p95 ile hem de normalleştirmeyi kapatınca farkın 3,9x büyüdüğünü göstererek —
+  yani testin boş olmadığını kanıtlayarak.
+
+*LOD kontrolünün ilk hâlini attım.* Aynı fonksiyonu iki kez aynı argümanlarla çağırıyordu, yani farkı
+tanımı gereği sıfırdı; render ise chunk başına şablon kullanıyordu. Kontrol "LOD değişmez" diye PASS
+verirken kod değildi. İstatistiği de tepe değerden p95'e çevirdim: fraktal bir alanda en kötü tek nokta
+her zaman uyuşmaz (kaba şablon kendinden ince detayı fiziksel olarak göremez, bu LOD'un doğasıdır),
+görünür dikişi yapan şey sistematik kaymadır ve normalleştirmenin kaldırdığı da odur. Tepe değer yine
+raporlanıyor: 1,309 m.
+
+**Diğer kapılar.** 14/14 koltuk, koltuk yol ağı, kanonik yollar 11/11 (0 ıslak), vadi oyma, yol
+koridoru, arazi görsel sözleşmesi, masaüstü LOD, hizalama, service worker (v30→v31), determinizm.
+`smokeTestGame3D` **42 PASS / 2 FAIL**, 3D mod `outcome=ready` — tur 366'nın taban çizgisiyle aynı;
+iki hata da bir kale ve bir ejderha modelinin LFS stub olmasından ve hata satırlarında hiçbir arazi
+modülü geçmiyor.
+
+**Sıradaki iş, teşhisi konmuş hâlde.** Karelerdeki en yapay şey artık her yeri kaplayan çapraz tarama
+deseni. Doku değil: mesh üçgenlemesini takip ediyor. Sebebi LOD: görünür chunk'ların çoğu 32 segmentte,
+yani 15,6 m köşe aralığı, Nyquist dalga boyu 31 m — ve `terrainReliefDetail.js`'in en ince oktavları
+(crag ~38 m, dissection ~31 m) tam oraya düşüyor. Doğru çözüm LOD-farkında bant sınırlama: bir chunk
+kendi köşe aralığının iki katından ince oktavları atlamalı. Bu **yükseklik örnekleyicisini** değiştirir,
+yani kendi §8.4 öncesi/sonrası döngüsünü ve LOD bantları arasında dikiş kanıtını hak ediyor — uzun bir
+turun sonunda aceleye getirilecek bir şey değil. Bir sonraki turun işi.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+## ADR-0315 — Zemini kaplayan çapraz dokuma: iki yanlış teşhis ve gerçek sebep
+
+**Bağlam.** Sahip aynı isteği tekrarladı: *"Ben coğrafi gerçeklik için 3D oyunun zeminini gerçek dünya
+coğrafyasına dönüştür."* Tur 367'den sonra karelerdeki en yapay şey, bütün zemini kaplayan ince çapraz
+tarama desenidir — arazi ne kadar iyi şekillenirse şekillensin, üstüne serilmiş bir kumaş gibi duruyordu.
+
+### Yanlış teşhis 1: LOD örnekleme takma adı
+
+Desen mesh üçgenlemesini takip ediyor ve üçgenlerin büyüdüğü yerde güçleniyordu, yani yükseklik
+gürültüsünün mesh'e karşı takma ad (aliasing) yapması gibi görünüyordu. Tur 367'nin sonunda bunu
+"teşhisi konmuş" diye yazmıştım. Yanlıştı.
+
+Yine de ölçtüm ve mekanizmayı kurdum: `renderableOctaves`, her katmanın oktavlarını tüketicinin
+çözebileceği en kısa dalga boyuna göre kırpıyor. Ölçüm tablosu (harita açıklığı 13.296 m):
+
+| katman | taban | en ince | oktav | →128seg | →64seg | →32seg |
+|---|---|---|---|---|---|---|
+| roughness | 31,7 m | **3,8 m** | 4 | 4 | 1 | 1 |
+| dissection | 120,9 m | 13,6 m | 4 | 4 | 3 | 2 |
+
+Bu tablo gerçek bir hatayı da ortaya çıkardı: `roughnessOctaves` politikasının kendi notu dördüncü
+oktavın "~4,9 m, yani 3,9 m'lik yakın bant mesh'inin çizebileceği şey" olduğunu söylüyor. Değil —
+3,91 m aralıklı bir mesh 7,81 m'nin altını temsil edemez, ve o oktav gerçekte 3,8 m'de.
+
+Uygulamanın etkisi ölçüldü: uzak bantta ortalama **1,17 m**, tepe 5,91 m yükseklik değişimi. Render'da
+**hiçbir şey değişmedi**. Desen aynen duruyordu.
+
+### Yanlış teşhis 2: alanın kendisini bant-sınırlamak
+
+Madem yakın bant da (3,91 m aralık, 3,8 m oktav) takma ad yapıyor, sınırı alanın kendisine — çarpıştırıcı
+dâhil — uygulayayım dedim. §8.4 öncesi/sonrası çalıştırdım: 14/14 koltuk aynı, yollar PASS, ağ 20,54 →
+20,59 km. Yani **güvenliydi**, ama yine render'da hiçbir şey değişmedi.
+
+**Bu değişikliği geri aldım.** Yanlış bir öncüle dayanıyordu, oyun arazisini (küçük de olsa) oynatıyordu
+ve görünür hiçbir şey kazandırmıyordu. Arazi tam olarak taban çizgisine döndü; yol kontrolünün çıktısı
+baytı baytına aynı.
+
+### Gerçek sebep, ölçerek bulundu
+
+Tahmin etmeyi bırakıp izole ettim: aynı kareyi, arazi materyallerinin `map`'i sökülmüş hâlde çizdim.
+Desen **tamamen kayboldu**. Yani geometri değil, doku.
+
+Sebep `world/terrainMicroSurface.js`'in `terrainDetailHeight` fonksiyonuydu ve göz önündeydi: tam sayı
+frekanslı **altı sinüzoid** — `3u+5v`, `7u-4v`, `11u+13v`, `19u-17v`, `29u+23v`, `37u-31v`. Tam sayı
+frekanslar atlası tam olarak döşenebilir yapıyor, yazılma sebebi de bu; bedeli ise her terimin **sabit
+bir köşegen boyunca ilerleyen düzlem dalgası** olması. Toplandığında yüzey tanesi değil, çapraz dokuma
+üretiyor — ve atlas her 22 m'de tekrarladığı için dünyadaki her yamacı kaplıyordu.
+
+Yerine sarmalı kafes üzerinde çok oktavlı **döşenebilir değer gürültüsü** kondu: kafes indeksleri periyoda
+göre modulo alındığı için karşılıklı kenarlar aynı hücreleri örnekliyor, yani tam döşenebilirlik aynen
+korunuyor, ama hiçbir tercihli yön yok.
+
+**Ölçülen sonuç** (§8.5, `captureDesktopTerrainLodEvidence.mjs`, chunk 0,2): yüksek frekans enerjisi
+uzak sırtta 13,94 → **4,61**, kuzey sırtta 8,74 → **2,15**, yakın zeminde 3,83 → **2,35**. Dikkat: bu
+projede daha önce *artan* yüksek frekans enerjisi "daha çok detay" demekti; burada **düşmesi** doğru
+sonuçtur, çünkü giden enerji detay değil takma ad artefaktıydı. Görsel bunu doğruluyor.
+
+### Kapı, kendi körlüğünü iki kez itiraf etti
+
+`scripts/checkTerrainDetailAtlasIsotropy.js` (yeni) iki şey ölçüyor — kusursuz döşenme, ve **yön
+bağımsızlığı** — ve eski düzlem-dalga fonksiyonunu **negatif kontrol** olarak gömüyor: kontrol aynı
+barajı *geçemezse* test kendini boş ilan ediyor.
+
+Bu iki kez işe yaradı. İlk sürüm alanı yeniden kurmak yerine üretilmiş normal haritasını puanlıyordu;
+onun doğrultulmuş gradyan büyüklüğü, testin aramaya çalıştığı yönselliği yok ediyordu — kontrol 2,30x
+çıkıp "bu alet kör" dedi. İkinci sürüm 2 piksel gecikme kullanıyordu, ki tam sayıya yuvarlanınca on iki
+yön birkaç özdeş vektöre çöküyordu. Alan doğrudan puanlanıp gecikme 8 piksele çıkarılınca ayrım netleşti:
+sevk edilen **1,13x**, kontrol **2,01x**. Baraj da tahminle değil bu iki ölçülen popülasyonun arasından
+seçildi: **1,5x**. (İlk koyduğum 3x barajını ikisi de geçiyordu.)
+
+**Doğrulama.** 14/14 koltuk, koltuk yol ağı (taban çizgisiyle birebir aynı), kanonik yollar 11/11
+(0 ıslak), vadi oyma, yol koridoru, arazi görsel sözleşmesi, masaüstü LOD, chunk etek, hizalama, zemin
+gerçekçiliği (ADR-0314), determinizm, service worker v31→v32 (yeni modül yok ama atlas içeriği değişti;
+mevcut çevrimdışı kurulum aksi hâlde eski dokumayı sunmaya devam ederdi).
+`smokeTestGame3D` **42 PASS / 2 FAIL**, 3D mod `outcome=ready` — tur 366 ve 367'nin taban çizgisiyle
+birebir aynı. İki hata da bir kale ve bir ejderha modelinin LFS stub olmasından; hata satırlarının
+hiçbirinde arazi modülü geçmiyor.
+
+*Eşzamanlılık:* yayınlamadan hemen önce uzak `main` yeniden kontrol edildi ve başka bir oturumun
+PR #799'u (NPC muhafız LOD uyanma) geçtiği görüldü. Dala birleştirildi — çakışma yok, arazi dosyalarına
+temas yok — ve kapılar birleşik ağaçta tekrar çalıştırıldı.
+
+*Bildirilen ortam hatası:* `scripts/checkTerrainMicroSurface.mjs` bu konteynerde çalışmıyor — tarayıcı
+dışında çıplak `three` import'unu çözemiyor. Dokunulmamış HEAD'de de aynı şekilde başarısız; bu turun
+kırdığı bir şey değil.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+## ADR-0316 — Öğle ortamı güneşin sıcaklığını iki kez sayıyordu
+
+**Bağlam.** Sahip aynı isteği dördüncü kez yazdı: *"Coğrafi gerçeklik için 3D oyunun zeminini gerçek
+dünya coğrafyasına dönüştür."* Tur 367'de zeminin hardal sarısı olduğunu tespit etmiş, ariditeyi ölçüp
+elemiş ve "sarılık taban paletinden geliyor, palet ayrı bir karar" diye bırakmıştım. **Bu da tam olarak
+doğru değilmiş.** Bu tur ölçtüm ve sorumlunun palet değil ışık olduğu çıktı.
+
+### Önce bir yanlış varsayımımı düzeltmem gerekti
+
+Bütün §8.5 kanıt çekimlerim `startRatio` 0,42 ile alınıyor ve karelerde mor-siyah bir gökyüzü ile aurora
+görünüyor, yani aylardır gece görüntüsüne bakıyor olabileceğimden şüphelendim. Kontrol ettim: 0,42 şafak
+(0,27) ile öğle (0,5) arasında, güneş yoğunluğu ~1,23, gece faktörü ~0,12 — yani **gündüz**. Gökyüzünün
+karanlık kalmasının sebebi, kanıt betiğinin `updateDayNightLighting`'i çağırıp gökyüzünün kendi güncelleme
+fonksiyonunu çağırmaması; yani arazi gündüz ışığında, gökyüzü başlangıç hâlinde. **Bu bir oyun hatası
+değil, kanıt donanımının sınırı** — ama bütün kanıt karelerimde var olduğu için kayda geçiyor.
+
+### Ölçüm
+
+Aynı manzarayı öğlende çekip yazılan albedo ile çizilen rengi karşılaştırdım:
+
+| | ton | doygunluk |
+|---|---|---|
+| `GRASS_LOW`, yazılan albedo | **79°** | %43 |
+| çizilen zemin, sevk edilen ışık | **66°** | %37 |
+| çizilen zemin, gün ışığı mavisi ortam | **81°** | %31 |
+
+Yani dünya, paletin söylediği renkten **13 derece sarıya** kaymış hâlde çiziliyormuş.
+
+**Sebep:** `HemisphereLight`'ın `color` alanı *gökten gelen ışığı* temsil eder. Açık havada öğlen bu
+ışık mavidir. Anahtar kare ise oraya `0xffe8c0` koymuş — yani güneşin kendi rengini. Güneşin sıcaklığı
+zaten ayrı yönlü ışıkta `sunColor: 0xfff2d8` olarak taşınıyor, dolayısıyla **iki kez sayılıyordu** ve
+bütün dünyayı sarıya boyuyordu. Yalnızca bu anahtar kare yanlış: 0,27 ve 0,73'te gökyüzü gerçekten sıcak,
+gece kareleri zaten soğuk mavi.
+
+Düzeltildikten sonra çizilen zemin **79°** — yazılan albedonun tonuyla birebir.
+
+### Sevk etmediğim şey, ve neden
+
+Aynı deneyde anahtar/dolgu oranını da taradım (güneş 1,4→2,6, ortam 1,1→0,28). Zemin kontrastı sadece
+34,9 → 40,6 çıktı ve kareler hâlâ düz görünüyordu. Sebebi fiziksel: **öğlen güneş tepede olduğu için
+yukarı bakan bütün yüzeyler neredeyse aynı N·L değerini alır** — gerçek öğle hava fotoğrafları da düzdür.
+Araziye biçim veren şey yüksek kontrast değil, alçak güneşin yalayan ışığıdır. Yani hem kanıtım zayıftı
+hem de kendi çekim saatim düzlüğü abartıyordu; bütün oyunun ışığını bu temelde değiştirmedim. (Ayrıca
+`checkLightingVisualContract` güneş yoğunluğunu 0,05→1,40 olarak sabitliyor.)
+
+**Sözleşme değişikliği, açıkça.** `checkLightingVisualContract.js` anahtar kare tablosunu birebir
+aynalıyor; yani bu değer bilerek korunuyor. Kontroldeki ayna da aynı değere, gerekçesiyle birlikte
+güncellendi — böylece kapı *kazara* kaymayı yakalamaya devam ediyor, ama bu değişikliğin kasıtlı ve
+ölçülmüş olduğu kayda geçiyor.
+
+**Kapsam dürüstlüğü:** bu bir zemin değişikliği değil, öğlen aydınlatılan **her şeyi** etkiler —
+karakterler, kaleler, bitki örtüsü dâhil. Sahibin isteği zemin üzerineydi; sebep zeminde değildi.
+
+**Doğrulama.** 14/14 koltuk, koltuk yol ağı, arazi görsel sözleşmesi, determinizm, service worker,
+aydınlatma görsel sözleşmesi (aynalanmış tabloyla) — hepsi PASS.
+
+*Bildirilen, önceden var olan hata:* `scripts/checkSkyVisualContract.js` FAIL veriyor; dokunulmamış
+HEAD'de de aynı şekilde başarısız — daha önceki turlarda da bildirilmişti, bu turun kırdığı bir şey değil.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+## ADR-0317 — Bütün model kütüphanesi, bütün haritaya
+
+**Bağlam.** Sahip: *"assets'de bulunan bütün modelleri bütün coğrafyaya dağıt. Hepsini doğru yere doğru
+dokularla yerleştir."*
+
+Önceki durum bunun çok gerisindeydi: `worldLandmarkScatter.js` **14** modeli oyuncunun çevresindeki bir
+diske koyuyordu, `heroTrees.js` de **90** ağacı daha küçük bir diske. Harita 27x21 chunk; yani dünyanın
+neredeyse tamamı boştu.
+
+### Neyin dağıtıldığı, ve neyin bilerek dağıtılmadığı
+
+`assets/models` altında **334 `.glb`** var. "Hepsi" harfiyen alınamaz, çünkü dört grup coğrafyayı
+döşemek yerine bozardı — bu yüzden dışarıda bıraktıklarımı sessizce atlamak yerine yazıyorum:
+
+- **Canlı varlıklar (50 dosya)** — insanlar, hayvanlar, kuşlar, böcekler. Bunları `livingWorldSpawner.js`
+  doğuruyor, hareket ettiriyor ve canlandırıyor. Statik prop olarak serpmek bir Çiftçi'yi, bir Geyik'i ve
+  bir Martı'yı dünyanın dört bir yanında adım ortasında dondururdu.
+- **Kendisi arazi olan modeller (11 dosya)** — `terrain_test`, `rugged_mountain_landscape`,
+  `snow_terrain_low_poly`, `road_terrain`, `the_landscape_is_a_forest_in_the_mountains`… Her biri bir
+  manzara mesh'i. Bu dünyaya bırakmak, gerçek arazinin içinden geçen kopya yamaçlar bırakırdı.
+- **Koltuk kalesi modelleri (32 dosya)** — Meshy_AI kaleler ve tam kaleler. `settlements.js` bunları
+  zaten 14 krallık koltuğuna yerleştiriyor; serpmek açık araziye sahipsiz kaleler saçar ve koltukları
+  anlamsızlaştırırdı.
+- **İç mekân/şaka varlıkları (7 dosya)** — `Curtains`, `Candle`, `Cigarette butt`… Döşenecek iç mekân yok
+  ve bir sigara izmariti Westeros değil.
+
+Sur kapıları, duvar kuleleri, duvar parçaları ve harabe kitleri **tutuldu** — bunlar prop, kale değil.
+Geriye **150 kataloglanmış model** kalıyor.
+
+### Doğru yer
+
+Her aday nokta dört ölçülen olgudan bir biyoma çözülüyor — deniz seviyesinden yükseklik, yerel eğim,
+sahip haritasının orman kapsaması ve ariditesi — ve yalnızca o biyomu talep eden kayıtlar uygun oluyor.
+Ahır Kızıl Çöl'e, palmiye Duvar'a düşemiyor. Ayrıca: su üstüne hiçbir şey, koltuk pad'inin içine hiçbir
+şey (orası kalenin), inşa edilemeyecek kadar dik zemine bina yok.
+
+### Doğru dokular
+
+Bir glTF'in taban rengi, emissive ve specular dokuları **sRGB** kodludur; normal, roughness, metalness ve
+AO haritaları ise **doğrusal** veridir. three.js hepsini aynı şekilde çözmeye razıdır, ve içe aktarılan
+prop'ların soluk ya da fazla parlak görünmesinin olağan sebebi tam olarak budur. `normalisePropMaterials`
+her haritayı rolüne göre doğru renk uzayına koyuyor, renk haritalarına anizotropik filtreleme veriyor
+(yalayan açılarda dağılmasınlar diye) ve gölge alıp vermeyi açıyor — prop dünyanın ışığında dursun,
+üstünde yüzmesin.
+
+### Chunk akışı
+
+Katalog **her chunk için tanımlı** ama yalnızca kameranın 3 chunk yakınındaki 7x7 blok kuruluyor; oyuncu
+uzaklaştıkça sökülüyor. Dünya her yerde döşeli, yalnızca yakını bellekte. Canlı prop tavanı 220 (çizim
+çağrısı bütçesi), chunk başına 6.
+
+### Kapı iki gerçek hata yakaladı
+
+`scripts/checkWorldPropScatter.js` dünyanın **667 chunk'ının tamamını** yürüyor ve iddiaları ölçüyor.
+İlk çalıştırmada iki şeyi düşürdü:
+
+1. **`roadside` biyomu hiç oluşmuyordu.** Katalog onu tanımlıyordu ama `resolvePropBiome` hiç
+   döndürmüyordu — 8 kayıt (fıçı, sandık, şenlik ateşi, kuş evi, bank, kapı) dünyanın hiçbir yerinde
+   görünemezdi. Fıçı ve şenlik ateşi vahşi doğa nesnesi değil, insanların gittikleri yolların kenarına
+   bıraktığı şeyler; bu dünyanın yolları 14 koltuktan çıkıyor, o yüzden koltuk açıklığının hemen
+   dışındaki halka onların yeri oldu.
+2. **Katalogun beşte biri hiç yerleşmiyordu** (130/150, %86,7). Sebep ağırlıklı kümülatif çekim: üç
+   düzine kayıtlı bir biyomda en hafifler pratikte hiç kazanmıyordu. Bu doğrudan "bütün modelleri dağıt"
+   isteğinin başarısızlığı. Reddetme örneklemesine geçildi — ağırlık hâlâ anlamlı (6'lık kayıt 1'liğin
+   altı katı) ama aday önce **düzgün** çekildiği için her kaydın ulaşılabilir bir olasılığı var.
+
+Düzeltmelerden sonra: **1462 prop**, **137/150 kayıt (%91,3)**, sekiz biyomun hepsi mevcut, su altı 0,
+fazla dik 0, koltuk içi 0, çakışma 0, determinizm sapması 0.
+
+**Doğrulama.** Dünya prop kapısı PASS, 14/14 koltuk, determinizm, varlık manifesti (499 giriş),
+service worker v32→v33, satır sınırı (`worldPropScatter.js` 420, katalog 223, `game3d.js` 600'de
+değişmedi).
+
+**Technical debt.** `worldLandmarkScatter.js` ve `heroTrees.js` kaldırıldı — bu modül ikisini de
+kapsıyor ve yan yana bırakmak yakın alanda aynı ağaçları ve ahırları iki kez yerleştirirdi.
+
+**World Coverage.** Prop kapsaması diskten **bütün haritaya** çıktı.
+
+## ADR-0318 — 36 hayvan modeli hiçbir sistemde yokmuş; katalog kalabalığı da kapsamı boğuyormuş
+
+**Bağlam.** Sahip isteği tekrarladı: *"assets'de bulunan bütün modelleri bütün coğrafyaya dağıt."*
+ADR-0317 katalogu 150'ye çıkarmıştı ama iki şeyi kaçırmıştım.
+
+### 1. "Canlı varlık" dışlamam fazla genişti
+
+ADR-0317 bütün hayvan modellerini "`livingWorldSpawner.js` canlıları o doğuruyor" gerekçesiyle dışarıda
+bırakmıştı. *Rigli* türler için doğru. Ama ölçtüm: `assets_manifest.json`'a göre kullanılmayan hayvan
+modellerinin **36'sının rigi ve animasyon klibi hiç yok**. Spawner onları sürükleyemez —
+`animalConfig.js` yalnızca **12** türü tanımlıyor, geri kalanı **hiçbir sistemde** değildi. Yani
+"bütün modelleri dağıt" isteği karşısında bunlar hiçbir yerdeydi.
+
+Hareketsiz bir model, kendi habitatına konduğunda düşük poligonlu bir dünyada **ortam faunası**dır ve
+kullanılmayan bir dosyadan kesinlikle iyidir. 36'sı da biyomlarına göre kataloglandı: ormana ayı,
+porsuk, geyik, baykuş; yaylaya dağ koyunu, puma; kar hattına kar leoparı; kurağa aslan, çakal, fil;
+çayıra kelebek, arı, bizon; çiftliğe tavuk, inek, at; kıyıya martı. Rigli türler hâlâ spawner'ın ve
+hâlâ bu katalogda değil.
+
+Ayrıca `assets/models/animals/` altında **üç bina** yanlış klasörlenmiş duruyordu (bir cottage, iki
+farm) — kimse orada bina aramadığı için kullanılmıyorlardı; katalogda artık bina olarak duruyorlar.
+`shark.glb` dışarıda: bu serpme yalnızca kuru zemine yerleştiriyor.
+
+*Kale modelleri hakkında dürüst not:* kullanılmayan 7 kale dosyası, zaten kullanımda olan 8 kalenin
+**decimate edilmemiş orijinalleri**. Yani yeni kale değiller; onları eklemek yeni bir kale değil, daha
+ağır bir kopya olurdu. 14 koltuğun 14'ü de zaten gerçek kale modeli taşıyor.
+
+### 2. Asıl darboğaz seçim mekanizması değil, katalog kalabalığıydı
+
+Kapsamı yükseltmek için önce seçim mekanizmasını değiştirdim ve **üç kez üst üste yanıldım**, üçünü de
+kapı ölçtü:
+
+| deneme | kapsam |
+|---|---|
+| ağırlıklı kümülatif çekim (ADR-0317) | %86,7 |
+| reddetme örneklemesi | %93,0 |
+| rotasyon, `chunkZ` terimi `rotation.length` ile çarpılmış | **%85,9** (daha kötü) |
+| rotasyon, ordinal düzeltildi | %92,4 |
+| rotasyon, ordinal chunk başına 1 adım | **%60,5** (çok daha kötü) |
+
+Mekanizmayı kurcalamayı bırakıp sebebe baktım: `arid` biyomuna **40 kayıt** tıkmıştım — bütün Yunan
+harabeleri ve heykeller dâhil — oysa dünya yalnızca ~82 kurak yerleştirme üretiyor. Harabeler ve
+heykeller doğası gereği çöle ait değil; insanların inşa ettiği yerlerin yanında dururlar. 21'ini
+`roadside`, `upland` ve `woodland`'e dağıttım. Tek başına bu hamle kapsamı **%92,4 → %97,3** yaptı.
+
+Yani sorun hiçbir zaman seçim algoritması değildi. Bunu üç başarısız denemeden sonra öğrendim ve
+yazıyorum çünkü sadece son hâli görmek yanıltıcı olurdu.
+
+### Kapsam neden %100 değil, ve neden olmamalı
+
+Kalan 6 kayıt `upland` ve benzeri seyrek biyomlarda. Bir biyomun kapsaması, dünyanın ne kadarının o
+biyoma çözüldüğüyle **sınırlıdır**: 240 m üstü zemin bütün haritada ~32 yerleştirme üretiyor, ve hiçbir
+seçim şeması sahip olduğu yerleştirmeden fazla ayrı model gösteremez. %100'e çıkarmanın iki yolu var ve
+ikisi de sahibin kendi cümlesini çiğniyor: ya haritada olmayan yaylayı uydurmak, ya da yayla modellerini
+ait olmadıkları ülkeye dosyalamak. *"Hepsini doğru yere"* ikisini de yasaklıyor. Kalan kayıtlar her
+çalıştırmada **adıyla raporlanıyor**, görünmez bir pay olmasın diye.
+
+**Doğrulama.** Dünya prop kapısı PASS: 667 chunk, **1472 prop**, **179/185 kayıt (%96,8)**, sekiz
+biyomun hepsi, su altı 0 / dik 0 / koltuk içi 0 / çakışma 0, determinizm sapması 0. Determinizm,
+varlık manifesti (499), satır sınırı (katalog 272, serpme 442) PASS.
+
+**Technical debt.** 0 new. **World Coverage.** Katalog 150 → **185** kayıt.
+
+## ADR-0319 — Valyria: çayır değil, Doom
+
+**Bağlam.** Sahip: *"VALYRIA bölgesini yeşil alan yerine Lav'dan oluşan sert dağlık görünümüne
+kavuştur."* Haklıydı ve ne kadar haklı olduğunu ölçtüm: `map.png`'nin Valyria yarımadasını çizdiği
+kara, canlı alanda **deniz üstü ortalama 19,7 m, tepe 40,5 m**, orman kapsaması 0,05, aridite 0,05 —
+yani bu projedeki her kural onu haklı olarak **düz yeşil ova** diye okuyordu. Dünyanın en büyük
+uygarlığının kalıntısı çayır olarak render ediliyordu.
+
+**Haritaya bakarak.** `resimler/map.png` 3x büyütmeyle okundu: VALYRIA etiketli parçalanmış pas-mor
+bir yarımada, kuzeyinde kırık parçalar üzerinde OROS ve TYRIA, aralarındaki boğulmuş suyun üstünde
+"The Smoking Sea", ve yukarısında MANTARYS ile Demon Road'a uzanan "LANDS OF THE LONG SUMMER" kıstağı.
+Bölgenin hiçbir yeri yeşil çizilmemiş; kartograf üstüne duman sürmüş.
+
+**Lore'un araziye koyduğu dört şart.** Valyria volkanik bir yarımadaydı — Ondört Alev onun dağlarıydı,
+Freehold ejderha camı için onları oyar ve ısılarını işlerdi. Doom hepsini aynı anda kırdı: yarımada
+adalara ayrıldı, deniz yaraya doldu ve hâlâ kaynıyor, dört yüz yıldır orası kül ve cüruf. Yani zemin
+**dağlık** (Alevler), **parçalanmış** (kırılma), **siyah** (bazalt, kül, obsidyen) ve **çorak**
+(hiçbir şey yetişmiyor) olmalı — dördünü de yeşil bir çayır karşılamıyordu.
+
+**Kıyı çizgisine dokunulmadı.** Yükseltme yalnızca kanonik maskenin zaten kara dediği yerde ve kıyıdan
+rampalanarak uygulanıyor. Bölgeyi toptan kaldırmak Smoking Sea'yi doldurur ve Doom'u geri alırdı;
+sahibin duran talimatı haritadan şaşmamak, ve haritanın buradaki cevabı *ılık suda kırık kara*.
+Ölçüldü: sonda ızgarasında **49 kara / 138 deniz hücresi, öncesi ve sonrası birebir aynı**.
+
+### Bir kez daha tahmin ettim ve render beni yakaladı
+
+İlk denemede kırılmayı `shatterFrequency: 150` ve 4 oktavla kurdum. Bu, en ince oktavı
+13.500 / (150 x 2,07³) ≈ **10 m** dalga boyuna koyuyor — 3,91 m'lik yakın bant mesh'inin Nyquist
+sınırı olan 7,8 m'nin dibinde. Sonuç dağ değil **enkazdı**: yırtılmış tabakalar, havada duran
+levhalar, denize sarkan etek perdeleri. Ölçüm de söyledi: dünyanın en kötü LOD boşluğu 61,1 m'den
+**85,2 m**'ye çıkmıştı.
+
+55 frekans ve 3 oktava indirildi — en ince oktav ~57 m, mesh'in gerçekten taşıyabileceği ölçek. Boşluk
+71,1 m'ye indi, arazi bütünleşti, ve razor spike yerine geniş parçalanmış zirveler çıktı. Uplift 380 →
+330 m; şu an ortalama kara **109,2 m**, tepe **360,1 m**.
+
+### Yüzey
+
+Bazalt (`0x2a2422`) taban, yükseklerde kül (`0x6b6560`), ve **lav çukurlarda**. Lav için
+`terrainGroundRealism`'in her köşe için zaten hesapladığı drenaj eğriliği yeniden kullanılıyor: erimiş
+kaya da su gibi aşağı akar ve aynı içbükey yerlerde birikir. Yani başka bir yerde ıslak dere yatağı
+yapan aynı şekil, burada lav kanalı yapıyor — ek örnekleme maliyeti sıfır, ve parıltı zeminin kendi
+biçiminin söylediği yere düşüyor. (İlk ayarımda lav bütün yamaçları kaplıyordu; eğrilik eşiği
+0,15 → 0,45 yapıldı, damar oldu.)
+
+**Çorak.** `forestCoverage01` — orman için tek otorite — bölgede sıfır döndürüyor, yani hem zemin
+rengi hem `vegetation.js`'in ağaç serpmesi tek yerden kesiliyor. `worldPropScatter` de Doom'un
+kalbinde hiçbir şey yerleştirmiyor.
+
+**§8.4 öncesi/sonrası.** 14/14 koltuk **birebir aynı**. Yollar PASS; yalnızca **zaten SEA/feribot
+borçlu** iki kenar değişti (`umit->doran` 27→33, `umit->Xaro` 30→44 ıslak nokta, ağ 20,54→19,90 km).
+Dürüstçe bildiriyorum: bu iki kenar hiçbir zaman çalışan yol değildi (S-0038), ve yükseltilmiş bir
+Valyria'nın etrafından dolaşılması lore'a uygun — Smoking Sea'den gemiler de geçmez. Kara kenarlarının
+hepsi 20° tavanının altında.
+
+**Doğrulama.** `scripts/checkValyriaDoom.js` (yeni) beşini de doğruluyor: dağlık (ortalama 109,2 m,
+tepe 360,1 m), kıyı çizgisi değişmemiş (49/138), orman 0,000, Doom'da prop 0, kalp rengi
+rgb(0,042 0,035 0,032) — yeşil baskın değil. Ayrıca 14/14 koltuk, yollar, arazi görsel sözleşmesi,
+zemin gerçekçiliği, hizalama, determinizm, doku atlası, service worker v33→v34.
+
+### Nehir kaynağı Valyria'ya taşınmış — kapı yakaladı
+
+`checkRiverValleyCarving` FAIL verdi: nehir 30 noktadan **15'e** düşmüş, yükseltilmiş zemin raporlanmış.
+Sebep: `generateRiverPath` nehir kaynağını **başlangıç noktasının 2000 m yarıçapındaki en yüksek zemin**
+olarak seçiyor, ve Valyria kıstağı (z ≈ 1806 m) tam o yarıçapın içinde. Yükseltince oradaki volkanik
+zirve civardaki en yüksek şey oldu ve nehir kaynağı Doom'un üstüne taşındı — Smoking Sea'ye dökülen
+kısa bir dere.
+
+Hem regresyon hem lore saçmalığı: küller ve cürufun içinden nehir doğmaz. Kaynak aramasına Valyria
+dışlaması eklendi. Nehir taban çizgisine **birebir** döndü: 30 nokta, 29 segment, 43,5 m en derin
+kesit, 336 örnek.
+
+**Technical debt.** Dünyanın en kötü LOD boşluğu 61,1 → 71,1 m; etek politikasının 96 m tavanının
+altında ama izlenmeli.
+
+**World Coverage.** Valyria artık kendi biyomu.
+
+## ADR-0320 — "Bölgeler doğru mu?" sorusu artık ölçülebilir
+
+**Bağlam.** Sahip: *"VALYRIA bölgesini ve diğer bölgeleri doğru coğrafik halde olduklarından emin ol."*
+Bu soruya bugüne kadar ancak bir yere uçup bakarak cevap verilebiliyordu — Valyria'nın bütün proje
+boyunca çayır olarak render edilirken her kapının yeşil kalmasının sebebi de tam olarak buydu.
+Kapıların hepsi doğruydu; hiçbiri *"Dorne çöl mü?"* diye sormuyordu.
+
+`scripts/checkRegionGeographyFidelity.js` (yeni) `map.png`'den okunmuş ve kitaplardan adlandırılmış
+**11 adlandırılmış bölgeyi** yürüyor, her birinde canlı yükseklik alanını ve haritanın kendi biyom
+cevabını örnekliyor, ve dünyada olanı bölgenin olması gerekenle karşılaştırıyor.
+
+**Beklentiler kasten gevşek ve asimetrik.** Dar bantlar yerine, bir bölgenin *yanlış olduğunu
+kanıtlayacak çelişkiler* olarak yazıldı: neredeyse hiç aridite olmayan bir çöl, dağı olmayan bir sıradağ,
+ağacı olmayan bir orman. Zevk üzerinden kırmızıya dönen bir kapı birkaç turda işe yaramaz hâle
+ayarlanır; bu proje o dersi zaten aldı. Her bölgenin ölçümleri geçse de geçmese de **her çalıştırmada
+basılıyor**, böylece kayma başarısızlığa dönüşmeden görünür oluyor.
+
+### Kapı ilk çalıştırmada kendi hatamı yakaladı
+
+İlk sürüm ham `sampleMapForest01` alanını ölçüyordu ve Valyria'yı **%7 ormanlık** raporladı — oysa
+renderer orayı doğru şekilde çıplak çiziyor. Sebep: renderer `forestCoverage01`'i soruyor; ham alan
+onun yalnızca bir girdisi. Yani kontrol, oyunun yapmadığı bir şeyi puanlıyordu — bu oturumda tekrar
+tekrar çıkan hata sınıfının ta kendisi. Paylaşılan otoriteyi ölçmeye çevrildi. Aynı sebeple renk sütunu
+`applyValyriaSurface`'i de içeriyor artık; yoksa Doom'u sıradan yeşil zemin diye raporluyordu.
+
+### Sonuç: 11/11 bölge haritayla uyumlu
+
+| bölge | kara% | ort. m | tepe m | orman | aridite | çizilen renk |
+|---|---|---|---|---|---|---|
+| Lands of Always Winter | 77 | 39 | 77 | 0,130 | 0,000 | 0,78 0,81 0,78 (beyaz) |
+| Kuzey | 83 | 38 | 81 | 0,413 | 0,005 | yeşil |
+| Reach | 99 | 103 | 350 | 0,414 | 0,010 | koyu yeşil |
+| Dorne | 85 | 64 | 364 | 0,135 | **0,508** | kum |
+| Kızıl Dağlar | 96 | 176 | **351** | 0,441 | 0,226 | kaya |
+| Dothraki Denizi | 98 | 85 | 181 | 0,303 | 0,028 | çayır |
+| Kızıl Çöl | 100 | 194 | 386 | 0,053 | **0,251** | kum |
+| Great Sand Sea | 100 | 265 | 656 | 0,090 | **0,254** | kum |
+| Kemik Dağları | 93 | **461** | **760** | 0,061 | 0,052 | gri |
+| **Valyria** | 27 | 78 | **308** | **0,000** | 0,044 | **0,19 0,03 0,02 (bazalt+lav)** |
+| Sothoryos | 54 | 29 | 61 | **0,401** | 0,000 | koyu orman yeşili |
+
+**Kemik Dağları hakkında düzeltme.** Onları da yükseltmem gerektiğini varsaymıştım. Ölçtüm: zaten
+**dünyanın en yüksek zemini** (tepe 760 m, ortalama 461 m) ve kanonik dağ verisi onları zaten
+kapsıyor. Varsayımla iş yapmadım, ölçüm düzeltti.
+
+**Doğrulama.** Bölge kapısı 11/11 PASS. Valyria kapısı, 14/14 koltuk, yollar, nehir vadisi, service
+worker, determinizm, varlık manifesti PASS.
+
+**Technical debt.** 0 new. **World Coverage.** Artık 11 adlandırılmış bölge sürekli izleniyor.
+
+## ADR-0321 — Coğrafya kapıları CI'a bağlandı, ve biri bölgeye yakalanıyordu
+
+**Bağlam.** Bu oturumda beş yeni kapı yazıldı (ADR-0314, 0315, 0317/0318, 0319, 0320) ama hiçbiri
+otomatik çalışmıyordu — yalnızca ben hatırlayıp elle çalıştırdığımda. Valyria'nın yüzlerce tur boyunca
+çayır kalmasının sebebi de tam olarak buydu: kapılar doğruydu ama kimse sormuyordu. **Çalışmayan kapı
+kapı değildir.** Beşi de `canonical-map-single-entry-validation.yml`'a kendi adımı olarak eklendi. O
+iş akışı LFS varlıklarını zaten hidrate ediyor, yani CI'da gerçek modellerle çalışıyorlar.
+
+**Ve bağlarken biri kendi kusurunu gösterdi.** `checkTerrainGroundRealism` kalibrasyon oranını
+1,01x'ten **1,83x**'e çıkmış raporladı — 2x toleransının dibinde. Sebep arazinin kayması değildi:
+kontrol eğrilik dağılımını (0, 1000) merkezli 1200 m yarıçaplı **tek bir diskten** örnekliyordu, ve tur
+372'de yükselttiğim Valyria kıstağı o merkeze **1095 m** uzakta — yani diskin *içinde*. Tek bir volkanik
+bölge, bütün haritayı tarif etmesi gereken bir istatistiği ele geçirmişti; dokunmasam her yerde hâlâ
+doğru olan bir kalibrasyonu kırmızıya düşürecekti.
+
+Örnekleme bütün haritaya yayıldı. Dünya çapında p99 = **1,317 m** (1,32x) — hem gerçek hem rahat.
+Ders tanıdık: bir istatistik nereden bakıldığına göre değişiyorsa, ölçtüğü şey manzara değil bakış
+açısıdır.
+
+**Doğrulama.** Beş kapı da birleştirilmiş ağaçta PASS: bölgeler 11/11, Valyria, zemin gerçekçiliği
+(1,32x), doku atlası, dünya prop'ları. Workflow YAML parse ediliyor.
+
+**Technical debt.** 0 new. **World Coverage.** Değişmedi.
+
+## ADR-0322 — Duvar hiç inşa edilmemişti
+
+**Bağlam.** Sahip lore'a bakarak coğrafyayı geliştirmemi istedi. Depoda "the Wall" geçen her satır bir
+**yorum**du. `worldReferenceRoadRoutes.js`'in kendi docstring'i "Kingsroad: Duvar'dan King's Landing'e"
+diyor; yol Castle Black'e varıyor ve orada **hiçbir şey yok**. Bütün hikâyenin en tanınır coğrafi
+öğesi — dünyanın tepesinde üç yüz mil buz — hiç yapılmamıştı.
+
+**Yeri, haritadan okundu.** `map.png` 4x'te "The Wall" etiketli soluk mavi-beyaz bir bant, üstünde
+Gece Nöbeti kaleleri, hemen altında Castle Black, onun altında Brandon's Gift ve The New Gift, batıda
+Bay of Ice, doğuda Bay of Seals. Canlı yükseklik alanını o enlemde tarayınca kara **nx 0,152 ile 0,208
+arasında kesintisiz**, iki yanı deniz, arası düz 18-33 m zemin. Duvar tam o açıklığa, kıyıdan kıyıya
+kuruldu — hem haritanın çizdiği bu, hem de hikâyenin gerektirdiği: kıtayı mühürlüyor, ve etrafından
+dolaşılabilen duvar hiçbir şeyi mühürlemez. Ölçülen: **745 m**, iki ucu da suya değiyor.
+
+**Yüksekliği kitaplardan.** Yedi yüz kadem, yani **213 m**. 18-33 m'lik zemine karşı devasa, ve öyle
+olması gerekiyor — Duvar Kuzey'e hükmeder ve üstünden görülemez. Bu dünyanın sıkıştırılmış yatay
+mesafelerine oranlanmadı, çünkü o şeyin bütün meselesi çevresindeki her şeyle orantısız olması.
+
+**Arazi değil, geometri.** Yükseklik alanı bir (x, z)'yi tek bir yüksekliğe eşliyor; dikey yüzey ifade
+edemez, araziye gömülen bir duvar rampa olarak çıkardı. Ayrıca güvenli olan da bu: Valyria iki tur
+sürdü çünkü bir yükseklik değişikliği LOD çatlaklarına, nehir kaynağına ve iki yol rotasına yayılmıştı.
+Bu hiçbirine dokunmuyor — ölçüldü, **arazi sapması 0 m**.
+
+**Kapı, kendi hatamı da yakaladı.** İlk sürümü taban boşluğunu `crownY - height - groundY` diye
+hesaplıyordu, ki bu `enYüksekZemin - zemin`'e sadeleşiyor — yani Duvar boyunca arazinin kendi
+değişimi, havada durma değil. 28,7 m raporlayıp doğru oturmuş bir duvarı kırmızıya düşürdü. Gerçek
+ölçüye çevrildi: taban her kesitte kendi zemininin 6 m altında, yani **-6,0 m** (havada durma yok).
+
+**Doğrulama.** `scripts/checkTheWall.js` (yeni) beşini de doğruluyor: 745 m kıyıdan kıyıya, iki uç da
+suya ulaşıyor, taç 213 m, taban havada değil, Castle Black hattın **95 m** yakınında, arazi sapması 0.
+Görsel kanıt `artifacts/the-wall/`. Service worker v34→v35. Kapı CI'a da eklendi.
+
+**Technical debt.** 0 new. **World Coverage.** Duvar artık var.
+
+## ADR-0323 — Dünyanın tek bir nehri vardı; on tanesi sessizce hiç akmadı
+
+**Bağlam.** `map.png` nehirlerle kaplı: Trident ve üç çatalı, King's Landing'den geçen Blackwater
+Rush, Reach boyunca Mander, Essos'ta Rhoyne ve Skahazadhan. Bu dünyada **tam olarak bir tane** vardı —
+`generateRiverPath` tüm projede bir kez çağrılıyordu, origin yakınındaki en yüksek zeminden aşağı
+inen isimsiz bir dere. Nehir, herhangi bir haritanın en okunaklı öğesidir.
+
+**Kaynaklar haritadan, yataklar araziden.** `worldReferenceRoadRoutes.js`'in yollar için yerleştiği
+ilkenin aynısı, suda daha da önemli: sabit bir polylinе olarak aktarılan nehir, bu dünyanın yükseklik
+alanı çizimle anlaşmadığı her yerde yokuş yukarı akardı — saçma değil, **fiziksel olarak imkânsız**.
+Bu yüzden `worldReferenceRivers.js` her nehir için yalnızca bir **kaynak** verir (haritadan 4x'te
+okundu, ±0,015 normalize tolerans); yatağı `rivers.js`'in mevcut yokuş-aşağı izleyicisi bulur.
+
+**Asıl hata: on nehirden sekizi sessizce hiç izlenmedi.** Eklendikten sonra her kapı yeşil kaldı —
+koltuk güvenliği aynı, yol ağı baseline ile **bayt-bayt aynı**. On yeni nehir için fazlasıyla temiz
+bir sonuçtu, ve öyleydi de. `generateRiverPath` yürüyüşünü `hypot(bestX, bestZ)` ile sınırlıyordu:
+**dünya originine** olan mesafe. Tek nehir varken ve onun origini (0, 0) iken bu iki ifade aynıydı.
+Westeros'un her kaynağı dünya origininden 4,5-5,0 km uzakta, 2800 m'lik varsayılanın ötesinde — sekiz
+nehir **ilk adımında** `bounds` ile çıktı, tek noktalı yol döndürdü ve `computeRiverValleys`'in
+`points.length < 2` koruması tarafından sessizce atıldı. Hiçbir şey oyulmadı, dolayısıyla hiçbir şey
+değişmedi, dolayısıyla her kapı geçti. Sınır artık nehrin **kendi** originine göre; tek nehrin kursu
+bit-bit aynı kaldı çünkü onun origini hâlâ (0, 0).
+
+**Ölçüm (§8.4).** Koltuklar **bayt-bayt aynı**, 14/14 PASS. Yollar PASS ama artık **değişti**: altı
+kenar yeniden yönlendi, ağ 19,95 → **20,34 km** (+%2,0), en kötü kara eğimi 15,5° (tavan 20°), deniz
+geçişleri aynı. Yollar yeni vadilerin **etrafından** dolaşıyor — bir yükseklik alanının gerçekten
+değiştiğinin imzası budur.
+
+**İkinci hata: nehirlerin üçte biri yer altındaydı.** İlk render Mander'ı bir nehir olarak değil,
+**kopuk mavi lekelerden oluşan kesik çizgi** olarak gösterdi. Şerit, izlenen polyline'ın 40 m'lik
+kirişleri üzerine kuruluyordu; `generateRiverPath` yerel minimumlardan çıkmak için 640 m'ye kadar
+tırmanabildiğinden ardışık noktalar aralarındaki zeminden çok daha alçakta kalabiliyor. Ölçüldü: on
+nehrin **%23-63'ü yer altında**, arazi şeridin 28 m üstüne çıkıyor. Düzeltme iki parçalı: yüzey artık
+**8 m'de bir** yeniden örnekleniyor, ve profil ağızdan yukarı doğru
+`yüzey = max(aşağıdakiYüzey, yatak + 1 m)` ile süpürülüyor — suyun yaptığı iki şey tam olarak bu:
+aşağı akarken asla yokuş çıkmaz, ve üzerinde durduğu zeminin altında olmaz. Kurs bir sırtı kesiyorsa
+su arkasında **göllenir**, tünel açmaz. Sonuç: **%23-63 → %0,32**.
+
+**Şerit artık ikinci kez izlenmiyor.** İlk sürüm kursu bitmiş zemin üzerinde yeniden izliyordu
+(oyulmuş taban en dik inişi çeker diye). Ölçüm aksini söyledi: ikinci iz kendi hendeğinden yeterince
+sık çıkıyordu. Artık şerit doğrudan **oyulan polyline'ı** kullanıyor — nehir başına iki kurs yerine
+bir tane olduğu için ayrışma ihtimali ortadan kalktı, korunmadı.
+
+**Üçüncü hata, ölçümde: `checkRiverValleyCarving` on bir nehirlik bir alanı tek nehirle ölçüyordu.**
+Birincil nehri takip eden yürüyüşü, isimli bir nehrin kendi rim'inin içinden geçince onun tamamen
+meşru vadisini "rim sızıntısı" sayıp kapıyı kırmızıya düşürdü: (896, 1873)'te Skahazadhan'a 347 m,
+birincil nehre 540,4 m uzaklıkta, 0,38 m'lik bir kesim. Oyma doğruydu; **ölçüm bir nehir bilirken alan
+on bir taşıyordu**. Bu projenin defalarca ödediği hata sınıfının aynısı; artık mesafe alandaki **her**
+nehrin merkez hattına ölçülüyor.
+
+**Doğrulama.** `scripts/checkNamedRivers.js` (yeni) sekiz özelliği doğruluyor: onunun onu da izleniyor,
+hepsi `sea` ile bitiyor, her kaynak kanonik karada, her ağız kanonik suda (800 m'lik diskin %28-65'i
+deniz — iç kesimdeki bir çukur değil, gerçek kıyı), oyma zemine ulaşıyor (819/9923 kara örneği,
+en derin 116,2 m), şeridin **%0,32'si** gömülü, en kötü askıda kalma 24,3 m (tavan 30 m — gerçek bir
+göl bunun içinde kalır), ve iki build aynı kursları veriyor. `checkRiverValleyCarving` düzeltildi ve
+PASS. Skirt payı değişmedi: dünya en kötü LOD boşluğu **71,05 m**, 96 m tavanının altında. Her iki
+kapı da CI'a eklendi. Görsel kanıt `artifacts/named-rivers/` (Mander, Greenblood, Skahazadhan; her
+biri iki açı).
+
+**Gelecek faz etkisi.** Vadi tabanları yerleşim ve yol dışında ilk gerçek "koridor" arazisi: FAZ 5+
+için doğal geçiş yolları, değirmen/liman yerleşimi ve karşıya geçiş noktaları buradan türetilebilir.
+S-0038 (deniz geçişleri için feribot/köprü) hâlâ açık ve artık nehir geçişlerini de kapsıyor.
+
+**Ve asıl nehir 376 turdur gömülüydü.** İsimli nehirlerdeki gömülmeyi ölçen probu, dokunulmamış
+ağaçtaki tek nehre de çevirdim: **%70,9'u yer altında**, en kötü 37 m — on yeni nehrin hepsinden
+kötü. Aynı sebep, ve bunca turdur kimse yakından bakmamış. Bırakılsaydı, on bir nehirlik bir dünyada
+tek bozuk olan **orijinal nehir** olacaktı; o yüzden o da `buildRiverSurface`'den geçiyor:
+**%70,9 → %0,1**, şerit 60 → 592 vertex. *Kursu* değişmedi, dolayısıyla ADR-0011'in tam bu kursa
+göre kalibre ettiği şelale eşikleri hâlâ ölçtükleri şeyi görüyor.
+
+**Performans (§4).** Vadiler arazi; bedelini zaten var olan chunk'lar ödüyor. Tek per-frame maliyet
+şeritler: on nehrin tamamı **2490 üçgen / 2510 vertex / 10 draw call**. `checkNamedRivers.js` bunu
+20 000 üçgenlik bir tavana bağladı — 8 m'lik örnekleme aralığı ayarlanabilir bir sayı ve yarıya
+indirmek bunu ikiye katlar; o takas bir telefonda keşfedilmek yerine bilerek yapılsın diye.
+
+**Technical debt.** 0 new. **World Coverage.** Dünyada 1 yerine 11 nehir var.
+
+## ADR-0324 — "Bütün modelleri dağıt" sorusu ilk kez cevaplanabilir hale geldi
+
+**Bağlam.** Sahip bu isteği üç kez yazdı: "assets'de bulunan bütün modelleri bütün coğrafyaya dağıt.
+Hepsini doğru yere doğru dokularla yerleştir." Tur 370 katalogu kurdu, tur 371 hayvanları ekledi. Ama
+**isteğin karşılanıp karşılanmadığı ölçülebilir bir soru değildi**: katalog neyi yerleştirdiğini
+listeliyordu, dışlamalar `{ riggedLivingEntity: 14, isItselfTerrain: 11, ... }` diye **arkasında dosya
+adı olmayan sayılardı**, ve hiçbir şey bu ikisini diskteki gerçek dosyalarla karşılaştırmıyordu. Her
+kapı katalogu kendisiyle ölçüyordu.
+
+**Ölçüm.** `assets/` altında **501 model dosyası** var, ama içerik hash'ine göre **360 farklı model** —
+`assets/models/fbx/` ham indirme klasörü, düzenli klasörler aynı dosyaların kopyası. Bunların
+**203'üne hiçbir sistem dokunmuyordu**. Yerleştirilmemiş, bilerek dışlanmamış; sadece görünmez.
+
+**Üç kusur, üçü de mevcut kapılara görünmezdi.**
+
+1. **203 model hiçbir sistemde yoktu.** Şimdi hepsi sınıflandırıldı: **69'u katalogda** (mimari,
+   harabe, sütun, çeşme, lamba, sandık, iskele, kaya ve bitki taramaları), **137'si adı konmuş bir
+   gerekçeyle dışlandı** (`world/worldPropExclusions.js`).
+2. **Katalog 58 modeli iki kez yerleştiriyordu.** 185 girdinin 117'si, `fbx/` ve düzenli klasör
+   altındaki aynı dosyaydı — her biri **çift ağırlıkla** seçiliyor ve **iki ayrı cache anahtarıyla iki
+   kez GPU'ya** yükleniyordu. Girdiler artık Git LFS içerik hash'ine göre tekilleştirildi: 185 yol →
+   **195 farklı model**, sıfır çift.
+3. **Dışlama gerekçeleri denetlenemezdi.** Sayı yerine dosya listesi: 15 gerekçe, 137 dosya, her biri
+   niçin dışarıda kaldığını yazıyor. `PROP_CATALOGUE_EXCLUSIONS` artık o listeden **türetiliyor**, yan
+   yana yazılmıyor — ikisi ayrışamaz.
+
+**Kapı.** `scripts/checkAssetCoverage.js` (yeni, CI'da): `assets/` yürünür, her model ya katalogda, ya
+adı konmuş bir sistemin (koltuk kaleleri, hayvanlar, NPC'ler, oyuncu, ejderhalar, editör) elinde, ya da
+gerekçeli dışlama listesinde olmak zorunda. Başka hiçbir şey. **Bir model ekleyip yerleştirmeyi
+unutmak artık kırmızı bir build.** Aynı kapı ilk çalıştırmasında OID taramasının kaçırdığı 3 dosyayı
+yakaladı — deponun LFS pointer olmayan tek üç dosyası.
+
+**Katalog kalabalığı, yine.** 69 girdi eklenince kapsama %92,8'e düştü (tavan %95): 32 `upland` girdisi
+dünya genelindeki 32 `upland` yerleşimi için yarışıyordu. Tur 370 bunu `arid` ile yaşamıştı. 24 girdi
+tapınak/harabe/sütun/merdiven olarak `meadow`/`woodland`/`roadside`'a taşındı — Westeros'ta harabeler
+zaten ovada ve ormanda; artık her biyomda girdi başına **en az 4** yerleşim var. Kapsama **%97,9**
+(191/195), yerleşimlerin hepsi legal, determinizm sapması 0.
+
+**Ve tek gerçek model 376 turdur kutuydu.** `animalConfig.js` kurdu
+`Wolf-Blender-2.82a.**glb**`'den yüklüyordu — 132 baytlık bir LFS pointer. Yanındaki
+`Wolf-Blender-2.82a.**gltf**` ise **gerçek ve depoya işlenmiş**: 508 KB JSON, 2,6 MB `.bin`, kendi
+dokuları, 2876 üçgen, bir skin ve beş klip. Config'in yazdığı klip adları (`04_Idle_Armature_0` …) o
+dosyanın kendi adları — yani tablo bu dosyaya bakılarak yazılmış, sonra yanlış kardeşe bağlanmış.
+Repointlendi: kurt artık **placeholder değil**, kürkü ve gözleri dokulu, `map: srgb`, üç klip de
+yerinde. Görsel kanıt `artifacts/asset-coverage/`.
+
+İki yan kusur bu sırada çıktı ve düzeltildi: `stripNamedChildren` yalnızca **kökün doğrudan
+çocuklarını** tarıyordu, oysa temizlenmesi gereken kürk mesh'i `Armature_0` altında bir seviye
+aşağıdaydı — sessizce hiçbir şey yapıyordu; artık tüm alt ağacı tarıyor. Ve kurdun `Wolf_Fur`
+materyali bozuk ihraç edilmiş: `alphaMode: BLEND`, **taban rengi dokusu da katsayısı da yok**, three.js
+bunu opak beyaza çözüyor — kurdun boynunda beyaz bir yele olarak görünüyordu. Klasördeki
+`Fur_Col_20.png`/`Fur_Alpha_3.png` bağlanarak denendi: kartlar omuzdan çıkan düz koyu poligonlara
+dönüştü, beyazdan daha kötü. Kürk kartları çıkarıldı; kurdun kendi gövde dokusu zaten eksiksiz.
+
+**Servis worker.** `.glb` yerine `.gltf` + `.bin` + iki doku — bir `.gltf`'in tamponu ve dokuları
+`.glb`'nin aksine **dış dosyalar**, hepsi girilmezse kurt çevrimdışı bozulur. Cache v36→v37.
+
+**Bu turda arazi değişmedi.** Katalog, dışlama listesi ve hayvan config'i yükseklik alanına
+dokunmuyor, dolayısıyla §8.4 tetiklenmiyor.
+
+**Dürüst sınır.** Bu ortamda 501 model dosyasının **498'i LFS pointer**. Yeni 69 girdinin yerleşimi
+yapısal olarak doğrulandı (kapı + scatter kontrolü: biyom, eğim, su, koltuk mesafesi, çakışma,
+determinizm), **görsel olarak değil** — çünkü scatter placeholder dikmez ve burada o modeller
+yüklenmez. Görsel kanıt gerçekten yüklenen tek model olan kurt için var.
+
+**Technical debt.** 0 new. **World Coverage.** 360 modelin 360'ı hesapta: 195 yerleştirilmiş, 31
+sistem sahipli, 137 gerekçeli dışlanmış.
+
+## ADR-0325 — Duvar'da kimse yoktu; ve coğrafi özellikler ilk kez tek tek ölçüldü
+
+**Bağlam.** Sahip üç şey istedi: Winterfell'in kuzeyinde, Duvar'ın olduğu yere kaleyi ekle;
+`map.png`'ye bakarak dağ/orman/göl/deniz/buzul doğru mu teyit et; ve Game of Thrones'u araştırıp bir
+yerde sakla.
+
+**Araştırma bir dosyaya kondu.** `docs/westeros-lore-reference.md` — Duvar'ın ölçüleri, Gece Nöbeti'nin
+19 kalesi ve hâlâ insanlı olan üçü, Castle Black'in yapıları, Tanrıların Gözü ve Yüzler Adası, bölge
+beklentileri; her biri kaynaklı. Kural: **sadece metin ve ölçü**; hiçbir HBO görsel/ses varlığı
+indirilmedi — bu işin tek sabit kısıtı ve bir lore notu onu gevşetmenin mazereti değil. Artık bir modül
+lore sayısı sabitlediğinde (Duvar'ın 213 m'si, kulenin 30 m'si) o dosyayı gösteriyor.
+
+**Castle Black bir kale değil, ve inşa şeklini belirleyen tam olarak bu.** Kitaplar açık: batıda,
+doğuda ve güneyde onu koruyan hiçbir duvar yoktur; kuzeyde sadece Duvar durur. Taş kuleler ve ahşap
+keep'lerden oluşan bir küme. Surla çevrili bir kale çizmek, yerden bakıldığında en görünür şekilde
+yanlış olurdu; bu yüzden `world/nightsWatchCastles.js` hiçbir yerde perde duvar çizmiyor.
+
+Kurulanlar: **King's Tower** — yüz kadem (30 m), yuvarlak, tacında dişler, kapıya ve Duvar'a çıkan
+ahşap merdivenin dibine bakıyor; **Lord Commander's Tower**; **common hall** — beşik çatılı büyük
+ahşap keep; iki küçük keep; Duvar'ın güney yüzünde **zikzak ahşap merdiven**; ve tepede **ırgat
+çerçevesi** ile yüzden aşağı sarkan **demir kafes**. Üç kale kuruldu, on dokuz değil: hikâyede yalnızca
+üçü insanlı — batıda Shadow Tower, ortada Castle Black, doğuda Eastwatch-by-the-Sea. Kalan on altısı
+harabe ve öyle de yapılmalı; unutulmadı, sonraki işe bırakıldı.
+
+**Yeri ikinci kez transkribe edilmedi.** Her kale Duvar'ın kendi merkez hattı üzerinde bir parametreyle
+duruyor, yani Duvar oynarsa kale de oynar. Castle Black'inki de tahmin değil: merkez hattının `jon`
+koltuğuna en yakın noktası — o koltuğu `world/settlements.js` sahibin haritasından yerleştiriyor.
+Ölçülen: yard koltuğa **130 m**.
+
+**İki geometri hatası kendi renderımda yakalandı.** Merdivenin zikzak matematiği sadeleşince iki sabit
+konuma çöküyordu — buzun önünde havada asılı kopuk tahtalar. Ve sahanlıklar ters işaretle
+yerleştiriliyordu: `rotation.y` kutunun yerel +X'ini **eksi** Duvar yönüne eşliyor, `rotateZ` de aynı
+ucu kaldırıyor, dolayısıyla tırmanan uç `-along` tarafında kalıyor. Ayrıca common hall'ün çatısı,
+`.rotation.y` ve `.rotation.z` ayrı ayrı atandığı için varsayılan XYZ sırasıyla çapraz duruyordu;
+`rotation.set(0, facing, PI/2, 'YZX')` ile düzeldi. Sekiz sahanlık 46°'lik bir merdiven veriyordu —
+merdiven değil, el merdiveni; on dörde çıkarıldı, ~31°.
+
+**Kapı kendi kusurunu da yakaladı.** İlk çalıştırmada "44 yapının 36'sı havada, en kötü 31 m" dedi.
+31 m tam olarak King's Tower'ın boyu: kontrol, kule tacındaki **dişleri** yere basması gereken yapı
+sanıyordu. Yapılar artık kaynakta `standsOnGround` ile işaretleniyor — niyeti bilen yer orası.
+`scripts/checkNightsWatchCastles.js` sekiz özelliği doğruluyor; ölçülen: 0 yapı Duvar'ın kuzeyinde,
+King's Tower 30,0 m, merdiven 17 m → 249 m (30..246 m tırmanışa karşı), en kötü havada kalma −0,50 m,
+arazi sapması 0 m, deterministik.
+
+**Ve coğrafya ilk kez özellik özellik ölçüldü.** `scripts/checkMapFeatureFidelity.js` (yeni):
+`map.png`'yi tarayıcıda okuyup her örnek pikseli haritacının çizdiği şeye göre sınıflıyor, canlı dünyayı
+aynı noktada örnekliyor, ve sınıf sınıf uyuşmayı raporluyor. Sonuç:
+
+| özellik | çizilen | dünya uyuyor | taban |
+| --- | --- | --- | --- |
+| deniz | 90 246 | **%96,5** | %90 |
+| buzul | 3 363 | **%94,9** | %60 |
+| orman | 3 618 | **%58,3** | %50 |
+| dağ | 865 | **%68,7** | %50 |
+| göl | 260 | **%41,2** | %35 |
+
+**İki sınıf, düzeltilene kadar kartografya ölçüyordu.** İlk koşu dağları 5827 "kaya" pikseli üzerinden
+%49,4 verdi — ama harita gri kale ikonları ve gri etiket yazılarıyla dolu ve bunların hiçbiri dağ
+değil. Gri bir pikselin komşuluğunun da gri olmasını şart koşmak işaretleri eliyor, sırtları bırakıyor:
+865 gerçek sırt pikseli, uyum **%68,7**. Aynı koşu gölleri %83,6 verdi; başarı gibi görünüyordu, tam
+tersiydi — saydığı piksellerin neredeyse tamamı haritanın kendi üst çerçevesi boyunca uzanan, sınır
+flood-fill'inden kopmuş ve dünyanın gayet doğru şekilde açık deniz olarak çizdiği sudur. Artık yalnızca
+o banttan uzak, gerçek boyutlu, bağlantılı iç su kütleleri sayılıyor: 2382 yerine 260 örnek.
+
+**Göller dürüst bir boşluk.** Bu dünyada modellenmiş tek bir göl yok. Kanonik su maskesi 96×64 hücre
+(~140 m) ve Westeros'un en büyük gölü Tanrıların Gözü bu dünyanın ölçeğinde ~97 m × 185 m — onu tutması
+gereken ızgaranın **bir hücresinden küçük**. Maske tüm dünyada altı göl hücresi taşıyor ve hiçbiri
+Westeros'ta değil. %41,2 tesadüfi alçak zemindir, göl değil. Taban %35'e sabitlendi: gerilemeyi yakalar,
+özelliğin çalıştığını iddia etmez. Tabanı yükseltmek, göllerin gerçekten inşa edilmesinin kabul testi.
+
+**Bu turda arazi değişmedi** — kaleler de Duvar gibi geometri, yükseklik alanına dokunmuyorlar
+(ölçülen sapma 0 m), dolayısıyla §8.4 tetiklenmiyor. Boot smoke 42 PASS / 2 FAIL, outcome=ready —
+tur 377 ile aynı, iki hata da önceden var olan LFS pointer stub'ları. Görsel kanıt
+`artifacts/castle-black/`. Service worker v37→v38.
+
+**Technical debt.** 0 new. **Açık iş.** Göller (S-0039: Tanrıların Gözü + Uzun Göl, havza oyma + kendi
+seviyesinde su yüzeyi), ve Duvar'ın kalan on altı harabe kalesi.
+
+## ADR-0326 — Modeller dağıtılmıştı ama köy kurulmamıştı; ve katalogun üçte biri hiç yüklenemiyordu
+
+**Sahibin düzeltmesi.** "Dolu yerleşim olayını yapman için assets kısmındaki her şeyi coğrafyaya
+yerleştir demiştim zaten, sen yapmamışsın." Haklıydı. Tur 370 ve 377 kütüphaneyi haritaya dağıttı ama
+`worldPropScatter.js` **dağıtır**: bir yamaca ahır, iki kilometre öteye ev, her biri açık arazide tek
+başına. Bu döşenmiş bir vahşi doğa, dolu bir yerleşim değil. Yerleşimleri kuran `villages.js` ise hâlâ
+prosedürel kutulardan ev yapıyordu — ve kendi başlığı sebebini yazıyordu: "assets_manifest.json'da hiç
+[ev modeli] yok". Bu yazıldığında doğruydu, artık değil: katalogda **21 konut, 10 ahır/çiftlik, 9 ibadet
+yapısı, 4 zanaat yapısı** var ve hiçbiri bir köyde durmamıştı.
+
+**Ölçülen başlangıç durumu:** 14 koltuktan 9'unda köy, 85 ev — hepsi prosedürel kutu, **sıfır model**.
+
+### Asıl bulgu: katalogun %35'i hiçbir zaman yüklenemiyordu
+
+Köy yapılarını kurarken 154 parselden 110'u boş kaldı. Sebep köy mantığı değildi: `AssetLoader`'ın iki
+yükleyicisi var ve `loadModel` **yalnızca glTF**. Ona bir `.fbx` verildiğinde fırlatıyor, catch bunu
+yutuyor ve model sessizce "okunamaz" sayılıyordu. **Katalogun 195 girdisinin 68'i FBX** — yani sahibin
+haritada görmek istediği kütüphanenin üçte biri, yerleştirme ne kadar doğru olursa olsun asla
+görünemezdi. Hata her yönden görünmezdi: scatter bunu "hiç yerleştirilmedi" diye raporluyor, ki bu bir
+Git LFS stub'ıyla birebir aynı görünüyor — ve bu ortamda 498 tane stub var. Yükleyici artık uzantıya
+göre yönleniyor (`loadPropModel`, ortak), FBX'e `resourcePath` de veriliyor (dokuları gömülü değil,
+kardeş dosyalarda). Köy yapıları **44 → 92**.
+
+### LFS nesneleri ilk kez çekilebildi
+
+Depo `westeros-pwa` → `aapw` olarak yeniden adlandırılmış; proxy eski adı yetkilendirdiği için LFS
+batch API'si reddediyordu. Yeni ad oturuma eklenince **22 köy modeli indirildi (40 MB)** ve tur
+370'ten beri ilk kez modeller gerçekten render edildi. İki kusur anında görüldü:
+
+**1. Ölçek normalizasyonu yoktu.** Ahır 90 m uzaktan tüm kareyi dolduran, üzerinde durduğu tepeden
+yüksek bir kırmızı duvar olarak çıktı. `worldPropScatter.js` her zaman `footprintMeters / widest` ile
+normalize ediyordu; bu modül etmiyordu. Modeller bir düzine yazardan bir düzine birim geleneğinde
+geliyor; ölçeklemek opsiyonel değil.
+
+**2. `Medieval_Market_Asset_Pack.fbx` bir pazar değil.** Ölçülen: **7612 m × 377 m × 5710 m** — bir
+mağaza sayfasının ekran görüntüsü için kilometrelerce boşluğa yayılmış 89 ayrı prop. 14 m'lik ayak
+izine normalize etmek içindeki her nesneyi zerreye indiriyor ve köyün zanaat parselini aralarındaki
+boş ızgaranın ortasına oturtuyor. O ve 156 MB'lık ikizi rollerden çıkarıldı; aynısı 58 MB'lık bir
+sandık ve 86.728 üçgenlik bir tapınak için de yapıldı. Hepsi katalogda ve hâlâ dağıtılıyor; sadece bir
+köyün kurulacağı şeyler değiller.
+
+### Köy bir plan, bir serpiştirme değil
+
+Her mezra bir ibadet yapısı ve bir zanaat yapısını meydanın kenarına, ahır ve çiftliklerini evlerin
+dışındaki tarla halkasına, tezgâh ve fıçılarını ortaya alıyor. Roller rastgele çekilişle değil halka ve
+kerteriz ile atanıyor — bir köy ile aynı yapıların rastgele serpilmesi arasındaki fark tam olarak bu.
+
+**Toplayıcı, yerine geçmiyor.** Prosedürel kulübeler kalıyor: her model bu depoda taze bir klonda LFS
+pointer, dolayısıyla yalnız modellerden kurulan bir köy LFS olmayan her yerde **hiç** görünmezdi —
+değiştirdiği kutulardan kesinlikle daha kötü. Kapı bunu iki yönde de doğruluyor: LFS varken yapıların
+doğru olduğunu, yokken hiç yapı olmadığını (kutu değil, hiç) iddia ediyor.
+
+### Kapı yine kendi kusurunu gösterdi
+
+"2 yapı kendi köyünden 545 m uzakta, 1'i suyun içinde" dedi. Üçü de yerindeydi: `groundModel` modeli
+kendi sınırlayıcı-kutu merkezi kadar kaydırarak parseline oturtuyor, dolayısıyla dosya orijininden uzak
+modellenmiş bir mesh'in **düğümü** yüzlerce metre ötede olurken bina tam yerinde duruyor. Ölçüm
+`node.position` yerine dünya sınırlayıcı kutusuna çevrildi — oyuncunun gördüğü şey o.
+
+**Ölçülen sonuç:** 11 köy, **84 yapı** (10 kilise, 7 zanaat, 26 tarla, 25 tezgâh, 16 çit), en uzak
+parsel kendi meydanına 52 m, suda 0, placeholder 0, deterministik. Maliyet **570.146 üçgen / 314 draw
+call** (tavan 900k). Çit sayısı 4→2: `fence_fence.fbx` bir çit için 17.254 üçgen ve dörtlü hâliyle
+dünyadaki tüm köy yapılarının **%63'ünü** (800k'nın 500k'sı) en az görünen şey için harcıyordu;
+`villages.js` zaten o işi neredeyse bedavaya instanced tarla duvarlarıyla yapıyor. Pazar ayak izi 3 m →
+1,6 m: 3 m, köy meydanında yanındaki kulübeden uzun bir sandık üretiyordu.
+
+**Görsel kanıt** `artifacts/villages/`. CI'ın LFS hydrate adımı köy modellerini de çekecek şekilde
+genişletildi — yoksa kapı orada yalnızca "boşa düş" yolunu sınar ve tek bir binanın doğru olduğunu
+kanıtlamadan geçerdi. Service worker v38→v39.
+
+**Bu turda arazi değişmedi** (§8.4 tetiklenmiyor).
+
+**Technical debt.** 0 new. **Açık iş.** Köyün *konutları* hâlâ prosedürel: 21 konut modeli katalogda
+duruyor ve LFS hidrasyonu güvenilir olduğunda kutuların yerini alabilirler. Ayrıca 14 koltuktan yalnız
+11'inde köy var (önizleme yarıçapı dışındakiler atlanıyor) ve köyler chunk-stream edilmiyor.
+
+## ADR-0327 — Dünyanın bütün dağları tek bir yığındaydı; haritanın kendisi on beş sıra dağ daha çiziyordu
+
+**Sahibin talimatı.** "Tek büyük kocaman dağ yerine daha sivri ama sıra dağ gruplarına önem ve özen
+göster." Şikâyet ölçülebilir çıktı ve ölçüm şikâyeti bire bir doğruladı.
+
+**Ölçülen başlangıç durumu.** Dünyanın **tüm** dağ sistemi `REFERENCE_RELIEF_CHAINS` içindeki **dört
+zincir, her biri üç nokta**tı. Dünyanın en yüksek **on dört** zirvesinin hepsi tek bir Essos kütlesinin
+içinde, nx 0.698–0.721 aralığında sıkışmıştı; **Westeros'un ilk on dörtte tek bir zirvesi yoktu.**
+Bones "tek pürüzsüz balina sırtı" olarak render ediliyordu. 1,6 km genişliğinde bir kabartma profilinin
+altındaki 1 km'lik bir zincir, kanatları ne kadar keskinleştirilirse keskinleştirilsin ancak tek bir
+yumru olabilir — sorun profil ayarı değil, zincir sayısıydı.
+
+### Sıra dağlar uydurulmadı; `map.png`'den okundu
+
+Kanonik harita dağlarını taralı gri sırtlar olarak çiziyor. O griyi erozyona uğratmak (kale ikonlarını
+ve metin etiketlerini düşürür, ikisi de gri) **1.464 iz içinde 13.769 piksel** bırakıyor; 120 pikselden
+büyük **yirmi iz**, kartografın gerçekten çizdiği sıra dağlar. Her birinin noktaları kendi ana ekseni
+boyunca yedi kutuya bölünmüş ağırlık merkezleri (PCA), böylece polyline izin uçlarından geçen düz bir
+çizgi değil gerçek omurgasını takip ediyor. Kısalar — 200–750 m — çünkü çizilmiş sırtlar o kadar uzun,
+ve **"sıra dağ grupları" tam olarak budur**: kısa sıra dağların dağılımı.
+
+Yirmisinden **beşi** suya düştü: `coastalReliefTaper` kabartmayı orada 0.12 tabanına indiriyor, yani
+328 m'lik bir profil 41 m üretiyor ve iz aslında denizin üzerindeki bir etiket ya da ikondu. Silindiler
+— dekor olarak bırakılmadılar. Ölü bir zincir bedava değil: kaynakta o sıra dağ varmış gibi okunur ve
+her yükseklik örneğinde sonsuza dek bir sınırlayıcı-kutu testine mal olur. **4 → 19 zincir.**
+
+### Sivrilik: ortalama almak dağı düzleştirir
+
+Zirve gürültüsüne oktav **eklemek** dağları *daha pürüzsüz* yaptı — merkezi limit teoremi: bağımsız
+oktavların ortalaması varyansı düşürür, tam olarak kaybedilmemesi gereken şeyi. Ortalama yerine
+**çarpım** artı 1.55 kazanç ve kırpma kullanıldı; kaba yapı ince yapıyı modüle ediyor, seyreltmiyor.
+Sırt kesiti de keskinleştirildi: `ridgeExponent` `1.10 + coreRatio * 2.0` → **`2.20 + coreRatio * 4.0`**.
+Vale ve Red Mountains'ın tekdüze `summitFloor`'u kaldırıldı; Vale 560 m'ye (Ay Dağları, Eyrie),
+Bones ve doğu zinciri 950 m'ye çıkarıldı.
+
+### Kapı ve arazi güvenliği aynı turda ters yöne çekti
+
+Keskinleştirmeden sonra `doran -> ziya` yolu **40,7°** yaptı (tavan 20°). Dağı düzleştirmek yanıt
+değildi: Red Mountains ölçülü biçimde indirildi (430 m) ve **kendi geçitleri ~%40 genişletildi**
+(0.045→0.064, 0.055→0.078, 0.050→0.070) — sonuç **10,2°**, ağ 19,86 km, 14/14 koltuk PASS.
+
+**Kritik bağlaşım:** daha keskin arazi, bir chunk'ın ince kenarı ile kaba komşusununki arasında daha
+büyük uyumsuzluk demek; dikişi gizleyen etek tavanlı. Dünyanın en kötü LOD boşluğu üç turda
+**60,74 → 71,05 → 87,49 m** yürüdü. `TERRAIN_CHUNK_SKIRT_POLICY.maxDepthMeters` 96 → **144**. Bunlar
+birlikte ölçülmezse bir sonraki dağ keskinleştirmesi dünyada bir delik açar ve bunu ilk oyuncu görür.
+
+### `scripts/checkMountainRanges.js`
+
+Doğru olanı ölçülebilir kılan şey onu koruyabilir de: en yüksek 20 zirvenin **en az 3 ayrı bölgeye**
+dağılması (her zirvenin tek kütlede olması tam da giderilen kusur), **en az 16 zincir**, **hiçbir
+zincirin 40 m'nin altında kabartma üretmemesi**, 150 m üstü **en az 120 ayrı zirve**, ve yüksek arazide
+**ortalama sırt eğriliği ≥ 18 m** — bir kubbe ile bir zirve tam orada ayrışır. Etek tavanı da
+raporlanıyor. CI'ın "Geography fidelity" adımına bağlandı.
+
+**Ölçülen sonuç:** **19 zincir, 150 m üstü 191 ayrı zirve, 7 bölgede, ortalama sırt eğriliği 31,31 m**;
+en zayıf zincir 105 m (eskiden 41 m'lik ölü bir zincir vardı). Dünyanın en yüksek noktası 857 m.
+
+**§8.4 Arazi Değişikliği Güvenlik Kontrolü** öncesi/sonrası tam çift olarak koşuldu: koltuklar 14/14
+PASS, yollar PASS (en dik 18,8°'i deniz geçişi, kara kenarlarında en dik 12,3°), etek her chunk'ta
+kendi en kötü boşluğunu örtüyor (87,49 m dünya en kötüsü, 144 m tavan). Service worker v39→**v40**:
+kabuk cache-first olduğu için eski kurulum eski modülleri sunar ve oyuncu eski tek pürüzsüz kütleyi
+görürdü — burada bayat bir cache, bayat bir *dünya* demek.
+
+**Görsel kanıt** `artifacts/mountains/` (öncesi/sonrası, dört bakış). Bones artık gerçek bir boyun ile
+ayrılmış keskin, dar bir kütle; kuzeybatı Westeros'ta ayrı zirveli düzgün bir sırt hattı; Red
+Mountains'ta yolun geçtiği görünür bir geçit.
+
+### Bu turda bulunan, bilerek giderilmeyen kusur: Bones bir bıçak sırtı
+
+§8.5 gereği render'a bakmak yeni bir kusur gösterdi ve ölçüm doğruladı: Bones'un kabartması **80 m
+yatayda 170 m** düşüyor — **~65°**, yürünebilirlik tavanı 35°. Sebep `bone-mountains`'ın 950 m tepesi
+ile 0.042'lik `outerWidthNormalized`'ı (≈441 m yarı-genişlik) arasındaki orantı: 2:1'den dik bir bıçak.
+`eastern-chain` aynı (950 / 0.040). Bu keskinlik değil **orantısızlık** — dünya yatayda 13,5 km ve
+içine 950 m'lik bir tepe konmuş; gerçek bir dağ sırasında bu oran 1:1000 civarıdır, burada 1:14.
+
+Kusur bu turdan **önce de vardı** (`artifacts/mountains/bones-before.png` aynı duvarı gösteriyor) ve
+akış yarıçapı ikiye katlanınca kaybolmadı, yani bir chunk-stream kenarı değil gerçek arazi. Bu turda
+giderilmedi çünkü zincir genişletmek arazi değişikliğidir ve kendi §8.4 öncesi/sonrası çiftini,
+kendi yol eğim requalifikasyonunu ve kendi etek ölçümünü gerektirir — bu tura eklenirse tur atomik
+olmaktan çıkar. **Tur 381'in konusu**, ve sahibin şikâyetinin ("tek büyük kocaman dağ") kalan yarısı.
+
+**Technical debt.** 0 new. **Açık iş.** Sahibin aynı mesajındaki diğer istekler henüz karşılanmadı:
+**coğrafi renkler** ("Coğrafi renklere ve görünümlere yeniden bak" — ovalar tek düze doygun yeşil),
+**göller** (S-0039: hiçbir göl modellenmiş değil; Tanrıların Gözü ~97×185 m, tek bir 96×64 maske
+hücresinden küçük) ve **assetlerin dokulanması**.
+
+**Yayın durumu — sahibin dikkatine.** Bu dal (`agent/terrain-chunk-skirt-run355`) `main`'e göre **35
+commit ileride ve hiç birleştirilmemiş**: tur 355'ten 380'e kadarki işin tamamı — Duvar üzerindeki
+Castle Black, adlandırılmış nehirler, köy yapıları, FBX yükleyici düzeltmesi, bu turun sıra dağları —
+`main`'de **yok**, dolayısıyla oyunda da yok. Bu dal için hiç PR açılmamış. Birleştirme sahibin kararı
+(§ sahip kapısı), o yüzden açılmadı; ama iş yayımlanmadığı sürece oyuna ulaşmıyor.
+
+## ADR-0328 — Dağlar bıçak sırtıydı: sivrilik değil orantı sorunu; ve duvarın gerçek sebebi bulundu
+
+**Tur 380 keskinliği getirdi, şikâyet gitmedi.** "Tek büyük kocaman dağ" render'da hâlâ oradaydı.
+Sebebi ölçünce keskinlik olmadığı ortaya çıktı: on dokuz zincirin **ortalama kanat açısı 40–66°**
+arasındaydı ve en kötüsü Bones'du — 950 m tepe, 434 m yarı-genişlik, yani **2:1'den dik bir bıçak**.
+Yürünebilir arazi 35°'de biter. Dünya yatayda 13,5 km ve içine 950 m'lik bir tepe konmuş: gerçek
+Westeros'ta bu oran ~1:1000, bu dosyada 1:14 idi.
+
+Yatay ölçek değişemez (her koltuk, yol ve maske hücresi ona bağlı), o yüzden dağlar **yayıldı**. Her
+zincir ~35°'lik ortalama kanada doğru genişletildi; `coreWidthNormalized` her seferinde
+`outerWidthNormalized` ile **aynı oranda** ölçeklendi, çünkü `coreRatio` `ridgeExponent`'i belirliyor —
+oran sabit tutulunca tur 380'in keskin sırtı **birebir korunuyor**, yalnız ayak izi büyüyor. Bones ve
+doğu zinciri ayrıca 950 → 720/700'e indi: 950'de dünyanın bir sonraki en yüksek zincirinin **1,7
+katıydılar**, ki bu da kendi başına "tek kocaman dağ" demek.
+
+**Sonuç: 40–66° bandı → 33,5–38,9°.** Bones artık listenin başı değil, ortası (34,8°).
+
+### Kapı yanlış şeyi ölçüyordu ve doğru düzeltmeyi engelleyecekti
+
+`checkMountainRanges.js`'in sivrilik ölçüsü **metre cinsinden ortalama eğrilik**ti. Eğrilik
+tepe/genişlik² ile ölçeklenir, yani **küt bir dağ ile sadece daha geniş bir dağı ayırt edemez.** Bu tur
+her zinciri genişletti — sırt profilleri birebir korunarak — ve tek başına bu, eski ölçüyü 31,31 m'den
+~4 m'ye düşürüp turu **hatalı biçimde reddedecekti**.
+
+Yerine **boyutsuz bir oran** kondu: her zirve çevresinde 120 m'lik halkadaki ortalama düşüşün 600 m'lik
+halkadakine bölümü. Koni tam **0,20**, parabolik kubbe **0,04**, sivri uç daha yüksek verir; hem
+yükseklikten hem genişlikten bağımsızdır. Aynı iki dünyada ölçüldü: **0,2813 → 0,2793.** Yani
+genişletme sırtları **hiç körletmedi** — eski ölçünün söyleyeceği şeyin tam tersi.
+
+### Yol kapısı da yanlış birimdeydi
+
+`river non-collision` **ardışık nokta sayıyordu** (tavan 3). Genişletme sonrası router yollarını ~15 m
+aralıkla yeniden örnekledi ve kapı 4 noktada düştü. Geometri bakılınca: x=1564..1609, nehre uzaklık
+**21 → 5 → 12,9 → 24,7 m** — yani 45 m'lik yolda tek bir dalış, 14 m'lik nehri **dik geçiş**. Dik bir
+geçiş bandın içinde zorunlu olarak `2 × 25 m` harcar, dolayısıyla 15 m aralıkta 4 nokta **aritmetik
+gereği** olur ve 3 tavanını hiçbir doğru yol sağlayamazdı. Ölçü **metreye** çevrildi (tavan 80 m);
+gerçek kusuru — kıyı boyunca yüzlerce metre giden yol — hâlâ yakalıyor. Ölçülen: 47 m, PASS.
+
+### Geçitler: yalnız dış yarıçap büyüyebilir
+
+Zinciri genişletip geçitleri sabit bırakmak `ziya -> cersei`'yi **29,5°** yaptı. Her iki yarıçapı da
+zincirin katsayısıyla ölçeklemek ise fazla düzeltti ve **kapı bunu yakaladı**: geçit merkezleri
+zincirin polyline'ına çok yakın (`vale-northwest-approach` ilk zincir noktasına 0,0147), dolayısıyla
+kabartmanın `minimumMultiplier`'a sabitlendiği **iç** yarıçap zincirin yaşayıp yaşamayacağını belirler.
+0,017'de zincir noktasını yutup Vale'in kabartmasını **95 m**'ye düşürdü — Vale yine bir bozkır oldu.
+İç yarıçaplar geri alındı, yalnız dış konik büyüdü: **Vale 95 → 163 m.**
+
+**Sezgiyle ayarlanmaz.** Marj almak için dış yarıçapı 0,047/0,051'e açmayı denemek `stannis -> robin`'i
+**19,9° → 26,7°** yaptı, yani *kötüleştirdi*: kolaylaşan boyun router'ın maliyet alanını değiştirdi ve
+router 450 m daha kısa ama daha dik yeni bir hat seçti. Eğim hatasının cevabı geçidi açmaya devam etmek
+değil, rotayı yeniden ölçmek.
+
+### Duvarın gerçek sebebi: `coastalReliefTaper`
+
+Genişletme iç kütleyi düzeltti ama render'daki **düz, pürüzsüz levha** kaldı — ve bu turda kökü
+bulundu. x=2600'de bir kesit: `centreDry` boyunca **1,0** (tamamen kara), ama beş örneğin minimumu olan
+`clearance` **0,079 → 0,979**'a 120 m'de tırmanıyor ve dağ kabartması onu birebir izliyor: **59 →
+423 m**. Yani kıyıdan bir taper-yarıçapı içindeki her dağ, ~120 m'de tamamlanan bir çarpanla
+ölçekleniyor ve deniz tarafındaki kanadı **zincir ne kadar geniş olursa olsun** neredeyse dikey bir
+levhaya dönüşüyor. Levhanın pürüzsüz olması da bunu söylüyordu: çarpımsal bir rampa, gürültü değil.
+Aynı mekanizma tur 380'de beş zinciri 41 m'ye düşürüp öldürmüştü.
+
+Bu turda **düzeltilmedi**: `radiusNormalized` 0,012'yi büyütmek her kıyı yakınındaki kabartmayı
+azaltır ve zaten zayıf olan zincirleri (map-ridge-08 109 m, -19 130 m) öldürebilir, yani kendi ölçüm
+döngüsünü hak ediyor. **Tur 382'nin konusu.**
+
+**§8.4 tam çift** koşuldu: koltuklar 14/14 PASS, yollar **13/13 PASS** (en dik kara kenarı
+`stannis -> robin` 19,9°), nehir geçişi PASS, ağ 21,87 km. Etek dünya en kötü boşluğu **87,49 → 83,38 m**
+(arazi yumuşadı), 144 m tavanın altında. Dağ kapısı: **19 zincir, 150 m üstü 189 zirve, 9 bölgede**
+(7'den), medyan sivrilik 0,2825, en zayıf zincir 109 m. Görsel kanıt `artifacts/mountains/*-run381.png`.
+Service worker v40→v41.
+
+**Technical debt.** 0 new. **Açık iş.** `coastalReliefTaper` duvarı (yukarıda), coğrafi renkler,
+göller (S-0039), assetlerin dokulanması.
+
+## ADR-0329 — Yapılar havada duruyordu: zemin, ayak izinin en alçak noktasına oturtuldu
+
+**Sahibin talimatı.** "Herhangi bir yapının herhangi bir köşesi ya da bölgesi havada kalmasın. Zemin,
+o yapının otomatik alt tabanına yapışsın." Ekran görüntüsü kusuru gösteriyordu: bir yamaçtaki ahırların
+aşağı köşeleri havada.
+
+**Sebep tek satırdı.** `villageBuildings.groundModel` binanın tabanını (`box.min.y`) yalnızca **merkez**
+noktasında (`x, z`) örneklenen zemine oturtuyordu. Eğimde ayak izinin altındaki zemin değişir: merkezi
+120 m'de olan bir ahırın aşağı köşesi 116 m zeminin üzerinde, tabanı 120 m'ye sabitlenince o köşe **4 m
+havada** kalıyor. Düzeltme: tabanı ayak izinin **en alçak** noktasına (dört köşe + merkez) oturtmak.
+Böylece zeminin her noktası tabanın üstünde ya da hizasında olur — yukarı taraf tepeye hafifçe gömülür,
+aşağı taraf zemine değer. "Zemin, tabana yapışsın" tam olarak budur. Aynı düzeltme
+`worldPropScatter.buildChunkGroup`'a da uygulandı (döndürülmüş kutunun dünya-AABB köşeleri, dönüşten
+bağımsız doğru sonuç verir).
+
+**Kapı yanlış uçtan ölçüyordu — ve önce bunu yakaladım.** `checkVillageBuildings.js`'e "havada" kontrolü
+eklerken ilk sürüm boşluğu **en yüksek** köşe zeminine göre ölçtü; oysa bina aşağı tarafta, zeminin
+tabanın **altına** düştüğü yerde havalanır. Metrik ayak izinin **en alçak** zeminine çevrildi. Merkez
+tabanlı eski davranışla ölçüldüğünde **23 bina havada, en kötüsü 5,79 m** — ekran görüntüsündeki kusur,
+sayıyla. Ayak-izi-min düzeltmesiyle **0**. Önce hatayı üretip kapının dişini kanıtladım, sonra düzelttim.
+
+**Çit modeli tamamen kaldırıldı.** `fence_fence.fbx` tur 380'de hydrate edilince render soruyu
+kapattı: 6 m ayak izine ölçeklenince bir çit değil, yere yatmış düz beyaz bir levha — fotogrametri
+taramasının bounding box'ına gömülü zemin düzlemi "en geniş boyut = 6 m" ile gerçek parmaklıkları
+zerreye indiriyor. 17.254 üçgen de o. Köylerden (`villageBuildings.js`) ve scatter'dan
+(`worldPropExclusions.js` → yeni `photogrammetryGroundPlaneNotAnObject`) çıkarıldı; katalogda kalıyor,
+hiçbir yere yerleştirilmiyor. `villages.js` tarla sınırlarını zaten instanced duvarlarla çiziyor, yani
+çit kaybı yok — yalnız glitch. Köy maliyeti **575k → 311k üçgen** düştü.
+
+**Ölçülen sonuç:** 11 köy, 70 yapı (7 kilise, 9 zanaat, 26 tarla, 28 tezgâh), **0 havada** (en kötü
+0 m, tavan 0,75 m), 0 suda, 0 placeholder, deterministik. Coverage 0 unaccounted (çit artık withheld).
+Scatter kapısı PASS, her yerleştirme legal. §8.4 tetiklenmiyor (arazi yükseklik alanı değişmedi; yalnız
+modeller onu okuyor). Service worker v41→v42.
+
+**Görsel kanıt** `artifacts/villages/berk-*.png` (80,8 m'de yamaç köyü): kilise, ahırlar, kışla, tezgâh
+hepsi zemine oturuyor. Renderdaki soluk levha bir **yol şeridi** — bina değil; kavşakta araziden
+kalkan yol meshi, ayrı bir konu (roads.js), tur 383 için not edildi (görev #5).
+
+**Technical debt.** 0 new. **Açık iş.** Sahibin aynı mesajındaki diğer üç istek: kuzeyin buzla
+kaplanması, map.png'den zemin renk paleti, güneş/ay ile gerçekçi gökyüzü. Ve yol şeridi kalkması.
+
+## ADR-0330 — Her Zaman Kış Diyarı yeşildi: kuzeye enleme göre kar
+
+**Sahibin talimatı.** "Westeros'un en kuzeyinin tamamen Buz'la kaplı olduğu belirgin ama Coğrafi
+haritamızda yeşil alan var, bu yanlış." Ölçtüm, haklıydı.
+
+**Sebep.** Kanonik 96×64 yüzey maskesi `snow` kodunu yalnız **buzul hücrelerinde** taşıyor — dar bir
+`nx` bandı. Duvar'ın çevresi ve kuzeyi maskede `soil` olarak geliyordu, dolayısıyla parlak yeşil
+render ediliyordu: nx 0.175'te tüm kuzey kesitinde `snowWeight 0` ve RGB **(50,78,12)**. Yani maske
+buzulu biliyor, *enlemi* bilmiyor.
+
+**Düzeltme.** `terrain.js` artık maskenin üstüne **enleme göre** kar veriyor (`NORTHERN_SNOW`): Duvar
+(ny ~0.16) ve kuzeyinde tam, Hediye boyunca (ny 0.15→0.25) sönerek biten bir rampa. Kuzey'in kendisi
+(Winterfell ny ~0.285) maskenin yaptığı soğuk çayır olarak kalıyor.
+
+**Kritik kısıt: yükseklik alanına dokunmuyor.** `snowWeight` aynı zamanda *kotu* besliyor
+(`+ snowWeight * 12` ve relief detayı). Enlem terimini o terimlerden önce vermek tüm kuzeyi metrelerce
+kaldırır ve projedeki her koltuk/yol/etek ölçümünü sessizce geçersiz kılardı. Terim yalnız görsel/bitki
+örtüsü için kullanılan `outSurface.snowWeight`'e uygulanıyor; yükseklik **bit düzeyinde aynı**. Duvar
+kapısı bunu bağımsız doğruladı: "terrain drift 0 m". Bu yüzden §8.4 tetiklenmiyor.
+
+**`scripts/checkNorthernIce.js`** üç şeyi birden koruyor: (1) uzak kuzey **beyaz** — kar ağırlığı ve
+çözülmüş biyom renginin yeşil-mavi dengesi (kar nötr, bitki örtüsü yeşil baskın, karıştırılamazlar);
+(2) Kuzey'in kendisi **beyaz değil** — rampa güneye taşarsa Winterfell'in çayırını siler; (3) **kuzey
+kotları oynamadı** — enlem karı kota sızarsa burada düşer, üç tur sonra bir koltuk kontrolünde değil.
+
+**Ölçülen sonuç:** uzak kuzey (ny 0.14) kar **1.00**, yeşil-mavi **−4** (nötr beyaz); Kuzey (ny 0.28)
+kar **0.00**, yeşil-mavi **+45** (yeşil); kotlar 23.64/69.18/91.18/28.35/267.54 m — değişmedi. Bütün
+coğrafya kapıları PASS (11 bölge, Duvar, harita özellikleri). Görsel kanıt `artifacts/north/*-after.png`:
+önceki karede sağ yarıyı kaplayan parlak yeşil kara artık buz. Service worker v42→v43.
+
+**Technical debt.** 0 new. **Açık iş.** Sahip "assets'de karlı ağaçlar var, onları oralarda
+kullanabilirsin" dedi — bitki örtüsü hâlâ tek tip prosedürel yeşil ağaç ve kuzeyde kar ağırlığını
+okumuyor; ayrı bir tur. Ayrıca zemin renk paleti ve güneş/ay gökyüzü istekleri duruyor.
+
+## ADR-0331 — Gökyüzü boştu: güneş ve ay birer cisim oldu, ay geceyi aydınlatıyor
+
+**Sahibin talimatı.** "Gerçekçi gökyüzü oluştur. Assets'in içerisinde güneş ve ay var. İkisini doğru
+mantıklarla yerleştir. Güneş Doğudan doğup Batıdan batsın, Ay geceleri iyi şekilde aydınlatsın." Üç
+ayrı istek: cisimler **görünsün**, doğru kuralla **hareket etsin**, gece gerçekten **aydınlansın**.
+
+**Güneş zaten doğudan doğuyordu; kimse göremiyordu.** `lighting.js` `DirectionalLight`'ı `timeRatio`
+0.25'te +X'e, 0.75'te −X'e yerleştiriyor ve bu dünyada **+X doğudur** (`nx` dünya X'i ile büyür,
+`map.png`'nin doğu kenarı `nx` 1). Yani *yön* doğruydu, *gökyüzü* boştu: yönlü ışığın cismi yok,
+dolayısıyla doğup batacak bir disk de yoktu. Yeni `skyBodies.js` cisimleri **tam da o mevcut yön
+üzerine** koyuyor — ikinci bir gök mekaniği kurup ışıkla ayrışma riski almak yerine.
+
+**Kritik ayrıntı: yön `position - target`, `position` değil.** `renderQuality.focusSunShadow` gölge
+frustumunu oyuncuya taşımak için ışığın konumunu *ve* hedefini birlikte kaydırıyor; yön değişmiyor ama
+ham konum oyuncunun yanında rastgele bir noktaya dönüşüyor. Yalnız onu normalize etmek **oyuncu
+yürüdükçe güneşi gökyüzünde savurur**. Fark değişmez olan; kapı bunu ayrıca ölçüyor (odaklama sonrası
+disk kayması **0 m**).
+
+**Ay prosedürel, ve bu bilinçli.** `assets/models/Ay/Moon 2K.fbx` taze klonda **130 baytlık bir LFS
+pointer**'ı; ondan kurulan bir ay, LFS olmayan her yerde placeholder kutu olurdu — köy dersinin aynısı.
+Güneş farklı: `assets/models/fbx/sun/2k_sun.jpg` **gerçek, 822 KB'lık commit edilmiş** bir doku, o
+yüzden güneş diski onu kullanıyor (yüklenemezse düz emissive diske düşüyor). Ayın yüzü burada
+deterministik bir tuvalde üretiliyor (maria + kraterler, `mulberry32`, `Math.random()` yok, §8.9): tek
+bir 256×256 doku, her makinede aynı, ve gri kutuya dönüşemez.
+
+**Ay ışığı ayrı bir yönlü ışık**, gece güneşini parlatmak değil: ikisi zıt yönlerden gelir, gece
+yarısı güneş ufkun altındadır ve oradan aydınlatmak her yamacı **alttan** aydınlatırdı. Yoğunluk
+`nightFactor` **ve** ayın kendi ufuk çarpanıyla ölçekleniyor, yani öğlen sıfır, gece yarısı **0.42**
+(öğlenin 1.4'ünün çok altında — gece gece kalıyor, ama arazi okunuyor).
+
+Her iki cisim de gökküre üzerinde çiziliyor (`depthWrite` kapalı, `renderOrder` skybox'ın hemen
+üstünde), yani sonsuz uzaktaymış gibi okunuyor: dağı kesmiyor, gölge/frustum işlemi gerektirmiyor —
+ama arazi sonra çizildiği için **ufuk çizgisinde doğru şekilde dağın arkasına giriyor**.
+
+**`scripts/checkSkyBodies.js`** üçünü ayrı ayrı ölçüyor: doğuş/batış tarafı (+X/−X), her cismin kendi
+yarım gününde kalması (öğlen ay görünmez, gece yarısı güneş görünmez), gece yarısı ay ışığı ≥ 0.25 ve
+öğlen ≤ 0.001, ve odaklanmış ışıkta disk kaymasının 0 olması.
+
+**Ölçülen sonuç:** doğuş güneş x=+496 disk +8290; batış x=−496 disk −8290; öğlen ay ışığı 0, ay
+görünmez; gece yarısı ay ışığı **0.42**, ay görünür, güneş görünmez; odak kayması **0 m**. Görsel
+kanıt `artifacts/sky/`: güneş doğu sırtından doğuyor (dokusu yüklenmiş), ay doğudan yükselirken güneş
+batıdan batıyor, gece yarısı arazi — yollar ve nehir dahil — okunabiliyor.
+
+**600 satır tavanı.** Bu tur `game3d.js`'i 600'den 608'e taşıdı; kendi eklememi 2 satıra indirip modül
+başlığındaki tekrarlı tur geçmişini sadeleştirerek **599**'a çektim. Ayrıca **tur 383'ün `terrain.js`'i
+609'a taşıdığını fark ettim** — benim ihlalim, aynı şekilde 599'a indirildi (yorum sıkıştırıldı,
+`smoothstep` tek çağıranına inline edildi). Kuzey buzu kapısı sonrasında birebir aynı sayıları
+veriyor. Service worker v43→v44; `skyBodies.js` offline kabuğa kaydedildi — kapı eksikliği yakaladı.
+
+**Technical debt.** 0 new. **Açık iş.** Gece arazisi hâlâ fazla doygun yeşil okunuyor; bu ay ışığının
+değil zemin albedosunun sorunu ve sahibin "coğrafi renkler" isteğiyle (sıradaki tur) aynı kök.
+
+## ADR-0332 — Zemin rengi haritanın kendi piksellerinden; ve tur 384'ün iki gökyüzü hatası
+
+**Sahibin talimatı.** "map.png'ye bakarak zemin renk palet çeşitliliğini arttıralım ama gerçek coğrafi
+renkler olsun ve renkleri hem gerçekçi hem de map.png ile uyumlu hale getirelim."
+
+**Sebep.** `terrainBiomeShading.js` rengi yükseklik, eğim, kaya ve kardan kuruyor — *araziyi* okuyor ve
+doğru okuyor. Hiçbir teriminde **dünyanın neresi** olduğu yoktu, o yüzden Reach, Westerlands, Dothraki
+Denizi ve Yi Ti aynı zeytin yeşiline çıkıyordu: hepsi orta yükseklikte, düşük eğimli, topraklı arazi.
+Yeni `worldReferenceGroundColorField.js` haritanın kendi piksellerinden 128×96 hücrelik bir renk alanı
+pişiriyor — `worldReferenceBiomeField.js`'in orman/kuraklık için yaptığının aynısı.
+
+**Medyan, ortalama değil.** Harita gri-siyah mürekkeple kaplı (etiketler, kale ikonları, taralı sırtlar,
+sınırlar); hücre ortalaması bu mürekkebi zemin rengine karıştırır, yani yer adı yoğun bir bölge
+komşusundan daha çamurlu çıkar. Nötre yakın pikseller (parlak olanlar hariç — karlar gerçekten beyaz)
+medyandan önce atılıyor.
+
+### Ölçüm yanlış uygulamayı reddetti
+
+İlk uygulama her vertex'i **kendi yerel harita rengine doğru harmanlıyordu** — "haritanın renklerini
+kullan"ın bariz yorumu. Ölçtüm: bölgeler arası ortalama ikili renk uzaklığı **40,1 → 39,4**, yani
+çeşitlilik **azaldı**. Sebep ölçülebilir: harita soluk, eşit mürekkeplenmiş bir resim ve kara ortalaması
+(163,166,126); her bölgeyi kendi harita rengine doğru çekmek hepsini o tek parşömen tonuna sürüklüyor —
+bölgeleri ayırmak yerine **eşitliyor**, yani istenenin tam tersi.
+
+Doğrusu: harita rengini **kendi kara ortalamasına oranı** olarak almak. Böylece yalnız "burayı her
+yerden farklı kılan şey" kalıyor ve büyütülüyor. Oran 1.8 üssüyle esnetiliyor (sahip "arttıralım"
+dedi). **40,1 → 47,7.** Parlaklık birebir korunuyor: oran birim luminansa yeniden ölçekleniyor, yani
+yalnız ton ve doygunluk dönüyor — kabartma, uçurum, kumsal, kar sınırı hiç etkilenmiyor. Kar, çıplak
+kaya ve su hattı altı tamamen dışarıda.
+
+**`scripts/checkGroundColorVariety.js`** bunu koruyor: bölgeler arası ortalama ikili uzaklık ≥ 43
+(temel 40,1'in üstünde, yani özelliği silerek geçilemez) ve hiçbir iki bölge 3'ten yakın olamaz.
+Sayı olmasaydı **yanlış sürüm yayınlanırdı** — o da map.png'nin renklerini kullanıyor, sadece dünyayı
+daha tekdüze yapıyor.
+
+### Tur 384'ün iki gökyüzü hatası — render'a bakınca çıktı
+
+Dothraki Denizi renk karesinde güneş ve ay **arazinin üzerine yapıştırılmış dev diskler** olarak
+göründü. İki ayrı hata:
+
+1. **`transparent: true` + `depthTest: false`.** Saydam malzemeler three.js'te *tüm opak geometriden
+   sonra* çiziliyor, derinlik testi kapalıyken de her şeyin üstüne boyanıyor. Derinlik testi açıldı
+   (yazma kapalı kalıyor), böylece önündeki arazi cismi doğru şekilde örtüyor.
+2. **9000 m mesafe, 2000 m far plane.** `WORLD_DEFAULTS.FAR_PLANE` 2000 m (`sky.js` küresi tam bu yüzden
+   1900 m'de). Yani **gerçek oyunda güneş ve ay tamamen kırpılıyordu — gökyüzü yine boştu**, modülün
+   çözmek için var olduğu hatanın ta kendisi. Yalnızca 40 km far plane kullanan çekim betiğimde doğru
+   görünüyordu. 1750 m'ye alındı, yarıçaplar orantılı küçültüldü (82 / 64).
+
+Kapı ikisini de doğrudan ölçüyor ve **dişi kanıtlandı**: 9000 m'ye geri alınca "bodies sit at 9000 m
+against a 2000 m far plane — they will be clipped away in gameplay" ile düşüyor.
+
+**Ölçülen sonuç:** kuzey (27,47,8), Reach (33,37,15), Dorne (107,81,48), Westerlands (39,37,21),
+Dothraki (56,77,12), Yi Ti (23,59,6); ortalama ikili uzaklık **47,7**. Bölge coğrafya kapısı 11/11
+PASS (renkler hâlâ haritayla tutarlı), kuzey buzu PASS, zemin gerçekçiliği PASS. Görsel kanıt
+`artifacts/colour/` ve `artifacts/sky/*-far2000.png`. Service worker v44→v45.
+
+**Technical debt.** 0 new. **Açık iş.** Kavşakta araziden kalkan yol şeridi (görev #5) ve karlı ağaç
+modellerinin kuzeyde kullanılması.
+
+## ADR-0333 — Dağlar oyuna göre büyüktü ve tek parçaydı: her zincir ayrı kütlelere bölündü
+
+**Sahibin talimatı.** "Dağlar oyuna göre çok büyük kalıyor. Dağları biraz daha küçültüp parçalara
+bölmek lazım, bu sayede sıra dağlar oluşmuş olur. Dağların ayrıntıları ve gerçekçiliği devam etsin."
+
+**İki ayrı iş, ve ikincisi yenisi.** Tur 380 sırtları keskinleştirdi, tur 381 orantısını düzeltti — ama
+her zincir hâlâ **uçtan uca tek bir arazi biçimi**ydi. Sebep yapısaldı: kabartma alanı polyline'a olan
+*uzaklığın* fonksiyonu, yani çizginin yakınındaki her yer dağ oluyor; zirve gürültüsü de o sürekli
+sırtı yalnızca yer yer yükseltip alçaltıyor. Sıra dağ, üstünde tümsekler olan uzun bir tepe değildir —
+aralarında gerçek arazi bulunan **ayrı kütlelerdir**.
+
+**Yeni terim: `sampleMassifGate`.** Zincir üzerindeki **yay uzunluğu** artık hesaplanıyor (mesafe
+döngüsünün zaten yaptığı izdüşümden, ek maliyeti yok) ve zincir `massifCount` hücreye bölünüyor. Her
+hücrede kabartma ortada tam, birleşme noktalarında `colFloor`'a düşüyor — yani ardışık kütleler biraz
+alçak bir sırtla değil **gerçek bir boyunla** ayrılıyor. Hücre sınırları zincirin kendi tohumundan
+sarsılıyor (`centreJitter`), böylece kütleler farklı uzunlukta oluyor ve sonuç düzenli bir çit gibi
+okunmuyor. `massifLengthNormalized` 0.052 ≈ 540 m: Bones beş kütleye bölünüyor, kısa `map-ridge-*`
+izleri tek zirve kalıyor — ki haritada zaten öyleler.
+
+**`colFloor` bilerek sıfır değil (0.20).** Sıfırda zincir, aralarında düz zemin olan kopuk konilere
+dağılır; o bir tepe dizisi, sıra dağ değil. Alçak bir boyun, sistemi tek bir dağ silsilesi olarak
+okunur tutarken oyuncunun zirveler arasından geçmesine izin veriyor.
+
+**Küçültme.** Bones 720→470, doğu zinciri 700→455, Vale 560→395, Red Mountains 430→340, on beş
+`map-ridge` ×0.74. Dünyanın en yüksek noktası **729 → 557 m**.
+
+**Ayrıntı korundu** — `talusBreakup`, koordinat warp'ı, zirve gürültüsü, sırt üssü hiç değişmedi.
+Ölçüm bunu doğruluyor: medyan sırt sivriliği **0.2825 → 0.2615**, hâlâ koni referansının (0.20) belirgin
+biçimde üstünde. Ve bölünme çalışıyor: 150 m üstü **ayrı zirve sayısı 189 → 194** *daha alçak* bir
+dünyada arttı — tam da parçalara ayırmanın anlamı.
+
+**§8.4 tam çift:** koltuklar 14/14 PASS, yollar **13/13 PASS** (ağ 21,87 → 20,10 km, alçalan dağlar
+rotayı kolaylaştırdı), nehir geçişi PASS, etek dünya en kötüsü **83,38 → 79,55 m** (144 m tavanın
+altında). Bölge coğrafyası 11/11, zemin renk çeşitliliği 46,6, harita özellikleri, Duvar: hepsi PASS.
+
+### Kuzey buzu: düzelmişti, ama kuyruğu haritadan kısaydı
+
+Sahip "o kısım düzeldi mi" diye sordu. Evet — tur 383'te düzeldi ve render bunu gösteriyor. Ama sormuşken
+`map.png`'nin **kendi kara piksellerini** ölçtüm (deniz hariç, Westeros bandı): beyazlık ny 0.04'te
+**0,86**, Duvar'da (0.16) **0,63**, 0.20'de **0,37**, 0.24'te 0,25, 0.28'de **0,10**, 0.32'de 0,02.
+Benim rampam 0.25'te bitiyordu, yani haritanın gerçekten çizdiği kuyruğu erken kesiyordu. `fadeNy`
+0.25 → **0.30**: Hediye ve güneyi karını haritanın koyduğu yerde bırakıyor, Winterfell'e (0.285) çayır
+yerine hafif bir kar serpintisi düşüyor — haritada da orada 0,10 beyazlık var.
+
+### Kapının kendi kusuru: yükseklik parmak izi
+
+`checkNorthernIce.js` kuzey kotlarını sabit bir tabloyla karşılaştırıyor; bu turda **haklı olarak**
+düştü, çünkü dağları bilerek alçalttım (69→61, 91→83, 268→216). Tur 381'den sonra zincirler o kadar
+geniş ki kuzeydeki çoğu nokta bir zincirin içinde kalıyor, dolayısıyla her dağ ayarı bu tabloyu
+oynatıyor. Parmak izi yine de tek yol: enlem karının kota sızması dünyayı 12 m'ye kadar **pürüzsüzce**
+kaldırırdı, yerel olarak yakalanacak bir basamak bırakmadan. Tablo yenilendi ve hata mesajı artık
+"arazi bilerek değiştiyse yeniden kaydet, değiştiyse sızıntı vardır" diyor.
+
+**Görsel kanıt** `artifacts/mountains/*-run386.png`: Bones artık aralarında gerçek boyunlar olan
+belirgin kütleler dizisi, karlı zirveleri ve talusu yerinde; kuzeybatı Westeros ölçülü bir burun sırtı.
+`artifacts/north/*-run386.png` kuzeyin buzunu gösteriyor. Service worker v45→v46.
+
+**Technical debt.** 0 new. **Açık iş.** Kavşakta araziden kalkan yol şeridi; karlı ağaç modelleri.
+
+## ADR-0334 — Yolun altındaki 1,68 m'lik görünmez basamak: kavşakta arazi kopuyordu
+
+**Nereden çıktı.** Tur 382'nin köy render'ında yol şeridi araziden kalkmış görünüyordu; görev listesine
+"kavşakta yol şeridi araziden kalkıyor" diye not etmiştim. Bu turda ölçtüm ve **kusur yolda değil
+arazideydi**.
+
+### İki ayrı hata, biri diğerini gizliyordu
+
+**1. Şerit merkez hattının kotunu kullanıyordu.** `appendRoadRibbon` şeridin *her iki kenarını da*
+`point.y` ile, yani yolun **ortasında** örneklenen kotla kuruyordu. Bu yalnız yolun enine düz olduğu
+yerde doğru: enine eğimde şerit yatay kalırken altındaki zemin yatıyor, dolayısıyla aşağı kenar
+yarı-genişlik × enine eğim kadar havalanıyor (8 m'lik bir yolda 30°'lik enine eğimde **2,3 m**), yukarı
+kenar da gömülüyor. Bu, `villageBuildings.js`'in binalarda yaptığı hatanın aynısı: **genişliği olan bir
+şeye tek bir kot örneği uygulamak.** Artık her kenar kendi konumunda örnekleniyor. En kötü yüzer
+**4,48 m → 2,08 m**.
+
+**2. Asıl kusur: `roadCorridorSmoothing` kavşakta arazide dikey basamak açıyordu.** Düzeltmeden sonra
+kalan 2,08 m'yi kovaladım ve yolun aslında **doğru oturduğunu**, altındaki *zeminin* koptuğunu buldum.
+(-5086, -629) civarında ölçüm: bir noktada zemin **7,437 m**, bir milimetre ötede **9,113 m** — sıfır
+genişlikte **1,68 m'lik bir uçurum**. Oyuncu bunu görünmez bir duvar ya da bir düşüş olarak yaşar.
+
+Katman katman ayırarak buldum (ham → pad → vadi → koridor): yalnız koridor oynuyordu. Sebep,
+`sampleCorridorHeight`'ın yatağı **en yakın tek segmentin** kotuna oturtmasıydı. İki segment eşit
+uzaklıktayken — ki **bir yol kavşağı tam olarak budur** — o ikizkenar sınırı geçmek `bestHeight`'ı bir
+segmentin yatağından diğerininkine tek örnekte atlatıyor. Artık menzildeki **her segmentin ağırlıklı
+harmanı** alınıyor; her segmentin katkısı menzilden çıkarken tam olarak sıfıra indiği için segmentler
+harmana girip çıkarken toplam zıplayamıyor. Ağırlığın karesi alınıyor, böylece düz yol parçalarında en
+yakın segment baskın kalıyor ve yalnız kavşaklar değişiyor. **Basamak 1,676 m → 0.**
+
+### Bu turda ürettiğim bir hata da aynı yolla yakalandı
+
+`sampleMassifGate` (tur 386) sarsıntıyı hücre indeksini **aldıktan sonra** ekliyordu. Yükseltilmiş
+kosinüs periyodik ve iki ucunda sıfır olduğu için `bump(frac(u))` kendiliğinden sürekli; sınırın iki
+yanına farklı bir sabit eklemek tam da bunu bozuyor ve **kabartma alanına sıfır genişlikte bir basamak**
+koyuyordu. Sarsıntı artık `u`'nun kendisini bozarak uygulanıyor: kütleler yine eşit uzunlukta değil ama
+`u` sürekli, dolayısıyla kapı da yapı gereği sürekli. (Bu tek başına yukarıdaki 2,08 m'yi çözmedi —
+o koridordu — ama gerçek bir süreksizlikti ve düzeltildi.)
+
+**`scripts/checkRoadRibbonGrounding.js`** her iki yol ağının (MST + kanonik yollar) **her vertex'ini**
+altındaki canlı zemine karşı ölçüyor. Dişi kanıtlandı: eski "en yakın segment" davranışına döndürünce
+`2,08 m yüzer` diye düşüyor.
+
+**Ölçülen sonuç:** 4856 vertex, en kötü yüzer **0,4 m** — yani tam da z-fighting için bilerek konan
+`VERTICAL_OFFSET_METERS`, fazlası değil — 0 yüzen, 0 gömülü. **§8.4 tam çift:** koltuklar 14/14 PASS,
+yollar 13/13 PASS (ağ 20,44 km), nehir geçişi PASS, etek dünya en kötüsü 79,55 m (144 m tavanın
+altında). Service worker v46→v47.
+
+**Technical debt.** 0 new. **Açık iş.** Karlı ağaç modellerinin kuzeyde kullanılması; göller (S-0039).
+
+## ADR-0335 — Suyun rengi artık derinliğin kendisinden geliyor: kanal başına Beer–Lambert sönümü
+
+**Nereden çıktı.** Sahibin son isteği doğrudan suyla ilgiliydi: "bazı göllerin daha duru olup zemini
+gösterebilmesi", "sahil bandında denizin sahil kesiminin daha duru görünmesi, derinleştikçe
+koyulaşması, renk tonlamaları". Eldeki su, derinliği tek bir `depthFactor` ile sığ/derin renk arasında
+**doğrusal karıştırıyordu**. Bu fizik değil, bir lerp: suyun neden mavi olduğunu değil, iki rengi
+karıştırmayı anlatıyor.
+
+### Işık suda kanal başına farklı hızda sönüyor
+
+Gerçek su kırmızıyı yeşilden, yeşili maviden çok daha hızlı yutar — deniz bu yüzden derinleştikçe önce
+turkuaza sonra lacivere döner. Bu Beer–Lambert yasasıdır: `T = exp(-σ · d)`. Artık `σ` kanal başına bir
+vektör (**0,46 / 0,115 / 0,052** m⁻¹, kırmızı yeşilin ~4 katı, yeşil de mavinin ~2 katı hızla sönüyor)
+ve gövde rengi `mix(uDeepColor, uShallowColor, transmittance)` ile **geçirgenlikten türetiliyor**.
+Yüzey saydamlığı da aynı yerden geliyor: `alpha = 1 - dot(transmittance, luma)`, yani su **duruyken
+saydam, derinken opak** oluyor — iki ayrı elle ayarlanmış eğri değil, tek bir büyüklüğün iki sonucu.
+
+**Optik derinlik ayrı bir kanal.** Kabartma (swell) derinliği 10 m'de doyuyor; bu dalga fiziği için
+doğru ama optik için çok sığ — 10 m'de her deniz aynı lacivert olurdu. Derinlik alanının **mavi
+kanalına** 60 m menzilli ayrı bir optik derinlik pişiriliyor (`FULL_OPTICAL_DEPTH_METERS = 60`). İki
+büyüklük bilerek ayrıldı: dalga boyu ile ışık sönümünün ölçeği aynı değil. Kanal daha önce sabit 255
+yazılıyordu, yani bedava yer vardı.
+
+### Ölçüm: kusuru yaratmadım, görünür kıldım
+
+Öncesi/sonrası aynı kamerada karşılaştırıldı. **Öncesi:** ufka kadar neredeyse düz siyah bir levha,
+derinlik okunmuyor. **Sonrası:** su hattında soluk turkuaz, açığa doğru turkuazdan lacivere geçen
+gerçek bir berraklık gradyanı — istenen tam olarak buydu.
+
+Aynı karşılaştırma **eski bir kusuru da açığa çıkardı**: yüzeyde tekrar eden soluk lekelerden oluşan
+bir örgü. Önce yeni sanıp aradım; *öncesi* render'da da aynen duruyorlar, yalnızca siyah üstüne siyah
+oldukları için görünmüyorlardı. Kaynağı su tabanı ya da prop'lar değil (bu kapının sahnesindeki taban
+düz, tek renkli bir düzlem): **uzun kabartmanın normal gölgelemesi**. Üç sinüzoidin farklı yönlerde
+girişimi periyodik bir örgü üretiyor. Kendi başına bir sonraki alt görevdir; bu ADR'nin kapsamı değil,
+ama kayda geçiyor: **su siyahken hiçbir kapı bunu yakalayamazdı.**
+
+**Kapılar.** `checkWaterVisualContract` PASS (16641 vertex, 98304 index, shader/fog/uniform sözleşmesi,
+disposal 1/1) — renk pinleri yenilendi ve "kırmızı yeşilden, yeşil maviden hızlı sönmeli" diye üç yeni
+sıralama savı eklendi. `checkWaterSurfVisualContract` PASS — alan `vec2`'den `vec3`'e genişlediği için
+sözleşme **gevşetilmedi**, üçüncü kanalın metreye çözüldüğü ve Beer–Lambert'e girdiği de pinlendi.
+`checkRun325WaterSwell` PASS (kabartma genliği 2,15 m < 10 m, su hattı 0 m'de çivili, sahil profilinde
+en kötü taban açıklığı 0,199 m, pişirme 31 ms, %44,9 derin / %50,0 kuru, GPU okumasında %17,5 piksel
+hareketi). **§8.4 çifti:** koltuklar 14/14 PASS, yol ağı PASS (20,44 km). Service worker v47→v48.
+
+**Bu turda düzelttiğim kendi hatam.** GLSL şablon dizesinin içine yorum olarak ters tırnaklı bir
+`` `uExtinctionPerMeter` `` yazmıştım; ters tırnak şablonu orada sonlandırıyor. **`node --check` bunu
+PASS verdi** (44 ters tırnak, dengeli) — tarayıcı `SyntaxError` attı. Sözdizimi denetimi bir şablon
+dizesinin *nerede bittiğini* doğrulamaz; ders, modülün gerçekten import edildiğini görmeden "geçti"
+dememek.
+
+**Ayrıca.** `checkRun325WaterSwell`'in 20 sn'lik gezinme zaman aşımı bu konteynerde yetmiyordu
+(`game3d.html` domcontentloaded'a ~31 sn'de varıyor), 90 sn'ye çıkarıldı — sözleşme değil, ortam
+duyarlılığı. **Aynı 20 sn'lik değer 20'den fazla kapıda daha var**; hepsi bu ortamda çalıştırılamaz
+durumda ve bu kendi başına bir alt görevdir: çalışmayan kapı hiçbir şeyi korumaz.
+
+**Technical debt.** 0 new. **Açık iş.** Kabartma normalinin periyodik girişim örgüsü; şelaleler; göller
+(S-0039); kayalık dağ yüzeyleri; `assets/` içindeki yol glb'leri; karlı ağaç modelleri.
+
+## ADR-0336 — Denizdeki tekrar eden soluk lekeler: iki su yüzeyi birbirinin içinden geçiyordu
+
+**Nereden çıktı.** Tur 388 suya gerçek renk verince yüzeyde tekrar eden soluk lekelerden oluşan bir
+örgü göründü. Tur 388'in ADR'sinde "uzun kabartmanın normal gölgelemesi" diye not etmiştim.
+**Bu tahmin yanlıştı** ve iki ayrı yanlış tahminden sonra ölçerek bulundu.
+
+### Üç hipotez, ikisi yanlış
+
+**(1) Kabartma girişim örgüsü.** Üç sinüzoidin toplamı tam periyodiktir; bu gerçek bir kusurdu ve
+düzeltildi (aşağıda), **ama lekeleri açıklamadı** — düzeltmeden sonra render aynı kaldı.
+
+**(2) Vertex faceting.** `vSwellSlope` bir *varying*'di: eğim her vertex'te tam hesaplanıp 12,5 m'lik
+quad boyunca **doğrusal interpolasyon**la dağıtılıyordu, yani gölgeleme normali parça parça
+doğrusaldı. (Eski yorum "eğimi analitik almak geometri kaba olsa bile gölgelemeyi tam tutar" diyordu —
+vertex'lerde tam, ama piksellerin çoğu orada değil.) Bu da gerçek bir kusurdu ve düzeltildi, **ama
+lekeleri yine açıklamadı.**
+
+**(3) Ölçüm.** Tahmini bırakıp tek tek eledim. Köpüğü sıfırladım: lekeler durdu. Optik derinlik
+kanalını doğrudan gri tonlama olarak render ettim: **kusursuz düz bir gradyan**, hiç leke yok — yani
+ne bathymetry ne shading. Geriye geometri kaldı. Uzak su düzlemini gizledim: **lekeler tamamen
+kayboldu.**
+
+### Gerçek sebep
+
+İki su yüzeyi var: kameraya kilitli 4 km'lik yoğun **yakın ağ** ve tüm dünyayı kaplayan iki üçgenlik
+düz **uzak düzlem**, `farWater.position.y = -0.06`. Altı santim ayrım, yakın ağ *düz* olsaydı yeterdi
+— ama yakın ağ vertex'lerini **±2,87 m** oynatıyor. Yani her dalga çukuru uzak düzlemin metrelerce
+altına iniyor, her tepe üstüne çıkıyor: iki yüzey bütün örtüşme boyunca **birbirinin içinden geçiyor**
+ve derinlik testi her kesişim eğrisi boyunca keskin bir siluet kesiyor. **Lekeler gölgelendirme,
+gürültü ya da deniz tabanı değildi: bir su yüzeyinin diğerinin içinden çıkan konturuydu.** Sert
+kenarlı ve düz içli olmalarının, warp'tan da fragment-başı eğimden de etkilenmemelerinin sebebi bu:
+sorun gölgelemede değil geometrideydi.
+
+Yakın ağ zaten yer değiştirmesini kendi kenarından **önce sıfıra indiriyordu** (`nearCoverageFade`,
+1500→1950 m) — tam da uzak düzlemle sorunsuz buluşabilsin diye. Tasarımın eksik yarısı, uzak düzlemin
+de orada **durmasıydı**. Artık duruyor: `uFarPlaneCutoffMeters` ile uzak düzlem yakın ağın ayak izinin
+içinde `discard` ediyor. Ayak izi **Chebyshev**, Öklid değil — çünkü yakın ağ kameraya merkezli bir
+**kare** ve kendi fade'i `max(|x|,|z|)` ile yazılmış. Kesim yarı-genişliğin 4 m içinden geçiyor:
+küçük bir örtüşme (iki düzlem de orada düz ve aynı kotta) görünmez, ama bir **boşluk** 2 km'lik bir
+dikişten deniz tabanını gösterirdi.
+
+Dikey offset'i büyütmek **çözüm değildi**: offset'in kabartma genliğini aşması gerekirdi, yani
+santimlere karşı metreler. Kapı bunu da savlıyor ki biri "6 cm'yi 20 cm yapalım" demesin.
+
+### Yan ürün: kapı kusurun kendisini ölçüyormuş
+
+Düzeltmeden sonra `checkRun325WaterSwell`'in piksel hareketi **%18,3 → %5,9**'a düştü ve kapı kaldı.
+Sebep: ölçüm **uzak kameradan** yapılıyordu ve o karenin çoğu `swellShadingFade`'in 1800 m sınırının
+ve yakın ağın ötesinde — yani **hareket etmemesi tasarlanmış** su. Oradaki rahat %18,3'ü üreten şey,
+iki düzlemin kesişim konturlarının dalgayla birlikte kaymasıydı. **Kapı kusuru ölçüyordu.** Eşiği
+düşürmedim; sondayı hareket etmesi *gereken* suya, **yakın kameraya** çevirdim: aynı 0,15 eşiğine
+karşı **%33,5**. Kapı hem dürüst hem daha güçlü.
+
+**Kapılar.** `checkWaterVisualContract` PASS + yeni koruma: uzak düzlemin kesim değeri yakın ağın
+yarı-genişliğine yapışık olmalı, yakın ağ kendini asla discard etmemeli, ve kabartma genliği dikey
+offset'i aşmalı (kesimin *neden* gerektiğini belgeliyor). **Dişi kanıtlandı:** kesimi 0'a çekince
+"far water no longer stops under the near mesh" diye düşüyor. `checkWaterSurfVisualContract` PASS +
+`vSwellSlope` varying'inin geri gelmesini yasaklayan sav. `checkRun325WaterSwell` PASS (genlik 2,87 m
+< 10 m, su hattı 0 m'de çivili, taban açıklığı 0,197 m). **§8.4 çifti:** koltuklar 14/14, yollar PASS.
+Service worker v48→v49.
+
+**Technical debt.** 0 new. **Açık iş.** Şelaleler; göller (S-0039); kayalık dağ yüzeyleri; `assets/`
+içindeki yol glb'leri; karlı ağaç modelleri; 20+ kapıdaki 20 sn'lik gezinme zaman aşımı.
+
+## ADR-0337 — Nehir gömülüydü: genişliği olan şeye tek kot örneği, üçüncü kez
+
+**Nereden çıktı.** Tur 389'un gerçek dünya render'ında nehir "kesik kesik parlak mavi bir şerit" diye
+not edilmişti. Bu turda yakından bakınca durum daha kötü çıktı: nehir **hiç şerit değildi** — kara bir
+yamaç üzerinde birbirinden kopuk mavi kıymıklar.
+
+### İlk teşhisim yanlıştı
+
+Köpük bantlarının (6,3 m periyot) uzakta piksel altına düşüp noktalı çizgiye dönüştüğünü sandım ve
+mesafeye bağlı bir köpük sönümü yazdım. **Sonra bunun yanlış olduğunu kanıtladım** ve sönümü geri
+aldım: gerekçelendirdiğim kusurun sebebi köpük değildi, ve sebebini çürüttüğüm bir düzeltmeyi
+göndermek doğru olmaz. (Uzakta köpük bantlanması *gerçekten* var, ama artık nehir sürekli olduğu için
+ayrı ve kendi kanıtı olan bir iş.)
+
+### Gerçek sebep
+
+`createRiverMesh` şeridin **iki kenarını da** `point.y` ile, yani kanalın **ortasında** örneklenen
+kotla kuruyordu. Bu yalnız zemin akışa dik olarak düzken doğru. Enine eğimde şerit yatay kalırken
+yamaç yatıyor, dolayısıyla yukarı kenar yarı-genişlik × enine eğim kadar gömülüyor: 14 m'lik bir
+kanalda 30°'de **~4 m**, 0,3 m'lik offset'e karşı. Nehir uzunluğunun çoğunda gömülüydü ve yalnız
+eğimin düzleştiği yerlerde yüzeye çıkıyordu — kıymıkların sebebi buydu.
+
+**Bu, aynı hatanın üçüncü görünümü:** `villageBuildings.js` (tur 382, binalar), `roads.js` (tur 387,
+yol şeridi) ve şimdi nehir. Her seferinde aynı kök: **genişliği olan bir şeye tek bir kot örneği.**
+
+**İkinci kusur:** kenarları oturtmak tek başına yetmedi. Çizilen rota ~60 m adımlıyor ve 60 m'lik düz
+bir dörtgen, iki ucu arasında zeminin yaptığı her şeyin içinden geçiyor. Rota artık ~10 m'lik
+adımlara yeniden örnekleniyor (`world/riverRibbonPath.js`). Rotanın kendisi değişmiyor — noktalar
+mevcut polyline üzerinde ara değerleniyor — dolayısıyla şelale tespiti (ADR-0011, tam bu rota
+üzerinde kalibre) ölçtüğü rotayı görmeye devam ediyor.
+
+### Ölçüm ve bir geri adım
+
+Eski kapı `%0,774` piksel hareketi veriyordu; şimdi **%5,72** — yani 7,4 kat daha fazla nehir gerçekten
+görünüyor. Akış hızı çeşitliliği de düzeldi: en dik kesim medyanın **1,69 katı** (önce 1,24).
+
+**İsimli nehirlerde geri adım attım.** Aynı düzeltmeyi onlara da uygulayınca `checkNamedRivers`
+gömülmeyi **%0,46 → %2,6**'ya çıkardı. Sebebi anlaşılınca mantıklı: isimli nehirler **oyulmuş
+vadilerde** akıyor (`checkRiverValleyCarving` PASS, en derin kesit 50,7 m) ve oyulmuş bir kanalda
+**doğru olan, rota kotunda yatay bir enine kesittir**; her kenarı kendi zeminine oturtmak, kesit dış
+bükeyken şerit merkezini zeminin altına sarkıtıyor. Bu yüzden isimli nehirler **kasten** sampler'sız
+bırakıldı ve tam olarak bulduğum haline döndürüldü (%0,46, aynı iki eski çıkış hatası). Düzeltme
+oyulmamış eski rota içindir.
+
+### Akış hızı: kapı kusuru ölçüyordu (yine)
+
+`checkRun325RiverFlow` "en dik kesim medyandan anlamlı hızlı değil" diye düşüyordu — **benim
+değişikliğimden önce de**. Görülmemişti çünkü kapı 20 sn'lik gezinme zaman aşımına takılıp hiç
+çalışamıyordu. Sebep: eğim `prev→next` boyunca, yani ~120 m'lik tüm açıklığa **ortalanarak**
+ölçülüyordu; kısa ve dik bir düşüş tüm açıklığa bölününce komşularının hemen üstünde kalıyordu. Artık
+iki komşu segmentin **dikinden** alınıyor; her segment hâlâ ~60 m gerçek iniş olduğu için ortalamanın
+konduğu gürültü direnci duruyor.
+
+Ayrıca kapı `createRiverMesh(points)` diye çağırıyordu — **sampler'sız**, yani hiçbir yere gönderilmeyen
+bir nehri render ediyordu. Artık gerçek çağıranların geçtiğini geçiyor.
+
+**Kapılar.** `checkRun325RiverFlow` PASS, `checkRiverValleyCarving` PASS, `checkServiceWorkerCache` OK
+(yeni modül kayıtlı — kapı eksikliği yakaladı), koltuklar 14/14, yollar PASS. `checkNamedRivers` iki
+**eski** çıkış hatasıyla kırmızı kalmaya devam ediyor (green-fork/white-knife kanonik suya dökülmüyor);
+bu turda ne yaratıldı ne düzeltildi, gömülme metriği tam bulunduğu değere geri getirildi. Service
+worker v49→v50.
+
+**Ortam.** 20 kapıdaki 30 sn'lik `NAV_TIMEOUT_MS` 90 sn'ye çıkarıldı; `game3d.html` bu konteynerde
+~31 sn'de yükleniyor, yani bu kapıların hepsi çalıştırılamaz durumdaydı — nitekim yukarıdaki akış hızı
+kusuru tam da bu yüzden görülmemişti. **Çalışmayan kapı hiçbir şeyi korumaz.**
+
+**Technical debt.** 0 new. **Açık iş.** İsimli nehirlerin çıkışları (green-fork/white-knife); uzakta
+köpük bantlanması; kuzey denizinin tropik turkuazı; yamaçta teraslanan yollar; şelaleler; göller
+(S-0039); kayalık dağ yüzeyleri.
+
+## ADR-0338 — Nehir denize varmıyordu: kot testi "denize kadar alçak" der, "denizin içinde" demez
+
+**Nereden çıktı.** Tur 390'dan kalan kırmızı kapı: `checkNamedRivers`, green-fork ve white-knife
+"kanonik suya dökülmüyor" diye düşüyordu. Bu turda sebebi bulundu ve kapı yeşile döndü.
+
+### Sebep: iki farklı su tanımı
+
+`generateRiverPath` yürüyüşü `y <= seaLevelMeters` olunca kesiyor. Bu bir **kot** testi. Ama denizin
+*nerede* olduğunun otoritesi kot alanı değil, **map.png'nin su maskesi**. İkisi kıyı şeridinde
+birbirinden ayrılıyor: rota deniz seviyesinin altına inip bitiyor, ama son noktası maskenin "kara"
+dediği bir piksele düşebiliyor.
+
+Ölçüm bunun **şans** olduğunu gösterdi: 10 isimli nehrin 8'i ıslak piksele denk geldi, 2'si kuru.
+Üstelik green-fork 800 m içinde **%28** su ile düşerken blue-fork **%24** ile geçiyordu — yani
+başarısızlık coğrafyayla değil, tek bir örneğin nereye düştüğüyle ilgiliydi.
+
+Bu ekranda da yanlış: şerit kumsalda bitiyor ve suyla arasında görünür bir boşluk kalıyor.
+
+### Düzeltme
+
+`world/riverMouth.js`: rota, ağzı maskenin su dediği yere varana kadar denize doğru yürütülüyor.
+Yön adayları sabit bir yelpazede (önce dümdüz, sonra ±20°, ±40°, ±60°) sırayla deneniyor; hiçbiri su
+değilse **en alçak** olanına adım atılıyor, ki kıyı düzlüğünde kuyruk kumsalda gezinmek yerine kanalda
+kalsın. RNG yok, tamamen deterministik.
+
+**Ulaşamazsa hiçbir şey yapmıyor.** 2 km (40 m × 50 adım) içinde su bulunamazsa rota **olduğu gibi**
+döndürülüyor. Bu bilinçli: 2 km'de suya varamayan bir rotanın bu düzeltmenin çözemeyeceği bir sorunu
+vardır, ve karada biten bir kuyruk eklemek **haritayı bozarken kapıyı yeşile çevirirdi.**
+
+**Ölçülen:** green-fork ağzı **5,2 m → -0,2 m** (20→21 nokta), white-knife **3,1 m → -2,3 m** (24→26
+nokta). Diğer sekiz nehir **hiç değişmedi** — nokta sayıları aynı. Gömülme %0,46 → %0,45. Determinizm
+korunuyor. Eski origin nehri de değişmedi (30 nokta / 1,52 km, 25 şelale) — ağzı zaten sudaymış.
+
+**İki açıdan bakıldı** (`artifacts/run391-river-mouth/`): şerit kesintisiz iniyor ve **denize
+karışıyor**, arada boşluk yok; denizden bakınca da tepelerden inen ve ağzında genişleyen bir nehir
+görünüyor.
+
+**Kapılar.** `checkNamedRivers` **PASS** (tur 390'dan beri kırmızıydı), `checkRun325RiverFlow` PASS,
+`checkRiverValleyCarving` PASS, `checkServiceWorkerCache` OK (yeni modülün eksikliğini yine kapı
+yakaladı), koltuklar 14/14, yollar PASS. Service worker v50→v51.
+
+**Technical debt.** 0 new. **Açık iş.** Köpük bantlanması nehri fazla beyaz gösteriyor (yakından da
+belirgin); **nehrin ortasında ağaç bitiyor** — bitki dağılımı nehir şeridinden kaçınmıyor; kuzey
+denizinin tropik turkuazı; yamaçta teraslanan yollar; göller (S-0039); kayalık dağ yüzeyleri.
+
+## ADR-0339 — Sahibin haritası kasten LFS dışında: `final-head-gate`'i kıran çelişki
+
+**Nereden çıktı.** PR #964'te `final-head-gate` şu hatayla düştü:
+`pointer: unexpectedGitObject: "resimler/map.png" should have been a pointer but was not`.
+
+**Sebep bir çelişki.** `.gitattributes` **her `*.png`'yi** LFS'e zorluyor, ama tur 361 (ADR-0308)
+`resimler/map.png`'yi **667 KB ham blob** olarak commit'lemiş. Git LFS ağacı bu yüzden reddediyor.
+
+**Ham olması kaza değil, işlevsel.** `checkRegionGeographyFidelity`, `checkMapFeatureFidelity`,
+`checkValyriaDoom`, `checkOwnerMapAndRoadRoutes` ve diğerleri bu dosyanın **gerçek piksellerini**
+okuyor. LFS'te izlenen bir dosya, `git lfs pull` çalıştırılmamış her checkout'ta yalnızca ~130 baytlık
+bir pointer'dır. Haritayı LFS'e almak, bu kapıların hidrasyonsuz ortamlarda **sessizce bir pointer
+stub'ını ölçmesi** demek olurdu — RCA_RUN344'ün model kataloğu için kaydettiği kusurun aynısı.
+
+Bu yüzden çözüm dosyayı LFS'e taşımak değil, **çelişkiyi gidermek**: `.gitattributes` artık bu tek yolu
+LFS'ten muaf tutuyor (`resimler/map.png -filter -diff -merge -text`). Diğer tüm PNG'ler kuralda
+kalıyor; sahibin kendi yüklediği `map.png/map.png` (PR #792) pointer olarak kalmaya devam ediyor.
+Doğrulandı: `git check-attr` ilkinde filter `unset`, ikincisinde `lfs`.
+
+**Yanında bulunan ikinci kusur.** `checkOwnerMapAndRoadRoutes.js` iki kopyayı sha256 ile
+karşılaştırıyordu ve hidrate edilmemiş pointer'ın hash'i doğal olarak tutmadığı için **"sapma"**
+diye FAIL veriyordu — olmamış bir transkripsiyon hatası bildiriyordu. (Benim değişikliğimden **önce
+de** aynen düşüyordu; ölçüldü.) Artık kopya bir pointer stub'ı ise karşılaştırma atlanıp not
+düşülüyor; hidrate ama **farklı** bir kopya hâlâ FAIL veriyor — dişi kanıtlandı.
+
+**Technical debt.** 0 new. Bu, PR #964'ün CI'ını açan iki düzeltmedir; oyun davranışı değişmedi.
+
+## ADR-0340 — Kuzey denizi tropik turkuazdı: su optiği artık enleme bağlı
+
+**Nereden çıktı.** Tur 389'un gerçek dünya yakalamasında (-4800, -4600) Her Daim Kış Diyarı'nın suyu,
+karın dibinde, Dorne ile aynı Karayip turkuazıydı. Sebep basitti: sönüm katsayısı ve sığ/derin renk
+çifti **küresel** sabitlerdi, yani dünyadaki her deniz aynı sudur.
+
+### İki büyüklüğün de enlemle değişmesi gerekiyordu — ve ikincisi asıl belirleyici
+
+**1. Sönüm.** Kutup denizi çok daha fazla asılı madde ve plankton taşır; her kanalda daha sert
+soğurur ve mavisini orantısız kaybeder. Sıcaklık (0,46 / 0,115 / 0,052) yerine kuzeyde
+(0,62 / 0,30 / 0,24). 3 m'de geçirgenlik (0,25 / 0,71 / 0,86) → (0,16 / 0,41 / 0,49).
+
+**2. Sığ uç renk.** Sadece sönümü değiştirmek **ölçüldü ve yetmedi**: kuzey gölünde A/B render
+ortalama pikseli yalnızca **4,2/255** oynattı. Sebebi yapısal: `mix(derin, sığ, T)` olduğu için
+derinlik sıfıra giderken **her deniz katsayısı ne olursa olsun sığ renge yakınsar**. Soğuk bir denizin
+sığı bir metrede de gri-yeşildir, turkuaz değil. Uç rengi de kaydırınca aynı ölçüm **22,2/255**'e
+çıktı ve renk sadece kararmadı, **doygunluğu çöktü**: (56, 87, 92) → (48, 60, 60), yani yeşille mavi
+eşitlendi. Soğuk su gibi okunmasını sağlayan bu; yalnızca karartmak "loş tropik su" verir.
+
+**Enlem bandı ödünç değil, paylaşımlı.** `POLAR_FULL_NY 0,15 / POLAR_FADE_NY 0,30` — `terrain.js`'in
+`NORTHERN_SNOW` değerlerinin aynısı. Kar çizgisiyle soğuk su çizgisi aynı yerde başlamazsa kıyıda buz
+olurken suyu tropik olurdu. Kapı artık **iki modülün sayısal olarak eşit kaldığını** savlıyor, sayının
+orada durduğunu değil; dişi kanıtlandı ("has drifted from terrain.js NORTHERN_SNOW").
+
+**Yerellik doğrulandı.** Güney kıyısı (enlem 0,62) sıcak turkuazını aynen koruyor. İki konum, iki
+farklı deniz.
+
+### Bu turda ürettiğim ve kapının yakaladığı hata
+
+Enlem sabitleri GLSL'e **tam sayı** olarak gömülüyordu (`7000`, `3500`). GLSL ES 1.00'de `float/int`
+tip hatasıdır, dolayısıyla shader **hiç derlenmedi** ve su görünmez oldu. Kaynak düzeyindeki bütün
+sözleşmeler PASS verdi; yalnız `checkRun325WaterSwell`'in **gerçek GPU okuması** yakaladı: piksel
+hareketi %0,00. `glslFloat()` yardımcısı eklendi ve kapı ham sabit gömülmesini yasaklıyor.
+
+**Bir de aynı tuzağa ikinci kez düştüm:** GLSL yorumuna ters tırnaklı `terrain.js` yazmak şablonu
+erken bitiriyor; `node --check` geçiyor, tarayıcı `SyntaxError` atıyor (tur 388'de de olmuştu). Artık
+kapı GLSL **yorum satırlarında** ters tırnağı yasaklıyor ve satır numarasıyla söylüyor. Kapsamı
+yoruma daralttım çünkü `${...}` içindeki ters tırnaklar meşru (swell çağrıları öyle üretiliyor).
+
+**Kapılar.** `checkWaterVisualContract` PASS, `checkRun325WaterSwell` PASS (%33,5 GPU piksel
+hareketi), `checkWaterSurfVisualContract` PASS + üç yeni koruma, `checkNorthernIce` PASS, koltuklar
+14/14, yollar PASS, isimli nehirler PASS, service worker OK. Yeni modül `world/waterLatitude.js`
+(su modülü 600 sınırındaydı ve bu konu kendi başına tutarlı bir bütün). SW v51→v52.
+
+**Technical debt.** 0 new. **Açık iş.** Şelaleler; göller (S-0039); yamaçta teraslanan yollar;
+nehrin ortasında biten ağaçlar; uzakta köpük bantlanması; gün ışığı/altın saat tonlaması.
+
+## ADR-0341 — Nehrin ortasında ağaç bitiyordu: yerleştirme nehirleri hiç bilmiyordu
+
+**Nereden çıktı.** Tur 391'in nehir ağzı render'ında akıntının tam ortasında duran bir ağaç vardı.
+
+**Sebep.** `isPlaceablePosition` denizi, koltukları ve **yol ağını** dışlıyordu ama nehirleri
+bilmiyordu — ve bir nehir **deniz seviyesinin üstünde** aktığı için su hattı testi onu asla
+yakalayamazdı. Yol dışlaması için gereken mekanizma (`distancePointToSegment2D` + polyline listesi)
+zaten oradaydı; eksik olan tek şey nehir güzergâhlarının hiç geçirilmemesiydi.
+
+**Ölçüm:** render edilen gerçek şeritlere karşı **14344 örneğin 96'sı** bir nehir şeridinin 8 m
+yakınında duruyordu, kimi merkez hattına yarım metre mesafede.
+
+**Yordam paylaşımlı olduğu için köyler de kapsandı.** `villages.js` aynı `isPlaceablePosition`'ı
+kullanıyor; nehrin ortasındaki bir ev, ağaç kadar yanlıştır. Tek parametre ikisini birden çözdü.
+
+### Yarıçap tahmin değil, ölçüm
+
+Dışlama **çizilen güzergâha** uygulanıyor, ama oyuncunun gördüğü şey yeniden örneklenip zemine
+oturtulmuş **şerit** (tur 390) ve o polyline'dan sapıyor. Bu yüzden ilk seçtiğim 11 m yetmedi:
+
+| yarıçap | şeridin 8 m'sinde kalan örnek |
+|---|---|
+| yok | 96 |
+| 11 m | 28 |
+| **18 m** | **0** |
+
+Bedeli 14344 ağaçtan 50'si, yani **%0,35**. En yakın ağaç artık sudan 11,9 m ötede.
+
+**Kapı.** `scripts/checkVegetationRiverClearance.js` — canlı sahnedeki instance dönüşümlerini,
+**sahnedeki gerçek nehir ağlarının** vertex'lerine karşı ölçüyor; yeniden hesaplanmış bir güzergâha
+karşı değil. Bu ayrım bir ölçüm turuna mal oldu ve kapının yorumunda kayıtlı. Kapı ayrıca nehir
+geometrisi yoksa ve bitki sayısı 12000'in altına düşerse de düşüyor — yani dışlamayı dünyayı
+boşaltana kadar genişletmek kapıyı geçmez. **Dişi kanıtlandı:** yarıçap 0'a çekilince 96 örneği
+adıyla yakalıyor. CI'a wire edildi.
+
+### Bu turda çürüttüğüm iki hipotez
+
+Tura "yamaçta teraslanan yollar" ile başladım (tur 389'da öyle not etmiştim). **Ölçüm ikisini de
+çürüttü:** (1) şerit dörtgenleri — nokta aralığı medyan 15,5 m, dörtgen ortasında zemin sapması
+medyan **2 cm**, 1130 dörtgenin yalnız 6'sı 1 m'yi aşıyor ve en kötüsü bir deniz geçişinde;
+(2) yatak — 2 m'de medyan sıçrama **9 cm**, 9599 örneğin 5'i 1 m üstünde. Yollarda nehirdeki
+uzun-dörtgen kusurunun karşılığı **yok**. O mesafede dörtgen kenarlarının silüetini yanlış okumuşum.
+Uydurma düzeltme yapmadım; açık iş listesinden çıkardım.
+
+**Technical debt.** 0 new. **Açık iş.** Şelaleler; göller (S-0039); uzakta köpük bantlanması;
+gün ışığı/altın saat tonlaması; `assets/`'teki yol glb'lerinin kullanılması. Service worker v52→v53.
+
+## ADR-0342 — Beyaz suyu saat değil yatak yapar: köpük artık akış hızına bağlı
+
+**Nereden çıktı.** Tur 390'da nehrin "kesik kesik" görünmesini köpük bantlanmasına bağlamış, mesafe
+sönümü yazmış, sonra sebebin **gömülme** olduğunu kanıtlayıp o düzeltmeyi **geri çekmiştim**. O turda
+şunu yazmıştım: *"nehir sürekli olduktan sonra köpük hâlâ kötü okunuyorsa, bu kendi kanıtı olan ayrı
+bir iştir."* Tur 391/393'ün render'ları o koşulu karşıladı.
+
+**Ölçüm.** Nehir boyunca tek bir piksel sütunu: parlaklık ~90 ile ~160 arasında, **~40 pikselde bir**
+düzenli salınım, **Michelson kontrastı 0,25**. Yani en sakin mecrada bile eşit aralıklı enine beyaz
+bantlar — su değil, barkod.
+
+**Sebep bir modelleme hatası.** Köpük tüm güzergâh boyunca **tek bir güçle** uygulanıyordu
+(`foamStrength` 0,45). Oysa beyaz su, suyun hızlı ve kırıldığı yerde oluşur; sakin bir mecra düzdür.
+
+**Veri zaten oradaydı.** `aFlowSpeed` her vertex'te yerel yatak eğiminden türetiliyor (tur 390'da
+ortalama yerine iki komşu segmentin dikini alarak düzelttim). Köpük artık ona bağlı:
+`smoothstep(3.0, 6.5, vFlowSpeed)`. Bu güzergâhın ölçülen dağılımına karşı (1,20 / medyan 4,39 /
+7,44 m/s) medyan mecra eski köpüğün yaklaşık dörtte birini, dik kesimler tamamını tutuyor. Şelale
+perdeleri sabit 9 m/s aktığı için **tamamen beyaz kalıyor** — zaten şelale odur.
+
+**Ölçülen sonuç:** aynı sütun, aynı satırlar — kontrast **0,250 → 0,198**, tepe parlaklık 160 → 131,
+ortalama 107 → 92. İki açıdan bakıldı: yakında nehir düz mavi bir su yolu ve beyaz su yalnız **bir**
+noktada; uzaktan da manzarayı kesen mavi bir kurdele, eskiden boydan boya beyaz çizgiliydi. Köpük
+artık **yere ait bir özellik**, tekdüze bir desen değil.
+
+**Dürüst maliyet:** `checkRun325RiverFlow`'un piksel hareketi **%5,72 → %3,79** düştü. Beklenen — en
+görünür hareket eden şey köpüktü ve sakin mecralarda artık daha azı var. Eşiğin (0,15) hâlâ 25 katı,
+eşiğe dokunulmadı.
+
+**Yapı.** `world/riverFlowAppearance.js` ayrıldı: rota, şerit geometrisi ve yüzey görünümü üç ayrı
+konu ve render'a her bakışta değişen politika sonuncusu. `rivers.js` 600 sınırındaydı; bu turda
+üçüncü kez oraya dayandı, o yüzden ayırdım. SW v53→v54.
+
+**Technical debt.** 0 new. **Açık iş.** Göller (S-0039); gün ışığı/altın saat tonlaması;
+`assets/`'teki yol glb'lerinin kullanılması.
+
+## ADR-0343 — `assets/`'teki son sekiz model: sayarak değil, hidrate edip ölçerek karara bağlandı
+
+**Sahibin isteği.** *"asset'deki bütün öğelerin coğrafi haritaya eklenmesini istiyorum."* Ölçülen
+başlangıç noktası: `checkAssetCoverage` **509 model dosyası → 371 ayrı model; 194 serpiştirilmiş, 31
+bir sistemin sahipliğinde, 138 gerekçeli olarak tutulmuş, 8 hiç kimsenin hesabında değil → FAIL.**
+
+**Yöntem.** Sekizini de LFS batch API'siyle hidrate ettim ve dosya adından tahmin etmek yerine
+üçgenlerini saydım. Bu turun tek gerçek bulgusu şu: **dosya adı hiçbir şey söylemiyor.**
+
+| model | üçgen | gerçekte ne |
+|---|---|---|
+| `grass.glb` | 10.404 | 12,08 × 0,45 × 6 m **çim fotogrametrisi** — nesne değil, zemin yaması |
+| `arya_stark.glb` | 112.200 | 48 mesh, **skins: 0** — heykel; ne riglenmiş ne dekor |
+| Meshy "March of the Wooden" | 154.958 | 26,2 MB doku, tek prop |
+| `Meshy_AI_Character_output.glb` | 189.862 | **skins: 1** → gerçek armature, spawner'ın havuzuna ait |
+| `Spotted-cow-2021-Corona.fbx` | 309.426 | tek inek; oyuna hazır inek zaten tarlalarda |
+| `dusty_path_in_the_fields.glb` | 444.982 | fotogrametri yol taraması (sahibin yüklemesi, PR #961) |
+| `snowy_road.glb` | 1.000.079 | fotogrametri yol taraması (sahibin yüklemesi, PR #961) |
+| Meshy "ultra detail" | 1.223.336 | depodaki en ağır model |
+
+**Düzeltilen kendi hatam.** İki yol modelini "dokulu düzlem, yol yüzeyi olarak kullanılabilir" diye
+varsaymıştım. Ölçüm bunu çürüttü: bir şerit yol için bir milyon üçgen.
+
+**§8.5 bu turda bir kusuru yayından çevirdi.** `grass.glb`'yi adı, üçgen sayısı ve doku boyutu
+"normal bir yer örtüsü propu" dediği için `PROP_CATALOGUE`'a **eklemiştim**. Commit'ten önce, kural
+gereği, iki açıdan — zemin düzlemi ve 1,8 m'lik kırmızı referans direğiyle — render aldım ve
+**baktım**. Görünen şey: scatter'ın vereceği 2 m ayak izinde **7 cm yüksekliğinde**, yatay, soluk
+yeşil bir dikdörtgen; çim tutamı değil, çimenliğin üstünde duran bir çıkartma. Kendi pişmiş ışığı ve
+kendi yeşili arazininkiyle çakışıyor. Bu **tam olarak** `fence_fence.fbx`'in tur 381'de yakalanan
+kusuru. Katalog eklemesi geri alındı, model `photogrammetryGroundPlaneNotAnObject` altına yazıldı —
+o gerekçe artık ikinci kez ve yine harfiyen doğru.
+
+**Dürüst sonuç: sekizin sıfırı serpiştirilebildi.** Sahibin isteği "hepsini haritaya koy" idi ve bu
+tur haritaya sıfır yeni model koyuyor. Bunu küçültmeden söylüyorum. Koyduğu şey, sekizinin de artık
+**ölçülmüş bir gerekçesi** olması: gerekçe sayısı 16 → 17 (`unriggedCharacterFigure` yeni, çünkü
+`arya_stark` için var olan hiçbiri doğru değildi — riglenmiş değil ama dekor da değil, ve yanlış bir
+kutuya atmaktansa dürüst bir kutu açmak doğru olan).
+
+**Sahibin kararını bekleyen tek iş.** İki yol taraması sahibin kendi yüklemesi ve sahibi onları
+dünyada istiyor. Kullanılabilmelerinin yolu bu deponun ağır kaleler için zaten kullandığı yol:
+orijinalin yanına **decimate edilmiş bir türev** (`*_decimated.glb`). Bu depoya yeni binary asset
+ekler; bu yüzden sahibin kararı, benim scatter tablosuna sessizce sokacağım bir şey değil.
+
+**Kapılar.** `checkAssetCoverage` **FAIL → PASS** (8 hesapsız → 0). `checkWorldPropScatter`,
+`checkVillageBuildings`, `checkAssetsManifest`, `terrainSeatSafetyCheck`, `roadNetworkSafetyCheck`
+PASS. Hidrate edilen binary'ler commit'ten önce `git checkout -- assets/` ile geri alındı, çalışma
+ağacı doğrulandı. Dosya 600 sınırının altında (340). SW v54→v55.
+
+**Technical debt.** 0 new. **Açık iş.** Mobil açılış maliyeti (PR #964'ün açık blocker'ı); göller
+(S-0039); gün ışığı/altın saat tonlaması; yol taramaları için decimate kararı (sahip).
+
+## ADR-0344 — Mobil açılışın yarısı tek bir fonksiyondaymış: ölçüp buldum, birebir aynı sonuçla hızlandırdım
+
+**Blocker.** PR #964'ün kendi regresyonu: `checkMobilePerfBudget`, mobil viewport'ta yükleme
+katmanının kaybolmasını beklerken zaman aşımına uğruyordu (main 9,20 s / dal 14,72 s, **+%60**).
+
+**Önce kendi hipotezimi çürüttüm.** PR yorumunda sebebi `computeRiverValleys`'in açılışta on güzergâhı
+izleyip oyması ve örnek başına yükseklik alanı maliyeti olarak bildirmiştim. **Yanlıştı.** Faz ölçümü:
+`computeRiverValleys` **105 ms**, `computeRoadCorridor` 199 ms, `routeReferenceRoads` 62 ms — tüm
+foundation **~370 ms**. Ve vadi örnekleyicisi faz-1 örnekleyicisinden yavaş bile değil (12,38 µs'e
+karşı 13,46 µs). Maliyetin tamamı `createScene`'in içindeydi: **9,1–10,5 s**.
+
+**Tahmin bırakıp profil aldım.** CDP ile mobil viewport'ta `createScene`'in örneklemeli CPU profili:
+
+| dosya / fonksiyon | self | pay |
+|---|---|---|
+| `worldReferenceSurfacePindexes.js` (tümü) | 5.092 ms | **%48,2** |
+| └ `pindexQualityReliefInfluence` | 3.083 ms | **%29,6** |
+| `terrainReliefDetail.js` | 1.286 ms | %12,2 |
+| `terrain.js` | 961 ms | %9,1 |
+
+Yani açılışın **yarısı** tek bir modülde, **üçte biri tek bir fonksiyonda**.
+
+**Sebep.** `pindexQualityReliefInfluence`, her örnek için **19 zincirin 98 segmentinin tamamını**, her
+birinde bir `Math.hypot` ile dolaşıyordu — örnek herhangi bir sıradağdan ne kadar uzakta olursa olsun.
+
+**Düzeltme, ve neden yaklaşık değil kesin olduğu.** `RELIEF_INFLUENCE_OUTER` (0,048) mesafesinin
+ötesinde smoothstep doyuyor ve terim `1 - 1`, yani **tam olarak sıfır** — sıfırdan başlayan bir
+maksimuma. Bir zincirin tüm polyline'ı kendi bounding box'ının içinde olduğuna göre, o kutunun
+0,048 büyütülmüş halinin dışındaki bir nokta, zincirin **her** segmentinden falloff'tan uzaktır.
+Onları atlamak aynı sıfırı katar. Zincir başına kutu testi + segment başına karesel erken çıkış.
+
+**Kanıt, argüman değil.** Eski algoritmayı test betiğinde yeniden yazıp yenisiyle karşılaştırdım:
+**177.241 örnek, 0 uyuşmazlık, en kötü mutlak fark tam olarak 0** — ve bunların 20.414'ünde etki
+sıfırdan farklı, yani test asıl ilgilenilen bölgeyi gerçekten dolaşıyor. Bit birebir aynı. Zemin bir
+mikrometre bile oynamıyor; §8.4 anlamında yeniden doğrulama gerektirmeyen tek değişiklik türü budur.
+
+**Ölçülen sonuç.** `createScene` **10.502 ms → 6.504 ms (−4,0 s, %38)**. Modül %48,2 → %23,5. Profil
+artık **düz**: geriye tek bir baskın nokta kalmadı (en büyüğü `sampleReferencePindexQualityV2`'nin
+kendi tahsisatı, 666 ms) — bu turda durmak için doğru yer.
+
+**Blocker'daki karşılığı.** Yükleme katmanı, kapının kendi ölçüm yöntemiyle: dal **8,71 / 8,50 s**
+(önce 14,72 s). Aynı koşullarda bugün main **7,06 / 6,93 s**. Yani **+%60 ve zaman aşımı → +%23 ve
+katmanı geçiyor**. Kapı artık yalnızca LFS pointer stub'larının konsol hatalarında düşüyor; o, bu
+konteynerin bilinen artefaktı ve CI onları hidrate ediyor. Kalan +1,6 s dalın gerçek fazladan
+içeriği — Duvar, on isimli nehir, vadi oyma, buz, gök cisimleri.
+
+**Dürüst not.** `checkMountainNaturalizationDeterminism` bu dalda kırmızı; **benim değişikliğimden
+önce de aynı assertion ile kırmızı** (stash ile doğruladım). Ayrı bir iş, ayrı bir RCA.
+
+**Technical debt.** 0 new. SW v55→v56. **Açık iş.** `sampleReferencePindexQualityV2`'nin tahsisat
+maliyeti; `checkMountainNaturalizationDeterminism`; göller (S-0039); gün ışığı tonlaması.
+
+## ADR-0345 — 60 saniye yazıp 30 saniye ölçmek: Playwright'ın argüman yuvasına düşen timeout'lar
+
+**Nereden çıktı.** Tur 396'da mobil açılıştan 4,0 s kestim ve yükleme katmanı yerelde 14,72 s → 8,6 s'ye
+indi. CI yine de `checkMobilePerfBudget`'te düştü — ama şu mesajla:
+`page.waitForFunction: Timeout 30000ms exceeded.`
+
+**30000 sayısı o dosyanın hiçbir yerinde yok.** Dosya 60000 yazıyor. Bu tek başına bir kanıttı.
+
+**Sebep.** `page.waitForFunction` **üç** parametre alır: sayfa fonksiyonu, **onun argümanı**, sonra
+options. İki argümanla çağrıldığında options nesnesi sessizce *sayfa fonksiyonunun argümanı* olur ve
+bekleme Playwright'ın 30 s varsayılanına düşer. Hiçbir uyarı yok: çağrı başarılı, sayfa fonksiyonu hiç
+tanımlamadığı argümanı yok sayıyor, geriye yalnızca kimsenin yazmadığı bir timeout'u anan bir hata
+mesajı kalıyor.
+
+**Doğrulama, çıkarım değil.** İki argümanlı ve üç argümanlı çağrıyı `timeout: 3000` ile yan yana
+koştum: birincisi **30.012 ms**'de "Timeout 30000ms" diyerek, ikincisi **3.007 ms**'de "Timeout 3000ms"
+diyerek düştü. CI'ın mesajıyla harfi harfine aynı.
+
+**Kapsamı ölçtüm.** Metin eşleştirmesi değil, çağrıların gerçek üst-seviye argümanlarını ayrıştıran bir
+tarayıcı yazdım: **13 gate betiğinde 14 çağrı**. İçlerinde `game3dSmokeChecksScene.js` ve
+`game3dSmokeChecksAudio.js` var — ikisi de `GAME3D_READY_TIMEOUT_MS` okuyor, yani **tur 390'ın
+30 s → 90 s yükseltmesi bu çağrılara hiç ulaşmamış.** O turda "bazı kapılar sessizce koşturulamaz
+haldeydi" diye yazmıştım; meğer düzeltmenin kendisi de aynı sessizliğe düşmüş.
+
+**Dürüst olmam gereken taraf.** Bu düzeltme kapıları **gevşetiyor**: fiilî timeout 30 s'den kaynağın
+zaten yazdığı 60 s'ye (smoke'ta 60 s'ye) çıkıyor. Bunu bir eşik pazarlığı olarak yapmıyorum — kod
+ne istediğini zaten yazmıştı ve çağrı onu uygulamıyordu; ama sonucun ölçüm gücünü azalttığını
+saklamıyorum. Bu yüzden tur 396'nın asıl işi — açılışı gerçekten hızlandırmak — yerini koruyor;
+büyük bütçeye yaslanmak çözüm değil.
+
+**Tekrarını engelleyen kapı.** `scripts/checkPlaywrightWaitOptions.js`: 92 betikteki 303 çağrıyı
+ayrıştırıp options'ı argüman yuvasında bulursa düşüyor. Negatif testi yapıldı — hatayı geri koyunca
+yakalıyor, geri alınca temiz geçiyor. Kendi doküman yorumunda kırık formun **hiçbir literal örneği
+yok**: kapıyı kendi taramasından muaf tutmak, tam da kapatmak için var olduğu kör noktayı bırakırdı.
+`final-head-gate`'in governance adımına bağlandı.
+
+**Technical debt.** 0 new. Runtime kaynağı değişmedi, SW bump yok. **Açık iş.** CI'ın 60 s'lik gerçek
+bütçede ne diyeceği; `checkMountainNaturalizationDeterminism` (dalda önceden kırmızı).
+
+## ADR-0346 — Asıl regresyon CPU değil bayttı: açılışta indirilen 878 MB → 339 MB
+
+**Nereden çıktı.** Tur 397'nin timeout düzeltmesinden sonra CI artık doğru sayıyı söylüyordu:
+`Timeout 60000ms exceeded`. Yani gerçek 60 s uygulanıyor ve **dal CI'da yükleme katmanını 60 saniyede
+kaldıramıyor** — aynı açılış bu konteynerde 8,6 saniye sürerken.
+
+**O uçurumun kendisi cevaptı.** Bu konteynerde taze klon Git-LFS **pointer stub**'ları sunuyor: her
+model 130 bayt. CI ise `lfs: true` ile gerçek nesneleri indiriyor. Yani buradaki 8,6 saniye modelleri
+hiç indirmeden ölçülmüş bir sayı. Tur 396'da kestiğim 4 saniye gerçekti ama **yanlış %5'e** aitti.
+
+**Ölçüm.** Yükleme katmanı kaybolmadan *önce* istenen dosyaları saydım ve her birini kendi LFS
+pointer'ının kaydettiği gerçek boyuttan fiyatlandırdım — hiçbir nesneyi hidrate etmeden:
+
+| | main | dal |
+|---|---|---|
+| katman kalkmadan önce istenen ayrı asset | 31 | **123** |
+| CI'ın gerçekten indirdiği | **91,8 MB** | **878,1 MB** |
+
+Mobil açılış yolunda **9,6 katı veri**.
+
+**Dağınık değil, yoğunlaşmıştı.** Katalog medyanı **0,92 MB**; ama 7 giriş 100 MB'ın üzerinde ve
+3.081 MB'lık toplamın **2.011 MB'ını** taşıyor: 520 MB'lık bir ev, 441 MB'lık bir köknar, 63 MB'lık bir
+hazine sandığı, 38 MB'lık bir tahta merdiven. Bunlar 4K dokulu asset-store modelleri ve serpiştirilmiş
+dekor olarak kullanılıyorlar — tarlada duran bir oyuncunun göremeyeceği bir doku bütçesi.
+
+**Var olan denetim bunu göremezdi.** `tooHeavyForChunkStreaming` **üçgen** sayıyor; buradaki ağırlık
+**doku baytında**. Eksik eksen buydu: yeni `tooLargeToDownloadForScatter` gerekçesi ve
+`MAX_SCATTER_PROP_BYTES` = 25 MB (medyanın ~27 katı, ve ötesinde artık aykırı değer değil en seyrek
+biyomu inceltmeye başladığınız nokta). 194 katalog girişinin 21'ine mal oluyor; katalog 3.081 MB →
+395 MB.
+
+**Dünya boşalmıyor — çeşitliliği azalıyor.** `planChunkProps` chunk başına yerleştirme sayısını
+`candidatesPerChunk` / `maxPropsPerChunk` / `maxLiveProps` ile belirliyor; katalog boyutundan bağımsız.
+`pickEntry` yalnızca *hangi* modelin seçileceğini belirliyor. Yani aynı sayıda nesne aynı yerlerde
+duruyor, bazıları artık farklı bir model. Her biyom en az üç tür koruyor ve bunu
+`checkWorldPropScatter` bağımsız olarak doğruluyor.
+
+**Ölçülen sonuç:** açılışta indirilen **878,1 MB → 338,7 MB (%61 azalma)**. Kuyruk artık düz: en ağır
+kalan 23,7 MB ve oradan yumuşak iniyor, tek bir aykırı değer kalmadı.
+
+**Dürüst olmam gereken taraf.** main hâlâ 91,8 MB, dal 338,7 MB — yani **hâlâ 3,7 katı**. Kalan fark
+tek bir suçluda değil, 126 assetlik uzun kuyrukta. Yapısal çözüm ayrı bir iş: dressing katmanları
+kendi dosyalarında "hiçbiri oynanış için taşıyıcı değil" diye yazıyor, dolayısıyla yükleme katmanını
+onları beklemeye *hiç* zorlamamak gerekir (`game3d.js`'deki `await initWorldDressing`). Onu bu turda
+yapmadım çünkü sahneyi boot sonrası inceleyen kapıların hepsini önce analiz etmek gerekiyor ve
+doğrulanmamış bir refactor'ü doğrulanmış bir kazancın üstüne yığmak istemedim. CI'ın 339 MB'a ne
+diyeceği bir sonraki turun girdisi.
+
+**Görsel doğrulama sınırı, açıkça.** Bu konteynerde bu modellerin hepsi LFS stub'ı; placeholder kutu
+olarak render ediliyorlar. Yani prop görünümünü ekran görüntüsüyle yargılamak burada mümkün değil ve
+yapmış gibi davranmıyorum. Buradaki anlamlı doğrulama ölçülen olan: yoğunluk değişmedi, biyom kapsamı
+korundu, yerleşimler yasal ve chunk'lar aynı şekilde yeniden planlanıyor.
+
+**Yeni kapı.** `scripts/checkScatterPropDownloadSize.js` — her katalog propunu tavana tutuyor, boyutu
+LFS pointer'ından okuyarak, yani hiçbir nesne hidrate etmeden ve herhangi bir klonda çalışarak.
+
+**Technical debt.** 0 new. SW v56→v57. **Açık iş.** `initWorldDressing`'i katmandan çıkarmak (asıl
+yapısal düzeltme); `checkMountainNaturalizationDeterminism` (dalda önceden kırmızı).
+
+## ADR-0347 — Dokusu hiç commit edilmemiş modeller: yol dizesi bir istek değildir
+
+**Nereden çıktı.** Turlar 396-398 `checkMobilePerfBudget`'i zaman aşımından kurtarınca kapı nihayet
+kendi konsol-hatası kontrolüne ulaştı ve CI **yüzlerce 404** ile döndü: `paddle 1_Normal.png`,
+`Wooden_Barrel_Base_Color.png`, `TexturesCom_Wall_Cobblestone_3x3_1K_albedo.tif`. Hiçbiri `assets/`
+altında yok; `assets/models/fbx/` içinde toplam **iki** doku dosyası var.
+
+**Neden şimdi.** İki şey saklıyordu. Burada bu modeller LFS stub'ı olduğu için hiç parse edilmiyor,
+dolayısıyla dokularını hiç istemiyorlar. CI'da ise kapı daha önce yükleme katmanında ölüyordu. İkisi
+de düzelince kapı ölçmesi gereken şeyi ölçmeye başladı.
+
+**Suçluyu isimlendirmek gerçek bir ayırt edici gerektirdi ve bariz olan yanlıştı.** Her modeli
+doku-biçimli dizeler için taramak 37'nin **27'sini** suçladı — içlerinde `characters/erika_archer.fbx`
+ve diğer Mixamo karakterleri vardı. Ama onları `main` de yüklüyor ve CI onlardan hiç şikâyet etmiyor.
+Çünkü onlar **gömülü medyalı** export'lar: yol dizeleri Mixamo'nun kendi derleme sunucusunu gösteriyor
+(`/home/app/mixamo-mini/tmp/…fbm/`), three.js görüntü verisini FBX'in içinden okuyor ve hiçbir istek
+yapılmıyor. **Bir yol dizesi bir istek değildir.**
+
+**İkinci ayırt edici de yanlış çıktı, ve onu da ölçüm yakaladı.** "Dosya görüntü verisi taşıyor mu"
+testini üç baytlık JPEG başlangıcıyla yaptığımda `Boat.fbx` temiz göründü — 36 doku gömdüğü iddia
+edilen 1,3 MB'lık bir dosya. O bayt dizisi geometri verisinin içinde tesadüfen geçiyor. Sekiz baytlık
+tam PNG imzası ve dört baytlık JPEG işaretçileriyle sayı **27'den 5'e** düştü ve o beş, CI günlüğündeki
+her dosya adını açıklıyor.
+
+| model | eksik doku | nereye ait |
+|---|---|---|
+| `fbx/Medieval_Market_Asset_Pack.fbx` | 112 | bu dal |
+| `fbx/Boat.fbx` | 36 | bu dal |
+| `fbx/MedHouse.fbx` | 13 | bu dal |
+| `fbx/Free_rock_Rock_1.fbx` | 2 | bu dal |
+| `creatures/dragon/Dragon_Baked_Actions_fbx_7.4_binary.fbx` | 6 | **main** |
+
+**Beşincisi benim değil ve sessizce içine katmıyorum.** Ejderha modelini `main`'deki
+`gameplay/dragonConfig.js` zaten gösteriyor, ve main'in açılışının onu gerçekten istediğini ölçtüm
+(main'in 31 asset'lik açılış listesinde var). Yani önceden var olan bir boşluk; kendi turunu hak
+ediyor. Bu turda ilk dördü çekiliyor.
+
+**Altıncı bir sorun, hidrasyon gerektirmeden CI'ın adını verdiği:** `Old House 2 3D Models.FBX`
+**FBX FileVersion 6100**. three.js açamıyor — daha çirkin bir prop'a düşmüyor, **fırlatıyor** ve
+scatter çayıra bir placeholder kutu koyuyor. Ayrı ve dürüst bir gerekçe (`unsupportedFbxVersion`).
+
+**Susturmak yerine çekmeyi seçtim, ve alternatifi saklamıyorum.** Yükleyicinin eksik doku için hata
+loglamasını kesebilirdim; kapı susardı, dünya düzelmezdi. Dokularının hiçbiri olmayan bir prop düz,
+dokusuz renkte render ediliyor — bu kozmetik değil, gerçek bir görsel kusur, ve sahibin önceliği tam
+olarak görüntü kalitesi. Eksik doku setleri commit edilirse dördü de geri döner.
+
+**Kendi yanlış alarmımı da düzelttim.** Düzenlemeden sonra `checkAssetCoverage` bir anda
+`fbx/Grass.fbx`'i "hesapsız" gösterdi. Sebep benim hidrasyonumdu: kontrolcü kimliği LFS oid'inden
+okuyor, hidrate edilmiş dosya artık pointer olmadığı için `bytes:boyut:ad`'a düşüyor ve bir dedup
+grubu ikiye ayrılıyor. `git checkout -- assets/` sonrası PASS. Gerçek olmayan bir kusuru "düzeltmeden"
+önce doğruladım.
+
+**Yeni kapı.** `scripts/checkScatterPropTextures.js`. Negatif testi yapıldı: `Boat.fbx` hidrate
+edilince yakalıyor (36 eksik), yanında hidrate edilen `flower_heliophila_4k.fbx`'i temiz geçiriyor.
+Taze klonda her model stub olduğu için **PASS demiyor, SKIP diyor** — hiçbir şey okumadan kazanılmış
+bir geçiş rapor etmiyor. `final-head-gate`'e bağlandı.
+
+**Technical debt.** 0 new. SW v57→v58. **Açık iş.** Ejderhanın 6 eksik dokusu (main düzeyinde);
+`checkMountainNaturalizationDeterminism` (dalda önceden kırmızı).
+
+## ADR-0347b — Yazdığım kapı, kendi ölçümümün eksik olduğunu ilk koşuşunda söyledi
+
+Tur 399 dört modeli çekti ve listeyi tam sandım. `checkScatterPropTextures` CI'daki **ilk** koşuşunda
+beşincisini buldu: **`fbx/Ancient_Assets_Pack.fbx`, 419 eksik doku** — depodaki en kötüsü.
+
+**Neden kaçırdım.** Ölçümümü açılışın gerçekten istediği **37 FBX** üzerinde yaptım. Bu paket ilk
+streaming yarıçapında değil, dolayısıyla o örnekleme hiç girmedi. Kapı ise **tüm katalogu** yürüyor.
+Yani fark bir yetenek farkı değil, kapsam farkı: bir turun örneklemi ile katalogun tamamı aynı şey
+değil, ve kapıyı yazarken bunu doğru yapmışım — kendi elle ölçümümde yapmamışım.
+
+Bu, kapının varlık sebebinin kanıtı: eklendiği gün, onu ekleyen turun eksiğini yakaladı. `Ancient_Assets.fbx`
+(tur 398, 456 MB) ile karıştırılmasın; bu ayrı bir dosya.
+
+**Technical debt.** 0 new. SW v58→v59.
+
+## ADR-0348 — Birim mesh değil, geometri grubu: mobil draw call 1442 → 230
+
+**Blocker.** Turlar 396-399 önündeki her şeyi temizleyince `checkMobilePerfBudget` nihayet kendi
+tavanına ulaştı ve dal orada düştü: **1442 draw call / 500**. Arkasında ikinci bir ihlal daha vardı,
+kapının sıra bulamadığı: **631.650 üçgen / 500.000**.
+
+**Kaynağı tahminle değil, kapatıp açarak buldum.** Sahnedeki her üst düzey grubu sırayla görünmez
+yapıp yeniden render alıp `renderer.info.render.calls` okudum: **1.437'nin 1.395'i (%97)
+`world-props` içinde.**
+
+**İki yanlış cevap önce geldi ve ikisini de ölçüm öldürdü, tartışma değil.**
+
+1. *"Her prop'un alt-mesh'lerini malzemeye göre birleştir."* Yazdım, tek tick içinde A/B yaptım:
+   sahne düğümleri 1952 → 1238, `world-props` mesh'leri 1419 → 705, **draw call 1437 → 1427**. On
+   tane. Geri aldım — gerekçesini az önce çürüttüğüm bir "düzeltmeyi" göndermek, diff'te ilerleme
+   gibi görünüp bütçeye hiçbir şey yapmazdı.
+2. *"Gölge geçişi sayıyı ikiye katlıyor."* 848 mesh'te `castShadow` var, ama render anında
+   `shadowMap.enabled === false` ve `pointer: coarse === true`. `renderQuality.js` mobilde gölgeleri
+   zaten kapatıyor; o bayraklar bedava.
+
+**Doğru birim mesh değil, geometri grubu.** Dizi malzemeli bir mesh **grup başına bir kez** gönderilir.
+`world-props` 706 mesh tutuyordu ama **9.277 grup** — ve dağınık değil: 168 çok-malzemeli mesh
+neredeyse hepsini, dokuz katalog modeli de bunun %95'ini taşıyordu.
+
+| model | yerleşim başına gönderim |
+|---|---|
+| `FreeBuilding_building.fbx` | **1.252** |
+| `tower22_tower.fbx` | 1.007 |
+| `medieval_house_pack.fbx` | 829 |
+| `AncientHouseV5_house.fbx` | 376 |
+| `Free_temple_temple.fbx` | 315 |
+| `House_free_house.fbx` | 261 |
+| `Building_pier1_building.fbx` | 138 |
+| `Classic_Building_building.fbx` | 109 |
+| `Founain-Square_fountain.fbx` | 31 |
+
+Normal bir GLB prop **yedi** gönderiyor. Tek bir `FreeBuilding_building.fbx` yerleşimi, tüm mobil
+bütçenin iki katından fazlasını tek başına gönderiyor. Bunlar prop dosya adı takmış **çok binalı asset
+paketleri** — 456 MB'lık `Ancient_Assets.fbx` ve 419 dokulu `Ancient_Assets_Pack.fbx` ile aynı tuzak,
+üçüncü bir eksende ölçülmüş hali.
+
+**Ölçülen sonuç:** draw call **1442 → 230** (tavan 500), üçgen **631.650 → 427.188** (tavan 500.000).
+İki bütçe de artık geçiyor. Katalog 167 → 158 giriş, 377 → 286 MB.
+
+**Dünya seyrelmiyor:** `planChunkProps` yerleşim sayısını katalog boyutundan bağımsız belirliyor;
+çekilen dokuzunun yerini kalanlar alıyor. Her biyom en az üç tür koruyor, `checkWorldPropScatter`
+bunu bağımsız doğruluyor.
+
+**Kapı zaten var.** Sonucu koruyan şey `checkMobilePerfBudget`'in kendisi: ölçtüğü şey tam olarak bu.
+Ayrı bir "prop başına gönderim" kapısı yazmadım çünkü ölçmek her modeli tarayıcıda yüklemeyi
+gerektirir ve sonucu zaten bütçe kapısı bekliyor.
+
+**Technical debt.** 0 new. SW v59→v60. **Açık iş.** Ejderhanın 6 eksik dokusu (main düzeyinde);
+`checkMountainNaturalizationDeterminism` (dalda önceden kırmızı).
+
+## ADR-0349 — 1 MiB'lik sessiz uçurum: `checkTechnicalDebt` dalın kendi boyutunda çöküyordu
+
+**Nereden çıktı.** Tur 400 mobil çizim bütçesini geçirince `final-head-gate`'in 7. adımı nihayet
+sonuna kadar koştu — `checkMobilePerfBudget`, `checkSeededRandomPolicy`, `terrainSeatSafetyCheck`,
+`roadNetworkSafetyCheck`, `analyzePerfTrend` hepsi geçti — ve bir sonrakinde durdu:
+
+```
+[checkTechnicalDebt] FAIL: Error: spawnSync git ENOBUFS
+```
+
+**Bu bir bulgu değil, bir çökme.** `ENOBUFS` kapının bir borç bulduğu anlamına gelmiyor; `git`'in
+çıktısı `execFileSync`'in **1 MiB** varsayılanını aştığı için sürecin öldüğü anlamına geliyor. Ve bu
+kesme değil, sert bir uçurum: bir bayt fazlası tüm kontrolü hataya çeviriyor.
+
+**Ölçtüm:** bu dalın `origin/main`'e karşı diff'i **1.216.339 bayt** — varsayılanın %16 üstünde.
+Yerelde birebir aynı hatayla yeniden ürettim.
+
+**Kimin hatası.** Dalın büyük olması değil, kontrolün kendi eksiği: diff'i yeterince büyüyen *herhangi*
+bir dal aynı şekilde çökerdi. Bu dal yalnızca eşiği ilk aşan oldu. Aynı aile: tur 397'nin
+"60 saniye yazıp 30 saniye ölçen" timeout'u gibi, kapı kendi söylediği işi yapmıyordu.
+
+**Düzeltme.** `runGit`'e `maxBuffer: 64 MiB` — kaçak bellek koruması olarak seçilmiş bir tavan,
+diff'in yaklaşması beklenen bir boyut olarak değil. Düzeltmeden sonra kapı **koşuyor ve geçiyor**:
+yasak geçici-çözüm eklemesi 0, yeni borç işareti 0.
+
+**Technical debt.** 0 new. Runtime kaynağı değişmedi, SW bump yok.
+
+## ADR-0350 — Ölü bir değişken adını arayan bir kontrat, ve asıl mesele: masaüstü açılışı mobilin 6,7 katı
+
+**İki ayrı şey, aynı koşuda çıktı.**
+
+**1. Bayat assertion.** `smokeTestGame3D`'nin su kontratı şunu arıyordu:
+`worldPos.y += swellHeight * amplitudeScale`. Ama tur 389 kabarmayı fragment başına taşırken o yerel
+değişkeni `swellAt(worldPos.xz, uTime).x` içine gömdü. Yer değiştirme **hâlâ** derinlik-koniklemeli
+genlikle ölçekleniyor — kontrol yalnızca ölü bir **değişken adını** arıyordu ve olmamış bir
+regresyonu bildiriyordu. Regex artık özelliği doğruluyor, adı değil:
+`worldPos.y += <herhangi bir ifade> * amplitudeScale;`. Negatif testi yapıldı — ölçeklenmemiş ve
+yanlış ölçeklenmiş yer değiştirmeyi hâlâ reddediyor, eski ve yeni formu kabul ediyor.
+
+**2. Asıl mesele, ve bu turların hepsinin yanlış yolu optimize ettiğini gösteriyor.** CI'da smoke
+suite `game3dSmokeChecksAudio.js:36`'da zaman aşımına uğradı. O kontrol **1280×800**, yani masaüstü
+viewport'u: `coarsePointer` false, gölgeler açık, masaüstü arazi LOD'u ve daha geniş önizleme
+yarıçapı. Turlar 396-400'ün hepsi **mobil** yolu ölçtü ve düzeltti.
+
+Gerçek asset'lerle ölçtüm:
+
+| viewport | yükleme katmanı kayboluyor |
+|---|---|
+| **masaüstü 1280×800** | **160.135 ms** |
+| mobil 430×932 | 23.836 ms |
+
+**Masaüstü açılışı mobilin 6,7 katı** ve ses kontrolünün izin verdiği 60 saniyeyi kat kat aşıyor.
+`checkMobilePerfBudget`'in geçmesi bu yüzden çelişki değil: o ucuz yolu ölçüyor.
+
+Bu turda masaüstü yolunu düzeltmiyorum — önce nedenini ölçmek gerekiyor, ve bu oturumda tahminle
+gittiğim her seferinde yanıldım. Muhtemel kaynak `PHASE1_PREVIEW_RADIUS_CHUNKS`: masaüstü açılışta
+mobilin `STREAM_RADIUS_CHUNKS`'ından daha geniş bir önizleme yarıçapı üretiyor, yani daha çok chunk ve
+daha çok prop. Ölçülmeden dokunulmayacak.
+
+**Technical debt.** 0 new. Runtime kaynağı değişmedi, SW bump yok.
+
+## ADR-0351 — Masaüstü açılışını beş hipotezle kovaladım; beşi de ölçümle elendi
+
+Tur 402 masaüstü açılışının mobilin 6,7 katı olduğunu bulmuştu. Bu tur nedenini aradı ve **kendi
+önerdiğim çözüm dahil** sırayla hepsini eledi. Hiçbiri tutmadı; kayda geçmesinin sebebi bir sonraki
+turun aynı yolları tekrar yürümemesi.
+
+| hipotez | ölçüm | sonuç |
+|---|---|---|
+| `PHASE1_PREVIEW_RADIUS_CHUNKS`, daha çok indirme | masaüstü 118 asset / 249 MB, mobil 126 / 286 MB | **elendi** |
+| Bizim JavaScript'imiz | tüm proje kodu profilin **%6**'sı | **elendi** |
+| Çok sayıda farklı shader programı | `renderer.info.programs.length` = **48** | **elendi** |
+| Chunk dokularının çoğaltılması | 550 chunk mesh, ama **3** ayrı chunk dokusu (zaten paylaşılıyor) | **elendi** |
+| Gölgeler | 160.135 ms → 62.550 ms | **gerçek ama yetmiyor** |
+
+**Profil ne diyor.** 138 saniyelik masaüstü açılışının `(program)` %55,9'u, `getProgramInfoLog`
+%14,3'ü, `texSubImage2D` %12,2'si. Yani **%80'den fazlası sürücünün shader derlemesi ve doku
+yüklemesi**. 48 program × SwiftShader'da program başına ~400 ms ≈ ölçülen 19,7 saniye. Sayı anormal
+değil; ortam yavaş.
+
+**Gölgeler gerçek ama çözüm değil.** ~98 saniye, açılışın %61'i. Ama kapatmak sahibin önceliği olan
+görüntü kalitesinde açık bir düşüş, ve kapatınca bile 62,5 saniye kalıyor — kontrolün izin verdiği
+60'ın hâlâ üstünde.
+
+**Kayda geçirilmesi gereken bağlam.** Bu ölçüm **başsız yazılımsal render** ile yapıldı. Orada shader
+derlemesi olağanüstü yavaştır; gerçek ekran kartı olan bir masaüstünde aynı 48 program çok daha hızlı
+derlenir. 160 saniye bir CI artefaktıdır, oyuncunun yaşayacağı bir sayı değil. Bunu bir kullanıcı
+gerilemesi sanmamak önemli.
+
+**Asıl anomali ise başka yerde, ve bir sonraki turun izi bu.** Smoke suite **tek bir tarayıcı**
+açıyor (`smokeTestGame3D.js:99`) ve tüm kontroller onu paylaşıyor. `check3DMode` de masaüstü
+viewport'unda açılıyor ve **aynı 60 saniyelik beklemeyi geçiyor** (`outcome=ready`). Ama daha sonra
+koşan ses kontrolü aynı 60 saniyede zaman aşımına uğruyor. Yani sorun "masaüstü açılışı 160 saniye"
+değil olabilir: aynı tarayıcıda geç koşan bir kontrolün, biriken durumun (canlı WebGL context'leri,
+bellek baskısı) bedelini ödemesi olabilir. Ölçülmeden dokunulmayacak.
+
+**Technical debt.** 0 new. Kod değişmedi; bu tur yalnızca ölçüm ve eleme.
+
+## ADR-0352 — Altı alternatifi eledikten sonra eşiği yükseltmek: 60 s → 240 s
+
+**Bunu bir eşik değişikliği olarak yapıyorum ve başka bir şeymiş gibi göstermiyorum.** Bu oturumda
+kapıları gevşetmemek için özellikle uğraştım; bu sefer sayıyı değiştiriyorum, çünkü değiştirmemek için
+denenebilecek her şeyi denedim ve hepsi ölçümle elendi.
+
+**Ölçülen gerçek:** masaüstü açılışı bu ortamda **~133 saniye**. `GAME3D_READY_TIMEOUT_MS` 60 saniyeydi.
+
+**Elenen altı açıklama:**
+
+1. Masaüstü daha çok indiriyor — 118 asset / 249 MB, mobil 126 / 286 MB. Değil.
+2. Bizim JavaScript'imiz — profilin **%6**'sı.
+3. Çok fazla shader programı — `renderer.info.programs.length` = **48**, yüzlerce değil.
+4. Chunk dokularının çoğaltılması — 550 chunk mesh, **3** ayrı doku, zaten paylaşılıyor.
+5. Gölgeler — gerçek ve büyük (160.135 → 62.550 ms), ama kapatmak sahibin önceliği olan görüntü
+   kalitesinde açık bir düşüş **ve kapatınca bile 62,5 saniye**, eski 60'ın üstünde.
+6. Paylaşılan tarayıcıda durum birikmesi — aynı tarayıcıda üst üste üç masaüstü açılışı:
+   **137.923 / 131.091 / 133.293 ms. Düz.** Hiçbir şey birikmiyor.
+
+**Geriye kalan ortamın kendisi.** Açılışın %80'inden fazlası sürücünün shader derlemesi
+(`getProgramInfoLog` %14,3) ve doku yüklemesi (`texSubImage2D` %12,2) — **başsız yazılımsal render**
+altında, 48 program × program başına ~400 ms zamanın çoğunu açıklıyor. Gerçek bir ekran kartı aynı
+programları çok daha hızlı derler. Yani ~133 saniye CI render'ının bir özelliği, oyuncunun yaşadığı
+bir şey değil; kullanıcıya yansıyan bir gerileme olarak okunmamalı.
+
+**240 saniye** ölçülen açılış artı pay; kırmızı bir kontrolü yeşile çevirmek için seçilmiş bir sayı
+değil. **Dürüst maliyeti:** bu eşiği bekleyen kontroller artık hızlıca düşmek yerine dakikalarca
+sürüyor, yani kapı işi yavaşlıyor.
+
+**İlk ölçümüm kirliydi ve attım.** Tekrarlı açılış testini ilk koştuğumda asset'leri koşu ortasında
+geri almıştım; 1. açılış 142 s (gerçek modeller), 2.-3. ~45 s (stub'lar). Hızlanma tarayıcı ısınması
+değil, stub'lardı. Karışık durumdan çıkan veriyi kullanmak yerine temiz koştum.
+
+**Technical debt.** 0 new. Runtime kaynağı değişmedi, SW bump yok.

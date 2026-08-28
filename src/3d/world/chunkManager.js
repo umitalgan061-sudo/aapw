@@ -35,7 +35,7 @@ export class ChunkManager {
 	 *   array here and into `physics.js`'s `createGroundCollider` so rendered chunk geometry and
 	 *   every gameplay height query stay in agreement.
 	 */
-	constructor({ scene, chunkSizeMeters, seed, flattenPads = [], segments = CHUNK_CONFIG.TERRAIN_SEGMENTS_DESKTOP }) {
+	constructor({ scene, chunkSizeMeters, seed, flattenPads = [], segments = CHUNK_CONFIG.TERRAIN_SEGMENTS_DESKTOP, roadCorridor = null, valleyField = null }) {
 		this.scene = scene;
 		this.chunkSizeMeters = chunkSizeMeters;
 		/** Mesh resolution per chunk — see `CHUNK_CONFIG.TERRAIN_SEGMENTS_DESKTOP` for why this is
@@ -43,6 +43,12 @@ export class ChunkManager {
 		this.segments = segments;
 		this.seed = seed;
 		this.flattenPads = flattenPads;
+		/** Road cut-and-fill bed (ADR-0304), forwarded verbatim to every `createTerrainChunk` call so the
+		 * drawn ground and every gameplay height query agree along roads. */
+		this.roadCorridor = roadCorridor;
+		/** River valley carve (ADR-0307), forwarded to every chunk for the same render/gameplay agreement
+		 * reason as `roadCorridor`. */
+		this.valleyField = valleyField;
 		/** @type {Map<string, import('three').Mesh>} Currently in the scene. */
 		this.loaded = new Map();
 		/** @type {Set<string>} Every chunk key ever loaded, even if later unloaded. Only grows —
@@ -61,7 +67,7 @@ export class ChunkManager {
 		const existing = this.loaded.get(key);
 		if (existing) return existing;
 
-		const mesh = createTerrainChunk({ chunkX, chunkZ, size: this.chunkSizeMeters, segments: this.segments, seed: this.seed, flattenPads: this.flattenPads });
+		const mesh = createTerrainChunk({ chunkX, chunkZ, size: this.chunkSizeMeters, segments: this.segments, seed: this.seed, flattenPads: this.flattenPads, roadCorridor: this.roadCorridor, valleyField: this.valleyField });
 		this.scene.add(mesh);
 		this.loaded.set(key, mesh);
 		this.everGenerated.add(key);
@@ -214,6 +220,8 @@ function createMobileTerrainLodChunkRun134(manager, chunkX, chunkZ, segments) {
 		segments,
 		seed: manager.seed,
 		flattenPads: manager.flattenPads,
+		roadCorridor: manager.roadCorridor,
+		valleyField: manager.valleyField,
 	});
 	mesh.userData.mobileTerrainLodSegmentsRun134 = segments;
 	return mesh;
@@ -303,3 +311,116 @@ ChunkManager.prototype.streamTowards = function streamTowardsWithLiveMobileRadiu
 // runtime streaming radius without duplicating a stale literal. Future additive radius wrappers
 // update this binding after their own declaration.
 export let MOBILE_LIVE_WORLD_RADIUS_CHUNKS = MOBILE_LIVE_WORLD_RADIUS_RUN140;
+
+
+// Run 356 / ADR-0303 — desktop terrain distance LOD. Layered after runs 130/134/140 so every proven
+// mobile path above stays byte-for-byte delegated; this wrapper only ever acts on desktop.
+//
+// **What this actually buys — and what it does not.** The motivation was that a vertex every 7.8 m
+// (64 segments over a 500 m chunk) cannot represent anything finer than a ~16 m wavelength, so fine
+// relief is averaged away before it reaches the screen. That ceiling is real and this lifts it to
+// 3.9 m in the near band. But measurement (ADR-0303) says lifting it changed the *look* almost not at
+// all: rendered high-frequency image energy moved 7.75 -> 7.99 / 16.02 -> 16.04 / 11.90 -> 11.83 /
+// 20.51 -> 20.65 across four framings. The reason is that the height field has essentially no content
+// at 4-16 m wavelengths to resolve — the finest layer, `roughness`, sits at ~45 m with its finest
+// octave near 11 m at ~0.5 m amplitude. A finer mesh cannot show detail that was never generated.
+//
+// So the honest justification for this wrapper is **boot cost**, which it cuts by a measured 36%
+// (23,697 ms -> 15,180 ms for the 529-chunk desktop preview), plus removing the resolution ceiling so
+// that finer height-field content becomes worth generating at all. See ADR-0303 for why generating
+// that content is currently blocked by `roadPathfinder.js`'s 60 m sampling grid rather than by
+// anything here.
+//
+// **Why it was blocked until now.** `config.js` records the measured 128-segment failure: desktop
+// boots `PHASE1_PREVIEW_RADIUS_CHUNKS` = 11, i.e. 529 chunks, and 129² vertices each meant ~8.8M
+// main-thread samples against ~2.2M, which blocked `domcontentloaded` past its budget. Uniformly
+// raising resolution was never affordable. Spending it *by distance* is.
+//
+//   band          chunks at boot   segments   apron vertices
+//   near (d<=2)              25         128      25 x 131² = 429k
+//   mid  (d<=5)              96          64      96 x  67² = 431k
+//   far  (d> 5)             408          32     408 x  35² = 500k
+//                                               total ~1.36M, against 529 x 67² = 2.38M today
+//
+// So near-field detail doubles while boot work drops ~43%. Differing resolutions at a shared edge
+// would open T-junction cracks, which is exactly what run 355 / ADR-0301's per-chunk skirts already
+// close — this run is the reason those exist.
+const DESKTOP_TERRAIN_LOD_SEGMENTS_RUN356 = Object.freeze({ NEAR: 128, MID: 64, FAR: 32 });
+const DESKTOP_TERRAIN_LOD_BANDS_RUN356 = Object.freeze({ NEAR_MAX_CHUNKS: 2, MID_MAX_CHUNKS: 5 });
+/** Chunks beyond this Chebyshev radius of the streaming center are left at whatever band they were
+ * built in. They are already `FAR`, which is the correct band for them, and skipping them keeps a
+ * boundary crossing from walking all 529+ resident desktop chunks. */
+const DESKTOP_TERRAIN_LOD_REGRADE_RADIUS_RUN356 = 6;
+/** Same live-world discriminator run 140 established: `sceneManager.js` is the only caller that
+ * supplies the full settlement flatten-pad set, so generic and test-constructed managers keep the
+ * uniform `this.segments` behaviour their existing regression contracts assert. */
+const DESKTOP_TERRAIN_LOD_MIN_FLATTEN_PADS_RUN356 = 14;
+
+function isLiveDesktopWorldManagerRun356(manager) {
+	return !isMobileCoarsePointerRun134() &&
+		Array.isArray(manager.flattenPads) &&
+		manager.flattenPads.length >= DESKTOP_TERRAIN_LOD_MIN_FLATTEN_PADS_RUN356;
+}
+
+function desktopTerrainLodSegmentsRun356(chunkX, chunkZ, centerX, centerZ) {
+	const distance = Math.max(Math.abs(chunkX - centerX), Math.abs(chunkZ - centerZ));
+	if (distance <= DESKTOP_TERRAIN_LOD_BANDS_RUN356.NEAR_MAX_CHUNKS) return DESKTOP_TERRAIN_LOD_SEGMENTS_RUN356.NEAR;
+	if (distance <= DESKTOP_TERRAIN_LOD_BANDS_RUN356.MID_MAX_CHUNKS) return DESKTOP_TERRAIN_LOD_SEGMENTS_RUN356.MID;
+	return DESKTOP_TERRAIN_LOD_SEGMENTS_RUN356.FAR;
+}
+
+function createDesktopTerrainLodChunkRun356(manager, chunkX, chunkZ, segments) {
+	const mesh = createTerrainChunk({
+		chunkX,
+		chunkZ,
+		size: manager.chunkSizeMeters,
+		segments,
+		seed: manager.seed,
+		flattenPads: manager.flattenPads,
+		roadCorridor: manager.roadCorridor,
+		valleyField: manager.valleyField,
+	});
+	mesh.userData.desktopTerrainLodSegmentsRun356 = segments;
+	return mesh;
+}
+
+const _loadChunkBeforeDesktopTerrainLodRun356 = ChunkManager.prototype.loadChunk;
+ChunkManager.prototype.loadChunk = function loadChunkWithDesktopTerrainLodRun356(chunkX, chunkZ) {
+	if (!isLiveDesktopWorldManagerRun356(this)) return _loadChunkBeforeDesktopTerrainLodRun356.call(this, chunkX, chunkZ);
+	const key = chunkKey(chunkX, chunkZ);
+	const existing = this.loaded.get(key);
+	if (existing) return existing;
+	const center = this.desktopTerrainLodCenterRun356 ?? { x: 0, z: 0 };
+	const mesh = createDesktopTerrainLodChunkRun356(this, chunkX, chunkZ, desktopTerrainLodSegmentsRun356(chunkX, chunkZ, center.x, center.z));
+	this.scene.add(mesh);
+	this.loaded.set(key, mesh);
+	this.everGenerated.add(key);
+	return mesh;
+};
+
+const _loadSquareBeforeDesktopTerrainLodRun356 = ChunkManager.prototype.loadSquare;
+ChunkManager.prototype.loadSquare = function loadSquareWithDesktopTerrainLodRun356(centerX, centerZ, radius) {
+	if (isLiveDesktopWorldManagerRun356(this)) this.desktopTerrainLodCenterRun356 = { x: centerX, z: centerZ };
+	return _loadSquareBeforeDesktopTerrainLodRun356.call(this, centerX, centerZ, radius);
+};
+
+const _streamTowardsBeforeDesktopTerrainLodRun356 = ChunkManager.prototype.streamTowards;
+ChunkManager.prototype.streamTowards = function streamTowardsWithDesktopTerrainLodRun356(centerChunkX, centerChunkZ, radius) {
+	if (!isLiveDesktopWorldManagerRun356(this)) {
+		return _streamTowardsBeforeDesktopTerrainLodRun356.call(this, centerChunkX, centerChunkZ, radius);
+	}
+	this.desktopTerrainLodCenterRun356 = { x: centerChunkX, z: centerChunkZ };
+	_streamTowardsBeforeDesktopTerrainLodRun356.call(this, centerChunkX, centerChunkZ, radius);
+
+	for (const [key, mesh] of [...this.loaded.entries()]) {
+		const [chunkX, chunkZ] = key.split(',').map(Number);
+		if (Math.max(Math.abs(chunkX - centerChunkX), Math.abs(chunkZ - centerChunkZ)) > DESKTOP_TERRAIN_LOD_REGRADE_RADIUS_RUN356) continue;
+		const desiredSegments = desktopTerrainLodSegmentsRun356(chunkX, chunkZ, centerChunkX, centerChunkZ);
+		if (mesh.userData.desktopTerrainLodSegmentsRun356 === desiredSegments) continue;
+		const replacement = createDesktopTerrainLodChunkRun356(this, chunkX, chunkZ, desiredSegments);
+		this.scene.remove(mesh);
+		disposeTerrainChunk(mesh);
+		this.scene.add(replacement);
+		this.loaded.set(key, replacement);
+	}
+};

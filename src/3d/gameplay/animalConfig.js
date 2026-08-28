@@ -51,15 +51,72 @@ const HORSE_MODEL_URL = 'assets/models/animals/ivory_stallion.glb';
  */
 export const ANIMAL_SPECIES = Object.freeze({
 	wolf: Object.freeze({
-		modelUrl: 'assets/models/animals/wolf/Wolf-Blender-2.82a.glb',
+		/**
+		 * The `.gltf`, not the `.glb` beside it.
+		 *
+		 * Both names exist in `assets/models/animals/wolf/`. The `.glb` is a Git LFS pointer — 132 bytes
+		 * that never resolve in a clone without LFS objects (RCA_RUN344), so the wolf has been loading as
+		 * an `AssetLoader` placeholder box: no fur, no rig, no clips. The `.gltf` beside it is the real
+		 * model, complete and committed: 508 KB of JSON, a 2.6 MB `.bin`, its own textures, 2876
+		 * triangles, one skin and five clips. The clip names this config declares below —
+		 * `04_Idle_Armature_0`, `02_walk_Armature_0`, `01_Run_Armature_0` — are that file's own, which is
+		 * how we know this table was authored against it and then pointed at the wrong sibling.
+		 */
+		modelUrl: 'assets/models/animals/wolf/Wolf-Blender-2.82a.gltf',
 		clips: Object.freeze({ idle: '04_Idle_Armature_0', walk: '02_walk_Armature_0', flee: '01_Run_Armature_0' }),
-		/** See `ANIMAL_CONFIG.STRIP_CHILD_NAMES` — only the wolf glTF bundles a shadow-catcher disc. */
-		stripChildNames: Object.freeze(['Circle']),
+		/**
+		 * Two meshes in this file are not the animal.
+		 *
+		 * `Circle` is a bundled ground-shadow-catcher disc — see `ANIMAL_CONFIG.STRIP_CHILD_NAMES`.
+		 *
+		 * `Wolf2_fur__fella3_jpg_001_0` is a cape of fur cards, and its `Wolf_Fur` material is broken as
+		 * exported: `alphaMode: BLEND` with **no base-colour texture and no base-colour factor**, which
+		 * three.js resolves to opaque white. It rendered as a white ruff over the wolf's neck and
+		 * shoulders. The fur textures the cards want (`Fur_Col_20.png`, `Fur_Alpha_3.png`) do sit in the
+		 * same directory, and run 377 tried binding them: the cards then read as flat dark polygons
+		 * sticking out of the shoulders, worse than the white. Without the cards the wolf's own body
+		 * texture is a complete, correct wolf, so the cape goes.
+		 */
+		stripChildNames: Object.freeze(['Circle', 'Wolf2_fur__fella3_jpg_001_0']),
 	}),
 	/** Replaces the rigless `ivory_stallion.glb` as the live horse — see `HORSE_MODEL_URL`'s note and
 	 * DECISIONS.md ADR-0047, which explicitly recorded "needs rigging before a real walk/flee
 	 * animation is possible" as the blocker. This model is rigged and ships `Walk`/`Gallop`/`Idle`/
 	 * `Eating`, so that blocker is now genuinely resolved rather than worked around. */
+	/**
+	 * The Doom's magma hounds — run 407, owner request: "Valyria'ya ... karakterleri yerleştir. Onlar
+	 * vahşi olsunlar ve herkese saldırgan olsunlar. Bazılarını topluluk halinde göster."
+	 *
+	 * **Chosen by measurement, not by name.** The `yeniglb` branch added ten creature-shaped models and
+	 * only one of them can actually be a live animal. Measured, all ten:
+	 *
+	 * | model | triangles | rig | clips |
+	 * |---|---|---|---|
+	 * | `infernal_magma_hound` | 12,538 | **skinned** | **Idle, Walk** |
+	 * | `hell_hound` | 12,554 | none | none (40 meshes, 40 submissions) |
+	 * | `cod_ghosts_hellhound` | 14,764 | skinned | **none** (and 33 m tall as authored) |
+	 * | `volcanic_damaged_elemental` | 72,060 | none | none (117 m across) |
+	 * | `giant_stone_magma_golem` | **1,000,042** | none | none |
+	 * | `volcanic_stone_lava_magma_golem` | **971,932** | none | none |
+	 *
+	 * The two golems are each roughly twice the entire mobile triangle budget for one creature. The
+	 * rigless ones would stand frozen mid-stride, which is the same trap `worldPropExclusions.js` files
+	 * `arya_stark.glb` under. This one is dog-sized (0.59 x 1.70 x 1.09 m), one draw call, and ships the
+	 * two clips this controller needs — so it is the one that ships.
+	 *
+	 * No `flee` clip, deliberately: it does not flee. `spawnConfiguredAnimals` gates the reactive branch
+	 * on `aggressive` as well as on a flee clip for exactly this case.
+	 */
+	magmaHound: Object.freeze({
+		modelUrl: 'assets/models/fbx/infernal_magma_hound_-_free_lava_creature_asset.glb',
+		clips: Object.freeze({ idle: 'Idle', walk: 'Walk' }),
+		aggressive: true,
+		/** Wider than the flee trigger (15 m): a hunting pack notices you before a wolf would bolt. */
+		chargeTriggerRadiusMeters: 34,
+		/** Below the player's own run speed, so a charge is a real threat that can still be escaped —
+		 * a pack that is strictly faster than the player is not a fight, it is a death sentence. */
+		chargeSpeedMps: 3.9,
+	}),
 	horse: Object.freeze({
 		modelUrl: 'assets/models/animals/white_horse_bEdE4rmZy9.glb',
 		clips: Object.freeze({ idle: 'Idle', walk: 'Walk', flee: 'Gallop' }),
@@ -117,7 +174,9 @@ export const ANIMAL_CONFIG = Object.freeze({
 	/** Per-species model/clip table (see `ANIMAL_SPECIES`). Exposed on `ANIMAL_CONFIG` too so
 	 * `spawnConfiguredAnimals` keeps taking exactly one config object, as it already did. */
 	SPECIES: ANIMAL_SPECIES,
-	WOLF_MODEL_URL: 'assets/models/animals/wolf/Wolf-Blender-2.82a.glb',
+	/** Fallback for a `SPAWNS` entry that names no species. The `.gltf`, for the reason given on
+	 * `ANIMAL_SPECIES.wolf.modelUrl` — the `.glb` beside it is a Git LFS pointer that never loads. */
+	WOLF_MODEL_URL: 'assets/models/animals/wolf/Wolf-Blender-2.82a.gltf',
 	HORSE_MODEL_URL,
 	/** Exact glTF animation-clip names (`THREE.AnimationClip.findByName`) — confirmed against the
 	 * source file's own `.gltf` JSON sidecar, not guessed: `01_Run_Armature_0`, `02_walk_Armature_0`,
@@ -174,6 +233,100 @@ export const ANIMAL_CONFIG = Object.freeze({
 	 * -> wolf-3 pack-flees off wolf-2, one frame later) is the only path that reaches wolf-3 — see
 	 * DECISIONS.md ADR-0030 for the live verification this was added to run. */
 	SPAWNS: Object.freeze([
+		// The Doom of Valyria (run 407, corrected in run 410). Two packs and two lone hunters: pack
+		// members sit inside one another's `PACK_ALERT_RADIUS_METERS` so they rouse together, the lone
+		// pair is far outside it so the Doom is not uniformly crowded. `mapAnchor` rather than `seatId`
+		// because Valyria is a region with no castle in it.
+		//
+		// **Run 407 put all nine in the wrong place and its own check agreed with it.** `mapAnchor` is
+		// normalized and `mapToWorldXZ` takes map units, so the pair went in unscaled and landed the
+		// pack at world (-6647, -5170) — 9.6 km from the Doom, where `valyriaInfluenceAtWorldXZ` reads
+		// **0**. That run then probed ground heights around those coordinates, found land, and reported
+		// the hounds correctly placed: true about the ground, wrong about the place. The conversion is
+		// fixed in `gameplay/animals.js`; these offsets are re-measured against the real Valyria, whose
+		// core sits at world (-731, 2430) on high ground at **278 m**, not — as run 407 also wrongly
+		// concluded from the same bad coordinates — under open water.
+		Object.freeze({
+			id: 'valyria-magma-hound-pack-a-1',
+			speciesId: 'magmaHound',
+			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
+			offsetXMeters: 0,
+			offsetZMeters: -50,
+			rotationYRadians: 1.3,
+			patrol: Object.freeze({ toOffsetXMeters: 35, toOffsetZMeters: -75 }),
+		}),
+		Object.freeze({
+			id: 'valyria-magma-hound-pack-a-2',
+			speciesId: 'magmaHound',
+			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
+			offsetXMeters: 50,
+			offsetZMeters: -50,
+			rotationYRadians: 2.6,
+			patrol: Object.freeze({ toOffsetXMeters: 85, toOffsetZMeters: -75 }),
+		}),
+		Object.freeze({
+			id: 'valyria-magma-hound-pack-a-3',
+			speciesId: 'magmaHound',
+			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
+			offsetXMeters: -50,
+			offsetZMeters: -50,
+			rotationYRadians: 3.9,
+			patrol: Object.freeze({ toOffsetXMeters: -15, toOffsetZMeters: -75 }),
+		}),
+		Object.freeze({
+			id: 'valyria-magma-hound-pack-a-4',
+			speciesId: 'magmaHound',
+			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
+			offsetXMeters: 0,
+			offsetZMeters: -100,
+			rotationYRadians: 5.2,
+			patrol: Object.freeze({ toOffsetXMeters: 35, toOffsetZMeters: -125 }),
+		}),
+		Object.freeze({
+			id: 'valyria-magma-hound-pack-b-1',
+			speciesId: 'magmaHound',
+			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
+			offsetXMeters: -100,
+			offsetZMeters: 0,
+			rotationYRadians: 2.1,
+			patrol: Object.freeze({ toOffsetXMeters: -130, toOffsetZMeters: -30 }),
+		}),
+		Object.freeze({
+			id: 'valyria-magma-hound-pack-b-2',
+			speciesId: 'magmaHound',
+			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
+			offsetXMeters: -100,
+			offsetZMeters: -50,
+			rotationYRadians: 4.2,
+			patrol: Object.freeze({ toOffsetXMeters: -130, toOffsetZMeters: -80 }),
+		}),
+		Object.freeze({
+			id: 'valyria-magma-hound-pack-b-3',
+			speciesId: 'magmaHound',
+			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
+			offsetXMeters: -50,
+			offsetZMeters: 0,
+			rotationYRadians: 6.3,
+			patrol: Object.freeze({ toOffsetXMeters: -80, toOffsetZMeters: -30 }),
+		}),
+		Object.freeze({
+			id: 'valyria-magma-hound-lone-1',
+			speciesId: 'magmaHound',
+			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
+			offsetXMeters: 0,
+			offsetZMeters: 100,
+			rotationYRadians: 3.0,
+			patrol: Object.freeze({ toOffsetXMeters: 40, toOffsetZMeters: 135 }),
+		}),
+		Object.freeze({
+			id: 'valyria-magma-hound-lone-2',
+			speciesId: 'magmaHound',
+			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
+			offsetXMeters: 50,
+			offsetZMeters: 50,
+			rotationYRadians: 6.0,
+			patrol: Object.freeze({ toOffsetXMeters: 90, toOffsetZMeters: 85 }),
+		}),
 		Object.freeze({
 			id: 'berkalp-wolf-1',
 			seatId: 'berkalp',

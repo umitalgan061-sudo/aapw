@@ -216,7 +216,11 @@ export class KeyboardInput {
 		if (gamepad.parryPressed) guarding = true;
 		const jumpRequested = this._jumpRequested;
 		this._jumpRequested = false;
-		return { forward: Math.max(-1, Math.min(1, forward)), strafe: Math.max(-1, Math.min(1, strafe)), running, jumpRequested: jumpRequested || dodgeRequested, lockOnRequested: this._lockOnRequested, guarding, lookX: gamepad.lookX, lookY: gamepad.lookY, cameraZoom: gamepad.cameraZoom, lookDeltaSeconds: gamepad.lookDeltaSeconds };
+		// Run 409: the *held* state of the same control, for `gameplay/player.js`'s ascent. `jumpRequested`
+		// above is edge-triggered and self-clearing, so it cannot answer "is the player still holding up?".
+		let ascendHeld = this._gamepadButtons.jump === true;
+		if (!ascendHeld) for (const code of this._keys) { if (JUMP_KEYS.has(code)) { ascendHeld = true; break; } }
+		return { forward: Math.max(-1, Math.min(1, forward)), strafe: Math.max(-1, Math.min(1, strafe)), running, jumpRequested: jumpRequested || dodgeRequested, ascendHeld, lockOnRequested: this._lockOnRequested, guarding, lookX: gamepad.lookX, lookY: gamepad.lookY, cameraZoom: gamepad.cameraZoom, lookDeltaSeconds: gamepad.lookDeltaSeconds };
 	}
 	consumeLockOnRequested() { const requested = this._lockOnRequested; this._lockOnRequested = false; return requested; }
 	dispose() {

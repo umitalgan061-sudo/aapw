@@ -30,7 +30,7 @@ export function installEditorLiveWorldVisualSync(api, liveSurface = window.__WES
     lastNightFactor = dayNight.nightFactor;
     updateWater(state.water, api.camera.position, lastElapsedSeconds);
     updateFlowAnimation(state.river, lastElapsedSeconds);
-    for (const waterfall of state.waterfalls) updateFlowAnimation(waterfall, lastElapsedSeconds);
+    for (const feature of state.waterFeatures) updateFlowAnimation(feature, lastElapsedSeconds);
     updateAuroraSky(state.sky, api.camera.position, lastElapsedSeconds, dayNight);
     updateStarfield(state.stars, api.camera.position, lastElapsedSeconds, dayNight.nightFactor);
     frame = window.requestAnimationFrame(tick);
@@ -141,7 +141,7 @@ export function installEditorBrightAuthoringVisualSync(api, liveSurface = window
     };
     updateWater(state.water, api.camera.position, lastElapsedSeconds);
     updateFlowAnimation(state.river, lastElapsedSeconds);
-    for (const waterfall of state.waterfalls) updateFlowAnimation(waterfall, lastElapsedSeconds);
+    for (const feature of state.waterFeatures) updateFlowAnimation(feature, lastElapsedSeconds);
     updateAuroraSky(state.sky, api.camera.position, lastElapsedSeconds, authoringSky);
     updateStarfield(state.stars, api.camera.position, lastElapsedSeconds, EDITOR_STAR_FACTOR);
     frame = window.requestAnimationFrame(tick);

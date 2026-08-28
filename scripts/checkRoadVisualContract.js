@@ -4,7 +4,7 @@
  *
  * The existing roadNetworkSafetyCheck validates topology/routing/world-safety. This companion guard
  * validates what the routed network actually renders: the cart-road tier's merged mesh (stable 8m
- * ribbon width, 0.4m terrain lift, vertex/color/normal/index topology, intended dirt material) and,
+ * ribbon width, 0.06m terrain lift, vertex/color/normal/index topology, intended dirt material) and,
  * since run 314/ADR-0264, the second "patika" footpath tier's own merged mesh (same shape of
  * contract, its own 2.5m width/pale color) when the current seat layout produces at least one
  * footpath edge — plus teardown for both. Runtime sources are not modified by this check.
@@ -17,7 +17,7 @@ const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
 const EXPECTED_ROAD_WIDTH_METERS = 8;
 const EXPECTED_FOOTPATH_WIDTH_METERS = 2.5;
-const EXPECTED_VERTICAL_OFFSET_METERS = 0.4;
+const EXPECTED_VERTICAL_OFFSET_METERS = 0.06;
 const POSITION_TOLERANCE_METERS = 0.02;
 const WIDTH_TOLERANCE_METERS = 0.05;
 const COLOR_TOLERANCE = 1e-6;
@@ -39,7 +39,7 @@ async function main() {
 
 	try {
 		const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 
 		const result = await page.evaluate(async ({
 			expectedWidth,

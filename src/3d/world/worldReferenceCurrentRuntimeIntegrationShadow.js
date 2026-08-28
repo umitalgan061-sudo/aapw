@@ -62,8 +62,8 @@ export function buildCurrentSceneOwnershipInventory(state) {
 	const entries = [];
 	const seen = new Set();
 	for (const [key, label] of OPTIONAL_ROOT_FIELDS) addRoot(entries, seen, state.scene, state[key], label);
-	for (const [index, waterfall] of (state.waterfalls || []).entries()) {
-		addRoot(entries, seen, state.scene, waterfall, `waterfall:${index}`);
+	for (const [index, feature] of (state.waterFeatures || []).entries()) {
+		addRoot(entries, seen, state.scene, feature, `water-feature:${index}`);
 	}
 	for (const [key, mesh] of state.chunkManager.loaded.entries()) {
 		addRoot(entries, seen, state.scene, mesh, `terrain:${key}`);

@@ -22,6 +22,7 @@ async function waitForReady(page) {
 			const el = document.getElementById('game3d-loading');
 			return Boolean(el && el.classList.contains('g3d-loading-hidden'));
 		},
+		undefined,
 		{ timeout: GAME3D_READY_TIMEOUT_MS, polling: 250 },
 	);
 	await handle.jsonValue();

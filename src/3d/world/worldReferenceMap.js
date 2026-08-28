@@ -50,9 +50,60 @@ export const REFERENCE_WATER_ZONES = Object.freeze([
 
 export const REFERENCE_RELIEF_CHAINS = Object.freeze([
 	Object.freeze({ id: 'vale-chain', kind: 'mountain-chain', points: Object.freeze([[0.215, 0.390], [0.235, 0.435], [0.250, 0.485]]) }),
-	Object.freeze({ id: 'red-mountains', kind: 'mountain-chain', points: Object.freeze([[0.125, 0.630], [0.180, 0.625], [0.240, 0.620]]) }),
+	// Corrected in run 363 against the source image itself, which run 361 finally committed. The
+	// previous line ran [[0.125,0.630],[0.180,0.625],[0.240,0.620]]: its middle point sat south of the
+	// range in Dorne's lowland and its eastern point was not on land at all — 0.240 is open water in the
+	// Sea of Dorne, near Tyrosh. On the map the ridge runs south-west to north-east from about
+	// (0.128,0.636) to (0.190,0.591), where it meets the coast. Corroborated by this chain's own
+	// authored passes in `worldReferenceMountainRelief.js`, which were already centred near the real
+	// ridge (0.145,0.610) rather than near the recorded points — they had been tuned to compensate.
+	Object.freeze({ id: 'red-mountains', kind: 'mountain-chain', points: Object.freeze([[0.128, 0.636], [0.158, 0.604], [0.190, 0.591]]) }),
 	Object.freeze({ id: 'bone-mountains', kind: 'mountain-chain', points: Object.freeze([[0.700, 0.385], [0.705, 0.500], [0.715, 0.650]]) }),
 	Object.freeze({ id: 'eastern-chain', kind: 'mountain-chain', points: Object.freeze([[0.955, 0.680], [0.950, 0.800], [0.945, 0.910]]) }),
+
+	// ---- ridges read off map.png itself (run 380) -------------------------------------------------
+	//
+	// **The four chains above were the entire mountain system of the world**, three points each, and the
+	// owner's complaint followed directly from that: "tek büyük kocaman dağ yerine daha sivri ama sıra
+	// dağ gruplarına önem ver". A one-kilometre chain under a 1.6 km-wide relief profile can only ever
+	// be a single lump, however sharp its flanks are made. Westeros' whole mountain content was two
+	// three-point polylines.
+	//
+	// These are not invented. `resimler/map.png` draws its mountains as hachured grey ridges; eroding
+	// that grey (which drops the castle icons and the text labels, both of which are also grey) leaves
+	// 13,769 pixels in 1,464 marks, and the twenty marks larger than 120 px are the ranges the
+	// cartographer actually drew. Each one's points are the centroids of seven bins along its own
+	// principal axis, so a polyline follows the mark's real spine rather than a straight line through
+	// its ends. They are short — 200 to 750 m — because that is how long the drawn ridges are, and a
+	// scatter of short ranges is what "sıra dağ grupları" means.
+	//
+	// Adding twenty chains costs almost nothing per height sample: `worldReferenceMountainRelief.js`
+	// rejects a chain on its bounding box before touching its segments, so a point away from a ridge
+	// still does twenty cheap comparisons and no distance maths.
+	//
+	// The numbering has gaps — 01, 06, 13, 15 and 18 are absent — because five of the twenty extracted
+	// marks landed on water. `coastalReliefTaper` scales relief to a floor of 0.12 there, so a 328 m
+	// profile produced 41 m and the mark was cartography (a label or an icon over sea) rather than a
+	// drawn ridge. `checkMountainRanges.js` is what says so: it measures each chain's own peak relief
+	// and fails any that clears under 40 m. A dead chain is not free — it reads in this list as though
+	// that range exists, and costs a bounding-box test on every height sample forever — so they are
+	// deleted rather than left in as decor. The ids are kept stable so the extraction can be re-run
+	// against this list; do not renumber to close the gaps.
+	Object.freeze({ id: 'map-ridge-02', kind: 'mountain-chain', points: Object.freeze([[0.4103, 0.7283], [0.4160, 0.7244], [0.4218, 0.7227], [0.4273, 0.7208], [0.4351, 0.7261], [0.4390, 0.7141], [0.4419, 0.7038]]) }),
+	Object.freeze({ id: 'map-ridge-03', kind: 'mountain-chain', points: Object.freeze([[0.7645, 0.4434], [0.7682, 0.4506], [0.7733, 0.4529], [0.7775, 0.4571], [0.7812, 0.4637], [0.7866, 0.4666], [0.7898, 0.4709]]) }),
+	Object.freeze({ id: 'map-ridge-04', kind: 'mountain-chain', points: Object.freeze([[0.9039, 0.8210], [0.9100, 0.8164], [0.9123, 0.8116], [0.9184, 0.8076], [0.9186, 0.8013], [0.9187, 0.7908], [0.9190, 0.7835]]) }),
+	Object.freeze({ id: 'map-ridge-05', kind: 'mountain-chain', points: Object.freeze([[0.4487, 0.7613], [0.4483, 0.7559], [0.4488, 0.7517], [0.4517, 0.7487], [0.4539, 0.7446], [0.4524, 0.7390], [0.4536, 0.7355]]) }),
+	Object.freeze({ id: 'map-ridge-07', kind: 'mountain-chain', points: Object.freeze([[0.9116, 0.8343], [0.9151, 0.8343], [0.9189, 0.8299], [0.9223, 0.8255], [0.9261, 0.8240], [0.9313, 0.8281], [0.9339, 0.8256]]) }),
+	Object.freeze({ id: 'map-ridge-08', kind: 'mountain-chain', points: Object.freeze([[0.0946, 0.3048], [0.0947, 0.2991], [0.0960, 0.2951], [0.0959, 0.2898], [0.0972, 0.2855], [0.0980, 0.2804], [0.1001, 0.2769]]) }),
+	Object.freeze({ id: 'map-ridge-09', kind: 'mountain-chain', points: Object.freeze([[0.7088, 0.4769], [0.7095, 0.4835], [0.7089, 0.4907], [0.7111, 0.4978], [0.7143, 0.5022], [0.7172, 0.5065], [0.7229, 0.5117]]) }),
+	Object.freeze({ id: 'map-ridge-10', kind: 'mountain-chain', points: Object.freeze([[0.9468, 0.7664], [0.9450, 0.7729], [0.9458, 0.7779], [0.9479, 0.7816], [0.9489, 0.7874], [0.9515, 0.7908], [0.9523, 0.7965]]) }),
+	Object.freeze({ id: 'map-ridge-11', kind: 'mountain-chain', points: Object.freeze([[0.2147, 0.2232], [0.2148, 0.2191], [0.2135, 0.2152], [0.2150, 0.2115], [0.2138, 0.2073], [0.2141, 0.2033], [0.2159, 0.1987]]) }),
+	Object.freeze({ id: 'map-ridge-12', kind: 'mountain-chain', points: Object.freeze([[0.9319, 0.7779], [0.9312, 0.7844], [0.9310, 0.7887], [0.9304, 0.7945], [0.9299, 0.7997], [0.9316, 0.8044], [0.9344, 0.8110]]) }),
+	Object.freeze({ id: 'map-ridge-14', kind: 'mountain-chain', points: Object.freeze([[0.6767, 0.6011], [0.6791, 0.6049], [0.6813, 0.6095], [0.6838, 0.6135], [0.6872, 0.6161], [0.6901, 0.6201], [0.6931, 0.6228]]) }),
+	Object.freeze({ id: 'map-ridge-16', kind: 'mountain-chain', points: Object.freeze([[0.1736, 0.2022], [0.1766, 0.2032], [0.1784, 0.1986], [0.1803, 0.1945], [0.1832, 0.1936], [0.1854, 0.1915], [0.1905, 0.1979]]) }),
+	Object.freeze({ id: 'map-ridge-17', kind: 'mountain-chain', points: Object.freeze([[0.1994, 0.1851], [0.2024, 0.1843], [0.2048, 0.1857], [0.2072, 0.1921], [0.2097, 0.1918], [0.2129, 0.1866], [0.2153, 0.1867]]) }),
+	Object.freeze({ id: 'map-ridge-19', kind: 'mountain-chain', points: Object.freeze([[0.1065, 0.2152], [0.1090, 0.2182], [0.1110, 0.2220], [0.1131, 0.2257], [0.1158, 0.2299], [0.1183, 0.2327], [0.1195, 0.2374]]) }),
+	Object.freeze({ id: 'map-ridge-20', kind: 'mountain-chain', points: Object.freeze([[0.7156, 0.4597], [0.7148, 0.4547], [0.7124, 0.4508], [0.7108, 0.4456], [0.7151, 0.4415], [0.7155, 0.4369], [0.7143, 0.4316]]) }),
 ]);
 
 export function normalizedMapToWorldXZ(normalizedX, normalizedY, mapBounds, metersPerMapUnit) {

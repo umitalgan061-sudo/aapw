@@ -27,15 +27,11 @@
  * first pass of static, idling NPCs (`gameplay/npc.js`) reusing the same Mixamo FBX pipeline
  * stands near the `stannis` kingdom seat — see ADR-0019. FAZ 5/6 NPC and animal spawn-resolution
  * wiring now lives in `gameplay/npc.js`'s `spawnConfiguredNPCs` / `gameplay/animals.js`'s
- * `spawnConfiguredAnimals` (run 29), not this file — see ADR-0028. The renderer/scene/camera
- * bootstrap itself (terrain boot-preview, water/sky/stars/lighting, river/settlements, colliders,
- * the F4 debug camera) lives in `sceneManager.js`'s `createScene` (run 40, ADR-0052) — this file
- * owns the tick loop and lifecycle wiring that calls it, not scene construction. The tick loop's
- * pure per-frame helpers (camera-relative movement, axis merging, chase-camera occluder
- * collection, chunk streaming, resize wiring) live in `gameLoopHelpers.js` (run 105) — split out
- * purely to stay under the 600-line file cap, no behavior change. The NPC/animal/procedural-
- * creature/dragon spawn wiring likewise moved to `gameplay/livingWorldSpawner.js` (run 332),
- * same reasoning, same no-behavior-change guarantee.
+ * `spawnConfiguredAnimals` (run 29), not this file — see ADR-0028. Scene construction itself lives
+ * in `sceneManager.js`'s `createScene` (run 40, ADR-0052); the tick loop's pure per-frame helpers in
+ * `gameLoopHelpers.js` (run 105); the NPC/animal/creature/dragon spawn wiring in
+ * `gameplay/livingWorldSpawner.js` (run 332). All three were split out purely to stay under the
+ * 600-line file cap, with no behavior change — this file owns the tick loop and lifecycle wiring.
  * See 3D_GAME_PROGRESS.md for what's next.
  * @module game3d
  */
@@ -66,6 +62,7 @@ import { createWorldEventSystem } from './gameplay/worldEvents.js';
 import { updateWater, disposeWater } from './world/water.js';
 import { disposeRiverMesh, disposeWaterfallMesh, updateFlowAnimation } from './world/rivers.js';
 import { disposeSettlements, disposeRealCastleModels, spawnRealCastleModels, mapToWorldXZ } from './world/settlements.js';
+import { initWorldDressing, disposeWorldDressing } from './world/worldDressing.js';
 import { disposeRoadNetwork } from './world/roads.js';
 import { disposeVegetation } from './world/vegetation.js';
 import { disposeVillages } from './world/villages.js';
@@ -77,6 +74,7 @@ import { createVegetation } from './world/vegetation.js';
 import { CHUNK_CONFIG } from './config.js';
 import { resolveCameraCollision } from './camera.js';
 import { updateAuroraSky, disposeAuroraSky } from './sky.js';
+import { updateSkyBodies } from './skyBodies.js';
 import { updateStarfield, disposeStarfield } from './stars.js';
 import { updateDayNightLighting, disposeDayNightLighting } from './lighting.js';
 import { updateFog } from './fog.js';
@@ -139,6 +137,8 @@ export async function initGame3D() {
 			seed: WORLD_DEFAULTS.WORLD_SEED,
 		});
 		state.scene.add(state.realCastles);
+
+		state.worldDressing = await initWorldDressing({ assetLoader, state });  // ADR-0312 / ADR-0313
 
 		// FAZ 4: playable character. Loaded after the terrain/sky/water scene so the loading overlay
 		// (hidden only once GAME_READY's "phase1-scene" fires below) stays up for the ~6MB of
@@ -280,7 +280,7 @@ export async function initGame3D() {
 		// spawner: the shadow decision is a render-budget concern owned by `renderQuality.js`, not
 		// something six unrelated gameplay modules should each re-derive. Enumerated per collection
 		// instead of traversing `state.scene` wholesale, so the surfaces deliberately left out of
-		// shadowing (sky, stars, water, river, waterfalls) stay out.
+		// shadowing (sky, stars, water, river, waterFeatures) stay out.
 		const shadowOpts = { quality: state.renderQuality };
 		applyShadowRoles(state.player?.object3D, shadowOpts);
 		for (const collection of [state.npcs, state.animals, state.creatures, state.carts, state.dragons]) {
@@ -380,7 +380,7 @@ export async function initGame3D() {
 			// 3D_GAME_PROGRESS.md Known Issues) — read straight off `keyboardAxes`, not the merged `axes`.
 			// Run 166 supersedes the legacy keyboard-only note above: the mobile button feeds the same edge-trigger flag.
 			if (state.touchJoystick?.consumeJumpRequested()) keyboardAxes.jumpRequested = true;
-			state.player.update(delta, moveDirection, axes.running, keyboardAxes.jumpRequested);
+			state.player.update(delta, moveDirection, axes.running, keyboardAxes.jumpRequested, axes.ascendHeld);
 			// player.update() above already moved player.object3D synchronously this frame, so this
 			// read is current — safe to feed into each NPC's combat-stance check and each animal's
 			// flee-awareness check below.
@@ -502,14 +502,16 @@ export async function initGame3D() {
 			state.freeCamera.update(delta);
 			const viewCamera = state.freeCamera.active ? state.freeCamera.camera : state.camera;
 			updateAuroraSky(state.sky, viewCamera.position, elapsedSeconds, dayNight);
+			// Sun/moon discs and moonlight, read off the sun light itself — see `skyBodies.js`.
+			updateSkyBodies(state.skyBodies, viewCamera.position, state.lights.sun, dayNight.nightFactor);
 			updateStarfield(state.stars, viewCamera.position, elapsedSeconds, dayNight.nightFactor);
 			updateFog(state.scene.fog, dayNight);
 			if (state.freeCamera.active) state.scene.fog.density = 0; // see debug/README.md's Conventions.
 			updateWater(state.water, viewCamera.position, elapsedSeconds);
-			// Downstream foam on the river and its waterfall curtains (ADR-0271). Both are no-ops
+			// Downstream foam on the river, the named rivers and the waterfall curtains. All no-ops
 			// when the mesh is absent or its material never got the flow injection.
 			updateFlowAnimation(state.river, elapsedSeconds);
-			for (const waterfall of state.waterfalls) updateFlowAnimation(waterfall, elapsedSeconds);
+			for (const feature of state.waterFeatures) updateFlowAnimation(feature, elapsedSeconds);
 
 			// Wall-avoidance: pull the camera in front of any terrain/castle occluding the line from
 			// the player to it. Applied last (after sky/stars/water already used the true free-orbit
@@ -570,9 +572,10 @@ export async function initGame3D() {
 			disposeStarfield(state.stars);
 			disposeWater(state.water);
 			if (state.river) disposeRiverMesh(state.river);
-			state.waterfalls.forEach(disposeWaterfallMesh);
+			state.waterFeatures.forEach(disposeWaterfallMesh);
 			disposeSettlements(state.settlements);
 			disposeRealCastleModels(state.realCastles);
+			if (state.worldDressing) disposeWorldDressing(state.worldDressing);
 			disposeRoadNetwork(state.roads);
 			disposeVegetation(state.vegetation);
 			disposeVillages(state.villages);

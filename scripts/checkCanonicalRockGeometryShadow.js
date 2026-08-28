@@ -65,7 +65,7 @@ async function measure() {
 	const browser = await playwright.chromium.launch({ headless: true });
 	try {
 		const page = await browser.newPage({ viewport: { width: 640, height: 480 } });
-		await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+		await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 		return await page.evaluate(async () => {
 			const THREE = await import('/src/3d/vendor/three/three.module.js');
 			const rock = await import('/src/3d/world/worldReferenceRockShadow.js');

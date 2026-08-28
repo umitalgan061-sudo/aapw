@@ -108,9 +108,28 @@ export const TERRAIN_RELIEF_DETAIL_POLICY = Object.freeze({
 	dissectionFrequency: 110,
 	dissectionOctaves: 4,
 	dissectionFullElevationMeters: 220,
-	roughnessAmplitudeMeters: 2.0,
-	roughnessFrequency: 295,
-	roughnessOctaves: 3,
+	/**
+	 * Surface roughness — the layer that finally makes the ground itself non-smooth at the scale a
+	 * player stands on, unblocked by run 357 / ADR-0304's road cut-and-fill.
+	 *
+	 * **Why it could not exist before.** ADR-0303 measured that this layer's *wavelength*, not its
+	 * amplitude, is what tripped `scripts/roadNetworkSafetyCheck.js`: 45 m -> 39 m alone took road
+	 * grade 19.4 -> 24.3 deg, while cutting amplitude 7.5 m -> 3.0 m moved it 25.2 -> 24.3 deg, i.e.
+	 * almost nothing. `world/roadPathfinder.js` samples on a 60 m grid, so terrain near that wavelength
+	 * was being scored as a cliff by aliasing. Now that roads run on their own smoothed bed, the gate
+	 * measures the road instead of the noise beside it, and this layer is free.
+	 *
+	 * Base wavelength is ~39 m; four octaves carry it down to ~4.9 m, which is what the 3.9 m near-band
+	 * mesh from ADR-0303 can actually render — the two changes only pay off together.
+	 *
+	 * Still elevation-ramped: real lowland plains are smoother than mountain flanks, and lowlands are
+	 * where villages and roads sit.
+	 */
+	roughnessAmplitudeLowMeters: 3.5,
+	roughnessAmplitudeHighMeters: 14.0,
+	roughnessFullElevationMeters: 260,
+	roughnessFrequency: 420,
+	roughnessOctaves: 4,
 	/** Above this elevation the relief may carve downward at full strength; below it, downward
 	 * carving is scaled toward zero so the coastal plain cannot be punched below sea level. */
 	negativeReliefFullElevationMeters: 28,
@@ -291,9 +310,13 @@ export function reliefDetailMeters(normalizedX, normalizedY, { heightAboveSeaMet
 	const dissection = ridged2(normalizedX * P.dissectionFrequency + 71.5, normalizedY * P.dissectionFrequency - 24.2, P.dissectionOctaves);
 	metres += (dissection - 0.5) * 2 * dissectionAmplitude * landGate;
 
-	// Surface roughness: short-wavelength signed noise so even flat ground is never a plane.
+	// Surface roughness: short-wavelength signed noise so even flat ground is never a plane. Ramped by
+	// elevation — see the policy note above for why this layer was capped until roads got their own bed.
+	const roughnessRamp = clamp01(heightAboveSeaMeters / P.roughnessFullElevationMeters);
+	const roughnessAmplitude = P.roughnessAmplitudeLowMeters
+		+ (P.roughnessAmplitudeHighMeters - P.roughnessAmplitudeLowMeters) * roughnessRamp * roughnessRamp;
 	const roughness = fbm2(normalizedX * P.roughnessFrequency - 55.8, normalizedY * P.roughnessFrequency + 12.7, P.roughnessOctaves);
-	metres += roughness * P.roughnessAmplitudeMeters * landGate;
+	metres += roughness * roughnessAmplitude * landGate;
 
 	// Low ground may be *raised* into hills but must not be *carved* below the waterline. Symmetric
 	// noise at these amplitudes dug holes through the coastal plain — 80% of this world's land sits

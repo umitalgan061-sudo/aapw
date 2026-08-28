@@ -37,7 +37,12 @@ const ROAD_WIDTH_METERS = 8;
 /** Meters above the sampled terrain height the ribbon is raised — avoids z-fighting with the ground
  * mesh directly beneath it. Slightly larger than `world/rivers.js`'s 0.3m offset since roads sit on
  * dry, often-rougher fine-noise terrain (no water surface smoothing nearby to hide a thinner gap). */
-const VERTICAL_OFFSET_METERS = 0.4;
+// Run 406: 0.06 m, down from 0.4 m. At eye level a 40 cm lift does not read as a road, it reads as a
+// causeway -- the close-up render showed the tan surface standing above the ground on both sides with
+// a hard vertical drop, which is the single largest reason the roads looked artificial. The lift was
+// only ever there to keep the ribbon out of the terrain's own depth values; `polygonOffset` on the
+// material does that job properly, without pushing the surface into the air.
+const VERTICAL_OFFSET_METERS = 0.06;
 
 /** Dirt/path color — a warm tan-brown, deliberately distinct from `world/terrain.js`'s grass
  * (`0x3d6b28`) and bare-rock (`0x6b6152`) height colors so the road reads clearly against either. */
@@ -128,7 +133,10 @@ export function computeSeatMST(seats) {
  *   (`ROAD_WIDTH_METERS`) so existing callers are unaffected.
  * @param {THREE.Color} [color] Ribbon color — defaults to `ROAD_COLOR`.
  */
-function appendRoadRibbon(buffers, points, widthMeters = ROAD_WIDTH_METERS, color = ROAD_COLOR) {
+// Exported additively in run 361 so `world/worldReferenceRoadNetwork.js` can draw the owner map's own
+// highways with exactly this ribbon geometry, rather than growing a second, slightly different one.
+// The MST network above is untouched.
+export function appendRoadRibbon(buffers, points, widthMeters = ROAD_WIDTH_METERS, color = ROAD_COLOR, sampleHeightMeters = null) {
 	if (points.length < 2) return;
 	const halfWidth = widthMeters / 2;
 	const baseVertex = buffers.positions.length / 3;
@@ -143,9 +151,25 @@ function appendRoadRibbon(buffers, points, widthMeters = ROAD_WIDTH_METERS, colo
 		const perpX = -tangentZ / tangentLength;
 		const perpZ = tangentX / tangentLength;
 
+		// **Each edge of the ribbon is grounded on its own terrain, not on the centreline's.**
+		// Both edge vertices used to take `point.y`, the height sampled at the middle of the road. That
+		// is only correct where the ground is level *across* the road: on any cross-slope the ribbon
+		// stays horizontal while the ground under it tilts, so the downhill edge lifts into the air by
+		// half the width times the cross-grade — a 30-degree cross-slope floats a 4 m half-width by
+		// 2.3 m — and the uphill edge buries itself. That is the pale sheet standing off the hillside in
+		// the village renders. Sampling each edge where it actually lies makes the ribbon follow the
+		// ground it is lying on. Falls back to the centreline height when no sampler is supplied, so
+		// existing callers keep their current behaviour.
+		const leftX = point.x + perpX * halfWidth;
+		const leftZ = point.z + perpZ * halfWidth;
+		const rightX = point.x - perpX * halfWidth;
+		const rightZ = point.z - perpZ * halfWidth;
+		const leftY = sampleHeightMeters ? sampleHeightMeters(leftX, leftZ) : point.y;
+		const rightY = sampleHeightMeters ? sampleHeightMeters(rightX, rightZ) : point.y;
+
 		buffers.positions.push(
-			point.x + perpX * halfWidth, point.y + VERTICAL_OFFSET_METERS, point.z + perpZ * halfWidth,
-			point.x - perpX * halfWidth, point.y + VERTICAL_OFFSET_METERS, point.z - perpZ * halfWidth,
+			leftX, leftY + VERTICAL_OFFSET_METERS, leftZ,
+			rightX, rightY + VERTICAL_OFFSET_METERS, rightZ,
 		);
 		buffers.colors.push(color.r, color.g, color.b, color.r, color.g, color.b);
 
@@ -222,7 +246,7 @@ export function buildRoadNetwork({ seats, sampleHeightMeters }) {
 				start: { x: from.x, z: from.z },
 				end: { x: to.x, z: to.z },
 			});
-			appendRoadRibbon(buffers, points, widthMeters, color);
+			appendRoadRibbon(buffers, points, widthMeters, color, sampleHeightMeters);
 
 			let lengthMeters = 0;
 			for (let i = 1; i < points.length; i++) {
@@ -244,7 +268,14 @@ export function buildRoadNetwork({ seats, sampleHeightMeters }) {
 		geometry.setIndex(buffers.indices);
 		geometry.computeVertexNormals();
 
-		const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0, side: THREE.DoubleSide });
+// `polygonOffset` is what keeps the ribbon in front of the terrain now that it is only 6 cm above it
+// -- a depth bias applied at rasterisation rather than a physical lift, so the road lies on the ground
+// instead of hovering over it. The four properties `scripts/checkRoadVisualContract.js` pins (type,
+// vertexColors, roughness, metalness, side) are unchanged.
+		const material = new THREE.MeshStandardMaterial({
+			vertexColors: true, roughness: 0.95, metalness: 0, side: THREE.DoubleSide,
+			polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8,
+		});
 		const mesh = new THREE.Mesh(geometry, material);
 		mesh.name = name;
 		return mesh;
@@ -353,4 +384,155 @@ diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.42, 0.38, 0.31), run177Stone * 0
 
 buildRoadNetwork = function buildRoadNetworkWithMedievalSurfaceRun177(options) {
 	return applyMedievalRoadSurfaceRun177(buildRoadNetworkBeforeMedievalSurfaceRun177(options));
+};
+
+
+// RUN 406 — "yollar çok yapay görünüyor": the road stops being a painted band.
+//
+// The owner's own reference is in the repository. PR #961 ("yol glb ekledim") uploaded
+// `fbx/dusty_path_in_the_fields.glb` and `fbx/snowy_road.glb`, and `fbx/dirt_road_test.glb` sits
+// beside them. Rendering `dirt_road_test.glb` — a textured dirt track on grass — against what this
+// module draws says exactly where the artificial look comes from, and it is not the surface detail
+// run 177 added:
+//
+// | the reference | this module before run 406 |
+// |---|---|
+// | the dirt frays into the grass, boundary meanders | one straight edge, ruler-perfect |
+// | grass creeps in, worn brown ground either side | dirt meets green with nothing between |
+// | lighter and darker stretches along its length | one flat tan the whole way |
+//
+// So: a **ragged, wandering boundary** instead of a straight cut, a **worn verge** where the dirt
+// gives way to trodden ground, and **large-scale variation along the road**. All three are fragment
+// shader work on the ribbon that is already there.
+//
+// **Nothing this run touches is measured by an existing contract.** `checkRoadVisualContract.js`
+// pins the geometry (centre, width, vertical offset, per-vertex colour) and the material's type,
+// `vertexColors`, `roughness`, `metalness` and `side`; `checkMedievalRoadSurface.js` pins run 177's
+// `roadSide` attribute, its `userData` style block and its program cache key. This adds one float
+// attribute and chains `onBeforeCompile`, and changes no material property and no vertex — the
+// boundary is cut with `discard`, which is why it needs no `alphaTest` flag and no transparency
+// (transparency would have put a sorted, depth-writing surface over the terrain for a look that
+// `discard` gives outright).
+//
+// It keeps run 177's cache key deliberately: that key is asserted by name, and both patches are
+// applied unconditionally to every road material, so a program compiled under it is always this
+// shader. Add a third patch that can be applied selectively and that stops being true.
+const RUN406_NATURAL_ROAD_EDGE_KEY = 'run406-natural-road-edge-v1';
+const buildRoadNetworkBeforeNaturalEdgeRun406 = buildRoadNetwork;
+
+/** Its own attribute rather than run 177's `roadSide`: re-declaring that one in the same shader is a
+ * compile error, and a second float per vertex is cheaper than making the two patches aware of each
+ * other. Same convention — `-1` on the left edge, `+1` on the right. */
+function ensureRun406SideAttribute(geometry) {
+	if (geometry.getAttribute('run406RoadSide')) return true;
+	const positions = geometry.getAttribute('position');
+	if (!positions || positions.count % 2 !== 0) return false;
+	const side = new Float32Array(positions.count);
+	for (let i = 0; i < positions.count; i += 2) {
+		side[i] = -1;
+		side[i + 1] = 1;
+	}
+	geometry.setAttribute('run406RoadSide', new THREE.BufferAttribute(side, 1));
+	return true;
+}
+
+function applyNaturalRoadEdgeRun406(network) {
+	for (const mesh of network?.group?.children ?? []) {
+		if (!mesh?.isMesh || !mesh.geometry || !mesh.material?.isMeshStandardMaterial) continue;
+		if (!ensureRun406SideAttribute(mesh.geometry)) continue;
+
+		const material = mesh.material;
+		material.userData.naturalRoadEdgeRun406 = Object.freeze({
+			key: RUN406_NATURAL_ROAD_EDGE_KEY,
+			// Fraction of the half-width that always survives; the rest is eaten by noise, so the
+			// drawn road is never wider than the ribbon and never narrower than this.
+			minimumKeptHalfWidthNormalized: 0.52,
+			extraDrawCalls: 0,
+		});
+
+		const previousOnBeforeCompile = material.onBeforeCompile.bind(material);
+		material.onBeforeCompile = (shader, renderer) => {
+			previousOnBeforeCompile(shader, renderer);
+			shader.vertexShader = shader.vertexShader
+				.replace(
+					'#include <common>',
+					'#include <common>\nattribute float run406RoadSide;\nvarying float vRun406Side;\nvarying vec3 vRun406Position;',
+				)
+				.replace(
+					'#include <begin_vertex>',
+					'#include <begin_vertex>\nvRun406Side = run406RoadSide;\nvRun406Position = position;',
+				);
+			shader.fragmentShader = shader.fragmentShader
+				.replace(
+					'#include <common>',
+					`#include <common>
+varying float vRun406Side;
+varying vec3 vRun406Position;
+float run406Hash(vec2 p) { return fract(sin(dot(p, vec2(41.7, 289.3))) * 24634.6345); }
+float run406Noise(vec2 p) {
+	vec2 cell = floor(p);
+	vec2 f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	float a = run406Hash(cell);
+	float b = run406Hash(cell + vec2(1.0, 0.0));
+	float c = run406Hash(cell + vec2(0.0, 1.0));
+	float d = run406Hash(cell + vec2(1.0, 1.0));
+	return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+float run406Fbm(vec2 p) {
+	return run406Noise(p) * 0.6 + run406Noise(p * 2.3) * 0.27 + run406Noise(p * 5.1) * 0.13;
+}`,
+				)
+				.replace(
+					'#include <color_fragment>',
+					`#include <color_fragment>
+float run406Across = abs(vRun406Side);
+// The boundary is cut in world space, so it wanders with the ground rather than with the ribbon's
+// own vertices -- two edges that happen to run parallel do not fray in step. Run 414 adds a second,
+// much finer octave on top: the coarse term alone gave big smooth lobes, which read as a deliberately
+// wavy band rather than as an edge that has been walked and rained on.
+float run406EdgeNoise = run406Fbm(vRun406Position.xz * 0.42);
+float run414EdgeFine = run406Fbm(vRun406Position.xz * 3.10);
+float run406KeptHalfWidth = 0.50 + run406EdgeNoise * 0.42 + (run414EdgeFine - 0.5) * 0.16;
+if (run406Across > run406KeptHalfWidth) discard;
+// Where the dirt gives out it does not simply stop: it thins into trodden ground with grass coming
+// back through it, which is what the owner's own reference shows either side of the track.
+float run406Verge = smoothstep(run406KeptHalfWidth * 0.55, run406KeptHalfWidth, run406Across);
+float run406Regrowth = run406Fbm(vRun406Position.xz * 1.7);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.30, 0.34, 0.19), run406Verge * (0.24 + run406Regrowth * 0.42));
+
+// --- Run 414: an actual dirt surface, not a tinted band. -----------------------------------------
+// The owner asked twice whether the roads read as real. The lift and the frayed edge fixed the shape;
+// what was left was that the surface is one flat tan at any distance you can see it from. There is no
+// texture file to reach for -- this container has no git-lfs, so no image can be committed -- so the
+// dirt is built out of the same world-space noise the edge uses, at four scales that do different
+// jobs. Zero extra draw calls, zero bytes downloaded.
+//
+// Broad damp/dry patching, metres across: the largest thing the eye picks up on a real track.
+float run414Patch = run406Fbm(vRun406Position.xz * 0.22);
+diffuseColor.rgb *= 0.78 + run414Patch * 0.44;
+// Two wheel ruts, worn darker and slightly damp, at the spacing a cart axle gives.
+float run414Rut = 1.0 - smoothstep(0.06, 0.20, abs(run406Across - 0.46));
+diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.72, 0.70, 0.66), run414Rut * 0.55);
+// The crown between and outside the ruts stays drier and paler, which is what makes ruts read as ruts.
+float run414Crown = (1.0 - run414Rut) * (1.0 - smoothstep(0.0, 0.9, run406Across));
+diffuseColor.rgb *= 1.0 + run414Crown * 0.10;
+// Grit and small stones, close to per-pixel at walking distance.
+float run414Grit = run406Fbm(vRun406Position.xz * 26.0);
+diffuseColor.rgb *= 0.86 + run414Grit * 0.30;
+// A scatter of pale stones sitting proud of the dirt.
+float run414Stone = smoothstep(0.78, 0.92, run406Fbm(vRun406Position.xz * 11.0));
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.52, 0.49, 0.43), run414Stone * 0.45 * (1.0 - run414Rut));
+// Lighter and darker stretches along the length, so no two hundred metres read the same.
+float run406Along = run406Fbm(vRun406Position.xz * 0.028);
+diffuseColor.rgb *= 0.87 + run406Along * 0.29;`,
+				);
+		};
+		material.needsUpdate = true;
+	}
+	return network;
+}
+
+buildRoadNetwork = function buildRoadNetworkWithNaturalEdgeRun406(options) {
+	return applyNaturalRoadEdgeRun406(buildRoadNetworkBeforeNaturalEdgeRun406(options));
 };

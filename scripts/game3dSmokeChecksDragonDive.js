@@ -30,7 +30,7 @@
 // change caused (confirmed: that change executes strictly after the domcontentloaded event this
 // timeout gates on). 30s gives real margin above the observed range, including one measured 20s+
 // outlier under sandbox contention.
-const NAV_TIMEOUT_MS = 30_000;
+const NAV_TIMEOUT_MS = 90_000;
 
 /**
  * Regression guard for `gameplay/dragons.js`'s dive/swoop reaction (run 64, DECISIONS.md ADR-0082) —

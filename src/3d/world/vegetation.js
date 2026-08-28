@@ -43,6 +43,8 @@
 
 import * as THREE from 'three';
 import { mulberry32 } from './terrain.js';
+import { generateForestPositions } from './vegetationForestScatter.js';
+import { valyriaInfluenceAtWorldXZ, VALYRIA_BARREN_ABOVE_INFLUENCE } from './worldReferenceValyria.js';
 
 /**
  * Two low-poly species, each a self-contained silhouette recipe. `weight` values are relative and
@@ -91,6 +93,21 @@ const SEAT_EXCLUSION_RADIUS_METERS = 90;
  * reasoning as `SEAT_EXCLUSION_RADIUS_METERS` above — keeps trees from visibly blocking the road
  * ribbon or crowding right up against its edge. */
 const ROAD_EXCLUSION_RADIUS_METERS = 10;
+/**
+ * How far vegetation and village buildings stay back from a river's centreline, in meters (run 393).
+ *
+ * Measured before this existed: 52 of 14344 scattered instances stood inside a river channel, some
+ * within 0.3 m of the centreline — trees growing mid-stream. `isPlaceablePosition` already kept clear
+ * of the sea, but a river runs *above* sea level, so the waterline test could never exclude one, and
+ * nothing else knew the courses were there.
+ *
+ * The radius is measured, not guessed. It is applied to the *traced course*, but what the player sees
+ * is the ribbon mesh, which is resampled and re-grounded (run 390) and so wanders from that polyline.
+ * Against the real rendered ribbons: no exclusion left 96 instances within 8 m of one, 11 m still left
+ * 28, and 18 m leaves 0 — at a cost of 50 trees out of 14344, or 0.35%. Same shape of rule as the road
+ * corridor immediately above.
+ */
+const RIVER_EXCLUSION_RADIUS_METERS = 18;
 /** Minimum height above `seaLevelMeters` a tree may be placed at — keeps trees off the exact
  * shoreline edge, not just fully submerged points. */
 const SHORE_MARGIN_METERS = 1.5;
@@ -155,7 +172,7 @@ export function distancePointToSegment2D(px, pz, ax, az, bx, bz) {
  * @param {{points: {x: number, z: number}[]}[]} params.roadEdges
  * @returns {boolean}
  */
-export function isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges }) {
+export function isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges, riverCourses = [] }) {
 	for (const seat of seats) {
 		if (Math.hypot(x - seat.x, z - seat.z) < SEAT_EXCLUSION_RADIUS_METERS) return false;
 	}
@@ -166,6 +183,22 @@ export function isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, 
 			if (distance < ROAD_EXCLUSION_RADIUS_METERS) return false;
 		}
 	}
+	// Rivers, on exactly the same footing as roads above. Defaults to an empty list so callers that
+	// have no river data keep their previous behaviour rather than silently losing the check.
+	for (const course of riverCourses) {
+		const points = course.points ?? course;
+		for (let i = 1; i < points.length; i++) {
+			const distance = distancePointToSegment2D(x, z, points[i - 1].x, points[i - 1].z, points[i].x, points[i].z);
+			if (distance < RIVER_EXCLUSION_RADIUS_METERS) return false;
+		}
+	}
+	// Nothing that belongs to a living country stands in the Doom (run 410, owner: "Normal görünen
+	// hiçbir şeyi Valyria'ya koyma. Orasını lanetli bölge olarak düşün."). This is the canonical
+	// placement gate -- `world/villages.js` and `gameplay/creatureSpawner.js` both route through it --
+	// so one test here keeps villages, villagers, herds, trees and grass out of Valyria at once.
+	// `world/worldPropScatter.js` already enforced the same rule for scatter props on its own.
+	if (valyriaInfluenceAtWorldXZ(x, z) > VALYRIA_BARREN_ABOVE_INFLUENCE) return false;
+
 	const groundY = sampleHeightMeters(x, z);
 	if (groundY <= seaLevelMeters + SHORE_MARGIN_METERS) return false;
 
@@ -319,10 +352,24 @@ function placeTreeInstance(entry, x, z, sampleHeightMeters, rng, up, matrix, pos
  *   predictable from `SPECIES.length` alone). `clusterSeatCount` is how many seats actually qualified
  *   for a ring (0 on mobile-sized discs — see above).
  */
-export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, seats, roadEdges, radiusMeters, densityPerKm2 = TARGET_DENSITY_PER_KM2 }) {
+export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, seats, roadEdges, riverCourses = [], radiusMeters, densityPerKm2 = TARGET_DENSITY_PER_KM2, villageHouses = [] }) {
 	const group = new THREE.Group();
 	const areaKm2 = (Math.PI * radiusMeters * radiusMeters) / 1_000_000;
 	const baseTargetCount = Math.max(0, Math.round(areaKm2 * densityPerKm2));
+
+	// Forest pass (run 358 / ADR-0305). Positions are generated up front, from `terrainBiomeShading.js`'s
+	// forest mask, so this module's instancing/species machinery is reused rather than duplicated and
+	// the woods land in the same InstancedMeshes as every other tree — one draw call per species, not
+	// two. Its own seeded stream keeps the base/cluster passes' draw order untouched.
+	const forestRng = mulberry32(seed ^ 0x464f5253); // "FORS" tag
+	const forestPositions = generateForestPositions({
+		radiusMeters,
+		sampleHeightMeters,
+		seaLevelMeters,
+		isPlaceable: (x, z) => isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges, riverCourses }),
+		rng: forestRng,
+		villageHouses,
+	});
 
 	const clusterInnerRadius = SEAT_EXCLUSION_RADIUS_METERS + CLUSTER_RING_INNER_MARGIN_METERS;
 	const clusterSeats = seats.filter((seat) => Math.hypot(seat.x, seat.z) + CLUSTER_RING_OUTER_RADIUS_METERS <= radiusMeters);
@@ -330,7 +377,7 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 	const clusterTargetPerSeat = Math.max(0, Math.round(ringAreaKm2 * CLUSTER_DENSITY_PER_KM2));
 	const clusterTargetTotal = clusterSeats.length * clusterTargetPerSeat;
 
-	const targetCount = baseTargetCount + clusterTargetTotal;
+	const targetCount = baseTargetCount + clusterTargetTotal + forestPositions.length;
 	if (targetCount === 0) return { group, targetCount: 0, placedCount: 0, clusterSeatCount: 0 };
 
 	// XOR-tagged seed, independent random stream from terrain's own noise / rivers' own tagged
@@ -373,7 +420,7 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 			const radius = radiusMeters * Math.sqrt(rng());
 			const x = Math.cos(angle) * radius;
 			const z = Math.sin(angle) * radius;
-			if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
+			if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges, riverCourses })) continue;
 
 			// Species is drawn only for an accepted position, from the same seeded stream, so v1's
 			// (ADR-0138) position/count behavior is unaffected in shape — only which species-specific
@@ -386,13 +433,20 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 		}
 	}
 
+	// Forest pass: positions were already accepted against the mask and every exclusion rule above.
+	for (const forestPoint of forestPositions) {
+		const entry = perSpecies[pickSpeciesIndex(forestRng())];
+		placeTreeInstance(entry, forestPoint.x, forestPoint.z, sampleHeightMeters, forestRng, up, matrix, position, quaternion, scaleVector);
+		placedCount++;
+	}
+
 	// Seat-local clustering ring (run 113/ADR-0140) — see this function's own doc comment for the
 	// qualification rule and the reasoning behind it.
 	for (const seat of clusterSeats) {
 		for (let treeIndex = 0; treeIndex < clusterTargetPerSeat; treeIndex++) {
 			for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_TREE; attempt++) {
 				const { x, z } = sampleAnnulusPoint(clusterRng, seat.x, seat.z, clusterInnerRadius, CLUSTER_RING_OUTER_RADIUS_METERS);
-				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
+				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges, riverCourses })) continue;
 
 				const speciesIndex = pickSpeciesIndex(clusterRng());
 				const entry = perSpecies[speciesIndex];
@@ -411,7 +465,7 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 		group.add(entry.trunkMesh, entry.foliageMesh);
 	}
 
-	return { group, targetCount, placedCount, clusterSeatCount: clusterSeats.length };
+	return { group, targetCount, placedCount, clusterSeatCount: clusterSeats.length, forestCount: forestPositions.length };
 }
 
 /**

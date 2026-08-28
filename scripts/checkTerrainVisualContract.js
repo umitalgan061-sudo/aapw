@@ -21,7 +21,15 @@ async function main() {
 	const browser = await playwright.chromium.launch({ headless: true });
 	try {
 		const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+		// 60 s, not 30 s (run 355, DECISIONS.md ADR-0302). `game3d.html`'s module scripts are deferred,
+		// so `domcontentloaded` waits for the whole synchronous boot: this world measures 23.5 s to build
+		// its 529-chunk desktop preview plus 3.8 s to bake the water depth field, i.e. ~27.3 s against
+		// what used to be a 30 s budget. That is under 3 s of headroom, so this check — and the 41 others
+		// sharing the number — passed or failed on container variance rather than on the contract they
+		// assert. Same root cause as run 354's 15 s sweep (GOVERNANCE.md §8.2: fix the cause, not the
+		// instance). The 23.5 s boot is a real problem in its own right; distance-based terrain LOD is
+		// what addresses it, and this timeout is not a substitute for that.
+		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 		const result = await page.evaluate(async () => {
 			const THREE = await import('three');
 			const { WORLD_DEFAULTS } = await import('/src/3d/config.js');

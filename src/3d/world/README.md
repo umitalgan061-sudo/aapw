@@ -73,7 +73,7 @@ here (blast radius rule — if a change needs more than that, it's not a world-s
   raw Euclidean seat-to-seat distance — deterministic tie-breaking by array order) rather than a
   complete point-to-point graph; `buildRoadNetwork({seats, sampleHeightMeters})` routes each MST
   edge through `roadPathfinder.js`'s slope-aware A* and merges every edge into one dirt-colored
-  ribbon `THREE.Mesh` (`ROAD_WIDTH_METERS = 8`, raised `VERTICAL_OFFSET_METERS = 0.4` above the
+  ribbon `THREE.Mesh` (`ROAD_WIDTH_METERS = 8`, raised `VERTICAL_OFFSET_METERS = 0.06` above the
   sampled terrain to avoid z-fighting) following the real combined fine-FBM + macro-relief terrain
   height. `disposeRoadNetwork(group)` releases the mesh's geometry/material. First-pass scope: one
   road tier ("ana yol" / at arabası yolu) — see `QUESTIONS_FOR_OWNER.md` for the deferred second

@@ -43,11 +43,11 @@ async function main() {
 		page.on('console', (message) => {
 			if (message.type() === 'error') consoleErrors.push(message.text());
 		});
-		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 20000 });
+		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 90000 });
 
 		const result = await page.evaluate(async () => {
 			const THREE = await import('three');
-			const { createWater, setWaterDepthField, updateWater, disposeWater, WAVE_TOTAL_AMPLITUDE_METERS, SWELL_COMPONENTS } =
+			const { createWater, setWaterDepthField, updateWater, disposeWater, WAVE_TOTAL_AMPLITUDE_METERS, SWELL_COMPONENTS, SWELL_CREST_WARP } =
 				await import('/src/3d/world/water.js');
 			const { createWaterDepthField, FULL_WAVE_DEPTH_METERS, disposeWaterDepthField } = await import(
 				'/src/3d/world/waterDepthField.js'
@@ -88,14 +88,24 @@ async function main() {
 			// vertex stage), so replicate the shader's own maths here and cross-check it against the
 			// exported constants — then prove the shader really uses it by asserting the source shape.
 			// The GPU-side truth is covered by the rendered screenshots below.
+			// Mirrors the shader exactly, crest warp included (run 389). The warp is a phase shift, so it
+			// cannot change the amplitude bound this proof rests on — but if the mirror drifts from the
+			// shader it stops being evidence about the shader at all, which is the whole point of
+			// exporting SWELL_COMPONENTS and SWELL_CREST_WARP rather than hand-copying them.
 			const swellHeightAt = (x, z, t) => {
 				let height = 0;
-				for (const [wavelength, amplitude, dirX, dirZ] of SWELL_COMPONENTS) {
+				SWELL_COMPONENTS.forEach(([wavelength, amplitude, dirX, dirZ], index) => {
 					const length = Math.hypot(dirX, dirZ);
+					const dx = dirX / length;
+					const dz = dirZ / length;
 					const k = (2 * Math.PI) / wavelength;
 					const omega = Math.sqrt(9.81 * k);
-					height += amplitude * Math.sin(k * ((dirX / length) * x + (dirZ / length) * z) - omega * t);
-				}
+					const crestX = -dz * SWELL_CREST_WARP.frequencyPerMeter;
+					const crestZ = dx * SWELL_CREST_WARP.frequencyPerMeter;
+					const warpArgument = crestX * x + crestZ * z + index * SWELL_CREST_WARP.phasePerComponent;
+					const warp = SWELL_CREST_WARP.amplitudeRadians * Math.sin(warpArgument);
+					height += amplitude * Math.sin(k * (dx * x + dz * z) - omega * t + warp);
+				});
 				return height;
 			};
 			const depthFactorAt = (x) =>
@@ -236,7 +246,15 @@ async function main() {
 			fs.writeFileSync(path.join(ARTIFACT_DIR, `${key}.png`), Buffer.from(dataUrl.split(',')[1], 'base64'));
 		}
 		// The surface must measurably change between two times on the real GPU, not just on paper.
-		const movedFraction = await page.evaluate(() => window.__run325PixelMotion([-500, 300, 950], [1400, 0, -150]));
+		//
+		// Measured from the NEAR camera (run 389). It used to be measured from the far one, where most
+		// of the frame is water past `swellShadingFade`'s 1800 m cutoff and past the near mesh entirely
+		// — i.e. water that is *designed* not to animate. That view scored a comfortable 18.3% anyway,
+		// because the flat far plane was interpenetrating the displaced near mesh and the moving
+		// intersection contours lit up as changed pixels. So the number was largely measuring an
+		// artifact, and it dropped to 5.9% the moment the artifact was fixed. Pointing the probe at
+		// water that is supposed to move keeps the threshold high and makes it mean what it says.
+		const movedFraction = await page.evaluate(() => window.__run325PixelMotion([900, 16, 340], [2200, 2, -60]));
 		if (movedFraction < 0.15) {
 			console.error(`[checkRun325WaterSwell] FAIL: only ${(movedFraction * 100).toFixed(2)}% of pixels changed between t=0 and t=4 — the surface is not really animating.`);
 			process.exitCode = 1;

@@ -1,4 +1,4 @@
-const NAV_TIMEOUT_MS = 30_000;
+const NAV_TIMEOUT_MS = 90_000;
 
 async function checkCreatureThreatMemory(browser, baseUrl) {
 	const page = await browser.newPage();

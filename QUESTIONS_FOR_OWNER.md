@@ -466,3 +466,151 @@ Snapshot'ta okuyup geçici varsayılanlara uymaya devam edecek.
   kendi perf-snapshot'ları gerçek doku/geometri sayıları raporlamıştı — o oturumların ortamı bu
   sorundan etkilenmemiş olabilir (rename daha sonra mı oldu, yoksa onlarda `git-lfs` zaten mı kuruluydu,
   bilinmiyor) — tahmin edilmedi.
+
+## S-0035 (run 356) — Yol eğimi 60 m ızgarada ölçülüyor; oyuncu ölçeğinde pürüzlülüğün önündeki engel bu
+
+**Durum:** Sahip kararı bekliyor. Engelleyici: bu cevaplanmadan zemine oyuncu ölçeğinde pürüzlülük
+eklenemiyor.
+
+Sahibin duran isteği "pürüzsüz coğrafya istemiyorum". Run 356'da mesh çözünürlüğü yakın alanda 3,9 m'ye
+indirildi, yani artık ince detay *taşınabiliyor*. Ama ince detay *üretmek* `roadNetworkSafetyCheck.js`
+kapısına takılıyor ve ölçüm gösterdi ki takılma sebebi diklik değil:
+
+- `roughness` dalga boyunu 45 m → 39 m yapmak tek başına yol eğimini 19,4° → 24,3° çıkarıyor.
+- Aynı katmanın genliğini 7,5 m → 3,0 m düşürmek 25,2° → 24,3°, yani neredeyse hiçbir etki.
+
+Sebep: `roadPathfinder.js` `GRID_CELL_METERS = 60` ile örnekliyor. Dalga boyu 60 m'ye yaklaşan arazi,
+komşu örnekler arasında büyük fark üretiyor ve uçurum gibi puanlanıyor — ölçülen şey aliasing.
+
+**Soru:** "Yol eğimi" hangi ölçekte tanımlanmalı? Üç seçenek:
+
+1. **Kapı olduğu gibi kalsın.** Zemin oyuncu ölçeğinde pürüzsüz kalır. En güvenli, ama sahibin
+   isteğiyle doğrudan çelişiyor.
+2. **Eğim daha uzun bir taban çizgisinde ölçülsün** (ör. 60 m yerine 150–200 m üzerinden ortalama
+   eğim). Bir at arabasının gerçekten umursadığı şey bu; 5 m'lik tümsek değil. Kapının anlamını
+   değiştirir, o yüzden sahip onayı gerekiyor.
+3. **Yollara kes-doldur koridoru verilsin** — yerleşimlerdeki `flattenPads` mantığının yol
+   güzergâhına uygulanmış hâli. Arazi pürüzlü kalır, yol kendi şeridini düzler. En gerçekçi ve en
+   pahalı seçenek; ayrı bir alt görev.
+
+**Tavsiyem:** 3, uzun vadede doğru olan o; 2 ise ara adım olarak ucuz. Ama ikisi de "yol nedir"
+tanımını değiştirdiği için tahmin edilmedi.
+
+## S-0036 (run 359) — map.png bu depoda yok, yollar için görsele ihtiyaç var
+
+**Durum:** Sahip aksiyonu bekliyor. Engelleyici: haritadaki yolların 3D dünyaya işlenmesi.
+
+`.gitignore` `/resimler/` satırını taşıyor, yani `resimler/map.png` hiç commit'lenmemiş. Uzak oturum
+depoyu sıfırdan klonladığı için dosya konteynerde yok; tüm dosya sistemi tarandı, hiçbir kopyası yok.
+Sahibin "resimler dizininden kopyalayabilirsin" önerisi bu yüzden uygulanamıyor — o dizin sahibin kendi
+makinesinde.
+
+Ormanlar ve dağlar için sorun değil: `worldReferenceMap.js` görselin elle denetlenmiş transkripsiyonunu
+taşıyor (biyom bölgeleri, su bölgeleri, dağ zincirleri) ve run 359 ormanları ona bağladı. Ama
+transkripsiyonda **yol yok**, dolayısıyla haritadaki yol çizgileri izlenemiyor.
+
+**İhtiyaç:** map.png'nin kendisi. İki yol var:
+
+1. **Sohbete eklemek** — en hızlısı. Görseli doğrudan görebilirim, güzergâhları okuyup kanonik yol
+   çapaları olarak yazabilirim.
+2. **Depoya commit'lemek** — `.gitignore`'dan `/resimler/` satırını çıkarmak ya da `git add -f
+   resimler/map.png` ile zorlamak, sonra push. Kalıcı çözüm bu olur: harita bir daha kaybolmaz ve
+   sonraki turlar da ona bakabilir.
+
+Görsel gelene kadar yol güzergâhları uydurulmayacak.
+
+## S-0037 (run 362) — `red-mountains` zincirinin doğu ucu haritayla uyuşmuyor
+
+**Durum:** ÇÖZÜLDÜ (run 363). Sahip "ne gerekiyorsa yap" dedi; zincir haritayla hizalandı ve
+öncesi/sonrası ölçüldü — ADR-0310.
+
+map.png artık depoda olduğu için transkripsiyon ilk kez orijinaline karşı denetlenebiliyor. Dorne
+bölgesini büyütünce şu çıktı: `worldReferenceMap.js`'teki `red-mountains` zinciri
+`[[0.125,0.630],[0.180,0.625],[0.240,0.620]]` olarak kayıtlı, ama haritada Kızıl Dağlar sırtı
+**y ≈ 0,59–0,61** bandında uzanıyor ve **x = 0,240 noktası karada bile değil** — orası Dar Deniz'de,
+Tyrosh'un yakını.
+
+Kendiliğimden düzeltmedim çünkü bu zincir `worldReferenceMountainRelief.js` üzerinden gerçek araziyi
+şekillendiriyor; noktalarını oynatmak dağları yerinden oynatır ve yol eğim geçmişini (ADR-0297..0300'de
+ölçülerek kazanılan payı) etkileyebilir. Yani ucuz bir yazım düzeltmesi değil, ölçülmesi gereken bir
+arazi değişikliği.
+
+**Soru:** Zinciri haritayla hizalamamı ister misiniz? İsterseniz kendi turunda, öncesi/sonrası koltuk ve
+yol kapılarıyla ölçerek yaparım. İstemezseniz kayıt burada dursun.
+
+## S-0038 (run 365) — Üç koltuk denizaşırı; feribot/köprü sistemi gerekiyor
+
+**Durum:** Sahip kararı bekliyor. Engelleyici değil — yollar artık denizden geçmiyor, ama üç bağlantı
+"deniz geçişi" olarak işaretli ve gerçek bir taşıma sistemi yok.
+
+Sahip "deniz'den yollar geçmesin" dedi. Ölçünce çıktı ki koltuk yol ağı **en başından beri** denizden
+geçiyormuş: 320 nokta su altında, dördü kenar (`umit->doran` tek başına 168 nokta). Yüzlerce turdur
+böyleymiş çünkü hiçbir kontrol suya bakmıyordu.
+
+Yol bulucuya su cezası eklendi; **320 → 64 noktaya** indi, yani var olan her kuru güzergâh artık
+seçiliyor. Kalan üç kenar fiziksel olarak kaçınılmaz: `umit` (0,432 / 0,767 — Yaz Denizi), `balon`
+(Demir Adaları) ve `Xaro` (Qarth, denizin ötesi) ada/denizaşırı koltuklar. Kara yolu yok.
+
+Bu kenarları karaya zorlamak daha kötü bir cevap veriyor: `umit->doran` ada kıyısında 20,7°'lik bir keçi
+yoluna dönüşüyor. Bu yüzden kontrolde artık **SEA** olarak işaretleniyorlar ve at arabası eğim tavanı
+onları yargılamıyor — ama ortada hâlâ gerçek bir bağlantı yok.
+
+**Soru:** Bu üç bağlantı nasıl olsun?
+
+1. **Feribot** — liman noktaları ve deniz üstünde bir geçiş hattı. En gerçekçi; oynanışta bekleme/ücret
+   gibi bir mekanik de doğurabilir.
+2. **Köprü** — `assets/models/fbx/stone bridge` deposunda zaten var. Kısa geçişler (`twin->balon`) için
+   inandırıcı, `umit->Xaro` gibi 4,5 km'lik açık deniz için değil.
+3. **Koltukları taşımak** — `umit`'i karaya almak sorunu kökten çözer ama kanonik yerleşimi değiştirir,
+   bu yüzden sizin kararınız.
+
+**Tavsiyem:** kısa geçişte köprü (2), uzun ikisinde feribot (1). Söylerseniz kurarım.
+
+## PR #964 son kapı yeşil — kalan 35 kırmızı yapısal, sahip kararı gerekiyor (run 405)
+
+**Durum:** Projenin kendi Definition-of-Done kapısı — `run283-final-head-governance` — 48d8b2a
+üzerinde **ilk kez yeşil**. Beş ardışık CI hatası (mobil zaman aşımı, 878 MB açılış indirmesi,
+yüzlerce doku 404'ü, 1442 çizim çağrısı, ENOBUFS çökmesi ve son olarak ses kontrolünün tıklaması)
+sırayla ölçülüp kapatıldı. Kapı 34 dakikada, 90 dakikalık sınırın içinde tamamlandı.
+
+PR birleştirilebilir durumda (`mergeable_state: unstable` — çakışma yok, yalnızca kırmızı kontroller).
+
+**Sorun:** Aynı head'de 35 kontrol daha kırmızı ve bunları bu daldan yeşile çevirmenin bir yolu yok.
+Sebep tek tek hata değil, yapı: depoda `pull_request` ile tetiklenen 164 iş akışının **79'u**,
+"değişen bütün dosya listesi şu dar izin listesinin içinde olsun, yoksa çık 1" adımı taşıyor. Her
+biri geçmişte tek bir dar PR için yazılmış. Örnek (`rpg-mastery-armorer-service.yml`):
+
+    mapfile -t paths < <(git diff --name-only "$base"...HEAD)
+    printf '%s\n' "${paths[@]}" | grep -Ev "$allowed" && exit 1 || true
+
+Bu kapılar **dar PR'lar için doğru çalışıyor** — dar bir PR yalnızca kendi kapısını tetikler ve
+geçer. Ama #964 167 dosya / 69 commit / +17.780 satır. `paths:` filtresine takılan 35 kapı birden
+tetikleniyor ve izin listeleri birbirinden ayrık olduğu için **hiçbir PR ikisini aynı anda
+sağlayamaz**. Yani bu 35 kırmızı, bu PR'da bir kusuru değil, PR'ın genişliğini ölçüyor.
+
+**Soru:** Bu 42 turluk coğrafya işi `main`'e nasıl insin?
+
+1. **#964'ü olduğu gibi birleştirin.** DoD kapısı yeşil, çakışma yok. Kırmızılar dar kapsam
+   kapıları; ölçtükleri şey PR'ın genişliği.
+2. **Dalı ~35 dar PR'a bölün.** Her biri kendi kapısını tetikler ve geçer. Ama 69 commit'i
+   dosya sınırlarına göre yeniden dizmek gerekir; commit'ler dosya değil konu ekseninde
+   yazılmış, yani bu mekanik değil elle yeniden yazma işi ve her parçanın kendi doğrulaması
+   baştan koşmalı.
+3. **Dar kapsam kapılarını emekliye ayırın.** Geçmiş PR'ların artığı 79 kapı; her yeni geniş iş
+   aynı duvara çarpacak.
+
+**Ek ölçüm (aynı run, karar maliyetini değiştiriyor):** Bu iş yalnız `main`'e inmeyi bekleyen bir yığın
+değil, bundan sonraki işin de üzerinde duracağı zemin. Dal, `main`'de **hiç bulunmayan 26 çalışma-zamanı
+modülü** taşıyor — `theWall.js`, `skyBodies.js`, `worldPropCatalogue.js`, `worldPropScatter.js`,
+`worldPropExclusions.js`, `worldReferenceGroundColorField.js`, `worldReferenceRivers.js`,
+`worldReferenceRoadNetwork.js`, `worldReferenceBiomeField.js` ve diğerleri (56 yeni dosyanın 26'sı
+`src/3d/` altında).
+
+Pratik sonucu şu: sizin en son istediğiniz iş — *"asset'deki bütün öğelerin coğrafi haritaya
+eklenmesi"* — `main`'den açılacak dar bir dalda **yapılamaz**, çünkü katalog da yerleştirme boru hattı
+da orada yok. Yani coğrafya ve asset yerleştirme yönündeki her yeni tur zorunlu olarak bu aynı dalın
+üstüne biniyor ve PR'ı daha da genişletiyor. Beklemek seçenek (2)'yi (dar PR'lara bölme) her turda
+biraz daha pahalı hale getiriyor.
+
+**Tavsiyem:** (1). Kapılar geçmiş PR'ların kapsamını koruyor, bu PR'ın doğruluğunu değil; doğruluğu
+ölçen kapı yeşil. Uzun vadede (3) de gerekiyor, yoksa bu her geniş işte tekrarlanır.

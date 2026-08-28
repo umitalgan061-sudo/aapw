@@ -132,6 +132,8 @@ function buildVillageGeometries() {
  * @param {number} options.seed World seed.
  * @param {{x: number, z: number}[]} options.seats Kingdom seats — village centres and exclusion zones.
  * @param {{points: {x: number, z: number}[]}[]} options.roadEdges Road network (exclusion).
+ * @param {{points: {x: number, z: number}[]}[]} [options.riverCourses] River courses (exclusion) — a
+ *   house standing mid-stream is as wrong as a tree, and both passes share this predicate.
  * @param {number} options.radiusMeters Radius of terrain actually loaded; a seat whose whole ring
  *   doesn't fit inside it is skipped, so no house renders over ungenerated ground.
  * @param {(seed: number) => () => number} options.mulberry32
@@ -140,6 +142,8 @@ function buildVillageGeometries() {
  *   `houses` — one circle per placed house (footprint half-diagonal, see `physics.js`'s
  *   `createCircleCollider`) — is the run-330-technical-debt fix: before this, `physics.js` had no
  *   idea a village existed and the player walked straight through every cottage.
+ *   `hamlets` — one entry per village green, so `world/villageBuildings.js` can raise the church, the
+ *   smithy and the barns in the same village these houses are in.
  */
 export function createVillages({
 	sampleHeightMeters,
@@ -147,6 +151,7 @@ export function createVillages({
 	seed,
 	seats,
 	roadEdges,
+	riverCourses = [],
 	radiusMeters,
 	mulberry32,
 	housesPerVillage = 10,
@@ -191,6 +196,15 @@ export function createVillages({
 	let villageCount = 0;
 	/** One collision circle per placed house — see this function's own JSDoc `houses` return note. */
 	const houses = [];
+	/**
+	 * Where each village's green actually ended up.
+	 *
+	 * Returned because the hamlet centre is drawn from this module's own RNG stream in seat order and
+	 * cannot be recomputed from outside without copying that draw — and a copy would drift the moment
+	 * either side changed. `world/villageBuildings.js` needs it to put the church, the smithy and the
+	 * barns in the same village as the houses rather than in a field somewhere near it.
+	 */
+	const hamlets = [];
 
 	for (const seat of eligibleSeats) {
 		const placedHere = [];
@@ -201,6 +215,7 @@ export function createVillages({
 		const hamletDistance = HAMLET_DISTANCE_MIN_METERS + rng() * (HAMLET_DISTANCE_MAX_METERS - HAMLET_DISTANCE_MIN_METERS);
 		const hamletX = seat.x + Math.cos(hamletBearing) * hamletDistance;
 		const hamletZ = seat.z + Math.sin(hamletBearing) * hamletDistance;
+		hamlets.push({ seatId: seat.id, x: hamletX, z: hamletZ, radiusMeters: HAMLET_RADIUS_METERS });
 
 		for (let i = 0; i < housesPerVillage; i++) {
 			for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_BUILDING; attempt++) {
@@ -210,7 +225,7 @@ export function createVillages({
 				const spreadRadius = HAMLET_RADIUS_METERS * Math.sqrt(rng());
 				const x = hamletX + Math.cos(spreadAngle) * spreadRadius;
 				const z = hamletZ + Math.sin(spreadAngle) * spreadRadius;
-				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
+				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges, riverCourses })) continue;
 				// Keep neighbours apart. Only this village's own houses are checked: two seats are far
 				// enough apart that their rings cannot overlap.
 				let tooClose = false;
@@ -312,7 +327,7 @@ export function createVillages({
 	if (roofMesh.instanceColor) roofMesh.instanceColor.needsUpdate = true;
 	group.add(bodyMesh, roofMesh, stepMesh, wallMesh);
 
-	return { group, villageCount, houseCount, wallCount, houses };
+	return { group, villageCount, houseCount, wallCount, houses, hamlets };
 }
 
 /**

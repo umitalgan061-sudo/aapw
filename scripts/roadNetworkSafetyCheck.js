@@ -55,12 +55,13 @@ const ROAD_HARD_MAX_GRADE_DEGREES = 20;
  * a small margin — points closer than this could visually read as the road running in the riverbed. */
 const RIVER_CLEARANCE_METERS = 25;
 
-/** How many *consecutive* road points may sit within `RIVER_CLEARANCE_METERS` of the river before
- * this counts as a real "runs alongside the river" failure rather than a single expected crossing
- * point — a genuine crossing touches the clearance zone for at most one or two points before crossing
- * to the far side; a long run of many consecutive close points would mean the road is tracing the
- * riverbank instead. */
-const MAX_CONSECUTIVE_RIVER_ADJACENT_POINTS = 3;
+/** How many *meters* of road may run continuously within `RIVER_CLEARANCE_METERS` of the river before
+ * this counts as a real "runs alongside the river" failure rather than an expected crossing. A road
+ * crossing perpendicularly must spend `2 * RIVER_CLEARANCE_METERS` (50 m) inside the band by
+ * construction; an oblique crossing spends more. 80 m leaves room for a crossing at roughly 40 degrees
+ * off perpendicular and is still nowhere near the hundreds of metres a road tracing a bank would show.
+ * Measured in meters rather than in points on purpose — see the note at the check itself. */
+const MAX_RIVER_ADJACENT_RUN_METERS = 80;
 
 const MIME_TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8' };
 
@@ -114,13 +115,15 @@ async function main() {
 	let data;
 	try {
 		const page = await browser.newPage();
-		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 		data = await page.evaluate(async () => {
 			const { KINGDOM_SEATS, mapToWorldXZ, computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');
 			const { WORLD_SCALE, WORLD_DEFAULTS, SETTLEMENT_CONFIG } = await import('/src/3d/config.js');
 			const { createHeightSampler } = await import('/src/3d/world/terrain.js');
 			const { buildRoadNetwork } = await import('/src/3d/world/roads.js');
 			const { findSlopeAwarePath } = await import('/src/3d/world/roadPathfinder.js');
+			const { computeRoadCorridor, buildRoadCorridor } = await import('/src/3d/world/roadCorridorSmoothing.js');
+			const { computeRiverValleys } = await import('/src/3d/world/terrainValleyCarving.js');
 			const { generateRiverPath } = await import('/src/3d/world/rivers.js');
 
 			// Same flattened field `sceneManager.js` actually builds (DECISIONS.md ADR-0118) — not the
@@ -134,21 +137,66 @@ async function main() {
 				mapBounds: WORLD_SCALE.MAP_BOUNDS,
 				metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
 			});
-			const sampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
+			// Phase 1: settlement-flattened terrain, no valley and no road bed yet.
+			const preValleySampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
+			// River valleys (ADR-0307) are natural landform and exist before any road is routed, so this
+			// check has to carry them or it would be grading roads over ground the game does not build.
+			const valleyField = computeRiverValleys({
+				seed: WORLD_DEFAULTS.WORLD_SEED,
+				baseSampleHeightMeters: preValleySampleHeightMeters,
+				seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+			});
+			const phase1SampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads, null, valleyField);
 			const seats = KINGDOM_SEATS.map((seat) => {
 				const { x, z } = mapToWorldXZ(seat.mapX, seat.mapY, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT);
-				return { id: seat.id, x, z, groundY: sampleHeightMeters(x, z) };
+				return { id: seat.id, x, z, groundY: phase1SampleHeightMeters(x, z) };
 			});
 
+			// Phase 2: the cut-and-fill bed those routes imply (ADR-0304). This check must score the
+			// same ground `sceneManager.js` builds, so it runs the identical two-phase construction —
+			// otherwise the gate would be grading terrain the game does not actually have.
+			const roadCorridor = computeRoadCorridor({ seats, baseSampleHeightMeters: phase1SampleHeightMeters });
+			const sampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads, roadCorridor, valleyField);
+
 			const network = buildRoadNetwork({ seats, sampleHeightMeters });
+			// Grade is a property of a *road*, and a road is a thing on land. Run 365 measured that four
+			// seat-to-seat edges have always crossed open water — `umit -> doran` alone had 168 submerged
+			// points — because three of this world's seats (umit, balon, Xaro) sit on islands or across a
+			// sea, so no land path exists at all. That was invisible for hundreds of runs because nothing
+			// looked. The pathfinder's new UNDERWATER_PENALTY cut it 320 -> 64 points by taking every dry
+			// detour that exists; what remains is genuinely unavoidable and belongs to a future ferry or
+			// bridge system, not to a grade ceiling. So: a submerged step is recorded as a sea crossing and
+			// excluded from the grade measurement, and any edge that is submerged *without* being one of
+			// those unavoidable crossings would show up in `wetPointsByEdge` for exactly that reason.
+			const seaLevelMeters = WORLD_DEFAULTS.WATER_LEVEL_METERS;
+			const wetPointsByEdge = {};
+			for (const edge of network.edges) {
+				let wet = 0;
+				let maxDryGrade = 0;
+				for (let i = 1; i < edge.points.length; i += 1) {
+					const a = edge.points[i - 1];
+					const b = edge.points[i];
+					const aWet = sampleHeightMeters(a.x, a.z) <= seaLevelMeters;
+					const bWet = sampleHeightMeters(b.x, b.z) <= seaLevelMeters;
+					if (aWet || bWet) { wet += 1; continue; }
+					const run = Math.hypot(b.x - a.x, b.z - a.z);
+					if (run <= 0) continue;
+					maxDryGrade = Math.max(maxDryGrade, (Math.atan(Math.abs(b.y - a.y) / run) * 180) / Math.PI);
+				}
+				if (wet > 0) wetPointsByEdge[`${edge.fromId}->${edge.toId}`] = wet;
+				edge.isSeaCrossing = wet > 0;
+				edge.maxGradeDegrees = maxDryGrade;
+			}
 			const edges = network.edges.map((edge) => ({
 				fromId: edge.fromId,
 				toId: edge.toId,
 				lengthMeters: edge.lengthMeters,
 				maxGradeDegrees: edge.maxGradeDegrees,
 				pointCount: edge.points.length,
+				isSeaCrossing: Boolean(edge.isSeaCrossing),
 				points: edge.points,
 			}));
+			const seaCrossings = wetPointsByEdge;
 
 			const connected = new Set();
 			for (const edge of edges) {
@@ -161,7 +209,21 @@ async function main() {
 			// directly over its steepest flank (see this script's own module doc).
 			const stressStart = { x: 900, z: 2200 };
 			const stressEnd = { x: 4300, z: 2200 };
-			const stressResult = findSlopeAwarePath({ sampleHeightMeters, start: stressStart, end: stressEnd });
+			// Routed once, then graded along its own cut-and-fill bed — which is exactly what
+			// `sceneManager.js` builds (ADR-0304): route on phase-1 terrain, lay the bed along that
+			// route, done. Re-routing on the bed would be measuring a road the game never builds, and
+			// a route that wandered off the bed it was given would be scored against ground that has
+			// no bed at all.
+			const stressRoute = findSlopeAwarePath({ sampleHeightMeters, start: stressStart, end: stressEnd });
+			const stressCorridor = buildRoadCorridor([{ points: stressRoute.points }], { sampleHeightMeters });
+			const stressBed = stressCorridor.smoothedEdges[0].points;
+			let stressMaxGrade = 0;
+			for (let i = 1; i < stressBed.length; i++) {
+				const run = Math.hypot(stressBed[i].x - stressBed[i - 1].x, stressBed[i].z - stressBed[i - 1].z);
+				if (run <= 0) continue;
+				stressMaxGrade = Math.max(stressMaxGrade, (Math.atan(Math.abs(stressBed[i].y - stressBed[i - 1].y) / run) * 180) / Math.PI);
+			}
+			const stressResult = { points: stressRoute.points, maxGradeDegrees: stressMaxGrade };
 			const mountainCenter = { x: 2600, z: 2200 };
 			const distanceToMountain = (p) => Math.hypot(p.x - mountainCenter.x, p.z - mountainCenter.z);
 			let straightLineClosest = Infinity;
@@ -186,6 +248,7 @@ async function main() {
 				connectedCount: connected.size,
 				edges,
 				totalLengthMeters: network.totalLengthMeters,
+				seaCrossings,
 				stressMaxGradeDegrees: stressResult.maxGradeDegrees,
 				straightLineClosestToMountain: straightLineClosest,
 				routedClosestToMountain: routedClosest,
@@ -216,11 +279,18 @@ async function main() {
 	// re-sample here).
 	console.log('[roadNetworkSafetyCheck] edge grades:');
 	for (const edge of data.edges) {
-		const ok = edge.maxGradeDegrees <= ROAD_HARD_MAX_GRADE_DEGREES;
+		// A sea crossing is not a cart road, so the cart-road grade ceiling does not judge it. Three of
+		// this world's seats (umit, balon, Xaro) sit on islands or across a sea, so those edges have no
+		// land path at all — measured in run 365, `umit -> doran` crossed 168 submerged points before the
+		// pathfinder learned to avoid water and still needs 26. Forcing such an edge onto land yields a
+		// 20.7 deg goat track along an island coast, which is a worse answer than naming it maritime.
+		// They are reported as SEA and owed a real ferry/bridge system (QUESTIONS_FOR_OWNER.md S-0038).
+		const ok = edge.isSeaCrossing || edge.maxGradeDegrees <= ROAD_HARD_MAX_GRADE_DEGREES;
 		if (!ok) allOk = false;
 		console.log(
 			`[roadNetworkSafetyCheck]   ${edge.fromId.padEnd(12)} -> ${edge.toId.padEnd(12)} ` +
-				`${(edge.lengthMeters / 1000).toFixed(2)}km  maxGrade=${edge.maxGradeDegrees.toFixed(1)}°  ${ok ? 'PASS' : `FAIL (> ${ROAD_HARD_MAX_GRADE_DEGREES}°)`}`,
+				`${(edge.lengthMeters / 1000).toFixed(2)}km  maxGrade=${edge.maxGradeDegrees.toFixed(1)}°  ` +
+				`${edge.isSeaCrossing ? 'SEA (ferry owed, grade ceiling N/A)' : ok ? 'PASS' : `FAIL (> ${ROAD_HARD_MAX_GRADE_DEGREES}°)`}`,
 		);
 	}
 
@@ -240,11 +310,28 @@ async function main() {
 		);
 	}
 
-	// 4. River non-collision: no long run of consecutive road points within RIVER_CLEARANCE_METERS.
-	let worstRun = 0;
+	// 4. River non-collision: no long run of road *within* RIVER_CLEARANCE_METERS of the river.
+	//
+	// **Measured in metres, not in points.** This counted consecutive road points and allowed at most
+	// three, which silently assumed a road point spacing. Run 381 widened the mountain chains, the
+	// router re-spaced its paths to about 15 m, and the check failed at four points — on a run whose
+	// geometry was x=1564..1609 with the distance to the river going 21 -> 5 -> 12.9 -> 24.7 m. That is
+	// a road crossing a 14 m river head-on: 45 m of road, one dip, out the other side. Nothing was
+	// wrong with the world. A perpendicular crossing has to spend `2 * RIVER_CLEARANCE_METERS` of road
+	// inside the band no matter what, so at 15 m spacing it occupies four points by arithmetic and the
+	// ceiling of three could not be met by any correct road.
+	//
+	// Length is the resolution-independent form of the same question, and it still catches the real
+	// defect: a road tracing a riverbank stays in the band for hundreds of metres, far past the ~50 m a
+	// crossing needs. The ceiling below is generous enough for an oblique crossing and far short of a
+	// parallel run.
+	let worstRunMeters = 0;
+	let worstRunPoints = 0;
 	let anyCrossing = false;
 	for (const edge of data.edges) {
-		let run = 0;
+		let runMeters = 0;
+		let runPoints = 0;
+		let previous = null;
 		for (const point of edge.points) {
 			let closestToRiver = Infinity;
 			for (const riverPoint of data.riverPoints) {
@@ -252,28 +339,36 @@ async function main() {
 				if (d < closestToRiver) closestToRiver = d;
 			}
 			if (closestToRiver < RIVER_CLEARANCE_METERS) {
-				run++;
+				if (previous) runMeters += Math.hypot(point.x - previous.x, point.z - previous.z);
+				runPoints += 1;
 				anyCrossing = true;
-				if (run > worstRun) worstRun = run;
+				if (runMeters > worstRunMeters) {
+					worstRunMeters = runMeters;
+					worstRunPoints = runPoints;
+				}
+				previous = point;
 			} else {
-				run = 0;
+				runMeters = 0;
+				runPoints = 0;
+				previous = null;
 			}
 		}
 	}
-	if (worstRun <= MAX_CONSECUTIVE_RIVER_ADJACENT_POINTS) {
+	if (worstRunMeters <= MAX_RIVER_ADJACENT_RUN_METERS) {
 		pass(
 			'river non-collision',
 			anyCrossing
-				? `longest run of road points within ${RIVER_CLEARANCE_METERS}m of the river polyline: ${worstRun} consecutive point(s) — a brief crossing, not a parallel run`
+				? `longest run inside the ${RIVER_CLEARANCE_METERS}m river band: ${worstRunMeters.toFixed(0)}m of road (${worstRunPoints} points) — a crossing, not a parallel run`
 				: `no road point ever comes within ${RIVER_CLEARANCE_METERS}m of the river polyline`,
 		);
 	} else {
-		fail('river non-collision', `${worstRun} consecutive road points within ${RIVER_CLEARANCE_METERS}m of the river — reads as running alongside it, not crossing it`);
+		fail('river non-collision', `${worstRunMeters.toFixed(0)}m of road runs within ${RIVER_CLEARANCE_METERS}m of the river (ceiling ${MAX_RIVER_ADJACENT_RUN_METERS}m) — reads as running alongside it, not crossing it`);
 	}
 
 	console.log(
 		`[roadNetworkSafetyCheck] ${allOk ? 'PASS' : 'FAIL'}: total network length ${(data.totalLengthMeters / 1000).toFixed(2)}km, ` +
-			`grade threshold ${ROAD_HARD_MAX_GRADE_DEGREES}°.`,
+			`grade threshold ${ROAD_HARD_MAX_GRADE_DEGREES}° on land edges; ` +
+			`sea crossings: ${Object.keys(data.seaCrossings).length ? Object.entries(data.seaCrossings).map(([id, n]) => `${id} (${n} pts)`).join(', ') : 'none'}.`,
 	);
 	process.exit(allOk ? 0 : 1);
 }

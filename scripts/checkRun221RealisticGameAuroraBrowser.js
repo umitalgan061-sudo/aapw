@@ -41,7 +41,7 @@ async function main() {
 		});
 		await page.goto(`http://127.0.0.1:${port}/game3d.html`, {
 			waitUntil: 'domcontentloaded',
-			timeout: 30000,
+			timeout: 60_000,
 		});
 
 		const result = await page.evaluate(async () => {

@@ -43,7 +43,7 @@ async function main() {
 		const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 		page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
 		page.on('pageerror', (error) => errors.push(String(error)));
-		await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+		await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 		const initial = await page.evaluate(async () => {
 			const THREE = await import('three');
 			const { WORLD_DEFAULTS } = await import('/src/3d/config.js');

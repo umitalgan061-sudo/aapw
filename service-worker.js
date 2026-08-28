@@ -1,3 +1,15 @@
+// Run385 ground-colour-field offline shell extension — `worldReferenceGroundColorField.js` is imported
+// by `world/terrainBiomeShading.js`, so an offline PWA load needs it cached or terrain cannot shade.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceGroundColorField.js');
+});
+
+// Run384 sky-bodies offline shell extension — `skyBodies.js` is imported by `sceneManager.js` and
+// `game3d.js`, so an offline PWA load needs it cached or the scene cannot boot at all.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./src/3d/skyBodies.js');
+});
+
 // Owner-map mountain relief offline shell extension. terrain.js imports this canonical live-height
 // source, so an offline 3D boot must cache it before any chunk can be generated.
 self.addEventListener('install', () => {
@@ -32,6 +44,14 @@ self.addEventListener('install', () => {
     GAME3D_SHELL_FILES.push('./assets/models/animals/alpaca_bCVFD48i2l.glb');
     GAME3D_SHELL_FILES.push('./assets/models/animals/zebra_iclPBR6SBZ.glb');
     GAME3D_SHELL_FILES.push('./assets/models/animals/sheep_C39AUXUUes.glb');
+});
+
+// Run407 Valyria magma-hound offline shell extension — `gameplay/animalConfig.js`'s new `magmaHound`
+// species model, spawned nine times in the Doom of Valyria. Without it an offline session puts nine
+// placeholder boxes there instead of the pack.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./assets/models/fbx/infernal_magma_hound_-_free_lava_creature_asset.glb');
+    GAME3D_SHELL_FILES.push('./src/3d/world/worldPropExclusionsEntities.js');
 });
 
 // Run339 pause-menu offline shell extension — `ui/pauseMenu.js` (ADR-0285), now imported by
@@ -231,7 +251,94 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run346 first-audio addition (module + one .wav click sound); v16->v17 forces existing installs to
 // fetch+cache both so the game's first sound works offline too, not only on a fresh install.
 // RPG expedition readiness adds an offline-loadable gameplay module; v19->v20 refreshes existing installs.
-const SHELL_CACHE = 'westeros-shell-v20';
+// Merge of run 355-359 (skirts, road corridor, forest scatter, forest affinity) with that work: both
+// sides bumped this independently, so the merged install needs a version above either branch's.
+// Run 380 rewrites the height field itself: `worldReferenceMap.js` gained fifteen mountain chains read
+// off `map.png` and `worldReferenceMountainRelief.js` sharpened every ridge cross-section. The shell is
+// cache-first, so an existing install would keep serving the old modules and the player would see the
+// old single smooth massif — a stale cache here is a stale *world*, not just a stale script. v39->v40.
+// Run 381 rewrites the height field again — every mountain chain in `worldReferenceMountainRelief.js`
+// was widened so ranges stop reading as walls. Same reasoning as v40 immediately above: the shell is
+// cache-first, so a stale cache serves a stale *world*. v40->v41.
+// Run 382 grounds buildings and scattered props on the lowest ground under their whole footprint
+// (`villageBuildings.js`, `worldPropScatter.js`) so no corner floats, and drops the flat-sheet fence
+// model. Both are offline-loadable runtime modules, so an existing install keeps floating buildings
+// until the shell refreshes. v41->v42.
+// Run 383 lays snow on the far north by latitude in `terrain.js`, so the Lands of Always Winter render
+// as ice instead of grassland. Ground colour comes from that module at runtime; a cache-first shell
+// would keep the old green north. v42->v43.
+// Run 384 adds `skyBodies.js` — a visible sun and moon and the moon's light. It is a new offline-
+// loadable module *and* a look change, so an existing install needs the refreshed shell for both
+// reasons. v43->v44.
+// Run 385 gives the ground its regional colour from map.png's own pixels — a new offline-loadable
+// module and a look change both. v44->v45.
+// Run 386 rewrites the height field again: every mountain peak is lower and each chain is broken
+// into separate massifs, and the northern snow tail now follows map.png's own profile. A stale
+// cache-first shell would keep the old, oversized single ridges. v45->v46.
+// Run 387 removes a 1.68 m vertical step from the height field where road corridors meet, and grounds
+// each road-ribbon edge on its own terrain. Both change what the ground is, so a cache-first shell
+// would keep serving the old cliff. v46->v47.
+// Run 388 rebakes the water depth field with a third channel (optical depth over 60 m) and rewrites
+// the water shader to a per-channel Beer-Lambert extinction, so shallows read clear and depth darkens
+// with distance through the body. A cache-first shell would keep the old depth-factor lerp. v47->v48.
+// Run 389 stops the flat full-world water plane drawing underneath the displaced near mesh. The two
+// were interpenetrating, and every intersection contour cut a hard silhouette — the sea's "repeating
+// pale blobs". A cache-first shell would keep serving the blobs. v48->v49.
+// Run 390 unburies the rivers: each bank is grounded on its own terrain and the ribbon is resampled
+// to ~10m quads, so a watercourse that rendered as disconnected shards is now continuous. New
+// offline-loadable module (riverRibbonPath.js) and a look change both. v49->v50.
+// Run 391 carries the named rivers the last stretch into canonical water, so green-fork and
+// white-knife empty into the sea instead of stopping on a beach. New offline-loadable module
+// (riverMouth.js) and a change to the ground the rivers carve. v50->v51.
+// Run 392 makes water optics latitude-dependent: the far north's sea is cold grey-green instead of
+// the same Caribbean turquoise as Dorne. New offline-loadable module (waterLatitude.js) and a look
+// change both. v51->v52.
+// Run 393 keeps vegetation and village buildings out of the rivers — 96 instances stood in a channel,
+// some half a metre from the centreline. Placement is generated at runtime from this code, so a
+// cache-first shell would keep scattering trees mid-stream. v52->v53.
+// Run 394 ties river foam to the bed's own speed, so calm reaches read as water instead of a barcode
+// of transverse white bands. New offline-loadable module (riverFlowAppearance.js) and a look change
+// both. v53->v54.
+// Run 395 accounts for the last eight models in `assets/` that no system named. No look change — the
+// scatter places exactly what it placed before — but `worldPropExclusions.js` is a cached shell module
+// that `worldPropCatalogue.js` imports for its own summary, so a cache-first shell would keep serving
+// the old, wrong "these eight are unaccounted for" picture. v54->v55.
+// Run 396 cuts ~4.0s off the mobile world build by skipping relief chains that provably contribute
+// zero. Every returned value is bit-identical, so nothing looks different — but a cache-first shell
+// would keep serving the slow module, which is the whole point of the change. v55->v56.
+// Run 398 takes 21 oversize models out of the scatter catalogue, cutting what a boot downloads from
+// 878MB to 339MB. Density is unchanged (the chunk planner places the same count and picks from what
+// remains), so this is a variety change rather than an emptier world — but it is still a look change
+// plus a cached-module change, and a stale shell would keep fetching the 520MB house. v56->v57.
+// Run 399 drops five more props: four whose texture sets were never committed — they 404'd on every
+// map and rendered in flat untextured colour — and one FBX too old for the loader to open at all,
+// which put a placeholder box on the meadow. A look change and a cached-module change both. v57->v58.
+// Run 399b withholds a fifth: `Ancient_Assets_Pack.fbx`, 419 missing textures. Found by the gate run
+// 399 added, on its first CI run, because that gate walks the whole catalogue where my own measurement
+// had only sampled the models the boot requests. v58->v59.
+// Run 400 withholds nine multi-building asset packs that each submitted hundreds of draw calls per
+// placement — one alone submitted 1,252 against a whole-scene budget of 500. Mobile draw calls fall
+// 1442 -> 230 and triangles 631,650 -> 427,188. A look change and a cached-module change. v59->v60.
+// Run 405 collapses every imported prop's geometry groups to one per material at load — a new cached
+// module plus a change to `worldPropScatter.js`. Nothing about the world looks different (the renders
+// are pixel-identical and the mobile sample is bit-identical, 235 draw calls / 465,174 triangles), but
+// a stale shell would keep serving the old `worldPropScatter.js` with an import of a module it has
+// never cached, which fails offline outright rather than degrading. v60->v61.
+// Run 407 puts the Doom of Valyria's magma hounds in the world — a new species model, a new
+// map-anchored spawn kind in `gameplay/animals.js`, and the aggression branch that makes them charge
+// instead of bolt. A stale shell would serve the old `animals.js` and a cache with no hound model in
+// it, so an offline session would spawn nine placeholder boxes in Valyria. v61->v62.
+// Run 409 adds ascent: hold the jump control to climb. It changes `gameplay/player.js`,
+// `gameplay/playerConfig.js`, `input.js` and `game3d.js`, all four already cached, so the offline copy
+// has to turn over or a returning player keeps the old modules and the control does nothing. v62->v63.
+// Run 410 puts the cursed-region rule in the canonical placement gate (`world/vegetation.js`) and
+// fixes the map-anchor conversion that had run 407's magma hounds 9.6 km from Valyria. Villages,
+// villagers, herds and trees stop appearing in the Doom, and the hounds start appearing in it — both
+// are look changes served from cached modules, so the offline copy has to turn over. v63->v64.
+// Run 414 gives the road an actual dirt surface -- broad damp patching, wheel ruts, a drier crown,
+// grit and scattered stones, all procedural because this container has no git-lfs and so no texture
+// file can be committed. A stale shell keeps drawing the flat tan band. v64->v65.
+const SHELL_CACHE = 'westeros-shell-v65';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -245,8 +352,7 @@ const SHELL_FILES = [
 // 3D mode's own app shell — precached separately (own cache.addAll call, own catch) so a failure
 // here can never block the 2D shell above from installing. FAZ 4 was the first system to actually
 // fetch a character/animation asset (peasant_girl + its 3 clips); FAZ 5 added the 6 shared-skeleton
-// NPC character FBXes; FAZ 6 added the wolf glTF/GLB (a single self-contained .glb — its
-// buffer/textures are embedded, so no separate .bin/texture entries are needed here) and the
+// NPC character FBXes; FAZ 6 added the wolf glTF and the
 // horse glb; FAZ 7 added the dragon FBX + its unbaked texture folder (9 files — the FBX references
 // them externally, unlike the wolf/horse glbs, so each one needs its own entry here).
 //
@@ -317,6 +423,32 @@ const SHELL_FILES = [
 // run 111 (DECISIONS.md ADR-0138): added `world/vegetation.js` — procedural instanced trees, now
 // imported directly by `sceneManager.js`/`game3d.js`. Same failure mode as every entry above
 // without it. `SHELL_CACHE` bumped v10->v11.
+//
+// run 357 (DECISIONS.md ADR-0304): added `world/roadCorridorSmoothing.js` — the road cut-and-fill bed,
+// imported directly by `sceneManager.js`. Same failure mode as every entry below without it: an
+// offline install cached before this run would 404 on it and take the whole 3D mode down.
+// `SHELL_CACHE` bumped v20->v21.
+//
+// run 355 (DECISIONS.md ADR-0301): added `world/terrainChunkSkirt.js` — the per-chunk crack skirt,
+// imported directly by `world/terrain.js`. Offline installs that cached the shell before this run
+// would fetch a `terrain.js` whose import of it 404s, taking the whole 3D mode down rather than
+// degrading — the same failure mode every entry above describes. `SHELL_CACHE` bumped v19->v20.
+//
+// run 366 (DECISIONS.md ADR-0313): added `world/heroTrees.js` and `world/worldDressing.js` — the
+// authored tree models and the dressing layer that composes them with the landmark scatter, imported
+// directly by `game3d.js`. (`world/windGrass.js` came in the same run, extracted out of
+// `sceneManager.js`.) An offline install cached before this run would 404 on all three and take the
+// whole 3D mode down. `SHELL_CACHE` bumped v29->v30.
+//
+// run 367 (DECISIONS.md ADR-0314): added `world/terrainGroundRealism.js` — the drainage/aspect/mottle
+// pass over the biome colour, imported directly by `world/terrain.js`. An offline install cached before
+// this run would fetch a `terrain.js` whose import of it 404s, taking the whole 3D mode down rather than
+// degrading. `SHELL_CACHE` bumped v30->v31.
+//
+// run 368 (DECISIONS.md ADR-0315): no new module, but `world/terrainMicroSurface.js` changed
+// materially — its detail atlas was rebuilt from plane waves to tileable value noise. An existing
+// offline install would otherwise keep serving the cached copy and keep rendering the diagonal weave
+// this run removed, so `SHELL_CACHE` is bumped v31->v32 to retire it.
 const GAME3D_SHELL_FILES = [
     './src/3d/editor/EditorFallbackMaterialPalette.js',
     './game3d.html',
@@ -373,12 +505,37 @@ const GAME3D_SHELL_FILES = [
     './src/3d/gameplay/worldEvents.js',
     './src/3d/world/terrain.js',
     './src/3d/world/terrainBiomeShading.js',
+    './src/3d/world/terrainChunkSkirt.js',
+    './src/3d/world/roadCorridorSmoothing.js',
+    './src/3d/world/vegetationForestScatter.js',
+    './src/3d/world/worldReferenceForestAffinity.js',
+    './src/3d/world/worldReferenceBiomeField.js',
+    './src/3d/world/windGrass.js',
+    './src/3d/world/worldPropCatalogue.js',
+    './src/3d/world/worldPropExclusions.js',
+    './src/3d/world/worldReferenceValyria.js',
+    './src/3d/world/theWall.js',
+    './src/3d/world/nightsWatchCastles.js',
+    './src/3d/world/worldReferenceRivers.js',
+    './src/3d/world/worldPropScatter.js',
+    './src/3d/world/propGeometryGroupCoalescing.js',
+    './src/3d/world/villageBuildings.js',
+    './src/3d/world/terrainGroundRealism.js',
+    './src/3d/world/worldDressing.js',
+    './src/3d/world/terrainValleyCarving.js',
+    './src/3d/world/worldReferenceRoadRoutes.js',
+    './src/3d/world/worldReferenceRoadNetwork.js',
+    './src/3d/worldFoundation.js',
     './src/3d/world/terrainContinentalUplift.js',
     './src/3d/world/terrainMicroSurface.js',
     './src/3d/world/terrainReliefDetail.js',
     './src/3d/world/chunkManager.js',
+    './src/3d/world/waterLatitude.js',
     './src/3d/world/water.js',
     './src/3d/world/waterDepthField.js',
+    './src/3d/world/riverFlowAppearance.js',
+    './src/3d/world/riverMouth.js',
+    './src/3d/world/riverRibbonPath.js',
     './src/3d/world/rivers.js',
     './src/3d/world/settlements.js',
     './src/3d/world/materials.js',
@@ -407,7 +564,15 @@ const GAME3D_SHELL_FILES = [
     './assets/models/characters/paladin_wprop_j_nordstrom.fbx',
     './assets/models/characters/erika_archer.fbx',
     './assets/models/characters/uriel_a_plotexia.fbx',
-    './assets/models/animals/wolf/Wolf-Blender-2.82a.glb',
+    // The wolf is the `.gltf`, not the `.glb` beside it (run 377): the `.glb` is a Git LFS pointer
+    // that never resolves, so the wolf loaded as a placeholder box. The `.gltf` is a real committed
+    // model, but unlike a `.glb` its buffer and textures are *external* files, so each needs its own
+    // entry here or the wolf breaks offline. `Fur_*.png` are deliberately absent: the glTF never
+    // references them and its fur-card mesh is stripped at load (see `gameplay/animalConfig.js`).
+    './assets/models/animals/wolf/Wolf-Blender-2.82a.gltf',
+    './assets/models/animals/wolf/Wolf-Blender-2.82a.bin',
+    './assets/models/animals/wolf/Material__wolf_col_tga_diffuse_jpeg.jpg',
+    './assets/models/animals/wolf/eyes_diffuse_jpeg.jpg',
     './assets/models/animals/ivory_stallion.glb',
     './assets/models/creatures/dragon/Dragon_Baked_Actions_fbx_7.4_binary.fbx',
     './assets/models/creatures/dragon/textures/Ani_Fire_A.png',

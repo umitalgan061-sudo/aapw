@@ -9,7 +9,9 @@
  * @module scripts/game3dSmokeChecksDebugTools
  */
 
-const NAV_TIMEOUT_MS = 30_000;
+// Run 390: raised 30s -> 90s. game3d.html reaches domcontentloaded in ~31s in the remote sandbox,
+// so the old ceiling made this and ~20 sibling gates unrunnable rather than merely flaky.
+const NAV_TIMEOUT_MS = 90_000;
 
 /** Proves the real F4 free-fly controller activates, copies pose, moves, and deactivates. */
 async function checkFreeCamera(browser, baseUrl) {
