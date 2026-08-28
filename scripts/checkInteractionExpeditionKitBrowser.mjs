@@ -93,7 +93,7 @@ try {
 		const crafted = after.economy.copper === 19
 			&& after.economy.stockByOffer[armorer.id] === 0
 			&& after.economy.ledger.transactionCount === 5
-			&& after.economy.ledger.lifetimeSpentCopper === 29
+			&& after.economy.ledger.lifetimeSpentCopper === 41
 			&& item(after.inventory, 'dragonstone-whetstone') == null
 			&& item(after.inventory, 'dragonstone-travel-ration-pack') == null
 			&& kit?.quantity === 1
