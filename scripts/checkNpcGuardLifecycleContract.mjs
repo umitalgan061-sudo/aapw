@@ -8,7 +8,9 @@ const required = [
   ["perceptionIntent = 'patrol'", 'guard lifecycle must begin from patrol intent'],
   ["perceptionIntent = distanceToPlayer > combatEngageRadiusMeters ? 'chase' : 'combat'", 'visible acquired guard must choose chase/combat by engage radius'],
   ["perceptionIntent = 'observe'", 'partial suspicion must remain observe instead of instant combat'],
-  ["perceptionIntent = lastKnownPlayer && investigationRemaining > 0 ? 'investigate' : 'patrol'", 'lost target must investigate before returning to patrol'],
+  ["perceptionIntent = 'investigate'", 'lost target must investigate before route recovery'],
+  ["perceptionIntent = returningToRoute ? 'return' : 'patrol'", 'expired investigation must explicitly return to route before patrol'],
+  ["perceptionIntent === 'return'", 'route recovery must have a shipped movement state'],
   ["moveNpcToward(model, playerPosition, speedMps * 1.35", 'chase must use real movement instead of teleporting'],
   ["moveNpcToward(model, lastKnownPlayer, speedMps * 0.85", 'investigation must move toward last-known position'],
   ["releaseNpcGuardAlertOwnership", 'lost sight/dispose must release owned group alert'],
@@ -22,7 +24,7 @@ assert.equal(/Math\.random\s*\(/.test(npc.replace(/\/\*[\s\S]*?\*\//g, '').repla
 assert.equal(npc.includes('EditorMaterialStudio'), false, 'NPC runtime must never import editor-only material UI');
 
 console.log('NPC_GUARD_LIFECYCLE_CONTRACT_PASS', JSON.stringify({
-  lifecycle: ['patrol', 'observe', 'chase', 'combat', 'investigate', 'patrol'],
+  lifecycle: ['patrol', 'observe', 'chase', 'combat', 'investigate', 'return', 'patrol'],
   deterministic: true,
   lodBounded: true,
   editorRuntimeSeparated: true,
