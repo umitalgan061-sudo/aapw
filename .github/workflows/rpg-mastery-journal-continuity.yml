@@ -34,7 +34,7 @@ jobs:
           base=$(git merge-base HEAD origin/main)
           test "$base" = "$(git rev-parse origin/main)"
           mapfile -t paths < <(git diff --name-only "$base"...HEAD)
-          allowed='^(scripts/checkInteraction(ArmorerServiceBrowser|Expedition(Board|Kit(Browser|Craft)|TavernRecovery)|Mastery(ArmorerServiceBrowser|EconomyContinuity|JournalBrowser|ToSmithingBrowser)|ProvisioningCraft|QuartermasterTrade|SettlementService(Browser|Contract)|SmithingServicePersistence|TavernReceiptIntegrity|TradeLedger(Atomicity|Browser))\.mjs|\.github/workflows/(rpg-expedition-tavern-recovery|rpg-interaction-quest-loop|rpg-journey-ledger-ux|rpg-mastery-(armorer-service|economy-continuity|journal-continuity|to-smithing|travel-continuity)|rpg-smithing-service-persistence|rpg-tavern-receipt-integrity)\.yml|src/3d/gameplay/interactionConfig\.js)$'
+          allowed='^(scripts/checkInteraction(ArmorerServiceBrowser|Expedition(Board|Kit(Browser|Craft)|TavernRecovery)|Mastery(ArmorerServiceBrowser|EconomyContinuity|JournalBrowser|ToSmithingBrowser)|ProvisioningCraft|QuartermasterTrade|SettlementService(Browser|Contract)|SmithingServicePersistence|TavernReceiptIntegrity|TradeLedger(Atomicity|Browser))\.mjs|\.github/workflows/(rpg-expedition-tavern-recovery|rpg-interaction-quest-loop|rpg-journey-ledger-ux|rpg-mastery-(armorer-service|economy-continuity|journal-continuity|to-smithing|travel-continuity)|rpg-smithing-service-persistence|rpg-tavern-receipt-integrity|run283-final-head-governance)\.yml|src/3d/gameplay/interactionConfig\.js)$'
           printf '%s\n' "${paths[@]}" | grep -Ev "$allowed" && exit 1 || true
           changed=$(git diff --numstat "$base"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
           test "$changed" -le 1000
