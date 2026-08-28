@@ -92,7 +92,7 @@ try {
 		const receipt = after.economy.ledger.recentTransactions.at(-1);
 		const crafted = after.economy.copper === 19
 			&& after.economy.stockByOffer[armorer.id] === 0
-			&& after.economy.ledger.transactionCount === 4
+			&& after.economy.ledger.transactionCount === 5
 			&& after.economy.ledger.lifetimeSpentCopper === 29
 			&& item(after.inventory, 'dragonstone-whetstone') == null
 			&& item(after.inventory, 'dragonstone-travel-ration-pack') == null
