@@ -44,6 +44,10 @@ export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	deepColorVariationMax: 0.13,
 	roughnessMin: 0.20,
 	roughnessMax: 0.72,
+	shoreBreakerRevision: 'v1-bathymetry-directed-irregular-lace',
+	shoreGradientStepMeters: 68,
+	directionalBreakers: true,
+	nonPeriodicFoamBreakup: true,
 });
 
 const WATER_VERTEX_SHADER = /* glsl */ `
@@ -129,6 +133,14 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 
 	float sampleFragmentDepth(vec2 worldXZ) {
 		return sampleWaterField(worldXZ).x;
+	}
+
+	vec2 shorelineDepthGradient(vec2 worldXZ) {
+		const float STEP_METERS = 68.0;
+		return vec2(
+			sampleFragmentDepth(worldXZ + vec2(STEP_METERS, 0.0)) - sampleFragmentDepth(worldXZ - vec2(STEP_METERS, 0.0)),
+			sampleFragmentDepth(worldXZ + vec2(0.0, STEP_METERS)) - sampleFragmentDepth(worldXZ - vec2(0.0, STEP_METERS))
+		);
 	}
 
 	float shorelineGradientMask(vec2 worldXZ) {
@@ -277,7 +289,19 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float shallowMask = 1.0 - smoothstep(0.0, 0.22, fragmentDepth);
 		shallowMask *= shorelineGradientMask(vWorldPosition.xz) * waterCoverage;
 		float foam = clamp(shallowMask * surge, 0.0, 1.0);
-
+		vec2 shoreDepthGradient = shorelineDepthGradient(vWorldPosition.xz);
+		vec2 shoreNormal = shoreDepthGradient / max(length(shoreDepthGradient), 0.00001);
+		vec2 shoreTangent = vec2(-shoreNormal.y, shoreNormal.x);
+		float shoreMacroWarp = waterSurfaceNoise(vWorldPosition.xz / 310.0 + vec2(8.7, -4.1));
+		vec2 shoreCoordinates = vec2(dot(vWorldPosition.xz, shoreTangent) / 145.0, dot(vWorldPosition.xz, shoreNormal) / 430.0);
+		float alongShoreBreakup = waterSurfaceNoise(shoreCoordinates + vec2(shoreMacroWarp * 0.73, uTime * 0.018));
+		float breakerPhase = sin(dot(vWorldPosition.xz, shoreNormal) * 0.042 - uTime * 0.62 + (shoreMacroWarp - 0.5) * 3.4);
+		float breakerCrest = smoothstep(0.38, 0.92, breakerPhase * 0.5 + 0.5);
+		float foamCell = waterSurfaceNoise(vWorldPosition.xz / 34.0 + shoreTangent * (uTime * 0.035) + vec2(19.3, -7.6));
+		float foamLace = smoothstep(0.43, 0.78, foamCell * 0.58 + alongShoreBreakup * 0.42);
+		float retreatGap = smoothstep(0.24, 0.70, waterSurfaceNoise(shoreCoordinates * vec2(2.7, 0.84) + vec2(-uTime * 0.011, 12.4)));
+		float irregularBreaker = breakerCrest * mix(0.28, 1.0, foamLace) * mix(0.38, 1.0, alongShoreBreakup) * mix(0.56, 1.0, retreatGap);
+		foam = clamp(foam * mix(0.32, 1.18, foamLace * 0.62 + alongShoreBreakup * 0.38) + shallowMask * irregularBreaker * 0.24, 0.0, 1.0);
 		vec3 referenceFoam = vec3(${REFERENCE_WATER_COLORS.foam.r.toFixed(4)}, ${REFERENCE_WATER_COLORS.foam.g.toFixed(4)}, ${REFERENCE_WATER_COLORS.foam.b.toFixed(4)});
 		vec3 color = mix(baseColor + celestialSpecular, referenceFoam, foam * 0.76);
 		float opticalDepth = 1.0 - exp(-fragmentDepth * 3.2);
@@ -378,6 +402,8 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		referencePalettePolicyId: GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id,
 		enclosedLakeBedReadable: true,
 		clearCoastalDepthBand: true,
+		bathymetryDirectedIrregularBreakers: true,
+		nonPeriodicFoamLace: true,
 		nightAbsorptionFromCelestialState: true,
 	});
 
