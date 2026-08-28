@@ -6,6 +6,7 @@ on:
     paths:
       - 'scripts/checkSeededRandomPolicy.js'
       - 'scripts/checkNpcGuardLifecycleContract.mjs'
+      - 'scripts/checkNpcGuardLeashAttackSlotHandoff.mjs'
       - 'scripts/checkNpcGuardLifecycleBrowser.js'
       - 'scripts/checkNpcGuardGroupLifecycleBrowser.js'
       - 'scripts/checkNpcGuardLifecycleFrameRateBrowser.js'
@@ -20,6 +21,7 @@ on:
     paths:
       - 'scripts/checkSeededRandomPolicy.js'
       - 'scripts/checkNpcGuardLifecycleContract.mjs'
+      - 'scripts/checkNpcGuardLeashAttackSlotHandoff.mjs'
       - 'scripts/checkNpcGuardLifecycleBrowser.js'
       - 'scripts/checkNpcGuardGroupLifecycleBrowser.js'
       - 'scripts/checkNpcGuardLifecycleFrameRateBrowser.js'
