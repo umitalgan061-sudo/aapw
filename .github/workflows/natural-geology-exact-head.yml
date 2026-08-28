@@ -7,6 +7,8 @@ on:
     paths:
       - 'src/3d/world/valyriaGeology.js'
       - 'src/3d/world/valyriaEcology.js'
+      - 'src/3d/world/valyriaCastleWeathering.js'
+      - 'src/3d/world/settlements.js'
       - 'src/3d/world/terrain.js'
       - 'src/3d/world/naturalGeologyPlacement.js'
       - 'src/3d/world/naturalGeology.js'
@@ -15,6 +17,7 @@ on:
       - 'scripts/checkValyriaVolcanicMorphology.mjs'
       - 'scripts/checkValyriaCanonicalTerrain.mjs'
       - 'scripts/checkValyriaBarrenEcology.mjs'
+      - 'scripts/checkValyriaCastleWeathering.mjs'
       - 'scripts/checkNaturalGeologyPlacement.mjs'
       - 'scripts/checkNaturalGeologySourceContract.mjs'
       - '.github/workflows/natural-geology-exact-head.yml'
@@ -43,6 +46,8 @@ jobs:
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
           node --check src/3d/world/valyriaGeology.js
           node --check src/3d/world/valyriaEcology.js
+          node --check src/3d/world/valyriaCastleWeathering.js
+          node --check src/3d/world/settlements.js
           node --check src/3d/world/terrain.js
           node --check src/3d/world/naturalGeologyPlacement.js
           node --check src/3d/world/naturalGeology.js
@@ -51,6 +56,7 @@ jobs:
           node --check scripts/checkValyriaVolcanicMorphology.mjs
           node --check scripts/checkValyriaCanonicalTerrain.mjs
           node --check scripts/checkValyriaBarrenEcology.mjs
+          node --check scripts/checkValyriaCastleWeathering.mjs
           node --check scripts/checkNaturalGeologyPlacement.mjs
           node --check scripts/checkNaturalGeologySourceContract.mjs
       - name: Resolve vendored Three.js for canonical terrain imports
@@ -63,6 +69,8 @@ jobs:
         run: node scripts/checkValyriaCanonicalTerrain.mjs
       - name: Valyria barren ecology placement
         run: node scripts/checkValyriaBarrenEcology.mjs
+      - name: Principal Valyrian fortress weathering
+        run: node scripts/checkValyriaCastleWeathering.mjs
       - name: Natural geology deterministic placement
         run: node scripts/checkNaturalGeologyPlacement.mjs
       - name: Asset and authority source contract
