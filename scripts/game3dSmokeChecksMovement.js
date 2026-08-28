@@ -47,8 +47,8 @@ const NAV_TIMEOUT_MS = 30_000;
  * ADR-0030's exact chain scenario: wolf1 flees the player directly; wolf2 (out of the player's own
  * trigger radius, but within pack range of wolf1) pack-flees one frame later; wolf3 (out of pack
  * range of wolf1, but within pack range of wolf2) only pack-flees a further frame after that — plus
- * ADR-0030's negative control and ADR-0029's core design assertion that a pack-alerted wolf flees
- * *away from the player*, not away from the packmate that alerted it.
+ * ADR-0030's negative control and the current ownership rule that a non-direct pack-alerted wolf
+ * flees away from the packmate threat vector rather than a distant finite player sample.
  * @returns {Promise<{name: string, ok: boolean, details: string}>}
  */
 async function checkWolfPackAlert(browser, baseUrl) {
@@ -98,7 +98,7 @@ async function checkWolfPackAlert(browser, baseUrl) {
 			const baselineCalm = !wolf1.isFleeing && !wolf2.isFleeing && !wolf3.isFleeing;
 
 			// Frame 1: player approaches wolf1 only. wolf2/wolf3 get no packmate positions yet.
-			const wolf2StartX = wolf2.object3D.position.x;
+			const wolf2StartZ = wolf2.object3D.position.z;
 			wolf1.update(delta, player, []);
 			wolf2.update(delta, player, []);
 			wolf3.update(delta, player, []);
@@ -112,7 +112,7 @@ async function checkWolfPackAlert(browser, baseUrl) {
 			wolf2.update(delta, player, [wolf1Position]);
 			wolf3.update(delta, player, [wolf1Position]);
 			const wolf2PackFlees = wolf2.isFleeing;
-			const wolf2FleesAwayFromPlayer = wolf2.object3D.position.x > wolf2StartX; // away from player (0,0), not away from wolf1 (same x as wolf2 — that path wouldn't move x at all)
+			const wolf2FleesAwayFromPackThreat = wolf2.object3D.position.z > wolf2StartZ;
 			const wolf3StaysCalmOnOutOfRangePackmate = !wolf3.isFleeing;
 
 			// Frame 3: wolf3 now told wolf2 is fleeing (16m away, inside range) -> chain completes.
@@ -122,7 +122,7 @@ async function checkWolfPackAlert(browser, baseUrl) {
 
 			return {
 				baselineCalm, wolf1FleesDirect, wolf2CalmFrame1, wolf3CalmFrame1, wolf2PackFlees,
-				wolf2FleesAwayFromPlayer, wolf3StaysCalmOnOutOfRangePackmate, wolf3ChainFlees,
+				wolf2FleesAwayFromPackThreat, wolf3StaysCalmOnOutOfRangePackmate, wolf3ChainFlees,
 			};
 		});
 	} finally {
@@ -131,7 +131,7 @@ async function checkWolfPackAlert(browser, baseUrl) {
 	const ok = Object.values(result).every(Boolean);
 	const details = ok
 		? 'baseline calm, direct flee, pack-flee chains wolf1->wolf2->wolf3 one hop/frame, ' +
-			'flee direction stays player-relative, out-of-range packmate correctly ignored'
+			'non-direct pack flee follows the alerting packmate threat vector, out-of-range packmate correctly ignored'
 		: `FAILED assertion(s): ${JSON.stringify(result)}`;
 	return { name: 'wolf flee/pack-alert (gameplay/animals.js)', ok, details };
 }
