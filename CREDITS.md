@@ -231,22 +231,30 @@ Bu tablo `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §4 uyarınca runtime kullanımına
 | `owner_model_grass_f9c06859a8c8b599` | `assets/models/fbx/3dexport_grass_glb_1744982692/grass.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_spotted_cow_2021_corona_e5263076912c089d` | `assets/models/fbx/3dexport_spottedcow2021_1739346817/Spotted-cow-2021/export/Spotted-cow-2021-Corona.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_adventurer1_cbb405e59ede5a30` | `assets/models/fbx/adventurer1.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_aguilar_chateau_cbbc7c2e37f21e2c` | `assets/models/fbx/aguilar_chateau.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_aleksandr_class_archipelago_frigate_a70ebf4cf4eae731` | `assets/models/fbx/aleksandr_class_archipelago_frigate.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_alien_landscapefbx_ac8aebe4db4ba7f2` | `assets/models/fbx/Alien_LandscapeFBX.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_alpaca_by_quaternius_bcvfd48i2l_3d8439910c14830b` | `assets/models/fbx/Alpaca by Quaternius - bCVFD48i2l.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_american_road_snowy_terrain_c45e20e67c9649a7` | `assets/models/fbx/american_road_snowy_terrain.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_ancient_assets_pack_fb505cd15a547d13` | `assets/models/fbx/Ancient_Assets_Pack.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_ancient_assets_6536e774a48a55da` | `assets/models/fbx/Ancient_Assets.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_ancient_blue_hoplite_warrior_4814e7f37b7b987d` | `assets/models/fbx/ancient_blue_hoplite_warrior.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_ancient_columns_blend_ancient_columns_b26282faf2df835c` | `assets/models/fbx/Ancient_Columns_Blend_Ancient_Columns.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_ancient_horse_chariot_mauryan_era_572dafc9ee364dcf` | `assets/models/fbx/ancient_horse_chariot_mauryan_era.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_ancienthousev5_house_a55f2886a10bf62f` | `assets/models/fbx/AncientHouseV5_house.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_anno_1401_explorer_ship_9e0b82d8be1756d0` | `assets/models/fbx/anno_1401_-_explorer_ship.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_arch_free_arch_10a8f7d2d63345e8` | `assets/models/fbx/Arch_Free_arch.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_arjunas_chariot_rath_bb76782fabc91b65` | `assets/models/fbx/arjunas_chariot_rath.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_arya_stark_7facec96fea72e8d` | `assets/models/fbx/arya_stark.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_badger_by_poly_by_google_8k4cduyrhi4_20bed36371531589` | `assets/models/fbx/Badger by Poly by Google - 8k4cduyRhi4.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_bandaged_asylum_matron_needle_horror_79fcfd67247440a4` | `assets/models/fbx/bandaged_asylum_matron_needle_horror.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_barn_by_creativetrio_a6ukpq33az_14f3a73bc1c34f05` | `assets/models/fbx/Barn by CreativeTrio - A6UkPq33aZ.glb` | CreativeTrio (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_barn_by_poly_by_google_0qth_kuzrye_ed5575b0d3efcc1f` | `assets/models/fbx/Barn by Poly by Google - 0QTh_KUZRYE.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_barn_by_poly_by_google_dssuaulaxhk_e9ce043974529ab0` | `assets/models/fbx/Barn by Poly by Google - dSsUaUlaxHk.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_barn_by_quaternius_vsqqna7ez6_88d58ec36999273b` | `assets/models/fbx/Barn by Quaternius - vSqQNA7ez6.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_barracks_by_quaternius_uxcowrbsxx_6dc89e3f40e999f3` | `assets/models/fbx/Barracks by Quaternius - UXCOwRBSxx.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_barrel_by_quaternius_zjcqp1taci_bf2aad58e53b6b00` | `assets/models/fbx/Barrel by Quaternius - zjCQP1TAci.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_bas_melek_48723353c09f8186` | `assets/models/fbx/bas_melek.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_basic_temple_temple_bf1ae928729aa3c1` | `assets/models/fbx/Basic_Temple_temple.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_bear_by_poly_by_google_0pxwfxfb0hu_7e13e36ab2d45da0` | `assets/models/fbx/Bear by Poly by Google - 0PXWfxfb0Hu.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_bee_by_apelab_f0lw38lzjd4_bf4cbd3b9c7ddc1e` | `assets/models/fbx/Bee by apelab - f0lW38lzjd4.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
@@ -259,6 +267,8 @@ Bu tablo `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §4 uyarınca runtime kullanımına
 | `owner_model_bird_house_by_zsky_jspf4ljoqp_ebe1425664c67f59` | `assets/models/fbx/Bird House by Zsky - jSpF4LjoQp.glb` | Zsky (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_bison_by_poly_by_google_9strha_txds_a0f5dc18f8b09d58` | `assets/models/fbx/Bison by Poly by Google - 9sTrha-TxdS.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_bizon_by_madtrollstudio_rqklnypnfx_2692df9b1b3dddaa` | `assets/models/fbx/Bizon by madtrollstudio - RqkLNYPnfx.glb` | madtrollstudio (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_black_owl_familiar_amber_eyed_dark_fantasy_41bdfce308c58402` | `assets/models/fbx/black_owl_familiar__amber-eyed_dark_fantasy.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_black_wolf_pale_eyed_fierce_dark_predator_8c73c45fc4e60468` | `assets/models/fbx/black_wolf__pale-eyed_fierce_dark_predator.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_blacksmith_by_quaternius_bv52etg1aj_41a819cfdf4916aa` | `assets/models/fbx/Blacksmith by Quaternius - bV52eTG1Aj.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_blender_file_black_student_ec3d3ccb34e0ec3d` | `assets/models/fbx/Blender File_Black Student.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_boat_c5916e3135cde7d4` | `assets/models/fbx/Boat.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
@@ -266,6 +276,7 @@ Bu tablo `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §4 uyarınca runtime kullanımına
 | `owner_model_bonfire_by_quaternius_azj9hjwwwg_f7e1cc79b240f87d` | `assets/models/fbx/Bonfire by Quaternius - Azj9hJwwwG.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_brdy_forest_fe239d8871fb31b6` | `assets/models/fbx/brdy_forest.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_bridge1_9cdc7a188f2ebd9c` | `assets/models/fbx/bridge1.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_brigg_joachim_allwordt_sail_open_a055b6d340285c19` | `assets/models/fbx/brigg-_joachim-_allwordt_sail_open.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_buffalo_107f6b65bd7bf77d` | `assets/models/fbx/Buffalo.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_building_pier1_building_0d71bf8193920b66` | `assets/models/fbx/Building_pier1_building.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_bull_by_quaternius_a8piiywf7r_4e4911afc415ad99` | `assets/models/fbx/Bull by Quaternius - a8PIIYwF7r.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
@@ -290,6 +301,8 @@ Bu tablo `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §4 uyarınca runtime kullanımına
 | `owner_model_clay_roof_tiles_4k_3cdde1fafb9445df` | `assets/models/fbx/clay_roof_tiles_4k.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_cliff_4541b4e554b34287` | `assets/models/fbx/Cliff.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_coastscan_5143cd9faff2e77d` | `assets/models/fbx/CoastScan.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_cod_ghosts_hellhound_ce622c12303eb846` | `assets/models/fbx/cod_ghosts_hellhound.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_corrupted_king_in_black_armor_with_bone_crow_a31ad8df28649650` | `assets/models/fbx/corrupted_king_in_black_armor_with_bone_crown.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_cottage_by_creativetrio_ydgllt0emc_bb89e495b8fd9186` | `assets/models/fbx/Cottage by CreativeTrio - YDGLLT0emC.glb` | CreativeTrio (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_cougar_by_poly_by_google_1icrwbhsin7_d5833c04dab55b2a` | `assets/models/fbx/Cougar by Poly by Google - 1ICRwBHSin7.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_cow_by_poly_by_google_0otoigkcvm7_0f238b4d4bf959b5` | `assets/models/fbx/Cow by Poly by Google - 0OToIgkcVM7.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
@@ -299,6 +312,7 @@ Bu tablo `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §4 uyarınca runtime kullanımına
 | `owner_model_crops_by_quaternius_ro6k0yg7mx_56a4e1a9beeb745c` | `assets/models/fbx/Crops by Quaternius - Ro6K0Yg7mx.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_crow_by_poly_by_google_1mivwq5q3r9_5a6893d8ab5565a0` | `assets/models/fbx/Crow by Poly by Google - 1MIvWQ5Q3R9.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_curtains_by_poly_by_google_afwefo0cefo_ebd111613bd8a25a` | `assets/models/fbx/Curtains by Poly by Google - aFWefo0cEFo.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_dark_necromancer_corrupted_staff_skulls_e8515c72c6931b58` | `assets/models/fbx/dark_necromancer_-_corrupted_staff__skulls.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_dead_tree_by_quaternius_n8fhmgmldd_1d3c9b5a1bdfc61d` | `assets/models/fbx/Dead Tree by Quaternius - n8FhMgMldD.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_dead_trees_by_quaternius_f5i0q7two5_6645ab29c66025c2` | `assets/models/fbx/Dead Trees by Quaternius - F5I0Q7TwO5.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_dead_trees_with_snow_by_dook_ieuwxwner0_3d8b5f3dbb09b9d2` | `assets/models/fbx/Dead Trees With Snow by dook - iEuwXWner0.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
@@ -312,8 +326,12 @@ Bu tablo `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §4 uyarınca runtime kullanımına
 | `owner_model_dog_by_madtrollstudio_9bqpcxoyrk_5f8279a3212e3491` | `assets/models/fbx/Dog by madtrollstudio - 9bqPCxOyrk.glb` | madtrollstudio (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_dry_branches_medium_01_4k_260229cd0face47b` | `assets/models/fbx/dry_branches_medium_01_4k.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_dusty_path_in_the_fields_525ade036fd32454` | `assets/models/fbx/dusty_path_in_the_fields.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_dutch_ship_large_e43668e776a5c82d` | `assets/models/fbx/dutch_ship_large.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_dutch_ship_medium_d69aeba943f05cca` | `assets/models/fbx/dutch_ship_medium.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_elephant_by_poly_by_google_a27ma0rxyyj_c393d6f7e2cbf6c4` | `assets/models/fbx/Elephant by Poly by Google - a27MA0rXyyj.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_elk_by_poly_by_google_bo8xpdrab5g_aeba3767cb389619` | `assets/models/fbx/Elk by Poly by Google - bO8XPdrAb5G.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_ember_hellhound_dark_fantasy_demon_hound_3a543b988c540d9d` | `assets/models/fbx/ember_hellhound_-_dark_fantasy_demon_hound.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_ember_winged_fallen_angel_warrior_1a444b512c19500e` | `assets/models/fbx/ember_winged_fallen_angel_warrior.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_fall_tree_by_danni_bittman_4gyen9xm3kj_8a16c28d76a765ee` | `assets/models/fbx/Fall Tree by Danni Bittman - 4GYen9Xm3Kj.glb` | Danni Bittman (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_fantasy_house_by_quaternius_dcpho4sua3_fc417edd0952caf6` | `assets/models/fbx/Fantasy House by Quaternius - dcPho4SUA3.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_fantasy_stable_by_quaternius_qhnqsoggbi_851b324e5fc96fed` | `assets/models/fbx/Fantasy Stable by Quaternius - qhNQSOGGbi.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
@@ -342,6 +360,7 @@ Bu tablo `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §4 uyarınca runtime kullanımına
 | `owner_model_freeallblend_e77bd73651ec1d1f` | `assets/models/fbx/FreeAllBLEND.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_freebuilding_building_ff4852a268171119` | `assets/models/fbx/FreeBuilding_building.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_ganges_river_pebbles_4k_6738dc30b8523fea` | `assets/models/fbx/ganges_river_pebbles_4k.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_giant_stone_magma_golem_e398f752d75e3270` | `assets/models/fbx/giant_stone_magma_golem.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_goat_by_poly_by_google_d7dimmjtf8e_d660d3991bc92e9b` | `assets/models/fbx/Goat by Poly by Google - d7dImmjtF8E.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_governmentbuilding_building_7066072479db0557` | `assets/models/fbx/GovernmentBuilding_building.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_grass_by_quaternius_ugtozco3p2_c3acd7642660cff1` | `assets/models/fbx/Grass by Quaternius - UGTOzcO3P2.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
@@ -350,9 +369,14 @@ Bu tablo `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §4 uyarınca runtime kullanımına
 | `owner_model_grass_04563b00fa7b180c` | `assets/models/fbx/Grass.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_great_horned_owl_by_poly_by_google_fnkq9cwsg_a4ced20a2156ca7b` | `assets/models/fbx/Great horned owl by Poly by Google - fNkq9CwSG6d.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_guy_by_cloaking_us_0eu7bl0a6cg_a09d4d5e2ac253c0` | `assets/models/fbx/guy by CLOAKING .US - 0eU7bl0a6Cg.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_hell_hound_772a618932fbe334` | `assets/models/fbx/hell_hound.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_hengshan_hanging_temple_4730c84ab370db15` | `assets/models/fbx/hengshan_hanging_temple.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_hitem3d_1785396398302_b77d8e0d17bce49c` | `assets/models/fbx/Hitem3d-1785396398302.glb` | Hitem3d (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_hitem3d_1785398580755_b982eb12ec8dd4a9` | `assets/models/fbx/Hitem3d-1785398580755.glb` | Hitem3d (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_hitem3d_1785400605600_7c396808738d6c15` | `assets/models/fbx/Hitem3d-1785400605600.glb` | Hitem3d (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_hms_agamemnon_d689893c3203fe21` | `assets/models/fbx/hms_agamemnon.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_hms_bounty_32179c5dd562dd2f` | `assets/models/fbx/hms_bounty.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_hms_victory_a_medieval_warship_62f125bd8d686528` | `assets/models/fbx/hms_victory_a_medieval_warship.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_horse_by_poly_by_google_5ocnvsh_zf_e77d8fddcd13f86a` | `assets/models/fbx/Horse by Poly by Google - 5ocnVSh_ZF-.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_house_by_pixel_fdaqerlqcc_e435094d828975af` | `assets/models/fbx/House by Pixel - fdaqERLQCc.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_house_by_quaternius_hehdd2rtpx_8f2f062d55220e8f` | `assets/models/fbx/House by Quaternius - HeHDd2rTpX.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
@@ -360,8 +384,11 @@ Bu tablo `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §4 uyarınca runtime kullanımına
 | `owner_model_house_free_house_1f70d82c7153602d` | `assets/models/fbx/House_free_house.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_house_with_garden_glb_61c89901d314346f` | `assets/models/fbx/House_with_Garden_GLB.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_husky_by_quaternius_wcwiueqwzq_41d145bdb5e698b7` | `assets/models/fbx/Husky by Quaternius - wcWiuEqwzq.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_infernal_magma_hound_free_lava_creature_asse_b6fca67b8eafb950` | `assets/models/fbx/infernal_magma_hound_-_free_lava_creature_asset.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_jaaninoja_bridge_in_turku_kurala_finland_24059dc34bc9033e` | `assets/models/fbx/jaaninoja_bridge_in_turku_kurala_finland.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_karakter_aaa40cf0a19f0528` | `assets/models/fbx/karakter.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_king_by_quaternius_i1gtjmuk2m_7d3328143967cd0c` | `assets/models/fbx/King by Quaternius - I1gTjmuK2m.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_kni1_e60ea37eae0db0a5` | `assets/models/fbx/kni1.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_knight_by_dawid2k_isc73b8skq_0a2120830e36ebf4` | `assets/models/fbx/Knight by Dawid2K - isC73B8SKq.glb` | Dawid2K (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_knights_character_kit_by_jacques_fourie_3r2j_09bb24b2504f39da` | `assets/models/fbx/Knights Character Kit by Jacques Fourie - 3r2JcOZShpE.glb` | Jacques Fourie (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_labrador_retriever_03_45e4dc36badce390` | `assets/models/fbx/Labrador-Retriever_03.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
@@ -369,8 +396,10 @@ Bu tablo `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §4 uyarınca runtime kullanımına
 | `owner_model_lamp6_lamp_2580585d4827a0b0` | `assets/models/fbx/Lamp6_lamp.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_lion_by_poly_by_google_3xajojwxswz_c09c7a08798cc18c` | `assets/models/fbx/Lion by Poly by Google - 3XAJojWxSWz.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_log_cabin_by_jarlan_perez_et0omfezvkb_40003e40f83a7408` | `assets/models/fbx/Log Cabin by Jarlan Perez - et0OmFeZVkb.glb` | Jarlan Perez (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_lord_surya_on_divine_chariot_758cf1e6c5c96aee` | `assets/models/fbx/lord_surya_on_divine_chariot.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_low_poly_lion_5e12a42a2cff8371` | `assets/models/fbx/low_poly_lion.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_low_poly_winter_tree_pack_9b8d9136fef395b4` | `assets/models/fbx/low_poly_winter_tree_pack.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_magma_fire_dragon_knight_616f5b7457d1d6b4` | `assets/models/fbx/magma_fire_dragon_knight.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_maple_trees_by_quaternius_igftqd0pjo_a739d6dc4acd1d52` | `assets/models/fbx/Maple Trees by Quaternius - iGFtQd0PJO.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_medhouse_d127a6df47b4658f` | `assets/models/fbx/MedHouse.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_medieval_gloves_0c15315de02ca4e9` | `assets/models/fbx/medieval_gloves.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
@@ -423,7 +452,9 @@ Bu tablo `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §4 uyarınca runtime kullanımına
 | `owner_model_mouse_by_poly_by_google_4kke4d2fv1d_6f9e36970b5937c2` | `assets/models/fbx/Mouse by Poly by Google - 4KKE4D2FV1D.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_namaqualand_boulder_02_4k_1040d86f18d08d02` | `assets/models/fbx/namaqualand_boulder_02_4k.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_namaqualand_boulder_05_4k_57a08c07ec7bace7` | `assets/models/fbx/namaqualand_boulder_05_4k.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_nao_victoria_galleon_ship_58a3e0a33a620a25` | `assets/models/fbx/nao_victoria_galleon_ship.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_nettle_plant_4k_646e73dd6a3c8784` | `assets/models/fbx/nettle_plant_4k.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_night_falcon_dark_fantasy_amber_eyed_bird_89e5ff9e1fcba561` | `assets/models/fbx/night_falcon_dark_fantasy_amber-eyed_bird.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_oil_tin_4k_e515e080a3115358` | `assets/models/fbx/oil_tin_4k.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_old_bridge_189a810d627c3d7e` | `assets/models/fbx/Old Bridge.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_old_house_2_3d_models_a2c17cb397214483` | `assets/models/fbx/Old House 2/Old House Files/Old House 2 3D Models.FBX` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
@@ -431,6 +462,7 @@ Bu tablo `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §4 uyarınca runtime kullanımına
 | `owner_model_others_cfdfa4b1d9b33632` | `assets/models/fbx/Others.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_others2_821c2402811316ec` | `assets/models/fbx/Others2.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_oval_lamp_lamp_8234638c57b60b57` | `assets/models/fbx/Oval_Lamp_lamp.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_p_0r_noon_842a12e7e101e3a7` | `assets/models/fbx/p-0r_noon.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_palace_by_poly_by_google_f5wb0x6qk3j_6668819334983eae` | `assets/models/fbx/Palace by Poly by Google - f5wb0x6Qk3j.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_palm_trees_by_quaternius_vyslw9dei6_e028eab729640db1` | `assets/models/fbx/Palm Trees by Quaternius - VYslw9DEi6.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_pillar_world_pillar_676dcf52a0591574` | `assets/models/fbx/Pillar_World_pillar.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
@@ -441,6 +473,8 @@ Bu tablo `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §4 uyarınca runtime kullanımına
 | `owner_model_rabbit_by_poly_by_google_8_zf1zgrpk5_51f2b7ba16db4942` | `assets/models/fbx/Rabbit by Poly by Google - 8_ZF1ZGRpk5.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_rabbit_by_poly_by_google_9obtrvyusmt_de3fc09755d6e2a3` | `assets/models/fbx/Rabbit by Poly by Google - 9OBTRVYUSmt.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_rcr01_904e9d9e776135f4` | `assets/models/fbx/RCR01.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_realistic_whitetailed_deer_free_commercial_u_23abee08e828112c` | `assets/models/fbx/realistic_whitetailed_deer__free_commercial_use.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_realistic_woolly_sheep_thick_curled_fleece_83c6d63f797c72d2` | `assets/models/fbx/realistic_woolly_sheep_-_thick_curled_fleece.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_rhino_faa688dc379e1433` | `assets/models/fbx/rhino.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_riggedcat_d38f1ed000362c9e` | `assets/models/fbx/riggedcat.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_road_terrain_4bcede0bcca1c94e` | `assets/models/fbx/road_terrain.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
@@ -450,9 +484,12 @@ Bu tablo `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §4 uyarınca runtime kullanımına
 | `owner_model_rugged_mountain_landscape_611626a9c574d95d` | `assets/models/fbx/rugged_mountain_landscape.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_ruins_column_columns_e8f435daf4c2b57c` | `assets/models/fbx/Ruins_Column_columns.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_seagull_by_poly_by_google_0wrzrtciirp_b2e05426474a5e1c` | `assets/models/fbx/Seagull by Poly by Google - 0WRzrtCIIRp.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_shadow_hound_dark_fantasy_bone_spiked_beast_3aad24d04821936d` | `assets/models/fbx/shadow_hound_dark_fantasy_bone-spiked_beast.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_sheep_by_quaternius_c39auxuues_a46bc9d7aba575e2` | `assets/models/fbx/Sheep by Quaternius - C39AUXUUes.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_shipking_b793d271be093176` | `assets/models/fbx/shipking.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_silo_house_by_quaternius_zgstejsacn_77253fff968c1867` | `assets/models/fbx/Silo House by Quaternius - ZgstejsAcN.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_singlemountain_b3ea55997c9b5886` | `assets/models/fbx/singlemountain.FBX` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_skinless_hound_exposed_muscle_beast_fb2cf301642192eb` | `assets/models/fbx/skinless_hound_-_exposed_muscle_beast.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_skunk_by_poly_by_google_bf8ide1qb7u_adc6c0a8729677cb` | `assets/models/fbx/Skunk by Poly by Google - bf8IDe1qb7u.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_snow_leopard_by_poly_by_google_26ttvxyxkpc_25c1d81534eb38e7` | `assets/models/fbx/Snow leopard by Poly by Google - 26tTvxyxkPC.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_snow_terrain_low_poly_643b946516c2c47a` | `assets/models/fbx/snow_terrain_low_poly.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
@@ -503,6 +540,7 @@ Bu tablo `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §4 uyarınca runtime kullanımına
 | `owner_model_terrain_test_2_6c436fa3e39e9b33` | `assets/models/fbx/terrain_test_2.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_terrain_test_81f2f0a2ae8340fa` | `assets/models/fbx/terrain_test.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_the_landscape_is_a_forest_in_the_mountains_ce1b62b1fbf9390c` | `assets/models/fbx/the_landscape_is_a_forest_in_the_mountains.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_thors_chariot_df8ad27a77965db4` | `assets/models/fbx/thors_chariot.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_tiger_251f41a2980b3c4d` | `assets/models/fbx/tiger.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_tower22_tower_f2a52d128745c1fb` | `assets/models/fbx/tower22_tower.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_treasure_chest_4k_c53261b8679b8737` | `assets/models/fbx/treasure_chest_4k.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
@@ -521,6 +559,8 @@ Bu tablo `GOVERNANCE_FULL_GAME_DIRECTIVE.md` §4 uyarınca runtime kullanımına
 | `owner_model_untitled_5b992cb973ae18ca` | `assets/models/fbx/untitled.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_viking_sword_blend_viking_sword_ea8442b7a4bc8733` | `assets/models/fbx/Viking Sword Blend_Viking Sword.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_vintage_day_bed_4k_157331adaa0ae7ef` | `assets/models/fbx/vintage_day_bed_4k.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_volcanic_damaged_elemental_d764011809c35c35` | `assets/models/fbx/volcanic_damaged_elemental.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
+| `owner_model_volcanic_stone_lava_magma_golem_df005155fe9c192a` | `assets/models/fbx/volcanic_stone_lava_magma_golem.glb` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_wasp_by_poly_by_google_4udwqxbm0_b_af49ffe6bf6218c7` | `assets/models/fbx/Wasp by Poly by Google - 4UdWQxbm0-B.glb` | Poly by Google (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_weapons_f1cbd41e6ce92568` | `assets/models/fbx/weapons.fbx` | Owner upload — original source not recorded | UNKNOWN — owner-approved for runtime use (§33.3) |
 | `owner_model_white_horse_by_quaternius_bede4rmzy9_0c80daa522143613` | `assets/models/fbx/White Horse by Quaternius - bEdE4rmZy9.glb` | Quaternius (filename attribution) | UNKNOWN — owner-approved for runtime use (§33.3) |
