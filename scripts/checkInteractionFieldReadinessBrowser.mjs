@@ -47,6 +47,7 @@ try {
 		const armorer = QUARTERMASTER_OFFERS[1];
 		const boosted = controller.getRpgSnapshot();
 		boosted.economy.copper = 60;
+		boosted.inventory = { items: [{ itemId: 'dragonstone-whetstone', quantity: 1, provenance: [{ sourceType: 'browser-fixture', sourceId: 'field-readiness' }] }] };
 		controller.restoreRpgSnapshot(boosted);
 
 		controller.handleKeyDown({ code: 'KeyI', repeat: false });
