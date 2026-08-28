@@ -9,6 +9,7 @@
 
 const DEFAULT_DIRECTION = Object.freeze({ x: 0.557086, y: 0.742781, z: 0.371391 });
 const DEFAULT_COLOR = Object.freeze({ r: 1, g: 0.887923, b: 0.637597 });
+const PHOTOMETRIC_TIE_RATIO = 0.14;
 
 let state = Object.freeze({
 	source: 'sun',
@@ -35,9 +36,6 @@ function frozenColor(color) {
 }
 
 function photometricKeyScore(intensity, color) {
-	// Custom water/glint shaders need the visually dominant celestial key, not merely the numerically
-	// larger Three.js intensity. Luminance weighting prevents a dim blue moon from taking over while
-	// the warmer twilight sun still contributes the stronger perceived direct reflection.
 	const luminance = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
 	return intensity * Math.max(0.02, luminance);
 }
@@ -45,6 +43,11 @@ function photometricKeyScore(intensity, color) {
 /**
  * Publishes whichever visible celestial body currently provides the stronger direct key.
  * Direction is surface-to-light, matching the convention used by `world/water.js`'s half-vector.
+ *
+ * Outside the short crossover window the built-in directional-light intensity remains authoritative.
+ * Near an actual sun/moon tie, luminance breaks the directional/color tie so custom water glints do
+ * not snap prematurely to a dimmer-looking chromatic key. Intensity always stays equal to the
+ * strongest built-in directional light, preserving lighting parity.
  */
 export function publishCelestialLightState({
 	sunPosition,
@@ -59,14 +62,18 @@ export function publishCelestialLightState({
 	const safeMoonIntensity = Math.max(0, Number(moonIntensity) || 0);
 	const safeSunColor = frozenColor(sunColor);
 	const safeMoonColor = frozenColor(moonColor);
-	const sunScore = photometricKeyScore(safeSunIntensity, safeSunColor);
-	const moonScore = photometricKeyScore(safeMoonIntensity, safeMoonColor);
-	const moonWins = moonScore > sunScore;
+	const strongestIntensity = Math.max(safeSunIntensity, safeMoonIntensity);
+	const intensityDelta = Math.abs(safeSunIntensity - safeMoonIntensity);
+	const nearTie = strongestIntensity > 0 && intensityDelta / strongestIntensity <= PHOTOMETRIC_TIE_RATIO;
+	const rawMoonWins = safeMoonIntensity > safeSunIntensity;
+	const photometricMoonWins = photometricKeyScore(safeMoonIntensity, safeMoonColor)
+		> photometricKeyScore(safeSunIntensity, safeSunColor);
+	const moonWins = nearTie ? photometricMoonWins : rawMoonWins;
 	state = Object.freeze({
 		source: moonWins ? 'moon' : 'sun',
 		direction: normalizedDirection(moonWins ? moonPosition : sunPosition),
 		color: moonWins ? safeMoonColor : safeSunColor,
-		intensity: moonWins ? safeMoonIntensity : safeSunIntensity,
+		intensity: strongestIntensity,
 		nightFactor: Math.max(0, Math.min(1, Number(nightFactor) || 0)),
 	});
 	return state;
