@@ -44,6 +44,7 @@
 import * as THREE from 'three';
 import { mulberry32 } from './terrain.js';
 import { generateForestPositions } from './vegetationForestScatter.js';
+import { valyriaInfluenceAtWorldXZ, VALYRIA_BARREN_ABOVE_INFLUENCE } from './worldReferenceValyria.js';
 
 /**
  * Two low-poly species, each a self-contained silhouette recipe. `weight` values are relative and
@@ -191,6 +192,13 @@ export function isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, 
 			if (distance < RIVER_EXCLUSION_RADIUS_METERS) return false;
 		}
 	}
+	// Nothing that belongs to a living country stands in the Doom (run 410, owner: "Normal görünen
+	// hiçbir şeyi Valyria'ya koyma. Orasını lanetli bölge olarak düşün."). This is the canonical
+	// placement gate -- `world/villages.js` and `gameplay/creatureSpawner.js` both route through it --
+	// so one test here keeps villages, villagers, herds, trees and grass out of Valyria at once.
+	// `world/worldPropScatter.js` already enforced the same rule for scatter props on its own.
+	if (valyriaInfluenceAtWorldXZ(x, z) > VALYRIA_BARREN_ABOVE_INFLUENCE) return false;
+
 	const groundY = sampleHeightMeters(x, z);
 	if (groundY <= seaLevelMeters + SHORE_MARGIN_METERS) return false;
 

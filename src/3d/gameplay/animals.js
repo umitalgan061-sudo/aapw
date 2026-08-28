@@ -17,6 +17,7 @@ import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
 import { mapToWorldXZ } from '../world/settlements.js';
 import { WORLD_SCALE } from '../config.js';
+import { WORLD_REFERENCE_ALIGNMENT } from '../world/worldReferenceAlignment.js';
 
 const MAX_WILDLIFE_SIMULATION_STEP_SECONDS = 0.1;
 const DEFAULT_FLEE_RELEASE_MARGIN_METERS = 3;
@@ -315,8 +316,20 @@ export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsB
 			// the Doom was impossible through this config at all. `mapAnchor` carries normalized owner-map
 			// coordinates and resolves through the same `mapToWorldXZ` the seats themselves use, so the two
 			// anchor kinds land in one coordinate space rather than two.
+			// `mapAnchor` is **normalized** (0..1), the same units `worldReferenceValyria.js` reasons in,
+			// while `mapToWorldXZ` takes **map units** (0..9000 x 0..7000) — the space `KINGDOM_SEATS`
+			// stores. Run 407 handed the normalized pair straight in and put the Doom's magma hounds at
+			// world (-6647, -5170), 9.6 km from Valyria, where `valyriaInfluenceAtWorldXZ` reads 0. The
+			// run's own check measured ground heights at those coordinates and reported land, which is
+			// true and beside the point: it was the wrong land. Scaling by the canvas dimensions is the
+			// conversion that was missing.
 			const anchor = spawn.mapAnchor
-				? mapToWorldXZ(spawn.mapAnchor.nx, spawn.mapAnchor.ny, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT)
+				? mapToWorldXZ(
+					spawn.mapAnchor.nx * WORLD_REFERENCE_ALIGNMENT.mapCanvasWidthUnits,
+					spawn.mapAnchor.ny * WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits,
+					WORLD_SCALE.MAP_BOUNDS,
+					WORLD_SCALE.METERS_PER_MAP_UNIT,
+				)
 				: seatsById.get(spawn.seatId);
 			if (!anchor) {
 				console.warn(`[gameplay/animals] Animal spawn "${spawn.id}" references unknown seat "${spawn.seatId}" — skipping.`);

@@ -331,7 +331,11 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run 409 adds ascent: hold the jump control to climb. It changes `gameplay/player.js`,
 // `gameplay/playerConfig.js`, `input.js` and `game3d.js`, all four already cached, so the offline copy
 // has to turn over or a returning player keeps the old modules and the control does nothing. v62->v63.
-const SHELL_CACHE = 'westeros-shell-v63';
+// Run 410 puts the cursed-region rule in the canonical placement gate (`world/vegetation.js`) and
+// fixes the map-anchor conversion that had run 407's magma hounds 9.6 km from Valyria. Villages,
+// villagers, herds and trees stop appearing in the Doom, and the hounds start appearing in it — both
+// are look changes served from cached modules, so the offline copy has to turn over. v63->v64.
+const SHELL_CACHE = 'westeros-shell-v64';
 const SHELL_FILES = [
     './',
     './index.html',

@@ -233,97 +233,99 @@ export const ANIMAL_CONFIG = Object.freeze({
 	 * -> wolf-3 pack-flees off wolf-2, one frame later) is the only path that reaches wolf-3 — see
 	 * DECISIONS.md ADR-0030 for the live verification this was added to run. */
 	SPAWNS: Object.freeze([
-		// Run 407 — the Doom of Valyria. Two packs and two lone hunters: pack members sit inside one
-		// another's `PACK_ALERT_RADIUS_METERS` so they rouse together, the lone pair is far outside it so
-		// the Doom is not uniformly crowded. `mapAnchor` rather than `seatId` because Valyria is a region
-		// with no castle in it.
+		// The Doom of Valyria (run 407, corrected in run 410). Two packs and two lone hunters: pack
+		// members sit inside one another's `PACK_ALERT_RADIUS_METERS` so they rouse together, the lone
+		// pair is far outside it so the Doom is not uniformly crowded. `mapAnchor` rather than `seatId`
+		// because Valyria is a region with no castle in it.
 		//
-		// **Every offset is east of the anchor, and that is not arbitrary.** The anchor is the centre of
-		// the Doom, and the centre of the Doom is open water: `valyriaUpliftMeters` deliberately returns 0
-		// at or below the waterline so the Smoking Sea keeps its shape, so the core samples -2.2 m against
-		// a 6 m sea level. Probed on a 50 m grid, the nearest Valyrian land is ~600 m east, rising to 83 m
-		// around (1450, 650). The first pass put all nine hounds on the anchor itself and they spawned in
-		// the sea; these offsets are land, measured.
+		// **Run 407 put all nine in the wrong place and its own check agreed with it.** `mapAnchor` is
+		// normalized and `mapToWorldXZ` takes map units, so the pair went in unscaled and landed the
+		// pack at world (-6647, -5170) — 9.6 km from the Doom, where `valyriaInfluenceAtWorldXZ` reads
+		// **0**. That run then probed ground heights around those coordinates, found land, and reported
+		// the hounds correctly placed: true about the ground, wrong about the place. The conversion is
+		// fixed in `gameplay/animals.js`; these offsets are re-measured against the real Valyria, whose
+		// core sits at world (-731, 2430) on high ground at **278 m**, not — as run 407 also wrongly
+		// concluded from the same bad coordinates — under open water.
 		Object.freeze({
 			id: 'valyria-magma-hound-pack-a-1',
 			speciesId: 'magmaHound',
 			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
-			offsetXMeters: 680,
-			offsetZMeters: 20,
+			offsetXMeters: 0,
+			offsetZMeters: -50,
 			rotationYRadians: 1.3,
-			patrol: Object.freeze({ toOffsetXMeters: 720, toOffsetZMeters: 55 }),
+			patrol: Object.freeze({ toOffsetXMeters: 35, toOffsetZMeters: -75 }),
 		}),
 		Object.freeze({
 			id: 'valyria-magma-hound-pack-a-2',
 			speciesId: 'magmaHound',
 			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
-			offsetXMeters: 700,
-			offsetZMeters: 60,
+			offsetXMeters: 50,
+			offsetZMeters: -50,
 			rotationYRadians: 2.6,
-			patrol: Object.freeze({ toOffsetXMeters: 740, toOffsetZMeters: 95 }),
+			patrol: Object.freeze({ toOffsetXMeters: 85, toOffsetZMeters: -75 }),
 		}),
 		Object.freeze({
 			id: 'valyria-magma-hound-pack-a-3',
 			speciesId: 'magmaHound',
 			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
-			offsetXMeters: 730,
-			offsetZMeters: 30,
+			offsetXMeters: -50,
+			offsetZMeters: -50,
 			rotationYRadians: 3.9,
-			patrol: Object.freeze({ toOffsetXMeters: 770, toOffsetZMeters: 65 }),
+			patrol: Object.freeze({ toOffsetXMeters: -15, toOffsetZMeters: -75 }),
 		}),
 		Object.freeze({
 			id: 'valyria-magma-hound-pack-a-4',
 			speciesId: 'magmaHound',
 			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
-			offsetXMeters: 710,
-			offsetZMeters: -10,
+			offsetXMeters: 0,
+			offsetZMeters: -100,
 			rotationYRadians: 5.2,
-			patrol: Object.freeze({ toOffsetXMeters: 750, toOffsetZMeters: 25 }),
+			patrol: Object.freeze({ toOffsetXMeters: 35, toOffsetZMeters: -125 }),
 		}),
 		Object.freeze({
 			id: 'valyria-magma-hound-pack-b-1',
 			speciesId: 'magmaHound',
 			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
-			offsetXMeters: 1420,
-			offsetZMeters: 620,
+			offsetXMeters: -100,
+			offsetZMeters: 0,
 			rotationYRadians: 2.1,
-			patrol: Object.freeze({ toOffsetXMeters: 1375, toOffsetZMeters: 590 }),
+			patrol: Object.freeze({ toOffsetXMeters: -130, toOffsetZMeters: -30 }),
 		}),
 		Object.freeze({
 			id: 'valyria-magma-hound-pack-b-2',
 			speciesId: 'magmaHound',
 			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
-			offsetXMeters: 1460,
-			offsetZMeters: 660,
+			offsetXMeters: -100,
+			offsetZMeters: -50,
 			rotationYRadians: 4.2,
-			patrol: Object.freeze({ toOffsetXMeters: 1415, toOffsetZMeters: 630 }),
+			patrol: Object.freeze({ toOffsetXMeters: -130, toOffsetZMeters: -80 }),
 		}),
 		Object.freeze({
 			id: 'valyria-magma-hound-pack-b-3',
 			speciesId: 'magmaHound',
 			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
-			offsetXMeters: 1480,
-			offsetZMeters: 610,
+			offsetXMeters: -50,
+			offsetZMeters: 0,
 			rotationYRadians: 6.3,
-			patrol: Object.freeze({ toOffsetXMeters: 1435, toOffsetZMeters: 580 }),
+			patrol: Object.freeze({ toOffsetXMeters: -80, toOffsetZMeters: -30 }),
 		}),
 		Object.freeze({
 			id: 'valyria-magma-hound-lone-1',
 			speciesId: 'magmaHound',
 			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
-			offsetXMeters: 650,
-			offsetZMeters: 200,
+			offsetXMeters: 0,
+			offsetZMeters: 100,
 			rotationYRadians: 3.0,
-			patrol: Object.freeze({ toOffsetXMeters: 700, toOffsetZMeters: 245 }),
+			patrol: Object.freeze({ toOffsetXMeters: 40, toOffsetZMeters: 135 }),
 		}),
 		Object.freeze({
 			id: 'valyria-magma-hound-lone-2',
 			speciesId: 'magmaHound',
 			mapAnchor: Object.freeze({ nx: 0.445, ny: 0.735 }),
-			offsetXMeters: 1500,
-			offsetZMeters: 750,
+			offsetXMeters: 50,
+			offsetZMeters: 50,
 			rotationYRadians: 6.0,
-			patrol: Object.freeze({ toOffsetXMeters: 1550, toOffsetZMeters: 795 }),
+			patrol: Object.freeze({ toOffsetXMeters: 90, toOffsetZMeters: 85 }),
 		}),
 		Object.freeze({
 			id: 'berkalp-wolf-1',

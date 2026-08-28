@@ -32,6 +32,8 @@
 
 import * as THREE from 'three';
 import { signedFbmNoise } from './terrainReliefDetail.js';
+import { WORLD_SCALE } from '../config.js';
+import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
 
 const clamp01 = (value) => (value < 0 ? 0 : value > 1 ? 1 : value);
 
@@ -251,3 +253,37 @@ export function applyValyriaSurface(target, { nx, ny, heightAboveSeaMeters, curv
 	}
 	return target;
 }
+
+/**
+ * How Valyrian is this point, given **world** metres rather than normalized map coordinates?
+ *
+ * Every caller that places something on the ground works in world XZ, and until run 410 the only way
+ * to ask this question was to repeat the projection at the call site — `world/worldPropScatter.js`
+ * carries its own copy. One more copy in `world/vegetation.js` would have been two chances for the two
+ * to drift apart and for "Valyria" to mean a slightly different patch of ground to the trees than it
+ * does to the props.
+ *
+ * @param {number} worldX Metres.
+ * @param {number} worldZ Metres.
+ * @returns {number} 0 outside the Doom, 1 in its heart.
+ */
+export function valyriaInfluenceAtWorldXZ(worldX, worldZ) {
+	const { MAP_BOUNDS, METERS_PER_MAP_UNIT } = WORLD_SCALE;
+	const nx = (worldX / METERS_PER_MAP_UNIT + (MAP_BOUNDS.minX + MAP_BOUNDS.maxX) * 0.5)
+		/ WORLD_REFERENCE_ALIGNMENT.mapCanvasWidthUnits;
+	const ny = (worldZ / METERS_PER_MAP_UNIT + (MAP_BOUNDS.minY + MAP_BOUNDS.maxY) * 0.5)
+		/ WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits;
+	return valyriaInfluence01(nx, ny);
+}
+
+/**
+ * Above this influence, nothing that belongs to a living country may be placed (run 410).
+ *
+ * The owner's rule for the Doom, in their words: *"Normal görünen hiçbir şeyi Valyria'ya koyma.
+ * Orasını lanetli bölge olarak düşün."* `world/worldPropScatter.js` had been enforcing it for scatter
+ * props alone, at its own local `valyriaBarrenAbove: 0.25`; villages, villagers and the whole
+ * procedural fauna population went through `world/vegetation.js`'s `isPlaceablePosition`, which had no
+ * Valyria test at all — so a farmhouse, a herd of sheep or a stand of pines could and did land in the
+ * Freehold's ruin. The same 0.25 is used here so the two agree on where the cursed ground starts.
+ */
+export const VALYRIA_BARREN_ABOVE_INFLUENCE = 0.25;

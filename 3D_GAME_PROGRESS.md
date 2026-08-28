@@ -18765,3 +18765,42 @@ yazıyorum:** pratikte stamina durduruyor, 120 m tavan arkadaki emniyet.
 
 Altı oyuncu sözleşmesi de geçiyor (combat feedback, stamina/dodge, guard-impact exhaustion, parry
 recovery, lock-on, combat recovery input isolation).
+
+## Tur 410 — "Lanetli bölge" kuralı kanonik kapıya; ve Tur 407'nin tazıları Valyria'da değilmiş (ADR-0359)
+
+Sahip: *"Normal görünen hiçbir şeyi Valyria'ya koyma. Orasını lanetli bölge olarak düşün."*
+
+Kural yalnızca yarım uygulanıyormuş. `world/worldPropScatter.js` kendi yerel `valyriaBarrenAbove: 0.25`
+eşiğiyle scatter prop'larını dışlıyordu; ama **köyler, köylüler ve bütün prosedürel fauna nüfusu**
+`world/vegetation.js`'in `isPlaceablePosition`'ından geçiyor ve orada Valyria testi **hiç yoktu**. Yani
+bir çiftlik evi, bir koyun sürüsü ya da bir çam korusu Felaket'in harabesine inebiliyordu.
+
+Test tek yere kondu — `isPlaceablePosition`, `villages.js` ve `creatureSpayner.js`'in ikisinin de
+geçtiği kanonik kapı. Ölçüm:
+
+| | denenen kara noktası | yerleştirilebilir |
+|---|---|---|
+| Valyria (etki > 0,25) | 725 | **0** |
+| kontrol (6 koltuk çevresi) | 1135 | 1006 |
+
+Yani Doom'a hiçbir normal şey giremiyor, başka hiçbir yer etkilenmiyor.
+
+## Ve bu iş sırasında Tur 407'nin gerçek bir hatası çıktı
+
+`mapAnchor` **normalize** (0..1), `mapToWorldXZ` ise **harita birimi** (0..9000 × 0..7000) alıyor —
+`KINGDOM_SEATS`'in sakladığı uzay. Tur 407 normalize çifti ölçeklemeden verdi ve dokuz magma tazısını
+dünya (-6647, -5170) noktasına koydu: **Valyria'dan 9,6 km uzağa**, `valyriaInfluenceAtWorldXZ`'in
+**0** okuduğu bir yere.
+
+**Ve o turun kendi doğrulaması bunu onayladı.** O koordinatların çevresinde zemin yüksekliği taradım,
+kara buldum, "dokuzu da 18–85 m'de, hepsi doğru yerleşti" diye yazdım. Zemin hakkında doğruydu, yer
+hakkında yanlış. Aynı bozuk koordinatlardan "Valyria'nın merkezi açık su" sonucunu da çıkarmıştım — o
+da yanlış: gerçek merkez dünya (-731, 2430)'da ve **278 m** yüksek karada.
+
+Dönüşüm `gameplay/animals.js`'te düzeltildi, spawn'lar gerçek Valyria'ya karşı yeniden ölçüldü.
+Dokuzu da artık `valyriaInfluence: 1` okuyor, 74–380 m arası yükseklikte. Hücum ölçümü değişmedi
+(20 m → 8,3 m).
+
+**Ders:** yükseklik örneklemesi "burası kara mı" sorusuna cevap verir, "burası Valyria mı" sorusuna
+vermez. İkinci soruyu sormayan bir doğrulama, birinci soruya doğru cevap verdiği için ikna edici
+görünüyor.
