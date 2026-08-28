@@ -1,13 +1,7 @@
 /**
  * Deterministic render-only surface fabric for canonical owner-map Pindex-09.
- *
- * Pindex ownership, surface classification, terrain height, hydrology and colliders remain owned by
- * the canonical map/terrain systems. This module only changes the existing vertex-color attribute.
- * The previous v1 implementation sampled one high-frequency sine hash in normalized map space;
- * at aerial scale that could read as uniform television-noise and reset abruptly at a Pindex seam.
- * v3 keeps the deterministic world-space fabric and adds pedogenic lowland separation: broad
- * alluvial deposits, humic/seep pockets and oxidized mineral crusts break up large far-east soils
- * without inventing drainage geometry or changing any canonical authority.
+ * Classification, terrain height, hydrology and collider authority stay canonical; this layer
+ * only varies existing vertex colour and shading normals in world space.
  */
 import * as THREE from 'three';
 import { mapCanvasToNormalizedReference } from './worldReferenceAlignment.js';
@@ -15,7 +9,7 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX09_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex09-detail-2026-08-28-v3-pedogenic-lowland-weathering',
+  id: 'owner-map-pindex09-detail-2026-08-28-v4-pedogenic-pbr-weathering',
   pindex: 9,
   macroMeters: 1680,
   mesoMeters: 470,
@@ -26,7 +20,10 @@ export const PINDEX09_DETAIL_POLICY = Object.freeze({
   alluviumMeters: 620,
   seepMeters: 840,
   crustMeters: 285,
+  normalWeatherMeters: 158,
+  normalGrainMeters: 43,
   boundaryFeatherNormalized: 0.018,
+  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.21, rock: 0.33, snow: 0.11 }),
   mapAuthorityUnchanged: true,
   geographyAuthorityUnchanged: true,
   terrainHeightAuthorityUnchanged: true,
@@ -80,9 +77,7 @@ function fbm(worldX, worldZ, scaleMeters, seed) {
   return total / weight;
 }
 
-function ridge(value) {
-  return 1 - Math.abs(value * 2 - 1);
-}
+function ridge(value) { return 1 - Math.abs(value * 2 - 1); }
 
 function classificationForWorld(worldX, worldZ) {
   const mapPoint = plannedWorldXZToMapCanvas(worldX, worldZ);
@@ -91,16 +86,32 @@ function classificationForWorld(worldX, worldZ) {
     surface: classifyReferenceBaseSurface(normalized.x, normalized.y),
     pindex: referencePindexFromNormalizedX(normalized.x),
     normalizedX: normalized.x,
-    normalizedY: normalized.y,
   };
 }
 
 function pindex09BoundaryWeight(normalizedX) {
-  // Pindexes are ten owner-map columns. Fade this additive color response at the 0.8/0.9 strip
-  // boundaries so neighbouring Pindex detail layers meet through the unchanged canonical base color.
   const local = normalizedX * 10 - 8;
   const edgeDistance = Math.min(local, 1 - local) / 10;
   return smoothstep(0, PINDEX09_DETAIL_POLICY.boundaryFeatherNormalized, edgeDistance);
+}
+
+function normalGradient(worldX, worldZ, fabric) {
+  const P = PINDEX09_DETAIL_POLICY;
+  const grainStep = P.normalGrainMeters * 0.36;
+  const weatherStep = P.normalWeatherMeters * 0.29;
+  const grainX = valueNoise(worldX + grainStep, worldZ, P.normalGrainMeters, 0xc913)
+    - valueNoise(worldX - grainStep, worldZ, P.normalGrainMeters, 0xc913);
+  const grainZ = valueNoise(worldX, worldZ + grainStep, P.normalGrainMeters, 0xc913)
+    - valueNoise(worldX, worldZ - grainStep, P.normalGrainMeters, 0xc913);
+  const weatherX = valueNoise(worldX + weatherStep - fabric.meso * 34, worldZ + fabric.fine * 28, P.normalWeatherMeters, 0xd527)
+    - valueNoise(worldX - weatherStep - fabric.meso * 34, worldZ + fabric.fine * 28, P.normalWeatherMeters, 0xd527);
+  const weatherZ = valueNoise(worldX - fabric.fine * 31, worldZ + weatherStep + fabric.macro * 37, P.normalWeatherMeters, 0xe36b)
+    - valueNoise(worldX - fabric.fine * 31, worldZ - weatherStep + fabric.macro * 37, P.normalWeatherMeters, 0xe36b);
+  const fractureBias = (fabric.strata - 0.5) * 0.24 + (fabric.drainage - 0.5) * 0.10;
+  return {
+    x: grainX * 0.61 + weatherX * 0.39 + fractureBias,
+    z: grainZ * 0.61 + weatherZ * 0.39 - fractureBias * 0.72,
+  };
 }
 
 export function samplePindex09SurfaceFabric(worldX, worldZ, normalizedX) {
@@ -109,7 +120,6 @@ export function samplePindex09SurfaceFabric(worldX, worldZ, normalizedX) {
   const warpB = fbm(worldX - 2300, worldZ + 1400, P.warpMeters * 0.83, 0x29a1);
   const warpedX = worldX + (warpA - 0.5) * 430;
   const warpedZ = worldZ + (warpB - 0.5) * 430;
-
   const macro = fbm(warpedX, warpedZ, P.macroMeters, 0x3901);
   const meso = fbm(warpedX + 380, warpedZ - 620, P.mesoMeters, 0x49b7);
   const fine = fbm(worldX - 210, worldZ + 430, P.fineMeters, 0x59d3);
@@ -126,14 +136,12 @@ export function samplePindex09SurfaceFabric(worldX, worldZ, normalizedX) {
   const seep = smoothstep(0.50, 0.76, seepField) * smoothstep(0.50, 0.84, moisture) * (1 - alluvium * 0.38);
   const crust = smoothstep(0.56, 0.82, crustField) * smoothstep(0.48, 0.82, exposure) * (1 - moisture * 0.58);
   const boundary = pindex09BoundaryWeight(normalizedX);
-
   return Object.freeze({ macro, meso, fine, micro, drainage, strata, exposure, moisture, mineral, alluvium, seep, crust, boundary });
 }
 
 function applyFabricToColor(color, index, surface, fabric) {
   const weight = fabric.boundary;
   if (weight <= 0) return false;
-
   let r = color.getX(index);
   let g = color.getY(index);
   let b = color.getZ(index);
@@ -141,12 +149,10 @@ function applyFabricToColor(color, index, surface, fabric) {
   let tintR = 0;
   let tintG = 0;
   let tintB = 0;
-
   if (surface === 'soil') {
     const dry = clamp01(1 - fabric.moisture);
     const heath = smoothstep(0.58, 0.84, fabric.exposure) * smoothstep(0.50, 0.82, fabric.mineral);
-    shade = 0.962 + (fabric.macro - 0.5) * 0.115 + (fabric.meso - 0.5) * 0.078 + (fabric.fine - 0.5) * 0.032
-      - fabric.seep * 0.026 + fabric.crust * 0.018;
+    shade = 0.962 + (fabric.macro - 0.5) * 0.115 + (fabric.meso - 0.5) * 0.078 + (fabric.fine - 0.5) * 0.032 - fabric.seep * 0.026 + fabric.crust * 0.018;
     tintR = dry * 0.038 + heath * 0.022 - fabric.moisture * 0.018 + fabric.alluvium * 0.028 - fabric.seep * 0.026 + fabric.crust * 0.040;
     tintG = dry * 0.020 - heath * 0.010 + fabric.moisture * 0.008 + fabric.alluvium * 0.016 - fabric.seep * 0.006 + fabric.crust * 0.013;
     tintB = dry * 0.006 - heath * 0.009 - fabric.moisture * 0.013 - fabric.alluvium * 0.010 - fabric.seep * 0.017 - fabric.crust * 0.019;
@@ -165,18 +171,12 @@ function applyFabricToColor(color, index, surface, fabric) {
     tintG = -scour * 0.004 - grit * 0.019;
     tintB = scour * 0.014 - grit * 0.014;
   } else if (surface === 'lake' || surface === 'sea') {
-    // Water ownership is canonical. Keep only very low-amplitude optical tone breakup here; geometry,
-    // depth, shoreline and hydrology are never changed by this module.
     shade = 0.997 + (fabric.macro - 0.5) * 0.012 + (fabric.meso - 0.5) * 0.006;
     tintB = (fabric.macro - 0.5) * 0.006;
-  } else {
-    return false;
-  }
-
-  const applied = weight;
-  r = THREE.MathUtils.clamp(r * lerp(1, shade, applied) + tintR * applied, 0, 1);
-  g = THREE.MathUtils.clamp(g * lerp(1, shade, applied) + tintG * applied, 0, 1);
-  b = THREE.MathUtils.clamp(b * lerp(1, shade, applied) + tintB * applied, 0, 1);
+  } else return false;
+  r = THREE.MathUtils.clamp(r * lerp(1, shade, weight) + tintR * weight, 0, 1);
+  g = THREE.MathUtils.clamp(g * lerp(1, shade, weight) + tintG * weight, 0, 1);
+  b = THREE.MathUtils.clamp(b * lerp(1, shade, weight) + tintB * weight, 0, 1);
   color.setXYZ(index, r, g, b);
   return true;
 }
@@ -184,9 +184,10 @@ function applyFabricToColor(color, index, surface, fabric) {
 export function applyPindex09DetailToTerrainMesh(mesh) {
   const position = mesh?.geometry?.getAttribute?.('position');
   const color = mesh?.geometry?.getAttribute?.('color');
+  const normal = mesh?.geometry?.getAttribute?.('normal');
   if (!position || !color) throw new TypeError('semantic terrain position+color attributes are required');
-
   let touchedVertices = 0;
+  let normalVariationEnergy = 0;
   const surfaceCounts = { sea: 0, lake: 0, soil: 0, rock: 0, snow: 0 };
   let boundaryWeightedVertices = 0;
   for (let index = 0; index < position.count; index += 1) {
@@ -194,21 +195,33 @@ export function applyPindex09DetailToTerrainMesh(mesh) {
     const worldZ = mesh.position.z + position.getZ(index);
     const c = classificationForWorld(worldX, worldZ);
     if (c.pindex !== PINDEX09_DETAIL_POLICY.pindex) continue;
-
     const fabric = samplePindex09SurfaceFabric(worldX, worldZ, c.normalizedX);
     if (!applyFabricToColor(color, index, c.surface, fabric)) continue;
+    if (normal) {
+      const strength = (PINDEX09_DETAIL_POLICY.normalStrengthBySurface[c.surface] ?? 0) * fabric.boundary;
+      if (strength > 0) {
+        const gradient = normalGradient(worldX, worldZ, fabric);
+        const nx = normal.getX(index) + gradient.x * strength;
+        const ny = Math.max(0.08, normal.getY(index));
+        const nz = normal.getZ(index) + gradient.z * strength;
+        const length = Math.hypot(nx, ny, nz) || 1;
+        normal.setXYZ(index, nx / length, ny / length, nz / length);
+        normalVariationEnergy += (Math.abs(gradient.x) + Math.abs(gradient.z)) * strength;
+      }
+    }
     touchedVertices += 1;
     if (surfaceCounts[c.surface] !== undefined) surfaceCounts[c.surface] += 1;
     if (fabric.boundary < 0.999) boundaryWeightedVertices += 1;
   }
-
   color.needsUpdate = true;
+  if (normal) normal.needsUpdate = true;
   const summary = Object.freeze({
     policyId: PINDEX09_DETAIL_POLICY.id,
     pindex: 9,
     touchedVertices,
     boundaryWeightedVertices,
     surfaceCounts: Object.freeze({ ...surfaceCounts }),
+    meanNormalVariationEnergy: touchedVertices > 0 ? normalVariationEnergy / touchedVertices : 0,
     geographyAuthorityUnchanged: true,
   });
   mesh.userData.run296Pindex09Detail = summary;
@@ -218,12 +231,18 @@ export function applyPindex09DetailToTerrainMesh(mesh) {
 export function applyPindex09DetailToTerrainGroup(terrainGroup) {
   if (!terrainGroup?.children || !Array.isArray(terrainGroup.children)) throw new TypeError('canonical terrain group is required');
   let touchedVertices = 0;
-  for (const mesh of terrainGroup.children) touchedVertices += applyPindex09DetailToTerrainMesh(mesh).touchedVertices;
+  let weightedNormalEnergy = 0;
+  for (const mesh of terrainGroup.children) {
+    const summary = applyPindex09DetailToTerrainMesh(mesh);
+    touchedVertices += summary.touchedVertices;
+    weightedNormalEnergy += summary.meanNormalVariationEnergy * summary.touchedVertices;
+  }
   const summary = Object.freeze({
     policyId: PINDEX09_DETAIL_POLICY.id,
     pindex: 9,
     touchedVertices,
     meshCount: terrainGroup.children.length,
+    meanNormalVariationEnergy: touchedVertices > 0 ? weightedNormalEnergy / touchedVertices : 0,
     geographyAuthorityUnchanged: true,
   });
   terrainGroup.userData.run296Pindex09Detail = summary;
