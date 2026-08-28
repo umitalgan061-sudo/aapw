@@ -47,7 +47,6 @@ try {
 		const armorer = QUARTERMASTER_OFFERS[1];
 		const boosted = controller.getRpgSnapshot();
 		boosted.economy.copper = 60;
-		boosted.inventory = { items: [{ itemId: 'dragonstone-whetstone', quantity: 1, provenance: [{ sourceType: 'browser-fixture', sourceId: 'field-readiness' }] }] };
 		controller.restoreRpgSnapshot(boosted);
 
 		controller.handleKeyDown({ code: 'KeyI', repeat: false });
@@ -58,8 +57,8 @@ try {
 			&& initialText.includes('Sefer için eksik: dragonstone-travel-ration-pack + dragonstone-whetstone');
 		controller.handleKeyDown({ code: 'KeyI', repeat: false });
 
-		// Canonical whetstone is fixture state; the first armorer call stays fail-closed until ration
-		// preparation creates the travel pack, then the second armorer call atomically upgrades both.
+		// Existing shipped interaction loop: armorer fallback grants whetstone; two rations + ration
+		// preparation produce the travel pack; the second armorer call atomically upgrades both.
 		controller.handleKeyDown({ code: 'KeyB', repeat: false });
 		controller.handleKeyDown({ code: 'Digit2', repeat: false });
 		controller.handleKeyDown({ code: 'Digit1', repeat: false });
