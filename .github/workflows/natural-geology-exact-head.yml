@@ -12,6 +12,7 @@ on:
       - 'src/3d/world/naturalGeology.js'
       - 'src/3d/sceneManager.js'
       - 'scripts/checkValyriaGeology.mjs'
+      - 'scripts/checkValyriaVolcanicMorphology.mjs'
       - 'scripts/checkValyriaCanonicalTerrain.mjs'
       - 'scripts/checkValyriaBarrenEcology.mjs'
       - 'scripts/checkNaturalGeologyPlacement.mjs'
@@ -47,6 +48,7 @@ jobs:
           node --check src/3d/world/naturalGeology.js
           node --check src/3d/sceneManager.js
           node --check scripts/checkValyriaGeology.mjs
+          node --check scripts/checkValyriaVolcanicMorphology.mjs
           node --check scripts/checkValyriaCanonicalTerrain.mjs
           node --check scripts/checkValyriaBarrenEcology.mjs
           node --check scripts/checkNaturalGeologyPlacement.mjs
@@ -55,6 +57,8 @@ jobs:
         run: node scripts/setupNodeThreeShim.mjs
       - name: Valyria geography authority
         run: node scripts/checkValyriaGeology.mjs
+      - name: Valyria volcanic morphology matrix
+        run: node scripts/checkValyriaVolcanicMorphology.mjs
       - name: Canonical Valyria terrain integration
         run: node scripts/checkValyriaCanonicalTerrain.mjs
       - name: Valyria barren ecology placement
