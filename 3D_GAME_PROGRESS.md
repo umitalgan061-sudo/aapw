@@ -18907,3 +18907,28 @@ Klipler: `WingFlap` (1,25 sn), **`Walk`** (1,04 sn, bacak adımı + kol salını
 rig'li dosyayı `git add` etmek onu LFS pointer'ı değil **ham blob** olarak geçmişe yazardı — ki
 `CLAUDE.md` bunu açıkça yasaklıyor. Dosya sahibe gönderildi; depoya girmesi ya sahibin eklemesine ya
 da konteynerde git-lfs olmasına bağlı.
+
+## Tur 414 — Yola gerçek toprak yüzeyi: tek düz ten renginin sonu (ADR-0363)
+
+Sahip sordu: *"şuan yollar yapay mı gerçek mi görünüyor"*. Dürüst cevap: Tur 406 **şekli** düzeltmişti
+(40 cm kalkıklık gitti, kenar saçaklandı) ama **yüzey** hâlâ tek düz ten rengi bir banttı — ki bunu
+406'yı yayınlarken de yazmıştım. Sorulduğuna göre bitirme zamanı.
+
+**Doku dosyası kullanamıyorum:** bu konteynerde `git-lfs` yok, yani hiçbir görsel commit edilemez.
+O yüzden toprak, kenarın kullandığı aynı dünya-uzayı gürültüsünden, dört ölçekte, dört ayrı iş
+yapacak şekilde kuruldu — **sıfır ek çizim çağrısı, sıfır indirilen bayt**:
+
+1. **Geniş nemli/kuru lekelenme** (0,22 frekans) — gerçek bir patikada gözün ilk yakaladığı şey.
+2. **İki tekerlek izi**, araba dingil aralığında, daha koyu ve hafif nemli.
+3. **Kuru, açık orta sırt** — izleri iz gibi okutan şey bu zıtlık.
+4. **Kum/çakıl** (26,0) ve **açık renk taşlar** (11,0), yürüme mesafesinde piksel piksel.
+
+Ayrıca kenara **ikinci, çok daha ince bir oktav** eklendi (3,10). Tek kaba terim büyük yumuşak
+loblar veriyordu; bu "bilinçli dalgalı bir şerit" gibi okunuyordu, "yağmur yemiş, üstünden geçilmiş
+bir kenar" gibi değil.
+
+`checkMedievalRoadSurface`, `roadNetworkSafetyCheck`, `terrainSeatSafetyCheck` PASS; +0 çizim çağrısı.
+
+**Hâlâ dürüst sınır:** bu prosedürel toprak, taranmış fotoğraf dokusu değil. Yakın çekimde artık aşınmış
+bir toprak yol gibi okunuyor ama `dirt_road_test.glb`'nin gerçek foto dokusu ile aynı şey değil. O
+seviye, depoya doku dosyası eklenebildiği gün mümkün.

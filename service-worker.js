@@ -335,7 +335,10 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // fixes the map-anchor conversion that had run 407's magma hounds 9.6 km from Valyria. Villages,
 // villagers, herds and trees stop appearing in the Doom, and the hounds start appearing in it — both
 // are look changes served from cached modules, so the offline copy has to turn over. v63->v64.
-const SHELL_CACHE = 'westeros-shell-v64';
+// Run 414 gives the road an actual dirt surface -- broad damp patching, wheel ruts, a drier crown,
+// grit and scattered stones, all procedural because this container has no git-lfs and so no texture
+// file can be committed. A stale shell keeps drawing the flat tan band. v64->v65.
+const SHELL_CACHE = 'westeros-shell-v65';
 const SHELL_FILES = [
     './',
     './index.html',

@@ -488,15 +488,41 @@ float run406Fbm(vec2 p) {
 					`#include <color_fragment>
 float run406Across = abs(vRun406Side);
 // The boundary is cut in world space, so it wanders with the ground rather than with the ribbon's
-// own vertices -- two edges that happen to run parallel do not fray in step.
+// own vertices -- two edges that happen to run parallel do not fray in step. Run 414 adds a second,
+// much finer octave on top: the coarse term alone gave big smooth lobes, which read as a deliberately
+// wavy band rather than as an edge that has been walked and rained on.
 float run406EdgeNoise = run406Fbm(vRun406Position.xz * 0.42);
-float run406KeptHalfWidth = 0.52 + run406EdgeNoise * 0.46;
+float run414EdgeFine = run406Fbm(vRun406Position.xz * 3.10);
+float run406KeptHalfWidth = 0.50 + run406EdgeNoise * 0.42 + (run414EdgeFine - 0.5) * 0.16;
 if (run406Across > run406KeptHalfWidth) discard;
 // Where the dirt gives out it does not simply stop: it thins into trodden ground with grass coming
 // back through it, which is what the owner's own reference shows either side of the track.
 float run406Verge = smoothstep(run406KeptHalfWidth * 0.55, run406KeptHalfWidth, run406Across);
 float run406Regrowth = run406Fbm(vRun406Position.xz * 1.7);
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.30, 0.34, 0.19), run406Verge * (0.24 + run406Regrowth * 0.42));
+
+// --- Run 414: an actual dirt surface, not a tinted band. -----------------------------------------
+// The owner asked twice whether the roads read as real. The lift and the frayed edge fixed the shape;
+// what was left was that the surface is one flat tan at any distance you can see it from. There is no
+// texture file to reach for -- this container has no git-lfs, so no image can be committed -- so the
+// dirt is built out of the same world-space noise the edge uses, at four scales that do different
+// jobs. Zero extra draw calls, zero bytes downloaded.
+//
+// Broad damp/dry patching, metres across: the largest thing the eye picks up on a real track.
+float run414Patch = run406Fbm(vRun406Position.xz * 0.22);
+diffuseColor.rgb *= 0.78 + run414Patch * 0.44;
+// Two wheel ruts, worn darker and slightly damp, at the spacing a cart axle gives.
+float run414Rut = 1.0 - smoothstep(0.06, 0.20, abs(run406Across - 0.46));
+diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.72, 0.70, 0.66), run414Rut * 0.55);
+// The crown between and outside the ruts stays drier and paler, which is what makes ruts read as ruts.
+float run414Crown = (1.0 - run414Rut) * (1.0 - smoothstep(0.0, 0.9, run406Across));
+diffuseColor.rgb *= 1.0 + run414Crown * 0.10;
+// Grit and small stones, close to per-pixel at walking distance.
+float run414Grit = run406Fbm(vRun406Position.xz * 26.0);
+diffuseColor.rgb *= 0.86 + run414Grit * 0.30;
+// A scatter of pale stones sitting proud of the dirt.
+float run414Stone = smoothstep(0.78, 0.92, run406Fbm(vRun406Position.xz * 11.0));
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.52, 0.49, 0.43), run414Stone * 0.45 * (1.0 - run414Rut));
 // Lighter and darker stretches along the length, so no two hundred metres read the same.
 float run406Along = run406Fbm(vRun406Position.xz * 0.028);
 diffuseColor.rgb *= 0.87 + run406Along * 0.29;`,
