@@ -13,7 +13,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-28-v28-form-driven-firn-crust-powder',
+  id: 'terrain-snow-surface-tone-2026-08-28-v29-form-driven-bounded-firn-crust-powder',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
@@ -79,7 +79,7 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   tundraToneScale: 0.78,
   minimumVisibleSnow: 0.08,
   minimumAccumulatedSnow: 0.22,
-  maximumPackedWeight: 0.92,
+  maximumPackedWeight: 0.88,
   maximumAccumulatedWeight: 0.92,
   ridgeCrustPaletteGain: 0.34,
   ridgeCrustPowderSuppression: 0.24,
