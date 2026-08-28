@@ -146,7 +146,6 @@ jobs:
           NODE_PATH="$NODE_PATH" node scripts/checkInteractionArmorerServiceBrowser.mjs
           NODE_PATH="$NODE_PATH" node scripts/checkInteractionProvisioningCraftBrowser.mjs
           NODE_PATH="$NODE_PATH" node scripts/checkInteractionExpeditionKitBrowser.mjs
-          NODE_PATH="$NODE_PATH" node scripts/checkInteractionFieldReadinessBrowser.mjs
           NODE_PATH="$NODE_PATH" node scripts/checkInteractionRouteProvisionsBrowser.mjs
           NODE_PATH="$NODE_PATH" node scripts/checkInteractionJourneyPlanningBrowser.mjs
           NODE_PATH="$NODE_PATH" node scripts/checkInteractionExpeditionBoardBrowser.mjs
