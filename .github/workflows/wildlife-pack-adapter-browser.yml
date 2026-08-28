@@ -1,11 +1,10 @@
-name: Wildlife Long-Frame Budget
+name: Wildlife Pack Adapter Browser
 
 on:
   pull_request:
     paths:
       - 'src/3d/gameplay/animals.js'
       - 'scripts/checkWildlifeLongFrameBudget.mjs'
-      - 'scripts/checkWildlifeLongFrameBrowser.mjs'
       - 'scripts/checkWildlifePackAlertIndependence.mjs'
       - 'scripts/checkWildlifePackIteratorCleanup.mjs'
       - 'scripts/checkWildlifePackLongFrameBrowser.mjs'
@@ -19,7 +18,7 @@ permissions:
   contents: read
 
 jobs:
-  wildlife-long-frame-budget:
+  wildlife-pack-adapter-browser:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -41,25 +40,22 @@ jobs:
           test "$base" = "$(git rev-parse origin/main)"
           changed="$(git diff --name-only origin/main...HEAD)"
           printf '%s\n' "$changed"
-          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/animals\.js|scripts/checkWildlifeLongFrameBudget\.mjs|scripts/checkWildlifeLongFrameBrowser\.mjs|scripts/checkWildlifePackAlertIndependence\.mjs|scripts/checkWildlifePackIteratorCleanup\.mjs|scripts/checkWildlifePackLongFrameBrowser\.mjs|scripts/checkWildlifePackAdapterBrowser\.mjs|scripts/game3dSmokeChecksMovement\.js|\.github/workflows/wildlife-long-frame-budget\.yml|\.github/workflows/wildlife-pack-alert-independence\.yml|\.github/workflows/wildlife-pack-adapter-browser\.yml)$' && exit 1 || true
+          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/animals\.js|scripts/checkWildlifeLongFrameBudget\.mjs|scripts/checkWildlifePackAlertIndependence\.mjs|scripts/checkWildlifePackIteratorCleanup\.mjs|scripts/checkWildlifePackLongFrameBrowser\.mjs|scripts/checkWildlifePackAdapterBrowser\.mjs|scripts/game3dSmokeChecksMovement\.js|\.github/workflows/wildlife-long-frame-budget\.yml|\.github/workflows/wildlife-pack-alert-independence\.yml|\.github/workflows/wildlife-pack-adapter-browser\.yml)$' && exit 1 || true
           additions="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END {print s+0}')"
           deletions="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END {print s+0}')"
           test $((additions + deletions)) -le 1000
           git diff --check origin/main...HEAD
 
-      - name: Wildlife long-frame deterministic budget
-        run: node scripts/checkWildlifeLongFrameBudget.mjs
-
-      - name: Pack alert independence regression
+      - name: Pack adapter deterministic regression
         run: node scripts/checkWildlifePackAlertIndependence.mjs
 
-      - name: Wildlife syntax guard
+      - name: Long-frame source and movement budget
+        run: node scripts/checkWildlifeLongFrameBudget.mjs
+
+      - name: Syntax guard
         run: |
           node --check src/3d/gameplay/animals.js
-          node --check scripts/checkWildlifeLongFrameBrowser.mjs
-          node --check scripts/checkWildlifePackAlertIndependence.mjs
           node --check scripts/checkWildlifePackIteratorCleanup.mjs
-          node --check scripts/checkWildlifePackLongFrameBrowser.mjs
           node --check scripts/checkWildlifePackAdapterBrowser.mjs
 
       - name: Shared material placement contract
@@ -81,7 +77,7 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
-      - name: Real wolf pack and long-frame browser proof
+      - name: Real wolf pack adapter browser proof
         shell: bash
         run: |
           set -euo pipefail
@@ -92,7 +88,6 @@ jobs:
             curl -fsS http://127.0.0.1:4173/game3d.html >/dev/null && break
             sleep 1
           done
-          BASE_URL=http://127.0.0.1:4173 node scripts/checkWildlifePackLongFrameBrowser.mjs
           BASE_URL=http://127.0.0.1:4173 node scripts/checkWildlifePackAdapterBrowser.mjs
 
       - name: Final exact-main freshness
