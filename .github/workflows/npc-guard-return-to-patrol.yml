@@ -5,6 +5,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'src/3d/gameplay/npc.js'
+      - 'scripts/checkNpcGuardLifecycleContract.mjs'
       - 'scripts/checkNpcGuardReturnToPatrol.mjs'
       - '.github/workflows/npc-guard-return-to-patrol.yml'
 
@@ -35,8 +36,9 @@ jobs:
           main_sha="$(git rev-parse origin/main)"
           test "$(git merge-base HEAD origin/main)" = "$main_sha"
           mapfile -t files < <(git diff --name-only origin/main...HEAD)
-          test "${#files[@]}" -eq 3
+          test "${#files[@]}" -eq 4
           printf '%s\n' "${files[@]}" | grep -Fx 'src/3d/gameplay/npc.js'
+          printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcGuardLifecycleContract.mjs'
           printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcGuardReturnToPatrol.mjs'
           printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-guard-return-to-patrol.yml'
           read -r additions deletions < <(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
@@ -54,13 +56,15 @@ jobs:
       - name: Syntax
         run: |
           node --check src/3d/gameplay/npc.js
+          node --check scripts/checkNpcGuardLifecycleContract.mjs
           node --check scripts/checkNpcGuardReturnToPatrol.mjs
 
       - name: Guard return-to-patrol runtime regression
         run: node scripts/checkNpcGuardReturnToPatrol.mjs
 
-      - name: Existing guard perception and LOD regressions
+      - name: Existing guard lifecycle, perception and LOD regressions
         run: |
+          node scripts/checkNpcGuardLifecycleContract.mjs
           node scripts/checkNpcGuardPerception.mjs
           node scripts/checkNpcSimulationLod.mjs
 
