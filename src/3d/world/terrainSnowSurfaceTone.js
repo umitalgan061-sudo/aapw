@@ -13,7 +13,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-08-28-v38-balanced-sheltered-ice-drift',
+  id: 'terrain-snow-surface-tone-2026-08-28-v39-sheltered-core-firn-floor',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
@@ -53,7 +53,7 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   packedTransitionColdGain: 0.09,
   mixedIceFirnPackedFloorGain: 0.18,
   mixedIceFirnPowderAttenuation: 0.18,
-  coreIceFirnPackedFloorGain: 0.12,
+  coreIceFirnPackedFloorGain: 0.14,
   coreIceFirnCompactionBoost: 0.14,
   coreIceFreshDriftStart: 0.82,
   coreIceFreshDriftFull: 0.94,
