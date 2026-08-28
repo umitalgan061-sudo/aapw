@@ -18875,3 +18875,35 @@ hacminin dışına taşımak ve kol kemiklerini inceltmek — betik buna hazır,
 
 Kanat yüzeylerinde yırtık görünüm var: kısmen decimation'ın ince tüy geometrisinde bıraktığı
 serpinti, kısmen o parçaların deformasyonla gerilmesi. İlk geçiş, ve öyle olduğunu yazıyorum.
+
+## Tur 413 — Kanat ağırlıkları düzeltildi, Walk ve Idle eklendi (ADR-0362)
+
+Tur 412'nin rig'i çalışıyordu ama kanatlar omuzdan değil ortadan menteşeleniyordu. Sebebi ölçünce
+çıktı ve **bakarak değil ölçerek** bulundu: kanatlar bu içe aktarmada **pozitif y**'de duruyor —
+dilim dilim tarayınca üstteki geniş vertex'ler (|x| > 0,25) y 0,07–0,26 arasında. İlk rig kanat
+kemiklerini **negatif y**'ye, gövdenin yanlış tarafına koymuştu; `wing1.L`/`wing1.R`'ın sıfır vertex
+almasının sebebi buydu.
+
+İkincisi: doğru yere konsa bile ısı-haritası çözücüsü kanat vertex'lerini `chest` ve `upperarm`'a
+veriyor, çünkü kanat kökü ile omuz santimetreler ayrı. Bu yüzden kanat bölgesi **açıkça sahiplenilip**
+kendi açıklığı boyunca ağırlıklandırılıyor.
+
+| kemik | önce | sonra |
+|---|---|---|
+| `wing1.L` | **0** | **4.678** |
+| `wing1.R` | **0** | **4.822** |
+| `wing2.L` | 1.041 | 1.953 |
+| `wing2.R` | 2.768 | 2.141 |
+
+Simetrik, ve çırpma artık omuzdan menteşeleniyor — three.js'te klibin iki ucunda doğrulandı.
+`upperarm.L` 5.003'ten 89'a düşüyor; bu bir kayıp değil, çözücünün baştan beri yanlış atadığı kanat
+vertex'lerinin geri alınması.
+
+Klipler: `WingFlap` (1,25 sn), **`Walk`** (1,04 sn, bacak adımı + kol salınımı + hafif kanat) ve
+**`Idle`** (2,5 sn, göğüs nefesi + kanat oynaması).
+
+**Oyuna bağlanamadı ve sebebi bu turun işi değil:** bu konteynerde `git-lfs` binary'si yok
+(`filter.lfs.clean` de tanımsız). Depo `.gitattributes`'ta `*.glb filter=lfs` diyor, yani 24 MB'lık
+rig'li dosyayı `git add` etmek onu LFS pointer'ı değil **ham blob** olarak geçmişe yazardı — ki
+`CLAUDE.md` bunu açıkça yasaklıyor. Dosya sahibe gönderildi; depoya girmesi ya sahibin eklemesine ya
+da konteynerde git-lfs olmasına bağlı.
