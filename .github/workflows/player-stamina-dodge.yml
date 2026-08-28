@@ -149,7 +149,8 @@ jobs:
           set -euo pipefail
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerRecoveryAttackBufferRuntime.mjs --out-dir=artifacts/player-stamina-dodge/recovery-buffer | tee artifacts/player-stamina-dodge/recovery-buffer.log
           grep -q 'PLAYER_RECOVERY_ATTACK_BUFFER_RUNTIME_OK' artifacts/player-stamina-dodge/recovery-buffer.log
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerStaminaDodgeRuntime.mjs --out-dir=artifacts/player-stamina-dodge
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerStaminaDodgeRuntime.mjs --out-dir=artifacts/player-stamina-dodge | tee artifacts/player-stamina-dodge/stamina-runtime.log
+          grep -q 'PLAYER_STAMINA_DODGE_GUARD_PARRY_POISE_RUNTIME_OK' artifacts/player-stamina-dodge/stamina-runtime.log
           test -s artifacts/player-stamina-dodge/player-runtime.png
           test -s artifacts/player-stamina-dodge/metrics.json
           grep -q '"defenseResult": "guard"' artifacts/player-stamina-dodge/metrics.json
