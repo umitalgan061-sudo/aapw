@@ -2,9 +2,9 @@
  * Deterministic render-only surface fabric for canonical owner-map Pindex-06.
  *
  * Classification, terrain height, hydrology and collider authority remain untouched. This module
- * only varies the already-owned vertex colour in world space, using unrelated macro/meso/fine
- * scales plus bounded pedogenic lowland weathering so eastern-central terrain does not read as a
- * flat swatch or a single-frequency hash.
+ * only varies the already-owned vertex colour and vertex normal in world space, using unrelated
+ * macro/meso/fine scales plus bounded pedogenic lowland weathering so eastern-central terrain does
+ * not read as a flat swatch or a single-frequency hash.
  */
 import * as THREE from 'three';
 import { mapCanvasToNormalizedReference } from './worldReferenceAlignment.js';
@@ -12,7 +12,7 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX06_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex06-detail-2026-08-28-v4-pedogenic-lowland-weathering',
+  id: 'owner-map-pindex06-detail-2026-08-28-v5-micro-normal-weathering',
   pindex: 6,
   renderOnly: true,
   geographyAuthorityUnchanged: true,
@@ -24,9 +24,11 @@ export const PINDEX06_DETAIL_POLICY = Object.freeze({
   alluviumMeters: 590,
   seepMeters: 760,
   ironCrustMeters: 245,
+  normalWeatherMeters: 156,
   boundaryProbeNormalized: 0.006,
   amplitudeBySurface: Object.freeze({ sea: 0.018, lake: 0.020, soil: 0.176, rock: 0.136, snow: 0.074 }),
   chromaBySurface: Object.freeze({ sea: 0.020, lake: 0.024, soil: 0.148, rock: 0.098, snow: 0.054 }),
+  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.22, rock: 0.34, snow: 0.11 }),
 });
 
 function hash01(ix, iz, seed = 0) {
@@ -153,16 +155,38 @@ function surfaceFabric(surface, worldX, worldZ) {
     cool += macro * 0.16;
   }
 
-  return { luminance, warm, cool };
+  // Normal breakup follows different finite-difference scales than albedo so lighting does not
+  // reveal the colour-noise pattern as a repeated emboss. Only the existing vertex normal tilts;
+  // water surfaces are explicitly zero-strength and canonical geometry is never moved.
+  const grainStep = P.grainMeters * 0.36;
+  const weatherStep = P.normalWeatherMeters * 0.29;
+  const grainX = valueNoise(worldX + grainStep, worldZ, P.grainMeters, 73.9)
+    - valueNoise(worldX - grainStep, worldZ, P.grainMeters, 73.9);
+  const grainZ = valueNoise(worldX, worldZ + grainStep, P.grainMeters, 73.9)
+    - valueNoise(worldX, worldZ - grainStep, P.grainMeters, 73.9);
+  const weatherX = valueNoise(worldX + weatherStep - meso * 21, worldZ + fine * 15, P.normalWeatherMeters, 81.7)
+    - valueNoise(worldX - weatherStep - meso * 21, worldZ + fine * 15, P.normalWeatherMeters, 81.7);
+  const weatherZ = valueNoise(worldX - fine * 17, worldZ + weatherStep + macro * 23, P.normalWeatherMeters, 89.3)
+    - valueNoise(worldX - fine * 17, worldZ - weatherStep + macro * 23, P.normalWeatherMeters, 89.3);
+
+  return {
+    luminance,
+    warm,
+    cool,
+    normalX: grainX * 0.62 + weatherX * 0.38,
+    normalZ: grainZ * 0.62 + weatherZ * 0.38,
+  };
 }
 
 export function applyPindex06DetailToTerrainMesh(mesh) {
   const position = mesh?.geometry?.getAttribute?.('position');
   const color = mesh?.geometry?.getAttribute?.('color');
+  const normal = mesh?.geometry?.getAttribute?.('normal');
   if (!position || !color) throw new TypeError('semantic terrain position+color attributes are required');
 
   let touchedVertices = 0;
   let detailEnergy = 0;
+  let normalVariationEnergy = 0;
   for (let index = 0; index < position.count; index += 1) {
     const worldX = mesh.position.x + position.getX(index);
     const worldZ = mesh.position.z + position.getZ(index);
@@ -188,16 +212,30 @@ export function applyPindex06DetailToTerrainMesh(mesh) {
       THREE.MathUtils.clamp(g, 0, 1),
       THREE.MathUtils.clamp(b, 0, 1));
 
+    if (normal) {
+      const normalStrength = (PINDEX06_DETAIL_POLICY.normalStrengthBySurface[c.surface] ?? 0) * edge;
+      if (normalStrength > 0) {
+        const nx = normal.getX(index) + fabric.normalX * normalStrength;
+        const ny = Math.max(0.08, normal.getY(index));
+        const nz = normal.getZ(index) + fabric.normalZ * normalStrength;
+        const length = Math.hypot(nx, ny, nz) || 1;
+        normal.setXYZ(index, nx / length, ny / length, nz / length);
+        normalVariationEnergy += (Math.abs(fabric.normalX) + Math.abs(fabric.normalZ)) * normalStrength;
+      }
+    }
+
     detailEnergy += Math.abs(fabric.luminance) * amplitude + (Math.abs(fabric.warm) + Math.abs(fabric.cool)) * chroma;
     touchedVertices += 1;
   }
 
   color.needsUpdate = true;
+  if (normal) normal.needsUpdate = true;
   const summary = Object.freeze({
     policyId: PINDEX06_DETAIL_POLICY.id,
     pindex: 6,
     touchedVertices,
     meanDetailEnergy: touchedVertices > 0 ? detailEnergy / touchedVertices : 0,
+    meanNormalVariationEnergy: touchedVertices > 0 ? normalVariationEnergy / touchedVertices : 0,
   });
   mesh.userData.run293Pindex06Detail = summary;
   return summary;
@@ -207,10 +245,12 @@ export function applyPindex06DetailToTerrainGroup(terrainGroup) {
   if (!terrainGroup?.children || !Array.isArray(terrainGroup.children)) throw new TypeError('canonical terrain group is required');
   let touchedVertices = 0;
   let weightedEnergy = 0;
+  let weightedNormalVariationEnergy = 0;
   for (const mesh of terrainGroup.children) {
     const summary = applyPindex06DetailToTerrainMesh(mesh);
     touchedVertices += summary.touchedVertices;
     weightedEnergy += summary.meanDetailEnergy * summary.touchedVertices;
+    weightedNormalVariationEnergy += summary.meanNormalVariationEnergy * summary.touchedVertices;
   }
   const summary = Object.freeze({
     policyId: PINDEX06_DETAIL_POLICY.id,
@@ -218,6 +258,7 @@ export function applyPindex06DetailToTerrainGroup(terrainGroup) {
     touchedVertices,
     meshCount: terrainGroup.children.length,
     meanDetailEnergy: touchedVertices > 0 ? weightedEnergy / touchedVertices : 0,
+    meanNormalVariationEnergy: touchedVertices > 0 ? weightedNormalVariationEnergy / touchedVertices : 0,
   });
   terrainGroup.userData.run293Pindex06Detail = summary;
   return summary;
