@@ -19,6 +19,8 @@ assert.match(source, /const iteratorFactory = packmateFleePositions\[Symbol\.ite
 assert.match(source, /iteratorFactory\.call\(packmateFleePositions\)/);
 assert.match(source, /packSamplesScanned < MAX_PACK_ALERT_SAMPLES_PER_TICK/);
 assert.match(source, /nextPackmate = packIterator\.next\(\)/);
+assert.match(source, /const iteratorReturn = packIterator\.return/);
+assert.match(source, /iteratorReturn\.call\(packIterator\)/);
 assert.match(source, /packmateX = packmatePosition\?\.x/);
 assert.match(source, /packmateZ = packmatePosition\?\.z/);
 assert.match(source, /!Number\.isFinite\(packmateX\) \|\| !Number\.isFinite\(packmateZ\)/);

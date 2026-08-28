@@ -208,6 +208,7 @@ export async function createWolf({
 					packIterator = null;
 				}
 				let packSamplesScanned = 0;
+				let packIteratorCompleted = false;
 				while (packIterator && packSamplesScanned < MAX_PACK_ALERT_SAMPLES_PER_TICK) {
 					let nextPackmate;
 					try {
@@ -217,7 +218,10 @@ export async function createWolf({
 					}
 					let packmatePosition;
 					try {
-						if (!nextPackmate || nextPackmate.done) break;
+						if (!nextPackmate || nextPackmate.done) {
+							packIteratorCompleted = true;
+							break;
+						}
 						packSamplesScanned += 1;
 						packmatePosition = nextPackmate.value;
 					} catch {
@@ -248,6 +252,12 @@ export async function createWolf({
 						nearestPackThreatX = packmateX;
 						nearestPackThreatZ = packmateZ;
 					}
+				}
+				if (packIterator && !packIteratorCompleted) {
+					try {
+						const iteratorReturn = packIterator.return;
+						if (typeof iteratorReturn === 'function') iteratorReturn.call(packIterator);
+					} catch {}
 				}
 			}
 			const recovering = canFlee
