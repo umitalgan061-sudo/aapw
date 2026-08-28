@@ -16,6 +16,7 @@
 
 import * as THREE from 'three';
 import { createStoneMaterial, createRoofMaterial, disposeCastleMaterial, prepareImportedGeometryForTexturing } from './materials.js';
+import { applyValyriaCastleWeathering, VALYRIA_CASTLE_WEATHERING_POLICY } from './valyriaCastleWeathering.js';
 
 /**
  * Kingdom seats: `id`/`name`/`house`/`color`/2D-map `mapX`/`mapY` only, derived from `script.js`'s
@@ -66,7 +67,7 @@ const STONE_COLOR = new THREE.Color(0x8a8578);
  */
 export const CASTLE_MODEL_ASSIGNMENTS = Object.freeze([
 	Object.freeze({ seatId: 'jon', assetId: 'castle_icebound_citadel_decimated', file: 'assets/models/settlements/castles/icebound_citadel_decimated.glb', stoneColorHex: 0xa9b7c4 }),
-	Object.freeze({ seatId: 'umit', assetId: 'castle_walled_city_fortress_decimated', file: 'assets/models/settlements/castles/walled_city_fortress_decimated.glb', stoneColorHex: 0x8f8a7c }),
+	Object.freeze({ seatId: 'umit', assetId: 'castle_walled_city_fortress_decimated', file: 'assets/models/settlements/castles/walled_city_fortress_decimated.glb', stoneColorHex: VALYRIA_CASTLE_WEATHERING_POLICY.baseStoneHex }),
 	Object.freeze({ seatId: 'cersei', assetId: 'castle_fortress_of_the_crown_decimated', file: 'assets/models/settlements/castles/fortress_of_the_crown_decimated.glb', stoneColorHex: 0x9c9070 }),
 	Object.freeze({ seatId: 'balon', assetId: 'castle_castle_on_a_rock_decimated', file: 'assets/models/settlements/castles/castle_on_a_rock_decimated.glb', stoneColorHex: 0x74787d }),
 	Object.freeze({ seatId: 'ziya', assetId: 'castle_emerald_citadel_decimated', file: 'assets/models/settlements/castles/emerald_citadel_decimated.glb', stoneColorHex: 0x93917f }),
@@ -401,6 +402,12 @@ export async function spawnRealCastleModels({ assetLoader, seats, seed }) {
 		// `STONE_COLOR` when an assignment doesn't name one.
 		const stoneColor = assignment.stoneColorHex != null ? new THREE.Color(assignment.stoneColorHex) : STONE_COLOR;
 		const stoneMaterial = createStoneMaterial({ seed: seed + 2 + index, baseColor: stoneColor, repeat: stoneRepeat });
+		applyValyriaCastleWeathering(stoneMaterial, {
+			seatId: assignment.seatId,
+			groundY: seat.groundY,
+			footprintMeters: footprint,
+			seed: seed + 2 + index,
+		});
 		model.traverse((node) => {
 			if (node.isMesh) node.material = stoneMaterial;
 		});
