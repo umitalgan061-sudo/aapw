@@ -18804,3 +18804,42 @@ Dokuzu da artık `valyriaInfluence: 1` okuyor, 74–380 m arası yükseklikte. H
 **Ders:** yükseklik örneklemesi "burası kara mı" sorusuna cevap verir, "burası Valyria mı" sorusuna
 vermez. İkinci soruyu sormayan bir doğrulama, birinci soruya doğru cevap verdiği için ikna edici
 görünüyor.
+
+## Tur 411 — Decimation aracı: 1,96M → 39.882 üçgen, rig'lenebilir hale (ADR-0360)
+
+Sahip "bütün modellere rig uygula" dedi. **Rig'i bu ortamda takamam** — Blender yok, Mixamo yok, `bpy`
+yok, hiçbir rigging aracı yok; ve deponun kendi `creatureRig.js`'i zaten yazmış: *"auto-rigging an
+arbitrary imported mesh ... is an open research problem"*.
+
+Ama rig önündeki **iki engelden birini** kaldırabilirim ve o da bu: 1,96 milyon üçgenlik tek malzemeli
+bir yığını hiçbir auto-rigger kabul etmiyor. Mixamo tek, makul yoğunlukta bir mesh istiyor.
+
+`scripts/lib/glbDecimate.mjs` + `scripts/lib/glbWrite.mjs` + `scripts/decimateModel.mjs`: düz Node,
+üç.js yok, ağ yok, harici bağımlılık yok. GLB'yi kendisi ayrıştırıyor, bütün parçaları dünya
+uzayında tek akışa düzleştiriyor, ızgara tabanlı vertex clustering ile inceltiyor ve dokuları
+bayt bayt taşıyarak yeni bir GLB yazıyor.
+
+**Algoritma seçimi bilinçli.** Quadric edge collapse siluetleri daha iyi korur; vertex clustering
+O(n), komşuluk yapısı istemiyor, bu heykellerin dolu olduğu non-manifold geometride **çökmüyor** ve
+tam olarak deterministik — ki bu projenin determinizm sözleşmesi bunu şart koşuyor. Hedef üçgen
+sayısını tutturan ızgara çözünürlüğü tahmin edilmiyor, **ikili arama** ile bulunuyor.
+
+Ölçüm — `bas_melek.glb`:
+
+| | önce | sonra |
+|---|---|---|
+| üçgen | 1.963.878 | **39.882** (%98,0 az) |
+| mesh / GPU gönderimi | 21 / 21 | **1 / 1** |
+| dosya | 124,7 MB | 22,4 MB |
+| sınırlayıcı kutu | 0,98 × 0,82 × 0,53 | 0,97 × 0,82 × 0,52 |
+| süre | — | 8,8 sn |
+
+**§8.5 görsel doğrulama yapıldı ve bir yanlış alarmı da yakaladı.** İlk render boş çıktı; modeli değil
+kendi probe betiğimin kamerasını suçlamadan önce `MeshNormalMaterial` ile ayrı bir teşhis render'ı
+aldım: figür **eksiksiz** — baş, hale, iki kanat (tüy kenarlarıyla), zırh, kollar, bacaklar ve kılıç.
+Boşluk benim kamera çerçevelememdi. Tüy uçlarında serpinti var (ince geometride kümeleme artığı),
+rig kaynağı için kabul edilebilir.
+
+**Dürüst sınırlar:** UV'ler hücrenin ilk görülen değerini alıyor — tek pişmiş dokulu bir heykel için
+doğru, atlas için yanlış. 22,4 MB'ın neredeyse tamamı taşınan üç doku; doku küçültme ayrı bir adım.
+Ve bu **rig değil**: modeli rig'lenebilir hale getiriyor, rig'lemiyor.
