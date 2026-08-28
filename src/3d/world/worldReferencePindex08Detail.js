@@ -11,7 +11,7 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX08_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex08-detail-2026-08-28-v7-pedogenic-lowland-pbr-weathering',
+  id: 'owner-map-pindex08-detail-2026-08-28-v8-weathering-coupled-microrelief',
   pindex: 8,
   renderOnly: true,
   geographyAuthorityUnchanged: true,
@@ -88,6 +88,7 @@ function surfaceFabric(surface, worldX, worldZ) {
   let luminance = macro * 0.50 + meso * 0.34 + fine * 0.12 + grain * 0.04;
   let warm = mineral - 0.5;
   let cool = moisture - 0.5;
+  let microReliefScale = 1;
 
   if (surface === 'soil') {
     const drainageField = valueNoise(
@@ -133,6 +134,13 @@ function surfaceFabric(surface, worldX, worldZ) {
       - exposedInterfluve * 0.17 - ironCrust * 0.16;
     warm += alluvium * 0.20 + exposedInterfluve * 0.31 + ironCrust * 0.42
       - drainage * 0.11 - peatSeep * 0.24;
+    // Saturated/alluvial and peaty ground rounds off micro-relief, while dry interfluves and
+    // iron-crusted soil expose sharper aggregate texture. This only scales shading normals.
+    microReliefScale = THREE.MathUtils.clamp(
+      0.82 + exposedInterfluve * 0.34 + ironCrust * 0.28 - alluvium * 0.16 - peatSeep * 0.22,
+      0.56,
+      1.34,
+    );
   } else if (surface === 'rock') {
     const warp = macro * 0.73 - meso * 0.47;
     const strata = Math.sin(worldX * 0.0048 + worldZ * 0.0062 + warp * 3.1);
@@ -140,15 +148,18 @@ function surfaceFabric(surface, worldX, worldZ) {
     luminance = macro * 0.32 + meso * 0.29 + fine * 0.10 + grain * 0.05 + strata * 0.27 - erosion * 0.13;
     warm += Math.max(0, mineral - 0.44) * 0.48;
     cool *= 0.32;
+    microReliefScale = THREE.MathUtils.clamp(0.90 + erosion * 0.24 + Math.abs(strata) * 0.12, 0.84, 1.30);
   } else if (surface === 'snow') {
     const scour = THREE.MathUtils.clamp(0.5 + meso * 0.31 - fine * 0.24 - macro * 0.11, 0, 1);
     luminance = macro * 0.20 + meso * 0.31 + fine * 0.17 + grain * 0.04 + (0.5 - scour) * 0.40;
     cool = scour - 0.5;
     warm *= 0.14;
+    microReliefScale = THREE.MathUtils.clamp(0.72 + scour * 0.34, 0.68, 1.08);
   } else if (surface === 'sea' || surface === 'lake') {
     luminance = macro * 0.38 + meso * 0.23 + fine * 0.05 + grain * 0.01;
     warm *= 0.08;
     cool += macro * 0.13;
+    microReliefScale = 0;
   }
 
   const grainStep = P.normalGrainMeters * 0.36;
@@ -166,8 +177,8 @@ function surfaceFabric(surface, worldX, worldZ) {
     luminance,
     warm,
     cool,
-    normalX: grainX * 0.64 + weatherX * 0.36,
-    normalZ: grainZ * 0.64 + weatherZ * 0.36,
+    normalX: (grainX * 0.64 + weatherX * 0.36) * microReliefScale,
+    normalZ: (grainZ * 0.64 + weatherZ * 0.36) * microReliefScale,
   };
 }
 
