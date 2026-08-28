@@ -4,9 +4,9 @@
  * Pindex ownership, map classification, terrain height, hydrology and colliders remain canonical.
  * This module only modifies existing terrain vertex colours. The original v1 layer used one
  * normalized-map sine hash at 1024x frequency, which read as nearly uniform procedural grain at
- * full-world scale. v2 replaces it with world-space multi-scale material weathering: broad moisture
- * basins, meso-scale drainage/swales, dry mineral interfluves, fine substrate breakup and
- * surface-specific rock/snow response. No new coastline, river, ridge or other geography is made.
+ * full-world scale. v3 keeps the world-space multi-scale fabric and adds bounded pedogenic
+ * differentiation: humic seep pockets, depositional lowland patches and oxidized mineral crusts.
+ * No new coastline, river, ridge or other geography is made.
  */
 import * as THREE from 'three';
 import { mapCanvasToNormalizedReference } from './worldReferenceAlignment.js';
@@ -14,13 +14,16 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX10_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex10-detail-2026-08-27-v2-lowland-weathering',
+  id: 'owner-map-pindex10-detail-2026-08-28-v3-pedogenic-lowland-weathering',
   pindex: 10,
   macroMeters: 1860,
   mesoMeters: 520,
   fineMeters: 138,
   microMeters: 46,
   warpMeters: 840,
+  seepMeters: 880,
+  depositionMeters: 670,
+  ironCrustMeters: 275,
   boundaryFeatherNormalized: 0.018,
   mapAuthorityUnchanged: true,
   geographyAuthorityUnchanged: true,
@@ -121,11 +124,26 @@ export function samplePindex10SurfaceFabric(worldX, worldZ, normalizedX) {
   const moisture = clamp01(0.42 + (0.5 - macro) * 0.48 + (0.5 - meso) * 0.31 + swale * 0.28 + drainageThread * 0.18);
   const mineral = clamp01(0.22 + meso * 0.39 + fine * 0.29 + strata * 0.20 - swale * 0.11);
   const interfluve = smoothstep(0.57, 0.88, exposure) * smoothstep(0.52, 0.84, mineral) * smoothstep(0.32, 0.70, 1 - swale);
+
+  const seepField = fbm(warpedX + macro * 260, warpedZ - meso * 210, P.seepMeters, 0x9c98);
+  const depositionField = fbm(warpedX - meso * 180, warpedZ + macro * 240, P.depositionMeters, 0xada9);
+  const crustField = fbm(worldX + fine * 95, worldZ - micro * 70, P.ironCrustMeters, 0xbeba);
+  const humicSeep = smoothstep(0.53, 0.79, seepField)
+    * smoothstep(0.51, 0.82, moisture)
+    * (1 - interfluve * 0.42);
+  const depositionalPatch = smoothstep(0.52, 0.80, depositionField)
+    * smoothstep(0.46, 0.78, moisture)
+    * (0.42 + swale * 0.58)
+    * (1 - drainageThread * 0.30);
+  const ironCrust = smoothstep(0.58, 0.84, crustField)
+    * smoothstep(0.54, 0.85, mineral)
+    * smoothstep(0.48, 0.82, exposure)
+    * (1 - humicSeep * 0.55);
   const boundary = pindex10BoundaryWeight(normalizedX);
 
   return Object.freeze({
     macro, meso, fine, micro, drainageField, drainageThread, swale, alluvium,
-    strata, exposure, moisture, mineral, interfluve, boundary,
+    strata, exposure, moisture, mineral, interfluve, humicSeep, depositionalPatch, ironCrust, boundary,
   });
 }
 
@@ -145,26 +163,35 @@ function applyFabricToColor(color, index, surface, fabric) {
     const dry = clamp01(1 - fabric.moisture);
     const damp = fabric.swale * fabric.moisture;
     const gravel = fabric.interfluve * smoothstep(0.56, 0.86, fabric.fine);
-    shade = 0.965
-      + (fabric.macro - 0.5) * 0.115
-      + (fabric.meso - 0.5) * 0.076
-      + (fabric.fine - 0.5) * 0.030
-      - fabric.drainageThread * 0.035
-      + fabric.alluvium * 0.022;
-    tintR = dry * 0.034 + gravel * 0.031 + fabric.alluvium * 0.018 - damp * 0.024;
-    tintG = dry * 0.017 + fabric.alluvium * 0.012 - gravel * 0.007 + damp * 0.010;
-    tintB = dry * 0.003 - gravel * 0.012 - fabric.alluvium * 0.005 - damp * 0.018;
+    shade = 0.962
+      + (fabric.macro - 0.5) * 0.118
+      + (fabric.meso - 0.5) * 0.078
+      + (fabric.fine - 0.5) * 0.032
+      - fabric.drainageThread * 0.038
+      + fabric.alluvium * 0.024
+      - fabric.humicSeep * 0.052
+      + fabric.depositionalPatch * 0.035
+      + fabric.ironCrust * 0.044;
+    tintR = dry * 0.034 + gravel * 0.031 + fabric.alluvium * 0.018
+      + fabric.depositionalPatch * 0.026 + fabric.ironCrust * 0.052
+      - damp * 0.024 - fabric.humicSeep * 0.034;
+    tintG = dry * 0.017 + fabric.alluvium * 0.012 + fabric.depositionalPatch * 0.016
+      - gravel * 0.007 + damp * 0.010 + fabric.humicSeep * 0.018
+      + fabric.ironCrust * 0.011;
+    tintB = dry * 0.003 - gravel * 0.012 - fabric.alluvium * 0.005
+      - damp * 0.018 - fabric.humicSeep * 0.026 - fabric.ironCrust * 0.021;
   } else if (surface === 'rock') {
-    const wetFracture = fabric.drainageThread * fabric.moisture;
+    const wetFracture = fabric.drainageThread * fabric.moisture + fabric.humicSeep * 0.16;
     const oxidized = smoothstep(0.57, 0.86, fabric.mineral) * smoothstep(0.48, 0.82, fabric.exposure);
-    shade = 0.952 + (fabric.macro - 0.5) * 0.090 + (fabric.strata - 0.5) * 0.115 + (fabric.fine - 0.5) * 0.030;
-    tintR = oxidized * 0.040 - wetFracture * 0.032;
-    tintG = oxidized * 0.014 - wetFracture * 0.025;
-    tintB = -oxidized * 0.011 - wetFracture * 0.018 + (1 - fabric.exposure) * 0.010;
+    shade = 0.952 + (fabric.macro - 0.5) * 0.090 + (fabric.strata - 0.5) * 0.115
+      + (fabric.fine - 0.5) * 0.030 + fabric.ironCrust * 0.026;
+    tintR = oxidized * 0.040 + fabric.ironCrust * 0.026 - wetFracture * 0.032;
+    tintG = oxidized * 0.014 + fabric.ironCrust * 0.006 - wetFracture * 0.025;
+    tintB = -oxidized * 0.011 - fabric.ironCrust * 0.012 - wetFracture * 0.018 + (1 - fabric.exposure) * 0.010;
   } else if (surface === 'snow') {
     const scour = fabric.interfluve * smoothstep(0.54, 0.84, fabric.fine);
     const grit = smoothstep(0.66, 0.91, fabric.mineral) * smoothstep(0.56, 0.88, fabric.micro);
-    const sheltered = fabric.swale * fabric.moisture;
+    const sheltered = fabric.swale * fabric.moisture + fabric.humicSeep * 0.12;
     shade = 0.984 + (fabric.macro - 0.5) * 0.052 + (fabric.meso - 0.5) * 0.030 + sheltered * 0.018 - grit * 0.037;
     tintR = -scour * 0.011 - grit * 0.021;
     tintG = -scour * 0.004 - grit * 0.019;
