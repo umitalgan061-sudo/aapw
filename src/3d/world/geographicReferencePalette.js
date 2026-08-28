@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-28-v2-natural-lowland-separation',
+	id: 'geographic-reference-palette-2026-08-29-v3-natural-water-optics',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -21,7 +21,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	]),
 	calibration: Object.freeze({
 		terrain: 'moss-and-heather lowlands, exposed mineral earth, warm granite and wet basalt',
-		water: 'bed-readable green-cyan shallows, dark blue depth, aerated neutral-white falls',
+		water: 'restrained mineral-green shallows, blue-black depth, aerated neutral-white falls',
 		road: 'warm compacted earth, dark damp ruts, mineral dust, stone and moss shoulders',
 		celestial: 'warm low sun, neutral noon, cool moon with preserved material readability',
 	}),
@@ -47,15 +47,15 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		mossEdge: 0x40523a,
 	}),
 	water: Object.freeze({
-		shoreClear: 0x6aa39c,
-		lakeClear: 0x53877f,
-		riverPool: 0x57756e,
-		rapid: 0x4b7e89,
-		deepSea: 0x092941,
-		abyss: 0x061723,
-		plunge: 0x4a6e75,
-		splash: 0xd9e9e7,
-		foam: 0xeff8f7,
+		shoreClear: 0x668f8b,
+		lakeClear: 0x537b78,
+		riverPool: 0x566f6b,
+		rapid: 0x527987,
+		deepSea: 0x0b2839,
+		abyss: 0x071720,
+		plunge: 0x506f76,
+		splash: 0xd8e7e5,
+		foam: 0xecf5f3,
 	}),
 	celestial: Object.freeze({
 		dawn: 0xffb366,
