@@ -25,6 +25,8 @@ need(/ATTACK_COMBO_BUFFER_SECONDS:\s*0\.28\b/.test(config), 'attack combo buffer
 need(/PARRY_FEEDBACK_SECONDS:\s*0\.18\b/.test(config), 'parry recovery must stay explicit at 0.18s');
 need(onCombatInput.includes("kind !== 'light' && kind !== 'heavy'"), 'combat input must reject unsupported attack kinds');
 need(onCombatInput.includes('attackRemaining <= 0') && onCombatInput.includes('!canStartAttack(kind)'), 'idle/recovery attack input must be rejected before entering the combo buffer');
+need(/if\s*\(\s*attackRemaining\s*<=\s*0\s*&&\s*!canStartAttack\(kind\)\s*\)\s*return;/.test(onCombatInput), 'eligibility rejection must be scoped to idle/recovery input so active attacks can still buffer combo follow-ups');
+need(!/if\s*\(\s*!canStartAttack\(kind\)\s*\)\s*return;/.test(onCombatInput), 'active attack follow-up input must not be rejected by idle-only eligibility gates');
 need(onCombatInput.indexOf('!canStartAttack(kind)') < onCombatInput.indexOf('bufferedAttackKind = kind'), 'recovery eligibility must be checked before buffer capture');
 need(onCombatInput.includes('bufferedAttackKind = kind'), 'eligible input and active-attack follow-ups must still use the existing combo buffer');
 need(onCombatInput.includes('attackBufferRemaining = PLAYER_ACTION_CONFIG.ATTACK_COMBO_BUFFER_SECONDS'), 'accepted input must preserve the canonical combo buffer duration');
@@ -41,9 +43,9 @@ const parryRecoverySeconds = 0.18;
 need(bufferSeconds > parryRecoverySeconds, 'regression fixture requires buffer to outlive parry recovery so stale capture would be observable');
 
 console.log(JSON.stringify({
-  contract: 'player-recovery-attack-buffer-drop-v1',
+  contract: 'player-recovery-attack-buffer-drop-v2',
   bufferSeconds,
   parryRecoverySeconds,
-  rule: 'idle-or-recovery input must be eligible now; only active attacks may retain follow-up combo input',
+  rule: 'idle-or-recovery input must be eligible now; active attacks retain canonical follow-up combo buffering',
 }, null, 2));
 console.log('PLAYER_RECOVERY_ATTACK_BUFFER_DROP_OK');
