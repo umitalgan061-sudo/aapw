@@ -31,6 +31,8 @@ const FOG_DUST_AEROSOL_DENSITY_GAIN = 0.000014;
 const FOG_CLEAR_TWILIGHT_CLARITY_GAIN = 0.000020;
 /** Saturated post-sunset blue hour keeps extra long-range silhouette separation instead of humid haze. */
 const FOG_CLEAR_BLUE_HOUR_CLARITY_GAIN = 0.000018;
+/** Cool chromatic deep night keeps a little extra silhouette depth instead of one uniform nocturnal veil. */
+const FOG_CLEAR_DEEP_NIGHT_CLARITY_GAIN = 0.000016;
 /** Midday dry-air clarity keeps long views from reading like the same opacity slider at every phase. */
 const FOG_MIDDAY_CLARITY_GAIN = 0.000022;
 /** Saturated bright daylight implies a cleaner optical column than a pale overcast-looking horizon. */
@@ -59,6 +61,8 @@ const FOG_NIGHT_COOL_TINT = new THREE.Color(0x596979);
 const FOG_BLUE_HOUR_TINT = new THREE.Color(0x71899b);
 /** Clear blue hour keeps a slightly deeper Rayleigh bias than humid post-sunset haze. */
 const FOG_CLEAR_BLUE_HOUR_TINT = new THREE.Color(0x657f99);
+/** Clear chromatic deep night preserves a darker blue aerial perspective without adding weather state. */
+const FOG_CLEAR_DEEP_NIGHT_TINT = new THREE.Color(0x53687d);
 /** Moonlit aerosol tint keeps nocturnal distance cues cool-neutral rather than crushing them into blue-grey. */
 const FOG_MOONLIT_TINT = new THREE.Color(0x748493);
 /** Clean high-sun air retains sky colour but biases the residual aerosol toward a restrained Rayleigh blue. */
@@ -74,6 +78,7 @@ const FOG_CLEAR_TWILIGHT_TINT_MAX = 0.024;
 const FOG_NIGHT_COOL_TINT_MAX = 0.038;
 const FOG_BLUE_HOUR_TINT_MAX = 0.045;
 const FOG_CLEAR_BLUE_HOUR_TINT_MAX = 0.028;
+const FOG_CLEAR_DEEP_NIGHT_TINT_MAX = 0.020;
 const FOG_MOONLIT_TINT_MAX = 0.028;
 const FOG_CLEAR_DAY_TINT_MAX = 0.026;
 const FOG_HUMID_DAY_TINT_MAX = 0.036;
@@ -107,14 +112,16 @@ export function createFog() {
  * tint preserve long-range silhouette separation instead of forcing every low-angle phase through
  * the same humid grey veil. Post-sunset blue hour follows the same optical distinction: low-chroma
  * horizons retain the humid aerosol shoulder, while saturated cool horizons recover bounded clarity
- * and a deeper Rayleigh tint. Both branches are derived only from the authoritative horizon color,
- * so they add no weather or geography authority. Bright moonlit horizons then recover a bounded
- * amount of clarity and a slightly more neutral cool aerosol tint, preventing clear nights from
- * reading like uniformly overcast fog. High-sun daylight also reads the authoritative horizon
- * chroma: a bright saturated sky receives a small extra clarity/tint response, while a bright
- * low-chroma horizon receives a restrained humid aerosol lift. The clear and humid responses are
- * deliberately complementary, so daytime distance does not collapse into a single global haze
- * preset. All effects remain render-only and subordinate to lighting.js.
+ * and a deeper Rayleigh tint. Deep night now keeps that distinction too: a dark but cool/chromatic
+ * horizon receives a small bounded clarity recovery and deeper blue aerial perspective, while neutral
+ * dark horizons retain the denser nocturnal veil. All branches are derived only from authoritative
+ * horizon color and night factor, so they add no weather or geography authority. Bright moonlit
+ * horizons then recover a bounded amount of clarity and a slightly more neutral cool aerosol tint,
+ * preventing clear nights from reading like uniformly overcast fog. High-sun daylight also reads the
+ * authoritative horizon chroma: a bright saturated sky receives a small extra clarity/tint response,
+ * while a bright low-chroma horizon receives a restrained humid aerosol lift. The clear and humid
+ * responses are deliberately complementary, so daytime distance does not collapse into a single
+ * global haze preset. All effects remain render-only and subordinate to lighting.js.
  *
  * @param {THREE.FogExp2} fog
  * @param {{horizonColor: THREE.Color, nightFactor: number}} dayNight - `lighting.js`'s per-frame output.
@@ -164,6 +171,9 @@ export function updateFog(fog, dayNight) {
 	const humidBlueHour = blueHour * (1 - THREE.MathUtils.smoothstep(horizonChroma, 0.10, 0.30));
 	const deepNight = THREE.MathUtils.smoothstep(nightFactor, 0.70, 0.98)
 		* (1 - THREE.MathUtils.smoothstep(horizonLuminance, 0.08, 0.24));
+	const clearDeepNight = deepNight
+		* THREE.MathUtils.smoothstep(horizonChroma, 0.045, 0.16)
+		* THREE.MathUtils.smoothstep(horizonCoolness, 0.006, 0.075);
 	const moonlitNight = THREE.MathUtils.smoothstep(nightFactor, 0.76, 0.98)
 		* THREE.MathUtils.smoothstep(horizonLuminance, 0.16, 0.34);
 
@@ -179,6 +189,7 @@ export function updateFog(fog, dayNight) {
 		.lerp(FOG_BLUE_HOUR_TINT, humidBlueHour * FOG_BLUE_HOUR_TINT_MAX)
 		.lerp(FOG_CLEAR_BLUE_HOUR_TINT, clearBlueHour * FOG_CLEAR_BLUE_HOUR_TINT_MAX)
 		.lerp(FOG_NIGHT_COOL_TINT, deepNight * FOG_NIGHT_COOL_TINT_MAX)
+		.lerp(FOG_CLEAR_DEEP_NIGHT_TINT, clearDeepNight * FOG_CLEAR_DEEP_NIGHT_TINT_MAX)
 		.lerp(FOG_MOONLIT_TINT, moonlitNight * FOG_MOONLIT_TINT_MAX);
 
 	fog.density = THREE.MathUtils.lerp(FOG_DENSITY_DAY, FOG_DENSITY_NIGHT, nightFactor)
@@ -189,6 +200,7 @@ export function updateFog(fog, dayNight) {
 		+ humidDay * FOG_HUMID_DAY_DENSITY_GAIN
 		- clearTwilight * FOG_CLEAR_TWILIGHT_CLARITY_GAIN
 		- clearBlueHour * FOG_CLEAR_BLUE_HOUR_CLARITY_GAIN
+		- clearDeepNight * FOG_CLEAR_DEEP_NIGHT_CLARITY_GAIN
 		- fullDay * FOG_MIDDAY_CLARITY_GAIN
 		- clearBlueDay * FOG_CLEAR_BLUE_DAY_CLARITY_GAIN
 		- moonlitNight * FOG_MOONLIT_CLARITY_GAIN;
