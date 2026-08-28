@@ -9,7 +9,7 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX09_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex09-detail-2026-08-29-v5-erosion-talus-weathering',
+  id: 'owner-map-pindex09-detail-2026-08-29-v6-readable-erosion-talus-weathering',
   pindex: 9,
   macroMeters: 1680,
   mesoMeters: 470,
@@ -25,7 +25,7 @@ export const PINDEX09_DETAIL_POLICY = Object.freeze({
   normalWeatherMeters: 158,
   normalGrainMeters: 43,
   boundaryFeatherNormalized: 0.018,
-  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.24, rock: 0.38, snow: 0.12 }),
+  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.29, rock: 0.46, snow: 0.13 }),
   mapAuthorityUnchanged: true,
   geographyAuthorityUnchanged: true,
   terrainHeightAuthorityUnchanged: true,
@@ -109,7 +109,7 @@ function normalGradient(worldX, worldZ, fabric) {
     - valueNoise(worldX - weatherStep - fabric.meso * 34, worldZ + fabric.fine * 28, P.normalWeatherMeters, 0xd527);
   const weatherZ = valueNoise(worldX - fabric.fine * 31, worldZ + weatherStep + fabric.macro * 37, P.normalWeatherMeters, 0xe36b)
     - valueNoise(worldX - fabric.fine * 31, worldZ - weatherStep + fabric.macro * 37, P.normalWeatherMeters, 0xe36b);
-  const fractureBias = (fabric.strata - 0.5) * 0.24 + (fabric.drainage - 0.5) * 0.10 + fabric.rill * 0.075 - fabric.talus * 0.045;
+  const fractureBias = (fabric.strata - 0.5) * 0.24 + (fabric.drainage - 0.5) * 0.10 + fabric.rill * 0.105 - fabric.talus * 0.064;
   return {
     x: grainX * 0.59 + weatherX * 0.41 + fractureBias,
     z: grainZ * 0.59 + weatherZ * 0.41 - fractureBias * 0.72,
@@ -158,21 +158,21 @@ function applyFabricToColor(color, index, surface, fabric) {
   if (surface === 'soil') {
     const dry = clamp01(1 - fabric.moisture);
     const heath = smoothstep(0.58, 0.84, fabric.exposure) * smoothstep(0.50, 0.82, fabric.mineral);
-    shade = 0.958 + (fabric.macro - 0.5) * 0.118 + (fabric.meso - 0.5) * 0.082 + (fabric.fine - 0.5) * 0.036 - fabric.seep * 0.026 + fabric.crust * 0.018 - fabric.rill * 0.028 + fabric.talus * 0.015;
-    tintR = dry * 0.038 + heath * 0.022 - fabric.moisture * 0.018 + fabric.alluvium * 0.028 - fabric.seep * 0.026 + fabric.crust * 0.040 + fabric.talus * 0.018;
-    tintG = dry * 0.020 - heath * 0.010 + fabric.moisture * 0.008 + fabric.alluvium * 0.016 - fabric.seep * 0.006 + fabric.crust * 0.013 + fabric.talus * 0.008;
-    tintB = dry * 0.006 - heath * 0.009 - fabric.moisture * 0.013 - fabric.alluvium * 0.010 - fabric.seep * 0.017 - fabric.crust * 0.019 - fabric.rill * 0.010;
+    shade = 0.958 + (fabric.macro - 0.5) * 0.118 + (fabric.meso - 0.5) * 0.082 + (fabric.fine - 0.5) * 0.036 - fabric.seep * 0.026 + fabric.crust * 0.018 - fabric.rill * 0.052 + fabric.talus * 0.028;
+    tintR = dry * 0.038 + heath * 0.022 - fabric.moisture * 0.018 + fabric.alluvium * 0.028 - fabric.seep * 0.026 + fabric.crust * 0.040 + fabric.talus * 0.032;
+    tintG = dry * 0.020 - heath * 0.010 + fabric.moisture * 0.008 + fabric.alluvium * 0.016 - fabric.seep * 0.006 + fabric.crust * 0.013 + fabric.talus * 0.014;
+    tintB = dry * 0.006 - heath * 0.009 - fabric.moisture * 0.013 - fabric.alluvium * 0.010 - fabric.seep * 0.017 - fabric.crust * 0.019 - fabric.rill * 0.019;
   } else if (surface === 'rock') {
     const wetFracture = fabric.drainage * fabric.moisture;
     const iron = smoothstep(0.58, 0.86, fabric.mineral) * smoothstep(0.48, 0.80, fabric.exposure);
-    shade = 0.950 + (fabric.macro - 0.5) * 0.098 + (fabric.strata - 0.5) * 0.112 + (fabric.fine - 0.5) * 0.032 + fabric.crust * 0.012 - fabric.rill * 0.038 + fabric.talus * 0.021;
-    tintR = iron * 0.038 - wetFracture * 0.030 + fabric.crust * 0.025 + fabric.talus * 0.020;
-    tintG = iron * 0.012 - wetFracture * 0.025 + fabric.crust * 0.006 + fabric.talus * 0.010;
-    tintB = -iron * 0.010 - wetFracture * 0.018 + (1 - fabric.exposure) * 0.012 - fabric.crust * 0.014 - fabric.rill * 0.012;
+    shade = 0.950 + (fabric.macro - 0.5) * 0.098 + (fabric.strata - 0.5) * 0.112 + (fabric.fine - 0.5) * 0.032 + fabric.crust * 0.012 - fabric.rill * 0.064 + fabric.talus * 0.036;
+    tintR = iron * 0.038 - wetFracture * 0.030 + fabric.crust * 0.025 + fabric.talus * 0.034;
+    tintG = iron * 0.012 - wetFracture * 0.025 + fabric.crust * 0.006 + fabric.talus * 0.017;
+    tintB = -iron * 0.010 - wetFracture * 0.018 + (1 - fabric.exposure) * 0.012 - fabric.crust * 0.014 - fabric.rill * 0.021;
   } else if (surface === 'snow') {
     const scour = smoothstep(0.56, 0.84, fabric.exposure) * smoothstep(0.52, 0.84, fabric.fine);
     const grit = smoothstep(0.65, 0.90, fabric.mineral) * smoothstep(0.55, 0.86, fabric.micro);
-    shade = 0.985 + (fabric.macro - 0.5) * 0.050 + (fabric.meso - 0.5) * 0.030 - grit * 0.035 - fabric.rill * 0.010;
+    shade = 0.985 + (fabric.macro - 0.5) * 0.050 + (fabric.meso - 0.5) * 0.030 - grit * 0.035 - fabric.rill * 0.019;
     tintR = -scour * 0.010 - grit * 0.020;
     tintG = -scour * 0.004 - grit * 0.019;
     tintB = scour * 0.014 - grit * 0.014 + fabric.rill * 0.006;
