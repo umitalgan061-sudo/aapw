@@ -8,6 +8,7 @@ on:
       - 'scripts/checkPlayerRecoveryAttackBufferDrop.mjs'
       - 'scripts/checkPlayerRecoveryAttackBufferRuntime.mjs'
       - 'scripts/checkPlayerHitStaggerRuntime.mjs'
+      - 'scripts/checkPlayerStaminaDodgeRuntime.mjs'
       - '.github/workflows/player-recovery-attack-buffer-drop.yml'
       - '.github/workflows/player-combat-recovery-input-isolation.yml'
       - '.github/workflows/player-stamina-dodge.yml'
@@ -39,7 +40,7 @@ jobs:
           printf '%s\n' "${files[@]}"
           for file in "${files[@]}"; do
             case "$file" in
-              src/3d/gameplay/player.js|scripts/checkPlayerParryRecovery.mjs|scripts/checkPlayerRecoveryAttackBufferDrop.mjs|scripts/checkPlayerRecoveryAttackBufferRuntime.mjs|scripts/checkPlayerHitStaggerRuntime.mjs|.github/workflows/player-recovery-attack-buffer-drop.yml|.github/workflows/player-combat-recovery-input-isolation.yml|.github/workflows/player-stamina-dodge.yml|.github/workflows/player-guard-impact-exhaustion.yml|.github/workflows/player-parry-recovery.yml) ;;
+              src/3d/gameplay/player.js|scripts/checkPlayerParryRecovery.mjs|scripts/checkPlayerRecoveryAttackBufferDrop.mjs|scripts/checkPlayerRecoveryAttackBufferRuntime.mjs|scripts/checkPlayerHitStaggerRuntime.mjs|scripts/checkPlayerStaminaDodgeRuntime.mjs|.github/workflows/player-recovery-attack-buffer-drop.yml|.github/workflows/player-combat-recovery-input-isolation.yml|.github/workflows/player-stamina-dodge.yml|.github/workflows/player-guard-impact-exhaustion.yml|.github/workflows/player-parry-recovery.yml) ;;
               *) echo "Unexpected path: $file" >&2; exit 1 ;;
             esac
           done
@@ -52,6 +53,7 @@ jobs:
           node --check scripts/checkPlayerRecoveryAttackBufferDrop.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferRuntime.mjs
           node --check scripts/checkPlayerHitStaggerRuntime.mjs
+          node --check scripts/checkPlayerStaminaDodgeRuntime.mjs
       - name: Parry recovery regression
         run: |
           node scripts/checkPlayerParryRecovery.mjs
