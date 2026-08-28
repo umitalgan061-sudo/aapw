@@ -28,7 +28,7 @@ export const ROAD_RETURN_GRADE_TARGET_DEGREES = 19.25;
 export const ROAD_MAX_RIVER_ADJACENT_SAMPLES = 3;
 
 export const ROAD_ROUTING_POLICY = Object.freeze({
-	id: 'road-routing-2026-08-27-v5-micro-switchback-neighbors',
+	id: 'road-routing-2026-08-28-v6-contour-fan-switchbacks',
 	comfortGradeDegrees: ROAD_COMFORT_GRADE_DEGREES,
 	searchGradeDegrees: ROAD_MAX_GRADE_DEGREES,
 	returnGradeDegrees: ROAD_RETURN_GRADE_TARGET_DEGREES,
@@ -74,13 +74,27 @@ const EIGHT_NEIGHBOR_OFFSETS = Object.freeze([
 	[1, 1], [1, -1], [-1, 1], [-1, -1],
 ]);
 
-// Fine settlement-egress grids need more than 45-degree steering choices to trace a safe contour
-// across steep pad shoulders. Knight-step edges add 26.6/63.4-degree switchback headings while the
-// continuous terrain profiler still validates every crossed sub-edge, so no hidden cliff is skipped.
+function signedOffsetFamily(a, b) {
+	const offsets = [];
+	for (const sx of [-1, 1]) {
+		for (const sz of [-1, 1]) {
+			offsets.push([a * sx, b * sz]);
+			if (a !== b) offsets.push([b * sx, a * sz]);
+		}
+	}
+	return offsets;
+}
+
+// Fine settlement-egress grids need near-tangent steering choices to cross steep pad shoulders and
+// natural terraces without falling back to a straight cliff-cut. The contour fan adds 14–34 degree
+// rational headings on top of 26.6/63.4 degree knight steps. Every longer edge is still profiled
+// continuously by segmentFeasibility, so extra steering freedom cannot jump an unseen ridge/gully.
 const FINE_NEIGHBOR_OFFSETS = Object.freeze([
 	...EIGHT_NEIGHBOR_OFFSETS,
-	[2, 1], [2, -1], [-2, 1], [-2, -1],
-	[1, 2], [1, -2], [-1, 2], [-1, -2],
+	...signedOffsetFamily(2, 1),
+	...signedOffsetFamily(3, 1),
+	...signedOffsetFamily(3, 2),
+	...signedOffsetFamily(4, 1),
 ]);
 
 function gradeCostMultiplier(angleDegrees) {
