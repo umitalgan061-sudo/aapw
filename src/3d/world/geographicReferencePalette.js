@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-28-v1-photogrammetry-calibrated',
+	id: 'geographic-reference-palette-2026-08-28-v2-natural-lowland-separation',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -29,15 +29,15 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x29452f,
-		meadow: 0x607347,
-		dryHeather: 0x75654d,
-		wetEarth: 0x484239,
-		exposedEarth: 0x8a6245,
-		graniteShadow: 0x535958,
-		graniteSunlit: 0x9c755c,
+		mossShadow: 0x304936,
+		meadow: 0x667b4e,
+		dryHeather: 0x796a52,
+		wetEarth: 0x45443d,
+		exposedEarth: 0x886148,
+		graniteShadow: 0x545a59,
+		graniteSunlit: 0x98755f,
 		basaltWet: 0x30383a,
-		quartz: 0xb6aea1,
+		quartz: 0xb5ada1,
 	}),
 	road: Object.freeze({
 		compacted: 0x8b6849,
