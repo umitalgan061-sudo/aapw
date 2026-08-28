@@ -9,6 +9,7 @@ on:
       - 'scripts/checkNpcGuardAttack.mjs'
       - 'scripts/checkNpcGuardLeash.mjs'
       - 'scripts/checkNpcGuardLifecycleContract.mjs'
+      - '.github/workflows/run167-determinism-policy.yml'
       - '.github/workflows/npc-guard-leash-attack-slot-handoff.yml'
 
 permissions:
@@ -39,8 +40,9 @@ jobs:
           merge_base="$(git merge-base HEAD origin/main)"
           test "$merge_base" = "$main_sha"
           mapfile -t files < <(git diff --name-only origin/main...HEAD)
-          test "${#files[@]}" -eq 2
+          test "${#files[@]}" -eq 3
           printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcGuardLeashAttackSlotHandoff.mjs'
+          printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/run167-determinism-policy.yml'
           printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-guard-leash-attack-slot-handoff.yml'
           read -r additions deletions < <(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           total=$((additions + deletions))
