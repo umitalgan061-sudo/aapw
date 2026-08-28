@@ -11,7 +11,7 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX04_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex04-detail-2026-08-27-v5-soil-horizon-weathering',
+  id: 'owner-map-pindex04-detail-2026-08-28-v6-micro-normal-weathering',
   pindex: 4,
   renderOnly: true,
   geographyAuthorityUnchanged: true,
@@ -23,9 +23,12 @@ export const PINDEX04_DETAIL_POLICY = Object.freeze({
   interfluveMeters: 980,
   peatMeters: 360,
   oxideMeters: 610,
+  normalGrainMeters: 39,
+  normalWeatherMeters: 148,
   boundaryProbeNormalized: 0.006,
   amplitudeBySurface: Object.freeze({ sea: 0.014, lake: 0.016, soil: 0.174, rock: 0.148, snow: 0.074 }),
   chromaBySurface: Object.freeze({ sea: 0.016, lake: 0.020, soil: 0.154, rock: 0.108, snow: 0.056 }),
+  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.21, rock: 0.33, snow: 0.11 }),
 });
 
 function hash01(ix, iz, seed = 0) {
@@ -175,18 +178,45 @@ function surfaceFabric(surface, worldX, worldZ) {
     cool += macro * 0.14;
   }
 
-  return { luminance, warm, cool, dampSwale, alluvium, exposedInterfluve, peat, ironCrust };
+  // Lighting breakup uses two unrelated scales so the new PBR response follows the same weathered
+  // language as the albedo without becoming a repeated bump texture. This remains render-only:
+  // only the existing vertex normal is tilted; no vertex position or canonical sampler is changed.
+  const grainStep = P.normalGrainMeters * 0.36;
+  const weatherStep = P.normalWeatherMeters * 0.29;
+  const grainX = valueNoise(worldX + grainStep, worldZ, P.normalGrainMeters, 73.1)
+    - valueNoise(worldX - grainStep, worldZ, P.normalGrainMeters, 73.1);
+  const grainZ = valueNoise(worldX, worldZ + grainStep, P.normalGrainMeters, 73.1)
+    - valueNoise(worldX, worldZ - grainStep, P.normalGrainMeters, 73.1);
+  const weatherX = valueNoise(worldX + weatherStep - meso * 19, worldZ + fine * 13, P.normalWeatherMeters, 79.6)
+    - valueNoise(worldX - weatherStep - meso * 19, worldZ + fine * 13, P.normalWeatherMeters, 79.6);
+  const weatherZ = valueNoise(worldX - fine * 17, worldZ + weatherStep + macro * 21, P.normalWeatherMeters, 85.7)
+    - valueNoise(worldX - fine * 17, worldZ - weatherStep + macro * 21, P.normalWeatherMeters, 85.7);
+
+  return {
+    luminance,
+    warm,
+    cool,
+    dampSwale,
+    alluvium,
+    exposedInterfluve,
+    peat,
+    ironCrust,
+    normalX: grainX * 0.63 + weatherX * 0.37,
+    normalZ: grainZ * 0.63 + weatherZ * 0.37,
+  };
 }
 
 export function applyPindex04DetailToTerrainMesh(mesh) {
   const position = mesh?.geometry?.getAttribute?.('position');
   const color = mesh?.geometry?.getAttribute?.('color');
+  const normal = mesh?.geometry?.getAttribute?.('normal');
   if (!position || !color) throw new TypeError('semantic terrain position+color attributes are required');
 
   let touchedVertices = 0;
   let detailEnergy = 0;
   let drainageEnergy = 0;
   let soilHorizonEnergy = 0;
+  let normalVariationEnergy = 0;
   for (let index = 0; index < position.count; index += 1) {
     const worldX = mesh.position.x + position.getX(index);
     const worldZ = mesh.position.z + position.getZ(index);
@@ -224,6 +254,18 @@ export function applyPindex04DetailToTerrainMesh(mesh) {
       THREE.MathUtils.clamp(g, 0, 1),
       THREE.MathUtils.clamp(b, 0, 1));
 
+    if (normal) {
+      const normalStrength = (PINDEX04_DETAIL_POLICY.normalStrengthBySurface[c.surface] ?? 0) * edge;
+      if (normalStrength > 0) {
+        const nx = normal.getX(index) + fabric.normalX * normalStrength;
+        const ny = Math.max(0.08, normal.getY(index));
+        const nz = normal.getZ(index) + fabric.normalZ * normalStrength;
+        const length = Math.hypot(nx, ny, nz) || 1;
+        normal.setXYZ(index, nx / length, ny / length, nz / length);
+        normalVariationEnergy += (Math.abs(fabric.normalX) + Math.abs(fabric.normalZ)) * normalStrength;
+      }
+    }
+
     detailEnergy += Math.abs(fabric.luminance) * amplitude
       + (Math.abs(fabric.warm) + Math.abs(fabric.cool)) * chroma;
     drainageEnergy += (fabric.dampSwale + fabric.alluvium + fabric.exposedInterfluve) * edge;
@@ -231,6 +273,7 @@ export function applyPindex04DetailToTerrainMesh(mesh) {
   }
 
   color.needsUpdate = true;
+  if (normal) normal.needsUpdate = true;
   const summary = Object.freeze({
     policyId: PINDEX04_DETAIL_POLICY.id,
     pindex: 4,
@@ -238,6 +281,7 @@ export function applyPindex04DetailToTerrainMesh(mesh) {
     meanDetailEnergy: touchedVertices > 0 ? detailEnergy / touchedVertices : 0,
     meanHydrologicMaterialEnergy: touchedVertices > 0 ? drainageEnergy / touchedVertices : 0,
     meanSoilHorizonEnergy: touchedVertices > 0 ? soilHorizonEnergy / touchedVertices : 0,
+    meanNormalVariationEnergy: touchedVertices > 0 ? normalVariationEnergy / touchedVertices : 0,
   });
   mesh.userData.run282Pindex04Detail = summary;
   return summary;
@@ -249,12 +293,14 @@ export function applyPindex04DetailToTerrainGroup(terrainGroup) {
   let weightedEnergy = 0;
   let weightedHydrologicMaterialEnergy = 0;
   let weightedSoilHorizonEnergy = 0;
+  let weightedNormalVariationEnergy = 0;
   for (const mesh of terrainGroup.children) {
     const summary = applyPindex04DetailToTerrainMesh(mesh);
     touchedVertices += summary.touchedVertices;
     weightedEnergy += summary.meanDetailEnergy * summary.touchedVertices;
     weightedHydrologicMaterialEnergy += summary.meanHydrologicMaterialEnergy * summary.touchedVertices;
     weightedSoilHorizonEnergy += summary.meanSoilHorizonEnergy * summary.touchedVertices;
+    weightedNormalVariationEnergy += summary.meanNormalVariationEnergy * summary.touchedVertices;
   }
   const summary = Object.freeze({
     policyId: PINDEX04_DETAIL_POLICY.id,
@@ -264,6 +310,7 @@ export function applyPindex04DetailToTerrainGroup(terrainGroup) {
     meanDetailEnergy: touchedVertices > 0 ? weightedEnergy / touchedVertices : 0,
     meanHydrologicMaterialEnergy: touchedVertices > 0 ? weightedHydrologicMaterialEnergy / touchedVertices : 0,
     meanSoilHorizonEnergy: touchedVertices > 0 ? weightedSoilHorizonEnergy / touchedVertices : 0,
+    meanNormalVariationEnergy: touchedVertices > 0 ? weightedNormalVariationEnergy / touchedVertices : 0,
   });
   terrainGroup.userData.run282Pindex04Detail = summary;
   return summary;
