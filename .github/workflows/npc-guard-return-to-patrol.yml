@@ -44,6 +44,13 @@ jobs:
           echo "scope=${#files[@]} additions=$additions deletions=$deletions total=$total main=$main_sha head=$(git rev-parse HEAD)"
           test "$total" -le 1000
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install shipped Three.js runtime dependency
+        run: npm install --no-save --no-package-lock --ignore-scripts three@0.180.0
+
       - name: Syntax
         run: |
           node --check src/3d/gameplay/npc.js
