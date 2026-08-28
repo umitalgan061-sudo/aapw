@@ -2,8 +2,8 @@
  * Deterministic render-only surface fabric for canonical owner-map Pindex-07.
  *
  * Classification, terrain height, hydrology and collider authority remain untouched. The module
- * only varies already-owned vertex colour in world space, replacing the old single-frequency
- * normalized-map hash with unrelated macro/meso/fine signals and surface-aware weathering.
+ * only varies already-owned vertex colour and shading normals in world space, replacing the old
+ * single-frequency normalized-map hash with unrelated macro/meso/fine signals and weathering.
  */
 import * as THREE from 'three';
 import { mapCanvasToNormalizedReference } from './worldReferenceAlignment.js';
@@ -23,9 +23,12 @@ export const PINDEX07_DETAIL_POLICY = Object.freeze({
   alluviumMeters: 610,
   humicMeters: 820,
   ironCrustMeters: 270,
+  normalWeatherMeters: 138,
+  normalGrainMeters: 37,
   boundaryProbeNormalized: 0.006,
   amplitudeBySurface: Object.freeze({ sea: 0.018, lake: 0.020, soil: 0.178, rock: 0.154, snow: 0.086 }),
   chromaBySurface: Object.freeze({ sea: 0.020, lake: 0.022, soil: 0.154, rock: 0.112, snow: 0.066 }),
+  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.19, rock: 0.31, snow: 0.10 }),
 });
 
 function hash01(ix, iz, seed = 0) {
@@ -117,16 +120,35 @@ function surfaceFabric(surface, worldX, worldZ) {
     cool += macro * 0.15;
   }
 
-  return { luminance, warm, cool };
+  const grainStep = P.normalGrainMeters * 0.34;
+  const weatherStep = P.normalWeatherMeters * 0.31;
+  const grainX = valueNoise(worldX + grainStep, worldZ, P.normalGrainMeters, 61.8)
+    - valueNoise(worldX - grainStep, worldZ, P.normalGrainMeters, 61.8);
+  const grainZ = valueNoise(worldX, worldZ + grainStep, P.normalGrainMeters, 61.8)
+    - valueNoise(worldX, worldZ - grainStep, P.normalGrainMeters, 61.8);
+  const weatherX = valueNoise(worldX + weatherStep + meso * 18, worldZ - fine * 11, P.normalWeatherMeters, 67.2)
+    - valueNoise(worldX - weatherStep + meso * 18, worldZ - fine * 11, P.normalWeatherMeters, 67.2);
+  const weatherZ = valueNoise(worldX + fine * 13, worldZ + weatherStep - macro * 21, P.normalWeatherMeters, 73.4)
+    - valueNoise(worldX + fine * 13, worldZ - weatherStep - macro * 21, P.normalWeatherMeters, 73.4);
+
+  return {
+    luminance,
+    warm,
+    cool,
+    normalX: grainX * 0.68 + weatherX * 0.32,
+    normalZ: grainZ * 0.68 + weatherZ * 0.32,
+  };
 }
 
 export function applyPindex07DetailToTerrainMesh(mesh) {
   const position = mesh?.geometry?.getAttribute?.('position');
   const color = mesh?.geometry?.getAttribute?.('color');
+  const normal = mesh?.geometry?.getAttribute?.('normal');
   if (!position || !color) throw new TypeError('semantic terrain position+color attributes are required');
 
   let touchedVertices = 0;
   let detailEnergy = 0;
+  let normalVariationEnergy = 0;
   for (let index = 0; index < position.count; index += 1) {
     const worldX = mesh.position.x + position.getX(index);
     const worldZ = mesh.position.z + position.getZ(index);
@@ -150,17 +172,31 @@ export function applyPindex07DetailToTerrainMesh(mesh) {
       THREE.MathUtils.clamp(g, 0, 1),
       THREE.MathUtils.clamp(b, 0, 1));
 
+    if (normal) {
+      const normalStrength = (PINDEX07_DETAIL_POLICY.normalStrengthBySurface[c.surface] ?? 0) * edge;
+      if (normalStrength > 0) {
+        const nx = normal.getX(index) + fabric.normalX * normalStrength;
+        const ny = Math.max(0.08, normal.getY(index));
+        const nz = normal.getZ(index) + fabric.normalZ * normalStrength;
+        const length = Math.hypot(nx, ny, nz) || 1;
+        normal.setXYZ(index, nx / length, ny / length, nz / length);
+        normalVariationEnergy += (Math.abs(fabric.normalX) + Math.abs(fabric.normalZ)) * normalStrength;
+      }
+    }
+
     detailEnergy += Math.abs(fabric.luminance) * amplitude
       + (Math.abs(fabric.warm) + Math.abs(fabric.cool)) * chroma;
     touchedVertices += 1;
   }
 
   color.needsUpdate = true;
+  if (normal) normal.needsUpdate = true;
   const summary = Object.freeze({
     policyId: PINDEX07_DETAIL_POLICY.id,
     pindex: 7,
     touchedVertices,
     meanDetailEnergy: touchedVertices > 0 ? detailEnergy / touchedVertices : 0,
+    meanNormalVariationEnergy: touchedVertices > 0 ? normalVariationEnergy / touchedVertices : 0,
   });
   mesh.userData.run294Pindex07Detail = summary;
   return summary;
@@ -170,10 +206,12 @@ export function applyPindex07DetailToTerrainGroup(terrainGroup) {
   if (!terrainGroup?.children || !Array.isArray(terrainGroup.children)) throw new TypeError('canonical terrain group is required');
   let touchedVertices = 0;
   let weightedEnergy = 0;
+  let weightedNormalEnergy = 0;
   for (const mesh of terrainGroup.children) {
     const summary = applyPindex07DetailToTerrainMesh(mesh);
     touchedVertices += summary.touchedVertices;
     weightedEnergy += summary.meanDetailEnergy * summary.touchedVertices;
+    weightedNormalEnergy += summary.meanNormalVariationEnergy * summary.touchedVertices;
   }
   const summary = Object.freeze({
     policyId: PINDEX07_DETAIL_POLICY.id,
@@ -181,6 +219,7 @@ export function applyPindex07DetailToTerrainGroup(terrainGroup) {
     touchedVertices,
     meshCount: terrainGroup.children.length,
     meanDetailEnergy: touchedVertices > 0 ? weightedEnergy / touchedVertices : 0,
+    meanNormalVariationEnergy: touchedVertices > 0 ? weightedNormalEnergy / touchedVertices : 0,
   });
   terrainGroup.userData.run294Pindex07Detail = summary;
   return summary;
