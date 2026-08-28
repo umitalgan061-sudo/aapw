@@ -18,6 +18,7 @@ import { AssetLoader } from '../assetLoader.js';
 
 const MAX_WILDLIFE_SIMULATION_STEP_SECONDS = 0.1;
 const DEFAULT_FLEE_RELEASE_MARGIN_METERS = 3;
+const MAX_PACK_ALERT_SAMPLES_PER_TICK = 32;
 
 function boundedWildlifeDelta(delta) {
 	if (!Number.isFinite(delta) || delta <= 0) return 0;
@@ -71,18 +72,18 @@ function stripNamedChildren(object3D, names) {
  * @param {number} [options.pauseSeconds] Idle dwell time at each waypoint before moving to the next.
  * @param {number} [options.turnRateRadiansPerSecond]
  * @param {string} [options.fleeClipName] Exact `THREE.AnimationClip` name for the flee/run cycle;
- *   required (along with `groundCollider` and a non-null `fleeTriggerRadiusMeters`) for flee to
+ *   required (along with `groundCollider` and a non-null finite `fleeTriggerRadiusMeters`) for flee to
  *   activate.
- * @param {number} [options.fleeTriggerRadiusMeters] A wolf within this distance of the
- *   `playerPosition` passed to `update()` overrides idle/patrol and runs directly away. `null`/
- *   `undefined` disables flee entirely (static/patrol-only animal).
+ * @param {number} [options.fleeTriggerRadiusMeters] A wolf within this finite non-negative distance
+ *   of the `playerPosition` passed to `update()` overrides idle/patrol and runs directly away.
+ *   `null`/`undefined` or malformed values disable flee entirely (static/patrol-only animal).
  * @param {number} [options.fleeReleaseMarginMeters] Extra distance beyond the trigger radius that
  *   an already-fleeing wolf must clear before it may return to patrol. Prevents boundary jitter.
  * @param {number} [options.fleeSpeedMps]
  * @param {number} [options.packAlertRadiusMeters] A wolf not yet within `fleeTriggerRadiusMeters` of
- *   the player still flees if a packmate within this distance is already fleeing (`update()`'s
- *   `packmateFleePositions` argument) — see DECISIONS.md ADR-0029. `null`/`undefined` disables pack
- *   awareness (this wolf only ever flees from its own direct player-proximity check).
+ *   the player still flees if a packmate within this finite non-negative distance is already fleeing
+ *   (`update()`'s `packmateFleePositions` argument) — see DECISIONS.md ADR-0029. `null`/`undefined`
+ *   or malformed values disable pack awareness.
  * @returns {Promise<{object3D: THREE.Object3D, isFleeing: boolean, update: (delta: number, playerPosition?: {x: number, z: number}, packmateFleePositions?: {x: number, z: number}[]) => void, dispose: () => void}>}
  */
 export async function createWolf({
@@ -117,7 +118,6 @@ export async function createWolf({
 	const mixer = new THREE.AnimationMixer(model);
 	const idleClip = THREE.AnimationClip.findByName(model.animations, idleClipName);
 	const idleAction = idleClip ? mixer.clipAction(idleClip) : null;
-
 	const isPatrolling = Boolean(patrolWaypoints && patrolWaypoints.length > 0 && groundCollider && walkClipName);
 	let walkAction = null;
 	if (isPatrolling) {
@@ -125,11 +125,17 @@ export async function createWolf({
 		if (walkClip) walkAction = mixer.clipAction(walkClip);
 	}
 
-	const canFlee = Boolean(groundCollider && fleeClipName && fleeTriggerRadiusMeters != null);
+	const safeFleeTriggerRadiusMeters = Number.isFinite(fleeTriggerRadiusMeters) && fleeTriggerRadiusMeters >= 0
+		? fleeTriggerRadiusMeters
+		: null;
+	const safePackAlertRadiusMeters = Number.isFinite(packAlertRadiusMeters) && packAlertRadiusMeters >= 0
+		? packAlertRadiusMeters
+		: null;
+	const canFlee = Boolean(groundCollider && fleeClipName && safeFleeTriggerRadiusMeters != null);
 	const releaseMarginMeters = Number.isFinite(fleeReleaseMarginMeters)
 		? Math.max(0, Math.min(12, fleeReleaseMarginMeters))
 		: DEFAULT_FLEE_RELEASE_MARGIN_METERS;
-	const fleeReleaseRadiusMeters = canFlee ? Math.max(0, fleeTriggerRadiusMeters) + releaseMarginMeters : 0;
+	const fleeReleaseRadiusMeters = canFlee ? safeFleeTriggerRadiusMeters + releaseMarginMeters : 0;
 	let fleeAction = null;
 	if (canFlee) {
 		const fleeClip = THREE.AnimationClip.findByName(model.animations, fleeClipName);
@@ -173,7 +179,7 @@ export async function createWolf({
 	let waypointIndex = 0;
 	let pauseTimer = 0;
 	let currentlyFleeing = false;
-	model.userData.wildlifeFlee = Object.freeze({ phase: isPatrolling ? 'patrol' : 'idle', direct: false, pack: false, recovering: false, distanceMeters: null, triggerRadiusMeters: fleeTriggerRadiusMeters ?? null, releaseRadiusMeters: canFlee ? fleeReleaseRadiusMeters : null });
+	model.userData.wildlifeFlee = Object.freeze({ phase: isPatrolling ? 'patrol' : 'idle', direct: false, pack: false, recovering: false, distanceMeters: null, triggerRadiusMeters: safeFleeTriggerRadiusMeters, releaseRadiusMeters: canFlee ? fleeReleaseRadiusMeters : null });
 
 	return {
 		object3D: model,
@@ -186,17 +192,72 @@ export async function createWolf({
 			const dxFromPlayer = hasFinitePlayerPosition ? model.position.x - playerPosition.x : Infinity;
 			const dzFromPlayer = hasFinitePlayerPosition ? model.position.z - playerPosition.z : Infinity;
 			const distanceFromPlayer = Math.hypot(dxFromPlayer, dzFromPlayer);
-			const directThreat = canFlee && distanceFromPlayer < fleeTriggerRadiusMeters;
+			const directThreat = canFlee && distanceFromPlayer < safeFleeTriggerRadiusMeters;
 			let isFleeingFromPack = false;
-			if (canFlee && !directThreat && hasFinitePlayerPosition && packAlertRadiusMeters != null && packmateFleePositions) {
-				for (const packmatePosition of packmateFleePositions) {
-					if (!Number.isFinite(packmatePosition?.x) || !Number.isFinite(packmatePosition?.z)) continue;
-					const dx = model.position.x - packmatePosition.x;
-					const dz = model.position.z - packmatePosition.z;
-					if (Math.hypot(dx, dz) < packAlertRadiusMeters) {
-						isFleeingFromPack = true;
+			let packThreatDx = 0;
+			let packThreatDz = 0;
+			let nearestPackThreatDistance = Infinity;
+			let nearestPackThreatX = Infinity;
+			let nearestPackThreatZ = Infinity;
+			if (canFlee && !directThreat && safePackAlertRadiusMeters != null && packmateFleePositions != null) {
+				let packIterator = null;
+				try {
+					const iteratorFactory = packmateFleePositions[Symbol.iterator];
+					if (typeof iteratorFactory === 'function') packIterator = iteratorFactory.call(packmateFleePositions);
+				} catch {
+					packIterator = null;
+				}
+				let packSamplesScanned = 0;
+				let packIteratorCompleted = false;
+				while (packIterator && packSamplesScanned < MAX_PACK_ALERT_SAMPLES_PER_TICK) {
+					let nextPackmate;
+					try {
+						nextPackmate = packIterator.next();
+					} catch {
 						break;
 					}
+					let packmatePosition;
+					try {
+						if (!nextPackmate || nextPackmate.done) {
+							packIteratorCompleted = true;
+							break;
+						}
+						packSamplesScanned += 1;
+						packmatePosition = nextPackmate.value;
+					} catch {
+						break;
+					}
+					let packmateX;
+					let packmateZ;
+					try {
+						packmateX = packmatePosition?.x;
+						packmateZ = packmatePosition?.z;
+					} catch {
+						continue;
+					}
+					if (!Number.isFinite(packmateX) || !Number.isFinite(packmateZ)) continue;
+					const dx = model.position.x - packmateX;
+					const dz = model.position.z - packmateZ;
+					const distance = Math.hypot(dx, dz);
+					const distanceDelta = distance - nearestPackThreatDistance;
+					const isCloser = distanceDelta < -1e-9;
+					const isStableTie = Math.abs(distanceDelta) <= 1e-9
+						&& (packmateX < nearestPackThreatX
+							|| (packmateX === nearestPackThreatX && packmateZ < nearestPackThreatZ));
+					if (distance < safePackAlertRadiusMeters && (isCloser || isStableTie)) {
+						isFleeingFromPack = true;
+						packThreatDx = dx;
+						packThreatDz = dz;
+						nearestPackThreatDistance = distance;
+						nearestPackThreatX = packmateX;
+						nearestPackThreatZ = packmateZ;
+					}
+				}
+				if (packIterator && !packIteratorCompleted) {
+					try {
+						const iteratorReturn = packIterator.return;
+						if (typeof iteratorReturn === 'function') iteratorReturn.call(packIterator);
+					} catch {}
 				}
 			}
 			const recovering = canFlee
@@ -212,14 +273,18 @@ export async function createWolf({
 				pack: isFleeingFromPack,
 				recovering,
 				distanceMeters: hasFinitePlayerPosition ? Number(distanceFromPlayer.toFixed(3)) : null,
-				triggerRadiusMeters: fleeTriggerRadiusMeters ?? null,
+				triggerRadiusMeters: safeFleeTriggerRadiusMeters,
 				releaseRadiusMeters: canFlee ? fleeReleaseRadiusMeters : null,
 			});
 
 			if (currentlyFleeing && simulationDelta > 0) {
-				const hasSeparationVector = distanceFromPlayer > 1e-6;
-				const dirX = hasSeparationVector ? dxFromPlayer / distanceFromPlayer : Math.sin(model.rotation.y);
-				const dirZ = hasSeparationVector ? dzFromPlayer / distanceFromPlayer : Math.cos(model.rotation.y);
+				const usePackThreatVector = isFleeingFromPack && !directThreat;
+				const separationDx = usePackThreatVector ? packThreatDx : dxFromPlayer;
+				const separationDz = usePackThreatVector ? packThreatDz : dzFromPlayer;
+				const separationDistance = usePackThreatVector ? nearestPackThreatDistance : distanceFromPlayer;
+				const hasSeparationVector = Number.isFinite(separationDistance) && separationDistance > 1e-6;
+				const dirX = hasSeparationVector ? separationDx / separationDistance : Math.sin(model.rotation.y);
+				const dirZ = hasSeparationVector ? separationDz / separationDistance : Math.cos(model.rotation.y);
 				const step = fleeSpeedMps * simulationDelta;
 				const moved = tryCommitGroundedMove(model.position.x + dirX * step, model.position.z + dirZ * step);
 				if (moved) {
