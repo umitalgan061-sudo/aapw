@@ -19,6 +19,7 @@ import {
 	classifyReferenceBaseSurface,
 	referencePindexFromNormalizedX,
 } from './worldReferenceSurfacePindexes.js';
+import { GEOGRAPHIC_REFERENCE_PALETTE, GEOGRAPHIC_REFERENCE_PALETTE_POLICY } from './geographicReferencePalette.js';
 
 export const WORLD_REFERENCE_SURFACE_VISUAL_POLICY = Object.freeze({
 	id: 'owner-map-semantic-surface-visual-2026-08-11-v1',
@@ -306,6 +307,8 @@ export function installRuntimePindexTerrainPolish() {
 	return installation;
 }
 
+// Pindex Quality V2 remains the canonical atlas owner; the additions below only make its blend
+// respond to the real rendered surface orientation instead of laying a flat colour sheet over it.
 import { REFERENCE_PINDEX_QUALITY_V2_POLICY, sampleReferencePindexQualityV2 } from './worldReferenceSurfacePindexes.js';
 
 export const RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY = Object.freeze({
@@ -319,6 +322,11 @@ export const RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY = Object.freeze({
 	roughnessBlend: 0.52,
 	shaderColorMicroVariation: 0.055,
 	shaderRoughnessMicroVariation: 0.05,
+	naturalTransitionRevision: 'v1-slope-aspect-shelter',
+	slopeAwareAtlasIntegration: true,
+	aspectWeathering: true,
+	shelteredMoisture: true,
+	referencePalettePolicyId: GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id,
 });
 
 const PINDEX_QUALITY_V2_SURFACE_COLORS = Object.freeze({
@@ -334,6 +342,10 @@ const PINDEX_QUALITY_V2_BIOME_COLORS = Object.freeze({
 });
 const PINDEX_QUALITY_V2_ROCK_COLOR = new THREE.Color(0x6b6862);
 const PINDEX_QUALITY_V2_SNOW_COLOR = new THREE.Color(0xdce4e2);
+const PINDEX_QUALITY_V2_GRANITE_SHADOW = new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.terrain.graniteShadow);
+const PINDEX_QUALITY_V2_GRANITE_SUNLIT = new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.terrain.graniteSunlit);
+const PINDEX_QUALITY_V2_BASALT_WET = new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.terrain.basaltWet);
+const PINDEX_QUALITY_V2_MOSS_SHADOW = new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.terrain.mossShadow);
 
 function runtimePindexQualityNormalized(worldX, worldZ) {
 	const centerMapX = (WORLD_SCALE.MAP_BOUNDS.minX + WORLD_SCALE.MAP_BOUNDS.maxX) * 0.5;
@@ -443,7 +455,9 @@ function installRuntimePindexQualityV2Shader(material) {
 			.replace('#include <begin_vertex>', '#include <begin_vertex>\nvPindexQualityWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;');
 		shader.fragmentShader = shader.fragmentShader
 			.replace('#include <common>', '#include <common>\nuniform sampler2D pindexQualityColorAtlas;\nuniform sampler2D pindexQualityDataAtlas;\nuniform sampler2D pindexQualityDetailAtlas;\nuniform vec4 pindexQualityMapTransform;\nvarying vec3 vPindexQualityWorldPosition;')
+			.replace('#include <color_fragment>', `#include <color_fragment>\nvec3 pindexGeoDx=dFdx(vPindexQualityWorldPosition);\nvec3 pindexGeoDy=dFdy(vPindexQualityWorldPosition);\nvec3 pindexGeoNormal=normalize(cross(pindexGeoDy,pindexGeoDx));\npindexGeoNormal*=pindexGeoNormal.y<0.0?-1.0:1.0;\nfloat pindexGeoSlope=1.0-clamp(abs(pindexGeoNormal.y),0.0,1.0);\nvec2 pindexGeoHorizontal=pindexGeoNormal.xz/max(length(pindexGeoNormal.xz),0.0001);\nfloat pindexGeoAspect=dot(pindexGeoHorizontal,normalize(vec2(0.64,-0.77)))*0.5+0.5;\nvec2 pindexGeoMacroUv=vPindexQualityWorldPosition.xz*0.00073+vec2(7.3,-11.9);\nvec2 pindexGeoMacroRotated=vec2(pindexGeoMacroUv.x*0.73-pindexGeoMacroUv.y*0.68,pindexGeoMacroUv.x*0.68+pindexGeoMacroUv.y*0.73)*1.61+vec2(-3.7,8.1);\nfloat pindexGeoMacro=texture2D(pindexQualityDetailAtlas,pindexGeoMacroUv).g*0.62+texture2D(pindexQualityDetailAtlas,pindexGeoMacroRotated).b*0.38;\nfloat pindexGeoCliff=smoothstep(0.24,0.70,pindexGeoSlope)*pindexQualityDry;\nfloat pindexGeoShelter=clamp((1.0-pindexGeoAspect)*0.58+(1.0-pindexGeoMacro)*0.42,0.0,1.0);\nfloat pindexGeoWetShelter=pindexGeoCliff*smoothstep(0.56,0.84,pindexGeoShelter);\nfloat pindexGeoWeatheredFace=pindexGeoCliff*(1.0-pindexGeoWetShelter)*smoothstep(0.40,0.78,pindexGeoAspect);\nfloat pindexGeoMossPocket=(1.0-smoothstep(0.58,0.86,pindexGeoSlope))*pindexQualityDry*smoothstep(0.62,0.88,pindexGeoShelter)*smoothstep(0.38,0.74,pindexGeoMacro);\nvec3 pindexGeoShadowRock=vec3(${PINDEX_QUALITY_V2_GRANITE_SHADOW.r.toFixed(6)},${PINDEX_QUALITY_V2_GRANITE_SHADOW.g.toFixed(6)},${PINDEX_QUALITY_V2_GRANITE_SHADOW.b.toFixed(6)});\nvec3 pindexGeoSunRock=vec3(${PINDEX_QUALITY_V2_GRANITE_SUNLIT.r.toFixed(6)},${PINDEX_QUALITY_V2_GRANITE_SUNLIT.g.toFixed(6)},${PINDEX_QUALITY_V2_GRANITE_SUNLIT.b.toFixed(6)});\nvec3 pindexGeoWetRock=vec3(${PINDEX_QUALITY_V2_BASALT_WET.r.toFixed(6)},${PINDEX_QUALITY_V2_BASALT_WET.g.toFixed(6)},${PINDEX_QUALITY_V2_BASALT_WET.b.toFixed(6)});\nvec3 pindexGeoMoss=vec3(${PINDEX_QUALITY_V2_MOSS_SHADOW.r.toFixed(6)},${PINDEX_QUALITY_V2_MOSS_SHADOW.g.toFixed(6)},${PINDEX_QUALITY_V2_MOSS_SHADOW.b.toFixed(6)});\npindexQualityColor=mix(pindexQualityColor,mix(pindexGeoShadowRock,pindexGeoSunRock,pindexGeoAspect),pindexGeoCliff*0.30);\npindexQualityColor=mix(pindexQualityColor,pindexGeoWetRock,pindexGeoWetShelter*0.34);\npindexQualityColor=mix(pindexQualityColor,pindexGeoSunRock,pindexGeoWeatheredFace*0.16);\npindexQualityColor=mix(pindexQualityColor,pindexGeoMoss,pindexGeoMossPocket*0.18);`)
 			.replace('#include <color_fragment>', `#include <color_fragment>\nvec2 pindexQualityUv=clamp(vPindexQualityWorldPosition.xz*pindexQualityMapTransform.xy+pindexQualityMapTransform.zw,vec2(0.0),vec2(1.0));\nvec4 pindexQualityAtlasColor=texture2D(pindexQualityColorAtlas,pindexQualityUv);\nvec4 pindexQualityAtlasData=texture2D(pindexQualityDataAtlas,pindexQualityUv);\nvec3 pindexQualityColor=pindexQualityAtlasColor.rgb;\nfloat pindexQualityRelief=pindexQualityAtlasData.r;\nfloat pindexQualityDry=pindexQualityAtlasColor.a;\nfloat pindexQualityHeightRock=smoothstep(22.0,82.0,vPindexQualityWorldPosition.y)*pindexQualityDry;\npindexQualityColor=mix(pindexQualityColor,vec3(${PINDEX_QUALITY_V2_ROCK_COLOR.r.toFixed(6)},${PINDEX_QUALITY_V2_ROCK_COLOR.g.toFixed(6)},${PINDEX_QUALITY_V2_ROCK_COLOR.b.toFixed(6)}),pindexQualityRelief*pindexQualityDry*${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.reliefRockBlend.toFixed(3)});\npindexQualityColor=mix(pindexQualityColor,vec3(${PINDEX_QUALITY_V2_ROCK_COLOR.r.toFixed(6)},${PINDEX_QUALITY_V2_ROCK_COLOR.g.toFixed(6)},${PINDEX_QUALITY_V2_ROCK_COLOR.b.toFixed(6)}),pindexQualityHeightRock*${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.elevationRockBlend.toFixed(3)});\nfloat pindexQualityNorthSnow=pindexQualityRelief*(1.0-smoothstep(0.08,0.34,pindexQualityUv.y))*smoothstep(16.0,58.0,vPindexQualityWorldPosition.y);\npindexQualityColor=mix(pindexQualityColor,vec3(${PINDEX_QUALITY_V2_SNOW_COLOR.r.toFixed(6)},${PINDEX_QUALITY_V2_SNOW_COLOR.g.toFixed(6)},${PINDEX_QUALITY_V2_SNOW_COLOR.b.toFixed(6)}),pindexQualityNorthSnow*0.42);\nvec2 pindexQualityDetailUv=vPindexQualityWorldPosition.xz*0.021;\nvec4 pindexQualityNoiseA=texture2D(pindexQualityDetailAtlas,pindexQualityDetailUv);\nvec2 pindexQualityRotatedUv=vec2(pindexQualityDetailUv.x*0.8-pindexQualityDetailUv.y*0.6,pindexQualityDetailUv.x*0.6+pindexQualityDetailUv.y*0.8)*2.73+vec2(0.37,0.19);\nvec4 pindexQualityNoiseB=texture2D(pindexQualityDetailAtlas,pindexQualityRotatedUv);\nfloat pindexQualityGrain=(pindexQualityNoiseA.r*2.0-1.0)*0.64+(pindexQualityNoiseB.g*2.0-1.0)*0.36;\npindexQualityColor*=1.0+pindexQualityGrain*mix(0.025,${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.shaderColorMicroVariation.toFixed(3)},pindexQualityAtlasData.a);\ndiffuseColor.rgb=mix(diffuseColor.rgb,pindexQualityColor,${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.qualityBlend.toFixed(3)});`)
+			.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\nroughnessFactor=clamp(roughnessFactor-pindexGeoWetShelter*0.11+pindexGeoWeatheredFace*0.045+pindexGeoMossPocket*0.035,0.04,1.0);`)
 			.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,pindexQualityAtlasData.g,${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.roughnessBlend.toFixed(3)});\nfloat pindexQualityRoughNoise=texture2D(pindexQualityDetailAtlas,vPindexQualityWorldPosition.xz*0.033+vec2(0.11,0.57)).b*2.0-1.0;\nroughnessFactor=clamp(roughnessFactor+pindexQualityRoughNoise*${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.shaderRoughnessMicroVariation.toFixed(3)},0.04,1.0);`);
 	};
 	material.customProgramCacheKey = () => `${previousCacheKey()}|${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.id}`;
