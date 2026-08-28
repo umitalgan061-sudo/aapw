@@ -27,7 +27,10 @@ assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.shorelineReserveMeters >= 8);
 
 assert.equal(VALYRIA_GEOLOGY_POLICY.canonicalCoastlinePreserved, true);
 assert.equal(VALYRIA_GEOLOGY_POLICY.canonicalWaterClassificationPreserved, true);
-assert(VALYRIA_GEOLOGY_POLICY.id.includes('v3-canonical-dry-authority'));
+assert(VALYRIA_GEOLOGY_POLICY.id.includes('v4-natural-volcanic-morphology'));
+assert(VALYRIA_GEOLOGY_POLICY.faultScarpAcrossFrequency > VALYRIA_GEOLOGY_POLICY.faultScarpAlongFrequency * 2);
+assert(VALYRIA_GEOLOGY_POLICY.lavaDrainageIncisionMeters > 0);
+assert(VALYRIA_GEOLOGY_POLICY.erosionGullyCutMeters > 0);
 assert.equal(VALYRIA_BARREN_ECOLOGY_POLICY.geologyPolicyId, VALYRIA_GEOLOGY_POLICY.id);
 assert.equal(VALYRIA_BARREN_ECOLOGY_POLICY.placementOnly, true);
 assert.equal(VALYRIA_BARREN_ECOLOGY_POLICY.terrainHeightAuthorityUnchanged, true);
@@ -62,15 +65,21 @@ for (const snippet of [
   assert(renderSource.includes(snippet), `renderer contract lost: ${snippet}`);
 }
 for (const snippet of [
-  'v3-canonical-dry-authority',
+  'v4-natural-volcanic-morphology',
   'coreCenter',
   'neckCenter',
   'canonicalCoastlinePreserved: true',
   'canonicalWaterClassificationPreserved: true',
   'canonicalDryWaterWeightFullAtOrBelow',
   'canonicalDryWaterWeightZeroAtOrAbove',
+  'faultStrikeRadians',
+  'faultScarpAcrossFrequency',
+  'faultScarpAlongFrequency',
+  'lavaDrainageIncisionMeters',
+  'erosionGullyCutMeters',
   'valyriaCanonicalDryGate01',
   'valyriaInfluence01',
+  'valyriaMorphologySignals',
   'valyriaUpliftMeters',
   'valyriaSurfaceWeights',
   'applyValyriaSurfaceColorAtWorldXZ',
@@ -92,8 +101,6 @@ for (const snippet of [
   assert(ecologySource.includes(snippet), `Valyria ecology contract lost: ${snippet}`);
 }
 
-// Canonical terrain must own the actual dry uplift and volcanic vertex colour. The waterWeight argument
-// is deliberately part of the required source snippet: removing it would regress shoreline protection.
 for (const snippet of [
   "from './valyriaGeology.js'",
   'valyriaGeologyPolicyId: VALYRIA_GEOLOGY_POLICY.id',
@@ -107,9 +114,6 @@ for (const snippet of [
   assert(terrainSource.includes(snippet), `canonical terrain Valyria wiring lost: ${snippet}`);
 }
 
-// Runtime ownership split: rocks/physics use the real collider; ordinary ecology uses the placement
-// adapter. This prevents a future refactor from accidentally passing the barren sentinel into roads or
-// natural geology and making them think Valyria is underwater.
 for (const snippet of [
   "from './world/valyriaEcology.js'",
   'createValyriaBarrenEcologyPlacementProbe',
@@ -149,4 +153,5 @@ console.log(JSON.stringify({
   valyriaPolicy: VALYRIA_GEOLOGY_POLICY.id,
   valyriaEcologyPolicy: VALYRIA_BARREN_ECOLOGY_POLICY.id,
   canonicalTerrainIntegration: true,
+  naturalVolcanicMorphology: true,
 }, null, 2));
