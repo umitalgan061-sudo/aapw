@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-29-v3-natural-water-optics',
+	id: 'geographic-reference-palette-2026-08-29-v4-readable-blueblack-water',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -21,7 +21,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	]),
 	calibration: Object.freeze({
 		terrain: 'moss-and-heather lowlands, exposed mineral earth, warm granite and wet basalt',
-		water: 'restrained mineral-green shallows, blue-black depth, aerated neutral-white falls',
+		water: 'restrained mineral-green shallows, readable blue-black depth, aerated neutral-white falls',
 		road: 'warm compacted earth, dark damp ruts, mineral dust, stone and moss shoulders',
 		celestial: 'warm low sun, neutral noon, cool moon with preserved material readability',
 	}),
@@ -51,8 +51,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		lakeClear: 0x537b78,
 		riverPool: 0x566f6b,
 		rapid: 0x527987,
-		deepSea: 0x0b2839,
-		abyss: 0x071720,
+		deepSea: 0x10354a,
+		abyss: 0x0a2230,
 		plunge: 0x506f76,
 		splash: 0xd8e7e5,
 		foam: 0xecf5f3,
