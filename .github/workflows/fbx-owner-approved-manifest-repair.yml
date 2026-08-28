@@ -1,4 +1,5 @@
 name: FBX Owner Approved Manifest Repair
+# Re-run canonical owner-upload registry materialization against current exact main.
 
 on:
   push:
