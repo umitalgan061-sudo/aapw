@@ -42,7 +42,7 @@ jobs:
       - name: Governance and core regression contracts
         shell: bash
         run: |
-          set -euo pipefail
+          set -euxo pipefail
           node --check scripts/checkRun283FinalHeadGovernance.js
           node scripts/checkRun283FinalHeadGovernance.js
           node scripts/checkSeededRandomPolicy.js

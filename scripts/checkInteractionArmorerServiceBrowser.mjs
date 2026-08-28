@@ -28,6 +28,7 @@ try {
 		const { createInteractionController } = await import('/src/3d/gameplay/interaction.js');
 		const { QUARTERMASTER_NPC_ID, QUARTERMASTER_OFFERS } = await import('/src/3d/gameplay/interactionEconomy.js');
 		const serviceOffer = QUARTERMASTER_OFFERS[1];
+		const recipe = serviceOffer.fulfillment?.craftUpgrade;
 
 		function makeRuntime() {
 			const host = document.createElement('div');
@@ -52,10 +53,16 @@ try {
 		}
 
 		function serviceItem(snapshot) {
-			return snapshot?.items?.find((item) => item.itemId === serviceOffer.itemId) ?? null;
+			return snapshot?.items?.find((item) => item.itemId === recipe.outputItemId) ?? null;
 		}
 
 		const first = makeRuntime();
+		const seeded = structuredClone(first.controller.getRpgSnapshot());
+		seeded.inventory = { items: [
+			{ itemId: 'dragonstone-travel-ration-pack', quantity: 1, provenance: [{ sourceType: 'browser-fixture', sourceId: 'armorer-service' }] }, { itemId: 'dragonstone-whetstone', quantity: 1, provenance: [{ sourceType: 'browser-fixture', sourceId: 'armorer-service' }] },
+		] };
+		first.controller.restoreRpgSnapshot(seeded);
+		first.events.inventory.length = first.events.economy.length = 0;
 		first.controller.handleKeyDown({ code: 'KeyB', repeat: false });
 		const openingText = first.dialogueBox._textEl.textContent;
 		const advertised = first.dialogueBox.isVisible
@@ -79,8 +86,9 @@ try {
 			&& receipt?.offerId === serviceOffer.id
 			&& receipt?.balanceCopper === 28
 			&& whetstone?.quantity === 1
-			&& provenance?.sourceType === 'settlement-service'
-			&& provenance?.sourceId === 'dragonstone-watch-armorer-honing';
+			&& !after.inventory.items.some((item) => recipe.inputs.some((input) => input.itemId === item.itemId))
+			&& provenance?.sourceType === 'settlement-crafting'
+			&& provenance?.sourceId === recipe.recipeId;
 		const fulfilledUx = first.dialogueBox._textEl.textContent.includes('Son işlem: #1 Nöbetçi bileği taşı')
 			&& first.dialogueBox._textEl.textContent.includes('stok 1/2')
 			&& first.dialogueBox._textEl.textContent.includes('aldın 1')
@@ -89,8 +97,8 @@ try {
 		const callbackProvenance = callbackItem?.provenance?.at(-1);
 		const callbacks = first.events.inventory.length === 1
 			&& first.events.economy.length === 1
-			&& callbackProvenance?.sourceType === 'settlement-service'
-			&& callbackProvenance?.sourceId === 'dragonstone-watch-armorer-honing'
+			&& callbackProvenance?.sourceType === 'settlement-crafting'
+			&& callbackProvenance?.sourceId === recipe.recipeId
 			&& first.events.economy.at(-1)?.stockByOffer?.[serviceOffer.id] === 1;
 
 		const saved = structuredClone(after);
@@ -106,8 +114,8 @@ try {
 		const persisted = roundTrip.economy.copper === 28
 			&& roundTrip.economy.stockByOffer[serviceOffer.id] === 1
 			&& roundTrip.economy.ledger.transactionCount === 1
-			&& restoredProvenance?.sourceType === 'settlement-service'
-			&& restoredProvenance?.sourceId === 'dragonstone-watch-armorer-honing'
+			&& restoredProvenance?.sourceType === 'settlement-crafting'
+			&& restoredProvenance?.sourceId === recipe.recipeId
 			&& restored.dialogueBox._textEl.textContent.includes('Son işlem: #1 Nöbetçi bileği taşı')
 			&& restored.dialogueBox._textEl.textContent.includes('HİZMET: Zırhçı bileme hazırlığı');
 
@@ -121,7 +129,7 @@ try {
 	for (const key of ['advertised', 'fulfilled', 'fulfilledUx', 'callbacks', 'persisted']) {
 		if (!result[key]) throw new Error(`Armorer-service browser assertion failed: ${key} ${JSON.stringify(result)}`);
 	}
-	console.log('[RPG Chromium] PASS: B → Digit2 armorer honing service → smithing provenance → ledger → save/load → reopen');
+	console.log('[RPG Chromium] PASS: B → Digit2 authored armorer smithing → crafting provenance → ledger → save/load → reopen');
 	console.log('[RPG Chromium] armorer-service page errors=0, console errors=0');
 } finally {
 	await page.close();
