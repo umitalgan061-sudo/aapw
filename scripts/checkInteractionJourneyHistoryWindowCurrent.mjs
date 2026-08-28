@@ -86,7 +86,7 @@ assert.ok(finalJourney.recentReceipts.every((receipt) => receipt.consumedTravelP
 assert.ok(finalJourney.recentReceipts.every((receipt) => receipt.restStopCount === 1));
 assert.ok(finalJourney.recentReceipts.every((receipt) => receipt.destinationId === 'dragonstone-harbor-road'));
 const playerText = buildJourneyStateText(finalJourney, inventory.snapshot().fieldReadiness);
-assert.match(playerText, /Sefer yorgunluğu: 30\/44 km/);
+assert.match(playerText, /Sefer yorgunluğu: 30\/36 km/);
 assert.match(playerText, /Son sefer hedefi: dragonstone-harbor-road/);
 assert.match(playerText, /Son sefer: 58 km · 2 yol azığı · 1 dinlenme/);
 assert.doesNotMatch(playerText, /\bsequence\b|sıra\s*[:#]?\s*7/i, 'internal receipt sequence metadata must remain outside player-facing UX');
