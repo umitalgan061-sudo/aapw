@@ -18843,3 +18843,35 @@ rig kaynağı için kabul edilebilir.
 **Dürüst sınırlar:** UV'ler hücrenin ilk görülen değerini alıyor — tek pişmiş dokulu bir heykel için
 doğru, atlas için yanlış. 22,4 MB'ın neredeyse tamamı taşınan üç doku; doku küçültme ayrı bir adım.
 Ve bu **rig değil**: modeli rig'lenebilir hale getiriyor, rig'lemiyor.
+
+## Tur 412 — Blender geldi: `bas_melek` gerçekten rig'lendi ve kanatları çırpıyor (ADR-0361)
+
+Sahip Blender erişimi verdi. Konteynerde `blender` binary'si yok ama **`pip install bpy==4.2.0`
+çalışıyor** (519 MB wheel, cp311 — sistem Python'u 3.11). `bpy`, Blender'ın Python modülü hali: tam
+API, armature, otomatik ağırlıklar, glTF içe/dışa aktarma. GUI gerekmiyor.
+
+`scripts/blender/rigWingedCharacter.py` — kemikleri **şablondan değil mesh'ten** yerleştiriyor:
+figürün kendi yüksekliğinin kesirlerine göre (0–30% bacak, 30–45% kalça, 45–80% gövde+kol, 80–100%
+kanat+hale — bu profili önce ölçtüm). Skinning Blender'ın `ARMATURE_AUTO` ısı-haritası; Blender'ı
+gerçekten gerektiren kısım bu.
+
+Önce/sonra, glTF JSON'undan okunmuş:
+
+| | önce | sonra |
+|---|---|---|
+| `skins` | **0** | **1** (16 eklem) |
+| `animations` | **0** | **1** — `WingFlap`, 1,25 sn |
+| vertex öznitelikleri | POSITION, NORMAL, UV | + **JOINTS_0, WEIGHTS_0** |
+| üçgen | 1.963.878 | 39.882 |
+
+three.js'te doğrulandı: `skinnedMeshes: 1`, klip yükleniyor, ve çırpmanın iki ucunda render aldım —
+kanatlar **gerçekten hareket ediyor**, gövde/hale/kılıç yerinde duruyor.
+
+**Ölçülmüş kusur, varsayım değil:** iç kanat kemikleri (`wing1.L`/`wing1.R`) 0,2 üstü ağırlıkla
+**0** vertex alıyor; dış olanlar 1.041 ve 2.768 alıyor. İç kanat gövde/kol hacminin içinde kaldığı
+için çözücü o vertex'leri `chest` ve `upperarm`'a veriyor. Yani kanatlar çırpıyor ama omuzdan değil
+kanat ortasından menteşeleniyor, ve sayılar simetrik değil. Düzeltmesi kanat köklerini gövde
+hacminin dışına taşımak ve kol kemiklerini inceltmek — betik buna hazır, o ayar turu yapılmadı.
+
+Kanat yüzeylerinde yırtık görünüm var: kısmen decimation'ın ince tüy geometrisinde bıraktığı
+serpinti, kısmen o parçaların deformasyonla gerilmesi. İlk geçiş, ve öyle olduğunu yazıyorum.
