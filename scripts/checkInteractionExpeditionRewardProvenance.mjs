@@ -99,4 +99,29 @@ assert.doesNotMatch(
   'quartermaster UX must not keep presenting the previous route receipt after mastery becomes the latest credit',
 );
 
+const hostileSave = structuredClone(boundedSaved);
+hostileSave.ledger.recentCredits = [
+  null,
+  { sequence: 0, sourceId: 'expedition-contract:invalid-zero', label: 'Geçersiz', creditedCopper: 9, balanceCopper: 9 },
+  { sequence: 4, sourceId: ' expedition-contract:dragonstone-ridge-camp ', label: '  Sırt   Kampı   Seferi ', creditedCopper: 10, balanceCopper: 30 },
+  { sequence: 4, sourceId: 'expedition-contract:duplicate', label: 'Tekrar', creditedCopper: 99, balanceCopper: 99 },
+  { sequence: 6, sourceId: 'expedition-contract:dragonstone-gate-patrol', label: 'Kapı Devriyesi', creditedCopper: -4, balanceCopper: 52 },
+];
+const hardenedRestore = createInteractionEconomyState();
+hardenedRestore.restore(hostileSave);
+assert.deepEqual(
+  hardenedRestore.snapshot().ledger.recentCredits,
+  [{
+    sequence: 4,
+    sourceId: 'expedition-contract:dragonstone-ridge-camp',
+    label: 'Sırt Kampı Seferi',
+    creditedCopper: 10,
+    balanceCopper: 30,
+  }],
+  'restore must reject invalid or duplicate receipts while normalizing surviving expedition provenance text',
+);
+const hardenedNext = hardenedRestore.credit(5, { sourceId: 'expedition-contract:dragonstone-sea-wall-run', label: 'Deniz Duvarı Seferi' });
+assert.equal(hardenedNext.receipt.sequence, 5, 'post-restore expedition receipt sequence must continue from the last accepted receipt');
+assert.equal(hardenedNext.receipt.sourceId, 'expedition-contract:dragonstone-sea-wall-run');
+
 console.log('Interaction expedition reward provenance acceptance PASS');
