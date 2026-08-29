@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-29-v14-natural-lowland-rock-separation',
+	id: 'geographic-reference-palette-2026-08-29-v15-ecological-depth-weathered-rock',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,7 +20,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'cooler deeper moss and saturated wet-soil shadows, clearer living-meadow versus dry-heather ecology, darker weathered exposed earth, stronger cool-shadow versus neutral-sunlit granite separation, darker wet basalt and restrained quartz for readable natural weathering without changing canonical geography',
+		terrain: 'deeper cool moss and wet-soil shadows, greener living meadow against muted dry-heather, darker weathered exposed earth, stronger cool-shadow versus neutral-sunlit granite separation, damp basalt and restrained quartz for readable ecological and lithologic depth without changing canonical geography',
 		water: 'restrained mineral-green shallows, readable blue-black depth, aerated neutral-white falls',
 		road: 'warm compacted earth, dark damp ruts, mineral dust, stone and moss shoulders',
 		celestial: 'warm low sun, neutral noon, cool moon with preserved material readability',
@@ -29,15 +29,15 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x102217,
-		meadow: 0x315a34,
-		dryHeather: 0x745039,
-		wetEarth: 0x1a2624,
-		exposedEarth: 0x5b3f34,
-		graniteShadow: 0x202b31,
-		graniteSunlit: 0x6f6258,
-		basaltWet: 0x0d171c,
-		quartz: 0x95918b,
+		mossShadow: 0x0d1d14,
+		meadow: 0x28502f,
+		dryHeather: 0x624936,
+		wetEarth: 0x151f1e,
+		exposedEarth: 0x4e372f,
+		graniteShadow: 0x1b252b,
+		graniteSunlit: 0x675d55,
+		basaltWet: 0x091216,
+		quartz: 0x8d8984,
 	}),
 	road: Object.freeze({
 		compacted: 0x8b6849,
