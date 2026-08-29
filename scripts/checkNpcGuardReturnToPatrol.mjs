@@ -55,13 +55,9 @@ const tick = (player, delta = tickSeconds) => {
   intents.push(npc.object3D.userData.npcPerception?.intent ?? 'none');
 };
 
-// Begin on the authored route with no actionable target. The acceptance must prove the
-// full shipped patrol -> detect/observe -> chase chain instead of starting after detection.
 tick({ x: 100, z: 100 });
 assert.equal(intents.at(-1), 'patrol', 'guard must begin in authored patrol state before detection');
 
-// A short visible sample must register deterministic visual detection without immediately
-// skipping the shipped suspicion/observe stage.
 tick({ x: 0, z: 8 }, 0.1);
 assert.equal(intents.at(-1), 'observe', 'first visible sample must enter the shipped detect/observe stage');
 assert.equal(npc.object3D.userData.npcPerception.lineOfSight, true,
@@ -69,19 +65,15 @@ assert.equal(npc.object3D.userData.npcPerception.lineOfSight, true,
 assert.match(npc.object3D.userData.npcPerception.reason, /^(vision|peripheral)$/,
   'detect/observe must report a visual awareness reason');
 
-// Sustained visual acquisition must cross suspicion threshold and leave the authored route.
 tick({ x: 0, z: 8 }, 0.1);
 assert.equal(intents.at(-1), 'chase', 'sustained visible target outside engage radius must enter chase');
 assert.ok(npc.object3D.position.z > 0, 'chase must physically displace the guard from its home waypoint');
 
-// Close into the shipped engage radius before contact is lost. This keeps the acceptance
-// vertical slice honest: patrol/detect must prove the real chase -> combat handoff, not just pursuit.
 tick({ x: npc.object3D.position.x, z: npc.object3D.position.z + 1 });
 assert.equal(intents.at(-1), 'combat', 'chase must hand off to combat inside the shipped engage radius');
 assert.ok(npc.object3D.userData.combatStanceBlend > 0,
   'combat intent must drive the shipped combat-stance runtime blend');
 
-// Lose contact. Investigation must persist before route recovery begins.
 for (let i = 0; i < 48 && intents.at(-1) !== 'return'; i += 1) tick({ x: 100, z: 100 });
 assert.ok(intents.includes('investigate'), 'lost contact must enter last-known investigation');
 assert.equal(intents.at(-1), 'return', 'expired investigation must enter explicit route-return state');
@@ -113,9 +105,6 @@ assert.ok(returnTicks <= maxReturnTicks,
 assert.ok(npc.object3D.userData.simulationTicks >= intents.length,
   'acceptance must run through shipped NPC simulation ticks');
 
-// Reacquiring the route is not enough: the authored patrol must become live again. The first
-// patrol tick advances the recovered waypoint index; the next must physically move toward the
-// next canonical waypoint instead of leaving the guard stranded at its return point.
 const recoveredPosition = { x: npc.object3D.position.x, z: npc.object3D.position.z };
 tick({ x: 100, z: 100 });
 tick({ x: 100, z: 100 });
@@ -128,9 +117,6 @@ assert.equal(npc.object3D.userData.npcPerception.intent, 'patrol',
 assert.ok(resumedPatrolDistance > 0,
   'guard must physically resume movement toward the next canonical patrol waypoint after recovery');
 
-// Hearing must use the same shipped recovery contract. A fast player moving behind the guard
-// is outside its forward vision cone but inside the deterministic hearing radius, so the guard
-// must investigate the heard last-known position and eventually recover its authored route.
 const hearingWaypoints = [{ x: 0, z: 0 }, { x: 0, z: 6 }];
 const hearingRecoveryWaypoint = hearingWaypoints[1];
 const hearingNpc = await createNPC({
@@ -168,9 +154,15 @@ assert.equal(hearingNpc.object3D.userData.npcPerception.reason, 'hearing',
   'hearing acquisition must expose the hearing telemetry reason');
 assert.equal(hearingIntents.at(-1), 'investigate',
   'hearing must enter last-known investigation without skipping directly to combat');
+assert.equal(hearingNpc.object3D.userData.combatStanceBlend, 0,
+  'hearing-only acquisition must not raise the combat stance before visual/contact engagement');
 
 for (let i = 0; i < 120 && hearingIntents.at(-1) !== 'return'; i += 1) hearingTick({ x: 100, z: 100 });
 assert.equal(hearingIntents.at(-1), 'return', 'expired hearing investigation must enter route return');
+assert.equal(hearingIntents.includes('chase'), false,
+  'hearing-only recovery must not fabricate a chase without visual/contact acquisition');
+assert.equal(hearingIntents.includes('combat'), false,
+  'hearing-only recovery must not fabricate combat without visual/contact acquisition');
 const hearingDistanceToRecoveryWaypoint = () => Math.hypot(
   hearingNpc.object3D.position.x - hearingRecoveryWaypoint.x,
   hearingNpc.object3D.position.z - hearingRecoveryWaypoint.z,
