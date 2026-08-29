@@ -21,11 +21,27 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          lfs: true
+          lfs: false
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      - name: Hydrate LFS with retry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs version
+          for attempt in 1 2 3; do
+            if git lfs pull; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Run283 LFS hydration failed after $attempt attempts." >&2
+              exit 1
+            fi
+            sleep "$((attempt * 5))"
+          done
 
       - name: Exact-main additive entry gate
         shell: bash
