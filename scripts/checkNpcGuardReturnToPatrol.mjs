@@ -26,6 +26,8 @@ const playerCollider = {
 const tickSeconds = 0.25;
 const speedMps = 1.4;
 const returnSpeedMps = speedMps * 0.8;
+const patrolWaypoints = [{ x: 0, z: 0 }, { x: 0, z: 12 }];
+const recoveryWaypoint = patrolWaypoints[1];
 
 const npc = await createNPC({
   assetLoader,
@@ -39,7 +41,7 @@ const npc = await createNPC({
   name: 'return-guard',
   groundCollider,
   playerCollider,
-  patrolWaypoints: [{ x: 0, z: 0 }, { x: 0, z: 12 }],
+  patrolWaypoints,
   speedMps,
   pauseSeconds: 0,
   combatStanceTriggerRadiusMeters: 10,
@@ -86,14 +88,18 @@ assert.equal(intents.at(-1), 'return', 'expired investigation must enter explici
 assert.equal(npc.object3D.userData.npcPerception.returningToRoute, true,
   'return telemetry must stay latched until the patrol route is reacquired');
 
-const returnStartDistance = Math.hypot(npc.object3D.position.x, npc.object3D.position.z);
-assert.ok(returnStartDistance > 0.35, 'return must start while displaced from the patrol waypoint');
+const distanceToRecoveryWaypoint = () => Math.hypot(
+  npc.object3D.position.x - recoveryWaypoint.x,
+  npc.object3D.position.z - recoveryWaypoint.z,
+);
+const returnStartDistance = distanceToRecoveryWaypoint();
+assert.ok(returnStartDistance > 0.35, 'return must start while displaced from the active patrol waypoint');
 const returnStartTick = npc.object3D.userData.simulationTicks;
 const maxReturnTicks = Math.ceil(returnStartDistance / (returnSpeedMps * tickSeconds)) + 2;
 
 for (let i = 0; i < 80 && npc.object3D.userData.npcPerception?.intent !== 'patrol'; i += 1) tick({ x: 100, z: 100 });
 
-const finalDistance = Math.hypot(npc.object3D.position.x, npc.object3D.position.z);
+const finalDistance = distanceToRecoveryWaypoint();
 const returnTicks = npc.object3D.userData.simulationTicks - returnStartTick;
 assert.equal(npc.object3D.userData.npcPerception.intent, 'patrol',
   'guard must only resume patrol after route reacquisition');
@@ -101,7 +107,7 @@ assert.equal(npc.object3D.userData.npcPerception.returningToRoute, false,
   'route-recovery latch must clear after arrival');
 assert.equal(npc.object3D.userData.npcPerception.lastKnown, null,
   'stale last-known player target must clear after route recovery');
-assert.ok(finalDistance <= 0.35, `guard must recover the patrol waypoint, got ${finalDistance.toFixed(3)}m`);
+assert.ok(finalDistance <= 0.35, `guard must recover the active patrol waypoint, got ${finalDistance.toFixed(3)}m`);
 assert.ok(returnTicks <= maxReturnTicks,
   `route recovery must stay within deterministic tick budget (${returnTicks}/${maxReturnTicks})`);
 assert.ok(npc.object3D.userData.simulationTicks >= intents.length,
@@ -110,10 +116,13 @@ assert.ok(npc.object3D.userData.simulationTicks >= intents.length,
 // Reacquiring the route is not enough: the authored patrol must become live again. The first
 // patrol tick advances the recovered waypoint index; the next must physically move toward the
 // next canonical waypoint instead of leaving the guard stranded at its return point.
-const recoveredZ = npc.object3D.position.z;
+const recoveredPosition = { x: npc.object3D.position.x, z: npc.object3D.position.z };
 tick({ x: 100, z: 100 });
 tick({ x: 100, z: 100 });
-const resumedPatrolDistance = npc.object3D.position.z - recoveredZ;
+const resumedPatrolDistance = Math.hypot(
+  npc.object3D.position.x - recoveredPosition.x,
+  npc.object3D.position.z - recoveredPosition.z,
+);
 assert.equal(npc.object3D.userData.npcPerception.intent, 'patrol',
   'guard must remain in patrol after route recovery');
 assert.ok(resumedPatrolDistance > 0,
@@ -123,6 +132,7 @@ npc.dispose();
 
 console.log('NPC_GUARD_RETURN_TO_PATROL_PASS', JSON.stringify({
   intents: [...new Set(intents)],
+  recoveryWaypoint,
   returnStartDistance: Number(returnStartDistance.toFixed(3)),
   finalDistance: Number(finalDistance.toFixed(3)),
   returnTicks,
