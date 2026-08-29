@@ -12,6 +12,8 @@ on:
       - '.github/workflows/npc-hearing-framerate-determinism.yml'
       - '.github/workflows/npc-perception-input-safety.yml'
       - '.github/workflows/npc-guard-leash-attack-slot-handoff.yml'
+      - '.github/workflows/run167-determinism-policy.yml'
+      - '.github/workflows/run283-final-head-governance.yml'
 
 permissions:
   contents: read
@@ -40,7 +42,7 @@ jobs:
           main_sha="$(git rev-parse origin/main)"
           test "$(git merge-base HEAD origin/main)" = "$main_sha"
           mapfile -t files < <(git diff --name-only origin/main...HEAD)
-          test "${#files[@]}" -eq 8
+          test "${#files[@]}" -eq 10
           printf '%s\n' "${files[@]}" | grep -Fx 'src/3d/gameplay/npc.js'
           printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcGuardLifecycleContract.mjs'
           printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcGuardReturnToPatrol.mjs'
@@ -49,6 +51,8 @@ jobs:
           printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-hearing-framerate-determinism.yml'
           printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-perception-input-safety.yml'
           printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-guard-leash-attack-slot-handoff.yml'
+          printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/run167-determinism-policy.yml'
+          printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/run283-final-head-governance.yml'
           read -r additions deletions < <(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           total=$((additions + deletions))
           echo "scope=${#files[@]} additions=$additions deletions=$deletions total=$total main=$main_sha head=$(git rev-parse HEAD)"
