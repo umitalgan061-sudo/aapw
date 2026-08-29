@@ -40,10 +40,24 @@ jobs:
           merge_base="$(git merge-base HEAD origin/main)"
           test "$merge_base" = "$main_sha"
           mapfile -t files < <(git diff --name-only origin/main...HEAD)
-          test "${#files[@]}" -eq 3
-          printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcGuardLeashAttackSlotHandoff.mjs'
-          printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/run167-determinism-policy.yml'
-          printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-guard-leash-attack-slot-handoff.yml'
+          if test "${#files[@]}" -eq 3; then
+            printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcGuardLeashAttackSlotHandoff.mjs'
+            printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/run167-determinism-policy.yml'
+            printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-guard-leash-attack-slot-handoff.yml'
+          elif test "${#files[@]}" -eq 8; then
+            printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-guard-return-to-patrol.yml'
+            printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-hearing-framerate-determinism.yml'
+            printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-movement-safety.yml'
+            printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-perception-input-safety.yml'
+            printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-guard-leash-attack-slot-handoff.yml'
+            printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcGuardLifecycleContract.mjs'
+            printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcGuardReturnToPatrol.mjs'
+            printf '%s\n' "${files[@]}" | grep -Fx 'src/3d/gameplay/npc.js'
+          else
+            printf 'unexpected scope (%s files):\n' "${#files[@]}" >&2
+            printf '  %s\n' "${files[@]}" >&2
+            exit 1
+          fi
           read -r additions deletions < <(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           total=$((additions + deletions))
           echo "scope=${#files[@]} files additions=$additions deletions=$deletions total=$total main=$main_sha head=$(git rev-parse HEAD)"
