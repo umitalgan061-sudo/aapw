@@ -119,6 +119,35 @@ assert.deepEqual(
 assert.match(buildQuartermasterText(restored.snapshot()), /Son gelir: Kapı Devriyesi Seferi · \+9 bakır · bakiye 37/);
 assert.match(buildQuartermasterText(restored.snapshot()), /Son işlem: #4 Dragonstone saha azığı · 6 bakır · bakiye 28/);
 
+const lowFunds = createInteractionEconomyState();
+lowFunds.restore({ ...afterLaterReward, copper: 11 });
+const beforeLowFundsTrade = structuredClone(lowFunds.snapshot());
+const lowFundsTrade = lowFunds.purchase(
+  { id: 'dragonstone-whetstone', itemId: 'dragonstone-whetstone' },
+  () => true,
+);
+assert.equal(lowFundsTrade.ok, false, 'a settlement trade must reject a wallet below the configured offer price');
+assert.equal(lowFundsTrade.reason, 'insufficient-funds');
+assert.equal(lowFundsTrade.priceCopper, 12);
+assert.equal(lowFundsTrade.balanceCopper, 11);
+assert.equal(lowFundsTrade.shortfallCopper, 1);
+assert.equal(lowFundsTrade.remainingStock, 2);
+assert.deepEqual(
+  lowFunds.snapshot(),
+  beforeLowFundsTrade,
+  'insufficient-funds rejection must not grant inventory, consume stock, append trade history or rewrite expedition provenance',
+);
+assert.deepEqual(
+  lowFunds.snapshot().ledger.recentCredits,
+  afterLaterReward.ledger.recentCredits,
+  'low-funds restore and rejected trade must preserve both expedition credit receipts',
+);
+assert.deepEqual(
+  lowFunds.snapshot().ledger.recentTransactions,
+  afterLaterReward.ledger.recentTransactions,
+  'low-funds restore and rejected trade must preserve the four historical settlement transactions',
+);
+
 const beforeInvalidCredits = structuredClone(restored.snapshot());
 for (const invalidAmount of [0, -1, Number.NaN, Number.NEGATIVE_INFINITY]) {
   const rejectedCredit = restored.credit(invalidAmount, {
