@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-29-v16-lowland-lithology-separation',
+	id: 'geographic-reference-palette-2026-08-29-v17-lowland-biome-lithology-depth',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,7 +20,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'cool organic shadows, distinct living meadow versus desiccated heather and exposed mineral soil, darker wet horizons, and wider weathered-rock shadow/sun separation so broad lowlands no longer collapse into one khaki-grey field while canonical geography remains unchanged',
+		terrain: 'deep cool organic shadows, clearly separated living meadow versus dry heather and mineral soil, dark saturated wet horizons, and stronger weathered-rock shadow/sun separation so full-world lowlands retain ecological and lithologic depth without changing canonical geography',
 		water: 'restrained mineral-green shallows, readable blue-black depth, aerated neutral-white falls',
 		road: 'warm compacted earth, dark damp ruts, mineral dust, stone and moss shoulders',
 		celestial: 'warm low sun, neutral noon, cool moon with preserved material readability',
@@ -29,15 +29,15 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x091911,
-		meadow: 0x21492a,
-		dryHeather: 0x684a32,
-		wetEarth: 0x111b1b,
-		exposedEarth: 0x56392d,
-		graniteShadow: 0x162128,
-		graniteSunlit: 0x70645a,
-		basaltWet: 0x071014,
-		quartz: 0x96908a,
+		mossShadow: 0x07160f,
+		meadow: 0x193d24,
+		dryHeather: 0x735039,
+		wetEarth: 0x0d1818,
+		exposedEarth: 0x62402f,
+		graniteShadow: 0x121d24,
+		graniteSunlit: 0x7a6d61,
+		basaltWet: 0x050d12,
+		quartz: 0xa09991,
 	}),
 	road: Object.freeze({
 		compacted: 0x8b6849,
