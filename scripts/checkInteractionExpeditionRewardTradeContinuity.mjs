@@ -61,4 +61,38 @@ const blocked = restored.purchase(
 assert.equal(blocked.ok, false, 'exhausted finite stock must block further purchases');
 assert.deepEqual(restored.snapshot(), exhausted, 'blocked stock-exhausted purchase must be atomic across wallet, trade and expedition receipt ledgers');
 
+const transactionsBeforeLaterReward = structuredClone(exhausted.ledger.recentTransactions);
+const laterReward = restored.credit(9, {
+  sourceId: 'expedition-contract:dragonstone-gate-patrol',
+  label: 'Kapı Devriyesi Seferi',
+});
+assert.equal(laterReward.ok, true);
+const afterLaterReward = restored.snapshot();
+assert.equal(afterLaterReward.copper, 37, 'later expedition income should credit the post-trade wallet');
+assert.deepEqual(
+  afterLaterReward.ledger.recentTransactions,
+  transactionsBeforeLaterReward,
+  'later expedition income must not rewrite the finite-stock trade history',
+);
+assert.deepEqual(
+  afterLaterReward.ledger.recentCredits.map(({ sequence, sourceId, creditedCopper, balanceCopper }) => ({ sequence, sourceId, creditedCopper, balanceCopper })),
+  [
+    { sequence: 1, sourceId: 'expedition-contract:dragonstone-harbor-tavern-run', creditedCopper: 12, balanceCopper: 52 },
+    { sequence: 2, sourceId: 'expedition-contract:dragonstone-gate-patrol', creditedCopper: 9, balanceCopper: 37 },
+  ],
+  'credit sequencing must remain independent from four prior trade transactions',
+);
+const laterRewardText = buildQuartermasterText(afterLaterReward);
+assert.match(laterRewardText, /Kese: 37 bakır/);
+assert.match(laterRewardText, /Son gelir: Kapı Devriyesi Seferi · \+9 bakır · bakiye 37/);
+assert.match(laterRewardText, /Son işlem: #4 Dragonstone saha azığı · 6 bakır · bakiye 28/);
+
+const roundTrip = createInteractionEconomyState();
+roundTrip.restore(afterLaterReward);
+assert.deepEqual(
+  roundTrip.snapshot(),
+  afterLaterReward,
+  'save/load must preserve independent latest-income and latest-trade receipts after both ledger directions have advanced',
+);
+
 console.log('Interaction expedition reward multi-trade continuity acceptance PASS');
