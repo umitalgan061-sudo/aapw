@@ -52,6 +52,7 @@ jobs:
           node --check scripts/checkInteractionExpeditionBoard.mjs
           node --check scripts/checkInteractionExpeditionBoardBrowser.mjs
           node --check scripts/checkInteractionExpeditionRewardProvenance.mjs
+          node --check scripts/checkInteractionMasteryTravelContinuityBrowser.mjs
           node scripts/checkInteractionExpeditionRewardProvenance.mjs
 
       - name: Existing expedition board regression
@@ -82,6 +83,9 @@ jobs:
 
       - name: Shipped browser mastery to smithing persistence proof
         run: NODE_PATH="$NODE_PATH" node scripts/checkInteractionMasteryToSmithingBrowser.mjs
+
+      - name: Shipped browser mastery travel continuity proof
+        run: NODE_PATH="$NODE_PATH" node scripts/checkInteractionMasteryTravelContinuityBrowser.mjs
 
       - name: Final exact-main freshness
         shell: bash
