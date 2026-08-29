@@ -12,7 +12,7 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX06_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex06-detail-2026-08-29-v6-readable-micro-normal-weathering',
+  id: 'owner-map-pindex06-detail-2026-08-29-v7-crisper-micro-normal-weathering',
   pindex: 6,
   renderOnly: true,
   geographyAuthorityUnchanged: true,
@@ -24,11 +24,11 @@ export const PINDEX06_DETAIL_POLICY = Object.freeze({
   alluviumMeters: 590,
   seepMeters: 760,
   ironCrustMeters: 245,
-  normalWeatherMeters: 124,
+  normalWeatherMeters: 108,
   boundaryProbeNormalized: 0.006,
-  amplitudeBySurface: Object.freeze({ sea: 0.018, lake: 0.020, soil: 0.190, rock: 0.150, snow: 0.080 }),
-  chromaBySurface: Object.freeze({ sea: 0.020, lake: 0.024, soil: 0.154, rock: 0.104, snow: 0.056 }),
-  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.28, rock: 0.44, snow: 0.14 }),
+  amplitudeBySurface: Object.freeze({ sea: 0.018, lake: 0.020, soil: 0.205, rock: 0.165, snow: 0.084 }),
+  chromaBySurface: Object.freeze({ sea: 0.020, lake: 0.024, soil: 0.160, rock: 0.110, snow: 0.058 }),
+  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.34, rock: 0.52, snow: 0.16 }),
 });
 
 function hash01(ix, iz, seed = 0) {
