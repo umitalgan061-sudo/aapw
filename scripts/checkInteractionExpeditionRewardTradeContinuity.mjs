@@ -102,6 +102,24 @@ assert.match(blockedAfterLaterRewardText, /Kese: 37 bakır/);
 assert.match(blockedAfterLaterRewardText, /Son gelir: Kapı Devriyesi Seferi · \+9 bakır · bakiye 37/);
 assert.match(blockedAfterLaterRewardText, /Son işlem: #4 Dragonstone saha azığı · 6 bakır · bakiye 28/);
 
+const beforeInvalidCredits = structuredClone(restored.snapshot());
+for (const invalidAmount of [0, -1, Number.NaN, Number.NEGATIVE_INFINITY]) {
+  const rejectedCredit = restored.credit(invalidAmount, {
+    sourceId: 'expedition-contract:forged-invalid-reward',
+    label: 'Geçersiz Sefer Ödülü',
+  });
+  assert.equal(rejectedCredit.ok, false, `invalid expedition credit ${String(invalidAmount)} must be rejected`);
+  assert.equal(rejectedCredit.reason, 'invalid-credit');
+  assert.equal(rejectedCredit.balanceCopper, 37);
+  assert.deepEqual(
+    restored.snapshot(),
+    beforeInvalidCredits,
+    'rejected expedition income must not advance credit sequence, alter trade history, replenish stock or change the wallet',
+  );
+}
+assert.match(buildQuartermasterText(restored.snapshot()), /Son gelir: Kapı Devriyesi Seferi · \+9 bakır · bakiye 37/);
+assert.match(buildQuartermasterText(restored.snapshot()), /Son işlem: #4 Dragonstone saha azığı · 6 bakır · bakiye 28/);
+
 const roundTrip = createInteractionEconomyState();
 roundTrip.restore(afterLaterReward);
 assert.deepEqual(
