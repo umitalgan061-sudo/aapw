@@ -46,6 +46,14 @@ try {
 		const rpg = controller.getRpgSnapshot();
 		dialogueBox.dispose(); host.remove();
 
+		const restoredHost = document.createElement('div');
+		document.body.appendChild(restoredHost);
+		const restoredBox = new DialogueBox(restoredHost);
+		const restoredController = createInteractionController({ interactionPrompt: { setVisible() {} }, dialogueBox: restoredBox, greetingTemplate: 'Selam, {name}!', radiusMeters: 6 });
+		restoredController.restoreRpgSnapshot(rpg);
+		const restoredRpg = restoredController.getRpgSnapshot();
+		restoredBox.dispose(); restoredHost.remove();
+
 		const masteryHost = document.createElement('div');
 		document.body.appendChild(masteryHost);
 		const masteryBox = new DialogueBox(masteryHost);
@@ -81,6 +89,9 @@ try {
 			copper: rpg.economy.copper,
 			credits: rpg.economy.ledger.recentCredits,
 			completedRoutes: rpg.worldState.dragonstoneExpeditionRoutes,
+			restoredCopper: restoredRpg.economy.copper,
+			restoredCredits: restoredRpg.economy.ledger.recentCredits,
+			restoredRoutes: restoredRpg.worldState.dragonstoneExpeditionRoutes,
 			masteryBeforeText,
 			masteryResultText,
 			masteryBoardText,
@@ -101,13 +112,14 @@ try {
 	if (!result.inventoryText.includes('Sefer yorgunluğu: 30/36 km') || !result.inventoryText.includes('Yol azığı: 0')) throw new Error(`Post-expedition inventory UX mismatch: ${JSON.stringify(result)}`);
 	if (result.fatigueKm !== 30 || result.packs !== 0 || result.xp !== 30 || result.reputation !== 2 || result.copper !== 52 || result.completedRoutes?.[0] !== 'dragonstone-harbor-tavern-run') throw new Error(`Canonical contract state mismatch: ${JSON.stringify(result)}`);
 	if (result.credits?.length !== 1 || result.credits[0]?.sourceId !== 'expedition-contract:dragonstone-harbor-tavern-run' || result.credits[0]?.label !== 'Liman Taverna Seferi' || result.credits[0]?.creditedCopper !== 12 || result.credits[0]?.balanceCopper !== 52) throw new Error(`Route-specific expedition receipt provenance mismatch: ${JSON.stringify(result)}`);
+	if (result.restoredCopper !== result.copper || JSON.stringify(result.restoredCredits) !== JSON.stringify(result.credits) || JSON.stringify(result.restoredRoutes) !== JSON.stringify(result.completedRoutes)) throw new Error(`Expedition receipt/save-load browser parity mismatch: ${JSON.stringify(result)}`);
 	if (!result.masteryBeforeText.includes('Tamamlanan kontrat: 2/3') || !result.masteryBeforeText.includes('Sefer ustalığı: İLERLEME 2/3')) throw new Error(`Mastery precondition UX mismatch: ${JSON.stringify(result)}`);
 	if (!result.masteryResultText.includes('SEFER USTALIĞI KAZANILDI: 50 XP + 3 Dragonstone itibarı + 20 bakır · kese 70')) throw new Error(`Mastery completion result missing: ${JSON.stringify(result)}`);
 	if (!result.masteryBoardText.includes('Tamamlanan kontrat: 3/3') || !result.masteryBoardText.includes('Sefer ustalığı: TAMAMLANDI')) throw new Error(`Mastery board persistence UX mismatch: ${JSON.stringify(result)}`);
 	if (!result.masteryJournalText.includes('Sefer kontratları: 3/3') || !result.masteryJournalText.includes('Sefer ustalığı: TAMAMLANDI')) throw new Error(`Mastery journal persistence UX mismatch: ${JSON.stringify(result)}`);
 	if (result.masteryXp !== 75 || result.masteryReputation !== 5 || result.masteryCopper !== 70 || result.masteryClaimed !== true) throw new Error(`Canonical mastery state mismatch: ${JSON.stringify(result)}`);
 	if (result.masteryCredits?.length !== 2 || result.masteryCredits[0]?.sourceId !== 'expedition-contract:dragonstone-ridge-camp' || result.masteryCredits[0]?.label !== 'Sırt Kampı Seferi' || result.masteryCredits[0]?.creditedCopper !== 10 || result.masteryCredits[0]?.balanceCopper !== 50 || result.masteryCredits.at(-1)?.sourceId !== 'expedition-mastery' || result.masteryCredits.at(-1)?.creditedCopper !== 20) throw new Error(`Mastery economy receipt provenance mismatch: ${JSON.stringify(result)}`);
-	console.log(`[RPG Chromium] PASS expedition contract + mastery keyboard loop ${JSON.stringify({ fatigueKm: result.fatigueKm, packs: result.packs, xp: result.xp, reputation: result.reputation, copper: result.copper, routeReceipt: result.credits?.[0], masteryXp: result.masteryXp, masteryReputation: result.masteryReputation, masteryCopper: result.masteryCopper, masteryClaimed: result.masteryClaimed })}`);
+	console.log(`[RPG Chromium] PASS expedition contract + mastery keyboard loop ${JSON.stringify({ fatigueKm: result.fatigueKm, packs: result.packs, xp: result.xp, reputation: result.reputation, copper: result.copper, routeReceipt: result.credits?.[0], restoredRouteReceipt: result.restoredCredits?.[0], masteryXp: result.masteryXp, masteryReputation: result.masteryReputation, masteryCopper: result.masteryCopper, masteryClaimed: result.masteryClaimed })}`);
 } finally {
 	await browser.close();
 	await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
