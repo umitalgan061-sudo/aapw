@@ -124,4 +124,25 @@ const hardenedNext = hardenedRestore.credit(5, { sourceId: 'expedition-contract:
 assert.equal(hardenedNext.receipt.sequence, 5, 'post-restore expedition receipt sequence must continue from the last accepted receipt');
 assert.equal(hardenedNext.receipt.sourceId, 'expedition-contract:dragonstone-sea-wall-run');
 
+const oversizedSave = structuredClone(saved);
+oversizedSave.ledger.recentCredits = [{
+  sequence: 9,
+  sourceId: ` expedition-contract:${'oversized-route-'.repeat(8)} `,
+  label: ` ${'Aşırı uzun sefer etiketi '.repeat(8)} `,
+  creditedCopper: 3,
+  balanceCopper: 63,
+}];
+const boundedTextRestore = createInteractionEconomyState();
+boundedTextRestore.restore(oversizedSave);
+const [boundedReceipt] = boundedTextRestore.snapshot().ledger.recentCredits;
+assert.equal(boundedReceipt.sourceId.length, 80, 'restored receipt sourceId must remain bounded for persistence and UX safety');
+assert.equal(boundedReceipt.label.length, 80, 'restored receipt label must remain bounded for quartermaster UX safety');
+assert.doesNotMatch(boundedReceipt.sourceId, /\s{2,}/, 'restored receipt sourceId must collapse repeated whitespace');
+assert.doesNotMatch(boundedReceipt.label, /\s{2,}/, 'restored receipt label must collapse repeated whitespace');
+assert.match(
+  buildQuartermasterText(boundedTextRestore.snapshot()),
+  /Son gelir: .{1,80} · \+3 bakır · bakiye 63/,
+  'quartermaster UX must render only the normalized bounded receipt label after restore',
+);
+
 console.log('Interaction expedition reward provenance acceptance PASS');
