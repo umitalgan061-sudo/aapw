@@ -87,5 +87,16 @@ assert.deepEqual(
   masteryAfterRestore.receipt,
   'mastery credit must remain distinct when the bounded route ledger rolls forward',
 );
+const masteryText = buildQuartermasterText(boundedRestored.snapshot());
+assert.match(
+  masteryText,
+  /Son gelir: Sefer ustalığı · \+20 bakır · bakiye 72/,
+  'quartermaster UX must surface mastery provenance after a bounded-ledger restore and rollover',
+);
+assert.doesNotMatch(
+  masteryText,
+  /Son gelir: Kapı Devriyesi/,
+  'quartermaster UX must not keep presenting the previous route receipt after mastery becomes the latest credit',
+);
 
 console.log('Interaction expedition reward provenance acceptance PASS');
