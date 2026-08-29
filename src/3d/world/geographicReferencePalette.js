@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-29-v20-coastal-open-ocean-depth-separation',
+	id: 'geographic-reference-palette-2026-08-30-v21-ecotone-lithology-depth',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,31 +20,31 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'deeper cool organic shadows, stronger living-meadow versus dry-heather/mineral-soil separation, saturated damp horizons, and wider weathered-rock shadow/sun/mineral contrast so full-world lowlands and massifs retain ecological and lithologic depth without changing canonical geography',
-		water: 'clear mineral-green littoral water, distinct lake and river signatures, brighter readable blue-black offshore water over a substantially deeper abyss backdrop, and aerated neutral-white falls/foam so full-world depth remains legible without changing canonical wet coverage',
-		road: 'warm compacted earth, dark damp ruts, mineral dust, stone and moss shoulders',
+		terrain: 'cool organic shade, a visibly greener living meadow, ochre dry-heather and mineral-earth ecotones, damp lowland depth, and separated cool granite / warm weathered rock values so broad canonical land does not collapse into one khaki field',
+		water: 'mineral-green littoral water, distinct lake and river signatures, readable blue-black offshore depth and aerated neutral-white falls/foam while canonical wet coverage remains unchanged',
+		road: 'warm compacted earth, dark damp ruts, mineral dust, cooler stone and restrained moss shoulders',
 		celestial: 'warm low sun, neutral noon, cool moon with preserved material readability',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x06130c,
-		meadow: 0x163821,
-		dryHeather: 0x78513a,
-		wetEarth: 0x0a1515,
-		exposedEarth: 0x68432e,
-		graniteShadow: 0x101a21,
-		graniteSunlit: 0x827366,
-		basaltWet: 0x040b10,
-		quartz: 0xa79f96,
+		mossShadow: 0x07170d,
+		meadow: 0x1d4728,
+		dryHeather: 0x755138,
+		wetEarth: 0x0c1917,
+		exposedEarth: 0x70452d,
+		graniteShadow: 0x18252c,
+		graniteSunlit: 0x88786b,
+		basaltWet: 0x071116,
+		quartz: 0xaaa39a,
 	}),
 	road: Object.freeze({
-		compacted: 0x8b6849,
-		rut: 0x4d3b2e,
-		dust: 0xb0926d,
-		stone: 0x5c574d,
-		mossEdge: 0x40523a,
+		compacted: 0x8d6847,
+		rut: 0x48372d,
+		dust: 0xb49470,
+		stone: 0x585851,
+		mossEdge: 0x3d5138,
 	}),
 	water: Object.freeze({
 		shoreClear: 0x5a8b84,
