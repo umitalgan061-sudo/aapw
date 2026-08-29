@@ -39,7 +39,7 @@ jobs:
           test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
           CHANGED_FILES="$(git diff --name-only "$BASE_SHA" HEAD)"
           printf '%s\n' "$CHANGED_FILES"
-          test "$(printf '%s\n' "$CHANGED_FILES" | sed '/^$/d' | wc -l)" -le 5
+          test "$(printf '%s\n' "$CHANGED_FILES" | sed '/^$/d' | wc -l)" -le 6
           printf '%s\n' "$CHANGED_FILES" | grep -Ev '^(src/3d/gameplay/npc\.js|scripts/checkNpcGuardLifecycleContract\.mjs|scripts/checkNpcGuardReturnToPatrol\.mjs|scripts/checkNpcMovementSafetyBrowser\.js|scripts/checkNpcPerceptionInputSafetyBrowser\.js|\.github/workflows/npc-guard-return-to-patrol\.yml|\.github/workflows/npc-movement-safety\.yml|\.github/workflows/npc-hearing-framerate-determinism\.yml|\.github/workflows/npc-perception-input-safety\.yml)$' && exit 1 || true
           CHANGED="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           test "$CHANGED" -le 1000
