@@ -10,14 +10,14 @@ import {
 } from './westernReferenceSurfaceFabric.js';
 
 export const PINDEX03_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex03-detail-2026-08-29-v5-shared-fabric-micro-normal',
+  id: 'owner-map-pindex03-detail-2026-08-29-v6-readable-shared-fabric-micro-normal',
   pindex: 3,
   westernMarineShelfTone: true,
   westernReferenceSurfaceFabric: true,
   worldSpaceMicroNormalWeathering: true,
   sharedFabricNormalSource: true,
-  normalProbeMeters: 5.0,
-  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.18, rock: 0.30, snow: 0.09 }),
+  normalProbeMeters: 11.0,
+  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.24, rock: 0.38, snow: 0.12 }),
   normalSeamFeatherNormalized: 0.012,
   mapAuthorityUnchanged: true,
   geographyAuthorityUnchanged: true,
