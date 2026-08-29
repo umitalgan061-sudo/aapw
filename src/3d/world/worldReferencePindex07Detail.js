@@ -11,7 +11,7 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX07_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex07-detail-2026-08-29-v5-readable-weathered-relief',
+  id: 'owner-map-pindex07-detail-2026-08-29-v6-readable-weathered-relief',
   pindex: 7,
   renderOnly: true,
   geographyAuthorityUnchanged: true,
@@ -26,9 +26,9 @@ export const PINDEX07_DETAIL_POLICY = Object.freeze({
   normalWeatherMeters: 138,
   normalGrainMeters: 37,
   boundaryProbeNormalized: 0.006,
-  amplitudeBySurface: Object.freeze({ sea: 0.018, lake: 0.020, soil: 0.184, rock: 0.160, snow: 0.088 }),
+  amplitudeBySurface: Object.freeze({ sea: 0.018, lake: 0.020, soil: 0.194, rock: 0.170, snow: 0.092 }),
   chromaBySurface: Object.freeze({ sea: 0.020, lake: 0.022, soil: 0.154, rock: 0.112, snow: 0.066 }),
-  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.24, rock: 0.36, snow: 0.12 }),
+  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.30, rock: 0.42, snow: 0.14 }),
 });
 
 function hash01(ix, iz, seed = 0) {
