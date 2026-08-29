@@ -48,4 +48,44 @@ const text = buildQuartermasterText(restored.snapshot());
 assert.match(text, /Son gelir: Liman Taverna Seferi · \+12 bakır · bakiye 60/);
 assert.doesNotMatch(text, /Son gelir: Sefer kontratı · \+12/);
 
+const bounded = createInteractionEconomyState(0);
+const authoredCredits = [
+  ['dragonstone-watch-circuit', 'Nöbet Yolu Devriyesi', 8],
+  ['dragonstone-harbor-tavern-run', 'Liman Taverna Seferi', 12],
+  ['dragonstone-ridge-camp', 'Sırt Kampı Seferi', 10],
+  ['dragonstone-sea-wall-run', 'Deniz Duvarı Seferi', 9],
+  ['dragonstone-yard-supply', 'Avlu Erzak Seferi', 7],
+  ['dragonstone-gate-patrol', 'Kapı Devriyesi', 6],
+];
+for (const [routeId, label, copper] of authoredCredits) {
+  assert.equal(bounded.credit(copper, { sourceId: `expedition-contract:${routeId}`, label }).ok, true);
+}
+const boundedSaved = bounded.snapshot();
+assert.equal(boundedSaved.ledger.recentCredits.length, 5, 'credit ledger must keep the configured bounded history');
+assert.deepEqual(
+  boundedSaved.ledger.recentCredits.map(({ sequence, sourceId, label }) => ({ sequence, sourceId, label })),
+  authoredCredits.slice(-5).map(([routeId, label], index) => ({
+    sequence: index + 2,
+    sourceId: `expedition-contract:${routeId}`,
+    label,
+  })),
+  'bounded ledger eviction must preserve surviving route-specific provenance and original sequence order',
+);
+const boundedRestored = createInteractionEconomyState();
+boundedRestored.restore(boundedSaved);
+assert.deepEqual(
+  boundedRestored.snapshot().ledger.recentCredits,
+  boundedSaved.ledger.recentCredits,
+  'bounded route provenance history must survive save/load without relabeling or resequencing',
+);
+const masteryAfterRestore = boundedRestored.credit(20, { sourceId: 'expedition-mastery', label: 'Sefer ustalığı' });
+assert.equal(masteryAfterRestore.receipt.sequence, 7, 'new credits after restore must continue the surviving receipt sequence');
+assert.equal(masteryAfterRestore.receipt.sourceId, 'expedition-mastery');
+assert.equal(boundedRestored.snapshot().ledger.recentCredits.length, 5);
+assert.deepEqual(
+  boundedRestored.snapshot().ledger.recentCredits.at(-1),
+  masteryAfterRestore.receipt,
+  'mastery credit must remain distinct when the bounded route ledger rolls forward',
+);
+
 console.log('Interaction expedition reward provenance acceptance PASS');
