@@ -58,6 +58,13 @@ tick({ x: 0, z: 8 });
 assert.equal(intents.at(-1), 'chase', 'visible acquired target outside engage radius must enter chase');
 assert.ok(npc.object3D.position.z > 0, 'chase must physically displace the guard from its home waypoint');
 
+// Close into the shipped engage radius before contact is lost. This keeps the acceptance
+// vertical slice honest: patrol/detect must prove the real chase -> combat handoff, not just pursuit.
+tick({ x: npc.object3D.position.x, z: npc.object3D.position.z + 1 });
+assert.equal(intents.at(-1), 'combat', 'chase must hand off to combat inside the shipped engage radius');
+assert.ok(npc.object3D.userData.combatStanceBlend > 0,
+  'combat intent must drive the shipped combat-stance runtime blend');
+
 // Lose contact. Investigation must persist before route recovery begins.
 for (let i = 0; i < 48 && intents.at(-1) !== 'return'; i += 1) tick({ x: 100, z: 100 });
 assert.ok(intents.includes('investigate'), 'lost contact must enter last-known investigation');
