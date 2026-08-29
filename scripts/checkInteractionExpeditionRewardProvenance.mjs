@@ -48,6 +48,35 @@ const text = buildQuartermasterText(restored.snapshot());
 assert.match(text, /Son gelir: Liman Taverna Seferi · \+12 bakır · bakiye 60/);
 assert.doesNotMatch(text, /Son gelir: Sefer kontratı · \+12/);
 
+const tradeAfterReward = createInteractionEconomyState(40);
+tradeAfterReward.credit(12, {
+  sourceId: 'expedition-contract:dragonstone-harbor-tavern-run',
+  label: 'Liman Taverna Seferi',
+});
+const tradeResult = tradeAfterReward.purchase(
+  { id: 'dragonstone-field-ration', itemId: 'dragonstone-field-ration' },
+  () => true,
+);
+assert.equal(tradeResult.ok, true);
+assert.equal(tradeAfterReward.snapshot().copper, 46, 'later quartermaster trade must debit the live wallet after expedition income');
+assert.equal(
+  tradeAfterReward.snapshot().ledger.recentCredits.at(-1).balanceCopper,
+  52,
+  'later trade must not rewrite the historical post-credit balance stored on the expedition receipt',
+);
+const tradeAfterRewardText = buildQuartermasterText(tradeAfterReward.snapshot());
+assert.match(tradeAfterRewardText, /Kese: 46 bakır/);
+assert.match(tradeAfterRewardText, /Son gelir: Liman Taverna Seferi · \+12 bakır · bakiye 52/);
+assert.match(tradeAfterRewardText, /Son işlem: #1 Dragonstone saha azığı · 6 bakır · bakiye 46/);
+const tradeAfterRewardSaved = tradeAfterReward.snapshot();
+const tradeAfterRewardRestored = createInteractionEconomyState();
+tradeAfterRewardRestored.restore(tradeAfterRewardSaved);
+assert.deepEqual(
+  tradeAfterRewardRestored.snapshot(),
+  tradeAfterRewardSaved,
+  'save/load must preserve distinct expedition-income and later-trade receipts without collapsing their balances',
+);
+
 const bounded = createInteractionEconomyState(0);
 const authoredCredits = [
   ['dragonstone-watch-circuit', 'Nöbet Yolu Devriyesi', 8],
