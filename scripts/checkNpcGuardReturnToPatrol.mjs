@@ -23,6 +23,10 @@ const playerCollider = {
   resolveXZ(x, z) { return { x, z }; },
 };
 
+const tickSeconds = 0.25;
+const speedMps = 1.4;
+const returnSpeedMps = speedMps * 0.8;
+
 const npc = await createNPC({
   assetLoader,
   modelUrl: 'guard.fbx',
@@ -36,7 +40,7 @@ const npc = await createNPC({
   groundCollider,
   playerCollider,
   patrolWaypoints: [{ x: 0, z: 0 }, { x: 0, z: 12 }],
-  speedMps: 1.4,
+  speedMps,
   pauseSeconds: 0,
   combatStanceTriggerRadiusMeters: 10,
   perceptionEnabled: true,
@@ -45,7 +49,7 @@ const npc = await createNPC({
 
 const intents = [];
 const tick = (player) => {
-  npc.update(0.25, player);
+  npc.update(tickSeconds, player);
   intents.push(npc.object3D.userData.npcPerception?.intent ?? 'none');
 };
 
@@ -63,10 +67,13 @@ assert.equal(npc.object3D.userData.npcPerception.returningToRoute, true,
 
 const returnStartDistance = Math.hypot(npc.object3D.position.x, npc.object3D.position.z);
 assert.ok(returnStartDistance > 0.35, 'return must start while displaced from the patrol waypoint');
+const returnStartTick = npc.object3D.userData.simulationTicks;
+const maxReturnTicks = Math.ceil(returnStartDistance / (returnSpeedMps * tickSeconds)) + 2;
 
 for (let i = 0; i < 80 && npc.object3D.userData.npcPerception?.intent !== 'patrol'; i += 1) tick({ x: 100, z: 100 });
 
 const finalDistance = Math.hypot(npc.object3D.position.x, npc.object3D.position.z);
+const returnTicks = npc.object3D.userData.simulationTicks - returnStartTick;
 assert.equal(npc.object3D.userData.npcPerception.intent, 'patrol',
   'guard must only resume patrol after route reacquisition');
 assert.equal(npc.object3D.userData.npcPerception.returningToRoute, false,
@@ -74,6 +81,8 @@ assert.equal(npc.object3D.userData.npcPerception.returningToRoute, false,
 assert.equal(npc.object3D.userData.npcPerception.lastKnown, null,
   'stale last-known player target must clear after route recovery');
 assert.ok(finalDistance <= 0.35, `guard must recover the patrol waypoint, got ${finalDistance.toFixed(3)}m`);
+assert.ok(returnTicks <= maxReturnTicks,
+  `route recovery must stay within deterministic tick budget (${returnTicks}/${maxReturnTicks})`);
 assert.ok(npc.object3D.userData.simulationTicks >= intents.length,
   'acceptance must run through shipped NPC simulation ticks');
 
@@ -83,5 +92,8 @@ console.log('NPC_GUARD_RETURN_TO_PATROL_PASS', JSON.stringify({
   intents: [...new Set(intents)],
   returnStartDistance: Number(returnStartDistance.toFixed(3)),
   finalDistance: Number(finalDistance.toFixed(3)),
+  returnTicks,
+  maxReturnTicks,
+  tickSeconds,
   simulationTicks: npc.object3D.userData.simulationTicks,
 }));
