@@ -48,14 +48,28 @@ const npc = await createNPC({
 });
 
 const intents = [];
-const tick = (player) => {
-  npc.update(tickSeconds, player);
+const tick = (player, delta = tickSeconds) => {
+  npc.update(delta, player);
   intents.push(npc.object3D.userData.npcPerception?.intent ?? 'none');
 };
 
-// Acquire a visible target and leave the authored patrol route.
-tick({ x: 0, z: 8 });
-assert.equal(intents.at(-1), 'chase', 'visible acquired target outside engage radius must enter chase');
+// Begin on the authored route with no actionable target. The acceptance must prove the
+// full shipped patrol -> detect/observe -> chase chain instead of starting after detection.
+tick({ x: 100, z: 100 });
+assert.equal(intents.at(-1), 'patrol', 'guard must begin in authored patrol state before detection');
+
+// A short visible sample must register deterministic visual detection without immediately
+// skipping the shipped suspicion/observe stage.
+tick({ x: 0, z: 8 }, 0.1);
+assert.equal(intents.at(-1), 'observe', 'first visible sample must enter the shipped detect/observe stage');
+assert.equal(npc.object3D.userData.npcPerception.lineOfSight, true,
+  'visual detection must be backed by the shipped line-of-sight query');
+assert.match(npc.object3D.userData.npcPerception.reason, /^(vision|peripheral)$/,
+  'detect/observe must report a visual awareness reason');
+
+// Sustained visual acquisition must cross suspicion threshold and leave the authored route.
+tick({ x: 0, z: 8 }, 0.1);
+assert.equal(intents.at(-1), 'chase', 'sustained visible target outside engage radius must enter chase');
 assert.ok(npc.object3D.position.z > 0, 'chase must physically displace the guard from its home waypoint');
 
 // Close into the shipped engage radius before contact is lost. This keeps the acceptance
