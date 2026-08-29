@@ -102,6 +102,23 @@ assert.match(blockedAfterLaterRewardText, /Kese: 37 bakır/);
 assert.match(blockedAfterLaterRewardText, /Son gelir: Kapı Devriyesi Seferi · \+9 bakır · bakiye 37/);
 assert.match(blockedAfterLaterRewardText, /Son işlem: #4 Dragonstone saha azığı · 6 bakır · bakiye 28/);
 
+const beforeInventoryRejectedTrade = structuredClone(restored.snapshot());
+const inventoryRejectedTrade = restored.purchase(
+  { id: 'dragonstone-whetstone', itemId: 'dragonstone-whetstone' },
+  () => ({ ok: false, reason: 'inventory-full' }),
+);
+assert.equal(inventoryRejectedTrade.ok, false, 'inventory rejection must abort an otherwise available settlement trade');
+assert.equal(inventoryRejectedTrade.reason, 'inventory-full');
+assert.equal(inventoryRejectedTrade.balanceCopper, 37);
+assert.equal(inventoryRejectedTrade.remainingStock, 2);
+assert.deepEqual(
+  restored.snapshot(),
+  beforeInventoryRejectedTrade,
+  'inventory-full rejection after expedition income must not spend copper, consume stock, append trade history or rewrite reward provenance',
+);
+assert.match(buildQuartermasterText(restored.snapshot()), /Son gelir: Kapı Devriyesi Seferi · \+9 bakır · bakiye 37/);
+assert.match(buildQuartermasterText(restored.snapshot()), /Son işlem: #4 Dragonstone saha azığı · 6 bakır · bakiye 28/);
+
 const beforeInvalidCredits = structuredClone(restored.snapshot());
 for (const invalidAmount of [0, -1, Number.NaN, Number.NEGATIVE_INFINITY]) {
   const rejectedCredit = restored.credit(invalidAmount, {
