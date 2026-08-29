@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-29-v19-lowland-ecology-rock-weathering-separation',
+	id: 'geographic-reference-palette-2026-08-29-v20-coastal-open-ocean-depth-separation',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -21,7 +21,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	]),
 	calibration: Object.freeze({
 		terrain: 'deeper cool organic shadows, stronger living-meadow versus dry-heather/mineral-soil separation, saturated damp horizons, and wider weathered-rock shadow/sun/mineral contrast so full-world lowlands and massifs retain ecological and lithologic depth without changing canonical geography',
-		water: 'cool mineral-green littoral water with restrained saturation, distinct lake and river mineral signatures, blue-black offshore depth that remains readable instead of clipping to black, and aerated neutral-white falls/foam',
+		water: 'clear mineral-green littoral water, distinct lake and river signatures, brighter readable blue-black offshore water over a substantially deeper abyss backdrop, and aerated neutral-white falls/foam so full-world depth remains legible without changing canonical wet coverage',
 		road: 'warm compacted earth, dark damp ruts, mineral dust, stone and moss shoulders',
 		celestial: 'warm low sun, neutral noon, cool moon with preserved material readability',
 	}),
@@ -47,15 +47,15 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		mossEdge: 0x40523a,
 	}),
 	water: Object.freeze({
-		shoreClear: 0x527f7b,
-		lakeClear: 0x456d6d,
-		riverPool: 0x48666a,
-		rapid: 0x567f8a,
-		deepSea: 0x123b52,
-		abyss: 0x0b2838,
-		plunge: 0x4a6973,
-		splash: 0xd5e5e4,
-		foam: 0xeaf3f1,
+		shoreClear: 0x5a8b84,
+		lakeClear: 0x467477,
+		riverPool: 0x486d73,
+		rapid: 0x5b8791,
+		deepSea: 0x174760,
+		abyss: 0x071e30,
+		plunge: 0x4d707a,
+		splash: 0xd8e8e6,
+		foam: 0edf5f2,
 	}),
 	celestial: Object.freeze({
 		dawn: 0xffb366,
