@@ -11,7 +11,7 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX04_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex04-detail-2026-08-28-v6-micro-normal-weathering',
+  id: 'owner-map-pindex04-detail-2026-08-29-v7-three-scale-normal-weathering',
   pindex: 4,
   renderOnly: true,
   geographyAuthorityUnchanged: true,
@@ -23,12 +23,13 @@ export const PINDEX04_DETAIL_POLICY = Object.freeze({
   interfluveMeters: 980,
   peatMeters: 360,
   oxideMeters: 610,
+  normalMicroMeters: 13,
   normalGrainMeters: 39,
   normalWeatherMeters: 148,
   boundaryProbeNormalized: 0.006,
   amplitudeBySurface: Object.freeze({ sea: 0.014, lake: 0.016, soil: 0.174, rock: 0.148, snow: 0.074 }),
   chromaBySurface: Object.freeze({ sea: 0.016, lake: 0.020, soil: 0.154, rock: 0.108, snow: 0.056 }),
-  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.21, rock: 0.33, snow: 0.11 }),
+  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.28, rock: 0.45, snow: 0.14 }),
 });
 
 function hash01(ix, iz, seed = 0) {
@@ -178,11 +179,18 @@ function surfaceFabric(surface, worldX, worldZ) {
     cool += macro * 0.14;
   }
 
-  // Lighting breakup uses two unrelated scales so the new PBR response follows the same weathered
-  // language as the albedo without becoming a repeated bump texture. This remains render-only:
-  // only the existing vertex normal is tilted; no vertex position or canonical sampler is changed.
+  // Lighting breakup uses three unrelated scales so broad weathering, grain and sub-grain mineral
+  // fracture do not collapse into a repeated bump texture. This remains render-only: only the
+  // existing vertex normal is tilted; no vertex position or canonical sampler is changed.
+  const microStep = P.normalMicroMeters * 0.42;
   const grainStep = P.normalGrainMeters * 0.36;
   const weatherStep = P.normalWeatherMeters * 0.29;
+  const microWarpX = worldX + fine * 7 + meso * 3;
+  const microWarpZ = worldZ - fine * 5 + macro * 4;
+  const microX = valueNoise(microWarpX + microStep, microWarpZ, P.normalMicroMeters, 67.3)
+    - valueNoise(microWarpX - microStep, microWarpZ, P.normalMicroMeters, 67.3);
+  const microZ = valueNoise(microWarpX, microWarpZ + microStep, P.normalMicroMeters, 69.9)
+    - valueNoise(microWarpX, microWarpZ - microStep, P.normalMicroMeters, 69.9);
   const grainX = valueNoise(worldX + grainStep, worldZ, P.normalGrainMeters, 73.1)
     - valueNoise(worldX - grainStep, worldZ, P.normalGrainMeters, 73.1);
   const grainZ = valueNoise(worldX, worldZ + grainStep, P.normalGrainMeters, 73.1)
@@ -201,8 +209,8 @@ function surfaceFabric(surface, worldX, worldZ) {
     exposedInterfluve,
     peat,
     ironCrust,
-    normalX: grainX * 0.63 + weatherX * 0.37,
-    normalZ: grainZ * 0.63 + weatherZ * 0.37,
+    normalX: microX * 0.34 + grainX * 0.41 + weatherX * 0.25,
+    normalZ: microZ * 0.34 + grainZ * 0.41 + weatherZ * 0.25,
   };
 }
 
