@@ -87,6 +87,21 @@ assert.match(laterRewardText, /Kese: 37 bakır/);
 assert.match(laterRewardText, /Son gelir: Kapı Devriyesi Seferi · \+9 bakır · bakiye 37/);
 assert.match(laterRewardText, /Son işlem: #4 Dragonstone saha azığı · 6 bakır · bakiye 28/);
 
+const blockedAfterLaterReward = restored.purchase(
+  { id: 'dragonstone-field-ration', itemId: 'dragonstone-field-ration' },
+  () => true,
+);
+assert.equal(blockedAfterLaterReward.ok, false, 'later expedition income must not replenish exhausted quartermaster stock');
+assert.deepEqual(
+  restored.snapshot(),
+  afterLaterReward,
+  'blocked post-income purchase must preserve the new expedition receipt, historical trade receipt and wallet atomically',
+);
+const blockedAfterLaterRewardText = buildQuartermasterText(restored.snapshot());
+assert.match(blockedAfterLaterRewardText, /Kese: 37 bakır/);
+assert.match(blockedAfterLaterRewardText, /Son gelir: Kapı Devriyesi Seferi · \+9 bakır · bakiye 37/);
+assert.match(blockedAfterLaterRewardText, /Son işlem: #4 Dragonstone saha azığı · 6 bakır · bakiye 28/);
+
 const roundTrip = createInteractionEconomyState();
 roundTrip.restore(afterLaterReward);
 assert.deepEqual(
