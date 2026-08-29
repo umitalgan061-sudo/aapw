@@ -96,6 +96,22 @@ try {
 		const masteryRpg = masteryController.getRpgSnapshot();
 		masteryBox.dispose(); masteryHost.remove();
 
+		const masteryReplayHost = document.createElement('div');
+		document.body.appendChild(masteryReplayHost);
+		const masteryReplayBox = new DialogueBox(masteryReplayHost);
+		const masteryReplayController = createInteractionController({ interactionPrompt: { setVisible() {} }, dialogueBox: masteryReplayBox, greetingTemplate: 'Selam, {name}!', radiusMeters: 6 });
+		const masteryReplaySave = structuredClone(masteryRpg);
+		masteryReplaySave.inventory = expeditionInventory();
+		masteryReplaySave.journey = { ...(masteryReplaySave.journey ?? {}), fatigueKm: 0 };
+		masteryReplayController.restoreRpgSnapshot(masteryReplaySave);
+		masteryReplayController.update([quartermaster], { x: 1, z: 1 });
+		masteryReplayController.handleKeyDown({ code: 'KeyT', repeat: false });
+		const masteryReplayBoardText = masteryReplayBox._textEl.textContent;
+		masteryReplayController.handleKeyDown({ code: 'Digit3', repeat: false });
+		const masteryReplayResultText = masteryReplayBox._textEl.textContent;
+		const masteryReplayRpg = masteryReplayController.getRpgSnapshot();
+		masteryReplayBox.dispose(); masteryReplayHost.remove();
+
 		return {
 			boardText,
 			resultText,
@@ -128,6 +144,13 @@ try {
 			masteryCopper: masteryRpg.economy.copper,
 			masteryClaimed: masteryRpg.worldState.dragonstoneExpeditionMasteryClaimed,
 			masteryCredits: masteryRpg.economy.ledger.recentCredits,
+			masteryReplayBoardText,
+			masteryReplayResultText,
+			masteryReplayXp: masteryReplayRpg.progression.totalExperience,
+			masteryReplayReputation: masteryReplayRpg.reputation.dragonstone,
+			masteryReplayCopper: masteryReplayRpg.economy.copper,
+			masteryReplayClaimed: masteryReplayRpg.worldState.dragonstoneExpeditionMasteryClaimed,
+			masteryReplayCredits: masteryReplayRpg.economy.ledger.recentCredits,
 		};
 	});
 	if (pageErrors.length || consoleErrors.length) throw new Error(`Expedition-board browser proof emitted errors: ${JSON.stringify({ pageErrors, consoleErrors })}`);
@@ -150,7 +173,10 @@ try {
 	if (!result.masteryJournalText.includes('Sefer kontratları: 3/3') || !result.masteryJournalText.includes('Sefer ustalığı: TAMAMLANDI')) throw new Error(`Mastery journal persistence UX mismatch: ${JSON.stringify(result)}`);
 	if (result.masteryXp !== 75 || result.masteryReputation !== 5 || result.masteryCopper !== 70 || result.masteryClaimed !== true) throw new Error(`Canonical mastery state mismatch: ${JSON.stringify(result)}`);
 	if (result.masteryCredits?.length !== 2 || result.masteryCredits[0]?.sourceId !== 'expedition-contract:dragonstone-ridge-camp' || result.masteryCredits[0]?.label !== 'Sırt Kampı Seferi' || result.masteryCredits[0]?.creditedCopper !== 10 || result.masteryCredits[0]?.balanceCopper !== 50 || result.masteryCredits.at(-1)?.sourceId !== 'expedition-mastery' || result.masteryCredits.at(-1)?.creditedCopper !== 20) throw new Error(`Mastery economy receipt provenance mismatch: ${JSON.stringify(result)}`);
-	console.log(`[RPG Chromium] PASS expedition contract + replay idempotency + mastery keyboard loop ${JSON.stringify({ fatigueKm: result.fatigueKm, packs: result.packs, xp: result.xp, reputation: result.reputation, copper: result.copper, routeReceipt: result.credits?.[0], restoredQuartermaster: result.restoredQuartermasterText, replayResult: result.replayResultText, replayXp: result.replayXp, replayReputation: result.replayReputation, replayCopper: result.replayCopper, restoredRouteReceipt: result.restoredCredits?.[0], masteryXp: result.masteryXp, masteryReputation: result.masteryReputation, masteryCopper: result.masteryCopper, masteryClaimed: result.masteryClaimed })}`);
+	if (!result.masteryReplayBoardText.includes('Sefer ustalığı: TAMAMLANDI') || !result.masteryReplayBoardText.includes('Sırt Kampı Seferi') || !result.masteryReplayBoardText.includes('ÖDÜL ALINDI')) throw new Error(`Mastery replay board did not preserve claimed state: ${JSON.stringify(result)}`);
+	if (!result.masteryReplayResultText.includes('SEFER TAMAMLANDI') || !result.masteryReplayResultText.includes('Kontrat daha önce tamamlandı · tekrar ödülü yok')) throw new Error(`Mastery-route replay did not report reward idempotency: ${JSON.stringify(result)}`);
+	if (result.masteryReplayXp !== result.masteryXp || result.masteryReplayReputation !== result.masteryReputation || result.masteryReplayCopper !== result.masteryCopper || result.masteryReplayClaimed !== true || JSON.stringify(result.masteryReplayCredits) !== JSON.stringify(result.masteryCredits)) throw new Error(`Mastery-route replay duplicated mastery/progression/reputation/economy rewards: ${JSON.stringify(result)}`);
+	console.log(`[RPG Chromium] PASS expedition contract + replay idempotency + mastery replay idempotency keyboard loop ${JSON.stringify({ fatigueKm: result.fatigueKm, packs: result.packs, xp: result.xp, reputation: result.reputation, copper: result.copper, routeReceipt: result.credits?.[0], restoredQuartermaster: result.restoredQuartermasterText, replayResult: result.replayResultText, replayXp: result.replayXp, replayReputation: result.replayReputation, replayCopper: result.replayCopper, restoredRouteReceipt: result.restoredCredits?.[0], masteryXp: result.masteryXp, masteryReputation: result.masteryReputation, masteryCopper: result.masteryCopper, masteryClaimed: result.masteryClaimed, masteryReplayResult: result.masteryReplayResultText, masteryReplayCopper: result.masteryReplayCopper })}`);
 } finally {
 	await browser.close();
 	await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
