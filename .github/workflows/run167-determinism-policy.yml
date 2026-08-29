@@ -55,7 +55,17 @@ jobs:
         run: |
           set -euo pipefail
           git lfs version
-          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
+          LFS_INCLUDE="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**"
+          for attempt in 1 2 3; do
+            if git lfs pull --include="$LFS_INCLUDE" --exclude=""; then
+              break
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Scoped LFS hydration failed after $attempt attempts." >&2
+              exit 1
+            fi
+            sleep "$((attempt * 5))"
+          done
 
       - name: Install Playwright outside repo
         shell: bash
