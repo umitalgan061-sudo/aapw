@@ -10,14 +10,17 @@ import {
 } from './westernReferenceSurfaceFabric.js';
 
 export const PINDEX01_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex01-detail-2026-08-29-v5-readable-shared-fabric-micro-normal',
+  id: 'owner-map-pindex01-detail-2026-08-29-v6-multiscale-weathered-normal',
   pindex: 1,
   westernMarineShelfTone: true,
   westernReferenceSurfaceFabric: true,
   worldSpaceMicroNormalWeathering: true,
   sharedFabricNormalSource: true,
   normalProbeMeters: 9.0,
-  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.30, rock: 0.48, snow: 0.16 }),
+  normalMesoProbeMeters: 31.0,
+  normalMacroProbeMeters: 96.0,
+  normalScaleWeights: Object.freeze({ micro: 0.56, meso: 0.29, macro: 0.15 }),
+  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.32, rock: 0.50, snow: 0.16 }),
   normalSeamFeatherNormalized: 0.012,
   mapAuthorityUnchanged: true,
   geographyAuthorityUnchanged: true,
@@ -50,6 +53,14 @@ function weatheringHeight(fabric, surface) {
     + fabric.exposedInterfluve * 0.17 + fabric.fine * 0.12;
 }
 
+function weatheringGradient(worldX, worldZ, step, surface) {
+  const east = weatheringHeight(sampleWesternReferenceSurfaceFabric(worldX + step, worldZ), surface);
+  const west = weatheringHeight(sampleWesternReferenceSurfaceFabric(worldX - step, worldZ), surface);
+  const north = weatheringHeight(sampleWesternReferenceSurfaceFabric(worldX, worldZ + step), surface);
+  const south = weatheringHeight(sampleWesternReferenceSurfaceFabric(worldX, worldZ - step), surface);
+  return { x: east - west, z: north - south };
+}
+
 function applyPindex01WeatheredNormal(normal, index, classification) {
   if (!normal || classification.surface === 'sea' || classification.surface === 'lake') return false;
   const P = PINDEX01_DETAIL_POLICY;
@@ -57,16 +68,17 @@ function applyPindex01WeatheredNormal(normal, index, classification) {
   const seam = pindex01NormalWeight(classification.normalizedX);
   if (strength <= 0 || seam <= 0) return false;
 
-  const step = P.normalProbeMeters;
   const wx = classification.worldX;
   const wz = classification.worldZ;
-  const east = weatheringHeight(sampleWesternReferenceSurfaceFabric(wx + step, wz), classification.surface);
-  const west = weatheringHeight(sampleWesternReferenceSurfaceFabric(wx - step, wz), classification.surface);
-  const north = weatheringHeight(sampleWesternReferenceSurfaceFabric(wx, wz + step), classification.surface);
-  const south = weatheringHeight(sampleWesternReferenceSurfaceFabric(wx, wz - step), classification.surface);
-  const weatherGain = classification.surface === 'rock' ? 1.15 : classification.surface === 'snow' ? 0.78 : 1.0;
-  const perturbX = (east - west) * strength * seam * weatherGain;
-  const perturbZ = (north - south) * strength * seam * weatherGain;
+  const micro = weatheringGradient(wx, wz, P.normalProbeMeters, classification.surface);
+  const meso = weatheringGradient(wx, wz, P.normalMesoProbeMeters, classification.surface);
+  const macro = weatheringGradient(wx, wz, P.normalMacroProbeMeters, classification.surface);
+  const weights = P.normalScaleWeights;
+  const weatherGain = classification.surface === 'rock' ? 1.18 : classification.surface === 'snow' ? 0.78 : 1.0;
+  const perturbX = (micro.x * weights.micro + meso.x * weights.meso + macro.x * weights.macro)
+    * strength * seam * weatherGain;
+  const perturbZ = (micro.z * weights.micro + meso.z * weights.meso + macro.z * weights.macro)
+    * strength * seam * weatherGain;
 
   const nx = normal.getX(index) + perturbX;
   const ny = Math.max(0.08, normal.getY(index));
