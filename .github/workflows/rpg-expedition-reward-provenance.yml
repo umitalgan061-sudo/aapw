@@ -63,6 +63,9 @@ jobs:
       - name: Existing quartermaster trade regression
         run: node scripts/checkInteractionQuartermasterTrade.mjs
 
+      - name: Existing mastery economy continuity regression
+        run: node scripts/checkInteractionMasteryEconomyContinuity.mjs
+
       - name: Shared Material Placement Contract regression
         run: node scripts/checkSharedMaterialPlacementContract.js
 
