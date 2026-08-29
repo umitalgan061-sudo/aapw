@@ -4,16 +4,19 @@ import { mapCanvasToNormalizedReference } from './worldReferenceAlignment.js';
 import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 import { applyWesternMarineShelfToneToColorAttribute } from './westernMarineShelfTone.js';
-import { applyWesternReferenceSurfaceFabricToColorAttribute } from './westernReferenceSurfaceFabric.js';
+import {
+  applyWesternReferenceSurfaceFabricToColorAttribute,
+  sampleWesternReferenceSurfaceFabric,
+} from './westernReferenceSurfaceFabric.js';
 
 export const PINDEX03_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex03-detail-2026-08-29-v4-weathered-micro-normal',
+  id: 'owner-map-pindex03-detail-2026-08-29-v5-shared-fabric-micro-normal',
   pindex: 3,
   westernMarineShelfTone: true,
   westernReferenceSurfaceFabric: true,
   worldSpaceMicroNormalWeathering: true,
-  normalMesoMeters: 236,
-  normalFineMeters: 68,
+  sharedFabricNormalSource: true,
+  normalProbeMeters: 5.0,
   normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.18, rock: 0.30, snow: 0.09 }),
   normalSeamFeatherNormalized: 0.012,
   mapAuthorityUnchanged: true,
@@ -23,30 +26,6 @@ export const PINDEX03_DETAIL_POLICY = Object.freeze({
   colliderAuthorityUnchanged: true,
   renderOnly: true,
 });
-
-function hash01(ix, iz, seed) {
-  let h = Math.imul((ix | 0) ^ seed, 0x45d9f3b) ^ Math.imul((iz | 0) + seed, 0x119de1f3);
-  h ^= h >>> 16;
-  h = Math.imul(h, 0x27d4eb2d);
-  h ^= h >>> 15;
-  return (h >>> 0) / 0x100000000;
-}
-
-function valueNoise(worldX, worldZ, scaleMeters, seed) {
-  const gx = worldX / scaleMeters;
-  const gz = worldZ / scaleMeters;
-  const x0 = Math.floor(gx);
-  const z0 = Math.floor(gz);
-  const fx0 = gx - x0;
-  const fz0 = gz - z0;
-  const fx = fx0 * fx0 * (3 - 2 * fx0);
-  const fz = fz0 * fz0 * (3 - 2 * fz0);
-  const a = hash01(x0, z0, seed);
-  const b = hash01(x0 + 1, z0, seed);
-  const c = hash01(x0, z0 + 1, seed);
-  const d = hash01(x0 + 1, z0 + 1, seed);
-  return THREE.MathUtils.lerp(THREE.MathUtils.lerp(a, b, fx), THREE.MathUtils.lerp(c, d, fx), fz) * 2 - 1;
-}
 
 function smoothstep01(value) {
   const t = THREE.MathUtils.clamp(value, 0, 1);
@@ -60,6 +39,17 @@ function pindex03NormalWeight(normalizedX) {
   return west * east;
 }
 
+function weatheringHeight(fabric, surface) {
+  if (surface === 'rock') {
+    return fabric.weathering * 0.30 + fabric.fracture * 0.34 + fabric.frostWash * 0.20 + fabric.fine * 0.16;
+  }
+  if (surface === 'snow') {
+    return fabric.crust * 0.38 + fabric.fine * 0.27 + fabric.micro * 0.19 + fabric.weathering * 0.16;
+  }
+  return fabric.moisture * 0.27 + fabric.mineral * 0.24 + fabric.weathering * 0.20
+    + fabric.exposedInterfluve * 0.17 + fabric.fine * 0.12;
+}
+
 function applyPindex03WeatheredNormal(normal, index, classification) {
   if (!normal || classification.surface === 'sea' || classification.surface === 'lake') return false;
   const P = PINDEX03_DETAIL_POLICY;
@@ -67,21 +57,17 @@ function applyPindex03WeatheredNormal(normal, index, classification) {
   const seam = pindex03NormalWeight(classification.normalizedX);
   if (strength <= 0 || seam <= 0) return false;
 
-  const step = 4.0;
+  const step = P.normalProbeMeters;
   const wx = classification.worldX;
   const wz = classification.worldZ;
-  const mesoX = valueNoise(wx + step, wz, P.normalMesoMeters, 0x3031)
-    - valueNoise(wx - step, wz, P.normalMesoMeters, 0x3031);
-  const mesoZ = valueNoise(wx, wz + step, P.normalMesoMeters, 0x4041)
-    - valueNoise(wx, wz - step, P.normalMesoMeters, 0x4041);
-  const fineX = valueNoise(wx + step, wz, P.normalFineMeters, 0x5051)
-    - valueNoise(wx - step, wz, P.normalFineMeters, 0x5051);
-  const fineZ = valueNoise(wx, wz + step, P.normalFineMeters, 0x6061)
-    - valueNoise(wx, wz - step, P.normalFineMeters, 0x6061);
-
+  const east = weatheringHeight(sampleWesternReferenceSurfaceFabric(wx + step, wz), classification.surface);
+  const west = weatheringHeight(sampleWesternReferenceSurfaceFabric(wx - step, wz), classification.surface);
+  const north = weatheringHeight(sampleWesternReferenceSurfaceFabric(wx, wz + step), classification.surface);
+  const south = weatheringHeight(sampleWesternReferenceSurfaceFabric(wx, wz - step), classification.surface);
   const weatherGain = classification.surface === 'rock' ? 1.12 : classification.surface === 'snow' ? 0.72 : 0.92;
-  const perturbX = (mesoX * 0.42 + fineX * 0.58) * strength * seam * weatherGain;
-  const perturbZ = (mesoZ * 0.42 + fineZ * 0.58) * strength * seam * weatherGain;
+  const perturbX = (east - west) * strength * seam * weatherGain;
+  const perturbZ = (north - south) * strength * seam * weatherGain;
+
   const nx = normal.getX(index) + perturbX;
   const ny = Math.max(0.08, normal.getY(index));
   const nz = normal.getZ(index) + perturbZ;
