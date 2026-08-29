@@ -132,6 +132,7 @@ assert.ok(resumedPatrolDistance > 0,
 // is outside its forward vision cone but inside the deterministic hearing radius, so the guard
 // must investigate the heard last-known position and eventually recover its authored route.
 const hearingWaypoints = [{ x: 0, z: 0 }, { x: 0, z: 6 }];
+const hearingRecoveryWaypoint = hearingWaypoints[1];
 const hearingNpc = await createNPC({
   assetLoader,
   modelUrl: 'guard.fbx',
@@ -170,15 +171,46 @@ assert.equal(hearingIntents.at(-1), 'investigate',
 
 for (let i = 0; i < 120 && hearingIntents.at(-1) !== 'return'; i += 1) hearingTick({ x: 100, z: 100 });
 assert.equal(hearingIntents.at(-1), 'return', 'expired hearing investigation must enter route return');
+const hearingDistanceToRecoveryWaypoint = () => Math.hypot(
+  hearingNpc.object3D.position.x - hearingRecoveryWaypoint.x,
+  hearingNpc.object3D.position.z - hearingRecoveryWaypoint.z,
+);
+const hearingReturnStartDistance = hearingDistanceToRecoveryWaypoint();
+assert.ok(hearingReturnStartDistance > 0.35,
+  'hearing return must start while displaced from the active patrol waypoint');
+const hearingReturnStartTick = hearingNpc.object3D.userData.simulationTicks;
+const hearingMaxReturnTicks = Math.ceil(hearingReturnStartDistance / (returnSpeedMps * tickSeconds)) + 2;
 for (let i = 0; i < 120 && hearingNpc.object3D.userData.npcPerception?.intent !== 'patrol'; i += 1) hearingTick({ x: 100, z: 100 });
+const hearingFinalDistance = hearingDistanceToRecoveryWaypoint();
+const hearingReturnTicks = hearingNpc.object3D.userData.simulationTicks - hearingReturnStartTick;
 assert.equal(hearingNpc.object3D.userData.npcPerception.intent, 'patrol',
   'hearing-driven investigation must recover back to authored patrol');
 assert.equal(hearingNpc.object3D.userData.npcPerception.returningToRoute, false,
   'hearing-driven route recovery must clear the route-return latch');
 assert.equal(hearingNpc.object3D.userData.npcPerception.lastKnown, null,
   'hearing-driven route recovery must clear stale last-known coordinates');
+assert.ok(hearingFinalDistance <= 0.35,
+  `hearing route recovery must reach the active patrol waypoint, got ${hearingFinalDistance.toFixed(3)}m`);
+assert.ok(hearingReturnTicks <= hearingMaxReturnTicks,
+  `hearing route recovery must stay within deterministic tick budget (${hearingReturnTicks}/${hearingMaxReturnTicks})`);
+
+const hearingRecoveredPosition = {
+  x: hearingNpc.object3D.position.x,
+  z: hearingNpc.object3D.position.z,
+};
+hearingTick({ x: 100, z: 100 });
+hearingTick({ x: 100, z: 100 });
+const hearingResumedPatrolDistance = Math.hypot(
+  hearingNpc.object3D.position.x - hearingRecoveredPosition.x,
+  hearingNpc.object3D.position.z - hearingRecoveredPosition.z,
+);
+assert.equal(hearingNpc.object3D.userData.npcPerception.intent, 'patrol',
+  'hearing-recovered guard must remain in patrol after route reacquisition');
+assert.ok(hearingResumedPatrolDistance > 0,
+  'hearing-recovered guard must physically resume authored patrol movement');
 
 const hearingSimulationTicks = hearingNpc.object3D.userData.simulationTicks;
+const simulationTicks = npc.object3D.userData.simulationTicks;
 hearingNpc.dispose();
 npc.dispose();
 
@@ -191,7 +223,13 @@ console.log('NPC_GUARD_RETURN_TO_PATROL_PASS', JSON.stringify({
   returnTicks,
   maxReturnTicks,
   resumedPatrolDistance: Number(resumedPatrolDistance.toFixed(3)),
+  hearingRecoveryWaypoint,
+  hearingReturnStartDistance: Number(hearingReturnStartDistance.toFixed(3)),
+  hearingFinalDistance: Number(hearingFinalDistance.toFixed(3)),
+  hearingReturnTicks,
+  hearingMaxReturnTicks,
+  hearingResumedPatrolDistance: Number(hearingResumedPatrolDistance.toFixed(3)),
   tickSeconds,
-  simulationTicks: npc.object3D.userData.simulationTicks,
+  simulationTicks,
   hearingSimulationTicks,
 }));
