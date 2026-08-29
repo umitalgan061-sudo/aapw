@@ -80,6 +80,9 @@ jobs:
       - name: Shipped browser expedition board proof
         run: NODE_PATH="$NODE_PATH" node scripts/checkInteractionExpeditionBoardBrowser.mjs
 
+      - name: Shipped browser mastery to smithing persistence proof
+        run: NODE_PATH="$NODE_PATH" node scripts/checkInteractionMasteryToSmithingBrowser.mjs
+
       - name: Final exact-main freshness
         shell: bash
         run: |
