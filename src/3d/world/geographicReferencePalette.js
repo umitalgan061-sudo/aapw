@@ -55,7 +55,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		abyss: 0x071e30,
 		plunge: 0x4d707a,
 		splash: 0xd8e8e6,
-		foam: 0edf5f2,
+		foam: 0xedf5f2,
 	}),
 	celestial: Object.freeze({
 		dawn: 0xffb366,
