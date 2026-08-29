@@ -16,7 +16,7 @@ permissions:
 jobs:
   attack-commit-grounding:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 60
     steps:
       - name: Checkout exact head
         uses: actions/checkout@v4
@@ -48,22 +48,53 @@ jobs:
           test $((additions + deletions)) -le 1000
           echo "BASE_SHA=$BASE" >> "$GITHUB_ENV"
 
+      - name: Asset-first targeted hydration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs version
+          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**" --exclude=""
+          test -s assets/models/characters/peasant_girl.fbx
+          test -s assets/animations/peasant_girl/idle.fbx
+          test -s assets/animations/peasant_girl/walking.fbx
+          test -s assets/animations/peasant_girl/running.fbx
+
       - name: Player combat grounding contracts
         run: |
+          set -euo pipefail
           node --check src/3d/gameplay/player.js
           node --check scripts/checkPlayerAttackCommitGroundingContract.mjs
           node scripts/checkPlayerAttackCommitGroundingContract.mjs
-          node scripts/checkPlayerAttackCommitMovement.mjs
-          node scripts/checkPlayerGrounding.mjs
+          node --check scripts/checkPlayerGroundingCombatContract.mjs
+          node scripts/checkPlayerGroundingCombatContract.mjs
           node scripts/checkPlayerCombatVerticalSlice.mjs
           node scripts/checkSharedMaterialPlacementContract.js
+          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkServiceWorkerCache.js
 
       - name: Deterministic replay
         run: |
+          set -euo pipefail
           first="$(node scripts/checkPlayerAttackCommitGroundingContract.mjs)"
           second="$(node scripts/checkPlayerAttackCommitGroundingContract.mjs)"
           test "$first" = "$second"
           grep -q 'PLAYER_ATTACK_COMMIT_GROUNDING_CONTRACT_OK' <<< "$first"
+
+      - name: Install Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Shipped scene browser PWA perf proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
 
       - name: Final exact-main freshness
         shell: bash
@@ -72,3 +103,4 @@ jobs:
           git fetch origin main --no-tags
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           test "$(git merge-base origin/main HEAD)" = "$BASE_SHA"
+          git diff --check "$BASE_SHA"...HEAD
