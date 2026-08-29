@@ -10,14 +10,14 @@ import {
 } from './westernReferenceSurfaceFabric.js';
 
 export const PINDEX01_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex01-detail-2026-08-29-v4-shared-fabric-micro-normal',
+  id: 'owner-map-pindex01-detail-2026-08-29-v5-readable-shared-fabric-micro-normal',
   pindex: 1,
   westernMarineShelfTone: true,
   westernReferenceSurfaceFabric: true,
   worldSpaceMicroNormalWeathering: true,
   sharedFabricNormalSource: true,
-  normalProbeMeters: 13.0,
-  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.20, rock: 0.34, snow: 0.10 }),
+  normalProbeMeters: 9.0,
+  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.30, rock: 0.48, snow: 0.16 }),
   normalSeamFeatherNormalized: 0.012,
   mapAuthorityUnchanged: true,
   geographyAuthorityUnchanged: true,
@@ -64,7 +64,7 @@ function applyPindex01WeatheredNormal(normal, index, classification) {
   const west = weatheringHeight(sampleWesternReferenceSurfaceFabric(wx - step, wz), classification.surface);
   const north = weatheringHeight(sampleWesternReferenceSurfaceFabric(wx, wz + step), classification.surface);
   const south = weatheringHeight(sampleWesternReferenceSurfaceFabric(wx, wz - step), classification.surface);
-  const weatherGain = classification.surface === 'rock' ? 1.08 : classification.surface === 'snow' ? 0.68 : 0.88;
+  const weatherGain = classification.surface === 'rock' ? 1.15 : classification.surface === 'snow' ? 0.78 : 1.0;
   const perturbX = (east - west) * strength * seam * weatherGain;
   const perturbZ = (north - south) * strength * seam * weatherGain;
 
