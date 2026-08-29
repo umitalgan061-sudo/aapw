@@ -10,7 +10,7 @@ import {
 } from './westernReferenceSurfaceFabric.js';
 
 export const PINDEX03_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex03-detail-2026-08-29-v8-triscale-weathered-normal',
+  id: 'owner-map-pindex03-detail-2026-08-30-v9-quadscale-weathered-normal',
   pindex: 3,
   westernMarineShelfTone: true,
   westernReferenceSurfaceFabric: true,
@@ -19,9 +19,11 @@ export const PINDEX03_DETAIL_POLICY = Object.freeze({
   normalMicroProbeMeters: 3.5,
   normalProbeMeters: 9.0,
   normalMacroProbeMeters: 31.0,
-  normalMicroBlend: 0.24,
-  normalMacroBlend: 0.30,
-  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.31, rock: 0.49, snow: 0.145 }),
+  normalBroadProbeMeters: 96.0,
+  normalMicroBlend: 0.22,
+  normalMacroBlend: 0.25,
+  normalBroadBlend: 0.21,
+  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.34, rock: 0.53, snow: 0.155 }),
   normalSeamFeatherNormalized: 0.012,
   mapAuthorityUnchanged: true,
   geographyAuthorityUnchanged: true,
@@ -45,13 +47,15 @@ function pindex03NormalWeight(normalizedX) {
 
 function weatheringHeight(fabric, surface) {
   if (surface === 'rock') {
-    return fabric.weathering * 0.30 + fabric.fracture * 0.34 + fabric.frostWash * 0.20 + fabric.fine * 0.16;
+    return fabric.weathering * 0.24 + fabric.fracture * 0.28 + fabric.frostWash * 0.16
+      + fabric.stonyPatch * 0.18 + fabric.subMicro * 0.14;
   }
   if (surface === 'snow') {
-    return fabric.crust * 0.38 + fabric.fine * 0.27 + fabric.micro * 0.19 + fabric.weathering * 0.16;
+    return fabric.crust * 0.34 + fabric.fine * 0.24 + fabric.micro * 0.16
+      + fabric.weathering * 0.14 + fabric.stonyPatch * 0.12;
   }
-  return fabric.moisture * 0.27 + fabric.mineral * 0.24 + fabric.weathering * 0.20
-    + fabric.exposedInterfluve * 0.17 + fabric.fine * 0.12;
+  return fabric.moisture * 0.22 + fabric.mineral * 0.20 + fabric.weathering * 0.16
+    + fabric.exposedInterfluve * 0.15 + fabric.stonyPatch * 0.15 + fabric.subMicro * 0.12;
 }
 
 function weatheringGradient(worldX, worldZ, step, surface) {
@@ -65,12 +69,14 @@ function weatheringGradient(worldX, worldZ, step, surface) {
 function localWeatheringGain(worldX, worldZ, surface) {
   const fabric = sampleWesternReferenceSurfaceFabric(worldX, worldZ);
   if (surface === 'rock') {
-    return 0.96 + fabric.fracture * 0.18 + fabric.frostWash * 0.10 - fabric.moisture * 0.06;
+    return 0.98 + fabric.fracture * 0.17 + fabric.frostWash * 0.10
+      + fabric.stonyPatch * 0.14 - fabric.moisture * 0.06;
   }
   if (surface === 'snow') {
-    return 0.62 + fabric.crust * 0.10 + fabric.weathering * 0.05;
+    return 0.62 + fabric.crust * 0.09 + fabric.weathering * 0.05 + fabric.stonyPatch * 0.04;
   }
-  return 0.86 + fabric.mineral * 0.08 + fabric.exposedInterfluve * 0.08 - fabric.moisture * 0.07;
+  return 0.88 + fabric.mineral * 0.08 + fabric.exposedInterfluve * 0.08
+    + fabric.stonyPatch * 0.10 - fabric.moisture * 0.07;
 }
 
 function applyPindex03WeatheredNormal(normal, index, classification) {
@@ -85,11 +91,13 @@ function applyPindex03WeatheredNormal(normal, index, classification) {
   const micro = weatheringGradient(wx, wz, P.normalMicroProbeMeters, classification.surface);
   const fine = weatheringGradient(wx, wz, P.normalProbeMeters, classification.surface);
   const macro = weatheringGradient(wx, wz, P.normalMacroProbeMeters, classification.surface);
+  const broad = weatheringGradient(wx, wz, P.normalBroadProbeMeters, classification.surface);
   const microBlend = P.normalMicroBlend;
   const macroBlend = P.normalMacroBlend;
-  const fineBlend = 1 - microBlend - macroBlend;
-  const gradientX = micro.x * microBlend + fine.x * fineBlend + macro.x * macroBlend;
-  const gradientZ = micro.z * microBlend + fine.z * fineBlend + macro.z * macroBlend;
+  const broadBlend = P.normalBroadBlend;
+  const fineBlend = 1 - microBlend - macroBlend - broadBlend;
+  const gradientX = micro.x * microBlend + fine.x * fineBlend + macro.x * macroBlend + broad.x * broadBlend;
+  const gradientZ = micro.z * microBlend + fine.z * fineBlend + macro.z * macroBlend + broad.z * broadBlend;
   const weatherGain = localWeatheringGain(wx, wz, classification.surface);
   const perturbX = gradientX * strength * seam * weatherGain;
   const perturbZ = gradientZ * strength * seam * weatherGain;
