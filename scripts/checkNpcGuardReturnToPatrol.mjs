@@ -93,6 +93,18 @@ assert.ok(returnTicks <= maxReturnTicks,
 assert.ok(npc.object3D.userData.simulationTicks >= intents.length,
   'acceptance must run through shipped NPC simulation ticks');
 
+// Reacquiring the route is not enough: the authored patrol must become live again. The first
+// patrol tick advances the recovered waypoint index; the next must physically move toward the
+// next canonical waypoint instead of leaving the guard stranded at its return point.
+const recoveredZ = npc.object3D.position.z;
+tick({ x: 100, z: 100 });
+tick({ x: 100, z: 100 });
+const resumedPatrolDistance = npc.object3D.position.z - recoveredZ;
+assert.equal(npc.object3D.userData.npcPerception.intent, 'patrol',
+  'guard must remain in patrol after route recovery');
+assert.ok(resumedPatrolDistance > 0,
+  'guard must physically resume movement toward the next canonical patrol waypoint after recovery');
+
 npc.dispose();
 
 console.log('NPC_GUARD_RETURN_TO_PATROL_PASS', JSON.stringify({
@@ -101,6 +113,7 @@ console.log('NPC_GUARD_RETURN_TO_PATROL_PASS', JSON.stringify({
   finalDistance: Number(finalDistance.toFixed(3)),
   returnTicks,
   maxReturnTicks,
+  resumedPatrolDistance: Number(resumedPatrolDistance.toFixed(3)),
   tickSeconds,
   simulationTicks: npc.object3D.userData.simulationTicks,
 }));
