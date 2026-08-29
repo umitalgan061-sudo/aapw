@@ -10,16 +10,18 @@ import {
 } from './westernReferenceSurfaceFabric.js';
 
 export const PINDEX03_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex03-detail-2026-08-29-v7-multiscale-weathered-normal',
+  id: 'owner-map-pindex03-detail-2026-08-29-v8-triscale-weathered-normal',
   pindex: 3,
   westernMarineShelfTone: true,
   westernReferenceSurfaceFabric: true,
   worldSpaceMicroNormalWeathering: true,
   sharedFabricNormalSource: true,
+  normalMicroProbeMeters: 3.5,
   normalProbeMeters: 9.0,
   normalMacroProbeMeters: 31.0,
-  normalMacroBlend: 0.34,
-  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.29, rock: 0.46, snow: 0.14 }),
+  normalMicroBlend: 0.24,
+  normalMacroBlend: 0.30,
+  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.31, rock: 0.49, snow: 0.145 }),
   normalSeamFeatherNormalized: 0.012,
   mapAuthorityUnchanged: true,
   geographyAuthorityUnchanged: true,
@@ -60,6 +62,17 @@ function weatheringGradient(worldX, worldZ, step, surface) {
   return Object.freeze({ x: east - west, z: north - south });
 }
 
+function localWeatheringGain(worldX, worldZ, surface) {
+  const fabric = sampleWesternReferenceSurfaceFabric(worldX, worldZ);
+  if (surface === 'rock') {
+    return 0.96 + fabric.fracture * 0.18 + fabric.frostWash * 0.10 - fabric.moisture * 0.06;
+  }
+  if (surface === 'snow') {
+    return 0.62 + fabric.crust * 0.10 + fabric.weathering * 0.05;
+  }
+  return 0.86 + fabric.mineral * 0.08 + fabric.exposedInterfluve * 0.08 - fabric.moisture * 0.07;
+}
+
 function applyPindex03WeatheredNormal(normal, index, classification) {
   if (!normal || classification.surface === 'sea' || classification.surface === 'lake') return false;
   const P = PINDEX03_DETAIL_POLICY;
@@ -69,12 +82,15 @@ function applyPindex03WeatheredNormal(normal, index, classification) {
 
   const wx = classification.worldX;
   const wz = classification.worldZ;
+  const micro = weatheringGradient(wx, wz, P.normalMicroProbeMeters, classification.surface);
   const fine = weatheringGradient(wx, wz, P.normalProbeMeters, classification.surface);
   const macro = weatheringGradient(wx, wz, P.normalMacroProbeMeters, classification.surface);
+  const microBlend = P.normalMicroBlend;
   const macroBlend = P.normalMacroBlend;
-  const gradientX = fine.x * (1 - macroBlend) + macro.x * macroBlend;
-  const gradientZ = fine.z * (1 - macroBlend) + macro.z * macroBlend;
-  const weatherGain = classification.surface === 'rock' ? 1.16 : classification.surface === 'snow' ? 0.70 : 0.96;
+  const fineBlend = 1 - microBlend - macroBlend;
+  const gradientX = micro.x * microBlend + fine.x * fineBlend + macro.x * macroBlend;
+  const gradientZ = micro.z * microBlend + fine.z * fineBlend + macro.z * macroBlend;
+  const weatherGain = localWeatheringGain(wx, wz, classification.surface);
   const perturbX = gradientX * strength * seam * weatherGain;
   const perturbZ = gradientZ * strength * seam * weatherGain;
 
