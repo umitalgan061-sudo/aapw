@@ -9,6 +9,7 @@ on:
       - 'scripts/checkInteractionExpeditionBoardBrowser.mjs'
       - 'scripts/checkInteractionExpeditionRewardProvenance.mjs'
       - 'scripts/checkInteractionExpeditionRewardTradeContinuity.mjs'
+      - 'scripts/checkInteractionExpeditionTradeQuoteAtomicity.mjs'
       - '.github/workflows/rpg-expedition-reward-provenance.yml'
 
 permissions:
@@ -39,7 +40,7 @@ jobs:
           test ${#files[@]} -ge 1
           for path in "${files[@]}"; do
             case "$path" in
-              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionEconomy.js|scripts/checkInteractionExpeditionBoard.mjs|scripts/checkInteractionExpeditionBoardBrowser.mjs|scripts/checkInteractionExpeditionRewardProvenance.mjs|scripts/checkInteractionExpeditionRewardTradeContinuity.mjs|.github/workflows/rpg-expedition-reward-provenance.yml) ;;
+              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionEconomy.js|scripts/checkInteractionExpeditionBoard.mjs|scripts/checkInteractionExpeditionBoardBrowser.mjs|scripts/checkInteractionExpeditionRewardProvenance.mjs|scripts/checkInteractionExpeditionRewardTradeContinuity.mjs|scripts/checkInteractionExpeditionTradeQuoteAtomicity.mjs|.github/workflows/rpg-expedition-reward-provenance.yml) ;;
               *) echo "Unexpected path: $path" >&2; exit 1 ;;
             esac
           done
@@ -54,9 +55,11 @@ jobs:
           node --check scripts/checkInteractionExpeditionBoardBrowser.mjs
           node --check scripts/checkInteractionExpeditionRewardProvenance.mjs
           node --check scripts/checkInteractionExpeditionRewardTradeContinuity.mjs
+          node --check scripts/checkInteractionExpeditionTradeQuoteAtomicity.mjs
           node --check scripts/checkInteractionMasteryTravelContinuityBrowser.mjs
           node scripts/checkInteractionExpeditionRewardProvenance.mjs
           node scripts/checkInteractionExpeditionRewardTradeContinuity.mjs
+          node scripts/checkInteractionExpeditionTradeQuoteAtomicity.mjs
 
       - name: Existing expedition board regression
         run: node scripts/checkInteractionExpeditionBoard.mjs
