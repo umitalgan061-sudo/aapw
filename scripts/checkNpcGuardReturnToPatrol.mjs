@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { createNPC } from '../src/3d/gameplay/npc.js';
+import { createNPC, createNpcSimulationLod } from '../src/3d/gameplay/npc.js';
 
 function makeModel() {
   const model = new THREE.Group();
@@ -22,6 +22,26 @@ const groundCollider = {
 const playerCollider = {
   resolveXZ(x, z) { return { x, z }; },
 };
+
+const lodProbe = createNpcSimulationLod({
+  id: 'return-guard-lod-probe',
+  nearRadiusMeters: 20,
+  farIntervalSeconds: 0.5,
+  distantRadiusMeters: 100,
+  distantIntervalSeconds: 1.5,
+  maxStepSeconds: 0.25,
+});
+let farSimulatedTicks = 0;
+let farSkippedTicks = 0;
+for (let i = 0; i < 12; i += 1) {
+  if (lodProbe.step(0.25, 50, false) > 0) farSimulatedTicks += 1;
+  else farSkippedTicks += 1;
+}
+assert.ok(farSimulatedTicks > 0 && farSkippedTicks > 0,
+  'far population LOD must throttle behavior ticks without starving simulation');
+const urgentWakeDelta = lodProbe.step(0.25, 50, true);
+assert.ok(urgentWakeDelta > 0, 'urgent guard work must wake immediately even outside the near LOD radius');
+assert.equal(lodProbe.tier, 'urgent', 'urgent wake must expose the urgent simulation tier');
 
 const tickSeconds = 0.25;
 const speedMps = 1.4;
@@ -221,6 +241,10 @@ console.log('NPC_GUARD_RETURN_TO_PATROL_PASS', JSON.stringify({
   hearingReturnTicks,
   hearingMaxReturnTicks,
   hearingResumedPatrolDistance: Number(hearingResumedPatrolDistance.toFixed(3)),
+  farSimulatedTicks,
+  farSkippedTicks,
+  urgentWakeDelta,
+  urgentWakeTier: lodProbe.tier,
   tickSeconds,
   simulationTicks,
   hearingSimulationTicks,
