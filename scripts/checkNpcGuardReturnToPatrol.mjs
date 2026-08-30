@@ -42,6 +42,15 @@ assert.ok(farSimulatedTicks > 0 && farSkippedTicks > 0,
 const urgentWakeDelta = lodProbe.step(0.25, 50, true);
 assert.ok(urgentWakeDelta > 0, 'urgent guard work must wake immediately even outside the near LOD radius');
 assert.equal(lodProbe.tier, 'urgent', 'urgent wake must expose the urgent simulation tier');
+let postUrgentFarSimulatedTicks = 0;
+let postUrgentFarSkippedTicks = 0;
+for (let i = 0; i < 8; i += 1) {
+  if (lodProbe.step(0.25, 50, false) > 0) postUrgentFarSimulatedTicks += 1;
+  else postUrgentFarSkippedTicks += 1;
+}
+assert.equal(lodProbe.tier, 'far', 'guard must leave urgent tier after urgent work clears outside near radius');
+assert.ok(postUrgentFarSimulatedTicks > 0 && postUrgentFarSkippedTicks > 0,
+  'post-urgent guard must recover normal far-tier throttling without starvation');
 
 const tickSeconds = 0.25;
 const speedMps = 1.4;
@@ -244,7 +253,10 @@ console.log('NPC_GUARD_RETURN_TO_PATROL_PASS', JSON.stringify({
   farSimulatedTicks,
   farSkippedTicks,
   urgentWakeDelta,
-  urgentWakeTier: lodProbe.tier,
+  urgentWakeTier: 'urgent',
+  postUrgentFarSimulatedTicks,
+  postUrgentFarSkippedTicks,
+  postUrgentTier: lodProbe.tier,
   tickSeconds,
   simulationTicks,
   hearingSimulationTicks,
