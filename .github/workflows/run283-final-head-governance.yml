@@ -17,45 +17,21 @@ jobs:
   final-head-gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 90
-    env:
-      GIT_LFS_SKIP_SMUDGE: 1
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          lfs: false
+          lfs: true
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Hydrate exact-head LFS with bounded retries
-        shell: bash
-        run: |
-          set -euo pipefail
-          TARGET_SHA="$(git rev-parse HEAD)"
-          test "$TARGET_SHA" = "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
-          git lfs install --local
-          git config lfs.concurrenttransfers 1
-          hydrated=0
-          for attempt in 1 2 3 4 5; do
-            echo "Run283 exact-head LFS hydration attempt $attempt/5"
-            if git lfs pull origin "$TARGET_SHA"; then
-              hydrated=1
-              break
-            fi
-            sleep $((attempt * 4))
-          done
-          test "$hydrated" -eq 1
-          git lfs checkout
-          git lfs fsck
-
       - name: Exact-main additive entry gate
         shell: bash
         run: |
           set -euo pipefail
-          TARGET_SHA="$(git rev-parse HEAD)"
-          test "$TARGET_SHA" = "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
           git fetch origin main
           BASE_SHA="$(git rev-parse origin/main)"
           test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
