@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-30-v30-photogrammetric-surface-balance',
+	id: 'geographic-reference-palette-2026-08-30-v31-lowland-lithology-separation',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,7 +20,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'render-only v30: photogrammetric balance replaces near-black/saturated extremes with restrained meadow, damp organic soil, heather, ferric mineral earth and geologically separated granite/basalt/quartz values; deterministic multi-scale fabric, canonical terrain, shoreline, hydrology and colliders remain unchanged',
+		terrain: 'render-verified v31: stronger but restrained lowland meadow/heather/organic-soil/ferric-earth separation plus cooler granite shadow and warmer exposed rock so existing deterministic world-space fabric remains visible at full-world scale without changing canonical terrain, shoreline, hydrology or colliders',
 		water: 'render-only v28: mineral-green littoral remains distinct from lake/river water while offshore depth transitions stay blue-black and canonical wet coverage/hydrology remain unchanged',
 		road: 'warm compacted earth, dark damp ruts, pale mineral dust, cooler stone and restrained moss shoulders',
 		celestial: 'warm low sun, neutral noon, cool moon with preserved material readability',
@@ -29,15 +29,15 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x102519,
-		meadow: 0x3f6540,
-		dryHeather: 0x65533c,
-		wetEarth: 0x241f18,
-		exposedEarth: 0x8a6241,
-		graniteShadow: 0x42494b,
-		graniteSunlit: 0x8c8275,
-		basaltWet: 0x252e31,
-		quartz: 0xb8ad9a,
+		mossShadow: 0x102419,
+		meadow: 0x35663b,
+		dryHeather: 0x6b4c35,
+		wetEarth: 0x1b231c,
+		exposedEarth: 0x95613c,
+		graniteShadow: 0x363f43,
+		graniteSunlit: 0x978772,
+		basaltWet: 0x202b30,
+		quartz: 0xbdb19b,
 	}),
 	road: Object.freeze({
 		compacted: 0x805f43,
@@ -47,7 +47,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		mossEdge: 0x304b33,
 	}),
 	water: Object.freeze({
-		shoreClear: 0x477a72,
+		shoreClear: 0x3e716c,
 		lakeClear: 0x376f72,
 		riverPool: 0x326a78,
 		rapid: 0x6598a1,
