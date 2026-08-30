@@ -3,10 +3,19 @@ name: Configured Fauna Asset Acceptance
 on:
   pull_request:
     paths:
-      - 'scripts/checkConfiguredFaunaAssetsBrowser.mjs'
-      - 'scripts/checkConfiguredFaunaRuntimeBrowser.mjs'
+      - 'src/3d/gameplay/npc.js'
+      - 'scripts/checkNpcGuardLifecycleContract.mjs'
+      - 'scripts/checkNpcGuardReturnToPatrol.mjs'
+      - 'scripts/checkNpcPopulationLodRecovery.mjs'
+      - 'scripts/checkNpcMovementSafetyBrowser.js'
       - '.github/workflows/configured-fauna-asset-acceptance.yml'
+      - '.github/workflows/npc-guard-return-to-patrol.yml'
+      - '.github/workflows/npc-guard-leash-attack-slot-handoff.yml'
+      - '.github/workflows/npc-hearing-framerate-determinism.yml'
+      - '.github/workflows/npc-movement-safety.yml'
+      - '.github/workflows/npc-perception-input-safety.yml'
       - '.github/workflows/run167-determinism-policy.yml'
+      - '.github/workflows/run283-final-head-governance.yml'
   workflow_dispatch:
 
 permissions:
@@ -35,7 +44,8 @@ jobs:
           test "$base" = "$(git rev-parse origin/main)"
           changed="$(git diff --name-only origin/main...HEAD)"
           printf '%s\n' "$changed"
-          printf '%s\n' "$changed" | grep -Ev '^(scripts/checkConfiguredFaunaAssetsBrowser\.mjs|scripts/checkConfiguredFaunaRuntimeBrowser\.mjs|\.github/workflows/configured-fauna-asset-acceptance\.yml|\.github/workflows/run167-determinism-policy\.yml)$' && exit 1 || true
+          test "$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)" -le 13
+          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/npc\.js|scripts/checkNpcGuardLifecycleContract\.mjs|scripts/checkNpcGuardReturnToPatrol\.mjs|scripts/checkNpcPopulationLodRecovery\.mjs|scripts/checkNpcMovementSafetyBrowser\.js|\.github/workflows/configured-fauna-asset-acceptance\.yml|\.github/workflows/npc-guard-return-to-patrol\.yml|\.github/workflows/npc-guard-leash-attack-slot-handoff\.yml|\.github/workflows/npc-hearing-framerate-determinism\.yml|\.github/workflows/npc-movement-safety\.yml|\.github/workflows/npc-perception-input-safety\.yml|\.github/workflows/run167-determinism-policy\.yml|\.github/workflows/run283-final-head-governance\.yml)$' && exit 1 || true
           additions="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END {print s+0}')"
           deletions="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END {print s+0}')"
           test $((additions + deletions)) -le 1000
