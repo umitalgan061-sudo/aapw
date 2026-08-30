@@ -33,6 +33,8 @@ jobs:
           set -euo pipefail
           git lfs version
           git config lfs.concurrenttransfers 1
+          TARGET_SHA="$(git rev-parse HEAD)"
+          test "$TARGET_SHA" = "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
           mapfile -t LFS_PATHS < <(git lfs ls-files --name-only)
           test "${#LFS_PATHS[@]}" -gt 0
           BATCH_SIZE=40
@@ -41,8 +43,8 @@ jobs:
             include="$(IFS=,; echo "${batch[*]}")"
             hydrated=0
             for attempt in 1 2 3 4 5; do
-              echo "Hydrating LFS batch $((offset / BATCH_SIZE + 1)) attempt ${attempt}/5 (${#batch[@]} paths)"
-              if git lfs fetch origin "$GITHUB_SHA" --include="$include" --exclude=""; then
+              echo "Hydrating LFS batch $((offset / BATCH_SIZE + 1)) attempt ${attempt}/5 (${#batch[@]} paths) from ${TARGET_SHA}"
+              if git lfs fetch origin "$TARGET_SHA" --include="$include" --exclude=""; then
                 hydrated=1
                 break
               fi
