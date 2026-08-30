@@ -5,10 +5,18 @@ on:
     paths:
       - 'scripts/checkInteractionMasteryTravelContinuityBrowser.mjs'
       - 'scripts/checkInteractionExpeditionTavernRecovery.mjs'
+      - 'scripts/checkInteractionExpeditionBoard.mjs'
+      - 'scripts/checkInteractionExpeditionBoardBrowser.mjs'
+      - 'scripts/checkInteractionExpeditionRewardProvenance.mjs'
+      - 'scripts/checkInteractionExpeditionRewardTradeContinuity.mjs'
+      - 'scripts/checkInteractionExpeditionTradeQuoteAtomicity.mjs'
       - 'scripts/checkInteractionProvisioningCraft.mjs'
       - 'scripts/checkInteractionQuartermasterTrade.mjs'
       - 'scripts/checkInteractionSettlementServiceBrowser.mjs'
       - 'scripts/checkInteractionSettlementServiceContract.mjs'
+      - '.github/workflows/rpg-expedition-credit-ledger.yml'
+      - '.github/workflows/rpg-expedition-reward-provenance.yml'
+      - '.github/workflows/rpg-mastery-to-smithing.yml'
       - '.github/workflows/rpg-mastery-travel-continuity.yml'
       - 'src/3d/gameplay/interaction.js'
       - 'src/3d/gameplay/interactionConfig.js'
@@ -40,7 +48,7 @@ jobs:
           base=$(git merge-base HEAD origin/main)
           test "$base" = "$(git rev-parse origin/main)"
           mapfile -t paths < <(git diff --name-only "$base"...HEAD)
-          allowed='^(\.github/workflows/(rpg-expedition-tavern-recovery|rpg-interaction-quest-loop|rpg-journey-ledger-ux|rpg-mastery-armorer-service|rpg-mastery-economy-continuity|rpg-mastery-journal-continuity|rpg-mastery-to-smithing|rpg-mastery-travel-continuity|rpg-smithing-service-persistence|rpg-tavern-receipt-integrity|run283-final-head-governance)\.yml|scripts/checkInteraction(ArmorerServiceBrowser|ExpeditionKit(Browser|Craft)|MasteryEconomyContinuity|MasteryToSmithingBrowser|ProvisioningCraft|QuartermasterTrade|SettlementService(Browser|Contract)|SmithingServicePersistence|TradeLedger(Atomicity|Browser))\.mjs|src/3d/gameplay/interactionConfig\.js)$'
+          allowed='^(\.github/workflows/(rpg-expedition-credit-ledger|rpg-expedition-reward-provenance|rpg-expedition-tavern-recovery|rpg-interaction-quest-loop|rpg-journey-ledger-ux|rpg-mastery-armorer-service|rpg-mastery-economy-continuity|rpg-mastery-journal-continuity|rpg-mastery-to-smithing|rpg-mastery-travel-continuity|rpg-smithing-service-persistence|rpg-tavern-receipt-integrity|run283-final-head-governance)\.yml|scripts/checkInteraction(ArmorerServiceBrowser|Expedition(Board(Browser)?|Kit(Browser|Craft)|RewardProvenance|RewardTradeContinuity|TradeQuoteAtomicity)|MasteryEconomyContinuity|MasteryToSmithingBrowser|ProvisioningCraft|QuartermasterTrade|SettlementService(Browser|Contract)|SmithingServicePersistence|TradeLedger(Atomicity|Browser))\.mjs|src/3d/gameplay/(interaction|interactionEconomy|interactionConfig)\.js)$'
           printf '%s\n' "${paths[@]}" | grep -Ev "$allowed" && exit 1 || true
           changed=$(git diff --numstat "$base"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
           test "$changed" -le 1000
@@ -49,11 +57,19 @@ jobs:
           set -euo pipefail
           node --check scripts/checkInteractionMasteryTravelContinuityBrowser.mjs
           node --check scripts/checkInteractionExpeditionTavernRecovery.mjs
+          node --check scripts/checkInteractionExpeditionBoard.mjs
+          node --check scripts/checkInteractionExpeditionBoardBrowser.mjs
+          node --check scripts/checkInteractionExpeditionRewardProvenance.mjs
+          node --check scripts/checkInteractionExpeditionRewardTradeContinuity.mjs
+          node --check scripts/checkInteractionExpeditionTradeQuoteAtomicity.mjs
           node --check scripts/checkInteractionProvisioningCraft.mjs
           node --check scripts/checkInteractionQuartermasterTrade.mjs
           node --check scripts/checkInteractionSettlementServiceBrowser.mjs
           node --check scripts/checkInteractionSettlementServiceContract.mjs
           node scripts/checkInteractionExpeditionBoard.mjs
+          node scripts/checkInteractionExpeditionRewardProvenance.mjs
+          node scripts/checkInteractionExpeditionRewardTradeContinuity.mjs
+          node scripts/checkInteractionExpeditionTradeQuoteAtomicity.mjs
           node scripts/checkInteractionExpeditionMasterySmithingReward.mjs
           node scripts/checkInteractionMasteryEconomyContinuity.mjs
           node scripts/checkInteractionExpeditionKitCraft.mjs
