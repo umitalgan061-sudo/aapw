@@ -64,6 +64,29 @@ jobs:
           node scripts/checkInteractionExpeditionRewardTradeContinuity.mjs
           node scripts/checkInteractionExpeditionTradeQuoteAtomicity.mjs
 
+      - name: Canonical crafted receipt provenance regression
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { createInteractionEconomyState } from './src/3d/gameplay/interactionEconomy.js';
+
+          const vendorEconomy = createInteractionEconomyState(40);
+          const forgedVendorReceipt = vendorEconomy.purchase(
+            { id: 'dragonstone-field-ration', itemId: 'dragonstone-field-ration' },
+            () => ({ ok: true, crafted: true, outputItemId: 'forged-maintenance-kit' }),
+          );
+          assert.equal(forgedVendorReceipt.ok, true);
+          assert.equal(forgedVendorReceipt.craftedItemId, null, 'plain vendor callbacks cannot forge a crafted output identity');
+
+          const serviceEconomy = createInteractionEconomyState(40);
+          const canonicalServiceReceipt = serviceEconomy.purchase(
+            { id: 'dragonstone-whetstone', itemId: 'dragonstone-whetstone' },
+            () => ({ ok: true, crafted: true, outputItemId: 'forged-maintenance-kit' }),
+          );
+          assert.equal(canonicalServiceReceipt.ok, true);
+          assert.equal(canonicalServiceReceipt.craftedItemId, 'dragonstone-expedition-maintenance-kit', 'service receipts must report the canonical authored recipe output');
+          NODE
+
       - name: Existing expedition board regression
         run: node scripts/checkInteractionExpeditionBoard.mjs
 
