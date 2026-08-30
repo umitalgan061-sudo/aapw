@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-30-v24-ecotone-lithology-contrast-after-full-world-qa',
+	id: 'geographic-reference-palette-2026-08-30-v25-full-world-lowland-material-separation',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,7 +20,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'deep organic shade, clearer living meadow, darker olive-umber heather and warmer mineral-earth ecotones, dark damp lowland pockets, plus separated cool granite / weathered warm rock / near-black wet basalt so canonical land keeps readable geology without the broad beige haze seen in full-world QA',
+		terrain: 'full-world QA v25: richer living meadow, cooler darker heath, warmer exposed mineral earth and stronger cool-granite / warm-weathered-rock separation to break the remaining broad grey-beige lowland blend without moving canonical terrain or shoreline',
 		water: 'restrained mineral-green littoral water, separated lake and river signatures, blue-black offshore depth with a darker abyss, and aerated neutral-white falls/foam while canonical wet coverage remains unchanged',
 		road: 'warm compacted earth, dark damp ruts, pale mineral dust, cooler stone and restrained moss shoulders',
 		celestial: 'warm low sun, neutral noon, cool moon with preserved material readability',
@@ -29,15 +29,15 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x07190f,
-		meadow: 0x245f35,
-		dryHeather: 0x4f4330,
-		wetEarth: 0x0b1711,
-		exposedEarth: 0x5d3c28,
-		graniteShadow: 0x1a2125,
-		graniteSunlit: 0x7a7068,
-		basaltWet: 0x060e13,
-		quartz: 0x9b948a,
+		mossShadow: 0x061a10,
+		meadow: 0x1f6737,
+		dryHeather: 0x493c2b,
+		wetEarth: 0x091710,
+		exposedEarth: 0x684128,
+		graniteShadow: 0x182126,
+		graniteSunlit: 0x80756d,
+		basaltWet: 0x050d13,
+		quartz: 0xa39b90,
 	}),
 	road: Object.freeze({
 		compacted: 0x805f43,
