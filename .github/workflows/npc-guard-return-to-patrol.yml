@@ -7,6 +7,7 @@ on:
       - 'src/3d/gameplay/npc.js'
       - 'scripts/checkNpcGuardLifecycleContract.mjs'
       - 'scripts/checkNpcGuardReturnToPatrol.mjs'
+      - 'scripts/checkNpcPopulationLodRecovery.mjs'
       - 'scripts/checkNpcMovementSafetyBrowser.js'
       - '.github/workflows/npc-guard-return-to-patrol.yml'
       - '.github/workflows/npc-movement-safety.yml'
@@ -43,10 +44,11 @@ jobs:
           main_sha="$(git rev-parse origin/main)"
           test "$(git merge-base HEAD origin/main)" = "$main_sha"
           mapfile -t files < <(git diff --name-only origin/main...HEAD)
-          test "${#files[@]}" -eq 11
+          test "${#files[@]}" -eq 12
           printf '%s\n' "${files[@]}" | grep -Fx 'src/3d/gameplay/npc.js'
           printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcGuardLifecycleContract.mjs'
           printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcGuardReturnToPatrol.mjs'
+          printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcPopulationLodRecovery.mjs'
           printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcMovementSafetyBrowser.js'
           printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-guard-return-to-patrol.yml'
           printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-movement-safety.yml'
@@ -72,10 +74,13 @@ jobs:
           node --check src/3d/gameplay/npc.js
           node --check scripts/checkNpcGuardLifecycleContract.mjs
           node --check scripts/checkNpcGuardReturnToPatrol.mjs
+          node --check scripts/checkNpcPopulationLodRecovery.mjs
           node --check scripts/checkNpcMovementSafetyBrowser.js
 
       - name: Guard return-to-patrol runtime regression
-        run: node scripts/checkNpcGuardReturnToPatrol.mjs
+        run: |
+          node scripts/checkNpcGuardReturnToPatrol.mjs
+          node scripts/checkNpcPopulationLodRecovery.mjs
 
       - name: Existing guard lifecycle, perception and LOD regressions
         run: |
