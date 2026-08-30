@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { createNpcSimulationLod } from '../src/3d/gameplay/npc.js';
+import { createNpcSimulationLod, deterministicNpcPhaseSeconds } from '../src/3d/gameplay/npc.js';
 
 const lod = createNpcSimulationLod({
   id: 'population-lod-recovery-probe',
@@ -92,7 +92,45 @@ assert.ok(offscreenSimulations > 0 && offscreenSimulations < 16,
 assert.ok(maxOffscreenDelta <= 0.25,
   'offscreen simulation must never exceed maxStepSeconds after a long frame');
 
+const phaseIds = Array.from({ length: 24 }, (_, index) => `population-lod-phase-${index}`);
+const phaseSamples = phaseIds.map((id) => deterministicNpcPhaseSeconds(id, 1.5));
+assert.deepEqual(
+  phaseSamples,
+  phaseIds.map((id) => deterministicNpcPhaseSeconds(id, 1.5)),
+  'population LOD phase offsets must be deterministic for the same NPC ids',
+);
+assert.ok(phaseSamples.every((phase) => phase >= 0 && phase < 1.5),
+  'population LOD phase offsets must stay inside the distant tick interval');
+assert.ok(new Set(phaseSamples.map((phase) => phase.toFixed(6))).size >= 20,
+  'population LOD phase offsets must distribute distant NPC wakeups instead of synchronizing the herd');
+
+const phasedLods = phaseIds.map((id) => createNpcSimulationLod({
+  id,
+  nearRadiusMeters: 20,
+  farIntervalSeconds: 0.5,
+  distantRadiusMeters: 100,
+  distantIntervalSeconds: 1.5,
+  maxStepSeconds: 0.25,
+}));
+const distantWakeCounts = Array.from({ length: 6 }, () => 0);
+for (let frame = 0; frame < distantWakeCounts.length; frame += 1) {
+  for (const phasedLod of phasedLods) {
+    if (phasedLod.step(0.25, 150) > 0) distantWakeCounts[frame] += 1;
+  }
+}
+assert.equal(distantWakeCounts.reduce((sum, count) => sum + count, 0), phaseIds.length,
+  'each distant NPC must receive one non-starving simulation wake across a full distant interval');
+assert.ok(Math.max(...distantWakeCounts) < phaseIds.length,
+  'deterministic phase staggering must prevent all distant NPCs waking on one frame');
+assert.ok(distantWakeCounts.filter((count) => count > 0).length >= 4,
+  'distant population wakes must be spread across most frames in the interval');
+
 const frameBudget = { oversizedNearDelta, offscreenSimulations, maxOffscreenDelta };
+const phaseBudget = {
+  population: phaseIds.length,
+  uniquePhases: new Set(phaseSamples.map((phase) => phase.toFixed(6))).size,
+  distantWakeCounts,
+};
 
 console.log('NPC_POPULATION_LOD_RECOVERY_PASS', JSON.stringify({
   near,
@@ -104,4 +142,5 @@ console.log('NPC_POPULATION_LOD_RECOVERY_PASS', JSON.stringify({
   farRecovery,
   bootstrap,
   frameBudget,
+  phaseBudget,
 }));
