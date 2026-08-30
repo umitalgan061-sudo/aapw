@@ -63,30 +63,34 @@ jobs:
             'assets/models/animals/**'
             'assets/models/creatures/dragon/**'
           )
-          for family in "${FAMILIES[@]}"; do
+          LFS_INCLUDE="$(IFS=,; echo "${FAMILIES[*]}")"
+          mapfile -t SCOPED_PATHS < <(git lfs ls-files --name-only --include="$LFS_INCLUDE")
+          test "${#SCOPED_PATHS[@]}" -gt 0
+          BATCH_SIZE=16
+          for ((offset=0; offset<${#SCOPED_PATHS[@]}; offset+=BATCH_SIZE)); do
+            batch=("${SCOPED_PATHS[@]:offset:BATCH_SIZE}")
+            include="$(IFS=,; echo "${batch[*]}")"
             hydrated=0
             for attempt in 1 2 3 4 5; do
-              echo "Hydrating LFS family ${family} (attempt ${attempt}/5)"
-              if git lfs fetch origin "$GITHUB_SHA" --include="$family" --exclude=""; then
+              echo "Hydrating scoped LFS batch $((offset / BATCH_SIZE + 1)) attempt ${attempt}/5 (${#batch[@]} paths)"
+              if git lfs fetch origin "$GITHUB_SHA" --include="$include" --exclude=""; then
                 hydrated=1
                 break
               fi
               sleep "$((attempt * 5))"
             done
             if [ "$hydrated" -ne 1 ]; then
-              echo "Scoped LFS family failed after 5 attempts: ${family}" >&2
+              echo "Scoped LFS batch failed after 5 attempts at offset ${offset}." >&2
               exit 1
             fi
           done
           git lfs checkout
-          LFS_INCLUDE="$(IFS=,; echo "${FAMILIES[*]}")"
-          while IFS= read -r path; do
-            [ -n "$path" ] || continue
+          for path in "${SCOPED_PATHS[@]}"; do
             if head -c 200 "$path" | grep -aq 'version https://git-lfs.github.com/spec/v1'; then
               echo "LFS pointer remained after hydration: $path" >&2
               exit 1
             fi
-          done < <(git lfs ls-files --name-only --include="$LFS_INCLUDE")
+          done
 
       - name: Install Playwright outside repo
         shell: bash
