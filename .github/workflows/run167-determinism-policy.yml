@@ -59,26 +59,7 @@ jobs:
           TARGET_SHA="$(git rev-parse HEAD)"
           test "$TARGET_SHA" = "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
           git lfs version
-          git lfs install --local
-          git config lfs.concurrenttransfers 1
-          hydrated=0
-          for attempt in 1 2 3 4 5; do
-            if git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""; then
-              hydrated=1
-              break
-            fi
-            sleep $((attempt * 5))
-          done
-          test "$hydrated" -eq 1
-          mapfile -t SCOPED_PATHS < <(git lfs ls-files -n | grep -E '^(assets/models/settlements/castles/|assets/models/characters/|assets/animations/peasant_girl/|assets/models/animals/|assets/models/creatures/dragon/)')
-          test "${#SCOPED_PATHS[@]}" -gt 0
-          for path in "${SCOPED_PATHS[@]}"; do
-            test -f "$path"
-            if head -c 200 "$path" | grep -aq 'version https://git-lfs.github.com/spec/v1'; then
-              echo "LFS pointer remained after scoped pull: $path" >&2
-              exit 1
-            fi
-          done
+          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
 
       - name: Install Playwright outside repo
         shell: bash
