@@ -10,22 +10,27 @@ import {
 } from './westernReferenceSurfaceFabric.js';
 
 export const PINDEX03_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex03-detail-2026-08-30-v12-ecotone-lithology-albedo',
+  id: 'owner-map-pindex03-detail-2026-08-30-v13-multiscale-erosion-normal',
   pindex: 3,
   westernMarineShelfTone: true,
   westernReferenceSurfaceFabric: true,
   worldSpaceMicroNormalWeathering: true,
   sharedFabricNormalSource: true,
   regionalAlbedoWeathering: true,
+  directionalErosionNormal: true,
   normalMicroProbeMeters: 3.5,
   normalProbeMeters: 9.0,
   normalMacroProbeMeters: 31.0,
   normalBroadProbeMeters: 96.0,
+  normalUltraBroadProbeMeters: 220.0,
   normalSnowWindProbeMeters: 18.0,
-  normalMicroBlend: 0.22,
-  normalMacroBlend: 0.25,
-  normalBroadBlend: 0.21,
-  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.34, rock: 0.53, snow: 0.18 }),
+  normalErosionProbeMeters: 54.0,
+  normalMicroBlend: 0.20,
+  normalMacroBlend: 0.23,
+  normalBroadBlend: 0.18,
+  normalUltraBroadBlend: 0.13,
+  normalErosionBlend: 0.18,
+  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.38, rock: 0.56, snow: 0.19 }),
   normalSeamFeatherNormalized: 0.012,
   mapAuthorityUnchanged: true,
   geographyAuthorityUnchanged: true,
@@ -70,6 +75,48 @@ function weatheringGradient(worldX, worldZ, step, surface) {
   return Object.freeze({ x: east - west, z: north - south });
 }
 
+function erosionSignal(fabric, surface) {
+  if (surface === 'rock') {
+    return fabric.erosionScour * 0.40 + fabric.fracture * 0.27
+      + fabric.exposedInterfluve * 0.20 + fabric.frostWash * 0.13;
+  }
+  if (surface === 'snow') {
+    return fabric.erosionScour * 0.22 + fabric.crust * 0.34
+      + fabric.frostWash * 0.26 + fabric.weathering * 0.18;
+  }
+  return fabric.erosionScour * 0.38 + fabric.drainageThread * 0.27
+    + fabric.exposedInterfluve * 0.21 + fabric.heathMosaic * 0.14;
+}
+
+function directionalErosionGradient(worldX, worldZ, step, surface) {
+  const axisX = 0.86;
+  const axisZ = 0.51;
+  const crossX = -axisZ;
+  const crossZ = axisX;
+  const alongA = erosionSignal(sampleWesternReferenceSurfaceFabric(
+    worldX + axisX * step,
+    worldZ + axisZ * step,
+  ), surface);
+  const alongB = erosionSignal(sampleWesternReferenceSurfaceFabric(
+    worldX - axisX * step,
+    worldZ - axisZ * step,
+  ), surface);
+  const crossA = erosionSignal(sampleWesternReferenceSurfaceFabric(
+    worldX + crossX * step * 0.72,
+    worldZ + crossZ * step * 0.72,
+  ), surface);
+  const crossB = erosionSignal(sampleWesternReferenceSurfaceFabric(
+    worldX - crossX * step * 0.72,
+    worldZ - crossZ * step * 0.72,
+  ), surface);
+  const along = alongA - alongB;
+  const cross = (crossA - crossB) * 0.68;
+  return Object.freeze({
+    x: along * axisX + cross * crossX,
+    z: along * axisZ + cross * crossZ,
+  });
+}
+
 function snowWindCrustGradient(worldX, worldZ, step) {
   const alongX = step * 0.82;
   const alongZ = step * 0.57;
@@ -92,8 +139,8 @@ function localWeatheringGain(worldX, worldZ, surface) {
     return 0.68 + fabric.crust * 0.12 + fabric.weathering * 0.05 + fabric.stonyPatch * 0.05
       + fabric.frostWash * 0.04;
   }
-  return 0.88 + fabric.mineral * 0.08 + fabric.exposedInterfluve * 0.08
-    + fabric.stonyPatch * 0.10 - fabric.moisture * 0.07;
+  return 0.90 + fabric.mineral * 0.09 + fabric.exposedInterfluve * 0.09
+    + fabric.stonyPatch * 0.11 + fabric.erosionScour * 0.06 - fabric.moisture * 0.07;
 }
 
 function applyPindex03WeatheredNormal(normal, index, classification) {
@@ -109,12 +156,19 @@ function applyPindex03WeatheredNormal(normal, index, classification) {
   const fine = weatheringGradient(wx, wz, P.normalProbeMeters, classification.surface);
   const macro = weatheringGradient(wx, wz, P.normalMacroProbeMeters, classification.surface);
   const broad = weatheringGradient(wx, wz, P.normalBroadProbeMeters, classification.surface);
+  const ultraBroad = weatheringGradient(wx, wz, P.normalUltraBroadProbeMeters, classification.surface);
+  const erosion = directionalErosionGradient(wx, wz, P.normalErosionProbeMeters, classification.surface);
   const microBlend = P.normalMicroBlend;
   const macroBlend = P.normalMacroBlend;
   const broadBlend = P.normalBroadBlend;
-  const fineBlend = 1 - microBlend - macroBlend - broadBlend;
-  let gradientX = micro.x * microBlend + fine.x * fineBlend + macro.x * macroBlend + broad.x * broadBlend;
-  let gradientZ = micro.z * microBlend + fine.z * fineBlend + macro.z * macroBlend + broad.z * broadBlend;
+  const ultraBroadBlend = P.normalUltraBroadBlend;
+  const fineBlend = 1 - microBlend - macroBlend - broadBlend - ultraBroadBlend;
+  let gradientX = micro.x * microBlend + fine.x * fineBlend + macro.x * macroBlend
+    + broad.x * broadBlend + ultraBroad.x * ultraBroadBlend;
+  let gradientZ = micro.z * microBlend + fine.z * fineBlend + macro.z * macroBlend
+    + broad.z * broadBlend + ultraBroad.z * ultraBroadBlend;
+  gradientX = gradientX * (1 - P.normalErosionBlend) + erosion.x * P.normalErosionBlend;
+  gradientZ = gradientZ * (1 - P.normalErosionBlend) + erosion.z * P.normalErosionBlend;
   if (classification.surface === 'snow') {
     const wind = snowWindCrustGradient(wx, wz, P.normalSnowWindProbeMeters);
     gradientX = gradientX * 0.76 + wind.x * 0.24;
@@ -142,19 +196,19 @@ function applyPindex03RegionalAlbedo(color, index, classification) {
   let green = 1;
   let blue = 1;
   if (classification.surface === 'soil') {
-    red += (fabric.mineral - 0.5) * 0.070 + fabric.exposedInterfluve * 0.040
-      + fabric.stonyPatch * 0.024 - fabric.moisture * 0.018 - fabric.erosionScour * 0.046;
-    green += (fabric.moisture - 0.5) * 0.058 + fabric.heathMosaic * 0.020
-      + fabric.exposedInterfluve * 0.012 - fabric.erosionScour * 0.042 - fabric.stonyPatch * 0.014;
-    blue += (fabric.moisture - 0.5) * 0.038 - fabric.mineral * 0.034
-      - fabric.heathMosaic * 0.030 - fabric.erosionScour * 0.032 + fabric.frostWash * 0.016;
+    red += (fabric.mineral - 0.5) * 0.076 + fabric.exposedInterfluve * 0.046
+      + fabric.stonyPatch * 0.028 - fabric.moisture * 0.020 - fabric.erosionScour * 0.052;
+    green += (fabric.moisture - 0.5) * 0.064 + fabric.heathMosaic * 0.024
+      + fabric.exposedInterfluve * 0.014 - fabric.erosionScour * 0.046 - fabric.stonyPatch * 0.016;
+    blue += (fabric.moisture - 0.5) * 0.042 - fabric.mineral * 0.038
+      - fabric.heathMosaic * 0.034 - fabric.erosionScour * 0.036 + fabric.frostWash * 0.018;
   } else if (classification.surface === 'rock') {
-    red += fabric.exposedInterfluve * 0.050 + fabric.frostWash * 0.026
-      - fabric.fracture * 0.050 - fabric.erosionScour * 0.026;
-    green += fabric.frostWash * 0.034 - fabric.fracture * 0.044
-      - fabric.stonyPatch * 0.025 - fabric.erosionScour * 0.028;
-    blue += fabric.frostWash * 0.048 - fabric.weathering * 0.028
-      - fabric.fracture * 0.035 - fabric.stonyPatch * 0.018;
+    red += fabric.exposedInterfluve * 0.054 + fabric.frostWash * 0.030
+      - fabric.fracture * 0.054 - fabric.erosionScour * 0.030;
+    green += fabric.frostWash * 0.038 - fabric.fracture * 0.048
+      - fabric.stonyPatch * 0.028 - fabric.erosionScour * 0.032;
+    blue += fabric.frostWash * 0.052 - fabric.weathering * 0.032
+      - fabric.fracture * 0.039 - fabric.stonyPatch * 0.020;
   } else if (classification.surface === 'snow') {
     red += (fabric.crust - 0.5) * 0.020 - fabric.weathering * 0.014 - fabric.stonyPatch * 0.010;
     green += (fabric.crust - 0.5) * 0.024 + fabric.frostWash * 0.008 - fabric.weathering * 0.010;
@@ -163,9 +217,9 @@ function applyPindex03RegionalAlbedo(color, index, classification) {
     return false;
   }
 
-  red = THREE.MathUtils.lerp(1, THREE.MathUtils.clamp(red, 0.90, 1.09), seam);
-  green = THREE.MathUtils.lerp(1, THREE.MathUtils.clamp(green, 0.90, 1.09), seam);
-  blue = THREE.MathUtils.lerp(1, THREE.MathUtils.clamp(blue, 0.90, 1.09), seam);
+  red = THREE.MathUtils.lerp(1, THREE.MathUtils.clamp(red, 0.89, 1.10), seam);
+  green = THREE.MathUtils.lerp(1, THREE.MathUtils.clamp(green, 0.89, 1.10), seam);
+  blue = THREE.MathUtils.lerp(1, THREE.MathUtils.clamp(blue, 0.89, 1.10), seam);
   color.setXYZ(
     index,
     clamp01(color.getX(index) * red),
