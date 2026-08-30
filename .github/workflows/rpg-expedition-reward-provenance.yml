@@ -12,6 +12,7 @@ on:
       - 'scripts/checkInteractionExpeditionTradeQuoteAtomicity.mjs'
       - '.github/workflows/rpg-expedition-credit-ledger.yml'
       - '.github/workflows/rpg-expedition-reward-provenance.yml'
+      - '.github/workflows/rpg-mastery-to-smithing.yml'
 
 permissions:
   contents: read
@@ -41,7 +42,7 @@ jobs:
           test ${#files[@]} -ge 1
           for path in "${files[@]}"; do
             case "$path" in
-              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionEconomy.js|scripts/checkInteractionExpeditionBoard.mjs|scripts/checkInteractionExpeditionBoardBrowser.mjs|scripts/checkInteractionExpeditionRewardProvenance.mjs|scripts/checkInteractionExpeditionRewardTradeContinuity.mjs|scripts/checkInteractionExpeditionTradeQuoteAtomicity.mjs|.github/workflows/rpg-expedition-credit-ledger.yml|.github/workflows/rpg-expedition-reward-provenance.yml) ;;
+              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionEconomy.js|scripts/checkInteractionExpeditionBoard.mjs|scripts/checkInteractionExpeditionBoardBrowser.mjs|scripts/checkInteractionExpeditionRewardProvenance.mjs|scripts/checkInteractionExpeditionRewardTradeContinuity.mjs|scripts/checkInteractionExpeditionTradeQuoteAtomicity.mjs|.github/workflows/rpg-expedition-credit-ledger.yml|.github/workflows/rpg-expedition-reward-provenance.yml|.github/workflows/rpg-mastery-to-smithing.yml) ;;
               *) echo "Unexpected path: $path" >&2; exit 1 ;;
             esac
           done
