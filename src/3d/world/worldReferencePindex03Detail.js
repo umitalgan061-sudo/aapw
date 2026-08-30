@@ -10,12 +10,13 @@ import {
 } from './westernReferenceSurfaceFabric.js';
 
 export const PINDEX03_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex03-detail-2026-08-30-v10-wind-crust-weathered-normal',
+  id: 'owner-map-pindex03-detail-2026-08-30-v11-regional-albedo-weathering',
   pindex: 3,
   westernMarineShelfTone: true,
   westernReferenceSurfaceFabric: true,
   worldSpaceMicroNormalWeathering: true,
   sharedFabricNormalSource: true,
+  regionalAlbedoWeathering: true,
   normalMicroProbeMeters: 3.5,
   normalProbeMeters: 9.0,
   normalMacroProbeMeters: 31.0,
@@ -33,6 +34,8 @@ export const PINDEX03_DETAIL_POLICY = Object.freeze({
   colliderAuthorityUnchanged: true,
   renderOnly: true,
 });
+
+const clamp01 = (value) => Math.max(0, Math.min(1, value));
 
 function smoothstep01(value) {
   const t = THREE.MathUtils.clamp(value, 0, 1);
@@ -129,6 +132,45 @@ function applyPindex03WeatheredNormal(normal, index, classification) {
   return true;
 }
 
+function applyPindex03RegionalAlbedo(color, index, classification) {
+  if (classification.surface === 'sea' || classification.surface === 'lake') return false;
+  const fabric = sampleWesternReferenceSurfaceFabric(classification.worldX, classification.worldZ);
+  const seam = pindex03NormalWeight(classification.normalizedX);
+  if (seam <= 0) return false;
+
+  let shade = 1;
+  if (classification.surface === 'soil') {
+    shade += (fabric.mineral - 0.5) * 0.040
+      + fabric.exposedInterfluve * 0.042
+      + fabric.stonyPatch * 0.025
+      - fabric.moisture * 0.030
+      - fabric.erosionScour * 0.050
+      - fabric.heathMosaic * 0.026;
+  } else if (classification.surface === 'rock') {
+    shade += fabric.frostWash * 0.036
+      + fabric.exposedInterfluve * 0.040
+      - fabric.fracture * 0.054
+      - fabric.stonyPatch * 0.026
+      - fabric.erosionScour * 0.036;
+  } else if (classification.surface === 'snow') {
+    shade += (fabric.crust - 0.5) * 0.024
+      + fabric.frostWash * 0.010
+      - fabric.weathering * 0.014
+      - fabric.stonyPatch * 0.012;
+  } else {
+    return false;
+  }
+
+  shade = THREE.MathUtils.lerp(1, THREE.MathUtils.clamp(shade, 0.91, 1.08), seam);
+  color.setXYZ(
+    index,
+    clamp01(color.getX(index) * shade),
+    clamp01(color.getY(index) * shade),
+    clamp01(color.getZ(index) * shade),
+  );
+  return true;
+}
+
 function classificationForWorld(worldX, worldZ) {
   const mapPoint = plannedWorldXZToMapCanvas(worldX, worldZ);
   const normalized = mapCanvasToNormalizedReference(mapPoint.x, mapPoint.y);
@@ -150,6 +192,7 @@ export function applyPindex03DetailToTerrainMesh(mesh) {
   let touchedVertices = 0;
   let fabricVertices = 0;
   let marineVertices = 0;
+  let albedoVertices = 0;
   let normalVertices = 0;
   for (let index = 0; index < position.count; index += 1) {
     const worldX = mesh.position.x + position.getX(index);
@@ -158,6 +201,7 @@ export function applyPindex03DetailToTerrainMesh(mesh) {
     if (c.pindex !== PINDEX03_DETAIL_POLICY.pindex) continue;
     if (applyWesternReferenceSurfaceFabricToColorAttribute(color, index, c)) fabricVertices += 1;
     if (applyWesternMarineShelfToneToColorAttribute(color, index, c) > 0) marineVertices += 1;
+    if (applyPindex03RegionalAlbedo(color, index, c)) albedoVertices += 1;
     if (applyPindex03WeatheredNormal(normal, index, c)) normalVertices += 1;
     touchedVertices += 1;
   }
@@ -169,6 +213,7 @@ export function applyPindex03DetailToTerrainMesh(mesh) {
     touchedVertices,
     fabricVertices,
     marineVertices,
+    albedoVertices,
     normalVertices,
   });
   mesh.userData.run281Pindex03Detail = summary;
@@ -180,12 +225,14 @@ export function applyPindex03DetailToTerrainGroup(terrainGroup) {
   let touchedVertices = 0;
   let fabricVertices = 0;
   let marineVertices = 0;
+  let albedoVertices = 0;
   let normalVertices = 0;
   for (const mesh of terrainGroup.children) {
     const summary = applyPindex03DetailToTerrainMesh(mesh);
     touchedVertices += summary.touchedVertices;
     fabricVertices += summary.fabricVertices;
     marineVertices += summary.marineVertices;
+    albedoVertices += summary.albedoVertices;
     normalVertices += summary.normalVertices;
   }
   const summary = Object.freeze({
@@ -194,6 +241,7 @@ export function applyPindex03DetailToTerrainGroup(terrainGroup) {
     touchedVertices,
     fabricVertices,
     marineVertices,
+    albedoVertices,
     normalVertices,
     meshCount: terrainGroup.children.length,
   });
