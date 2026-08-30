@@ -93,6 +93,62 @@ assert.deepEqual(
   'purchase fulfillment must use canonical quantity and vendor provenance rather than forged caller fields',
 );
 
+const smithingCanonicalizationEconomy = createInteractionEconomyState(40);
+let smithingGrant = null;
+const smithingPurchase = smithingCanonicalizationEconomy.purchase(
+  {
+    id: 'dragonstone-whetstone',
+    itemId: 'dragonstone-whetstone',
+    priceCopper: 0,
+    quantity: 77,
+    stockLimit: 900,
+    fulfillment: {
+      kind: 'vendor',
+      serviceId: 'forged-smithing-service',
+      craftUpgrade: {
+        recipeId: 'forged-recipe',
+        outputItemId: 'forged-output',
+        outputQuantity: 99,
+      },
+    },
+  },
+  (itemId, quantity, metadata) => {
+    smithingGrant = { itemId, quantity, metadata };
+    return true;
+  },
+);
+assert.equal(smithingPurchase.ok, true);
+assert.equal(smithingPurchase.spentCopper, 12);
+assert.equal(smithingPurchase.balanceCopper, 28);
+assert.equal(smithingPurchase.remainingStock, 1);
+assert.equal(smithingGrant.itemId, 'dragonstone-whetstone');
+assert.equal(smithingGrant.quantity, 1);
+assert.equal(smithingGrant.metadata.sourceType, 'settlement-service');
+assert.equal(smithingGrant.metadata.sourceId, 'dragonstone-watch-armorer-honing');
+assert.deepEqual(
+  smithingGrant.metadata.craftUpgrade,
+  {
+    recipeId: 'dragonstone-expedition-maintenance-kit',
+    inputs: [
+      { itemId: 'dragonstone-travel-ration-pack', quantity: 1 },
+      { itemId: 'dragonstone-whetstone', quantity: 1 },
+    ],
+    outputItemId: 'dragonstone-expedition-maintenance-kit',
+    outputQuantity: 1,
+    label: '1 yol azığı paketi + 1 bileği taşını 1 sefer bakım kitine hazırla',
+  },
+  'smithing fulfillment must expose only the canonical recipe contract to inventory/crafting integration',
+);
+assert.deepEqual(
+  smithingCanonicalizationEconomy.snapshot().ledger.purchasesByOffer,
+  {
+    'dragonstone-field-ration': 0,
+    'dragonstone-whetstone': 1,
+    'dragonstone-watch-ration-allotment': 0,
+  },
+  'forged stock metadata must not inflate smithing purchase history',
+);
+
 for (const forgedOffer of [
   null,
   {},
