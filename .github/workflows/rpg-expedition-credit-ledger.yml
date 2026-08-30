@@ -4,7 +4,14 @@ on:
   pull_request:
     paths:
       - 'scripts/checkInteractionExpeditionCreditLedger.mjs'
+      - 'scripts/checkInteractionExpeditionBoard.mjs'
+      - 'scripts/checkInteractionExpeditionBoardBrowser.mjs'
+      - 'scripts/checkInteractionExpeditionRewardProvenance.mjs'
+      - 'scripts/checkInteractionExpeditionRewardTradeContinuity.mjs'
+      - 'scripts/checkInteractionExpeditionTradeQuoteAtomicity.mjs'
+      - 'src/3d/gameplay/interaction.js'
       - 'src/3d/gameplay/interactionEconomy.js'
+      - '.github/workflows/rpg-expedition-reward-provenance.yml'
       - '.github/workflows/rpg-expedition-credit-ledger.yml'
 
 permissions:
@@ -33,7 +40,7 @@ jobs:
           test ${#files[@]} -ge 1
           for path in "${files[@]}"; do
             case "$path" in
-              scripts/checkInteractionExpeditionCreditLedger.mjs|src/3d/gameplay/interactionEconomy.js|.github/workflows/rpg-expedition-credit-ledger.yml) ;;
+              .github/workflows/rpg-expedition-credit-ledger.yml|.github/workflows/rpg-expedition-reward-provenance.yml|scripts/checkInteractionExpeditionBoard.mjs|scripts/checkInteractionExpeditionBoardBrowser.mjs|scripts/checkInteractionExpeditionRewardProvenance.mjs|scripts/checkInteractionExpeditionRewardTradeContinuity.mjs|scripts/checkInteractionExpeditionTradeQuoteAtomicity.mjs|src/3d/gameplay/interaction.js|src/3d/gameplay/interactionEconomy.js) ;;
               *) echo "Unexpected path: $path" >&2; exit 1 ;;
             esac
           done
