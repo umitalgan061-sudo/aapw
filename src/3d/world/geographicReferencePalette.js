@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-30-v38-lowland-material-separation',
+	id: 'geographic-reference-palette-2026-08-30-v39-aerial-lowland-separation',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,31 +20,31 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'render-verified v38: full-world lowlands gain stronger material-family separation without changing geography: living meadow is cooler and deeper, dry heath and ferric exposures are warmer, damp ground stays low-luminance, and weathered granite/quartz faces retain a brighter mineral response against wet basalt; deterministic world-space albedo/normal/roughness fabric remains the variation source and canonical terrain, shoreline, hydrology and colliders are unchanged',
-		water: 'render-verified v38: mineral-green littoral, inland blue-green water, aerated rapids and blue-black offshore depth retain distinct value families while canonical wet coverage, shoreline and hydrology remain unchanged',
-		road: 'render-verified v38: compacted earth and mineral dust separate more clearly from cool stone shoulders and damp ruts so long road ribbons do not collapse into one flat brown value',
+		terrain: 'render-verified v39: aerial lowland readability is increased without changing geography: living meadow is cooler/deeper, dry heath and ferric exposures are warmer, damp ground stays low-luminance, and weathered granite/quartz faces retain a brighter mineral response against wet basalt; deterministic world-space albedo/normal/roughness fabric remains the variation source and canonical terrain, shoreline, hydrology and colliders are unchanged',
+		water: 'render-verified v39: mineral-green littoral, inland blue-green water, aerated rapids and blue-black offshore depth retain distinct value families while canonical wet coverage, shoreline and hydrology remain unchanged',
+		road: 'render-verified v39: compacted earth and mineral dust separate clearly from cool stone shoulders and damp ruts so long road ribbons do not collapse into one flat brown value',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x0d2518,
-		meadow: 0x255c31,
-		dryHeather: 0x80603c,
-		wetEarth: 0x131e18,
-		exposedEarth: 0xb87942,
-		graniteShadow: 0x2d3f49,
-		graniteSunlit: 0xa38d76,
-		basaltWet: 0x12232d,
-		quartz: 0xcec2aa,
+		mossShadow: 0x0b2416,
+		meadow: 0x205d2d,
+		dryHeather: 0x87623a,
+		wetEarth: 0x111b16,
+		exposedEarth: 0xbf763c,
+		graniteShadow: 0x293c48,
+		graniteSunlit: 0xaa9175,
+		basaltWet: 0x10212b,
+		quartz: 0xd4c6ad,
 	}),
 	road: Object.freeze({
 		compacted: 0x765438,
-		rut: 0x2e251f,
-		dust: 0xb69c76,
-		stone: 0x59615e,
-		mossEdge: 0x284a30,
+		rut: 0x2d241e,
+		dust: 0xbba07a,
+		stone: 0x58615f,
+		mossEdge: 0x254a2c,
 	}),
 	water: Object.freeze({
 		shoreClear: 0x4d897b,
