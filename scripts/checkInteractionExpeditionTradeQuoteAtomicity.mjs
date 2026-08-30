@@ -26,6 +26,73 @@ assert.equal(stableState.stockByOffer['dragonstone-field-ration'], 3);
 assert.equal(stableState.ledger.transactionCount, 1);
 assert.equal(stableState.ledger.recentCredits.length, 2);
 
+const forgedCanonicalQuote = economy.quote({
+  id: 'dragonstone-field-ration',
+  itemId: 'dragonstone-field-ration',
+  label: 'Bedava sahte azık',
+  priceCopper: 0,
+  quantity: 99,
+  stockLimit: 999,
+  fulfillment: {
+    kind: 'settlement-service',
+    serviceId: 'forged-free-service',
+  },
+});
+assert.deepEqual(
+  forgedCanonicalQuote,
+  {
+    ok: true,
+    reason: 'available',
+    offerId: 'dragonstone-field-ration',
+    remainingStock: 3,
+    priceCopper: 6,
+    balanceCopper: 55,
+    balanceAfterPurchase: 49,
+  },
+  'matching ids must resolve back to the canonical quartermaster catalog instead of trusting caller-authored price or stock fields',
+);
+assert.deepEqual(
+  economy.snapshot(),
+  stableState,
+  'quoting a field-forged canonical offer must remain mutation-free',
+);
+
+const canonicalizationEconomy = createInteractionEconomyState(40);
+let canonicalGrant = null;
+const canonicalizedPurchase = canonicalizationEconomy.purchase(
+  {
+    id: 'dragonstone-field-ration',
+    itemId: 'dragonstone-field-ration',
+    priceCopper: 0,
+    quantity: 99,
+    fulfillment: {
+      kind: 'settlement-service',
+      serviceId: 'forged-free-service',
+    },
+  },
+  (itemId, quantity, metadata) => {
+    canonicalGrant = { itemId, quantity, metadata };
+    return true;
+  },
+);
+assert.equal(canonicalizedPurchase.ok, true);
+assert.equal(canonicalizedPurchase.spentCopper, 6);
+assert.equal(canonicalizedPurchase.balanceCopper, 34);
+assert.equal(canonicalizedPurchase.remainingStock, 3);
+assert.deepEqual(
+  canonicalGrant,
+  {
+    itemId: 'dragonstone-field-ration',
+    quantity: 1,
+    metadata: {
+      sourceType: 'vendor',
+      sourceId: 'stannis-guard-1',
+      craftUpgrade: null,
+    },
+  },
+  'purchase fulfillment must use canonical quantity and vendor provenance rather than forged caller fields',
+);
+
 for (const forgedOffer of [
   null,
   {},
