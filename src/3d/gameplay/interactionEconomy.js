@@ -287,7 +287,7 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 			offerId: configuredOffer.id,
 			remainingStock: purchaseQuote.remainingStock - 1,
 			crafted: grantResult?.crafted === true,
-			craftedItemId: grantResult?.outputItemId ?? null,
+			craftedItemId: grantResult?.crafted === true ? fulfillment?.craftUpgrade?.outputItemId ?? null : null,
 			consumedItems,
 			consumedItemId: grantResult?.consumedItemId ?? (consumedItems.length === 1 ? consumedItems[0].itemId : null),
 			consumedQuantity: grantResult?.consumedQuantity ?? (consumedItems.length === 1 ? consumedItems[0].quantity : null),
