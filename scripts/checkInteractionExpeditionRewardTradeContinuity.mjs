@@ -54,11 +54,16 @@ assert.equal(exhausted.ledger.recentCredits[0].sourceId, 'expedition-contract:dr
 assert.equal(exhausted.ledger.recentCredits[0].balanceCopper, 52);
 assert.match(buildQuartermasterText(exhausted), /Son işlem: #4 Dragonstone saha azığı · 6 bakır · bakiye 28/);
 
+let exhaustedGrantCalls = 0;
 const blocked = restored.purchase(
   { id: 'dragonstone-field-ration', itemId: 'dragonstone-field-ration' },
-  () => true,
+  () => {
+    exhaustedGrantCalls += 1;
+    return true;
+  },
 );
 assert.equal(blocked.ok, false, 'exhausted finite stock must block further purchases');
+assert.equal(exhaustedGrantCalls, 0, 'out-of-stock quote rejection must not invoke inventory fulfillment');
 assert.deepEqual(restored.snapshot(), exhausted, 'blocked stock-exhausted purchase must be atomic across wallet, trade and expedition receipt ledgers');
 
 const transactionsBeforeLaterReward = structuredClone(exhausted.ledger.recentTransactions);
@@ -87,11 +92,16 @@ assert.match(laterRewardText, /Kese: 37 bakır/);
 assert.match(laterRewardText, /Son gelir: Kapı Devriyesi Seferi · \+9 bakır · bakiye 37/);
 assert.match(laterRewardText, /Son işlem: #4 Dragonstone saha azığı · 6 bakır · bakiye 28/);
 
+let postIncomeExhaustedGrantCalls = 0;
 const blockedAfterLaterReward = restored.purchase(
   { id: 'dragonstone-field-ration', itemId: 'dragonstone-field-ration' },
-  () => true,
+  () => {
+    postIncomeExhaustedGrantCalls += 1;
+    return true;
+  },
 );
 assert.equal(blockedAfterLaterReward.ok, false, 'later expedition income must not replenish exhausted quartermaster stock');
+assert.equal(postIncomeExhaustedGrantCalls, 0, 'post-income out-of-stock rejection must not invoke inventory fulfillment');
 assert.deepEqual(
   restored.snapshot(),
   afterLaterReward,
@@ -122,9 +132,13 @@ assert.match(buildQuartermasterText(restored.snapshot()), /Son işlem: #4 Dragon
 const lowFunds = createInteractionEconomyState();
 lowFunds.restore({ ...afterLaterReward, copper: 11 });
 const beforeLowFundsTrade = structuredClone(lowFunds.snapshot());
+let lowFundsGrantCalls = 0;
 const lowFundsTrade = lowFunds.purchase(
   { id: 'dragonstone-whetstone', itemId: 'dragonstone-whetstone' },
-  () => true,
+  () => {
+    lowFundsGrantCalls += 1;
+    return true;
+  },
 );
 assert.equal(lowFundsTrade.ok, false, 'a settlement trade must reject a wallet below the configured offer price');
 assert.equal(lowFundsTrade.reason, 'insufficient-funds');
@@ -132,6 +146,7 @@ assert.equal(lowFundsTrade.priceCopper, 12);
 assert.equal(lowFundsTrade.balanceCopper, 11);
 assert.equal(lowFundsTrade.shortfallCopper, 1);
 assert.equal(lowFundsTrade.remainingStock, 2);
+assert.equal(lowFundsGrantCalls, 0, 'insufficient-funds quote rejection must not invoke inventory fulfillment');
 assert.deepEqual(
   lowFunds.snapshot(),
   beforeLowFundsTrade,
