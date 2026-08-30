@@ -70,23 +70,38 @@ jobs:
           LFS_INCLUDE="$(IFS=,; echo "${FAMILIES[*]}")"
           mapfile -t SCOPED_PATHS < <(git lfs ls-files --name-only --include="$LFS_INCLUDE")
           test "${#SCOPED_PATHS[@]}" -gt 0
-          BATCH_SIZE=16
+          BATCH_SIZE=8
           for ((offset=0; offset<${#SCOPED_PATHS[@]}; offset+=BATCH_SIZE)); do
             batch=("${SCOPED_PATHS[@]:offset:BATCH_SIZE}")
             include="$(IFS=,; echo "${batch[*]}")"
             hydrated=0
-            for attempt in 1 2 3 4 5; do
-              echo "Hydrating scoped LFS batch $((offset / BATCH_SIZE + 1)) attempt ${attempt}/5 (${#batch[@]} paths) from ${TARGET_SHA}"
+            for attempt in 1 2 3; do
+              echo "Hydrating scoped LFS batch $((offset / BATCH_SIZE + 1)) attempt ${attempt}/3 (${#batch[@]} paths) from ${TARGET_SHA}"
               if git lfs fetch origin "$TARGET_SHA" --include="$include" --exclude=""; then
                 hydrated=1
                 break
               fi
-              sleep "$((attempt * 5))"
+              sleep "$((attempt * 4))"
             done
-            if [ "$hydrated" -ne 1 ]; then
-              echo "Scoped LFS batch failed after 5 attempts at offset ${offset}." >&2
-              exit 1
+            if [ "$hydrated" -eq 1 ]; then
+              continue
             fi
+            echo "Batch hydration remained incomplete; isolating ${#batch[@]} paths."
+            for path in "${batch[@]}"; do
+              path_hydrated=0
+              for attempt in 1 2 3 4 5; do
+                echo "Hydrating scoped LFS path ${path} attempt ${attempt}/5 from ${TARGET_SHA}"
+                if git lfs fetch origin "$TARGET_SHA" --include="$path" --exclude=""; then
+                  path_hydrated=1
+                  break
+                fi
+                sleep "$((attempt * 5))"
+              done
+              if [ "$path_hydrated" -ne 1 ]; then
+                echo "Scoped LFS path failed after isolated retries: $path" >&2
+                exit 1
+              fi
+            done
           done
           git lfs checkout
           for path in "${SCOPED_PATHS[@]}"; do
