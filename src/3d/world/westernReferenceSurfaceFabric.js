@@ -12,13 +12,14 @@ const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 
 export const WESTERN_REFERENCE_SURFACE_FABRIC_POLICY = Object.freeze({
-  id: 'western-reference-surface-fabric-2026-08-30-v10-lowland-relief-response',
+  id: 'western-reference-surface-fabric-2026-08-30-v11-aerial-relief-response',
   renderOnly: true,
   geographyAuthorityUnchanged: true,
   heightAuthorityUnchanged: true,
   hydrologyAuthorityUnchanged: true,
   colliderAuthorityUnchanged: true,
   macroMeters: 1760,
+  broadReliefMeters: 2840,
   mesoMeters: 470,
   fineMeters: 126,
   microMeters: 44,
@@ -33,8 +34,9 @@ export const WESTERN_REFERENCE_SURFACE_FABRIC_POLICY = Object.freeze({
   pastureBreakMeters: 520,
   colluviumMeters: 820,
   wetHollowMeters: 390,
-  soilShadeAmplitude: 0.152,
-  rockShadeAmplitude: 0.126,
+  dryBenchMeters: 1180,
+  soilShadeAmplitude: 0.166,
+  rockShadeAmplitude: 0.134,
   snowShadeAmplitude: 0.046,
   lakeShadeAmplitude: 0.028,
 });
@@ -99,6 +101,7 @@ function sampleFabric(worldX, worldZ) {
   const x = worldX + warpX * P.warpMeters + secondaryWarp * 54;
   const z = worldZ + warpZ * P.warpMeters - secondaryWarp * 39;
 
+  const broadRelief = valueNoise2D(x - 740, z + 520, P.broadReliefMeters, 2.9);
   const macro = valueNoise2D(x + 130, z - 280, P.macroMeters, 3.7);
   const meso = valueNoise2D(x - 390, z + 170, P.mesoMeters, 7.9);
   const fine = valueNoise2D(x + 210, z + 360, P.fineMeters, 11.3);
@@ -106,17 +109,17 @@ function sampleFabric(worldX, worldZ) {
   const subMicro = valueNoise2D(x + z * 0.11 + 37, z - x * 0.07 - 53, P.subMicroMeters, 67.1);
 
   const moisture = clamp01(
-    macro * 0.44 + meso * 0.28 + (1 - ridge01(fine)) * 0.12 + micro * 0.08
-      + valueNoise2D(x - 440, z + 190, P.wetHollowMeters, 79.3) * 0.08,
+    macro * 0.42 + broadRelief * 0.08 + meso * 0.25 + (1 - ridge01(fine)) * 0.11 + micro * 0.07
+      + valueNoise2D(x - 440, z + 190, P.wetHollowMeters, 79.3) * 0.07,
   );
   const mineral = clamp01(
-    (1 - macro) * 0.29 + ridge01(meso) * 0.29 + fine * 0.23
-      + ridge01(micro) * 0.12 + ridge01(subMicro) * 0.07,
+    (1 - macro) * 0.27 + (1 - broadRelief) * 0.08 + ridge01(meso) * 0.27 + fine * 0.21
+      + ridge01(micro) * 0.10 + ridge01(subMicro) * 0.07,
   );
   const weathering = clamp01(
-    ridge01(valueNoise2D(x + z * 0.17, z - x * 0.11, 640, 23.1)) * 0.52
-      + meso * 0.25 + fine * 0.15
-      + ridge01(valueNoise2D(x - 90, z + 160, 230, 24.8)) * 0.08,
+    ridge01(valueNoise2D(x + z * 0.17, z - x * 0.11, 640, 23.1)) * 0.48
+      + meso * 0.24 + broadRelief * 0.10 + fine * 0.11
+      + ridge01(valueNoise2D(x - 90, z + 160, 230, 24.8)) * 0.07,
   );
   const streak = ridge01(valueNoise2D(x + z * 0.23, z - x * 0.31, 178, 29.6));
   const crust = ridge01(valueNoise2D(x - z * 0.16, z + x * 0.28, 132, 37.4));
@@ -183,9 +186,16 @@ function sampleFabric(worldX, worldZ) {
     P.pastureBreakMeters,
     91.6,
   )) * (1 - smoothstep(0.68, 0.92, mineral)) * (1 - exposedInterfluve * 0.52);
+  const dryBench = smoothstep(0.54, 0.86, valueNoise2D(
+    x - z * 0.14 + 690,
+    z + x * 0.08 - 430,
+    P.dryBenchMeters,
+    97.2,
+  )) * smoothstep(0.43, 0.84, weathering) * (1 - smoothstep(0.52, 0.84, moisture))
+    * (1 - drainageThread * 0.58) * (0.58 + broadRelief * 0.42);
 
   return {
-    macro, meso, fine, micro, subMicro, moisture, mineral, weathering, streak, crust,
+    broadRelief, macro, meso, fine, micro, subMicro, moisture, mineral, weathering, streak, crust,
     stonyPatch: clamp01(stonyPatch),
     drainageThread: clamp01(drainageThread),
     wetHollow: clamp01(wetHollow),
@@ -197,6 +207,7 @@ function sampleFabric(worldX, worldZ) {
     erosionScour: clamp01(erosionScour),
     heathMosaic: clamp01(heathMosaic),
     pastureBreak: clamp01(pastureBreak),
+    dryBench: clamp01(dryBench),
   };
 }
 
@@ -213,38 +224,41 @@ function shadeColor(base, shade) {
 
 function soilColor(base, f) {
   const shade = 1
-    + (f.macro - 0.5) * 0.102 + (f.meso - 0.5) * 0.092
-    + (f.fine - 0.5) * 0.056 + (f.micro - 0.5) * 0.030 + (f.subMicro - 0.5) * 0.022
-    - f.drainageThread * 0.060 - f.wetHollow * 0.045 + f.exposedInterfluve * 0.040
-    + f.frostWash * 0.046 + f.colluvium * 0.030 + f.stonyPatch * 0.028
-    - f.erosionScour * 0.084 - f.heathMosaic * 0.028 + (f.pastureBreak - 0.5) * 0.030;
-  shadeColor(base, THREE.MathUtils.clamp(shade, 0.73, 1.23));
-  tint(base, COLORS.soilDamp, smoothstep(0.52, 0.86, f.moisture) * 0.180);
-  tint(base, COLORS.soilMineral, smoothstep(0.53, 0.88, f.mineral) * 0.160);
-  tint(base, COLORS.soilHeath, clamp01(smoothstep(0.58, 0.91, f.weathering) * (1 - f.moisture) * 0.126 + f.heathMosaic * 0.118));
-  tint(base, COLORS.soilDrainage, clamp01(f.drainageThread * 0.168 + f.wetHollow * 0.082));
-  tint(base, COLORS.soilAlluvium, f.alluvium * 0.108);
-  tint(base, COLORS.soilOxide, f.frostWash * f.exposedInterfluve * 0.154);
-  tint(base, COLORS.soilStony, clamp01(f.stonyPatch * 0.132 + f.erosionScour * f.mineral * 0.104 + f.colluvium * 0.076));
-  tint(base, COLORS.grassLush, f.pastureBreak * f.moisture * 0.088);
-  tint(base, COLORS.grassDry, f.pastureBreak * (1 - f.moisture) * 0.074);
+    + (f.broadRelief - 0.5) * 0.072
+    + (f.macro - 0.5) * 0.106 + (f.meso - 0.5) * 0.094
+    + (f.fine - 0.5) * 0.058 + (f.micro - 0.5) * 0.031 + (f.subMicro - 0.5) * 0.022
+    - f.drainageThread * 0.062 - f.wetHollow * 0.047 + f.exposedInterfluve * 0.043
+    + f.frostWash * 0.047 + f.colluvium * 0.032 + f.stonyPatch * 0.029
+    - f.erosionScour * 0.086 - f.heathMosaic * 0.030 + (f.pastureBreak - 0.5) * 0.032
+    + f.dryBench * 0.054;
+  shadeColor(base, THREE.MathUtils.clamp(shade, 0.71, 1.26));
+  tint(base, COLORS.soilDamp, smoothstep(0.52, 0.86, f.moisture) * 0.182);
+  tint(base, COLORS.soilMineral, smoothstep(0.53, 0.88, f.mineral) * 0.164);
+  tint(base, COLORS.soilHeath, clamp01(smoothstep(0.58, 0.91, f.weathering) * (1 - f.moisture) * 0.128 + f.heathMosaic * 0.122));
+  tint(base, COLORS.soilDrainage, clamp01(f.drainageThread * 0.170 + f.wetHollow * 0.084));
+  tint(base, COLORS.soilAlluvium, f.alluvium * 0.110);
+  tint(base, COLORS.soilOxide, clamp01(f.frostWash * f.exposedInterfluve * 0.158 + f.dryBench * f.mineral * 0.088));
+  tint(base, COLORS.soilStony, clamp01(f.stonyPatch * 0.136 + f.erosionScour * f.mineral * 0.106 + f.colluvium * 0.078 + f.dryBench * 0.064));
+  tint(base, COLORS.grassLush, f.pastureBreak * f.moisture * 0.090);
+  tint(base, COLORS.grassDry, clamp01(f.pastureBreak * (1 - f.moisture) * 0.076 + f.dryBench * 0.072));
 }
 
 function rockColor(base, f) {
   const strata = ridge01((f.streak * 0.74 + f.meso * 0.26) % 1);
   const shade = 1
-    + (f.macro - 0.5) * 0.068 + (strata - 0.5) * 0.112
-    + (f.fine - 0.5) * 0.050 + (f.micro - 0.5) * 0.030 + (f.subMicro - 0.5) * 0.034
-    + f.exposedInterfluve * 0.046 - f.fracture * 0.102 + f.frostWash * 0.058
-    + f.colluvium * 0.028 - f.stonyPatch * 0.022 - f.erosionScour * 0.078;
-  shadeColor(base, THREE.MathUtils.clamp(shade, 0.71, 1.25));
-  tint(base, COLORS.rockCool, smoothstep(0.53, 0.87, f.moisture) * 0.126);
-  tint(base, COLORS.rockIron, smoothstep(0.55, 0.89, f.mineral) * 0.140);
-  tint(base, COLORS.rockLichen, smoothstep(0.62, 0.92, f.weathering) * f.moisture * 0.088);
-  tint(base, COLORS.rockExposed, clamp01(f.exposedInterfluve * 0.108 + f.erosionScour * 0.068));
-  tint(base, COLORS.rockWetFracture, f.fracture * (0.096 + f.moisture * 0.134));
-  tint(base, COLORS.rockTalus, clamp01(f.frostWash * 0.092 + f.colluvium * 0.082));
-  tint(base, COLORS.rockScree, f.stonyPatch * (0.112 + f.weathering * 0.060));
+    + (f.broadRelief - 0.5) * 0.050
+    + (f.macro - 0.5) * 0.070 + (strata - 0.5) * 0.114
+    + (f.fine - 0.5) * 0.052 + (f.micro - 0.5) * 0.031 + (f.subMicro - 0.5) * 0.034
+    + f.exposedInterfluve * 0.048 - f.fracture * 0.104 + f.frostWash * 0.060
+    + f.colluvium * 0.030 - f.stonyPatch * 0.023 - f.erosionScour * 0.080 + f.dryBench * 0.034;
+  shadeColor(base, THREE.MathUtils.clamp(shade, 0.69, 1.28));
+  tint(base, COLORS.rockCool, smoothstep(0.53, 0.87, f.moisture) * 0.128);
+  tint(base, COLORS.rockIron, smoothstep(0.55, 0.89, f.mineral) * 0.144);
+  tint(base, COLORS.rockLichen, smoothstep(0.62, 0.92, f.weathering) * f.moisture * 0.090);
+  tint(base, COLORS.rockExposed, clamp01(f.exposedInterfluve * 0.112 + f.erosionScour * 0.070 + f.dryBench * 0.058));
+  tint(base, COLORS.rockWetFracture, f.fracture * (0.098 + f.moisture * 0.136));
+  tint(base, COLORS.rockTalus, clamp01(f.frostWash * 0.094 + f.colluvium * 0.084));
+  tint(base, COLORS.rockScree, f.stonyPatch * (0.114 + f.weathering * 0.062));
 }
 
 function snowColor(base, f) {
