@@ -21,68 +21,18 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          lfs: false
+          lfs: true
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Hydrate LFS with bounded object retries
-        shell: bash
-        run: |
-          set -euo pipefail
-          git lfs version
-          git config lfs.concurrenttransfers 1
-          TARGET_SHA="$(git rev-parse HEAD)"
-          test "$TARGET_SHA" = "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
-          mapfile -t LFS_PATHS < <(git lfs ls-files --name-only)
-          test "${#LFS_PATHS[@]}" -gt 0
-          BATCH_SIZE=12
-          for ((offset=0; offset<${#LFS_PATHS[@]}; offset+=BATCH_SIZE)); do
-            batch=("${LFS_PATHS[@]:offset:BATCH_SIZE}")
-            include="$(IFS=,; echo "${batch[*]}")"
-            hydrated=0
-            for attempt in 1 2 3; do
-              echo "Hydrating LFS batch $((offset / BATCH_SIZE + 1)) attempt ${attempt}/3 (${#batch[@]} paths) from ${TARGET_SHA}"
-              if git lfs fetch origin "$TARGET_SHA" --include="$include" --exclude=""; then
-                hydrated=1
-                break
-              fi
-              sleep "$((attempt * 4))"
-            done
-            if [ "$hydrated" -eq 1 ]; then
-              continue
-            fi
-            echo "Run283 batch hydration remained incomplete; isolating ${#batch[@]} paths."
-            for path in "${batch[@]}"; do
-              path_hydrated=0
-              for attempt in 1 2 3 4 5; do
-                echo "Hydrating Run283 LFS path ${path} attempt ${attempt}/5 from ${TARGET_SHA}"
-                if git lfs fetch origin "$TARGET_SHA" --include="$path" --exclude=""; then
-                  path_hydrated=1
-                  break
-                fi
-                sleep "$((attempt * 5))"
-              done
-              if [ "$path_hydrated" -ne 1 ]; then
-                echo "Run283 LFS path failed after isolated retries: $path" >&2
-                exit 1
-              fi
-            done
-          done
-          git lfs checkout
-          while IFS= read -r path; do
-            [ -n "$path" ] || continue
-            if head -c 200 "$path" | grep -aq 'version https://git-lfs.github.com/spec/v1'; then
-              echo "Run283 LFS pointer remained after hydration: $path" >&2
-              exit 1
-            fi
-          done < <(git lfs ls-files --name-only)
-
       - name: Exact-main additive entry gate
         shell: bash
         run: |
           set -euo pipefail
+          TARGET_SHA="$(git rev-parse HEAD)"
+          test "$TARGET_SHA" = "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
           git fetch origin main
           BASE_SHA="$(git rev-parse origin/main)"
           test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
