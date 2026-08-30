@@ -55,17 +55,38 @@ jobs:
         run: |
           set -euo pipefail
           git lfs version
-          LFS_INCLUDE="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**"
-          for attempt in 1 2 3; do
-            if git lfs pull --include="$LFS_INCLUDE" --exclude=""; then
-              break
-            fi
-            if [ "$attempt" -eq 3 ]; then
-              echo "Scoped LFS hydration failed after $attempt attempts." >&2
+          git config lfs.concurrenttransfers 1
+          FAMILIES=(
+            'assets/models/settlements/castles/**'
+            'assets/models/characters/**'
+            'assets/animations/peasant_girl/**'
+            'assets/models/animals/**'
+            'assets/models/creatures/dragon/**'
+          )
+          for family in "${FAMILIES[@]}"; do
+            hydrated=0
+            for attempt in 1 2 3 4 5; do
+              echo "Hydrating LFS family ${family} (attempt ${attempt}/5)"
+              if git lfs fetch origin "$GITHUB_SHA" --include="$family" --exclude=""; then
+                hydrated=1
+                break
+              fi
+              sleep "$((attempt * 5))"
+            done
+            if [ "$hydrated" -ne 1 ]; then
+              echo "Scoped LFS family failed after 5 attempts: ${family}" >&2
               exit 1
             fi
-            sleep "$((attempt * 5))"
           done
+          git lfs checkout
+          LFS_INCLUDE="$(IFS=,; echo "${FAMILIES[*]}")"
+          while IFS= read -r path; do
+            [ -n "$path" ] || continue
+            if head -c 200 "$path" | grep -aq 'version https://git-lfs.github.com/spec/v1'; then
+              echo "LFS pointer remained after hydration: $path" >&2
+              exit 1
+            fi
+          done < <(git lfs ls-files --name-only --include="$LFS_INCLUDE")
 
       - name: Install Playwright outside repo
         shell: bash
