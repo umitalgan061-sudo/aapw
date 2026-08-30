@@ -10,7 +10,7 @@ import {
 } from './westernReferenceSurfaceFabric.js';
 
 export const PINDEX03_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex03-detail-2026-08-30-v13-multiscale-erosion-normal',
+  id: 'owner-map-pindex03-detail-2026-08-30-v14-multiscale-erosion-contrast',
   pindex: 3,
   westernMarineShelfTone: true,
   westernReferenceSurfaceFabric: true,
@@ -25,12 +25,12 @@ export const PINDEX03_DETAIL_POLICY = Object.freeze({
   normalUltraBroadProbeMeters: 220.0,
   normalSnowWindProbeMeters: 18.0,
   normalErosionProbeMeters: 54.0,
-  normalMicroBlend: 0.20,
-  normalMacroBlend: 0.23,
+  normalMicroBlend: 0.18,
+  normalMacroBlend: 0.22,
   normalBroadBlend: 0.18,
-  normalUltraBroadBlend: 0.13,
-  normalErosionBlend: 0.18,
-  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.38, rock: 0.56, snow: 0.19 }),
+  normalUltraBroadBlend: 0.16,
+  normalErosionBlend: 0.28,
+  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.52, rock: 0.68, snow: 0.22 }),
   normalSeamFeatherNormalized: 0.012,
   mapAuthorityUnchanged: true,
   geographyAuthorityUnchanged: true,
@@ -196,30 +196,30 @@ function applyPindex03RegionalAlbedo(color, index, classification) {
   let green = 1;
   let blue = 1;
   if (classification.surface === 'soil') {
-    red += (fabric.mineral - 0.5) * 0.076 + fabric.exposedInterfluve * 0.046
-      + fabric.stonyPatch * 0.028 - fabric.moisture * 0.020 - fabric.erosionScour * 0.052;
-    green += (fabric.moisture - 0.5) * 0.064 + fabric.heathMosaic * 0.024
-      + fabric.exposedInterfluve * 0.014 - fabric.erosionScour * 0.046 - fabric.stonyPatch * 0.016;
-    blue += (fabric.moisture - 0.5) * 0.042 - fabric.mineral * 0.038
-      - fabric.heathMosaic * 0.034 - fabric.erosionScour * 0.036 + fabric.frostWash * 0.018;
+    red += (fabric.mineral - 0.5) * 0.104 + fabric.exposedInterfluve * 0.064
+      + fabric.stonyPatch * 0.040 - fabric.moisture * 0.027 - fabric.erosionScour * 0.072;
+    green += (fabric.moisture - 0.5) * 0.088 + fabric.heathMosaic * 0.034
+      + fabric.exposedInterfluve * 0.019 - fabric.erosionScour * 0.064 - fabric.stonyPatch * 0.022;
+    blue += (fabric.moisture - 0.5) * 0.058 - fabric.mineral * 0.052
+      - fabric.heathMosaic * 0.047 - fabric.erosionScour * 0.050 + fabric.frostWash * 0.025;
   } else if (classification.surface === 'rock') {
-    red += fabric.exposedInterfluve * 0.054 + fabric.frostWash * 0.030
-      - fabric.fracture * 0.054 - fabric.erosionScour * 0.030;
-    green += fabric.frostWash * 0.038 - fabric.fracture * 0.048
-      - fabric.stonyPatch * 0.028 - fabric.erosionScour * 0.032;
-    blue += fabric.frostWash * 0.052 - fabric.weathering * 0.032
-      - fabric.fracture * 0.039 - fabric.stonyPatch * 0.020;
+    red += fabric.exposedInterfluve * 0.074 + fabric.frostWash * 0.041
+      - fabric.fracture * 0.074 - fabric.erosionScour * 0.041;
+    green += fabric.frostWash * 0.052 - fabric.fracture * 0.066
+      - fabric.stonyPatch * 0.038 - fabric.erosionScour * 0.044;
+    blue += fabric.frostWash * 0.071 - fabric.weathering * 0.044
+      - fabric.fracture * 0.054 - fabric.stonyPatch * 0.027;
   } else if (classification.surface === 'snow') {
-    red += (fabric.crust - 0.5) * 0.020 - fabric.weathering * 0.014 - fabric.stonyPatch * 0.010;
-    green += (fabric.crust - 0.5) * 0.024 + fabric.frostWash * 0.008 - fabric.weathering * 0.010;
-    blue += (fabric.crust - 0.5) * 0.034 + fabric.frostWash * 0.016 - fabric.stonyPatch * 0.006;
+    red += (fabric.crust - 0.5) * 0.024 - fabric.weathering * 0.016 - fabric.stonyPatch * 0.011;
+    green += (fabric.crust - 0.5) * 0.029 + fabric.frostWash * 0.010 - fabric.weathering * 0.012;
+    blue += (fabric.crust - 0.5) * 0.040 + fabric.frostWash * 0.019 - fabric.stonyPatch * 0.007;
   } else {
     return false;
   }
 
-  red = THREE.MathUtils.lerp(1, THREE.MathUtils.clamp(red, 0.89, 1.10), seam);
-  green = THREE.MathUtils.lerp(1, THREE.MathUtils.clamp(green, 0.89, 1.10), seam);
-  blue = THREE.MathUtils.lerp(1, THREE.MathUtils.clamp(blue, 0.89, 1.10), seam);
+  red = THREE.MathUtils.lerp(1, THREE.MathUtils.clamp(red, 0.84, 1.16), seam);
+  green = THREE.MathUtils.lerp(1, THREE.MathUtils.clamp(green, 0.84, 1.16), seam);
+  blue = THREE.MathUtils.lerp(1, THREE.MathUtils.clamp(blue, 0.84, 1.16), seam);
   color.setXYZ(
     index,
     clamp01(color.getX(index) * red),
