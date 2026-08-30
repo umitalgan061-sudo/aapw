@@ -44,7 +44,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          lfs: false
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup Node
@@ -56,21 +55,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TARGET_SHA="$(git rev-parse HEAD)"
-          test "$TARGET_SHA" = "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
           git lfs version
-          git lfs install --local
-          git config lfs.concurrenttransfers 1
-          hydrated=0
-          for attempt in 1 2 3 4 5; do
-            echo "Run167 scoped LFS hydration attempt $attempt/5"
-            if git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""; then
-              hydrated=1
-              break
-            fi
-            sleep $((attempt * 3))
-          done
-          test "$hydrated" -eq 1
+          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
 
       - name: Install Playwright outside repo
         shell: bash
