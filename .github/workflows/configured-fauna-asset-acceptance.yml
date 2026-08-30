@@ -70,13 +70,23 @@ jobs:
             grep -oE "assets/models/animals/[^'\"]+\.glb" src/3d/gameplay/animalConfig.js | sort -u
           )
           test "${#model_paths[@]}" -ge 10
-          include="$(IFS=,; echo "${model_paths[*]}")"
-          printf 'Hydrating %d configured fauna GLBs only\n' "${#model_paths[@]}"
-          git lfs pull --include="$include" --exclude=""
+          printf 'Hydrating %d configured fauna GLBs individually\n' "${#model_paths[@]}"
+
           for model_path in "${model_paths[@]}"; do
-            test -s "$model_path"
-            if head -c 200 "$model_path" | grep -aq 'version https://git-lfs.github.com/spec/v1'; then
-              echo "Configured fauna asset remained an LFS pointer: $model_path" >&2
+            hydrated=false
+            for attempt in 1 2 3; do
+              printf 'LFS hydrate %s (attempt %d/3)\n' "$model_path" "$attempt"
+              if git lfs fetch origin --include="$model_path" --exclude="" HEAD && git lfs checkout "$model_path"; then
+                if test -s "$model_path" && ! head -c 200 "$model_path" | grep -aq 'version https://git-lfs.github.com/spec/v1'; then
+                  hydrated=true
+                  break
+                fi
+              fi
+              sleep "$attempt"
+            done
+            if test "$hydrated" != true; then
+              echo "Configured fauna asset could not be hydrated: $model_path" >&2
+              git lfs pointer --file="$model_path" 2>/dev/null || true
               exit 1
             fi
           done
