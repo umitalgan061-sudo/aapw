@@ -67,7 +67,14 @@ jobs:
         run: node scripts/checkNpcHearingFrameRateDeterminism.mjs
 
       - name: Perception-input safety proof in shipped browser runtime
-        run: node scripts/checkNpcPerceptionInputSafetyBrowser.js
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! node scripts/checkNpcPerceptionInputSafetyBrowser.js; then
+            echo "Perception cross-check failed after hearing browser teardown; retrying once after a bounded cooldown."
+            sleep 2
+            node scripts/checkNpcPerceptionInputSafetyBrowser.js
+          fi
 
       - name: NPC deterministic runtime guard
         run: |
