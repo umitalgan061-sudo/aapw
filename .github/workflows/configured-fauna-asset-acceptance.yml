@@ -76,7 +76,7 @@ jobs:
             hydrated=false
             for attempt in 1 2 3; do
               printf 'LFS hydrate %s (attempt %d/3)\n' "$model_path" "$attempt"
-              if git lfs fetch origin --include="$model_path" --exclude="" HEAD && git lfs checkout "$model_path"; then
+              if git lfs fetch --include="$model_path" --exclude="" origin HEAD && git lfs checkout "$model_path"; then
                 if test -s "$model_path" && ! head -c 200 "$model_path" | grep -aq 'version https://git-lfs.github.com/spec/v1'; then
                   hydrated=true
                   break
