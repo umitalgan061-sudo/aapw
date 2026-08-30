@@ -9,6 +9,8 @@ on:
       - 'scripts/checkNpcGuardAttack.mjs'
       - 'scripts/checkNpcGuardLeash.mjs'
       - 'scripts/checkNpcGuardLifecycleContract.mjs'
+      - 'scripts/checkNpcGuardReturnToPatrol.mjs'
+      - 'scripts/checkNpcPopulationLodRecovery.mjs'
       - 'scripts/checkNpcMovementSafetyBrowser.js'
       - '.github/workflows/run167-determinism-policy.yml'
       - '.github/workflows/run283-final-head-governance.yml'
@@ -50,7 +52,7 @@ jobs:
             printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcGuardLeashAttackSlotHandoff.mjs'
             printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/run167-determinism-policy.yml'
             printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-guard-leash-attack-slot-handoff.yml'
-          elif test "${#files[@]}" -eq 11; then
+          elif test "${#files[@]}" -eq 12; then
             printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-guard-return-to-patrol.yml'
             printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-hearing-framerate-determinism.yml'
             printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-movement-safety.yml'
@@ -60,6 +62,7 @@ jobs:
             printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/run283-final-head-governance.yml'
             printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcGuardLifecycleContract.mjs'
             printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcGuardReturnToPatrol.mjs'
+            printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcPopulationLodRecovery.mjs'
             printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcMovementSafetyBrowser.js'
             printf '%s\n' "${files[@]}" | grep -Fx 'src/3d/gameplay/npc.js'
           else
