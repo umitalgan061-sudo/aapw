@@ -10,7 +10,7 @@ import {
 } from './westernReferenceSurfaceFabric.js';
 
 export const PINDEX03_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex03-detail-2026-08-30-v11-regional-albedo-weathering',
+  id: 'owner-map-pindex03-detail-2026-08-30-v12-ecotone-lithology-albedo',
   pindex: 3,
   westernMarineShelfTone: true,
   westernReferenceSurfaceFabric: true,
@@ -138,35 +138,39 @@ function applyPindex03RegionalAlbedo(color, index, classification) {
   const seam = pindex03NormalWeight(classification.normalizedX);
   if (seam <= 0) return false;
 
-  let shade = 1;
+  let red = 1;
+  let green = 1;
+  let blue = 1;
   if (classification.surface === 'soil') {
-    shade += (fabric.mineral - 0.5) * 0.040
-      + fabric.exposedInterfluve * 0.042
-      + fabric.stonyPatch * 0.025
-      - fabric.moisture * 0.030
-      - fabric.erosionScour * 0.050
-      - fabric.heathMosaic * 0.026;
+    red += (fabric.mineral - 0.5) * 0.070 + fabric.exposedInterfluve * 0.040
+      + fabric.stonyPatch * 0.024 - fabric.moisture * 0.018 - fabric.erosionScour * 0.046;
+    green += (fabric.moisture - 0.5) * 0.058 + fabric.heathMosaic * 0.020
+      + fabric.exposedInterfluve * 0.012 - fabric.erosionScour * 0.042 - fabric.stonyPatch * 0.014;
+    blue += (fabric.moisture - 0.5) * 0.038 - fabric.mineral * 0.034
+      - fabric.heathMosaic * 0.030 - fabric.erosionScour * 0.032 + fabric.frostWash * 0.016;
   } else if (classification.surface === 'rock') {
-    shade += fabric.frostWash * 0.036
-      + fabric.exposedInterfluve * 0.040
-      - fabric.fracture * 0.054
-      - fabric.stonyPatch * 0.026
-      - fabric.erosionScour * 0.036;
+    red += fabric.exposedInterfluve * 0.050 + fabric.frostWash * 0.026
+      - fabric.fracture * 0.050 - fabric.erosionScour * 0.026;
+    green += fabric.frostWash * 0.034 - fabric.fracture * 0.044
+      - fabric.stonyPatch * 0.025 - fabric.erosionScour * 0.028;
+    blue += fabric.frostWash * 0.048 - fabric.weathering * 0.028
+      - fabric.fracture * 0.035 - fabric.stonyPatch * 0.018;
   } else if (classification.surface === 'snow') {
-    shade += (fabric.crust - 0.5) * 0.024
-      + fabric.frostWash * 0.010
-      - fabric.weathering * 0.014
-      - fabric.stonyPatch * 0.012;
+    red += (fabric.crust - 0.5) * 0.020 - fabric.weathering * 0.014 - fabric.stonyPatch * 0.010;
+    green += (fabric.crust - 0.5) * 0.024 + fabric.frostWash * 0.008 - fabric.weathering * 0.010;
+    blue += (fabric.crust - 0.5) * 0.034 + fabric.frostWash * 0.016 - fabric.stonyPatch * 0.006;
   } else {
     return false;
   }
 
-  shade = THREE.MathUtils.lerp(1, THREE.MathUtils.clamp(shade, 0.91, 1.08), seam);
+  red = THREE.MathUtils.lerp(1, THREE.MathUtils.clamp(red, 0.90, 1.09), seam);
+  green = THREE.MathUtils.lerp(1, THREE.MathUtils.clamp(green, 0.90, 1.09), seam);
+  blue = THREE.MathUtils.lerp(1, THREE.MathUtils.clamp(blue, 0.90, 1.09), seam);
   color.setXYZ(
     index,
-    clamp01(color.getX(index) * shade),
-    clamp01(color.getY(index) * shade),
-    clamp01(color.getZ(index) * shade),
+    clamp01(color.getX(index) * red),
+    clamp01(color.getY(index) * green),
+    clamp01(color.getZ(index) * blue),
   );
   return true;
 }
