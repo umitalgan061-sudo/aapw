@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-30-v44-naturalized-lowland-mineral-balance',
+	id: 'geographic-reference-palette-2026-08-30-v45-lowland-beige-suppression',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,8 +20,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'render-verified v44 target: lowland vegetation and heath are slightly less saturated while warm ferric/mineral exposures retain separation; damp organic ground stays neutral-dark and weathered granite remains warmer than wet basalt. Deterministic world-space albedo/normal/roughness fabric remains the variation source and canonical terrain, shoreline, hydrology and colliders are unchanged',
-		water: 'v44 keeps shallow mineral-green shore water, inland pools, aerated rapids and offshore depth separated while slightly reducing cyan bias; canonical wet coverage, shoreline and hydrology are unchanged',
+		terrain: 'render-verified v45 target after full-world #549 inspection: suppress broad beige lowland dominance by pulling dry heath toward muted olive-brown and reducing pale granite/quartz values while preserving darker living meadow, neutral wet organic ground and bounded ferric exposures. Deterministic world-space albedo/normal/roughness fabric remains the variation source; canonical terrain, shoreline, hydrology and colliders are unchanged',
+		water: 'v45 retains the less-cyan shallow/inland/offshore hierarchy from v44; canonical wet coverage, shoreline and hydrology are unchanged',
 		road: 'compacted earth, wet ruts, pale mineral dust and cool stone shoulders remain materially distinct without a uniform painted-ribbon response',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
@@ -30,14 +30,14 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
 		mossShadow: 0x0d2418,
-		meadow: 0x244d2e,
-		dryHeather: 0x805a3b,
-		wetEarth: 0x111a17,
-		exposedEarth: 0xaa7148,
-		graniteShadow: 0x30424c,
-		graniteSunlit: 0xa78f78,
-		basaltWet: 0x12242d,
-		quartz: 0xc8b9a4,
+		meadow: 0x21472b,
+		dryHeather: 0x6f5a38,
+		wetEarth: 0x101916,
+		exposedEarth: 0x9f6742,
+		graniteShadow: 0x2f4048,
+		graniteSunlit: 0x907f70,
+		basaltWet: 0x11232b,
+		quartz: 0xb8ad9b,
 	}),
 	road: Object.freeze({
 		compacted: 0x73513a,
