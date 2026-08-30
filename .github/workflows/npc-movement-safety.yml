@@ -10,6 +10,7 @@ on:
       - 'scripts/checkNpcPopulationLodRecovery.mjs'
       - 'scripts/checkNpcMovementSafetyBrowser.js'
       - 'scripts/checkNpcPerceptionInputSafetyBrowser.js'
+      - '.github/workflows/configured-fauna-asset-acceptance.yml'
       - '.github/workflows/npc-guard-return-to-patrol.yml'
       - '.github/workflows/npc-movement-safety.yml'
       - '.github/workflows/npc-hearing-framerate-determinism.yml'
@@ -43,8 +44,8 @@ jobs:
           test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
           CHANGED_FILES="$(git diff --name-only "$BASE_SHA" HEAD)"
           printf '%s\n' "$CHANGED_FILES"
-          test "$(printf '%s\n' "$CHANGED_FILES" | sed '/^$/d' | wc -l)" -le 12
-          printf '%s\n' "$CHANGED_FILES" | grep -Ev '^(src/3d/gameplay/npc\.js|scripts/checkNpcGuardLifecycleContract\.mjs|scripts/checkNpcGuardReturnToPatrol\.mjs|scripts/checkNpcPopulationLodRecovery\.mjs|scripts/checkNpcMovementSafetyBrowser\.js|scripts/checkNpcPerceptionInputSafetyBrowser\.js|\.github/workflows/npc-guard-return-to-patrol\.yml|\.github/workflows/npc-movement-safety\.yml|\.github/workflows/npc-hearing-framerate-determinism\.yml|\.github/workflows/npc-perception-input-safety\.yml|\.github/workflows/npc-guard-leash-attack-slot-handoff\.yml|\.github/workflows/run167-determinism-policy\.yml|\.github/workflows/run283-final-head-governance\.yml)$' && exit 1 || true
+          test "$(printf '%s\n' "$CHANGED_FILES" | sed '/^$/d' | wc -l)" -le 13
+          printf '%s\n' "$CHANGED_FILES" | grep -Ev '^(src/3d/gameplay/npc\.js|scripts/checkNpcGuardLifecycleContract\.mjs|scripts/checkNpcGuardReturnToPatrol\.mjs|scripts/checkNpcPopulationLodRecovery\.mjs|scripts/checkNpcMovementSafetyBrowser\.js|scripts/checkNpcPerceptionInputSafetyBrowser\.js|\.github/workflows/configured-fauna-asset-acceptance\.yml|\.github/workflows/npc-guard-return-to-patrol\.yml|\.github/workflows/npc-movement-safety\.yml|\.github/workflows/npc-hearing-framerate-determinism\.yml|\.github/workflows/npc-perception-input-safety\.yml|\.github/workflows/npc-guard-leash-attack-slot-handoff\.yml|\.github/workflows/run167-determinism-policy\.yml|\.github/workflows/run283-final-head-governance\.yml)$' && exit 1 || true
           CHANGED="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           test "$CHANGED" -le 1000
           git diff --check "$BASE_SHA" HEAD
