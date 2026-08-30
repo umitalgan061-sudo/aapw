@@ -71,12 +71,13 @@ jobs:
           )
           test "${#model_paths[@]}" -ge 10
           printf 'Hydrating %d configured fauna GLBs individually\n' "${#model_paths[@]}"
+          asset_ref="$(git rev-parse HEAD)"
 
           for model_path in "${model_paths[@]}"; do
             hydrated=false
             for attempt in 1 2 3; do
               printf 'LFS hydrate %s (attempt %d/3)\n' "$model_path" "$attempt"
-              if git lfs fetch --include="$model_path" --exclude="" origin HEAD && git lfs checkout "$model_path"; then
+              if git lfs fetch --include="$model_path" --exclude="" origin "$asset_ref" && git lfs checkout "$model_path"; then
                 if test -s "$model_path" && ! head -c 200 "$model_path" | grep -aq 'version https://git-lfs.github.com/spec/v1'; then
                   hydrated=true
                   break
@@ -84,6 +85,23 @@ jobs:
               fi
               sleep "$attempt"
             done
+
+            if test "$hydrated" != true; then
+              media_url="https://media.githubusercontent.com/media/${GITHUB_REPOSITORY}/${asset_ref}/${model_path}"
+              tmp_asset="${RUNNER_TEMP}/$(basename "$model_path").download"
+              printf 'LFS transfer unavailable; trying bounded GitHub media hydration for %s\n' "$model_path"
+              if curl --fail --location --silent --show-error \
+                --retry 3 --retry-delay 2 --retry-all-errors \
+                --connect-timeout 15 --max-time 120 \
+                "$media_url" --output "$tmp_asset"; then
+                if test -s "$tmp_asset" && ! head -c 200 "$tmp_asset" | grep -aq 'version https://git-lfs.github.com/spec/v1'; then
+                  mv "$tmp_asset" "$model_path"
+                  hydrated=true
+                fi
+              fi
+              rm -f "$tmp_asset"
+            fi
+
             if test "$hydrated" != true; then
               echo "Configured fauna asset could not be hydrated: $model_path" >&2
               git lfs pointer --file="$model_path" 2>/dev/null || true
