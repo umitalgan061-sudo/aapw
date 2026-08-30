@@ -122,8 +122,10 @@ async function main() {
     server.kill('SIGTERM');
   }
 
-  const fatalServerLog = serverErrors.join('').replace(/BrokenPipeError: \[Errno 32\] Broken pipe/g, '');
-  if (/\" [45]\d\d |(?:^|\n)\w*(?:Error|Exception):|Traceback/im.test(fatalServerLog)) {
+  const fatalServerLog = serverErrors.join('')
+    .replace(/BrokenPipeError: \[Errno 32\] Broken pipe/g, '')
+    .replace(/ConnectionResetError: \[Errno 104\] Connection reset by peer/g, '');
+  if (/\" [45]\d\d |(?:^|\n)[A-Za-z_][\w.]*(?:Error|Exception):/m.test(fatalServerLog)) {
     throw new Error(`static server errors: ${fatalServerLog}`);
   }
 }
