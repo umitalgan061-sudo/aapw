@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-30-v46-lowland-material-depth',
+	id: 'geographic-reference-palette-2026-08-31-v47-lowland-ecotone-contrast',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,8 +20,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'render-verified v46 after full-world #549/#550 inspection: broad pale mineral dominance is reduced again while living meadow, damp organic ground and muted olive-brown heath carry more visual depth; ferric exposure stays bounded and weathered granite/quartz remain distinct from wet basalt without washing lowlands beige. Deterministic world-space albedo/normal/roughness fabric remains the variation source; canonical terrain, shoreline, hydrology and colliders are unchanged',
-		water: 'v46 retains the restrained shallow/inland/offshore optical hierarchy from v44-v45; canonical wet coverage, shoreline and hydrology are unchanged',
+		terrain: 'render-verified v47: broad lowland meadow/organic-wet/heath/mineral ecotones gain stronger value separation without introducing new geography; pale granite/quartz remain bounded to exposed material response, while moss shadow and wet earth retain depth under aerial lighting. Deterministic world-space albedo/normal/roughness fabric remains the variation source; canonical terrain, shoreline, hydrology and colliders are unchanged',
+		water: 'v47 slightly deepens inland and offshore optical separation while retaining restrained cyan; canonical wet coverage, shoreline and hydrology are unchanged',
 		road: 'compacted earth, wet ruts, pale mineral dust and cool stone shoulders remain materially distinct without a uniform painted-ribbon response',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
@@ -29,15 +29,15 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x0c2217,
-		meadow: 0x1f4529,
-		dryHeather: 0x635637,
-		wetEarth: 0x0f1815,
-		exposedEarth: 0x95623f,
-		graniteShadow: 0x2d3e46,
-		graniteSunlit: 0x84776a,
-		basaltWet: 0x102129,
-		quartz: 0xaaa292,
+		mossShadow: 0x0a2015,
+		meadow: 0x1b4a29,
+		dryHeather: 0x6b5735,
+		wetEarth: 0x0c1714,
+		exposedEarth: 0x9c633d,
+		graniteShadow: 0x2a3b43,
+		graniteSunlit: 0x817164,
+		basaltWet: 0x0d1e27,
+		quartz: 0xa69b89,
 	}),
 	road: Object.freeze({
 		compacted: 0x73513a,
@@ -47,13 +47,13 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		mossEdge: 0x284b31,
 	}),
 	water: Object.freeze({
-		shoreClear: 0x4a8278,
-		lakeClear: 0x2b6775,
-		riverPool: 0x246b7b,
-		rapid: 0x82aaaf,
-		deepSea: 0x07263a,
-		abyss: 0x010911,
-		plunge: 0x4e8490,
+		shoreClear: 0x467a72,
+		lakeClear: 0x275f70,
+		riverPool: 0x206476,
+		rapid: 0x7fa6ab,
+		deepSea: 0x062338,
+		abyss: 0x010811,
+		plunge: 0x4a7f8b,
 		splash: 0xdeedeb,
 		foam: 0xf1f7f4,
 	}),
