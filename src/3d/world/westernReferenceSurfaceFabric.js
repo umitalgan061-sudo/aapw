@@ -12,7 +12,7 @@ const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 
 export const WESTERN_REFERENCE_SURFACE_FABRIC_POLICY = Object.freeze({
-  id: 'western-reference-surface-fabric-2026-08-30-v12-aerial-weathering-response',
+  id: 'western-reference-surface-fabric-2026-08-30-v13-worldscale-legibility',
   renderOnly: true,
   geographyAuthorityUnchanged: true,
   heightAuthorityUnchanged: true,
@@ -36,29 +36,29 @@ export const WESTERN_REFERENCE_SURFACE_FABRIC_POLICY = Object.freeze({
   colluviumMeters: 820,
   wetHollowMeters: 390,
   dryBenchMeters: 1320,
-  soilShadeAmplitude: 0.184,
-  rockShadeAmplitude: 0.148,
+  soilShadeAmplitude: 0.236,
+  rockShadeAmplitude: 0.186,
   snowShadeAmplitude: 0.046,
   lakeShadeAmplitude: 0.028,
 });
 
 const COLORS = Object.freeze({
-  soilDamp: new THREE.Color(0x40513d),
-  soilMineral: new THREE.Color(0x7b6a4a),
-  soilHeath: new THREE.Color(0x505a3d),
-  soilAlluvium: new THREE.Color(0x71664b),
-  soilDrainage: new THREE.Color(0x34483a),
-  soilOxide: new THREE.Color(0x875d40),
-  soilStony: new THREE.Color(0x6e6858),
-  grassDry: new THREE.Color(0x76744f),
-  grassLush: new THREE.Color(0x435a3e),
-  rockCool: new THREE.Color(0x545b5b),
-  rockIron: new THREE.Color(0x79604d),
-  rockLichen: new THREE.Color(0x606b53),
-  rockExposed: new THREE.Color(0x7e7566),
-  rockWetFracture: new THREE.Color(0x444c4d),
-  rockTalus: new THREE.Color(0x897b69),
-  rockScree: new THREE.Color(0x69645b),
+  soilDamp: new THREE.Color(0x3b4c39),
+  soilMineral: new THREE.Color(0x806c49),
+  soilHeath: new THREE.Color(0x4b5738),
+  soilAlluvium: new THREE.Color(0x756748),
+  soilDrainage: new THREE.Color(0x304236),
+  soilOxide: new THREE.Color(0x8c5d3c),
+  soilStony: new THREE.Color(0x716a58),
+  grassDry: new THREE.Color(0x7b774c),
+  grassLush: new THREE.Color(0x3e5639),
+  rockCool: new THREE.Color(0x50595a),
+  rockIron: new THREE.Color(0x7d6049),
+  rockLichen: new THREE.Color(0x5b684e),
+  rockExposed: new THREE.Color(0x837968),
+  rockWetFracture: new THREE.Color(0x40494b),
+  rockTalus: new THREE.Color(0x8e7e68),
+  rockScree: new THREE.Color(0x6c665b),
   snowShadow: new THREE.Color(0xb9c6c7),
   snowCrust: new THREE.Color(0xe3e3d8),
   lakeCold: new THREE.Color(0x526d72),
@@ -227,41 +227,41 @@ function shadeColor(base, shade) {
 
 function soilColor(base, f) {
   const shade = 1
-    + (f.broadRelief - 0.5) * 0.110 + (f.continental - 0.5) * 0.044
-    + (f.macro - 0.5) * 0.112 + (f.meso - 0.5) * 0.098
-    + (f.fine - 0.5) * 0.060 + (f.micro - 0.5) * 0.032 + (f.subMicro - 0.5) * 0.022
-    - f.drainageThread * 0.064 - f.wetHollow * 0.050 + f.exposedInterfluve * 0.047
-    + f.frostWash * 0.050 + f.colluvium * 0.034 + f.stonyPatch * 0.030
-    - f.erosionScour * 0.090 - f.heathMosaic * 0.034 + (f.pastureBreak - 0.5) * 0.034
-    + f.dryBench * 0.078;
-  shadeColor(base, THREE.MathUtils.clamp(shade, 0.66, 1.33));
-  tint(base, COLORS.soilDamp, smoothstep(0.52, 0.86, f.moisture) * 0.188);
-  tint(base, COLORS.soilMineral, smoothstep(0.53, 0.88, f.mineral) * 0.170);
-  tint(base, COLORS.soilHeath, clamp01(smoothstep(0.58, 0.91, f.weathering) * (1 - f.moisture) * 0.134 + f.heathMosaic * 0.128));
-  tint(base, COLORS.soilDrainage, clamp01(f.drainageThread * 0.176 + f.wetHollow * 0.090));
-  tint(base, COLORS.soilAlluvium, f.alluvium * 0.114);
-  tint(base, COLORS.soilOxide, clamp01(f.frostWash * f.exposedInterfluve * 0.164 + f.dryBench * f.mineral * 0.118));
-  tint(base, COLORS.soilStony, clamp01(f.stonyPatch * 0.142 + f.erosionScour * f.mineral * 0.112 + f.colluvium * 0.082 + f.dryBench * 0.088));
-  tint(base, COLORS.grassLush, f.pastureBreak * f.moisture * 0.096);
-  tint(base, COLORS.grassDry, clamp01(f.pastureBreak * (1 - f.moisture) * 0.082 + f.dryBench * 0.102));
+    + (f.broadRelief - 0.5) * 0.178 + (f.continental - 0.5) * 0.064
+    + (f.macro - 0.5) * 0.142 + (f.meso - 0.5) * 0.118
+    + (f.fine - 0.5) * 0.068 + (f.micro - 0.5) * 0.036 + (f.subMicro - 0.5) * 0.024
+    - f.drainageThread * 0.074 - f.wetHollow * 0.058 + f.exposedInterfluve * 0.056
+    + f.frostWash * 0.058 + f.colluvium * 0.040 + f.stonyPatch * 0.036
+    - f.erosionScour * 0.104 - f.heathMosaic * 0.042 + (f.pastureBreak - 0.5) * 0.040
+    + f.dryBench * 0.118;
+  shadeColor(base, THREE.MathUtils.clamp(shade, 0.58, 1.42));
+  tint(base, COLORS.soilDamp, smoothstep(0.50, 0.84, f.moisture) * 0.222);
+  tint(base, COLORS.soilMineral, smoothstep(0.51, 0.86, f.mineral) * 0.204);
+  tint(base, COLORS.soilHeath, clamp01(smoothstep(0.56, 0.89, f.weathering) * (1 - f.moisture) * 0.166 + f.heathMosaic * 0.158));
+  tint(base, COLORS.soilDrainage, clamp01(f.drainageThread * 0.208 + f.wetHollow * 0.112));
+  tint(base, COLORS.soilAlluvium, f.alluvium * 0.136);
+  tint(base, COLORS.soilOxide, clamp01(f.frostWash * f.exposedInterfluve * 0.198 + f.dryBench * f.mineral * 0.154));
+  tint(base, COLORS.soilStony, clamp01(f.stonyPatch * 0.172 + f.erosionScour * f.mineral * 0.138 + f.colluvium * 0.100 + f.dryBench * 0.124));
+  tint(base, COLORS.grassLush, f.pastureBreak * f.moisture * 0.118);
+  tint(base, COLORS.grassDry, clamp01(f.pastureBreak * (1 - f.moisture) * 0.102 + f.dryBench * 0.138));
 }
 
 function rockColor(base, f) {
   const strata = ridge01((f.streak * 0.74 + f.meso * 0.26) % 1);
   const shade = 1
-    + (f.broadRelief - 0.5) * 0.076 + (f.continental - 0.5) * 0.032
-    + (f.macro - 0.5) * 0.074 + (strata - 0.5) * 0.118
-    + (f.fine - 0.5) * 0.054 + (f.micro - 0.5) * 0.032 + (f.subMicro - 0.5) * 0.036
-    + f.exposedInterfluve * 0.052 - f.fracture * 0.108 + f.frostWash * 0.064
-    + f.colluvium * 0.032 - f.stonyPatch * 0.024 - f.erosionScour * 0.084 + f.dryBench * 0.052;
-  shadeColor(base, THREE.MathUtils.clamp(shade, 0.64, 1.34));
-  tint(base, COLORS.rockCool, smoothstep(0.53, 0.87, f.moisture) * 0.132);
-  tint(base, COLORS.rockIron, smoothstep(0.55, 0.89, f.mineral) * 0.150);
-  tint(base, COLORS.rockLichen, smoothstep(0.62, 0.92, f.weathering) * f.moisture * 0.094);
-  tint(base, COLORS.rockExposed, clamp01(f.exposedInterfluve * 0.120 + f.erosionScour * 0.076 + f.dryBench * 0.082));
-  tint(base, COLORS.rockWetFracture, f.fracture * (0.102 + f.moisture * 0.142));
-  tint(base, COLORS.rockTalus, clamp01(f.frostWash * 0.100 + f.colluvium * 0.090));
-  tint(base, COLORS.rockScree, f.stonyPatch * (0.120 + f.weathering * 0.066));
+    + (f.broadRelief - 0.5) * 0.112 + (f.continental - 0.5) * 0.048
+    + (f.macro - 0.5) * 0.092 + (strata - 0.5) * 0.132
+    + (f.fine - 0.5) * 0.060 + (f.micro - 0.5) * 0.036 + (f.subMicro - 0.5) * 0.040
+    + f.exposedInterfluve * 0.064 - f.fracture * 0.122 + f.frostWash * 0.074
+    + f.colluvium * 0.038 - f.stonyPatch * 0.028 - f.erosionScour * 0.096 + f.dryBench * 0.080;
+  shadeColor(base, THREE.MathUtils.clamp(shade, 0.58, 1.42));
+  tint(base, COLORS.rockCool, smoothstep(0.51, 0.85, f.moisture) * 0.156);
+  tint(base, COLORS.rockIron, smoothstep(0.53, 0.87, f.mineral) * 0.178);
+  tint(base, COLORS.rockLichen, smoothstep(0.60, 0.90, f.weathering) * f.moisture * 0.112);
+  tint(base, COLORS.rockExposed, clamp01(f.exposedInterfluve * 0.148 + f.erosionScour * 0.094 + f.dryBench * 0.112));
+  tint(base, COLORS.rockWetFracture, f.fracture * (0.120 + f.moisture * 0.162));
+  tint(base, COLORS.rockTalus, clamp01(f.frostWash * 0.120 + f.colluvium * 0.108));
+  tint(base, COLORS.rockScree, f.stonyPatch * (0.142 + f.weathering * 0.080));
 }
 
 function snowColor(base, f) {
