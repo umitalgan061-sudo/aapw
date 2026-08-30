@@ -270,14 +270,16 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		});
 		const granted = grantResult === true || grantResult?.ok === true;
 		if (!granted) return { ...purchaseQuote, ok: false, reason: grantResult?.reason ?? 'inventory-full' };
+		const consumedItems = Array.isArray(grantResult?.consumedItems)
+			? grantResult.consumedItems
+				.filter((input) => input && typeof input === 'object' && !Array.isArray(input) && String(input.itemId ?? '').trim())
+				.map((input) => ({ itemId: String(input.itemId), quantity: normalizeCount(input.quantity, 1) }))
+			: [];
 		copper -= purchaseQuote.priceCopper;
 		stockByOffer.set(configuredOffer.id, purchaseQuote.remainingStock - 1);
 		syncLedgerTotalsFromStock();
 		recentTransactions.push(transactionReceipt(configuredOffer, transactionCount, copper));
 		if (recentTransactions.length > RECENT_TRANSACTION_LIMIT) recentTransactions.splice(0, recentTransactions.length - RECENT_TRANSACTION_LIMIT);
-		const consumedItems = Array.isArray(grantResult?.consumedItems)
-			? grantResult.consumedItems.map((input) => ({ itemId: String(input.itemId), quantity: normalizeCount(input.quantity, 1) }))
-			: [];
 		return {
 			ok: true,
 			spentCopper: purchaseQuote.priceCopper,
