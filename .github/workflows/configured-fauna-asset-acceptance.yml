@@ -66,7 +66,20 @@ jobs:
         run: |
           set -euo pipefail
           git lfs version
-          git lfs pull --include="assets/models/animals/**" --exclude=""
+          mapfile -t model_paths < <(
+            grep -oE "assets/models/animals/[^'\"]+\.glb" src/3d/gameplay/animalConfig.js | sort -u
+          )
+          test "${#model_paths[@]}" -ge 10
+          include="$(IFS=,; echo "${model_paths[*]}")"
+          printf 'Hydrating %d configured fauna GLBs only\n' "${#model_paths[@]}"
+          git lfs pull --include="$include" --exclude=""
+          for model_path in "${model_paths[@]}"; do
+            test -s "$model_path"
+            if head -c 200 "$model_path" | grep -aq 'version https://git-lfs.github.com/spec/v1'; then
+              echo "Configured fauna asset remained an LFS pointer: $model_path" >&2
+              exit 1
+            fi
+          done
 
       - name: Install Chromium proof dependencies
         shell: bash
