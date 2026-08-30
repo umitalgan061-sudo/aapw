@@ -149,6 +149,57 @@ assert.deepEqual(
   'forged stock metadata must not inflate smithing purchase history',
 );
 
+const provisioningCanonicalizationEconomy = createInteractionEconomyState(40);
+let provisioningGrant = null;
+const provisioningPurchase = provisioningCanonicalizationEconomy.purchase(
+  {
+    id: 'dragonstone-watch-ration-allotment',
+    itemId: 'dragonstone-travel-ration-pack',
+    priceCopper: 0,
+    quantity: 50,
+    stockLimit: 500,
+    fulfillment: {
+      kind: 'vendor',
+      serviceId: 'forged-ration-service',
+      craftUpgrade: {
+        recipeId: 'forged-ration-recipe',
+        inputItemId: 'forged-input',
+        inputQuantity: 99,
+        outputItemId: 'forged-output',
+        outputQuantity: 99,
+      },
+    },
+  },
+  (itemId, quantity, metadata) => {
+    provisioningGrant = { itemId, quantity, metadata };
+    return true;
+  },
+);
+assert.equal(provisioningPurchase.ok, true);
+assert.equal(provisioningPurchase.spentCopper, 5);
+assert.equal(provisioningPurchase.balanceCopper, 35);
+assert.equal(provisioningPurchase.remainingStock, 0);
+assert.deepEqual(
+  provisioningGrant,
+  {
+    itemId: 'dragonstone-travel-ration-pack',
+    quantity: 1,
+    metadata: {
+      sourceType: 'settlement-service',
+      sourceId: 'dragonstone-watch-ration-prep',
+      craftUpgrade: {
+        recipeId: 'dragonstone-watch-travel-ration-pack',
+        inputItemId: 'dragonstone-field-ration',
+        inputQuantity: 2,
+        outputItemId: 'dragonstone-travel-ration-pack',
+        outputQuantity: 1,
+        label: '2 saha azığını 1 yol azığı paketine hazırla',
+      },
+    },
+  },
+  'provisioning fulfillment must keep canonical station service provenance and recipe semantics',
+);
+
 for (const forgedOffer of [
   null,
   {},
