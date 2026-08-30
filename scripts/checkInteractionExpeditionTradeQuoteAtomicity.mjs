@@ -114,18 +114,37 @@ for (const forgedOffer of [
   );
 }
 
-let missingGrantMutationCalls = 0;
 const missingGrant = economy.purchase(
   { id: 'dragonstone-field-ration', itemId: 'dragonstone-field-ration' },
   null,
 );
 assert.equal(missingGrant.ok, false);
 assert.equal(missingGrant.reason, 'invalid-offer');
-assert.equal(missingGrantMutationCalls, 0);
 assert.deepEqual(
   economy.snapshot(),
   stableState,
   'missing inventory fulfillment must not mutate settlement economy or expedition receipts',
 );
+
+const malformedReceiptEconomy = createInteractionEconomyState(40);
+const malformedReceiptPurchase = malformedReceiptEconomy.purchase(
+  { id: 'dragonstone-field-ration', itemId: 'dragonstone-field-ration' },
+  () => ({
+    ok: true,
+    crafted: true,
+    outputItemId: 'dragonstone-expedition-maintenance-kit',
+    consumedItems: [null, {}, [], { itemId: 'dragonstone-whetstone', quantity: 2 }],
+  }),
+);
+assert.equal(malformedReceiptPurchase.ok, true);
+assert.equal(malformedReceiptPurchase.balanceCopper, 34);
+assert.equal(malformedReceiptPurchase.remainingStock, 3);
+assert.deepEqual(
+  malformedReceiptPurchase.consumedItems,
+  [{ itemId: 'dragonstone-whetstone', quantity: 2 }],
+  'malformed crafting receipt entries must be filtered before the settlement trade transaction commits',
+);
+assert.equal(malformedReceiptEconomy.snapshot().ledger.transactionCount, 1);
+assert.equal(malformedReceiptEconomy.snapshot().stockByOffer['dragonstone-field-ration'], 3);
 
 console.log('Interaction expedition trade quote atomicity acceptance PASS');
