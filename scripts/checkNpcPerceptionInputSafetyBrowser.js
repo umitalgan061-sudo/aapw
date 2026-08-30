@@ -6,11 +6,32 @@ const PORT = 4197;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+async function waitForServer(server, timeoutMs = 10_000) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError = null;
+  while (Date.now() < deadline) {
+    if (server.exitCode !== null) {
+      throw new Error(`static server exited before readiness with code ${server.exitCode}`);
+    }
+    try {
+      const response = await fetch(`${BASE_URL}/game3d.html`, { signal: AbortSignal.timeout(1_000) });
+      if (response.ok) return;
+      lastError = new Error(`static server readiness returned HTTP ${response.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+    await sleep(100);
+  }
+  throw new Error(`static server did not become ready within ${timeoutMs}ms: ${lastError?.message ?? 'unknown error'}`);
+}
+
 async function main() {
   const server = spawn('python3', ['-m', 'http.server', String(PORT), '--bind', '127.0.0.1'], {
     cwd: process.cwd(), stdio: ['ignore', 'pipe', 'pipe'],
   });
-  await sleep(700);
+  const serverErrors = [];
+  server.stderr.on('data', (chunk) => serverErrors.push(String(chunk)));
+  await waitForServer(server);
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
   const browserErrors = [];
@@ -62,6 +83,9 @@ async function main() {
   } finally {
     await page.close(); await browser.close(); server.kill('SIGTERM');
   }
+
+  const fatalServerErrors = serverErrors.join('').split('\n').filter((line) => /\b(?:Error|Exception)\b|Traceback/.test(line));
+  if (fatalServerErrors.length) throw new Error(`static server errors: ${fatalServerErrors.join(' | ')}`);
 }
 
 main().catch((error) => { console.error(error?.stack || error); process.exitCode = 1; });
