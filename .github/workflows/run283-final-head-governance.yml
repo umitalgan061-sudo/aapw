@@ -27,21 +27,40 @@ jobs:
         with:
           node-version: 22
 
-      - name: Hydrate LFS with retry
+      - name: Hydrate LFS with bounded object retries
         shell: bash
         run: |
           set -euo pipefail
           git lfs version
-          for attempt in 1 2 3; do
-            if git lfs pull; then
-              break
-            fi
-            if [ "$attempt" -eq 3 ]; then
-              echo "Run283 LFS hydration failed after $attempt attempts." >&2
+          git config lfs.concurrenttransfers 1
+          mapfile -t LFS_PATHS < <(git lfs ls-files --name-only)
+          test "${#LFS_PATHS[@]}" -gt 0
+          BATCH_SIZE=40
+          for ((offset=0; offset<${#LFS_PATHS[@]}; offset+=BATCH_SIZE)); do
+            batch=("${LFS_PATHS[@]:offset:BATCH_SIZE}")
+            include="$(IFS=,; echo "${batch[*]}")"
+            hydrated=0
+            for attempt in 1 2 3 4 5; do
+              echo "Hydrating LFS batch $((offset / BATCH_SIZE + 1)) attempt ${attempt}/5 (${#batch[@]} paths)"
+              if git lfs fetch origin "$GITHUB_SHA" --include="$include" --exclude=""; then
+                hydrated=1
+                break
+              fi
+              sleep "$((attempt * 5))"
+            done
+            if [ "$hydrated" -ne 1 ]; then
+              echo "Run283 LFS batch failed after 5 attempts at offset ${offset}." >&2
               exit 1
             fi
-            sleep "$((attempt * 5))"
           done
+          git lfs checkout
+          while IFS= read -r path; do
+            [ -n "$path" ] || continue
+            if head -c 200 "$path" | grep -aq 'version https://git-lfs.github.com/spec/v1'; then
+              echo "Run283 LFS pointer remained after hydration: $path" >&2
+              exit 1
+            fi
+          done < <(git lfs ls-files --name-only)
 
       - name: Exact-main additive entry gate
         shell: bash
