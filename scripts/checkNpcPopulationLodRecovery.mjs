@@ -63,6 +63,37 @@ assert.equal(bootstrap.tier, 'bootstrap',
 assert.ok(bootstrap.simulated > 0 && bootstrap.skipped > 0,
   'bootstrap simulation must remain throttled without starvation');
 
+const budgetLod = createNpcSimulationLod({
+  id: 'population-lod-frame-budget-probe',
+  nearRadiusMeters: 20,
+  farIntervalSeconds: 0.5,
+  distantRadiusMeters: 100,
+  distantIntervalSeconds: 1.5,
+  maxStepSeconds: 0.25,
+});
+const invalidDeltas = [0, -1, Number.NaN, Number.POSITIVE_INFINITY];
+for (const delta of invalidDeltas) {
+  assert.equal(budgetLod.step(delta, 10), 0,
+    `invalid/non-positive frame delta ${String(delta)} must not advance near NPC simulation`);
+}
+const oversizedNearDelta = budgetLod.step(5, 10);
+assert.equal(oversizedNearDelta, 0.25,
+  'near NPC simulation must clamp a long frame to maxStepSeconds');
+
+let maxOffscreenDelta = 0;
+let offscreenSimulations = 0;
+for (let i = 0; i < 16; i += 1) {
+  const simulationDelta = budgetLod.step(5, Infinity);
+  maxOffscreenDelta = Math.max(maxOffscreenDelta, simulationDelta);
+  if (simulationDelta > 0) offscreenSimulations += 1;
+}
+assert.ok(offscreenSimulations > 0 && offscreenSimulations < 16,
+  'oversized offscreen frames must remain throttled without starvation');
+assert.ok(maxOffscreenDelta <= 0.25,
+  'offscreen simulation must never exceed maxStepSeconds after a long frame');
+
+const frameBudget = { oversizedNearDelta, offscreenSimulations, maxOffscreenDelta };
+
 console.log('NPC_POPULATION_LOD_RECOVERY_PASS', JSON.stringify({
   near,
   far,
@@ -72,4 +103,5 @@ console.log('NPC_POPULATION_LOD_RECOVERY_PASS', JSON.stringify({
   hysteresisHold,
   farRecovery,
   bootstrap,
+  frameBudget,
 }));
