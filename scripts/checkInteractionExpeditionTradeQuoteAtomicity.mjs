@@ -126,6 +126,23 @@ assert.deepEqual(
   'missing inventory fulfillment must not mutate settlement economy or expedition receipts',
 );
 
+const throwingGrantState = structuredClone(economy.snapshot());
+assert.throws(
+  () => economy.purchase(
+    { id: 'dragonstone-field-ration', itemId: 'dragonstone-field-ration' },
+    () => {
+      throw new Error('inventory fulfillment failed');
+    },
+  ),
+  /inventory fulfillment failed/,
+  'inventory/service exceptions may propagate but must happen before settlement economy commit',
+);
+assert.deepEqual(
+  economy.snapshot(),
+  throwingGrantState,
+  'throwing inventory fulfillment must preserve wallet, finite stock, trade ledger and expedition provenance atomically',
+);
+
 const malformedReceiptEconomy = createInteractionEconomyState(40);
 const malformedReceiptPurchase = malformedReceiptEconomy.purchase(
   { id: 'dragonstone-field-ration', itemId: 'dragonstone-field-ration' },
