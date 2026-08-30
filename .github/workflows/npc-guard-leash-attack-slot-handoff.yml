@@ -12,6 +12,7 @@ on:
       - 'scripts/checkNpcGuardReturnToPatrol.mjs'
       - 'scripts/checkNpcPopulationLodRecovery.mjs'
       - 'scripts/checkNpcMovementSafetyBrowser.js'
+      - '.github/workflows/configured-fauna-asset-acceptance.yml'
       - '.github/workflows/run167-determinism-policy.yml'
       - '.github/workflows/run283-final-head-governance.yml'
       - '.github/workflows/npc-guard-return-to-patrol.yml'
@@ -52,7 +53,8 @@ jobs:
             printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcGuardLeashAttackSlotHandoff.mjs'
             printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/run167-determinism-policy.yml'
             printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-guard-leash-attack-slot-handoff.yml'
-          elif test "${#files[@]}" -eq 12; then
+          elif test "${#files[@]}" -eq 13; then
+            printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/configured-fauna-asset-acceptance.yml'
             printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-guard-return-to-patrol.yml'
             printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-hearing-framerate-determinism.yml'
             printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-movement-safety.yml'
