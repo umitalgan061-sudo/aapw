@@ -15,6 +15,10 @@ const DESKTOP_CONTROLS = Object.freeze([
 const TOUCH_CONTROLS = Object.freeze([
 	['Sol çubuk', 'Yürü; dış halkaya iterek koş'],
 	['Zıpla', 'Sağdaki Zıpla düğmesine dokun'],
+	['Savun', 'Savunmayı basılı tut'],
+	['Hedef', 'Yakındaki hedefe kilitlen veya kilidi kaldır'],
+	['Hafif', 'Hafif saldırı'],
+	['Ağır', 'Ağır saldırı'],
 	['Selamla', 'Yakındaki etkileşim istemine dokun'],
 	['Diyalog', 'Bir yanıta dokun veya kapat'],
 	['Sürükle', 'Kamerayı döndür'],
