@@ -45,7 +45,7 @@ export const WATER_LAYER_TRANSITION_POLICY = Object.freeze({
 });
 
 export const WATER_FIELD_EDGE_OPTICAL_POLICY = Object.freeze({
-	id: 'water-field-edge-open-ocean-optical-blend-2026-08-31-v2-broad-organic',
+	id: 'water-field-edge-open-ocean-optical-blend-2026-08-31-v3-coverage-continuity',
 	renderOnly: true,
 	canonicalDepthTextureUnchanged: true,
 	canonicalCoverageUnchanged: true,
@@ -56,6 +56,8 @@ export const WATER_FIELD_EDGE_OPTICAL_POLICY = Object.freeze({
 	organicWarpMeters: 430,
 	marineGateStart: 0.42,
 	marineGateFull: 0.90,
+	renderCoverageContinuity: true,
+	boundaryWarpStrongAtFieldEdge: true,
 });
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
@@ -280,19 +282,25 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		vec2 waterField = sampleWaterField(vWorldPosition.xz);
 		float fragmentDepth = waterField.x;
 		float waterCoverage = smoothstep(0.08, 0.72, waterField.y);
-		if (waterCoverage <= 0.01) discard;
 
 		float offshoreOptical = smoothstep(0.08, 0.92, sampleOffshoreOptical(vWorldPosition.xz));
 		float oceanFabric = openOceanSurfaceFabric(vWorldPosition.xz);
 		float oceanShear = openOceanCurrentShear(vWorldPosition.xz, uTime);
-		float distanceToFieldEdge = uDepthFieldExtentMeters * 0.5 - max(abs(vWorldPosition.x), abs(vWorldPosition.z));
-		float edgeWarpWeight = smoothstep(0.0, ${WATER_FIELD_EDGE_OPTICAL_POLICY.blendEndMeters.toFixed(1)}, max(distanceToFieldEdge, 0.0));
-		float edgeDistanceWarped = max(0.0, distanceToFieldEdge + oceanFabric * ${WATER_FIELD_EDGE_OPTICAL_POLICY.organicWarpMeters.toFixed(1)} * edgeWarpWeight);
+		float fieldHalfExtent = uDepthFieldExtentMeters * 0.5;
+		float rawDistanceToFieldEdge = fieldHalfExtent - max(abs(vWorldPosition.x), abs(vWorldPosition.z));
+		float edgeWarpWeight = 1.0 - smoothstep(0.0, ${WATER_FIELD_EDGE_OPTICAL_POLICY.blendEndMeters.toFixed(1)}, max(rawDistanceToFieldEdge, 0.0));
+		float edgeWarpX = (waterSurfaceNoise(vWorldPosition.xz / 1470.0 + vec2(31.7, -8.2)) - 0.5) * 2.0;
+		float edgeWarpZ = (waterSurfaceNoise((vWorldPosition.xz * mat2(0.73, -0.68, 0.68, 0.73)) / 1730.0 + vec2(-14.9, 22.6)) - 0.5) * 2.0;
+		vec2 edgeWarpedWorld = vWorldPosition.xz + vec2(edgeWarpX, edgeWarpZ) * ${WATER_FIELD_EDGE_OPTICAL_POLICY.organicWarpMeters.toFixed(1)} * edgeWarpWeight;
+		float distanceToFieldEdge = fieldHalfExtent - max(abs(edgeWarpedWorld.x), abs(edgeWarpedWorld.y));
+		float edgeDistanceWarped = max(0.0, distanceToFieldEdge + oceanFabric * ${(WATER_FIELD_EDGE_OPTICAL_POLICY.organicWarpMeters * 0.35).toFixed(1)} * edgeWarpWeight);
 		float edgeT = clamp((edgeDistanceWarped - ${WATER_FIELD_EDGE_OPTICAL_POLICY.fullDeepStartMeters.toFixed(1)}) / ${(WATER_FIELD_EDGE_OPTICAL_POLICY.blendEndMeters - WATER_FIELD_EDGE_OPTICAL_POLICY.fullDeepStartMeters).toFixed(1)}, 0.0, 1.0);
 		float edgeOpticalBlend = 1.0 - edgeT * edgeT * (3.0 - 2.0 * edgeT);
 		float marineT = clamp((offshoreOptical - ${WATER_FIELD_EDGE_OPTICAL_POLICY.marineGateStart.toFixed(2)}) / ${(WATER_FIELD_EDGE_OPTICAL_POLICY.marineGateFull - WATER_FIELD_EDGE_OPTICAL_POLICY.marineGateStart).toFixed(2)}, 0.0, 1.0);
 		float marineGate = marineT * marineT * (3.0 - 2.0 * marineT);
 		fragmentDepth = mix(fragmentDepth, 1.0, edgeOpticalBlend * marineGate);
+		waterCoverage = mix(waterCoverage, 1.0, edgeOpticalBlend * marineGate);
+		if (waterCoverage <= 0.01) discard;
 
 		float enclosedLakeMask = 1.0 - offshoreOptical;
 		float clearShallowBand = 1.0 - smoothstep(0.10, 0.52, fragmentDepth);
@@ -484,6 +492,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		distanceAwareMicroNormalFade: WATER_LAYER_TRANSITION_POLICY.distanceAwareMicroNormalFade,
 		fieldEdgeOpticalPolicyId: WATER_FIELD_EDGE_OPTICAL_POLICY.id,
 		fieldEdgeCoverageUnchanged: WATER_FIELD_EDGE_OPTICAL_POLICY.canonicalCoverageUnchanged,
+		fieldEdgeRenderCoverageContinuity: WATER_FIELD_EDGE_OPTICAL_POLICY.renderCoverageContinuity,
 	});
 
 	const farGeometry = new THREE.PlaneGeometry(WATER_FULL_WORLD_EXTENT_METERS, WATER_FULL_WORLD_EXTENT_METERS, 1, 1);
