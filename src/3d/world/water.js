@@ -42,7 +42,25 @@ export const WATER_LAYER_TRANSITION_POLICY = Object.freeze({
 	distanceAwareMicroNormalFade: true,
 });
 
+export const WATER_FIELD_EDGE_OPTICAL_POLICY = Object.freeze({
+	id: 'water-field-edge-open-ocean-optical-blend-2026-08-31-v1',
+	renderOnly: true,
+	canonicalDepthTextureUnchanged: true,
+	canonicalCoverageUnchanged: true,
+	canonicalShorelineUnchanged: true,
+	openOceanOnly: true,
+	fullDeepStartMeters: 70,
+	blendEndMeters: 760,
+	organicWarpMeters: 180,
+	marineGateStart: 0.42,
+	marineGateFull: 0.90,
+});
+
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
+const smoothstep01 = (edge0, edge1, value) => {
+	const t = clamp01((value - edge0) / Math.max(edge1 - edge0, 1e-9));
+	return t * t * (3 - 2 * t);
+};
 
 export function waterLayerTransitionBlend(distanceMeters) {
 	const start = WATER_LAYER_TRANSITION_POLICY.featherStartMeters;
@@ -57,6 +75,13 @@ export function waterLayerTransitionAlpha(baseAlpha, distanceMeters, farLayer = 
 	if (!farLayer) return alpha * (1 - blend);
 	const nearAlpha = alpha * (1 - blend);
 	return clamp01((alpha * blend) / Math.max(1 - nearAlpha, 1e-6));
+}
+
+export function waterFieldEdgeOpticalBlend(distanceToFieldEdgeMeters, offshoreOptical = 1) {
+	const P = WATER_FIELD_EDGE_OPTICAL_POLICY;
+	const edge = 1 - smoothstep01(P.fullDeepStartMeters, P.blendEndMeters, distanceToFieldEdgeMeters);
+	const marine = smoothstep01(P.marineGateStart, P.marineGateFull, offshoreOptical);
+	return clamp01(edge * marine);
 }
 
 export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
@@ -253,13 +278,22 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		if (waterCoverage <= 0.01) discard;
 
 		float offshoreOptical = smoothstep(0.08, 0.92, sampleOffshoreOptical(vWorldPosition.xz));
+		float oceanFabric = openOceanSurfaceFabric(vWorldPosition.xz);
+		float oceanShear = openOceanCurrentShear(vWorldPosition.xz, uTime);
+		float distanceToFieldEdge = uDepthFieldExtentMeters * 0.5 - max(abs(vWorldPosition.x), abs(vWorldPosition.z));
+		float edgeWarpWeight = smoothstep(0.0, ${WATER_FIELD_EDGE_OPTICAL_POLICY.blendEndMeters.toFixed(1)}, max(distanceToFieldEdge, 0.0));
+		float edgeDistanceWarped = max(0.0, distanceToFieldEdge + oceanFabric * ${WATER_FIELD_EDGE_OPTICAL_POLICY.organicWarpMeters.toFixed(1)} * edgeWarpWeight);
+		float edgeT = clamp((edgeDistanceWarped - ${WATER_FIELD_EDGE_OPTICAL_POLICY.fullDeepStartMeters.toFixed(1)}) / ${(WATER_FIELD_EDGE_OPTICAL_POLICY.blendEndMeters - WATER_FIELD_EDGE_OPTICAL_POLICY.fullDeepStartMeters).toFixed(1)}, 0.0, 1.0);
+		float edgeOpticalBlend = 1.0 - edgeT * edgeT * (3.0 - 2.0 * edgeT);
+		float marineT = clamp((offshoreOptical - ${WATER_FIELD_EDGE_OPTICAL_POLICY.marineGateStart.toFixed(2)}) / ${(WATER_FIELD_EDGE_OPTICAL_POLICY.marineGateFull - WATER_FIELD_EDGE_OPTICAL_POLICY.marineGateStart).toFixed(2)}, 0.0, 1.0);
+		float marineGate = marineT * marineT * (3.0 - 2.0 * marineT);
+		fragmentDepth = mix(fragmentDepth, 1.0, edgeOpticalBlend * marineGate);
+
 		float enclosedLakeMask = 1.0 - offshoreOptical;
 		float clearShallowBand = 1.0 - smoothstep(0.10, 0.52, fragmentDepth);
 		float clearCoastMask = clearShallowBand * smoothstep(0.08, 0.74, offshoreOptical);
 		float offshoreGain = offshoreOptical * (1.0 - fragmentDepth) * ${WATER_OFFSHORE_OPTICAL_GAIN.toFixed(2)};
 		float deepMarineMask = smoothstep(0.54, 0.96, fragmentDepth) * smoothstep(0.42, 0.94, offshoreOptical);
-		float oceanFabric = openOceanSurfaceFabric(vWorldPosition.xz);
-		float oceanShear = openOceanCurrentShear(vWorldPosition.xz, uTime);
 
 		float cameraDistance = distance(uCameraPosition, vWorldPosition);
 		float rippleFade = 1.0 - smoothstep(90.0, 360.0, cameraDistance);
@@ -446,6 +480,8 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		layerTransitionPolicyId: WATER_LAYER_TRANSITION_POLICY.id,
 		opacityConservingLayerFeather: WATER_LAYER_TRANSITION_POLICY.opacityConserving,
 		distanceAwareMicroNormalFade: WATER_LAYER_TRANSITION_POLICY.distanceAwareMicroNormalFade,
+		fieldEdgeOpticalPolicyId: WATER_FIELD_EDGE_OPTICAL_POLICY.id,
+		fieldEdgeCoverageUnchanged: WATER_FIELD_EDGE_OPTICAL_POLICY.canonicalCoverageUnchanged,
 	});
 
 	const farGeometry = new THREE.PlaneGeometry(WATER_FULL_WORLD_EXTENT_METERS, WATER_FULL_WORLD_EXTENT_METERS, 1, 1);
