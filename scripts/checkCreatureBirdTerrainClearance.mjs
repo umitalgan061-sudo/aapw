@@ -5,7 +5,7 @@ import fs from 'node:fs';
 const source = fs.readFileSync(new URL('../src/3d/gameplay/creatureBrain.js', import.meta.url), 'utf8');
 
 const helperStart = source.indexOf('function tryCommitFlightMove');
-const helperEnd = source.indexOf('\n\t/**', helperStart);
+const helperEnd = source.indexOf('\n\tfunction stepGroundWander', helperStart);
 assert.ok(helperStart >= 0 && helperEnd > helperStart, 'atomic flight terrain helper must exist');
 const helper = source.slice(helperStart, helperEnd);
 
@@ -25,7 +25,7 @@ assert.match(helper, /try \{[\s\S]*?groundCollider\.getGroundHeight[\s\S]*?\} ca
   'terrain-provider exceptions must reject only the current airborne candidate');
 
 assert.match(source,
-  /const nextX = object3D\.position\.x \+ nextHeadingX \* profile\.reactiveSpeedMps \* delta;[\s\S]*?if \(tryCommitFlightMove\(nextX, nextZ, nextAltitude\)\)/,
+  /const nextX = object3D\.position\.x \+ heading\.x \* profile\.reactiveSpeedMps \* delta;[\s\S]*?if \(tryCommitFlightMove\(nextX, nextZ, nextAltitude\)\)/,
   'takeoff must validate candidate X/Z/altitude before publishing any transform');
 assert.match(source,
   /const nextAltitude = Math\.max\(0, flightAltitudeMeters - profile\.takeoffClimbMps \* delta\);[\s\S]*?tryCommitFlightMove\(object3D\.position\.x, object3D\.position\.z, nextAltitude\)/,
