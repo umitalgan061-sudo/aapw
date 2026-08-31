@@ -148,6 +148,36 @@ try {
     const groundRecovered = snapshot(groundBeing);
     groundBeing.dispose();
 
+    const overlapGroundCollider = { getGroundHeight: () => 5 };
+    const makeOverlapBeing = (speciesId, spawnId, rotationYRadians) => createCreatureBeing({
+      speciesId,
+      spawnId,
+      worldX: 0,
+      worldZ: 0,
+      groundY: 5,
+      rotationYRadians,
+      groundCollider: overlapGroundCollider,
+      playerCollider: null,
+      mulberry32,
+    });
+    const overlapGround = makeOverlapBeing('kedi', 'movement-ground-overlap', Math.PI / 2);
+    const overlapGroundStart = snapshot(overlapGround);
+    overlapGround.update(0.1, { x: 0, z: 0 });
+    const overlapGroundAfter = snapshot(overlapGround);
+    overlapGround.dispose();
+
+    const malformedYawGround = makeOverlapBeing('kedi', 'movement-ground-overlap-malformed-yaw', Number.NaN);
+    const malformedYawStart = snapshot(malformedYawGround);
+    malformedYawGround.update(0.1, { x: 0, z: 0 });
+    const malformedYawAfter = snapshot(malformedYawGround);
+    malformedYawGround.dispose();
+
+    const overlapBird = makeOverlapBeing('tavuk', 'movement-flight-overlap', Math.PI / 2);
+    const overlapBirdStart = snapshot(overlapBird);
+    overlapBird.update(0.1, { x: 0, z: 0 });
+    const overlapBirdAfter = snapshot(overlapBird);
+    overlapBird.dispose();
+
     let flightMode = 'throw';
     let airbornePlayerColliderCalls = 0;
     const faultFlightGround = {
@@ -240,6 +270,12 @@ try {
       groundStart,
       groundFailures,
       groundRecovered,
+      overlapGroundStart,
+      overlapGroundAfter,
+      malformedYawStart,
+      malformedYawAfter,
+      overlapBirdStart,
+      overlapBirdAfter,
       flightStart,
       failedTakeoffThrow,
       failedTakeoffNonFinite,
@@ -285,6 +321,16 @@ try {
     { x: proof.groundStart.x, z: proof.groundStart.z },
     'a later valid ground tick must retry and move rather than permanently latching failure',
   );
+
+  assert.equal(proof.overlapGroundAfter.reacting, true, 'ground creature must still recognize an exact-overlap threat');
+  assert.ok(proof.overlapGroundAfter.finite && proof.overlapGroundAfter.x > proof.overlapGroundStart.x + 0.3, 'exact-overlap ground flee must use facing and physically separate');
+  assert.ok(Math.abs(proof.overlapGroundAfter.z - proof.overlapGroundStart.z) < 1e-9, 'PI/2 overlap fallback must remain deterministic on +X');
+  assert.equal(proof.malformedYawAfter.reacting, true, 'malformed-yaw creature must still react at exact overlap');
+  assert.ok(proof.malformedYawAfter.finite && proof.malformedYawAfter.z > proof.malformedYawStart.z + 0.3, 'non-finite initial yaw must sanitize to deterministic +Z overlap escape');
+  assert.ok(Math.abs(proof.malformedYawAfter.x - proof.malformedYawStart.x) < 1e-9, 'sanitized yaw overlap fallback must not invent lateral drift');
+  assert.equal(proof.overlapBirdAfter.reacting, true, 'bird must recognize an exact-overlap threat');
+  assert.ok(proof.overlapBirdAfter.finite && proof.overlapBirdAfter.x > proof.overlapBirdStart.x + 0.3, 'exact-overlap bird takeoff must gain horizontal separation');
+  assert.ok(proof.overlapBirdAfter.y > proof.overlapBirdStart.y, 'exact-overlap bird takeoff must also climb terrain-relatively');
 
   assert.deepEqual(transformOf(proof.failedTakeoffThrow), transformOf(proof.flightStart), 'throwing takeoff terrain must not partially move the bird');
   assert.deepEqual(transformOf(proof.failedTakeoffNonFinite), transformOf(proof.flightStart), 'non-finite takeoff terrain must not partially move the bird');
