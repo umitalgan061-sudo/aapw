@@ -283,6 +283,16 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		bodyColor *= 1.0 + aerialOceanRelief * shallowOffshoreFabricMask;
 		bodyColor = mix(bodyColor, currentTint,
 			(abs(aerialOceanPatch) * 0.095 + abs(aerialOceanCrossCurrent) * 0.065) * shallowOffshoreFabricMask);
+		float aerialMarineSigned = clamp(aerialOceanPatch * 0.62 + aerialOceanCrossCurrent * 0.38, -1.0, 1.0);
+		vec3 aerialMarineCool = vec3(0.014, 0.034, 0.052);
+		vec3 aerialMarineWarm = vec3(0.040, 0.084, 0.101);
+		vec3 aerialMarineTint = mix(aerialMarineCool, aerialMarineWarm, aerialMarineSigned * 0.5 + 0.5);
+		bodyColor = mix(bodyColor, aerialMarineTint,
+			aerialMarineMask * (0.12 + abs(aerialMarineSigned) * 0.12));
+		float neutralCoastalWaterMask = clearCoastMask * smoothstep(0.10, 0.84, offshoreOptical);
+		vec3 neutralCoastalWater = mix(vec3(0.118, 0.214, 0.238), vec3(0.046, 0.108, 0.139),
+			smoothstep(0.12, 0.58, fragmentDepth));
+		bodyColor = mix(bodyColor, neutralCoastalWater, neutralCoastalWaterMask * 0.44);
 		vec3 nightAbsorption = vec3(0.010, 0.030, 0.052);
 		bodyColor = mix(bodyColor, bodyColor * 0.62 + nightAbsorption, clamp(uNightFactor, 0.0, 1.0) * 0.34);
 
