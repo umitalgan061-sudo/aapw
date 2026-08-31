@@ -30,14 +30,10 @@ async function main() {
 	});
 
 	try {
-		// Keep game3d.html's real import-map/origin, but skip the heavy world boot for this isolated
-		// shader proof. Full game boot/console/PWA coverage is handled by the canonical smoke below.
+		// Keep game3d.html's real import-map/origin, but skip heavy world boot for this isolated sky
+		// proof. Full shipped-scene coverage belongs to the canonical game smoke workflows.
 		await page.route('**/src/3d/game3d.js', async (route) => {
-			await route.fulfill({
-				status: 200,
-				contentType: 'text/javascript; charset=utf-8',
-				body: 'export function initGame3D() {}\n',
-			});
+			await route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: 'export function initGame3D() {}\n' });
 		});
 		await page.goto(`http://127.0.0.1:${port}/game3d.html`, {
 			waitUntil: 'domcontentloaded',
@@ -81,10 +77,13 @@ async function main() {
 			const sky = createAuroraSky();
 			scene.add(sky);
 			fail(sky.material.userData.realisticAurora === true, 'Realistic aurora material marker missing.');
+			fail(sky.material.userData.finalAtmosphereProfile === 'camera-relative-horizon-upper-air-v6', 'Final atmosphere profile marker missing.');
 			const shader = sky.material.fragmentShader;
-			for (const token of ['curtainBand', 'auroraFbm', 'phosphorCore', 'softGlow', 'cameraPosition']) {
-				fail(shader.includes(token), `Realistic shader token missing: ${token}`);
-			}
+			for (const token of [
+				'ray4HorizonAirmassVariation', 'ray4UpperAirVariation', 'ray4AtmosphericBase',
+				'uHorizonHazeStrength', 'uUpperAirStrength', 'uUpperAirVariationStrength',
+				'ray4VerticalField', 'ray4ArcEdge', 'cameraPosition',
+			]) fail(shader.includes(token), `Final sky shader token missing: ${token}`);
 
 			const ground = new THREE.Mesh(
 				new THREE.PlaneGeometry(360, 360),
@@ -110,9 +109,7 @@ async function main() {
 				let bright = 0;
 				let phosphor = 0;
 				for (let i = 0; i < buffer.length; i += 4) {
-					const r = buffer[i];
-					const g = buffer[i + 1];
-					const b = buffer[i + 2];
+					const r = buffer[i]; const g = buffer[i + 1]; const b = buffer[i + 2];
 					const lum = r * 0.2126 + g * 0.7152 + b * 0.0722;
 					luminance += lum;
 					if (lum > 72) bright++;
@@ -120,6 +117,15 @@ async function main() {
 				}
 				const count = buffer.length / 4;
 				return { averageLuminance: luminance / count, brightFraction: bright / count, phosphorFraction: phosphor / count };
+			};
+			const meanRgbDelta = (a, b) => {
+				let absoluteDelta = 0;
+				for (let i = 0; i < a.length; i += 4) {
+					absoluteDelta += Math.abs(a[i] - b[i]);
+					absoluteDelta += Math.abs(a[i + 1] - b[i + 1]);
+					absoluteDelta += Math.abs(a[i + 2] - b[i + 2]);
+				}
+				return absoluteDelta / ((a.length / 4) * 3);
 			};
 
 			updateAuroraSky(sky, camera.position, 37, midnight);
@@ -131,35 +137,51 @@ async function main() {
 			renderer.render(scene, camera);
 			gl.readPixels(0, 0, 960, 540, gl.RGBA, gl.UNSIGNED_BYTE, pixelsB);
 			const secondStats = stats(pixelsB);
-			let absoluteDelta = 0;
-			for (let i = 0; i < pixels.length; i += 4) {
-				absoluteDelta += Math.abs(pixels[i] - pixelsB[i]);
-				absoluteDelta += Math.abs(pixels[i + 1] - pixelsB[i + 1]);
-				absoluteDelta += Math.abs(pixels[i + 2] - pixelsB[i + 2]);
-			}
-			const meanAnimationDelta = absoluteDelta / ((pixels.length / 4) * 3);
-
+			const meanAnimationDelta = meanRgbDelta(pixels, pixelsB);
 			fail(firstStats.averageLuminance > 9, `Night render remains too dark: ${firstStats.averageLuminance}`);
 			fail(firstStats.brightFraction > 0.003, `Aurora has too little luminous structure: ${firstStats.brightFraction}`);
-			fail(firstStats.phosphorFraction > 0.001, `Aurora phosphorescent green/cyan signal too weak: ${firstStats.phosphorFraction}`);
+			fail(firstStats.phosphorFraction > 0.001, `Aurora phosphorescent signal too weak: ${firstStats.phosphorFraction}`);
 			fail(meanAnimationDelta > 0.12, `Aurora curtains are visually static: delta=${meanAnimationDelta}`);
+
+			// Isolate the sky and prove that translating the player/camera does not slide the directional
+			// aurora field. Both cameras have the same orientation and elapsed time, only world position differs.
+			const invariantScene = new THREE.Scene();
+			const invariantSky = createAuroraSky();
+			invariantScene.add(invariantSky);
+			const invariantCamera = new THREE.PerspectiveCamera(68, 960 / 540, 0.1, 2100);
+			const invariantA = new Uint8Array(pixels.length);
+			const invariantB = new Uint8Array(pixels.length);
+			invariantCamera.position.set(0, 7, 0);
+			invariantCamera.lookAt(0, 150, -340);
+			updateAuroraSky(invariantSky, invariantCamera.position, 37, midnight);
+			renderer.render(invariantScene, invariantCamera);
+			gl.readPixels(0, 0, 960, 540, gl.RGBA, gl.UNSIGNED_BYTE, invariantA);
+			invariantCamera.position.set(840, 57, -920);
+			invariantCamera.lookAt(840, 200, -1260);
+			updateAuroraSky(invariantSky, invariantCamera.position, 37, midnight);
+			renderer.render(invariantScene, invariantCamera);
+			gl.readPixels(0, 0, 960, 540, gl.RGBA, gl.UNSIGNED_BYTE, invariantB);
+			const cameraTranslationDelta = meanRgbDelta(invariantA, invariantB);
+			fail(cameraTranslationDelta < 0.20, `Camera translation slides the sky field: delta=${cameraTranslationDelta}`);
+			disposeAuroraSky(invariantSky);
 
 			const noon = updateDayNightLighting(lights, 50, 100, 0);
 			const dayFill = getNightVisualEnhancementSnapshot(lights.hemisphere);
 			fail(noon.nightFactor === 0, `Canonical noon nightFactor drifted: ${noon.nightFactor}`);
 			fail(dayFill.intensity <= 0.021, `Night-only cinematic fill leaks into day: ${dayFill.intensity}`);
 
+			// Restore the midnight visual as the artifact frame after isolated invariance measurement.
+			updateDayNightLighting(lights, 0, 100, 0);
+			updateAuroraSky(sky, camera.position, 83, midnight);
+			renderer.render(scene, camera);
+
 			disposeAuroraSky(sky);
 			disposeDayNightLighting(scene, lights);
-			return { midnight, nightFill, dayFill, firstStats, secondStats, meanAnimationDelta };
+			return { midnight, nightFill, dayFill, firstStats, secondStats, meanAnimationDelta, cameraTranslationDelta };
 		});
 
 		fs.mkdirSync(OUT, { recursive: true });
 		await page.locator('#run221-aurora-proof').screenshot({ path: path.join(OUT, 'game-aurora-flow-b.png') });
-		await page.evaluate(async () => {
-			const { updateAuroraSky } = await import('/src/3d/sky.js');
-			void updateAuroraSky;
-		});
 
 		assert(missing.length === 0, `HTTP errors: ${missing.join(' | ')}`);
 		assert(errors.length === 0, `Console/page errors: ${errors.join(' | ')}`);
