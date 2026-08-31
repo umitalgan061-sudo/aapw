@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const read = async (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
-const [player, playerConfig, loop, game3d, input, touch, health, materialCore, placement] = await Promise.all([
+const [player, playerConfig, loop, game3d, input, touch, health, materialCore, placement, interaction, controlsHelp] = await Promise.all([
   read('src/3d/gameplay/player.js'),
   read('src/3d/gameplay/playerConfig.js'),
   read('src/3d/gameLoopHelpers.js'),
@@ -13,6 +13,8 @@ const [player, playerConfig, loop, game3d, input, touch, health, materialCore, p
   read('src/3d/gameplay/health.js'),
   read('src/3d/materials/MaterialAssignmentCore.js'),
   read('src/3d/world/WorldAssetPlacementPipeline.js'),
+  read('src/3d/gameplay/interaction.js'),
+  read('src/3d/ui/controlsHelp.js'),
 ]);
 
 const requireFragments = (source, label, fragments) => {
@@ -51,7 +53,7 @@ requireFragments(loop, 'third-person lock-on integration', [
 ]);
 requireFragments(input, 'desktop/gamepad parity', [
   "const LOCK_ON_KEYS = new Set(['Tab'])",
-  "const LIGHT_ATTACK_KEYS = new Set(['KeyE'])",
+  "const LIGHT_ATTACK_KEYS = new Set(['KeyC'])",
   "const HEAVY_ATTACK_KEYS = new Set(['KeyR'])",
   'LOCK_ON: 11',
   'LIGHT: 2',
@@ -59,7 +61,12 @@ requireFragments(input, 'desktop/gamepad parity', [
   "emitPlayerCombatIntent('light', 'mouse')",
   "emitPlayerCombatIntent('light', 'gamepad')",
   "emitPlayerCombatIntent('heavy', 'gamepad')",
+  "LIGHT_ATTACK_KEYS.has(event.code) && !isInteractiveTarget(event.target)",
+  "HEAVY_ATTACK_KEYS.has(event.code) && !isInteractiveTarget(event.target)",
 ]);
+assert.ok(!input.includes("const LIGHT_ATTACK_KEYS = new Set(['KeyE'])"), 'nearby interaction E must not also be bound to keyboard light melee');
+requireFragments(interaction, 'interaction key ownership', ["if (event.code !== 'KeyE') return"]);
+requireFragments(controlsHelp, 'desktop interaction help', ["['E', 'Yakındaki kişiyle konuş']"]);
 requireFragments(touch, 'mobile/PWA input parity', [
   "className = 'g3d-touch-lock-on-button'",
   "className = 'g3d-touch-light-attack-button'",
@@ -89,7 +96,7 @@ console.log(JSON.stringify({
   ok: true,
   contract: 'player-combat-vertical-slice-composition',
   chain: ['asset+animation', 'spawn+ground+collider', 'input', 'movement+stamina+poise', 'dodge+guard+parry', 'melee-combo', 'lock-on', 'damage+feedback'],
-  inputs: ['keyboard', 'mouse', 'gamepad', 'touch/PWA'],
+  inputs: ['keyboard:C-light/R-heavy/E-interaction', 'mouse', 'gamepad', 'touch/PWA'],
   sharedMaterialPlacement: true,
   newAsset: false,
 }, null, 2));
