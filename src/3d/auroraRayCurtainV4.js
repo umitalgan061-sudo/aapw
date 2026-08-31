@@ -1,11 +1,10 @@
 /**
- * Run221 compile-safe V4 aurora curtain shader.
+ * Compile-safe final aurora curtain shader.
  *
- * V3 established the intended visual structure but used `patch`, a GLSL reserved word, in a local
- * variable. Rather than rewriting that already-recorded additive source, V4 is a separate final
- * material layer with the same irregular lower arc + vertical-ray design and a safe `patchMask`
- * identifier. The sky material is not compiled until after all additive material layers are
- * installed, so this final source is the one WebGL receives.
+ * V4 owns the fragment source WebGL actually compiles. Keep the camera-relative horizon/upper-air
+ * atmosphere in this final shader as well; profile uniforms are updated by sky.js every frame and
+ * must not become dead state simply because the aurora refinement replaced an earlier shader.
+ * No map-space weather/geography is introduced here.
  */
 const AURORA_RAY_CURTAIN_V4_FRAGMENT_SHADER = /* glsl */ `
 	/* curtainBand auroraFbm phosphorCore softGlow */
@@ -15,6 +14,12 @@ const AURORA_RAY_CURTAIN_V4_FRAGMENT_SHADER = /* glsl */ `
 	uniform vec3 uAuroraColorB;
 	uniform float uTime;
 	uniform float uNightFactor;
+	uniform float uHorizonHazeStrength;
+	uniform float uHorizonVariationStrength;
+	uniform float uGroundBounceStrength;
+	uniform float uUpperAirStrength;
+	uniform float uUpperAirVariationStrength;
+	uniform float uBandingDitherStrength;
 	varying vec3 vWorldPosition;
 
 	float ray4Hash(vec2 p) {
@@ -45,6 +50,63 @@ const AURORA_RAY_CURTAIN_V4_FRAGMENT_SHADER = /* glsl */ `
 		return total;
 	}
 
+	float ray4HorizonAirmassVariation(vec3 dir) {
+		vec2 horizontal = normalize(dir.xz + vec2(0.0001));
+		float broad = ray4Noise(horizontal * 1.85 + vec2(dir.y * 0.72, -dir.y * 0.43) + vec2(4.7, -2.9));
+		vec2 warped = horizontal * 4.60
+			+ vec2(broad * 1.35, -broad * 1.08)
+			+ vec2(dir.y * 1.70, dir.y * 0.95)
+			+ vec2(-8.1, 6.4);
+		float meso = ray4Noise(warped);
+		return clamp((broad - 0.5) * 1.25 + (meso - 0.5) * 0.58, -0.65, 0.65);
+	}
+
+	float ray4UpperAirVariation(vec3 dir, float timeValue) {
+		vec2 horizontal = normalize(dir.xz + vec2(0.0001));
+		float slowTime = timeValue * 0.0014;
+		vec2 broadCoord = horizontal * 1.30
+			+ vec2(dir.y * 0.52, -dir.y * 0.31)
+			+ vec2(slowTime, -slowTime * 0.61);
+		float broad = ray4Noise(broadCoord + vec2(13.2, -7.4));
+		vec2 warp = vec2(
+			broad - 0.5,
+			ray4Noise(broadCoord * 1.71 + vec2(-2.7, 9.1)) - 0.5
+		);
+		float meso = ray4Noise(horizontal * 3.75 + warp * 1.15
+			+ vec2(dir.y * 1.40, dir.y * 0.84) + vec2(-5.9, 11.6));
+		float fine = ray4Noise(horizontal * 8.40 - warp * 0.63
+			+ vec2(dir.y * 2.10, -dir.y * 1.37) + vec2(21.4, -3.8));
+		return clamp((broad - 0.5) * 0.88 + (meso - 0.5) * 0.52 + (fine - 0.5) * 0.18, -0.58, 0.58);
+	}
+
+	vec3 ray4AtmosphericBase(vec3 dir) {
+		float skyHeight = smoothstep(-0.22, 0.82, dir.y);
+		float zenithBlend = pow(clamp(skyHeight, 0.0, 1.0), 0.62);
+		vec3 base = mix(uHorizonColor, uZenithColor, zenithBlend);
+
+		float horizonBand = exp(-pow(abs(dir.y) / 0.19, 1.55));
+		float airmass = ray4HorizonAirmassVariation(dir) * horizonBand;
+		vec3 hazeColor = mix(uHorizonColor, vec3(0.62, 0.72, 0.82), 0.24);
+		float localHaze = clamp(uHorizonHazeStrength + airmass * uHorizonVariationStrength, 0.0, 0.48);
+		base = mix(base, hazeColor, horizonBand * localHaze);
+		base *= 1.0 + airmass * uHorizonVariationStrength * 0.16;
+
+		float belowHorizon = 1.0 - smoothstep(-0.52, 0.06, dir.y);
+		vec3 nightBounce = vec3(0.018, 0.026, 0.052);
+		vec3 dayBounce = mix(uHorizonColor, vec3(0.30, 0.32, 0.29), 0.44);
+		base = mix(base, mix(dayBounce, nightBounce, uNightFactor), belowHorizon * uGroundBounceStrength);
+
+		float upperAir = smoothstep(0.24, 0.94, dir.y);
+		float upperBreakup = ray4UpperAirVariation(dir, uTime) * upperAir * uUpperAirVariationStrength;
+		vec3 upperTint = mix(vec3(0.48, 0.66, 0.90), vec3(0.055, 0.085, 0.18), uNightFactor);
+		vec3 upperCool = mix(vec3(0.42, 0.64, 0.91), vec3(0.040, 0.072, 0.16), uNightFactor);
+		vec3 upperNeutral = mix(vec3(0.66, 0.72, 0.79), vec3(0.085, 0.090, 0.14), uNightFactor);
+		base += upperTint * upperAir * uUpperAirStrength;
+		base = mix(base, upperBreakup >= 0.0 ? upperCool : upperNeutral, abs(upperBreakup) * 0.22);
+		base *= 1.0 + upperBreakup * 0.17;
+		return base;
+	}
+
 	float ray4ArcEdge(float az, float phase, float timeValue, float baseElevation) {
 		float broad = sin(az * 3.1 + phase + timeValue * 0.31) * 0.070;
 		broad += sin(az * 6.7 - phase * 0.71 - timeValue * 0.17) * 0.026;
@@ -73,7 +135,7 @@ const AURORA_RAY_CURTAIN_V4_FRAGMENT_SHADER = /* glsl */ `
 	void main() {
 		vec3 dir = normalize(vWorldPosition - cameraPosition);
 		float heightFactor = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
-		vec3 canonicalSky = mix(uHorizonColor, uZenithColor, pow(heightFactor, 0.55));
+		vec3 canonicalSky = ray4AtmosphericBase(dir);
 		vec3 deepHorizon = vec3(0.018, 0.042, 0.086);
 		vec3 deepZenith = vec3(0.0035, 0.009, 0.027);
 		vec3 deepSky = mix(deepHorizon, deepZenith, pow(heightFactor, 0.68));
@@ -103,12 +165,15 @@ const AURORA_RAY_CURTAIN_V4_FRAGMENT_SHADER = /* glsl */ `
 		vec3 subduedViolet = mix(uAuroraColorB, vec3(0.42, 0.28, 0.60), 0.70);
 		float cyanVariation = ray4Noise(vec2(shearedAz * 3.4 + t * 0.005, elevation * 1.7));
 		vec3 auroraColor = mix(oxygenGreen, cyanGreen, 0.12 + cyanVariation * 0.20);
-		float violetFringe = smoothstep(0.64, 0.88, elevation) * smoothstep(0.42, 0.92, ray4Fbm(vec2(shearedAz * 1.8, t * 0.004 + 8.0))) * 0.15;
+		float violetFringe = smoothstep(0.64, 0.88, elevation)
+			* smoothstep(0.42, 0.92, ray4Fbm(vec2(shearedAz * 1.8, t * 0.004 + 8.0))) * 0.15;
 		auroraColor = mix(auroraColor, subduedViolet, violetFringe);
 
 		vec3 finalColor = skyColor;
 		finalColor += oxygenGreen * haze * 0.10;
 		finalColor += auroraColor * energy * 0.82;
+		float dither = (ray4Hash(gl_FragCoord.xy + vec2(17.0, 31.0)) - 0.5) * uBandingDitherStrength;
+		finalColor = max(finalColor + dither, vec3(0.0));
 		gl_FragColor = vec4(finalColor, 1.0);
 	}
 `;
@@ -119,5 +184,6 @@ export function applyAuroraRayCurtainV4(material) {
 	material.userData.realisticAurora = true;
 	material.userData.naturalAuroraCurtains = true;
 	material.userData.auroraCurtainRaysV4 = true;
+	material.userData.finalAtmosphereProfile = 'camera-relative-horizon-upper-air-v6';
 	return material;
 }
