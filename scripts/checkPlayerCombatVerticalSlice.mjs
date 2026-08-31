@@ -64,6 +64,14 @@ requireFragments(input, 'desktop/gamepad parity', [
   "LIGHT_ATTACK_KEYS.has(event.code) && !isInteractiveTarget(event.target)",
   "HEAVY_ATTACK_KEYS.has(event.code) && !isInteractiveTarget(event.target)",
 ]);
+requireFragments(input, 'shared pause-input isolation', [
+  "'.g3d-pause-menu-overlay:not([hidden])'",
+  'export function isPlayerGameplayInputBlocked()',
+  'export function readPlayerGameplayInputBlocked(',
+  'constructor(target = window, { isInputBlocked = isPlayerGameplayInputBlocked } = {})',
+  'readPlayerGameplayInputBlocked(this._isInputBlocked)',
+  'this._gamepadButtons = sample.buttons',
+]);
 assert.ok(!input.includes("const LIGHT_ATTACK_KEYS = new Set(['KeyE'])"), 'nearby interaction E must not also be bound to keyboard light melee');
 requireFragments(interaction, 'interaction key ownership', ["if (event.code !== 'KeyE') return"]);
 requireFragments(controlsHelp, 'desktop combat and interaction help', [
@@ -84,6 +92,13 @@ requireFragments(touch, 'mobile/PWA input parity', [
   "emitPlayerCombatIntent('light', 'touch')",
   "emitPlayerCombatIntent('heavy', 'touch')",
   'consumeLockOnRequested()',
+]);
+requireFragments(touch, 'touch pause-input isolation', [
+  'isPlayerGameplayInputBlocked',
+  'readPlayerGameplayInputBlocked',
+  'constructor(container = document.body, { isInputBlocked = isPlayerGameplayInputBlocked } = {})',
+  '_resetGameplayState()',
+  'return { forward: 0, strafe: 0, running: false, guarding: false }',
 ]);
 requireFragments(game3d, 'authoritative player health wiring', [
   'createHealthState({',
@@ -107,6 +122,7 @@ console.log(JSON.stringify({
   contract: 'player-combat-vertical-slice-composition',
   chain: ['asset+animation', 'spawn+ground+collider', 'input', 'movement+stamina+poise', 'dodge+guard+parry', 'melee-combo', 'lock-on', 'damage+feedback'],
   inputs: ['keyboard:C-light/R-heavy/E-interaction', 'mouse', 'gamepad', 'touch/PWA'],
+  pauseIsolation: ['keyboard', 'pointer', 'gamepad', 'touch'],
   desktopHelp: ['C / Sol tık = Hafif saldırı', 'R = Ağır saldırı', 'E = Yakındaki kişiyle konuş'],
   touchHelp: ['Savun', 'Hedef', 'Hafif', 'Ağır'],
   sharedMaterialPlacement: true,
