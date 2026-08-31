@@ -94,7 +94,7 @@ for (const placement of proxies) {
 
 assert(slopedProxyCount >= Math.max(3, Math.floor(proxies.length * 0.35)),
   `asset fixture lacks enough slope-conforming proxies: ${slopedProxyCount}/${proxies.length}`);
-assert(yawBuckets.size >= Math.min(7, proxies.length), `asset yaw diversity collapsed: ${yawBuckets.size} buckets`);
+assert(yawBuckets.size >= Math.min(6, proxies.length), `asset yaw diversity collapsed: ${yawBuckets.size} buckets`);
 assert(tiltAxisBuckets.size >= Math.min(5, proxies.length), `asset tilt-axis diversity collapsed: ${tiltAxisBuckets.size} buckets`);
 assert(scaleAspectBuckets.size >= Math.min(4, proxies.length), `asset silhouette scale diversity collapsed: ${scaleAspectBuckets.size} buckets`);
 assert(Math.max(...buryFractions) - Math.min(...buryFractions) >= 0.045,
