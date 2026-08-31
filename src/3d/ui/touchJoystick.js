@@ -62,7 +62,8 @@ export class TouchJoystick {
 		this._parryButton.addEventListener('pointerdown', this._onParry); container.appendChild(this._parryButton);
 
 		this._onPointerDown = this._handlePointerDown.bind(this); this._onPointerMove = this._handlePointerMove.bind(this); this._onPointerUp = this._handlePointerUp.bind(this);
-		this._base.addEventListener('pointerdown', this._onPointerDown); this._base.addEventListener('pointermove', this._onPointerMove); this._base.addEventListener('pointerup', this._onPointerUp); this._base.addEventListener('pointercancel', this._onPointerUp);
+		this._onLostPointerCapture = (event) => { if (event.pointerId === this._pointerId) this._resetMovementState(); };
+		this._base.addEventListener('pointerdown', this._onPointerDown); this._base.addEventListener('pointermove', this._onPointerMove); this._base.addEventListener('pointerup', this._onPointerUp); this._base.addEventListener('pointercancel', this._onPointerUp); this._base.addEventListener('lostpointercapture', this._onLostPointerCapture);
 		this._onVisibilityChange = () => { if (globalThis.document?.hidden === true) this._resetGameplayState(); };
 		this._onPageHide = () => this._resetGameplayState();
 		this._onWindowBlur = () => this._resetGameplayState();
@@ -70,13 +71,16 @@ export class TouchJoystick {
 		this._pageLifecycleTarget?.addEventListener('pagehide', this._onPageHide);
 		this._pageLifecycleTarget?.addEventListener('blur', this._onWindowBlur);
 	}
+	_resetMovementState() {
+		this._pointerId = null; this._dragX = 0; this._dragY = 0; this._knob.style.transform = ''; this._base.classList.remove('g3d-joystick-active');
+	}
 	_resetGameplayState() {
 		const pointerId = this._pointerId;
 		if (pointerId !== null) {
 			try { if (this._base.hasPointerCapture?.(pointerId)) this._base.releasePointerCapture?.(pointerId); } catch { /* input reset must stay fail-closed */ }
 		}
-		this._pointerId = null; this._dragX = 0; this._dragY = 0; this._jumpRequested = false; this._dodgeRequested = false; this._parryRequested = false; this._parryRearmPending = false; this._lockOnRequested = false; this._guardHeld = false;
-		this._knob.style.transform = ''; this._base.classList.remove('g3d-joystick-active'); this._guardButton.setAttribute('aria-pressed', 'false');
+		this._resetMovementState(); this._jumpRequested = false; this._dodgeRequested = false; this._parryRequested = false; this._parryRearmPending = false; this._lockOnRequested = false; this._guardHeld = false;
+		this._guardButton.setAttribute('aria-pressed', 'false');
 	}
 	_handlePointerDown(event) {
 		if (readPlayerGameplayInputBlocked(this._isInputBlocked)) { event.preventDefault?.(); return; }
@@ -91,7 +95,7 @@ export class TouchJoystick {
 	}
 	_handlePointerUp(event) {
 		if (event.pointerId !== this._pointerId) return;
-		this._pointerId = null; this._dragX = 0; this._dragY = 0; this._knob.style.transform = ''; this._base.classList.remove('g3d-joystick-active');
+		this._resetMovementState();
 	}
 	getAxes() {
 		if (readPlayerGameplayInputBlocked(this._isInputBlocked)) { this._resetGameplayState(); return { forward: 0, strafe: 0, running: false, guarding: false }; }
@@ -119,7 +123,7 @@ export class TouchJoystick {
 		this._visibilityTarget?.removeEventListener('visibilitychange', this._onVisibilityChange);
 		this._pageLifecycleTarget?.removeEventListener('pagehide', this._onPageHide);
 		this._pageLifecycleTarget?.removeEventListener('blur', this._onWindowBlur);
-		this._base.removeEventListener('pointerdown', this._onPointerDown); this._base.removeEventListener('pointermove', this._onPointerMove); this._base.removeEventListener('pointerup', this._onPointerUp); this._base.removeEventListener('pointercancel', this._onPointerUp);
+		this._base.removeEventListener('pointerdown', this._onPointerDown); this._base.removeEventListener('pointermove', this._onPointerMove); this._base.removeEventListener('pointerup', this._onPointerUp); this._base.removeEventListener('pointercancel', this._onPointerUp); this._base.removeEventListener('lostpointercapture', this._onLostPointerCapture);
 		this._jumpButton.removeEventListener('click', this._onJumpClick); this._guardButton.removeEventListener('pointerdown', this._onGuardDown); this._guardButton.removeEventListener('pointerup', this._onGuardUp); this._guardButton.removeEventListener('pointercancel', this._onGuardUp); this._guardButton.removeEventListener('pointerleave', this._onGuardUp);
 		this._lockOnButton.removeEventListener('pointerdown', this._onLockOn); this._lightAttackButton.removeEventListener('pointerdown', this._onLightAttack); this._heavyAttackButton.removeEventListener('pointerdown', this._onHeavyAttack); this._dodgeButton.removeEventListener('pointerdown', this._onDodge); this._parryButton.removeEventListener('pointerdown', this._onParry);
 		this._resetGameplayState(); this._guardButton.remove(); this._lockOnButton.remove(); this._jumpButton.remove(); this._lightAttackButton.remove(); this._heavyAttackButton.remove(); this._dodgeButton.remove(); this._parryButton.remove(); this._base.remove();
