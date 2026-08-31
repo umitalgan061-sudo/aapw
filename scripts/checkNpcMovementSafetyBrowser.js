@@ -26,7 +26,7 @@ async function main() {
     await page.goto(`${BASE_URL}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
     const proof = await page.evaluate(async () => {
       const THREE = await import('three');
-      const { createNPC } = await import('/src/3d/gameplay/npc.js');
+      const { createNPC, spawnConfiguredNPCs } = await import('/src/3d/gameplay/npc.js');
 
       class FakeAssetLoader {
         async loadFBXModel() {
@@ -89,6 +89,36 @@ async function main() {
       const skippedAfterInvalidDelta = resumeNpc.object3D.userData.simulationSkippedTicks;
       resumeNpc.dispose();
 
+      const sampledWorldXs = [];
+      const configuredSpawns = await spawnConfiguredNPCs({
+        assetLoader: new FakeAssetLoader(),
+        npcConfig: {
+          SPAWNS: [
+            { id: 'spawn-valid', seatId: 'seat-valid', offsetXMeters: 0, offsetZMeters: 0, modelUrl: '/valid.fbx' },
+            { id: 'spawn-invalid-ground', seatId: 'seat-invalid-ground', offsetXMeters: 0, offsetZMeters: 0, modelUrl: '/invalid-ground.fbx' },
+            { id: 'spawn-throwing-ground', seatId: 'seat-throwing-ground', offsetXMeters: 0, offsetZMeters: 0, modelUrl: '/throwing-ground.fbx' },
+            { id: 'spawn-invalid-world', seatId: 'seat-invalid-world', offsetXMeters: 0, offsetZMeters: 0, modelUrl: '/invalid-world.fbx' },
+          ],
+          IDLE_ANIMATION_URL: '/assets/animations/peasant_girl/idle.fbx',
+        },
+        seatsById: new Map([
+          ['seat-valid', { x: 0, z: 0 }],
+          ['seat-invalid-ground', { x: 10, z: 0 }],
+          ['seat-throwing-ground', { x: 20, z: 0 }],
+          ['seat-invalid-world', { x: Infinity, z: 0 }],
+        ]),
+        sampleGroundY: (x) => {
+          sampledWorldXs.push(x);
+          if (x === 10) return Number.NaN;
+          if (x === 20) throw new Error('synthetic terrain sampler failure');
+          return 3;
+        },
+        groundCollider: { getGroundHeight: () => 3 },
+        playerCollider: { resolveXZ: (x, z) => ({ x, z }) },
+      });
+      const configuredSpawnPosition = configuredSpawns[0]?.object3D.position.clone();
+      for (const npc of configuredSpawns) npc.dispose();
+
       const occlusionNpc = await createNPC({
         assetLoader: new FakeAssetLoader(),
         modelUrl: '/assets/models/characters/paladin_j_nordstrom.fbx',
@@ -121,6 +151,9 @@ async function main() {
         groundRecovered: recoveredGroundPosition.z > 0 && [recoveredGroundPosition.x, recoveredGroundPosition.y, recoveredGroundPosition.z].every(Number.isFinite),
         resumeDeltaBounded: boundedResumePosition.z > 0 && boundedResumePosition.z <= 0.500001,
         invalidDeltaIgnored: afterInvalidDelta.distanceTo(beforeInvalidDelta) < 1e-9 && skippedAfterInvalidDelta >= 1,
+        configuredSpawnIsolation: configuredSpawns.length === 1 && configuredSpawns[0].object3D.name === 'spawn-valid',
+        configuredSpawnGroundFinite: configuredSpawnPosition?.y === 3 && [configuredSpawnPosition.x, configuredSpawnPosition.y, configuredSpawnPosition.z].every(Number.isFinite),
+        invalidWorldSkippedBeforeSampling: sampledWorldXs.length === 3 && sampledWorldXs.every(Number.isFinite),
         losFailedClosed: perception.lineOfSight === false && perception.reason === 'occluded',
         invalidLosDidNotAlert: perception.intent === 'patrol' && perception.suspicion === 0,
         occlusionFinite: [occlusionPosition.x, occlusionPosition.y, occlusionPosition.z].every(Number.isFinite),
