@@ -40,8 +40,6 @@ async function main() {
 			const fail = (condition, message) => { if (!condition) throw new Error(message); };
 			const colorDistance = (a, b) => Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
 
-			// A deliberately calm first reach followed by a steep rapid. Production code must derive
-			// both speed and visual colour from that same bed-gradient signal.
 			const points = [
 				new THREE.Vector3(0, 10, 0),
 				new THREE.Vector3(20, 9.9, 0),
@@ -69,10 +67,17 @@ async function main() {
 			const shader = {
 				uniforms: {},
 				vertexShader: '#include <common>\n#include <begin_vertex>',
-				fragmentShader: '#include <common>\n#include <color_fragment>',
+				fragmentShader: '#include <common>\n#include <color_fragment>\n#include <roughnessmap_fragment>\n#include <normal_fragment_maps>',
 			};
 			river.material.onBeforeCompile(shader);
-			for (const token of ['flowEnergy', 'smoothstep(1.2, 4.5, vFlowSpeed)', 'mix(0.24, 1.0, flowEnergy)', 'turbulentBreakup']) {
+			for (const token of [
+				'riverFlowEnergy',
+				'smoothstep(1.2, 4.5, vFlowSpeed)',
+				'mix(0.22, 1.0, riverFlowEnergy)',
+				'riverTurbulentBreakup',
+				'riverRoughnessTarget',
+				'riverWorldPerturb',
+			]) {
 				fail(shader.fragmentShader.includes(token), `river shader missing ${token}`);
 			}
 			updateFlowAnimation(river, 7.5);
@@ -88,27 +93,49 @@ async function main() {
 			const fallDistances = waterfall.geometry.getAttribute('aFlowDistance');
 			const fallSpeeds = waterfall.geometry.getAttribute('aFlowSpeed');
 			const fallIndex = waterfall.geometry.getIndex();
-			fail(fallPositions.count === 8 && fallColors.count === 8, 'waterfall curtain + apron must remain one 8-vertex mesh');
-			fail(fallIndex?.count === 12, `waterfall single-mesh index count ${fallIndex?.count} != 12`);
-			fail(fallSpeeds.getX(0) === 9, 'waterfall curtain flow speed drifted');
-			fail(fallSpeeds.getX(4) < fallSpeeds.getX(0), 'plunge apron must slow after impact');
-			const lip = new THREE.Color(fallColors.getX(0), fallColors.getY(0), fallColors.getZ(0));
-			const plunge = new THREE.Color(fallColors.getX(2), fallColors.getY(2), fallColors.getZ(2));
-			const impact = new THREE.Color(fallColors.getX(4), fallColors.getY(4), fallColors.getZ(4));
+			const segments = waterfall.userData.cascadeColumnSegments;
+			const columns = segments + 1;
+			const expectedVertices = columns * 4;
+			const expectedIndices = segments * 3 * 6;
+			fail(segments >= 6, `waterfall segmentation ${segments} is too coarse`);
+			fail(fallPositions.count === expectedVertices && fallColors.count === expectedVertices,
+				`waterfall segmented cascade vertex count ${fallPositions.count} != ${expectedVertices}`);
+			fail(fallIndex?.count === expectedIndices, `waterfall index count ${fallIndex?.count} != ${expectedIndices}`);
+			const centerColumn = Math.floor(columns / 2);
+			const crestVertex = centerColumn;
+			const plungeVertex = columns + centerColumn;
+			const impactVertex = columns * 2 + centerColumn;
+			const apronVertex = columns * 3 + centerColumn;
+			fail(fallSpeeds.getX(crestVertex) === 9, 'waterfall curtain flow speed drifted');
+			fail(fallSpeeds.getX(impactVertex) < fallSpeeds.getX(crestVertex), 'plunge apron must slow after impact');
+			const lip = new THREE.Color(fallColors.getX(crestVertex), fallColors.getY(crestVertex), fallColors.getZ(crestVertex));
+			const plunge = new THREE.Color(fallColors.getX(plungeVertex), fallColors.getY(plungeVertex), fallColors.getZ(plungeVertex));
+			const impact = new THREE.Color(fallColors.getX(impactVertex), fallColors.getY(impactVertex), fallColors.getZ(impactVertex));
 			fail(lip.r > plunge.r && lip.g > plunge.g && lip.b > plunge.b, 'waterfall lip must remain brighter/foamier than plunge water');
 			fail(impact.r > plunge.r && impact.g > plunge.g && impact.b > plunge.b, 'impact apron must re-aerate brighter than plunge water');
-			fail(Math.abs(fallDistances.getX(4) - 8) < 1e-6, 'apron flow must continue from the full curtain drop distance');
-			fail(fallDistances.getX(6) > fallDistances.getX(4), 'apron flow distance must advance downstream');
-			const nearWidth = Math.hypot(fallPositions.getX(4) - fallPositions.getX(5), fallPositions.getZ(4) - fallPositions.getZ(5));
-			const farWidth = Math.hypot(fallPositions.getX(6) - fallPositions.getX(7), fallPositions.getZ(6) - fallPositions.getZ(7));
-			const nearCenterX = (fallPositions.getX(4) + fallPositions.getX(5)) * 0.5;
-			const farCenterX = (fallPositions.getX(6) + fallPositions.getX(7)) * 0.5;
-			fail(farWidth > nearWidth, `plunge apron must spread downstream (${nearWidth} -> ${farWidth})`);
-			fail(farCenterX > nearCenterX, 'plunge apron must extend in the waterfall downstream direction');
+			fail(Math.abs(fallDistances.getX(impactVertex) - 8) < 1e-6, 'apron flow must continue from the full curtain drop distance');
+			fail(fallDistances.getX(apronVertex) > fallDistances.getX(impactVertex), 'apron flow distance must advance downstream');
+			const impactLeft = columns * 2;
+			const impactRight = impactLeft + segments;
+			const apronLeft = columns * 3;
+			const apronRight = apronLeft + segments;
+			const impactWidth = Math.hypot(
+				fallPositions.getX(impactLeft) - fallPositions.getX(impactRight),
+				fallPositions.getZ(impactLeft) - fallPositions.getZ(impactRight),
+			);
+			const apronWidth = Math.hypot(
+				fallPositions.getX(apronLeft) - fallPositions.getX(apronRight),
+				fallPositions.getZ(apronLeft) - fallPositions.getZ(apronRight),
+			);
+			const impactCenterX = (fallPositions.getX(impactLeft) + fallPositions.getX(impactRight)) * 0.5;
+			const apronCenterX = (fallPositions.getX(apronLeft) + fallPositions.getX(apronRight)) * 0.5;
+			fail(apronWidth > impactWidth * 1.1, `impact apron must spread downstream (${impactWidth} -> ${apronWidth})`);
+			fail(apronCenterX > impactCenterX, 'impact apron must extend in the waterfall downstream direction');
 			fail(waterfall.material.opacity === 0.74, 'waterfall transparency drifted');
 			fail(waterfall.material.userData.opticalProfile?.aerated === true, 'waterfall aeration metadata disappeared');
 			fail(waterfall.material.userData.opticalProfile?.splashApron === true, 'waterfall splash-apron metadata disappeared');
 			fail(waterfall.material.userData.opticalProfile?.singleDrawCall === true, 'waterfall apron must not add a draw-call mesh');
+			fail(waterfall.material.userData.opticalProfile?.segmentedCascade === true, 'waterfall segmented-cascade metadata disappeared');
 			fail(waterfall.material.userData.opticalProfile?.turbulentFoamBreakup === true, 'waterfall turbulence breakup metadata disappeared');
 
 			const summary = {
@@ -118,7 +145,8 @@ async function main() {
 				riverOpacity: river.material.opacity,
 				waterfallOpacity: waterfall.material.opacity,
 				waterfallVertices: fallPositions.count,
-				apronSpread: farWidth / nearWidth,
+				cascadeSegments: segments,
+				apronSpread: apronWidth / impactWidth,
 			};
 			disposeRiverMesh(river);
 			disposeWaterfallMesh(waterfall);
@@ -129,7 +157,8 @@ async function main() {
 		console.log(
 			`[checkGeographicRiverVisualContract] PASS: calm ${result.calmSpeed.toFixed(2)}m/s → rapid ` +
 			`${result.rapidSpeed.toFixed(2)}m/s, colour Δ ${result.colorDistance.toFixed(3)}, ` +
-			`${result.waterfallVertices}-vertex single-draw waterfall, apron spread x${result.apronSpread.toFixed(2)}.`,
+			`${result.waterfallVertices}-vertex/${result.cascadeSegments}-segment single-draw waterfall, ` +
+			`apron spread x${result.apronSpread.toFixed(2)}.`,
 		);
 	} finally {
 		await browser.close();
