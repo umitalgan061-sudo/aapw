@@ -32,7 +32,7 @@ export const WAVE_TOTAL_AMPLITUDE_METERS = SWELL_COMPONENTS.reduce((sum, [, ampl
 export const WATER_OFFSHORE_OPTICAL_GAIN = 0.82;
 
 export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
-	id: 'water-world-surface-variation-2026-08-31-v7-aerial-backdrop-response',
+	id: 'water-world-surface-variation-2026-08-31-v8-cross-current-backdrop',
 	renderOnly: true,
 	canonicalDepthUnchanged: true,
 	canonicalCoverageUnchanged: true,
@@ -47,6 +47,7 @@ export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	backdropMacroScaleMeters: 6200,
 	backdropMesoScaleMeters: 2300,
 	backdropFineScaleMeters: 740,
+	backdropCrossCurrentScaleMeters: 3600,
 	backdropRoughnessMin: 0.24,
 	backdropRoughnessMax: 0.76,
 	shoreBreakerRevision: 'v1-bathymetry-directed-irregular-lace',
@@ -368,10 +369,13 @@ const DEEP_OCEAN_BACKDROP_FRAGMENT_SHADER = /* glsl */ `
 		float meso = backdropNoise((worldXZ * mat2(0.82, -0.57, 0.57, 0.82) - warp * 0.22) / ${WATER_SURFACE_VARIATION_POLICY.backdropMesoScaleMeters.toFixed(1)} + vec2(11.8, -6.2));
 		float fine = backdropNoise((worldXZ * mat2(0.53, 0.85, -0.85, 0.53) + warp * 0.09) / ${WATER_SURFACE_VARIATION_POLICY.backdropFineScaleMeters.toFixed(1)} + vec2(-4.7, 14.3));
 		float streak = backdropNoise(vec2((worldXZ.x * 0.74 + worldXZ.y * 0.67) / 1450.0, (worldXZ.y * 0.74 - worldXZ.x * 0.67) / 430.0) + vec2(warpA, warpB));
-		float fabric = clamp((macro - 0.5) * 0.92 + (meso - 0.5) * 0.66 + (fine - 0.5) * 0.34 + (streak - 0.5) * 0.24, -1.0, 1.0);
+		vec2 crossFrame = worldXZ * mat2(0.36, 0.93, -0.93, 0.36);
+		float crossCurrent = backdropNoise((crossFrame + warp * 0.17) / ${WATER_SURFACE_VARIATION_POLICY.backdropCrossCurrentScaleMeters.toFixed(1)} + vec2(23.4, -12.7));
+		float crossVein = 1.0 - abs(backdropNoise(vec2(crossFrame.x / 910.0, crossFrame.y / 310.0) - warp * 0.0018 + vec2(-7.8, 18.6)) * 2.0 - 1.0);
+		float fabric = clamp((macro - 0.5) * 0.88 + (meso - 0.5) * 0.62 + (fine - 0.5) * 0.32 + (streak - 0.5) * 0.14 + (crossCurrent - 0.5) * 0.30 + (crossVein - 0.5) * 0.18, -1.0, 1.0);
 		float tone = clamp(0.5 + fabric * 0.66, 0.0, 1.0);
 		vec3 bodyColor = mix(uBackdropColor * vec3(0.74, 0.84, 0.94), uBackdropColor * vec3(1.30, 1.22, 1.11) + vec3(0.005, 0.014, 0.019), tone);
-		float slopeWarp = sin(dot(worldXZ, vec2(0.0017, -0.0012)) + fabric * 1.6);
+		float slopeWarp = sin(dot(worldXZ, vec2(0.0017, -0.0012)) + fabric * 1.42 + (crossCurrent - 0.5) * 0.96);
 		vec2 slope = vec2(
 			sin(dot(worldXZ, vec2(0.0069, 0.0031)) + slopeWarp * 0.72) + sin(dot(worldXZ, vec2(-0.0038, 0.0081)) - slopeWarp * 0.42) * 0.55,
 			sin(dot(worldXZ, vec2(0.0027, -0.0062)) - slopeWarp * 0.61) + sin(dot(worldXZ, vec2(0.0088, -0.0045)) + slopeWarp * 0.31) * 0.44
@@ -379,12 +383,12 @@ const DEEP_OCEAN_BACKDROP_FRAGMENT_SHADER = /* glsl */ `
 		vec3 normal = normalize(vec3(-slope.x, 1.0, -slope.y));
 		vec3 viewDir = normalize(uCameraPosition - vBackdropWorldPosition);
 		vec3 halfVector = normalize(uSunDirection + viewDir);
-		float roughnessDriver = clamp(0.50 + (macro - 0.5) * 0.18 + (meso - 0.5) * 0.62 + (fine - 0.5) * 0.74 + (streak - 0.5) * 0.38, 0.0, 1.0);
+		float roughnessDriver = clamp(0.50 + (macro - 0.5) * 0.16 + (meso - 0.5) * 0.56 + (fine - 0.5) * 0.68 + (streak - 0.5) * 0.18 + (crossCurrent - 0.5) * 0.44 + (crossVein - 0.5) * 0.26, 0.0, 1.0);
 		float roughness = mix(${WATER_SURFACE_VARIATION_POLICY.backdropRoughnessMin.toFixed(2)}, ${WATER_SURFACE_VARIATION_POLICY.backdropRoughnessMax.toFixed(2)}, roughnessDriver);
 		float specular = pow(clamp(dot(normal, halfVector), 0.0, 1.0), mix(92.0, 16.0, roughness));
 		float broadSpecular = pow(clamp(dot(normal, halfVector), 0.0, 1.0), mix(28.0, 6.0, roughness));
 		float fresnel = 0.02 + 0.98 * pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 5.0);
-		float glintBreakup = smoothstep(0.26, 0.78, clamp(0.5 + fabric * 0.36 + (streak - 0.5) * 0.52, 0.0, 1.0));
+		float glintBreakup = smoothstep(0.26, 0.78, clamp(0.5 + fabric * 0.30 + (streak - 0.5) * 0.24 + (crossVein - 0.5) * 0.46, 0.0, 1.0));
 		bodyColor += uSunColor * (specular + broadSpecular * glintBreakup * 0.22) * fresnel * (0.045 + clamp(uSunIntensity, 0.0, 1.6) * 0.080);
 		bodyColor *= 1.0 + (roughnessDriver - 0.5) * -0.055;
 		bodyColor = mix(bodyColor, bodyColor * 0.58 + vec3(0.004, 0.014, 0.026), clamp(uNightFactor, 0.0, 1.0) * 0.38);
