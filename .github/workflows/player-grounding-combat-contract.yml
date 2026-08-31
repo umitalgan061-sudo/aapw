@@ -103,12 +103,12 @@ jobs:
           node --check scripts/checkPlayerRecoveryAttackBufferDrop.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferRuntime.mjs
           node scripts/checkPlayerRecoveryAttackBufferDrop.mjs
-      - name: Shared material determinism and cache contracts
-        run: |
-          set -euo pipefail
-          node scripts/checkSharedMaterialPlacementContract.js
-          node scripts/checkSeededRandomPolicy.js
-          node scripts/checkServiceWorkerCache.js
+      - name: Shared Material Placement Contract
+        run: node scripts/checkSharedMaterialPlacementContract.js
+      - name: Seeded determinism contract
+        run: node scripts/checkSeededRandomPolicy.js
+      - name: Service worker cache contract
+        run: node scripts/checkServiceWorkerCache.js
       - name: Asset-first targeted hydration
         shell: bash
         run: |
