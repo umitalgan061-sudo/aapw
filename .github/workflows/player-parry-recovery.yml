@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - 'src/3d/gameplay/player.js'
+      - 'src/3d/input.js'
+      - 'scripts/checkPlayerCombatVerticalSlice.mjs'
+      - 'scripts/checkPlayerMeleeCombo.mjs'
       - 'scripts/checkPlayerParryRecovery.mjs'
       - 'scripts/checkPlayerRecoveryAttackBufferDrop.mjs'
       - 'scripts/checkPlayerRecoveryAttackBufferRuntime.mjs'
@@ -42,7 +45,7 @@ jobs:
           printf '%s\n' "${files[@]}"
           for file in "${files[@]}"; do
             case "$file" in
-              src/3d/gameplay/player.js|scripts/checkPlayerParryRecovery.mjs|scripts/checkPlayerRecoveryAttackBufferDrop.mjs|scripts/checkPlayerRecoveryAttackBufferRuntime.mjs|scripts/checkPlayerHitStaggerRuntime.mjs|scripts/checkPlayerStaminaDodgeRuntime.mjs|.github/workflows/player-recovery-attack-buffer-drop.yml|.github/workflows/player-combat-recovery-input-isolation.yml|.github/workflows/player-stamina-dodge.yml|.github/workflows/player-guard-impact-exhaustion.yml|.github/workflows/player-gamepad-parity.yml|.github/workflows/player-grounding-combat-contract.yml|.github/workflows/player-parry-recovery.yml) ;;
+              src/3d/gameplay/player.js|src/3d/input.js|scripts/checkPlayerCombatVerticalSlice.mjs|scripts/checkPlayerMeleeCombo.mjs|scripts/checkPlayerParryRecovery.mjs|scripts/checkPlayerRecoveryAttackBufferDrop.mjs|scripts/checkPlayerRecoveryAttackBufferRuntime.mjs|scripts/checkPlayerHitStaggerRuntime.mjs|scripts/checkPlayerStaminaDodgeRuntime.mjs|.github/workflows/player-recovery-attack-buffer-drop.yml|.github/workflows/player-combat-recovery-input-isolation.yml|.github/workflows/player-stamina-dodge.yml|.github/workflows/player-guard-impact-exhaustion.yml|.github/workflows/player-gamepad-parity.yml|.github/workflows/player-grounding-combat-contract.yml|.github/workflows/player-parry-recovery.yml) ;;
               *) echo "Unexpected path: $file" >&2; exit 1 ;;
             esac
           done
