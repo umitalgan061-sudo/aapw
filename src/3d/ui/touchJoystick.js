@@ -14,7 +14,7 @@ export class TouchJoystick {
 	constructor(container = document.body, { isInputBlocked = isPlayerGameplayInputBlocked } = {}) {
 		this._radiusPx = TOUCH_JOYSTICK_CONFIG.RADIUS_PX;
 		this._dragX = 0; this._dragY = 0; this._pointerId = null;
-		this._jumpRequested = false; this._dodgeRequested = false; this._parryRequested = false; this._parryRearmPending = false; this._lockOnRequested = false; this._guardHeld = false;
+		this._jumpRequested = false; this._dodgeRequested = false; this._parryRequested = false; this._parryRearmPending = false; this._lockOnRequested = false; this._guardHeld = false; this._guardPointerIds = new Set();
 		this._isInputBlocked = typeof isInputBlocked === 'function' ? isInputBlocked : isPlayerGameplayInputBlocked;
 		this._visibilityTarget = globalThis.document?.addEventListener ? globalThis.document : null;
 		this._pageLifecycleTarget = globalThis.window?.addEventListener ? globalThis.window : null;
@@ -24,8 +24,19 @@ export class TouchJoystick {
 		this._onJumpClick = (event) => { if (readPlayerGameplayInputBlocked(this._isInputBlocked)) { event?.preventDefault?.(); return; } this._jumpRequested = true; }; this._jumpButton.addEventListener('click', this._onJumpClick); container.appendChild(this._jumpButton);
 		this._guardButton = document.createElement('button'); this._guardButton.type = 'button'; this._guardButton.className = 'g3d-touch-guard-button'; this._guardButton.textContent = 'Savun'; this._guardButton.setAttribute('aria-label', 'Savun'); this._guardButton.setAttribute('aria-pressed', 'false');
 		Object.assign(this._guardButton.style, { position: 'fixed', right: '112px', bottom: '96px', zIndex: '30', minWidth: '72px', minHeight: '48px', borderRadius: '999px', opacity: '0.86', touchAction: 'none' });
-		this._onGuardDown = (event) => { if (readPlayerGameplayInputBlocked(this._isInputBlocked)) { event.preventDefault?.(); return; } this._guardHeld = true; this._guardButton.setAttribute('aria-pressed', 'true'); event.preventDefault(); };
-		this._onGuardUp = (event) => { this._guardHeld = false; this._guardButton.setAttribute('aria-pressed', 'false'); event.preventDefault?.(); };
+		this._onGuardDown = (event) => {
+			if (readPlayerGameplayInputBlocked(this._isInputBlocked)) { event.preventDefault?.(); return; }
+			this._guardPointerIds.add(event.pointerId);
+			this._guardHeld = true;
+			this._guardButton.setAttribute('aria-pressed', 'true');
+			event.preventDefault();
+		};
+		this._onGuardUp = (event) => {
+			this._guardPointerIds.delete(event.pointerId);
+			this._guardHeld = this._guardPointerIds.size > 0;
+			this._guardButton.setAttribute('aria-pressed', String(this._guardHeld));
+			event.preventDefault?.();
+		};
 		this._guardButton.addEventListener('pointerdown', this._onGuardDown); this._guardButton.addEventListener('pointerup', this._onGuardUp); this._guardButton.addEventListener('pointercancel', this._onGuardUp); this._guardButton.addEventListener('pointerleave', this._onGuardUp); container.appendChild(this._guardButton);
 
 		this._lockOnButton = document.createElement('button'); this._lockOnButton.type = 'button'; this._lockOnButton.className = 'g3d-touch-lock-on-button'; this._lockOnButton.textContent = 'Hedef'; this._lockOnButton.setAttribute('aria-label', 'Hedef kilidi'); this._lockOnButton.setAttribute('aria-pressed', 'false');
@@ -79,7 +90,7 @@ export class TouchJoystick {
 		if (pointerId !== null) {
 			try { if (this._base.hasPointerCapture?.(pointerId)) this._base.releasePointerCapture?.(pointerId); } catch { /* input reset must stay fail-closed */ }
 		}
-		this._resetMovementState(); this._jumpRequested = false; this._dodgeRequested = false; this._parryRequested = false; this._parryRearmPending = false; this._lockOnRequested = false; this._guardHeld = false;
+		this._resetMovementState(); this._jumpRequested = false; this._dodgeRequested = false; this._parryRequested = false; this._parryRearmPending = false; this._lockOnRequested = false; this._guardPointerIds.clear(); this._guardHeld = false;
 		this._guardButton.setAttribute('aria-pressed', 'false');
 	}
 	_handlePointerDown(event) {
