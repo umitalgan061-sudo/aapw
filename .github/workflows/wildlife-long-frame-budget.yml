@@ -73,7 +73,24 @@ jobs:
         run: |
           set -euo pipefail
           git lfs version
-          git lfs pull --include="assets/models/animals/wolf/**" --exclude=""
+          asset_ref="$(git rev-parse HEAD)"
+          family='assets/models/animals/wolf/'
+          if ! git lfs pull --include="${family}**" --exclude=""; then
+            echo 'LFS transfer unavailable; hydrating exact wolf pointers through GitHub media.'
+          fi
+          mapfile -t lfs_paths < <(git lfs ls-files -n | grep "^${family}" || true)
+          test "${#lfs_paths[@]}" -gt 0
+          for asset_path in "${lfs_paths[@]}"; do
+            if test -s "$asset_path" && ! head -c 200 "$asset_path" | grep -aq 'version https://git-lfs.github.com/spec/v1'; then
+              continue
+            fi
+            tmp_asset="${RUNNER_TEMP}/wolf-$(basename "$asset_path").download"
+            media_url="https://media.githubusercontent.com/media/${GITHUB_REPOSITORY}/${asset_ref}/${asset_path}"
+            curl --fail --location --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors --connect-timeout 15 --max-time 120 "$media_url" --output "$tmp_asset"
+            test -s "$tmp_asset"
+            ! head -c 200 "$tmp_asset" | grep -aq 'version https://git-lfs.github.com/spec/v1'
+            mv "$tmp_asset" "$asset_path"
+          done
 
       - name: Install Chromium proof dependencies
         shell: bash
