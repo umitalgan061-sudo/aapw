@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-31-v62-aerial-biome-chroma',
+	id: 'geographic-reference-palette-2026-08-31-v63-aerial-ecotone-weathering',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -27,31 +27,31 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v62 preserves the v61 exposed-rock contrast floor and restores restrained biome chroma that the exact-head full-world render still compressed into a broad grey-brown midtone. Meadow shifts slightly greener and brighter while dry heather gains a warmer mineral value, increasing long-range ecotone readability without changing terrain geometry, rock authority, hydrology, collider ownership or adding geography.',
-		water: 'v62 keeps the v58 deep-sea and abyss lift so depth hierarchy survives the high full-world camera while offshore water remains darker than rivers, lakes and clear shallows. Canonical wet coverage and shoreline ownership remain unchanged.',
-		road: 'v62 preserves established cart-road and footpath base colours required by the live road mesh contract; rut, stone and moss-edge separation provide wet/dry and wear variation without changing route geometry.',
+		terrain: 'v63 follows direct inspection of exact-head full-world #650: canonical geography remains intact, but broad central/western lowlands still collapse toward one grey-olive aerial value. Meadow is lifted toward a restrained humid green, dry heather is warmed and separated, ferric earth gains a small mineral lift, and granite/quartz receive more sun/shadow separation so erosion and ecotone fabric survive the high camera without altering terrain height, shoreline, hydrology, colliders or inventing geography.',
+		water: 'v63 preserves the v62 depth hierarchy: clear shallows/lakes remain distinct from boundary-connected deep sea while canonical wet coverage and shoreline ownership remain unchanged.',
+		road: 'v63 preserves established compacted-road and dust bases while slightly separating damp ruts, mineral stone and moss edge, improving worn-road material breakup without changing route geometry.',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x052011,
-		meadow: 0x1c6f3b,
-		dryHeather: 0x655037,
-		wetEarth: 0x0c1814,
-		exposedEarth: 0x9f5e3d,
-		graniteShadow: 0x172024,
-		graniteSunlit: 0xa09586,
+		mossShadow: 0x062417,
+		meadow: 0x277949,
+		dryHeather: 0x73583d,
+		wetEarth: 0x0b1813,
+		exposedEarth: 0xa76643,
+		graniteShadow: 0x18232a,
+		graniteSunlit: 0xa89a88,
 		basaltWet: 0x020b0f,
-		quartz: 0xada193,
+		quartz: 0xb4a794,
 	}),
 	road: Object.freeze({
 		compacted: 0x8b6849,
-		rut: 0x211d1a,
+		rut: 0x1c1a18,
 		dust: 0xb0926d,
-		stone: 0x626b67,
-		mossEdge: 0x294d32,
+		stone: 0x69716b,
+		mossEdge: 0x2f5838,
 	}),
 	water: Object.freeze({
 		shoreClear: 0x528a7b,
