@@ -1,0 +1,74 @@
+name: North Mountain Snow Visual QA
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/terrainBiomeShading.js'
+      - 'src/3d/world/terrainSnowSurfaceTone.js'
+      - 'src/3d/world/terrainWindSnowExposure.js'
+      - 'src/3d/world/northReferenceCryosphere.js'
+      - 'src/3d/world/worldReferenceAlignment.js'
+      - 'src/3d/config.js'
+      - 'scripts/checkNorthMountainSnowVisualQa.js'
+      - 'scripts/checkNorthMountainSnowVisualContract.mjs'
+      - 'scripts/devServerHelper.js'
+      - 'north-mountain-snow-visual-qa.html'
+      - '.github/workflows/north-mountain-snow-visual-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: north-mountain-snow-visual-qa-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visual-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Static mountain snow contracts
+        run: |
+          node --check src/3d/world/terrainBiomeShading.js
+          node --check src/3d/world/terrainSnowSurfaceTone.js
+          node --check src/3d/world/terrainWindSnowExposure.js
+          node --check scripts/checkNorthMountainSnowVisualQa.js
+          node --check scripts/checkNorthMountainSnowVisualContract.mjs
+          node scripts/checkNorthMountainSnowVisualContract.mjs
+
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          ln -sfn "$RUNNER_TEMP/pw/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Render north mountain snow harmony
+        run: |
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkNorthMountainSnowVisualQa.js
+
+      - name: Upload north mountain snow visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: north-mountain-snow-visual-qa
+          path: artifacts/north-mountain-snow-visual-qa/
+          if-no-files-found: error
+          retention-days: 7

@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<title>Cinematic Geography Realism Harness</title>
+	<script type="importmap">
+	{
+		"imports": {
+			"three": "../src/3d/vendor/three/three.module.js"
+		}
+	}
+	</script>
+</head>
+<body data-cinematic-geography-harness="loading">
+	<pre id="cinematic-geography-result" hidden></pre>
+	<script type="module">
+		import * as THREE from 'three';
+		import { createTerrainChunk, disposeTerrainChunk } from '../src/3d/world/terrain.js';
+		import {
+			applyRuntimePindexTerrainQualityV2ToMesh,
+			RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY,
+		} from '../src/3d/world/worldReferenceSurfaceTerrainVisual.js';
+		import { createWater, disposeWater, WATER_SURFACE_VARIATION_POLICY } from '../src/3d/world/water.js';
+		import { buildRoadNetwork, disposeRoadNetwork } from '../src/3d/world/roads.js';
+
+		const capturedErrors = [];
+		const originalError = console.error;
+		console.error = (...args) => capturedErrors.push(args.map(String).join(' '));
+		let renderer = null;
+		let terrain = null;
+		let water = null;
+		let roads = null;
+
+		try {
+			terrain = createTerrainChunk({ chunkX: 0, chunkZ: 0, size: 500, segments: 24, seed: 1337 });
+			const terrainSummary = applyRuntimePindexTerrainQualityV2ToMesh(terrain);
+			water = createWater(0, 16);
+			roads = buildRoadNetwork({
+				seats: [
+					{ id: 'qa-west', x: -90, z: 40, groundY: 8 },
+					{ id: 'qa-east', x: 90, z: 40, groundY: 8 },
+				],
+				sampleHeightMeters: () => 8,
+			});
+
+			const scene = new THREE.Scene();
+			scene.add(terrain, water, roads.group);
+			scene.add(new THREE.HemisphereLight(0xbed4e7, 0x24271f, 1.6));
+			const sun = new THREE.DirectionalLight(0xffd6a0, 2.5);
+			sun.position.set(-240, 420, 180);
+			scene.add(sun);
+			const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 4000);
+			camera.position.set(0, 330, 520);
+			camera.lookAt(0, 0, 0);
+
+			renderer = new THREE.WebGLRenderer({ antialias: false });
+			renderer.setSize(256, 256, false);
+			renderer.compile(scene, camera);
+			renderer.render(scene, camera);
+
+			const programs = renderer.info.programs?.map((program) => ({
+				runnable: program.diagnostics?.runnable ?? true,
+				materialName: program.diagnostics?.material?.name || '',
+			})) ?? [];
+			const roadStyle = roads.group.children[0]?.material?.userData?.medievalRoadSurfaceRun177;
+			window.__cinematicGeographyResult = {
+				ok: true,
+				shaderErrors: capturedErrors.filter((entry) => /shader|webgl|program/i.test(entry)),
+				programCount: programs.length,
+				allProgramsRunnable: programs.every((program) => program.runnable),
+				terrainPolicyId: terrainSummary.policyId,
+				terrainNaturalTransition: RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.naturalTransitionRevision,
+				waterBreakerRevision: WATER_SURFACE_VARIATION_POLICY.shoreBreakerRevision,
+				waterMetadata: water.userData.opticalProfile.bathymetryDirectedIrregularBreakers,
+				roadKey: roadStyle?.key,
+				roadEdgeErosion: roadStyle?.irregularEdgeErosion,
+				roadDrawCallsAdded: roadStyle?.extraDrawCalls,
+			};
+			document.getElementById('cinematic-geography-result').textContent = JSON.stringify(window.__cinematicGeographyResult);
+			document.body.dataset.cinematicGeographyHarness = 'ready';
+		} catch (error) {
+			window.__cinematicGeographyResult = {
+				ok: false,
+				error: String(error?.stack || error),
+				shaderErrors: capturedErrors,
+			};
+			document.getElementById('cinematic-geography-result').textContent = JSON.stringify(window.__cinematicGeographyResult);
+			document.body.dataset.cinematicGeographyHarness = 'failed';
+		} finally {
+			console.error = originalError;
+			if (roads) disposeRoadNetwork(roads.group);
+			if (water) disposeWater(water);
+			if (terrain) disposeTerrainChunk(terrain);
+			renderer?.dispose();
+		}
+	</script>
+</body>
+</html>
+

@@ -1,18 +1,96 @@
-/** Deterministic micro-detail layer for canonical owner-map Pindex-01 only. */
+/** Deterministic material-detail layer for canonical owner-map Pindex-01 only. */
 import * as THREE from 'three';
 import { mapCanvasToNormalizedReference } from './worldReferenceAlignment.js';
 import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
+import { applyWesternMarineShelfToneToColorAttribute } from './westernMarineShelfTone.js';
+import {
+  applyWesternReferenceSurfaceFabricToColorAttribute,
+  sampleWesternReferenceSurfaceFabric,
+} from './westernReferenceSurfaceFabric.js';
 
 export const PINDEX01_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex01-detail-2026-08-11-v1',
+  id: 'owner-map-pindex01-detail-2026-08-29-v7-submicro-stony-normal',
   pindex: 1,
-  amplitudeBySurface: Object.freeze({ sea: 0.015, lake: 0.015, soil: 0.06, rock: 0.05, snow: 0.025 }),
+  westernMarineShelfTone: true,
+  westernReferenceSurfaceFabric: true,
+  worldSpaceMicroNormalWeathering: true,
+  sharedFabricNormalSource: true,
+  normalSubMicroProbeMeters: 4.5,
+  normalProbeMeters: 9.0,
+  normalMesoProbeMeters: 31.0,
+  normalMacroProbeMeters: 96.0,
+  normalScaleWeights: Object.freeze({ subMicro: 0.18, micro: 0.46, meso: 0.24, macro: 0.12 }),
+  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.38, rock: 0.58, snow: 0.17 }),
+  normalSeamFeatherNormalized: 0.012,
+  mapAuthorityUnchanged: true,
+  geographyAuthorityUnchanged: true,
+  terrainHeightAuthorityUnchanged: true,
+  hydrologyAuthorityUnchanged: true,
+  colliderAuthorityUnchanged: true,
+  renderOnly: true,
 });
 
-function hash01(x, y) {
-  const value = Math.sin(x * 12.9898 + y * 78.233 + 17.719) * 43758.5453;
-  return value - Math.floor(value);
+function smoothstep01(value) {
+  const t = THREE.MathUtils.clamp(value, 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+function pindex01NormalWeight(normalizedX) {
+  const P = PINDEX01_DETAIL_POLICY;
+  const west = smoothstep01(normalizedX / P.normalSeamFeatherNormalized);
+  const east = smoothstep01((0.1 - normalizedX) / P.normalSeamFeatherNormalized);
+  return west * east;
+}
+
+function weatheringHeight(fabric, surface) {
+  if (surface === 'rock') {
+    return fabric.weathering * 0.26 + fabric.fracture * 0.27 + fabric.frostWash * 0.16
+      + fabric.stonyPatch * 0.18 + fabric.subMicro * 0.08 + fabric.fine * 0.05;
+  }
+  if (surface === 'snow') {
+    return fabric.crust * 0.34 + fabric.fine * 0.22 + fabric.micro * 0.17
+      + fabric.weathering * 0.13 + fabric.subMicro * 0.08 + fabric.stonyPatch * 0.06;
+  }
+  return fabric.moisture * 0.24 + fabric.mineral * 0.18 + fabric.weathering * 0.16
+    + fabric.exposedInterfluve * 0.14 + fabric.stonyPatch * 0.14 + fabric.subMicro * 0.08
+    + fabric.fine * 0.06;
+}
+
+function weatheringGradient(worldX, worldZ, step, surface) {
+  const east = weatheringHeight(sampleWesternReferenceSurfaceFabric(worldX + step, worldZ), surface);
+  const west = weatheringHeight(sampleWesternReferenceSurfaceFabric(worldX - step, worldZ), surface);
+  const north = weatheringHeight(sampleWesternReferenceSurfaceFabric(worldX, worldZ + step), surface);
+  const south = weatheringHeight(sampleWesternReferenceSurfaceFabric(worldX, worldZ - step), surface);
+  return { x: east - west, z: north - south };
+}
+
+function applyPindex01WeatheredNormal(normal, index, classification) {
+  if (!normal || classification.surface === 'sea' || classification.surface === 'lake') return false;
+  const P = PINDEX01_DETAIL_POLICY;
+  const strength = P.normalStrengthBySurface[classification.surface] ?? 0;
+  const seam = pindex01NormalWeight(classification.normalizedX);
+  if (strength <= 0 || seam <= 0) return false;
+
+  const wx = classification.worldX;
+  const wz = classification.worldZ;
+  const subMicro = weatheringGradient(wx, wz, P.normalSubMicroProbeMeters, classification.surface);
+  const micro = weatheringGradient(wx, wz, P.normalProbeMeters, classification.surface);
+  const meso = weatheringGradient(wx, wz, P.normalMesoProbeMeters, classification.surface);
+  const macro = weatheringGradient(wx, wz, P.normalMacroProbeMeters, classification.surface);
+  const weights = P.normalScaleWeights;
+  const weatherGain = classification.surface === 'rock' ? 1.24 : classification.surface === 'snow' ? 0.80 : 1.06;
+  const perturbX = (subMicro.x * weights.subMicro + micro.x * weights.micro
+    + meso.x * weights.meso + macro.x * weights.macro) * strength * seam * weatherGain;
+  const perturbZ = (subMicro.z * weights.subMicro + micro.z * weights.micro
+    + meso.z * weights.meso + macro.z * weights.macro) * strength * seam * weatherGain;
+
+  const nx = normal.getX(index) + perturbX;
+  const ny = Math.max(0.08, normal.getY(index));
+  const nz = normal.getZ(index) + perturbZ;
+  const length = Math.hypot(nx, ny, nz) || 1;
+  normal.setXYZ(index, nx / length, ny / length, nz / length);
+  return true;
 }
 
 function classificationForWorld(worldX, worldZ) {
@@ -23,30 +101,40 @@ function classificationForWorld(worldX, worldZ) {
     pindex: referencePindexFromNormalizedX(normalized.x),
     normalizedX: normalized.x,
     normalizedY: normalized.y,
+    worldX,
+    worldZ,
   };
 }
 
 export function applyPindex01DetailToTerrainMesh(mesh) {
   const position = mesh?.geometry?.getAttribute?.('position');
   const color = mesh?.geometry?.getAttribute?.('color');
+  const normal = mesh?.geometry?.getAttribute?.('normal');
   if (!position || !color) throw new TypeError('semantic terrain position+color attributes are required');
   let touchedVertices = 0;
+  let fabricVertices = 0;
+  let marineVertices = 0;
+  let normalVertices = 0;
   for (let index = 0; index < position.count; index += 1) {
     const worldX = mesh.position.x + position.getX(index);
     const worldZ = mesh.position.z + position.getZ(index);
     const c = classificationForWorld(worldX, worldZ);
     if (c.pindex !== PINDEX01_DETAIL_POLICY.pindex) continue;
-    const amplitude = PINDEX01_DETAIL_POLICY.amplitudeBySurface[c.surface] ?? 0;
-    const noise = (hash01(c.normalizedX * 1024, c.normalizedY * 1024) - 0.5) * 2 * amplitude;
-    const shade = THREE.MathUtils.clamp(1 + noise, 0.85, 1.15);
-    color.setXYZ(index,
-      THREE.MathUtils.clamp(color.getX(index) * shade, 0, 1),
-      THREE.MathUtils.clamp(color.getY(index) * shade, 0, 1),
-      THREE.MathUtils.clamp(color.getZ(index) * shade, 0, 1));
+    if (applyWesternReferenceSurfaceFabricToColorAttribute(color, index, c)) fabricVertices += 1;
+    if (applyWesternMarineShelfToneToColorAttribute(color, index, c) > 0) marineVertices += 1;
+    if (applyPindex01WeatheredNormal(normal, index, c)) normalVertices += 1;
     touchedVertices += 1;
   }
   color.needsUpdate = true;
-  const summary = Object.freeze({ policyId: PINDEX01_DETAIL_POLICY.id, pindex: 1, touchedVertices });
+  if (normal) normal.needsUpdate = true;
+  const summary = Object.freeze({
+    policyId: PINDEX01_DETAIL_POLICY.id,
+    pindex: 1,
+    touchedVertices,
+    fabricVertices,
+    marineVertices,
+    normalVertices,
+  });
   mesh.userData.run277Pindex01Detail = summary;
   return summary;
 }
@@ -54,8 +142,25 @@ export function applyPindex01DetailToTerrainMesh(mesh) {
 export function applyPindex01DetailToTerrainGroup(terrainGroup) {
   if (!terrainGroup?.children || !Array.isArray(terrainGroup.children)) throw new TypeError('canonical terrain group is required');
   let touchedVertices = 0;
-  for (const mesh of terrainGroup.children) touchedVertices += applyPindex01DetailToTerrainMesh(mesh).touchedVertices;
-  const summary = Object.freeze({ policyId: PINDEX01_DETAIL_POLICY.id, pindex: 1, touchedVertices, meshCount: terrainGroup.children.length });
+  let fabricVertices = 0;
+  let marineVertices = 0;
+  let normalVertices = 0;
+  for (const mesh of terrainGroup.children) {
+    const summary = applyPindex01DetailToTerrainMesh(mesh);
+    touchedVertices += summary.touchedVertices;
+    fabricVertices += summary.fabricVertices;
+    marineVertices += summary.marineVertices;
+    normalVertices += summary.normalVertices;
+  }
+  const summary = Object.freeze({
+    policyId: PINDEX01_DETAIL_POLICY.id,
+    pindex: 1,
+    touchedVertices,
+    fabricVertices,
+    marineVertices,
+    normalVertices,
+    meshCount: terrainGroup.children.length,
+  });
   terrainGroup.userData.run277Pindex01Detail = summary;
   return summary;
 }

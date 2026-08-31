@@ -1,0 +1,95 @@
+name: North Terrain Visual QA
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/terrainBiomeShading.js'
+      - 'src/3d/world/terrainSnowSurfaceTone.js'
+      - 'src/3d/world/terrainReliefDetail.js'
+      - 'src/3d/world/iceLandmarks.js'
+      - 'src/3d/world/worldReferenceAlignment.js'
+      - 'src/3d/config.js'
+      - 'scripts/checkTerrainGeographicPalette.mjs'
+      - 'scripts/checkNorthCoastalShoreContinuity.mjs'
+      - 'scripts/checkIceLandmarks.mjs'
+      - 'scripts/checkIceLandmarksVisualQa.js'
+      - 'scripts/checkNorthTerrainVisualQa.js'
+      - 'scripts/devServerHelper.js'
+      - 'north-terrain-visual-qa.html'
+      - 'ice-landmarks-visual-qa.html'
+      - '.github/workflows/north-terrain-visual-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  visual-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Resolve vendored Three.js for contracts
+        run: node scripts/setupNodeThreeShim.mjs
+
+      - name: Static north terrain contracts
+        run: |
+          node --check src/3d/world/terrainBiomeShading.js
+          node --check src/3d/world/terrainSnowSurfaceTone.js
+          node --check src/3d/world/iceLandmarks.js
+          node --check scripts/checkTerrainGeographicPalette.mjs
+          node --check scripts/checkNorthCoastalShoreContinuity.mjs
+          node --check scripts/checkIceLandmarks.mjs
+          node --check scripts/checkIceLandmarksVisualQa.js
+          node --check scripts/checkNorthTerrainVisualQa.js
+          node scripts/checkTerrainGeographicPalette.mjs
+          node scripts/checkNorthCoastalShoreContinuity.mjs
+          node scripts/checkIceLandmarks.mjs
+
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          ln -sfn "$RUNNER_TEMP/pw/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Render north climate terrain strips
+        run: |
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkNorthTerrainVisualQa.js
+
+      - name: Render natural ice wall and cave
+        run: |
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkIceLandmarksVisualQa.js
+
+      - name: Upload north terrain visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: north-terrain-visual-qa
+          path: artifacts/north-terrain-visual-qa/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload ice landmark visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ice-landmarks-visual-qa
+          path: artifacts/ice-landmarks-visual-qa/
+          if-no-files-found: error
+          retention-days: 7

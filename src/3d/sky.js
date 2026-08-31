@@ -6,9 +6,8 @@
  * and offline-cache entry for something this cheap to inline).
  *
  * Horizon/zenith colors and aurora visibility are driven per-frame by `lighting.js`'s day/night
- * cycle (see `updateAuroraSky`'s `dayNight` argument) — the aurora fades in at night and fades out
- * in daylight, and the sky gradient itself blends between a blue-sky day preset and this module's
- * own dusk-toned night preset (see DECISIONS.md ADR-0006).
+ * cycle. Atmospheric breakup is camera-relative/world-direction anchored only: no map coordinates,
+ * weather authority or geographic ownership are introduced here.
  * @module sky
  */
 
@@ -27,10 +26,12 @@ const smoothstep01 = (edge0, edge1, value) => {
 const lerp = (a, b, t) => a + (b - a) * t;
 
 export const SKY_ATMOSPHERE_PROFILE_POLICY = Object.freeze({
-	id: 'world-sky-day-night-atmosphere-profile-v1',
+	id: 'world-sky-day-night-atmosphere-profile-v3-upper-air-multiscale-breakup',
 	input: 'lighting-day-night-factor',
 	cameraRelative: true,
 	mapSpaceNoise: false,
+	horizonAirmassVariation: true,
+	upperAirMultiscaleVariation: true,
 	renderOnly: true,
 });
 
@@ -44,20 +45,24 @@ export function sampleSkyAtmosphereProfile(nightFactor) {
 	const fullDay = smoothstep01(0.62, 1, day);
 	return Object.freeze({
 		horizonHazeStrength: clamp01(0.20 + twilightCurve * 0.18 + fullDay * 0.055 - deepNight * 0.035),
+		horizonVariationStrength: clamp01(0.045 + twilightCurve * 0.050 + fullDay * 0.020 - deepNight * 0.018),
 		groundBounceStrength: clamp01(lerp(0.085, 0.145, fullDay) + twilightCurve * 0.018 + deepNight * 0.018),
 		upperAirStrength: clamp01(lerp(0.055, 0.105, fullDay) + twilightCurve * 0.012 - deepNight * 0.012),
+		upperAirVariationStrength: clamp01(0.030 + fullDay * 0.032 + twilightCurve * 0.025 - deepNight * 0.012),
 		bandingDitherStrength: 0.006,
 	});
 }
 
 export const WORLD_SKY_ATMOSPHERE_POLICY = Object.freeze({
-	id: 'camera-relative-horizon-atmosphere-2026-08-17-v1',
+	id: 'camera-relative-horizon-atmosphere-2026-08-26-v3-upper-air-multiscale-breakup',
 	cameraRelative: true,
 	blackBackgroundFallback: false,
 	profilePolicyId: SKY_ATMOSPHERE_PROFILE_POLICY.id,
 	horizonHazeStrength: 0.28,
+	horizonVariationStrength: 0.075,
 	groundBounceStrength: 0.12,
 	upperAirStrength: 0.08,
+	upperAirVariationStrength: 0.052,
 	bandingDitherStrength: 0.006,
 	renderOnly: true,
 });
@@ -65,9 +70,6 @@ export const WORLD_SKY_ATMOSPHERE_POLICY = Object.freeze({
 const SKY_VERTEX_SHADER = /* glsl */ `
 	varying vec3 vWorldPosition;
 	void main() {
-		// The sphere follows the camera every frame. Gradient/aurora direction therefore belongs to
-		// the sphere's local direction; including camera translation here would skew horizon/zenith
-		// colors as the player travels across the full owner map.
 		vWorldPosition = position;
 		gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 	}
@@ -81,13 +83,13 @@ const SKY_FRAGMENT_SHADER = /* glsl */ `
 	uniform float uTime;
 	uniform float uNightFactor;
 	uniform float uHorizonHazeStrength;
+	uniform float uHorizonVariationStrength;
 	uniform float uGroundBounceStrength;
 	uniform float uUpperAirStrength;
+	uniform float uUpperAirVariationStrength;
 	uniform float uBandingDitherStrength;
 	varying vec3 vWorldPosition;
 
-	// Cheap 2D value-noise hash (not the seeded terrain PRNG — this only drives a visual, not
-	// world state, so determinism-across-sessions doesn't matter here).
 	float hash21(vec2 p) {
 		p = fract(p * vec2(123.34, 456.21));
 		p += dot(p, p + 45.32);
@@ -105,33 +107,56 @@ const SKY_FRAGMENT_SHADER = /* glsl */ `
 		return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
 	}
 
+	float horizonAirmassVariation(vec3 dir) {
+		vec2 horizontal = normalize(dir.xz + vec2(0.0001));
+		vec2 broadCoord = horizontal * 1.85 + vec2(dir.y * 0.72, -dir.y * 0.43);
+		float broad = valueNoise(broadCoord + vec2(4.7, -2.9));
+		vec2 warpedCoord = horizontal * 4.60
+			+ vec2(broad * 1.35, -broad * 1.08)
+			+ vec2(dir.y * 1.70, dir.y * 0.95);
+		float meso = valueNoise(warpedCoord + vec2(-8.1, 6.4));
+		return clamp((broad - 0.5) * 1.25 + (meso - 0.5) * 0.58, -0.65, 0.65);
+	}
+
+	float upperAirVariation(vec3 dir, float time) {
+		// Camera-relative directional field: three incommensurate angular scales plus weak advection.
+		// This breaks the old single-colour zenith without becoming map-space weather or cloud geometry.
+		vec2 horizontal = normalize(dir.xz + vec2(0.0001));
+		float slowTime = time * 0.0014;
+		vec2 broadCoord = horizontal * 1.30 + vec2(dir.y * 0.52, -dir.y * 0.31) + vec2(slowTime, -slowTime * 0.61);
+		float broad = valueNoise(broadCoord + vec2(13.2, -7.4));
+		vec2 warp = vec2(broad - 0.5, valueNoise(broadCoord * 1.71 + vec2(-2.7, 9.1)) - 0.5);
+		float meso = valueNoise(horizontal * 3.75 + warp * 1.15 + vec2(dir.y * 1.40, dir.y * 0.84) + vec2(-5.9, 11.6));
+		float fine = valueNoise(horizontal * 8.40 - warp * 0.63 + vec2(dir.y * 2.10, -dir.y * 1.37) + vec2(21.4, -3.8));
+		return clamp((broad - 0.5) * 0.88 + (meso - 0.5) * 0.52 + (fine - 0.5) * 0.18, -0.58, 0.58);
+	}
+
 	vec3 atmosphericBase(vec3 dir, vec3 horizonColor, vec3 zenithColor) {
-		// Extend the visible gradient below the mathematical horizon. The lower sky must remain a
-		// plausible terrain-reflected atmosphere instead of falling to an empty/black hemisphere when
-		// the camera pitches up from valleys, coasts or tall relief.
 		float skyHeight = smoothstep(-0.22, 0.82, dir.y);
 		float zenithBlend = pow(clamp(skyHeight, 0.0, 1.0), 0.62);
 		vec3 base = mix(horizonColor, zenithColor, zenithBlend);
 
-		// Broad humidity/aerial-perspective band. It is camera-relative and has no map-space phase, so
-		// it cannot create a world grid, tile boundary or invented geography.
 		float horizonBand = exp(-pow(abs(dir.y) / 0.19, 1.55));
+		float airmass = horizonAirmassVariation(dir) * horizonBand;
 		vec3 hazeColor = mix(horizonColor, vec3(0.62, 0.72, 0.82), 0.24);
-		base = mix(base, hazeColor, horizonBand * uHorizonHazeStrength);
+		float localHaze = clamp(uHorizonHazeStrength + airmass * uHorizonVariationStrength, 0.0, 0.48);
+		base = mix(base, hazeColor, horizonBand * localHaze);
+		base *= 1.0 + airmass * uHorizonVariationStrength * 0.16;
 
-		// Low hemisphere gets a restrained ground/sea bounce rather than black. Night preserves deep
-		// blue while daylight receives a warmer neutral reflection from the visible world surface.
 		float belowHorizon = 1.0 - smoothstep(-0.52, 0.06, dir.y);
 		vec3 nightBounce = vec3(0.018, 0.026, 0.052);
 		vec3 dayBounce = mix(horizonColor, vec3(0.30, 0.32, 0.29), 0.44);
 		vec3 bounce = mix(dayBounce, nightBounce, uNightFactor);
 		base = mix(base, bounce, belowHorizon * uGroundBounceStrength);
 
-		// Slight high-altitude scattering prevents a flat single-color zenith without adding a visible
-		// procedural pattern. This is intentionally weaker than the authored day/night palette.
 		float upperAir = smoothstep(0.24, 0.94, dir.y);
+		float upperBreakup = upperAirVariation(dir, uTime) * upperAir * uUpperAirVariationStrength;
 		vec3 upperTint = mix(vec3(0.48, 0.66, 0.90), vec3(0.055, 0.085, 0.18), uNightFactor);
+		vec3 upperCool = mix(vec3(0.42, 0.64, 0.91), vec3(0.040, 0.072, 0.16), uNightFactor);
+		vec3 upperNeutral = mix(vec3(0.66, 0.72, 0.79), vec3(0.085, 0.090, 0.14), uNightFactor);
 		base += upperTint * upperAir * uUpperAirStrength;
+		base = mix(base, upperBreakup >= 0.0 ? upperCool : upperNeutral, abs(upperBreakup) * 0.22);
+		base *= 1.0 + upperBreakup * 0.17;
 		return base;
 	}
 
@@ -139,7 +164,6 @@ const SKY_FRAGMENT_SHADER = /* glsl */ `
 		vec3 dir = normalize(vWorldPosition);
 		vec3 skyColor = atmosphericBase(dir, uHorizonColor, uZenithColor);
 
-		// Aurora only above the horizon, fading out before it reaches the ground line.
 		float auroraMask = smoothstep(0.05, 0.55, dir.y) * (1.0 - smoothstep(0.75, 1.0, dir.y));
 		vec2 sampleCoord = vec2(dir.x * 2.5 + uTime * 0.04, dir.z * 2.5 - uTime * 0.025);
 		float bands = valueNoise(sampleCoord * 2.0) * 0.6 + valueNoise(sampleCoord * 4.0 + 10.0) * 0.4;
@@ -147,28 +171,18 @@ const SKY_FRAGMENT_SHADER = /* glsl */ `
 		vec3 auroraColor = mix(uAuroraColorA, uAuroraColorB, valueNoise(sampleCoord + 5.0));
 
 		vec3 finalColor = skyColor + auroraColor * bands * auroraMask * uNightFactor * 0.55;
-		// Sub-LSB-ish ordered noise avoids smooth-gradient banding on mobile displays without creating
-		// a readable texture, moire or screen-space grid.
 		float dither = (hash21(gl_FragCoord.xy + vec2(17.0, 31.0)) - 0.5) * uBandingDitherStrength;
 		finalColor = max(finalColor + dither, vec3(0.0));
 		gl_FragColor = vec4(finalColor, 1.0);
 	}
 `;
 
-/** Initial-frame-only fallback (dusk-toned) — overwritten every frame by `lighting.js`'s day/night
- * colors via `updateAuroraSky`'s `dayNight` argument once the render loop starts. */
 const DEFAULT_HORIZON_COLOR = new THREE.Color(0xd98a52);
 const DEFAULT_ZENITH_COLOR = new THREE.Color(0x0b1633);
 const DEFAULT_AURORA_COLOR_A = new THREE.Color(0x2ce8a0);
 const DEFAULT_AURORA_COLOR_B = new THREE.Color(0x6a3fd6);
-/** Must stay comfortably under `WORLD_DEFAULTS.FAR_PLANE` (config.js) or the sky sphere itself gets frustum-clipped. */
 const SKY_RADIUS_METERS = 1900;
 
-/**
- * Builds the aurora skybox mesh. Caller must reposition it onto the camera every frame (via
- * `updateAuroraSky`) so it always surrounds the viewer regardless of where they orbit/pan to.
- * @returns {THREE.Mesh}
- */
 export function createAuroraSky() {
 	const initialProfile = sampleSkyAtmosphereProfile(1);
 	const geometry = new THREE.SphereGeometry(SKY_RADIUS_METERS, 32, 16);
@@ -183,8 +197,10 @@ export function createAuroraSky() {
 			uAuroraColorB: { value: DEFAULT_AURORA_COLOR_B },
 			uNightFactor: { value: 1 },
 			uHorizonHazeStrength: { value: initialProfile.horizonHazeStrength },
+			uHorizonVariationStrength: { value: initialProfile.horizonVariationStrength },
 			uGroundBounceStrength: { value: initialProfile.groundBounceStrength },
 			uUpperAirStrength: { value: initialProfile.upperAirStrength },
+			uUpperAirVariationStrength: { value: initialProfile.upperAirVariationStrength },
 			uBandingDitherStrength: { value: initialProfile.bandingDitherStrength },
 		},
 		side: THREE.BackSide,
@@ -194,8 +210,6 @@ export function createAuroraSky() {
 	applyRealisticAuroraMaterial(material);
 	applyNaturalAuroraRefinement(material);
 	material.fragmentShader = `/* curtainBand auroraFbm phosphorCore softGlow */\n${material.fragmentShader}`;
-	// Visual-review calibration: keep curtains thin, but make enough of the sky luminous to satisfy
-	// the owner's "bol kuzey ışığı" request without returning to the first-pass neon blobs.
 	material.fragmentShader = material.fragmentShader
 		.replace('0.47, 0.050, 0.036', '0.47, 0.072, 0.036')
 		.replace('0.57, 0.038, -0.029', '0.57, 0.056, -0.029')
@@ -212,10 +226,6 @@ export function createAuroraSky() {
 	return mesh;
 }
 
-/**
- * Re-centers the skybox on the camera, advances its animated aurora bands, and applies the
- * current day/night sky gradient + aurora visibility from `lighting.js`. Call once per frame.
- */
 export function updateAuroraSky(skyMesh, cameraPosition, elapsedSeconds, dayNight) {
 	skyMesh.position.copy(cameraPosition);
 	const uniforms = skyMesh.material.uniforms;
@@ -225,12 +235,13 @@ export function updateAuroraSky(skyMesh, cameraPosition, elapsedSeconds, dayNigh
 	uniforms.uZenithColor.value.copy(dayNight.zenithColor);
 	uniforms.uNightFactor.value = dayNight.nightFactor;
 	uniforms.uHorizonHazeStrength.value = profile.horizonHazeStrength;
+	uniforms.uHorizonVariationStrength.value = profile.horizonVariationStrength;
 	uniforms.uGroundBounceStrength.value = profile.groundBounceStrength;
 	uniforms.uUpperAirStrength.value = profile.upperAirStrength;
+	uniforms.uUpperAirVariationStrength.value = profile.upperAirVariationStrength;
 	uniforms.uBandingDitherStrength.value = profile.bandingDitherStrength;
 }
 
-/** Disposes the skybox's geometry/material. */
 export function disposeAuroraSky(skyMesh) {
 	skyMesh.geometry.dispose();
 	skyMesh.material.dispose();

@@ -1,191 +1,285 @@
+import { WORLD_DEFAULTS } from '../config.js';
+import { generateRiverPath } from './rivers.js';
+import {
+	ROAD_PROFILE_POLICY,
+	checksumProfile,
+	gradeDegrees,
+	pathIsGradeSafe,
+	profileRoadPolyline,
+	profileTerrainSegment,
+	summarizePolylineCurvature,
+} from './roadSurfaceProfile.js';
+
 /**
- * Slope-aware A* pathfinder over a padded grid corridor between two world-space points. Used by
- * `world/roads.js` to route roads that visibly avoid steep terrain (GOVERNANCE.md §8.10's "ana yol
- * eğime duyarlı rota seçer, dağın dik yamacından düz geçmez") instead of a naive straight line
- * between two kingdom seats. Pure/stateless — takes a height sampler (`world/terrain.js`'s
- * `createHeightSampler` output, the same combined fine-FBM + macro-relief field
- * `createTerrainChunk`/`world/rivers.js` already read through) and returns a polyline; it never
- * touches THREE.js or scene state, so it can be unit-tested/regression-checked in isolation (see
- * `scripts/roadNetworkSafetyCheck.js`).
+ * Deterministic, terrain-profiled A* routing for the live road network.
  *
- * Algorithm: 8-directional grid A* (admissible Euclidean heuristic — real segment cost is always
- * >= raw horizontal distance since `gradeCostMultiplier` is always >= 1, so the search is optimal),
- * with movement cost between adjacent grid nodes scaled by how steep that step's grade is. This
- * world's terrain (fine FBM + a few smooth macro-relief domes, see `world/terrain.js`) has no
- * literal vertical cliffs, so a route always exists at *some* finite cost — steep ground is
- * increasingly expensive rather than impassable, which is what actually produces the "bends around
- * the mountain instead of refusing to move" behavior a real cart road should have, rather than a
- * pathfinder that fails outright whenever a straight line would cross rough ground.
+ * The search grid stays intentionally coarser than the rendered road for startup performance, but
+ * every endpoint connector and returned presentation path is validated against the continuous terrain
+ * sampler at sub-grid spacing. Grid search remains node-based for startup performance; if dense final
+ * validation exposes a hidden ridge/gully, deterministic finer-grid stages retry the route.
  *
- * Deterministic by construction: no `Math.random()` anywhere in this module, and every input
- * (`sampleHeightMeters`, `start`, `end`, grid parameters) is a pure function of the caller's own
- * already-deterministic values — same inputs always produce the same grid, the same A* expansion
- * order, and therefore the exact same output path.
- * @module world/roadPathfinder
+ * The module remains geography-neutral: it chooses a route over terrain but never changes terrain,
+ * hydrology, settlements, map ownership or colliders.
  */
 
-/** Soft target grade, in degrees, at/under which a road segment is treated as effectively free (its
- * cost stays within a few percent of raw horizontal distance) — a horse-drawn cart road should
- * comfortably manage this. Deliberately gentler than `scripts/terrainSeatSafetyCheck.js`'s 35°
- * foot-walkable default (a cart needs a shallower grade than a person on foot climbing the same
- * slope) but not a hard limit — steeper ground is still routable, just penalized ever more steeply
- * (see `gradeCostMultiplier`) so the search bends around it whenever a flatter detour exists. This
- * specific number is a real design choice, not an API fact — logged to `QUESTIONS_FOR_OWNER.md` per
- * GOVERNANCE.md §14, the same way run 55 logged the 35° walkable-slope default. */
 export const ROAD_COMFORT_GRADE_DEGREES = 10;
-
-/** Exponent on `(angleDegrees / ROAD_COMFORT_GRADE_DEGREES)` in `gradeCostMultiplier` — cubic rather
- * than linear/quadratic so grades well under the comfort target stay very cheap (a route that's
- * only mildly steep isn't punished much) while grades meaningfully over it become expensive fast
- * (at 2x the comfort grade the multiplier is already 9x raw distance; at 3x it's 28x) — steep enough
- * that A* reliably prefers even a noticeably longer detour over crossing a genuinely steep slope,
- * without making any grade literally infinite/unreachable (see module doc). */
-const GRADE_PENALTY_EXPONENT = 3;
-
-/**
- * Hard grade cap, in degrees, above which a single step becomes so expensive that A* will only take
- * it when no alternative exists at all.
- *
- * **Why a cap and not just a steeper penalty (2026-08-19).** `scripts/roadNetworkSafetyCheck.js`
- * asserts a route's *maximum* grade, but A* minimises a route's *total* cost — so a shorter route
- * containing one over-limit pitch legitimately beats a longer gentle one, and no amount of tuning the
- * smooth penalty changes that, because the two are optimising different quantities. This was measured
- * the hard way in ADR-0299: widening the search corridor to give roads more room to go around hills
- * made `cersei -> stannis` *worse* (18.4 -> 26.9 deg), since the extra room simply revealed more
- * short-but-steep candidates. A near-prohibitive cost above the cap is what actually aligns the two:
- * it makes A* treat "stay under the cap" as the primary objective and "be short" as the tiebreaker.
- *
- * Set below the check's own 20 deg ceiling so smoothing and terrain resampling
- * (`smoothAndResamplePath`) cannot nudge a barely-legal route over the line afterwards.
- *
- * The cost stays finite on purpose — the module's contract is that a route always exists at *some*
- * cost, so terrain that genuinely cannot be crossed gently still yields a road rather than nothing.
- * The Euclidean heuristic also stays admissible, since the multiplier remains >= 1.
- */
 export const ROAD_MAX_GRADE_DEGREES = 17;
+export const ROAD_RETURN_GRADE_TARGET_DEGREES = 19.25;
+export const ROAD_MAX_RIVER_ADJACENT_SAMPLES = 3;
 
-/** Multiplier applied on top of the smooth penalty once a step exceeds `ROAD_MAX_GRADE_DEGREES`.
- * Large enough that crossing one capped cell costs more than a kilometre of gentle detour, small
- * enough to stay far from floating-point trouble when summed over a long route. */
-const OVER_CAP_PENALTY = 4000;
+export const ROAD_ROUTING_POLICY = Object.freeze({
+	id: 'road-routing-2026-08-28-v11-grounded-bounded-egress',
+	comfortGradeDegrees: ROAD_COMFORT_GRADE_DEGREES,
+	searchGradeDegrees: ROAD_MAX_GRADE_DEGREES,
+	returnGradeDegrees: ROAD_RETURN_GRADE_TARGET_DEGREES,
+	gridCellMeters: 60,
+	baseCorridorPaddingMeters: 700,
+	maxCorridorPaddingMeters: 1800,
+	maxRiverAdjacentSamples: ROAD_MAX_RIVER_ADJACENT_SAMPLES,
+	longRouteFailFastSubmergedSpanMeters: 900,
+	terrainProfilePolicyId: ROAD_PROFILE_POLICY.id,
+	deterministic: true,
+	geographyAuthorityUnchanged: true,
+});
 
-/** Grid cell size, in meters, for the A* search corridor. Small enough to resolve the macro-relief
- * mountain's own falloff shape (1300m radius, see `world/terrain.js`'s `MACRO_RELIEF_FEATURES`) with
- * many cells across it, large enough that even the longest kingdom-seat-to-seat corridor stays a few
- * thousand nodes (cheap, one-time, at scene-build time only — see `world/roads.js`). */
-// Kept at 60 m. Refining to 50 m was tried on 2026-08-19 and measured *worse*, for a reason worth
-// recording: this grid is also the baseline the route's own grades are sampled over, so a finer grid
-// reports steeper local slopes on the same ground. It made three edges appear to fail that the
-// terrain had not actually changed under. Corridor width, not cell size, is the lever that lets a
-// road go around a hill.
-const GRID_CELL_METERS = 60;
-
-/** Extra margin, in meters, added on all sides of the straight-line bounding box between `start` and
- * `end` before gridding — gives the search room to actually detour around an obstacle near the
- * direct line rather than being boxed in against it. */
-// Kept at 700 m. Widening to 1400 m was tried on 2026-08-19 and measured worse on `cersei -> stannis`
-// (18.4 -> 26.9 deg) for a structural reason worth recording: A* minimises *total* route cost, not
-// *maximum* grade, so a wider search space can win with a longer route that contains one steeper
-// pitch. Letting roads go further around a hill needs a max-grade-aware cost or a hard per-step grade
-// cap, not merely more room — its own subtask.
-const CORRIDOR_PADDING_METERS = 700;
-
-/** Number of Chaikin corner-cutting passes applied to the raw grid path before returning it — purely
- * cosmetic (smooths the natural "staircase" look of 8-directional grid movement into a gentler
- * curve for the ribbon mesh) and safe: each pass only ever moves points strictly inside the existing
- * polyline's corners (never outside it), and every resulting point gets its height freshly re-sampled
- * from the real terrain afterward (see `smoothAndResamplePath`), so smoothing can never make the road
- * float above/sink below the ground it's meant to follow. */
+const GRADE_PENALTY_EXPONENT = 3;
+const GRID_CELL_METERS = ROAD_ROUTING_POLICY.gridCellMeters;
+const CORRIDOR_PADDING_METERS = ROAD_ROUTING_POLICY.baseCorridorPaddingMeters;
+const MAX_CORRIDOR_PADDING_METERS = ROAD_ROUTING_POLICY.maxCorridorPaddingMeters;
+const ENDPOINT_LINK_RADIUS_CELLS = 2.6;
+// Long canonical edges do not run the 8/12 m local grids. Keep their endpoint portal search wide
+// enough to sample the audited safe side of steep settlement/coast transitions (notably Xaro), while
+// every candidate connector remains subject to the same exact 4 m dense terrain profile and cap.
+const MIN_ENDPOINT_LINK_RADIUS_METERS = 220;
 const SMOOTHING_ITERATIONS = 2;
+const EPSILON = 1e-9;
+const RIVER_CLEARANCE_METERS = 25;
+const RIVER_AVOIDANCE_RADIUS_METERS = 95;
+const RIVER_NEAR_COST_MULTIPLIER = 24;
+const RIVER_BANK_COST_MULTIPLIER = 4.5;
+const RIVER_PROFILE_SPACING_METERS = 12;
+const FINE_REFINEMENT_CELL_METERS = 24;
+const MIN_REFINEMENT_CELL_METERS = 36;
+const MID_REFINEMENT_CELL_METERS = 45;
+// Close seat-to-seat links can sit inside overlapping settlement-pad transition zones. Bounded
+// local passes resolve those egress contours without paying for a 12 m grid across long roads.
+const SHORT_ROUTE_MAX_DISTANCE_METERS = 320;
+const DIRECT_PROFILE_DISTANCE_METERS = 780;
+const SHORT_ROUTE_REFINEMENT_CELL_METERS = 16;
+const SHORT_ROUTE_CORRIDOR_PADDING_METERS = 240;
+const MEDIUM_ROUTE_MAX_DISTANCE_METERS = 780;
+const MEDIUM_ROUTE_MICRO_REFINEMENT_CELL_METERS = 16;
+const MEDIUM_ROUTE_MICRO_CORRIDOR_PADDING_METERS = 240;
+const MEDIUM_ROUTE_REFINEMENT_CELL_METERS = 12;
+const MEDIUM_ROUTE_CORRIDOR_PADDING_METERS = 480;
+const MEDIUM_ROUTE_EXPANDED_CORRIDOR_PADDING_METERS = 720;
+const MEDIUM_ROUTE_MAX_CORRIDOR_PADDING_METERS = 960;
+// One empty base corridor at both strict and return caps is enough to classify a long
+// cross-water/continent topology edge as unavailable. This prevents impossible geography from
+// expanding through every finer 24–60 m grid while preserving refinement whenever any stage finds
+// a candidate whose dense presentation still needs improvement.
+const MAX_EMPTY_LONG_ROUTE_STAGES = 1;
+const LONG_ROUTE_FAIL_FAST_SAMPLE_SPACING_METERS = 30;
+const LONG_ROUTE_FAIL_FAST_SUBMERGED_SPAN_METERS = ROAD_ROUTING_POLICY.longRouteFailFastSubmergedSpanMeters;
+const FINE_GRID_NEIGHBOR_CELL_LIMIT_METERS = 24;
+const riverAvoidanceCache = new WeakMap();
 
 const EIGHT_NEIGHBOR_OFFSETS = Object.freeze([
 	[1, 0], [-1, 0], [0, 1], [0, -1],
 	[1, 1], [1, -1], [-1, 1], [-1, -1],
 ]);
 
-/**
- * Cost multiplier applied to a grid step's raw horizontal distance, as a function of that step's
- * grade. See `ROAD_COMFORT_GRADE_DEGREES`/`GRADE_PENALTY_EXPONENT` for the shape and reasoning.
- * @param {number} angleDegrees Grade of the step, in degrees above horizontal.
- * @returns {number} Always >= 1.
- */
-function gradeCostMultiplier(angleDegrees) {
-	const ratio = angleDegrees / ROAD_COMFORT_GRADE_DEGREES;
-	const smooth = 1 + ratio ** GRADE_PENALTY_EXPONENT;
-	return angleDegrees > ROAD_MAX_GRADE_DEGREES ? smooth * OVER_CAP_PENALTY : smooth;
+function signedOffsetFamily(a, b) {
+	const offsets = [];
+	for (const sx of [-1, 1]) {
+		for (const sz of [-1, 1]) {
+			offsets.push([a * sx, b * sz]);
+			if (a !== b) offsets.push([b * sx, a * sz]);
+		}
+	}
+	return offsets;
 }
 
-/**
- * Minimal binary min-heap keyed on `.f` (A* score), used instead of a linear-scan open set — the
- * search corridor can hold several thousand nodes (see `GRID_CELL_METERS`), and a linear scan per
- * pop would make the whole network build noticeably slower for no benefit. Deterministic: contains
- * no randomness, and (like the rest of this module) always produces the same pop order for the same
- * sequence of pushes.
- */
-class MinHeap {
-	constructor() {
-		/** @type {{f: number, i: number, j: number}[]} */
-		this.items = [];
-	}
+// Fine settlement-egress grids need near-tangent steering choices to cross steep pad shoulders and
+// natural terraces without falling back to a straight cliff-cut. The contour fan adds 14–34 degree
+// rational headings on top of 26.6/63.4 degree knight steps. Every longer edge is still profiled
+// continuously by segmentFeasibility, so extra steering freedom cannot jump an unseen ridge/gully.
+const FINE_NEIGHBOR_OFFSETS = Object.freeze([
+	...EIGHT_NEIGHBOR_OFFSETS,
+	...signedOffsetFamily(2, 1),
+	...signedOffsetFamily(3, 1),
+	...signedOffsetFamily(3, 2),
+	...signedOffsetFamily(4, 1),
+]);
 
-	get size() {
-		return this.items.length;
-	}
+function gradeCostMultiplier(angleDegrees) {
+	const ratio = angleDegrees / ROAD_COMFORT_GRADE_DEGREES;
+	return 1 + ratio ** GRADE_PENALTY_EXPONENT;
+}
 
-	/** @param {{f: number, i: number, j: number}} item */
-	push(item) {
-		const items = this.items;
-		items.push(item);
-		let i = items.length - 1;
-		while (i > 0) {
-			const parent = (i - 1) >> 1;
-			if (items[parent].f <= items[i].f) break;
-			[items[parent], items[i]] = [items[i], items[parent]];
-			i = parent;
+function buildRiverAvoidanceField(sampleHeightMeters) {
+	if (riverAvoidanceCache.has(sampleHeightMeters)) return riverAvoidanceCache.get(sampleHeightMeters);
+	const { points } = generateRiverPath({
+		seed: WORLD_DEFAULTS.WORLD_SEED,
+		sampleHeightMeters,
+		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+	});
+	const cellSize = RIVER_AVOIDANCE_RADIUS_METERS;
+	const bins = new Map();
+	for (const point of points) {
+		const ix = Math.floor(point.x / cellSize);
+		const iz = Math.floor(point.z / cellSize);
+		const key = `${ix},${iz}`;
+		let bucket = bins.get(key);
+		if (!bucket) {
+			bucket = [];
+			bins.set(key, bucket);
+		}
+		bucket.push({ x: point.x, z: point.z });
+	}
+	const field = Object.freeze({ bins, cellSize, pointCount: points.length });
+	riverAvoidanceCache.set(sampleHeightMeters, field);
+	return field;
+}
+
+function distanceToCanonicalRiver(field, x, z) {
+	if (!field || field.pointCount === 0) return Infinity;
+	const ix = Math.floor(x / field.cellSize);
+	const iz = Math.floor(z / field.cellSize);
+	let nearest = Infinity;
+	for (let dz = -2; dz <= 2; dz += 1) {
+		for (let dx = -2; dx <= 2; dx += 1) {
+			const bucket = field.bins.get(`${ix + dx},${iz + dz}`);
+			if (!bucket) continue;
+			for (const point of bucket) nearest = Math.min(nearest, Math.hypot(x - point.x, z - point.z));
+		}
+	}
+	return nearest;
+}
+
+function riverCostMultiplier(field, x, z) {
+	const distance = distanceToCanonicalRiver(field, x, z);
+	if (distance >= RIVER_AVOIDANCE_RADIUS_METERS) return 1;
+	if (distance <= RIVER_CLEARANCE_METERS) return RIVER_NEAR_COST_MULTIPLIER;
+	const t = (distance - RIVER_CLEARANCE_METERS) / (RIVER_AVOIDANCE_RADIUS_METERS - RIVER_CLEARANCE_METERS);
+	const smooth = t * t * (3 - 2 * t);
+	return RIVER_BANK_COST_MULTIPLIER + (1 - RIVER_BANK_COST_MULTIPLIER) * smooth;
+}
+
+function profileRiverExposure(field, points) {
+	if (!field || field.pointCount === 0 || !Array.isArray(points) || points.length === 0) {
+		return Object.freeze({
+			minimumDistanceMeters: Infinity,
+			adjacentPointCount: 0,
+			maxConsecutiveAdjacentSamples: 0,
+			continuousAdjacentRunMeters: 0,
+			continuousSampleCount: 0,
+		});
+	}
+	let minimumDistanceMeters = Infinity;
+	let adjacentPointCount = 0;
+	let maxConsecutiveAdjacentSamples = 0;
+	let pointRun = 0;
+	for (const point of points) {
+		const distance = distanceToCanonicalRiver(field, point.x, point.z);
+		minimumDistanceMeters = Math.min(minimumDistanceMeters, distance);
+		if (distance < RIVER_CLEARANCE_METERS) {
+			adjacentPointCount += 1;
+			pointRun += 1;
+			maxConsecutiveAdjacentSamples = Math.max(maxConsecutiveAdjacentSamples, pointRun);
+		} else {
+			pointRun = 0;
 		}
 	}
 
-	/** @returns {{f: number, i: number, j: number} | undefined} */
+	let currentRunMeters = 0;
+	let continuousAdjacentRunMeters = 0;
+	let continuousSampleCount = 0;
+	for (let segmentIndex = 1; segmentIndex < points.length; segmentIndex += 1) {
+		const start = points[segmentIndex - 1];
+		const end = points[segmentIndex];
+		const segmentLength = Math.hypot(end.x - start.x, end.z - start.z);
+		const intervals = Math.max(1, Math.ceil(segmentLength / RIVER_PROFILE_SPACING_METERS));
+		const stepLength = segmentLength / intervals;
+		for (let step = 1; step <= intervals; step += 1) {
+			const t = step / intervals;
+			const x = start.x + (end.x - start.x) * t;
+			const z = start.z + (end.z - start.z) * t;
+			const distance = distanceToCanonicalRiver(field, x, z);
+			minimumDistanceMeters = Math.min(minimumDistanceMeters, distance);
+			continuousSampleCount += 1;
+			if (distance < RIVER_CLEARANCE_METERS) {
+				currentRunMeters += stepLength;
+				continuousAdjacentRunMeters = Math.max(continuousAdjacentRunMeters, currentRunMeters);
+			} else {
+				currentRunMeters = 0;
+			}
+		}
+	}
+
+	return Object.freeze({
+		minimumDistanceMeters,
+		adjacentPointCount,
+		maxConsecutiveAdjacentSamples,
+		continuousAdjacentRunMeters,
+		continuousSampleCount,
+	});
+}
+
+class MinHeap {
+	constructor() { this.items = []; }
+	get size() { return this.items.length; }
+	static less(a, b) {
+		if (a.f !== b.f) return a.f < b.f;
+		if (a.g !== b.g) return a.g < b.g;
+		if (a.j !== b.j) return a.j < b.j;
+		return a.i < b.i;
+	}
+	push(item) {
+		const items = this.items;
+		items.push(item);
+		let index = items.length - 1;
+		while (index > 0) {
+			const parent = (index - 1) >> 1;
+			if (!MinHeap.less(items[index], items[parent])) break;
+			[items[parent], items[index]] = [items[index], items[parent]];
+			index = parent;
+		}
+	}
 	pop() {
 		const items = this.items;
+		if (items.length === 0) return undefined;
 		const top = items[0];
 		const last = items.pop();
-		if (items.length > 0) {
-			items[0] = last;
-			let i = 0;
-			const n = items.length;
-			for (;;) {
-				let smallest = i;
-				const l = 2 * i + 1;
-				const r = 2 * i + 2;
-				if (l < n && items[l].f < items[smallest].f) smallest = l;
-				if (r < n && items[r].f < items[smallest].f) smallest = r;
-				if (smallest === i) break;
-				[items[smallest], items[i]] = [items[i], items[smallest]];
-				i = smallest;
-			}
+		if (items.length === 0) return top;
+		items[0] = last;
+		let index = 0;
+		for (;;) {
+			let smallest = index;
+			const left = index * 2 + 1;
+			const right = left + 1;
+			if (left < items.length && MinHeap.less(items[left], items[smallest])) smallest = left;
+			if (right < items.length && MinHeap.less(items[right], items[smallest])) smallest = right;
+			if (smallest === index) break;
+			[items[index], items[smallest]] = [items[smallest], items[index]];
+			index = smallest;
 		}
 		return top;
 	}
 }
 
-/**
- * Chaikin corner-cutting: replaces each interior corner with two points at 1/4 and 3/4 along its
- * neighboring segments, run `SMOOTHING_ITERATIONS` times. Endpoints (`points[0]`/last) are always
- * preserved exactly, so a smoothed path still starts/ends exactly at the requested seat coordinate.
- * @param {{x: number, z: number}[]} points At least 2 points.
- * @returns {{x: number, z: number}[]}
- */
-function chaikinSmooth(points) {
-	if (points.length < 3) return points;
-	let current = points;
-	for (let iteration = 0; iteration < SMOOTHING_ITERATIONS; iteration++) {
+function chaikinSmooth(points, iterations) {
+	if (points.length < 3 || iterations <= 0) return points.map((point) => ({ ...point }));
+	let current = points.map((point) => ({ ...point }));
+	for (let iteration = 0; iteration < iterations; iteration += 1) {
 		const next = [current[0]];
-		for (let i = 0; i < current.length - 1; i++) {
-			const a = current[i];
-			const b = current[i + 1];
-			next.push({ x: a.x + (b.x - a.x) * 0.25, z: a.z + (b.z - a.z) * 0.25 });
-			next.push({ x: a.x + (b.x - a.x) * 0.75, z: a.z + (b.z - a.z) * 0.75 });
+		for (let index = 0; index < current.length - 1; index += 1) {
+			const a = current[index];
+			const b = current[index + 1];
+			next.push(
+				{ x: a.x + (b.x - a.x) * 0.25, z: a.z + (b.z - a.z) * 0.25 },
+				{ x: a.x + (b.x - a.x) * 0.75, z: a.z + (b.z - a.z) * 0.75 },
+			);
 		}
 		next.push(current[current.length - 1]);
 		current = next;
@@ -193,147 +287,338 @@ function chaikinSmooth(points) {
 	return current;
 }
 
-/**
- * Finds a slope-aware route from `start` to `end` over a padded grid corridor, via A* weighted by
- * `gradeCostMultiplier`. Falls back to a plain 2-point straight line only if the search space is
- * degenerate (`start`/`end` collapse to the same grid cell) or, in principle, if no path is found —
- * the latter should be unreachable given this world's terrain has no literal cliffs (see module doc),
- * but the fallback exists so a pathological future terrain change fails safe (a straight road) rather
- * than crashing scene construction.
- * @param {object} options
- * @param {(worldX: number, worldZ: number) => number} options.sampleHeightMeters `world/terrain.js`'s `createHeightSampler` output.
- * @param {{x: number, z: number}} options.start
- * @param {{x: number, z: number}} options.end
- * @param {number} [options.cellMeters] Grid resolution — see `GRID_CELL_METERS`.
- * @param {number} [options.corridorPaddingMeters] Search-space margin — see `CORRIDOR_PADDING_METERS`.
- * @returns {{points: {x: number, z: number, y: number}[], maxGradeDegrees: number}} `points` always
- *   starts/ends exactly at `start`/`end` (with real sampled height, not a grid-snapped approximation).
- *   `maxGradeDegrees` is the steepest single consecutive-point-to-point grade actually present in the
- *   *returned* (smoothed, re-sampled) path — the real number a future safety check should assert
- *   against, not an internal search estimate.
- */
-export function findSlopeAwarePath({
-	sampleHeightMeters,
-	start,
-	end,
-	cellMeters = GRID_CELL_METERS,
-	corridorPaddingMeters = CORRIDOR_PADDING_METERS,
-}) {
+function measurePresentation(pointsXZ, sampleHeightMeters, riverField) {
+	const terrain = profileRoadPolyline({ points: pointsXZ, sampleHeightMeters });
+	const presentationPoints = pointsXZ.map(({ x, z }) => ({ x, z, y: sampleHeightMeters(x, z) }));
+	// Keep the exact dense terrain samples available to the renderer. Search, river exposure and
+	// curvature still use the authored/search polyline, while direct safe links can render every
+	// profiled height sample instead of linearly bridging terrain micro-relief between two seats.
+	const groundedTerrain = profileRoadPolyline({
+		points: pointsXZ,
+		sampleHeightMeters,
+		maxSpacingMeters: ROAD_PROFILE_POLICY.maxSampleSpacingMeters,
+	});
+	const groundedPoints = groundedTerrain.points.map(({ x, z, y }) => ({ x, z, y }));
+	const curvature = summarizePolylineCurvature(presentationPoints);
+	const river = profileRiverExposure(riverField, presentationPoints);
+	return Object.freeze({
+		...terrain,
+		points: presentationPoints,
+		groundedPoints,
+		densifiedPointCount: terrain.points.length,
+		curvature,
+		river,
+		checksum: checksumProfile(terrain),
+	});
+}
+
+function maximumDirectSubmergedSpanMeters(start, end, sampleHeightMeters) {
+	const profile = profileTerrainSegment({
+		start,
+		end,
+		sampleHeightMeters,
+		maxSpacingMeters: LONG_ROUTE_FAIL_FAST_SAMPLE_SPACING_METERS,
+	});
+	let currentSpanMeters = 0;
+	let maximumSpanMeters = 0;
+	for (let index = 1; index < profile.samples.length; index += 1) {
+		const previous = profile.samples[index - 1];
+		const current = profile.samples[index];
+		if (current.y <= WORLD_DEFAULTS.WATER_LEVEL_METERS) {
+			currentSpanMeters += Math.hypot(current.x - previous.x, current.z - previous.z);
+			maximumSpanMeters = Math.max(maximumSpanMeters, currentSpanMeters);
+		} else {
+			currentSpanMeters = 0;
+		}
+	}
+	return maximumSpanMeters;
+}
+
+function selectSafePresentation(rawPoints, start, end, sampleHeightMeters, riverField) {
+	const candidates = [];
+	for (let iterations = SMOOTHING_ITERATIONS; iterations >= 0; iterations -= 1) {
+		const xz = iterations === 0 ? rawPoints.map((point) => ({ ...point })) : chaikinSmooth(rawPoints, iterations);
+		xz[0] = { x: start.x, z: start.z };
+		xz[xz.length - 1] = { x: end.x, z: end.z };
+		const measured = measurePresentation(xz, sampleHeightMeters, riverField);
+		const candidate = Object.freeze({ ...measured, smoothingIterations: iterations });
+		candidates.push(candidate);
+		if (
+			pathIsGradeSafe(measured, ROAD_RETURN_GRADE_TARGET_DEGREES)
+			&& measured.river.maxConsecutiveAdjacentSamples <= ROAD_MAX_RIVER_ADJACENT_SAMPLES
+		) return candidate;
+	}
+	candidates.sort((a, b) => {
+		const aRiverOverflow = Math.max(0, a.river.maxConsecutiveAdjacentSamples - ROAD_MAX_RIVER_ADJACENT_SAMPLES);
+		const bRiverOverflow = Math.max(0, b.river.maxConsecutiveAdjacentSamples - ROAD_MAX_RIVER_ADJACENT_SAMPLES);
+		if (aRiverOverflow !== bRiverOverflow) return aRiverOverflow - bRiverOverflow;
+		if (a.maxGradeDegrees !== b.maxGradeDegrees) return a.maxGradeDegrees - b.maxGradeDegrees;
+		if (a.lengthMeters !== b.lengthMeters) return a.lengthMeters - b.lengthMeters;
+		return a.smoothingIterations - b.smoothingIterations;
+	});
+	return candidates[0];
+}
+
+function buildPaddingAttempts(requestedPadding) {
+	const requested = Math.max(GRID_CELL_METERS * 2, requestedPadding);
+	const values = [requested, Math.max(requested, 1000), Math.max(requested, 1300), Math.max(requested, 1550), Math.max(requested, MAX_CORRIDOR_PADDING_METERS)];
+	return [...new Set(values.map((value) => Math.min(MAX_CORRIDOR_PADDING_METERS, value)))];
+}
+
+function buildSearchStages(requestedCellMeters, requestedPaddingMeters, directDistanceMeters) {
+	const paddings = buildPaddingAttempts(requestedPaddingMeters);
+	const cells = [...new Set([
+		requestedCellMeters,
+		Math.min(requestedCellMeters, MID_REFINEMENT_CELL_METERS),
+		Math.min(requestedCellMeters, MIN_REFINEMENT_CELL_METERS),
+		Math.min(requestedCellMeters, FINE_REFINEMENT_CELL_METERS),
+	].filter((value) => value > 0))];
+	const stages = [];
+	if (directDistanceMeters <= SHORT_ROUTE_MAX_DISTANCE_METERS) {
+		stages.push(Object.freeze({
+			cellMeters: SHORT_ROUTE_REFINEMENT_CELL_METERS,
+			paddingMeters: SHORT_ROUTE_CORRIDOR_PADDING_METERS,
+		}));
+	} else if (directDistanceMeters <= MEDIUM_ROUTE_MAX_DISTANCE_METERS) {
+		stages.push(Object.freeze({
+			cellMeters: MEDIUM_ROUTE_MICRO_REFINEMENT_CELL_METERS,
+			paddingMeters: MEDIUM_ROUTE_MICRO_CORRIDOR_PADDING_METERS,
+		}));
+		for (const paddingMeters of [
+			MEDIUM_ROUTE_CORRIDOR_PADDING_METERS,
+			MEDIUM_ROUTE_EXPANDED_CORRIDOR_PADDING_METERS,
+			MEDIUM_ROUTE_MAX_CORRIDOR_PADDING_METERS,
+		]) {
+			stages.push(Object.freeze({ cellMeters: MEDIUM_ROUTE_REFINEMENT_CELL_METERS, paddingMeters }));
+		}
+	}
+	for (const [cellIndex, stageCellMeters] of cells.entries()) {
+		const minimumPaddingIndex = cellIndex === 0 ? 0 : Math.min(cellIndex, paddings.length - 1);
+		for (let paddingIndex = minimumPaddingIndex; paddingIndex < paddings.length; paddingIndex += 1) {
+			stages.push(Object.freeze({ cellMeters: stageCellMeters, paddingMeters: paddings[paddingIndex] }));
+		}
+	}
+	return Object.freeze(stages);
+}
+
+function reconstructPath({ cameFrom, endIndex, cols, toWorldX, toWorldZ, startLinkIndex }) {
+	const reversed = [];
+	let cursor = endIndex;
+	while (cursor >= 0) {
+		reversed.push({ x: toWorldX(cursor % cols), z: toWorldZ(Math.floor(cursor / cols)) });
+		if (cursor === startLinkIndex) break;
+		cursor = cameFrom[cursor];
+	}
+	if (reversed.length === 0 || cursor !== startLinkIndex) return null;
+	reversed.reverse();
+	return reversed;
+}
+
+function segmentFeasibility({ start, end, sampleHeightMeters, maxGradeDegrees }) {
+	const profile = profileTerrainSegment({ start, end, sampleHeightMeters });
+	return {
+		profile,
+		safe: profile.maxGradeDegrees <= maxGradeDegrees + EPSILON,
+	};
+}
+
+function searchStrictGradePath({ sampleHeightMeters, start, end, cellMeters, corridorPaddingMeters, maxGradeDegrees }) {
 	const minX = Math.min(start.x, end.x) - corridorPaddingMeters;
 	const maxX = Math.max(start.x, end.x) + corridorPaddingMeters;
 	const minZ = Math.min(start.z, end.z) - corridorPaddingMeters;
 	const maxZ = Math.max(start.z, end.z) + corridorPaddingMeters;
-	const cols = Math.max(2, Math.round((maxX - minX) / cellMeters) + 1);
-	const rows = Math.max(2, Math.round((maxZ - minZ) / cellMeters) + 1);
-
-	const toGridI = (x) => Math.min(cols - 1, Math.max(0, Math.round((x - minX) / cellMeters)));
-	const toGridJ = (z) => Math.min(rows - 1, Math.max(0, Math.round((z - minZ) / cellMeters)));
-	const toWorldX = (i) => minX + i * cellMeters;
-	const toWorldZ = (j) => minZ + j * cellMeters;
+	const cols = Math.max(2, Math.ceil((maxX - minX) / cellMeters) + 1);
+	const rows = Math.max(2, Math.ceil((maxZ - minZ) / cellMeters) + 1);
+	const actualCellX = (maxX - minX) / (cols - 1);
+	const actualCellZ = (maxZ - minZ) / (rows - 1);
+	const toWorldX = (i) => minX + i * actualCellX;
+	const toWorldZ = (j) => minZ + j * actualCellZ;
 	const nodeIndex = (i, j) => j * cols + i;
+	const riverField = buildRiverAvoidanceField(sampleHeightMeters);
+	const neighborOffsets = cellMeters <= FINE_GRID_NEIGHBOR_CELL_LIMIT_METERS
+		? FINE_NEIGHBOR_OFFSETS
+		: EIGHT_NEIGHBOR_OFFSETS;
 
-	const startI = toGridI(start.x);
-	const startJ = toGridJ(start.z);
-	const endI = toGridI(end.x);
-	const endJ = toGridJ(end.z);
-	const endIdx = nodeIndex(endI, endJ);
-
-	const heightCache = new Float64Array(cols * rows).fill(NaN);
+	const heights = new Float64Array(cols * rows); heights.fill(NaN);
 	const heightAt = (i, j) => {
-		const idx = nodeIndex(i, j);
-		if (Number.isNaN(heightCache[idx])) heightCache[idx] = sampleHeightMeters(toWorldX(i), toWorldZ(j));
-		return heightCache[idx];
+		const index = nodeIndex(i, j);
+		if (Number.isNaN(heights[index])) heights[index] = sampleHeightMeters(toWorldX(i), toWorldZ(j));
+		return heights[index];
 	};
-
-	const gScore = new Float64Array(cols * rows).fill(Infinity);
-	const cameFrom = new Int32Array(cols * rows).fill(-1);
+	const gScore = new Float64Array(cols * rows); gScore.fill(Infinity);
+	const cameFrom = new Int32Array(cols * rows); cameFrom.fill(-1);
 	const closed = new Uint8Array(cols * rows);
-	const heuristic = (i, j) => Math.hypot((i - endI) * cellMeters, (j - endJ) * cellMeters);
-
-	const startIdx = nodeIndex(startI, startJ);
-	gScore[startIdx] = 0;
+	const startLink = new Uint8Array(cols * rows);
 	const heap = new MinHeap();
-	heap.push({ f: heuristic(startI, startJ), i: startI, j: startJ });
+	const endpointRadius = Math.max(cellMeters * ENDPOINT_LINK_RADIUS_CELLS, MIN_ENDPOINT_LINK_RADIUS_METERS);
+	const heuristic = (i, j) => Math.hypot(toWorldX(i) - end.x, toWorldZ(j) - end.z);
+	let expandedNodes = 0;
+	let rejectedGradeEdges = 0;
+	let evaluatedEdges = 0;
 
-	let found = startIdx === endIdx;
-	while (!found && heap.size > 0) {
+	for (let j = 0; j < rows; j += 1) {
+		const dz = toWorldZ(j) - start.z;
+		if (Math.abs(dz) > endpointRadius) continue;
+		for (let i = 0; i < cols; i += 1) {
+			const dx = toWorldX(i) - start.x;
+			if (Math.abs(dx) > endpointRadius) continue;
+			const horizontalDistance = Math.hypot(dx, dz);
+			if (horizontalDistance > endpointRadius || horizontalDistance <= EPSILON) continue;
+			const endPoint = { x: toWorldX(i), z: toWorldZ(j) };
+			const feasibility = segmentFeasibility({ start, end: endPoint, sampleHeightMeters, maxGradeDegrees });
+			if (!feasibility.safe) continue;
+			const index = nodeIndex(i, j);
+			const cost = horizontalDistance * gradeCostMultiplier(feasibility.profile.maxGradeDegrees) * riverCostMultiplier(riverField, endPoint.x, endPoint.z);
+			if (cost >= gScore[index]) continue;
+			gScore[index] = cost;
+			startLink[index] = 1;
+			heap.push({ f: cost + heuristic(i, j), g: cost, i, j });
+		}
+	}
+	if (heap.size === 0) return null;
+
+	let bestGoalIndex = -1;
+	let bestGoalCost = Infinity;
+	while (heap.size > 0) {
 		const current = heap.pop();
-		const idx = nodeIndex(current.i, current.j);
-		if (closed[idx]) continue;
-		closed[idx] = 1;
-		if (idx === endIdx) {
-			found = true;
-			break;
+		const index = nodeIndex(current.i, current.j);
+		if (closed[index] || current.g > gScore[index] + EPSILON) continue;
+		if (current.f >= bestGoalCost) break;
+		closed[index] = 1;
+		expandedNodes += 1;
+
+		const worldX = toWorldX(current.i);
+		const worldZ = toWorldZ(current.j);
+		const endDistance = Math.hypot(end.x - worldX, end.z - worldZ);
+		if (endDistance <= endpointRadius && endDistance > EPSILON) {
+			const feasibility = segmentFeasibility({ start: { x: worldX, z: worldZ }, end, sampleHeightMeters, maxGradeDegrees });
+			if (feasibility.safe) {
+				const goalCost = gScore[index] + endDistance * gradeCostMultiplier(feasibility.profile.maxGradeDegrees);
+				if (goalCost < bestGoalCost) { bestGoalCost = goalCost; bestGoalIndex = index; }
+			}
 		}
 
-		const hCurrent = heightAt(current.i, current.j);
-		for (const [di, dj] of EIGHT_NEIGHBOR_OFFSETS) {
+		const currentHeight = heightAt(current.i, current.j);
+		for (const [di, dj] of neighborOffsets) {
 			const ni = current.i + di;
 			const nj = current.j + dj;
 			if (ni < 0 || nj < 0 || ni >= cols || nj >= rows) continue;
-			const nIdx = nodeIndex(ni, nj);
-			if (closed[nIdx]) continue;
-
-			const horizontalDistance = Math.hypot(di * cellMeters, dj * cellMeters);
-			const rise = Math.abs(heightAt(ni, nj) - hCurrent);
-			const angleDegrees = (Math.atan2(rise, horizontalDistance) * 180) / Math.PI;
-			const stepCost = horizontalDistance * gradeCostMultiplier(angleDegrees);
-			const tentativeG = gScore[idx] + stepCost;
-			if (tentativeG < gScore[nIdx]) {
-				gScore[nIdx] = tentativeG;
-				cameFrom[nIdx] = idx;
-				heap.push({ f: tentativeG + heuristic(ni, nj), i: ni, j: nj });
-			}
+			const neighborIndex = nodeIndex(ni, nj);
+			if (closed[neighborIndex]) continue;
+			evaluatedEdges += 1;
+			const neighborX = toWorldX(ni);
+			const neighborZ = toWorldZ(nj);
+			const horizontalDistance = Math.hypot(di * actualCellX, dj * actualCellZ);
+			const nodeGrade = gradeDegrees(heightAt(ni, nj) - currentHeight, horizontalDistance);
+			if (nodeGrade > maxGradeDegrees) { rejectedGradeEdges += 1; continue; }
+			const edgeFeasibility = segmentFeasibility({
+				start: { x: worldX, z: worldZ },
+				end: { x: neighborX, z: neighborZ },
+				sampleHeightMeters,
+				maxGradeDegrees,
+			});
+			if (!edgeFeasibility.safe) { rejectedGradeEdges += 1; continue; }
+			const edgeGrade = edgeFeasibility.profile.maxGradeDegrees;
+			const midpointX = (worldX + neighborX) * 0.5;
+			const midpointZ = (worldZ + neighborZ) * 0.5;
+			const riverMultiplier = Math.max(
+				riverCostMultiplier(riverField, neighborX, neighborZ),
+				riverCostMultiplier(riverField, midpointX, midpointZ),
+			);
+			const tentative = gScore[index] + horizontalDistance * gradeCostMultiplier(edgeGrade) * riverMultiplier;
+			if (tentative + EPSILON >= gScore[neighborIndex]) continue;
+			gScore[neighborIndex] = tentative;
+			cameFrom[neighborIndex] = index;
+			heap.push({ f: tentative + heuristic(ni, nj), g: tentative, i: ni, j: nj });
 		}
 	}
 
-	if (!found) {
-		const startY = sampleHeightMeters(start.x, start.z);
-		const endY = sampleHeightMeters(end.x, end.z);
-		return { points: [{ x: start.x, z: start.z, y: startY }, { x: end.x, z: end.z, y: endY }], maxGradeDegrees: NaN };
-	}
-
-	const gridPath = [];
-	let cursor = endIdx;
-	while (cursor !== -1) {
-		gridPath.push({ i: cursor % cols, j: Math.floor(cursor / cols) });
-		cursor = cameFrom[cursor];
-	}
-	gridPath.reverse();
-
-	const rawPoints = gridPath.map(({ i, j }) => ({ x: toWorldX(i), z: toWorldZ(j) }));
-	return smoothAndResamplePath(rawPoints, start, end, sampleHeightMeters);
+	if (bestGoalIndex < 0) return null;
+	let cursor = bestGoalIndex;
+	while (cursor >= 0 && !startLink[cursor]) cursor = cameFrom[cursor];
+	if (cursor < 0) return null;
+	const middle = reconstructPath({ cameFrom, endIndex: bestGoalIndex, cols, toWorldX, toWorldZ, startLinkIndex: cursor });
+	if (!middle) return null;
+	return {
+		rawPoints: [{ x: start.x, z: start.z }, ...middle, { x: end.x, z: end.z }],
+		riverField,
+		expandedNodes,
+		rejectedGradeEdges,
+		evaluatedEdges,
+		cols,
+		rows,
+	};
 }
 
-/**
- * Smooths a raw grid-aligned polyline (cosmetic only, see `chaikinSmooth`), forces its first/last
- * points to the exact requested `start`/`end`, and re-samples every point's height fresh from
- * `sampleHeightMeters` (never carried over from the search's own cached grid heights) — guarantees
- * the returned path always sits on the real terrain surface at its exact `(x, z)`, not an
- * approximation from a nearby grid node. Also computes the real max consecutive-point grade of the
- * *returned* path (see `findSlopeAwarePath`'s own doc for why this, not an internal search estimate).
- * @param {{x: number, z: number}[]} rawPoints
- * @param {{x: number, z: number}} start
- * @param {{x: number, z: number}} end
- * @param {(worldX: number, worldZ: number) => number} sampleHeightMeters
- * @returns {{points: {x: number, z: number, y: number}[], maxGradeDegrees: number}}
- */
-function smoothAndResamplePath(rawPoints, start, end, sampleHeightMeters) {
-	const smoothedXZ = chaikinSmooth(rawPoints);
-	smoothedXZ[0] = { x: start.x, z: start.z };
-	smoothedXZ[smoothedXZ.length - 1] = { x: end.x, z: end.z };
+export function findSlopeAwarePath({ sampleHeightMeters, start, end, cellMeters = GRID_CELL_METERS, corridorPaddingMeters = CORRIDOR_PADDING_METERS }) {
+	if (typeof sampleHeightMeters !== 'function') throw new TypeError('sampleHeightMeters must be a function');
+	for (const point of [start, end]) {
+		if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.z)) throw new TypeError('start/end coordinates must be finite');
+	}
+	if (!(cellMeters > 0) || !(corridorPaddingMeters > 0)) throw new RangeError('cellMeters and corridorPaddingMeters must be positive');
 
-	const points = smoothedXZ.map(({ x, z }) => ({ x, z, y: sampleHeightMeters(x, z) }));
-
-	let maxGradeDegrees = 0;
-	for (let i = 1; i < points.length; i++) {
-		const a = points[i - 1];
-		const b = points[i];
-		const horizontalDistance = Math.hypot(b.x - a.x, b.z - a.z);
-		if (horizontalDistance < 1e-6) continue;
-		const grade = (Math.atan2(Math.abs(b.y - a.y), horizontalDistance) * 180) / Math.PI;
-		if (grade > maxGradeDegrees) maxGradeDegrees = grade;
+	const directDistance = Math.hypot(end.x - start.x, end.z - start.z);
+	if (directDistance <= EPSILON) {
+		const y = sampleHeightMeters(start.x, start.z);
+		return { points: [{ x: start.x, z: start.z, y }], maxGradeDegrees: 0, diagnostics: Object.freeze({ mode: 'point', fallback: false, attempts: [] }) };
 	}
 
-	return { points, maxGradeDegrees };
+	const riverField = buildRiverAvoidanceField(sampleHeightMeters);
+	if (directDistance <= Math.max(cellMeters * 1.25, DIRECT_PROFILE_DISTANCE_METERS)) {
+		const direct = measurePresentation([start, end], sampleHeightMeters, riverField);
+		if (pathIsGradeSafe(direct, ROAD_MAX_GRADE_DEGREES) && direct.river.maxConsecutiveAdjacentSamples <= ROAD_MAX_RIVER_ADJACENT_SAMPLES) {
+			return {
+				points: direct.groundedPoints,
+				maxGradeDegrees: direct.maxGradeDegrees,
+				diagnostics: Object.freeze({ mode: 'direct', fallback: false, smoothingIterations: 0, paddingMeters: 0, gradeCapDegrees: ROAD_MAX_GRADE_DEGREES, expandedNodes: 0, river: direct.river, checksum: direct.checksum, attempts: [] }),
+			};
+		}
+	}
+
+	const stages = buildSearchStages(cellMeters, corridorPaddingMeters, directDistance);
+	const gradeCaps = [ROAD_MAX_GRADE_DEGREES, ROAD_RETURN_GRADE_TARGET_DEGREES];
+	const attempts = [];
+	const directSubmergedSpanMeters = directDistance > MEDIUM_ROUTE_MAX_DISTANCE_METERS
+		? maximumDirectSubmergedSpanMeters(start, end, sampleHeightMeters)
+		: 0;
+	let emptyLongRouteStages = 0;
+	searchStages: for (const stage of stages) {
+		let stageFoundCandidate = false;
+		for (const gradeCap of gradeCaps) {
+			const search = searchStrictGradePath({ sampleHeightMeters, start, end, cellMeters: stage.cellMeters, corridorPaddingMeters: stage.paddingMeters, maxGradeDegrees: gradeCap });
+			if (!search) {
+				attempts.push(Object.freeze({ gradeCapDegrees: gradeCap, cellMeters: stage.cellMeters, paddingMeters: stage.paddingMeters, found: false }));
+				continue;
+			}
+			stageFoundCandidate = true;
+			const presentation = selectSafePresentation(search.rawPoints, start, end, sampleHeightMeters, search.riverField);
+			const safeGrade = pathIsGradeSafe(presentation, ROAD_RETURN_GRADE_TARGET_DEGREES);
+			const safeRiver = presentation.river.maxConsecutiveAdjacentSamples <= ROAD_MAX_RIVER_ADJACENT_SAMPLES;
+			attempts.push(Object.freeze({ gradeCapDegrees: gradeCap, cellMeters: stage.cellMeters, paddingMeters: stage.paddingMeters, found: true, safeGrade, safeRiver, maxGradeDegrees: presentation.maxGradeDegrees, riverRun: presentation.river.maxConsecutiveAdjacentSamples, expandedNodes: search.expandedNodes }));
+			if (safeGrade && safeRiver) {
+				return {
+					points: presentation.points,
+					maxGradeDegrees: presentation.maxGradeDegrees,
+					diagnostics: Object.freeze({
+						mode: 'astar', fallback: false, gradeCapDegrees: gradeCap, cellMeters: stage.cellMeters, paddingMeters: stage.paddingMeters,
+						smoothingIterations: presentation.smoothingIterations, expandedNodes: search.expandedNodes,
+						evaluatedEdges: search.evaluatedEdges, rejectedGradeEdges: search.rejectedGradeEdges,
+						gridCols: search.cols, gridRows: search.rows, river: presentation.river,
+						curvature: presentation.curvature, checksum: presentation.checksum, attempts: Object.freeze([...attempts]),
+					}),
+				};
+			}
+		}
+		if (directDistance > MEDIUM_ROUTE_MAX_DISTANCE_METERS && !stageFoundCandidate) {
+			emptyLongRouteStages += 1;
+			if (emptyLongRouteStages >= MAX_EMPTY_LONG_ROUTE_STAGES) break searchStages;
+		}
+	}
+
+	const fallback = measurePresentation([start, end], sampleHeightMeters, riverField);
+	return {
+		points: fallback.points,
+		maxGradeDegrees: fallback.maxGradeDegrees,
+		diagnostics: Object.freeze({ mode: 'fallback', fallback: true, smoothingIterations: 0, paddingMeters: MAX_CORRIDOR_PADDING_METERS, gradeCapDegrees: ROAD_RETURN_GRADE_TARGET_DEGREES, expandedNodes: 0, directSubmergedSpanMeters, crossWaterEvidence: directSubmergedSpanMeters >= LONG_ROUTE_FAIL_FAST_SUBMERGED_SPAN_METERS, river: fallback.river, curvature: fallback.curvature, checksum: fallback.checksum, attempts: Object.freeze([...attempts]) }),
+	};
 }

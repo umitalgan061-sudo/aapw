@@ -1,0 +1,117 @@
+name: Northern Vegetation Climate
+
+on:
+  pull_request:
+    paths:
+      - 'assets/models/vegetation/pine_Zt62gceKXZ.glb'
+      - 'assets/models/vegetation/winter_tree.glb'
+      - 'assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb'
+      - '.gitattributes'
+      - 'firebase.json'
+      - 'src/3d/world/vegetation.js'
+      - 'src/3d/world/winterVegetationAsset.js'
+      - 'src/3d/world/terrainBiomeShading.js'
+      - 'src/3d/world/northGroundCoverClimate.js'
+      - 'src/3d/world/windGrass.js'
+      - 'src/3d/sceneManager.js'
+      - 'scripts/checkNorthernVegetationClimate.mjs'
+      - 'scripts/checkNorthernVegetationRuntime.mjs'
+      - 'scripts/checkNorthernVegetationDeterminism.mjs'
+      - 'scripts/checkVegetationEcologicalGroves.mjs'
+      - 'scripts/checkNorthSnowPineCrowdReadability.mjs'
+      - 'scripts/checkWinterVegetationAssetUpgrade.mjs'
+      - 'scripts/checkWinterPineMaterialTreatment.mjs'
+      - 'scripts/checkWinterVegetationHostedPreflight.mjs'
+      - 'scripts/checkWinterVegetationRepositoryContract.mjs'
+      - 'scripts/checkWinterVegetationResourceOwnership.mjs'
+      - 'scripts/checkFirebaseWinterAssetHostingContract.mjs'
+      - 'scripts/checkTerrainGeographicPalette.mjs'
+      - 'scripts/checkNorthCoastalShoreContinuity.mjs'
+      - 'scripts/checkNorthClimateContinuity.mjs'
+      - 'scripts/checkNorthMountainSnowline.mjs'
+      - 'scripts/checkNorthMountainSnowlineRuntime.mjs'
+      - 'scripts/checkNorthSnowCoverageContinuity.mjs'
+      - 'scripts/checkNorthGroundCoverClimate.mjs'
+      - 'scripts/checkWindGrassClimateModule.mjs'
+      - '.github/workflows/northern-vegetation-climate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  northern-vegetation-climate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Resolve vendored Three.js for Node contracts
+        run: node scripts/setupNodeThreeShim.mjs
+      - name: Syntax
+        run: |
+          node --check src/3d/world/vegetation.js
+          node --check src/3d/world/winterVegetationAsset.js
+          node --check src/3d/world/terrainBiomeShading.js
+          node --check src/3d/world/northGroundCoverClimate.js
+          node --check src/3d/world/windGrass.js
+          node --check src/3d/sceneManager.js
+          node --check scripts/checkNorthernVegetationClimate.mjs
+          node --check scripts/checkNorthernVegetationRuntime.mjs
+          node --check scripts/checkNorthernVegetationDeterminism.mjs
+          node --check scripts/checkVegetationEcologicalGroves.mjs
+          node --check scripts/checkNorthSnowPineCrowdReadability.mjs
+          node --check scripts/checkWinterVegetationAssetUpgrade.mjs
+          node --check scripts/checkWinterPineMaterialTreatment.mjs
+          node --check scripts/checkWinterVegetationHostedPreflight.mjs
+          node --check scripts/checkWinterVegetationRepositoryContract.mjs
+          node --check scripts/checkWinterVegetationResourceOwnership.mjs
+          node --check scripts/checkFirebaseWinterAssetHostingContract.mjs
+          node --check scripts/checkTerrainGeographicPalette.mjs
+          node --check scripts/checkNorthCoastalShoreContinuity.mjs
+          node --check scripts/checkNorthClimateContinuity.mjs
+          node --check scripts/checkNorthMountainSnowline.mjs
+          node --check scripts/checkNorthMountainSnowlineRuntime.mjs
+          node --check scripts/checkNorthSnowCoverageContinuity.mjs
+          node --check scripts/checkNorthGroundCoverClimate.mjs
+          node --check scripts/checkWindGrassClimateModule.mjs
+      - name: Northern vegetation climate contract
+        run: node scripts/checkNorthernVegetationClimate.mjs
+      - name: Northern vegetation runtime scatter
+        run: node scripts/checkNorthernVegetationRuntime.mjs
+      - name: Northern vegetation determinism
+        run: node scripts/checkNorthernVegetationDeterminism.mjs
+      - name: Ecological grove and clearing distribution
+        run: node scripts/checkVegetationEcologicalGroves.mjs
+      - name: Northern snow-pine crowd readability
+        run: node scripts/checkNorthSnowPineCrowdReadability.mjs
+      - name: Winter vegetation asset upgrade
+        run: node scripts/checkWinterVegetationAssetUpgrade.mjs
+      - name: Winter pine material treatment
+        run: node scripts/checkWinterPineMaterialTreatment.mjs
+      - name: Hosted winter asset preflight
+        run: node scripts/checkWinterVegetationHostedPreflight.mjs
+      - name: Winter vegetation repository contract
+        run: node scripts/checkWinterVegetationRepositoryContract.mjs
+      - name: Winter vegetation resource ownership
+        run: node scripts/checkWinterVegetationResourceOwnership.mjs
+      - name: Firebase winter asset hosting contract
+        run: node scripts/checkFirebaseWinterAssetHostingContract.mjs
+      - name: Geographic terrain palette
+        run: node scripts/checkTerrainGeographicPalette.mjs
+      - name: North coastal shoreline continuity
+        run: node scripts/checkNorthCoastalShoreContinuity.mjs
+      - name: North climate continuity
+        run: node scripts/checkNorthClimateContinuity.mjs
+      - name: North mountain snowline contract
+        run: node scripts/checkNorthMountainSnowline.mjs
+      - name: North mountain snowline canonical runtime
+        run: node scripts/checkNorthMountainSnowlineRuntime.mjs
+      - name: North snow coverage continuity
+        run: node scripts/checkNorthSnowCoverageContinuity.mjs
+      - name: North ground-cover climate
+        run: node scripts/checkNorthGroundCoverClimate.mjs
+      - name: Wind-grass climate module
+        run: node scripts/checkWindGrassClimateModule.mjs

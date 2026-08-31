@@ -17,7 +17,7 @@ import {
 import { WORLD_REFERENCE_BASE_SURFACE_MASK } from './worldReferenceSurfacePindexes.js';
 
 export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
-	id: 'owner-map-live-mountain-relief-2026-08-17-v3',
+	id: 'owner-map-live-mountain-relief-2026-08-26-v7-lake-basin-cirques',
 	sourceMapSha256: WORLD_REFERENCE_MAP.sha256,
 	surfaceMaskSha256: WORLD_REFERENCE_BASE_SURFACE_MASK.maskSha256,
 	landGateZero: 0.54,
@@ -28,23 +28,33 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 	shoulderWidthVariation: Object.freeze({
 		broadFrequency: 5.5,
 		detailFrequency: 13.5,
-		minimumScale: 0.88,
-		maximumScale: 1.62,
+		minimumScale: 0.94,
+		maximumScale: 1.76,
 	}),
 	coastalReliefTaper: Object.freeze({
 		radiusNormalized: 0.012,
 		minimumScale: 0.12,
 	}),
+	// Keep canonical lake ownership untouched while making the *added* mountain shoulder recover
+	// over a broader, lower-amplitude apron. The previous 0.014->0.050 / 0.18 profile reopened too
+	// quickly around the eastern multi-cell lake cluster and produced a closed >55° crater ring in
+	// exact-height QA. 0.060 stays inside the audited local support envelope and changes no wet cell.
+	lakeBasinTaper: Object.freeze({
+		innerRadiusNormalized: 0.014,
+		outerRadiusNormalized: 0.060,
+		minimumScale: 0.14,
+	}),
 	talusBreakup: Object.freeze({
 		broadFrequency: 22,
 		detailFrequency: 47,
-		strength: 0.18,
-		shoulderStart: 0.20,
-		shoulderEnd: 0.90,
+		strength: 0.20,
+		shoulderStart: 0.18,
+		shoulderEnd: 0.92,
 	}),
 	// Western chains overlap shipped kingdom roads, so their audited map-space approaches are
 	// lowered into traversable passes instead of flattening/removing the surrounding mountains.
-	// Bone/eastern chains need no authored pass yet because no current live road crosses them.
+	// Bone/eastern chains use broad shoulders and a high modulation floor so the same source-owned
+	// polylines read as connected eroded ranges rather than narrow volcanic plugs from aerial views.
 	chains: Object.freeze({
 		'vale-chain': Object.freeze({
 			peakMeters: 430,
@@ -69,8 +79,28 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 				Object.freeze({ id: 'red-east-approach', center: [0.225, 0.640], innerRadiusNormalized: 0.014, outerRadiusNormalized: 0.050, minimumMultiplier: 0.08 }),
 			]),
 		}),
-		'bone-mountains': Object.freeze({ peakMeters: 1100, coreWidthNormalized: 0.008, outerWidthNormalized: 0.060, seed: 37 }),
-		'eastern-chain': Object.freeze({ peakMeters: 1100, coreWidthNormalized: 0.007, outerWidthNormalized: 0.055, seed: 53 }),
+		'bone-mountains': Object.freeze({
+			peakMeters: 690,
+			coreWidthNormalized: 0.009,
+			outerWidthNormalized: 0.116,
+			summitFloor: 0.48,
+			summitNoiseExponent: 1.10,
+			coordinateWarpScale: 2.35,
+			shoulderDetailStrength: 0.27,
+			shoulderDetailFrequency: 31,
+			seed: 37,
+		}),
+		'eastern-chain': Object.freeze({
+			peakMeters: 650,
+			coreWidthNormalized: 0.008,
+			outerWidthNormalized: 0.108,
+			summitFloor: 0.47,
+			summitNoiseExponent: 1.12,
+			coordinateWarpScale: 2.30,
+			shoulderDetailStrength: 0.26,
+			shoulderDetailFrequency: 29,
+			seed: 53,
+		}),
 	}),
 });
 
@@ -127,6 +157,82 @@ function decodeSurfaceMask() {
 }
 
 const DECODED_SURFACE_MASK = decodeSurfaceMask();
+
+function collectLakeCellCenters() {
+	const { width, height } = WORLD_REFERENCE_BASE_SURFACE_MASK;
+	const centers = [];
+	for (let y = 0; y < height; y += 1) {
+		for (let x = 0; x < width; x += 1) {
+			if (DECODED_SURFACE_MASK[y * width + x] !== LAKE_CODE) continue;
+			centers.push(Object.freeze({ x: (x + 0.5) / width, y: (y + 0.5) / height }));
+		}
+	}
+	return Object.freeze(centers);
+}
+
+const LAKE_CELL_CENTERS = collectLakeCellCenters();
+export const WORLD_REFERENCE_LAKE_CELL_COUNT = LAKE_CELL_CENTERS.length;
+
+function buildLakeDistanceField() {
+	const { width, height } = WORLD_REFERENCE_BASE_SURFACE_MASK;
+	const field = new Float32Array(width * height);
+	if (LAKE_CELL_CENTERS.length === 0) {
+		field.fill(1);
+		return field;
+	}
+	for (let y = 0; y < height; y += 1) {
+		const normalizedY = (y + 0.5) / height;
+		for (let x = 0; x < width; x += 1) {
+			const normalizedX = (x + 0.5) / width;
+			let nearest = Infinity;
+			for (const lake of LAKE_CELL_CENTERS) {
+				const dx = (normalizedX - lake.x) * MAP_ASPECT;
+				const dy = normalizedY - lake.y;
+				nearest = Math.min(nearest, Math.hypot(dx, dy));
+			}
+			field[y * width + x] = nearest;
+		}
+	}
+	return field;
+}
+
+const LAKE_DISTANCE_FIELD = buildLakeDistanceField();
+
+function lakeDistanceAtCell(x, y) {
+	const { width, height } = WORLD_REFERENCE_BASE_SURFACE_MASK;
+	const clampedX = Math.min(width - 1, Math.max(0, x));
+	const clampedY = Math.min(height - 1, Math.max(0, y));
+	return LAKE_DISTANCE_FIELD[clampedY * width + clampedX];
+}
+
+/** Aspect-correct normalized distance to the nearest canonical lake cell, bilinearly sampled. */
+export function sampleReferenceLakeDistanceNormalized(normalizedX, normalizedY) {
+	if (!Number.isFinite(normalizedX) || !Number.isFinite(normalizedY)) throw new TypeError('normalized coordinates must be finite');
+	if (normalizedX < 0 || normalizedX > 1 || normalizedY < 0 || normalizedY > 1) throw new RangeError('normalized coordinates must be in [0,1]');
+	if (LAKE_CELL_CENTERS.length === 0) return 1;
+	const { width, height } = WORLD_REFERENCE_BASE_SURFACE_MASK;
+	const fx = normalizedX * width - 0.5;
+	const fy = normalizedY * height - 0.5;
+	const x0 = Math.floor(fx);
+	const y0 = Math.floor(fy);
+	const tx = smoothstep(0, 1, fx - x0);
+	const ty = smoothstep(0, 1, fy - y0);
+	const top = lakeDistanceAtCell(x0, y0) * (1 - tx) + lakeDistanceAtCell(x0 + 1, y0) * tx;
+	const bottom = lakeDistanceAtCell(x0, y0 + 1) * (1 - tx) + lakeDistanceAtCell(x0 + 1, y0 + 1) * tx;
+	return top * (1 - ty) + bottom * ty;
+}
+
+/**
+ * Mountain-only basin attenuation. Canonical water ownership/height is untouched; this only lowers
+ * added mountain relief close to source-owned lake cells so small alpine lakes open into broad
+ * cirques instead of vertical crater rings.
+ */
+export function sampleReferenceLakeBasinScale(normalizedX, normalizedY) {
+	const policy = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.lakeBasinTaper;
+	const distance = sampleReferenceLakeDistanceNormalized(normalizedX, normalizedY);
+	return policy.minimumScale + (1 - policy.minimumScale)
+		* smoothstep(policy.innerRadiusNormalized, policy.outerRadiusNormalized, distance);
+}
 
 function dryLandAtCell(x, y) {
 	const { width, height } = WORLD_REFERENCE_BASE_SURFACE_MASK;
@@ -239,6 +345,18 @@ function sampleShoulderWidthScale(normalizedX, normalizedY, seed) {
 	return policy.minimumScale + (policy.maximumScale - policy.minimumScale) * blend;
 }
 
+function sampleProfileShoulderDetailScale(normalizedX, normalizedY, profile) {
+	const strength = profile.shoulderDetailStrength ?? 0;
+	if (strength <= 0) return 1;
+	const frequency = profile.shoulderDetailFrequency ?? 29;
+	const detail = valueNoise2D(
+		normalizedX * frequency + profile.seed * 0.17,
+		normalizedY * frequency - profile.seed * 0.11,
+		profile.seed + 733,
+	);
+	return 1 + (detail - 0.5) * 2 * strength;
+}
+
 function sampleTalusBreakup(normalizedX, normalizedY, normalizedDistance, seed) {
 	const policy = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.talusBreakup;
 	const shoulderWeight = smoothstep(policy.shoulderStart, policy.shoulderEnd, normalizedDistance)
@@ -264,7 +382,8 @@ const COMPILED_CHAINS = Object.freeze(REFERENCE_RELIEF_CHAINS.map((chain) => {
 	const points = Object.freeze(chain.points.map(([x, y]) => Object.freeze([x * MAP_ASPECT, y])));
 	const xs = points.map((point) => point[0]);
 	const ys = points.map((point) => point[1]);
-	const maximumWidthScale = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.shoulderWidthVariation.maximumScale;
+	const maximumWidthScale = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.shoulderWidthVariation.maximumScale
+		* (1 + (profile.shoulderDetailStrength ?? 0));
 	return Object.freeze({
 		id: chain.id,
 		points,
@@ -288,8 +407,10 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 	for (const chain of COMPILED_CHAINS) {
 		const unwarpedX = normalizedX * MAP_ASPECT;
 		const unwarpedY = normalizedY;
-		const warpPaddingX = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.coordinateWarpNormalized * MAP_ASPECT * 0.5;
-		const warpPaddingY = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.coordinateWarpNormalized * 0.5;
+		const coordinateWarpScale = chain.profile.coordinateWarpScale ?? 1;
+		const coordinateWarpNormalized = WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.coordinateWarpNormalized * coordinateWarpScale;
+		const warpPaddingX = coordinateWarpNormalized * MAP_ASPECT * 0.5;
+		const warpPaddingY = coordinateWarpNormalized * 0.5;
 		if (
 			unwarpedX < chain.minX - warpPaddingX ||
 			unwarpedX > chain.maxX + warpPaddingX ||
@@ -299,9 +420,9 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 
 		const warpFrequency = 18;
 		const warpX = (valueNoise2D(normalizedX * warpFrequency, normalizedY * warpFrequency, chain.profile.seed) - 0.5)
-			* WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.coordinateWarpNormalized * MAP_ASPECT;
+			* coordinateWarpNormalized * MAP_ASPECT;
 		const warpY = (valueNoise2D(normalizedX * warpFrequency + 31, normalizedY * warpFrequency - 17, chain.profile.seed) - 0.5)
-			* WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.coordinateWarpNormalized;
+			* coordinateWarpNormalized;
 		const px = unwarpedX + warpX;
 		const py = unwarpedY + warpY;
 		if (px < chain.minX || px > chain.maxX || py < chain.minY || py > chain.maxY) continue;
@@ -313,22 +434,24 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 			distance = Math.min(distance, pointSegmentDistance(px, py, a[0], a[1], b[0], b[1]));
 		}
 
-		const widthScale = sampleShoulderWidthScale(normalizedX, normalizedY, chain.profile.seed);
+		const widthScale = sampleShoulderWidthScale(normalizedX, normalizedY, chain.profile.seed)
+			* sampleProfileShoulderDetailScale(normalizedX, normalizedY, chain.profile);
 		const coreWidth = chain.profile.coreWidthNormalized * clamp(widthScale * 0.92, 0.78, 1.22);
 		const outerWidth = chain.profile.outerWidthNormalized * widthScale;
 		if (distance >= outerWidth) continue;
 		const normalizedDistance = clamp(distance / Math.max(outerWidth, 1e-9), 0, 1);
 		const coreRatio = clamp(coreWidth / Math.max(outerWidth, 1e-9), 0.06, 0.24);
-		const ridgeExponent = 1.10 + coreRatio * 2.0;
+		const ridgeExponent = 0.88 + coreRatio * 1.65;
 		const ridge = Math.pow(Math.cos(normalizedDistance * Math.PI * 0.5), ridgeExponent);
 		const summitNoise = (
 			valueNoise2D(normalizedX * 8, normalizedY * 8, chain.profile.seed + 101) * 0.75 +
 			valueNoise2D(normalizedX * 17, normalizedY * 17, chain.profile.seed + 211) * 0.25
 		);
 		const summitFloor = chain.profile.summitFloor ?? WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.summitModulationMinimum;
+		const summitExponent = chain.profile.summitNoiseExponent ?? WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.summitNoiseExponent;
 		const modulation = summitFloor +
 			(1 - summitFloor) *
-				Math.pow(summitNoise, WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.summitNoiseExponent);
+				Math.pow(summitNoise, summitExponent);
 		const talusBreakup = sampleTalusBreakup(normalizedX, normalizedY, normalizedDistance, chain.profile.seed);
 		const passMultiplier = samplePassMultiplier(normalizedX, normalizedY, chain.profile.passes);
 		strongestMeters = Math.max(
@@ -345,7 +468,10 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 		dryLandWeight,
 	);
 	if (landGate === 0) return 0;
-	return strongestMeters * landGate * sampleCoastalReliefScale(normalizedX, normalizedY, dryLandWeight);
+	return strongestMeters
+		* landGate
+		* sampleCoastalReliefScale(normalizedX, normalizedY, dryLandWeight)
+		* sampleReferenceLakeBasinScale(normalizedX, normalizedY);
 }
 
 /**

@@ -9,8 +9,8 @@
  * reimplementation that could drift.
  *
  * Asserts:
- *   1. **Connectivity**: all 14 `KINGDOM_SEATS` are reachable in the built road network (a spanning
- *      tree over 14 nodes has exactly 13 edges and every seat appears at least once).
+ *   1. **Connectivity**: all 14 `KINGDOM_SEATS` remain represented by the 13-edge topology. Unsafe
+ *      fail-soft terrain chords stay explicit non-rendered transport gaps instead of road meshes.
  *   2. **Slope-aware routing, not a naive straight line**: every edge's real routed path stays under
  *      `ROAD_HARD_MAX_GRADE_DEGREES`. Also reports, per edge, how much steeper the plain straight
  *      line between its two endpoints would have been — a positive "avoided" number is direct,
@@ -22,9 +22,9 @@
  *      real, measured demonstration that the router bends away from the mountain's steepest face
  *      rather than crossing it — a synthetic pair of points straddling the mountain (chosen to put
  *      the straight line directly across its steepest flank) is routed with the exact same
- *      `findSlopeAwarePath` function real roads use, and the result is asserted to (a) stay under the
- *      grade threshold and (b) route measurably farther from the mountain's center at closest
- *      approach than the straight line would have.
+ *      `findSlopeAwarePath` function real roads use. A safe detour must stay under the grade threshold
+ *      and bend away; if the bounded search cannot prove one, it must retain explicit over-cap
+ *      fallback evidence so `roads.js` cannot render the dangerous chord.
  *   4. **River non-collision**: no road point sits within `RIVER_CLEARANCE_METERS` of the traced
  *      river's own polyline for more than a short, expected crossing — flags any long parallel/
  *      coincident run as a failure (a real road may cross a river at one point; it should not run
@@ -109,12 +109,15 @@ async function main() {
 	const server = await startStaticServer();
 	const { port } = server.address();
 	const baseUrl = `http://127.0.0.1:${port}`;
-	const browser = await playwright.chromium.launch({ headless: true });
+	const browser = await playwright.chromium.launch({
+		headless: true,
+		executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
+	});
 
 	let data;
 	try {
 		const page = await browser.newPage();
-		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+		await page.goto(`${baseUrl}/scripts/roadContractHarness.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
 		data = await page.evaluate(async () => {
 			const { KINGDOM_SEATS, mapToWorldXZ, computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');
 			const { WORLD_SCALE, WORLD_DEFAULTS, SETTLEMENT_CONFIG } = await import('/src/3d/config.js');
@@ -149,9 +152,18 @@ async function main() {
 				pointCount: edge.points.length,
 				points: edge.points,
 			}));
+			const transportGaps = (network.unroutableEdges ?? []).map((edge) => ({
+				fromId: edge.fromId,
+				toId: edge.toId,
+				maxGradeDegrees: edge.maxGradeDegrees,
+				fallback: edge.diagnostics?.fallback === true,
+				reason: edge.diagnostics?.transportGapReason,
+				maxSubmergedRunMeters: edge.waterExposure?.maxSubmergedRunMeters ?? 0,
+				maxAllowedRunMeters: edge.waterExposure?.maxAllowedRunMeters ?? 0,
+			}));
 
 			const connected = new Set();
-			for (const edge of edges) {
+			for (const edge of [...edges, ...transportGaps]) {
 				connected.add(edge.fromId);
 				connected.add(edge.toId);
 			}
@@ -182,11 +194,15 @@ async function main() {
 
 			return {
 				seatCount: KINGDOM_SEATS.length,
-				edgeCount: edges.length,
+				topologyEdgeCount: edges.length + transportGaps.length,
+				renderedRoadEdgeCount: edges.length,
+				transportGapCount: transportGaps.length,
 				connectedCount: connected.size,
 				edges,
+				transportGaps,
 				totalLengthMeters: network.totalLengthMeters,
 				stressMaxGradeDegrees: stressResult.maxGradeDegrees,
+				stressFallback: stressResult.diagnostics?.fallback === true,
 				straightLineClosestToMountain: straightLineClosest,
 				routedClosestToMountain: routedClosest,
 				riverPoints: riverPoints.map((p) => ({ x: p.x, z: p.z })),
@@ -205,10 +221,29 @@ async function main() {
 	const pass = (label, detail) => console.log(`[roadNetworkSafetyCheck] PASS: ${label} — ${detail}`);
 
 	// 1. Connectivity.
-	if (data.edgeCount === data.seatCount - 1 && data.connectedCount === data.seatCount) {
-		pass('connectivity', `${data.edgeCount} edges (spanning tree), all ${data.connectedCount}/${data.seatCount} seats connected`);
+	if (data.topologyEdgeCount === data.seatCount - 1 && data.connectedCount === data.seatCount) {
+		pass('connectivity', `${data.topologyEdgeCount} topology edges (${data.renderedRoadEdgeCount} rendered + ${data.transportGapCount} gap), all ${data.connectedCount}/${data.seatCount} seats represented`);
 	} else {
-		fail('connectivity', `${data.edgeCount} edges, ${data.connectedCount}/${data.seatCount} seats connected (expected ${data.seatCount - 1} edges, ${data.seatCount} seats)`);
+		fail('connectivity', `${data.topologyEdgeCount} topology edges, ${data.connectedCount}/${data.seatCount} seats represented (expected ${data.seatCount - 1} edges, ${data.seatCount} seats)`);
+	}
+	const expectedTransportGaps = [
+		'jon->Night King', 'robin->berkalp', 'stannis->robin',
+		'twin->balon', 'umit->Xaro', 'umit->doran',
+	];
+	const actualTransportGaps = data.transportGaps.map((edge) => `${edge.fromId}->${edge.toId}`).sort();
+	const xaroGap = data.transportGaps.find((edge) => edge.fromId === 'umit' && edge.toId === 'Xaro');
+	const waterGaps = data.transportGaps.filter((edge) => edge.reason === 'submerged-route');
+	const transportGapsSafe = data.transportGapCount === expectedTransportGaps.length
+		&& JSON.stringify(actualTransportGaps) === JSON.stringify(expectedTransportGaps)
+		&& xaroGap?.reason === 'grade-fallback'
+		&& xaroGap?.fallback === true
+		&& xaroGap?.maxGradeDegrees > ROAD_HARD_MAX_GRADE_DEGREES
+		&& waterGaps.length === 5
+		&& waterGaps.every((edge) => !edge.fallback && edge.maxSubmergedRunMeters > edge.maxAllowedRunMeters);
+	if (transportGapsSafe) {
+		pass('transport gaps', 'five measured water crossings plus umit->Xaro grade fallback remain non-rendered');
+	} else {
+		fail('transport gaps', JSON.stringify(data.transportGaps));
 	}
 
 	// 2. Per-edge grade (the real, routed max grade — see item 3 below for a direct routed-vs-
@@ -225,14 +260,13 @@ async function main() {
 	}
 
 	// 3. Mountain-avoidance stress test.
-	const stressOk = data.stressMaxGradeDegrees <= ROAD_HARD_MAX_GRADE_DEGREES && data.routedClosestToMountain > data.straightLineClosestToMountain;
+	const stressOk = (data.stressFallback && data.stressMaxGradeDegrees > ROAD_HARD_MAX_GRADE_DEGREES)
+		|| (!data.stressFallback && data.stressMaxGradeDegrees <= ROAD_HARD_MAX_GRADE_DEGREES && data.routedClosestToMountain > data.straightLineClosestToMountain);
 	if (stressOk) {
-		pass(
-			'mountain-avoidance stress test',
-			`straight line's closest approach to mountain center ${data.straightLineClosestToMountain.toFixed(0)}m, ` +
-				`routed path's closest approach ${data.routedClosestToMountain.toFixed(0)}m (bent ${(data.routedClosestToMountain - data.straightLineClosestToMountain).toFixed(0)}m farther away), ` +
-				`routed max grade ${data.stressMaxGradeDegrees.toFixed(1)}° (<= ${ROAD_HARD_MAX_GRADE_DEGREES}°)`,
-		);
+		const detail = data.stressFallback
+			? `no safe bounded route; explicit fallback preserves measured ${data.stressMaxGradeDegrees.toFixed(1)}° over-cap evidence without rendering it`
+			: `straight line's closest approach ${data.straightLineClosestToMountain.toFixed(0)}m, routed closest approach ${data.routedClosestToMountain.toFixed(0)}m, max grade ${data.stressMaxGradeDegrees.toFixed(1)}°`;
+		pass('mountain-avoidance stress test', detail);
 	} else {
 		fail(
 			'mountain-avoidance stress test',

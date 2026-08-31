@@ -10,6 +10,17 @@ function typingTarget(target) {
   return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable;
 }
 
+function hasTerrainFoundation(object) {
+  return Boolean(object?.userData?.editorFoundationKey || object?.userData?.terrainFoundationKey);
+}
+
+function refreshTerrainFoundation(object) {
+  if (!object || !hasTerrainFoundation(object)) return { ok: true, skipped: true };
+  const placement = window.__WESTEROS_EDITOR_PLACEMENT__;
+  if (!placement?.groundObject) return { ok: false, error: 'live-placement-unavailable' };
+  return placement.groundObject(object);
+}
+
 function createUi() {
   const toolbar = document.querySelector('.we-toolbar-actions');
   const statusbar = document.querySelector('.we-statusbar');
@@ -110,12 +121,19 @@ export function installEditorTransformControls(api) {
 
   function onObjectChange() {
     if (!transform.object) return;
+    // Keep the inspector responsive while dragging, but do not rebuild terrain chunks every pointer
+    // frame. Foundation recomputation is intentionally deferred to the drag-end event below.
     api.writeInspector(transform.object);
     api.refreshHierarchy();
   }
 
   function onDraggingChanged(event) {
     api.orbitControls.enabled = !event.value;
+    if (event.value || !transform.object) return;
+    const grounding = refreshTerrainFoundation(transform.object);
+    if (!grounding.ok) console.warn('[EditorTransformControls] foundation refresh failed', grounding.error);
+    api.writeInspector(transform.object);
+    api.refreshHierarchy();
   }
 
   function onKeyDown(event) {
@@ -204,6 +222,8 @@ queueMicrotask(() => {
       Math.max(OWNER_QUICK_SHRINK_MIN_SCALE, object.scale.y * OWNER_QUICK_SHRINK_FACTOR),
       Math.max(OWNER_QUICK_SHRINK_MIN_SCALE, object.scale.z * OWNER_QUICK_SHRINK_FACTOR)
     );
+    const grounding = refreshTerrainFoundation(object);
+    if (!grounding.ok) console.warn('[EditorTransformControls] quick-shrink foundation refresh failed', grounding.error);
     api.writeInspector?.(object);
     api.refreshHierarchy?.();
     window.__WESTEROS_EDITOR_TRANSFORM__?.syncSelection?.();

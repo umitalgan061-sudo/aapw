@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width,initial-scale=1">
+	<title>Geographic material contract harness</title>
+	<script type="importmap">{"imports":{"three":"../src/3d/vendor/three/three.module.js"}}</script>
+</head>
+<body data-geographic-material-harness="loading">
+	<canvas id="geographic-material-canvas" width="320" height="180" hidden></canvas>
+	<script type="module">
+		globalThis.geographicHarnessReady = Promise.all([
+			import('three'),
+			import('../src/3d/world/water.js'),
+			import('../src/3d/world/rivers.js'),
+			import('../src/3d/lighting.js'),
+			import('../src/3d/world/geographicReferencePalette.js'),
+		]).then(([THREE, water, rivers, lighting, palette]) => {
+			globalThis.geographicHarnessModules = { THREE, water, rivers, lighting, palette };
+			const canvas = document.getElementById('geographic-material-canvas');
+			const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
+			const scene = new THREE.Scene();
+			const camera = new THREE.PerspectiveCamera(55, 320 / 180, 0.1, 5000);
+			camera.position.set(0, 90, 150);
+			camera.lookAt(0, 0, 0);
+			const waterMesh = water.createWater(6, 8);
+			scene.add(waterMesh);
+			renderer.compile(scene, camera);
+			renderer.render(scene, camera);
+			const river = rivers.createRiverMesh([
+				new THREE.Vector3(0, 2, 0),
+				new THREE.Vector3(10, 1.8, 0),
+				new THREE.Vector3(20, -2, 0),
+			], 8);
+			const waterfall = rivers.createWaterfallMesh({
+				top: new THREE.Vector3(0, 8, 0),
+				bottom: new THREE.Vector3(4, 1, 0),
+				dropMeters: 7,
+			}, 8);
+			const flowShader = {
+				uniforms: {},
+				vertexShader: '#include <common>\n#include <begin_vertex>',
+				fragmentShader: '#include <common>\n#include <color_fragment>',
+			};
+			waterfall.material.onBeforeCompile(flowShader);
+			const report = {
+				webgl: Boolean(renderer.getContext()),
+				shallow: waterMesh.material.uniforms.uShallowColor.value.getHex(),
+				deep: waterMesh.material.uniforms.uDeepColor.value.getHex(),
+				nightUniform: waterMesh.material.uniforms.uNightFactor.value,
+				lakeMask: waterMesh.material.fragmentShader.includes('enclosedLakeMask'),
+				coastMask: waterMesh.material.fragmentShader.includes('clearCoastMask'),
+				waterProgramCount: renderer.info.programs?.length ?? 0,
+				waterfallTurbulence: flowShader.fragmentShader.includes('turbulentBreakup'),
+				riverPalette: river.material.userData.opticalProfile.referencePalettePolicyId,
+				celestialPolicy: lighting.CELESTIAL_GEOGRAPHIC_RESPONSE_POLICY.id,
+				palettePolicy: palette.GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id,
+			};
+			document.body.dataset.geographicMaterialReport = JSON.stringify(report);
+			water.disposeWater(waterMesh);
+			rivers.disposeRiverMesh(river);
+			rivers.disposeWaterfallMesh(waterfall);
+			renderer.dispose();
+			document.body.dataset.geographicMaterialHarness = 'ready';
+			return globalThis.geographicHarnessModules;
+		}).catch((error) => {
+			document.body.dataset.geographicMaterialHarness = 'failed';
+			globalThis.geographicHarnessError = error instanceof Error ? error.message : String(error);
+			throw error;
+		});
+	</script>
+</body>
+</html>

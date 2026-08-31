@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Winter Tree Visual QA</title>
+	<style>
+		html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #c8d0d4; }
+		#qa-root { width: 100%; height: 100%; }
+		canvas { display: block; width: 100%; height: 100%; }
+		#qa-label { position: fixed; left: 12px; top: 10px; z-index: 2; margin: 0; padding: 7px 9px; border-radius: 4px; background: rgba(15, 22, 27, 0.72); color: #f5f7f8; font: 12px/1.35 monospace; pointer-events: none; }
+	</style>
+	<script type="importmap">
+	{
+		"imports": {
+			"three": "./src/3d/vendor/three/three.module.js",
+			"three/addons/": "./src/3d/vendor/three/addons/"
+		}
+	}
+	</script>
+</head>
+<body>
+	<div id="qa-root"></div>
+	<pre id="qa-label">winter tree visual QA</pre>
+</body>
+</html>

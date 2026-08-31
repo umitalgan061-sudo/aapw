@@ -5,6 +5,11 @@ import {
   createMaterialManifest,
   validateMaterialAssignment,
 } from '../materials/MaterialAssignmentCore.js';
+import {
+  isStructureGroundingCandidate,
+  resolveStructureSurfaceProfile,
+} from './structureGroundingPolicy.js';
+import { createDisconnectedFoundationIslandProbes } from './foundationIslandProbes.js';
 
 export const WORLD_SURFACE_POLICY_PRESETS = Object.freeze({
   vegetation: Object.freeze({
@@ -23,6 +28,7 @@ export const WORLD_SURFACE_POLICY_PRESETS = Object.freeze({
   building: Object.freeze({ maxSlopeDegrees: 12, maxWaterDepth: 0.02, minRoadDistance: 0 }),
   settlement: Object.freeze({ maxSlopeDegrees: 12, maxWaterDepth: 0.02, minRoadDistance: 0 }),
   bridge: Object.freeze({ maxSlopeDegrees: 24, maxWaterDepth: Infinity }),
+  waterside: Object.freeze({ maxSlopeDegrees: 18, maxWaterDepth: Infinity, minRoadDistance: 0 }),
 });
 
 const POLICY_NUMERIC_FIELDS = Object.freeze([
@@ -49,7 +55,12 @@ const POLICY_RANGES = Object.freeze([
 
 /**
  * Shared placement gate for editor-authored and autonomous world assets.
- * A model is dressed and validated before callers attach it to the live scene.
+ *
+ * Structure-like assets use footprint-aware grounding by default. The placement core samples the
+ * centre, four corners and four edge midpoints of the object's world-space footprint instead of
+ * trusting one origin sample. If a caller supplies `conformTerrain`, the callback is asked to bring
+ * the ground to one foundation plane; otherwise the object is embedded to the lowest sampled point,
+ * which guarantees no footprint corner can remain visibly suspended above the terrain.
  */
 export function prepareWorldAssetForPlacement(object, {
   metadata = {},
@@ -64,6 +75,9 @@ export function prepareWorldAssetForPlacement(object, {
   placementPolicy = null,
   requireSurfaceContext = false,
   snapToGround = true,
+  footprintGrounding = 'auto',
+  foundationInsetMeters = 0.04,
+  conformTerrain = null,
   requireGeneratedTexture = true,
 } = {}) {
   if (!object) return { ok: false, error: 'missing-object' };
@@ -88,6 +102,9 @@ export function prepareWorldAssetForPlacement(object, {
     placementPolicy,
     requireSurfaceContext,
     snapToGround,
+    footprintGrounding,
+    foundationInsetMeters,
+    conformTerrain,
   });
   if (!surfaceResult.ok) return surfaceResult;
 
@@ -103,9 +120,11 @@ export function prepareWorldAssetForPlacement(object, {
   const manifest = {
     ...createMaterialManifest(object, { metadata, placement }),
     placementSurface: surfaceResult.surface,
+    placementFootprint: surfaceResult.footprint || null,
     placementPolicy: surfaceResult.policy,
   };
   object.userData.worldPlacementSurface = surfaceResult.surface;
+  object.userData.worldPlacementFootprint = surfaceResult.footprint || null;
   object.userData.worldPlacementPolicy = surfaceResult.policy;
   object.userData.worldPlacementManifest = manifest;
   object.userData.materialReadyForWorld = true;
@@ -116,6 +135,7 @@ export function prepareWorldAssetForPlacement(object, {
     material: materialResult,
     validation,
     surface: surfaceResult.surface,
+    footprint: surfaceResult.footprint || null,
     placementPolicy: surfaceResult.policy,
     manifest,
   };
@@ -141,17 +161,33 @@ export function auditWorldAssetPlacement(object) {
   const errors = [...validation.errors];
   if (!object?.userData?.materialReadyForWorld) errors.push('placement-gate-not-used');
   if (hasNonFiniteTransform(object)) errors.push('non-finite-transform');
+
   const storedSurface = object?.userData?.worldPlacementSurface;
+  const storedFootprint = object?.userData?.worldPlacementFootprint;
   const storedPolicy = object?.userData?.worldPlacementPolicy;
   if (storedSurface && storedPolicy) {
     const surfaceAudit = evaluateWorldSurfacePlacement(storedSurface, storedPolicy);
     errors.push(...surfaceAudit.errors.map((error) => `surface:${error}`));
   }
+  if (storedFootprint?.samples?.length && storedPolicy) {
+    storedFootprint.samples.forEach((sample, index) => {
+      const audit = evaluateWorldSurfacePlacement(sample, storedPolicy);
+      errors.push(...audit.errors.map((error) => `footprint-${index}:${error}`));
+    });
+  }
+  if (storedFootprint?.islandSamples?.length && storedPolicy) {
+    storedFootprint.islandSamples.forEach((sample, index) => {
+      const audit = evaluateWorldSurfacePlacement(sample, storedPolicy);
+      errors.push(...audit.errors.map((error) => `footprint-island-${index}:${error}`));
+    });
+  }
+
   return {
     ok: errors.length === 0,
     errors,
     warnings: [...validation.warnings],
     surface: storedSurface || null,
+    footprint: storedFootprint || null,
     placementPolicy: storedPolicy || null,
     manifest: object?.userData?.worldPlacementManifest || null,
   };
@@ -164,6 +200,9 @@ export function resolveWorldSurfacePlacement(object, {
   placementPolicy = null,
   requireSurfaceContext = false,
   snapToGround = true,
+  footprintGrounding = 'auto',
+  foundationInsetMeters = 0.04,
+  conformTerrain = null,
 } = {}) {
   const x = object?.position?.x;
   const z = object?.position?.z;
@@ -171,45 +210,166 @@ export function resolveWorldSurfacePlacement(object, {
     return { ok: false, error: 'surface:non-finite-xz' };
   }
 
-  let surface = null;
-  if (typeof surfaceQuery === 'function') {
-    surface = normalizeWorldSurfaceSample(surfaceQuery(x, z, object));
-    if (!surface.ok) return { ok: false, error: `surface:${surface.error}`, surface: surface.sample };
-  } else if (typeof groundHeight === 'function') {
-    const rawHeight = groundHeight(x, z, object);
-    if (rawHeight === null || rawHeight === undefined || rawHeight === '') {
-      return { ok: false, error: 'surface:non-finite-height' };
-    }
-    const height = Number(rawHeight);
-    if (!Number.isFinite(height)) return { ok: false, error: 'surface:non-finite-height' };
-    surface = normalizeWorldSurfaceSample({ height });
-  } else if (requireSurfaceContext) {
-    return { ok: false, error: 'surface:missing-query' };
+  const query = createSurfaceQuery(surfaceQuery, groundHeight, object);
+  if (!query) {
+    if (requireSurfaceContext) return { ok: false, error: 'surface:missing-query' };
+    return { ok: true, surface: null, footprint: null, policy: null };
   }
 
-  if (!surface) return { ok: true, surface: null, policy: null };
-
-  const evaluation = evaluateWorldSurfacePlacement(
-    surface.sample,
-    mergeWorldSurfacePolicy(metadata, placementPolicy),
-  );
-  const policy = evaluation.policy || null;
-  if (!evaluation.ok) {
+  const policySource = mergeWorldSurfacePolicy(metadata, placementPolicy, object?.userData);
+  const policyValidation = validateWorldSurfacePolicy(policySource);
+  if (!policyValidation.ok) {
     return {
       ok: false,
-      error: `surface:${evaluation.errors.join(',')}`,
-      surface: surface.sample,
-      policy,
-      evaluation,
+      error: `surface:${policyValidation.errors.join(',')}`,
+      surface: null,
+      footprint: null,
+      policy: policyValidation.policy,
+      evaluation: policyValidation,
     };
   }
+  const policy = policyValidation.policy;
 
-  if (snapToGround) object.position.y = surface.sample.height;
-  return { ok: true, surface: surface.sample, policy, evaluation };
+  const useFootprint = shouldUseFootprintGrounding(metadata, object?.userData, footprintGrounding);
+  const footprintGeometry = useFootprint ? worldFootprintFor(object) : null;
+  const pointRecords = footprintGeometry?.points?.length
+    ? footprintGeometry.points
+    : [{ label: 'center', x, z }];
+
+  const normalizedSamples = [];
+  for (let index = 0; index < pointRecords.length; index += 1) {
+    const point = pointRecords[index];
+    const normalized = normalizeWorldSurfaceSample(query(point.x, point.z));
+    if (!normalized.ok) {
+      return {
+        ok: false,
+        error: `surface:${normalized.error}`,
+        surface: normalized.sample,
+        footprint: null,
+        policy,
+      };
+    }
+    const evaluation = evaluateWorldSurfacePlacement(normalized.sample, policy);
+    if (!evaluation.ok) {
+      return {
+        ok: false,
+        error: `surface:${evaluation.errors.join(',')}`,
+        surface: normalized.sample,
+        footprint: null,
+        policy,
+        evaluation,
+      };
+    }
+    normalizedSamples.push({ ...normalized.sample, x: point.x, z: point.z, label: point.label });
+  }
+
+  const centerSurface = normalizedSamples.find((sample) => sample.label === 'center') || normalizedSamples[0];
+  if (!useFootprint || !footprintGeometry || normalizedSamples.length === 1) {
+    if (snapToGround) object.position.y = centerSurface.height;
+    return { ok: true, surface: stripPlacementCoordinates(centerSurface), footprint: null, policy };
+  }
+
+  const islandPointRecords = createDisconnectedFoundationIslandProbes(footprintGeometry.footprintIslands || []);
+  const islandSamples = [];
+  for (const point of islandPointRecords) {
+    const normalized = normalizeWorldSurfaceSample(query(point.x, point.z));
+    if (!normalized.ok) {
+      return {
+        ok: false,
+        error: `surface:${normalized.error}`,
+        surface: normalized.sample,
+        footprint: null,
+        policy,
+      };
+    }
+    const evaluation = evaluateWorldSurfacePlacement(normalized.sample, policy);
+    if (!evaluation.ok) {
+      return {
+        ok: false,
+        error: `surface:${evaluation.errors.join(',')}`,
+        surface: normalized.sample,
+        footprint: null,
+        policy,
+        evaluation,
+      };
+    }
+    islandSamples.push({
+      ...normalized.sample,
+      x: point.x,
+      z: point.z,
+      label: point.label,
+      islandIndex: point.islandIndex,
+    });
+  }
+
+  const heightSamples = islandSamples.length ? [...normalizedSamples, ...islandSamples] : normalizedSamples;
+  const heights = heightSamples.map((sample) => sample.height);
+  const minHeight = Math.min(...heights);
+  const maxHeight = Math.max(...heights);
+  const inset = Number.isFinite(Number(foundationInsetMeters))
+    ? Math.max(0, Number(foundationInsetMeters))
+    : 0;
+
+  let targetGroundHeight = maxHeight;
+  let terrainConformed = false;
+  if (typeof conformTerrain === 'function') {
+    const result = conformTerrain({
+      object,
+      metadata,
+      bounds: footprintGeometry.bounds,
+      orientedFootprint: footprintGeometry.orientedFootprint || null,
+      footprintIslands: footprintGeometry.footprintIslands || [],
+      points: pointRecords.map((point) => ({ ...point })),
+      samples: normalizedSamples.map((sample) => ({ ...sample })),
+      islandPoints: islandPointRecords.map((point) => ({ ...point })),
+      islandSamples: islandSamples.map((sample) => ({ ...sample })),
+      targetHeight: maxHeight,
+      minHeight,
+      maxHeight,
+    });
+    if (result === false || result?.ok === false) {
+      return {
+        ok: false,
+        error: `surface:${result?.error || 'terrain-conform-failed'}`,
+        surface: stripPlacementCoordinates(centerSurface),
+        footprint: null,
+        policy,
+      };
+    }
+    if (Number.isFinite(Number(result?.height))) targetGroundHeight = Number(result.height);
+    terrainConformed = true;
+  } else {
+    targetGroundHeight = minHeight;
+  }
+
+  const baseOffsetY = footprintGeometry.baseOffsetY;
+  if (snapToGround) object.position.y = targetGroundHeight - baseOffsetY - inset;
+
+  const footprint = Object.freeze({
+    groundingMode: terrainConformed ? 'terrain-conform' : 'embedded-low-side',
+    minHeight,
+    maxHeight,
+    heightRange: maxHeight - minHeight,
+    targetGroundHeight,
+    baseOffsetY,
+    insetMeters: inset,
+    bounds: footprintGeometry.bounds,
+    orientedFootprint: footprintGeometry.orientedFootprint || null,
+    footprintIslands: footprintGeometry.footprintIslands || [],
+    samples: normalizedSamples.map(stripPlacementCoordinates),
+    islandSamples: islandSamples.map(stripPlacementCoordinates),
+  });
+
+  return {
+    ok: true,
+    surface: stripPlacementCoordinates(centerSurface),
+    footprint,
+    policy,
+  };
 }
 
-export function resolveWorldSurfacePolicy(metadata = {}, override = null) {
-  const validation = validateWorldSurfacePolicy(mergeWorldSurfacePolicy(metadata, override));
+export function resolveWorldSurfacePolicy(metadata = {}, override = null, fallbackMetadata = null) {
+  const validation = validateWorldSurfacePolicy(mergeWorldSurfacePolicy(metadata, override, fallbackMetadata));
   if (!validation.ok) {
     throw new TypeError(`Invalid world surface placement policy: ${validation.errors.join(',')}`);
   }
@@ -343,10 +503,12 @@ export function normalizePlacementPolicy(policy = {}) {
   };
 }
 
-function mergeWorldSurfacePolicy(metadata, override) {
+function mergeWorldSurfacePolicy(metadata, override, fallbackMetadata = null) {
   if (override !== null && override !== undefined && !isPlainObject(override)) return override;
-  const category = String(metadata?.category || metadata?.kind || '').toLowerCase();
-  const preset = WORLD_SURFACE_POLICY_PRESETS[category] || null;
+  const category = String(metadata?.category || metadata?.kind || '').trim().toLowerCase();
+  const exactPreset = WORLD_SURFACE_POLICY_PRESETS[category] || null;
+  const structureProfile = exactPreset ? null : resolveStructureSurfaceProfile(metadata, fallbackMetadata);
+  const preset = exactPreset || (structureProfile ? WORLD_SURFACE_POLICY_PRESETS[structureProfile] : null);
   return { ...(preset || {}), ...(override || {}) };
 }
 
@@ -365,6 +527,222 @@ function applyTransform(object, { position, rotation, scale }) {
     if (Number.isFinite(scale)) object.scale.setScalar(scale);
     else object.scale.copy(asVector3(scale, object.scale));
   }
+}
+
+function createSurfaceQuery(surfaceQuery, groundHeight, object) {
+  if (typeof surfaceQuery === 'function') {
+    return (x, z) => surfaceQuery(x, z, object);
+  }
+  if (typeof groundHeight === 'function') {
+    return (x, z) => {
+      const rawHeight = groundHeight(x, z, object);
+      if (rawHeight === null || rawHeight === undefined || rawHeight === '') return null;
+      return { height: Number(rawHeight) };
+    };
+  }
+  return null;
+}
+
+function shouldUseFootprintGrounding(metadata, objectMetadata, footprintGrounding) {
+  if (footprintGrounding === true || footprintGrounding === 'always') return true;
+  if (footprintGrounding === false || footprintGrounding === 'never') return false;
+  return isStructureGroundingCandidate(metadata, objectMetadata);
+}
+
+function expandBoxWithGeometryCorners(targetBox, geometryBox, matrixWorld, inverseRoot, scratch) {
+  for (const x of [geometryBox.min.x, geometryBox.max.x]) {
+    for (const y of [geometryBox.min.y, geometryBox.max.y]) {
+      for (const z of [geometryBox.min.z, geometryBox.max.z]) {
+        scratch.set(x, y, z).applyMatrix4(matrixWorld).applyMatrix4(inverseRoot);
+        targetBox.expandByPoint(scratch);
+      }
+    }
+  }
+}
+
+const GROUND_CONTACT_BAND_POLICY = Object.freeze({
+  minimumMeters: 0.5,
+  maximumMeters: 2,
+  structureHeightFraction: 0.12,
+});
+
+const GROUND_CONTACT_ISLAND_POLICY = Object.freeze({ mergeGapMeters: 1.5, maximumIslands: 4 });
+
+function boxesConnectedInXZ(a, b, gapMeters) {
+  const gapX = Math.max(0, a.min.x - b.max.x, b.min.x - a.max.x);
+  const gapZ = Math.max(0, a.min.z - b.max.z, b.min.z - a.max.z);
+  return gapX <= gapMeters && gapZ <= gapMeters;
+}
+
+function clusterGroundContactBoxes(boxes) {
+  if (!Array.isArray(boxes) || boxes.length <= 1) return boxes?.length ? [boxes[0].clone()] : [];
+  const groups = [];
+  for (const box of boxes) {
+    const touching = [];
+    for (let index = 0; index < groups.length; index += 1) {
+      if (groups[index].members.some((member) => boxesConnectedInXZ(member, box, GROUND_CONTACT_ISLAND_POLICY.mergeGapMeters))) touching.push(index);
+    }
+    if (!touching.length) { groups.push({ members: [box], bounds: box.clone() }); continue; }
+    const target = groups[touching[0]];
+    target.members.push(box); target.bounds.union(box);
+    for (let index = touching.length - 1; index >= 1; index -= 1) {
+      const merged = groups[touching[index]];
+      target.members.push(...merged.members); target.bounds.union(merged.bounds); groups.splice(touching[index], 1);
+    }
+  }
+  const islands = groups.map((group) => group.bounds);
+  return islands.length <= GROUND_CONTACT_ISLAND_POLICY.maximumIslands ? islands : [];
+}
+
+function rootLocalGeometryBounds(object) {
+  object.updateMatrixWorld?.(true);
+  const inverseRoot = object.matrixWorld.clone().invert();
+  const scratch = new THREE.Vector3();
+  const geometryBoxes = [];
+  object.traverse?.((node) => {
+    if (node?.userData?.terrainFootprintExclude === true || node?.userData?.foundationFootprintExclude === true) return;
+    const geometry = node?.geometry;
+    if (!geometry?.attributes?.position) return;
+    if (!geometry.boundingBox) geometry.computeBoundingBox();
+    if (!geometry.boundingBox || geometry.boundingBox.isEmpty()) return;
+    const nodeBox = new THREE.Box3();
+    expandBoxWithGeometryCorners(nodeBox, geometry.boundingBox, node.matrixWorld, inverseRoot, scratch);
+    if (!nodeBox.isEmpty()) geometryBoxes.push(nodeBox);
+  });
+  if (!geometryBoxes.length) return null;
+
+  const allGeometryBox = new THREE.Box3();
+  geometryBoxes.forEach((box) => allGeometryBox.union(box));
+  if (allGeometryBox.isEmpty()) return null;
+
+  const structureHeight = Math.max(0, allGeometryBox.max.y - allGeometryBox.min.y);
+  const groundContactBandMeters = Math.max(
+    GROUND_CONTACT_BAND_POLICY.minimumMeters,
+    Math.min(
+      GROUND_CONTACT_BAND_POLICY.maximumMeters,
+      structureHeight * GROUND_CONTACT_BAND_POLICY.structureHeightFraction,
+    ),
+  );
+  const groundContactCeiling = allGeometryBox.min.y + groundContactBandMeters;
+  const groundedBox = new THREE.Box3();
+  const groundedGeometryBoxes = [];
+  for (const box of geometryBoxes) {
+    if (box.min.y > groundContactCeiling + 1e-6) continue;
+    groundedBox.union(box);
+    groundedGeometryBoxes.push(box);
+  }
+
+  // Defensive fallback: precision/authoring anomalies must never erase a valid structure footprint.
+  const resolvedBox = groundedGeometryBoxes.length > 0 && !groundedBox.isEmpty() ? groundedBox : allGeometryBox;
+  const candidateBoxes = groundedGeometryBoxes.length > 0 ? groundedGeometryBoxes : geometryBoxes;
+  const islands = clusterGroundContactBoxes(candidateBoxes);
+  if (islands.length > 1) resolvedBox.groundContactIslands = islands;
+  return resolvedBox;
+}
+
+function worldFootprintFor(object) {
+  if (!object?.isObject3D) return null;
+  object.updateMatrixWorld?.(true);
+  const localBox = rootLocalGeometryBounds(object);
+  if (!localBox) {
+    const box = new THREE.Box3().setFromObject(object);
+    if (box.isEmpty()) return null;
+    const minX = box.min.x;
+    const maxX = box.max.x;
+    const minZ = box.min.z;
+    const maxZ = box.max.z;
+    const centerX = (minX + maxX) * 0.5;
+    const centerZ = (minZ + maxZ) * 0.5;
+    return {
+      baseOffsetY: box.min.y - object.position.y,
+      orientedFootprint: null,
+      footprintIslands: [],
+      bounds: Object.freeze({ minX, maxX, minZ, maxZ, width: maxX - minX, depth: maxZ - minZ }),
+      points: [
+        { label: 'center', x: centerX, z: centerZ },
+        { label: 'north-west', x: minX, z: minZ },
+        { label: 'north-east', x: maxX, z: minZ },
+        { label: 'south-west', x: minX, z: maxZ },
+        { label: 'south-east', x: maxX, z: maxZ },
+        { label: 'north-mid', x: centerX, z: minZ },
+        { label: 'south-mid', x: centerX, z: maxZ },
+        { label: 'west-mid', x: minX, z: centerZ },
+        { label: 'east-mid', x: maxX, z: centerZ },
+      ],
+    };
+  }
+
+  const localCenterX = (localBox.min.x + localBox.max.x) * 0.5;
+  const localCenterZ = (localBox.min.z + localBox.max.z) * 0.5;
+  const halfWidth = (localBox.max.x - localBox.min.x) * 0.5;
+  const halfDepth = (localBox.max.z - localBox.min.z) * 0.5;
+  const localRecords = [
+    ['center', localCenterX, localCenterZ],
+    ['north-west', localBox.min.x, localBox.min.z],
+    ['north-east', localBox.max.x, localBox.min.z],
+    ['south-west', localBox.min.x, localBox.max.z],
+    ['south-east', localBox.max.x, localBox.max.z],
+    ['north-mid', localCenterX, localBox.min.z],
+    ['south-mid', localCenterX, localBox.max.z],
+    ['west-mid', localBox.min.x, localCenterZ],
+    ['east-mid', localBox.max.x, localCenterZ],
+  ];
+  const points = localRecords.map(([label, localX, localZ]) => {
+    const world = object.localToWorld(new THREE.Vector3(localX, localBox.min.y, localZ));
+    return { label, x: world.x, z: world.z };
+  });
+  const centerWorld = object.localToWorld(new THREE.Vector3(localCenterX, localBox.min.y, localCenterZ));
+  const xWorld = object.localToWorld(new THREE.Vector3(localCenterX + 1, localBox.min.y, localCenterZ));
+  const zWorld = object.localToWorld(new THREE.Vector3(localCenterX, localBox.min.y, localCenterZ + 1));
+  const axisXLength = Math.hypot(xWorld.x - centerWorld.x, xWorld.z - centerWorld.z) || 1;
+  const axisZLength = Math.hypot(zWorld.x - centerWorld.x, zWorld.z - centerWorld.z) || 1;
+  const orientedFootprint = Object.freeze({
+    centerX: centerWorld.x,
+    centerZ: centerWorld.z,
+    axisX: Object.freeze({ x: (xWorld.x - centerWorld.x) / axisXLength, z: (xWorld.z - centerWorld.z) / axisXLength }),
+    axisZ: Object.freeze({ x: (zWorld.x - centerWorld.x) / axisZLength, z: (zWorld.z - centerWorld.z) / axisZLength }),
+    halfWidthMeters: halfWidth * axisXLength,
+    halfDepthMeters: halfDepth * axisZLength,
+  });
+  const minX = Math.min(...points.map((point) => point.x));
+  const maxX = Math.max(...points.map((point) => point.x));
+  const minZ = Math.min(...points.map((point) => point.z));
+  const maxZ = Math.max(...points.map((point) => point.z));
+  const bottomWorldY = Math.min(...localRecords.slice(1, 5).map(([, localX, localZ]) => (
+    object.localToWorld(new THREE.Vector3(localX, localBox.min.y, localZ)).y
+  )));
+  const islandBoxes = Array.isArray(localBox.groundContactIslands) ? localBox.groundContactIslands : [];
+  const footprintIslands = islandBoxes.map((islandBox, index) => {
+    const islandCenterX = (islandBox.min.x + islandBox.max.x) * 0.5;
+    const islandCenterZ = (islandBox.min.z + islandBox.max.z) * 0.5;
+    const islandCenter = object.localToWorld(new THREE.Vector3(islandCenterX, islandBox.min.y, islandCenterZ));
+    const corners = [
+      [islandBox.min.x, islandBox.min.z], [islandBox.max.x, islandBox.min.z],
+      [islandBox.max.x, islandBox.max.z], [islandBox.min.x, islandBox.max.z],
+    ].map(([localX, localZ]) => object.localToWorld(new THREE.Vector3(localX, islandBox.min.y, localZ)));
+    return Object.freeze({
+      index, centerX: islandCenter.x, centerZ: islandCenter.z,
+      axisX: orientedFootprint.axisX, axisZ: orientedFootprint.axisZ,
+      halfWidthMeters: (islandBox.max.x - islandBox.min.x) * 0.5 * axisXLength,
+      halfDepthMeters: (islandBox.max.z - islandBox.min.z) * 0.5 * axisZLength,
+      bounds: Object.freeze({
+        minX: Math.min(...corners.map((point) => point.x)), maxX: Math.max(...corners.map((point) => point.x)),
+        minZ: Math.min(...corners.map((point) => point.z)), maxZ: Math.max(...corners.map((point) => point.z)),
+      }),
+    });
+  });
+  return {
+    baseOffsetY: bottomWorldY - object.position.y,
+    orientedFootprint,
+    footprintIslands,
+    bounds: Object.freeze({ minX, maxX, minZ, maxZ, width: maxX - minX, depth: maxZ - minZ }),
+    points,
+  };
+}
+
+function stripPlacementCoordinates(sample) {
+  const { x: _x, z: _z, label: _label, ...surface } = sample;
+  return surface;
 }
 
 function asVector3(value, fallback) {
