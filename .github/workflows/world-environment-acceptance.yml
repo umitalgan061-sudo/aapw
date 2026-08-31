@@ -74,7 +74,7 @@ jobs:
           OVERLAY='assets/textures/yüzey/overlay/overlay.png'
           HEAD_SHA="$(git rev-parse HEAD)"
           git lfs version
-          git lfs fetch origin "$HEAD_SHA" --include="$OVERLAY" --exclude=""
+          git lfs fetch --include="$OVERLAY" --exclude="" origin "$HEAD_SHA"
           git lfs checkout -- "$OVERLAY"
           test -f "$OVERLAY"
           test "$(wc -c < "$OVERLAY")" -gt 10000000
