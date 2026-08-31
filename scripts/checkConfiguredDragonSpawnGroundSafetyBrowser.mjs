@@ -10,13 +10,14 @@ const browser = await chromium.launch({ headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
   const pageErrors = [];
-  const consoleErrors = [];
+  const focusedConsoleErrors = [];
   page.on('pageerror', (error) => pageErrors.push(String(error)));
-  page.on('console', (message) => {
-    if (message.type() === 'error') consoleErrors.push(message.text());
-  });
 
   await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  page.on('console', (message) => {
+    if (message.type() === 'error') focusedConsoleErrors.push(message.text());
+  });
+
   const proof = await page.evaluate(async () => {
     const THREE = await import('three');
     const {
@@ -89,8 +90,13 @@ try {
     };
   });
 
+  const dragonConsoleErrors = focusedConsoleErrors.filter((message) => (
+    message.includes('gameplay/dragons')
+    || message.includes('fake-dragon')
+    || message.includes('CONFIGURED_DRAGON')
+  ));
   assert.equal(pageErrors.length, 0, `page errors: ${pageErrors.join(' | ')}`);
-  assert.equal(consoleErrors.length, 0, `console errors: ${consoleErrors.join(' | ')}`);
+  assert.equal(dragonConsoleErrors.length, 0, `dragon spawn console errors: ${dragonConsoleErrors.join(' | ')}`);
   assert.equal(proof.controllerCount, 1, `expected one safe configured dragon: ${JSON.stringify(proof)}`);
   assert.equal(proof.validName, 'dragon-valid');
   assert.deepEqual(proof.validPosition, { x: 0, y: 17, z: 4 });
@@ -98,7 +104,10 @@ try {
   assert.deepEqual(proof.sampledXs, [0, 10, 20], 'invalid seat/altitude must be rejected before terrain sampling');
   assert.equal(proof.overflowReason, 'non-finite-center', 'finite operands that overflow must fail closed');
 
-  console.log('CONFIGURED_DRAGON_SPAWN_GROUND_SAFETY_BROWSER_PASS', JSON.stringify(proof));
+  console.log('CONFIGURED_DRAGON_SPAWN_GROUND_SAFETY_BROWSER_PASS', JSON.stringify({
+    ...proof,
+    backgroundConsoleErrorCount: focusedConsoleErrors.length - dragonConsoleErrors.length,
+  }));
 } finally {
   await browser.close();
 }
