@@ -9,20 +9,34 @@
  * finite low-cost water footprint read as a rectangular tile.
  *
  * This refinement keeps sky geometry, map geography, hydrology and water coverage untouched. It
- * only aligns the non-geographic below-horizon atmosphere floor with the deep marine blue family,
- * so a far-water footprint edge cannot turn into a dark rectangular backdrop seam. Day/twilight
- * still retain the authored horizon bounce because the replacement only changes the night floor.
+ * derives the non-geographic below-horizon atmosphere floor directly from the shared canonical
+ * deep-sea render palette, so far-water/backdrop coverage and camera-relative sky cannot drift into
+ * visibly different rectangular colour families. Day/twilight authored horizon bounce is preserved;
+ * only the night below-horizon fallback is changed.
  */
 
+import { GEOGRAPHIC_REFERENCE_PALETTE } from './world/geographicReferencePalette.js';
+
+function rgbTripletFromHex(hex) {
+	return Object.freeze([
+		((hex >> 16) & 0xff) / 255,
+		((hex >> 8) & 0xff) / 255,
+		(hex & 0xff) / 255,
+	]);
+}
+
+const MARINE_NIGHT_FLOOR_RGB = rgbTripletFromHex(GEOGRAPHIC_REFERENCE_PALETTE.water.deepSea);
+
 export const WORLD_SKY_MARINE_FLOOR_POLICY = Object.freeze({
-	id: 'camera-relative-marine-lower-hemisphere-continuity-v1',
+	id: 'camera-relative-marine-lower-hemisphere-continuity-v2-shared-deep-sea-palette',
 	renderOnly: true,
 	cameraRelative: true,
 	canonicalGeographyUnchanged: true,
 	canonicalWaterCoverageUnchanged: true,
 	finiteWaterFootprintSafe: true,
 	blackBackgroundFallback: false,
-	marineNightFloorRgb: Object.freeze([0.031, 0.105, 0.165]),
+	sharedDeepSeaPalette: true,
+	marineNightFloorRgb: MARINE_NIGHT_FLOOR_RGB,
 });
 
 export function applyAuroraNightAtmosphereV5(material) {
@@ -37,7 +51,7 @@ export function applyAuroraNightAtmosphereV5(material) {
 		)
 		.replace(
 			'vec3 nightBounce = vec3(0.018, 0.026, 0.052);',
-			`vec3 nightBounce = vec3(${WORLD_SKY_MARINE_FLOOR_POLICY.marineNightFloorRgb.map((value) => value.toFixed(3)).join(', ')});`,
+			`vec3 nightBounce = vec3(${WORLD_SKY_MARINE_FLOOR_POLICY.marineNightFloorRgb.map((value) => value.toFixed(4)).join(', ')});`,
 		)
 		.replace(
 			'finalColor += oxygenGreen * haze * 0.10;',
