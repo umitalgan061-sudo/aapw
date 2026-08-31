@@ -32,7 +32,7 @@ export const WAVE_TOTAL_AMPLITUDE_METERS = SWELL_COMPONENTS.reduce((sum, [, ampl
 export const WATER_OFFSHORE_OPTICAL_GAIN = 0.82;
 
 export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
-	id: 'water-world-surface-variation-2026-08-31-v4-backdrop-multiscale',
+	id: 'water-world-surface-variation-2026-08-31-v5-aerial-offshore-readability',
 	renderOnly: true,
 	canonicalDepthUnchanged: true,
 	canonicalCoverageUnchanged: true,
@@ -41,7 +41,7 @@ export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	fineScaleMeters: 390,
 	currentShearScaleMeters: 680,
 	capillaryScaleMeters: 72,
-	deepColorVariationMax: 0.13,
+	deepColorVariationMax: 0.20,
 	roughnessMin: 0.20,
 	roughnessMax: 0.72,
 	backdropMacroScaleMeters: 6200,
@@ -264,12 +264,13 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		// Deep open water gets bounded kilometre- and hectometre-scale variation independent of
 		// physical depth. Current shear is masked to boundary-connected offshore water, so enclosed
 		// lakes and the canonical shoreline remain owned by the depth/coverage textures above.
-		float deepLumaVariation = (oceanFabric * 0.085 + oceanShear * 0.060) * deepMarineMask;
+		float deepLumaVariation = (oceanFabric * 0.125 + oceanShear * 0.085) * deepMarineMask;
 		deepLumaVariation = clamp(deepLumaVariation, -${WATER_SURFACE_VARIATION_POLICY.deepColorVariationMax.toFixed(3)}, ${WATER_SURFACE_VARIATION_POLICY.deepColorVariationMax.toFixed(3)});
 		bodyColor *= 1.0 + deepLumaVariation;
 		float currentMix = clamp(0.5 + oceanFabric * 0.26 + oceanShear * 0.34, 0.0, 1.0);
-		vec3 currentTint = mix(vec3(0.018, 0.043, 0.066), vec3(0.060, 0.125, 0.148), currentMix);
-		bodyColor = mix(bodyColor, currentTint, (abs(oceanFabric) * 0.075 + abs(oceanShear) * 0.095) * deepMarineMask);
+		vec3 currentTint = mix(vec3(0.014, 0.041, 0.064), vec3(0.072, 0.150, 0.180), currentMix);
+		float currentTintStrength = (0.055 + abs(oceanFabric) * 0.070 + abs(oceanShear) * 0.080) * deepMarineMask;
+		bodyColor = mix(bodyColor, currentTint, currentTintStrength);
 		vec3 nightAbsorption = vec3(0.010, 0.030, 0.052);
 		bodyColor = mix(bodyColor, bodyColor * 0.62 + nightAbsorption, clamp(uNightFactor, 0.0, 1.0) * 0.34);
 
@@ -278,7 +279,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 
 		vec3 halfVector = normalize(uSunDirection + viewDir);
 		float localSlopeEnergy = clamp(length(slope) * 13.0, 0.0, 1.0);
-		float roughnessDriver = clamp(0.50 + oceanFabric * 0.24 + oceanShear * 0.28 + (localSlopeEnergy - 0.5) * 0.22, 0.0, 1.0);
+		float roughnessDriver = clamp(0.50 + oceanFabric * 0.30 + oceanShear * 0.34 + (localSlopeEnergy - 0.5) * 0.22, 0.0, 1.0);
 		float waterRoughness = mix(${WATER_SURFACE_VARIATION_POLICY.roughnessMin.toFixed(2)}, ${WATER_SURFACE_VARIATION_POLICY.roughnessMax.toFixed(2)}, roughnessDriver);
 		waterRoughness = mix(0.36, waterRoughness, deepMarineMask);
 		float specularPower = mix(132.0, 28.0, waterRoughness);
