@@ -18,6 +18,7 @@ on:
       - 'src/3d/sceneManager.js'
       - 'scripts/checkValyriaGeology.mjs'
       - 'scripts/checkValyriaVolcanicMorphology.mjs'
+      - 'scripts/checkValyriaSurfaceMorphologyAlignment.mjs'
       - 'scripts/checkValyriaCanonicalTerrain.mjs'
       - 'scripts/checkValyriaBarrenEcology.mjs'
       - 'scripts/checkValyriaCastleWeathering.mjs'
@@ -117,7 +118,6 @@ jobs:
           test -f assets/models/fbx/desert_rocks.glb
           echo '[natural-geology-lfs-fallback] PASS'
 
-
   visual-proof:
     runs-on: ubuntu-24.04
     timeout-minutes: 24
@@ -139,14 +139,16 @@ jobs:
           node --check src/3d/world/terrainMicroSurface.js
           node --check src/3d/world/water.js
           node --check scripts/checkNaturalSurfaceMaterial.mjs
+          node --check scripts/checkValyriaSurfaceMorphologyAlignment.mjs
           node --check scripts/captureFullWorld3DTopdown.mjs
       - name: Install exact browser runtime
         run: |
           npm install --no-save playwright@1.55.0 three
           npx playwright install --with-deps chromium
-      - name: Deterministic material and live water contracts
+      - name: Deterministic material, morphology-alignment and live water contracts
         run: |
           node scripts/checkNaturalSurfaceMaterial.mjs
+          node scripts/checkValyriaSurfaceMorphologyAlignment.mjs
           node scripts/checkWaterVisualContract.js
       - name: Render full-world and Valyria regional proofs
         run: |
