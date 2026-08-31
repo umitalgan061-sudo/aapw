@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-31-v50-aerial-ecotone-depth',
+	id: 'geographic-reference-palette-2026-08-31-v51-aerial-lowland-separation',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,8 +20,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v50 follows exact-head full-world #556 inspection: ecological lowland families gain stronger aerial value separation, with deeper damp/moss recesses, darker live meadow, warmer heath/mineral exposure and restrained pale granite/quartz. This is bounded render-only calibration on top of deterministic world-space surface fabric; canonical terrain, shoreline, hydrology and colliders are unchanged',
-		water: 'v50 preserves restrained cyan and existing inland/offshore optical separation; canonical wet coverage, shoreline and hydrology are unchanged',
+		terrain: 'v51 follows exact-head full-world #562 inspection: broad lowlands still read too airbrushed at aerial scale, so damp/moss and live meadow values are separated further from dry heath/mineral exposure while pale granite/quartz are restrained. This is bounded render-only calibration on top of deterministic world-space surface fabric; canonical terrain, shoreline, hydrology and colliders are unchanged',
+		water: 'v51 preserves restrained cyan and existing inland/offshore optical separation; canonical wet coverage, shoreline and hydrology are unchanged',
 		road: 'compacted earth, wet ruts, pale mineral dust and cool stone shoulders remain materially distinct without a uniform painted-ribbon response',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
@@ -29,15 +29,15 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x05160e,
-		meadow: 0x104221,
-		dryHeather: 0x79502b,
-		wetEarth: 0x050d0b,
-		exposedEarth: 0xa65e34,
+		mossShadow: 0x04130c,
+		meadow: 0x0c3b1e,
+		dryHeather: 0x7f542d,
+		wetEarth: 0x040b09,
+		exposedEarth: 0xaa6338,
 		graniteShadow: 0x223239,
-		graniteSunlit: 0x6f6258,
+		graniteSunlit: 0x695d54,
 		basaltWet: 0x07171f,
-		quartz: 0x918578,
+		quartz: 0x8a7d71,
 	}),
 	road: Object.freeze({
 		compacted: 0x73513a,
