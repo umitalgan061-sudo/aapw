@@ -1,9 +1,7 @@
 name: Natural Geology Exact Head
 
 on:
-  push:
-    branches:
-      - codex/foundation-grounding-20260821
+  pull_request:
     paths:
       - 'src/3d/world/valyriaGeology.js'
       - 'src/3d/world/valyriaEcology.js'
@@ -12,6 +10,7 @@ on:
       - 'src/3d/world/terrain.js'
       - 'src/3d/world/naturalGeologyPlacement.js'
       - 'src/3d/world/naturalGeology.js'
+      - 'src/3d/world/naturalGeologySurfaceMaterial.js'
       - 'src/3d/sceneManager.js'
       - 'scripts/checkValyriaGeology.mjs'
       - 'scripts/checkValyriaVolcanicMorphology.mjs'
@@ -20,6 +19,30 @@ on:
       - 'scripts/checkValyriaCastleWeathering.mjs'
       - 'scripts/checkNaturalGeologyPlacement.mjs'
       - 'scripts/checkNaturalGeologySourceContract.mjs'
+      - 'scripts/checkNaturalGeologySurfacePbr.js'
+      - '.github/workflows/natural-geology-exact-head.yml'
+  push:
+    branches:
+      - codex/foundation-grounding-20260821
+      - codex/natural-geology-surface-pbr-20260831
+    paths:
+      - 'src/3d/world/valyriaGeology.js'
+      - 'src/3d/world/valyriaEcology.js'
+      - 'src/3d/world/valyriaCastleWeathering.js'
+      - 'src/3d/world/settlements.js'
+      - 'src/3d/world/terrain.js'
+      - 'src/3d/world/naturalGeologyPlacement.js'
+      - 'src/3d/world/naturalGeology.js'
+      - 'src/3d/world/naturalGeologySurfaceMaterial.js'
+      - 'src/3d/sceneManager.js'
+      - 'scripts/checkValyriaGeology.mjs'
+      - 'scripts/checkValyriaVolcanicMorphology.mjs'
+      - 'scripts/checkValyriaCanonicalTerrain.mjs'
+      - 'scripts/checkValyriaBarrenEcology.mjs'
+      - 'scripts/checkValyriaCastleWeathering.mjs'
+      - 'scripts/checkNaturalGeologyPlacement.mjs'
+      - 'scripts/checkNaturalGeologySourceContract.mjs'
+      - 'scripts/checkNaturalGeologySurfacePbr.js'
       - '.github/workflows/natural-geology-exact-head.yml'
   workflow_dispatch:
 
@@ -31,10 +54,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
-      - name: Checkout exact pushed head
+      - name: Checkout exact requested head
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
           lfs: false
       - uses: actions/setup-node@v4
@@ -43,7 +66,7 @@ jobs:
       - name: Verify exact head and syntax
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
           node --check src/3d/world/valyriaGeology.js
           node --check src/3d/world/valyriaEcology.js
           node --check src/3d/world/valyriaCastleWeathering.js
@@ -51,6 +74,7 @@ jobs:
           node --check src/3d/world/terrain.js
           node --check src/3d/world/naturalGeologyPlacement.js
           node --check src/3d/world/naturalGeology.js
+          node --check src/3d/world/naturalGeologySurfaceMaterial.js
           node --check src/3d/sceneManager.js
           node --check scripts/checkValyriaGeology.mjs
           node --check scripts/checkValyriaVolcanicMorphology.mjs
@@ -59,6 +83,7 @@ jobs:
           node --check scripts/checkValyriaCastleWeathering.mjs
           node --check scripts/checkNaturalGeologyPlacement.mjs
           node --check scripts/checkNaturalGeologySourceContract.mjs
+          node --check scripts/checkNaturalGeologySurfacePbr.js
       - name: Resolve vendored Three.js for canonical terrain imports
         run: node scripts/setupNodeThreeShim.mjs
       - name: Valyria geography authority
@@ -78,17 +103,24 @@ jobs:
 
   renderer-contract:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
-      - name: Checkout exact pushed head
+      - name: Checkout exact requested head
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
           lfs: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Verify exact head and renderer syntax
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          node --check src/3d/world/naturalGeology.js
+          node --check src/3d/world/naturalGeologySurfaceMaterial.js
+          node --check scripts/checkNaturalGeologySurfacePbr.js
       - name: Resolve vendored Three.js for Node imports
         run: node scripts/setupNodeThreeShim.mjs
       - name: Import render layer without hydrated LFS assets
@@ -96,7 +128,10 @@ jobs:
           set -euo pipefail
           node --input-type=module <<'NODE'
           const geology = await import('./src/3d/world/naturalGeology.js');
+          const surface = await import('./src/3d/world/naturalGeologySurfaceMaterial.js');
           if (!geology.NATURAL_GEOLOGY_RENDER_POLICY?.renderOnly) throw new Error('render-only contract lost');
+          if (!geology.NATURAL_GEOLOGY_RENDER_POLICY?.surfaceModeHydrationParity) throw new Error('surface-mode hydration parity lost');
+          if (!surface.NATURAL_GEOLOGY_SURFACE_POLICY?.worldSpaceRoughnessVariation) throw new Error('surface roughness variation lost');
           if (geology.NATURAL_GEOLOGY_RENDER_POLICY.referenceLandscapeRuntimeLoad !== false) throw new Error('heavy landscape became runtime load');
           const g = geology.createNaturalRockPrototypeGeometry('fractured-scarp');
           if (!g?.getAttribute?.('position')?.count) throw new Error('procedural fallback geometry missing');
@@ -109,3 +144,19 @@ jobs:
           test -f assets/models/fbx/rocky_terrain_low_poly.glb
           test -f assets/models/fbx/desert_rocks.glb
           echo '[natural-geology-lfs-fallback] PASS'
+      - name: Install Chromium dependency outside repository
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Compile and render geology PBR in WebGL
+        run: node scripts/checkNaturalGeologySurfacePbr.js
+      - name: Upload geology PBR render proof
+        uses: actions/upload-artifact@v4
+        with:
+          name: natural-geology-surface-pbr-${{ github.event.pull_request.head.sha || github.sha }}
+          path: artifacts/natural-geology-surface-pbr
+          if-no-files-found: error
+          retention-days: 7
