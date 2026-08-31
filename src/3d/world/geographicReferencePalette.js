@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-31-v60-offshore-fabric-readability',
+	id: 'geographic-reference-palette-2026-08-31-v61-offshore-fabric-contrast',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v60 preserves v56 aerial lowland ecotone separation and all canonical terrain, shoreline, hydrology and collider authority unchanged',
-		water: 'v60 follows direct inspection of the v59 exact-head full-world artifact after the deep-ocean backdrop gained deterministic multiscale fabric. The main offshore surface still compressed that existing fabric into a dark aerial mass, so deepSea and abyss receive a bounded luminance lift that exposes the already world-space albedo, pseudo-normal and variable-roughness response without changing wet coverage, shoreline, bathymetry or lake membership',
-		road: 'v60 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
+		terrain: 'v61 preserves v56 aerial lowland ecotone separation and all canonical terrain, shoreline, hydrology and collider authority unchanged',
+		water: 'v61 follows direct inspection of exact-head full-world #702. The v60 shader fabric is present but the north/open-ocean field still reads as a dark compressed mass at aerial scale. DeepSea is lifted moderately and abyss more strongly so the existing deterministic macro/meso/fine albedo, pseudo-normal, roughness and glint breakup survives top-down exposure without changing canonical wet coverage, shoreline, bathymetry, lake membership or water geometry.',
+		road: 'v61 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -51,8 +51,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		lakeClear: 0x2a6170,
 		riverPool: 0x246776,
 		rapid: 0x82a7aa,
-		deepSea: 0x1c5872,
-		abyss: 0x104052,
+		deepSea: 0x23657c,
+		abyss: 0x18576b,
 		plunge: 0x4d818b,
 		splash: 0xdeedeb,
 		foam: 0xf1f7f4,
