@@ -12,7 +12,7 @@ const LEFT_KEYS = new Set(['KeyA', 'ArrowLeft']);
 const RUN_KEYS = new Set(['ShiftLeft', 'ShiftRight']);
 const JUMP_KEYS = new Set(['Space']);
 const GUARD_KEYS = new Set(['KeyQ']);
-const LIGHT_ATTACK_KEYS = new Set(['KeyE']);
+const LIGHT_ATTACK_KEYS = new Set(['KeyC']);
 const HEAVY_ATTACK_KEYS = new Set(['KeyR']);
 const LOCK_ON_KEYS = new Set(['Tab']);
 const GUARD_POINTER_BUTTON = 2;
@@ -164,8 +164,8 @@ export class KeyboardInput {
 			const firstPress = !this._keys.has(event.code);
 			if (JUMP_KEYS.has(event.code) && firstPress) this._jumpRequested = true;
 			if (firstPress && LOCK_ON_KEYS.has(event.code) && !isInteractiveTarget(event.target)) { this._lockOnRequested = true; event.preventDefault?.(); }
-			if (firstPress && LIGHT_ATTACK_KEYS.has(event.code)) emitPlayerCombatIntent('light', 'keyboard');
-			if (firstPress && HEAVY_ATTACK_KEYS.has(event.code)) emitPlayerCombatIntent('heavy', 'keyboard');
+			if (firstPress && LIGHT_ATTACK_KEYS.has(event.code) && !isInteractiveTarget(event.target)) emitPlayerCombatIntent('light', 'keyboard');
+			if (firstPress && HEAVY_ATTACK_KEYS.has(event.code) && !isInteractiveTarget(event.target)) emitPlayerCombatIntent('heavy', 'keyboard');
 			this._keys.add(event.code);
 		};
 		this._onKeyUp = (event) => this._keys.delete(event.code);
