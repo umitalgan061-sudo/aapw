@@ -71,6 +71,12 @@ requireFragments(controlsHelp, 'desktop combat and interaction help', [
   "['R', 'Ağır saldırı']",
   "['E', 'Yakındaki kişiyle konuş']",
 ]);
+requireFragments(controlsHelp, 'touch combat help', [
+  "['Savun', 'Savunmayı basılı tut']",
+  "['Hedef', 'Yakındaki hedefe kilitlen veya kilidi kaldır']",
+  "['Hafif', 'Hafif saldırı']",
+  "['Ağır', 'Ağır saldırı']",
+]);
 requireFragments(touch, 'mobile/PWA input parity', [
   "className = 'g3d-touch-lock-on-button'",
   "className = 'g3d-touch-light-attack-button'",
@@ -102,6 +108,7 @@ console.log(JSON.stringify({
   chain: ['asset+animation', 'spawn+ground+collider', 'input', 'movement+stamina+poise', 'dodge+guard+parry', 'melee-combo', 'lock-on', 'damage+feedback'],
   inputs: ['keyboard:C-light/R-heavy/E-interaction', 'mouse', 'gamepad', 'touch/PWA'],
   desktopHelp: ['C / Sol tık = Hafif saldırı', 'R = Ağır saldırı', 'E = Yakındaki kişiyle konuş'],
+  touchHelp: ['Savun', 'Hedef', 'Hafif', 'Ağır'],
   sharedMaterialPlacement: true,
   newAsset: false,
 }, null, 2));
