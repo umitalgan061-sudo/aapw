@@ -32,7 +32,7 @@ export const WAVE_TOTAL_AMPLITUDE_METERS = SWELL_COMPONENTS.reduce((sum, [, ampl
 export const WATER_OFFSHORE_OPTICAL_GAIN = 0.82;
 
 export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
-	id: 'water-world-surface-variation-2026-08-27-v3-readable-current-shear',
+	id: 'water-world-surface-variation-2026-08-31-v4-backdrop-multiscale',
 	renderOnly: true,
 	canonicalDepthUnchanged: true,
 	canonicalCoverageUnchanged: true,
@@ -44,10 +44,16 @@ export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	deepColorVariationMax: 0.13,
 	roughnessMin: 0.20,
 	roughnessMax: 0.72,
+	backdropMacroScaleMeters: 6200,
+	backdropMesoScaleMeters: 2300,
+	backdropFineScaleMeters: 740,
+	backdropRoughnessMin: 0.30,
+	backdropRoughnessMax: 0.68,
 	shoreBreakerRevision: 'v1-bathymetry-directed-irregular-lace',
 	shoreGradientStepMeters: 68,
 	directionalBreakers: true,
 	nonPeriodicFoamBreakup: true,
+	worldSpaceDeepBackdrop: true,
 });
 
 const WATER_VERTEX_SHADER = /* glsl */ `
@@ -319,6 +325,69 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	}
 `;
 
+const DEEP_OCEAN_BACKDROP_VERTEX_SHADER = /* glsl */ `
+	varying vec3 vBackdropWorldPosition;
+	#include <fog_pars_vertex>
+	void main() {
+		vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+		vBackdropWorldPosition = worldPosition.xyz;
+		vec4 mvPosition = viewMatrix * worldPosition;
+		gl_Position = projectionMatrix * mvPosition;
+		#include <fog_vertex>
+	}
+`;
+
+const DEEP_OCEAN_BACKDROP_FRAGMENT_SHADER = /* glsl */ `
+	uniform vec3 uBackdropColor;
+	uniform vec3 uSunDirection;
+	uniform vec3 uSunColor;
+	uniform float uSunIntensity;
+	uniform float uNightFactor;
+	uniform vec3 uCameraPosition;
+	varying vec3 vBackdropWorldPosition;
+	#include <fog_pars_fragment>
+	float backdropHash(vec2 p) {
+		p = fract(p * vec2(0.1031, 0.1030));
+		p += dot(p, p.yx + 33.33);
+		return fract((p.x + p.y) * p.x);
+	}
+	float backdropNoise(vec2 p) {
+		vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+		float a = backdropHash(i); float b = backdropHash(i + vec2(1.0, 0.0));
+		float c = backdropHash(i + vec2(0.0, 1.0)); float d = backdropHash(i + vec2(1.0, 1.0));
+		return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+	}
+	void main() {
+		vec2 worldXZ = vBackdropWorldPosition.xz;
+		float warpA = backdropNoise(worldXZ / 7200.0 + vec2(3.7, -8.1));
+		float warpB = backdropNoise(worldXZ / 5100.0 + vec2(-9.4, 2.6));
+		vec2 warp = vec2(warpA - 0.5, warpB - 0.5) * 980.0;
+		float macro = backdropNoise((worldXZ + warp) / ${WATER_SURFACE_VARIATION_POLICY.backdropMacroScaleMeters.toFixed(1)});
+		float meso = backdropNoise((worldXZ * mat2(0.82, -0.57, 0.57, 0.82) - warp * 0.22) / ${WATER_SURFACE_VARIATION_POLICY.backdropMesoScaleMeters.toFixed(1)} + vec2(11.8, -6.2));
+		float fine = backdropNoise((worldXZ * mat2(0.53, 0.85, -0.85, 0.53) + warp * 0.09) / ${WATER_SURFACE_VARIATION_POLICY.backdropFineScaleMeters.toFixed(1)} + vec2(-4.7, 14.3));
+		float streak = backdropNoise(vec2((worldXZ.x * 0.74 + worldXZ.y * 0.67) / 1450.0, (worldXZ.y * 0.74 - worldXZ.x * 0.67) / 430.0) + vec2(warpA, warpB));
+		float fabric = clamp((macro - 0.5) * 0.86 + (meso - 0.5) * 0.58 + (fine - 0.5) * 0.30 + (streak - 0.5) * 0.20, -1.0, 1.0);
+		float tone = clamp(0.5 + fabric * 0.58, 0.0, 1.0);
+		vec3 bodyColor = mix(uBackdropColor * vec3(0.78, 0.88, 0.96), uBackdropColor * vec3(1.24, 1.18, 1.10) + vec3(0.004, 0.012, 0.016), tone);
+		float slopeWarp = sin(dot(worldXZ, vec2(0.0017, -0.0012)) + fabric * 1.4);
+		vec2 slope = vec2(
+			sin(dot(worldXZ, vec2(0.0069, 0.0031)) + slopeWarp * 0.72) + sin(dot(worldXZ, vec2(-0.0038, 0.0081)) - slopeWarp * 0.42) * 0.55,
+			sin(dot(worldXZ, vec2(0.0027, -0.0062)) - slopeWarp * 0.61) + sin(dot(worldXZ, vec2(0.0088, -0.0045)) + slopeWarp * 0.31) * 0.44
+		) * 0.012;
+		vec3 normal = normalize(vec3(-slope.x, 1.0, -slope.y));
+		vec3 viewDir = normalize(uCameraPosition - vBackdropWorldPosition);
+		vec3 halfVector = normalize(uSunDirection + viewDir);
+		float roughnessDriver = clamp(0.50 + (meso - 0.5) * 0.54 + (fine - 0.5) * 0.62 + (streak - 0.5) * 0.34, 0.0, 1.0);
+		float roughness = mix(${WATER_SURFACE_VARIATION_POLICY.backdropRoughnessMin.toFixed(2)}, ${WATER_SURFACE_VARIATION_POLICY.backdropRoughnessMax.toFixed(2)}, roughnessDriver);
+		float specular = pow(clamp(dot(normal, halfVector), 0.0, 1.0), mix(76.0, 18.0, roughness));
+		float fresnel = 0.02 + 0.98 * pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 5.0);
+		bodyColor += uSunColor * specular * fresnel * (0.035 + clamp(uSunIntensity, 0.0, 1.6) * 0.065);
+		bodyColor = mix(bodyColor, bodyColor * 0.58 + vec3(0.004, 0.014, 0.026), clamp(uNightFactor, 0.0, 1.0) * 0.38);
+		gl_FragColor = vec4(bodyColor, 1.0);
+		#include <fog_fragment>
+	}
+`;
+
 const WATER_PLANE_EXTENT_METERS = 4000;
 export const WATER_FULL_WORLD_EXTENT_METERS = 17000;
 export const WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS = 28000;
@@ -399,6 +468,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		offshoreOpticalGain: WATER_OFFSHORE_OPTICAL_GAIN,
 		celestialSpecular: true,
 		deepMarineSurfaceVariation: WATER_SURFACE_VARIATION_POLICY.id,
+		deepOceanBackdropVariation: WATER_SURFACE_VARIATION_POLICY.id,
 		variableRoughness: true,
 		referencePalettePolicyId: GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id,
 		enclosedLakeBedReadable: true,
@@ -426,8 +496,20 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		1,
 	);
 	deepOceanGeometry.rotateX(-Math.PI / 2);
-	const deepOceanMaterial = new THREE.MeshBasicMaterial({
-		color: DEFAULT_DEEP_OCEAN_BACKDROP_COLOR,
+	const deepOceanMaterial = new THREE.ShaderMaterial({
+		vertexShader: DEEP_OCEAN_BACKDROP_VERTEX_SHADER,
+		fragmentShader: DEEP_OCEAN_BACKDROP_FRAGMENT_SHADER,
+		uniforms: THREE.UniformsUtils.merge([
+			THREE.UniformsLib.fog,
+			{
+				uBackdropColor: { value: DEFAULT_DEEP_OCEAN_BACKDROP_COLOR },
+				uSunDirection: { value: DEFAULT_SUN_DIRECTION },
+				uSunColor: { value: DEFAULT_SUN_COLOR },
+				uSunIntensity: { value: 1 },
+				uNightFactor: { value: 0 },
+				uCameraPosition: { value: new THREE.Vector3() },
+			},
+		]),
 		fog: true,
 		depthTest: true,
 		depthWrite: true,
@@ -472,6 +554,14 @@ export function updateWater(waterMesh, cameraPosition, elapsedSeconds) {
 		uniforms.uSunColor.value.setRGB(celestial.color.r, celestial.color.g, celestial.color.b);
 		uniforms.uSunIntensity.value = celestial.intensity;
 		uniforms.uNightFactor.value = celestial.nightFactor;
+	}
+	const backdropUniforms = waterMesh.userData.deepOceanBackdrop?.material?.uniforms;
+	if (backdropUniforms) {
+		backdropUniforms.uCameraPosition.value.copy(cameraPosition);
+		backdropUniforms.uSunDirection.value.set(celestial.direction.x, celestial.direction.y, celestial.direction.z);
+		backdropUniforms.uSunColor.value.setRGB(celestial.color.r, celestial.color.g, celestial.color.b);
+		backdropUniforms.uSunIntensity.value = celestial.intensity;
+		backdropUniforms.uNightFactor.value = celestial.nightFactor;
 	}
 }
 
