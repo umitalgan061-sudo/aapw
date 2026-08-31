@@ -14,9 +14,17 @@ try {
   await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
   const proof = await page.evaluate(async () => {
-    const { spawnConfiguredCreatures } = await import('/src/3d/gameplay/creatureBrain.js');
+    const { createCreatureBeing, spawnConfiguredCreatures } = await import('/src/3d/gameplay/creatureBrain.js');
     const { scatterCreatures } = await import('/src/3d/gameplay/creatureSpawner.js');
     const { mulberry32 } = await import('/src/3d/world/terrain.js');
+
+    const snapshot = (controller) => ({
+      x: controller.object3D.position.x,
+      y: controller.object3D.position.y,
+      z: controller.object3D.position.z,
+      finite: [controller.object3D.position.x, controller.object3D.position.y, controller.object3D.position.z].every(Number.isFinite),
+      reacting: controller.isFleeing,
+    });
 
     const configuredGroundSamples = [];
     const configuredGroundCollider = {
@@ -43,10 +51,7 @@ try {
     });
     const configuredSnapshot = configured.map((controller) => ({
       name: controller.object3D.name,
-      x: controller.object3D.position.x,
-      y: controller.object3D.position.y,
-      z: controller.object3D.position.z,
-      finite: [controller.object3D.position.x, controller.object3D.position.y, controller.object3D.position.z].every(Number.isFinite),
+      ...snapshot(controller),
     }));
     for (const controller of configured) controller.dispose();
 
@@ -105,6 +110,122 @@ try {
       speciesCounts: { domuz: 1 },
     });
 
+    let groundMode = 'collider-throw';
+    const movementCollider = {
+      resolveXZ(x, z) {
+        if (groundMode === 'collider-throw') throw new Error('synthetic creature collider failure');
+        if (groundMode === 'collider-nonfinite') return { x: Number.NaN, z };
+        return { x, z };
+      },
+    };
+    const movementGround = {
+      getGroundHeight() {
+        if (groundMode === 'ground-throw') throw new Error('synthetic creature ground failure');
+        if (groundMode === 'ground-nonfinite') return Number.POSITIVE_INFINITY;
+        return 5;
+      },
+    };
+    const groundBeing = createCreatureBeing({
+      speciesId: 'kedi',
+      spawnId: 'movement-ground-safety',
+      worldX: 0,
+      worldZ: 0,
+      groundY: 5,
+      groundCollider: movementGround,
+      playerCollider: movementCollider,
+      mulberry32,
+    });
+    const groundStart = snapshot(groundBeing);
+    const groundFailures = [];
+    for (const mode of ['collider-throw', 'collider-nonfinite', 'ground-throw', 'ground-nonfinite']) {
+      groundMode = mode;
+      groundBeing.update(0.1, { x: 1, z: 0 });
+      groundFailures.push({ mode, ...snapshot(groundBeing) });
+    }
+    groundMode = 'ok';
+    groundBeing.update(0.1, { x: 1, z: 0 });
+    const groundRecovered = snapshot(groundBeing);
+    groundBeing.dispose();
+
+    let flightMode = 'throw';
+    let airbornePlayerColliderCalls = 0;
+    const faultFlightGround = {
+      getGroundHeight() {
+        if (flightMode === 'throw') throw new Error('synthetic flight terrain failure');
+        if (flightMode === 'nonfinite') return Number.NaN;
+        return 5;
+      },
+    };
+    const controlFlightGround = { getGroundHeight: () => 5 };
+    const forbiddenAirborneCollider = {
+      resolveXZ(x, z) {
+        airbornePlayerColliderCalls += 1;
+        return { x, z };
+      },
+    };
+    const makeBird = (spawnId, groundCollider, playerCollider = null) => createCreatureBeing({
+      speciesId: 'tavuk',
+      spawnId,
+      worldX: 0,
+      worldZ: 0,
+      groundY: 5,
+      groundCollider,
+      playerCollider,
+      mulberry32,
+    });
+    const faultBird = makeBird('movement-flight-fault', faultFlightGround, forbiddenAirborneCollider);
+    const controlBird = makeBird('movement-flight-control', controlFlightGround);
+    const flightStart = snapshot(faultBird);
+    const player = { x: 1, z: 0 };
+
+    faultBird.update(0.1, player);
+    const failedTakeoffThrow = snapshot(faultBird);
+    flightMode = 'nonfinite';
+    faultBird.update(0.1, player);
+    const failedTakeoffNonFinite = snapshot(faultBird);
+
+    flightMode = 'ok';
+    faultBird.update(0.1, player);
+    controlBird.update(0.1, player);
+    const recoveredTakeoffFault = snapshot(faultBird);
+    const recoveredTakeoffControl = snapshot(controlBird);
+
+    flightMode = 'throw';
+    const beforeAirborneFailure = snapshot(faultBird);
+    faultBird.update(0.1, player);
+    const afterAirborneFailure = snapshot(faultBird);
+    flightMode = 'ok';
+    faultBird.update(0.1, player);
+    controlBird.update(0.1, player);
+    const recoveredAirborneFault = snapshot(faultBird);
+    const recoveredAirborneControl = snapshot(controlBird);
+
+    let previousY = faultBird.object3D.position.y;
+    let landingObserved = false;
+    let landingFailureStable = null;
+    let landingRecoveryMatches = null;
+    for (let i = 0; i < 80 && !landingObserved; i += 1) {
+      faultBird.update(0.1, player);
+      controlBird.update(0.1, player);
+      const currentY = faultBird.object3D.position.y;
+      if (currentY < previousY - 1e-9) {
+        landingObserved = true;
+        const before = snapshot(faultBird);
+        flightMode = 'throw';
+        faultBird.update(0.1, player);
+        const after = snapshot(faultBird);
+        landingFailureStable = JSON.stringify(before) === JSON.stringify(after);
+        flightMode = 'ok';
+        faultBird.update(0.1, player);
+        controlBird.update(0.1, player);
+        landingRecoveryMatches = JSON.stringify(snapshot(faultBird)) === JSON.stringify(snapshot(controlBird));
+      }
+      previousY = currentY;
+    }
+
+    faultBird.dispose();
+    controlBird.dispose();
+
     const livingWorldSource = await fetch('/src/3d/gameplay/livingWorldSpawner.js').then((response) => response.text());
     return {
       configuredSnapshot,
@@ -115,6 +236,22 @@ try {
       unavailableScatterCount: unavailableScatter.length,
       nonFiniteCenterHeightCalls,
       nonFiniteCenterScatterCount: nonFiniteCenterScatter.length,
+      groundStart,
+      groundFailures,
+      groundRecovered,
+      flightStart,
+      failedTakeoffThrow,
+      failedTakeoffNonFinite,
+      recoveredTakeoffFault,
+      recoveredTakeoffControl,
+      beforeAirborneFailure,
+      afterAirborneFailure,
+      recoveredAirborneFault,
+      recoveredAirborneControl,
+      landingObserved,
+      landingFailureStable,
+      landingRecoveryMatches,
+      airbornePlayerColliderCalls,
       usesIdStableMapping: livingWorldSource.includes('creatureSpawnById.get(creature.object3D.name)'),
       usesShiftProneIndexMapping: livingWorldSource.includes('creatureSpawns[index]?.speciesId'),
     };
@@ -136,6 +273,31 @@ try {
   assert.equal(proof.allThrowHeightCalls, 10, 'one creature with permanently unavailable terrain must stay bounded to 10 attempts');
   assert.equal(proof.nonFiniteCenterScatterCount, 0, 'non-finite scatter centers must fail closed');
   assert.equal(proof.nonFiniteCenterHeightCalls, 0, 'non-finite scatter coordinates must be rejected before terrain sampling');
+
+  for (const failed of proof.groundFailures) {
+    assert.deepEqual(
+      { x: failed.x, y: failed.y, z: failed.z, finite: failed.finite },
+      { x: proof.groundStart.x, y: proof.groundStart.y, z: proof.groundStart.z, finite: true },
+      `ground ${failed.mode} must leave the complete transform unchanged`,
+    );
+    assert.equal(failed.reacting, true, `ground ${failed.mode} must preserve the live reaction state for retry`);
+  }
+  assert.equal(proof.groundRecovered.finite, true, 'ground movement must recover to a finite transform');
+  assert.notDeepEqual(
+    { x: proof.groundRecovered.x, z: proof.groundRecovered.z },
+    { x: proof.groundStart.x, z: proof.groundStart.z },
+    'a later valid ground tick must retry and move rather than permanently latching failure',
+  );
+
+  assert.deepEqual(proof.failedTakeoffThrow, proof.flightStart, 'throwing takeoff terrain must not partially move or advance flight state');
+  assert.deepEqual(proof.failedTakeoffNonFinite, proof.flightStart, 'non-finite takeoff terrain must not partially move or advance flight state');
+  assert.deepEqual(proof.recoveredTakeoffFault, proof.recoveredTakeoffControl, 'takeoff after failed terrain ticks must match a clean deterministic controller');
+  assert.deepEqual(proof.afterAirborneFailure, proof.beforeAirborneFailure, 'airborne terrain failure must freeze the entire transform for that tick');
+  assert.deepEqual(proof.recoveredAirborneFault, proof.recoveredAirborneControl, 'failed airborne tick must not advance hidden flight timer/altitude state');
+  assert.equal(proof.landingObserved, true, 'flight proof must reach the real landing phase');
+  assert.equal(proof.landingFailureStable, true, 'landing terrain failure must not partially descend or publish a new transform');
+  assert.equal(proof.landingRecoveryMatches, true, 'landing must resume deterministically after terrain recovery');
+  assert.equal(proof.airbornePlayerColliderCalls, 0, 'airborne flight must continue to bypass the ground/player collider');
 
   assert.equal(proof.usesIdStableMapping, true, 'living-world ecology wrapping must resolve filtered controllers by object spawn id');
   assert.equal(proof.usesShiftProneIndexMapping, false, 'filtered controllers must not inherit species metadata from a shifted spawn-array index');
