@@ -231,6 +231,9 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float clearCoastMask = clearShallowBand * smoothstep(0.08, 0.74, offshoreOptical);
 		float offshoreGain = offshoreOptical * (1.0 - fragmentDepth) * ${WATER_OFFSHORE_OPTICAL_GAIN.toFixed(2)};
 		float deepMarineMask = smoothstep(0.54, 0.96, fragmentDepth) * smoothstep(0.42, 0.94, offshoreOptical);
+		float aerialOffshoreMask = smoothstep(0.24, 0.82, offshoreOptical) * smoothstep(0.035, 0.22, fragmentDepth);
+		float aerialMarineMask = max(deepMarineMask, aerialOffshoreMask);
+		float shallowOffshoreFabricMask = clamp(aerialMarineMask - deepMarineMask, 0.0, 1.0);
 		float oceanFabric = openOceanSurfaceFabric(vWorldPosition.xz);
 		float oceanShear = openOceanCurrentShear(vWorldPosition.xz, uTime);
 
@@ -240,6 +243,8 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float microSlopeFade = mix(0.28, 1.0, 1.0 - smoothstep(420.0, 2200.0, cameraDistance));
 		vec2 slope = vSwellSlope * swellShadingFade + rippleSlope(vWorldPosition.xz, uTime) * rippleFade;
 		slope += openOceanMicroSlope(vWorldPosition.xz, uTime, oceanShear) * microSlopeFade * deepMarineMask;
+		slope += openOceanMicroSlope(vWorldPosition.xz + vec2(173.0, -91.0), uTime * 0.67, -oceanShear)
+			* microSlopeFade * shallowOffshoreFabricMask * 0.58;
 		vec3 normal = normalize(vec3(-slope.x, 1.0, -slope.y));
 		vec3 viewDir = normalize(uCameraPosition - vWorldPosition);
 
@@ -264,6 +269,11 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float currentMix = clamp(0.5 + oceanFabric * 0.26 + oceanShear * 0.34, 0.0, 1.0);
 		vec3 currentTint = mix(vec3(0.018, 0.043, 0.066), vec3(0.060, 0.125, 0.148), currentMix);
 		bodyColor = mix(bodyColor, currentTint, (abs(oceanFabric) * 0.075 + abs(oceanShear) * 0.095) * deepMarineMask);
+		float aerialOffshoreVariation = clamp(oceanFabric * 0.052 + oceanShear * 0.039,
+			-${WATER_SURFACE_VARIATION_POLICY.deepColorVariationMax.toFixed(3)}, ${WATER_SURFACE_VARIATION_POLICY.deepColorVariationMax.toFixed(3)});
+		bodyColor *= 1.0 + aerialOffshoreVariation * shallowOffshoreFabricMask;
+		bodyColor = mix(bodyColor, currentTint,
+			(abs(oceanFabric) * 0.052 + abs(oceanShear) * 0.064) * shallowOffshoreFabricMask);
 		vec3 nightAbsorption = vec3(0.010, 0.030, 0.052);
 		bodyColor = mix(bodyColor, bodyColor * 0.62 + nightAbsorption, clamp(uNightFactor, 0.0, 1.0) * 0.34);
 
@@ -275,12 +285,15 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float roughnessDriver = clamp(0.50 + oceanFabric * 0.24 + oceanShear * 0.28 + (localSlopeEnergy - 0.5) * 0.22, 0.0, 1.0);
 		float waterRoughness = mix(${WATER_SURFACE_VARIATION_POLICY.roughnessMin.toFixed(2)}, ${WATER_SURFACE_VARIATION_POLICY.roughnessMax.toFixed(2)}, roughnessDriver);
 		waterRoughness = mix(0.36, waterRoughness, deepMarineMask);
+		waterRoughness = mix(waterRoughness, clamp(0.20 + roughnessDriver * 0.28, 0.16, 0.48),
+			shallowOffshoreFabricMask * 0.72);
 		float specularPower = mix(132.0, 28.0, waterRoughness);
 		float specular = pow(clamp(dot(normal, halfVector), 0.0, 1.0), specularPower);
 		float specularFresnel = 0.02 + 0.98 * pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 5.0);
 		float broadGlint = pow(clamp(dot(normal, halfVector), 0.0, 1.0), mix(48.0, 10.0, waterRoughness));
 		float glintField = clamp(0.5 + oceanFabric * 0.31 + oceanShear * 0.42, 0.0, 1.0);
 		float glintBreakup = smoothstep(0.18, 0.82, glintField) * deepMarineMask;
+		glintBreakup = max(glintBreakup, smoothstep(0.34, 0.78, glintField) * shallowOffshoreFabricMask * 0.62);
 		vec3 celestialSpecular = uSunColor * (specular + broadGlint * glintBreakup * 0.16) * specularFresnel * (0.12 + clamp(uSunIntensity, 0.0, 1.6) * 0.34);
 
 		float surfA = sin(dot(vWorldPosition.xz, vec2(0.018, -0.013)) + uTime * 0.55);
@@ -399,6 +412,8 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		offshoreOpticalGain: WATER_OFFSHORE_OPTICAL_GAIN,
 		celestialSpecular: true,
 		deepMarineSurfaceVariation: WATER_SURFACE_VARIATION_POLICY.id,
+		aerialOffshoreSurfaceVariation: true,
+		physicalDepthAuthorityUnchanged: true,
 		variableRoughness: true,
 		referencePalettePolicyId: GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id,
 		enclosedLakeBedReadable: true,

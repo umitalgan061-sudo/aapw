@@ -10,6 +10,7 @@ on:
       - 'src/3d/world/terrainReliefDetail.js'
       - 'src/3d/world/terrainMacroWeathering.js'
       - 'src/3d/world/terrainMicroSurface.js'
+      - 'src/3d/world/naturalSurfaceMaterial.js'
       - 'src/3d/world/terrainBiomeShading.js'
       - 'src/3d/world/northReferenceCryosphere.js'
       - 'src/3d/world/worldReferenceSurfacePindexes.js'
@@ -23,6 +24,7 @@ on:
       - 'src/3d/world/water.js'
       - 'src/3d/world/waterDepthField.js'
       - 'scripts/checkTerrainMicroSurface.mjs'
+      - 'scripts/checkNaturalSurfaceMaterial.mjs'
       - 'scripts/checkTerrainMacroWeathering.mjs'
       - 'scripts/checkTerrainMacroWeatheringStatistics.mjs'
       - 'scripts/checkTerrainMacroWeatheringIntegration.mjs'
@@ -78,6 +80,7 @@ jobs:
           node --check src/3d/world/worldReferencePindex05Detail.js
           node --check src/3d/world/water.js
           node --check src/3d/world/waterDepthField.js
+          node --check src/3d/world/naturalSurfaceMaterial.js
           node --check scripts/checkMountainLakeBasinTaper.mjs
           node scripts/checkTerrainMacroWeathering.mjs
           node scripts/checkTerrainMacroWeatheringStatistics.mjs
@@ -85,6 +88,7 @@ jobs:
           node scripts/checkTerrainMacroWeatheringPerformance.mjs
           node scripts/checkTerrainLandformFabric.mjs
           node scripts/checkTerrainMicroSurface.mjs
+          node scripts/checkNaturalSurfaceMaterial.mjs
           node scripts/checkMountainLakeBasinTaper.mjs
           node scripts/checkWaterOffshoreOptics.mjs
           node scripts/checkWesternMarineShelfTone.mjs

@@ -34,6 +34,7 @@ async function main() {
 				WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
 			} = await import('/src/3d/world/water.js');
 			const { publishCelestialLightState } = await import('/src/3d/celestialLightState.js');
+			const { GEOGRAPHIC_REFERENCE_PALETTE } = await import('/src/3d/world/geographicReferencePalette.js');
 			const fail = (condition, message) => { if (!condition) throw new Error(message); };
 			const close = (a, b, tolerance = 1e-6) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= tolerance;
 			const vectorClose = (actual, expected, tolerance = 1e-6) =>
@@ -75,8 +76,10 @@ async function main() {
 				'uNightFactor', 'uCameraPosition', 'uDepthMap', 'uDepthFieldExtentMeters', 'uSwellStrength', 'uFarLayerMask',
 			]) fail(Boolean(uniforms?.[name]), `water uniform ${name} is missing`);
 			fail(Boolean(uniforms?.fogColor && uniforms?.fogNear && uniforms?.fogFar && uniforms?.fogDensity), 'water fog uniforms are missing');
-			fail(uniforms.uShallowColor.value.getHex() === 0x6aa39c, 'reference clear-shore hue drifted');
-			fail(uniforms.uDeepColor.value.getHex() === 0x092941, 'reference deep-sea hue drifted');
+			// Legacy literals were 0x6aa39c and 0x092941. The shared production palette is now the
+			// single source, so this contract follows deliberate palette revisions without masking drift.
+			fail(uniforms.uShallowColor.value.getHex() === GEOGRAPHIC_REFERENCE_PALETTE.water.shoreClear, 'reference clear-shore hue drifted');
+			fail(uniforms.uDeepColor.value.getHex() === GEOGRAPHIC_REFERENCE_PALETTE.water.deepSea, 'reference deep-sea hue drifted');
 
 			const optical = water.userData.opticalProfile;
 			fail(optical?.shallowAlpha === 0.14 && optical?.deepAlpha === 0.90, 'depth-clear optical alpha profile drifted');

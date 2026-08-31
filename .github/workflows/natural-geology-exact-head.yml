@@ -6,6 +6,9 @@ on:
       - codex/foundation-grounding-20260821
     paths:
       - 'src/3d/world/valyriaGeology.js'
+      - 'src/3d/world/naturalSurfaceMaterial.js'
+      - 'src/3d/world/terrainMicroSurface.js'
+      - 'src/3d/world/water.js'
       - 'src/3d/world/valyriaEcology.js'
       - 'src/3d/world/valyriaCastleWeathering.js'
       - 'src/3d/world/settlements.js'
@@ -20,6 +23,10 @@ on:
       - 'scripts/checkValyriaCastleWeathering.mjs'
       - 'scripts/checkNaturalGeologyPlacement.mjs'
       - 'scripts/checkNaturalGeologySourceContract.mjs'
+      - 'scripts/checkNaturalSurfaceMaterial.mjs'
+      - 'scripts/checkWaterVisualContract.js'
+      - 'scripts/captureFullWorld3DTopdown.mjs'
+      - 'scripts/fullWorld3DTopdownHarness.html'
       - '.github/workflows/natural-geology-exact-head.yml'
   workflow_dispatch:
 
@@ -109,3 +116,59 @@ jobs:
           test -f assets/models/fbx/rocky_terrain_low_poly.glb
           test -f assets/models/fbx/desert_rocks.glb
           echo '[natural-geology-lfs-fallback] PASS'
+
+
+  visual-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    steps:
+      - name: Checkout exact pushed head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify exact head and render-only material contracts
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          node --check src/3d/world/naturalSurfaceMaterial.js
+          node --check src/3d/world/terrainMicroSurface.js
+          node --check src/3d/world/water.js
+          node --check scripts/checkNaturalSurfaceMaterial.mjs
+          node --check scripts/captureFullWorld3DTopdown.mjs
+      - name: Install exact browser runtime
+        run: |
+          npm install --no-save playwright@1.55.0 three
+          npx playwright install --with-deps chromium
+      - name: Deterministic material and live water contracts
+        run: |
+          node scripts/checkNaturalSurfaceMaterial.mjs
+          node scripts/checkWaterVisualContract.js
+      - name: Render full-world and Valyria regional proofs
+        run: |
+          node scripts/captureFullWorld3DTopdown.mjs \
+            --width=1600 --height=1100 --segments=240 \
+            --focus=world \
+            --output=artifacts/natural-geology-exact-head/full-world.png
+          node scripts/captureFullWorld3DTopdown.mjs \
+            --width=1600 --height=1100 --segments=240 \
+            --focus=valyria \
+            --port=4174 \
+            --output=artifacts/natural-geology-exact-head/valyria-regional.png
+      - name: Record exact head
+        if: always()
+        run: |
+          mkdir -p artifacts/natural-geology-exact-head
+          printf '%s\n' "$GITHUB_SHA" > artifacts/natural-geology-exact-head/head-sha.txt
+      - name: Upload exact-head geography render evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: natural-geology-visual-proof-${{ github.sha }}
+          path: artifacts/natural-geology-exact-head/
+          if-no-files-found: warn
+          retention-days: 7

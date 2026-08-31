@@ -16,6 +16,7 @@ function parseArgs(argv) {
 		height: 1100,
 		segments: 240,
 		port: 4173,
+		focus: 'world',
 	};
 	for (const token of argv) {
 		const [key, value] = token.split('=', 2);
@@ -24,6 +25,7 @@ function parseArgs(argv) {
 		else if (key === '--height') args.height = Number(value);
 		else if (key === '--segments') args.segments = Number(value);
 		else if (key === '--port') args.port = Number(value);
+		else if (key === '--focus') args.focus = value === 'valyria' ? 'valyria' : 'world';
 	}
 	return args;
 }
@@ -76,7 +78,7 @@ async function main() {
 		page.on('console', (message) => {
 			if (message.type() === 'error') pageErrors.push(`console: ${message.text()}`);
 		});
-		const url = `${harnessUrl}?width=${args.width}&height=${args.height}&segments=${args.segments}`;
+		const url = `${harnessUrl}?width=${args.width}&height=${args.height}&segments=${args.segments}&focus=${args.focus}`;
 		await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
 		await page.waitForFunction(
 			() => window.__FULL_WORLD_3D_TOPDOWN__?.status === 'ready',
@@ -90,6 +92,7 @@ async function main() {
 		await fs.writeFile(jsonPath, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
 
 		assert.equal(summary.camera.type, 'OrthographicCamera');
+		assert.equal(summary.focus, args.focus, 'requested regional focus drifted');
 		assert.equal(summary.camera.verticalExaggeration, 1, 'QA must render production vertical scale');
 		assert(summary.vertexCount > 20000, 'full-world terrain mesh is unexpectedly coarse');
 		assert(summary.maxHeightMeters - summary.minHeightMeters > 400, 'major mountain relief is not visible in sampled height range');
@@ -116,6 +119,12 @@ async function main() {
 			'full-world proof must include coastal material roughness response');
 		assert.equal(summary.terrainSurfaceRealism?.uvChannel, 1,
 			'full-world proof must use production metre-space uv1 for terrain PBR detail');
+		assert.equal(summary.terrainSurfaceRealism?.valyriaWorldSpacePbr, true,
+			'proof must compile the Valyria world-space albedo/normal/roughness layer');
+		assert.equal(summary.terrainSurfaceRealism?.canonicalHeightUnchanged, true,
+			'visual material proof must remain canonical-height neutral');
+		assert.equal(summary.terrainSurfaceRealism?.canonicalHydrologyUnchanged, true,
+			'visual material proof must remain canonical-hydrology neutral');
 		assert(summary.waterDepthField.meanWetCoverage > 0.35, 'production water coverage is unexpectedly sparse');
 		assert(summary.waterDepthField.mixedCoastTexelRatio > 0, 'coastline anti-alias coverage disappeared');
 		assert.equal(summary.waterLayerComposition.nearDepthWrite, true, 'near swell must retain depth writes');
