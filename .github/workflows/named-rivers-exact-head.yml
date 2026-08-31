@@ -12,6 +12,16 @@ on:
       - 'scripts/checkNamedRiverAuthority.mjs'
       - 'scripts/checkNamedRiverSourceContract.mjs'
       - '.github/workflows/named-rivers-exact-head.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/worldReferenceRivers.js'
+      - 'src/3d/world/riverMouth.js'
+      - 'src/3d/world/namedRiverRuntime.js'
+      - 'src/3d/world/terrainNamedRiverValleys.js'
+      - 'scripts/checkNamedRiverAuthority.mjs'
+      - 'scripts/checkNamedRiverSourceContract.mjs'
+      - '.github/workflows/named-rivers-exact-head.yml'
   workflow_dispatch:
 
 permissions:
@@ -22,10 +32,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
-      - name: Checkout exact pushed head
+      - name: Checkout exact candidate head
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
           lfs: false
 
@@ -36,7 +46,7 @@ jobs:
       - name: Verify exact head and syntax
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
           node --check src/3d/world/worldReferenceRivers.js
           node --check src/3d/world/riverMouth.js
           node --check src/3d/world/namedRiverRuntime.js
@@ -57,13 +67,13 @@ jobs:
         if: always()
         run: |
           mkdir -p artifacts/named-rivers-exact-head
-          printf '%s\n' "$GITHUB_SHA" > artifacts/named-rivers-exact-head/head-sha.txt
+          printf '%s\n' "$(git rev-parse HEAD)" > artifacts/named-rivers-exact-head/head-sha.txt
 
       - name: Upload named-river exact-head proof
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: named-rivers-exact-head-${{ github.sha }}
+          name: named-rivers-exact-head-${{ github.event.pull_request.head.sha || github.sha }}
           path: artifacts/named-rivers-exact-head/
           if-no-files-found: warn
           retention-days: 14
