@@ -1,0 +1,82 @@
+name: Ice Landmarks Visual QA
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'map.png/map.png'
+      - 'src/3d/world/iceLandmarks.js'
+      - 'src/3d/world/iceLandmarkRealism.js'
+      - 'src/3d/world/iceLandmarkGeometryBreakup.js'
+      - 'src/3d/world/worldReferenceMap.js'
+      - 'src/3d/world/terrain.js'
+      - 'src/3d/world/terrainBiomeShading.js'
+      - 'src/3d/sceneManager.js'
+      - 'src/3d/game3d.js'
+      - 'src/3d/physics.js'
+      - 'ice-landmarks-visual-qa.html'
+      - 'scripts/checkIceLandmarks.mjs'
+      - 'scripts/checkIceLandmarksVisualQa.js'
+      - 'scripts/devServerHelper.js'
+      - 'scripts/setupNodeThreeShim.mjs'
+      - '.github/workflows/ice-landmarks-visual-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ice-landmarks-visual-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build-time module and scene contracts
+        run: |
+          set -euo pipefail
+          node scripts/setupNodeThreeShim.mjs
+          node --check src/3d/world/iceLandmarks.js
+          node --check src/3d/world/iceLandmarkRealism.js
+          node --check src/3d/world/iceLandmarkGeometryBreakup.js
+          node --check src/3d/world/worldReferenceMap.js
+          node --check src/3d/sceneManager.js
+          node --check src/3d/game3d.js
+          node --check scripts/checkIceLandmarks.mjs
+          node --check scripts/checkIceLandmarksVisualQa.js
+          node scripts/checkIceLandmarks.mjs
+          test -s map.png/map.png
+          test -s ice-landmarks-visual-qa.html
+
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          ln -sfn "$RUNNER_TEMP/pw/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Render exact-head The Wall and ice cave
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkIceLandmarksVisualQa.js
+
+      - name: Upload map and WebGL visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ice-landmarks-visual-qa-${{ github.event.pull_request.head.sha || github.sha }}
+          path: artifacts/ice-landmarks-visual-qa/
+          if-no-files-found: error
+          retention-days: 14

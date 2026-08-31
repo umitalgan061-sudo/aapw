@@ -1,0 +1,79 @@
+name: Atmosphere Exact Head
+
+on:
+  push:
+    branches:
+      - codex/foundation-grounding-20260821
+    paths:
+      - 'src/3d/sky.js'
+      - 'src/3d/lighting.js'
+      - 'src/3d/auroraRealism.js'
+      - 'src/3d/auroraRayCurtainV4.js'
+      - 'src/3d/auroraNightAtmosphereV5.js'
+      - 'scripts/checkRun221RealisticGameAuroraBrowser.js'
+      - 'scripts/captureFullWorld3DTopdown.mjs'
+      - 'scripts/fullWorld3DTopdownHarness.html'
+      - '.github/workflows/atmosphere-exact-head.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-head-atmosphere:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact pushed head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          lfs: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify exact head and syntax
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          node --check src/3d/sky.js
+          node --check src/3d/lighting.js
+          node --check scripts/checkRun221RealisticGameAuroraBrowser.js
+          node --check scripts/captureFullWorld3DTopdown.mjs
+
+      - name: Install exact browser runtime
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright three
+          npx playwright install --with-deps chromium
+
+      - name: Real WebGL aurora and atmosphere proof
+        run: node scripts/checkRun221RealisticGameAuroraBrowser.js
+
+      - name: Authoritative full-world topdown proof
+        run: |
+          node scripts/captureFullWorld3DTopdown.mjs \
+            --width=1600 \
+            --height=1100 \
+            --segments=240 \
+            --output=artifacts/atmosphere-exact-head/full-world-3d-topdown.png
+
+      - name: Record exact head
+        if: always()
+        run: |
+          mkdir -p artifacts/atmosphere-exact-head
+          printf '%s\n' "$GITHUB_SHA" > artifacts/atmosphere-exact-head/head-sha.txt
+
+      - name: Upload atmosphere exact-head proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atmosphere-exact-head-${{ github.sha }}
+          path: |
+            artifacts/run221-realistic-game-aurora/
+            artifacts/atmosphere-exact-head/
+          if-no-files-found: warn
+          retention-days: 7

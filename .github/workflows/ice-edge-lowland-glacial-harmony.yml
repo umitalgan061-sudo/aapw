@@ -1,0 +1,49 @@
+name: Ice Edge Lowland Glacial Harmony
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/terrainBiomeShading.js'
+      - 'src/3d/world/northReferenceCryosphere.js'
+      - 'scripts/checkIceEdgeLowlandGlacialHarmony.mjs'
+      - 'scripts/checkIceEdgeLowlandShoreDistance.mjs'
+      - '.github/workflows/ice-edge-lowland-glacial-harmony.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ice-edge-lowland-glacial-harmony-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ice-edge-lowland-glacial-harmony:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install terrain runtime dependency
+        run: npm install --no-save --no-package-lock --ignore-scripts three@0.180.0
+
+      - name: Static syntax
+        run: |
+          node --check src/3d/world/terrainBiomeShading.js
+          node --check scripts/checkIceEdgeLowlandGlacialHarmony.mjs
+          node --check scripts/checkIceEdgeLowlandShoreDistance.mjs
+
+      - name: Mixed-ice lowland glacial harmony contracts
+        run: |
+          node scripts/checkIceEdgeLowlandGlacialHarmony.mjs
+          node scripts/checkIceEdgeLowlandShoreDistance.mjs

@@ -1,6 +1,9 @@
 {
   "hosting": {
     "public": ".",
+    "predeploy": [
+      "node scripts/firebaseDeployLfsReadiness.mjs --scope=all"
+    ],
     "rewrites": [
       {
         "source": "**",

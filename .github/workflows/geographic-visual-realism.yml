@@ -1,0 +1,109 @@
+name: Geographic Visual Realism
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/celestialLightState.js'
+      - 'src/3d/lighting.js'
+      - 'src/3d/world/water.js'
+      - 'src/3d/world/rivers.js'
+      - 'src/3d/world/roads.js'
+      - 'src/3d/world/terrainBiomeShading.js'
+      - 'src/3d/world/worldReferenceSurfaceTerrainVisual.js'
+      - 'src/3d/world/geographicReferencePalette.js'
+      - 'scripts/checkWaterVisualContract.js'
+      - 'scripts/checkRoadVisualContract.js'
+      - 'scripts/checkMedievalRoadSurface.js'
+      - 'scripts/roadContractHarness.html'
+      - 'scripts/checkGeographicRiverVisualContract.js'
+      - 'scripts/checkGeologicalRockSurface.js'
+      - 'scripts/checkLightingVisualContract.js'
+      - 'scripts/geographicRiverHarness.html'
+      - 'scripts/geographicMaterialHarness.html'
+      - 'scripts/checkGeographicReferencePalette.mjs'
+      - 'scripts/checkCinematicGeographyRealism.mjs'
+      - 'scripts/checkCinematicGeographyRealismBrowser.js'
+      - 'scripts/cinematicGeographyRealismHarness.html'
+      - '.github/workflows/geographic-visual-realism.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  geographic-visual-realism:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact requested head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+          lfs: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install browser dependency outside repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Static syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/celestialLightState.js
+          node --check src/3d/lighting.js
+          node --check src/3d/world/water.js
+          node --check src/3d/world/rivers.js
+          node --check src/3d/world/roads.js
+          node --check src/3d/world/terrainBiomeShading.js
+          node --check src/3d/world/geographicReferencePalette.js
+          node --check scripts/checkWaterVisualContract.js
+          node --check scripts/checkRoadVisualContract.js
+          node --check scripts/checkMedievalRoadSurface.js
+          node --check scripts/checkGeographicRiverVisualContract.js
+          node --check scripts/checkGeologicalRockSurface.js
+          node --check scripts/checkLightingVisualContract.js
+          node --check scripts/checkGeographicReferencePalette.mjs
+          node --check scripts/checkCinematicGeographyRealism.mjs
+          node --check scripts/checkCinematicGeographyRealismBrowser.js
+
+      - name: Shared photogrammetry reference palette contract
+        run: node scripts/checkGeographicReferencePalette.mjs
+
+      - name: Natural terrain coast and road transition contract
+        run: node scripts/checkCinematicGeographyRealism.mjs
+
+      - name: Natural terrain coast and road WebGL compile proof
+        run: node scripts/checkCinematicGeographyRealismBrowser.js
+
+      - name: Water optical and celestial contract
+        run: node scripts/checkWaterVisualContract.js
+
+      - name: Sun moon orbit and material-light response
+        run: node scripts/checkLightingVisualContract.js
+
+      - name: Geographic road material contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkRoadVisualContract.js
+          node scripts/checkMedievalRoadSurface.js
+
+      - name: River and waterfall visual contract
+        run: node scripts/checkGeographicRiverVisualContract.js
+
+      - name: Geological rock surface contract
+        run: node scripts/checkGeologicalRockSurface.js
+
+      - name: Diff whitespace
+        run: git diff --check HEAD^ HEAD

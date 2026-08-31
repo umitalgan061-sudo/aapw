@@ -31,7 +31,6 @@ for (const [pindex, run, filename, readyMarker] of modules) {
   serviceWorkerIndexes.push(swIndex);
 }
 
-// Continues the Run277-295 reverse-prepend offline / chronological-boot convention.
 for (let index = 1; index < serviceWorkerIndexes.length; index += 1) {
   if (serviceWorkerIndexes[index] >= serviceWorkerIndexes[index - 1]) {
     throw new Error(`offline prepend order regressed between Pindex-${modules[index - 1][0]} and Pindex-${modules[index][0]}`);
@@ -44,4 +43,31 @@ for (const [pindex, run, filename] of modules) {
   if (source.includes('Math.random(')) throw new Error(`${run}/Pindex-${pindex} became non-deterministic`);
 }
 
-console.log('[checkRun296Pindex09DetailChain] PASS: chronological runtime + reverse-prepend offline Pindex-01→09 contracts locked');
+const p9 = fs.readFileSync('src/3d/world/worldReferencePindex09Detail.js', 'utf8');
+for (const required of [
+  "owner-map-pindex09-detail-2026-08-27-v2-world-space-weathering",
+  'macroMeters: 1680',
+  'mesoMeters: 470',
+  'fineMeters: 126',
+  'microMeters: 44',
+  'warpMeters: 760',
+  'samplePindex09SurfaceFabric',
+  'pindex09BoundaryWeight',
+  "surface === 'soil'",
+  "surface === 'rock'",
+  "surface === 'snow'",
+  'geographyAuthorityUnchanged: true',
+  'terrainHeightAuthorityUnchanged: true',
+  'hydrologyAuthorityUnchanged: true',
+  'colliderAuthorityUnchanged: true',
+]) {
+  if (!p9.includes(required)) throw new Error(`Pindex-09 v2 realism contract missing: ${required}`);
+}
+if (p9.includes('normalizedX * 1024') || p9.includes('normalizedY * 1024')) {
+  throw new Error('Pindex-09 regressed to normalized-map high-frequency hash repetition');
+}
+if (!p9.includes('worldX / scaleMeters') || !p9.includes('worldZ / scaleMeters')) {
+  throw new Error('Pindex-09 v2 must derive multiscale material variation from world-space metres');
+}
+
+console.log('[checkRun296Pindex09DetailChain] PASS: runtime/offline Pindex-01→09 chain plus Pindex-09 world-space multiscale weathering contract locked');

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * checkWaterVisualContract.js — live-browser rendered water regression contract.
- * Validates the existing flat water plane topology, shader/material/uniform signature,
- * camera-follow update semantics, fog participation and teardown without runtime changes.
+ * Live-browser water contract: topology, depth-clear optical response, near/far/backdrop composition
+ * and the live celestial key consumed by the custom shader. The terrain-derived depth field is
+ * validated by its own checks; this pins how the rendered water turns that authority into visible water.
  */
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
@@ -18,140 +18,155 @@ async function main() {
 	}
 	const server = await startStaticServer();
 	const { port } = server.address();
-	const browser = await playwright.chromium.launch({ headless: true });
+	const browser = await playwright.chromium.launch({
+		headless: true,
+		executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
+	});
 	try {
 		const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+		await page.goto(`http://127.0.0.1:${port}/scripts/geographicMaterialHarness.html`, { waitUntil: 'domcontentloaded', timeout: 15000 });
 		const result = await page.evaluate(async () => {
 			const THREE = await import('three');
-			const { createWater, updateWater, disposeWater } = await import('/src/3d/world/water.js');
+			const {
+				createWater,
+				updateWater,
+				disposeWater,
+				WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
+			} = await import('/src/3d/world/water.js');
+			const { publishCelestialLightState } = await import('/src/3d/celestialLightState.js');
 			const fail = (condition, message) => { if (!condition) throw new Error(message); };
 			const close = (a, b, tolerance = 1e-6) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= tolerance;
 			const vectorClose = (actual, expected, tolerance = 1e-6) =>
 				close(actual.x, expected.x, tolerance) && close(actual.y, expected.y, tolerance) && close(actual.z, expected.z, tolerance);
+
 			const waterLevel = 6;
-			const first = createWater(waterLevel);
-			const twin = createWater(waterLevel);
+			const water = createWater(waterLevel);
+			fail(water?.isMesh === true, 'water output is not THREE.Mesh');
+			fail(water.geometry?.type === 'PlaneGeometry', 'near water is not PlaneGeometry');
+			fail(water.geometry.parameters?.width === 4000 && water.geometry.parameters?.height === 4000, 'near water extent drifted');
+			fail(water.geometry.parameters?.widthSegments === 128, 'default near-water resolution drifted');
+			fail(water.material?.isShaderMaterial === true, 'water material is not ShaderMaterial');
+			fail(water.material.transparent === true && water.material.depthWrite === true && water.material.fog === true, 'near-water render signature drifted');
 
-			fail(first?.isMesh === true && twin?.isMesh === true, 'water output is not THREE.Mesh');
-			fail(first.geometry?.type === 'PlaneGeometry', `water geometry type ${first.geometry?.type} != PlaneGeometry`);
-			fail(first.geometry.parameters?.width === 4000 && first.geometry.parameters?.height === 4000, 'water plane extent drifted');
-			fail(first.geometry.parameters?.widthSegments === 128 && first.geometry.parameters?.heightSegments === 128, 'water segment count drifted');
-			fail(first.material?.isShaderMaterial === true, 'water material is not ShaderMaterial');
-			fail(first.material.transparent === true && first.material.depthWrite === true && first.material.fog === true, 'water material transparent/depthWrite/fog signature drifted');
-			fail(first.frustumCulled === false, 'water frustumCulled must remain false for camera-follow plane');
-			fail(close(first.position.x, 0) && close(first.position.y, waterLevel) && close(first.position.z, 0), 'initial water position drifted');
+			const far = water.userData.farWater;
+			fail(far?.isMesh === true && far.geometry.parameters?.width === 17000, 'full-world far-water underlay drifted');
+			fail(far.material.depthWrite === false, 'far water must not occlude displaced near-water troughs');
+			fail(far.renderOrder === -1, 'far water must render before the near layer');
+			fail(far.material.uniforms.uFarLayerMask.value === 1, 'far water no longer masks itself under the near square');
 
-			const uniforms = first.material.uniforms;
-			fail(Boolean(uniforms?.uTime && uniforms?.uShallowColor && uniforms?.uDeepColor && uniforms?.uSunDirection && uniforms?.uCameraPosition), 'water custom uniform set drifted');
-			fail(Boolean(uniforms?.uDepthMap && uniforms?.uDepthFieldExtentMeters && uniforms?.uSwellStrength), 'water depth/coverage uniform set drifted');
+			const backdrop = water.userData.deepOceanBackdrop;
+			fail(backdrop?.isMesh === true, 'deep-ocean backdrop mesh is missing');
+			fail(backdrop.geometry?.type === 'PlaneGeometry', 'deep-ocean backdrop is not PlaneGeometry');
+			fail(backdrop.geometry.parameters?.width === WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
+				'deep-ocean backdrop extent drifted');
+			fail(backdrop.geometry.parameters?.widthSegments === 1 && backdrop.geometry.parameters?.heightSegments === 1,
+				'deep-ocean backdrop must stay two triangles');
+			fail(backdrop.material?.isMeshBasicMaterial === true, 'deep-ocean backdrop must stay an unlit base layer');
+			fail(backdrop.material.transparent === false && backdrop.material.depthWrite === true && backdrop.material.fog === true,
+				'deep-ocean backdrop must remain opaque, depth-writing and fog-aware');
+			fail(backdrop.renderOrder === -2 && backdrop.position.y === -32,
+				'deep-ocean backdrop must render below/before both transparent water layers');
+			fail(water.userData.waterCoverage?.deepOceanBackdropExtentMeters === WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
+				'water coverage metadata lost the deep-ocean backdrop extent');
+
+			const uniforms = water.material.uniforms;
+			for (const name of [
+				'uTime', 'uShallowColor', 'uDeepColor', 'uSunDirection', 'uSunColor', 'uSunIntensity',
+				'uNightFactor', 'uCameraPosition', 'uDepthMap', 'uDepthFieldExtentMeters', 'uSwellStrength', 'uFarLayerMask',
+			]) fail(Boolean(uniforms?.[name]), `water uniform ${name} is missing`);
 			fail(Boolean(uniforms?.fogColor && uniforms?.fogNear && uniforms?.fogFar && uniforms?.fogDensity), 'water fog uniforms are missing');
-			fail(close(uniforms.uTime.value, 0), 'water uTime must start at 0');
-			// Retuned 2026-08-19 to the owner's aerial reference: blue ocean rather than green-teal, with
-			// a deeper far tone so bathymetry reads from altitude. The original point of pinning these —
-			// that shallow water must never go back to neon cyan — is now asserted directly below on
-			// saturation, which is the property that actually mattered, rather than on one exact hex.
-			fail(uniforms.uShallowColor.value?.isColor === true && uniforms.uShallowColor.value.getHex() === 0x53899a, 'water shallow color drifted');
-			fail(uniforms.uDeepColor.value?.isColor === true && uniforms.uDeepColor.value.getHex() === 0x0c2c4a, 'water deep color drifted');
-			// Judged in sRGB, not in THREE.Color's linear working space: "neon" is a perceptual claim,
-			// and the same colour reads far more saturated in linear (0x53899a is 0.46 in sRGB but 0.73
-			// in linear), which would reject ordinary sea blues.
-			const shallow = uniforms.uShallowColor.value.clone().convertLinearToSRGB();
-			const shallowMax = Math.max(shallow.r, shallow.g, shallow.b);
-			const shallowSaturation = shallowMax <= 0 ? 0 : (shallowMax - Math.min(shallow.r, shallow.g, shallow.b)) / shallowMax;
-			fail(shallowSaturation < 0.6, `shallow water must stay desaturated from neon cyan (sRGB saturation ${shallowSaturation.toFixed(3)})`);
-			const expectedSun = new THREE.Vector3(300, 400, 200).normalize();
-			fail(vectorClose(uniforms.uSunDirection.value, expectedSun), 'water sun direction drifted');
-			fail(vectorClose(uniforms.uCameraPosition.value, new THREE.Vector3(0, 0, 0)), 'water camera uniform must start at origin');
-			fail(first.userData.waterCoverage?.fullWorld === true && first.userData.waterCoverage?.fullWorldExtentMeters === 17000, 'full-world water coverage metadata drifted');
-			fail(first.userData.farWater?.isMesh === true && first.userData.farWater.geometry?.parameters?.width === 17000 && first.userData.farWater.geometry?.parameters?.height === 17000, 'full-world far-water geometry drifted');
+			fail(uniforms.uShallowColor.value.getHex() === 0x6aa39c, 'reference clear-shore hue drifted');
+			fail(uniforms.uDeepColor.value.getHex() === 0x092941, 'reference deep-sea hue drifted');
 
-			const vertexShader = first.material.vertexShader;
-			const fragmentShader = first.material.fragmentShader;
-			// ADR-0270 replaced ADR-0048's "no vertex animation at all" rule with a depth-tapered
-			// displacement. The invariant worth guarding is no longer the *absence* of wave maths but
-			// the presence of the taper that makes it safe over shallow lakes, plus the fresh-mesh
-			// default of zero swell (nothing is displaced until real bathymetry is attached). The
-			// numeric side of that contract — total amplitude vs. full-wave depth — is asserted by the
-			// smoke suite's `checkWaterDepthTaperedSwell`, not duplicated here.
-			fail(vertexShader.includes('uSwellStrength') && vertexShader.includes('sampleDepthFactor'), 'water vertex depth-taper contract drifted');
-			fail(/worldPos\.y\s*\+=\s*swellHeight\s*\*\s*amplitudeScale/.test(vertexShader), 'water vertex displacement is no longer depth-tapered');
-			fail(uniforms.uSwellStrength.value === 0, 'fresh water mesh must start with swell disabled until a depth field is attached');
-			fail(vertexShader.includes('#include <fog_pars_vertex>') && vertexShader.includes('#include <fog_vertex>'), 'water vertex fog chunks drifted');
-			fail(fragmentShader.includes('uniform float uTime') && fragmentShader.includes('rippleSlope'), 'water fragment ripple contract drifted');
-			fail(fragmentShader.includes('sampleWaterField') && fragmentShader.includes('waterCoverage') && fragmentShader.includes('discard'), 'water canonical coverage masking drifted');
-			fail(fragmentShader.includes('#include <fog_pars_fragment>') && fragmentShader.includes('#include <fog_fragment>'), 'water fragment fog chunks drifted');
-			fail(fragmentShader.includes('gl_FragColor = vec4(color, max(alpha, foam * 0.78))'), 'water coverage-gated alpha/specular output signature drifted');
+			const optical = water.userData.opticalProfile;
+			fail(optical?.shallowAlpha === 0.14 && optical?.deepAlpha === 0.90, 'depth-clear optical alpha profile drifted');
+			fail(optical.attenuation === 3.2 && optical.celestialSpecular === true, 'optical attenuation/celestial profile drifted');
+			fail(optical.shallowAlpha < 0.2 && optical.deepAlpha >= 0.88, 'shallow water must stay bed-readable while deep water stays substantial');
+			fail(optical.enclosedLakeBedReadable === true && optical.clearCoastalDepthBand === true, 'explicit lake/coast clarity metadata disappeared');
+			fail(optical.nightAbsorptionFromCelestialState === true, 'water night-response metadata disappeared');
 
-			const positions = first.geometry.getAttribute('position');
-			const normals = first.geometry.getAttribute('normal');
-			const uvs = first.geometry.getAttribute('uv');
-			const index = first.geometry.index;
-			const twinPositions = twin.geometry.getAttribute('position');
-			const twinNormals = twin.geometry.getAttribute('normal');
-			const twinUvs = twin.geometry.getAttribute('uv');
-			fail(positions?.count === 16641, `water position count ${positions?.count} != 16641`);
-			fail(normals?.count === positions.count && uvs?.count === positions.count, 'water normal/uv attribute count mismatch');
-			fail(index?.count === 98304, `water index count ${index?.count} != 98304`);
-			fail(twinPositions?.count === positions.count && twinNormals?.count === normals.count && twinUvs?.count === uvs.count, 'deterministic twin topology drifted');
-
-			let minX = Infinity;
-			let maxX = -Infinity;
-			let minZ = Infinity;
-			let maxZ = -Infinity;
-			for (let i = 0; i < positions.count; i++) {
-				const x = positions.getX(i);
-				const y = positions.getY(i);
-				const z = positions.getZ(i);
-				const nx = normals.getX(i);
-				const ny = normals.getY(i);
-				const nz = normals.getZ(i);
-				const u = uvs.getX(i);
-				const v = uvs.getY(i);
-				fail(Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z), `non-finite water position at ${i}`);
-				fail(Math.abs(y) <= 1e-6, `water local geometry is not flat at vertex ${i}: y=${y}`);
-				fail(close(nx, 0, 2e-6) && close(ny, 1, 2e-6) && close(nz, 0, 2e-6), `water normal drift at ${i}: ${nx},${ny},${nz}`);
-				fail(Number.isFinite(u) && Number.isFinite(v) && u >= -1e-6 && u <= 1 + 1e-6 && v >= -1e-6 && v <= 1 + 1e-6, `water uv drift at ${i}`);
-				fail(close(x, twinPositions.getX(i), 0) && close(y, twinPositions.getY(i), 0) && close(z, twinPositions.getZ(i), 0), `water deterministic position drift at ${i}`);
-				fail(close(nx, twinNormals.getX(i), 0) && close(ny, twinNormals.getY(i), 0) && close(nz, twinNormals.getZ(i), 0), `water deterministic normal drift at ${i}`);
-				fail(close(u, twinUvs.getX(i), 0) && close(v, twinUvs.getY(i), 0), `water deterministic uv drift at ${i}`);
-				minX = Math.min(minX, x); maxX = Math.max(maxX, x);
-				minZ = Math.min(minZ, z); maxZ = Math.max(maxZ, z);
+			const vertexShader = water.material.vertexShader;
+			const fragmentShader = water.material.fragmentShader;
+			fail(vertexShader.includes('sampleDepthFactor') && vertexShader.includes('uSwellStrength'), 'depth-tapered swell contract drifted');
+			fail(fragmentShader.includes('smoothstep(0.04, 0.82, fragmentDepth)'), 'extended shallow-to-deep color grading disappeared');
+			fail(fragmentShader.includes('1.0 - exp(-fragmentDepth * 3.2)'), 'Beer-Lambert-inspired optical depth disappeared');
+			fail(fragmentShader.includes('uSunColor') && fragmentShader.includes('uSunIntensity') && fragmentShader.includes('celestialSpecular'), 'live celestial water specular disappeared');
+			for (const token of ['enclosedLakeMask', 'clearCoastMask', 'referenceLakeClear', 'bedReadability', 'uNightFactor', 'nightAbsorption']) {
+				fail(fragmentShader.includes(token), `water reference-optics shader missing ${token}`);
 			}
-			fail(close(minX, -2000) && close(maxX, 2000) && close(minZ, -2000) && close(maxZ, 2000), `water local bounds drifted: x=${minX}..${maxX}, z=${minZ}..${maxZ}`);
-			for (let i = 0; i < index.count; i++) {
-				const value = index.getX(i);
-				fail(Number.isInteger(value) && value >= 0 && value < positions.count, `invalid water index ${value} at ${i}`);
-				fail(value === twin.geometry.index.getX(i), `water deterministic index drift at ${i}`);
-			}
+			fail(fragmentShader.includes('nearLayerDistance < 1999.5') && fragmentShader.includes('discard'), 'near/far double-alpha mask disappeared');
+			fail(fragmentShader.includes('#include <fog_pars_fragment>') && fragmentShader.includes('#include <fog_fragment>'), 'water fog chunks drifted');
 
+			// Custom-shader key follows the same published celestial state as lighting.js. First prove a
+			// daylight key, then a stronger moon key, without reaching into water internals.
+			publishCelestialLightState({
+				sunPosition: new THREE.Vector3(30, 40, 0),
+				sunColor: new THREE.Color(0xffb366),
+				sunIntensity: 1.25,
+				moonPosition: new THREE.Vector3(-30, -40, 0),
+				moonColor: new THREE.Color(0xc8dcff),
+				moonIntensity: 0,
+				nightFactor: 0,
+			});
 			const camera = new THREE.Vector3(123.25, 87.5, -678.75);
-			const cameraUniform = uniforms.uCameraPosition.value;
-			fail(cameraUniform !== camera, 'water camera uniform must own its vector instead of aliasing caller state');
-			updateWater(first, camera, 12.5);
-			fail(close(first.position.x, camera.x) && close(first.position.z, camera.z) && close(first.position.y, waterLevel), 'water camera-follow position contract drifted');
-			fail(close(uniforms.uTime.value, 12.5), 'water uTime update drifted');
-			fail(vectorClose(cameraUniform, camera), 'water camera-position uniform update drifted');
-			camera.set(999, 999, 999);
-			fail(close(first.position.x, 123.25) && close(first.position.z, -678.75) && vectorClose(cameraUniform, new THREE.Vector3(123.25, 87.5, -678.75)), 'water update retained caller vector by reference');
+			updateWater(water, camera, 12.5);
+			fail(vectorClose(uniforms.uSunDirection.value, new THREE.Vector3(0.6, 0.8, 0)), 'water did not copy live sun direction');
+			fail(close(uniforms.uSunIntensity.value, 1.25), 'water did not copy live sun intensity');
+			fail(close(uniforms.uNightFactor.value, 0), 'water daylight night-factor drifted');
+			fail(uniforms.uSunColor.value.getHex() === 0xffb366, 'water did not copy live sun colour');
+			fail(vectorClose(uniforms.uCameraPosition.value, camera), 'water camera uniform drifted');
+			fail(close(water.position.x, camera.x) && close(water.position.z, camera.z) && close(water.position.y, waterLevel), 'water camera-follow drifted');
+			fail(close(backdrop.position.x, 0) && close(backdrop.position.z, 0), 'deep-ocean backdrop must inherit camera-follow XZ from the water parent');
 
-			let geometryDisposeCount = 0;
-			let materialDisposeCount = 0;
-			first.geometry.addEventListener('dispose', () => geometryDisposeCount++);
-			first.material.addEventListener('dispose', () => materialDisposeCount++);
-			disposeWater(first);
-			fail(geometryDisposeCount === 1 && materialDisposeCount === 1, `water dispose counts ${geometryDisposeCount}/${materialDisposeCount} != 1/1`);
-			disposeWater(twin);
+			publishCelestialLightState({
+				sunPosition: new THREE.Vector3(0, -1, 0),
+				sunColor: new THREE.Color(0xffe2a1),
+				sunIntensity: 0,
+				moonPosition: new THREE.Vector3(-3, 4, 0),
+				moonColor: new THREE.Color(0xc8dcff),
+				moonIntensity: 0.5,
+				nightFactor: 1,
+			});
+			updateWater(water, camera, 20);
+			fail(vectorClose(uniforms.uSunDirection.value, new THREE.Vector3(-0.6, 0.8, 0)), 'water did not switch specular direction to moon');
+			fail(close(uniforms.uSunIntensity.value, 0.5), 'water did not switch specular intensity to moon');
+			fail(uniforms.uSunColor.value.getHex() === 0xc8dcff, 'water did not switch specular colour to moon');
+			fail(close(uniforms.uNightFactor.value, 1), 'water did not copy live celestial night factor');
+
+			const positions = water.geometry.getAttribute('position');
+			const index = water.geometry.index;
+			fail(positions?.count === 16641 && index?.count === 98304, 'near-water topology drifted');
+			let minX = Infinity; let maxX = -Infinity; let minZ = Infinity; let maxZ = -Infinity;
+			for (let i = 0; i < positions.count; i++) {
+				minX = Math.min(minX, positions.getX(i)); maxX = Math.max(maxX, positions.getX(i));
+				minZ = Math.min(minZ, positions.getZ(i)); maxZ = Math.max(maxZ, positions.getZ(i));
+			}
+			fail(close(minX, -2000) && close(maxX, 2000) && close(minZ, -2000) && close(maxZ, 2000), 'near-water bounds drifted');
+
+			let geometryDisposed = 0;
+			let materialDisposed = 0;
+			let backdropGeometryDisposed = 0;
+			let backdropMaterialDisposed = 0;
+			water.geometry.addEventListener('dispose', () => geometryDisposed++);
+			water.material.addEventListener('dispose', () => materialDisposed++);
+			backdrop.geometry.addEventListener('dispose', () => backdropGeometryDisposed++);
+			backdrop.material.addEventListener('dispose', () => backdropMaterialDisposed++);
+			disposeWater(water);
+			fail(geometryDisposed === 1 && materialDisposed === 1, 'near-water resources were not disposed exactly once');
+			fail(backdropGeometryDisposed === 1 && backdropMaterialDisposed === 1,
+				'deep-ocean backdrop resources were not disposed exactly once');
+			fail(water.userData.deepOceanBackdrop === null, 'disposed water retained deep-ocean backdrop ownership');
 			return {
 				vertexCount: positions.count,
 				indexCount: index.count,
-				geometryDisposeCount,
-				materialDisposeCount,
-				bounds: [minX, maxX, minZ, maxZ],
+				optical,
+				backdropExtent: WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
 			};
 		});
+
 		assert(result.vertexCount === 16641 && result.indexCount === 98304, 'water topology mismatch escaped browser contract');
-		console.log(`[checkWaterVisualContract] PASS: ${result.vertexCount} vertices, ${result.indexCount} indices, flat 4000m camera-follow plane, shader/fog/uniform contract PASS, disposal ${result.geometryDisposeCount}/${result.materialDisposeCount}.`);
+		assert(result.backdropExtent === 28000, 'deep-ocean backdrop contract escaped browser validation');
+		console.log(`[checkWaterVisualContract] PASS: depth-clear ${result.optical.shallowAlpha.toFixed(2)}→${result.optical.deepAlpha.toFixed(2)} alpha, live sun/moon specular, near/far/deep-ocean composition, ${result.vertexCount} near-water vertices.`);
 	} finally {
 		await browser.close();
 		await new Promise((resolve) => server.close(resolve));

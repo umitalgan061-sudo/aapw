@@ -6,6 +6,7 @@ import { EditorInstanceManager } from './EditorInstanceManager.js';
 import { serializeEditorScene, validateEditorScene } from './EditorSceneSerializer.js';
 import { rehydrateInstanceGroups } from './EditorFormationRehydrator.js';
 import { autoTextureObject, autoTextureMany, restoreOriginalMaterials, describeResult } from './EditorAutoTexture.js';
+import { isEditorStructureAsset } from './EditorTerrainFoundationGrounder.js';
 import { disposePaletteCaches } from '../materials/textureFactory.js';
 
 const $ = (id) => document.getElementById(id);
@@ -138,7 +139,33 @@ function selectObject(object) {
   refreshHierarchy();
 }
 
-async function addAsset(asset, position = new THREE.Vector3()) {
+function livePlacement() {
+  return window.__WESTEROS_EDITOR_PLACEMENT__ || null;
+}
+
+function retireObjectFoundation(object) {
+  if (!object?.userData?.editorFoundationKey && !object?.userData?.terrainFoundationKey) return { ok: true, skipped: true };
+  const placement = livePlacement();
+  if (!placement?.removeObjectFoundation) return { ok: false, error: 'live-placement-unavailable' };
+  return placement.removeObjectFoundation(object);
+}
+
+function retireObjectFoundations(objects) {
+  const candidates = (Array.isArray(objects) ? objects : [objects])
+    .filter((object) => object?.userData?.editorFoundationKey || object?.userData?.terrainFoundationKey);
+  if (!candidates.length) return { ok: true, removedCount: 0, missingKeys: [], rebuiltChunkCount: 0 };
+  const placement = livePlacement();
+  if (!placement?.removeObjectFoundations) return { ok: false, error: 'live-placement-unavailable' };
+  return placement.removeObjectFoundations(candidates);
+}
+
+function regroundObjectFoundation(object, asset = null) {
+  const placement = livePlacement();
+  if (!placement?.groundObject || !object || object.isInstancedMesh) return { ok: false, error: 'live-placement-unavailable' };
+  return placement.groundObject(object, asset ? { asset } : undefined);
+}
+
+async function addAsset(asset, position = new THREE.Vector3(), { groundStructure = true } = {}) {
   try {
     toast(`${asset.name} yükleniyor…`);
     const object = await assetManager.createObject(asset);
@@ -146,6 +173,12 @@ async function addAsset(asset, position = new THREE.Vector3()) {
     object.userData.editorId = nextEditorId(asset.id);
     editableObjects.push(object);
     scene.add(object);
+    if (groundStructure && isEditorStructureAsset(asset)) {
+      const grounding = regroundObjectFoundation(object, asset);
+      if (!grounding.ok && grounding.error !== 'live-placement-unavailable') {
+        console.warn('[worldEditor] newly added structure grounding failed', asset.id, grounding.error);
+      }
+    }
     selectObject(object);
     toast(`${asset.name} sahneye eklendi.`);
     return object;
@@ -194,22 +227,45 @@ function renderCategories() {
 
 function applyInspector() {
   if (!selectedObject || selectedObject.isInstancedMesh) return;
+  const hadFoundation = Boolean(selectedObject.userData?.editorFoundationKey || selectedObject.userData?.terrainFoundationKey);
   selectedObject.name = $('we-name').value.trim() || selectedObject.name;
   selectedObject.position.set(snapValue(Number($('we-pos-x').value) || 0), snapValue(Number($('we-pos-y').value) || 0), snapValue(Number($('we-pos-z').value) || 0));
   selectedObject.rotation.set(THREE.MathUtils.degToRad(Number($('we-rot-x').value) || 0), THREE.MathUtils.degToRad(Number($('we-rot-y').value) || 0), THREE.MathUtils.degToRad(Number($('we-rot-z').value) || 0));
   selectedObject.scale.set(Math.max(0.01, Number($('we-scale-x').value) || 1), Math.max(0.01, Number($('we-scale-y').value) || 1), Math.max(0.01, Number($('we-scale-z').value) || 1));
+  if (hadFoundation) {
+    const grounding = regroundObjectFoundation(selectedObject);
+    if (!grounding.ok) console.warn('[worldEditor] live foundation update failed', grounding.error);
+  }
+  writeInspector(selectedObject);
   refreshHierarchy();
 }
 
 function duplicateSelected() {
   if (!selectedObject || selectedObject.isInstancedMesh) return;
+  const sourceAsset = findEditorAsset(selectedObject.userData?.editorAssetId) || null;
+  const sourceWasStructure = Boolean(
+    selectedObject.userData?.editorFoundationKey
+    || selectedObject.userData?.terrainFoundationKey
+    || isEditorStructureAsset(sourceAsset),
+  );
   const clone = selectedObject.clone(true);
-  clone.userData = { ...selectedObject.userData, editorId: nextEditorId(selectedObject.userData.editorAssetId || 'object') };
+  const {
+    editorFoundationKey: _editorFoundationKey,
+    terrainFoundationKey: _terrainFoundationKey,
+    editorGroundingMode: _editorGroundingMode,
+    ...cloneUserData
+  } = selectedObject.userData || {};
+  clone.userData = { ...cloneUserData, editorId: nextEditorId(selectedObject.userData.editorAssetId || 'object') };
   clone.name = `${selectedObject.name} Kopya`;
   clone.position.x = snapValue(clone.position.x + editorState().snapSize);
   editableObjects.push(clone);
   scene.add(clone);
   selectObject(clone);
+  if (sourceWasStructure) {
+    const grounding = regroundObjectFoundation(clone, sourceAsset);
+    if (!grounding.ok) console.warn('[worldEditor] duplicated structure grounding failed', grounding.error);
+    else writeInspector(clone);
+  }
 }
 
 function deleteSelected() {
@@ -220,6 +276,10 @@ function deleteSelected() {
   }
   const index = editableObjects.indexOf(selectedObject);
   if (index >= 0) {
+    const retired = retireObjectFoundation(selectedObject);
+    if (!retired.ok && retired.error !== 'foundation-not-registered') {
+      console.warn('[worldEditor] foundation cleanup failed before delete', retired.error);
+    }
     scene.remove(selectedObject);
     editableObjects.splice(index, 1);
     selectObject(null);
@@ -250,19 +310,29 @@ function saveScene() {
 async function loadSceneFile(file) {
   const data = validateEditorScene(JSON.parse(await file.text()));
   instanceManager.clear();
-  for (const object of [...editableObjects]) {
-    scene.remove(object);
-    editableObjects.splice(editableObjects.indexOf(object), 1);
+  const previousObjects = [...editableObjects];
+  const retired = retireObjectFoundations(previousObjects);
+  if (!retired.ok) {
+    console.warn('[worldEditor] batch foundation cleanup failed before scene load', retired.error);
   }
+  for (const object of previousObjects) {
+    scene.remove(object);
+  }
+  editableObjects.splice(0, editableObjects.length);
   for (const record of data.objects) {
     const asset = findEditorAsset(record.asset);
     if (!asset) continue;
-    const object = await addAsset(asset, new THREE.Vector3(...record.transform.position));
+    const object = await addAsset(asset, new THREE.Vector3(...record.transform.position), { groundStructure: false });
     if (!object) continue;
     object.userData.editorId = record.id;
     object.name = record.name;
     object.rotation.set(...record.transform.rotation);
     object.scale.set(...record.transform.scale);
+    if (isEditorStructureAsset(asset)) {
+      const grounding = regroundObjectFoundation(object, asset);
+      if (!grounding.ok) console.warn('[worldEditor] loaded structure grounding failed', record.id, grounding.error);
+      else writeInspector(object);
+    }
   }
   await rehydrateInstanceGroups(data.instanceGroups, instanceManager, findEditorAsset);
   $('we-grid-toggle').checked = data.editor?.gridVisible !== false;
@@ -306,7 +376,6 @@ $('we-auto-texture').addEventListener('click', () => {
   toast(describeResult(result));
 });
 $('we-auto-texture-all').addEventListener('click', () => {
-  // Instanced groups live in the instance manager, not `editableObjects`, so dress both sets.
   const targets = [...editableObjects, ...instanceManager.groups.map((record) => record.object)];
   if (targets.length === 0) { toast('Sahnede giydirilecek obje yok.'); return; }
   const summary = autoTextureMany(targets, { lookupAsset: findEditorAsset });
@@ -352,8 +421,6 @@ window.addEventListener('pagehide', () => {
   window.clearTimeout(toastTimer);
   controls.dispose();
   renderer.dispose();
-  // Generated palette textures/materials are cached and shared across figures, so they outlive any
-  // single object's disposal — this is their only owner (memory-leak checklist, GOVERNANCE.md §2.8).
   disposePaletteCaches();
 });
 
@@ -369,7 +436,6 @@ renderer.setAnimationLoop(() => {
   renderer.render(scene, camera);
 });
 
-// Run216 additive editor ownership bridge for the isolated TransformControls controller.
 window.__WESTEROS_WORLD_EDITOR__ = Object.freeze({
   scene,
   camera,

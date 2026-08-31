@@ -1,0 +1,110 @@
+name: Road Exact Head Safety
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/config.js'
+      - 'src/3d/world/terrain.js'
+      - 'src/3d/world/terrainReliefDetail.js'
+      - 'src/3d/world/terrainMacroWeathering.js'
+      - 'src/3d/world/worldReferenceMountainRelief.js'
+      - 'src/3d/world/settlements.js'
+      - 'src/3d/world/rivers.js'
+      - 'src/3d/world/roads.js'
+      - 'src/3d/world/roadPathfinder.js'
+      - 'src/3d/world/roadSurfaceProfile.js'
+      - 'scripts/lib/roadRouteQa.mjs'
+      - 'scripts/checkRoadRoutingSourceContract.mjs'
+      - 'scripts/checkRoadSurfaceProfileNumerics.mjs'
+      - 'scripts/checkRoadRouteSubedgeSafety.mjs'
+      - 'scripts/checkRoadRouteStressMatrix.mjs'
+      - 'scripts/checkRoadRouteDeterminismPerformance.mjs'
+      - 'scripts/checkRoadSettlementGeometry.mjs'
+      - 'scripts/checkRoadRouteCanonicalExactHead.mjs'
+      - 'scripts/summarizeRoadExactHead.mjs'
+      - '.github/workflows/road-exact-head-safety.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: road-exact-head-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  road-safety:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - name: Checkout exact requested head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXPECTED_HEAD_SHA }}
+          fetch-depth: 1
+          lfs: false
+
+      - name: Verify exact head
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          echo "exact_head=$EXPECTED_HEAD_SHA"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install terrain runtime dependency
+        run: npm install --no-save --no-package-lock three
+
+      - name: Syntax contracts
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/roadSurfaceProfile.js
+          node --check src/3d/world/roadPathfinder.js
+          node --check scripts/lib/roadRouteQa.mjs
+          node --check scripts/checkRoadRoutingSourceContract.mjs
+          node --check scripts/checkRoadSurfaceProfileNumerics.mjs
+          node --check scripts/checkRoadRouteSubedgeSafety.mjs
+          node --check scripts/checkRoadRouteStressMatrix.mjs
+          node --check scripts/checkRoadRouteDeterminismPerformance.mjs
+          node --check scripts/checkRoadSettlementGeometry.mjs
+          node --check scripts/checkRoadRouteCanonicalExactHead.mjs
+          node --check scripts/summarizeRoadExactHead.mjs
+
+      - name: Production source and authority contract
+        run: node scripts/checkRoadRoutingSourceContract.mjs
+
+      - name: Dense road-surface numeric contract
+        run: node scripts/checkRoadSurfaceProfileNumerics.mjs
+
+      - name: Sub-grid ridge and endpoint safety
+        run: node scripts/checkRoadRouteSubedgeSafety.mjs
+
+      - name: Forty-plus terrain stress matrix
+        run: node scripts/checkRoadRouteStressMatrix.mjs
+
+      - name: Determinism and performance matrix
+        run: node scripts/checkRoadRouteDeterminismPerformance.mjs
+
+      - name: Settlement pad geometry
+        run: node scripts/checkRoadSettlementGeometry.mjs
+
+      - name: Canonical fourteen-seat road network
+        run: node scripts/checkRoadRouteCanonicalExactHead.mjs
+
+      - name: Build exact-head summary
+        run: node scripts/summarizeRoadExactHead.mjs
+
+      - name: Upload exact-head road proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: road-exact-head-${{ env.EXPECTED_HEAD_SHA }}
+          path: artifacts/road-route-exact-head/
+          if-no-files-found: error
+          retention-days: 14

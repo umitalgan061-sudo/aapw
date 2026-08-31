@@ -32,7 +32,6 @@ for (const [pindex, run, filename, readyMarker] of modules) {
   serviceWorkerIndexes.push(swIndex);
 }
 
-// Continues the Run277-296 reverse-prepend offline / chronological-boot convention.
 for (let index = 1; index < serviceWorkerIndexes.length; index += 1) {
   if (serviceWorkerIndexes[index] >= serviceWorkerIndexes[index - 1]) {
     throw new Error(`offline prepend order regressed between Pindex-${modules[index - 1][0]} and Pindex-${modules[index][0]}`);
@@ -45,4 +44,31 @@ for (const [pindex, run, filename] of modules) {
   if (source.includes('Math.random(')) throw new Error(`${run}/Pindex-${pindex} became non-deterministic`);
 }
 
-console.log('[checkRun317Pindex10DetailChain] PASS: chronological runtime + reverse-prepend offline Pindex-01→10 contracts locked (10-pindex detail pass complete)');
+const pindex10 = fs.readFileSync('src/3d/world/worldReferencePindex10Detail.js', 'utf8');
+for (const required of [
+  'owner-map-pindex10-detail-2026-08-27-v2-lowland-weathering',
+  'macroMeters: 1860',
+  'mesoMeters: 520',
+  'fineMeters: 138',
+  'microMeters: 46',
+  'warpMeters: 840',
+  'samplePindex10SurfaceFabric',
+  'drainageThread',
+  'alluvium',
+  'interfluve',
+  'geographyAuthorityUnchanged: true',
+  'terrainHeightAuthorityUnchanged: true',
+  'hydrologyAuthorityUnchanged: true',
+  'colliderAuthorityUnchanged: true',
+  'renderOnly: true',
+]) {
+  if (!pindex10.includes(required)) throw new Error(`Run317/Pindex-10 v2 contract missing: ${required}`);
+}
+if (pindex10.includes('normalizedX * 1024') || pindex10.includes('normalizedY * 1024')) {
+  throw new Error('Run317/Pindex-10 regressed to normalized-map high-frequency grain');
+}
+if (pindex10.includes('const noise = (hash01(')) {
+  throw new Error('Run317/Pindex-10 regressed to the single sine-hash material pass');
+}
+
+console.log('[checkRun317Pindex10DetailChain] PASS: chronological runtime/offline chain plus world-space multi-scale Pindex-10 lowland weathering locked');
