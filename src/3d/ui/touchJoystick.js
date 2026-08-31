@@ -1,6 +1,7 @@
 /**
  * On-screen virtual joystick for touch-primary devices. Movement/run stay analog; jump and lock-on
- * are edge-triggered buttons, guard is held, and attacks feed the same Player contracts as desktop.
+ * are edge-triggered buttons, guard is held, dodge/parry are one-shot defense requests, and attacks
+ * feed the same Player contracts as desktop/gamepad.
  * @module ui/touchJoystick
  */
 
@@ -13,7 +14,7 @@ export class TouchJoystick {
 	constructor(container = document.body, { isInputBlocked = isPlayerGameplayInputBlocked } = {}) {
 		this._radiusPx = TOUCH_JOYSTICK_CONFIG.RADIUS_PX;
 		this._dragX = 0; this._dragY = 0; this._pointerId = null;
-		this._jumpRequested = false; this._lockOnRequested = false; this._guardHeld = false;
+		this._jumpRequested = false; this._dodgeRequested = false; this._parryRequested = false; this._lockOnRequested = false; this._guardHeld = false;
 		this._isInputBlocked = typeof isInputBlocked === 'function' ? isInputBlocked : isPlayerGameplayInputBlocked;
 		this._visibilityTarget = globalThis.document?.addEventListener ? globalThis.document : null;
 		this._pageLifecycleTarget = globalThis.window?.addEventListener ? globalThis.window : null;
@@ -42,6 +43,16 @@ export class TouchJoystick {
 		this._onHeavyAttack = (event) => { if (readPlayerGameplayInputBlocked(this._isInputBlocked)) { event.preventDefault?.(); return; } emitPlayerCombatIntent('heavy', 'touch'); event.preventDefault?.(); };
 		this._heavyAttackButton.addEventListener('pointerdown', this._onHeavyAttack); container.appendChild(this._heavyAttackButton);
 
+		this._dodgeButton = document.createElement('button'); this._dodgeButton.type = 'button'; this._dodgeButton.className = 'g3d-touch-dodge-button'; this._dodgeButton.textContent = 'Kaçın'; this._dodgeButton.setAttribute('aria-label', 'Kaçın');
+		Object.assign(this._dodgeButton.style, { position: 'fixed', right: '196px', bottom: '156px', zIndex: '30', minWidth: '72px', minHeight: '48px', borderRadius: '999px', opacity: '0.9', touchAction: 'manipulation' });
+		this._onDodge = (event) => { if (readPlayerGameplayInputBlocked(this._isInputBlocked)) { event.preventDefault?.(); return; } this._dodgeRequested = true; event.preventDefault?.(); };
+		this._dodgeButton.addEventListener('pointerdown', this._onDodge); container.appendChild(this._dodgeButton);
+
+		this._parryButton = document.createElement('button'); this._parryButton.type = 'button'; this._parryButton.className = 'g3d-touch-parry-button'; this._parryButton.textContent = 'Savuştur'; this._parryButton.setAttribute('aria-label', 'Savuştur');
+		Object.assign(this._parryButton.style, { position: 'fixed', right: '280px', bottom: '156px', zIndex: '30', minWidth: '80px', minHeight: '48px', borderRadius: '999px', opacity: '0.9', touchAction: 'manipulation' });
+		this._onParry = (event) => { if (readPlayerGameplayInputBlocked(this._isInputBlocked)) { event.preventDefault?.(); return; } this._parryRequested = true; event.preventDefault?.(); };
+		this._parryButton.addEventListener('pointerdown', this._onParry); container.appendChild(this._parryButton);
+
 		this._onPointerDown = this._handlePointerDown.bind(this); this._onPointerMove = this._handlePointerMove.bind(this); this._onPointerUp = this._handlePointerUp.bind(this);
 		this._base.addEventListener('pointerdown', this._onPointerDown); this._base.addEventListener('pointermove', this._onPointerMove); this._base.addEventListener('pointerup', this._onPointerUp); this._base.addEventListener('pointercancel', this._onPointerUp);
 		this._onVisibilityChange = () => { if (globalThis.document?.hidden === true) this._resetGameplayState(); };
@@ -54,7 +65,7 @@ export class TouchJoystick {
 		if (pointerId !== null) {
 			try { if (this._base.hasPointerCapture?.(pointerId)) this._base.releasePointerCapture?.(pointerId); } catch { /* input reset must stay fail-closed */ }
 		}
-		this._pointerId = null; this._dragX = 0; this._dragY = 0; this._jumpRequested = false; this._lockOnRequested = false; this._guardHeld = false;
+		this._pointerId = null; this._dragX = 0; this._dragY = 0; this._jumpRequested = false; this._dodgeRequested = false; this._parryRequested = false; this._lockOnRequested = false; this._guardHeld = false;
 		this._knob.style.transform = ''; this._base.classList.remove('g3d-joystick-active'); this._guardButton.setAttribute('aria-pressed', 'false');
 	}
 	_handlePointerDown(event) {
@@ -75,10 +86,13 @@ export class TouchJoystick {
 	getAxes() {
 		if (readPlayerGameplayInputBlocked(this._isInputBlocked)) { this._resetGameplayState(); return { forward: 0, strafe: 0, running: false, guarding: false }; }
 		const ratio = this._radiusPx > 0 ? Math.hypot(this._dragX, this._dragY) / this._radiusPx : 0;
-		if (ratio < TOUCH_JOYSTICK_CONFIG.DEADZONE_RATIO) return { forward: 0, strafe: 0, running: false, guarding: this._guardHeld };
-		return { forward: clamp(-this._dragY / this._radiusPx, -1, 1), strafe: clamp(this._dragX / this._radiusPx, -1, 1), running: ratio >= TOUCH_JOYSTICK_CONFIG.RUN_THRESHOLD_RATIO, guarding: this._guardHeld };
+		const parryRequested = this._parryRequested; this._parryRequested = false;
+		const running = ratio >= TOUCH_JOYSTICK_CONFIG.RUN_THRESHOLD_RATIO || this._dodgeRequested;
+		const guarding = this._guardHeld || parryRequested;
+		if (ratio < TOUCH_JOYSTICK_CONFIG.DEADZONE_RATIO) return { forward: 0, strafe: 0, running, guarding };
+		return { forward: clamp(-this._dragY / this._radiusPx, -1, 1), strafe: clamp(this._dragX / this._radiusPx, -1, 1), running, guarding };
 	}
-	consumeJumpRequested() { if (readPlayerGameplayInputBlocked(this._isInputBlocked)) { this._resetGameplayState(); return false; } const requested = this._jumpRequested; this._jumpRequested = false; return requested; }
+	consumeJumpRequested() { if (readPlayerGameplayInputBlocked(this._isInputBlocked)) { this._resetGameplayState(); return false; } const requested = this._jumpRequested || this._dodgeRequested; this._jumpRequested = false; this._dodgeRequested = false; return requested; }
 	consumeLockOnRequested() { if (readPlayerGameplayInputBlocked(this._isInputBlocked)) { this._resetGameplayState(); return false; } const requested = this._lockOnRequested; this._lockOnRequested = false; return requested; }
 	setLockOnActive(active) {
 		const locked = Boolean(active);
@@ -91,7 +105,7 @@ export class TouchJoystick {
 		this._pageLifecycleTarget?.removeEventListener('pagehide', this._onPageHide);
 		this._base.removeEventListener('pointerdown', this._onPointerDown); this._base.removeEventListener('pointermove', this._onPointerMove); this._base.removeEventListener('pointerup', this._onPointerUp); this._base.removeEventListener('pointercancel', this._onPointerUp);
 		this._jumpButton.removeEventListener('click', this._onJumpClick); this._guardButton.removeEventListener('pointerdown', this._onGuardDown); this._guardButton.removeEventListener('pointerup', this._onGuardUp); this._guardButton.removeEventListener('pointercancel', this._onGuardUp); this._guardButton.removeEventListener('pointerleave', this._onGuardUp);
-		this._lockOnButton.removeEventListener('pointerdown', this._onLockOn); this._lightAttackButton.removeEventListener('pointerdown', this._onLightAttack); this._heavyAttackButton.removeEventListener('pointerdown', this._onHeavyAttack);
-		this._resetGameplayState(); this._guardButton.remove(); this._lockOnButton.remove(); this._jumpButton.remove(); this._lightAttackButton.remove(); this._heavyAttackButton.remove(); this._base.remove();
+		this._lockOnButton.removeEventListener('pointerdown', this._onLockOn); this._lightAttackButton.removeEventListener('pointerdown', this._onLightAttack); this._heavyAttackButton.removeEventListener('pointerdown', this._onHeavyAttack); this._dodgeButton.removeEventListener('pointerdown', this._onDodge); this._parryButton.removeEventListener('pointerdown', this._onParry);
+		this._resetGameplayState(); this._guardButton.remove(); this._lockOnButton.remove(); this._jumpButton.remove(); this._lightAttackButton.remove(); this._heavyAttackButton.remove(); this._dodgeButton.remove(); this._parryButton.remove(); this._base.remove();
 	}
 }
