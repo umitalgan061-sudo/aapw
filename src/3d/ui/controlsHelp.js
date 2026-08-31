@@ -7,6 +7,8 @@ const DESKTOP_CONTROLS = Object.freeze([
 	['Shift', 'Koş'],
 	['Space', 'Zıpla'],
 	['E', 'Yakındaki kişiyle konuş'],
+	['C / Sol tık', 'Hafif saldırı'],
+	['R', 'Ağır saldırı'],
 	['Fare', 'Kamerayı döndür ve yakınlaştır'],
 ]);
 
