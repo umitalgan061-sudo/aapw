@@ -3,15 +3,21 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { NATURAL_GEOLOGY_PLACEMENT_POLICY } from '../src/3d/world/naturalGeologyPlacement.js';
+import { NATURAL_GEOLOGY_RENDER_POLICY } from '../src/3d/world/naturalGeology.js';
 import { VALYRIA_GEOLOGY_POLICY } from '../src/3d/world/valyriaGeology.js';
 import { VALYRIA_BARREN_ECOLOGY_POLICY } from '../src/3d/world/valyriaEcology.js';
+import { VALYRIA_CASTLE_WEATHERING_POLICY } from '../src/3d/world/valyriaCastleWeathering.js';
+import { VALYRIA_VOLCANIC_FEATURE_POLICY } from '../src/3d/world/valyriaVolcanicFeatures.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const read = (path) => readFileSync(resolve(ROOT, path), 'utf8');
 const placementSource = read('src/3d/world/naturalGeologyPlacement.js');
 const renderSource = read('src/3d/world/naturalGeology.js');
+const featureSource = read('src/3d/world/valyriaVolcanicFeatures.js');
 const valyriaSource = read('src/3d/world/valyriaGeology.js');
 const ecologySource = read('src/3d/world/valyriaEcology.js');
+const castleSource = read('src/3d/world/valyriaCastleWeathering.js');
+const settlementSource = read('src/3d/world/settlements.js');
 const terrainSource = read('src/3d/world/terrain.js');
 const sceneSource = read('src/3d/sceneManager.js');
 const manifest = JSON.parse(read('assets_manifest.json'));
@@ -25,16 +31,36 @@ assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.settlementReserveMeters >= 120);
 assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.roadReserveMeters >= 18);
 assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.shorelineReserveMeters >= 8);
 
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.renderOnly, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.geographyAuthorityUnchanged, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.legacyBlanketSurfaceRemoved, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.canonicalTerrainOwnsContinuousValyriaSurface, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.volcanicFeaturePolicyId, VALYRIA_VOLCANIC_FEATURE_POLICY.id);
+assert(NATURAL_GEOLOGY_RENDER_POLICY.id.includes('v2-sparse-volcanic-features'));
+
+assert.equal(VALYRIA_VOLCANIC_FEATURE_POLICY.renderOnly, true);
+assert.equal(VALYRIA_VOLCANIC_FEATURE_POLICY.deterministic, true);
+assert.equal(VALYRIA_VOLCANIC_FEATURE_POLICY.geographyAuthorityUnchanged, true);
+assert.equal(VALYRIA_VOLCANIC_FEATURE_POLICY.blanketGridOverlayForbidden, true);
+assert.equal(VALYRIA_VOLCANIC_FEATURE_POLICY.canonicalTerrainOwnsContinuousSurface, true);
+assert.equal(VALYRIA_VOLCANIC_FEATURE_POLICY.valyriaPolicyId, VALYRIA_GEOLOGY_POLICY.id);
+assert(VALYRIA_VOLCANIC_FEATURE_POLICY.maximumFeaturesDesktop > VALYRIA_VOLCANIC_FEATURE_POLICY.maximumFeaturesMobile);
+
 assert.equal(VALYRIA_GEOLOGY_POLICY.canonicalCoastlinePreserved, true);
 assert.equal(VALYRIA_GEOLOGY_POLICY.canonicalWaterClassificationPreserved, true);
 assert(VALYRIA_GEOLOGY_POLICY.id.includes('v4-natural-volcanic-morphology'));
 assert(VALYRIA_GEOLOGY_POLICY.faultScarpAcrossFrequency > VALYRIA_GEOLOGY_POLICY.faultScarpAlongFrequency * 2);
 assert(VALYRIA_GEOLOGY_POLICY.lavaDrainageIncisionMeters > 0);
 assert(VALYRIA_GEOLOGY_POLICY.erosionGullyCutMeters > 0);
+
 assert.equal(VALYRIA_BARREN_ECOLOGY_POLICY.geologyPolicyId, VALYRIA_GEOLOGY_POLICY.id);
 assert.equal(VALYRIA_BARREN_ECOLOGY_POLICY.placementOnly, true);
 assert.equal(VALYRIA_BARREN_ECOLOGY_POLICY.terrainHeightAuthorityUnchanged, true);
 assert.equal(VALYRIA_BARREN_ECOLOGY_POLICY.colliderAuthorityUnchanged, true);
+
+assert.equal(VALYRIA_CASTLE_WEATHERING_POLICY.targetSeatId, 'umit');
+assert.equal(VALYRIA_CASTLE_WEATHERING_POLICY.renderOnly, true);
+assert.equal(VALYRIA_CASTLE_WEATHERING_POLICY.geographyAuthorityUnchanged, true);
 
 for (const snippet of [
   'generateNaturalGeologyPlacements',
@@ -48,10 +74,17 @@ for (const snippet of [
 ]) {
   assert(placementSource.includes(snippet), `placement contract lost: ${snippet}`);
 }
+
 for (const snippet of [
   "from '../assetLoader.js'",
+  "from './valyriaVolcanicFeatures.js'",
   'createNaturalGeology',
-  'createValyriaVolcanicSurface',
+  'createValyriaVolcanicFeatures',
+  'generateValyriaVolcanicFeatures',
+  'valyria-fault-scarps',
+  'valyria-lava-crust-ribbons',
+  'legacyBlanketSurfaceRemoved: true',
+  'canonicalTerrainOwnsContinuousValyriaSurface: true',
   'upgradeNaturalGeologyAssets',
   'createNaturalRockPrototypeGeometry',
   'validateNaturalGeologyAsset',
@@ -64,6 +97,33 @@ for (const snippet of [
 ]) {
   assert(renderSource.includes(snippet), `renderer contract lost: ${snippet}`);
 }
+
+for (const forbidden of [
+  'const vertices = [], colors = [], indices = []',
+  'activeCells += 1',
+  'new THREE.Float32BufferAttribute(vertices, 3)',
+  'polygonOffsetFactor: -1',
+]) {
+  assert(!renderSource.includes(forbidden), `blanket Valyria overlay regressed: ${forbidden}`);
+}
+
+for (const snippet of [
+  'blanketGridOverlayForbidden: true',
+  'canonicalTerrainOwnsContinuousSurface: true',
+  'lavaDrainageThreshold',
+  'faultActivityThreshold',
+  'minimumLavaSpacingMeters',
+  'minimumFaultSpacingMeters',
+  'generateValyriaVolcanicFeatures',
+  'checksumValyriaVolcanicFeatures',
+  'valyriaMorphologySignals',
+  'valyriaSurfaceWeights',
+]) {
+  assert(featureSource.includes(snippet), `Valyria sparse-feature contract lost: ${snippet}`);
+}
+assert(!featureSource.includes("from 'three'"), 'Valyria feature placement must remain renderer-independent');
+assert(!featureSource.includes('Math.random()'), 'Valyria feature placement must remain deterministic');
+
 for (const snippet of [
   'v4-natural-volcanic-morphology',
   'coreCenter',
@@ -88,6 +148,7 @@ for (const snippet of [
 ]) {
   assert(valyriaSource.includes(snippet), `Valyria contract lost: ${snippet}`);
 }
+
 for (const snippet of [
   'placementOnly: true',
   'terrainHeightAuthorityUnchanged: true',
@@ -110,6 +171,7 @@ for (const snippet of [
   'applyValyriaSurfaceColorAtWorldXZ(blended',
   'canonicalHeightIntegrated: true',
   'canonicalWaterClassificationPreserved: true',
+  'volcanicVertexColorIntegrated: true',
 ]) {
   assert(terrainSource.includes(snippet), `canonical terrain Valyria wiring lost: ${snippet}`);
 }
@@ -127,6 +189,23 @@ for (const snippet of [
 }
 assert(sceneSource.indexOf('const naturalGeologyResult = createNaturalGeology') < sceneSource.indexOf('const vegetationResult = createVegetation'), 'geology must remain visually primary before vegetation');
 assert(sceneSource.indexOf('const roadsResult = buildRoadNetwork') < sceneSource.indexOf('const naturalGeologyResult = createNaturalGeology'), 'geology placement must know road corridors');
+
+for (const snippet of [
+  "from './valyriaCastleWeathering.js'",
+  'VALYRIA_CASTLE_WEATHERING_POLICY.baseStoneHex',
+  'applyValyriaCastleWeathering(stoneMaterial',
+  "seatId: assignment.seatId",
+]) {
+  assert(settlementSource.includes(snippet), `Valyria fortress runtime wiring lost: ${snippet}`);
+}
+for (const snippet of [
+  'targetSeatId: \'umit\'',
+  'surfaceProfile: \'valyria-basalt-fortress\'',
+  'sparseThermalFissures: true',
+  'material.onBeforeCompile',
+]) {
+  assert(castleSource.includes(snippet), `Valyria fortress weathering contract lost: ${snippet}`);
+}
 
 assert(!valyriaSource.includes("from 'three'"), 'Valyria authority must remain renderer-independent');
 assert(!valyriaSource.includes('Math.random()'), 'Valyria geology must remain deterministic');
@@ -146,12 +225,16 @@ assert(!renderSource.includes('loadModel(NATURAL_GEOLOGY_RENDER_POLICY.reference
 
 console.log('[checkNaturalGeologySourceContract] PASS');
 console.log(JSON.stringify({
-  policyId: NATURAL_GEOLOGY_PLACEMENT_POLICY.id,
+  placementPolicyId: NATURAL_GEOLOGY_PLACEMENT_POLICY.id,
+  renderPolicyId: NATURAL_GEOLOGY_RENDER_POLICY.id,
+  volcanicFeaturePolicyId: VALYRIA_VOLCANIC_FEATURE_POLICY.id,
   directAssets: NATURAL_GEOLOGY_PLACEMENT_POLICY.directAssetFamilies,
   referenceOnlyAssets: NATURAL_GEOLOGY_PLACEMENT_POLICY.referenceOnlyAssets,
   knownLfsBytes: NATURAL_GEOLOGY_PLACEMENT_POLICY.knownLfsBytes,
   valyriaPolicy: VALYRIA_GEOLOGY_POLICY.id,
   valyriaEcologyPolicy: VALYRIA_BARREN_ECOLOGY_POLICY.id,
+  valyriaCastlePolicy: VALYRIA_CASTLE_WEATHERING_POLICY.id,
   canonicalTerrainIntegration: true,
   naturalVolcanicMorphology: true,
+  blanketValyriaOverlayRemoved: true,
 }, null, 2));
