@@ -165,10 +165,10 @@ function emitInputDeviceChange(index, reason) {
 export class KeyboardInput {
 	constructor(target = window, { isInputBlocked = isPlayerGameplayInputBlocked } = {}) {
 		this._keys = new Set(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false;
-		this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._lastCombatFeedbackSerial = 0; this._pendingCombatFeedbackSerial = 0; this._target = target; this._isInputBlocked = typeof isInputBlocked === 'function' ? isInputBlocked : isPlayerGameplayInputBlocked;
+		this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._lastCombatFeedbackSerial = 0; this._pendingCombatFeedbackSerial = 0; this._target = target; this._visibilityTarget = globalThis.document?.addEventListener ? globalThis.document : target; this._isInputBlocked = typeof isInputBlocked === 'function' ? isInputBlocked : isPlayerGameplayInputBlocked;
 		this._onKeyDown = (event) => {
 			if (readPlayerGameplayInputBlocked(this._isInputBlocked)) return;
-			const firstPress = !this._keys.has(event.code);
+			const firstPress = event.repeat !== true && !this._keys.has(event.code);
 			if (JUMP_KEYS.has(event.code) && firstPress) this._jumpRequested = true;
 			if (firstPress && LOCK_ON_KEYS.has(event.code) && !isInteractiveTarget(event.target)) { this._lockOnRequested = true; event.preventDefault?.(); }
 			if (firstPress && LIGHT_ATTACK_KEYS.has(event.code) && !isInteractiveTarget(event.target)) emitPlayerCombatIntent('light', 'keyboard');
@@ -197,8 +197,9 @@ export class KeyboardInput {
 			this._keys.clear(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false; this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null;
 			if (hadActiveInput) emitInputDeviceChange(null, event?.type === 'pagehide' ? 'page-hidden' : event?.type === 'visibilitychange' ? 'visibility-hidden' : 'focus-lost');
 		};
-		this._onVisibilityChange = () => { if (this._target?.hidden === true || globalThis.document?.hidden === true) this._onFocusLoss({ type: 'visibilitychange' }); };
+		this._onVisibilityChange = () => { if (this._visibilityTarget?.hidden === true || globalThis.document?.hidden === true) this._onFocusLoss({ type: 'visibilitychange' }); };
 		for (const [type, handler] of [['keydown', this._onKeyDown], ['keyup', this._onKeyUp], ['pointerdown', this._onPointerDown], ['pointerup', this._onPointerUp], ['pointercancel', this._onPointerUp], ['contextmenu', this._onContextMenu], [COMBAT_FEEDBACK_EVENT, this._onCombatFeedback], ['blur', this._onFocusLoss], ['pagehide', this._onFocusLoss], ['visibilitychange', this._onVisibilityChange]]) target.addEventListener(type, handler);
+		if (this._visibilityTarget !== target) this._visibilityTarget.addEventListener('visibilitychange', this._onVisibilityChange);
 	}
 	_pollGamepad(inputBlocked = readPlayerGameplayInputBlocked(this._isInputBlocked)) {
 		const pads = globalThis.navigator?.getGamepads?.() ?? [], gamepad = selectPlayerGamepad(pads, this._activeGamepadIndex), nextIndex = gamepad?.index ?? null, switched = nextIndex !== this._activeGamepadIndex;
@@ -234,6 +235,7 @@ export class KeyboardInput {
 	consumeLockOnRequested() { const requested = this._lockOnRequested; this._lockOnRequested = false; return requested; }
 	dispose() {
 		for (const [type, handler] of [['keydown', this._onKeyDown], ['keyup', this._onKeyUp], ['pointerdown', this._onPointerDown], ['pointerup', this._onPointerUp], ['pointercancel', this._onPointerUp], ['contextmenu', this._onContextMenu], [COMBAT_FEEDBACK_EVENT, this._onCombatFeedback], ['blur', this._onFocusLoss], ['pagehide', this._onFocusLoss], ['visibilitychange', this._onVisibilityChange]]) this._target.removeEventListener(type, handler);
+		if (this._visibilityTarget !== this._target) this._visibilityTarget.removeEventListener('visibilitychange', this._onVisibilityChange);
 		this._keys.clear(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false; this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._lastCombatFeedbackSerial = 0; this._pendingCombatFeedbackSerial = 0;
 	}
 }
