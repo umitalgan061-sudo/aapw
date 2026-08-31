@@ -57,9 +57,10 @@ if (/payload\.amount\s*=\s*0/.test(player.match(/if \(!guarding \|\| stamina <= 
 
 function sourceFunction(name, nextName) {
   const start = player.indexOf(`function ${name}`);
-  const end = player.indexOf(`function ${nextName}`, start + 1);
-  if (start < 0 || end <= start) throw new Error(`Missing ${name}() source for executable combat contract.`);
-  return player.slice(start, end);
+  const nextFunction = player.indexOf(`function ${nextName}`, start + 1);
+  if (start < 0 || nextFunction <= start) throw new Error(`Missing ${name}() source for executable combat contract.`);
+  const nextLineStart = player.lastIndexOf('\n', nextFunction) + 1;
+  return player.slice(start, nextLineStart > start ? nextLineStart : nextFunction);
 }
 
 const actionConfigSource = player.match(/const PLAYER_ACTION_CONFIG = Object\.freeze\((\{[\s\S]*?\})\);/)?.[1];
