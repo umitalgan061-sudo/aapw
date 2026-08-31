@@ -31,6 +31,7 @@ async function main() {
 				createWater,
 				updateWater,
 				disposeWater,
+				WATER_FULL_WORLD_EXTENT_METERS,
 				WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
 			} = await import('/src/3d/world/water.js');
 			const { publishCelestialLightState } = await import('/src/3d/celestialLightState.js');
@@ -49,7 +50,10 @@ async function main() {
 			fail(water.material.transparent === true && water.material.depthWrite === true && water.material.fog === true, 'near-water render signature drifted');
 
 			const far = water.userData.farWater;
-			fail(far?.isMesh === true && far.geometry.parameters?.width === 17000, 'full-world far-water underlay drifted');
+			fail(far?.isMesh === true && far.geometry.parameters?.width === WATER_FULL_WORLD_EXTENT_METERS,
+				'full-world far-water underlay drifted');
+			fail(far.geometry.parameters?.height === WATER_FULL_WORLD_EXTENT_METERS,
+				'full-world far-water underlay must remain square and authority-sized');
 			fail(far.material.depthWrite === false, 'far water must not occlude displaced near-water troughs');
 			fail(far.renderOrder === -1, 'far water must render before the near layer');
 			fail(far.material.uniforms.uFarLayerMask.value === 1, 'far water no longer masks itself under the near square');
@@ -103,8 +107,6 @@ async function main() {
 			fail(fragmentShader.includes('if (surfaceAlpha <= 0.001) discard;'), 'fully faded water fragments must not leave transparent seam pixels');
 			fail(fragmentShader.includes('#include <fog_pars_fragment>') && fragmentShader.includes('#include <fog_fragment>'), 'water fog chunks drifted');
 
-			// Custom-shader key follows the same published celestial state as lighting.js. First prove a
-			// daylight key, then a stronger moon key, without reaching into water internals.
 			publishCelestialLightState({
 				sunPosition: new THREE.Vector3(30, 40, 0),
 				sunColor: new THREE.Color(0xffb366),
@@ -166,12 +168,14 @@ async function main() {
 				vertexCount: positions.count,
 				indexCount: index.count,
 				optical,
+				farExtent: WATER_FULL_WORLD_EXTENT_METERS,
 				backdropExtent: WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
 			};
 		});
 
 		assert(result.vertexCount === 16641 && result.indexCount === 98304, 'water topology mismatch escaped browser contract');
-		assert(result.backdropExtent === 28000, 'deep-ocean backdrop contract escaped browser validation');
+		assert(result.farExtent === 28000 && result.backdropExtent === 28000,
+			'full-world water extent contract escaped browser validation');
 		console.log(`[checkWaterVisualContract] PASS: depth-clear ${result.optical.shallowAlpha.toFixed(2)}→${result.optical.deepAlpha.toFixed(2)} alpha, live sun/moon specular, near/far/deep-ocean composition, ${result.vertexCount} near-water vertices.`);
 	} finally {
 		await browser.close();
