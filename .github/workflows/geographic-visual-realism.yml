@@ -9,6 +9,10 @@ on:
       - 'src/3d/world/rivers.js'
       - 'src/3d/world/roads.js'
       - 'src/3d/world/terrainBiomeShading.js'
+      - 'src/3d/world/naturalGeology.js'
+      - 'src/3d/world/naturalGeologyPlacement.js'
+      - 'src/3d/world/valyriaGeology.js'
+      - 'src/3d/world/valyriaVolcanicFeatures.js'
       - 'src/3d/world/worldReferenceSurfaceTerrainVisual.js'
       - 'src/3d/world/geographicReferencePalette.js'
       - 'scripts/checkWaterVisualContract.js'
@@ -66,6 +70,10 @@ jobs:
           node --check src/3d/world/rivers.js
           node --check src/3d/world/roads.js
           node --check src/3d/world/terrainBiomeShading.js
+          node --check src/3d/world/naturalGeology.js
+          node --check src/3d/world/naturalGeologyPlacement.js
+          node --check src/3d/world/valyriaGeology.js
+          node --check src/3d/world/valyriaVolcanicFeatures.js
           node --check src/3d/world/geographicReferencePalette.js
           node --check scripts/checkWaterVisualContract.js
           node --check scripts/checkRoadVisualContract.js
