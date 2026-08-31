@@ -61,7 +61,6 @@ async function main() {
 			canvas.id = 'run221-aurora-proof';
 			canvas.width = 960;
 			canvas.height = 540;
-			canvas.style.cssText = 'position:fixed;inset:70px auto auto 50%;transform:translateX(-50%);width:960px;height:540px;z-index:99999;background:#000';
 			document.body.appendChild(canvas);
 
 			const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
@@ -186,10 +185,11 @@ async function main() {
 			fail(nightReadabilityIntensity - dayReadabilityIntensity >= 0.25,
 				`Readability fill does not respond strongly enough to night: ${nightReadabilityIntensity} -> ${dayReadabilityIntensity}`);
 
-			// Restore the midnight visual as the artifact frame after isolated invariance measurement.
+			// Restore the exact midnight artifact frame after isolated invariance measurement.
 			updateDayNightLighting(lights, 0, 100, 0);
 			updateAuroraSky(sky, camera.position, 83, midnight);
 			renderer.render(scene, camera);
+			const artifactDataUrl = canvas.toDataURL('image/png');
 
 			disposeAuroraSky(sky);
 			disposeDayNightLighting(scene, lights);
@@ -203,11 +203,15 @@ async function main() {
 				secondStats,
 				meanAnimationDelta,
 				cameraTranslationDelta,
+				artifactDataUrl,
 			};
 		});
 
 		fs.mkdirSync(OUT, { recursive: true });
-		await page.locator('#run221-aurora-proof').screenshot({ path: path.join(OUT, 'game-aurora-flow-b.png') });
+		const encodedPng = result.artifactDataUrl.split(',', 2)[1];
+		assert(Boolean(encodedPng), 'Raw WebGL evidence PNG could not be encoded.');
+		fs.writeFileSync(path.join(OUT, 'game-aurora-flow-b.png'), Buffer.from(encodedPng, 'base64'));
+		delete result.artifactDataUrl;
 
 		assert(optionalMoonFallbacks.length <= 1, `Unexpected repeated Moon fallback errors: ${optionalMoonFallbacks.length}`);
 		assert(missing.length === 0, `HTTP errors: ${missing.join(' | ')}`);
