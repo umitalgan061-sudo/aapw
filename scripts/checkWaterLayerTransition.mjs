@@ -115,8 +115,9 @@ assert(source.includes('(surfaceAlpha * layerBlend) / max(1.0 - nearAlpha, 0.001
   'far layer must use opacity-conserving complementary feathering');
 assert(source.includes('float microSlopeFade = 1.0 - smoothstep(520.0, 2800.0, cameraDistance);'),
   'distant micro-normal suppression drifted');
-assert(source.includes('alpha = mix(alpha, 1.0, deepMarineMask);'),
-  'deep boundary-connected ocean must suppress rectangular terrain-seabed bleed');
+assert(source.includes('float marineBedOcclusion = smoothstep(0.26, 0.70, fragmentDepth) * smoothstep(0.50, 0.88, offshoreOptical);')
+  && source.includes('alpha = mix(alpha, 1.0, marineBedOcclusion);'),
+  'offshore seabed occlusion must suppress terrain-footprint bleed without hiding shallow coasts');
 assert(source.includes('if (surfaceAlpha <= 0.001) discard;'),
   'fully faded transition fragments must not write transparent seam pixels');
 
