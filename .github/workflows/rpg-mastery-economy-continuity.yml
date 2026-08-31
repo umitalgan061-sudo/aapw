@@ -3,9 +3,16 @@ name: RPG Mastery Economy Continuity
 on:
   pull_request:
     paths:
+      - 'src/3d/gameplay/interaction.js'
       - 'src/3d/gameplay/interactionConfig.js'
+      - 'src/3d/gameplay/interactionEconomy.js'
       - 'scripts/checkInteractionArmorerServiceBrowser.mjs'
+      - 'scripts/checkInteractionExpeditionBoard.mjs'
+      - 'scripts/checkInteractionExpeditionBoardBrowser.mjs'
       - 'scripts/checkInteractionExpeditionKitCraft.mjs'
+      - 'scripts/checkInteractionExpeditionRewardProvenance.mjs'
+      - 'scripts/checkInteractionExpeditionRewardTradeContinuity.mjs'
+      - 'scripts/checkInteractionExpeditionTradeQuoteAtomicity.mjs'
       - 'scripts/checkInteractionProvisioningCraft.mjs'
       - 'scripts/checkInteractionQuartermasterTrade.mjs'
       - 'scripts/checkInteractionSettlementServiceBrowser.mjs'
@@ -14,6 +21,9 @@ on:
       - 'scripts/checkInteractionTradeLedgerAtomicity.mjs'
       - 'scripts/checkInteractionMasteryEconomyContinuity.mjs'
       - 'scripts/checkInteractionMasteryToSmithingBrowser.mjs'
+      - '.github/workflows/rpg-expedition-credit-ledger.yml'
+      - '.github/workflows/rpg-expedition-reward-provenance.yml'
+      - '.github/workflows/rpg-interaction-quest-loop.yml'
       - '.github/workflows/rpg-mastery-armorer-service.yml'
       - '.github/workflows/rpg-mastery-to-smithing.yml'
       - '.github/workflows/rpg-smithing-service-persistence.yml'
@@ -44,7 +54,7 @@ jobs:
           test "$MERGE_BASE" = "$CURRENT_MAIN"
           mapfile -t FILES < <(git diff --name-only "$CURRENT_MAIN"...HEAD)
           printf '%s\n' "${FILES[@]}"
-          allowed='^(\.github/workflows/(rpg-expedition-tavern-recovery|rpg-interaction-quest-loop|rpg-journey-ledger-ux|rpg-mastery-armorer-service|rpg-mastery-(economy-continuity|journal-continuity|to-smithing|travel-continuity)|rpg-smithing-service-persistence|rpg-tavern-receipt-integrity|run283-final-head-governance)\.yml|scripts/checkInteractionExpeditionKit(Browser|Craft)\.mjs|scripts/checkInteractionMastery(EconomyContinuity|ToSmithingBrowser)\.mjs|scripts/checkInteraction(ArmorerServiceBrowser|ProvisioningCraft|QuartermasterTrade|SettlementService(Browser|Contract)|SmithingServicePersistence|TradeLedger(Atomicity|Browser))\.mjs|src/3d/gameplay/interactionConfig\.js)$'
+          allowed='^(\.github/workflows/(rpg-expedition-(credit-ledger|reward-provenance)|rpg-expedition-tavern-recovery|rpg-interaction-quest-loop|rpg-journey-ledger-ux|rpg-mastery-armorer-service|rpg-mastery-(economy-continuity|journal-continuity|to-smithing|travel-continuity)|rpg-smithing-service-persistence|rpg-tavern-receipt-integrity|run283-final-head-governance)\.yml|scripts/checkInteractionExpedition(Board|BoardBrowser|RewardProvenance|RewardTradeContinuity|TradeQuoteAtomicity)\.mjs|scripts/checkInteractionExpeditionKit(Browser|Craft)\.mjs|scripts/checkInteractionMastery(EconomyContinuity|ToSmithingBrowser)\.mjs|scripts/checkInteraction(ArmorerServiceBrowser|ProvisioningCraft|QuartermasterTrade|SettlementService(Browser|Contract)|SmithingServicePersistence|TradeLedger(Atomicity|Browser))\.mjs|src/3d/gameplay/interaction(Economy|Config)?\.js)$'
           if (( ${#FILES[@]} )); then
             printf '%s\n' "${FILES[@]}" | grep -Ev "$allowed" && exit 1 || true
           fi
