@@ -20,7 +20,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v57 follows direct inspection of the exact-head 2026-08-31 full-world shipped createScene artifact: canonical relief reads correctly, but broad lowlands still collapse into one olive-grey value at aerial scale. Meadow and moss are lifted into distinct natural green families, dry heath is separated into a warmer mineral-brown band, wet soil gains readable but still subdued value, and sunlit granite is lifted enough to expose ridge/cliff structure without changing terrain height, shoreline, hydrology or colliders',
+		terrain: 'v57 follows direct inspection of the exact-head 2026-08-31 full-world shipped createScene artifact: canonical relief reads correctly, but broad lowlands still collapse into one olive-grey value at aerial scale. Meadow and moss are lifted into distinct natural green families, dry heath is separated into a warmer mineral-brown band, wet soil gains readable but still subdued value, sunlit granite is lifted for aerial ridge readability, and fracture/shadow granite remains dark enough for measured cliff strata variation without changing terrain height, shoreline, hydrology or colliders',
 		water: 'v57 preserves the v54 shore/inland/deep-water hierarchy and restrained cyan; canonical wet coverage, shoreline and hydrology are unchanged',
 		road: 'v57 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
@@ -34,7 +34,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		dryHeather: 0x65563a,
 		wetEarth: 0x20261d,
 		exposedEarth: 0x87563b,
-		graniteShadow: 0x343c3e,
+		graniteShadow: 0x293135,
 		graniteSunlit: 0x77736a,
 		basaltWet: 0x0d171a,
 		quartz: 0x81796f,
