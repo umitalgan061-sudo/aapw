@@ -168,7 +168,9 @@ export class KeyboardInput {
 		this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._lastCombatFeedbackSerial = 0; this._pendingCombatFeedbackSerial = 0; this._target = target; this._visibilityTarget = globalThis.document?.addEventListener ? globalThis.document : target; this._isInputBlocked = typeof isInputBlocked === 'function' ? isInputBlocked : isPlayerGameplayInputBlocked;
 		this._onKeyDown = (event) => {
 			if (readPlayerGameplayInputBlocked(this._isInputBlocked)) return;
-			const firstPress = event.repeat !== true && !this._keys.has(event.code);
+			const wasHeld = this._keys.has(event.code);
+			if (event.repeat === true && !wasHeld) return;
+			const firstPress = !wasHeld;
 			if (JUMP_KEYS.has(event.code) && firstPress) this._jumpRequested = true;
 			if (firstPress && LOCK_ON_KEYS.has(event.code) && !isInteractiveTarget(event.target)) { this._lockOnRequested = true; event.preventDefault?.(); }
 			if (firstPress && LIGHT_ATTACK_KEYS.has(event.code) && !isInteractiveTarget(event.target)) emitPlayerCombatIntent('light', 'keyboard');
