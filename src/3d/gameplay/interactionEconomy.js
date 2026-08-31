@@ -75,6 +75,7 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 	let lifetimeSpentCopper = 0;
 	let recentTransactions = [];
 	let recentCredits = [];
+	let purchaseInFlight = false;
 	const creditedSourceIds = new Set();
 	const stockByOffer = new Map();
 	const purchasesByOffer = new Map();
@@ -291,15 +292,22 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 
 	function purchase(offer, grantItem) {
 		if (typeof grantItem !== 'function') return { ok: false, reason: 'invalid-offer' };
+		if (purchaseInFlight) return { ok: false, reason: 'purchase-in-progress', balanceCopper: copper };
 		const purchaseQuote = quote(offer);
 		if (!purchaseQuote.ok) return purchaseQuote;
 		const configuredOffer = configuredOfferFor(offer);
 		const fulfillment = configuredOffer.fulfillment;
-		const grantResult = grantItem(configuredOffer.itemId, configuredOffer.quantity ?? 1, {
-			sourceType: fulfillment?.kind ?? 'vendor',
-			sourceId: fulfillment?.serviceId ?? QUARTERMASTER_NPC_ID,
-			craftUpgrade: fulfillment?.craftUpgrade ?? null,
-		});
+		let grantResult;
+		purchaseInFlight = true;
+		try {
+			grantResult = grantItem(configuredOffer.itemId, configuredOffer.quantity ?? 1, {
+				sourceType: fulfillment?.kind ?? 'vendor',
+				sourceId: fulfillment?.serviceId ?? QUARTERMASTER_NPC_ID,
+				craftUpgrade: fulfillment?.craftUpgrade ?? null,
+			});
+		} finally {
+			purchaseInFlight = false;
+		}
 		const granted = grantResult === true || grantResult?.ok === true;
 		if (!granted) return { ...purchaseQuote, ok: false, reason: grantResult?.reason ?? 'inventory-full' };
 		const crafted = grantResult?.crafted === true && Boolean(fulfillment?.craftUpgrade);
