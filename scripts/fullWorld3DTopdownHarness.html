@@ -50,9 +50,9 @@ import { createWaterDepthField } from '../src/3d/world/waterDepthField.js';
 
 const params = new URLSearchParams(location.search);
 const focus = params.get('focus') === 'valyria' ? 'valyria' : 'world';
-const width = Math.max(640, Number(params.get('width')) || 1600);
-const height = Math.max(480, Number(params.get('height')) || 1100);
-const segmentsX = Math.max(80, Number(params.get('segments')) || 240);
+const width = Math.max(640, Number(params.get('width')) || 1536);
+const height = Math.max(480, Number(params.get('height')) || 1024);
+const segmentsX = Math.max(80, Number(params.get('segments')) || 360);
 const segmentsZ = Math.round(segmentsX * WORLD_SCALE.WORLD_DEPTH_METERS / WORLD_SCALE.WORLD_WIDTH_METERS);
 const worldWidth = WORLD_SCALE.WORLD_WIDTH_METERS;
 const worldDepth = WORLD_SCALE.WORLD_DEPTH_METERS;
@@ -176,7 +176,7 @@ scene.add(water);
 
 const aspect = width / height;
 const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 40000);
-camera.position.set(0, 15800, worldDepth * 0.26);
+camera.position.set(0, 15800, 0);
 camera.up.set(0, 0, -1);
 camera.lookAt(0, seaLevel, 0);
 camera.updateMatrixWorld(true);
@@ -287,6 +287,8 @@ window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
 	camera: Object.freeze({
 		type: 'OrthographicCamera',
 		position: Object.freeze(camera.position.toArray()),
+		pitchDegrees: focus === 'world' ? 90 : null,
+		trueTopDown: focus === 'world',
 		verticalExaggeration: 1,
 		frameMargin,
 		fittedHalfWidth,
