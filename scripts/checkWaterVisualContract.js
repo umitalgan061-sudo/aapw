@@ -94,7 +94,13 @@ async function main() {
 			for (const token of ['enclosedLakeMask', 'clearCoastMask', 'referenceLakeClear', 'bedReadability', 'uNightFactor', 'nightAbsorption']) {
 				fail(fragmentShader.includes(token), `water reference-optics shader missing ${token}`);
 			}
-			fail(fragmentShader.includes('nearLayerDistance < 1999.5') && fragmentShader.includes('discard'), 'near/far double-alpha mask disappeared');
+			fail(!fragmentShader.includes('nearLayerDistance < 1999.5'), 'legacy hard rectangular near/far water cutoff returned');
+			fail(fragmentShader.includes('float layerBlend = smoothstep(uLayerTransitionStart, uLayerTransitionEnd, nearLayerDistance);'),
+				'near/far water transition lost its distance feather');
+			fail(fragmentShader.includes('surfaceAlpha *= 1.0 - layerBlend;'), 'near water no longer fades continuously through the transition band');
+			fail(fragmentShader.includes('(surfaceAlpha * layerBlend) / max(1.0 - nearAlpha, 0.001)'),
+				'far water no longer uses opacity-conserving complementary feathering');
+			fail(fragmentShader.includes('if (surfaceAlpha <= 0.001) discard;'), 'fully faded water fragments must not leave transparent seam pixels');
 			fail(fragmentShader.includes('#include <fog_pars_fragment>') && fragmentShader.includes('#include <fog_fragment>'), 'water fog chunks drifted');
 
 			// Custom-shader key follows the same published celestial state as lighting.js. First prove a
