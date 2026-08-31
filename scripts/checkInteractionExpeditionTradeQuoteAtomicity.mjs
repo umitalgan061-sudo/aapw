@@ -257,6 +257,8 @@ const malformedReceiptPurchase = malformedReceiptEconomy.purchase(
     ok: true,
     crafted: true,
     outputItemId: 'dragonstone-expedition-maintenance-kit',
+    consumedItemId: 'forged-consumed-item',
+    consumedQuantity: 99,
     consumedItems: [null, {}, [], { itemId: 'dragonstone-whetstone', quantity: 2 }],
   }),
 );
@@ -268,6 +270,8 @@ assert.deepEqual(
   [{ itemId: 'dragonstone-whetstone', quantity: 2 }],
   'malformed crafting receipt entries must be filtered before the settlement trade transaction commits',
 );
+assert.equal(malformedReceiptPurchase.consumedItemId, 'dragonstone-whetstone', 'singular consumption identity must derive from the sanitized receipt list');
+assert.equal(malformedReceiptPurchase.consumedQuantity, 2, 'singular consumption quantity must derive from the sanitized receipt list');
 assert.equal(malformedReceiptEconomy.snapshot().ledger.transactionCount, 1);
 assert.equal(malformedReceiptEconomy.snapshot().stockByOffer['dragonstone-field-ration'], 3);
 
