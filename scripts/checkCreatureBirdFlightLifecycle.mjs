@@ -58,12 +58,9 @@ for (const [speciesId, budget] of Object.entries(expected)) {
   };
 }
 
-// State-machine structure: takeoff is attempted only from grounded, each candidate is terrain-validated
-// before phase/altitude/timer commit, landing is monotonic after a successful terrain sample, and a
-// completed landing recenters the ordinary grounded wander envelope.
 assert.match(source, /if \(flightPhase === 'grounded'\) \{\s*if \(currentlyReacting\) \{/,
   'startle may attempt takeoff only from grounded state');
-assert.match(source, /if \(tryCommitFlightMove\(nextX, nextZ, nextAltitude\)\) \{\s*flightHeadingX = nextHeadingX;/,
+assert.match(source, /if \(tryCommitFlightMove\(nextX, nextZ, nextAltitude\)\) \{\s*flightHeadingX = heading\.x;/,
   'takeoff state may commit only after its terrain-relative transform is valid');
 assert.match(source, /flightElapsedSeconds = delta;/, 'successful takeoff must start its bounded flight timer from simulation delta');
 assert.match(source, /const nextAltitude = Math\.max\(0, flightAltitudeMeters - profile\.takeoffClimbMps \* delta\)/,
@@ -82,16 +79,13 @@ assert.match(source, /const nextAltitude = Math\.min\(profile\.flightAltitudeMet
   'first climb candidate must be clamped to the authored altitude ceiling');
 assert.match(source, /nextAltitude = Math\.min\(profile\.flightAltitudeMeters, flightAltitudeMeters \+ profile\.takeoffClimbMps \* delta\)/,
   'continued climb must stay clamped to the authored altitude ceiling');
-assert.match(source, /else if \(nextElapsedSeconds >= profile\.flightDurationSeconds\) \{\s*nextPhase = 'landing'/,
+assert.match(source, /else if \(nextElapsedSeconds >= profile\.flightDurationSeconds\) nextPhase = 'landing';/,
   'cruise must terminate on the authored timer');
 assert.match(source, /gaitName: flightPhase === 'grounded' \? plan\.restGait : plan\.alertGait/,
   'ground and airborne gait families must stay distinct');
 
-// Airborne birds intentionally bypass ground/player collision resolution so a raven can clear a wall
-// or roof. Ground movement keeps the canonical player collider, but both paths must validate terrain
-// before one atomic position.set publishes the candidate.
 const flightHelperStart = source.indexOf('function tryCommitFlightMove');
-const flightHelperEnd = source.indexOf('\n\t/**', flightHelperStart);
+const flightHelperEnd = source.indexOf('\n\tfunction stepGroundWander', flightHelperStart);
 assert.ok(flightHelperStart >= 0 && flightHelperEnd > flightHelperStart, 'flight movement helper must remain discoverable');
 const flightHelper = source.slice(flightHelperStart, flightHelperEnd);
 assert.equal(flightHelper.includes('playerCollider'), false,
@@ -102,7 +96,7 @@ assert.match(flightHelper, /object3D\.position\.set\(candidateX, candidateY, can
   'airborne transform must publish atomically after terrain validation');
 
 const groundedHelperStart = source.indexOf('function tryCommitGroundedMove');
-const groundedHelperEnd = source.indexOf('\n\n\t// Airborne birds', groundedHelperStart);
+const groundedHelperEnd = source.indexOf('\n\tfunction tryCommitFlightMove', groundedHelperStart);
 assert.ok(groundedHelperStart >= 0 && groundedHelperEnd > groundedHelperStart, 'ground movement helper must remain discoverable');
 const groundedHelper = source.slice(groundedHelperStart, groundedHelperEnd);
 assert.match(groundedHelper, /playerCollider\.resolveXZ/, 'ground hopping must keep canonical collision resolution');
@@ -110,9 +104,6 @@ assert.match(groundedHelper, /groundCollider\.getGroundHeight/, 'ground hopping 
 assert.match(groundedHelper, /object3D\.position\.set\(resolvedX, resolvedY, resolvedZ\)/,
   'grounded movement must publish one complete finite transform');
 
-// Determinism policy for bird movement: no executable wall-clock or random source may appear in the
-// brain. Flight is advanced solely by supplied simulation delta, and failed terrain candidates cannot
-// consume hidden timer progress because timer assignment is inside the successful commit branch.
 const executableSource = source.split('\n').filter((line) => !/^\s*(?:\/\/|\*)/.test(line)).join('\n');
 assert.equal(/Math\.random\s*\(/.test(executableSource), false, 'bird brain must not use Math.random');
 assert.equal(/Date\.now\s*\(|performance\.now\s*\(/.test(executableSource), false, 'bird flight must not use wall-clock time');
