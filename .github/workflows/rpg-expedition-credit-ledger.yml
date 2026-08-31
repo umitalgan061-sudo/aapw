@@ -14,6 +14,7 @@ on:
       - '.github/workflows/rpg-expedition-reward-provenance.yml'
       - '.github/workflows/rpg-expedition-credit-ledger.yml'
       - '.github/workflows/rpg-interaction-quest-loop.yml'
+      - '.github/workflows/rpg-mastery-armorer-service.yml'
       - '.github/workflows/rpg-mastery-economy-continuity.yml'
       - '.github/workflows/rpg-mastery-to-smithing.yml'
       - '.github/workflows/rpg-mastery-travel-continuity.yml'
@@ -44,7 +45,7 @@ jobs:
           test ${#files[@]} -ge 1
           for path in "${files[@]}"; do
             case "$path" in
-              .github/workflows/rpg-expedition-credit-ledger.yml|.github/workflows/rpg-expedition-reward-provenance.yml|.github/workflows/rpg-interaction-quest-loop.yml|.github/workflows/rpg-mastery-economy-continuity.yml|.github/workflows/rpg-mastery-to-smithing.yml|.github/workflows/rpg-mastery-travel-continuity.yml|scripts/checkInteractionExpeditionBoard.mjs|scripts/checkInteractionExpeditionBoardBrowser.mjs|scripts/checkInteractionExpeditionRewardProvenance.mjs|scripts/checkInteractionExpeditionRewardTradeContinuity.mjs|scripts/checkInteractionExpeditionTradeQuoteAtomicity.mjs|src/3d/gameplay/interaction.js|src/3d/gameplay/interactionEconomy.js) ;;
+              .github/workflows/rpg-expedition-credit-ledger.yml|.github/workflows/rpg-expedition-reward-provenance.yml|.github/workflows/rpg-interaction-quest-loop.yml|.github/workflows/rpg-mastery-armorer-service.yml|.github/workflows/rpg-mastery-economy-continuity.yml|.github/workflows/rpg-mastery-to-smithing.yml|.github/workflows/rpg-mastery-travel-continuity.yml|scripts/checkInteractionExpeditionBoard.mjs|scripts/checkInteractionExpeditionBoardBrowser.mjs|scripts/checkInteractionExpeditionRewardProvenance.mjs|scripts/checkInteractionExpeditionRewardTradeContinuity.mjs|scripts/checkInteractionExpeditionTradeQuoteAtomicity.mjs|src/3d/gameplay/interaction.js|src/3d/gameplay/interactionEconomy.js) ;;
               *) echo "Unexpected path: $path" >&2; exit 1 ;;
             esac
           done
