@@ -488,9 +488,9 @@ export function createCreatureBeing({
  * @param {{resolveXZ: (x: number, z: number) => {x: number, z: number}}} [options.playerCollider]
  *   Forwarded to every `createCreatureBeing` call — see that function's own JSDoc.
  * @param {(seed: number) => () => number} options.mulberry32
- * @returns {ReturnType<typeof createCreatureBeing>[]} Already filtered — a spawn naming a species with
- *   no `CREATURE_BEHAVIOR_PROFILES` entry is skipped with a console warning, not thrown, matching
- *   `spawnConfiguredAnimals`'s own "skip, don't crash the whole spawn batch" behavior for a bad seat id.
+ * @returns {ReturnType<typeof createCreatureBeing>[]} Already filtered — malformed coordinates,
+ *   unsafe terrain samples, and species with no behavior profile are skipped per entry so one bad
+ *   spawn cannot poison the rest of the procedural population.
  */
 export function spawnConfiguredCreatures({ spawns, groundCollider, playerCollider, mulberry32 }) {
 	const beings = [];
@@ -499,13 +499,28 @@ export function spawnConfiguredCreatures({ spawns, groundCollider, playerCollide
 			console.warn(`[gameplay/creatureBrain] spawn "${spawn.id}" names species "${spawn.speciesId}" with no behavior profile — skipping.`);
 			continue;
 		}
+		if (!Number.isFinite(spawn.x) || !Number.isFinite(spawn.z)) {
+			console.warn(`[gameplay/creatureBrain] spawn "${spawn.id}" has non-finite world coordinates — skipping.`);
+			continue;
+		}
+		let groundY;
+		try {
+			groundY = groundCollider.getGroundHeight(spawn.x, spawn.z);
+		} catch (error) {
+			console.warn(`[gameplay/creatureBrain] spawn "${spawn.id}" ground sample failed — skipping.`, error);
+			continue;
+		}
+		if (!Number.isFinite(groundY)) {
+			console.warn(`[gameplay/creatureBrain] spawn "${spawn.id}" resolved non-finite ground — skipping.`);
+			continue;
+		}
 		beings.push(
 			createCreatureBeing({
 				speciesId: spawn.speciesId,
 				spawnId: spawn.id,
 				worldX: spawn.x,
 				worldZ: spawn.z,
-				groundY: groundCollider.getGroundHeight(spawn.x, spawn.z),
+				groundY,
 				rotationYRadians: spawn.rotationYRadians ?? 0,
 				socialAnchorX: spawn.socialAnchorX ?? null,
 				socialAnchorZ: spawn.socialAnchorZ ?? null,
