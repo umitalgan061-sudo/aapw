@@ -73,8 +73,10 @@ jobs:
         run: |
           set -euo pipefail
           OVERLAY='assets/textures/yüzey/overlay/overlay.png'
+          HEAD_SHA="$(git rev-parse HEAD)"
           git lfs version
-          git lfs pull origin --include="$OVERLAY"
+          git lfs fetch --include="$OVERLAY" origin "$HEAD_SHA"
+          git lfs checkout "$OVERLAY"
           test -f "$OVERLAY"
           test "$(wc -c < "$OVERLAY")" -gt 10000000
       - name: Static syntax and shared placement contract
