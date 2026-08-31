@@ -16,6 +16,8 @@ const TOUCH_CONTROLS = Object.freeze([
 	['Sol çubuk', 'Yürü; dış halkaya iterek koş'],
 	['Zıpla', 'Sağdaki Zıpla düğmesine dokun'],
 	['Savun', 'Savunmayı basılı tut'],
+	['Kaçın', 'Hareket ederken kaçınma hamlesi yap'],
+	['Savuştur', 'Kısa savuşturma penceresi aç'],
 	['Hedef', 'Yakındaki hedefe kilitlen veya kilidi kaldır'],
 	['Hafif', 'Hafif saldırı'],
 	['Ağır', 'Ağır saldırı'],
@@ -63,15 +65,6 @@ export class ControlsHelp {
 		this._onKeyDown = (event) => {
 			if (event.code !== 'Escape' || !this._open) return;
 			this.setOpen(false);
-			// Consume this keystroke so a sibling `window` keydown listener registered after this
-			// one (`PauseMenu`, constructed later in `game3d.js`) doesn't also act on the same
-			// Escape press -- without this, closing this panel and opening the pause overlay both
-			// happened on one keystroke (run 339's own disclosed QUESTIONS_FOR_OWNER.md scope edge:
-			// "harmless visual double-open, not a functional conflict, but not the single-purpose
-			// behavior a player might expect from one key"). `stopImmediatePropagation` only skips
-			// listeners still pending on this same event, so `gameplay/interaction.js`'s own Escape
-			// handler -- registered earlier in `game3d.js`, for the dialogue-close path -- already
-			// ran by this point and is unaffected either way.
 			event.stopImmediatePropagation();
 		};
 		this._button.addEventListener('click', this._onButtonClick);
