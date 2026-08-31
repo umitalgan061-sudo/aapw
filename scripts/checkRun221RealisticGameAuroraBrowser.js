@@ -72,7 +72,9 @@ async function main() {
 			fail(midnight.nightFactor === 1, `Canonical nightFactor drifted: ${midnight.nightFactor}`);
 			fail(nightFill.installed, 'Cinematic night fill was not installed.');
 			fail(nightFill.intensity >= 0.7, `Cinematic night fill too dim: ${nightFill.intensity}`);
-			fail(readability?.isHemisphereLight && readability.intensity >= 1.0, `Existing readability fill drifted: ${readability?.intensity}`);
+			fail(readability?.isHemisphereLight && Number.isFinite(readability.intensity), 'Canonical readability fill is unavailable.');
+			const nightReadabilityIntensity = readability.intensity;
+			fail(nightReadabilityIntensity >= 0.30, `Night readability fill too dim: ${nightReadabilityIntensity}`);
 
 			const sky = createAuroraSky();
 			scene.add(sky);
@@ -167,8 +169,12 @@ async function main() {
 
 			const noon = updateDayNightLighting(lights, 50, 100, 0);
 			const dayFill = getNightVisualEnhancementSnapshot(lights.hemisphere);
+			const dayReadabilityIntensity = readability.intensity;
 			fail(noon.nightFactor === 0, `Canonical noon nightFactor drifted: ${noon.nightFactor}`);
 			fail(dayFill.intensity <= 0.021, `Night-only cinematic fill leaks into day: ${dayFill.intensity}`);
+			fail(dayReadabilityIntensity <= 0.06, `Readability fill remains too strong at noon: ${dayReadabilityIntensity}`);
+			fail(nightReadabilityIntensity - dayReadabilityIntensity >= 0.25,
+				`Readability fill does not respond strongly enough to night: ${nightReadabilityIntensity} -> ${dayReadabilityIntensity}`);
 
 			// Restore the midnight visual as the artifact frame after isolated invariance measurement.
 			updateDayNightLighting(lights, 0, 100, 0);
@@ -177,7 +183,17 @@ async function main() {
 
 			disposeAuroraSky(sky);
 			disposeDayNightLighting(scene, lights);
-			return { midnight, nightFill, dayFill, firstStats, secondStats, meanAnimationDelta, cameraTranslationDelta };
+			return {
+				midnight,
+				nightFill,
+				dayFill,
+				nightReadabilityIntensity,
+				dayReadabilityIntensity,
+				firstStats,
+				secondStats,
+				meanAnimationDelta,
+				cameraTranslationDelta,
+			};
 		});
 
 		fs.mkdirSync(OUT, { recursive: true });
