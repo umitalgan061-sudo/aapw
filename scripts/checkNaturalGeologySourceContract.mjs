@@ -21,6 +21,10 @@ assert.equal(NATURAL_GEOLOGY_PLACEMENT_POLICY.renderOnly, true);
 assert.equal(NATURAL_GEOLOGY_PLACEMENT_POLICY.geographyAuthorityUnchanged, true);
 assert.equal(NATURAL_GEOLOGY_PLACEMENT_POLICY.heightAuthority, 'world/terrain.js');
 assert.equal(NATURAL_GEOLOGY_PLACEMENT_POLICY.deterministic, true);
+assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.id.includes('v2-valyria-morphology-aligned'));
+assert.equal(NATURAL_GEOLOGY_PLACEMENT_POLICY.valyriaMorphologyAligned, true);
+assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.valyriaClusterCandidateTrials >= 4);
+assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.valyriaMorphologyScoreBoost > 0);
 assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.minimumNearestNeighborMeters >= 20);
 assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.settlementReserveMeters >= 120);
 assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.roadReserveMeters >= 18);
@@ -32,6 +36,8 @@ assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.referenceLandscapeRuntimeLoad, false)
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.instanceScaleCompensatedWorldNormal, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.cameraStableRockWeathering, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.hydratedRegionalTint, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.canonicalTerrainOwnsValyriaSurface, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.legacyValyriaSurfaceOverlayEnabled, false);
 assert(NATURAL_GEOLOGY_RENDER_POLICY.hydratedRegionalTintStrength > 0.20);
 assert(NATURAL_GEOLOGY_RENDER_POLICY.hydratedRegionalTintStrength < 0.50);
 
@@ -54,10 +60,20 @@ for (const snippet of [
   'regionalStrataAngle',
   'minimumNearestNeighborMeters',
   "kind === 'asset-proxy'",
+  'normalizedOwnerMapAtWorldXZ',
   'valyriaInfluenceAtWorldXZ',
+  'valyriaMorphologySignals',
+  'valyriaClusterMode',
+  'valyriaMorphologyAligned: true',
+  'valyriaMorphologyDominant',
+  'faultDominates',
+  'morphologyDrainage * 0.10',
 ]) {
   assert(placementSource.includes(snippet), `placement contract lost: ${snippet}`);
 }
+assert(!placementSource.includes('const radial = Math.sqrt(geologyHash01(seed, index, 202, 0))'),
+  'Valyria cluster centers regressed to the legacy radial-only distribution');
+
 for (const snippet of [
   "from '../assetLoader.js'",
   'createNaturalGeology',
@@ -68,6 +84,8 @@ for (const snippet of [
   'hostedPreflightMinBytes',
   'maximumHydratedSourceBytes',
   'referenceLandscapeRuntimeLoad: false',
+  'canonicalTerrainOwnsValyriaSurface: true',
+  'legacyValyriaSurfaceOverlayEnabled: false',
   'instanceScaleCompensatedWorldNormal: true',
   'cameraStableRockWeathering: true',
   'hydratedRegionalTintStrength',
@@ -80,6 +98,10 @@ for (const snippet of [
 ]) {
   assert(renderSource.includes(snippet), `renderer contract lost: ${snippet}`);
 }
+assert(!renderSource.includes('group.add(valyriaSurface)'),
+  'production natural geology reintroduced a second opaque Valyria terrain surface');
+assert(renderSource.includes("valyriaSurfaceAuthority: 'canonical-terrain'"),
+  'natural geology metadata lost canonical Valyria surface authority');
 assert(!renderSource.includes('vNaturalRockWorldNormal = normalize(mat3(modelMatrix) * transformedNormal)'),
   'rock shader regressed to treating Three view/instance transformedNormal as a world normal');
 
@@ -145,25 +167,43 @@ for (const snippet of [
 ]) {
   assert(sceneSource.includes(snippet), `scene Valyria runtime wiring lost: ${snippet}`);
 }
-assert(sceneSource.indexOf('const naturalGeologyResult = createNaturalGeology') < sceneSource.indexOf('const vegetationResult = createVegetation'),
-  'geology must remain visually primary before vegetation');
-assert(sceneSource.indexOf('const roadsResult = buildRoadNetwork') < sceneSource.indexOf('const naturalGeologyResult = createNaturalGeology'),
-  'geology placement must know road corridors');
+assert(
+  sceneSource.indexOf('const naturalGeologyResult = createNaturalGeology')
+    < sceneSource.indexOf('const vegetationResult = createVegetation'),
+  'geology must remain visually primary before vegetation',
+);
+assert(
+  sceneSource.indexOf('const roadsResult = buildRoadNetwork')
+    < sceneSource.indexOf('const naturalGeologyResult = createNaturalGeology'),
+  'geology placement must know road corridors',
+);
 
 assert(!valyriaSource.includes("from 'three'"), 'Valyria authority must remain renderer-independent');
 assert(!valyriaSource.includes('Math.random()'), 'Valyria geology must remain deterministic');
 assert(!ecologySource.includes("from 'three'"), 'Valyria ecology adapter must remain renderer-independent');
 assert(!ecologySource.includes('Math.random()'), 'Valyria ecology adapter must remain deterministic');
-for (const forbidden of ['Math.random()', 'setTerrainHeight', 'writeHeight', 'flattenPads.push', 'WORLD_REFERENCE_BASE_SURFACE_MASK =', 'createHeightSampler(']) {
+for (const forbidden of [
+  'Math.random()',
+  'setTerrainHeight',
+  'writeHeight',
+  'flattenPads.push',
+  'WORLD_REFERENCE_BASE_SURFACE_MASK =',
+  'createHeightSampler(',
+]) {
   assert(!placementSource.includes(forbidden), `placement became geography authority: ${forbidden}`);
   assert(!renderSource.includes(forbidden), `render layer became geography authority: ${forbidden}`);
 }
 
 const manifestFiles = new Set(manifest.assets.map((entry) => entry.file));
-for (const file of [...NATURAL_GEOLOGY_PLACEMENT_POLICY.directAssetFamilies, ...NATURAL_GEOLOGY_PLACEMENT_POLICY.referenceOnlyAssets]) {
+for (const file of [
+  ...NATURAL_GEOLOGY_PLACEMENT_POLICY.directAssetFamilies,
+  ...NATURAL_GEOLOGY_PLACEMENT_POLICY.referenceOnlyAssets,
+]) {
   assert(manifestFiles.has(file), `unregistered geology model: ${file}`);
 }
-assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.knownLfsBytes['assets/models/fbx/rugged_mountain_landscape.glb'] > 40_000_000);
+assert(
+  NATURAL_GEOLOGY_PLACEMENT_POLICY.knownLfsBytes['assets/models/fbx/rugged_mountain_landscape.glb'] > 40_000_000,
+);
 assert(!renderSource.includes('loadModel(NATURAL_GEOLOGY_RENDER_POLICY.referenceLandscapeAsset'),
   '50MB landscape must remain reference-only');
 
@@ -179,5 +219,7 @@ console.log(JSON.stringify({
   valyriaEcologyPolicy: VALYRIA_BARREN_ECOLOGY_POLICY.id,
   canonicalTerrainIntegration: true,
   naturalVolcanicMorphology: true,
+  morphologyAlignedOutcropPlacement: true,
+  canonicalValyriaSurfaceOnly: true,
   instanceCorrectWorldNormals: true,
 }, null, 2));
