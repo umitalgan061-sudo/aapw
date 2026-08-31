@@ -16,6 +16,7 @@ export class TouchJoystick {
 		this._jumpRequested = false; this._lockOnRequested = false; this._guardHeld = false;
 		this._isInputBlocked = typeof isInputBlocked === 'function' ? isInputBlocked : isPlayerGameplayInputBlocked;
 		this._visibilityTarget = globalThis.document?.addEventListener ? globalThis.document : null;
+		this._pageLifecycleTarget = globalThis.window?.addEventListener ? globalThis.window : null;
 		this._base = document.createElement('div'); this._base.className = 'g3d-joystick-base';
 		this._knob = document.createElement('div'); this._knob.className = 'g3d-joystick-knob'; this._base.appendChild(this._knob); container.appendChild(this._base);
 		this._jumpButton = document.createElement('button'); this._jumpButton.type = 'button'; this._jumpButton.className = 'g3d-touch-jump-button'; this._jumpButton.textContent = 'Zıpla'; this._jumpButton.setAttribute('aria-label', 'Zıpla');
@@ -44,7 +45,9 @@ export class TouchJoystick {
 		this._onPointerDown = this._handlePointerDown.bind(this); this._onPointerMove = this._handlePointerMove.bind(this); this._onPointerUp = this._handlePointerUp.bind(this);
 		this._base.addEventListener('pointerdown', this._onPointerDown); this._base.addEventListener('pointermove', this._onPointerMove); this._base.addEventListener('pointerup', this._onPointerUp); this._base.addEventListener('pointercancel', this._onPointerUp);
 		this._onVisibilityChange = () => { if (globalThis.document?.hidden === true) this._resetGameplayState(); };
+		this._onPageHide = () => this._resetGameplayState();
 		this._visibilityTarget?.addEventListener('visibilitychange', this._onVisibilityChange);
+		this._pageLifecycleTarget?.addEventListener('pagehide', this._onPageHide);
 	}
 	_resetGameplayState() {
 		const pointerId = this._pointerId;
@@ -85,6 +88,7 @@ export class TouchJoystick {
 	}
 	dispose() {
 		this._visibilityTarget?.removeEventListener('visibilitychange', this._onVisibilityChange);
+		this._pageLifecycleTarget?.removeEventListener('pagehide', this._onPageHide);
 		this._base.removeEventListener('pointerdown', this._onPointerDown); this._base.removeEventListener('pointermove', this._onPointerMove); this._base.removeEventListener('pointerup', this._onPointerUp); this._base.removeEventListener('pointercancel', this._onPointerUp);
 		this._jumpButton.removeEventListener('click', this._onJumpClick); this._guardButton.removeEventListener('pointerdown', this._onGuardDown); this._guardButton.removeEventListener('pointerup', this._onGuardUp); this._guardButton.removeEventListener('pointercancel', this._onGuardUp); this._guardButton.removeEventListener('pointerleave', this._onGuardUp);
 		this._lockOnButton.removeEventListener('pointerdown', this._onLockOn); this._lightAttackButton.removeEventListener('pointerdown', this._onLightAttack); this._heavyAttackButton.removeEventListener('pointerdown', this._onHeavyAttack);
