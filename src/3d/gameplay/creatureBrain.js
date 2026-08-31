@@ -502,10 +502,16 @@ export function createCreatureBeing({
 				const direction = reactiveDirection(dxFromPlayer, dzFromPlayer, distanceFromPlayer, sign);
 				const dirX = direction.x;
 				const dirZ = direction.z;
-				const step = profile.reactiveSpeedMps * delta;
+				const requestedStep = profile.reactiveSpeedMps * delta;
+				const stopDistance = profile.reactiveDirection === 'toward'
+					? Math.max(0, profile.reactiveStopDistanceMeters ?? 0)
+					: 0;
+				const step = profile.reactiveDirection === 'toward'
+					? Math.min(requestedStep, Math.max(0, distanceFromPlayer - stopDistance))
+					: requestedStep;
 				const nextX = object3D.position.x + dirX * step;
 				const nextZ = object3D.position.z + dirZ * step;
-				if (tryCommitGroundedMove(nextX, nextZ)) {
+				if (step > 0 && tryCommitGroundedMove(nextX, nextZ)) {
 					turnToward(Math.atan2(dirX, dirZ), delta);
 					isMoving = true;
 				}
