@@ -7,6 +7,7 @@ on:
       - 'src/3d/world/naturalGeologyPlacement.js'
       - 'scripts/checkNaturalGeologyMorphology.mjs'
       - 'scripts/captureNaturalGeologyShippedScene.mjs'
+      - 'scripts/checkNaturalGeologySourceContract.mjs'
       - '.github/workflows/natural-geology-morphology-exact-head.yml'
   push:
     branches: ['codex/natural-geology-morphology-20260831']
@@ -48,7 +49,7 @@ jobs:
           echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/naturalGeologyPlacement\.js|scripts/checkNaturalGeologyMorphology\.mjs|scripts/captureNaturalGeologyShippedScene\.mjs|\.github/workflows/natural-geology-morphology-exact-head\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/naturalGeologyPlacement\.js|scripts/checkNaturalGeologyMorphology\.mjs|scripts/captureNaturalGeologyShippedScene\.mjs|scripts/checkNaturalGeologySourceContract\.mjs|\.github/workflows/natural-geology-morphology-exact-head\.yml)$' | wc -l)" -eq 0
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "natural geology morphology additions=$A deletions=$D total=$((A+D))"
