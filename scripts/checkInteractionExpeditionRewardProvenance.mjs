@@ -103,7 +103,17 @@ assert.deepEqual(
 assert.equal(reentrantEconomy.snapshot().copper, 34);
 assert.equal(reentrantEconomy.snapshot().stockByOffer['dragonstone-field-ration'], 3);
 assert.equal(reentrantEconomy.snapshot().ledger.transactionCount, 1, 'nested rejection must leave one authoritative purchase');
-assert.throws(() => reentrantEconomy.purchase(rationOffer, () => { throw new Error('grant-failed'); }), /grant-failed/);
+const beforeThrow = reentrantEconomy.snapshot();
+let nestedCredit;
+let nestedRestore;
+assert.throws(() => reentrantEconomy.purchase(rationOffer, () => {
+  nestedCredit = reentrantEconomy.credit(99, { sourceId: 'grant-reentry', label: 'Geçersiz iç gelir' });
+  nestedRestore = reentrantEconomy.restore({ copper: 999 });
+  throw new Error('grant-failed');
+}), /grant-failed/);
+assert.equal(nestedCredit.reason, 'purchase-in-progress', 'grant callbacks must not mint credit before purchase commit');
+assert.equal(nestedRestore, false, 'grant callbacks must not restore economy state before purchase commit');
+assert.deepEqual(reentrantEconomy.snapshot(), beforeThrow, 'failed grant reentrancy must leave wallet, stock and ledgers atomic');
 assert.equal(reentrantEconomy.purchase(rationOffer, () => true).ok, true, 'a throwing grant callback must release the purchase guard');
 assert.equal(reentrantEconomy.snapshot().copper, 28);
 assert.equal(reentrantEconomy.snapshot().ledger.transactionCount, 2);
