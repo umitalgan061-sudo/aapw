@@ -7,6 +7,7 @@ on:
       - 'src/3d/gameplay/interactionEconomy.js'
       - 'scripts/checkInteractionExpeditionBoard.mjs'
       - 'scripts/checkInteractionExpeditionBoardBrowser.mjs'
+      - 'scripts/checkInteractionCreditSourceLedgerRestore.mjs'
       - 'scripts/checkInteractionExpeditionRewardProvenance.mjs'
       - 'scripts/checkInteractionExpeditionRewardTradeContinuity.mjs'
       - 'scripts/checkInteractionExpeditionTradeQuoteAtomicity.mjs'
@@ -51,7 +52,7 @@ jobs:
           test ${#files[@]} -ge 1
           for path in "${files[@]}"; do
             case "$path" in
-              service-worker.js|.github/workflows/run167-determinism-policy.yml|.github/workflows/run283-final-head-governance.yml|src/3d/gameplay/interaction.js|src/3d/gameplay/interactionEconomy.js|scripts/checkInteractionExpeditionBoard.mjs|scripts/checkInteractionExpeditionBoardBrowser.mjs|scripts/checkInteractionExpeditionRewardProvenance.mjs|scripts/checkInteractionExpeditionRewardTradeContinuity.mjs|scripts/checkInteractionExpeditionTradeQuoteAtomicity.mjs|.github/workflows/rpg-expedition-credit-ledger.yml|.github/workflows/rpg-expedition-reward-provenance.yml|.github/workflows/rpg-expedition-tavern-recovery.yml|.github/workflows/rpg-interaction-quest-loop.yml|.github/workflows/rpg-journey-history-current.yml|.github/workflows/rpg-journey-ledger-ux.yml|.github/workflows/rpg-mastery-armorer-service.yml|.github/workflows/rpg-mastery-economy-continuity.yml|.github/workflows/rpg-mastery-journal-continuity.yml|.github/workflows/rpg-mastery-to-smithing.yml|.github/workflows/rpg-mastery-travel-continuity.yml|.github/workflows/rpg-smithing-service-persistence.yml|.github/workflows/rpg-tavern-receipt-integrity.yml) ;;
+              service-worker.js|.github/workflows/run167-determinism-policy.yml|.github/workflows/run283-final-head-governance.yml|src/3d/gameplay/interaction.js|src/3d/gameplay/interactionEconomy.js|scripts/checkInteractionExpeditionBoard.mjs|scripts/checkInteractionExpeditionBoardBrowser.mjs|scripts/checkInteractionCreditSourceLedgerRestore.mjs|scripts/checkInteractionExpeditionRewardProvenance.mjs|scripts/checkInteractionExpeditionRewardTradeContinuity.mjs|scripts/checkInteractionExpeditionTradeQuoteAtomicity.mjs|.github/workflows/rpg-expedition-credit-ledger.yml|.github/workflows/rpg-expedition-reward-provenance.yml|.github/workflows/rpg-expedition-tavern-recovery.yml|.github/workflows/rpg-interaction-quest-loop.yml|.github/workflows/rpg-journey-history-current.yml|.github/workflows/rpg-journey-ledger-ux.yml|.github/workflows/rpg-mastery-armorer-service.yml|.github/workflows/rpg-mastery-economy-continuity.yml|.github/workflows/rpg-mastery-journal-continuity.yml|.github/workflows/rpg-mastery-to-smithing.yml|.github/workflows/rpg-mastery-travel-continuity.yml|.github/workflows/rpg-smithing-service-persistence.yml|.github/workflows/rpg-tavern-receipt-integrity.yml) ;;
               *) echo "Unexpected path: $path" >&2; exit 1 ;;
             esac
           done
@@ -64,10 +65,12 @@ jobs:
           node --check src/3d/gameplay/interactionEconomy.js
           node --check scripts/checkInteractionExpeditionBoard.mjs
           node --check scripts/checkInteractionExpeditionBoardBrowser.mjs
+          node --check scripts/checkInteractionCreditSourceLedgerRestore.mjs
           node --check scripts/checkInteractionExpeditionRewardProvenance.mjs
           node --check scripts/checkInteractionExpeditionRewardTradeContinuity.mjs
           node --check scripts/checkInteractionExpeditionTradeQuoteAtomicity.mjs
           node --check scripts/checkInteractionMasteryTravelContinuityBrowser.mjs
+          node scripts/checkInteractionCreditSourceLedgerRestore.mjs
           node scripts/checkInteractionExpeditionRewardProvenance.mjs
           node scripts/checkInteractionExpeditionRewardTradeContinuity.mjs
           node scripts/checkInteractionExpeditionTradeQuoteAtomicity.mjs
