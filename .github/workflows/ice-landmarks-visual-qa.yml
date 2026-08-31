@@ -8,6 +8,7 @@ on:
       - 'src/3d/world/iceLandmarks.js'
       - 'src/3d/world/iceLandmarkRealism.js'
       - 'src/3d/world/iceLandmarkGeometryBreakup.js'
+      - 'src/3d/world/iceLandmarkPresentationNaturalization.js'
       - 'src/3d/world/worldReferenceMap.js'
       - 'src/3d/world/terrain.js'
       - 'src/3d/world/terrainBiomeShading.js'
@@ -49,6 +50,7 @@ jobs:
           node --check src/3d/world/iceLandmarks.js
           node --check src/3d/world/iceLandmarkRealism.js
           node --check src/3d/world/iceLandmarkGeometryBreakup.js
+          node --check src/3d/world/iceLandmarkPresentationNaturalization.js
           node --check src/3d/world/worldReferenceMap.js
           node --check src/3d/sceneManager.js
           node --check src/3d/game3d.js
