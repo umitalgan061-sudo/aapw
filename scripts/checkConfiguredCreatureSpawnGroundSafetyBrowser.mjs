@@ -5,6 +5,7 @@ import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 const baseUrl = process.env.BASE_URL || 'http://127.0.0.1:4173';
+const transformOf = ({ x, y, z, finite }) => ({ x, y, z, finite });
 
 const browser = await chromium.launch({ headless: true });
 try {
@@ -25,7 +26,6 @@ try {
       finite: [controller.object3D.position.x, controller.object3D.position.y, controller.object3D.position.z].every(Number.isFinite),
       reacting: controller.isFleeing,
     });
-    const transformOf = ({ x, y, z, finite }) => ({ x, y, z, finite });
 
     const configuredGroundSamples = [];
     const configuredGroundCollider = {
