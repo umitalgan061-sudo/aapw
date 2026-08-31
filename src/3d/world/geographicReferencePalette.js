@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-31-v65-lowland-chroma-balance',
+	id: 'geographic-reference-palette-2026-08-31-v66-ocean-depth-readability',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -27,9 +27,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v65 follows exact-head full-world #653 visual inspection. The new directional lowland material successfully restored surface structure, but high-camera meadow streaks read too chromatic against dry mineral ground. Meadow is therefore desaturated and slightly earth-shifted while dry heather is softened toward weathered mineral vegetation. Geometry, terrain height, shoreline, hydrology, colliders and geography remain untouched.',
-		water: 'v65 preserves the v62-v64 depth hierarchy: clear shallows/lakes remain distinct from boundary-connected deep sea while canonical wet coverage and shoreline ownership remain unchanged.',
-		road: 'v65 preserves established compacted-road and dust bases plus damp-rut/stone/moss-edge separation; route geometry remains unchanged.',
+		terrain: 'v66 preserves the v65 lowland chroma balance and all terrain-authority contracts. No terrain height, shoreline, collider, biome ownership or map-derived geography is changed.',
+		water: 'v66 follows exact-head full-world #574 visual inspection: the open sea read nearly black at aerial scale, collapsing the shallow/deep/abyss hierarchy. DeepSea and abyss values are lifted slightly while keeping abyss darker than deep sea and leaving canonical wet coverage, shoreline and bathymetry untouched.',
+		road: 'v66 preserves established compacted-road and dust bases plus damp-rut/stone/moss-edge separation; route geometry remains unchanged.',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability.',
 	}),
 });
@@ -58,8 +58,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		lakeClear: 0x2c6d7d,
 		riverPool: 0x287585,
 		rapid: 0x8aafb0,
-		deepSea: 0x0a3049,
-		abyss: 0x031520,
+		deepSea: 0x0d3851,
+		abyss: 0x071c27,
 		plunge: 0x568d98,
 		splash: 0xe2efed,
 		foam: 0xf3f8f5,
