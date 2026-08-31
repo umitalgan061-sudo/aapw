@@ -32,7 +32,7 @@ function parseArgs(argv) {
 
 async function waitForServer(url, attempts = 60) {
 	let lastError;
-	for (let attempt = 0; attempt < attempts; attempt++) {
+	for (let attempt = 0; attempt < attempts; attempt += 1) {
 		try {
 			const response = await fetch(url, { cache: 'no-store' });
 			if (response.ok) return;
@@ -101,6 +101,7 @@ async function main() {
 		assert(summary.surfaceCounts.lake > 0, 'canonical inland lakes disappeared from full-world sampling');
 		assert(summary.northPermanentIceMax >= 0.8, 'authored permanent-ice core disappeared from the north');
 		assert(summary.northPermanentIceActiveSamples > 0, 'no strong permanent-ice samples were represented');
+
 		assert.equal(summary.terrainSurfaceRealism?.policyId, 'terrain-micro-surface-world-uv-pbr-v7-coastal-weathering',
 			'full-world proof must render the production photoreal terrain surface policy');
 		assert.equal(summary.terrainSurfaceRealism?.naturalAlbedoRemap, true,
@@ -121,10 +122,26 @@ async function main() {
 			'full-world proof must use production metre-space uv1 for terrain PBR detail');
 		assert.equal(summary.terrainSurfaceRealism?.valyriaWorldSpacePbr, true,
 			'proof must compile the Valyria world-space albedo/normal/roughness layer');
+		assert.equal(summary.terrainSurfaceRealism?.valyriaProductionVertexColorParity, true,
+			'Valyria regional proof must apply the same biome -> lithology vertex-colour order as production terrain');
 		assert.equal(summary.terrainSurfaceRealism?.canonicalHeightUnchanged, true,
 			'visual material proof must remain canonical-height neutral');
 		assert.equal(summary.terrainSurfaceRealism?.canonicalHydrologyUnchanged, true,
 			'visual material proof must remain canonical-hydrology neutral');
+
+		// This is deliberately stronger than the historical screenshot gate: the proof must actually
+		// contain natural-geology meshes, not just a terrain material carrying geology-related metadata.
+		assert.equal(summary.naturalGeology?.inScene, true, 'natural geology group is missing from rendered proof scene');
+		assert(summary.naturalGeology?.placementCount > 100, 'natural geology placement field is unexpectedly sparse');
+		assert(summary.naturalGeology?.renderedInstanceCount > 100, 'natural geology meshes were not rendered');
+		assert(summary.naturalGeology?.groupChildCount >= 4, 'natural geology family breakup collapsed');
+		assert(summary.naturalGeology?.assetProxyCount > 0, 'GLB replacement proxy placements disappeared');
+		assert(summary.naturalGeology?.valyriaPlacementCount > 0, 'Valyria-specific geology placements disappeared');
+		assert.equal(summary.naturalGeology?.worldSpaceRockWeathering, true,
+			'proof must compile world-space albedo/normal/roughness weathering on geology meshes');
+		assert.equal(summary.naturalGeology?.visualProofUsesDeterministicFallback, true,
+			'pointer-only CI proof must explicitly render deterministic procedural fallback geometry');
+
 		assert(summary.waterDepthField.meanWetCoverage > 0.35, 'production water coverage is unexpectedly sparse');
 		assert(summary.waterDepthField.mixedCoastTexelRatio > 0, 'coastline anti-alias coverage disappeared');
 		assert.equal(summary.waterLayerComposition.nearDepthWrite, true, 'near swell must retain depth writes');
@@ -157,6 +174,7 @@ async function main() {
 			northPermanentIceMean: summary.northPermanentIceMean,
 			northPermanentIceMax: summary.northPermanentIceMax,
 			terrainSurfaceRealism: summary.terrainSurfaceRealism,
+			naturalGeology: summary.naturalGeology,
 			waterLayers: summary.waterLayerComposition,
 		}));
 	} finally {
