@@ -5,6 +5,11 @@
  * low-cost fallback and, on hydrated desktop builds, can replace selected outcrops with real GLB
  * geometry. Large landscape GLBs remain morphology references only so the world never becomes a
  * repeated 50 MB terrain tile.
+ *
+ * Valyria v2 deliberately does NOT paint a second blanket terrain mesh. Canonical terrain.js already
+ * owns volcanic height and vertex colour. The renderer adds only sparse morphology-led lava crust and
+ * fault scarps, removing the rectangular overlay/cell-edge failure mode while keeping 3D geological
+ * detail where the volcanic process actually supports it.
  * @module world/naturalGeology
  */
 
@@ -14,17 +19,16 @@ import {
   NATURAL_GEOLOGY_PLACEMENT_POLICY,
   checksumNaturalGeologyPlacements,
   generateNaturalGeologyPlacements,
-  sampleTerrainFrame,
 } from './naturalGeologyPlacement.js';
+import { VALYRIA_GEOLOGY_POLICY } from './valyriaGeology.js';
 import {
-  VALYRIA_GEOLOGY_POLICY,
-  applyValyriaSurfaceColor,
-  normalizedOwnerMapAtWorldXZ,
-  valyriaInfluenceAtWorldXZ,
-} from './valyriaGeology.js';
+  VALYRIA_VOLCANIC_FEATURE_POLICY,
+  generateValyriaVolcanicFeatures,
+} from './valyriaVolcanicFeatures.js';
 
 export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
-  id: 'natural-geology-render-2026-08-27-v1-asset-hydrated-outcrops',
+  id: 'natural-geology-render-2026-08-31-v2-sparse-volcanic-features',
+  supersedes: 'natural-geology-render-2026-08-27-v1-asset-hydrated-outcrops',
   renderOnly: true,
   deterministicPlacement: true,
   geographyAuthorityUnchanged: true,
@@ -42,13 +46,17 @@ export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
   hydratedRoughnessFloor: 0.86,
   proceduralRoughness: 0.96,
   groupName: 'natural-geology',
-  valyriaSurfaceName: 'valyria-volcanic-surface',
+  valyriaFeatureGroupName: 'valyria-volcanic-features',
+  legacyBlanketSurfaceRemoved: true,
+  canonicalTerrainOwnsContinuousValyriaSurface: true,
+  volcanicFeaturePolicyId: VALYRIA_VOLCANIC_FEATURE_POLICY.id,
 });
 
 const tempObject = new THREE.Object3D();
 const tempMatrix = new THREE.Matrix4();
 const tempQuaternion = new THREE.Quaternion();
 const tempScale = new THREE.Vector3();
+const tempColor = new THREE.Color();
 const clamp01 = (value) => value < 0 ? 0 : value > 1 ? 1 : value;
 
 function createRockMaterial(color) {
@@ -86,6 +94,16 @@ export function createNaturalRockPrototypeGeometry(kind) {
   return warpGeometry(new THREE.DodecahedronGeometry(0.5, 0), { xScale: 1, yScale: 0.82, zScale: 0.92, fracture: 0.21 });
 }
 
+function createLavaCrustPrototypeGeometry() {
+  return warpGeometry(new THREE.IcosahedronGeometry(0.5, 1), {
+    xScale: 1.0,
+    yScale: 0.11,
+    zScale: 0.28,
+    fracture: 0.31,
+    terrace: 0,
+  });
+}
+
 function colorForPlacement(placement) {
   if (placement.volcanic) {
     const c = new THREE.Color(0x2c2624);
@@ -104,6 +122,7 @@ function colorForPlacement(placement) {
 function composePlacementMatrix(placement, output = new THREE.Matrix4()) {
   tempObject.position.set(placement.x, placement.y, placement.z);
   tempObject.rotation.order = 'YXZ';
+  tempObject.quaternion.identity();
   tempObject.rotation.set(0, placement.yawRadians, 0);
   if (placement.tiltRadians > 1e-6) {
     const axis = new THREE.Vector3(Math.cos(placement.tiltAxisRadians), 0, Math.sin(placement.tiltAxisRadians));
@@ -140,59 +159,107 @@ function buildProceduralMeshes(placements) {
   return [...families].map(([kind, family]) => makeInstancedFamily(kind, family)).filter(Boolean);
 }
 
-/** Render-only, terrain-conforming Valyria surface. It never modifies canonical height or water. */
-export function createValyriaVolcanicSurface({ sampleHeightMeters, seaLevelMeters, worldWidthMeters, worldDepthMeters, gridMeters = VALYRIA_GEOLOGY_POLICY.volcanicSurfaceGridMeters }) {
-  const P = VALYRIA_GEOLOGY_POLICY;
-  const minNx = P.coreCenter.nx - P.coreRadius.nx * P.falloff;
-  const maxNx = P.coreCenter.nx + P.coreRadius.nx * P.falloff;
-  const minNy = Math.min(P.neckCenter.ny - P.neckRadius.ny * P.falloff, P.coreCenter.ny - P.coreRadius.ny * P.falloff);
-  const maxNy = P.coreCenter.ny + P.coreRadius.ny * P.falloff;
-  const minX = (minNx - 0.5) * worldWidthMeters, maxX = (maxNx - 0.5) * worldWidthMeters;
-  const minZ = (minNy - 0.5) * worldDepthMeters, maxZ = (maxNy - 0.5) * worldDepthMeters;
-  const cols = Math.max(3, Math.ceil((maxX - minX) / gridMeters)), rows = Math.max(3, Math.ceil((maxZ - minZ) / gridMeters));
-  const vertices = [], colors = [], indices = [];
-  const vertexIndex = new Map(); let activeCells = 0, lavaVertices = 0;
-  const addVertex = (x, z) => {
-    const key = `${x.toFixed(4)}:${z.toFixed(4)}`;
-    if (vertexIndex.has(key)) return vertexIndex.get(key);
-    const y = sampleHeightMeters(x, z), p = normalizedOwnerMapAtWorldXZ(x, z), influence = valyriaInfluenceAtWorldXZ(x, z);
-    const frame = sampleTerrainFrame(sampleHeightMeters, x, z, 9);
-    const color = { r: 0.2, g: 0.2, b: 0.2 };
-    applyValyriaSurfaceColor(color, { nx: p.nx, ny: p.ny, heightAboveSeaMeters: y - seaLevelMeters, concavityMeters: frame.curvatureMeters, slopeDegrees: frame.slopeDegrees });
-    if (influence > 0.48 && frame.curvatureMeters > 0.8 && frame.slopeDegrees < 36) lavaVertices += 1;
-    const idx = vertices.length / 3;
-    vertices.push(x, y + P.renderSurfaceOffsetMeters, z); colors.push(color.r, color.g, color.b); vertexIndex.set(key, idx); return idx;
-  };
-  for (let row = 0; row < rows; row += 1) for (let col = 0; col < cols; col += 1) {
-    const x0 = minX + (col / cols) * (maxX - minX), x1 = minX + ((col + 1) / cols) * (maxX - minX);
-    const z0 = minZ + (row / rows) * (maxZ - minZ), z1 = minZ + ((row + 1) / rows) * (maxZ - minZ);
-    const cx = (x0 + x1) * 0.5, cz = (z0 + z1) * 0.5;
-    if (valyriaInfluenceAtWorldXZ(cx, cz) <= 0.035) continue;
-    const h00 = sampleHeightMeters(x0, z0), h10 = sampleHeightMeters(x1, z0), h01 = sampleHeightMeters(x0, z1), h11 = sampleHeightMeters(x1, z1);
-    if (Math.min(h00, h10, h01, h11) <= seaLevelMeters + 0.05) continue;
-    const a = addVertex(x0, z0), b = addVertex(x1, z0), c = addVertex(x1, z1), d = addVertex(x0, z1);
-    indices.push(a, c, b, a, d, c); activeCells += 1;
+function makeVolcanicFaultMesh(features) {
+  if (!features.length) return null;
+  const material = new THREE.MeshStandardMaterial({ color: 0x262322, roughness: 0.98, metalness: 0, flatShading: true, vertexColors: true });
+  const mesh = new THREE.InstancedMesh(createNaturalRockPrototypeGeometry('fractured-scarp'), material, features.length);
+  mesh.name = 'valyria-fault-scarps';
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  const bright = new THREE.Color(0x3b302d);
+  for (let i = 0; i < features.length; i += 1) {
+    composePlacementMatrix(features[i], tempMatrix);
+    mesh.setMatrixAt(i, tempMatrix);
+    tempColor.set(0x221f1e).lerp(bright, clamp01(features[i].score));
+    mesh.setColorAt?.(i, tempColor);
   }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
-  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  geometry.setIndex(indices); geometry.computeVertexNormals(); geometry.computeBoundingBox(); geometry.computeBoundingSphere();
-  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.97, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
-  const mesh = new THREE.Mesh(geometry, material); mesh.name = NATURAL_GEOLOGY_RENDER_POLICY.valyriaSurfaceName; mesh.receiveShadow = true;
-  mesh.userData.valyriaVolcanicSurface = Object.freeze({ policyId: P.id, activeCells, triangleCount: indices.length / 3, vertexCount: vertices.length / 3, lavaVertexRatio: vertices.length ? lavaVertices / (vertices.length / 3) : 0, renderOnly: true, canonicalHeightUnchanged: true });
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  mesh.computeBoundingSphere?.();
   return mesh;
+}
+
+function makeVolcanicLavaMesh(features) {
+  if (!features.length) return null;
+  const material = new THREE.MeshStandardMaterial({
+    color: 0x281510,
+    roughness: 0.94,
+    metalness: 0,
+    flatShading: true,
+    vertexColors: true,
+    emissive: 0x160300,
+    emissiveIntensity: 0.10,
+  });
+  const mesh = new THREE.InstancedMesh(createLavaCrustPrototypeGeometry(), material, features.length);
+  mesh.name = 'valyria-lava-crust-ribbons';
+  mesh.castShadow = false;
+  mesh.receiveShadow = true;
+  const warm = new THREE.Color(0x6b2717);
+  for (let i = 0; i < features.length; i += 1) {
+    composePlacementMatrix(features[i], tempMatrix);
+    mesh.setMatrixAt(i, tempMatrix);
+    const heat = clamp01(features[i].lavaWeight * 0.65 + features[i].drainage * 0.35);
+    tempColor.set(0x2a1712).lerp(warm, heat * 0.34);
+    mesh.setColorAt?.(i, tempColor);
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  mesh.computeBoundingSphere?.();
+  return mesh;
+}
+
+export function createValyriaVolcanicFeatures(options) {
+  const result = generateValyriaVolcanicFeatures(options);
+  const group = new THREE.Group();
+  group.name = NATURAL_GEOLOGY_RENDER_POLICY.valyriaFeatureGroupName;
+  const faults = result.features.filter((feature) => feature.type === 'fault');
+  const lava = result.features.filter((feature) => feature.type === 'lava');
+  const faultMesh = makeVolcanicFaultMesh(faults);
+  const lavaMesh = makeVolcanicLavaMesh(lava);
+  if (faultMesh) group.add(faultMesh);
+  if (lavaMesh) group.add(lavaMesh);
+  group.userData.valyriaVolcanicFeatures = Object.freeze({
+    policyId: NATURAL_GEOLOGY_RENDER_POLICY.id,
+    featurePolicyId: VALYRIA_VOLCANIC_FEATURE_POLICY.id,
+    valyriaPolicyId: VALYRIA_GEOLOGY_POLICY.id,
+    faultCount: result.faultCount,
+    lavaCount: result.lavaCount,
+    totalFeatureCount: result.features.length,
+    checksum: result.checksum,
+    blanketSurfaceRemoved: true,
+    canonicalTerrainOwnsContinuousSurface: true,
+    renderOnly: true,
+  });
+  return group;
+}
+
+/**
+ * Compatibility alias for older imports. The full rectangular terrain overlay is gone; this returns
+ * only sparse morphology-driven feature geometry.
+ */
+export function createValyriaVolcanicSurface(options) {
+  return createValyriaVolcanicFeatures(options);
 }
 
 export function createNaturalGeology({ sampleHeightMeters, seaLevelMeters, seed, seats, roadEdges, worldWidthMeters, worldDepthMeters, isMobileClass = false }) {
   const placementResult = generateNaturalGeologyPlacements({ sampleHeightMeters, seaLevelMeters, seed, seats, roadEdges, worldWidthMeters, worldDepthMeters, isMobileClass });
-  const group = new THREE.Group(); group.name = NATURAL_GEOLOGY_RENDER_POLICY.groupName;
+  const group = new THREE.Group();
+  group.name = NATURAL_GEOLOGY_RENDER_POLICY.groupName;
   group.add(...buildProceduralMeshes(placementResult.placements));
-  const valyriaSurface = createValyriaVolcanicSurface({ sampleHeightMeters, seaLevelMeters, worldWidthMeters, worldDepthMeters });
-  group.add(valyriaSurface);
-  group.userData.naturalGeology = Object.freeze({ policyId: NATURAL_GEOLOGY_RENDER_POLICY.id, placementPolicyId: placementResult.policyId,
-    valyriaPolicyId: VALYRIA_GEOLOGY_POLICY.id, placementChecksum: checksumNaturalGeologyPlacements(placementResult.placements), placementCount: placementResult.placements.length,
-    stats: placementResult.stats, assetState: 'procedural-fallback', directAssets: NATURAL_GEOLOGY_PLACEMENT_POLICY.directAssetFamilies,
-    referenceOnlyAssets: NATURAL_GEOLOGY_PLACEMENT_POLICY.referenceOnlyAssets, valyriaSurface: valyriaSurface.userData.valyriaVolcanicSurface });
+  const valyriaFeatures = createValyriaVolcanicFeatures({ sampleHeightMeters, seaLevelMeters, seed, worldWidthMeters, worldDepthMeters, isMobileClass });
+  group.add(valyriaFeatures);
+  group.userData.naturalGeology = Object.freeze({
+    policyId: NATURAL_GEOLOGY_RENDER_POLICY.id,
+    placementPolicyId: placementResult.policyId,
+    valyriaPolicyId: VALYRIA_GEOLOGY_POLICY.id,
+    placementChecksum: checksumNaturalGeologyPlacements(placementResult.placements),
+    placementCount: placementResult.placements.length,
+    stats: placementResult.stats,
+    assetState: 'procedural-fallback',
+    directAssets: NATURAL_GEOLOGY_PLACEMENT_POLICY.directAssetFamilies,
+    referenceOnlyAssets: NATURAL_GEOLOGY_PLACEMENT_POLICY.referenceOnlyAssets,
+    valyriaFeatures: valyriaFeatures.userData.valyriaVolcanicFeatures,
+  });
   group.userData.naturalGeologyPlacements = placementResult.placements;
   return Object.freeze({ group, placements: placementResult.placements, stats: placementResult.stats });
 }
