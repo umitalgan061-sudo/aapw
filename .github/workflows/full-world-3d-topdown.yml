@@ -12,6 +12,10 @@ on:
       - 'src/3d/world/terrainMicroSurface.js'
       - 'src/3d/world/terrainBiomeShading.js'
       - 'src/3d/world/northReferenceCryosphere.js'
+      - 'src/3d/world/naturalGeology.js'
+      - 'src/3d/world/naturalGeologyPlacement.js'
+      - 'src/3d/world/valyriaGeology.js'
+      - 'src/3d/world/valyriaVolcanicFeatures.js'
       - 'src/3d/world/worldReferenceSurfacePindexes.js'
       - 'src/3d/world/worldReferenceMountainRelief.js'
       - 'src/3d/world/worldReferencePindex01Detail.js'
@@ -29,6 +33,7 @@ on:
       - 'scripts/checkTerrainMacroWeatheringPerformance.mjs'
       - 'scripts/checkTerrainLandformFabric.mjs'
       - 'scripts/checkMountainLakeBasinTaper.mjs'
+      - 'scripts/checkValyriaVolcanicFeatureNaturalness.mjs'
       - 'scripts/checkWaterOffshoreOptics.mjs'
       - 'scripts/checkWesternMarineShelfTone.mjs'
       - 'scripts/checkWesternReferenceSurfaceFabric.mjs'
@@ -62,13 +67,17 @@ jobs:
           npm install --no-save playwright three
           npx playwright install --with-deps chromium
 
-      - name: Verify production terrain geomorphology, soil fabric, marine shelf, offshore water and atmosphere contracts
+      - name: Verify production terrain geomorphology, geology, marine shelf, offshore water and atmosphere contracts
         run: |
           set -euo pipefail
           node --check src/3d/fog.js
           node --check src/3d/sky.js
           node --check src/3d/world/terrainMacroWeathering.js
           node --check src/3d/world/terrainReliefDetail.js
+          node --check src/3d/world/naturalGeology.js
+          node --check src/3d/world/naturalGeologyPlacement.js
+          node --check src/3d/world/valyriaGeology.js
+          node --check src/3d/world/valyriaVolcanicFeatures.js
           node --check src/3d/world/worldReferenceMountainRelief.js
           node --check src/3d/world/westernMarineShelfTone.js
           node --check src/3d/world/westernReferenceSurfaceFabric.js
@@ -79,6 +88,7 @@ jobs:
           node --check src/3d/world/water.js
           node --check src/3d/world/waterDepthField.js
           node --check scripts/checkMountainLakeBasinTaper.mjs
+          node --check scripts/checkValyriaVolcanicFeatureNaturalness.mjs
           node scripts/checkTerrainMacroWeathering.mjs
           node scripts/checkTerrainMacroWeatheringStatistics.mjs
           node scripts/checkTerrainMacroWeatheringIntegration.mjs
@@ -86,6 +96,7 @@ jobs:
           node scripts/checkTerrainLandformFabric.mjs
           node scripts/checkTerrainMicroSurface.mjs
           node scripts/checkMountainLakeBasinTaper.mjs
+          node scripts/checkValyriaVolcanicFeatureNaturalness.mjs
           node scripts/checkWaterOffshoreOptics.mjs
           node scripts/checkWesternMarineShelfTone.mjs
           node scripts/checkWesternReferenceSurfaceFabric.mjs
