@@ -117,6 +117,10 @@ vec3 naturalSurfaceLowlandStone = vec3(0.205, 0.199, 0.176);
 vec3 naturalSurfaceLowlandEarth = vec3(0.248, 0.214, 0.164);
 diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfaceLowlandStone, naturalSurfaceDomainA * 0.075);
 diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfaceLowlandEarth, naturalSurfaceDomainB * 0.065);
+float naturalSurfaceLowlandMosaic = naturalSurfaceLowland
+	* smoothstep(0.40, 0.66, naturalSurfacePatch * 0.55 + naturalSurfaceMeso * 0.45);
+diffuseColor.rgb *= 1.0 + naturalSurfaceLowland * ((naturalSurfaceMeso - naturalSurfaceMacro) * 0.085 + (naturalSurfaceFine - 0.5) * 0.045);
+diffuseColor.rgb = mix(diffuseColor.rgb, mix(naturalSurfaceLowlandStone, naturalSurfaceLowlandEarth, naturalSurfaceFine), naturalSurfaceLowlandMosaic * 0.065);
 
 float naturalSurfaceFacet = naturalSurfaceRidge(naturalSurfaceXZ / 145.0 + vec2(naturalSurfaceMacro * 2.4, naturalSurfacePatch * -1.8));
 float naturalSurfaceRidgeMask = smoothstep(0.18, 0.62, naturalSurfaceSlope) * (1.0 - naturalSurfaceSnow * 0.72);
@@ -124,6 +128,9 @@ float naturalSurfaceDarkRecovery = naturalSurfaceRidgeMask * smoothstep(0.18, 0.
 vec3 naturalSurfaceFacetStone = mix(vec3(0.205, 0.216, 0.216), vec3(0.310, 0.292, 0.263), naturalSurfaceFacet);
 diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfaceFacetStone, naturalSurfaceDarkRecovery * 0.34);
 diffuseColor.rgb *= 1.0 + naturalSurfaceRidgeMask * (naturalSurfaceFacet - 0.5) * 0.095;
+diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfaceFacetStone,
+	naturalSurfaceRidgeMask * (0.028 + smoothstep(0.56, 0.86, naturalSurfaceFacet) * 0.052));
+diffuseColor.rgb *= 1.0 + naturalSurfaceRidgeMask * (naturalSurfaceMeso - naturalSurfacePatch) * 0.085;
 
 float naturalSurfaceCoastHeight = naturalSurfacePosition.y - ${GLSL.water};
 float naturalSurfaceIntertidalEnvelope = (1.0 - smoothstep(0.15, 6.5, naturalSurfaceCoastHeight)) * (1.0 - naturalSurfaceSnow);
@@ -135,6 +142,7 @@ float naturalSurfaceSaltEdge = naturalSurfaceSprayEnvelope * naturalSurfaceMiner
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.092, 0.103, 0.098), naturalSurfaceWetTide * 0.31);
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.286, 0.282, 0.254), naturalSurfaceSaltEdge * 0.11);
 
+vec3 naturalSurfacePreValyriaColor = diffuseColor.rgb;
 float naturalSurfaceValyria = naturalSurfaceValyriaInfluence(naturalSurfacePosition);
 float naturalSurfaceFracture = naturalSurfaceCoolingFracture(naturalSurfaceXZ);
 float naturalSurfaceVolcanicMacro = naturalSurfaceFbm(naturalSurfaceXZ / 760.0 + vec2(-7.6, 12.3));
@@ -154,6 +162,17 @@ naturalSurfaceVolcanicColor = mix(naturalSurfaceVolcanicColor, vec3(0.305, 0.132
 naturalSurfaceVolcanicColor = mix(naturalSurfaceVolcanicColor, vec3(0.405, 0.348, 0.142), naturalSurfaceSulfur * 0.23);
 naturalSurfaceVolcanicColor = mix(naturalSurfaceVolcanicColor, vec3(0.025, 0.027, 0.031), naturalSurfaceFracture * 0.76);
 diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfaceVolcanicColor, naturalSurfaceValyria * 0.88);
+vec3 naturalSurfaceRevisedVolcanicColor = vec3(0.142, 0.135, 0.132);
+naturalSurfaceRevisedVolcanicColor = mix(naturalSurfaceRevisedVolcanicColor, vec3(0.066, 0.071, 0.079), naturalSurfaceObsidian * 0.58);
+naturalSurfaceRevisedVolcanicColor = mix(naturalSurfaceRevisedVolcanicColor, vec3(0.325, 0.310, 0.292), naturalSurfaceAsh * 0.58);
+naturalSurfaceRevisedVolcanicColor = mix(naturalSurfaceRevisedVolcanicColor, vec3(0.470, 0.442, 0.397), naturalSurfacePumice * 0.38);
+naturalSurfaceRevisedVolcanicColor = mix(naturalSurfaceRevisedVolcanicColor, vec3(0.326, 0.158, 0.091), naturalSurfaceOxidation * 0.27);
+naturalSurfaceRevisedVolcanicColor = mix(naturalSurfaceRevisedVolcanicColor, vec3(0.393, 0.348, 0.158), naturalSurfaceSulfur * 0.15);
+naturalSurfaceRevisedVolcanicColor = mix(naturalSurfaceRevisedVolcanicColor, vec3(0.082, 0.081, 0.084), naturalSurfaceFracture * 0.22);
+float naturalSurfaceValyriaMaterialBreakup = 0.46 + naturalSurfaceVolcanicMacro * 0.22
+	+ naturalSurfaceVolcanicMeso * 0.16 + naturalSurfaceFlow * 0.08;
+float naturalSurfaceValyriaMaterialBlend = naturalSurfaceValyria * clamp(naturalSurfaceValyriaMaterialBreakup, 0.42, 0.82);
+diffuseColor.rgb = mix(naturalSurfacePreValyriaColor, naturalSurfaceRevisedVolcanicColor, naturalSurfaceValyriaMaterialBlend);
 diffuseColor.rgb = clamp(diffuseColor.rgb, vec3(0.012), vec3(0.86));
 `;
 
@@ -164,17 +183,23 @@ float naturalSurfaceRoughAsh = naturalSurfaceFbm(vNaturalSurfaceWorldPosition.xz
 float naturalSurfaceRoughObsidian = smoothstep(0.58, 0.83, naturalSurfaceFbm(vec2(vNaturalSurfaceWorldPosition.x / 94.0 + vNaturalSurfaceWorldPosition.z / 510.0, vNaturalSurfaceWorldPosition.z / 230.0 - vNaturalSurfaceWorldPosition.x / 690.0)));
 float naturalSurfaceRoughTarget = 0.91 + naturalSurfaceRoughAsh * 0.075 - naturalSurfaceRoughObsidian * 0.22 - naturalSurfaceRoughFracture * 0.05;
 roughnessFactor = mix(roughnessFactor, clamp(naturalSurfaceRoughTarget, 0.52, 0.99), naturalSurfaceRoughValyria * 0.84);
+roughnessFactor = mix(roughnessFactor,
+	clamp(0.88 + naturalSurfaceRoughAsh * 0.085 - naturalSurfaceRoughObsidian * 0.15 - naturalSurfaceRoughFracture * 0.025, 0.56, 0.99),
+	naturalSurfaceRoughValyria * 0.62);
 `;
 
 const NATURAL_SURFACE_NORMAL = `
 float naturalSurfaceNormalValyria = naturalSurfaceValyriaInfluence(vNaturalSurfaceWorldPosition);
 if (naturalSurfaceNormalValyria > 0.001) {
+	vec3 naturalSurfaceBaseNormal = normal;
 	float naturalSurfaceNormalStep = 3.0;
 	float naturalSurfaceCenter = naturalSurfaceCoolingFracture(vNaturalSurfaceWorldPosition.xz);
 	float naturalSurfaceGradientX = naturalSurfaceCoolingFracture(vNaturalSurfaceWorldPosition.xz + vec2(naturalSurfaceNormalStep, 0.0)) - naturalSurfaceCenter;
 	float naturalSurfaceGradientZ = naturalSurfaceCoolingFracture(vNaturalSurfaceWorldPosition.xz + vec2(0.0, naturalSurfaceNormalStep)) - naturalSurfaceCenter;
 	vec3 naturalSurfacePerturbedWorldNormal = normalize(vNaturalSurfaceWorldNormal + vec3(-naturalSurfaceGradientX * 0.72, 0.0, -naturalSurfaceGradientZ * 0.72));
 	normal = normalize(mix(normal, normalize(mat3(viewMatrix) * naturalSurfacePerturbedWorldNormal), naturalSurfaceNormalValyria * 0.48));
+	normal = normalize(mix(normal, normalize(mat3(viewMatrix) * naturalSurfacePerturbedWorldNormal), naturalSurfaceNormalValyria * 0.18));
+	normal = normalize(mix(naturalSurfaceBaseNormal, normalize(mat3(viewMatrix) * naturalSurfacePerturbedWorldNormal), naturalSurfaceNormalValyria * 0.18));
 }
 `;
 

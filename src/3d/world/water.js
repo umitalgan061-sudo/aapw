@@ -259,6 +259,9 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		vec3 referenceShoreClear = vec3(${REFERENCE_WATER_COLORS.shoreClear.r.toFixed(4)}, ${REFERENCE_WATER_COLORS.shoreClear.g.toFixed(4)}, ${REFERENCE_WATER_COLORS.shoreClear.b.toFixed(4)});
 		bodyColor = mix(bodyColor, referenceLakeClear, enclosedLakeMask * clearShallowBand * 0.34);
 		bodyColor = mix(bodyColor, referenceShoreClear, clearCoastMask * 0.24);
+		vec3 referenceIntertidalNeutral = vec3(0.145, 0.258, 0.278);
+		float intertidalNeutralMask = clearCoastMask * smoothstep(0.16, 0.72, offshoreOptical);
+		bodyColor = mix(bodyColor, referenceIntertidalNeutral, intertidalNeutralMask * 0.22);
 
 		// Deep open water gets bounded kilometre- and hectometre-scale variation independent of
 		// physical depth. Current shear is masked to boundary-connected offshore water, so enclosed
@@ -274,6 +277,12 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		bodyColor *= 1.0 + aerialOffshoreVariation * shallowOffshoreFabricMask;
 		bodyColor = mix(bodyColor, currentTint,
 			(abs(oceanFabric) * 0.052 + abs(oceanShear) * 0.064) * shallowOffshoreFabricMask);
+		float aerialOceanPatch = waterSurfaceNoise(vWorldPosition.xz / 780.0 + vec2(9.4, -16.8)) * 2.0 - 1.0;
+		float aerialOceanCrossCurrent = waterSurfaceNoise(mat2(0.62, -0.78, 0.78, 0.62) * vWorldPosition.xz / 390.0 + vec2(-21.7, 8.3)) * 2.0 - 1.0;
+		float aerialOceanRelief = clamp(aerialOceanPatch * 0.072 + aerialOceanCrossCurrent * 0.043, -0.105, 0.105);
+		bodyColor *= 1.0 + aerialOceanRelief * shallowOffshoreFabricMask;
+		bodyColor = mix(bodyColor, currentTint,
+			(abs(aerialOceanPatch) * 0.095 + abs(aerialOceanCrossCurrent) * 0.065) * shallowOffshoreFabricMask);
 		vec3 nightAbsorption = vec3(0.010, 0.030, 0.052);
 		bodyColor = mix(bodyColor, bodyColor * 0.62 + nightAbsorption, clamp(uNightFactor, 0.0, 1.0) * 0.34);
 
@@ -287,6 +296,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		waterRoughness = mix(0.36, waterRoughness, deepMarineMask);
 		waterRoughness = mix(waterRoughness, clamp(0.20 + roughnessDriver * 0.28, 0.16, 0.48),
 			shallowOffshoreFabricMask * 0.72);
+		waterRoughness = clamp(waterRoughness + aerialOceanCrossCurrent * shallowOffshoreFabricMask * 0.045, 0.14, 0.52);
 		float specularPower = mix(132.0, 28.0, waterRoughness);
 		float specular = pow(clamp(dot(normal, halfVector), 0.0, 1.0), specularPower);
 		float specularFresnel = 0.02 + 0.98 * pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 5.0);
