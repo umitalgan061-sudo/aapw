@@ -7,6 +7,8 @@ on:
       - 'src/3d/gameplay/creatureSpawner.js'
       - 'src/3d/gameplay/livingWorldSpawner.js'
       - 'scripts/checkConfiguredCreatureSpawnGroundSafetyBrowser.mjs'
+      - 'scripts/checkCreatureBirdFlightLifecycle.mjs'
+      - 'scripts/checkCreatureBirdTerrainClearance.mjs'
       - '.github/workflows/configured-creature-spawn-ground-safety.yml'
   workflow_dispatch:
 
@@ -40,8 +42,8 @@ jobs:
           test "${#changed[@]}" -gt 0
           for path in "${changed[@]}"; do
             case "$path" in
-              src/3d/gameplay/creatureBrain.js|src/3d/gameplay/creatureSpawner.js|src/3d/gameplay/livingWorldSpawner.js|scripts/checkConfiguredCreatureSpawnGroundSafetyBrowser.mjs|.github/workflows/configured-creature-spawn-ground-safety.yml) ;;
-              *) echo "Unexpected file in creature spawn safety slice: $path" >&2; exit 1 ;;
+              src/3d/gameplay/creatureBrain.js|src/3d/gameplay/creatureSpawner.js|src/3d/gameplay/livingWorldSpawner.js|scripts/checkConfiguredCreatureSpawnGroundSafetyBrowser.mjs|scripts/checkCreatureBirdFlightLifecycle.mjs|scripts/checkCreatureBirdTerrainClearance.mjs|.github/workflows/configured-creature-spawn-ground-safety.yml) ;;
+              *) echo "Unexpected file in creature spawn/movement safety slice: $path" >&2; exit 1 ;;
             esac
           done
           read -r additions deletions < <(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
@@ -56,6 +58,10 @@ jobs:
           node --check src/3d/gameplay/creatureSpawner.js
           node --check src/3d/gameplay/livingWorldSpawner.js
           node --check scripts/checkConfiguredCreatureSpawnGroundSafetyBrowser.mjs
+          node --check scripts/checkCreatureBirdFlightLifecycle.mjs
+          node scripts/checkCreatureBirdFlightLifecycle.mjs
+          node --check scripts/checkCreatureBirdTerrainClearance.mjs
+          node scripts/checkCreatureBirdTerrainClearance.mjs
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkSharedMaterialPlacementContract.js
 
@@ -68,7 +74,7 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
-      - name: Real shipped Three.js procedural creature spawn proof
+      - name: Real shipped Three.js procedural creature spawn and movement proof
         shell: bash
         run: |
           set -euo pipefail
