@@ -38,11 +38,18 @@ try {
 
     // A world collider is allowed to correct a candidate X/Z. The friendly stop contract must still
     // hold after that correction; otherwise obstacle resolution can push a dog through personal space.
+    let colliderCalls = 0;
     const colliderDog = createDog('friendly-stop-after-collider', {
-      resolveXZ: (x, z) => ({ x: x + 0.5, z }),
+      resolveXZ: (x, z) => ({ x: ++colliderCalls === 1 ? x + 0.5 : x, z }),
     });
     colliderDog.update(0.25, player);
     const afterCollider = Math.hypot(
+      colliderDog.object3D.position.x - player.x,
+      colliderDog.object3D.position.z - player.z,
+    );
+    const rejectedPositionX = colliderDog.object3D.position.x;
+    colliderDog.update(0.25, player);
+    const recoveredDistance = Math.hypot(
       colliderDog.object3D.position.x - player.x,
       colliderDog.object3D.position.z - player.z,
     );
@@ -52,7 +59,7 @@ try {
       z: colliderDog.object3D.position.z,
     };
     colliderDog.dispose();
-    return { before, after, position, afterCollider, colliderPosition };
+    return { before, after, position, afterCollider, rejectedPositionX, recoveredDistance, colliderCalls, colliderPosition };
   });
 
   assert.equal(pageErrors.length, 0, `page errors: ${pageErrors.join('\n')}`);
@@ -61,6 +68,9 @@ try {
   assert.ok(Math.abs(proof.after - 2.5) <= 1e-6, `friendly approach should clamp exactly to stop distance: ${proof.after}`);
   assert.ok(Object.values(proof.position).every(Number.isFinite), 'friendly approach published a non-finite transform');
   assert.ok(proof.afterCollider >= 2.5 - 1e-6, `collider correction crossed friendly stop distance: ${proof.afterCollider}`);
+  assert.equal(proof.rejectedPositionX, 0, 'rejected collider correction should not partially publish movement');
+  assert.ok(Math.abs(proof.recoveredDistance - 2.5) <= 1e-6, `friendly approach did not recover after collider rejection: ${proof.recoveredDistance}`);
+  assert.equal(proof.colliderCalls, 2, 'friendly approach should retry collider resolution on the next valid tick');
   assert.ok(Object.values(proof.colliderPosition).every(Number.isFinite), 'collider-corrected approach published a non-finite transform');
   console.log('Creature friendly approach stop browser proof PASS', proof);
 } finally {
