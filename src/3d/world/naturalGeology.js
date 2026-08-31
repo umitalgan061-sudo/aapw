@@ -28,7 +28,7 @@ import {
 } from './naturalGeologySurfaceMaterial.js';
 
 export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
-  id: 'natural-geology-render-2026-08-31-v2-multiscale-surface-pbr',
+  id: 'natural-geology-render-2026-08-31-v3-surface-mode-hydration-parity',
   renderOnly: true,
   deterministicPlacement: true,
   geographyAuthorityUnchanged: true,
@@ -46,6 +46,8 @@ export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
   maximumSourceAspectRatio: 18,
   hydratedRoughnessFloor: 0.86,
   proceduralRoughness: 0.96,
+  surfaceModeHydrationParity: true,
+  splitProxySuppression: true,
   groupName: 'natural-geology',
   valyriaSurfaceName: 'valyria-volcanic-surface',
 });
@@ -120,9 +122,8 @@ function composePlacementMatrix(placement, output = new THREE.Matrix4()) {
 }
 
 function surfaceModeForPlacement(placement) {
-  if (placement.kind === 'asset-proxy') return 'rock';
   if (placement.volcanic) return 'volcanic';
-  if (placement.southernDryness > 0.69) return 'arid';
+  if (placement.southernDryness > 0.69 || placement.assetFamily === 'desert-rocks') return 'arid';
   return 'rock';
 }
 
@@ -242,10 +243,22 @@ function createAssetNormalization(measurement) {
   return new THREE.Matrix4().makeScale(normalizer, normalizer, normalizer).multiply(new THREE.Matrix4().makeTranslation(-measurement.center.x, -measurement.bounds.min.y, -measurement.center.z));
 }
 function hideProxyInstances(group, ids) {
-  const proxy = group?.children?.find((child) => child?.name === 'natural-geology-asset-proxy'); if (!proxy) return;
-  const hidden = new Set(ids), current = new THREE.Matrix4();
-  for (let i = 0; i < proxy.count; i += 1) if (hidden.has(proxy.userData.placementIds?.[i])) { proxy.getMatrixAt(i, current); current.decompose(tempObject.position, tempQuaternion, tempScale); tempScale.set(0, 0, 0); current.compose(tempObject.position, tempQuaternion, tempScale); proxy.setMatrixAt(i, current); }
-  proxy.instanceMatrix.needsUpdate = true;
+  const hidden = new Set(ids);
+  const current = new THREE.Matrix4();
+  for (const proxy of group?.children ?? []) {
+    if (proxy?.userData?.naturalGeologyKind !== 'asset-proxy' || !proxy.isInstancedMesh) continue;
+    let changed = false;
+    for (let i = 0; i < proxy.count; i += 1) {
+      if (!hidden.has(proxy.userData.placementIds?.[i])) continue;
+      proxy.getMatrixAt(i, current);
+      current.decompose(tempObject.position, tempQuaternion, tempScale);
+      tempScale.set(0, 0, 0);
+      current.compose(tempObject.position, tempQuaternion, tempScale);
+      proxy.setMatrixAt(i, current);
+      changed = true;
+    }
+    if (changed) proxy.instanceMatrix.needsUpdate = true;
+  }
 }
 async function hydrateFamily(group, family, url, signal) {
   const placements = proxyPlacementsForFamily(group, family); if (!placements.length) return { family, status: 'unused', placementCount: 0 };
@@ -253,15 +266,38 @@ async function hydrateFamily(group, family, url, signal) {
   const model = await new AssetLoader().loadModel(url, { fallbackColor: 0x665f56, fallbackSize: 1 }); const validation = validateNaturalGeologyAsset(model);
   if (!validation.valid) { AssetLoader.disposeObject3D(model); return { family, status: 'procedural-fallback', reason: validation.reason, placementCount: placements.length }; }
   const normalization = createAssetNormalization(validation.measurement), hydrated = [];
-  for (let meshIndex = 0; meshIndex < validation.meshes.length; meshIndex += 1) {
-    const sourceMesh = validation.meshes[meshIndex], material = sourceMesh.material.clone(); material.metalness = 0; material.roughness = Math.max(material.roughness ?? 0, NATURAL_GEOLOGY_RENDER_POLICY.hydratedRoughnessFloor);
-    applyNaturalGeologySurfaceMaterial(material, { mode: family === 'desert-rocks' ? 'arid' : 'rock' });
-    const instances = new THREE.InstancedMesh(sourceMesh.geometry, material, placements.length); instances.name = `natural-geology-hydrated-${family}-${meshIndex}`; instances.castShadow = true; instances.receiveShadow = true;
-    for (let i = 0; i < placements.length; i += 1) { composePlacementMatrix(placements[i], tempMatrix); instances.setMatrixAt(i, tempMatrix.clone().multiply(normalization).multiply(sourceMesh.matrixWorld)); }
-    instances.instanceMatrix.needsUpdate = true; instances.computeBoundingSphere?.(); hydrated.push(instances);
+  const placementsByMode = new Map();
+  for (const placement of placements) {
+    const mode = surfaceModeForPlacement(placement);
+    if (!placementsByMode.has(mode)) placementsByMode.set(mode, []);
+    placementsByMode.get(mode).push(placement);
   }
-  group.add(...hydrated); hideProxyInstances(group, placements.map((p) => p.id));
-  return { family, status: 'active', assetUrl: url, placementCount: placements.length, primitiveCount: hydrated.length, hostedContentLength: preflight.contentLength };
+  for (let meshIndex = 0; meshIndex < validation.meshes.length; meshIndex += 1) {
+    const sourceMesh = validation.meshes[meshIndex];
+    for (const [mode, modePlacements] of placementsByMode) {
+      const material = sourceMesh.material.clone();
+      material.metalness = 0;
+      material.roughness = Math.max(material.roughness ?? 0, NATURAL_GEOLOGY_RENDER_POLICY.hydratedRoughnessFloor);
+      applyNaturalGeologySurfaceMaterial(material, { mode });
+      const instances = new THREE.InstancedMesh(sourceMesh.geometry, material, modePlacements.length);
+      instances.name = `natural-geology-hydrated-${family}-${mode}-${meshIndex}`;
+      instances.castShadow = true;
+      instances.receiveShadow = true;
+      instances.userData.naturalGeologySurfaceMode = mode;
+      instances.userData.placementIds = modePlacements.map((placement) => placement.id);
+      for (let i = 0; i < modePlacements.length; i += 1) {
+        composePlacementMatrix(modePlacements[i], tempMatrix);
+        instances.setMatrixAt(i, tempMatrix.clone().multiply(normalization).multiply(sourceMesh.matrixWorld));
+      }
+      instances.instanceMatrix.needsUpdate = true;
+      instances.computeBoundingSphere?.();
+      hydrated.push(instances);
+    }
+    sourceMesh.material.dispose?.();
+  }
+  group.add(...hydrated);
+  hideProxyInstances(group, placements.map((p) => p.id));
+  return { family, status: 'active', assetUrl: url, placementCount: placements.length, primitiveCount: hydrated.length, surfaceModes: Object.freeze([...placementsByMode.keys()]), hostedContentLength: preflight.contentLength };
 }
 const inFlight = new WeakMap();
 export function upgradeNaturalGeologyAssets(group, { signal, isMobileClass = false } = {}) {
