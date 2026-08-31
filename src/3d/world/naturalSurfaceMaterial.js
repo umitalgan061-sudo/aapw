@@ -9,7 +9,7 @@ import { WORLD_DEFAULTS, WORLD_SCALE } from '../config.js';
 import { VALYRIA_GEOLOGY_POLICY } from './valyriaGeology.js';
 
 export const NATURAL_SURFACE_MATERIAL_POLICY = Object.freeze({
-	id: 'natural-surface-material-2026-08-31-v4-sparse-fracture-lithic-fabric',
+	id: 'natural-surface-material-2026-08-31-v5-multiscale-terrain-relief',
 	renderOnly: true,
 	deterministic: true,
 	canonicalHeightUnchanged: true,
@@ -27,7 +27,10 @@ export const NATURAL_SURFACE_MATERIAL_POLICY = Object.freeze({
 	worldSpaceAlbedoVariation: true,
 	worldSpaceNormalVariation: true,
 	worldSpaceRoughnessVariation: true,
+	allWorldMacroNormalVariation: true,
+	allWorldMacroRoughnessVariation: true,
 	lowlandHighPassMosaic: true,
+	lowlandMaterialDepth: true,
 	ridgeFacetRecovery: true,
 	patchyIntertidalTransition: true,
 	valyriaLithologicBreakup: true,
@@ -87,6 +90,13 @@ float naturalSurfaceFbm(vec2 p) {
 }
 float naturalSurfaceRidge(vec2 p) {
 	return 1.0 - abs(naturalSurfaceFbm(p) * 2.0 - 1.0);
+}
+float naturalSurfaceAllWorldRelief(vec2 worldXZ) {
+	float broad = naturalSurfaceFbm(worldXZ / 920.0 + vec2(4.1, -11.3));
+	float landform = naturalSurfaceFbm(worldXZ / 285.0 + vec2(-17.9, 8.6));
+	float meso = naturalSurfaceFbm(worldXZ / 82.0 + vec2(23.7, 6.2));
+	float grain = naturalSurfaceNoise(worldXZ / 31.0 + vec2(-7.2, 19.5));
+	return (broad - 0.5) * 0.45 + (landform - 0.5) * 0.35 + (meso - 0.5) * 0.15 + (grain - 0.5) * 0.05;
 }
 vec2 naturalSurfaceOwnerUv(vec2 worldXZ) {
 	return vec2(worldXZ.x / ${GLSL.worldWidth} + 0.5, worldXZ.y / ${GLSL.worldDepth} + 0.5);
@@ -359,23 +369,67 @@ diffuseColor.rgb = clamp(diffuseColor.rgb, vec3(0.012), vec3(0.86));
 `;
 
 const NATURAL_SURFACE_ROUGHNESS = `
+vec2 naturalSurfaceRoughXZ = vNaturalSurfaceWorldPosition.xz;
+float naturalSurfaceRoughDry = smoothstep(${GLSL.water} + 1.5, ${GLSL.water} + 9.0, vNaturalSurfaceWorldPosition.y);
+float naturalSurfaceRoughSlope = 1.0 - clamp(abs(normalize(vNaturalSurfaceWorldNormal).y), 0.0, 1.0);
+float naturalSurfaceRoughLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+float naturalSurfaceRoughSnow = smoothstep(0.62, 0.84, naturalSurfaceRoughLuma);
+float naturalSurfaceRoughLowland = (1.0 - smoothstep(${GLSL.water} + 70.0, ${GLSL.water} + 225.0, vNaturalSurfaceWorldPosition.y))
+	* naturalSurfaceRoughDry * (1.0 - naturalSurfaceRoughSnow);
+float naturalSurfaceRoughMacro = naturalSurfaceFbm(naturalSurfaceRoughXZ / 910.0 + vec2(8.4, -3.9));
+float naturalSurfaceRoughLandform = naturalSurfaceFbm(naturalSurfaceRoughXZ / 270.0 + vec2(-14.6, 17.1));
+float naturalSurfaceRoughMeso = naturalSurfaceFbm(naturalSurfaceRoughXZ / 86.0 + vec2(19.7, 4.4));
+float naturalSurfaceRoughGrain = naturalSurfaceNoise(naturalSurfaceRoughXZ / 34.0 + vec2(-2.8, 21.5));
+float naturalSurfaceLowlandWetPolish = naturalSurfaceRoughLowland * smoothstep(0.58, 0.80, 1.0 - naturalSurfaceRoughMacro)
+	* smoothstep(0.52, 0.78, 1.0 - naturalSurfaceRoughLandform);
+float naturalSurfaceLowlandGranular = naturalSurfaceRoughLowland * smoothstep(0.58, 0.82, naturalSurfaceRoughMacro)
+	* smoothstep(0.54, 0.80, naturalSurfaceRoughMeso);
+float naturalSurfaceWorldRoughTarget = 0.825
+	+ (naturalSurfaceRoughMacro - 0.5) * 0.135
+	+ (naturalSurfaceRoughLandform - 0.5) * 0.120
+	+ (naturalSurfaceRoughMeso - 0.5) * 0.080
+	+ (naturalSurfaceRoughGrain - 0.5) * 0.050
+	+ naturalSurfaceRoughSlope * 0.040
+	- naturalSurfaceLowlandWetPolish * 0.105
+	+ naturalSurfaceLowlandGranular * 0.085;
+float naturalSurfaceWorldRoughMix = naturalSurfaceRoughDry
+	* (0.08 + naturalSurfaceRoughSlope * 0.08 + naturalSurfaceRoughLowland * 0.18)
+	* (1.0 - naturalSurfaceRoughSnow * 0.78);
+roughnessFactor = mix(roughnessFactor, clamp(naturalSurfaceWorldRoughTarget, 0.47, 0.99), clamp(naturalSurfaceWorldRoughMix, 0.0, 0.34));
+
 float naturalSurfaceRoughValyria = naturalSurfaceValyriaInfluence(vNaturalSurfaceWorldPosition);
 vec2 naturalSurfaceRoughUv = naturalSurfaceOwnerUv(vNaturalSurfaceWorldPosition.xz);
 vec4 naturalSurfaceRoughMorph = naturalSurfaceValyriaMorphology(naturalSurfaceRoughUv);
 float naturalSurfaceRoughFracture = clamp(naturalSurfaceCoolingFracture(vNaturalSurfaceWorldPosition.xz) * 0.30 + naturalSurfaceRoughMorph.x * 0.66, 0.0, 1.0);
 float naturalSurfaceRoughAsh = naturalSurfaceFbm(vNaturalSurfaceWorldPosition.xz / 190.0 + vec2(16.7, -4.5));
 float naturalSurfaceRoughFine = naturalSurfaceFbm(vNaturalSurfaceWorldPosition.xz / 47.0 + vec2(-22.8, 31.6));
-float naturalSurfaceRoughGrain = naturalSurfaceNoise(vNaturalSurfaceWorldPosition.xz / 15.0 + vec2(8.4, -27.1));
+float naturalSurfaceRoughGrainVolcanic = naturalSurfaceNoise(vNaturalSurfaceWorldPosition.xz / 15.0 + vec2(8.4, -27.1));
 float naturalSurfaceRoughObsidian = clamp(naturalSurfaceRoughMorph.y * 0.84 + naturalSurfaceRoughMorph.x * 0.16, 0.0, 1.0);
 float naturalSurfaceRoughLava = naturalSurfaceLavaFlowFabric(vNaturalSurfaceWorldPosition.xz);
 float naturalSurfaceRoughFacet = naturalSurfaceBasaltFacet(vNaturalSurfaceWorldPosition.xz);
-float naturalSurfaceRoughTarget = 0.88 + naturalSurfaceRoughAsh * 0.070 + naturalSurfaceRoughFine * 0.060 + (naturalSurfaceRoughGrain - 0.5) * 0.050
+float naturalSurfaceRoughTarget = 0.88 + naturalSurfaceRoughAsh * 0.070 + naturalSurfaceRoughFine * 0.060 + (naturalSurfaceRoughGrainVolcanic - 0.5) * 0.050
 	+ naturalSurfaceRoughMorph.w * 0.035 - naturalSurfaceRoughObsidian * 0.24 + naturalSurfaceRoughFracture * 0.018
 	+ (naturalSurfaceRoughLava - 0.5) * 0.070 + (naturalSurfaceRoughFacet - 0.5) * 0.110;
 roughnessFactor = mix(roughnessFactor, clamp(naturalSurfaceRoughTarget, 0.46, 0.99), naturalSurfaceRoughValyria * 0.78);
 `;
 
 const NATURAL_SURFACE_NORMAL = `
+float naturalSurfaceNormalDry = smoothstep(${GLSL.water} + 1.5, ${GLSL.water} + 9.0, vNaturalSurfaceWorldPosition.y);
+float naturalSurfaceNormalSlope = 1.0 - clamp(abs(normalize(vNaturalSurfaceWorldNormal).y), 0.0, 1.0);
+float naturalSurfaceNormalLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+float naturalSurfaceNormalSnow = smoothstep(0.62, 0.84, naturalSurfaceNormalLuma);
+float naturalSurfaceNormalLowland = (1.0 - smoothstep(${GLSL.water} + 70.0, ${GLSL.water} + 225.0, vNaturalSurfaceWorldPosition.y))
+	* naturalSurfaceNormalDry * (1.0 - naturalSurfaceNormalSnow);
+float naturalSurfaceNormalStep = 8.0;
+float naturalSurfaceReliefCenter = naturalSurfaceAllWorldRelief(vNaturalSurfaceWorldPosition.xz);
+float naturalSurfaceReliefX = naturalSurfaceAllWorldRelief(vNaturalSurfaceWorldPosition.xz + vec2(naturalSurfaceNormalStep, 0.0)) - naturalSurfaceReliefCenter;
+float naturalSurfaceReliefZ = naturalSurfaceAllWorldRelief(vNaturalSurfaceWorldPosition.xz + vec2(0.0, naturalSurfaceNormalStep)) - naturalSurfaceReliefCenter;
+float naturalSurfaceWorldNormalMix = naturalSurfaceNormalDry
+	* (0.10 + naturalSurfaceNormalSlope * 0.08 + naturalSurfaceNormalLowland * 0.16)
+	* (1.0 - naturalSurfaceNormalSnow * 0.72);
+vec3 naturalSurfaceAllWorldPerturbedNormal = normalize(vNaturalSurfaceWorldNormal + vec3(-naturalSurfaceReliefX * 1.28, 0.0, -naturalSurfaceReliefZ * 1.28));
+normal = normalize(mix(normal, normalize(mat3(viewMatrix) * naturalSurfaceAllWorldPerturbedNormal), clamp(naturalSurfaceWorldNormalMix, 0.0, 0.31)));
+
 float naturalSurfaceNormalValyria = naturalSurfaceValyriaInfluence(vNaturalSurfaceWorldPosition);
 if (naturalSurfaceNormalValyria > 0.001) {
 	vec3 naturalSurfaceBaseNormal = normal;
