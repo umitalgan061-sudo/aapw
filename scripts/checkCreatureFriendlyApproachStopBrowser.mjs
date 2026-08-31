@@ -80,6 +80,7 @@ try {
   assert.ok(proof.afterCollider >= 2.5 - 1e-6, `collider correction crossed friendly stop distance: ${proof.afterCollider}`);
   assert.equal(proof.rejectedPositionX, 0, 'rejected collider correction should not partially publish movement');
   assert.ok(Math.abs(proof.recoveredDistance - 2.5) <= 1e-6, `friendly approach did not recover after collider rejection: ${proof.recoveredDistance}`);
+  assert.ok(Math.abs(proof.colliderPosition.z) <= 1e-6, `friendly recovery introduced lateral drift: ${proof.colliderPosition.z}`);
   assert.equal(proof.colliderCalls, 2, 'friendly approach should retry collider resolution on the next valid tick');
   assert.ok(Object.values(proof.colliderPosition).every(Number.isFinite), 'collider-corrected approach published a non-finite transform');
   console.log('Creature friendly approach stop browser proof PASS', proof);
