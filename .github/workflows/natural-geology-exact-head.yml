@@ -15,6 +15,7 @@ on:
       - 'src/3d/world/terrain.js'
       - 'src/3d/world/naturalGeologyPlacement.js'
       - 'src/3d/world/naturalGeology.js'
+      - 'src/3d/world/naturalGeologyCollision.js'
       - 'src/3d/sceneManager.js'
       - 'scripts/checkValyriaGeology.mjs'
       - 'scripts/checkValyriaVolcanicMorphology.mjs'
@@ -25,6 +26,7 @@ on:
       - 'scripts/checkValyriaCastleWeathering.mjs'
       - 'scripts/checkNaturalGeologyPlacement.mjs'
       - 'scripts/checkNaturalGeologyAssetGrounding.mjs'
+      - 'scripts/checkNaturalGeologyCollision.mjs'
       - 'scripts/checkNaturalGeologySourceContract.mjs'
       - 'scripts/checkNaturalGeologyWorldNormalContract.mjs'
       - 'scripts/checkNaturalSurfaceMaterial.mjs'
@@ -62,6 +64,7 @@ jobs:
           node --check src/3d/world/terrain.js
           node --check src/3d/world/naturalGeologyPlacement.js
           node --check src/3d/world/naturalGeology.js
+          node --check src/3d/world/naturalGeologyCollision.js
           node --check src/3d/sceneManager.js
           node --check scripts/checkValyriaGeology.mjs
           node --check scripts/checkValyriaVolcanicMorphology.mjs
@@ -70,6 +73,7 @@ jobs:
           node --check scripts/checkValyriaCastleWeathering.mjs
           node --check scripts/checkNaturalGeologyPlacement.mjs
           node --check scripts/checkNaturalGeologyAssetGrounding.mjs
+          node --check scripts/checkNaturalGeologyCollision.mjs
           node --check scripts/checkNaturalGeologySourceContract.mjs
           node --check scripts/checkNaturalGeologyWorldNormalContract.mjs
       - name: Resolve vendored Three.js for canonical terrain imports
@@ -88,6 +92,8 @@ jobs:
         run: node scripts/checkNaturalGeologyPlacement.mjs
       - name: GLB proxy terrain grounding and transform diversity
         run: node scripts/checkNaturalGeologyAssetGrounding.mjs
+      - name: Large outcrop collision circles
+        run: node scripts/checkNaturalGeologyCollision.mjs
       - name: Natural geology instance-correct world normals
         run: node scripts/checkNaturalGeologyWorldNormalContract.mjs
       - name: Asset and authority source contract
@@ -123,6 +129,7 @@ jobs:
           if (geology.NATURAL_GEOLOGY_RENDER_POLICY.legacyValyriaSurfaceOverlayEnabled !== false) throw new Error('legacy Valyria overlay re-enabled');
           if (geology.NATURAL_GEOLOGY_RENDER_POLICY.canonicalTerrainOwnsValyriaSurface !== true) throw new Error('canonical Valyria surface authority lost');
           if (geology.NATURAL_GEOLOGY_RENDER_POLICY.instanceScaleCompensatedWorldNormal !== true) throw new Error('instance-correct rock normals lost');
+          if (geology.NATURAL_GEOLOGY_RENDER_POLICY.hydratedRegionalTint !== true) throw new Error('hydrated GLB regional tint lost');
           const g = geology.createNaturalRockPrototypeGeometry('fractured-scarp');
           if (!g?.getAttribute?.('position')?.count) throw new Error('procedural fallback geometry missing');
           g.dispose();
