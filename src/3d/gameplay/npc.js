@@ -536,7 +536,21 @@ export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, s
 		}
 		const worldX = seat.x + spawn.offsetXMeters;
 		const worldZ = seat.z + spawn.offsetZMeters;
-		const groundY = sampleGroundY(worldX, worldZ);
+		if (!Number.isFinite(worldX) || !Number.isFinite(worldZ)) {
+			console.warn(`[gameplay/npc] NPC spawn "${spawn.id}" resolved non-finite world coordinates — skipping.`);
+			return null;
+		}
+		let groundY;
+		try {
+			groundY = sampleGroundY(worldX, worldZ);
+		} catch (error) {
+			console.warn(`[gameplay/npc] NPC spawn "${spawn.id}" ground sampling failed — skipping.`, error);
+			return null;
+		}
+		if (!Number.isFinite(groundY)) {
+			console.warn(`[gameplay/npc] NPC spawn "${spawn.id}" received non-finite ground height — skipping.`);
+			return null;
+		}
 		const patrolWaypoints = spawn.patrol ? [
 			{ x: worldX, z: worldZ },
 			{ x: seat.x + spawn.patrol.toOffsetXMeters, z: seat.z + spawn.patrol.toOffsetZMeters },
