@@ -421,6 +421,7 @@ export function createCreatureBeing({
 						reactingFromHerd = true;
 						break;
 					}
+				}
 			}
 
 			currentlyReacting = reactingDirectly || reactingFromHerd;
