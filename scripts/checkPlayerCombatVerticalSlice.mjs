@@ -84,11 +84,15 @@ requireFragments(controlsHelp, 'touch combat help', [
   "['Hedef', 'Yakındaki hedefe kilitlen veya kilidi kaldır']",
   "['Hafif', 'Hafif saldırı']",
   "['Ağır', 'Ağır saldırı']",
+  "['Kaçın', 'Yönlü kaçınma']",
+  "['Savuştur', 'Zamanlı savuşturma']",
 ]);
 requireFragments(touch, 'mobile/PWA input parity', [
   "className = 'g3d-touch-lock-on-button'",
   "className = 'g3d-touch-light-attack-button'",
   "className = 'g3d-touch-heavy-attack-button'",
+  "className = 'g3d-touch-dodge-button'",
+  "className = 'g3d-touch-parry-button'",
   "emitPlayerCombatIntent('light', 'touch')",
   "emitPlayerCombatIntent('heavy', 'touch')",
   'consumeLockOnRequested()',
@@ -99,6 +103,16 @@ requireFragments(touch, 'touch pause-input isolation', [
   'constructor(container = document.body, { isInputBlocked = isPlayerGameplayInputBlocked } = {})',
   '_resetGameplayState()',
   'return { forward: 0, strafe: 0, running: false, guarding: false }',
+]);
+requireFragments(touch, 'touch pointer-loss recovery', [
+  "this._base.addEventListener('lostpointercapture', this._onLostPointerCapture)",
+  "if (event.pointerId === this._pointerId) this._resetMovementState()",
+  "this._base.removeEventListener('lostpointercapture', this._onLostPointerCapture)",
+  '_resetMovementState() {',
+]);
+requireFragments(touch, 'touch app-lifecycle recovery', [
+  "this._pageLifecycleTarget?.addEventListener('blur', this._onWindowBlur)",
+  "this._pageLifecycleTarget?.removeEventListener('blur', this._onWindowBlur)",
 ]);
 requireFragments(game3d, 'authoritative player health wiring', [
   'createHealthState({',
@@ -123,8 +137,9 @@ console.log(JSON.stringify({
   chain: ['asset+animation', 'spawn+ground+collider', 'input', 'movement+stamina+poise', 'dodge+guard+parry', 'melee-combo', 'lock-on', 'damage+feedback'],
   inputs: ['keyboard:C-light/R-heavy/E-interaction', 'mouse', 'gamepad', 'touch/PWA'],
   pauseIsolation: ['keyboard', 'pointer', 'gamepad', 'touch'],
+  touchLifecycleRecovery: ['visibilitychange', 'pagehide', 'blur', 'lostpointercapture'],
   desktopHelp: ['C / Sol tık = Hafif saldırı', 'R = Ağır saldırı', 'E = Yakındaki kişiyle konuş'],
-  touchHelp: ['Savun', 'Hedef', 'Hafif', 'Ağır'],
+  touchHelp: ['Savun', 'Hedef', 'Hafif', 'Ağır', 'Kaçın', 'Savuştur'],
   sharedMaterialPlacement: true,
   newAsset: false,
 }, null, 2));
