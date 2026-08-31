@@ -4,9 +4,11 @@ const NIGHT_CINEMATIC_FILL_NAME = 'Game Night Cinematic Fill';
 const NIGHT_CINEMATIC_DAY_INTENSITY = 0.02;
 const NIGHT_CINEMATIC_FULL_INTENSITY = 0.58;
 const NIGHT_CINEMATIC_TWILIGHT_SKY = new THREE.Color(0x8aa6c3);
+const NIGHT_CINEMATIC_BLUE_HOUR_SKY = new THREE.Color(0x728fb2);
 const NIGHT_CINEMATIC_MOONLIT_SKY = new THREE.Color(0x667f9f);
 const NIGHT_CINEMATIC_DEEP_SKY = new THREE.Color(0x4b6789);
 const NIGHT_CINEMATIC_TWILIGHT_GROUND = new THREE.Color(0x4d5146);
+const NIGHT_CINEMATIC_BLUE_HOUR_GROUND = new THREE.Color(0x3f4841);
 const NIGHT_CINEMATIC_MOONLIT_GROUND = new THREE.Color(0x343c37);
 const NIGHT_CINEMATIC_DEEP_GROUND = new THREE.Color(0x202927);
 
@@ -22,6 +24,12 @@ function deepNightWeight(night) {
 function transitionShoulder(night) {
 	const rise = THREE.MathUtils.smoothstep(night, 0.18, 0.56);
 	const fall = 1 - THREE.MathUtils.smoothstep(night, 0.7, 0.98);
+	return rise * fall;
+}
+
+function blueHourWeight(night) {
+	const rise = THREE.MathUtils.smoothstep(night, 0.08, 0.34);
+	const fall = 1 - THREE.MathUtils.smoothstep(night, 0.46, 0.72);
 	return rise * fall;
 }
 
@@ -48,13 +56,16 @@ export function updateNightVisualEnhancement(hemisphere, nightFactor) {
 	const night = smoothNight(nightFactor);
 	const deepNight = deepNightWeight(night);
 	const shoulder = transitionShoulder(night);
+	const blueHour = blueHourWeight(night);
 	const moonlit = moonlitPlateau(night);
-	fill.color.copy(NIGHT_CINEMATIC_TWILIGHT_SKY).lerp(NIGHT_CINEMATIC_MOONLIT_SKY, moonlit).lerp(NIGHT_CINEMATIC_DEEP_SKY, deepNight);
-	fill.groundColor.copy(NIGHT_CINEMATIC_TWILIGHT_GROUND).lerp(NIGHT_CINEMATIC_MOONLIT_GROUND, moonlit).lerp(NIGHT_CINEMATIC_DEEP_GROUND, deepNight);
+	fill.color.copy(NIGHT_CINEMATIC_TWILIGHT_SKY).lerp(NIGHT_CINEMATIC_BLUE_HOUR_SKY, blueHour).lerp(NIGHT_CINEMATIC_MOONLIT_SKY, moonlit).lerp(NIGHT_CINEMATIC_DEEP_SKY, deepNight);
+	fill.groundColor.copy(NIGHT_CINEMATIC_TWILIGHT_GROUND).lerp(NIGHT_CINEMATIC_BLUE_HOUR_GROUND, blueHour).lerp(NIGHT_CINEMATIC_MOONLIT_GROUND, moonlit).lerp(NIGHT_CINEMATIC_DEEP_GROUND, deepNight);
 	const readability = THREE.MathUtils.lerp(NIGHT_CINEMATIC_DAY_INTENSITY, NIGHT_CINEMATIC_FULL_INTENSITY, night);
-	fill.intensity = readability * (1 + shoulder * 0.055 + moonlit * 0.035) * THREE.MathUtils.lerp(1, 0.78, deepNight);
+	const twilightAdaptation = THREE.MathUtils.lerp(0.96, 1.035, blueHour);
+	fill.intensity = readability * twilightAdaptation * (1 + shoulder * 0.055 + moonlit * 0.035) * THREE.MathUtils.lerp(1, 0.78, deepNight);
 	fill.userData.deepNightWeight = deepNight;
 	fill.userData.transitionShoulder = shoulder;
+	fill.userData.blueHourWeight = blueHour;
 	fill.userData.moonlitPlateau = moonlit;
 	return fill.intensity;
 }
@@ -69,6 +80,7 @@ export function getNightVisualEnhancementSnapshot(hemisphere) {
 		fullNightIntensity: NIGHT_CINEMATIC_FULL_INTENSITY,
 		deepNightWeight: Number(fill?.userData?.deepNightWeight || 0),
 		transitionShoulder: Number(fill?.userData?.transitionShoulder || 0),
+		blueHourWeight: Number(fill?.userData?.blueHourWeight || 0),
 		moonlitPlateau: Number(fill?.userData?.moonlitPlateau || 0),
 		phaseAdaptive: Boolean(fill?.userData?.phaseAdaptive),
 	});
