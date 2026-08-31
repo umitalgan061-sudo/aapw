@@ -9,7 +9,7 @@ import { WORLD_DEFAULTS, WORLD_SCALE } from '../config.js';
 import { VALYRIA_GEOLOGY_POLICY } from './valyriaGeology.js';
 
 export const NATURAL_SURFACE_MATERIAL_POLICY = Object.freeze({
-	id: 'natural-surface-material-2026-08-31-v4-sparse-cooling-fractures',
+	id: 'natural-surface-material-2026-08-31-v5-anisotropic-lava-flow-fabric',
 	renderOnly: true,
 	deterministic: true,
 	canonicalHeightUnchanged: true,
@@ -28,6 +28,7 @@ export const NATURAL_SURFACE_MATERIAL_POLICY = Object.freeze({
 	lowlandMaterialDepth: true,
 	valyriaMineralPatchDepth: true,
 	sparseCoolingFractures: true,
+	anisotropicLavaFlowFabric: true,
 	ridgeFacetRecovery: true,
 	patchyIntertidalTransition: true,
 });
@@ -112,6 +113,16 @@ float naturalSurfaceCoolingFracture(vec2 worldXZ) {
 	float jointPocket = smoothstep(0.70, 0.86, naturalSurfaceFbm(worldXZ / 210.0 + vec2(4.2, 8.3)));
 	return clamp(primary * exposure * interruption * 0.78 + crossJoint * exposure * jointPocket * interruption * 0.18, 0.0, 1.0);
 }
+float naturalSurfaceLavaFlowFabric(vec2 worldXZ) {
+	float macroWarp = naturalSurfaceFbm(worldXZ / 540.0 + vec2(5.6, -9.4)) - 0.5;
+	vec2 elongated = vec2(
+		worldXZ.x / 235.0 + worldXZ.y / 920.0 + macroWarp * 0.62,
+		worldXZ.y / 72.0 - worldXZ.x / 1180.0 - macroWarp * 0.35
+	);
+	float flow = naturalSurfaceFbm(elongated + vec2(11.7, -4.3));
+	float shoulder = naturalSurfaceFbm(vec2(worldXZ.x / 104.0 - worldXZ.y / 520.0, worldXZ.y / 315.0 + worldXZ.x / 760.0) + vec2(-5.2, 9.8));
+	return clamp(flow * 0.72 + shoulder * 0.28, 0.0, 1.0);
+}
 `;
 
 const NATURAL_SURFACE_COLOR = `
@@ -169,21 +180,25 @@ float naturalSurfaceVolcanicMacro = naturalSurfaceFbm(naturalSurfaceXZ / 760.0 +
 float naturalSurfaceVolcanicMeso = naturalSurfaceFbm(naturalSurfaceXZ / 190.0 + vec2(16.7, -4.5));
 float naturalSurfaceVolcanicFine = naturalSurfaceFbm(naturalSurfaceXZ / 74.0 + vec2(-22.1, 10.6));
 float naturalSurfaceFlow = naturalSurfaceFbm(vec2(naturalSurfaceXZ.x / 94.0 + naturalSurfaceXZ.y / 510.0, naturalSurfaceXZ.y / 230.0 - naturalSurfaceXZ.x / 690.0));
-float naturalSurfaceAsh = smoothstep(0.40, 0.68, naturalSurfaceVolcanicMacro * 0.64 + naturalSurfaceVolcanicMeso * 0.36) * (1.0 - naturalSurfaceSlope * 0.48);
+float naturalSurfaceLavaFabric = naturalSurfaceLavaFlowFabric(naturalSurfaceXZ);
+float naturalSurfaceAsh = smoothstep(0.48, 0.73, naturalSurfaceVolcanicMacro * 0.64 + naturalSurfaceVolcanicMeso * 0.36) * (1.0 - naturalSurfaceSlope * 0.48);
 float naturalSurfacePumice = smoothstep(0.60, 0.84, naturalSurfaceVolcanicMeso) * smoothstep(0.34, 0.72, naturalSurfaceFlow);
 float naturalSurfaceObsidian = smoothstep(0.60, 0.86, naturalSurfaceFlow) * (1.0 - naturalSurfaceAsh * 0.72) * (0.38 + naturalSurfaceSlope * 0.62);
 float naturalSurfaceOxidation = smoothstep(0.50, 0.78, naturalSurfaceFbm(naturalSurfaceXZ / 116.0 + vec2(31.2, 5.7))) * smoothstep(0.10, 0.52, naturalSurfaceSlope);
 float naturalSurfaceSulfur = smoothstep(0.65, 0.87, naturalSurfaceVolcanicFine) * (1.0 - naturalSurfaceSlope * 0.68);
 float naturalSurfaceWeatheredBasalt = smoothstep(0.48, 0.76, 1.0 - naturalSurfaceVolcanicMacro) * smoothstep(0.42, 0.76, naturalSurfaceVolcanicFine);
-vec3 naturalSurfaceBasaltColor = vec3(0.135, 0.132, 0.130);
+float naturalSurfaceFlowWeathering = smoothstep(0.54, 0.79, naturalSurfaceLavaFabric) * (1.0 - naturalSurfaceAsh * 0.58);
+vec3 naturalSurfaceBasaltColor = vec3(0.150, 0.147, 0.143);
 vec3 naturalSurfaceVolcanicColor = naturalSurfaceBasaltColor;
 naturalSurfaceVolcanicColor = mix(naturalSurfaceVolcanicColor, vec3(0.070, 0.076, 0.083), naturalSurfaceObsidian * 0.66);
-naturalSurfaceVolcanicColor = mix(naturalSurfaceVolcanicColor, vec3(0.330, 0.316, 0.295), naturalSurfaceAsh * 0.67);
+naturalSurfaceVolcanicColor = mix(naturalSurfaceVolcanicColor, vec3(0.330, 0.316, 0.295), naturalSurfaceAsh * 0.58);
 naturalSurfaceVolcanicColor = mix(naturalSurfaceVolcanicColor, vec3(0.485, 0.456, 0.402), naturalSurfacePumice * 0.52);
 naturalSurfaceVolcanicColor = mix(naturalSurfaceVolcanicColor, vec3(0.322, 0.142, 0.078), naturalSurfaceOxidation * 0.42);
 naturalSurfaceVolcanicColor = mix(naturalSurfaceVolcanicColor, vec3(0.425, 0.370, 0.154), naturalSurfaceSulfur * 0.28);
 naturalSurfaceVolcanicColor = mix(naturalSurfaceVolcanicColor, vec3(0.215, 0.205, 0.191), naturalSurfaceWeatheredBasalt * 0.24);
+naturalSurfaceVolcanicColor = mix(naturalSurfaceVolcanicColor, vec3(0.104, 0.111, 0.116), naturalSurfaceFlowWeathering * 0.24);
 naturalSurfaceVolcanicColor = mix(naturalSurfaceVolcanicColor, vec3(0.072, 0.075, 0.078), naturalSurfaceFracture * 0.24);
+naturalSurfaceVolcanicColor *= 0.90 + naturalSurfaceLavaFabric * 0.20;
 float naturalSurfaceVolcanicBlend = naturalSurfaceValyria * (0.69 + naturalSurfaceVolcanicMeso * 0.10);
 diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfaceVolcanicColor, naturalSurfaceVolcanicBlend);
 diffuseColor.rgb = clamp(diffuseColor.rgb, vec3(0.012), vec3(0.86));
@@ -218,7 +233,8 @@ float naturalSurfaceRoughValyria = naturalSurfaceValyriaInfluence(vNaturalSurfac
 float naturalSurfaceRoughFracture = naturalSurfaceCoolingFracture(vNaturalSurfaceWorldPosition.xz);
 float naturalSurfaceRoughAsh = naturalSurfaceFbm(vNaturalSurfaceWorldPosition.xz / 190.0 + vec2(16.7, -4.5));
 float naturalSurfaceRoughObsidian = smoothstep(0.58, 0.83, naturalSurfaceFbm(vec2(vNaturalSurfaceWorldPosition.x / 94.0 + vNaturalSurfaceWorldPosition.z / 510.0, vNaturalSurfaceWorldPosition.z / 230.0 - vNaturalSurfaceWorldPosition.x / 690.0)));
-float naturalSurfaceRoughTarget = 0.90 + naturalSurfaceRoughAsh * 0.095 - naturalSurfaceRoughObsidian * 0.25 - naturalSurfaceRoughFracture * 0.025;
+float naturalSurfaceRoughLavaFabric = naturalSurfaceLavaFlowFabric(vNaturalSurfaceWorldPosition.xz);
+float naturalSurfaceRoughTarget = 0.90 + naturalSurfaceRoughAsh * 0.095 - naturalSurfaceRoughObsidian * 0.25 - naturalSurfaceRoughFracture * 0.025 + (naturalSurfaceRoughLavaFabric - 0.5) * 0.10;
 roughnessFactor = mix(roughnessFactor, clamp(naturalSurfaceRoughTarget, 0.48, 0.99), naturalSurfaceRoughValyria * 0.80);
 `;
 
@@ -238,6 +254,13 @@ normal = normalize(mix(normal, normalize(mat3(viewMatrix) * naturalSurfaceAllWor
 
 float naturalSurfaceNormalValyria = naturalSurfaceValyriaInfluence(vNaturalSurfaceWorldPosition);
 if (naturalSurfaceNormalValyria > 0.001) {
+	float naturalSurfaceFlowStep = 7.0;
+	float naturalSurfaceFlowCenter = naturalSurfaceLavaFlowFabric(vNaturalSurfaceWorldPosition.xz);
+	float naturalSurfaceFlowGradientX = naturalSurfaceLavaFlowFabric(vNaturalSurfaceWorldPosition.xz + vec2(naturalSurfaceFlowStep, 0.0)) - naturalSurfaceFlowCenter;
+	float naturalSurfaceFlowGradientZ = naturalSurfaceLavaFlowFabric(vNaturalSurfaceWorldPosition.xz + vec2(0.0, naturalSurfaceFlowStep)) - naturalSurfaceFlowCenter;
+	vec3 naturalSurfaceFlowWorldNormal = normalize(vNaturalSurfaceWorldNormal + vec3(-naturalSurfaceFlowGradientX * 0.34, 0.0, -naturalSurfaceFlowGradientZ * 0.34));
+	normal = normalize(mix(normal, normalize(mat3(viewMatrix) * naturalSurfaceFlowWorldNormal), naturalSurfaceNormalValyria * 0.28));
+
 	float naturalSurfaceFractureStep = 3.0;
 	float naturalSurfaceCenter = naturalSurfaceCoolingFracture(vNaturalSurfaceWorldPosition.xz);
 	float naturalSurfaceGradientX = naturalSurfaceCoolingFracture(vNaturalSurfaceWorldPosition.xz + vec2(naturalSurfaceFractureStep, 0.0)) - naturalSurfaceCenter;
