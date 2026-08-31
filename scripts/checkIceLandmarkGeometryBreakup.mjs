@@ -40,6 +40,7 @@ function createSnapshot() {
 		`dense blue cave ice exposure disappeared: ${breakup.caveBlueCoreCount}`);
 	assert(presentation.primarySurfaceVertexCount > 500, 'primary ice tint neutralization became incomplete');
 	assert.equal(presentation.shaderSurfaceCount, 3, 'Wall/cave/portal continuous shader coverage regressed');
+	assert(presentation.wallSmoothedNormalVertexCount > 300, 'Wall section-normal smoothing lost primary coverage');
 	assert.equal(presentation.primaryIcicleCount, 18, 'primary cave icicle naturalization lost authored coverage');
 	assert(presentation.meltRibbonVertexCount >= 30, 'cave melt ribbon naturalization lost topology coverage');
 
@@ -56,8 +57,9 @@ function createSnapshot() {
 	assert.equal(cave?.userData?.worldSpaceGlacialAlbedoFabric,
 		'deterministic-smoothed-multiscale-v5-neutral-ice');
 	assert.equal(wall?.userData?.continuousIcePresentationShader, 'world-space-albedo-normal-v14');
+	assert.equal(wall?.userData?.wallSectionNormalNaturalization, 'five-section-glacial-blend-v15');
 	assert.equal(result.group.getObjectByName('ice-cave-icicles')?.userData?.primaryIcicleNaturalization,
-		'ceiling-anchored-tapered-v14');
+		'ceiling-anchored-fine-taper-v15');
 	assert.equal(result.group.getObjectByName('ice-cave-wet-melt-ribbon')?.userData?.meltRibbonNaturalization,
 		'meandering-variable-width-v14');
 
