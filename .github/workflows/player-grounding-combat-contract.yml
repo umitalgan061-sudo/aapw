@@ -72,7 +72,13 @@ jobs:
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           test "$((ADD + DEL))" -le 1000
           echo "BASE_SHA=$BASE" >> "$GITHUB_ENV"
-      - name: Grounding combat static acceptance
+      - name: Canonical grounding source contract
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/player.js
+          node --check scripts/checkPlayerGroundingCombatContract.mjs
+          node scripts/checkPlayerGroundingCombatContract.mjs
+      - name: Standing combat input material and determinism contracts
         run: |
           set -euo pipefail
           node --check src/3d/input.js
@@ -84,8 +90,6 @@ jobs:
           node scripts/checkPlayerImmutableDefenseDamage.mjs
           node --check scripts/checkPlayerGamepadInput.mjs
           node scripts/checkPlayerGamepadInput.mjs
-          node --check scripts/checkPlayerGroundingCombatContract.mjs
-          node scripts/checkPlayerGroundingCombatContract.mjs
           node --check scripts/checkPlayerMeleeCombo.mjs
           node scripts/checkPlayerMeleeCombo.mjs
           node --check scripts/checkPlayerMeleeComboRuntime.mjs
@@ -96,7 +100,6 @@ jobs:
           node --check scripts/checkPlayerRecoveryAttackBufferDrop.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferRuntime.mjs
           node scripts/checkPlayerRecoveryAttackBufferDrop.mjs
-          node --check src/3d/gameplay/player.js
           node scripts/checkSharedMaterialPlacementContract.js
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkServiceWorkerCache.js
