@@ -339,7 +339,8 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		alpha *= 1.0 + shelfMottle * 0.22;
 		float bedReadability = max(enclosedLakeMask * clearShallowBand * 0.30, clearCoastMask * 0.18);
 		alpha *= 1.0 - bedReadability;
-		alpha = mix(alpha, 1.0, deepMarineMask);
+		float marineBedOcclusion = smoothstep(0.26, 0.70, fragmentDepth) * smoothstep(0.50, 0.88, offshoreOptical);
+		alpha = mix(alpha, 1.0, marineBedOcclusion);
 		alpha *= waterCoverage;
 
 		float surfaceAlpha = max(alpha, foam * 0.78);
