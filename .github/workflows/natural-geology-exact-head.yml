@@ -24,6 +24,7 @@ on:
       - 'scripts/checkValyriaBarrenEcology.mjs'
       - 'scripts/checkValyriaCastleWeathering.mjs'
       - 'scripts/checkNaturalGeologyPlacement.mjs'
+      - 'scripts/checkNaturalGeologyAssetGrounding.mjs'
       - 'scripts/checkNaturalGeologySourceContract.mjs'
       - 'scripts/checkNaturalGeologyWorldNormalContract.mjs'
       - 'scripts/checkNaturalSurfaceMaterial.mjs'
@@ -68,6 +69,7 @@ jobs:
           node --check scripts/checkValyriaBarrenEcology.mjs
           node --check scripts/checkValyriaCastleWeathering.mjs
           node --check scripts/checkNaturalGeologyPlacement.mjs
+          node --check scripts/checkNaturalGeologyAssetGrounding.mjs
           node --check scripts/checkNaturalGeologySourceContract.mjs
           node --check scripts/checkNaturalGeologyWorldNormalContract.mjs
       - name: Resolve vendored Three.js for canonical terrain imports
@@ -84,6 +86,8 @@ jobs:
         run: node scripts/checkValyriaCastleWeathering.mjs
       - name: Natural geology deterministic placement
         run: node scripts/checkNaturalGeologyPlacement.mjs
+      - name: GLB proxy terrain grounding and transform diversity
+        run: node scripts/checkNaturalGeologyAssetGrounding.mjs
       - name: Natural geology instance-correct world normals
         run: node scripts/checkNaturalGeologyWorldNormalContract.mjs
       - name: Asset and authority source contract
