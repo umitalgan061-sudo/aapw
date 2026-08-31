@@ -269,7 +269,7 @@ export function createCreatureBeing({
 	const object3D = rig.object3D;
 	object3D.name = spawnId;
 	object3D.position.set(worldX, groundY, worldZ);
-	object3D.rotation.y = rotationYRadians;
+	object3D.rotation.y = Number.isFinite(rotationYRadians) ? rotationYRadians : 0;
 
 	const socialCohesionEnabled = profile.locomotion !== 'flight'
 		&& profile.packAlertRadiusMeters != null
@@ -317,6 +317,17 @@ export function createCreatureBeing({
 		const angle = rng() * Math.PI * 2;
 		const radius = idleWanderRadiusMeters * Math.sqrt(rng());
 		wanderTarget = { x: wanderCenter.x + Math.cos(angle) * radius, z: wanderCenter.z + Math.sin(angle) * radius };
+	}
+
+	// Matches the established wolf fallback: when threat and creature occupy the same X/Z point there
+	// is no separable vector to normalize, so use the creature's finite facing instead of a zero vector.
+	// This keeps exact-overlap reactions deterministic and guarantees an actual escape/takeoff attempt.
+	function reactiveDirection(dx, dz, distance, sign = 1) {
+		const hasSeparationVector = Number.isFinite(distance) && distance > 1e-6;
+		const fallbackYaw = Number.isFinite(object3D.rotation.y) ? object3D.rotation.y : 0;
+		const baseX = hasSeparationVector ? dx / distance : Math.sin(fallbackYaw);
+		const baseZ = hasSeparationVector ? dz / distance : Math.cos(fallbackYaw);
+		return { x: baseX * sign, z: baseZ * sign };
 	}
 
 	// Movement is committed only after every external boundary has returned a finite candidate. This
@@ -410,7 +421,6 @@ export function createCreatureBeing({
 						reactingFromHerd = true;
 						break;
 					}
-				}
 			}
 
 			currentlyReacting = reactingDirectly || reactingFromHerd;
@@ -422,9 +432,9 @@ export function createCreatureBeing({
 				// diverge when the live terrain provider is temporarily unavailable.
 				if (flightPhase === 'grounded') {
 					if (currentlyReacting) {
-						const safeDistance = Math.max(distanceFromPlayer, 1e-6);
-						const nextHeadingX = dxFromPlayer / safeDistance;
-						const nextHeadingZ = dzFromPlayer / safeDistance;
+						const heading = reactiveDirection(dxFromPlayer, dzFromPlayer, distanceFromPlayer);
+						const nextHeadingX = heading.x;
+						const nextHeadingZ = heading.z;
 						const nextAltitude = Math.min(profile.flightAltitudeMeters, profile.takeoffClimbMps * delta);
 						const nextX = object3D.position.x + nextHeadingX * profile.reactiveSpeedMps * delta;
 						const nextZ = object3D.position.z + nextHeadingZ * profile.reactiveSpeedMps * delta;
@@ -487,10 +497,10 @@ export function createCreatureBeing({
 			}
 
 			if (currentlyReacting) {
-				const safeDistance = Math.max(distanceFromPlayer, 1e-6);
 				const sign = profile.reactiveDirection === 'toward' ? -1 : 1;
-				const dirX = (dxFromPlayer / safeDistance) * sign;
-				const dirZ = (dzFromPlayer / safeDistance) * sign;
+				const direction = reactiveDirection(dxFromPlayer, dzFromPlayer, distanceFromPlayer, sign);
+				const dirX = direction.x;
+				const dirZ = direction.z;
 				const step = profile.reactiveSpeedMps * delta;
 				const nextX = object3D.position.x + dirX * step;
 				const nextZ = object3D.position.z + dirZ * step;
