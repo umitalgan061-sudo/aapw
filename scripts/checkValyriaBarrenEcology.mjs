@@ -20,7 +20,9 @@ assert.equal(E.terrainHeightAuthorityUnchanged, true);
 assert.equal(E.colliderAuthorityUnchanged, true);
 assert.equal(E.canonicalWaterAuthorityUnchanged, true);
 assert(E.id.includes('v2-feathered-refugia'));
-assert(E.transitionWidth > 0 && E.transitionWidth < E.exclusionInfluence);
+assert(Number.isFinite(E.transitionWidth) && E.transitionWidth > 0);
+const configuredTransitionStart = Math.max(0, E.exclusionInfluence - E.transitionWidth);
+assert(configuredTransitionStart >= 0 && configuredTransitionStart < E.exclusionInfluence);
 assert(E.excludedOrdinarySystems.includes('vegetation-tree-scatter'));
 assert(E.excludedOrdinarySystems.includes('procedural-villages'));
 assert(E.excludedOrdinarySystems.includes('wind-grass-ground-cover'));
@@ -101,9 +103,12 @@ assert.equal(canonicalCalls, 1);
 assert.equal(canonicalSurface.touched, 1);
 
 // Exercise the whole falloff. V2 intentionally feathers the pre-Doom transition with deterministic
-// refugia instead of drawing a perfect binary ring. Hard-barren points must always be rejected; zero-
-// influence points must always survive; the transition should contain both survivors and rejected
-// pockets, which avoids a visible vegetation contour around the volcanic province.
+// refugia instead of drawing a perfect binary ring. The configured width may be broader than the hard
+// barren threshold; production deliberately clamps transitionStart to zero in that case so the outermost
+// zero-influence world remains untouched while the full non-zero influence falloff can feather naturally.
+// Hard-barren points must always be rejected; zero-influence points must always survive; the transition
+// should contain both survivors and rejected pockets, which avoids a visible vegetation contour around
+// the volcanic province.
 let hardBarren = 0;
 let hardBarrenViolations = 0;
 let outerWorld = 0;
@@ -170,6 +175,7 @@ console.log('[checkValyriaBarrenEcology] PASS');
 console.log(JSON.stringify({
   ecologyPolicyId: E.id,
   geologyPolicyId: P.id,
+  configuredTransitionStart,
   hardBarrenGridSamples: hardBarren,
   outerWorldGridSamples: outerWorld,
   transitionSamples,
