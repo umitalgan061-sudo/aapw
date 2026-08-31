@@ -29,7 +29,7 @@ assert.ok(!/recovery[^\n]*turnToward/.test(player), 'recovery frames must not ga
 assert.match(player, /playerCollider\.resolveXZ/, 'canonical collider resolution must remain');
 assert.match(player, /groundCollider\.getGroundHeight/, 'canonical ground coupling must remain');
 assert.match(player, /const targetYaw = Math\.atan2\(directionX, directionZ\);[\s\S]*?Math\.min\(1, PLAYER_CONFIG\.TURN_RATE_RADIANS_PER_SECOND \* delta\)\);/, 'canonical shortest-angle turn math missing');
-for (const fragment of ["const LIGHT_ATTACK_KEYS = new Set(['KeyC'])", "const HEAVY_ATTACK_KEYS = new Set(['KeyR'])", "const GAMEPAD_BUTTON = Object.freeze({", 'JUMP: 0', 'LIGHT: 2', 'HEAVY: 3', 'export function samplePlayerGamepad(', 'previousButtons = {}', 'const sample = samplePlayerGamepad(gamepad, this._gamepadButtons', "emitPlayerCombatIntent('light', 'mouse')", "emitPlayerCombatIntent('light', 'gamepad')", "emitPlayerCombatIntent('heavy', 'gamepad')", "button, a, input, textarea, select", "LIGHT_ATTACK_KEYS.has(event.code) && !isInteractiveTarget(event.target)", "HEAVY_ATTACK_KEYS.has(event.code) && !isInteractiveTarget(event.target)"]) assert.ok(input.includes(fragment), `missing input parity contract: ${fragment}`);
+for (const fragment of ["const LIGHT_ATTACK_KEYS = new Set(['KeyC'])", "const HEAVY_ATTACK_KEYS = new Set(['KeyR'])", "const GAMEPAD_BUTTON = Object.freeze({", 'JUMP: 0', 'LIGHT: 2', 'HEAVY: 3', 'export function samplePlayerGamepad(', 'previousButtons = {}', 'const sample = samplePlayerGamepad(gamepad, this._gamepadButtons', "emitPlayerCombatIntent('light', 'mouse')", "emitPlayerCombatIntent('light', 'gamepad')", "emitPlayerCombatIntent('heavy', 'gamepad')", "button, a, input, textarea, select", "LIGHT_ATTACK_KEYS.has(event.code) && !isInteractiveTarget(event.target)", "HEAVY_ATTACK_KEYS.has(event.code) && !isInteractiveTarget(event.target)", ".g3d-pause-menu-overlay:not([hidden])", 'constructor(target = window, { isInputBlocked = defaultInputBlocked } = {})', 'if (readInputBlocked(this._isInputBlocked)) return;', '_pollGamepad(inputBlocked = readInputBlocked(this._isInputBlocked))', 'if (inputBlocked) {']) assert.ok(input.includes(fragment), `missing input parity contract: ${fragment}`);
 assert.ok(!input.includes("const LIGHT_ATTACK_KEYS = new Set(['KeyE'])"), 'E is reserved for nearby interaction and must not also emit keyboard melee');
 assert.ok(interaction.includes("if (event.code !== 'KeyE') return"), 'interaction controller must retain E as its canonical nearby-interaction key');
 assert.ok(controlsHelp.includes("['E', 'Yakındaki kişiyle konuş']"), 'desktop controls help must keep E documented as nearby interaction');
@@ -49,8 +49,10 @@ class FakeKeyTarget extends EventTarget {
 	closest() { return this.interactive ? this : null; }
 }
 function dispatchKey(target, type, code) { const event = new Event(type, { cancelable: true }); Object.defineProperty(event, 'code', { value: code }); target.dispatchEvent(event); return event; }
-const worldTarget = new FakeKeyTarget(false), interactiveTarget = new FakeKeyTarget(true);
-const worldInput = new KeyboardInput(worldTarget), interactiveInput = new KeyboardInput(interactiveTarget);
+function dispatchPointer(target, type, button) { const event = new Event(type, { cancelable: true }); Object.defineProperty(event, 'button', { value: button }); target.dispatchEvent(event); return event; }
+const worldTarget = new FakeKeyTarget(false), interactiveTarget = new FakeKeyTarget(true), pausedTarget = new FakeKeyTarget(false);
+let pauseBlocked = true;
+const worldInput = new KeyboardInput(worldTarget), interactiveInput = new KeyboardInput(interactiveTarget), pausedInput = new KeyboardInput(pausedTarget, { isInputBlocked: () => pauseBlocked });
 try {
 	dispatchKey(worldTarget, 'keydown', 'KeyE');
 	assert.equal(keyboardIntents.length, 0, 'E must remain interaction-only and emit no keyboard combat intent');
@@ -70,10 +72,22 @@ try {
 	dispatchKey(interactiveTarget, 'keyup', 'KeyC');
 	dispatchKey(interactiveTarget, 'keydown', 'KeyR');
 	assert.equal(keyboardIntents.length, beforeInteractive, 'focused interactive DOM controls must suppress keyboard melee intents');
+
+	const beforePause = keyboardIntents.length;
+	dispatchKey(pausedTarget, 'keydown', 'KeyW');
+	dispatchKey(pausedTarget, 'keydown', 'KeyC');
+	dispatchKey(pausedTarget, 'keydown', 'KeyR');
+	dispatchPointer(pausedTarget, 'pointerdown', 0);
+	const pausedAxes = pausedInput.getAxes();
+	assert.equal(keyboardIntents.length, beforePause, 'pause must suppress keyboard and pointer melee intents');
+	assert.deepEqual({ forward: pausedAxes.forward, strafe: pausedAxes.strafe, running: pausedAxes.running, jumpRequested: pausedAxes.jumpRequested, lockOnRequested: pausedAxes.lockOnRequested, guarding: pausedAxes.guarding, lookX: pausedAxes.lookX, lookY: pausedAxes.lookY, cameraZoom: pausedAxes.cameraZoom }, { forward: 0, strafe: 0, running: false, jumpRequested: false, lockOnRequested: false, guarding: false, lookX: 0, lookY: 0, cameraZoom: 0 }, 'pause must neutralize queued gameplay axes and action edges');
+	pauseBlocked = false;
+	dispatchKey(pausedTarget, 'keydown', 'KeyC');
+	assert.deepEqual(keyboardIntents.at(-1), { kind: 'light', source: 'keyboard' }, 'fresh input after resume must remain responsive');
 } finally {
-	worldInput.dispose(); interactiveInput.dispose();
+	worldInput.dispose(); interactiveInput.dispose(); pausedInput.dispose();
 	globalThis.dispatchEvent = previousDispatchEvent;
 	if (previousCustomEvent) globalThis.CustomEvent = previousCustomEvent; else delete globalThis.CustomEvent;
 }
 
-console.log(JSON.stringify({ ok: true, contract: 'player-melee-combo-input-window', attack: cfg, windupSteering: { turnMultiplier: 0.68, preActiveOnly: true, activeHoming: false }, inputs: { keyboard: ['KeyC', 'KeyR'], interactionReserved: 'KeyE', mouse: 'button0-light', gamepad: ['A/button0-jump', 'X/button2-light', 'Y/button3-heavy'], touch: ['light', 'heavy'], interactiveDomCombatSuppressed: true }, assetPolicy: { newModel: false, fabricatedAttackClip: false, canonicalAnimationConfig: 'src/3d/gameplay/playerConfig.js', sharedMaterialCoreUnchanged: true }, ownership: { npcDamageConsumerModified: false, terrainModified: false, rpgSemanticsModified: false } }, null, 2));
+console.log(JSON.stringify({ ok: true, contract: 'player-melee-combo-input-window', attack: cfg, windupSteering: { turnMultiplier: 0.68, preActiveOnly: true, activeHoming: false }, inputs: { keyboard: ['KeyC', 'KeyR'], interactionReserved: 'KeyE', mouse: 'button0-light', gamepad: ['A/button0-jump', 'X/button2-light', 'Y/button3-heavy'], touch: ['light', 'heavy'], interactiveDomCombatSuppressed: true, pauseGameplayInputSuppressed: true }, assetPolicy: { newModel: false, fabricatedAttackClip: false, canonicalAnimationConfig: 'src/3d/gameplay/playerConfig.js', sharedMaterialCoreUnchanged: true }, ownership: { npcDamageConsumerModified: false, terrainModified: false, rpgSemanticsModified: false } }, null, 2));
