@@ -1,0 +1,105 @@
+name: Reference Coastline Exact Head
+
+on:
+  push:
+    branches:
+      - codex/coastline-subcell-naturalization-20260831
+    paths:
+      - 'src/3d/world/referenceCoastlineWarp.js'
+      - 'src/3d/world/terrainReliefDetail.js'
+      - 'scripts/checkReferenceCoastlineNaturalness.mjs'
+      - '.github/workflows/reference-coastline-exact-head.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/referenceCoastlineWarp.js'
+      - 'src/3d/world/terrainReliefDetail.js'
+      - 'scripts/checkReferenceCoastlineNaturalness.mjs'
+      - '.github/workflows/reference-coastline-exact-head.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  coastline-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout exact requested head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify exact head and syntax
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          node --check src/3d/world/referenceCoastlineWarp.js
+          node --check src/3d/world/terrainReliefDetail.js
+          node --check scripts/checkReferenceCoastlineNaturalness.mjs
+          node --check scripts/checkTerrainMacroWeatheringIntegration.mjs
+
+      - name: Source-anchored coastline naturalness contract
+        run: node scripts/checkReferenceCoastlineNaturalness.mjs | tee "$RUNNER_TEMP/reference-coastline-naturalness.log"
+
+      - name: Preserve existing relief/weathering integration
+        run: node scripts/checkTerrainMacroWeatheringIntegration.mjs | tee "$RUNNER_TEMP/terrain-macro-integration.log"
+
+      - name: Upload scalar coastline metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reference-coastline-metrics-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/reference-coastline-naturalness.log
+            ${{ runner.temp }}/terrain-macro-integration.log
+          if-no-files-found: warn
+          retention-days: 14
+
+  coastline-visual-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - name: Checkout exact requested head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install exact browser runtime
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright three
+          npx playwright install --with-deps chromium
+
+      - name: Render authoritative full-world coastline proof
+        run: |
+          node scripts/captureFullWorld3DTopdown.mjs \
+            --width=1600 \
+            --height=1100 \
+            --segments=240 \
+            --output=artifacts/reference-coastline-exact-head/full-world-coastline.png \
+            | tee "$RUNNER_TEMP/reference-coastline-render.log"
+
+      - name: Upload exact-head coastline visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reference-coastline-visual-${{ github.sha }}
+          path: |
+            artifacts/reference-coastline-exact-head/
+            ${{ runner.temp }}/reference-coastline-render.log
+          if-no-files-found: error
+          retention-days: 14
