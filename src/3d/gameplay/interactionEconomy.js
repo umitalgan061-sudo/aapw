@@ -212,7 +212,12 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		const savedLedger = saved?.ledger;
 		if (!savedLedger || typeof savedLedger !== 'object' || Array.isArray(savedLedger)) return;
 		if (Array.isArray(savedLedger.creditedSourceIds)) {
-			for (const savedSourceId of savedLedger.creditedSourceIds.slice(-CREDIT_SOURCE_LIMIT)) rememberCreditSource(normalizeReceiptText(savedSourceId, ''));
+			const restoredSources = [];
+			for (let index = savedLedger.creditedSourceIds.length - 1; index >= 0 && restoredSources.length < CREDIT_SOURCE_LIMIT; index -= 1) {
+				const sourceId = normalizeReceiptText(savedLedger.creditedSourceIds[index], '');
+				if (sourceId && !restoredSources.includes(sourceId)) restoredSources.push(sourceId);
+			}
+			for (const sourceId of restoredSources.reverse()) rememberCreditSource(sourceId);
 		}
 		if (Array.isArray(savedLedger.recentCredits)) {
 			const validCredits = [];
