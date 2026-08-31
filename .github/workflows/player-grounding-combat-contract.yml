@@ -78,7 +78,7 @@ jobs:
           node --check src/3d/gameplay/player.js
           node --check scripts/checkPlayerGroundingCombatContract.mjs
           node scripts/checkPlayerGroundingCombatContract.mjs
-      - name: Standing combat input material and determinism contracts
+      - name: Input and feedback source contracts
         run: |
           set -euo pipefail
           node --check src/3d/input.js
@@ -90,6 +90,9 @@ jobs:
           node scripts/checkPlayerImmutableDefenseDamage.mjs
           node --check scripts/checkPlayerGamepadInput.mjs
           node scripts/checkPlayerGamepadInput.mjs
+      - name: Combat state source contracts
+        run: |
+          set -euo pipefail
           node --check scripts/checkPlayerMeleeCombo.mjs
           node scripts/checkPlayerMeleeCombo.mjs
           node --check scripts/checkPlayerMeleeComboRuntime.mjs
@@ -100,6 +103,9 @@ jobs:
           node --check scripts/checkPlayerRecoveryAttackBufferDrop.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferRuntime.mjs
           node scripts/checkPlayerRecoveryAttackBufferDrop.mjs
+      - name: Shared material determinism and cache contracts
+        run: |
+          set -euo pipefail
           node scripts/checkSharedMaterialPlacementContract.js
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkServiceWorkerCache.js
