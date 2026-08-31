@@ -74,17 +74,27 @@ async function main() {
 		});
 		const page = await browser.newPage({ viewport: { width: args.width, height: args.height } });
 		const pageErrors = [];
-		page.on('pageerror', (error) => pageErrors.push(error.message));
+		let rejectPageFailure;
+		const pageFailure = new Promise((_, reject) => { rejectPageFailure = reject; });
+		page.on('pageerror', (error) => {
+			pageErrors.push(error.message);
+			rejectPageFailure(new Error(`page: ${error.message}`));
+		});
 		page.on('console', (message) => {
-			if (message.type() === 'error') pageErrors.push(`console: ${message.text()}`);
+			if (message.type() !== 'error') return;
+			pageErrors.push(`console: ${message.text()}`);
+			rejectPageFailure(new Error(`console: ${message.text()}`));
 		});
 		const url = `${harnessUrl}?width=${args.width}&height=${args.height}&segments=${args.segments}&focus=${args.focus}`;
 		await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-		await page.waitForFunction(
-			() => window.__FULL_WORLD_3D_TOPDOWN__?.status === 'ready',
-			null,
-			{ timeout: 300000 },
-		);
+		await Promise.race([
+			page.waitForFunction(
+				() => window.__FULL_WORLD_3D_TOPDOWN__?.status === 'ready',
+				null,
+				{ timeout: 300000 },
+			),
+			pageFailure,
+		]);
 		const summary = await page.evaluate(() => window.__FULL_WORLD_3D_TOPDOWN__);
 		if (pageErrors.length) throw new Error(pageErrors.join('\n'));
 
