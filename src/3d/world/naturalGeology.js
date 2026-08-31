@@ -24,7 +24,7 @@ import {
 } from './valyriaGeology.js';
 
 export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
-  id: 'natural-geology-render-2026-08-31-v3-world-space-rock-weathering',
+  id: 'natural-geology-render-2026-08-31-v4-correct-world-normal-weathering',
   renderOnly: true,
   deterministicPlacement: true,
   geographyAuthorityUnchanged: true,
@@ -45,6 +45,8 @@ export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
   worldSpaceRockAlbedoVariation: true,
   worldSpaceRockNormalVariation: true,
   worldSpaceRockRoughnessVariation: true,
+  instanceScaleCompensatedWorldNormal: true,
+  cameraStableRockWeathering: true,
   rockWeatheringScalesMeters: Object.freeze([3.4, 11, 38, 125]),
   rockRoughnessRange: Object.freeze([0.64, 0.98]),
   groupName: 'natural-geology',
@@ -58,13 +60,15 @@ const tempMatrix = new THREE.Matrix4();
 const tempQuaternion = new THREE.Quaternion();
 const tempScale = new THREE.Vector3();
 const clamp01 = (value) => value < 0 ? 0 : value > 1 ? 1 : value;
-const ROCK_WEATHERING_SHADER_KEY = 'natural-geology-world-space-weathering-v1';
+const ROCK_WEATHERING_SHADER_KEY = 'natural-geology-world-space-weathering-v2-correct-normal-space';
 
 function installRockMaterialWeathering(material) {
   if (!material || (!material.isMeshStandardMaterial && !material.isMeshPhysicalMaterial)) return material;
   if (material.userData?.naturalGeologyWorldWeathering === ROCK_WEATHERING_SHADER_KEY) return material;
+
   const previousOnBeforeCompile = material.onBeforeCompile.bind(material);
   const previousCacheKey = material.customProgramCacheKey.bind(material);
+
   material.onBeforeCompile = (shader, renderer) => {
     previousOnBeforeCompile(shader, renderer);
     shader.vertexShader = shader.vertexShader
@@ -73,15 +77,34 @@ function installRockMaterialWeathering(material) {
         '#include <common>\nvarying vec3 vNaturalRockWorldPosition;\nvarying vec3 vNaturalRockWorldNormal;',
       )
       .replace(
+        '#include <beginnormal_vertex>',
+        `#include <beginnormal_vertex>
+// Capture a true world-space normal before Three.js converts transformedNormal into view space.
+// The same inverse-scale compensation used by Three's instancing normal path is required here because
+// geology placements intentionally use non-uniform XYZ scales. Without it, weathering rotates and
+// stretches with the instance transform and can read as camera-dependent/plastic.
+vec3 naturalRockWeatheringObjectNormal = objectNormal;
+#ifdef USE_INSTANCING
+  mat3 naturalRockInstanceNormalMatrix = mat3(instanceMatrix);
+  naturalRockWeatheringObjectNormal /= vec3(
+    dot(naturalRockInstanceNormalMatrix[0], naturalRockInstanceNormalMatrix[0]),
+    dot(naturalRockInstanceNormalMatrix[1], naturalRockInstanceNormalMatrix[1]),
+    dot(naturalRockInstanceNormalMatrix[2], naturalRockInstanceNormalMatrix[2])
+  );
+  naturalRockWeatheringObjectNormal = naturalRockInstanceNormalMatrix * naturalRockWeatheringObjectNormal;
+#endif
+vNaturalRockWorldNormal = normalize(mat3(modelMatrix) * naturalRockWeatheringObjectNormal);`,
+      )
+      .replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
 vec4 naturalRockInstancePosition = vec4(transformed, 1.0);
 #ifdef USE_INSTANCING
   naturalRockInstancePosition = instanceMatrix * naturalRockInstancePosition;
 #endif
-vNaturalRockWorldPosition = (modelMatrix * naturalRockInstancePosition).xyz;
-vNaturalRockWorldNormal = normalize(mat3(modelMatrix) * transformedNormal);`,
+vNaturalRockWorldPosition = (modelMatrix * naturalRockInstancePosition).xyz;`,
       );
+
     shader.fragmentShader = shader.fragmentShader
       .replace(
         '#include <common>',
@@ -154,8 +177,14 @@ vec3 naturalRockPerturbedWorldNormal = normalize(vNaturalRockWorldNormal + vec3(
 normal = normalize(mix(normal, normalize(mat3(viewMatrix) * naturalRockPerturbedWorldNormal), 0.16));`,
       );
   };
+
   material.customProgramCacheKey = () => `${previousCacheKey()}|${ROCK_WEATHERING_SHADER_KEY}`;
-  material.userData = { ...material.userData, naturalGeology: true, naturalGeologyWorldWeathering: ROCK_WEATHERING_SHADER_KEY };
+  material.userData = {
+    ...material.userData,
+    naturalGeology: true,
+    naturalGeologyWorldWeathering: ROCK_WEATHERING_SHADER_KEY,
+    naturalGeologyWorldNormalSpace: 'instance-scale-compensated-world',
+  };
   return material;
 }
 
@@ -206,7 +235,9 @@ function colorForPlacement(placement) {
     if (hot > 0.6 && placement.curvatureMeters > 0.35) c.lerp(new THREE.Color(0x6e2412), 0.18);
     return c;
   }
-  const north = placement.northness, south = placement.southernDryness, altitude = clamp01(placement.heightAboveSeaMeters / 520);
+  const north = placement.northness;
+  const south = placement.southernDryness;
+  const altitude = clamp01(placement.heightAboveSeaMeters / 520);
   if (south > 0.69) return new THREE.Color().setRGB(0.31 + south * 0.12, 0.255 + south * 0.07, 0.18 + south * 0.035);
   if (north > 0.72 || altitude > 0.72) return new THREE.Color().setRGB(0.34 + altitude * 0.08, 0.37 + altitude * 0.08, 0.39 + altitude * 0.08);
   return new THREE.Color().setRGB(0.31 + altitude * 0.055, 0.30 + altitude * 0.05, 0.27 + altitude * 0.045);
@@ -227,28 +258,44 @@ function composePlacementMatrix(placement, output = new THREE.Matrix4()) {
 
 function makeInstancedFamily(kind, placements) {
   if (!placements.length) return null;
-  const colors = { 'fractured-scarp': 0x5c5a54, bedrock: 0x67635a, 'low-outcrop': 0x716b5f, talus: 0x6c665c, boulder: 0x625f58, 'asset-proxy': 0x68635a };
-  const mesh = new THREE.InstancedMesh(createNaturalRockPrototypeGeometry(kind), createRockMaterial(colors[kind] ?? 0x66615a), placements.length);
+  const colors = {
+    'fractured-scarp': 0x5c5a54,
+    bedrock: 0x67635a,
+    'low-outcrop': 0x716b5f,
+    talus: 0x6c665c,
+    boulder: 0x625f58,
+    'asset-proxy': 0x68635a,
+  };
+  const mesh = new THREE.InstancedMesh(
+    createNaturalRockPrototypeGeometry(kind),
+    createRockMaterial(colors[kind] ?? 0x66615a),
+    placements.length,
+  );
   mesh.name = `natural-geology-${kind}`;
   mesh.castShadow = kind !== 'talus';
   mesh.receiveShadow = true;
-  for (let i = 0; i < placements.length; i += 1) {
-    composePlacementMatrix(placements[i], tempMatrix);
-    mesh.setMatrixAt(i, tempMatrix);
-    mesh.setColorAt?.(i, colorForPlacement(placements[i]));
+  for (let index = 0; index < placements.length; index += 1) {
+    composePlacementMatrix(placements[index], tempMatrix);
+    mesh.setMatrixAt(index, tempMatrix);
+    mesh.setColorAt?.(index, colorForPlacement(placements[index]));
   }
   mesh.instanceMatrix.needsUpdate = true;
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   mesh.computeBoundingSphere?.();
   mesh.userData.naturalGeologyKind = kind;
-  mesh.userData.placementIds = placements.map((p) => p.id);
+  mesh.userData.placementIds = placements.map((placement) => placement.id);
   return mesh;
 }
 
 function buildProceduralMeshes(placements) {
   const families = new Map();
-  for (const p of placements) { if (!families.has(p.kind)) families.set(p.kind, []); families.get(p.kind).push(p); }
-  return [...families].map(([kind, family]) => makeInstancedFamily(kind, family)).filter(Boolean);
+  for (const placement of placements) {
+    if (!families.has(placement.kind)) families.set(placement.kind, []);
+    families.get(placement.kind).push(placement);
+  }
+  return [...families]
+    .map(([kind, family]) => makeInstancedFamily(kind, family))
+    .filter(Boolean);
 }
 
 /**
@@ -257,51 +304,134 @@ function buildProceduralMeshes(placements) {
  * morphology-aligned PBR pass. Keeping the helper export lets QA compare historical overlays without
  * reintroducing a second 46m-grid surface into the shipped scene.
  */
-export function createValyriaVolcanicSurface({ sampleHeightMeters, seaLevelMeters, worldWidthMeters, worldDepthMeters, gridMeters = VALYRIA_GEOLOGY_POLICY.volcanicSurfaceGridMeters }) {
-  const P = VALYRIA_GEOLOGY_POLICY;
-  const minNx = P.coreCenter.nx - P.coreRadius.nx * P.falloff;
-  const maxNx = P.coreCenter.nx + P.coreRadius.nx * P.falloff;
-  const minNy = Math.min(P.neckCenter.ny - P.neckRadius.ny * P.falloff, P.coreCenter.ny - P.coreRadius.ny * P.falloff);
-  const maxNy = P.coreCenter.ny + P.coreRadius.ny * P.falloff;
-  const minX = (minNx - 0.5) * worldWidthMeters, maxX = (maxNx - 0.5) * worldWidthMeters;
-  const minZ = (minNy - 0.5) * worldDepthMeters, maxZ = (maxNy - 0.5) * worldDepthMeters;
-  const cols = Math.max(3, Math.ceil((maxX - minX) / gridMeters)), rows = Math.max(3, Math.ceil((maxZ - minZ) / gridMeters));
-  const vertices = [], colors = [], indices = [];
-  const vertexIndex = new Map(); let activeCells = 0, lavaVertices = 0;
+export function createValyriaVolcanicSurface({
+  sampleHeightMeters,
+  seaLevelMeters,
+  worldWidthMeters,
+  worldDepthMeters,
+  gridMeters = VALYRIA_GEOLOGY_POLICY.volcanicSurfaceGridMeters,
+}) {
+  const policy = VALYRIA_GEOLOGY_POLICY;
+  const minNx = policy.coreCenter.nx - policy.coreRadius.nx * policy.falloff;
+  const maxNx = policy.coreCenter.nx + policy.coreRadius.nx * policy.falloff;
+  const minNy = Math.min(
+    policy.neckCenter.ny - policy.neckRadius.ny * policy.falloff,
+    policy.coreCenter.ny - policy.coreRadius.ny * policy.falloff,
+  );
+  const maxNy = policy.coreCenter.ny + policy.coreRadius.ny * policy.falloff;
+  const minX = (minNx - 0.5) * worldWidthMeters;
+  const maxX = (maxNx - 0.5) * worldWidthMeters;
+  const minZ = (minNy - 0.5) * worldDepthMeters;
+  const maxZ = (maxNy - 0.5) * worldDepthMeters;
+  const columns = Math.max(3, Math.ceil((maxX - minX) / gridMeters));
+  const rows = Math.max(3, Math.ceil((maxZ - minZ) / gridMeters));
+  const vertices = [];
+  const colors = [];
+  const indices = [];
+  const vertexIndex = new Map();
+  let activeCells = 0;
+  let lavaVertices = 0;
+
   const addVertex = (x, z) => {
     const key = `${x.toFixed(4)}:${z.toFixed(4)}`;
     if (vertexIndex.has(key)) return vertexIndex.get(key);
-    const y = sampleHeightMeters(x, z), p = normalizedOwnerMapAtWorldXZ(x, z), influence = valyriaInfluenceAtWorldXZ(x, z);
+    const y = sampleHeightMeters(x, z);
+    const ownerPoint = normalizedOwnerMapAtWorldXZ(x, z);
+    const influence = valyriaInfluenceAtWorldXZ(x, z);
     const frame = sampleTerrainFrame(sampleHeightMeters, x, z, 9);
     const color = { r: 0.2, g: 0.2, b: 0.2 };
-    applyValyriaSurfaceColor(color, { nx: p.nx, ny: p.ny, heightAboveSeaMeters: y - seaLevelMeters, concavityMeters: frame.curvatureMeters, slopeDegrees: frame.slopeDegrees });
+    applyValyriaSurfaceColor(color, {
+      nx: ownerPoint.nx,
+      ny: ownerPoint.ny,
+      heightAboveSeaMeters: y - seaLevelMeters,
+      concavityMeters: frame.curvatureMeters,
+      slopeDegrees: frame.slopeDegrees,
+    });
     if (influence > 0.48 && frame.curvatureMeters > 0.8 && frame.slopeDegrees < 36) lavaVertices += 1;
-    const idx = vertices.length / 3;
-    vertices.push(x, y + P.renderSurfaceOffsetMeters, z); colors.push(color.r, color.g, color.b); vertexIndex.set(key, idx); return idx;
+    const index = vertices.length / 3;
+    vertices.push(x, y + policy.renderSurfaceOffsetMeters, z);
+    colors.push(color.r, color.g, color.b);
+    vertexIndex.set(key, index);
+    return index;
   };
-  for (let row = 0; row < rows; row += 1) for (let col = 0; col < cols; col += 1) {
-    const x0 = minX + (col / cols) * (maxX - minX), x1 = minX + ((col + 1) / cols) * (maxX - minX);
-    const z0 = minZ + (row / rows) * (maxZ - minZ), z1 = minZ + ((row + 1) / rows) * (maxZ - minZ);
-    const cx = (x0 + x1) * 0.5, cz = (z0 + z1) * 0.5;
-    if (valyriaInfluenceAtWorldXZ(cx, cz) <= 0.035) continue;
-    const h00 = sampleHeightMeters(x0, z0), h10 = sampleHeightMeters(x1, z0), h01 = sampleHeightMeters(x0, z1), h11 = sampleHeightMeters(x1, z1);
-    if (Math.min(h00, h10, h01, h11) <= seaLevelMeters + 0.05) continue;
-    const a = addVertex(x0, z0), b = addVertex(x1, z0), c = addVertex(x1, z1), d = addVertex(x0, z1);
-    indices.push(a, c, b, a, d, c); activeCells += 1;
+
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const x0 = minX + (column / columns) * (maxX - minX);
+      const x1 = minX + ((column + 1) / columns) * (maxX - minX);
+      const z0 = minZ + (row / rows) * (maxZ - minZ);
+      const z1 = minZ + ((row + 1) / rows) * (maxZ - minZ);
+      const centerX = (x0 + x1) * 0.5;
+      const centerZ = (z0 + z1) * 0.5;
+      if (valyriaInfluenceAtWorldXZ(centerX, centerZ) <= 0.035) continue;
+      const h00 = sampleHeightMeters(x0, z0);
+      const h10 = sampleHeightMeters(x1, z0);
+      const h01 = sampleHeightMeters(x0, z1);
+      const h11 = sampleHeightMeters(x1, z1);
+      if (Math.min(h00, h10, h01, h11) <= seaLevelMeters + 0.05) continue;
+      const a = addVertex(x0, z0);
+      const b = addVertex(x1, z0);
+      const c = addVertex(x1, z1);
+      const d = addVertex(x0, z1);
+      indices.push(a, c, b, a, d, c);
+      activeCells += 1;
+    }
   }
+
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  geometry.setIndex(indices); geometry.computeVertexNormals(); geometry.computeBoundingBox(); geometry.computeBoundingSphere();
-  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.97, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
-  const mesh = new THREE.Mesh(geometry, material); mesh.name = NATURAL_GEOLOGY_RENDER_POLICY.valyriaSurfaceName; mesh.receiveShadow = true;
-  mesh.userData.valyriaVolcanicSurface = Object.freeze({ policyId: P.id, activeCells, triangleCount: indices.length / 3, vertexCount: vertices.length / 3, lavaVertexRatio: vertices.length ? lavaVertices / (vertices.length / 3) : 0, renderOnly: true, canonicalHeightUnchanged: true, legacyDebugOnly: true });
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+
+  const material = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.97,
+    metalness: 0,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -1,
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.name = NATURAL_GEOLOGY_RENDER_POLICY.valyriaSurfaceName;
+  mesh.receiveShadow = true;
+  mesh.userData.valyriaVolcanicSurface = Object.freeze({
+    policyId: policy.id,
+    activeCells,
+    triangleCount: indices.length / 3,
+    vertexCount: vertices.length / 3,
+    lavaVertexRatio: vertices.length ? lavaVertices / (vertices.length / 3) : 0,
+    renderOnly: true,
+    canonicalHeightUnchanged: true,
+    legacyDebugOnly: true,
+  });
   return mesh;
 }
 
-export function createNaturalGeology({ sampleHeightMeters, seaLevelMeters, seed, seats, roadEdges, worldWidthMeters, worldDepthMeters, isMobileClass = false }) {
-  const placementResult = generateNaturalGeologyPlacements({ sampleHeightMeters, seaLevelMeters, seed, seats, roadEdges, worldWidthMeters, worldDepthMeters, isMobileClass });
-  const group = new THREE.Group(); group.name = NATURAL_GEOLOGY_RENDER_POLICY.groupName;
+export function createNaturalGeology({
+  sampleHeightMeters,
+  seaLevelMeters,
+  seed,
+  seats,
+  roadEdges,
+  worldWidthMeters,
+  worldDepthMeters,
+  isMobileClass = false,
+}) {
+  const placementResult = generateNaturalGeologyPlacements({
+    sampleHeightMeters,
+    seaLevelMeters,
+    seed,
+    seats,
+    roadEdges,
+    worldWidthMeters,
+    worldDepthMeters,
+    isMobileClass,
+  });
+  const group = new THREE.Group();
+  group.name = NATURAL_GEOLOGY_RENDER_POLICY.groupName;
   group.add(...buildProceduralMeshes(placementResult.placements));
   group.userData.naturalGeology = Object.freeze({
     policyId: NATURAL_GEOLOGY_RENDER_POLICY.id,
@@ -316,77 +446,208 @@ export function createNaturalGeology({ sampleHeightMeters, seaLevelMeters, seed,
     valyriaSurfaceAuthority: 'canonical-terrain',
     legacyValyriaSurfaceOverlayEnabled: false,
     worldSpaceRockWeathering: true,
+    worldNormalSpace: 'instance-scale-compensated-world',
   });
   group.userData.naturalGeologyPlacements = placementResult.placements;
   return Object.freeze({ group, placements: placementResult.placements, stats: placementResult.stats });
 }
 
-const proxyPlacementsForFamily = (group, family) => (group?.userData?.naturalGeologyPlacements ?? []).filter((p) => p.kind === 'asset-proxy' && p.assetFamily === family);
-function collectRenderableMeshes(model) { const meshes = []; model?.updateMatrixWorld?.(true); model?.traverse?.((n) => { if (n?.isMesh && n.geometry?.getAttribute?.('position') && n.material && !Array.isArray(n.material)) meshes.push(n); }); return meshes; }
-export function measureNaturalGeologyAsset(model) {
-  model?.updateMatrixWorld?.(true); const bounds = new THREE.Box3().setFromObject(model); if (bounds.isEmpty()) return null;
-  const size = bounds.getSize(new THREE.Vector3()), center = bounds.getCenter(new THREE.Vector3());
-  return { bounds, size, center, horizontal: Math.max(size.x, size.z), aspectRatio: Math.max(size.x, size.z) / Math.max(NATURAL_GEOLOGY_RENDER_POLICY.minimumSourceExtentMeters, size.y) };
+const proxyPlacementsForFamily = (group, family) => (
+  group?.userData?.naturalGeologyPlacements ?? []
+).filter((placement) => placement.kind === 'asset-proxy' && placement.assetFamily === family);
+
+function collectRenderableMeshes(model) {
+  const meshes = [];
+  model?.updateMatrixWorld?.(true);
+  model?.traverse?.((node) => {
+    if (node?.isMesh && node.geometry?.getAttribute?.('position') && node.material && !Array.isArray(node.material)) {
+      meshes.push(node);
+    }
+  });
+  return meshes;
 }
+
+export function measureNaturalGeologyAsset(model) {
+  model?.updateMatrixWorld?.(true);
+  const bounds = new THREE.Box3().setFromObject(model);
+  if (bounds.isEmpty()) return null;
+  const size = bounds.getSize(new THREE.Vector3());
+  const center = bounds.getCenter(new THREE.Vector3());
+  return {
+    bounds,
+    size,
+    center,
+    horizontal: Math.max(size.x, size.z),
+    aspectRatio: Math.max(size.x, size.z) / Math.max(NATURAL_GEOLOGY_RENDER_POLICY.minimumSourceExtentMeters, size.y),
+  };
+}
+
 export function validateNaturalGeologyAsset(model) {
   if (!model || model.userData?.isPlaceholder) return { valid: false, reason: 'placeholder' };
-  const meshes = collectRenderableMeshes(model); if (!meshes.length) return { valid: false, reason: 'no-renderable-mesh' };
-  if (meshes.length > NATURAL_GEOLOGY_RENDER_POLICY.maximumHydratedPrimitiveCount) return { valid: false, reason: 'too-many-primitives' };
-  const measurement = measureNaturalGeologyAsset(model); if (!measurement) return { valid: false, reason: 'empty-bounds' };
-  if (![measurement.size.x, measurement.size.y, measurement.size.z, measurement.aspectRatio].every(Number.isFinite)) return { valid: false, reason: 'non-finite-bounds' };
-  if (measurement.aspectRatio > NATURAL_GEOLOGY_RENDER_POLICY.maximumSourceAspectRatio) return { valid: false, reason: 'implausibly-flat-landscape' };
+  const meshes = collectRenderableMeshes(model);
+  if (!meshes.length) return { valid: false, reason: 'no-renderable-mesh' };
+  if (meshes.length > NATURAL_GEOLOGY_RENDER_POLICY.maximumHydratedPrimitiveCount) {
+    return { valid: false, reason: 'too-many-primitives' };
+  }
+  const measurement = measureNaturalGeologyAsset(model);
+  if (!measurement) return { valid: false, reason: 'empty-bounds' };
+  if (![measurement.size.x, measurement.size.y, measurement.size.z, measurement.aspectRatio].every(Number.isFinite)) {
+    return { valid: false, reason: 'non-finite-bounds' };
+  }
+  if (measurement.aspectRatio > NATURAL_GEOLOGY_RENDER_POLICY.maximumSourceAspectRatio) {
+    return { valid: false, reason: 'implausibly-flat-landscape' };
+  }
   return { valid: true, meshes, measurement };
 }
+
 async function preflightAsset(url, signal) {
-  try { const response = await fetch(url, { method: 'HEAD', cache: 'no-store', signal }); if (!response.ok) return { load: false, reason: `http-${response.status}` };
-    const length = Number(response.headers.get('content-length')); if (Number.isFinite(length) && length < NATURAL_GEOLOGY_RENDER_POLICY.hostedPreflightMinBytes) return { load: false, reason: 'lfs-pointer' };
-    if (Number.isFinite(length) && length > NATURAL_GEOLOGY_RENDER_POLICY.maximumHydratedSourceBytes) return { load: false, reason: 'source-too-large' };
-    return { load: true, contentLength: Number.isFinite(length) ? length : null }; } catch (error) { return { load: false, reason: signal?.aborted ? 'aborted' : 'preflight-error', error }; }
+  try {
+    const response = await fetch(url, { method: 'HEAD', cache: 'no-store', signal });
+    if (!response.ok) return { load: false, reason: `http-${response.status}` };
+    const length = Number(response.headers.get('content-length'));
+    if (Number.isFinite(length) && length < NATURAL_GEOLOGY_RENDER_POLICY.hostedPreflightMinBytes) {
+      return { load: false, reason: 'lfs-pointer' };
+    }
+    if (Number.isFinite(length) && length > NATURAL_GEOLOGY_RENDER_POLICY.maximumHydratedSourceBytes) {
+      return { load: false, reason: 'source-too-large' };
+    }
+    return { load: true, contentLength: Number.isFinite(length) ? length : null };
+  } catch (error) {
+    return { load: false, reason: signal?.aborted ? 'aborted' : 'preflight-error', error };
+  }
 }
+
 function createAssetNormalization(measurement) {
   const normalizer = 1 / Math.max(measurement.size.x, measurement.size.y, measurement.size.z, 1e-6);
-  return new THREE.Matrix4().makeScale(normalizer, normalizer, normalizer).multiply(new THREE.Matrix4().makeTranslation(-measurement.center.x, -measurement.bounds.min.y, -measurement.center.z));
+  return new THREE.Matrix4()
+    .makeScale(normalizer, normalizer, normalizer)
+    .multiply(new THREE.Matrix4().makeTranslation(
+      -measurement.center.x,
+      -measurement.bounds.min.y,
+      -measurement.center.z,
+    ));
 }
+
 function hideProxyInstances(group, ids) {
-  const proxy = group?.children?.find((child) => child?.name === 'natural-geology-asset-proxy'); if (!proxy) return;
-  const hidden = new Set(ids), current = new THREE.Matrix4();
-  for (let i = 0; i < proxy.count; i += 1) if (hidden.has(proxy.userData.placementIds?.[i])) { proxy.getMatrixAt(i, current); current.decompose(tempObject.position, tempQuaternion, tempScale); tempScale.set(0, 0, 0); current.compose(tempObject.position, tempQuaternion, tempScale); proxy.setMatrixAt(i, current); }
+  const proxy = group?.children?.find((child) => child?.name === 'natural-geology-asset-proxy');
+  if (!proxy) return;
+  const hidden = new Set(ids);
+  const current = new THREE.Matrix4();
+  for (let index = 0; index < proxy.count; index += 1) {
+    if (!hidden.has(proxy.userData.placementIds?.[index])) continue;
+    proxy.getMatrixAt(index, current);
+    current.decompose(tempObject.position, tempQuaternion, tempScale);
+    tempScale.set(0, 0, 0);
+    current.compose(tempObject.position, tempQuaternion, tempScale);
+    proxy.setMatrixAt(index, current);
+  }
   proxy.instanceMatrix.needsUpdate = true;
 }
+
 async function hydrateFamily(group, family, url, signal) {
-  const placements = proxyPlacementsForFamily(group, family); if (!placements.length) return { family, status: 'unused', placementCount: 0 };
-  const preflight = await preflightAsset(url, signal); if (!preflight.load) return { family, status: 'procedural-fallback', reason: preflight.reason, placementCount: placements.length };
-  const model = await new AssetLoader().loadModel(url, { fallbackColor: 0x665f56, fallbackSize: 1 }); const validation = validateNaturalGeologyAsset(model);
-  if (!validation.valid) { AssetLoader.disposeObject3D(model); return { family, status: 'procedural-fallback', reason: validation.reason, placementCount: placements.length }; }
-  const normalization = createAssetNormalization(validation.measurement), hydrated = [];
+  const placements = proxyPlacementsForFamily(group, family);
+  if (!placements.length) return { family, status: 'unused', placementCount: 0 };
+  const preflight = await preflightAsset(url, signal);
+  if (!preflight.load) {
+    return { family, status: 'procedural-fallback', reason: preflight.reason, placementCount: placements.length };
+  }
+
+  const model = await new AssetLoader().loadModel(url, { fallbackColor: 0x665f56, fallbackSize: 1 });
+  const validation = validateNaturalGeologyAsset(model);
+  if (!validation.valid) {
+    AssetLoader.disposeObject3D(model);
+    return { family, status: 'procedural-fallback', reason: validation.reason, placementCount: placements.length };
+  }
+
+  const normalization = createAssetNormalization(validation.measurement);
+  const hydrated = [];
   for (let meshIndex = 0; meshIndex < validation.meshes.length; meshIndex += 1) {
-    const sourceMesh = validation.meshes[meshIndex], material = sourceMesh.material.clone();
+    const sourceMesh = validation.meshes[meshIndex];
+    const material = sourceMesh.material.clone();
     material.metalness = 0;
     material.roughness = Math.max(material.roughness ?? 0, NATURAL_GEOLOGY_RENDER_POLICY.hydratedRoughnessFloor);
     installRockMaterialWeathering(material);
-    const instances = new THREE.InstancedMesh(sourceMesh.geometry, material, placements.length); instances.name = `natural-geology-hydrated-${family}-${meshIndex}`; instances.castShadow = true; instances.receiveShadow = true;
-    for (let i = 0; i < placements.length; i += 1) { composePlacementMatrix(placements[i], tempMatrix); instances.setMatrixAt(i, tempMatrix.clone().multiply(normalization).multiply(sourceMesh.matrixWorld)); }
-    instances.instanceMatrix.needsUpdate = true; instances.computeBoundingSphere?.(); hydrated.push(instances);
+    const instances = new THREE.InstancedMesh(sourceMesh.geometry, material, placements.length);
+    instances.name = `natural-geology-hydrated-${family}-${meshIndex}`;
+    instances.castShadow = true;
+    instances.receiveShadow = true;
+    for (let index = 0; index < placements.length; index += 1) {
+      composePlacementMatrix(placements[index], tempMatrix);
+      instances.setMatrixAt(index, tempMatrix.clone().multiply(normalization).multiply(sourceMesh.matrixWorld));
+    }
+    instances.instanceMatrix.needsUpdate = true;
+    instances.computeBoundingSphere?.();
+    hydrated.push(instances);
   }
-  group.add(...hydrated); hideProxyInstances(group, placements.map((p) => p.id));
-  return { family, status: 'active', assetUrl: url, placementCount: placements.length, primitiveCount: hydrated.length, hostedContentLength: preflight.contentLength };
+  group.add(...hydrated);
+  hideProxyInstances(group, placements.map((placement) => placement.id));
+  return {
+    family,
+    status: 'active',
+    assetUrl: url,
+    placementCount: placements.length,
+    primitiveCount: hydrated.length,
+    hostedContentLength: preflight.contentLength,
+  };
 }
+
 const inFlight = new WeakMap();
+
 export function upgradeNaturalGeologyAssets(group, { signal, isMobileClass = false } = {}) {
   if (!group) return Promise.resolve(Object.freeze({ status: 'missing-group' }));
   if (isMobileClass) return Promise.resolve(Object.freeze({ status: 'procedural-fallback', reason: 'mobile-budget' }));
   if (inFlight.has(group)) return inFlight.get(group);
-  const task = (async () => { const primary = await hydrateFamily(group, 'rocky-terrain', NATURAL_GEOLOGY_RENDER_POLICY.primaryRockAsset, signal);
-    const southern = signal?.aborted ? { family: 'desert-rocks', status: 'aborted' } : await hydrateFamily(group, 'desert-rocks', NATURAL_GEOLOGY_RENDER_POLICY.southernRockAsset, signal);
-    const families = [primary, southern], active = families.filter((e) => e.status === 'active');
-    group.userData.naturalGeology = Object.freeze({ ...group.userData.naturalGeology, assetState: active.length ? 'active' : 'procedural-fallback', hydratedFamilies: Object.freeze(families) });
-    return Object.freeze({ status: active.length ? 'active' : 'procedural-fallback', activeFamilyCount: active.length, hydratedPlacementCount: active.reduce((s, e) => s + e.placementCount, 0), families: Object.freeze(families) });
-  })().finally(() => inFlight.delete(group)); inFlight.set(group, task); return task;
+
+  const task = (async () => {
+    const primary = await hydrateFamily(
+      group,
+      'rocky-terrain',
+      NATURAL_GEOLOGY_RENDER_POLICY.primaryRockAsset,
+      signal,
+    );
+    const southern = signal?.aborted
+      ? { family: 'desert-rocks', status: 'aborted' }
+      : await hydrateFamily(group, 'desert-rocks', NATURAL_GEOLOGY_RENDER_POLICY.southernRockAsset, signal);
+    const families = [primary, southern];
+    const active = families.filter((entry) => entry.status === 'active');
+    group.userData.naturalGeology = Object.freeze({
+      ...group.userData.naturalGeology,
+      assetState: active.length ? 'active' : 'procedural-fallback',
+      hydratedFamilies: Object.freeze(families),
+    });
+    return Object.freeze({
+      status: active.length ? 'active' : 'procedural-fallback',
+      activeFamilyCount: active.length,
+      hydratedPlacementCount: active.reduce((sum, entry) => sum + entry.placementCount, 0),
+      families: Object.freeze(families),
+    });
+  })().finally(() => inFlight.delete(group));
+  inFlight.set(group, task);
+  return task;
 }
+
 export function disposeNaturalGeology(group) {
-  if (!group) return; const geometries = new Set(), materials = new Set(), textures = new Set();
-  group.traverse((node) => { if (node.geometry && !geometries.has(node.geometry)) { geometries.add(node.geometry); node.geometry.dispose(); }
-    for (const material of Array.isArray(node.material) ? node.material : node.material ? [node.material] : []) { if (materials.has(material)) continue; materials.add(material);
-      for (const key of Object.keys(material)) { const value = material[key]; if (value?.isTexture && !textures.has(value)) { textures.add(value); value.dispose(); } } material.dispose(); } });
+  if (!group) return;
+  const geometries = new Set();
+  const materials = new Set();
+  const textures = new Set();
+  group.traverse((node) => {
+    if (node.geometry && !geometries.has(node.geometry)) {
+      geometries.add(node.geometry);
+      node.geometry.dispose();
+    }
+    for (const material of Array.isArray(node.material) ? node.material : node.material ? [node.material] : []) {
+      if (materials.has(material)) continue;
+      materials.add(material);
+      for (const key of Object.keys(material)) {
+        const value = material[key];
+        if (value?.isTexture && !textures.has(value)) {
+          textures.add(value);
+          value.dispose();
+        }
+      }
+      material.dispose();
+    }
+  });
   group.clear();
 }
