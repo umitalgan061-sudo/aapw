@@ -7,6 +7,7 @@ on:
       - 'src/3d/gameplay/creatureSpawner.js'
       - 'src/3d/gameplay/livingWorldSpawner.js'
       - 'scripts/checkConfiguredCreatureSpawnGroundSafetyBrowser.mjs'
+      - 'scripts/checkCreatureFriendlyApproachStopBrowser.mjs'
       - 'scripts/checkCreatureBirdFlightLifecycle.mjs'
       - 'scripts/checkCreatureBirdTerrainClearance.mjs'
       - '.github/workflows/configured-creature-spawn-ground-safety.yml'
@@ -42,7 +43,7 @@ jobs:
           test "${#changed[@]}" -gt 0
           for path in "${changed[@]}"; do
             case "$path" in
-              src/3d/gameplay/creatureBrain.js|src/3d/gameplay/creatureSpawner.js|src/3d/gameplay/livingWorldSpawner.js|scripts/checkConfiguredCreatureSpawnGroundSafetyBrowser.mjs|scripts/checkCreatureBirdFlightLifecycle.mjs|scripts/checkCreatureBirdTerrainClearance.mjs|.github/workflows/configured-creature-spawn-ground-safety.yml) ;;
+              src/3d/gameplay/creatureBrain.js|src/3d/gameplay/creatureSpawner.js|src/3d/gameplay/livingWorldSpawner.js|scripts/checkConfiguredCreatureSpawnGroundSafetyBrowser.mjs|scripts/checkCreatureFriendlyApproachStopBrowser.mjs|scripts/checkCreatureBirdFlightLifecycle.mjs|scripts/checkCreatureBirdTerrainClearance.mjs|.github/workflows/configured-creature-spawn-ground-safety.yml) ;;
               *) echo "Unexpected file in creature spawn/movement safety slice: $path" >&2; exit 1 ;;
             esac
           done
@@ -58,6 +59,7 @@ jobs:
           node --check src/3d/gameplay/creatureSpawner.js
           node --check src/3d/gameplay/livingWorldSpawner.js
           node --check scripts/checkConfiguredCreatureSpawnGroundSafetyBrowser.mjs
+          node --check scripts/checkCreatureFriendlyApproachStopBrowser.mjs
           node --check scripts/checkCreatureBirdFlightLifecycle.mjs
           node scripts/checkCreatureBirdFlightLifecycle.mjs
           node --check scripts/checkCreatureBirdTerrainClearance.mjs
@@ -86,6 +88,7 @@ jobs:
             sleep 1
           done
           BASE_URL=http://127.0.0.1:4173 node scripts/checkConfiguredCreatureSpawnGroundSafetyBrowser.mjs
+          BASE_URL=http://127.0.0.1:4173 node scripts/checkCreatureFriendlyApproachStopBrowser.mjs
 
       - name: Final exact-main freshness
         shell: bash
