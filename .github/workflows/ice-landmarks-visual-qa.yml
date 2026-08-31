@@ -36,7 +36,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
-          lfs: false
+          lfs: true
 
       - uses: actions/setup-node@v4
         with:
