@@ -5,9 +5,9 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX05_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex05-detail-2026-08-31-v10-lowland-broad-normal-calibrated',
+  id: 'owner-map-pindex05-detail-2026-08-31-v11-lowland-broad-material-contrast',
   pindex: 5,
-  amplitudeBySurface: Object.freeze({ sea: 0.004, lake: 0.004, soil: 0.058, rock: 0.046, snow: 0.020 }),
+  amplitudeBySurface: Object.freeze({ sea: 0.004, lake: 0.004, soil: 0.085, rock: 0.060, snow: 0.026 }),
   naturalSoilFabric: true,
   worldSpaceWeathering: true,
   lowlandDrainageMosaic: true,
@@ -36,7 +36,7 @@ export const PINDEX05_DETAIL_POLICY = Object.freeze({
   humicStrength: 0.26,
   clayStrength: 0.20,
   erosionApronStrength: 0.18,
-  luminanceStrength: 0.17,
+  luminanceStrength: 0.21,
   wetSoilColor: 0x405735,
   dryHeathColor: 0xa48b52,
   alluviumColor: 0x617157,
