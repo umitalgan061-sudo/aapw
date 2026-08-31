@@ -77,11 +77,11 @@ for (const key of ['macro', 'meso', 'fine', 'moisture', 'mineral', 'weathering']
   assert(summaries[key].sd > 0.09, `${key} fabric became too uniform: ${JSON.stringify(summaries[key])}`);
 }
 for (const key of ['aerialRelief', 'surfaceCarrier']) {
-  assert(summaries[key].range > 0.25, `${key} carrier became visually inert: ${JSON.stringify(summaries[key])}`);
-  assert(summaries[key].sd > 0.06, `${key} carrier became too uniform: ${JSON.stringify(summaries[key])}`);
+  assert(summaries[key].range > 0.55, `${key} carrier became visually inert: ${JSON.stringify(summaries[key])}`);
+  assert(summaries[key].sd > 0.12, `${key} carrier became too uniform: ${JSON.stringify(summaries[key])}`);
 }
 const carrierCorrelation = correlation(valuesByKey.get('aerialRelief'), valuesByKey.get('surfaceCarrier'));
-assert(Math.abs(carrierCorrelation) < 0.90,
+assert(Math.abs(carrierCorrelation) < 0.65,
   `western aerial carriers became too correlated and may reintroduce long material bands: ${carrierCorrelation}`);
 assert(summaries.drainageThread.range > 0.25, `drainage threading became inert: ${JSON.stringify(summaries.drainageThread)}`);
 assert(summaries.alluvium.range > 0.25, `alluvial weathering became inert: ${JSON.stringify(summaries.alluvium)}`);
