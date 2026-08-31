@@ -8,6 +8,7 @@ export const QUARTERMASTER_NPC_ID = 'stannis-guard-1';
 export const STARTING_COPPER = 40;
 export const RECENT_TRANSACTION_LIMIT = 5;
 export const RECENT_CREDIT_LIMIT = 5;
+const CREDIT_SOURCE_LIMIT = 64;
 
 export const QUARTERMASTER_OFFERS = Object.freeze([
 	Object.freeze({
@@ -74,6 +75,7 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 	let lifetimeSpentCopper = 0;
 	let recentTransactions = [];
 	let recentCredits = [];
+	const creditedSourceIds = new Set();
 	const stockByOffer = new Map();
 	const purchasesByOffer = new Map();
 	resetStock();
@@ -124,8 +126,15 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		lifetimeSpentCopper = 0;
 		recentTransactions = [];
 		recentCredits = [];
+		creditedSourceIds.clear();
 		purchasesByOffer.clear();
 		for (const offer of offers) purchasesByOffer.set(offer.id, 0);
+	}
+
+	function rememberCreditSource(sourceId) {
+		if (!sourceId) return;
+		creditedSourceIds.add(sourceId);
+		while (creditedSourceIds.size > CREDIT_SOURCE_LIMIT) creditedSourceIds.delete(creditedSourceIds.values().next().value);
 	}
 
 	function syncLedgerTotalsFromStock() {
@@ -173,6 +182,7 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 			recentTransactions: recentTransactions.map((receipt) => ({ ...receipt })),
 		};
 		if (recentCredits.length > 0) ledger.recentCredits = recentCredits.map((receipt) => ({ ...receipt }));
+		if (creditedSourceIds.size > 0) ledger.creditedSourceIds = [...creditedSourceIds];
 		return ledger;
 	}
 
@@ -199,6 +209,9 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 
 		const savedLedger = saved?.ledger;
 		if (!savedLedger || typeof savedLedger !== 'object' || Array.isArray(savedLedger)) return;
+		if (Array.isArray(savedLedger.creditedSourceIds)) {
+			for (const savedSourceId of savedLedger.creditedSourceIds.slice(-CREDIT_SOURCE_LIMIT)) rememberCreditSource(normalizeReceiptText(savedSourceId, ''));
+		}
 		if (Array.isArray(savedLedger.recentCredits)) {
 			const validCredits = [];
 			const seenSequences = new Set();
@@ -211,6 +224,7 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 				validCredits.push(creditReceipt(creditedCopper, savedReceipt, sequence, savedReceipt.balanceCopper));
 			}
 			recentCredits = validCredits.sort((left, right) => left.sequence - right.sequence).slice(-RECENT_CREDIT_LIMIT);
+			for (const receipt of recentCredits) rememberCreditSource(receipt.sourceId);
 		}
 		if (!Array.isArray(savedLedger.recentTransactions) || transactionCount <= 0) return;
 
@@ -249,9 +263,12 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 	function credit(amount, metadata = {}) {
 		const creditedCopper = normalizeCopper(amount, 0);
 		if (creditedCopper <= 0) return { ok: false, reason: 'invalid-credit', creditedCopper: 0, balanceCopper: copper };
+		const sourceId = normalizeReceiptText(metadata?.sourceId, '');
+		if (sourceId && creditedSourceIds.has(sourceId)) return { ok: false, reason: 'duplicate-credit-source', creditedCopper: 0, balanceCopper: copper, sourceId };
 		copper += creditedCopper;
 		const sequence = (recentCredits.at(-1)?.sequence ?? 0) + 1;
 		const receipt = creditReceipt(creditedCopper, metadata, sequence, copper);
+		rememberCreditSource(sourceId);
 		recentCredits.push(receipt);
 		if (recentCredits.length > RECENT_CREDIT_LIMIT) recentCredits.splice(0, recentCredits.length - RECENT_CREDIT_LIMIT);
 		return { ok: true, creditedCopper, balanceCopper: copper, receipt, ledger: ledgerSnapshot() };
