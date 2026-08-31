@@ -87,6 +87,27 @@ assert.deepEqual(
   'save/load must preserve distinct expedition-income and later-trade receipts without collapsing their balances',
 );
 
+const reentrantEconomy = createInteractionEconomyState(40);
+const rationOffer = { id: 'dragonstone-field-ration', itemId: 'dragonstone-field-ration' };
+let nestedPurchase;
+const outerPurchase = reentrantEconomy.purchase(rationOffer, () => {
+  nestedPurchase = reentrantEconomy.purchase(rationOffer, () => true);
+  return true;
+});
+assert.equal(outerPurchase.ok, true, 'outer settlement purchase should still commit');
+assert.deepEqual(
+  { ok: nestedPurchase.ok, reason: nestedPurchase.reason, balanceCopper: nestedPurchase.balanceCopper },
+  { ok: false, reason: 'purchase-in-progress', balanceCopper: 40 },
+  'grant callbacks must not re-enter the economy and spend the same pre-commit balance or stock twice',
+);
+assert.equal(reentrantEconomy.snapshot().copper, 34);
+assert.equal(reentrantEconomy.snapshot().stockByOffer['dragonstone-field-ration'], 3);
+assert.equal(reentrantEconomy.snapshot().ledger.transactionCount, 1, 'nested rejection must leave one authoritative purchase');
+assert.throws(() => reentrantEconomy.purchase(rationOffer, () => { throw new Error('grant-failed'); }), /grant-failed/);
+assert.equal(reentrantEconomy.purchase(rationOffer, () => true).ok, true, 'a throwing grant callback must release the purchase guard');
+assert.equal(reentrantEconomy.snapshot().copper, 28);
+assert.equal(reentrantEconomy.snapshot().ledger.transactionCount, 2);
+
 const bounded = createInteractionEconomyState(0);
 const authoredCredits = [
   ['dragonstone-watch-circuit', 'Nöbet Yolu Devriyesi', 8],
