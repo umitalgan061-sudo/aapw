@@ -1,0 +1,59 @@
+name: Water Layer Transition Exact Head
+
+on:
+  push:
+    branches:
+      - codex/water-field-edge-optical-blend-20260831
+    paths:
+      - 'src/3d/world/water.js'
+      - 'src/3d/world/waterDepthField.js'
+      - 'scripts/checkWaterLayerTransition.mjs'
+      - '.github/workflows/water-layer-transition.yml'
+  pull_request:
+    paths:
+      - 'src/3d/world/water.js'
+      - 'src/3d/world/waterDepthField.js'
+      - 'scripts/checkWaterLayerTransition.mjs'
+      - '.github/workflows/water-layer-transition.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-head-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install shader runtime dependency
+        run: npm install --no-save three
+      - name: Verify water transition production contract
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          node --check src/3d/world/water.js
+          node --check src/3d/world/waterDepthField.js
+          node --check scripts/checkWaterLayerTransition.mjs
+          node scripts/checkWaterLayerTransition.mjs
+      - name: Guard canonical water authority
+        run: |
+          set -euo pipefail
+          grep -q "canonicalDepthUnchanged: true" src/3d/world/water.js
+          grep -q "canonicalCoverageUnchanged: true" src/3d/world/water.js
+          grep -q "canonicalDepthTextureUnchanged: true" src/3d/world/water.js
+          grep -q "canonicalShorelineUnchanged: true" src/3d/world/water.js
+          if grep -q "nearLayerDistance < 1999.5" src/3d/world/water.js; then
+            echo "legacy rectangular water cutoff returned" >&2
+            exit 1
+          fi
