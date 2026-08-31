@@ -27,6 +27,10 @@ import { createHeightSampler, mulberry32 } from './world/terrain.js';
 import { createSettlements, computeSettlementFlattenPads } from './world/settlements.js';
 import { buildRoadNetwork } from './world/roads.js';
 import { createNaturalGeology, upgradeNaturalGeologyAssets } from './world/naturalGeology.js';
+import {
+	NATURAL_GEOLOGY_COLLISION_POLICY,
+	createNaturalGeologyCollisionCircles,
+} from './world/naturalGeologyCollision.js';
 import { createValyriaBarrenEcologyPlacementProbe } from './world/valyriaEcology.js';
 import { createVegetation } from './world/vegetation.js';
 import { upgradeWinterVegetationAssets } from './world/winterVegetationAsset.js';
@@ -213,7 +217,7 @@ export function createScene(canvas) {
 
 	// Asset-informed geology is deliberately created after roads/settlements so placement can reserve
 	// their corridors, but before vegetation so the geological read remains visually primary. The
-	// canonical collider/terrain sampler stays the only height authority; this layer is render-only.
+	// canonical collider/terrain sampler stays the only height authority.
 	const naturalGeologyResult = createNaturalGeology({
 		sampleHeightMeters: groundCollider.getGroundHeight,
 		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
@@ -229,6 +233,13 @@ export function createScene(canvas) {
 		`[sceneManager] Natural geology: ${naturalGeologyResult.stats.placedCount} outcrop/talus placement(s), ` +
 		`${naturalGeologyResult.stats.valyriaPlacementCount ?? 0} in Valyria.`,
 	);
+
+	const naturalGeologyCollisionCircles = createNaturalGeologyCollisionCircles(naturalGeologyResult.placements);
+	console.info(
+		`[sceneManager] Natural geology collision: ${naturalGeologyCollisionCircles.length} major solid outcrop(s) ` +
+		`using ${NATURAL_GEOLOGY_COLLISION_POLICY.id}.`,
+	);
+
 	const naturalGeologyAbortController = new AbortController();
 	window.addEventListener('pagehide', () => naturalGeologyAbortController.abort(), { once: true });
 	void upgradeNaturalGeologyAssets(naturalGeologyResult.group, {
@@ -291,7 +302,13 @@ export function createScene(canvas) {
 
 	const villageCollider = createCircleCollider(villagesResult.houses);
 	const iceLandmarkCollider = createCircleCollider(iceLandmarksResult.blockers);
-	const playerCollider = createComposedCollider([settlementCollider, villageCollider, iceLandmarkCollider]);
+	const naturalGeologyCollider = createCircleCollider(naturalGeologyCollisionCircles);
+	const playerCollider = createComposedCollider([
+		settlementCollider,
+		villageCollider,
+		iceLandmarkCollider,
+		naturalGeologyCollider,
+	]);
 
 	applyShadowRoles(settlementsResult.group, { quality: renderQuality });
 	applyShadowRoles(villagesResult.group, { quality: renderQuality });
@@ -308,6 +325,10 @@ export function createScene(canvas) {
 		roadEdges: roadsResult.edges,
 		naturalGeology: naturalGeologyResult.group,
 		naturalGeologyStats: naturalGeologyResult.stats,
+		naturalGeologyCollision: Object.freeze({
+			policyId: NATURAL_GEOLOGY_COLLISION_POLICY.id,
+			blockerCount: naturalGeologyCollisionCircles.length,
+		}),
 		valyriaEcologyPlacement,
 		vegetation: vegetationResult.group,
 		villages: villagesResult.group,
