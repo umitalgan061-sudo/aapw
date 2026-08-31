@@ -149,6 +149,10 @@ for (const snippet of [
   assert(valyriaSource.includes(snippet), `Valyria contract lost: ${snippet}`);
 }
 
+// V2 ecology intentionally derives the hard barren core and its feathered refugia from the continuous
+// Valyria influence field. It no longer calls the older binary `isValyriaBarrenAtWorldXZ` helper.
+// Lock the current profile/acceptance machinery instead so the source contract follows production
+// semantics rather than forcing a dead compatibility call back into the runtime.
 for (const snippet of [
   'placementOnly: true',
   'terrainHeightAuthorityUnchanged: true',
@@ -156,8 +160,14 @@ for (const snippet of [
   'vegetation-tree-scatter',
   'procedural-villages',
   'wind-grass-ground-cover',
+  'transitionWidth',
+  'macroRefugiaMeters',
+  'mesoRefugiaMeters',
+  'valyriaInfluenceAtWorldXZ',
+  'ecologyRefugiaAtWorldXZ',
+  'valyriaEcologyProfileAtWorldXZ',
+  'isOrdinaryEcologyAllowedAtWorldXZ',
   'createValyriaBarrenEcologyPlacementProbe',
-  'isValyriaBarrenAtWorldXZ',
 ]) {
   assert(ecologySource.includes(snippet), `Valyria ecology contract lost: ${snippet}`);
 }
