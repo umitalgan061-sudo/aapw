@@ -24,7 +24,7 @@ import {
 } from './valyriaGeology.js';
 
 export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
-  id: 'natural-geology-render-2026-08-27-v1-asset-hydrated-outcrops',
+  id: 'natural-geology-render-2026-08-31-v2-canonical-valyria-surface-authority',
   renderOnly: true,
   deterministicPlacement: true,
   geographyAuthorityUnchanged: true,
@@ -43,6 +43,8 @@ export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
   proceduralRoughness: 0.96,
   groupName: 'natural-geology',
   valyriaSurfaceName: 'valyria-volcanic-surface',
+  canonicalTerrainOwnsValyriaSurface: true,
+  legacyValyriaSurfaceOverlayEnabled: false,
 });
 
 const tempObject = new THREE.Object3D();
@@ -140,7 +142,12 @@ function buildProceduralMeshes(placements) {
   return [...families].map(([kind, family]) => makeInstancedFamily(kind, family)).filter(Boolean);
 }
 
-/** Render-only, terrain-conforming Valyria surface. It never modifies canonical height or water. */
+/**
+ * Legacy/debug-only terrain-conforming Valyria overlay. Production no longer adds this mesh to the
+ * natural-geology group because canonical terrain already owns Valyria height, vertex colour and the
+ * morphology-aligned PBR pass. Keeping the helper export lets QA compare historical overlays without
+ * reintroducing a second 46m-grid surface into the shipped scene.
+ */
 export function createValyriaVolcanicSurface({ sampleHeightMeters, seaLevelMeters, worldWidthMeters, worldDepthMeters, gridMeters = VALYRIA_GEOLOGY_POLICY.volcanicSurfaceGridMeters }) {
   const P = VALYRIA_GEOLOGY_POLICY;
   const minNx = P.coreCenter.nx - P.coreRadius.nx * P.falloff;
@@ -179,7 +186,7 @@ export function createValyriaVolcanicSurface({ sampleHeightMeters, seaLevelMeter
   geometry.setIndex(indices); geometry.computeVertexNormals(); geometry.computeBoundingBox(); geometry.computeBoundingSphere();
   const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.97, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
   const mesh = new THREE.Mesh(geometry, material); mesh.name = NATURAL_GEOLOGY_RENDER_POLICY.valyriaSurfaceName; mesh.receiveShadow = true;
-  mesh.userData.valyriaVolcanicSurface = Object.freeze({ policyId: P.id, activeCells, triangleCount: indices.length / 3, vertexCount: vertices.length / 3, lavaVertexRatio: vertices.length ? lavaVertices / (vertices.length / 3) : 0, renderOnly: true, canonicalHeightUnchanged: true });
+  mesh.userData.valyriaVolcanicSurface = Object.freeze({ policyId: P.id, activeCells, triangleCount: indices.length / 3, vertexCount: vertices.length / 3, lavaVertexRatio: vertices.length ? lavaVertices / (vertices.length / 3) : 0, renderOnly: true, canonicalHeightUnchanged: true, legacyDebugOnly: true });
   return mesh;
 }
 
@@ -187,12 +194,19 @@ export function createNaturalGeology({ sampleHeightMeters, seaLevelMeters, seed,
   const placementResult = generateNaturalGeologyPlacements({ sampleHeightMeters, seaLevelMeters, seed, seats, roadEdges, worldWidthMeters, worldDepthMeters, isMobileClass });
   const group = new THREE.Group(); group.name = NATURAL_GEOLOGY_RENDER_POLICY.groupName;
   group.add(...buildProceduralMeshes(placementResult.placements));
-  const valyriaSurface = createValyriaVolcanicSurface({ sampleHeightMeters, seaLevelMeters, worldWidthMeters, worldDepthMeters });
-  group.add(valyriaSurface);
-  group.userData.naturalGeology = Object.freeze({ policyId: NATURAL_GEOLOGY_RENDER_POLICY.id, placementPolicyId: placementResult.policyId,
-    valyriaPolicyId: VALYRIA_GEOLOGY_POLICY.id, placementChecksum: checksumNaturalGeologyPlacements(placementResult.placements), placementCount: placementResult.placements.length,
-    stats: placementResult.stats, assetState: 'procedural-fallback', directAssets: NATURAL_GEOLOGY_PLACEMENT_POLICY.directAssetFamilies,
-    referenceOnlyAssets: NATURAL_GEOLOGY_PLACEMENT_POLICY.referenceOnlyAssets, valyriaSurface: valyriaSurface.userData.valyriaVolcanicSurface });
+  group.userData.naturalGeology = Object.freeze({
+    policyId: NATURAL_GEOLOGY_RENDER_POLICY.id,
+    placementPolicyId: placementResult.policyId,
+    valyriaPolicyId: VALYRIA_GEOLOGY_POLICY.id,
+    placementChecksum: checksumNaturalGeologyPlacements(placementResult.placements),
+    placementCount: placementResult.placements.length,
+    stats: placementResult.stats,
+    assetState: 'procedural-fallback',
+    directAssets: NATURAL_GEOLOGY_PLACEMENT_POLICY.directAssetFamilies,
+    referenceOnlyAssets: NATURAL_GEOLOGY_PLACEMENT_POLICY.referenceOnlyAssets,
+    valyriaSurfaceAuthority: 'canonical-terrain',
+    legacyValyriaSurfaceOverlayEnabled: false,
+  });
   group.userData.naturalGeologyPlacements = placementResult.placements;
   return Object.freeze({ group, placements: placementResult.placements, stats: placementResult.stats });
 }
