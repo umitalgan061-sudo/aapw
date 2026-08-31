@@ -81,6 +81,17 @@ jobs:
           echo "base=$MAIN_SHA additions=$ADD deletions=$DEL total=$TOTAL"
           test "$TOTAL" -le 1000
           echo "BASE_SHA=$MAIN_SHA" >> "$GITHUB_ENV"
+      - name: Kizil input lifecycle and vertical-slice contracts before LFS hydration
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/input.js
+          node --check src/3d/ui/touchJoystick.js
+          node --check scripts/checkPlayerMeleeCombo.mjs
+          node --check scripts/checkPlayerCombatVerticalSlice.mjs
+          node scripts/checkPlayerMeleeCombo.mjs
+          node scripts/checkPlayerCombatVerticalSlice.mjs
+          node scripts/checkSharedMaterialPlacementContract.js
       - name: Asset-first targeted hydration
         shell: bash
         run: |
