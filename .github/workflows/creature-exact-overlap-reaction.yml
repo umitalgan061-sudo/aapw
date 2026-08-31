@@ -48,7 +48,7 @@ jobs:
               *) echo "Unexpected file in procedural creature safety slice: $path" >&2; exit 1 ;;
             esac
           done
-          read -r additions deletions < <(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+=$2; print a+0, d+0}' | tail -n 1)
+          read -r additions deletions < <(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           total=$((additions + deletions))
           echo "Scope: ${#changed[@]} files; +${additions}/-${deletions}; total=${total}/1000"
           test "$total" -le 1000
