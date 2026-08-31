@@ -32,6 +32,7 @@ async function main() {
 				updateWater,
 				disposeWater,
 				WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
+				WATER_LAYER_TRANSITION_POLICY,
 			} = await import('/src/3d/world/water.js');
 			const { publishCelestialLightState } = await import('/src/3d/celestialLightState.js');
 			const fail = (condition, message) => { if (!condition) throw new Error(message); };
@@ -94,7 +95,13 @@ async function main() {
 			for (const token of ['enclosedLakeMask', 'clearCoastMask', 'referenceLakeClear', 'bedReadability', 'uNightFactor', 'nightAbsorption']) {
 				fail(fragmentShader.includes(token), `water reference-optics shader missing ${token}`);
 			}
-			fail(fragmentShader.includes('nearLayerDistance < 1999.5') && fragmentShader.includes('discard'), 'near/far double-alpha mask disappeared');
+			const featherStart = WATER_LAYER_TRANSITION_POLICY.featherStartMeters.toFixed(1);
+			const featherEnd = WATER_LAYER_TRANSITION_POLICY.featherEndMeters.toFixed(1);
+			fail(fragmentShader.includes(`smoothstep(${featherStart}, ${featherEnd}, nearLayerDistance)`) &&
+				fragmentShader.includes('surfaceAlpha *= 1.0 - layerBlend') &&
+				fragmentShader.includes('(surfaceAlpha * layerBlend) / max(1.0 - nearAlpha, 0.001)'),
+				'near/far opacity-conserving feather contract drifted');
+			fail(!fragmentShader.includes('nearLayerDistance < 1999.5'), 'legacy hard-square near/far cutoff returned');
 			fail(fragmentShader.includes('#include <fog_pars_fragment>') && fragmentShader.includes('#include <fog_fragment>'), 'water fog chunks drifted');
 
 			// Custom-shader key follows the same published celestial state as lighting.js. First prove a
