@@ -223,7 +223,7 @@ export class KeyboardInput {
 		const inputBlocked = readPlayerGameplayInputBlocked(this._isInputBlocked);
 		if (inputBlocked) { this._keys.clear(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false; }
 		const gamepad = this._pollGamepad(inputBlocked); let forward = gamepad.forward, strafe = gamepad.strafe, running = gamepad.running, guarding = this._guardPointerHeld || gamepad.guarding;
-		for (const code of this._keys) { if (FORWARD_KEYS.has(code)) forward += 1; else if (BACK_KEYS.has(code)) forward -= 1; else if (RIGHT_KEYS.has(code)) strafe += 1; else if (LEFT_KEYS.has(code)) forward -= 1; else if (RUN_KEYS.has(code)) running = true; else if (GUARD_KEYS.has(code)) guarding = true; }
+		for (const code of this._keys) { if (FORWARD_KEYS.has(code)) forward += 1; else if (BACK_KEYS.has(code)) forward -= 1; else if (RIGHT_KEYS.has(code)) strafe += 1; else if (LEFT_KEYS.has(code)) strafe -= 1; else if (RUN_KEYS.has(code)) running = true; else if (GUARD_KEYS.has(code)) guarding = true; }
 		const dodgeRequested = gamepad.dodgePressed && gamepad.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE;
 		if (dodgeRequested) running = true;
 		if (gamepad.parryPressed) guarding = true;
