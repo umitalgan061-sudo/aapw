@@ -6,7 +6,8 @@ function requirePattern(pattern, message) {
   if (!pattern.test(source)) throw new Error(message);
 }
 
-requirePattern(/function moveBy\([\s\S]*?playerCollider\.resolveXZ\(nextX, nextZ\)[\s\S]*?return Math\.hypot\(model\.position\.x - startX, model\.position\.z - startZ\);/, 'player moveBy must resolve every planar step through playerCollider and return actual travelled distance');
+requirePattern(/function moveBy\([\s\S]*?let travelledMeters = 0;[\s\S]*?playerCollider\.resolveXZ\(nextX, nextZ\)[\s\S]*?travelledMeters \+= Math\.hypot\(nextX - stepStartX, nextZ - stepStartZ\);[\s\S]*?return travelledMeters;/, 'player moveBy must accumulate every collider-resolved planar step as actual travelled distance');
+if (/return Math\.hypot\(model\.position\.x - startX, model\.position\.z - startZ\);/.test(source)) throw new Error('player moveBy must not collapse a collider-sliding path into start-to-end chord distance');
 requirePattern(/MAX_COLLISION_STEP_METERS:\s*0\.45/, 'player collision stepping budget changed without requalification');
 requirePattern(/const steps = playerCollider \? Math\.max\(1, Math\.ceil\(travelMeters \/ PLAYER_ACTION_CONFIG\.MAX_COLLISION_STEP_METERS\)\) : 1;/, 'large attack locomotion must subdivide through collider-safe steps');
 requirePattern(/const commitStep = computeAttackCommitStep\([\s\S]*?const committedMeters = moveBy\(Math\.sin\(model\.rotation\.y\), Math\.cos\(model\.rotation\.y\), commitStep \/ dt, dt\); attackCommitRemaining = Math\.max\(0, attackCommitRemaining - committedMeters\);/, 'attack commit must consume actual collider-resolved displacement, not requested displacement');
