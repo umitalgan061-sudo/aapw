@@ -39,6 +39,13 @@ function moonlitPlateau(night) {
 	return rise * fall;
 }
 
+function nightSurfaceContrast(night, moonlit, deepNight) {
+	const directionalWindow = THREE.MathUtils.smoothstep(night, 0.34, 0.72) * (1 - THREE.MathUtils.smoothstep(night, 0.9, 1.0));
+	const moonReliefProtection = 1 - 0.12 * Math.max(moonlit, directionalWindow);
+	const deepAmbientFalloff = THREE.MathUtils.lerp(1, 0.88, deepNight);
+	return moonReliefProtection * deepAmbientFalloff;
+}
+
 function nightPhaseColorWeights(night) {
 	const blue = THREE.MathUtils.smoothstep(night, 0.08, 0.36);
 	const moon = THREE.MathUtils.smoothstep(night, 0.34, 0.66);
@@ -80,16 +87,18 @@ export function updateNightVisualEnhancement(hemisphere, nightFactor) {
 	const shoulder = transitionShoulder(night);
 	const blueHour = blueHourWeight(night);
 	const moonlit = moonlitPlateau(night);
+	const surfaceContrast = nightSurfaceContrast(night, moonlit, deepNight);
 	const colorWeights = nightPhaseColorWeights(night);
 	blendNightPhaseColor(fill.color, NIGHT_CINEMATIC_TWILIGHT_SKY, NIGHT_CINEMATIC_BLUE_HOUR_SKY, NIGHT_CINEMATIC_MOONLIT_SKY, NIGHT_CINEMATIC_DEEP_SKY, colorWeights);
 	blendNightPhaseColor(fill.groundColor, NIGHT_CINEMATIC_TWILIGHT_GROUND, NIGHT_CINEMATIC_BLUE_HOUR_GROUND, NIGHT_CINEMATIC_MOONLIT_GROUND, NIGHT_CINEMATIC_DEEP_GROUND, colorWeights);
 	const readability = THREE.MathUtils.lerp(NIGHT_CINEMATIC_DAY_INTENSITY, NIGHT_CINEMATIC_FULL_INTENSITY, night);
 	const twilightAdaptation = THREE.MathUtils.lerp(0.96, 1.035, blueHour);
-	fill.intensity = readability * twilightAdaptation * (1 + shoulder * 0.055 + moonlit * 0.035) * THREE.MathUtils.lerp(1, 0.78, deepNight);
+	fill.intensity = readability * twilightAdaptation * (1 + shoulder * 0.055 + moonlit * 0.035) * surfaceContrast;
 	fill.userData.deepNightWeight = deepNight;
 	fill.userData.transitionShoulder = shoulder;
 	fill.userData.blueHourWeight = blueHour;
 	fill.userData.moonlitPlateau = moonlit;
+	fill.userData.surfaceContrast = surfaceContrast;
 	fill.userData.phaseColorWeights = colorWeights;
 	return fill.intensity;
 }
@@ -106,6 +115,7 @@ export function getNightVisualEnhancementSnapshot(hemisphere) {
 		transitionShoulder: Number(fill?.userData?.transitionShoulder || 0),
 		blueHourWeight: Number(fill?.userData?.blueHourWeight || 0),
 		moonlitPlateau: Number(fill?.userData?.moonlitPlateau || 0),
+		surfaceContrast: Number(fill?.userData?.surfaceContrast ?? 1),
 		phaseColorWeights: Object.freeze({ ...(fill?.userData?.phaseColorWeights || {}) }),
 		phaseAdaptive: Boolean(fill?.userData?.phaseAdaptive),
 	});
