@@ -32,26 +32,28 @@ export const WAVE_TOTAL_AMPLITUDE_METERS = SWELL_COMPONENTS.reduce((sum, [, ampl
 export const WATER_OFFSHORE_OPTICAL_GAIN = 0.82;
 
 export const WATER_LAYER_TRANSITION_POLICY = Object.freeze({
-	id: 'water-near-far-opacity-feather-2026-08-31-v1',
+	id: 'water-near-far-opacity-feather-2026-08-31-v2-organic-radial',
 	nearHalfExtentMeters: 2000,
 	featherStartMeters: 1720,
 	featherEndMeters: 1990,
-	distanceMetric: 'camera-relative-chebyshev',
+	distanceMetric: 'camera-relative-euclidean-organic',
+	organicWarpMeters: 105,
+	organicWarpScaleMeters: 690,
 	opacityConserving: true,
 	hardRectangularCutoff: false,
 	distanceAwareMicroNormalFade: true,
 });
 
 export const WATER_FIELD_EDGE_OPTICAL_POLICY = Object.freeze({
-	id: 'water-field-edge-open-ocean-optical-blend-2026-08-31-v1',
+	id: 'water-field-edge-open-ocean-optical-blend-2026-08-31-v2-broad-organic',
 	renderOnly: true,
 	canonicalDepthTextureUnchanged: true,
 	canonicalCoverageUnchanged: true,
 	canonicalShorelineUnchanged: true,
 	openOceanOnly: true,
-	fullDeepStartMeters: 70,
-	blendEndMeters: 760,
-	organicWarpMeters: 180,
+	fullDeepStartMeters: 90,
+	blendEndMeters: 1680,
+	organicWarpMeters: 430,
 	marineGateStart: 0.42,
 	marineGateFull: 0.90,
 });
@@ -140,7 +142,7 @@ const WATER_VERTEX_SHADER = /* glsl */ `
 		addSwell(vec2(${SWELL_COMPONENTS[1][2]}, ${SWELL_COMPONENTS[1][3]}), ${SWELL_COMPONENTS[1][0]}.0, ${SWELL_COMPONENTS[1][1]}, worldPos.xz, uTime, swellHeight, swellSlope);
 		addSwell(vec2(${SWELL_COMPONENTS[2][2]}, ${SWELL_COMPONENTS[2][3]}), ${SWELL_COMPONENTS[2][0]}.0, ${SWELL_COMPONENTS[2][1]}, worldPos.xz, uTime, swellHeight, swellSlope);
 
-		float localEdgeDistance = max(abs(position.x), abs(position.z));
+		float localEdgeDistance = length(position.xz);
 		float nearCoverageFade = 1.0 - smoothstep(${WATER_LAYER_TRANSITION_POLICY.featherStartMeters.toFixed(1)}, ${WATER_LAYER_TRANSITION_POLICY.featherEndMeters.toFixed(1)}, localEdgeDistance);
 		float amplitudeScale = depthFactor * uSwellStrength * nearCoverageFade;
 		worldPos.y += swellHeight * amplitudeScale;
@@ -268,7 +270,10 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	}
 
 	void main() {
-		float nearLayerDistance = max(abs(vWorldPosition.x - uCameraPosition.x), abs(vWorldPosition.z - uCameraPosition.z));
+		vec2 cameraLocalXZ = vWorldPosition.xz - uCameraPosition.xz;
+		float transitionFabric = (waterSurfaceNoise(vWorldPosition.xz / ${WATER_LAYER_TRANSITION_POLICY.organicWarpScaleMeters.toFixed(1)} + vec2(7.4, -11.2)) - 0.5) * 2.0;
+		transitionFabric += (waterSurfaceNoise(vWorldPosition.xz / ${(WATER_LAYER_TRANSITION_POLICY.organicWarpScaleMeters * 0.43).toFixed(1)} + vec2(-19.3, 5.8)) - 0.5) * 0.42;
+		float nearLayerDistance = length(cameraLocalXZ) + transitionFabric * ${WATER_LAYER_TRANSITION_POLICY.organicWarpMeters.toFixed(1)};
 		float layerBlend = smoothstep(${WATER_LAYER_TRANSITION_POLICY.featherStartMeters.toFixed(1)}, ${WATER_LAYER_TRANSITION_POLICY.featherEndMeters.toFixed(1)}, nearLayerDistance);
 		if (uFarLayerMask > 0.5 && layerBlend <= 0.001) discard;
 
@@ -316,9 +321,6 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		bodyColor = mix(bodyColor, referenceLakeClear, enclosedLakeMask * clearShallowBand * 0.34);
 		bodyColor = mix(bodyColor, referenceShoreClear, clearCoastMask * 0.24);
 
-		// Deep open water gets bounded kilometre- and hectometre-scale variation independent of
-		// physical depth. Current shear is masked to boundary-connected offshore water, so enclosed
-		// lakes and the canonical shoreline remain owned by the depth/coverage textures above.
 		float deepLumaVariation = (oceanFabric * 0.085 + oceanShear * 0.060) * deepMarineMask;
 		deepLumaVariation = clamp(deepLumaVariation, -${WATER_SURFACE_VARIATION_POLICY.deepColorVariationMax.toFixed(3)}, ${WATER_SURFACE_VARIATION_POLICY.deepColorVariationMax.toFixed(3)});
 		bodyColor *= 1.0 + deepLumaVariation;
