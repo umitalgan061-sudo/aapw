@@ -476,11 +476,17 @@ function makePlacement({
   const faultAngle = valyriaFaultWorldAngle(worldWidthMeters, worldDepthMeters);
   const clusterAngle = cluster.orientation;
   const morphologyDrainage = Math.max(morphology.lavaDrainage, morphology.erosionGully);
+  const faultDominates = morphology.faultActivity >= Math.max(
+    morphologyDrainage,
+    morphology.brokenCalderaShoulder,
+  );
   const blendToDownhill = valyriaInfluence > P.valyriaMinimumInfluence
-    ? morphologyDrainage * P.valyriaDrainageDownhillBlend
+    ? faultDominates
+      ? morphologyDrainage * 0.10
+      : morphologyDrainage * P.valyriaDrainageDownhillBlend
     : smoothstep01((frame.slopeDegrees - 16) / 28) * 0.42;
   let structuralAngle = strataAngle;
-  if (morphology.faultActivity >= Math.max(morphologyDrainage, morphology.brokenCalderaShoulder)) {
+  if (faultDominates) {
     structuralAngle = faultAngle;
   } else if (morphology.brokenCalderaShoulder > Math.max(morphologyDrainage, 0.32)) {
     structuralAngle = clusterAngle;
