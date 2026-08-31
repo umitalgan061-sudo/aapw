@@ -46,10 +46,10 @@ const GAMEPAD_COMBAT_FEEDBACK_HAPTICS = Object.freeze({
 });
 
 function isInteractiveTarget(target) { return Boolean(target?.closest?.('button, a, input, textarea, select, [contenteditable="true"]')); }
-function defaultInputBlocked() {
+export function isPlayerGameplayInputBlocked() {
 	try { return Boolean(globalThis.document?.querySelector?.('.g3d-pause-menu-overlay:not([hidden])')); } catch { return true; }
 }
-function readInputBlocked(predicate) {
+export function readPlayerGameplayInputBlocked(predicate = isPlayerGameplayInputBlocked) {
 	try { return Boolean(predicate?.()); } catch { return true; }
 }
 function buttonPressed(gamepad, index) { return Boolean(gamepad?.buttons?.[index]?.pressed); }
@@ -163,11 +163,11 @@ function emitInputDeviceChange(index, reason) {
 }
 
 export class KeyboardInput {
-	constructor(target = window, { isInputBlocked = defaultInputBlocked } = {}) {
+	constructor(target = window, { isInputBlocked = isPlayerGameplayInputBlocked } = {}) {
 		this._keys = new Set(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false;
-		this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._lastCombatFeedbackSerial = 0; this._pendingCombatFeedbackSerial = 0; this._target = target; this._isInputBlocked = typeof isInputBlocked === 'function' ? isInputBlocked : defaultInputBlocked;
+		this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._lastCombatFeedbackSerial = 0; this._pendingCombatFeedbackSerial = 0; this._target = target; this._isInputBlocked = typeof isInputBlocked === 'function' ? isInputBlocked : isPlayerGameplayInputBlocked;
 		this._onKeyDown = (event) => {
-			if (readInputBlocked(this._isInputBlocked)) return;
+			if (readPlayerGameplayInputBlocked(this._isInputBlocked)) return;
 			const firstPress = !this._keys.has(event.code);
 			if (JUMP_KEYS.has(event.code) && firstPress) this._jumpRequested = true;
 			if (firstPress && LOCK_ON_KEYS.has(event.code) && !isInteractiveTarget(event.target)) { this._lockOnRequested = true; event.preventDefault?.(); }
@@ -176,7 +176,7 @@ export class KeyboardInput {
 			this._keys.add(event.code);
 		};
 		this._onKeyUp = (event) => this._keys.delete(event.code);
-		this._onPointerDown = (event) => { if (readInputBlocked(this._isInputBlocked)) return; if (event.button === GUARD_POINTER_BUTTON) { this._guardPointerHeld = true; event.preventDefault?.(); return; } if (event.button === LIGHT_ATTACK_POINTER_BUTTON && !isInteractiveTarget(event.target)) emitPlayerCombatIntent('light', 'mouse'); };
+		this._onPointerDown = (event) => { if (readPlayerGameplayInputBlocked(this._isInputBlocked)) return; if (event.button === GUARD_POINTER_BUTTON) { this._guardPointerHeld = true; event.preventDefault?.(); return; } if (event.button === LIGHT_ATTACK_POINTER_BUTTON && !isInteractiveTarget(event.target)) emitPlayerCombatIntent('light', 'mouse'); };
 		this._onPointerUp = (event) => { if (event.button === GUARD_POINTER_BUTTON) this._guardPointerHeld = false; };
 		this._onContextMenu = (event) => { if (this._guardPointerHeld) event.preventDefault?.(); };
 		this._onCombatFeedback = (event) => {
@@ -200,7 +200,7 @@ export class KeyboardInput {
 		this._onVisibilityChange = () => { if (this._target?.hidden === true || globalThis.document?.hidden === true) this._onFocusLoss({ type: 'visibilitychange' }); };
 		for (const [type, handler] of [['keydown', this._onKeyDown], ['keyup', this._onKeyUp], ['pointerdown', this._onPointerDown], ['pointerup', this._onPointerUp], ['pointercancel', this._onPointerUp], ['contextmenu', this._onContextMenu], [COMBAT_FEEDBACK_EVENT, this._onCombatFeedback], ['blur', this._onFocusLoss], ['pagehide', this._onFocusLoss], ['visibilitychange', this._onVisibilityChange]]) target.addEventListener(type, handler);
 	}
-	_pollGamepad(inputBlocked = readInputBlocked(this._isInputBlocked)) {
+	_pollGamepad(inputBlocked = readPlayerGameplayInputBlocked(this._isInputBlocked)) {
 		const pads = globalThis.navigator?.getGamepads?.() ?? [], gamepad = selectPlayerGamepad(pads, this._activeGamepadIndex), nextIndex = gamepad?.index ?? null, switched = nextIndex !== this._activeGamepadIndex;
 		const nowSeconds = (globalThis.performance?.now?.() ?? Date.now()) / 1000, lookDeltaSeconds = this._lastPollSeconds === null ? 0 : Math.max(0, Math.min(GAMEPAD_CAMERA_MAX_FRAME_SECONDS, nowSeconds - this._lastPollSeconds)); this._lastPollSeconds = nowSeconds;
 		if (switched) { this._gamepadButtons = gamepad ? readActionButtons(gamepad) : { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = nextIndex; emitInputDeviceChange(nextIndex, gamepad ? 'selected' : 'disconnected'); }
@@ -220,10 +220,10 @@ export class KeyboardInput {
 		this._gamepadButtons = sample.buttons; this._gamepadSprintActive = sample.running; return { ...sample, lookDeltaSeconds };
 	}
 	getAxes() {
-		const inputBlocked = readInputBlocked(this._isInputBlocked);
+		const inputBlocked = readPlayerGameplayInputBlocked(this._isInputBlocked);
 		if (inputBlocked) { this._keys.clear(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false; }
 		const gamepad = this._pollGamepad(inputBlocked); let forward = gamepad.forward, strafe = gamepad.strafe, running = gamepad.running, guarding = this._guardPointerHeld || gamepad.guarding;
-		for (const code of this._keys) { if (FORWARD_KEYS.has(code)) forward += 1; else if (BACK_KEYS.has(code)) forward -= 1; else if (RIGHT_KEYS.has(code)) strafe += 1; else if (LEFT_KEYS.has(code)) strafe -= 1; else if (RUN_KEYS.has(code)) running = true; else if (GUARD_KEYS.has(code)) guarding = true; }
+		for (const code of this._keys) { if (FORWARD_KEYS.has(code)) forward += 1; else if (BACK_KEYS.has(code)) forward -= 1; else if (RIGHT_KEYS.has(code)) strafe += 1; else if (LEFT_KEYS.has(code)) forward -= 1; else if (RUN_KEYS.has(code)) running = true; else if (GUARD_KEYS.has(code)) guarding = true; }
 		const dodgeRequested = gamepad.dodgePressed && gamepad.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE;
 		if (dodgeRequested) running = true;
 		if (gamepad.parryPressed) guarding = true;
