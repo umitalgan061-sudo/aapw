@@ -16,24 +16,43 @@ try {
   const proof = await page.evaluate(async () => {
     const { createCreatureBeing } = await import('/src/3d/gameplay/creatureBrain.js');
     const { mulberry32 } = await import('/src/3d/world/terrain.js');
-    const dog = createCreatureBeing({
+    const createDog = (spawnId, playerCollider = null) => createCreatureBeing({
       speciesId: 'kopek',
-      spawnId: 'friendly-stop-boundary',
+      spawnId,
       worldX: 0,
       worldZ: 0,
       groundY: 5,
       rotationYRadians: Math.PI / 2,
       groundCollider: { getGroundHeight: () => 5 },
-      playerCollider: null,
+      playerCollider,
       mulberry32,
     });
     const player = { x: 3, z: 0 };
+
+    const dog = createDog('friendly-stop-boundary');
     const before = Math.hypot(dog.object3D.position.x - player.x, dog.object3D.position.z - player.z);
     dog.update(0.25, player);
     const after = Math.hypot(dog.object3D.position.x - player.x, dog.object3D.position.z - player.z);
     const position = { x: dog.object3D.position.x, y: dog.object3D.position.y, z: dog.object3D.position.z };
     dog.dispose();
-    return { before, after, position };
+
+    // A world collider is allowed to correct a candidate X/Z. The friendly stop contract must still
+    // hold after that correction; otherwise obstacle resolution can push a dog through personal space.
+    const colliderDog = createDog('friendly-stop-after-collider', {
+      resolveXZ: (x, z) => ({ x: x + 0.5, z }),
+    });
+    colliderDog.update(0.25, player);
+    const afterCollider = Math.hypot(
+      colliderDog.object3D.position.x - player.x,
+      colliderDog.object3D.position.z - player.z,
+    );
+    const colliderPosition = {
+      x: colliderDog.object3D.position.x,
+      y: colliderDog.object3D.position.y,
+      z: colliderDog.object3D.position.z,
+    };
+    colliderDog.dispose();
+    return { before, after, position, afterCollider, colliderPosition };
   });
 
   assert.equal(pageErrors.length, 0, `page errors: ${pageErrors.join('\n')}`);
@@ -41,6 +60,8 @@ try {
   assert.ok(proof.after >= 2.5 - 1e-6, `friendly approach crossed stop distance: ${proof.after}`);
   assert.ok(Math.abs(proof.after - 2.5) <= 1e-6, `friendly approach should clamp exactly to stop distance: ${proof.after}`);
   assert.ok(Object.values(proof.position).every(Number.isFinite), 'friendly approach published a non-finite transform');
+  assert.ok(proof.afterCollider >= 2.5 - 1e-6, `collider correction crossed friendly stop distance: ${proof.afterCollider}`);
+  assert.ok(Object.values(proof.colliderPosition).every(Number.isFinite), 'collider-corrected approach published a non-finite transform');
   console.log('Creature friendly approach stop browser proof PASS', proof);
 } finally {
   await browser.close();
