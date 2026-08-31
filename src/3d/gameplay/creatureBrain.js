@@ -210,8 +210,6 @@ export const CREATURE_BEHAVIOR_PROFILES = Object.freeze({
 	}),
 });
 
-/** FNV-1a 32-bit string hash — the string->numeric-seed step feeding `mulberry32` (imported by the
- * caller from `world/terrain.js`, not duplicated here). Deterministic, no `Math.random()`. */
 function hashSeedString(text) {
 	let hash = 0x811c9dc5;
 	for (let i = 0; i < text.length; i++) {
@@ -221,32 +219,6 @@ function hashSeedString(text) {
 	return hash >>> 0;
 }
 
-/**
- * Builds one procedural creature: rig + wander/reactive-movement state machine. Shape matches
- * `gameplay/animals.js`'s `createWolf` return contract (`{object3D, isFleeing, update, dispose}`) so
- * it slots into `game3d.js`'s existing `updateEntitiesSafely` loop unchanged.
- * @param {object} options
- * @param {string} options.speciesId Key into both `CREATURE_BODY_PLANS` and `CREATURE_BEHAVIOR_PROFILES`.
- * @param {string} options.spawnId Unique id (also used to seed this being's own wander RNG).
- * @param {number} options.worldX
- * @param {number} options.worldZ
- * @param {number} options.groundY
- * @param {number} [options.rotationYRadians]
- * @param {number} [options.socialAnchorX] Shared deterministic herd center supplied by creatureSpawner.
- * @param {number} [options.socialAnchorZ] Shared deterministic herd center supplied by creatureSpawner.
- * @param {{getGroundHeight: (x: number, z: number) => number}} options.groundCollider
- * @param {{resolveXZ: (x: number, z: number) => {x: number, z: number}}} [options.playerCollider]
- *   Run 332's own follow-up to Run 331's own named gap: the same castle+village obstacle collider
- *   `sceneManager.js` builds for `gameplay/player.js` (see its own JSDoc), applied to both the
- *   wander and reactive movement branches here so a being pushes back out of a house/keep instead of
- *   wandering/fleeing straight through it. Optional — omit (the default) for any caller with no
- *   obstacle collider available (e.g. a unit test).
- * @param {(seed: number) => () => number} options.mulberry32 Passed in rather than imported directly
- *   from `world/terrain.js` — keeps this gameplay module's only coupling to `world/` explicit and
- *   caller-controlled, same "generator takes plain data, not a live import graph" rule `world/README.md`
- *   already holds `world/vegetation.js` to.
- * @returns {{object3D: import('three').Object3D, isFleeing: boolean, update: (delta: number, playerPosition?: {x:number,z:number}, herdmateReactivePositions?: {x:number,z:number}[]) => void, dispose: () => void}}
- */
 export function createCreatureBeing({
 	speciesId,
 	spawnId,
@@ -261,9 +233,7 @@ export function createCreatureBeing({
 	mulberry32,
 }) {
 	const profile = CREATURE_BEHAVIOR_PROFILES[speciesId];
-	if (!profile) {
-		throw new Error(`[gameplay/creatureBrain] no CREATURE_BEHAVIOR_PROFILES entry for species "${speciesId}"`);
-	}
+	if (!profile) throw new Error(`[gameplay/creatureBrain] no CREATURE_BEHAVIOR_PROFILES entry for species "${speciesId}"`);
 	const plan = CREATURE_BODY_PLANS[speciesId];
 	const rig = createCreatureRig({ speciesId, variant: spawnId });
 	const object3D = rig.object3D;
@@ -278,10 +248,8 @@ export function createCreatureBeing({
 	const idleWanderRadiusMeters = socialCohesionEnabled
 		? Math.min(profile.wanderRadiusMeters, profile.packAlertRadiusMeters * CREATURE_SOCIAL_WANDER_RADIUS_FACTOR)
 		: profile.wanderRadiusMeters;
-	const rng = mulberry32(hashSeedString(spawnId) ^ 0x42524e00); // "BRN\0"-ish tag
-	const wanderCenter = socialCohesionEnabled
-		? { x: socialAnchorX, z: socialAnchorZ }
-		: { x: worldX, z: worldZ };
+	const rng = mulberry32(hashSeedString(spawnId) ^ 0x42524e00);
+	const wanderCenter = socialCohesionEnabled ? { x: socialAnchorX, z: socialAnchorZ } : { x: worldX, z: worldZ };
 	let wanderTarget = { x: worldX, z: worldZ };
 	let pauseTimer = profile.wanderPauseSeconds;
 	let gaitClockSeconds = 0;
@@ -303,9 +271,7 @@ export function createCreatureBeing({
 
 	function turnToward(targetYaw, delta) {
 		const turnStep = DEFAULT_TURN_RATE_RADIANS_PER_SECOND * delta;
-		object3D.rotation.y +=
-			(((targetYaw - object3D.rotation.y + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI) *
-			Math.min(1, turnStep);
+		object3D.rotation.y += (((targetYaw - object3D.rotation.y + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI) * Math.min(1, turnStep);
 	}
 
 	function pickNewWanderTarget() {
@@ -317,15 +283,12 @@ export function createCreatureBeing({
 	function reactiveDirection(dx, dz, distance, sign = 1) {
 		const hasSeparationVector = Number.isFinite(distance) && distance > 1e-6;
 		const fallbackYaw = Number.isFinite(object3D.rotation.y) ? object3D.rotation.y : 0;
-		const baseX = hasSeparationVector ? dx / distance : Math.sin(fallbackYaw);
-		const baseZ = hasSeparationVector ? dz / distance : Math.cos(fallbackYaw);
-		return { x: baseX * sign, z: baseZ * sign };
+		return {
+			x: (hasSeparationVector ? dx / distance : Math.sin(fallbackYaw)) * sign,
+			z: (hasSeparationVector ? dz / distance : Math.cos(fallbackYaw)) * sign,
+		};
 	}
 
-	// Movement is committed only after every external boundary has returned a finite candidate. The
-	// optional personal-space guard is evaluated after collider resolution so obstacle correction cannot
-	// push a friendly creature through its authored stop distance. Unsafe corrections fail closed for
-	// this tick rather than second-guessing/reversing the collider's own obstacle authority.
 	function tryCommitGroundedMove(candidateX, candidateZ, minimumDistanceX = null, minimumDistanceZ = null, minimumDistanceMeters = 0) {
 		if (!Number.isFinite(candidateX) || !Number.isFinite(candidateZ)) return false;
 		let resolvedX = candidateX;
@@ -395,10 +358,7 @@ export function createCreatureBeing({
 			const dzFromPlayer = playerPosition ? object3D.position.z - playerPosition.z : Infinity;
 			const distanceFromPlayer = Math.hypot(dxFromPlayer, dzFromPlayer);
 			let reactingDirectly = distanceFromPlayer < profile.reactiveTriggerRadiusMeters;
-
-			if (profile.reactiveDirection === 'toward' && distanceFromPlayer <= (profile.reactiveStopDistanceMeters ?? 0)) {
-				reactingDirectly = false;
-			}
+			if (profile.reactiveDirection === 'toward' && distanceFromPlayer <= (profile.reactiveStopDistanceMeters ?? 0)) reactingDirectly = false;
 
 			let reactingFromHerd = false;
 			if (!reactingDirectly && playerPosition && profile.packAlertRadiusMeters != null && herdmateReactivePositions) {
@@ -409,6 +369,7 @@ export function createCreatureBeing({
 						reactingFromHerd = true;
 						break;
 					}
+				}
 			}
 
 			currentlyReacting = reactingDirectly || reactingFromHerd;
@@ -418,23 +379,19 @@ export function createCreatureBeing({
 				if (flightPhase === 'grounded') {
 					if (currentlyReacting) {
 						const heading = reactiveDirection(dxFromPlayer, dzFromPlayer, distanceFromPlayer);
-						const nextHeadingX = heading.x;
-						const nextHeadingZ = heading.z;
 						const nextAltitude = Math.min(profile.flightAltitudeMeters, profile.takeoffClimbMps * delta);
-						const nextX = object3D.position.x + nextHeadingX * profile.reactiveSpeedMps * delta;
-						const nextZ = object3D.position.z + nextHeadingZ * profile.reactiveSpeedMps * delta;
+						const nextX = object3D.position.x + heading.x * profile.reactiveSpeedMps * delta;
+						const nextZ = object3D.position.z + heading.z * profile.reactiveSpeedMps * delta;
 						if (tryCommitFlightMove(nextX, nextZ, nextAltitude)) {
-							flightHeadingX = nextHeadingX;
-							flightHeadingZ = nextHeadingZ;
+							flightHeadingX = heading.x;
+							flightHeadingZ = heading.z;
 							flightAltitudeMeters = nextAltitude;
 							flightElapsedSeconds = delta;
 							flightPhase = nextAltitude >= profile.flightAltitudeMeters ? 'cruising' : 'climbing';
 							turnToward(Math.atan2(flightHeadingX, flightHeadingZ), delta);
 							isMoving = true;
 						}
-					} else {
-						isMoving = stepGroundWander(delta);
-					}
+					} else isMoving = stepGroundWander(delta);
 				} else if (flightPhase === 'landing') {
 					const nextAltitude = Math.max(0, flightAltitudeMeters - profile.takeoffClimbMps * delta);
 					if (tryCommitFlightMove(object3D.position.x, object3D.position.z, nextAltitude)) {
@@ -457,9 +414,7 @@ export function createCreatureBeing({
 					if (flightPhase === 'climbing') {
 						nextAltitude = Math.min(profile.flightAltitudeMeters, flightAltitudeMeters + profile.takeoffClimbMps * delta);
 						if (nextAltitude >= profile.flightAltitudeMeters) nextPhase = 'cruising';
-					} else if (nextElapsedSeconds >= profile.flightDurationSeconds) {
-						nextPhase = 'landing';
-					}
+					} else if (nextElapsedSeconds >= profile.flightDurationSeconds) nextPhase = 'landing';
 					if (tryCommitFlightMove(nextX, nextZ, nextAltitude)) {
 						flightElapsedSeconds = nextElapsedSeconds;
 						flightAltitudeMeters = nextAltitude;
@@ -468,13 +423,10 @@ export function createCreatureBeing({
 						isMoving = true;
 					}
 				}
-
 				if (isMoving) {
 					gaitClockSeconds += delta;
 					applyCreatureGait(rig, { gaitName: flightPhase === 'grounded' ? plan.restGait : plan.alertGait, elapsedSeconds: gaitClockSeconds });
-				} else if (wasMoving) {
-					resetCreatureGaitPose(rig);
-				}
+				} else if (wasMoving) resetCreatureGaitPose(rig);
 				wasMoving = isMoving;
 				return;
 			}
@@ -482,17 +434,13 @@ export function createCreatureBeing({
 			if (currentlyReacting) {
 				const sign = profile.reactiveDirection === 'toward' ? -1 : 1;
 				const direction = reactiveDirection(dxFromPlayer, dzFromPlayer, distanceFromPlayer, sign);
-				const dirX = direction.x;
-				const dirZ = direction.z;
 				const requestedStep = profile.reactiveSpeedMps * delta;
-				const stopDistance = profile.reactiveDirection === 'toward'
-					? Math.max(0, profile.reactiveStopDistanceMeters ?? 0)
-					: 0;
+				const stopDistance = profile.reactiveDirection === 'toward' ? Math.max(0, profile.reactiveStopDistanceMeters ?? 0) : 0;
 				const step = profile.reactiveDirection === 'toward'
 					? Math.min(requestedStep, Math.max(0, distanceFromPlayer - stopDistance))
 					: requestedStep;
-				const nextX = object3D.position.x + dirX * step;
-				const nextZ = object3D.position.z + dirZ * step;
+				const nextX = object3D.position.x + direction.x * step;
+				const nextZ = object3D.position.z + direction.z * step;
 				const guardFriendlyStop = profile.reactiveDirection === 'toward' && playerPosition;
 				if (step > 0 && tryCommitGroundedMove(
 					nextX,
@@ -501,19 +449,15 @@ export function createCreatureBeing({
 					guardFriendlyStop ? playerPosition.z : null,
 					guardFriendlyStop ? stopDistance : 0,
 				)) {
-					turnToward(Math.atan2(dirX, dirZ), delta);
+					turnToward(Math.atan2(direction.x, direction.z), delta);
 					isMoving = true;
 				}
-			} else {
-				isMoving = stepGroundWander(delta);
-			}
+			} else isMoving = stepGroundWander(delta);
 
 			if (isMoving) {
 				gaitClockSeconds += delta;
 				applyCreatureGait(rig, { gaitName: currentlyReacting ? plan.alertGait : plan.restGait, elapsedSeconds: gaitClockSeconds });
-			} else if (wasMoving) {
-				resetCreatureGaitPose(rig);
-			}
+			} else if (wasMoving) resetCreatureGaitPose(rig);
 			wasMoving = isMoving;
 		},
 		dispose() {
