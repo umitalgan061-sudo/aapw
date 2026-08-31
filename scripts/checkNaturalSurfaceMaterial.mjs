@@ -12,22 +12,14 @@ import {
 import { VALYRIA_GEOLOGY_POLICY } from '../src/3d/world/valyriaGeology.js';
 
 const policy = NATURAL_SURFACE_MATERIAL_POLICY;
-assert.equal(policy.renderOnly, true);
-assert.equal(policy.deterministic, true);
-assert.equal(policy.canonicalHeightUnchanged, true);
-assert.equal(policy.canonicalHydrologyUnchanged, true);
-assert.equal(policy.canonicalColliderUnchanged, true);
-assert.equal(policy.canonicalCoastlineUnchanged, true);
+for (const flag of [
+	'renderOnly', 'deterministic', 'canonicalHeightUnchanged', 'canonicalHydrologyUnchanged',
+	'canonicalColliderUnchanged', 'canonicalCoastlineUnchanged', 'allWorldMacroNormalVariation',
+	'allWorldMacroRoughnessVariation', 'worldScaleLowlandReadability', 'worldScaleSnowFirnReadability',
+	'anisotropicErosionFabric', 'cliffWeatheringStreaks', 'cryosphereFirnSastrugi', 'coastalStrandlineBreakup',
+]) assert.equal(policy[flag], true, `${flag} must remain enabled`);
 assert.equal(policy.newGeographyIntroduced, false);
 assert.equal(policy.valyriaAuthorityPolicyId, VALYRIA_GEOLOGY_POLICY.id);
-assert.equal(policy.allWorldMacroNormalVariation, true);
-assert.equal(policy.allWorldMacroRoughnessVariation, true);
-assert.equal(policy.worldScaleLowlandReadability, true);
-assert.equal(policy.worldScaleSnowFirnReadability, true);
-assert.equal(policy.anisotropicErosionFabric, true);
-assert.equal(policy.cliffWeatheringStreaks, true);
-assert.equal(policy.cryosphereFirnSastrugi, true);
-assert.equal(policy.coastalStrandlineBreakup, true);
 assert.deepEqual(policy.valyriaMaterials, ['basalt', 'obsidian', 'ash', 'pumice', 'oxidation', 'sulfuric-weathering']);
 
 function shaderSkeleton() {
