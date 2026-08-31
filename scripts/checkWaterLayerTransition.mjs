@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { WORLD_SCALE } from '../src/3d/config.js';
+import { WATER_DEPTH_FIELD_EXTENT_METERS, WATER_DEPTH_FIELD_OWNER_GUARD_METERS, WATER_DEPTH_FIELD_RESOLUTION } from '../src/3d/world/waterDepthField.js';
 import {
   WATER_LAYER_TRANSITION_POLICY,
   waterLayerTransitionAlpha,
@@ -19,6 +21,14 @@ assert(policy.featherStartMeters > 0, 'feather must begin outside the immediate 
 assert(policy.featherEndMeters > policy.featherStartMeters, 'feather interval must have positive width');
 assert(policy.featherEndMeters < policy.nearHalfExtentMeters, 'feather must complete before near geometry ends');
 assert(policy.nearHalfExtentMeters - policy.featherEndMeters >= 5, 'transition needs a bounded geometry safety margin');
+
+const ownerSpan = Math.max(WORLD_SCALE.WORLD_WIDTH_METERS, WORLD_SCALE.WORLD_DEPTH_METERS);
+const depthTexelStep = WATER_DEPTH_FIELD_EXTENT_METERS / (WATER_DEPTH_FIELD_RESOLUTION - 1);
+assert.equal(WATER_DEPTH_FIELD_EXTENT_METERS, Math.ceil(ownerSpan * WATER_DEPTH_FIELD_RESOLUTION / (WATER_DEPTH_FIELD_RESOLUTION - 1)),
+  'water depth field must derive its guarded extent from the canonical owner-map span');
+assert(WATER_DEPTH_FIELD_EXTENT_METERS >= ownerSpan, 'canonical owner map escaped the data-backed water field');
+assert(WATER_DEPTH_FIELD_OWNER_GUARD_METERS > depthTexelStep * 0.25,
+  'owner-map edge needs more than one 2x2 coverage subsample radius of data-backed guard');
 
 const EPS = 1e-10;
 const blendAtStart = waterLayerTransitionBlend(policy.featherStartMeters);
@@ -116,6 +126,8 @@ assert(afterStart < 0.00002, 'smooth feather should leave zero continuously at t
 
 console.log('[checkWaterLayerTransition] PASS', {
   policyId: policy.id,
+  waterDepthFieldExtentMeters: WATER_DEPTH_FIELD_EXTENT_METERS,
+  waterDepthFieldOwnerGuardMeters: WATER_DEPTH_FIELD_OWNER_GUARD_METERS,
   featherMeters: policy.featherEndMeters - policy.featherStartMeters,
   blendSamples,
   opacitySamples: opacitySamples.length,
