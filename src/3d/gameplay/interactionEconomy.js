@@ -257,6 +257,21 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		return { ok: true, creditedCopper, balanceCopper: copper, receipt, ledger: ledgerSnapshot() };
 	}
 
+	function canonicalConsumedItems(craftUpgrade) {
+		if (!craftUpgrade || typeof craftUpgrade !== 'object') return [];
+		const authoredInputs = Array.isArray(craftUpgrade.inputs) && craftUpgrade.inputs.length > 0
+			? craftUpgrade.inputs
+			: [{ itemId: craftUpgrade.inputItemId, quantity: craftUpgrade.inputQuantity }];
+		const requiredByItem = new Map();
+		for (const input of authoredInputs) {
+			const itemId = String(input?.itemId ?? '').trim();
+			if (!itemId) continue;
+			const quantity = Math.max(1, normalizeCount(input?.quantity, 1));
+			requiredByItem.set(itemId, (requiredByItem.get(itemId) ?? 0) + quantity);
+		}
+		return [...requiredByItem.entries()].map(([itemId, quantity]) => ({ itemId, quantity }));
+	}
+
 	function purchase(offer, grantItem) {
 		if (typeof grantItem !== 'function') return { ok: false, reason: 'invalid-offer' };
 		const purchaseQuote = quote(offer);
@@ -270,11 +285,8 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		});
 		const granted = grantResult === true || grantResult?.ok === true;
 		if (!granted) return { ...purchaseQuote, ok: false, reason: grantResult?.reason ?? 'inventory-full' };
-		const consumedItems = Array.isArray(grantResult?.consumedItems)
-			? grantResult.consumedItems
-				.filter((input) => input && typeof input === 'object' && !Array.isArray(input) && String(input.itemId ?? '').trim())
-				.map((input) => ({ itemId: String(input.itemId), quantity: normalizeCount(input.quantity, 1) }))
-			: [];
+		const crafted = grantResult?.crafted === true && Boolean(fulfillment?.craftUpgrade);
+		const consumedItems = crafted ? canonicalConsumedItems(fulfillment.craftUpgrade) : [];
 		copper -= purchaseQuote.priceCopper;
 		stockByOffer.set(configuredOffer.id, purchaseQuote.remainingStock - 1);
 		syncLedgerTotalsFromStock();
@@ -286,8 +298,8 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 			balanceCopper: copper,
 			offerId: configuredOffer.id,
 			remainingStock: purchaseQuote.remainingStock - 1,
-			crafted: grantResult?.crafted === true,
-			craftedItemId: grantResult?.crafted === true ? fulfillment?.craftUpgrade?.outputItemId ?? null : null,
+			crafted,
+			craftedItemId: crafted ? fulfillment.craftUpgrade.outputItemId ?? null : null,
 			consumedItems,
 			consumedItemId: consumedItems.length === 1 ? consumedItems[0].itemId : null,
 			consumedQuantity: consumedItems.length === 1 ? consumedItems[0].quantity : null,
