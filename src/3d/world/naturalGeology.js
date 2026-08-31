@@ -24,7 +24,7 @@ import {
 } from './valyriaGeology.js';
 
 export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
-  id: 'natural-geology-render-2026-08-31-v4-correct-world-normal-weathering',
+  id: 'natural-geology-render-2026-08-31-v5-regional-hydrated-rocks',
   renderOnly: true,
   deterministicPlacement: true,
   geographyAuthorityUnchanged: true,
@@ -40,6 +40,8 @@ export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
   minimumSourceExtentMeters: 0.001,
   maximumSourceAspectRatio: 18,
   hydratedRoughnessFloor: 0.64,
+  hydratedRegionalTintStrength: 0.36,
+  hydratedRegionalTint: true,
   proceduralRoughness: 0.90,
   worldSpaceRockWeathering: true,
   worldSpaceRockAlbedoVariation: true,
@@ -59,6 +61,7 @@ const tempObject = new THREE.Object3D();
 const tempMatrix = new THREE.Matrix4();
 const tempQuaternion = new THREE.Quaternion();
 const tempScale = new THREE.Vector3();
+const hydratedTintWhite = new THREE.Color(1, 1, 1);
 const clamp01 = (value) => value < 0 ? 0 : value > 1 ? 1 : value;
 const ROCK_WEATHERING_SHADER_KEY = 'natural-geology-world-space-weathering-v2-correct-normal-space';
 
@@ -241,6 +244,13 @@ function colorForPlacement(placement) {
   if (south > 0.69) return new THREE.Color().setRGB(0.31 + south * 0.12, 0.255 + south * 0.07, 0.18 + south * 0.035);
   if (north > 0.72 || altitude > 0.72) return new THREE.Color().setRGB(0.34 + altitude * 0.08, 0.37 + altitude * 0.08, 0.39 + altitude * 0.08);
   return new THREE.Color().setRGB(0.31 + altitude * 0.055, 0.30 + altitude * 0.05, 0.27 + altitude * 0.045);
+}
+
+function hydratedTintForPlacement(placement) {
+  return colorForPlacement(placement).lerp(
+    hydratedTintWhite,
+    1 - NATURAL_GEOLOGY_RENDER_POLICY.hydratedRegionalTintStrength,
+  );
 }
 
 function composePlacementMatrix(placement, output = new THREE.Matrix4()) {
@@ -447,6 +457,7 @@ export function createNaturalGeology({
     legacyValyriaSurfaceOverlayEnabled: false,
     worldSpaceRockWeathering: true,
     worldNormalSpace: 'instance-scale-compensated-world',
+    hydratedRegionalTint: true,
   });
   group.userData.naturalGeologyPlacements = placementResult.placements;
   return Object.freeze({ group, placements: placementResult.placements, stats: placementResult.stats });
@@ -574,9 +585,19 @@ async function hydrateFamily(group, family, url, signal) {
     for (let index = 0; index < placements.length; index += 1) {
       composePlacementMatrix(placements[index], tempMatrix);
       instances.setMatrixAt(index, tempMatrix.clone().multiply(normalization).multiply(sourceMesh.matrixWorld));
+      // Preserve the source material/texture, but lightly tint each hydrated instance toward the same
+      // regional lithology already used by the deterministic fallback. This breaks obvious clone colour
+      // repetition without recolouring the GLB into a flat procedural swatch.
+      instances.setColorAt(index, hydratedTintForPlacement(placements[index]));
     }
     instances.instanceMatrix.needsUpdate = true;
+    if (instances.instanceColor) instances.instanceColor.needsUpdate = true;
     instances.computeBoundingSphere?.();
+    instances.userData.naturalGeologyHydrated = Object.freeze({
+      family,
+      regionalTintStrength: NATURAL_GEOLOGY_RENDER_POLICY.hydratedRegionalTintStrength,
+      sourceMaterialPreserved: true,
+    });
     hydrated.push(instances);
   }
   group.add(...hydrated);
