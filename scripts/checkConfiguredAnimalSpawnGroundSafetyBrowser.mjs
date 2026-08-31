@@ -20,10 +20,7 @@ try {
 
   const proof = await page.evaluate(async () => {
     const THREE = await import('three');
-    const {
-      resolveConfiguredAnimalSpawnGround,
-      spawnConfiguredAnimals,
-    } = await import('/src/3d/gameplay/animals.js');
+    const { spawnConfiguredAnimals } = await import('/src/3d/gameplay/animals.js');
 
     let modelLoadCount = 0;
     class FakeAssetLoader {
@@ -60,6 +57,7 @@ try {
         { id: 'animal-nan-ground', seatId: 'nan-ground', offsetXMeters: 0, offsetZMeters: 0 },
         { id: 'animal-throw-ground', seatId: 'throw-ground', offsetXMeters: 0, offsetZMeters: 0 },
         { id: 'animal-invalid-world', seatId: 'invalid-world', offsetXMeters: 0, offsetZMeters: 0 },
+        { id: 'animal-overflow-world', seatId: 'overflow-world', offsetXMeters: Number.MAX_VALUE, offsetZMeters: 0 },
         { id: 'animal-invalid-species', seatId: 'invalid-species', offsetXMeters: 0, offsetZMeters: 0, speciesId: 'missing' },
       ],
     };
@@ -68,31 +66,37 @@ try {
       ['nan-ground', { x: 10, z: 0 }],
       ['throw-ground', { x: 20, z: 0 }],
       ['invalid-world', { x: Infinity, z: 0 }],
+      ['overflow-world', { x: Number.MAX_VALUE, z: 0 }],
       ['invalid-species', { x: 40, z: 0 }],
     ]);
 
-    const controllers = await spawnConfiguredAnimals({
-      assetLoader: new FakeAssetLoader(),
+    const commonArgs = {
       animalConfig,
       seatsById,
-      sampleGroundY,
       groundCollider: { getGroundHeight: () => 3 },
       playerCollider: { resolveXZ: (x, z) => ({ x, z }) },
+    };
+    const controllers = await spawnConfiguredAnimals({
+      ...commonArgs,
+      assetLoader: new FakeAssetLoader(),
+      sampleGroundY,
     });
     const valid = controllers[0];
     const validPosition = valid?.object3D.position.clone();
     const validName = valid?.object3D.name;
     for (const controller of controllers) controller.dispose();
 
-    let overflowSampled = false;
-    const overflow = resolveConfiguredAnimalSpawnGround({
-      spawn: { offsetXMeters: Number.MAX_VALUE, offsetZMeters: 0 },
-      seat: { x: Number.MAX_VALUE, z: 0 },
-      sampleGroundY: () => {
-        overflowSampled = true;
-        return 0;
-      },
-    });
+    let assetFailurePropagated = false;
+    try {
+      await spawnConfiguredAnimals({
+        ...commonArgs,
+        assetLoader: { async loadModel() { throw new Error('synthetic fauna asset failure'); } },
+        animalConfig: { ...animalConfig, SPAWNS: [animalConfig.SPAWNS[0]] },
+        sampleGroundY: () => 3,
+      });
+    } catch (error) {
+      assetFailurePropagated = error?.message === 'synthetic fauna asset failure';
+    }
 
     return {
       controllerCount: controllers.length,
@@ -100,8 +104,7 @@ try {
       validPosition: validPosition ? { x: validPosition.x, y: validPosition.y, z: validPosition.z } : null,
       modelLoadCount,
       sampledXs,
-      overflowReason: overflow.reason,
-      overflowSampled,
+      assetFailurePropagated,
     };
   });
 
@@ -116,9 +119,8 @@ try {
   assert.equal(proof.validName, 'animal-valid');
   assert.deepEqual(proof.validPosition, { x: 0, y: 3, z: 0 });
   assert.equal(proof.modelLoadCount, 1, 'unsafe spawns must be rejected before model loading');
-  assert.deepEqual(proof.sampledXs, [0, 10, 20], 'invalid world/species entries must be rejected before terrain sampling');
-  assert.equal(proof.overflowReason, 'non-finite-position', 'coordinate overflow must fail closed');
-  assert.equal(proof.overflowSampled, false, 'non-finite coordinates must be rejected before terrain sampling');
+  assert.deepEqual(proof.sampledXs, [0, 10, 20], 'invalid world/overflow/species entries must be rejected before terrain sampling');
+  assert.equal(proof.assetFailurePropagated, true, 'valid placement must not swallow an actual asset loading failure');
 
   console.log('CONFIGURED_ANIMAL_SPAWN_GROUND_SAFETY_BROWSER_PASS', JSON.stringify({
     ...proof,
