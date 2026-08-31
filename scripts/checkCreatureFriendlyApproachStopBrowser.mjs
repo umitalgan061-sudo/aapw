@@ -36,6 +36,15 @@ try {
     const position = { x: dog.object3D.position.x, y: dog.object3D.position.y, z: dog.object3D.position.z };
     dog.dispose();
 
+    const exactStopDog = createDog('friendly-stop-stable');
+    exactStopDog.object3D.position.x = 0.5;
+    exactStopDog.update(0.25, player);
+    const exactStopDistance = Math.hypot(
+      exactStopDog.object3D.position.x - player.x,
+      exactStopDog.object3D.position.z - player.z,
+    );
+    exactStopDog.dispose();
+
     // A world collider is allowed to correct a candidate X/Z. The friendly stop contract must still
     // hold after that correction; otherwise obstacle resolution can push a dog through personal space.
     let colliderCalls = 0;
@@ -59,7 +68,7 @@ try {
       z: colliderDog.object3D.position.z,
     };
     colliderDog.dispose();
-    return { before, after, position, afterCollider, rejectedPositionX, recoveredDistance, colliderCalls, colliderPosition };
+    return { before, after, position, exactStopDistance, afterCollider, rejectedPositionX, recoveredDistance, colliderCalls, colliderPosition };
   });
 
   assert.equal(pageErrors.length, 0, `page errors: ${pageErrors.join('\n')}`);
@@ -67,6 +76,7 @@ try {
   assert.ok(proof.after >= 2.5 - 1e-6, `friendly approach crossed stop distance: ${proof.after}`);
   assert.ok(Math.abs(proof.after - 2.5) <= 1e-6, `friendly approach should clamp exactly to stop distance: ${proof.after}`);
   assert.ok(Object.values(proof.position).every(Number.isFinite), 'friendly approach published a non-finite transform');
+  assert.ok(Math.abs(proof.exactStopDistance - 2.5) <= 1e-6, `friendly creature drifted while already at stop distance: ${proof.exactStopDistance}`);
   assert.ok(proof.afterCollider >= 2.5 - 1e-6, `collider correction crossed friendly stop distance: ${proof.afterCollider}`);
   assert.equal(proof.rejectedPositionX, 0, 'rejected collider correction should not partially publish movement');
   assert.ok(Math.abs(proof.recoveredDistance - 2.5) <= 1e-6, `friendly approach did not recover after collider rejection: ${proof.recoveredDistance}`);
