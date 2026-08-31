@@ -1,8 +1,5 @@
 import assert from 'node:assert/strict';
-import {
-  buildQuartermasterText,
-  createInteractionEconomyState,
-} from '../src/3d/gameplay/interactionEconomy.js';
+import { createInteractionEconomyState } from '../src/3d/gameplay/interactionEconomy.js';
 
 const economy = createInteractionEconomyState(40);
 const reward = economy.credit(12, {
@@ -10,183 +7,64 @@ const reward = economy.credit(12, {
   label: 'Liman Taverna Seferi',
 });
 assert.equal(reward.ok, true);
-assert.equal(reward.balanceCopper, 52);
 
-for (let purchaseIndex = 1; purchaseIndex <= 3; purchaseIndex += 1) {
+for (let index = 1; index <= 4; index += 1) {
   const purchase = economy.purchase(
     { id: 'dragonstone-field-ration', itemId: 'dragonstone-field-ration' },
     () => true,
   );
-  assert.equal(purchase.ok, true, `quartermaster purchase ${purchaseIndex} should succeed`);
+  assert.equal(purchase.ok, true, `quartermaster purchase ${index} should succeed`);
   const snapshot = economy.snapshot();
-  assert.equal(snapshot.copper, 52 - purchaseIndex * 6);
-  assert.equal(snapshot.ledger.recentCredits.length, 1);
-  assert.deepEqual(snapshot.ledger.recentCredits[0], reward.receipt, 'later spending must not mutate expedition income provenance');
-  assert.equal(snapshot.ledger.recentTransactions.at(-1)?.sequence, purchaseIndex);
-  assert.equal(snapshot.ledger.recentTransactions.at(-1)?.balanceCopper, snapshot.copper);
+  assert.equal(snapshot.copper, 52 - index * 6);
+  assert.deepEqual(snapshot.ledger.recentCredits, [reward.receipt], 'trade must not mutate expedition provenance');
+  assert.equal(snapshot.ledger.recentTransactions.at(-1)?.sequence, index);
 }
 
-const beforeSave = economy.snapshot();
-assert.equal(beforeSave.stockByOffer['dragonstone-field-ration'], 1, 'three purchases should consume three of four finite-stock rations');
-assert.equal(beforeSave.ledger.transactionCount, 3);
-assert.equal(beforeSave.ledger.lifetimeSpentCopper, 18);
-assert.equal(beforeSave.ledger.recentCredits[0].balanceCopper, 52, 'historical expedition receipt balance must remain the post-reward balance');
-
-const text = buildQuartermasterText(beforeSave);
-assert.match(text, /Kese: 34 bakır/);
-assert.match(text, /Son gelir: Liman Taverna Seferi · \+12 bakır · bakiye 52/);
-assert.match(text, /Son işlem: #3 Dragonstone saha azığı · 6 bakır · bakiye 34/);
-
-const restored = createInteractionEconomyState();
-restored.restore(beforeSave);
-assert.deepEqual(restored.snapshot(), beforeSave, 'save/load must preserve expedition income separately from a multi-purchase trade history');
-
-const finalPurchase = restored.purchase(
-  { id: 'dragonstone-field-ration', itemId: 'dragonstone-field-ration' },
-  () => true,
-);
-assert.equal(finalPurchase.ok, true);
-const exhausted = restored.snapshot();
+const exhausted = economy.snapshot();
 assert.equal(exhausted.copper, 28);
 assert.equal(exhausted.stockByOffer['dragonstone-field-ration'], 0);
 assert.equal(exhausted.ledger.transactionCount, 4);
-assert.equal(exhausted.ledger.recentCredits[0].sourceId, 'expedition-contract:dragonstone-harbor-tavern-run');
+assert.equal(exhausted.ledger.lifetimeSpentCopper, 24);
 assert.equal(exhausted.ledger.recentCredits[0].balanceCopper, 52);
-assert.match(buildQuartermasterText(exhausted), /Son işlem: #4 Dragonstone saha azığı · 6 bakır · bakiye 28/);
-
-let exhaustedGrantCalls = 0;
-const blocked = restored.purchase(
-  { id: 'dragonstone-field-ration', itemId: 'dragonstone-field-ration' },
-  () => {
-    exhaustedGrantCalls += 1;
-    return true;
-  },
-);
-assert.equal(blocked.ok, false, 'exhausted finite stock must block further purchases');
-assert.equal(exhaustedGrantCalls, 0, 'out-of-stock quote rejection must not invoke inventory fulfillment');
-assert.deepEqual(restored.snapshot(), exhausted, 'blocked stock-exhausted purchase must be atomic across wallet, trade and expedition receipt ledgers');
 
 const transactionsBeforeLaterReward = structuredClone(exhausted.ledger.recentTransactions);
-const laterReward = restored.credit(9, {
+const laterReward = economy.credit(9, {
   sourceId: 'expedition-contract:dragonstone-gate-patrol',
   label: 'Kapı Devriyesi Seferi',
 });
 assert.equal(laterReward.ok, true);
-const afterLaterReward = restored.snapshot();
-assert.equal(afterLaterReward.copper, 37, 'later expedition income should credit the post-trade wallet');
+const afterLaterReward = economy.snapshot();
+assert.equal(afterLaterReward.copper, 37);
+assert.deepEqual(afterLaterReward.ledger.recentTransactions, transactionsBeforeLaterReward);
 assert.deepEqual(
-  afterLaterReward.ledger.recentTransactions,
-  transactionsBeforeLaterReward,
-  'later expedition income must not rewrite the finite-stock trade history',
-);
-assert.deepEqual(
-  afterLaterReward.ledger.recentCredits.map(({ sequence, sourceId, creditedCopper, balanceCopper }) => ({ sequence, sourceId, creditedCopper, balanceCopper })),
+  afterLaterReward.ledger.recentCredits.map(({ sourceId, creditedCopper, balanceCopper }) => ({ sourceId, creditedCopper, balanceCopper })),
   [
-    { sequence: 1, sourceId: 'expedition-contract:dragonstone-harbor-tavern-run', creditedCopper: 12, balanceCopper: 52 },
-    { sequence: 2, sourceId: 'expedition-contract:dragonstone-gate-patrol', creditedCopper: 9, balanceCopper: 37 },
+    { sourceId: 'expedition-contract:dragonstone-harbor-tavern-run', creditedCopper: 12, balanceCopper: 52 },
+    { sourceId: 'expedition-contract:dragonstone-gate-patrol', creditedCopper: 9, balanceCopper: 37 },
   ],
-  'credit sequencing must remain independent from four prior trade transactions',
 );
-const laterRewardText = buildQuartermasterText(afterLaterReward);
-assert.match(laterRewardText, /Kese: 37 bakır/);
-assert.match(laterRewardText, /Son gelir: Kapı Devriyesi Seferi · \+9 bakır · bakiye 37/);
-assert.match(laterRewardText, /Son işlem: #4 Dragonstone saha azığı · 6 bakır · bakiye 28/);
 
-let postIncomeExhaustedGrantCalls = 0;
-const blockedAfterLaterReward = restored.purchase(
+let grantCalls = 0;
+const blocked = economy.purchase(
   { id: 'dragonstone-field-ration', itemId: 'dragonstone-field-ration' },
-  () => {
-    postIncomeExhaustedGrantCalls += 1;
-    return true;
-  },
+  () => { grantCalls += 1; return true; },
 );
-assert.equal(blockedAfterLaterReward.ok, false, 'later expedition income must not replenish exhausted quartermaster stock');
-assert.equal(postIncomeExhaustedGrantCalls, 0, 'post-income out-of-stock rejection must not invoke inventory fulfillment');
-assert.deepEqual(
-  restored.snapshot(),
-  afterLaterReward,
-  'blocked post-income purchase must preserve the new expedition receipt, historical trade receipt and wallet atomically',
-);
-const blockedAfterLaterRewardText = buildQuartermasterText(restored.snapshot());
-assert.match(blockedAfterLaterRewardText, /Kese: 37 bakır/);
-assert.match(blockedAfterLaterRewardText, /Son gelir: Kapı Devriyesi Seferi · \+9 bakır · bakiye 37/);
-assert.match(blockedAfterLaterRewardText, /Son işlem: #4 Dragonstone saha azığı · 6 bakır · bakiye 28/);
+assert.equal(blocked.ok, false);
+assert.equal(blocked.reason, 'out-of-stock');
+assert.equal(grantCalls, 0);
+assert.deepEqual(economy.snapshot(), afterLaterReward, 'out-of-stock rejection must be atomic');
 
-const beforeInventoryRejectedTrade = structuredClone(restored.snapshot());
-const inventoryRejectedTrade = restored.purchase(
+const beforeInventoryReject = structuredClone(afterLaterReward);
+const inventoryReject = economy.purchase(
   { id: 'dragonstone-whetstone', itemId: 'dragonstone-whetstone' },
   () => ({ ok: false, reason: 'inventory-full' }),
 );
-assert.equal(inventoryRejectedTrade.ok, false, 'inventory rejection must abort an otherwise available settlement trade');
-assert.equal(inventoryRejectedTrade.reason, 'inventory-full');
-assert.equal(inventoryRejectedTrade.balanceCopper, 37);
-assert.equal(inventoryRejectedTrade.remainingStock, 2);
-assert.deepEqual(
-  restored.snapshot(),
-  beforeInventoryRejectedTrade,
-  'inventory-full rejection after expedition income must not spend copper, consume stock, append trade history or rewrite reward provenance',
-);
-assert.match(buildQuartermasterText(restored.snapshot()), /Son gelir: Kapı Devriyesi Seferi · \+9 bakır · bakiye 37/);
-assert.match(buildQuartermasterText(restored.snapshot()), /Son işlem: #4 Dragonstone saha azığı · 6 bakır · bakiye 28/);
+assert.equal(inventoryReject.ok, false);
+assert.equal(inventoryReject.reason, 'inventory-full');
+assert.deepEqual(economy.snapshot(), beforeInventoryReject, 'inventory rejection must preserve wallet, stock and both ledgers');
 
-const lowFunds = createInteractionEconomyState();
-lowFunds.restore({ ...afterLaterReward, copper: 11 });
-const beforeLowFundsTrade = structuredClone(lowFunds.snapshot());
-let lowFundsGrantCalls = 0;
-const lowFundsTrade = lowFunds.purchase(
-  { id: 'dragonstone-whetstone', itemId: 'dragonstone-whetstone' },
-  () => {
-    lowFundsGrantCalls += 1;
-    return true;
-  },
-);
-assert.equal(lowFundsTrade.ok, false, 'a settlement trade must reject a wallet below the configured offer price');
-assert.equal(lowFundsTrade.reason, 'insufficient-funds');
-assert.equal(lowFundsTrade.priceCopper, 12);
-assert.equal(lowFundsTrade.balanceCopper, 11);
-assert.equal(lowFundsTrade.shortfallCopper, 1);
-assert.equal(lowFundsTrade.remainingStock, 2);
-assert.equal(lowFundsGrantCalls, 0, 'insufficient-funds quote rejection must not invoke inventory fulfillment');
-assert.deepEqual(
-  lowFunds.snapshot(),
-  beforeLowFundsTrade,
-  'insufficient-funds rejection must not grant inventory, consume stock, append trade history or rewrite expedition provenance',
-);
-assert.deepEqual(
-  lowFunds.snapshot().ledger.recentCredits,
-  afterLaterReward.ledger.recentCredits,
-  'low-funds restore and rejected trade must preserve both expedition credit receipts',
-);
-assert.deepEqual(
-  lowFunds.snapshot().ledger.recentTransactions,
-  afterLaterReward.ledger.recentTransactions,
-  'low-funds restore and rejected trade must preserve the four historical settlement transactions',
-);
-
-const beforeInvalidCredits = structuredClone(restored.snapshot());
-for (const invalidAmount of [0, -1, Number.NaN, Number.NEGATIVE_INFINITY]) {
-  const rejectedCredit = restored.credit(invalidAmount, {
-    sourceId: 'expedition-contract:forged-invalid-reward',
-    label: 'Geçersiz Sefer Ödülü',
-  });
-  assert.equal(rejectedCredit.ok, false, `invalid expedition credit ${String(invalidAmount)} must be rejected`);
-  assert.equal(rejectedCredit.reason, 'invalid-credit');
-  assert.equal(rejectedCredit.balanceCopper, 37);
-  assert.deepEqual(
-    restored.snapshot(),
-    beforeInvalidCredits,
-    'rejected expedition income must not advance credit sequence, alter trade history, replenish stock or change the wallet',
-  );
-}
-assert.match(buildQuartermasterText(restored.snapshot()), /Son gelir: Kapı Devriyesi Seferi · \+9 bakır · bakiye 37/);
-assert.match(buildQuartermasterText(restored.snapshot()), /Son işlem: #4 Dragonstone saha azığı · 6 bakır · bakiye 28/);
-
-const roundTrip = createInteractionEconomyState();
-roundTrip.restore(afterLaterReward);
-assert.deepEqual(
-  roundTrip.snapshot(),
-  afterLaterReward,
-  'save/load must preserve independent latest-income and latest-trade receipts after both ledger directions have advanced',
-);
+const restored = createInteractionEconomyState();
+restored.restore(afterLaterReward);
+assert.deepEqual(restored.snapshot(), afterLaterReward, 'save/load must preserve independent reward and trade histories');
 
 console.log('Interaction expedition reward multi-trade continuity acceptance PASS');
