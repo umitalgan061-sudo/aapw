@@ -7,7 +7,9 @@ on:
     paths:
       - 'src/3d/world/naturalSurfaceMaterial.js'
       - 'src/3d/world/terrainMicroSurface.js'
+      - 'src/3d/world/water.js'
       - 'scripts/checkNaturalSurfaceMaterial.mjs'
+      - 'scripts/checkWaterLayerTransition.mjs'
       - 'scripts/captureFullWorld3DTopdown.mjs'
       - 'scripts/fullWorld3DTopdownHarness.html'
       - '.github/workflows/natural-surface-visual-qa.yml'
@@ -38,8 +40,11 @@ jobs:
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
           node --check src/3d/world/naturalSurfaceMaterial.js
           node --check src/3d/world/terrainMicroSurface.js
+          node --check src/3d/world/water.js
           node --check scripts/checkNaturalSurfaceMaterial.mjs
+          node --check scripts/checkWaterLayerTransition.mjs
           node scripts/checkNaturalSurfaceMaterial.mjs
+          node scripts/checkWaterLayerTransition.mjs
 
   browser-visual:
     runs-on: ubuntu-24.04
@@ -62,8 +67,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
-          node scripts/captureFullWorld3DTopdown.mjs --width=1600 --height=1100 --segments=240 --focus=world --output=artifacts/natural-surface/full-world.png
-          node scripts/captureFullWorld3DTopdown.mjs --width=1600 --height=1100 --segments=240 --focus=valyria --port=4174 --output=artifacts/natural-surface/valyria-regional.png
+          node scripts/captureFullWorld3DTopdown.mjs --width=1536 --height=1024 --segments=360 --focus=world --output=artifacts/natural-surface/full-world.png
+          node scripts/captureFullWorld3DTopdown.mjs --width=1536 --height=1024 --segments=360 --focus=valyria --port=4174 --output=artifacts/natural-surface/valyria-regional.png
           printf '%s\n' "$GITHUB_SHA" > artifacts/natural-surface/head-sha.txt
       - name: Upload exact-head visual proof
         if: always()
