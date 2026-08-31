@@ -5,7 +5,7 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX05_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex05-detail-2026-08-31-v9-lowland-broad-normal-fabric',
+  id: 'owner-map-pindex05-detail-2026-08-31-v10-lowland-broad-normal-calibrated',
   pindex: 5,
   amplitudeBySurface: Object.freeze({ sea: 0.004, lake: 0.004, soil: 0.058, rock: 0.046, snow: 0.020 }),
   naturalSoilFabric: true,
@@ -162,7 +162,7 @@ function applyPindex05WeatheredNormal(normal, index, worldX, worldZ, classificat
     gradientX += gradient.x * frame.weight;
     gradientZ += gradient.z * frame.weight;
   }
-  const perturbation = baseStrength * signal.edgeMask * materialResponse * 0.40;
+  const perturbation = baseStrength * signal.edgeMask * materialResponse * 0.78;
   const nx = normal.getX(index) + gradientX * perturbation;
   const ny = Math.max(0.08, normal.getY(index));
   const nz = normal.getZ(index) + gradientZ * perturbation;
