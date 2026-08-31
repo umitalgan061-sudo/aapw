@@ -43,7 +43,7 @@ for (const marker of [
   'naturalSurfaceHighPass',
   'naturalSurfaceDarkRecovery',
   'naturalSurfaceIntertidalEnvelope',
-  'naturalSurfaceBasaltColor',
+  'naturalSurfaceRevisedVolcanicColor',
   'naturalSurfaceObsidian',
   'naturalSurfaceAsh',
   'naturalSurfacePumice',
@@ -59,4 +59,3 @@ assert(!first.vertexShader.includes('transformed +='), 'render-only material mus
 assert(!first.fragmentShader.includes('gl_FragDepth'), 'render-only material must not rewrite terrain depth');
 
 console.log('[checkNaturalSurfaceMaterial] PASS: deterministic world-space Valyria PBR and all-world anti-airbrush/intertidal shading are render-only.');
-
