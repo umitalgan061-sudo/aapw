@@ -4,11 +4,18 @@ on:
   pull_request:
     paths:
       - 'scripts/checkInteractionMasteryArmorerServiceBrowser.mjs'
+      - 'scripts/checkInteractionExpeditionBoard.mjs'
+      - 'scripts/checkInteractionExpeditionBoardBrowser.mjs'
+      - 'scripts/checkInteractionExpeditionRewardProvenance.mjs'
+      - 'scripts/checkInteractionExpeditionRewardTradeContinuity.mjs'
+      - 'scripts/checkInteractionExpeditionTradeQuoteAtomicity.mjs'
       - 'scripts/checkInteractionExpeditionTavernRecovery.mjs'
       - 'scripts/checkInteractionProvisioningCraft.mjs'
       - 'scripts/checkInteractionQuartermasterTrade.mjs'
       - 'scripts/checkInteractionSettlementServiceBrowser.mjs'
       - 'scripts/checkInteractionSettlementServiceContract.mjs'
+      - '.github/workflows/rpg-expedition-credit-ledger.yml'
+      - '.github/workflows/rpg-expedition-reward-provenance.yml'
       - '.github/workflows/rpg-mastery-armorer-service.yml'
       - 'src/3d/gameplay/interaction.js'
       - 'src/3d/gameplay/interactionConfig.js'
@@ -39,7 +46,7 @@ jobs:
           base=$(git merge-base HEAD origin/main)
           test "$base" = "$(git rev-parse origin/main)"
           mapfile -t paths < <(git diff --name-only "$base"...HEAD)
-          allowed='^(scripts/checkInteractionExpedition(Board|Kit(Browser|Craft)|TavernRecovery)\.mjs|scripts/checkInteractionMastery(ArmorerServiceBrowser|EconomyContinuity|ToSmithingBrowser)\.mjs|scripts/checkInteractionSmithingServicePersistence\.mjs|scripts/checkInteraction(ArmorerServiceBrowser|ProvisioningCraft|QuartermasterTrade|SettlementService(Browser|Contract)|TradeLedger(Atomicity|Browser))\.mjs|scripts/checkInteractionTavernReceiptIntegrity\.mjs|\.github/workflows/(rpg-expedition-tavern-recovery|rpg-interaction-quest-loop|rpg-journey-ledger-ux|rpg-mastery-armorer-service|rpg-mastery-economy-continuity|rpg-mastery-journal-continuity|rpg-mastery-to-smithing|rpg-mastery-travel-continuity|rpg-smithing-service-persistence|rpg-tavern-receipt-integrity|run283-final-head-governance)\.yml|src/3d/gameplay/(interaction|interactionConfig|interactionEconomy)\.js|src/3d/ui/dialogueBox\.js)$'
+          allowed='^(scripts/checkInteractionExpedition(Board(Browser)?|Kit(Browser|Craft)|Reward(Provenance|TradeContinuity)|TradeQuoteAtomicity|TavernRecovery)\.mjs|scripts/checkInteractionMastery(ArmorerServiceBrowser|EconomyContinuity|ToSmithingBrowser)\.mjs|scripts/checkInteractionSmithingServicePersistence\.mjs|scripts/checkInteraction(ArmorerServiceBrowser|ProvisioningCraft|QuartermasterTrade|SettlementService(Browser|Contract)|TradeLedger(Atomicity|Browser))\.mjs|scripts/checkInteractionTavernReceiptIntegrity\.mjs|\.github/workflows/(rpg-expedition-(credit-ledger|reward-provenance|tavern-recovery)|rpg-interaction-quest-loop|rpg-journey-ledger-ux|rpg-mastery-armorer-service|rpg-mastery-economy-continuity|rpg-mastery-journal-continuity|rpg-mastery-to-smithing|rpg-mastery-travel-continuity|rpg-smithing-service-persistence|rpg-tavern-receipt-integrity|run283-final-head-governance)\.yml|src/3d/gameplay/(interaction|interactionConfig|interactionEconomy)\.js|src/3d/ui/dialogueBox\.js)$'
           printf '%s\n' "${paths[@]}" | grep -Ev "$allowed" && exit 1 || true
           changed=$(git diff --numstat "$base"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
           test "$changed" -le 1000
