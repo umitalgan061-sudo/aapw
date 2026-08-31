@@ -11,6 +11,7 @@ on:
       - 'src/3d/world/terrainMacroWeathering.js'
       - 'src/3d/world/terrainMicroSurface.js'
       - 'src/3d/world/terrainBiomeShading.js'
+      - 'src/3d/world/geographicReferencePalette.js'
       - 'src/3d/world/northReferenceCryosphere.js'
       - 'src/3d/world/worldReferenceSurfacePindexes.js'
       - 'src/3d/world/worldReferenceMountainRelief.js'
