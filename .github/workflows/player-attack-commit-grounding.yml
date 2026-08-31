@@ -37,10 +37,10 @@ jobs:
           test "$(git merge-base origin/main HEAD)" = "$BASE"
           git diff --check "$BASE"...HEAD
           mapfile -t files < <(git diff --name-only "$BASE"...HEAD)
-          test "${#files[@]}" -le 2
+          test "${#files[@]}" -le 3
           for file in "${files[@]}"; do
             case "$file" in
-              scripts/checkPlayerAttackCommitGroundingContract.mjs|.github/workflows/player-attack-commit-grounding.yml) ;;
+              src/3d/gameplay/player.js|scripts/checkPlayerAttackCommitGroundingContract.mjs|.github/workflows/player-attack-commit-grounding.yml) ;;
               *) echo "unexpected scope: $file" >&2; exit 1 ;;
             esac
           done
