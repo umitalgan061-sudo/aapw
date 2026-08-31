@@ -25,6 +25,7 @@ try {
       finite: [controller.object3D.position.x, controller.object3D.position.y, controller.object3D.position.z].every(Number.isFinite),
       reacting: controller.isFleeing,
     });
+    const transformOf = ({ x, y, z, finite }) => ({ x, y, z, finite });
 
     const configuredGroundSamples = [];
     const configuredGroundCollider = {
@@ -275,11 +276,7 @@ try {
   assert.equal(proof.nonFiniteCenterHeightCalls, 0, 'non-finite scatter coordinates must be rejected before terrain sampling');
 
   for (const failed of proof.groundFailures) {
-    assert.deepEqual(
-      { x: failed.x, y: failed.y, z: failed.z, finite: failed.finite },
-      { x: proof.groundStart.x, y: proof.groundStart.y, z: proof.groundStart.z, finite: true },
-      `ground ${failed.mode} must leave the complete transform unchanged`,
-    );
+    assert.deepEqual(transformOf(failed), transformOf(proof.groundStart), `ground ${failed.mode} must leave the complete transform unchanged`);
     assert.equal(failed.reacting, true, `ground ${failed.mode} must preserve the live reaction state for retry`);
   }
   assert.equal(proof.groundRecovered.finite, true, 'ground movement must recover to a finite transform');
@@ -289,8 +286,10 @@ try {
     'a later valid ground tick must retry and move rather than permanently latching failure',
   );
 
-  assert.deepEqual(proof.failedTakeoffThrow, proof.flightStart, 'throwing takeoff terrain must not partially move or advance flight state');
-  assert.deepEqual(proof.failedTakeoffNonFinite, proof.flightStart, 'non-finite takeoff terrain must not partially move or advance flight state');
+  assert.deepEqual(transformOf(proof.failedTakeoffThrow), transformOf(proof.flightStart), 'throwing takeoff terrain must not partially move the bird');
+  assert.deepEqual(transformOf(proof.failedTakeoffNonFinite), transformOf(proof.flightStart), 'non-finite takeoff terrain must not partially move the bird');
+  assert.equal(proof.failedTakeoffThrow.reacting, true, 'failed takeoff must preserve the direct reaction for retry');
+  assert.equal(proof.failedTakeoffNonFinite.reacting, true, 'non-finite takeoff must preserve the direct reaction for retry');
   assert.deepEqual(proof.recoveredTakeoffFault, proof.recoveredTakeoffControl, 'takeoff after failed terrain ticks must match a clean deterministic controller');
   assert.deepEqual(proof.afterAirborneFailure, proof.beforeAirborneFailure, 'airborne terrain failure must freeze the entire transform for that tick');
   assert.deepEqual(proof.recoveredAirborneFault, proof.recoveredAirborneControl, 'failed airborne tick must not advance hidden flight timer/altitude state');
