@@ -27,7 +27,7 @@ export const WATER_COVERAGE_SUBSAMPLES_PER_AXIS = 2;
 export const WATER_OFFSHORE_SHORELINE_MAX_COVERAGE = 0.5;
 
 export const WATER_OFFSHORE_OPTICAL_VARIATION_POLICY = Object.freeze({
-	id: 'water-offshore-optical-world-fabric-2026-08-26-v2-scale-qualified',
+	id: 'water-offshore-optical-world-fabric-2026-08-31-v3-gradient-domain-warp',
 	renderOnly: true,
 	physicalDepthUnchanged: true,
 	coverageUnchanged: true,
@@ -43,6 +43,8 @@ export const WATER_OFFSHORE_OPTICAL_VARIATION_POLICY = Object.freeze({
 	fullDistanceScaleFullMeters: 900,
 	currentAxisX: 0.84,
 	currentAxisZ: 0.54,
+	latticeAlignedCells: false,
+	domainWarpedGradientNoise: true,
 });
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
@@ -61,35 +63,42 @@ function hash2D(ix, iz, seed) {
 	return (value >>> 0) / 0x100000000;
 }
 
-function valueNoise2D(x, z, seed) {
+function gradientNoise2D(x, z, seed) {
 	const x0 = Math.floor(x);
 	const z0 = Math.floor(z);
-	const tx0 = x - x0;
-	const tz0 = z - z0;
-	const tx = tx0 * tx0 * (3 - 2 * tx0);
-	const tz = tz0 * tz0 * (3 - 2 * tz0);
-	const a = hash2D(x0, z0, seed);
-	const b = hash2D(x0 + 1, z0, seed);
-	const c = hash2D(x0, z0 + 1, seed);
-	const d = hash2D(x0 + 1, z0 + 1, seed);
-	return lerp(lerp(a, b, tx), lerp(c, d, tx), tz);
+	const tx = x - x0;
+	const tz = z - z0;
+	const fadeX = tx * tx * tx * (tx * (tx * 6 - 15) + 10);
+	const fadeZ = tz * tz * tz * (tz * (tz * 6 - 15) + 10);
+	const dotGradient = (ix, iz, dx, dz) => {
+		const angle = hash2D(ix, iz, seed) * Math.PI * 2;
+		return Math.cos(angle) * dx + Math.sin(angle) * dz;
+	};
+	const a = dotGradient(x0, z0, tx, tz);
+	const b = dotGradient(x0 + 1, z0, tx - 1, tz);
+	const c = dotGradient(x0, z0 + 1, tx, tz - 1);
+	const d = dotGradient(x0 + 1, z0 + 1, tx - 1, tz - 1);
+	return clamp01(0.5 + lerp(lerp(a, b, fadeX), lerp(c, d, fadeX), fadeZ) * 0.72);
 }
 
 export function sampleOffshoreOpticalFabric(worldX, worldZ) {
 	const P = WATER_OFFSHORE_OPTICAL_VARIATION_POLICY;
-	const warp = (valueNoise2D(worldX / P.warpScaleMeters, worldZ / P.warpScaleMeters, 0x4f464653) - 0.5) * 2;
+	const warpA = (gradientNoise2D(worldX / P.warpScaleMeters, worldZ / P.warpScaleMeters, 0x4f464653) - 0.5) * 2;
+	const warpB = (gradientNoise2D((worldX + worldZ * 0.31) / (P.warpScaleMeters * 0.73), (worldZ - worldX * 0.23) / (P.warpScaleMeters * 0.73), 0x77415250) - 0.5) * 2;
 	const axisLength = Math.hypot(P.currentAxisX, P.currentAxisZ) || 1;
 	const ax = P.currentAxisX / axisLength;
 	const az = P.currentAxisZ / axisLength;
 	const crossX = -az;
 	const crossZ = ax;
-	const along = worldX * ax + worldZ * az;
-	const across = worldX * crossX + worldZ * crossZ;
-	const macro = valueNoise2D((along + warp * 430) / P.macroScaleMeters, across / (P.macroScaleMeters * 0.58), 0x41d3);
-	const meso = valueNoise2D((worldX - warp * 170) / P.mesoScaleMeters, (worldZ + warp * 210) / P.mesoScaleMeters, 0x93a7);
-	const fine = valueNoise2D((worldX + worldZ * 0.23) / P.fineScaleMeters, (worldZ - worldX * 0.17) / P.fineScaleMeters, 0xc15b);
+	const warpedX = worldX + warpA * 510 + warpB * 180;
+	const warpedZ = worldZ - warpA * 190 + warpB * 430;
+	const along = warpedX * ax + warpedZ * az;
+	const across = warpedX * crossX + warpedZ * crossZ;
+	const macro = gradientNoise2D(along / P.macroScaleMeters, across / (P.macroScaleMeters * 0.61), 0x41d3);
+	const meso = gradientNoise2D((warpedX * 0.86 - warpedZ * 0.51) / P.mesoScaleMeters, (warpedX * 0.51 + warpedZ * 0.86) / P.mesoScaleMeters, 0x93a7);
+	const fine = gradientNoise2D((warpedX * 0.63 + warpedZ * 0.78) / P.fineScaleMeters, (warpedZ * 0.63 - warpedX * 0.78) / P.fineScaleMeters, 0xc15b);
 	const ridge = 1 - Math.abs(macro * 2 - 1);
-	const signed = (macro - 0.5) * 0.94 + (meso - 0.5) * 0.58 + (fine - 0.5) * 0.24 + (ridge - 0.5) * 0.20;
+	const signed = (macro - 0.5) * 0.86 + (meso - 0.5) * 0.62 + (fine - 0.5) * 0.26 + (ridge - 0.5) * 0.16;
 	return Math.max(-1, Math.min(1, signed));
 }
 
