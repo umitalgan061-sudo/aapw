@@ -65,7 +65,7 @@ export const WORLD_SKY_ATMOSPHERE_POLICY = Object.freeze({
 const SKY_VERTEX_SHADER = /* glsl */ `
 	varying vec3 vWorldPosition;
 	void main() {
-		vWorldPosition = position;
+		vWorldPosition = (modelMatrix * vec4(position, 1.0)).xyz;
 		gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 	}
 `;
