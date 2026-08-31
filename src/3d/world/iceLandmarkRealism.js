@@ -352,44 +352,55 @@ function createPortalFractureRim(portal, solidWallMaterial, seed) {
 	const openingHalfWidth = 7.8;
 	const sideHeight = 3.2;
 	const archRise = 8.8;
+	const tangentAngle = Math.atan2(portal.tz, portal.tx);
 	for (const faceSign of [-1, 1]) {
-		const normalOffset = portal.depth * 0.51 * faceSign;
+		// Keep fracture relief embedded in the canonical portal shell. Thin anisotropic ribs read as
+		// pressure/shear planes in ice instead of a necklace of repeated boulders around the opening.
+		const normalOffset = portal.depth * 0.485 * faceSign;
 		for (const side of [-1, 1]) {
-			for (let step = 0; step < 4; step += 1) {
-				const y = 1.7 + step * 2.6;
-				const lateral = side * (openingHalfWidth + 1.0 + hash2D(step, side + 7, seed + 3301) * 1.1);
+			for (let step = 0; step < 3; step += 1) {
+				const y = 2.2 + step * 3.05 + hash2D(step, side + 5, seed + 3269) * 0.55;
+				const lateral = side * (openingHalfWidth + 0.28 + hash2D(step, side + 7, seed + 3301) * 0.52);
 				transforms.push({
 					position: new THREE.Vector3(
 						portal.centerX + portal.tx * lateral + portal.nx * normalOffset,
 						portal.groundY + y,
 						portal.centerZ + portal.tz * lateral + portal.nz * normalOffset,
 					),
-					scale: new THREE.Vector3(1.0 + hash2D(step, side + 11, seed + 3407) * 1.2, 1.2 + hash2D(step, side + 13, seed + 3511) * 1.9, 0.9 + hash2D(step, side + 17, seed + 3607) * 1.1),
-					ry: -Math.atan2(portal.tz, portal.tx) + (hash2D(step, side + 19, seed + 3701) - 0.5) * 0.45,
-					rz: side * (0.12 + hash2D(step, side + 23, seed + 3803) * 0.22),
+					scale: new THREE.Vector3(
+						0.34 + hash2D(step, side + 11, seed + 3407) * 0.32,
+						1.45 + hash2D(step, side + 13, seed + 3511) * 1.45,
+						0.18 + hash2D(step, side + 17, seed + 3607) * 0.22,
+					),
+					ry: -tangentAngle + (hash2D(step, side + 19, seed + 3701) - 0.5) * 0.20,
+					rz: side * (0.10 + hash2D(step, side + 23, seed + 3803) * 0.14),
 				});
 			}
 		}
-		for (let step = 1; step < 7; step += 1) {
-			const angle = Math.PI - (step / 7) * Math.PI;
+		for (let step = 1; step <= 3; step += 1) {
+			const angle = Math.PI - (step / 4) * Math.PI;
 			const lateral = Math.cos(angle) * openingHalfWidth;
-			const y = sideHeight + Math.sin(angle) * archRise + 1.1;
+			const y = sideHeight + Math.sin(angle) * archRise + 1.0;
 			transforms.push({
 				position: new THREE.Vector3(
 					portal.centerX + portal.tx * lateral + portal.nx * normalOffset,
 					portal.groundY + y,
 					portal.centerZ + portal.tz * lateral + portal.nz * normalOffset,
 				),
-				scale: new THREE.Vector3(1.1 + hash2D(step, faceSign + 29, seed + 3907) * 1.4, 1.0 + hash2D(step, faceSign + 31, seed + 4001) * 1.7, 0.9 + hash2D(step, faceSign + 37, seed + 4103) * 1.1),
-				ry: -Math.atan2(portal.tz, portal.tx) + (hash2D(step, faceSign + 41, seed + 4201) - 0.5) * 0.5,
-				rz: (hash2D(step, faceSign + 43, seed + 4303) - 0.5) * 0.42,
+				scale: new THREE.Vector3(
+					1.05 + hash2D(step, faceSign + 29, seed + 3907) * 0.72,
+					0.32 + hash2D(step, faceSign + 31, seed + 4001) * 0.30,
+					0.18 + hash2D(step, faceSign + 37, seed + 4103) * 0.20,
+				),
+				ry: -tangentAngle + (hash2D(step, faceSign + 41, seed + 4201) - 0.5) * 0.18,
+				rz: (Math.PI * 0.5 - angle) + (hash2D(step, faceSign + 43, seed + 4303) - 0.5) * 0.16,
 			});
 		}
 	}
 	return createInstancedDetail(
 		'ice-wall-portal-fracture-rim',
 		'portal-fracture-rim',
-		new THREE.IcosahedronGeometry(1, 0),
+		new THREE.IcosahedronGeometry(1, 1),
 		solidWallMaterial,
 		transforms,
 		seed + 5303,
