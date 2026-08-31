@@ -99,11 +99,28 @@ const sanitized = receiptEconomy.purchase(rationOffer, () => ({
   consumedItems: [null, {}, [], { itemId: 'dragonstone-whetstone', quantity: 2 }],
 }));
 assert.equal(sanitized.ok, true);
+assert.equal(sanitized.crafted, false, 'plain vendor callbacks cannot forge crafted receipt semantics');
 assert.equal(sanitized.craftedItemId, null, 'plain vendor callbacks cannot forge crafted output identity');
-assert.deepEqual(sanitized.consumedItems, [{ itemId: 'dragonstone-whetstone', quantity: 2 }]);
-assert.equal(sanitized.consumedItemId, 'dragonstone-whetstone');
-assert.equal(sanitized.consumedQuantity, 2);
+assert.deepEqual(sanitized.consumedItems, [], 'plain vendor callbacks cannot forge consumed recipe inputs');
+assert.equal(sanitized.consumedItemId, null);
+assert.equal(sanitized.consumedQuantity, null);
 assert.equal(receiptEconomy.snapshot().ledger.transactionCount, 1);
 assert.equal(receiptEconomy.snapshot().stockByOffer['dragonstone-field-ration'], 3);
+
+const serviceReceiptEconomy = createInteractionEconomyState(40);
+const canonicalServiceReceipt = serviceReceiptEconomy.purchase(whetstoneOffer, () => ({
+  ok: true,
+  crafted: true,
+  outputItemId: 'forged-output',
+  consumedItems: [{ itemId: 'forged-consumed-item', quantity: 99 }],
+}));
+assert.equal(canonicalServiceReceipt.crafted, true);
+assert.equal(canonicalServiceReceipt.craftedItemId, 'dragonstone-expedition-maintenance-kit');
+assert.deepEqual(canonicalServiceReceipt.consumedItems, [
+  { itemId: 'dragonstone-travel-ration-pack', quantity: 1 },
+  { itemId: 'dragonstone-whetstone', quantity: 1 },
+], 'service receipts must derive consumption only from the canonical authored smithing recipe');
+assert.equal(canonicalServiceReceipt.consumedItemId, null, 'multi-input canonical recipes must not expose a misleading single-item alias');
+assert.equal(canonicalServiceReceipt.consumedQuantity, null);
 
 console.log('Interaction expedition trade quote atomicity acceptance PASS');
