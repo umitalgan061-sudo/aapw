@@ -5,15 +5,15 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX05_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex05-detail-2026-08-31-v8-lowland-material-normal-fabric',
+  id: 'owner-map-pindex05-detail-2026-08-31-v9-lowland-broad-normal-fabric',
   pindex: 5,
   amplitudeBySurface: Object.freeze({ sea: 0.004, lake: 0.004, soil: 0.058, rock: 0.046, snow: 0.020 }),
   naturalSoilFabric: true,
   worldSpaceWeathering: true,
   lowlandDrainageMosaic: true,
   worldSpaceNormalWeathering: true,
-  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.28, rock: 0.46, snow: 0.13 }),
-  normalScaleWeights: Object.freeze({ grain: 0.22, fine: 0.48, drainage: 0.30 }),
+  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.35, rock: 0.52, snow: 0.14 }),
+  normalScaleWeights: Object.freeze({ grain: 0.08, fine: 0.32, drainage: 0.32, meso: 0.28 }),
   normalGradientStepFraction: 0.18,
   legacyNormalized1024GrainRemoved: true,
   pindexStartX: 0.4,
@@ -62,6 +62,7 @@ const PINDEX05_NORMAL_FRAMES = Object.freeze([
   Object.freeze({ scale: PINDEX05_DETAIL_POLICY.grainScaleMeters, weight: PINDEX05_DETAIL_POLICY.normalScaleWeights.grain, seed: 0x7a31, cos: 0.939693, sin: 0.342020, offsetX: 8.3, offsetZ: -5.7 }),
   Object.freeze({ scale: PINDEX05_DETAIL_POLICY.fineScaleMeters, weight: PINDEX05_DETAIL_POLICY.normalScaleWeights.fine, seed: 0x8b47, cos: 0.766044, sin: -0.642788, offsetX: -13.1, offsetZ: 9.4 }),
   Object.freeze({ scale: PINDEX05_DETAIL_POLICY.drainageScaleMeters, weight: PINDEX05_DETAIL_POLICY.normalScaleWeights.drainage, seed: 0x9c59, cos: 0.573576, sin: 0.819152, offsetX: 4.6, offsetZ: 17.2 }),
+  Object.freeze({ scale: PINDEX05_DETAIL_POLICY.mesoScaleMeters, weight: PINDEX05_DETAIL_POLICY.normalScaleWeights.meso, seed: 0xad6b, cos: 0.342020, sin: -0.939693, offsetX: -21.8, offsetZ: -6.4 }),
 ]);
 
 const clamp01 = (value) => THREE.MathUtils.clamp(value, 0, 1);
@@ -161,7 +162,7 @@ function applyPindex05WeatheredNormal(normal, index, worldX, worldZ, classificat
     gradientX += gradient.x * frame.weight;
     gradientZ += gradient.z * frame.weight;
   }
-  const perturbation = baseStrength * signal.edgeMask * materialResponse * 0.28;
+  const perturbation = baseStrength * signal.edgeMask * materialResponse * 0.40;
   const nx = normal.getX(index) + gradientX * perturbation;
   const ny = Math.max(0.08, normal.getY(index));
   const nz = normal.getZ(index) + gradientZ * perturbation;
