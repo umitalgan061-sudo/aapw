@@ -56,7 +56,11 @@ try {
       colliderDog.object3D.position.x - player.x,
       colliderDog.object3D.position.z - player.z,
     );
-    const rejectedPositionX = colliderDog.object3D.position.x;
+    const rejectedPosition = {
+      x: colliderDog.object3D.position.x,
+      y: colliderDog.object3D.position.y,
+      z: colliderDog.object3D.position.z,
+    };
     colliderDog.update(0.25, player);
     const recoveredDistance = Math.hypot(
       colliderDog.object3D.position.x - player.x,
@@ -68,7 +72,7 @@ try {
       z: colliderDog.object3D.position.z,
     };
     colliderDog.dispose();
-    return { before, after, position, exactStopDistance, afterCollider, rejectedPositionX, recoveredDistance, colliderCalls, colliderPosition };
+    return { before, after, position, exactStopDistance, afterCollider, rejectedPosition, recoveredDistance, colliderCalls, colliderPosition };
   });
 
   assert.equal(pageErrors.length, 0, `page errors: ${pageErrors.join('\n')}`);
@@ -78,7 +82,7 @@ try {
   assert.ok(Object.values(proof.position).every(Number.isFinite), 'friendly approach published a non-finite transform');
   assert.ok(Math.abs(proof.exactStopDistance - 2.5) <= 1e-6, `friendly creature drifted while already at stop distance: ${proof.exactStopDistance}`);
   assert.ok(proof.afterCollider >= 2.5 - 1e-6, `collider correction crossed friendly stop distance: ${proof.afterCollider}`);
-  assert.equal(proof.rejectedPositionX, 0, 'rejected collider correction should not partially publish movement');
+  assert.deepEqual(proof.rejectedPosition, { x: 0, y: 5, z: 0 }, 'rejected collider correction should not partially publish transform state');
   assert.ok(Math.abs(proof.recoveredDistance - 2.5) <= 1e-6, `friendly approach did not recover after collider rejection: ${proof.recoveredDistance}`);
   assert.ok(Math.abs(proof.colliderPosition.z) <= 1e-6, `friendly recovery introduced lateral drift: ${proof.colliderPosition.z}`);
   assert.equal(proof.colliderCalls, 2, 'friendly approach should retry collider resolution on the next valid tick');
