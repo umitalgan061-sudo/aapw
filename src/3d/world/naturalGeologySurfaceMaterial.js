@@ -1,6 +1,6 @@
 /** Render-only deterministic PBR breakup for natural geology meshes. */
 export const NATURAL_GEOLOGY_SURFACE_POLICY = Object.freeze({
-  id: 'natural-geology-surface-pbr-2026-08-31-v2-triplanar-weathering',
+  id: 'natural-geology-surface-pbr-2026-08-31-v3-smooth-interpolated-weathering',
   renderOnly: true,
   deterministic: true,
   canonicalTerrainUnchanged: true,
@@ -12,6 +12,7 @@ export const NATURAL_GEOLOGY_SURFACE_POLICY = Object.freeze({
   worldSpaceRoughnessVariation: true,
   triplanarVerticalFaceCoverage: true,
   domainWarpedWeathering: true,
+  smoothShadingSurfaceResponse: true,
 });
 
 const MODES = Object.freeze({
@@ -24,6 +25,12 @@ const f = (value) => Number(value).toFixed(5);
 export function applyNaturalGeologySurfaceMaterial(material, { mode = 'rock' } = {}) {
   if (!material?.isMeshStandardMaterial && !material?.isMeshPhysicalMaterial) return material;
   const p = MODES[mode] ?? MODES.rock;
+  // The fallback geometries are already deterministically fractured/warped. Forcing flatShading on
+  // top of that turns each coarse prototype triangle into an oversized lighting plate and defeats
+  // the finer world-space normal fabric below. Preserve the silhouette, vertices and placement but
+  // interpolate the authored/procedural vertex normals so weathering reads as rock instead of a
+  // low-poly crystal. This remains a material-only render change and also applies to hydrated GLBs.
+  material.flatShading = false;
   const before = material.onBeforeCompile?.bind(material);
   const cache = material.customProgramCacheKey?.bind(material);
   material.onBeforeCompile = (shader, renderer) => {
@@ -38,7 +45,7 @@ export function applyNaturalGeologySurfaceMaterial(material, { mode = 'rock' } =
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>\nfloat geoC=geoTriField(vGeoWorld,geoTW),geoX=geoTriField(vGeoWorld+vec3(.72,0,0),geoTW)-geoC,geoY=geoTriField(vGeoWorld+vec3(0,.72,0),geoTW)-geoC,geoZ=geoTriField(vGeoWorld+vec3(0,0,.72),geoTW)-geoC;vec3 geoGrad=vec3(geoX,geoY,geoZ);geoGrad-=geoGN*dot(geoGrad,geoGN);normal=normalize(normal+mat3(viewMatrix)*geoGrad*${f(p.normal)}*(.76+geoFracture*.46));`);
   };
   material.customProgramCacheKey = () => `${cache ? cache() : ''}|${NATURAL_GEOLOGY_SURFACE_POLICY.id}|${mode}`;
-  material.userData.naturalGeologySurface = Object.freeze({ policyId: NATURAL_GEOLOGY_SURFACE_POLICY.id, mode });
+  material.userData.naturalGeologySurface = Object.freeze({ policyId: NATURAL_GEOLOGY_SURFACE_POLICY.id, mode, smoothShading: true });
   material.needsUpdate = true;
   return material;
 }
