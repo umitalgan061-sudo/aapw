@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-31-v61-offshore-fabric-contrast',
+	id: 'geographic-reference-palette-2026-08-31-v62-offshore-aerial-range',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v61 preserves v56 aerial lowland ecotone separation and all canonical terrain, shoreline, hydrology and collider authority unchanged',
-		water: 'v61 follows direct inspection of exact-head full-world #702. The v60 shader fabric is present but the north/open-ocean field still reads as a dark compressed mass at aerial scale. DeepSea is lifted moderately and abyss more strongly so the existing deterministic macro/meso/fine albedo, pseudo-normal, roughness and glint breakup survives top-down exposure without changing canonical wet coverage, shoreline, bathymetry, lake membership or water geometry.',
-		road: 'v61 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
+		terrain: 'v62 preserves v56 aerial lowland ecotone separation and all canonical terrain, shoreline, hydrology and collider authority unchanged',
+		water: 'v62 follows direct inspection of exact-head full-world #703. The deterministic offshore macro/meso/fine fabric is present, but the far/open-ocean value range still compresses against land at full-world exposure. DeepSea and abyss are lifted conservatively while preserving a darker abyss family, so world-space albedo, pseudo-normal, roughness and glint variation remain visible without changing wet coverage, shoreline, bathymetry, lake membership or water geometry.',
+		road: 'v62 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -51,8 +51,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		lakeClear: 0x2a6170,
 		riverPool: 0x246776,
 		rapid: 0x82a7aa,
-		deepSea: 0x23657c,
-		abyss: 0x18576b,
+		deepSea: 0x2b6b7f,
+		abyss: 0x1f5d70,
 		plunge: 0x4d818b,
 		splash: 0xdeedeb,
 		foam: 0xf1f7f4,
