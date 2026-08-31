@@ -105,12 +105,7 @@ jobs:
           node scripts/checkWorldWaterCoverageP0.mjs
           node scripts/checkWaterCoverageRasterQuality.mjs
           node scripts/checkWaterCoverageSamplingBudget.mjs
-      - name: Hydrate scoped runtime assets
-        run: |
-          set -euo pipefail
-          git lfs version
-          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
-      - name: Install Playwright Chromium
+      - name: Install Playwright Chromium for shipped-scene proof
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/pw"
@@ -122,6 +117,11 @@ jobs:
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           node scripts/checkWorldEnvironmentAcceptanceMatrix.mjs
+      - name: Hydrate scoped runtime assets for full browser smoke
+        run: |
+          set -euo pipefail
+          git lfs version
+          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
       - name: Browser mobile and terrain regression safety
         run: |
           set -euo pipefail
