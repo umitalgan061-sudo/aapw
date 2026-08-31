@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-31-v58-aerial-ecotone-recovery',
+	id: 'geographic-reference-palette-2026-08-31-v59-aerial-rock-ecotone-recovery',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -19,6 +19,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	waterDepthHierarchyRaised: true,
 	aerialChromaRecovery: true,
 	legacyRoadBaseContractPreserved: true,
+	exposedRockSeparationRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -26,9 +27,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v58 responds to the exact-head full-world render: broad lowlands were still collapsing into a soft olive-grey value range. Damp moss remains dark, meadow gains restrained chlorophyll separation, dry heath stays warm, ferric earth remains mineral-red, and granite keeps distinct shadow/sunlit values. This remains render-only and does not change biome, terrain, shoreline, hydrology or collider ownership.',
-		water: 'v58 lifts deep-sea and abyss chroma/value just enough to preserve depth hierarchy from the 1600x1100 high camera while keeping offshore water darker than rivers, lakes and clear shallows. Canonical wet coverage and shoreline ownership remain unchanged.',
-		road: 'v58 preserves the established cart-road and footpath base colours required by the live road mesh contract; rut, stone and moss-edge separation still provide wet/dry and wear variation without changing route geometry.',
+		terrain: 'v59 retains the v58 aerial ecotone recovery and widens only the restrained mineral value range after exact-head browser QA measured exposed-rock colour separation below the geological visibility floor. Damp moss/meadow/heath/earth remain ecologically distinct; granite shadow, sunlit granite, wet basalt and quartz now preserve weathering and strata readability without changing rock authority or terrain geometry.',
+		water: 'v59 keeps the v58 deep-sea and abyss lift so depth hierarchy survives the high full-world camera while offshore water remains darker than rivers, lakes and clear shallows. Canonical wet coverage and shoreline ownership remain unchanged.',
+		road: 'v59 preserves established cart-road and footpath base colours required by the live road mesh contract; rut, stone and moss-edge separation provide wet/dry and wear variation without changing route geometry.',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability.',
 	}),
 });
@@ -40,10 +41,10 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		dryHeather: 0x58472e,
 		wetEarth: 0x0c1814,
 		exposedEarth: 0x9f5e3d,
-		graniteShadow: 0x30383b,
-		graniteSunlit: 0x6b655c,
-		basaltWet: 0x091a22,
-		quartz: 0x787167,
+		graniteShadow: 0x252d31,
+		graniteSunlit: 0x7a7267,
+		basaltWet: 0x06141b,
+		quartz: 0x8a8175,
 	}),
 	road: Object.freeze({
 		compacted: 0x8b6849,
