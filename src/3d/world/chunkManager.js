@@ -12,6 +12,7 @@
  */
 
 import { createTerrainChunk, disposeTerrainChunk } from './terrain.js';
+import { reconcileLoadedTerrainChunkSeams } from './terrainChunkSeam.js';
 import { CHUNK_CONFIG } from '../config.js';
 
 /**
@@ -303,3 +304,71 @@ ChunkManager.prototype.streamTowards = function streamTowardsWithLiveMobileRadiu
 // runtime streaming radius without duplicating a stale literal. Future additive radius wrappers
 // update this binding after their own declaration.
 export let MOBILE_LIVE_WORLD_RADIUS_CHUNKS = MOBILE_LIVE_WORLD_RADIUS_RUN140;
+
+// Exact-main successor — renderer-only terrain seam continuity. The standing mobile 64/32/16 LOD
+// policy is retained byte-for-byte above; this final wrapper only reconciles already-generated mesh
+// boundaries after load/regrade/eviction batches. Canonical terrain sampling and colliders remain
+// untouched. Batching is essential: a 7x7 or live 9x9 mobile load must reconcile once after the
+// resident set is stable, not once per individual chunk.
+function reconcileManagerTerrainChunkSeams(manager) {
+	manager.terrainChunkSeamStats = reconcileLoadedTerrainChunkSeams(manager.loaded);
+	return manager.terrainChunkSeamStats;
+}
+
+function beginTerrainChunkSeamBatch(manager) {
+	manager.terrainChunkSeamBatchDepth = (manager.terrainChunkSeamBatchDepth ?? 0) + 1;
+}
+
+function endTerrainChunkSeamBatch(manager) {
+	manager.terrainChunkSeamBatchDepth = Math.max(0, (manager.terrainChunkSeamBatchDepth ?? 1) - 1);
+	if (manager.terrainChunkSeamBatchDepth === 0) reconcileManagerTerrainChunkSeams(manager);
+}
+
+const _loadChunkBeforeTerrainChunkSeam = ChunkManager.prototype.loadChunk;
+ChunkManager.prototype.loadChunk = function loadChunkWithTerrainChunkSeam(chunkX, chunkZ) {
+	const mesh = _loadChunkBeforeTerrainChunkSeam.call(this, chunkX, chunkZ);
+	if (!(this.terrainChunkSeamBatchDepth > 0)) reconcileManagerTerrainChunkSeams(this);
+	return mesh;
+};
+
+const _unloadChunkBeforeTerrainChunkSeam = ChunkManager.prototype.unloadChunk;
+ChunkManager.prototype.unloadChunk = function unloadChunkWithTerrainChunkSeam(chunkX, chunkZ) {
+	const result = _unloadChunkBeforeTerrainChunkSeam.call(this, chunkX, chunkZ);
+	if (!(this.terrainChunkSeamBatchDepth > 0)) reconcileManagerTerrainChunkSeams(this);
+	return result;
+};
+
+const _loadSquareBeforeTerrainChunkSeam = ChunkManager.prototype.loadSquare;
+ChunkManager.prototype.loadSquare = function loadSquareWithTerrainChunkSeam(centerX, centerZ, radius) {
+	beginTerrainChunkSeamBatch(this);
+	try {
+		return _loadSquareBeforeTerrainChunkSeam.call(this, centerX, centerZ, radius);
+	} finally {
+		endTerrainChunkSeamBatch(this);
+	}
+};
+
+const _streamTowardsBeforeTerrainChunkSeam = ChunkManager.prototype.streamTowards;
+ChunkManager.prototype.streamTowards = function streamTowardsWithTerrainChunkSeam(centerChunkX, centerChunkZ, radius) {
+	beginTerrainChunkSeamBatch(this);
+	try {
+		return _streamTowardsBeforeTerrainChunkSeam.call(this, centerChunkX, centerChunkZ, radius);
+	} finally {
+		endTerrainChunkSeamBatch(this);
+	}
+};
+
+const _disposeAllBeforeTerrainChunkSeam = ChunkManager.prototype.disposeAll;
+ChunkManager.prototype.disposeAll = function disposeAllWithTerrainChunkSeam() {
+	beginTerrainChunkSeamBatch(this);
+	try {
+		return _disposeAllBeforeTerrainChunkSeam.call(this);
+	} finally {
+		this.terrainChunkSeamBatchDepth = 0;
+		this.terrainChunkSeamStats = Object.freeze({
+			policyId: 'terrain-chunk-seam-continuity-2026-08-31-v1',
+			chunkCount: 0,
+			adjacentPairCount: 0,
+		});
+	}
+};
