@@ -266,9 +266,6 @@ function createWallDetails(sections, caveGapSegment, solidWallMaterial, seed) {
 		const section = sections[index];
 		const side = hash2D(index, 3, seed + 1103) > 0.5 ? 1 : -1;
 		const tangentAngle = Math.atan2(section.tz, section.tx);
-		// Seracs are attached cliff buttresses, not boulders embedded in the face. Keep them tall,
-		// narrow and shallow, and omit one third of candidate sections so the Wall remains the
-		// primary silhouette instead of reading as a row of repeated props.
 		if (index % 6 !== 3) {
 			const seracHeight = 30 + hash2D(index, 5, seed + 1201) * 42;
 			const seracWidth = 5.5 + hash2D(index, 7, seed + 1301) * 7.5;
@@ -285,8 +282,6 @@ function createWallDetails(sections, caveGapSegment, solidWallMaterial, seed) {
 				ry: -tangentAngle + (hash2D(index, 19, seed + 1709) - 0.5) * 0.22,
 				rz: (hash2D(index, 23, seed + 1801) - 0.5) * 0.42,
 			});
-			// A rare opposing shear fragment breaks bilateral regularity without recreating a
-			// second line of blobs on the other face.
 			if (index % 12 === 5) {
 				seracs.push({
 					position: new THREE.Vector3(
@@ -300,8 +295,6 @@ function createWallDetails(sections, caveGapSegment, solidWallMaterial, seed) {
 				});
 			}
 		}
-		// Talus and cornices keep their independent denser sampling. These are erosion/deposition
-		// cues, not serac props, so their realism should not disappear when seracs are de-repeated.
 		if (index % 4 === 1) {
 			const talusSize = 2.8 + hash2D(index, 29, seed + 1901) * 7.4;
 			talus.push({
@@ -354,8 +347,6 @@ function createPortalFractureRim(portal, solidWallMaterial, seed) {
 	const archRise = 8.8;
 	const tangentAngle = Math.atan2(portal.tz, portal.tx);
 	for (const faceSign of [-1, 1]) {
-		// Keep fracture relief embedded in the canonical portal shell. Thin anisotropic ribs read as
-		// pressure/shear planes in ice instead of a necklace of repeated boulders around the opening.
 		const normalOffset = portal.depth * 0.485 * faceSign;
 		for (const side of [-1, 1]) {
 			for (let step = 0; step < 3; step += 1) {
@@ -459,7 +450,16 @@ export function enhanceIceLandmarkRealism({
 
 	const solidWallMaterial = cloneSolidMaterial(wallMaterial, { cave: false });
 	const solidCaveMaterial = cloneSolidMaterial(caveMaterial, { cave: true });
-	portal.mesh.material = wallMaterial;
+	const portalMaterial = wallMaterial.clone();
+	portalMaterial.color.set(0xf0f3f0);
+	portalMaterial.roughness = 0.70;
+	portalMaterial.clearcoat = 0.035;
+	portalMaterial.clearcoatRoughness = 0.62;
+	portalMaterial.transmission = 0.004;
+	portalMaterial.emissive.set(0x29464d);
+	portalMaterial.emissiveIntensity = 0.055;
+	portalMaterial.needsUpdate = true;
+	portal.mesh.material = portalMaterial;
 	const icicles = group.getObjectByName('ice-cave-icicles');
 	if (icicles) icicles.material = solidCaveMaterial;
 	const wallDetails = createWallDetails(wallSections, caveGapSegment, solidWallMaterial, seed);
