@@ -1,45 +1,3 @@
-// Current-main geographic realism / grounding offline shell closure.
-// Keep all newly referenced runtime modules and model assets available to shipped PWA sessions.
-self.addEventListener('install', () => {
-    GAME3D_SHELL_FILES.push('./src/3d/celestialLightState.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorTerrainFoundationGrounder.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/foundationIslandProbes.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/geographicReferencePalette.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/iceLandmarkGeometryBreakup.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/iceLandmarkRealism.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/iceLandmarks.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/naturalGeology.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/naturalGeologyPlacement.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/northGroundCoverClimate.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/northReferenceCryosphere.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/roadSurfaceProfile.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/structureGroundingPolicy.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/terrainFoundationConformer.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/terrainMacroWeathering.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/terrainSnowSurfaceTone.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/terrainWindSnowExposure.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/valyriaCastleWeathering.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/valyriaEcology.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/valyriaGeology.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/westernMarineShelfTone.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/westernReferenceSurfaceFabric.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/windGrass.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/winterVegetationAsset.js');
-    GAME3D_SHELL_FILES.push('./assets/models/Ay/Moon 2K.fbx');
-    GAME3D_SHELL_FILES.push('./assets/models/Ay/Moon%202K.fbx');
-    GAME3D_SHELL_FILES.push('./assets/models/fbx/dirt_road_test.glb');
-    GAME3D_SHELL_FILES.push('./assets/models/fbx/road_terrain.glb');
-    GAME3D_SHELL_FILES.push('./assets/models/fbx/rocky_terrain_low_poly.glb');
-    GAME3D_SHELL_FILES.push('./assets/models/fbx/rugged_mountain_landscape.glb');
-    GAME3D_SHELL_FILES.push('./assets/models/fbx/desert_rocks.glb');
-    GAME3D_SHELL_FILES.push('./assets/models/fbx/terrain_01.fbx');
-    GAME3D_SHELL_FILES.push('./assets/models/fbx/snow_terrain_low_poly.glb');
-    GAME3D_SHELL_FILES.push('./assets/models/fbx/sNOWlaNDSCAPE.glb');
-    GAME3D_SHELL_FILES.push('./assets/models/vegetation/winter_tree.glb');
-    GAME3D_SHELL_FILES.push('./assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb');
-    GAME3D_SHELL_FILES.push('./assets/models/vegetation/pine_Zt62gceKXZ.glb');
-});
-
 // Owner-map mountain relief offline shell extension. terrain.js imports this canonical live-height
 // source, so an offline 3D boot must cache it before any chunk can be generated.
 self.addEventListener('install', () => {
@@ -273,7 +231,7 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run346 first-audio addition (module + one .wav click sound); v16->v17 forces existing installs to
 // fetch+cache both so the game's first sound works offline too, not only on a fresh install.
 // RPG expedition readiness adds an offline-loadable gameplay module; v19->v20 refreshes existing installs.
-const SHELL_CACHE = 'westeros-shell-v21';
+const SHELL_CACHE = 'westeros-shell-v20';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -567,7 +525,7 @@ self.addEventListener('install', (event) => {
             // Ayrı addAll + ayrı catch: 3D shell'in önbelleğe alınması başarısız olsa bile (örn. bir
             // dosya geçici olarak erişilemez), yukarıdaki kritik 2D shell kurulumunu asla engellemez.
             caches.open(SHELL_CACHE)
-                .then(cache => cache.addAll(Array.from(new Map(GAME3D_SHELL_FILES.map(path => [new URL(path, self.location.href).href, path])).values())))
+                .then(cache => cache.addAll(GAME3D_SHELL_FILES))
                 .catch(() => {}),
         ])
     );
