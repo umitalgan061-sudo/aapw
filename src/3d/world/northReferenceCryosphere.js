@@ -27,7 +27,7 @@ const ALWAYS_WINTER_ZONE = findZone('lands-always-winter');
 const NORTH_ZONE = findZone('north');
 
 export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
-	id: 'owner-map-north-cryosphere-2026-08-31-v7-wind-exposure-ecotone',
+	id: 'owner-map-north-cryosphere-2026-08-31-v8-stronger-wind-ecotone',
 	source: 'WORLD_REFERENCE_MAP biome zones',
 	renderClimateOnly: true,
 	heightAuthorityUnchanged: true,
@@ -52,11 +52,11 @@ export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
 	macroFabricMeters: 920,
 	mesoFabricMeters: 285,
 	windFabricMeters: 96,
-	tundraFabricMinMultiplier: 0.91,
-	tundraFabricMaxMultiplier: 1.08,
-	windScourTundraPenalty: 0.055,
-	depositionTundraGain: 0.045,
-	moraineMoistureTundraGain: 0.025,
+	tundraFabricMinMultiplier: 0.84,
+	tundraFabricMaxMultiplier: 1.14,
+	windScourTundraPenalty: 0.085,
+	depositionTundraGain: 0.065,
+	moraineMoistureTundraGain: 0.035,
 });
 
 function scaledZone(zone, radiusScale) {
@@ -230,7 +230,7 @@ export function northReferenceCryosphereAtWorldXZ(worldX, worldZ) {
 	const exposureAdjustment = surfaceFabric.deposition * P.depositionTundraGain
 		+ surfaceFabric.moraineMoisture * P.moraineMoistureTundraGain
 		- surfaceFabric.windScour * P.windScourTundraPenalty;
-	const fabricMultiplier = Math.max(0.84, Math.min(1.15, baseFabricMultiplier + exposureAdjustment));
+	const fabricMultiplier = Math.max(0.78, Math.min(1.20, baseFabricMultiplier + exposureAdjustment));
 	const transitionWeight = canonical.tundra * (1 - canonical.winterCore);
 	const fabricTundra = canonical.tundra * (1 + (fabricMultiplier - 1) * transitionWeight);
 	const tundra = clamp01(Math.max(canonical.permanentIce, fabricTundra));
