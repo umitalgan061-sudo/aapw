@@ -113,16 +113,18 @@ export async function createPlayer({ assetLoader, groundCollider, playerCollider
 	playAction('idle');
 
 	function moveBy(directionX, directionZ, speed, delta) {
-		const startX = model.position.x, startZ = model.position.z;
 		const travelMeters = Math.hypot(directionX, directionZ) * speed * delta;
 		const steps = playerCollider ? Math.max(1, Math.ceil(travelMeters / PLAYER_ACTION_CONFIG.MAX_COLLISION_STEP_METERS)) : 1;
 		const stepDelta = steps > 0 ? delta / steps : 0;
+		let travelledMeters = 0;
 		for (let step = 0; step < steps; step += 1) {
-			let nextX = model.position.x + directionX * speed * stepDelta, nextZ = model.position.z + directionZ * speed * stepDelta;
+			const stepStartX = model.position.x, stepStartZ = model.position.z;
+			let nextX = stepStartX + directionX * speed * stepDelta, nextZ = stepStartZ + directionZ * speed * stepDelta;
 			if (playerCollider) ({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
+			travelledMeters += Math.hypot(nextX - stepStartX, nextZ - stepStartZ);
 			model.position.x = nextX; model.position.z = nextZ;
 		}
-		return Math.hypot(model.position.x - startX, model.position.z - startZ);
+		return travelledMeters;
 	}
 	function turnToward(directionX, directionZ, delta) {
 		const targetYaw = Math.atan2(directionX, directionZ);
