@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-31-v57-ocean-depth-readability',
+	id: 'geographic-reference-palette-2026-08-31-v58-ocean-depth-readability',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v57 preserves v56 aerial lowland ecotone separation and all canonical terrain, shoreline, hydrology and collider authority unchanged',
-		water: 'v57 follows direct inspection of exact-head full-world #574: open sea was nearly black at aerial scale, collapsing deep-water hierarchy. DeepSea and abyss are lifted conservatively while abyss remains darker than deep sea and canonical wet coverage, shoreline and bathymetry remain unchanged',
-		road: 'v57 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
+		terrain: 'v58 preserves v56 aerial lowland ecotone separation and all canonical terrain, shoreline, hydrology and collider authority unchanged',
+		water: 'v58 follows direct inspection of the v57 exact-head full-world render: deep open water improved but still collapsed toward near-black at aerial scale. DeepSea and abyss receive a second bounded lift while abyss remains materially darker than deep sea; wet coverage, shoreline, bathymetry and lake membership remain canonical and unchanged',
+		road: 'v58 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -51,8 +51,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		lakeClear: 0x2a6170,
 		riverPool: 0x246776,
 		rapid: 0x82a7aa,
-		deepSea: 0x0c3248,
-		abyss: 0x061821,
+		deepSea: 0x113d55,
+		abyss: 0x082631,
 		plunge: 0x4d818b,
 		splash: 0xdeedeb,
 		foam: 0xf1f7f4,
