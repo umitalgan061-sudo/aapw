@@ -65,8 +65,10 @@ export class TouchJoystick {
 		this._base.addEventListener('pointerdown', this._onPointerDown); this._base.addEventListener('pointermove', this._onPointerMove); this._base.addEventListener('pointerup', this._onPointerUp); this._base.addEventListener('pointercancel', this._onPointerUp);
 		this._onVisibilityChange = () => { if (globalThis.document?.hidden === true) this._resetGameplayState(); };
 		this._onPageHide = () => this._resetGameplayState();
+		this._onWindowBlur = () => this._resetGameplayState();
 		this._visibilityTarget?.addEventListener('visibilitychange', this._onVisibilityChange);
 		this._pageLifecycleTarget?.addEventListener('pagehide', this._onPageHide);
+		this._pageLifecycleTarget?.addEventListener('blur', this._onWindowBlur);
 	}
 	_resetGameplayState() {
 		const pointerId = this._pointerId;
@@ -116,6 +118,7 @@ export class TouchJoystick {
 	dispose() {
 		this._visibilityTarget?.removeEventListener('visibilitychange', this._onVisibilityChange);
 		this._pageLifecycleTarget?.removeEventListener('pagehide', this._onPageHide);
+		this._pageLifecycleTarget?.removeEventListener('blur', this._onWindowBlur);
 		this._base.removeEventListener('pointerdown', this._onPointerDown); this._base.removeEventListener('pointermove', this._onPointerMove); this._base.removeEventListener('pointerup', this._onPointerUp); this._base.removeEventListener('pointercancel', this._onPointerUp);
 		this._jumpButton.removeEventListener('click', this._onJumpClick); this._guardButton.removeEventListener('pointerdown', this._onGuardDown); this._guardButton.removeEventListener('pointerup', this._onGuardUp); this._guardButton.removeEventListener('pointercancel', this._onGuardUp); this._guardButton.removeEventListener('pointerleave', this._onGuardUp);
 		this._lockOnButton.removeEventListener('pointerdown', this._onLockOn); this._lightAttackButton.removeEventListener('pointerdown', this._onLightAttack); this._heavyAttackButton.removeEventListener('pointerdown', this._onHeavyAttack); this._dodgeButton.removeEventListener('pointerdown', this._onDodge); this._parryButton.removeEventListener('pointerdown', this._onParry);
