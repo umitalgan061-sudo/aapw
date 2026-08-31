@@ -66,7 +66,11 @@ requireFragments(input, 'desktop/gamepad parity', [
 ]);
 assert.ok(!input.includes("const LIGHT_ATTACK_KEYS = new Set(['KeyE'])"), 'nearby interaction E must not also be bound to keyboard light melee');
 requireFragments(interaction, 'interaction key ownership', ["if (event.code !== 'KeyE') return"]);
-requireFragments(controlsHelp, 'desktop interaction help', ["['E', 'Yakındaki kişiyle konuş']"]);
+requireFragments(controlsHelp, 'desktop controls help', [
+  "['E', 'Yakındaki kişiyle konuş']",
+  "['C / Sol tık', 'Hafif saldırı']",
+  "['R', 'Ağır saldırı']",
+]);
 requireFragments(touch, 'mobile/PWA input parity', [
   "className = 'g3d-touch-lock-on-button'",
   "className = 'g3d-touch-light-attack-button'",
@@ -97,6 +101,7 @@ console.log(JSON.stringify({
   contract: 'player-combat-vertical-slice-composition',
   chain: ['asset+animation', 'spawn+ground+collider', 'input', 'movement+stamina+poise', 'dodge+guard+parry', 'melee-combo', 'lock-on', 'damage+feedback'],
   inputs: ['keyboard:C-light/R-heavy/E-interaction', 'mouse', 'gamepad', 'touch/PWA'],
+  desktopHelp: ['E-interaction', 'C-or-left-click-light', 'R-heavy'],
   sharedMaterialPlacement: true,
   newAsset: false,
 }, null, 2));
