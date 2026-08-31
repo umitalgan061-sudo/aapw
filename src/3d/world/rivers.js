@@ -170,42 +170,24 @@ export function updateFlowAnimation(mesh, elapsedSeconds) {
 }
 
 /** Trace a deterministic downhill path over the existing terrain sampler. */
-export function generateRiverPath({
-	seed,
-	sampleHeightMeters,
-	seaLevelMeters,
-	searchRadiusMeters = 2000,
-	maxRiverRadiusMeters = 2800,
-	stepMeters = 40,
-	maxSteps = 400,
-}) {
+export function generateRiverPath({ seed, sampleHeightMeters, seaLevelMeters, searchRadiusMeters = 2000, maxRiverRadiusMeters = 2800, stepMeters = 40, maxSteps = 400 }) {
 	let sourceX = 0;
 	let sourceZ = 0;
 	let sourceHeight = -Infinity;
 	for (let x = -searchRadiusMeters; x <= searchRadiusMeters; x += SOURCE_SEARCH_STEP_METERS) {
 		for (let z = -searchRadiusMeters; z <= searchRadiusMeters; z += SOURCE_SEARCH_STEP_METERS) {
 			const h = sampleHeightMeters(x, z);
-			if (h > sourceHeight) {
-				sourceHeight = h;
-				sourceX = x;
-				sourceZ = z;
-			}
+			if (h > sourceHeight) { sourceHeight = h; sourceX = x; sourceZ = z; }
 		}
 	}
-
 	const rng = mulberry32(seed ^ 0x52495652);
 	const points = [new THREE.Vector3(sourceX, sourceHeight, sourceZ)];
 	let x = sourceX;
 	let z = sourceZ;
 	let y = sourceHeight;
 	let endReason = 'max-steps';
-
 	for (let step = 0; step < maxSteps; step++) {
-		if (y <= seaLevelMeters) {
-			endReason = 'sea';
-			break;
-		}
-
+		if (y <= seaLevelMeters) { endReason = 'sea'; break; }
 		let bestX = x;
 		let bestZ = z;
 		let bestHeight = y;
@@ -217,37 +199,19 @@ export function generateRiverPath({
 				const candidateX = x + Math.cos(angle) * searchRadius;
 				const candidateZ = z + Math.sin(angle) * searchRadius;
 				const candidateHeight = sampleHeightMeters(candidateX, candidateZ);
-				if (candidateHeight < bestHeight) {
-					bestHeight = candidateHeight;
-					bestX = candidateX;
-					bestZ = candidateZ;
-					found = true;
-				}
+				if (candidateHeight < bestHeight) { bestHeight = candidateHeight; bestX = candidateX; bestZ = candidateZ; found = true; }
 			}
 		}
-
-		if (!found) {
-			endReason = 'local-minimum';
-			break;
-		}
-		if (Math.hypot(bestX, bestZ) > maxRiverRadiusMeters) {
-			endReason = 'bounds';
-			break;
-		}
-
-		x = bestX;
-		z = bestZ;
-		y = bestHeight;
+		if (!found) { endReason = 'local-minimum'; break; }
+		if (Math.hypot(bestX, bestZ) > maxRiverRadiusMeters) { endReason = 'bounds'; break; }
+		x = bestX; z = bestZ; y = bestHeight;
 		points.push(new THREE.Vector3(x, y, z));
 	}
-
 	return { points, endReason };
 }
 
-/** Build the canonical-path river ribbon; only its material response is naturalized. */
 export function createRiverMesh(points, widthMeters = 14) {
 	if (points.length < 2) return null;
-
 	const halfWidth = widthMeters / 2;
 	const verticalOffset = 0.3;
 	const positions = new Float32Array(points.length * 2 * 3);
@@ -256,7 +220,6 @@ export function createRiverMesh(points, widthMeters = 14) {
 	const flowSpeeds = new Float32Array(points.length * 2);
 	const flowSides = new Float32Array(points.length * 2);
 	const indices = [];
-
 	let arcLengthMeters = 0;
 	for (let i = 0; i < points.length; i++) {
 		const point = points[i];
@@ -267,7 +230,6 @@ export function createRiverMesh(points, widthMeters = 14) {
 		const tangentLength = Math.hypot(tangentX, tangentZ) || 1;
 		const perpX = -tangentZ / tangentLength;
 		const perpZ = tangentX / tangentLength;
-
 		if (i > 0) arcLengthMeters += Math.hypot(point.x - points[i - 1].x, point.z - points[i - 1].z);
 		const neighbourhoodRunMeters = Math.hypot(next.x - prev.x, next.z - prev.z) || 1;
 		const grade = Math.max(0, (prev.y - next.y) / neighbourhoodRunMeters);
@@ -276,7 +238,6 @@ export function createRiverMesh(points, widthMeters = 14) {
 		const riverR = THREE.MathUtils.lerp(RIVER_POOL_COLOR.r, RIVER_COLOR.r, rushAmount);
 		const riverG = THREE.MathUtils.lerp(RIVER_POOL_COLOR.g, RIVER_COLOR.g, rushAmount);
 		const riverB = THREE.MathUtils.lerp(RIVER_POOL_COLOR.b, RIVER_COLOR.b, rushAmount);
-
 		const leftIndex = i * 2;
 		const rightIndex = leftIndex + 1;
 		flowDistances[leftIndex] = arcLengthMeters;
@@ -291,20 +252,15 @@ export function createRiverMesh(points, widthMeters = 14) {
 		positions[rightIndex * 3] = point.x - perpX * halfWidth;
 		positions[rightIndex * 3 + 1] = point.y + verticalOffset;
 		positions[rightIndex * 3 + 2] = point.z - perpZ * halfWidth;
-		colors[leftIndex * 3] = riverR;
-		colors[leftIndex * 3 + 1] = riverG;
-		colors[leftIndex * 3 + 2] = riverB;
-		colors[rightIndex * 3] = riverR;
-		colors[rightIndex * 3 + 1] = riverG;
-		colors[rightIndex * 3 + 2] = riverB;
-
+		colors[leftIndex * 3] = colors[rightIndex * 3] = riverR;
+		colors[leftIndex * 3 + 1] = colors[rightIndex * 3 + 1] = riverG;
+		colors[leftIndex * 3 + 2] = colors[rightIndex * 3 + 2] = riverB;
 		if (i > 0) {
 			const prevLeft = leftIndex - 2;
 			const prevRight = rightIndex - 2;
 			indices.push(prevLeft, prevRight, leftIndex, prevRight, rightIndex, leftIndex);
 		}
 	}
-
 	const geometry = new THREE.BufferGeometry();
 	geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 	geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
@@ -313,37 +269,15 @@ export function createRiverMesh(points, widthMeters = 14) {
 	geometry.setAttribute('aFlowSide', new THREE.BufferAttribute(flowSides, 1));
 	geometry.setIndex(indices);
 	geometry.computeVertexNormals();
-
-	const material = new THREE.MeshStandardMaterial({
-		vertexColors: true,
-		roughness: 0.14,
-		metalness: 0,
-		transparent: true,
-		opacity: 0.74,
-		side: THREE.DoubleSide,
-	});
-	material.userData.opticalProfile = Object.freeze({
-		calmBedReadable: true,
-		opacity: 0.74,
-		slopeDrivenFoam: true,
-		turbulentFoamBreakup: true,
-		worldSpaceMultiScaleSurface: true,
-		normalVariation: true,
-		roughnessVariation: true,
-		bankMineralTransition: true,
-		referencePalettePolicyId: GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id,
-	});
+	const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.14, metalness: 0, transparent: true, opacity: 0.74, side: THREE.DoubleSide });
+	material.userData.opticalProfile = Object.freeze({ calmBedReadable: true, opacity: 0.74, slopeDrivenFoam: true, turbulentFoamBreakup: true, worldSpaceMultiScaleSurface: true, normalVariation: true, roughnessVariation: true, bankMineralTransition: true, referencePalettePolicyId: GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id });
 	attachFlowAnimation(material, 'river-flow-surface-v2', 0.36);
-
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.userData.totalFlowLengthMeters = arcLengthMeters;
 	return mesh;
 }
 
-export function disposeRiverMesh(riverMesh) {
-	riverMesh.geometry.dispose();
-	riverMesh.material.dispose();
-}
+export function disposeRiverMesh(riverMesh) { riverMesh.geometry.dispose(); riverMesh.material.dispose(); }
 
 export function detectWaterfalls(points) {
 	const waterfalls = [];
@@ -354,9 +288,7 @@ export function detectWaterfalls(points) {
 		if (horizontalDistance === 0) continue;
 		const dropMeters = top.y - bottom.y;
 		const slope = dropMeters / horizontalDistance;
-		if (dropMeters >= WATERFALL_MIN_DROP_METERS && slope >= WATERFALL_MIN_SLOPE) {
-			waterfalls.push({ top, bottom, dropMeters });
-		}
+		if (dropMeters >= WATERFALL_MIN_DROP_METERS && slope >= WATERFALL_MIN_SLOPE) waterfalls.push({ top, bottom, dropMeters });
 	}
 	return waterfalls;
 }
@@ -366,11 +298,6 @@ function waterfallGeometryNoise(top, bottom, side, octave) {
 	return Math.sin(phase + side * (6.7 + octave * 2.9) + octave * 1.37) * 0.5 + 0.5;
 }
 
-/**
- * Build one connected, deterministically broken cascade + impact apron along an existing steep river
- * segment. The segment endpoints remain authoritative; lateral/forward breakup is render-only and
- * bounded inside the river width so the waterfall no longer reads as one perfectly flat rectangle.
- */
 export function createWaterfallMesh({ top, bottom, dropMeters }, widthMeters = 14) {
 	const flowX = bottom.x - top.x;
 	const flowZ = bottom.z - top.z;
@@ -394,7 +321,7 @@ export function createWaterfallMesh({ top, bottom, dropMeters }, widthMeters = 1
 	const rowFlowDistance = [0, dropMeters * 0.56, dropMeters, dropMeters + apronLengthMeters];
 	const rowFlowSpeed = [WATERFALL_FLOW_SPEED_MPS, WATERFALL_FLOW_SPEED_MPS, WATERFALL_APRON_FLOW_SPEED_MPS, WATERFALL_APRON_FLOW_SPEED_MPS];
 	const rowColor = [WATERFALL_FOAM_COLOR, WATERFALL_PLUNGE_COLOR, WATERFALL_SPLASH_COLOR, WATERFALL_PLUNGE_COLOR];
-
+	const rowLateralScale = [1.0, 0.94, 1.02, 1.22];
 	for (let column = 0; column < columnCount; column++) {
 		const side = -1 + (column / columnSegments) * 2;
 		const edgeFade = Math.max(0, 1 - Math.pow(Math.abs(side), 1.6));
@@ -402,24 +329,19 @@ export function createWaterfallMesh({ top, bottom, dropMeters }, widthMeters = 1
 		const sheetNoise = waterfallGeometryNoise(top, bottom, side, 1) - 0.5;
 		const apronNoise = waterfallGeometryNoise(top, bottom, side, 2) - 0.5;
 		const lateral = side * halfWidth + lateralNoise * widthMeters * 0.045 * edgeFade;
-		const crestForward = sheetNoise * Math.min(0.55, widthMeters * 0.025) * edgeFade;
-		const midForward = tangentLength * 0.55 + sheetNoise * Math.min(1.15, dropMeters * 0.08) * edgeFade;
-		const bottomForward = tangentLength + sheetNoise * Math.min(0.7, dropMeters * 0.045) * edgeFade;
-		const apronForward = tangentLength + apronLengthMeters * (1 + apronNoise * 0.12 * edgeFade);
-		const rowForward = [crestForward, midForward, bottomForward, apronForward];
-		const rowY = [
-			top.y + 0.05,
-			THREE.MathUtils.lerp(top.y, bottom.y, 0.58) + sheetNoise * Math.min(0.45, dropMeters * 0.035) * edgeFade,
-			bottom.y + 0.14,
-			bottom.y + 0.16 + apronNoise * 0.035 * edgeFade,
+		const rowForward = [
+			sheetNoise * Math.min(0.55, widthMeters * 0.025) * edgeFade,
+			tangentLength * 0.55 + sheetNoise * Math.min(1.15, dropMeters * 0.08) * edgeFade,
+			tangentLength + sheetNoise * Math.min(0.7, dropMeters * 0.045) * edgeFade,
+			tangentLength + apronLengthMeters * (1 + apronNoise * 0.12 * edgeFade),
 		];
-
+		const rowY = [top.y + 0.05, THREE.MathUtils.lerp(top.y, bottom.y, 0.58) + sheetNoise * Math.min(0.45, dropMeters * 0.035) * edgeFade, bottom.y + 0.14, bottom.y + 0.16 + apronNoise * 0.035 * edgeFade];
 		for (let row = 0; row < rowCount; row++) {
 			const vertex = row * columnCount + column;
-			const forward = rowForward[row];
-			positions[vertex * 3] = top.x + dirX * forward + perpX * lateral;
+			const rowLateral = lateral * rowLateralScale[row];
+			positions[vertex * 3] = top.x + dirX * rowForward[row] + perpX * rowLateral;
 			positions[vertex * 3 + 1] = rowY[row];
-			positions[vertex * 3 + 2] = top.z + dirZ * forward + perpZ * lateral;
+			positions[vertex * 3 + 2] = top.z + dirZ * rowForward[row] + perpZ * rowLateral;
 			flowDistances[vertex] = rowFlowDistance[row];
 			flowSpeeds[vertex] = rowFlowSpeed[row];
 			flowSides[vertex] = side;
@@ -429,7 +351,6 @@ export function createWaterfallMesh({ top, bottom, dropMeters }, widthMeters = 1
 			colors[vertex * 3 + 2] = rowColor[row].b * tone;
 		}
 	}
-
 	for (let row = 0; row < rowCount - 1; row++) {
 		for (let column = 0; column < columnSegments; column++) {
 			const a = row * columnCount + column;
@@ -440,7 +361,6 @@ export function createWaterfallMesh({ top, bottom, dropMeters }, widthMeters = 1
 			else indices.push(a, c, d, a, d, b);
 		}
 	}
-
 	const geometry = new THREE.BufferGeometry();
 	geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 	geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
@@ -449,28 +369,8 @@ export function createWaterfallMesh({ top, bottom, dropMeters }, widthMeters = 1
 	geometry.setAttribute('aFlowSide', new THREE.BufferAttribute(flowSides, 1));
 	geometry.setIndex(indices);
 	geometry.computeVertexNormals();
-
-	const material = new THREE.MeshStandardMaterial({
-		vertexColors: true,
-		roughness: 0.18,
-		metalness: 0,
-		transparent: true,
-		opacity: 0.74,
-		side: THREE.DoubleSide,
-	});
-	material.userData.opticalProfile = Object.freeze({
-		aerated: true,
-		opacity: 0.74,
-		plungeColor: WATERFALL_PLUNGE_COLOR.getHex(),
-		splashApron: true,
-		singleDrawCall: true,
-		segmentedCascade: true,
-		turbulentFoamBreakup: true,
-		worldSpaceMultiScaleSurface: true,
-		normalVariation: true,
-		roughnessVariation: true,
-		referencePalettePolicyId: GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id,
-	});
+	const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.18, metalness: 0, transparent: true, opacity: 0.74, side: THREE.DoubleSide });
+	material.userData.opticalProfile = Object.freeze({ aerated: true, opacity: 0.74, plungeColor: WATERFALL_PLUNGE_COLOR.getHex(), splashApron: true, singleDrawCall: true, segmentedCascade: true, turbulentFoamBreakup: true, worldSpaceMultiScaleSurface: true, normalVariation: true, roughnessVariation: true, referencePalettePolicyId: GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id });
 	attachFlowAnimation(material, 'waterfall-flow-splash-v4', 0.44);
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.userData.dropMeters = dropMeters;
@@ -479,7 +379,4 @@ export function createWaterfallMesh({ top, bottom, dropMeters }, widthMeters = 1
 	return mesh;
 }
 
-export function disposeWaterfallMesh(waterfallMesh) {
-	waterfallMesh.geometry.dispose();
-	waterfallMesh.material.dispose();
-}
+export function disposeWaterfallMesh(waterfallMesh) { waterfallMesh.geometry.dispose(); waterfallMesh.material.dispose(); }
