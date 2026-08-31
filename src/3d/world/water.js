@@ -525,6 +525,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		transitionFeatherStartMeters: WATER_LAYER_TRANSITION_POLICY.featherStartMeters,
 		transitionFeatherEndMeters: WATER_LAYER_TRANSITION_POLICY.featherEndMeters,
 		fullWorld: true,
+		worldAnchoredFarLayers: true,
 	});
 	return mesh;
 }
@@ -543,8 +544,18 @@ export function setWaterDepthField(waterMesh, depthField, swellStrength = 1) {
 export function updateWater(waterMesh, cameraPosition, elapsedSeconds) {
 	waterMesh.position.x = cameraPosition.x;
 	waterMesh.position.z = cameraPosition.z;
+	const farWater = waterMesh.userData.farWater;
+	if (farWater) {
+		farWater.position.x = -cameraPosition.x;
+		farWater.position.z = -cameraPosition.z;
+	}
+	const deepOceanBackdrop = waterMesh.userData.deepOceanBackdrop;
+	if (deepOceanBackdrop) {
+		deepOceanBackdrop.position.x = -cameraPosition.x;
+		deepOceanBackdrop.position.z = -cameraPosition.z;
+	}
 	const celestial = getCelestialLightState();
-	for (const material of [waterMesh.material, waterMesh.userData.farWater?.material].filter(Boolean)) {
+	for (const material of [waterMesh.material, farWater?.material].filter(Boolean)) {
 		const { uniforms } = material;
 		uniforms.uTime.value = elapsedSeconds;
 		uniforms.uCameraPosition.value.copy(cameraPosition);
