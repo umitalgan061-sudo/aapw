@@ -84,8 +84,8 @@ requireFragments(controlsHelp, 'touch combat help', [
   "['Hedef', 'Yakındaki hedefe kilitlen veya kilidi kaldır']",
   "['Hafif', 'Hafif saldırı']",
   "['Ağır', 'Ağır saldırı']",
-  "['Kaçın', 'Yönlü kaçınma']",
-  "['Savuştur', 'Zamanlı savuşturma']",
+  "['Kaçın', 'Hareket ederken kaçınma hamlesi yap']",
+  "['Savuştur', 'Kısa savuşturma penceresi aç']",
 ]);
 requireFragments(touch, 'mobile/PWA input parity', [
   "className = 'g3d-touch-lock-on-button'",
