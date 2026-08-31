@@ -26,19 +26,27 @@ function softenPrimaryIceTint(mesh, seed) {
 	return position.count;
 }
 
-function smoothWallSectionNormals(group, sections) {
+function smoothWallSectionNormals(group) {
 	const wall = group.getObjectByName('the-wall-natural-ice-cliff');
+	const position = wall?.geometry?.getAttribute?.('position');
 	const normal = wall?.geometry?.getAttribute?.('normal');
-	if (!normal || sections.length < 3) return 0;
+	if (!position || !normal || position.count < 12 || position.count % 4 !== 0) return 0;
+	const sectionCount = position.count / 4;
+	const facing = [];
+	for (let index = 0; index < sectionCount; index += 1) {
+		const base = index * 4;
+		const frontX = (position.getX(base) + position.getX(base + 1)) * 0.5;
+		const frontZ = (position.getZ(base) + position.getZ(base + 1)) * 0.5;
+		const backX = (position.getX(base + 2) + position.getX(base + 3)) * 0.5;
+		const backZ = (position.getZ(base + 2) + position.getZ(base + 3)) * 0.5;
+		facing.push(new THREE.Vector3(frontX - backX, 0, frontZ - backZ).normalize());
+	}
 	const averaged = new THREE.Vector3();
-	for (let index = 0; index < sections.length; index += 1) {
+	for (let index = 0; index < sectionCount; index += 1) {
 		averaged.set(0, 0, 0);
-		for (let neighbour = Math.max(0, index - 2); neighbour <= Math.min(sections.length - 1, index + 2); neighbour += 1) {
-			averaged.x += sections[neighbour].nx;
-			averaged.z += sections[neighbour].nz;
-		}
+		for (let neighbour = Math.max(0, index - 2); neighbour <= Math.min(sectionCount - 1, index + 2); neighbour += 1) averaged.add(facing[neighbour]);
 		averaged.normalize();
-		const base = sections[index].baseVertex;
+		const base = index * 4;
 		normal.setXYZ(base, averaged.x, 0.04, averaged.z);
 		normal.setXYZ(base + 1, averaged.x * 0.94, 0.34, averaged.z * 0.94);
 		normal.setXYZ(base + 2, -averaged.x, 0.04, -averaged.z);
@@ -46,7 +54,7 @@ function smoothWallSectionNormals(group, sections) {
 	}
 	normal.needsUpdate = true;
 	wall.userData.wallSectionNormalNaturalization = 'five-section-glacial-blend-v15';
-	return sections.length * 4;
+	return position.count;
 }
 
 function extendContinuousIceShader(mesh, seed) {
@@ -136,8 +144,8 @@ function naturalizeMeltRibbon(group, seed) {
 	return position.count;
 }
 
-export function naturalizeIceLandmarkPresentation({ group, wallSections = [], seed }) {
-	const wallSmoothedNormalVertexCount = smoothWallSectionNormals(group, wallSections);
+export function naturalizeIceLandmarkPresentation({ group, seed }) {
+	const wallSmoothedNormalVertexCount = smoothWallSectionNormals(group);
 	let primarySurfaceVertexCount = 0;
 	let shaderSurfaceCount = 0;
 	for (const name of ['the-wall-natural-ice-cliff', 'ice-cave-shell', 'ice-wall-cave-portal']) {
