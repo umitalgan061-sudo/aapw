@@ -108,7 +108,11 @@ jobs:
       - name: Seeded determinism contract
         run: node scripts/checkSeededRandomPolicy.js
       - name: Service worker cache contract
-        run: node scripts/checkServiceWorkerCache.js
+        run: |
+          set -euo pipefail
+          # This stays a hard dependency. Keeping it isolated makes current-main offline-shell drift
+          # explicit instead of misreporting a healthy player source contract as a combat failure.
+          node scripts/checkServiceWorkerCache.js
       - name: Asset-first targeted hydration
         shell: bash
         run: |
