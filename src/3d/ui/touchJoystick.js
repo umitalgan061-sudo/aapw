@@ -14,7 +14,7 @@ export class TouchJoystick {
 	constructor(container = document.body, { isInputBlocked = isPlayerGameplayInputBlocked } = {}) {
 		this._radiusPx = TOUCH_JOYSTICK_CONFIG.RADIUS_PX;
 		this._dragX = 0; this._dragY = 0; this._pointerId = null;
-		this._jumpRequested = false; this._dodgeRequested = false; this._parryRequested = false; this._lockOnRequested = false; this._guardHeld = false;
+		this._jumpRequested = false; this._dodgeRequested = false; this._parryRequested = false; this._parryRearmPending = false; this._lockOnRequested = false; this._guardHeld = false;
 		this._isInputBlocked = typeof isInputBlocked === 'function' ? isInputBlocked : isPlayerGameplayInputBlocked;
 		this._visibilityTarget = globalThis.document?.addEventListener ? globalThis.document : null;
 		this._pageLifecycleTarget = globalThis.window?.addEventListener ? globalThis.window : null;
@@ -50,7 +50,15 @@ export class TouchJoystick {
 
 		this._parryButton = document.createElement('button'); this._parryButton.type = 'button'; this._parryButton.className = 'g3d-touch-parry-button'; this._parryButton.textContent = 'Savuştur'; this._parryButton.setAttribute('aria-label', 'Savuştur');
 		Object.assign(this._parryButton.style, { position: 'fixed', right: '280px', bottom: '156px', zIndex: '30', minWidth: '80px', minHeight: '48px', borderRadius: '999px', opacity: '0.9', touchAction: 'manipulation' });
-		this._onParry = (event) => { if (readPlayerGameplayInputBlocked(this._isInputBlocked)) { event.preventDefault?.(); return; } this._parryRequested = true; event.preventDefault?.(); };
+		this._onParry = (event) => {
+			if (readPlayerGameplayInputBlocked(this._isInputBlocked)) { event.preventDefault?.(); return; }
+			// The Player parry window is opened by a guard rising edge. If touch guard is already held,
+			// inject one fail-closed release sample and then re-assert guard on the next frame so the
+			// canonical false→true edge is produced without inventing a parallel parry pathway.
+			if (this._guardHeld) this._parryRearmPending = true;
+			else this._parryRequested = true;
+			event.preventDefault?.();
+		};
 		this._parryButton.addEventListener('pointerdown', this._onParry); container.appendChild(this._parryButton);
 
 		this._onPointerDown = this._handlePointerDown.bind(this); this._onPointerMove = this._handlePointerMove.bind(this); this._onPointerUp = this._handlePointerUp.bind(this);
@@ -65,7 +73,7 @@ export class TouchJoystick {
 		if (pointerId !== null) {
 			try { if (this._base.hasPointerCapture?.(pointerId)) this._base.releasePointerCapture?.(pointerId); } catch { /* input reset must stay fail-closed */ }
 		}
-		this._pointerId = null; this._dragX = 0; this._dragY = 0; this._jumpRequested = false; this._dodgeRequested = false; this._parryRequested = false; this._lockOnRequested = false; this._guardHeld = false;
+		this._pointerId = null; this._dragX = 0; this._dragY = 0; this._jumpRequested = false; this._dodgeRequested = false; this._parryRequested = false; this._parryRearmPending = false; this._lockOnRequested = false; this._guardHeld = false;
 		this._knob.style.transform = ''; this._base.classList.remove('g3d-joystick-active'); this._guardButton.setAttribute('aria-pressed', 'false');
 	}
 	_handlePointerDown(event) {
@@ -86,9 +94,14 @@ export class TouchJoystick {
 	getAxes() {
 		if (readPlayerGameplayInputBlocked(this._isInputBlocked)) { this._resetGameplayState(); return { forward: 0, strafe: 0, running: false, guarding: false }; }
 		const ratio = this._radiusPx > 0 ? Math.hypot(this._dragX, this._dragY) / this._radiusPx : 0;
-		const parryRequested = this._parryRequested; this._parryRequested = false;
+		let parryRequested = this._parryRequested; this._parryRequested = false;
+		if (this._parryRearmPending) {
+			this._parryRearmPending = false;
+			this._parryRequested = true;
+			parryRequested = false;
+		}
 		const running = ratio >= TOUCH_JOYSTICK_CONFIG.RUN_THRESHOLD_RATIO || this._dodgeRequested;
-		const guarding = this._guardHeld || parryRequested;
+		const guarding = (this._guardHeld && !this._parryRequested) || parryRequested;
 		if (ratio < TOUCH_JOYSTICK_CONFIG.DEADZONE_RATIO) return { forward: 0, strafe: 0, running, guarding };
 		return { forward: clamp(-this._dragY / this._radiusPx, -1, 1), strafe: clamp(this._dragX / this._radiusPx, -1, 1), running, guarding };
 	}
