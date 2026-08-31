@@ -83,7 +83,7 @@ async function main() {
 		await page.waitForFunction(
 			() => window.__FULL_WORLD_3D_TOPDOWN__?.status === 'ready',
 			null,
-			{ timeout: 120000 },
+			{ timeout: 300000 },
 		);
 		const summary = await page.evaluate(() => window.__FULL_WORLD_3D_TOPDOWN__);
 		if (pageErrors.length) throw new Error(pageErrors.join('\n'));

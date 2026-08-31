@@ -72,7 +72,7 @@ for (const placement of proxies) {
   assert(tiltError <= 1e-12, `asset proxy ${placement.id} tilt no longer follows terrain slope: ${tiltError}`);
   assert(placement.tiltRadians <= P.maxTiltDegrees / DEG + 1e-12,
     `asset proxy ${placement.id} exceeded bounded terrain tilt`);
-  if (frame.slopeDegrees >= 8) {
+  if (frame.slopeDegrees >= P.minRockSlopeDegrees) {
     slopedProxyCount += 1;
     tiltFractions.push(placement.tiltRadians / Math.max(1e-9, frame.slopeRadians));
     assert(placement.tiltRadians > 0.02, `sloped asset proxy ${placement.id} reverted to an upright prop`);
