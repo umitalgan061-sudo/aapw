@@ -13,6 +13,7 @@ on:
       - 'src/3d/world/WorldAssetPlacementPipeline.js'
       - 'scripts/checkPlayerCombatVerticalSlice.mjs'
       - 'scripts/checkPlayerMeleeCombo.mjs'
+      - 'scripts/checkTouchDefenseParity.mjs'
       - 'scripts/checkPlayerLockOn.mjs'
       - 'scripts/checkPlayerCombatFeedback.mjs'
       - 'scripts/checkPlayerGroundingCombatContract.mjs'
@@ -47,12 +48,16 @@ jobs:
       - name: Syntax
         run: |
           node --check scripts/checkPlayerCombatVerticalSlice.mjs
+          node --check scripts/checkTouchDefenseParity.mjs
           node --check src/3d/gameplay/player.js
           node --check src/3d/gameLoopHelpers.js
           node --check src/3d/input.js
+          node --check src/3d/ui/touchJoystick.js
           node --check scripts/checkSharedMaterialPlacementContract.js
       - name: Shipped vertical slice composition
         run: node scripts/checkPlayerCombatVerticalSlice.mjs
+      - name: Touch defense parity
+        run: node scripts/checkTouchDefenseParity.mjs
       - name: Existing melee combo
         run: node scripts/checkPlayerMeleeCombo.mjs
       - name: Existing lock-on
