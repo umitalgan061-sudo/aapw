@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
+import { WORLD_SCALE } from '../src/3d/config.js';
 import {
 	createCoverageSubsampleOffsets,
 	createWaterDepthField,
 	disposeWaterDepthField,
 	sampleWaterTexelFootprint,
 	WATER_COVERAGE_SUBSAMPLES_PER_AXIS,
+	WATER_DEPTH_FIELD_EXTENT_METERS,
 } from '../src/3d/world/waterDepthField.js';
 import {
 	createWater,
@@ -41,6 +43,13 @@ function bake(options) {
 }
 
 assert.equal(WATER_COVERAGE_SUBSAMPLES_PER_AXIS, 2, 'production P0 coverage must use deterministic 2x2 strata');
+assert.equal(
+	WATER_DEPTH_FIELD_EXTENT_METERS,
+	Math.max(WORLD_SCALE.WORLD_WIDTH_METERS, WORLD_SCALE.WORLD_DEPTH_METERS),
+	'production water depth/coverage field must derive its square extent from canonical owner-world bounds',
+);
+assert.ok(WATER_DEPTH_FIELD_EXTENT_METERS >= WORLD_SCALE.WORLD_WIDTH_METERS, 'water field must cover east/west owner-map edges');
+assert.ok(WATER_DEPTH_FIELD_EXTENT_METERS >= WORLD_SCALE.WORLD_DEPTH_METERS, 'water field must cover north/south owner-map edges');
 assert.deepEqual(
 	createCoverageSubsampleOffsets(),
 	[
@@ -98,8 +107,6 @@ try {
 		assert.doesNotMatch(shader, /vec2\(0\.85, 0\.51\)/, 'legacy sub-10m stripe-prone ripple phase must stay removed');
 		assert.doesNotMatch(shader, /\* 2\.4 \+ time \* 1\.8/, 'legacy high-frequency moire component must stay removed');
 		assert.match(shader, /float warp = sin\(dot\(worldXZ, vec2\(0\.014, -0\.011\)\)/, 'anti-band phase warp must stay present');
-		// Retuned 2026-08-19 to the owner's aerial reference (green-teal -> blue). The anti-neon intent
-		// this assertion was written for is preserved and now checked as the property itself.
 		assert.equal(water.material.uniforms.uShallowColor.value.getHex(), 0x53899a, 'shallow water colour drifted');
 		{
 			const { r, g, b } = water.material.uniforms.uShallowColor.value.clone().convertLinearToSRGB();
