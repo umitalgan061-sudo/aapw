@@ -11,6 +11,7 @@ on:
       - 'src/3d/world/terrainBiomeShading.js'
       - 'src/3d/world/worldReferenceSurfaceTerrainVisual.js'
       - 'src/3d/world/geographicReferencePalette.js'
+      - 'src/3d/world/westernReferenceSurfaceFabric.js'
       - 'scripts/checkWaterVisualContract.js'
       - 'scripts/checkRoadVisualContract.js'
       - 'scripts/checkMedievalRoadSurface.js'
@@ -18,6 +19,7 @@ on:
       - 'scripts/checkGeographicRiverVisualContract.js'
       - 'scripts/checkGeologicalRockSurface.js'
       - 'scripts/checkLightingVisualContract.js'
+      - 'scripts/checkWesternReferenceSurfaceFabric.mjs'
       - 'scripts/geographicRiverHarness.html'
       - 'scripts/geographicMaterialHarness.html'
       - 'scripts/checkGeographicReferencePalette.mjs'
@@ -67,18 +69,27 @@ jobs:
           node --check src/3d/world/roads.js
           node --check src/3d/world/terrainBiomeShading.js
           node --check src/3d/world/geographicReferencePalette.js
+          node --check src/3d/world/westernReferenceSurfaceFabric.js
           node --check scripts/checkWaterVisualContract.js
           node --check scripts/checkRoadVisualContract.js
           node --check scripts/checkMedievalRoadSurface.js
           node --check scripts/checkGeographicRiverVisualContract.js
           node --check scripts/checkGeologicalRockSurface.js
           node --check scripts/checkLightingVisualContract.js
+          node --check scripts/checkWesternReferenceSurfaceFabric.mjs
           node --check scripts/checkGeographicReferencePalette.mjs
           node --check scripts/checkCinematicGeographyRealism.mjs
           node --check scripts/checkCinematicGeographyRealismBrowser.js
 
       - name: Shared photogrammetry reference palette contract
         run: node scripts/checkGeographicReferencePalette.mjs
+
+      - name: Western aerial surface fabric contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/setupNodeThreeShim.mjs
+          node scripts/checkWesternReferenceSurfaceFabric.mjs
 
       - name: Natural terrain coast and road transition contract
         run: node scripts/checkCinematicGeographyRealism.mjs
