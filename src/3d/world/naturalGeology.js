@@ -263,7 +263,9 @@ function hideProxyInstances(group, ids) {
 async function hydrateFamily(group, family, url, signal) {
   const placements = proxyPlacementsForFamily(group, family); if (!placements.length) return { family, status: 'unused', placementCount: 0 };
   const preflight = await preflightAsset(url, signal); if (!preflight.load) return { family, status: 'procedural-fallback', reason: preflight.reason, placementCount: placements.length };
-  const model = await new AssetLoader().loadModel(url, { fallbackColor: 0x665f56, fallbackSize: 1 }); const validation = validateNaturalGeologyAsset(model);
+  const model = await new AssetLoader().loadModel(url, { fallbackColor: 0x665f56, fallbackSize: 1 });
+  if (signal?.aborted) { AssetLoader.disposeObject3D(model); return { family, status: 'aborted', placementCount: placements.length }; }
+  const validation = validateNaturalGeologyAsset(model);
   if (!validation.valid) { AssetLoader.disposeObject3D(model); return { family, status: 'procedural-fallback', reason: validation.reason, placementCount: placements.length }; }
   const normalization = createAssetNormalization(validation.measurement), hydrated = [];
   const placementsByMode = new Map();
