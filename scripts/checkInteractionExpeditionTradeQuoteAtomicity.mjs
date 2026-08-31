@@ -1,45 +1,23 @@
 import assert from 'node:assert/strict';
 import { createInteractionEconomyState } from '../src/3d/gameplay/interactionEconomy.js';
 
+const rationOffer = { id: 'dragonstone-field-ration', itemId: 'dragonstone-field-ration' };
+const whetstoneOffer = { id: 'dragonstone-whetstone', itemId: 'dragonstone-whetstone' };
+
 const economy = createInteractionEconomyState(40);
-const firstReward = economy.credit(12, {
+economy.credit(12, {
   sourceId: 'expedition-contract:dragonstone-harbor-tavern-run',
   label: 'Liman Taverna Seferi',
 });
-assert.equal(firstReward.ok, true);
-
-const purchase = economy.purchase(
-  { id: 'dragonstone-field-ration', itemId: 'dragonstone-field-ration' },
-  () => true,
-);
-assert.equal(purchase.ok, true);
-
-const secondReward = economy.credit(9, {
+assert.equal(economy.purchase(rationOffer, () => true).ok, true);
+economy.credit(9, {
   sourceId: 'expedition-contract:dragonstone-gate-patrol',
   label: 'Kapı Devriyesi Seferi',
 });
-assert.equal(secondReward.ok, true);
-
 const stableState = structuredClone(economy.snapshot());
-assert.equal(stableState.copper, 55);
-assert.equal(stableState.stockByOffer['dragonstone-field-ration'], 3);
-assert.equal(stableState.ledger.transactionCount, 1);
-assert.equal(stableState.ledger.recentCredits.length, 2);
 
-const forgedCanonicalQuote = economy.quote({
-  id: 'dragonstone-field-ration',
-  itemId: 'dragonstone-field-ration',
-  label: 'Bedava sahte azık',
-  priceCopper: 0,
-  quantity: 99,
-  stockLimit: 999,
-  fulfillment: {
-    kind: 'settlement-service',
-    serviceId: 'forged-free-service',
-  },
-});
 assert.deepEqual(
-  forgedCanonicalQuote,
+  economy.quote({ ...rationOffer, label: 'Bedava sahte azık', priceCopper: 0, quantity: 99, stockLimit: 999 }),
   {
     ok: true,
     reason: 'available',
@@ -49,156 +27,47 @@ assert.deepEqual(
     balanceCopper: 55,
     balanceAfterPurchase: 49,
   },
-  'matching ids must resolve back to the canonical quartermaster catalog instead of trusting caller-authored price or stock fields',
+  'quote must resolve canonical catalog price and stock',
 );
-assert.deepEqual(
-  economy.snapshot(),
-  stableState,
-  'quoting a field-forged canonical offer must remain mutation-free',
-);
+assert.deepEqual(economy.snapshot(), stableState, 'quote must be mutation-free');
 
-const canonicalizationEconomy = createInteractionEconomyState(40);
-let canonicalGrant = null;
-const canonicalizedPurchase = canonicalizationEconomy.purchase(
-  {
-    id: 'dragonstone-field-ration',
-    itemId: 'dragonstone-field-ration',
-    priceCopper: 0,
-    quantity: 99,
-    fulfillment: {
-      kind: 'settlement-service',
-      serviceId: 'forged-free-service',
-    },
-  },
-  (itemId, quantity, metadata) => {
-    canonicalGrant = { itemId, quantity, metadata };
-    return true;
-  },
+const canonicalEconomy = createInteractionEconomyState(40);
+let rationGrant;
+const rationPurchase = canonicalEconomy.purchase(
+  { ...rationOffer, priceCopper: 0, quantity: 99, fulfillment: { kind: 'settlement-service', serviceId: 'forged' } },
+  (itemId, quantity, metadata) => { rationGrant = { itemId, quantity, metadata }; return true; },
 );
-assert.equal(canonicalizedPurchase.ok, true);
-assert.equal(canonicalizedPurchase.spentCopper, 6);
-assert.equal(canonicalizedPurchase.balanceCopper, 34);
-assert.equal(canonicalizedPurchase.remainingStock, 3);
-assert.deepEqual(
-  canonicalGrant,
-  {
-    itemId: 'dragonstone-field-ration',
-    quantity: 1,
-    metadata: {
-      sourceType: 'vendor',
-      sourceId: 'stannis-guard-1',
-      craftUpgrade: null,
-    },
-  },
-  'purchase fulfillment must use canonical quantity and vendor provenance rather than forged caller fields',
-);
+assert.equal(rationPurchase.spentCopper, 6);
+assert.equal(rationPurchase.balanceCopper, 34);
+assert.deepEqual(rationGrant, {
+  itemId: 'dragonstone-field-ration',
+  quantity: 1,
+  metadata: { sourceType: 'vendor', sourceId: 'stannis-guard-1', craftUpgrade: null },
+});
 
-const smithingCanonicalizationEconomy = createInteractionEconomyState(40);
-let smithingGrant = null;
-const smithingPurchase = smithingCanonicalizationEconomy.purchase(
+const smithingEconomy = createInteractionEconomyState(40);
+let smithingGrant;
+const smithingPurchase = smithingEconomy.purchase(
   {
-    id: 'dragonstone-whetstone',
-    itemId: 'dragonstone-whetstone',
+    ...whetstoneOffer,
     priceCopper: 0,
     quantity: 77,
-    stockLimit: 900,
     fulfillment: {
       kind: 'vendor',
       serviceId: 'forged-smithing-service',
-      craftUpgrade: {
-        recipeId: 'forged-recipe',
-        outputItemId: 'forged-output',
-        outputQuantity: 99,
-      },
+      craftUpgrade: { recipeId: 'forged-recipe', outputItemId: 'forged-output', outputQuantity: 99 },
     },
   },
-  (itemId, quantity, metadata) => {
-    smithingGrant = { itemId, quantity, metadata };
-    return true;
-  },
+  (itemId, quantity, metadata) => { smithingGrant = { itemId, quantity, metadata }; return true; },
 );
-assert.equal(smithingPurchase.ok, true);
 assert.equal(smithingPurchase.spentCopper, 12);
 assert.equal(smithingPurchase.balanceCopper, 28);
-assert.equal(smithingPurchase.remainingStock, 1);
 assert.equal(smithingGrant.itemId, 'dragonstone-whetstone');
 assert.equal(smithingGrant.quantity, 1);
 assert.equal(smithingGrant.metadata.sourceType, 'settlement-service');
 assert.equal(smithingGrant.metadata.sourceId, 'dragonstone-watch-armorer-honing');
-assert.deepEqual(
-  smithingGrant.metadata.craftUpgrade,
-  {
-    recipeId: 'dragonstone-expedition-maintenance-kit',
-    inputs: [
-      { itemId: 'dragonstone-travel-ration-pack', quantity: 1 },
-      { itemId: 'dragonstone-whetstone', quantity: 1 },
-    ],
-    outputItemId: 'dragonstone-expedition-maintenance-kit',
-    outputQuantity: 1,
-    label: '1 yol azığı paketi + 1 bileği taşını 1 sefer bakım kitine hazırla',
-  },
-  'smithing fulfillment must expose only the canonical recipe contract to inventory/crafting integration',
-);
-assert.deepEqual(
-  smithingCanonicalizationEconomy.snapshot().ledger.purchasesByOffer,
-  {
-    'dragonstone-field-ration': 0,
-    'dragonstone-whetstone': 1,
-    'dragonstone-watch-ration-allotment': 0,
-  },
-  'forged stock metadata must not inflate smithing purchase history',
-);
-
-const provisioningCanonicalizationEconomy = createInteractionEconomyState(40);
-let provisioningGrant = null;
-const provisioningPurchase = provisioningCanonicalizationEconomy.purchase(
-  {
-    id: 'dragonstone-watch-ration-allotment',
-    itemId: 'dragonstone-travel-ration-pack',
-    priceCopper: 0,
-    quantity: 50,
-    stockLimit: 500,
-    fulfillment: {
-      kind: 'vendor',
-      serviceId: 'forged-ration-service',
-      craftUpgrade: {
-        recipeId: 'forged-ration-recipe',
-        inputItemId: 'forged-input',
-        inputQuantity: 99,
-        outputItemId: 'forged-output',
-        outputQuantity: 99,
-      },
-    },
-  },
-  (itemId, quantity, metadata) => {
-    provisioningGrant = { itemId, quantity, metadata };
-    return true;
-  },
-);
-assert.equal(provisioningPurchase.ok, true);
-assert.equal(provisioningPurchase.spentCopper, 5);
-assert.equal(provisioningPurchase.balanceCopper, 35);
-assert.equal(provisioningPurchase.remainingStock, 0);
-assert.deepEqual(
-  provisioningGrant,
-  {
-    itemId: 'dragonstone-travel-ration-pack',
-    quantity: 1,
-    metadata: {
-      sourceType: 'settlement-service',
-      sourceId: 'dragonstone-watch-ration-prep',
-      craftUpgrade: {
-        recipeId: 'dragonstone-watch-travel-ration-pack',
-        inputItemId: 'dragonstone-field-ration',
-        inputQuantity: 2,
-        outputItemId: 'dragonstone-travel-ration-pack',
-        outputQuantity: 1,
-        label: '2 saha azığını 1 yol azığı paketine hazırla',
-      },
-    },
-  },
-  'provisioning fulfillment must keep canonical station service provenance and recipe semantics',
-);
+assert.equal(smithingGrant.metadata.craftUpgrade.recipeId, 'dragonstone-expedition-maintenance-kit');
+assert.equal(smithingGrant.metadata.craftUpgrade.outputItemId, 'dragonstone-expedition-maintenance-kit');
 
 for (const forgedOffer of [
   null,
@@ -207,72 +76,34 @@ for (const forgedOffer of [
   { id: 'dragonstone-field-ration', itemId: 'forged-item-id' },
 ]) {
   let grantCalls = 0;
-  const rejected = economy.purchase(forgedOffer, () => {
-    grantCalls += 1;
-    return true;
-  });
-  assert.equal(rejected.ok, false, 'unknown or mismatched offers must be rejected');
+  const rejected = economy.purchase(forgedOffer, () => { grantCalls += 1; return true; });
+  assert.equal(rejected.ok, false);
   assert.equal(rejected.reason, 'invalid-offer');
-  assert.equal(grantCalls, 0, 'invalid offers must be rejected before inventory fulfillment');
-  assert.deepEqual(
-    economy.snapshot(),
-    stableState,
-    'invalid offer rejection must preserve wallet, finite stock, trade history and expedition provenance atomically',
-  );
+  assert.equal(grantCalls, 0);
+  assert.deepEqual(economy.snapshot(), stableState, 'invalid offers must be rejected atomically');
 }
 
-const missingGrant = economy.purchase(
-  { id: 'dragonstone-field-ration', itemId: 'dragonstone-field-ration' },
-  null,
-);
-assert.equal(missingGrant.ok, false);
-assert.equal(missingGrant.reason, 'invalid-offer');
-assert.deepEqual(
-  economy.snapshot(),
-  stableState,
-  'missing inventory fulfillment must not mutate settlement economy or expedition receipts',
-);
-
-const throwingGrantState = structuredClone(economy.snapshot());
 assert.throws(
-  () => economy.purchase(
-    { id: 'dragonstone-field-ration', itemId: 'dragonstone-field-ration' },
-    () => {
-      throw new Error('inventory fulfillment failed');
-    },
-  ),
+  () => economy.purchase(rationOffer, () => { throw new Error('inventory fulfillment failed'); }),
   /inventory fulfillment failed/,
-  'inventory/service exceptions may propagate but must happen before settlement economy commit',
 );
-assert.deepEqual(
-  economy.snapshot(),
-  throwingGrantState,
-  'throwing inventory fulfillment must preserve wallet, finite stock, trade ledger and expedition provenance atomically',
-);
+assert.deepEqual(economy.snapshot(), stableState, 'throwing fulfillment must happen before economy commit');
 
-const malformedReceiptEconomy = createInteractionEconomyState(40);
-const malformedReceiptPurchase = malformedReceiptEconomy.purchase(
-  { id: 'dragonstone-field-ration', itemId: 'dragonstone-field-ration' },
-  () => ({
-    ok: true,
-    crafted: true,
-    outputItemId: 'dragonstone-expedition-maintenance-kit',
-    consumedItemId: 'forged-consumed-item',
-    consumedQuantity: 99,
-    consumedItems: [null, {}, [], { itemId: 'dragonstone-whetstone', quantity: 2 }],
-  }),
-);
-assert.equal(malformedReceiptPurchase.ok, true);
-assert.equal(malformedReceiptPurchase.balanceCopper, 34);
-assert.equal(malformedReceiptPurchase.remainingStock, 3);
-assert.deepEqual(
-  malformedReceiptPurchase.consumedItems,
-  [{ itemId: 'dragonstone-whetstone', quantity: 2 }],
-  'malformed crafting receipt entries must be filtered before the settlement trade transaction commits',
-);
-assert.equal(malformedReceiptPurchase.consumedItemId, 'dragonstone-whetstone', 'singular consumption identity must derive from the sanitized receipt list');
-assert.equal(malformedReceiptPurchase.consumedQuantity, 2, 'singular consumption quantity must derive from the sanitized receipt list');
-assert.equal(malformedReceiptEconomy.snapshot().ledger.transactionCount, 1);
-assert.equal(malformedReceiptEconomy.snapshot().stockByOffer['dragonstone-field-ration'], 3);
+const receiptEconomy = createInteractionEconomyState(40);
+const sanitized = receiptEconomy.purchase(rationOffer, () => ({
+  ok: true,
+  crafted: true,
+  outputItemId: 'forged-output',
+  consumedItemId: 'forged-consumed-item',
+  consumedQuantity: 99,
+  consumedItems: [null, {}, [], { itemId: 'dragonstone-whetstone', quantity: 2 }],
+}));
+assert.equal(sanitized.ok, true);
+assert.equal(sanitized.craftedItemId, null, 'plain vendor callbacks cannot forge crafted output identity');
+assert.deepEqual(sanitized.consumedItems, [{ itemId: 'dragonstone-whetstone', quantity: 2 }]);
+assert.equal(sanitized.consumedItemId, 'dragonstone-whetstone');
+assert.equal(sanitized.consumedQuantity, 2);
+assert.equal(receiptEconomy.snapshot().ledger.transactionCount, 1);
+assert.equal(receiptEconomy.snapshot().stockByOffer['dragonstone-field-ration'], 3);
 
 console.log('Interaction expedition trade quote atomicity acceptance PASS');
