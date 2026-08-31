@@ -342,6 +342,8 @@ float run177MudPatch = smoothstep(0.68, 0.88, run177Macro * 0.62 + run177Meso * 
 float run177MineralDust = smoothstep(0.60, 0.87, run177Meso) * (0.22 + run177ShoulderWear * 0.78);
 float run177EdgeMacro = run177RoadFbm(run177World * 0.011 + run177Warp * 3.1 + vec2(-18.4, 7.9));
 float run177EdgeMeso = run177RoadFbm(run177World * 0.094 + vec2(6.8, -27.3));
+float run177ShoulderCut = mix(0.91, 1.015, run177EdgeMacro * 0.65 + run177EdgeMeso * 0.35);
+if (run177Across > run177ShoulderCut) discard;
 float run177EdgeThreshold = mix(0.70, 0.91, run177EdgeMacro);
 float run177EdgeErosion = smoothstep(run177EdgeThreshold, 1.0, run177Across) * smoothstep(0.28, 0.79, run177EdgeMeso) * ${edgeGain.toFixed(2)};
 float run177TerrainIngress = smoothstep(mix(0.77, 0.93, run177EdgeMeso), 1.0, run177Across) * smoothstep(0.36, 0.75, 1.0 - run177Macro) * ${edgeGain.toFixed(2)};
