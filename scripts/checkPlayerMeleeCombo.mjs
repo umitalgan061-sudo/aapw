@@ -37,13 +37,14 @@ assert.ok(interaction.includes("if (event.code !== 'KeyE') return"), 'interactio
 assert.ok(controlsHelp.includes("['E', 'Yakındaki kişiyle konuş']"), 'desktop controls help must keep E documented as nearby interaction');
 assert.ok(/export function samplePlayerGamepad\(gamepad, previousButtons = \{\}(?:, [^)]+)?\)/.test(input), 'gamepad sampler must preserve gamepad + previous-button edge-state inputs while allowing additive state parameters');
 assert.ok(!input.includes("gamepad?.buttons?.[0]?.pressed"), 'legacy A-as-light direct gamepad polling must stay removed');
-for (const fragment of ["className = 'g3d-touch-light-attack-button'", "className = 'g3d-touch-heavy-attack-button'", "emitPlayerCombatIntent('light', 'touch')", "emitPlayerCombatIntent('heavy', 'touch')", "setAttribute('aria-label', 'Hafif saldırı')", "setAttribute('aria-label', 'Ağır saldırı')", 'constructor(container = document.body, { isInputBlocked = isPlayerGameplayInputBlocked } = {})', 'readPlayerGameplayInputBlocked(this._isInputBlocked)', 'this._visibilityTarget = globalThis.document?.addEventListener ? globalThis.document : null', "this._visibilityTarget?.addEventListener('visibilitychange', this._onVisibilityChange)", '_resetGameplayState()', 'return { forward: 0, strafe: 0, running: false, guarding: false }']) assert.ok(touch.includes(fragment), `missing mobile melee/pause/lifecycle contract: ${fragment}`);
+for (const fragment of ["className = 'g3d-touch-light-attack-button'", "className = 'g3d-touch-heavy-attack-button'", "emitPlayerCombatIntent('light', 'touch')", "emitPlayerCombatIntent('heavy', 'touch')", "setAttribute('aria-label', 'Hafif saldırı')", "setAttribute('aria-label', 'Ağır saldırı')", 'constructor(container = document.body, { isInputBlocked = isPlayerGameplayInputBlocked } = {})', 'readPlayerGameplayInputBlocked(this._isInputBlocked)', 'this._visibilityTarget = globalThis.document?.addEventListener ? globalThis.document : null', 'this._pageLifecycleTarget = globalThis.window?.addEventListener ? globalThis.window : null', "this._visibilityTarget?.addEventListener('visibilitychange', this._onVisibilityChange)", "this._pageLifecycleTarget?.addEventListener('pagehide', this._onPageHide)", '_resetGameplayState()', 'return { forward: 0, strafe: 0, running: false, guarding: false }']) assert.ok(touch.includes(fragment), `missing mobile melee/pause/lifecycle contract: ${fragment}`);
 for (const clip of ['idle', 'walking', 'running']) assert.ok(playerConfig.includes(`${clip}: 'assets/animations/peasant_girl/${clip}.fbx'`), `missing shipped ${clip} animation source`);
 assert.ok(!playerConfig.match(/\battack\s*:/i), 'do not invent an attack clip absent from the shipped asset family'); assert.ok(!player.includes('EditorMaterialStudio')); assert.ok(!player.includes('CapsuleGeometry')); assert.ok(!player.includes('npc.js'));
 
 const previousDispatchEvent = globalThis.dispatchEvent;
 const previousCustomEvent = globalThis.CustomEvent;
 const previousDocument = globalThis.document;
+const previousWindow = globalThis.window;
 if (typeof globalThis.CustomEvent !== 'function') globalThis.CustomEvent = class CustomEvent { constructor(type, init = {}) { this.type = type; this.detail = init.detail; } };
 const keyboardIntents = [];
 globalThis.dispatchEvent = (event) => { if (event?.type === 'aapw:player-combat-input') keyboardIntents.push(event.detail); return true; };
@@ -75,7 +76,9 @@ class FakeKeyTarget extends EventTarget {
 function dispatchKey(target, type, code, repeat = false) { const event = new Event(type, { cancelable: true }); Object.defineProperties(event, { code: { value: code }, repeat: { value: repeat } }); target.dispatchEvent(event); return event; }
 function dispatchPointer(target, type, button, pointerId = 1, clientX = 0, clientY = 0) { const event = new Event(type, { cancelable: true }); Object.defineProperties(event, { button: { value: button }, pointerId: { value: pointerId }, clientX: { value: clientX }, clientY: { value: clientY } }); target.dispatchEvent(event); return event; }
 const lifecycleDocument = new FakeDocument();
+const lifecycleWindow = new EventTarget();
 globalThis.document = lifecycleDocument;
+globalThis.window = lifecycleWindow;
 const worldTarget = new FakeKeyTarget(false), interactiveTarget = new FakeKeyTarget(true), pausedTarget = new FakeKeyTarget(false);
 let pauseBlocked = true;
 const worldInput = new KeyboardInput(worldTarget), interactiveInput = new KeyboardInput(interactiveTarget), pausedInput = new KeyboardInput(pausedTarget, { isInputBlocked: () => pauseBlocked });
@@ -181,12 +184,29 @@ try {
 	dispatchPointer(touchInput._lightAttackButton, 'pointerdown', 0);
 	assert.equal(keyboardIntents.length, beforeTouchLifecycleResume + 1, 'fresh touch attack after PWA visibility restore must remain responsive');
 	assert.deepEqual(keyboardIntents.at(-1), { kind: 'light', source: 'touch' }, 'restored touch attack must use the canonical combat intent');
+
+	// Some mobile Safari/PWA transitions deliver pagehide even when visibilitychange is skipped or
+	// delayed. The window lifecycle path must reuse the exact same reset without waiting for a frame.
+	dispatchPointer(touchInput._base, 'pointerdown', 0, 91, 15, 15);
+	dispatchPointer(touchInput._base, 'pointermove', 0, 91, 55, 15);
+	touchInput._jumpButton.dispatchEvent(new Event('click', { cancelable: true }));
+	dispatchPointer(touchInput._guardButton, 'pointerdown', 0);
+	dispatchPointer(touchInput._lockOnButton, 'pointerdown', 0);
+	assert.equal(touchInput._pointerId, 91, 'pagehide fixture must start with captured touch input');
+	lifecycleWindow.dispatchEvent(new Event('pagehide'));
+	assert.equal(touchInput._pointerId, null, 'pagehide must release the active touch pointer');
+	assert.equal(touchInput._base.capturedPointerId, null, 'pagehide must release touch pointer capture');
+	assert.deepEqual(touchInput.getAxes(), { forward: 0, strafe: 0, running: false, guarding: false }, 'pagehide must neutralize touch movement and guard');
+	assert.equal(touchInput.consumeJumpRequested(), false, 'pagehide must clear queued touch jump');
+	assert.equal(touchInput.consumeLockOnRequested(), false, 'pagehide must clear queued touch lock-on');
+	assert.equal(touchInput._guardButton.getAttribute('aria-pressed'), 'false', 'pagehide must clear the visible guard-held state');
 } finally {
 	touchInput?.dispose();
 	worldInput.dispose(); interactiveInput.dispose(); pausedInput.dispose();
 	globalThis.dispatchEvent = previousDispatchEvent;
 	globalThis.document = previousDocument;
+	if (previousWindow === undefined) delete globalThis.window; else globalThis.window = previousWindow;
 	if (previousCustomEvent) globalThis.CustomEvent = previousCustomEvent; else delete globalThis.CustomEvent;
 }
 
-console.log(JSON.stringify({ ok: true, contract: 'player-melee-combo-input-window', attack: cfg, windupSteering: { turnMultiplier: 0.68, preActiveOnly: true, activeHoming: false }, inputs: { keyboard: ['KeyC', 'KeyR'], interactionReserved: 'KeyE', mouse: 'button0-light', gamepad: ['A/button0-jump', 'X/button2-light', 'Y/button3-heavy'], touch: ['light', 'heavy', 'jump', 'guard', 'lock-on'], interactiveDomCombatSuppressed: true, pauseGameplayInputSuppressed: true, touchPauseGameplayInputSuppressed: true, lifecycleIsolation: ['document-visibility', 'held-key-repeat', 'touch-pointer-reset'] }, assetPolicy: { newModel: false, fabricatedAttackClip: false, canonicalAnimationConfig: 'src/3d/gameplay/playerConfig.js', sharedMaterialCoreUnchanged: true }, ownership: { npcDamageConsumerModified: false, terrainModified: false, rpgSemanticsModified: false } }, null, 2));
+console.log(JSON.stringify({ ok: true, contract: 'player-melee-combo-input-window', attack: cfg, windupSteering: { turnMultiplier: 0.68, preActiveOnly: true, activeHoming: false }, inputs: { keyboard: ['KeyC', 'KeyR'], interactionReserved: 'KeyE', mouse: 'button0-light', gamepad: ['A/button0-jump', 'X/button2-light', 'Y/button3-heavy'], touch: ['light', 'heavy', 'jump', 'guard', 'lock-on'], interactiveDomCombatSuppressed: true, pauseGameplayInputSuppressed: true, touchPauseGameplayInputSuppressed: true, lifecycleIsolation: ['document-visibility', 'window-pagehide', 'held-key-repeat', 'touch-pointer-reset'] }, assetPolicy: { newModel: false, fabricatedAttackClip: false, canonicalAnimationConfig: 'src/3d/gameplay/playerConfig.js', sharedMaterialCoreUnchanged: true }, ownership: { npcDamageConsumerModified: false, terrainModified: false, rpgSemanticsModified: false } }, null, 2));
