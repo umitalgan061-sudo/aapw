@@ -67,6 +67,13 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Isolate NPC browser proofs from full-world boot
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > game3d.html <<'HTML'
+          <!doctype html><html><head><meta charset="utf-8"><script type="importmap">{"imports":{"three":"./src/3d/vendor/three/three.module.js","three/addons/":"./src/3d/vendor/three/addons/"}}</script></head><body></body></html>
+          HTML
       - name: Real shipped Three.js malformed-input recovery proof
         run: node scripts/checkNpcPerceptionInputSafetyBrowser.js
       - name: Existing hearing determinism regression
