@@ -1,0 +1,109 @@
+name: Full World 3D Topdown QA
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/config.js'
+      - 'src/3d/fog.js'
+      - 'src/3d/sky.js'
+      - 'src/3d/world/terrain.js'
+      - 'src/3d/world/terrainReliefDetail.js'
+      - 'src/3d/world/terrainMacroWeathering.js'
+      - 'src/3d/world/terrainMicroSurface.js'
+      - 'src/3d/world/terrainBiomeShading.js'
+      - 'src/3d/world/northReferenceCryosphere.js'
+      - 'src/3d/world/worldReferenceSurfacePindexes.js'
+      - 'src/3d/world/worldReferenceMountainRelief.js'
+      - 'src/3d/world/worldReferencePindex01Detail.js'
+      - 'src/3d/world/worldReferencePindex02Detail.js'
+      - 'src/3d/world/worldReferencePindex03Detail.js'
+      - 'src/3d/world/worldReferencePindex05Detail.js'
+      - 'src/3d/world/westernMarineShelfTone.js'
+      - 'src/3d/world/westernReferenceSurfaceFabric.js'
+      - 'src/3d/world/water.js'
+      - 'src/3d/world/waterDepthField.js'
+      - 'scripts/checkTerrainMicroSurface.mjs'
+      - 'scripts/checkTerrainMacroWeathering.mjs'
+      - 'scripts/checkTerrainMacroWeatheringStatistics.mjs'
+      - 'scripts/checkTerrainMacroWeatheringIntegration.mjs'
+      - 'scripts/checkTerrainMacroWeatheringPerformance.mjs'
+      - 'scripts/checkTerrainLandformFabric.mjs'
+      - 'scripts/checkMountainLakeBasinTaper.mjs'
+      - 'scripts/checkWaterOffshoreOptics.mjs'
+      - 'scripts/checkWesternMarineShelfTone.mjs'
+      - 'scripts/checkWesternReferenceSurfaceFabric.mjs'
+      - 'scripts/checkPindex05NaturalSoilVariation.mjs'
+      - 'scripts/captureFullWorld3DTopdown.mjs'
+      - 'scripts/fullWorld3DTopdownHarness.html'
+      - '.github/workflows/full-world-3d-topdown.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full-world-3d-topdown:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact requested head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          lfs: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install terrain/browser QA dependencies
+        run: |
+          npm install --no-save playwright three
+          npx playwright install --with-deps chromium
+
+      - name: Verify production terrain geomorphology, soil fabric, marine shelf, offshore water and atmosphere contracts
+        run: |
+          set -euo pipefail
+          node --check src/3d/fog.js
+          node --check src/3d/sky.js
+          node --check src/3d/world/terrainMacroWeathering.js
+          node --check src/3d/world/terrainReliefDetail.js
+          node --check src/3d/world/worldReferenceMountainRelief.js
+          node --check src/3d/world/westernMarineShelfTone.js
+          node --check src/3d/world/westernReferenceSurfaceFabric.js
+          node --check src/3d/world/worldReferencePindex01Detail.js
+          node --check src/3d/world/worldReferencePindex02Detail.js
+          node --check src/3d/world/worldReferencePindex03Detail.js
+          node --check src/3d/world/worldReferencePindex05Detail.js
+          node --check src/3d/world/water.js
+          node --check src/3d/world/waterDepthField.js
+          node --check scripts/checkMountainLakeBasinTaper.mjs
+          node scripts/checkTerrainMacroWeathering.mjs
+          node scripts/checkTerrainMacroWeatheringStatistics.mjs
+          node scripts/checkTerrainMacroWeatheringIntegration.mjs
+          node scripts/checkTerrainMacroWeatheringPerformance.mjs
+          node scripts/checkTerrainLandformFabric.mjs
+          node scripts/checkTerrainMicroSurface.mjs
+          node scripts/checkMountainLakeBasinTaper.mjs
+          node scripts/checkWaterOffshoreOptics.mjs
+          node scripts/checkWesternMarineShelfTone.mjs
+          node scripts/checkWesternReferenceSurfaceFabric.mjs
+          node scripts/checkPindex05NaturalSoilVariation.mjs
+
+      - name: Render authoritative full-world 3D topdown
+        run: |
+          node scripts/captureFullWorld3DTopdown.mjs \
+            --width=1600 \
+            --height=1100 \
+            --segments=240 \
+            --output=artifacts/full-world-3d-topdown/full-world-3d-topdown.png
+
+      - name: Upload full-world visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-world-3d-topdown
+          path: artifacts/full-world-3d-topdown/
+          if-no-files-found: warn
+          retention-days: 7

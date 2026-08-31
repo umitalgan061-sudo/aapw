@@ -1,0 +1,110 @@
+name: Firebase Deploy LFS Readiness
+
+on:
+  pull_request:
+    paths:
+      - 'assets/models/vegetation/winter_tree.glb'
+      - 'assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb'
+      - 'assets/models/Ay/Moon 2K.fbx'
+      - '.gitattributes'
+      - 'firebase.json'
+      - 'src/3d/world/winterVegetationAsset.js'
+      - 'src/3d/lighting.js'
+      - 'scripts/firebaseDeployLfsReadiness.mjs'
+      - 'scripts/checkFirebaseDeployLfsReadiness.mjs'
+      - 'scripts/inspectWinterGlbMetadata.mjs'
+      - 'scripts/checkWinterGlbMetadataInspector.mjs'
+      - 'scripts/checkWinterAssetSuitabilityContract.mjs'
+      - '.github/workflows/firebase-deploy-lfs-readiness.yml'
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: 'LFS hydration scope; choose all immediately before a real Firebase deployment'
+        required: true
+        default: winter
+        type: choice
+        options:
+          - winter
+          - celestial
+          - all
+
+permissions:
+  contents: read
+
+jobs:
+  lfs-readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout pointer state
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          lfs: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Resolve vendored Three.js for runtime policy checks
+        run: node scripts/setupNodeThreeShim.mjs
+
+      - name: Static deploy-preflight contract
+        run: |
+          node --check src/3d/world/winterVegetationAsset.js
+          node --check src/3d/lighting.js
+          node --check scripts/firebaseDeployLfsReadiness.mjs
+          node --check scripts/checkFirebaseDeployLfsReadiness.mjs
+          node --check scripts/inspectWinterGlbMetadata.mjs
+          node --check scripts/checkWinterGlbMetadataInspector.mjs
+          node --check scripts/checkWinterAssetSuitabilityContract.mjs
+          node scripts/checkFirebaseDeployLfsReadiness.mjs
+          node scripts/checkWinterGlbMetadataInspector.mjs
+
+      - name: Hydrate and verify PR winter deployment assets
+        if: github.event_name == 'pull_request'
+        run: |
+          node scripts/firebaseDeployLfsReadiness.mjs \
+            --hydrate \
+            --scope=winter \
+            --manifest=artifacts/firebase-deploy-lfs-readiness.json
+
+      - name: Hydrate and verify dispatched winter deployment assets
+        if: github.event_name == 'workflow_dispatch' && inputs.scope == 'winter'
+        run: |
+          node scripts/firebaseDeployLfsReadiness.mjs \
+            --hydrate \
+            --scope=winter \
+            --manifest=artifacts/firebase-deploy-lfs-readiness.json
+
+      - name: Hydrate and verify dispatched celestial deployment assets
+        if: github.event_name == 'workflow_dispatch' && inputs.scope == 'celestial'
+        run: |
+          node scripts/firebaseDeployLfsReadiness.mjs \
+            --hydrate \
+            --scope=celestial \
+            --manifest=artifacts/firebase-deploy-lfs-readiness.json
+
+      - name: Hydrate and verify complete Firebase deployment checkout
+        if: github.event_name == 'workflow_dispatch' && inputs.scope == 'all'
+        run: |
+          node scripts/firebaseDeployLfsReadiness.mjs \
+            --hydrate \
+            --scope=all \
+            --manifest=artifacts/firebase-deploy-lfs-readiness.json
+
+      - name: Inspect hydrated winter GLB geometry
+        if: github.event_name == 'pull_request' || inputs.scope != 'celestial'
+        run: node scripts/inspectWinterGlbMetadata.mjs | tee artifacts/winter-glb-metadata.txt
+
+      - name: Match hydrated assets to runtime single-tree policy
+        if: github.event_name == 'pull_request' || inputs.scope != 'celestial'
+        run: node scripts/checkWinterAssetSuitabilityContract.mjs | tee artifacts/winter-asset-suitability.txt
+
+      - name: Upload readiness manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: firebase-deploy-lfs-readiness
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 7

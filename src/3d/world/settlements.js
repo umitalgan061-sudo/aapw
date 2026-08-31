@@ -16,6 +16,7 @@
 
 import * as THREE from 'three';
 import { createStoneMaterial, createRoofMaterial, disposeCastleMaterial, prepareImportedGeometryForTexturing } from './materials.js';
+import { applyValyriaCastleWeathering, VALYRIA_CASTLE_WEATHERING_POLICY } from './valyriaCastleWeathering.js';
 
 /**
  * Kingdom seats: `id`/`name`/`house`/`color`/2D-map `mapX`/`mapY` only, derived from `script.js`'s
@@ -66,7 +67,7 @@ const STONE_COLOR = new THREE.Color(0x8a8578);
  */
 export const CASTLE_MODEL_ASSIGNMENTS = Object.freeze([
 	Object.freeze({ seatId: 'jon', assetId: 'castle_icebound_citadel_decimated', file: 'assets/models/settlements/castles/icebound_citadel_decimated.glb', stoneColorHex: 0xa9b7c4 }),
-	Object.freeze({ seatId: 'umit', assetId: 'castle_walled_city_fortress_decimated', file: 'assets/models/settlements/castles/walled_city_fortress_decimated.glb', stoneColorHex: 0x8f8a7c }),
+	Object.freeze({ seatId: 'umit', assetId: 'castle_walled_city_fortress_decimated', file: 'assets/models/settlements/castles/walled_city_fortress_decimated.glb', stoneColorHex: VALYRIA_CASTLE_WEATHERING_POLICY.baseStoneHex }),
 	Object.freeze({ seatId: 'cersei', assetId: 'castle_fortress_of_the_crown_decimated', file: 'assets/models/settlements/castles/fortress_of_the_crown_decimated.glb', stoneColorHex: 0x9c9070 }),
 	Object.freeze({ seatId: 'balon', assetId: 'castle_castle_on_a_rock_decimated', file: 'assets/models/settlements/castles/castle_on_a_rock_decimated.glb', stoneColorHex: 0x74787d }),
 	Object.freeze({ seatId: 'ziya', assetId: 'castle_emerald_citadel_decimated', file: 'assets/models/settlements/castles/emerald_citadel_decimated.glb', stoneColorHex: 0x93917f }),
@@ -110,13 +111,14 @@ const REAL_CASTLE_FOOTPRINT_METERS = 46;
  * narrower than that on at least one axis, so this is already a conservative upper bound, not a
  * measured-per-model number). `OUTER` is where the pad has fully eased back to untouched natural
  * terrain. The canonical full-owner-map relief is far taller than the historical 24m FBM field, so
- * the old 75m outer radius produced >20° road segments at the pad feather. A 150m outer radius gives
- * the same 38m flat castle footprint a 112m smooth transition; exact browser road qualification on
- * the canonical field keeps every one of the 13 settlement routes at or below the 20° safety limit.
+ * the old 75m outer radius produced >20° road segments at the pad feather. A 210m outer radius gives
+ * the same 38m flat castle footprint a 172m smooth transition; the longer feather also attenuates
+ * Balon's immutable shoreline-cell step below the strict 17° road-search cap without changing the
+ * owner-map water classification or splitting render, collider and gameplay height authority.
  * One shared radius pair for every seat keeps render, physics, settlement and road metadata aligned.
  */
 const SETTLEMENT_FLATTEN_INNER_RADIUS_METERS = 38;
-const SETTLEMENT_FLATTEN_OUTER_RADIUS_METERS = 150;
+const SETTLEMENT_FLATTEN_OUTER_RADIUS_METERS = 210;
 
 /**
  * Builds the `flattenPads` list `world/terrain.js`'s `createHeightSampler` consumes to flatten the
@@ -401,6 +403,12 @@ export async function spawnRealCastleModels({ assetLoader, seats, seed }) {
 		// `STONE_COLOR` when an assignment doesn't name one.
 		const stoneColor = assignment.stoneColorHex != null ? new THREE.Color(assignment.stoneColorHex) : STONE_COLOR;
 		const stoneMaterial = createStoneMaterial({ seed: seed + 2 + index, baseColor: stoneColor, repeat: stoneRepeat });
+		applyValyriaCastleWeathering(stoneMaterial, {
+			seatId: assignment.seatId,
+			groundY: seat.groundY,
+			footprintMeters: footprint,
+			seed: seed + 2 + index,
+		});
 		model.traverse((node) => {
 			if (node.isMesh) node.material = stoneMaterial;
 		});

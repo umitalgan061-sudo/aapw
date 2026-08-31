@@ -1,0 +1,58 @@
+name: Structure Grounding Policy
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/structureGroundingPolicy.js'
+      - 'src/3d/world/WorldAssetPlacementPipeline.js'
+      - 'src/3d/editor/EditorTerrainFoundationGrounder.js'
+      - 'scripts/checkStructureGroundingPolicy.mjs'
+      - 'scripts/checkStructureGroundingExtendedFamilies.mjs'
+      - 'scripts/checkStructureSurfacePolicy.mjs'
+      - 'scripts/setupNodeThreeShim.mjs'
+      - '.github/workflows/structure-grounding-policy.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: structure-grounding-policy-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  structure-grounding-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Resolve vendored Three.js
+        run: node scripts/setupNodeThreeShim.mjs
+
+      - name: Static syntax
+        run: |
+          node --check src/3d/world/structureGroundingPolicy.js
+          node --check src/3d/world/WorldAssetPlacementPipeline.js
+          node --check src/3d/editor/EditorTerrainFoundationGrounder.js
+          node --check scripts/checkStructureGroundingPolicy.mjs
+          node --check scripts/checkStructureGroundingExtendedFamilies.mjs
+          node --check scripts/checkStructureSurfacePolicy.mjs
+
+      - name: Shared editor/runtime structure grounding contract
+        run: |
+          node scripts/checkStructureGroundingPolicy.mjs
+          node scripts/checkStructureGroundingExtendedFamilies.mjs
+
+      - name: Runtime structure surface profile contract
+        run: node scripts/checkStructureSurfacePolicy.mjs

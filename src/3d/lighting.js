@@ -1,100 +1,186 @@
 /**
- * Day/night cycle: owns the scene's sun (`DirectionalLight`) and sky-fill (`HemisphereLight`),
- * animating their direction/color/intensity from a real-time-driven time-of-day ratio. Also
- * exposes the horizon/zenith sky colors and a night factor that `sky.js` blends in, so the aurora
- * skybox and the sun stay visually consistent instead of two independently-tuned systems drifting
- * apart (see 3D_GAME_PROGRESS.md Known Issues, "always-on aurora", and DECISIONS.md ADR-0006).
- *
- * No GPU resources of its own to dispose (lights are cheap scene-graph nodes, no geometry/texture,
- * no shadow maps yet — see ARCHITECTURE.md) — `disposeDayNightLighting()` just removes the lights
- * from the scene, for symmetry with every other system's create/update/dispose triplet.
+ * Physically readable day/night lighting.
+ * World cardinal convention: +X = east, -X = west, +Y = up. Sunrise therefore starts on +X,
+ * noon is overhead and sunset ends on -X. The moon runs on the opposite half of the same orbit and
+ * provides a real cool directional night key instead of relying on ambient fill alone.
  * @module lighting
  */
 
 import * as THREE from 'three';
 import { installNightVisualEnhancement, updateNightVisualEnhancement } from './nightVisualEnhancement.js';
+import { AssetLoader } from './assetLoader.js';
+import { publishCelestialLightState } from './celestialLightState.js';
+import { GEOGRAPHIC_REFERENCE_PALETTE_POLICY } from './world/geographicReferencePalette.js';
 
-/**
- * Ordered day/night keyframes, each at a `ratio` in [0, 1) of a full day (0 = midnight, 0.5 =
- * noon). `updateDayNightLighting` finds the two keyframes surrounding the current time and lerps
- * every field between them — adding a new keyframe (e.g. a distinct "storm" preset later) means
- * inserting one entry here, nothing else.
- */
 const KEYFRAMES = [
-	{ ratio: 0.0, sunColor: 0x233a66, sunIntensity: 0.05, hemiSky: 0x0a1230, hemiGround: 0x05070f, hemiIntensity: 0.25, nightFactor: 1.0 },
-	{ ratio: 0.22, sunColor: 0x233a66, sunIntensity: 0.05, hemiSky: 0x0a1230, hemiGround: 0x05070f, hemiIntensity: 0.25, nightFactor: 1.0 },
-	{ ratio: 0.27, sunColor: 0xffb366, sunIntensity: 0.9, hemiSky: 0x7d5a4a, hemiGround: 0x2a1c12, hemiIntensity: 0.6, nightFactor: 0.35 },
-	{ ratio: 0.5, sunColor: 0xfff2d8, sunIntensity: 1.4, hemiSky: 0xffe8c0, hemiGround: 0x1a140a, hemiIntensity: 1.1, nightFactor: 0.0 },
-	{ ratio: 0.73, sunColor: 0xff8c52, sunIntensity: 0.85, hemiSky: 0x8a4a3a, hemiGround: 0x261408, hemiIntensity: 0.55, nightFactor: 0.35 },
-	{ ratio: 0.78, sunColor: 0x233a66, sunIntensity: 0.05, hemiSky: 0x0a1230, hemiGround: 0x05070f, hemiIntensity: 0.25, nightFactor: 1.0 },
-	{ ratio: 1.0, sunColor: 0x233a66, sunIntensity: 0.05, hemiSky: 0x0a1230, hemiGround: 0x05070f, hemiIntensity: 0.25, nightFactor: 1.0 },
+	{ ratio: 0.0, sunColor: 0x233a66, sunIntensity: 0.0, hemiSky: 0x101b38, hemiGround: 0x080b13, hemiIntensity: 0.28, nightFactor: 1.0 },
+	{ ratio: 0.22, sunColor: 0x344b70, sunIntensity: 0.03, hemiSky: 0x142244, hemiGround: 0x0a0d16, hemiIntensity: 0.30, nightFactor: 1.0 },
+	{ ratio: 0.27, sunColor: 0xffb366, sunIntensity: 0.9, hemiSky: 0x8b6b59, hemiGround: 0x302117, hemiIntensity: 0.62, nightFactor: 0.35 },
+	{ ratio: 0.5, sunColor: 0xfff2d8, sunIntensity: 1.4, hemiSky: 0xb9d8ed, hemiGround: 0x413a2a, hemiIntensity: 1.1, nightFactor: 0.0 },
+	{ ratio: 0.73, sunColor: 0xff8c52, sunIntensity: 0.85, hemiSky: 0x9b6655, hemiGround: 0x301b12, hemiIntensity: 0.58, nightFactor: 0.35 },
+	{ ratio: 0.78, sunColor: 0x344b70, sunIntensity: 0.03, hemiSky: 0x142244, hemiGround: 0x0a0d16, hemiIntensity: 0.30, nightFactor: 1.0 },
+	{ ratio: 1.0, sunColor: 0x233a66, sunIntensity: 0.0, hemiSky: 0x101b38, hemiGround: 0x080b13, hemiIntensity: 0.28, nightFactor: 1.0 },
 ];
 
-/** Sky-sphere horizon/zenith gradient endpoints, keyed by the same night factor the keyframes carry. */
-const SKY_DAY = { horizon: new THREE.Color(0x9fd0ee), zenith: new THREE.Color(0x1c4f8f) };
-const SKY_NIGHT = { horizon: new THREE.Color(0xd98a52), zenith: new THREE.Color(0x0b1633) };
-
-/** Radius, in meters, of the sun's circular path around the origin — only its direction matters (it's a DirectionalLight), the radius just keeps it a sane finite position for debugging/gizmos. */
-const SUN_ORBIT_RADIUS_METERS = 500;
-
-// Owner readability requirement (2026-08-10): gameplay may still become night, but never a near-black
-// silhouette scene. This cool fill is intentionally a child of the existing hemisphere light so the
-// public `{ sun, hemisphere }` contract and existing dispose path remain unchanged/additive-only.
+const SKY_DAY = { horizon: new THREE.Color(0xaed7ee), zenith: new THREE.Color(0x2f72ad) };
+const SKY_NIGHT = { horizon: new THREE.Color(0x263752), zenith: new THREE.Color(0x071127) };
+const SKY_TWILIGHT = { horizon: new THREE.Color(0xe59a6d), zenith: new THREE.Color(0x4d6086) };
+const ORBIT_RADIUS_METERS = 900;
+const CELESTIAL_VISUAL_SCALE = 18;
 const NIGHT_READABILITY_LIGHT_NAME = 'Game Night Readability Fill';
-const NIGHT_READABILITY_DAY_INTENSITY = 0.08;
-const NIGHT_READABILITY_NIGHT_INTENSITY = 1.05;
+const NIGHT_READABILITY_DAY_INTENSITY = 0.05;
+const NIGHT_READABILITY_NIGHT_INTENSITY = 0.36;
+const MOON_MAX_INTENSITY = 0.55;
+const CELESTIAL_HORIZON_FADE_METERS = 25;
+const CELESTIAL_FULL_ALTITUDE_METERS = ORBIT_RADIUS_METERS * 0.22;
+const TWILIGHT_FULL_ALTITUDE_METERS = ORBIT_RADIUS_METERS * 0.30;
+
+export const CELESTIAL_ASSET_POLICY = Object.freeze({
+	id: 'celestial-asset-policy-2026-08-22-v2',
+	moonRepositoryPath: 'assets/models/Ay/Moon 2K.fbx',
+	moonAssetUrl: 'assets/models/Ay/Moon%202K.fbx',
+	moonTargetDiameterMeters: CELESTIAL_VISUAL_SCALE * 2,
+	moonLightingAltitudeModulated: true,
+	sunLightingAltitudeModulated: true,
+	twilightSkyAltitudeModulated: true,
+});
+
+export const CELESTIAL_GEOGRAPHIC_RESPONSE_POLICY = Object.freeze({
+	id: 'celestial-geographic-response-2026-08-28-v1',
+	referencePalettePolicyId: GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id,
+	eastZenithWestSunOrbit: true,
+	oppositeMoonOrbit: true,
+	altitudeModulatedIllumination: true,
+	waterNightResponsePublished: true,
+	materialAuthorityUnchanged: true,
+});
+
+function smoothstep(edge0, edge1, value) {
+	if (edge0 === edge1) return value >= edge1 ? 1 : 0;
+	const t = Math.max(0, Math.min(1, (value - edge0) / (edge1 - edge0)));
+	return t * t * (3 - 2 * t);
+}
 
 /**
- * Finds the two keyframes surrounding `ratio` and the local 0-1 blend between them.
- * @param {number} ratio
- * @returns {{a: KEYFRAMES[number], b: KEYFRAMES[number], t: number}}
+ * Keeps a directional celestial key from lighting the world at full strength while its visual body
+ * is still at or below the horizon. The small negative start avoids a one-frame pop at rise/set.
  */
+export function celestialAltitudeWeightFromY(worldY) {
+	return smoothstep(-CELESTIAL_HORIZON_FADE_METERS, CELESTIAL_FULL_ALTITUDE_METERS, worldY);
+}
+
+function twilightWeightFromSunY(sunY) {
+	return 1 - smoothstep(0, TWILIGHT_FULL_ALTITUDE_METERS, Math.abs(sunY));
+}
+
 function findKeyframeSegment(ratio) {
 	for (let i = 0; i < KEYFRAMES.length - 1; i++) {
 		const a = KEYFRAMES[i];
 		const b = KEYFRAMES[i + 1];
 		if (ratio >= a.ratio && ratio <= b.ratio) {
 			const span = b.ratio - a.ratio;
-			const t = span > 0 ? (ratio - a.ratio) / span : 0;
-			return { a, b, t };
+			return { a, b, t: span > 0 ? (ratio - a.ratio) / span : 0 };
 		}
 	}
-	// Unreachable given KEYFRAMES spans [0, 1] inclusive, but keeps the function total.
 	return { a: KEYFRAMES[0], b: KEYFRAMES[0], t: 0 };
 }
 
 const scratchColorA = new THREE.Color();
 const scratchColorB = new THREE.Color();
 
-/**
- * Creates the sun/hemisphere lights and adds them to `scene`. Call `updateDayNightLighting` once
- * per frame afterward to actually animate them — they start at whatever `t=0` keyframe blend
- * `elapsedSeconds=0` (plus `WORLD_DEFAULTS.START_TIME_OF_DAY_RATIO`) produces on the first update.
- * @param {THREE.Scene} scene
- * @returns {{sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}}
- */
+function makeCelestialSphere(name, color, scale = CELESTIAL_VISUAL_SCALE) {
+	const mesh = new THREE.Mesh(
+		new THREE.SphereGeometry(1, 24, 16),
+		new THREE.MeshBasicMaterial({ color, toneMapped: false, fog: false }),
+	);
+	mesh.name = name;
+	mesh.scale.setScalar(scale);
+	mesh.frustumCulled = false;
+	mesh.renderOrder = -10;
+	return mesh;
+}
+
+function fitObjectToDiameter(object, diameter) {
+	const box = new THREE.Box3().setFromObject(object);
+	const size = new THREE.Vector3();
+	box.getSize(size);
+	const largest = Math.max(size.x, size.y, size.z);
+	if (!(largest > 1e-6)) return false;
+	object.scale.multiplyScalar(diameter / largest);
+	object.updateMatrixWorld(true);
+	box.setFromObject(object);
+	const center = box.getCenter(new THREE.Vector3());
+	object.position.sub(center);
+	object.updateMatrixWorld(true);
+	return true;
+}
+
+function setMoonAssetStatus(moonAnchor, status, detail = {}) {
+	const value = Object.freeze({
+		policy: CELESTIAL_ASSET_POLICY.id,
+		assetUrl: CELESTIAL_ASSET_POLICY.moonAssetUrl,
+		status,
+		...detail,
+	});
+	moonAnchor.userData.celestialAsset = value;
+	return value;
+}
+
+/** Load the repository moon asset without making world boot wait for it. The procedural sphere stays
+ * as a safe fallback if the FBX is unavailable or is only an LFS pointer in the current deployment. */
+function installMoonAssetAsync(moonAnchor) {
+	const loader = new AssetLoader();
+	setMoonAssetStatus(moonAnchor, 'loading');
+	return loader.loadFBXModel(CELESTIAL_ASSET_POLICY.moonAssetUrl, { fallbackColor: 0xdbe8ff, fallbackSize: 2 }).then((model) => {
+		if (!moonAnchor.parent) return setMoonAssetStatus(moonAnchor, 'detached');
+		if (model.userData?.isPlaceholder) return setMoonAssetStatus(moonAnchor, 'fallback-placeholder');
+		if (!fitObjectToDiameter(model, CELESTIAL_ASSET_POLICY.moonTargetDiameterMeters)) {
+			return setMoonAssetStatus(moonAnchor, 'fallback-empty-model');
+		}
+		let meshCount = 0;
+		model.traverse((node) => {
+			if (!node.isMesh) return;
+			meshCount += 1;
+			node.castShadow = false;
+			node.receiveShadow = false;
+		});
+		if (meshCount === 0) return setMoonAssetStatus(moonAnchor, 'fallback-empty-model');
+		moonAnchor.clear();
+		moonAnchor.add(model);
+		return setMoonAssetStatus(moonAnchor, 'active', { meshCount });
+	}).catch((error) => setMoonAssetStatus(moonAnchor, 'fallback-error', {
+		error: error instanceof Error ? error.message : String(error),
+	}));
+}
+
 export function createDayNightLighting(scene) {
 	const sun = new THREE.DirectionalLight(0xffffff, 1);
+	sun.name = 'Sun Directional Light';
+	sun.userData.altitudeModulated = true;
+	sun.userData.geographicResponsePolicyId = CELESTIAL_GEOGRAPHIC_RESPONSE_POLICY.id;
+	const moon = new THREE.DirectionalLight(0xc8dcff, 0);
+	moon.name = 'Moon Directional Light';
+	moon.userData.altitudeModulated = true;
+	moon.userData.geographicResponsePolicyId = CELESTIAL_GEOGRAPHIC_RESPONSE_POLICY.id;
 	const hemisphere = new THREE.HemisphereLight(0xffffff, 0x000000, 1);
-	scene.add(sun);
-	scene.add(hemisphere);
-	const readability = new THREE.HemisphereLight(0xaed9ff, 0x4e5848, NIGHT_READABILITY_DAY_INTENSITY);
+
+	const sunVisual = new THREE.Group();
+	sunVisual.name = 'Sun Visual';
+	sunVisual.add(makeCelestialSphere('Sun Disc', 0xffe2a1));
+	const moonVisual = new THREE.Group();
+	moonVisual.name = 'Moon Visual';
+	moonVisual.add(makeCelestialSphere('Moon Fallback Disc', 0xdbe8ff, CELESTIAL_VISUAL_SCALE * 0.72));
+
+	scene.add(sun, moon, hemisphere, sunVisual, moonVisual);
+	const readability = new THREE.HemisphereLight(0xaed9ff, 0x465366, NIGHT_READABILITY_DAY_INTENSITY);
 	readability.name = NIGHT_READABILITY_LIGHT_NAME;
 	readability.userData.gameNightReadability = true;
 	hemisphere.add(readability);
 	installNightVisualEnhancement(hemisphere);
-	return { sun, hemisphere };
+	const moonAssetReady = installMoonAssetAsync(moonVisual);
+	return { sun, moon, hemisphere, sunVisual, moonVisual, moonAssetReady };
 }
 
-/**
- * Advances the day/night cycle and applies it to the lights created by `createDayNightLighting`.
- * @param {{sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}} lights
- * @param {number} elapsedSeconds - from the same `THREE.Clock` every other per-frame system uses.
- * @param {number} dayLengthSeconds - real seconds for one full day/night cycle (`WORLD_DEFAULTS.DAY_LENGTH_SECONDS`).
- * @param {number} startRatio - initial offset in [0, 1) so a session doesn't always boot at midnight (`WORLD_DEFAULTS.START_TIME_OF_DAY_RATIO`).
- * @returns {{timeRatio: number, nightFactor: number, horizonColor: THREE.Color, zenithColor: THREE.Color}}
- *   Consumed by `sky.js`'s `updateAuroraSky` so the skybox and sun stay in sync.
- */
 export function updateDayNightLighting(lights, elapsedSeconds, dayLengthSeconds, startRatio) {
 	const timeRatio = ((elapsedSeconds / dayLengthSeconds + startRatio) % 1 + 1) % 1;
 	const { a, b, t } = findKeyframeSegment(timeRatio);
@@ -102,7 +188,7 @@ export function updateDayNightLighting(lights, elapsedSeconds, dayLengthSeconds,
 	scratchColorA.set(a.sunColor);
 	scratchColorB.set(b.sunColor);
 	lights.sun.color.copy(scratchColorA).lerp(scratchColorB, t);
-	lights.sun.intensity = a.sunIntensity + (b.sunIntensity - a.sunIntensity) * t;
+	const baseSunIntensity = a.sunIntensity + (b.sunIntensity - a.sunIntensity) * t;
 
 	scratchColorA.set(a.hemiSky);
 	scratchColorB.set(b.hemiSky);
@@ -113,37 +199,82 @@ export function updateDayNightLighting(lights, elapsedSeconds, dayLengthSeconds,
 	lights.hemisphere.intensity = a.hemiIntensity + (b.hemiIntensity - a.hemiIntensity) * t;
 
 	const nightFactor = a.nightFactor + (b.nightFactor - a.nightFactor) * t;
+	const smoothNightFactor = nightFactor * nightFactor * (3 - 2 * nightFactor);
 	const readability = lights.hemisphere.getObjectByName(NIGHT_READABILITY_LIGHT_NAME);
 	if (readability?.isHemisphereLight) {
-		const smoothNightFactor = nightFactor * nightFactor * (3 - 2 * nightFactor);
 		readability.intensity = NIGHT_READABILITY_DAY_INTENSITY +
 			(NIGHT_READABILITY_NIGHT_INTENSITY - NIGHT_READABILITY_DAY_INTENSITY) * smoothNightFactor;
 	}
 	updateNightVisualEnhancement(lights.hemisphere, nightFactor);
 
-	// Sun arcs through a fixed vertical plane: elevation via sine, tracking the same [0,1) ratio
-	// (0.25 = sunrise at the horizon, 0.5 = noon overhead, 0.75 = sunset at the horizon).
+	// 06:00 => east (+X) horizon, 12:00 => zenith, 18:00 => west (-X) horizon.
 	const angle = (timeRatio - 0.25) * Math.PI * 2;
-	lights.sun.position.set(
-		Math.cos(angle) * SUN_ORBIT_RADIUS_METERS,
-		Math.sin(angle) * SUN_ORBIT_RADIUS_METERS,
-		SUN_ORBIT_RADIUS_METERS * 0.4,
-	);
+	const sunX = Math.cos(angle) * ORBIT_RADIUS_METERS;
+	const sunY = Math.sin(angle) * ORBIT_RADIUS_METERS;
+	const sunZ = Math.sin(angle * 0.35) * ORBIT_RADIUS_METERS * 0.12;
+	const sunAltitudeFactor = celestialAltitudeWeightFromY(sunY);
+	lights.sun.position.set(sunX, sunY, sunZ);
+	lights.sun.intensity = baseSunIntensity * sunAltitudeFactor;
+	lights.sun.userData.baseIntensity = baseSunIntensity;
+	lights.sun.userData.altitudeFactor = sunAltitudeFactor;
+	if (lights.sunVisual) lights.sunVisual.position.copy(lights.sun.position);
 
-	const horizonColor = SKY_NIGHT.horizon.clone().lerp(SKY_DAY.horizon, 1 - nightFactor);
-	const zenithColor = SKY_NIGHT.zenith.clone().lerp(SKY_DAY.zenith, 1 - nightFactor);
+	// Moon is 180 degrees opposite the sun. Its illumination now follows its actual altitude as well as
+	// darkness, so a moon below the horizon cannot cast a physically impossible full-strength key.
+	const moonY = -sunY;
+	const moonAltitudeFactor = celestialAltitudeWeightFromY(moonY);
+	if (lights.moon) {
+		lights.moon.position.set(-sunX, moonY, -sunZ);
+		lights.moon.intensity = MOON_MAX_INTENSITY * smoothNightFactor * moonAltitudeFactor;
+		lights.moon.userData.altitudeFactor = moonAltitudeFactor;
+	}
+	if (lights.moonVisual) {
+		lights.moonVisual.position.set(-sunX, moonY, -sunZ);
+		lights.moonVisual.visible = moonY > -CELESTIAL_HORIZON_FADE_METERS && smoothNightFactor > 0.08;
+	}
+	if (lights.sunVisual) lights.sunVisual.visible = sunY > -CELESTIAL_HORIZON_FADE_METERS;
 
-	return { timeRatio, nightFactor, horizonColor, zenithColor };
+	// Custom shaders cannot see Three.js DirectionalLight uniforms automatically. Publish the same
+	// live celestial key that built-in terrain/road/river materials receive so water highlights move
+	// east → zenith → west with the sun and switch to the cool moon at night.
+	const celestialKey = publishCelestialLightState({
+		sunPosition: lights.sun.position,
+		sunColor: lights.sun.color,
+		sunIntensity: lights.sun.intensity,
+		moonPosition: lights.moon?.position,
+		moonColor: lights.moon?.color,
+		moonIntensity: lights.moon?.intensity ?? 0,
+		nightFactor,
+	});
+
+	// Twilight is tied to solar altitude rather than clock keyframes alone. This keeps noon blue and
+	// midnight dark while giving both sunrise and sunset a narrow warm horizon band.
+	const twilightFactor = twilightWeightFromSunY(sunY);
+	const daylightFactor = 1 - smoothNightFactor;
+	const horizonColor = SKY_NIGHT.horizon.clone().lerp(SKY_DAY.horizon, daylightFactor)
+		.lerp(SKY_TWILIGHT.horizon, twilightFactor * 0.68);
+	const zenithColor = SKY_NIGHT.zenith.clone().lerp(SKY_DAY.zenith, daylightFactor)
+		.lerp(SKY_TWILIGHT.zenith, twilightFactor * 0.24);
+	return {
+		timeRatio,
+		nightFactor,
+		twilightFactor,
+		sunAltitudeFactor,
+		moonAltitudeFactor,
+		celestialKey,
+		horizonColor,
+		zenithColor,
+	};
 }
 
-/**
- * Removes the day/night lights from the scene. No geometry/texture/shadow-map to free yet (see
- * module doc) — kept as its own function so `game3d.js`'s teardown chain reads uniformly with
- * every other system's `dispose*()` call.
- * @param {THREE.Scene} scene
- * @param {{sun: THREE.DirectionalLight, hemisphere: THREE.HemisphereLight}} lights
- */
 export function disposeDayNightLighting(scene, lights) {
-	scene.remove(lights.sun);
-	scene.remove(lights.hemisphere);
+	for (const node of [lights.sun, lights.moon, lights.hemisphere, lights.sunVisual, lights.moonVisual]) {
+		if (!node) continue;
+		scene.remove(node);
+		node.traverse?.((child) => {
+			child.geometry?.dispose?.();
+			if (Array.isArray(child.material)) child.material.forEach((m) => m.dispose?.());
+			else child.material?.dispose?.();
+		});
+	}
 }

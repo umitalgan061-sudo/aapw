@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width,initial-scale=1" />
+	<title>AAPW Full World 3D Topdown QA</title>
+	<style>
+		html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #9fb4c1; }
+		canvas { display: block; width: 100%; height: 100%; }
+	</style>
+	<script type="importmap">
+	{
+		"imports": {
+			"three": "../src/3d/vendor/three/three.module.js"
+		}
+	}
+	</script>
+</head>
+<body>
+<script type="module">
+import * as THREE from 'three';
+import { WORLD_DEFAULTS, WORLD_SCALE } from '../src/3d/config.js';
+import { publishCelestialLightState } from '../src/3d/celestialLightState.js';
+import { createHeightSampler } from '../src/3d/world/terrain.js';
+import {
+	applyTerrainMicroSurface,
+	TERRAIN_MICRO_SURFACE_POLICY,
+	terrainMicroUvAt,
+} from '../src/3d/world/terrainMicroSurface.js';
+import {
+	northClimateWeightsAtWorldXZ,
+	resolveTerrainBiomeColor,
+	slopeDegreesFromNeighbours,
+} from '../src/3d/world/terrainBiomeShading.js';
+import { sampleReferencePindexQualityV2 } from '../src/3d/world/worldReferenceSurfacePindexes.js';
+import {
+	applyRuntimePindexTerrainPolishToMesh,
+	RUNTIME_PINDEX_TERRAIN_POLISH_POLICY,
+} from '../src/3d/world/worldReferenceSurfaceTerrainVisual.js';
+import {
+	createWater,
+	setWaterDepthField,
+	updateWater,
+	WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
+	WATER_PLANE_SEGMENTS_MOBILE,
+} from '../src/3d/world/water.js';
+import { createWaterDepthField } from '../src/3d/world/waterDepthField.js';
+
+const params = new URLSearchParams(location.search);
+const width = Math.max(640, Number(params.get('width')) || 1600);
+const height = Math.max(480, Number(params.get('height')) || 1100);
+const segmentsX = Math.max(80, Number(params.get('segments')) || 240);
+const segmentsZ = Math.round(segmentsX * WORLD_SCALE.WORLD_DEPTH_METERS / WORLD_SCALE.WORLD_WIDTH_METERS);
+const worldWidth = WORLD_SCALE.WORLD_WIDTH_METERS;
+const worldDepth = WORLD_SCALE.WORLD_DEPTH_METERS;
+const seaLevel = WORLD_DEFAULTS.WATER_LEVEL_METERS;
+const sampleHeight = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, null, []);
+const spacingX = worldWidth / segmentsX;
+const spacingZ = worldDepth / segmentsZ;
+const slopeSpacing = Math.min(spacingX, spacingZ);
+const scratchColor = new THREE.Color();
+const surfaceNames = ['sea', 'lake', 'soil', 'rock', 'snow'];
+const surfaceCounts = Object.fromEntries(surfaceNames.map((name) => [name, 0]));
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(width, height, false);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+document.body.append(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9fb4c1);
+scene.add(new THREE.HemisphereLight(0xdce8ef, 0x495849, 1.1));
+const sun = new THREE.DirectionalLight(0xfff2d6, 1.4);
+sun.position.set(-5200, 9200, -3800);
+scene.add(sun);
+publishCelestialLightState({
+	sunPosition: sun.position,
+	sunColor: sun.color,
+	sunIntensity: sun.intensity,
+	nightFactor: 0,
+});
+
+const terrainGeometry = new THREE.PlaneGeometry(worldWidth, worldDepth, segmentsX, segmentsZ);
+terrainGeometry.rotateX(-Math.PI / 2);
+const positions = terrainGeometry.getAttribute('position');
+const colors = new Float32Array(positions.count * 3);
+const microUvs = new Float32Array(positions.count * 2);
+let minHeight = Infinity;
+let maxHeight = -Infinity;
+let heightSum = 0;
+let heightSquaredSum = 0;
+let northIceSum = 0;
+let northIceMax = 0;
+let northIceActiveSamples = 0;
+let northIceSamples = 0;
+
+for (let index = 0; index < positions.count; index++) {
+	const worldX = positions.getX(index);
+	const worldZ = positions.getZ(index);
+	const surface = {};
+	const terrainHeight = sampleHeight(worldX, worldZ, undefined, surface);
+	positions.setY(index, terrainHeight);
+	minHeight = Math.min(minHeight, terrainHeight);
+	maxHeight = Math.max(maxHeight, terrainHeight);
+	heightSum += terrainHeight;
+	heightSquaredSum += terrainHeight * terrainHeight;
+
+	const west = sampleHeight(worldX - slopeSpacing, worldZ);
+	const east = sampleHeight(worldX + slopeSpacing, worldZ);
+	const north = sampleHeight(worldX, worldZ - slopeSpacing);
+	const south = sampleHeight(worldX, worldZ + slopeSpacing);
+	const slopeDegrees = slopeDegreesFromNeighbours(west, east, north, south, slopeSpacing);
+	resolveTerrainBiomeColor(scratchColor, {
+		heightAboveSeaMeters: terrainHeight - seaLevel,
+		slopeDegrees,
+		rockWeight: surface.rockWeight ?? 0,
+		snowWeight: surface.snowWeight ?? 0,
+		worldX,
+		worldZ,
+	});
+	colors[index * 3] = scratchColor.r;
+	colors[index * 3 + 1] = scratchColor.g;
+	colors[index * 3 + 2] = scratchColor.b;
+	const microUv = terrainMicroUvAt(worldX, worldZ);
+	microUvs[index * 2] = microUv.u;
+	microUvs[index * 2 + 1] = microUv.v;
+
+	const nx = THREE.MathUtils.clamp(worldX / worldWidth + 0.5, 0, 1);
+	const ny = THREE.MathUtils.clamp(worldZ / worldDepth + 0.5, 0, 1);
+	const pindex = sampleReferencePindexQualityV2(nx, ny);
+	let dominant = 'soil';
+	let dominantWeight = -1;
+	for (const name of surfaceNames) {
+		const weight = pindex.surfaceWeights[name] ?? 0;
+		if (weight > dominantWeight) {
+			dominant = name;
+			dominantWeight = weight;
+		}
+	}
+	surfaceCounts[dominant]++;
+
+	if (ny <= 0.22) {
+		const permanentIce = northClimateWeightsAtWorldXZ(worldX, worldZ).permanentIce;
+		northIceSum += permanentIce;
+		northIceMax = Math.max(northIceMax, permanentIce);
+		if (permanentIce >= 0.5) northIceActiveSamples++;
+		northIceSamples++;
+	}
+}
+terrainGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+terrainGeometry.setAttribute('uv1', new THREE.BufferAttribute(microUvs, 2));
+terrainGeometry.computeVertexNormals();
+const terrainMaterial = new THREE.MeshStandardMaterial({
+	vertexColors: true,
+	roughness: 0.95,
+	metalness: 0,
+});
+applyTerrainMicroSurface(terrainMaterial);
+const terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
+const runtimeTerrainPolish = applyRuntimePindexTerrainPolishToMesh(terrain);
+scene.add(terrain);
+
+const depthField = createWaterDepthField({
+	sampleHeightMeters: sampleHeight,
+	waterLevelMeters: seaLevel,
+});
+const water = createWater(seaLevel, WATER_PLANE_SEGMENTS_MOBILE);
+setWaterDepthField(water, depthField, 1);
+scene.add(water);
+
+const aspect = width / height;
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 40000);
+camera.position.set(0, 15800, worldDepth * 0.26);
+camera.up.set(0, 0, -1);
+camera.lookAt(0, seaLevel, 0);
+camera.updateMatrixWorld(true);
+
+let requiredHalfWidth = 0;
+let requiredHalfHeight = 0;
+const viewPoint = new THREE.Vector3();
+for (const worldX of [-worldWidth / 2, worldWidth / 2]) {
+	for (const worldY of [minHeight, maxHeight]) {
+		for (const worldZ of [-worldDepth / 2, worldDepth / 2]) {
+			viewPoint.set(worldX, worldY, worldZ).applyMatrix4(camera.matrixWorldInverse);
+			requiredHalfWidth = Math.max(requiredHalfWidth, Math.abs(viewPoint.x));
+			requiredHalfHeight = Math.max(requiredHalfHeight, Math.abs(viewPoint.y));
+		}
+	}
+}
+const frameMargin = 1.06;
+const fittedHalfHeight = Math.max(requiredHalfHeight * frameMargin, requiredHalfWidth * frameMargin / aspect);
+const fittedHalfWidth = fittedHalfHeight * aspect;
+camera.left = -fittedHalfWidth;
+camera.right = fittedHalfWidth;
+camera.top = fittedHalfHeight;
+camera.bottom = -fittedHalfHeight;
+camera.updateProjectionMatrix();
+
+updateWater(water, camera.position, 0);
+renderer.render(scene, camera);
+await new Promise((resolve) => requestAnimationFrame(resolve));
+renderer.render(scene, camera);
+
+const sampleCount = positions.count;
+const meanHeight = heightSum / sampleCount;
+const heightVariance = Math.max(0, heightSquaredSum / sampleCount - meanHeight * meanHeight);
+const deepOceanBackdrop = water.userData.deepOceanBackdrop;
+const deepOceanBackdropWorldY = water.position.y + (deepOceanBackdrop?.position.y ?? 0);
+window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
+	status: 'ready',
+	width,
+	height,
+	segmentsX,
+	segmentsZ,
+	vertexCount: sampleCount,
+	worldWidthMeters: worldWidth,
+	worldDepthMeters: worldDepth,
+	minHeightMeters: minHeight,
+	maxHeightMeters: maxHeight,
+	heightStdDevMeters: Math.sqrt(heightVariance),
+	surfaceCounts: Object.freeze({ ...surfaceCounts }),
+	northPermanentIceMean: northIceSamples ? northIceSum / northIceSamples : 0,
+	northPermanentIceMax: northIceMax,
+	northPermanentIceActiveSamples: northIceActiveSamples,
+	terrainSurfaceRealism: Object.freeze({
+		policyId: TERRAIN_MICRO_SURFACE_POLICY.id,
+		runtimePindexPolicyId: RUNTIME_PINDEX_TERRAIN_POLISH_POLICY.id,
+		runtimePindexChangedVertices: runtimeTerrainPolish.changedVertices ?? null,
+		runtimePindexDetailTouchedVertices: runtimeTerrainPolish.detailTouchedVertices ?? null,
+		runtimePindexDetailPolicyIds: Object.freeze([...(runtimeTerrainPolish.detailPolicyIds ?? [])]),
+		detailRepeatMeters: TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters,
+		macroColorBreakup: TERRAIN_MICRO_SURFACE_POLICY.macroColorBreakup,
+		naturalAlbedoRemap: TERRAIN_MICRO_SURFACE_POLICY.naturalAlbedoRemap,
+		regionalMoistureVariation: TERRAIN_MICRO_SURFACE_POLICY.regionalMoistureVariation,
+		elevationWeathering: TERRAIN_MICRO_SURFACE_POLICY.elevationWeathering,
+		coastalIntertidalBreakup: TERRAIN_MICRO_SURFACE_POLICY.coastalIntertidalBreakup,
+		coastalSaltSprayWeathering: TERRAIN_MICRO_SURFACE_POLICY.coastalSaltSprayWeathering,
+		coastalRoughnessResponse: TERRAIN_MICRO_SURFACE_POLICY.coastalRoughnessResponse,
+		uvChannel: TERRAIN_MICRO_SURFACE_POLICY.uvChannel,
+	}),
+	waterDepthField: Object.freeze({
+		resolution: depthField.resolution,
+		meanWetCoverage: depthField.meanWetCoverage,
+		mixedCoastTexelRatio: depthField.mixedCoastTexelRatio,
+		deepTexelRatio: depthField.deepTexelRatio,
+	}),
+	waterLayerComposition: Object.freeze({
+		nearDepthWrite: water.material.depthWrite,
+		farDepthWrite: water.userData.farWater?.material?.depthWrite ?? null,
+		farRenderOrder: water.userData.farWater?.renderOrder ?? null,
+		farLocalY: water.userData.farWater?.position?.y ?? null,
+		deepBackdropDepthWrite: deepOceanBackdrop?.material?.depthWrite ?? null,
+		deepBackdropOpaque: deepOceanBackdrop?.material?.transparent === false,
+		deepBackdropFog: deepOceanBackdrop?.material?.fog ?? null,
+		deepBackdropRenderOrder: deepOceanBackdrop?.renderOrder ?? null,
+		deepBackdropLocalY: deepOceanBackdrop?.position?.y ?? null,
+		deepBackdropWorldY: deepOceanBackdropWorldY,
+		deepBackdropExtentMeters: WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
+		nearWorldXZ: Object.freeze([water.position.x, water.position.z]),
+	}),
+	camera: Object.freeze({
+		type: 'OrthographicCamera',
+		position: Object.freeze(camera.position.toArray()),
+		verticalExaggeration: 1,
+		frameMargin,
+		fittedHalfWidth,
+		fittedHalfHeight,
+	}),
+});
+</script>
+</body>
+</html>

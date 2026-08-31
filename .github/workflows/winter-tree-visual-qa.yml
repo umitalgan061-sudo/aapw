@@ -1,0 +1,97 @@
+name: Winter Tree Visual QA
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'assets/models/vegetation/pine_Zt62gceKXZ.glb'
+      - 'assets/models/vegetation/winter_tree.glb'
+      - 'assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb'
+      - 'src/3d/world/vegetation.js'
+      - 'src/3d/world/winterVegetationAsset.js'
+      - 'src/3d/world/terrain.js'
+      - 'src/3d/world/terrainBiomeShading.js'
+      - 'src/3d/world/northReferenceCryosphere.js'
+      - 'src/3d/world/worldReferenceAlignment.js'
+      - 'scripts/firebaseDeployLfsReadiness.mjs'
+      - 'scripts/checkWinterPineMaterialTreatment.mjs'
+      - 'scripts/checkWinterTreeVisualQa.js'
+      - 'scripts/checkNorthSnowPineCrowdVisualQa.js'
+      - 'scripts/devServerHelper.js'
+      - 'winter-tree-visual-qa.html'
+      - 'north-snow-pine-crowd-visual-qa.html'
+      - '.github/workflows/winter-tree-visual-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  visual-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Resolve vendored Three.js for Node contracts
+        run: node scripts/setupNodeThreeShim.mjs
+
+      - name: Static winter-pine contract
+        run: |
+          node --check src/3d/world/winterVegetationAsset.js
+          node --check scripts/checkWinterPineMaterialTreatment.mjs
+          node --check scripts/checkWinterTreeVisualQa.js
+          node --check scripts/checkNorthSnowPineCrowdVisualQa.js
+          node scripts/checkWinterPineMaterialTreatment.mjs
+
+      - name: Hydrate verified winter assets
+        run: |
+          node scripts/firebaseDeployLfsReadiness.mjs \
+            --hydrate \
+            --scope=winter \
+            --manifest=artifacts/winter-tree-visual-qa/lfs-readiness.json
+
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          ln -sfn "$RUNNER_TEMP/pw/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Render winterized preferred snow pine
+        run: |
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkWinterTreeVisualQa.js
+
+      - name: Render production snow-pine crowd on canonical north terrain
+        run: |
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkNorthSnowPineCrowdVisualQa.js
+
+      - name: Render bare winter fallback comparison
+        env:
+          WINTER_VISUAL_ASSET: assets/models/vegetation/winter_tree.glb
+          WINTER_VISUAL_STEM: bare-winter-fallback
+        run: |
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkWinterTreeVisualQa.js
+
+      - name: Upload visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: winter-tree-visual-qa
+          path: artifacts/winter-tree-visual-qa/
+          if-no-files-found: error
+          retention-days: 7

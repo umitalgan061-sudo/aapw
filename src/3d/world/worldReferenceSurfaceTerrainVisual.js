@@ -19,12 +19,11 @@ import {
 	classifyReferenceBaseSurface,
 	referencePindexFromNormalizedX,
 } from './worldReferenceSurfacePindexes.js';
+import { GEOGRAPHIC_REFERENCE_PALETTE, GEOGRAPHIC_REFERENCE_PALETTE_POLICY } from './geographicReferencePalette.js';
 
 export const WORLD_REFERENCE_SURFACE_VISUAL_POLICY = Object.freeze({
 	id: 'owner-map-semantic-surface-visual-2026-08-11-v1',
 	sourceMapSha256: '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1',
-	// Map-inspired matte palette. Macro placement comes from the source-derived mask; later pindex
-	// polish may replace these flat swatches with PBR texture sets without changing classification.
 	colors: Object.freeze({
 		sea: 0x294d5d,
 		lake: 0x4f7f86,
@@ -64,10 +63,6 @@ function classifyWorldSurface(worldX, worldZ) {
 	});
 }
 
-/**
- * Applies canonical map semantics to one already-created terrain mesh.
- * @returns immutable per-mesh coverage stats used by visual/regression checks.
- */
 export function applyReferenceSurfaceToTerrainMesh(mesh) {
 	assertTerrainMesh(mesh);
 	const position = mesh.geometry.getAttribute('position');
@@ -93,9 +88,6 @@ export function applyReferenceSurfaceToTerrainMesh(mesh) {
 
 	mesh.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 	mesh.material.vertexColors = true;
-	// Restore the terrain's own detail gain rather than assuming flat white. `world/terrain.js`
-	// carries a >1 gain when its neutralised detail map is attached (the map stores a ratio around a
-	// mid-grey pivot); resetting to white here halved the entire world's brightness.
 	mesh.material.color.setScalar(mesh.material.userData?.terrainDetailGain ?? 1);
 	mesh.material.roughness = roughnessSum / position.count;
 	mesh.material.metalness = 0;
@@ -110,10 +102,6 @@ export function applyReferenceSurfaceToTerrainMesh(mesh) {
 	return summary;
 }
 
-/**
- * Applies the source-map semantic surface to a clipped canonical terrain window.
- * Roads/bridges/water are intentionally not traversed here; their existing ownership remains intact.
- */
 export function applyReferenceSurfaceToTerrainGroup(terrainGroup) {
 	if (!terrainGroup?.children || !Array.isArray(terrainGroup.children)) {
 		throw new TypeError('canonical terrain group is required');
@@ -144,7 +132,7 @@ export function applyReferenceSurfaceToTerrainGroup(terrainGroup) {
 // Terrain Polish Iteration #08 — deliberate shipped-game visual change.
 // The historical canonical-dev surface above remains intact. This additive adapter projects the
 // current cropped runtime world back onto the same owner-map mask, blends those semantics into the
-// existing procedural terrain colors, then reuses the already-prepared Pindex-01..09 detail layers.
+// existing procedural terrain colors, then reuses the prepared Pindex-01..10 detail layers.
 // Geometry/height stays untouched in this iteration, so settlement, road, river and physics safety
 // contracts remain on their proven sampler while the player-visible ground finally changes.
 import { WORLD_DEFAULTS, WORLD_SCALE } from '../config.js';
@@ -160,21 +148,10 @@ import { applyPindex06DetailToTerrainMesh } from './worldReferencePindex06Detail
 import { applyPindex07DetailToTerrainMesh } from './worldReferencePindex07Detail.js';
 import { applyPindex08DetailToTerrainMesh } from './worldReferencePindex08Detail.js';
 import { applyPindex09DetailToTerrainMesh } from './worldReferencePindex09Detail.js';
+import { applyPindex10DetailToTerrainMesh } from './worldReferencePindex10Detail.js';
 
 export const RUNTIME_PINDEX_TERRAIN_POLISH_POLICY = Object.freeze({
 	id: 'terrain-polish-iteration-008-visible-pindex-runtime-2026-08-12-v1',
-	/**
-	 * How far each vertex is pulled toward its flat class swatch.
-	 *
-	 * Lowered across the board on 2026-08-19. This pass classifies with
-	 * `classifyReferenceBaseSurface`, which is the **nearest-cell** reader on the 96x64 mask — hard
-	 * 138 x 162 m cells, no interpolation — so at the old weights it stamped visible hard-edged
-	 * rectangles of flat colour over the terrain, plainly visible as white blocks across the snowline
-	 * of every massif in the aerial captures. The information it was adding (which canonical class a
-	 * point belongs to) is now supplied continuously and at higher fidelity by
-	 * `world/terrainBiomeShading.js`, which reads the *bilinear, coast-warped* Pindex V2 weights, so
-	 * these weights are reduced to a light canonical tint rather than a dominant overlay.
-	 */
 	semanticBlendBySurface: Object.freeze({ sea: 0.10, lake: 0.14, soil: 0.12, rock: 0.14, snow: 0.16 }),
 	wetLowHeightBoost: 0.18,
 	wetHeightFadeMeters: 18,
@@ -191,6 +168,7 @@ const RUNTIME_PINDEX_DETAIL_APPLIERS = Object.freeze({
 	7: applyPindex07DetailToTerrainMesh,
 	8: applyPindex08DetailToTerrainMesh,
 	9: applyPindex09DetailToTerrainMesh,
+	10: applyPindex10DetailToTerrainMesh,
 });
 
 function currentWorldReferenceSample(worldX, worldZ) {
@@ -226,10 +204,6 @@ function runtimeSemanticBlend(surface, vertexHeightMeters) {
 	);
 }
 
-/**
- * Blends owner-map semantics and prepared pindex detail into one live procedural terrain chunk.
- * Height/position attributes are read-only here; only vertex color + material roughness change.
- */
 export function applyRuntimePindexTerrainPolishToMesh(mesh) {
 	assertTerrainMesh(mesh);
 	const prior = mesh.userData.runtimePindexTerrainPolish;
@@ -288,9 +262,6 @@ export function applyRuntimePindexTerrainPolishToMesh(mesh) {
 	}
 
 	mesh.material.vertexColors = true;
-	// Restore the terrain's own detail gain rather than assuming flat white. `world/terrain.js`
-	// carries a >1 gain when its neutralised detail map is attached (the map stores a ratio around a
-	// mid-grey pivot); resetting to white here halved the entire world's brightness.
 	mesh.material.color.setScalar(mesh.material.userData?.terrainDetailGain ?? 1);
 	mesh.material.roughness = THREE.MathUtils.lerp(
 		mesh.material.roughness,
@@ -315,7 +286,6 @@ export function applyRuntimePindexTerrainPolishToMesh(mesh) {
 
 const RUNTIME_PINDEX_INSTALL_FLAG = Symbol.for('westeros.runtime-pindex-terrain-polish.iteration-008');
 
-/** Installs the visible pindex polish onto shipped ChunkManager loads without replacing terrain generation. */
 export function installRuntimePindexTerrainPolish() {
 	const prototype = ChunkManager.prototype;
 	if (prototype[RUNTIME_PINDEX_INSTALL_FLAG]) return prototype[RUNTIME_PINDEX_INSTALL_FLAG];
@@ -336,32 +306,15 @@ export function installRuntimePindexTerrainPolish() {
 	Object.defineProperty(prototype, RUNTIME_PINDEX_INSTALL_FLAG, { value: installation, configurable: false });
 	return installation;
 }
-// Pindex Quality V2 — shader-first runtime: expensive source interpretation is baked once into a
-// tiny deterministic in-memory atlas, then every terrain fragment samples it on the GPU. This keeps
-// Iteration #08's accepted CPU vertex pass as the only per-vertex authoring cost during chunk boot.
+
+// Pindex Quality V2 remains the canonical atlas owner; the additions below only make its blend
+// respond to the real rendered surface orientation instead of laying a flat colour sheet over it.
 import { REFERENCE_PINDEX_QUALITY_V2_POLICY, sampleReferencePindexQualityV2 } from './worldReferenceSurfacePindexes.js';
 
 export const RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY = Object.freeze({
 	id: 'terrain-pindex-quality-v2-runtime-2026-08-12-v2',
 	atlasWidth: 192,
 	atlasHeight: 128,
-	/**
-	 * How much of the fragment's colour the baked semantic atlas replaces.
-	 *
-	 * Lowered from 0.88 on 2026-08-19. The atlas encodes canonical *semantics* — which surface class
-	 * and biome a map cell belongs to — sampled at the 192x128 atlas resolution, i.e. ~69 x ~81 m per
-	 * texel, and it has no access to local ground slope at all. At 0.88 it was overwriting almost the
-	 * entire per-vertex terrain shading with those flat class swatches, so the world rendered as broad
-	 * uniform olive fields regardless of whether a given metre of ground was a cliff face, a valley
-	 * floor, a beach or a snowfield: only ~12% of `world/terrainBiomeShading.js`'s slope- and
-	 * altitude-driven colour reached the lit diffuse.
-	 *
-	 * At 0.34 the relationship inverts to the one that makes physical sense: per-vertex geography
-	 * (slope, altitude, shoreline, canonical rock/snow weights) is the primary read, and the atlas
-	 * layers canonical biome character, its own relief/elevation rock rules, northern snow and grain
-	 * on top of it. Nothing about the atlas's content or resolution changed — only how much of the
-	 * final colour it is allowed to dictate.
-	 */
 	qualityBlend: 0.34,
 	biomeBlendMax: 0.62,
 	reliefRockBlend: 0.38,
@@ -369,6 +322,11 @@ export const RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY = Object.freeze({
 	roughnessBlend: 0.52,
 	shaderColorMicroVariation: 0.055,
 	shaderRoughnessMicroVariation: 0.05,
+	naturalTransitionRevision: 'v1-slope-aspect-shelter',
+	slopeAwareAtlasIntegration: true,
+	aspectWeathering: true,
+	shelteredMoisture: true,
+	referencePalettePolicyId: GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id,
 });
 
 const PINDEX_QUALITY_V2_SURFACE_COLORS = Object.freeze({
@@ -384,6 +342,10 @@ const PINDEX_QUALITY_V2_BIOME_COLORS = Object.freeze({
 });
 const PINDEX_QUALITY_V2_ROCK_COLOR = new THREE.Color(0x6b6862);
 const PINDEX_QUALITY_V2_SNOW_COLOR = new THREE.Color(0xdce4e2);
+const PINDEX_QUALITY_V2_GRANITE_SHADOW = new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.terrain.graniteShadow);
+const PINDEX_QUALITY_V2_GRANITE_SUNLIT = new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.terrain.graniteSunlit);
+const PINDEX_QUALITY_V2_BASALT_WET = new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.terrain.basaltWet);
+const PINDEX_QUALITY_V2_MOSS_SHADOW = new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.terrain.mossShadow);
 
 function runtimePindexQualityNormalized(worldX, worldZ) {
 	const centerMapX = (WORLD_SCALE.MAP_BOUNDS.minX + WORLD_SCALE.MAP_BOUNDS.maxX) * 0.5;
@@ -493,7 +455,9 @@ function installRuntimePindexQualityV2Shader(material) {
 			.replace('#include <begin_vertex>', '#include <begin_vertex>\nvPindexQualityWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;');
 		shader.fragmentShader = shader.fragmentShader
 			.replace('#include <common>', '#include <common>\nuniform sampler2D pindexQualityColorAtlas;\nuniform sampler2D pindexQualityDataAtlas;\nuniform sampler2D pindexQualityDetailAtlas;\nuniform vec4 pindexQualityMapTransform;\nvarying vec3 vPindexQualityWorldPosition;')
+			.replace('#include <color_fragment>', `#include <color_fragment>\nvec3 pindexGeoDx=dFdx(vPindexQualityWorldPosition);\nvec3 pindexGeoDy=dFdy(vPindexQualityWorldPosition);\nvec3 pindexGeoNormal=normalize(cross(pindexGeoDy,pindexGeoDx));\npindexGeoNormal*=pindexGeoNormal.y<0.0?-1.0:1.0;\nfloat pindexGeoSlope=1.0-clamp(abs(pindexGeoNormal.y),0.0,1.0);\nvec2 pindexGeoHorizontal=pindexGeoNormal.xz/max(length(pindexGeoNormal.xz),0.0001);\nfloat pindexGeoAspect=dot(pindexGeoHorizontal,normalize(vec2(0.64,-0.77)))*0.5+0.5;\nvec2 pindexGeoMacroUv=vPindexQualityWorldPosition.xz*0.00073+vec2(7.3,-11.9);\nvec2 pindexGeoMacroRotated=vec2(pindexGeoMacroUv.x*0.73-pindexGeoMacroUv.y*0.68,pindexGeoMacroUv.x*0.68+pindexGeoMacroUv.y*0.73)*1.61+vec2(-3.7,8.1);\nfloat pindexGeoMacro=texture2D(pindexQualityDetailAtlas,pindexGeoMacroUv).g*0.62+texture2D(pindexQualityDetailAtlas,pindexGeoMacroRotated).b*0.38;\nfloat pindexGeoCliff=smoothstep(0.24,0.70,pindexGeoSlope)*pindexQualityDry;\nfloat pindexGeoShelter=clamp((1.0-pindexGeoAspect)*0.58+(1.0-pindexGeoMacro)*0.42,0.0,1.0);\nfloat pindexGeoWetShelter=pindexGeoCliff*smoothstep(0.56,0.84,pindexGeoShelter);\nfloat pindexGeoWeatheredFace=pindexGeoCliff*(1.0-pindexGeoWetShelter)*smoothstep(0.40,0.78,pindexGeoAspect);\nfloat pindexGeoMossPocket=(1.0-smoothstep(0.58,0.86,pindexGeoSlope))*pindexQualityDry*smoothstep(0.62,0.88,pindexGeoShelter)*smoothstep(0.38,0.74,pindexGeoMacro);\nvec3 pindexGeoShadowRock=vec3(${PINDEX_QUALITY_V2_GRANITE_SHADOW.r.toFixed(6)},${PINDEX_QUALITY_V2_GRANITE_SHADOW.g.toFixed(6)},${PINDEX_QUALITY_V2_GRANITE_SHADOW.b.toFixed(6)});\nvec3 pindexGeoSunRock=vec3(${PINDEX_QUALITY_V2_GRANITE_SUNLIT.r.toFixed(6)},${PINDEX_QUALITY_V2_GRANITE_SUNLIT.g.toFixed(6)},${PINDEX_QUALITY_V2_GRANITE_SUNLIT.b.toFixed(6)});\nvec3 pindexGeoWetRock=vec3(${PINDEX_QUALITY_V2_BASALT_WET.r.toFixed(6)},${PINDEX_QUALITY_V2_BASALT_WET.g.toFixed(6)},${PINDEX_QUALITY_V2_BASALT_WET.b.toFixed(6)});\nvec3 pindexGeoMoss=vec3(${PINDEX_QUALITY_V2_MOSS_SHADOW.r.toFixed(6)},${PINDEX_QUALITY_V2_MOSS_SHADOW.g.toFixed(6)},${PINDEX_QUALITY_V2_MOSS_SHADOW.b.toFixed(6)});\npindexQualityColor=mix(pindexQualityColor,mix(pindexGeoShadowRock,pindexGeoSunRock,pindexGeoAspect),pindexGeoCliff*0.30);\npindexQualityColor=mix(pindexQualityColor,pindexGeoWetRock,pindexGeoWetShelter*0.34);\npindexQualityColor=mix(pindexQualityColor,pindexGeoSunRock,pindexGeoWeatheredFace*0.16);\npindexQualityColor=mix(pindexQualityColor,pindexGeoMoss,pindexGeoMossPocket*0.18);`)
 			.replace('#include <color_fragment>', `#include <color_fragment>\nvec2 pindexQualityUv=clamp(vPindexQualityWorldPosition.xz*pindexQualityMapTransform.xy+pindexQualityMapTransform.zw,vec2(0.0),vec2(1.0));\nvec4 pindexQualityAtlasColor=texture2D(pindexQualityColorAtlas,pindexQualityUv);\nvec4 pindexQualityAtlasData=texture2D(pindexQualityDataAtlas,pindexQualityUv);\nvec3 pindexQualityColor=pindexQualityAtlasColor.rgb;\nfloat pindexQualityRelief=pindexQualityAtlasData.r;\nfloat pindexQualityDry=pindexQualityAtlasColor.a;\nfloat pindexQualityHeightRock=smoothstep(22.0,82.0,vPindexQualityWorldPosition.y)*pindexQualityDry;\npindexQualityColor=mix(pindexQualityColor,vec3(${PINDEX_QUALITY_V2_ROCK_COLOR.r.toFixed(6)},${PINDEX_QUALITY_V2_ROCK_COLOR.g.toFixed(6)},${PINDEX_QUALITY_V2_ROCK_COLOR.b.toFixed(6)}),pindexQualityRelief*pindexQualityDry*${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.reliefRockBlend.toFixed(3)});\npindexQualityColor=mix(pindexQualityColor,vec3(${PINDEX_QUALITY_V2_ROCK_COLOR.r.toFixed(6)},${PINDEX_QUALITY_V2_ROCK_COLOR.g.toFixed(6)},${PINDEX_QUALITY_V2_ROCK_COLOR.b.toFixed(6)}),pindexQualityHeightRock*${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.elevationRockBlend.toFixed(3)});\nfloat pindexQualityNorthSnow=pindexQualityRelief*(1.0-smoothstep(0.08,0.34,pindexQualityUv.y))*smoothstep(16.0,58.0,vPindexQualityWorldPosition.y);\npindexQualityColor=mix(pindexQualityColor,vec3(${PINDEX_QUALITY_V2_SNOW_COLOR.r.toFixed(6)},${PINDEX_QUALITY_V2_SNOW_COLOR.g.toFixed(6)},${PINDEX_QUALITY_V2_SNOW_COLOR.b.toFixed(6)}),pindexQualityNorthSnow*0.42);\nvec2 pindexQualityDetailUv=vPindexQualityWorldPosition.xz*0.021;\nvec4 pindexQualityNoiseA=texture2D(pindexQualityDetailAtlas,pindexQualityDetailUv);\nvec2 pindexQualityRotatedUv=vec2(pindexQualityDetailUv.x*0.8-pindexQualityDetailUv.y*0.6,pindexQualityDetailUv.x*0.6+pindexQualityDetailUv.y*0.8)*2.73+vec2(0.37,0.19);\nvec4 pindexQualityNoiseB=texture2D(pindexQualityDetailAtlas,pindexQualityRotatedUv);\nfloat pindexQualityGrain=(pindexQualityNoiseA.r*2.0-1.0)*0.64+(pindexQualityNoiseB.g*2.0-1.0)*0.36;\npindexQualityColor*=1.0+pindexQualityGrain*mix(0.025,${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.shaderColorMicroVariation.toFixed(3)},pindexQualityAtlasData.a);\ndiffuseColor.rgb=mix(diffuseColor.rgb,pindexQualityColor,${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.qualityBlend.toFixed(3)});`)
+			.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\nroughnessFactor=clamp(roughnessFactor-pindexGeoWetShelter*0.11+pindexGeoWeatheredFace*0.045+pindexGeoMossPocket*0.035,0.04,1.0);`)
 			.replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,pindexQualityAtlasData.g,${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.roughnessBlend.toFixed(3)});\nfloat pindexQualityRoughNoise=texture2D(pindexQualityDetailAtlas,vPindexQualityWorldPosition.xz*0.033+vec2(0.11,0.57)).b*2.0-1.0;\nroughnessFactor=clamp(roughnessFactor+pindexQualityRoughNoise*${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.shaderRoughnessMicroVariation.toFixed(3)},0.04,1.0);`);
 	};
 	material.customProgramCacheKey = () => `${previousCacheKey()}|${RUNTIME_PINDEX_TERRAIN_QUALITY_V2_POLICY.id}`;
@@ -502,7 +466,6 @@ function installRuntimePindexQualityV2Shader(material) {
 	return true;
 }
 
-/** V2 adds no second per-vertex pass: Iteration #08 remains CPU authoring; V2 is GPU shading. */
 export function applyRuntimePindexTerrainQualityV2ToMesh(mesh) {
 	assertTerrainMesh(mesh);
 	const prior = mesh.userData.runtimePindexTerrainQualityV2;

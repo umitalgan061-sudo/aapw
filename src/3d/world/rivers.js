@@ -8,9 +8,9 @@
  * Also detects and renders **waterfalls**: river segments whose drop/distance ratio is steep
  * enough to flag as a fall rather than a normal gentle descent (`detectWaterfalls`/
  * `createWaterfallMesh`) — see DECISIONS.md ADR-0011 for the exact thresholds (calibrated against
- * this world's actual generated river, not guessed) and why the visual is a vertical "curtain"
- * standing at the drop's midpoint rather than a slanted patch following the real (gentle, non-
- * cliff) terrain between the two points.
+ * this world's actual generated river, not guessed). The waterfall stays a schematic steep-section
+ * visual over the smooth FBM terrain, but now combines its vertical curtain with a short downstream
+ * plunge/splash apron in the same BufferGeometry so falling water does not visually stop at impact.
  *
  * Scope of the first pass (see 3D_GAME_PROGRESS.md Known Issues): one static river near the
  * world origin, confined to the FAZ 1 preview area so it never renders over unloaded terrain.
@@ -32,6 +32,7 @@
 
 import * as THREE from 'three';
 import { mulberry32 } from './terrain.js';
+import { GEOGRAPHIC_REFERENCE_PALETTE, GEOGRAPHIC_REFERENCE_PALETTE_POLICY } from './geographicReferencePalette.js';
 
 /** Grid step, in meters, for the deterministic search that picks the river's source point (the
  * highest sampled point within `searchRadiusMeters` of the origin) — coarse enough to stay cheap
@@ -52,7 +53,18 @@ const DESCENT_ANGLE_JITTER_RADIANS = 0.35;
  * preferring the smallest jump that finds a real descent. See DECISIONS.md ADR-0009. */
 const MAX_STUCK_ESCALATIONS = 4;
 
-const RIVER_COLOR = new THREE.Color(0x2f7ea8);
+// Owner-supplied photogrammetry references: calm rock pools read muted green-grey while fast water
+// becomes cooler blue-grey. Keeping both low-saturation also lets the actual terrain bed carry much
+// of the colour through transparency instead of painting every channel the same arcade blue.
+const RIVER_POOL_COLOR = new THREE.Color(0x667d77);
+const RIVER_COLOR = new THREE.Color(0x4f7f89);
+const WATERFALL_PLUNGE_COLOR = new THREE.Color(0x587783);
+const WATERFALL_SPLASH_COLOR = new THREE.Color(0xd5e7e9);
+
+RIVER_POOL_COLOR.lerp(new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.water.riverPool), 0.68);
+RIVER_COLOR.lerp(new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.water.rapid), 0.72);
+WATERFALL_PLUNGE_COLOR.lerp(new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.water.plunge), 0.74);
+WATERFALL_SPLASH_COLOR.lerp(new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.water.splash), 0.78);
 
 /** Flow speed, in m/s, of the foam pattern over a perfectly flat reach. Not a physical current
  * measurement — the speed the *visual* streaks travel at, tuned so a still-looking pool still reads
@@ -73,6 +85,8 @@ const RIVER_FLOW_WAVENUMBER = 1.0;
 /** Waterfall curtains fall much faster than the river flows, and their drop is short, so they get
  * their own fixed speed rather than a gradient-derived one. */
 const WATERFALL_FLOW_SPEED_MPS = 9;
+/** Impact foam decelerates after the vertical fall and fans out over rock/pool water. */
+const WATERFALL_APRON_FLOW_SPEED_MPS = 5.5;
 
 /**
  * Injects downstream foam-streak animation into a stock `MeshStandardMaterial` via
@@ -137,6 +151,13 @@ function attachFlowAnimation(material, cacheKey, foamStrength) {
 					// at a slight angle the way real surface foam does.
 					float secondary = sin(flowPhase * 0.41 + vFlowSide * 3.7) * 0.5 + 0.5;
 					float foam = pow(primary * 0.6 + secondary * 0.4, 3.0);
+					float turbulentBreakup = sin(flowPhase * 1.73 - vFlowSide * 8.1 + sin(flowPhase * 0.23) * 2.4) * 0.5 + 0.5;
+					foam *= mix(0.58, 1.18, smoothstep(0.18, 0.86, turbulentBreakup));
+					// Calm pools retain only faint surface streaks; rapid reaches and waterfall curtains
+					// aerate strongly. This ties foam energy to the same physically slope-derived speed
+					// that already drives animation rather than making every reach equally white.
+					float flowEnergy = smoothstep(1.2, 4.5, vFlowSpeed);
+					foam *= mix(0.24, 1.0, flowEnergy);
 					// Banks catch and hold more foam than midstream does.
 					float bankBias = mix(0.5, 1.0, abs(vFlowSide));
 					diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.86, 0.94, 0.97), foam * ${foamStrength.toFixed(3)} * bankBias);
@@ -288,6 +309,10 @@ export function createRiverMesh(points, widthMeters = 14) {
 		const neighbourhoodRunMeters = Math.hypot(next.x - prev.x, next.z - prev.z) || 1;
 		const grade = Math.max(0, (prev.y - next.y) / neighbourhoodRunMeters);
 		const flowSpeedMps = RIVER_BASE_FLOW_SPEED_MPS + Math.sqrt(grade) * RIVER_GRADE_FLOW_GAIN;
+		const rushAmount = THREE.MathUtils.smoothstep(flowSpeedMps, RIVER_BASE_FLOW_SPEED_MPS, 4.5);
+		const riverR = THREE.MathUtils.lerp(RIVER_POOL_COLOR.r, RIVER_COLOR.r, rushAmount);
+		const riverG = THREE.MathUtils.lerp(RIVER_POOL_COLOR.g, RIVER_COLOR.g, rushAmount);
+		const riverB = THREE.MathUtils.lerp(RIVER_POOL_COLOR.b, RIVER_COLOR.b, rushAmount);
 
 		const leftIndex = i * 2;
 		const rightIndex = i * 2 + 1;
@@ -304,12 +329,12 @@ export function createRiverMesh(points, widthMeters = 14) {
 		positions[rightIndex * 3 + 1] = point.y + verticalOffset;
 		positions[rightIndex * 3 + 2] = point.z - perpZ * halfWidth;
 
-		colors[leftIndex * 3] = RIVER_COLOR.r;
-		colors[leftIndex * 3 + 1] = RIVER_COLOR.g;
-		colors[leftIndex * 3 + 2] = RIVER_COLOR.b;
-		colors[rightIndex * 3] = RIVER_COLOR.r;
-		colors[rightIndex * 3 + 1] = RIVER_COLOR.g;
-		colors[rightIndex * 3 + 2] = RIVER_COLOR.b;
+		colors[leftIndex * 3] = riverR;
+		colors[leftIndex * 3 + 1] = riverG;
+		colors[leftIndex * 3 + 2] = riverB;
+		colors[rightIndex * 3] = riverR;
+		colors[rightIndex * 3 + 1] = riverG;
+		colors[rightIndex * 3 + 2] = riverB;
 
 		if (i > 0) {
 			const prevLeft = leftIndex - 2;
@@ -332,10 +357,17 @@ export function createRiverMesh(points, widthMeters = 14) {
 		roughness: 0.15,
 		metalness: 0,
 		transparent: true,
-		opacity: 0.88,
+		opacity: 0.74,
 		side: THREE.DoubleSide,
 	});
-	attachFlowAnimation(material, 'river-flow', 0.45);
+	material.userData.opticalProfile = Object.freeze({
+		calmBedReadable: true,
+		opacity: 0.74,
+		slopeDrivenFoam: true,
+		turbulentFoamBreakup: true,
+		referencePalettePolicyId: GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id,
+	});
+	attachFlowAnimation(material, 'river-flow', 0.36);
 
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.userData.totalFlowLengthMeters = arcLengthMeters;
@@ -364,6 +396,7 @@ const WATERFALL_MIN_DROP_METERS = 2.5;
 const WATERFALL_MIN_SLOPE = 0.06;
 
 const WATERFALL_FOAM_COLOR = new THREE.Color(0xf0f8ff);
+WATERFALL_FOAM_COLOR.lerp(new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.water.foam), 0.82);
 
 /**
  * Scans a traced river path (`generateRiverPath`'s `points`) for segments steep enough to count as
@@ -390,14 +423,10 @@ export function detectWaterfalls(points) {
 }
 
 /**
- * Builds a vertical "curtain" mesh for one `detectWaterfalls` entry: a flat quad standing upright
- * at the horizontal midpoint between `top`/`bottom`, spanning the full vertical drop, oriented
- * perpendicular to the flow direction (same `perpX`/`perpZ` technique as `createRiverMesh`'s
- * ribbon). Deliberately vertical rather than following the real (gently-sloped, non-cliff) terrain
- * between the two points — `terrain.js`'s smooth FBM has no actual cliff faces yet, so a slanted
- * patch would just look like a tinted continuation of the river ribbon, not a fall. This is a
- * schematic "steep-section marker," not a physically-carved waterfall — see this module's own doc
- * comment and DECISIONS.md ADR-0011.
+ * Builds one animated waterfall mesh with two connected visual zones in a single BufferGeometry:
+ * the original vertical curtain plus a short horizontal plunge/splash apron at its base. The apron
+ * widens slightly downstream, matching the reference whitewater fan where impact foam spreads over
+ * rock before returning to calmer channel water. Both zones share one material and one draw call.
  * @param {{top: THREE.Vector3, bottom: THREE.Vector3, dropMeters: number}} waterfall One entry from `detectWaterfalls`.
  * @param {number} [widthMeters=14] Matches `createRiverMesh`'s default river width.
  * @returns {THREE.Mesh}
@@ -405,37 +434,61 @@ export function detectWaterfalls(points) {
 export function createWaterfallMesh({ top, bottom, dropMeters }, widthMeters = 14) {
 	const midX = (top.x + bottom.x) / 2;
 	const midZ = (top.z + bottom.z) / 2;
-	const tangentLength = Math.hypot(bottom.x - top.x, bottom.z - top.z) || 1;
-	const perpX = -(bottom.z - top.z) / tangentLength;
-	const perpZ = (bottom.x - top.x) / tangentLength;
+	const flowX = bottom.x - top.x;
+	const flowZ = bottom.z - top.z;
+	const tangentLength = Math.hypot(flowX, flowZ) || 1;
+	const dirX = flowX / tangentLength;
+	const dirZ = flowZ / tangentLength;
+	const perpX = -dirZ;
+	const perpZ = dirX;
 	const halfWidth = widthMeters / 2;
+	const apronLengthMeters = Math.max(3.5, Math.min(widthMeters * 0.72, dropMeters * 0.9));
+	const apronFarHalfWidth = halfWidth * 1.22;
+	const apronY = bottom.y + 0.16;
+	const farX = midX + dirX * apronLengthMeters;
+	const farZ = midZ + dirZ * apronLengthMeters;
 
 	// prettier-ignore
 	const positions = new Float32Array([
-		midX + perpX * halfWidth, top.y, midZ + perpZ * halfWidth, // top-left
-		midX - perpX * halfWidth, top.y, midZ - perpZ * halfWidth, // top-right
-		midX + perpX * halfWidth, bottom.y, midZ + perpZ * halfWidth, // bottom-left
-		midX - perpX * halfWidth, bottom.y, midZ - perpZ * halfWidth, // bottom-right
+		midX + perpX * halfWidth, top.y, midZ + perpZ * halfWidth, // curtain top-left
+		midX - perpX * halfWidth, top.y, midZ - perpZ * halfWidth, // curtain top-right
+		midX + perpX * halfWidth, bottom.y, midZ + perpZ * halfWidth, // curtain bottom-left
+		midX - perpX * halfWidth, bottom.y, midZ - perpZ * halfWidth, // curtain bottom-right
+		midX + perpX * halfWidth, apronY, midZ + perpZ * halfWidth, // impact near-left
+		midX - perpX * halfWidth, apronY, midZ - perpZ * halfWidth, // impact near-right
+		farX + perpX * apronFarHalfWidth, apronY, farZ + perpZ * apronFarHalfWidth, // apron far-left
+		farX - perpX * apronFarHalfWidth, apronY, farZ - perpZ * apronFarHalfWidth, // apron far-right
 	]);
 	// prettier-ignore
 	const colors = new Float32Array([
 		WATERFALL_FOAM_COLOR.r, WATERFALL_FOAM_COLOR.g, WATERFALL_FOAM_COLOR.b,
 		WATERFALL_FOAM_COLOR.r, WATERFALL_FOAM_COLOR.g, WATERFALL_FOAM_COLOR.b,
-		RIVER_COLOR.r, RIVER_COLOR.g, RIVER_COLOR.b,
-		RIVER_COLOR.r, RIVER_COLOR.g, RIVER_COLOR.b,
+		WATERFALL_PLUNGE_COLOR.r, WATERFALL_PLUNGE_COLOR.g, WATERFALL_PLUNGE_COLOR.b,
+		WATERFALL_PLUNGE_COLOR.r, WATERFALL_PLUNGE_COLOR.g, WATERFALL_PLUNGE_COLOR.b,
+		WATERFALL_SPLASH_COLOR.r, WATERFALL_SPLASH_COLOR.g, WATERFALL_SPLASH_COLOR.b,
+		WATERFALL_SPLASH_COLOR.r, WATERFALL_SPLASH_COLOR.g, WATERFALL_SPLASH_COLOR.b,
+		WATERFALL_PLUNGE_COLOR.r, WATERFALL_PLUNGE_COLOR.g, WATERFALL_PLUNGE_COLOR.b,
+		WATERFALL_PLUNGE_COLOR.r, WATERFALL_PLUNGE_COLOR.g, WATERFALL_PLUNGE_COLOR.b,
 	]);
-	const indices = [0, 2, 1, 2, 3, 1];
-	// Flow runs top-to-bottom here rather than along the channel: distance is measured down the
-	// curtain, so the same shader makes the foam fall instead of drift downstream.
+	const indices = [
+		0, 2, 1, 2, 3, 1, // vertical curtain
+		4, 6, 5, 6, 7, 5, // horizontal plunge apron
+	];
+	// Continue flow distance through the impact seam so foam visually leaves the falling sheet and
+	// travels downstream rather than restarting its animation at the base.
 	// prettier-ignore
-	const flowDistances = new Float32Array([0, 0, dropMeters, dropMeters]);
-	const flowSpeeds = new Float32Array([
-		WATERFALL_FLOW_SPEED_MPS,
-		WATERFALL_FLOW_SPEED_MPS,
-		WATERFALL_FLOW_SPEED_MPS,
-		WATERFALL_FLOW_SPEED_MPS,
+	const flowDistances = new Float32Array([
+		0, 0, dropMeters, dropMeters,
+		dropMeters, dropMeters, dropMeters + apronLengthMeters, dropMeters + apronLengthMeters,
 	]);
-	const flowSides = new Float32Array([-1, 1, -1, 1]);
+	// prettier-ignore
+	const flowSpeeds = new Float32Array([
+		WATERFALL_FLOW_SPEED_MPS, WATERFALL_FLOW_SPEED_MPS,
+		WATERFALL_FLOW_SPEED_MPS, WATERFALL_FLOW_SPEED_MPS,
+		WATERFALL_APRON_FLOW_SPEED_MPS, WATERFALL_APRON_FLOW_SPEED_MPS,
+		WATERFALL_APRON_FLOW_SPEED_MPS, WATERFALL_APRON_FLOW_SPEED_MPS,
+	]);
+	const flowSides = new Float32Array([-1, 1, -1, 1, -1, 1, -1, 1]);
 
 	const geometry = new THREE.BufferGeometry();
 	geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -448,15 +501,25 @@ export function createWaterfallMesh({ top, bottom, dropMeters }, widthMeters = 1
 
 	const material = new THREE.MeshStandardMaterial({
 		vertexColors: true,
-		roughness: 0.2,
+		roughness: 0.16,
 		metalness: 0,
 		transparent: true,
-		opacity: 0.82,
+		opacity: 0.74,
 		side: THREE.DoubleSide,
 	});
-	attachFlowAnimation(material, 'waterfall-flow', 0.3);
+	material.userData.opticalProfile = Object.freeze({
+		aerated: true,
+		opacity: 0.74,
+		plungeColor: WATERFALL_PLUNGE_COLOR.getHex(),
+		splashApron: true,
+		singleDrawCall: true,
+		turbulentFoamBreakup: true,
+		referencePalettePolicyId: GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id,
+	});
+	attachFlowAnimation(material, 'waterfall-flow-splash-v2', 0.44);
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.userData.dropMeters = dropMeters;
+	mesh.userData.apronLengthMeters = apronLengthMeters;
 	return mesh;
 }
 

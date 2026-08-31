@@ -1,0 +1,111 @@
+name: Natural Geology Exact Head
+
+on:
+  push:
+    branches:
+      - codex/foundation-grounding-20260821
+    paths:
+      - 'src/3d/world/valyriaGeology.js'
+      - 'src/3d/world/valyriaEcology.js'
+      - 'src/3d/world/valyriaCastleWeathering.js'
+      - 'src/3d/world/settlements.js'
+      - 'src/3d/world/terrain.js'
+      - 'src/3d/world/naturalGeologyPlacement.js'
+      - 'src/3d/world/naturalGeology.js'
+      - 'src/3d/sceneManager.js'
+      - 'scripts/checkValyriaGeology.mjs'
+      - 'scripts/checkValyriaVolcanicMorphology.mjs'
+      - 'scripts/checkValyriaCanonicalTerrain.mjs'
+      - 'scripts/checkValyriaBarrenEcology.mjs'
+      - 'scripts/checkValyriaCastleWeathering.mjs'
+      - 'scripts/checkNaturalGeologyPlacement.mjs'
+      - 'scripts/checkNaturalGeologySourceContract.mjs'
+      - '.github/workflows/natural-geology-exact-head.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scalar-authority:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact pushed head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify exact head and syntax
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          node --check src/3d/world/valyriaGeology.js
+          node --check src/3d/world/valyriaEcology.js
+          node --check src/3d/world/valyriaCastleWeathering.js
+          node --check src/3d/world/settlements.js
+          node --check src/3d/world/terrain.js
+          node --check src/3d/world/naturalGeologyPlacement.js
+          node --check src/3d/world/naturalGeology.js
+          node --check src/3d/sceneManager.js
+          node --check scripts/checkValyriaGeology.mjs
+          node --check scripts/checkValyriaVolcanicMorphology.mjs
+          node --check scripts/checkValyriaCanonicalTerrain.mjs
+          node --check scripts/checkValyriaBarrenEcology.mjs
+          node --check scripts/checkValyriaCastleWeathering.mjs
+          node --check scripts/checkNaturalGeologyPlacement.mjs
+          node --check scripts/checkNaturalGeologySourceContract.mjs
+      - name: Resolve vendored Three.js for canonical terrain imports
+        run: node scripts/setupNodeThreeShim.mjs
+      - name: Valyria geography authority
+        run: node scripts/checkValyriaGeology.mjs
+      - name: Valyria volcanic morphology matrix
+        run: node scripts/checkValyriaVolcanicMorphology.mjs
+      - name: Canonical Valyria terrain integration
+        run: node scripts/checkValyriaCanonicalTerrain.mjs
+      - name: Valyria barren ecology placement
+        run: node scripts/checkValyriaBarrenEcology.mjs
+      - name: Principal Valyrian fortress weathering
+        run: node scripts/checkValyriaCastleWeathering.mjs
+      - name: Natural geology deterministic placement
+        run: node scripts/checkNaturalGeologyPlacement.mjs
+      - name: Asset and authority source contract
+        run: node scripts/checkNaturalGeologySourceContract.mjs
+
+  renderer-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact pushed head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Resolve vendored Three.js for Node imports
+        run: node scripts/setupNodeThreeShim.mjs
+      - name: Import render layer without hydrated LFS assets
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const geology = await import('./src/3d/world/naturalGeology.js');
+          if (!geology.NATURAL_GEOLOGY_RENDER_POLICY?.renderOnly) throw new Error('render-only contract lost');
+          if (geology.NATURAL_GEOLOGY_RENDER_POLICY.referenceLandscapeRuntimeLoad !== false) throw new Error('heavy landscape became runtime load');
+          const g = geology.createNaturalRockPrototypeGeometry('fractured-scarp');
+          if (!g?.getAttribute?.('position')?.count) throw new Error('procedural fallback geometry missing');
+          g.dispose();
+          console.log('[natural-geology-render-import] PASS');
+          NODE
+      - name: Confirm LFS pointer state is a supported fallback
+        run: |
+          set -euo pipefail
+          test -f assets/models/fbx/rocky_terrain_low_poly.glb
+          test -f assets/models/fbx/desert_rocks.glb
+          echo '[natural-geology-lfs-fallback] PASS'

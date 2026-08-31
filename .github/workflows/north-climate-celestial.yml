@@ -1,0 +1,35 @@
+name: North Climate Celestial Cycle
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/terrainBiomeShading.js'
+      - 'src/3d/world/worldReferenceAlignment.js'
+      - 'src/3d/lighting.js'
+      - 'src/3d/nightVisualEnhancement.js'
+      - 'scripts/checkNorthClimateCelestialCycle.mjs'
+      - 'scripts/setupNodeThreeShim.mjs'
+      - '.github/workflows/north-climate-celestial.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  climate-celestial:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Resolve vendored Three.js for Node contracts
+        run: node scripts/setupNodeThreeShim.mjs
+      - name: Syntax
+        run: |
+          node --check src/3d/world/terrainBiomeShading.js
+          node --check src/3d/lighting.js
+          node --check scripts/checkNorthClimateCelestialCycle.mjs
+      - name: Frozen north and day-night contract
+        run: node scripts/checkNorthClimateCelestialCycle.mjs

@@ -13,10 +13,23 @@ function normalizedScale(value) {
   return Math.max(MIN_EDITOR_SCALE, numeric);
 }
 
+function refreshTerrainFoundation(object) {
+  if (!object?.userData?.editorFoundationKey && !object?.userData?.terrainFoundationKey) {
+    return { ok: true, skipped: true };
+  }
+  const placement = window.__WESTEROS_EDITOR_PLACEMENT__;
+  if (!placement?.groundObject) return { ok: false, error: 'live-placement-unavailable' };
+  return placement.groundObject(object);
+}
+
 /**
  * Owns Inspector scale changes before the legacy bubble listener so precise values below 0.01
  * remain usable without permitting a singular zero scale. Existing position/rotation/name inputs
  * stay on the legacy World Editor path.
+ *
+ * Structural assets also refresh their terrain foundation after a committed numeric scale change.
+ * The change event fires once per committed Inspector edit, so this keeps the shared render/collider
+ * flatten pad aligned to the new bounding-box footprint without rebuilding terrain on every keystroke.
  *
  * @param {object} api World Editor bridge.
  * @returns {{dispose: Function, minimumScale: number}}
@@ -42,6 +55,8 @@ export function installEditorScaleInputController(api) {
     }
 
     object.scale[axis] = next;
+    const grounding = refreshTerrainFoundation(object);
+    if (!grounding.ok) console.warn('[EditorScaleInputController] foundation refresh failed', grounding.error);
     api.writeInspector(object);
     api.refreshHierarchy();
   }

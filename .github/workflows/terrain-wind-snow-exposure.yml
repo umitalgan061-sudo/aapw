@@ -1,0 +1,58 @@
+name: Terrain Wind Snow Exposure
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/terrainWindSnowExposure.js'
+      - 'scripts/checkTerrainWindSnowExposure.mjs'
+      - 'scripts/checkTerrainWindSnowOrographicFold.mjs'
+      - 'src/3d/world/terrainBiomeShading.js'
+      - 'src/3d/world/terrain.js'
+      - '.github/workflows/terrain-wind-snow-exposure.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+jobs:
+  terrain-wind-snow-exposure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout exact requested head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXPECTED_HEAD_SHA }}
+          fetch-depth: 1
+          lfs: false
+
+      - name: Verify exact head
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD_SHA"
+          echo "exact_head=$EXPECTED_HEAD_SHA"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install runtime test dependency
+        run: npm install --no-save --no-package-lock three
+
+      - name: Syntax check
+        run: |
+          node --check src/3d/world/terrainWindSnowExposure.js
+          node --check scripts/checkTerrainWindSnowExposure.mjs
+          node --check scripts/checkTerrainWindSnowOrographicFold.mjs
+          node --check src/3d/world/terrainBiomeShading.js
+          node --check src/3d/world/terrain.js
+
+      - name: Prevailing-wind snow contract
+        run: node scripts/checkTerrainWindSnowExposure.mjs
+
+      - name: Orographic fold channeling contract
+        run: node scripts/checkTerrainWindSnowOrographicFold.mjs

@@ -1,0 +1,69 @@
+name: Editor Terrain Foundation
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/editor/EditorTerrainFoundationGrounder.js'
+      - 'src/3d/editor/EditorPlacementController.js'
+      - 'src/3d/editor/EditorTransformControls.js'
+      - 'src/3d/editor/EditorScaleInputController.js'
+      - 'src/3d/editor/worldEditor.js'
+      - 'src/3d/world/WorldAssetPlacementPipeline.js'
+      - 'src/3d/world/structureGroundingPolicy.js'
+      - 'src/3d/world/terrainFoundationConformer.js'
+      - 'scripts/checkStructureGroundingPolicy.mjs'
+      - 'scripts/checkEditorTerrainFoundationGrounder.mjs'
+      - 'scripts/checkEditorFoundationRuntimeIdentity.mjs'
+      - 'scripts/checkEditorTerrainFoundationBatchCleanup.mjs'
+      - 'scripts/checkEditorTerrainFoundationLifecycle.mjs'
+      - 'scripts/checkRun216ScaleInputController.mjs'
+      - 'scripts/setupNodeThreeShim.mjs'
+      - '.github/workflows/editor-terrain-foundation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  editor-terrain-foundation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Resolve vendored Three.js for Node contracts
+        run: node scripts/setupNodeThreeShim.mjs
+      - name: Syntax
+        run: |
+          node --check src/3d/editor/EditorTerrainFoundationGrounder.js
+          node --check src/3d/editor/EditorPlacementController.js
+          node --check src/3d/editor/EditorTransformControls.js
+          node --check src/3d/editor/EditorScaleInputController.js
+          node --check src/3d/editor/worldEditor.js
+          node --check src/3d/world/WorldAssetPlacementPipeline.js
+          node --check src/3d/world/structureGroundingPolicy.js
+          node --check scripts/checkStructureGroundingPolicy.mjs
+          node --check scripts/checkEditorTerrainFoundationGrounder.mjs
+          node --check scripts/checkEditorFoundationRuntimeIdentity.mjs
+          node --check scripts/checkEditorTerrainFoundationBatchCleanup.mjs
+          node --check scripts/checkEditorTerrainFoundationLifecycle.mjs
+          node --check scripts/checkRun216ScaleInputController.mjs
+      - name: Shared structure grounding classification
+        run: node scripts/checkStructureGroundingPolicy.mjs
+      - name: Editor structure foundation contract
+        run: node scripts/checkEditorTerrainFoundationGrounder.mjs
+      - name: Editor cloned runtime foundation identity
+        run: node scripts/checkEditorFoundationRuntimeIdentity.mjs
+      - name: Editor numeric scale foundation refresh contract
+        run: node scripts/checkRun216ScaleInputController.mjs
+      - name: Editor batch foundation cleanup contract
+        run: node scripts/checkEditorTerrainFoundationBatchCleanup.mjs
+      - name: Editor structure lifecycle contract
+        run: node scripts/checkEditorTerrainFoundationLifecycle.mjs

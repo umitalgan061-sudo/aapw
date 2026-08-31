@@ -37,8 +37,10 @@ const MIME_TYPES = {
 
 /**
  * Starts a plain static file server over the repo root on an OS-assigned free port. No external
- * dependency — this is the only "network" involved, entirely local (127.0.0.1).
- * @returns {Promise<import('http').Server>}
+ * dependency — this is the only "network" involved, entirely local (127.0.0.1). The returned value
+ * remains the native `http.Server`; `baseUrl` and promise-based `stop()` are additive conveniences
+ * for focused browser QA scripts that do not need to repeat address/close boilerplate.
+ * @returns {Promise<import('http').Server & {baseUrl:string, stop:()=>Promise<void>}>}
  */
 function startStaticServer() {
 	const server = http.createServer((req, res) => {
@@ -63,7 +65,14 @@ function startStaticServer() {
 			res.end(String(error));
 		}
 	});
-	return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)));
+	return new Promise((resolve) => server.listen(0, '127.0.0.1', () => {
+		const address = server.address();
+		server.baseUrl = `http://127.0.0.1:${address.port}`;
+		server.stop = () => new Promise((stopResolve, stopReject) => {
+			server.close((error) => error ? stopReject(error) : stopResolve());
+		});
+		resolve(server);
+	}));
 }
 
 /**
