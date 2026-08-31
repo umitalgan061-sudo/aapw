@@ -43,6 +43,16 @@ const saved = economy.snapshot();
 const restored = createInteractionEconomyState();
 restored.restore(saved);
 assert.deepEqual(restored.snapshot(), saved, 'route receipt provenance must survive save/load');
+const duplicateWatch = restored.credit(8, {
+  sourceId: 'expedition-contract:dragonstone-watch-circuit',
+  label: 'Nöbet Yolu Devriyesi',
+});
+assert.deepEqual(
+  { ok: duplicateWatch.ok, reason: duplicateWatch.reason, creditedCopper: duplicateWatch.creditedCopper, balanceCopper: duplicateWatch.balanceCopper },
+  { ok: false, reason: 'duplicate-credit-source', creditedCopper: 0, balanceCopper: 60 },
+  'save/load replay of the same expedition source must not mint copper twice',
+);
+assert.deepEqual(restored.snapshot(), saved, 'duplicate reward rejection must leave wallet and provenance ledger unchanged');
 
 const text = buildQuartermasterText(restored.snapshot());
 assert.match(text, /Son gelir: Liman Taverna Seferi · \+12 bakır · bakiye 60/);
@@ -91,6 +101,7 @@ for (const [routeId, label, copper] of authoredCredits) {
 }
 const boundedSaved = bounded.snapshot();
 assert.equal(boundedSaved.ledger.recentCredits.length, 5, 'credit ledger must keep the configured bounded history');
+assert.equal(boundedSaved.ledger.creditedSourceIds.length, 6, 'idempotency ledger must retain sources that age out of the display history');
 assert.deepEqual(
   boundedSaved.ledger.recentCredits.map(({ sequence, sourceId, label }) => ({ sequence, sourceId, label })),
   authoredCredits.slice(-5).map(([routeId, label], index) => ({
@@ -107,6 +118,12 @@ assert.deepEqual(
   boundedSaved.ledger.recentCredits,
   'bounded route provenance history must survive save/load without relabeling or resequencing',
 );
+const replayedEvictedReward = boundedRestored.credit(8, {
+  sourceId: 'expedition-contract:dragonstone-watch-circuit',
+  label: 'Nöbet Yolu Devriyesi',
+});
+assert.equal(replayedEvictedReward.reason, 'duplicate-credit-source', 'evicted display receipts must remain protected against reward replay');
+assert.equal(boundedRestored.snapshot().copper, 52, 'replaying an evicted reward source must not change the restored wallet');
 const masteryAfterRestore = boundedRestored.credit(20, { sourceId: 'expedition-mastery', label: 'Sefer ustalığı' });
 assert.equal(masteryAfterRestore.receipt.sequence, 7, 'new credits after restore must continue the surviving receipt sequence');
 assert.equal(masteryAfterRestore.receipt.sourceId, 'expedition-mastery');
@@ -149,9 +166,9 @@ assert.deepEqual(
   }],
   'restore must reject invalid or duplicate receipts while normalizing surviving expedition provenance text',
 );
-const hardenedNext = hardenedRestore.credit(5, { sourceId: 'expedition-contract:dragonstone-sea-wall-run', label: 'Deniz Duvarı Seferi' });
+const hardenedNext = hardenedRestore.credit(5, { sourceId: 'expedition-contract:dragonstone-cliff-watch', label: 'Uçurum Nöbeti' });
 assert.equal(hardenedNext.receipt.sequence, 5, 'post-restore expedition receipt sequence must continue from the last accepted receipt');
-assert.equal(hardenedNext.receipt.sourceId, 'expedition-contract:dragonstone-sea-wall-run');
+assert.equal(hardenedNext.receipt.sourceId, 'expedition-contract:dragonstone-cliff-watch');
 
 const oversizedSave = structuredClone(saved);
 oversizedSave.ledger.recentCredits = [{
