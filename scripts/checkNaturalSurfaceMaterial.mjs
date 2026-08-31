@@ -22,6 +22,8 @@ assert.equal(policy.newGeographyIntroduced, false);
 assert.equal(policy.valyriaAuthorityPolicyId, VALYRIA_GEOLOGY_POLICY.id);
 assert.equal(policy.allWorldMacroNormalVariation, true);
 assert.equal(policy.allWorldMacroRoughnessVariation, true);
+assert.equal(policy.worldScaleLowlandReadability, true);
+assert.equal(policy.worldScaleSnowFirnReadability, true);
 assert.equal(policy.anisotropicErosionFabric, true);
 assert.equal(policy.cliffWeatheringStreaks, true);
 assert.equal(policy.cryosphereFirnSastrugi, true);
@@ -62,6 +64,8 @@ for (const marker of [
 	'naturalSurfaceAllWorldRelief',
 	'naturalSurfaceErosionFabric',
 	'naturalSurfaceCryosphereFabric',
+	'naturalSurfaceLowlandMacroTone',
+	'naturalSurfaceSnowReadability',
 	'naturalSurfaceErodedSoil',
 	'naturalSurfaceDepositionalSoil',
 	'naturalSurfaceCliffStreak',
@@ -102,4 +106,4 @@ assert(!combinedFirst.vertexShader.includes('transformed +='), 'render-only mate
 assert(!combinedFirst.fragmentShader.includes('gl_FragDepth'), 'render-only material must not rewrite terrain depth');
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.renderOnly, true);
 
-console.log('[checkNaturalSurfaceMaterial] PASS: canonical geography retained with deterministic erosion, cliff, cryosphere, coast and Valyria PBR fabric.');
+console.log('[checkNaturalSurfaceMaterial] PASS: canonical geography retained with deterministic world-scale lowland, erosion, cliff, cryosphere, coast and Valyria PBR fabric.');
