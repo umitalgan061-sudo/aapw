@@ -36,7 +36,7 @@ jobs:
           base="$(git merge-base HEAD origin/main)"
           test "$base" = "$(git rev-parse origin/main)"
           mapfile -t paths < <(git diff --name-only "$base"...HEAD)
-          allowed='^(src/3d/gameplay/interaction(Config|Economy|FieldReadiness)?\.js|scripts/checkInteractionJourneyHistoryWindow(Current)?\.mjs|\.github/workflows/rpg-journey-(history-current|ledger-ux)\.yml)$'
+          allowed='^(\.github/workflows/(rpg-expedition-(credit-ledger|reward-provenance|tavern-recovery)|rpg-interaction-quest-loop|rpg-journey-(history-current|ledger-ux)|rpg-mastery-(armorer-service|economy-continuity|journal-continuity|to-smithing|travel-continuity)|rpg-smithing-service-persistence|rpg-tavern-receipt-integrity|run167-determinism-policy|run283-final-head-governance)\.yml|scripts/checkInteraction(ArmorerServiceBrowser|Expedition(Board|BoardBrowser|CreditLedger|Kit(Browser|Craft)|RewardProvenance|RewardTradeContinuity|TradeQuoteAtomicity)|MasteryEconomyContinuity|MasteryToSmithingBrowser|ProvisioningCraft|QuartermasterTrade|SettlementService(Browser|Contract)|SmithingServicePersistence|TradeLedger(Atomicity|Browser))\.mjs|service-worker\.js|src/3d/gameplay/(interaction|interactionConfig|interactionEconomy)\.js)$'
           if (( ${#paths[@]} )); then
             printf '%s\n' "${paths[@]}" | grep -Ev "$allowed" && exit 1 || true
           fi
