@@ -68,11 +68,16 @@ jobs:
         run: |
           set -euo pipefail
           npm install --no-save --no-package-lock --ignore-scripts three@0.180.0
-      - name: Hydrate authored terrain material
+      - name: Hydrate authored terrain material at exact head
         run: |
           set -euo pipefail
+          OVERLAY='assets/textures/yüzey/overlay/overlay.png'
+          HEAD_SHA="$(git rev-parse HEAD)"
           git lfs version
-          git lfs pull --include="assets/textures/yüzey/overlay/overlay.png" --exclude=""
+          git lfs fetch origin "$HEAD_SHA" --include="$OVERLAY" --exclude=""
+          git lfs checkout -- "$OVERLAY"
+          test -f "$OVERLAY"
+          test "$(wc -c < "$OVERLAY")" -gt 10000000
       - name: Static syntax and shared placement contract
         run: |
           set -euo pipefail
