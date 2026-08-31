@@ -12,6 +12,31 @@
 import { createDragon } from './dragonController.js';
 
 /**
+ * Resolve one configured dragon's initial terrain-relative flight center without allowing malformed
+ * seat/config coordinates or a transient terrain-provider failure to poison the whole parallel spawn
+ * batch. Per-frame terrain probing remains owned by `dragonFlightMath.js`, which already ignores
+ * isolated invalid/throwing samples while preserving the last proven-safe altitude.
+ */
+export function resolveConfiguredDragonSpawnCenter({ spawn, seat, sampleGroundY } = {}) {
+	const centerX = seat?.x;
+	const centerZ = seat?.z;
+	const altitudeMeters = spawn?.altitudeMeters;
+	if (!Number.isFinite(centerX) || !Number.isFinite(centerZ) || !Number.isFinite(altitudeMeters)) {
+		return { ok: false, reason: 'non-finite-config' };
+	}
+	let groundY;
+	try {
+		groundY = sampleGroundY(centerX, centerZ);
+	} catch (error) {
+		return { ok: false, reason: 'ground-sample-error', error };
+	}
+	if (!Number.isFinite(groundY)) return { ok: false, reason: 'non-finite-ground' };
+	const centerY = groundY + altitudeMeters;
+	if (!Number.isFinite(centerY)) return { ok: false, reason: 'non-finite-center' };
+	return { ok: true, centerX, centerY, centerZ, groundY };
+}
+
+/**
  * Resolves and loads every configured dragon spawn (`gameplayConfig.js`'s `DRAGON_CONFIG.SPAWNS`)
  * against a kingdom-seat lookup, in parallel — same shape as `gameplay/animals.js`'s
  * `spawnConfiguredAnimals` / `gameplay/npc.js`'s `spawnConfiguredNPCs`, keeping `game3d.js` a thin
@@ -53,15 +78,20 @@ export async function spawnConfiguredDragons({ assetLoader, dragonConfig, seatsB
 				console.warn(`[gameplay/dragons] Dragon spawn "${spawn.id}" references unknown seat "${spawn.seatId}" — skipping.`);
 				return null;
 			}
+			const center = resolveConfiguredDragonSpawnCenter({ spawn, seat, sampleGroundY });
+			if (!center.ok) {
+				console.warn(`[gameplay/dragons] Dragon spawn "${spawn.id}" has unsafe initial placement (${center.reason}) — skipping.`, center.error ?? '');
+				return null;
+			}
 			return createDragon({
 				assetLoader,
 				modelUrl: dragonConfig.MODEL_URL,
 				texturesResourcePath: dragonConfig.TEXTURES_RESOURCE_PATH,
 				scale: dragonConfig.SCALE,
 				flyClipName: dragonConfig.FLY_CLIP_NAME,
-				centerX: seat.x,
-				centerZ: seat.z,
-				centerY: sampleGroundY(seat.x, seat.z) + spawn.altitudeMeters,
+				centerX: center.centerX,
+				centerZ: center.centerZ,
+				centerY: center.centerY,
 				circleRadiusMeters: spawn.circleRadiusMeters,
 				speedMps: spawn.speedMps,
 				bankAngleRadians: spawn.bankAngleRadians,
