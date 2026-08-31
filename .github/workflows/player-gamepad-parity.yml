@@ -81,16 +81,6 @@ jobs:
           echo "base=$MAIN_SHA additions=$ADD deletions=$DEL total=$TOTAL"
           test "$TOTAL" -le 1000
           echo "BASE_SHA=$MAIN_SHA" >> "$GITHUB_ENV"
-      - name: Asset-first targeted hydration
-        shell: bash
-        run: |
-          set -euo pipefail
-          git lfs version
-          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**" --exclude=""
-          test -s assets/models/characters/peasant_girl.fbx
-          test -s assets/animations/peasant_girl/idle.fbx
-          test -s assets/animations/peasant_girl/walking.fbx
-          test -s assets/animations/peasant_girl/running.fbx
       - name: Standard gamepad movement combat lock-on and handoff contracts
         run: |
           set -euo pipefail
@@ -140,6 +130,24 @@ jobs:
           ! grep -q 'EditorMaterialStudio' src/3d/input.js
           ! grep -q 'EditorMaterialStudio' src/3d/gameLoopHelpers.js
           ! grep -q 'EditorMaterialStudio' src/3d/ui/healthBar.js
+      - name: Asset-first targeted hydration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs version
+          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**" --exclude=""
+          assert_hydrated() {
+            local path="$1"
+            test -s "$path"
+            if head -n 1 "$path" | grep -qx 'version https://git-lfs.github.com/spec/v1'; then
+              echo "LFS pointer remained after hydration: $path" >&2
+              exit 1
+            fi
+          }
+          assert_hydrated assets/models/characters/peasant_girl.fbx
+          assert_hydrated assets/animations/peasant_girl/idle.fbx
+          assert_hydrated assets/animations/peasant_girl/walking.fbx
+          assert_hydrated assets/animations/peasant_girl/running.fbx
       - name: Install Chromium
         shell: bash
         run: |
