@@ -36,6 +36,7 @@ async function main() {
 				WATER_FULL_WORLD_EXTENT_METERS,
 				WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
 			} = await import('/src/3d/world/water.js');
+			const { GEOGRAPHIC_REFERENCE_PALETTE } = await import('/src/3d/world/geographicReferencePalette.js');
 			const { publishCelestialLightState } = await import('/src/3d/celestialLightState.js');
 			const fail = (condition, message) => { if (!condition) throw new Error(message); };
 			const close = (a, b, tolerance = 1e-6) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= tolerance;
@@ -58,7 +59,7 @@ async function main() {
 				'full-world far-water underlay must remain square and authority-sized');
 			fail(far.material.depthWrite === false, 'far water must not occlude displaced near-water troughs');
 			fail(far.renderOrder === -1, 'far water must render before the near layer');
-			fail(far.material.uniforms.uFarLayerMask.value === 1, 'far water no longer masks itself under the near square');
+			fail(far.material.uniforms.uFarLayerMask.value === 1, 'far water no longer masks itself under the near detail footprint');
 
 			const backdrop = water.userData.deepOceanBackdrop;
 			fail(backdrop?.isMesh === true, 'deep-ocean backdrop mesh is missing');
@@ -74,6 +75,8 @@ async function main() {
 				'deep-ocean backdrop must render below/before both transparent water layers');
 			fail(water.userData.waterCoverage?.deepOceanBackdropExtentMeters === WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
 				'water coverage metadata lost the deep-ocean backdrop extent');
+			fail(water.userData.waterCoverage?.worldAnchoredFarLayers === true,
+				'full-world water layers must remain world-anchored while the near detail mesh follows camera');
 
 			const uniforms = water.material.uniforms;
 			for (const name of [
@@ -81,8 +84,10 @@ async function main() {
 				'uNightFactor', 'uCameraPosition', 'uDepthMap', 'uDepthFieldExtentMeters', 'uSwellStrength', 'uFarLayerMask',
 			]) fail(Boolean(uniforms?.[name]), `water uniform ${name} is missing`);
 			fail(Boolean(uniforms?.fogColor && uniforms?.fogNear && uniforms?.fogFar && uniforms?.fogDensity), 'water fog uniforms are missing');
-			fail(uniforms.uShallowColor.value.getHex() === 0x6aa39c, 'reference clear-shore hue drifted');
-			fail(uniforms.uDeepColor.value.getHex() === 0x092941, 'reference deep-sea hue drifted');
+			fail(uniforms.uShallowColor.value.getHex() === GEOGRAPHIC_REFERENCE_PALETTE.water.shoreClear,
+				'reference clear-shore hue drifted from shared geographic palette');
+			fail(uniforms.uDeepColor.value.getHex() === GEOGRAPHIC_REFERENCE_PALETTE.water.deepSea,
+				'reference deep-sea hue drifted from shared geographic palette');
 
 			const optical = water.userData.opticalProfile;
 			fail(optical?.shallowAlpha === 0.14 && optical?.deepAlpha === 0.90, 'depth-clear optical alpha profile drifted');
@@ -137,7 +142,16 @@ async function main() {
 			fail(uniforms.uSunColor.value.getHex() === 0xffb366, 'water did not copy live sun colour');
 			fail(vectorClose(uniforms.uCameraPosition.value, camera), 'water camera uniform drifted');
 			fail(close(water.position.x, camera.x) && close(water.position.z, camera.z) && close(water.position.y, waterLevel), 'water camera-follow drifted');
-			fail(close(backdrop.position.x, 0) && close(backdrop.position.z, 0), 'deep-ocean backdrop must inherit camera-follow XZ from the water parent');
+			fail(close(far.position.x, -camera.x) && close(far.position.z, -camera.z),
+				'full-world far water must counter-translate the camera-follow parent');
+			fail(close(backdrop.position.x, -camera.x) && close(backdrop.position.z, -camera.z),
+				'deep-ocean backdrop must counter-translate the camera-follow parent');
+			const farWorldPosition = far.getWorldPosition(new THREE.Vector3());
+			const backdropWorldPosition = backdrop.getWorldPosition(new THREE.Vector3());
+			fail(close(farWorldPosition.x, 0) && close(farWorldPosition.z, 0),
+				'full-world far water drifted away from canonical world origin');
+			fail(close(backdropWorldPosition.x, 0) && close(backdropWorldPosition.z, 0),
+				'deep-ocean backdrop drifted away from canonical world origin');
 
 			publishCelestialLightState({
 				sunPosition: new THREE.Vector3(0, -1, 0),
@@ -189,7 +203,7 @@ async function main() {
 		assert(result.vertexCount === 16641 && result.indexCount === 98304, 'water topology mismatch escaped browser contract');
 		assert(result.farExtent === 28000 && result.backdropExtent === 28000,
 			'full-world water extent contract escaped browser validation');
-		console.log(`[checkWaterVisualContract] PASS: depth-clear ${result.optical.shallowAlpha.toFixed(2)}→${result.optical.deepAlpha.toFixed(2)} alpha, live sun/moon specular, organic radial near/far/deep-ocean composition, ${result.vertexCount} near-water vertices.`);
+		console.log(`[checkWaterVisualContract] PASS: depth-clear ${result.optical.shallowAlpha.toFixed(2)}→${result.optical.deepAlpha.toFixed(2)} alpha, live sun/moon specular, world-anchored far layers and organic radial composition, ${result.vertexCount} near-water vertices.`);
 	} finally {
 		await browser.close();
 		await new Promise((resolve) => server.close(resolve));
