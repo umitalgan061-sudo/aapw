@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-31-v59-aerial-rock-ecotone-recovery',
+	id: 'geographic-reference-palette-2026-08-31-v60-geologic-value-recovery',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -27,9 +27,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v59 retains the v58 aerial ecotone recovery and widens only the restrained mineral value range after exact-head browser QA measured exposed-rock colour separation below the geological visibility floor. Damp moss/meadow/heath/earth remain ecologically distinct; granite shadow, sunlit granite, wet basalt and quartz now preserve weathering and strata readability without changing rock authority or terrain geometry.',
-		water: 'v59 keeps the v58 deep-sea and abyss lift so depth hierarchy survives the high full-world camera while offshore water remains darker than rivers, lakes and clear shallows. Canonical wet coverage and shoreline ownership remain unchanged.',
-		road: 'v59 preserves established cart-road and footpath base colours required by the live road mesh contract; rut, stone and moss-edge separation provide wet/dry and wear variation without changing route geometry.',
+		terrain: 'v60 keeps the v58 aerial ecotone recovery and widens the neutral mineral value ladder after v59 browser QA improved exposed-rock separation but remained below the measured visibility floor. Granite shadow is deeper, lit granite/quartz are brighter and wet basalt remains dark; hues stay restrained so strata/weathering read through value rather than arcade saturation. Rock authority and terrain geometry are unchanged.',
+		water: 'v60 keeps the v58 deep-sea and abyss lift so depth hierarchy survives the high full-world camera while offshore water remains darker than rivers, lakes and clear shallows. Canonical wet coverage and shoreline ownership remain unchanged.',
+		road: 'v60 preserves established cart-road and footpath base colours required by the live road mesh contract; rut, stone and moss-edge separation provide wet/dry and wear variation without changing route geometry.',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability.',
 	}),
 });
@@ -41,10 +41,10 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		dryHeather: 0x58472e,
 		wetEarth: 0x0c1814,
 		exposedEarth: 0x9f5e3d,
-		graniteShadow: 0x252d31,
-		graniteSunlit: 0x7a7267,
-		basaltWet: 0x06141b,
-		quartz: 0x8a8175,
+		graniteShadow: 0x1d2529,
+		graniteSunlit: 0x91877a,
+		basaltWet: 0x040f14,
+		quartz: 0x9c9284,
 	}),
 	road: Object.freeze({
 		compacted: 0x8b6849,
