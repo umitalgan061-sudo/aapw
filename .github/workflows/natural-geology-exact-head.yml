@@ -19,6 +19,7 @@ on:
       - 'scripts/checkValyriaCastleWeathering.mjs'
       - 'scripts/checkNaturalGeologyPlacement.mjs'
       - 'scripts/checkNaturalGeologySourceContract.mjs'
+      - 'scripts/checkNaturalGeologyAbortSafety.mjs'
       - 'scripts/checkNaturalGeologySurfacePbr.js'
       - '.github/workflows/natural-geology-exact-head.yml'
   push:
@@ -42,6 +43,7 @@ on:
       - 'scripts/checkValyriaCastleWeathering.mjs'
       - 'scripts/checkNaturalGeologyPlacement.mjs'
       - 'scripts/checkNaturalGeologySourceContract.mjs'
+      - 'scripts/checkNaturalGeologyAbortSafety.mjs'
       - 'scripts/checkNaturalGeologySurfacePbr.js'
       - '.github/workflows/natural-geology-exact-head.yml'
   workflow_dispatch:
@@ -83,6 +85,7 @@ jobs:
           node --check scripts/checkValyriaCastleWeathering.mjs
           node --check scripts/checkNaturalGeologyPlacement.mjs
           node --check scripts/checkNaturalGeologySourceContract.mjs
+          node --check scripts/checkNaturalGeologyAbortSafety.mjs
           node --check scripts/checkNaturalGeologySurfacePbr.js
       - name: Resolve vendored Three.js for canonical terrain imports
         run: node scripts/setupNodeThreeShim.mjs
@@ -120,9 +123,12 @@ jobs:
           test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
           node --check src/3d/world/naturalGeology.js
           node --check src/3d/world/naturalGeologySurfaceMaterial.js
+          node --check scripts/checkNaturalGeologyAbortSafety.mjs
           node --check scripts/checkNaturalGeologySurfacePbr.js
       - name: Resolve vendored Three.js for Node imports
         run: node scripts/setupNodeThreeShim.mjs
+      - name: Prove hydration abort lifecycle safety
+        run: node scripts/checkNaturalGeologyAbortSafety.mjs
       - name: Import render layer without hydrated LFS assets
         run: |
           set -euo pipefail
