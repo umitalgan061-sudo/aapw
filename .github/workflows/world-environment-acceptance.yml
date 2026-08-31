@@ -74,13 +74,14 @@ jobs:
         run: |
           set -euo pipefail
           OVERLAY='assets/textures/yüzey/overlay/overlay.png'
+          HEAD_SHA="$(git rev-parse HEAD)"
           POINTER="$(git show HEAD:"$OVERLAY")"
           OVERLAY_OID="$(printf '%s\n' "$POINTER" | sed -n 's/^oid sha256://p')"
           OVERLAY_SIZE="$(printf '%s\n' "$POINTER" | sed -n 's/^size //p')"
           test "${#OVERLAY_OID}" -eq 64
           test "$OVERLAY_SIZE" -gt 10000000
           git lfs version
-          git lfs fetch --object-id origin "$OVERLAY_OID"
+          git lfs fetch --include="$OVERLAY" origin "$HEAD_SHA"
           git lfs checkout "$OVERLAY"
           test -f "$OVERLAY"
           test "$(wc -c < "$OVERLAY")" -eq "$OVERLAY_SIZE"
