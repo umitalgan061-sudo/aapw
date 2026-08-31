@@ -26,6 +26,29 @@ function softenPrimaryIceTint(mesh, seed) {
 	return position.count;
 }
 
+function smoothWallSectionNormals(group, sections) {
+	const wall = group.getObjectByName('the-wall-natural-ice-cliff');
+	const normal = wall?.geometry?.getAttribute?.('normal');
+	if (!normal || sections.length < 3) return 0;
+	const averaged = new THREE.Vector3();
+	for (let index = 0; index < sections.length; index += 1) {
+		averaged.set(0, 0, 0);
+		for (let neighbour = Math.max(0, index - 2); neighbour <= Math.min(sections.length - 1, index + 2); neighbour += 1) {
+			averaged.x += sections[neighbour].nx;
+			averaged.z += sections[neighbour].nz;
+		}
+		averaged.normalize();
+		const base = sections[index].baseVertex;
+		normal.setXYZ(base, averaged.x, 0.04, averaged.z);
+		normal.setXYZ(base + 1, averaged.x * 0.94, 0.34, averaged.z * 0.94);
+		normal.setXYZ(base + 2, -averaged.x, 0.04, -averaged.z);
+		normal.setXYZ(base + 3, -averaged.x * 0.94, 0.34, -averaged.z * 0.94);
+	}
+	normal.needsUpdate = true;
+	wall.userData.wallSectionNormalNaturalization = 'five-section-glacial-blend-v15';
+	return sections.length * 4;
+}
+
 function extendContinuousIceShader(mesh, seed) {
 	const material = mesh?.material;
 	if (!material) return false;
@@ -64,8 +87,8 @@ function naturalizePrimaryIcicles(group, seed) {
 		mesh.getMatrixAt(index, matrix);
 		matrix.decompose(position, quaternion, scale);
 		const ceilingY = position.y + 2.1 * scale.y;
-		const lengthScale = scale.y * (0.44 + hash01(index, 31, seed) * 0.20);
-		const radialScale = scale.y * (0.24 + hash01(index, 37, seed) * 0.13);
+		const lengthScale = scale.y * (0.30 + hash01(index, 31, seed) * 0.24);
+		const radialScale = scale.y * (0.14 + hash01(index, 37, seed) * 0.10);
 		position.y = ceilingY - 2.1 * lengthScale;
 		quaternion.setFromEuler(new THREE.Euler(
 			Math.PI + (hash01(index, 41, seed) - 0.5) * 0.13,
@@ -77,7 +100,7 @@ function naturalizePrimaryIcicles(group, seed) {
 		mesh.setMatrixAt(index, matrix);
 	}
 	mesh.instanceMatrix.needsUpdate = true;
-	mesh.userData.primaryIcicleNaturalization = 'ceiling-anchored-tapered-v14';
+	mesh.userData.primaryIcicleNaturalization = 'ceiling-anchored-fine-taper-v15';
 	return mesh.count;
 }
 
@@ -113,7 +136,8 @@ function naturalizeMeltRibbon(group, seed) {
 	return position.count;
 }
 
-export function naturalizeIceLandmarkPresentation({ group, seed }) {
+export function naturalizeIceLandmarkPresentation({ group, wallSections = [], seed }) {
+	const wallSmoothedNormalVertexCount = smoothWallSectionNormals(group, wallSections);
 	let primarySurfaceVertexCount = 0;
 	let shaderSurfaceCount = 0;
 	for (const name of ['the-wall-natural-ice-cliff', 'ice-cave-shell', 'ice-wall-cave-portal']) {
@@ -124,6 +148,7 @@ export function naturalizeIceLandmarkPresentation({ group, seed }) {
 	return Object.freeze({
 		primarySurfaceVertexCount,
 		shaderSurfaceCount,
+		wallSmoothedNormalVertexCount,
 		primaryIcicleCount: naturalizePrimaryIcicles(group, seed + 14033),
 		meltRibbonVertexCount: naturalizeMeltRibbon(group, seed + 14107),
 	});
