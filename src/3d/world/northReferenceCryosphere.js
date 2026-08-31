@@ -27,7 +27,7 @@ const ALWAYS_WINTER_ZONE = findZone('lands-always-winter');
 const NORTH_ZONE = findZone('north');
 
 export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
-	id: 'owner-map-north-cryosphere-2026-08-31-v6-world-surface-fabric',
+	id: 'owner-map-north-cryosphere-2026-08-31-v7-wind-exposure-ecotone',
 	source: 'WORLD_REFERENCE_MAP biome zones',
 	renderClimateOnly: true,
 	heightAuthorityUnchanged: true,
@@ -40,6 +40,7 @@ export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
 	coldEnvelopeRadiusUnchanged: true,
 	deterministicEcologicalBreakup: true,
 	windScourAndDeposition: true,
+	windExposureEcotone: true,
 	alwaysWinterZoneId: ALWAYS_WINTER_ZONE.id,
 	northZoneId: NORTH_ZONE.id,
 	iceTransitionRadiusScale: 1.55,
@@ -53,6 +54,9 @@ export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
 	windFabricMeters: 96,
 	tundraFabricMinMultiplier: 0.91,
 	tundraFabricMaxMultiplier: 1.08,
+	windScourTundraPenalty: 0.055,
+	depositionTundraGain: 0.045,
+	moraineMoistureTundraGain: 0.025,
 });
 
 function scaledZone(zone, radiusScale) {
@@ -213,11 +217,20 @@ export function northReferenceCryosphereAtWorldXZ(worldX, worldZ) {
 
 	// The owner-map envelope remains authoritative. Fabric only modulates strength where canonical
 	// tundra already exists, never creates non-zero cold climate outside that envelope, and never
-	// weakens permanent ice. This produces irregular ecotones and vegetation/snow transitions without
-	// inventing geography or modifying terrain/hydrology/collider data.
+	// weakens permanent ice. Wind-exposed shoulders lose a small amount of tundra/snow support while
+	// depositional and moist moraine pockets gain it, producing irregular ecotones without new zones.
 	const P = NORTH_REFERENCE_CRYOSPHERE_POLICY;
-	const fabricMultiplier = P.tundraFabricMinMultiplier
-		+ (P.tundraFabricMaxMultiplier - P.tundraFabricMinMultiplier) * surfaceFabric.broad;
+	const ecologicalFabric = clamp01(
+		surfaceFabric.broad * 0.62
+		+ surfaceFabric.deposition * 0.24
+		+ surfaceFabric.moraineMoisture * 0.14,
+	);
+	const baseFabricMultiplier = P.tundraFabricMinMultiplier
+		+ (P.tundraFabricMaxMultiplier - P.tundraFabricMinMultiplier) * ecologicalFabric;
+	const exposureAdjustment = surfaceFabric.deposition * P.depositionTundraGain
+		+ surfaceFabric.moraineMoisture * P.moraineMoistureTundraGain
+		- surfaceFabric.windScour * P.windScourTundraPenalty;
+	const fabricMultiplier = Math.max(0.84, Math.min(1.15, baseFabricMultiplier + exposureAdjustment));
 	const transitionWeight = canonical.tundra * (1 - canonical.winterCore);
 	const fabricTundra = canonical.tundra * (1 + (fabricMultiplier - 1) * transitionWeight);
 	const tundra = clamp01(Math.max(canonical.permanentIce, fabricTundra));
