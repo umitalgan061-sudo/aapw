@@ -1,15 +1,15 @@
 name: Atmosphere Exact Head
 
 on:
-  push:
-    branches:
-      - codex/foundation-grounding-20260821
+  pull_request:
     paths:
       - 'src/3d/sky.js'
       - 'src/3d/lighting.js'
       - 'src/3d/auroraRealism.js'
       - 'src/3d/auroraRayCurtainV4.js'
       - 'src/3d/auroraNightAtmosphereV5.js'
+      - 'scripts/checkSkyVisualContract.js'
+      - 'scripts/checkRun221AuroraFinalContract.js'
       - 'scripts/checkRun221RealisticGameAuroraBrowser.js'
       - 'scripts/captureFullWorld3DTopdown.mjs'
       - 'scripts/fullWorld3DTopdownHarness.html'
@@ -23,11 +23,13 @@ jobs:
   exact-head-atmosphere:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
+    env:
+      EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - name: Checkout exact pushed head
+      - name: Checkout exact candidate head
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ env.EXACT_HEAD }}
           fetch-depth: 1
           lfs: false
 
@@ -38,17 +40,30 @@ jobs:
       - name: Verify exact head and syntax
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
           node --check src/3d/sky.js
+          node --check src/3d/auroraRayCurtainV4.js
+          node --check src/3d/auroraNightAtmosphereV5.js
           node --check src/3d/lighting.js
+          node --check scripts/checkSkyVisualContract.js
+          node --check scripts/checkRun221AuroraFinalContract.js
           node --check scripts/checkRun221RealisticGameAuroraBrowser.js
           node --check scripts/captureFullWorld3DTopdown.mjs
+          git diff --check HEAD^ HEAD || true
+
+      - name: Final source contracts
+        run: |
+          set -euo pipefail
+          node scripts/checkRun221AuroraFinalContract.js
 
       - name: Install exact browser runtime
         run: |
           set -euo pipefail
           npm install --no-save playwright three
           npx playwright install --with-deps chromium
+
+      - name: Final sky material browser contract
+        run: node scripts/checkSkyVisualContract.js
 
       - name: Real WebGL aurora and atmosphere proof
         run: node scripts/checkRun221RealisticGameAuroraBrowser.js
@@ -65,13 +80,13 @@ jobs:
         if: always()
         run: |
           mkdir -p artifacts/atmosphere-exact-head
-          printf '%s\n' "$GITHUB_SHA" > artifacts/atmosphere-exact-head/head-sha.txt
+          printf '%s\n' "$EXACT_HEAD" > artifacts/atmosphere-exact-head/head-sha.txt
 
       - name: Upload atmosphere exact-head proof
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: atmosphere-exact-head-${{ github.sha }}
+          name: atmosphere-exact-head-${{ env.EXACT_HEAD }}
           path: |
             artifacts/run221-realistic-game-aurora/
             artifacts/atmosphere-exact-head/
