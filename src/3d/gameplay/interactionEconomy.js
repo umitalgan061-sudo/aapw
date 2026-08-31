@@ -289,8 +289,8 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 			crafted: grantResult?.crafted === true,
 			craftedItemId: grantResult?.crafted === true ? fulfillment?.craftUpgrade?.outputItemId ?? null : null,
 			consumedItems,
-			consumedItemId: grantResult?.consumedItemId ?? (consumedItems.length === 1 ? consumedItems[0].itemId : null),
-			consumedQuantity: grantResult?.consumedQuantity ?? (consumedItems.length === 1 ? consumedItems[0].quantity : null),
+			consumedItemId: consumedItems.length === 1 ? consumedItems[0].itemId : null,
+			consumedQuantity: consumedItems.length === 1 ? consumedItems[0].quantity : null,
 			ledger: ledgerSnapshot(),
 		};
 	}
