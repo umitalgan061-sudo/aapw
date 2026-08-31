@@ -4,6 +4,8 @@
  * Run325 evidence script, this loads only `world/rivers.js` through a tiny import-map harness, so a
  * slow full-game/LFS boot cannot masquerade as a river regression.
  */
+const fs = require('node:fs');
+const path = require('node:path');
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
 function assert(condition, message) {
@@ -16,6 +18,9 @@ async function main() {
 		console.error('[checkGeographicRiverVisualContract] SKIP: Playwright is not available.');
 		process.exit(2);
 	}
+	const artifactDir = path.join(process.cwd(), 'artifacts', 'geographic-river-visual');
+	fs.mkdirSync(artifactDir, { recursive: true });
+	const screenshotPath = path.join(artifactDir, 'waterfall-regional.png');
 	const server = await startStaticServer();
 	const { port } = server.address();
 	const browser = await playwright.chromium.launch({
@@ -138,6 +143,42 @@ async function main() {
 			fail(waterfall.material.userData.opticalProfile?.segmentedCascade === true, 'waterfall segmented-cascade metadata disappeared');
 			fail(waterfall.material.userData.opticalProfile?.turbulentFoamBreakup === true, 'waterfall turbulence breakup metadata disappeared');
 
+			// Render the production waterfall material/geometry in WebGL so CI carries inspectable visual proof.
+			const scene = new THREE.Scene();
+			scene.background = new THREE.Color(0x172126);
+			scene.fog = new THREE.FogExp2(0x52636a, 0.012);
+			const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+			renderer.setPixelRatio(1);
+			renderer.setSize(960, 540);
+			renderer.outputColorSpace = THREE.SRGBColorSpace;
+			renderer.toneMapping = THREE.ACESFilmicToneMapping;
+			renderer.toneMappingExposure = 1.05;
+			document.body.style.margin = '0';
+			document.body.style.background = '#172126';
+			document.body.appendChild(renderer.domElement);
+
+			const camera = new THREE.PerspectiveCamera(42, 960 / 540, 0.1, 200);
+			camera.position.set(23, 15, 26);
+			camera.lookAt(5, 7, 0);
+			scene.add(new THREE.HemisphereLight(0xb9d1df, 0x232018, 1.25));
+			const key = new THREE.DirectionalLight(0xfff1d2, 2.35);
+			key.position.set(-12, 24, 18);
+			scene.add(key);
+			const cliffMaterial = new THREE.MeshStandardMaterial({ color: 0x3b3a35, roughness: 0.88, metalness: 0 });
+			const cliff = new THREE.Mesh(new THREE.BoxGeometry(7.5, 9, 22, 3, 5, 8), cliffMaterial);
+			cliff.position.set(-2.1, 7.5, 0);
+			cliff.rotation.z = -0.07;
+			scene.add(cliff);
+			const basin = new THREE.Mesh(new THREE.PlaneGeometry(70, 55, 14, 10), new THREE.MeshStandardMaterial({ color: 0x343931, roughness: 0.92 }));
+			basin.rotation.x = -Math.PI / 2;
+			basin.position.set(12, 3.78, 0);
+			scene.add(basin);
+			scene.add(waterfall);
+			updateFlowAnimation(waterfall, 2.35);
+			renderer.render(scene, camera);
+			const runnablePrograms = renderer.info.programs?.length || 0;
+			fail(runnablePrograms > 0, 'waterfall WebGL render produced no runnable shader programs');
+
 			const summary = {
 				calmSpeed,
 				rapidSpeed,
@@ -147,18 +188,26 @@ async function main() {
 				waterfallVertices: fallPositions.count,
 				cascadeSegments: segments,
 				apronSpread: apronWidth / impactWidth,
+				runnablePrograms,
 			};
 			disposeRiverMesh(river);
 			disposeWaterfallMesh(waterfall);
+			cliff.geometry.dispose();
+			cliff.material.dispose();
+			basin.geometry.dispose();
+			basin.material.dispose();
 			return summary;
 		});
 
+		await page.screenshot({ path: screenshotPath, fullPage: true });
+		assert(fs.existsSync(screenshotPath) && fs.statSync(screenshotPath).size > 5000, 'regional waterfall screenshot was not written');
 		assert(result.rapidSpeed > result.calmSpeed, 'slope-speed relation escaped browser contract');
 		console.log(
 			`[checkGeographicRiverVisualContract] PASS: calm ${result.calmSpeed.toFixed(2)}m/s → rapid ` +
 			`${result.rapidSpeed.toFixed(2)}m/s, colour Δ ${result.colorDistance.toFixed(3)}, ` +
 			`${result.waterfallVertices}-vertex/${result.cascadeSegments}-segment single-draw waterfall, ` +
-			`apron spread x${result.apronSpread.toFixed(2)}.`,
+			`apron spread x${result.apronSpread.toFixed(2)}, ${result.runnablePrograms} WebGL programs; ` +
+			`proof ${path.relative(process.cwd(), screenshotPath)}.`,
 		);
 	} finally {
 		await browser.close();
