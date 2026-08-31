@@ -194,6 +194,7 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 	}
 
 	function restore(saved) {
+		if (purchaseInFlight) return false;
 		copper = normalizeCopper(saved?.copper, STARTING_COPPER);
 		resetStock();
 		resetLedger();
@@ -262,6 +263,7 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 	}
 
 	function credit(amount, metadata = {}) {
+		if (purchaseInFlight) return { ok: false, reason: 'purchase-in-progress', creditedCopper: 0, balanceCopper: copper };
 		const creditedCopper = normalizeCopper(amount, 0);
 		if (creditedCopper <= 0) return { ok: false, reason: 'invalid-credit', creditedCopper: 0, balanceCopper: copper };
 		const sourceId = normalizeReceiptText(metadata?.sourceId, '');
