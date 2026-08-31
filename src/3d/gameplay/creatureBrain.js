@@ -319,6 +319,44 @@ export function createCreatureBeing({
 		wanderTarget = { x: wanderCenter.x + Math.cos(angle) * radius, z: wanderCenter.z + Math.sin(angle) * radius };
 	}
 
+	// Movement is committed only after every external boundary has returned a finite candidate. This
+	// prevents collider/terrain faults from leaving a creature with new X/Z but an old or invalid Y.
+	function tryCommitGroundedMove(candidateX, candidateZ) {
+		if (!Number.isFinite(candidateX) || !Number.isFinite(candidateZ)) return false;
+		let resolvedX = candidateX;
+		let resolvedZ = candidateZ;
+		try {
+			if (playerCollider) {
+				const resolved = playerCollider.resolveXZ(candidateX, candidateZ);
+				if (!Number.isFinite(resolved?.x) || !Number.isFinite(resolved?.z)) return false;
+				resolvedX = resolved.x;
+				resolvedZ = resolved.z;
+			}
+			const resolvedY = groundCollider.getGroundHeight(resolvedX, resolvedZ);
+			if (!Number.isFinite(resolvedY)) return false;
+			object3D.position.set(resolvedX, resolvedY, resolvedZ);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	// Airborne birds deliberately bypass playerCollider, but terrain-relative altitude still has to be
+	// resolved before publishing any transform or flight-state progress. A failed sample freezes this
+	// simulation step and is retried on the next update without partially moving the bird.
+	function tryCommitFlightMove(candidateX, candidateZ, candidateAltitudeMeters) {
+		if (!Number.isFinite(candidateX) || !Number.isFinite(candidateZ) || !Number.isFinite(candidateAltitudeMeters)) return false;
+		try {
+			const terrainY = groundCollider.getGroundHeight(candidateX, candidateZ);
+			const candidateY = terrainY + candidateAltitudeMeters;
+			if (!Number.isFinite(terrainY) || !Number.isFinite(candidateY)) return false;
+			object3D.position.set(candidateX, candidateY, candidateZ);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
 	/**
 	 * Ground-hop wander step — the exact wander behavior every species used before flight species
 	 * existed, extracted unchanged so a flight species can reuse it verbatim while grounded (see this
@@ -334,26 +372,14 @@ export function createCreatureBeing({
 		const distance = Math.hypot(dx, dz);
 		const step = profile.wanderSpeedMps * delta;
 		if (distance <= step) {
-			let targetX = wanderTarget.x;
-			let targetZ = wanderTarget.z;
-			if (playerCollider) {
-				({ x: targetX, z: targetZ } = playerCollider.resolveXZ(targetX, targetZ));
-			}
-			object3D.position.x = targetX;
-			object3D.position.z = targetZ;
-			object3D.position.y = groundCollider.getGroundHeight(targetX, targetZ);
+			if (!tryCommitGroundedMove(wanderTarget.x, wanderTarget.z)) return false;
 			pickNewWanderTarget();
 			pauseTimer = profile.wanderPauseSeconds;
 			return false;
 		}
-		let nextX = object3D.position.x + (dx / distance) * step;
-		let nextZ = object3D.position.z + (dz / distance) * step;
-		if (playerCollider) {
-			({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
-		}
-		object3D.position.x = nextX;
-		object3D.position.z = nextZ;
-		object3D.position.y = groundCollider.getGroundHeight(object3D.position.x, object3D.position.z);
+		const nextX = object3D.position.x + (dx / distance) * step;
+		const nextZ = object3D.position.z + (dz / distance) * step;
+		if (!tryCommitGroundedMove(nextX, nextZ)) return false;
 		turnToward(Math.atan2(dx, dz), delta);
 		return true;
 	}
@@ -391,45 +417,63 @@ export function createCreatureBeing({
 			let isMoving = false;
 
 			if (isFlightSpecies) {
-				// Climb -> cruise -> land. See this file's own "Birds fly now" header section for the
-				// full design rationale; kept as its own branch rather than interleaved with the ground
-				// species' branch below so neither reads as a special case of the other.
-				if (currentlyReacting && flightPhase === 'grounded') {
-					flightPhase = 'climbing';
-					flightElapsedSeconds = 0;
-					const safeDistance = Math.max(distanceFromPlayer, 1e-6);
-					flightHeadingX = dxFromPlayer / safeDistance;
-					flightHeadingZ = dzFromPlayer / safeDistance;
-				}
-
+				// Climb -> cruise -> land. Grounded takeoff and every airborne state are committed only
+				// after the terrain-relative candidate is finite, so transform and flight state cannot
+				// diverge when the live terrain provider is temporarily unavailable.
 				if (flightPhase === 'grounded') {
-					isMoving = stepGroundWander(delta);
+					if (currentlyReacting) {
+						const safeDistance = Math.max(distanceFromPlayer, 1e-6);
+						const nextHeadingX = dxFromPlayer / safeDistance;
+						const nextHeadingZ = dzFromPlayer / safeDistance;
+						const nextAltitude = Math.min(profile.flightAltitudeMeters, profile.takeoffClimbMps * delta);
+						const nextX = object3D.position.x + nextHeadingX * profile.reactiveSpeedMps * delta;
+						const nextZ = object3D.position.z + nextHeadingZ * profile.reactiveSpeedMps * delta;
+						if (tryCommitFlightMove(nextX, nextZ, nextAltitude)) {
+							flightHeadingX = nextHeadingX;
+							flightHeadingZ = nextHeadingZ;
+							flightAltitudeMeters = nextAltitude;
+							flightElapsedSeconds = delta;
+							flightPhase = nextAltitude >= profile.flightAltitudeMeters ? 'cruising' : 'climbing';
+							turnToward(Math.atan2(flightHeadingX, flightHeadingZ), delta);
+							isMoving = true;
+						}
+					} else {
+						isMoving = stepGroundWander(delta);
+					}
 				} else if (flightPhase === 'landing') {
-					flightAltitudeMeters = Math.max(0, flightAltitudeMeters - profile.takeoffClimbMps * delta);
-					object3D.position.y = groundCollider.getGroundHeight(object3D.position.x, object3D.position.z) + flightAltitudeMeters;
-					isMoving = true;
-					if (flightAltitudeMeters <= 0) {
-						flightPhase = 'grounded';
-						wanderCenter.x = object3D.position.x;
-						wanderCenter.z = object3D.position.z;
-						pickNewWanderTarget();
-						pauseTimer = profile.wanderPauseSeconds;
+					const nextAltitude = Math.max(0, flightAltitudeMeters - profile.takeoffClimbMps * delta);
+					if (tryCommitFlightMove(object3D.position.x, object3D.position.z, nextAltitude)) {
+						flightAltitudeMeters = nextAltitude;
+						isMoving = true;
+						if (flightAltitudeMeters <= 0) {
+							flightPhase = 'grounded';
+							wanderCenter.x = object3D.position.x;
+							wanderCenter.z = object3D.position.z;
+							pickNewWanderTarget();
+							pauseTimer = profile.wanderPauseSeconds;
+						}
 					}
 				} else {
 					// 'climbing' or 'cruising' — both fly the same fixed heading at reactiveSpeedMps,
 					// differing only in whether altitude is still increasing.
-					flightElapsedSeconds += delta;
-					object3D.position.x += flightHeadingX * profile.reactiveSpeedMps * delta;
-					object3D.position.z += flightHeadingZ * profile.reactiveSpeedMps * delta;
+					const nextElapsedSeconds = flightElapsedSeconds + delta;
+					const nextX = object3D.position.x + flightHeadingX * profile.reactiveSpeedMps * delta;
+					const nextZ = object3D.position.z + flightHeadingZ * profile.reactiveSpeedMps * delta;
+					let nextAltitude = flightAltitudeMeters;
+					let nextPhase = flightPhase;
 					if (flightPhase === 'climbing') {
-						flightAltitudeMeters = Math.min(profile.flightAltitudeMeters, flightAltitudeMeters + profile.takeoffClimbMps * delta);
-						if (flightAltitudeMeters >= profile.flightAltitudeMeters) flightPhase = 'cruising';
-					} else if (flightElapsedSeconds >= profile.flightDurationSeconds) {
-						flightPhase = 'landing';
+						nextAltitude = Math.min(profile.flightAltitudeMeters, flightAltitudeMeters + profile.takeoffClimbMps * delta);
+						if (nextAltitude >= profile.flightAltitudeMeters) nextPhase = 'cruising';
+					} else if (nextElapsedSeconds >= profile.flightDurationSeconds) {
+						nextPhase = 'landing';
 					}
-					object3D.position.y = groundCollider.getGroundHeight(object3D.position.x, object3D.position.z) + flightAltitudeMeters;
-					turnToward(Math.atan2(flightHeadingX, flightHeadingZ), delta);
-					isMoving = true;
+					if (tryCommitFlightMove(nextX, nextZ, nextAltitude)) {
+						flightElapsedSeconds = nextElapsedSeconds;
+						flightAltitudeMeters = nextAltitude;
+						flightPhase = nextPhase;
+						turnToward(Math.atan2(flightHeadingX, flightHeadingZ), delta);
+						isMoving = true;
+					}
 				}
 
 				if (isMoving) {
@@ -448,16 +492,12 @@ export function createCreatureBeing({
 				const dirX = (dxFromPlayer / safeDistance) * sign;
 				const dirZ = (dzFromPlayer / safeDistance) * sign;
 				const step = profile.reactiveSpeedMps * delta;
-				let nextX = object3D.position.x + dirX * step;
-				let nextZ = object3D.position.z + dirZ * step;
-				if (playerCollider) {
-					({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
+				const nextX = object3D.position.x + dirX * step;
+				const nextZ = object3D.position.z + dirZ * step;
+				if (tryCommitGroundedMove(nextX, nextZ)) {
+					turnToward(Math.atan2(dirX, dirZ), delta);
+					isMoving = true;
 				}
-				object3D.position.x = nextX;
-				object3D.position.z = nextZ;
-				object3D.position.y = groundCollider.getGroundHeight(object3D.position.x, object3D.position.z);
-				turnToward(Math.atan2(dirX, dirZ), delta);
-				isMoving = true;
 			} else {
 				isMoving = stepGroundWander(delta);
 			}
