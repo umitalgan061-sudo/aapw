@@ -17,7 +17,11 @@ const edgePolicy = WATER_FIELD_EDGE_OPTICAL_POLICY;
 assert.equal(policy.opacityConserving, true, 'near/far transition must conserve optical opacity');
 assert.equal(policy.hardRectangularCutoff, false, 'hard near/far cutoff must remain retired');
 assert.equal(policy.distanceAwareMicroNormalFade, true, 'distant micro-normal fade must stay enabled');
-assert.equal(policy.distanceMetric, 'camera-relative-chebyshev', 'transition metric drifted from the square near-plane footprint');
+assert.equal(policy.distanceMetric, 'camera-relative-euclidean-organic', 'transition metric must remain non-rectangular and camera-relative');
+assert(policy.organicWarpMeters > 0 && policy.organicWarpMeters < policy.featherStartMeters * 0.15,
+  'near/far organic warp must remain bounded relative to the local detail radius');
+assert(policy.organicWarpScaleMeters > policy.organicWarpMeters * 3,
+  'near/far organic warp must vary broadly enough to avoid high-frequency transition noise');
 assert(Number.isFinite(policy.featherStartMeters));
 assert(Number.isFinite(policy.featherEndMeters));
 assert(policy.featherStartMeters > 0, 'feather must begin outside the immediate player water detail zone');
@@ -34,6 +38,8 @@ assert(edgePolicy.fullDeepStartMeters >= 0 && edgePolicy.blendEndMeters > edgePo
   'field-edge optical transition interval is invalid');
 assert(edgePolicy.organicWarpMeters > 0 && edgePolicy.organicWarpMeters < edgePolicy.blendEndMeters,
   'field-edge warp must stay bounded inside the transition width');
+assert(edgePolicy.blendEndMeters >= 1400,
+  'full-world field-edge optics need a broad blend band to avoid a readable rectangular tone contour');
 
 const ownerSpan = Math.max(WORLD_SCALE.WORLD_WIDTH_METERS, WORLD_SCALE.WORLD_DEPTH_METERS);
 const depthTexelStep = WATER_DEPTH_FIELD_EXTENT_METERS / (WATER_DEPTH_FIELD_RESOLUTION - 1);
@@ -121,6 +127,14 @@ assert(waterFieldEdgeOpticalBlend(0, edgePolicy.marineGateFull) > 0.999999, 'mar
 
 const source = fs.readFileSync(new URL('../src/3d/world/water.js', import.meta.url), 'utf8');
 assert(!source.includes('nearLayerDistance < 1999.5'), 'legacy hard rectangular far-water cutoff returned');
+assert(!source.includes('float nearLayerDistance = max(abs(vWorldPosition.x - uCameraPosition.x), abs(vWorldPosition.z - uCameraPosition.z));'),
+  'camera-near layer returned to an axis-aligned rectangular transition metric');
+assert(source.includes('float localEdgeDistance = length(position.xz);'),
+  'near swell geometry must fade radially rather than exposing a square displacement boundary');
+assert(source.includes('float nearLayerDistance = length(cameraLocalXZ) + transitionFabric *'),
+  'near/far opacity transition lost organic radial distance');
+assert(source.includes('waterSurfaceNoise(vWorldPosition.xz /') && source.includes('organicWarpScaleMeters'),
+  'near/far transition lost deterministic broad world-space breakup');
 assert(!source.includes('(1.0 - offshoreOptical) * (1.0 - uFarLayerMask)'), 'far layer must not use a different lake optical classification');
 assert(source.includes('float enclosedLakeMask = 1.0 - offshoreOptical;'), 'near/far lake optics must share the same canonical offshore classification');
 assert(source.includes('surfaceAlpha *= 1.0 - layerBlend;'), 'near layer must feather rather than terminate at a rectangle');
