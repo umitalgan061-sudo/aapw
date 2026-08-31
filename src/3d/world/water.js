@@ -31,6 +31,34 @@ export const SWELL_COMPONENTS = Object.freeze([
 export const WAVE_TOTAL_AMPLITUDE_METERS = SWELL_COMPONENTS.reduce((sum, [, amplitude]) => sum + amplitude, 0);
 export const WATER_OFFSHORE_OPTICAL_GAIN = 0.82;
 
+export const WATER_LAYER_TRANSITION_POLICY = Object.freeze({
+	id: 'water-near-far-opacity-feather-2026-08-31-v1',
+	nearHalfExtentMeters: 2000,
+	featherStartMeters: 1720,
+	featherEndMeters: 1990,
+	distanceMetric: 'camera-relative-chebyshev',
+	opacityConserving: true,
+	hardRectangularCutoff: false,
+	distanceAwareMicroNormalFade: true,
+});
+
+const clamp01 = (value) => Math.max(0, Math.min(1, value));
+
+export function waterLayerTransitionBlend(distanceMeters) {
+	const start = WATER_LAYER_TRANSITION_POLICY.featherStartMeters;
+	const end = WATER_LAYER_TRANSITION_POLICY.featherEndMeters;
+	const t = clamp01((distanceMeters - start) / (end - start));
+	return t * t * (3 - 2 * t);
+}
+
+export function waterLayerTransitionAlpha(baseAlpha, distanceMeters, farLayer = false) {
+	const alpha = clamp01(baseAlpha);
+	const blend = waterLayerTransitionBlend(distanceMeters);
+	if (!farLayer) return alpha * (1 - blend);
+	const nearAlpha = alpha * (1 - blend);
+	return clamp01((alpha * blend) / Math.max(1 - nearAlpha, 1e-6));
+}
+
 export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	id: 'water-world-surface-variation-2026-08-27-v3-readable-current-shear',
 	renderOnly: true,
@@ -88,7 +116,7 @@ const WATER_VERTEX_SHADER = /* glsl */ `
 		addSwell(vec2(${SWELL_COMPONENTS[2][2]}, ${SWELL_COMPONENTS[2][3]}), ${SWELL_COMPONENTS[2][0]}.0, ${SWELL_COMPONENTS[2][1]}, worldPos.xz, uTime, swellHeight, swellSlope);
 
 		float localEdgeDistance = max(abs(position.x), abs(position.z));
-		float nearCoverageFade = 1.0 - smoothstep(1500.0, 1950.0, localEdgeDistance);
+		float nearCoverageFade = 1.0 - smoothstep(${WATER_LAYER_TRANSITION_POLICY.featherStartMeters.toFixed(1)}, ${WATER_LAYER_TRANSITION_POLICY.featherEndMeters.toFixed(1)}, localEdgeDistance);
 		float amplitudeScale = depthFactor * uSwellStrength * nearCoverageFade;
 		worldPos.y += swellHeight * amplitudeScale;
 		vWorldPosition = worldPos;
@@ -215,10 +243,9 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	}
 
 	void main() {
-		if (uFarLayerMask > 0.5) {
-			float nearLayerDistance = max(abs(vWorldPosition.x - uCameraPosition.x), abs(vWorldPosition.z - uCameraPosition.z));
-			if (nearLayerDistance < 1999.5) discard;
-		}
+		float nearLayerDistance = max(abs(vWorldPosition.x - uCameraPosition.x), abs(vWorldPosition.z - uCameraPosition.z));
+		float layerBlend = smoothstep(${WATER_LAYER_TRANSITION_POLICY.featherStartMeters.toFixed(1)}, ${WATER_LAYER_TRANSITION_POLICY.featherEndMeters.toFixed(1)}, nearLayerDistance);
+		if (uFarLayerMask > 0.5 && layerBlend <= 0.001) discard;
 
 		vec2 waterField = sampleWaterField(vWorldPosition.xz);
 		float fragmentDepth = waterField.x;
@@ -226,7 +253,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		if (waterCoverage <= 0.01) discard;
 
 		float offshoreOptical = smoothstep(0.08, 0.92, sampleOffshoreOptical(vWorldPosition.xz));
-		float enclosedLakeMask = (1.0 - offshoreOptical) * (1.0 - uFarLayerMask);
+		float enclosedLakeMask = 1.0 - offshoreOptical;
 		float clearShallowBand = 1.0 - smoothstep(0.10, 0.52, fragmentDepth);
 		float clearCoastMask = clearShallowBand * smoothstep(0.08, 0.74, offshoreOptical);
 		float offshoreGain = offshoreOptical * (1.0 - fragmentDepth) * ${WATER_OFFSHORE_OPTICAL_GAIN.toFixed(2)};
@@ -237,7 +264,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float cameraDistance = distance(uCameraPosition, vWorldPosition);
 		float rippleFade = 1.0 - smoothstep(90.0, 360.0, cameraDistance);
 		float swellShadingFade = 1.0 - smoothstep(700.0, 1800.0, cameraDistance);
-		float microSlopeFade = mix(0.28, 1.0, 1.0 - smoothstep(420.0, 2200.0, cameraDistance));
+		float microSlopeFade = 1.0 - smoothstep(520.0, 2800.0, cameraDistance);
 		vec2 slope = vSwellSlope * swellShadingFade + rippleSlope(vWorldPosition.xz, uTime) * rippleFade;
 		slope += openOceanMicroSlope(vWorldPosition.xz, uTime, oceanShear) * microSlopeFade * deepMarineMask;
 		vec3 normal = normalize(vec3(-slope.x, 1.0, -slope.y));
@@ -314,7 +341,15 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		alpha *= 1.0 - bedReadability;
 		alpha *= waterCoverage;
 
-		gl_FragColor = vec4(color, max(alpha, foam * 0.78));
+		float surfaceAlpha = max(alpha, foam * 0.78);
+		if (uFarLayerMask > 0.5) {
+			float nearAlpha = surfaceAlpha * (1.0 - layerBlend);
+			surfaceAlpha = clamp((surfaceAlpha * layerBlend) / max(1.0 - nearAlpha, 0.001), 0.0, 1.0);
+		} else {
+			surfaceAlpha *= 1.0 - layerBlend;
+		}
+		if (surfaceAlpha <= 0.001) discard;
+		gl_FragColor = vec4(color, surfaceAlpha);
 		#include <fog_fragment>
 	}
 `;
@@ -406,6 +441,9 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		bathymetryDirectedIrregularBreakers: true,
 		nonPeriodicFoamLace: true,
 		nightAbsorptionFromCelestialState: true,
+		layerTransitionPolicyId: WATER_LAYER_TRANSITION_POLICY.id,
+		opacityConservingLayerFeather: WATER_LAYER_TRANSITION_POLICY.opacityConserving,
+		distanceAwareMicroNormalFade: WATER_LAYER_TRANSITION_POLICY.distanceAwareMicroNormalFade,
 	});
 
 	const farGeometry = new THREE.PlaneGeometry(WATER_FULL_WORLD_EXTENT_METERS, WATER_FULL_WORLD_EXTENT_METERS, 1, 1);
@@ -444,6 +482,8 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		nearExtentMeters: WATER_PLANE_EXTENT_METERS,
 		fullWorldExtentMeters: WATER_FULL_WORLD_EXTENT_METERS,
 		deepOceanBackdropExtentMeters: WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
+		transitionFeatherStartMeters: WATER_LAYER_TRANSITION_POLICY.featherStartMeters,
+		transitionFeatherEndMeters: WATER_LAYER_TRANSITION_POLICY.featherEndMeters,
 		fullWorld: true,
 	});
 	return mesh;
