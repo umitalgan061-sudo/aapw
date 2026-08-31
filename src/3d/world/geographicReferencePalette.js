@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-31-v56-aerial-lowland-ecotones',
+	id: 'geographic-reference-palette-2026-08-31-v57-water-underlay-continuity',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v56 follows direct inspection of exact-head full-world #572: v55 preserved canonical geography but its lowland separation remained too subtle at aerial scale. Meadow greens are therefore lifted away from damp moss, dry heath is darkened/desaturated, ferric earth is held warmer, and exposed stone is slightly compressed so broad lowlands stop collapsing into one olive-grey mid-value without changing deterministic world-space fabric, terrain height, shoreline, hydrology or colliders',
-		water: 'v56 preserves the v54 shore/inland/deep-water hierarchy and restrained cyan; canonical wet coverage, shoreline and hydrology are unchanged',
-		road: 'v56 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
+		terrain: 'v57 preserves v56 aerial lowland separation: meadow remains lifted away from damp moss, dry heath stays darker/desaturated, ferric earth remains warm, and exposed stone stays compressed without changing terrain height, shoreline, hydrology or colliders',
+		water: 'v57 preserves the restrained v56 shore/inland/deep-water hierarchy but lifts the abyss underlay out of near-black so partially transparent canonical marine water cannot reveal a hard dark rectangular depth-field/backdrop panel at full-world scale; wet coverage, shoreline and hydrology are unchanged',
+		road: 'v57 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -52,7 +52,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		riverPool: 0x246776,
 		rapid: 0x82a7aa,
 		deepSea: 0x08263a,
-		abyss: 0x020a12,
+		abyss: 0x061a29,
 		plunge: 0x4d818b,
 		splash: 0xdeedeb,
 		foam: 0xf1f7f4,
