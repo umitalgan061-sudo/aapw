@@ -44,7 +44,7 @@ export class TouchJoystick {
 			this._guardPointerIds.delete(event.pointerId);
 			this._syncGuardHeld();
 		};
-		this._guardButton.addEventListener('pointerdown', this._onGuardDown); this._guardButton.addEventListener('pointerup', this._onGuardUp); this._guardButton.addEventListener('pointercancel', this._onGuardUp); this._guardButton.addEventListener('pointerleave', this._onGuardUp); this._guardButton.addEventListener('lostpointercapture', this._onGuardLostPointerCapture); container.appendChild(this._guardButton);
+		this._guardButton.addEventListener('pointerdown', this._onGuardDown); this._guardButton.addEventListener('pointerup', this._onGuardUp); this._guardButton.addEventListener('pointercancel', this._onGuardUp); this._guardButton.addEventListener('lostpointercapture', this._onGuardLostPointerCapture); container.appendChild(this._guardButton);
 
 		this._lockOnButton = document.createElement('button'); this._lockOnButton.type = 'button'; this._lockOnButton.className = 'g3d-touch-lock-on-button'; this._lockOnButton.textContent = 'Hedef'; this._lockOnButton.setAttribute('aria-label', 'Hedef kilidi'); this._lockOnButton.setAttribute('aria-pressed', 'false');
 		Object.assign(this._lockOnButton.style, { position: 'fixed', right: '196px', bottom: '96px', zIndex: '30', minWidth: '72px', minHeight: '48px', borderRadius: '999px', opacity: '0.86', touchAction: 'manipulation' });
@@ -142,7 +142,7 @@ export class TouchJoystick {
 		this._pageLifecycleTarget?.removeEventListener('pagehide', this._onPageHide);
 		this._pageLifecycleTarget?.removeEventListener('blur', this._onWindowBlur);
 		this._base.removeEventListener('pointerdown', this._onPointerDown); this._base.removeEventListener('pointermove', this._onPointerMove); this._base.removeEventListener('pointerup', this._onPointerUp); this._base.removeEventListener('pointercancel', this._onPointerUp); this._base.removeEventListener('lostpointercapture', this._onLostPointerCapture);
-		this._jumpButton.removeEventListener('click', this._onJumpClick); this._guardButton.removeEventListener('pointerdown', this._onGuardDown); this._guardButton.removeEventListener('pointerup', this._onGuardUp); this._guardButton.removeEventListener('pointercancel', this._onGuardUp); this._guardButton.removeEventListener('pointerleave', this._onGuardUp); this._guardButton.removeEventListener('lostpointercapture', this._onGuardLostPointerCapture);
+		this._jumpButton.removeEventListener('click', this._onJumpClick); this._guardButton.removeEventListener('pointerdown', this._onGuardDown); this._guardButton.removeEventListener('pointerup', this._onGuardUp); this._guardButton.removeEventListener('pointercancel', this._onGuardUp); this._guardButton.removeEventListener('lostpointercapture', this._onGuardLostPointerCapture);
 		this._lockOnButton.removeEventListener('pointerdown', this._onLockOn); this._lightAttackButton.removeEventListener('pointerdown', this._onLightAttack); this._heavyAttackButton.removeEventListener('pointerdown', this._onHeavyAttack); this._dodgeButton.removeEventListener('pointerdown', this._onDodge); this._parryButton.removeEventListener('pointerdown', this._onParry);
 		this._resetGameplayState(); this._guardButton.remove(); this._lockOnButton.remove(); this._jumpButton.remove(); this._lightAttackButton.remove(); this._heavyAttackButton.remove(); this._dodgeButton.remove(); this._parryButton.remove(); this._base.remove();
 	}
