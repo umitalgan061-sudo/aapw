@@ -31,6 +31,8 @@ async function main() {
 				createWater,
 				updateWater,
 				disposeWater,
+				WATER_LAYER_TRANSITION_POLICY,
+				WATER_FIELD_EDGE_OPTICAL_POLICY,
 				WATER_FULL_WORLD_EXTENT_METERS,
 				WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
 			} = await import('/src/3d/world/water.js');
@@ -88,10 +90,15 @@ async function main() {
 			fail(optical.shallowAlpha < 0.2 && optical.deepAlpha >= 0.88, 'shallow water must stay bed-readable while deep water stays substantial');
 			fail(optical.enclosedLakeBedReadable === true && optical.clearCoastalDepthBand === true, 'explicit lake/coast clarity metadata disappeared');
 			fail(optical.nightAbsorptionFromCelestialState === true, 'water night-response metadata disappeared');
+			fail(WATER_LAYER_TRANSITION_POLICY.distanceMetric === 'camera-relative-euclidean-organic',
+				'near/far water distance metric returned to a rectangular policy');
+			fail(WATER_FIELD_EDGE_OPTICAL_POLICY.blendEndMeters >= 1400,
+				'field-edge optical blend became too narrow for full-world anti-rectangle continuity');
 
 			const vertexShader = water.material.vertexShader;
 			const fragmentShader = water.material.fragmentShader;
 			fail(vertexShader.includes('sampleDepthFactor') && vertexShader.includes('uSwellStrength'), 'depth-tapered swell contract drifted');
+			fail(vertexShader.includes('float localEdgeDistance = length(position.xz);'), 'near-water swell fade returned to a square edge metric');
 			fail(fragmentShader.includes('smoothstep(0.04, 0.82, fragmentDepth)'), 'extended shallow-to-deep color grading disappeared');
 			fail(fragmentShader.includes('1.0 - exp(-fragmentDepth * 3.2)'), 'Beer-Lambert-inspired optical depth disappeared');
 			fail(fragmentShader.includes('uSunColor') && fragmentShader.includes('uSunIntensity') && fragmentShader.includes('celestialSpecular'), 'live celestial water specular disappeared');
@@ -99,11 +106,17 @@ async function main() {
 				fail(fragmentShader.includes(token), `water reference-optics shader missing ${token}`);
 			}
 			fail(!fragmentShader.includes('nearLayerDistance < 1999.5'), 'legacy hard rectangular near/far water cutoff returned');
-			fail(fragmentShader.includes('float layerBlend = smoothstep(uLayerTransitionStart, uLayerTransitionEnd, nearLayerDistance);'),
-				'near/far water transition lost its distance feather');
+			fail(!fragmentShader.includes('max(abs(vWorldPosition.x - uCameraPosition.x), abs(vWorldPosition.z - uCameraPosition.z))'),
+				'near/far water transition returned to axis-aligned Chebyshev contours');
+			fail(fragmentShader.includes('float nearLayerDistance = length(cameraLocalXZ) + transitionFabric *'),
+				'near/far water transition lost its organic radial distance field');
+			fail(fragmentShader.includes(`float layerBlend = smoothstep(${WATER_LAYER_TRANSITION_POLICY.featherStartMeters.toFixed(1)}, ${WATER_LAYER_TRANSITION_POLICY.featherEndMeters.toFixed(1)}, nearLayerDistance);`),
+				'near/far water transition lost its policy-bound distance feather');
 			fail(fragmentShader.includes('surfaceAlpha *= 1.0 - layerBlend;'), 'near water no longer fades continuously through the transition band');
 			fail(fragmentShader.includes('(surfaceAlpha * layerBlend) / max(1.0 - nearAlpha, 0.001)'),
 				'far water no longer uses opacity-conserving complementary feathering');
+			fail(fragmentShader.includes('fragmentDepth = mix(fragmentDepth, 1.0, edgeOpticalBlend * marineGate);'),
+				'open-ocean field-edge convergence disappeared');
 			fail(fragmentShader.includes('if (surfaceAlpha <= 0.001) discard;'), 'fully faded water fragments must not leave transparent seam pixels');
 			fail(fragmentShader.includes('#include <fog_pars_fragment>') && fragmentShader.includes('#include <fog_fragment>'), 'water fog chunks drifted');
 
@@ -176,7 +189,7 @@ async function main() {
 		assert(result.vertexCount === 16641 && result.indexCount === 98304, 'water topology mismatch escaped browser contract');
 		assert(result.farExtent === 28000 && result.backdropExtent === 28000,
 			'full-world water extent contract escaped browser validation');
-		console.log(`[checkWaterVisualContract] PASS: depth-clear ${result.optical.shallowAlpha.toFixed(2)}→${result.optical.deepAlpha.toFixed(2)} alpha, live sun/moon specular, near/far/deep-ocean composition, ${result.vertexCount} near-water vertices.`);
+		console.log(`[checkWaterVisualContract] PASS: depth-clear ${result.optical.shallowAlpha.toFixed(2)}→${result.optical.deepAlpha.toFixed(2)} alpha, live sun/moon specular, organic radial near/far/deep-ocean composition, ${result.vertexCount} near-water vertices.`);
 	} finally {
 		await browser.close();
 		await new Promise((resolve) => server.close(resolve));
