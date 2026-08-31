@@ -35,7 +35,7 @@ const WATERFALL_FOAM_COLOR = new THREE.Color(0xf0f8ff);
 WATERFALL_FOAM_COLOR.lerp(new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.water.foam), 0.82);
 
 export const RIVER_SURFACE_REALISM_POLICY = Object.freeze({
-	id: 'river-waterfall-surface-realism-2026-08-31-v1',
+	id: 'river-waterfall-surface-realism-2026-08-31-v2',
 	renderOnly: true,
 	canonicalTerrainUnchanged: true,
 	canonicalHydrologyUnchanged: true,
@@ -45,6 +45,7 @@ export const RIVER_SURFACE_REALISM_POLICY = Object.freeze({
 	flowEnergyRoughnessVariation: true,
 	bankMineralTransition: true,
 	slopeDrivenFoam: true,
+	segmentedWaterfallGeometry: true,
 	deterministic: true,
 });
 
@@ -360,10 +361,17 @@ export function detectWaterfalls(points) {
 	return waterfalls;
 }
 
-/** Build a connected curtain + impact apron for an existing steep river segment. */
+function waterfallGeometryNoise(top, bottom, side, octave) {
+	const phase = top.x * 0.0217 + top.z * 0.0173 + bottom.x * 0.0119 - bottom.z * 0.0131;
+	return Math.sin(phase + side * (6.7 + octave * 2.9) + octave * 1.37) * 0.5 + 0.5;
+}
+
+/**
+ * Build one connected, deterministically broken cascade + impact apron along an existing steep river
+ * segment. The segment endpoints remain authoritative; lateral/forward breakup is render-only and
+ * bounded inside the river width so the waterfall no longer reads as one perfectly flat rectangle.
+ */
 export function createWaterfallMesh({ top, bottom, dropMeters }, widthMeters = 14) {
-	const midX = (top.x + bottom.x) / 2;
-	const midZ = (top.z + bottom.z) / 2;
 	const flowX = bottom.x - top.x;
 	const flowZ = bottom.z - top.z;
 	const tangentLength = Math.hypot(flowX, flowZ) || 1;
@@ -373,43 +381,65 @@ export function createWaterfallMesh({ top, bottom, dropMeters }, widthMeters = 1
 	const perpZ = dirX;
 	const halfWidth = widthMeters / 2;
 	const apronLengthMeters = Math.max(3.5, Math.min(widthMeters * 0.72, dropMeters * 0.9));
-	const apronFarHalfWidth = halfWidth * 1.22;
-	const apronY = bottom.y + 0.16;
-	const farX = midX + dirX * apronLengthMeters;
-	const farZ = midZ + dirZ * apronLengthMeters;
+	const columnSegments = Math.max(6, Math.min(10, Math.round(widthMeters / 1.8)));
+	const rowCount = 4;
+	const columnCount = columnSegments + 1;
+	const vertexCount = rowCount * columnCount;
+	const positions = new Float32Array(vertexCount * 3);
+	const colors = new Float32Array(vertexCount * 3);
+	const flowDistances = new Float32Array(vertexCount);
+	const flowSpeeds = new Float32Array(vertexCount);
+	const flowSides = new Float32Array(vertexCount);
+	const indices = [];
+	const rowFlowDistance = [0, dropMeters * 0.56, dropMeters, dropMeters + apronLengthMeters];
+	const rowFlowSpeed = [WATERFALL_FLOW_SPEED_MPS, WATERFALL_FLOW_SPEED_MPS, WATERFALL_APRON_FLOW_SPEED_MPS, WATERFALL_APRON_FLOW_SPEED_MPS];
+	const rowColor = [WATERFALL_FOAM_COLOR, WATERFALL_PLUNGE_COLOR, WATERFALL_SPLASH_COLOR, WATERFALL_PLUNGE_COLOR];
 
-	const positions = new Float32Array([
-		midX + perpX * halfWidth, top.y, midZ + perpZ * halfWidth,
-		midX - perpX * halfWidth, top.y, midZ - perpZ * halfWidth,
-		midX + perpX * halfWidth, bottom.y, midZ + perpZ * halfWidth,
-		midX - perpX * halfWidth, bottom.y, midZ - perpZ * halfWidth,
-		midX + perpX * halfWidth, apronY, midZ + perpZ * halfWidth,
-		midX - perpX * halfWidth, apronY, midZ - perpZ * halfWidth,
-		farX + perpX * apronFarHalfWidth, apronY, farZ + perpZ * apronFarHalfWidth,
-		farX - perpX * apronFarHalfWidth, apronY, farZ - perpZ * apronFarHalfWidth,
-	]);
-	const colors = new Float32Array([
-		WATERFALL_FOAM_COLOR.r, WATERFALL_FOAM_COLOR.g, WATERFALL_FOAM_COLOR.b,
-		WATERFALL_FOAM_COLOR.r, WATERFALL_FOAM_COLOR.g, WATERFALL_FOAM_COLOR.b,
-		WATERFALL_PLUNGE_COLOR.r, WATERFALL_PLUNGE_COLOR.g, WATERFALL_PLUNGE_COLOR.b,
-		WATERFALL_PLUNGE_COLOR.r, WATERFALL_PLUNGE_COLOR.g, WATERFALL_PLUNGE_COLOR.b,
-		WATERFALL_SPLASH_COLOR.r, WATERFALL_SPLASH_COLOR.g, WATERFALL_SPLASH_COLOR.b,
-		WATERFALL_SPLASH_COLOR.r, WATERFALL_SPLASH_COLOR.g, WATERFALL_SPLASH_COLOR.b,
-		WATERFALL_PLUNGE_COLOR.r, WATERFALL_PLUNGE_COLOR.g, WATERFALL_PLUNGE_COLOR.b,
-		WATERFALL_PLUNGE_COLOR.r, WATERFALL_PLUNGE_COLOR.g, WATERFALL_PLUNGE_COLOR.b,
-	]);
-	const indices = [0, 2, 1, 2, 3, 1, 4, 6, 5, 6, 7, 5];
-	const flowDistances = new Float32Array([
-		0, 0, dropMeters, dropMeters,
-		dropMeters, dropMeters, dropMeters + apronLengthMeters, dropMeters + apronLengthMeters,
-	]);
-	const flowSpeeds = new Float32Array([
-		WATERFALL_FLOW_SPEED_MPS, WATERFALL_FLOW_SPEED_MPS,
-		WATERFALL_FLOW_SPEED_MPS, WATERFALL_FLOW_SPEED_MPS,
-		WATERFALL_APRON_FLOW_SPEED_MPS, WATERFALL_APRON_FLOW_SPEED_MPS,
-		WATERFALL_APRON_FLOW_SPEED_MPS, WATERFALL_APRON_FLOW_SPEED_MPS,
-	]);
-	const flowSides = new Float32Array([-1, 1, -1, 1, -1, 1, -1, 1]);
+	for (let column = 0; column < columnCount; column++) {
+		const side = -1 + (column / columnSegments) * 2;
+		const edgeFade = Math.max(0, 1 - Math.pow(Math.abs(side), 1.6));
+		const lateralNoise = waterfallGeometryNoise(top, bottom, side, 0) - 0.5;
+		const sheetNoise = waterfallGeometryNoise(top, bottom, side, 1) - 0.5;
+		const apronNoise = waterfallGeometryNoise(top, bottom, side, 2) - 0.5;
+		const lateral = side * halfWidth + lateralNoise * widthMeters * 0.045 * edgeFade;
+		const crestForward = sheetNoise * Math.min(0.55, widthMeters * 0.025) * edgeFade;
+		const midForward = tangentLength * 0.55 + sheetNoise * Math.min(1.15, dropMeters * 0.08) * edgeFade;
+		const bottomForward = tangentLength + sheetNoise * Math.min(0.7, dropMeters * 0.045) * edgeFade;
+		const apronForward = tangentLength + apronLengthMeters * (1 + apronNoise * 0.12 * edgeFade);
+		const rowForward = [crestForward, midForward, bottomForward, apronForward];
+		const rowY = [
+			top.y + 0.05,
+			THREE.MathUtils.lerp(top.y, bottom.y, 0.58) + sheetNoise * Math.min(0.45, dropMeters * 0.035) * edgeFade,
+			bottom.y + 0.14,
+			bottom.y + 0.16 + apronNoise * 0.035 * edgeFade,
+		];
+
+		for (let row = 0; row < rowCount; row++) {
+			const vertex = row * columnCount + column;
+			const forward = rowForward[row];
+			positions[vertex * 3] = top.x + dirX * forward + perpX * lateral;
+			positions[vertex * 3 + 1] = rowY[row];
+			positions[vertex * 3 + 2] = top.z + dirZ * forward + perpZ * lateral;
+			flowDistances[vertex] = rowFlowDistance[row];
+			flowSpeeds[vertex] = rowFlowSpeed[row];
+			flowSides[vertex] = side;
+			const tone = 0.92 + (waterfallGeometryNoise(top, bottom, side, row + 3) - 0.5) * 0.12;
+			colors[vertex * 3] = rowColor[row].r * tone;
+			colors[vertex * 3 + 1] = rowColor[row].g * tone;
+			colors[vertex * 3 + 2] = rowColor[row].b * tone;
+		}
+	}
+
+	for (let row = 0; row < rowCount - 1; row++) {
+		for (let column = 0; column < columnSegments; column++) {
+			const a = row * columnCount + column;
+			const b = a + 1;
+			const c = a + columnCount;
+			const d = c + 1;
+			if ((row + column) % 2 === 0) indices.push(a, c, b, b, c, d);
+			else indices.push(a, c, d, a, d, b);
+		}
+	}
 
 	const geometry = new THREE.BufferGeometry();
 	geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -434,16 +464,18 @@ export function createWaterfallMesh({ top, bottom, dropMeters }, widthMeters = 1
 		plungeColor: WATERFALL_PLUNGE_COLOR.getHex(),
 		splashApron: true,
 		singleDrawCall: true,
+		segmentedCascade: true,
 		turbulentFoamBreakup: true,
 		worldSpaceMultiScaleSurface: true,
 		normalVariation: true,
 		roughnessVariation: true,
 		referencePalettePolicyId: GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id,
 	});
-	attachFlowAnimation(material, 'waterfall-flow-splash-v3', 0.44);
+	attachFlowAnimation(material, 'waterfall-flow-splash-v4', 0.44);
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.userData.dropMeters = dropMeters;
 	mesh.userData.apronLengthMeters = apronLengthMeters;
+	mesh.userData.cascadeColumnSegments = columnSegments;
 	return mesh;
 }
 
