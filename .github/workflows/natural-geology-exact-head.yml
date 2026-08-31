@@ -19,6 +19,7 @@ on:
       - 'scripts/checkValyriaGeology.mjs'
       - 'scripts/checkValyriaVolcanicMorphology.mjs'
       - 'scripts/checkValyriaSurfaceMorphologyAlignment.mjs'
+      - 'scripts/checkValyriaSingleSurfaceAuthority.mjs'
       - 'scripts/checkValyriaCanonicalTerrain.mjs'
       - 'scripts/checkValyriaBarrenEcology.mjs'
       - 'scripts/checkValyriaCastleWeathering.mjs'
@@ -99,6 +100,10 @@ jobs:
           node-version: 22
       - name: Resolve vendored Three.js for Node imports
         run: node scripts/setupNodeThreeShim.mjs
+      - name: Verify geology renderer syntax
+        run: |
+          node --check src/3d/world/naturalGeology.js
+          node --check scripts/checkValyriaSingleSurfaceAuthority.mjs
       - name: Import render layer without hydrated LFS assets
         run: |
           set -euo pipefail
@@ -106,11 +111,15 @@ jobs:
           const geology = await import('./src/3d/world/naturalGeology.js');
           if (!geology.NATURAL_GEOLOGY_RENDER_POLICY?.renderOnly) throw new Error('render-only contract lost');
           if (geology.NATURAL_GEOLOGY_RENDER_POLICY.referenceLandscapeRuntimeLoad !== false) throw new Error('heavy landscape became runtime load');
+          if (geology.NATURAL_GEOLOGY_RENDER_POLICY.legacyValyriaSurfaceOverlayEnabled !== false) throw new Error('legacy Valyria overlay re-enabled');
+          if (geology.NATURAL_GEOLOGY_RENDER_POLICY.canonicalTerrainOwnsValyriaSurface !== true) throw new Error('canonical Valyria surface authority lost');
           const g = geology.createNaturalRockPrototypeGeometry('fractured-scarp');
           if (!g?.getAttribute?.('position')?.count) throw new Error('procedural fallback geometry missing');
           g.dispose();
           console.log('[natural-geology-render-import] PASS');
           NODE
+      - name: Single canonical Valyria surface authority
+        run: node scripts/checkValyriaSingleSurfaceAuthority.mjs
       - name: Confirm LFS pointer state is a supported fallback
         run: |
           set -euo pipefail
