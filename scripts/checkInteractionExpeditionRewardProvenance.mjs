@@ -54,6 +54,22 @@ assert.deepEqual(
 );
 assert.deepEqual(restored.snapshot(), saved, 'duplicate reward rejection must leave wallet and provenance ledger unchanged');
 
+const legacySaved = structuredClone(saved);
+delete legacySaved.ledger.creditedSourceIds;
+const legacyRestored = createInteractionEconomyState();
+legacyRestored.restore(legacySaved);
+const legacyReplay = legacyRestored.credit(12, {
+  sourceId: 'expedition-contract:dragonstone-harbor-tavern-run',
+  label: 'Liman Taverna Seferi',
+});
+assert.equal(legacyReplay.reason, 'duplicate-credit-source', 'legacy saves must rebuild replay protection from surviving credit receipts');
+assert.equal(legacyRestored.snapshot().copper, 60, 'legacy reward replay rejection must preserve the restored wallet');
+assert.deepEqual(
+  legacyRestored.snapshot().ledger.creditedSourceIds,
+  saved.ledger.creditedSourceIds,
+  'legacy save migration must persist reconstructed reward provenance on the next snapshot',
+);
+
 const text = buildQuartermasterText(restored.snapshot());
 assert.match(text, /Son gelir: Liman Taverna Seferi · \+12 bakır · bakiye 60/);
 assert.doesNotMatch(text, /Son gelir: Sefer kontratı · \+12/);
