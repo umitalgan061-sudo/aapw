@@ -8,6 +8,7 @@ on:
       - 'scripts/checkPlayerGuardImpactExhaustion.mjs'
       - 'scripts/checkPlayerGuardImpactExhaustionRuntime.mjs'
       - 'scripts/checkPlayerCombatFeedback.mjs'
+      - 'scripts/checkPlayerGroundingCombatContract.mjs'
       - 'scripts/checkPlayerStaminaDodge.mjs'
       - 'scripts/checkPlayerStaminaDodgeRuntime.mjs'
       - 'scripts/checkPlayerHitStaggerRuntime.mjs'
@@ -51,7 +52,7 @@ jobs:
           git diff --check "$BASE"...HEAD
           CHANGED="$(git diff --name-only "$BASE"...HEAD)"
           echo "$CHANGED"
-          OUT_OF_SCOPE="$(printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|scripts/checkPlayerGuardImpactExhaustion\.mjs|scripts/checkPlayerGuardImpactExhaustionRuntime\.mjs|scripts/checkPlayerCombatFeedback\.mjs|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerHitStaggerRuntime\.mjs|scripts/checkPlayerRecoveryAttackBufferDrop\.mjs|scripts/checkPlayerRecoveryAttackBufferRuntime\.mjs|\.github/workflows/player-recovery-attack-buffer-drop\.yml|\.github/workflows/player-combat-recovery-input-isolation\.yml|\.github/workflows/player-parry-recovery\.yml|\.github/workflows/player-stamina-dodge\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-grounding-combat-contract\.yml|\.github/workflows/player-guard-impact-exhaustion\.yml)$' || true)"
+          OUT_OF_SCOPE="$(printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|scripts/checkPlayerGuardImpactExhaustion\.mjs|scripts/checkPlayerGuardImpactExhaustionRuntime\.mjs|scripts/checkPlayerCombatFeedback\.mjs|scripts/checkPlayerGroundingCombatContract\.mjs|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerHitStaggerRuntime\.mjs|scripts/checkPlayerRecoveryAttackBufferDrop\.mjs|scripts/checkPlayerRecoveryAttackBufferRuntime\.mjs|\.github/workflows/player-recovery-attack-buffer-drop\.yml|\.github/workflows/player-combat-recovery-input-isolation\.yml|\.github/workflows/player-parry-recovery\.yml|\.github/workflows/player-stamina-dodge\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-grounding-combat-contract\.yml|\.github/workflows/player-guard-impact-exhaustion\.yml)$' || true)"
           test -z "$OUT_OF_SCOPE"
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           TOTAL=$((ADD + DEL))
@@ -83,6 +84,7 @@ jobs:
           node --check scripts/checkPlayerGuardImpactExhaustion.mjs
           node --check scripts/checkPlayerGuardImpactExhaustionRuntime.mjs
           node --check scripts/checkPlayerCombatFeedback.mjs
+          node --check scripts/checkPlayerGroundingCombatContract.mjs
           node --check scripts/checkPlayerStaminaDodge.mjs
           node --check scripts/checkPlayerStaminaDodgeRuntime.mjs
           node --check scripts/checkPlayerHitStaggerRuntime.mjs
@@ -90,6 +92,7 @@ jobs:
           node --check scripts/checkPlayerRecoveryAttackBufferRuntime.mjs
           node scripts/checkPlayerGuardImpactExhaustion.mjs
           node scripts/checkPlayerCombatFeedback.mjs
+          node scripts/checkPlayerGroundingCombatContract.mjs
           node scripts/checkPlayerStaminaDodge.mjs
           node scripts/checkPlayerRecoveryAttackBufferDrop.mjs
           node scripts/checkPlayerImmutableDefenseDamage.mjs
