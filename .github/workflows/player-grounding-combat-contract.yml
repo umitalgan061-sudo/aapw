@@ -72,16 +72,6 @@ jobs:
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           test "$((ADD + DEL))" -le 1000
           echo "BASE_SHA=$BASE" >> "$GITHUB_ENV"
-      - name: Asset-first targeted hydration
-        shell: bash
-        run: |
-          set -euo pipefail
-          git lfs version
-          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**" --exclude=""
-          test -s assets/models/characters/peasant_girl.fbx
-          test -s assets/animations/peasant_girl/idle.fbx
-          test -s assets/animations/peasant_girl/walking.fbx
-          test -s assets/animations/peasant_girl/running.fbx
       - name: Grounding combat static acceptance
         run: |
           set -euo pipefail
@@ -110,6 +100,23 @@ jobs:
           node scripts/checkSharedMaterialPlacementContract.js
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkServiceWorkerCache.js
+      - name: Asset-first targeted hydration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs version
+          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**" --exclude=""
+          for asset in \
+            assets/models/characters/peasant_girl.fbx \
+            assets/animations/peasant_girl/idle.fbx \
+            assets/animations/peasant_girl/walking.fbx \
+            assets/animations/peasant_girl/running.fbx; do
+            test -s "$asset"
+            if git lfs pointer --check --file="$asset"; then
+              echo "Expected hydrated binary, found Git LFS pointer: $asset" >&2
+              exit 1
+            fi
+          done
       - name: Install Chromium
         shell: bash
         run: |
