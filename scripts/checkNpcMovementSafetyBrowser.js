@@ -76,6 +76,19 @@ async function main() {
       const recoveredGroundPosition = groundNpc.object3D.position.clone();
       groundNpc.dispose();
 
+      const resumeNpc = await makeNpc(
+        { getGroundHeight: () => 0 },
+        { resolveXZ: (x, z) => ({ x, z }) },
+        'resume-delta-guard',
+      );
+      resumeNpc.update(30, { x: 100, z: 100 });
+      const boundedResumePosition = resumeNpc.object3D.position.clone();
+      const beforeInvalidDelta = resumeNpc.object3D.position.clone();
+      resumeNpc.update(Number.NaN, { x: 100, z: 100 });
+      const afterInvalidDelta = resumeNpc.object3D.position.clone();
+      const skippedAfterInvalidDelta = resumeNpc.object3D.userData.simulationSkippedTicks;
+      resumeNpc.dispose();
+
       const occlusionNpc = await createNPC({
         assetLoader: new FakeAssetLoader(),
         modelUrl: '/assets/models/characters/paladin_j_nordstrom.fbx',
@@ -106,6 +119,8 @@ async function main() {
         groundFinite: [blockedGroundPosition.x, blockedGroundPosition.y, blockedGroundPosition.z].every(Number.isFinite),
         groundStayedPut: blockedGroundPosition.distanceTo(new THREE.Vector3(0, 0, 0)) < 1e-9,
         groundRecovered: recoveredGroundPosition.z > 0 && [recoveredGroundPosition.x, recoveredGroundPosition.y, recoveredGroundPosition.z].every(Number.isFinite),
+        resumeDeltaBounded: boundedResumePosition.z > 0 && boundedResumePosition.z <= 0.500001,
+        invalidDeltaIgnored: afterInvalidDelta.distanceTo(beforeInvalidDelta) < 1e-9 && skippedAfterInvalidDelta >= 1,
         losFailedClosed: perception.lineOfSight === false && perception.reason === 'occluded',
         invalidLosDidNotAlert: perception.intent === 'patrol' && perception.suspicion === 0,
         occlusionFinite: [occlusionPosition.x, occlusionPosition.y, occlusionPosition.z].every(Number.isFinite),
