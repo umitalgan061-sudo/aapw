@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-31-v64-aerial-ecotone-weathering',
+	id: 'geographic-reference-palette-2026-08-31-v65-lowland-chroma-balance',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -27,9 +27,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v64 is the second exact-head visual iteration from full-world #651. v63 changed the correct surfaces but remained too subtle at the high camera. Meadow therefore receives a stronger humid-green value lift, dry heather a warmer mineral separation, ferric earth a brighter weathered face, and granite/quartz a wider sun-shadow range. These are render-only material values consumed through existing deterministic world-space fabric; terrain height, shoreline, hydrology, colliders and geography remain untouched.',
-		water: 'v64 preserves the v62-v63 depth hierarchy: clear shallows/lakes remain distinct from boundary-connected deep sea while canonical wet coverage and shoreline ownership remain unchanged.',
-		road: 'v64 preserves established compacted-road and dust bases plus the v63 damp-rut/stone/moss-edge separation; route geometry remains unchanged.',
+		terrain: 'v65 follows exact-head full-world #653 visual inspection. The new directional lowland material successfully restored surface structure, but high-camera meadow streaks read too chromatic against dry mineral ground. Meadow is therefore desaturated and slightly earth-shifted while dry heather is softened toward weathered mineral vegetation. Geometry, terrain height, shoreline, hydrology, colliders and geography remain untouched.',
+		water: 'v65 preserves the v62-v64 depth hierarchy: clear shallows/lakes remain distinct from boundary-connected deep sea while canonical wet coverage and shoreline ownership remain unchanged.',
+		road: 'v65 preserves established compacted-road and dust bases plus damp-rut/stone/moss-edge separation; route geometry remains unchanged.',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability.',
 	}),
 });
@@ -37,8 +37,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
 		mossShadow: 0x062417,
-		meadow: 0x398650,
-		dryHeather: 0x806044,
+		meadow: 0x477a4d,
+		dryHeather: 0x826b51,
 		wetEarth: 0x0b1813,
 		exposedEarth: 0xb2734e,
 		graniteShadow: 0x151f25,
