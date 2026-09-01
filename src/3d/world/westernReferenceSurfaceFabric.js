@@ -12,7 +12,7 @@ const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 
 export const WESTERN_REFERENCE_SURFACE_FABRIC_POLICY = Object.freeze({
-  id: 'western-reference-surface-fabric-2026-08-31-v14-aerial-relief-carrier',
+  id: 'western-reference-surface-fabric-2026-09-01-v15-mineral-variance',
   renderOnly: true,
   geographyAuthorityUnchanged: true,
   heightAuthorityUnchanged: true,
@@ -113,9 +113,6 @@ function sampleFabric(worldX, worldZ) {
   const micro = valueNoise2D(x - 80, z - 110, P.microMeters, 19.7);
   const subMicro = valueNoise2D(x + z * 0.11 + 37, z - x * 0.07 - 53, P.subMicroMeters, 67.1);
 
-  // Two incommensurate, rotated carriers prevent the aerial-scale material response from reading
-  // like a single repeating noise sheet. They are render-only signals: no height/collider authority
-  // is changed, but the same fields feed P01-03 albedo and finite-difference normal weathering.
   const aerialPrimary = ridge01(valueNoise2D(
     x + z * 0.29 + warpX * 118,
     z - x * 0.18 + warpZ * 96,
@@ -149,11 +146,12 @@ function sampleFabric(worldX, worldZ) {
       + valueNoise2D(x - 440, z + 190, P.wetHollowMeters, 79.3) * 0.08
       + (1 - aerialRelief) * 0.05 + (1 - surfaceCarrier) * 0.03,
   );
-  const mineral = clamp01(
+  const mineralBase = clamp01(
     (1 - macro) * 0.22 + (1 - broadRelief) * 0.10 + ridge01(meso) * 0.23 + fine * 0.17
       + ridge01(micro) * 0.08 + ridge01(subMicro) * 0.07
       + aerialRelief * 0.07 + surfaceCarrier * 0.06,
   );
+  const mineral = clamp01(0.5 + (mineralBase - 0.5) * 1.10);
   const weathering = clamp01(
     ridge01(valueNoise2D(x + z * 0.17, z - x * 0.11, 640, 23.1)) * 0.37
       + meso * 0.20 + broadRelief * 0.11 + fine * 0.09
