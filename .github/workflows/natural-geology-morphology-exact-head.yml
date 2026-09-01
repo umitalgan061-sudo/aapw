@@ -85,6 +85,7 @@ jobs:
         run: |
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          sed -i "s/type: 'png' });/type: 'png', timeout: 120000 });/g" scripts/captureNaturalGeologyShippedScene.mjs
           node scripts/captureNaturalGeologyShippedScene.mjs
 
       - name: Browser and mobile performance regression safety
