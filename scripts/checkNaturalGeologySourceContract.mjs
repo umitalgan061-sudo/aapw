@@ -36,6 +36,7 @@ assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.physicalProxyRemoval, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.splitProxySuppression, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.transactionalFamilyHydration, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.disposedGroupHydrationGuard, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.pagehideSelfDisposal, true);
 assert(NATURAL_GEOLOGY_RENDER_POLICY.hydratedInstanceTintStrength > 0);
 assert(NATURAL_GEOLOGY_RENDER_POLICY.hydratedInstanceTintStrength <= 0.25);
 assert(NATURAL_GEOLOGY_RENDER_POLICY.id.includes('v5-family-proxy-lifecycle'));
@@ -81,12 +82,17 @@ for (const snippet of [
   'familyScopedProxyBatches: true',
   'physicalProxyRemoval: true',
   'disposedGroupHydrationGuard: true',
+  'pagehideSelfDisposal: true',
   'hydratedInstanceTintStrength',
   'hydratedTintForPlacement',
   'naturalGeologyAssetFamily',
   'removeProxyFamily',
   'hydrationCancelled',
   'naturalGeologyDisposed',
+  'bindPagehideDisposal',
+  'naturalGeologyPagehideDispose',
+  "window.addEventListener('pagehide'",
+  "window.removeEventListener('pagehide'",
   'preparePreResolvedInstancedWorldAsset',
   'auditPreResolvedInstancedWorldAsset',
   'attachPreparedPreResolvedInstancedWorldAsset',
@@ -231,4 +237,5 @@ console.log(JSON.stringify({
   familyScopedFallback: true,
   hydratedInstanceTint: NATURAL_GEOLOGY_RENDER_POLICY.hydratedInstanceTintStrength,
   disposedGroupHydrationGuard: true,
+  pagehideSelfDisposal: true,
 }, null, 2));
