@@ -98,25 +98,33 @@ assert.equal(outsideOut.canonicalDelegated, true);
 assert.equal(canonicalCalls, 1);
 assert.equal(canonicalSurface.touched, 1);
 
-// Exercise the whole falloff, not only the centre. The boundary should contain both banned and allowed
-// points and the transition must be controlled by the shared geology influence threshold.
+// Exercise the whole falloff, not only the centre. V2 deliberately feathers ordinary ecology below
+// the hard barren threshold using deterministic refugia/density thinning. The shared geology influence
+// still owns the hard boundary: nothing may survive at/inside it, while points below the transition
+// start remain fully available to ordinary ecology.
 let banned = 0;
 let allowed = 0;
-let mismatches = 0;
+let hardBarrenLeaks = 0;
+let safeOuterRejects = 0;
+let featheredTransitionRejects = 0;
+const transitionStart = Math.max(0, E.exclusionInfluence - E.transitionWidth);
 for (let iy = 0; iy <= 64; iy += 1) {
   const ny = 0.60 + iy / 64 * 0.24;
   for (let ix = 0; ix <= 64; ix += 1) {
     const nx = 0.35 + ix / 64 * 0.20;
     const world = worldFromNormalized(nx, ny);
     const influence = valyriaInfluenceAtWorldXZ(world.x, world.z);
-    const shouldAllow = influence < E.exclusionInfluence;
     const actualAllow = isOrdinaryEcologyAllowedAtWorldXZ(world.x, world.z);
     if (actualAllow) allowed += 1;
     else banned += 1;
-    if (actualAllow !== shouldAllow) mismatches += 1;
+    if (influence >= E.exclusionInfluence && actualAllow) hardBarrenLeaks += 1;
+    if (influence < transitionStart && !actualAllow) safeOuterRejects += 1;
+    if (influence >= transitionStart && influence < E.exclusionInfluence && !actualAllow) featheredTransitionRejects += 1;
   }
 }
-assert.equal(mismatches, 0, 'ecology boundary diverged from shared Valyria geology influence');
+assert.equal(hardBarrenLeaks, 0, 'ordinary ecology leaked across the shared Valyria barren threshold');
+assert.equal(safeOuterRejects, 0, 'ordinary ecology was rejected outside the feathered transition');
+assert(featheredTransitionRejects > 0, 'v2 feathered-refugia transition stopped thinning ordinary ecology');
 assert(banned > 100, `barren region unexpectedly tiny: ${banned}`);
 assert(allowed > 1000, `falloff/outer region unexpectedly over-blocked: ${allowed}`);
 
@@ -131,6 +139,10 @@ console.log(JSON.stringify({
   geologyPolicyId: P.id,
   bannedGridSamples: banned,
   allowedGridSamples: allowed,
+  hardBarrenLeaks,
+  safeOuterRejects,
+  featheredTransitionRejects,
+  transitionStart,
   canonicalDelegationCalls: canonicalCalls,
   corePlacementHeight,
   outsidePlacementHeight,

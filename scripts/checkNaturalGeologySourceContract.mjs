@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { NATURAL_GEOLOGY_PLACEMENT_POLICY } from '../src/3d/world/naturalGeologyPlacement.js';
+import { NATURAL_GEOLOGY_RENDER_POLICY } from '../src/3d/world/naturalGeology.js';
 import { VALYRIA_GEOLOGY_POLICY } from '../src/3d/world/valyriaGeology.js';
 import { VALYRIA_BARREN_ECOLOGY_POLICY } from '../src/3d/world/valyriaEcology.js';
 
@@ -20,10 +21,27 @@ assert.equal(NATURAL_GEOLOGY_PLACEMENT_POLICY.renderOnly, true);
 assert.equal(NATURAL_GEOLOGY_PLACEMENT_POLICY.geographyAuthorityUnchanged, true);
 assert.equal(NATURAL_GEOLOGY_PLACEMENT_POLICY.heightAuthority, 'world/terrain.js');
 assert.equal(NATURAL_GEOLOGY_PLACEMENT_POLICY.deterministic, true);
+assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.id.includes('mobile-strata-sampling'));
+assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.mobileGridColumns > 44);
+assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.mobileGridRows > 34);
+assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.mobileGridColumns <= NATURAL_GEOLOGY_PLACEMENT_POLICY.desktopGridColumns);
+assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.mobileGridRows <= NATURAL_GEOLOGY_PLACEMENT_POLICY.desktopGridRows);
 assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.minimumNearestNeighborMeters >= 20);
+assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.maximumNearestNeighborJitterMeters > 0);
+assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.minimumLargeOutcropSpacingMeters >= 60);
+assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.maximumLargeOutcropSpacingBoostMeters > 0);
+assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.morphologyOuterProbeMultiplier > 2);
 assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.settlementReserveMeters >= 120);
 assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.roadReserveMeters >= 18);
 assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.shorelineReserveMeters >= 8);
+
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.renderOnly, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.geographyAuthorityUnchanged, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.placementPolicyId, NATURAL_GEOLOGY_PLACEMENT_POLICY.id);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.proceduralBaseOriginNormalized, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.hydratedBaseOriginNormalized, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.fallbackHydratedGroundParity, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.hydratedSourceMapsPreserved, true);
 
 assert.equal(VALYRIA_GEOLOGY_POLICY.canonicalCoastlinePreserved, true);
 assert.equal(VALYRIA_GEOLOGY_POLICY.canonicalWaterClassificationPreserved, true);
@@ -39,10 +57,21 @@ assert.equal(VALYRIA_BARREN_ECOLOGY_POLICY.colliderAuthorityUnchanged, true);
 for (const snippet of [
   'generateNaturalGeologyPlacements',
   'sampleTerrainFrame',
+  'classifyNaturalGeologyMorphology',
+  'morphologyOuterProbeMultiplier',
+  'broadCurvatureMeters',
+  'directionalReliefMeters',
+  'warpedCandidatePoint',
+  'candidateStrataWarpFraction',
+  'formationRole',
+  'ridgeExposure',
+  'talusPotential',
+  'buryFraction',
+  'minimumSpacingMeters',
+  'largeSpacingMeters',
   'minimumDistanceToRoadMeters',
   'minimumDistanceToSeatMeters',
   'regionalStrataAngle',
-  'minimumNearestNeighborMeters',
   "kind === 'asset-proxy'",
   'valyriaInfluenceAtWorldXZ',
 ]) {
@@ -54,9 +83,15 @@ for (const snippet of [
   'createValyriaVolcanicSurface',
   'upgradeNaturalGeologyAssets',
   'createNaturalRockPrototypeGeometry',
+  'normalizePrototypeBaseOrigin',
+  'naturalGeologyBaseOrigin',
+  'createAssetNormalization',
   'validateNaturalGeologyAsset',
   'hostedPreflightMinBytes',
   'maximumHydratedSourceBytes',
+  'proceduralBaseOriginNormalized: true',
+  'hydratedBaseOriginNormalized: true',
+  'fallbackHydratedGroundParity: true',
   'referenceLandscapeRuntimeLoad: false',
   'assets/models/fbx/rocky_terrain_low_poly.glb',
   'assets/models/fbx/desert_rocks.glb',
@@ -96,7 +131,11 @@ for (const snippet of [
   'procedural-villages',
   'wind-grass-ground-cover',
   'createValyriaBarrenEcologyPlacementProbe',
-  'isValyriaBarrenAtWorldXZ',
+  'valyriaEcologyProfileAtWorldXZ',
+  'isOrdinaryEcologyAllowedAtWorldXZ',
+  'ordinaryTreeDensity',
+  'ordinaryGrassDensity',
+  'proceduralVillageAllowed',
 ]) {
   assert(ecologySource.includes(snippet), `Valyria ecology contract lost: ${snippet}`);
 }
@@ -128,6 +167,8 @@ for (const snippet of [
 assert(sceneSource.indexOf('const naturalGeologyResult = createNaturalGeology') < sceneSource.indexOf('const vegetationResult = createVegetation'), 'geology must remain visually primary before vegetation');
 assert(sceneSource.indexOf('const roadsResult = buildRoadNetwork') < sceneSource.indexOf('const naturalGeologyResult = createNaturalGeology'), 'geology placement must know road corridors');
 
+assert(!placementSource.includes("from 'three'"), 'placement authority must remain renderer-independent');
+assert(!placementSource.includes('Math.random()'), 'placement must remain deterministic');
 assert(!valyriaSource.includes("from 'three'"), 'Valyria authority must remain renderer-independent');
 assert(!valyriaSource.includes('Math.random()'), 'Valyria geology must remain deterministic');
 assert(!ecologySource.includes("from 'three'"), 'Valyria ecology adapter must remain renderer-independent');
@@ -147,9 +188,12 @@ assert(!renderSource.includes('loadModel(NATURAL_GEOLOGY_RENDER_POLICY.reference
 console.log('[checkNaturalGeologySourceContract] PASS');
 console.log(JSON.stringify({
   policyId: NATURAL_GEOLOGY_PLACEMENT_POLICY.id,
+  renderPolicyId: NATURAL_GEOLOGY_RENDER_POLICY.id,
   directAssets: NATURAL_GEOLOGY_PLACEMENT_POLICY.directAssetFamilies,
   referenceOnlyAssets: NATURAL_GEOLOGY_PLACEMENT_POLICY.referenceOnlyAssets,
   knownLfsBytes: NATURAL_GEOLOGY_PLACEMENT_POLICY.knownLfsBytes,
+  morphologyAwarePlacement: true,
+  fallbackHydratedGroundParity: true,
   valyriaPolicy: VALYRIA_GEOLOGY_POLICY.id,
   valyriaEcologyPolicy: VALYRIA_BARREN_ECOLOGY_POLICY.id,
   canonicalTerrainIntegration: true,
