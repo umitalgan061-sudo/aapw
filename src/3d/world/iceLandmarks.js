@@ -329,18 +329,25 @@ function createWallGeometry(path, sampleHeightMeters, caveGapSegment, seed) {
 	return { geometry, sections, minHeight, maxHeight };
 }
 
-function makePortalShape(width, height, openingHalfWidth, sideHeight, archRise) {
+function makePortalShape(width, leftTopHeight, rightTopHeight, baseY, openingHalfWidth, sideHeight, archRise) {
 	const halfWidth = width * 0.5;
+	const leftTop = Math.max(35, leftTopHeight);
+	const rightTop = Math.max(35, rightTopHeight);
+	const crownAt = (t, lift = 0) => THREE.MathUtils.lerp(leftTop, rightTop, t) + lift;
 	const shape = new THREE.Shape();
-	shape.moveTo(-halfWidth, 0);
-	shape.lineTo(halfWidth, 0);
-	shape.lineTo(halfWidth, height);
-	shape.lineTo(-halfWidth, height);
+	shape.moveTo(-halfWidth, baseY);
+	shape.lineTo(halfWidth, baseY);
+	shape.lineTo(halfWidth, rightTop * 0.79);
+	shape.lineTo(halfWidth * 0.94, rightTop);
+	shape.lineTo(halfWidth * 0.52, crownAt(0.76, 1.4));
+	shape.lineTo(0, crownAt(0.50, 2.1));
+	shape.lineTo(-halfWidth * 0.52, crownAt(0.24, 1.0));
+	shape.lineTo(-halfWidth * 0.94, leftTop);
+	shape.lineTo(-halfWidth, leftTop * 0.79);
 	shape.closePath();
 
 	// Earcut cannot triangulate a hole that literally touches the outer contour. A 12 cm ice sill
 	// keeps the contours topologically separate while remaining far below a normal gameplay step.
-	// This produces a real arched void instead of the former concave cap that could read as a panel.
 	const sillHeight = 0.12;
 	const opening = new THREE.Path();
 	opening.moveTo(-openingHalfWidth, sillHeight);
@@ -362,36 +369,65 @@ function createPortalMesh(leftSection, rightSection, material) {
 	const cavePolicy = ICE_LANDMARK_POLICY.cave;
 	const dx = rightSection.x - leftSection.x;
 	const dz = rightSection.z - leftSection.z;
-	const width = Math.hypot(dx, dz) + 9;
-	const tx = dx / Math.max(width - 9, 1e-6);
-	const tz = dz / Math.max(width - 9, 1e-6);
+	const span = Math.max(1e-6, Math.hypot(dx, dz));
+	const overlapMeters = Math.min(2.2, span * 0.09);
+	const width = span + overlapMeters * 2;
+	const tx = dx / span;
+	const tz = dz / span;
 	const nx = -tz;
 	const nz = tx;
 	const centerX = (leftSection.x + rightSection.x) * 0.5;
 	const centerZ = (leftSection.z + rightSection.z) * 0.5;
 	const groundY = (leftSection.centerGround + rightSection.centerGround) * 0.5;
-	const topY = Math.min(leftSection.topY, rightSection.topY);
-	const portalHeight = Math.max(35, topY - groundY);
-	const depth = (leftSection.thicknessMeters + rightSection.thicknessMeters) * 0.5 + 4;
+	const leftTopHeight = leftSection.topY - groundY;
+	const rightTopHeight = rightSection.topY - groundY;
+	const portalHeight = Math.max(35, leftTopHeight, rightTopHeight);
+	const baseY = Math.min(
+		leftSection.frontGround,
+		leftSection.backGround,
+		rightSection.frontGround,
+		rightSection.backGround,
+	) - groundY - 1.3;
+	const nominalDepth = (leftSection.thicknessMeters + rightSection.thicknessMeters) * 0.5 + 1.5;
 	const shape = makePortalShape(
 		width,
-		portalHeight,
+		leftTopHeight,
+		rightTopHeight,
+		baseY,
 		cavePolicy.openingHalfWidthMeters,
 		cavePolicy.openingSideHeightMeters,
 		cavePolicy.openingArchRiseMeters,
 	);
 	const geometry = new THREE.ExtrudeGeometry(shape, {
-		depth,
+		depth: nominalDepth,
 		steps: 1,
 		curveSegments: 16,
 		bevelEnabled: true,
-		bevelThickness: 0.8,
-		bevelSize: 0.7,
+		bevelThickness: 0.65,
+		bevelSize: 0.55,
 		bevelSegments: 2,
 	});
-	// ExtrudeGeometry's default UVs are shape-space metres. With the Wall's glacial texture repeat
-	// that made this one section repeat tens of times vertically and read as a bright manufactured
-	// panel. Reproject it to the same longitudinal/metre-scale UV convention as the adjacent Wall.
+	geometry.computeBoundingBox();
+	const sourceBounds = geometry.boundingBox;
+	const sourceDepth = Math.max(1e-6, sourceBounds.max.z - sourceBounds.min.z);
+	const projectSectionFace = (section, sign) => {
+		const halfThickness = section.thicknessMeters * 0.5;
+		const faceX = section.x + section.nx * halfThickness * sign;
+		const faceZ = section.z + section.nz * halfThickness * sign;
+		return (faceX - centerX) * nx + (faceZ - centerZ) * nz;
+	};
+	const leftFront = projectSectionFace(leftSection, 1);
+	const rightFront = projectSectionFace(rightSection, 1);
+	const leftBack = projectSectionFace(leftSection, -1);
+	const rightBack = projectSectionFace(rightSection, -1);
+	const centerFrontDepth = THREE.MathUtils.lerp(leftFront, rightFront, 0.5);
+	const centerBackDepth = THREE.MathUtils.lerp(leftBack, rightBack, 0.5);
+	const depth = Math.max(1, centerFrontDepth - centerBackDepth);
+
+	// Reproject both depth and UVs into the neighboring Wall frame. The old portal used one averaged
+	// rectangular extrusion, so its front/back faces sat on a visibly separate plane even when the
+	// material matched. This bridge meets each omitted Wall section at its actual projected depth and
+	// only adds a sub-metre central buttress swell, preserving the authoritative opening and cave path.
 	const positions = geometry.getAttribute('position');
 	const uvs = geometry.getAttribute('uv');
 	const uBase = ((leftSection.distanceMeters + rightSection.distanceMeters) * 0.5)
@@ -399,23 +435,48 @@ function createPortalMesh(leftSection, rightSection, material) {
 	for (let index = 0; index < positions.count; index += 1) {
 		const localX = positions.getX(index);
 		const localY = positions.getY(index);
+		const sourceZ = positions.getZ(index);
+		const wallT = clamp01((localX + span * 0.5) / span);
+		const sourceT = clamp01((sourceZ - sourceBounds.min.z) / sourceDepth);
+		const heightT = clamp01((localY - baseY) / Math.max(1, portalHeight - baseY));
+		const buttress = Math.sin(wallT * Math.PI) ** 2 * (0.24 + (1 - heightT) * 0.42);
+		const backDepth = THREE.MathUtils.lerp(leftBack, rightBack, wallT) - buttress * 0.32;
+		const frontDepth = THREE.MathUtils.lerp(leftFront, rightFront, wallT) + buttress;
+		positions.setZ(index, THREE.MathUtils.lerp(backDepth, frontDepth, sourceT));
 		uvs.setXY(
 			index,
 			uBase + localX / ICE_LANDMARK_POLICY.wall.textureRepeatMeters,
 			clamp01(localY / portalHeight) * 2.6,
 		);
 	}
+	positions.needsUpdate = true;
 	uvs.needsUpdate = true;
 	geometry.computeVertexNormals();
+	geometry.computeBoundingBox();
+	geometry.computeBoundingSphere();
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.name = 'ice-wall-cave-portal';
-	mesh.position.set(centerX - nx * depth * 0.5, groundY, centerZ - nz * depth * 0.5);
+	mesh.position.set(centerX, groundY, centerZ);
 	mesh.rotation.y = -Math.atan2(tz, tx);
 	mesh.castShadow = true;
 	mesh.receiveShadow = true;
 	mesh.userData.iceLandmarkRole = 'arched-wall-portal';
 	mesh.userData.wallAlignedPortalUv = true;
-	return { mesh, centerX, centerZ, groundY, tx, tz, nx, nz, depth, width };
+	mesh.userData.portalWallBridge = 'neighbor-section-depth-interpolation-v1';
+	return {
+		mesh,
+		centerX,
+		centerZ,
+		groundY,
+		tx,
+		tz,
+		nx,
+		nz,
+		depth,
+		width,
+		backDepthMeters: centerBackDepth,
+		frontDepthMeters: centerFrontDepth,
+	};
 }
 
 function createCaveShell(portal, sampleHeightMeters, material) {
@@ -424,7 +485,9 @@ function createCaveShell(portal, sampleHeightMeters, material) {
 	const colors = [];
 	const uvs = [];
 	const indices = [];
-	const entranceOffset = -portal.depth * 0.5 + 1.2;
+	const entranceOffset = Number.isFinite(portal.backDepthMeters)
+		? portal.backDepthMeters + 1.2
+		: -portal.depth * 0.5 + 1.2;
 	const ringCount = cavePolicy.ringCount;
 	const arcSegments = cavePolicy.arcSegments;
 	const ringStride = arcSegments + 1;
