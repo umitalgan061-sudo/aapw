@@ -120,8 +120,6 @@ const AURORA_RAY_CURTAIN_V4_FRAGMENT_SHADER = /* glsl */ `
 		float broad = ray4Fbm(vec2(az * 0.72 - timeValue * 0.006, phase + 12.7));
 		float meso = ray4Fbm(vec2(az * 2.25 + broad * 0.85 + timeValue * 0.003, phase * 1.7 + 3.1));
 		float opening = smoothstep(0.30, 0.68, broad * 0.68 + meso * 0.32);
-		// Real curtains have dim gaps, not perfectly black angular holes. A bounded floor preserves
-		// broken morphology while preventing a whole view direction from losing every luminous sheet.
 		return mix(0.18, 1.0, opening);
 	}
 
@@ -158,6 +156,16 @@ const AURORA_RAY_CURTAIN_V4_FRAGMENT_SHADER = /* glsl */ `
 			* quietColumns * patchMask * verticalVariation;
 	}
 
+	float ray4PhosphorCore(float az, float elevation, float edge, float phase, float timeValue) {
+		float aboveEdge = elevation - edge;
+		float sheet = ray4RaySheet(az, phase, timeValue);
+		float envelope = ray4CurtainEnvelope(az, phase, timeValue);
+		float filament = pow(clamp(sheet, 0.0, 1.0), 1.45);
+		float edgeCore = exp(-abs(aboveEdge) / 0.027);
+		float risingCore = step(0.0, aboveEdge) * exp(-max(aboveEdge, 0.0) / 0.135) * 0.48;
+		return filament * envelope * (edgeCore + risingCore);
+	}
+
 	void main() {
 		vec3 dir = normalize(vWorldPosition - cameraPosition);
 		float heightFactor = clamp(dir.y * 0.5 + 0.5, 0.0, 1.0);
@@ -189,6 +197,7 @@ const AURORA_RAY_CURTAIN_V4_FRAGMENT_SHADER = /* glsl */ `
 		float slowBreathing = 0.91 + 0.09 * sin(t * 0.11 + ray4Fbm(vec2(shearedAz * 0.7, 2.7)) * 6.28318530718);
 		energy *= slowBreathing;
 		float haze = pow(clamp(primary * 0.72 + secondary * 0.28, 0.0, 1.0), 0.82) * visibility;
+		float phosphorCore = ray4PhosphorCore(shearedAz, elevation, primaryEdge, 0.8, t) * visibility;
 
 		vec3 oxygenGreen = mix(uAuroraColorA, vec3(0.18, 0.95, 0.56), 0.67);
 		vec3 cyanGreen = vec3(0.15, 0.76, 0.63);
@@ -201,6 +210,7 @@ const AURORA_RAY_CURTAIN_V4_FRAGMENT_SHADER = /* glsl */ `
 
 		vec3 finalColor = skyColor;
 		finalColor += oxygenGreen * haze * 0.078;
+		finalColor += oxygenGreen * phosphorCore * 0.42;
 		finalColor += auroraColor * energy * 0.74;
 		float dither = (ray4Hash(gl_FragCoord.xy + vec2(17.0, 31.0)) - 0.5) * uBandingDitherStrength;
 		finalColor = max(finalColor + dither, vec3(0.0));
@@ -215,6 +225,6 @@ export function applyAuroraRayCurtainV4(material) {
 	material.userData.naturalAuroraCurtains = true;
 	material.userData.auroraCurtainRaysV4 = true;
 	material.userData.finalAtmosphereProfile = 'camera-relative-horizon-upper-air-v6';
-	material.userData.auroraCurtainMorphology = 'broken-asymmetric-ray-sheets-v8-visible-gaps';
+	material.userData.auroraCurtainMorphology = 'broken-asymmetric-ray-sheets-v9-phosphor-cores';
 	return material;
 }
