@@ -1,10 +1,10 @@
 /**
  * Bounded deterministic physical grass with shader-only natural wind.
  *
- * Extracted from sceneManager so ground cover owns its own placement, climate and GPU-wind policy.
- * The public `createWindGrassRun180` name is kept for compatibility with the established browser
- * regression contract, while the implementation now consumes the shared map-aligned north ground-
- * cover and terrain-snow climate authorities directly.
+ * Extracted from sceneManager so ground cover owns its own placement, climate, GPU-wind and cleanup
+ * policy. The public `createWindGrassRun180` name is kept for compatibility with the established
+ * browser regression contract, while the implementation consumes the shared map-aligned north
+ * ground-cover and terrain-snow climate authorities directly.
  * @module world/windGrass
  */
 
@@ -29,6 +29,14 @@ export const RUN180_WIND_GRASS_CONFIG = Object.freeze({
 	surfaceProbeMeters: 4,
 	snowDensityFadeStart: 0.18,
 	snowDensityZeroAt: 0.72,
+});
+
+export const WIND_GRASS_LIFECYCLE_POLICY = Object.freeze({
+	id: 'wind-grass-resource-lifecycle-2026-09-01-v1',
+	moduleOwnsGpuResources: true,
+	idempotentDispose: true,
+	pagehideCleanup: true,
+	clearsRenderCallback: true,
 });
 
 function grassRng(seed) {
@@ -247,6 +255,47 @@ function createWindGrassMaterial(config) {
 	return material;
 }
 
+export function disposeWindGrassRun180(group) {
+	if (!group || group.userData?.windGrassLifecycle?.disposed) return;
+	const pagehideHandler = group.userData?.windGrassPagehideHandler;
+	if (pagehideHandler && typeof window !== 'undefined') {
+		window.removeEventListener('pagehide', pagehideHandler);
+	}
+	const geometries = new Set();
+	const materials = new Set();
+	const textures = new Set();
+	group.traverse((node) => {
+		if (node.isMesh) node.onBeforeRender = null;
+		if (node.geometry && !geometries.has(node.geometry)) {
+			geometries.add(node.geometry);
+			node.geometry.dispose();
+		}
+		for (const material of Array.isArray(node.material)
+			? node.material
+			: node.material ? [node.material] : []) {
+			if (materials.has(material)) continue;
+			materials.add(material);
+			for (const key of Object.keys(material)) {
+				const value = material[key];
+				if (value?.isTexture && !textures.has(value)) {
+					textures.add(value);
+					value.dispose();
+				}
+			}
+			material.dispose();
+		}
+	});
+	group.clear();
+	group.userData.windGrassLifecycle = Object.freeze({
+		policyId: WIND_GRASS_LIFECYCLE_POLICY.id,
+		disposed: true,
+		geometryCount: geometries.size,
+		materialCount: materials.size,
+		textureCount: textures.size,
+	});
+	delete group.userData.windGrassPagehideHandler;
+}
+
 export function createWindGrassRun180({
 	sampleHeightMeters,
 	seaLevelMeters,
@@ -299,5 +348,15 @@ export function createWindGrassRun180({
 		mapAlignedSnowAuthority: true,
 		snowAware: true,
 	};
+	group.userData.windGrassLifecycle = Object.freeze({
+		policyId: WIND_GRASS_LIFECYCLE_POLICY.id,
+		disposed: false,
+		moduleOwnsGpuResources: true,
+	});
+	if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+		const pagehideHandler = () => disposeWindGrassRun180(group);
+		group.userData.windGrassPagehideHandler = pagehideHandler;
+		window.addEventListener('pagehide', pagehideHandler, { once: true });
+	}
 	return { group, mesh };
 }
