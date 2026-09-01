@@ -1,17 +1,17 @@
 /**
- * Final Run221 night-atmosphere calibration plus the full-world lower-hemisphere continuity fix.
+ * Final Run221 night-atmosphere calibration plus full-world lower-hemisphere marine continuity.
  *
- * V4's irregular ray curtains passed visual review, but the lower night sky beneath the auroral
- * arc remained too close to black. Full-world orthographic proof then exposed a shipped-runtime
- * composition problem: finite world-anchored marine planes can end inside the camera frustum,
- * revealing the camera-relative sky below them as a sharply different rectangular colour family.
+ * V4's irregular ray curtains passed visual review, but full-world orthographic proof exposed a
+ * separate shipped-runtime composition problem: finite world-anchored marine planes can end inside
+ * the camera frustum and reveal the camera-relative lower sky as a sharply different rectangular
+ * colour family.
  *
- * The previous V5 policy correctly derived a marine floor from the shared deep-sea palette, but its
- * `nightBounce` replacement target no longer exists in the V4 final shader, so that part of the fix
- * was a no-op. This revision applies the shared marine floor at the actual V4 `skyColor` composition
- * point. Only below-horizon night fragments converge to the marine palette; horizon/day/twilight and
- * auroral geometry remain authored by the existing shader. Geography, hydrology and water coverage
- * are untouched.
+ * The previous V5 correction finally patched the real V4 `skyColor` composition target, but still
+ * multiplied the marine-floor mask by `uNightFactor`. That made the P0 continuity correction vanish
+ * during daylight/twilight proof captures even though the finite water footprint remains present at
+ * every time of day. This revision makes the below-horizon marine floor lighting-independent while
+ * preserving a narrow release band around the horizon. Geography, hydrology, water coverage, day
+ * horizon colour and auroral geometry remain untouched.
  */
 
 import { GEOGRAPHIC_REFERENCE_PALETTE } from './world/geographicReferencePalette.js';
@@ -27,7 +27,7 @@ function rgbTripletFromHex(hex) {
 const MARINE_NIGHT_FLOOR_RGB = rgbTripletFromHex(GEOGRAPHIC_REFERENCE_PALETTE.water.deepSea);
 
 export const WORLD_SKY_MARINE_FLOOR_POLICY = Object.freeze({
-	id: 'camera-relative-marine-lower-hemisphere-continuity-v3-effective-shader-blend',
+	id: 'camera-relative-marine-lower-hemisphere-continuity-v4-all-lighting',
 	renderOnly: true,
 	cameraRelative: true,
 	canonicalGeographyUnchanged: true,
@@ -36,10 +36,9 @@ export const WORLD_SKY_MARINE_FLOOR_POLICY = Object.freeze({
 	blackBackgroundFallback: false,
 	sharedDeepSeaPalette: true,
 	explicitBelowHorizonBlend: true,
+	allLightingContinuity: true,
 	blendFullBelowDirectionY: -0.16,
 	blendReleasedDirectionY: 0.035,
-	nightBlendStart: 0.45,
-	nightBlendFull: 0.95,
 	marineNightFloorRgb: MARINE_NIGHT_FLOOR_RGB,
 });
 
@@ -59,7 +58,7 @@ export function applyAuroraNightAtmosphereV5(material) {
 		)
 		.replace(
 			'vec3 skyColor = mix(canonicalSky, deepSky, deepBlend);',
-			`vec3 skyColor = mix(canonicalSky, deepSky, deepBlend);\n\t\tfloat marineFloorMask = (1.0 - smoothstep(${WORLD_SKY_MARINE_FLOOR_POLICY.blendFullBelowDirectionY.toFixed(3)}, ${WORLD_SKY_MARINE_FLOOR_POLICY.blendReleasedDirectionY.toFixed(3)}, dir.y)) * smoothstep(${WORLD_SKY_MARINE_FLOOR_POLICY.nightBlendStart.toFixed(2)}, ${WORLD_SKY_MARINE_FLOOR_POLICY.nightBlendFull.toFixed(2)}, uNightFactor);\n\t\tvec3 marineNightFloor = vec3(${marineFloor});\n\t\tskyColor = mix(skyColor, marineNightFloor, marineFloorMask);`,
+			`vec3 skyColor = mix(canonicalSky, deepSky, deepBlend);\n\t\tfloat marineFloorMask = 1.0 - smoothstep(${WORLD_SKY_MARINE_FLOOR_POLICY.blendFullBelowDirectionY.toFixed(3)}, ${WORLD_SKY_MARINE_FLOOR_POLICY.blendReleasedDirectionY.toFixed(3)}, dir.y);\n\t\tvec3 marineNightFloor = vec3(${marineFloor});\n\t\tskyColor = mix(skyColor, marineNightFloor, marineFloorMask);`,
 		)
 		.replace(
 			'finalColor += oxygenGreen * haze * 0.10;',
