@@ -33,7 +33,6 @@ export const WATER_OFFSHORE_OPTICAL_GAIN = 0.82;
 
 export const WATER_LAYER_TRANSITION_POLICY = Object.freeze({
 	id: 'water-near-far-opacity-feather-2026-08-31-v2-organic-radial',
-	nearHalfExtentMeters: 2000,
 	featherStartMeters: 1720,
 	featherEndMeters: 1990,
 	distanceMetric: 'camera-relative-euclidean-organic',
@@ -130,7 +129,7 @@ const WATER_VERTEX_SHADER = /* glsl */ `
 		vec2 dir = normalize(direction);
 		float k = TAU / wavelength;
 		float omega = sqrt(GRAVITY * k);
-		float phase = k * dot(dir, worldXZ) - omega * time;
+		float phase = k * dot(dir, worldXZ) + 0.58 * sin(k * 0.22 * dot(vec2(-dir.y, dir.x), worldXZ) + omega * time * 0.23) - omega * time;
 		height += amplitude * sin(phase);
 		slope += dir * (amplitude * k * cos(phase));
 	}
@@ -310,9 +309,9 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 
 		float cameraDistance = distance(uCameraPosition, vWorldPosition);
 		float rippleFade = 1.0 - smoothstep(90.0, 360.0, cameraDistance);
-		float swellShadingFade = 1.0 - smoothstep(700.0, 3600.0, cameraDistance);
-		float microSlopeFade = 1.0 - smoothstep(520.0, 2800.0, cameraDistance);
-		vec2 slope = vSwellSlope * swellShadingFade * 5.0 + rippleSlope(vWorldPosition.xz, uTime) * rippleFade;
+		float swellShadingFade = 1.0 - smoothstep(700.0, 2400.0, cameraDistance);
+		float microSlopeFade = mix(0.22, 1.0, 1.0 - smoothstep(520.0, 3200.0, cameraDistance));
+		vec2 slope = vSwellSlope * swellShadingFade * 2.6 + rippleSlope(vWorldPosition.xz, uTime) * rippleFade;
 		slope += openOceanMicroSlope(vWorldPosition.xz, uTime, oceanShear) * microSlopeFade * deepMarineMask;
 		vec3 normal = normalize(vec3(-slope.x, 1.0, -slope.y));
 		vec3 viewDir = normalize(uCameraPosition - vWorldPosition);
