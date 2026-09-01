@@ -163,8 +163,8 @@ const AURORA_RAY_CURTAIN_V4_FRAGMENT_SHADER = /* glsl */ `
 		float filamentSignal = sheet * 0.78 + microFilament * 0.26;
 		float filament = smoothstep(0.14, 0.62, filamentSignal);
 		float envelope = ray4CurtainEnvelope(az, phase, timeValue);
-		float edgeCore = exp(-abs(aboveEdge) / 0.034);
-		float risingCore = step(0.0, aboveEdge) * exp(-max(aboveEdge, 0.0) / 0.19) * 0.62;
+		float edgeCore = exp(-abs(aboveEdge) / 0.024) * 0.72;
+		float risingCore = step(0.0, aboveEdge) * exp(-max(aboveEdge, 0.0) / 0.24) * 0.95;
 		float verticalBreakup = 0.62 + 0.38 * ray4Noise(vec2(az * 21.0 + phase, elevation * 12.0 - timeValue * 0.018));
 		return filament * envelope * (edgeCore + risingCore) * verticalBreakup;
 	}
@@ -213,7 +213,7 @@ const AURORA_RAY_CURTAIN_V4_FRAGMENT_SHADER = /* glsl */ `
 
 		vec3 finalColor = skyColor;
 		finalColor += oxygenGreen * haze * 0.078;
-		finalColor += oxygenGreen * phosphorCore * 0.68;
+		finalColor += oxygenGreen * phosphorCore * 0.86;
 		finalColor += auroraColor * energy * 0.74;
 		float dither = (ray4Hash(gl_FragCoord.xy + vec2(17.0, 31.0)) - 0.5) * uBandingDitherStrength;
 		finalColor = max(finalColor + dither, vec3(0.0));
@@ -228,6 +228,6 @@ export function applyAuroraRayCurtainV4(material) {
 	material.userData.naturalAuroraCurtains = true;
 	material.userData.auroraCurtainRaysV4 = true;
 	material.userData.finalAtmosphereProfile = 'camera-relative-horizon-upper-air-v6';
-	material.userData.auroraCurtainMorphology = 'broken-asymmetric-ray-sheets-v9-phosphor-cores';
+	material.userData.auroraCurtainMorphology = 'broken-asymmetric-ray-sheets-v10-rising-phosphor';
 	return material;
 }
