@@ -71,10 +71,8 @@ try {
     const nearestHerdDeltaX = nearestFollower.object3D.position.x; farLeader.dispose(); nearLeader.dispose(); nearestFollower.dispose();
     const ecologyRegistry = new Map();
     const wrapEcology = (raw, speciesId, sourceId, predatorSpeciesIds = [], predatorThreatRadiusMeters = 0) => wrapCreatureWithThreatMemory(raw, { triggerRadiusMeters: 15, reactiveDirection: 'away', memorySeconds: 1.25, speciesId, sourceId, predatorSpeciesIds, predatorThreatRadiusMeters, ecologyRegistry });
-    const rightPredator = wrapEcology(createBeing('aslan', 'predator-tie-right', 5), 'aslan', 'right');
-    const leftPredator = wrapEcology(createBeing('aslan', 'predator-tie-left', -5), 'aslan', 'left');
-    const tiedPrey = wrapEcology(createBeing('geyik', 'predator-tie-prey'), 'geyik', 'prey', ['aslan'], 24);
-    tiedPrey.update(0.1, { x: 100, z: 100 });
+    const rightPredator = wrapEcology(createBeing('aslan', 'predator-tie-right', 5), 'aslan', 'right'); const leftPredator = wrapEcology(createBeing('aslan', 'predator-tie-left', -5), 'aslan', 'left');
+    const tiedPrey = wrapEcology(createBeing('geyik', 'predator-tie-prey'), 'geyik', 'prey', ['aslan'], 24); tiedPrey.update(0.1, { x: 100, z: 100 });
     const tiedPredatorDeltaX = tiedPrey.object3D.position.x; rightPredator.dispose(); leftPredator.dispose(); tiedPrey.dispose();
     return {
       before, after, position, exactStopDistance, afterCollider, rejectedPosition, recoveredDistance,
