@@ -73,6 +73,7 @@ export const NATURAL_GEOLOGY_PLACEMENT_POLICY = Object.freeze({
   desktopMaxPlacements: 620,
   mobileMaxPlacements: 190,
   assetProxyFraction: 0.105,
+  assetProxyYawJitterRadians: 0.24,
   valyriaAssetProxyFraction: 0.24,
   valyriaMinimumInfluence: 0.08,
   valyriaPolicyId: VALYRIA_GEOLOGY_POLICY.id,
@@ -508,6 +509,7 @@ function makePlacement({ seed, candidateIndex, x, z, frame, cluster, influence, 
   const yaw = structuralAngle
     + angleDifferenceRadians(frame.downhillAngleRadians, structuralAngle) * blendToDownhill
     + hashSigned(seed, column, row, 106) * (valyriaInfluence > P.valyriaMinimumInfluence ? 0.22 : 0.34);
+  const presentationYaw = yaw + (kind === 'asset-proxy' ? hashSigned(seed, column, row, 112) * P.assetProxyYawJitterRadians : 0);
 
   const terrainTilt = Math.min(P.maxTiltDegrees / DEG, frame.slopeRadians * 0.52);
   const buryFraction = kind === 'talus'
@@ -543,7 +545,7 @@ function makePlacement({ seed, candidateIndex, x, z, frame, cluster, influence, 
     clusterInfluence: influence,
     score,
     scale: Object.freeze(scale),
-    yawRadians: yaw,
+    yawRadians: presentationYaw,
     tiltRadians: terrainTilt,
     tiltAxisRadians: frame.downhillAngleRadians + Math.PI * 0.5 + hashSigned(seed, column, row, 107) * 0.18,
     slopeDegrees: frame.slopeDegrees,
