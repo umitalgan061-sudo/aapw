@@ -50,7 +50,7 @@ for (const token of [
 assert(!/\bfloat\s+patch\b/.test(v4), 'V4 must not reintroduce reserved GLSL variable `patch`.');
 assert(v4.includes('return mix(0.18, 1.0, opening);'), 'V4 dim-gap floor contract missing.');
 assert(v4.includes('float quietColumns = 0.14 + raySheet * 0.86;'), 'V4 ray-sheet floor contract missing.');
-assert(v4.includes('finalColor += oxygenGreen * phosphorCore * 0.42;'), 'V4 narrow phosphor-core output missing.');
+assert(v4.includes('finalColor += oxygenGreen * phosphorCore * 0.68;'), 'V4 calibrated narrow phosphor-core output missing.');
 assert(v4.includes('secondary') && v4.includes('* 0.24'), 'V4 restrained secondary curtain contract missing.');
 assert(v4.includes('oxygenGreen') && v4.includes('subduedViolet'), 'V4 natural aurora palette contract missing.');
 
@@ -72,4 +72,4 @@ for (const file of [
 	assert(sw.includes(`GAME3D_SHELL_FILES.push('${file}');`), `PWA offline shell missing ${file}`);
 }
 
-console.log('[checkRun221AuroraFinalContract] PASS: final V4 consumes camera-relative atmosphere with broken ray sheets and narrow phosphor cores; V5 required-token night calibration, world-direction anchoring and offline PWA dependencies are locked.');
+console.log('[checkRun221AuroraFinalContract] PASS: final V4 consumes camera-relative atmosphere with broken ray sheets and calibrated narrow phosphor cores; V5 required-token night calibration, world-direction anchoring and offline PWA dependencies are locked.');
