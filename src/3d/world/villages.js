@@ -537,14 +537,20 @@ export function disposeVillages(group) {
 		for (const material of materials) {
 			if (!material || disposedMaterials.has(material)) continue;
 			disposedMaterials.add(material);
-			for (const key of ['map', 'roughnessMap', 'normalMap', 'metalnessMap']) {
-				const texture = material[key];
-				if (texture && !disposedTextures.has(texture)) {
-					disposedTextures.add(texture);
-					texture.dispose();
+			const factoryGenerated = material.userData?.generatedByTextureFactory === true;
+			const factoryCached = factoryGenerated && Boolean(material.userData?.cacheKey);
+			// Factory-generated textures are cache-owned even when the layered wrapper material itself
+			// is not cached. Village teardown may dispose that wrapper, but never shared cache textures.
+			if (!factoryGenerated) {
+				for (const key of ['map', 'roughnessMap', 'normalMap', 'metalnessMap']) {
+					const texture = material[key];
+					if (texture && !disposedTextures.has(texture)) {
+						disposedTextures.add(texture);
+						texture.dispose();
+					}
 				}
 			}
-			material.dispose();
+			if (!factoryCached) material.dispose();
 		}
 	});
 }
