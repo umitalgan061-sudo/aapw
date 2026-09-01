@@ -19,6 +19,56 @@ const required = [
 ];
 for (const [needle, message] of required) assert.ok(npc.includes(needle), message);
 
+function extractExportedFunction(name) {
+  const start = npc.indexOf(`export function ${name}`);
+  assert.ok(start >= 0, `${name} must remain exported from npc.js`);
+  const openParen = npc.indexOf('(', start);
+  let parens = 0;
+  let closeParen = -1;
+  for (let i = openParen; i < npc.length; i += 1) {
+    if (npc[i] === '(') parens += 1;
+    else if (npc[i] === ')' && --parens === 0) { closeParen = i; break; }
+  }
+  const brace = npc.indexOf('{', closeParen);
+  let depth = 0;
+  let end = -1;
+  for (let i = brace; i < npc.length; i += 1) {
+    if (npc[i] === '{') depth += 1;
+    else if (npc[i] === '}' && --depth === 0) { end = i + 1; break; }
+  }
+  assert.ok(end > brace, `${name} must have a complete body`);
+  return npc.slice(start, end).replace(/^export\s+/, '');
+}
+
+const evaluateNpcGuardAssistAlert = new Function(
+  `${extractExportedFunction('evaluateNpcGuardAssistAlert')}; return evaluateNpcGuardAssistAlert;`,
+)();
+const observer = Object.freeze({ x: 0, z: 0 });
+const baseAlert = Object.freeze({
+  groupId: 'winterfell-guard', sourceId: 'guard-a', revision: 7,
+  sourcePosition: Object.freeze({ x: 3, z: 4 }),
+  lastKnown: Object.freeze({ x: 6, z: 8 }),
+});
+const evaluate = (alert, overrides = {}) => evaluateNpcGuardAssistAlert({
+  alert, observer, groupId: 'winterfell-guard', sourceId: 'guard-b',
+  lastRevision: 6, assistRadiusMeters: 25, ...overrides,
+});
+
+const validAssist = evaluate(baseAlert);
+assert.equal(validAssist.accepted, true);
+assert.equal(validAssist.reason, 'assist');
+assert.equal(validAssist.sourceDistanceMeters, 5);
+assert.deepEqual(validAssist.lastKnown, { x: 6, z: 8 });
+assert.equal(evaluate(baseAlert, { lastRevision: 7 }).reason, 'stale');
+assert.equal(evaluate(baseAlert, { sourceId: 'guard-a', lastRevision: 0 }).reason, 'self');
+for (const sourcePosition of [{ x: Infinity, z: 0 }, { x: 0, z: Number.NaN }]) {
+  const invalid = evaluate({ ...baseAlert, sourcePosition }, { lastRevision: 0 });
+  assert.equal(invalid.accepted, false);
+  assert.equal(invalid.reason, 'range');
+  assert.equal(Number.isFinite(invalid.sourceDistanceMeters), false);
+}
+assert.equal(evaluate({ ...baseAlert, sourcePosition: { x: 30, z: 0 } }, { lastRevision: 0 }).reason, 'range');
+
 assert.equal(/Math\.random\s*\(/.test(npc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')), false,
   'NPC gameplay lifecycle must remain deterministic and avoid Math.random()');
 assert.equal(npc.includes('EditorMaterialStudio'), false, 'NPC runtime must never import editor-only material UI');
@@ -27,5 +77,6 @@ console.log('NPC_GUARD_LIFECYCLE_CONTRACT_PASS', JSON.stringify({
   lifecycle: ['patrol', 'observe', 'chase', 'combat', 'investigate', 'return', 'patrol'],
   deterministic: true,
   lodBounded: true,
+  guardAssistInputSafe: true,
   editorRuntimeSeparated: true,
 }));
