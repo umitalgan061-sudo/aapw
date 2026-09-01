@@ -25,10 +25,10 @@ assert(seats.length === 14, `expected 14 canonical seats, found ${seats.length}`
 const flattenMatch = settlementSource.match(/const SETTLEMENT_FLATTEN_OUTER_RADIUS_METERS = (\d+);/);
 assert(flattenMatch, 'could not derive settlement flatten outer radius');
 const settlementTransitionRadiusMeters = Number(flattenMatch[1]);
-assert(settlementTransitionRadiusMeters === 150, `settlement transition outer radius drifted: ${settlementTransitionRadiusMeters}`);
+assert(settlementTransitionRadiusMeters === 210, `settlement transition outer radius drifted: ${settlementTransitionRadiusMeters}`);
 
 // Hydrology protection and terrain flattening are deliberately different contracts. Keep the
-// coarse-mask land exception local to the castle footprint instead of turning a 150m coastal
+// coarse-mask land exception local to the castle footprint instead of turning the 210m terrain
 // transition into an equally-wide artificial land reclamation zone.
 const hydrologyProtectionRadiusMeters = 75;
 const protectedSites = seats.map((seat) => ({ id: seat.id, ...mapCanvasToNormalizedReference(seat.mapX, seat.mapY) }));
