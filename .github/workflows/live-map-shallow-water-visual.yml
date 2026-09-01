@@ -114,11 +114,18 @@ jobs:
         run: |
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
-          node scripts/checkWaterVisualContract.js
-          node scripts/checkRun325WaterSwell.js
-          node scripts/captureLiveWorldWaterTopdown.mjs
-          node scripts/checkMobilePerfBudget.js
-          node scripts/smokeTestGame3D.js
+          run_gpu_contract() {
+            local label="$1"
+            shift
+            echo "::group::${label}"
+            "$@"
+            echo "::endgroup::"
+          }
+          run_gpu_contract 'real GPU water visual contract' node scripts/checkWaterVisualContract.js
+          run_gpu_contract 'Run325 water swell proof' node scripts/checkRun325WaterSwell.js
+          run_gpu_contract 'shipped createScene full-world water capture' node scripts/captureLiveWorldWaterTopdown.mjs
+          run_gpu_contract 'mobile performance budget' node scripts/checkMobilePerfBudget.js
+          run_gpu_contract '3D browser smoke safety' node scripts/smokeTestGame3D.js
       - name: Final exact-main freshness
         run: |
           set -euo pipefail
