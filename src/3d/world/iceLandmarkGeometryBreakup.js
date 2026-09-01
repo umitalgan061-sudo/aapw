@@ -155,7 +155,8 @@ function iceVertexFabric(mesh, seed, {
 	}
 	installIceRoughnessFabric(material, seed + 13513);
 	mesh.material = material;
-	mesh.userData.worldSpaceGlacialAlbedoFabric = 'deterministic-smoothed-multiscale-v6-true-world-space';
+	mesh.userData.worldSpaceGlacialAlbedoFabric = 'deterministic-smoothed-multiscale-v5-neutral-ice';
+	mesh.userData.worldSpaceGlacialCoordinateMode = 'matrix-world-v1';
 	mesh.userData.worldSpaceGlacialRoughnessFabric = 'deterministic-shader-multiscale-v3-aerial';
 	return position.count;
 }
