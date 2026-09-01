@@ -11,6 +11,7 @@ on:
       - 'src/3d/world/naturalGeologyPlacement.js'
       - 'src/3d/world/naturalGeology.js'
       - 'src/3d/world/naturalGeologySurfaceMaterial.js'
+      - 'src/3d/world/PreResolvedInstancedAssetPlacement.js'
       - 'src/3d/sceneManager.js'
       - 'scripts/checkValyriaGeology.mjs'
       - 'scripts/checkValyriaVolcanicMorphology.mjs'
@@ -20,6 +21,7 @@ on:
       - 'scripts/checkNaturalGeologyPlacement.mjs'
       - 'scripts/checkNaturalGeologySourceContract.mjs'
       - 'scripts/checkNaturalGeologyAbortSafety.mjs'
+      - 'scripts/checkNaturalGeologySharedPlacementHydration.mjs'
       - 'scripts/checkNaturalGeologySurfacePbr.js'
       - '.github/workflows/natural-geology-exact-head.yml'
   push:
@@ -35,6 +37,7 @@ on:
       - 'src/3d/world/naturalGeologyPlacement.js'
       - 'src/3d/world/naturalGeology.js'
       - 'src/3d/world/naturalGeologySurfaceMaterial.js'
+      - 'src/3d/world/PreResolvedInstancedAssetPlacement.js'
       - 'src/3d/sceneManager.js'
       - 'scripts/checkValyriaGeology.mjs'
       - 'scripts/checkValyriaVolcanicMorphology.mjs'
@@ -44,6 +47,7 @@ on:
       - 'scripts/checkNaturalGeologyPlacement.mjs'
       - 'scripts/checkNaturalGeologySourceContract.mjs'
       - 'scripts/checkNaturalGeologyAbortSafety.mjs'
+      - 'scripts/checkNaturalGeologySharedPlacementHydration.mjs'
       - 'scripts/checkNaturalGeologySurfacePbr.js'
       - '.github/workflows/natural-geology-exact-head.yml'
   workflow_dispatch:
@@ -77,6 +81,7 @@ jobs:
           node --check src/3d/world/naturalGeologyPlacement.js
           node --check src/3d/world/naturalGeology.js
           node --check src/3d/world/naturalGeologySurfaceMaterial.js
+          node --check src/3d/world/PreResolvedInstancedAssetPlacement.js
           node --check src/3d/sceneManager.js
           node --check scripts/checkValyriaGeology.mjs
           node --check scripts/checkValyriaVolcanicMorphology.mjs
@@ -86,9 +91,14 @@ jobs:
           node --check scripts/checkNaturalGeologyPlacement.mjs
           node --check scripts/checkNaturalGeologySourceContract.mjs
           node --check scripts/checkNaturalGeologyAbortSafety.mjs
+          node --check scripts/checkNaturalGeologySharedPlacementHydration.mjs
           node --check scripts/checkNaturalGeologySurfacePbr.js
       - name: Resolve vendored Three.js for canonical terrain imports
         run: node scripts/setupNodeThreeShim.mjs
+      - name: Shared material and instanced hydration authority
+        run: |
+          node scripts/checkSharedMaterialPlacementContract.js
+          node scripts/checkNaturalGeologySharedPlacementHydration.mjs
       - name: Valyria geography authority
         run: node scripts/checkValyriaGeology.mjs
       - name: Valyria volcanic morphology matrix
@@ -123,7 +133,9 @@ jobs:
           test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
           node --check src/3d/world/naturalGeology.js
           node --check src/3d/world/naturalGeologySurfaceMaterial.js
+          node --check src/3d/world/PreResolvedInstancedAssetPlacement.js
           node --check scripts/checkNaturalGeologyAbortSafety.mjs
+          node --check scripts/checkNaturalGeologySharedPlacementHydration.mjs
           node --check scripts/checkNaturalGeologySurfacePbr.js
       - name: Resolve vendored Three.js for Node imports
         run: node scripts/setupNodeThreeShim.mjs
@@ -137,6 +149,7 @@ jobs:
           const surface = await import('./src/3d/world/naturalGeologySurfaceMaterial.js');
           if (!geology.NATURAL_GEOLOGY_RENDER_POLICY?.renderOnly) throw new Error('render-only contract lost');
           if (!geology.NATURAL_GEOLOGY_RENDER_POLICY?.surfaceModeHydrationParity) throw new Error('surface-mode hydration parity lost');
+          if (!geology.NATURAL_GEOLOGY_RENDER_POLICY?.sharedPlacementManifestRequired) throw new Error('shared placement manifest lost');
           if (!surface.NATURAL_GEOLOGY_SURFACE_POLICY?.worldSpaceRoughnessVariation) throw new Error('surface roughness variation lost');
           if (geology.NATURAL_GEOLOGY_RENDER_POLICY.referenceLandscapeRuntimeLoad !== false) throw new Error('heavy landscape became runtime load');
           const g = geology.createNaturalRockPrototypeGeometry('fractured-scarp');
