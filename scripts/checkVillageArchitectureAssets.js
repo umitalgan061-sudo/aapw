@@ -16,6 +16,7 @@ function assertHydratedGlbs() {
 	assert(source.includes('bodyMesh.setColorAt(houseCount, wallTint)'), 'procedural village fabric must carry regional wall tint per instance');
 	assert(source.includes('roofMesh.setColorAt(houseCount, roofTint)'), 'procedural village fabric must carry regional roof tint per instance');
 	assert(source.includes('AssetLoader.disposeObject3D(source)'), 'late GLB completion must dispose source after village teardown');
+	assert(source.includes('factoryCached'), 'village teardown must distinguish shared factory-cache materials from local materials');
 	const assetPaths = [...new Set([...source.matchAll(/assetUrl:\s*'([^']+\.glb)'/g)].map((match) => match[1]))];
 	assert(assetPaths.length >= 6, `expected regional model diversity, found only ${assetPaths.length} GLB family/families`);
 	for (const assetPath of assetPaths) {
@@ -136,6 +137,36 @@ async function main() {
 			const lifecycleEvidence = await lifecyclePromise;
 			const lateAssetCount = lifecycleGroup.getObjectByName('village-architectural-assets')?.children.length ?? 0;
 
+			// Material ownership regression. Shared textureFactory cache entries must survive a local
+			// village teardown; uncached layered wrappers may die, while village-owned materials/maps
+			// must still be released.
+			const ownershipGroup = new THREE.Group();
+			const sharedTexture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
+			const ownedTexture = new THREE.DataTexture(new Uint8Array([128, 128, 128, 255]), 1, 1);
+			let sharedTextureDisposed = false;
+			let ownedTextureDisposed = false;
+			let cachedMaterialDisposed = false;
+			let layeredMaterialDisposed = false;
+			let ownedMaterialDisposed = false;
+			sharedTexture.addEventListener('dispose', () => { sharedTextureDisposed = true; });
+			ownedTexture.addEventListener('dispose', () => { ownedTextureDisposed = true; });
+			const cachedMaterial = new THREE.MeshStandardMaterial({ map: sharedTexture });
+			cachedMaterial.userData.generatedByTextureFactory = true;
+			cachedMaterial.userData.cacheKey = 'test:cached-house';
+			cachedMaterial.addEventListener('dispose', () => { cachedMaterialDisposed = true; });
+			const layeredMaterial = new THREE.MeshStandardMaterial({ map: sharedTexture });
+			layeredMaterial.userData.generatedByTextureFactory = true;
+			layeredMaterial.userData.layeredBands = ['stone', 'house', 'thatch'];
+			layeredMaterial.addEventListener('dispose', () => { layeredMaterialDisposed = true; });
+			const ownedMaterial = new THREE.MeshStandardMaterial({ map: ownedTexture });
+			ownedMaterial.addEventListener('dispose', () => { ownedMaterialDisposed = true; });
+			ownershipGroup.add(
+				new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), cachedMaterial),
+				new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), layeredMaterial),
+				new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), ownedMaterial),
+			);
+			disposeVillages(ownershipGroup);
+
 			const scene = new THREE.Scene();
 			scene.background = new THREE.Color(0xa8bfd1);
 			scene.add(new THREE.HemisphereLight(0xf4f6ff, 0x4d4b3a, 2));
@@ -186,6 +217,13 @@ async function main() {
 					lateGeometryDisposed,
 					lateMaterialDisposed,
 				},
+				ownership: {
+					sharedTextureDisposed,
+					ownedTextureDisposed,
+					cachedMaterialDisposed,
+					layeredMaterialDisposed,
+					ownedMaterialDisposed,
+				},
 			};
 		});
 
@@ -206,6 +244,11 @@ async function main() {
 		assert.equal(result.lifecycle.lateAssetCount, 0, 'late GLB must not be attached after teardown');
 		assert.equal(result.lifecycle.lateGeometryDisposed, true, 'late GLB geometry must be disposed after teardown');
 		assert.equal(result.lifecycle.lateMaterialDisposed, true, 'late GLB material must be disposed after teardown');
+		assert.equal(result.ownership.sharedTextureDisposed, false, 'factory-cache texture must remain owned by the shared cache');
+		assert.equal(result.ownership.cachedMaterialDisposed, false, 'factory-cache material must remain owned by the shared cache');
+		assert.equal(result.ownership.layeredMaterialDisposed, true, 'uncached layered wrapper material must be disposed locally');
+		assert.equal(result.ownership.ownedTextureDisposed, true, 'village-owned texture must still be disposed locally');
+		assert.equal(result.ownership.ownedMaterialDisposed, true, 'village-owned material must still be disposed locally');
 		for (const proof of result.manifestProof) {
 			assert(proof.generatedMaterialCount > 0, `${proof.region}: no generated PBR material`);
 			assert(proof.meshCount > 0 && proof.surfaceCount > 0, `${proof.region}: no renderable material surfaces`);
@@ -228,6 +271,7 @@ async function main() {
 			regions: result.regions,
 			profileTints: result.profileTints,
 			lifecycle: result.lifecycle,
+			ownership: result.ownership,
 			proof: result.manifestProof,
 			pageErrors: pageErrors.length,
 			consoleErrors: consoleErrors.length,
