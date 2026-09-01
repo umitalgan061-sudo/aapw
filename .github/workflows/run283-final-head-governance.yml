@@ -82,9 +82,9 @@ jobs:
           set -euxo pipefail
           node --check scripts/checkRun283FinalHeadGovernance.js
           node scripts/checkRun283FinalHeadGovernance.js
-          node scripts/checkSeededRandomPolicy.js
-          node scripts/checkAssetsManifest.js
-          node scripts/checkServiceWorkerCache.js
+          node scripts/checkSeededRandomPolicy.js || { echo '::error title=Run283 contract failed::checkSeededRandomPolicy.js'; exit 1; }
+          node scripts/checkAssetsManifest.js || { echo '::error title=Run283 contract failed::checkAssetsManifest.js'; exit 1; }
+          node scripts/checkServiceWorkerCache.js || { echo '::error title=Run283 contract failed::checkServiceWorkerCache.js'; exit 1; }
           node scripts/checkPwaInstallability.js
           node scripts/checkSmokeCheckRegistry.js
           node scripts/checkWorldReferenceMap.js
