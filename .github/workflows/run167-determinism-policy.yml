@@ -106,7 +106,7 @@ jobs:
           node --check scripts/checkNpcGuardLifecycleFrameRateBrowser.js
           node --check scripts/checkNpcGuardOcclusionLifecycleBrowser.js
           node --check scripts/checkNpcGuardHearingLifecycleBrowser.js
-          node scripts/checkSeededRandomPolicy.js
+          node scripts/checkSeededRandomPolicy.js || { echo '::error title=Run167 contract failed::checkSeededRandomPolicy.js'; exit 1; }
           node scripts/checkNpcGuardLifecycleContract.mjs
           node scripts/checkAssetsManifest.js
           node scripts/checkPwaInstallability.js
