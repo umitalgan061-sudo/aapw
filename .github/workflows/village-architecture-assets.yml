@@ -86,7 +86,11 @@ jobs:
           node scripts/checkVillageArchitectureAssets.js 2>&1 | tee artifacts/village-architecture-assets/proof.log
 
       - name: PWA offline shell regression
-        run: node scripts/checkServiceWorkerCache.js
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/village-architecture-assets
+          node scripts/checkServiceWorkerCache.js 2>&1 | tee artifacts/village-architecture-assets/pwa-offline-shell.log
 
       - name: Final main freshness
         shell: bash
