@@ -8,13 +8,21 @@ on:
     paths:
       - 'src/3d/world/water.js'
       - 'src/3d/world/waterDepthField.js'
+      - 'src/3d/world/geographicReferencePalette.js'
+      - 'src/3d/auroraNightAtmosphereV5.js'
       - 'scripts/checkWaterVisualContract.js'
       - 'scripts/checkWaterSurfVisualContract.mjs'
       - 'scripts/checkWorldWaterCoverageP0.mjs'
       - 'scripts/checkWaterCoverageRasterQuality.mjs'
       - 'scripts/checkWaterCoverageSamplingBudget.mjs'
+      - 'scripts/checkWaterLayerTransition.mjs'
+      - 'scripts/checkGeographicReferencePalette.mjs'
+      - 'scripts/checkMarineSkyFloorContract.mjs'
+      - 'scripts/checkFullWorldMarineRectangles.mjs'
       - 'scripts/captureLiveWorldWaterTopdown.mjs'
       - '.github/workflows/live-map-shallow-water-visual.yml'
+      - '.github/workflows/water-layer-transition.yml'
+      - '.github/workflows/full-world-3d-topdown.yml'
       - '.github/workflows/full-world-runtime-coverage.yml'
       - '.github/workflows/world-environment-acceptance.yml'
   workflow_dispatch:
@@ -48,7 +56,7 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/water\.js|src/3d/world/waterDepthField\.js|scripts/checkWaterVisualContract\.js|scripts/checkWaterSurfVisualContract\.mjs|scripts/checkWorldWaterCoverageP0\.mjs|scripts/checkWaterCoverageRasterQuality\.mjs|scripts/checkWaterCoverageSamplingBudget\.mjs|scripts/captureLiveWorldWaterTopdown\.mjs|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/full-world-runtime-coverage\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/water\.js|src/3d/world/waterDepthField\.js|src/3d/world/geographicReferencePalette\.js|src/3d/auroraNightAtmosphereV5\.js|scripts/checkWaterVisualContract\.js|scripts/checkWaterSurfVisualContract\.mjs|scripts/checkWorldWaterCoverageP0\.mjs|scripts/checkWaterCoverageRasterQuality\.mjs|scripts/checkWaterCoverageSamplingBudget\.mjs|scripts/checkWaterLayerTransition\.mjs|scripts/checkGeographicReferencePalette\.mjs|scripts/checkMarineSkyFloorContract\.mjs|scripts/checkFullWorldMarineRectangles\.mjs|scripts/captureLiveWorldWaterTopdown\.mjs|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/water-layer-transition\.yml|\.github/workflows/full-world-3d-topdown\.yml|\.github/workflows/full-world-runtime-coverage\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
           echo "$CHANGED" | grep -Fx 'src/3d/world/water.js'
           echo "$CHANGED" | grep -Fx 'src/3d/world/waterDepthField.js'
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
@@ -64,16 +72,25 @@ jobs:
           set -euo pipefail
           node --check src/3d/world/water.js
           node --check src/3d/world/waterDepthField.js
+          node --check src/3d/world/geographicReferencePalette.js
+          node --check src/3d/auroraNightAtmosphereV5.js
           node --check scripts/checkWaterVisualContract.js
           node --check scripts/checkWaterSurfVisualContract.mjs
           node --check scripts/checkWorldWaterCoverageP0.mjs
           node --check scripts/checkWaterCoverageRasterQuality.mjs
           node --check scripts/checkWaterCoverageSamplingBudget.mjs
+          node --check scripts/checkWaterLayerTransition.mjs
+          node --check scripts/checkGeographicReferencePalette.mjs
+          node --check scripts/checkMarineSkyFloorContract.mjs
+          node --check scripts/checkFullWorldMarineRectangles.mjs
           node --check scripts/captureLiveWorldWaterTopdown.mjs
           node scripts/checkWorldWaterCoverageP0.mjs
           node scripts/checkWaterCoverageRasterQuality.mjs
           node scripts/checkWaterCoverageSamplingBudget.mjs
           node scripts/checkWaterSurfVisualContract.mjs
+          node scripts/checkWaterLayerTransition.mjs
+          node scripts/checkGeographicReferencePalette.mjs
+          node scripts/checkMarineSkyFloorContract.mjs
       - name: Hydrate scoped smoke-test LFS assets
         run: |
           set -euo pipefail
