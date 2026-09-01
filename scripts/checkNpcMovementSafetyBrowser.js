@@ -89,6 +89,22 @@ async function main() {
       const skippedAfterInvalidDelta = resumeNpc.object3D.userData.simulationSkippedTicks;
       resumeNpc.dispose();
 
+      const malformedPatrolNpc = await createNPC({
+        assetLoader: new FakeAssetLoader(),
+        modelUrl: '/assets/models/characters/paladin_j_nordstrom.fbx',
+        idleAnimationUrl: '/assets/animations/peasant_girl/idle.fbx',
+        walkAnimationUrl: '/assets/animations/peasant_girl/walking.fbx',
+        worldX: 0, worldZ: 0, groundY: 0,
+        name: 'malformed-patrol-guard',
+        groundCollider: { getGroundHeight: () => 0 },
+        playerCollider: { resolveXZ: (x, z) => ({ x, z }) },
+        patrolWaypoints: [{ x: Infinity, z: 4 }],
+        speedMps: 2, pauseSeconds: 0, simulationLodMaxStepSeconds: 0.25,
+      });
+      malformedPatrolNpc.update(0.25, { x: 100, z: 100 });
+      const malformedPatrolPosition = malformedPatrolNpc.object3D.position.clone();
+      malformedPatrolNpc.dispose();
+
       const sampledWorldXs = [];
       const configuredSpawns = await spawnConfiguredNPCs({
         assetLoader: new FakeAssetLoader(),
@@ -153,6 +169,7 @@ async function main() {
         groundRecovered: recoveredGroundPosition.z > 0 && [recoveredGroundPosition.x, recoveredGroundPosition.y, recoveredGroundPosition.z].every(Number.isFinite),
         resumeDeltaBounded: boundedResumePosition.z > 0 && boundedResumePosition.z <= 0.500001,
         invalidDeltaIgnored: afterInvalidDelta.distanceTo(beforeInvalidDelta) < 1e-9 && skippedAfterInvalidDelta >= 1,
+        malformedPatrolFailsClosed: malformedPatrolPosition.distanceTo(new THREE.Vector3(0, 0, 0)) < 1e-9 && [malformedPatrolPosition.x, malformedPatrolPosition.y, malformedPatrolPosition.z].every(Number.isFinite),
         configuredSpawnIsolation: configuredSpawns.length === 1 && configuredSpawns[0].object3D.name === 'spawn-valid',
         configuredSpawnGroundFinite: configuredSpawnPosition?.y === 3 && [configuredSpawnPosition.x, configuredSpawnPosition.y, configuredSpawnPosition.z].every(Number.isFinite),
         invalidWorldSkippedBeforeSampling: sampledWorldXs.length === 3 && sampledWorldXs.every(Number.isFinite),
