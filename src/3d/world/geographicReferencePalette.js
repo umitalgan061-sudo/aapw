@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-01-v73-hydrology-material-separation',
+	id: 'geographic-reference-palette-2026-09-01-v74-aerial-mineral-vegetation-separation',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,24 +20,24 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v73 preserves v56 aerial lowland ecotone separation and all canonical terrain, shoreline, hydrology and collider authority unchanged',
-		water: 'v73 keeps the v72 deepSea/abyss handoff intact and improves material separation inside the canonical wet mask: shallow coast is slightly greener/mineral, enclosed lake water slightly cooler/deeper, and river pools slightly clearer/bluer. This prevents coast, lake and river water from collapsing into one cyan family while canonical bathymetry, wet coverage, shoreline, lake membership, water geometry and colliders remain unchanged. Deterministic world-space macro/meso/fine albedo, pseudo-normal, roughness, current and glint remain responsible for within-surface variation.',
-		road: 'v73 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
+		terrain: 'v74 keeps canonical biome placement and terrain geometry unchanged while reducing over-saturated aerial green, lifting mineral/rock tonal separation and keeping damp shadow materially darker than exposed soil. Existing deterministic world-space biome, erosion, normal and roughness variation remains authoritative for within-surface breakup.',
+		water: 'v74 preserves the v73 hydrology material separation and v72 deepSea/abyss handoff unchanged; canonical bathymetry, wet coverage, shoreline, lake membership, water geometry and colliders remain unchanged.',
+		road: 'v74 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x021109,
-		meadow: 0x0b4e25,
-		dryHeather: 0x423825,
-		wetEarth: 0x07110d,
-		exposedEarth: 0x965337,
-		graniteShadow: 0x293135,
-		graniteSunlit: 0x5d5952,
-		basaltWet: 0x07141a,
-		quartz: 0x6b655d,
+		mossShadow: 0x07170e,
+		meadow: 0x214d2c,
+		dryHeather: 0x53452f,
+		wetEarth: 0x0a1511,
+		exposedEarth: 0x895f45,
+		graniteShadow: 0x30373a,
+		graniteSunlit: 0x686159,
+		basaltWet: 0x0a171c,
+		quartz: 0x777168,
 	}),
 	road: Object.freeze({
 		compacted: 0x684b38,
