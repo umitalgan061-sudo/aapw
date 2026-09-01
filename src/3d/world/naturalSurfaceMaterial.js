@@ -42,6 +42,9 @@ export const NATURAL_SURFACE_MATERIAL_POLICY = Object.freeze({
 	anisotropicLavaFlowFabric: true,
 	basaltLithicFacetFabric: true,
 	regionalLithicNormalRecovery: true,
+	valyriaLinearWeatheringPatina: true,
+	valyriaPatchyLithicExposure: true,
+	valyriaLinearCarrierRoughnessResponse: true,
 	lowlandMesoscaleReliefRecovery: true,
 	valyriaMacroNormalEnergyBounded: true,
 	valyriaMacroNormalBlendMax: 0.16,
@@ -402,6 +405,26 @@ float naturalSurfaceTerrainLedBlend = naturalSurfaceBrokenBoundary
 	* clamp(0.20 + naturalSurfaceValyriaMaterialBreakup * 0.30 + naturalSurfaceGeologicExposure * 0.28
 		+ naturalSurfaceDepositionalCover * 0.12 + naturalSurfaceValyria * 0.16, 0.16, 0.84);
 diffuseColor.rgb = mix(naturalSurfacePreValyriaColor, naturalSurfaceRevisedVolcanicColor, naturalSurfaceTerrainLedBlend);
+// Canonical drainage/fault carriers remain geometry authority, but their lit ridges must not read as
+// continuous pale paint. Patchy basaltic patina breaks the carrier optically without moving vertices.
+float naturalSurfaceLinearCarrier = clamp(naturalSurfaceDrainage * 0.58
+	+ naturalSurfaceGully * 0.48 + naturalSurfaceFault * 0.22, 0.0, 1.0);
+float naturalSurfaceLinearWeatheringBreakup = smoothstep(0.34, 0.77,
+	naturalSurfaceVolcanicMeso * 0.31 + (1.0 - naturalSurfaceVolcanicFine) * 0.37
+	+ naturalSurfaceLithicFacet * 0.22 + naturalSurfaceVolcanicGrain * 0.10);
+float naturalSurfaceLinearWeatheringPatina = naturalSurfaceValyria
+	* smoothstep(0.16, 0.76, naturalSurfaceLinearCarrier)
+	* mix(0.16, 0.88, naturalSurfaceLinearWeatheringBreakup);
+vec3 naturalSurfaceLinearPatinaColor = mix(vec3(0.052, 0.057, 0.058), vec3(0.148, 0.091, 0.061),
+	clamp(naturalSurfaceOxidation * 0.72 + naturalSurfaceSulfur * 0.12, 0.0, 1.0));
+diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfaceLinearPatinaColor,
+	naturalSurfaceLinearWeatheringPatina * (0.22 + naturalSurfaceSlope * 0.10));
+float naturalSurfacePatchyLithicExposure = naturalSurfaceValyria
+	* smoothstep(0.50, 0.79, naturalSurfaceLithicFacet * 0.56 + naturalSurfaceVolcanicFine * 0.44)
+	* (1.0 - naturalSurfaceAsh * 0.38) * (0.42 + naturalSurfaceSlope * 0.58);
+vec3 naturalSurfacePatchyBasalt = mix(vec3(0.076, 0.079, 0.078), vec3(0.168, 0.119, 0.083),
+	naturalSurfaceOxidation * 0.58);
+diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfacePatchyBasalt, naturalSurfacePatchyLithicExposure * 0.17);
 diffuseColor.rgb = clamp(diffuseColor.rgb, vec3(0.012), vec3(0.86));
 `;
 
@@ -453,6 +476,18 @@ float naturalSurfaceRoughTarget = 0.88 + naturalSurfaceRoughAsh * 0.070 + natura
 	+ naturalSurfaceRoughMorph.w * 0.035 - naturalSurfaceRoughObsidian * 0.24 + naturalSurfaceRoughFracture * 0.024
 	+ (naturalSurfaceRoughLava - 0.5) * 0.085 + (naturalSurfaceRoughFacet - 0.5) * 0.160;
 roughnessFactor = mix(roughnessFactor, clamp(naturalSurfaceRoughTarget, 0.46, 0.99), naturalSurfaceRoughValyria * 0.82);
+float naturalSurfaceRoughLinearCarrier = clamp(naturalSurfaceRoughMorph.y * 0.58
+	+ naturalSurfaceRoughMorph.z * 0.48 + naturalSurfaceRoughMorph.x * 0.22, 0.0, 1.0);
+float naturalSurfaceRoughCarrierBreakup = smoothstep(0.34, 0.77,
+	naturalSurfaceRoughAsh * 0.31 + (1.0 - naturalSurfaceRoughFine) * 0.37
+	+ naturalSurfaceRoughFacet * 0.22 + naturalSurfaceRoughGrainVolcanic * 0.10);
+float naturalSurfaceRoughLinearPatina = naturalSurfaceRoughValyria
+	* smoothstep(0.16, 0.76, naturalSurfaceRoughLinearCarrier)
+	* mix(0.16, 0.88, naturalSurfaceRoughCarrierBreakup);
+float naturalSurfacePatinaRoughTarget = mix(0.91, 0.98, naturalSurfaceRoughCarrierBreakup)
+	- naturalSurfaceRoughObsidian * 0.12;
+roughnessFactor = mix(roughnessFactor, clamp(naturalSurfacePatinaRoughTarget, 0.62, 0.99),
+	naturalSurfaceRoughLinearPatina * 0.24);
 `;
 
 const NATURAL_SURFACE_NORMAL = `
