@@ -38,6 +38,7 @@ const boundedSources = restored.snapshot().ledger.creditedSourceIds;
 assert.equal(boundedSources.length, 64, 'credit provenance ledger must remain bounded after restore');
 assert.equal(boundedSources.includes('expedition-contract:older-unique'), false, 'oldest provenance should evict first at the hard limit');
 assert.equal(boundedSources[0], 'expedition-contract:watch', 'bounded restore must evict exactly one oldest source, not over-evict');
+assert.equal(boundedSources.includes('expedition-contract:receipt-only'), true, 'receipt-derived provenance must survive unrelated FIFO eviction');
 assert.equal(boundedSources.at(-1), 'expedition-contract:filler-60');
 
 console.log('Interaction credit source ledger restore PASS');
