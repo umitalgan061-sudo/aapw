@@ -41,7 +41,11 @@ try {
       slopeDegreesFromNeighbours,
     } = await import('./src/3d/world/terrainBiomeShading.js');
     const { northReferenceCryosphereAtWorldXZ } = await import('./src/3d/world/northReferenceCryosphere.js');
-    const { createVegetation, disposeVegetation } = await import('./src/3d/world/vegetation.js');
+    const {
+      VEGETATION_SPATIAL_PATTERN_POLICY,
+      createVegetation,
+      disposeVegetation,
+    } = await import('./src/3d/world/vegetation.js');
     const {
       WINTER_VEGETATION_ASSET_POLICY,
       findProceduralWinterMeshes,
@@ -72,15 +76,17 @@ try {
     Object.assign(sun.shadow.camera, { left: -1100, right: 1100, top: 1100, bottom: -1100, near: 100, far: 3200 });
     scene.add(sun);
 
-    const winterCore = normalizedReferenceToWorldXZ(
-      0.145,
-      0.115,
+    // Visualize the authored North tundra/ecotone rather than demanding forest inside the glacier
+    // core. This reference point is the same canonical North used by map-aligned species acceptance.
+    const winterStand = normalizedReferenceToWorldXZ(
+      0.175,
+      0.285,
       WORLD_SCALE.MAP_BOUNDS,
       WORLD_SCALE.METERS_PER_MAP_UNIT,
     );
     const sampleHeight = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, null, []);
-    const anchorHeight = sampleHeight(winterCore.x, winterCore.z);
-    const radiusMeters = Math.hypot(winterCore.x, winterCore.z) + 1100;
+    const anchorHeight = sampleHeight(winterStand.x, winterStand.z);
+    const radiusMeters = Math.hypot(winterStand.x, winterStand.z) + 1100;
     const vegetation = createVegetation({
       sampleHeightMeters: sampleHeight,
       seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
@@ -107,23 +113,26 @@ try {
     const quaternion = new THREE.Quaternion();
     const scale = new THREE.Vector3();
     const crowdMatrices = [];
-    const crowdRadiusMeters = 900;
+    const crowdRadiusMeters = 1100;
+    const permanentIceCutoff = VEGETATION_SPATIAL_PATTERN_POLICY.permanentIceTreeCutoff;
     let permanentIceCount = 0;
+    let ecotoneCount = 0;
     for (let index = 0; index < trunkMesh.count; index += 1) {
       trunkMesh.getMatrixAt(index, sourceMatrix);
       sourceMatrix.decompose(position, quaternion, scale);
-      if (Math.hypot(position.x - winterCore.x, position.z - winterCore.z) > crowdRadiusMeters) continue;
+      if (Math.hypot(position.x - winterStand.x, position.z - winterStand.z) > crowdRadiusMeters) continue;
       const climate = northReferenceCryosphereAtWorldXZ(position.x, position.z);
-      if (climate.permanentIce >= 0.55) permanentIceCount += 1;
+      if (climate.permanentIce >= permanentIceCutoff) permanentIceCount += 1;
+      if (climate.permanentIce < permanentIceCutoff && Math.max(climate.permanentIce, climate.tundra) >= 0.20) ecotoneCount += 1;
       const localPosition = new THREE.Vector3(
-        position.x - winterCore.x,
+        position.x - winterStand.x,
         position.y - anchorHeight,
-        position.z - winterCore.z,
+        position.z - winterStand.z,
       );
       localMatrix.compose(localPosition, quaternion, scale);
       crowdMatrices.push(localMatrix.clone());
     }
-    if (crowdMatrices.length < 12) throw new Error(`production crowd unexpectedly sparse: ${crowdMatrices.length}`);
+    if (crowdMatrices.length < 12) throw new Error(`production ecotone crowd unexpectedly sparse: ${crowdMatrices.length}`);
 
     trunkMesh.count = crowdMatrices.length;
     foliageMesh.count = crowdMatrices.length;
@@ -156,8 +165,8 @@ try {
     for (let index = 0; index < terrainPositions.count; index += 1) {
       const localX = terrainPositions.getX(index);
       const localZ = terrainPositions.getZ(index);
-      const worldX = winterCore.x + localX;
-      const worldZ = winterCore.z + localZ;
+      const worldX = winterStand.x + localX;
+      const worldZ = winterStand.z + localZ;
       const surface = {};
       const height = sampleHeight(worldX, worldZ, undefined, surface);
       const localY = height - anchorHeight;
@@ -206,9 +215,9 @@ try {
       camera.lookAt(...target);
       camera.updateMatrixWorld(true);
       panel.textContent = [
-        `NORTH SNOW-PINE CROWD · ${WINTER_VEGETATION_ASSET_POLICY.id}`,
+        `NORTH SNOW-PINE ECOTONE · ${WINTER_VEGETATION_ASSET_POLICY.id}`,
         `${label}`,
-        `production crowd=${crowdMatrices.length} · permanent ice=${permanentIceCount}`,
+        `production crowd=${crowdMatrices.length} · ecotone=${ecotoneCount} · permanent ice=${permanentIceCount}`,
         `terrain span Y=${minLocalHeight.toFixed(1)}..${maxLocalHeight.toFixed(1)} m`,
         `foliage snow mix=${WINTER_VEGETATION_ASSET_POLICY.pineFoliageSnowMixMin.toFixed(2)}..${(WINTER_VEGETATION_ASSET_POLICY.pineFoliageSnowMixMin + WINTER_VEGETATION_ASSET_POLICY.pineFoliageSnowMixRange).toFixed(2)}`,
       ].join('\n');
@@ -219,7 +228,7 @@ try {
     const gameplayTarget = [crowdCenter.x, crowdCenter.y + 8, crowdCenter.z];
     const gameplayCamera = [crowdCenter.x + 260, crowdCenter.y + 105, crowdCenter.z + 320];
     const gameplayRender = renderView(gameplayCamera, gameplayTarget, 'gameplay / close three-quarter stand readability');
-    window.__renderNorthSnowPineAerial = () => renderView([760, 720, 880], [0, 10, 0], 'elevated / cluster distribution readability');
+    window.__renderNorthSnowPineAerial = () => renderView([760, 720, 880], [0, 10, 0], 'elevated / ecotone distribution readability');
 
     const treatments = replacementMeshes.map((mesh) => mesh.material?.userData?.winterPineTreatment ?? 'source');
     const telemetry = vegetation.group.userData.northClimateVegetation ?? {};
@@ -233,6 +242,7 @@ try {
     return {
       upgrade,
       crowdCount: crowdMatrices.length,
+      ecotoneCount,
       permanentIceCount,
       productionWinterTreeCount: vegetation.winterTreeCount,
       replacementMeshCount: replacementMeshes.length,
@@ -279,7 +289,8 @@ try {
   assert.equal(report.upgrade.status, 'active', 'preferred hydrated snow pine must activate in crowd QA');
   assert.equal(report.upgrade.assetUrl, PREFERRED_PINE);
   assert(report.crowdCount >= 12, `crowd must retain at least 12 production snow pines, got ${report.crowdCount}`);
-  assert(report.permanentIceCount >= 6, `crowd must visibly anchor permanent ice, got ${report.permanentIceCount}`);
+  assert(report.ecotoneCount >= 12, `crowd must visibly occupy the canonical tundra/ice ecotone, got ${report.ecotoneCount}`);
+  assert.equal(report.permanentIceCount, 0, 'production snow-pine crowd must not repopulate the permanent-ice core');
   assert(report.crowdSpan.x >= 350 && report.crowdSpan.z >= 350,
     `crowd must remain a 2D stand, got ${report.crowdSpan.x.toFixed(1)}x${report.crowdSpan.z.toFixed(1)} m`);
   assert(report.replacementMeshCount >= 1, 'hydrated crowd must render replacement GLB meshes');
@@ -291,13 +302,14 @@ try {
   assert.equal(report.telemetry.winterAssetTreeCount, report.crowdCount, 'hydrated crowd telemetry must match the rendered subset');
   assert(report.terrain.vertexCount > 10000, 'visual QA terrain patch is unexpectedly coarse');
   assert(report.terrain.maxLocalHeight - report.terrain.minLocalHeight > 20, 'canonical north terrain patch lost meaningful relief');
-  assert(report.terrain.meanSnowWeight > 0.05, 'canonical far-north terrain no longer carries visible snow authority');
+  assert(report.terrain.meanSnowWeight > 0.05, 'canonical north ecotone terrain no longer carries visible snow authority');
   assert(report.gameplayRender.triangles > 10000 && aerialRender.triangles > 10000, 'crowd QA did not render real terrain/tree geometry');
   assert.deepEqual(browserErrors, [], `crowd visual QA emitted browser errors: ${browserErrors.join(' | ')}`);
 
   await page.evaluate(() => window.__disposeNorthSnowPineCrowd?.());
   console.log('[checkNorthSnowPineCrowdVisualQa] PASS', JSON.stringify({
     crowdCount: report.crowdCount,
+    ecotoneCount: report.ecotoneCount,
     permanentIceCount: report.permanentIceCount,
     replacementMeshCount: report.replacementMeshCount,
     crowdSpan: normalized.crowdSpan,
