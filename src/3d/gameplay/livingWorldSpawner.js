@@ -295,8 +295,10 @@ export function wrapCreatureWithThreatMemory(creature, {
 			if (other === member || !other.isDirectAlarmSource) continue;
 			const dx = other.object3D.position.x - creature.object3D.position.x;
 			const dz = other.object3D.position.z - creature.object3D.position.z;
-			if (Math.hypot(dx, dz) < packAlertRadiusMeters) result.push({ x: other.object3D.position.x, z: other.object3D.position.z });
+			const distanceMeters = Math.hypot(dx, dz);
+			if (distanceMeters < packAlertRadiusMeters) result.push({ x: other.object3D.position.x, z: other.object3D.position.z, distanceMeters });
 		}
+		result.sort((a, b) => a.distanceMeters - b.distanceMeters || a.x - b.x || a.z - b.z);
 		return result;
 	}
 
