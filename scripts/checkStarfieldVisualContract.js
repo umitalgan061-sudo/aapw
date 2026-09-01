@@ -23,6 +23,12 @@ async function main() {
 	const browser = await playwright.chromium.launch({ headless: true });
 	try {
 		const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+		// This contract needs game3d.html's import map, not the full open-world bootstrap. Stub only
+		// the entry module so CI measures stars.js rather than spending its navigation budget loading
+		// terrain/assets/gameplay that cannot affect this isolated material/geometry contract.
+		await page.route('**/src/3d/game3d.js', async (route) => {
+			await route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: 'export function initGame3D() {}\n' });
+		});
 		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
 		const result = await page.evaluate(async () => {
 			const THREE = await import('three');
