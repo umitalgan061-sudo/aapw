@@ -20,6 +20,7 @@ class FakeElement {
 		this.removed = false;
 		this._listeners = new Map();
 		this.capturedPointerIds = [];
+		this.releasedPointerIds = [];
 	}
 	appendChild(child) { this.children.push(child); return child; }
 	addEventListener(type, handler) { this._listeners.set(type, handler); }
@@ -29,6 +30,8 @@ class FakeElement {
 		if (this._listeners.get(type) === handler) this._listeners.delete(type);
 	}
 	setPointerCapture(pointerId) { this.capturedPointerIds.push(pointerId); }
+	hasPointerCapture(pointerId) { return this.capturedPointerIds.includes(pointerId) && !this.releasedPointerIds.includes(pointerId); }
+	releasePointerCapture(pointerId) { if (this.hasPointerCapture(pointerId)) this.releasedPointerIds.push(pointerId); }
 	dispatch(type, event) { this._listeners.get(type)?.(event); }
 	remove() { this.removed = true; }
 }
@@ -53,7 +56,18 @@ assert.equal(joystick.consumeJumpRequested(), false, 'jump starts unrequested');
 joystick._jumpButton.dispatch('click', {});
 assert.equal(joystick.consumeJumpRequested(), true, 'one tap produces one jump edge');
 assert.equal(joystick.consumeJumpRequested(), false, 'reading the jump edge consumes it');
-assert.deepEqual(joystick.getAxes(), { forward: 0, strafe: 0, running: false });
+assert.deepEqual(joystick.getAxes(), { forward: 0, strafe: 0, running: false, guarding: false });
+
+// Guard is held through the same real TouchJoystick instance and lifecycle reset releases capture fail-closed.
+assert.equal(body.children[2], joystick._guardButton);
+joystick._guardButton.dispatch('pointerdown', { pointerId: 21, preventDefault() {} });
+assert.equal(joystick._guardButton.getAttribute('aria-pressed'), 'true');
+assert.equal(joystick.getAxes().guarding, true);
+assert.deepEqual(joystick._guardButton.capturedPointerIds, [21]);
+joystick._resetGameplayState();
+assert.deepEqual(joystick._guardButton.releasedPointerIds, [21], 'lifecycle reset releases active guard capture');
+assert.equal(joystick._guardButton.getAttribute('aria-pressed'), 'false');
+assert.equal(joystick.getAxes().guarding, false);
 
 let prevented = 0;
 joystick._base.dispatch('pointerdown', {
@@ -84,7 +98,7 @@ joystick._base.dispatch('pointermove', {
 	clientY: 100,
 	preventDefault() { prevented += 1; },
 });
-assert.deepEqual(joystick.getAxes(), { forward: 0, strafe: 0, running: false });
+assert.deepEqual(joystick.getAxes(), { forward: 0, strafe: 0, running: false, guarding: false });
 
 // Full-right movement clamps at radius, yields strafe=1, and cannot exceed the analog range.
 joystick._base.dispatch('pointermove', {
@@ -128,7 +142,7 @@ joystick._base.dispatch('pointercancel', { pointerId: 7 });
 assert.equal(joystick._pointerId, null);
 assert.equal(joystick._base.classList.contains('g3d-joystick-active'), false);
 assert.equal(joystick._knob.style.transform, '');
-assert.deepEqual(joystick.getAxes(), { forward: 0, strafe: 0, running: false });
+assert.deepEqual(joystick.getAxes(), { forward: 0, strafe: 0, running: false, guarding: false });
 
 assert.equal(prevented, 4, 'only accepted pointerdown/move events prevent default');
 
@@ -141,4 +155,4 @@ for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel'])
 	assert.equal(joystick._base._listeners.has(type), false, `${type} listener removed on dispose`);
 }
 
-console.log('Touch joystick input contract PASS: capture ownership, deadzone, clamp, axis mapping, cancel reset and listener cleanup preserved.');
+console.log('Touch joystick input contract PASS: movement capture, guard lifecycle release, deadzone, clamp, axis mapping, cancel reset and listener cleanup preserved.');
