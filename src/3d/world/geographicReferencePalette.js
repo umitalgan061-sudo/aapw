@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-02-v79-aerial-terrain-material-separation',
+	id: 'geographic-reference-palette-2026-09-02-v80-aerial-material-and-depth-ordering',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v79 strengthens aerial material-family separation without moving biome boundaries: meadow is slightly deeper/less yellow, dry heather is less orange, exposed earth is less luminous, and granite/quartz stay neutral so existing world-space geological fabric, weathering and ecological transitions read instead of collapsing into one beige field. Canonical biome placement, terrain geometry, cryosphere masks, coastline, hydrology and colliders remain unchanged.',
-		water: 'v79 preserves the v78 deepSea/abyss handoff neutralization unchanged; kilometre/meso/fine world-space fabric, current shear, roughness and bathymetric optical response remain the source of deterministic depth and surface variation. Canonical bathymetry, wet coverage, shoreline, lake membership, water geometry and colliders remain unchanged.',
-		road: 'v79 preserves the v77 compacted-earth versus rut/stone separation while retaining canonical routes and world-space wear.',
+		terrain: 'v80 keeps the v79 aerial material-family separation: meadow is deeper/less yellow, dry heather is less orange, exposed earth is less luminous, and granite/quartz remain neutral so existing world-space geological fabric, weathering and ecological transitions read instead of collapsing into one beige field. Canonical biome placement, terrain geometry, cryosphere masks, coastline, hydrology and colliders remain unchanged.',
+		water: 'v80 restores the minimum physically ordered deepSea-to-abyss luminance step required by the shared material contract while keeping the colours only one RGB code-step family apart; kilometre/meso/fine world-space fabric, current shear, roughness and bathymetric optical response remain the dominant deterministic depth variation. Canonical bathymetry, wet coverage, shoreline, lake membership, water geometry and colliders remain unchanged.',
+		road: 'v80 preserves the v77 compacted-earth versus rut/stone separation while retaining canonical routes and world-space wear.',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -52,7 +52,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		riverPool: 0x236b7c,
 		rapid: 0x82a7aa,
 		deepSea: 0x255d6d,
-		abyss: 0x255d6d,
+		abyss: 0x255c6c,
 		plunge: 0x4d818b,
 		splash: 0xdeedeb,
 		foam: 0xf1f7f4,
