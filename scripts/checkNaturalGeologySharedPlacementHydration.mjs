@@ -5,7 +5,6 @@ import { AssetLoader } from '../src/3d/assetLoader.js';
 import { NATURAL_GEOLOGY_RENDER_POLICY, upgradeNaturalGeologyAssets } from '../src/3d/world/naturalGeology.js';
 import { NATURAL_GEOLOGY_PLACEMENT_POLICY } from '../src/3d/world/naturalGeologyPlacement.js';
 import { PRE_RESOLVED_INSTANCED_ASSET_POLICY, auditPreResolvedInstancedWorldAsset } from '../src/3d/world/PreResolvedInstancedAssetPlacement.js';
-
 const originalFetch = globalThis.fetch;
 const originalLoadModel = AssetLoader.prototype.loadModel;
 const object = new THREE.Object3D();
