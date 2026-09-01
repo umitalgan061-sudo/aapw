@@ -7,6 +7,7 @@ import {
 	disposeVegetation,
 	vegetationGrovePatternForClimate,
 } from '../src/3d/world/vegetation.js';
+import { resolveTerrainForestSuitability } from '../src/3d/world/terrainBiomeShading.js';
 
 const RADIUS_METERS = 1500;
 const DENSITY_PER_KM2 = 30;
@@ -109,7 +110,7 @@ function buildSettlement(seed) {
 }
 
 assert.equal(VEGETATION_SPATIAL_PATTERN_POLICY.id,
-	'vegetation-ecological-grove-scatter-2026-08-31-v2-settlement-pockets');
+	'vegetation-ecological-grove-scatter-2026-09-01-v3-terrain-habitat');
 assert(VEGETATION_SPATIAL_PATTERN_POLICY.groveTreeCountMin >= 7);
 assert(VEGETATION_SPATIAL_PATTERN_POLICY.groveTreeCountMax <= 24);
 assert(VEGETATION_SPATIAL_PATTERN_POLICY.groveTreeCountMax > VEGETATION_SPATIAL_PATTERN_POLICY.groveTreeCountMin);
@@ -144,7 +145,10 @@ try {
 	const secondPoints = collectTreePositions(second.group);
 	const differentPoints = collectTreePositions(different.group);
 
-	assert.equal(first.placedCount, first.targetCount, 'flat-land fixture must retain the requested total tree budget');
+	assert(first.placedCount >= Math.floor(first.targetCount * 0.70),
+		`terrain habitat gating removed too much of the bounded tree budget: ${first.placedCount}/${first.targetCount}`);
+	assert(first.placedCount <= first.targetCount);
+	assert(first.baseHabitatRejected > 0, 'temperate base scatter never exercised terrain habitat rejection');
 	assert.equal(firstPoints.length, first.placedCount, 'every placed tree must have exactly one trunk position');
 	assert.deepEqual(firstPoints, secondPoints, 'same seed must reproduce the exact grove pattern');
 	assert.notDeepEqual(firstPoints.slice(0, 40), differentPoints.slice(0, 40), 'different seed must move grove geography');
@@ -164,6 +168,33 @@ try {
 	assert.equal(first.group.userData.vegetationSpatialPattern.policyId, VEGETATION_SPATIAL_PATTERN_POLICY.id);
 	assert.equal(first.group.userData.vegetationSpatialPattern.deterministic, true);
 	assert.equal(first.group.userData.vegetationSpatialPattern.baseDensityPerKm2, DENSITY_PER_KM2);
+	assert.equal(first.group.userData.vegetationSpatialPattern.temperateHabitatAuthority,
+		'terrainBiomeShading.resolveTerrainForestSuitability');
+	assert.equal(first.group.userData.vegetationSpatialPattern.baseHabitatRejected, first.baseHabitatRejected);
+
+	const placedHabitatMean = firstPoints.reduce((sum, [x, z]) => sum + resolveTerrainForestSuitability({
+		heightAboveSeaMeters: 100,
+		slopeDegrees: 0,
+		worldX: x,
+		worldZ: z,
+	}).suitability, 0) / firstPoints.length;
+	let baselineHabitatSum = 0;
+	let baselineHabitatCount = 0;
+	for (let z = -RADIUS_METERS; z <= RADIUS_METERS; z += 150) {
+		for (let x = -RADIUS_METERS; x <= RADIUS_METERS; x += 150) {
+			if (Math.hypot(x, z) > RADIUS_METERS) continue;
+			baselineHabitatSum += resolveTerrainForestSuitability({
+				heightAboveSeaMeters: 100,
+				slopeDegrees: 0,
+				worldX: x,
+				worldZ: z,
+			}).suitability;
+			baselineHabitatCount++;
+		}
+	}
+	const baselineHabitatMean = baselineHabitatSum / baselineHabitatCount;
+	assert(placedHabitatMean > baselineHabitatMean + 0.035,
+		`tree scatter did not move toward terrain forest habitat: ${placedHabitatMean} <= ${baselineHabitatMean}`);
 
 	const settlementPoints = collectTreePositions(settlementFirst.group);
 	const settlementSecondPoints = collectTreePositions(settlementSecond.group);
@@ -200,6 +231,9 @@ try {
 		emptyCellFraction: Number(spatial.emptyCellFraction.toFixed(3)),
 		maxCellCount: spatial.maxCellCount,
 		meanNearestNeighbourMeters: Number(nearest.toFixed(2)),
+		baseHabitatRejected: first.baseHabitatRejected,
+		placedHabitatMean: Number(placedHabitatMean.toFixed(3)),
+		baselineHabitatMean: Number(baselineHabitatMean.toFixed(3)),
 		temperateGroveRadiusMeters: temperatePattern.groveRadiusMeters,
 		coldGroveRadiusMeters: Number(coldPattern.groveRadiusMeters.toFixed(1)),
 		settlementTreeCount: settlementPoints.length,

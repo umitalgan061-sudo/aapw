@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mulberry32 } from './terrain.js';
-import { northClimateWeightsAtWorldZ } from './terrainBiomeShading.js';
+import { northClimateWeightsAtWorldZ, resolveTerrainForestSuitability } from './terrainBiomeShading.js';
 import { northReferenceCryosphereAtWorldXZ } from './northReferenceCryosphere.js';
 
 const SPECIES = [
@@ -51,8 +51,12 @@ export const VEGETATION_NORTH_CLIMATE_POLICY = Object.freeze({
 });
 
 export const VEGETATION_SPATIAL_PATTERN_POLICY = Object.freeze({
-	id: 'vegetation-ecological-grove-scatter-2026-08-31-v2-settlement-pockets',
+	id: 'vegetation-ecological-grove-scatter-2026-09-01-v3-terrain-habitat',
 	climateAuthority: VEGETATION_NORTH_CLIMATE_POLICY.climateAuthority,
+	temperateHabitatAuthority: 'terrainBiomeShading.resolveTerrainForestSuitability',
+	temperateHabitatAcceptanceFloor: 0.12,
+	temperateHabitatAcceptanceGain: 0.88,
+	coldClimateHabitatPreserved: true,
 	groveTreeCountMin: 9,
 	groveTreeCountMax: 17,
 	temperateGroveRadiusMeters: 170,
@@ -193,7 +197,7 @@ export function distancePointToSegment2D(px, pz, ax, az, bx, bz) {
 	return Math.hypot(px - (ax + abx * t), pz - (az + abz * t));
 }
 
-export function isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges }) {
+export function isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges, outSite = null }) {
 	for (const seat of seats) {
 		if (Math.hypot(x - seat.x, z - seat.z) < SEAT_EXCLUSION_RADIUS_METERS) return false;
 	}
@@ -211,7 +215,13 @@ export function isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, 
 	const dzHeight = sampleHeightMeters(x, z + SLOPE_SAMPLE_OFFSET_METERS) - groundY;
 	const gradeXDegrees = (Math.atan2(Math.abs(dxHeight), SLOPE_SAMPLE_OFFSET_METERS) * 180) / Math.PI;
 	const gradeZDegrees = (Math.atan2(Math.abs(dzHeight), SLOPE_SAMPLE_OFFSET_METERS) * 180) / Math.PI;
-	return Math.max(gradeXDegrees, gradeZDegrees) <= MAX_GROUND_SLOPE_DEGREES;
+	const slopeDegrees = Math.max(gradeXDegrees, gradeZDegrees);
+	if (outSite && typeof outSite === 'object') {
+		outSite.groundY = groundY;
+		outSite.heightAboveSeaMeters = groundY - seaLevelMeters;
+		outSite.slopeDegrees = slopeDegrees;
+	}
+	return slopeDegrees <= MAX_GROUND_SLOPE_DEGREES;
 }
 
 export function pickSpeciesIndex(roll) {
@@ -595,6 +605,7 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 	let groveTreesRemaining = 0;
 	let groveRadiusMeters = spatialPolicy.temperateGroveRadiusMeters;
 	let groveBackgroundChance = spatialPolicy.temperateBackgroundChance;
+	let baseHabitatRejected = 0;
 
 	for (let treeIndex = 0; treeIndex < baseTargetCount; treeIndex++) {
 		if (groveTreesRemaining <= 0) {
@@ -608,7 +619,23 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 				: sampleAnnulusPoint(rng, groveCenterX, groveCenterZ, 0, groveRadiusMeters);
 			const { x, z } = candidate;
 			if (Math.hypot(x, z) > radiusMeters) continue;
-			if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
+			const site = {};
+			if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges, outSite: site })) continue;
+			const climate = northReferenceCryosphereAtWorldXZ(x, z);
+			if (Math.max(climate.permanentIce, climate.tundra) < VEGETATION_NORTH_CLIMATE_POLICY.tundraClimateThreshold) {
+				const habitat = resolveTerrainForestSuitability({
+					heightAboveSeaMeters: site.heightAboveSeaMeters,
+					slopeDegrees: site.slopeDegrees,
+					worldX: x,
+					worldZ: z,
+				});
+				const habitatChance = Math.min(1, spatialPolicy.temperateHabitatAcceptanceFloor
+					+ habitat.suitability * spatialPolicy.temperateHabitatAcceptanceGain);
+				if (rng() > habitatChance) {
+					baseHabitatRejected++;
+					continue;
+				}
+			}
 			if (!groveHasCenter) {
 				groveHasCenter = true;
 				groveCenterX = x;
@@ -662,6 +689,10 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 		deterministic: true,
 		climateAuthority: spatialPolicy.climateAuthority,
 		baseDensityPerKm2: densityPerKm2,
+		temperateHabitatAuthority: spatialPolicy.temperateHabitatAuthority,
+		temperateHabitatAcceptanceFloor: spatialPolicy.temperateHabitatAcceptanceFloor,
+		baseHabitatRejected,
+		coldClimateHabitatPreserved: spatialPolicy.coldClimateHabitatPreserved,
 		groveTreeCountMin: spatialPolicy.groveTreeCountMin,
 		groveTreeCountMax: spatialPolicy.groveTreeCountMax,
 		settlementPattern: 'asymmetric-woodland-pockets',
@@ -683,6 +714,7 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 		clusterSeatCount: clusterSeats.length,
 		settlementWoodlandSeatCount: clusterSeats.length,
 		winterTreeCount,
+		baseHabitatRejected,
 	};
 }
 
