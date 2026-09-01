@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-31-v63-far-water-fabric-readability',
+	id: 'geographic-reference-palette-2026-09-01-v64-far-water-backdrop-continuity',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v63 preserves v56 aerial lowland ecotone separation and all canonical terrain, shoreline, hydrology and collider authority unchanged',
-		water: 'v63 follows direct inspection of exact-head full-world #710. The new deep-backdrop cross-current carriers compiled correctly but were visually negligible under the authoritative far-water layer, so deepSea is lifted one bounded step while abyss is held fixed. This raises the absolute contrast of the existing deterministic far-water macro/meso/fine albedo, pseudo-normal, roughness and glint response without changing wet coverage, shoreline, bathymetry, lake membership or water geometry.',
-		road: 'v63 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
+		terrain: 'v64 preserves v56 aerial lowland ecotone separation and all canonical terrain, shoreline, hydrology and collider authority unchanged',
+		water: 'v64 follows direct inspection of exact-head Full World 3D Topdown #813: the camera-following 17 km far-water square remains visibly brighter than the procedural deep-ocean backdrop at its axis-aligned edge. DeepSea and abyss are therefore brought into a narrower dark North-Atlantic value family while retaining depth hierarchy; existing deterministic macro/meso/fine albedo, pseudo-normal, roughness, current and glint breakup remain responsible for surface variation. Wet coverage, shoreline, bathymetry, lake membership and water geometry are unchanged.',
+		road: 'v64 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -51,8 +51,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		lakeClear: 0x2a6170,
 		riverPool: 0x246776,
 		rapid: 0x82a7aa,
-		deepSea: 0x307386,
-		abyss: 0x1f5d70,
+		deepSea: 0x2a6274,
+		abyss: 0x235365,
 		plunge: 0x4d818b,
 		splash: 0xdeedeb,
 		foam: 0xf1f7f4,
