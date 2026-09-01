@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { mulberry32 } from './terrain.js';
 import { northClimateWeightsAtWorldZ } from './terrainBiomeShading.js';
 import { northReferenceCryosphereAtWorldXZ } from './northReferenceCryosphere.js';
+import { disposeWindGrassRun180 } from './windGrass.js';
 
 const SPECIES = [
 	{
@@ -483,10 +484,7 @@ disposeVegetation = function disposeVegetationWithWindGrassRun180(group) {
 	const grass = group?.userData?.run180GrassGroup;
 	if (grass) {
 		grass.parent?.remove(grass);
-		for (const mesh of grass.children) {
-			mesh.geometry?.dispose();
-			mesh.material?.dispose();
-		}
+		disposeWindGrassRun180(grass);
 		delete group.userData.run180GrassGroup;
 	}
 	return _disposeVegetationBeforeWindGrassRun180(group);
