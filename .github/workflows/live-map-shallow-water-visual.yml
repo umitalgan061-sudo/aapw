@@ -70,27 +70,34 @@ jobs:
       - name: Static shader and coverage contract
         run: |
           set -euo pipefail
-          node --check src/3d/world/water.js
-          node --check src/3d/world/waterDepthField.js
-          node --check src/3d/world/geographicReferencePalette.js
-          node --check src/3d/auroraNightAtmosphereV5.js
-          node --check scripts/checkWaterVisualContract.js
-          node --check scripts/checkWaterSurfVisualContract.mjs
-          node --check scripts/checkWorldWaterCoverageP0.mjs
-          node --check scripts/checkWaterCoverageRasterQuality.mjs
-          node --check scripts/checkWaterCoverageSamplingBudget.mjs
-          node --check scripts/checkWaterLayerTransition.mjs
-          node --check scripts/checkGeographicReferencePalette.mjs
-          node --check scripts/checkMarineSkyFloorContract.mjs
-          node --check scripts/checkFullWorldMarineRectangles.mjs
-          node --check scripts/captureLiveWorldWaterTopdown.mjs
-          node scripts/checkWorldWaterCoverageP0.mjs
-          node scripts/checkWaterCoverageRasterQuality.mjs
-          node scripts/checkWaterCoverageSamplingBudget.mjs
-          node scripts/checkWaterSurfVisualContract.mjs
-          node scripts/checkWaterLayerTransition.mjs
-          node scripts/checkGeographicReferencePalette.mjs
-          node scripts/checkMarineSkyFloorContract.mjs
+          run_contract() {
+            local label="$1"
+            shift
+            echo "::group::${label}"
+            "$@"
+            echo "::endgroup::"
+          }
+          run_contract 'syntax water.js' node --check src/3d/world/water.js
+          run_contract 'syntax waterDepthField.js' node --check src/3d/world/waterDepthField.js
+          run_contract 'syntax geographicReferencePalette.js' node --check src/3d/world/geographicReferencePalette.js
+          run_contract 'syntax auroraNightAtmosphereV5.js' node --check src/3d/auroraNightAtmosphereV5.js
+          run_contract 'syntax checkWaterVisualContract.js' node --check scripts/checkWaterVisualContract.js
+          run_contract 'syntax checkWaterSurfVisualContract.mjs' node --check scripts/checkWaterSurfVisualContract.mjs
+          run_contract 'syntax checkWorldWaterCoverageP0.mjs' node --check scripts/checkWorldWaterCoverageP0.mjs
+          run_contract 'syntax checkWaterCoverageRasterQuality.mjs' node --check scripts/checkWaterCoverageRasterQuality.mjs
+          run_contract 'syntax checkWaterCoverageSamplingBudget.mjs' node --check scripts/checkWaterCoverageSamplingBudget.mjs
+          run_contract 'syntax checkWaterLayerTransition.mjs' node --check scripts/checkWaterLayerTransition.mjs
+          run_contract 'syntax checkGeographicReferencePalette.mjs' node --check scripts/checkGeographicReferencePalette.mjs
+          run_contract 'syntax checkMarineSkyFloorContract.mjs' node --check scripts/checkMarineSkyFloorContract.mjs
+          run_contract 'syntax checkFullWorldMarineRectangles.mjs' node --check scripts/checkFullWorldMarineRectangles.mjs
+          run_contract 'syntax captureLiveWorldWaterTopdown.mjs' node --check scripts/captureLiveWorldWaterTopdown.mjs
+          run_contract 'world water coverage P0' node scripts/checkWorldWaterCoverageP0.mjs
+          run_contract 'water coverage raster quality' node scripts/checkWaterCoverageRasterQuality.mjs
+          run_contract 'water coverage sampling budget' node scripts/checkWaterCoverageSamplingBudget.mjs
+          run_contract 'water surf visual contract' node scripts/checkWaterSurfVisualContract.mjs
+          run_contract 'water layer transition' node scripts/checkWaterLayerTransition.mjs
+          run_contract 'geographic reference palette' node scripts/checkGeographicReferencePalette.mjs
+          run_contract 'marine sky floor contract' node scripts/checkMarineSkyFloorContract.mjs
       - name: Hydrate scoped smoke-test LFS assets
         run: |
           set -euo pipefail
