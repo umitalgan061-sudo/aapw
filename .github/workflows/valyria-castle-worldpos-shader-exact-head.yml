@@ -109,3 +109,13 @@ jobs:
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
           git diff --check "$BASE_SHA" HEAD
+
+      - name: Enforce Run283 governance parity
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.run283_diag.outcome }}" != "success" ]; then
+            echo "Run283 governance parity is not green; see valyria-worldpos-run283-governance-diagnostics artifact." >&2
+            exit 1
+          fi
