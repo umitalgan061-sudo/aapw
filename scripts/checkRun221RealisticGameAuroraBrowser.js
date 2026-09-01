@@ -48,8 +48,6 @@ async function main() {
 	});
 
 	try {
-		// Keep game3d.html's real import-map/origin, but skip heavy world boot for this isolated sky
-		// proof. Full shipped-scene coverage belongs to the canonical game smoke workflows.
 		await page.route('**/src/3d/game3d.js', async (route) => {
 			await route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: 'export function initGame3D() {}\n' });
 		});
@@ -106,7 +104,7 @@ async function main() {
 				'ray4VerticalField', 'ray4ArcEdge', 'ray4CurtainEnvelope', 'ray4RaySheet', 'ray4PhosphorCore', 'cameraPosition',
 			]) fail(shader.includes(token), `Final sky shader token missing: ${token}`);
 			fail(shader.includes('finalColor += oxygenGreen * haze * 0.084;'), 'Final V5 aurora haze calibration is missing.');
-			fail(shader.includes('finalColor += oxygenGreen * phosphorCore * 0.42;'), 'Final narrow phosphor-core output is missing.');
+			fail(shader.includes('finalColor += oxygenGreen * phosphorCore * 0.68;'), 'Final calibrated narrow phosphor-core output is missing.');
 
 			const ground = new THREE.Mesh(
 				new THREE.PlaneGeometry(360, 360),
