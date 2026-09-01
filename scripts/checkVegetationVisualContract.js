@@ -32,6 +32,7 @@ async function main() {
 				createVegetation,
 				disposeVegetation,
 				VEGETATION_SILHOUETTE_POLICY,
+				VEGETATION_SPATIAL_PATTERN_POLICY,
 			} = await import('/src/3d/world/vegetation.js');
 			const fail = (condition, message) => { if (!condition) throw new Error(message); };
 			const close = (a, b, tolerance = 1e-8) => Math.abs(a - b) <= tolerance;
@@ -52,8 +53,12 @@ async function main() {
 			const second = createVegetation(options);
 			fail(first.group?.isGroup === true, 'vegetation root is not a THREE.Group');
 			fail(first.group.children.length === 6, `expected 6 species meshes, got ${first.group.children.length}`);
-			fail(first.targetCount > 0 && first.placedCount === first.targetCount,
-				`unexpected placement ${first.placedCount}/${first.targetCount}`);
+			fail(first.targetCount > 0 && first.placedCount > 0 && first.placedCount <= first.targetCount,
+				`unexpected bounded placement ${first.placedCount}/${first.targetCount}`);
+			fail(first.baseHabitatRejected > 0, 'temperate browser fixture never exercised terrain habitat rejection');
+			fail(first.group.userData.vegetationSpatialPattern?.temperateHabitatAuthority
+				=== VEGETATION_SPATIAL_PATTERN_POLICY.temperateHabitatAuthority,
+				'vegetation browser fixture lost terrain habitat authority metadata');
 			fail(first.clusterSeatCount === 0 && first.settlementWoodlandSeatCount === 0,
 				'seat-free fixture unexpectedly created settlement woodland');
 			fail(second.placedCount === first.placedCount, 'same seed/options changed placedCount');
@@ -168,6 +173,7 @@ async function main() {
 			return {
 				targetCount: first.targetCount,
 				placedCount: first.placedCount,
+				baseHabitatRejected: first.baseHabitatRejected,
 				meshCount: perMesh.length,
 				perMesh,
 				geometryDisposeCount,
@@ -175,7 +181,8 @@ async function main() {
 				policyId: VEGETATION_SILHOUETTE_POLICY.id,
 			};
 		});
-		assert(result.targetCount === result.placedCount, 'target/placed mismatch escaped browser contract');
+		assert(result.placedCount > 0 && result.placedCount <= result.targetCount, 'bounded habitat placement escaped browser contract');
+		assert(result.baseHabitatRejected > 0, 'habitat rejection metadata escaped browser contract');
 		console.log('[checkVegetationVisualContract] PASS', JSON.stringify(result));
 	} finally {
 		await browser.close();

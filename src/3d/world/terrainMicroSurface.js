@@ -15,9 +15,9 @@ const smoothstep = (a, b, value) => {
 };
 
 export const TERRAIN_MICRO_SURFACE_POLICY = Object.freeze({
-	// Public id advances because the coastal response is now a bounded, multi-scale weathering pass
-	// rather than a broad uniform dampness halo. Geography, height and hydrology remain untouched.
-	id: 'terrain-micro-surface-world-uv-pbr-v7-coastal-weathering',
+	// Public id advances because the final render now preserves a bounded amount of the semantic
+	// terrain palette after ecological/weathering remaps. Geography, height and hydrology stay untouched.
+	id: 'terrain-micro-surface-world-uv-pbr-v8-semantic-palette-retention',
 	textureSize: 256,
 	detailRepeatMeters: 22,
 	normalStrength: 0.92,
@@ -31,6 +31,7 @@ export const TERRAIN_MICRO_SURFACE_POLICY = Object.freeze({
 	worldSpaceMacroScaleMeters: Object.freeze([38, 92, 240, 620, 1450, 3200]),
 	photorealDesaturation: true,
 	naturalAlbedoRemap: true,
+	semanticPaletteRetention: true,
 	regionalMoistureVariation: true,
 	elevationWeathering: true,
 	fractureNormals: true,
@@ -201,7 +202,7 @@ export function getSharedTerrainMicroSurfaceTextures() {
 	return sharedTerrainMicroSurface;
 }
 
-const TERRAIN_PHOTOREAL_SHADER_KEY = 'terrain-photoreal-world-surface-v7-coastal-weathering';
+const TERRAIN_PHOTOREAL_SHADER_KEY = 'terrain-photoreal-world-surface-v8-semantic-palette-retention';
 const WATER_LEVEL_GLSL = Number(WORLD_DEFAULTS.WATER_LEVEL_METERS).toFixed(3);
 
 function installWorldSpaceColorBreakup(material) {
@@ -387,6 +388,18 @@ float terrainPhotoStonyPatch = (1.0 - terrainPhotoSnow) * smoothstep(0.61, 0.85,
 	* (0.18 + terrainPhotoElevation * 0.58) * (1.0 - terrainPhotoVegetation * 0.52);
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.267, 0.260, 0.244), terrainPhotoStonyPatch * 0.29);
 
+// Keep weathering dominant, but retain enough of the upstream semantic palette for meadow/heath/
+// exposed-earth distinctions to survive at aerial scale. Snow, rock and wet coastal bands remain
+// authoritative and are explicitly protected from this restrained colour-memory pass.
+float terrainPhotoPaletteRetention = clamp(
+	terrainPhotoVegetation * (0.115 + terrainPhotoChroma * 0.22) + terrainPhotoWarmGround * 0.085,
+	0.0, 0.17
+) * (1.0 - terrainPhotoSnow)
+	* (1.0 - terrainPhotoRock * 0.62)
+	* (1.0 - terrainPhotoCoastalWet * 0.72)
+	* (1.0 - terrainPhotoTideStain * 0.55);
+diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoBase, terrainPhotoPaletteRetention);
+
 float terrainPhotoScreeBand = terrainPhotoHighAlpine * terrainPhotoShoulder * (1.0 - terrainPhotoCliff)
 	* smoothstep(0.48, 0.78, terrainPhotoLandform) * (1.0 - terrainPhotoSnow * 0.72);
 vec3 terrainPhotoScreeWarm = vec3(0.275, 0.259, 0.232);
@@ -473,6 +486,7 @@ export function applyTerrainMicroSurface(material) {
 		macroWorldSpaceColorBreakup: true,
 		photorealDesaturation: true,
 		naturalAlbedoRemap: true,
+		semanticPaletteRetention: true,
 		regionalMoistureVariation: true,
 		elevationWeathering: true,
 		fractureNormals: true,
