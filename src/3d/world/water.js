@@ -266,12 +266,12 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		// Deep open water gets bounded kilometre- and hectometre-scale variation independent of
 		// physical depth. Current shear is masked to boundary-connected offshore water, so enclosed
 		// lakes and the canonical shoreline remain owned by the depth/coverage textures above.
-		float deepLumaVariation = (oceanFabric * 0.085 + oceanShear * 0.060) * deepMarineMask;
+		float deepLumaVariation = (oceanFabric * 0.105 + oceanShear * 0.075) * deepMarineMask;
 		deepLumaVariation = clamp(deepLumaVariation, -${WATER_SURFACE_VARIATION_POLICY.deepColorVariationMax.toFixed(3)}, ${WATER_SURFACE_VARIATION_POLICY.deepColorVariationMax.toFixed(3)});
 		bodyColor *= 1.0 + deepLumaVariation;
 		float currentMix = clamp(0.5 + oceanFabric * 0.26 + oceanShear * 0.34, 0.0, 1.0);
 		vec3 currentTint = mix(vec3(0.018, 0.043, 0.066), vec3(0.060, 0.125, 0.148), currentMix);
-		bodyColor = mix(bodyColor, currentTint, (abs(oceanFabric) * 0.075 + abs(oceanShear) * 0.095) * deepMarineMask);
+		bodyColor = mix(bodyColor, currentTint, (abs(oceanFabric) * 0.095 + abs(oceanShear) * 0.115) * deepMarineMask);
 		float aerialOffshoreVariation = clamp(oceanFabric * 0.052 + oceanShear * 0.039,
 			-${WATER_SURFACE_VARIATION_POLICY.deepColorVariationMax.toFixed(3)}, ${WATER_SURFACE_VARIATION_POLICY.deepColorVariationMax.toFixed(3)});
 		bodyColor *= 1.0 + aerialOffshoreVariation * shallowOffshoreFabricMask;
