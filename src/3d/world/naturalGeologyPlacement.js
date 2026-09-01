@@ -11,7 +11,7 @@ import { VALYRIA_GEOLOGY_POLICY, valyriaGeologyClassAtWorldXZ, valyriaInfluenceA
  * @module world/naturalGeologyPlacement
  */
 export const NATURAL_GEOLOGY_PLACEMENT_POLICY = Object.freeze({
-  id: 'natural-geology-placement-2026-08-31-v2-morphology-strata',
+  id: 'natural-geology-placement-2026-09-01-v3-mobile-strata-sampling',
   deterministic: true,
   renderOnly: true,
   geographyAuthorityUnchanged: true,
@@ -48,8 +48,10 @@ export const NATURAL_GEOLOGY_PLACEMENT_POLICY = Object.freeze({
   mobileValyriaClusterCount: 6,
   desktopGridColumns: 82,
   desktopGridRows: 64,
-  mobileGridColumns: 44,
-  mobileGridRows: 34,
+  // Mobile keeps the lower render cap and cluster budget, but samples the same narrow strata bands
+  // densely enough that ~300 m candidate cells do not skip entire outcrops between sample centres.
+  mobileGridColumns: 72,
+  mobileGridRows: 54,
   desktopMaxPlacements: 620,
   mobileMaxPlacements: 190,
   assetProxyFraction: 0.105,
