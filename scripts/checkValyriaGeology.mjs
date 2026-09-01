@@ -99,8 +99,11 @@ assert(basalt.g < base.g * 0.55, `Valyria remained meadow-green: ${JSON.stringif
 const pool = valyriaSurfaceWeights({ nx: P.coreCenter.nx, ny: P.coreCenter.ny, heightAboveSeaMeters: 130, concavityMeters: 2.2, slopeDegrees: 8 });
 assert(pool.lava > 0.75, `core lava corridor/pool signal too weak: ${pool.lava}`);
 assert(pool.drainage > 0.45, `core drainage signal missing: ${pool.drainage}`);
+const ridgeLowSlope = valyriaSurfaceWeights({ nx: P.coreCenter.nx, ny: P.coreCenter.ny, heightAboveSeaMeters: 260, concavityMeters: -0.4, slopeDegrees: 12 });
 const ridge = valyriaSurfaceWeights({ nx: P.coreCenter.nx, ny: P.coreCenter.ny, heightAboveSeaMeters: 260, concavityMeters: -0.4, slopeDegrees: 38 });
-assert(ridge.lava < 0.12 && ridge.ash > 0.5);
+assert(ridge.ash > 0.5, `high volcanic ridge lost ash cover: ${ridge.ash}`);
+assert.equal(ridge.drainage, ridgeLowSlope.drainage, 'slope must not rewrite shared lava-drainage morphology');
+assert(ridge.lava < ridgeLowSlope.lava, `steep ridge no longer suppresses active lava: ${ridge.lava} vs ${ridgeLowSlope.lava}`);
 
 const worldX = (P.coreCenter.nx * 9000 - 4500) * 1.477342100713197;
 const worldZ = (P.coreCenter.ny * 7000 - 3500) * 1.477342100713197;
@@ -126,4 +129,6 @@ console.log(JSON.stringify({
   mixedWaterGate: mixedGate,
   basaltColor: basalt,
   centerSurface: pool,
+  ridgeSurface: ridge,
+  ridgeLowSlopeSurface: ridgeLowSlope,
 }, null, 2));
