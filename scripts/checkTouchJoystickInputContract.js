@@ -146,7 +146,22 @@ assert.deepEqual(joystick.getAxes(), { forward: 0, strafe: 0, running: false, gu
 
 assert.equal(prevented, 4, 'only accepted pointerdown/move events prevent default');
 
+// Disposing during active movement + guard must release both captures before DOM teardown.
+joystick._base.dispatch('pointerdown', {
+	pointerId: 42,
+	clientX: 100,
+	clientY: 100,
+	preventDefault() {},
+});
+joystick._guardButton.dispatch('pointerdown', { pointerId: 43, preventDefault() {} });
+assert.equal(joystick._pointerId, 42);
+assert.equal(joystick.getAxes().guarding, true);
+assert.equal(joystick._base.hasPointerCapture(42), true);
+assert.equal(joystick._guardButton.hasPointerCapture(43), true);
+
 joystick.dispose();
+assert.equal(joystick._base.releasedPointerIds.includes(42), true, 'dispose releases active movement capture');
+assert.equal(joystick._guardButton.releasedPointerIds.includes(43), true, 'dispose releases active guard capture');
 assert.equal(joystick._base.removed, true);
 assert.equal(joystick._jumpButton.removed, true);
 assert.equal(joystick._jumpButton._listeners.has('click'), false, 'jump click listener removed on dispose');
@@ -155,4 +170,4 @@ for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel'])
 	assert.equal(joystick._base._listeners.has(type), false, `${type} listener removed on dispose`);
 }
 
-console.log('Touch joystick input contract PASS: movement capture, guard lifecycle release, deadzone, clamp, axis mapping, cancel reset and listener cleanup preserved.');
+console.log('Touch joystick input contract PASS: movement capture, guard lifecycle release, deadzone, clamp, axis mapping, cancel reset, dispose capture release and listener cleanup preserved.');
