@@ -33,6 +33,7 @@ export const WATER_OFFSHORE_OPTICAL_GAIN = 0.82;
 
 export const WATER_LAYER_TRANSITION_POLICY = Object.freeze({
 	id: 'water-near-far-opacity-feather-2026-08-31-v2-organic-radial',
+	nearHalfExtentMeters: 2000,
 	featherStartMeters: 1720,
 	featherEndMeters: 1990,
 	distanceMetric: 'camera-relative-euclidean-organic',
@@ -56,7 +57,6 @@ export const WATER_FIELD_EDGE_OPTICAL_POLICY = Object.freeze({
 	marineGateStart: 0.42,
 	marineGateFull: 0.90,
 	renderCoverageContinuity: true,
-	boundaryWarpStrongAtFieldEdge: true,
 });
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
