@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-01-v76-aerial-lithology-breakup',
+	id: 'geographic-reference-palette-2026-09-01-v77-aerial-lithology-breakup',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v76 increases aerial lithology separation without changing biome placement or geometry: meadow gains a restrained natural-green lift, dry/exposed earth diverge by warmth and value, and granite/quartz widen their neutral range so existing deterministic world-space erosion, normal and roughness breakup reads from full-world altitude instead of collapsing into one grey-beige field.',
-		water: 'v76 preserves the v73 hydrology material separation and v72 deepSea/abyss handoff unchanged; canonical bathymetry, wet coverage, shoreline, lake membership, water geometry and colliders remain unchanged.',
-		road: 'v76 increases compacted-earth versus rut/stone separation slightly while preserving canonical routes and existing world-space wear so roads read as worn ground rather than painted ribbons.',
+		terrain: 'v77 strengthens the first v76 full-world iteration after artifact inspection showed the change was too subtle at aerial distance: meadow receives a bounded chlorophyll lift, dry/exposed earth separate more clearly by warmth and value, while granite/quartz widen the neutral lithology range. Canonical biome placement, terrain geometry, cryosphere masks, coastline, hydrology and colliders remain unchanged; existing deterministic world-space erosion, normal and roughness variation still owns within-surface breakup.',
+		water: 'v77 preserves the v73 hydrology material separation and v72 deepSea/abyss handoff unchanged; canonical bathymetry, wet coverage, shoreline, lake membership, water geometry and colliders remain unchanged.',
+		road: 'v77 preserves the v76 compacted-earth versus rut/stone separation while retaining canonical routes and world-space wear.',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -30,14 +30,14 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
 		mossShadow: 0x0d2115,
-		meadow: 0x2f633d,
-		dryHeather: 0x6b553b,
+		meadow: 0x356f45,
+		dryHeather: 0x71583d,
 		wetEarth: 0x101a15,
-		exposedEarth: 0xa0704d,
+		exposedEarth: 0xa77a52,
 		graniteShadow: 0x303a40,
-		graniteSunlit: 0x80786e,
+		graniteSunlit: 0x888077,
 		basaltWet: 0x101d22,
-		quartz: 0x948c81,
+		quartz: 0x9a9287,
 	}),
 	road: Object.freeze({
 		compacted: 0x70503b,
