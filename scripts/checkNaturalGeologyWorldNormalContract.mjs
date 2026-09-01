@@ -11,7 +11,7 @@ const source = readFileSync(resolve(ROOT, 'src/3d/world/naturalGeology.js'), 'ut
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.worldSpaceRockNormalVariation, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.instanceScaleCompensatedWorldNormal, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.cameraStableRockWeathering, true);
-assert(NATURAL_GEOLOGY_RENDER_POLICY.id.includes('v4-correct-world-normal-weathering') || NATURAL_GEOLOGY_RENDER_POLICY.id.includes('v5-regional-hydrated-rocks') || NATURAL_GEOLOGY_RENDER_POLICY.id.includes('v6-natural-volcanic-value'));
+assert(NATURAL_GEOLOGY_RENDER_POLICY.id.includes('v4-correct-world-normal-weathering') || NATURAL_GEOLOGY_RENDER_POLICY.id.includes('v5-regional-hydrated-rocks') || NATURAL_GEOLOGY_RENDER_POLICY.id.includes('v6-natural-volcanic-value') || NATURAL_GEOLOGY_RENDER_POLICY.id.includes('v7-faceted-fallback-and-biome-assets'));
 
 for (const required of [
   "#include <beginnormal_vertex>",
