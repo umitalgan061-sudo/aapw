@@ -2,9 +2,11 @@
  * Asset-informed natural geology renderer.
  *
  * Deterministic placement is owned by naturalGeologyPlacement.js. This module renders an immediate
- * low-cost fallback and, on hydrated desktop builds, can replace selected outcrops with real GLB
- * geometry. Large landscape GLBs remain morphology references only so the world never becomes a
- * repeated 50 MB terrain tile.
+ * low-cost fallback and, on hydrated desktop builds, can replace selected outcrops with real GLB or
+ * FBX geometry. Large landscape assets remain morphology references only so the world never becomes a
+ * repeated terrain tile. The fallback itself deliberately uses stratified/faceted rock hulls instead
+ * of Platonic primitives: even when LFS assets are unavailable the scene should read as geology, not
+ * as stretched icosahedrons.
  * @module world/naturalGeology
  */
 
@@ -24,7 +26,7 @@ import {
 } from './valyriaGeology.js';
 
 export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
-  id: 'natural-geology-render-2026-09-01-v6-natural-volcanic-value',
+  id: 'natural-geology-render-2026-09-01-v7-faceted-fallback-and-biome-assets',
   renderOnly: true,
   deterministicPlacement: true,
   geographyAuthorityUnchanged: true,
@@ -32,8 +34,28 @@ export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
   valyriaPolicyId: VALYRIA_GEOLOGY_POLICY.id,
   primaryRockAsset: 'assets/models/fbx/rocky_terrain_low_poly.glb',
   southernRockAsset: 'assets/models/fbx/desert_rocks.glb',
+  smallRockAsset: 'assets/models/fbx/Free_rock_Rock_1.fbx',
+  snowRockAsset: 'assets/models/fbx/snow_terrain_low_poly.glb',
+  directAssetUrls: Object.freeze([
+    'assets/models/fbx/rocky_terrain_low_poly.glb',
+    'assets/models/fbx/desert_rocks.glb',
+    'assets/models/fbx/Free_rock_Rock_1.fbx',
+    'assets/models/fbx/snow_terrain_low_poly.glb',
+  ]),
+  knownDirectAssetBytes: Object.freeze({
+    'assets/models/fbx/rocky_terrain_low_poly.glb': 5708516,
+    'assets/models/fbx/desert_rocks.glb': 12773288,
+    'assets/models/fbx/Free_rock_Rock_1.fbx': 74044,
+    'assets/models/fbx/snow_terrain_low_poly.glb': 5180716,
+  }),
   referenceLandscapeAsset: 'assets/models/fbx/rugged_mountain_landscape.glb',
   referenceLandscapeRuntimeLoad: false,
+  geographicAssetRouting: true,
+  fbxHydrationSupported: true,
+  snowAssetRestrictedToColdHighland: true,
+  valyriaNeverUsesSnowAsset: true,
+  fallbackGeometryFamily: 'stratified-faceted-geologic-ledges',
+  platonicFallbackGeometry: false,
   hostedPreflightMinBytes: 512,
   maximumHydratedSourceBytes: 16 * 1024 * 1024,
   maximumHydratedPrimitiveCount: 16,
@@ -200,33 +222,122 @@ function createRockMaterial(color) {
   }));
 }
 
-function warpGeometry(geometry, { xScale = 1, yScale = 1, zScale = 1, fracture = 0.14, terrace = 0 }) {
-  const position = geometry.getAttribute('position');
-  for (let index = 0; index < position.count; index += 1) {
-    let x = position.getX(index) * xScale;
-    let y = position.getY(index) * yScale;
-    let z = position.getZ(index) * zScale;
-    const phase = Math.sin(x * 4.17 + z * 2.31) * 0.53 + Math.sin(z * 6.2 - x * 1.77) * 0.47;
-    const joint = Math.sin((x + z) * 9.1) * Math.sin((x - z) * 5.7);
-    x *= 1 + phase * fracture * 0.28;
-    z *= 1 - phase * fracture * 0.22;
-    y += joint * fracture * 0.13;
-    if (terrace > 0) y = y * 0.62 + (Math.round(y * terrace) / terrace) * 0.38;
-    position.setXYZ(index, x, y, z);
+/**
+ * Builds one low-poly rock from stacked irregular rings. The silhouette is authored as strata and
+ * faulted ledges from the start instead of deforming a sphere/Platonic solid afterwards. Ring radii,
+ * offsets and twists are deterministic constants per family; runtime variation still comes from each
+ * placement's scale/yaw/tilt and world-space material weathering, so instancing remains cheap.
+ */
+function createStratifiedRockGeometry({ segments, phase = 0, rings }) {
+  const vertices = [];
+  const indices = [];
+  const count = Math.max(5, Math.floor(segments));
+  for (let ringIndex = 0; ringIndex < rings.length; ringIndex += 1) {
+    const ring = rings[ringIndex];
+    for (let segment = 0; segment < count; segment += 1) {
+      const angle = phase + ring.twist + (segment / count) * Math.PI * 2;
+      const angularNoise = 1
+        + Math.sin(angle * 3 + ringIndex * 1.37) * 0.085
+        + Math.sin(angle * 5 - ringIndex * 0.81) * 0.045;
+      const fractureBias = 1 + Math.max(0, Math.sin(angle * 2.0 + phase * 1.7)) * (ring.fracture ?? 0.06);
+      vertices.push(
+        ring.offsetX + Math.cos(angle) * ring.radiusX * angularNoise * fractureBias,
+        ring.y + Math.sin(angle * 2 + ringIndex) * (ring.verticalNoise ?? 0.018),
+        ring.offsetZ + Math.sin(angle) * ring.radiusZ * angularNoise,
+      );
+    }
   }
-  position.needsUpdate = true;
+
+  for (let ringIndex = 0; ringIndex < rings.length - 1; ringIndex += 1) {
+    const lower = ringIndex * count;
+    const upper = (ringIndex + 1) * count;
+    for (let segment = 0; segment < count; segment += 1) {
+      const next = (segment + 1) % count;
+      indices.push(lower + segment, upper + next, upper + segment);
+      indices.push(lower + segment, lower + next, upper + next);
+    }
+  }
+
+  const bottomCenter = vertices.length / 3;
+  const bottom = rings[0];
+  vertices.push(bottom.offsetX, bottom.y - 0.012, bottom.offsetZ);
+  const topCenter = vertices.length / 3;
+  const top = rings[rings.length - 1];
+  vertices.push(top.offsetX, top.y + 0.012, top.offsetZ);
+  const topBase = (rings.length - 1) * count;
+  for (let segment = 0; segment < count; segment += 1) {
+    const next = (segment + 1) % count;
+    indices.push(bottomCenter, next, segment);
+    indices.push(topCenter, topBase + segment, topBase + next);
+  }
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+  geometry.setIndex(indices);
   geometry.computeVertexNormals();
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
+  geometry.userData.naturalRockPrototype = 'stratified-faceted-geologic-ledges';
   return geometry;
 }
 
 export function createNaturalRockPrototypeGeometry(kind) {
-  if (kind === 'fractured-scarp') return warpGeometry(new THREE.IcosahedronGeometry(0.5, 1), { xScale: 1, yScale: 1.24, zScale: 0.44, fracture: 0.22, terrace: 5 });
-  if (kind === 'bedrock') return warpGeometry(new THREE.DodecahedronGeometry(0.5, 0), { xScale: 1, yScale: 0.62, zScale: 0.74, fracture: 0.18, terrace: 4 });
-  if (kind === 'low-outcrop' || kind === 'asset-proxy') return warpGeometry(new THREE.IcosahedronGeometry(0.5, 1), { xScale: 1, yScale: 0.43, zScale: 0.86, fracture: 0.17, terrace: 3 });
-  if (kind === 'talus') return warpGeometry(new THREE.TetrahedronGeometry(0.5, 1), { xScale: 1, yScale: 0.58, zScale: 0.92, fracture: 0.24 });
-  return warpGeometry(new THREE.DodecahedronGeometry(0.5, 0), { xScale: 1, yScale: 0.82, zScale: 0.92, fracture: 0.21 });
+  if (kind === 'fractured-scarp') {
+    return createStratifiedRockGeometry({
+      segments: 9,
+      phase: 0.17,
+      rings: [
+        { y: -0.50, radiusX: 0.58, radiusZ: 0.34, offsetX: -0.04, offsetZ: 0.02, twist: 0.00, fracture: 0.11 },
+        { y: -0.16, radiusX: 0.55, radiusZ: 0.30, offsetX: 0.02, offsetZ: -0.01, twist: 0.035, fracture: 0.14 },
+        { y: 0.18, radiusX: 0.48, radiusZ: 0.27, offsetX: 0.09, offsetZ: -0.025, twist: -0.018, fracture: 0.13 },
+        { y: 0.50, radiusX: 0.39, radiusZ: 0.22, offsetX: 0.16, offsetZ: -0.04, twist: 0.045, fracture: 0.10 },
+      ],
+    });
+  }
+  if (kind === 'bedrock') {
+    return createStratifiedRockGeometry({
+      segments: 10,
+      phase: 0.09,
+      rings: [
+        { y: -0.34, radiusX: 0.58, radiusZ: 0.44, offsetX: -0.03, offsetZ: 0.01, twist: 0.00, fracture: 0.08 },
+        { y: -0.10, radiusX: 0.61, radiusZ: 0.43, offsetX: 0.015, offsetZ: -0.015, twist: 0.028, fracture: 0.09 },
+        { y: 0.14, radiusX: 0.51, radiusZ: 0.37, offsetX: 0.055, offsetZ: -0.02, twist: -0.016, fracture: 0.07 },
+        { y: 0.34, radiusX: 0.42, radiusZ: 0.31, offsetX: 0.08, offsetZ: -0.015, twist: 0.032, fracture: 0.06 },
+      ],
+    });
+  }
+  if (kind === 'low-outcrop' || kind === 'asset-proxy') {
+    return createStratifiedRockGeometry({
+      segments: 10,
+      phase: 0.23,
+      rings: [
+        { y: -0.22, radiusX: 0.62, radiusZ: 0.50, offsetX: -0.03, offsetZ: 0.01, twist: 0.00, fracture: 0.06 },
+        { y: -0.03, radiusX: 0.64, radiusZ: 0.47, offsetX: 0.02, offsetZ: -0.01, twist: 0.025, fracture: 0.07 },
+        { y: 0.20, radiusX: 0.48, radiusZ: 0.39, offsetX: 0.09, offsetZ: -0.02, twist: -0.02, fracture: 0.08 },
+      ],
+    });
+  }
+  if (kind === 'talus') {
+    return createStratifiedRockGeometry({
+      segments: 6,
+      phase: 0.31,
+      rings: [
+        { y: -0.43, radiusX: 0.56, radiusZ: 0.49, offsetX: -0.05, offsetZ: 0.03, twist: 0.00, fracture: 0.13 },
+        { y: 0.02, radiusX: 0.43, radiusZ: 0.39, offsetX: 0.06, offsetZ: -0.02, twist: 0.08, fracture: 0.15 },
+        { y: 0.48, radiusX: 0.16, radiusZ: 0.19, offsetX: 0.18, offsetZ: -0.07, twist: -0.06, fracture: 0.11 },
+      ],
+    });
+  }
+  return createStratifiedRockGeometry({
+    segments: 8,
+    phase: 0.13,
+    rings: [
+      { y: -0.46, radiusX: 0.50, radiusZ: 0.46, offsetX: -0.02, offsetZ: 0.00, twist: 0.00, fracture: 0.10 },
+      { y: -0.05, radiusX: 0.54, radiusZ: 0.48, offsetX: 0.02, offsetZ: -0.015, twist: 0.06, fracture: 0.12 },
+      { y: 0.34, radiusX: 0.39, radiusZ: 0.37, offsetX: 0.08, offsetZ: -0.04, twist: -0.035, fracture: 0.10 },
+      { y: 0.50, radiusX: 0.22, radiusZ: 0.24, offsetX: 0.13, offsetZ: -0.055, twist: 0.04, fracture: 0.08 },
+    ],
+  });
 }
 
 function colorForPlacement(placement) {
@@ -451,21 +562,41 @@ export function createNaturalGeology({
     placementCount: placementResult.placements.length,
     stats: placementResult.stats,
     assetState: 'procedural-fallback',
-    directAssets: NATURAL_GEOLOGY_PLACEMENT_POLICY.directAssetFamilies,
+    directAssets: NATURAL_GEOLOGY_RENDER_POLICY.directAssetUrls,
     referenceOnlyAssets: NATURAL_GEOLOGY_PLACEMENT_POLICY.referenceOnlyAssets,
     valyriaSurfaceAuthority: 'canonical-terrain',
     legacyValyriaSurfaceOverlayEnabled: false,
     worldSpaceRockWeathering: true,
     worldNormalSpace: 'instance-scale-compensated-world',
     hydratedRegionalTint: true,
+    fallbackGeometryFamily: NATURAL_GEOLOGY_RENDER_POLICY.fallbackGeometryFamily,
+    geographicAssetRouting: true,
   });
   group.userData.naturalGeologyPlacements = placementResult.placements;
   return Object.freeze({ group, placements: placementResult.placements, stats: placementResult.stats });
 }
 
+/**
+ * Chooses a hydrated model family from geography rather than from arbitrary placement order.
+ * Valyria stays dark/faulted; cold/high outcrops use the snow reference; southern arid provinces use
+ * desert rocks; small mid-latitude/boulder-field proxies use the tiny free-rock FBX to add a third
+ * silhouette without paying another multi-megabyte landscape download.
+ */
+export function resolveNaturalGeologyAssetFamily(placement) {
+  if (!placement || placement.kind !== 'asset-proxy') return null;
+  if (placement.volcanic) return 'rocky-terrain';
+  const northness = clamp01(placement.northness ?? 0);
+  const southernDryness = clamp01(placement.southernDryness ?? 0);
+  const altitude01 = clamp01((placement.heightAboveSeaMeters ?? 0) / 520);
+  if (northness > 0.76 || altitude01 > 0.78) return 'snow-terrain';
+  if (southernDryness > 0.69) return 'desert-rocks';
+  if (placement.sourceClusterKind === 'boulder-field' || (placement.slopeDegrees ?? 90) < 14) return 'free-rock';
+  return placement.assetFamily === 'desert-rocks' ? 'desert-rocks' : 'rocky-terrain';
+}
+
 const proxyPlacementsForFamily = (group, family) => (
   group?.userData?.naturalGeologyPlacements ?? []
-).filter((placement) => placement.kind === 'asset-proxy' && placement.assetFamily === family);
+).filter((placement) => placement.kind === 'asset-proxy' && resolveNaturalGeologyAssetFamily(placement) === family);
 
 function collectRenderableMeshes(model) {
   const meshes = [];
@@ -555,6 +686,15 @@ function hideProxyInstances(group, ids) {
   proxy.instanceMatrix.needsUpdate = true;
 }
 
+async function loadNaturalGeologySource(url) {
+  const loader = new AssetLoader();
+  const isFbx = /\.fbx(?:$|[?#])/i.test(url);
+  const model = isFbx
+    ? await loader.loadFBXModel(url, { fallbackColor: 0x665f56, fallbackSize: 1 })
+    : await loader.loadModel(url, { fallbackColor: 0x665f56, fallbackSize: 1 });
+  return { model, sourceFormat: isFbx ? 'fbx' : 'gltf' };
+}
+
 async function hydrateFamily(group, family, url, signal) {
   const placements = proxyPlacementsForFamily(group, family);
   if (!placements.length) return { family, status: 'unused', placementCount: 0 };
@@ -563,11 +703,11 @@ async function hydrateFamily(group, family, url, signal) {
     return { family, status: 'procedural-fallback', reason: preflight.reason, placementCount: placements.length };
   }
 
-  const model = await new AssetLoader().loadModel(url, { fallbackColor: 0x665f56, fallbackSize: 1 });
+  const { model, sourceFormat } = await loadNaturalGeologySource(url);
   const validation = validateNaturalGeologyAsset(model);
   if (!validation.valid) {
     AssetLoader.disposeObject3D(model);
-    return { family, status: 'procedural-fallback', reason: validation.reason, placementCount: placements.length };
+    return { family, status: 'procedural-fallback', reason: validation.reason, placementCount: placements.length, sourceFormat };
   }
 
   const normalization = createAssetNormalization(validation.measurement);
@@ -587,7 +727,7 @@ async function hydrateFamily(group, family, url, signal) {
       instances.setMatrixAt(index, tempMatrix.clone().multiply(normalization).multiply(sourceMesh.matrixWorld));
       // Preserve the source material/texture, but lightly tint each hydrated instance toward the same
       // regional lithology already used by the deterministic fallback. This breaks obvious clone colour
-      // repetition without recolouring the GLB into a flat procedural swatch.
+      // repetition without recolouring the source asset into a flat procedural swatch.
       instances.setColorAt(index, hydratedTintForPlacement(placements[index]));
     }
     instances.instanceMatrix.needsUpdate = true;
@@ -595,6 +735,7 @@ async function hydrateFamily(group, family, url, signal) {
     instances.computeBoundingSphere?.();
     instances.userData.naturalGeologyHydrated = Object.freeze({
       family,
+      sourceFormat,
       regionalTintStrength: NATURAL_GEOLOGY_RENDER_POLICY.hydratedRegionalTintStrength,
       sourceMaterialPreserved: true,
     });
@@ -606,6 +747,7 @@ async function hydrateFamily(group, family, url, signal) {
     family,
     status: 'active',
     assetUrl: url,
+    sourceFormat,
     placementCount: placements.length,
     primitiveCount: hydrated.length,
     hostedContentLength: preflight.contentLength,
@@ -620,16 +762,20 @@ export function upgradeNaturalGeologyAssets(group, { signal, isMobileClass = fal
   if (inFlight.has(group)) return inFlight.get(group);
 
   const task = (async () => {
-    const primary = await hydrateFamily(
-      group,
-      'rocky-terrain',
-      NATURAL_GEOLOGY_RENDER_POLICY.primaryRockAsset,
-      signal,
-    );
-    const southern = signal?.aborted
-      ? { family: 'desert-rocks', status: 'aborted' }
-      : await hydrateFamily(group, 'desert-rocks', NATURAL_GEOLOGY_RENDER_POLICY.southernRockAsset, signal);
-    const families = [primary, southern];
+    const definitions = [
+      ['rocky-terrain', NATURAL_GEOLOGY_RENDER_POLICY.primaryRockAsset],
+      ['free-rock', NATURAL_GEOLOGY_RENDER_POLICY.smallRockAsset],
+      ['snow-terrain', NATURAL_GEOLOGY_RENDER_POLICY.snowRockAsset],
+      ['desert-rocks', NATURAL_GEOLOGY_RENDER_POLICY.southernRockAsset],
+    ];
+    const families = [];
+    for (const [family, url] of definitions) {
+      if (signal?.aborted) {
+        families.push({ family, status: 'aborted', placementCount: 0 });
+        continue;
+      }
+      families.push(await hydrateFamily(group, family, url, signal));
+    }
     const active = families.filter((entry) => entry.status === 'active');
     group.userData.naturalGeology = Object.freeze({
       ...group.userData.naturalGeology,
