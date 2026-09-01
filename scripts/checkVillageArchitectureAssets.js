@@ -13,6 +13,9 @@ function assertHydratedGlbs() {
 	assert(!source.includes('EditorMaterialStudio'), 'runtime villages must not import editor-only Material Studio UI');
 	assert(source.includes('WorldAssetPlacementPipeline.js'), 'village models must use the shared placement core');
 	assert(source.includes('placeWorldAsset('), 'village models must pass through placeWorldAsset');
+	assert(source.includes('bodyMesh.setColorAt(houseCount, wallTint)'), 'procedural village fabric must carry regional wall tint per instance');
+	assert(source.includes('roofMesh.setColorAt(houseCount, roofTint)'), 'procedural village fabric must carry regional roof tint per instance');
+	assert(source.includes('AssetLoader.disposeObject3D(source)'), 'late GLB completion must dispose source after village teardown');
 	const assetPaths = [...new Set([...source.matchAll(/assetUrl:\s*'([^']+\.glb)'/g)].map((match) => match[1]))];
 	assert(assetPaths.length >= 6, `expected regional model diversity, found only ${assetPaths.length} GLB family/families`);
 	for (const assetPath of assetPaths) {
@@ -55,6 +58,7 @@ async function main() {
 				VILLAGE_ARCHITECTURE_PROFILES,
 				resolveVillageArchitectureProfile,
 				upgradeVillageArchitectureAssets,
+				disposeVillages,
 			} = await import('/src/3d/world/villages.js');
 
 			const seatIds = ['berkalp', 'ziya', 'stannis', 'doran', 'robin', 'twin', 'umit'];
@@ -99,6 +103,39 @@ async function main() {
 				placementSurfaceHeight: entry.manifest?.placementSurface?.height ?? null,
 			}));
 
+			// Lifecycle regression: dispose while a GLB is still in flight. The late source must be
+			// destroyed instead of attaching into an already-disposed village graph.
+			const lifecycleGroup = new THREE.Group();
+			lifecycleGroup.userData.villageLandmarkSites = [{
+				seatId: 'berkalp', x: 0, z: 0, yaw: 0, houseIndex: 0,
+				stepStartIndex: 0, stepCount: 3, targetFootprintMeters: 7.2,
+			}];
+			let releaseLateLoad;
+			let lateGeometryDisposed = false;
+			let lateMaterialDisposed = false;
+			const lateGeometry = new THREE.BoxGeometry(5, 4, 5);
+			const lateMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
+			lateGeometry.addEventListener('dispose', () => { lateGeometryDisposed = true; });
+			lateMaterial.addEventListener('dispose', () => { lateMaterialDisposed = true; });
+			const lateSource = new THREE.Mesh(lateGeometry, lateMaterial);
+			const lateLoader = {
+				loadModel() {
+					return new Promise((resolve) => { releaseLateLoad = () => resolve(lateSource); });
+				},
+			};
+			const lifecyclePromise = upgradeVillageArchitectureAssets({
+				assetLoader: lateLoader,
+				villageGroup: lifecycleGroup,
+				sampleHeightMeters: () => 120,
+				seaLevelMeters: 0,
+				roadEdges: [],
+			});
+			await Promise.resolve();
+			disposeVillages(lifecycleGroup);
+			releaseLateLoad();
+			const lifecycleEvidence = await lifecyclePromise;
+			const lateAssetCount = lifecycleGroup.getObjectByName('village-architectural-assets')?.children.length ?? 0;
+
 			const scene = new THREE.Scene();
 			scene.background = new THREE.Color(0xa8bfd1);
 			scene.add(new THREE.HemisphereLight(0xf4f6ff, 0x4d4b3a, 2));
@@ -122,6 +159,10 @@ async function main() {
 			camera.lookAt(0, 124, 0);
 			renderer.render(scene, camera);
 
+			const profileTints = seatIds.map((seatId) => {
+				const profile = resolveVillageArchitectureProfile(seatId);
+				return { wall: profile?.proceduralWallHex ?? null, roof: profile?.proceduralRoofHex ?? null };
+			});
 			return {
 				evidence: {
 					ok: evidence.ok,
@@ -135,7 +176,16 @@ async function main() {
 				regions: seatIds.map((seatId) => resolveVillageArchitectureProfile(seatId)?.id ?? null),
 				expectedRegions,
 				profileCount: Object.keys(VILLAGE_ARCHITECTURE_PROFILES).length,
+				profileTints,
 				manifestProof,
+				lifecycle: {
+					disposed: lifecycleEvidence.disposed === true,
+					ok: lifecycleEvidence.ok,
+					upgradedCount: lifecycleEvidence.upgradedCount,
+					lateAssetCount,
+					lateGeometryDisposed,
+					lateMaterialDisposed,
+				},
 			};
 		});
 
@@ -148,6 +198,14 @@ async function main() {
 		assert.equal(result.assetCount, 7);
 		assert.deepEqual(result.regions, result.expectedRegions, 'seat geography must resolve to seven distinct regional architecture profiles');
 		assert(result.profileCount >= 7);
+		assert.equal(new Set(result.profileTints.map((tint) => tint.wall)).size, 7, 'all geographic village profiles need distinct procedural wall tint');
+		assert.equal(new Set(result.profileTints.map((tint) => tint.roof)).size, 7, 'all geographic village profiles need distinct procedural roof tint');
+		assert.equal(result.lifecycle.disposed, true, 'teardown race must be reported as disposed');
+		assert.equal(result.lifecycle.ok, false, 'disposed upgrade must not report a successful complete hydration');
+		assert.equal(result.lifecycle.upgradedCount, 0, 'no asset may attach after village teardown');
+		assert.equal(result.lifecycle.lateAssetCount, 0, 'late GLB must not be attached after teardown');
+		assert.equal(result.lifecycle.lateGeometryDisposed, true, 'late GLB geometry must be disposed after teardown');
+		assert.equal(result.lifecycle.lateMaterialDisposed, true, 'late GLB material must be disposed after teardown');
 		for (const proof of result.manifestProof) {
 			assert(proof.generatedMaterialCount > 0, `${proof.region}: no generated PBR material`);
 			assert(proof.meshCount > 0 && proof.surfaceCount > 0, `${proof.region}: no renderable material surfaces`);
@@ -168,6 +226,8 @@ async function main() {
 			assets: assetPaths.length,
 			...result.evidence,
 			regions: result.regions,
+			profileTints: result.profileTints,
+			lifecycle: result.lifecycle,
 			proof: result.manifestProof,
 			pageErrors: pageErrors.length,
 			consoleErrors: consoleErrors.length,
