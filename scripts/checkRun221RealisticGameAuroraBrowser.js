@@ -97,15 +97,16 @@ async function main() {
 			scene.add(sky);
 			fail(sky.material.userData.realisticAurora === true, 'Realistic aurora material marker missing.');
 			fail(sky.material.userData.finalAtmosphereProfile === 'camera-relative-horizon-upper-air-v6', 'Final atmosphere profile marker missing.');
-			fail(sky.material.userData.auroraCurtainMorphology === 'broken-asymmetric-ray-sheets-v8-visible-gaps', 'Final aurora morphology marker missing.');
+			fail(sky.material.userData.auroraCurtainMorphology === 'broken-asymmetric-ray-sheets-v9-phosphor-cores', 'Final aurora morphology marker missing.');
 			fail(sky.material.userData.auroraNightCalibration === 'required-token-deep-blue-v6', 'Final aurora night calibration marker missing.');
 			const shader = sky.material.fragmentShader;
 			for (const token of [
 				'ray4HorizonAirmassVariation', 'ray4UpperAirVariation', 'ray4AtmosphericBase',
 				'uHorizonHazeStrength', 'uUpperAirStrength', 'uUpperAirVariationStrength',
-				'ray4VerticalField', 'ray4ArcEdge', 'ray4CurtainEnvelope', 'ray4RaySheet', 'cameraPosition',
+				'ray4VerticalField', 'ray4ArcEdge', 'ray4CurtainEnvelope', 'ray4RaySheet', 'ray4PhosphorCore', 'cameraPosition',
 			]) fail(shader.includes(token), `Final sky shader token missing: ${token}`);
 			fail(shader.includes('finalColor += oxygenGreen * haze * 0.084;'), 'Final V5 aurora haze calibration is missing.');
+			fail(shader.includes('finalColor += oxygenGreen * phosphorCore * 0.42;'), 'Final narrow phosphor-core output is missing.');
 
 			const ground = new THREE.Mesh(
 				new THREE.PlaneGeometry(360, 360),
@@ -165,8 +166,6 @@ async function main() {
 			fail(firstStats.phosphorFraction > 0.001, `Aurora phosphorescent signal too weak: ${firstStats.phosphorFraction}`);
 			fail(meanAnimationDelta > 0.12, `Aurora curtains are visually static: delta=${meanAnimationDelta}`);
 
-			// Isolate the sky and prove that translating the player/camera does not slide the directional
-			// aurora field. Both cameras have the same orientation and elapsed time, only world position differs.
 			const invariantScene = new THREE.Scene();
 			const invariantSky = createAuroraSky();
 			invariantScene.add(invariantSky);
@@ -196,7 +195,6 @@ async function main() {
 			fail(nightReadabilityIntensity - dayReadabilityIntensity >= 0.25,
 				`Readability fill does not respond strongly enough to night: ${nightReadabilityIntensity} -> ${dayReadabilityIntensity}`);
 
-			// Restore the exact midnight artifact frame after isolated invariance measurement.
 			updateDayNightLighting(lights, 0, 100, 0);
 			updateAuroraSky(sky, camera.position, 83, midnight);
 			renderer.render(scene, camera);
@@ -226,14 +224,11 @@ async function main() {
 		assert(errors.length === 0, `Console/page errors: ${errors.join(' | ')}`);
 		console.log(`[checkRun221RealisticGameAuroraBrowser] PASS: optionalMoonFallbacks=${optionalMoonFallbacks.length} ${JSON.stringify(result)}`);
 	} catch (error) {
-		// Preserve the real framebuffer even when a visual threshold fails. This turns red CI into an
-		// inspectable render regression instead of an opaque number-only failure. The canvas is raw
-		// WebGL, so game UI/DOM overlays cannot contaminate the evidence image.
 		try {
 			const failureDataUrl = await page.evaluate(() => document.getElementById('run221-aurora-proof')?.toDataURL('image/png') || null);
 			writeRawEvidenceDataUrl(failureDataUrl);
 		} catch {
-			// The original failure remains authoritative when the canvas never reached a renderable state.
+			// Original failure stays authoritative if the canvas never reached a renderable state.
 		}
 		throw error;
 	} finally {
