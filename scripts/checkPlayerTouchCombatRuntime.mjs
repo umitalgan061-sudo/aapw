@@ -75,7 +75,13 @@ try {
   const blockedWindowCount = (await page.evaluate(windows)).length;
   const blockedInputCount = (await page.evaluate(inputs)).length;
   await lightButton.dispatchEvent('pointerdown', { pointerId: 42, pointerType: 'touch', isPrimary: true, buttons: 1 });
-  const blockedIntent = await waitFor(inputs, (history) => history.length > blockedInputCount && [...history].reverse().find((event) => event?.kind === 'light' && event?.source === 'touch') ?? null, 'touch light intent while guarding');
+  const blockedIntent = await waitFor(
+    inputs,
+    (history) => history.length > blockedInputCount
+      ? [...history].reverse().find((event) => event?.kind === 'light' && event?.source === 'touch') ?? null
+      : null,
+    'touch light intent while guarding',
+  );
   await sleep(120);
   need((await page.evaluate(windows)).length === blockedWindowCount, 'guarded touch light opened an attack window');
 
