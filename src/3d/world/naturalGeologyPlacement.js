@@ -13,12 +13,13 @@ import { REFERENCE_BIOME_ZONES, sampleReferenceInfluence } from './worldReferenc
  */
 
 export const NATURAL_GEOLOGY_PLACEMENT_POLICY = Object.freeze({
-  id: 'natural-geology-placement-2026-09-01-v2-biome-asset-affinity',
+  id: 'natural-geology-placement-2026-09-01-v3-biome-material-affinity',
   deterministic: true,
   renderOnly: true,
   geographyAuthorityUnchanged: true,
   heightAuthority: 'world/terrain.js',
   assetFamilyBiomeAuthority: 'worldReferenceMap.js',
+  materialDrynessAuthority: 'worldReferenceMap.js',
   directAssetFamilies: Object.freeze([
     'assets/models/fbx/rocky_terrain_low_poly.glb',
     'assets/models/fbx/desert_rocks.glb',
@@ -226,14 +227,19 @@ function makePlacement({ seed, column, row, x, z, frame, cluster, influence, hei
   const yaw = strataAngle + angleDifferenceRadians(frame.downhillAngleRadians, strataAngle) * blendToDownhill + hashSigned(seed, column, row, 106) * 0.34;
   const terrainTilt = Math.min(NATURAL_GEOLOGY_PLACEMENT_POLICY.maxTiltDegrees / DEG, frame.slopeRadians * 0.52);
   const buryFraction = kind === 'talus' ? 0.24 : kind === 'boulder' ? 0.19 : 0.12 + geologyHash01(seed, column, row, 108) * 0.10;
-  const southernDryness = clamp01((z / worldDepthMeters) + 0.5), northness = 1 - southernDryness;
+  const southness = clamp01((z / worldDepthMeters) + 0.5), northness = 1 - southness;
+  // Material warmth is an ecological/geological property, not latitude. Keep northness for cold-
+  // climate tinting, but feed the existing `southernDryness` render channel only from canonical
+  // desert/arid influence. The 0.62 shoulder gives dry-zone edges a gradual warm transition while
+  // keeping lush southern biomes exactly neutral instead of turning them ochre because z is large.
+  const southernDryness = dryBiome.affinity > 0 ? clamp01(0.62 + dryBiome.affinity * 0.38) : 0;
   const dryAssetEligible = dryBiome.affinity >= NATURAL_GEOLOGY_PLACEMENT_POLICY.desertRockMinBiomeInfluence;
   return Object.freeze({ id: `${column}:${row}:${cluster.index}`, x, y: frame.y - scale.y * buryFraction, z, kind,
     sourceClusterKind: cluster.kind, clusterIndex: cluster.index, clusterInfluence: influence,
     score: placementScore({ influence, frame, kind, heightAboveSeaMeters, cluster, seed, column, row }), scale: Object.freeze(scale),
     yawRadians: yaw, tiltRadians: terrainTilt, tiltAxisRadians: frame.downhillAngleRadians + Math.PI * 0.5 + hashSigned(seed, column, row, 107) * 0.18,
     slopeDegrees: frame.slopeDegrees, normal: Object.freeze({ x: frame.nx, y: frame.ny, z: frame.nz }), curvatureMeters: frame.curvatureMeters,
-    localReliefMeters: frame.localReliefMeters, heightAboveSeaMeters, northness, southernDryness,
+    localReliefMeters: frame.localReliefMeters, heightAboveSeaMeters, northness, southness, southernDryness,
     dryBiomeAffinity: dryBiome.affinity, dryBiomeZoneId: dryBiome.dominantZoneId, valyriaInfluence, valyriaClass,
     volcanic: valyriaInfluence > NATURAL_GEOLOGY_PLACEMENT_POLICY.valyriaMinimumInfluence,
     assetFamily: kind === 'asset-proxy'
