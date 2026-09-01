@@ -62,6 +62,44 @@ jobs:
           node scripts/checkSharedMaterialPlacementContract.js
           node scripts/checkSeededRandomPolicy.js
 
+      - name: Run283 governance diagnostic parity
+        id: run283_diag
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          : > "$RUNNER_TEMP/run283-governance-diagnostics.txt"
+          status=0
+          for script in \
+            scripts/checkRun283FinalHeadGovernance.js \
+            scripts/checkSeededRandomPolicy.js \
+            scripts/checkAssetsManifest.js \
+            scripts/checkServiceWorkerCache.js \
+            scripts/checkPwaInstallability.js \
+            scripts/checkSmokeCheckRegistry.js \
+            scripts/checkWorldReferenceMap.js \
+            scripts/checkWorldReferenceWaterMask.js \
+            scripts/checkWorldReferenceAlignment.js \
+            scripts/checkWorldReferenceHydrologyExtent.js
+          do
+            echo "===== $script =====" | tee -a "$RUNNER_TEMP/run283-governance-diagnostics.txt"
+            node "$script" 2>&1 | tee -a "$RUNNER_TEMP/run283-governance-diagnostics.txt"
+            rc=${PIPESTATUS[0]}
+            echo "exit=$rc" | tee -a "$RUNNER_TEMP/run283-governance-diagnostics.txt"
+            if [ "$rc" -ne 0 ]; then status=1; fi
+          done
+          echo "aggregate_exit=$status" | tee -a "$RUNNER_TEMP/run283-governance-diagnostics.txt"
+          exit "$status"
+
+      - name: Upload Run283 governance diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: valyria-worldpos-run283-governance-diagnostics
+          path: ${{ runner.temp }}/run283-governance-diagnostics.txt
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Final exact-main freshness
         if: always()
         shell: bash
