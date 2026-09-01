@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import * as THREE from 'three';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
@@ -7,14 +8,20 @@ import {
   createWindGrassRun180,
   disposeWindGrassRun180,
 } from '../src/3d/world/windGrass.js';
+import { disposeVegetation } from '../src/3d/world/vegetation.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const source = readFileSync(resolve(ROOT, 'src/3d/world/windGrass.js'), 'utf8');
+const vegetationSource = readFileSync(resolve(ROOT, 'src/3d/world/vegetation.js'), 'utf8');
 
 assert.equal(WIND_GRASS_LIFECYCLE_POLICY.moduleOwnsGpuResources, true);
 assert.equal(WIND_GRASS_LIFECYCLE_POLICY.idempotentDispose, true);
 assert.equal(WIND_GRASS_LIFECYCLE_POLICY.pagehideCleanup, true);
 assert.equal(WIND_GRASS_LIFECYCLE_POLICY.clearsRenderCallback, true);
+
+assert(vegetationSource.includes("import { disposeWindGrassRun180 } from './windGrass.js';")
+  && vegetationSource.includes('disposeWindGrassRun180(grass);'),
+'vegetation teardown bypassed the wind-grass resource owner');
 
 for (const snippet of [
   'export function disposeWindGrassRun180',
@@ -77,6 +84,27 @@ disposeWindGrassRun180(created.group);
 assert.equal(geometryDisposals, 1);
 assert.equal(materialDisposals, 1);
 assert.equal(created.group.userData.windGrassLifecycle, summary);
+
+const integrated = createWindGrassRun180({
+  sampleHeightMeters: () => 36,
+  seaLevelMeters: 0,
+  seed: 818181,
+  seats: [],
+  roadEdges: [],
+  isMobileClass: true,
+  centerX: 0,
+  centerZ: 0,
+});
+const vegetationOwner = new THREE.Group();
+vegetationOwner.add(integrated.group);
+vegetationOwner.userData.run180GrassGroup = integrated.group;
+disposeVegetation(vegetationOwner);
+assert.equal(integrated.group.userData.windGrassLifecycle.disposed, true,
+  'vegetation teardown did not invoke the wind-grass owner');
+assert.equal(integrated.mesh.onBeforeRender, null,
+  'vegetation teardown retained the grass render callback');
+assert.equal(integrated.group.children.length, 0,
+  'vegetation teardown retained grass render children');
 
 console.log('[checkWindGrassLifecycle] PASS');
 console.log(JSON.stringify({
