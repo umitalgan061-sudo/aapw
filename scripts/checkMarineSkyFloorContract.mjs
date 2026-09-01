@@ -2,11 +2,11 @@
 /**
  * P0 full-world marine/background continuity contract.
  *
- * The shipped sky is assembled by applying Aurora Ray Curtain V4 and then the V5 night refinement.
- * This check exists because a previous V5 revision targeted a stale `nightBounce` token that was no
- * longer present in V4, making the apparent marine-floor fix a silent no-op. Keep this test focused
- * on effective shader adoption rather than image heuristics; actual createScene screenshots remain
- * the visual acceptance authority.
+ * The shipped sky is assembled by applying Aurora Ray Curtain V4 and then the V5 refinement.
+ * This check exists because earlier V5 revisions either targeted a stale shader token or gated the
+ * lower-hemisphere continuity correction by night factor, allowing daylight full-world captures to
+ * expose finite marine-plane rectangles. Keep this test focused on effective shader adoption rather
+ * than image heuristics; actual createScene screenshots remain the visual acceptance authority.
  */
 
 import { applyAuroraRayCurtainV4 } from '../src/3d/auroraRayCurtainV4.js';
@@ -51,10 +51,16 @@ assert(WORLD_SKY_MARINE_FLOOR_POLICY.explicitBelowHorizonBlend === true,
 	'marine-floor policy no longer requires effective below-horizon shader blending');
 assert(WORLD_SKY_MARINE_FLOOR_POLICY.sharedDeepSeaPalette === true,
 	'marine-floor policy drifted away from shared deep-sea palette authority');
+assert(WORLD_SKY_MARINE_FLOOR_POLICY.allLightingContinuity === true,
+	'finite marine-footprint continuity must remain active outside night-only rendering');
 assert(WORLD_SKY_MARINE_FLOOR_POLICY.blackBackgroundFallback === false,
 	'black lower-sky fallback returned');
-assert(finalShader.includes('float marineFloorMask = (1.0 - smoothstep('),
-	'V5 did not inject the below-horizon marine floor into the shipped V4 shader');
+assert(finalShader.includes('float marineFloorMask = 1.0 - smoothstep('),
+	'V5 did not inject the all-lighting below-horizon marine floor into the shipped V4 shader');
+assert(!finalShader.includes('marineFloorMask = (1.0 - smoothstep('),
+	'marine floor returned to the former gated mask expression');
+assert(!finalShader.match(/marineFloorMask[^;]*uNightFactor/),
+	'marine-floor continuity must not disappear during daylight/twilight captures');
 assert(finalShader.includes(`vec3 marineNightFloor = vec3(${expectedRgb});`),
 	'shipped marine floor is not derived from the shared deep-sea palette');
 assert(finalShader.includes('skyColor = mix(skyColor, marineNightFloor, marineFloorMask);'),
@@ -71,5 +77,6 @@ console.log(JSON.stringify({
 	policy: WORLD_SKY_MARINE_FLOOR_POLICY.id,
 	sharedDeepSeaHex: `0x${GEOGRAPHIC_REFERENCE_PALETTE.water.deepSea.toString(16).padStart(6, '0')}`,
 	marineFloorRgb: expectedRgb,
+	allLightingContinuity: true,
 	effectiveShaderBlend: true,
 }, null, 2));
