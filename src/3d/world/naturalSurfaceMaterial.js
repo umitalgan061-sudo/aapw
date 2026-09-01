@@ -9,7 +9,7 @@ import { WORLD_DEFAULTS, WORLD_SCALE } from '../config.js';
 import { VALYRIA_GEOLOGY_POLICY } from './valyriaGeology.js';
 
 export const NATURAL_SURFACE_MATERIAL_POLICY = Object.freeze({
-	id: 'natural-surface-material-2026-09-01-v8-lithic-mesoscale-recovery',
+	id: 'natural-surface-material-2026-09-01-v9-bounded-valyria-normal-energy',
 	renderOnly: true,
 	deterministic: true,
 	canonicalHeightUnchanged: true,
@@ -43,6 +43,8 @@ export const NATURAL_SURFACE_MATERIAL_POLICY = Object.freeze({
 	basaltLithicFacetFabric: true,
 	regionalLithicNormalRecovery: true,
 	lowlandMesoscaleReliefRecovery: true,
+	valyriaMacroNormalEnergyBounded: true,
+	valyriaMacroNormalBlendMax: 0.16,
 });
 
 const F = (value) => Number(value).toFixed(8);
@@ -499,17 +501,17 @@ if (naturalSurfaceNormalValyria > 0.001) {
 	float naturalSurfaceFacetX = naturalSurfaceBasaltFacet(vNaturalSurfaceWorldPosition.xz + vec2(3.2, 0.0)) - naturalSurfaceFacetCenter;
 	float naturalSurfaceFacetZ = naturalSurfaceBasaltFacet(vNaturalSurfaceWorldPosition.xz + vec2(0.0, 3.2)) - naturalSurfaceFacetCenter;
 	vec3 naturalSurfacePerturbedWorldNormal = normalize(vNaturalSurfaceWorldNormal + vec3(
-		-(naturalSurfaceStructuralX * 0.82 + naturalSurfaceCoolingX * 0.25 + naturalSurfaceLavaX * 0.38 + naturalSurfaceFacetX * 0.68),
+		-(naturalSurfaceStructuralX * 0.58 + naturalSurfaceCoolingX * 0.20 + naturalSurfaceLavaX * 0.24 + naturalSurfaceFacetX * 0.58),
 		0.0,
-		-(naturalSurfaceStructuralZ * 0.82 + naturalSurfaceCoolingZ * 0.25 + naturalSurfaceLavaZ * 0.38 + naturalSurfaceFacetZ * 0.68)
+		-(naturalSurfaceStructuralZ * 0.58 + naturalSurfaceCoolingZ * 0.20 + naturalSurfaceLavaZ * 0.24 + naturalSurfaceFacetZ * 0.58)
 	));
-	normal = normalize(mix(naturalSurfaceBaseNormal, normalize(mat3(viewMatrix) * naturalSurfacePerturbedWorldNormal), naturalSurfaceNormalValyria * 0.22));
+	normal = normalize(mix(naturalSurfaceBaseNormal, normalize(mat3(viewMatrix) * naturalSurfacePerturbedWorldNormal), naturalSurfaceNormalValyria * ${NATURAL_SURFACE_MATERIAL_POLICY.valyriaMacroNormalBlendMax.toFixed(2)}));
 	float naturalSurfaceGranuleScale = 26.0;
 	float naturalSurfaceGranuleCenter = naturalSurfaceFbm(vNaturalSurfaceWorldPosition.xz / naturalSurfaceGranuleScale + vec2(4.1, -8.7));
 	float naturalSurfaceGranuleX = naturalSurfaceFbm((vNaturalSurfaceWorldPosition.xz + vec2(2.4, 0.0)) / naturalSurfaceGranuleScale + vec2(4.1, -8.7)) - naturalSurfaceGranuleCenter;
 	float naturalSurfaceGranuleZ = naturalSurfaceFbm((vNaturalSurfaceWorldPosition.xz + vec2(0.0, 2.4)) / naturalSurfaceGranuleScale + vec2(4.1, -8.7)) - naturalSurfaceGranuleCenter;
 	vec3 naturalSurfaceGranularWorldNormal = normalize(vNaturalSurfaceWorldNormal + vec3(-naturalSurfaceGranuleX * 0.40, 0.0, -naturalSurfaceGranuleZ * 0.40));
-	normal = normalize(mix(normal, normalize(mat3(viewMatrix) * naturalSurfaceGranularWorldNormal), naturalSurfaceNormalValyria * 0.10));
+	normal = normalize(mix(normal, normalize(mat3(viewMatrix) * naturalSurfaceGranularWorldNormal), naturalSurfaceNormalValyria * 0.085));
 }
 `;
 
