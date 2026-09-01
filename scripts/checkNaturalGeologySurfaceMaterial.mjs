@@ -24,6 +24,9 @@ assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.renderOnly, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.geographyAuthorityUnchanged, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.proceduralBaseColorNeutral, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.proceduralVertexWeathering, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.proceduralBaseOriginNormalized, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.hydratedBaseOriginNormalized, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.fallbackHydratedGroundParity, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.instanceClimateColor, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.hydratedSourceMapsPreserved, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.hydratedInstanceWeathering, true);
@@ -38,6 +41,11 @@ for (const kind of kinds) {
   const colors = geometry.getAttribute('color');
   assert(positions?.count > 0, `${kind} position attribute missing`);
   assert.equal(colors?.count, positions.count, `${kind} vertex weathering color count mismatch`);
+  geometry.computeBoundingBox();
+  const minY = geometry.boundingBox?.min?.y;
+  assert(Number.isFinite(minY), `${kind} bounding box missing`);
+  assert(Math.abs(minY) <= 1e-6, `${kind} procedural base origin drifted from local y=0: ${minY}`);
+  assert.equal(geometry.userData.naturalGeologyBaseOrigin?.bottomAtLocalZero, true, `${kind} base-origin metadata missing`);
   let min = Infinity, max = -Infinity;
   for (let i = 0; i < colors.count; i += 1) {
     const values = [colors.getX(i), colors.getY(i), colors.getZ(i)];
@@ -47,7 +55,8 @@ for (const kind of kinds) {
   assert(max - min >= 0.035, `${kind} vertex weathering is too uniform: ${min}..${max}`);
   assert(min >= 0.72 && max <= 1.08, `${kind} weathering range escaped neutral multiplier bounds: ${min}..${max}`);
   assert.equal(geometry.userData.naturalGeologySurface?.geographyAuthorityChanged, false);
-  geometryStats.push({ kind, vertices: positions.count, min: Number(min.toFixed(4)), max: Number(max.toFixed(4)) });
+  assert.equal(geometry.userData.naturalGeologySurface?.baseOriginNormalized, true);
+  geometryStats.push({ kind, vertices: positions.count, minY: Number(minY.toFixed(8)), min: Number(min.toFixed(4)), max: Number(max.toFixed(4)) });
   geometry.dispose();
 }
 
@@ -95,6 +104,9 @@ for (const mesh of instanced) {
   assert(mesh.geometry.getAttribute('color')?.count === mesh.geometry.getAttribute('position')?.count, `${mesh.name} vertex weathering missing`);
   assert(mesh.instanceColor?.count === mesh.count, `${mesh.name} geographic instance colors missing`);
   assert.equal(mesh.userData.naturalGeologySurface?.doubleTintRemoved, true, `${mesh.name} double-tint contract missing`);
+  assert.equal(mesh.userData.naturalGeologySurface?.baseOriginNormalized, true, `${mesh.name} base-origin parity contract missing`);
+  mesh.geometry.computeBoundingBox();
+  assert(Math.abs(mesh.geometry.boundingBox.min.y) <= 1e-6, `${mesh.name} fallback geometry is not ground-origin aligned`);
   renderedInstances += mesh.count;
 }
 assert.equal(renderedInstances, created.placements.length, 'each geology placement must remain represented exactly once in procedural fallback');
@@ -108,4 +120,5 @@ console.log(JSON.stringify({
   geometryStats,
   colors: { temperate: color(temperate), north: color(north), south: color(south), volcanic: color(volcanic) },
   hydratedMultipliers: { temperate: multiplier(temperate), north: multiplier(north), south: multiplier(south), volcanic: multiplier(volcanic) },
+  baseOriginParity: true,
 }, null, 2));
