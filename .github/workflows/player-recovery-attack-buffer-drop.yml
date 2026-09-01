@@ -46,7 +46,7 @@ jobs:
           echo "scope additions=${ADD} deletions=${DEL} changed=${changed}"
           test "$changed" -le 1000
           echo "BASE_SHA=$BASE" >> "$GITHUB_ENV"
-      - name: Syntax combat material and PWA contracts
+      - name: Syntax combat and shared material contracts
         shell: bash
         run: |
           set -euo pipefail
@@ -58,11 +58,17 @@ jobs:
           node scripts/checkPlayerCombatRecoveryInputIsolation.mjs
           node scripts/checkPlayerParryRecovery.mjs
           node scripts/checkSharedMaterialPlacementContract.js
-          node scripts/checkPwaInstallability.js
-          node scripts/checkServiceWorkerCache.js
           ! grep -q 'EditorMaterialStudio' src/3d/gameplay/player.js
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
+      - name: Shared PWA and cache contracts
+        id: shared-pwa
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
       - name: Asset-first shipped-scene hydration
         shell: bash
         run: |
@@ -102,6 +108,12 @@ jobs:
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           test "$(git merge-base origin/main HEAD)" = "$BASE_SHA"
           git diff --check "$BASE_SHA"...HEAD
+      - name: Require shared PWA and cache contracts
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ steps.shared-pwa.outcome }}" = "success"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
