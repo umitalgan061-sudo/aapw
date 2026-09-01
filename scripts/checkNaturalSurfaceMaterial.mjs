@@ -20,6 +20,8 @@ assert.equal(policy.valyriaMacroNormalBlendMax, 0.16);
 assert.equal(policy.valyriaLinearWeatheringPatina, true);
 assert.equal(policy.valyriaPatchyLithicExposure, true);
 assert.equal(policy.valyriaLinearCarrierRoughnessResponse, true);
+assert.equal(policy.lowlandSoilAggregateBreakup, true);
+assert.equal(policy.definedRidgeDarkRecovery, true);
 assert.equal(policy.valyriaAuthorityPolicyId, VALYRIA_GEOLOGY_POLICY.id);
 assert.deepEqual(policy.valyriaMaterials, ['basalt', 'obsidian', 'ash', 'pumice', 'oxidation', 'sulfuric-weathering']);
 
@@ -47,6 +49,8 @@ for (const marker of [
   'naturalSurfaceCoolingFracture',
   'naturalSurfaceHighPass',
   'naturalSurfaceDarkRecovery',
+  'naturalSurfaceSoilAggregate',
+  'naturalSurfaceDarkFacetBreakup',
   'naturalSurfaceIntertidalEnvelope',
   'naturalSurfaceRevisedVolcanicColor',
   'naturalSurfaceObsidian',
@@ -69,6 +73,13 @@ assert(first.fragmentShader.includes('naturalSurfaceLinearCarrier = clamp(natura
   && first.fragmentShader.includes('naturalSurfaceLinearWeatheringPatina * (0.36 + naturalSurfaceSlope * 0.16)')
   && first.fragmentShader.includes('naturalSurfaceRoughLinearPatina * 0.30'),
 'Valyria carrier patina lost its patchy albedo/roughness response');
+assert(first.fragmentShader.includes('1.0 - smoothstep(0.055, 0.18, naturalSurfaceLuma)')
+  && !first.fragmentShader.includes('smoothstep(0.18, 0.055, naturalSurfaceLuma)'),
+'ridge dark recovery returned to undefined reversed smoothstep');
+assert(first.fragmentShader.includes('naturalSurfaceAggregateFrame')
+  && first.fragmentShader.includes('naturalSurfaceSoilAggregate - 0.5')
+  && first.fragmentShader.includes('naturalSurfaceAggregateMask * 0.115'),
+'lowland soil/stone aggregate breakup lost its bounded render-only response');
 assert(first.fragmentShader.includes('naturalSurfaceStructuralX * 0.58')
   && first.fragmentShader.includes('naturalSurfaceLavaX * 0.24')
   && first.fragmentShader.includes('naturalSurfaceNormalValyria * 0.16'),
