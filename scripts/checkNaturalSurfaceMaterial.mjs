@@ -20,6 +20,7 @@ assert.equal(policy.valyriaMacroNormalBlendMax, 0.16);
 assert.equal(policy.valyriaLinearWeatheringPatina, true);
 assert.equal(policy.valyriaPatchyLithicExposure, true);
 assert.equal(policy.valyriaLinearCarrierRoughnessResponse, true);
+assert.equal(policy.valyriaFineAggregateBreakup, true);
 assert.equal(policy.lowlandSoilAggregateBreakup, true);
 assert.equal(policy.definedRidgeDarkRecovery, true);
 assert.equal(policy.valyriaAuthorityPolicyId, VALYRIA_GEOLOGY_POLICY.id);
@@ -61,6 +62,8 @@ for (const marker of [
   'naturalSurfaceRoughTarget',
   'naturalSurfaceLinearWeatheringPatina',
   'naturalSurfacePatchyLithicExposure',
+  'naturalSurfaceVolcanicAggregate',
+  'naturalSurfaceVolcanicChip',
   'naturalSurfaceRoughLinearPatina',
   'naturalSurfacePerturbedWorldNormal',
 ]) assert(first.fragmentShader.includes(marker), `natural material shader lost ${marker}`);
@@ -70,9 +73,14 @@ assert(first.vertexShader.includes('mat3(modelMatrix) * objectNormal'), 'world-s
 assert(!first.vertexShader.includes('transformed +='), 'render-only material must not displace canonical terrain');
 assert(!first.fragmentShader.includes('gl_FragDepth'), 'render-only material must not rewrite terrain depth');
 assert(first.fragmentShader.includes('naturalSurfaceLinearCarrier = clamp(naturalSurfaceDrainage * 0.58')
-  && first.fragmentShader.includes('naturalSurfaceLinearWeatheringPatina * (0.36 + naturalSurfaceSlope * 0.16)')
+  && first.fragmentShader.includes('mix(0.44, 0.96, naturalSurfaceLinearWeatheringBreakup)')
+  && first.fragmentShader.includes('naturalSurfaceLinearWeatheringPatina * (0.44 + naturalSurfaceSlope * 0.18)')
   && first.fragmentShader.includes('naturalSurfaceRoughLinearPatina * 0.30'),
 'Valyria carrier patina lost its patchy albedo/roughness response');
+assert(first.fragmentShader.includes('naturalSurfaceVolcanicAggregateFrame')
+  && first.fragmentShader.includes('naturalSurfaceVolcanicAggregateMask * 0.175')
+  && first.fragmentShader.includes('naturalSurfaceVolcanicAggregateMask * naturalSurfaceVolcanicChip * 0.095'),
+'Valyria fine basalt/ash aggregate lost its bounded material-only breakup');
 assert(first.fragmentShader.includes('1.0 - smoothstep(0.055, 0.18, naturalSurfaceLuma)')
   && !first.fragmentShader.includes('smoothstep(0.18, 0.055, naturalSurfaceLuma)'),
 'ridge dark recovery returned to undefined reversed smoothstep');
