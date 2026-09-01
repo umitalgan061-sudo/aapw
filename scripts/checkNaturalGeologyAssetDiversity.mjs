@@ -2,23 +2,32 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import * as THREE from '../src/3d/vendor/three/three.module.js';
 import {
   NATURAL_GEOLOGY_RENDER_POLICY,
   createNaturalRockPrototypeGeometry,
+  prepareNaturalGeologyHydratedMaterial,
+  prepareNaturalGeologyHydratedMaterials,
   resolveNaturalGeologyAssetFamily,
+  validateNaturalGeologyAsset,
 } from '../src/3d/world/naturalGeology.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const rendererSource = readFileSync(resolve(ROOT, 'src/3d/world/naturalGeology.js'), 'utf8');
 const P = NATURAL_GEOLOGY_RENDER_POLICY;
 
-assert(P.id.includes('v7-faceted-fallback-and-biome-assets'));
+assert(P.id.includes('v8-hydrated-texture-fidelity'));
 assert.equal(P.renderOnly, true);
 assert.equal(P.geographyAuthorityUnchanged, true);
 assert.equal(P.geographicAssetRouting, true);
 assert.equal(P.fbxHydrationSupported, true);
 assert.equal(P.snowAssetRestrictedToColdHighland, true);
 assert.equal(P.valyriaNeverUsesSnowAsset, true);
+assert.equal(P.multiMaterialHydrationSupported, true);
+assert.equal(P.hydratedTextureColorSpaceContract, true);
+assert.equal(P.hydratedMipFiltering, true);
+assert.equal(P.hydratedMaximumAnisotropy, 8);
+assert.equal(P.sourceUvAndTextureTransformPreserved, true);
 assert.equal(P.fallbackGeometryFamily, 'stratified-faceted-geologic-ledges');
 assert.equal(P.platonicFallbackGeometry, false);
 assert.equal(P.directAssetUrls.length, 4);
@@ -48,6 +57,59 @@ for (const [placement, expected] of routeCases) {
 }
 assert.equal(resolveNaturalGeologyAssetFamily({ kind: 'bedrock' }), null);
 assert.equal(resolveNaturalGeologyAssetFamily(null), null);
+
+const albedo = new THREE.Texture();
+albedo.colorSpace = THREE.NoColorSpace;
+albedo.offset.set(0.17, 0.29);
+albedo.repeat.set(2.4, 1.8);
+const normal = new THREE.Texture();
+normal.colorSpace = THREE.SRGBColorSpace;
+const roughness = new THREE.Texture();
+roughness.colorSpace = THREE.SRGBColorSpace;
+const sourceMaterial = new THREE.MeshStandardMaterial({
+  map: albedo,
+  normalMap: normal,
+  roughnessMap: roughness,
+  roughness: 0.28,
+  metalness: 0.42,
+});
+sourceMaterial.name = 'authored-rock-material';
+const hydratedMaterial = prepareNaturalGeologyHydratedMaterial(sourceMaterial, { maxAnisotropy: 16 });
+assert.notEqual(hydratedMaterial, sourceMaterial, 'hydration must clone instead of mutating the source material');
+assert.equal(hydratedMaterial.map, albedo, 'source albedo texture/UV transform must remain attached');
+assert.equal(hydratedMaterial.map.offset.x, 0.17);
+assert.equal(hydratedMaterial.map.offset.y, 0.29);
+assert.equal(hydratedMaterial.map.repeat.x, 2.4);
+assert.equal(hydratedMaterial.map.repeat.y, 1.8);
+assert.equal(hydratedMaterial.map.colorSpace, THREE.SRGBColorSpace);
+assert.equal(hydratedMaterial.normalMap.colorSpace, THREE.NoColorSpace);
+assert.equal(hydratedMaterial.roughnessMap.colorSpace, THREE.NoColorSpace);
+assert.equal(hydratedMaterial.map.anisotropy, P.hydratedMaximumAnisotropy);
+assert.equal(hydratedMaterial.normalMap.anisotropy, P.hydratedMaximumAnisotropy);
+assert.equal(hydratedMaterial.map.minFilter, THREE.LinearMipmapLinearFilter);
+assert.equal(hydratedMaterial.map.magFilter, THREE.LinearFilter);
+assert.equal(hydratedMaterial.roughness, P.hydratedRoughnessFloor);
+assert.equal(hydratedMaterial.metalness, 0);
+assert.equal(hydratedMaterial.userData.naturalGeologySourceMapsPreserved, true);
+assert.equal(hydratedMaterial.userData.naturalGeologyTextureColorSpaceContract, true);
+
+const secondMaterial = new THREE.MeshStandardMaterial({ color: 0x756c5f, roughness: 0.81 });
+const hydratedArray = prepareNaturalGeologyHydratedMaterials(
+  [sourceMaterial, secondMaterial],
+  { maxAnisotropy: 4 },
+);
+assert(Array.isArray(hydratedArray));
+assert.equal(hydratedArray.length, 2);
+assert(hydratedArray.every((material, index) => material !== [sourceMaterial, secondMaterial][index]));
+const multiMaterialModel = new THREE.Group();
+const multiMaterialMesh = new THREE.Mesh(
+  new THREE.BoxGeometry(2, 1, 3),
+  [sourceMaterial, secondMaterial],
+);
+multiMaterialModel.add(multiMaterialMesh);
+const multiValidation = validateNaturalGeologyAsset(multiMaterialModel);
+assert.equal(multiValidation.valid, true, 'multi-material GLB/FBX mesh must be hydration eligible');
+assert.equal(multiValidation.meshes.length, 1);
 
 const kinds = ['fractured-scarp', 'bedrock', 'low-outcrop', 'talus', 'boulder', 'asset-proxy'];
 const metrics = {};
@@ -112,11 +174,22 @@ for (const required of [
   "'free-rock'",
   "'snow-terrain'",
   'sourceFormat',
+  'prepareNaturalGeologyHydratedMaterials',
+  'getMaxAnisotropy',
 ]) {
   assert(rendererSource.includes(required), `asset-diversity wiring missing: ${required}`);
 }
 assert(rendererSource.indexOf("if (placement.volcanic) return 'rocky-terrain'")
   < rendererSource.indexOf("return 'snow-terrain'"), 'Valyria must be routed before snow/highland routing');
+
+multiMaterialMesh.geometry.dispose();
+sourceMaterial.dispose();
+secondMaterial.dispose();
+hydratedMaterial.dispose();
+for (const material of hydratedArray) material.dispose();
+albedo.dispose();
+normal.dispose();
+roughness.dispose();
 
 console.log('[checkNaturalGeologyAssetDiversity] PASS');
 console.log(JSON.stringify({
@@ -124,6 +197,14 @@ console.log(JSON.stringify({
   directAssets: P.directAssetUrls,
   knownDirectAssetBytes: P.knownDirectAssetBytes,
   assetRoutingCases: routeCases.map(([placement, family]) => ({ placement, family })),
+  hydratedTextureContract: {
+    colorSpace: 'srgb-color',
+    dataSpace: 'linear-data',
+    anisotropyCap: P.hydratedMaximumAnisotropy,
+    mipFiltering: 'trilinear-when-mip-chain-exists',
+    multiMaterialHydration: true,
+    sourceUvTransformPreserved: true,
+  },
   fallbackGeometryFamily: P.fallbackGeometryFamily,
   geometryMetrics: metrics,
 }, null, 2));
