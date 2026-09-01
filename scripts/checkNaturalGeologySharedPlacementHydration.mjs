@@ -15,7 +15,6 @@ import {
 const originalFetch = globalThis.fetch;
 const originalLoadModel = AssetLoader.prototype.loadModel;
 const object = new THREE.Object3D();
-const matrix = new THREE.Matrix4();
 const colorA = new THREE.Color();
 const colorB = new THREE.Color();
 
@@ -164,8 +163,6 @@ try {
     ok: true,
     status: 200,
     headers: new Headers({
-      // Primary hydrates. Southern deliberately behaves like a Git-LFS pointer so its fallback must
-      // remain visible while the successful primary family is physically retired.
       'content-length': String(url === NATURAL_GEOLOGY_RENDER_POLICY.primaryRockAsset ? 4096 : 128),
       'content-type': 'model/gltf-binary',
     }),
@@ -214,7 +211,8 @@ try {
 
     batch.getColorAt(0, colorA);
     batch.getColorAt(1, colorB);
-    assert(colorA.distanceTo(colorB) > 0.001, 'hydrated clones received identical instance tint');
+    const tintDistance = Math.hypot(colorA.r - colorB.r, colorA.g - colorB.g, colorA.b - colorB.b);
+    assert(tintDistance > 0.001, 'hydrated clones received identical instance tint');
     for (const channel of [colorA.r, colorA.g, colorA.b, colorB.r, colorB.g, colorB.b]) {
       assert(channel > 0.75 && channel <= 1.0, `hydrated tint overrode authored albedo too aggressively: ${channel}`);
     }
