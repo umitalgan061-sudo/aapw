@@ -10,14 +10,14 @@ try {
   page.on('pageerror', (error) => pageErrors.push(String(error)));
   await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
   const proof = await page.evaluate(async () => {
-    const { createCreatureBeing } = await import('/src/3d/gameplay/creatureBrain.js');
+    const { createCreatureBeing, spawnConfiguredCreatures } = await import('/src/3d/gameplay/creatureBrain.js');
     const { wrapCreatureWithThreatMemory } = await import('/src/3d/gameplay/livingWorldSpawner.js');
     const { mulberry32 } = await import('/src/3d/world/terrain.js');
     const groundCollider = { getGroundHeight: () => 5 };
     const createBeing = (speciesId, spawnId, x = 0, playerCollider = null) => createCreatureBeing({
       speciesId, spawnId, worldX: x, worldZ: 0, groundY: 5, rotationYRadians: Math.PI / 2,
       groundCollider, playerCollider, mulberry32,
-    });
+    }); const identitySafe = spawnConfiguredCreatures({ spawns: [null, { speciesId: 'kedi', x: 1, z: 0 }, { id: 'identity-valid', speciesId: 'kedi', x: 2, z: 0 }], groundCollider, playerCollider: null, mulberry32 }); const identityNames = identitySafe.map(({ object3D }) => object3D.name); identitySafe.forEach((entry) => entry.dispose());
     const distanceTo = (controller, point) => Math.hypot(
       controller.object3D.position.x - point.x, controller.object3D.position.z - point.z,
     );
@@ -70,10 +70,10 @@ try {
     const tiedPredatorDeltaX = tiedPrey.object3D.position.x; rightPredator.dispose(); leftPredator.dispose(); tiedPrey.dispose();
     return {
       before, after, position, exactStopDistance, afterCollider, rejectedPosition, recoveredDistance,
-      colliderCalls, colliderPosition, outwardDistance, herdExactBoundaryFleeing, herdInsideBoundaryFleeing, nearestHerdDeltaX, tiedPredatorDeltaX,
+      colliderCalls, colliderPosition, outwardDistance, herdExactBoundaryFleeing, herdInsideBoundaryFleeing, nearestHerdDeltaX, tiedPredatorDeltaX, identityNames,
     };
   });
-  assert.equal(pageErrors.length, 0, `page errors: ${pageErrors.join('\n')}`);
+  assert.equal(pageErrors.length, 0, `page errors: ${pageErrors.join('\n')}`); assert.deepEqual(proof.identityNames, ['identity-valid'], 'malformed configured identities must be rejected without poisoning later valid spawns');
   assert.ok(proof.before > 2.5, `precondition failed: ${proof.before}`);
   assert.ok(Math.abs(proof.after - 2.5) <= 1e-6, `friendly approach missed stop distance: ${proof.after}`);
   assert.ok(Object.values(proof.position).every(Number.isFinite), 'friendly approach published a non-finite transform');
