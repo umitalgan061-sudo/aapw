@@ -197,7 +197,7 @@ export function distancePointToSegment2D(px, pz, ax, az, bx, bz) {
 	const abz = bz - az;
 	const lengthSquared = abx * abx + abz * abz;
 	if (lengthSquared === 0) return Math.hypot(px - ax, pz - az);
-	let t = ((px - ax) * abx + (pz - az)) / lengthSquared;
+	let t = ((px - ax) * abx + (pz - az) * abz) / lengthSquared;
 	t = Math.max(0, Math.min(1, t));
 	return Math.hypot(px - (ax + abx * t), pz - (az + abz * t));
 }
