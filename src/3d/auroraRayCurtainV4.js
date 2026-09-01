@@ -213,7 +213,7 @@ const AURORA_RAY_CURTAIN_V4_FRAGMENT_SHADER = /* glsl */ `
 
 		vec3 finalColor = skyColor;
 		finalColor += oxygenGreen * haze * 0.078;
-		finalColor += oxygenGreen * phosphorCore * 0.42;
+		finalColor += oxygenGreen * phosphorCore * 0.68;
 		finalColor += auroraColor * energy * 0.74;
 		float dither = (ray4Hash(gl_FragCoord.xy + vec2(17.0, 31.0)) - 0.5) * uBandingDitherStrength;
 		finalColor = max(finalColor + dither, vec3(0.0));
