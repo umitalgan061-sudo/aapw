@@ -10,6 +10,7 @@
 
 import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
+import { applyNaturalGeologyAssetSurface } from './naturalGeologyAssetSurface.js';
 import {
   NATURAL_GEOLOGY_PLACEMENT_POLICY,
   checksumNaturalGeologyPlacements,
@@ -54,6 +55,7 @@ const clamp01 = (value) => value < 0 ? 0 : value > 1 ? 1 : value;
 function createRockMaterial(color) {
   const material = new THREE.MeshStandardMaterial({ color, roughness: NATURAL_GEOLOGY_RENDER_POLICY.proceduralRoughness, metalness: 0, flatShading: true });
   material.userData.naturalGeology = true;
+  applyNaturalGeologyAssetSurface(material, { family: 'procedural' });
   return material;
 }
 
@@ -237,6 +239,7 @@ async function hydrateFamily(group, family, url, signal) {
   const normalization = createAssetNormalization(validation.measurement), hydrated = [];
   for (let meshIndex = 0; meshIndex < validation.meshes.length; meshIndex += 1) {
     const sourceMesh = validation.meshes[meshIndex], material = sourceMesh.material.clone(); material.metalness = 0; material.roughness = Math.max(material.roughness ?? 0, NATURAL_GEOLOGY_RENDER_POLICY.hydratedRoughnessFloor);
+    applyNaturalGeologyAssetSurface(material, { family });
     const instances = new THREE.InstancedMesh(sourceMesh.geometry, material, placements.length); instances.name = `natural-geology-hydrated-${family}-${meshIndex}`; instances.castShadow = true; instances.receiveShadow = true;
     for (let i = 0; i < placements.length; i += 1) { composePlacementMatrix(placements[i], tempMatrix); instances.setMatrixAt(i, tempMatrix.clone().multiply(normalization).multiply(sourceMesh.matrixWorld)); }
     instances.instanceMatrix.needsUpdate = true; instances.computeBoundingSphere?.(); hydrated.push(instances);
