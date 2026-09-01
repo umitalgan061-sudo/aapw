@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-01-v69-ocean-depth-handoff',
+	id: 'geographic-reference-palette-2026-09-01-v70-ocean-backdrop-continuity',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v69 preserves v56 aerial lowland ecotone separation and all canonical terrain, shoreline, hydrology and collider authority unchanged',
-		water: 'v69 follows direct inspection of exact-head full-world #877: v68 restored deep-ocean hierarchy but made the abyss family too dark at aerial scale and amplified large-scale handoff traces. Abyss is lifted to a restrained midpoint while deepSea stays fixed, preserving legible shelf-to-deep separation without turning canonical water geometry into visible material bands. Deterministic world-space macro/meso/fine albedo, pseudo-normal, roughness, current and glint remain unchanged. Wet coverage, shoreline, bathymetry, lake membership and water geometry remain unchanged.',
-		road: 'v69 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
+		terrain: 'v70 preserves v56 aerial lowland ecotone separation and all canonical terrain, shoreline, hydrology and collider authority unchanged',
+		water: 'v70 follows direct inspection of exact-head full-world #878: canonical deep water is readable, but the opaque abyss backdrop still separates too strongly from the transparent deepSea layer at aerial scale and exposes broad rectangular handoff structure. Abyss is lifted only within the existing deep-marine colour family, keeping a visible shelf-to-deep gradient while reducing layer-boundary contrast. Deterministic world-space macro/meso/fine albedo, pseudo-normal, roughness, current and glint remain unchanged. Wet coverage, shoreline, bathymetry, lake membership and water geometry remain unchanged.',
+		road: 'v70 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -52,7 +52,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		riverPool: 0x246776,
 		rapid: 0x82a7aa,
 		deepSea: 0x255d6d,
-		abyss: 0x225364,
+		abyss: 0x245968,
 		plunge: 0x4d818b,
 		splash: 0xdeedeb,
 		foam: 0xf1f7f4,
