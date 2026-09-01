@@ -1,0 +1,39 @@
+name: Wind Grass Lifecycle Exact Head
+
+on:
+  push:
+    branches:
+      - codex/foundation-grounding-20260821
+    paths:
+      - 'src/3d/world/windGrass.js'
+      - 'scripts/checkWindGrassLifecycle.mjs'
+      - '.github/workflows/wind-grass-lifecycle-exact-head.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lifecycle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout exact pushed head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify exact head and syntax
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          node --check src/3d/world/windGrass.js
+          node --check scripts/checkWindGrassLifecycle.mjs
+      - name: Resolve vendored Three.js
+        run: node scripts/setupNodeThreeShim.mjs
+      - name: Wind-grass resource ownership
+        run: node scripts/checkWindGrassLifecycle.mjs
