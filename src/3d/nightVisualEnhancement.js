@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 const NIGHT_CINEMATIC_FILL_NAME = 'Game Night Cinematic Fill';
 const NIGHT_CINEMATIC_DAY_INTENSITY = 0.02;
-const NIGHT_CINEMATIC_FULL_INTENSITY = 0.58;
+const NIGHT_CINEMATIC_FULL_INTENSITY = 0.34;
 const NIGHT_CINEMATIC_TWILIGHT_SKY = new THREE.Color(0x8aa6c3);
 const NIGHT_CINEMATIC_BLUE_HOUR_SKY = new THREE.Color(0x728fb2);
 const NIGHT_CINEMATIC_MOONLIT_SKY = new THREE.Color(0x667f9f);
@@ -55,8 +55,8 @@ function mesopicGroundAdaptation(night, moonlit, deepNight) {
 
 function nightSurfaceContrast(night, moonlit, deepNight) {
 	const directionalWindow = THREE.MathUtils.smoothstep(night, 0.34, 0.72) * (1 - THREE.MathUtils.smoothstep(night, 0.9, 1.0));
-	const moonReliefProtection = 1 - 0.12 * Math.max(moonlit, directionalWindow);
-	const deepAmbientFalloff = THREE.MathUtils.lerp(1, 0.88, deepNight);
+	const moonReliefProtection = 1 - 0.18 * Math.max(moonlit, directionalWindow);
+	const deepAmbientFalloff = THREE.MathUtils.lerp(1, 0.82, deepNight);
 	return moonReliefProtection * deepAmbientFalloff;
 }
 
