@@ -159,7 +159,7 @@ vec3 naturalRockWeathered = mix(vec3(0.235, 0.224, 0.202), vec3(0.105, 0.112, 0.
 vec3 naturalRockFreshBreak = vec3(0.315, 0.305, 0.282);
 diffuseColor.rgb = mix(diffuseColor.rgb, naturalRockWeathered, naturalRockRecess * 0.16);
 diffuseColor.rgb = mix(diffuseColor.rgb, naturalRockFreshBreak, naturalRockExposure * naturalRockSlope * 0.11);
-diffuseColor.rgb = clamp(diffuseColor.rgb, vec3(0.018), vec3(0.78));`,
+diffuseColor.rgb = clamp(diffuseColor.rgb, vec3(0.032), vec3(0.78));`,
       )
       .replace(
         '#include <roughnessmap_fragment>',
@@ -231,11 +231,11 @@ export function createNaturalRockPrototypeGeometry(kind) {
 
 function colorForPlacement(placement) {
   if (placement.volcanic) {
-    const c = new THREE.Color(0x3a3431);
+    const c = new THREE.Color(0x47413e);
     const hot = clamp01((placement.valyriaInfluence - 0.45) / 0.55);
-    if (placement.kind === 'talus') c.lerp(new THREE.Color(0x504844), 0.30);
-    if (placement.kind === 'fractured-scarp') c.lerp(new THREE.Color(0x29282a), 0.38);
-    if (hot > 0.6 && placement.curvatureMeters > 0.35) c.lerp(new THREE.Color(0x71301f), 0.11);
+    if (placement.kind === 'talus') c.lerp(new THREE.Color(0x57504b), 0.26);
+    if (placement.kind === 'fractured-scarp') c.lerp(new THREE.Color(0x3b3939), 0.30);
+    if (hot > 0.6 && placement.curvatureMeters > 0.35) c.lerp(new THREE.Color(0x5a3025), 0.08);
     return c;
   }
   const north = placement.northness;
