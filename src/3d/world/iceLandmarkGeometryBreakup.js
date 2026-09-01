@@ -107,23 +107,27 @@ function iceVertexFabric(mesh, seed, {
 } = {}) {
 	const position = mesh?.geometry?.getAttribute?.('position');
 	if (!position || !mesh?.material) return 0;
+	mesh.updateWorldMatrix?.(true, false);
 	const lowColor = new THREE.Color(low);
 	const midColor = new THREE.Color(mid);
 	const highColor = new THREE.Color(high);
 	const color = new THREE.Color();
+	const world = new THREE.Vector3();
 	const colors = new Float32Array(position.count * 3);
+	const matrixWorld = mesh.matrixWorld;
 	let minY = Infinity;
 	let maxY = -Infinity;
 	for (let index = 0; index < position.count; index += 1) {
-		const y = position.getY(index);
-		minY = Math.min(minY, y);
-		maxY = Math.max(maxY, y);
+		world.set(position.getX(index), position.getY(index), position.getZ(index)).applyMatrix4(matrixWorld);
+		minY = Math.min(minY, world.y);
+		maxY = Math.max(maxY, world.y);
 	}
 	const span = Math.max(1, maxY - minY);
 	for (let index = 0; index < position.count; index += 1) {
-		const x = position.getX(index);
-		const y = position.getY(index);
-		const z = position.getZ(index);
+		world.set(position.getX(index), position.getY(index), position.getZ(index)).applyMatrix4(matrixWorld);
+		const x = world.x;
+		const y = world.y;
+		const z = world.z;
 		const macro = smoothNoise2D(x, z, 74, seed + 13001);
 		const meso = smoothNoise2D(x + y * 0.24, z - y * 0.11, 21, seed + 13109);
 		const micro = smoothNoise2D(x + y * 0.13, z, 6.5, seed + 13217);
@@ -152,7 +156,7 @@ function iceVertexFabric(mesh, seed, {
 	}
 	installIceRoughnessFabric(material, seed + 13513);
 	mesh.material = material;
-	mesh.userData.worldSpaceGlacialAlbedoFabric = 'deterministic-smoothed-multiscale-v5-neutral-ice';
+	mesh.userData.worldSpaceGlacialAlbedoFabric = 'deterministic-smoothed-multiscale-v6-true-world-space';
 	mesh.userData.worldSpaceGlacialRoughnessFabric = 'deterministic-shader-multiscale-v3-aerial';
 	return position.count;
 }
@@ -356,20 +360,23 @@ function portalShroud(group, portal, seed) {
 	if (!wall?.material) return 0;
 	const portalMesh = group.getObjectByName('ice-wall-cave-portal');
 	if (portalMesh?.material) {
-		const material = portalMesh.material.clone();
-		material.vertexColors = false;
-		material.color.set(0xc8d6d5);
-		material.roughness = Math.max(0.54, Math.min(0.62, material.roughness || 0.56));
-		material.transmission = Math.max(0.014, Math.min(0.024, material.transmission || 0));
-		material.clearcoat = Math.max(0.035, material.clearcoat || 0);
-		material.clearcoatRoughness = 0.45;
+		const portalVertexCount = iceVertexFabric(portalMesh, seed + 12401, {
+			low: 0xc8d5d5,
+			mid: 0xe1e9e7,
+			high: 0xf5f8f5,
+			roughness: 0.53,
+		});
+		const material = portalMesh.material;
+		material.transmission = Math.max(0.012, Math.min(0.020, material.transmission || 0));
+		material.clearcoat = Math.max(0.035, Math.min(0.060, material.clearcoat || 0));
+		material.clearcoatRoughness = 0.47;
 		if (material.emissive) {
-			material.emissive.set(0x1e4149);
-			material.emissiveIntensity = Math.max(0.075, material.emissiveIntensity || 0);
+			material.emissive.set(0x214650);
+			material.emissiveIntensity = 0.085;
 		}
-		installIceRoughnessFabric(material, seed + 12401);
-		portalMesh.material = material;
-		portalMesh.userData.portalMaterialBlend = 'wall-matched-neutral-ice-v13';
+		material.needsUpdate = true;
+		portalMesh.userData.portalMaterialBlend = 'wall-shared-world-fabric-v14';
+		portalMesh.userData.portalVertexFabricCount = portalVertexCount;
 	}
 	const material = wall.material.clone();
 	material.vertexColors = false;
