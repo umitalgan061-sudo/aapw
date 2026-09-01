@@ -24,7 +24,7 @@ import {
 } from './valyriaGeology.js';
 
 export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
-  id: 'natural-geology-render-2026-09-01-v2-geographic-surface-weathering',
+  id: 'natural-geology-render-2026-09-01-v3-ground-parity-geographic-weathering',
   renderOnly: true,
   deterministicPlacement: true,
   geographyAuthorityUnchanged: true,
@@ -44,6 +44,9 @@ export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
   proceduralRoughness: 0.96,
   proceduralVertexWeathering: true,
   proceduralBaseColorNeutral: true,
+  proceduralBaseOriginNormalized: true,
+  hydratedBaseOriginNormalized: true,
+  fallbackHydratedGroundParity: true,
   instanceClimateColor: true,
   hydratedSourceMapsPreserved: true,
   hydratedInstanceWeathering: true,
@@ -73,6 +76,7 @@ function createRockMaterial() {
     vertexWeathering: true,
     instanceClimateColor: true,
     neutralMaterialBase: true,
+    baseOriginNormalized: true,
   });
   return material;
 }
@@ -107,6 +111,7 @@ function applyProceduralVertexWeathering(geometry, kind) {
     policyId: NATURAL_GEOLOGY_RENDER_POLICY.id,
     vertexWeathering: true,
     localMultiscaleBreakup: true,
+    baseOriginNormalized: true,
     geographyAuthorityChanged: false,
   });
   return geometry;
@@ -133,6 +138,29 @@ function warpGeometry(geometry, { xScale = 1, yScale = 1, zScale = 1, fracture =
   return geometry;
 }
 
+/**
+ * Procedural fallback and hydrated GLB geometry must share one placement convention: local y=0 is
+ * the physical bottom of the source. Hydrated assets already use this convention through
+ * createAssetNormalization(); keeping primitive prototypes centred around y=0 made fallback rocks
+ * sit roughly half a rock-height lower than their hydrated replacement and visibly "jump" when the
+ * async asset upgrade completed. Normalising once at prototype creation preserves instancing while
+ * making placement.y/buryFraction mean exactly the same thing for both representations.
+ */
+function normalizePrototypeBaseOrigin(geometry) {
+  geometry.computeBoundingBox();
+  const minY = geometry.boundingBox?.min?.y;
+  if (Number.isFinite(minY) && Math.abs(minY) > 1e-9) geometry.translate(0, -minY, 0);
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  geometry.userData.naturalGeologyBaseOrigin = Object.freeze({
+    policyId: NATURAL_GEOLOGY_RENDER_POLICY.id,
+    bottomAtLocalZero: true,
+    source: 'procedural-fallback',
+  });
+  return geometry;
+}
+
 export function createNaturalRockPrototypeGeometry(kind) {
   let geometry;
   if (kind === 'fractured-scarp') geometry = warpGeometry(new THREE.IcosahedronGeometry(0.5, 1), { xScale: 1, yScale: 1.24, zScale: 0.44, fracture: 0.22, terrace: 5 });
@@ -140,7 +168,7 @@ export function createNaturalRockPrototypeGeometry(kind) {
   else if (kind === 'low-outcrop' || kind === 'asset-proxy') geometry = warpGeometry(new THREE.IcosahedronGeometry(0.5, 1), { xScale: 1, yScale: 0.43, zScale: 0.86, fracture: 0.17, terrace: 3 });
   else if (kind === 'talus') geometry = warpGeometry(new THREE.TetrahedronGeometry(0.5, 1), { xScale: 1, yScale: 0.58, zScale: 0.92, fracture: 0.24 });
   else geometry = warpGeometry(new THREE.DodecahedronGeometry(0.5, 0), { xScale: 1, yScale: 0.82, zScale: 0.92, fracture: 0.21 });
-  return applyProceduralVertexWeathering(geometry, kind);
+  return applyProceduralVertexWeathering(normalizePrototypeBaseOrigin(geometry), kind);
 }
 
 export function naturalGeologyColorForPlacement(placement) {
@@ -226,6 +254,7 @@ function makeInstancedFamily(kind, placements) {
     vertexWeathering: true,
     instanceClimateColor: true,
     doubleTintRemoved: true,
+    baseOriginNormalized: true,
   });
   return mesh;
 }
@@ -255,7 +284,7 @@ export function createValyriaVolcanicSurface({ sampleHeightMeters, seaLevelMeter
     const frame = sampleTerrainFrame(sampleHeightMeters, x, z, 9);
     const color = { r: 0.2, g: 0.2, b: 0.2 };
     applyValyriaSurfaceColor(color, { nx: p.nx, ny: p.ny, heightAboveSeaMeters: y - seaLevelMeters, concavityMeters: frame.curvatureMeters, slopeDegrees: frame.slopeDegrees });
-    if (influence > 0.48 && frame.curvatureMeters > 0.8 && frame.slopeDegrees < 36) lavaVertices += 1;
+    if (color.r > 0.55 && color.g < 0.22) lavaVertices += 1;
     const idx = vertices.length / 3;
     vertices.push(x, y + P.renderSurfaceOffsetMeters, z); colors.push(color.r, color.g, color.b); vertexIndex.set(key, idx); return idx;
   };
@@ -334,6 +363,7 @@ function prepareHydratedGeologyMaterial(sourceMaterial, family) {
     family,
     authoredMapsPreserved: true,
     instanceClimateWeathering: true,
+    baseOriginNormalized: true,
     roughnessFloor: NATURAL_GEOLOGY_RENDER_POLICY.hydratedRoughnessFloor,
     metalnessCeiling: NATURAL_GEOLOGY_RENDER_POLICY.hydratedMetalnessCeiling,
   }) };
@@ -363,6 +393,8 @@ async function hydrateFamily(group, family, url, signal) {
       hydrated: true,
       authoredMapsPreserved: true,
       instanceClimateWeathering: true,
+      baseOriginNormalized: true,
+      fallbackHydratedGroundParity: true,
     });
     hydrated.push(instances);
   }
