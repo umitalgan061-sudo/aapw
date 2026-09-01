@@ -11,7 +11,7 @@ import { VALYRIA_GEOLOGY_POLICY, valyriaGeologyClassAtWorldXZ, valyriaInfluenceA
  * @module world/naturalGeologyPlacement
  */
 export const NATURAL_GEOLOGY_PLACEMENT_POLICY = Object.freeze({
-  id: 'natural-geology-placement-2026-08-31-v2-morphology-strata',
+  id: 'natural-geology-placement-2026-09-01-v3-scarp-mass-proportions',
   deterministic: true,
   renderOnly: true,
   geographyAuthorityUnchanged: true,
@@ -69,6 +69,9 @@ export const NATURAL_GEOLOGY_PLACEMENT_POLICY = Object.freeze({
   talusPotentialThreshold: 0.32,
   reliefScaleMeters: 14,
   curvatureScaleMeters: 2.6,
+  maximumScarpPlanAspect: 4.6,
+  minimumScarpBroadnessMeters: 5.2,
+  maximumScarpHeightToWidth: 0.82,
 });
 
 const TAU = Math.PI * 2;
@@ -280,11 +283,17 @@ function placementKind(clusterKind, frame, morphology, randomSelector, valyriaCl
 function geometryScaleFor(kind, frame, morphology, a, b, c) {
   const reliefBoost = 0.72 + morphology.relief * 0.82;
   const slopeBoost = 0.80 + smoothstep01((frame.slopeDegrees - 7) / 38) * 0.52;
-  if (kind === 'fractured-scarp') return {
-    x: (9 + a * 25) * reliefBoost,
-    y: (7 + b * 20) * slopeBoost,
-    z: (3.4 + c * 8.6) * (0.82 + morphology.ridgeExposure * 0.36),
-  };
+  if (kind === 'fractured-scarp') {
+    const P = NATURAL_GEOLOGY_PLACEMENT_POLICY;
+    const x = (9 + a * 25) * reliefBoost;
+    const rawY = (7 + b * 20) * slopeBoost;
+    const rawZ = (3.4 + c * 8.6) * (0.82 + morphology.ridgeExposure * 0.36);
+    return {
+      x,
+      y: Math.min(rawY, x * P.maximumScarpHeightToWidth),
+      z: Math.max(rawZ, P.minimumScarpBroadnessMeters, x / P.maximumScarpPlanAspect),
+    };
+  }
   if (kind === 'bedrock') return {
     x: (7.5 + a * 19) * reliefBoost,
     y: (4.1 + b * 11) * slopeBoost,
