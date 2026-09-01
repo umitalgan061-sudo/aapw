@@ -35,12 +35,14 @@ for (const snippet of [
   assert(settlementsSource.includes(snippet), `Valyria fortress runtime wiring lost: ${snippet}`);
 }
 
+// The real walled-city GLB is deliberately shared with Xaro, so the contract must be seat-based rather
+// than filename-based. Otherwise weathering the shared model would turn Qarth into Valyria too.
 const umitAssignment = settlementsSource.match(/seatId: 'umit'[^\n]+/u)?.[0] ?? '';
 const xaroAssignment = settlementsSource.match(/seatId: 'Xaro'[^\n]+/u)?.[0] ?? '';
 assert(umitAssignment.includes('walled_city_fortress_decimated.glb'));
 assert(umitAssignment.includes('VALYRIA_CASTLE_WEATHERING_POLICY.baseStoneHex'));
 assert(xaroAssignment.includes('walled_city_fortress_decimated.glb'));
-assert(!xaroAssignment.includes('VALYRIA_CASTLE_WEATHERING_POLICY'));
+assert(!xaroAssignment.includes('VALYRIA_CASTLE_WEATHERING_POLICY'), 'Xaro inherited Valyria base stone');
 
 for (const snippet of [
   'renderOnly: true',
@@ -64,9 +66,9 @@ for (const snippet of [
   assert(weatheringSource.includes(snippet), `Valyria castle weathering source contract lost: ${snippet}`);
 }
 assert(!weatheringSource.includes('vValyriaCastleWorldPosition = worldPosition.xyz'), 'shader must not depend on conditional Three.js worldPosition');
-assert(!weatheringSource.includes('Math.random()'));
-assert(!weatheringSource.includes('setFromObject'));
-assert(!weatheringSource.includes('position.set('));
+assert(!weatheringSource.includes('Math.random()'), 'castle weathering must remain deterministic');
+assert(!weatheringSource.includes('setFromObject'), 'weathering must not mutate castle geometry/footprint');
+assert(!weatheringSource.includes('position.set('), 'weathering must not move settlement geometry');
 
 function fakeMaterial() {
   return {
@@ -80,16 +82,22 @@ function fakeMaterial() {
 const xaro = fakeMaterial();
 const xaroBeforeCompile = xaro.onBeforeCompile;
 const xaroResult = applyValyriaCastleWeathering(xaro, {
-  seatId: 'Xaro', groundY: 120, footprintMeters: 50, seed: 1337,
+  seatId: 'Xaro',
+  groundY: 120,
+  footprintMeters: 50,
+  seed: 1337,
 });
 assert.equal(xaroResult, xaro);
-assert.equal(xaro.onBeforeCompile, xaroBeforeCompile);
+assert.equal(xaro.onBeforeCompile, xaroBeforeCompile, 'non-Valyria seat shader was modified');
 assert.equal(xaro.userData.valyriaCastleWeathering, undefined);
 assert.equal(xaro.needsUpdate, false);
 
 const umit = fakeMaterial();
 const returned = applyValyriaCastleWeathering(umit, {
-  seatId: 'umit', groundY: 146.25, footprintMeters: 46, seed: 7331,
+  seatId: 'umit',
+  groundY: 146.25,
+  footprintMeters: 46,
+  seed: 7331,
 });
 assert.equal(returned, umit);
 assert.equal(umit.needsUpdate, true);
@@ -104,18 +112,20 @@ assert.equal(typeof umit.onBeforeCompile, 'function');
 assert(umit.customProgramCacheKey().includes(P.id));
 assert(umit.customProgramCacheKey().includes('umit'));
 
+// Running twice must be idempotent: no nested shader transforms and no program-key growth.
 const hook = umit.onBeforeCompile;
 const key = umit.customProgramCacheKey();
 applyValyriaCastleWeathering(umit, {
-  seatId: 'umit', groundY: 999, footprintMeters: 99, seed: 999,
+  seatId: 'umit',
+  groundY: 999,
+  footprintMeters: 99,
+  seed: 999,
 });
 assert.equal(umit.onBeforeCompile, hook);
 assert.equal(umit.customProgramCacheKey(), key);
 assert.equal(umit.userData.valyriaCastleWeathering.groundY, 146.25);
 
-// Reproduce the Three.js program shape that failed in shipped CI: worldPosition is not declared
-// when env/shadow/transmission chunks do not require it. The weathering hook must compile from
-// `transformed` + modelMatrix instead of reading the conditional worldpos chunk local.
+// Reproduce the shipped Three.js variant where <worldpos_vertex> does not declare worldPosition.
 const shader = {
   uniforms: {},
   vertexShader: `
@@ -151,9 +161,15 @@ for (const snippet of [
 }
 assert(!shader.vertexShader.includes('vValyriaCastleWorldPosition = worldPosition.xyz'));
 for (const snippet of [
-  'valyriaCastleHash', 'valyriaCastleNoise', 'valyriaCastleFbm',
-  'valyriaCastleBasalt', 'valyriaCastleAsh', 'valyriaCastleSoot',
-  'valyriaCastleFissure', 'roughnessFactor = clamp', 'totalEmissiveRadiance +=',
+  'valyriaCastleHash',
+  'valyriaCastleNoise',
+  'valyriaCastleFbm',
+  'valyriaCastleBasalt',
+  'valyriaCastleAsh',
+  'valyriaCastleSoot',
+  'valyriaCastleFissure',
+  'roughnessFactor = clamp',
+  'totalEmissiveRadiance +=',
 ]) {
   assert(shader.fragmentShader.includes(snippet), `fragment shader injection lost: ${snippet}`);
 }
@@ -162,8 +178,15 @@ console.log('[checkValyriaCastleWeathering] PASS');
 console.log(JSON.stringify({
   policyId: P.id,
   targetSeatId: P.targetSeatId,
+  baseStoneHex: `0x${P.baseStoneHex.toString(16).padStart(6, '0')}`,
   sharedAssetIsolation: true,
   runtimeFactoryWired: true,
+  shaderInjection: {
+    basalt: true,
+    ash: true,
+    soot: true,
+    sparseThermalFissures: true,
+  },
   shaderWorldPositionSource: 'transformed+modelMatrix',
   conditionalWorldposDependency: false,
   geometryAuthorityUnchanged: true,
