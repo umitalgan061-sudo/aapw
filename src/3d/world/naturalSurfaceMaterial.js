@@ -30,6 +30,7 @@ export const NATURAL_SURFACE_MATERIAL_POLICY = Object.freeze({
 	lowlandDepositionalRelief: true,
 	lowlandAerialNormalResponse: true,
 	lowlandRoughnessStructure: true,
+	gentlePlainAerialResponse: true,
 	worldScaleSnowFirnReadability: true,
 	domainWarpedSnowFirn: true,
 	multiDirectionalSnowDrift: true,
@@ -208,12 +209,15 @@ float naturalSurfaceErosion = naturalSurfaceErosionFabric(naturalSurfaceXZ);
 float naturalSurfaceDepositional = naturalSurfaceLowlandDepositionalFabric(naturalSurfaceXZ);
 float naturalSurfaceLowland = (1.0 - smoothstep(${GLSL.water} + 58.0, ${GLSL.water} + 210.0, naturalSurfacePosition.y))
 	* smoothstep(${GLSL.water} + 2.5, ${GLSL.water} + 16.0, naturalSurfacePosition.y) * (1.0 - naturalSurfaceSnow);
+float naturalSurfaceGentlePlain = (1.0 - smoothstep(0.035, 0.24, naturalSurfaceSlope))
+	* smoothstep(${GLSL.water} + 2.5, ${GLSL.water} + 18.0, naturalSurfacePosition.y) * (1.0 - naturalSurfaceSnow);
+float naturalSurfaceAerialPlainResponse = max(naturalSurfaceLowland, naturalSurfaceGentlePlain * 0.72);
 float naturalSurfaceLowlandMoist = naturalSurfaceLowland * smoothstep(0.56, 0.79, 1.0 - naturalSurfaceMacro + (0.5 - naturalSurfacePatch) * 0.34);
 float naturalSurfaceLowlandDry = naturalSurfaceLowland * smoothstep(0.55, 0.79, naturalSurfaceMacro + (naturalSurfacePatch - 0.5) * 0.26);
 float naturalSurfaceHighPass = (naturalSurfaceMeso - naturalSurfacePatch) * 0.165 + (naturalSurfaceFine - 0.5) * 0.080
-	+ (naturalSurfaceErosion - 0.5) * 0.075 + (naturalSurfaceDepositional - 0.5) * 0.105;
+	+ (naturalSurfaceErosion - 0.5) * 0.075 + (naturalSurfaceDepositional - 0.5) * 0.145;
 float naturalSurfaceLowlandMacroTone = (naturalSurfaceMacro - 0.5) * 0.095 + (naturalSurfacePatch - 0.5) * 0.060;
-diffuseColor.rgb *= 1.0 + (naturalSurfaceHighPass + naturalSurfaceLowlandMacroTone) * naturalSurfaceLowland;
+diffuseColor.rgb *= 1.0 + (naturalSurfaceHighPass + naturalSurfaceLowlandMacroTone) * naturalSurfaceAerialPlainResponse;
 
 float naturalSurfaceDomainA = naturalSurfaceLowland * smoothstep(0.53, 0.69, naturalSurfacePatch + (naturalSurfaceMeso - 0.5) * 0.28);
 float naturalSurfaceDomainB = naturalSurfaceLowland * smoothstep(0.56, 0.75, 1.0 - naturalSurfacePatch + (naturalSurfaceFine - 0.5) * 0.22);
@@ -308,6 +312,8 @@ float naturalSurfaceRoughSlope = 1.0 - clamp(abs(normalize(vNaturalSurfaceWorldN
 float naturalSurfaceRoughLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
 float naturalSurfaceRoughSnow = smoothstep(0.62, 0.84, naturalSurfaceRoughLuma);
 float naturalSurfaceRoughLowland = (1.0 - smoothstep(${GLSL.water} + 70.0, ${GLSL.water} + 225.0, vNaturalSurfaceWorldPosition.y)) * naturalSurfaceRoughDry * (1.0 - naturalSurfaceRoughSnow);
+float naturalSurfaceRoughPlain = (1.0 - smoothstep(0.035, 0.24, naturalSurfaceRoughSlope)) * naturalSurfaceRoughDry * (1.0 - naturalSurfaceRoughSnow);
+float naturalSurfaceRoughPlainResponse = max(naturalSurfaceRoughLowland, naturalSurfaceRoughPlain * 0.72);
 float naturalSurfaceRoughMacro = naturalSurfaceFbm(naturalSurfaceRoughXZ / 910.0 + vec2(8.4, -3.9));
 float naturalSurfaceRoughLandform = naturalSurfaceFbm(naturalSurfaceRoughXZ / 270.0 + vec2(-14.6, 17.1));
 float naturalSurfaceRoughMeso = naturalSurfaceFbm(naturalSurfaceRoughXZ / 86.0 + vec2(19.7, 4.4));
@@ -317,7 +323,7 @@ float naturalSurfaceRoughDepositional = naturalSurfaceLowlandDepositionalFabric(
 float naturalSurfaceRoughCryosphere = naturalSurfaceCryosphereFabric(naturalSurfaceRoughXZ);
 float naturalSurfaceRoughSnowMosaic = naturalSurfaceSnowMosaic(naturalSurfaceRoughXZ);
 float naturalSurfaceLowlandWetPolish = naturalSurfaceRoughLowland * smoothstep(0.58, 0.80, 1.0 - naturalSurfaceRoughMacro) * smoothstep(0.52, 0.78, naturalSurfaceRoughDepositional) * (0.70 + (1.0 - naturalSurfaceRoughErosion) * 0.30);
-float naturalSurfaceLowlandGranular = naturalSurfaceRoughLowland * smoothstep(0.58, 0.82, naturalSurfaceRoughMacro) * smoothstep(0.46, 0.74, 1.0 - naturalSurfaceRoughDepositional) * (0.72 + naturalSurfaceRoughErosion * 0.28);
+float naturalSurfaceLowlandGranular = naturalSurfaceRoughPlainResponse * smoothstep(0.58, 0.82, naturalSurfaceRoughMacro) * smoothstep(0.46, 0.74, 1.0 - naturalSurfaceRoughDepositional) * (0.72 + naturalSurfaceRoughErosion * 0.28);
 float naturalSurfaceCliffWeatheredRough = smoothstep(0.26, 0.72, naturalSurfaceRoughSlope) * smoothstep(0.58, 0.82, naturalSurfaceRoughErosion) * (1.0 - naturalSurfaceRoughSnow);
 float naturalSurfaceWorldRoughTarget = 0.825
 	+ (naturalSurfaceRoughMacro - 0.5) * 0.145
@@ -325,14 +331,14 @@ float naturalSurfaceWorldRoughTarget = 0.825
 	+ (naturalSurfaceRoughMeso - 0.5) * 0.090
 	+ (naturalSurfaceRoughGrain - 0.5) * 0.055
 	+ (naturalSurfaceRoughErosion - 0.5) * 0.075
-	+ (naturalSurfaceRoughDepositional - 0.5) * naturalSurfaceRoughLowland * 0.145
+	+ (naturalSurfaceRoughDepositional - 0.5) * naturalSurfaceRoughPlainResponse * 0.185
 	+ naturalSurfaceRoughSlope * 0.040
 	+ naturalSurfaceRoughSnow * (0.020 + naturalSurfaceRoughCryosphere * 0.060 + (naturalSurfaceRoughSnowMosaic - 0.5) * 0.120)
 	+ naturalSurfaceCliffWeatheredRough * 0.060
 	- naturalSurfaceLowlandWetPolish * 0.125
-	+ naturalSurfaceLowlandGranular * 0.105;
-float naturalSurfaceWorldRoughMix = naturalSurfaceRoughDry * (0.27 + naturalSurfaceRoughSlope * 0.11 + naturalSurfaceRoughLowland * 0.16) * (1.0 - naturalSurfaceRoughSnow * 0.22) + naturalSurfaceRoughSnow * 0.26;
-roughnessFactor = mix(roughnessFactor, clamp(naturalSurfaceWorldRoughTarget, 0.45, 0.99), clamp(naturalSurfaceWorldRoughMix, 0.0, 0.78));
+	+ naturalSurfaceLowlandGranular * 0.110;
+float naturalSurfaceWorldRoughMix = naturalSurfaceRoughDry * (0.27 + naturalSurfaceRoughSlope * 0.11 + naturalSurfaceRoughPlainResponse * 0.18) * (1.0 - naturalSurfaceRoughSnow * 0.22) + naturalSurfaceRoughSnow * 0.26;
+roughnessFactor = mix(roughnessFactor, clamp(naturalSurfaceWorldRoughTarget, 0.45, 0.99), clamp(naturalSurfaceWorldRoughMix, 0.0, 0.80));
 
 float naturalSurfaceRoughValyria = naturalSurfaceValyriaInfluence(vNaturalSurfaceWorldPosition);
 float naturalSurfaceRoughFracture = naturalSurfaceCoolingFracture(vNaturalSurfaceWorldPosition.xz);
@@ -349,6 +355,8 @@ float naturalSurfaceNormalSlope = 1.0 - clamp(abs(normalize(vNaturalSurfaceWorld
 float naturalSurfaceNormalLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
 float naturalSurfaceNormalSnow = smoothstep(0.62, 0.84, naturalSurfaceNormalLuma);
 float naturalSurfaceNormalLowland = (1.0 - smoothstep(${GLSL.water} + 70.0, ${GLSL.water} + 225.0, vNaturalSurfaceWorldPosition.y)) * naturalSurfaceNormalDry * (1.0 - naturalSurfaceNormalSnow);
+float naturalSurfaceNormalPlain = (1.0 - smoothstep(0.035, 0.24, naturalSurfaceNormalSlope)) * naturalSurfaceNormalDry * (1.0 - naturalSurfaceNormalSnow);
+float naturalSurfaceNormalPlainResponse = max(naturalSurfaceNormalLowland, naturalSurfaceNormalPlain * 0.74);
 float naturalSurfaceNormalStep = 8.0;
 float naturalSurfaceReliefCenter = naturalSurfaceAllWorldRelief(vNaturalSurfaceWorldPosition.xz);
 float naturalSurfaceReliefX = naturalSurfaceAllWorldRelief(vNaturalSurfaceWorldPosition.xz + vec2(naturalSurfaceNormalStep, 0.0)) - naturalSurfaceReliefCenter;
@@ -361,12 +369,12 @@ float naturalSurfaceDepositionalCenter = naturalSurfaceLowlandDepositionalFabric
 float naturalSurfaceDepositionalX = naturalSurfaceLowlandDepositionalFabric(vNaturalSurfaceWorldPosition.xz + vec2(naturalSurfaceDepositionalStep, 0.0)) - naturalSurfaceDepositionalCenter;
 float naturalSurfaceDepositionalZ = naturalSurfaceLowlandDepositionalFabric(vNaturalSurfaceWorldPosition.xz + vec2(0.0, naturalSurfaceDepositionalStep)) - naturalSurfaceDepositionalCenter;
 float naturalSurfaceErosionNormalWeight = naturalSurfaceNormalLowland * 0.34 + smoothstep(0.22, 0.68, naturalSurfaceNormalSlope) * 0.27;
-float naturalSurfaceDepositionalNormalWeight = naturalSurfaceNormalLowland * (0.72 + abs(naturalSurfaceDepositionalCenter - 0.5) * 0.36);
-float naturalSurfaceWorldNormalMix = naturalSurfaceNormalDry * (0.15 + naturalSurfaceNormalSlope * 0.18 + naturalSurfaceNormalLowland * 0.20) * (1.0 - naturalSurfaceNormalSnow * 0.46);
+float naturalSurfaceDepositionalNormalWeight = naturalSurfaceNormalPlainResponse * (0.92 + abs(naturalSurfaceDepositionalCenter - 0.5) * 0.48);
+float naturalSurfaceWorldNormalMix = naturalSurfaceNormalDry * (0.15 + naturalSurfaceNormalSlope * 0.18 + naturalSurfaceNormalPlainResponse * 0.22) * (1.0 - naturalSurfaceNormalSnow * 0.46);
 vec3 naturalSurfaceAllWorldPerturbedNormal = normalize(vNaturalSurfaceWorldNormal + vec3(
-	-naturalSurfaceReliefX * 1.18 - naturalSurfaceErosionX * naturalSurfaceErosionNormalWeight - naturalSurfaceDepositionalX * naturalSurfaceDepositionalNormalWeight * 2.30,
+	-naturalSurfaceReliefX * 1.18 - naturalSurfaceErosionX * naturalSurfaceErosionNormalWeight - naturalSurfaceDepositionalX * naturalSurfaceDepositionalNormalWeight * 3.20,
 	0.0,
-	-naturalSurfaceReliefZ * 1.18 - naturalSurfaceErosionZ * naturalSurfaceErosionNormalWeight - naturalSurfaceDepositionalZ * naturalSurfaceDepositionalNormalWeight * 2.30
+	-naturalSurfaceReliefZ * 1.18 - naturalSurfaceErosionZ * naturalSurfaceErosionNormalWeight - naturalSurfaceDepositionalZ * naturalSurfaceDepositionalNormalWeight * 3.20
 ));
 normal = normalize(mix(normal, normalize(mat3(viewMatrix) * naturalSurfaceAllWorldPerturbedNormal), naturalSurfaceWorldNormalMix));
 
