@@ -72,7 +72,14 @@ try {
       z: colliderDog.object3D.position.z,
     };
     colliderDog.dispose();
-    return { before, after, position, exactStopDistance, afterCollider, rejectedPosition, recoveredDistance, colliderCalls, colliderPosition };
+
+    const outwardDog = createDog('friendly-stop-outward-collider', {
+      resolveXZ: (x, z) => ({ x: x - 0.25, z }),
+    });
+    outwardDog.update(0.25, player);
+    const outwardDistance = Math.hypot(outwardDog.object3D.position.x - player.x, outwardDog.object3D.position.z - player.z);
+    outwardDog.dispose();
+    return { before, after, position, exactStopDistance, afterCollider, rejectedPosition, recoveredDistance, colliderCalls, colliderPosition, outwardDistance };
   });
 
   assert.equal(pageErrors.length, 0, `page errors: ${pageErrors.join('\n')}`);
@@ -89,6 +96,7 @@ try {
   assert.ok(Math.abs(proof.colliderPosition.z) <= 1e-6, `friendly recovery introduced lateral drift: ${proof.colliderPosition.z}`);
   assert.equal(proof.colliderCalls, 2, 'friendly approach should retry collider resolution on the next valid tick');
   assert.ok(Object.values(proof.colliderPosition).every(Number.isFinite), 'collider-corrected approach published a non-finite transform');
+  assert.ok(proof.outwardDistance > 2.5, `safe outward collider correction was rejected or crossed stop distance: ${proof.outwardDistance}`);
   console.log('Creature friendly approach stop browser proof PASS', proof);
 } finally {
   await browser.close();
