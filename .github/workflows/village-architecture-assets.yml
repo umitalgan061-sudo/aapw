@@ -1,0 +1,94 @@
+name: Village Architecture Assets
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/villages.js'
+      - 'scripts/checkVillageArchitectureAssets.js'
+      - 'scripts/village-architecture-harness.html'
+      - '.github/workflows/village-architecture-assets.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  regional-village-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+
+      - name: Exact-main ancestry and bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          MAIN_SHA="$(git rev-parse origin/main)"
+          BASE_SHA="$(git merge-base origin/main HEAD)"
+          test "$BASE_SHA" = "$MAIN_SHA" || { echo "branch is stale: base=$BASE_SHA main=$MAIN_SHA"; exit 1; }
+          CHANGED="$(git diff --name-only "$BASE_SHA"..HEAD)"
+          while IFS= read -r path; do
+            [ -z "$path" ] && continue
+            case "$path" in
+              src/3d/world/villages.js|scripts/checkVillageArchitectureAssets.js|scripts/village-architecture-harness.html|.github/workflows/village-architecture-assets.yml) ;;
+              *) echo "unexpected village architecture scope path: $path"; exit 1 ;;
+            esac
+          done <<< "$CHANGED"
+          TOTAL="$(git diff --numstat "$BASE_SHA"..HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          echo "base=$BASE_SHA head=$(git rev-parse HEAD) changed_lines=$TOTAL"
+          test "$TOTAL" -le 1000 || { echo "scope quota exceeded: $TOTAL > 1000"; exit 1; }
+
+      - name: Selectively hydrate village GLB families
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull --include="assets/models/settlements/log_cabin_et0OmFeZVkb.glb,assets/models/settlements/fantasy_house_dcPho4SUA3.glb,assets/models/settlements/cabin_shed_HTx7PZt6Zm.glb,assets/models/settlements/house_fdaqERLQCc.glb,assets/models/settlements/medium_house_4hI5fNvl6z.glb,assets/models/settlements/small_wooden_house.glb,assets/models/settlements/house_roqiHdrpgc.glb" --exclude=""
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install runtime and Chromium
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Syntax and deterministic world policy
+        run: |
+          node --check src/3d/world/villages.js
+          node --check scripts/checkVillageArchitectureAssets.js
+          node scripts/checkSeededRandomPolicy.js
+
+      - name: Existing village grounding regressions
+        run: |
+          node scripts/checkVillageFootprintGrounding.mjs
+          node scripts/checkRun330Villages.js
+
+      - name: Shared Material Placement Contract
+        run: node scripts/checkSharedMaterialPlacementContract.js
+
+      - name: Real regional GLB material and placement proof
+        run: node scripts/checkVillageArchitectureAssets.js
+
+      - name: PWA offline shell regression
+        run: node scripts/checkServiceWorkerCache.js
+
+      - name: Final main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git merge-base origin/main HEAD)" = "$(git rev-parse origin/main)"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: village-architecture-assets-${{ github.event.pull_request.head.sha }}
+          path: artifacts/village-architecture-assets/
+          if-no-files-found: ignore
+          retention-days: 7
