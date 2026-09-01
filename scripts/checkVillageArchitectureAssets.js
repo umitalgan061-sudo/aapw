@@ -104,8 +104,6 @@ async function main() {
 				placementSurfaceHeight: entry.manifest?.placementSurface?.height ?? null,
 			}));
 
-			// Lifecycle regression: dispose while a GLB is still in flight. The late source must be
-			// destroyed instead of attaching into an already-disposed village graph.
 			const lifecycleGroup = new THREE.Group();
 			lifecycleGroup.userData.villageLandmarkSites = [{
 				seatId: 'berkalp', x: 0, z: 0, yaw: 0, houseIndex: 0,
@@ -137,9 +135,6 @@ async function main() {
 			const lifecycleEvidence = await lifecyclePromise;
 			const lateAssetCount = lifecycleGroup.getObjectByName('village-architectural-assets')?.children.length ?? 0;
 
-			// Material ownership regression. Shared textureFactory cache entries must survive a local
-			// village teardown; uncached layered wrappers may die, while village-owned materials/maps
-			// must still be released.
 			const ownershipGroup = new THREE.Group();
 			const sharedTexture = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
 			const ownedTexture = new THREE.DataTexture(new Uint8Array([128, 128, 128, 255]), 1, 1);
@@ -227,7 +222,7 @@ async function main() {
 			};
 		});
 
-		assert.equal(result.evidence.ok, true, `architecture evidence failed: ${JSON.stringify(result.evidence)}`);
+		assert.equal(result.evidence.ok, true, `architecture evidence failed: ${JSON.stringify({ ...result.evidence, successfulSeats: result.manifestProof.map((proof) => proof.seatId) })}`);
 		assert.equal(result.evidence.requestedSiteCount, 7);
 		assert.equal(result.evidence.upgradedCount, 7);
 		assert.equal(result.evidence.missingAssetCount, 0, 'real GLB load must have missing asset=0');
