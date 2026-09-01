@@ -77,7 +77,16 @@ requireFragments(interaction, 'interaction key ownership', ["if (event.code !== 
 requireFragments(controlsHelp, 'desktop combat and interaction help', [
   "['C / Sol tık', 'Hafif saldırı']",
   "['R', 'Ağır saldırı']",
+  "['Q / Sağ tık', 'Savunmayı basılı tut']",
+  "['Tab', 'Yakındaki hedefe kilitlen veya kilidi kaldır']",
   "['E', 'Yakındaki kişiyle konuş']",
+]);
+requireFragments(controlsHelp, 'gamepad combat help', [
+  "['Gamepad sol çubuk / L3', 'Yürü / koş']",
+  "['Gamepad A / B', 'Zıpla / kaçın']",
+  "['Gamepad X / Y', 'Hafif / ağır saldırı']",
+  "['Gamepad LB / RB', 'Savun / savuştur']",
+  "['Gamepad sağ çubuk / R3', 'Kamera / hedef kilidi']",
 ]);
 requireFragments(controlsHelp, 'touch combat help', [
   "['Savun', 'Savunmayı basılı tut']",
@@ -138,7 +147,8 @@ console.log(JSON.stringify({
   inputs: ['keyboard:C-light/R-heavy/E-interaction', 'mouse', 'gamepad', 'touch/PWA'],
   pauseIsolation: ['keyboard', 'pointer', 'gamepad', 'touch'],
   touchLifecycleRecovery: ['visibilitychange', 'pagehide', 'blur', 'lostpointercapture'],
-  desktopHelp: ['C / Sol tık = Hafif saldırı', 'R = Ağır saldırı', 'E = Yakındaki kişiyle konuş'],
+  desktopHelp: ['C / Sol tık = Hafif saldırı', 'R = Ağır saldırı', 'Q / Sağ tık = Savun', 'Tab = Hedef kilidi', 'E = Yakındaki kişiyle konuş'],
+  gamepadHelp: ['sol çubuk/L3', 'A/B', 'X/Y', 'LB/RB', 'sağ çubuk/R3'],
   touchHelp: ['Savun', 'Hedef', 'Hafif', 'Ağır', 'Kaçın', 'Savuştur'],
   sharedMaterialPlacement: true,
   newAsset: false,
