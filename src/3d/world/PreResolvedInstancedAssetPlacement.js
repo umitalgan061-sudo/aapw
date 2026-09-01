@@ -196,13 +196,19 @@ export function preparePreResolvedInstancedWorldAsset(object, {
   };
 }
 
-/**
- * Attach a prepared batch through the shared WorldAssetPlacementPipeline attachment gate.
- */
+/** Attach an already-prepared batch through the shared WorldAssetPlacementPipeline gate. */
+export function attachPreparedPreResolvedInstancedWorldAsset(scene, prepared) {
+  if (!prepared?.ok || !prepared.object?.userData?.preResolvedInstancedAsset) {
+    return { ok: false, error: 'instanced-asset-not-prepared' };
+  }
+  return attachPreparedWorldAsset(scene, prepared);
+}
+
+/** Prepare and attach in one call when transactional staging is not needed by the caller. */
 export function attachPreResolvedInstancedWorldAsset(scene, object, options = {}) {
   const prepared = preparePreResolvedInstancedWorldAsset(object, options);
   if (!prepared.ok) return prepared;
-  const attached = attachPreparedWorldAsset(scene, prepared);
+  const attached = attachPreparedPreResolvedInstancedWorldAsset(scene, prepared);
   return attached.ok ? prepared : attached;
 }
 
