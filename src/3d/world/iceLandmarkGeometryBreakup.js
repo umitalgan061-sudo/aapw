@@ -360,7 +360,7 @@ function portalShroud(group, portal, seed) {
 	if (!wall?.material) return 0;
 	const portalMesh = group.getObjectByName('ice-wall-cave-portal');
 	if (portalMesh?.material) {
-		const portalVertexCount = iceVertexFabric(portalMesh, seed + 12401, {
+		const portalVertexCount = iceVertexFabric(portalMesh, seed + 13331, {
 			low: 0xc8d5d5,
 			mid: 0xe1e9e7,
 			high: 0xf5f8f5,
@@ -375,7 +375,7 @@ function portalShroud(group, portal, seed) {
 			material.emissiveIntensity = 0.085;
 		}
 		material.needsUpdate = true;
-		portalMesh.userData.portalMaterialBlend = 'wall-shared-world-fabric-v14';
+		portalMesh.userData.portalMaterialBlend = 'wall-shared-world-fabric-v15-shared-phase';
 		portalMesh.userData.portalVertexFabricCount = portalVertexCount;
 	}
 	const material = wall.material.clone();
