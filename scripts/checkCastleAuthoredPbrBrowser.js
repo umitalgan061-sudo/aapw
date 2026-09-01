@@ -19,7 +19,7 @@ async function main() {
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
     const pageErrors = [];
     page.on('pageerror', (error) => pageErrors.push(String(error.message)));
-    await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.goto(`http://127.0.0.1:${port}/scripts/castleMaterialFidelityHarness.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
 
     const result = await page.evaluate(async () => {
       const THREE = await import('three');
@@ -142,15 +142,20 @@ async function main() {
       const gl = renderer.getContext();
       const pixels = new Uint8Array(1280 * 800 * 4);
       gl.readPixels(0, 0, 1280, 800, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
-      const lumas = [];
+      let castlePixelCount = 0;
+      let minLuma = Infinity;
+      let maxLuma = -Infinity;
       for (let i = 0; i < pixels.length; i += 4) {
         const r = pixels[i], g = pixels[i + 1], b = pixels[i + 2];
         const skyLike = b > r + 15 && b > 110;
-        if (!skyLike && Math.max(r, g, b) > 18) lumas.push(0.299 * r + 0.587 * g + 0.114 * b);
+        if (skyLike || Math.max(r, g, b) <= 18) continue;
+        const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        castlePixelCount += 1;
+        if (luma < minLuma) minLuma = luma;
+        if (luma > maxLuma) maxLuma = luma;
       }
-      const minLuma = lumas.length ? Math.min(...lumas) : 0;
-      const maxLuma = lumas.length ? Math.max(...lumas) : 0;
-      if (lumas.length < 500 || maxLuma - minLuma < 18) failures.push(`gatehouse WebGL surface variation too weak (${lumas.length} pixels, Δ${(maxLuma - minLuma).toFixed(1)})`);
+      const lumaRange = castlePixelCount ? maxLuma - minLuma : 0;
+      if (castlePixelCount < 500 || lumaRange < 18) failures.push(`gatehouse WebGL surface variation too weak (${castlePixelCount} pixels, Δ${lumaRange.toFixed(1)})`);
       renderer.dispose();
 
       return {
