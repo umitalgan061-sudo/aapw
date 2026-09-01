@@ -49,18 +49,25 @@ jobs:
           git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**,assets/models/vegetation/pine_Zt62gceKXZ.glb,assets/models/vegetation/winter_tree.glb,assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb,assets/models/Ay/Moon 2K.fbx" --exclude=""
           test "$(wc -c < assets/models/characters/peasant_girl.fbx)" -gt 512
           test "$(wc -c < assets/animations/peasant_girl/idle.fbx)" -gt 512
-      - name: Static input and shared material contracts
+      - name: Touch input lifecycle contract
+        run: |
+          set -euo pipefail
+          node --check src/3d/ui/touchJoystick.js
+          node scripts/checkTouchJoystickInputContract.js
+      - name: Player combat vertical-slice contract
         run: |
           set -euo pipefail
           node --check scripts/checkPlayerTouchCombatRuntime.mjs
-          node --check src/3d/ui/touchJoystick.js
-          node scripts/checkTouchJoystickInputContract.js
           node scripts/checkPlayerCombatVerticalSlice.mjs
+      - name: Shared material placement contract
+        run: |
+          set -euo pipefail
           node scripts/checkSharedMaterialPlacementContract.js
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
           ! grep -q 'EditorMaterialStudio' src/3d/ui/touchJoystick.js src/3d/input.js
       - name: Install Chromium
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
@@ -69,6 +76,7 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
       - name: Shipped mobile touch combat proof
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
