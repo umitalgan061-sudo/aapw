@@ -8,6 +8,7 @@ on:
       - 'src/3d/ui/touchJoystick.js'
       - 'scripts/checkPlayerCombatVerticalSlice.mjs'
       - 'scripts/checkPlayerMeleeCombo.mjs'
+      - 'scripts/checkTouchJoystickInputContract.js'
       - 'scripts/checkPlayerParryRecovery.mjs'
       - 'scripts/checkPlayerRecoveryAttackBufferDrop.mjs'
       - 'scripts/checkPlayerRecoveryAttackBufferRuntime.mjs'
@@ -47,7 +48,7 @@ jobs:
           printf '%s\n' "${files[@]}"
           for file in "${files[@]}"; do
             case "$file" in
-              src/3d/gameplay/player.js|src/3d/input.js|src/3d/ui/touchJoystick.js|src/3d/ui/controlsHelp.js|scripts/checkPlayerCombatVerticalSlice.mjs|scripts/checkPlayerMeleeCombo.mjs|scripts/checkPlayerParryRecovery.mjs|scripts/checkPlayerRecoveryAttackBufferDrop.mjs|scripts/checkPlayerRecoveryAttackBufferRuntime.mjs|scripts/checkPlayerHitStaggerRuntime.mjs|scripts/checkPlayerStaminaDodgeRuntime.mjs|.github/workflows/player-combat-vertical-slice.yml|.github/workflows/player-recovery-attack-buffer-drop.yml|.github/workflows/player-combat-recovery-input-isolation.yml|.github/workflows/player-stamina-dodge.yml|.github/workflows/player-guard-impact-exhaustion.yml|.github/workflows/player-gamepad-parity.yml|.github/workflows/player-grounding-combat-contract.yml|.github/workflows/player-parry-recovery.yml) ;;
+              src/3d/gameplay/player.js|src/3d/input.js|src/3d/ui/touchJoystick.js|src/3d/ui/controlsHelp.js|scripts/checkPlayerCombatVerticalSlice.mjs|scripts/checkPlayerMeleeCombo.mjs|scripts/checkTouchJoystickInputContract.js|scripts/checkPlayerParryRecovery.mjs|scripts/checkPlayerRecoveryAttackBufferDrop.mjs|scripts/checkPlayerRecoveryAttackBufferRuntime.mjs|scripts/checkPlayerHitStaggerRuntime.mjs|scripts/checkPlayerStaminaDodgeRuntime.mjs|.github/workflows/player-combat-vertical-slice.yml|.github/workflows/player-recovery-attack-buffer-drop.yml|.github/workflows/player-combat-recovery-input-isolation.yml|.github/workflows/player-stamina-dodge.yml|.github/workflows/player-guard-impact-exhaustion.yml|.github/workflows/player-gamepad-parity.yml|.github/workflows/player-grounding-combat-contract.yml|.github/workflows/player-parry-recovery.yml) ;;
               *) echo "Unexpected path: $file" >&2; exit 1 ;;
             esac
           done
@@ -57,11 +58,14 @@ jobs:
         run: |
           node --check src/3d/gameplay/player.js
           node --check src/3d/ui/touchJoystick.js
+          node --check scripts/checkTouchJoystickInputContract.js
           node --check scripts/checkPlayerParryRecovery.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferDrop.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferRuntime.mjs
           node --check scripts/checkPlayerHitStaggerRuntime.mjs
           node --check scripts/checkPlayerStaminaDodgeRuntime.mjs
+      - name: Touch input lifecycle contract
+        run: node scripts/checkTouchJoystickInputContract.js
       - name: Parry recovery regression
         run: |
           node scripts/checkPlayerParryRecovery.mjs
