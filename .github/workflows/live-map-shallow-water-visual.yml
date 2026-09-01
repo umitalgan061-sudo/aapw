@@ -114,11 +114,16 @@ jobs:
         run: |
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          mkdir -p artifacts/live-map-shallow-water-visual
           run_gpu_contract() {
             local label="$1"
             shift
             echo "::group::${label}"
-            "$@"
+            if ! "$@"; then
+              printf '%s\n' "$label" > artifacts/live-map-shallow-water-visual/gpu-failure.txt
+              echo "::error title=Shallow-water GPU contract failed::${label}"
+              exit 1
+            fi
             echo "::endgroup::"
           }
           run_gpu_contract 'real GPU water visual contract' node scripts/checkWaterVisualContract.js
