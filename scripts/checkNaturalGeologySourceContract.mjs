@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { NATURAL_GEOLOGY_PLACEMENT_POLICY } from '../src/3d/world/naturalGeologyPlacement.js';
 import { VALYRIA_GEOLOGY_POLICY } from '../src/3d/world/valyriaGeology.js';
 import { VALYRIA_BARREN_ECOLOGY_POLICY } from '../src/3d/world/valyriaEcology.js';
+import { NATURAL_GEOLOGY_RENDER_POLICY } from '../src/3d/world/naturalGeology.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const read = (path) => readFileSync(resolve(ROOT, path), 'utf8');
@@ -27,6 +28,17 @@ assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.minimumNearestNeighborMeters >= 20);
 assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.settlementReserveMeters >= 120);
 assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.roadReserveMeters >= 18);
 assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.shorelineReserveMeters >= 8);
+
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.renderOnly, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.geographyAuthorityUnchanged, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.familyScopedProxyBatches, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.physicalProxyRemoval, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.splitProxySuppression, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.transactionalFamilyHydration, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.disposedGroupHydrationGuard, true);
+assert(NATURAL_GEOLOGY_RENDER_POLICY.hydratedInstanceTintStrength > 0);
+assert(NATURAL_GEOLOGY_RENDER_POLICY.hydratedInstanceTintStrength <= 0.25);
+assert(NATURAL_GEOLOGY_RENDER_POLICY.id.includes('v5-family-proxy-lifecycle'));
 
 assert.equal(VALYRIA_GEOLOGY_POLICY.canonicalCoastlinePreserved, true);
 assert.equal(VALYRIA_GEOLOGY_POLICY.canonicalWaterClassificationPreserved, true);
@@ -58,6 +70,7 @@ for (const snippet of [
   'createNaturalGeology',
   'createValyriaVolcanicSurface',
   'upgradeNaturalGeologyAssets',
+  'disposeNaturalGeology',
   'createNaturalRockPrototypeGeometry',
   'validateNaturalGeologyAsset',
   'hostedPreflightMinBytes',
@@ -65,6 +78,15 @@ for (const snippet of [
   'referenceLandscapeRuntimeLoad: false',
   'sharedPlacementManifestRequired: true',
   'transactionalFamilyHydration: true',
+  'familyScopedProxyBatches: true',
+  'physicalProxyRemoval: true',
+  'disposedGroupHydrationGuard: true',
+  'hydratedInstanceTintStrength',
+  'hydratedTintForPlacement',
+  'naturalGeologyAssetFamily',
+  'removeProxyFamily',
+  'hydrationCancelled',
+  'naturalGeologyDisposed',
   'preparePreResolvedInstancedWorldAsset',
   'auditPreResolvedInstancedWorldAsset',
   'attachPreparedPreResolvedInstancedWorldAsset',
@@ -76,9 +98,12 @@ for (const snippet of [
 ]) {
   assert(renderSource.includes(snippet), `renderer contract lost: ${snippet}`);
 }
+assert(!renderSource.includes('hideProxyInstances('), 'zero-scale proxy suppression returned');
+assert(!renderSource.includes('tempScale.set(0, 0, 0)'), 'hydrated proxy instances are still hidden by zero scale');
 assert(!renderSource.includes('group.add(...hydrated)'), 'hydrated geology bypassed shared attachment gate');
-assert(renderSource.indexOf('preparePreResolvedInstancedWorldAsset') < renderSource.indexOf('hideProxyInstances(group, placements.map'), 'proxy suppression must occur only after shared preparation');
-assert(renderSource.indexOf('attachPreparedPreResolvedInstancedWorldAsset') < renderSource.indexOf('hideProxyInstances(group, placements.map'), 'proxy suppression must occur only after shared attachment');
+assert(renderSource.indexOf('preparePreResolvedInstancedWorldAsset') < renderSource.lastIndexOf('removeProxyFamily(group, family)'), 'proxy retirement must occur only after shared preparation');
+assert(renderSource.indexOf('attachPreparedPreResolvedInstancedWorldAsset') < renderSource.lastIndexOf('removeProxyFamily(group, family)'), 'proxy retirement must occur only after shared attachment');
+assert(renderSource.indexOf('removeProxyFamily(group, family)') < renderSource.indexOf("status: 'active'"), 'family must retire fallback before reporting active');
 
 for (const snippet of [
   "from '../materials/MaterialAssignmentCore.js'",
@@ -191,7 +216,8 @@ assert(!renderSource.includes('loadModel(NATURAL_GEOLOGY_RENDER_POLICY.reference
 
 console.log('[checkNaturalGeologySourceContract] PASS');
 console.log(JSON.stringify({
-  policyId: NATURAL_GEOLOGY_PLACEMENT_POLICY.id,
+  placementPolicy: NATURAL_GEOLOGY_PLACEMENT_POLICY.id,
+  rendererPolicy: NATURAL_GEOLOGY_RENDER_POLICY.id,
   directAssets: NATURAL_GEOLOGY_PLACEMENT_POLICY.directAssetFamilies,
   referenceOnlyAssets: NATURAL_GEOLOGY_PLACEMENT_POLICY.referenceOnlyAssets,
   knownLfsBytes: NATURAL_GEOLOGY_PLACEMENT_POLICY.knownLfsBytes,
@@ -201,5 +227,8 @@ console.log(JSON.stringify({
   naturalVolcanicMorphology: true,
   sharedInstancedHydration: true,
   authoredMaterialsPreserved: true,
-  transactionalProxySuppression: true,
+  transactionalProxyRetirement: true,
+  familyScopedFallback: true,
+  hydratedInstanceTint: NATURAL_GEOLOGY_RENDER_POLICY.hydratedInstanceTintStrength,
+  disposedGroupHydrationGuard: true,
 }, null, 2));
