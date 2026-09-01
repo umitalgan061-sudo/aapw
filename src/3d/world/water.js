@@ -38,6 +38,8 @@ export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	canonicalCoverageUnchanged: true,
 	depthFieldBoundaryFeatherUv: 0.018,
 	coverageChannelUnchangedAtBoundary: true,
+	nearFarLayerOverlapMeters: 40,
+	seamlessNearFarComposition: true,
 	macroScaleMeters: 3300,
 	mesoScaleMeters: 1180,
 	fineScaleMeters: 390,
@@ -224,9 +226,11 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	}
 
 	void main() {
+		float farLayerEdgeBlend = 1.0;
 		if (uFarLayerMask > 0.5) {
 			float nearLayerDistance = max(abs(vWorldPosition.x - uCameraPosition.x), abs(vWorldPosition.z - uCameraPosition.z));
-			if (nearLayerDistance < 1999.5) discard;
+			if (nearLayerDistance < 1959.5) discard;
+			farLayerEdgeBlend = smoothstep(1959.5, 1999.5, nearLayerDistance);
 		}
 
 		vec2 waterField = sampleWaterField(vWorldPosition.xz);
@@ -355,8 +359,9 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float bedReadability = max(enclosedLakeMask * clearShallowBand * 0.30, clearCoastMask * 0.18);
 		alpha *= 1.0 - bedReadability;
 		alpha *= waterCoverage;
+		alpha *= farLayerEdgeBlend;
 
-		gl_FragColor = vec4(color, max(alpha, foam * 0.78));
+		gl_FragColor = vec4(color, max(alpha, foam * 0.78) * farLayerEdgeBlend);
 		#include <fog_fragment>
 	}
 `;
@@ -445,6 +450,8 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		physicalDepthAuthorityUnchanged: true,
 		depthFieldBoundaryOpticalFeather: true,
 		coverageChannelUnchangedAtBoundary: true,
+		nearFarLayerOverlapMeters: WATER_SURFACE_VARIATION_POLICY.nearFarLayerOverlapMeters,
+		seamlessNearFarComposition: true,
 		variableRoughness: true,
 		referencePalettePolicyId: GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id,
 		enclosedLakeBedReadable: true,
