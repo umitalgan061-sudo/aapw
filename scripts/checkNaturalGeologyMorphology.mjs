@@ -73,8 +73,10 @@ for (let index = 0; index < first.placements.length; index += 1) {
 
   const cellWidth = first.stats.cellWidthMeters;
   const cellDepth = first.stats.cellDepthMeters;
-  fractionalX.push((((placement.x + WORLD_SCALE.WORLD_WIDTH_METERS * 0.5) / cellWidth) % 1) + 1) % 1);
-  fractionalZ.push((((placement.z + WORLD_SCALE.WORLD_DEPTH_METERS * 0.5) / cellDepth) % 1) + 1) % 1);
+  const phaseX = ((placement.x + WORLD_SCALE.WORLD_WIDTH_METERS * 0.5) / cellWidth) % 1;
+  const phaseZ = ((placement.z + WORLD_SCALE.WORLD_DEPTH_METERS * 0.5) / cellDepth) % 1;
+  fractionalX.push((phaseX + 1) % 1);
+  fractionalZ.push((phaseZ + 1) % 1);
 
   for (let otherIndex = index + 1; otherIndex < first.placements.length; otherIndex += 1) {
     const other = first.placements[otherIndex];
