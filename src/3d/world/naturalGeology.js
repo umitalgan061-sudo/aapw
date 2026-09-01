@@ -26,7 +26,7 @@ import {
 } from './valyriaGeology.js';
 
 export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
-  id: 'natural-geology-render-2026-09-01-v7-faceted-fallback-and-biome-assets',
+  id: 'natural-geology-render-2026-09-01-v8-hydrated-texture-fidelity',
   renderOnly: true,
   deterministicPlacement: true,
   geographyAuthorityUnchanged: true,
@@ -64,6 +64,11 @@ export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
   hydratedRoughnessFloor: 0.64,
   hydratedRegionalTintStrength: 0.36,
   hydratedRegionalTint: true,
+  multiMaterialHydrationSupported: true,
+  hydratedTextureColorSpaceContract: true,
+  hydratedMipFiltering: true,
+  hydratedMaximumAnisotropy: 8,
+  sourceUvAndTextureTransformPreserved: true,
   proceduralRoughness: 0.90,
   worldSpaceRockWeathering: true,
   worldSpaceRockAlbedoVariation: true,
@@ -86,6 +91,92 @@ const tempScale = new THREE.Vector3();
 const hydratedTintWhite = new THREE.Color(1, 1, 1);
 const clamp01 = (value) => value < 0 ? 0 : value > 1 ? 1 : value;
 const ROCK_WEATHERING_SHADER_KEY = 'natural-geology-world-space-weathering-v2-correct-normal-space';
+const HYDRATED_COLOR_TEXTURE_KEYS = Object.freeze(['map', 'emissiveMap']);
+const HYDRATED_DATA_TEXTURE_KEYS = Object.freeze([
+  'normalMap',
+  'roughnessMap',
+  'metalnessMap',
+  'aoMap',
+  'bumpMap',
+  'displacementMap',
+  'alphaMap',
+]);
+
+function configureHydratedRockTexture(texture, { colorTexture, maxAnisotropy }) {
+  if (!texture?.isTexture) return null;
+  const targetColorSpace = colorTexture ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+  const anisotropy = Math.max(
+    1,
+    Math.min(
+      NATURAL_GEOLOGY_RENDER_POLICY.hydratedMaximumAnisotropy,
+      Number.isFinite(maxAnisotropy) ? Math.floor(maxAnisotropy) : 1,
+    ),
+  );
+  const hasMipChain = texture.generateMipmaps !== false || (texture.mipmaps?.length ?? 0) > 1;
+  let changed = false;
+  if (texture.colorSpace !== targetColorSpace) {
+    texture.colorSpace = targetColorSpace;
+    changed = true;
+  }
+  if (texture.anisotropy !== anisotropy) {
+    texture.anisotropy = anisotropy;
+    changed = true;
+  }
+  const targetMinFilter = hasMipChain ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter;
+  if (texture.minFilter !== targetMinFilter) {
+    texture.minFilter = targetMinFilter;
+    changed = true;
+  }
+  if (texture.magFilter !== THREE.LinearFilter) {
+    texture.magFilter = THREE.LinearFilter;
+    changed = true;
+  }
+  if (changed) texture.needsUpdate = true;
+  texture.userData = {
+    ...texture.userData,
+    naturalGeologyTextureRole: colorTexture ? 'srgb-color' : 'linear-data',
+    naturalGeologyAnisotropy: anisotropy,
+    naturalGeologyMipFiltering: hasMipChain ? 'trilinear' : 'linear-no-mip-chain',
+  };
+  return texture;
+}
+
+/**
+ * Clones one source material while retaining its UVs, maps and authored texture transforms. Only the
+ * sampling/color-management contract and physically implausible rock scalars are normalized.
+ */
+export function prepareNaturalGeologyHydratedMaterial(sourceMaterial, { maxAnisotropy = 1 } = {}) {
+  if (!sourceMaterial?.clone) return sourceMaterial;
+  const material = sourceMaterial.clone();
+  for (const key of HYDRATED_COLOR_TEXTURE_KEYS) {
+    configureHydratedRockTexture(material[key], { colorTexture: true, maxAnisotropy });
+  }
+  for (const key of HYDRATED_DATA_TEXTURE_KEYS) {
+    configureHydratedRockTexture(material[key], { colorTexture: false, maxAnisotropy });
+  }
+  if (material.isMeshStandardMaterial || material.isMeshPhysicalMaterial) {
+    material.metalness = 0;
+    material.roughness = Math.max(
+      material.roughness ?? 0,
+      NATURAL_GEOLOGY_RENDER_POLICY.hydratedRoughnessFloor,
+    );
+    installRockMaterialWeathering(material);
+  }
+  material.userData = {
+    ...material.userData,
+    naturalGeologyHydratedMaterial: true,
+    naturalGeologySourceMapsPreserved: true,
+    naturalGeologyTextureColorSpaceContract: true,
+  };
+  material.needsUpdate = true;
+  return material;
+}
+
+export function prepareNaturalGeologyHydratedMaterials(source, options) {
+  return Array.isArray(source)
+    ? source.map((material) => prepareNaturalGeologyHydratedMaterial(material, options))
+    : prepareNaturalGeologyHydratedMaterial(source, options);
+}
 
 function installRockMaterialWeathering(material) {
   if (!material || (!material.isMeshStandardMaterial && !material.isMeshPhysicalMaterial)) return material;
@@ -602,7 +693,8 @@ function collectRenderableMeshes(model) {
   const meshes = [];
   model?.updateMatrixWorld?.(true);
   model?.traverse?.((node) => {
-    if (node?.isMesh && node.geometry?.getAttribute?.('position') && node.material && !Array.isArray(node.material)) {
+    const materials = Array.isArray(node?.material) ? node.material.filter(Boolean) : node?.material ? [node.material] : [];
+    if (node?.isMesh && node.geometry?.getAttribute?.('position') && materials.length) {
       meshes.push(node);
     }
   });
@@ -695,7 +787,7 @@ async function loadNaturalGeologySource(url) {
   return { model, sourceFormat: isFbx ? 'fbx' : 'gltf' };
 }
 
-async function hydrateFamily(group, family, url, signal) {
+async function hydrateFamily(group, family, url, signal, maxAnisotropy) {
   const placements = proxyPlacementsForFamily(group, family);
   if (!placements.length) return { family, status: 'unused', placementCount: 0 };
   const preflight = await preflightAsset(url, signal);
@@ -714,10 +806,7 @@ async function hydrateFamily(group, family, url, signal) {
   const hydrated = [];
   for (let meshIndex = 0; meshIndex < validation.meshes.length; meshIndex += 1) {
     const sourceMesh = validation.meshes[meshIndex];
-    const material = sourceMesh.material.clone();
-    material.metalness = 0;
-    material.roughness = Math.max(material.roughness ?? 0, NATURAL_GEOLOGY_RENDER_POLICY.hydratedRoughnessFloor);
-    installRockMaterialWeathering(material);
+    const material = prepareNaturalGeologyHydratedMaterials(sourceMesh.material, { maxAnisotropy });
     const instances = new THREE.InstancedMesh(sourceMesh.geometry, material, placements.length);
     instances.name = `natural-geology-hydrated-${family}-${meshIndex}`;
     instances.castShadow = true;
@@ -738,6 +827,11 @@ async function hydrateFamily(group, family, url, signal) {
       sourceFormat,
       regionalTintStrength: NATURAL_GEOLOGY_RENDER_POLICY.hydratedRegionalTintStrength,
       sourceMaterialPreserved: true,
+      multiMaterial: Array.isArray(material),
+      materialCount: Array.isArray(material) ? material.length : 1,
+      textureAnisotropy: maxAnisotropy,
+      textureColorSpaceContract: true,
+      sourceUvAndTextureTransformPreserved: true,
     });
     hydrated.push(instances);
   }
@@ -756,7 +850,11 @@ async function hydrateFamily(group, family, url, signal) {
 
 const inFlight = new WeakMap();
 
-export function upgradeNaturalGeologyAssets(group, { signal, isMobileClass = false } = {}) {
+export function upgradeNaturalGeologyAssets(group, {
+  signal,
+  isMobileClass = false,
+  maxAnisotropy = 1,
+} = {}) {
   if (!group) return Promise.resolve(Object.freeze({ status: 'missing-group' }));
   if (isMobileClass) return Promise.resolve(Object.freeze({ status: 'procedural-fallback', reason: 'mobile-budget' }));
   if (inFlight.has(group)) return inFlight.get(group);
@@ -774,7 +872,16 @@ export function upgradeNaturalGeologyAssets(group, { signal, isMobileClass = fal
         families.push({ family, status: 'aborted', placementCount: 0 });
         continue;
       }
-      families.push(await hydrateFamily(group, family, url, signal));
+      families.push(await hydrateFamily(
+        group,
+        family,
+        url,
+        signal,
+        Math.max(1, Math.min(
+          NATURAL_GEOLOGY_RENDER_POLICY.hydratedMaximumAnisotropy,
+          Number.isFinite(maxAnisotropy) ? Math.floor(maxAnisotropy) : 1,
+        )),
+      ));
     }
     const active = families.filter((entry) => entry.status === 'active');
     group.userData.naturalGeology = Object.freeze({
