@@ -24,7 +24,7 @@ import {
 } from './valyriaGeology.js';
 
 export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
-  id: 'natural-geology-render-2026-08-31-v5-regional-hydrated-rocks',
+  id: 'natural-geology-render-2026-09-01-v6-natural-volcanic-value',
   renderOnly: true,
   deterministicPlacement: true,
   geographyAuthorityUnchanged: true,
@@ -231,11 +231,11 @@ export function createNaturalRockPrototypeGeometry(kind) {
 
 function colorForPlacement(placement) {
   if (placement.volcanic) {
-    const c = new THREE.Color(0x2c2624);
+    const c = new THREE.Color(0x3a3431);
     const hot = clamp01((placement.valyriaInfluence - 0.45) / 0.55);
-    if (placement.kind === 'talus') c.lerp(new THREE.Color(0x4a403b), 0.35);
-    if (placement.kind === 'fractured-scarp') c.lerp(new THREE.Color(0x181617), 0.55);
-    if (hot > 0.6 && placement.curvatureMeters > 0.35) c.lerp(new THREE.Color(0x6e2412), 0.18);
+    if (placement.kind === 'talus') c.lerp(new THREE.Color(0x504844), 0.30);
+    if (placement.kind === 'fractured-scarp') c.lerp(new THREE.Color(0x29282a), 0.38);
+    if (hot > 0.6 && placement.curvatureMeters > 0.35) c.lerp(new THREE.Color(0x71301f), 0.11);
     return c;
   }
   const north = placement.northness;
