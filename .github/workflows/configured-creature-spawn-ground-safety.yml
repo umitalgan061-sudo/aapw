@@ -15,7 +15,6 @@ on:
 
 permissions:
   contents: read
-
 jobs:
   configured-creature-spawn-ground-safety:
     runs-on: ubuntu-latest
@@ -65,6 +64,7 @@ jobs:
           node --check scripts/checkCreatureBirdTerrainClearance.mjs
           node scripts/checkCreatureBirdTerrainClearance.mjs
           node scripts/checkCreatureThreatMemory.mjs
+          node scripts/checkCreatureSimulationLod.mjs
           grep -F "distanceMeters < packAlertRadiusMeters" src/3d/gameplay/livingWorldSpawner.js
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkSharedMaterialPlacementContract.js
