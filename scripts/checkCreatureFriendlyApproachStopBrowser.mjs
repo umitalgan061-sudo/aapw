@@ -85,6 +85,7 @@ try {
   assert.deepEqual(proof.rejectedPosition, { x: 0, y: 5, z: 0 }, 'rejected collider correction should not partially publish transform state');
   assert.ok(Math.abs(proof.recoveredDistance - 2.5) <= 1e-6, `friendly approach did not recover after collider rejection: ${proof.recoveredDistance}`);
   assert.ok(Math.abs(proof.colliderPosition.x - 0.5) <= 1e-6, `friendly recovery missed authored stop boundary: ${proof.colliderPosition.x}`);
+  assert.ok(Math.abs(proof.colliderPosition.y - 5) <= 1e-6, `friendly recovery lost grounded height: ${proof.colliderPosition.y}`);
   assert.ok(Math.abs(proof.colliderPosition.z) <= 1e-6, `friendly recovery introduced lateral drift: ${proof.colliderPosition.z}`);
   assert.equal(proof.colliderCalls, 2, 'friendly approach should retry collider resolution on the next valid tick');
   assert.ok(Object.values(proof.colliderPosition).every(Number.isFinite), 'collider-corrected approach published a non-finite transform');
