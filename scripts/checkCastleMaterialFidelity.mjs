@@ -108,4 +108,22 @@ assert.equal(seatA.children[0].geometry, seatB.children[0].geometry, 'material i
 assert.notEqual(seatA.children[0].material, seatB.children[0].material, 'shared castle geometry must still get seat-local materials');
 assert.equal(seatA.children[0].material.map, seatB.children[0].material.map, 'seat-local material clones must share immutable authored texture objects');
 
+const sharedFallbackRoot = new THREE.Group();
+const flatA = new THREE.MeshStandardMaterial({ color: 0x777777 });
+const flatB = new THREE.MeshStandardMaterial({ color: 0x777777 });
+sharedFallbackRoot.add(new THREE.Mesh(sharedGeometry, flatA), new THREE.Mesh(sharedGeometry, flatB));
+let decorationCalls = 0;
+const fallbackResult = applyCastleMaterialFidelity(sharedFallbackRoot, {
+  seatId: 'umit',
+  profileId: 'volcanic',
+  stoneColorHex: 0x75635d,
+  createFallbackMaterial: generatedStone,
+  decorateMaterial: (material) => { decorationCalls += 1; material.userData.decorated = true; return material; },
+});
+assert.equal(fallbackResult.ok, true);
+assert.equal(fallbackResult.generatedFallbackCount, 2, 'both flat mesh slots must consume the one fallback instance');
+assert.equal(fallbackResult.decoratedMaterialCount, 1, 'shared fallback material must be decorated exactly once');
+assert.equal(decorationCalls, 1, 'shader/weathering decoration must not stack per mesh');
+assert.equal(sharedFallbackRoot.children[0].material, sharedFallbackRoot.children[1].material, 'flat meshes within one castle should share the generated fallback material');
+
 console.log('Castle material fidelity PASS');
