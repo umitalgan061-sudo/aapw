@@ -24,7 +24,7 @@ import {
 } from './valyriaGeology.js';
 
 export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
-  id: 'natural-geology-render-2026-08-27-v1-asset-hydrated-outcrops',
+  id: 'natural-geology-render-2026-09-01-v2-geographic-surface-weathering',
   renderOnly: true,
   deterministicPlacement: true,
   geographyAuthorityUnchanged: true,
@@ -40,7 +40,13 @@ export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
   minimumSourceExtentMeters: 0.001,
   maximumSourceAspectRatio: 18,
   hydratedRoughnessFloor: 0.86,
+  hydratedMetalnessCeiling: 0.04,
   proceduralRoughness: 0.96,
+  proceduralVertexWeathering: true,
+  proceduralBaseColorNeutral: true,
+  instanceClimateColor: true,
+  hydratedSourceMapsPreserved: true,
+  hydratedInstanceWeathering: true,
   groupName: 'natural-geology',
   valyriaSurfaceName: 'valyria-volcanic-surface',
 });
@@ -49,12 +55,61 @@ const tempObject = new THREE.Object3D();
 const tempMatrix = new THREE.Matrix4();
 const tempQuaternion = new THREE.Quaternion();
 const tempScale = new THREE.Vector3();
+const tempColor = new THREE.Color();
 const clamp01 = (value) => value < 0 ? 0 : value > 1 ? 1 : value;
 
-function createRockMaterial(color) {
-  const material = new THREE.MeshStandardMaterial({ color, roughness: NATURAL_GEOLOGY_RENDER_POLICY.proceduralRoughness, metalness: 0, flatShading: true });
+function createRockMaterial() {
+  const material = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    vertexColors: true,
+    roughness: NATURAL_GEOLOGY_RENDER_POLICY.proceduralRoughness,
+    metalness: 0,
+    flatShading: true,
+  });
   material.userData.naturalGeology = true;
+  material.userData.naturalGeologySurface = Object.freeze({
+    policyId: NATURAL_GEOLOGY_RENDER_POLICY.id,
+    authoredMapsPreserved: false,
+    vertexWeathering: true,
+    instanceClimateColor: true,
+    neutralMaterialBase: true,
+  });
   return material;
+}
+
+function applyProceduralVertexWeathering(geometry, kind) {
+  const position = geometry.getAttribute('position');
+  const normal = geometry.getAttribute('normal');
+  if (!position || !normal) return geometry;
+  const colors = new Float32Array(position.count * 3);
+  const kindPhase = {
+    'fractured-scarp': 0.31,
+    bedrock: 1.17,
+    'low-outcrop': 2.21,
+    talus: 3.08,
+    boulder: 4.13,
+    'asset-proxy': 5.07,
+  }[kind] ?? 0.73;
+  for (let index = 0; index < position.count; index += 1) {
+    const x = position.getX(index), y = position.getY(index), z = position.getZ(index);
+    const topExposure = clamp01(normal.getY(index) * 0.62 + 0.38);
+    const fracture = Math.sin(x * 13.7 + z * 9.1 + kindPhase) * 0.5
+      + Math.sin((x - z) * 24.3 - y * 7.8 + kindPhase * 1.9) * 0.5;
+    const grain = Math.sin(x * 41.3 + y * 17.7 - z * 29.1 + kindPhase * 3.1);
+    const brightness = 0.84 + topExposure * 0.09 + fracture * 0.045 + grain * 0.018;
+    const oxidized = clamp01(0.42 - topExposure * 0.25 + Math.max(0, fracture) * 0.16);
+    colors[index * 3] = brightness * (1 + oxidized * 0.035);
+    colors[index * 3 + 1] = brightness * (1 - oxidized * 0.018);
+    colors[index * 3 + 2] = brightness * (1 - oxidized * 0.055);
+  }
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geometry.userData.naturalGeologySurface = Object.freeze({
+    policyId: NATURAL_GEOLOGY_RENDER_POLICY.id,
+    vertexWeathering: true,
+    localMultiscaleBreakup: true,
+    geographyAuthorityChanged: false,
+  });
+  return geometry;
 }
 
 function warpGeometry(geometry, { xScale = 1, yScale = 1, zScale = 1, fracture = 0.14, terrace = 0 }) {
@@ -79,14 +134,16 @@ function warpGeometry(geometry, { xScale = 1, yScale = 1, zScale = 1, fracture =
 }
 
 export function createNaturalRockPrototypeGeometry(kind) {
-  if (kind === 'fractured-scarp') return warpGeometry(new THREE.IcosahedronGeometry(0.5, 1), { xScale: 1, yScale: 1.24, zScale: 0.44, fracture: 0.22, terrace: 5 });
-  if (kind === 'bedrock') return warpGeometry(new THREE.DodecahedronGeometry(0.5, 0), { xScale: 1, yScale: 0.62, zScale: 0.74, fracture: 0.18, terrace: 4 });
-  if (kind === 'low-outcrop' || kind === 'asset-proxy') return warpGeometry(new THREE.IcosahedronGeometry(0.5, 1), { xScale: 1, yScale: 0.43, zScale: 0.86, fracture: 0.17, terrace: 3 });
-  if (kind === 'talus') return warpGeometry(new THREE.TetrahedronGeometry(0.5, 1), { xScale: 1, yScale: 0.58, zScale: 0.92, fracture: 0.24 });
-  return warpGeometry(new THREE.DodecahedronGeometry(0.5, 0), { xScale: 1, yScale: 0.82, zScale: 0.92, fracture: 0.21 });
+  let geometry;
+  if (kind === 'fractured-scarp') geometry = warpGeometry(new THREE.IcosahedronGeometry(0.5, 1), { xScale: 1, yScale: 1.24, zScale: 0.44, fracture: 0.22, terrace: 5 });
+  else if (kind === 'bedrock') geometry = warpGeometry(new THREE.DodecahedronGeometry(0.5, 0), { xScale: 1, yScale: 0.62, zScale: 0.74, fracture: 0.18, terrace: 4 });
+  else if (kind === 'low-outcrop' || kind === 'asset-proxy') geometry = warpGeometry(new THREE.IcosahedronGeometry(0.5, 1), { xScale: 1, yScale: 0.43, zScale: 0.86, fracture: 0.17, terrace: 3 });
+  else if (kind === 'talus') geometry = warpGeometry(new THREE.TetrahedronGeometry(0.5, 1), { xScale: 1, yScale: 0.58, zScale: 0.92, fracture: 0.24 });
+  else geometry = warpGeometry(new THREE.DodecahedronGeometry(0.5, 0), { xScale: 1, yScale: 0.82, zScale: 0.92, fracture: 0.21 });
+  return applyProceduralVertexWeathering(geometry, kind);
 }
 
-function colorForPlacement(placement) {
+export function naturalGeologyColorForPlacement(placement) {
   if (placement.volcanic) {
     const c = new THREE.Color(0x2c2624);
     const hot = clamp01((placement.valyriaInfluence - 0.45) / 0.55);
@@ -95,10 +152,44 @@ function colorForPlacement(placement) {
     if (hot > 0.6 && placement.curvatureMeters > 0.35) c.lerp(new THREE.Color(0x6e2412), 0.18);
     return c;
   }
-  const north = placement.northness, south = placement.southernDryness, altitude = clamp01(placement.heightAboveSeaMeters / 520);
-  if (south > 0.69) return new THREE.Color().setRGB(0.31 + south * 0.12, 0.255 + south * 0.07, 0.18 + south * 0.035);
-  if (north > 0.72 || altitude > 0.72) return new THREE.Color().setRGB(0.34 + altitude * 0.08, 0.37 + altitude * 0.08, 0.39 + altitude * 0.08);
-  return new THREE.Color().setRGB(0.31 + altitude * 0.055, 0.30 + altitude * 0.05, 0.27 + altitude * 0.045);
+  const north = placement.northness, south = placement.southernDryness;
+  const altitude = clamp01(placement.heightAboveSeaMeters / 520);
+  const relief = clamp01((placement.localReliefMeters ?? 0) / 180);
+  const deterministicGrain = Math.sin(placement.x * 0.0137 + placement.z * 0.0091) * 0.018;
+  if (south > 0.69) {
+    return new THREE.Color().setRGB(
+      0.34 + south * 0.12 + relief * 0.035 + deterministicGrain,
+      0.275 + south * 0.065 + relief * 0.018 + deterministicGrain * 0.65,
+      0.19 + south * 0.038 + deterministicGrain * 0.35,
+    );
+  }
+  if (north > 0.72 || altitude > 0.72) {
+    return new THREE.Color().setRGB(
+      0.37 + altitude * 0.075 + deterministicGrain * 0.55,
+      0.40 + altitude * 0.08 + deterministicGrain * 0.7,
+      0.42 + altitude * 0.085 + deterministicGrain,
+    );
+  }
+  return new THREE.Color().setRGB(
+    0.35 + altitude * 0.052 + relief * 0.025 + deterministicGrain,
+    0.34 + altitude * 0.048 + relief * 0.018 + deterministicGrain * 0.78,
+    0.30 + altitude * 0.043 + deterministicGrain * 0.52,
+  );
+}
+
+export function naturalGeologyHydratedWeatheringMultiplier(placement) {
+  const north = clamp01(placement.northness ?? 0);
+  const south = clamp01(placement.southernDryness ?? 0);
+  const altitude = clamp01((placement.heightAboveSeaMeters ?? 0) / 520);
+  const relief = clamp01((placement.localReliefMeters ?? 0) / 180);
+  const phase = Math.sin((placement.x ?? 0) * 0.0113 - (placement.z ?? 0) * 0.0087) * 0.012;
+  if (placement.volcanic) {
+    const heat = clamp01(((placement.valyriaInfluence ?? 0) - 0.35) / 0.65);
+    return new THREE.Color().setRGB(0.82 + heat * 0.08, 0.80 - heat * 0.06, 0.79 - heat * 0.10);
+  }
+  if (south > 0.62) return new THREE.Color().setRGB(0.98, 0.91 + relief * 0.025, 0.80 + (1 - south) * 0.06);
+  if (north > 0.66 || altitude > 0.68) return new THREE.Color().setRGB(0.88 + phase, 0.94 + phase, 1.0);
+  return new THREE.Color().setRGB(0.95 + phase, 0.96 + phase, 0.91 + relief * 0.025);
 }
 
 function composePlacementMatrix(placement, output = new THREE.Matrix4()) {
@@ -116,21 +207,26 @@ function composePlacementMatrix(placement, output = new THREE.Matrix4()) {
 
 function makeInstancedFamily(kind, placements) {
   if (!placements.length) return null;
-  const colors = { 'fractured-scarp': 0x5c5a54, bedrock: 0x67635a, 'low-outcrop': 0x716b5f, talus: 0x6c665c, boulder: 0x625f58, 'asset-proxy': 0x68635a };
-  const mesh = new THREE.InstancedMesh(createNaturalRockPrototypeGeometry(kind), createRockMaterial(colors[kind] ?? 0x66615a), placements.length);
+  const mesh = new THREE.InstancedMesh(createNaturalRockPrototypeGeometry(kind), createRockMaterial(), placements.length);
   mesh.name = `natural-geology-${kind}`;
   mesh.castShadow = kind !== 'talus';
   mesh.receiveShadow = true;
   for (let i = 0; i < placements.length; i += 1) {
     composePlacementMatrix(placements[i], tempMatrix);
     mesh.setMatrixAt(i, tempMatrix);
-    mesh.setColorAt?.(i, colorForPlacement(placements[i]));
+    mesh.setColorAt?.(i, naturalGeologyColorForPlacement(placements[i]));
   }
   mesh.instanceMatrix.needsUpdate = true;
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   mesh.computeBoundingSphere?.();
   mesh.userData.naturalGeologyKind = kind;
   mesh.userData.placementIds = placements.map((p) => p.id);
+  mesh.userData.naturalGeologySurface = Object.freeze({
+    policyId: NATURAL_GEOLOGY_RENDER_POLICY.id,
+    vertexWeathering: true,
+    instanceClimateColor: true,
+    doubleTintRemoved: true,
+  });
   return mesh;
 }
 
@@ -229,6 +325,20 @@ function hideProxyInstances(group, ids) {
   for (let i = 0; i < proxy.count; i += 1) if (hidden.has(proxy.userData.placementIds?.[i])) { proxy.getMatrixAt(i, current); current.decompose(tempObject.position, tempQuaternion, tempScale); tempScale.set(0, 0, 0); current.compose(tempObject.position, tempQuaternion, tempScale); proxy.setMatrixAt(i, current); }
   proxy.instanceMatrix.needsUpdate = true;
 }
+function prepareHydratedGeologyMaterial(sourceMaterial, family) {
+  const material = sourceMaterial.clone();
+  material.metalness = Math.min(material.metalness ?? 0, NATURAL_GEOLOGY_RENDER_POLICY.hydratedMetalnessCeiling);
+  material.roughness = Math.max(material.roughness ?? 0, NATURAL_GEOLOGY_RENDER_POLICY.hydratedRoughnessFloor);
+  material.userData = { ...material.userData, naturalGeology: true, naturalGeologySurface: Object.freeze({
+    policyId: NATURAL_GEOLOGY_RENDER_POLICY.id,
+    family,
+    authoredMapsPreserved: true,
+    instanceClimateWeathering: true,
+    roughnessFloor: NATURAL_GEOLOGY_RENDER_POLICY.hydratedRoughnessFloor,
+    metalnessCeiling: NATURAL_GEOLOGY_RENDER_POLICY.hydratedMetalnessCeiling,
+  }) };
+  return material;
+}
 async function hydrateFamily(group, family, url, signal) {
   const placements = proxyPlacementsForFamily(group, family); if (!placements.length) return { family, status: 'unused', placementCount: 0 };
   const preflight = await preflightAsset(url, signal); if (!preflight.load) return { family, status: 'procedural-fallback', reason: preflight.reason, placementCount: placements.length };
@@ -236,10 +346,25 @@ async function hydrateFamily(group, family, url, signal) {
   if (!validation.valid) { AssetLoader.disposeObject3D(model); return { family, status: 'procedural-fallback', reason: validation.reason, placementCount: placements.length }; }
   const normalization = createAssetNormalization(validation.measurement), hydrated = [];
   for (let meshIndex = 0; meshIndex < validation.meshes.length; meshIndex += 1) {
-    const sourceMesh = validation.meshes[meshIndex], material = sourceMesh.material.clone(); material.metalness = 0; material.roughness = Math.max(material.roughness ?? 0, NATURAL_GEOLOGY_RENDER_POLICY.hydratedRoughnessFloor);
+    const sourceMesh = validation.meshes[meshIndex], material = prepareHydratedGeologyMaterial(sourceMesh.material, family);
     const instances = new THREE.InstancedMesh(sourceMesh.geometry, material, placements.length); instances.name = `natural-geology-hydrated-${family}-${meshIndex}`; instances.castShadow = true; instances.receiveShadow = true;
-    for (let i = 0; i < placements.length; i += 1) { composePlacementMatrix(placements[i], tempMatrix); instances.setMatrixAt(i, tempMatrix.clone().multiply(normalization).multiply(sourceMesh.matrixWorld)); }
-    instances.instanceMatrix.needsUpdate = true; instances.computeBoundingSphere?.(); hydrated.push(instances);
+    for (let i = 0; i < placements.length; i += 1) {
+      composePlacementMatrix(placements[i], tempMatrix);
+      instances.setMatrixAt(i, tempMatrix.clone().multiply(normalization).multiply(sourceMesh.matrixWorld));
+      tempColor.copy(naturalGeologyHydratedWeatheringMultiplier(placements[i]));
+      instances.setColorAt?.(i, tempColor);
+    }
+    instances.instanceMatrix.needsUpdate = true;
+    if (instances.instanceColor) instances.instanceColor.needsUpdate = true;
+    instances.computeBoundingSphere?.();
+    instances.userData.naturalGeologySurface = Object.freeze({
+      policyId: NATURAL_GEOLOGY_RENDER_POLICY.id,
+      family,
+      hydrated: true,
+      authoredMapsPreserved: true,
+      instanceClimateWeathering: true,
+    });
+    hydrated.push(instances);
   }
   group.add(...hydrated); hideProxyInstances(group, placements.map((p) => p.id));
   return { family, status: 'active', assetUrl: url, placementCount: placements.length, primitiveCount: hydrated.length, hostedContentLength: preflight.contentLength };
