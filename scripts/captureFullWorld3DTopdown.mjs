@@ -98,7 +98,7 @@ async function main() {
 		const summary = await page.evaluate(() => window.__FULL_WORLD_3D_TOPDOWN__);
 		if (pageErrors.length) throw new Error(pageErrors.join('\n'));
 
-		await page.screenshot({ path: outputPath, type: 'png' });
+		await page.screenshot({ path: outputPath, type: 'png', timeout: 120000 });
 		await fs.writeFile(jsonPath, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
 
 		assert.equal(summary.camera.type, 'OrthographicCamera');
