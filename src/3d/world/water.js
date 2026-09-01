@@ -310,7 +310,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 
 		float cameraDistance = distance(uCameraPosition, vWorldPosition);
 		float rippleFade = 1.0 - smoothstep(90.0, 360.0, cameraDistance);
-		float swellShadingFade = 1.0 - smoothstep(700.0, 1800.0, cameraDistance);
+		float swellShadingFade = 1.0 - smoothstep(700.0, 3600.0, cameraDistance);
 		float microSlopeFade = 1.0 - smoothstep(520.0, 2800.0, cameraDistance);
 		vec2 slope = vSwellSlope * swellShadingFade + rippleSlope(vWorldPosition.xz, uTime) * rippleFade;
 		slope += openOceanMicroSlope(vWorldPosition.xz, uTime, oceanShear) * microSlopeFade * deepMarineMask;
