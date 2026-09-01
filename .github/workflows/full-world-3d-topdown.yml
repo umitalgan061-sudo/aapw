@@ -20,6 +20,7 @@ on:
       - 'src/3d/world/worldReferencePindex05Detail.js'
       - 'src/3d/world/westernMarineShelfTone.js'
       - 'src/3d/world/westernReferenceSurfaceFabric.js'
+      - 'src/3d/world/geographicReferencePalette.js'
       - 'src/3d/world/water.js'
       - 'src/3d/world/waterDepthField.js'
       - 'scripts/checkTerrainMicroSurface.mjs'
@@ -33,6 +34,7 @@ on:
       - 'scripts/checkWesternMarineShelfTone.mjs'
       - 'scripts/checkWesternReferenceSurfaceFabric.mjs'
       - 'scripts/checkPindex05NaturalSoilVariation.mjs'
+      - 'scripts/checkFullWorldMarineRectangles.mjs'
       - 'scripts/captureFullWorld3DTopdown.mjs'
       - 'scripts/fullWorld3DTopdownHarness.html'
       - '.github/workflows/full-world-3d-topdown.yml'
@@ -76,9 +78,11 @@ jobs:
           node --check src/3d/world/worldReferencePindex02Detail.js
           node --check src/3d/world/worldReferencePindex03Detail.js
           node --check src/3d/world/worldReferencePindex05Detail.js
+          node --check src/3d/world/geographicReferencePalette.js
           node --check src/3d/world/water.js
           node --check src/3d/world/waterDepthField.js
           node --check scripts/checkMountainLakeBasinTaper.mjs
+          node --check scripts/checkFullWorldMarineRectangles.mjs
           node scripts/checkTerrainMacroWeathering.mjs
           node scripts/checkTerrainMacroWeatheringStatistics.mjs
           node scripts/checkTerrainMacroWeatheringIntegration.mjs
@@ -98,6 +102,12 @@ jobs:
             --height=1100 \
             --segments=240 \
             --output=artifacts/full-world-3d-topdown/full-world-3d-topdown.png
+
+      - name: Reject large axis-aligned marine rectangles
+        run: |
+          node scripts/checkFullWorldMarineRectangles.mjs \
+            --input=artifacts/full-world-3d-topdown/full-world-3d-topdown.png \
+            --report=artifacts/full-world-3d-topdown/marine-rectangle-report.json
 
       - name: Upload full-world visual proof
         if: always()
