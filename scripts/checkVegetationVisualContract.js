@@ -70,9 +70,9 @@ async function main() {
 				'vegetation-snow-pine-foliage',
 			];
 			const expectedProfiles = [
-				'tapered-evergreen-trunk', 'tiered-evergreen',
+				'tapered-evergreen-trunk', 'continuous-evergreen-crown',
 				'forked-broadleaf-trunk', 'lobed-broadleaf',
-				'tapered-evergreen-trunk', 'tiered-evergreen',
+				'tapered-evergreen-trunk', 'continuous-evergreen-crown',
 			];
 			const matrixA = new THREE.Matrix4();
 			const matrixB = new THREE.Matrix4();
@@ -93,7 +93,17 @@ async function main() {
 					`child ${meshIndex} silhouette policy missing/drifted`);
 				fail(silhouette.profile === expectedProfiles[meshIndex],
 					`child ${meshIndex} profile ${silhouette.profile} != ${expectedProfiles[meshIndex]}`);
-				fail(silhouette.componentCount >= 2, `child ${meshIndex} reverted to a single primitive`);
+				if (silhouette.profile === 'continuous-evergreen-crown') {
+					fail(silhouette.componentCount === 1 && silhouette.connectedSurface === true,
+						`child ${meshIndex} evergreen crown must remain one connected surface`);
+					fail(silhouette.profileRingCount === VEGETATION_SILHOUETTE_POLICY.evergreenProfileRingCount,
+						`child ${meshIndex} evergreen profile ring topology drifted`);
+					fail(silhouette.radialSegments === VEGETATION_SILHOUETTE_POLICY.evergreenRadialSegments,
+						`child ${meshIndex} evergreen radial topology drifted`);
+					fail(mesh.geometry.type === 'BufferGeometry', `child ${meshIndex} reverted to a primitive geometry type`);
+				} else {
+					fail(silhouette.componentCount >= 2, `child ${meshIndex} reverted to a single primitive`);
+				}
 				fail(mesh.material?.isMeshStandardMaterial === true, `child ${meshIndex} material is not MeshStandardMaterial`);
 				fail(mesh.material.metalness === 0, `child ${meshIndex} metalness drift`);
 				fail(mesh.material.userData?.vegetationSurfaceFabric?.worldSpace === true,
