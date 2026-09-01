@@ -138,14 +138,6 @@ function warpGeometry(geometry, { xScale = 1, yScale = 1, zScale = 1, fracture =
   return geometry;
 }
 
-/**
- * Procedural fallback and hydrated GLB geometry must share one placement convention: local y=0 is
- * the physical bottom of the source. Hydrated assets already use this convention through
- * createAssetNormalization(); keeping primitive prototypes centred around y=0 made fallback rocks
- * sit roughly half a rock-height lower than their hydrated replacement and visibly "jump" when the
- * async asset upgrade completed. Normalising once at prototype creation preserves instancing while
- * making placement.y/buryFraction mean exactly the same thing for both representations.
- */
 function normalizePrototypeBaseOrigin(geometry) {
   geometry.computeBoundingBox();
   const minY = geometry.boundingBox?.min?.y;
@@ -265,7 +257,6 @@ function buildProceduralMeshes(placements) {
   return [...families].map(([kind, family]) => makeInstancedFamily(kind, family)).filter(Boolean);
 }
 
-/** Render-only, terrain-conforming Valyria surface. It never modifies canonical height or water. */
 export function createValyriaVolcanicSurface({ sampleHeightMeters, seaLevelMeters, worldWidthMeters, worldDepthMeters, gridMeters = VALYRIA_GEOLOGY_POLICY.volcanicSurfaceGridMeters }) {
   const P = VALYRIA_GEOLOGY_POLICY;
   const minNx = P.coreCenter.nx - P.coreRadius.nx * P.falloff;
