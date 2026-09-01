@@ -175,7 +175,7 @@ for (const required of [
   "'snow-terrain'",
   'sourceFormat',
   'prepareNaturalGeologyHydratedMaterials',
-  'getMaxAnisotropy',
+  'maxAnisotropy',
 ]) {
   assert(rendererSource.includes(required), `asset-diversity wiring missing: ${required}`);
 }
