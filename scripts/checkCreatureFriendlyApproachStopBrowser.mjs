@@ -23,16 +23,10 @@ try {
     );
     const positionOf = ({ object3D }) => ({ x: object3D.position.x, y: object3D.position.y, z: object3D.position.z });
     const player = { x: 3, z: 0 };
-    const dog = createBeing('kopek', 'friendly-stop-boundary');
-    const before = distanceTo(dog, player);
-    dog.update(0.25, player);
-    const after = distanceTo(dog, player);
-    const position = positionOf(dog);
-    dog.dispose();
-    const exactStopDog = createBeing('kopek', 'friendly-stop-stable', 0.5);
-    exactStopDog.update(0.25, player);
-    const exactStopDistance = distanceTo(exactStopDog, player);
-    exactStopDog.dispose();
+    const dog = createBeing('kopek', 'friendly-stop-boundary'); const before = distanceTo(dog, player);
+    dog.update(0.25, player); const after = distanceTo(dog, player); const position = positionOf(dog); dog.dispose();
+    const exactStopDog = createBeing('kopek', 'friendly-stop-stable', 0.5); exactStopDog.update(0.25, player);
+    const exactStopDistance = distanceTo(exactStopDog, player); exactStopDog.dispose();
     let colliderCalls = 0;
     const colliderDog = createBeing('kopek', 'friendly-stop-after-collider', 0, {
       resolveXZ: (x, z) => ({ x: ++colliderCalls === 1 ? x + 0.5 : x, z }),
