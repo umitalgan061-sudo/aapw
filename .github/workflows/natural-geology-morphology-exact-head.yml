@@ -88,14 +88,21 @@ jobs:
           sed -i "s/type: 'png' });/type: 'png', timeout: 120000 });/g" scripts/captureNaturalGeologyShippedScene.mjs
           node scripts/captureNaturalGeologyShippedScene.mjs
 
-      - name: Browser and mobile performance regression safety
+      - name: Mobile performance regression safety
         run: |
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           node scripts/checkMobilePerfBudget.js
+
+      - name: Browser regression smoke
+        if: always()
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           node scripts/smokeTestGame3D.js
 
       - name: Final exact-main freshness
+        if: always()
         run: |
           set -euo pipefail
           git fetch origin main
