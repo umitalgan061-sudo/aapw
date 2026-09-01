@@ -19,10 +19,10 @@ const TEXTURE_SIZE = 256;
  * The base maps keep masonry/shingle scale while world-space macro/meso/fine weathering prevents
  * the same 256px tile from reading as wallpaper across a keep or across multiple kingdom seats. */
 export const CASTLE_WORLD_SPACE_WEATHERING_POLICY = Object.freeze({
-	id: 'castle-world-space-weathering-2026-09-01-v1',
-	macroMeters: 72,
-	mesoMeters: 19,
-	fineMeters: 5.5,
+	id: 'castle-world-space-weathering-2026-09-01-v2',
+	macroMeters: 76,
+	mesoMeters: 21,
+	fineMeters: 5.8,
 	stoneStrength: 1,
 	roofStrength: 0.72,
 });
@@ -38,10 +38,11 @@ function clamp(value, min, max) {
 }
 
 /**
- * Height field for a mortared stone-block wall: each block is a shallow bevel (height 1 in the
- * middle, recessed to 0 in a thin groove at its edges to read as mortar), plus a small per-block
- * random height offset for natural variation. Shared by the color/roughness/normal generators
- * below so all three maps agree on where the blocks and grooves are.
+ * Height field for mortared stonework. It deliberately avoids a Cartesian brick grid: every course
+ * gets its own deterministic horizontal phase, individual stones get shallow height offsets, and
+ * the horizontal mortar boundary meanders by roughly a pixel or two across each course. The result
+ * remains seamless/repeatable as a texture, but no long ruler-straight vertical joint can cross an
+ * entire keep or tower. World-space weathering below then breaks repetition between UV tiles.
  * @param {() => number} random Seeded PRNG (`mulberry32`).
  * @param {number} blockCols
  * @param {number} blockRows
@@ -51,18 +52,36 @@ function buildStoneHeightField(random, blockCols, blockRows) {
 	const heights = new Float32Array(TEXTURE_SIZE * TEXTURE_SIZE);
 	const blockW = TEXTURE_SIZE / blockCols;
 	const blockH = TEXTURE_SIZE / blockRows;
-	const grooveHalfWidth = 1.5;
-
+	const grooveHalfWidth = 1.15;
+	const rowOffsets = new Float32Array(blockRows);
+	const rowWobblePhase = new Float32Array(blockRows);
 	const blockOffsets = new Float32Array(blockCols * blockRows);
-	for (let i = 0; i < blockOffsets.length; i++) blockOffsets[i] = (random() - 0.5) * 0.3;
+
+	for (let row = 0; row < blockRows; row++) {
+		// Broadly stretcher-bond, but not a perfect half-brick mechanical alternation.
+		const bond = (row & 1) ? 0.44 : 0.04;
+		rowOffsets[row] = (bond + (random() - 0.5) * 0.16) * blockW;
+		rowWobblePhase[row] = random() * Math.PI * 2;
+		for (let col = 0; col < blockCols; col++) {
+			blockOffsets[row * blockCols + col] = (random() - 0.5) * 0.22;
+		}
+	}
 
 	for (let py = 0; py < TEXTURE_SIZE; py++) {
 		const row = Math.min(blockRows - 1, Math.floor(py / blockH));
 		const by = py - row * blockH;
 		for (let px = 0; px < TEXTURE_SIZE; px++) {
-			const col = Math.min(blockCols - 1, Math.floor(px / blockW));
-			const bx = px - col * blockW;
-			const edgeDist = Math.min(bx, blockW - bx, by, blockH - by);
+			const shiftedX = ((px + rowOffsets[row]) % TEXTURE_SIZE + TEXTURE_SIZE) % TEXTURE_SIZE;
+			const col = Math.min(blockCols - 1, Math.floor(shiftedX / blockW));
+			const bx = shiftedX - col * blockW;
+			const verticalEdge = Math.min(bx, blockW - bx);
+			// Low-amplitude, deterministic bedding irregularity removes the perfect horizontal rings
+			// that were especially obvious on cylindrical towers while retaining readable masonry.
+			const courseWave = Math.sin(
+				(px / TEXTURE_SIZE) * Math.PI * 2 * (1 + (row % 3) * 0.5) + rowWobblePhase[row],
+			) * 1.35;
+			const horizontalEdge = Math.min(by + courseWave, blockH - by - courseWave);
+			const edgeDist = Math.min(verticalEdge, horizontalEdge);
 			const bevel = clamp(edgeDist / grooveHalfWidth, 0, 1);
 			heights[py * TEXTURE_SIZE + px] = clamp(bevel + blockOffsets[row * blockCols + col], 0, 1);
 		}
@@ -82,24 +101,14 @@ function buildStoneHeightField(random, blockCols, blockRows) {
 function paintStoneColor(ctx, heights, baseColor, random) {
 	const image = ctx.createImageData(TEXTURE_SIZE, TEXTURE_SIZE);
 	const tintNoise = new Float32Array(TEXTURE_SIZE * TEXTURE_SIZE);
-	// Low-frequency tint variance so neighboring blocks don't all share one random value per pixel
-	// (that would look like static, not stone) — reuse the block-aligned height field's grooves
-	// for shape, but a smoother per-pixel jitter for color richness.
-	for (let i = 0; i < tintNoise.length; i++) tintNoise[i] = (random() - 0.5) * 0.06;
+	for (let i = 0; i < tintNoise.length; i++) tintNoise[i] = (random() - 0.5) * 0.035;
 
-	// `THREE.Color` keeps its components in **linear** space (`ColorManagement` is on by default since
-	// three r152), but the bytes written into this canvas are read back as **sRGB** — `finalizeTexture`
-	// tags the colour map `SRGBColorSpace`. Writing the linear components straight into the canvas
-	// therefore darkened the stone twice: the 0x8a8578 warm grey this module is called with landed on
-	// screen as roughly rgb(47,45,40), a muddy near-black, which is what every castle in the game has
-	// actually been rendering since ADR-0013 (run 330 found it once the real castle models finally had
-	// UVs to show a texture through at all). Convert back to sRGB for the byte write. The `shade` ramp
-	// below then operates in the same space as `paintRoofColor`'s own grey ramp, which was always
-	// written as plain sRGB bytes and so never had this problem.
+	// `THREE.Color` components are linear while canvas bytes are sRGB. Convert once before writing.
 	const srgbBase = baseColor.clone().convertLinearToSRGB();
 
 	for (let i = 0; i < heights.length; i++) {
-		const shade = 0.72 + heights[i] * 0.28 + tintNoise[i];
+		// Mortar stays legible without turning every joint into a black line from gameplay distance.
+		const shade = 0.81 + heights[i] * 0.19 + tintNoise[i];
 		const r = clamp(srgbBase.r * shade, 0, 1);
 		const g = clamp(srgbBase.g * shade, 0, 1);
 		const b = clamp(srgbBase.b * shade, 0, 1);
@@ -119,7 +128,7 @@ function paintStoneColor(ctx, heights, baseColor, random) {
 function paintStoneRoughness(ctx, heights) {
 	const image = ctx.createImageData(TEXTURE_SIZE, TEXTURE_SIZE);
 	for (let i = 0; i < heights.length; i++) {
-		const roughness = clamp(0.95 - heights[i] * 0.25, 0, 1);
+		const roughness = clamp(0.93 - heights[i] * 0.18, 0, 1);
 		const value = roughness * 255;
 		image.data[i * 4] = value;
 		image.data[i * 4 + 1] = value;
@@ -130,9 +139,7 @@ function paintStoneRoughness(ctx, heights) {
 }
 
 /**
- * Derives a tangent-space normal map from the height field via a central-difference gradient
- * (classic height->normal conversion): steep transitions at groove edges bevel the light instead
- * of reading as flat-shaded per-block color, without any real extra vertex geometry.
+ * Derives a tangent-space normal map from the height field via a central-difference gradient.
  * @param {CanvasRenderingContext2D} ctx
  * @param {Float32Array} heights
  * @param {number} strength Gradient multiplier — higher reads as a deeper groove.
@@ -145,7 +152,6 @@ function paintStoneNormal(ctx, heights, strength) {
 		for (let px = 0; px < TEXTURE_SIZE; px++) {
 			const dx = (at(px + 1, py) - at(px - 1, py)) * strength;
 			const dy = (at(px, py + 1) - at(px, py - 1)) * strength;
-			// Normal from a height field: (-dHeight/dx, -dHeight/dy, 1), normalized.
 			const nx = -dx;
 			const ny = -dy;
 			const nz = 1;
@@ -164,8 +170,7 @@ function paintStoneNormal(ctx, heights, strength) {
  * @param {THREE.Texture} texture
  * @param {number} repeatX
  * @param {number} repeatY
- * @param {boolean} isColorMap `true` for the color/albedo map (needs sRGB decoding); `false` for
- *   normal/roughness maps (already-linear data, must not be sRGB-decoded by the GPU sampler).
+ * @param {boolean} isColorMap
  */
 function finalizeTexture(texture, repeatX, repeatY, isColorMap) {
 	texture.wrapS = THREE.RepeatWrapping;
@@ -178,9 +183,8 @@ function finalizeTexture(texture, repeatX, repeatY, isColorMap) {
 
 /**
  * Adds deterministic world-space weathering without replacing any existing map. The UV maps retain
- * local masonry/shingle detail; this shader only supplies non-periodic macro/meso/fine mineral,
- * dampness and roughness variation at real metre scales. Because it samples rendered world X/Z,
- * identical castle materials no longer repeat in lock-step from one seat to another.
+ * local masonry/shingle detail; this shader supplies non-periodic macro/meso/fine mineral,
+ * dampness and roughness variation at real metre scales.
  * @param {THREE.MeshStandardMaterial} material
  * @param {object} options
  * @param {number} options.seed
@@ -213,10 +217,7 @@ function applyCastleWorldSpaceWeathering(material, { seed, surface }) {
 		shader.uniforms.uCastleWeatherStrength = { value: strength };
 
 		shader.vertexShader = shader.vertexShader
-			.replace(
-				'#include <common>',
-				'#include <common>\nvarying vec3 vCastleWorldPosition;',
-			)
+			.replace('#include <common>', '#include <common>\nvarying vec3 vCastleWorldPosition;')
 			.replace(
 				'#include <worldpos_vertex>',
 				`#include <worldpos_vertex>
@@ -267,17 +268,17 @@ function applyCastleWorldSpaceWeathering(material, { seed, surface }) {
 				float castleWeatherMeso = castleWeatherFbm((mat2(0.86, -0.51, 0.51, 0.86) * castleWeatherXZ) / ${policy.mesoMeters.toFixed(1)} + vec2(13.7, 4.6));
 				float castleWeatherFine = castleWeatherFbm(castleWeatherXZ / ${policy.fineMeters.toFixed(1)} + vec2(3.9, 17.2));
 				float castleWeatherExposure = clamp(castleWeatherMacro * 0.52 + castleWeatherMeso * 0.34 + castleWeatherFine * 0.14, 0.0, 1.0);
-				float castleWeatherDamp = smoothstep(0.60, 0.90, castleWeatherFbm(castleWeatherXZ / 31.0 + vec2(31.4, 8.2)));
-				vec3 castleWeatherMineral = mix(vec3(0.91, 0.94, 0.92), vec3(1.035, 0.995, 0.93), castleWeatherMacro);
-				diffuseColor.rgb *= mix(vec3(1.0), castleWeatherMineral, 0.11 * uCastleWeatherStrength);
-				diffuseColor.rgb *= 0.965 + (castleWeatherExposure - 0.5) * 0.11 * uCastleWeatherStrength;
-				diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.83, 0.91, 0.86), castleWeatherDamp * 0.09 * uCastleWeatherStrength);`,
+				float castleWeatherDamp = smoothstep(0.58, 0.89, castleWeatherFbm(castleWeatherXZ / 33.0 + vec2(31.4, 8.2)));
+				vec3 castleWeatherMineral = mix(vec3(0.89, 0.93, 0.90), vec3(1.045, 0.995, 0.92), castleWeatherMacro);
+				diffuseColor.rgb *= mix(vec3(1.0), castleWeatherMineral, 0.15 * uCastleWeatherStrength);
+				diffuseColor.rgb *= 0.96 + (castleWeatherExposure - 0.5) * 0.15 * uCastleWeatherStrength;
+				diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.80, 0.89, 0.83), castleWeatherDamp * 0.12 * uCastleWeatherStrength);`,
 			)
 			.replace(
 				'#include <roughnessmap_fragment>',
 				`#include <roughnessmap_fragment>
 				roughnessFactor = clamp(
-					roughnessFactor + ((1.0 - castleWeatherExposure) * 0.075 + castleWeatherDamp * 0.11 - castleWeatherFine * 0.025) * uCastleWeatherStrength,
+					roughnessFactor + ((1.0 - castleWeatherExposure) * 0.09 + castleWeatherDamp * 0.14 - castleWeatherFine * 0.035) * uCastleWeatherStrength,
 					0.38,
 					0.98
 				);`,
@@ -294,13 +295,11 @@ function applyCastleWorldSpaceWeathering(material, { seed, surface }) {
 
 /**
  * Builds a seeded mortared-stone-block `MeshStandardMaterial` (color + roughness + normal maps).
- * Deterministic: the same `seed` always paints the same texture (this project's determinism rule
- * — see `world/README.md`'s "Determinism" convention).
+ * Deterministic: the same `seed` always paints the same texture.
  * @param {object} options
  * @param {number} options.seed
  * @param {THREE.Color} options.baseColor
- * @param {number} [options.repeat] UV repeat count along both axes (block density) — tuned per
- *   caller against the geometry's real size in meters so blocks read as a believable ~1.5-2m scale.
+ * @param {number} [options.repeat]
  * @returns {THREE.MeshStandardMaterial}
  */
 export function createStoneMaterial({ seed, baseColor, repeat = 12 }) {
@@ -319,23 +318,26 @@ export function createStoneMaterial({ seed, baseColor, repeat = 12 }) {
 
 	const normalCanvas = document.createElement('canvas');
 	normalCanvas.width = normalCanvas.height = TEXTURE_SIZE;
-	paintStoneNormal(normalCanvas.getContext('2d'), heights, 6);
+	paintStoneNormal(normalCanvas.getContext('2d'), heights, 3.8);
 
 	const map = finalizeTexture(new THREE.CanvasTexture(colorCanvas), repeat, repeat, true);
 	const roughnessMap = finalizeTexture(new THREE.CanvasTexture(roughnessCanvas), repeat, repeat, false);
 	const normalMap = finalizeTexture(new THREE.CanvasTexture(normalCanvas), repeat, repeat, false);
 
-	const material = new THREE.MeshStandardMaterial({ map, roughnessMap, normalMap, metalness: 0.05 });
+	const material = new THREE.MeshStandardMaterial({
+		map,
+		roughnessMap,
+		normalMap,
+		normalScale: new THREE.Vector2(0.52, 0.52),
+		metalness: 0.035,
+	});
 	return applyCastleWorldSpaceWeathering(material, { seed, surface: 'stone' });
 }
 
 /**
  * Builds a seeded slate-roof `MeshStandardMaterial`: horizontal shingle-row shading in the color
- * map (grayscale-ish, so `InstancedMesh.setColorAt`'s per-seat house color still shows through
- * the multiply — see `world/settlements.js`), plus a matching roughness map. No normal map: the
- * roof's cone geometry is already faceted enough at this project's current camera distances to
- * read as shaped without one — see DECISIONS.md's this-run entry for why that scope is bounded on
- * purpose rather than matching the stone material's full map set.
+ * map plus a matching roughness map. World-space weathering prevents identical roof sheets from
+ * sharing one broad tone across an entire settlement.
  * @param {object} options
  * @param {number} options.seed
  * @param {number} [options.repeat]
@@ -354,14 +356,13 @@ export function createRoofMaterial({ seed, repeat = 6 }) {
 	const roughnessCtx = roughnessCanvas.getContext('2d');
 
 	for (let row = 0; row < rowCount; row++) {
-		const rowShade = 0.82 + random() * 0.18;
+		const rowShade = 0.84 + random() * 0.16;
 		colorCtx.fillStyle = `rgb(${rowShade * 255}, ${rowShade * 255}, ${rowShade * 255})`;
 		colorCtx.fillRect(0, row * rowH, TEXTURE_SIZE, rowH);
-		// A thin darker seam at each shingle row's lower edge reads as an overlap line.
-		colorCtx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+		colorCtx.fillStyle = 'rgba(0, 0, 0, 0.26)';
 		colorCtx.fillRect(0, (row + 1) * rowH - 2, TEXTURE_SIZE, 2);
 
-		const rowRoughness = clamp(0.55 + (random() - 0.5) * 0.1, 0, 1) * 255;
+		const rowRoughness = clamp(0.57 + (random() - 0.5) * 0.12, 0, 1) * 255;
 		roughnessCtx.fillStyle = `rgb(${rowRoughness}, ${rowRoughness}, ${rowRoughness})`;
 		roughnessCtx.fillRect(0, row * rowH, TEXTURE_SIZE, rowH);
 	}
@@ -369,14 +370,12 @@ export function createRoofMaterial({ seed, repeat = 6 }) {
 	const map = finalizeTexture(new THREE.CanvasTexture(colorCanvas), repeat, repeat, true);
 	const roughnessMap = finalizeTexture(new THREE.CanvasTexture(roughnessCanvas), repeat, repeat, false);
 
-	const material = new THREE.MeshStandardMaterial({ map, roughnessMap, metalness: 0.1 });
+	const material = new THREE.MeshStandardMaterial({ map, roughnessMap, metalness: 0.08 });
 	return applyCastleWorldSpaceWeathering(material, { seed, surface: 'roof' });
 }
 
 /**
- * Disposes a material's own maps plus the material itself (memory-leak checklist — three.js does
- * not dispose a material's textures automatically when you dispose the material). Call once per
- * material this module created, on scene teardown.
+ * Disposes a material's own maps plus the material itself.
  * @param {THREE.MeshStandardMaterial} material
  */
 export function disposeCastleMaterial(material) {
@@ -387,42 +386,14 @@ export function disposeCastleMaterial(material) {
 }
 
 /**
- * Makes an imported mesh actually *renderable* with the maps `createStoneMaterial` produces.
- *
- * **Why this exists (GOVERNANCE.md §8.2 Root Cause Analysis).** The real castle models have carried a
- * `createStoneMaterial` since ADR-0074, but run 330 rendered them and found flat black silhouettes:
- * every one of these AI-generated `.glb` exports ships **geometry only** — `attributes` is
- * `['normal','position']` at best and `['position']` alone for several. Two independent consequences,
- * both invisible from code review and both fixed here:
- *
- * 1. **No `uv`** — a `map`/`normalMap`/`roughnessMap` has nothing to sample against, so every
- *    fragment reads texel (0,0). The stone texture was technically "applied" for ~275 runs and never
- *    once visible; the castle rendered as the single dark colour of its texture's first pixel.
- * 2. **No `normal`** — `MeshStandardMaterial` has no surface direction to light. glTF says a client
- *    must treat a normal-less primitive as flat-shaded, and `GLTFLoader` honours that by setting
- *    `flatShading` on *the material it creates*; replacing that material (which is the whole point of
- *    the procedural-stone pass) silently threw the accommodation away and left the mesh unlit.
- *
- * The UV projection is a **box/triplanar-lite** unwrap: each vertex is projected onto whichever world
- * plane its own normal faces most strongly, so walls take their tiling from X/Z and roofs and floors
- * from the horizontal plane, with no stretching where a real unwrap would have a seam. This is not a
- * substitute for an authored UV map — it cannot respect a texture's intended layout — but these
- * textures are seamless procedural noise with no layout to respect, which is exactly the case box
- * projection handles well.
- *
- * Scaling: UVs are emitted in **tiles of `metersPerTile` at final world size**, so the caller passes
- * the scale it is about to apply and stone blocks come out the same real-world size on a 40m keep and
- * a 52m fortress, instead of stretching with the model.
- *
- * Mutates the geometry in place and is idempotent (an existing `uv`/`normal` is never overwritten) —
- * which also makes it safe to call once on a model whose geometry is shared by several clones.
- *
- * @param {import('three').Object3D} model Root of a loaded model; every descendant mesh is processed.
+ * Makes an imported mesh actually renderable with the maps `createStoneMaterial` produces.
+ * Missing normals are generated; missing UVs receive a dominant-axis box projection sized in
+ * real-world metres. Existing authored UVs/normals are never overwritten.
+ * @param {import('three').Object3D} model
  * @param {object} options
- * @param {number} options.modelScale Uniform scale the caller will apply to `model` after this call.
- * @param {number} [options.metersPerTile] Real-world size of one texture tile. ~4m reads as courses of
- *   masonry on a castle wall at gameplay distance rather than as visible wallpaper.
- * @returns {{meshes: number, uvsGenerated: number, normalsComputed: number}} What actually needed fixing.
+ * @param {number} options.modelScale
+ * @param {number} [options.metersPerTile]
+ * @returns {{meshes: number, uvsGenerated: number, normalsComputed: number}}
  */
 export function prepareImportedGeometryForTexturing(model, { modelScale, metersPerTile = 4 }) {
 	let meshes = 0;
@@ -435,8 +406,6 @@ export function prepareImportedGeometryForTexturing(model, { modelScale, metersP
 		meshes++;
 
 		if (!geometry.attributes.normal) {
-			// glTF's own rule for a normal-less primitive. Must run before the UV pass below, which
-			// reads normals to choose each vertex's projection plane.
 			geometry.computeVertexNormals();
 			normalsComputed++;
 		}
@@ -446,7 +415,7 @@ export function prepareImportedGeometryForTexturing(model, { modelScale, metersP
 		const position = geometry.attributes.position;
 		const normal = geometry.attributes.normal;
 		const uv = new Float32Array(position.count * 2);
-		const tile = metersPerTile / modelScale; // tile size expressed in the model's own local units
+		const tile = metersPerTile / modelScale;
 
 		for (let i = 0; i < position.count; i++) {
 			const x = position.getX(i);
@@ -456,15 +425,14 @@ export function prepareImportedGeometryForTexturing(model, { modelScale, metersP
 			const ny = Math.abs(normal.getY(i));
 			const nz = Math.abs(normal.getZ(i));
 
-			// Dominant-axis box projection: drop the axis the surface faces, keep the other two.
 			let u;
 			let v;
 			if (ny >= nx && ny >= nz) {
-				u = x; v = z; // roof / floor / battlement top
+				u = x; v = z;
 			} else if (nx >= nz) {
-				u = z; v = y; // wall facing ±X
+				u = z; v = y;
 			} else {
-				u = x; v = y; // wall facing ±Z
+				u = x; v = y;
 			}
 			uv[i * 2] = u / tile;
 			uv[i * 2 + 1] = v / tile;
