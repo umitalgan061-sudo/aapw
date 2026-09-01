@@ -440,7 +440,8 @@ export function createVillages({
 				dummy.scale.set(type.width, bodyHeight, type.depth);
 				dummy.updateMatrix();
 				bodyMesh.setMatrixAt(houseCount, dummy.matrix);
-				wallTint.setHex(architectureProfile?.proceduralWallHex ?? 0xffffff).offsetHSL(0, 0, (rng() - 0.5) * 0.035);
+				const materialVariation = rng() - 0.5;
+				wallTint.setHex(architectureProfile?.proceduralWallHex ?? 0xffffff).offsetHSL(0, 0, materialVariation * 0.035);
 				bodyMesh.setColorAt(houseCount, wallTint);
 
 				dummy.position.set(x, wallTopY, z);
@@ -450,7 +451,7 @@ export function createVillages({
 				roofMesh.setMatrixAt(houseCount, dummy.matrix);
 				if (Number.isInteger(architectureProfile?.proceduralRoofHex)) roofTint.setHex(architectureProfile.proceduralRoofHex);
 				else roofTint.copy(THATCH_COLOR);
-				roofTint.offsetHSL(0, 0, (rng() - 0.5) * 0.08);
+				roofTint.offsetHSL(0, 0, materialVariation * 0.08);
 				roofMesh.setColorAt(houseCount, roofTint);
 
 				const frontX = Math.sin(yaw);
