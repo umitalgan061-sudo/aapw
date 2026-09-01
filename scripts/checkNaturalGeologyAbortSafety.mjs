@@ -4,19 +4,23 @@
  *
  * 1) Abort during the asynchronous load must dispose the just-loaded source model and publish no
  *    hydrated batch.
- * 2) Explicit group disposal while a load is still unresolved must immediately free procedural GPU
- *    resources, mark the group dead, and prevent the later load resolution from re-attaching anything.
+ * 2) Explicit group disposal while a load is unresolved must immediately free procedural resources
+ *    and prevent the later load resolution from re-attaching anything.
+ * 3) The real createNaturalGeology() factory must bind pagehide to disposeNaturalGeology(), so the
+ *    shipped scene cannot leak geology GPU resources even if an outer teardown forgets a direct call.
  */
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { AssetLoader } from '../src/3d/assetLoader.js';
 import {
+  createNaturalGeology,
   disposeNaturalGeology,
   upgradeNaturalGeologyAssets,
 } from '../src/3d/world/naturalGeology.js';
 
 const originalFetch = globalThis.fetch;
 const originalLoadModel = AssetLoader.prototype.loadModel;
+const originalWindow = globalThis.window;
 
 function placement(id = 'proof-rock') {
   return Object.freeze({
@@ -45,14 +49,12 @@ function makeGroup({ withProxy = false, id = 'proof-rock' } = {}) {
   group.userData.naturalGeology = Object.freeze({ assetState: 'procedural-fallback' });
   group.userData.naturalGeologyPlacements = Object.freeze([entry]);
   group.userData.naturalGeologyDisposed = false;
-  let proxyGeometry = null;
-  let proxyMaterial = null;
   let proxyGeometryDisposed = false;
   let proxyMaterialDisposed = false;
 
   if (withProxy) {
-    proxyGeometry = new THREE.IcosahedronGeometry(0.5, 1);
-    proxyMaterial = new THREE.MeshStandardMaterial({ color: 0x68635a });
+    const proxyGeometry = new THREE.IcosahedronGeometry(0.5, 1);
+    const proxyMaterial = new THREE.MeshStandardMaterial({ color: 0x68635a });
     const geometryDispose = proxyGeometry.dispose.bind(proxyGeometry);
     const materialDispose = proxyMaterial.dispose.bind(proxyMaterial);
     proxyGeometry.dispose = () => { proxyGeometryDisposed = true; geometryDispose(); };
@@ -95,6 +97,46 @@ function makeLoadedModel() {
   };
 }
 
+function fakeWindow() {
+  const listeners = new Map();
+  return {
+    addEventListener(type, callback) {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type).add(callback);
+    },
+    removeEventListener(type, callback) {
+      listeners.get(type)?.delete(callback);
+    },
+    dispatch(type) {
+      for (const callback of [...(listeners.get(type) ?? [])]) callback({ type });
+    },
+    listenerCount(type) {
+      return listeners.get(type)?.size ?? 0;
+    },
+  };
+}
+
+function instrumentGroupResources(group) {
+  const geometries = new Set();
+  const materials = new Set();
+  const disposedGeometries = new Set();
+  const disposedMaterials = new Set();
+  group.traverse((node) => {
+    if (node.geometry && !geometries.has(node.geometry)) {
+      geometries.add(node.geometry);
+      const original = node.geometry.dispose.bind(node.geometry);
+      node.geometry.dispose = () => { disposedGeometries.add(node.geometry); original(); };
+    }
+    for (const material of Array.isArray(node.material) ? node.material : node.material ? [node.material] : []) {
+      if (materials.has(material)) continue;
+      materials.add(material);
+      const original = material.dispose.bind(material);
+      material.dispose = () => { disposedMaterials.add(material); original(); };
+    }
+  });
+  return { geometries, materials, disposedGeometries, disposedMaterials };
+}
+
 try {
   globalThis.fetch = async () => ({
     ok: true,
@@ -105,7 +147,7 @@ try {
     }),
   });
 
-  // Case 1: an external lifecycle signal aborts while AssetLoader resolves a source model.
+  // Case 1 — external abort while a source model resolves.
   const abortController = new AbortController();
   const abortFixture = makeGroup();
   const abortedModel = makeLoadedModel();
@@ -115,7 +157,6 @@ try {
     abortController.abort();
     return abortedModel.group;
   };
-
   const abortedResult = await upgradeNaturalGeologyAssets(abortFixture.group, {
     signal: abortController.signal,
     isMobileClass: false,
@@ -130,7 +171,7 @@ try {
   assert.equal(abortedResult.families?.[0]?.status, 'aborted');
   assert.equal(abortedResult.families?.[1]?.status, 'aborted');
 
-  // Case 2: explicit disposal wins the race even when no external AbortSignal is supplied.
+  // Case 2 — explicit disposal wins a deferred-load race without an AbortSignal.
   const disposeFixture = makeGroup({ withProxy: true, id: 'dispose-race-rock' });
   const lateModel = makeLoadedModel();
   let resolveLateLoad;
@@ -140,18 +181,14 @@ try {
     lateLoadCalls += 1;
     return lateLoadPromise;
   };
-
   const lateTask = upgradeNaturalGeologyAssets(disposeFixture.group, { isMobileClass: false });
-  // Let preflight resolve and AssetLoader.loadModel become the awaited operation.
   for (let i = 0; i < 8 && lateLoadCalls === 0; i += 1) await Promise.resolve();
   assert.equal(lateLoadCalls, 1, 'deferred hydration never entered AssetLoader');
-
   disposeNaturalGeology(disposeFixture.group);
   assert.equal(disposeFixture.group.userData.naturalGeologyDisposed, true);
   assert.equal(disposeFixture.group.children.length, 0, 'dispose did not clear procedural geology immediately');
   assert.equal(disposeFixture.proxyGeometryDisposed, true, 'dispose leaked procedural proxy geometry');
   assert.equal(disposeFixture.proxyMaterialDisposed, true, 'dispose leaked procedural proxy material');
-
   resolveLateLoad(lateModel.group);
   const lateResult = await lateTask;
   assert.equal(lateModel.geometryDisposed, true, 'late loaded geometry survived disposed-group guard');
@@ -160,10 +197,34 @@ try {
   assert.equal(lateResult.status, 'disposed-group');
   assert.equal(lateResult.activeFamilyCount, 0);
   assert.equal(lateResult.hydratedPlacementCount, 0);
-
-  const repeatDisposeChildren = disposeFixture.group.children.length;
   disposeNaturalGeology(disposeFixture.group);
-  assert.equal(disposeFixture.group.children.length, repeatDisposeChildren, 'dispose was not idempotent');
+  assert.equal(disposeFixture.group.children.length, 0, 'dispose was not idempotent');
+
+  // Case 3 — real factory pagehide lifecycle.
+  const browser = fakeWindow();
+  globalThis.window = browser;
+  const height = (x, z) => 72 + Math.sin(x * 0.008) * 7 + Math.cos(z * 0.011) * 5;
+  const pagehideFixture = createNaturalGeology({
+    sampleHeightMeters: height,
+    seaLevelMeters: 0,
+    seed: 1337,
+    seats: [],
+    roadEdges: [],
+    worldWidthMeters: 1200,
+    worldDepthMeters: 900,
+    isMobileClass: true,
+  });
+  assert.equal(browser.listenerCount('pagehide'), 1, 'factory did not bind a pagehide disposer');
+  assert.equal(pagehideFixture.group.userData.naturalGeologyDisposed, false);
+  assert(pagehideFixture.group.children.length > 0, 'factory produced no geology to dispose');
+  const resources = instrumentGroupResources(pagehideFixture.group);
+  assert(resources.geometries.size > 0 && resources.materials.size > 0, 'pagehide fixture has no GPU resources');
+  browser.dispatch('pagehide');
+  assert.equal(pagehideFixture.group.userData.naturalGeologyDisposed, true);
+  assert.equal(pagehideFixture.group.children.length, 0, 'pagehide did not clear geology group');
+  assert.equal(resources.disposedGeometries.size, resources.geometries.size, 'pagehide leaked geology geometry');
+  assert.equal(resources.disposedMaterials.size, resources.materials.size, 'pagehide leaked geology material');
+  assert.equal(browser.listenerCount('pagehide'), 0, 'dispose left stale pagehide listener registered');
 
   console.log('[checkNaturalGeologyAbortSafety] PASS');
   console.log(JSON.stringify({
@@ -180,8 +241,16 @@ try {
       groupChildren: disposeFixture.group.children.length,
       idempotent: true,
     },
+    pagehideFactoryLifecycle: {
+      disposedGeometryCount: resources.disposedGeometries.size,
+      disposedMaterialCount: resources.disposedMaterials.size,
+      listenerCountAfterDispose: browser.listenerCount('pagehide'),
+      groupChildren: pagehideFixture.group.children.length,
+    },
   }, null, 2));
 } finally {
   globalThis.fetch = originalFetch;
   AssetLoader.prototype.loadModel = originalLoadModel;
+  if (originalWindow === undefined) delete globalThis.window;
+  else globalThis.window = originalWindow;
 }
