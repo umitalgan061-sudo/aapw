@@ -359,9 +359,9 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float bedReadability = max(enclosedLakeMask * clearShallowBand * 0.30, clearCoastMask * 0.18);
 		alpha *= 1.0 - bedReadability;
 		alpha *= waterCoverage;
-		alpha *= farLayerEdgeBlend;
+		float compositedAlpha = max(alpha, foam * 0.78) * farLayerEdgeBlend;
 
-		gl_FragColor = vec4(color, max(alpha, foam * 0.78) * farLayerEdgeBlend);
+		gl_FragColor = vec4(color, compositedAlpha);
 		#include <fog_fragment>
 	}
 `;
