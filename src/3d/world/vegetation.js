@@ -71,13 +71,14 @@ export const VEGETATION_SPATIAL_PATTERN_POLICY = Object.freeze({
 });
 
 export const VEGETATION_SILHOUETTE_POLICY = Object.freeze({
-	id: 'vegetation-organic-silhouette-2026-09-01-v2',
+	id: 'vegetation-organic-silhouette-2026-09-01-v3',
 	drawCallPreserving: true,
 	placementAuthorityChanged: false,
 	geometryDeterministic: true,
 	desktopOrganicGeometry: true,
 	mobilePrimitiveLodPreserved: true,
-	evergreenTierCount: 6,
+	evergreenProfileRingCount: 11,
+	evergreenRadialSegments: 10,
 	broadleafLobeCount: 7,
 	broadleafForkCount: 3,
 });
@@ -350,6 +351,19 @@ function mergeVegetationGeometry(parts, metadata) {
 	return merged;
 }
 
+function finalizeVegetationGeometry(geometry, metadata) {
+	geometry.computeVertexNormals();
+	geometry.computeBoundingBox();
+	geometry.computeBoundingSphere();
+	geometry.userData.vegetationSilhouette = Object.freeze({
+		policyId: VEGETATION_SILHOUETTE_POLICY.id,
+		drawCallPreserving: VEGETATION_SILHOUETTE_POLICY.drawCallPreserving,
+		...metadata,
+		triangles: silhouetteTriangleCount(geometry),
+	});
+	return geometry;
+}
+
 function buildOrganicTrunkGeometry(species) {
 	const { trunk } = species;
 	const parts = [];
@@ -394,37 +408,76 @@ function buildOrganicTrunkGeometry(species) {
 	});
 }
 
-function buildTieredEvergreenFoliageGeometry(species) {
+/**
+ * One connected conifer crown replaces the old stack of independent cones. The radius profile
+ * carries broad branch shelves and recesses, while each ring has a small deterministic angular
+ * offset and 3/5-lobed radial perturbation. This keeps the characteristic evergreen taper without
+ * visible horizontal seams or extra draw calls.
+ */
+function buildContinuousEvergreenFoliageGeometry(species) {
 	const { trunk, foliage } = species;
 	const crownBase = trunk.height - foliage.overlapMeters;
-	const tiers = [
-		{ radius: 1.00, height: 0.50, y: 0.18, x: 0.000, z: 0.000 },
-		{ radius: 0.88, height: 0.47, y: 0.32, x: 0.032, z: -0.024 },
-		{ radius: 0.74, height: 0.43, y: 0.46, x: -0.038, z: 0.030 },
-		{ radius: 0.60, height: 0.39, y: 0.60, x: 0.028, z: 0.038 },
-		{ radius: 0.45, height: 0.35, y: 0.73, x: -0.020, z: -0.032 },
-		{ radius: 0.30, height: 0.30, y: 0.84, x: 0.018, z: 0.014 },
+	const radialSegments = VEGETATION_SILHOUETTE_POLICY.evergreenRadialSegments;
+	const profile = [
+		{ t: 0.00, r: 0.86 },
+		{ t: 0.08, r: 1.00 },
+		{ t: 0.18, r: 0.82 },
+		{ t: 0.28, r: 0.89 },
+		{ t: 0.39, r: 0.69 },
+		{ t: 0.50, r: 0.74 },
+		{ t: 0.61, r: 0.53 },
+		{ t: 0.71, r: 0.55 },
+		{ t: 0.81, r: 0.35 },
+		{ t: 0.91, r: 0.22 },
+		{ t: 1.00, r: 0.015 },
 	];
-	const parts = tiers.map((tier, index) => {
-		const geometry = new THREE.ConeGeometry(
-			foliage.radius * tier.radius,
-			foliage.height * tier.height,
-			foliage.radialSegments + 2,
-		);
-		warpVegetationSilhouette(geometry, 0.72 + index * 0.83 + (species.id === 'snow-pine' ? 0.31 : 0), 0.055);
-		geometry.rotateY(index * 0.31);
-		geometry.translate(
-			foliage.radius * tier.x,
-			crownBase + foliage.height * tier.y,
-			foliage.radius * tier.z,
-		);
-		return geometry;
-	});
-	return mergeVegetationGeometry(parts, {
-		profile: 'tiered-evergreen',
-		componentCount: parts.length,
-		minTriangles: 100,
-		maxTriangles: 240,
+	const positions = [];
+	const indices = [];
+	const phase = species.id === 'snow-pine' ? 1.47 : 0.62;
+	for (let ringIndex = 0; ringIndex < profile.length; ringIndex++) {
+		const ring = profile[ringIndex];
+		const ringAngleOffset = ringIndex * 0.083 + Math.sin(ringIndex * 1.91 + phase) * 0.035;
+		const centerX = Math.sin(ringIndex * 1.37 + phase) * foliage.radius * 0.020;
+		const centerZ = Math.cos(ringIndex * 1.13 - phase) * foliage.radius * 0.018;
+		for (let segment = 0; segment < radialSegments; segment++) {
+			const angle = (segment / radialSegments) * Math.PI * 2 + ringAngleOffset;
+			const angular = Math.sin(angle * 3 + phase + ringIndex * 0.17) * 0.62
+				+ Math.sin(angle * 5 - phase * 0.71 + ringIndex * 0.11) * 0.38;
+			const radialScale = 1 + angular * (0.045 + ring.t * 0.014);
+			const radius = foliage.radius * ring.r * radialScale;
+			positions.push(
+				centerX + Math.cos(angle) * radius,
+				crownBase + foliage.height * ring.t,
+				centerZ + Math.sin(angle) * radius,
+			);
+		}
+	}
+	for (let ringIndex = 0; ringIndex < profile.length - 1; ringIndex++) {
+		for (let segment = 0; segment < radialSegments; segment++) {
+			const nextSegment = (segment + 1) % radialSegments;
+			const a = ringIndex * radialSegments + segment;
+			const b = ringIndex * radialSegments + nextSegment;
+			const c = (ringIndex + 1) * radialSegments + segment;
+			const d = (ringIndex + 1) * radialSegments + nextSegment;
+			indices.push(a, c, b, b, c, d);
+		}
+	}
+	const bottomCenter = positions.length / 3;
+	positions.push(0, crownBase + 0.015, 0);
+	for (let segment = 0; segment < radialSegments; segment++) {
+		indices.push(bottomCenter, (segment + 1) % radialSegments, segment);
+	}
+	const geometry = new THREE.BufferGeometry();
+	geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+	geometry.setIndex(indices);
+	return finalizeVegetationGeometry(geometry, {
+		profile: 'continuous-evergreen-crown',
+		componentCount: 1,
+		connectedSurface: true,
+		profileRingCount: profile.length,
+		radialSegments,
+		minTriangles: 180,
+		maxTriangles: 260,
 	});
 }
 
@@ -441,7 +494,7 @@ function buildLobedBroadleafFoliageGeometry(species) {
 		{ x: -0.31, y: 0.22, z: 0.27, sx: 0.46, sy: 0.50, sz: 0.44 },
 	];
 	const parts = lobes.map((lobe, index) => {
-		const geometry = new THREE.SphereGeometry(1, foliage.widthSegments, foliage.heightSegments);
+		const geometry = new THREE.SphereGeometry(1, foliage.widthSegments + 1, foliage.heightSegments + 1);
 		geometry.scale(
 			foliage.radius * lobe.sx,
 			foliage.radius * lobe.sy,
@@ -459,8 +512,8 @@ function buildLobedBroadleafFoliageGeometry(species) {
 	return mergeVegetationGeometry(parts, {
 		profile: 'lobed-broadleaf',
 		componentCount: parts.length,
-		minTriangles: 420,
-		maxTriangles: 620,
+		minTriangles: 560,
+		maxTriangles: 820,
 	});
 }
 
@@ -469,7 +522,7 @@ function buildSpeciesAssets(species) {
 	const trunkGeometry = buildOrganicTrunkGeometry(species);
 	let foliageGeometry;
 	if (foliage.kind === 'cone') {
-		foliageGeometry = buildTieredEvergreenFoliageGeometry(species);
+		foliageGeometry = buildContinuousEvergreenFoliageGeometry(species);
 	} else if (foliage.kind === 'sphere') {
 		foliageGeometry = buildLobedBroadleafFoliageGeometry(species);
 	} else {
