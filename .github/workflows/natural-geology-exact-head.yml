@@ -20,6 +20,7 @@ on:
       - 'scripts/checkValyriaBarrenEcology.mjs'
       - 'scripts/checkValyriaCastleWeathering.mjs'
       - 'scripts/checkNaturalGeologyPlacement.mjs'
+      - 'scripts/checkNaturalGeologyMorphology.mjs'
       - 'scripts/checkNaturalGeologySourceContract.mjs'
       - 'scripts/checkNaturalGeologySurfaceMaterial.mjs'
       - 'scripts/checkNaturalGeologySurfaceVisualQa.js'
@@ -32,6 +33,7 @@ on:
       - 'src/3d/world/naturalGeologyPlacement.js'
       - 'src/3d/world/naturalGeology.js'
       - 'scripts/checkNaturalGeologyPlacement.mjs'
+      - 'scripts/checkNaturalGeologyMorphology.mjs'
       - 'scripts/checkNaturalGeologySourceContract.mjs'
       - 'scripts/checkNaturalGeologySurfaceMaterial.mjs'
       - 'scripts/checkNaturalGeologySurfaceVisualQa.js'
@@ -78,6 +80,7 @@ jobs:
           node --check scripts/checkValyriaBarrenEcology.mjs
           node --check scripts/checkValyriaCastleWeathering.mjs
           node --check scripts/checkNaturalGeologyPlacement.mjs
+          node --check scripts/checkNaturalGeologyMorphology.mjs
           node --check scripts/checkNaturalGeologySourceContract.mjs
           node --check scripts/checkNaturalGeologySurfaceMaterial.mjs
           node --check scripts/checkNaturalGeologySurfaceVisualQa.js
@@ -97,9 +100,11 @@ jobs:
         run: node scripts/checkValyriaCastleWeathering.mjs
       - name: Natural geology deterministic placement
         run: node scripts/checkNaturalGeologyPlacement.mjs
+      - name: Natural geology morphology distribution
+        run: node scripts/checkNaturalGeologyMorphology.mjs
       - name: Asset and authority source contract
         run: node scripts/checkNaturalGeologySourceContract.mjs
-      - name: Geographic geology surface material contract
+      - name: Geographic geology surface and ground-parity contract
         run: node scripts/checkNaturalGeologySurfaceMaterial.mjs
 
   renderer-contract:
@@ -127,10 +132,15 @@ jobs:
           if (!geology.NATURAL_GEOLOGY_RENDER_POLICY?.renderOnly) throw new Error('render-only contract lost');
           if (geology.NATURAL_GEOLOGY_RENDER_POLICY.referenceLandscapeRuntimeLoad !== false) throw new Error('heavy landscape became runtime load');
           if (!geology.NATURAL_GEOLOGY_RENDER_POLICY.proceduralVertexWeathering) throw new Error('procedural surface weathering missing');
+          if (!geology.NATURAL_GEOLOGY_RENDER_POLICY.proceduralBaseOriginNormalized) throw new Error('procedural base-origin normalization missing');
+          if (!geology.NATURAL_GEOLOGY_RENDER_POLICY.hydratedBaseOriginNormalized) throw new Error('hydrated base-origin normalization missing');
+          if (!geology.NATURAL_GEOLOGY_RENDER_POLICY.fallbackHydratedGroundParity) throw new Error('fallback/hydrated ground parity missing');
           if (!geology.NATURAL_GEOLOGY_RENDER_POLICY.hydratedSourceMapsPreserved) throw new Error('hydrated authored-map preservation missing');
           const g = geology.createNaturalRockPrototypeGeometry('fractured-scarp');
           if (!g?.getAttribute?.('position')?.count) throw new Error('procedural fallback geometry missing');
           if (g.getAttribute('color')?.count !== g.getAttribute('position')?.count) throw new Error('procedural vertex weathering missing');
+          g.computeBoundingBox();
+          if (Math.abs(g.boundingBox.min.y) > 1e-6) throw new Error(`procedural fallback base drift: ${g.boundingBox.min.y}`);
           g.dispose();
           console.log('[natural-geology-render-import] PASS');
           NODE
