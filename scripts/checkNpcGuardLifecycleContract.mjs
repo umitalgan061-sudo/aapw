@@ -61,7 +61,9 @@ assert.equal(validAssist.sourceDistanceMeters, 5);
 assert.deepEqual(validAssist.lastKnown, { x: 6, z: 8 });
 assert.equal(evaluate(baseAlert, { lastRevision: 7 }).reason, 'stale');
 assert.equal(evaluate(baseAlert, { sourceId: 'guard-a', lastRevision: 0 }).reason, 'self');
-assert.equal(evaluate({ ...baseAlert, groupId: 'dreadfort-guard' }, { lastRevision: 0 }).reason, 'group');
+const crossGroup = evaluate({ ...baseAlert, groupId: 'dreadfort-guard' }, { lastRevision: 0 });
+assert.equal(crossGroup.accepted, false);
+assert.equal(crossGroup.reason, 'stale');
 for (const sourcePosition of [{ x: Infinity, z: 0 }, { x: 0, z: Number.NaN }]) {
   const invalid = evaluate({ ...baseAlert, sourcePosition }, { lastRevision: 0 });
   assert.equal(invalid.accepted, false);
