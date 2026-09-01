@@ -16,6 +16,7 @@
 
 import * as THREE from 'three';
 import { createStoneMaterial, createRoofMaterial, disposeCastleMaterial, prepareImportedGeometryForTexturing } from './materials.js';
+import { applyCastleMaterialFidelity } from './castleMaterialFidelity.js';
 import { applyValyriaCastleWeathering, VALYRIA_CASTLE_WEATHERING_POLICY } from './valyriaCastleWeathering.js';
 
 /**
@@ -51,45 +52,29 @@ const STONE_COLOR = new THREE.Color(0x8a8578);
 
 /**
  * Real, decimated castle models (DECISIONS.md ADR-0074, ADR-0086) — replace the procedural
- * keep/tower/roof at these 8 seats. Each `file` is a `gltf-transform weld -> simplify -> prune`
+ * keep/tower/roof at every kingdom seat. Each `file` is a `gltf-transform weld -> simplify -> prune`
  * output (see `assets_manifest.json`'s own `_decimated` entries), not the raw multi-hundred-K-
  * triangle original — see ADR-0074 for why the raw files would blow the desktop triangle budget on
- * their own. Thematic seat matches: `jon` (northernmost seat) <- ice/frost citadel, `umit` (player's
- * own seat, largest/most-detailed model) <- walled city fortress, `cersei` (this world's reigning
- * "crown" character) <- fortress of the crown, `balon` (Greyjoy/Iron Islands) <- castle on a rock,
- * `ziya` (Tyrell, green/gold rose sigil) <- emerald citadel, `berkalp` (Stark, grey/direwolf) <-
- * greystone castle, `doran` (Martell/Dorne, sandstone) <- brickstone citadel, `twin` (the Twins'
- * river-crossing toll flavor, see `dialogueChoices.js`) <- a mislabeled Meshy/Hitem3d asset
- * (`dragon_reference_v1`, real content is a gatehouse with a wooden drawbridge — ADR-0086). The
- * remaining 6 seats keep the procedural castle unchanged, still blocked on a new manually-downloaded
- * castle-shaped asset (no further unused/mislabeled asset like `dragon_reference_v1` remains in the
- * manifest — confirmed by ADR-0086's own repo-wide check).
+ * their own. Assignments are thematic and now also carry an explicit regional surface profile so a
+ * reused model can keep shared geometry/textures while its seat-local material response belongs to
+ * the climate/geology around that seat. Authored PBR maps remain authoritative when present; models
+ * without usable authored maps retain the deterministic generated-stone fallback.
  */
 export const CASTLE_MODEL_ASSIGNMENTS = Object.freeze([
-	Object.freeze({ seatId: 'jon', assetId: 'castle_icebound_citadel_decimated', file: 'assets/models/settlements/castles/icebound_citadel_decimated.glb', stoneColorHex: 0xa9b7c4 }),
-	Object.freeze({ seatId: 'umit', assetId: 'castle_walled_city_fortress_decimated', file: 'assets/models/settlements/castles/walled_city_fortress_decimated.glb', stoneColorHex: VALYRIA_CASTLE_WEATHERING_POLICY.baseStoneHex }),
-	Object.freeze({ seatId: 'cersei', assetId: 'castle_fortress_of_the_crown_decimated', file: 'assets/models/settlements/castles/fortress_of_the_crown_decimated.glb', stoneColorHex: 0x9c9070 }),
-	Object.freeze({ seatId: 'balon', assetId: 'castle_castle_on_a_rock_decimated', file: 'assets/models/settlements/castles/castle_on_a_rock_decimated.glb', stoneColorHex: 0x74787d }),
-	Object.freeze({ seatId: 'ziya', assetId: 'castle_emerald_citadel_decimated', file: 'assets/models/settlements/castles/emerald_citadel_decimated.glb', stoneColorHex: 0x93917f }),
-	Object.freeze({ seatId: 'berkalp', assetId: 'castle_greystone_castle_decimated', file: 'assets/models/settlements/castles/greystone_castle_decimated.glb', stoneColorHex: 0x84868a }),
-	Object.freeze({ seatId: 'doran', assetId: 'castle_brickstone_citadel_decimated', file: 'assets/models/settlements/castles/brickstone_citadel_decimated.glb', stoneColorHex: 0xa8825e }),
-	Object.freeze({ seatId: 'twin', assetId: 'castle_reference_gatehouse_decimated', file: 'assets/models/settlements/castles/gatehouse_reference_decimated.glb', stoneColorHex: 0x8a8578 }),
-	// Run 330 — the remaining 6 seats, which until now rendered only the generic procedural
-	// keep+4-towers placeholder. Priority item 1.7 ("gerçek kale modellerini dokulandır") had been
-	// re-scanned as "asset-blocked, needs new castle models" for dozens of runs; that framing was
-	// wrong. There is no rule that a castle model may be used only once, and a *reused real castle*
-	// beats a box-with-four-cylinders at every one of these seats. Each pairing below is thematic,
-	// not arbitrary, and each carries its own `yawRadians`/`footprintMeters` so a repeated model
-	// reads as a different castle from the ground rather than as an obvious copy-paste.
-	// Trade-off accepted and recorded (ADR-0275): the procedural castles carried a house-coloured
-	// roof (`seat.color`) that real models don't, so per-house colour identity at these 6 seats now
-	// comes from the compass/discovery UI alone until a house-banner pass adds it back in 3D.
-	Object.freeze({ seatId: 'berk', assetId: 'castle_emerald_citadel_decimated', file: 'assets/models/settlements/castles/emerald_citadel_decimated.glb', yawRadians: 2.1, footprintMeters: 40, stoneColorHex: 0x969483 }),
-	Object.freeze({ seatId: 'olena', assetId: 'castle_emerald_citadel_decimated', file: 'assets/models/settlements/castles/emerald_citadel_decimated.glb', yawRadians: 4.0, footprintMeters: 42, stoneColorHex: 0x8e8c7b }),
-	Object.freeze({ seatId: 'stannis', assetId: 'castle_fortress_of_the_crown_decimated', file: 'assets/models/settlements/castles/fortress_of_the_crown_decimated.glb', yawRadians: 1.2, footprintMeters: 48, stoneColorHex: 0x9a9483 }),
-	Object.freeze({ seatId: 'robin', assetId: 'castle_castle_on_a_rock_decimated', file: 'assets/models/settlements/castles/castle_on_a_rock_decimated.glb', yawRadians: 3.4, footprintMeters: 44, stoneColorHex: 0x9aa0a6 }),
-	Object.freeze({ seatId: 'Xaro', assetId: 'castle_walled_city_fortress_decimated', file: 'assets/models/settlements/castles/walled_city_fortress_decimated.glb', yawRadians: 0.8, footprintMeters: 50, stoneColorHex: 0xb09a72 }),
-	Object.freeze({ seatId: 'Night King', assetId: 'castle_icebound_citadel_decimated', file: 'assets/models/settlements/castles/icebound_citadel_decimated.glb', yawRadians: 2.6, footprintMeters: 52, stoneColorHex: 0xb9cad9 }),
+	Object.freeze({ seatId: 'jon', assetId: 'castle_icebound_citadel_decimated', file: 'assets/models/settlements/castles/icebound_citadel_decimated.glb', stoneColorHex: 0xa9b7c4, surfaceProfile: 'arctic' }),
+	Object.freeze({ seatId: 'umit', assetId: 'castle_walled_city_fortress_decimated', file: 'assets/models/settlements/castles/walled_city_fortress_decimated.glb', stoneColorHex: VALYRIA_CASTLE_WEATHERING_POLICY.baseStoneHex, surfaceProfile: 'volcanic' }),
+	Object.freeze({ seatId: 'cersei', assetId: 'castle_fortress_of_the_crown_decimated', file: 'assets/models/settlements/castles/fortress_of_the_crown_decimated.glb', stoneColorHex: 0x9c9070, surfaceProfile: 'temperate' }),
+	Object.freeze({ seatId: 'balon', assetId: 'castle_castle_on_a_rock_decimated', file: 'assets/models/settlements/castles/castle_on_a_rock_decimated.glb', stoneColorHex: 0x74787d, surfaceProfile: 'maritime' }),
+	Object.freeze({ seatId: 'ziya', assetId: 'castle_emerald_citadel_decimated', file: 'assets/models/settlements/castles/emerald_citadel_decimated.glb', stoneColorHex: 0x93917f, surfaceProfile: 'fertile' }),
+	Object.freeze({ seatId: 'berkalp', assetId: 'castle_greystone_castle_decimated', file: 'assets/models/settlements/castles/greystone_castle_decimated.glb', stoneColorHex: 0x84868a, surfaceProfile: 'arctic' }),
+	Object.freeze({ seatId: 'doran', assetId: 'castle_brickstone_citadel_decimated', file: 'assets/models/settlements/castles/brickstone_citadel_decimated.glb', stoneColorHex: 0xa8825e, surfaceProfile: 'arid' }),
+	Object.freeze({ seatId: 'twin', assetId: 'castle_reference_gatehouse_decimated', file: 'assets/models/settlements/castles/gatehouse_reference_decimated.glb', stoneColorHex: 0x8a8578, surfaceProfile: 'temperate' }),
+	Object.freeze({ seatId: 'berk', assetId: 'castle_emerald_citadel_decimated', file: 'assets/models/settlements/castles/emerald_citadel_decimated.glb', yawRadians: 2.1, footprintMeters: 40, stoneColorHex: 0x969483, surfaceProfile: 'fertile' }),
+	Object.freeze({ seatId: 'olena', assetId: 'castle_emerald_citadel_decimated', file: 'assets/models/settlements/castles/emerald_citadel_decimated.glb', yawRadians: 4.0, footprintMeters: 42, stoneColorHex: 0x8e8c7b, surfaceProfile: 'fertile' }),
+	Object.freeze({ seatId: 'stannis', assetId: 'castle_fortress_of_the_crown_decimated', file: 'assets/models/settlements/castles/fortress_of_the_crown_decimated.glb', yawRadians: 1.2, footprintMeters: 48, stoneColorHex: 0x9a9483, surfaceProfile: 'maritime' }),
+	Object.freeze({ seatId: 'robin', assetId: 'castle_castle_on_a_rock_decimated', file: 'assets/models/settlements/castles/castle_on_a_rock_decimated.glb', yawRadians: 3.4, footprintMeters: 44, stoneColorHex: 0x9aa0a6, surfaceProfile: 'maritime' }),
+	Object.freeze({ seatId: 'Xaro', assetId: 'castle_walled_city_fortress_decimated', file: 'assets/models/settlements/castles/walled_city_fortress_decimated.glb', yawRadians: 0.8, footprintMeters: 50, stoneColorHex: 0xb09a72, surfaceProfile: 'arid' }),
+	Object.freeze({ seatId: 'Night King', assetId: 'castle_icebound_citadel_decimated', file: 'assets/models/settlements/castles/icebound_citadel_decimated.glb', yawRadians: 2.6, footprintMeters: 52, stoneColorHex: 0xb9cad9, surfaceProfile: 'arctic' }),
 ]);
 
 /** Target footprint (largest horizontal bounding-box dimension), in meters, real castle models are
@@ -298,22 +283,16 @@ export function createSettlements({ sampleHeightMeters, seaLevelMeters, mapBound
 }
 
 /**
- * Loads the real castle models named in `CASTLE_MODEL_ASSIGNMENTS`, applies a seeded stone
- * material (`world/materials.js`'s `createStoneMaterial` — same technique/look as the procedural
- * castles, just sized to each model's own real footprint), scales each to
- * `REAL_CASTLE_FOOTPRINT_METERS`, and positions it at its assigned seat's real `(x, groundY, z)`
- * (from `createSettlements`'s returned `seats`, so real models sit on the same terrain height the
- * procedural castles use — see `world/README.md`'s "Sea level" convention). Async because it goes
- * through `AssetLoader.loadModel` — call after `createSettlements` and add the returned group to
- * the scene the same way `gameplay/npc.js`'s/`gameplay/dragons.js`'s spawn functions are awaited in
- * `game3d.js`'s init sequence, not from `sceneManager.js`'s synchronous `createScene`.
+ * Loads the real castle models named in `CASTLE_MODEL_ASSIGNMENTS`. Authored PBR textures are
+ * preserved when the GLB contains them; geometry-only exports receive the existing seeded stone
+ * fallback. Each reused castle shape gets a seat-local material clone/profile while continuing to
+ * share geometry and immutable texture objects. Models are scaled to their authored seat footprint
+ * and positioned at the exact `(x, groundY, z)` returned by `createSettlements`.
  * @param {object} options
  * @param {import('../assetLoader.js').AssetLoader} options.assetLoader
  * @param {{id: string, x: number, z: number, groundY: number}[]} options.seats `createSettlements`'s returned `seats`.
- * @param {number} options.seed Same world seed every other procedural generator here uses, offset
- *   so each model's stone material tiles independently rather than all sharing one canvas texture.
- * @returns {Promise<THREE.Group>} One group containing all successfully-loaded real castles —
- *   already positioned/scaled/materialed, ready to `scene.add()`.
+ * @param {number} options.seed Same world seed every other procedural generator here uses.
+ * @returns {Promise<THREE.Group>} One group containing all successfully-loaded real castles.
  */
 export async function spawnRealCastleModels({ assetLoader, seats, seed }) {
 	const seatsById = new Map(seats.map((seat) => [seat.id, seat]));
@@ -324,12 +303,9 @@ export async function spawnRealCastleModels({ assetLoader, seats, seed }) {
 	const size = new THREE.Vector3();
 	const center = new THREE.Vector3();
 
-	// Several seats deliberately share one castle file (run 330). Each unique file is fetched and
-	// parsed exactly once and the extra seats get an `Object3D.clone()`, which shares the underlying
-	// geometry and material by reference — so a reused castle costs one more transform, not one more
-	// copy of the mesh on the GPU. Loading the same URL twice would work too (three.js re-parses
-	// rather than handing back the same instance), but it would pay the parse and the VRAM twice for
-	// pixels that are identical.
+	// Several seats deliberately share one castle file. Each unique file is fetched and parsed once;
+	// per-seat clones continue to share geometry/textures while castleMaterialFidelity creates the
+	// mutable material instances locally so one regional treatment cannot leak into another seat.
 	const loadedByFile = new Map();
 	const loadOnce = (file) => {
 		if (!loadedByFile.has(file)) {
@@ -347,12 +323,9 @@ export async function spawnRealCastleModels({ assetLoader, seats, seed }) {
 		return { assignment, index, seat, original: await loadOnce(assignment.file) };
 	}));
 
-	// The loaded original is a measuring reference and is never mutated or added to the scene: every
-	// seat, including the first to claim a file, places a clone. Scaling the original in place and
-	// cloning it for the *next* seat would re-measure an already-scaled object and compound the two
-	// scales — which is exactly the bug this shape avoids (a shared castle came out ~2m instead of
-	// ~46m, and sunk, because its second seat measured the first seat's finished transform).
-	// `measuredByFile` keeps the pristine bounding box per file so the measurement is taken once.
+	// The loaded original is a measuring/material reference and is never transformed or added to the
+	// scene. Geometry preparation is authored once per file before clone so reused seats keep shared
+	// buffers and no scale compounds across repeated placements.
 	const measuredByFile = new Map();
 	const measurePristine = (file, original) => {
 		if (!measuredByFile.has(file)) {
@@ -377,48 +350,34 @@ export async function spawnRealCastleModels({ assetLoader, seats, seed }) {
 		const footprint = assignment.footprintMeters ?? REAL_CASTLE_FOOTPRINT_METERS;
 		const scale = footprint / measured.largest;
 
-		// Give the geometry the `uv` (and, for the exports missing them, `normal`) attributes the
-		// stone maps need — run 330, see `prepareImportedGeometryForTexturing`'s own doc for the bug
-		// this fixes. Runs on the pristine original *before* the clone below, so the generated
-		// attributes are authored once per file and shared by every seat using it. Seats sharing a
-		// file therefore also share that file's first-assigned scale for UV density; the spread across
-		// assignments is 40-52m, i.e. under ±13% tile-size variance, which is not visible.
+		// Generated UV/normal attributes are still required for geometry-only exports. A model that
+		// already owns authored UVs keeps them unchanged; its authored texture atlas therefore keeps
+		// the UV convention it was built for instead of being replaced by procedural masonry.
 		const prepared = prepareImportedGeometryForTexturing(original, { modelScale: scale });
-
 		const model = original.clone(true);
-
-		// Two different UV conventions live side by side here, so the repeat has to follow the one
-		// this model actually uses. A *generated* UV (the common case — these exports ship geometry
-		// only) is already expressed in real-world tiles, so it needs `repeat: 1`; any higher value
-		// would multiply on top and pack the masonry into noise. A model that shipped its own authored
-		// UV (only `gatehouse_reference_decimated.glb` today, which came with a real `pbr_material`)
-		// spans the usual normalised 0..1, so it needs the same "how many tiles across this thing"
-		// repeat the procedural keep uses, or one 4m stone tile would stretch across the whole castle.
 		const usesGeneratedUvs = prepared.uvsGenerated > 0;
 		const stoneRepeat = usesGeneratedUvs ? 1 : Math.max(2, Math.round(footprint / 11));
-		// Per-seat stone tint (run 330). One global grey made an icebound northern citadel and a Dornish
-		// sandstone keep the same colour, which wasted the one cheap axis of variety available while
-		// six seats share three castle *shapes*: two seats running the same mesh at a different yaw and
-		// a different stone colour no longer read as the same building. Falls back to the shared
-		// `STONE_COLOR` when an assignment doesn't name one.
 		const stoneColor = assignment.stoneColorHex != null ? new THREE.Color(assignment.stoneColorHex) : STONE_COLOR;
-		const stoneMaterial = createStoneMaterial({ seed: seed + 2 + index, baseColor: stoneColor, repeat: stoneRepeat });
-		applyValyriaCastleWeathering(stoneMaterial, {
+		const fidelity = applyCastleMaterialFidelity(model, {
 			seatId: assignment.seatId,
-			groundY: seat.groundY,
-			footprintMeters: footprint,
-			seed: seed + 2 + index,
+			assetId: assignment.assetId,
+			src: assignment.file,
+			profileId: assignment.surfaceProfile,
+			stoneColorHex: assignment.stoneColorHex,
+			createFallbackMaterial: () => createStoneMaterial({ seed: seed + 2 + index, baseColor: stoneColor, repeat: stoneRepeat }),
+			decorateMaterial: (material) => applyValyriaCastleWeathering(material, {
+				seatId: assignment.seatId,
+				groundY: seat.groundY,
+				footprintMeters: footprint,
+				seed: seed + 2 + index,
+			}),
 		});
-		model.traverse((node) => {
-			if (node.isMesh) node.material = stoneMaterial;
-		});
+		if (!fidelity.ok) {
+			console.warn(`[settlements] castle material validation failed for "${assignment.seatId}": ${fidelity.error}`);
+		}
 
-		// A pivot group carries the seat placement and the yaw; the model sits inside it offset so its
-		// own bounding-box center is on the pivot's vertical axis and its lowest point at the pivot's
-		// y=0. Yawing the *model* directly would not work: these exports don't have their origin at
-		// their own center, so the centering offset and the rotation would compose into an orbit
-		// around the seat instead of a spin in place. Rotating the parent makes "turn this castle to
-		// face differently" mean exactly that, at any origin the export happens to have.
+		// A pivot group carries the seat placement and yaw; the model is centered and grounded inside
+		// it so rotation remains a spin around the seat rather than an orbit around an arbitrary GLB origin.
 		model.scale.setScalar(scale);
 		model.position.set(-measured.centerX * scale, -measured.minY * scale, -measured.centerZ * scale);
 
@@ -427,6 +386,9 @@ export async function spawnRealCastleModels({ assetLoader, seats, seed }) {
 		pivot.position.set(seat.x, seat.groundY, seat.z);
 		pivot.rotation.y = assignment.yawRadians ?? 0;
 		pivot.userData.kingdomSeatId = seat.id;
+		pivot.userData.castleSurfaceProfile = assignment.surfaceProfile;
+		pivot.userData.castleMaterialFidelity = model.userData.castleMaterialFidelity ?? null;
+		pivot.userData.castleMaterialManifest = model.userData.castleMaterialManifest ?? null;
 		pivot.add(model);
 		group.add(pivot);
 	}
@@ -454,31 +416,26 @@ export function disposeSettlements(group) {
 }
 
 /**
- * Disposes every real castle model `spawnRealCastleModels` loaded (geometry + its own
- * `createStoneMaterial` instance/maps — each model got a unique one, unlike the procedural
- * castles' shared `InstancedMesh` material, since `disposeCastleMaterial` is safe to call once per
- * mesh here with no dedup needed). Call on scene teardown, alongside `disposeSettlements`.
+ * Disposes real castle geometry plus seat-local authored/generated material clones. Geometry is
+ * shared by repeated castle files, and authored texture objects can be shared by several material
+ * clones, so material objects are deduped before disposal. Three.js texture disposal is idempotent.
  * @param {THREE.Group} group `spawnRealCastleModels`'s returned group.
  */
 export function disposeRealCastleModels(group) {
-	// Run 330: seats that share a castle file also share its geometry (`Object3D.clone()` copies the
-	// transform, not the buffers), so the same geometry/material is reachable from several children
-	// here. Both `dispose()` calls are individually safe to repeat, but deduping keeps this honest
-	// about what it actually owns and avoids re-disposing the same procedural texture maps N times —
-	// the same `Set` discipline `disposeSettlements` above already uses for its shared material.
 	const disposedGeometries = new Set();
 	const disposedMaterials = new Set();
 	for (const model of group.children) {
 		model.traverse((node) => {
-			if (node.isMesh) {
-				if (!disposedGeometries.has(node.geometry)) {
-					disposedGeometries.add(node.geometry);
-					node.geometry.dispose();
-				}
-				if (!disposedMaterials.has(node.material)) {
-					disposedMaterials.add(node.material);
-					disposeCastleMaterial(node.material);
-				}
+			if (!node.isMesh) return;
+			if (!disposedGeometries.has(node.geometry)) {
+				disposedGeometries.add(node.geometry);
+				node.geometry.dispose();
+			}
+			const materials = Array.isArray(node.material) ? node.material : [node.material];
+			for (const material of materials) {
+				if (!material || disposedMaterials.has(material)) continue;
+				disposedMaterials.add(material);
+				disposeCastleMaterial(material);
 			}
 		});
 	}
