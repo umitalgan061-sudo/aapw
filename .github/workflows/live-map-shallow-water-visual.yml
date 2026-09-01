@@ -12,6 +12,7 @@ on:
       - 'src/3d/auroraNightAtmosphereV5.js'
       - 'scripts/checkWaterVisualContract.js'
       - 'scripts/checkWaterSurfVisualContract.mjs'
+      - 'scripts/checkRun325WaterSwell.js'
       - 'scripts/checkWorldWaterCoverageP0.mjs'
       - 'scripts/checkWaterCoverageRasterQuality.mjs'
       - 'scripts/checkWaterCoverageSamplingBudget.mjs'
@@ -56,7 +57,7 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/water\.js|src/3d/world/waterDepthField\.js|src/3d/world/geographicReferencePalette\.js|src/3d/auroraNightAtmosphereV5\.js|scripts/checkWaterVisualContract\.js|scripts/checkWaterSurfVisualContract\.mjs|scripts/checkWorldWaterCoverageP0\.mjs|scripts/checkWaterCoverageRasterQuality\.mjs|scripts/checkWaterCoverageSamplingBudget\.mjs|scripts/checkWaterLayerTransition\.mjs|scripts/checkGeographicReferencePalette\.mjs|scripts/checkMarineSkyFloorContract\.mjs|scripts/checkFullWorldMarineRectangles\.mjs|scripts/captureLiveWorldWaterTopdown\.mjs|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/water-layer-transition\.yml|\.github/workflows/full-world-3d-topdown\.yml|\.github/workflows/full-world-runtime-coverage\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/water\.js|src/3d/world/waterDepthField\.js|src/3d/world/geographicReferencePalette\.js|src/3d/auroraNightAtmosphereV5\.js|scripts/checkWaterVisualContract\.js|scripts/checkWaterSurfVisualContract\.mjs|scripts/checkRun325WaterSwell\.js|scripts/checkWorldWaterCoverageP0\.mjs|scripts/checkWaterCoverageRasterQuality\.mjs|scripts/checkWaterCoverageSamplingBudget\.mjs|scripts/checkWaterLayerTransition\.mjs|scripts/checkGeographicReferencePalette\.mjs|scripts/checkMarineSkyFloorContract\.mjs|scripts/checkFullWorldMarineRectangles\.mjs|scripts/captureLiveWorldWaterTopdown\.mjs|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/water-layer-transition\.yml|\.github/workflows/full-world-3d-topdown\.yml|\.github/workflows/full-world-runtime-coverage\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
           echo "$CHANGED" | grep -Fx 'src/3d/world/water.js'
           echo "$CHANGED" | grep -Fx 'src/3d/world/waterDepthField.js'
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
@@ -83,6 +84,7 @@ jobs:
           run_contract 'syntax auroraNightAtmosphereV5.js' node --check src/3d/auroraNightAtmosphereV5.js
           run_contract 'syntax checkWaterVisualContract.js' node --check scripts/checkWaterVisualContract.js
           run_contract 'syntax checkWaterSurfVisualContract.mjs' node --check scripts/checkWaterSurfVisualContract.mjs
+          run_contract 'syntax checkRun325WaterSwell.js' node --check scripts/checkRun325WaterSwell.js
           run_contract 'syntax checkWorldWaterCoverageP0.mjs' node --check scripts/checkWorldWaterCoverageP0.mjs
           run_contract 'syntax checkWaterCoverageRasterQuality.mjs' node --check scripts/checkWaterCoverageRasterQuality.mjs
           run_contract 'syntax checkWaterCoverageSamplingBudget.mjs' node --check scripts/checkWaterCoverageSamplingBudget.mjs
