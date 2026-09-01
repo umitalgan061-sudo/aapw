@@ -35,6 +35,10 @@ for (const token of [
 	'ray4CurtainEnvelope',
 	'ray4RaySheet',
 	'ray4PhosphorCore',
+	'segmentBroad',
+	'segmentFine',
+	'segmentField',
+	'segmentEnergy',
 	'ray4HorizonAirmassVariation',
 	'ray4UpperAirVariation',
 	'ray4AtmosphericBase',
@@ -45,13 +49,15 @@ for (const token of [
 	'uUpperAirVariationStrength',
 	'uBandingDitherStrength',
 	"finalAtmosphereProfile = 'camera-relative-horizon-upper-air-v6'",
-	"auroraCurtainMorphology = 'broken-asymmetric-ray-sheets-v11-vertical-phosphor'",
+	"auroraCurtainMorphology = 'broken-asymmetric-ray-sheets-v12-segmented-vertical-phosphor'",
 ]) assert(v4.includes(token), `V4 final atmosphere/morphology token missing: ${token}`);
 assert(!/\bfloat\s+patch\b/.test(v4), 'V4 must not reintroduce reserved GLSL variable `patch`.');
 assert(v4.includes('return mix(0.18, 1.0, opening);'), 'V4 dim-gap floor contract missing.');
 assert(v4.includes('float quietColumns = 0.14 + raySheet * 0.86;'), 'V4 ray-sheet floor contract missing.');
 assert(v4.includes('float edgeCore = exp(-abs(aboveEdge) / 0.020) * 0.45;'), 'V4 narrow edge phosphor contract missing.');
 assert(v4.includes('float risingCore = step(0.0, aboveEdge) * exp(-max(aboveEdge, 0.0) / 0.28) * 1.20;'), 'V4 rising phosphor reach contract missing.');
+assert(v4.includes('float segmentEnergy = mix(0.68, 1.28, segmentField);'), 'V4 segmented vertical phosphor energy contract missing.');
+assert(v4.includes('risingCore *= segmentEnergy;'), 'V4 rising phosphor segmentation is not applied.');
 assert(v4.includes('finalColor += oxygenGreen * phosphorCore * 1.05;'), 'V4 calibrated rising phosphor output missing.');
 assert(v4.includes('secondary') && v4.includes('* 0.24'), 'V4 restrained secondary curtain contract missing.');
 assert(v4.includes('oxygenGreen') && v4.includes('subduedViolet'), 'V4 natural aurora palette contract missing.');
@@ -74,4 +80,4 @@ for (const file of [
 	assert(sw.includes(`GAME3D_SHELL_FILES.push('${file}');`), `PWA offline shell missing ${file}`);
 }
 
-console.log('[checkRun221AuroraFinalContract] PASS: final V4 consumes camera-relative atmosphere with broken ray sheets and vertical phosphor cores; V5 required-token night calibration, world-direction anchoring and offline PWA dependencies are locked.');
+console.log('[checkRun221AuroraFinalContract] PASS: final V4 consumes camera-relative atmosphere with broken ray sheets and segmented vertical phosphor cores; V5 required-token night calibration, world-direction anchoring and offline PWA dependencies are locked.');
