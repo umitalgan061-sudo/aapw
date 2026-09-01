@@ -96,6 +96,9 @@ assert.throws(
   /inventory fulfillment failed/,
 );
 assert.deepEqual(economy.snapshot(), stableState, 'throwing fulfillment must happen before economy commit');
+const recoveredPurchase = economy.purchase(rationOffer, () => true);
+assert.equal(recoveredPurchase.ok, true, 'throwing fulfillment must release the purchase guard for the next interaction');
+assert.equal(recoveredPurchase.balanceCopper, 49, 'recovered purchase must debit the unchanged pre-throw wallet exactly once');
 
 const receiptEconomy = createInteractionEconomyState(40);
 const sanitized = receiptEconomy.purchase(rationOffer, () => ({
