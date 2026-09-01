@@ -9,6 +9,7 @@ on:
       - 'src/3d/world/castleMaterialFidelity.js'
       - 'scripts/checkCastleMaterialFidelity.mjs'
       - 'scripts/checkCastleAuthoredPbrBrowser.js'
+      - 'scripts/checkValyriaCastleWeathering.mjs'
       - 'scripts/castleMaterialFidelityHarness.html'
       - 'service-worker.js'
       - '.github/workflows/castle-material-fidelity.yml'
@@ -19,6 +20,7 @@ on:
       - 'src/3d/world/castleMaterialFidelity.js'
       - 'scripts/checkCastleMaterialFidelity.mjs'
       - 'scripts/checkCastleAuthoredPbrBrowser.js'
+      - 'scripts/checkValyriaCastleWeathering.mjs'
       - 'scripts/castleMaterialFidelityHarness.html'
       - 'service-worker.js'
       - '.github/workflows/castle-material-fidelity.yml'
@@ -54,7 +56,7 @@ jobs:
           mapfile -t CHANGED < <(git diff --name-only "$MAIN_SHA"...HEAD)
           for path in "${CHANGED[@]}"; do
             case "$path" in
-              src/3d/world/settlements.js|src/3d/world/castleMaterialFidelity.js|scripts/checkCastleMaterialFidelity.mjs|scripts/checkCastleAuthoredPbrBrowser.js|scripts/castleMaterialFidelityHarness.html|service-worker.js|.github/workflows/castle-material-fidelity.yml) ;;
+              src/3d/world/settlements.js|src/3d/world/castleMaterialFidelity.js|scripts/checkCastleMaterialFidelity.mjs|scripts/checkCastleAuthoredPbrBrowser.js|scripts/checkValyriaCastleWeathering.mjs|scripts/castleMaterialFidelityHarness.html|service-worker.js|.github/workflows/castle-material-fidelity.yml) ;;
               *) echo "Unexpected path in castle material slice: $path" >&2; exit 1 ;;
             esac
           done
@@ -70,6 +72,7 @@ jobs:
           node --check src/3d/world/settlements.js
           node --check scripts/checkCastleMaterialFidelity.mjs
           node --check scripts/checkCastleAuthoredPbrBrowser.js
+          node --check scripts/checkValyriaCastleWeathering.mjs
           node scripts/setupNodeThreeShim.mjs
 
       - name: Castle material unit contract
