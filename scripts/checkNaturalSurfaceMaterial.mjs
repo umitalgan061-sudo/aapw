@@ -15,6 +15,8 @@ assert.equal(policy.canonicalHydrologyUnchanged, true);
 assert.equal(policy.canonicalColliderUnchanged, true);
 assert.equal(policy.canonicalCoastlineUnchanged, true);
 assert.equal(policy.newGeographyIntroduced, false);
+assert.equal(policy.valyriaMacroNormalEnergyBounded, true);
+assert.equal(policy.valyriaMacroNormalBlendMax, 0.16);
 assert.equal(policy.valyriaAuthorityPolicyId, VALYRIA_GEOLOGY_POLICY.id);
 assert.deepEqual(policy.valyriaMaterials, ['basalt', 'obsidian', 'ash', 'pumice', 'oxidation', 'sulfuric-weathering']);
 
@@ -57,5 +59,9 @@ assert(first.vertexShader.includes('modelMatrix * vec4(transformed, 1.0)'), 'wor
 assert(first.vertexShader.includes('mat3(modelMatrix) * objectNormal'), 'world-space normal varying disappeared');
 assert(!first.vertexShader.includes('transformed +='), 'render-only material must not displace canonical terrain');
 assert(!first.fragmentShader.includes('gl_FragDepth'), 'render-only material must not rewrite terrain depth');
+assert(first.fragmentShader.includes('naturalSurfaceStructuralX * 0.58')
+  && first.fragmentShader.includes('naturalSurfaceLavaX * 0.24')
+  && first.fragmentShader.includes('naturalSurfaceNormalValyria * 0.16'),
+'Valyria macro normal energy escaped its artifact-audited bound');
 
 console.log('[checkNaturalSurfaceMaterial] PASS: deterministic world-space Valyria PBR and all-world anti-airbrush/intertidal shading are render-only.');
