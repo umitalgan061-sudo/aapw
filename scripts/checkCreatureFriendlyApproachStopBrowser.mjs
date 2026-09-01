@@ -69,9 +69,16 @@ try {
     farLeader.update(0.1, { x: 10, z: 1 }); nearLeader.update(0.1, { x: -3, z: 1 });
     nearestFollower.update(0.1, { x: 100, z: 100 });
     const nearestHerdDeltaX = nearestFollower.object3D.position.x; farLeader.dispose(); nearLeader.dispose(); nearestFollower.dispose();
+    const ecologyRegistry = new Map();
+    const wrapEcology = (raw, speciesId, sourceId, predatorSpeciesIds = [], predatorThreatRadiusMeters = 0) => wrapCreatureWithThreatMemory(raw, { triggerRadiusMeters: 15, reactiveDirection: 'away', memorySeconds: 1.25, speciesId, sourceId, predatorSpeciesIds, predatorThreatRadiusMeters, ecologyRegistry });
+    const rightPredator = wrapEcology(createBeing('aslan', 'predator-tie-right', 5), 'aslan', 'right');
+    const leftPredator = wrapEcology(createBeing('aslan', 'predator-tie-left', -5), 'aslan', 'left');
+    const tiedPrey = wrapEcology(createBeing('geyik', 'predator-tie-prey'), 'geyik', 'prey', ['aslan'], 24);
+    tiedPrey.update(0.1, { x: 100, z: 100 });
+    const tiedPredatorDeltaX = tiedPrey.object3D.position.x; rightPredator.dispose(); leftPredator.dispose(); tiedPrey.dispose();
     return {
       before, after, position, exactStopDistance, afterCollider, rejectedPosition, recoveredDistance,
-      colliderCalls, colliderPosition, outwardDistance, herdExactBoundaryFleeing, herdInsideBoundaryFleeing, nearestHerdDeltaX,
+      colliderCalls, colliderPosition, outwardDistance, herdExactBoundaryFleeing, herdInsideBoundaryFleeing, nearestHerdDeltaX, tiedPredatorDeltaX,
     };
   });
   assert.equal(pageErrors.length, 0, `page errors: ${pageErrors.join('\n')}`);
@@ -88,6 +95,7 @@ try {
   assert.equal(proof.herdExactBoundaryFleeing, false, 'herd alert must stay strict at the exact radius boundary');
   assert.equal(proof.herdInsideBoundaryFleeing, true, 'herd alert must wake an epsilon-inside same-species neighbor');
   assert.ok(proof.nearestHerdDeltaX > 0, `herd reaction followed insertion order instead of nearest source: ${proof.nearestHerdDeltaX}`);
+  assert.ok(proof.tiedPredatorDeltaX > 0, `equal-distance predator choice followed insertion order: ${proof.tiedPredatorDeltaX}`);
   console.log('Creature friendly/pack boundary browser proof PASS', proof);
 } finally {
   await browser.close();
