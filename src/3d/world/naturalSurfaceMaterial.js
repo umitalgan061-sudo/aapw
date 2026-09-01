@@ -414,17 +414,17 @@ float naturalSurfaceLinearWeatheringBreakup = smoothstep(0.34, 0.77,
 	+ naturalSurfaceLithicFacet * 0.22 + naturalSurfaceVolcanicGrain * 0.10);
 float naturalSurfaceLinearWeatheringPatina = naturalSurfaceValyria
 	* smoothstep(0.16, 0.76, naturalSurfaceLinearCarrier)
-	* mix(0.16, 0.88, naturalSurfaceLinearWeatheringBreakup);
+	* mix(0.26, 0.94, naturalSurfaceLinearWeatheringBreakup);
 vec3 naturalSurfaceLinearPatinaColor = mix(vec3(0.052, 0.057, 0.058), vec3(0.148, 0.091, 0.061),
 	clamp(naturalSurfaceOxidation * 0.72 + naturalSurfaceSulfur * 0.12, 0.0, 1.0));
 diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfaceLinearPatinaColor,
-	naturalSurfaceLinearWeatheringPatina * (0.22 + naturalSurfaceSlope * 0.10));
+	naturalSurfaceLinearWeatheringPatina * (0.36 + naturalSurfaceSlope * 0.16));
 float naturalSurfacePatchyLithicExposure = naturalSurfaceValyria
 	* smoothstep(0.50, 0.79, naturalSurfaceLithicFacet * 0.56 + naturalSurfaceVolcanicFine * 0.44)
 	* (1.0 - naturalSurfaceAsh * 0.38) * (0.42 + naturalSurfaceSlope * 0.58);
 vec3 naturalSurfacePatchyBasalt = mix(vec3(0.076, 0.079, 0.078), vec3(0.168, 0.119, 0.083),
 	naturalSurfaceOxidation * 0.58);
-diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfacePatchyBasalt, naturalSurfacePatchyLithicExposure * 0.17);
+diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfacePatchyBasalt, naturalSurfacePatchyLithicExposure * 0.20);
 diffuseColor.rgb = clamp(diffuseColor.rgb, vec3(0.012), vec3(0.86));
 `;
 
@@ -483,11 +483,11 @@ float naturalSurfaceRoughCarrierBreakup = smoothstep(0.34, 0.77,
 	+ naturalSurfaceRoughFacet * 0.22 + naturalSurfaceRoughGrainVolcanic * 0.10);
 float naturalSurfaceRoughLinearPatina = naturalSurfaceRoughValyria
 	* smoothstep(0.16, 0.76, naturalSurfaceRoughLinearCarrier)
-	* mix(0.16, 0.88, naturalSurfaceRoughCarrierBreakup);
+	* mix(0.26, 0.94, naturalSurfaceRoughCarrierBreakup);
 float naturalSurfacePatinaRoughTarget = mix(0.91, 0.98, naturalSurfaceRoughCarrierBreakup)
 	- naturalSurfaceRoughObsidian * 0.12;
 roughnessFactor = mix(roughnessFactor, clamp(naturalSurfacePatinaRoughTarget, 0.62, 0.99),
-	naturalSurfaceRoughLinearPatina * 0.24);
+	naturalSurfaceRoughLinearPatina * 0.30);
 `;
 
 const NATURAL_SURFACE_NORMAL = `
