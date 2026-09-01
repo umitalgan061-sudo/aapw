@@ -38,8 +38,8 @@ export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	canonicalCoverageUnchanged: true,
 	depthFieldBoundaryFeatherUv: 0.018,
 	coverageChannelUnchangedAtBoundary: true,
-	nearFarLayerOverlapMeters: 40,
-	seamlessNearFarComposition: true,
+	farLayerGeometricSwellDisabled: true,
+	farLayerTriangleSeamPrevented: true,
 	macroScaleMeters: 3300,
 	mesoScaleMeters: 1180,
 	fineScaleMeters: 390,
@@ -226,11 +226,9 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	}
 
 	void main() {
-		float farLayerEdgeBlend = 1.0;
 		if (uFarLayerMask > 0.5) {
 			float nearLayerDistance = max(abs(vWorldPosition.x - uCameraPosition.x), abs(vWorldPosition.z - uCameraPosition.z));
-			if (nearLayerDistance < 1959.5) discard;
-			farLayerEdgeBlend = smoothstep(1959.5, 1999.5, nearLayerDistance);
+			if (nearLayerDistance < 1999.5) discard;
 		}
 
 		vec2 waterField = sampleWaterField(vWorldPosition.xz);
@@ -359,9 +357,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float bedReadability = max(enclosedLakeMask * clearShallowBand * 0.30, clearCoastMask * 0.18);
 		alpha *= 1.0 - bedReadability;
 		alpha *= waterCoverage;
-		float compositedAlpha = max(alpha, foam * 0.78) * farLayerEdgeBlend;
-
-		gl_FragColor = vec4(color, compositedAlpha);
+		gl_FragColor = vec4(color, max(alpha, foam * 0.78));
 		#include <fog_fragment>
 	}
 `;
@@ -450,8 +446,8 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		physicalDepthAuthorityUnchanged: true,
 		depthFieldBoundaryOpticalFeather: true,
 		coverageChannelUnchangedAtBoundary: true,
-		nearFarLayerOverlapMeters: WATER_SURFACE_VARIATION_POLICY.nearFarLayerOverlapMeters,
-		seamlessNearFarComposition: true,
+		farLayerGeometricSwellDisabled: true,
+		farLayerTriangleSeamPrevented: true,
 		variableRoughness: true,
 		referencePalettePolicyId: GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id,
 		enclosedLakeBedReadable: true,
@@ -470,6 +466,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 	farWater.position.y = -0.06;
 	farWater.renderOrder = -1;
 	farWater.frustumCulled = false;
+	farWater.userData.geometricSwellDisabled = true;
 	mesh.add(farWater);
 
 	const deepOceanGeometry = new THREE.PlaneGeometry(
@@ -508,7 +505,7 @@ export function setWaterDepthField(waterMesh, depthField, swellStrength = 1) {
 		uniforms.uDepthMap.value = depthField.texture;
 		uniforms.uOffshoreMap.value = depthField.offshoreTexture ?? PLACEHOLDER_OFFSHORE_TEXTURE;
 		uniforms.uDepthFieldExtentMeters.value = depthField.extentMeters;
-		uniforms.uSwellStrength.value = swellStrength;
+		uniforms.uSwellStrength.value = material === waterMesh.material ? swellStrength : 0;
 	}
 	waterMesh.userData.depthField = depthField;
 }
