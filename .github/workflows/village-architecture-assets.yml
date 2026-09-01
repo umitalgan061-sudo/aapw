@@ -50,13 +50,18 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: 22
 
-      - name: Install runtime and Chromium
+      - name: Install browser proof tooling
+        shell: bash
         run: |
-          npm ci
-          npx playwright install --with-deps chromium
+          set -euo pipefail
+          npm install --global playwright@1.55.0
+          echo "NODE_PATH=$(npm root -g)" >> "$GITHUB_ENV"
+          playwright install --with-deps chromium
+
+      - name: Resolve vendored Three.js for Node contracts
+        run: node scripts/setupNodeThreeShim.mjs
 
       - name: Syntax and deterministic world policy
         run: |
