@@ -14,14 +14,14 @@ const SPECIES = [
 	{
 		id: 'pine',
 		weight: 0.6,
-		trunk: { radiusTop: 0.22, radiusBottom: 0.38, height: 3.4, radialSegments: 6, color: 0x5b4028 },
-		foliage: { kind: 'cone', radius: 2.15, height: 5.6, radialSegments: 7, overlapMeters: 0.3, color: 0x2f5c26 },
+		trunk: { radiusTop: 0.22, radiusBottom: 0.38, height: 3.4, radialSegments: 6, color: 0x514338 },
+		foliage: { kind: 'cone', radius: 2.15, height: 5.6, radialSegments: 7, overlapMeters: 0.3, color: 0x35523a },
 	},
 	{
 		id: 'round',
 		weight: 0.4,
-		trunk: { radiusTop: 0.2, radiusBottom: 0.34, height: 2.8, radialSegments: 6, color: 0x5b4028 },
-		foliage: { kind: 'sphere', radius: 2.4, widthSegments: 7, heightSegments: 6, overlapMeters: 0.7, color: 0x4a7a2e },
+		trunk: { radiusTop: 0.2, radiusBottom: 0.34, height: 2.8, radialSegments: 6, color: 0x514338 },
+		foliage: { kind: 'sphere', radius: 2.4, widthSegments: 7, heightSegments: 6, overlapMeters: 0.7, color: 0x536b3f },
 	},
 	{
 		id: 'snow-pine',
@@ -71,14 +71,14 @@ export const VEGETATION_SPATIAL_PATTERN_POLICY = Object.freeze({
 });
 
 export const VEGETATION_SILHOUETTE_POLICY = Object.freeze({
-	id: 'vegetation-organic-silhouette-2026-09-01-v1',
+	id: 'vegetation-organic-silhouette-2026-09-01-v2',
 	drawCallPreserving: true,
 	placementAuthorityChanged: false,
 	geometryDeterministic: true,
 	desktopOrganicGeometry: true,
 	mobilePrimitiveLodPreserved: true,
-	evergreenTierCount: 4,
-	broadleafLobeCount: 5,
+	evergreenTierCount: 6,
+	broadleafLobeCount: 7,
 	broadleafForkCount: 3,
 });
 
@@ -315,6 +315,26 @@ function silhouetteTriangleCount(geometry) {
 	return positions ? positions.count / 3 : 0;
 }
 
+function warpVegetationSilhouette(geometry, phase, strength) {
+	const positions = geometry.getAttribute('position');
+	for (let index = 0; index < positions.count; index++) {
+		const x = positions.getX(index);
+		const y = positions.getY(index);
+		const z = positions.getZ(index);
+		const radial = Math.hypot(x, z);
+		if (radial < 1e-5) continue;
+		const angle = Math.atan2(z, x);
+		const angular = Math.sin(angle * 3 + phase) * 0.62
+			+ Math.sin(angle * 5 - phase * 0.73) * 0.38;
+		const vertical = 0.78 + Math.sin(y * 1.71 + phase * 0.43) * 0.22;
+		const scale = 1 + angular * vertical * strength;
+		positions.setXYZ(index, x * scale, y, z * scale);
+	}
+	positions.needsUpdate = true;
+	geometry.computeVertexNormals();
+	return geometry;
+}
+
 function mergeVegetationGeometry(parts, metadata) {
 	const merged = mergeGeometries(parts, false);
 	for (const part of parts) part.dispose();
@@ -335,6 +355,7 @@ function buildOrganicTrunkGeometry(species) {
 	const parts = [];
 	const main = new THREE.CylinderGeometry(trunk.radiusTop, trunk.radiusBottom, trunk.height, trunk.radialSegments);
 	main.translate(0, trunk.height / 2, 0);
+	warpVegetationSilhouette(main, species.id === 'round' ? 1.73 : 0.64, 0.035);
 	parts.push(main);
 
 	if (species.id === 'round') {
@@ -343,8 +364,10 @@ function buildOrganicTrunkGeometry(species) {
 			{ yaw: 2.25, tilt: 0.66, x: 0.29, y: trunk.height * 0.96, z: -0.11, height: 1.42 },
 			{ yaw: 4.35, tilt: -0.54, x: 0.04, y: trunk.height * 1.02, z: 0.29, height: 1.26 },
 		];
-		for (const fork of forks) {
+		for (let index = 0; index < forks.length; index++) {
+			const fork = forks[index];
 			const branch = new THREE.CylinderGeometry(0.055, 0.105, fork.height, 5);
+			warpVegetationSilhouette(branch, 1.2 + index * 1.1, 0.028);
 			branch.rotateZ(fork.tilt);
 			branch.rotateY(fork.yaw);
 			branch.translate(fork.x, fork.y, fork.z);
@@ -360,6 +383,7 @@ function buildOrganicTrunkGeometry(species) {
 
 	const upperHeight = trunk.height * 0.72;
 	const upperStem = new THREE.CylinderGeometry(0.05, Math.max(0.10, trunk.radiusTop * 0.58), upperHeight, Math.max(5, trunk.radialSegments - 1));
+	warpVegetationSilhouette(upperStem, species.id === 'snow-pine' ? 2.7 : 2.1, 0.04);
 	upperStem.translate(0.025, trunk.height + upperHeight * 0.30, -0.018);
 	parts.push(upperStem);
 	return mergeVegetationGeometry(parts, {
@@ -374,17 +398,21 @@ function buildTieredEvergreenFoliageGeometry(species) {
 	const { trunk, foliage } = species;
 	const crownBase = trunk.height - foliage.overlapMeters;
 	const tiers = [
-		{ radius: 1.00, height: 0.46, y: 0.20, x: 0.00, z: 0.00 },
-		{ radius: 0.82, height: 0.42, y: 0.43, x: 0.055, z: -0.035 },
-		{ radius: 0.63, height: 0.36, y: 0.65, x: -0.045, z: 0.040 },
-		{ radius: 0.43, height: 0.30, y: 0.82, x: 0.025, z: 0.018 },
+		{ radius: 1.00, height: 0.50, y: 0.18, x: 0.000, z: 0.000 },
+		{ radius: 0.88, height: 0.47, y: 0.32, x: 0.032, z: -0.024 },
+		{ radius: 0.74, height: 0.43, y: 0.46, x: -0.038, z: 0.030 },
+		{ radius: 0.60, height: 0.39, y: 0.60, x: 0.028, z: 0.038 },
+		{ radius: 0.45, height: 0.35, y: 0.73, x: -0.020, z: -0.032 },
+		{ radius: 0.30, height: 0.30, y: 0.84, x: 0.018, z: 0.014 },
 	];
-	const parts = tiers.map((tier) => {
+	const parts = tiers.map((tier, index) => {
 		const geometry = new THREE.ConeGeometry(
 			foliage.radius * tier.radius,
 			foliage.height * tier.height,
-			foliage.radialSegments,
+			foliage.radialSegments + 2,
 		);
+		warpVegetationSilhouette(geometry, 0.72 + index * 0.83 + (species.id === 'snow-pine' ? 0.31 : 0), 0.055);
+		geometry.rotateY(index * 0.31);
 		geometry.translate(
 			foliage.radius * tier.x,
 			crownBase + foliage.height * tier.y,
@@ -395,8 +423,8 @@ function buildTieredEvergreenFoliageGeometry(species) {
 	return mergeVegetationGeometry(parts, {
 		profile: 'tiered-evergreen',
 		componentCount: parts.length,
-		minTriangles: 40,
-		maxTriangles: 180,
+		minTriangles: 100,
+		maxTriangles: 240,
 	});
 }
 
@@ -404,19 +432,23 @@ function buildLobedBroadleafFoliageGeometry(species) {
 	const { trunk, foliage } = species;
 	const centerY = trunk.height + foliage.radius - foliage.overlapMeters;
 	const lobes = [
-		{ x: 0.00, y: 0.12, z: 0.00, sx: 0.82, sy: 0.88, sz: 0.80 },
-		{ x: -0.47, y: 0.00, z: 0.06, sx: 0.62, sy: 0.68, sz: 0.58 },
-		{ x: 0.44, y: 0.08, z: -0.16, sx: 0.64, sy: 0.72, sz: 0.60 },
-		{ x: -0.08, y: 0.31, z: -0.38, sx: 0.59, sy: 0.65, sz: 0.57 },
-		{ x: 0.13, y: -0.07, z: 0.37, sx: 0.58, sy: 0.62, sz: 0.55 },
+		{ x: 0.00, y: 0.11, z: 0.00, sx: 0.66, sy: 0.72, sz: 0.63 },
+		{ x: -0.43, y: 0.04, z: 0.04, sx: 0.55, sy: 0.59, sz: 0.52 },
+		{ x: 0.40, y: 0.10, z: -0.14, sx: 0.57, sy: 0.61, sz: 0.54 },
+		{ x: -0.10, y: 0.29, z: -0.35, sx: 0.52, sy: 0.56, sz: 0.49 },
+		{ x: 0.14, y: -0.05, z: 0.36, sx: 0.51, sy: 0.55, sz: 0.48 },
+		{ x: -0.02, y: 0.43, z: 0.03, sx: 0.48, sy: 0.53, sz: 0.47 },
+		{ x: -0.31, y: 0.22, z: 0.27, sx: 0.46, sy: 0.50, sz: 0.44 },
 	];
-	const parts = lobes.map((lobe) => {
+	const parts = lobes.map((lobe, index) => {
 		const geometry = new THREE.SphereGeometry(1, foliage.widthSegments, foliage.heightSegments);
 		geometry.scale(
 			foliage.radius * lobe.sx,
 			foliage.radius * lobe.sy,
 			foliage.radius * lobe.sz,
 		);
+		warpVegetationSilhouette(geometry, 0.51 + index * 0.91, 0.06);
+		geometry.rotateY(index * 0.37);
 		geometry.translate(
 			foliage.radius * lobe.x,
 			centerY + foliage.radius * lobe.y,
@@ -427,8 +459,8 @@ function buildLobedBroadleafFoliageGeometry(species) {
 	return mergeVegetationGeometry(parts, {
 		profile: 'lobed-broadleaf',
 		componentCount: parts.length,
-		minTriangles: 180,
-		maxTriangles: 520,
+		minTriangles: 420,
+		maxTriangles: 620,
 	});
 }
 
