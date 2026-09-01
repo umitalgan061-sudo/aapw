@@ -32,10 +32,12 @@ export const WAVE_TOTAL_AMPLITUDE_METERS = SWELL_COMPONENTS.reduce((sum, [, ampl
 export const WATER_OFFSHORE_OPTICAL_GAIN = 0.82;
 
 export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
-	id: 'water-world-surface-variation-2026-08-27-v3-readable-current-shear',
+	id: 'water-world-surface-variation-2026-09-01-v4-depth-field-edge-feather',
 	renderOnly: true,
 	canonicalDepthUnchanged: true,
 	canonicalCoverageUnchanged: true,
+	depthFieldBoundaryFeatherUv: 0.018,
+	coverageChannelUnchangedAtBoundary: true,
 	macroScaleMeters: 3300,
 	mesoScaleMeters: 1180,
 	fineScaleMeters: 390,
@@ -118,17 +120,24 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	varying vec2 vSwellSlope;
 	#include <fog_pars_fragment>
 
+	float depthFieldBoundaryBlend(vec2 uv) {
+		float edgeDistance = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y));
+		return smoothstep(0.0, ${WATER_SURFACE_VARIATION_POLICY.depthFieldBoundaryFeatherUv.toFixed(4)}, edgeDistance);
+	}
+
 	vec2 sampleWaterField(vec2 worldXZ) {
 		vec2 uv = worldXZ / uDepthFieldExtentMeters + 0.5;
 		if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return vec2(1.0, 1.0);
 		vec4 field = texture2D(uDepthMap, uv);
-		return field.rg;
+		float boundaryBlend = depthFieldBoundaryBlend(uv);
+		return vec2(mix(1.0, field.r, boundaryBlend), field.g);
 	}
 
 	float sampleOffshoreOptical(vec2 worldXZ) {
 		vec2 uv = worldXZ / uDepthFieldExtentMeters + 0.5;
 		if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 1.0;
-		return texture2D(uOffshoreMap, uv).r;
+		float offshore = texture2D(uOffshoreMap, uv).r;
+		return mix(1.0, offshore, depthFieldBoundaryBlend(uv));
 	}
 
 	float sampleFragmentDepth(vec2 worldXZ) {
@@ -434,6 +443,8 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		deepMarineSurfaceVariation: WATER_SURFACE_VARIATION_POLICY.id,
 		aerialOffshoreSurfaceVariation: true,
 		physicalDepthAuthorityUnchanged: true,
+		depthFieldBoundaryOpticalFeather: true,
+		coverageChannelUnchangedAtBoundary: true,
 		variableRoughness: true,
 		referencePalettePolicyId: GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id,
 		enclosedLakeBedReadable: true,
