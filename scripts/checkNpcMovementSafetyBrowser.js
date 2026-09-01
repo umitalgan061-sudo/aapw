@@ -90,6 +90,7 @@ async function main() {
       resumeNpc.dispose();
 
       let malformedPatrolGroundSamples = 0;
+      let malformedPatrolColliderResolves = 0;
       const malformedPatrolNpc = await createNPC({
         assetLoader: new FakeAssetLoader(),
         modelUrl: '/assets/models/characters/paladin_j_nordstrom.fbx',
@@ -98,7 +99,7 @@ async function main() {
         worldX: 0, worldZ: 0, groundY: 0,
         name: 'malformed-patrol-guard',
         groundCollider: { getGroundHeight: () => { malformedPatrolGroundSamples += 1; return 0; } },
-        playerCollider: { resolveXZ: (x, z) => ({ x, z }) },
+        playerCollider: { resolveXZ: (x, z) => { malformedPatrolColliderResolves += 1; return { x, z }; } },
         patrolWaypoints: [{ x: Infinity, z: 4 }],
         speedMps: 2, pauseSeconds: 0, simulationLodMaxStepSeconds: 0.25,
       });
@@ -174,6 +175,7 @@ async function main() {
         malformedPatrolFailsClosed: malformedPatrolPosition.distanceTo(new THREE.Vector3(0, 0, 0)) < 1e-9 && [malformedPatrolPosition.x, malformedPatrolPosition.y, malformedPatrolPosition.z].every(Number.isFinite),
         malformedPatrolYawFinite: Number.isFinite(malformedPatrolYaw),
         malformedPatrolSkipsGroundSampling: malformedPatrolGroundSamples === 0,
+        malformedPatrolSkipsColliderResolution: malformedPatrolColliderResolves === 0,
         configuredSpawnIsolation: configuredSpawns.length === 1 && configuredSpawns[0].object3D.name === 'spawn-valid',
         configuredSpawnGroundFinite: configuredSpawnPosition?.y === 3 && [configuredSpawnPosition.x, configuredSpawnPosition.y, configuredSpawnPosition.z].every(Number.isFinite),
         invalidWorldSkippedBeforeSampling: sampledWorldXs.length === 3 && sampledWorldXs.every(Number.isFinite),
