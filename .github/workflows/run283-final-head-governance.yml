@@ -86,7 +86,7 @@ jobs:
           node scripts/checkAssetsManifest.js || { echo '::error title=Run283 contract failed::checkAssetsManifest.js'; exit 1; }
           node scripts/checkServiceWorkerCache.js || { echo '::error title=Run283 contract failed::checkServiceWorkerCache.js'; exit 1; }
           node scripts/checkPwaInstallability.js
-          node scripts/checkSmokeCheckRegistry.js
+          node scripts/checkSmokeCheckRegistry.js "$BASE_SHA"
           node scripts/checkWorldReferenceMap.js
           node scripts/checkWorldReferenceWaterMask.js
           node scripts/checkWorldReferenceAlignment.js
