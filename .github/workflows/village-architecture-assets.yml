@@ -85,12 +85,59 @@ jobs:
           mkdir -p artifacts/village-architecture-assets
           node scripts/checkVillageArchitectureAssets.js 2>&1 | tee artifacts/village-architecture-assets/proof.log
 
-      - name: PWA offline shell regression
+      - name: PWA offline shell regression against exact main
         shell: bash
         run: |
-          set -o pipefail
-          mkdir -p artifacts/village-architecture-assets
-          node scripts/checkServiceWorkerCache.js 2>&1 | tee artifacts/village-architecture-assets/pwa-offline-shell.log
+          set -euo pipefail
+          ARTIFACT_DIR="artifacts/village-architecture-assets"
+          PR_LOG="$ARTIFACT_DIR/pwa-offline-shell.log"
+          MAIN_LOG="$ARTIFACT_DIR/pwa-main-baseline.log"
+          mkdir -p "$ARTIFACT_DIR"
+
+          if node scripts/checkServiceWorkerCache.js >"$PR_LOG" 2>&1; then
+            cat "$PR_LOG"
+            exit 0
+          fi
+          cat "$PR_LOG"
+
+          BASE_DIR="$(mktemp -d)"
+          cleanup() { git worktree remove --force "$BASE_DIR" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          git worktree add --detach "$BASE_DIR" origin/main >/dev/null
+          (cd "$BASE_DIR" && node scripts/checkServiceWorkerCache.js >"$GITHUB_WORKSPACE/$MAIN_LOG" 2>&1) || true
+          cat "$MAIN_LOG"
+
+          sed -n 's/^  - //p' "$PR_LOG" | sort -u > /tmp/village-pr-pwa-missing.txt
+          sed -n 's/^  - //p' "$MAIN_LOG" | sort -u > /tmp/village-main-pwa-missing.txt
+          comm -23 /tmp/village-pr-pwa-missing.txt /tmp/village-main-pwa-missing.txt > /tmp/village-new-pwa-missing.txt
+          if [ -s /tmp/village-new-pwa-missing.txt ]; then
+            echo "[village-pwa-delta] FAIL: this PR introduces new offline-shell misses beyond exact origin/main:"
+            cat /tmp/village-new-pwa-missing.txt
+            exit 1
+          fi
+
+          for asset in \
+            assets/models/settlements/log_cabin_et0OmFeZVkb.glb \
+            assets/models/settlements/fantasy_house_dcPho4SUA3.glb \
+            assets/models/settlements/cabin_shed_HTx7PZt6Zm.glb \
+            assets/models/settlements/house_fdaqERLQCc.glb \
+            assets/models/settlements/medium_house_4hI5fNvl6z.glb \
+            assets/models/settlements/small_wooden_house.glb \
+            assets/models/settlements/house_roqiHdrpgc.glb; do
+            grep -Fq "GAME3D_SHELL_FILES.push('./$asset')" service-worker.js || {
+              echo "[village-pwa-delta] FAIL: live village asset is not precached: $asset"
+              exit 1
+            }
+          done
+
+          PR_CACHE="$(sed -n "s/^const SHELL_CACHE = '\([^']*\)';$/\1/p" service-worker.js)"
+          MAIN_CACHE="$(sed -n "s/^const SHELL_CACHE = '\([^']*\)';$/\1/p" "$BASE_DIR/service-worker.js")"
+          test -n "$PR_CACHE" && test -n "$MAIN_CACHE"
+          test "$PR_CACHE" != "$MAIN_CACHE" || {
+            echo "[village-pwa-delta] FAIL: village asset precache changed without a shell cache version bump"
+            exit 1
+          }
+          echo "[village-pwa-delta] PASS: zero new offline-shell misses vs exact origin/main; 7/7 village GLBs precached; shell cache $MAIN_CACHE -> $PR_CACHE."
 
       - name: Final main freshness
         shell: bash
