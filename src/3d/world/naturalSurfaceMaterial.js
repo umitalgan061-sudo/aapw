@@ -9,7 +9,7 @@ import { WORLD_DEFAULTS, WORLD_SCALE } from '../config.js';
 import { VALYRIA_GEOLOGY_POLICY } from './valyriaGeology.js';
 
 export const NATURAL_SURFACE_MATERIAL_POLICY = Object.freeze({
-	id: 'natural-surface-material-2026-09-01-v10-lowland-aggregate-ridge-recovery',
+	id: 'natural-surface-material-2026-09-01-v11-lowland-and-valyria-aggregate',
 	renderOnly: true,
 	deterministic: true,
 	canonicalHeightUnchanged: true,
