@@ -49,15 +49,15 @@ try {
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xadb8bd);
-    scene.fog = new THREE.Fog(0xadb8bd, 520, 1280);
+    scene.fog = new THREE.Fog(0xadb8bd, 140, 520);
     scene.add(new THREE.HemisphereLight(0xdde8ea, 0x4b4a43, 1.45));
     const sun = new THREE.DirectionalLight(0xffedcf, 2.7);
-    sun.position.set(420, 680, 360);
+    sun.position.set(180, 300, 220);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
-    Object.assign(sun.shadow.camera, { left: -420, right: 420, top: 420, bottom: -420, near: 40, far: 1400 });
+    Object.assign(sun.shadow.camera, { left: -220, right: 220, top: 220, bottom: -220, near: 10, far: 700 });
     scene.add(sun);
-    const camera = new THREE.PerspectiveCamera(42, viewport.width / viewport.height, 0.5, 2200);
+    const camera = new THREE.PerspectiveCamera(39, viewport.width / viewport.height, 0.1, 900);
 
     const sampleHeight = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, null, []);
     const geology = createNaturalGeology({
@@ -89,7 +89,10 @@ try {
       terrain?.geometry.dispose();
       terrain?.material.dispose();
       terrain?.parent?.remove(terrain);
-      const width = 760, depth = 650, sx = 72, sz = 62;
+      const focalReach = Math.max(focal.scale.x, focal.scale.y, focal.scale.z, 8);
+      const width = Math.max(140, Math.min(280, focalReach * 9));
+      const depth = Math.max(125, Math.min(250, focalReach * 8));
+      const sx = 68, sz = 60;
       const geometry = new THREE.PlaneGeometry(width, depth, sx, sz);
       geometry.rotateX(-Math.PI / 2);
       const positions = geometry.getAttribute('position');
@@ -119,6 +122,7 @@ try {
       terrain = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 }));
       terrain.receiveShadow = true;
       scene.add(terrain);
+      return { width, depth, focalReach };
     }
 
     function visibleHydrated(family) {
@@ -134,24 +138,34 @@ try {
     function renderFamily(family) {
       const focal = family === 'desert-rocks' ? desert : rocky;
       geology.group.position.set(-focal.x, -focal.y, -focal.z);
-      rebuildTerrain(focal);
+      const framing = rebuildTerrain(focal);
       const primitives = visibleHydrated(family);
       if (primitives < 1) throw new Error(`hydrated ${family} primitives unavailable`);
       const isDesert = family === 'desert-rocks';
       scene.background.set(isDesert ? 0xc5b69d : 0xadb8bd);
       scene.fog.color.copy(scene.background);
-      camera.position.set(245, 130, 300);
-      camera.lookAt(0, 18, 0);
+      scene.fog.near = framing.focalReach * 7;
+      scene.fog.far = framing.focalReach * 22;
+      const reach = framing.focalReach;
+      camera.position.set(reach * 2.65, reach * 1.45 + 6, reach * 3.05);
+      camera.lookAt(0, Math.max(2.5, focal.scale.y * 0.16), 0);
       label.textContent = [
-        `NATURAL GEOLOGY · ${family}`,
+        `NATURAL GEOLOGY · ${family} · MATERIAL-SCALE QA`,
         `zone=${focal.dryBiomeZoneId ?? 'non-dry'} · affinity=${(focal.dryBiomeAffinity ?? 0).toFixed(3)}`,
-        `placement=${focal.id} · slope=${focal.slopeDegrees.toFixed(1)}° · primitives=${primitives}`,
+        `placement=${focal.id} · slope=${focal.slopeDegrees.toFixed(1)}° · scale=${focal.scale.x.toFixed(1)}×${focal.scale.y.toFixed(1)}×${focal.scale.z.toFixed(1)}m`,
         `surface=${geology.group.children.find((c) => c.name.startsWith(`natural-geology-hydrated-${family}-`))?.material?.userData?.naturalGeologyAssetSurface?.policyId ?? 'missing'}`,
       ].join('\n');
       renderer.render(scene, camera);
       return {
         family,
-        focal: { id: focal.id, x: focal.x, y: focal.y, z: focal.z, slopeDegrees: focal.slopeDegrees, dryBiomeAffinity: focal.dryBiomeAffinity ?? 0, dryBiomeZoneId: focal.dryBiomeZoneId ?? null },
+        focal: {
+          id: focal.id, x: focal.x, y: focal.y, z: focal.z,
+          slopeDegrees: focal.slopeDegrees,
+          scale: { ...focal.scale },
+          dryBiomeAffinity: focal.dryBiomeAffinity ?? 0,
+          dryBiomeZoneId: focal.dryBiomeZoneId ?? null,
+        },
+        framing,
         primitives,
         calls: renderer.info.render.calls,
         triangles: renderer.info.render.triangles,
