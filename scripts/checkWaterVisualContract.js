@@ -29,6 +29,7 @@ async function main() {
 			const THREE = await import('three');
 			const {
 				createWater,
+				setWaterDepthField,
 				updateWater,
 				disposeWater,
 				WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
@@ -54,6 +55,8 @@ async function main() {
 			fail(far.material.depthWrite === false, 'far water must not occlude displaced near-water troughs');
 			fail(far.renderOrder === -1, 'far water must render before the near layer');
 			fail(far.material.uniforms.uFarLayerMask.value === 1, 'far water no longer masks itself under the near square');
+			fail(far.userData.geometricSwellDisabled === true,
+				'far water lost its two-triangle geometric-swell safety marker');
 
 			const backdrop = water.userData.deepOceanBackdrop;
 			fail(backdrop?.isMesh === true, 'deep-ocean backdrop mesh is missing');
@@ -76,6 +79,14 @@ async function main() {
 				'uNightFactor', 'uCameraPosition', 'uDepthMap', 'uDepthFieldExtentMeters', 'uSwellStrength', 'uFarLayerMask',
 			]) fail(Boolean(uniforms?.[name]), `water uniform ${name} is missing`);
 			fail(Boolean(uniforms?.fogColor && uniforms?.fogNear && uniforms?.fogFar && uniforms?.fogDensity), 'water fog uniforms are missing');
+			setWaterDepthField(water, {
+				texture: uniforms.uDepthMap.value,
+				offshoreTexture: uniforms.uOffshoreMap.value,
+				extentMeters: 13000,
+			}, 0.73);
+			fail(close(uniforms.uSwellStrength.value, 0.73), 'near water lost physical depth-tapered swell');
+			fail(close(far.material.uniforms.uSwellStrength.value, 0),
+				'far two-triangle plane must not receive geometric swell');
 			// Legacy literals were 0x6aa39c and 0x092941. The shared production palette is now the
 			// single source, so this contract follows deliberate palette revisions without masking drift.
 			fail(uniforms.uShallowColor.value.getHex() === GEOGRAPHIC_REFERENCE_PALETTE.water.shoreClear, 'reference clear-shore hue drifted');
@@ -89,8 +100,8 @@ async function main() {
 			fail(optical.nightAbsorptionFromCelestialState === true, 'water night-response metadata disappeared');
 			fail(optical.depthFieldBoundaryOpticalFeather === true && optical.coverageChannelUnchangedAtBoundary === true,
 				'depth-field edge feather must remain render-only and preserve canonical wet coverage');
-			fail(optical.nearFarLayerOverlapMeters === 40 && optical.seamlessNearFarComposition === true,
-				'near/far water overlap contract disappeared');
+			fail(optical.farLayerGeometricSwellDisabled === true && optical.farLayerTriangleSeamPrevented === true,
+				'far-layer triangle seam prevention contract disappeared');
 
 			const vertexShader = water.material.vertexShader;
 			const fragmentShader = water.material.fragmentShader;
@@ -103,8 +114,10 @@ async function main() {
 			}
 			fail(fragmentShader.includes('depthFieldBoundaryBlend') && fragmentShader.includes('mix(1.0, field.r, boundaryBlend)'),
 				'depth/offshore texture boundary feather disappeared');
-			fail(fragmentShader.includes('nearLayerDistance < 1959.5') && fragmentShader.includes('farLayerEdgeBlend')
-				&& fragmentShader.includes('compositedAlpha'), 'near/far overlap composition disappeared');
+			fail(fragmentShader.includes('nearLayerDistance < 1999.5') && fragmentShader.includes('discard'),
+				'near/far double-alpha mask disappeared');
+			fail(!fragmentShader.includes('farLayerEdgeBlend') && !fragmentShader.includes('compositedAlpha'),
+				'transparent near/far overlap regression returned');
 			fail(fragmentShader.includes('#include <fog_pars_fragment>') && fragmentShader.includes('#include <fog_fragment>'), 'water fog chunks drifted');
 
 			// Custom-shader key follows the same published celestial state as lighting.js. First prove a
