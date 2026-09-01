@@ -26,6 +26,10 @@ import { generateRiverPath, createRiverMesh, detectWaterfalls, createWaterfallMe
 import { createHeightSampler, mulberry32 } from './world/terrain.js';
 import { createSettlements, computeSettlementFlattenPads } from './world/settlements.js';
 import { buildRoadNetwork } from './world/roads.js';
+import {
+	installCanonicalRoadBridgeRuntime,
+	createCanonicalRoadBridgeGroundHeightResolver,
+} from './world/canonicalRoadBridgeRuntime.js';
 import { createNaturalGeology, upgradeNaturalGeologyAssets } from './world/naturalGeology.js';
 import {
 	createValyriaBarrenEcologyPlacementProbe,
@@ -215,12 +219,20 @@ export function createScene(canvas) {
 		seats: settlementsResult.seats,
 		sampleHeightMeters: groundCollider.getGroundHeight,
 	});
+	installCanonicalRoadBridgeRuntime(roadsResult, { sampleHeightMeters: groundCollider.getGroundHeight });
 	scene.add(roadsResult.group);
 	console.info(
 		`[sceneManager] Built road network: ${roadsResult.edges.length} segment(s) connecting ` +
 			`${settlementsResult.seats.length} kingdom seats, ${(roadsResult.totalLengthMeters / 1000).toFixed(2)} km total, ` +
 			`steepest actual segment grade ${roadsResult.maxGradeDegrees.toFixed(1)}°.`,
 	);
+	if (roadsResult.bridgeRuntime?.status === 'active-render-topology') {
+		console.info(
+			`[sceneManager] Canonical bridges: ${roadsResult.bridgeRuntime.bridgeCount} stone arch bridge(s) across ` +
+			`${roadsResult.bridgeRuntime.affectedEdgeCount} road edge(s), ${roadsResult.bridgeRuntime.approachCount} bounded approach(es), ` +
+			`water suppression ${roadsResult.bridgeRuntime.waterSuppression.covered}/${roadsResult.bridgeRuntime.waterSuppression.total}.`,
+		);
+	}
 
 	// Asset-informed geology is deliberately created after roads/settlements so placement can reserve
 	// their corridors, but before vegetation so the geological read remains visually primary. The
@@ -300,6 +312,17 @@ export function createScene(canvas) {
 			`across ${villagesResult.villageCount} village(s).`,
 	);
 
+	// Install the bridge-aware player ground surface only after all geography/biome placement has
+	// consumed the canonical terrain sampler. Bridge decks/approaches are traversal surfaces, not new
+	// terrain, so they must never become geology, tree, grass or village placement height authority.
+	if (roadsResult.bridgeGroundSurfaces?.length) {
+		const sampleCanonicalTerrainHeight = groundCollider.getGroundHeight.bind(groundCollider);
+		groundCollider.getGroundHeight = createCanonicalRoadBridgeGroundHeightResolver(
+			roadsResult.bridgeGroundSurfaces,
+			sampleCanonicalTerrainHeight,
+		);
+	}
+
 	const villageCollider = createCircleCollider(villagesResult.houses);
 	const iceLandmarkCollider = createCircleCollider(iceLandmarksResult.blockers);
 	const playerCollider = createComposedCollider([settlementCollider, villageCollider, iceLandmarkCollider]);
@@ -317,6 +340,7 @@ export function createScene(canvas) {
 		settlements: settlementsResult.group,
 		roads: roadsResult.group,
 		roadEdges: roadsResult.edges,
+		bridgeRuntime: roadsResult.bridgeRuntime ?? null,
 		naturalGeology: naturalGeologyResult.group,
 		naturalGeologyStats: naturalGeologyResult.stats,
 		valyriaEcologyPlacement,
