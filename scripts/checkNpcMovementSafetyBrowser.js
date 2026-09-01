@@ -88,6 +88,8 @@ async function main() {
       const afterInvalidDelta = resumeNpc.object3D.position.clone();
       resumeNpc.update(Infinity, { x: 100, z: 100 });
       const afterInfiniteDelta = resumeNpc.object3D.position.clone();
+      resumeNpc.update(-0.25, { x: 100, z: 100 });
+      const afterNegativeDelta = resumeNpc.object3D.position.clone();
       const skippedAfterInvalidDelta = resumeNpc.object3D.userData.simulationSkippedTicks;
       resumeNpc.dispose();
 
@@ -175,6 +177,7 @@ async function main() {
         resumeDeltaBounded: boundedResumePosition.z > 0 && boundedResumePosition.z <= 0.500001,
         invalidDeltaIgnored: afterInvalidDelta.distanceTo(beforeInvalidDelta) < 1e-9 && skippedAfterInvalidDelta >= 1,
         infiniteDeltaIgnored: afterInfiniteDelta.distanceTo(afterInvalidDelta) < 1e-9 && skippedAfterInvalidDelta >= 2,
+        negativeDeltaIgnored: afterNegativeDelta.distanceTo(afterInfiniteDelta) < 1e-9 && skippedAfterInvalidDelta >= 3,
         malformedPatrolFailsClosed: malformedPatrolPosition.distanceTo(new THREE.Vector3(0, 0, 0)) < 1e-9 && [malformedPatrolPosition.x, malformedPatrolPosition.y, malformedPatrolPosition.z].every(Number.isFinite),
         malformedPatrolYawFinite: Number.isFinite(malformedPatrolYaw),
         malformedPatrolSkipsGroundSampling: malformedPatrolGroundSamples === 0,
