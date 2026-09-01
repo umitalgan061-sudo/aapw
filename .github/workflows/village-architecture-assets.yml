@@ -7,6 +7,7 @@ on:
       - 'scripts/checkVillageArchitectureAssets.js'
       - 'scripts/village-architecture-harness.html'
       - 'service-worker.js'
+      - '.github/workflows/run283-final-head-governance.yml'
       - '.github/workflows/village-architecture-assets.yml'
 
 permissions:
@@ -34,7 +35,7 @@ jobs:
           while IFS= read -r path; do
             [ -z "$path" ] && continue
             case "$path" in
-              src/3d/world/villages.js|scripts/checkVillageArchitectureAssets.js|scripts/village-architecture-harness.html|service-worker.js|.github/workflows/village-architecture-assets.yml) ;;
+              src/3d/world/villages.js|scripts/checkVillageArchitectureAssets.js|scripts/village-architecture-harness.html|service-worker.js|.github/workflows/run283-final-head-governance.yml|.github/workflows/village-architecture-assets.yml) ;;
               *) echo "unexpected village architecture scope path: $path"; exit 1 ;;
             esac
           done <<< "$CHANGED"
