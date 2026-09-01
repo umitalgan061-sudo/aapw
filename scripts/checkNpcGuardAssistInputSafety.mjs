@@ -1,6 +1,31 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import { evaluateNpcGuardAssistAlert } from '../src/3d/gameplay/npc.js';
+import fs from 'node:fs';
+
+const source = fs.readFileSync(new URL('../src/3d/gameplay/npc.js', import.meta.url), 'utf8');
+function extractFunction(name) {
+  const start = source.indexOf(`export function ${name}`);
+  assert.ok(start >= 0, `${name} must remain exported from npc.js`);
+  const openParen = source.indexOf('(', start);
+  let parens = 0;
+  let closeParen = -1;
+  for (let i = openParen; i < source.length; i += 1) {
+    if (source[i] === '(') parens += 1;
+    else if (source[i] === ')' && --parens === 0) { closeParen = i; break; }
+  }
+  const brace = source.indexOf('{', closeParen);
+  let depth = 0;
+  let end = -1;
+  for (let i = brace; i < source.length; i += 1) {
+    if (source[i] === '{') depth += 1;
+    else if (source[i] === '}' && --depth === 0) { end = i + 1; break; }
+  }
+  assert.ok(end > brace, `${name} must have a complete body`);
+  return source.slice(start, end).replace(/^export\s+/, '');
+}
+const evaluateNpcGuardAssistAlert = new Function(
+  `${extractFunction('evaluateNpcGuardAssistAlert')}; return evaluateNpcGuardAssistAlert;`,
+)();
 
 const observer = Object.freeze({ x: 0, z: 0 });
 const baseAlert = Object.freeze({
