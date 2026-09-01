@@ -73,6 +73,7 @@ jobs:
           node --check scripts/checkValyriaCastleWeathering.mjs
           node --check scripts/checkNaturalGeologyPlacement.mjs
           node --check scripts/checkNaturalGeologyAssetGrounding.mjs
+          node --check scripts/checkNaturalGeologyAssetDiversity.mjs
           node --check scripts/checkNaturalGeologyCollision.mjs
           node --check scripts/checkNaturalGeologySourceContract.mjs
           node --check scripts/checkNaturalGeologyWorldNormalContract.mjs
@@ -92,6 +93,8 @@ jobs:
         run: node scripts/checkNaturalGeologyPlacement.mjs
       - name: GLB proxy terrain grounding and transform diversity
         run: node scripts/checkNaturalGeologyAssetGrounding.mjs
+      - name: Hydrated GLB/FBX texture and multi-material fidelity
+        run: node scripts/checkNaturalGeologyAssetDiversity.mjs
       - name: Large outcrop collision circles
         run: node scripts/checkNaturalGeologyCollision.mjs
       - name: Natural geology instance-correct world normals
