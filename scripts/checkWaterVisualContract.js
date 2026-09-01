@@ -89,6 +89,8 @@ async function main() {
 			fail(optical.nightAbsorptionFromCelestialState === true, 'water night-response metadata disappeared');
 			fail(optical.depthFieldBoundaryOpticalFeather === true && optical.coverageChannelUnchangedAtBoundary === true,
 				'depth-field edge feather must remain render-only and preserve canonical wet coverage');
+			fail(optical.nearFarLayerOverlapMeters === 40 && optical.seamlessNearFarComposition === true,
+				'near/far water overlap contract disappeared');
 
 			const vertexShader = water.material.vertexShader;
 			const fragmentShader = water.material.fragmentShader;
@@ -101,7 +103,8 @@ async function main() {
 			}
 			fail(fragmentShader.includes('depthFieldBoundaryBlend') && fragmentShader.includes('mix(1.0, field.r, boundaryBlend)'),
 				'depth/offshore texture boundary feather disappeared');
-			fail(fragmentShader.includes('nearLayerDistance < 1999.5') && fragmentShader.includes('discard'), 'near/far double-alpha mask disappeared');
+			fail(fragmentShader.includes('nearLayerDistance < 1959.5') && fragmentShader.includes('farLayerEdgeBlend')
+				&& fragmentShader.includes('compositedAlpha'), 'near/far overlap composition disappeared');
 			fail(fragmentShader.includes('#include <fog_pars_fragment>') && fragmentShader.includes('#include <fog_fragment>'), 'water fog chunks drifted');
 
 			// Custom-shader key follows the same published celestial state as lighting.js. First prove a
