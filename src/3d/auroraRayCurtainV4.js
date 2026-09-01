@@ -165,6 +165,17 @@ const AURORA_RAY_CURTAIN_V4_FRAGMENT_SHADER = /* glsl */ `
 		float envelope = ray4CurtainEnvelope(az, phase, timeValue);
 		float edgeCore = exp(-abs(aboveEdge) / 0.020) * 0.45;
 		float risingCore = step(0.0, aboveEdge) * exp(-max(aboveEdge, 0.0) / 0.28) * 1.20;
+		float segmentBroad = ray4Fbm(vec2(
+			az * 4.6 + phase * 1.3 - timeValue * 0.006,
+			elevation * 7.8 - timeValue * 0.012 + 23.0
+		));
+		float segmentFine = ray4Noise(vec2(
+			az * 31.0 + segmentBroad * 4.0 - timeValue * 0.018,
+			elevation * 22.0 + phase * 2.7
+		));
+		float segmentField = smoothstep(0.24, 0.78, segmentBroad * 0.72 + segmentFine * 0.28);
+		float segmentEnergy = mix(0.68, 1.28, segmentField);
+		risingCore *= segmentEnergy;
 		float verticalBreakup = 0.62 + 0.38 * ray4Noise(vec2(az * 21.0 + phase, elevation * 12.0 - timeValue * 0.018));
 		return filament * envelope * (edgeCore + risingCore) * verticalBreakup;
 	}
@@ -228,6 +239,6 @@ export function applyAuroraRayCurtainV4(material) {
 	material.userData.naturalAuroraCurtains = true;
 	material.userData.auroraCurtainRaysV4 = true;
 	material.userData.finalAtmosphereProfile = 'camera-relative-horizon-upper-air-v6';
-	material.userData.auroraCurtainMorphology = 'broken-asymmetric-ray-sheets-v11-vertical-phosphor';
+	material.userData.auroraCurtainMorphology = 'broken-asymmetric-ray-sheets-v12-segmented-vertical-phosphor';
 	return material;
 }
