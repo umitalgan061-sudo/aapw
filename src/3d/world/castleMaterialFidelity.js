@@ -142,6 +142,13 @@ export function applyCastleMaterialFidelity(root, {
   let authoredMaterialCount = 0;
   let generatedFallbackCount = 0;
   const preservedMapSlots = new Set();
+  const decoratedMaterials = new Set();
+
+  function decorateOnce(material) {
+    if (typeof decorateMaterial !== 'function' || !material || decoratedMaterials.has(material)) return material;
+    decoratedMaterials.add(material);
+    return decorateMaterial(material) ?? material;
+  }
 
   root.traverse((node) => {
     if (!node?.isMesh) return;
@@ -157,7 +164,7 @@ export function applyCastleMaterialFidelity(root, {
         material = fallback;
         generatedFallbackCount += 1;
       }
-      return typeof decorateMaterial === 'function' ? (decorateMaterial(material) ?? material) : material;
+      return decorateOnce(material);
     });
     node.material = Array.isArray(node.material) ? adopted : adopted[0];
   });
@@ -174,6 +181,7 @@ export function applyCastleMaterialFidelity(root, {
     profileId,
     authoredMaterialCount,
     generatedFallbackCount,
+    decoratedMaterialCount: decoratedMaterials.size,
     preservedMapSlots: Object.freeze([...preservedMapSlots].sort()),
   });
 
@@ -183,6 +191,7 @@ export function applyCastleMaterialFidelity(root, {
     manifest,
     authoredMaterialCount,
     generatedFallbackCount,
+    decoratedMaterialCount: decoratedMaterials.size,
     preservedMapSlots: [...preservedMapSlots].sort(),
   };
 }
