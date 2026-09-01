@@ -92,14 +92,16 @@ jobs:
         run: |
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
-          node scripts/checkMobilePerfBudget.js
+          mkdir -p artifacts/natural-geology-morphology/regression-logs
+          node scripts/checkMobilePerfBudget.js 2>&1 | tee artifacts/natural-geology-morphology/regression-logs/mobile-perf.log
 
       - name: Browser regression smoke
         if: always()
         run: |
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
-          node scripts/smokeTestGame3D.js
+          mkdir -p artifacts/natural-geology-morphology/regression-logs
+          node scripts/smokeTestGame3D.js 2>&1 | tee artifacts/natural-geology-morphology/regression-logs/browser-smoke.log
 
       - name: Final exact-main freshness
         if: always()
