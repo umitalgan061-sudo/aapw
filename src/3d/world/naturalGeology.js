@@ -416,6 +416,7 @@ export function createNaturalRockPrototypeGeometry(kind) {
         { y: -0.43, radiusX: 0.56, radiusZ: 0.49, offsetX: -0.05, offsetZ: 0.03, twist: 0.00, fracture: 0.13 },
         { y: 0.02, radiusX: 0.43, radiusZ: 0.39, offsetX: 0.06, offsetZ: -0.02, twist: 0.08, fracture: 0.15 },
         { y: 0.48, radiusX: 0.16, radiusZ: 0.19, offsetX: 0.18, offsetZ: -0.07, twist: -0.06, fracture: 0.11 },
+        { y: 0.72, radiusX: 0.07, radiusZ: 0.09, offsetX: 0.22, offsetZ: -0.08, twist: 0.03, fracture: 0.08 },
       ],
     });
   }
