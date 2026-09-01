@@ -50,40 +50,45 @@ const THATCH_COLOR = new THREE.Color(0x9c7b42);
  * Canonical, bounded architecture families. These are existing repository assets under Git LFS;
  * they are deliberately residential only, so this visual pass does not invent a second vendor,
  * blacksmith, tavern or stable interaction system beside the established RPG owner.
+ *
+ * `proceduralWallHex` / `proceduralRoofHex` intentionally tint the cheap instanced fabric too. A
+ * single hydrated landmark should not be the only geographic cue in a ten-house hamlet: the North,
+ * coast, arid south, mountains and volcanic east must still read differently before/without GLB
+ * hydration, without multiplying draw calls or replacing the shared procedural PBR maps.
  */
 export const VILLAGE_ARCHITECTURE_PROFILES = Object.freeze({
 	north: Object.freeze({
-		id: 'north', label: 'Kuzey ahşap yerleşimi', paletteId: 'house',
+		id: 'north', label: 'Kuzey ahşap yerleşimi', paletteId: 'house', proceduralWallHex: 0xb8b6ae, proceduralRoofHex: 0x59636d,
 		assetUrl: 'assets/models/settlements/log_cabin_et0OmFeZVkb.glb',
 		layers: Object.freeze([{ to: 0.16, palette: 'stone' }, { to: 0.72, palette: 'wood' }, { to: 1, palette: 'roof-tile' }]),
 	}),
 	fertile: Object.freeze({
-		id: 'fertile', label: 'Verimli ova yerleşimi', paletteId: 'plaster',
+		id: 'fertile', label: 'Verimli ova yerleşimi', paletteId: 'plaster', proceduralWallHex: 0xe2d3af, proceduralRoofHex: 0xa9874d,
 		assetUrl: 'assets/models/settlements/fantasy_house_dcPho4SUA3.glb',
 		layers: Object.freeze([{ to: 0.12, palette: 'stone' }, { to: 0.62, palette: 'plaster' }, { to: 0.7, palette: 'wood' }, { to: 1, palette: 'thatch' }]),
 	}),
 	maritime: Object.freeze({
-		id: 'maritime', label: 'Rüzgârlı kıyı yerleşimi', paletteId: 'house',
+		id: 'maritime', label: 'Rüzgârlı kıyı yerleşimi', paletteId: 'house', proceduralWallHex: 0xaeb8b8, proceduralRoofHex: 0x68757c,
 		assetUrl: 'assets/models/settlements/cabin_shed_HTx7PZt6Zm.glb',
 		layers: Object.freeze([{ to: 0.16, palette: 'rock' }, { to: 0.64, palette: 'house' }, { to: 0.72, palette: 'wood' }, { to: 1, palette: 'roof-tile' }]),
 	}),
 	arid: Object.freeze({
-		id: 'arid', label: 'Kurak güney yerleşimi', paletteId: 'plaster',
+		id: 'arid', label: 'Kurak güney yerleşimi', paletteId: 'plaster', proceduralWallHex: 0xe0c39b, proceduralRoofHex: 0xb67852,
 		assetUrl: 'assets/models/settlements/house_fdaqERLQCc.glb',
 		layers: Object.freeze([{ to: 0.18, palette: 'stone' }, { to: 0.72, palette: 'plaster' }, { to: 0.79, palette: 'wood' }, { to: 1, palette: 'roof-tile' }]),
 	}),
 	mountain: Object.freeze({
-		id: 'mountain', label: 'Dağ eteği yerleşimi', paletteId: 'brick',
+		id: 'mountain', label: 'Dağ eteği yerleşimi', paletteId: 'brick', proceduralWallHex: 0xaaa59d, proceduralRoofHex: 0x515b61,
 		assetUrl: 'assets/models/settlements/medium_house_4hI5fNvl6z.glb',
 		layers: Object.freeze([{ to: 0.2, palette: 'rock' }, { to: 0.74, palette: 'brick' }, { to: 0.82, palette: 'wood' }, { to: 1, palette: 'roof-tile' }]),
 	}),
 	temperate: Object.freeze({
-		id: 'temperate', label: 'Ilıman kır yerleşimi', paletteId: 'house',
+		id: 'temperate', label: 'Ilıman kır yerleşimi', paletteId: 'house', proceduralWallHex: 0xd1c3a7, proceduralRoofHex: 0x846849,
 		assetUrl: 'assets/models/settlements/small_wooden_house.glb',
 		layers: Object.freeze([{ to: 0.12, palette: 'stone' }, { to: 0.62, palette: 'house' }, { to: 0.7, palette: 'wood' }, { to: 1, palette: 'thatch' }]),
 	}),
 	volcanic: Object.freeze({
-		id: 'volcanic', label: 'Volkanik taş yerleşimi', paletteId: 'brick',
+		id: 'volcanic', label: 'Volkanik taş yerleşimi', paletteId: 'brick', proceduralWallHex: 0x7f7770, proceduralRoofHex: 0x3f4146,
 		assetUrl: 'assets/models/settlements/house_roqiHdrpgc.glb',
 		layers: Object.freeze([{ to: 0.2, palette: 'rock' }, { to: 0.72, palette: 'brick' }, { to: 0.8, palette: 'iron' }, { to: 1, palette: 'roof-tile' }]),
 	}),
@@ -271,6 +276,10 @@ export async function upgradeVillageArchitectureAssets({
 		let source = sourceCache.get(profile.assetUrl);
 		if (!source) {
 			source = await assetLoader.loadModel(profile.assetUrl, { fallbackSize: site.targetFootprintMeters });
+			if (villageGroup.userData?.disposed === true) {
+				AssetLoader.disposeObject3D(source);
+				break;
+			}
 			sourceCache.set(profile.assetUrl, source);
 		}
 		if (source?.userData?.isPlaceholder === true) {
@@ -315,8 +324,10 @@ export async function upgradeVillageArchitectureAssets({
 		});
 	}
 
+	const disposed = villageGroup.userData?.disposed === true;
 	const evidence = Object.freeze({
-		ok: missingAssetCount === 0 && placementFailureCount === 0,
+		ok: !disposed && missingAssetCount === 0 && placementFailureCount === 0,
+		disposed,
 		requestedSiteCount: sites.length,
 		upgradedCount,
 		missingAssetCount,
@@ -336,6 +347,7 @@ function scheduleVillageArchitectureUpgrade({ villageGroup, sampleHeightMeters, 
 	const loader = new AssetLoader({ events: silentEvents });
 	const promise = upgradeVillageArchitectureAssets({ assetLoader: loader, villageGroup, sampleHeightMeters, seaLevelMeters, roadEdges })
 		.then((evidence) => {
+			if (evidence.disposed) return evidence;
 			console.info(
 				`[villages] Regional architecture: ${evidence.upgradedCount}/${evidence.requestedSiteCount} real house(s), ` +
 				`missing=${evidence.missingAssetCount}, placement-failed=${evidence.placementFailureCount}.`,
@@ -387,7 +399,8 @@ export function createVillages({
 	}
 
 	const dummy = new THREE.Object3D();
-	const thatch = new THREE.Color();
+	const wallTint = new THREE.Color();
+	const roofTint = new THREE.Color();
 	let houseCount = 0;
 	let stepCount = 0;
 	let wallCount = 0;
@@ -398,6 +411,7 @@ export function createVillages({
 	for (const seat of eligibleSeats) {
 		const placedHere = [];
 		let landmarkRecorded = false;
+		const architectureProfile = resolveVillageArchitectureProfile(seat.id);
 		const hamletBearing = rng() * Math.PI * 2;
 		const hamletDistance = HAMLET_DISTANCE_MIN_METERS + rng() * (HAMLET_DISTANCE_MAX_METERS - HAMLET_DISTANCE_MIN_METERS);
 		const hamletX = seat.x + Math.cos(hamletBearing) * hamletDistance;
@@ -426,14 +440,18 @@ export function createVillages({
 				dummy.scale.set(type.width, bodyHeight, type.depth);
 				dummy.updateMatrix();
 				bodyMesh.setMatrixAt(houseCount, dummy.matrix);
+				wallTint.setHex(architectureProfile?.proceduralWallHex ?? 0xffffff).offsetHSL(0, 0, (rng() - 0.5) * 0.035);
+				bodyMesh.setColorAt(houseCount, wallTint);
 
 				dummy.position.set(x, wallTopY, z);
 				dummy.rotation.set(0, yaw, 0);
 				dummy.scale.set(type.width * 1.04, type.roofHeight, type.depth * 1.04);
 				dummy.updateMatrix();
 				roofMesh.setMatrixAt(houseCount, dummy.matrix);
-				thatch.copy(THATCH_COLOR).offsetHSL(0, 0, (rng() - 0.5) * 0.12);
-				roofMesh.setColorAt(houseCount, thatch);
+				if (Number.isInteger(architectureProfile?.proceduralRoofHex)) roofTint.setHex(architectureProfile.proceduralRoofHex);
+				else roofTint.copy(THATCH_COLOR);
+				roofTint.offsetHSL(0, 0, (rng() - 0.5) * 0.08);
+				roofMesh.setColorAt(houseCount, roofTint);
 
 				const frontX = Math.sin(yaw);
 				const frontZ = Math.cos(yaw);
@@ -451,7 +469,7 @@ export function createVillages({
 
 				placedHere.push({ x, z });
 				houses.push({ x, z, radius: Math.hypot(type.width, type.depth) / 2 });
-				if (!landmarkRecorded && resolveVillageArchitectureProfile(seat.id)) {
+				if (!landmarkRecorded && architectureProfile) {
 					landmarkSites.push({
 						seatId: seat.id, x, z, yaw, houseIndex, stepStartIndex,
 						stepCount: STOOP_STEP_COUNT,
@@ -495,6 +513,7 @@ export function createVillages({
 	stepMesh.count = stepCount;
 	wallMesh.count = wallCount;
 	for (const mesh of [bodyMesh, roofMesh, stepMesh, wallMesh]) mesh.instanceMatrix.needsUpdate = true;
+	if (bodyMesh.instanceColor) bodyMesh.instanceColor.needsUpdate = true;
 	if (roofMesh.instanceColor) roofMesh.instanceColor.needsUpdate = true;
 	group.add(bodyMesh, roofMesh, stepMesh, wallMesh);
 	group.userData.villageLandmarkSites = landmarkSites.map((site) => ({ ...site }));
@@ -523,7 +542,6 @@ export function disposeVillages(group) {
 					disposedTextures.add(texture);
 					texture.dispose();
 				}
-			}
 			material.dispose();
 		}
 	});
