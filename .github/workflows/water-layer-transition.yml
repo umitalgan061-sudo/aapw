@@ -7,13 +7,17 @@ on:
     paths:
       - 'src/3d/world/water.js'
       - 'src/3d/world/waterDepthField.js'
+      - 'src/3d/auroraNightAtmosphereV5.js'
       - 'scripts/checkWaterLayerTransition.mjs'
+      - 'scripts/checkMarineSkyFloorContract.mjs'
       - '.github/workflows/water-layer-transition.yml'
   pull_request:
     paths:
       - 'src/3d/world/water.js'
       - 'src/3d/world/waterDepthField.js'
+      - 'src/3d/auroraNightAtmosphereV5.js'
       - 'scripts/checkWaterLayerTransition.mjs'
+      - 'scripts/checkMarineSkyFloorContract.mjs'
       - '.github/workflows/water-layer-transition.yml'
   workflow_dispatch:
 
@@ -44,8 +48,11 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
           node --check src/3d/world/water.js
           node --check src/3d/world/waterDepthField.js
+          node --check src/3d/auroraNightAtmosphereV5.js
           node --check scripts/checkWaterLayerTransition.mjs
+          node --check scripts/checkMarineSkyFloorContract.mjs
           node scripts/checkWaterLayerTransition.mjs
+          node scripts/checkMarineSkyFloorContract.mjs
       - name: Guard canonical water authority
         run: |
           set -euo pipefail
@@ -53,6 +60,8 @@ jobs:
           grep -q "canonicalCoverageUnchanged: true" src/3d/world/water.js
           grep -q "canonicalDepthTextureUnchanged: true" src/3d/world/water.js
           grep -q "canonicalShorelineUnchanged: true" src/3d/world/water.js
+          grep -q "explicitBelowHorizonBlend: true" src/3d/auroraNightAtmosphereV5.js
+          grep -q "sharedDeepSeaPalette: true" src/3d/auroraNightAtmosphereV5.js
           if grep -q "nearLayerDistance < 1999.5" src/3d/world/water.js; then
             echo "legacy rectangular water cutoff returned" >&2
             exit 1
