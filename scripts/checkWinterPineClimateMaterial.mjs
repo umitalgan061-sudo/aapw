@@ -7,6 +7,7 @@ import {
   WINTER_VEGETATION_ASSET_POLICY,
   applyWinterPineMaterialTreatment,
   buildWinterPineClimateInstanceValues,
+  upgradeWinterVegetationAssets,
   winterPineClimateSnowFactorAtWorldXZ,
 } from '../src/3d/world/winterVegetationAsset.js';
 
@@ -49,9 +50,13 @@ const sourceGeometry = new THREE.BoxGeometry(1, 1, 1);
 const sourceMaterial = new THREE.MeshBasicMaterial();
 const source = new THREE.InstancedMesh(sourceGeometry, sourceMaterial, 3);
 source.name = WINTER_VEGETATION_ASSET_POLICY.proceduralTrunkName;
+const sourceFoliageGeometry = new THREE.ConeGeometry(1, 2, 6);
+const sourceFoliageMaterial = new THREE.MeshBasicMaterial();
+const sourceFoliage = new THREE.InstancedMesh(sourceFoliageGeometry, sourceFoliageMaterial, 3);
+sourceFoliage.name = WINTER_VEGETATION_ASSET_POLICY.proceduralFoliageName;
 const parent = new THREE.Group();
 parent.position.set(73, 0, -41);
-parent.add(source);
+parent.add(source, sourceFoliage);
 
 const targets = [deepWinterWorld, transition.point, temperateWorld];
 const matrix = new THREE.Matrix4();
@@ -62,8 +67,10 @@ for (let index = 0; index < targets.length; index += 1) {
     targets[index].z - parent.position.z,
   );
   source.setMatrixAt(index, matrix);
+  sourceFoliage.setMatrixAt(index, matrix);
 }
 source.instanceMatrix.needsUpdate = true;
+sourceFoliage.instanceMatrix.needsUpdate = true;
 parent.updateMatrixWorld(true);
 
 const instanceClimate = buildWinterPineClimateInstanceValues(source);
@@ -107,10 +114,52 @@ for (const needle of [
 }
 assert(foliage.customProgramCacheKey().includes('snow-foliage-v2'), 'shader cache key must advance for climate-aware material');
 
+const hydratedTexture = new THREE.Texture();
+const hydratedMaterial = new THREE.MeshStandardMaterial({
+  map: hydratedTexture,
+  transparent: true,
+  roughness: 0.55,
+});
+const hydratedGeometry = new THREE.BoxGeometry(1, 3, 1);
+const hydratedMesh = new THREE.Mesh(hydratedGeometry, hydratedMaterial);
+const hydratedModel = new THREE.Group();
+hydratedModel.add(hydratedMesh);
+const upgrade = await upgradeWinterVegetationAssets(parent, {
+  assetLoader: { async loadModel() { return hydratedModel; } },
+  assetProbe: null,
+  candidates: [WINTER_VEGETATION_ASSET_POLICY.preferredSnowPineAsset],
+});
+assert.equal(upgrade.status, 'active', 'verified preferred pine must activate the real-asset path');
+assert.equal(source.visible, false, 'procedural trunk must hide only after hydrated replacement succeeds');
+assert.equal(sourceFoliage.visible, false, 'procedural foliage must hide only after hydrated replacement succeeds');
+const replacement = parent.children.find((child) => child.name === 'vegetation-snow-asset-0');
+assert(replacement?.isInstancedMesh, 'real asset upgrade must create the shipped instanced replacement mesh');
+const climateAttribute = replacement.geometry.getAttribute('winterPineClimate');
+assert(climateAttribute?.isInstancedBufferAttribute, 'hydrated replacement geometry must carry an instanced climate attribute');
+assert.equal(climateAttribute.count, targets.length, 'climate attribute count must match preserved tree instances');
+for (let index = 0; index < targets.length; index += 1) {
+  assert(Math.abs(climateAttribute.getX(index) - instanceClimate[index]) < 1e-6,
+    `hydrated replacement climate mismatch at instance ${index}`);
+}
+assert.equal(
+  replacement.userData.winterVegetationAsset.climateMaterialAuthority,
+  WINTER_VEGETATION_ASSET_POLICY.pineFoliageClimateAuthority,
+  'replacement telemetry must identify the canonical climate material authority',
+);
+assert.equal(
+  parent.userData.northClimateVegetation.winterAssetTreatment,
+  'textured-pine-climate-snow-foliage',
+  'runtime representation must report climate-aware real-asset treatment',
+);
+
 sourceGeometry.dispose();
 sourceMaterial.dispose();
+sourceFoliageGeometry.dispose();
+sourceFoliageMaterial.dispose();
 sourceMap.dispose();
 foliage.dispose();
+replacement.material.dispose();
+replacement.geometry.dispose();
 
 console.log('[checkWinterPineClimateMaterial] PASS', JSON.stringify({
   policyId: WINTER_VEGETATION_ASSET_POLICY.id,
@@ -119,4 +168,5 @@ console.log('[checkWinterPineClimateMaterial] PASS', JSON.stringify({
   transitionNormalizedY: Number(transition.normalizedY.toFixed(4)),
   temperateSnowFactor: Number(temperate.snowFactor.toFixed(4)),
   instanceValues: Array.from(instanceClimate, (value) => Number(value.toFixed(4))),
+  runtimeClimateAttributeCount: climateAttribute.count,
 }));
