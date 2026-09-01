@@ -19,8 +19,9 @@ need(!/smoothstep\(\s*0\.22\s*,\s*0\.0\s*,\s*(?:vDepthFactor|fragmentDepth)\s*\)
 requirePattern(/float\s+shallowMask\s*=\s*1\.0\s*-\s*smoothstep\(\s*0\.0\s*,\s*0\.22\s*,\s*fragmentDepth\s*\)\s*;/, 'defined inverse shallow-depth mask missing or surf envelope drifted');
 requirePattern(/shallowMask\s*\*=\s*shorelineGradientMask\(\s*vWorldPosition\.xz\s*\)\s*\*\s*waterCoverage\s*;/, 'surf must require a real bathymetry shoreline gradient and canonical water coverage');
 requirePattern(/float\s+foam\s*=\s*clamp\(\s*shallowMask\s*\*\s*surge\s*,\s*0\.0\s*,\s*1\.0\s*\)\s*;/, 'foam must remain shoreline/depth gated');
-requirePattern(/1\.0\s*-\s*smoothstep\(\s*90\.0\s*,\s*360\.0\s*,\s*distance\(\s*uCameraPosition\s*,\s*vWorldPosition\s*\)\s*\)/, 'fine ripple near-field anti-moire fade drifted');
-requirePattern(/float\s+swellShadingFade\s*=\s*1\.0\s*-\s*smoothstep\(\s*700\.0\s*,\s*1800\.0\s*,\s*distance\(\s*uCameraPosition\s*,\s*vWorldPosition\s*\)\s*\)\s*;/, 'long-swell normal must fade before far/orthographic views can resolve stripe bands');
+requirePattern(/float\s+cameraDistance\s*=\s*distance\(\s*uCameraPosition\s*,\s*vWorldPosition\s*\)\s*;/, 'shared camera-distance basis for water anti-moire fades drifted');
+requirePattern(/float\s+rippleFade\s*=\s*1\.0\s*-\s*smoothstep\(\s*90\.0\s*,\s*360\.0\s*,\s*cameraDistance\s*\)\s*;/, 'fine ripple near-field anti-moire fade drifted');
+requirePattern(/float\s+swellShadingFade\s*=\s*1\.0\s*-\s*smoothstep\(\s*700\.0\s*,\s*1800\.0\s*,\s*cameraDistance\s*\)\s*;/, 'long-swell normal must fade before far/orthographic views can resolve stripe bands');
 requirePattern(/vSwellSlope\s*\*\s*swellShadingFade\s*\+\s*rippleSlope\(\s*vWorldPosition\.xz\s*,\s*uTime\s*\)\s*\*\s*rippleFade/, 'water normal must apply the independent swell and ripple distance fades');
 requirePattern(/smoothstep\(\$\{WATER_LAYER_TRANSITION_POLICY\.featherStartMeters\.toFixed\(1\)\},\s*\$\{WATER_LAYER_TRANSITION_POLICY\.featherEndMeters\.toFixed\(1\)\},\s*localEdgeDistance\)/, 'near swell must derive its fade from WATER_LAYER_TRANSITION_POLICY before the dense mesh edge');
 requirePattern(/new\s+THREE\.PlaneGeometry\(\s*WATER_FULL_WORLD_EXTENT_METERS\s*,\s*WATER_FULL_WORLD_EXTENT_METERS\s*,\s*1\s*,\s*1\s*\)/, 'two-triangle full-world far-water coverage missing');
