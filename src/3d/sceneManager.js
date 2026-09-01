@@ -245,6 +245,9 @@ export function createScene(canvas) {
 	void upgradeNaturalGeologyAssets(naturalGeologyResult.group, {
 		signal: naturalGeologyAbortController.signal,
 		isMobileClass,
+		// Real repository GLB/FBX textures keep their authored UV/transform data; the renderer's actual
+		// capability only raises oblique-view sampling quality, bounded by the geology policy.
+		maxAnisotropy: renderer.capabilities.getMaxAnisotropy(),
 	}).then((upgrade) => {
 		if (upgrade.status === 'active') {
 			console.info(`[sceneManager] Hydrated ${upgrade.hydratedPlacementCount} natural geology placement(s) from repository GLB assets.`);
