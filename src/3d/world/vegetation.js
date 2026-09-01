@@ -51,11 +51,16 @@ export const VEGETATION_NORTH_CLIMATE_POLICY = Object.freeze({
 });
 
 export const VEGETATION_SPATIAL_PATTERN_POLICY = Object.freeze({
-	id: 'vegetation-ecological-grove-scatter-2026-09-01-v3-terrain-habitat',
+	id: 'vegetation-ecological-grove-scatter-2026-09-01-v4-habitat-species',
 	climateAuthority: VEGETATION_NORTH_CLIMATE_POLICY.climateAuthority,
 	temperateHabitatAuthority: 'terrainBiomeShading.resolveTerrainForestSuitability',
+	temperateSpeciesCompositionAuthority: 'terrainBiomeShading.resolveTerrainForestSuitability',
 	temperateHabitatAcceptanceFloor: 0.12,
 	temperateHabitatAcceptanceGain: 0.88,
+	// Keep the historical 40% broadleaf share only in the strongest visible forest habitat. Sparse
+	// meadow/heath and treeline survivors become pine-dominant instead of looking botanically uniform.
+	temperateBroadleafSparseHabitatChance: 0.08,
+	temperateBroadleafStrongHabitatChance: 0.40,
 	coldClimateHabitatPreserved: true,
 	groveTreeCountMin: 9,
 	groveTreeCountMax: 17,
@@ -192,7 +197,7 @@ export function distancePointToSegment2D(px, pz, ax, az, bx, bz) {
 	const abz = bz - az;
 	const lengthSquared = abx * abx + abz * abz;
 	if (lengthSquared === 0) return Math.hypot(px - ax, pz - az);
-	let t = ((px - ax) * abx + (pz - az) * abz) / lengthSquared;
+	let t = ((px - ax) * abx + (pz - az)) / lengthSquared;
 	t = Math.max(0, Math.min(1, t));
 	return Math.hypot(px - (ax + abx * t), pz - (az + abz * t));
 }
@@ -234,7 +239,22 @@ export function pickSpeciesIndex(roll) {
 	return TEMPERATE_SPECIES_COUNT - 1;
 }
 
-function pickSpeciesIndexForClimate(roll, climate) {
+/**
+ * Keeps the historical 60/40 picker as the strongest-habitat endpoint, but makes accepted sparse
+ * temperate/treeline survivors conifer-dominant. This consumes the same terrain forest answer that
+ * already decides candidate acceptance, so visible ground and tree composition share one ecology.
+ */
+export function pickTemperateSpeciesIndexForHabitat(roll, habitat = {}) {
+	const suitability = Number.isFinite(habitat?.suitability)
+		? Math.max(0, Math.min(1, habitat.suitability))
+		: 1;
+	const policy = VEGETATION_SPATIAL_PATTERN_POLICY;
+	const broadleafChance = policy.temperateBroadleafSparseHabitatChance
+		+ (policy.temperateBroadleafStrongHabitatChance - policy.temperateBroadleafSparseHabitatChance) * suitability;
+	return roll < 1 - broadleafChance ? 0 : 1;
+}
+
+function pickSpeciesIndexForClimate(roll, climate, temperateHabitat = null) {
 	const policy = VEGETATION_NORTH_CLIMATE_POLICY;
 	if (climate.permanentIce >= policy.permanentIceSnowOnlyThreshold) return SNOW_PINE_SPECIES_INDEX;
 	if (Math.max(climate.permanentIce, climate.tundra) >= policy.tundraClimateThreshold) {
@@ -244,7 +264,7 @@ function pickSpeciesIndexForClimate(roll, climate) {
 			+ climate.permanentIce * policy.iceSnowGain);
 		return roll < snowChance ? SNOW_PINE_SPECIES_INDEX : 0;
 	}
-	return pickSpeciesIndex(roll);
+	return temperateHabitat ? pickTemperateSpeciesIndexForHabitat(roll, temperateHabitat) : pickSpeciesIndex(roll);
 }
 
 export function pickSpeciesIndexForWorldZ(roll, worldZ) {
@@ -622,8 +642,9 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 			const site = {};
 			if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges, outSite: site })) continue;
 			const climate = northReferenceCryosphereAtWorldXZ(x, z);
+			let habitat = null;
 			if (Math.max(climate.permanentIce, climate.tundra) < VEGETATION_NORTH_CLIMATE_POLICY.tundraClimateThreshold) {
-				const habitat = resolveTerrainForestSuitability({
+				habitat = resolveTerrainForestSuitability({
 					heightAboveSeaMeters: site.heightAboveSeaMeters,
 					slopeDegrees: site.slopeDegrees,
 					worldX: x,
@@ -640,11 +661,11 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 				groveHasCenter = true;
 				groveCenterX = x;
 				groveCenterZ = z;
-				const pattern = vegetationGrovePatternForClimate(northReferenceCryosphereAtWorldXZ(x, z));
+				const pattern = vegetationGrovePatternForClimate(climate);
 				groveRadiusMeters = pattern.groveRadiusMeters;
 				groveBackgroundChance = pattern.backgroundChance;
 			}
-			const entry = perSpecies[pickSpeciesIndexForWorldXZ(rng(), x, z)];
+			const entry = perSpecies[pickSpeciesIndexForClimate(rng(), climate, habitat)];
 			placeTreeInstance(entry, x, z, sampleHeightMeters, rng, up, matrix, position, quaternion, scaleVector);
 			placedCount++;
 			break;
@@ -658,8 +679,18 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 				const grove = pickSettlementWoodlandGrove(layout, clusterRng);
 				const { x, z } = sampleAnnulusPoint(clusterRng, grove.x, grove.z, 0, grove.radius);
 				if (Math.hypot(x, z) > radiusMeters) continue;
-				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
-				const entry = perSpecies[pickSpeciesIndexForWorldXZ(clusterRng(), x, z)];
+				const site = {};
+				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges, outSite: site })) continue;
+				const climate = northReferenceCryosphereAtWorldXZ(x, z);
+				const habitat = Math.max(climate.permanentIce, climate.tundra) < VEGETATION_NORTH_CLIMATE_POLICY.tundraClimateThreshold
+					? resolveTerrainForestSuitability({
+						heightAboveSeaMeters: site.heightAboveSeaMeters,
+						slopeDegrees: site.slopeDegrees,
+						worldX: x,
+						worldZ: z,
+					})
+					: null;
+				const entry = perSpecies[pickSpeciesIndexForClimate(clusterRng(), climate, habitat)];
 				placeTreeInstance(entry, x, z, sampleHeightMeters, clusterRng, up, matrix, position, quaternion, scaleVector);
 				placedCount++;
 				break;
@@ -690,7 +721,10 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 		climateAuthority: spatialPolicy.climateAuthority,
 		baseDensityPerKm2: densityPerKm2,
 		temperateHabitatAuthority: spatialPolicy.temperateHabitatAuthority,
+		temperateSpeciesCompositionAuthority: spatialPolicy.temperateSpeciesCompositionAuthority,
 		temperateHabitatAcceptanceFloor: spatialPolicy.temperateHabitatAcceptanceFloor,
+		temperateBroadleafSparseHabitatChance: spatialPolicy.temperateBroadleafSparseHabitatChance,
+		temperateBroadleafStrongHabitatChance: spatialPolicy.temperateBroadleafStrongHabitatChance,
 		baseHabitatRejected,
 		coldClimateHabitatPreserved: spatialPolicy.coldClimateHabitatPreserved,
 		groveTreeCountMin: spatialPolicy.groveTreeCountMin,
