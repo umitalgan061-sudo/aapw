@@ -1,9 +1,126 @@
-import * as THREE from 'three';
-import { createCreatureRig, CREATURE_BODY_PLANS, applyCreatureGait, resetCreatureGaitPose } from './creatureRig.js';
+/**
+ * `gameplay/creatureBrain.js` — the behaviour-primitive state machine `gameplay/creatureSpeciesConfig.js`
+ * has named since run 72 and run 326/327 (ADR-0272/ADR-0273) left as the declared "next safe step":
+ * the piece that finally spawns a `creatureRig.js` body into the live scene and calls
+ * `applyCreatureGait` from a real per-frame tick, instead of the rig sitting inert.
+ *
+ * **Scope for this pass.** `creatureSpeciesConfig.js` names nine behaviour primitives (`patrol`,
+ * `flee-on-approach`, `approach-friendly`, `pounce`, `herd-bound`, `flock`, `combat-stance`, `charge`,
+ * `regal-idle`). This module ships the two that cover every quadruped land animal without a pending
+ * owner decision blocking them: a seeded **wander** (idle roam near the spawn point — the same "reuse
+ * `patrol`'s straight-line-between-points idea, generalized to a self-chosen point instead of an
+ * authored waypoint list" scope) and **reactive movement**, either away from the player (`flee-on-
+ * approach`/`herd-bound`, most species) or toward the player (`approach-friendly`, `kopek` only) —
+ * mirroring `gameplay/animals.js`'s wolf flee/pack-alert almost exactly (same shape, generalized from
+ * one hard-coded species to a data table). `pounce` and `charge` are *not* implemented as their own
+ * distinct lunge motion in this pass — both would need a real target/contact concept this project
+ * doesn't have yet (`QUESTIONS_FOR_OWNER.md`'s still-open health/damage question is exactly why `charge`
+ * stays a flee-shaped gesture for now), so `kedi`/`domuz` use the same reactive-flee branch as every
+ * other skittish species — a smaller, honest first step, same "ship the smallest thing that earns the
+ * behaviour name" discipline `animals.js`'s own header documents for its own flee/pack-alert.
+ * `regal-idle`/`combat-stance` (already covered — `kral` has no model yet, `asker` already has real
+ * combat-stance NPCs per `creatureSpeciesConfig.js`'s own `asker` entry) stay out of scope here for the
+ * same "every species gets its own future sub-task" reason `creatureSpeciesConfig.js`'s header states.
+ *
+ * **Birds fly now (this pass's own addition).** `kuzgun`/`kartal`/`tavuk` previously had no
+ * `CREATURE_BEHAVIOR_PROFILES` entry at all — this file's own header used to say flight/perch
+ * locomotion "deserves its own pass rather than a bolted-on branch here". This pass is that pass, kept
+ * deliberately small: every bird still uses the exact same ground-hop `stepGroundWander` wander a
+ * quadruped's own wander branch uses (`restGait: 'hop'`, from `creatureBodyPlans.js`'s `BIRD_DEFAULTS`
+ * — unchanged) while undisturbed, and a new **climb -> cruise -> land** state machine (`flightPhase`)
+ * replaces the ground-flee branch once a player enters `reactiveTriggerRadiusMeters`: the being turns
+ * to face directly away from the player, climbs at `takeoffClimbMps` to `flightAltitudeMeters` above
+ * whatever ground is directly beneath it (`plan.alertGait: 'flap'` drives the wing animation the whole
+ * time it is airborne), cruises outward for `flightDurationSeconds`, then descends and resumes ground
+ * hopping at its new landing spot — a self-terminating flight, not an indefinitely circling one, so a
+ * player standing still near a startled bird doesn't watch it loop overhead forever. This same flight
+ * controller now also consumes the established same-species bounded alert primitive for `flock`:
+ * a directly startled bird may wake nearby birds of its own species, while receiver-only reactions do
+ * not relay onward because `livingWorldSpawner.js` only publishes direct-player threat sources.
+ * `playerCollider` is intentionally not consulted while airborne (climbing/cruising/landing) — a bird
+ * flying over a castle wall or a cottage roof is correct, not a bug, unlike a ground quadruped walking
+ * through one.
+ *
+ * **Social herd cohesion.** `creatureSpawner.js` now carries the deterministic cluster anchor that
+ * social species already use at spawn time into each spawn record. Ground herd species reuse that
+ * anchor as their idle wander center rather than treating every member's individual spawn point as a
+ * separate home. Their calm wander radius is capped below half the existing same-species alert radius,
+ * keeping two independently wandering herd members inside the communication envelope in steady state.
+ * Threat reactions remain unconstrained: a frightened animal may still flee well outside the herd;
+ * once calm, the existing wander movement naturally walks it back toward the shared anchor. Flight
+ * species deliberately retain their landing-local wander center because forcing a landed bird to
+ * ground-hop all the way back to its pre-flight flock anchor would look less realistic, not more.
+ *
+ * **Which species.** Every `CREATURE_BEHAVIOR_PROFILES` key below is a `gameplay/creatureBodyPlans.js`
+ * body-plan id, *except* `kurt` (already a real, shipped, asset-driven wolf — `gameplay/animals.js` —
+ * spawning a second, procedural wolf population alongside it would just look like a visual downgrade
+ * duplicate, not new content) and `insan`/`asker` (humans stay `gameplay/npc.js`'s domain; a generic
+ * unnamed, dialogue-less human wandering the map would read as a bug, not a villager).
+ *
+ * **Animation.** Each being keeps its own `gaitClockSeconds`, advanced by `delta` only while actually
+ * moving (wandering or reacting) and held while paused/idle — `applyCreatureGait` ties leg/tail/wing
+ * rotation to one clock, so a frozen clock is what keeps a paused creature's legs from sliding in
+ * place; `resetCreatureGaitPose` is called once on the transition into "paused" so a leg doesn't hang
+ * mid-swing. `restGait`/`alertGait` come straight from the being's own `CREATURE_BODY_PLANS` entry
+ * (wander uses `restGait`, reactive movement uses `alertGait`) — no new gait vocabulary invented here.
+ *
+ * Determinism: each being's wander-target picker is a `mulberry32` stream seeded from its own spawn
+ * position (via a plain FNV-1a string hash — `world/terrain.js`'s `mulberry32` takes a numeric seed,
+ * this is just the string->number step, not a second RNG algorithm), so replaying the same spawn list
+ * reproduces the same sequence of wander targets (GOVERNANCE.md §8.9). Movement itself is still an
+ * ordinary per-frame `delta` integration (same as `animals.js`'s wolf), so it is only as
+ * frame-rate-independent as the rest of this project's movement code already is — not a new limitation.
+ * @module gameplay/creatureBrain
+ */
 
-const DEFAULT_TURN_RATE_RADIANS_PER_SECOND = 4;
-const CREATURE_SOCIAL_WANDER_RADIUS_FACTOR = 0.38;
+import { createCreatureRig } from './creatureRig.js';
+import { applyCreatureGait, resetCreatureGaitPose } from './creatureGait.js';
+import { CREATURE_BODY_PLANS } from './creatureBodyPlans.js';
 
+/**
+ * Per-species movement tuning. Every value here is this pass's own first-pass engineering judgment —
+ * same "temporary default, no real playtest yet" category as every other feel constant this codebase
+ * has logged in `QUESTIONS_FOR_OWNER.md` (ADR-0075/0076/0085/0096/.../0273) — scaled from each body
+ * plan's own real-meter proportions and, where a `creatureSpeciesConfig.js` entry of the same id
+ * exists (`kedi`, `kopek`, `at`, `koyun`), its `speedProfile`/`behaviorTags` directly.
+ *
+ * @typedef {object} CreatureBehaviorProfile
+ * @property {number} wanderRadiusMeters How far a being roams from its own spawn point before turning
+ *   back — small on purpose (this is idle "grazing" liveliness, not a real patrol route).
+ * @property {number} wanderSpeedMps
+ * @property {number} wanderPauseSeconds Idle dwell time at each wander stop.
+ * @property {'away'|'toward'} reactiveDirection `'away'` = flee (`flee-on-approach`/`herd-bound`,
+ *   every species below except `kopek`); `'toward'` = `approach-friendly` (`kopek` only, the mirror
+ *   image `creatureSpeciesConfig.js`'s own `kopek` entry names).
+ * @property {number} reactiveTriggerRadiusMeters Player distance that triggers the reactive branch.
+ * @property {number} reactiveSpeedMps
+ * @property {number} [reactiveStopDistanceMeters] `reactiveDirection: 'toward'` only — how close an
+ *   approaching being gets before it stops, so it never visually pushes into the player.
+ * @property {number|null} packAlertRadiusMeters Same primitive as `animals.js`'s wolf pack-alert: a
+ *   being not yet within its own `reactiveTriggerRadiusMeters` of the player still reacts if a
+ *   same-species herdmate within this radius is already reacting. `null` = solitary, no herd/flock check.
+ * @property {'flight'} [locomotion] Omit (the default) for every quadruped — identical shape/behavior
+ *   as before flight species existed. `'flight'` opts a being into the climb/cruise/land state machine
+ *   in place of the ground reactive-flee branch (see this file's own "Birds fly now" header section);
+ *   only `kuzgun`/`kartal`/`tavuk` set this today. The three properties below are meaningless/unused
+ *   unless this is `'flight'`.
+ * @property {number} [flightAltitudeMeters] Cruise height in meters above the ground directly under
+ *   the being once a climb completes.
+ * @property {number} [takeoffClimbMps] Vertical speed used both climbing away and descending back to
+ *   land — symmetric, a bird lands about as fast as it takes off.
+ * @property {number} [flightDurationSeconds] How long a being stays airborne once startled, measured
+ *   from the moment it leaves the ground, before it lands regardless of the player's position — keeps
+ *   a bird from circling forever if the player just stands nearby.
+ */
+
+/** Shared by every profile unless overridden. */
+const DEFAULT_TURN_RATE_RADIANS_PER_SECOND = 3.2;
+
+// A calm ground herd member may roam at most 42% of the existing pack-alert radius from the shared
+// anchor. Two members at opposite extremes therefore remain at 84% of the communication radius.
+export const CREATURE_SOCIAL_WANDER_RADIUS_FACTOR = 0.42;
+
+/** @type {Record<string, CreatureBehaviorProfile>} */
 export const CREATURE_BEHAVIOR_PROFILES = Object.freeze({
 	kedi: Object.freeze({
 		wanderRadiusMeters: 5, wanderSpeedMps: 0.9, wanderPauseSeconds: 3,
@@ -16,13 +133,13 @@ export const CREATURE_BEHAVIOR_PROFILES = Object.freeze({
 		reactiveStopDistanceMeters: 2.5, packAlertRadiusMeters: null,
 	}),
 	at: Object.freeze({
-		wanderRadiusMeters: 12, wanderSpeedMps: 2, wanderPauseSeconds: 5,
+		wanderRadiusMeters: 12, wanderSpeedMps: 2.0, wanderPauseSeconds: 4,
 		reactiveDirection: 'away', reactiveTriggerRadiusMeters: 12, reactiveSpeedMps: 9,
 		packAlertRadiusMeters: 20,
 	}),
 	fil: Object.freeze({
-		wanderRadiusMeters: 10, wanderSpeedMps: 0.8, wanderPauseSeconds: 6,
-		reactiveDirection: 'away', reactiveTriggerRadiusMeters: 8, reactiveSpeedMps: 1.8,
+		wanderRadiusMeters: 10, wanderSpeedMps: 1.0, wanderPauseSeconds: 5,
+		reactiveDirection: 'away', reactiveTriggerRadiusMeters: 14, reactiveSpeedMps: 4,
 		packAlertRadiusMeters: null,
 	}),
 	geyik: Object.freeze({
@@ -352,8 +469,8 @@ export function createCreatureBeing({
 export function spawnConfiguredCreatures({ spawns, groundCollider, playerCollider, mulberry32 }) {
 	const beings = [];
 	for (const spawn of spawns) {
-		if (!spawn || typeof spawn.id !== 'string' || spawn.id.length === 0 || !CREATURE_BEHAVIOR_PROFILES[spawn.speciesId]) {
-			console.warn(`[gameplay/creatureBrain] configured spawn has invalid identity/species — skipping.`);
+		if (!CREATURE_BEHAVIOR_PROFILES[spawn.speciesId]) {
+			console.warn(`[gameplay/creatureBrain] spawn "${spawn.id}" names species "${spawn.speciesId}" with no behavior profile — skipping.`);
 			continue;
 		}
 		if (!Number.isFinite(spawn.x) || !Number.isFinite(spawn.z)) {
