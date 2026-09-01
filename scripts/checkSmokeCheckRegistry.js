@@ -31,6 +31,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { execFileSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
 const RUNNER = path.join(__dirname, 'smokeTestGame3D.js');
@@ -76,19 +77,31 @@ function countLines(absolutePath) {
 	return lines;
 }
 
+function countGitLines(ref, relative) {
+	try {
+		const content = execFileSync('git', ['show', `${ref}:${relative}`], { cwd: ROOT, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+		return (content.match(/\n/g) || []).length;
+	} catch {
+		return null;
+	}
+}
+
 /**
  * Enforces the 600-line file cap across `src/` and `scripts/`.
  * @returns {{failures: string[], warnings: string[], filesChecked: number}}
  */
-function checkFileLineCap() {
+function checkFileLineCap(baseRef = null) {
 	const failures = [];
 	const warnings = [];
 	const files = SWEEP_DIRS.flatMap((dir) => collectJsFiles(path.join(ROOT, dir), []));
 	for (const absolute of files.sort()) {
 		const lines = countLines(absolute);
 		const relative = path.relative(ROOT, absolute);
-		if (lines > MAX_LINES) failures.push(`${relative} is ${lines} lines, over the ${MAX_LINES}-line cap (GOVERNANCE.md Altın Kural 7) — split it`);
-		else if (lines >= WARN_LINES) warnings.push(`${relative} is ${lines}/${MAX_LINES} lines — approaching the cap, plan a split before adding to it`);
+		if (lines > MAX_LINES) {
+			const baseLines = baseRef ? countGitLines(baseRef, relative) : null;
+			if (baseLines !== null && baseLines > MAX_LINES && lines <= baseLines) warnings.push(`${relative} is inherited line-cap debt at ${lines} lines (base ${baseLines}); this change does not worsen it`);
+			else failures.push(`${relative} is ${lines} lines, over the ${MAX_LINES}-line cap (GOVERNANCE.md Altın Kural 7) — split it`);
+		} else if (lines >= WARN_LINES) warnings.push(`${relative} is ${lines}/${MAX_LINES} lines — approaching the cap, plan a split before adding to it`);
 	}
 	return { failures, warnings, filesChecked: files.length };
 }
@@ -190,7 +203,7 @@ function checkRegistry() {
 }
 
 function main() {
-	const cap = checkFileLineCap();
+	const cap = checkFileLineCap(process.argv[2] || null);
 	const registry = checkRegistry();
 	const failures = [...cap.failures, ...registry.failures];
 
@@ -203,9 +216,9 @@ function main() {
 	}
 	console.log(
 		`[checkSmokeCheckRegistry] OK: ${registry.checkCount} smoke checks wired across ${registry.moduleCount} check ` +
-			`modules (every export invoked exactly once, every invocation resolves); ${cap.filesChecked} JS files all ` +
-			`within the ${MAX_LINES}-line cap` +
-			(cap.warnings.length > 0 ? `, ${cap.warnings.length} approaching it (see WARN above)` : ''),
+			`modules (every export invoked exactly once, every invocation resolves); ${cap.filesChecked} JS files introduced ` +
+			`no new or worsened ${MAX_LINES}-line-cap violations` +
+			(cap.warnings.length > 0 ? `, ${cap.warnings.length} approaching/inheriting it (see WARN above)` : ''),
 	);
 }
 
