@@ -95,13 +95,14 @@ async function main() {
 			scene.add(sky);
 			fail(sky.material.userData.realisticAurora === true, 'Realistic aurora material marker missing.');
 			fail(sky.material.userData.finalAtmosphereProfile === 'camera-relative-horizon-upper-air-v6', 'Final atmosphere profile marker missing.');
-			fail(sky.material.userData.auroraCurtainMorphology === 'broken-asymmetric-ray-sheets-v11-vertical-phosphor', 'Final aurora morphology marker missing.');
+			fail(sky.material.userData.auroraCurtainMorphology === 'broken-asymmetric-ray-sheets-v12-segmented-vertical-phosphor', 'Final aurora morphology marker missing.');
 			fail(sky.material.userData.auroraNightCalibration === 'required-token-deep-blue-v6', 'Final aurora night calibration marker missing.');
 			const shader = sky.material.fragmentShader;
 			for (const token of [
 				'ray4HorizonAirmassVariation', 'ray4UpperAirVariation', 'ray4AtmosphericBase',
 				'uHorizonHazeStrength', 'uUpperAirStrength', 'uUpperAirVariationStrength',
-				'ray4VerticalField', 'ray4ArcEdge', 'ray4CurtainEnvelope', 'ray4RaySheet', 'ray4PhosphorCore', 'cameraPosition',
+				'ray4VerticalField', 'ray4ArcEdge', 'ray4CurtainEnvelope', 'ray4RaySheet', 'ray4PhosphorCore',
+				'segmentBroad', 'segmentFine', 'segmentField', 'segmentEnergy', 'cameraPosition',
 			]) fail(shader.includes(token), `Final sky shader token missing: ${token}`);
 			fail(shader.includes('finalColor += oxygenGreen * haze * 0.084;'), 'Final V5 aurora haze calibration is missing.');
 			fail(shader.includes('finalColor += oxygenGreen * phosphorCore * 1.05;'), 'Final rising phosphor-core output is missing.');
