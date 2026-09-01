@@ -121,7 +121,7 @@ for (const frame of representativeFrames) {
 
 const mobile = generateNaturalGeologyPlacements({ ...options, isMobileClass: true });
 assert(mobile.placements.length <= NATURAL_GEOLOGY_PLACEMENT_POLICY.mobileMaxPlacements, 'mobile geology cap exceeded');
-assert(mobile.placements.length > 20, `mobile morphology became unexpectedly sparse: ${mobile.placements.length}`);
+assert(mobile.placements.length > 20, `mobile morphology became unexpectedly sparse: ${JSON.stringify({ placed: mobile.placements.length, stats: mobile.stats })}`);
 
 console.log('[checkNaturalGeologyMorphology] PASS');
 console.log(JSON.stringify({
@@ -129,6 +129,7 @@ console.log(JSON.stringify({
   checksum: checksumNaturalGeologyPlacements(first.placements),
   placementCount: first.placements.length,
   mobilePlacementCount: mobile.placements.length,
+  mobileStats: mobile.stats,
   roles: first.stats.formationRoles,
   kindCounts: first.stats.kinds,
   ridgePlacements,
