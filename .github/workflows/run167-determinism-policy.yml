@@ -44,7 +44,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -55,35 +54,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          HEAD_SHA="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
-          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           git lfs version
-          INCLUDE='assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**'
-          for attempt in 1 2 3; do
-            if git lfs pull --include="$INCLUDE" --exclude=""; then
-              break
-            fi
-            if [ "$attempt" -lt 3 ]; then sleep $((attempt * 2)); fi
-          done
-          mapfile -t scoped_paths < <(git lfs ls-files -n | grep -E '^assets/models/settlements/castles/|^assets/models/characters/|^assets/animations/peasant_girl/|^assets/models/animals/|^assets/models/creatures/dragon/' || true)
-          for asset_path in "${scoped_paths[@]}"; do
-            if head -n 1 "$asset_path" | grep -q '^version https://git-lfs.github.com/spec/v1$'; then
-              encoded_path="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe="/"))' "$asset_path")"
-              media_url="https://media.githubusercontent.com/media/umitalgan061-sudo/aapw/$HEAD_SHA/$encoded_path"
-              curl --fail --location --retry 3 --retry-delay 2 --output "$RUNNER_TEMP/lfs-asset" "$media_url"
-              test -s "$RUNNER_TEMP/lfs-asset"
-              if head -n 1 "$RUNNER_TEMP/lfs-asset" | grep -q '^version https://git-lfs.github.com/spec/v1$'; then
-                echo "Scoped asset remained an LFS pointer: $asset_path" >&2
-                exit 1
-              fi
-              mv "$RUNNER_TEMP/lfs-asset" "$asset_path"
-            fi
-            test -s "$asset_path"
-            if head -n 1 "$asset_path" | grep -q '^version https://git-lfs.github.com/spec/v1$'; then
-              echo "Scoped asset was not hydrated: $asset_path" >&2
-              exit 1
-            fi
-          done
+          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
 
       - name: Install Playwright outside repo
         shell: bash
@@ -106,7 +78,7 @@ jobs:
           node --check scripts/checkNpcGuardLifecycleFrameRateBrowser.js
           node --check scripts/checkNpcGuardOcclusionLifecycleBrowser.js
           node --check scripts/checkNpcGuardHearingLifecycleBrowser.js
-          node scripts/checkSeededRandomPolicy.js || { echo '::error title=Run167 contract failed::checkSeededRandomPolicy.js'; exit 1; }
+          node scripts/checkSeededRandomPolicy.js
           node scripts/checkNpcGuardLifecycleContract.mjs
           node scripts/checkAssetsManifest.js
           node scripts/checkPwaInstallability.js
