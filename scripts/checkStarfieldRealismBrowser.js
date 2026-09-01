@@ -53,6 +53,7 @@ async function main() {
 			const width = 960;
 			const height = 540;
 			const clearRgb = [1, 2, 7];
+			const clearLuminance = clearRgb[0] * 0.2126 + clearRgb[1] * 0.7152 + clearRgb[2] * 0.0722;
 			const canvas = document.createElement('canvas');
 			canvas.id = 'starfield-realism-proof';
 			canvas.width = width;
@@ -107,8 +108,10 @@ async function main() {
 					else neutral++;
 				}
 				const count = pixels.length / 4;
+				const averageLuminance = luminanceTotal / count;
 				return {
-					averageLuminance: luminanceTotal / count,
+					averageLuminance,
+					stellarExcessLuminance: Math.max(0, averageLuminance - clearLuminance),
 					luminousFraction: luminous / count,
 					brightFraction: bright / count,
 					luminousPixels: luminous,
@@ -174,8 +177,10 @@ async function main() {
 		assert(result.animationDelta < 1.5, `Twinkle animation is too aggressive: ${JSON.stringify(result)}`);
 		assert(result.translationDelta < 0.025, `Camera translation slides the star dome: ${JSON.stringify(result)}`);
 		assert(result.dayStats.luminousPixels <= 2, `Stars leak into canonical day state: ${JSON.stringify(result)}`);
-		assert(result.dayStats.averageLuminance < result.nightAStats.averageLuminance * 0.72,
-			`Day fade does not materially reduce stellar luminance: ${JSON.stringify(result)}`);
+		assert(result.nightAStats.stellarExcessLuminance > 0.01,
+			`Night frame has no measurable stellar luminance above clear sky: ${JSON.stringify(result)}`);
+		assert(result.dayStats.stellarExcessLuminance < result.nightAStats.stellarExcessLuminance * 0.05,
+			`Day fade leaves stellar luminance above the clear sky: ${JSON.stringify(result)}`);
 		console.log(`[checkStarfieldRealismBrowser] PASS: ${JSON.stringify(result)}`);
 	} finally {
 		await context.close();
