@@ -99,6 +99,7 @@ jobs:
         run: node scripts/checkMobileVegetationLod.js
 
       - name: Authoritative full-world topdown proof
+        if: always()
         run: |
           node scripts/captureFullWorld3DTopdown.mjs \
             --width=1600 \
