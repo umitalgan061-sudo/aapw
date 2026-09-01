@@ -21,16 +21,35 @@ try {
   const proof = await page.evaluate(async () => {
     const THREE = await import('three');
     const { spawnConfiguredAnimals } = await import('/src/3d/gameplay/animals.js');
+    const { KINGDOM_SEATS, mapToWorldXZ } = await import('/src/3d/world/settlements.js');
+    const { WORLD_SCALE } = await import('/src/3d/config.js');
 
     let modelLoadCount = 0;
     class FakeAssetLoader {
-      async loadModel() {
+      async loadModel(modelUrl) {
         modelLoadCount += 1;
         const group = new THREE.Group();
+        const material = new THREE.MeshStandardMaterial({ color: 0x9a8a78, roughness: 0.72 });
+        if (modelUrl.includes('fake-wolf')) {
+          const tex = new THREE.DataTexture(new Uint8Array([120, 105, 90, 255]), 1, 1, THREE.RGBAFormat);
+          tex.needsUpdate = true;
+          material.map = tex;
+        }
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material);
+        mesh.name = modelUrl.includes('fake-horse') ? 'horse_body' : 'wolf_body';
+        group.add(mesh);
         group.animations = [];
         return group;
       }
     }
+
+    const seatWorld = (id) => {
+      const seat = KINGDOM_SEATS.find((entry) => entry.id === id);
+      const world = mapToWorldXZ(seat.mapX, seat.mapY, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT);
+      return { x: world.x, z: world.z };
+    };
+    const north = seatWorld('berkalp');
+    const reach = seatWorld('ziya');
 
     const sampledXs = [];
     const sampleGroundY = (x) => {
@@ -45,7 +64,9 @@ try {
       WALK_CLIP_NAME: undefined,
       FLEE_CLIP_NAME: undefined,
       STRIP_CHILD_NAMES: [],
-      SPECIES: {},
+      SPECIES: {
+        horse: { modelUrl: '/fake-horse.glb', clips: { idle: 'Idle' }, stripChildNames: [] },
+      },
       PATROL_SPEED_MPS: 2,
       PATROL_PAUSE_SECONDS: 0,
       PATROL_TURN_RATE_RADIANS_PER_SECOND: 4,
@@ -53,7 +74,8 @@ try {
       FLEE_SPEED_MPS: 4,
       PACK_ALERT_RADIUS_METERS: 20,
       SPAWNS: [
-        { id: 'animal-valid', seatId: 'valid', offsetXMeters: 0, offsetZMeters: 0 },
+        { id: 'animal-valid-wolf', seatId: 'valid-wolf', offsetXMeters: 0, offsetZMeters: 0 },
+        { id: 'animal-valid-horse', seatId: 'valid-horse', offsetXMeters: 0, offsetZMeters: 0, speciesId: 'horse' },
         { id: 'animal-nan-ground', seatId: 'nan-ground', offsetXMeters: 0, offsetZMeters: 0 },
         { id: 'animal-throw-ground', seatId: 'throw-ground', offsetXMeters: 0, offsetZMeters: 0 },
         { id: 'animal-invalid-world', seatId: 'invalid-world', offsetXMeters: 0, offsetZMeters: 0 },
@@ -62,7 +84,8 @@ try {
       ],
     };
     const seatsById = new Map([
-      ['valid', { x: 0, z: 0 }],
+      ['valid-wolf', north],
+      ['valid-horse', reach],
       ['nan-ground', { x: 10, z: 0 }],
       ['throw-ground', { x: 20, z: 0 }],
       ['invalid-world', { x: Infinity, z: 0 }],
@@ -81,9 +104,13 @@ try {
       assetLoader: new FakeAssetLoader(),
       sampleGroundY,
     });
-    const valid = controllers[0];
-    const validPosition = valid?.object3D.position.clone();
-    const validName = valid?.object3D.name;
+    const summaries = controllers.map((controller) => ({
+      name: controller.object3D.name,
+      position: { x: controller.object3D.position.x, y: controller.object3D.position.y, z: controller.object3D.position.z },
+      materialReadyForWorld: controller.object3D.userData.materialReadyForWorld,
+      placement: controller.object3D.userData.faunaWorldPlacement,
+      manifest: controller.object3D.userData.worldPlacementManifest,
+    }));
     for (const controller of controllers) controller.dispose();
 
     let assetFailurePropagated = false;
@@ -98,29 +125,35 @@ try {
       assetFailurePropagated = error?.message === 'synthetic fauna asset failure';
     }
 
-    return {
-      controllerCount: controllers.length,
-      validName,
-      validPosition: validPosition ? { x: validPosition.x, y: validPosition.y, z: validPosition.z } : null,
-      modelLoadCount,
-      sampledXs,
-      assetFailurePropagated,
-    };
+    return { controllerCount: controllers.length, summaries, modelLoadCount, sampledXs, assetFailurePropagated };
   });
 
   const faunaConsoleErrors = focusedConsoleErrors.filter((message) => (
-    message.includes('gameplay/animals')
-    || message.includes('fake-wolf')
-    || message.includes('CONFIGURED_ANIMAL')
+    message.includes('gameplay/animals') || message.includes('fake-wolf') || message.includes('fake-horse') || message.includes('CONFIGURED_ANIMAL')
   ));
   assert.equal(pageErrors.length, 0, `page errors: ${pageErrors.join(' | ')}`);
   assert.equal(faunaConsoleErrors.length, 0, `fauna spawn console errors: ${faunaConsoleErrors.join(' | ')}`);
-  assert.equal(proof.controllerCount, 1, `expected one safe configured animal: ${JSON.stringify(proof)}`);
-  assert.equal(proof.validName, 'animal-valid');
-  assert.deepEqual(proof.validPosition, { x: 0, y: 3, z: 0 });
-  assert.equal(proof.modelLoadCount, 1, 'unsafe spawns must be rejected before model loading');
-  assert.deepEqual(proof.sampledXs, [0, 10, 20], 'invalid world/overflow/species entries must be rejected before terrain sampling');
+  assert.equal(proof.controllerCount, 2, `expected two safe configured animals: ${JSON.stringify(proof)}`);
+  assert.equal(proof.modelLoadCount, 2, 'unsafe spawns must be rejected before model loading');
   assert.equal(proof.assetFailurePropagated, true, 'valid placement must not swallow an actual asset loading failure');
+
+  const wolf = proof.summaries.find((entry) => entry.name === 'animal-valid-wolf');
+  const horse = proof.summaries.find((entry) => entry.name === 'animal-valid-horse');
+  assert.equal(wolf?.materialReadyForWorld, true);
+  assert.equal(horse?.materialReadyForWorld, true);
+  assert.equal(wolf?.placement?.materialMode, 'preserve-authored');
+  assert.deepEqual(wolf?.placement?.authoredPbrMapSlots, ['map']);
+  assert.equal(horse?.placement?.materialMode, 'generated-fallback');
+  assert.ok(horse?.placement?.generatedMaterialCount > 0, 'geometry-only horse fixture must receive generated animal materials');
+  assert.ok(wolf?.placement?.meshCount > 0 && wolf?.placement?.materialSlotCount > 0);
+  assert.ok(horse?.placement?.meshCount > 0 && horse?.placement?.materialSlotCount > 0);
+  assert.equal(wolf?.manifest?.validation?.ok, true);
+  assert.equal(horse?.manifest?.validation?.ok, true);
+  assert.ok(['cold-grassland', 'snow', 'mountain', 'rocky-hills', 'soil', 'rock'].includes(wolf?.placement?.biome));
+  assert.ok(['cold-grassland', 'lush-grassland', 'steppe', 'rocky-hills', 'temperate-coast', 'soil', 'rock'].includes(horse?.placement?.biome));
+  assert.equal(wolf?.position?.y, 3);
+  assert.equal(horse?.position?.y, 3);
+  assert.ok(proof.sampledXs.includes(10) && proof.sampledXs.includes(20));
 
   console.log('CONFIGURED_ANIMAL_SPAWN_GROUND_SAFETY_BROWSER_PASS', JSON.stringify({
     ...proof,
