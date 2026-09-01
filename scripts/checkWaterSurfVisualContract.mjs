@@ -22,7 +22,7 @@ requirePattern(/float\s+foam\s*=\s*clamp\(\s*shallowMask\s*\*\s*surge\s*,\s*0\.0
 requirePattern(/1\.0\s*-\s*smoothstep\(\s*90\.0\s*,\s*360\.0\s*,\s*distance\(\s*uCameraPosition\s*,\s*vWorldPosition\s*\)\s*\)/, 'fine ripple near-field anti-moire fade drifted');
 requirePattern(/float\s+swellShadingFade\s*=\s*1\.0\s*-\s*smoothstep\(\s*700\.0\s*,\s*1800\.0\s*,\s*distance\(\s*uCameraPosition\s*,\s*vWorldPosition\s*\)\s*\)\s*;/, 'long-swell normal must fade before far/orthographic views can resolve stripe bands');
 requirePattern(/vSwellSlope\s*\*\s*swellShadingFade\s*\+\s*rippleSlope\(\s*vWorldPosition\.xz\s*,\s*uTime\s*\)\s*\*\s*rippleFade/, 'water normal must apply the independent swell and ripple distance fades');
-requirePattern(/smoothstep\(\s*1500\.0\s*,\s*1950\.0\s*,\s*localEdgeDistance\s*\)/, 'near swell must blend to zero before the dense mesh edge');
+requirePattern(/smoothstep\(\$\{WATER_LAYER_TRANSITION_POLICY\.featherStartMeters\.toFixed\(1\)\},\s*\$\{WATER_LAYER_TRANSITION_POLICY\.featherEndMeters\.toFixed\(1\)\},\s*localEdgeDistance\)/, 'near swell must derive its fade from WATER_LAYER_TRANSITION_POLICY before the dense mesh edge');
 requirePattern(/new\s+THREE\.PlaneGeometry\(\s*WATER_FULL_WORLD_EXTENT_METERS\s*,\s*WATER_FULL_WORLD_EXTENT_METERS\s*,\s*1\s*,\s*1\s*\)/, 'two-triangle full-world far-water coverage missing');
 requirePattern(/vec2\s+waterField\s*=\s*sampleWaterField\(\s*vWorldPosition\.xz\s*\)\s*;/, 'far water must sample canonical depth and wet/dry coverage per fragment');
 requirePattern(/float\s+waterCoverage\s*=\s*smoothstep\(\s*0\.08\s*,\s*0\.72\s*,\s*waterField\.y\s*\)\s*;/, 'canonical wet/dry coverage shoreline fade drifted');
