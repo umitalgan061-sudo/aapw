@@ -219,7 +219,15 @@ function applyCastleWorldSpaceWeathering(material, { seed, surface }) {
 			)
 			.replace(
 				'#include <worldpos_vertex>',
-				'#include <worldpos_vertex>\nvCastleWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;',
+				`#include <worldpos_vertex>
+				vec4 castleWeatherWorldPosition = vec4(transformed, 1.0);
+				#ifdef USE_BATCHING
+					castleWeatherWorldPosition = batchingMatrix * castleWeatherWorldPosition;
+				#endif
+				#ifdef USE_INSTANCING
+					castleWeatherWorldPosition = instanceMatrix * castleWeatherWorldPosition;
+				#endif
+				vCastleWorldPosition = (modelMatrix * castleWeatherWorldPosition).xyz;`,
 			);
 
 		shader.fragmentShader = shader.fragmentShader
