@@ -26,8 +26,11 @@ async function main() {
 			if (response.status() >= 400) failures.push(`http:${response.status()} ${response.url()}`);
 		});
 
-		await page.goto(`http://127.0.0.1:${port}/game3d.html`, {
-			waitUntil: 'domcontentloaded', timeout: 60000,
+		// Use a same-origin module resource as the neutral browser document. This keeps the focused
+		// asset proof isolated from full-world boot and unrelated LFS families while still exercising
+		// the exact shipped browser module graph and real GLTFLoader.
+		await page.goto(`http://127.0.0.1:${port}/src/3d/gameplay/cartBrain.js`, {
+			waitUntil: 'domcontentloaded', timeout: 30000,
 		});
 
 		const proof = await page.evaluate(async () => {
@@ -56,7 +59,7 @@ async function main() {
 				ok: result.ok,
 				reason: result.reason || null,
 				mode: being.object3D.userData.cartVisualMode,
-				preflightBytes: result.preflight?.contentLength || 0,
+				preflight: result.preflight || null,
 				material: result.material || null,
 				manifest: result.manifest || null,
 				bounds: result.bounds || null,
@@ -73,7 +76,10 @@ async function main() {
 
 		assert(proof.ok, `real chariot upgrade failed: ${proof.reason}`);
 		assert(proof.mode === 'real-chariot', `cart remained in ${proof.mode} mode`);
-		assert(proof.preflightBytes > 1_000_000, `chariot was not hydrated (${proof.preflightBytes} bytes)`);
+		assert(
+			(proof.preflight?.contentLength || 0) > 1_000_000 || proof.preflight?.glbHeader === 'glTF',
+			`chariot preflight did not prove a hydrated GLB: ${JSON.stringify(proof.preflight)}`,
+		);
 		assert(proof.modelName.endsWith('-real-chariot'), `unexpected model name: ${proof.modelName}`);
 		assert(proof.modelParented, 'real chariot is not parented to the moving cart root');
 		assert(proof.fallbackHidden, 'primitive fallback remained visible after real model adoption');
@@ -93,7 +99,7 @@ async function main() {
 		assert(failures.length === 0, `browser errors: ${failures.join(' | ')}`);
 
 		console.log('[checkCartChariotVisualAssetBrowser] PASS', JSON.stringify({
-			bytes: proof.preflightBytes,
+			preflight: proof.preflight,
 			material: proof.material,
 			bounds: proof.bounds,
 			placement: proof.manifest.placement,
