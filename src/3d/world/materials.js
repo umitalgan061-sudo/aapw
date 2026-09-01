@@ -15,6 +15,18 @@ import { mulberry32 } from './terrain.js';
  * desktop (2GB) or mobile (512MB) texture budget — no device-quality branch needed here. */
 const TEXTURE_SIZE = 256;
 
+/** Render-only anti-repetition treatment layered over the existing authored/procedural UV maps.
+ * The base maps keep masonry/shingle scale while world-space macro/meso/fine weathering prevents
+ * the same 256px tile from reading as wallpaper across a keep or across multiple kingdom seats. */
+export const CASTLE_WORLD_SPACE_WEATHERING_POLICY = Object.freeze({
+	id: 'castle-world-space-weathering-2026-09-01-v1',
+	macroMeters: 72,
+	mesoMeters: 19,
+	fineMeters: 5.5,
+	stoneStrength: 1,
+	roofStrength: 0.72,
+});
+
 /**
  * @param {number} value
  * @param {number} min
@@ -165,6 +177,114 @@ function finalizeTexture(texture, repeatX, repeatY, isColorMap) {
 }
 
 /**
+ * Adds deterministic world-space weathering without replacing any existing map. The UV maps retain
+ * local masonry/shingle detail; this shader only supplies non-periodic macro/meso/fine mineral,
+ * dampness and roughness variation at real metre scales. Because it samples rendered world X/Z,
+ * identical castle materials no longer repeat in lock-step from one seat to another.
+ * @param {THREE.MeshStandardMaterial} material
+ * @param {object} options
+ * @param {number} options.seed
+ * @param {'stone'|'roof'} options.surface
+ * @returns {THREE.MeshStandardMaterial}
+ */
+function applyCastleWorldSpaceWeathering(material, { seed, surface }) {
+	const policy = CASTLE_WORLD_SPACE_WEATHERING_POLICY;
+	const stableSeed = Number(seed) >>> 0;
+	const phase = new THREE.Vector2(
+		((stableSeed & 1023) - 511.5) * 0.173,
+		(((stableSeed >>> 10) & 1023) - 511.5) * 0.157,
+	);
+	const strength = surface === 'roof' ? policy.roofStrength : policy.stoneStrength;
+	const previousCompile = material.onBeforeCompile;
+	const previousCacheKey = material.customProgramCacheKey;
+
+	material.userData ||= {};
+	material.userData.castleWorldSpaceWeathering = Object.freeze({
+		policyId: policy.id,
+		surface,
+		macroMeters: policy.macroMeters,
+		mesoMeters: policy.mesoMeters,
+		fineMeters: policy.fineMeters,
+	});
+
+	material.onBeforeCompile = (shader, renderer) => {
+		previousCompile?.(shader, renderer);
+		shader.uniforms.uCastleWeatherPhase = { value: phase };
+		shader.uniforms.uCastleWeatherStrength = { value: strength };
+
+		shader.vertexShader = shader.vertexShader
+			.replace(
+				'#include <common>',
+				'#include <common>\nvarying vec3 vCastleWorldPosition;',
+			)
+			.replace(
+				'#include <worldpos_vertex>',
+				'#include <worldpos_vertex>\nvCastleWorldPosition = (modelMatrix * vec4(transformed, 1.0)).xyz;',
+			);
+
+		shader.fragmentShader = shader.fragmentShader
+			.replace(
+				'#include <common>',
+				`#include <common>
+				varying vec3 vCastleWorldPosition;
+				uniform vec2 uCastleWeatherPhase;
+				uniform float uCastleWeatherStrength;
+				float castleWeatherHash(vec2 p) {
+					return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+				}
+				float castleWeatherNoise(vec2 p) {
+					vec2 i = floor(p);
+					vec2 f = fract(p);
+					f = f * f * (3.0 - 2.0 * f);
+					return mix(
+						mix(castleWeatherHash(i), castleWeatherHash(i + vec2(1.0, 0.0)), f.x),
+						mix(castleWeatherHash(i + vec2(0.0, 1.0)), castleWeatherHash(i + vec2(1.0, 1.0)), f.x),
+						f.y
+					);
+				}
+				float castleWeatherFbm(vec2 p) {
+					float value = castleWeatherNoise(p) * 0.58;
+					p = mat2(0.80, -0.60, 0.60, 0.80) * p * 2.03 + vec2(7.3, 3.1);
+					value += castleWeatherNoise(p) * 0.28;
+					p = mat2(0.60, -0.80, 0.80, 0.60) * p * 2.11 + vec2(2.7, 9.4);
+					value += castleWeatherNoise(p) * 0.14;
+					return value;
+				}`,
+			)
+			.replace(
+				'#include <map_fragment>',
+				`#include <map_fragment>
+				vec2 castleWeatherXZ = vCastleWorldPosition.xz + uCastleWeatherPhase;
+				float castleWeatherMacro = castleWeatherFbm(castleWeatherXZ / ${policy.macroMeters.toFixed(1)});
+				float castleWeatherMeso = castleWeatherFbm((mat2(0.86, -0.51, 0.51, 0.86) * castleWeatherXZ) / ${policy.mesoMeters.toFixed(1)} + vec2(13.7, 4.6));
+				float castleWeatherFine = castleWeatherFbm(castleWeatherXZ / ${policy.fineMeters.toFixed(1)} + vec2(3.9, 17.2));
+				float castleWeatherExposure = clamp(castleWeatherMacro * 0.52 + castleWeatherMeso * 0.34 + castleWeatherFine * 0.14, 0.0, 1.0);
+				float castleWeatherDamp = smoothstep(0.60, 0.90, castleWeatherFbm(castleWeatherXZ / 31.0 + vec2(31.4, 8.2)));
+				vec3 castleWeatherMineral = mix(vec3(0.91, 0.94, 0.92), vec3(1.035, 0.995, 0.93), castleWeatherMacro);
+				diffuseColor.rgb *= mix(vec3(1.0), castleWeatherMineral, 0.11 * uCastleWeatherStrength);
+				diffuseColor.rgb *= 0.965 + (castleWeatherExposure - 0.5) * 0.11 * uCastleWeatherStrength;
+				diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.83, 0.91, 0.86), castleWeatherDamp * 0.09 * uCastleWeatherStrength);`,
+			)
+			.replace(
+				'#include <roughnessmap_fragment>',
+				`#include <roughnessmap_fragment>
+				roughnessFactor = clamp(
+					roughnessFactor + ((1.0 - castleWeatherExposure) * 0.075 + castleWeatherDamp * 0.11 - castleWeatherFine * 0.025) * uCastleWeatherStrength,
+					0.38,
+					0.98
+				);`,
+			);
+	};
+
+	material.customProgramCacheKey = () => {
+		const previous = typeof previousCacheKey === 'function' ? previousCacheKey.call(material) : '';
+		return `${previous}|${policy.id}|${surface}`;
+	};
+	material.needsUpdate = true;
+	return material;
+}
+
+/**
  * Builds a seeded mortared-stone-block `MeshStandardMaterial` (color + roughness + normal maps).
  * Deterministic: the same `seed` always paints the same texture (this project's determinism rule
  * — see `world/README.md`'s "Determinism" convention).
@@ -197,7 +317,8 @@ export function createStoneMaterial({ seed, baseColor, repeat = 12 }) {
 	const roughnessMap = finalizeTexture(new THREE.CanvasTexture(roughnessCanvas), repeat, repeat, false);
 	const normalMap = finalizeTexture(new THREE.CanvasTexture(normalCanvas), repeat, repeat, false);
 
-	return new THREE.MeshStandardMaterial({ map, roughnessMap, normalMap, metalness: 0.05 });
+	const material = new THREE.MeshStandardMaterial({ map, roughnessMap, normalMap, metalness: 0.05 });
+	return applyCastleWorldSpaceWeathering(material, { seed, surface: 'stone' });
 }
 
 /**
@@ -240,7 +361,8 @@ export function createRoofMaterial({ seed, repeat = 6 }) {
 	const map = finalizeTexture(new THREE.CanvasTexture(colorCanvas), repeat, repeat, true);
 	const roughnessMap = finalizeTexture(new THREE.CanvasTexture(roughnessCanvas), repeat, repeat, false);
 
-	return new THREE.MeshStandardMaterial({ map, roughnessMap, metalness: 0.1 });
+	const material = new THREE.MeshStandardMaterial({ map, roughnessMap, metalness: 0.1 });
+	return applyCastleWorldSpaceWeathering(material, { seed, surface: 'roof' });
 }
 
 /**
