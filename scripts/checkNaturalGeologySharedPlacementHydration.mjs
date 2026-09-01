@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { AssetLoader } from '../src/3d/assetLoader.js';
 import { NATURAL_GEOLOGY_RENDER_POLICY, upgradeNaturalGeologyAssets } from '../src/3d/world/naturalGeology.js';
+import { NATURAL_GEOLOGY_PLACEMENT_POLICY } from '../src/3d/world/naturalGeologyPlacement.js';
 import { PRE_RESOLVED_INSTANCED_ASSET_POLICY, auditPreResolvedInstancedWorldAsset } from '../src/3d/world/PreResolvedInstancedAssetPlacement.js';
 
 const originalFetch = globalThis.fetch;
@@ -41,7 +42,7 @@ function texture() {
 
 function groupFor(placements) {
   const group = new THREE.Group();
-  group.userData.naturalGeology = Object.freeze({ policyId: NATURAL_GEOLOGY_RENDER_POLICY.id, placementPolicyId: 'fixture-placement-v1', assetState: 'procedural-fallback' });
+  group.userData.naturalGeology = Object.freeze({ policyId: NATURAL_GEOLOGY_RENDER_POLICY.id, placementPolicyId: NATURAL_GEOLOGY_PLACEMENT_POLICY.id, assetState: 'procedural-fallback' });
   group.userData.naturalGeologyPlacements = Object.freeze(placements);
   const proxy = proxyFor(placements); group.add(proxy); return { group, proxy };
 }
@@ -58,8 +59,6 @@ function disposeFixture(f) {
 try {
   globalThis.fetch = async () => ({ ok: true, status: 200, headers: new Headers({ 'content-length': '4096', 'content-type': 'model/gltf-binary' }) });
 
-  // Successful family hydration: real GLB material/maps survive, every instanced batch carries the
-  // shared placement manifest, and proxies disappear only after the transaction commits.
   const activePlacements = [placement('a', -35, 14), placement('b', 22, -18, { yawRadians: 1.48 })];
   const active = { ...groupFor(activePlacements), texture: texture() }; active.loaded = sourceModel(active.texture);
   const authoredMap = active.loaded.material.map;
@@ -72,13 +71,11 @@ try {
   for (const batch of batches) {
     assert.equal(batch.count, 2); assert.equal(batch.userData.materialReadyForWorld, true); assert.strictEqual(batch.material.map, authoredMap);
     const manifest = batch.userData.worldPlacementManifest; assert.equal(manifest.validation.authoredMaterialPreserved, true); assert.equal(manifest.validation.finiteInstanceMatrices, true);
-    assert.equal(manifest.placement.count, 2); assert.equal(manifest.placement.placementPolicyId, 'fixture-placement-v1'); assert.equal(manifest.placement.placementIdsPresent, true);
+    assert.equal(manifest.placement.count, 2); assert.equal(manifest.placement.placementPolicyId, NATURAL_GEOLOGY_PLACEMENT_POLICY.id); assert.equal(manifest.placement.placementIdsPresent, true);
     const audit = auditPreResolvedInstancedWorldAsset(batch); assert.equal(audit.ok, true, audit.errors.join(','));
   }
   for (let i = 0; i < active.proxy.count; i += 1) assert(instanceScale(active.proxy, i).lengthSq() < 1e-16, `proxy ${i} stayed visible`);
 
-  // Invalid canonical placement input must roll the entire family back. No hydrated primitive becomes
-  // visible and the procedural fallback remains intact.
   const badPlacements = [placement('good', 5, 7), placement('bad', 18, 15, { scale: Object.freeze({ x: Number.NaN, y: 5, z: 7 }) })];
   const fallback = { ...groupFor(badPlacements), texture: texture() }; fallback.loaded = sourceModel(fallback.texture);
   AssetLoader.prototype.loadModel = async () => fallback.loaded.group;
@@ -90,6 +87,7 @@ try {
 
   console.log('[checkNaturalGeologySharedPlacementHydration] PASS');
   console.log(JSON.stringify({ rendererPolicyId: NATURAL_GEOLOGY_RENDER_POLICY.id, sharedPolicyId: PRE_RESOLVED_INSTANCED_ASSET_POLICY.id,
+    placementPolicyId: NATURAL_GEOLOGY_PLACEMENT_POLICY.id,
     active: { hydratedPlacementCount: active.result.hydratedPlacementCount, preparedBatchCount: family.preparedBatchCount, authoredMapPreserved: true, proxySuppressionAfterAttach: true },
     rollback: { reason: fallback.result.families[0].reason, proceduralProxyPreserved: true } }, null, 2));
 
