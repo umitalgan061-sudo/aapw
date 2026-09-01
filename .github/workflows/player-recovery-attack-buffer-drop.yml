@@ -91,7 +91,7 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-      - name: Shipped scene browser and performance proof
+      - name: Recovery attack buffer shipped-scene proof
         shell: bash
         run: |
           set -euo pipefail
@@ -99,12 +99,28 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerRecoveryAttackBufferRuntime.mjs --out-dir=artifacts/player-recovery-attack-buffer-drop/recovery-buffer | tee artifacts/player-recovery-attack-buffer-drop/recovery-buffer.log
           grep -q 'PLAYER_RECOVERY_ATTACK_BUFFER_RUNTIME_OK' artifacts/player-recovery-attack-buffer-drop/recovery-buffer.log
           grep -q '"browserErrors": \[\]' artifacts/player-recovery-attack-buffer-drop/recovery-buffer/recovery-attack-buffer-runtime.json
+      - name: Hit stagger shipped-scene proof
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerHitStaggerRuntime.mjs --out-dir=artifacts/player-recovery-attack-buffer-drop/hit-stagger | tee artifacts/player-recovery-attack-buffer-drop/hit-stagger.log
           grep -q 'PLAYER_HIT_STAGGER_RUNTIME_OK' artifacts/player-recovery-attack-buffer-drop/hit-stagger.log
           grep -q '"browserErrors": \[\]' artifacts/player-recovery-attack-buffer-drop/hit-stagger/hit-stagger-runtime.json
+      - name: Mobile performance budget
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
           node scripts/checkMobilePerfBudget.js
+      - name: Shipped game3d smoke
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
       - name: Exact main freshness
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
