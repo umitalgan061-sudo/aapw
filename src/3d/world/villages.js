@@ -63,7 +63,7 @@ export const VILLAGE_ARCHITECTURE_PROFILES = Object.freeze({
 		layers: Object.freeze([{ to: 0.16, palette: 'stone' }, { to: 0.72, palette: 'wood' }, { to: 1, palette: 'roof-tile' }]),
 	}),
 	fertile: Object.freeze({
-		id: 'fertile', label: 'Verimli ova yerleşimi', paletteId: 'plaster', proceduralWallHex: 0xe2d3af, proceduralRoofHex: 0xa9874d,
+		id: 'fertile', label: 'Verimli ova yerleşimi', paletteId: 'house', proceduralWallHex: 0xe2d3af, proceduralRoofHex: 0xa9874d,
 		assetUrl: 'assets/models/settlements/fantasy_house_dcPho4SUA3.glb',
 		layers: Object.freeze([{ to: 0.12, palette: 'stone' }, { to: 0.62, palette: 'plaster' }, { to: 0.7, palette: 'wood' }, { to: 1, palette: 'thatch' }]),
 	}),
@@ -73,7 +73,7 @@ export const VILLAGE_ARCHITECTURE_PROFILES = Object.freeze({
 		layers: Object.freeze([{ to: 0.16, palette: 'rock' }, { to: 0.64, palette: 'house' }, { to: 0.72, palette: 'wood' }, { to: 1, palette: 'roof-tile' }]),
 	}),
 	arid: Object.freeze({
-		id: 'arid', label: 'Kurak güney yerleşimi', paletteId: 'plaster', proceduralWallHex: 0xe0c39b, proceduralRoofHex: 0xb67852,
+		id: 'arid', label: 'Kurak güney yerleşimi', paletteId: 'house', proceduralWallHex: 0xe0c39b, proceduralRoofHex: 0xb67852,
 		assetUrl: 'assets/models/settlements/house_fdaqERLQCc.glb',
 		layers: Object.freeze([{ to: 0.18, palette: 'stone' }, { to: 0.72, palette: 'plaster' }, { to: 0.79, palette: 'wood' }, { to: 1, palette: 'roof-tile' }]),
 	}),
