@@ -141,7 +141,12 @@ async function main() {
 		assert(metrics.render.triangles > 150, `rendered triangle count ${metrics.render.triangles} is implausibly low`);
 		const pine = metrics.silhouettes.find((entry) => entry.id === 'pine');
 		const round = metrics.silhouettes.find((entry) => entry.id === 'round');
-		assert(pine?.foliage?.profile === 'tiered-evergreen', 'pine did not render tiered-evergreen production geometry');
+		assert(pine?.foliage?.profile === 'continuous-evergreen-crown',
+			'pine did not render continuous evergreen production geometry');
+		assert(pine?.foliage?.connectedSurface === true && pine?.foliage?.componentCount === 1,
+			'pine crown is no longer a single connected surface');
+		assert(pine?.foliage?.profileRingCount >= 9 && pine?.foliage?.radialSegments >= 8,
+			'pine crown topology is too coarse to preserve an organic connected silhouette');
 		assert(round?.foliage?.profile === 'lobed-broadleaf', 'round tree did not render lobed-broadleaf production geometry');
 
 		const screenshotPath = path.join(outputDir, 'vegetation-silhouette.png');
