@@ -45,6 +45,7 @@ export const NATURAL_SURFACE_MATERIAL_POLICY = Object.freeze({
 	valyriaLinearWeatheringPatina: true,
 	valyriaPatchyLithicExposure: true,
 	valyriaLinearCarrierRoughnessResponse: true,
+	valyriaFineAggregateBreakup: true,
 	lowlandMesoscaleReliefRecovery: true,
 	lowlandSoilAggregateBreakup: true,
 	definedRidgeDarkRecovery: true,
@@ -433,17 +434,36 @@ float naturalSurfaceLinearWeatheringBreakup = smoothstep(0.34, 0.77,
 	+ naturalSurfaceLithicFacet * 0.22 + naturalSurfaceVolcanicGrain * 0.10);
 float naturalSurfaceLinearWeatheringPatina = naturalSurfaceValyria
 	* smoothstep(0.16, 0.76, naturalSurfaceLinearCarrier)
-	* mix(0.26, 0.94, naturalSurfaceLinearWeatheringBreakup);
+	* mix(0.44, 0.96, naturalSurfaceLinearWeatheringBreakup);
 vec3 naturalSurfaceLinearPatinaColor = mix(vec3(0.052, 0.057, 0.058), vec3(0.148, 0.091, 0.061),
 	clamp(naturalSurfaceOxidation * 0.72 + naturalSurfaceSulfur * 0.12, 0.0, 1.0));
 diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfaceLinearPatinaColor,
-	naturalSurfaceLinearWeatheringPatina * (0.36 + naturalSurfaceSlope * 0.16));
+	naturalSurfaceLinearWeatheringPatina * (0.44 + naturalSurfaceSlope * 0.18));
 float naturalSurfacePatchyLithicExposure = naturalSurfaceValyria
 	* smoothstep(0.50, 0.79, naturalSurfaceLithicFacet * 0.56 + naturalSurfaceVolcanicFine * 0.44)
 	* (1.0 - naturalSurfaceAsh * 0.38) * (0.42 + naturalSurfaceSlope * 0.58);
 vec3 naturalSurfacePatchyBasalt = mix(vec3(0.076, 0.079, 0.078), vec3(0.168, 0.119, 0.083),
 	naturalSurfaceOxidation * 0.58);
 diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfacePatchyBasalt, naturalSurfacePatchyLithicExposure * 0.20);
+// Fine basalt/ash aggregate remains visible after the broad terrain-led blend. This is deliberately
+// material-only: it follows world XZ and existing Valyria influence/exposure, never a new region mask.
+vec2 naturalSurfaceVolcanicAggregateFrame = mat2(0.8191520, -0.5735764, 0.5735764, 0.8191520)
+	* (naturalSurfaceXZ + vec2((naturalSurfaceVolcanicMacro - 0.5) * 82.0, (naturalSurfaceVolcanicMeso - 0.5) * -61.0));
+float naturalSurfaceVolcanicAggregate = naturalSurfaceRidge(vec2(
+	naturalSurfaceVolcanicAggregateFrame.x / 43.0,
+	naturalSurfaceVolcanicAggregateFrame.y / 69.0
+) + vec2(12.9, -18.4));
+float naturalSurfaceVolcanicChip = smoothstep(0.60, 0.86,
+	naturalSurfaceVolcanicAggregate * 0.58 + naturalSurfaceVolcanicGrain * 0.42);
+float naturalSurfaceVolcanicAggregateMask = naturalSurfaceValyria
+	* (0.46 + naturalSurfaceGeologicExposure * 0.42)
+	* (1.0 - naturalSurfaceAsh * 0.22);
+diffuseColor.rgb *= 1.0 + (naturalSurfaceVolcanicAggregate - 0.5)
+	* naturalSurfaceVolcanicAggregateMask * 0.175;
+vec3 naturalSurfaceVolcanicChipColor = mix(vec3(0.066, 0.069, 0.068), vec3(0.178, 0.112, 0.073),
+	naturalSurfaceOxidation * 0.64);
+diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfaceVolcanicChipColor,
+	naturalSurfaceVolcanicAggregateMask * naturalSurfaceVolcanicChip * 0.095);
 diffuseColor.rgb = clamp(diffuseColor.rgb, vec3(0.012), vec3(0.86));
 `;
 
