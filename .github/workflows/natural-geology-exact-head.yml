@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - codex/foundation-grounding-20260821
+      - codex/geographic-asset-material-distribution-20260901
     paths:
       - 'src/3d/world/valyriaGeology.js'
       - 'src/3d/world/valyriaEcology.js'
@@ -20,6 +21,23 @@ on:
       - 'scripts/checkValyriaCastleWeathering.mjs'
       - 'scripts/checkNaturalGeologyPlacement.mjs'
       - 'scripts/checkNaturalGeologySourceContract.mjs'
+      - 'scripts/checkNaturalGeologySurfaceMaterial.mjs'
+      - 'scripts/checkNaturalGeologySurfaceVisualQa.js'
+      - 'scripts/naturalGeologySurfaceHarness.html'
+      - 'scripts/captureFullWorld3DTopdown.mjs'
+      - 'scripts/fullWorld3DTopdownHarness.html'
+      - '.github/workflows/natural-geology-exact-head.yml'
+  pull_request:
+    paths:
+      - 'src/3d/world/naturalGeologyPlacement.js'
+      - 'src/3d/world/naturalGeology.js'
+      - 'scripts/checkNaturalGeologyPlacement.mjs'
+      - 'scripts/checkNaturalGeologySourceContract.mjs'
+      - 'scripts/checkNaturalGeologySurfaceMaterial.mjs'
+      - 'scripts/checkNaturalGeologySurfaceVisualQa.js'
+      - 'scripts/naturalGeologySurfaceHarness.html'
+      - 'scripts/captureFullWorld3DTopdown.mjs'
+      - 'scripts/fullWorld3DTopdownHarness.html'
       - '.github/workflows/natural-geology-exact-head.yml'
   workflow_dispatch:
 
@@ -30,12 +48,14 @@ jobs:
   scalar-authority:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
+    env:
+      EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - name: Checkout exact pushed head
+      - name: Checkout exact candidate head
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
-          fetch-depth: 1
+          ref: ${{ env.EXACT_HEAD }}
+          fetch-depth: 2
           lfs: false
       - uses: actions/setup-node@v4
         with:
@@ -43,7 +63,7 @@ jobs:
       - name: Verify exact head and syntax
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
           node --check src/3d/world/valyriaGeology.js
           node --check src/3d/world/valyriaEcology.js
           node --check src/3d/world/valyriaCastleWeathering.js
@@ -59,6 +79,10 @@ jobs:
           node --check scripts/checkValyriaCastleWeathering.mjs
           node --check scripts/checkNaturalGeologyPlacement.mjs
           node --check scripts/checkNaturalGeologySourceContract.mjs
+          node --check scripts/checkNaturalGeologySurfaceMaterial.mjs
+          node --check scripts/checkNaturalGeologySurfaceVisualQa.js
+          node --check scripts/captureFullWorld3DTopdown.mjs
+          git diff --check HEAD^ HEAD
       - name: Resolve vendored Three.js for canonical terrain imports
         run: node scripts/setupNodeThreeShim.mjs
       - name: Valyria geography authority
@@ -75,15 +99,19 @@ jobs:
         run: node scripts/checkNaturalGeologyPlacement.mjs
       - name: Asset and authority source contract
         run: node scripts/checkNaturalGeologySourceContract.mjs
+      - name: Geographic geology surface material contract
+        run: node scripts/checkNaturalGeologySurfaceMaterial.mjs
 
   renderer-contract:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
+    env:
+      EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - name: Checkout exact pushed head
+      - name: Checkout exact candidate head
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ env.EXACT_HEAD }}
           fetch-depth: 1
           lfs: false
       - uses: actions/setup-node@v4
@@ -98,8 +126,11 @@ jobs:
           const geology = await import('./src/3d/world/naturalGeology.js');
           if (!geology.NATURAL_GEOLOGY_RENDER_POLICY?.renderOnly) throw new Error('render-only contract lost');
           if (geology.NATURAL_GEOLOGY_RENDER_POLICY.referenceLandscapeRuntimeLoad !== false) throw new Error('heavy landscape became runtime load');
+          if (!geology.NATURAL_GEOLOGY_RENDER_POLICY.proceduralVertexWeathering) throw new Error('procedural surface weathering missing');
+          if (!geology.NATURAL_GEOLOGY_RENDER_POLICY.hydratedSourceMapsPreserved) throw new Error('hydrated authored-map preservation missing');
           const g = geology.createNaturalRockPrototypeGeometry('fractured-scarp');
           if (!g?.getAttribute?.('position')?.count) throw new Error('procedural fallback geometry missing');
+          if (g.getAttribute('color')?.count !== g.getAttribute('position')?.count) throw new Error('procedural vertex weathering missing');
           g.dispose();
           console.log('[natural-geology-render-import] PASS');
           NODE
@@ -109,3 +140,51 @@ jobs:
           test -f assets/models/fbx/rocky_terrain_low_poly.glb
           test -f assets/models/fbx/desert_rocks.glb
           echo '[natural-geology-lfs-fallback] PASS'
+
+  visual-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXACT_HEAD }}
+          fetch-depth: 1
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install exact browser runtime
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          mkdir -p "$GITHUB_WORKSPACE/node_modules"
+          ln -sfn "$RUNNER_TEMP/pw/node_modules/playwright" "$GITHUB_WORKSPACE/node_modules/playwright"
+          ln -sfn "$RUNNER_TEMP/pw/node_modules/playwright-core" "$GITHUB_WORKSPACE/node_modules/playwright-core"
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Geographic geology material WebGL proof
+        run: node scripts/checkNaturalGeologySurfaceVisualQa.js
+      - name: Authoritative full-world topdown proof
+        run: |
+          node scripts/captureFullWorld3DTopdown.mjs \
+            --width=1600 \
+            --height=1100 \
+            --segments=240 \
+            --output=artifacts/geographic-asset-material-exact-head/full-world-3d-topdown.png
+      - name: Record exact head
+        if: always()
+        run: |
+          mkdir -p artifacts/geographic-asset-material-exact-head
+          printf '%s\n' "$EXACT_HEAD" > artifacts/geographic-asset-material-exact-head/head-sha.txt
+      - name: Upload geographic geology proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: geographic-asset-material-exact-head-${{ env.EXACT_HEAD }}
+          path: artifacts/geographic-asset-material-exact-head/
+          if-no-files-found: warn
+          retention-days: 14
