@@ -9,7 +9,14 @@ const DESKTOP_CONTROLS = Object.freeze([
 	['E', 'Yakındaki kişiyle konuş'],
 	['C / Sol tık', 'Hafif saldırı'],
 	['R', 'Ağır saldırı'],
+	['Q / Sağ tık', 'Savunmayı basılı tut'],
+	['Tab', 'Yakındaki hedefe kilitlen veya kilidi kaldır'],
 	['Fare', 'Kamerayı döndür ve yakınlaştır'],
+	['Gamepad sol çubuk / L3', 'Yürü / koş'],
+	['Gamepad A / B', 'Zıpla / kaçın'],
+	['Gamepad X / Y', 'Hafif / ağır saldırı'],
+	['Gamepad LB / RB', 'Savun / savuştur'],
+	['Gamepad sağ çubuk / R3', 'Kamera / hedef kilidi'],
 ]);
 
 const TOUCH_CONTROLS = Object.freeze([
