@@ -21,7 +21,7 @@ page.on('pageerror', (error) => browserErrors.push(`pageerror: ${error.message}`
 page.on('console', (message) => { if (message.type() === 'error') browserErrors.push(`console: ${message.text()}`); });
 
 try {
-  await page.goto(`${server.baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await page.goto(`${server.baseUrl}/castle-authored-material-visual-qa.html`, { waitUntil: 'networkidle', timeout: 30000 });
   const result = await page.evaluate(async ({ viewport }) => {
     const THREE = await import('three');
     const { AssetLoader } = await import('./src/3d/assetLoader.js');
@@ -90,7 +90,7 @@ try {
     if ('outputColorSpace' in renderer && THREE.SRGBColorSpace) renderer.outputColorSpace = THREE.SRGBColorSpace;
     if (THREE.ACESFilmicToneMapping !== undefined) renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
-    document.getElementById('app')?.appendChild(renderer.domElement);
+    document.getElementById('qa-root').appendChild(renderer.domElement);
     const camera = new THREE.PerspectiveCamera(38, viewport.width / viewport.height, 0.1, 500);
     const reach = Math.max(size.x, size.z, 20);
     camera.position.set(reach * 1.15, Math.max(12, size.y * 0.55), reach * 1.2);
