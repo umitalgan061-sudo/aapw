@@ -15,6 +15,7 @@ const NIGHT_CINEMATIC_DEEP_GROUND = new THREE.Color(0x202927);
 const NIGHT_CINEMATIC_WARM_HORIZON = new THREE.Color(0x766f63);
 const NIGHT_CINEMATIC_PURKINJE = new THREE.Color(0.91, 1.0, 1.07);
 const NIGHT_CINEMATIC_ZENITH_SPECTRAL_SHIFT = new THREE.Color(0.94, 0.995, 1.075);
+const NIGHT_CINEMATIC_STARLIGHT_SPECTRAL_SHIFT = new THREE.Color(0.90, 0.985, 1.12);
 
 function smoothNight(value) {
 	const n = THREE.MathUtils.clamp(Number(value) || 0, 0, 1);
@@ -47,6 +48,11 @@ function nocturnalAirglowWeight(night) {
 	const rise = THREE.MathUtils.smoothstep(night, 0.72, 0.92);
 	const deepHold = 1 - 0.18 * THREE.MathUtils.smoothstep(night, 0.97, 1.0);
 	return rise * deepHold;
+}
+
+function deepStarlightWeight(night) {
+	const rise = THREE.MathUtils.smoothstep(night, 0.80, 0.97);
+	return rise * (1 - 0.12 * THREE.MathUtils.smoothstep(night, 0.985, 1.0));
 }
 
 function horizonWarmthWeight(night) {
@@ -132,12 +138,13 @@ export function updateNightVisualEnhancement(hemisphere, nightFactor) {
 	const blueHour = blueHourWeight(night);
 	const moonlit = moonlitPlateau(night);
 	const airglow = nocturnalAirglowWeight(night);
+	const starlight = deepStarlightWeight(night);
 	const horizonWarmth = horizonWarmthWeight(night);
 	const mesopic = mesopicGroundAdaptation(night, moonlit, deepNight);
 	const chromaLoss = mesopicGroundChromaLoss(night, deepNight);
 	const mesopicSpectralShift = Math.max(chromaLoss, mesopic * 0.55);
 	const zenithSpectralShift = blueHour * 0.065 + moonlit * 0.045 + airglow * 0.025;
-	const surfaceContrast = nightSurfaceContrast(night, moonlit, deepNight);
+	const surfaceContrast = nightSurfaceContrast(night, moonlit, deepNight) * (1 - starlight * 0.025);
 	const terrainAdaptation = terrainNightAdaptation(night, blueHour, moonlit, deepNight);
 	const colorWeights = nightPhaseColorWeights(night);
 	blendNightPhaseColor(fill.color, NIGHT_CINEMATIC_TWILIGHT_SKY, NIGHT_CINEMATIC_BLUE_HOUR_SKY, NIGHT_CINEMATIC_MOONLIT_SKY, NIGHT_CINEMATIC_DEEP_SKY, colorWeights);
@@ -148,6 +155,8 @@ export function updateNightVisualEnhancement(hemisphere, nightFactor) {
 	fill.groundColor.lerp(NIGHT_CINEMATIC_WARM_HORIZON, horizonWarmth * 0.055);
 	// Keep blue-hour/moonlit skylight spectrally distinct from terrain bounce without changing luminance.
 	preserveSpectralLuminance(fill.color, NIGHT_CINEMATIC_ZENITH_SPECTRAL_SHIFT, zenithSpectralShift, 0.10);
+	// Deep-night starlight remains a weak upper-hemisphere spectral cue; terrain bounce is not tinted with it.
+	preserveSpectralLuminance(fill.color, NIGHT_CINEMATIC_STARLIGHT_SPECTRAL_SHIFT, starlight * 0.055, 0.06);
 	// Shift the existing phase colour spectrally instead of blending terrain bounce toward one flat grey-green swatch.
 	preserveSpectralLuminance(fill.groundColor, NIGHT_CINEMATIC_PURKINJE, mesopicSpectralShift);
 	const readability = THREE.MathUtils.lerp(NIGHT_CINEMATIC_DAY_INTENSITY, NIGHT_CINEMATIC_FULL_INTENSITY, night);
@@ -159,6 +168,7 @@ export function updateNightVisualEnhancement(hemisphere, nightFactor) {
 	fill.userData.blueHourWeight = blueHour;
 	fill.userData.moonlitPlateau = moonlit;
 	fill.userData.airglowWeight = airglow;
+	fill.userData.starlightWeight = starlight;
 	fill.userData.horizonWarmthWeight = horizonWarmth;
 	fill.userData.mesopicGroundAdaptation = mesopic;
 	fill.userData.mesopicGroundChromaLoss = chromaLoss;
@@ -183,6 +193,7 @@ export function getNightVisualEnhancementSnapshot(hemisphere) {
 		blueHourWeight: Number(fill?.userData?.blueHourWeight || 0),
 		moonlitPlateau: Number(fill?.userData?.moonlitPlateau || 0),
 		airglowWeight: Number(fill?.userData?.airglowWeight || 0),
+		starlightWeight: Number(fill?.userData?.starlightWeight || 0),
 		horizonWarmthWeight: Number(fill?.userData?.horizonWarmthWeight || 0),
 		mesopicGroundAdaptation: Number(fill?.userData?.mesopicGroundAdaptation || 0),
 		mesopicGroundChromaLoss: Number(fill?.userData?.mesopicGroundChromaLoss || 0),
