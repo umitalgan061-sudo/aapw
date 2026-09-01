@@ -1,5 +1,9 @@
 #!/usr/bin/env node
-/** Runtime regression gate for Run 136 mobile vegetation geometry LOD. */
+/**
+ * Mobile vegetation geometry LOD regression gate.
+ * Runs the production createVegetation() path inside a coarse-pointer browser without booting the
+ * full game, so unrelated Git-LFS model placeholders and scene shaders cannot contaminate this test.
+ */
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
 async function main() {
@@ -15,22 +19,19 @@ async function main() {
 		viewport: { width: 430, height: 932 },
 		isMobile: true,
 		hasTouch: true,
-		userAgent: 'WesterosPWA-MobileVegetationLodGate/1.0',
+		userAgent: 'WesterosPWA-MobileVegetationLodGate/2.0',
 	});
 	const page = await context.newPage();
-	const consoleErrors = [];
 	const pageErrors = [];
-	page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()); });
 	page.on('pageerror', (error) => pageErrors.push(String(error)));
 
 	try {
-		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
-		await page.waitForFunction(
-			() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
-			{ timeout: 60000, polling: 250 },
-		);
+		await page.goto(`http://127.0.0.1:${port}/scripts/vegetationSilhouetteHarness.html`, {
+			waitUntil: 'domcontentloaded',
+			timeout: 30000,
+		});
 		const result = await page.evaluate(async () => {
-			const vegetation = await import('./src/3d/world/vegetation.js');
+			const vegetation = await import('/src/3d/world/vegetation.js');
 			const created = vegetation.createVegetation({
 				sampleHeightMeters: () => 20,
 				seaLevelMeters: 6,
@@ -41,31 +42,49 @@ async function main() {
 				densityPerKm2: 30,
 			});
 			const stats = vegetation.getMobileVegetationLodStatsRun136(created.group);
-			const counts = created.group.children.map((mesh) => mesh.count);
+			const meshes = created.group.children.map((mesh) => ({
+				name: mesh.name,
+				count: mesh.count,
+				type: mesh.geometry.type,
+				triangles: mesh.geometry.index
+					? mesh.geometry.index.count / 3
+					: mesh.geometry.getAttribute('position').count / 3,
+			}));
+			const coarse = matchMedia('(pointer: coarse)').matches;
+			const placedCount = created.placedCount;
 			vegetation.disposeVegetation(created.group);
-			return { stats, counts, coarse: matchMedia('(pointer: coarse)').matches };
+			return { stats, meshes, placedCount, coarse };
 		});
 
 		if (!result.coarse) throw new Error('coarse-pointer mobile path was not active');
 		if (!result.stats?.active) throw new Error(`mobile vegetation LOD metadata missing: ${JSON.stringify(result)}`);
-		if (!(result.stats.mobileTriangles < result.stats.desktopTriangles)) {
+		if (!(result.stats.desktopTriangles > result.stats.mobileTriangles)) {
 			throw new Error(`triangle reduction missing: ${JSON.stringify(result.stats)}`);
 		}
 		if (result.stats.reductionRatio < 0.25) {
 			throw new Error(`vegetation triangle reduction too small: ${JSON.stringify(result.stats)}`);
 		}
-		if (!result.counts.length || result.counts.some((count) => count < 0)) {
-			throw new Error(`invalid instance counts: ${JSON.stringify(result.counts)}`);
+		if (result.stats.placedCount !== result.placedCount) {
+			throw new Error(`LOD metadata placement drift: ${JSON.stringify(result)}`);
 		}
-		if (consoleErrors.length || pageErrors.length) {
-			throw new Error(`console/page errors: ${JSON.stringify({ consoleErrors, pageErrors })}`);
+		if (result.meshes.length !== 6 || result.meshes.some((mesh) => mesh.count < 0 || mesh.triangles <= 0)) {
+			throw new Error(`invalid mobile mesh inventory: ${JSON.stringify(result.meshes)}`);
 		}
-		console.log(`[checkMobileVegetationLod] sample ${JSON.stringify(result)}`);
-		console.log('[checkMobileVegetationLod] PASS: coarse-pointer vegetation keeps instances but lowers geometry triangles.');
+		const mobileTypes = result.meshes.map((mesh) => mesh.type);
+		const expectedTypes = [
+			'CylinderGeometry', 'ConeGeometry',
+			'CylinderGeometry', 'SphereGeometry',
+			'CylinderGeometry', 'ConeGeometry',
+		];
+		if (mobileTypes.some((type, index) => type !== expectedTypes[index])) {
+			throw new Error(`mobile primitive LOD type drift: ${JSON.stringify(mobileTypes)}`);
+		}
+		if (pageErrors.length) throw new Error(`page errors: ${JSON.stringify(pageErrors)}`);
+		console.log('[checkMobileVegetationLod] PASS', JSON.stringify(result));
 	} finally {
 		await context.close();
 		await browser.close();
-		server.close();
+		await new Promise((resolve) => server.close(resolve));
 	}
 }
 
