@@ -14,6 +14,7 @@ const NIGHT_CINEMATIC_MOONLIT_GROUND = new THREE.Color(0x343c37);
 const NIGHT_CINEMATIC_DEEP_GROUND = new THREE.Color(0x202927);
 const NIGHT_CINEMATIC_MESOPIC_GROUND = new THREE.Color(0x333a37);
 const NIGHT_CINEMATIC_WARM_HORIZON = new THREE.Color(0x766f63);
+const NIGHT_CINEMATIC_PURKINJE = new THREE.Color(0.91, 1.0, 1.07);
 
 function smoothNight(value) {
 	const n = THREE.MathUtils.clamp(Number(value) || 0, 0, 1);
@@ -65,9 +66,13 @@ function mesopicGroundChromaLoss(night, deepNight) {
 	return onset * THREE.MathUtils.lerp(0.06, 0.18, deepNight);
 }
 
-function preserveLuminanceDesaturate(color, amount) {
+function preserveMesopicLuminance(color, amount) {
+	const strength = THREE.MathUtils.clamp(amount, 0, 0.24);
 	const luminance = color.r * 0.2126 + color.g * 0.7152 + color.b * 0.0722;
-	color.lerp(new THREE.Color(luminance, luminance, luminance), THREE.MathUtils.clamp(amount, 0, 0.24));
+	const target = NIGHT_CINEMATIC_PURKINJE.clone().multiplyScalar(luminance);
+	const targetLuminance = target.r * 0.2126 + target.g * 0.7152 + target.b * 0.0722;
+	if (targetLuminance > 1e-6) target.multiplyScalar(luminance / targetLuminance);
+	color.lerp(target, strength);
 }
 
 function nightSurfaceContrast(night, moonlit, deepNight) {
@@ -131,7 +136,7 @@ export function updateNightVisualEnhancement(hemisphere, nightFactor) {
 	fill.color.lerp(NIGHT_CINEMATIC_AIRGLOW_SKY, airglow * 0.075);
 	fill.groundColor.lerp(NIGHT_CINEMATIC_WARM_HORIZON, horizonWarmth * 0.055);
 	fill.groundColor.lerp(NIGHT_CINEMATIC_MESOPIC_GROUND, mesopic);
-	preserveLuminanceDesaturate(fill.groundColor, chromaLoss);
+	preserveMesopicLuminance(fill.groundColor, chromaLoss);
 	const readability = THREE.MathUtils.lerp(NIGHT_CINEMATIC_DAY_INTENSITY, NIGHT_CINEMATIC_FULL_INTENSITY, night);
 	const twilightAdaptation = THREE.MathUtils.lerp(0.96, 1.035, blueHour);
 	const airglowAdaptation = 1 + airglow * 0.018;
