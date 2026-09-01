@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-01-v78-ocean-handoff-neutralization',
+	id: 'geographic-reference-palette-2026-09-02-v79-aerial-terrain-material-separation',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v78 preserves the v77 aerial lithology breakup unchanged: meadow, dry/exposed earth and granite/quartz remain separated while canonical biome placement, terrain geometry, cryosphere masks, coastline, hydrology and colliders remain unchanged.',
-		water: 'v78 removes the residual deepSea/abyss base-colour discontinuity by sharing one deep-ocean reference colour across near/far/backdrop layers; kilometre/meso/fine world-space fabric, current shear, roughness and bathymetric optical response still provide deterministic depth and surface variation, so this does not flatten the ocean. Canonical bathymetry, wet coverage, shoreline, lake membership, water geometry and colliders remain unchanged.',
-		road: 'v78 preserves the v77 compacted-earth versus rut/stone separation while retaining canonical routes and world-space wear.',
+		terrain: 'v79 strengthens aerial material-family separation without moving biome boundaries: meadow is slightly deeper/less yellow, dry heather is less orange, exposed earth is less luminous, and granite/quartz stay neutral so existing world-space geological fabric, weathering and ecological transitions read instead of collapsing into one beige field. Canonical biome placement, terrain geometry, cryosphere masks, coastline, hydrology and colliders remain unchanged.',
+		water: 'v79 preserves the v78 deepSea/abyss handoff neutralization unchanged; kilometre/meso/fine world-space fabric, current shear, roughness and bathymetric optical response remain the source of deterministic depth and surface variation. Canonical bathymetry, wet coverage, shoreline, lake membership, water geometry and colliders remain unchanged.',
+		road: 'v79 preserves the v77 compacted-earth versus rut/stone separation while retaining canonical routes and world-space wear.',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -30,14 +30,14 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
 		mossShadow: 0x0d2115,
-		meadow: 0x356f45,
-		dryHeather: 0x71583d,
+		meadow: 0x2f7040,
+		dryHeather: 0x66523d,
 		wetEarth: 0x101a15,
-		exposedEarth: 0xa77a52,
+		exposedEarth: 0x956b49,
 		graniteShadow: 0x303a40,
-		graniteSunlit: 0x888077,
+		graniteSunlit: 0x817d78,
 		basaltWet: 0x101d22,
-		quartz: 0x9a9287,
+		quartz: 0x98928b,
 	}),
 	road: Object.freeze({
 		compacted: 0x70503b,
