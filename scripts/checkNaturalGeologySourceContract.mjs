@@ -36,14 +36,24 @@ assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.shorelineReserveMeters >= 8);
 
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.renderOnly, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.geographyAuthorityUnchanged, true);
+assert(NATURAL_GEOLOGY_RENDER_POLICY.id.includes('v7-faceted-fallback-and-biome-assets'));
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.referenceLandscapeRuntimeLoad, false);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.instanceScaleCompensatedWorldNormal, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.cameraStableRockWeathering, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.hydratedRegionalTint, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.canonicalTerrainOwnsValyriaSurface, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.legacyValyriaSurfaceOverlayEnabled, false);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.geographicAssetRouting, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.fbxHydrationSupported, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.snowAssetRestrictedToColdHighland, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.valyriaNeverUsesSnowAsset, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.platonicFallbackGeometry, false);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.fallbackGeometryFamily, 'stratified-faceted-geologic-ledges');
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.directAssetUrls.length, 4);
 assert(NATURAL_GEOLOGY_RENDER_POLICY.hydratedRegionalTintStrength > 0.20);
 assert(NATURAL_GEOLOGY_RENDER_POLICY.hydratedRegionalTintStrength < 0.50);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.knownDirectAssetBytes[NATURAL_GEOLOGY_RENDER_POLICY.smallRockAsset], 74044);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.knownDirectAssetBytes[NATURAL_GEOLOGY_RENDER_POLICY.snowRockAsset], 5180716);
 
 assert.equal(VALYRIA_GEOLOGY_POLICY.canonicalCoastlinePreserved, true);
 assert.equal(VALYRIA_GEOLOGY_POLICY.canonicalWaterClassificationPreserved, true);
@@ -95,7 +105,11 @@ for (const snippet of [
   'createValyriaVolcanicSurface',
   'upgradeNaturalGeologyAssets',
   'createNaturalRockPrototypeGeometry',
+  'createStratifiedRockGeometry',
+  'resolveNaturalGeologyAssetFamily',
   'validateNaturalGeologyAsset',
+  'loadNaturalGeologySource',
+  'loadFBXModel',
   'hostedPreflightMinBytes',
   'maximumHydratedSourceBytes',
   'referenceLandscapeRuntimeLoad: false',
@@ -107,11 +121,23 @@ for (const snippet of [
   'hydratedTintForPlacement',
   'instances.setColorAt(index, hydratedTintForPlacement(placements[index]))',
   'sourceMaterialPreserved: true',
+  "if (placement.volcanic) return 'rocky-terrain'",
+  "return 'snow-terrain'",
+  "return 'free-rock'",
   'assets/models/fbx/rocky_terrain_low_poly.glb',
   'assets/models/fbx/desert_rocks.glb',
+  'assets/models/fbx/Free_rock_Rock_1.fbx',
+  'assets/models/fbx/snow_terrain_low_poly.glb',
   'assets/models/fbx/rugged_mountain_landscape.glb',
 ]) {
   assert(renderSource.includes(snippet), `renderer contract lost: ${snippet}`);
+}
+for (const forbidden of [
+  'new THREE.IcosahedronGeometry',
+  'new THREE.DodecahedronGeometry',
+  'new THREE.TetrahedronGeometry',
+]) {
+  assert(!renderSource.includes(forbidden), `Platonic geology fallback returned: ${forbidden}`);
 }
 assert(!renderSource.includes('group.add(valyriaSurface)'),
   'production natural geology reintroduced a second opaque Valyria terrain surface');
@@ -119,6 +145,8 @@ assert(renderSource.includes("valyriaSurfaceAuthority: 'canonical-terrain'"),
   'natural geology metadata lost canonical Valyria surface authority');
 assert(!renderSource.includes('vNaturalRockWorldNormal = normalize(mat3(modelMatrix) * transformedNormal)'),
   'rock shader regressed to treating Three view/instance transformedNormal as a world normal');
+assert(renderSource.indexOf("if (placement.volcanic) return 'rocky-terrain'")
+  < renderSource.indexOf("return 'snow-terrain'"), 'Valyria routing must win before snow/highland routing');
 
 for (const snippet of [
   'v4-natural-volcanic-morphology',
@@ -211,10 +239,15 @@ for (const forbidden of [
 
 const manifestFiles = new Set(manifest.assets.map((entry) => entry.file));
 for (const file of [
-  ...NATURAL_GEOLOGY_PLACEMENT_POLICY.directAssetFamilies,
+  ...NATURAL_GEOLOGY_RENDER_POLICY.directAssetUrls,
   ...NATURAL_GEOLOGY_PLACEMENT_POLICY.referenceOnlyAssets,
 ]) {
   assert(manifestFiles.has(file), `unregistered geology model: ${file}`);
+}
+for (const [file, bytes] of Object.entries(NATURAL_GEOLOGY_RENDER_POLICY.knownDirectAssetBytes)) {
+  assert(manifestFiles.has(file), `direct geology asset missing from manifest: ${file}`);
+  assert(bytes >= NATURAL_GEOLOGY_RENDER_POLICY.hostedPreflightMinBytes, `invalid direct asset byte budget: ${file}`);
+  assert(bytes <= NATURAL_GEOLOGY_RENDER_POLICY.maximumHydratedSourceBytes, `direct asset exceeds hydration cap: ${file}`);
 }
 assert(
   NATURAL_GEOLOGY_PLACEMENT_POLICY.knownLfsBytes['assets/models/fbx/rugged_mountain_landscape.glb'] > 40_000_000,
@@ -227,16 +260,20 @@ console.log(JSON.stringify({
   placementPolicyId: NATURAL_GEOLOGY_PLACEMENT_POLICY.id,
   renderPolicyId: NATURAL_GEOLOGY_RENDER_POLICY.id,
   candidateDistribution: NATURAL_GEOLOGY_PLACEMENT_POLICY.candidateDistribution,
-  directAssets: NATURAL_GEOLOGY_PLACEMENT_POLICY.directAssetFamilies,
+  directAssets: NATURAL_GEOLOGY_RENDER_POLICY.directAssetUrls,
+  directAssetBytes: NATURAL_GEOLOGY_RENDER_POLICY.knownDirectAssetBytes,
   referenceOnlyAssets: NATURAL_GEOLOGY_PLACEMENT_POLICY.referenceOnlyAssets,
-  knownLfsBytes: NATURAL_GEOLOGY_PLACEMENT_POLICY.knownLfsBytes,
   hydratedRegionalTintStrength: NATURAL_GEOLOGY_RENDER_POLICY.hydratedRegionalTintStrength,
+  fallbackGeometryFamily: NATURAL_GEOLOGY_RENDER_POLICY.fallbackGeometryFamily,
   valyriaPolicy: VALYRIA_GEOLOGY_POLICY.id,
   valyriaEcologyPolicy: VALYRIA_BARREN_ECOLOGY_POLICY.id,
   canonicalTerrainIntegration: true,
   naturalVolcanicMorphology: true,
   morphologyAlignedOutcropPlacement: true,
   lowDiscrepancyGeologyCandidates: true,
+  geographicAssetRouting: true,
+  fbxHydration: true,
+  facetedNonPlatonicFallback: true,
   canonicalValyriaSurfaceOnly: true,
   instanceCorrectWorldNormals: true,
 }, null, 2));
