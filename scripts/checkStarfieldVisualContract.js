@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 /**
- * checkStarfieldVisualContract.js — live-browser starfield render regression contract.
- * Pins the existing deterministic Points dome, ShaderMaterial, camera-follow update and teardown
- * behavior without changing runtime code or recalibrating owner-visible twinkle tuning values.
+ * Live-browser starfield render regression contract.
+ *
+ * Preserves the canonical same-seed sky positions/twinkle buffers while locking the successor's
+ * independently seeded apparent-magnitude, restrained stellar-temperature, broad celestial-density
+ * band and circular point-spread treatment. Camera-follow, canonical nightFactor forwarding and
+ * teardown remain unchanged.
  */
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
@@ -21,6 +24,11 @@ async function main() {
 	const browser = await playwright.chromium.launch({ headless: true });
 	try {
 		const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+		// This contract needs game3d.html's import map, not the full open-world bootstrap. Stub only
+		// the entry module so CI measures stars.js rather than loading unrelated terrain/gameplay.
+		await page.route('**/src/3d/game3d.js', async (route) => {
+			await route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: 'export function initGame3D() {}\n' });
+		});
 		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
 		const result = await page.evaluate(async () => {
 			const THREE = await import('three');
@@ -41,9 +49,17 @@ async function main() {
 			const position = starfield.geometry.getAttribute('position');
 			const phase = starfield.geometry.getAttribute('aPhase');
 			const freq = starfield.geometry.getAttribute('aFreq');
+			const size = starfield.geometry.getAttribute('aSize');
+			const brightness = starfield.geometry.getAttribute('aBrightness');
+			const density = starfield.geometry.getAttribute('aSkyDensity');
+			const color = starfield.geometry.getAttribute('aColor');
 			fail(position?.itemSize === 3 && position.count === 1200, `expected 1200 position vertices, got ${position?.count}`);
 			fail(phase?.itemSize === 1 && phase.count === 1200, 'aPhase attribute shape drifted');
 			fail(freq?.itemSize === 1 && freq.count === 1200, 'aFreq attribute shape drifted');
+			fail(size?.itemSize === 1 && size.count === 1200, 'aSize attribute shape drifted');
+			fail(brightness?.itemSize === 1 && brightness.count === 1200, 'aBrightness attribute shape drifted');
+			fail(density?.itemSize === 1 && density.count === 1200, 'aSkyDensity attribute shape drifted');
+			fail(color?.itemSize === 3 && color.count === 1200, 'aColor attribute shape drifted');
 
 			let minHeightFactor = Infinity;
 			let maxHeightFactor = -Infinity;
@@ -51,8 +67,24 @@ async function main() {
 			let maxRadius = -Infinity;
 			let minFreq = Infinity;
 			let maxFreq = -Infinity;
-			let minPhase = Infinity;
-			let maxPhase = -Infinity;
+			let minSize = Infinity;
+			let maxSize = -Infinity;
+			let minBrightness = Infinity;
+			let maxBrightness = -Infinity;
+			let minDensity = Infinity;
+			let maxDensity = -Infinity;
+			let sizeTotal = 0;
+			let densityTotal = 0;
+			let bandDensityTotal = 0;
+			let bandDensityCount = 0;
+			let offBandDensityTotal = 0;
+			let offBandDensityCount = 0;
+			let faintSmallCount = 0;
+			let brightLargeCount = 0;
+			let warmCount = 0;
+			let coolCount = 0;
+			let neutralCount = 0;
+
 			for (let i = 0; i < position.count; i++) {
 				const x = position.getX(i);
 				const y = position.getY(i);
@@ -61,39 +93,87 @@ async function main() {
 				const heightFactor = y / 1850;
 				const p = phase.getX(i);
 				const f = freq.getX(i);
+				const s = size.getX(i);
+				const lum = brightness.getX(i);
+				const skyDensity = density.getX(i);
+				const r = color.getX(i);
+				const g = color.getY(i);
+				const b = color.getZ(i);
+
 				fail(Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z), `non-finite star position at ${i}`);
 				fail(close(radius, 1850, 0.001), `star ${i} radius ${radius} drifted from 1850m dome`);
 				fail(heightFactor >= 0.05 - 1e-6 && heightFactor <= 1 + 1e-6, `star ${i} escaped upper-dome height range`);
 				fail(p >= 0 && p <= Math.PI * 2 + 1e-6, `star ${i} phase escaped 0..2π`);
 				fail(f >= 0.4 - 1e-6 && f <= 1.3 + 1e-6, `star ${i} frequency escaped 0.4..1.3 rad/s`);
+				fail(s >= 1.25 - 1e-6 && s <= 3.25 + 1e-6, `star ${i} size ${s} escaped magnitude range`);
+				fail(lum >= 0.42 - 1e-6 && lum <= 1.0 + 1e-6, `star ${i} brightness ${lum} escaped luminance range`);
+				fail(skyDensity >= 0.86 - 1e-6 && skyDensity <= 1.54 + 1e-6, `star ${i} density ${skyDensity} escaped celestial-band range`);
+				fail([r, g, b].every((value) => Number.isFinite(value) && value >= 0.75 && value <= 1.001), `star ${i} color escaped restrained stellar range`);
+
+				const bandDistance = Math.abs((x * 0.36 + y * 0.89 + z * 0.28) / 1850);
+				if (bandDistance < 0.10) {
+					bandDensityTotal += skyDensity;
+					bandDensityCount++;
+				} else if (bandDistance > 0.50) {
+					offBandDensityTotal += skyDensity;
+					offBandDensityCount++;
+				}
+
+				if (s < 1.65 && lum < 0.55) faintSmallCount++;
+				if (s > 2.45 && lum > 0.75) brightLargeCount++;
+				if (r - b > 0.08) warmCount++;
+				else if (b - r > 0.08) coolCount++;
+				else neutralCount++;
+
 				minHeightFactor = Math.min(minHeightFactor, heightFactor);
 				maxHeightFactor = Math.max(maxHeightFactor, heightFactor);
 				minRadius = Math.min(minRadius, radius);
 				maxRadius = Math.max(maxRadius, radius);
 				minFreq = Math.min(minFreq, f);
 				maxFreq = Math.max(maxFreq, f);
-				minPhase = Math.min(minPhase, p);
-				maxPhase = Math.max(maxPhase, p);
+				minSize = Math.min(minSize, s);
+				maxSize = Math.max(maxSize, s);
+				minBrightness = Math.min(minBrightness, lum);
+				maxBrightness = Math.max(maxBrightness, lum);
+				minDensity = Math.min(minDensity, skyDensity);
+				maxDensity = Math.max(maxDensity, skyDensity);
+				sizeTotal += s;
+				densityTotal += skyDensity;
 			}
+
+			const meanDensity = densityTotal / position.count;
+			const meanBandDensity = bandDensityTotal / bandDensityCount;
+			const meanOffBandDensity = offBandDensityTotal / offBandDensityCount;
+			fail(maxSize - minSize > 1.6, `star magnitude size spread too narrow: ${minSize}..${maxSize}`);
+			fail(maxBrightness - minBrightness > 0.45, `star brightness spread too narrow: ${minBrightness}..${maxBrightness}`);
+			fail(faintSmallCount > 650, `faint/small stars no longer dominate: ${faintSmallCount}`);
+			fail(brightLargeCount >= 15 && brightLargeCount <= 180, `bright anchor population implausible: ${brightLargeCount}`);
+			fail(warmCount >= 60 && warmCount <= 220, `warm-star population drifted: ${warmCount}`);
+			fail(coolCount >= 100 && coolCount <= 320, `cool-star population drifted: ${coolCount}`);
+			fail(neutralCount > warmCount + coolCount, `near-neutral stars no longer dominate: ${neutralCount}/${warmCount}/${coolCount}`);
+			fail(bandDensityCount > 40 && offBandDensityCount > 120, `stellar-band probe populations too small: ${bandDensityCount}/${offBandDensityCount}`);
+			fail(meanDensity > 0.94 && meanDensity < 1.06, `stellar band changed whole-dome energy instead of redistributing it: ${meanDensity}`);
+			fail(meanBandDensity > meanOffBandDensity + 0.35, `stellar density band has insufficient contrast: ${meanBandDensity}/${meanOffBandDensity}`);
 
 			const material = starfield.material;
 			fail(material.transparent === true && material.depthWrite === false && material.fog === false, 'star ShaderMaterial transparency/depth/fog contract drifted');
 			fail(close(material.uniforms.uTime.value, 0) && close(material.uniforms.uNightFactor.value, 0), 'star initial time/night uniforms drifted');
-			fail(close(material.uniforms.uSize.value, 2.2), 'star fixed pixel size drifted');
-			fail(material.uniforms.uColor.value?.isColor === true && material.uniforms.uColor.value.getHex() === 0xf5f8ff, 'star color drifted');
-			fail(material.vertexShader.includes('gl_PointSize = uSize'), 'vertex shader no longer uses fixed uSize pixels');
-			fail(material.vertexShader.includes('vAlpha = uNightFactor * twinkle'), 'vertex shader night/twinkle alpha contract drifted');
-			fail(material.fragmentShader.includes('vec4(uColor, vAlpha)'), 'fragment shader color/alpha output contract drifted');
+			fail(!material.uniforms.uSize && !material.uniforms.uColor, 'legacy uniform size/color path still present');
+			fail(material.userData.starfieldRealism === 'magnitude-temperature-circular-psf-stellar-band-v2', 'star realism marker missing');
+			for (const token of ['attribute float aSize', 'attribute float aBrightness', 'attribute float aSkyDensity', 'attribute vec3 aColor', 'aBrightness * aSkyDensity', 'gl_PointSize = aSize', 'vColor = aColor']) {
+				fail(material.vertexShader.includes(token), `stellar vertex token missing: ${token}`);
+			}
+			for (const token of ['gl_PointCoord', 'if (radius > 0.5) discard', 'smoothstep(0.02, 0.22, radius)', 'smoothstep(0.16, 0.50, radius)', 'vec4(color, alpha)']) {
+				fail(material.fragmentShader.includes(token), `circular stellar fragment token missing: ${token}`);
+			}
 
-			const p1 = Array.from(position.array);
-			const p2 = Array.from(twin.geometry.getAttribute('position').array);
-			const ph1 = Array.from(phase.array);
-			const ph2 = Array.from(twin.geometry.getAttribute('aPhase').array);
-			const f1 = Array.from(freq.array);
-			const f2 = Array.from(twin.geometry.getAttribute('aFreq').array);
-			const otherPositions = Array.from(other.geometry.getAttribute('position').array);
-			fail(arraysEqual(p1, p2) && arraysEqual(ph1, ph2) && arraysEqual(f1, f2), 'same-seed star geometry/twinkle buffers are not bit-identical');
-			fail(!arraysEqual(p1, otherPositions), 'different seed unexpectedly produced identical positions');
+			const attributeArray = (field, geometry = starfield.geometry) => Array.from(geometry.getAttribute(field).array);
+			const sameSeedFields = ['position', 'aPhase', 'aFreq', 'aSize', 'aBrightness', 'aSkyDensity', 'aColor'];
+			for (const field of sameSeedFields) {
+				fail(arraysEqual(attributeArray(field), attributeArray(field, twin.geometry)), `same-seed ${field} buffer is not bit-identical`);
+			}
+			fail(!arraysEqual(attributeArray('position'), attributeArray('position', other.geometry)), 'different seed unexpectedly produced identical positions');
+			fail(!arraysEqual(attributeArray('aSize'), attributeArray('aSize', other.geometry)), 'different seed unexpectedly produced identical appearance');
 
 			const cameraPosition = new THREE.Vector3(123.25, 45.5, -678.75);
 			updateStarfield(starfield, cameraPosition, 12.5, 0.73);
@@ -113,10 +193,17 @@ async function main() {
 			disposeStarfield(twin);
 			disposeStarfield(other);
 
-			return { minHeightFactor, maxHeightFactor, minRadius, maxRadius, minFreq, maxFreq, minPhase, maxPhase, geometryDisposals, materialDisposals };
+			return {
+				minHeightFactor, maxHeightFactor, minRadius, maxRadius, minFreq, maxFreq,
+				minSize, maxSize, meanSize: sizeTotal / position.count,
+				minBrightness, maxBrightness, minDensity, maxDensity, meanDensity,
+				meanBandDensity, meanOffBandDensity, bandDensityCount, offBandDensityCount,
+				faintSmallCount, brightLargeCount, warmCount, neutralCount, coolCount,
+				geometryDisposals, materialDisposals,
+			};
 		});
 		assert(result.geometryDisposals === 1 && result.materialDisposals === 1, 'starfield teardown escaped browser contract');
-		console.log(`[checkStarfieldVisualContract] PASS: 1200 deterministic stars on ${result.minRadius.toFixed(3)}-${result.maxRadius.toFixed(3)}m dome, heightFactor ${result.minHeightFactor.toFixed(3)}-${result.maxHeightFactor.toFixed(3)}, twinkle freq ${result.minFreq.toFixed(3)}-${result.maxFreq.toFixed(3)} rad/s, fixed 2.2px ShaderMaterial + camera-follow + disposal 1/1.`);
+		console.log(`[checkStarfieldVisualContract] PASS: 1200 deterministic stars, size ${result.minSize.toFixed(2)}-${result.maxSize.toFixed(2)}px (mean ${result.meanSize.toFixed(2)}), brightness ${result.minBrightness.toFixed(2)}-${result.maxBrightness.toFixed(2)}, density ${result.minDensity.toFixed(2)}-${result.maxDensity.toFixed(2)} (mean ${result.meanDensity.toFixed(3)}, band/off ${result.meanBandDensity.toFixed(3)}/${result.meanOffBandDensity.toFixed(3)}), faint=${result.faintSmallCount}, bright=${result.brightLargeCount}, warm/neutral/cool=${result.warmCount}/${result.neutralCount}/${result.coolCount}, camera-follow + disposal 1/1.`);
 	} finally {
 		await browser.close();
 		await new Promise((resolve) => server.close(resolve));
