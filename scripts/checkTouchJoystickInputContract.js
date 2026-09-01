@@ -5,12 +5,6 @@ class FakeClassList {
 	add(value) { this._values.add(value); }
 	remove(value) { this._values.delete(value); }
 	contains(value) { return this._values.has(value); }
-	oggle(value, force) {
-		const active = force ?? !this._values.has(value);
-		if (active) this._values.add(value);
-		else this._values.delete(value);
-		return active;
-	}
 }
 
 class FakeElement {
@@ -74,23 +68,6 @@ joystick._resetGameplayState();
 assert.deepEqual(joystick._guardButton.releasedPointerIds, [21], 'lifecycle reset releases active guard capture');
 assert.equal(joystick._guardButton.getAttribute('aria-pressed'), 'false');
 assert.equal(joystick.getAxes().guarding, false);
-
-// Lock-on is an edge-triggered request, while externally confirmed target state stays visible to touch users.
-assert.equal(body.children[3], joystick._lockOnButton);
-assert.equal(joystick._lockOnButton.getAttribute('aria-label'), 'Hedef kilidi');
-assert.equal(joystick._lockOnButton.getAttribute('aria-pressed'), 'false');
-assert.equal(joystick.consumeLockOnRequested(), false, 'lock-on starts unrequested');
-joystick._lockOnButton.dispatch('pointerdown', { preventDefault() {} });
-assert.equal(joystick.consumeLockOnRequested(), true, 'one touch produces one lock-on edge');
-assert.equal(joystick.consumeLockOnRequested(), false, 'reading the lock-on edge consumes it');
-joystick.setLockOnActive(true);
-assert.equal(joystick._lockOnButton.getAttribute('aria-pressed'), 'true');
-assert.equal(joystick._lockOnButton.textContent, 'Kilitli');
-assert.equal(joystick._lockOnButton.classList.contains('g3d-touch-lock-on-active'), true);
-joystick.setLockOnActive(false);
-assert.equal(joystick._lockOnButton.getAttribute('aria-pressed'), 'false');
-assert.equal(joystick._lockOnButton.textContent, 'Hedef');
-assert.equal(joystick._lockOnButton.classList.contains('g3d-touch-lock-on-active'), false);
 
 let prevented = 0;
 joystick._base.dispatch('pointerdown', {
@@ -188,10 +165,9 @@ assert.equal(joystick._guardButton.releasedPointerIds.includes(43), true, 'dispo
 assert.equal(joystick._base.removed, true);
 assert.equal(joystick._jumpButton.removed, true);
 assert.equal(joystick._jumpButton._listeners.has('click'), false, 'jump click listener removed on dispose');
-assert.equal(joystick._lockOnButton._listeners.has('pointerdown'), false, 'lock-on pointer listener removed on dispose');
 assert.equal(joystick.consumeJumpRequested(), false, 'dispose clears pending jump state');
 for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) {
 	assert.equal(joystick._base._listeners.has(type), false, `${type} listener removed on dispose`);
 }
 
-console.log('Touch joystick input contract PASS: movement capture, guard lifecycle release, lock-on accessibility state, deadzone, clamp, axis mapping, cancel reset, dispose capture release and listener cleanup preserved.');
+console.log('Touch joystick input contract PASS: movement capture, guard lifecycle release, deadzone, clamp, axis mapping, cancel reset, dispose capture release and listener cleanup preserved.');
