@@ -317,7 +317,7 @@ export function wrapCreatureWithThreatMemory(creature, {
 				}
 			}
 		}
-		result.sort((a, b) => a.distanceMeters - b.distanceMeters || a.speciesId.localeCompare(b.speciesId));
+		result.sort((a, b) => a.distanceMeters - b.distanceMeters || a.speciesId.localeCompare(b.speciesId) || a.x - b.x || a.z - b.z);
 		return result;
 	}
 
