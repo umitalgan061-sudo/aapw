@@ -7,11 +7,11 @@
  * edge (`world/roads.js`'s cart-road tier — the same "at arabası yolu" the road system has been
  * named after since it was first built) at a fixed pace, the way medieval road traffic would.
  *
- * **Fully procedural, same reason as `creatureBrain.js`'s population.** `assets_manifest.json` has
- * no cart/wagon model (checked the same way run 326 checked for animal models — nothing under any
- * FBX/GLB node table names a wheeled vehicle), so this builds its own low-poly wagon-plus-draught-
- * horse silhouette from primitives, the same "procedural body, not a placeholder box" scope
- * `creatureRig.js` already set as this project's precedent for an unmet asset need.
+ * **Asset-first visual with procedural fallback.** The repository now contains the owner-approved
+ * `ancient_horse_chariot_mauryan_era.glb`, so a hydrated, materially-distinct copy replaces the old
+ * primitive silhouette after shared material/placement validation. The primitive wagon-plus-horse
+ * remains visible while that async load is pending and remains the deterministic fallback when the
+ * LFS binary is unavailable or the imported material/bounds fail validation.
  *
  * **Movement — path-following, not wander/flee.** A cart is bound to one `world/roads.js` cart-road
  * edge (`{points: {x,y,z}[]}`, already routed slope-aware and terrain-sampled by
@@ -35,6 +35,7 @@
 
 import * as THREE from 'three';
 import { ROAD_COMFORT_GRADE_DEGREES } from '../world/roadPathfinder.js';
+import { beginCartVisualAssetUpgrade } from './cartVisualAsset.js';
 
 /** Wood/iron/horse palette — kept in its own warm, muted family so a cart reads as "medieval cargo
  * traffic" against `world/roads.js`'s tan `ROAD_COLOR` (0x9c7b4a) without matching it exactly (a
@@ -347,8 +348,8 @@ function createCartMesh() {
  *   along its real, already slope-aware-routed and terrain-sampled `points` polyline.
  * @param {(seed: number) => () => number} options.mulberry32
  * @returns {{object3D: THREE.Object3D, update: (delta: number) => void, dispose: () => void,
- *   getCollisionCircle: () => {x: number, z: number, radius: number}}} `getCollisionCircle` is run
- *   337's own addition — see its own doc comment below.
+ *   visualReady: Promise<object>, getCollisionCircle: () => {x: number, z: number, radius: number}}}
+ *   `visualReady` resolves after the optional real-asset upgrade; movement never waits on it.
  */
 export function createCartBeing({ cartId, edge, mulberry32 }) {
 	const points = edge.points;
@@ -357,7 +358,7 @@ export function createCartBeing({ cartId, edge, mulberry32 }) {
 
 	const { object3D, wheelPivots, dispose: disposeMesh } = createCartMesh();
 	object3D.name = cartId;
-
+	object3D.userData.cartVisualMode = 'procedural-fallback';
 	const rng = mulberry32(hashSeedString(cartId) ^ 0x43415254); // "CART"-ish tag
 	let direction = rng() < 0.5 ? 1 : -1;
 	let distanceTravelledMeters = rng() * totalLengthMeters;
@@ -384,8 +385,19 @@ export function createCartBeing({ cartId, edge, mulberry32 }) {
 		if (Math.hypot(tangentX, tangentZ) > 1e-6) object3D.rotation.y = Math.atan2(tangentX, tangentZ);
 	}
 
+	const visualUpgrade = beginCartVisualAssetUpgrade({
+		cartRoot: object3D,
+		cartId,
+		edge,
+		targetLengthMeters: RIG_FRONT_METERS - RIG_BACK_METERS - 0.1,
+		targetWidthMeters: CART_CONFIG.trackWidthMeters + 0.65,
+		maxHeightMeters: 2.6,
+		forwardOffsetMeters: CART_CONFIG.collisionForwardOffsetMeters,
+	});
+
 	return {
 		object3D,
+		visualReady: visualUpgrade.ready,
 		update(delta) {
 			if (totalLengthMeters < 1e-6) return; // degenerate edge (shouldn't happen — spawnConfiguredCarts filters these out)
 
@@ -429,6 +441,7 @@ export function createCartBeing({ cartId, edge, mulberry32 }) {
 			for (const pivot of wheelPivots) pivot.rotation.x = wheelSpinRadians;
 		},
 		dispose() {
+			visualUpgrade.dispose();
 			disposeMesh();
 		},
 		/**
