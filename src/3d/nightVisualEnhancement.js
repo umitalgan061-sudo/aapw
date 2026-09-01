@@ -7,6 +7,7 @@ const NIGHT_CINEMATIC_TWILIGHT_SKY = new THREE.Color(0x8aa6c3);
 const NIGHT_CINEMATIC_BLUE_HOUR_SKY = new THREE.Color(0x728fb2);
 const NIGHT_CINEMATIC_MOONLIT_SKY = new THREE.Color(0x667f9f);
 const NIGHT_CINEMATIC_DEEP_SKY = new THREE.Color(0x4b6789);
+const NIGHT_CINEMATIC_AIRGLOW_SKY = new THREE.Color(0x52759a);
 const NIGHT_CINEMATIC_TWILIGHT_GROUND = new THREE.Color(0x4d5146);
 const NIGHT_CINEMATIC_BLUE_HOUR_GROUND = new THREE.Color(0x3f4841);
 const NIGHT_CINEMATIC_MOONLIT_GROUND = new THREE.Color(0x343c37);
@@ -37,6 +38,12 @@ function moonlitPlateau(night) {
 	const rise = THREE.MathUtils.smoothstep(night, 0.28, 0.58);
 	const fall = 1 - THREE.MathUtils.smoothstep(night, 0.78, 1.0);
 	return rise * fall;
+}
+
+function nocturnalAirglowWeight(night) {
+	const rise = THREE.MathUtils.smoothstep(night, 0.72, 0.92);
+	const deepHold = 1 - 0.18 * THREE.MathUtils.smoothstep(night, 0.97, 1.0);
+	return rise * deepHold;
 }
 
 function nightSurfaceContrast(night, moonlit, deepNight) {
@@ -87,17 +94,23 @@ export function updateNightVisualEnhancement(hemisphere, nightFactor) {
 	const shoulder = transitionShoulder(night);
 	const blueHour = blueHourWeight(night);
 	const moonlit = moonlitPlateau(night);
+	const airglow = nocturnalAirglowWeight(night);
 	const surfaceContrast = nightSurfaceContrast(night, moonlit, deepNight);
 	const colorWeights = nightPhaseColorWeights(night);
 	blendNightPhaseColor(fill.color, NIGHT_CINEMATIC_TWILIGHT_SKY, NIGHT_CINEMATIC_BLUE_HOUR_SKY, NIGHT_CINEMATIC_MOONLIT_SKY, NIGHT_CINEMATIC_DEEP_SKY, colorWeights);
 	blendNightPhaseColor(fill.groundColor, NIGHT_CINEMATIC_TWILIGHT_GROUND, NIGHT_CINEMATIC_BLUE_HOUR_GROUND, NIGHT_CINEMATIC_MOONLIT_GROUND, NIGHT_CINEMATIC_DEEP_GROUND, colorWeights);
+	// Airglow is an upper-hemisphere contribution, not a ground bounce: keep it subtle so terrain relief
+	// remains directional while the deepest night avoids a perfectly flat, single-colour ambient state.
+	fill.color.lerp(NIGHT_CINEMATIC_AIRGLOW_SKY, airglow * 0.075);
 	const readability = THREE.MathUtils.lerp(NIGHT_CINEMATIC_DAY_INTENSITY, NIGHT_CINEMATIC_FULL_INTENSITY, night);
 	const twilightAdaptation = THREE.MathUtils.lerp(0.96, 1.035, blueHour);
-	fill.intensity = readability * twilightAdaptation * (1 + shoulder * 0.055 + moonlit * 0.035) * surfaceContrast;
+	const airglowAdaptation = 1 + airglow * 0.018;
+	fill.intensity = readability * twilightAdaptation * airglowAdaptation * (1 + shoulder * 0.055 + moonlit * 0.035) * surfaceContrast;
 	fill.userData.deepNightWeight = deepNight;
 	fill.userData.transitionShoulder = shoulder;
 	fill.userData.blueHourWeight = blueHour;
 	fill.userData.moonlitPlateau = moonlit;
+	fill.userData.airglowWeight = airglow;
 	fill.userData.surfaceContrast = surfaceContrast;
 	fill.userData.phaseColorWeights = colorWeights;
 	return fill.intensity;
@@ -115,6 +128,7 @@ export function getNightVisualEnhancementSnapshot(hemisphere) {
 		transitionShoulder: Number(fill?.userData?.transitionShoulder || 0),
 		blueHourWeight: Number(fill?.userData?.blueHourWeight || 0),
 		moonlitPlateau: Number(fill?.userData?.moonlitPlateau || 0),
+		airglowWeight: Number(fill?.userData?.airglowWeight || 0),
 		surfaceContrast: Number(fill?.userData?.surfaceContrast ?? 1),
 		phaseColorWeights: Object.freeze({ ...(fill?.userData?.phaseColorWeights || {}) }),
 		phaseAdaptive: Boolean(fill?.userData?.phaseAdaptive),
