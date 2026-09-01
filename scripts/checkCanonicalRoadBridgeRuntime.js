@@ -87,8 +87,8 @@ async function main() {
 				);
 			}
 
-			window.__canonicalBridgeShoot = (mode) => {
-				if (!deck || !center) return null;
+			window.__canonicalBridgeSetView = (mode) => {
+				if (!deck || !center) return false;
 				const dx = deck.to.x - deck.from.x;
 				const dz = deck.to.z - deck.from.z;
 				const len = Math.hypot(dx, dz) || 1;
@@ -102,7 +102,7 @@ async function main() {
 				state.camera.lookAt(center.x, center.y + 1.5, center.z);
 				state.camera.updateMatrixWorld(true);
 				state.renderer.render(state.scene, state.camera);
-				return canvas.toDataURL('image/png');
+				return true;
 			};
 			window.__canonicalBridgeDispose = () => {
 				let error = null;
@@ -152,9 +152,11 @@ async function main() {
 		assert(pageErrors.length === 0, `page errors: ${pageErrors.join(' | ')}`);
 
 		for (const mode of ['near', 'far']) {
-			const dataUrl = await page.evaluate((view) => window.__canonicalBridgeShoot(view), mode);
-			assert(dataUrl?.startsWith('data:image/png;base64,'), `${mode} screenshot missing`);
-			fs.writeFileSync(path.join(ARTIFACT_DIR, `${mode}.png`), Buffer.from(dataUrl.split(',')[1], 'base64'));
+			const viewSet = await page.evaluate((view) => window.__canonicalBridgeSetView(view), mode);
+			assert(viewSet, `${mode} bridge camera could not be resolved`);
+			await page.locator('#canonical-road-bridge-runtime-canvas').screenshot({
+				path: path.join(ARTIFACT_DIR, `${mode}.png`),
+			});
 		}
 		const disposeError = await page.evaluate(() => window.__canonicalBridgeDispose());
 		assert(disposeError === null, `disposeRoadNetwork failed after bridge adoption: ${disposeError}`);
