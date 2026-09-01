@@ -96,7 +96,7 @@ assert.notEqual(
   northern.root.children[0].material,
   'different seats must never share mutable material instances',
 );
-assert.equal(southern.root.children[0].geometry, northern.root.children[0].geometry, false, 'fixture geometries are intentionally independent');
+assert.notEqual(southern.root.children[0].geometry, northern.root.children[0].geometry, 'independent fixtures should not accidentally share geometry');
 
 const sharedGeometry = new THREE.BoxGeometry(1, 1, 1);
 const sharedSource = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7, map: texture('shared-authored') });
