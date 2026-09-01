@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-01-v66-backdrop-edge-continuity',
+	id: 'geographic-reference-palette-2026-09-01-v67-ocean-depth-rebalance',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v66 preserves v56 aerial lowland ecotone separation and all canonical terrain, shoreline, hydrology and collider authority unchanged',
-		water: 'v66 keeps a non-zero deepSea/abyss hierarchy required by the shared palette contract but reduces the remaining base-value step at the 17 km far-water to 28 km backdrop transition. The backdrop remains slightly darker/less saturated while deterministic world-space macro/meso/fine albedo, pseudo-normal, roughness, current and glint retain depth perception. Wet coverage, shoreline, bathymetry, lake membership and water geometry remain unchanged.',
-		road: 'v66 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
+		terrain: 'v67 preserves v56 aerial lowland ecotone separation and all canonical terrain, shoreline, hydrology and collider authority unchanged',
+		water: 'v67 follows direct inspection of exact-head full-world #866: v66 removed the near-black ocean problem but lifted deep water enough that open sea lost depth separation. DeepSea and abyss are therefore pulled down together by a restrained amount while retaining their close hierarchy, leaving deterministic world-space macro/meso/fine albedo, pseudo-normal, roughness, current and glint as the anti-uniformity signal. Wet coverage, shoreline, bathymetry, lake membership and water geometry remain unchanged.',
+		road: 'v67 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -51,8 +51,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		lakeClear: 0x2a6170,
 		riverPool: 0x246776,
 		rapid: 0x82a7aa,
-		deepSea: 0x2a6274,
-		abyss: 0x296071,
+		deepSea: 0x24596a,
+		abyss: 0x235666,
 		plunge: 0x4d818b,
 		splash: 0xdeedeb,
 		foam: 0xf1f7f4,
