@@ -97,6 +97,9 @@ export class TouchJoystick {
 		if (pointerId !== null) {
 			try { if (this._base.hasPointerCapture?.(pointerId)) this._base.releasePointerCapture?.(pointerId); } catch { /* input reset must stay fail-closed */ }
 		}
+		for (const guardPointerId of this._guardPointerIds) {
+			try { if (this._guardButton.hasPointerCapture?.(guardPointerId)) this._guardButton.releasePointerCapture?.(guardPointerId); } catch { /* input reset must stay fail-closed */ }
+		}
 		this._resetMovementState(); this._jumpRequested = false; this._dodgeRequested = false; this._parryRequested = false; this._parryRearmPending = false; this._lockOnRequested = false; this._guardPointerIds.clear(); this._guardHeld = false;
 		this._guardButton.setAttribute('aria-pressed', 'false');
 	}
