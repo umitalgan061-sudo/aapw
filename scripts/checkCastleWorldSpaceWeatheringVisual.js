@@ -35,7 +35,7 @@ async function main() {
     if (consoleErrors.length) failures.push(`console errors: ${consoleErrors.join(' | ')}`);
     if (report.glError !== 0) failures.push(`WebGL error ${report.glError}`);
     if (!(report.programCount >= 2)) failures.push(`expected compiled standard-material programs, got ${report.programCount}`);
-    if (report.policy?.id !== 'castle-world-space-weathering-2026-09-01-v1') failures.push('unexpected weathering policy id');
+    if (report.policy?.id !== 'castle-world-space-weathering-2026-09-01-v2') failures.push('unexpected weathering policy id');
     if (report.stoneWeathering?.surface !== 'stone') failures.push('stone material missing world-space weathering metadata');
     if (report.roofWeathering?.surface !== 'roof') failures.push('roof material missing world-space weathering metadata');
     if (!(report.policy?.macroMeters > report.policy?.mesoMeters && report.policy?.mesoMeters > report.policy?.fineMeters)) {
