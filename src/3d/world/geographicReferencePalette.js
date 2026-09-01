@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-01-v71-ocean-layer-continuity',
+	id: 'geographic-reference-palette-2026-09-01-v72-ocean-handoff-softening',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v71 preserves v56 aerial lowland ecotone separation and all canonical terrain, shoreline, hydrology and collider authority unchanged',
-		water: 'v71 follows direct inspection of exact-head full-world #879: the v70 lift was safe but too subtle to hide the broad backdrop handoff. The abyss base is therefore brought much closer to deepSea while remaining slightly darker and cooler; depth perception is left to the existing canonical bathymetry blend plus deterministic world-space macro/meso/fine albedo, pseudo-normal, roughness, current and glint instead of a large flat layer-color jump. Wet coverage, shoreline, bathymetry, lake membership and water geometry remain unchanged.',
-		road: 'v71 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
+		terrain: 'v72 preserves v56 aerial lowland ecotone separation and all canonical terrain, shoreline, hydrology and collider authority unchanged',
+		water: 'v72 follows direct inspection of exact-head full-world #880: the broad far-water/backdrop footprint is still faintly visible even after v71. The abyss base is therefore tightened one final conservative step toward deepSea, reducing the flat layer-color discontinuity while preserving a cooler/darker abyss bias. Canonical bathymetry plus deterministic world-space macro/meso/fine albedo, pseudo-normal, roughness, current and glint remain responsible for depth structure; wet coverage, shoreline, lake membership, water geometry and colliders remain unchanged.',
+		road: 'v72 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -52,7 +52,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		riverPool: 0x246776,
 		rapid: 0x82a7aa,
 		deepSea: 0x255d6d,
-		abyss: 0x255a69,
+		abyss: 0x255c6c,
 		plunge: 0x4d818b,
 		splash: 0xdeedeb,
 		foam: 0xf1f7f4,
