@@ -7,6 +7,7 @@ on:
       - 'src/3d/world/naturalGeologyAssetSurface.js'
       - 'src/3d/world/naturalGeologyPlacement.js'
       - 'src/3d/world/worldReferenceMap.js'
+      - 'scripts/devServerHelper.js'
       - 'scripts/checkNaturalGeologyAssetVisualQa.js'
       - 'natural-geology-asset-visual-qa.html'
       - '.github/workflows/natural-geology-asset-visual-qa.yml'
@@ -34,6 +35,7 @@ jobs:
           node --check src/3d/world/naturalGeology.js
           node --check src/3d/world/naturalGeologyAssetSurface.js
           node --check src/3d/world/naturalGeologyPlacement.js
+          node --check scripts/devServerHelper.js
           node --check scripts/checkNaturalGeologyAssetVisualQa.js
           node scripts/setupNodeThreeShim.mjs
           node scripts/checkNaturalGeologyPlacement.mjs
