@@ -469,8 +469,8 @@ export function createCreatureBeing({
 export function spawnConfiguredCreatures({ spawns, groundCollider, playerCollider, mulberry32 }) {
 	const beings = [];
 	for (const spawn of spawns) {
-		if (!CREATURE_BEHAVIOR_PROFILES[spawn.speciesId]) {
-			console.warn(`[gameplay/creatureBrain] spawn "${spawn.id}" names species "${spawn.speciesId}" with no behavior profile — skipping.`);
+		if (!spawn || typeof spawn.id !== 'string' || !spawn.id.trim() || !CREATURE_BEHAVIOR_PROFILES[spawn.speciesId]) {
+			console.warn(`[gameplay/creatureBrain] malformed/unknown spawn "${spawn?.id ?? '<invalid>'}" species "${spawn?.speciesId ?? '<invalid>'}" — skipping.`);
 			continue;
 		}
 		if (!Number.isFinite(spawn.x) || !Number.isFinite(spawn.z)) {
