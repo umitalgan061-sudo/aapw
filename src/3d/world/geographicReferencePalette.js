@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-01-v59-deep-ocean-aerial-blackwater',
+	id: 'geographic-reference-palette-2026-09-01-v60-shallow-water-restraint',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v59 preserves v56 aerial lowland separation: meadow remains lifted away from damp moss, dry heath stays darker/desaturated, ferric earth remains warm, and exposed stone stays compressed without changing terrain height, shoreline, hydrology or colliders',
-		water: 'v59 keeps abyss/deep-sea chroma unified but lowers the shared open-ocean body toward photographic aerial blackwater. The exact-head topdown still exposed large blue rectangular marine patches after the all-lighting sky-floor fix; lowering only deepSea/abyss reduces that P0 contrast without changing wet coverage, shoreline, bathymetry, hydrology, lake colour or river colour. Depth remains legible through opacity, lighting, roughness, shelf optics and celestial response instead of cyan/blue fill.',
-		road: 'v59 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
+		terrain: 'v60 preserves v56 aerial lowland separation: meadow remains lifted away from damp moss, dry heath stays darker/desaturated, ferric earth remains warm, and exposed stone stays compressed without changing terrain height, shoreline, hydrology or colliders',
+		water: 'v60 preserves the accepted deep-sea/abyss aerial blackwater continuity and pulls only clear shore, lake and river body colours toward lower-saturation mineral water. This reduces the shipped cyan shallow-water read while preserving canonical wet coverage, shoreline, bathymetry, lake/river membership and all collider authority.',
+		road: 'v60 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -47,13 +47,13 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		mossEdge: 0x294a31,
 	}),
 	water: Object.freeze({
-		shoreClear: 0x487c6f,
-		lakeClear: 0x2a6170,
-		riverPool: 0x246776,
-		rapid: 0x82a7aa,
+		shoreClear: 0x3f6e64,
+		lakeClear: 0x2c5962,
+		riverPool: 0x2b5e67,
+		rapid: 0x789a9a,
 		deepSea: 0x03131f,
 		abyss: 0x03131f,
-		plunge: 0x4d818b,
+		plunge: 0x47727a,
 		splash: 0xdeedeb,
 		foam: 0xf1f7f4,
 	}),
