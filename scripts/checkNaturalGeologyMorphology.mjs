@@ -70,6 +70,7 @@ let ridgeAligned = 0;
 let talusAligned = 0;
 let spacingViolations = 0;
 let groundingViolations = 0;
+let scarpProportionViolations = 0;
 for (let index = 0; index < first.placements.length; index += 1) {
   const p = first.placements[index];
   roles.add(p.formationRole);
@@ -82,6 +83,8 @@ for (let index = 0; index < first.placements.length; index += 1) {
   assert([p.x, p.y, p.z, p.scale.x, p.scale.y, p.scale.z, p.minimumSpacingMeters].every(Number.isFinite), `non-finite placement ${p.id}`);
   const expectedY = ruggedFixture(p.x, p.z) - p.scale.y * p.buryFraction;
   if (Math.abs(p.y - expectedY) > 1e-7) groundingViolations++;
+  if ((p.kind === 'fractured-scarp' || (p.kind === 'asset-proxy' && p.formationRole === 'ridge-scarp'))
+    && (p.scale.x / p.scale.z > P.maximumScarpPlanAspect + 1e-9 || p.scale.y / p.scale.x > P.maximumScarpHeightToWidth + 1e-9)) scarpProportionViolations++;
   if (p.formationRole === 'ridge-scarp' && ['fractured-scarp', 'bedrock', 'asset-proxy'].includes(p.kind)) ridgeAligned++;
   if (p.formationRole === 'talus-apron' && ['talus', 'boulder'].includes(p.kind)) talusAligned++;
   const fx = ((p.x + WIDTH * 0.5) / first.stats.cellWidthMeters) % 1;
@@ -100,6 +103,7 @@ for (let index = 0; index < first.placements.length; index += 1) {
 }
 assert.equal(groundingViolations, 0, `grounding parity failures ${groundingViolations}`);
 assert.equal(spacingViolations, 0, `pair spacing failures ${spacingViolations}`);
+assert.equal(scarpProportionViolations, 0, `thin wall-like scarp proportions ${scarpProportionViolations}`);
 assert(minRoad >= P.roadReserveMeters - 1e-9);
 assert(minSeat >= P.settlementReserveMeters - 1e-9);
 assert(roles.has('ridge-scarp'), `rugged fixture never produced ridge scarps: ${[...roles]}`);
