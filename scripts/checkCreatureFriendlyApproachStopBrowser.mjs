@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 const { chromium } = createRequire(import.meta.url)('playwright');
 const baseUrl = process.env.BASE_URL || 'http://127.0.0.1:4173';
-
 const browser = await chromium.launch({ headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
@@ -24,19 +23,16 @@ try {
     );
     const positionOf = ({ object3D }) => ({ x: object3D.position.x, y: object3D.position.y, z: object3D.position.z });
     const player = { x: 3, z: 0 };
-
     const dog = createBeing('kopek', 'friendly-stop-boundary');
     const before = distanceTo(dog, player);
     dog.update(0.25, player);
     const after = distanceTo(dog, player);
     const position = positionOf(dog);
     dog.dispose();
-
     const exactStopDog = createBeing('kopek', 'friendly-stop-stable', 0.5);
     exactStopDog.update(0.25, player);
     const exactStopDistance = distanceTo(exactStopDog, player);
     exactStopDog.dispose();
-
     let colliderCalls = 0;
     const colliderDog = createBeing('kopek', 'friendly-stop-after-collider', 0, {
       resolveXZ: (x, z) => ({ x: ++colliderCalls === 1 ? x + 0.5 : x, z }),
@@ -48,14 +44,12 @@ try {
     const recoveredDistance = distanceTo(colliderDog, player);
     const colliderPosition = positionOf(colliderDog);
     colliderDog.dispose();
-
     const outwardDog = createBeing('kopek', 'friendly-stop-outward-collider', 0, {
       resolveXZ: (x, z) => ({ x: x - 0.25, z }),
     });
     outwardDog.update(0.25, player);
     const outwardDistance = distanceTo(outwardDog, player);
     outwardDog.dispose();
-
     const herdRegistry = new Map();
     const wrapDeer = (raw, sourceId) => wrapCreatureWithThreatMemory(raw, {
       triggerRadiusMeters: 15, reactiveDirection: 'away', memorySeconds: 1.25,
@@ -68,15 +62,18 @@ try {
     const herdExactBoundaryFleeing = follower.isFleeing;
     follower.object3D.position.x -= 0.001;
     const herdInsideBoundaryFleeing = follower.isFleeing;
-    leader.dispose();
-    follower.dispose();
-
+    leader.dispose(); follower.dispose();
+    const farLeader = wrapDeer(createBeing('geyik', 'herd-nearest-far', 10), 'far');
+    const nearLeader = wrapDeer(createBeing('geyik', 'herd-nearest-near', -3), 'near');
+    const nearestFollower = wrapDeer(createBeing('geyik', 'herd-nearest-follower'), 'nearest');
+    farLeader.update(0.1, { x: 10, z: 1 }); nearLeader.update(0.1, { x: -3, z: 1 });
+    nearestFollower.update(0.1, { x: 100, z: 100 });
+    const nearestHerdDeltaX = nearestFollower.object3D.position.x; farLeader.dispose(); nearLeader.dispose(); nearestFollower.dispose();
     return {
       before, after, position, exactStopDistance, afterCollider, rejectedPosition, recoveredDistance,
-      colliderCalls, colliderPosition, outwardDistance, herdExactBoundaryFleeing, herdInsideBoundaryFleeing,
+      colliderCalls, colliderPosition, outwardDistance, herdExactBoundaryFleeing, herdInsideBoundaryFleeing, nearestHerdDeltaX,
     };
   });
-
   assert.equal(pageErrors.length, 0, `page errors: ${pageErrors.join('\n')}`);
   assert.ok(proof.before > 2.5, `precondition failed: ${proof.before}`);
   assert.ok(Math.abs(proof.after - 2.5) <= 1e-6, `friendly approach missed stop distance: ${proof.after}`);
@@ -90,6 +87,7 @@ try {
   assert.ok(proof.outwardDistance > 2.5, `safe outward collider correction was rejected: ${proof.outwardDistance}`);
   assert.equal(proof.herdExactBoundaryFleeing, false, 'herd alert must stay strict at the exact radius boundary');
   assert.equal(proof.herdInsideBoundaryFleeing, true, 'herd alert must wake an epsilon-inside same-species neighbor');
+  assert.ok(proof.nearestHerdDeltaX > 0, `herd reaction followed insertion order instead of nearest source: ${proof.nearestHerdDeltaX}`);
   console.log('Creature friendly/pack boundary browser proof PASS', proof);
 } finally {
   await browser.close();
