@@ -53,6 +53,16 @@ function mesopicGroundAdaptation(night, moonlit, deepNight) {
 	return onset * Math.max(rodDominance, moonlit * 0.14);
 }
 
+function mesopicGroundChromaLoss(night, deepNight) {
+	const onset = THREE.MathUtils.smoothstep(night, 0.46, 0.82);
+	return onset * THREE.MathUtils.lerp(0.06, 0.18, deepNight);
+}
+
+function preserveLuminanceDesaturate(color, amount) {
+	const luminance = color.r * 0.2126 + color.g * 0.7152 + color.b * 0.0722;
+	color.lerp(new THREE.Color(luminance, luminance, luminance), THREE.MathUtils.clamp(amount, 0, 0.24));
+}
+
 function nightSurfaceContrast(night, moonlit, deepNight) {
 	const directionalWindow = THREE.MathUtils.smoothstep(night, 0.34, 0.72) * (1 - THREE.MathUtils.smoothstep(night, 0.9, 1.0));
 	const moonReliefProtection = 1 - 0.18 * Math.max(moonlit, directionalWindow);
@@ -103,6 +113,7 @@ export function updateNightVisualEnhancement(hemisphere, nightFactor) {
 	const moonlit = moonlitPlateau(night);
 	const airglow = nocturnalAirglowWeight(night);
 	const mesopic = mesopicGroundAdaptation(night, moonlit, deepNight);
+	const chromaLoss = mesopicGroundChromaLoss(night, deepNight);
 	const surfaceContrast = nightSurfaceContrast(night, moonlit, deepNight);
 	const colorWeights = nightPhaseColorWeights(night);
 	blendNightPhaseColor(fill.color, NIGHT_CINEMATIC_TWILIGHT_SKY, NIGHT_CINEMATIC_BLUE_HOUR_SKY, NIGHT_CINEMATIC_MOONLIT_SKY, NIGHT_CINEMATIC_DEEP_SKY, colorWeights);
@@ -111,6 +122,7 @@ export function updateNightVisualEnhancement(hemisphere, nightFactor) {
 	// Keeping those responses separate prevents deep-night relief from becoming one uniform blue wash.
 	fill.color.lerp(NIGHT_CINEMATIC_AIRGLOW_SKY, airglow * 0.075);
 	fill.groundColor.lerp(NIGHT_CINEMATIC_MESOPIC_GROUND, mesopic);
+	preserveLuminanceDesaturate(fill.groundColor, chromaLoss);
 	const readability = THREE.MathUtils.lerp(NIGHT_CINEMATIC_DAY_INTENSITY, NIGHT_CINEMATIC_FULL_INTENSITY, night);
 	const twilightAdaptation = THREE.MathUtils.lerp(0.96, 1.035, blueHour);
 	const airglowAdaptation = 1 + airglow * 0.018;
@@ -121,6 +133,7 @@ export function updateNightVisualEnhancement(hemisphere, nightFactor) {
 	fill.userData.moonlitPlateau = moonlit;
 	fill.userData.airglowWeight = airglow;
 	fill.userData.mesopicGroundAdaptation = mesopic;
+	fill.userData.mesopicGroundChromaLoss = chromaLoss;
 	fill.userData.surfaceContrast = surfaceContrast;
 	fill.userData.phaseColorWeights = colorWeights;
 	return fill.intensity;
@@ -140,6 +153,7 @@ export function getNightVisualEnhancementSnapshot(hemisphere) {
 		moonlitPlateau: Number(fill?.userData?.moonlitPlateau || 0),
 		airglowWeight: Number(fill?.userData?.airglowWeight || 0),
 		mesopicGroundAdaptation: Number(fill?.userData?.mesopicGroundAdaptation || 0),
+		mesopicGroundChromaLoss: Number(fill?.userData?.mesopicGroundChromaLoss || 0),
 		surfaceContrast: Number(fill?.userData?.surfaceContrast ?? 1),
 		phaseColorWeights: Object.freeze({ ...(fill?.userData?.phaseColorWeights || {}) }),
 		phaseAdaptive: Boolean(fill?.userData?.phaseAdaptive),
