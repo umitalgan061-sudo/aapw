@@ -37,6 +37,8 @@ async function main() {
 	});
 
 	try {
+		// Keep game3d.html only as the canonical import-map host. The proof renders an isolated
+		// stars.js scene and must not spend time/assets booting the unrelated open world.
 		await page.route('**/src/3d/game3d.js', async (route) => {
 			await route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: 'export function initGame3D() {}\n' });
 		});
@@ -48,9 +50,9 @@ async function main() {
 		const result = await page.evaluate(async () => {
 			const THREE = await import('three');
 			const { createStarfield, updateStarfield, disposeStarfield } = await import('/src/3d/stars.js');
-			const fail = (condition, message) => { if (!condition) throw new Error(message); };
 			const width = 960;
 			const height = 540;
+			const clearRgb = [1, 2, 7];
 			const canvas = document.createElement('canvas');
 			canvas.id = 'starfield-realism-proof';
 			canvas.width = width;
@@ -90,13 +92,19 @@ async function main() {
 					const maxChannel = Math.max(r, g, b);
 					const lum = r * 0.2126 + g * 0.7152 + b * 0.0722;
 					luminanceTotal += lum;
-					if (maxChannel > 10) {
-						luminous++;
-						if (lum > 62) bright++;
-						if (r > b * 1.08) warm++;
-						else if (b > r * 1.08) cool++;
-						else neutral++;
-					}
+					if (maxChannel <= 10) continue;
+
+					luminous++;
+					if (lum > 62) bright++;
+					// Normal alpha blending mixes every faint halo with the deliberately blue-black clear
+					// color. Classify the stellar contribution after subtracting that known background;
+					// otherwise low-alpha neutral halos are falsely counted as blue stars.
+					const signalR = Math.max(0, r - clearRgb[0]);
+					const signalG = Math.max(0, g - clearRgb[1]);
+					const signalB = Math.max(0, b - clearRgb[2]);
+					if (signalR > signalB * 1.08) warm++;
+					else if (signalB > signalR * 1.08) cool++;
+					else neutral++;
 				}
 				const count = pixels.length / 4;
 				return {
@@ -124,6 +132,8 @@ async function main() {
 			renderer.render(scene, camera);
 			const nightA = readFrame();
 			const nightAStats = stats(nightA);
+			// Capture this immutable string while the night frame is still on the canvas. Assertions
+			// happen in Node after return, so a later day render can never overwrite failure evidence.
 			const evidenceDataUrl = canvas.toDataURL('image/png');
 
 			updateStarfield(starfield, camera.position, 29.0, 1.0);
@@ -144,22 +154,8 @@ async function main() {
 			renderer.render(scene, camera);
 			const day = readFrame();
 			const dayStats = stats(day);
-
-			fail(nightAStats.luminousFraction > 0.00035, `Night star coverage too sparse: ${nightAStats.luminousFraction}`);
-			fail(nightAStats.luminousFraction < 0.025, `Night star coverage too dense: ${nightAStats.luminousFraction}`);
-			fail(nightAStats.brightPixels >= 8, `No convincing bright stellar anchors: ${nightAStats.brightPixels}`);
-			fail(nightAStats.warmPixels >= 8, `Warm stellar signal missing: ${nightAStats.warmPixels}`);
-			fail(nightAStats.coolPixels >= 8, `Cool stellar signal missing: ${nightAStats.coolPixels}`);
-			fail(nightAStats.neutralPixels > nightAStats.warmPixels + nightAStats.coolPixels,
-				`Neutral stellar population no longer dominates: ${nightAStats.neutralPixels}/${nightAStats.warmPixels}/${nightAStats.coolPixels}`);
-			fail(animationDelta > 0.01, `Twinkle animation is visually static: ${animationDelta}`);
-			fail(animationDelta < 1.5, `Twinkle animation is too aggressive: ${animationDelta}`);
-			fail(translationDelta < 0.025, `Camera translation slides the star dome: ${translationDelta}`);
-			fail(dayStats.luminousPixels <= 2, `Stars leak into canonical day state: ${dayStats.luminousPixels}`);
-			fail(dayStats.averageLuminance < nightAStats.averageLuminance * 0.72,
-				`Day fade does not materially reduce stellar luminance: ${nightAStats.averageLuminance} -> ${dayStats.averageLuminance}`);
-
 			disposeStarfield(starfield);
+
 			return { nightAStats, nightBStats, dayStats, animationDelta, translationDelta, evidenceDataUrl };
 		});
 
@@ -167,15 +163,20 @@ async function main() {
 		delete result.evidenceDataUrl;
 		assert(missing.length === 0, `HTTP errors: ${missing.join(' | ')}`);
 		assert(errors.length === 0, `Console/page errors: ${errors.join(' | ')}`);
+		assert(result.nightAStats.luminousFraction > 0.00035, `Night star coverage too sparse: ${JSON.stringify(result)}`);
+		assert(result.nightAStats.luminousFraction < 0.025, `Night star coverage too dense: ${JSON.stringify(result)}`);
+		assert(result.nightAStats.brightPixels >= 8, `No convincing bright stellar anchors: ${JSON.stringify(result)}`);
+		assert(result.nightAStats.warmPixels >= 8, `Warm stellar signal missing: ${JSON.stringify(result)}`);
+		assert(result.nightAStats.coolPixels >= 8, `Cool stellar signal missing: ${JSON.stringify(result)}`);
+		assert(result.nightAStats.neutralPixels > result.nightAStats.warmPixels + result.nightAStats.coolPixels,
+			`Neutral stellar population no longer dominates: ${JSON.stringify(result)}`);
+		assert(result.animationDelta > 0.01, `Twinkle animation is visually static: ${JSON.stringify(result)}`);
+		assert(result.animationDelta < 1.5, `Twinkle animation is too aggressive: ${JSON.stringify(result)}`);
+		assert(result.translationDelta < 0.025, `Camera translation slides the star dome: ${JSON.stringify(result)}`);
+		assert(result.dayStats.luminousPixels <= 2, `Stars leak into canonical day state: ${JSON.stringify(result)}`);
+		assert(result.dayStats.averageLuminance < result.nightAStats.averageLuminance * 0.72,
+			`Day fade does not materially reduce stellar luminance: ${JSON.stringify(result)}`);
 		console.log(`[checkStarfieldRealismBrowser] PASS: ${JSON.stringify(result)}`);
-	} catch (error) {
-		try {
-			const failureDataUrl = await page.evaluate(() => document.getElementById('starfield-realism-proof')?.toDataURL('image/png') || null);
-			writeEvidenceDataUrl(failureDataUrl);
-		} catch {
-			// Keep the original error authoritative if rendering never reached the canvas.
-		}
-		throw error;
 	} finally {
 		await context.close();
 		await browser.close();
