@@ -88,6 +88,20 @@ const recoveredService = smithingEconomy.purchase(whetstoneOffer, () => true);
 assert.equal(recoveredService.ok, true, 'failed settlement service must release the purchase guard');
 assert.equal(recoveredService.balanceCopper, 16, 'recovered smithing service must debit the unchanged wallet once');
 
+const guardedSuccessEconomy = createInteractionEconomyState(40);
+let successCredit;
+let successRestore;
+const guardedSuccess = guardedSuccessEconomy.purchase(whetstoneOffer, () => {
+  successCredit = guardedSuccessEconomy.credit(99, { sourceId: 'successful-service-mint', label: 'Geçersiz başarılı hizmet geliri' });
+  successRestore = guardedSuccessEconomy.restore({ copper: 999, stockByOffer: {}, ledger: {} });
+  return true;
+});
+assert.equal(guardedSuccess.ok, true, 'valid settlement service fulfillment must still commit');
+assert.equal(successCredit.reason, 'purchase-in-progress', 'successful service callbacks must not mint copper inside the purchase transaction');
+assert.equal(successRestore, false, 'successful service callbacks must not replace persisted state inside the purchase transaction');
+assert.equal(guardedSuccess.balanceCopper, 28, 'successful guarded service must debit only its canonical price');
+assert.equal(guardedSuccessEconomy.snapshot().ledger.transactionCount, 1, 'blocked callback mutations must not add ledger entries');
+
 for (const forgedOffer of [
   null,
   {},
