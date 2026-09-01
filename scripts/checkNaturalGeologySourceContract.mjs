@@ -21,7 +21,11 @@ assert.equal(NATURAL_GEOLOGY_PLACEMENT_POLICY.renderOnly, true);
 assert.equal(NATURAL_GEOLOGY_PLACEMENT_POLICY.geographyAuthorityUnchanged, true);
 assert.equal(NATURAL_GEOLOGY_PLACEMENT_POLICY.heightAuthority, 'world/terrain.js');
 assert.equal(NATURAL_GEOLOGY_PLACEMENT_POLICY.deterministic, true);
-assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.id.includes('v2-valyria-morphology-aligned'));
+assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.id.includes('v3-r2-morphology-blue-noise'));
+assert.equal(NATURAL_GEOLOGY_PLACEMENT_POLICY.candidateDistribution, 'r2-low-discrepancy-cranley-patterson');
+assert.equal(NATURAL_GEOLOGY_PLACEMENT_POLICY.candidateGridOwnsCoordinates, false);
+assert.equal(NATURAL_GEOLOGY_PLACEMENT_POLICY.lowDiscrepancySequence, true);
+assert.equal(NATURAL_GEOLOGY_PLACEMENT_POLICY.cranleyPattersonScramble, true);
 assert.equal(NATURAL_GEOLOGY_PLACEMENT_POLICY.valyriaMorphologyAligned, true);
 assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.valyriaClusterCandidateTrials >= 4);
 assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.valyriaMorphologyScoreBoost > 0);
@@ -68,11 +72,22 @@ for (const snippet of [
   'valyriaMorphologyDominant',
   'faultDominates',
   'morphologyDrainage * 0.10',
+  'naturalGeologyCandidateUv',
+  'naturalGeologyCandidateWorld',
+  "candidateDistribution: 'r2-low-discrepancy-cranley-patterson'",
+  'candidateGridOwnsCoordinates: false',
+  'PLASTIC_CONSTANT',
+  'R2_ALPHA_X',
+  'R2_ALPHA_Z',
 ]) {
   assert(placementSource.includes(snippet), `placement contract lost: ${snippet}`);
 }
 assert(!placementSource.includes('const radial = Math.sqrt(geologyHash01(seed, index, 202, 0))'),
   'Valyria cluster centers regressed to the legacy radial-only distribution');
+assert(!placementSource.includes('+ (column + 0.12 + geologyHash01'),
+  'generic geology candidate coordinates regressed to one-jittered-point-per-cell placement');
+assert(!placementSource.includes('+ (row + 0.12 + geologyHash01'),
+  'generic geology candidate Z coordinates regressed to one-jittered-point-per-cell placement');
 
 for (const snippet of [
   "from '../assetLoader.js'",
@@ -211,6 +226,7 @@ console.log('[checkNaturalGeologySourceContract] PASS');
 console.log(JSON.stringify({
   placementPolicyId: NATURAL_GEOLOGY_PLACEMENT_POLICY.id,
   renderPolicyId: NATURAL_GEOLOGY_RENDER_POLICY.id,
+  candidateDistribution: NATURAL_GEOLOGY_PLACEMENT_POLICY.candidateDistribution,
   directAssets: NATURAL_GEOLOGY_PLACEMENT_POLICY.directAssetFamilies,
   referenceOnlyAssets: NATURAL_GEOLOGY_PLACEMENT_POLICY.referenceOnlyAssets,
   knownLfsBytes: NATURAL_GEOLOGY_PLACEMENT_POLICY.knownLfsBytes,
@@ -220,6 +236,7 @@ console.log(JSON.stringify({
   canonicalTerrainIntegration: true,
   naturalVolcanicMorphology: true,
   morphologyAlignedOutcropPlacement: true,
+  lowDiscrepancyGeologyCandidates: true,
   canonicalValyriaSurfaceOnly: true,
   instanceCorrectWorldNormals: true,
 }, null, 2));
