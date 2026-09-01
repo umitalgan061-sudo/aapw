@@ -6,10 +6,19 @@
  * from the lowest sampled terrain point to a flat top above the highest sampled point, so downhill
  * corners cannot hover while uphill corners remain safely embedded in the terrain. Stairs and field
  * walls are grounded from their own footprints as well.
+ *
+ * One procedural house in every canonical hamlet is also an asset-upgrade site. The cheap instanced
+ * house remains visible until a real repository GLB has loaded, passed the shared material contract,
+ * passed footprint-aware world placement, produced a manifest and attached successfully. Only then
+ * is the matching primitive instance hidden. Missing/LFS-unavailable assets therefore fail closed:
+ * no magenta AssetLoader placeholder and no invisible collision hole are ever shipped.
  * @module world/villages
  */
 
 import * as THREE from 'three';
+import { AssetLoader } from '../assetLoader.js';
+import { analyzeMaterialSurfaces } from '../materials/MaterialAssignmentCore.js';
+import { placeWorldAsset, WORLD_SURFACE_POLICY_PRESETS } from './WorldAssetPlacementPipeline.js';
 import { isPlaceablePosition } from './vegetation.js';
 import { createStoneMaterial, createRoofMaterial } from './materials.js';
 
@@ -24,6 +33,8 @@ const STOOP_STEP_COUNT = 3;
 const STOOP_STEP_RISE_METERS = 0.18;
 const STOOP_STEP_RUN_METERS = 0.34;
 const STOOP_WIDTH_METERS = 1.6;
+const ARCHITECTURE_TEXTURE_SIZE = 256;
+const SURFACE_SLOPE_SAMPLE_METERS = 1.5;
 
 const HOUSE_TYPES = [
 	{ id: 'cottage', weight: 0.55, width: 5.2, depth: 4.4, wallHeight: 2.5, roofHeight: 2.2 },
@@ -34,6 +45,62 @@ const HOUSE_TYPES = [
 const WALL_COLOR = new THREE.Color(0xbdae91);
 const STONE_WALL_COLOR = new THREE.Color(0x8d8878);
 const THATCH_COLOR = new THREE.Color(0x9c7b42);
+
+/**
+ * Canonical, bounded architecture families. These are existing repository assets under Git LFS;
+ * they are deliberately residential only, so this visual pass does not invent a second vendor,
+ * blacksmith, tavern or stable interaction system beside the established RPG owner.
+ */
+export const VILLAGE_ARCHITECTURE_PROFILES = Object.freeze({
+	north: Object.freeze({
+		id: 'north', label: 'Kuzey ahşap yerleşimi', paletteId: 'house',
+		assetUrl: 'assets/models/settlements/log_cabin_et0OmFeZVkb.glb',
+		layers: Object.freeze([{ to: 0.16, palette: 'stone' }, { to: 0.72, palette: 'wood' }, { to: 1, palette: 'roof-tile' }]),
+	}),
+	fertile: Object.freeze({
+		id: 'fertile', label: 'Verimli ova yerleşimi', paletteId: 'plaster',
+		assetUrl: 'assets/models/settlements/fantasy_house_dcPho4SUA3.glb',
+		layers: Object.freeze([{ to: 0.12, palette: 'stone' }, { to: 0.62, palette: 'plaster' }, { to: 0.7, palette: 'wood' }, { to: 1, palette: 'thatch' }]),
+	}),
+	maritime: Object.freeze({
+		id: 'maritime', label: 'Rüzgârlı kıyı yerleşimi', paletteId: 'house',
+		assetUrl: 'assets/models/settlements/cabin_shed_HTx7PZt6Zm.glb',
+		layers: Object.freeze([{ to: 0.16, palette: 'rock' }, { to: 0.64, palette: 'house' }, { to: 0.72, palette: 'wood' }, { to: 1, palette: 'roof-tile' }]),
+	}),
+	arid: Object.freeze({
+		id: 'arid', label: 'Kurak güney yerleşimi', paletteId: 'plaster',
+		assetUrl: 'assets/models/settlements/house_fdaqERLQCc.glb',
+		layers: Object.freeze([{ to: 0.18, palette: 'stone' }, { to: 0.72, palette: 'plaster' }, { to: 0.79, palette: 'wood' }, { to: 1, palette: 'roof-tile' }]),
+	}),
+	mountain: Object.freeze({
+		id: 'mountain', label: 'Dağ eteği yerleşimi', paletteId: 'brick',
+		assetUrl: 'assets/models/settlements/medium_house_4hI5fNvl6z.glb',
+		layers: Object.freeze([{ to: 0.2, palette: 'rock' }, { to: 0.74, palette: 'brick' }, { to: 0.82, palette: 'wood' }, { to: 1, palette: 'roof-tile' }]),
+	}),
+	temperate: Object.freeze({
+		id: 'temperate', label: 'Ilıman kır yerleşimi', paletteId: 'house',
+		assetUrl: 'assets/models/settlements/small_wooden_house.glb',
+		layers: Object.freeze([{ to: 0.12, palette: 'stone' }, { to: 0.62, palette: 'house' }, { to: 0.7, palette: 'wood' }, { to: 1, palette: 'thatch' }]),
+	}),
+	volcanic: Object.freeze({
+		id: 'volcanic', label: 'Volkanik taş yerleşimi', paletteId: 'brick',
+		assetUrl: 'assets/models/settlements/house_roqiHdrpgc.glb',
+		layers: Object.freeze([{ to: 0.2, palette: 'rock' }, { to: 0.72, palette: 'brick' }, { to: 0.8, palette: 'iron' }, { to: 1, palette: 'roof-tile' }]),
+	}),
+});
+
+const SEAT_ARCHITECTURE_REGION = Object.freeze({
+	berkalp: 'north', jon: 'north', 'Night King': 'north',
+	ziya: 'fertile', berk: 'fertile', olena: 'fertile',
+	balon: 'maritime', stannis: 'maritime',
+	doran: 'arid', Xaro: 'arid',
+	robin: 'mountain', twin: 'temperate', cersei: 'temperate', umit: 'volcanic',
+});
+
+export function resolveVillageArchitectureProfile(seatId) {
+	const regionId = SEAT_ARCHITECTURE_REGION[String(seatId ?? '')];
+	return regionId ? VILLAGE_ARCHITECTURE_PROFILES[regionId] : null;
+}
 
 export function pickHouseTypeIndex(roll) {
 	const total = HOUSE_TYPES.reduce((sum, type) => sum + type.weight, 0);
@@ -86,6 +153,202 @@ function sampleFootprintRange(sampleHeightMeters, x, z, width, depth, yaw) {
 	return { min, max };
 }
 
+function distancePointToSegment2D(px, pz, ax, az, bx, bz) {
+	const abx = bx - ax;
+	const abz = bz - az;
+	const lengthSquared = abx * abx + abz * abz;
+	if (lengthSquared <= 1e-9) return Math.hypot(px - ax, pz - az);
+	const t = Math.max(0, Math.min(1, ((px - ax) * abx + (pz - az) * abz) / lengthSquared));
+	return Math.hypot(px - (ax + abx * t), pz - (az + abz * t));
+}
+
+function roadDistanceMeters(x, z, roadEdges = []) {
+	let nearest = Infinity;
+	for (const edge of roadEdges) {
+		const points = Array.isArray(edge?.points) ? edge.points : [];
+		for (let i = 1; i < points.length; i++) {
+			nearest = Math.min(nearest, distancePointToSegment2D(x, z, points[i - 1].x, points[i - 1].z, points[i].x, points[i].z));
+		}
+	}
+	return Number.isFinite(nearest) ? nearest : 1_000_000;
+}
+
+/** Adapter only: samples the existing ground API; it does not own or mutate terrain. */
+function createVillageArchitectureSurfaceQuery(sampleHeightMeters, seaLevelMeters, roadEdges) {
+	return (x, z) => {
+		const height = sampleHeightMeters(x, z);
+		const dx = (sampleHeightMeters(x + SURFACE_SLOPE_SAMPLE_METERS, z) - sampleHeightMeters(x - SURFACE_SLOPE_SAMPLE_METERS, z)) / (SURFACE_SLOPE_SAMPLE_METERS * 2);
+		const dz = (sampleHeightMeters(x, z + SURFACE_SLOPE_SAMPLE_METERS) - sampleHeightMeters(x, z - SURFACE_SLOPE_SAMPLE_METERS)) / (SURFACE_SLOPE_SAMPLE_METERS * 2);
+		return {
+			height,
+			slopeDegrees: Math.atan(Math.hypot(dx, dz)) * 180 / Math.PI,
+			waterDepth: Math.max(0, seaLevelMeters - height),
+			roadDistance: roadDistanceMeters(x, z, roadEdges),
+		};
+	};
+}
+
+function regionalMaterialOptions(object, profile) {
+	const analysis = analyzeMaterialSurfaces(object);
+	if (analysis.meshCount === 1) {
+		return {
+			materialRecipe: {
+				version: 1,
+				mode: 'layers',
+				basePaletteId: profile.paletteId,
+				textureSize: ARCHITECTURE_TEXTURE_SIZE,
+				targetMeshIndex: 0,
+				layers: profile.layers.map((layer) => ({ ...layer })),
+			},
+		};
+	}
+	return { paletteId: profile.paletteId, textureSize: ARCHITECTURE_TEXTURE_SIZE };
+}
+
+function normalizedArchitecturePivot(source, site, profile) {
+	const model = source.clone(true);
+	const pivot = new THREE.Group();
+	pivot.name = `village-landmark-${site.seatId}`;
+	pivot.userData.architectureRegion = profile.id;
+	pivot.add(model);
+	model.updateMatrixWorld(true);
+	let box = new THREE.Box3().setFromObject(model);
+	const size = box.getSize(new THREE.Vector3());
+	const horizontalSpan = Math.max(size.x, size.z);
+	if (!Number.isFinite(horizontalSpan) || horizontalSpan <= 1e-6) return null;
+	const scale = site.targetFootprintMeters / horizontalSpan;
+	model.scale.multiplyScalar(scale);
+	model.updateMatrixWorld(true);
+	box = new THREE.Box3().setFromObject(model);
+	const center = box.getCenter(new THREE.Vector3());
+	model.position.x -= center.x;
+	model.position.z -= center.z;
+	pivot.updateMatrixWorld(true);
+	return pivot;
+}
+
+function hidePrimitiveLandmark(villageGroup, site) {
+	const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
+	const body = villageGroup.getObjectByName('village-houses');
+	const roof = villageGroup.getObjectByName('village-roofs');
+	const steps = villageGroup.getObjectByName('village-steps');
+	body?.setMatrixAt(site.houseIndex, hidden);
+	roof?.setMatrixAt(site.houseIndex, hidden);
+	for (let i = 0; i < site.stepCount; i++) steps?.setMatrixAt(site.stepStartIndex + i, hidden);
+	if (body) body.instanceMatrix.needsUpdate = true;
+	if (roof) roof.instanceMatrix.needsUpdate = true;
+	if (steps) steps.instanceMatrix.needsUpdate = true;
+}
+
+/**
+ * Loads one high-detail residential landmark for each canonical hamlet and sends every model through
+ * the merged #590 material/placement core before hiding its matching primitive fallback.
+ */
+export async function upgradeVillageArchitectureAssets({
+	assetLoader,
+	villageGroup,
+	sampleHeightMeters,
+	seaLevelMeters,
+	roadEdges = [],
+} = {}) {
+	if (!assetLoader?.loadModel || !villageGroup || typeof sampleHeightMeters !== 'function') {
+		return { ok: false, error: 'missing-upgrade-context' };
+	}
+	const sites = (villageGroup.userData?.villageLandmarkSites || []).filter((site) => resolveVillageArchitectureProfile(site.seatId));
+	const assetGroup = new THREE.Group();
+	assetGroup.name = 'village-architectural-assets';
+	villageGroup.add(assetGroup);
+	const sourceCache = new Map();
+	const manifests = [];
+	let upgradedCount = 0;
+	let missingAssetCount = 0;
+	let placementFailureCount = 0;
+	const surfaceQuery = createVillageArchitectureSurfaceQuery(sampleHeightMeters, seaLevelMeters, roadEdges);
+
+	for (const site of sites) {
+		if (villageGroup.userData?.disposed === true) break;
+		const profile = resolveVillageArchitectureProfile(site.seatId);
+		let source = sourceCache.get(profile.assetUrl);
+		if (!source) {
+			source = await assetLoader.loadModel(profile.assetUrl, { fallbackSize: site.targetFootprintMeters });
+			sourceCache.set(profile.assetUrl, source);
+		}
+		if (source?.userData?.isPlaceholder === true) {
+			missingAssetCount++;
+			continue;
+		}
+		const object = normalizedArchitecturePivot(source, site, profile);
+		if (!object) {
+			placementFailureCount++;
+			continue;
+		}
+		const materialOptions = regionalMaterialOptions(object, profile);
+		const prepared = placeWorldAsset(assetGroup, object, {
+			metadata: {
+				id: `village-${site.seatId}-${profile.id}`,
+				name: profile.label,
+				category: 'settlement',
+				src: profile.assetUrl,
+			},
+			...materialOptions,
+			textureSize: ARCHITECTURE_TEXTURE_SIZE,
+			position: new THREE.Vector3(site.x, 0, site.z),
+			rotation: new THREE.Euler(0, site.yaw, 0),
+			surfaceQuery,
+			placementPolicy: WORLD_SURFACE_POLICY_PRESETS.settlement,
+			requireSurfaceContext: true,
+			footprintGrounding: 'always',
+			foundationInsetMeters: 0.06,
+		});
+		if (!prepared.ok) {
+			placementFailureCount++;
+			continue;
+		}
+		hidePrimitiveLandmark(villageGroup, site);
+		upgradedCount++;
+		manifests.push({
+			seatId: site.seatId,
+			region: profile.id,
+			assetUrl: profile.assetUrl,
+			textureSize: ARCHITECTURE_TEXTURE_SIZE,
+			manifest: prepared.manifest,
+		});
+	}
+
+	const evidence = Object.freeze({
+		ok: missingAssetCount === 0 && placementFailureCount === 0,
+		requestedSiteCount: sites.length,
+		upgradedCount,
+		missingAssetCount,
+		placementFailureCount,
+		textureSize: ARCHITECTURE_TEXTURE_SIZE,
+		manifests: Object.freeze(manifests),
+	});
+	villageGroup.userData.villageArchitectureEvidence = evidence;
+	return evidence;
+}
+
+function scheduleVillageArchitectureUpgrade({ villageGroup, sampleHeightMeters, seaLevelMeters, roadEdges }) {
+	if (typeof window === 'undefined' || typeof document === 'undefined') return;
+	const sites = villageGroup.userData?.villageLandmarkSites || [];
+	if (!sites.some((site) => resolveVillageArchitectureProfile(site.seatId))) return;
+	const silentEvents = { emit() {} };
+	const loader = new AssetLoader({ events: silentEvents });
+	const promise = upgradeVillageArchitectureAssets({ assetLoader: loader, villageGroup, sampleHeightMeters, seaLevelMeters, roadEdges })
+		.then((evidence) => {
+			console.info(
+				`[villages] Regional architecture: ${evidence.upgradedCount}/${evidence.requestedSiteCount} real house(s), ` +
+				`missing=${evidence.missingAssetCount}, placement-failed=${evidence.placementFailureCount}.`,
+			);
+			return evidence;
+		})
+		.catch((error) => {
+			console.warn('[villages] Regional architecture upgrade failed; procedural houses remain visible.', error);
+			return { ok: false, error: String(error?.message || error) };
+		});
+	villageGroup.userData.villageArchitecturePromise = promise;
+}
+
 export function createVillages({
 	sampleHeightMeters,
 	seaLevelMeters,
@@ -101,7 +364,7 @@ export function createVillages({
 	const eligibleSeats = seats.filter((seat) => Math.hypot(seat.x, seat.z) + VILLAGE_OUTER_RADIUS_METERS <= radiusMeters);
 	const maxHouses = eligibleSeats.length * housesPerVillage;
 	const maxWalls = eligibleSeats.length * 14;
-	if (maxHouses === 0) return { group, villageCount: 0, houseCount: 0, wallCount: 0, houses: [] };
+	if (maxHouses === 0) return { group, villageCount: 0, houseCount: 0, wallCount: 0, houses: [], landmarkSites: [] };
 
 	const rng = mulberry32(seed ^ 0x56494c4c);
 	const geometries = buildVillageGeometries();
@@ -130,9 +393,11 @@ export function createVillages({
 	let wallCount = 0;
 	let villageCount = 0;
 	const houses = [];
+	const landmarkSites = [];
 
 	for (const seat of eligibleSeats) {
 		const placedHere = [];
+		let landmarkRecorded = false;
 		const hamletBearing = rng() * Math.PI * 2;
 		const hamletDistance = HAMLET_DISTANCE_MIN_METERS + rng() * (HAMLET_DISTANCE_MAX_METERS - HAMLET_DISTANCE_MIN_METERS);
 		const hamletX = seat.x + Math.cos(hamletBearing) * hamletDistance;
@@ -153,9 +418,9 @@ export function createVillages({
 				const bodyBaseY = support.min - GROUND_EMBED_EPSILON_METERS;
 				const bodyHeight = type.wallHeight + (support.max - support.min) + GROUND_EMBED_EPSILON_METERS;
 				const wallTopY = support.max + type.wallHeight;
+				const houseIndex = houseCount;
+				const stepStartIndex = stepCount;
 
-				// Extending the body down to the footprint's lowest sampled terrain point is the cheap,
-				// instancing-safe equivalent of a terrain skirt: no downhill corner can ever hover.
 				dummy.position.set(x, bodyBaseY, z);
 				dummy.rotation.set(0, yaw, 0);
 				dummy.scale.set(type.width, bodyHeight, type.depth);
@@ -186,6 +451,15 @@ export function createVillages({
 
 				placedHere.push({ x, z });
 				houses.push({ x, z, radius: Math.hypot(type.width, type.depth) / 2 });
+				if (!landmarkRecorded && resolveVillageArchitectureProfile(seat.id)) {
+					landmarkSites.push({
+						seatId: seat.id, x, z, yaw, houseIndex, stepStartIndex,
+						stepCount: STOOP_STEP_COUNT,
+						targetFootprintMeters: Math.max(type.width, type.depth),
+						proceduralType: type.id,
+					});
+					landmarkRecorded = true;
+				}
 				houseCount++;
 				break;
 			}
@@ -223,16 +497,34 @@ export function createVillages({
 	for (const mesh of [bodyMesh, roofMesh, stepMesh, wallMesh]) mesh.instanceMatrix.needsUpdate = true;
 	if (roofMesh.instanceColor) roofMesh.instanceColor.needsUpdate = true;
 	group.add(bodyMesh, roofMesh, stepMesh, wallMesh);
-	return { group, villageCount, houseCount, wallCount, houses };
+	group.userData.villageLandmarkSites = landmarkSites.map((site) => ({ ...site }));
+	scheduleVillageArchitectureUpgrade({ villageGroup: group, sampleHeightMeters, seaLevelMeters, roadEdges });
+	return { group, villageCount, houseCount, wallCount, houses, landmarkSites };
 }
 
 export function disposeVillages(group) {
+	if (!group) return;
+	group.userData.disposed = true;
+	const disposedGeometries = new Set();
 	const disposedMaterials = new Set();
-	for (const mesh of group.children) {
-		mesh.geometry.dispose();
-		if (disposedMaterials.has(mesh.material)) continue;
-		disposedMaterials.add(mesh.material);
-		for (const key of ['map', 'roughnessMap', 'normalMap']) if (mesh.material[key]) mesh.material[key].dispose();
-		mesh.material.dispose();
-	}
+	const disposedTextures = new Set();
+	group.traverse((node) => {
+		if (node.geometry && !disposedGeometries.has(node.geometry)) {
+			disposedGeometries.add(node.geometry);
+			node.geometry.dispose();
+		}
+		const materials = node.material ? (Array.isArray(node.material) ? node.material : [node.material]) : [];
+		for (const material of materials) {
+			if (!material || disposedMaterials.has(material)) continue;
+			disposedMaterials.add(material);
+			for (const key of ['map', 'roughnessMap', 'normalMap', 'metalnessMap']) {
+				const texture = material[key];
+				if (texture && !disposedTextures.has(texture)) {
+					disposedTextures.add(texture);
+					texture.dispose();
+				}
+			}
+			material.dispose();
+		}
+	});
 }
