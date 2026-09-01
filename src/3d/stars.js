@@ -1,30 +1,25 @@
 /**
- * Procedural night starfield: a fixed cloud of small points scattered across the upper sky dome,
+ * Procedural night starfield: a fixed cloud of points scattered across the upper sky dome,
  * re-centered on the camera every frame (same technique as `sky.js`'s aurora sphere), fading in
  * only at night via `lighting.js`'s `nightFactor` — mirrors how `sky.js` already gates its aurora.
  *
  * Self-contained (no shared PRNG import from `world/terrain.js`): stars are a pure visual/
  * atmosphere concern, not world geography, so this module owns its own tiny seeded PRNG rather
- * than reaching across into `world/` — consistent with `sky.js`'s own self-contained noise
- * functions, and with the project's folder-ownership convention (`world/` owns terrain/water/
- * rivers/settlements; sky/lighting/fog/stars are atmosphere, kept at the top `src/3d/` level).
+ * than reaching across into `world/`. The position/twinkle stream and appearance stream are tagged
+ * separately so visual refinements cannot silently reshuffle canonical same-seed star positions.
  *
- * **Twinkle (this run):** each star now gently varies in brightness over real time, driven by a
- * per-star seeded phase + frequency baked into the geometry at creation (deterministic — the same
- * seed always produces the same twinkle pattern, not `Math.random()`-per-frame flicker). Was flagged
- * as a known limitation ("fixed, non-twinkling pattern") in `3D_GAME_PROGRESS.md`'s Known Issues
- * since FAZ 2. Replaces the previous `PointsMaterial` (one uniform opacity for every star) with a
- * `ShaderMaterial` (per-vertex alpha) — same pattern `world/water.js` already established for its own
- * fragment-only animation (ADR-0048), just vertex-stage here since the twinkle is a per-point, not
- * per-fragment, property. See DECISIONS.md for this run's ADR.
+ * Each star carries deterministic twinkle phase/frequency plus a restrained apparent-magnitude,
+ * luminance and stellar-temperature treatment. Most stars stay small/faint/near-neutral, with a
+ * small population of brighter or subtly warm/cool points. The fragment shader turns the hardware
+ * point sprite into a circular point-spread core and soft halo using `gl_PointCoord`; square point
+ * grains are discarded rather than rendered as obvious GPU quads.
  * @module stars
  */
 
 import * as THREE from 'three';
 
-/** Deterministic 32-bit PRNG (mulberry32) — same algorithm `world/terrain.js` uses, but an
- * intentionally separate copy (see this module's own doc comment for why). Never `Math.random()` —
- * the project's determinism rule applies to every generator, not just `world/`'s. */
+/** Deterministic 32-bit PRNG (mulberry32). Never `Math.random()` — the project's determinism rule
+ * applies to every generator, including purely visual atmosphere. */
 function mulberry32(seed) {
 	let a = seed >>> 0;
 	return function random() {
@@ -40,71 +35,105 @@ const STAR_COUNT = 1200;
 /** Must stay under `sky.js`'s `SKY_RADIUS_METERS` (1900) so stars render just inside the aurora
  * skybox sphere rather than at/past its surface. */
 const STARFIELD_RADIUS_METERS = 1850;
-/** Small margin above the horizon line (`y` component of the unit direction before scaling by
- * radius) so stars never appear to poke through near the ground — mirrors `sky.js`'s own aurora
- * mask, which starts fading in at `dir.y = 0.05` for the same reason. */
+/** Small margin above the horizon so stars never appear to poke through near the ground. */
 const MIN_HEIGHT_FACTOR = 0.05;
-const STAR_COLOR = new THREE.Color(0xf5f8ff);
-const STAR_SIZE_PIXELS = 2.2; // matches the previous PointsMaterial's fixed `size`.
-/** Twinkle angular-frequency range (radians/sec). Kept slow/gentle on purpose — this is meant to
- * read as a subtle shimmer, not a strobe; ~0.4-1.3 rad/s means one full brighten/dim cycle every
- * ~5-16 seconds per star, and 1200 independently-phased stars means the field as a whole never
- * looks like it's pulsing in unison. */
+
+/** Apparent sprite range. A strongly skewed magnitude distribution below keeps the majority near
+ * this minimum and reserves the upper end for uncommon bright stars. */
+const STAR_SIZE_MIN_PIXELS = 1.25;
+const STAR_SIZE_MAX_PIXELS = 3.25;
+const STAR_BRIGHTNESS_MIN = 0.42;
+const STAR_BRIGHTNESS_MAX = 1.0;
+
+/** Twinkle angular-frequency range (radians/sec), intentionally slow/gentle. */
 const TWINKLE_FREQ_MIN = 0.4;
 const TWINKLE_FREQ_MAX = 1.3;
-/** Twinkle amplitude: alpha oscillates between `TWINKLE_BASE - TWINKLE_AMPLITUDE` and
- * `TWINKLE_BASE + TWINKLE_AMPLITUDE` (kept as named constants here for a single source of truth
- * with the vertex shader's `${TWINKLE_BASE}... + ${TWINKLE_AMPLITUDE}... * sin(...)` below, since a
- * GLSL string literal can't reference a JS `const` any other way than string interpolation at
- * module load). No star should ever fully vanish (would read as a graphical glitch, not
- * "twinkling") — this run's own engineering judgment, not calibrated against a real playtest. Same
- * "tuning value nobody can calibrate without watching a real person react to it" pattern as
- * ADR-0089/ADR-0096/ADR-0111 — logged to `QUESTIONS_FOR_OWNER.md` for consistency with those.
- */
+/** No star fully disappears; twinkle modulates the deterministic apparent brightness instead of
+ * replacing it. */
 const TWINKLE_BASE = 0.65;
 const TWINKLE_AMPLITUDE = 0.35;
 
 const STAR_VERTEX_SHADER = /* glsl */ `
 	attribute float aPhase;
 	attribute float aFreq;
+	attribute float aSize;
+	attribute float aBrightness;
+	attribute vec3 aColor;
 	uniform float uTime;
 	uniform float uNightFactor;
-	uniform float uSize;
 	varying float vAlpha;
+	varying vec3 vColor;
 
 	void main() {
 		float twinkle = ${TWINKLE_BASE.toFixed(2)} + ${TWINKLE_AMPLITUDE.toFixed(2)} * sin(uTime * aFreq + aPhase);
-		vAlpha = uNightFactor * twinkle;
+		vAlpha = uNightFactor * twinkle * aBrightness;
+		vColor = aColor;
 		vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
 		gl_Position = projectionMatrix * mvPosition;
-		// Fixed pixel size regardless of distance (no /-mvPosition.z divide) — same "real stars don't
-		// get closer" intent the old PointsMaterial's sizeAttenuation:false expressed.
-		gl_PointSize = uSize;
+		// Stars sit on a camera-follow dome: apparent pixel size should follow seeded magnitude, not
+		// scene distance to an arbitrary 1850m shell.
+		gl_PointSize = aSize;
 	}
 `;
 
 const STAR_FRAGMENT_SHADER = /* glsl */ `
-	uniform vec3 uColor;
 	varying float vAlpha;
+	varying vec3 vColor;
 
 	void main() {
-		gl_FragColor = vec4(uColor, vAlpha);
+		vec2 point = gl_PointCoord - vec2(0.5);
+		float radius = length(point);
+		if (radius > 0.5) discard;
+
+		float core = 1.0 - smoothstep(0.02, 0.22, radius);
+		float halo = 1.0 - smoothstep(0.16, 0.50, radius);
+		float alpha = (core * 0.72 + halo * 0.34) * vAlpha;
+		vec3 color = vColor * (0.82 + core * 0.24);
+		gl_FragColor = vec4(color, alpha);
 	}
 `;
 
+function writeStellarColor(colors, index, random) {
+	const temperatureClass = random();
+	const variation = random();
+	let r;
+	let g;
+	let b;
+
+	if (temperatureClass < 0.12) {
+		// Warm stars: restrained cream/amber, never saturated orange.
+		r = 1.0;
+		g = 0.88 + variation * 0.06;
+		b = 0.76 + variation * 0.08;
+	} else if (temperatureClass < 0.80) {
+		// Near-white stars dominate the field.
+		r = 0.93 + variation * 0.06;
+		g = 0.95 + variation * 0.05;
+		b = 0.98 + variation * 0.02;
+	} else {
+		// Cool stars retain a subtle blue-white cast rather than becoming cyan points.
+		r = 0.80 + variation * 0.09;
+		g = 0.89 + variation * 0.07;
+		b = 1.0;
+	}
+
+	colors[index * 3] = r;
+	colors[index * 3 + 1] = g;
+	colors[index * 3 + 2] = b;
+}
+
 /**
- * Builds a starfield point cloud scattered across the upper hemisphere. Caller must reposition it
- * onto the camera every frame and drive its opacity/twinkle from the current time + night factor via
- * `updateStarfield`.
- * @param {number} [seed=1337] Seeded so the same seed always produces the same star positions AND
- *   the same per-star twinkle phase/frequency (determinism rule — see module doc).
+ * Builds a deterministic starfield across the upper hemisphere.
+ * @param {number} [seed=1337] Seeded positions/twinkle plus independently tagged appearance data.
  * @returns {THREE.Points}
  */
 export function createStarfield(seed = 1337) {
-	const random = mulberry32(seed ^ 0x53544152); // XOR tag ("STAR"-ish) — independent stream from terrain/river's own seeded sequences.
+	const random = mulberry32(seed ^ 0x53544152); // "STAR"-ish: canonical position/twinkle stream.
 	const positions = new Float32Array(STAR_COUNT * 3);
 	const phases = new Float32Array(STAR_COUNT);
 	const freqs = new Float32Array(STAR_COUNT);
+
+	// Keep this loop's draw order unchanged: same seed => bit-identical legacy position/twinkle data.
 	for (let i = 0; i < STAR_COUNT; i++) {
 		const theta = random() * Math.PI * 2;
 		const heightFactor = MIN_HEIGHT_FACTOR + random() * (1 - MIN_HEIGHT_FACTOR);
@@ -112,57 +141,58 @@ export function createStarfield(seed = 1337) {
 		positions[i * 3] = Math.cos(theta) * radiusXZ * STARFIELD_RADIUS_METERS;
 		positions[i * 3 + 1] = heightFactor * STARFIELD_RADIUS_METERS;
 		positions[i * 3 + 2] = Math.sin(theta) * radiusXZ * STARFIELD_RADIUS_METERS;
-		// Drawn from the same continued deterministic stream as position above — same seed always
-		// reproduces the exact same twinkle pattern, star-for-star.
 		phases[i] = random() * Math.PI * 2;
 		freqs[i] = TWINKLE_FREQ_MIN + random() * (TWINKLE_FREQ_MAX - TWINKLE_FREQ_MIN);
+	}
+
+	// Independent tagged stream: changing magnitude/color policy must never reshuffle sky geometry.
+	const appearanceRandom = mulberry32(seed ^ 0x4d41474e); // "MAGN"-ish.
+	const sizes = new Float32Array(STAR_COUNT);
+	const brightnesses = new Float32Array(STAR_COUNT);
+	const colors = new Float32Array(STAR_COUNT * 3);
+	for (let i = 0; i < STAR_COUNT; i++) {
+		// Cubic skew: many faint/small stars, few bright/larger apparent-magnitude anchors.
+		const magnitude = Math.pow(appearanceRandom(), 3.2);
+		sizes[i] = STAR_SIZE_MIN_PIXELS + magnitude * (STAR_SIZE_MAX_PIXELS - STAR_SIZE_MIN_PIXELS);
+		brightnesses[i] = STAR_BRIGHTNESS_MIN + magnitude * (STAR_BRIGHTNESS_MAX - STAR_BRIGHTNESS_MIN);
+		writeStellarColor(colors, i, appearanceRandom);
 	}
 
 	const geometry = new THREE.BufferGeometry();
 	geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 	geometry.setAttribute('aPhase', new THREE.BufferAttribute(phases, 1));
 	geometry.setAttribute('aFreq', new THREE.BufferAttribute(freqs, 1));
+	geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+	geometry.setAttribute('aBrightness', new THREE.BufferAttribute(brightnesses, 1));
+	geometry.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
 
 	const material = new THREE.ShaderMaterial({
 		vertexShader: STAR_VERTEX_SHADER,
 		fragmentShader: STAR_FRAGMENT_SHADER,
 		uniforms: {
 			uTime: { value: 0 },
-			uNightFactor: { value: 0 }, // starts invisible; updateStarfield sets this from the day/night state every frame.
-			uSize: { value: STAR_SIZE_PIXELS },
-			uColor: { value: STAR_COLOR },
+			uNightFactor: { value: 0 },
 		},
 		transparent: true,
 		depthWrite: false,
-		fog: false, // stars sit "at infinity" — scene fog dimming them at ~1850m would look wrong (same choice sky.js already made for the aurora sphere).
+		fog: false,
 	});
 
+	material.userData.starfieldRealism = 'magnitude-temperature-circular-psf-v1';
 	const points = new THREE.Points(geometry, material);
-	points.frustumCulled = false; // always surrounds the camera by construction, same as sky.js's sphere.
-	points.renderOrder = -0.5; // after the aurora sky (-1), before ordinary opaque scene geometry (0, the default).
+	points.frustumCulled = false;
+	points.renderOrder = -0.5;
 	return points;
 }
 
-/**
- * Re-centers the starfield on the camera, advances its twinkle animation time, and fades the whole
- * field in/out with the current night factor. Call once per frame.
- * @param {THREE.Points} starfield
- * @param {THREE.Vector3} cameraPosition
- * @param {number} elapsedSeconds Real elapsed time driving the per-star twinkle oscillation (same
- *   clock `world/water.js`'s `uTime` and `sky.js`'s aurora already use).
- * @param {number} nightFactor `lighting.js`'s `updateDayNightLighting` output (0 = full day, 1 = full night).
- */
+/** Re-centers the starfield, advances deterministic twinkle time, and applies canonical nightFactor. */
 export function updateStarfield(starfield, cameraPosition, elapsedSeconds, nightFactor) {
 	starfield.position.copy(cameraPosition);
 	starfield.material.uniforms.uTime.value = elapsedSeconds;
 	starfield.material.uniforms.uNightFactor.value = nightFactor;
 }
 
-/**
- * Disposes the starfield's geometry/material. Call on teardown — see the project's memory-leak
- * checklist.
- * @param {THREE.Points} starfield
- */
+/** Disposes starfield geometry/material. */
 export function disposeStarfield(starfield) {
 	starfield.geometry.dispose();
 	starfield.material.dispose();
