@@ -1,0 +1,88 @@
+name: Starfield Exact Head
+
+on:
+  push:
+    branches:
+      - codex/starfield-realism-20260901
+    paths:
+      - 'src/3d/stars.js'
+      - 'scripts/checkStarfieldVisualContract.js'
+      - 'scripts/checkStarfieldRealismBrowser.js'
+      - 'scripts/captureFullWorld3DTopdown.mjs'
+      - 'scripts/fullWorld3DTopdownHarness.html'
+      - '.github/workflows/starfield-exact-head.yml'
+  pull_request:
+    paths:
+      - 'src/3d/stars.js'
+      - 'scripts/checkStarfieldVisualContract.js'
+      - 'scripts/checkStarfieldRealismBrowser.js'
+      - 'scripts/captureFullWorld3DTopdown.mjs'
+      - 'scripts/fullWorld3DTopdownHarness.html'
+      - '.github/workflows/starfield-exact-head.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-head-starfield:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXACT_HEAD }}
+          fetch-depth: 2
+          lfs: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify exact head and syntax
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+          node --check src/3d/stars.js
+          node --check scripts/checkStarfieldVisualContract.js
+          node --check scripts/checkStarfieldRealismBrowser.js
+          node --check scripts/captureFullWorld3DTopdown.mjs
+          git diff --check HEAD^ HEAD
+
+      - name: Install exact browser runtime
+        run: |
+          set -euo pipefail
+          npm install --no-save playwright three
+          npx playwright install --with-deps chromium
+
+      - name: Starfield deterministic material contract
+        run: node scripts/checkStarfieldVisualContract.js
+
+      - name: Real WebGL starfield realism proof
+        run: node scripts/checkStarfieldRealismBrowser.js
+
+      - name: Authoritative full-world topdown proof
+        run: |
+          node scripts/captureFullWorld3DTopdown.mjs \
+            --width=1600 \
+            --height=1100 \
+            --segments=240 \
+            --output=artifacts/starfield-exact-head/full-world-3d-topdown.png
+
+      - name: Record exact head
+        if: always()
+        run: |
+          mkdir -p artifacts/starfield-exact-head
+          printf '%s\n' "$EXACT_HEAD" > artifacts/starfield-exact-head/head-sha.txt
+
+      - name: Upload starfield exact-head proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: starfield-exact-head-${{ env.EXACT_HEAD }}
+          path: artifacts/starfield-exact-head/
+          if-no-files-found: warn
+          retention-days: 7
