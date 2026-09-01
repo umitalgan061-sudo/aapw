@@ -33,5 +33,10 @@ assert.equal(restored.credit(1, { sourceId: ' expedition-contract:watch ' }).rea
 assert.equal(restored.credit(1, { sourceId: `${'x'.repeat(100)}` }).reason, 'duplicate-credit-source');
 assert.equal(restored.credit(2, { sourceId: 'expedition-contract:receipt-only' }).reason, 'duplicate-credit-source');
 assert.deepEqual(restored.snapshot(), snapshot, 'duplicate-source rejection after hostile restore must be wallet/ledger atomic');
+for (let index = 0; index < 61; index += 1) assert.equal(restored.credit(1, { sourceId: `expedition-contract:filler-${index}` }).ok, true);
+const boundedSources = restored.snapshot().ledger.creditedSourceIds;
+assert.equal(boundedSources.length, 64, 'credit provenance ledger must remain bounded after restore');
+assert.equal(boundedSources.includes('expedition-contract:older-unique'), false, 'oldest provenance should evict first at the hard limit');
+assert.equal(boundedSources.at(-1), 'expedition-contract:filler-60');
 
 console.log('Interaction credit source ledger restore PASS');
