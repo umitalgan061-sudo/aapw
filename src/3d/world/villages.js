@@ -542,6 +542,7 @@ export function disposeVillages(group) {
 					disposedTextures.add(texture);
 					texture.dispose();
 				}
+			}
 			material.dispose();
 		}
 	});
