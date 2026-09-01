@@ -68,6 +68,7 @@ export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
   physicalProxyRemoval: true,
   splitProxySuppression: true,
   disposedGroupHydrationGuard: true,
+  pagehideSelfDisposal: true,
   groupName: 'natural-geology',
   valyriaSurfaceName: 'valyria-volcanic-surface',
 });
@@ -138,11 +139,6 @@ function colorForPlacement(placement) {
 }
 
 function hydratedTintForPlacement(placement) {
-  // Authored GLB albedo remains the primary colour source. A weak near-white instance multiplier
-  // carries the same regional mineral/altitude cue as the procedural fallback without painting over
-  // the source texture. Because Three.js multiplies instanceColor into the normal material colour/map,
-  // keeping this close to white preserves asset detail while preventing cloned rocks from reading as
-  // one perfectly repeated swatch across kilometres of terrain.
   return tempTint.copy(whiteTint).lerp(
     colorForPlacement(placement),
     NATURAL_GEOLOGY_RENDER_POLICY.hydratedInstanceTintStrength,
@@ -225,13 +221,7 @@ function buildProceduralMeshes(placements) {
 }
 
 /** Render-only, terrain-conforming Valyria surface. It never modifies canonical height or water. */
-export function createValyriaVolcanicSurface({
-  sampleHeightMeters,
-  seaLevelMeters,
-  worldWidthMeters,
-  worldDepthMeters,
-  gridMeters = VALYRIA_GEOLOGY_POLICY.volcanicSurfaceGridMeters,
-}) {
+export function createValyriaVolcanicSurface({ sampleHeightMeters, seaLevelMeters, worldWidthMeters, worldDepthMeters, gridMeters = VALYRIA_GEOLOGY_POLICY.volcanicSurfaceGridMeters }) {
   const P = VALYRIA_GEOLOGY_POLICY;
   const minNx = P.coreCenter.nx - P.coreRadius.nx * P.falloff;
   const maxNx = P.coreCenter.nx + P.coreRadius.nx * P.falloff;
@@ -327,16 +317,14 @@ export function createValyriaVolcanicSurface({
   return mesh;
 }
 
-export function createNaturalGeology({
-  sampleHeightMeters,
-  seaLevelMeters,
-  seed,
-  seats,
-  roadEdges,
-  worldWidthMeters,
-  worldDepthMeters,
-  isMobileClass = false,
-}) {
+function bindPagehideDisposal(group) {
+  if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
+  const disposeOnPagehide = () => disposeNaturalGeology(group);
+  window.addEventListener('pagehide', disposeOnPagehide, { once: true });
+  group.userData.naturalGeologyPagehideDispose = disposeOnPagehide;
+}
+
+export function createNaturalGeology({ sampleHeightMeters, seaLevelMeters, seed, seats, roadEdges, worldWidthMeters, worldDepthMeters, isMobileClass = false }) {
   const placementResult = generateNaturalGeologyPlacements({
     sampleHeightMeters,
     seaLevelMeters,
@@ -350,12 +338,7 @@ export function createNaturalGeology({
   const group = new THREE.Group();
   group.name = NATURAL_GEOLOGY_RENDER_POLICY.groupName;
   group.add(...buildProceduralMeshes(placementResult.placements));
-  const valyriaSurface = createValyriaVolcanicSurface({
-    sampleHeightMeters,
-    seaLevelMeters,
-    worldWidthMeters,
-    worldDepthMeters,
-  });
+  const valyriaSurface = createValyriaVolcanicSurface({ sampleHeightMeters, seaLevelMeters, worldWidthMeters, worldDepthMeters });
   group.add(valyriaSurface);
   group.userData.naturalGeology = Object.freeze({
     policyId: NATURAL_GEOLOGY_RENDER_POLICY.id,
@@ -373,6 +356,7 @@ export function createNaturalGeology({
   });
   group.userData.naturalGeologyPlacements = placementResult.placements;
   group.userData.naturalGeologyDisposed = false;
+  bindPagehideDisposal(group);
   return Object.freeze({ group, placements: placementResult.placements, stats: placementResult.stats });
 }
 
@@ -410,12 +394,8 @@ export function validateNaturalGeologyAsset(model) {
   if (meshes.length > NATURAL_GEOLOGY_RENDER_POLICY.maximumHydratedPrimitiveCount) return { valid: false, reason: 'too-many-primitives' };
   const measurement = measureNaturalGeologyAsset(model);
   if (!measurement) return { valid: false, reason: 'empty-bounds' };
-  if (![measurement.size.x, measurement.size.y, measurement.size.z, measurement.aspectRatio].every(Number.isFinite)) {
-    return { valid: false, reason: 'non-finite-bounds' };
-  }
-  if (measurement.aspectRatio > NATURAL_GEOLOGY_RENDER_POLICY.maximumSourceAspectRatio) {
-    return { valid: false, reason: 'implausibly-flat-landscape' };
-  }
+  if (![measurement.size.x, measurement.size.y, measurement.size.z, measurement.aspectRatio].every(Number.isFinite)) return { valid: false, reason: 'non-finite-bounds' };
+  if (measurement.aspectRatio > NATURAL_GEOLOGY_RENDER_POLICY.maximumSourceAspectRatio) return { valid: false, reason: 'implausibly-flat-landscape' };
   return { valid: true, meshes, measurement };
 }
 
@@ -424,12 +404,8 @@ async function preflightAsset(url, signal) {
     const response = await fetch(url, { method: 'HEAD', cache: 'no-store', signal });
     if (!response.ok) return { load: false, reason: `http-${response.status}` };
     const length = Number(response.headers.get('content-length'));
-    if (Number.isFinite(length) && length < NATURAL_GEOLOGY_RENDER_POLICY.hostedPreflightMinBytes) {
-      return { load: false, reason: 'lfs-pointer' };
-    }
-    if (Number.isFinite(length) && length > NATURAL_GEOLOGY_RENDER_POLICY.maximumHydratedSourceBytes) {
-      return { load: false, reason: 'source-too-large' };
-    }
+    if (Number.isFinite(length) && length < NATURAL_GEOLOGY_RENDER_POLICY.hostedPreflightMinBytes) return { load: false, reason: 'lfs-pointer' };
+    if (Number.isFinite(length) && length > NATURAL_GEOLOGY_RENDER_POLICY.maximumHydratedSourceBytes) return { load: false, reason: 'source-too-large' };
     return { load: true, contentLength: Number.isFinite(length) ? length : null };
   } catch (error) {
     return { load: false, reason: signal?.aborted ? 'aborted' : 'preflight-error', error };
@@ -438,8 +414,7 @@ async function preflightAsset(url, signal) {
 
 function createAssetNormalization(measurement) {
   const normalizer = 1 / Math.max(measurement.size.x, measurement.size.y, measurement.size.z, 1e-6);
-  return new THREE.Matrix4()
-    .makeScale(normalizer, normalizer, normalizer)
+  return new THREE.Matrix4().makeScale(normalizer, normalizer, normalizer)
     .multiply(new THREE.Matrix4().makeTranslation(-measurement.center.x, -measurement.bounds.min.y, -measurement.center.z));
 }
 
@@ -467,9 +442,7 @@ function removeProxyFamily(group, family) {
     removedInstanceCount += proxy.count;
     group.remove(proxy);
     proxy.geometry?.dispose?.();
-    for (const material of Array.isArray(proxy.material) ? proxy.material : proxy.material ? [proxy.material] : []) {
-      disposeMaterialResources(material, textures);
-    }
+    for (const material of Array.isArray(proxy.material) ? proxy.material : proxy.material ? [proxy.material] : []) disposeMaterialResources(material, textures);
   }
   return Object.freeze({ removedMeshCount, removedInstanceCount });
 }
@@ -493,21 +466,11 @@ function hydrationCancelled(group, signal) {
   return Boolean(signal?.aborted || group?.userData?.naturalGeologyDisposed);
 }
 
-function prepareHydratedBatch({
-  family,
-  url,
-  meshIndex,
-  mode,
-  sourceMesh,
-  modePlacements,
-  normalization,
-  sourcePrimitiveCount,
-}) {
+function prepareHydratedBatch({ family, url, meshIndex, mode, sourceMesh, modePlacements, normalization, sourcePrimitiveCount }) {
   const material = sourceMesh.material.clone();
   material.metalness = 0;
   material.roughness = Math.max(material.roughness ?? 0, NATURAL_GEOLOGY_RENDER_POLICY.hydratedRoughnessFloor);
   applyNaturalGeologySurfaceMaterial(material, { mode });
-
   const instances = new THREE.InstancedMesh(sourceMesh.geometry, material, modePlacements.length);
   instances.name = `natural-geology-hydrated-${family}-${mode}-${meshIndex}`;
   instances.castShadow = true;
@@ -517,7 +480,6 @@ function prepareHydratedBatch({
   instances.userData.naturalGeologyAssetSource = url;
   instances.userData.hydratedInstanceTintStrength = NATURAL_GEOLOGY_RENDER_POLICY.hydratedInstanceTintStrength;
   instances.userData.placementIds = modePlacements.map((placement) => placement.id);
-
   for (let index = 0; index < modePlacements.length; index += 1) {
     composePlacementMatrix(modePlacements[index], tempMatrix);
     instances.setMatrixAt(index, tempMatrix.clone().multiply(normalization).multiply(sourceMesh.matrixWorld));
@@ -526,27 +488,13 @@ function prepareHydratedBatch({
   instances.instanceMatrix.needsUpdate = true;
   if (instances.instanceColor) instances.instanceColor.needsUpdate = true;
   instances.computeBoundingSphere?.();
-
   const prepared = preparePreResolvedInstancedWorldAsset(instances, {
-    metadata: {
-      id: `natural-geology:${family}:${mode}:${meshIndex}`,
-      name: instances.name,
-      category: 'natural-geology-hydrated',
-      src: url,
-    },
+    metadata: { id: `natural-geology:${family}:${mode}:${meshIndex}`, name: instances.name, category: 'natural-geology-hydrated', src: url },
     placementIds: instances.userData.placementIds,
     placementChecksum: checksumNaturalGeologyPlacements(modePlacements),
     placementPolicyId: NATURAL_GEOLOGY_PLACEMENT_POLICY.id,
-    batchMetadata: {
-      family,
-      surfaceMode: mode,
-      sourceMeshIndex: meshIndex,
-      sourcePrimitiveCount,
-      surfacePolicyId: NATURAL_GEOLOGY_SURFACE_POLICY.id,
-      hydratedInstanceTintStrength: NATURAL_GEOLOGY_RENDER_POLICY.hydratedInstanceTintStrength,
-    },
+    batchMetadata: { family, surfaceMode: mode, sourceMeshIndex: meshIndex, sourcePrimitiveCount, surfacePolicyId: NATURAL_GEOLOGY_SURFACE_POLICY.id, hydratedInstanceTintStrength: NATURAL_GEOLOGY_RENDER_POLICY.hydratedInstanceTintStrength },
   });
-
   if (!prepared.ok) material.dispose?.();
   return prepared;
 }
@@ -555,17 +503,8 @@ async function hydrateFamily(group, family, url, signal) {
   const placements = proxyPlacementsForFamily(group, family);
   if (!placements.length) return { family, status: 'unused', placementCount: 0 };
   if (hydrationCancelled(group, signal)) return { family, status: 'aborted', placementCount: placements.length };
-
   const preflight = await preflightAsset(url, signal);
-  if (!preflight.load) {
-    return {
-      family,
-      status: preflight.reason === 'aborted' ? 'aborted' : 'procedural-fallback',
-      reason: preflight.reason,
-      placementCount: placements.length,
-    };
-  }
-
+  if (!preflight.load) return { family, status: preflight.reason === 'aborted' ? 'aborted' : 'procedural-fallback', reason: preflight.reason, placementCount: placements.length };
   const model = await new AssetLoader().loadModel(url, { fallbackColor: 0x665f56, fallbackSize: 1 });
   if (hydrationCancelled(group, signal)) {
     AssetLoader.disposeObject3D(model);
@@ -594,37 +533,18 @@ async function hydrateFamily(group, family, url, signal) {
         AssetLoader.disposeObject3D(model);
         return { family, status: 'aborted', placementCount: placements.length };
       }
-      const prepared = prepareHydratedBatch({
-        family,
-        url,
-        meshIndex,
-        mode,
-        sourceMesh,
-        modePlacements,
-        normalization,
-        sourcePrimitiveCount: validation.meshes.length,
-      });
+      const prepared = prepareHydratedBatch({ family, url, meshIndex, mode, sourceMesh, modePlacements, normalization, sourcePrimitiveCount: validation.meshes.length });
       if (!prepared.ok) {
         disposeStagedHydratedBatches(staged);
         AssetLoader.disposeObject3D(model);
-        return {
-          family,
-          status: 'procedural-fallback',
-          reason: `shared-placement:${prepared.error || 'prepare-failed'}`,
-          placementCount: placements.length,
-        };
+        return { family, status: 'procedural-fallback', reason: `shared-placement:${prepared.error || 'prepare-failed'}`, placementCount: placements.length };
       }
       const audit = auditPreResolvedInstancedWorldAsset(prepared.object);
       if (!audit.ok) {
         staged.push(prepared);
         disposeStagedHydratedBatches(staged);
         AssetLoader.disposeObject3D(model);
-        return {
-          family,
-          status: 'procedural-fallback',
-          reason: `shared-placement-audit:${audit.errors.join(',')}`,
-          placementCount: placements.length,
-        };
+        return { family, status: 'procedural-fallback', reason: `shared-placement-audit:${audit.errors.join(',')}`, placementCount: placements.length };
       }
       staged.push(prepared);
     }
@@ -637,9 +557,6 @@ async function hydrateFamily(group, family, url, signal) {
     return { family, status: 'aborted', placementCount: placements.length };
   }
 
-  // Transactional publish: every batch is prepared and audited before the first real primitive is
-  // visible. If cancellation/attachment failure occurs part-way through, every attached batch is
-  // removed and the procedural family remains untouched.
   const attached = [];
   for (const prepared of staged) {
     if (hydrationCancelled(group, signal)) {
@@ -653,12 +570,7 @@ async function hydrateFamily(group, family, url, signal) {
       removeAttachedBatches(group, attached);
       disposeStagedHydratedBatches(staged);
       AssetLoader.disposeObject3D(model);
-      return {
-        family,
-        status: 'procedural-fallback',
-        reason: `shared-attach:${result.error || 'attach-failed'}`,
-        placementCount: placements.length,
-      };
+      return { family, status: 'procedural-fallback', reason: `shared-attach:${result.error || 'attach-failed'}`, placementCount: placements.length };
     }
     attached.push(prepared);
   }
@@ -694,7 +606,6 @@ export function upgradeNaturalGeologyAssets(group, { signal, isMobileClass = fal
   if (group.userData?.naturalGeologyDisposed) return Promise.resolve(Object.freeze({ status: 'disposed-group' }));
   if (isMobileClass) return Promise.resolve(Object.freeze({ status: 'procedural-fallback', reason: 'mobile-budget' }));
   if (inFlight.has(group)) return inFlight.get(group);
-
   const task = (async () => {
     const primary = await hydrateFamily(group, 'rocky-terrain', NATURAL_GEOLOGY_RENDER_POLICY.primaryRockAsset, signal);
     const southern = hydrationCancelled(group, signal)
@@ -702,25 +613,16 @@ export function upgradeNaturalGeologyAssets(group, { signal, isMobileClass = fal
       : await hydrateFamily(group, 'desert-rocks', NATURAL_GEOLOGY_RENDER_POLICY.southernRockAsset, signal);
     const families = [primary, southern];
     const active = families.filter((entry) => entry.status === 'active');
-
     if (!group.userData?.naturalGeologyDisposed) {
-      group.userData.naturalGeology = Object.freeze({
-        ...group.userData.naturalGeology,
-        assetState: active.length ? 'active' : 'procedural-fallback',
-        hydratedFamilies: Object.freeze(families),
-      });
+      group.userData.naturalGeology = Object.freeze({ ...group.userData.naturalGeology, assetState: active.length ? 'active' : 'procedural-fallback', hydratedFamilies: Object.freeze(families) });
     }
-
     return Object.freeze({
-      status: group.userData?.naturalGeologyDisposed
-        ? 'disposed-group'
-        : active.length ? 'active' : hydrationCancelled(group, signal) ? 'aborted' : 'procedural-fallback',
+      status: group.userData?.naturalGeologyDisposed ? 'disposed-group' : active.length ? 'active' : hydrationCancelled(group, signal) ? 'aborted' : 'procedural-fallback',
       activeFamilyCount: active.length,
       hydratedPlacementCount: active.reduce((sum, entry) => sum + entry.placementCount, 0),
       families: Object.freeze(families),
     });
   })().finally(() => inFlight.delete(group));
-
   inFlight.set(group, task);
   return task;
 }
@@ -728,6 +630,11 @@ export function upgradeNaturalGeologyAssets(group, { signal, isMobileClass = fal
 export function disposeNaturalGeology(group) {
   if (!group || group.userData?.naturalGeologyDisposed) return;
   group.userData.naturalGeologyDisposed = true;
+  const pagehideDisposer = group.userData?.naturalGeologyPagehideDispose;
+  if (pagehideDisposer && typeof window !== 'undefined' && typeof window.removeEventListener === 'function') {
+    window.removeEventListener('pagehide', pagehideDisposer);
+  }
+  delete group.userData.naturalGeologyPagehideDispose;
   const geometries = new Set();
   const materials = new Set();
   const textures = new Set();
