@@ -118,8 +118,9 @@ jobs:
           run_gpu_contract() {
             local label="$1"
             shift
+            local log="artifacts/live-map-shallow-water-visual/${label// /-}.log"
             echo "::group::${label}"
-            if ! "$@"; then
+            if ! "$@" 2>&1 | tee "$log"; then
               printf '%s\n' "$label" > artifacts/live-map-shallow-water-visual/gpu-failure.txt
               echo "::error title=Shallow-water GPU contract failed::${label}"
               exit 1
