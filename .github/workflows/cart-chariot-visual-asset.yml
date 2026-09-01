@@ -1,0 +1,90 @@
+name: Cart Chariot Visual Asset
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/cartBrain.js'
+      - 'src/3d/gameplay/cartVisualAsset.js'
+      - 'scripts/checkCartChariotVisualAssetBrowser.js'
+      - '.github/workflows/cart-chariot-visual-asset.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cart-chariot-visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Exact-main scope and budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          base="$(git merge-base HEAD origin/main)"
+          test "$base" = "$(git rev-parse origin/main)"
+          changed="$(git diff --name-only origin/main...HEAD)"
+          printf '%s\n' "$changed"
+          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/cartBrain\.js|src/3d/gameplay/cartVisualAsset\.js|scripts/checkCartChariotVisualAssetBrowser\.js|\.github/workflows/cart-chariot-visual-asset\.yml)$' && exit 1 || true
+          additions="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END {print s+0}')"
+          deletions="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END {print s+0}')"
+          echo "scope: +${additions} -${deletions} total=$((additions + deletions))"
+          test $((additions + deletions)) -le 1000
+          git diff --check origin/main...HEAD
+
+      - name: Cart visual syntax and deterministic policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/cartBrain.js
+          node --check src/3d/gameplay/cartVisualAsset.js
+          node --check scripts/checkCartChariotVisualAssetBrowser.js
+          ! grep -n 'Math\.random' src/3d/gameplay/cartVisualAsset.js
+
+      - name: Shared material placement contract
+        run: node scripts/checkSharedMaterialPlacementContract.js
+
+      - name: Hydrate exact runtime chariot asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs version
+          git lfs pull --include="assets/models/fbx/ancient_horse_chariot_mauryan_era.glb" --exclude=""
+          bytes="$(wc -c < assets/models/fbx/ancient_horse_chariot_mauryan_era.glb)"
+          echo "hydrated chariot bytes: $bytes"
+          test "$bytes" -gt 1000000
+          ! head -c 80 assets/models/fbx/ancient_horse_chariot_mauryan_era.glb | grep -aq 'git-lfs.github.com/spec'
+
+      - name: Install Chromium proof dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Real Three.js chariot material and road-binding proof
+        run: node scripts/checkCartChariotVisualAssetBrowser.js
+
+      - name: Existing cart movement and grade regressions
+        run: |
+          node scripts/checkRun336CartVehicle.js
+          node scripts/checkRun338CartGradeSpeed.js
+
+      - name: Final exact-main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
