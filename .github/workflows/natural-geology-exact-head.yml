@@ -181,11 +181,11 @@ jobs:
       - name: Render full-world and Valyria regional proofs
         run: |
           node scripts/captureFullWorld3DTopdown.mjs \
-            --width=1200 --height=825 --segments=200 \
+            --width=1600 --height=1100 --segments=240 \
             --focus=world \
             --output=artifacts/natural-geology-exact-head/full-world.png
           node scripts/captureFullWorld3DTopdown.mjs \
-            --width=1200 --height=825 --segments=200 \
+            --width=1600 --height=1100 --segments=240 \
             --focus=valyria \
             --port=4174 \
             --output=artifacts/natural-geology-exact-head/valyria-regional.png
