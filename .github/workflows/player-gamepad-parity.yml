@@ -157,6 +157,7 @@ jobs:
           ! grep -q 'EditorMaterialStudio' src/3d/gameLoopHelpers.js
           ! grep -q 'EditorMaterialStudio' src/3d/ui/healthBar.js
       - name: Install Chromium
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
@@ -165,6 +166,7 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
       - name: Shipped scene gamepad parity and lock-on proof
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
@@ -183,7 +185,7 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
       - name: Final main freshness
-        if: github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request'
         shell: bash
         run: |
           set -euo pipefail
