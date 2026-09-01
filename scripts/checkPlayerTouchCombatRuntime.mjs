@@ -104,9 +104,9 @@ try {
   const box = await canvas.boundingBox();
   need(box && box.width > 100 && box.height > 100, 'invalid mobile shipped canvas bounds');
   await page.screenshot({ path: path.join(outDir, 'touch-combat-runtime.png'), clip: box });
-  need(errors.length === 0, `browser/page errors: ${JSON.stringify(errors)}`);
   const metrics = { baseline, guarded, blockedIntent, released, lightStart, lockEvent, browserErrors: errors };
   fs.writeFileSync(path.join(outDir, 'touch-combat-runtime.json'), `${JSON.stringify(metrics, null, 2)}\n`);
+  need(errors.length === 0, `browser/page errors: ${JSON.stringify(errors)}`);
   console.log(`PLAYER_TOUCH_COMBAT_RUNTIME_OK ${JSON.stringify({ source: blockedIntent.source, lightComboStep: lightStart.comboStep, lockState: lockEvent.locked, errors: errors.length })}`);
 } catch (error) {
   fs.writeFileSync(path.join(outDir, 'failure.json'), `${JSON.stringify({ error: String(error?.stack ?? error), browserErrors: errors }, null, 2)}\n`);
