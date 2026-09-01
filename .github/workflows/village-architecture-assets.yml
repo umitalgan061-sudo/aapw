@@ -78,7 +78,11 @@ jobs:
         run: node scripts/checkSharedMaterialPlacementContract.js
 
       - name: Real regional GLB material and placement proof
-        run: node scripts/checkVillageArchitectureAssets.js
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/village-architecture-assets
+          node scripts/checkVillageArchitectureAssets.js 2>&1 | tee artifacts/village-architecture-assets/proof.log
 
       - name: PWA offline shell regression
         run: node scripts/checkServiceWorkerCache.js
@@ -95,5 +99,5 @@ jobs:
         with:
           name: village-architecture-assets-${{ github.event.pull_request.head.sha }}
           path: artifacts/village-architecture-assets/
-          if-no-files-found: ignore
+          if-no-files-found: error
           retention-days: 7
