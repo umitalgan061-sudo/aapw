@@ -5,6 +5,7 @@
  */
 
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mulberry32 } from './terrain.js';
 import { northClimateWeightsAtWorldZ } from './terrainBiomeShading.js';
 import { northReferenceCryosphereAtWorldXZ } from './northReferenceCryosphere.js';
@@ -67,6 +68,18 @@ export const VEGETATION_SPATIAL_PATTERN_POLICY = Object.freeze({
 	settlementTreeBudgetMin: 32,
 	settlementTreeBudgetMax: 46,
 	settlementGoldenAngleRadians: Math.PI * (3 - Math.sqrt(5)),
+});
+
+export const VEGETATION_SILHOUETTE_POLICY = Object.freeze({
+	id: 'vegetation-organic-silhouette-2026-09-01-v1',
+	drawCallPreserving: true,
+	placementAuthorityChanged: false,
+	geometryDeterministic: true,
+	desktopOrganicGeometry: true,
+	mobilePrimitiveLodPreserved: true,
+	evergreenTierCount: 4,
+	broadleafLobeCount: 5,
+	broadleafForkCount: 3,
 });
 
 const TARGET_DENSITY_PER_KM2 = 30;
@@ -296,18 +309,137 @@ function pickSettlementWoodlandGrove(layout, rng) {
 	return layout.groves[layout.groves.length - 1];
 }
 
+function silhouetteTriangleCount(geometry) {
+	if (geometry.index) return geometry.index.count / 3;
+	const positions = geometry.getAttribute('position');
+	return positions ? positions.count / 3 : 0;
+}
+
+function mergeVegetationGeometry(parts, metadata) {
+	const merged = mergeGeometries(parts, false);
+	for (const part of parts) part.dispose();
+	if (!merged) throw new Error(`world/vegetation.js: failed to merge ${metadata.profile} geometry`);
+	merged.computeBoundingBox();
+	merged.computeBoundingSphere();
+	merged.userData.vegetationSilhouette = Object.freeze({
+		policyId: VEGETATION_SILHOUETTE_POLICY.id,
+		drawCallPreserving: VEGETATION_SILHOUETTE_POLICY.drawCallPreserving,
+		...metadata,
+		triangles: silhouetteTriangleCount(merged),
+	});
+	return merged;
+}
+
+function buildOrganicTrunkGeometry(species) {
+	const { trunk } = species;
+	const parts = [];
+	const main = new THREE.CylinderGeometry(trunk.radiusTop, trunk.radiusBottom, trunk.height, trunk.radialSegments);
+	main.translate(0, trunk.height / 2, 0);
+	parts.push(main);
+
+	if (species.id === 'round') {
+		const forks = [
+			{ yaw: 0.20, tilt: -0.72, x: -0.31, y: trunk.height * 0.92, z: 0.03, height: 1.50 },
+			{ yaw: 2.25, tilt: 0.66, x: 0.29, y: trunk.height * 0.96, z: -0.11, height: 1.42 },
+			{ yaw: 4.35, tilt: -0.54, x: 0.04, y: trunk.height * 1.02, z: 0.29, height: 1.26 },
+		];
+		for (const fork of forks) {
+			const branch = new THREE.CylinderGeometry(0.055, 0.105, fork.height, 5);
+			branch.rotateZ(fork.tilt);
+			branch.rotateY(fork.yaw);
+			branch.translate(fork.x, fork.y, fork.z);
+			parts.push(branch);
+		}
+		return mergeVegetationGeometry(parts, {
+			profile: 'forked-broadleaf-trunk',
+			componentCount: parts.length,
+			minTriangles: 30,
+			maxTriangles: 180,
+		});
+	}
+
+	const upperHeight = trunk.height * 0.72;
+	const upperStem = new THREE.CylinderGeometry(0.05, Math.max(0.10, trunk.radiusTop * 0.58), upperHeight, Math.max(5, trunk.radialSegments - 1));
+	upperStem.translate(0.025, trunk.height + upperHeight * 0.30, -0.018);
+	parts.push(upperStem);
+	return mergeVegetationGeometry(parts, {
+		profile: 'tapered-evergreen-trunk',
+		componentCount: parts.length,
+		minTriangles: 20,
+		maxTriangles: 120,
+	});
+}
+
+function buildTieredEvergreenFoliageGeometry(species) {
+	const { trunk, foliage } = species;
+	const crownBase = trunk.height - foliage.overlapMeters;
+	const tiers = [
+		{ radius: 1.00, height: 0.46, y: 0.20, x: 0.00, z: 0.00 },
+		{ radius: 0.82, height: 0.42, y: 0.43, x: 0.055, z: -0.035 },
+		{ radius: 0.63, height: 0.36, y: 0.65, x: -0.045, z: 0.040 },
+		{ radius: 0.43, height: 0.30, y: 0.82, x: 0.025, z: 0.018 },
+	];
+	const parts = tiers.map((tier) => {
+		const geometry = new THREE.ConeGeometry(
+			foliage.radius * tier.radius,
+			foliage.height * tier.height,
+			foliage.radialSegments,
+		);
+		geometry.translate(
+			foliage.radius * tier.x,
+			crownBase + foliage.height * tier.y,
+			foliage.radius * tier.z,
+		);
+		return geometry;
+	});
+	return mergeVegetationGeometry(parts, {
+		profile: 'tiered-evergreen',
+		componentCount: parts.length,
+		minTriangles: 40,
+		maxTriangles: 180,
+	});
+}
+
+function buildLobedBroadleafFoliageGeometry(species) {
+	const { trunk, foliage } = species;
+	const centerY = trunk.height + foliage.radius - foliage.overlapMeters;
+	const lobes = [
+		{ x: 0.00, y: 0.12, z: 0.00, sx: 0.82, sy: 0.88, sz: 0.80 },
+		{ x: -0.47, y: 0.00, z: 0.06, sx: 0.62, sy: 0.68, sz: 0.58 },
+		{ x: 0.44, y: 0.08, z: -0.16, sx: 0.64, sy: 0.72, sz: 0.60 },
+		{ x: -0.08, y: 0.31, z: -0.38, sx: 0.59, sy: 0.65, sz: 0.57 },
+		{ x: 0.13, y: -0.07, z: 0.37, sx: 0.58, sy: 0.62, sz: 0.55 },
+	];
+	const parts = lobes.map((lobe) => {
+		const geometry = new THREE.SphereGeometry(1, foliage.widthSegments, foliage.heightSegments);
+		geometry.scale(
+			foliage.radius * lobe.sx,
+			foliage.radius * lobe.sy,
+			foliage.radius * lobe.sz,
+		);
+		geometry.translate(
+			foliage.radius * lobe.x,
+			centerY + foliage.radius * lobe.y,
+			foliage.radius * lobe.z,
+		);
+		return geometry;
+	});
+	return mergeVegetationGeometry(parts, {
+		profile: 'lobed-broadleaf',
+		componentCount: parts.length,
+		minTriangles: 180,
+		maxTriangles: 520,
+	});
+}
+
 function buildSpeciesAssets(species) {
 	const { trunk, foliage } = species;
-	const trunkGeometry = new THREE.CylinderGeometry(trunk.radiusTop, trunk.radiusBottom, trunk.height, trunk.radialSegments);
-	trunkGeometry.translate(0, trunk.height / 2, 0);
-
+	const trunkGeometry = buildOrganicTrunkGeometry(species);
 	let foliageGeometry;
 	if (foliage.kind === 'cone') {
-		foliageGeometry = new THREE.ConeGeometry(foliage.radius, foliage.height, foliage.radialSegments);
-		foliageGeometry.translate(0, trunk.height + foliage.height / 2 - foliage.overlapMeters, 0);
+		foliageGeometry = buildTieredEvergreenFoliageGeometry(species);
 	} else if (foliage.kind === 'sphere') {
-		foliageGeometry = new THREE.SphereGeometry(foliage.radius, foliage.widthSegments, foliage.heightSegments);
-		foliageGeometry.translate(0, trunk.height + foliage.radius - foliage.overlapMeters, 0);
+		foliageGeometry = buildLobedBroadleafFoliageGeometry(species);
 	} else {
 		throw new Error(`world/vegetation.js: unknown foliage kind "${foliage.kind}" for species "${species.id}"`);
 	}
@@ -454,6 +586,11 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 		settlementTreeBudgetMax: spatialPolicy.settlementTreeBudgetMax,
 	});
 	group.userData.vegetationSurfaceFabric = Object.freeze({ key: VEGETATION_SURFACE_FABRIC_KEY, worldSpace: true, multiScale: true });
+	group.userData.vegetationSilhouette = Object.freeze({
+		policyId: VEGETATION_SILHOUETTE_POLICY.id,
+		drawCallPreserving: true,
+		placementAuthorityChanged: false,
+	});
 	return {
 		group,
 		targetCount,
