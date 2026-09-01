@@ -318,6 +318,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float offshoreAbsorption = 1.0 - exp(-offshoreGain * 3.4);
 		opticalDepth = 1.0 - (1.0 - opticalDepth) * (1.0 - offshoreAbsorption);
 		float alpha = mix(0.14, 0.90, opticalDepth);
+		alpha = mix(alpha, max(alpha, 0.985), deepMarineMask);
 		alpha *= 1.0 + shelfMottle * 0.22;
 		float bedReadability = max(enclosedLakeMask * clearShallowBand * 0.30, clearCoastMask * 0.18);
 		alpha *= 1.0 - bedReadability;
