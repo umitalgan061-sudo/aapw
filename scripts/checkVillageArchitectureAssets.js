@@ -85,6 +85,7 @@ async function main() {
 			const manifestProof = evidence.manifests.map((entry) => ({
 				seatId: entry.seatId, region: entry.region, textureSize: entry.textureSize,
 				recipeMode: entry.manifest?.recipe?.mode ?? null,
+				basePaletteId: entry.manifest?.recipe?.basePaletteId ?? null,
 				layerPalettes: (entry.manifest?.recipe?.layers || []).map((layer) => layer.palette),
 				generatedMaterialCount: entry.manifest?.validation?.generatedMaterialCount ?? 0,
 				meshCount: entry.manifest?.validation?.meshCount ?? 0,
@@ -157,7 +158,10 @@ async function main() {
 			assert(Number.isFinite(proof.heightRange) && proof.heightRange < 0.25, `${proof.region}: excessive synthetic height range`);
 			assert(Number.isFinite(proof.placementSurfaceHeight), `${proof.region}: placement surface missing`);
 			if (proof.recipeMode === 'layers') assert(proof.layerPalettes.length >= 3, `${proof.region}: layered fallback too shallow`);
-			else assert(proof.paletteIds.length > 0, `${proof.region}: multi-surface palette evidence missing`);
+			else {
+				assert.equal(proof.recipeMode, 'auto', `${proof.region}: unexpected material recipe mode`);
+				assert(proof.basePaletteId, `${proof.region}: auto material palette missing from manifest recipe`);
+			}
 		}
 		assert.deepEqual(pageErrors, [], `page errors: ${pageErrors.join(' | ')}`);
 		assert.deepEqual(consoleErrors, [], `console errors: ${consoleErrors.join(' | ')}`);
