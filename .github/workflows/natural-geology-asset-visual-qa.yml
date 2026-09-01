@@ -1,0 +1,70 @@
+name: Natural Geology Asset Visual QA
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/naturalGeology.js'
+      - 'src/3d/world/naturalGeologyAssetSurface.js'
+      - 'src/3d/world/naturalGeologyPlacement.js'
+      - 'src/3d/world/worldReferenceMap.js'
+      - 'scripts/checkNaturalGeologyAssetVisualQa.js'
+      - 'natural-geology-asset-visual-qa.html'
+      - '.github/workflows/natural-geology-asset-visual-qa.yml'
+  workflow_dispatch:
+
+permissions: { contents: read }
+
+jobs:
+  visual-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Exact-head syntax and placement authority
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          node --check src/3d/world/naturalGeology.js
+          node --check src/3d/world/naturalGeologyAssetSurface.js
+          node --check src/3d/world/naturalGeologyPlacement.js
+          node --check scripts/checkNaturalGeologyAssetVisualQa.js
+          node scripts/setupNodeThreeShim.mjs
+          node scripts/checkNaturalGeologyPlacement.mjs
+      - name: Hydrate verified geology GLBs
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull --include="assets/models/fbx/rocky_terrain_low_poly.glb,assets/models/fbx/desert_rocks.glb" --exclude=""
+          node --input-type=module <<'NODE'
+          import { readFile } from 'node:fs/promises';
+          for (const path of ['assets/models/fbx/rocky_terrain_low_poly.glb', 'assets/models/fbx/desert_rocks.glb']) {
+            const data = await readFile(path);
+            if (data.length < 512 || data.subarray(0, 4).toString('ascii') !== 'glTF') throw new Error(`unhydrated geology GLB: ${path}`);
+            console.log('[geology-glb]', path, data.length);
+          }
+          NODE
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          ln -sfn "$RUNNER_TEMP/pw/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Render hydrated rocky and desert regions
+        run: node scripts/checkNaturalGeologyAssetVisualQa.js
+      - name: Upload geology visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: natural-geology-asset-visual-qa
+          path: artifacts/natural-geology-asset-visual-qa/
+          if-no-files-found: error
+          retention-days: 7
