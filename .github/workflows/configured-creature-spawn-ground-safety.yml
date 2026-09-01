@@ -65,7 +65,7 @@ jobs:
           node scripts/checkCreatureBirdTerrainClearance.mjs
           node scripts/checkCreatureThreatMemory.mjs
           node scripts/checkCreatureSimulationLod.mjs
-          grep -F "distanceMeters < packAlertRadiusMeters" src/3d/gameplay/livingWorldSpawner.js
+          node scripts/checkCreaturePredatorPrey.mjs
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkSharedMaterialPlacementContract.js
 
