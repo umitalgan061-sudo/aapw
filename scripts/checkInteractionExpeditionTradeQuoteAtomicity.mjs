@@ -71,13 +71,16 @@ assert.equal(smithingGrant.metadata.craftUpgrade.outputItemId, 'dragonstone-expe
 
 const failedServiceState = structuredClone(smithingEconomy.snapshot());
 let failedServiceCredit;
+let failedServiceRestore;
 const failedService = smithingEconomy.purchase(whetstoneOffer, () => {
   failedServiceCredit = smithingEconomy.credit(99, { sourceId: 'failed-service-mint', label: 'Geçersiz hizmet geliri' });
+  failedServiceRestore = smithingEconomy.restore({ copper: 999, stockByOffer: {}, ledger: {} });
   return { ok: false, reason: 'missing-materials' };
 });
 assert.equal(failedService.ok, false);
 assert.equal(failedService.reason, 'missing-materials');
 assert.equal(failedServiceCredit.reason, 'purchase-in-progress', 'failed service callbacks must not mint copper before rejecting fulfillment');
+assert.equal(failedServiceRestore, false, 'failed service callbacks must not replace persisted economy state before rejecting fulfillment');
 assert.equal(failedService.balanceCopper, 28, 'failed smithing must preserve wallet balance');
 assert.equal(failedService.remainingStock, 1, 'failed smithing must preserve service stock');
 assert.deepEqual(smithingEconomy.snapshot(), failedServiceState, 'failed settlement service must not mutate wallet, stock, or ledger');
