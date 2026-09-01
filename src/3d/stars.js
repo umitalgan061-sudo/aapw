@@ -9,10 +9,11 @@
  * separately so visual refinements cannot silently reshuffle canonical same-seed star positions.
  *
  * Each star carries deterministic twinkle phase/frequency plus a restrained apparent-magnitude,
- * luminance and stellar-temperature treatment. Most stars stay small/faint/near-neutral, with a
- * small population of brighter or subtly warm/cool points. The fragment shader turns the hardware
- * point sprite into a circular point-spread core and soft halo using `gl_PointCoord`; square point
- * grains are discarded rather than rendered as obvious GPU quads.
+ * luminance and stellar-temperature treatment. A broad fixed celestial density band modulates
+ * visibility without moving a single seeded point, avoiding an implausibly uniform random dome
+ * while keeping mean field energy close to the previous magnitude treatment. The fragment shader
+ * turns the hardware point sprite into a circular point-spread core and soft halo using
+ * `gl_PointCoord`; square point grains are discarded rather than rendered as obvious GPU quads.
  * @module stars
  */
 
@@ -45,6 +46,22 @@ const STAR_SIZE_MAX_PIXELS = 3.25;
 const STAR_BRIGHTNESS_MIN = 0.42;
 const STAR_BRIGHTNESS_MAX = 1.0;
 
+/**
+ * Broad stellar-density plane in local celestial-dome coordinates. The normal is unit length to
+ * floating-point precision and intentionally independent of world/map coordinates: translating
+ * the player cannot slide the band, while the fixed orientation provides the large-scale density
+ * structure a real night sky has instead of a statistically uniform point cloud.
+ *
+ * The 0.86..1.54 response has a near-one hemisphere mean for this 0.42 half-width, so it redistributes
+ * existing stellar energy into a broad band rather than simply making the entire sky brighter.
+ */
+const STELLAR_BAND_NORMAL_X = 0.36;
+const STELLAR_BAND_NORMAL_Y = 0.89;
+const STELLAR_BAND_NORMAL_Z = 0.28;
+const STELLAR_BAND_HALF_WIDTH = 0.42;
+const STELLAR_DENSITY_FLOOR = 0.86;
+const STELLAR_DENSITY_PEAK = 1.54;
+
 /** Twinkle angular-frequency range (radians/sec), intentionally slow/gentle. */
 const TWINKLE_FREQ_MIN = 0.4;
 const TWINKLE_FREQ_MAX = 1.3;
@@ -58,6 +75,7 @@ const STAR_VERTEX_SHADER = /* glsl */ `
 	attribute float aFreq;
 	attribute float aSize;
 	attribute float aBrightness;
+	attribute float aSkyDensity;
 	attribute vec3 aColor;
 	uniform float uTime;
 	uniform float uNightFactor;
@@ -66,7 +84,7 @@ const STAR_VERTEX_SHADER = /* glsl */ `
 
 	void main() {
 		float twinkle = ${TWINKLE_BASE.toFixed(2)} + ${TWINKLE_AMPLITUDE.toFixed(2)} * sin(uTime * aFreq + aPhase);
-		vAlpha = uNightFactor * twinkle * aBrightness;
+		vAlpha = uNightFactor * twinkle * aBrightness * aSkyDensity;
 		vColor = aColor;
 		vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
 		gl_Position = projectionMatrix * mvPosition;
@@ -122,6 +140,18 @@ function writeStellarColor(colors, index, random) {
 	colors[index * 3 + 2] = b;
 }
 
+function stellarDensityAtPosition(x, y, z) {
+	const inverseRadius = 1 / STARFIELD_RADIUS_METERS;
+	const bandDistance = Math.abs(
+		x * inverseRadius * STELLAR_BAND_NORMAL_X
+		+ y * inverseRadius * STELLAR_BAND_NORMAL_Y
+		+ z * inverseRadius * STELLAR_BAND_NORMAL_Z,
+	);
+	const linearProfile = Math.max(0, Math.min(1, 1 - bandDistance / STELLAR_BAND_HALF_WIDTH));
+	const smoothProfile = linearProfile * linearProfile * (3 - 2 * linearProfile);
+	return STELLAR_DENSITY_FLOOR + smoothProfile * (STELLAR_DENSITY_PEAK - STELLAR_DENSITY_FLOOR);
+}
+
 /**
  * Builds a deterministic starfield across the upper hemisphere.
  * @param {number} [seed=1337] Seeded positions/twinkle plus independently tagged appearance data.
@@ -149,12 +179,15 @@ export function createStarfield(seed = 1337) {
 	const appearanceRandom = mulberry32(seed ^ 0x4d41474e); // "MAGN"-ish.
 	const sizes = new Float32Array(STAR_COUNT);
 	const brightnesses = new Float32Array(STAR_COUNT);
+	const skyDensities = new Float32Array(STAR_COUNT);
 	const colors = new Float32Array(STAR_COUNT * 3);
 	for (let i = 0; i < STAR_COUNT; i++) {
 		// Cubic skew: many faint/small stars, few bright/larger apparent-magnitude anchors.
 		const magnitude = Math.pow(appearanceRandom(), 3.2);
 		sizes[i] = STAR_SIZE_MIN_PIXELS + magnitude * (STAR_SIZE_MAX_PIXELS - STAR_SIZE_MIN_PIXELS);
 		brightnesses[i] = STAR_BRIGHTNESS_MIN + magnitude * (STAR_BRIGHTNESS_MAX - STAR_BRIGHTNESS_MIN);
+		const offset = i * 3;
+		skyDensities[i] = stellarDensityAtPosition(positions[offset], positions[offset + 1], positions[offset + 2]);
 		writeStellarColor(colors, i, appearanceRandom);
 	}
 
@@ -164,6 +197,7 @@ export function createStarfield(seed = 1337) {
 	geometry.setAttribute('aFreq', new THREE.BufferAttribute(freqs, 1));
 	geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
 	geometry.setAttribute('aBrightness', new THREE.BufferAttribute(brightnesses, 1));
+	geometry.setAttribute('aSkyDensity', new THREE.BufferAttribute(skyDensities, 1));
 	geometry.setAttribute('aColor', new THREE.BufferAttribute(colors, 3));
 
 	const material = new THREE.ShaderMaterial({
@@ -178,7 +212,7 @@ export function createStarfield(seed = 1337) {
 		fog: false,
 	});
 
-	material.userData.starfieldRealism = 'magnitude-temperature-circular-psf-v1';
+	material.userData.starfieldRealism = 'magnitude-temperature-circular-psf-stellar-band-v2';
 	const points = new THREE.Points(geometry, material);
 	points.frustumCulled = false;
 	points.renderOrder = -0.5;
