@@ -65,7 +65,7 @@ jobs:
           node --check scripts/checkCreatureBirdTerrainClearance.mjs
           node scripts/checkCreatureBirdTerrainClearance.mjs
           node scripts/checkCreatureThreatMemory.mjs
-          grep -F "Math.hypot(dx, dz) < packAlertRadiusMeters" src/3d/gameplay/livingWorldSpawner.js
+          grep -F "distanceMeters < packAlertRadiusMeters" src/3d/gameplay/livingWorldSpawner.js
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkSharedMaterialPlacementContract.js
 
