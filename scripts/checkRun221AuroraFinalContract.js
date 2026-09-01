@@ -32,6 +32,8 @@ for (const token of [
 	'patchMask',
 	'ray4VerticalField',
 	'ray4ArcEdge',
+	'ray4CurtainEnvelope',
+	'ray4RaySheet',
 	'ray4HorizonAirmassVariation',
 	'ray4UpperAirVariation',
 	'ray4AtmosphericBase',
@@ -42,12 +44,21 @@ for (const token of [
 	'uUpperAirVariationStrength',
 	'uBandingDitherStrength',
 	"finalAtmosphereProfile = 'camera-relative-horizon-upper-air-v6'",
-]) assert(v4.includes(token), `V4 final atmosphere token missing: ${token}`);
+	"auroraCurtainMorphology = 'broken-asymmetric-ray-sheets-v8-visible-gaps'",
+]) assert(v4.includes(token), `V4 final atmosphere/morphology token missing: ${token}`);
 assert(!/\bfloat\s+patch\b/.test(v4), 'V4 must not reintroduce reserved GLSL variable `patch`.');
+assert(v4.includes('return mix(0.18, 1.0, opening);'), 'V4 dim-gap floor contract missing.');
+assert(v4.includes('float quietColumns = 0.14 + raySheet * 0.86;'), 'V4 ray-sheet floor contract missing.');
 assert(v4.includes('secondary') && v4.includes('* 0.24'), 'V4 restrained secondary curtain contract missing.');
 assert(v4.includes('oxygenGreen') && v4.includes('subduedViolet'), 'V4 natural aurora palette contract missing.');
+
+assert(v5.includes('function replaceRequired('), 'V5 must fail loudly when a required V4 token is missing.');
+assert(v5.includes('required V4 token missing'), 'V5 required-token error contract missing.');
 assert(v5.includes('vec3(0.050, 0.092, 0.165)'), 'V5 brighter deep-blue horizon floor missing.');
 assert(v5.includes('vec3(0.009, 0.020, 0.052)'), 'V5 brighter deep-blue zenith floor missing.');
+assert(v5.includes("'finalColor += oxygenGreen * haze * 0.078;'"), 'V5 must target the current V4 haze token.');
+assert(v5.includes("'finalColor += oxygenGreen * haze * 0.084;'"), 'V5 calibrated haze output missing.');
+assert(v5.includes("auroraNightCalibration = 'required-token-deep-blue-v6'"), 'V5 calibration marker missing.');
 assert(night.includes('NIGHT_CINEMATIC_FULL_INTENSITY = 0.72'), 'Gameplay night cinematic fill target drifted.');
 assert(lighting.includes('updateNightVisualEnhancement(lights.hemisphere, nightFactor);'), 'Gameplay night enhancement is not driven by canonical nightFactor.');
 
@@ -59,4 +70,4 @@ for (const file of [
 	assert(sw.includes(`GAME3D_SHELL_FILES.push('${file}');`), `PWA offline shell missing ${file}`);
 }
 
-console.log('[checkRun221AuroraFinalContract] PASS: final V4 consumes camera-relative horizon/upper-air profile, V5 calibrates night, world-direction anchoring and offline PWA dependencies are locked.');
+console.log('[checkRun221AuroraFinalContract] PASS: final V4 consumes camera-relative atmosphere with visible broken ray sheets; V5 required-token night calibration, world-direction anchoring and offline PWA dependencies are locked.');
