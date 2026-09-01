@@ -98,6 +98,7 @@ async function main() {
             { id: 'spawn-invalid-ground', seatId: 'seat-invalid-ground', offsetXMeters: 0, offsetZMeters: 0, modelUrl: '/invalid-ground.fbx' },
             { id: 'spawn-throwing-ground', seatId: 'seat-throwing-ground', offsetXMeters: 0, offsetZMeters: 0, modelUrl: '/throwing-ground.fbx' },
             { id: 'spawn-invalid-world', seatId: 'seat-invalid-world', offsetXMeters: 0, offsetZMeters: 0, modelUrl: '/invalid-world.fbx' },
+            { id: 'spawn-overflow-world', seatId: 'seat-overflow-world', offsetXMeters: Number.MAX_VALUE, offsetZMeters: 0, modelUrl: '/overflow-world.fbx' },
           ],
           IDLE_ANIMATION_URL: '/assets/animations/peasant_girl/idle.fbx',
         },
@@ -106,6 +107,7 @@ async function main() {
           ['seat-invalid-ground', { x: 10, z: 0 }],
           ['seat-throwing-ground', { x: 20, z: 0 }],
           ['seat-invalid-world', { x: Infinity, z: 0 }],
+          ['seat-overflow-world', { x: Number.MAX_VALUE, z: 0 }],
         ]),
         sampleGroundY: (x) => {
           sampledWorldXs.push(x);
@@ -154,6 +156,7 @@ async function main() {
         configuredSpawnIsolation: configuredSpawns.length === 1 && configuredSpawns[0].object3D.name === 'spawn-valid',
         configuredSpawnGroundFinite: configuredSpawnPosition?.y === 3 && [configuredSpawnPosition.x, configuredSpawnPosition.y, configuredSpawnPosition.z].every(Number.isFinite),
         invalidWorldSkippedBeforeSampling: sampledWorldXs.length === 3 && sampledWorldXs.every(Number.isFinite),
+        overflowWorldSkippedBeforeSampling: !sampledWorldXs.includes(Number.MAX_VALUE),
         losFailedClosed: perception.lineOfSight === false && perception.reason === 'occluded',
         invalidLosDidNotAlert: perception.intent === 'patrol' && perception.suspicion === 0,
         occlusionFinite: [occlusionPosition.x, occlusionPosition.y, occlusionPosition.z].every(Number.isFinite),
