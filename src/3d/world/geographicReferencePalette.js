@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-31-v58-abyss-deep-continuity',
+	id: 'geographic-reference-palette-2026-09-01-v59-deep-ocean-aerial-blackwater',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v58 preserves v56 aerial lowland separation: meadow remains lifted away from damp moss, dry heath stays darker/desaturated, ferric earth remains warm, and exposed stone stays compressed without changing terrain height, shoreline, hydrology or colliders',
-		water: 'v58 removes the remaining full-world dark rectangular underlay read by matching the non-authoritative abyss backdrop chroma to the canonical deep-sea body colour. Wet coverage, shoreline, bathymetry and hydrology remain unchanged; depth still comes from opacity, lighting, roughness and offshore optics rather than a square underlay colour break',
-		road: 'v58 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
+		terrain: 'v59 preserves v56 aerial lowland separation: meadow remains lifted away from damp moss, dry heath stays darker/desaturated, ferric earth remains warm, and exposed stone stays compressed without changing terrain height, shoreline, hydrology or colliders',
+		water: 'v59 keeps abyss/deep-sea chroma unified but lowers the shared open-ocean body toward photographic aerial blackwater. The exact-head topdown still exposed large blue rectangular marine patches after the all-lighting sky-floor fix; lowering only deepSea/abyss reduces that P0 contrast without changing wet coverage, shoreline, bathymetry, hydrology, lake colour or river colour. Depth remains legible through opacity, lighting, roughness, shelf optics and celestial response instead of cyan/blue fill.',
+		road: 'v59 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -51,8 +51,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		lakeClear: 0x2a6170,
 		riverPool: 0x246776,
 		rapid: 0x82a7aa,
-		deepSea: 0x08263a,
-		abyss: 0x08263a,
+		deepSea: 0x03131f,
+		abyss: 0x03131f,
 		plunge: 0x4d818b,
 		splash: 0xdeedeb,
 		foam: 0xf1f7f4,
