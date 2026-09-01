@@ -1,0 +1,122 @@
+name: Vegetation Silhouette Exact Head
+
+on:
+  push:
+    branches:
+      - codex/vegetation-silhouette-realism-20260901
+    paths:
+      - 'src/3d/world/vegetation.js'
+      - 'scripts/vegetationSilhouetteHarness.html'
+      - 'scripts/checkVegetationVisualContract.js'
+      - 'scripts/checkVegetationSilhouetteBrowser.js'
+      - 'scripts/checkNorthernVegetationDeterminism.mjs'
+      - 'scripts/checkVegetationEcologicalGroves.mjs'
+      - 'scripts/checkMapAlignedSnowPineClimate.mjs'
+      - 'scripts/checkNorthernVegetationClimate.mjs'
+      - 'scripts/checkMobileVegetationLod.js'
+      - 'scripts/captureFullWorld3DTopdown.mjs'
+      - 'scripts/fullWorld3DTopdownHarness.html'
+      - '.github/workflows/vegetation-silhouette-exact-head.yml'
+  pull_request:
+    paths:
+      - 'src/3d/world/vegetation.js'
+      - 'scripts/vegetationSilhouetteHarness.html'
+      - 'scripts/checkVegetationVisualContract.js'
+      - 'scripts/checkVegetationSilhouetteBrowser.js'
+      - 'scripts/checkNorthernVegetationDeterminism.mjs'
+      - 'scripts/checkVegetationEcologicalGroves.mjs'
+      - 'scripts/checkMapAlignedSnowPineClimate.mjs'
+      - 'scripts/checkNorthernVegetationClimate.mjs'
+      - 'scripts/checkMobileVegetationLod.js'
+      - 'scripts/captureFullWorld3DTopdown.mjs'
+      - 'scripts/fullWorld3DTopdownHarness.html'
+      - '.github/workflows/vegetation-silhouette-exact-head.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  exact-head-vegetation-silhouette:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXACT_HEAD }}
+          fetch-depth: 2
+          lfs: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify exact head and syntax
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+          node --check src/3d/world/vegetation.js
+          node --check scripts/checkVegetationVisualContract.js
+          node --check scripts/checkVegetationSilhouetteBrowser.js
+          node --check scripts/checkNorthernVegetationDeterminism.mjs
+          node --check scripts/checkVegetationEcologicalGroves.mjs
+          node --check scripts/checkMapAlignedSnowPineClimate.mjs
+          node --check scripts/checkNorthernVegetationClimate.mjs
+          node --check scripts/checkMobileVegetationLod.js
+          node --check scripts/captureFullWorld3DTopdown.mjs
+          git diff --check HEAD^ HEAD
+
+      - name: Resolve vendored Three.js for Node contracts
+        run: node scripts/setupNodeThreeShim.mjs
+
+      - name: Deterministic placement and climate contracts
+        run: |
+          set -euo pipefail
+          node scripts/checkNorthernVegetationDeterminism.mjs
+          node scripts/checkVegetationEcologicalGroves.mjs
+          node scripts/checkMapAlignedSnowPineClimate.mjs
+          node scripts/checkNorthernVegetationClimate.mjs
+
+      - name: Install exact browser runtime
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          ln -sfn "$RUNNER_TEMP/pw/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Organic silhouette browser contract
+        run: node scripts/checkVegetationVisualContract.js
+
+      - name: Real WebGL vegetation silhouette proof
+        run: node scripts/checkVegetationSilhouetteBrowser.js
+
+      - name: Mobile vegetation LOD regression
+        run: node scripts/checkMobileVegetationLod.js
+
+      - name: Authoritative full-world topdown proof
+        run: |
+          node scripts/captureFullWorld3DTopdown.mjs \
+            --width=1600 \
+            --height=1100 \
+            --segments=240 \
+            --output=artifacts/vegetation-silhouette-exact-head/full-world-3d-topdown.png
+
+      - name: Record exact head
+        if: always()
+        run: |
+          mkdir -p artifacts/vegetation-silhouette-exact-head
+          printf '%s\n' "$EXACT_HEAD" > artifacts/vegetation-silhouette-exact-head/head-sha.txt
+
+      - name: Upload vegetation silhouette exact-head proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vegetation-silhouette-exact-head-${{ env.EXACT_HEAD }}
+          path: artifacts/vegetation-silhouette-exact-head/
+          if-no-files-found: warn
+          retention-days: 14
