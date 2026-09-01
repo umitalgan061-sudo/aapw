@@ -76,6 +76,9 @@ assert.equal(failedService.reason, 'missing-materials');
 assert.equal(failedService.balanceCopper, 28, 'failed smithing must preserve wallet balance');
 assert.equal(failedService.remainingStock, 1, 'failed smithing must preserve service stock');
 assert.deepEqual(smithingEconomy.snapshot(), failedServiceState, 'failed settlement service must not mutate wallet, stock, or ledger');
+const recoveredService = smithingEconomy.purchase(whetstoneOffer, () => true);
+assert.equal(recoveredService.ok, true, 'failed settlement service must release the purchase guard');
+assert.equal(recoveredService.balanceCopper, 16, 'recovered smithing service must debit the unchanged wallet once');
 
 for (const forgedOffer of [
   null,
