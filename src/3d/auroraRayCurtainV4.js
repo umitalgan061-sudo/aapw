@@ -119,8 +119,10 @@ const AURORA_RAY_CURTAIN_V4_FRAGMENT_SHADER = /* glsl */ `
 	float ray4CurtainEnvelope(float az, float phase, float timeValue) {
 		float broad = ray4Fbm(vec2(az * 0.72 - timeValue * 0.006, phase + 12.7));
 		float meso = ray4Fbm(vec2(az * 2.25 + broad * 0.85 + timeValue * 0.003, phase * 1.7 + 3.1));
-		float opening = smoothstep(0.36, 0.72, broad * 0.68 + meso * 0.32);
-		return mix(0.06, 1.0, opening);
+		float opening = smoothstep(0.30, 0.68, broad * 0.68 + meso * 0.32);
+		// Real curtains have dim gaps, not perfectly black angular holes. A bounded floor preserves
+		// broken morphology while preventing a whole view direction from losing every luminous sheet.
+		return mix(0.18, 1.0, opening);
 	}
 
 	float ray4RaySheet(float az, float phase, float timeValue) {
@@ -135,7 +137,7 @@ const AURORA_RAY_CURTAIN_V4_FRAGMENT_SHADER = /* glsl */ `
 
 	float ray4VerticalField(float az, float elevation, float edge, float phase, float timeValue, float reach) {
 		float reachNoise = ray4Fbm(vec2(az * 4.8 - timeValue * 0.004, phase + 21.0));
-		float localReach = reach * mix(0.34, 1.28, smoothstep(0.18, 0.86, reachNoise));
+		float localReach = reach * mix(0.46, 1.24, smoothstep(0.18, 0.86, reachNoise));
 		float edgeNoise = ray4Noise(vec2(az * 17.0 + phase, timeValue * 0.007 + 9.0));
 		float edgeWidth = mix(0.010, 0.023, edgeNoise);
 		float aboveEdge = elevation - edge;
@@ -144,15 +146,15 @@ const AURORA_RAY_CURTAIN_V4_FRAGMENT_SHADER = /* glsl */ `
 		float downwardFade = step(aboveEdge, 0.0) * exp(min(aboveEdge, 0.0) / 0.024);
 
 		float raySheet = ray4RaySheet(az, phase, timeValue);
-		float quietColumns = 0.08 + raySheet * 0.92;
+		float quietColumns = 0.14 + raySheet * 0.86;
 		float patchMask = ray4CurtainEnvelope(az, phase, timeValue);
-		float verticalVariation = 0.66 + 0.34 * ray4Noise(vec2(
+		float verticalVariation = 0.70 + 0.30 * ray4Noise(vec2(
 			az * 13.0 + raySheet * 1.7,
 			elevation * 10.5 - timeValue * 0.028 + phase
 		));
 		float highRayTaper = mix(0.72, 1.0, ray4Noise(vec2(az * 6.1 + phase * 2.0, 31.0)))
 			* exp(-max(aboveEdge, 0.0) / max(localReach * 1.45, 0.001));
-		return (lowerEdge * 0.88 + upwardVeil * 0.54 * highRayTaper + downwardFade * 0.055)
+		return (lowerEdge * 0.90 + upwardVeil * 0.57 * highRayTaper + downwardFade * 0.060)
 			* quietColumns * patchMask * verticalVariation;
 	}
 
@@ -176,14 +178,14 @@ const AURORA_RAY_CURTAIN_V4_FRAGMENT_SHADER = /* glsl */ `
 
 		float primaryEdge = ray4ArcEdge(shearedAz, 0.8, t, 0.365);
 		float secondaryEdge = ray4ArcEdge(shearedAz + 0.31, 4.1, -t * 0.68, 0.535);
-		float primary = ray4VerticalField(shearedAz, elevation, primaryEdge, 0.8, t, 0.24);
+		float primary = ray4VerticalField(shearedAz, elevation, primaryEdge, 0.8, t, 0.26);
 		float secondary = ray4VerticalField(shearedAz + 0.31, elevation, secondaryEdge, 4.1, -t * 0.68, 0.14) * 0.24;
-		secondary *= ray4CurtainEnvelope(shearedAz + 0.67, 7.2, -t * 0.42) * 0.55;
+		secondary *= ray4CurtainEnvelope(shearedAz + 0.67, 7.2, -t * 0.42) * 0.48;
 
 		float horizonGate = smoothstep(0.08, 0.19, elevation);
 		float zenithGate = 1.0 - smoothstep(0.84, 0.97, elevation);
 		float visibility = horizonGate * zenithGate * uNightFactor;
-		float energy = clamp(primary + secondary, 0.0, 1.12) * visibility;
+		float energy = clamp(primary + secondary, 0.0, 1.10) * visibility;
 		float slowBreathing = 0.91 + 0.09 * sin(t * 0.11 + ray4Fbm(vec2(shearedAz * 0.7, 2.7)) * 6.28318530718);
 		energy *= slowBreathing;
 		float haze = pow(clamp(primary * 0.72 + secondary * 0.28, 0.0, 1.0), 0.82) * visibility;
@@ -198,8 +200,8 @@ const AURORA_RAY_CURTAIN_V4_FRAGMENT_SHADER = /* glsl */ `
 		auroraColor = mix(auroraColor, subduedViolet, violetFringe);
 
 		vec3 finalColor = skyColor;
-		finalColor += oxygenGreen * haze * 0.075;
-		finalColor += auroraColor * energy * 0.70;
+		finalColor += oxygenGreen * haze * 0.078;
+		finalColor += auroraColor * energy * 0.74;
 		float dither = (ray4Hash(gl_FragCoord.xy + vec2(17.0, 31.0)) - 0.5) * uBandingDitherStrength;
 		finalColor = max(finalColor + dither, vec3(0.0));
 		gl_FragColor = vec4(finalColor, 1.0);
@@ -213,6 +215,6 @@ export function applyAuroraRayCurtainV4(material) {
 	material.userData.naturalAuroraCurtains = true;
 	material.userData.auroraCurtainRaysV4 = true;
 	material.userData.finalAtmosphereProfile = 'camera-relative-horizon-upper-air-v6';
-	material.userData.auroraCurtainMorphology = 'broken-asymmetric-ray-sheets-v7';
+	material.userData.auroraCurtainMorphology = 'broken-asymmetric-ray-sheets-v8-visible-gaps';
 	return material;
 }
