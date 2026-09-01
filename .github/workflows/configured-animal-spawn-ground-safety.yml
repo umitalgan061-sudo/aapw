@@ -4,7 +4,10 @@ on:
   pull_request:
     paths:
       - 'src/3d/gameplay/animals.js'
+      - 'src/3d/gameplay/faunaWorldPlacement.js'
+      - 'src/3d/materials/MaterialAssignmentCore.js'
       - 'scripts/checkConfiguredAnimalSpawnGroundSafetyBrowser.mjs'
+      - 'scripts/checkConfiguredFaunaGeographicMaterialBrowser.mjs'
       - '.github/workflows/configured-animal-spawn-ground-safety.yml'
       - '.github/workflows/wildlife-pack-alert-independence.yml'
       - '.github/workflows/wildlife-long-frame-budget.yml'
@@ -37,7 +40,7 @@ jobs:
           test "$base" = "$(git rev-parse origin/main)"
           changed="$(git diff --name-only origin/main...HEAD)"
           printf '%s\n' "$changed"
-          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/animals\.js|scripts/checkConfiguredAnimalSpawnGroundSafetyBrowser\.mjs|\.github/workflows/configured-animal-spawn-ground-safety\.yml|\.github/workflows/wildlife-pack-alert-independence\.yml|\.github/workflows/wildlife-long-frame-budget\.yml|\.github/workflows/wildlife-pack-adapter-browser\.yml)$' && exit 1 || true
+          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/animals\.js|src/3d/gameplay/faunaWorldPlacement\.js|src/3d/materials/MaterialAssignmentCore\.js|scripts/checkConfiguredAnimalSpawnGroundSafetyBrowser\.mjs|scripts/checkConfiguredFaunaGeographicMaterialBrowser\.mjs|\.github/workflows/configured-animal-spawn-ground-safety\.yml|\.github/workflows/wildlife-pack-alert-independence\.yml|\.github/workflows/wildlife-long-frame-budget\.yml|\.github/workflows/wildlife-pack-adapter-browser\.yml)$' && exit 1 || true
           additions="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END {print s+0}')"
           deletions="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END {print s+0}')"
           test $((additions + deletions)) -le 1000
@@ -46,7 +49,10 @@ jobs:
       - name: Syntax and standing contracts
         run: |
           node --check src/3d/gameplay/animals.js
+          node --check src/3d/gameplay/faunaWorldPlacement.js
+          node --check src/3d/materials/MaterialAssignmentCore.js
           node --check scripts/checkConfiguredAnimalSpawnGroundSafetyBrowser.mjs
+          node --check scripts/checkConfiguredFaunaGeographicMaterialBrowser.mjs
           node scripts/checkSharedMaterialPlacementContract.js
           node scripts/checkSeededRandomPolicy.js
 
