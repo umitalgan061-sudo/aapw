@@ -66,8 +66,8 @@ assert(first.vertexShader.includes('mat3(modelMatrix) * objectNormal'), 'world-s
 assert(!first.vertexShader.includes('transformed +='), 'render-only material must not displace canonical terrain');
 assert(!first.fragmentShader.includes('gl_FragDepth'), 'render-only material must not rewrite terrain depth');
 assert(first.fragmentShader.includes('naturalSurfaceLinearCarrier = clamp(naturalSurfaceDrainage * 0.58')
-  && first.fragmentShader.includes('naturalSurfaceLinearWeatheringPatina * (0.22 + naturalSurfaceSlope * 0.10)')
-  && first.fragmentShader.includes('naturalSurfaceRoughLinearPatina * 0.24'),
+  && first.fragmentShader.includes('naturalSurfaceLinearWeatheringPatina * (0.36 + naturalSurfaceSlope * 0.16)')
+  && first.fragmentShader.includes('naturalSurfaceRoughLinearPatina * 0.30'),
 'Valyria carrier patina lost its patchy albedo/roughness response');
 assert(first.fragmentShader.includes('naturalSurfaceStructuralX * 0.58')
   && first.fragmentShader.includes('naturalSurfaceLavaX * 0.24')
