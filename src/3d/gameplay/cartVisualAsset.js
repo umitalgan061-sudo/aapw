@@ -114,18 +114,61 @@ function normalizeChariotModel(model, {
 	};
 }
 
+async function probeGlbHeader(url, fetchImpl) {
+	const controller = typeof AbortController === 'function' ? new AbortController() : null;
+	try {
+		const response = await fetchImpl(url, {
+			method: 'GET',
+			cache: 'no-store',
+			headers: { Range: 'bytes=0-255' },
+			...(controller ? { signal: controller.signal } : {}),
+		});
+		if (!response?.ok) return { ok: false, reason: `http-${response?.status || 'error'}` };
+		let bytes = null;
+		if (response.body?.getReader) {
+			const reader = response.body.getReader();
+			const first = await reader.read();
+			bytes = first.value || null;
+			await reader.cancel().catch(() => {});
+			controller?.abort();
+		} else {
+			bytes = new Uint8Array(await response.arrayBuffer()).subarray(0, 256);
+		}
+		if (!bytes || bytes.length < 4) return { ok: false, reason: 'missing-glb-header' };
+		const magic = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]);
+		if (magic !== 'glTF') {
+			const prefix = new TextDecoder().decode(bytes.subarray(0, Math.min(bytes.length, 96)));
+			return {
+				ok: false,
+				reason: prefix.includes('git-lfs.github.com/spec') ? 'lfs-pointer' : 'invalid-glb-header',
+				glbHeader: magic,
+			};
+		}
+		const contentRange = response.headers?.get?.('content-range') || '';
+		const totalMatch = contentRange.match(/\/(\d+)$/);
+		const contentLength = totalMatch ? Number(totalMatch[1]) : null;
+		return { ok: true, contentLength, glbHeader: magic, preflightMode: 'glb-magic-range' };
+	} catch (error) {
+		if (controller?.signal?.aborted) return { ok: true, contentLength: null, glbHeader: 'glTF', preflightMode: 'glb-magic-range' };
+		return { ok: false, reason: 'glb-header-probe-failed', error: String(error?.message || error) };
+	}
+}
+
 async function preflightHydratedAsset(url, fetchImpl) {
 	if (typeof fetchImpl !== 'function') return { ok: false, reason: 'fetch-unavailable' };
 	try {
 		const response = await fetchImpl(url, { method: 'HEAD', cache: 'no-store' });
-		if (!response?.ok) return { ok: false, reason: `http-${response?.status || 'error'}` };
-		const contentLength = Number(response.headers?.get?.('content-length'));
-		if (!Number.isFinite(contentLength) || contentLength < MIN_HYDRATED_GLTF_BYTES) {
-			return { ok: false, reason: 'lfs-pointer-or-unknown-length', contentLength };
+		if (response?.ok) {
+			const rawLength = response.headers?.get?.('content-length');
+			const contentLength = rawLength == null ? null : Number(rawLength);
+			if (Number.isFinite(contentLength)) {
+				if (contentLength < MIN_HYDRATED_GLTF_BYTES) return { ok: false, reason: 'lfs-pointer-or-empty', contentLength };
+				return { ok: true, contentLength, preflightMode: 'content-length' };
+			}
 		}
-		return { ok: true, contentLength };
+		return probeGlbHeader(url, fetchImpl);
 	} catch {
-		return { ok: false, reason: 'preflight-failed' };
+		return probeGlbHeader(url, fetchImpl);
 	}
 }
 
