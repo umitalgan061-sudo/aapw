@@ -1,0 +1,71 @@
+name: Castle Authored Material Visual QA
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/settlements.js'
+      - 'src/3d/world/materials.js'
+      - 'src/3d/world/valyriaCastleWeathering.js'
+      - 'src/3d/assetLoader.js'
+      - 'scripts/checkCastleAuthoredMaterialVisualQa.js'
+      - 'scripts/devServerHelper.js'
+      - 'assets/models/settlements/castles/gatehouse_reference_decimated.glb'
+      - '.github/workflows/castle-authored-material-visual-qa.yml'
+  workflow_dispatch:
+
+permissions: { contents: read }
+
+jobs:
+  visual-qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Exact-head syntax and castle authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          node --check src/3d/world/settlements.js
+          node --check scripts/checkCastleAuthoredMaterialVisualQa.js
+          node scripts/setupNodeThreeShim.mjs
+          node scripts/checkSettlementFoundationAuthority.mjs
+      - name: Hydrate Twin gatehouse GLB
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull --include="assets/models/settlements/castles/gatehouse_reference_decimated.glb" --exclude=""
+          node --input-type=module <<'NODE'
+          import { readFile } from 'node:fs/promises';
+          const path = 'assets/models/settlements/castles/gatehouse_reference_decimated.glb';
+          const data = await readFile(path);
+          if (data.length < 512 || data.subarray(0, 4).toString('ascii') !== 'glTF') throw new Error(`unhydrated gatehouse GLB: ${data.length}`);
+          console.log('[gatehouse-glb]', data.length);
+          NODE
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          ln -sfn "$RUNNER_TEMP/pw/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Render authored Twin gatehouse material
+        run: node scripts/checkCastleAuthoredMaterialVisualQa.js
+      - name: Upload castle material proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: castle-authored-material-visual-qa
+          path: artifacts/castle-authored-material-visual-qa/
+          if-no-files-found: error
+          retention-days: 7
