@@ -17,6 +17,9 @@ assert.equal(policy.canonicalCoastlineUnchanged, true);
 assert.equal(policy.newGeographyIntroduced, false);
 assert.equal(policy.valyriaMacroNormalEnergyBounded, true);
 assert.equal(policy.valyriaMacroNormalBlendMax, 0.16);
+assert.equal(policy.valyriaLinearWeatheringPatina, true);
+assert.equal(policy.valyriaPatchyLithicExposure, true);
+assert.equal(policy.valyriaLinearCarrierRoughnessResponse, true);
 assert.equal(policy.valyriaAuthorityPolicyId, VALYRIA_GEOLOGY_POLICY.id);
 assert.deepEqual(policy.valyriaMaterials, ['basalt', 'obsidian', 'ash', 'pumice', 'oxidation', 'sulfuric-weathering']);
 
@@ -52,6 +55,9 @@ for (const marker of [
   'naturalSurfaceOxidation',
   'naturalSurfaceSulfur',
   'naturalSurfaceRoughTarget',
+  'naturalSurfaceLinearWeatheringPatina',
+  'naturalSurfacePatchyLithicExposure',
+  'naturalSurfaceRoughLinearPatina',
   'naturalSurfacePerturbedWorldNormal',
 ]) assert(first.fragmentShader.includes(marker), `natural material shader lost ${marker}`);
 
@@ -59,6 +65,10 @@ assert(first.vertexShader.includes('modelMatrix * vec4(transformed, 1.0)'), 'wor
 assert(first.vertexShader.includes('mat3(modelMatrix) * objectNormal'), 'world-space normal varying disappeared');
 assert(!first.vertexShader.includes('transformed +='), 'render-only material must not displace canonical terrain');
 assert(!first.fragmentShader.includes('gl_FragDepth'), 'render-only material must not rewrite terrain depth');
+assert(first.fragmentShader.includes('naturalSurfaceLinearCarrier = clamp(naturalSurfaceDrainage * 0.58')
+  && first.fragmentShader.includes('naturalSurfaceLinearWeatheringPatina * (0.22 + naturalSurfaceSlope * 0.10)')
+  && first.fragmentShader.includes('naturalSurfaceRoughLinearPatina * 0.24'),
+'Valyria carrier patina lost its patchy albedo/roughness response');
 assert(first.fragmentShader.includes('naturalSurfaceStructuralX * 0.58')
   && first.fragmentShader.includes('naturalSurfaceLavaX * 0.24')
   && first.fragmentShader.includes('naturalSurfaceNormalValyria * 0.16'),
