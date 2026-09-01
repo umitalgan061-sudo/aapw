@@ -10,6 +10,14 @@ const assert = (condition, message) => {
 	if (!condition) throw new Error(message);
 };
 
+function writeRawEvidenceDataUrl(dataUrl) {
+	const encodedPng = typeof dataUrl === 'string' ? dataUrl.split(',', 2)[1] : null;
+	if (!encodedPng) return false;
+	fs.mkdirSync(OUT, { recursive: true });
+	fs.writeFileSync(path.join(OUT, 'game-aurora-flow-b.png'), Buffer.from(encodedPng, 'base64'));
+	return true;
+}
+
 async function main() {
 	const playwright = loadPlaywright();
 	if (!playwright) throw new Error('Playwright bulunamadı.');
@@ -89,12 +97,15 @@ async function main() {
 			scene.add(sky);
 			fail(sky.material.userData.realisticAurora === true, 'Realistic aurora material marker missing.');
 			fail(sky.material.userData.finalAtmosphereProfile === 'camera-relative-horizon-upper-air-v6', 'Final atmosphere profile marker missing.');
+			fail(sky.material.userData.auroraCurtainMorphology === 'broken-asymmetric-ray-sheets-v8-visible-gaps', 'Final aurora morphology marker missing.');
+			fail(sky.material.userData.auroraNightCalibration === 'required-token-deep-blue-v6', 'Final aurora night calibration marker missing.');
 			const shader = sky.material.fragmentShader;
 			for (const token of [
 				'ray4HorizonAirmassVariation', 'ray4UpperAirVariation', 'ray4AtmosphericBase',
 				'uHorizonHazeStrength', 'uUpperAirStrength', 'uUpperAirVariationStrength',
-				'ray4VerticalField', 'ray4ArcEdge', 'cameraPosition',
+				'ray4VerticalField', 'ray4ArcEdge', 'ray4CurtainEnvelope', 'ray4RaySheet', 'cameraPosition',
 			]) fail(shader.includes(token), `Final sky shader token missing: ${token}`);
+			fail(shader.includes('finalColor += oxygenGreen * haze * 0.084;'), 'Final V5 aurora haze calibration is missing.');
 
 			const ground = new THREE.Mesh(
 				new THREE.PlaneGeometry(360, 360),
@@ -207,16 +218,24 @@ async function main() {
 			};
 		});
 
-		fs.mkdirSync(OUT, { recursive: true });
-		const encodedPng = result.artifactDataUrl.split(',', 2)[1];
-		assert(Boolean(encodedPng), 'Raw WebGL evidence PNG could not be encoded.');
-		fs.writeFileSync(path.join(OUT, 'game-aurora-flow-b.png'), Buffer.from(encodedPng, 'base64'));
+		assert(writeRawEvidenceDataUrl(result.artifactDataUrl), 'Raw WebGL evidence PNG could not be encoded.');
 		delete result.artifactDataUrl;
 
 		assert(optionalMoonFallbacks.length <= 1, `Unexpected repeated Moon fallback errors: ${optionalMoonFallbacks.length}`);
 		assert(missing.length === 0, `HTTP errors: ${missing.join(' | ')}`);
 		assert(errors.length === 0, `Console/page errors: ${errors.join(' | ')}`);
 		console.log(`[checkRun221RealisticGameAuroraBrowser] PASS: optionalMoonFallbacks=${optionalMoonFallbacks.length} ${JSON.stringify(result)}`);
+	} catch (error) {
+		// Preserve the real framebuffer even when a visual threshold fails. This turns red CI into an
+		// inspectable render regression instead of an opaque number-only failure. The canvas is raw
+		// WebGL, so game UI/DOM overlays cannot contaminate the evidence image.
+		try {
+			const failureDataUrl = await page.evaluate(() => document.getElementById('run221-aurora-proof')?.toDataURL('image/png') || null);
+			writeRawEvidenceDataUrl(failureDataUrl);
+		} catch {
+			// The original failure remains authoritative when the canvas never reached a renderable state.
+		}
+		throw error;
 	} finally {
 		await context.close();
 		await browser.close();
