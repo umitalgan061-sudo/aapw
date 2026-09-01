@@ -9,7 +9,7 @@ import { WORLD_DEFAULTS, WORLD_SCALE } from '../config.js';
 import { VALYRIA_GEOLOGY_POLICY } from './valyriaGeology.js';
 
 export const NATURAL_SURFACE_MATERIAL_POLICY = Object.freeze({
-	id: 'natural-surface-material-2026-09-01-v9-bounded-valyria-normal-energy',
+	id: 'natural-surface-material-2026-09-01-v10-lowland-aggregate-ridge-recovery',
 	renderOnly: true,
 	deterministic: true,
 	canonicalHeightUnchanged: true,
@@ -46,6 +46,8 @@ export const NATURAL_SURFACE_MATERIAL_POLICY = Object.freeze({
 	valyriaPatchyLithicExposure: true,
 	valyriaLinearCarrierRoughnessResponse: true,
 	lowlandMesoscaleReliefRecovery: true,
+	lowlandSoilAggregateBreakup: true,
+	definedRidgeDarkRecovery: true,
 	valyriaMacroNormalEnergyBounded: true,
 	valyriaMacroNormalBlendMax: 0.16,
 });
@@ -308,12 +310,29 @@ diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfaceLagStone, naturalSurfaceS
 diffuseColor.rgb *= 1.0 + naturalSurfaceRegionalGrainMask
 	* ((naturalSurfaceDepositionalFabric.y - naturalSurfaceDepositionalFabric.x) * 0.065
 	+ (naturalSurfaceDepositionalFabric.z - 0.5) * 0.045);
+// A compact, domain-warped aggregate field restores soil/stone grain at aerial scale. It is gated by
+// the existing canonical lowland/dry masks and only changes material response, never terrain height.
+vec2 naturalSurfaceAggregateFrame = mat2(0.7071068, -0.7071068, 0.7071068, 0.7071068)
+	* (naturalSurfaceXZ + vec2((naturalSurfacePatch - 0.5) * 96.0, (naturalSurfaceMacro - 0.5) * -74.0));
+float naturalSurfaceSoilAggregate = naturalSurfaceRidge(vec2(
+	naturalSurfaceAggregateFrame.x / 58.0,
+	naturalSurfaceAggregateFrame.y / 91.0
+) + vec2(-16.8, 9.3));
+float naturalSurfaceAggregateMask = naturalSurfaceRegionalGrainMask
+	* smoothstep(0.24, 0.72, 1.0 - naturalSurfaceSlope);
+diffuseColor.rgb *= 1.0 + (naturalSurfaceSoilAggregate - 0.5) * naturalSurfaceAggregateMask * 0.115;
+diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfaceLagStone,
+	naturalSurfaceAggregateMask * smoothstep(0.70, 0.91, naturalSurfaceSoilAggregate) * 0.052);
 
 float naturalSurfaceFacet = naturalSurfaceRidge(naturalSurfaceXZ / 145.0 + vec2(naturalSurfaceMacro * 2.4, naturalSurfacePatch * -1.8));
 float naturalSurfaceRidgeMask = smoothstep(0.18, 0.62, naturalSurfaceSlope) * (1.0 - naturalSurfaceSnow * 0.72);
-float naturalSurfaceDarkRecovery = naturalSurfaceRidgeMask * smoothstep(0.18, 0.055, naturalSurfaceLuma);
+float naturalSurfaceDarkRecovery = naturalSurfaceRidgeMask
+	* (1.0 - smoothstep(0.055, 0.18, naturalSurfaceLuma));
+float naturalSurfaceDarkFacetBreakup = naturalSurfaceDarkRecovery
+	* smoothstep(0.34, 0.78, naturalSurfaceFacet * 0.68 + naturalSurfaceFine * 0.32);
 vec3 naturalSurfaceFacetStone = mix(vec3(0.205, 0.216, 0.216), vec3(0.310, 0.292, 0.263), naturalSurfaceFacet);
-diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfaceFacetStone, naturalSurfaceDarkRecovery * 0.34);
+diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfaceFacetStone,
+	naturalSurfaceDarkRecovery * 0.30 + naturalSurfaceDarkFacetBreakup * 0.14);
 diffuseColor.rgb *= 1.0 + naturalSurfaceRidgeMask * (naturalSurfaceFacet - 0.5) * 0.105;
 diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfaceFacetStone,
 	naturalSurfaceRidgeMask * (0.032 + smoothstep(0.56, 0.86, naturalSurfaceFacet) * 0.058));
