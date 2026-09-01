@@ -159,11 +159,14 @@ const AURORA_RAY_CURTAIN_V4_FRAGMENT_SHADER = /* glsl */ `
 	float ray4PhosphorCore(float az, float elevation, float edge, float phase, float timeValue) {
 		float aboveEdge = elevation - edge;
 		float sheet = ray4RaySheet(az, phase, timeValue);
+		float microFilament = ray4Noise(vec2(az * 117.0 - timeValue * 0.031, phase * 7.4 + 5.3));
+		float filamentSignal = sheet * 0.78 + microFilament * 0.26;
+		float filament = smoothstep(0.14, 0.62, filamentSignal);
 		float envelope = ray4CurtainEnvelope(az, phase, timeValue);
-		float filament = pow(clamp(sheet, 0.0, 1.0), 1.45);
-		float edgeCore = exp(-abs(aboveEdge) / 0.027);
-		float risingCore = step(0.0, aboveEdge) * exp(-max(aboveEdge, 0.0) / 0.135) * 0.48;
-		return filament * envelope * (edgeCore + risingCore);
+		float edgeCore = exp(-abs(aboveEdge) / 0.034);
+		float risingCore = step(0.0, aboveEdge) * exp(-max(aboveEdge, 0.0) / 0.19) * 0.62;
+		float verticalBreakup = 0.62 + 0.38 * ray4Noise(vec2(az * 21.0 + phase, elevation * 12.0 - timeValue * 0.018));
+		return filament * envelope * (edgeCore + risingCore) * verticalBreakup;
 	}
 
 	void main() {
