@@ -79,12 +79,16 @@ export function evaluateNpcGuardAssistAlert({ alert, observer, groupId, sourceId
 	if (!Number.isFinite(sourceDistanceMeters) || sourceDistanceMeters > assistRadiusMeters) {
 		return { accepted: false, reason: 'range', revision: alert.revision, sourceDistanceMeters };
 	}
+	const lastKnown = alert.lastKnown;
+	if (lastKnown && (!Number.isFinite(lastKnown.x) || !Number.isFinite(lastKnown.z))) {
+		return { accepted: false, reason: 'invalid', revision: alert.revision, sourceDistanceMeters };
+	}
 	return {
 		accepted: true,
 		reason: 'assist',
 		revision: alert.revision,
 		sourceDistanceMeters,
-		lastKnown: alert.lastKnown ? { x: alert.lastKnown.x, z: alert.lastKnown.z } : null,
+		lastKnown: lastKnown ? { x: lastKnown.x, z: lastKnown.z } : null,
 		sourceId: alert.sourceId,
 	};
 }
