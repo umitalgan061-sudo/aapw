@@ -19216,3 +19216,40 @@ Kapılar: `checkNamedRivers`, `checkRiverValleyCarving`, `checkRun325RiverFlow`,
 
 **Dürüst değerlendirme:** kenar artık düz değil ve sığlık okunuyor, ama nehir hâlâ bir yamacın üstünde
 duruyor. Görsel iyileşme gerçek ama ölçülü; asıl düzeltme yukarıdaki rota alt görevi.
+
+## Tur 422 — Talveg denemesi: ölçüldü, kötü çıktı, geri alındı (ADR-0370)
+
+Tur 421 nehirlerin asıl sorununu "rota vadinin en alçak çizgisini takip etmiyor" diye teşhis etmişti.
+Bu turda düzeltmeyi yazdım (`world/riverThalweg.js`: izlenen rotanın her ara noktasını, akış yönüne
+dik, sınırlı bir pencerede en alçak zemine kaydırma), ölçtüm ve **geri aldım.** Ölçüm değişikliği
+desteklemedi.
+
+Green Fork üzerinde 9 kesit, kanal ölçeğinde (±40 m) pencere:
+
+| ölçüt | temel | talveg kaydırmalı |
+|---|---|---|
+| yukarı adım | **0** / 20 | 1 / 20 |
+| su, en alçak doğal kıyının üstünde (toplam) | **12,69 m** | 14,57 m |
+| en kötü tek kesit | **4,93 m** | 9,25 m |
+| en derin kazı | 51,1 m | **50,2 m** |
+| ortalama kazı | **24,8 m** | 27,3 m |
+
+Yani kaydırma, önemli olan her ölçütte **daha kötü**: nehri kanal ölçeğinde daha çok yükseltiyor, bir
+yukarı adım ekliyor ve arazinin daha fazlasını kesiyor. İki varyant denendi (ham minimum ve
+düzleştirilmiş kesit minimumu); ham minimum geniş pencerede daha iyiydi ama kanal ölçeğinde ikisi de
+temeli geçemedi. Sebebi anlaşılır: bu yükseklik alanında yanal bir minimum arayışı, vadinin tabanını
+değil çoğu zaman yakındaki bir çukuru buluyor — düzleştirmek de pencereyi vadi formundan kaydırıyor.
+
+**Ve bu ölçüm Tur 421'in teşhisini de düzeltiyor.** O turda "su sırtın üstünde" sonucunu ±90 m'lik bir
+pencereden çıkarmıştım. Kanal ölçeğinde (±40 m) tablo çok farklı: temel durumda nehir en kötü noktada
+**4,93 m**, dokuz kesit toplamında 12,69 m yüksekte. Yani oyuncunun gördüğü ölçekte nehirler büyük
+ölçüde kendi kanallarının içinde; yamaç, kanalın dışında, daha geniş bir landform ölçeğinde düşüyor.
+
+Dolayısıyla kalan kusur bir **rota** sorunu değil, bir **vadi genişliği** sorunu:
+`TERRAIN_VALLEY_POLICY`'nin `rimHalfWidth` değerleri (kaynakta 130 m, ağızda 420 m) çevredeki yamaca
+göre dar kalıyor, o yüzden vadi manzaraya oturmuyor. Bu, rota değiştirmekten çok daha ucuz ve
+güvenli bir ayar — ama yine bir yükseklik otoritesi değişikliği, dolayısıyla kendi turu ve kendi tam
+kapı taraması gerekiyor.
+
+Kod geri alındı; depoda kalan tek şey bu ölçüm. Negatif sonuç da sonuçtur: bir sonraki deneme aynı
+yolu tekrar yürümesin.
