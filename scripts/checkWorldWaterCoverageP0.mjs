@@ -11,6 +11,7 @@ import {
 	setWaterDepthField,
 	disposeWater,
 } from '../src/3d/world/water.js';
+import { GEOGRAPHIC_REFERENCE_PALETTE } from '../src/3d/world/geographicReferencePalette.js';
 
 function texel(texture, resolution, row, column) {
 	const offset = (row * resolution + column) * 4;
@@ -98,9 +99,11 @@ try {
 		assert.doesNotMatch(shader, /vec2\(0\.85, 0\.51\)/, 'legacy sub-10m stripe-prone ripple phase must stay removed');
 		assert.doesNotMatch(shader, /\* 2\.4 \+ time \* 1\.8/, 'legacy high-frequency moire component must stay removed');
 		assert.match(shader, /float warp = sin\(dot\(worldXZ, vec2\(0\.014, -0\.011\)\)/, 'anti-band phase warp must stay present');
-		// Retuned 2026-08-19 to the owner's aerial reference (green-teal -> blue). The anti-neon intent
-		// this assertion was written for is preserved and now checked as the property itself.
-		assert.equal(water.material.uniforms.uShallowColor.value.getHex(), 0x53899a, 'shallow water colour drifted');
+		assert.equal(
+			water.material.uniforms.uShallowColor.value.getHex(),
+			GEOGRAPHIC_REFERENCE_PALETTE.water.shoreClear,
+			'shallow water must follow the canonical geographic reference palette',
+		);
 		{
 			const { r, g, b } = water.material.uniforms.uShallowColor.value.clone().convertLinearToSRGB();
 			const max = Math.max(r, g, b);
