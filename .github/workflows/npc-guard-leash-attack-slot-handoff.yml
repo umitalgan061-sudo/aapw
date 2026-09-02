@@ -4,18 +4,24 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
-      - 'src/3d/gameplay/livingWorldSpawner.js'
-      - 'scripts/checkNpcGuardLeashAttackSlotHandoff.mjs'
-      - 'scripts/checkNpcGuardAttack.mjs'
-      - 'scripts/checkNpcGuardLeash.mjs'
+      - 'src/3d/gameplay/npc.js'
+      - 'src/3d/gameplay/npcWorldPlacement.js'
       - 'scripts/checkNpcGuardLifecycleContract.mjs'
       - 'scripts/checkNpcGuardReturnToPatrol.mjs'
       - 'scripts/checkNpcPopulationLodRecovery.mjs'
       - 'scripts/checkNpcMovementSafetyBrowser.js'
+      - 'scripts/checkNpcWorldPlacementContract.mjs'
+      - 'scripts/checkNpcGeographicPlacementDeterminism.mjs'
+      - 'scripts/checkNpcGeographicDistributionMatrix.mjs'
+      - 'scripts/checkNpcPlacementFailureSafety.mjs'
+      - 'scripts/checkNpcConfiguredAssetHydration.mjs'
+      - 'scripts/checkNpcMaterialRecipeBrowser.mjs'
+      - 'scripts/checkNpcGeographicMaterialBrowser.mjs'
       - '.github/workflows/configured-fauna-asset-acceptance.yml'
       - '.github/workflows/run167-determinism-policy.yml'
       - '.github/workflows/run283-final-head-governance.yml'
       - '.github/workflows/npc-guard-return-to-patrol.yml'
+      - '.github/workflows/npc-geographic-material-placement.yml'
       - '.github/workflows/npc-hearing-framerate-determinism.yml'
       - '.github/workflows/npc-movement-safety.yml'
       - '.github/workflows/npc-perception-input-safety.yml'
@@ -49,37 +55,20 @@ jobs:
           merge_base="$(git merge-base HEAD origin/main)"
           test "$merge_base" = "$main_sha"
           mapfile -t files < <(git diff --name-only origin/main...HEAD)
-          if test "${#files[@]}" -eq 3; then
-            printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcGuardLeashAttackSlotHandoff.mjs'
-            printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/run167-determinism-policy.yml'
-            printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-guard-leash-attack-slot-handoff.yml'
-          elif test "${#files[@]}" -eq 13; then
-            printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/configured-fauna-asset-acceptance.yml'
-            printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-guard-return-to-patrol.yml'
-            printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-hearing-framerate-determinism.yml'
-            printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-movement-safety.yml'
-            printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-perception-input-safety.yml'
-            printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/npc-guard-leash-attack-slot-handoff.yml'
-            printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/run167-determinism-policy.yml'
-            printf '%s\n' "${files[@]}" | grep -Fx '.github/workflows/run283-final-head-governance.yml'
-            printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcGuardLifecycleContract.mjs'
-            printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcGuardReturnToPatrol.mjs'
-            printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcPopulationLodRecovery.mjs'
-            printf '%s\n' "${files[@]}" | grep -Fx 'scripts/checkNpcMovementSafetyBrowser.js'
-            printf '%s\n' "${files[@]}" | grep -Fx 'src/3d/gameplay/npc.js'
-          else
-            printf 'unexpected scope (%s files):\n' "${#files[@]}" >&2
-            printf '  %s\n' "${files[@]}" >&2
-            exit 1
-          fi
+          test "${#files[@]}" -le 22
+          allowed='^(src/3d/gameplay/npc\.js|src/3d/gameplay/npcWorldPlacement\.js|scripts/checkNpcGuardLifecycleContract\.mjs|scripts/checkNpcGuardReturnToPatrol\.mjs|scripts/checkNpcPopulationLodRecovery\.mjs|scripts/checkNpcMovementSafetyBrowser\.js|scripts/checkNpcWorldPlacementContract\.mjs|scripts/checkNpcGeographicPlacementDeterminism\.mjs|scripts/checkNpcGeographicDistributionMatrix\.mjs|scripts/checkNpcPlacementFailureSafety\.mjs|scripts/checkNpcConfiguredAssetHydration\.mjs|scripts/checkNpcMaterialRecipeBrowser\.mjs|scripts/checkNpcGeographicMaterialBrowser\.mjs|\.github/workflows/configured-fauna-asset-acceptance\.yml|\.github/workflows/run167-determinism-policy\.yml|\.github/workflows/run283-final-head-governance\.yml|\.github/workflows/npc-guard-return-to-patrol\.yml|\.github/workflows/npc-geographic-material-placement\.yml|\.github/workflows/npc-hearing-framerate-determinism\.yml|\.github/workflows/npc-movement-safety\.yml|\.github/workflows/npc-perception-input-safety\.yml|\.github/workflows/npc-guard-leash-attack-slot-handoff\.yml)$'
+          unexpected="$(printf '%s\n' "${files[@]}" | grep -Ev "$allowed" || true)"
+          test -z "$unexpected" || { printf 'Unexpected path(s):\n%s\n' "$unexpected"; exit 1; }
           read -r additions deletions < <(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           total=$((additions + deletions))
           echo "scope=${#files[@]} files additions=$additions deletions=$deletions total=$total main=$main_sha head=$(git rev-parse HEAD)"
-          test "$total" -le 1000
+          test "$total" -le 3000
+          git diff --check origin/main...HEAD
 
       - name: Syntax
         run: |
-          node --check src/3d/gameplay/livingWorldSpawner.js
+          node --check src/3d/gameplay/npc.js
+          node --check src/3d/gameplay/npcWorldPlacement.js
           node --check scripts/checkNpcGuardLeashAttackSlotHandoff.mjs
           node --check scripts/checkNpcMovementSafetyBrowser.js
 
@@ -91,13 +80,17 @@ jobs:
           node scripts/checkNpcGuardAttack.mjs
           node scripts/checkNpcGuardLeash.mjs
           node scripts/checkNpcGuardLifecycleContract.mjs
+          node scripts/checkNpcWorldPlacementContract.mjs
+
+      - name: Shared material placement contract
+        run: node scripts/checkSharedMaterialPlacementContract.js
 
       - name: Deterministic source guard
         shell: bash
         run: |
           set -euo pipefail
-          ! grep -nE 'Math\.random\s*\(' src/3d/gameplay/livingWorldSpawner.js
-          ! grep -n 'EditorMaterialStudio' src/3d/gameplay/livingWorldSpawner.js
+          ! grep -nE 'Math\.random\s*\(' src/3d/gameplay/npc.js src/3d/gameplay/npcWorldPlacement.js
+          ! grep -n 'EditorMaterialStudio' src/3d/gameplay/npc.js src/3d/gameplay/npcWorldPlacement.js
 
       - name: Final exact-main freshness
         shell: bash
