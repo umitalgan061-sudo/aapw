@@ -86,9 +86,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Hydrate only families the shipped guard proof actually instantiates.
+          # Hydrate only families the shipped guard/equipment proofs actually instantiate.
           git lfs version
-          git lfs pull --include="assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/Dragon_Baked_Actions_fbx_7.4_binary.fbx,assets/models/creatures/dragon/textures/**,assets/models/settlements/castles/*_decimated.glb" --exclude=""
+          git lfs pull --include="assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/Dragon_Baked_Actions_fbx_7.4_binary.fbx,assets/models/creatures/dragon/textures/**,assets/models/settlements/castles/*_decimated.glb,assets/models/fbx/Viking Sword Blend_Viking Sword.fbx" --exclude=""
           test -s assets/models/characters/peasant_girl.fbx
           test -s assets/animations/peasant_girl/idle.fbx
           test -s assets/animations/peasant_girl/walking.fbx
@@ -100,6 +100,8 @@ jobs:
           test -s assets/models/creatures/dragon/textures/Dragon_Nor.jpg
           test -s assets/models/creatures/dragon/textures/Dragon_Nor_mirror2.jpg
           test -s assets/models/settlements/castles/icebound_citadel_decimated.glb
+          test "$(wc -c < 'assets/models/fbx/Viking Sword Blend_Viking Sword.fbx')" -eq 72380
+          ! head -c 128 'assets/models/fbx/Viking Sword Blend_Viking Sword.fbx' | grep -q 'git-lfs.github.com/spec'
       - name: Combat contracts
         run: |
           set -euo pipefail
@@ -115,7 +117,6 @@ jobs:
           node --check scripts/checkPlayerHitStaggerRuntime.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferDrop.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferRuntime.mjs
-          node scripts/checkPlayerEquipmentAssetReadiness.mjs
           node scripts/checkPlayerGuardImpactExhaustion.mjs
           node scripts/checkPlayerCombatFeedback.mjs
           node scripts/checkPlayerStaminaDodge.mjs
@@ -134,6 +135,18 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Hydrated player equipment readiness proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/player-guard-impact-exhaustion/equipment
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerEquipmentAssetReadiness.mjs --out-dir=artifacts/player-guard-impact-exhaustion/equipment 2>&1 | tee artifacts/player-guard-impact-exhaustion/equipment.log
+          grep -q 'PLAYER_EQUIPMENT_ASSET_READINESS_OK' artifacts/player-guard-impact-exhaustion/equipment.log
+          test -s artifacts/player-guard-impact-exhaustion/equipment/equipment-asset-readiness.json
+          grep -q '"missingAssetCount": 0' artifacts/player-guard-impact-exhaustion/equipment/equipment-asset-readiness.json
+          grep -q '"recommendedPalette": "steel"' artifacts/player-guard-impact-exhaustion/equipment/equipment-asset-readiness.json
+          grep -q '"productionAttached": false' artifacts/player-guard-impact-exhaustion/equipment/equipment-asset-readiness.json
+          grep -q '"browserErrors": \[\]' artifacts/player-guard-impact-exhaustion/equipment/equipment-asset-readiness.json
       - name: Shipped scene guard runtime proof
         shell: bash
         run: |
