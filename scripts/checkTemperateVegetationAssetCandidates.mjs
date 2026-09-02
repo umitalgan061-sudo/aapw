@@ -22,6 +22,11 @@ const CANDIDATES = Object.freeze([
 		path: 'assets/models/vegetation/birch_trees_R7qMWzb7nk.glb',
 		expectedRole: 'temperate-birch-family',
 	}),
+	Object.freeze({
+		id: 'fall-tree',
+		path: 'assets/models/vegetation/fall_tree_4GYen9Xm3Kj.glb',
+		expectedRole: 'temperate-deciduous-single-tree',
+	}),
 ]);
 
 function parseArgs(argv) {
