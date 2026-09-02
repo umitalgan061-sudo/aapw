@@ -290,6 +290,12 @@ const deepOceanBackdropWorldY = water.position.y + (deepOceanBackdrop?.position.
 const geologyPlacements = naturalGeologyResult.placements ?? [];
 const geologyAssetProxyCount = geologyPlacements.filter((placement) => placement.kind === 'asset-proxy').length;
 const geologyValyriaPlacementCount = geologyPlacements.filter((placement) => placement.volcanic).length;
+const geologyKindCounts = {};
+const geologyValyriaKindCounts = {};
+for (const placement of geologyPlacements) {
+	geologyKindCounts[placement.kind] = (geologyKindCounts[placement.kind] ?? 0) + 1;
+	if (placement.volcanic) geologyValyriaKindCounts[placement.kind] = (geologyValyriaKindCounts[placement.kind] ?? 0) + 1;
+}
 const geologyRenderedInstanceCount = naturalGeologyResult.group.children.reduce(
 	(sum, child) => sum + (child?.isInstancedMesh ? child.count : 0),
 	0,
@@ -351,6 +357,9 @@ window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
 		volcanicFallbackMaterialIsolation: naturalGeologyResult.group.userData.naturalGeology?.volcanicFallbackMaterialIsolation === true,
 		smallFallbackShadowSuppression: naturalGeologyResult.group.userData.naturalGeology?.smallFallbackShadowSuppression === true,
 		roundedBoulderNormalResponse: naturalGeologyResult.group.userData.naturalGeology?.roundedBoulderNormalResponse === true,
+		volcanicFallbackSmoothedLightingNormals: naturalGeologyResult.group.userData.naturalGeology?.volcanicFallbackSmoothedLightingNormals === true,
+		kindCounts: Object.freeze({ ...geologyKindCounts }),
+		valyriaKindCounts: Object.freeze({ ...geologyValyriaKindCounts }),
 		visualProofUsesDeterministicFallback: true,
 		roadExclusionGeometryCoveredBySeparateContract: true,
 	}),
