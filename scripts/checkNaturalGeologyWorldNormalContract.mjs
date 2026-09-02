@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import * as THREE from 'three';
-import { NATURAL_GEOLOGY_RENDER_POLICY } from '../src/3d/world/naturalGeology.js';
+import {
+  NATURAL_GEOLOGY_RENDER_POLICY,
+  createNaturalRockPrototypeGeometry,
+} from '../src/3d/world/naturalGeology.js';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const source = readFileSync(resolve(ROOT, 'src/3d/world/naturalGeology.js'), 'utf8');
@@ -11,6 +14,7 @@ const source = readFileSync(resolve(ROOT, 'src/3d/world/naturalGeology.js'), 'ut
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.worldSpaceRockNormalVariation, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.instanceScaleCompensatedWorldNormal, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.cameraStableRockWeathering, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.fallbackCapNormalsOutward, true);
 assert(NATURAL_GEOLOGY_RENDER_POLICY.id.includes('v4-correct-world-normal-weathering') || NATURAL_GEOLOGY_RENDER_POLICY.id.includes('v5-regional-hydrated-rocks') || NATURAL_GEOLOGY_RENDER_POLICY.id.includes('v6-natural-volcanic-value') || NATURAL_GEOLOGY_RENDER_POLICY.id.includes('v7-faceted-fallback-and-biome-assets') || NATURAL_GEOLOGY_RENDER_POLICY.id.includes('v8-hydrated-texture-fidelity') || NATURAL_GEOLOGY_RENDER_POLICY.id.includes('v9-legacy-fbx-pbr-fidelity') || NATURAL_GEOLOGY_RENDER_POLICY.id.includes('v10-volcanic-facet-readability'));
 
 for (const required of [
@@ -71,6 +75,20 @@ for (const [caseIndex, entry] of cases.entries()) {
   }
 }
 
+const capNormalEvidence = {};
+for (const kind of ['fractured-scarp', 'bedrock', 'low-outcrop', 'talus', 'boulder']) {
+  const geometry = createNaturalRockPrototypeGeometry(kind);
+  const normalsAttribute = geometry.getAttribute('normal');
+  const bottomCenterIndex = normalsAttribute.count - 2;
+  const topCenterIndex = normalsAttribute.count - 1;
+  const bottomY = normalsAttribute.getY(bottomCenterIndex);
+  const topY = normalsAttribute.getY(topCenterIndex);
+  assert(bottomY < -0.999, `${kind} bottom cap normal must face outward/down, got ${bottomY}`);
+  assert(topY > 0.999, `${kind} top cap normal must face outward/up, got ${topY}`);
+  capNormalEvidence[kind] = { bottomY, topY };
+  geometry.dispose();
+}
+
 // World-space weathering orientation must be camera-independent. Only the final conversion into Three's
 // view-space lighting normal is allowed to react to a camera transform.
 const worldNormal = new THREE.Vector3(0.28, 0.91, -0.31).normalize();
@@ -97,4 +115,6 @@ console.log(JSON.stringify({
   worstAngularErrorDegrees,
   sourceRejectsTransformedNormalAsWorldNormal: true,
   cameraStableWeatheringFrame: true,
+  fallbackCapNormalsOutward: true,
+  capNormalEvidence,
 }, null, 2));
