@@ -571,14 +571,14 @@ diffuseColor.rgb *= 0.87 + run406Along * 0.29;
 // worn into the terrain instead of laid on top of it. Unit mean, so the tier colours that
 // checkRoadVisualContract.js pins still decide cart road from footpath.
 // (No backticks in GLSL comments -- this whole shader is a JS template literal, and a stray one
-//  terminates it early. That is exactly how this block broke the module once already.)${groundSurfaceGrainColorChunk('vRun406Position.xz')}`,
+//  terminates it early. That is exactly how this block broke the module once already.)${groundSurfaceGrainColorChunk('vRun406Position')}`,
 				)
 				// Run 416: relief. Until now the road had no normal map at all, so however the colour was
 				// composed it was still shaded as a mathematically flat plane -- which is most of why it
 				// read as artificial however much dirt was painted on it.
 				.replace(
 					'#include <normal_fragment_maps>',
-					`#include <normal_fragment_maps>${groundSurfaceGrainNormalChunk('vRun406Position.xz')}`,
+					`#include <normal_fragment_maps>${groundSurfaceGrainNormalChunk('vRun406Position')}`,
 				);
 		};
 		material.needsUpdate = true;

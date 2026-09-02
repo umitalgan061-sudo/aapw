@@ -19363,3 +19363,37 @@ yok" değil, **aydınlatılmış kayanın kendisi**.
    okumasını ikiye katlamak, o yüzden kendi turu ve kendi ölçümü gerekiyor.
 
 Bu turdan kalan kod değişikliği yok; kalan şey ölçüm ve iki adlandırılmış sebep.
+
+## Tur 426 — Doku artık dik yüzeylerde de duruyor: iki düzlemli izdüşüm (ADR-0374)
+
+Tur 425 dağın neden pürüzsüz göründüğünü ikiye ayırmıştı; ikincisi buydu ve düzeltildi.
+
+Tur 416'nın zemin taneciği dünya **XZ** düzlemine izdüşürülüyordu. Bu, zemin için doğru, dik olan
+her şey için yanlış: 43 derecelik yamaçta desen yamaç yönünde **1,4 kat**, 72 derecede **3,2 kat**
+uzuyor — kayalıkların üstündeki soluk dikey çizgiler tam olarak buydu.
+
+Artık ikinci bir izdüşüm var: yüzeyin baktığı **dikey düzlem** (doğuya bakan bir kayalık ZY'ye,
+kuzeye bakan XY'ye), dikliğe göre karıştırılıyor. Üç düzlem değil iki: üçüncüsü sadece diğer ikisinin
+zaten aynı fikirde olduğu yerde katkı verir, ki bu dünyada her zemin ya düz ya diktir.
+
+**Ve aynı ölçüm ikinci, daha sessiz bir hatayı ortaya çıkardı.** Normal pertürbasyonunun çerçevesi
+her zaman dünya X ve Z ekseninden kuruluyordu. X boyunca bakan bir kayalıkta X ekseni teğet olarak
+sıfır uzunluk veriyor, uzunluk koruması da pertürbasyonun tamamını atıyordu — yani **o yüzeyler hiç
+tanecik almıyordu.** Artık yüzeyin en çok baktığı eksen çerçeveden çıkarılıyor: zeminde bu Y'yi atar
+ve tarihsel X/Z çerçevesini verir, doğuya bakan kayalıkta X'i atar.
+
+**Maliyet, dürüstçe:** renk kırılması hâlâ tek okuma (iki düzlem arasında UV karıştırılıyor, doku
+değil). Normal, `grainVertical > 0` olduğunda iki ek okuma yapıyor — yani **düz zemin fazladan hiçbir
+şey ödemiyor**: dalın koşulu geniş düz alanlarda bütün warp boyunca aynı olduğu için gerçekten
+atlanıyor. Kare üçgen sayısı değişmedi (1.530.759 / 94 çizim çağrısı); ek maliyet fragment
+tarafında ve sadece eğimli yüzeylerde.
+
+Görsel doğrulama: `artifacts/mountain/snowline.png` — dikey çizgiler gitti, yerine yamaç boyunca eşit
+ince bir tanecik geldi. Yamacın **formu** hâlâ pürüzsüz; o Tur 425'te ölçülen birinci sebep
+(3,9 m vertex aralığı) ve yükseklik otoritesine dokunmadan çözülemez.
+
+Kapılar: `checkMedievalRoadSurface`, `checkTerrainVisualContract`, `checkGroundColorVariety`,
+`checkTerrainGroundRealism`, `checkVegetationVisualContract`, `checkSmokeCheckRegistry`,
+`checkServiceWorkerCache`, `checkTechnicalDebt`, `checkSeededRandomPolicy`, `roadNetworkSafetyCheck`,
+`checkWindGrassContractRun180` — hepsi PASS. Yol şeridi dünya normali vermiyor, dolayısıyla saf XZ
+kalıyor ve davranışı bit bit aynı.

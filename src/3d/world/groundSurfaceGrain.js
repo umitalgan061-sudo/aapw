@@ -37,7 +37,8 @@ import * as THREE from 'three';
  * or the grain would visibly change size where a road crosses the ground it sits on.
  */
 export const GROUND_SURFACE_GRAIN_POLICY = Object.freeze({
-	id: 'ground-surface-grain-world-xz-v1',
+	id: 'ground-surface-grain-biplanar-v2',
+	supersedes: 'ground-surface-grain-world-xz-v1',
 	normalMapPath: 'assets/textures/ground/ground_grain_normal.png',
 	albedoMapPath: 'assets/textures/ground/ground_grain_albedo.png',
 	/** Close grain — the scale of clumps and clods underfoot. */
@@ -121,33 +122,93 @@ uniform float groundGrainCoarseStrength;
 uniform float groundGrainAlbedoStrength;`;
 
 /**
+ * Picks the plane a fragment's grain is projected on, and the frame the perturbation lives in.
+ *
+ * **Why this exists (run 425/426).** Everything below used to project on world XZ alone, which is
+ * right for ground and wrong for anything steep: measured down the world's highest flank, an XZ
+ * projection stretches the pattern 1.4x at 43 degrees and 3.2x at 72, which is the faint vertical
+ * streaking a close render of any cliff showed. A second projection on the dominant vertical plane,
+ * blended in by how steep the fragment is, costs one extra fetch per layer and fixes every cliff,
+ * every mountain flank and every sea wall in the world at once.
+ *
+ * Biplanar rather than triplanar: the third plane only ever contributes where the first two already
+ * agree, so it buys nothing on ground that is either flat or steep, which is all of this world.
+ *
+ * Consumers that pass no world normal — the road ribbon, which is a decal on near-flat ground — get
+ * pure XZ and byte-identical behaviour to before.
+ *
+ * @param {string} worldPos GLSL vec3 expression for this fragment's world position, in metres.
+ * @param {string|null} worldNormal GLSL vec3 expression for its world normal, or null for XZ only.
+ * @returns {string} GLSL declaring `grainPlanar`, `grainPlanarV` and `grainVertical`.
+ */
+function grainProjectionSetup(worldPos, worldNormal) {
+	if (!worldNormal) {
+		return `
+	vec2 grainPlanar = (${worldPos}).xz;
+	vec2 grainPlanarV = grainPlanar;
+	float grainVertical = 0.0;`;
+	}
+	return `
+	vec3 grainWorldPos = ${worldPos};
+	vec3 grainWorldNormal = normalize(${worldNormal});
+	vec2 grainPlanar = grainWorldPos.xz;
+	// The vertical plane a face is best read on is the one it faces: an east-facing cliff is projected
+	// on ZY, a north-facing one on XY. Choosing per fragment rather than blending both keeps this at one
+	// extra fetch, and the choice only ever flips where the two are equally stretched anyway.
+	vec2 grainPlanarV = abs(grainWorldNormal.x) > abs(grainWorldNormal.z) ? grainWorldPos.zy : grainWorldPos.xy;
+	// 0 on level ground, 1 on a wall. The ramp is deliberately late: below 30 degrees the XZ projection
+	// is stretched by less than 15% and is the better of the two.
+	float grainVertical = smoothstep(0.14, 0.55, 1.0 - abs(grainWorldNormal.y));`;
+}
+
+/**
  * Perturbs the view-space `normal` by the grain, in a frame built from the world axes.
  *
  * Goes **after** `#include <normal_fragment_maps>`, so it layers on top of whatever normal map the
  * surface already has rather than replacing it — on terrain that is the 22 m macro atlas, and the two
  * together are the point: macro undulation with real grain sitting in it.
  *
- * The frame is world X and world Z brought into view space and Gram-Schmidt'd against the current
- * normal. Ground is near-horizontal, so the obvious choice — `cross(worldUp, normal)` — is exactly the
- * degenerate one; world X and Z stay well-conditioned for every slope terrain can produce, and the
- * length guard covers the vertical faces they would fail on.
+ * The frame is two world axes brought into view space and Gram-Schmidt'd against the current normal,
+ * and **which** two is chosen per fragment: the axis a surface most nearly faces makes a degenerate
+ * tangent, so it is the one left out. On ground that drops world Y and gives the historical X/Z frame;
+ * on an east-facing cliff it drops world X. Before run 426 the frame was always X and Z, so on a
+ * cliff facing along X the length guard below refused the perturbation outright and those faces got no
+ * grain at all.
  *
- * @param {string} worldXZ GLSL expression for this fragment's world XZ, in metres.
+ * @param {string} worldPos GLSL vec3 expression for this fragment's world position, in metres.
+ * @param {string|null} [worldNormal] GLSL vec3 expression for its world normal.
  * @returns {string} GLSL.
  */
-export function groundSurfaceGrainNormalChunk(worldXZ) {
+export function groundSurfaceGrainNormalChunk(worldPos, worldNormal = null) {
 	return `
 {
-	vec2 grainXZ = ${worldXZ};
-	vec3 grainFine = texture2D(groundGrainNormalMap, grainXZ / groundGrainFinePeriod).xyz * 2.0 - 1.0;
-	vec3 grainCoarse = texture2D(groundGrainNormalMap, grainXZ / groundGrainCoarsePeriod).xyz * 2.0 - 1.0;
+${grainProjectionSetup(worldPos, worldNormal)}
+	vec3 grainFine = texture2D(groundGrainNormalMap, grainPlanar / groundGrainFinePeriod).xyz * 2.0 - 1.0;
+	vec3 grainCoarse = texture2D(groundGrainNormalMap, grainPlanar / groundGrainCoarsePeriod).xyz * 2.0 - 1.0;
+	if (grainVertical > 0.0) {
+		vec3 grainFineV = texture2D(groundGrainNormalMap, grainPlanarV / groundGrainFinePeriod).xyz * 2.0 - 1.0;
+		vec3 grainCoarseV = texture2D(groundGrainNormalMap, grainPlanarV / groundGrainCoarsePeriod).xyz * 2.0 - 1.0;
+		grainFine = mix(grainFine, grainFineV, grainVertical);
+		grainCoarse = mix(grainCoarse, grainCoarseV, grainVertical);
+	}
 	vec2 grainSlope = grainFine.xy * groundGrainFineStrength + grainCoarse.xy * groundGrainCoarseStrength;
-	vec3 grainAxisX = normalize((viewMatrix * vec4(1.0, 0.0, 0.0, 0.0)).xyz);
-	vec3 grainAxisZ = normalize((viewMatrix * vec4(0.0, 0.0, 1.0, 0.0)).xyz);
-	vec3 grainTangent = grainAxisX - normal * dot(normal, grainAxisX);
+	vec3 grainAxisA = normalize((viewMatrix * vec4(1.0, 0.0, 0.0, 0.0)).xyz);
+	vec3 grainAxisB = normalize((viewMatrix * vec4(0.0, 0.0, 1.0, 0.0)).xyz);
+	// Drop whichever world axis this surface most nearly faces; keeping it would make a tangent of
+	// length zero and the guard below would throw the whole perturbation away.
+	vec3 grainAxisY = normalize((viewMatrix * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
+	float grainFaceX = abs(dot(normal, grainAxisA));
+	float grainFaceY = abs(dot(normal, grainAxisY));
+	float grainFaceZ = abs(dot(normal, grainAxisB));
+	if (grainFaceX >= grainFaceY && grainFaceX >= grainFaceZ) {
+		grainAxisA = grainAxisY;
+	} else if (grainFaceZ >= grainFaceY && grainFaceZ >= grainFaceX) {
+		grainAxisB = grainAxisY;
+	}
+	vec3 grainTangent = grainAxisA - normal * dot(normal, grainAxisA);
 	float grainTangentLength = length(grainTangent);
 	vec3 grainTangentUnit = grainTangent / max(grainTangentLength, 1e-4);
-	vec3 grainBitangent = grainAxisZ - normal * dot(normal, grainAxisZ) - grainTangentUnit * dot(grainTangentUnit, grainAxisZ);
+	vec3 grainBitangent = grainAxisB - normal * dot(normal, grainAxisB) - grainTangentUnit * dot(grainTangentUnit, grainAxisB);
 	float grainBitangentLength = length(grainBitangent);
 	if (grainTangentLength > 1e-3 && grainBitangentLength > 1e-3) {
 		vec3 grainBitangentUnit = grainBitangent / grainBitangentLength;
@@ -175,13 +236,16 @@ export function groundSurfaceGrainNormalChunk(worldXZ) {
  * Sampled at the coarse period alone. Tonal mottling on real ground is metres across; putting it at
  * the fine period would read as noise on the texture rather than as damp and dry patches in the soil.
  *
- * @param {string} worldXZ GLSL expression for this fragment's world XZ, in metres.
+ * @param {string} worldPos GLSL vec3 expression for this fragment's world position, in metres.
+ * @param {string|null} [worldNormal] GLSL vec3 expression for its world normal; omit for XZ only.
  * @returns {string} GLSL.
  */
-export function groundSurfaceGrainColorChunk(worldXZ) {
+export function groundSurfaceGrainColorChunk(worldPos, worldNormal = null) {
 	return `
 {
-	vec3 grainSample = texture2D(groundGrainAlbedoMap, (${worldXZ}) / groundGrainCoarsePeriod).rgb;
+${grainProjectionSetup(worldPos, worldNormal)}
+	vec2 grainToneUv = mix(grainPlanar, grainPlanarV, grainVertical) / groundGrainCoarsePeriod;
+	vec3 grainSample = texture2D(groundGrainAlbedoMap, grainToneUv).rgb;
 	float grainTone = dot(grainSample, vec3(0.299, 0.587, 0.114)) * 2.0;
 	diffuseColor.rgb *= max(0.0, 1.0 + (grainTone - 1.0) * groundGrainAlbedoStrength);
 }`;
@@ -202,19 +266,20 @@ export function applyGroundSurfaceGrain(material, options = {}) {
 	material.onBeforeCompile = (shader, renderer) => {
 		if (previousOnBeforeCompile) previousOnBeforeCompile(shader, renderer);
 		if (shader.uniforms) Object.assign(shader.uniforms, uniforms);
-		shader.vertexShader = `varying vec3 vGroundGrainWorld;\n${shader.vertexShader}`.replace(
+		shader.vertexShader = `varying vec3 vGroundGrainWorld;\nvarying vec3 vGroundGrainWorldNormal;\n${shader.vertexShader}`.replace(
 			'#include <begin_vertex>',
 			`#include <begin_vertex>
-	vGroundGrainWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;`,
+	vGroundGrainWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;
+	vGroundGrainWorldNormal = normalize(mat3(modelMatrix) * objectNormal);`,
 		);
-		shader.fragmentShader = `varying vec3 vGroundGrainWorld;${GROUND_SURFACE_GRAIN_FRAGMENT_PARS}\n${shader.fragmentShader}`
+		shader.fragmentShader = `varying vec3 vGroundGrainWorld;\nvarying vec3 vGroundGrainWorldNormal;${GROUND_SURFACE_GRAIN_FRAGMENT_PARS}\n${shader.fragmentShader}`
 			.replace(
 				'#include <color_fragment>',
-				`#include <color_fragment>${groundSurfaceGrainColorChunk('vGroundGrainWorld.xz')}`,
+				`#include <color_fragment>${groundSurfaceGrainColorChunk('vGroundGrainWorld', 'vGroundGrainWorldNormal')}`,
 			)
 			.replace(
 				'#include <normal_fragment_maps>',
-				`#include <normal_fragment_maps>${groundSurfaceGrainNormalChunk('vGroundGrainWorld.xz')}`,
+				`#include <normal_fragment_maps>${groundSurfaceGrainNormalChunk('vGroundGrainWorld', 'vGroundGrainWorldNormal')}`,
 			);
 	};
 	// A material whose program is patched must say so, or three.js hands every patched and unpatched
