@@ -11,6 +11,7 @@
  */
 
 import * as THREE from 'three';
+import { WORLD_SCALE } from '../config.js';
 import { getCelestialLightState } from '../celestialLightState.js';
 import { GEOGRAPHIC_REFERENCE_PALETTE, GEOGRAPHIC_REFERENCE_PALETTE_POLICY } from './geographicReferencePalette.js';
 
@@ -32,7 +33,7 @@ export const WAVE_TOTAL_AMPLITUDE_METERS = SWELL_COMPONENTS.reduce((sum, [, ampl
 export const WATER_OFFSHORE_OPTICAL_GAIN = 0.82;
 
 export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
-	id: 'water-world-surface-variation-2026-09-02-v14-far-surface-depth-order',
+	id: 'water-world-surface-variation-2026-09-02-v15-owner-border-optical-seal',
 	renderOnly: true,
 	canonicalDepthUnchanged: true,
 	canonicalCoverageUnchanged: true,
@@ -58,6 +59,8 @@ export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	depthFieldOpticalWarpMeters: 180,
 	farMarineOpticalDepthFloor: 0.94,
 	farLayerSurfaceOffsetMeters: 0.12,
+	ownerWorldEdgeOpticalSealMeters: 560,
+	ownerWorldEdgeOpticalWarpMeters: 120,
 	shoreBreakerRevision: 'v1-bathymetry-directed-irregular-lace',
 	shoreGradientStepMeters: 68,
 	directionalBreakers: true,
@@ -69,6 +72,7 @@ export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	farMarineOpticalDepthFromOffshoreDistance: true,
 	farOffshoreOpacitySeal: true,
 	farLayerAboveWetTerrainDepth: true,
+	ownerWorldBorderOpticalSeal: true,
 });
 
 const WATER_VERTEX_SHADER = /* glsl */ `
@@ -133,6 +137,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	uniform sampler2D uDepthMap;
 	uniform sampler2D uOffshoreMap;
 	uniform float uDepthFieldExtentMeters;
+	uniform vec2 uOwnerWorldHalfExtent;
 	uniform float uFarLayerMask;
 	varying vec3 vWorldPosition;
 	varying float vDepthFactor;
@@ -206,6 +211,17 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		return 1.0 - smoothstep(0.0, ${WATER_SURFACE_VARIATION_POLICY.depthFieldOpticalFeatherMeters.toFixed(1)}, max(0.0, edgeMeters + edgeWarp));
 	}
 
+	float ownerWorldBorderOpticalSeal(vec2 worldXZ) {
+		vec2 distanceToBorder = abs(abs(worldXZ) - uOwnerWorldHalfExtent);
+		float borderDistance = min(distanceToBorder.x, distanceToBorder.y);
+		float warpA = waterSurfaceNoise(worldXZ / 1730.0 + vec2(-6.8, 14.2)) - 0.5;
+		float warpB = waterSurfaceNoise((worldXZ * mat2(0.79, -0.61, 0.61, 0.79)) / 610.0 + vec2(18.3, -11.7)) - 0.5;
+		float warpedDistance = borderDistance
+			+ warpA * ${WATER_SURFACE_VARIATION_POLICY.ownerWorldEdgeOpticalWarpMeters.toFixed(1)}
+			+ warpB * ${(WATER_SURFACE_VARIATION_POLICY.ownerWorldEdgeOpticalWarpMeters * 0.46).toFixed(1)};
+		return 1.0 - smoothstep(0.0, ${WATER_SURFACE_VARIATION_POLICY.ownerWorldEdgeOpticalSealMeters.toFixed(1)}, max(0.0, warpedDistance));
+	}
+
 	float openOceanSurfaceFabric(vec2 worldXZ) {
 		float warpA = waterSurfaceNoise(worldXZ / 1850.0 + vec2(8.2, -5.4));
 		float warpB = waterSurfaceNoise(worldXZ / 2460.0 + vec2(-3.7, 11.6));
@@ -267,6 +283,10 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float offshoreGain = offshoreOptical * (1.0 - fragmentDepth) * ${WATER_OFFSHORE_OPTICAL_GAIN.toFixed(2)};
 		float deepMarineMask = smoothstep(0.54, 0.96, fragmentDepth) * smoothstep(0.42, 0.94, offshoreOptical);
 		float offshoreSurfaceMask = smoothstep(0.30, 0.90, offshoreOptical) * smoothstep(0.24, 0.78, fragmentDepth);
+		float ownerBorderMarineSeal = ownerWorldBorderOpticalSeal(vWorldPosition.xz)
+			* uFarLayerMask
+			* farLayerBlend
+			* smoothstep(0.005, 0.060, rawOffshoreOptical);
 		float oceanFabric = openOceanSurfaceFabric(vWorldPosition.xz);
 		float oceanShear = openOceanCurrentShear(vWorldPosition.xz, uTime);
 
@@ -353,6 +373,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float bedReadability = max(enclosedLakeMask * clearShallowBand * 0.30, clearCoastMask * 0.18);
 		alpha *= 1.0 - bedReadability;
 		alpha *= waterCoverage;
+		alpha = mix(alpha, 1.0, ownerBorderMarineSeal * waterCoverage);
 
 		gl_FragColor = vec4(color, max(alpha, foam * 0.78) * layerOpacity);
 		#include <fog_fragment>
@@ -488,6 +509,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 				uDepthMap: { value: PLACEHOLDER_DEPTH_TEXTURE },
 				uOffshoreMap: { value: PLACEHOLDER_OFFSHORE_TEXTURE },
 				uDepthFieldExtentMeters: { value: 1 },
+				uOwnerWorldHalfExtent: { value: new THREE.Vector2(WORLD_SCALE.WORLD_WIDTH_METERS * 0.5, WORLD_SCALE.WORLD_DEPTH_METERS * 0.5) },
 				uSwellStrength: { value: 0 },
 				uFarLayerMask: { value: 0 },
 			},
@@ -522,6 +544,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		farMarineOpticalDepthFromOffshoreDistance: true,
 		farOffshoreOpacitySeal: true,
 		farLayerAboveWetTerrainDepth: true,
+		ownerWorldBorderOpticalSeal: true,
 	});
 
 	const farGeometry = new THREE.PlaneGeometry(WATER_FULL_WORLD_EXTENT_METERS, WATER_FULL_WORLD_EXTENT_METERS, 1, 1);
