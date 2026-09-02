@@ -215,6 +215,24 @@ function regionalMaterialOptions(object, profile) {
 	return { paletteId: profile.paletteId, textureSize: ARCHITECTURE_TEXTURE_SIZE };
 }
 
+function fitArchitectureToProceduralFootprint(size, site) {
+	const sourceWidth = Number(size?.x);
+	const sourceDepth = Number(size?.z);
+	const legacySpan = Number(site?.targetFootprintMeters);
+	const targetWidth = Number(site?.targetWidthMeters ?? legacySpan);
+	const targetDepth = Number(site?.targetDepthMeters ?? legacySpan);
+	if (![sourceWidth, sourceDepth, targetWidth, targetDepth].every((value) => Number.isFinite(value) && value > 1e-6)) return null;
+	const scale = Math.min(targetWidth / sourceWidth, targetDepth / sourceDepth);
+	if (!Number.isFinite(scale) || scale <= 1e-6) return null;
+	return Object.freeze({
+		scale,
+		targetWidth,
+		targetDepth,
+		fittedWidth: sourceWidth * scale,
+		fittedDepth: sourceDepth * scale,
+	});
+}
+
 function normalizedArchitecturePivot(source, site, profile) {
 	const model = source.clone(true);
 	const pivot = new THREE.Group();
@@ -224,15 +242,15 @@ function normalizedArchitecturePivot(source, site, profile) {
 	model.updateMatrixWorld(true);
 	let box = new THREE.Box3().setFromObject(model);
 	const size = box.getSize(new THREE.Vector3());
-	const horizontalSpan = Math.max(size.x, size.z);
-	if (!Number.isFinite(horizontalSpan) || horizontalSpan <= 1e-6) return null;
-	const scale = site.targetFootprintMeters / horizontalSpan;
-	model.scale.multiplyScalar(scale);
+	const footprint = fitArchitectureToProceduralFootprint(size, site);
+	if (!footprint) return null;
+	model.scale.multiplyScalar(footprint.scale);
 	model.updateMatrixWorld(true);
 	box = new THREE.Box3().setFromObject(model);
 	const center = box.getCenter(new THREE.Vector3());
 	model.position.x -= center.x;
 	model.position.z -= center.z;
+	pivot.userData.architectureFootprint = footprint;
 	pivot.updateMatrixWorld(true);
 	return pivot;
 }
@@ -281,7 +299,8 @@ export async function upgradeVillageArchitectureAssets({
 		const assetUrl = resolveVillageArchitectureAssetUrl(profile, site);
 		let source = sourceCache.get(assetUrl);
 		if (!source) {
-			source = await assetLoader.loadModel(assetUrl, { fallbackSize: site.targetFootprintMeters });
+			const fallbackSize = Math.max(Number(site.targetWidthMeters) || 0, Number(site.targetDepthMeters) || 0, Number(site.targetFootprintMeters) || 0);
+			source = await assetLoader.loadModel(assetUrl, { fallbackSize });
 			if (villageGroup.userData?.disposed === true) {
 				AssetLoader.disposeObject3D(source);
 				break;
@@ -327,6 +346,7 @@ export async function upgradeVillageArchitectureAssets({
 			region: profile.id,
 			assetUrl,
 			textureSize: ARCHITECTURE_TEXTURE_SIZE,
+			footprint: object.userData.architectureFootprint,
 			manifest: prepared.manifest,
 		});
 	}
@@ -483,6 +503,8 @@ export function createVillages({
 					const landmarkSite = {
 						seatId: seat.id, assetIndex: landmarkRecorded, x, z, yaw, houseIndex, stepStartIndex,
 						stepCount: STOOP_STEP_COUNT,
+						targetWidthMeters: type.width,
+						targetDepthMeters: type.depth,
 						targetFootprintMeters: Math.max(type.width, type.depth),
 						proceduralType: type.id,
 					};
