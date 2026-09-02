@@ -167,6 +167,8 @@ async function main() {
 			'fallback boulders must retain a rounded natural-light response');
 		assert.equal(summary.naturalGeology?.volcanicFallbackSmoothedLightingNormals, true,
 			'Valyria fallback facets must avoid sub-pixel black side-light aliasing');
+		assert.equal(summary.naturalGeology?.volcanicFallbackCalibratedBasaltReflectance, true,
+			'Valyria basalt fallback must stay inside the calibrated dark-rock reflectance family');
 		assert.equal(Object.values(summary.naturalGeology?.kindCounts ?? {}).reduce((sum, count) => sum + count, 0),
 			summary.naturalGeology?.placementCount, 'geology kind breakdown must cover every placement');
 		assert.equal(Object.values(summary.naturalGeology?.valyriaKindCounts ?? {}).reduce((sum, count) => sum + count, 0),
