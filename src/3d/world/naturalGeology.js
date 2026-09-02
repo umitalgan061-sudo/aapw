@@ -88,6 +88,7 @@ export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
   volcanicFallbackSmoothedLightingNormals: true,
   volcanicFallbackCalibratedBasaltReflectance: true,
   volcanicFallbackLinearReflectanceRange: Object.freeze([0.10, 0.18]),
+  fallbackCapNormalsOutward: true,
   fallbackLinearAlbedoFloor: 0.046,
   instanceScaleCompensatedWorldNormal: true,
   cameraStableRockWeathering: true,
@@ -460,8 +461,11 @@ function createStratifiedRockGeometry({ segments, phase = 0, rings }) {
   const topBase = (rings.length - 1) * count;
   for (let segment = 0; segment < count; segment += 1) {
     const next = (segment + 1) % count;
-    indices.push(bottomCenter, next, segment);
-    indices.push(topCenter, topBase + segment, topBase + next);
+    // Ring vertices advance counter-clockwise in XZ. Bottom caps therefore use the forward order
+    // for a -Y outward normal, while top caps use the reverse order for a +Y outward normal.
+    // Reversing these makes the top disappear under back-face culling and leaves only ink-dark sides.
+    indices.push(bottomCenter, segment, next);
+    indices.push(topCenter, topBase + next, topBase + segment);
   }
 
   const geometry = new THREE.BufferGeometry();
@@ -774,6 +778,7 @@ export function createNaturalGeology({
     roundedBoulderNormalResponse: true,
     volcanicFallbackSmoothedLightingNormals: true,
     volcanicFallbackCalibratedBasaltReflectance: true,
+    fallbackCapNormalsOutward: true,
     worldNormalSpace: 'instance-scale-compensated-world',
     hydratedRegionalTint: true,
     fallbackGeometryFamily: NATURAL_GEOLOGY_RENDER_POLICY.fallbackGeometryFamily,
