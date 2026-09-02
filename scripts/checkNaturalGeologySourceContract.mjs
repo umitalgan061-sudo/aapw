@@ -317,6 +317,7 @@ console.log(JSON.stringify({
   lowDiscrepancyGeologyCandidates: true,
   geographicAssetRouting: true,
   fbxHydration: true,
+  legacyFbxPbrNormalization: NATURAL_GEOLOGY_RENDER_POLICY.legacyFbxMaterialPbrNormalization,
   facetedNonPlatonicFallback: true,
   canonicalValyriaSurfaceOnly: true,
   instanceCorrectWorldNormals: true,
