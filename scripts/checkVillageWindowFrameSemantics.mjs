@@ -26,4 +26,21 @@ assert.equal(
 	'bare non-building frame must remain fail-closed',
 );
 
-console.log('VILLAGE_WINDOW_FRAME_SEMANTICS_PASS', JSON.stringify({ checked: CASES.length, glazingPreserved: true, genericFrameFailClosed: true }));
+for (const input of [
+	{ meshName: 'CartBody', materialName: 'Wood' },
+	{ meshName: 'WagonBody', materialName: 'Oak' },
+	{ meshName: 'CarriageBody', materialName: 'Painted_Wood' },
+]) {
+	assert.equal(
+		classifyPart(input),
+		null,
+		`vehicle body must preserve authored material instead of being classified as character skin: ${JSON.stringify(input)}`,
+	);
+}
+
+console.log('VILLAGE_WINDOW_FRAME_SEMANTICS_PASS', JSON.stringify({
+	checked: CASES.length,
+	glazingPreserved: true,
+	genericFrameFailClosed: true,
+	vehicleBodyFailClosed: true,
+}));
