@@ -17,7 +17,7 @@ const BARE_WINTER_TREE_ASSET = 'assets/models/vegetation/winter_tree.glb';
 const SNOW_DEAD_TREE_GROVE_ASSET = 'assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb';
 
 export const WINTER_VEGETATION_ASSET_POLICY = Object.freeze({
-	id: 'winter-vegetation-materialized-asset-2026-08-21-v4',
+	id: 'winter-vegetation-materialized-asset-2026-09-02-v5-hydrated-texture-fidelity',
 	preferredSnowPineAsset: PREFERRED_SNOW_PINE_ASSET,
 	bareWinterTreeAsset: BARE_WINTER_TREE_ASSET,
 	groveAsset: SNOW_DEAD_TREE_GROVE_ASSET,
@@ -45,6 +45,16 @@ export const WINTER_VEGETATION_ASSET_POLICY = Object.freeze({
 	pineFoliageFineScale: 0.71,
 	pineFoliageWeatheringStrength: 0.18,
 	pineFoliageRoughnessVariation: 0.09,
+	// Hydrated GLBs retain every authored primitive/material and UV transform. Runtime texture state
+	// only establishes physically correct color decoding and stable oblique-distance filtering.
+	multiMaterialHydrationSupported: true,
+	maxTextureAnisotropy: 8,
+	colorTextureSlots: Object.freeze(['map', 'emissiveMap', 'sheenColorMap', 'specularColorMap']),
+	dataTextureSlots: Object.freeze([
+		'alphaMap', 'aoMap', 'bumpMap', 'displacementMap', 'lightMap', 'metalnessMap',
+		'normalMap', 'roughnessMap', 'sheenRoughnessMap', 'specularIntensityMap',
+		'thicknessMap', 'transmissionMap',
+	]),
 	// A Git-LFS pointer is ~130 bytes. A real textured tree GLB is orders of magnitude larger. HEAD
 	// preflight lets Firebase/static hosting reject an unhydrated pointer without downloading it into
 	// GLTFLoader first. Keep the threshold deliberately tiny so it cannot reject a plausible real GLB.
@@ -89,17 +99,13 @@ export function isPlaceholderWinterAsset(model) {
 	return placeholder;
 }
 
-/**
- * GLTFLoader normally emits one material per primitive. Array-material meshes are rejected here
- * because `disposeVegetation()` historically owns simple Mesh/InstancedMesh resources and should not
- * gain a special disposal contract merely because an optional cosmetic asset loaded.
- */
+/** Collects every renderable GLB mesh, including authored multi-material primitives. */
 export function collectWinterAssetMeshes(model) {
 	const meshes = [];
 	model?.updateMatrixWorld?.(true);
 	model?.traverse?.((node) => {
 		if (!node?.isMesh || !node.geometry?.getAttribute?.('position') || !node.material) return;
-		if (Array.isArray(node.material)) return;
+		if (Array.isArray(node.material) && node.material.length === 0) return;
 		meshes.push(node);
 	});
 	return meshes;
@@ -257,8 +263,30 @@ roughnessFactor = clamp(roughnessFactor + (winterMeso - 0.5) * ${policy.pineFoli
 	return material;
 }
 
-function cloneMaterialWithTextureCleanup(sourceMaterial, disposedTextures, assetUrl) {
+function configureWinterAssetTexture(texture, colorSpace, maxAnisotropy) {
+	if (!texture?.isTexture) return;
+	texture.colorSpace = colorSpace;
+	texture.minFilter = THREE.LinearMipmapLinearFilter;
+	texture.magFilter = THREE.LinearFilter;
+	texture.anisotropy = Math.max(1, Math.min(
+		WINTER_VEGETATION_ASSET_POLICY.maxTextureAnisotropy,
+		Number.isFinite(maxAnisotropy) ? maxAnisotropy : 1,
+	));
+	texture.needsUpdate = true;
+}
+
+/**
+ * Clones one authored material while preserving UV channels/transforms and all source texture
+ * objects. Color-bearing slots decode as sRGB; PBR scalar/vector slots remain linear data.
+ */
+export function prepareWinterAssetMaterial(sourceMaterial, disposedTextures, assetUrl, maxAnisotropy = 1) {
 	const material = sourceMaterial.clone();
+	for (const slot of WINTER_VEGETATION_ASSET_POLICY.colorTextureSlots) {
+		configureWinterAssetTexture(material[slot], THREE.SRGBColorSpace, maxAnisotropy);
+	}
+	for (const slot of WINTER_VEGETATION_ASSET_POLICY.dataTextureSlots) {
+		configureWinterAssetTexture(material[slot], THREE.NoColorSpace, maxAnisotropy);
+	}
 	applyWinterPineMaterialTreatment(material, assetUrl);
 	const originalDispose = material.dispose.bind(material);
 	material.dispose = function disposeWinterAssetMaterial() {
@@ -271,6 +299,15 @@ function cloneMaterialWithTextureCleanup(sourceMaterial, disposedTextures, asset
 		originalDispose();
 	};
 	return material;
+}
+
+function prepareWinterAssetMaterials(sourceMaterial, disposedTextures, assetUrl, maxAnisotropy) {
+	if (!Array.isArray(sourceMaterial)) {
+		return prepareWinterAssetMaterial(sourceMaterial, disposedTextures, assetUrl, maxAnisotropy);
+	}
+	return sourceMaterial.map((material) => (
+		prepareWinterAssetMaterial(material, disposedTextures, assetUrl, maxAnisotropy)
+	));
 }
 
 function disposeRejectedModel(model) {
@@ -286,14 +323,24 @@ function disposeRejectedModel(model) {
 function disposeSourceMaterials(modelMeshes) {
 	const disposedMaterials = new Set();
 	for (const mesh of modelMeshes) {
-		const material = mesh.material;
-		if (!material || disposedMaterials.has(material)) continue;
-		disposedMaterials.add(material);
-		material.dispose();
+		const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+		for (const material of materials) {
+			if (!material || disposedMaterials.has(material)) continue;
+			disposedMaterials.add(material);
+			material.dispose();
+		}
 	}
 }
 
-function applyWinterAssetInstances({ group, sourceMesh, sourceFoliageMesh, modelMeshes, normalization, assetUrl }) {
+function applyWinterAssetInstances({
+	group,
+	sourceMesh,
+	sourceFoliageMesh,
+	modelMeshes,
+	normalization,
+	assetUrl,
+	maxAnisotropy,
+}) {
 	const count = sourceMesh.count;
 	const treeMatrix = new THREE.Matrix4();
 	const finalMatrix = new THREE.Matrix4();
@@ -302,7 +349,12 @@ function applyWinterAssetInstances({ group, sourceMesh, sourceFoliageMesh, model
 
 	for (let meshIndex = 0; meshIndex < modelMeshes.length; meshIndex++) {
 		const sourceAssetMesh = modelMeshes[meshIndex];
-		const material = cloneMaterialWithTextureCleanup(sourceAssetMesh.material, disposedTextures, assetUrl);
+		const material = prepareWinterAssetMaterials(
+			sourceAssetMesh.material,
+			disposedTextures,
+			assetUrl,
+			maxAnisotropy,
+		);
 		const instanced = new THREE.InstancedMesh(sourceAssetMesh.geometry, material, count);
 		instanced.name = `vegetation-snow-asset-${meshIndex}`;
 		instanced.instanceMatrix.setUsage(THREE.StaticDrawUsage);
@@ -311,7 +363,9 @@ function applyWinterAssetInstances({ group, sourceMesh, sourceFoliageMesh, model
 		instanced.userData.winterVegetationAsset = Object.freeze({
 			assetUrl,
 			meshIndex,
-			materialTreatment: material.userData?.winterPineTreatment ?? 'source',
+			materialTreatment: Array.isArray(material)
+				? Object.freeze(material.map((entry) => entry.userData?.winterPineTreatment ?? 'source'))
+				: material.userData?.winterPineTreatment ?? 'source',
 		});
 
 		for (let instanceIndex = 0; instanceIndex < count; instanceIndex++) {
@@ -353,7 +407,7 @@ function headerValue(headers, name) {
 
 /**
  * Cheap hosting preflight. It deliberately does not try to parse the GLB: HEAD is enough to reject
- * the two deployment failures we can identify before GLTFLoader runs — an HTTP miss and a tiny/text
+ * the two deployment failures we can identify before GLTFLoader runs â€” an HTTP miss and a tiny/text
  * Git-LFS pointer response. Unknown/unsupported HEAD behavior is fail-open because AssetLoader still
  * validates the real model and preserves the procedural fallback.
  */
@@ -414,6 +468,7 @@ async function performWinterVegetationAssetUpgrade(group, {
 	assetProbe,
 	candidates,
 	targetHeightMeters,
+	maxAnisotropy,
 	signal,
 }) {
 	const { trunkMesh, foliageMesh } = findProceduralWinterMeshes(group);
@@ -488,6 +543,7 @@ async function performWinterVegetationAssetUpgrade(group, {
 			modelMeshes: validation.meshes,
 			normalization,
 			assetUrl,
+			maxAnisotropy,
 		});
 		disposeSourceMaterials(validation.meshes);
 
@@ -529,6 +585,7 @@ export function upgradeWinterVegetationAssets(group, {
 		: null,
 	candidates = WINTER_VEGETATION_ASSET_POLICY.candidates,
 	targetHeightMeters = WINTER_VEGETATION_ASSET_POLICY.targetHeightMeters,
+	maxAnisotropy = 1,
 	signal,
 } = {}) {
 	if (!group?.userData) return Promise.resolve(makeStatus('invalid-group', { attemptedAssets: 0 }));
@@ -545,6 +602,7 @@ export function upgradeWinterVegetationAssets(group, {
 		assetProbe,
 		candidates,
 		targetHeightMeters,
+		maxAnisotropy,
 		signal,
 	}).finally(() => {
 		if (inFlightUpgrades.get(group) === promise) inFlightUpgrades.delete(group);
@@ -552,3 +610,4 @@ export function upgradeWinterVegetationAssets(group, {
 	inFlightUpgrades.set(group, promise);
 	return promise;
 }
+
