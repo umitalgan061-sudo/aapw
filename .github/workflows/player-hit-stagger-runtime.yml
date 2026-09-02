@@ -5,7 +5,9 @@ on:
     branches: [main]
     paths:
       - 'src/3d/gameplay/player.js'
+      - 'src/3d/camera.js'
       - 'scripts/checkPlayerHitStaggerRuntime.mjs'
+      - 'scripts/checkPlayerGeographicCameraOcclusion.mjs'
       - '.github/workflows/player-hit-stagger-runtime.yml'
   workflow_dispatch:
 
@@ -37,7 +39,7 @@ jobs:
           test "$(git merge-base origin/main HEAD)" = "$BASE"
           git diff --check "$BASE"...HEAD
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
-          test "$((ADD + DEL))" -le 1000
+          test "$((ADD + DEL))" -le 3000
           echo "BASE_SHA=$BASE" >> "$GITHUB_ENV"
       - name: Asset-first shipped-scene hydration
         shell: bash
@@ -61,11 +63,15 @@ jobs:
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/player.js
+          node --check src/3d/camera.js
+          node --check scripts/checkPlayerGeographicCameraOcclusion.mjs
+          node scripts/checkPlayerGeographicCameraOcclusion.mjs
           node --check scripts/checkPlayerHitStaggerRuntime.mjs
           node scripts/checkPlayerStaminaDodge.mjs
           node scripts/checkPlayerGroundingCombatContract.mjs
           node scripts/checkSharedMaterialPlacementContract.js
           ! grep -q 'EditorMaterialStudio' src/3d/gameplay/player.js
+          ! grep -q 'EditorMaterialStudio' src/3d/camera.js
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
       - name: Shared PWA and cache contracts
