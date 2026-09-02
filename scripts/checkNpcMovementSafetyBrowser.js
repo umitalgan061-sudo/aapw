@@ -29,9 +29,17 @@ async function main() {
       const { createNPC, spawnConfiguredNPCs } = await import('/src/3d/gameplay/npc.js');
 
       class FakeAssetLoader {
-        async loadFBXModel() {
+        async loadFBXModel(url = '') {
           const group = new THREE.Group();
           group.animations = [];
+          if (!String(url).includes('/animations/')) {
+            const geometry = new THREE.BoxGeometry(0.55, 1.8, 0.4);
+            const material = new THREE.MeshStandardMaterial({ roughness: 0.8 });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.name = 'Guard_Body';
+            mesh.position.y = 0.9;
+            group.add(mesh);
+          }
           return group;
         }
       }
@@ -112,14 +120,22 @@ async function main() {
       const malformedPatrolYaw = malformedPatrolNpc.object3D.rotation.y;
       malformedPatrolNpc.dispose();
 
-      const sampledWorldXs = [];
+      const sampledGroundPoints = [];
+      const configuredGroundCollider = {
+        getGroundHeight(x, z) {
+          sampledGroundPoints.push({ x, z });
+          if (Math.abs(x - 100) <= 40 && Math.abs(z) <= 40) return Number.NaN;
+          if (Math.abs(x - 200) <= 40 && Math.abs(z) <= 40) throw new Error('synthetic terrain sampler failure');
+          return 3;
+        },
+      };
       const configuredSpawns = await spawnConfiguredNPCs({
         assetLoader: new FakeAssetLoader(),
         npcConfig: {
           SPAWNS: [
-            { id: 'spawn-valid', seatId: 'seat-valid', offsetXMeters: 0, offsetZMeters: 0, modelUrl: '/valid.fbx' },
-            { id: 'spawn-invalid-ground', seatId: 'seat-invalid-ground', offsetXMeters: 0, offsetZMeters: 0, modelUrl: '/invalid-ground.fbx' },
-            { id: 'spawn-throwing-ground', seatId: 'seat-throwing-ground', offsetXMeters: 0, offsetZMeters: 0, modelUrl: '/throwing-ground.fbx' },
+            { id: 'spawn-valid', seatId: 'seat-valid', offsetXMeters: 12, offsetZMeters: 0, modelUrl: '/valid.fbx' },
+            { id: 'spawn-invalid-ground', seatId: 'seat-invalid-ground', offsetXMeters: 12, offsetZMeters: 0, modelUrl: '/invalid-ground.fbx' },
+            { id: 'spawn-throwing-ground', seatId: 'seat-throwing-ground', offsetXMeters: 12, offsetZMeters: 0, modelUrl: '/throwing-ground.fbx' },
             { id: 'spawn-invalid-offset', seatId: 'seat-invalid-offset', offsetXMeters: Number.NaN, offsetZMeters: 0, modelUrl: '/invalid-offset.fbx' },
             { id: 'spawn-invalid-world', seatId: 'seat-invalid-world', offsetXMeters: 0, offsetZMeters: 0, modelUrl: '/invalid-world.fbx' },
             { id: 'spawn-overflow-world', seatId: 'seat-overflow-world', offsetXMeters: Number.MAX_VALUE, offsetZMeters: 0, modelUrl: '/overflow-world.fbx' },
@@ -128,22 +144,18 @@ async function main() {
         },
         seatsById: new Map([
           ['seat-valid', { x: 0, z: 0 }],
-          ['seat-invalid-ground', { x: 10, z: 0 }],
-          ['seat-throwing-ground', { x: 20, z: 0 }],
-          ['seat-invalid-offset', { x: 30, z: 0 }],
+          ['seat-invalid-ground', { x: 100, z: 0 }],
+          ['seat-throwing-ground', { x: 200, z: 0 }],
+          ['seat-invalid-offset', { x: 300, z: 0 }],
           ['seat-invalid-world', { x: Infinity, z: 0 }],
           ['seat-overflow-world', { x: Number.MAX_VALUE, z: 0 }],
         ]),
-        sampleGroundY: (x) => {
-          sampledWorldXs.push(x);
-          if (x === 10) return Number.NaN;
-          if (x === 20) throw new Error('synthetic terrain sampler failure');
-          return 3;
-        },
-        groundCollider: { getGroundHeight: () => 3 },
+        sampleGroundY: () => { throw new Error('groundCollider should own configured geography sampling'); },
+        groundCollider: configuredGroundCollider,
         playerCollider: { resolveXZ: (x, z) => ({ x, z }) },
       });
       const configuredSpawnPosition = configuredSpawns[0]?.object3D.position.clone();
+      const configuredPlacementReady = configuredSpawns[0]?.object3D.userData.materialReadyForWorld === true;
       for (const npc of configuredSpawns) npc.dispose();
 
       const occlusionNpc = await createNPC({
@@ -170,6 +182,7 @@ async function main() {
       const occlusionPosition = occlusionNpc.object3D.position.clone();
       occlusionNpc.dispose();
 
+      const sampledXs = sampledGroundPoints.map((point) => point.x);
       return {
         colliderFinite: [colliderPosition.x, colliderPosition.y, colliderPosition.z].every(Number.isFinite),
         colliderStayedPut: colliderPosition.distanceTo(new THREE.Vector3(0, 0, 0)) < 1e-9,
@@ -186,9 +199,10 @@ async function main() {
         malformedPatrolSkipsColliderResolution: malformedPatrolColliderResolves === 0,
         configuredSpawnIsolation: configuredSpawns.length === 1 && configuredSpawns[0].object3D.name === 'spawn-valid',
         configuredSpawnGroundFinite: configuredSpawnPosition?.y === 3 && [configuredSpawnPosition.x, configuredSpawnPosition.y, configuredSpawnPosition.z].every(Number.isFinite),
-        invalidWorldSkippedBeforeSampling: sampledWorldXs.length === 3 && sampledWorldXs.every(Number.isFinite),
-        invalidOffsetSkippedBeforeSampling: !sampledWorldXs.includes(30),
-        overflowWorldSkippedBeforeSampling: !sampledWorldXs.includes(Number.MAX_VALUE),
+        configuredSpawnSharedPlacement: configuredPlacementReady,
+        invalidWorldSkippedBeforeSampling: sampledGroundPoints.every((point) => Number.isFinite(point.x) && Number.isFinite(point.z)),
+        invalidOffsetSkippedBeforeSampling: !sampledXs.some((x) => Number.isFinite(x) && Math.abs(x - 300) < 40),
+        overflowWorldSkippedBeforeSampling: !sampledXs.includes(Number.MAX_VALUE),
         losFailedClosed: perception.lineOfSight === false && perception.reason === 'occluded',
         invalidLosDidNotAlert: perception.intent === 'patrol' && perception.suspicion === 0,
         occlusionFinite: [occlusionPosition.x, occlusionPosition.y, occlusionPosition.z].every(Number.isFinite),
