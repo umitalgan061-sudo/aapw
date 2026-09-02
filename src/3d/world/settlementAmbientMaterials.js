@@ -240,46 +240,71 @@ roughnessFactor = clamp(max(roughnessFactor, ${roughnessBase.toFixed(3)}) + (amb
 	return material;
 }
 
-function mergeTranslatedBox(width, height, depth, x, y, z) {
+function translatedBox(width, height, depth, x, y, z) {
 	const geometry = new THREE.BoxGeometry(width, height, depth, 1, 1, 1);
 	geometry.translate(x, y, z);
 	return geometry;
 }
 
+function mergeOwnedGeometries(parts) {
+	const merged = mergeGeometries(parts, false);
+	parts.forEach((part) => part.dispose());
+	merged.computeVertexNormals();
+	return merged;
+}
+
+function createCrateFallbackGeometry() {
+	const parts = [];
+	const plankCount = 5;
+	const plankHeight = 0.145;
+	for (let index = 0; index < plankCount; index += 1) {
+		const y = 0.14 + index * 0.175;
+		parts.push(translatedBox(0.92, plankHeight, 0.075, 0, y, 0.465));
+		parts.push(translatedBox(0.92, plankHeight, 0.075, 0, y, -0.465));
+		parts.push(translatedBox(0.075, plankHeight, 0.78, 0.465, y, 0));
+		parts.push(translatedBox(0.075, plankHeight, 0.78, -0.465, y, 0));
+	}
+	for (const x of [-0.405, 0.405]) {
+		parts.push(translatedBox(0.095, 0.92, 0.10, x, 0.50, 0.49));
+		parts.push(translatedBox(0.095, 0.92, 0.10, x, 0.50, -0.49));
+	}
+	for (const z of [-0.405, 0.405]) {
+		parts.push(translatedBox(0.10, 0.92, 0.095, 0.49, 0.50, z));
+		parts.push(translatedBox(0.10, 0.92, 0.095, -0.49, 0.50, z));
+	}
+	parts.push(translatedBox(0.94, 0.075, 0.94, 0, 0.055, 0));
+	return mergeOwnedGeometries(parts);
+}
+
 /** Low-cost but recognisable geometry used only when a repository GLB cannot be hydrated. */
 export function createAmbientFallbackGeometry(familyId) {
 	if (familyId === 'barrel') {
-		const body = new THREE.CylinderGeometry(0.42, 0.45, 1.0, 12, 3, false);
+		const parts = [];
+		const body = new THREE.CylinderGeometry(0.42, 0.45, 1.0, 18, 5, false);
 		body.translate(0, 0.5, 0);
-		const upper = new THREE.TorusGeometry(0.43, 0.035, 4, 12);
-		upper.rotateX(Math.PI / 2);
-		upper.translate(0, 0.83, 0);
-		const lower = upper.clone();
-		lower.translate(0, -0.65, 0);
-		const merged = mergeGeometries([body, upper, lower], false);
-		body.dispose();
-		upper.dispose();
-		lower.dispose();
-		merged.computeVertexNormals();
-		return merged;
+		parts.push(body);
+		for (const y of [0.18, 0.39, 0.67, 0.86]) {
+			const band = new THREE.TorusGeometry(0.435, 0.026, 5, 18);
+			band.rotateX(Math.PI / 2);
+			band.translate(0, y, 0);
+			parts.push(band);
+		}
+		return mergeOwnedGeometries(parts);
 	}
+	if (familyId === 'crate') return createCrateFallbackGeometry();
 	if (familyId === 'bench') {
-		const seat = mergeTranslatedBox(2.4, 0.24, 0.68, 0, 0.83, 0);
-		const legA = mergeTranslatedBox(0.34, 0.72, 0.5, -0.72, 0.36, 0);
-		const legB = mergeTranslatedBox(0.34, 0.72, 0.5, 0.72, 0.36, 0);
-		const merged = mergeGeometries([seat, legA, legB], false);
-		seat.dispose();
-		legA.dispose();
-		legB.dispose();
-		merged.computeVertexNormals();
-		return merged;
+		const seat = translatedBox(2.4, 0.24, 0.68, 0, 0.83, 0);
+		const legA = translatedBox(0.34, 0.72, 0.5, -0.72, 0.36, 0);
+		const legB = translatedBox(0.34, 0.72, 0.5, 0.72, 0.36, 0);
+		const bevelRail = translatedBox(2.15, 0.13, 0.54, 0, 0.97, 0);
+		return mergeOwnedGeometries([seat, legA, legB, bevelRail]);
 	}
 	const box = new THREE.BoxGeometry(1, 1, 1, 2, 2, 2);
 	box.translate(0, 0.5, 0);
 	return box;
 }
 
-export function createAmbientFallbackMaterial(familyId) {
+export function createAmbientFallbackMaterial(familyId, { snow = 0, ash = 0 } = {}) {
 	const family = SETTLEMENT_AMBIENT_PROP_FAMILIES[familyId];
 	if (!family) throw new Error(`Unknown settlement ambient family: ${familyId}`);
 	const fabric = createAmbientFallbackFabricTextures(familyId);
@@ -291,11 +316,12 @@ export function createAmbientFallbackMaterial(familyId) {
 		normalScale: new THREE.Vector2(familyId === 'bench' ? 0.36 : 0.44, familyId === 'bench' ? 0.36 : 0.44),
 		roughness: family.roughnessFloor,
 		metalness: 0,
-		flatShading: familyId !== 'crate',
+		flatShading: familyId === 'bench',
 	});
 	material.userData.settlementAmbientFallbackFabric = true;
 	material.userData.settlementAmbientNormalFabric = true;
-	applyAmbientPropWorldSpaceWeathering(material, { kind: family.weatheringKind });
+	material.userData.settlementAmbientClimateFabric = Object.freeze({ snow: clamp01(snow), ash: clamp01(ash) });
+	applyAmbientPropWorldSpaceWeathering(material, { kind: family.weatheringKind, snow, ash });
 	return material;
 }
 
