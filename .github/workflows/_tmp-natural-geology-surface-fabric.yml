@@ -1,0 +1,189 @@
+name: Temporary natural geology surface fabric
+
+on:
+  push:
+    branches:
+      - codex/aapw-realism-20260831-ocean
+
+permissions:
+  contents: write
+
+jobs:
+  patch-natural-geology:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/aapw-realism-20260831-ocean
+          fetch-depth: 0
+      - name: Fast-forward live branch
+        run: git pull --ff-only origin codex/aapw-realism-20260831-ocean
+      - name: Apply production material weathering
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/3d/world/naturalGeology.js')
+          text = p.read_text()
+
+          def replace_once(old, new):
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected one match, found {count}: {old[:140]!r}')
+              text = text.replace(old, new, 1)
+
+          replace_once(
+              "const clamp01 = (value) => value < 0 ? 0 : value > 1 ? 1 : value;\n\nfunction createRockMaterial(color) {\n  const material = new THREE.MeshStandardMaterial({ color, roughness: NATURAL_GEOLOGY_RENDER_POLICY.proceduralRoughness, metalness: 0, flatShading: true });\n  material.userData.naturalGeology = true;\n  return material;\n}\n",
+              r'''const clamp01 = (value) => value < 0 ? 0 : value > 1 ? 1 : value;
+
+export const NATURAL_GEOLOGY_SURFACE_FABRIC_POLICY = Object.freeze({
+  id: 'natural-geology-world-space-surface-fabric-2026-09-02-v1',
+  renderOnly: true,
+  canonicalHeightUnchanged: true,
+  placementUnchanged: true,
+  macroMeters: 118,
+  mesoMeters: 31,
+  fineMeters: 6.4,
+  albedoVariation: true,
+  microNormalVariation: true,
+  roughnessVariation: true,
+  triaxialWorldSpaceSampling: true,
+});
+
+function applyNaturalGeologySurfaceFabric(material, { surface = 'rock' } = {}) {
+  if (!material?.isMeshStandardMaterial) return material;
+  const P = NATURAL_GEOLOGY_SURFACE_FABRIC_POLICY;
+  const previousCompile = material.onBeforeCompile;
+  const previousCacheKey = material.customProgramCacheKey;
+  material.userData ||= {};
+  material.userData.naturalGeologySurfaceFabric = Object.freeze({
+    policyId: P.id,
+    surface,
+    worldSpace: true,
+    multiScaleAlbedo: true,
+    microNormal: true,
+    roughnessVariation: true,
+  });
+
+  material.onBeforeCompile = (shader, renderer) => {
+    previousCompile?.(shader, renderer);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vNaturalGeologyWorldPosition;')
+      .replace(
+        '#include <worldpos_vertex>',
+        `#include <worldpos_vertex>
+        vec4 naturalGeologyWorldPosition = vec4(transformed, 1.0);
+        #ifdef USE_BATCHING
+          naturalGeologyWorldPosition = batchingMatrix * naturalGeologyWorldPosition;
+        #endif
+        #ifdef USE_INSTANCING
+          naturalGeologyWorldPosition = instanceMatrix * naturalGeologyWorldPosition;
+        #endif
+        vNaturalGeologyWorldPosition = (modelMatrix * naturalGeologyWorldPosition).xyz;`,
+      );
+
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+        varying vec3 vNaturalGeologyWorldPosition;
+        float naturalGeologyHash(vec2 p) {
+          p = fract(p * vec2(0.1031, 0.1030));
+          p += dot(p, p.yx + 33.33);
+          return fract((p.x + p.y) * p.x);
+        }
+        float naturalGeologyNoise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          float a = naturalGeologyHash(i);
+          float b = naturalGeologyHash(i + vec2(1.0, 0.0));
+          float c = naturalGeologyHash(i + vec2(0.0, 1.0));
+          float d = naturalGeologyHash(i + vec2(1.0, 1.0));
+          return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+        }
+        float naturalGeologyTriaxialNoise(vec3 p) {
+          float xy = naturalGeologyNoise(p.xy);
+          float xz = naturalGeologyNoise(p.xz + vec2(17.3, -6.1));
+          float yz = naturalGeologyNoise(p.yz + vec2(-11.7, 8.4));
+          return xy * 0.31 + xz * 0.39 + yz * 0.30;
+        }`,
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+        vec3 naturalGeologyP = vNaturalGeologyWorldPosition;
+        float naturalGeologyMacro = naturalGeologyTriaxialNoise(naturalGeologyP / ${P.macroMeters.toFixed(1)});
+        float naturalGeologyMeso = naturalGeologyTriaxialNoise(naturalGeologyP / ${P.mesoMeters.toFixed(1)} + vec3(13.7, -8.2, 5.9));
+        float naturalGeologyFine = naturalGeologyTriaxialNoise(naturalGeologyP / ${P.fineMeters.toFixed(1)} + vec3(-21.4, 9.6, 17.1));
+        float naturalGeologyWeather = clamp(naturalGeologyMacro * 0.52 + naturalGeologyMeso * 0.34 + naturalGeologyFine * 0.14, 0.0, 1.0);
+        float naturalGeologyDamp = smoothstep(0.56, 0.82, naturalGeologyTriaxialNoise(naturalGeologyP / 46.0 + vec3(4.2, 23.7, -9.1)));
+        vec3 naturalGeologyMineralCool = vec3(0.90, 0.94, 0.96);
+        vec3 naturalGeologyMineralWarm = vec3(1.055, 0.995, 0.91);
+        vec3 naturalGeologyMineral = mix(naturalGeologyMineralCool, naturalGeologyMineralWarm, naturalGeologyMacro);
+        diffuseColor.rgb *= mix(vec3(0.87), naturalGeologyMineral, 0.36 + naturalGeologyWeather * 0.24);
+        diffuseColor.rgb *= 0.92 + naturalGeologyMeso * 0.17 + naturalGeologyFine * 0.055;
+        diffuseColor.rgb *= 1.0 - naturalGeologyDamp * 0.085;`,
+      )
+      .replace(
+        '#include <normal_fragment_maps>',
+        `#include <normal_fragment_maps>
+        float naturalGeologyEpsilon = 0.19;
+        vec3 naturalGeologyMicroP = vNaturalGeologyWorldPosition / 4.8;
+        float naturalGeologyNx = naturalGeologyTriaxialNoise(naturalGeologyMicroP + vec3(naturalGeologyEpsilon, 0.0, 0.0))
+          - naturalGeologyTriaxialNoise(naturalGeologyMicroP - vec3(naturalGeologyEpsilon, 0.0, 0.0));
+        float naturalGeologyNy = naturalGeologyTriaxialNoise(naturalGeologyMicroP + vec3(0.0, naturalGeologyEpsilon, 0.0))
+          - naturalGeologyTriaxialNoise(naturalGeologyMicroP - vec3(0.0, naturalGeologyEpsilon, 0.0));
+        float naturalGeologyNz = naturalGeologyTriaxialNoise(naturalGeologyMicroP + vec3(0.0, 0.0, naturalGeologyEpsilon))
+          - naturalGeologyTriaxialNoise(naturalGeologyMicroP - vec3(0.0, 0.0, naturalGeologyEpsilon));
+        normal = normalize(normal + mat3(viewMatrix) * vec3(naturalGeologyNx, naturalGeologyNy, naturalGeologyNz) * 0.095);`,
+      )
+      .replace(
+        '#include <roughnessmap_fragment>',
+        `#include <roughnessmap_fragment>
+        float naturalGeologyRoughVariation = (naturalGeologyMeso - 0.5) * 0.19 + (naturalGeologyFine - 0.5) * 0.11;
+        roughnessFactor = clamp(0.86 + naturalGeologyRoughVariation - naturalGeologyDamp * 0.12, 0.58, 1.0);`,
+      );
+  };
+  material.customProgramCacheKey = () => `${previousCacheKey?.() || ''}:${P.id}:${surface}`;
+  material.needsUpdate = true;
+  return material;
+}
+
+function createRockMaterial(color, surface = 'rock') {
+  const material = new THREE.MeshStandardMaterial({ color, roughness: NATURAL_GEOLOGY_RENDER_POLICY.proceduralRoughness, metalness: 0, flatShading: true });
+  material.userData.naturalGeology = true;
+  return applyNaturalGeologySurfaceFabric(material, { surface });
+}
+'''
+          )
+          replace_once(
+              "const mesh = new THREE.InstancedMesh(createNaturalRockPrototypeGeometry(kind), createRockMaterial(colors[kind] ?? 0x66615a), placements.length);",
+              "const mesh = new THREE.InstancedMesh(createNaturalRockPrototypeGeometry(kind), createRockMaterial(colors[kind] ?? 0x66615a, kind), placements.length);",
+          )
+          replace_once(
+              "  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.97, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });\n  const mesh = new THREE.Mesh(geometry, material);",
+              "  const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.97, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });\n  applyNaturalGeologySurfaceFabric(material, { surface: 'valyria-volcanic' });\n  const mesh = new THREE.Mesh(geometry, material);",
+          )
+          replace_once(
+              "const sourceMesh = validation.meshes[meshIndex], material = sourceMesh.material.clone(); material.metalness = 0; material.roughness = Math.max(material.roughness ?? 0, NATURAL_GEOLOGY_RENDER_POLICY.hydratedRoughnessFloor);",
+              "const sourceMesh = validation.meshes[meshIndex], material = sourceMesh.material.clone(); material.metalness = 0; material.roughness = Math.max(material.roughness ?? 0, NATURAL_GEOLOGY_RENDER_POLICY.hydratedRoughnessFloor); applyNaturalGeologySurfaceFabric(material, { surface: `hydrated-${family}` });",
+          )
+
+          p.write_text(text)
+          PY
+      - name: Syntax and diff proof
+        run: |
+          node --check src/3d/world/naturalGeology.js
+          git diff --check
+      - name: Commit production patch and remove workflow
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/3d/world/naturalGeology.js
+          git rm .github/workflows/_tmp-natural-geology-surface-fabric.yml
+          git commit -m "feat(world): weather natural geology surfaces in world space"
+          git push origin HEAD:codex/aapw-realism-20260831-ocean
