@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-02-v85-full-world-ecotone-readability',
+	id: 'geographic-reference-palette-2026-09-02-v86-full-world-material-family-separation',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,23 +20,23 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v85 is a second same-run production iteration after direct inspection of the v84 exact-head full-world render. v84 improved separation but broad temperate and dry lowlands still merged at aerial scale. Meadow therefore gains one bounded value/chroma step, dry heather gains a slightly clearer ochre-mineral identity, exposed earth retreats into a darker mineral family, and granite remains cool and materially distinct from quartz. Existing deterministic world-space albedo/normal/roughness fabric, erosion, weathering and ecological transition masks continue to provide local breakup; canonical biome placement, terrain geometry, cryosphere masks, coastline, hydrology and colliders remain unchanged.',
-		water: 'v85 preserves the physically ordered deepSea-to-abyss relationship and all existing kilometre/meso/fine world-space marine fabric, current shear, roughness and bathymetric optical response. Canonical bathymetry, wet coverage, shoreline, lake membership, water geometry and colliders remain unchanged.',
-		road: 'v85 preserves compacted-earth versus rut/stone separation while retaining canonical routes and world-space wear.',
+		terrain: 'v86 is a full-world material-family separation pass after direct inspection of exact-head render #998. Broad temperate lowland, dry heath/exposed-earth and cool rock families still collapsed into one muddy aerial value range even though deterministic world-space albedo/normal/roughness, erosion, drainage and ecological breakup were active. Meadow is therefore slightly deeper and less yellow, dry heather receives a clearer mineral-ochre identity, exposed earth retreats darker, and granite gains a wider cool shadow-to-sunlit range. The existing shader remains responsible for multi-scale breakup and weathering; canonical biome placement, terrain geometry, cryosphere masks, coastline, hydrology and colliders remain unchanged.',
+		water: 'v86 preserves the physically ordered deepSea-to-abyss relationship and all existing kilometre/meso/fine world-space marine fabric, current shear, roughness, organic near/far handoff and bathymetric optical response. Canonical bathymetry, wet coverage, shoreline, lake membership, water geometry and colliders remain unchanged.',
+		road: 'v86 preserves compacted-earth versus rut/stone separation while retaining canonical routes and world-space wear.',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x0d2918,
-		meadow: 0x578e5c,
-		dryHeather: 0x826247,
-		wetEarth: 0x132018,
-		exposedEarth: 0x664735,
-		graniteShadow: 0x253137,
-		graniteSunlit: 0x556269,
-		basaltWet: 0x0f1b20,
+		mossShadow: 0x0b2516,
+		meadow: 0x4f8453,
+		dryHeather: 0x896546,
+		wetEarth: 0x111d16,
+		exposedEarth: 0x5b3f30,
+		graniteShadow: 0x222f35,
+		graniteSunlit: 0x5c686d,
+		basaltWet: 0x0d191e,
 		quartz: 0xaaa399,
 	}),
 	road: Object.freeze({
