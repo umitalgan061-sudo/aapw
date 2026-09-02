@@ -9,6 +9,7 @@ on:
       - 'scripts/checkVillageArchitectureAssets.js'
       - 'scripts/checkVillageArchitectureDistribution.mjs'
       - 'scripts/checkArchitectureSurfaceSemantics.mjs'
+      - 'scripts/checkVillageGlbAssetInventory.mjs'
       - 'scripts/checkVillageRuntimeArchitectureIntegration.js'
       - 'scripts/village-architecture-harness.html'
       - 'service-worker.js'
@@ -41,7 +42,7 @@ jobs:
           while IFS= read -r path; do
             [ -z "$path" ] && continue
             case "$path" in
-              src/3d/world/villages.js|src/3d/materials/meshPartClassifier.js|src/3d/materials/figureKits.js|scripts/checkVillageArchitectureAssets.js|scripts/checkVillageArchitectureDistribution.mjs|scripts/checkArchitectureSurfaceSemantics.mjs|scripts/checkVillageRuntimeArchitectureIntegration.js|scripts/village-architecture-harness.html|service-worker.js|.github/workflows/run167-determinism-policy.yml|.github/workflows/run283-final-head-governance.yml|.github/workflows/village-architecture-assets.yml) ;;
+              src/3d/world/villages.js|src/3d/materials/meshPartClassifier.js|src/3d/materials/figureKits.js|scripts/checkVillageArchitectureAssets.js|scripts/checkVillageArchitectureDistribution.mjs|scripts/checkArchitectureSurfaceSemantics.mjs|scripts/checkVillageGlbAssetInventory.mjs|scripts/checkVillageRuntimeArchitectureIntegration.js|scripts/village-architecture-harness.html|service-worker.js|.github/workflows/run167-determinism-policy.yml|.github/workflows/run283-final-head-governance.yml|.github/workflows/village-architecture-assets.yml) ;;
               *) echo "unexpected village architecture scope path: $path"; exit 1 ;;
             esac
           done <<< "$CHANGED"
@@ -71,7 +72,7 @@ jobs:
       - name: Resolve vendored Three.js for Node contracts
         run: node scripts/setupNodeThreeShim.mjs
 
-      - name: Syntax, surface semantics, landmark distribution and deterministic world policy
+      - name: Syntax, asset inventory, surface semantics, distribution and determinism
         run: |
           node --check src/3d/world/villages.js
           node --check src/3d/materials/meshPartClassifier.js
@@ -79,7 +80,9 @@ jobs:
           node --check scripts/checkVillageArchitectureAssets.js
           node --check scripts/checkVillageArchitectureDistribution.mjs
           node --check scripts/checkArchitectureSurfaceSemantics.mjs
+          node --check scripts/checkVillageGlbAssetInventory.mjs
           node --check scripts/checkVillageRuntimeArchitectureIntegration.js
+          node scripts/checkVillageGlbAssetInventory.mjs
           node scripts/checkArchitectureSurfaceSemantics.mjs
           node scripts/checkVillageArchitectureDistribution.mjs
           node scripts/checkSeededRandomPolicy.js
