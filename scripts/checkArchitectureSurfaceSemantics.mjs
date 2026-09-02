@@ -22,6 +22,11 @@ const CASES = [
 	{ meshName: 'Ahsap_Kiris', materialName: 'Tahta', slot: 'structure-timber' },
 	{ meshName: 'Kapi', materialName: 'Kapi', slot: 'structure-door' },
 	{ meshName: 'Pencere', materialName: 'Vitray', slot: 'structure-window' },
+	{ meshName: 'HouseShell', materialName: 'Wood', slot: 'structure-timber' },
+	{ meshName: 'Foundation', materialName: 'Stone', slot: 'structure-stone' },
+	{ meshName: 'WindowPane', materialName: 'Glass', slot: 'structure-window' },
+	{ meshName: 'DoorHardware', materialName: 'Iron', slot: 'structure-metal' },
+	{ meshName: 'RoofTrim', materialName: 'Metal', slot: 'structure-metal' },
 ];
 
 for (const testCase of CASES) {
@@ -39,22 +44,23 @@ assert.equal(
 	'artist material semantics must outrank a competing mesh name',
 );
 
-// Deliberately generic façade and hardware names remain unclassified. This is the fail-closed side of
-// the contract: the destination house/brick palette remains authoritative rather than guessing.
+// Generic façade/object names still fail closed. Physical material nouns are allowed only because
+// they describe a real surface substance; a bare wall/building/material id still does not justify a
+// guessed semantic override.
 for (const generic of [
 	{ meshName: 'House_Wall', materialName: 'Wall' },
-	{ meshName: 'StoneWall', materialName: 'Material.001' },
-	{ meshName: 'House', materialName: 'Metal' },
-	{ meshName: 'Building', materialName: 'Iron' },
+	{ meshName: 'House', materialName: 'Surface' },
+	{ meshName: 'Building', materialName: 'Material' },
 	{ meshName: 'Mesh_02', materialName: 'Material_04' },
 ]) {
 	assert.equal(classifyPart(generic), null, `generic surface must fail closed: ${JSON.stringify(generic)}`);
 }
 
-// Existing high-priority creature/human vocabulary must still win. Architecture additions are not
-// allowed to relabel a character's equipment or a creature's anatomy.
+// Existing high-priority creature/human vocabulary must still win even when their artist materials
+// contain low-priority architectural substances.
 assert.equal(classifyPart({ meshName: 'Paladin_Helmet', materialName: 'Steel_Plate' })?.slot, 'helmet');
 assert.equal(classifyPart({ meshName: 'Knight_Shield', materialName: 'Wooden_Plank' })?.slot, 'armor');
+assert.equal(classifyPart({ meshName: 'Knight_Sword', materialName: 'Iron' })?.slot, 'armor');
 assert.equal(classifyPart({ meshName: 'Wolf3_teeth', materialName: 'Wolf Teeth' })?.slot, 'tooth');
 assert.equal(classifyPart({ meshName: 'GameDragonWing', materialName: 'Wing_Membrane' })?.slot, 'wing');
 assert.equal(classifyPart({ meshName: 'HumanBody', materialName: 'Skin' })?.slot, 'skin');
@@ -68,9 +74,9 @@ const fakeMesh = {
 	name: 'Authored_House',
 	material: [
 		{ name: 'Roof_Tile' },
-		{ name: 'Window_Glass' },
+		{ name: 'Glass' },
 		{ name: 'Oak_Door' },
-		{ name: 'Timber_Beam' },
+		{ name: 'Wood' },
 		{ name: 'Wall_Material' },
 	],
 };
