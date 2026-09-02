@@ -44,6 +44,9 @@ for (const spawn of NPC_CONFIG.SPAWNS) {
 		desiredBaseSurface: desired.baseSurface ?? null,
 		desiredBiome: desired.surface?.biome ?? null,
 		baseSurface: placement.geography.baseSurface,
+		rawBaseSurface: placement.geography.rawBaseSurface,
+		seatProtectedLand: placement.geography.seatProtectedLand,
+		seatProtectedLandWeight: placement.geography.seatProtectedLandWeight,
 		biome: placement.geography.surface.biome,
 		zoneId: placement.geography.zoneId,
 		slopeDegrees: placement.geography.surface.slopeDegrees,
@@ -74,6 +77,11 @@ for (const record of records) {
 	assert.ok(record.seatDistanceMeters >= 10 && record.seatDistanceMeters <= 30, `${record.id} left 10-30m settlement envelope`);
 	assert.ok(['local', 'settlement-ring'].includes(record.relocationMode), `${record.id} has unknown relocation mode ${record.relocationMode}`);
 	assert.ok(Math.abs(record.displacementFromDesired - record.reportedDisplacement) < 1e-9, `${record.id} displacement telemetry drifted`);
+	if (['sea', 'lake'].includes(record.rawBaseSurface)) {
+		assert.equal(record.seatProtectedLand, true, `${record.id} raw false-water cell bypassed seat-safe hydrology`);
+		assert.ok(record.seatProtectedLandWeight > 0, `${record.id} protected settlement land has zero hydrology weight`);
+		assert.equal(record.baseSurface, 'soil', `${record.id} protected false-water cell was not composed back to dry soil`);
+	}
 	if (record.relocationMode === 'local') {
 		assert.ok(record.relocationMeters <= 8, `${record.id} exceeded 8m local relocation budget`);
 		assert.ok(record.displacementFromDesired <= 8 + 1e-9, `${record.id} local repair escaped 8m authored budget`);
@@ -92,6 +100,8 @@ for (const record of records) {
 	}
 }
 
+const falseWaterRecoveries = records.filter((record) => ['sea', 'lake'].includes(record.rawBaseSurface));
+assert.ok(falseWaterRecoveries.length > 0, 'configured distribution no longer exercises protected settlement false-water composition');
 const collisions = [...occupied.entries()].filter(([, ids]) => ids.length > 1);
 assert.deepEqual(collisions, [], `configured guards collapse onto identical positions: ${JSON.stringify(collisions)}`);
 const authoredPatrols = records.filter((record) => record.patrolAuthored);
@@ -103,6 +113,7 @@ const summary = {
 	settlementsCovered: new Set(records.map((record) => record.seatId)).size,
 	uniqueModels: new Set(records.map((record) => record.modelUrl)).size,
 	uniqueBiomes: [...new Set(records.map((record) => record.biome))].sort(),
+	protectedFalseWaterRecoveries: falseWaterRecoveries.length,
 	localRelocations: records.filter((record) => record.relocationMode === 'local' && record.relocated).length,
 	settlementRingRecoveries: records.filter((record) => record.relocationMode === 'settlement-ring').length,
 	maxLocalRelocationMeters: Math.max(...records.filter((record) => record.relocationMode === 'local').map((record) => record.relocationMeters), 0),
