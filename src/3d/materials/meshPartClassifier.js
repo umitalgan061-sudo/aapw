@@ -118,6 +118,9 @@ const CONTEXTUAL_STRUCTURE_MATERIALS = Object.freeze(new Map([
 	['steel', 'structure-metal'],
 ]));
 
+const NON_CHARACTER_CONTEXT_WORDS = Object.freeze(['tool']);
+const GENERIC_SKIN_WORDS = Object.freeze(new Set(['head', 'body', 'hand', 'arm']));
+
 /**
  * Word-boundary match with the same Turkish-aware suffix allowance the palette matcher uses, but
  * additionally splitting on digits and camelCase — asset names are `Wolf3_eyes_0`, `Paladin_J_Nordstrom_Helmet`,
@@ -141,6 +144,12 @@ function contextualArchitectureMatch(meshName, materialName) {
 	if (!slot) return null;
 	// Stronger than generic body/clothing vocabulary, weaker than explicit structural/equipment nouns.
 	return { slot, score: 1500 + materialKey.length, matchedWord: materialKey, contextual: true };
+}
+
+function suppressNonCharacterAnatomy(meshName, match) {
+	if (match?.slot !== 'skin' || !GENERIC_SKIN_WORDS.has(match.matchedWord)) return false;
+	const meshTokens = tokenize(meshName);
+	return meshTokens.some((token) => NON_CHARACTER_CONTEXT_WORDS.includes(token));
 }
 
 /**
@@ -175,6 +184,10 @@ export function classifyPart({ meshName = '', materialName = '' } = {}) {
 
 	const contextual = contextualArchitectureMatch(meshName, materialName);
 	if (contextual && (!best || contextual.score > best.score)) best = contextual;
+	// Compound prop names such as `ToolHead` are common in imported models. Their generic anatomy
+	// suffix must not turn a non-character object into skin; preserve its authored material unless a
+	// stronger explicit equipment/structure semantic exists.
+	if (!contextual && suppressNonCharacterAnatomy(meshName, best)) return null;
 	return best;
 }
 
