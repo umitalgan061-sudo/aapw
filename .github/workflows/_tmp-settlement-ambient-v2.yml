@@ -1,0 +1,46 @@
+name: Temporary settlement ambient v2 production patch
+
+on:
+  push:
+    paths:
+      - '.github/workflows/_tmp-settlement-ambient-v2.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/aapw-realism-20260831-ocean
+          fetch-depth: 0
+
+      - name: Apply route-facing distribution and fallback surface fabric
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/apply-settlement-ambient-v2.py
+          node --check src/3d/world/settlementAmbientProps.js
+          node --check scripts/checkSettlementAmbientProps.js
+          git diff --check
+
+      - name: Commit, rebase and publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f .github/apply-settlement-ambient-v2.py .github/workflows/_tmp-settlement-ambient-v2.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/3d/world/settlementAmbientProps.js scripts/checkSettlementAmbientProps.js .github
+          git commit -m 'feat(world): make settlement props route-aware and textured'
+          for attempt in 1 2 3; do
+            git fetch origin codex/aapw-realism-20260831-ocean
+            if ! git rebase origin/codex/aapw-realism-20260831-ocean; then
+              git rebase --abort || true
+              exit 1
+            fi
+            if git push origin HEAD:codex/aapw-realism-20260831-ocean; then exit 0; fi
+          done
+          exit 1
