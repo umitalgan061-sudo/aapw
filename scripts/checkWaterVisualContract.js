@@ -79,7 +79,8 @@ async function main() {
 			const uniforms = water.material.uniforms;
 			for (const name of [
 				'uTime', 'uShallowColor', 'uDeepColor', 'uSunDirection', 'uSunColor', 'uSunIntensity',
-				'uNightFactor', 'uCameraPosition', 'uDepthMap', 'uDepthFieldExtentMeters', 'uSwellStrength', 'uFarLayerMask',
+				'uNightFactor', 'uCameraPosition', 'uDepthMap', 'uOffshoreMap', 'uDepthFieldExtentMeters',
+				'uOwnerWorldHalfExtent', 'uSwellStrength', 'uFarLayerMask',
 			]) fail(Boolean(uniforms?.[name]), `water uniform ${name} is missing`);
 			fail(Boolean(uniforms?.fogColor && uniforms?.fogNear && uniforms?.fogFar && uniforms?.fogDensity), 'water fog uniforms are missing');
 			fail(uniforms.uShallowColor.value.getHex() === GEOGRAPHIC_REFERENCE_PALETTE.water.shoreClear, 'reference clear-shore hue drifted');
@@ -93,6 +94,8 @@ async function main() {
 			fail(optical.nightAbsorptionFromCelestialState === true, 'water night-response metadata disappeared');
 			fail(optical.depthFieldEdgeOpticalFeather === true && optical.farMarineOpticalDepthFromOffshoreDistance === true,
 				'full-world marine optical handoff metadata disappeared');
+			fail(optical.organicRadialLayerHandoff === true && optical.ownerWorldBorderOpticalSeal === true,
+				'organic near/far or owner-world marine seam suppression metadata disappeared');
 			fail(WATER_SURFACE_VARIATION_POLICY.renderOnly === true
 				&& WATER_SURFACE_VARIATION_POLICY.canonicalDepthUnchanged === true
 				&& WATER_SURFACE_VARIATION_POLICY.canonicalCoverageUnchanged === true,
@@ -101,15 +104,18 @@ async function main() {
 			const vertexShader = water.material.vertexShader;
 			const fragmentShader = water.material.fragmentShader;
 			fail(vertexShader.includes('sampleDepthFactor') && vertexShader.includes('uSwellStrength'), 'depth-tapered swell contract drifted');
+			fail(vertexShader.includes('length(position.xz)') && !vertexShader.includes('max(abs(position.x), abs(position.z))'),
+				'near-water swell taper regressed to an axis-aligned square footprint');
 			fail(fragmentShader.includes('smoothstep(0.04, 0.82, fragmentDepth)'), 'extended shallow-to-deep color grading disappeared');
 			fail(fragmentShader.includes('1.0 - exp(-fragmentDepth * 3.2)'), 'Beer-Lambert-inspired optical depth disappeared');
 			fail(fragmentShader.includes('uSunColor') && fragmentShader.includes('uSunIntensity') && fragmentShader.includes('celestialSpecular'), 'live celestial water specular disappeared');
 			for (const token of ['enclosedLakeMask', 'clearCoastMask', 'referenceLakeClear', 'bedReadability', 'uNightFactor', 'nightAbsorption']) {
 				fail(fragmentShader.includes(token), `water reference-optics shader missing ${token}`);
 			}
-			for (const token of ['farLayerBlend', 'nearLayerBlend', 'layerOpacity', 'waterFieldEdgeOpticalBlend', 'farMarineOpticalFloor']) {
-				fail(fragmentShader.includes(token), `water layer-handoff shader missing ${token}`);
-			}
+			for (const token of [
+				'organicLayerDistance', 'farLayerBlend', 'nearLayerBlend', 'layerOpacity',
+				'waterFieldEdgeOpticalBlend', 'farMarineOpticalFloor', 'ownerWorldBorderOpticalSeal', 'ownerBorderMarineSeal',
+			]) fail(fragmentShader.includes(token), `water layer-handoff shader missing ${token}`);
 			fail(fragmentShader.includes('#include <fog_pars_fragment>') && fragmentShader.includes('#include <fog_fragment>'), 'water fog chunks drifted');
 
 			// Custom-shader key follows the same published celestial state as lighting.js. First prove a
@@ -183,7 +189,7 @@ async function main() {
 		assert(result.vertexCount === 16641 && result.indexCount === 98304, 'water topology mismatch escaped browser contract');
 		assert(result.fullWorldExtent === result.backdropExtent && result.backdropExtent >= 28000,
 			'full-world water/backdrop extent composition escaped browser validation');
-		console.log(`[checkWaterVisualContract] PASS: depth-clear ${result.optical.shallowAlpha.toFixed(2)}→${result.optical.deepAlpha.toFixed(2)} alpha, live sun/moon specular, near/far/deep-ocean composition, ${result.vertexCount} near-water vertices.`);
+		console.log(`[checkWaterVisualContract] PASS: depth-clear ${result.optical.shallowAlpha.toFixed(2)}→${result.optical.deepAlpha.toFixed(2)} alpha, live sun/moon specular, organic near/far + owner-border marine seam suppression, ${result.vertexCount} near-water vertices.`);
 	} finally {
 		await browser.close();
 		await new Promise((resolve) => server.close(resolve));
