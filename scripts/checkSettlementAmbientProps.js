@@ -83,6 +83,8 @@ async function main() {
       fail(SETTLEMENT_AMBIENT_PROP_POLICY.canonicalHydrologyUnchanged === true, 'canonical hydrology authority drift');
       fail(SETTLEMENT_AMBIENT_PROP_POLICY.canonicalRoadsUnchanged === true, 'canonical road authority drift');
       fail(SETTLEMENT_AMBIENT_PROP_POLICY.canonicalCollidersUnchanged === true, 'canonical collider authority drift');
+      fail(SETTLEMENT_AMBIENT_PROP_POLICY.routeShoulderProjection === true, 'real routed-road shoulder projection disabled');
+      fail(SETTLEMENT_AMBIENT_PROP_POLICY.maximumLogisticsRoadDistanceMeters <= 24, 'logistics road shoulder band widened excessively');
       fail(SETTLEMENT_AMBIENT_PROP_POLICY.innerRadiusMeters >= 50, 'ambient apron entered castle footprint');
       fail(SETTLEMENT_AMBIENT_PROP_POLICY.outerRadiusMeters < 100, 'ambient apron escaped kingdom-seat vicinity');
       fail(Object.keys(SETTLEMENT_AMBIENT_PROP_FAMILIES).length === 3, 'expected exactly three ambient prop families');
@@ -140,6 +142,9 @@ async function main() {
       const representedFamilies = new Set();
       let snowPlacements = 0;
       let valyriaPlacements = 0;
+      let logisticsPlacements = 0;
+      let logisticsRoadDistanceTotal = 0;
+      let maxLogisticsRoadDistance = 0;
       let minRoadDistance = Infinity;
       let maxSlope = 0;
       let minSeatDistance = Infinity;
@@ -154,6 +159,14 @@ async function main() {
         fail(placement.y > WORLD_DEFAULTS.WATER_LEVEL_METERS + SETTLEMENT_AMBIENT_PROP_POLICY.shorelineClearanceMeters - 1e-6, `wet/shore placement ${placement.id}`);
         fail(placement.slopeDegrees <= SETTLEMENT_AMBIENT_PROP_POLICY.maximumSlopeDegrees + 1e-6, `slope breach ${placement.id}`);
         fail(placement.roadDistanceMeters >= SETTLEMENT_AMBIENT_PROP_POLICY.minimumRoadDistanceMeters - 1e-6, `road clearance breach ${placement.id}`);
+        if (placement.distributionRole === 'logistics') {
+          logisticsPlacements += 1;
+          logisticsRoadDistanceTotal += placement.roadDistanceMeters;
+          maxLogisticsRoadDistance = Math.max(maxLogisticsRoadDistance, placement.roadDistanceMeters);
+          fail(placement.routeFacing === true, `logistics prop lost route-facing proof ${placement.id}`);
+          fail(Number.isInteger(placement.routeEdgeIndex) && Number.isInteger(placement.routeSegmentIndex), `logistics route segment proof missing ${placement.id}`);
+          fail(placement.roadDistanceMeters <= SETTLEMENT_AMBIENT_PROP_POLICY.maximumLogisticsRoadDistanceMeters + 1e-6, `logistics prop escaped road shoulder ${placement.id}: ${placement.roadDistanceMeters}`);
+        }
         fail(placement.seatDistanceMeters >= SETTLEMENT_AMBIENT_PROP_POLICY.innerRadiusMeters - 1e-6, `inner apron breach ${placement.id}`);
         fail(placement.seatDistanceMeters <= SETTLEMENT_AMBIENT_PROP_POLICY.outerRadiusMeters + 1e-6, `outer apron breach ${placement.id}`);
         fail(nearlyEqual(sampleHeightMeters(placement.x, placement.z), placement.y, 1e-6), `terrain grounding drift ${placement.id}`);
@@ -168,6 +181,10 @@ async function main() {
       fail(representedFamilies.size === 3, `ambient prop family diversity ${representedFamilies.size}/3`);
       fail(planA.stats.routeApproachSeatCount >= 6, `only ${planA.stats.routeApproachSeatCount} seats resolved a live road approach`);
       fail(planA.stats.roleCounts.logistics > 0 && planA.stats.roleCounts.social > 0, `ambient distribution roles collapsed: ${JSON.stringify(planA.stats.roleCounts)}`);
+      fail(logisticsPlacements === planA.stats.logisticsShoulderCount, `logistics shoulder stats drift ${logisticsPlacements}/${planA.stats.logisticsShoulderCount}`);
+      fail(logisticsPlacements === planA.stats.roleCounts.logistics, `logistics role stats drift ${logisticsPlacements}/${planA.stats.roleCounts.logistics}`);
+      fail(nearlyEqual(planA.stats.meanLogisticsRoadDistanceMeters, logisticsRoadDistanceTotal / logisticsPlacements, 1e-6), 'mean logistics road distance metadata drift');
+      fail(nearlyEqual(planA.stats.maxLogisticsRoadDistanceMeters, maxLogisticsRoadDistance, 1e-6), 'max logistics road distance metadata drift');
       fail(planA.placements.some((placement) => placement.routeFacing === true), 'no route-facing logistics props survived geographic rejection');
       fail(snowPlacements > 0, 'north climate authority did not affect any ambient placement');
       fail(valyriaPlacements > 0, 'Valyria authority did not affect any ambient placement');
@@ -191,7 +208,8 @@ async function main() {
       fail(fallbackMaterials.every((material) => material.userData.settlementAmbientWeathering.microNormal === true), 'fallback lost micro-normal breakup');
       fail(fallbackMaterials.every((material) => material.userData.settlementAmbientWeathering.roughnessVariation === true), 'fallback lost roughness breakup');
       fail(fallbackMaterials.every((material) => material.userData.settlementAmbientFallbackFabric === true), 'fallback family-specific surface fabric missing');
-      fail(fallbackMaterials.every((material) => material.map?.userData?.settlementAmbientFallbackFabric === true && material.roughnessMap?.userData?.settlementAmbientFallbackFabric === true), 'fallback albedo/roughness texture fabric missing');
+      fail(fallbackMaterials.every((material) => material.map?.userData?.settlementAmbientFallbackFabric === true && material.roughnessMap?.userData?.settlementAmbientFallbackFabric === true && material.normalMap?.userData?.settlementAmbientFallbackFabric === true), 'fallback albedo/roughness/normal texture fabric missing');
+      fail(fallbackMaterials.every((material) => material.userData.settlementAmbientNormalFabric === true), 'fallback normal fabric metadata missing');
 
       const hydration = await upgradeSettlementAmbientPropAssets(ambient.group, {
         isMobileClass: false,
@@ -226,9 +244,9 @@ async function main() {
         fail(surface && Number.isFinite(surface.height), `hydrated placement lost surface proof: ${wrapper.name}`);
         fail(surface.slopeDegrees == null || surface.slopeDegrees <= SETTLEMENT_AMBIENT_PROP_POLICY.maximumSlopeDegrees + 1e-6, `hydrated placement slope breach: ${wrapper.name}`);
         fail(surface.roadDistance == null || surface.roadDistance >= SETTLEMENT_AMBIENT_PROP_POLICY.minimumRoadDistanceMeters - 1e-6, `hydrated placement road breach: ${wrapper.name}`);
+        fail(wrapper.userData.distributionRole !== 'logistics' || surface.roadDistance == null || surface.roadDistance <= SETTLEMENT_AMBIENT_PROP_POLICY.maximumLogisticsRoadDistanceMeters + 1e-6, `hydrated logistics prop escaped road shoulder: ${wrapper.name}`);
       }
 
-      // Choose the best-populated seat so the visual artifact shows an actual geographic cluster.
       const placementsBySeat = new Map();
       for (const placement of planA.placements) {
         if (!placementsBySeat.has(placement.seatId)) placementsBySeat.set(placement.seatId, []);
@@ -332,6 +350,9 @@ async function main() {
         climateCounts: planA.stats.climateCounts,
         roleCounts: planA.stats.roleCounts,
         routeApproachSeatCount: planA.stats.routeApproachSeatCount,
+        logisticsShoulderCount: planA.stats.logisticsShoulderCount,
+        meanLogisticsRoadDistanceMeters: planA.stats.meanLogisticsRoadDistanceMeters,
+        maxLogisticsRoadDistanceMeters: planA.stats.maxLogisticsRoadDistanceMeters,
         minRoadDistance,
         maxSlope,
         minSeatDistance,
@@ -360,6 +381,8 @@ async function main() {
     });
 
     assert(result.placementCount >= 40, `unexpected browser placement count ${result.placementCount}`);
+    assert(result.logisticsShoulderCount > 0, 'browser produced no routed-road shoulder props');
+    assert(result.maxLogisticsRoadDistanceMeters <= 23 + 1e-6, `browser logistics shoulder escaped: ${result.maxLogisticsRoadDistanceMeters}`);
     assert(result.hydration.status === 'active', 'browser did not hydrate real prop assets');
     assert(result.renderCalls > 0 && result.triangles > 0, 'browser produced empty render');
     assert(browserErrors.length === 0, `browser emitted errors: ${browserErrors.join(' | ')}`);
@@ -372,6 +395,7 @@ async function main() {
     await page.evaluate(() => window.__settlementAmbientQa?.cleanup?.());
     console.log(
       `[checkSettlementAmbientProps] PASS: ${result.placementCount} deterministic canonical-seat apron props, `
+      + `${result.logisticsShoulderCount} constrained to real routed-road shoulders (max ${result.maxLogisticsRoadDistanceMeters.toFixed(2)}m), `
       + `${result.hydration.hydratedPlacementCount} hydrated from ${result.hydration.activeFamilyCount} real GLB families, `
       + `${result.authoredMapsSeen} authored-map material(s), ${result.terrainChunkCount} real terrain chunks, `
       + `WebGL ${result.renderCalls} calls/${result.triangles} triangles; screenshot ${screenshotPath}`,
