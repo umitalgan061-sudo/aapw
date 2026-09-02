@@ -58,6 +58,7 @@ assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.volcanicOxidationWeatheringResponse, 
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.volcanicSulfuricWeatheringResponse, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.smallFallbackShadowSuppression, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.roundedBoulderNormalResponse, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.volcanicFallbackSmoothedLightingNormals, true);
 assert(NATURAL_GEOLOGY_RENDER_POLICY.fallbackLinearAlbedoFloor >= 0.04);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.hydratedRegionalTint, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.canonicalTerrainOwnsValyriaSurface, true);
@@ -176,7 +177,7 @@ for (const snippet of [
   "naturalGeologyWeatheringProfile: volcanic ? 'valyria-volcanic-mineral-facets'",
   "const familyKey = `${placement.kind}:${volcanic ? 'volcanic' : 'regional'}`",
   "filter((child) => child?.userData?.naturalGeologyKind === 'asset-proxy')",
-  "flatShading: kind !== 'boulder'",
+  "flatShading: !volcanic && kind !== 'boulder'",
   "mesh.castShadow = kind === 'fractured-scarp' || kind === 'bedrock' || kind === 'asset-proxy'",
   'hydratedRegionalTintStrength',
   'hydratedTintForPlacement',
@@ -341,5 +342,6 @@ console.log(JSON.stringify({
   instanceCorrectWorldNormals: true,
   smallFallbackShadowSuppression: NATURAL_GEOLOGY_RENDER_POLICY.smallFallbackShadowSuppression,
   roundedBoulderNormalResponse: NATURAL_GEOLOGY_RENDER_POLICY.roundedBoulderNormalResponse,
+  volcanicFallbackSmoothedLightingNormals: NATURAL_GEOLOGY_RENDER_POLICY.volcanicFallbackSmoothedLightingNormals,
 }, null, 2));
 
