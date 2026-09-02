@@ -1,0 +1,73 @@
+name: PWA Shell Canonical Install
+
+on:
+  push:
+    branches:
+      - codex/pwa-shell-canonical-install-contract-20260902
+    paths:
+      - 'service-worker.js'
+      - 'scripts/checkServiceWorkerCanonicalInstall.mjs'
+      - '.github/workflows/pwa-shell-canonical-install.yml'
+  pull_request:
+    paths:
+      - 'service-worker.js'
+      - 'scripts/checkServiceWorkerCanonicalInstall.mjs'
+      - '.github/workflows/pwa-shell-canonical-install.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+  EXPECTED_BASE_HEAD: 7b5763f177610efb37afb5e09cf64f84f0abd478
+  EXPECTED_MAIN: 4986a578dc657d01442ce12834ba6b67fc23232e
+  BASE_BRANCH: agent/gunbatimi-expedition-reward-provenance-94f48bb-20260829
+
+jobs:
+  canonical-game3d-install:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXACT_HEAD }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact stacked-base and scope preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+          git fetch --no-tags origin "$BASE_BRANCH" main
+          test "$(git rev-parse origin/$BASE_BRANCH)" = "$EXPECTED_BASE_HEAD"
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
+          git merge-base --is-ancestor "$EXPECTED_BASE_HEAD" HEAD
+          git diff --check "$EXPECTED_BASE_HEAD" HEAD
+          test "$(git diff --name-only "$EXPECTED_BASE_HEAD" HEAD | sort)" = $'.github/workflows/pwa-shell-canonical-install.yml\nscripts/checkServiceWorkerCanonicalInstall.mjs'
+
+      - name: Canonical service-worker install contract
+        run: |
+          node --check service-worker.js
+          node --check scripts/checkServiceWorkerCanonicalInstall.mjs
+          node scripts/checkServiceWorkerCanonicalInstall.mjs
+
+      - name: Standing PWA and shared material contracts
+        run: |
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
+          node scripts/checkSharedMaterialPlacementContract.js
+
+      - name: Final main and base freshness
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "$BASE_BRANCH" main
+          test "$(git rev-parse origin/$BASE_BRANCH)" = "$EXPECTED_BASE_HEAD"
+          test "$(git rev-parse origin/main)" = "$EXPECTED_MAIN"
