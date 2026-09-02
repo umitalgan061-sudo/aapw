@@ -327,7 +327,8 @@ function resolveUniformProfile(spawn, geography) {
 export function createConfiguredNpcMaterialRecipe(object, spawn, geography) {
 	const analysis = inspectConfiguredNpcMaterials(object);
 	const profile = resolveUniformProfile(spawn, geography);
-	if (analysis.namedSurfaceCount > 0) {
+	const unresolvedLowQualitySurfaces = analysis.surfaces.filter((surface) => !surface.slot && authoredMapCount(surface.material) < 2);
+	if (analysis.namedSurfaceCount > 0 && unresolvedLowQualitySurfaces.length === 0) {
 		const surfaceOverrides = {};
 		for (const surface of analysis.surfaces) {
 			if (authoredMapCount(surface.material) >= 2) continue;
@@ -358,7 +359,7 @@ export function createConfiguredNpcMaterialRecipe(object, spawn, geography) {
 		};
 	}
 	return {
-		recipe: { version: 1, mode: 'auto', basePaletteId: 'soldier', textureSize: 256, reason: 'multi-mesh-unnamed-fallback' },
+		recipe: { version: 1, mode: 'auto', basePaletteId: 'soldier', textureSize: 256, reason: unresolvedLowQualitySurfaces.length > 0 ? 'partial-named-figure-kit' : 'multi-mesh-unnamed-fallback' },
 		profile, analysis, mode: 'soldier-kit-fallback',
 	};
 }
