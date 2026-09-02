@@ -8,7 +8,9 @@ import {
 	resolveVillageArchitectureSurfacePalette,
 } from '../src/3d/world/villages.js';
 
-const CASES = [
+// Strong authored structure semantics belong in the shared classifier because they identify a real
+// architectural role rather than merely naming a substance. These are safe for every shared caller.
+const STRUCTURE_CASES = [
 	{ meshName: 'House_Roof_Tiles', materialName: 'RoofTile_Clay', slot: 'structure-roof' },
 	{ meshName: 'Cottage_Thatch', materialName: 'Thatched_Roof', slot: 'structure-thatch' },
 	{ meshName: 'House_Window_Frame', materialName: 'Window_Glass', slot: 'structure-window' },
@@ -22,14 +24,9 @@ const CASES = [
 	{ meshName: 'Ahsap_Kiris', materialName: 'Tahta', slot: 'structure-timber' },
 	{ meshName: 'Kapi', materialName: 'Kapi', slot: 'structure-door' },
 	{ meshName: 'Pencere', materialName: 'Vitray', slot: 'structure-window' },
-	{ meshName: 'HouseShell', materialName: 'Wood', slot: 'structure-timber' },
-	{ meshName: 'Foundation', materialName: 'Stone', slot: 'structure-stone' },
-	{ meshName: 'WindowPane', materialName: 'Glass', slot: 'structure-window' },
-	{ meshName: 'DoorHardware', materialName: 'Iron', slot: 'structure-metal' },
-	{ meshName: 'RoofTrim', materialName: 'Metal', slot: 'structure-metal' },
 ];
 
-for (const testCase of CASES) {
+for (const testCase of STRUCTURE_CASES) {
 	const match = classifyPart(testCase);
 	assert(match, `expected authored structure match for ${JSON.stringify(testCase)}`);
 	assert.equal(match.slot, testCase.slot, `${testCase.materialName || testCase.meshName}: wrong structure slot`);
@@ -44,20 +41,28 @@ assert.equal(
 	'artist material semantics must outrank a competing mesh name',
 );
 
-// Generic façade/object names still fail closed. Physical material nouns are allowed only because
-// they describe a real surface substance; a bare wall/building/material id still does not justify a
-// guessed semantic override.
-for (const generic of [
+// Bare substances are intentionally NOT global architecture semantics. `Wood`, `Stone`, `Glass`,
+// `Iron` and `Metal` also occur on shields, carts, tools and many other shared assets. In a village
+// house these ambiguous authored materials are better preserved than guessed; a strong structure
+// noun is required before the shared classifier may replace the imported material.
+const FAIL_CLOSED_CASES = [
+	{ meshName: 'HouseShell', materialName: 'Wood' },
+	{ meshName: 'HouseShell', materialName: 'Stone' },
+	{ meshName: 'HouseShell', materialName: 'Glass' },
+	{ meshName: 'HouseShell', materialName: 'Iron' },
+	{ meshName: 'HouseShell', materialName: 'Metal' },
 	{ meshName: 'House_Wall', materialName: 'Wall' },
 	{ meshName: 'House', materialName: 'Surface' },
 	{ meshName: 'Building', materialName: 'Material' },
 	{ meshName: 'Mesh_02', materialName: 'Material_04' },
-]) {
-	assert.equal(classifyPart(generic), null, `generic surface must fail closed: ${JSON.stringify(generic)}`);
+];
+for (const generic of FAIL_CLOSED_CASES) {
+	assert.equal(classifyPart(generic), null, `ambiguous surface must preserve imported material: ${JSON.stringify(generic)}`);
 }
 
-// Existing high-priority creature/human vocabulary must still win even when their artist materials
-// contain low-priority architectural substances.
+// Existing high-priority creature/human vocabulary must still win when an equipment mesh itself
+// carries a structural-looking word. This prevents the village work from rewriting other agents'
+// character/equipment material semantics.
 assert.equal(classifyPart({ meshName: 'Paladin_Helmet', materialName: 'Steel_Plate' })?.slot, 'helmet');
 assert.equal(classifyPart({ meshName: 'Knight_Shield', materialName: 'Wooden_Plank' })?.slot, 'armor');
 assert.equal(classifyPart({ meshName: 'Knight_Sword', materialName: 'Iron' })?.slot, 'armor');
@@ -74,8 +79,9 @@ const fakeMesh = {
 	name: 'Authored_House',
 	material: [
 		{ name: 'Roof_Tile' },
-		{ name: 'Glass' },
+		{ name: 'Window_Glass' },
 		{ name: 'Oak_Door' },
+		{ name: 'Wooden_Beam' },
 		{ name: 'Wood' },
 		{ name: 'Wall_Material' },
 	],
@@ -84,13 +90,13 @@ const fakeRoot = {
 	traverse(callback) { callback(fakeMesh); },
 };
 const survey = surveyParts(fakeRoot);
-assert.equal(survey.length, 5, 'multi-material architecture must be surveyed per material slot');
+assert.equal(survey.length, 6, 'multi-material architecture must be surveyed per material slot');
 assert.deepEqual(
 	survey.map((surface) => surface.slot),
-	['structure-roof', 'structure-window', 'structure-door', 'structure-timber', null],
-	'authored building surfaces must stay independently addressable without guessing the wall',
+	['structure-roof', 'structure-window', 'structure-door', 'structure-timber', null, null],
+	'only strong authored building semantics may override imported materials',
 );
-assert.deepEqual(survey.map((surface) => surface.materialIndex), [0, 1, 2, 3, 4]);
+assert.deepEqual(survey.map((surface) => surface.materialIndex), [0, 1, 2, 3, 4, 5]);
 
 const housePaletteIds = ['house', 'brick', 'plaster', 'thatch', 'roof-tile'];
 for (const paletteId of housePaletteIds) {
@@ -181,7 +187,8 @@ assert.equal(new Set(regionalProof.map((entry) => entry.stone)).size, 2, 'region
 assert.equal(new Set(regionalProof.map((entry) => entry.brick)).size, 4, 'regional masonry must retain distinct brick/plaster/rock/stone identities');
 
 console.log('ARCHITECTURE_SURFACE_SEMANTICS_PASS', JSON.stringify({
-	classifiedCases: CASES.length,
+	classifiedCases: STRUCTURE_CASES.length,
+	failClosedCases: FAIL_CLOSED_CASES.length,
 	surveySlots: survey.map((surface) => surface.slot),
 	houseSlots: house.slots,
 	fallbackBands: house.bands,
