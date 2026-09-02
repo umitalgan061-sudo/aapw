@@ -134,15 +134,26 @@ try {
 
   await page.waitForFunction(() => {
     const terrain = [...globalThis.__worldAcceptance.state.chunkManager.loaded.values()][0];
-    const image = terrain?.material?.map?.image;
-    return Boolean(image?.complete && image.naturalWidth > 0 && image.naturalHeight > 0);
+    const texture = terrain?.material?.map;
+    const image = texture?.image;
+    const width = Number(image?.naturalWidth ?? image?.width ?? 0);
+    const height = Number(image?.naturalHeight ?? image?.height ?? 0);
+    return Boolean(!texture?.userData?.loadFailed && width > 0 && height > 0);
   }, { timeout: 30000 });
   const albedoImage = await page.evaluate(() => {
     const terrain = [...globalThis.__worldAcceptance.state.chunkManager.loaded.values()][0];
-    const image = terrain.material.map.image;
-    return { width: image.naturalWidth, height: image.naturalHeight };
+    const texture = terrain.material.map;
+    const image = texture.image;
+    return {
+      width: Number(image?.naturalWidth ?? image?.width ?? 0),
+      height: Number(image?.naturalHeight ?? image?.height ?? 0),
+      neutralisedDetail: texture.userData?.neutralisedDetail === true,
+      loadFailed: texture.userData?.loadFailed === true,
+    };
   });
+  assert(albedoImage.loadFailed === false, 'authored terrain albedo load failed before visual proof');
   assert(albedoImage.width > 0 && albedoImage.height > 0, 'authored terrain albedo did not decode before visual proof');
+  assert(albedoImage.neutralisedDetail === true, 'authored terrain albedo was not neutralised before visual proof');
 
   const fullMetrics = await page.evaluate(({ width, height, elapsedSeconds, dayRatio }) => {
     const {
