@@ -157,15 +157,22 @@ export function groundSurfaceGrainNormalChunk(worldXZ) {
 }
 
 /**
- * Multiplies the grain's colour break-up into `diffuseColor`.
+ * Multiplies the grain's tonal break-up into `diffuseColor`.
  *
- * The tile's mean is a mid-grey pivot, so `sample * 2` has a mean of one, and the gain is applied to
- * the *deviation* from that mean. However large the gain, the average multiplier stays one: this
- * **cannot** shift the ground's hue or overall brightness, so the biome pass keeps colour authority
- * exactly as `world/terrainBiomeShading.js` requires and all this adds is variation around it. The
- * clamp only catches a gain large enough to drive a dark texel negative.
+ * **Luminance only, and that is a correction (run 420).** The first version multiplied the three
+ * channels independently, and at a gain of 4 that is not a brightness variation — it is a hue
+ * variation. The tile is a high-passed crop of a photograph, so its channels deviate independently by
+ * about 6/255 each; multiplied up, a texel whose red happened to rise while its green fell came out
+ * magenta. Renders of grassland and of the seabed came back mottled purple, and this was the cause.
  *
- * Sampled at the coarse period alone. Colour mottling on real ground is metres across; putting it at
+ * Collapsing the sample to luminance first makes the multiplier a single scalar, so the *only* thing
+ * this can change is how light or dark a patch of ground is. Hue stays entirely with the biome pass,
+ * exactly as `world/terrainBiomeShading.js` requires and as this module's own doc already claimed.
+ * The tile's mean is a mid-grey pivot, so the mean multiplier is one however large the gain: this
+ * cannot shift the ground's overall brightness either. The clamp only catches a gain large enough to
+ * drive a dark texel negative.
+ *
+ * Sampled at the coarse period alone. Tonal mottling on real ground is metres across; putting it at
  * the fine period would read as noise on the texture rather than as damp and dry patches in the soil.
  *
  * @param {string} worldXZ GLSL expression for this fragment's world XZ, in metres.
@@ -174,8 +181,9 @@ export function groundSurfaceGrainNormalChunk(worldXZ) {
 export function groundSurfaceGrainColorChunk(worldXZ) {
 	return `
 {
-	vec3 grainTint = texture2D(groundGrainAlbedoMap, (${worldXZ}) / groundGrainCoarsePeriod).rgb * 2.0;
-	diffuseColor.rgb *= max(vec3(0.0), vec3(1.0) + (grainTint - vec3(1.0)) * groundGrainAlbedoStrength);
+	vec3 grainSample = texture2D(groundGrainAlbedoMap, (${worldXZ}) / groundGrainCoarsePeriod).rgb;
+	float grainTone = dot(grainSample, vec3(0.299, 0.587, 0.114)) * 2.0;
+	diffuseColor.rgb *= max(0.0, 1.0 + (grainTone - 1.0) * groundGrainAlbedoStrength);
 }`;
 }
 

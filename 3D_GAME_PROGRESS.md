@@ -19142,3 +19142,30 @@ Kapılar: `checkWindGrassContractRun180` (patch başına 64 üçgen, mobil 1200/
 `checkVegetationVisualContract`, `checkSmokeCheckRegistry`, `checkServiceWorkerCache`,
 `checkAssetCoverage`, `checkTechnicalDebt`, `checkSeededRandomPolicy`, `checkPwaInstallability` —
 hepsi PASS.
+
+## Tur 420 — Kendi hatam: zeminin mor lekeleri (ADR-0368)
+
+Yeni bir dünya taraması, Tur 416'nın getirdiği bir regresyonu ortaya çıkardı: çayır ve deniz tabanı
+**mor/eflatun lekeli** çıkıyordu (`artifacts/world-survey/coast.png`, `river.png`).
+
+Sebep tam olarak benim yazdığım satırdaydı. Renk kırılması üç kanalı **birbirinden bağımsız**
+çarpıyordu ve kazanç 4 iken bu bir parlaklık oynaması değil, bir **renk tonu** oynamasıdır. Karo bir
+fotoğrafın yüksek geçiren kırpığı; kanalları birbirinden bağımsız olarak ~6/255 sapıyor. 4 ile
+çarpıldığında kırmızısı yukarı, yeşili aşağı sapmış bir texel mor çıkıyor.
+
+Düzeltme: örnek önce **luminansa** indiriliyor, yani çarpan tek bir skaler. Böylece bu katmanın
+değiştirebildiği tek şey zeminin ne kadar açık ya da koyu olduğu; **renk tonu tamamen biyom
+geçişinde kalıyor** — ki `world/terrainBiomeShading.js`'in şartı ve modülün kendi doküman yorumunun
+zaten iddia ettiği şey buydu. Yani bu sadece bir görsel düzeltme değil, modülün ilan ettiği
+sözleşmeye uyum düzeltmesi.
+
+Karonun ortalaması nötr olduğu için kazanç ne olursa olsun ortalama çarpan 1 kalıyor; genel parlaklık
+da değişmiyor.
+
+Kapılar: `checkMedievalRoadSurface`, `checkTerrainVisualContract`, `checkGroundColorVariety`,
+`checkTerrainGroundRealism`, `checkSmokeCheckRegistry`, `checkTechnicalDebt`,
+`checkSeededRandomPolicy`, `roadNetworkSafetyCheck` — hepsi PASS.
+
+**Aynı taramada görülen ve sıradaki iş olan kusur:** nehirler. Yeşil bir tarlanın **üstüne** yatırılmış,
+kenarları keskin paralel, eni sabit, parlak camgöbeği bir şerit — vadi yok, kıyı yok, derinlik yok
+(`artifacts/world-survey/seat-ziya.png`). Deniz ağzında da sert siyah bir kama duruyor.
