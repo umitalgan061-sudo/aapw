@@ -161,6 +161,10 @@ async function main() {
 			'proof must retain deterministic mineral/facet separation on geology meshes');
 		assert.equal(summary.naturalGeology?.volcanicFallbackMaterialIsolation, true,
 			'Valyria fallback materials must remain isolated from non-volcanic rock families');
+		assert.equal(summary.naturalGeology?.smallFallbackShadowSuppression, true,
+			'small fallback families must not collapse into hard black shadow needles');
+		assert.equal(summary.naturalGeology?.roundedBoulderNormalResponse, true,
+			'fallback boulders must retain a rounded natural-light response');
 		assert.equal(summary.naturalGeology?.visualProofUsesDeterministicFallback, true,
 			'pointer-only CI proof must explicitly render deterministic procedural fallback geometry');
 		if (args.focus === 'valyria') {
