@@ -18,6 +18,7 @@ try {
   const proof = await page.evaluate(async () => {
     const { ANIMAL_CONFIG } = await import('/src/3d/gameplay/animalConfig.js');
     const { spawnConfiguredAnimals } = await import('/src/3d/gameplay/animals.js');
+    const { evaluateConfiguredFaunaHabitat, evaluateConfiguredFaunaRoute } = await import('/src/3d/gameplay/faunaWorldPlacement.js');
     const { AssetLoader } = await import('/src/3d/assetLoader.js');
     const { EventBus } = await import('/src/3d/eventBus.js');
     const { EVENTS, SETTLEMENT_CONFIG, WORLD_DEFAULTS, WORLD_SCALE } = await import('/src/3d/config.js');
@@ -41,9 +42,34 @@ try {
       const world = mapToWorldXZ(seat.mapX, seat.mapY, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT);
       return [seat.id, { ...seat, x: world.x, z: world.z }];
     }));
+    const groundCollider = { getGroundHeight: gameplayHeight };
+    const distributionAudit = ANIMAL_CONFIG.SPAWNS.map((spawn) => {
+      const seat = seatsById.get(spawn.seatId);
+      const speciesId = spawn.speciesId ?? 'wolf';
+      const species = ANIMAL_CONFIG.SPECIES?.[speciesId];
+      const start = { x: seat.x + spawn.offsetXMeters, z: seat.z + spawn.offsetZMeters };
+      const spawnHabitat = evaluateConfiguredFaunaHabitat(speciesId, start.x, start.z, groundCollider);
+      const walkClipName = species ? species.clips?.walk : ANIMAL_CONFIG.WALK_CLIP_NAME;
+      const target = spawn.patrol && walkClipName
+        ? { x: seat.x + spawn.patrol.toOffsetXMeters, z: seat.z + spawn.patrol.toOffsetZMeters }
+        : null;
+      const route = target ? evaluateConfiguredFaunaRoute(speciesId, start, target, groundCollider) : null;
+      return {
+        id: spawn.id,
+        speciesId,
+        spawnOk: spawnHabitat.ok,
+        spawnError: spawnHabitat.error ?? null,
+        spawnBiome: spawnHabitat.geography?.surface?.biome ?? null,
+        spawnSlopeDegrees: spawnHabitat.geography?.surface?.slopeDegrees ?? null,
+        routeOk: route?.ok ?? null,
+        routeError: route?.error ?? null,
+        routeSampleCount: route?.routeSampleCount ?? 0,
+        failedRouteSampleIndex: route?.routeSampleIndex ?? null,
+      };
+    });
+
     const wolfSpawn = ANIMAL_CONFIG.SPAWNS.find((spawn) => (spawn.speciesId ?? 'wolf') === 'wolf');
     const config = { ...ANIMAL_CONFIG, SPAWNS: [wolfSpawn] };
-    const groundCollider = { getGroundHeight: gameplayHeight };
     const controllers = await spawnConfiguredAnimals({
       assetLoader,
       animalConfig: config,
@@ -53,7 +79,7 @@ try {
       playerCollider: { resolveXZ: (x, z) => ({ x, z }) },
     });
     const controller = controllers[0];
-    if (!controller) return { assetErrors, missingController: true };
+    if (!controller) return { assetErrors, distributionAudit, missingController: true };
 
     const root = controller.object3D;
     const textureSizes = [];
@@ -78,6 +104,7 @@ try {
     const patrolMovementMeters = Math.hypot(root.position.x - startPosition.x, root.position.z - startPosition.z);
     const result = {
       assetErrors,
+      distributionAudit,
       missingController: false,
       placeholder: root.userData?.isPlaceholder === true,
       finiteTransform: [root.position.x, root.position.y, root.position.z].every(Number.isFinite),
@@ -99,6 +126,10 @@ try {
   assert.equal(pageErrors.length, 0, `page errors: ${pageErrors.join(' | ')}`);
   assert.equal(faunaConsoleErrors.length, 0, `fauna console errors: ${faunaConsoleErrors.join(' | ')}`);
   assert.deepEqual(proof.assetErrors, [], `real wolf asset failed to load: ${proof.assetErrors.join(', ')}`);
+  const invalidSpawns = proof.distributionAudit.filter((entry) => !entry.spawnOk);
+  const invalidRoutes = proof.distributionAudit.filter((entry) => entry.routeOk === false);
+  assert.deepEqual(invalidSpawns, [], `configured fauna has habitat-invalid spawns: ${JSON.stringify(invalidSpawns)}`);
+  assert.deepEqual(invalidRoutes, [], `configured fauna has habitat-invalid patrol corridors: ${JSON.stringify(invalidRoutes)}`);
   assert.equal(proof.missingController, false, 'canonical habitat gate rejected the configured wolf');
   assert.equal(proof.placeholder, false, 'real wolf resolved to placeholder');
   assert.equal(proof.finiteTransform, true, 'real wolf transform became non-finite');
@@ -125,6 +156,7 @@ try {
   assert.ok(proof.tickBudget.averageMs < 2, `single-wolf AI tick average ${proof.tickBudget.averageMs.toFixed(3)}ms exceeds 2ms proof budget`);
 
   console.log('CONFIGURED_FAUNA_GEOGRAPHIC_MATERIAL_BROWSER_PASS', JSON.stringify({
+    distributionAudit: proof.distributionAudit,
     placement: proof.placement,
     patrolPlacement: proof.patrolPlacement,
     patrolMovementMeters: proof.patrolMovementMeters,
