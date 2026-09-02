@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/3d/world/settlementAmbientPlacement.js'
       - 'src/3d/world/settlementAmbientMaterials.js'
+      - 'src/3d/world/settlementAmbientGroundContact.js'
       - 'src/3d/world/settlementAmbientProps.js'
       - 'src/3d/sceneManager.js'
       - 'src/3d/game3d.js'
@@ -15,6 +16,7 @@ on:
     paths:
       - 'src/3d/world/settlementAmbientPlacement.js'
       - 'src/3d/world/settlementAmbientMaterials.js'
+      - 'src/3d/world/settlementAmbientGroundContact.js'
       - 'src/3d/world/settlementAmbientProps.js'
       - 'src/3d/sceneManager.js'
       - 'src/3d/game3d.js'
@@ -73,6 +75,7 @@ jobs:
           set -euo pipefail
           node --check src/3d/world/settlementAmbientPlacement.js
           node --check src/3d/world/settlementAmbientMaterials.js
+          node --check src/3d/world/settlementAmbientGroundContact.js
           node --check src/3d/world/settlementAmbientProps.js
           node --check src/3d/sceneManager.js
           node --check src/3d/game3d.js
@@ -85,6 +88,8 @@ jobs:
           grep -F "canonicalCollidersUnchanged: true" src/3d/world/settlementAmbientPlacement.js
           grep -F "routeShoulderProjection: true" src/3d/world/settlementAmbientPlacement.js
           grep -F "normalMap: fabric.normalMap" src/3d/world/settlementAmbientMaterials.js
+          grep -F "canonicalTerrainUnchanged: true" src/3d/world/settlementAmbientGroundContact.js
+          grep -F "createSettlementAmbientGroundContacts" src/3d/world/settlementAmbientProps.js
 
       - name: Canonical geographic placement and real WebGL visual acceptance
         env:
