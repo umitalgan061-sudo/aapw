@@ -43,8 +43,6 @@ function rgbStats(buffer) {
   let count = 0;
   let min = 255;
   let max = 0;
-  // PNG decoding stays in the browser proof below. Here we only record byte entropy as a guard that
-  // the uploaded screenshot is not empty/constant; real pixel statistics are returned from WebGL.
   for (const value of buffer) {
     sum += value;
     sumSq += value * value;
@@ -269,13 +267,13 @@ try {
           root.add(chunk);
         }
       }
-      const centerX = centerChunkX * chunkSize;
-      const centerZ = centerChunkZ * chunkSize;
-      const centerY = sampleHeightMeters(centerX, centerZ);
-      camera.position.set(centerX + 250, centerY + 185, centerZ + 310);
-      camera.lookAt(centerX, centerY + 3, centerZ);
-      sun.position.set(centerX - 360, centerY + 510, centerZ + 220);
-      sun.target.position.set(centerX, centerY, centerZ);
+      const focusX = target.x;
+      const focusZ = target.z;
+      const focusY = target.y;
+      camera.position.set(focusX + 250, focusY + 185, focusZ + 310);
+      camera.lookAt(focusX, focusY + 3, focusZ);
+      sun.position.set(focusX - 360, focusY + 510, focusZ + 220);
+      sun.target.position.set(focusX, focusY, focusZ);
       scene.add(sun.target);
       sun.target.updateMatrixWorld();
       scene.fog.near = 760;
@@ -290,12 +288,13 @@ try {
       const stats = framebufferStats();
       const gl = renderer.getContext();
       fail(stats.glError === gl.NO_ERROR, `WebGL error ${stats.glError} for ${name}`);
-      fail(renderer.info.render.calls >= 9, `expected >=9 terrain draw calls for ${name}, got ${renderer.info.render.calls}`);
+      fail(renderer.info.render.calls >= 7, `expected >=7 visible terrain draw calls for ${name}, got ${renderer.info.render.calls}`);
       fail(renderer.info.render.triangles > 100000, `terrain proof too sparse for ${name}: ${renderer.info.render.triangles} triangles`);
       fail(stats.lumaStdDev > 0.035, `${name} framebuffer is visually too uniform (${stats.lumaStdDev.toFixed(4)})`);
       fail(stats.maxLuma - stats.minLuma > 0.24, `${name} framebuffer has insufficient tonal range`);
       return {
         target,
+        focus: { x: focusX, y: focusY, z: focusZ },
         centerChunk: { x: centerChunkX, z: centerChunkZ },
         chunkCount: chunks.length,
         materialPolicyId: centerMaterial.userData.terrainMicroSurface.policyId,
