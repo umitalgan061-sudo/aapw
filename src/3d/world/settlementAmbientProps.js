@@ -20,7 +20,7 @@ import { valyriaInfluenceAtWorldXZ } from './valyriaGeology.js';
 import { resolveWorldSurfacePlacement } from './WorldAssetPlacementPipeline.js';
 
 export const SETTLEMENT_AMBIENT_PROP_POLICY = Object.freeze({
-  id: 'settlement-ambient-props-2026-09-02-v1-canonical-apron-dressing',
+  id: 'settlement-ambient-props-2026-09-02-v2-route-facing-surface-fabric',
   renderOnly: true,
   deterministic: true,
   canonicalSettlementAnchorsUnchanged: true,
@@ -39,6 +39,13 @@ export const SETTLEMENT_AMBIENT_PROP_POLICY = Object.freeze({
   maximumSlopeDegrees: 14,
   terrainSlopeSampleMeters: 2.5,
   maximumAttemptsPerProp: 18,
+  logisticsSlotsPerSeat: 3,
+  routeApproachMinSampleMeters: 28,
+  routeApproachMaxSampleMeters: 145,
+  routeShoulderAngleMinRadians: 0.38,
+  routeShoulderAngleMaxRadians: 1.02,
+  fallbackFabricTextureSize: 64,
+  fallbackFabricRepeat: 2.6,
   hostedPreflightMinBytes: 512,
   maximumHydratedSourceBytes: 12 * 1024 * 1024,
   maximumHydratedPrimitiveCount: 18,
@@ -47,6 +54,8 @@ export const SETTLEMENT_AMBIENT_PROP_POLICY = Object.freeze({
   groupName: 'settlement-ambient-props',
   hydratedGroupName: 'settlement-ambient-props-hydrated',
   placementAuthority: 'kingdom-seat + collider-owned terrain + routed roads',
+  routeFacingDistribution: true,
+  fallbackSurfaceFabric: true,
   climateAuthorities: Object.freeze([
     'northReferenceCryosphereAtWorldXZ',
     'valyriaInfluenceAtWorldXZ',
@@ -167,13 +176,43 @@ export function createAmbientPropSurfaceQuery({ sampleHeightMeters, seaLevelMete
   };
 }
 
-function familyForPlacement(roll, profile, slopeDegrees) {
+function nearestRoadApproachAngle(seat, roadEdges = []) {
+  const policy = SETTLEMENT_AMBIENT_PROP_POLICY;
+  let best = null;
+  for (const edge of roadEdges) {
+    for (const point of edge?.points || []) {
+      const dx = point.x - seat.x;
+      const dz = point.z - seat.z;
+      const distance = Math.hypot(dx, dz);
+      if (distance < policy.routeApproachMinSampleMeters || distance > policy.routeApproachMaxSampleMeters) continue;
+      const incident = edge.fromId === seat.id || edge.toId === seat.id;
+      const score = distance + (incident ? -1000 : 0);
+      if (!best || score < best.score) best = { score, angle: Math.atan2(dz, dx), incident };
+    }
+  }
+  return best ? Object.freeze({ angle: best.angle, incident: best.incident }) : null;
+}
+
+function candidateAngleForSlot(rng, slot, approach) {
+  const policy = SETTLEMENT_AMBIENT_PROP_POLICY;
+  if (!approach || slot >= policy.logisticsSlotsPerSeat) return { angle: rng() * Math.PI * 2, role: 'social', routeFacing: false };
+  const side = slot % 2 === 0 ? -1 : 1;
+  const shoulder = policy.routeShoulderAngleMinRadians
+    + rng() * (policy.routeShoulderAngleMaxRadians - policy.routeShoulderAngleMinRadians);
+  return { angle: approach.angle + side * shoulder, role: 'logistics', routeFacing: true };
+}
+
+function familyForPlacement(roll, profile, slopeDegrees, role = 'social') {
   const snow = profile.snow;
   const valyria = profile.valyria;
-  if (snow > 0.62) return roll < 0.54 ? 'bench' : roll < 0.78 ? 'crate' : 'barrel';
-  if (valyria > 0.48) return roll < 0.58 ? 'bench' : roll < 0.82 ? 'crate' : 'barrel';
-  if (slopeDegrees > 9.5) return roll < 0.48 ? 'crate' : roll < 0.78 ? 'barrel' : 'bench';
-  return roll < 0.42 ? 'barrel' : roll < 0.76 ? 'crate' : 'bench';
+  if (role === 'logistics') {
+    if (snow > 0.62 || valyria > 0.48) return roll < 0.52 ? 'crate' : roll < 0.88 ? 'barrel' : 'bench';
+    return roll < 0.54 ? 'barrel' : roll < 0.93 ? 'crate' : 'bench';
+  }
+  if (snow > 0.62) return roll < 0.66 ? 'bench' : roll < 0.86 ? 'crate' : 'barrel';
+  if (valyria > 0.48) return roll < 0.70 ? 'bench' : roll < 0.88 ? 'crate' : 'barrel';
+  if (slopeDegrees > 9.5) return roll < 0.42 ? 'crate' : roll < 0.66 ? 'barrel' : 'bench';
+  return roll < 0.18 ? 'barrel' : roll < 0.36 ? 'crate' : 'bench';
 }
 
 function placementTint(familyId, profile, variation) {
@@ -224,6 +263,8 @@ export function checksumSettlementAmbientPlacements(placements = []) {
     placement.scale.toFixed(4),
     placement.slopeDegrees.toFixed(3),
     placement.roadDistanceMeters.toFixed(3),
+    placement.distributionRole,
+    placement.routeFacing ? 'route' : 'free',
     placement.snow.toFixed(4),
     placement.valyria.toFixed(4),
   ].join(':')).join('|');
@@ -249,19 +290,29 @@ export function generateSettlementAmbientPropPlacements({
   const rejectionCounts = { attemptsExhausted: 0, invalidSurface: 0 };
   const targetPerSeat = isMobileClass ? policy.mobilePropsPerSeat : policy.desktopPropsPerSeat;
 
+  let routeApproachSeatCount = 0;
   for (const seat of seats) {
     if (!Number.isFinite(seat?.x) || !Number.isFinite(seat?.z)) continue;
+    const roadApproach = nearestRoadApproachAngle(seat, roadEdges);
+    if (roadApproach) routeApproachSeatCount += 1;
     let placedForSeat = 0;
     for (let slot = 0; slot < targetPerSeat; slot += 1) {
       let accepted = null;
+      const slotDistribution = candidateAngleForSlot(rng, slot, roadApproach);
       for (let attempt = 0; attempt < policy.maximumAttemptsPerProp; attempt += 1) {
-        const angle = rng() * Math.PI * 2;
+        const sampledDistribution = attempt === 0
+          ? slotDistribution
+          : candidateAngleForSlot(rng, slot, roadApproach);
+        const angle = sampledDistribution.angle;
         const radius = Math.sqrt(rng() * (policy.outerRadiusMeters ** 2 - policy.innerRadiusMeters ** 2) + policy.innerRadiusMeters ** 2);
         const candidate = {
           x: seat.x + Math.cos(angle) * radius,
           z: seat.z + Math.sin(angle) * radius,
           anchorDistanceMeters: radius,
           angle,
+          distributionRole: sampledDistribution.role,
+          routeFacing: sampledDistribution.routeFacing,
+          roadApproachAngle: roadApproach?.angle ?? null,
         };
         const surface = acceptedCandidate(candidate, {
           sampleHeightMeters,
@@ -279,7 +330,7 @@ export function generateSettlementAmbientPropPlacements({
       if (!accepted) { rejectionCounts.attemptsExhausted += 1; continue; }
 
       const profile = profileAtWorldXZ(accepted.x, accepted.z);
-      const familyId = familyForPlacement(rng(), profile, accepted.frame.slopeDegrees);
+      const familyId = familyForPlacement(rng(), profile, accepted.frame.slopeDegrees, accepted.distributionRole);
       const family = SETTLEMENT_AMBIENT_PROP_FAMILIES[familyId];
       const variation = rng();
       const scale = (0.88 + rng() * 0.24) * (familyId === 'bench' ? 1.04 : 1);
@@ -298,6 +349,9 @@ export function generateSettlementAmbientPropPlacements({
         slopeDegrees: accepted.frame.slopeDegrees,
         roadDistanceMeters: accepted.roadDistance,
         seatDistanceMeters: accepted.anchorDistanceMeters,
+        distributionRole: accepted.distributionRole,
+        routeFacing: accepted.routeFacing,
+        roadApproachAngle: accepted.roadApproachAngle,
         snow: profile.snow,
         permanentIce: profile.permanentIce,
         tundra: profile.tundra,
@@ -312,8 +366,10 @@ export function generateSettlementAmbientPropPlacements({
 
   const familyCounts = Object.fromEntries(FAMILY_IDS.map((familyId) => [familyId, 0]));
   const climateCounts = { snow: 0, valyria: 0, temperate: 0 };
+  const roleCounts = { logistics: 0, social: 0 };
   for (const placement of placements) {
     familyCounts[placement.familyId] += 1;
+    roleCounts[placement.distributionRole] = (roleCounts[placement.distributionRole] || 0) + 1;
     if (placement.snow >= 0.25) climateCounts.snow += 1;
     else if (placement.valyria >= 0.25) climateCounts.valyria += 1;
     else climateCounts.temperate += 1;
@@ -325,6 +381,8 @@ export function generateSettlementAmbientPropPlacements({
     placedCount: placements.length,
     familyCounts: Object.freeze({ ...familyCounts }),
     climateCounts: Object.freeze({ ...climateCounts }),
+    roleCounts: Object.freeze({ ...roleCounts }),
+    routeApproachSeatCount,
     rejectionCounts: Object.freeze({ ...rejectionCounts }),
     placementChecksum: checksumSettlementAmbientPlacements(placements),
   });
@@ -365,6 +423,53 @@ export function createAmbientFallbackGeometry(familyId) {
   return box;
 }
 
+function fallbackFabricHash(x, y, seed) {
+  let value = Math.imul((x + 1) ^ seed, 0x45d9f3b) ^ Math.imul((y + 7) ^ (seed >>> 1), 0x27d4eb2d);
+  value ^= value >>> 16;
+  value = Math.imul(value, 0x45d9f3b);
+  value ^= value >>> 15;
+  return (value >>> 0) / 4294967295;
+}
+
+export function createAmbientFallbackFabricTextures(familyId) {
+  const policy = SETTLEMENT_AMBIENT_PROP_POLICY;
+  const size = policy.fallbackFabricTextureSize;
+  const colorData = new Uint8Array(size * size * 4);
+  const roughnessData = new Uint8Array(size * size * 4);
+  const seed = fnv1a(`ambient-fabric:${familyId}`);
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const index = (y * size + x) * 4;
+      const noise = fallbackFabricHash(x, y, seed);
+      const coarse = fallbackFabricHash(Math.floor(x / 7), Math.floor(y / 7), seed ^ 0xa511e9b3);
+      const woodGrain = 0.5 + 0.5 * Math.sin((x * 0.43 + y * 0.075) + coarse * 3.2);
+      const stoneMottle = clamp01(coarse * 0.72 + noise * 0.28);
+      const fabric = familyId === 'bench' ? stoneMottle : clamp01(woodGrain * 0.58 + noise * 0.42);
+      const luminance = Math.round(176 + fabric * 72);
+      colorData[index] = luminance;
+      colorData[index + 1] = luminance;
+      colorData[index + 2] = luminance;
+      colorData[index + 3] = 255;
+      const roughness = Math.round(180 + (familyId === 'bench' ? stoneMottle : 1 - woodGrain) * 70);
+      roughnessData[index] = roughness;
+      roughnessData[index + 1] = roughness;
+      roughnessData[index + 2] = roughness;
+      roughnessData[index + 3] = 255;
+    }
+  }
+  const map = new THREE.DataTexture(colorData, size, size, THREE.RGBAFormat);
+  map.colorSpace = THREE.SRGBColorSpace;
+  const roughnessMap = new THREE.DataTexture(roughnessData, size, size, THREE.RGBAFormat);
+  for (const texture of [map, roughnessMap]) {
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(policy.fallbackFabricRepeat, policy.fallbackFabricRepeat);
+    texture.needsUpdate = true;
+    texture.userData.settlementAmbientFallbackFabric = true;
+  }
+  return Object.freeze({ map, roughnessMap });
+}
+
 function weatheringShaderKey(kind, snow = 0, ash = 0) {
   return `settlement-ambient-fabric-v1:${kind}:s${Math.round(snow * 4)}:a${Math.round(ash * 4)}`;
 }
@@ -376,6 +481,7 @@ export function applyAmbientPropWorldSpaceWeathering(material, { kind = 'wood', 
   const roughnessBase = kind === 'stone' ? 0.88 : kind === 'metal' ? 0.63 : 0.80;
   const normalGain = kind === 'stone' ? 0.105 : kind === 'metal' ? 0.035 : 0.075;
   const previous = material.onBeforeCompile?.bind(material);
+  const previousCacheKey = material.customProgramCacheKey?.bind(material);
   material.userData ||= {};
   material.userData.settlementAmbientWeathering = Object.freeze({
     worldSpace: true,
@@ -433,14 +539,23 @@ normal = normalize(normal + mat3(viewMatrix) * vec3(ambientNx, 0.0, ambientNz) *
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
 roughnessFactor = clamp(max(roughnessFactor, ${roughnessBase.toFixed(3)}) + (ambientMeso - 0.5) * 0.14 + (ambientFine - 0.5) * 0.07 + ambientSnowPatch * 0.08 + ambientAshPatch * 0.10, 0.48, 1.0);`);
   };
-  material.customProgramCacheKey = () => weatheringShaderKey(kind, snowAmount, ashAmount);
+  material.customProgramCacheKey = () => `${previousCacheKey?.() || ''}|${weatheringShaderKey(kind, snowAmount, ashAmount)}`;
   material.needsUpdate = true;
   return material;
 }
 
 function createFallbackMaterial(familyId) {
   const family = SETTLEMENT_AMBIENT_PROP_FAMILIES[familyId];
-  const material = new THREE.MeshStandardMaterial({ color: family.fallbackColor, roughness: family.roughnessFloor, metalness: 0, flatShading: familyId !== 'crate' });
+  const fabric = createAmbientFallbackFabricTextures(familyId);
+  const material = new THREE.MeshStandardMaterial({
+    color: family.fallbackColor,
+    map: fabric.map,
+    roughnessMap: fabric.roughnessMap,
+    roughness: family.roughnessFloor,
+    metalness: 0,
+    flatShading: familyId !== 'crate',
+  });
+  material.userData.settlementAmbientFallbackFabric = true;
   applyAmbientPropWorldSpaceWeathering(material, { kind: family.weatheringKind });
   return material;
 }
@@ -504,6 +619,8 @@ export function createSettlementAmbientProps(options) {
     targetCount: placementResult.stats.targetCount,
     familyCounts: placementResult.stats.familyCounts,
     climateCounts: placementResult.stats.climateCounts,
+    roleCounts: placementResult.stats.roleCounts,
+    routeApproachSeatCount: placementResult.stats.routeApproachSeatCount,
     fallbackDrawCalls: fallbackMeshes.length,
     assetState: 'procedural-fallback',
     hydratedPlacementCount: 0,

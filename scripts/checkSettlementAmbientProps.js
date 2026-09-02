@@ -166,6 +166,9 @@ async function main() {
       }
       fail(occupiedSeats.size >= 10, `ambient geography covers only ${occupiedSeats.size}/14 seats`);
       fail(representedFamilies.size === 3, `ambient prop family diversity ${representedFamilies.size}/3`);
+      fail(planA.stats.routeApproachSeatCount >= 6, `only ${planA.stats.routeApproachSeatCount} seats resolved a live road approach`);
+      fail(planA.stats.roleCounts.logistics > 0 && planA.stats.roleCounts.social > 0, `ambient distribution roles collapsed: ${JSON.stringify(planA.stats.roleCounts)}`);
+      fail(planA.placements.some((placement) => placement.routeFacing === true), 'no route-facing logistics props survived geographic rejection');
       fail(snowPlacements > 0, 'north climate authority did not affect any ambient placement');
       fail(valyriaPlacements > 0, 'Valyria authority did not affect any ambient placement');
 
@@ -187,6 +190,8 @@ async function main() {
       fail(fallbackMaterials.every((material) => material.userData.settlementAmbientWeathering.multiScaleAlbedo === true), 'fallback lost multi-scale albedo breakup');
       fail(fallbackMaterials.every((material) => material.userData.settlementAmbientWeathering.microNormal === true), 'fallback lost micro-normal breakup');
       fail(fallbackMaterials.every((material) => material.userData.settlementAmbientWeathering.roughnessVariation === true), 'fallback lost roughness breakup');
+      fail(fallbackMaterials.every((material) => material.userData.settlementAmbientFallbackFabric === true), 'fallback family-specific surface fabric missing');
+      fail(fallbackMaterials.every((material) => material.map?.userData?.settlementAmbientFallbackFabric === true && material.roughnessMap?.userData?.settlementAmbientFallbackFabric === true), 'fallback albedo/roughness texture fabric missing');
 
       const hydration = await upgradeSettlementAmbientPropAssets(ambient.group, {
         isMobileClass: false,
@@ -325,6 +330,8 @@ async function main() {
         occupiedSeatCount: occupiedSeats.size,
         familyCounts: planA.stats.familyCounts,
         climateCounts: planA.stats.climateCounts,
+        roleCounts: planA.stats.roleCounts,
+        routeApproachSeatCount: planA.stats.routeApproachSeatCount,
         minRoadDistance,
         maxSlope,
         minSeatDistance,
