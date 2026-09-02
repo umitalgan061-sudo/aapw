@@ -72,7 +72,7 @@ jobs:
       - name: Resolve vendored Three.js for Node contracts
         run: node scripts/setupNodeThreeShim.mjs
 
-      - name: Syntax, asset inventory, surface semantics, distribution and determinism
+      - name: Syntax
         run: |
           node --check src/3d/world/villages.js
           node --check src/3d/materials/meshPartClassifier.js
@@ -82,10 +82,26 @@ jobs:
           node --check scripts/checkArchitectureSurfaceSemantics.mjs
           node --check scripts/checkVillageGlbAssetInventory.mjs
           node --check scripts/checkVillageRuntimeArchitectureIntegration.js
-          node scripts/checkVillageGlbAssetInventory.mjs
-          node scripts/checkArchitectureSurfaceSemantics.mjs
-          node scripts/checkVillageArchitectureDistribution.mjs
-          node scripts/checkSeededRandomPolicy.js
+
+      - name: Hydrated GLB inventory and PBR integrity
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/village-architecture-assets
+          node scripts/checkVillageGlbAssetInventory.mjs 2>&1 | tee artifacts/village-architecture-assets/glb-inventory.log
+
+      - name: Authored architecture surface semantics
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/checkArchitectureSurfaceSemantics.mjs 2>&1 | tee artifacts/village-architecture-assets/surface-semantics.log
+
+      - name: Landmark geography and deterministic policy
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/checkVillageArchitectureDistribution.mjs 2>&1 | tee artifacts/village-architecture-assets/distribution.log
+          node scripts/checkSeededRandomPolicy.js 2>&1 | tee artifacts/village-architecture-assets/determinism.log
 
       - name: Existing village grounding regressions
         run: |
@@ -99,7 +115,6 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          mkdir -p artifacts/village-architecture-assets
           node scripts/checkVillageArchitectureAssets.js 2>&1 | tee artifacts/village-architecture-assets/proof.log
 
       - name: Shipped createVillages geography and replacement proof
