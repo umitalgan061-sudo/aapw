@@ -339,5 +339,7 @@ console.log(JSON.stringify({
   facetedNonPlatonicFallback: true,
   canonicalValyriaSurfaceOnly: true,
   instanceCorrectWorldNormals: true,
+  smallFallbackShadowSuppression: NATURAL_GEOLOGY_RENDER_POLICY.smallFallbackShadowSuppression,
+  roundedBoulderNormalResponse: NATURAL_GEOLOGY_RENDER_POLICY.roundedBoulderNormalResponse,
 }, null, 2));
 
