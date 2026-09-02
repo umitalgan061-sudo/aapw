@@ -53,6 +53,11 @@ const WALKABLE_SLOPE_MAX_DEGREES = 35;
  * much larger area), large enough to stay well above floating-point noise. */
 const SLOPE_SAMPLE_OFFSET_METERS = 2;
 
+/** `game3d.html` currently initializes a large shipped module graph before DOMContentLoaded on CI.
+ * Keep this safety probe aligned with the repository's bounded 90s browser-navigation budget so a
+ * slow cold load cannot mask the actual seat-height/slope assertions this checker owns. */
+const GAME3D_NAVIGATION_TIMEOUT_MS = 90000;
+
 const MIME_TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8' };
 
 /**
@@ -118,7 +123,7 @@ async function main() {
 	let seatResults;
 	try {
 		const page = await browser.newPage();
-		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: GAME3D_NAVIGATION_TIMEOUT_MS });
 		seatResults = await page.evaluate(
 			async ({ slopeOffset }) => {
 				const { KINGDOM_SEATS, mapToWorldXZ, computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');
