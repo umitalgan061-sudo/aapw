@@ -19,6 +19,7 @@ const MAX_KEEP_ENVELOPE_METERS = 30;
 const MAX_RELOCATION_METERS = 8;
 const RELOCATION_STEP_METERS = 2;
 const SETTLEMENT_RING_STEP_METERS = 2;
+const DIAGONAL_UNIT = Math.SQRT1_2;
 const NPC_SEAT_PROTECTION_RADIUS_METERS = MAX_KEEP_ENVELOPE_METERS + SLOPE_SAMPLE_RADIUS_METERS;
 const NPC_SEAT_PROTECTION_RADII = referenceProtectionRadiiFromMeters(
 	NPC_SEAT_PROTECTION_RADIUS_METERS,
@@ -183,9 +184,10 @@ function relocationOffsets(spawnId) {
 	const offsets = [{ x: 0, z: 0 }];
 	const seed = hashString(spawnId);
 	for (let radius = RELOCATION_STEP_METERS; radius <= MAX_RELOCATION_METERS; radius += RELOCATION_STEP_METERS) {
+		const diagonal = radius * DIAGONAL_UNIT;
 		const ring = [
 			{ x: radius, z: 0 }, { x: 0, z: radius }, { x: -radius, z: 0 }, { x: 0, z: -radius },
-			{ x: radius, z: radius }, { x: -radius, z: radius }, { x: -radius, z: -radius }, { x: radius, z: -radius },
+			{ x: diagonal, z: diagonal }, { x: -diagonal, z: diagonal }, { x: -diagonal, z: -diagonal }, { x: diagonal, z: -diagonal },
 		];
 		const shift = seed % ring.length;
 		for (let index = 0; index < ring.length; index += 1) offsets.push(ring[(index + shift) % ring.length]);
@@ -197,10 +199,10 @@ function settlementRingCandidates(spawnId, seat) {
 	const points = [];
 	const seed = hashString(`${spawnId}:settlement-ring`);
 	for (let radius = MIN_KEEP_CLEARANCE_METERS; radius <= MAX_KEEP_ENVELOPE_METERS; radius += SETTLEMENT_RING_STEP_METERS) {
+		const diagonal = radius * DIAGONAL_UNIT;
 		const ring = [
 			{ x: radius, z: 0 }, { x: 0, z: radius }, { x: -radius, z: 0 }, { x: 0, z: -radius },
-			{ x: radius * 0.70710678, z: radius * 0.70710678 }, { x: -radius * 0.70710678, z: radius * 0.70710678 },
-			{ x: -radius * 0.70710678, z: -radius * 0.70710678 }, { x: radius * 0.70710678, z: -radius * 0.70710678 },
+			{ x: diagonal, z: diagonal }, { x: -diagonal, z: diagonal }, { x: -diagonal, z: -diagonal }, { x: diagonal, z: -diagonal },
 		];
 		const shift = seed % ring.length;
 		for (let index = 0; index < ring.length; index += 1) {
