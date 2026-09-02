@@ -48,5 +48,9 @@ assert.deepEqual(roundTripSources, boundedSources, 'bounded provenance FIFO orde
 assert.equal(roundTrip.credit(1, { sourceId: boundedSources[0] }).reason, 'duplicate-credit-source');
 assert.equal(roundTrip.credit(1, { sourceId: boundedSources.at(-1) }).reason, 'duplicate-credit-source');
 assert.deepEqual(roundTrip.snapshot().ledger.creditedSourceIds, boundedSources, 'replay rejection must not reorder persisted provenance');
+const normalizedIdentityCredit = roundTrip.credit(1, { sourceId: 404, label: 'normalized identity' });
+assert.equal(normalizedIdentityCredit.ok, true, 'numeric credit source identity should normalize into the provenance ledger');
+assert.equal(roundTrip.credit(1, { sourceId: '404' }).reason, 'duplicate-credit-source', 'string-equivalent source identity must be rejected after normalization');
+assert.equal(roundTrip.snapshot().ledger.creditedSourceIds.at(-1), '404', 'normalized credit identity must persist canonically');
 
 console.log('Interaction credit source ledger restore PASS');
