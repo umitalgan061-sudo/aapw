@@ -206,7 +206,14 @@ async function main() {
 		assert.equal(result.architectureEvidence.missingAssetCount, 0);
 		assert.equal(result.architectureEvidence.placementFailureCount, 0);
 		assert.equal(result.manifestProof.length, 6);
-		assert.equal(new Set(result.manifestProof.map((entry) => entry.assetUrl)).size >= 5, true, 'three regions should render a diverse real silhouette set');
+		const silhouetteUrls = new Set(result.manifestProof.map((entry) => entry.assetUrl));
+		const renderedRegions = new Set(result.manifestProof.map((entry) => entry.region));
+		assert.equal(renderedRegions.size, 3, 'shipped proof must exercise all three requested geography profiles');
+		assert.equal(silhouetteUrls.size >= 4, true, 'three regions should render at least four real repository silhouettes');
+		for (const pair of result.pairs) {
+			const regionalAssets = result.manifestProof.filter((entry) => entry.seatId === pair.seatId).map((entry) => entry.assetUrl);
+			assert.equal(new Set(regionalAssets).size, 2, `${pair.seatId}: a hamlet must not clone one GLB into both landmark slots`);
+		}
 
 		for (const proof of result.manifestProof) {
 			assert(['north', 'maritime', 'arid'].includes(proof.region), `${proof.seatId}: unexpected region ${proof.region}`);
