@@ -9,6 +9,7 @@ on:
       - 'scripts/checkVillageArchitectureAssets.js'
       - 'scripts/checkVillageArchitectureDistribution.mjs'
       - 'scripts/checkArchitectureSurfaceSemantics.mjs'
+      - 'scripts/checkVillageRuntimeArchitectureIntegration.js'
       - 'scripts/village-architecture-harness.html'
       - 'service-worker.js'
       - '.github/workflows/run167-determinism-policy.yml'
@@ -40,7 +41,7 @@ jobs:
           while IFS= read -r path; do
             [ -z "$path" ] && continue
             case "$path" in
-              src/3d/world/villages.js|src/3d/materials/meshPartClassifier.js|src/3d/materials/figureKits.js|scripts/checkVillageArchitectureAssets.js|scripts/checkVillageArchitectureDistribution.mjs|scripts/checkArchitectureSurfaceSemantics.mjs|scripts/village-architecture-harness.html|service-worker.js|.github/workflows/run167-determinism-policy.yml|.github/workflows/run283-final-head-governance.yml|.github/workflows/village-architecture-assets.yml) ;;
+              src/3d/world/villages.js|src/3d/materials/meshPartClassifier.js|src/3d/materials/figureKits.js|scripts/checkVillageArchitectureAssets.js|scripts/checkVillageArchitectureDistribution.mjs|scripts/checkArchitectureSurfaceSemantics.mjs|scripts/checkVillageRuntimeArchitectureIntegration.js|scripts/village-architecture-harness.html|service-worker.js|.github/workflows/run167-determinism-policy.yml|.github/workflows/run283-final-head-governance.yml|.github/workflows/village-architecture-assets.yml) ;;
               *) echo "unexpected village architecture scope path: $path"; exit 1 ;;
             esac
           done <<< "$CHANGED"
@@ -78,6 +79,7 @@ jobs:
           node --check scripts/checkVillageArchitectureAssets.js
           node --check scripts/checkVillageArchitectureDistribution.mjs
           node --check scripts/checkArchitectureSurfaceSemantics.mjs
+          node --check scripts/checkVillageRuntimeArchitectureIntegration.js
           node scripts/checkArchitectureSurfaceSemantics.mjs
           node scripts/checkVillageArchitectureDistribution.mjs
           node scripts/checkSeededRandomPolicy.js
@@ -96,6 +98,12 @@ jobs:
           set -o pipefail
           mkdir -p artifacts/village-architecture-assets
           node scripts/checkVillageArchitectureAssets.js 2>&1 | tee artifacts/village-architecture-assets/proof.log
+
+      - name: Shipped createVillages geography and replacement proof
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/checkVillageRuntimeArchitectureIntegration.js 2>&1 | tee artifacts/village-architecture-assets/generated-runtime.log
 
       - name: PWA offline shell regression against exact main
         shell: bash
