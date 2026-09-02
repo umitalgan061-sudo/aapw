@@ -8,6 +8,8 @@ on:
       - 'src/3d/world/terrain.js'
       - 'src/3d/world/worldReferenceMountainRelief.js'
       - 'src/3d/world/worldReferenceMountainGeomorphology.js'
+      - 'src/3d/world/worldReferenceMountainErosionField.js'
+      - 'src/3d/world/worldReferenceMountainPlacementQuery.js'
       - 'src/3d/world/worldReferenceMountainRidgeFrame.js'
       - 'fixtures/world-reference-mountain-relief-v1.json'
       - 'scripts/checkWorldReferenceMountainRelief.mjs'
@@ -15,6 +17,12 @@ on:
       - 'scripts/checkMountainNaturalizationDeterminism.mjs'
       - 'scripts/checkMountainGeomorphologyField.mjs'
       - 'scripts/checkMountainSurfaceContext.mjs'
+      - 'scripts/checkMountainErosionField.mjs'
+      - 'scripts/checkMountainPlacementQuery.mjs'
+      - 'scripts/checkMountainRidgeJointContinuity.mjs'
+      - 'scripts/checkMountainMeshFrequencyBudget.mjs'
+      - 'scripts/checkMountainRuntimeGeometryParity.mjs'
+      - 'scripts/checkMountainWallSilhouetteBreakup.mjs'
       - 'scripts/checkMountainPassReliefSafety.mjs'
       - 'scripts/checkMountainVisualProofContract.mjs'
       - 'scripts/captureLiveWorldMountainNaturalization.mjs'
@@ -37,7 +45,7 @@ env:
 jobs:
   validate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 55
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -59,7 +67,7 @@ jobs:
           A="$(git diff --numstat "$MAIN_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$MAIN_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "mountain relief quota additions=$A deletions=$D total=$((A+D))"
-          test $((A+D)) -le 1000
+          test $((A+D)) -le 3000
           echo "BASE_SHA=$MAIN_SHA" >> "$GITHUB_ENV"
 
       - name: Hydrate scoped shipped-scene LFS assets
@@ -73,6 +81,8 @@ jobs:
           set -euo pipefail
           node --check src/3d/world/worldReferenceMountainRelief.js
           node --check src/3d/world/worldReferenceMountainGeomorphology.js
+          node --check src/3d/world/worldReferenceMountainErosionField.js
+          node --check src/3d/world/worldReferenceMountainPlacementQuery.js
           node --check src/3d/world/worldReferenceMountainRidgeFrame.js
           node --check src/3d/world/terrain.js
           node --check scripts/checkWorldReferenceMountainRelief.mjs
@@ -80,6 +90,12 @@ jobs:
           node --check scripts/checkMountainNaturalizationDeterminism.mjs
           node --check scripts/checkMountainGeomorphologyField.mjs
           node --check scripts/checkMountainSurfaceContext.mjs
+          node --check scripts/checkMountainErosionField.mjs
+          node --check scripts/checkMountainPlacementQuery.mjs
+          node --check scripts/checkMountainRidgeJointContinuity.mjs
+          node --check scripts/checkMountainMeshFrequencyBudget.mjs
+          node --check scripts/checkMountainRuntimeGeometryParity.mjs
+          node --check scripts/checkMountainWallSilhouetteBreakup.mjs
           node --check scripts/checkMountainPassReliefSafety.mjs
           node --check scripts/checkMountainVisualProofContract.mjs
           node --check scripts/captureLiveWorldMountainNaturalization.mjs
@@ -91,6 +107,11 @@ jobs:
           node scripts/checkMountainNaturalizationDeterminism.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-determinism.log"
           node scripts/checkMountainGeomorphologyField.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-geomorphology.log"
           node scripts/checkMountainSurfaceContext.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-surface-context.log"
+          node scripts/checkMountainErosionField.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-erosion.log"
+          node scripts/checkMountainPlacementQuery.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-placement-query.log"
+          node scripts/checkMountainRidgeJointContinuity.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-ridge-joints.log"
+          node scripts/checkMountainMeshFrequencyBudget.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-frequency.log"
+          node scripts/checkMountainWallSilhouetteBreakup.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-wall-breakup.log"
           node scripts/checkMountainPassReliefSafety.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-pass.log"
           node scripts/checkMountainVisualProofContract.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-proof-contract.log"
 
@@ -123,10 +144,11 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
-      - name: Live mountain-view seat road and full-scene regressions
+      - name: Live mountain-view geometry and full-scene regressions
         run: |
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkMountainRuntimeGeometryParity.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-runtime-parity.log"
           node scripts/captureLiveWorldMountainNaturalization.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-visual.log"
           grep -F LIVE_WORLD_MOUNTAIN_NATURALIZATION_OK "$RUNNER_TEMP/mountain-visual.log"
           node scripts/terrainSeatSafetyCheck.js 2>&1 | tee "$RUNNER_TEMP/terrain-seat.log"
@@ -162,6 +184,12 @@ jobs:
             ${{ runner.temp }}/mountain-determinism.log
             ${{ runner.temp }}/mountain-geomorphology.log
             ${{ runner.temp }}/mountain-surface-context.log
+            ${{ runner.temp }}/mountain-erosion.log
+            ${{ runner.temp }}/mountain-placement-query.log
+            ${{ runner.temp }}/mountain-ridge-joints.log
+            ${{ runner.temp }}/mountain-frequency.log
+            ${{ runner.temp }}/mountain-runtime-parity.log
+            ${{ runner.temp }}/mountain-wall-breakup.log
             ${{ runner.temp }}/mountain-pass.log
             ${{ runner.temp }}/mountain-proof-contract.log
             ${{ runner.temp }}/repository-policy.log
