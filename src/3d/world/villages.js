@@ -7,11 +7,14 @@
  * corners cannot hover while uphill corners remain safely embedded in the terrain. Stairs and field
  * walls are grounded from their own footprints as well.
  *
- * Up to two separated procedural houses in every canonical hamlet are asset-upgrade sites. The cheap
- * instanced house remains visible until a real repository GLB has loaded, passed the shared material
- * contract, passed footprint-aware world placement, produced a manifest and attached successfully.
- * Only then is the matching primitive instance hidden. Missing/LFS-unavailable assets therefore fail
- * closed: no magenta AssetLoader placeholder and no invisible collision hole are ever shipped.
+ * Up to two separated procedural houses in every canonical hamlet are asset-upgrade sites. The sites
+ * are selected only after the procedural hamlet is complete, choosing the farthest valid pair without
+ * consuming another RNG draw. This keeps canonical house coordinates untouched while preventing both
+ * high-detail silhouettes from clustering on the same hamlet edge. The cheap instanced house remains
+ * visible until a real repository GLB has loaded, passed the shared material contract, passed
+ * footprint-aware world placement, produced a manifest and attached successfully. Only then is the
+ * matching primitive instance hidden. Missing/LFS-unavailable assets therefore fail closed: no
+ * magenta AssetLoader placeholder and no invisible collision hole are ever shipped.
  * @module world/villages
  */
 
@@ -120,6 +123,40 @@ export function pickHouseTypeIndex(roll) {
 		if (roll < cumulative) return i;
 	}
 	return HOUSE_TYPES.length - 1;
+}
+
+/**
+ * Chooses which already-authored procedural houses receive the two real GLB upgrades.
+ * The planner is deterministic and consumes no RNG. It maximizes pair separation, then uses
+ * house-index ordering as a stable tie-break so visual-detail placement cannot perturb world layout.
+ */
+export function selectVillageArchitectureLandmarks(candidates = []) {
+	const valid = (Array.isArray(candidates) ? candidates : [])
+		.filter((candidate) => Number.isFinite(candidate?.x) && Number.isFinite(candidate?.z) && Number.isInteger(candidate?.houseIndex))
+		.map((candidate) => ({ ...candidate }))
+		.sort((a, b) => a.houseIndex - b.houseIndex);
+	if (valid.length === 0) return [];
+	if (MAX_ARCHITECTURE_ASSETS_PER_HAMLET <= 1 || valid.length === 1) {
+		return [{ ...valid[0], assetIndex: 0, distributionDistanceMeters: 0 }];
+	}
+
+	let best = null;
+	for (let i = 0; i < valid.length - 1; i++) {
+		for (let j = i + 1; j < valid.length; j++) {
+			const distance = Math.hypot(valid[j].x - valid[i].x, valid[j].z - valid[i].z);
+			if (distance + 1e-9 < MIN_ARCHITECTURE_ASSET_SPACING_METERS) continue;
+			const betterDistance = !best || distance > best.distance + 1e-9;
+			const tiedDistance = best && Math.abs(distance - best.distance) <= 1e-9;
+			const stableTie = tiedDistance && (valid[i].houseIndex < best.first.houseIndex ||
+				(valid[i].houseIndex === best.first.houseIndex && valid[j].houseIndex < best.second.houseIndex));
+			if (betterDistance || stableTie) best = { first: valid[i], second: valid[j], distance };
+		}
+	}
+
+	if (!best) return [{ ...valid[0], assetIndex: 0, distributionDistanceMeters: 0 }];
+	return [best.first, best.second]
+		.slice(0, MAX_ARCHITECTURE_ASSETS_PER_HAMLET)
+		.map((candidate, assetIndex) => ({ ...candidate, assetIndex, distributionDistanceMeters: best.distance }));
 }
 
 function buildVillageGeometries() {
@@ -346,6 +383,7 @@ export async function upgradeVillageArchitectureAssets({
 			region: profile.id,
 			assetUrl,
 			textureSize: ARCHITECTURE_TEXTURE_SIZE,
+			distributionDistanceMeters: Number.isFinite(site.distributionDistanceMeters) ? site.distributionDistanceMeters : null,
 			footprint: object.userData.architectureFootprint,
 			manifest: prepared.manifest,
 		});
@@ -437,8 +475,7 @@ export function createVillages({
 
 	for (const seat of eligibleSeats) {
 		const placedHere = [];
-		const architectureSitesHere = [];
-		let landmarkRecorded = 0;
+		const architectureCandidatesHere = [];
 		const architectureProfile = resolveVillageArchitectureProfile(seat.id);
 		const hamletBearing = rng() * Math.PI * 2;
 		const hamletDistance = HAMLET_DISTANCE_MIN_METERS + rng() * (HAMLET_DISTANCE_MAX_METERS - HAMLET_DISTANCE_MIN_METERS);
@@ -498,25 +535,22 @@ export function createVillages({
 
 				placedHere.push({ x, z });
 				houses.push({ x, z, radius: Math.hypot(type.width, type.depth) / 2 });
-				if (architectureProfile && landmarkRecorded < MAX_ARCHITECTURE_ASSETS_PER_HAMLET &&
-					architectureSitesHere.every((site) => Math.hypot(x - site.x, z - site.z) >= MIN_ARCHITECTURE_ASSET_SPACING_METERS)) {
-					const landmarkSite = {
-						seatId: seat.id, assetIndex: landmarkRecorded, x, z, yaw, houseIndex, stepStartIndex,
+				if (architectureProfile) {
+					architectureCandidatesHere.push({
+						seatId: seat.id, x, z, yaw, houseIndex, stepStartIndex,
 						stepCount: STOOP_STEP_COUNT,
 						targetWidthMeters: type.width,
 						targetDepthMeters: type.depth,
 						targetFootprintMeters: Math.max(type.width, type.depth),
 						proceduralType: type.id,
-					};
-					landmarkSites.push(landmarkSite);
-					architectureSitesHere.push(landmarkSite);
-					landmarkRecorded++;
+					});
 				}
 				houseCount++;
 				break;
 			}
 		}
 
+		if (architectureProfile) landmarkSites.push(...selectVillageArchitectureLandmarks(architectureCandidatesHere));
 		if (placedHere.length === 0) continue;
 		villageCount++;
 		const ringOrder = [...placedHere].sort((p, q) =>
@@ -581,7 +615,6 @@ export function disposeVillages(group) {
 						disposedTextures.add(texture);
 						texture.dispose();
 					}
-				}
 			}
 			if (!factoryCached) material.dispose();
 		}
