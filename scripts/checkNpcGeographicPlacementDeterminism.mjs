@@ -78,10 +78,8 @@ function localRidgeHeight(x, z) {
 	const base = gameplayHeight(x, z);
 	const dx = x - desiredX;
 	const dz = z - desiredZ;
-	const distance = Math.hypot(dx, dz);
-	if (distance > 2.1) return base;
-	const ridge = (2.1 - distance) * 4.5;
-	return base + ridge;
+	if (Math.abs(dx) > 2.1 || Math.abs(dz) > 2.1) return base;
+	return base + (dx + 2.1) * 4.5;
 }
 
 const unsafeDesired = sampleConfiguredNpcGeography(desiredX, desiredZ, localRidgeHeight);
