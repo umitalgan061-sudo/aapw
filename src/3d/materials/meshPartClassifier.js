@@ -67,7 +67,10 @@ const SLOT_RULES = Object.freeze([
 	// dressed as a boot. Material-name weight still makes artist-authored foundation semantics win.
 	{ slot: 'structure-stone', priority: 1, words: ['stonework', 'masonry', 'foundation', 'footing', 'rubble stone', 'tas temel', 'taş temel'] },
 	{ slot: 'structure-timber', words: ['timber', 'wooden beam', 'wood beam', 'plank', 'rafter', 'joist', 'log wall', 'ahsap', 'ahşap', 'tahta'] },
-	{ slot: 'structure-metal', words: ['hinge', 'door handle', 'latch', 'ironwork', 'wrought iron', 'metal trim', 'metal fitting'] },
+	// Artist-authored fitting materials (for example Wrought_Iron_Hinge on a mesh named Door)
+	// describe the surface more precisely than the parent mesh. Keep that metal treatment dominant
+	// without making bare "iron"/"metal" global classifier words.
+	{ slot: 'structure-metal', priority: 2, words: ['hinge', 'door handle', 'latch', 'ironwork', 'wrought iron', 'metal trim', 'metal fitting'] },
 
 	{ slot: 'fur', words: ['fur', 'pelt', 'coat', 'hide', 'kurk', 'kürk', 'post', 'tuy', 'tüy'] },
 	{ slot: 'scale', words: ['scale', 'scales', 'pul', 'pullar'] },
