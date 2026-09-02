@@ -134,6 +134,7 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 	forestTreeLineStartMeters: 170,
 	forestTreeLineFullMeters: 330,
 	forestMaxStrength: 0.88,
+	forestSuitabilitySharedWithVegetation: true,
 	grassVariationFrequency: 0.00042,
 	grassVariationStrength: 0.30,
 	seabedFullDepthMeters: 2.5,
@@ -555,6 +556,34 @@ export function resolveTerrainSnowCoverage({
 	}) });
 }
 
+/**
+ * Shared render/scatter suitability for woodland. Terrain tint and physical tree placement consume
+ * the same deterministic field so aerial forest colour cannot drift away from the actual canopy.
+ * It is deliberately advisory: canonical biome, terrain height, hydrology and colliders remain
+ * untouched.
+ */
+export function terrainForestSuitabilityAtWorldXZ({
+	worldX = 0,
+	worldZ = 0,
+	heightAboveSeaMeters = 0,
+	slopeDegrees = 0,
+} = {}) {
+	const P = TERRAIN_BIOME_SHADING_POLICY;
+	const climate = northReferenceCryosphereAtWorldXZ(worldX, worldZ);
+	const forestNoise01 = signedFbmNoise(
+		worldX * P.forestPatchFrequency - 13.1,
+		worldZ * P.forestPatchFrequency + 7.4,
+		P.forestPatchOctaves,
+	) * 0.5 + 0.5;
+	const forestPatch = smoothstep(P.forestPatchStart, P.forestPatchFull, forestNoise01);
+	const notCliff = 1 - smoothstep(P.forestSlopeFalloffStartDegrees, P.forestSlopeFalloffFullDegrees, slopeDegrees);
+	const belowTreeLine = 1 - smoothstep(P.forestTreeLineStartMeters, P.forestTreeLineFullMeters, heightAboveSeaMeters);
+	return clamp01(
+		forestPatch * notCliff * belowTreeLine * P.forestMaxStrength
+		* (1 - climate.permanentIce) * (1 - climate.tundra * 0.62),
+	);
+}
+
 const scratchRock = new THREE.Color();
 const scratchGround = new THREE.Color();
 const scratchShore = new THREE.Color();
@@ -594,11 +623,12 @@ export function resolveTerrainBiomeColor(target, {
 		.lerp(TERRAIN_BIOME_PALETTE.DRY_UPLAND, smoothstep(P.dryUplandStartMeters, P.dryUplandFullMeters, height));
 	if (tundraNorth > 0) target.lerp(TERRAIN_BIOME_PALETTE.TUNDRA, tundraNorth * 0.78);
 
-	const forestNoise01 = signedFbmNoise(worldX * P.forestPatchFrequency - 13.1, worldZ * P.forestPatchFrequency + 7.4, P.forestPatchOctaves) * 0.5 + 0.5;
-	const forestPatch = smoothstep(P.forestPatchStart, P.forestPatchFull, forestNoise01);
-	const notCliff = 1 - smoothstep(P.forestSlopeFalloffStartDegrees, P.forestSlopeFalloffFullDegrees, slope);
-	const belowTreeLine = 1 - smoothstep(P.forestTreeLineStartMeters, P.forestTreeLineFullMeters, height);
-	const forestAmount = forestPatch * notCliff * belowTreeLine * P.forestMaxStrength * (1 - permanentNorth) * (1 - tundraNorth * 0.62);
+	const forestAmount = terrainForestSuitabilityAtWorldXZ({
+		worldX,
+		worldZ,
+		heightAboveSeaMeters: height,
+		slopeDegrees: slope,
+	});
 	if (forestAmount > 0) target.lerp(TERRAIN_BIOME_PALETTE.FOREST, forestAmount);
 
 	const shoreAmount = (1 - smoothstep(P.shoreSandFullMeters, P.shoreSandTopMeters, height))

@@ -74,7 +74,7 @@ function build(seed) {
 	});
 }
 
-assert.equal(VEGETATION_SPATIAL_PATTERN_POLICY.id, 'vegetation-ecological-grove-scatter-2026-08-26-v1');
+assert.equal(VEGETATION_SPATIAL_PATTERN_POLICY.id, 'vegetation-ecological-grove-scatter-2026-09-02-v2-terrain-coherent');
 assert(VEGETATION_SPATIAL_PATTERN_POLICY.groveTreeCountMin >= 7);
 assert(VEGETATION_SPATIAL_PATTERN_POLICY.groveTreeCountMax <= 24);
 assert(VEGETATION_SPATIAL_PATTERN_POLICY.groveTreeCountMax > VEGETATION_SPATIAL_PATTERN_POLICY.groveTreeCountMin);
