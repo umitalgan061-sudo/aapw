@@ -17,7 +17,7 @@ import {
 import { WORLD_REFERENCE_BASE_SURFACE_MASK } from './worldReferenceSurfacePindexes.js';
 
 export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
-	id: 'owner-map-live-mountain-relief-2026-08-26-v7-lake-basin-cirques',
+	id: 'owner-map-live-mountain-relief-2026-09-02-v8-bounded-eroded-shoulders',
 	sourceMapSha256: WORLD_REFERENCE_MAP.sha256,
 	surfaceMaskSha256: WORLD_REFERENCE_BASE_SURFACE_MASK.maskSha256,
 	landGateZero: 0.54,
@@ -29,7 +29,7 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 		broadFrequency: 5.5,
 		detailFrequency: 13.5,
 		minimumScale: 0.94,
-		maximumScale: 1.76,
+		maximumScale: 1.68,
 	}),
 	coastalReliefTaper: Object.freeze({
 		radiusNormalized: 0.012,
@@ -47,9 +47,9 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 	talusBreakup: Object.freeze({
 		broadFrequency: 22,
 		detailFrequency: 47,
-		strength: 0.20,
-		shoulderStart: 0.18,
-		shoulderEnd: 0.92,
+		strength: 0.22,
+		shoulderStart: 0.14,
+		shoulderEnd: 0.94,
 	}),
 	// Western chains overlap shipped kingdom roads, so their audited map-space approaches are
 	// lowered into traversable passes instead of flattening/removing the surrounding mountains.
@@ -312,7 +312,7 @@ function samplePassMultiplier(normalizedX, normalizedY, passes = []) {
 					corridorVia[0] * MAP_ASPECT,
 					corridorVia[1],
 					pass.corridorEnd[0] * MAP_ASPECT,
-					pass.corridorEnd[1],
+					pass.corridorEnd[1] * 1,
 				),
 			);
 			corridorInfluence = corridorDistance >= pass.corridorOuterRadiusNormalized
