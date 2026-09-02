@@ -203,7 +203,14 @@ export function updateFog(fog, dayNight) {
 
 	const fogLuminance = fog.color.r * 0.2126 + fog.color.g * 0.7152 + fog.color.b * 0.0722;
 	if (fogLuminance < FOG_HORIZON_LUMINANCE_FLOOR) {
-		const rescue = THREE.MathUtils.clamp((FOG_HORIZON_LUMINANCE_FLOOR - fogLuminance) / FOG_HORIZON_LUMINANCE_FLOOR, 0, 1);
+		const floorLuminance = FOG_HORIZON_FLOOR_COLOR.r * 0.2126
+			+ FOG_HORIZON_FLOOR_COLOR.g * 0.7152
+			+ FOG_HORIZON_FLOOR_COLOR.b * 0.0722;
+		const rescue = THREE.MathUtils.clamp(
+			(FOG_HORIZON_LUMINANCE_FLOOR - fogLuminance) / Math.max(floorLuminance - fogLuminance, 1e-6),
+			0,
+			1,
+		);
 		fog.color.lerp(FOG_HORIZON_FLOOR_COLOR, rescue);
 	}
 
