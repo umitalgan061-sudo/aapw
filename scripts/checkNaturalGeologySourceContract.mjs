@@ -63,6 +63,7 @@ assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.smallFallbackShadowSuppression, true)
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.roundedBoulderNormalResponse, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.volcanicFallbackSmoothedLightingNormals, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.volcanicFallbackCalibratedBasaltReflectance, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.fallbackCapNormalsOutward, true);
 assert.deepEqual(NATURAL_GEOLOGY_RENDER_POLICY.volcanicFallbackLinearReflectanceRange, [0.10, 0.18]);
 assert(NATURAL_GEOLOGY_RENDER_POLICY.fallbackLinearAlbedoFloor >= 0.04);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.hydratedRegionalTint, true);
@@ -182,6 +183,9 @@ for (const snippet of [
   'naturalRockCoolingFacet',
   'naturalRockOxidation',
   'naturalRockSulfuric',
+  'fallbackCapNormalsOutward: true',
+  'indices.push(bottomCenter, segment, next)',
+  'indices.push(topCenter, topBase + next, topBase + segment)',
   "naturalGeologyWeatheringProfile: volcanic ? 'valyria-volcanic-mineral-facets'",
   "const familyKey = `${placement.kind}:${volcanic ? 'volcanic' : 'regional'}`",
   "filter((child) => child?.userData?.naturalGeologyKind === 'asset-proxy')",
@@ -355,5 +359,6 @@ console.log(JSON.stringify({
   roundedBoulderNormalResponse: NATURAL_GEOLOGY_RENDER_POLICY.roundedBoulderNormalResponse,
   volcanicFallbackSmoothedLightingNormals: NATURAL_GEOLOGY_RENDER_POLICY.volcanicFallbackSmoothedLightingNormals,
   volcanicFallbackCalibratedBasaltReflectance: NATURAL_GEOLOGY_RENDER_POLICY.volcanicFallbackCalibratedBasaltReflectance,
+  fallbackCapNormalsOutward: NATURAL_GEOLOGY_RENDER_POLICY.fallbackCapNormalsOutward,
 }, null, 2));
 
