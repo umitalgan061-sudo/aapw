@@ -104,6 +104,9 @@ export const NATURAL_GEOLOGY_PLACEMENT_POLICY = Object.freeze({
   genericHabitatRejectThreshold: 0.13,
   largeOutcropHabitatMinimum: 0.18,
   assetProxyHabitatBoost: 0.12,
+  assetProxyUsesRawClusterEligibility: true,
+  assetProxyCanonicalTiltRatio: 0.52,
+  assetProxyCanonicalBurialEnvelopePreserved: true,
 });
 
 const TAU = Math.PI * 2;
@@ -504,6 +507,7 @@ function makePlacement({
   habitat,
   cluster,
   influence,
+  rawClusterInfluence = influence,
   heightAboveSeaMeters,
   worldWidthMeters,
   worldDepthMeters,
@@ -530,16 +534,17 @@ function makePlacement({
     morphology,
     habitat,
   );
+  const assetProxySuitability = geologySuitabilityForHabitat(habitat, 'asset-proxy');
   let assetFraction = valyriaInfluence > P.valyriaMinimumInfluence ? P.valyriaAssetProxyFraction : P.assetProxyFraction;
   if (morphology.faultActivity > 0.52 || morphology.brokenCalderaShoulder > 0.58) {
     assetFraction = Math.min(0.48, assetFraction + P.valyriaFaultAssetBoost);
   } else {
-    assetFraction = Math.min(0.34, assetFraction + geologySuitabilityForHabitat(habitat, 'asset-proxy') * P.assetProxyHabitatBoost);
+    assetFraction = Math.min(0.34, assetFraction + assetProxySuitability * P.assetProxyHabitatBoost);
   }
   if (
     ['bedrock', 'low-outcrop', 'fractured-scarp'].includes(kind)
-    && influence > 0.42
-    && geologySuitabilityForHabitat(habitat, 'asset-proxy') >= P.largeOutcropHabitatMinimum
+    && rawClusterInfluence > 0.42
+    && assetProxySuitability >= P.largeOutcropHabitatMinimum
     && geologyHash01(seed, column, row, 102) < assetFraction
   ) kind = 'asset-proxy';
 
@@ -578,12 +583,18 @@ function makePlacement({
     + hashSigned(seed, column, row, 106) * (valyriaInfluence > P.valyriaMinimumInfluence ? 0.22 : 0.28);
   const presentationYaw = yaw + (kind === 'asset-proxy' ? hashSigned(seed, column, row, 112) * P.assetProxyYawJitterRadians : 0);
 
-  const terrainTilt = Math.min(P.maxTiltDegrees / DEG, frame.slopeRadians * (0.42 + habitat.exposedBedrock * 0.14));
+  const terrainTiltRatio = kind === 'asset-proxy'
+    ? P.assetProxyCanonicalTiltRatio
+    : 0.42 + habitat.exposedBedrock * 0.14;
+  const terrainTilt = Math.min(P.maxTiltDegrees / DEG, frame.slopeRadians * terrainTiltRatio);
+  const baseBurialFraction = 0.12 + geologyHash01(seed, column, row, 108) * 0.10;
   const buryFraction = kind === 'talus'
     ? 0.24 + habitat.depositional * 0.07
     : kind === 'boulder'
       ? 0.19 + habitat.depositional * 0.05
-      : 0.12 + geologyHash01(seed, column, row, 108) * 0.10 + habitat.exposedBedrock * 0.025;
+      : kind === 'asset-proxy'
+        ? baseBurialFraction
+        : baseBurialFraction + habitat.exposedBedrock * 0.025;
   const southernDryness = clamp01((z / worldDepthMeters) + 0.5);
   const northness = 1 - southernDryness;
   const assetHabitatHint = geologyAssetHabitatHint(habitat, { northness, southernDryness, volcanic: valyriaInfluence > P.valyriaMinimumInfluence });
@@ -616,6 +627,8 @@ function makePlacement({
     sourceMorphologyMode: cluster.morphologyMode ?? 'regional-strata',
     clusterIndex: cluster.index,
     clusterInfluence: influence,
+    rawClusterInfluence,
+    assetProxySuitability,
     score,
     scale: Object.freeze(scale),
     yawRadians: presentationYaw,
@@ -751,6 +764,7 @@ export function generateNaturalGeologyPlacements({
       habitat,
       cluster: dominant.cluster,
       influence: habitatAdjustedInfluence,
+      rawClusterInfluence: dominant.influence,
       heightAboveSeaMeters,
       worldWidthMeters: width,
       worldDepthMeters: depth,
