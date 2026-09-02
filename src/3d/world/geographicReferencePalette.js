@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-02-v68-aerial-lowland-separation',
+	id: 'geographic-reference-palette-2026-09-02-v69-aerial-lowland-depth',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -19,6 +19,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	waterDepthHierarchyRaised: true,
 	aerialChromaRecovery: true,
 	aerialLowlandMaterialSeparationRaised: true,
+	aerialLowlandDepthRaised: true,
 	legacyRoadBaseContractPreserved: true,
 	exposedRockSeparationRaised: true,
 	assetReferences: Object.freeze([
@@ -28,9 +29,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v68 follows exact-head full-world artifact inspection: broad lowland meadow, dry-heather and exposed-earth families still collapsed into one olive-beige aerial mass. Their render-only reference hues are separated modestly while terrain height, shoreline, collider, biome ownership and map-derived geography remain unchanged.',
-		water: 'v68 preserves the v67 open-sea value floor and depth hierarchy; canonical wet coverage, shoreline and bathymetry remain untouched.',
-		road: 'v68 preserves established compacted-road and dust bases plus damp-rut/stone/moss-edge separation; route geometry remains unchanged.',
+		terrain: 'v69 follows direct inspection of exact-head Full World 3D Topdown #1053: the central and southern lowlands still read as one washed olive-beige aerial mass despite v68 separation. Meadow is deepened and cooled slightly, dry-heather is pushed toward muted umber, exposed earth toward oxidized clay, and granite retains a distinct neutral mineral value. This is render-only palette work; terrain height, shoreline, collider, biome ownership and map-derived geography remain unchanged.',
+		water: 'v69 preserves the v68 open-sea value floor and depth hierarchy; canonical wet coverage, shoreline and bathymetry remain untouched.',
+		road: 'v69 preserves established compacted-road and dust bases plus damp-rut/stone/moss-edge separation; route geometry remains unchanged.',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability.',
 	}),
 });
@@ -38,12 +39,12 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
 		mossShadow: 0x082819,
-		meadow: 0x3f7f4b,
-		dryHeather: 0x8b694b,
+		meadow: 0x326b43,
+		dryHeather: 0x76553f,
 		wetEarth: 0x0d1a14,
-		exposedEarth: 0xb97a52,
+		exposedEarth: 0xa96545,
 		graniteShadow: 0x18232a,
-		graniteSunlit: 0xb7a894,
+		graniteSunlit: 0xafa18f,
 		basaltWet: 0x020b0f,
 		quartz: 0xbeb09d,
 	}),
