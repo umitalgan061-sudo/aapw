@@ -26,7 +26,7 @@ const ALWAYS_WINTER_ZONE = findZone('lands-always-winter');
 const NORTH_ZONE = findZone('north');
 
 export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
-	id: 'owner-map-north-cryosphere-2026-09-02-v8-deeper-weathered-transition',
+	id: 'owner-map-north-cryosphere-2026-09-02-v8-deeper-weathered-ice-transition',
 	source: 'WORLD_REFERENCE_MAP biome zones',
 	renderClimateOnly: true,
 	heightAuthorityUnchanged: true,
@@ -108,19 +108,14 @@ export function northReferenceCryosphereAtNormalized(normalizedX, normalizedY) {
 	const weatheredWinterHaloExtension = curvedWinterHaloExtension * weathering;
 	const permanentIce = clamp01(winterCore + weatheredWinterHaloExtension * P.iceHaloGain);
 
-	// Preserve the raw authored-union telemetry contract, while applying multi-scale weathering only
-	// to the transition contribution consumed by render climate. That keeps canonical zone footprint
-	// and core strength unchanged while allowing a more eroded, non-uniform snow/tundra fringe.
+	// Tundra remains the canonical bounded union of the authored north/halo fields. The stronger
+	// weathering pass is intentionally confined to the permanent-ice transition material, so this
+	// realism change cannot erode or invent the canonical tundra footprint.
 	const northCoreTundra = northCore * P.northTundraGain;
 	const northHaloTundra = northHalo * P.northTundraGain;
 	const winterHaloTundra = winterHalo * P.winterHaloGain;
 	const tundraUnion = union01(northCoreTundra, northHaloTundra, winterHaloTundra);
-	const weatheredTundraUnion = union01(
-		northCoreTundra,
-		northHaloTundra * weathering,
-		winterHaloTundra * weathering,
-	);
-	const tundra = clamp01(Math.max(permanentIce, weatheredTundraUnion));
+	const tundra = clamp01(Math.max(permanentIce, tundraUnion));
 
 	return Object.freeze({
 		normalizedX,
@@ -135,7 +130,6 @@ export function northReferenceCryosphereAtNormalized(normalizedX, normalizedY) {
 		northCore,
 		northHalo,
 		tundraUnion,
-		weatheredTundraUnion,
 		permanentIce,
 		tundra,
 		tundraBand: clamp01(tundra * (1 - permanentIce)),
@@ -163,7 +157,6 @@ function neutralCryosphereOutsideReference(worldX, worldZ) {
 		northCore: 0,
 		northHalo: 0,
 		tundraUnion: 0,
-		weatheredTundraUnion: 0,
 		permanentIce: 0,
 		tundra: 0,
 		tundraBand: 0,
