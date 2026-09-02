@@ -17,6 +17,7 @@ const MIN_KEEP_CLEARANCE_METERS = 10;
 const MAX_KEEP_ENVELOPE_METERS = 30;
 const MAX_RELOCATION_METERS = 8;
 const RELOCATION_STEP_METERS = 2;
+const SETTLEMENT_RING_STEP_METERS = 2;
 
 const SKIN_PALETTES = Object.freeze(['skin-fair', 'skin-olive', 'skin-brown', 'skin-deep']);
 const HAIR_PALETTES = Object.freeze(['hair-black', 'hair-blonde', 'hair-red']);
@@ -39,6 +40,7 @@ const UNIFORM_PROFILE_BY_BIOME = Object.freeze({
 	desert: Object.freeze({ id: 'desert-watch', tunic: 'tunic-cream', trousers: 'trousers-brown', armor: 'steel' }),
 	arid: Object.freeze({ id: 'arid-watch', tunic: 'tunic-cream', trousers: 'trousers-brown', armor: 'steel' }),
 	steppe: Object.freeze({ id: 'steppe-watch', tunic: 'tunic-cream', trousers: 'trousers-brown', armor: 'steel' }),
+	temperate_coast: Object.freeze({ id: 'coastal-watch', tunic: 'tunic-blue', trousers: 'trousers-brown', armor: 'steel' }),
 	'temperate-coast': Object.freeze({ id: 'coastal-watch', tunic: 'tunic-blue', trousers: 'trousers-brown', armor: 'steel' }),
 	jungle: Object.freeze({ id: 'green-watch', tunic: 'tunic-green', trousers: 'trousers-brown', armor: 'steel' }),
 	marsh: Object.freeze({ id: 'marsh-watch', tunic: 'tunic-green', trousers: 'trousers-grey', armor: 'steel' }),
@@ -48,17 +50,8 @@ const UNIFORM_PROFILE_BY_BIOME = Object.freeze({
 const DEFAULT_UNIFORM_PROFILE = Object.freeze({ id: 'guard-watch', tunic: 'tunic-red', trousers: 'trousers-grey', armor: 'steel' });
 
 const SLOT_PALETTE_KEYS = Object.freeze({
-	skin: 'skin',
-	hair: 'hair',
-	eye: 'eye',
-	tunic: 'tunic',
-	trousers: 'trousers',
-	boot: 'boot',
-	belt: 'belt',
-	cloak: 'tunic',
-	armor: 'armor',
-	helmet: 'armor',
-	gear: 'armor',
+	skin: 'skin', hair: 'hair', eye: 'eye', tunic: 'tunic', trousers: 'trousers', boot: 'boot', belt: 'belt',
+	cloak: 'tunic', armor: 'armor', helmet: 'armor', gear: 'armor',
 });
 
 function hashString(value) {
@@ -159,24 +152,51 @@ function relocationOffsets(spawnId) {
 	return offsets;
 }
 
+function settlementRingCandidates(spawnId, seat) {
+	const points = [];
+	const seed = hashString(`${spawnId}:settlement-ring`);
+	for (let radius = MIN_KEEP_CLEARANCE_METERS; radius <= MAX_KEEP_ENVELOPE_METERS; radius += SETTLEMENT_RING_STEP_METERS) {
+		const ring = [
+			{ x: radius, z: 0 }, { x: 0, z: radius }, { x: -radius, z: 0 }, { x: 0, z: -radius },
+			{ x: radius * 0.70710678, z: radius * 0.70710678 }, { x: -radius * 0.70710678, z: radius * 0.70710678 },
+			{ x: -radius * 0.70710678, z: -radius * 0.70710678 }, { x: radius * 0.70710678, z: -radius * 0.70710678 },
+		];
+		const shift = seed % ring.length;
+		for (let index = 0; index < ring.length; index += 1) {
+			const point = ring[(index + shift) % ring.length];
+			points.push({ x: seat.x + point.x, z: seat.z + point.z });
+		}
+	}
+	return points;
+}
+
+function safePlacementCandidate(x, z, desired, seat, sampleGroundHeight, relocationMode) {
+	const seatDistanceMeters = Math.hypot(x - seat.x, z - seat.z);
+	if (seatDistanceMeters < MIN_KEEP_CLEARANCE_METERS || seatDistanceMeters > MAX_KEEP_ENVELOPE_METERS) return null;
+	const habitat = evaluateConfiguredNpcHabitat(x, z, sampleGroundHeight);
+	if (!habitat.ok) return null;
+	const displacementFromDesiredMeters = Math.hypot(x - desired.x, z - desired.z);
+	const score = displacementFromDesiredMeters + habitat.geography.surface.slopeDegrees * 0.08;
+	return { x, z, habitat, displacementFromDesiredMeters, seatDistanceMeters, relocationMode, score };
+}
+
 export function resolveConfiguredNpcSpawnPlacement({ spawn, seat, sampleGroundHeight } = {}) {
 	if (!spawn || !seat) return { ok: false, error: 'missing-spawn-or-seat' };
 	const desired = { x: seat.x + spawn.offsetXMeters, z: seat.z + spawn.offsetZMeters };
 	if (!Number.isFinite(desired.x) || !Number.isFinite(desired.z)) return { ok: false, error: 'non-finite-position' };
-	const candidates = [];
+	const localCandidates = [];
 	for (const offset of relocationOffsets(spawn.id)) {
-		const x = desired.x + offset.x;
-		const z = desired.z + offset.z;
-		const seatDistanceMeters = Math.hypot(x - seat.x, z - seat.z);
-		if (seatDistanceMeters < MIN_KEEP_CLEARANCE_METERS || seatDistanceMeters > MAX_KEEP_ENVELOPE_METERS) continue;
-		const habitat = evaluateConfiguredNpcHabitat(x, z, sampleGroundHeight);
-		if (!habitat.ok) continue;
-		const relocationMeters = Math.hypot(offset.x, offset.z);
-		const score = relocationMeters + habitat.geography.surface.slopeDegrees * 0.08;
-		candidates.push({ x, z, habitat, relocationMeters, seatDistanceMeters, score });
+		const candidate = safePlacementCandidate(desired.x + offset.x, desired.z + offset.z, desired, seat, sampleGroundHeight, 'local');
+		if (candidate) localCandidates.push(candidate);
+	}
+	let candidates = localCandidates;
+	if (!candidates.length) {
+		candidates = settlementRingCandidates(spawn.id, seat)
+			.map((point) => safePlacementCandidate(point.x, point.z, desired, seat, sampleGroundHeight, 'settlement-ring'))
+			.filter(Boolean);
 	}
 	if (!candidates.length) return { ok: false, error: 'no-safe-settlement-ground', desired };
-	candidates.sort((a, b) => a.score - b.score || a.relocationMeters - b.relocationMeters || a.x - b.x || a.z - b.z);
+	candidates.sort((a, b) => a.score - b.score || a.seatDistanceMeters - b.seatDistanceMeters || a.x - b.x || a.z - b.z);
 	const chosen = candidates[0];
 	return {
 		ok: true,
@@ -185,8 +205,10 @@ export function resolveConfiguredNpcSpawnPlacement({ spawn, seat, sampleGroundHe
 		groundY: chosen.habitat.geography.surface.height,
 		geography: chosen.habitat.geography,
 		placementPolicy: chosen.habitat.placementPolicy,
-		relocated: chosen.relocationMeters > 0,
-		relocationMeters: chosen.relocationMeters,
+		relocated: chosen.displacementFromDesiredMeters > 0,
+		relocationMode: chosen.relocationMode,
+		relocationMeters: chosen.relocationMode === 'local' ? chosen.displacementFromDesiredMeters : 0,
+		displacementFromDesiredMeters: chosen.displacementFromDesiredMeters,
 		seatDistanceMeters: chosen.seatDistanceMeters,
 		desired,
 	};
@@ -223,8 +245,7 @@ export function resolveConfiguredNpcPatrol(spawn, seat, placement, sampleGroundH
 
 function authoredMapCount(material) {
 	return ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap'].reduce(
-		(count, key) => count + (material?.[key]?.isTexture ? 1 : 0),
-		0,
+		(count, key) => count + (material?.[key]?.isTexture ? 1 : 0), 0,
 	);
 }
 
@@ -269,30 +290,19 @@ export function createConfiguredNpcMaterialRecipe(object, spawn, geography) {
 	if (analysis.meshCount === 1) {
 		return {
 			recipe: {
-				version: 1,
-				mode: 'layers',
-				basePaletteId: 'soldier',
-				textureSize: 256,
-				targetMeshIndex: 0,
+				version: 1, mode: 'layers', basePaletteId: 'soldier', textureSize: 256, targetMeshIndex: 0,
 				layers: [
-					{ to: 0.10, palette: profile.boot },
-					{ to: 0.44, palette: profile.trousers },
-					{ to: 0.50, palette: profile.belt },
-					{ to: 0.84, palette: profile.tunic },
-					{ to: 0.91, palette: profile.skin },
-					{ to: 1.00, palette: profile.hair },
+					{ to: 0.10, palette: profile.boot }, { to: 0.44, palette: profile.trousers },
+					{ to: 0.50, palette: profile.belt }, { to: 0.84, palette: profile.tunic },
+					{ to: 0.91, palette: profile.skin }, { to: 1.00, palette: profile.hair },
 				],
 			},
-			profile,
-			analysis,
-			mode: 'layered-fallback',
+			profile, analysis, mode: 'layered-fallback',
 		};
 	}
 	return {
 		recipe: { version: 1, mode: 'auto', basePaletteId: 'soldier', textureSize: 256, reason: 'multi-mesh-unnamed-fallback' },
-		profile,
-		analysis,
-		mode: 'soldier-kit-fallback',
+		profile, analysis, mode: 'soldier-kit-fallback',
 	};
 }
 
@@ -321,7 +331,9 @@ export function prepareConfiguredNpcWorldAsset(object, { spawn, placement, sampl
 		biomeInfluence: Number(placement.geography.biomeInfluence.toFixed(4)),
 		slopeDegrees: Number(placement.geography.surface.slopeDegrees.toFixed(3)),
 		relocated: placement.relocated,
+		relocationMode: placement.relocationMode,
 		relocationMeters: Number(placement.relocationMeters.toFixed(3)),
+		displacementFromDesiredMeters: Number(placement.displacementFromDesiredMeters.toFixed(3)),
 		seatDistanceMeters: Number(placement.seatDistanceMeters.toFixed(3)),
 		materialMode: materialPlan.mode,
 		uniformProfileId: materialPlan.profile.id,
