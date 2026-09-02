@@ -1,6 +1,9 @@
 name: Winter Tree Visual QA
 
 on:
+  push:
+    branches:
+      - codex/foundation-grounding-20260821
   pull_request:
     branches: [main]
     paths:
@@ -95,3 +98,4 @@ jobs:
           path: artifacts/winter-tree-visual-qa/
           if-no-files-found: error
           retention-days: 7
+
