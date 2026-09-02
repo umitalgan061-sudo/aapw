@@ -488,6 +488,8 @@ GAME3D_SHELL_FILES.push('./src/3d/editor/EditorAutoTexture.js');
 // Shared Material Studio core used by autonomous/headless world placement.
 GAME3D_SHELL_FILES.push('./src/3d/materials/MaterialAssignmentCore.js');
 GAME3D_SHELL_FILES.push('./src/3d/world/WorldAssetPlacementPipeline.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/temperateVegetationAsset.js');
+GAME3D_SHELL_FILES.push('./assets/models/vegetation/birch_trees_R7qMWzb7nk.glb');
 
 // Run346: first audio in the game — `audio/audioManager.js` (imported by `game3d.js`) plus the one
 // CC0 click sound it plays (see CREDITS.md). `.wav` is neither in IMAGE_EXTENSIONS nor
