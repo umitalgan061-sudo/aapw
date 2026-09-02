@@ -19324,3 +19324,42 @@ Kapılar: `checkWindGrassContractRun180`, `checkVegetationVisualContract`, `chec
 `checkServiceWorkerCache`, `checkTechnicalDebt`, `checkSeededRandomPolicy`,
 `checkTerrainVisualContract`, `checkNorthernIce` — hepsi PASS. `checkTerrainMicroSurface.mjs` bu
 konteynerde zaten kırık (Node'da `three` çözümlenmiyor, Tur 416'da stash ile doğrulandı).
+
+## Tur 425 — Dağ neden pürüzsüz görünüyor: hipotez yanlış çıktı, ölçüm kaldı (ADR-0373)
+
+Dünyanın en yüksek tepesine (560 m, x=2800 z=1325) yakından bakınca yamaç **tek düz bej bir yüzey**:
+kaya yok, katman yok, moloz yok. Hipotezim şuydu: arazi çok yumuşak olduğu için eğim
+`rockSlopeStartDegrees` (22 derece) eşiğine hiç ulaşmıyor, dolayısıyla kaya kuralı hiç açılmıyor.
+Yükseklikle yumuşayan bir rampa yazdım (deniz seviyesinde 22-45 derece, 520 m'de 7-24 derece).
+
+**Ölçüm hipotezi çürüttü.** Zirveden vadiye, mesh'in kendi vertex aralığıyla (500 m / 128 segment =
+3,9 m) alınan eğim profili:
+
+| zirveden uzaklık | yükseklik | eğim | eski kaya | yeni kaya |
+|---|---|---|---|---|
+| 0 m | 554 m | **43,2°** | 0,982 | 1,0 |
+| 125 m | 458 m | **71,7°** | 1,0 | 1,0 |
+| 375 m | 230 m | 38,9° | 0,828 | 0,828 |
+| 500 m | 202 m | 31,6° | 0,378 | 0,378 |
+| 1000 m | 130 m | 26,3° | 0,092 | 0,092 |
+
+Yani eğim zaten dik ve **kaya zaten uygulanıyor** — zirvede 0,98-1,0. Rampa değişikliği tek bir noktada
+bile fark yaratmadı. Geri alındı; Tur 422'nin dersi aynen geçerli: ölçümün desteklemediği değişiklik
+gönderilmez.
+
+**O hâlde bej ne?** `ROCK_WARM` 0x6b6155 ve `ROCK_COOL` 0x7c7973 — ikisi de düzgün gri-kahve taş
+rengi. Öğle güneşi altında bu albedo parlak bej olarak render ediliyor. Yani gördüğümüz şey "kaya
+yok" değil, **aydınlatılmış kayanın kendisi**.
+
+**Pürüzsüzlüğün gerçek iki sebebi, sıradaki iş için:**
+
+1. **Geometri.** 500 m'yi 128 segmentle örnekleyen bir mesh'te vertex aralığı 3,9 m; yükseklik
+   alanında kaya çıkıntısı ölçeğinde detay yok. Hiçbir gölgelendirme numarası bunu düzeltmez — ve
+   yükseklik alanına detay eklemek yol eğim tavanına (`roadNetworkSafetyCheck`, 20 derece) çarpar; bu
+   zaten arazinin neden yumuşak tutulduğunun sebebi (`world/roadCorridorSmoothing.js`).
+2. **Tur 416'nın doku izdüşümü.** Zemin taneciği dünya **XZ** düzlemine izdüşürülüyor. 43 derecelik
+   bir yamaçta desen yamaç yönünde 1,4 kat, 72 derecede 3,2 kat uzuyor — render'daki soluk dikey
+   çizgiler tam olarak bu. Doğru çözüm triplanar (ya da iki düzlemli) izdüşüm; maliyeti doku
+   okumasını ikiye katlamak, o yüzden kendi turu ve kendi ölçümü gerekiyor.
+
+Bu turdan kalan kod değişikliği yok; kalan şey ölçüm ve iki adlandırılmış sebep.
