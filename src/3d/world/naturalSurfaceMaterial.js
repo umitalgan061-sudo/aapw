@@ -9,7 +9,7 @@ import { WORLD_DEFAULTS, WORLD_SCALE } from '../config.js';
 import { VALYRIA_GEOLOGY_POLICY } from './valyriaGeology.js';
 
 export const NATURAL_SURFACE_MATERIAL_POLICY = Object.freeze({
-	id: 'natural-surface-material-2026-09-01-v11-lowland-and-valyria-aggregate',
+	id: 'natural-surface-material-2026-09-02-v12-valyria-lithic-clarity',
 	renderOnly: true,
 	deterministic: true,
 	canonicalHeightUnchanged: true,
@@ -46,6 +46,9 @@ export const NATURAL_SURFACE_MATERIAL_POLICY = Object.freeze({
 	valyriaPatchyLithicExposure: true,
 	valyriaLinearCarrierRoughnessResponse: true,
 	valyriaFineAggregateBreakup: true,
+	valyriaCoolingJointAlbedo: true,
+	valyriaObsidianLensBreakup: true,
+	valyriaAshPumiceGranules: true,
 	lowlandMesoscaleReliefRecovery: true,
 	lowlandSoilAggregateBreakup: true,
 	definedRidgeDarkRecovery: true,
@@ -464,6 +467,32 @@ vec3 naturalSurfaceVolcanicChipColor = mix(vec3(0.066, 0.069, 0.068), vec3(0.178
 	naturalSurfaceOxidation * 0.64);
 diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfaceVolcanicChipColor,
 	naturalSurfaceVolcanicAggregateMask * naturalSurfaceVolcanicChip * 0.095);
+// Keep Valyria legible at regional and gameplay distance without painting a second geography mask.
+// Domain-warped lithic plates reuse the existing canonical Valyria/fault/drainage authority: cooling
+// joints darken plate margins, glassy lenses settle along lava/drainage carriers, and pale ash/pumice
+// grains remain depositional. All three signals are world-space, deterministic and material-only.
+vec2 naturalSurfaceLithicPlateFrame = mat2(0.9063078, -0.4226183, 0.4226183, 0.9063078)
+	* (naturalSurfaceXZ + vec2((naturalSurfaceVolcanicFine - 0.5) * 34.0, (naturalSurfaceLavaFabric - 0.5) * -29.0));
+float naturalSurfaceLithicPlateA = naturalSurfaceRidge(naturalSurfaceLithicPlateFrame / vec2(31.0, 47.0) + vec2(7.3, -19.1));
+float naturalSurfaceLithicPlateB = naturalSurfaceRidge(mat2(0.5735764, -0.8191520, 0.8191520, 0.5735764)
+	* naturalSurfaceLithicPlateFrame / vec2(23.0, 39.0) + vec2(-11.4, 5.8));
+float naturalSurfaceCoolingJointEdge = naturalSurfaceValyria
+	* smoothstep(0.73, 0.93, max(naturalSurfaceLithicPlateA, naturalSurfaceLithicPlateB))
+	* (0.34 + naturalSurfaceFracture * 0.48 + naturalSurfaceGeologicExposure * 0.18);
+float naturalSurfaceObsidianLens = naturalSurfaceValyria
+	* smoothstep(0.59, 0.86, naturalSurfaceDrainage * 0.50 + naturalSurfaceLavaFabric * 0.34
+		+ naturalSurfaceVolcanicFine * 0.16)
+	* (1.0 - naturalSurfaceAsh * 0.58) * (0.38 + naturalSurfaceSlope * 0.62);
+float naturalSurfaceAshPumiceGranule = naturalSurfaceValyria
+	* smoothstep(0.64, 0.89, naturalSurfaceVolcanicChip * 0.52 + naturalSurfaceVolcanicGrain * 0.48)
+	* clamp(naturalSurfaceAsh * 0.58 + naturalSurfacePumice * 0.52, 0.0, 1.0)
+	* (1.0 - naturalSurfaceSlope * 0.48);
+vec3 naturalSurfaceJointBasalt = mix(vec3(0.049, 0.053, 0.054), vec3(0.119, 0.071, 0.047), naturalSurfaceOxidation * 0.55);
+vec3 naturalSurfaceObsidianGlass = vec3(0.041, 0.048, 0.057);
+vec3 naturalSurfaceAshPumice = mix(vec3(0.348, 0.334, 0.307), vec3(0.397, 0.365, 0.234), naturalSurfaceSulfur * 0.42);
+diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfaceJointBasalt, naturalSurfaceCoolingJointEdge * 0.22);
+diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfaceObsidianGlass, naturalSurfaceObsidianLens * 0.16);
+diffuseColor.rgb = mix(diffuseColor.rgb, naturalSurfaceAshPumice, naturalSurfaceAshPumiceGranule * 0.13);
 diffuseColor.rgb = clamp(diffuseColor.rgb, vec3(0.012), vec3(0.86));
 `;
 
@@ -527,6 +556,18 @@ float naturalSurfacePatinaRoughTarget = mix(0.91, 0.98, naturalSurfaceRoughCarri
 	- naturalSurfaceRoughObsidian * 0.12;
 roughnessFactor = mix(roughnessFactor, clamp(naturalSurfacePatinaRoughTarget, 0.62, 0.99),
 	naturalSurfaceRoughLinearPatina * 0.30);
+vec2 naturalSurfaceRoughPlateFrame = mat2(0.9063078, -0.4226183, 0.4226183, 0.9063078)
+	* (naturalSurfaceRoughXZ + vec2((naturalSurfaceRoughFine - 0.5) * 34.0, (naturalSurfaceRoughLava - 0.5) * -29.0));
+float naturalSurfaceRoughPlateA = naturalSurfaceRidge(naturalSurfaceRoughPlateFrame / vec2(31.0, 47.0) + vec2(7.3, -19.1));
+float naturalSurfaceRoughPlateB = naturalSurfaceRidge(mat2(0.5735764, -0.8191520, 0.8191520, 0.5735764)
+	* naturalSurfaceRoughPlateFrame / vec2(23.0, 39.0) + vec2(-11.4, 5.8));
+float naturalSurfaceRoughJoint = naturalSurfaceRoughValyria
+	* smoothstep(0.73, 0.93, max(naturalSurfaceRoughPlateA, naturalSurfaceRoughPlateB))
+	* (0.38 + naturalSurfaceRoughFracture * 0.62);
+float naturalSurfaceRoughGlassLens = naturalSurfaceRoughValyria
+	* smoothstep(0.59, 0.86, naturalSurfaceRoughMorph.y * 0.50 + naturalSurfaceRoughLava * 0.34
+		+ naturalSurfaceRoughFine * 0.16);
+roughnessFactor = clamp(roughnessFactor + naturalSurfaceRoughJoint * 0.045 - naturalSurfaceRoughGlassLens * 0.090, 0.46, 0.99);
 `;
 
 const NATURAL_SURFACE_NORMAL = `
@@ -609,3 +650,4 @@ export function installNaturalSurfaceMaterial(material) {
 	material.userData.naturalSurfaceMaterial = NATURAL_SURFACE_MATERIAL_POLICY;
 	return material;
 }
+
