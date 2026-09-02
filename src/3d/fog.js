@@ -21,6 +21,11 @@ import * as THREE from 'three';
 const FOG_DENSITY_DAY = 0.00036;
 /** Night keeps a modestly denser veil without turning exploration into a visibility wall. */
 const FOG_DENSITY_NIGHT = 0.00054;
+/** Startup must never expose a black fog horizon before the first lighting tick. */
+const FOG_BOOT_HORIZON_COLOR = 0x596979;
+/** Keep all phase-dependent clarity/aerosol terms inside a safe aerial-perspective envelope. */
+const FOG_DENSITY_MIN = 0.00026;
+const FOG_DENSITY_MAX = 0.00072;
 /** Dawn/dusk humidity/scattering peak. This is visual-only and does not alter weather/gameplay. */
 const FOG_TWILIGHT_DENSITY_GAIN = 0.000085;
 /** Warm low-angle chroma gets a small extra aerosol column instead of sharing one twilight opacity. */
@@ -87,11 +92,12 @@ const FOG_BLUE_HOUR_DENSITY_GAIN = 0.000032;
 
 /**
  * Creates the scene fog. Caller assigns it to `scene.fog` and calls `updateFog` every frame
- * afterward — the color/density below are placeholders, immediately overwritten on first update.
+ * afterward. The startup colour intentionally matches a plausible cool horizon instead of black so
+ * a first-frame capture can never expose a black atmospheric backdrop while lighting initializes.
  * @returns {THREE.FogExp2}
  */
 export function createFog() {
-	return new THREE.FogExp2(0x000000, FOG_DENSITY_DAY);
+	return new THREE.FogExp2(FOG_BOOT_HORIZON_COLOR, FOG_DENSITY_DAY);
 }
 
 /**
@@ -192,7 +198,7 @@ export function updateFog(fog, dayNight) {
 		.lerp(FOG_CLEAR_DEEP_NIGHT_TINT, clearDeepNight * FOG_CLEAR_DEEP_NIGHT_TINT_MAX)
 		.lerp(FOG_MOONLIT_TINT, moonlitNight * FOG_MOONLIT_TINT_MAX);
 
-	fog.density = THREE.MathUtils.lerp(FOG_DENSITY_DAY, FOG_DENSITY_NIGHT, nightFactor)
+	const density = THREE.MathUtils.lerp(FOG_DENSITY_DAY, FOG_DENSITY_NIGHT, nightFactor)
 		+ twilight * FOG_TWILIGHT_DENSITY_GAIN
 		+ warmAerosol * FOG_WARM_AEROSOL_DENSITY_GAIN
 		+ dustAerosol * FOG_DUST_AEROSOL_DENSITY_GAIN
@@ -204,4 +210,5 @@ export function updateFog(fog, dayNight) {
 		- fullDay * FOG_MIDDAY_CLARITY_GAIN
 		- clearBlueDay * FOG_CLEAR_BLUE_DAY_CLARITY_GAIN
 		- moonlitNight * FOG_MOONLIT_CLARITY_GAIN;
+	fog.density = THREE.MathUtils.clamp(density, FOG_DENSITY_MIN, FOG_DENSITY_MAX);
 }
