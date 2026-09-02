@@ -85,6 +85,7 @@ export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
   volcanicSulfuricWeatheringResponse: true,
   smallFallbackShadowSuppression: true,
   roundedBoulderNormalResponse: true,
+  volcanicFallbackSmoothedLightingNormals: true,
   fallbackLinearAlbedoFloor: 0.046,
   instanceScaleCompensatedWorldNormal: true,
   cameraStableRockWeathering: true,
@@ -580,7 +581,7 @@ function makeInstancedFamily(kind, placements, { volcanic = false } = {}) {
   };
   const mesh = new THREE.InstancedMesh(
     createNaturalRockPrototypeGeometry(kind),
-    createRockMaterial(colors[kind] ?? 0x66615a, { volcanic, flatShading: kind !== 'boulder' }),
+    createRockMaterial(colors[kind] ?? 0x66615a, { volcanic, flatShading: !volcanic && kind !== 'boulder' }),
     placements.length,
   );
   mesh.name = `natural-geology-${kind}${volcanic ? '-valyria-volcanic' : ''}`;
@@ -596,7 +597,7 @@ function makeInstancedFamily(kind, placements, { volcanic = false } = {}) {
   mesh.computeBoundingSphere?.();
   mesh.userData.naturalGeologyKind = kind;
   mesh.userData.smallFallbackShadowSuppressed = !mesh.castShadow;
-  mesh.userData.roundedNormalResponse = kind === 'boulder';
+  mesh.userData.roundedNormalResponse = volcanic || kind === 'boulder';
   mesh.userData.naturalGeologyWeatheringProfile = volcanic
     ? 'valyria-volcanic-mineral-facets'
     : 'regional-rock-weathering';
@@ -769,6 +770,7 @@ export function createNaturalGeology({
     volcanicFallbackMaterialIsolation: true,
     smallFallbackShadowSuppression: true,
     roundedBoulderNormalResponse: true,
+    volcanicFallbackSmoothedLightingNormals: true,
     worldNormalSpace: 'instance-scale-compensated-world',
     hydratedRegionalTint: true,
     fallbackGeometryFamily: NATURAL_GEOLOGY_RENDER_POLICY.fallbackGeometryFamily,
