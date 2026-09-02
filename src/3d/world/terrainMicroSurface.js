@@ -16,8 +16,8 @@ const smoothstep = (a, b, value) => {
 };
 
 export const TERRAIN_MICRO_SURFACE_POLICY = Object.freeze({
-	// Public id advances because the coastal response is now a bounded, multi-scale weathering pass
-	// rather than a broad uniform dampness halo. Geography, height and hydrology remain untouched.
+	// Public id remains stable because this pass only strengthens the already-declared aerial contrast
+	// contract; canonical geography, height, hydrology and texture-space contracts do not change.
 	id: 'terrain-micro-surface-world-uv-pbr-v8-granular-snow',
 	textureSize: 256,
 	detailRepeatMeters: 22,
@@ -39,6 +39,9 @@ export const TERRAIN_MICRO_SURFACE_POLICY = Object.freeze({
 	drainageBreakup: true,
 	nonPeriodicRockWeathering: true,
 	multiScaleAerialContrast: true,
+	aerialLowlandLithologyContrast: true,
+	aerialLowlandChromaRecovery: true,
+	aerialDepositionalDomains: true,
 	snowScourReadability: true,
 	snowGranularAlbedo: true,
 	snowMicroNormal: true,
@@ -340,9 +343,31 @@ float terrainPhotoDryShoulder = (1.0 - terrainPhotoSnow) * terrainPhotoShoulder
 	* smoothstep(0.48, 0.76, 1.0 - terrainPhotoMoisture)
 	* (0.36 + terrainPhotoElevation * 0.64);
 
-float terrainPhotoDesaturate = 0.12 + terrainPhotoVegetation * 0.28 + terrainPhotoRock * 0.11 + terrainPhotoWarmGround * 0.12;
+// Recover aerial material domains from existing terrain signals instead of adding unrelated noise.
+// The high-pass differences remove the broad olive/grey wash while retaining the same canonical
+// lowland ownership. Wet swales stay darker/greener, dry benches warmer and lag deposits mineral.
+float terrainPhotoAerialLowland = terrainPhotoLowland * (1.0 - terrainPhotoSnow) * (1.0 - terrainPhotoCliff * 0.58);
+float terrainPhotoAerialHighPass = clamp(
+	(terrainPhotoMacro - terrainPhotoBroad) * 0.72
+	+ (terrainPhotoLandform - terrainPhotoMacro) * 0.46
+	+ (terrainPhotoMeso - terrainPhotoLandform) * 0.18,
+	-0.42, 0.42
+);
+float terrainPhotoWetSwaleDomain = terrainPhotoAerialLowland
+	* smoothstep(0.58, 0.82, terrainPhotoMoisture)
+	* smoothstep(0.48, 0.78, 1.0 - terrainPhotoDrainage)
+	* smoothstep(0.40, 0.76, terrainPhotoEco * 0.55 + (1.0 - terrainPhotoLandform) * 0.45);
+float terrainPhotoDryBenchDomain = terrainPhotoAerialLowland
+	* smoothstep(0.54, 0.82, 1.0 - terrainPhotoMoisture)
+	* smoothstep(0.46, 0.79, terrainPhotoMacro * 0.58 + terrainPhotoAlluvialField * 0.42);
+float terrainPhotoMineralLagDomain = terrainPhotoAerialLowland
+	* (1.0 - terrainPhotoWetSwaleDomain * 0.58)
+	* smoothstep(0.59, 0.84, terrainPhotoMeso * 0.62 + terrainPhotoGrain * 0.38)
+	* (0.34 + terrainPhotoDryBenchDomain * 0.66);
+
+float terrainPhotoDesaturate = 0.085 + terrainPhotoVegetation * 0.17 + terrainPhotoRock * 0.10 + terrainPhotoWarmGround * 0.09;
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(terrainPhotoLuma), terrainPhotoDesaturate);
-float terrainPhotoValue = 0.875
+float terrainPhotoValue = 0.890
 	+ (terrainPhotoRegional - 0.5) * 0.28
 	+ (terrainPhotoBroad - 0.5) * 0.22
 	+ (terrainPhotoMacro - 0.5) * 0.17
@@ -351,13 +376,14 @@ float terrainPhotoValue = 0.875
 	+ (terrainPhotoGrain - 0.5) * 0.022;
 float terrainPhotoSlopeContrast = terrainPhotoShoulder * ((terrainPhotoLandform - 0.5) * 0.11 + terrainPhotoAspect * 0.045);
 diffuseColor.rgb *= terrainPhotoValue + terrainPhotoSlopeContrast;
+diffuseColor.rgb *= 1.0 + terrainPhotoAerialHighPass * terrainPhotoAerialLowland * 0.17;
 
-vec3 terrainPhotoWetOlive = vec3(0.050, 0.073, 0.038);
-vec3 terrainPhotoNeutralOlive = vec3(0.126, 0.136, 0.076);
-vec3 terrainPhotoDryOlive = vec3(0.232, 0.204, 0.128);
+vec3 terrainPhotoWetOlive = vec3(0.046, 0.073, 0.036);
+vec3 terrainPhotoNeutralOlive = vec3(0.126, 0.142, 0.074);
+vec3 terrainPhotoDryOlive = vec3(0.246, 0.211, 0.125);
 vec3 terrainPhotoOlive = mix(terrainPhotoDryOlive, terrainPhotoWetOlive, terrainPhotoMoisture);
-terrainPhotoOlive = mix(terrainPhotoOlive, terrainPhotoNeutralOlive, 0.24);
-float terrainPhotoVegRemap = terrainPhotoVegetation * (0.54 + abs(terrainPhotoMacro - 0.5) * 0.36);
+terrainPhotoOlive = mix(terrainPhotoOlive, terrainPhotoNeutralOlive, 0.18);
+float terrainPhotoVegRemap = terrainPhotoVegetation * (0.49 + abs(terrainPhotoMacro - 0.5) * 0.37);
 diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoOlive, terrainPhotoVegRemap);
 float terrainPhotoWetMeadow = terrainPhotoVegetation * terrainPhotoLowland
 	* smoothstep(0.57, 0.82, terrainPhotoMoisture) * smoothstep(0.48, 0.73, 1.0 - terrainPhotoDrainage);
@@ -367,12 +393,18 @@ float terrainPhotoSparseEarth = terrainPhotoVegetation * smoothstep(0.49, 0.78, 
 	* smoothstep(0.50, 0.79, 1.0 - terrainPhotoEco) * (0.38 + terrainPhotoElevation * 0.62);
 float terrainPhotoHeathBreak = terrainPhotoVegetation * terrainPhotoElevation
 	* smoothstep(0.50, 0.78, terrainPhotoBroad) * (0.62 + terrainPhotoMacro * 0.38);
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.043, 0.064, 0.035), terrainPhotoWetMeadow * 0.34);
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.257, 0.225, 0.141), terrainPhotoDryGrass * 0.38);
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.235, 0.202, 0.153), terrainPhotoSparseEarth * 0.43);
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.188, 0.174, 0.138), terrainPhotoHeathBreak * 0.31);
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.082, 0.103, 0.079), terrainPhotoAlluvialWash * 0.29);
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.292, 0.257, 0.178), terrainPhotoDryShoulder * 0.22);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.039, 0.069, 0.033), terrainPhotoWetMeadow * 0.36);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.271, 0.230, 0.137), terrainPhotoDryGrass * 0.40);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.255, 0.211, 0.151), terrainPhotoSparseEarth * 0.45);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.193, 0.177, 0.133), terrainPhotoHeathBreak * 0.31);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.075, 0.108, 0.070), terrainPhotoAlluvialWash * 0.30);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.306, 0.263, 0.172), terrainPhotoDryShoulder * 0.23);
+vec3 terrainPhotoAerialSwaleTone = vec3(0.067, 0.102, 0.061);
+vec3 terrainPhotoAerialBenchTone = vec3(0.292, 0.244, 0.157);
+vec3 terrainPhotoAerialLagTone = vec3(0.250, 0.246, 0.222);
+diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoAerialSwaleTone, terrainPhotoWetSwaleDomain * 0.16);
+diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoAerialBenchTone, terrainPhotoDryBenchDomain * 0.15);
+diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoAerialLagTone, terrainPhotoMineralLagDomain * 0.12);
 
 float terrainPhotoCoastalWet = clamp(
 	terrainPhotoTideStain * (0.60 + terrainPhotoMoisture * 0.40)
@@ -459,11 +491,13 @@ diffuseColor.rgb = clamp(diffuseColor.rgb, vec3(0.010), vec3(0.845));`,
 				'#include <roughnessmap_fragment>',
 				`#include <roughnessmap_fragment>
 float terrainPhotoWetPolish = terrainPhotoCoastalWet * 0.085 + terrainPhotoTideStain * 0.095
-	+ terrainPhotoCoastalRockWet * 0.055 + terrainPhotoRunnel * 0.10 + terrainPhotoAlluvialWash * 0.055;
+	+ terrainPhotoCoastalRockWet * 0.055 + terrainPhotoRunnel * 0.10 + terrainPhotoAlluvialWash * 0.055
+	+ terrainPhotoWetSwaleDomain * 0.025;
 float terrainPhotoRockPolish = terrainPhotoRockFace * terrainPhotoMoisture * 0.045;
 float terrainPhotoSaltCrustRoughness = terrainPhotoSaltSpray * 0.065;
 float terrainPhotoGranularRoughness = terrainPhotoScreeBand * 0.055 + terrainPhotoSnowDeposit * 0.025
-	+ terrainPhotoDryShoulder * 0.045 + terrainPhotoSaltCrustRoughness;
+	+ terrainPhotoDryShoulder * 0.045 + terrainPhotoSaltCrustRoughness
+	+ terrainPhotoDryBenchDomain * 0.030 + terrainPhotoMineralLagDomain * 0.045;
 float terrainPhotoSnowRoughness = terrainPhotoSnow
 	* ((terrainPhotoSnowFine - 0.5) * 0.085 + (terrainPhotoSnowSastrugi - 0.5) * 0.060);
 roughnessFactor = clamp(
@@ -516,6 +550,9 @@ export function applyTerrainMicroSurface(material) {
 		drainageBreakup: true,
 		nonPeriodicRockWeathering: true,
 		multiScaleAerialContrast: true,
+		aerialLowlandLithologyContrast: true,
+		aerialLowlandChromaRecovery: true,
+		aerialDepositionalDomains: true,
 		snowScourReadability: true,
 		snowGranularAlbedo: true,
 		snowMicroNormal: true,
@@ -539,4 +576,3 @@ export function applyTerrainMicroSurface(material) {
 	material.needsUpdate = true;
 	return material;
 }
-
