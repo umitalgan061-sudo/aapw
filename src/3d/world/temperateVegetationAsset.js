@@ -40,7 +40,7 @@ export async function upgradeTemperateBroadleafAssets(group, { signal } = {}) {
 	]);
 	const model = await new AssetLoader().loadModel(ASSET_URL);
 	if (signal?.aborted) { AssetLoader.disposeObject3D(model); return fallback(group, 'abort-signal'); }
-	if (model.userData?.isPlaceholder) return fallback(group, 'placeholder');
+	if (model.userData?.isPlaceholder) { AssetLoader.disposeObject3D(model); return fallback(group, 'placeholder'); }
 	model.updateMatrixWorld(true);
 
 	const components = COMPONENTS.map((name) => model.getObjectByName(name));
@@ -75,6 +75,8 @@ export async function upgradeTemperateBroadleafAssets(group, { signal } = {}) {
 			const material = cloneMaterialForVegetation(assetMesh.material, disposedTextures);
 			const instanced = new THREE.InstancedMesh(assetMesh.geometry, material, variantCount);
 			instanced.name = `vegetation-birch-asset-${variantIndex}-${addedMeshes.length}`;
+			instanced.castShadow = sourceTrunk.castShadow || sourceFoliage.castShadow;
+			instanced.receiveShadow = sourceTrunk.receiveShadow || sourceFoliage.receiveShadow;
 			let targetIndex = 0;
 			for (let sourceIndex = variantIndex; sourceIndex < sourceTrunk.count; sourceIndex += components.length) {
 				sourceTrunk.getMatrixAt(sourceIndex, treeMatrix);
@@ -85,6 +87,7 @@ export async function upgradeTemperateBroadleafAssets(group, { signal } = {}) {
 		});
 	}
 
+	for (const component of components) component.traverse((node) => { if (node?.isMesh) node.material?.dispose(); });
 	sourceTrunk.visible = false; sourceFoliage.visible = false;
 	const status = Object.freeze({
 		status: 'active', assetUrl: ASSET_URL.slice(1), treeCount: sourceTrunk.count,
