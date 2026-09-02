@@ -40,7 +40,7 @@ assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.shorelineReserveMeters >= 8);
 
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.renderOnly, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.geographyAuthorityUnchanged, true);
-assert(NATURAL_GEOLOGY_RENDER_POLICY.id.includes('v9-legacy-fbx-pbr-fidelity'));
+assert(NATURAL_GEOLOGY_RENDER_POLICY.id.includes('v10-volcanic-facet-readability'));
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.multiMaterialHydrationSupported, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.hydratedTextureColorSpaceContract, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.sourceUvAndTextureTransformPreserved, true);
@@ -50,6 +50,13 @@ assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.legacyFbxTransparencyPreserved, true)
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.referenceLandscapeRuntimeLoad, false);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.instanceScaleCompensatedWorldNormal, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.cameraStableRockWeathering, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.deterministicMineralFacetSeparation, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.volcanicFallbackMaterialIsolation, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.volcanicAshPumiceDepositResponse, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.volcanicCoolingFractureResponse, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.volcanicOxidationWeatheringResponse, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.volcanicSulfuricWeatheringResponse, true);
+assert(NATURAL_GEOLOGY_RENDER_POLICY.fallbackLinearAlbedoFloor >= 0.04);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.hydratedRegionalTint, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.canonicalTerrainOwnsValyriaSurface, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.legacyValyriaSurfaceOverlayEnabled, false);
@@ -160,6 +167,13 @@ for (const snippet of [
   'legacyValyriaSurfaceOverlayEnabled: false',
   'instanceScaleCompensatedWorldNormal: true',
   'cameraStableRockWeathering: true',
+  'naturalRockAshDeposit',
+  'naturalRockCoolingFacet',
+  'naturalRockOxidation',
+  'naturalRockSulfuric',
+  "naturalGeologyWeatheringProfile: volcanic ? 'valyria-volcanic-mineral-facets'",
+  "const familyKey = `${placement.kind}:${volcanic ? 'volcanic' : 'regional'}`",
+  "filter((child) => child?.userData?.naturalGeologyKind === 'asset-proxy')",
   'hydratedRegionalTintStrength',
   'hydratedTintForPlacement',
   'instances.setColorAt(index, hydratedTintForPlacement(placements[index]))',
@@ -322,3 +336,4 @@ console.log(JSON.stringify({
   canonicalValyriaSurfaceOnly: true,
   instanceCorrectWorldNormals: true,
 }, null, 2));
+
