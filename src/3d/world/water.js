@@ -33,7 +33,7 @@ export const WAVE_TOTAL_AMPLITUDE_METERS = SWELL_COMPONENTS.reduce((sum, [, ampl
 export const WATER_OFFSHORE_OPTICAL_GAIN = 0.82;
 
 export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
-	id: 'water-world-surface-variation-2026-09-02-v15-owner-border-optical-seal',
+	id: 'water-world-surface-variation-2026-09-02-v16-owner-border-organic-handoff',
 	renderOnly: true,
 	canonicalDepthUnchanged: true,
 	canonicalCoverageUnchanged: true,
@@ -112,7 +112,7 @@ const WATER_VERTEX_SHADER = /* glsl */ `
 		addSwell(vec2(${SWELL_COMPONENTS[1][2]}, ${SWELL_COMPONENTS[1][3]}), ${SWELL_COMPONENTS[1][0]}.0, ${SWELL_COMPONENTS[1][1]}, worldPos.xz, uTime, swellHeight, swellSlope);
 		addSwell(vec2(${SWELL_COMPONENTS[2][2]}, ${SWELL_COMPONENTS[2][3]}), ${SWELL_COMPONENTS[2][0]}.0, ${SWELL_COMPONENTS[2][1]}, worldPos.xz, uTime, swellHeight, swellSlope);
 
-		float localEdgeDistance = max(abs(position.x), abs(position.z));
+		float localEdgeDistance = length(position.xz);
 		float nearCoverageFade = 1.0 - smoothstep(1500.0, 1950.0, localEdgeDistance);
 		float amplitudeScale = depthFactor * uSwellStrength * nearCoverageFade;
 		worldPos.y += swellHeight * amplitudeScale;
@@ -202,6 +202,15 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 	}
 
+	float organicLayerDistance(vec2 worldXZ) {
+		vec2 delta = worldXZ - uCameraPosition.xz;
+		float radial = length(delta);
+		float broadWarp = waterSurfaceNoise(worldXZ / 1180.0 + vec2(-4.7, 9.3)) - 0.5;
+		vec2 rotated = worldXZ * mat2(0.78, -0.63, 0.63, 0.78);
+		float mesoWarp = waterSurfaceNoise(rotated / 540.0 + vec2(13.1, -6.8)) - 0.5;
+		return max(0.0, radial + broadWarp * 150.0 + mesoWarp * 62.0);
+	}
+
 	float waterFieldEdgeOpticalBlend(vec2 worldXZ) {
 		vec2 uv = worldXZ / uDepthFieldExtentMeters + 0.5;
 		if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 1.0;
@@ -261,7 +270,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	}
 
 	void main() {
-		float layerDistance = max(abs(vWorldPosition.x - uCameraPosition.x), abs(vWorldPosition.z - uCameraPosition.z));
+		float layerDistance = organicLayerDistance(vWorldPosition.xz);
 		float farLayerBlend = smoothstep(${WATER_SURFACE_VARIATION_POLICY.layerHandoffFarStartMeters.toFixed(1)}, ${WATER_SURFACE_VARIATION_POLICY.layerHandoffFarFullMeters.toFixed(1)}, layerDistance);
 		float nearLayerBlend = 1.0 - smoothstep(${WATER_SURFACE_VARIATION_POLICY.layerHandoffNearFadeStartMeters.toFixed(1)}, ${WATER_SURFACE_VARIATION_POLICY.layerHandoffNearFadeEndMeters.toFixed(1)}, layerDistance);
 		float layerOpacity = mix(nearLayerBlend, farLayerBlend, uFarLayerMask);
@@ -271,10 +280,10 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float waterCoverage = smoothstep(0.08, 0.72, waterField.y);
 		if (waterCoverage <= 0.01) discard;
 		float rawOffshoreOptical = sampleOffshoreOptical(vWorldPosition.xz);
-		float fieldEdgeOpticalBlend = waterFieldEdgeOpticalBlend(vWorldPosition.xz) * uFarLayerMask
+		float fieldEdgeOpticalBlend = waterFieldEdgeOpticalBlend(vWorldPosition.xz) * uFarLayerMask * farLayerBlend
 			* smoothstep(0.72, 0.98, waterField.y)
 			* smoothstep(0.48, 0.90, rawOffshoreOptical);
-		float farMarineOpticalFloor = uFarLayerMask * smoothstep(0.24, 0.92, rawOffshoreOptical) * ${WATER_SURFACE_VARIATION_POLICY.farMarineOpticalDepthFloor.toFixed(2)};
+		float farMarineOpticalFloor = uFarLayerMask * farLayerBlend * smoothstep(0.24, 0.92, rawOffshoreOptical) * ${WATER_SURFACE_VARIATION_POLICY.farMarineOpticalDepthFloor.toFixed(2)};
 		float fragmentDepth = max(mix(waterField.x, 1.0, fieldEdgeOpticalBlend), farMarineOpticalFloor);
 		float offshoreOptical = smoothstep(0.08, 0.92, mix(rawOffshoreOptical, 1.0, fieldEdgeOpticalBlend));
 		float enclosedLakeMask = (1.0 - offshoreOptical) * (1.0 - uFarLayerMask);
@@ -539,6 +548,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		nonPeriodicFoamLace: true,
 		nightAbsorptionFromCelestialState: true,
 		softNearFarLayerHandoff: true,
+		organicRadialLayerHandoff: true,
 		extendedBackdropBeyondFullWorldFrame: true,
 		depthFieldEdgeOpticalFeather: true,
 		farMarineOpticalDepthFromOffshoreDistance: true,
