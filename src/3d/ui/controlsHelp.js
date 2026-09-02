@@ -5,7 +5,7 @@ let controlsHelpInstanceCounter = 0;
 const DESKTOP_CONTROLS = Object.freeze([
 	['WASD / Oklar', 'Yürü'],
 	['Shift', 'Koş'],
-	['Space', 'Zıpla'],
+	['Space', 'Zıpla; koşu sırasında kaçın'],
 	['E', 'Yakındaki kişiyle konuş'],
 	['C / Sol tık', 'Hafif saldırı'],
 	['R', 'Ağır saldırı'],
