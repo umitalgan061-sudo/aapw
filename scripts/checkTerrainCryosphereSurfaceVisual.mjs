@@ -14,8 +14,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { startStaticServer } from './devServerHelper.js';
+import devServerHelper from './devServerHelper.js';
 
+const { startStaticServer } = devServerHelper;
 const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const artifactDir = process.env.TERRAIN_CRYOSPHERE_SURFACE_ARTIFACT_DIR
