@@ -65,7 +65,7 @@ export function evaluateNpcGuardAwareness({ observer, target, yawRadians = 0, ra
 }
 
 export function evaluateNpcGuardAssistAlert({ alert, observer, groupId, sourceId, lastRevision = 0, assistRadiusMeters = 25 } = {}) {
-	if (!alert || !observer || !groupId || alert.groupId !== groupId || !(alert.revision > lastRevision)) {
+	if (!alert || !observer || !groupId || alert.groupId !== groupId || !Number.isSafeInteger(alert.revision) || alert.revision <= 0 || !(alert.revision > lastRevision)) {
 		return { accepted: false, reason: 'stale', revision: lastRevision, sourceDistanceMeters: Infinity };
 	}
 	if (alert.sourceId === sourceId) {
