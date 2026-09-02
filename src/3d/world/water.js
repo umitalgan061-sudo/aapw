@@ -32,7 +32,7 @@ export const WAVE_TOTAL_AMPLITUDE_METERS = SWELL_COMPONENTS.reduce((sum, [, ampl
 export const WATER_OFFSHORE_OPTICAL_GAIN = 0.82;
 
 export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
-	id: 'water-world-surface-variation-2026-09-02-v11-depth-field-optical-feather',
+	id: 'water-world-surface-variation-2026-09-02-v12-far-marine-optical-floor',
 	renderOnly: true,
 	canonicalDepthUnchanged: true,
 	canonicalCoverageUnchanged: true,
@@ -56,6 +56,7 @@ export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	layerHandoffNearFadeEndMeters: 2000,
 	depthFieldOpticalFeatherMeters: 920,
 	depthFieldOpticalWarpMeters: 180,
+	farMarineOpticalDepthFloor: 0.90,
 	shoreBreakerRevision: 'v1-bathymetry-directed-irregular-lace',
 	shoreGradientStepMeters: 68,
 	directionalBreakers: true,
@@ -64,6 +65,7 @@ export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	softNearFarLayerHandoff: true,
 	extendedBackdropBeyondFullWorldFrame: true,
 	depthFieldEdgeOpticalFeather: true,
+	farMarineOpticalDepthFromOffshoreDistance: true,
 });
 
 const WATER_VERTEX_SHADER = /* glsl */ `
@@ -253,7 +255,8 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float fieldEdgeOpticalBlend = waterFieldEdgeOpticalBlend(vWorldPosition.xz) * uFarLayerMask
 			* smoothstep(0.72, 0.98, waterField.y)
 			* smoothstep(0.48, 0.90, rawOffshoreOptical);
-		float fragmentDepth = mix(waterField.x, 1.0, fieldEdgeOpticalBlend);
+		float farMarineOpticalFloor = uFarLayerMask * smoothstep(0.24, 0.92, rawOffshoreOptical) * ${WATER_SURFACE_VARIATION_POLICY.farMarineOpticalDepthFloor.toFixed(2)};
+		float fragmentDepth = max(mix(waterField.x, 1.0, fieldEdgeOpticalBlend), farMarineOpticalFloor);
 		float offshoreOptical = smoothstep(0.08, 0.92, mix(rawOffshoreOptical, 1.0, fieldEdgeOpticalBlend));
 		float enclosedLakeMask = (1.0 - offshoreOptical) * (1.0 - uFarLayerMask);
 		float clearShallowBand = 1.0 - smoothstep(0.10, 0.52, fragmentDepth);
@@ -512,6 +515,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		softNearFarLayerHandoff: true,
 		extendedBackdropBeyondFullWorldFrame: true,
 		depthFieldEdgeOpticalFeather: true,
+		farMarineOpticalDepthFromOffshoreDistance: true,
 	});
 
 	const farGeometry = new THREE.PlaneGeometry(WATER_FULL_WORLD_EXTENT_METERS, WATER_FULL_WORLD_EXTENT_METERS, 1, 1);
