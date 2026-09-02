@@ -26,6 +26,7 @@ on:
       - 'scripts/checkMountainPassReliefSafety.mjs'
       - 'scripts/checkMountainVisualProofContract.mjs'
       - 'scripts/captureLiveWorldMountainNaturalization.mjs'
+      - 'scripts/captureLiveWorldMountainRidgeDetail.mjs'
       - 'scripts/terrainSeatSafetyCheck.js'
       - 'scripts/roadNetworkSafetyCheck.js'
       - 'service-worker.js'
@@ -99,6 +100,7 @@ jobs:
           node --check scripts/checkMountainPassReliefSafety.mjs
           node --check scripts/checkMountainVisualProofContract.mjs
           node --check scripts/captureLiveWorldMountainNaturalization.mjs
+          node --check scripts/captureLiveWorldMountainRidgeDetail.mjs
           node --check scripts/terrainSeatSafetyCheck.js
           node --check scripts/roadNetworkSafetyCheck.js
           node --check service-worker.js
@@ -151,6 +153,8 @@ jobs:
           node scripts/checkMountainRuntimeGeometryParity.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-runtime-parity.log"
           node scripts/captureLiveWorldMountainNaturalization.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-visual.log"
           grep -F LIVE_WORLD_MOUNTAIN_NATURALIZATION_OK "$RUNNER_TEMP/mountain-visual.log"
+          node scripts/captureLiveWorldMountainRidgeDetail.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-ridge-detail-visual.log"
+          grep -F LIVE_WORLD_MOUNTAIN_RIDGE_DETAIL_OK "$RUNNER_TEMP/mountain-ridge-detail-visual.log"
           node scripts/terrainSeatSafetyCheck.js 2>&1 | tee "$RUNNER_TEMP/terrain-seat.log"
           node scripts/roadNetworkSafetyCheck.js 2>&1 | tee "$RUNNER_TEMP/road-network.log"
           node scripts/smokeTestGame3D.js 2>&1 | tee "$RUNNER_TEMP/game3d-smoke.log"
@@ -197,6 +201,7 @@ jobs:
             ${{ runner.temp }}/road-network.log
             ${{ runner.temp }}/game3d-smoke.log
             ${{ runner.temp }}/mountain-visual.log
+            ${{ runner.temp }}/mountain-ridge-detail-visual.log
             artifacts/live-map-mountain-naturalization/
           if-no-files-found: warn
           retention-days: 30
