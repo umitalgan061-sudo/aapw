@@ -9,6 +9,7 @@ const repoRoot = path.resolve(here, '..');
 const GLB_MAGIC = 0x46546c67;
 const GLB_JSON_CHUNK = 0x4e4f534a;
 const GLB_BIN_CHUNK = 0x004e4942;
+const SINGLE_TREE_MAX_HORIZONTAL_TO_HEIGHT_RATIO = 1.12;
 
 const CANDIDATES = Object.freeze([
 	Object.freeze({
@@ -114,31 +115,7 @@ function primitiveBounds(gltf, primitive, worldMatrix) {
 	return bounds;
 }
 
-function modelBounds(gltf) {
-	const bounds = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
-	let boundedPrimitiveCount = 0;
-	const childSet = new Set((gltf.nodes ?? []).flatMap((node) => node.children ?? []));
-	const defaultScene = gltf.scenes?.[gltf.scene ?? 0];
-	const roots = defaultScene?.nodes?.length
-		? defaultScene.nodes
-		: (gltf.nodes ?? []).map((_, index) => index).filter((index) => !childSet.has(index));
-
-	function visit(nodeIndex, parentMatrix) {
-		const node = gltf.nodes?.[nodeIndex];
-		if (!node) return;
-		const worldMatrix = multiplyMatrix(parentMatrix, matrixFromTrs(node));
-		if (Number.isInteger(node.mesh)) {
-			for (const primitive of gltf.meshes?.[node.mesh]?.primitives ?? []) {
-				const primitiveBox = primitiveBounds(gltf, primitive, worldMatrix);
-				if (!primitiveBox) continue;
-				expandBounds(bounds, primitiveBox.min);
-				expandBounds(bounds, primitiveBox.max);
-				boundedPrimitiveCount += 1;
-			}
-		}
-		for (const childIndex of node.children ?? []) visit(childIndex, worldMatrix);
-	}
-	for (const root of roots) visit(root, identityMatrix());
+function finalizeBounds(bounds, boundedPrimitiveCount) {
 	if (!boundedPrimitiveCount) return null;
 	const size = bounds.max.map((value, axis) => value - bounds.min[axis]);
 	const horizontal = Math.max(size[0], size[2]);
@@ -151,6 +128,90 @@ function modelBounds(gltf) {
 		horizontalToHeightRatio: size[1] > 0 ? horizontal / size[1] : Infinity,
 		boundedPrimitiveCount,
 	};
+}
+
+function modelBounds(gltf) {
+	const bounds = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
+	let boundedPrimitiveCount = 0;
+	walkRenderableNodes(gltf, ({ primitives, worldMatrix }) => {
+		for (const primitive of primitives) {
+			const primitiveBox = primitiveBounds(gltf, primitive, worldMatrix);
+			if (!primitiveBox) continue;
+			expandBounds(bounds, primitiveBox.min);
+			expandBounds(bounds, primitiveBox.max);
+			boundedPrimitiveCount += 1;
+		}
+	});
+	return finalizeBounds(bounds, boundedPrimitiveCount);
+}
+
+function walkRenderableNodes(gltf, visitor) {
+	const childSet = new Set((gltf.nodes ?? []).flatMap((node) => node.children ?? []));
+	const defaultScene = gltf.scenes?.[gltf.scene ?? 0];
+	const roots = defaultScene?.nodes?.length
+		? defaultScene.nodes
+		: (gltf.nodes ?? []).map((_, index) => index).filter((index) => !childSet.has(index));
+	function visit(nodeIndex, parentMatrix) {
+		const node = gltf.nodes?.[nodeIndex];
+		if (!node) return;
+		const worldMatrix = multiplyMatrix(parentMatrix, matrixFromTrs(node));
+		if (Number.isInteger(node.mesh)) {
+			visitor({ nodeIndex, node, meshIndex: node.mesh, primitives: gltf.meshes?.[node.mesh]?.primitives ?? [], worldMatrix });
+		}
+		for (const childIndex of node.children ?? []) visit(childIndex, worldMatrix);
+	}
+	for (const root of roots) visit(root, identityMatrix());
+}
+
+function usedMaterialSummary(gltf, primitives) {
+	const indices = [...new Set(primitives.map((primitive) => primitive.material).filter(Number.isInteger))];
+	const materials = gltf.materials ?? [];
+	const usedMaterials = indices.map((index) => materials[index]).filter(Boolean);
+	return {
+		indices,
+		usedMaterials,
+		texturedCount: usedMaterials.filter((material) => Number.isInteger(material?.pbrMetallicRoughness?.baseColorTexture?.index)).length,
+		normalMappedCount: usedMaterials.filter((material) => Number.isInteger(material?.normalTexture?.index)).length,
+		alphaSurfaceCount: usedMaterials.filter((material) => material?.alphaMode === 'MASK' || material?.alphaMode === 'BLEND').length,
+	};
+}
+
+function meshNodeComponents(gltf, imageCount) {
+	const components = [];
+	walkRenderableNodes(gltf, ({ nodeIndex, node, meshIndex, primitives, worldMatrix }) => {
+		const boundsAccumulator = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
+		let boundedPrimitiveCount = 0;
+		for (const primitive of primitives) {
+			const primitiveBox = primitiveBounds(gltf, primitive, worldMatrix);
+			if (!primitiveBox) continue;
+			expandBounds(boundsAccumulator, primitiveBox.min);
+			expandBounds(boundsAccumulator, primitiveBox.max);
+			boundedPrimitiveCount += 1;
+		}
+		const bounds = finalizeBounds(boundsAccumulator, boundedPrimitiveCount);
+		if (!bounds || bounds.height <= 0.05) return;
+		const material = usedMaterialSummary(gltf, primitives);
+		const shapeLooksSingleTree = bounds.horizontalToHeightRatio <= SINGLE_TREE_MAX_HORIZONTAL_TO_HEIGHT_RATIO;
+		const hasTextureEvidence = material.texturedCount > 0 && imageCount > 0;
+		components.push({
+			id: node.name || `node-${nodeIndex}`,
+			nodeIndex,
+			meshIndex,
+			meshName: gltf.meshes?.[meshIndex]?.name ?? null,
+			primitiveCount: primitives.length,
+			usedMaterialSlots: material.indices.length,
+			materialNames: material.usedMaterials.map((entry) => entry?.name ?? null),
+			texturedUsedMaterialCount: material.texturedCount,
+			normalMappedUsedMaterialCount: material.normalMappedCount,
+			alphaSurfaceCount: material.alphaSurfaceCount,
+			bounds,
+			materialStrategy: material.indices.length >= 2 ? 'named-part' : 'layered-fallback',
+			shapeLooksSingleTree,
+			hasTextureEvidence,
+			liveCandidate: shapeLooksSingleTree && hasTextureEvidence,
+		});
+	});
+	return components;
 }
 
 function imageBytes(gltf, bin, image) {
@@ -214,23 +275,21 @@ function auditCandidate(candidate) {
 	const { json: gltf, bin } = parseGlb(file, candidate.path);
 	const primitives = (gltf.meshes ?? []).flatMap((mesh) => mesh.primitives ?? []);
 	assert(primitives.length > 0, `${candidate.path}: no renderable mesh primitives`);
-	const usedMaterialIndices = [...new Set(primitives.map((primitive) => primitive.material).filter(Number.isInteger))];
-	const materials = gltf.materials ?? [];
-	const usedMaterials = usedMaterialIndices.map((index) => materials[index]).filter(Boolean);
-	const texturedUsedMaterials = usedMaterials.filter((material) => Number.isInteger(material?.pbrMetallicRoughness?.baseColorTexture?.index));
-	const normalMappedUsedMaterials = usedMaterials.filter((material) => Number.isInteger(material?.normalTexture?.index));
-	const alphaSurfaceCount = usedMaterials.filter((material) => material?.alphaMode === 'MASK' || material?.alphaMode === 'BLEND').length;
+	const material = usedMaterialSummary(gltf, primitives);
 	const images = textureSummary(gltf, bin);
 	const bounds = modelBounds(gltf);
 	assert(bounds && Number.isFinite(bounds.height) && bounds.height > 0.05, `${candidate.path}: finite model bounds were not recoverable`);
 	const maxTextureDimension = images.reduce((max, image) => Math.max(max, image.width ?? 0, image.height ?? 0), 0);
-	const materialStrategy = usedMaterialIndices.length >= 2 ? 'named-part' : 'layered-fallback';
-	const shapeLooksSingleTree = bounds.horizontalToHeightRatio <= 1.12;
-	const hasTextureEvidence = texturedUsedMaterials.length > 0 && images.length > 0;
-	const liveCandidate = shapeLooksSingleTree && hasTextureEvidence;
+	const materialStrategy = material.indices.length >= 2 ? 'named-part' : 'layered-fallback';
+	const shapeLooksSingleTree = bounds.horizontalToHeightRatio <= SINGLE_TREE_MAX_HORIZONTAL_TO_HEIGHT_RATIO;
+	const hasTextureEvidence = material.texturedCount > 0 && images.length > 0;
+	const wholeModelLiveCandidate = shapeLooksSingleTree && hasTextureEvidence;
+	const components = meshNodeComponents(gltf, images.length);
+	const liveComponents = components.filter((component) => component.liveCandidate);
+	const liveCandidate = wholeModelLiveCandidate || liveComponents.length > 0;
 	const rejectionReasons = [];
-	if (!shapeLooksSingleTree) rejectionReasons.push('horizontal-to-height-ratio-exceeds-single-tree-envelope');
-	if (!hasTextureEvidence) rejectionReasons.push('missing-used-base-color-texture-evidence');
+	if (!shapeLooksSingleTree) rejectionReasons.push('whole-model-horizontal-to-height-ratio-exceeds-single-tree-envelope');
+	if (!hasTextureEvidence) rejectionReasons.push('whole-model-missing-used-base-color-texture-evidence');
 	return {
 		id: candidate.id,
 		path: candidate.path,
@@ -239,13 +298,13 @@ function auditCandidate(candidate) {
 		meshCount: gltf.meshes?.length ?? 0,
 		nodeCount: gltf.nodes?.length ?? 0,
 		primitiveCount: primitives.length,
-		materialCount: materials.length,
-		usedMaterialSlots: usedMaterialIndices.length,
+		materialCount: gltf.materials?.length ?? 0,
+		usedMaterialSlots: material.indices.length,
 		unassignedPrimitiveCount: primitives.filter((primitive) => !Number.isInteger(primitive.material)).length,
-		texturedUsedMaterialCount: texturedUsedMaterials.length,
-		normalMappedUsedMaterialCount: normalMappedUsedMaterials.length,
-		alphaSurfaceCount,
-		materialNames: usedMaterials.map((material) => material?.name ?? null),
+		texturedUsedMaterialCount: material.texturedCount,
+		normalMappedUsedMaterialCount: material.normalMappedCount,
+		alphaSurfaceCount: material.alphaSurfaceCount,
+		materialNames: material.usedMaterials.map((entry) => entry?.name ?? null),
 		imageCount: images.length,
 		maxTextureDimension,
 		images,
@@ -253,6 +312,10 @@ function auditCandidate(candidate) {
 		materialStrategy,
 		shapeLooksSingleTree,
 		hasTextureEvidence,
+		wholeModelLiveCandidate,
+		components,
+		liveComponentIds: liveComponents.map((component) => component.id),
+		selectionMode: wholeModelLiveCandidate ? 'whole-model' : liveComponents.length ? 'mesh-node-component' : null,
 		liveCandidate,
 		rejectionReasons,
 	};
@@ -261,9 +324,11 @@ function auditCandidate(candidate) {
 const args = parseArgs(process.argv.slice(2));
 const candidates = CANDIDATES.map(auditCandidate);
 const report = Object.freeze({
-	contract: 'temperate-vegetation-asset-first-audit-v2-evidence-first',
+	contract: 'temperate-vegetation-asset-first-audit-v3-component-qualification',
+	singleTreeMaxHorizontalToHeightRatio: SINGLE_TREE_MAX_HORIZONTAL_TO_HEIGHT_RATIO,
 	candidates,
 	liveCandidates: candidates.filter((candidate) => candidate.liveCandidate).map((candidate) => candidate.id),
+	liveSourceComponents: candidates.flatMap((candidate) => candidate.liveComponentIds.map((componentId) => `${candidate.id}:${componentId}`)),
 	layeredFallbackCandidates: candidates.filter((candidate) => candidate.liveCandidate && candidate.materialStrategy === 'layered-fallback').map((candidate) => candidate.id),
 	namedPartCandidates: candidates.filter((candidate) => candidate.liveCandidate && candidate.materialStrategy === 'named-part').map((candidate) => candidate.id),
 });
