@@ -110,6 +110,10 @@ const CONTEXTUAL_STRUCTURE_MATERIALS = Object.freeze(new Map([
 	['rock', 'structure-stone'],
 	['glass', 'structure-window'],
 	['iron', 'structure-metal'],
+	// `normalizeText` intentionally maps Turkish uppercase I -> dotless ı. Imported English assets
+	// frequently capitalize `Iron`, so preserve that canonical English material family without
+	// weakening the global fail-closed rule for bare metal substances outside building context.
+	['ıron', 'structure-metal'],
 	['metal', 'structure-metal'],
 	['steel', 'structure-metal'],
 ]));
