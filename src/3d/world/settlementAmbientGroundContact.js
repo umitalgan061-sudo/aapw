@@ -180,6 +180,7 @@ function createContactMesh(bucket, placements, sampleHeightMeters) {
 	if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
 	mesh.computeBoundingSphere?.();
 	mesh.userData.settlementAmbientGroundContact = true;
+	mesh.userData.preserveShadowRole = true;
 	mesh.userData.climateBucket = bucket;
 	mesh.userData.placementIds = placements.map((placement) => placement.id);
 	return mesh;
