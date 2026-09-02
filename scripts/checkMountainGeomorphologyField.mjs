@@ -60,7 +60,7 @@ for (const chain of REFERENCE_RELIEF_CHAINS) {
 			const centerFrame = sampleMountainRidgeFrame(x, y, compiled, MAP_ASPECT);
 			progressBuckets.add(Math.round(centerFrame.progress * 20));
 
-			for (const normalizedDistance of [0.04, 0.18, 0.34, 0.52, 0.70, 0.88, 0.975]) {
+			for (const normalizedDistance of [0.04, 0.18, 0.34, 0.52, 0.70, 0.88, 0.99]) {
 				const physicalDistance = normalizedDistance * 0.08;
 				const leftPoint = offsetMountainFramePoint(centerFrame, -physicalDistance, 0, MAP_ASPECT);
 				const rightPoint = offsetMountainFramePoint(centerFrame, physicalDistance, 0, MAP_ASPECT);
@@ -128,6 +128,7 @@ for (const chain of REFERENCE_RELIEF_CHAINS) {
 	assert(Math.max(...scales) - Math.min(...scales) > 0.06, `${chain.id}: morphology has insufficient dynamic range`);
 	assert(percentile(leftRightDeltas, 0.75) > 0.002, `${chain.id}: bilateral ridge asymmetry is not measurable`);
 	assert(Math.max(...leftRightDeltas) < 0.18, `${chain.id}: bilateral ridge asymmetry becomes a wall`);
+	assert(edgeDeltas.length > 0, `${chain.id}: outer-edge neutralization has no samples`);
 	assert(Math.max(...edgeDeltas) <= 0.012, `${chain.id}: morphology does not neutralize at outer support edge`);
 	assert(Math.min(...incisionScales) < 0.995, `${chain.id}: shoulder incision never activates`);
 	assert(Math.max(...spurScales) > 1.003, `${chain.id}: secondary spur signal never activates`);
