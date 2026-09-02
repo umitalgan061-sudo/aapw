@@ -1,6 +1,6 @@
 import { WORLD_DEFAULTS, WORLD_SCALE } from '../config.js';
 import { analyzeMaterialSurfaces } from '../materials/MaterialAssignmentCore.js';
-import { prepareWorldAssetForPlacement } from '../world/WorldAssetPlacementPipeline.js';
+import { evaluateWorldSurfacePlacement, prepareWorldAssetForPlacement } from '../world/WorldAssetPlacementPipeline.js';
 import { REFERENCE_BIOME_ZONES, sampleReferenceInfluence } from '../world/worldReferenceMap.js';
 import { worldXZToNormalizedReference } from '../world/worldReferenceAlignment.js';
 import { classifyReferenceBaseSurface } from '../world/worldReferenceSurfacePindexes.js';
@@ -14,6 +14,13 @@ const AUTHORED_PBR_MAP_FIELDS = Object.freeze([
 const FALLBACK_PALETTE_BY_SPECIES = Object.freeze({
 	wolf: 'wolf', horse: 'horse-bay', cow: 'cow', bull: 'cow', deer: 'deer', stag: 'deer',
 	fox: 'wolf', dog: 'dog', alpaca: 'sheep', zebra: 'horse-bay', sheep: 'sheep',
+});
+
+const DEFAULT_CONFIGURED_FAUNA_HABITAT_POLICY = Object.freeze({
+	maxSlopeDegrees: 32,
+	maxWaterDepth: 0.05,
+	forbiddenBiomes: ['sea', 'lake'],
+	forbiddenWaterTypes: ['sea', 'lake'],
 });
 
 export const CONFIGURED_FAUNA_HABITAT_POLICIES = Object.freeze({
@@ -92,6 +99,17 @@ export function sampleConfiguredFaunaGeography(worldX, worldZ, groundCollider) {
 	};
 }
 
+export function evaluateConfiguredFaunaHabitat(speciesId, worldX, worldZ, groundCollider) {
+	const geography = sampleConfiguredFaunaGeography(worldX, worldZ, groundCollider);
+	if (!geography.ok) return geography;
+	const placementPolicy = CONFIGURED_FAUNA_HABITAT_POLICIES[speciesId] ?? DEFAULT_CONFIGURED_FAUNA_HABITAT_POLICY;
+	const evaluation = evaluateWorldSurfacePlacement(geography.surface, placementPolicy);
+	if (!evaluation.ok) {
+		return { ok: false, error: `surface:${evaluation.errors.join(',')}`, geography, placementPolicy, evaluation };
+	}
+	return { ok: true, geography, placementPolicy, evaluation };
+}
+
 export function inspectConfiguredFaunaMaterials(object) {
 	const analysis = analyzeMaterialSurfaces(object);
 	const authoredPbrMapSlots = new Set();
@@ -106,11 +124,11 @@ export function inspectConfiguredFaunaMaterials(object) {
 export function prepareConfiguredAnimalWorldAsset(object, {
 	speciesId = 'wolf', assetId, modelUrl, worldX, worldZ, rotationYRadians = 0, groundCollider,
 } = {}) {
-	const geography = sampleConfiguredFaunaGeography(worldX, worldZ, groundCollider);
-	if (!geography.ok) return geography;
+	const habitat = evaluateConfiguredFaunaHabitat(speciesId, worldX, worldZ, groundCollider);
+	if (!habitat.ok) return habitat;
+	const { geography, placementPolicy } = habitat;
 	const materialAnalysis = inspectConfiguredFaunaMaterials(object);
 	const preserveAuthored = materialAnalysis.authoredPbrMapSlots.length > 0;
-	const habitatPolicy = CONFIGURED_FAUNA_HABITAT_POLICIES[speciesId] ?? Object.freeze({ maxSlopeDegrees: 32, maxWaterDepth: 0.05, forbiddenBiomes: ['sea', 'lake'], forbiddenWaterTypes: ['sea', 'lake'] });
 	const prepared = prepareWorldAssetForPlacement(object, {
 		metadata: { id: assetId, name: speciesId, category: 'hayvan', src: modelUrl },
 		materialRecipe: preserveAuthored ? { version: 1, mode: 'preserve', reason: 'authored-pbr' } : null,
@@ -119,7 +137,7 @@ export function prepareConfiguredAnimalWorldAsset(object, {
 		position: { x: worldX, y: geography.surface.height, z: worldZ },
 		rotation: { x: object.rotation.x, y: rotationYRadians, z: object.rotation.z },
 		surfaceQuery: (x, z) => sampleConfiguredFaunaGeography(x, z, groundCollider).surface ?? null,
-		placementPolicy: habitatPolicy,
+		placementPolicy,
 		requireSurfaceContext: true,
 		snapToGround: true,
 		footprintGrounding: 'never',
