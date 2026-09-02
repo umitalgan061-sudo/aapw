@@ -45,7 +45,10 @@ const SLOT_RULES = Object.freeze([
 	{ slot: 'wing', priority: 2, words: ['wing', 'wings', 'membrane', 'kanat', 'kanad'] },
 
 	{ slot: 'hair', priority: 1, words: ['hair', 'beard', 'moustache', 'braid', 'sac', 'saç', 'sakal', 'bıyık', 'biyik'] },
-	{ slot: 'helmet', priority: 1, words: ['helmet', 'helm', 'hood', 'cap', 'kask', 'miğfer', 'migfer', 'baslik', 'başlık'] },
+	// A named helmet mesh is more specific than a generic `plate` material shared across an armour
+	// set. Keep the helmet identity dominant so architecture work cannot regress existing equipment
+	// semantics merely because material-name weighting is intentionally stronger than mesh-name weight.
+	{ slot: 'helmet', priority: 2, words: ['helmet', 'helm', 'hood', 'cap', 'kask', 'miğfer', 'migfer', 'baslik', 'başlık'] },
 	{ slot: 'boot', priority: 1, words: ['boot', 'boots', 'shoe', 'shoes', 'foot', 'feet', 'cizme', 'çizme', 'ayakkabi', 'ayakkabı'] },
 	{ slot: 'belt', priority: 1, words: ['belt', 'buckle', 'strap', 'kemer', 'toka'] },
 	{ slot: 'cloak', priority: 1, words: ['cloak', 'cape', 'mantle', 'pelerin', 'harmani', 'harmaniye'] },
