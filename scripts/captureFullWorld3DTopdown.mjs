@@ -157,8 +157,18 @@ async function main() {
 		assert(summary.naturalGeology?.valyriaPlacementCount > 0, 'Valyria-specific geology placements disappeared');
 		assert.equal(summary.naturalGeology?.worldSpaceRockWeathering, true,
 			'proof must compile world-space albedo/normal/roughness weathering on geology meshes');
+		assert.equal(summary.naturalGeology?.deterministicMineralFacetSeparation, true,
+			'proof must retain deterministic mineral/facet separation on geology meshes');
+		assert.equal(summary.naturalGeology?.volcanicFallbackMaterialIsolation, true,
+			'Valyria fallback materials must remain isolated from non-volcanic rock families');
 		assert.equal(summary.naturalGeology?.visualProofUsesDeterministicFallback, true,
 			'pointer-only CI proof must explicitly render deterministic procedural fallback geometry');
+		if (args.focus === 'valyria') {
+			assert(summary.camera.activeHalfHeight >= 900 && summary.camera.activeHalfHeight <= 1200,
+				'Valyria proof framing must expose volcanic material detail without cropping the regional context');
+			assert(summary.camera.activeHalfHeight < summary.camera.fittedHalfHeight,
+				'Valyria proof must use the tighter regional camera rather than the full-world framing');
+		}
 
 		assert(summary.waterDepthField.meanWetCoverage > 0.35, 'production water coverage is unexpectedly sparse');
 		assert(summary.waterDepthField.mixedCoastTexelRatio > 0, 'coastline anti-alias coverage disappeared');
@@ -206,3 +216,4 @@ main().catch((error) => {
 	console.error('[captureFullWorld3DTopdown] FAIL', error);
 	process.exitCode = 1;
 });
+
