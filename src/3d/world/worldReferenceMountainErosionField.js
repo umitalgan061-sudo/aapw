@@ -17,7 +17,7 @@
 const TAU = Math.PI * 2;
 
 export const WORLD_REFERENCE_MOUNTAIN_EROSION_POLICY = Object.freeze({
-	id: 'owner-map-mountain-erosion-2026-09-02-v1-ridge-local-drainage',
+	id: 'owner-map-mountain-erosion-2026-09-02-v2-ridge-local-drainage-basin-safe',
 	heightScale: Object.freeze({ minimum: 0.82, maximum: 1.10 }),
 	headwall: Object.freeze({
 		frequency: 8.4,
@@ -33,7 +33,7 @@ export const WORLD_REFERENCE_MOUNTAIN_EROSION_POLICY = Object.freeze({
 		branchSkew: 7.1,
 		start: 0.20,
 		peak: 0.60,
-		end: 0.93,
+		end: 0.90,
 		strength: 0.145,
 	}),
 	interfluveRibs: Object.freeze({
@@ -41,17 +41,17 @@ export const WORLD_REFERENCE_MOUNTAIN_EROSION_POLICY = Object.freeze({
 		branchSkew: 4.9,
 		start: 0.26,
 		peak: 0.58,
-		end: 0.90,
-		strength: 0.070,
+		end: 0.88,
+		strength: 0.055,
 	}),
 	convexConcave: Object.freeze({
 		frequency: 6.1,
 		start: 0.18,
-		end: 0.90,
-		strength: 0.050,
+		end: 0.88,
+		strength: 0.038,
 	}),
-	outerFadeStart: 0.84,
-	outerFadeEnd: 0.975,
+	outerFadeStart: 0.80,
+	outerFadeEnd: 0.965,
 });
 
 function clamp(value, min, max) {
@@ -165,13 +165,6 @@ function sampleOuterFade(normalizedDistance) {
 	return 1 - smoothstep(policy.outerFadeStart, policy.outerFadeEnd, normalizedDistance);
 }
 
-/**
- * Allocation-free erosion field sampler.
- *
- * `progress` and `normalizedDistance` are ridge-local values owned by the caller. Surface-context
- * outputs are multiplied by outer fade so downstream material/placement consumers never receive a
- * cliff/scree signal beyond the bounded erosion envelope.
- */
 export function sampleMountainErosionFieldInto(
 	progress,
 	normalizedDistance,
@@ -207,8 +200,8 @@ export function sampleMountainErosionFieldInto(
 	const edgeScale = 1 + (intensityScale - 1) * outerFade;
 
 	const upperSlope = triangularBand(normalizedDistance, 0.08, 0.34, 0.68);
-	const midSlope = triangularBand(normalizedDistance, 0.30, 0.62, 0.92);
-	const lowerSlope = triangularBand(normalizedDistance, 0.50, 0.78, 0.97);
+	const midSlope = triangularBand(normalizedDistance, 0.30, 0.62, 0.90);
+	const lowerSlope = triangularBand(normalizedDistance, 0.50, 0.76, 0.94);
 	const concavity = clamp01(0.5 - convexConcave * 0.5);
 	const cliffPotential = outerFade * clamp01(
 		headwallExposure * 0.62
@@ -258,7 +251,6 @@ const EROSION_SCRATCH = {
 	snowRetentionPotential: 0,
 };
 
-/** Hot-path scalar convenience for callers that only need the height multiplier. */
 export function sampleMountainErosionScale(
 	progress,
 	normalizedDistance,
