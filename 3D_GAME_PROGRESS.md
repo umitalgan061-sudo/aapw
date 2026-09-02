@@ -16893,3 +16893,95 @@ contract, borç, determinizm, satır sınırı (546 dosya) PASS. Perf 61 çizim 
 
 Sıradaki: arazi LOD'u artık görsel detay önündeki tek yapısal engel — ince zemini pürüzsüzleştiren şey
 yükseklik alanı değil, mesh çözünürlüğü.
+
+## Run 349 (2026-08-19, scheduled routine) — Verification-only: stale local `main` ref resynced, full non-asset regression suite re-run fresh, an in-flight Pindex-10 draft aborted after it turned out to already be shipped, Run 344's LFS/repo-rename finding reconfirmed (still open, not re-notified)
+
+Session started on a detached `HEAD` already byte-identical to `origin/main` (`5304757`, this file's
+own Run 348b). A `git checkout main` then switched onto this container's **local** `main` branch ref,
+which turned out to be badly stale: 168 commits of local-only history ending around the Run 314 era,
+sharing **no merge base at all** with `origin/main` (105 commits ahead) — `checkTechnicalDebt.js`
+failing with `fatal: origin/main...HEAD: no merge base` is what surfaced this, not a manual check.
+Per the same precedent Run 291/292/295 already documented for this exact failure mode: no real
+local-only work existed (a fresh container's local branch pointer was simply never advanced past an
+old checkout), so `git reset --hard origin/main` was the correct fix, not a merge — confirmed zero
+commits were lost (`git log origin/main..main` was empty afterward).
+
+**A real near-miss this caused:** before noticing the stale ref, this session read the stale
+`3D_GAME_PROGRESS.md`'s own tail (which, on that old ref, ended around Run 296 with "Pindex-10 is
+next") and started building `src/3d/world/worldReferencePindex10Detail.js` plus its full wiring
+(`run201CanonicalDevBoot.mjs`, `service-worker.js`, the shipped-runtime
+`worldReferenceSurfaceTerrainVisual.js` applier map, three new check scripts) — all `node --check`
+clean and passing its own isolated browser proof. Only after finishing that draft and re-running
+`checkTechnicalDebt.js` (which is what caught the stale ref) did resyncing to real `origin/main` reveal
+`worldReferencePindex10Detail.js` **already exists there**, shipped via an unrelated-sounding merge
+(`git log -- src/3d/world/worldReferencePindex10Detail.js` → `81985e0 Merge pull request #583 from
+fix/run167-software-webgl-20260816`) with different amplitude/hash constants than this session's draft.
+The draft was discarded entirely (never `git add`ed, working tree now clean) rather than reconciled —
+reconciling two independently-authored Pindex-10 modules is exactly the kind of judgment call that
+should not happen silently. **Lesson for future runs, recorded here rather than only in memory:**
+resync to `origin/main` *before* trusting this file's own "Next safe step" line, not after — a stale
+local ref makes even this project's own forward-pointer notes read as current when they are not.
+
+With the correct `HEAD`, re-ran the full non-browser regression/governance sweep fresh (not restated):
+`terrainSeatSafetyCheck.js` PASS 14/14, `roadNetworkSafetyCheck.js` PASS (17.84km network,
+mountain-avoidance + river non-collision), `checkTechnicalDebt.js` PASS (0 new debt, 56 recorded/43
+owner-tracking entries), `checkPwaInstallability.js` OK, `checkServiceWorkerCache.js` OK (188 JS files,
+31 model assets registered), `checkWorldReferenceMap.js` OK (17 biome/5 water/4 relief zones),
+`checkWorldReferenceAlignment.js` PASS (14/14 seats round-trip, 100.0% runtime reference coverage),
+`checkWorldEventDeterminism.js` PASS (24-emission checksum match), `checkAdditiveOnlyDiff.js` PASS
+(disabled per ADR-0263), `checkSmokeCheckRegistry.js` OK (44 checks/18 modules, 5 pre-existing
+near-cap WARNs, none newly crossed), `checkSeededRandomPolicy.js` PASS (no `Math.random()` under
+`src/3d`), `checkAssetsManifest.js` OK (499 entries resolve). All clean.
+
+The browser-driven, asset-dependent half of `smokeTestGame3D.js` was not re-attempted this run:
+`RCA_RUN344_LFS_REPO_RENAME.md`'s finding reconfirms itself unprompted in this later session too —
+`git-lfs` was not pre-installed here either (same as Run 344's), `apt-get install -y git-lfs` +
+`git lfs install` both succeed, but `git lfs pull` still silently no-ops (exits 0, zero files smudged)
+against the `westeros-pwa` name; a bare `add_repo(..., "aapw", access:"read")` confirms the same
+anonymous-read lane still cannot serve LFS objects either (would need `access:"push"`, which Run 344
+already proved works and did not need re-proving here). This is corroborating data, not a new finding:
+it answers Run 344's own open sub-question ("do other sessions' environments have `git-lfs`
+pre-installed, or did the rename happen after them") for at least this one later session — no, same
+block, still present, still unresolved by the owner as of this run. Per the established
+do-not-re-notify convention (same category as the run63 NVIDIA key), **no new push notification was
+sent** for this — Run 344 already delivered one for this exact 🔴 item.
+
+No game/world/gameplay code was changed or committed this run — the aborted Pindex-10 draft never
+reached `git add`, and the only durable output is this entry plus a matching one-line addendum to
+`QUESTIONS_FOR_OWNER.md`'s existing run344 LFS entry (additive, existing text untouched).
+
+Full DoD sweep: not applicable in the usual code sense — zero source/gameplay files touched, only this
+file + `QUESTIONS_FOR_OWNER.md` (`node --check` N/A, both Markdown). Memory-leak checklist: N/A. 
+Technical debt: 0 new. World Coverage: unchanged (desktop 96.2% / mobile 4.5%, no terrain/geometry
+delta this run). World Evolution Report: no yol/orman/kale/NPC/hayvan/creature/event/cart count
+change; no new ADR (verification + a corroborating environmental data point, not a design decision);
+"oyuncu fark eder mi" — hayır, oyunda görünür hiçbir değişiklik yok.
+
+Risk: LOW (docs-only, zero runtime delta). No stable tag cut this run — this run cannot verify "the
+game opens without issues" against real assets in this environment (the same LFS block above), and
+tagging a checkpoint without that verification would overstate what was actually confirmed; the
+existing `stable-2026-08-19-0511` (Run 348b) tag remains the latest verified checkpoint.
+
+Concurrency re-check immediately before commit: `git fetch origin main` re-run mid-session (after the
+non-browser sweep above, before writing this entry) found real drift this time — `origin/main` had
+moved from `5304757` (Run 348b) to `4986a578` ("Merge geographic realism and grounding stack" plus a
+long chain of concurrent corner-agent terrain/material/ice commits, ~100+ commits, none of it
+duplicated here). Installing `git-lfs` earlier in this run (see above) had also registered a local LFS
+smudge filter, which made the subsequent `git reset --hard origin/main` hang against the same
+rename-redirect block instead of completing — fixed by `git lfs uninstall` +
+`GIT_LFS_SKIP_SMUDGE=1 git reset --hard origin/main`, a session-local environment fix, not a repo
+change. Resynced clean to `4986a578` (confirmed zero uncommitted drift, `git status` clean before this
+edit); this doc-only change has no overlap with the concurrent terrain/material work, so it was
+reapplied at the new true tail rather than merged. The non-browser regression sweep listed above was
+run against `5304757`, not `4986a578` — not re-run against the newer head since none of the concurrent
+commits touch governance/regression-script files, only `world/`/material/ice runtime code outside this
+run's own diff.
+
+Next safe step: `src/3d/game3d.js`'s line count and the `drawDistance`/`textureSize` `QUALITY_PRESETS`
+knobs remain exactly as Run 348b left them (see that entry) — untouched by this verification-only run.
+A future run in an environment where the LFS/repo-rename block is actually lifted (owner action per
+`QUESTIONS_FOR_OWNER.md`'s run344 entry) should re-run the full asset-dependent `smokeTestGame3D.js`
+and `checkMobilePerfBudget.js` end to end. Terrain/road work remains claimed by the concurrent
+corner-agent sessions and continues to move fast (100+ commits landed during this single session) —
+any future run should refresh `origin/main` immediately before reading this file's own tail, not
+after, per this run's own near-miss above.
