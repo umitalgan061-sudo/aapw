@@ -49,6 +49,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
           node --check scripts/checkTemperateVegetationAssetCandidates.mjs
           node --check scripts/checkTemperateVegetationMaterialBrowser.mjs
+          node --check src/3d/world/temperateVegetationAsset.js
           git diff --check HEAD^ HEAD
 
       - name: Selectively hydrate candidate tree family
@@ -89,6 +90,7 @@ jobs:
         run: |
           node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync(process.env.REPORT,'utf8'));if(!r.liveCandidates?.length)throw new Error('No hydrated textured single-tree temperate candidate or source component passed asset-first audit');console.log('qualified='+r.liveCandidates.join(','));console.log('sourceComponents='+(r.liveSourceComponents||[]).join(','));"
           node scripts/checkSharedMaterialPlacementContract.js
+          node scripts/checkServiceWorkerCache.js
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
           ! grep -R "EditorMaterialStudio" src/3d/world/vegetation.js scripts/checkTemperateVegetationAssetCandidates.mjs scripts/checkTemperateVegetationMaterialBrowser.mjs
