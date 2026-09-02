@@ -15,11 +15,12 @@ function assertHydratedGlbs() {
 	assert(source.includes('placeWorldAsset('), 'village models must pass through placeWorldAsset');
 	assert(source.includes('MAX_ARCHITECTURE_ASSETS_PER_HAMLET = 2'), 'hamlets must bound real residential upgrades to two');
 	assert(source.includes('MIN_ARCHITECTURE_ASSET_SPACING_METERS = 22'), 'real residential upgrades must be spatially separated');
+	assert(source.includes('secondaryAssetUrl'), 'regional profiles must provide a bounded secondary silhouette');
 	assert(source.includes('bodyMesh.setColorAt(houseCount, wallTint)'), 'procedural village fabric must carry regional wall tint');
 	assert(source.includes('roofMesh.setColorAt(houseCount, roofTint)'), 'procedural village fabric must carry regional roof tint');
 	assert(source.includes('AssetLoader.disposeObject3D(source)'), 'late GLB completion must dispose source after teardown');
 	assert(source.includes('factoryCached'), 'village teardown must preserve shared material-cache ownership');
-	const assetPaths = [...new Set([...source.matchAll(/assetUrl:\s*'([^']+\.glb)'/g)].map((match) => match[1]))];
+	const assetPaths = [...new Set([...source.matchAll(/\b(?:assetUrl|secondaryAssetUrl):\s*'([^']+\.glb)'/g)].map((match) => match[1]))];
 	assert(assetPaths.length >= 6, `expected regional model diversity, found ${assetPaths.length}`);
 	for (const assetPath of assetPaths) {
 		const absolute = path.join(ROOT, assetPath);
@@ -87,7 +88,7 @@ async function main() {
 			}
 
 			const manifestProof = evidence.manifests.map((entry) => ({
-				seatId: entry.seatId, assetIndex: entry.assetIndex, region: entry.region, textureSize: entry.textureSize,
+				seatId: entry.seatId, assetIndex: entry.assetIndex, region: entry.region, assetUrl: entry.assetUrl, textureSize: entry.textureSize,
 				recipeMode: entry.manifest?.recipe?.mode ?? null,
 				basePaletteId: entry.manifest?.recipe?.basePaletteId ?? null,
 				layerPalettes: (entry.manifest?.recipe?.layers || []).map((layer) => layer.palette),
@@ -146,6 +147,10 @@ async function main() {
 		assert.equal(result.assetCount, 14);
 		assert.deepEqual(result.regions, result.expectedRegions);
 		assert.equal(new Set(result.manifestProof.map((proof) => `${proof.seatId}:${proof.assetIndex}`)).size, 14, 'dual residential upgrades need unique site manifests');
+		for (const seatId of ['berkalp', 'ziya', 'stannis', 'doran', 'robin', 'twin', 'umit']) {
+			const silhouettes = new Set(result.manifestProof.filter((proof) => proof.seatId === seatId).map((proof) => proof.assetUrl));
+			assert.equal(silhouettes.size, 2, `${seatId}: dual residential upgrades must use distinct real silhouettes`);
+		}
 		assert(result.profileCount >= 7);
 		assert.equal(new Set(result.profileTints.map((t) => t.wall)).size, 7);
 		assert.equal(new Set(result.profileTints.map((t) => t.roof)).size, 7);
