@@ -13,7 +13,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
 const boundedUnion = (a, b) => 1 - (1 - clamp01(a)) * (1 - clamp01(b));
 
 export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
-  id: 'terrain-snow-surface-tone-2026-09-02-v43-bounded-weathered-firn',
+  id: 'terrain-snow-surface-tone-2026-09-02-v44-bounded-weathered-firn',
   renderOnly: true,
   heightAuthorityUnchanged: true,
   snowCoverageAuthorityUnchanged: true,
@@ -70,8 +70,8 @@ export const TERRAIN_SNOW_SURFACE_TONE_POLICY = Object.freeze({
   accumulatedConcavityGain: 0.62,
   accumulatedGentleSlopeGain: 0.24,
   leeDriftAccumulationGain: 0.42,
-  accumulatedPermanentIceScale: 0.43,
-  accumulatedGlacialPaletteRetentionFloor: 0.74,
+  accumulatedPermanentIceScale: 0.45,
+  accumulatedGlacialPaletteRetentionFloor: 0.76,
   shelteredGlacialRetentionFloor: 0.66,
   shelteredGlacialAccumulationCooling: 0.10,
   glacialDepthAccumulationCooling: 0.06,
