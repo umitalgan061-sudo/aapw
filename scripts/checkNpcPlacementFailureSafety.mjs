@@ -38,9 +38,14 @@ assert.match(steepHabitat.error, /slope/i, `unexpected steep rejection: ${steepH
 const throwingGround = () => { throw new Error('fixture sampler failure'); };
 assert.deepEqual(sampleConfiguredNpcGeography(dry.x, dry.z, throwingGround), { ok: false, error: 'ground-sample-failed' }, 'ground sampler exception did not fail closed');
 assert.deepEqual(sampleConfiguredNpcGeography(NaN, dry.z, flatGround), { ok: false, error: 'non-finite-position' }, 'non-finite world position did not fail closed');
-const beyondMap = sampleConfiguredNpcGeography(Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, flatGround);
+let beyondMapGroundSamples = 0;
+const beyondMap = sampleConfiguredNpcGeography(Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, () => {
+	beyondMapGroundSamples += 1;
+	return 18;
+});
 assert.equal(beyondMap.ok, false, 'out-of-map world coordinate was accepted');
 assert.equal(beyondMap.error, 'reference-map-out-of-range');
+assert.equal(beyondMapGroundSamples, 0, 'out-of-map coordinate queried terrain before canonical range rejection');
 
 const badRoutes = [
 	[{ x: NaN, z: 0 }, { x: 0, z: 0 }],
@@ -57,11 +62,13 @@ const tooFarSpawn = { id: 'outside-envelope', seatId: seat.id, offsetXMeters: 80
 const allSteepSpawn = { id: 'all-steep', seatId: seat.id, offsetXMeters: 14, offsetZMeters: 0 };
 const closeResolution = resolveConfiguredNpcSpawnPlacement({ spawn: tooCloseSpawn, seat, sampleGroundHeight: flatGround });
 assert.equal(closeResolution.ok, true, 'inside-keep authored offset was not repaired to safe settlement ground');
-assert.equal(closeResolution.relocationMode, 'settlement-ring', 'inside-keep repair must use settlement-ring fallback');
+assert.equal(closeResolution.relocationMode, 'settlement-ring', 'inside-keep repair must exhaust the true <=8m local radius before settlement-ring fallback');
+assert.ok(closeResolution.displacementFromDesiredMeters > 8, 'inside-keep fallback did not prove the <=8m local radius was insufficient');
 assert.ok(closeResolution.seatDistanceMeters >= 10 && closeResolution.seatDistanceMeters <= 30, 'inside-keep repair escaped settlement envelope');
 const farResolution = resolveConfiguredNpcSpawnPlacement({ spawn: tooFarSpawn, seat, sampleGroundHeight: flatGround });
 assert.equal(farResolution.ok, true, 'outside-envelope authored offset was not repaired to safe settlement ground');
 assert.equal(farResolution.relocationMode, 'settlement-ring', 'outside-envelope repair must use settlement-ring fallback');
+assert.ok(farResolution.displacementFromDesiredMeters > 8, 'outside-envelope fallback did not exceed the local relocation radius');
 assert.ok(farResolution.seatDistanceMeters >= 10 && farResolution.seatDistanceMeters <= 30, 'outside-envelope repair escaped settlement envelope');
 const steepResolution = resolveConfiguredNpcSpawnPlacement({ spawn: allSteepSpawn, seat, sampleGroundHeight: steepGround });
 assert.equal(steepResolution.ok, false, 'settlement-ring recovery accepted a fully unsafe steep envelope');
@@ -73,7 +80,8 @@ assert.deepEqual(resolveConfiguredNpcSpawnPlacement({ spawn: tooCloseSpawn, seat
 console.log('NPC_PLACEMENT_FAILURE_SAFETY_PASS', JSON.stringify({
 	sea: { x: sea.x, z: sea.z, error: seaHabitat.error },
 	steepSlopeDegrees: Number(steep.surface.slopeDegrees.toFixed(3)),
-	closeRecovery: { mode: closeResolution.relocationMode, seatDistanceMeters: closeResolution.seatDistanceMeters },
-	farRecovery: { mode: farResolution.relocationMode, seatDistanceMeters: farResolution.seatDistanceMeters },
+	outOfMapGroundSamples: beyondMapGroundSamples,
+	closeRecovery: { mode: closeResolution.relocationMode, displacementMeters: closeResolution.displacementFromDesiredMeters, seatDistanceMeters: closeResolution.seatDistanceMeters },
+	farRecovery: { mode: farResolution.relocationMode, displacementMeters: farResolution.displacementFromDesiredMeters, seatDistanceMeters: farResolution.seatDistanceMeters },
 	steepError: steepResolution.error,
 }));
