@@ -26,7 +26,7 @@ const ALWAYS_WINTER_ZONE = findZone('lands-always-winter');
 const NORTH_ZONE = findZone('north');
 
 export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
-	id: 'owner-map-north-cryosphere-2026-09-02-v6-weathered-transition',
+	id: 'owner-map-north-cryosphere-2026-09-02-v7-eroded-transition',
 	source: 'WORLD_REFERENCE_MAP biome zones',
 	renderClimateOnly: true,
 	heightAuthorityUnchanged: true,
@@ -36,6 +36,7 @@ export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
 	iceEdgeVisualHarmony: true,
 	curvedIceHalo: true,
 	deterministicTransitionWeathering: true,
+	domainWarpedTransitionWeathering: true,
 	alwaysWinterZoneId: ALWAYS_WINTER_ZONE.id,
 	northZoneId: NORTH_ZONE.id,
 	iceTransitionRadiusScale: 1.55,
@@ -44,7 +45,7 @@ export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
 	iceHaloCurveExponent: 0.88,
 	northTundraGain: 0.92,
 	winterHaloGain: 0.82,
-	transitionWeatheringMin: 0.82,
+	transitionWeatheringMin: 0.68,
 	transitionWeatheringMax: 1.0,
 });
 
@@ -72,11 +73,16 @@ function union01(...weights) {
 
 function transitionWeathering(normalizedX, normalizedY) {
 	const P = NORTH_REFERENCE_CRYOSPHERE_POLICY;
-	const macro = Math.sin(normalizedX * 19.7 + normalizedY * 13.1 + Math.sin(normalizedY * 7.3) * 0.9);
-	const meso = Math.sin(normalizedX * 43.9 - normalizedY * 31.7 + Math.sin(normalizedX * 17.2) * 0.65);
-	const fine = Math.sin(normalizedX * 91.3 + normalizedY * 67.1 + Math.sin((normalizedX - normalizedY) * 29.4) * 0.42);
-	const normalized = clamp01(0.5 + macro * 0.24 + meso * 0.17 + fine * 0.09);
-	return P.transitionWeatheringMin + (P.transitionWeatheringMax - P.transitionWeatheringMin) * normalized;
+	const warpX = Math.sin(normalizedY * 11.9 + Math.sin(normalizedX * 5.7) * 1.25) * 0.027;
+	const warpY = Math.sin(normalizedX * 9.7 - Math.sin(normalizedY * 6.3) * 1.10) * 0.023;
+	const x = normalizedX + warpX;
+	const y = normalizedY + warpY;
+	const macro = Math.sin(x * 19.7 + y * 13.1 + Math.sin(y * 7.3) * 0.9);
+	const meso = Math.sin(x * 43.9 - y * 31.7 + Math.sin(x * 17.2) * 0.65);
+	const fine = Math.sin(x * 91.3 + y * 67.1 + Math.sin((x - y) * 29.4) * 0.42);
+	const raw = clamp01(0.5 + macro * 0.27 + meso * 0.19 + fine * 0.10);
+	const eroded = raw * raw * (3 - 2 * raw);
+	return P.transitionWeatheringMin + (P.transitionWeatheringMax - P.transitionWeatheringMin) * eroded;
 }
 
 export function northReferenceCryosphereAtNormalized(normalizedX, normalizedY) {
