@@ -27,6 +27,8 @@ import {
 	TERRAIN_MICRO_SURFACE_POLICY,
 	terrainMicroUvAt,
 } from '../src/3d/world/terrainMicroSurface.js';
+import { NATURAL_SURFACE_MATERIAL_POLICY } from '../src/3d/world/naturalSurfaceMaterial.js';
+import { VALYRIA_GEOLOGY_POLICY } from '../src/3d/world/valyriaGeology.js';
 import {
 	northClimateWeightsAtWorldXZ,
 	resolveTerrainBiomeColor,
@@ -47,9 +49,10 @@ import {
 import { createWaterDepthField } from '../src/3d/world/waterDepthField.js';
 
 const params = new URLSearchParams(location.search);
-const width = Math.max(640, Number(params.get('width')) || 1600);
-const height = Math.max(480, Number(params.get('height')) || 1100);
-const segmentsX = Math.max(80, Number(params.get('segments')) || 240);
+const focus = params.get('focus') === 'valyria' ? 'valyria' : 'world';
+const width = Math.max(640, Number(params.get('width')) || 1536);
+const height = Math.max(480, Number(params.get('height')) || 1024);
+const segmentsX = Math.max(80, Number(params.get('segments')) || 360);
 const segmentsZ = Math.round(segmentsX * WORLD_SCALE.WORLD_DEPTH_METERS / WORLD_SCALE.WORLD_WIDTH_METERS);
 const worldWidth = WORLD_SCALE.WORLD_WIDTH_METERS;
 const worldDepth = WORLD_SCALE.WORLD_DEPTH_METERS;
@@ -173,7 +176,7 @@ scene.add(water);
 
 const aspect = width / height;
 const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 40000);
-camera.position.set(0, 15800, worldDepth * 0.26);
+camera.position.set(0, 15800, 0);
 camera.up.set(0, 0, -1);
 camera.lookAt(0, seaLevel, 0);
 camera.updateMatrixWorld(true);
@@ -199,6 +202,21 @@ camera.top = fittedHalfHeight;
 camera.bottom = -fittedHalfHeight;
 camera.updateProjectionMatrix();
 
+if (focus === 'valyria') {
+	const focusX = (VALYRIA_GEOLOGY_POLICY.coreCenter.nx - 0.5) * worldWidth;
+	const focusZ = (VALYRIA_GEOLOGY_POLICY.coreCenter.ny - 0.5) * worldDepth;
+	const regionalHalfHeight = 1380;
+	camera.position.set(focusX - 860, 2680, focusZ + 1180);
+	camera.up.set(0, 1, 0);
+	camera.lookAt(focusX, seaLevel + 95, focusZ);
+	camera.left = -regionalHalfHeight * aspect;
+	camera.right = regionalHalfHeight * aspect;
+	camera.top = regionalHalfHeight;
+	camera.bottom = -regionalHalfHeight;
+	camera.updateMatrixWorld(true);
+	camera.updateProjectionMatrix();
+}
+
 updateWater(water, camera.position, 0);
 renderer.render(scene, camera);
 await new Promise((resolve) => requestAnimationFrame(resolve));
@@ -211,6 +229,7 @@ const deepOceanBackdrop = water.userData.deepOceanBackdrop;
 const deepOceanBackdropWorldY = water.position.y + (deepOceanBackdrop?.position.y ?? 0);
 window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
 	status: 'ready',
+	focus,
 	width,
 	height,
 	segmentsX,
@@ -227,6 +246,10 @@ window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
 	northPermanentIceActiveSamples: northIceActiveSamples,
 	terrainSurfaceRealism: Object.freeze({
 		policyId: TERRAIN_MICRO_SURFACE_POLICY.id,
+		naturalSurfaceMaterialPolicyId: NATURAL_SURFACE_MATERIAL_POLICY.id,
+		valyriaWorldSpacePbr: NATURAL_SURFACE_MATERIAL_POLICY.worldSpaceAlbedoVariation,
+		canonicalHeightUnchanged: NATURAL_SURFACE_MATERIAL_POLICY.canonicalHeightUnchanged,
+		canonicalHydrologyUnchanged: NATURAL_SURFACE_MATERIAL_POLICY.canonicalHydrologyUnchanged,
 		runtimePindexPolicyId: RUNTIME_PINDEX_TERRAIN_POLISH_POLICY.id,
 		runtimePindexChangedVertices: runtimeTerrainPolish.changedVertices ?? null,
 		runtimePindexDetailTouchedVertices: runtimeTerrainPolish.detailTouchedVertices ?? null,
@@ -264,6 +287,8 @@ window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
 	camera: Object.freeze({
 		type: 'OrthographicCamera',
 		position: Object.freeze(camera.position.toArray()),
+		pitchDegrees: focus === 'world' ? 90 : null,
+		trueTopDown: focus === 'world',
 		verticalExaggeration: 1,
 		frameMargin,
 		fittedHalfWidth,
