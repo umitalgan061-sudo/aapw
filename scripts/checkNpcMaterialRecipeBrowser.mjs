@@ -48,10 +48,20 @@ try {
 		const namedApplied = applyMaterialRecipe(named, namedPlan.recipe, { metadata: { category: 'soldier', id: spawn.id } });
 		const namedValidation = validateMaterialAssignment(named, { requireGeneratedTexture: true });
 		const namedPalettes = new Set();
+		const namedPbr = {};
 		named.traverse((node) => {
 			if (!node?.isMesh) return;
 			for (const material of (Array.isArray(node.material) ? node.material : [node.material])) {
-				if (material?.userData?.paletteId) namedPalettes.add(material.userData.paletteId);
+				const paletteId = material?.userData?.paletteId;
+				if (!paletteId) continue;
+				namedPalettes.add(paletteId);
+				const image = material.map?.image ?? material.map?.source?.data ?? null;
+				namedPbr[paletteId] = {
+					roughness: material.roughness,
+					metalness: material.metalness,
+					textureWidth: image?.width ?? null,
+					textureHeight: image?.height ?? null,
+				};
 			}
 		});
 
@@ -83,6 +93,7 @@ try {
 				applied: namedApplied,
 				validation: namedValidation,
 				palettes: [...namedPalettes].sort(),
+				pbr: namedPbr,
 			},
 			layered: {
 				mode: layeredPlan.mode,
@@ -104,17 +115,31 @@ try {
 	assert.equal(proof.named.mode, 'named-parts', `named guard selected ${proof.named.mode}`);
 	assert.equal(proof.named.applied.ok, true, `named surface recipe failed: ${JSON.stringify(proof.named.applied)}`);
 	assert.equal(proof.named.validation.ok, true, `named material validation failed: ${JSON.stringify(proof.named.validation)}`);
-	for (const expected of ['skin-fair', 'skin-olive', 'skin-brown', 'skin-deep']) {
-		if (proof.named.palettes.includes(expected)) break;
-		if (expected === 'skin-deep') assert.fail(`named guard has no skin palette: ${JSON.stringify(proof.named.palettes)}`);
-	}
-	assert.ok(proof.named.palettes.includes('hair-black') || proof.named.palettes.includes('hair-blonde') || proof.named.palettes.includes('hair-red'), 'named guard has no hair palette');
-	assert.ok(proof.named.palettes.some((id) => id.startsWith('eye-')), 'named guard has no eye palette');
+	const skinPalette = proof.named.palettes.find((id) => id.startsWith('skin-'));
+	assert.ok(skinPalette, `named guard has no skin palette: ${JSON.stringify(proof.named.palettes)}`);
+	const hairPalette = proof.named.palettes.find((id) => id.startsWith('hair-'));
+	assert.ok(hairPalette, 'named guard has no hair palette');
+	const eyePalette = proof.named.palettes.find((id) => id.startsWith('eye-'));
+	assert.ok(eyePalette, 'named guard has no eye palette');
 	assert.ok(proof.named.palettes.includes('tunic-blue'), `cold-grassland guard did not receive geographic blue tunic: ${JSON.stringify(proof.named.palettes)}`);
 	assert.ok(proof.named.palettes.includes('boot'), 'named guard has no separate boot material');
 	assert.ok(proof.named.palettes.includes('belt'), 'named guard has no separate belt/gear material');
 	assert.ok(proof.named.palettes.includes('steel'), 'named guard has no separate armor material');
 	assert.ok(proof.named.palettes.length >= 7, `named guard material distribution collapsed: ${JSON.stringify(proof.named.palettes)}`);
+
+	const skinPbr = proof.named.pbr[skinPalette];
+	const eyePbr = proof.named.pbr[eyePalette];
+	const tunicPbr = proof.named.pbr['tunic-blue'];
+	const steelPbr = proof.named.pbr.steel;
+	assert.ok(skinPbr.roughness >= 0.65 && skinPbr.metalness === 0, `skin PBR response is implausible: ${JSON.stringify(skinPbr)}`);
+	assert.ok(eyePbr.roughness <= 0.2 && eyePbr.metalness === 0, `eye PBR response is not distinct from cloth/skin: ${JSON.stringify(eyePbr)}`);
+	assert.ok(tunicPbr.roughness >= 0.85 && tunicPbr.metalness === 0, `cloth PBR response is implausible: ${JSON.stringify(tunicPbr)}`);
+	assert.ok(steelPbr.metalness >= 0.7 && steelPbr.roughness < tunicPbr.roughness, `armor PBR response is not distinct from cloth: ${JSON.stringify(steelPbr)}`);
+	for (const paletteId of [skinPalette, hairPalette, eyePalette, 'tunic-blue', 'boot', 'belt', 'steel']) {
+		const pbrRecord = proof.named.pbr[paletteId];
+		assert.equal(pbrRecord?.textureWidth, 256, `${paletteId} generated texture width is not 256`);
+		assert.equal(pbrRecord?.textureHeight, 256, `${paletteId} generated texture height is not 256`);
+	}
 
 	assert.equal(proof.layered.mode, 'layered-fallback', `single mesh selected ${proof.layered.mode}`);
 	assert.equal(proof.layered.applied.ok, true, `layered recipe failed: ${JSON.stringify(proof.layered.applied)}`);
