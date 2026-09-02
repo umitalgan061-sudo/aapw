@@ -27,6 +27,11 @@ import {
 	validateAmbientPropAsset,
 	disposeAmbientObjectResources,
 } from './settlementAmbientMaterials.js';
+import {
+	SETTLEMENT_AMBIENT_GROUND_CONTACT_POLICY,
+	createSettlementAmbientGroundContacts,
+	disposeSettlementAmbientGroundContacts,
+} from './settlementAmbientGroundContact.js';
 
 export {
 	SETTLEMENT_AMBIENT_PROP_POLICY,
@@ -50,6 +55,11 @@ export {
 	validateAmbientPropAsset,
 	placementTintColor,
 } from './settlementAmbientMaterials.js';
+export {
+	SETTLEMENT_AMBIENT_GROUND_CONTACT_POLICY,
+	createSettlementAmbientGroundContacts,
+	disposeSettlementAmbientGroundContacts,
+} from './settlementAmbientGroundContact.js';
 
 const tempObject = new THREE.Object3D();
 const tempMatrix = new THREE.Matrix4();
@@ -126,9 +136,13 @@ export function createSettlementAmbientProps(options) {
 			if (mesh) fallbackMeshes.push(mesh);
 		}
 	}
-	group.add(...fallbackMeshes);
+	const groundContactResult = createSettlementAmbientGroundContacts(placementResult.placements, {
+		sampleHeightMeters: options?.sampleHeightMeters,
+	});
+	group.add(groundContactResult.group, ...fallbackMeshes);
 	group.userData.settlementAmbientPlacements = placementResult.placements;
 	group.userData.settlementAmbientSources = [];
+	group.userData.settlementAmbientGroundContact = groundContactResult.group;
 	group.userData.settlementAmbientDisposed = false;
 	group.userData.settlementAmbient = Object.freeze({
 		policyId: SETTLEMENT_AMBIENT_PROP_POLICY.id,
@@ -148,6 +162,9 @@ export function createSettlementAmbientProps(options) {
 		maxLogisticsRoadDistanceMeters: placementResult.stats.maxLogisticsRoadDistanceMeters,
 		fallbackDrawCalls: fallbackMeshes.length,
 		fallbackClimateVariantCount: new Set(fallbackMeshes.map((mesh) => mesh.userData.climateBucket)).size,
+		groundContactPolicyId: SETTLEMENT_AMBIENT_GROUND_CONTACT_POLICY.id,
+		groundContactDrawCalls: groundContactResult.stats.drawCalls,
+		groundContactPlacementCount: groundContactResult.stats.placementCount,
 		assetState: 'procedural-fallback',
 		hydratedPlacementCount: 0,
 	});
@@ -422,6 +439,8 @@ export function auditSettlementAmbientProps(group) {
 	if (!metadata) errors.push('missing-metadata');
 	if (metadata?.policyId !== SETTLEMENT_AMBIENT_PROP_POLICY.id) errors.push('policy-id-drift');
 	if (metadata?.placementChecksum !== checksumSettlementAmbientPlacements(placements)) errors.push('placement-checksum-drift');
+	if (metadata?.groundContactPolicyId !== SETTLEMENT_AMBIENT_GROUND_CONTACT_POLICY.id) errors.push('ground-contact-policy-drift');
+	if (metadata?.groundContactPlacementCount !== placements.length) errors.push('ground-contact-count-drift');
 	if (placements.some((placement) => ![placement.x, placement.y, placement.z, placement.slopeDegrees, placement.roadDistanceMeters].every(Number.isFinite))) errors.push('non-finite-placement');
 	if (placements.some((placement) => placement.slopeDegrees > SETTLEMENT_AMBIENT_PROP_POLICY.maximumSlopeDegrees + 1e-6)) errors.push('slope-policy-breach');
 	if (placements.some((placement) => placement.roadDistanceMeters < SETTLEMENT_AMBIENT_PROP_POLICY.minimumRoadDistanceMeters - 1e-6)) errors.push('road-clearance-breach');
@@ -444,7 +463,10 @@ export function disposeSettlementAmbientProps(group) {
 	if (!group || group.userData.settlementAmbientDisposed) return;
 	group.userData.settlementAmbientDisposed = true;
 	const sourceSet = new Set(group.userData?.settlementAmbientSources || []);
+	const contactGroup = group.userData.settlementAmbientGroundContact;
+	if (contactGroup) disposeSettlementAmbientGroundContacts(contactGroup);
 	for (const child of group.children) {
+		if (child === contactGroup) continue;
 		if (child?.userData?.settlementAmbientFallback) {
 			disposeAmbientObjectResources(child, { disposeGeometry: true, disposeTextures: true });
 		} else if (child?.name === SETTLEMENT_AMBIENT_PROP_POLICY.hydratedGroupName) {
@@ -454,4 +476,5 @@ export function disposeSettlementAmbientProps(group) {
 	for (const source of sourceSet) AssetLoader.disposeObject3D(source);
 	group.clear();
 	group.userData.settlementAmbientSources = [];
+	group.userData.settlementAmbientGroundContact = null;
 }
