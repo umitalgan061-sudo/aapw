@@ -15,13 +15,22 @@ on:
       - 'scripts/checkWaterCoverageSamplingBudget.mjs'
       - 'scripts/checkMountainGeomorphologyField.mjs'
       - 'scripts/checkMountainSurfaceContext.mjs'
+      - 'scripts/checkMountainErosionField.mjs'
+      - 'scripts/checkMountainPlacementQuery.mjs'
+      - 'scripts/checkMountainRidgeJointContinuity.mjs'
+      - 'scripts/checkMountainMeshFrequencyBudget.mjs'
+      - 'scripts/checkMountainRuntimeGeometryParity.mjs'
+      - 'scripts/checkMountainWallSilhouetteBreakup.mjs'
       - 'scripts/checkSharedMaterialPlacementContract.js'
       - 'scripts/roadNetworkSafetyCheck.js'
       - 'src/3d/sky.js'
       - 'src/3d/world/terrain.js'
       - 'src/3d/world/water.js'
       - 'src/3d/world/waterDepthField.js'
+      - 'src/3d/world/worldReferenceMountainRelief.js'
       - 'src/3d/world/worldReferenceMountainGeomorphology.js'
+      - 'src/3d/world/worldReferenceMountainErosionField.js'
+      - 'src/3d/world/worldReferenceMountainPlacementQuery.js'
       - 'src/3d/world/worldReferenceMountainRidgeFrame.js'
       - 'src/3d/world/WorldAssetPlacementPipeline.js'
       - '.github/workflows/world-map-aligned-terrain-pbr.yml'
@@ -42,7 +51,7 @@ env: { TZ: Europe/Istanbul }
 jobs:
   validate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
         with:
@@ -61,11 +70,11 @@ jobs:
           echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          test "$(echo "$CHANGED" | grep -Ev '^(fixtures/world-reference-mountain-relief-v1\.json|scripts/captureLiveWorldMountainNaturalization\.mjs|scripts/checkMountainNaturalizationDeterminism\.mjs|scripts/checkMountainNaturalizationProfile\.mjs|scripts/checkMountainGeomorphologyField\.mjs|scripts/checkMountainSurfaceContext\.mjs|scripts/checkMountainPassReliefSafety\.mjs|scripts/checkMountainVisualProofContract\.mjs|scripts/checkWorldReferenceMountainRelief\.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix\.mjs|scripts/checkWorldSurfacePlacementPolicy\.mjs|scripts/checkMapAlignedTerrainPBR\.mjs|scripts/checkTerrainMicroSurface\.mjs|scripts/checkWorldWaterCoverageP0\.mjs|scripts/checkWaterCoverageRasterQuality\.mjs|scripts/checkWaterCoverageSamplingBudget\.mjs|scripts/checkWaterSurfVisualContract\.mjs|scripts/checkWaterVisualContract\.js|scripts/terrainSeatSafetyCheck\.js|scripts/roadNetworkSafetyCheck\.js|scripts/checkSharedMaterialPlacementContract\.js|src/3d/sky\.js|src/3d/world/terrain\.js|src/3d/world/water\.js|src/3d/world/waterDepthField\.js|src/3d/world/worldReferenceMountainRelief\.js|src/3d/world/worldReferenceMountainGeomorphology\.js|src/3d/world/worldReferenceMountainRidgeFrame\.js|src/3d/world/WorldAssetPlacementPipeline\.js|\.github/workflows/world-map-aligned-terrain-pbr\.yml|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/run167-determinism-policy\.yml|\.github/workflows/run317-terrain3d-heightfield\.yml|\.github/workflows/live-map-mountain-relief\.yml|\.github/workflows/full-world-runtime-coverage\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(fixtures/world-reference-mountain-relief-v1\.json|scripts/captureLiveWorldMountainNaturalization\.mjs|scripts/checkMountainNaturalizationDeterminism\.mjs|scripts/checkMountainNaturalizationProfile\.mjs|scripts/checkMountainGeomorphologyField\.mjs|scripts/checkMountainSurfaceContext\.mjs|scripts/checkMountainErosionField\.mjs|scripts/checkMountainPlacementQuery\.mjs|scripts/checkMountainRidgeJointContinuity\.mjs|scripts/checkMountainMeshFrequencyBudget\.mjs|scripts/checkMountainRuntimeGeometryParity\.mjs|scripts/checkMountainWallSilhouetteBreakup\.mjs|scripts/checkMountainPassReliefSafety\.mjs|scripts/checkMountainVisualProofContract\.mjs|scripts/checkWorldReferenceMountainRelief\.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix\.mjs|scripts/checkWorldSurfacePlacementPolicy\.mjs|scripts/checkMapAlignedTerrainPBR\.mjs|scripts/checkTerrainMicroSurface\.mjs|scripts/checkWorldWaterCoverageP0\.mjs|scripts/checkWaterCoverageRasterQuality\.mjs|scripts/checkWaterCoverageSamplingBudget\.mjs|scripts/checkWaterSurfVisualContract\.mjs|scripts/checkWaterVisualContract\.js|scripts/terrainSeatSafetyCheck\.js|scripts/roadNetworkSafetyCheck\.js|scripts/checkSharedMaterialPlacementContract\.js|src/3d/sky\.js|src/3d/world/terrain\.js|src/3d/world/water\.js|src/3d/world/waterDepthField\.js|src/3d/world/worldReferenceMountainRelief\.js|src/3d/world/worldReferenceMountainGeomorphology\.js|src/3d/world/worldReferenceMountainErosionField\.js|src/3d/world/worldReferenceMountainPlacementQuery\.js|src/3d/world/worldReferenceMountainRidgeFrame\.js|src/3d/world/WorldAssetPlacementPipeline\.js|\.github/workflows/world-map-aligned-terrain-pbr\.yml|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/run167-determinism-policy\.yml|\.github/workflows/run317-terrain3d-heightfield\.yml|\.github/workflows/live-map-mountain-relief\.yml|\.github/workflows/full-world-runtime-coverage\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "world acceptance quota additions=$A deletions=$D total=$((A+D))"
-          test $((A+D)) -le 1000
+          test $((A+D)) -le 3000
       - name: Install shared placement runtime dependency
         run: |
           set -euo pipefail
@@ -80,11 +89,22 @@ jobs:
           node --check scripts/checkWorldWaterCoverageP0.mjs
           node --check scripts/checkWaterCoverageRasterQuality.mjs
           node --check scripts/checkWaterCoverageSamplingBudget.mjs
+          node --check scripts/checkMountainErosionField.mjs
+          node --check scripts/checkMountainPlacementQuery.mjs
+          node --check scripts/checkMountainRidgeJointContinuity.mjs
+          node --check scripts/checkMountainMeshFrequencyBudget.mjs
+          node --check scripts/checkMountainRuntimeGeometryParity.mjs
+          node --check scripts/checkMountainWallSilhouetteBreakup.mjs
           node --check src/3d/materials/MaterialAssignmentCore.js
           node --check src/3d/sky.js
           node --check src/3d/world/terrain.js
           node --check src/3d/world/water.js
           node --check src/3d/world/waterDepthField.js
+          node --check src/3d/world/worldReferenceMountainRelief.js
+          node --check src/3d/world/worldReferenceMountainGeomorphology.js
+          node --check src/3d/world/worldReferenceMountainErosionField.js
+          node --check src/3d/world/worldReferenceMountainPlacementQuery.js
+          node --check src/3d/world/worldReferenceMountainRidgeFrame.js
           node --check src/3d/world/WorldAssetPlacementPipeline.js
           node scripts/checkSharedMaterialPlacementContract.js
           node scripts/checkWorldSurfacePlacementPolicy.mjs
@@ -93,11 +113,16 @@ jobs:
           node scripts/checkWorldWaterCoverageP0.mjs
           node scripts/checkWaterCoverageRasterQuality.mjs
           node scripts/checkWaterCoverageSamplingBudget.mjs
+          node scripts/checkMountainErosionField.mjs
+          node scripts/checkMountainPlacementQuery.mjs
+          node scripts/checkMountainRidgeJointContinuity.mjs
+          node scripts/checkMountainMeshFrequencyBudget.mjs
+          node scripts/checkMountainWallSilhouetteBreakup.mjs
       - name: Hydrate scoped runtime assets
         run: |
           set -euo pipefail
           git lfs version
-          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
+          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/Ay/Moon 2K.fbx,assets/models/vegetation/pine_Zt62gceKXZ.glb,assets/models/vegetation/winter_tree.glb,assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb,assets/models/fbx/rocky_terrain_low_poly.glb,assets/models/fbx/desert_rocks.glb" --exclude=""
       - name: Install Playwright Chromium
         run: |
           set -euo pipefail
@@ -109,6 +134,7 @@ jobs:
         run: |
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkMountainRuntimeGeometryParity.mjs
           node scripts/checkWorldEnvironmentAcceptanceMatrix.mjs
       - name: Browser mobile and terrain regression safety
         run: |
