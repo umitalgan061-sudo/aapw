@@ -7,11 +7,11 @@
  * corners cannot hover while uphill corners remain safely embedded in the terrain. Stairs and field
  * walls are grounded from their own footprints as well.
  *
- * One procedural house in every canonical hamlet is also an asset-upgrade site. The cheap instanced
- * house remains visible until a real repository GLB has loaded, passed the shared material contract,
- * passed footprint-aware world placement, produced a manifest and attached successfully. Only then
- * is the matching primitive instance hidden. Missing/LFS-unavailable assets therefore fail closed:
- * no magenta AssetLoader placeholder and no invisible collision hole are ever shipped.
+ * Up to two separated procedural houses in every canonical hamlet are asset-upgrade sites. The cheap
+ * instanced house remains visible until a real repository GLB has loaded, passed the shared material
+ * contract, passed footprint-aware world placement, produced a manifest and attached successfully.
+ * Only then is the matching primitive instance hidden. Missing/LFS-unavailable assets therefore fail
+ * closed: no magenta AssetLoader placeholder and no invisible collision hole are ever shipped.
  * @module world/villages
  */
 
@@ -35,6 +35,8 @@ const STOOP_STEP_RUN_METERS = 0.34;
 const STOOP_WIDTH_METERS = 1.6;
 const ARCHITECTURE_TEXTURE_SIZE = 256;
 const SURFACE_SLOPE_SAMPLE_METERS = 1.5;
+const MAX_ARCHITECTURE_ASSETS_PER_HAMLET = 2;
+const MIN_ARCHITECTURE_ASSET_SPACING_METERS = 22;
 
 const HOUSE_TYPES = [
 	{ id: 'cottage', weight: 0.55, width: 5.2, depth: 4.4, wallHeight: 2.5, roofHeight: 2.2 },
@@ -213,7 +215,7 @@ function regionalMaterialOptions(object, profile) {
 function normalizedArchitecturePivot(source, site, profile) {
 	const model = source.clone(true);
 	const pivot = new THREE.Group();
-	pivot.name = `village-landmark-${site.seatId}`;
+	pivot.name = `village-landmark-${site.seatId}-${site.assetIndex ?? 0}`;
 	pivot.userData.architectureRegion = profile.id;
 	pivot.add(model);
 	model.updateMatrixWorld(true);
@@ -246,8 +248,8 @@ function hidePrimitiveLandmark(villageGroup, site) {
 }
 
 /**
- * Loads one high-detail residential landmark for each canonical hamlet and sends every model through
- * the merged #590 material/placement core before hiding its matching primitive fallback.
+ * Loads up to two spatially separated high-detail residences for each canonical hamlet and sends
+ * every model through the merged #590 material/placement core before hiding its primitive fallback.
  */
 export async function upgradeVillageArchitectureAssets({
 	assetLoader,
@@ -294,7 +296,7 @@ export async function upgradeVillageArchitectureAssets({
 		const materialOptions = regionalMaterialOptions(object, profile);
 		const prepared = placeWorldAsset(assetGroup, object, {
 			metadata: {
-				id: `village-${site.seatId}-${profile.id}`,
+				id: `village-${site.seatId}-${profile.id}-${site.assetIndex ?? 0}`,
 				name: profile.label,
 				category: 'settlement',
 				src: profile.assetUrl,
@@ -317,6 +319,7 @@ export async function upgradeVillageArchitectureAssets({
 		upgradedCount++;
 		manifests.push({
 			seatId: site.seatId,
+			assetIndex: site.assetIndex ?? 0,
 			region: profile.id,
 			assetUrl: profile.assetUrl,
 			textureSize: ARCHITECTURE_TEXTURE_SIZE,
@@ -410,7 +413,8 @@ export function createVillages({
 
 	for (const seat of eligibleSeats) {
 		const placedHere = [];
-		let landmarkRecorded = false;
+		const architectureSitesHere = [];
+		let landmarkRecorded = 0;
 		const architectureProfile = resolveVillageArchitectureProfile(seat.id);
 		const hamletBearing = rng() * Math.PI * 2;
 		const hamletDistance = HAMLET_DISTANCE_MIN_METERS + rng() * (HAMLET_DISTANCE_MAX_METERS - HAMLET_DISTANCE_MIN_METERS);
@@ -470,14 +474,17 @@ export function createVillages({
 
 				placedHere.push({ x, z });
 				houses.push({ x, z, radius: Math.hypot(type.width, type.depth) / 2 });
-				if (!landmarkRecorded && architectureProfile) {
-					landmarkSites.push({
-						seatId: seat.id, x, z, yaw, houseIndex, stepStartIndex,
+				if (architectureProfile && landmarkRecorded < MAX_ARCHITECTURE_ASSETS_PER_HAMLET &&
+					architectureSitesHere.every((site) => Math.hypot(x - site.x, z - site.z) >= MIN_ARCHITECTURE_ASSET_SPACING_METERS)) {
+					const landmarkSite = {
+						seatId: seat.id, assetIndex: landmarkRecorded, x, z, yaw, houseIndex, stepStartIndex,
 						stepCount: STOOP_STEP_COUNT,
 						targetFootprintMeters: Math.max(type.width, type.depth),
 						proceduralType: type.id,
-					});
-					landmarkRecorded = true;
+					};
+					landmarkSites.push(landmarkSite);
+					architectureSitesHere.push(landmarkSite);
+					landmarkRecorded++;
 				}
 				houseCount++;
 				break;
