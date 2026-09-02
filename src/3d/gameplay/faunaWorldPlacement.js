@@ -7,6 +7,8 @@ import { classifyReferenceBaseSurface } from '../world/worldReferenceSurfacePind
 
 const SLOPE_SAMPLE_RADIUS_METERS = 1.5;
 const BIOME_INFLUENCE_FLOOR = 0.05;
+const ROUTE_SAMPLE_SPACING_METERS = 4;
+const MAX_ROUTE_SAMPLES = 12;
 const AUTHORED_PBR_MAP_FIELDS = Object.freeze([
 	'map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap', 'lightMap', 'displacementMap',
 ]);
@@ -108,6 +110,22 @@ export function evaluateConfiguredFaunaHabitat(speciesId, worldX, worldZ, ground
 		return { ok: false, error: `surface:${evaluation.errors.join(',')}`, geography, placementPolicy, evaluation };
 	}
 	return { ok: true, geography, placementPolicy, evaluation };
+}
+
+export function evaluateConfiguredFaunaRoute(speciesId, start, target, groundCollider) {
+	if (![start?.x, start?.z, target?.x, target?.z].every(Number.isFinite)) return { ok: false, error: 'non-finite-route' };
+	const distanceMeters = Math.hypot(target.x - start.x, target.z - start.z);
+	const sampleCount = Math.max(1, Math.min(MAX_ROUTE_SAMPLES, Math.ceil(distanceMeters / ROUTE_SAMPLE_SPACING_METERS)));
+	let targetHabitat = null;
+	for (let index = 1; index <= sampleCount; index += 1) {
+		const t = index / sampleCount;
+		const x = start.x + (target.x - start.x) * t;
+		const z = start.z + (target.z - start.z) * t;
+		const habitat = evaluateConfiguredFaunaHabitat(speciesId, x, z, groundCollider);
+		if (!habitat.ok) return { ...habitat, routeSampleIndex: index, routeSampleCount: sampleCount, distanceMeters };
+		targetHabitat = habitat;
+	}
+	return { ok: true, targetHabitat, routeSampleCount: sampleCount, distanceMeters };
 }
 
 export function inspectConfiguredFaunaMaterials(object) {
