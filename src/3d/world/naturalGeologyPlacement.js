@@ -1,4 +1,5 @@
 import { VALYRIA_GEOLOGY_POLICY, valyriaGeologyClassAtWorldXZ, valyriaInfluenceAtWorldXZ } from './valyriaGeology.js';
+import { REFERENCE_BIOME_ZONES, sampleReferenceInfluence } from './worldReferenceMap.js';
 
 /**
  * Deterministic placement policy for natural bedrock, outcrops and talus.
@@ -12,11 +13,13 @@ import { VALYRIA_GEOLOGY_POLICY, valyriaGeologyClassAtWorldXZ, valyriaInfluenceA
  */
 
 export const NATURAL_GEOLOGY_PLACEMENT_POLICY = Object.freeze({
-  id: 'natural-geology-placement-2026-08-27-v1-asset-informed-strata',
+  id: 'natural-geology-placement-2026-09-01-v3-biome-material-affinity',
   deterministic: true,
   renderOnly: true,
   geographyAuthorityUnchanged: true,
   heightAuthority: 'world/terrain.js',
+  assetFamilyBiomeAuthority: 'worldReferenceMap.js',
+  materialDrynessAuthority: 'worldReferenceMap.js',
   directAssetFamilies: Object.freeze([
     'assets/models/fbx/rocky_terrain_low_poly.glb',
     'assets/models/fbx/desert_rocks.glb',
@@ -33,6 +36,8 @@ export const NATURAL_GEOLOGY_PLACEMENT_POLICY = Object.freeze({
     'assets/models/fbx/rocky_terrain_low_poly.glb': 5708516,
     'assets/models/fbx/desert_rocks.glb': 12773288,
   }),
+  dryAssetBiomeKinds: Object.freeze(['desert', 'arid']),
+  desertRockMinBiomeInfluence: 0.12,
   minimumDryHeightMeters: 4.5,
   shorelineReserveMeters: 11,
   settlementReserveMeters: 145,
@@ -67,6 +72,24 @@ const DEG = 180 / Math.PI;
 const clamp01 = (value) => value < 0 ? 0 : value > 1 ? 1 : value;
 const smoothstep01 = (value) => { const t = clamp01(value); return t * t * (3 - 2 * t); };
 const finite = (value, fallback = 0) => Number.isFinite(value) ? value : fallback;
+const DRY_ASSET_ZONES = Object.freeze(REFERENCE_BIOME_ZONES.filter((zone) => NATURAL_GEOLOGY_PLACEMENT_POLICY.dryAssetBiomeKinds.includes(zone.kind)));
+
+export function dryAssetBiomeAffinityAtWorldXZ(x, z, worldWidthMeters, worldDepthMeters) {
+  const width = Math.max(1, finite(worldWidthMeters, 1));
+  const depth = Math.max(1, finite(worldDepthMeters, 1));
+  const nx = clamp01(x / width + 0.5);
+  const ny = clamp01(z / depth + 0.5);
+  let affinity = 0;
+  let dominantZoneId = null;
+  for (const zone of DRY_ASSET_ZONES) {
+    const influence = sampleReferenceInfluence(nx, ny, zone);
+    if (influence > affinity) {
+      affinity = influence;
+      dominantZoneId = zone.id;
+    }
+  }
+  return Object.freeze({ affinity, dominantZoneId, normalizedX: nx, normalizedY: ny });
+}
 
 function mix32(value) {
   let x = value >>> 0;
@@ -192,6 +215,7 @@ function isTooClose(accepted, x, z, minimumDistance, largeOnly = false) {
 function makePlacement({ seed, column, row, x, z, frame, cluster, influence, heightAboveSeaMeters, worldWidthMeters, worldDepthMeters }) {
   const valyriaInfluence = valyriaInfluenceAtWorldXZ(x, z);
   const valyriaClass = valyriaGeologyClassAtWorldXZ(x, z, { heightAboveSeaMeters, slopeDegrees: frame.slopeDegrees });
+  const dryBiome = dryAssetBiomeAffinityAtWorldXZ(x, z, worldWidthMeters, worldDepthMeters);
   let kind = placementKind(cluster.kind, frame, geologyHash01(seed, column, row, 101), valyriaClass);
   const assetFraction = valyriaInfluence > NATURAL_GEOLOGY_PLACEMENT_POLICY.valyriaMinimumInfluence
     ? NATURAL_GEOLOGY_PLACEMENT_POLICY.valyriaAssetProxyFraction : NATURAL_GEOLOGY_PLACEMENT_POLICY.assetProxyFraction;
@@ -203,15 +227,24 @@ function makePlacement({ seed, column, row, x, z, frame, cluster, influence, hei
   const yaw = strataAngle + angleDifferenceRadians(frame.downhillAngleRadians, strataAngle) * blendToDownhill + hashSigned(seed, column, row, 106) * 0.34;
   const terrainTilt = Math.min(NATURAL_GEOLOGY_PLACEMENT_POLICY.maxTiltDegrees / DEG, frame.slopeRadians * 0.52);
   const buryFraction = kind === 'talus' ? 0.24 : kind === 'boulder' ? 0.19 : 0.12 + geologyHash01(seed, column, row, 108) * 0.10;
-  const southernDryness = clamp01((z / worldDepthMeters) + 0.5), northness = 1 - southernDryness;
+  const southness = clamp01((z / worldDepthMeters) + 0.5), northness = 1 - southness;
+  // Material warmth is an ecological/geological property, not latitude. Keep northness for cold-
+  // climate tinting, but feed the existing `southernDryness` render channel only from canonical
+  // desert/arid influence. The 0.62 shoulder gives dry-zone edges a gradual warm transition while
+  // keeping lush southern biomes exactly neutral instead of turning them ochre because z is large.
+  const southernDryness = dryBiome.affinity > 0 ? clamp01(0.62 + dryBiome.affinity * 0.38) : 0;
+  const dryAssetEligible = dryBiome.affinity >= NATURAL_GEOLOGY_PLACEMENT_POLICY.desertRockMinBiomeInfluence;
   return Object.freeze({ id: `${column}:${row}:${cluster.index}`, x, y: frame.y - scale.y * buryFraction, z, kind,
     sourceClusterKind: cluster.kind, clusterIndex: cluster.index, clusterInfluence: influence,
     score: placementScore({ influence, frame, kind, heightAboveSeaMeters, cluster, seed, column, row }), scale: Object.freeze(scale),
     yawRadians: yaw, tiltRadians: terrainTilt, tiltAxisRadians: frame.downhillAngleRadians + Math.PI * 0.5 + hashSigned(seed, column, row, 107) * 0.18,
     slopeDegrees: frame.slopeDegrees, normal: Object.freeze({ x: frame.nx, y: frame.ny, z: frame.nz }), curvatureMeters: frame.curvatureMeters,
-    localReliefMeters: frame.localReliefMeters, heightAboveSeaMeters, northness, southernDryness, valyriaInfluence, valyriaClass,
+    localReliefMeters: frame.localReliefMeters, heightAboveSeaMeters, northness, southness, southernDryness,
+    dryBiomeAffinity: dryBiome.affinity, dryBiomeZoneId: dryBiome.dominantZoneId, valyriaInfluence, valyriaClass,
     volcanic: valyriaInfluence > NATURAL_GEOLOGY_PLACEMENT_POLICY.valyriaMinimumInfluence,
-    assetFamily: kind === 'asset-proxy' ? (valyriaInfluence > NATURAL_GEOLOGY_PLACEMENT_POLICY.valyriaMinimumInfluence ? 'rocky-terrain' : southernDryness > 0.67 ? 'desert-rocks' : 'rocky-terrain') : null });
+    assetFamily: kind === 'asset-proxy'
+      ? (valyriaInfluence > NATURAL_GEOLOGY_PLACEMENT_POLICY.valyriaMinimumInfluence ? 'rocky-terrain' : dryAssetEligible ? 'desert-rocks' : 'rocky-terrain')
+      : null });
 }
 
 export function generateNaturalGeologyPlacements({ sampleHeightMeters, seaLevelMeters, seed = 1337, seats = [], roadEdges = [], worldWidthMeters, worldDepthMeters, isMobileClass = false, maxPlacements }) {

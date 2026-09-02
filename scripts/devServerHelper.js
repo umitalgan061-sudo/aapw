@@ -40,6 +40,10 @@ const MIME_TYPES = {
  * dependency — this is the only "network" involved, entirely local (127.0.0.1). The returned value
  * remains the native `http.Server`; `baseUrl` and promise-based `stop()` are additive conveniences
  * for focused browser QA scripts that do not need to repeat address/close boilerplate.
+ *
+ * Static responses include Content-Length and HEAD returns headers without streaming the body. That
+ * mirrors normal Hosting/CDN behaviour and lets asset preflight code distinguish an unknown length
+ * from an actual ~130-byte Git-LFS pointer instead of receiving an artificial zero-length response.
  * @returns {Promise<import('http').Server & {baseUrl:string, stop:()=>Promise<void>}>}
  */
 function startStaticServer() {
@@ -57,8 +61,16 @@ function startStaticServer() {
 				res.end('Not found');
 				return;
 			}
+			const stat = fs.statSync(filePath);
 			const ext = path.extname(filePath).toLowerCase();
-			res.writeHead(200, { 'Content-Type': MIME_TYPES[ext] || 'application/octet-stream' });
+			res.writeHead(200, {
+				'Content-Type': MIME_TYPES[ext] || 'application/octet-stream',
+				'Content-Length': stat.size,
+			});
+			if (req.method === 'HEAD') {
+				res.end();
+				return;
+			}
 			fs.createReadStream(filePath).pipe(res);
 		} catch (error) {
 			res.writeHead(500);
