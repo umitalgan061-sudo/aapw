@@ -103,6 +103,11 @@ for (const assistRadiusMeters of [0, -1, Number.NaN]) {
   assert.equal(invalidRange.accepted, false);
   assert.equal(invalidRange.reason, 'invalid');
 }
+for (const lastKnown of [{ x: Infinity, z: 0 }, { x: 0, z: Number.NaN }]) {
+  const invalidTarget = evaluate({ ...baseAlert, lastKnown }, { lastRevision: 0 });
+  assert.equal(invalidTarget.accepted, false);
+  assert.equal(invalidTarget.reason, 'invalid');
+}
 const missingSource = evaluate({ ...baseAlert, sourcePosition: null }, { lastRevision: 0 });
 assert.equal(missingSource.accepted, false);
 assert.equal(missingSource.reason, 'invalid');
