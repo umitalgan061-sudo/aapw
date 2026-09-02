@@ -98,7 +98,7 @@ async function main() {
 		assert(summary.surfaceCounts.lake > 0, 'canonical inland lakes disappeared from full-world sampling');
 		assert(summary.northPermanentIceMax >= 0.8, 'authored permanent-ice core disappeared from the north');
 		assert(summary.northPermanentIceActiveSamples > 0, 'no strong permanent-ice samples were represented');
-		assert.equal(summary.terrainSurfaceRealism?.policyId, 'terrain-micro-surface-world-uv-pbr-v7-coastal-weathering',
+		assert.equal(summary.terrainSurfaceRealism?.policyId, 'terrain-micro-surface-world-uv-pbr-v8-semantic-palette-retention',
 			'full-world proof must render the production photoreal terrain surface policy');
 		assert.equal(summary.terrainSurfaceRealism?.naturalAlbedoRemap, true,
 			'full-world proof must include natural vegetation/soil/snow albedo remapping');
