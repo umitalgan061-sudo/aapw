@@ -76,23 +76,23 @@ jobs:
       - name: Shared material placement contract
         run: node scripts/checkSharedMaterialPlacementContract.js
 
-      - name: Hydrate real configured wolf asset
+      - name: Hydrate real configured wolf and horse assets
         shell: bash
         run: |
           set -euo pipefail
           git lfs version
           asset_ref="$(git rev-parse HEAD)"
-          family='assets/models/animals/wolf/'
-          if ! git lfs pull --include="${family}**" --exclude=""; then
-            echo 'LFS transfer unavailable; hydrating exact wolf pointers through GitHub media.'
+          include='assets/models/animals/wolf/**,assets/models/animals/white_horse_bEdE4rmZy9.glb'
+          if ! git lfs pull --include="$include" --exclude=""; then
+            echo 'LFS transfer unavailable; hydrating exact fauna pointers through GitHub media.'
           fi
-          mapfile -t lfs_paths < <(git lfs ls-files -n | grep "^${family}" || true)
-          test "${#lfs_paths[@]}" -gt 0
+          mapfile -t lfs_paths < <(git lfs ls-files -n | grep -E '^(assets/models/animals/wolf/|assets/models/animals/white_horse_bEdE4rmZy9\.glb$)' || true)
+          test "${#lfs_paths[@]}" -gt 1
           for asset_path in "${lfs_paths[@]}"; do
             if test -s "$asset_path" && ! head -c 200 "$asset_path" | grep -aq 'version https://git-lfs.github.com/spec/v1'; then
               continue
             fi
-            tmp_asset="${RUNNER_TEMP}/wolf-$(basename "$asset_path").download"
+            tmp_asset="${RUNNER_TEMP}/fauna-$(basename "$asset_path").download"
             media_url="https://media.githubusercontent.com/media/${GITHUB_REPOSITORY}/${asset_ref}/${asset_path}"
             curl --fail --location --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors --connect-timeout 15 --max-time 120 "$media_url" --output "$tmp_asset"
             test -s "$tmp_asset"
@@ -109,7 +109,7 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
-      - name: Real wolf pack, geography, material and long-frame browser proof
+      - name: Real wolf pack, fauna geography/material and long-frame browser proof
         shell: bash
         run: |
           set -euo pipefail
