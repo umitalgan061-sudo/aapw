@@ -16,6 +16,9 @@ function assertHydratedGlbs() {
 	assert(source.includes('MAX_ARCHITECTURE_ASSETS_PER_HAMLET = 2'), 'hamlets must bound real residential upgrades to two');
 	assert(source.includes('MIN_ARCHITECTURE_ASSET_SPACING_METERS = 22'), 'real residential upgrades must be spatially separated');
 	assert(source.includes('secondaryAssetUrl'), 'regional profiles must provide a bounded secondary silhouette');
+	assert(source.includes('targetWidthMeters: type.width'), 'real houses must retain the authored procedural parcel width');
+	assert(source.includes('targetDepthMeters: type.depth'), 'real houses must retain the authored procedural parcel depth');
+	assert(source.includes('Math.min(targetWidth / sourceWidth, targetDepth / sourceDepth)'), 'real houses must fit both parcel axes');
 	assert(source.includes('bodyMesh.setColorAt(houseCount, wallTint)'), 'procedural village fabric must carry regional wall tint');
 	assert(source.includes('roofMesh.setColorAt(houseCount, roofTint)'), 'procedural village fabric must carry regional roof tint');
 	assert(source.includes('AssetLoader.disposeObject3D(source)'), 'late GLB completion must dispose source after teardown');
@@ -61,7 +64,9 @@ async function main() {
 				seatId, assetIndex, x: (seatIndex - 3) * 34 + assetIndex * 12, z: assetIndex === 0 ? -9 : 9,
 				yaw: (seatIndex - 3) * 0.18 + assetIndex * 0.11,
 				houseIndex: seatIndex * 2 + assetIndex, stepStartIndex: (seatIndex * 2 + assetIndex) * 3, stepCount: 3,
-				targetFootprintMeters: 7.2 + ((seatIndex + assetIndex) % 3) * 0.7,
+				targetWidthMeters: 7.2 + ((seatIndex + assetIndex) % 3) * 0.7,
+				targetDepthMeters: 4.6 + ((seatIndex + assetIndex) % 2) * 0.5,
+				targetFootprintMeters: 8.6,
 			})));
 			const sampleHeightMeters = (x, z) => 120 + x * 0.002 + z * 0.001;
 			const loader = new AssetLoader({ events: { emit() {} } });
@@ -89,6 +94,7 @@ async function main() {
 
 			const manifestProof = evidence.manifests.map((entry) => ({
 				seatId: entry.seatId, assetIndex: entry.assetIndex, region: entry.region, assetUrl: entry.assetUrl, textureSize: entry.textureSize,
+				footprint: entry.footprint,
 				recipeMode: entry.manifest?.recipe?.mode ?? null,
 				basePaletteId: entry.manifest?.recipe?.basePaletteId ?? null,
 				layerPalettes: (entry.manifest?.recipe?.layers || []).map((layer) => layer.palette),
@@ -102,7 +108,7 @@ async function main() {
 			}));
 
 			const lifecycleGroup = new THREE.Group();
-			lifecycleGroup.userData.villageLandmarkSites = [{ seatId: 'berkalp', assetIndex: 0, x: 0, z: 0, yaw: 0, houseIndex: 0, stepStartIndex: 0, stepCount: 3, targetFootprintMeters: 7.2 }];
+			lifecycleGroup.userData.villageLandmarkSites = [{ seatId: 'berkalp', assetIndex: 0, x: 0, z: 0, yaw: 0, houseIndex: 0, stepStartIndex: 0, stepCount: 3, targetWidthMeters: 5.2, targetDepthMeters: 4.4, targetFootprintMeters: 7.2 }];
 			let releaseLateLoad;
 			let lateGeometryDisposed = false;
 			let lateMaterialDisposed = false;
@@ -167,6 +173,12 @@ async function main() {
 			assert(['embedded-low-side', 'terrain-conform'].includes(proof.groundingMode), `${proof.region}: footprint grounding missing`);
 			assert(Number.isFinite(proof.heightRange) && proof.heightRange < 0.25, `${proof.region}: excessive synthetic height range`);
 			assert(Number.isFinite(proof.placementSurfaceHeight), `${proof.region}: placement surface missing`);
+			const footprint = proof.footprint;
+			assert(footprint && ['targetWidth', 'targetDepth', 'fittedWidth', 'fittedDepth'].every((key) => Number.isFinite(footprint[key])), `${proof.region}: parcel footprint evidence missing`);
+			assert(footprint.fittedWidth <= footprint.targetWidth + 1e-6, `${proof.region}: GLB overflows procedural parcel width`);
+			assert(footprint.fittedDepth <= footprint.targetDepth + 1e-6, `${proof.region}: GLB overflows procedural parcel depth`);
+			const fittedAxisRatio = Math.max(footprint.fittedWidth / footprint.targetWidth, footprint.fittedDepth / footprint.targetDepth);
+			assert(fittedAxisRatio >= 0.999 && fittedAxisRatio <= 1.000001, `${proof.region}: uniform GLB fit must touch one parcel axis without overflow`);
 			if (proof.recipeMode === 'layers') assert(proof.layerPalettes.length >= 3, `${proof.region}: layered fallback too shallow`);
 			else {
 				assert.equal(proof.recipeMode, 'auto', `${proof.region}: unexpected material recipe mode`);
