@@ -56,7 +56,7 @@ try {
 		});
 
 		const single = new THREE.Group();
-		const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.4, 1.1, 6, 10), new THREE.MeshStandardMaterial({ roughness: 0.9 }));
+		const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.8, 0.5), new THREE.MeshStandardMaterial({ roughness: 0.9 }));
 		body.name = 'mesh_0';
 		body.geometry.computeBoundingBox();
 		single.add(body);
