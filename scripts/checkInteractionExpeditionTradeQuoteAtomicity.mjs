@@ -135,6 +135,23 @@ const recoveredPurchase = economy.purchase(rationOffer, () => true);
 assert.equal(recoveredPurchase.ok, true, 'throwing fulfillment must release the purchase guard for the next interaction');
 assert.equal(recoveredPurchase.balanceCopper, 49, 'recovered purchase must debit the unchanged pre-throw wallet exactly once');
 
+const throwingGuardEconomy = createInteractionEconomyState(40);
+const throwingGuardState = structuredClone(throwingGuardEconomy.snapshot());
+let throwingCredit;
+let throwingRestore;
+let throwingNestedPurchase;
+assert.throws(() => throwingGuardEconomy.purchase(whetstoneOffer, () => {
+  throwingCredit = throwingGuardEconomy.credit(99, { sourceId: 'throwing-service-mint' });
+  throwingRestore = throwingGuardEconomy.restore({ copper: 999, stockByOffer: {}, ledger: {} });
+  throwingNestedPurchase = throwingGuardEconomy.purchase(rationOffer, () => true);
+  throw new Error('service exploded');
+}), /service exploded/);
+assert.equal(throwingCredit.reason, 'purchase-in-progress');
+assert.equal(throwingRestore, false);
+assert.equal(throwingNestedPurchase.reason, 'purchase-in-progress');
+assert.deepEqual(throwingGuardEconomy.snapshot(), throwingGuardState, 'throwing callbacks must not commit blocked economy mutations');
+assert.equal(throwingGuardEconomy.purchase(rationOffer, () => true).ok, true, 'throwing callbacks must release the purchase guard');
+
 const receiptEconomy = createInteractionEconomyState(40);
 const sanitized = receiptEconomy.purchase(rationOffer, () => ({
   ok: true,
