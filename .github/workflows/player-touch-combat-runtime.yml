@@ -8,6 +8,7 @@ on:
       - 'src/3d/ui/touchJoystick.js'
       - 'src/3d/gameplay/player.js'
       - 'src/3d/camera.js'
+      - 'src/3d/gameLoopHelpers.js'
       - 'scripts/checkPlayerGeographicCameraOcclusion.mjs'
       - 'scripts/checkPlayerTouchCombatRuntime.mjs'
       - '.github/workflows/player-touch-combat-runtime.yml'
@@ -60,6 +61,7 @@ jobs:
         run: |
           set -euo pipefail
           node --check src/3d/camera.js
+          node --check src/3d/gameLoopHelpers.js
           node --check scripts/checkPlayerGeographicCameraOcclusion.mjs
           node --check scripts/checkPlayerTouchCombatRuntime.mjs
           node scripts/checkPlayerGeographicCameraOcclusion.mjs
@@ -70,7 +72,7 @@ jobs:
           node scripts/checkSharedMaterialPlacementContract.js
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
-          ! grep -q 'EditorMaterialStudio' src/3d/ui/touchJoystick.js src/3d/input.js src/3d/camera.js
+          ! grep -q 'EditorMaterialStudio' src/3d/ui/touchJoystick.js src/3d/input.js src/3d/camera.js src/3d/gameLoopHelpers.js
       - name: Install Chromium
         if: always()
         shell: bash
@@ -91,6 +93,56 @@ jobs:
           test -s artifacts/player-touch-combat/touch-combat-runtime.png
           test -s artifacts/player-touch-combat/touch-combat-runtime.json
           grep -q '"browserErrors": \[\]' artifacts/player-touch-combat/touch-combat-runtime.json
+      - name: Shipped character material and grounding acceptance
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const path = 'artifacts/player-touch-combat/touch-combat-runtime.json';
+          if (!fs.existsSync(path)) throw new Error('touch runtime metrics missing; cannot qualify hydrated player material');
+          const metrics = JSON.parse(fs.readFileSync(path, 'utf8'));
+          const player = metrics.playerAsset;
+          if (!player) throw new Error('live player asset proof missing');
+          if (player.source !== 'assets/models/characters/peasant_girl.fbx') throw new Error(`unexpected player asset: ${player.source}`);
+          if (player.object?.placeholder !== false) throw new Error('hydrated player resolved to placeholder');
+          if (!player.materialValidation?.ok || player.materialValidation.errors?.length) throw new Error(`shared material validation failed: ${JSON.stringify(player.materialValidation)}`);
+          if (!(player.object?.meshCount > 0) || !(player.object?.materialSlotCount > 0)) throw new Error('player has no renderable mesh/material slots');
+          const textureSlots = Array.isArray(player.textureSlots) ? player.textureSlots : [];
+          const textured = textureSlots.length > 0;
+          const generated = (player.object.generatedMaterialCount ?? 0) > 0;
+          const separated = (player.object.materialSlotCount ?? 0) > 1 || (player.object.namedSurfaceCount ?? 0) > 1 || (player.object.namedMaterialCount ?? 0) > 1;
+          const flatSingleSurface = player.object.meshCount === 1 && player.object.materialSlotCount === 1 && !textured && !generated;
+          if (flatSingleSurface) {
+            throw new Error(`visual failure: human is one untextured flat surface; layered fallback=${JSON.stringify(player.recommendedOnly?.layeredFallback ?? null)}`);
+          }
+          if (!textured && !generated && !separated) throw new Error('visual failure: player lacks texture response and distinct material surfaces');
+          if (Math.abs(player.geography?.rootGroundDeltaMeters ?? Infinity) > 0.08) throw new Error(`player root/collider split: ${player.geography?.rootGroundDeltaMeters}`);
+          if (Math.abs(player.geography?.visualBottomGroundDeltaMeters ?? Infinity) > 0.35) throw new Error(`player visual feet/ground split: ${player.geography?.visualBottomGroundDeltaMeters}`);
+          const summary = {
+            source: player.source,
+            missingAssetCount: 0,
+            meshCount: player.object.meshCount,
+            surfaceCount: player.object.surfaceCount,
+            materialSlotCount: player.object.materialSlotCount,
+            namedSurfaceCount: player.object.namedSurfaceCount,
+            namedMaterialCount: player.object.namedMaterialCount,
+            generatedMaterialCount: player.object.generatedMaterialCount,
+            layeredMaterialCount: player.object.layeredMaterialCount,
+            importedTextureSlots: textureSlots.map(({ mesh, material, slot, width, height, paletteId, generated: isGenerated }) => ({ mesh, material, slot, width, height, paletteId, generated: isGenerated })),
+            recommendedPalette: player.recommendedOnly?.autoRecipe?.basePaletteId ?? null,
+            recommendedTextureSize: player.recommendedOnly?.autoRecipe?.textureSize ?? null,
+            layeredFallbackAvailable: Boolean(player.recommendedOnly?.layeredFallback),
+            importedMaterialPreserved: player.recommendedOnly?.appliedInProof === false,
+            rootGroundDeltaMeters: player.geography.rootGroundDeltaMeters,
+            visualBottomGroundDeltaMeters: player.geography.visualBottomGroundDeltaMeters,
+            browserErrors: metrics.browserErrors ?? [],
+          };
+          if (summary.browserErrors.length) throw new Error(`browser errors: ${JSON.stringify(summary.browserErrors)}`);
+          fs.writeFileSync('artifacts/player-touch-combat/player-material-acceptance.json', `${JSON.stringify(summary, null, 2)}\n`);
+          console.log('PLAYER_MATERIAL_GROUNDING_ACCEPTANCE_OK', JSON.stringify(summary));
+          NODE
       - name: Final main freshness
         if: always()
         shell: bash
