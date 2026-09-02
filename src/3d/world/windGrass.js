@@ -4,7 +4,7 @@
  * Extracted from sceneManager so ground cover owns its own placement, climate, GPU-wind and cleanup
  * policy. The public `createWindGrassRun180` name is kept for compatibility with the established
  * browser regression contract, while the implementation consumes the shared map-aligned north
- * ground-cover and terrain-snow climate authorities directly.
+ * ground-cover, terrain-snow and read-only canonical terrain-habitat authorities directly.
  * @module world/windGrass
  */
 
@@ -14,6 +14,7 @@ import {
 	NORTH_GROUND_COVER_POLICY,
 } from './northGroundCoverClimate.js';
 import { resolveTerrainSnowCoverage } from './terrainBiomeShading.js';
+import { sampleCanonicalTerrainHabitat, TERRAIN_HABITAT_POLICY } from './terrainHabitat.js';
 
 export const RUN180_WIND_GRASS_CONFIG = Object.freeze({
 	desktop: Object.freeze({ radiusMeters: 350, maxPatches: 4000 }),
@@ -29,6 +30,11 @@ export const RUN180_WIND_GRASS_CONFIG = Object.freeze({
 	surfaceProbeMeters: 4,
 	snowDensityFadeStart: 0.18,
 	snowDensityZeroAt: 0.72,
+	habitatCacheMeters: 24,
+	habitatDensityFloor: 0.34,
+	habitatDensityCeiling: 1.12,
+	habitatHeightFloor: 0.68,
+	habitatHeightCeiling: 1.16,
 });
 
 export const WIND_GRASS_LIFECYCLE_POLICY = Object.freeze({
@@ -37,6 +43,19 @@ export const WIND_GRASS_LIFECYCLE_POLICY = Object.freeze({
 	idempotentDispose: true,
 	pagehideCleanup: true,
 	clearsRenderCallback: true,
+});
+
+export const WIND_GRASS_TERRAIN_HABITAT_POLICY = Object.freeze({
+	id: 'wind-grass-canonical-terrain-habitat-2026-09-02-v1',
+	terrainHabitatPolicyId: TERRAIN_HABITAT_POLICY.id,
+	readOnly: true,
+	deterministic: true,
+	canonicalHeightUnchanged: true,
+	canonicalHydrologyUnchanged: true,
+	canonicalColliderUnchanged: true,
+	climateAuthorityUnchanged: true,
+	snowAuthorityUnchanged: true,
+	coarseCacheMeters: RUN180_WIND_GRASS_CONFIG.habitatCacheMeters,
 });
 
 function grassRng(seed) {
@@ -51,6 +70,7 @@ function grassRng(seed) {
 }
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
+const clamp = (value, minimum, maximum) => Math.max(minimum, Math.min(maximum, value));
 
 export function grassSegmentDistance(px, pz, a, b) {
 	const dx = b.x - a.x;
@@ -90,23 +110,68 @@ export function isWindGrassSurfaceAllowed(x, z, {
 }
 
 /** Translate the exact map-aligned terrain snow amount into ordinary-grass survival. */
-export function windGrassSnowDensityMultiplier({
-	heightAboveSeaMeters,
-	slopeDegrees,
-	worldX,
-	worldZ,
-}) {
-	const snow = resolveTerrainSnowCoverage({
-		heightAboveSeaMeters,
-		slopeDegrees,
-		worldX,
-		worldZ,
-	});
+export function windGrassSnowDensityMultiplier({ heightAboveSeaMeters, slopeDegrees, worldX, worldZ }) {
+	const snow = resolveTerrainSnowCoverage({ heightAboveSeaMeters, slopeDegrees, worldX, worldZ });
 	const start = RUN180_WIND_GRASS_CONFIG.snowDensityFadeStart;
 	const end = RUN180_WIND_GRASS_CONFIG.snowDensityZeroAt;
 	const raw = clamp01((snow.snowAmount - start) / Math.max(1e-6, end - start));
 	const smooth = raw * raw * (3 - 2 * raw);
 	return 1 - smooth;
+}
+
+export function windGrassTerrainHabitatResponse(frame) {
+	if (!frame) return Object.freeze({ density: 1, height: 1, lushness: 0.5, dryness: 0.5 });
+	const soilSupport = clamp01(
+		frame.soilDepth * 0.34
+		+ frame.moistureRetention * 0.22
+		+ frame.depositional * 0.16
+		+ frame.depositionalBench * 0.10
+		+ frame.fanApron * 0.08
+		+ frame.shelter * 0.10);
+	const stress = clamp01(
+		frame.exposedBedrock * 0.34
+		+ frame.windExposure * 0.27
+		+ frame.ridgeCrest * 0.17
+		+ frame.rockfallSource * 0.12
+		+ frame.shoulderBreak * 0.10);
+	const slopeStress = clamp01((frame.slopeDegrees - 15) / 27);
+	const density = clamp(
+		0.50 + soilSupport * 0.78 - stress * 0.52 - slopeStress * 0.16,
+		RUN180_WIND_GRASS_CONFIG.habitatDensityFloor,
+		RUN180_WIND_GRASS_CONFIG.habitatDensityCeiling,
+	);
+	const height = clamp(
+		0.78 + frame.shelter * 0.16 + frame.soilDepth * 0.18 + frame.moistureRetention * 0.13
+		+ frame.depositionalBench * 0.08 - frame.windExposure * 0.20 - frame.exposedBedrock * 0.12,
+		RUN180_WIND_GRASS_CONFIG.habitatHeightFloor,
+		RUN180_WIND_GRASS_CONFIG.habitatHeightCeiling,
+	);
+	const lushness = clamp01(
+		0.18 + frame.moistureRetention * 0.38 + frame.shelter * 0.20 + frame.soilDepth * 0.16
+		+ frame.gullyFloor * 0.08 - frame.windExposure * 0.12);
+	const dryness = clamp01(
+		0.16 + frame.windExposure * 0.30 + frame.ridgeShoulder * 0.18 + frame.exposedBedrock * 0.22
+		+ (1 - frame.moistureRetention) * 0.14);
+	return Object.freeze({ density, height, lushness, dryness });
+}
+
+function createHabitatSampler(params) {
+	const cache = new Map();
+	const step = RUN180_WIND_GRASS_CONFIG.habitatCacheMeters;
+	return (x, z) => {
+		const cellX = Math.round(x / step);
+		const cellZ = Math.round(z / step);
+		const key = `${cellX}:${cellZ}`;
+		if (cache.has(key)) return cache.get(key);
+		const sampleX = cellX * step;
+		const sampleZ = cellZ * step;
+		const frame = sampleCanonicalTerrainHabitat(params.sampleHeightMeters, sampleX, sampleZ, {
+			seaLevelMeters: params.seaLevelMeters,
+		});
+		const response = Object.freeze({ frame, ...windGrassTerrainHabitatResponse(frame) });
+		cache.set(key, response);
+		return response;
+	};
 }
 
 export function createWindGrassGeometry() {
@@ -149,6 +214,7 @@ export function populateWindGrass(mesh, params, cellX, cellZ) {
 	const config = params.isMobileClass ? RUN180_WIND_GRASS_CONFIG.mobile : RUN180_WIND_GRASS_CONFIG.desktop;
 	const seed = (params.seed ^ Math.imul(cellX, 73856093) ^ Math.imul(cellZ, 19349663) ^ 0x47524153) >>> 0;
 	const random = grassRng(seed);
+	const habitatAt = createHabitatSampler(params);
 	const matrix = new THREE.Matrix4();
 	const quaternion = new THREE.Quaternion();
 	const scale = new THREE.Vector3();
@@ -161,6 +227,9 @@ export function populateWindGrass(mesh, params, cellX, cellZ) {
 	let placed = 0;
 	let climateRejected = 0;
 	let snowRejected = 0;
+	let habitatRejected = 0;
+	let habitatAccepted = 0;
+	let habitatDensitySum = 0;
 
 	for (let i = 0; i < config.maxPatches; i++) {
 		for (let attempt = 0; attempt < RUN180_WIND_GRASS_CONFIG.maxPlacementAttempts; attempt++) {
@@ -185,22 +254,32 @@ export function populateWindGrass(mesh, params, cellX, cellZ) {
 				snowRejected++;
 				continue;
 			}
-			const grassDensity = cover.grassDensity * snowDensity;
+			const habitat = habitatAt(x, z);
+			const grassDensity = clamp01(cover.grassDensity * snowDensity * habitat.density);
 			if (grassDensity < 1 && random() >= grassDensity) {
-				if (snowDensity < 1) snowRejected++;
+				if (habitat.density < 0.72) habitatRejected++;
+				else if (snowDensity < 1) snowRejected++;
 				else climateRejected++;
 				continue;
 			}
 
 			position.set(x, surface.heightMeters + 0.03, z);
 			quaternion.setFromAxisAngle(up, random() * Math.PI * 2);
-			const uniformScale = (0.78 + random() * 0.47) * cover.heightScale;
+			const uniformScale = (0.78 + random() * 0.47) * cover.heightScale * habitat.height;
 			scale.set(uniformScale, uniformScale, uniformScale);
 			matrix.compose(position, quaternion, scale);
 			mesh.setMatrixAt(placed, matrix);
+
+			// Keep climate as the colour authority, then apply a bounded terrain-derived health response.
 			color.setRGB(cover.rgb.r, cover.rgb.g, cover.rgb.b);
+			const health = clamp(0.93 + habitat.lushness * 0.08 - habitat.dryness * 0.075 + (random() - 0.5) * 0.035, 0.84, 1.08);
+			color.multiplyScalar(health);
+			if (habitat.lushness > habitat.dryness) color.lerp(new THREE.Color(0x446b32), (habitat.lushness - habitat.dryness) * 0.08);
+			else color.lerp(new THREE.Color(0x7c704d), (habitat.dryness - habitat.lushness) * 0.07);
 			mesh.setColorAt(placed, color);
 			placed++;
+			habitatAccepted++;
+			habitatDensitySum += habitat.density;
 			break;
 		}
 	}
@@ -212,30 +291,32 @@ export function populateWindGrass(mesh, params, cellX, cellZ) {
 	mesh.userData.run180Cell = { x: cellX, z: cellZ };
 	mesh.userData.northGroundCover = {
 		policyId: NORTH_GROUND_COVER_POLICY.id,
+		terrainHabitatPolicyId: WIND_GRASS_TERRAIN_HABITAT_POLICY.id,
 		climateRejected,
 		snowRejected,
+		habitatRejected,
+		habitatAccepted,
+		meanAcceptedHabitatDensity: habitatAccepted ? habitatDensitySum / habitatAccepted : 0,
 		mapAlignedClimate: true,
 		mapAlignedSnowAuthority: true,
+		canonicalTerrainHabitat: true,
 		snowAware: true,
 	};
 	return placed;
 }
 
 function createWindGrassMaterial(config) {
-	const material = new THREE.MeshStandardMaterial({
-		color: 0xffffff,
-		roughness: 0.86,
-		metalness: 0,
-		side: THREE.DoubleSide,
-	});
+	const material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.86, metalness: 0, side: THREE.DoubleSide });
 	material.userData.run180WindGrass = Object.freeze({
-		key: 'run180-wind-grass-v7-multiscale-surface-fabric',
+		key: 'run180-wind-grass-v8-terrain-habitat-surface-fabric',
 		radiusMeters: config.radiusMeters,
 		maxPatches: config.maxPatches,
 		bladesPerPatch: RUN180_WIND_GRASS_CONFIG.bladesPerPatch,
 		climatePolicyId: NORTH_GROUND_COVER_POLICY.id,
+		terrainHabitatPolicyId: WIND_GRASS_TERRAIN_HABITAT_POLICY.id,
 		mapAlignedClimate: true,
 		mapAlignedSnowAuthority: true,
+		canonicalTerrainHabitat: true,
 		snowAware: true,
 		worldSpaceMultiscaleVariation: true,
 		variableRoughness: true,
@@ -251,36 +332,26 @@ function createWindGrassMaterial(config) {
 			.replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor*=vRun180GrassRoughness;');
 		material.userData.run180Shader = shader;
 	};
-	material.customProgramCacheKey = () => 'run180-wind-grass-v7-multiscale-surface-fabric';
+	material.customProgramCacheKey = () => 'run180-wind-grass-v8-terrain-habitat-surface-fabric';
 	return material;
 }
 
 export function disposeWindGrassRun180(group) {
 	if (!group || group.userData?.windGrassLifecycle?.disposed) return;
 	const pagehideHandler = group.userData?.windGrassPagehideHandler;
-	if (pagehideHandler && typeof window !== 'undefined') {
-		window.removeEventListener('pagehide', pagehideHandler);
-	}
+	if (pagehideHandler && typeof window !== 'undefined') window.removeEventListener('pagehide', pagehideHandler);
 	const geometries = new Set();
 	const materials = new Set();
 	const textures = new Set();
 	group.traverse((node) => {
 		if (node.isMesh) node.onBeforeRender = null;
-		if (node.geometry && !geometries.has(node.geometry)) {
-			geometries.add(node.geometry);
-			node.geometry.dispose();
-		}
-		for (const material of Array.isArray(node.material)
-			? node.material
-			: node.material ? [node.material] : []) {
+		if (node.geometry && !geometries.has(node.geometry)) { geometries.add(node.geometry); node.geometry.dispose(); }
+		for (const material of Array.isArray(node.material) ? node.material : node.material ? [node.material] : []) {
 			if (materials.has(material)) continue;
 			materials.add(material);
 			for (const key of Object.keys(material)) {
 				const value = material[key];
-				if (value?.isTexture && !textures.has(value)) {
-					textures.add(value);
-					value.dispose();
-				}
+				if (value?.isTexture && !textures.has(value)) { textures.add(value); value.dispose(); }
 			}
 			material.dispose();
 		}
@@ -330,6 +401,8 @@ export function createWindGrassRun180({
 			group.userData.run180WindGrass.centerCell = { x: cellX, z: cellZ };
 			group.userData.run180WindGrass.climateRejected = mesh.userData.northGroundCover?.climateRejected ?? 0;
 			group.userData.run180WindGrass.snowRejected = mesh.userData.northGroundCover?.snowRejected ?? 0;
+			group.userData.run180WindGrass.habitatRejected = mesh.userData.northGroundCover?.habitatRejected ?? 0;
+			group.userData.run180WindGrass.meanAcceptedHabitatDensity = mesh.userData.northGroundCover?.meanAcceptedHabitatDensity ?? 0;
 		}
 	};
 
@@ -342,10 +415,14 @@ export function createWindGrassRun180({
 		radiusMeters: config.radiusMeters,
 		centerCell: { x: initialX, z: initialZ },
 		climatePolicyId: NORTH_GROUND_COVER_POLICY.id,
+		terrainHabitatPolicyId: WIND_GRASS_TERRAIN_HABITAT_POLICY.id,
 		climateRejected: mesh.userData.northGroundCover?.climateRejected ?? 0,
 		snowRejected: mesh.userData.northGroundCover?.snowRejected ?? 0,
+		habitatRejected: mesh.userData.northGroundCover?.habitatRejected ?? 0,
+		meanAcceptedHabitatDensity: mesh.userData.northGroundCover?.meanAcceptedHabitatDensity ?? 0,
 		mapAlignedClimate: true,
 		mapAlignedSnowAuthority: true,
+		canonicalTerrainHabitat: true,
 		snowAware: true,
 	};
 	group.userData.windGrassLifecycle = Object.freeze({
