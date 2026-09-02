@@ -30,6 +30,8 @@ assert.equal(P.hydratedMaximumAnisotropy, 8);
 assert.equal(P.sourceUvAndTextureTransformPreserved, true);
 assert.equal(P.deterministicMineralFacetSeparation, true);
 assert.equal(P.volcanicFallbackMaterialIsolation, true);
+assert.equal(P.smallFallbackShadowSuppression, true);
+assert.equal(P.roundedBoulderNormalResponse, true);
 assert.equal(P.fallbackGeometryFamily, 'stratified-faceted-geologic-ledges');
 assert.equal(P.platonicFallbackGeometry, false);
 assert.equal(P.directAssetUrls.length, 4);
