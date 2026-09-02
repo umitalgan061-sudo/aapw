@@ -102,7 +102,7 @@ jobs:
           test -s assets/models/settlements/castles/icebound_citadel_decimated.glb
           test "$(wc -c < 'assets/models/fbx/Viking Sword Blend_Viking Sword.fbx')" -eq 72380
           ! head -c 128 'assets/models/fbx/Viking Sword Blend_Viking Sword.fbx' | grep -q 'git-lfs.github.com/spec'
-      - name: Combat contracts
+      - name: Combat contract syntax
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/player.js
@@ -117,16 +117,25 @@ jobs:
           node --check scripts/checkPlayerHitStaggerRuntime.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferDrop.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferRuntime.mjs
-          node scripts/checkPlayerGuardImpactExhaustion.mjs
-          node scripts/checkPlayerCombatFeedback.mjs
-          node scripts/checkPlayerStaminaDodge.mjs
-          node scripts/checkPlayerRecoveryAttackBufferDrop.mjs
-          node scripts/checkPlayerImmutableDefenseDamage.mjs
+      - name: Guard impact exhaustion contract
+        run: node scripts/checkPlayerGuardImpactExhaustion.mjs
+      - name: Combat feedback contract
+        run: node scripts/checkPlayerCombatFeedback.mjs
+      - name: Stamina dodge contract
+        run: node scripts/checkPlayerStaminaDodge.mjs
+      - name: Recovery attack buffer drop contract
+        run: node scripts/checkPlayerRecoveryAttackBufferDrop.mjs
+      - name: Immutable defense damage contract
+        run: node scripts/checkPlayerImmutableDefenseDamage.mjs
+      - name: Shared material placement contract
+        run: |
+          set -euo pipefail
           node scripts/checkSharedMaterialPlacementContract.js
-          node scripts/checkServiceWorkerCache.js
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
           ! grep -q 'EditorMaterialStudio' src/3d/gameplay/player.js
+      - name: Shared PWA cache contract
+        run: node scripts/checkServiceWorkerCache.js
       - name: Install Chromium
         shell: bash
         run: |
