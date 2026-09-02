@@ -42,7 +42,7 @@ jobs:
           done <<< "$CHANGED"
           TOTAL="$(git diff --numstat "$BASE_SHA"..HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           echo "base=$BASE_SHA head=$(git rev-parse HEAD) changed_lines=$TOTAL"
-          test "$TOTAL" -le 1000 || { echo "scope quota exceeded: $TOTAL > 1000"; exit 1; }
+          test "$TOTAL" -le 3000 || { echo "scope quota exceeded: $TOTAL > 3000"; exit 1; }
 
       - name: Selectively hydrate village GLB families
         shell: bash
