@@ -107,6 +107,22 @@ async function main() {
 				placementSurfaceHeight: entry.manifest?.placementSurface?.height ?? null,
 			}));
 
+			const sourceSurfaceProof = (villageGroup.getObjectByName('village-architectural-assets')?.children || []).map((object) => ({
+				name: object.name,
+				region: object.userData?.architectureRegion ?? null,
+				surfaces: analyzeMaterialSurfaces(object).map((surface) => {
+					const original = surface.mesh?.userData?.originalMaterial;
+					const originalMaterials = Array.isArray(original) ? original : [original];
+					return {
+						key: surface.key,
+						meshName: surface.meshName || '',
+						originalMaterialName: originalMaterials[surface.materialIndex]?.name || '',
+						classifiedSlot: surface.slot || null,
+						generatedPaletteId: surface.material?.userData?.paletteId || null,
+					};
+				}),
+			}));
+
 			const lifecycleGroup = new THREE.Group();
 			lifecycleGroup.userData.villageLandmarkSites = [{ seatId: 'berkalp', assetIndex: 0, x: 0, z: 0, yaw: 0, houseIndex: 0, stepStartIndex: 0, stepCount: 3, targetWidthMeters: 5.2, targetDepthMeters: 4.4, targetFootprintMeters: 7.2 }];
 			let releaseLateLoad;
@@ -139,7 +155,7 @@ async function main() {
 				regions: seatIds.map((seatId) => resolveVillageArchitectureProfile(seatId)?.id ?? null), expectedRegions,
 				profileCount: Object.keys(VILLAGE_ARCHITECTURE_PROFILES).length,
 				profileTints: seatIds.map((seatId) => { const p = resolveVillageArchitectureProfile(seatId); return { wall: p?.proceduralWallHex ?? null, roof: p?.proceduralRoofHex ?? null }; }),
-				manifestProof, failureDiagnostics,
+				manifestProof, sourceSurfaceProof, failureDiagnostics,
 				lifecycle: { disposed: lifecycleEvidence.disposed === true, ok: lifecycleEvidence.ok, upgradedCount: lifecycleEvidence.upgradedCount, lateAssetCount: lifecycleGroup.getObjectByName('village-architectural-assets')?.children.length ?? 0, lateGeometryDisposed, lateMaterialDisposed },
 			};
 		});
@@ -160,6 +176,8 @@ async function main() {
 		assert(result.profileCount >= 7);
 		assert.equal(new Set(result.profileTints.map((t) => t.wall)).size, 7);
 		assert.equal(new Set(result.profileTints.map((t) => t.roof)).size, 7);
+		assert.equal(result.sourceSurfaceProof.length, 14, 'source surface evidence must cover every hydrated house');
+		assert(result.sourceSurfaceProof.every((entry) => entry.surfaces.length > 0), 'source surface evidence must expose every house mesh/material family');
 		assert.equal(result.lifecycle.disposed, true);
 		assert.equal(result.lifecycle.ok, false);
 		assert.equal(result.lifecycle.upgradedCount, 0);
@@ -188,7 +206,7 @@ async function main() {
 		assert.deepEqual(pageErrors, [], `page errors: ${pageErrors.join(' | ')}`);
 		assert.deepEqual(consoleErrors, [], `console errors: ${consoleErrors.join(' | ')}`);
 		await page.screenshot({ path: path.join(ARTIFACT_DIR, 'regional-village-assets.png'), fullPage: true });
-		console.log('VILLAGE_ARCHITECTURE_ASSET_PASS', JSON.stringify({ assets: assetPaths.length, ...result.evidence, regions: result.regions, proof: result.manifestProof, pageErrors: pageErrors.length, consoleErrors: consoleErrors.length }));
+		console.log('VILLAGE_ARCHITECTURE_ASSET_PASS', JSON.stringify({ assets: assetPaths.length, ...result.evidence, regions: result.regions, proof: result.manifestProof, sourceSurfaceProof: result.sourceSurfaceProof, pageErrors: pageErrors.length, consoleErrors: consoleErrors.length }));
 	} finally {
 		await browser.close();
 		server.close();
