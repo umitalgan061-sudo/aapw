@@ -140,15 +140,17 @@ const throwingGuardState = structuredClone(throwingGuardEconomy.snapshot());
 let throwingCredit;
 let throwingRestore;
 let throwingNestedPurchase;
+let throwingNestedGrantCalls = 0;
 assert.throws(() => throwingGuardEconomy.purchase(whetstoneOffer, () => {
   throwingCredit = throwingGuardEconomy.credit(99, { sourceId: 'throwing-service-mint' });
   throwingRestore = throwingGuardEconomy.restore({ copper: 999, stockByOffer: {}, ledger: {} });
-  throwingNestedPurchase = throwingGuardEconomy.purchase(rationOffer, () => true);
+  throwingNestedPurchase = throwingGuardEconomy.purchase(rationOffer, () => { throwingNestedGrantCalls += 1; return true; });
   throw new Error('service exploded');
 }), /service exploded/);
 assert.equal(throwingCredit.reason, 'purchase-in-progress');
 assert.equal(throwingRestore, false);
 assert.equal(throwingNestedPurchase.reason, 'purchase-in-progress');
+assert.equal(throwingNestedGrantCalls, 0, 'throwing nested purchases must reject before invoking their inventory grant callback');
 assert.deepEqual(throwingGuardEconomy.snapshot(), throwingGuardState, 'throwing callbacks must not commit blocked economy mutations');
 assert.equal(throwingGuardEconomy.purchase(rationOffer, () => true).ok, true, 'throwing callbacks must release the purchase guard');
 
