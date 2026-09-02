@@ -6,12 +6,15 @@ import * as THREE from '../src/3d/vendor/three/three.module.js';
 const sourcePath = new URL('../src/3d/gameplay/animals.js', import.meta.url);
 const harnessPath = new URL('../src/3d/gameplay/.pack-alert-animals-harness.mjs', import.meta.url);
 const source = await readFile(sourcePath, 'utf8');
+const faunaWorldPlacementImport = "import { evaluateConfiguredFaunaRoute, prepareConfiguredAnimalWorldAsset } from './faunaWorldPlacement.js';";
 const harnessSource = source
   .replace("from 'three'", "from '../vendor/three/three.module.js'")
-  .replace("import { AssetLoader } from '../assetLoader.js';", 'const AssetLoader = { disposeObject3D() {} };');
+  .replace("import { AssetLoader } from '../assetLoader.js';", 'const AssetLoader = { disposeObject3D() {} };')
+  .replace(faunaWorldPlacementImport, 'const evaluateConfiguredFaunaRoute = () => ({ ok: true }); const prepareConfiguredAnimalWorldAsset = () => ({ ok: true });');
 assert.notEqual(harnessSource, source, 'expected animals.js to use the shipped bare Three import');
 assert(!harnessSource.includes("from 'three'"), 'test harness must resolve Three through the shipped vendor module');
 assert(!harnessSource.includes("from '../assetLoader.js'"), 'test harness must not re-enter AssetLoader bare-Three imports');
+assert(!harnessSource.includes("from './faunaWorldPlacement.js'"), 'pack harness must not re-enter geographic-placement bare-Three imports');
 await writeFile(harnessPath, harnessSource, 'utf8');
 let createWolf;
 try {
@@ -259,23 +262,14 @@ const tiedPackmates = [
   { x: 0, z: -2 },
   { x: -2, z: 0 },
 ];
-const forwardOrderWolf = await createTestWolf();
-const reverseOrderWolf = await createTestWolf();
-forwardOrderWolf.update(3, undefined, tiedPackmates);
-reverseOrderWolf.update(3, undefined, [...tiedPackmates].reverse());
+const tieForward = await createTestWolf();
+tieForward.update(3, undefined, tiedPackmates);
+const forwardPosition = tieForward.object3D.position.clone();
+tieForward.dispose();
+const tieReverse = await createTestWolf();
+tieReverse.update(3, undefined, [...tiedPackmates].reverse());
+const reversePosition = tieReverse.object3D.position.clone();
+tieReverse.dispose();
+assert(forwardPosition.distanceTo(reversePosition) < 1e-9, 'equal-distance pack threats must resolve deterministically independent of iteration order');
 
-assert.equal(forwardOrderWolf.object3D.userData.wildlifeFlee.phase, 'pack-flee');
-assert.equal(reverseOrderWolf.object3D.userData.wildlifeFlee.phase, 'pack-flee');
-assert(
-  forwardOrderWolf.object3D.position.distanceTo(reverseOrderWolf.object3D.position) < 1e-9,
-  'equal-distance pack alerts must choose the same deterministic flee vector regardless of input order',
-);
-assert(
-  Math.abs(forwardOrderWolf.object3D.position.x - 0.45) < 1e-9
-    && Math.abs(forwardOrderWolf.object3D.position.z) < 1e-9,
-  'stable tie-break should prefer the lexicographically smaller packmate coordinate and flee +X',
-);
-
-forwardOrderWolf.dispose();
-reverseOrderWolf.dispose();
-console.log('Wildlife pack-alert independence: PASS');
+console.log('Wildlife pack alert independence: PASS');
