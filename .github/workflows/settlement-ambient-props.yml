@@ -1,0 +1,93 @@
+name: Settlement Ambient Prop Geographic Visual QA
+
+on:
+  push:
+    paths:
+      - 'src/3d/world/settlementAmbientProps.js'
+      - 'src/3d/sceneManager.js'
+      - 'src/3d/game3d.js'
+      - 'scripts/checkSettlementAmbientProps.js'
+      - 'scripts/settlementAmbientPropsHarness.html'
+      - '.github/workflows/settlement-ambient-props.yml'
+  pull_request:
+    paths:
+      - 'src/3d/world/settlementAmbientProps.js'
+      - 'src/3d/sceneManager.js'
+      - 'src/3d/game3d.js'
+      - 'scripts/checkSettlementAmbientProps.js'
+      - 'scripts/settlementAmbientPropsHarness.html'
+      - '.github/workflows/settlement-ambient-props.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  settlement-ambient-props:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact requested head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+          lfs: false
+
+      - name: Hydrate only ambient prop GLBs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull --include='assets/models/props/barrel_zjCQP1TAci.glb,assets/models/props/crate_3OEFd1AWfa.glb,assets/models/props/greek_stone_bench.glb' --exclude=''
+          for asset in \
+            assets/models/props/barrel_zjCQP1TAci.glb \
+            assets/models/props/crate_3OEFd1AWfa.glb \
+            assets/models/props/greek_stone_bench.glb; do
+            bytes="$(wc -c < "$asset")"
+            echo "$asset $bytes bytes"
+            test "$bytes" -ge 512
+          done
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Syntax and production integration preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/settlementAmbientProps.js
+          node --check src/3d/sceneManager.js
+          node --check src/3d/game3d.js
+          node --check scripts/checkSettlementAmbientProps.js
+          grep -F "createSettlementAmbientProps" src/3d/sceneManager.js
+          grep -F "upgradeSettlementAmbientPropAssets" src/3d/sceneManager.js
+          grep -F "disposeSettlementAmbientProps" src/3d/game3d.js
+          grep -F "canonicalTerrainUnchanged: true" src/3d/world/settlementAmbientProps.js
+          grep -F "canonicalHydrologyUnchanged: true" src/3d/world/settlementAmbientProps.js
+          grep -F "canonicalCollidersUnchanged: true" src/3d/world/settlementAmbientProps.js
+
+      - name: Canonical geographic placement and real WebGL visual acceptance
+        env:
+          SETTLEMENT_AMBIENT_PROP_ARTIFACT_DIR: artifacts/settlement-ambient-props
+        run: node scripts/checkSettlementAmbientProps.js
+
+      - name: Upload ambient prop visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: settlement-ambient-props
+          path: artifacts/settlement-ambient-props
+          if-no-files-found: warn
+          retention-days: 7
