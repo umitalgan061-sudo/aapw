@@ -35,18 +35,47 @@
 
 import * as THREE from 'three';
 import { GLTFLoader } from '../vendor/three/addons/loaders/GLTFLoader.js';
+import { normalizedMapPoint, resolvePropBiome } from './worldPropScatter.js';
+import { sampleMapAridity01, sampleMapForest01 } from './worldReferenceBiomeField.js';
 
 /**
- * Model choice is per species and deliberately conservative: one narrow conifer to stand in for
- * `pine`, one round-crowned broadleaf for `round`, each a single tree rather than one of the
- * multi-tree cluster files, so an instance is one tree. Both are about 3,500 triangles.
+ * Which model stands where (run 423).
+ *
+ * Run 417 chose the model from the *primitive species* the tree already belonged to, and that species
+ * is a coin flip — `pickSpeciesIndex` rolls it from a seeded stream with no idea where it is. So the
+ * near field was a conifer or a broadleaf at random, and the north grew the same trees as the Reach.
+ *
+ * The world already knows better. `world/worldPropScatter.js` reads the owner map's own forest and
+ * aridity fields and classifies ground into named biomes; asking it the same question here costs three
+ * height samples and two map lookups per tree, once, at build time.
+ *
+ * Three models, all single trees rather than multi-tree cluster files so one instance is one tree, and
+ * none heavier than the conifer run 417 already budgeted for — so the worst case is unchanged at 44
+ * detailed trees times 3,648 triangles.
  */
 export const VEGETATION_NEAR_DETAIL_POLICY = Object.freeze({
-	id: 'vegetation-near-detail-real-models-v1',
-	speciesModels: Object.freeze([
-		'assets/models/vegetation/pine_Zt62gceKXZ.glb',
-		'assets/models/vegetation/tree_QVOop92WmG.glb',
-	]),
+	id: 'vegetation-near-detail-biome-models-v2',
+	supersedes: 'vegetation-near-detail-real-models-v1',
+	biomeModels: Object.freeze({
+		/** Cold and high ground: a narrow conifer. 3,648 triangles. */
+		conifer: 'assets/models/vegetation/pine_Zt62gceKXZ.glb',
+		/** Everything temperate: a round-crowned broadleaf. 3,505 triangles. */
+		broadleaf: 'assets/models/vegetation/tree_QVOop92WmG.glb',
+		/** Dry country: a pale, sparse, olive-like tree. 1,210 triangles — the lightest of the three. */
+		dryland: 'assets/models/vegetation/tree_VfZbAkek1r.glb',
+	}),
+	/** `resolvePropBiome`'s vocabulary, mapped onto those three. Anything it cannot classify is
+	 * temperate — the safe default, and what the whole near field used before this run. */
+	biomeToModel: Object.freeze({
+		snowline: 'conifer',
+		upland: 'conifer',
+		arid: 'dryland',
+		woodland: 'broadleaf',
+		farmland: 'broadleaf',
+		meadow: 'broadleaf',
+		coast: 'broadleaf',
+		roadside: 'broadleaf',
+	}),
 	/**
 	 * Radius and budget. Desktop's 220 m covers everything a standing player reads as an individual
 	 * tree; past that the primitive silhouette is all the eye resolves anyway. The mobile pair is set
@@ -55,6 +84,18 @@ export const VEGETATION_NEAR_DETAIL_POLICY = Object.freeze({
 	 */
 	desktop: Object.freeze({ nearRadiusMeters: 220, maxDetailTrees: 44 }),
 	mobile: Object.freeze({ nearRadiusMeters: 90, maxDetailTrees: 10 }),
+	/**
+	 * North of this normalized map latitude the answer is a conifer whatever the height says.
+	 *
+	 * Without it the rule is altitude-only — `resolvePropBiome` calls ground 'upland' above 240 m and
+	 * 'snowline' above 470 m — and a grid over the whole map came back 273 broadleaf, 18 dryland, 15
+	 * conifer: 5% conifer, i.e. a change nobody would ever see. Altitude is not why the North is pine
+	 * forest; latitude is. 0.36 is just south of the Neck, and sits against the same map latitudes
+	 * `world/terrain.js`'s `NORTHERN_SNOW` uses (full snow by 0.15, gone by 0.30, Winterfell at 0.285).
+	 */
+	coldNorthNy: 0.36,
+	/** What an unclassifiable spot gets. Temperate is the safe answer and the run-417 behaviour. */
+	defaultModel: 'broadleaf',
 	/** Camera travel that triggers a re-selection. Below this the same trees stay chosen. */
 	rebuildAfterCameraMoveMeters: 12,
 	renderOnly: true,
@@ -104,9 +145,14 @@ function collectModelParts(root) {
 }
 
 /**
- * Rescales a model's parts so the tree's base sits at y=0, its trunk is centred on x=z=0 and its
- * height matches the primitive it replaces — which is what lets the primitive's own instance matrix
- * be reused verbatim, yaw, per-tree scale and all.
+ * Rescales a model's parts so the tree's base sits at y=0, its trunk is centred on x=z=0 and it stands
+ * exactly one metre tall.
+ *
+ * Unit height, not the species height, since run 423: a model is now chosen by biome and so may stand
+ * in for either primitive species, which are 8.7 m and 6.9 m tall. Baking one of those into the
+ * geometry would make a conifer the wrong size wherever the tree it replaced belonged to the other
+ * species. The real height rides in the instance matrix instead, where the per-tree scale and yaw
+ * already live.
  */
 function normalizeParts(parts, targetHeightMeters) {
 	const bounds = new THREE.Box3();
@@ -137,6 +183,40 @@ function speciesHeightMeters(trunkMesh, foliageMesh) {
 	return bounds.max.y;
 }
 
+/**
+ * Which of the three models belongs at this spot, from the owner map's own fields.
+ *
+ * `resolvePropBiome` answers `null` for ground too steep or too low for anything to stand on. A tree
+ * is already standing there — `world/vegetation.js` placed it against its own, looser rules — so a
+ * null is not a reason to leave a gap; it falls through to the temperate model, which is what the
+ * whole near field used before this run.
+ *
+ * `nearSeatMeters` is passed as `Infinity` on purpose: that argument exists so barrels and carts
+ * become 'roadside' clutter near a castle, and a tree is neither.
+ *
+ * @param {number} x
+ * @param {number} z
+ * @param {(x: number, z: number) => {heightAboveSeaMeters: number, slopeDegrees: number}} sampleGround
+ * @returns {string} a key of `VEGETATION_NEAR_DETAIL_POLICY.biomeModels`.
+ */
+function resolveTreeModelKey(x, z, sampleGround) {
+	const P = VEGETATION_NEAR_DETAIL_POLICY;
+	if (!sampleGround) return P.defaultModel;
+	const { heightAboveSeaMeters, slopeDegrees } = sampleGround(x, z);
+	const { nx, ny } = normalizedMapPoint(x, z);
+	// Latitude first: the North is conifer forest because it is cold, not because it is high, and
+	// `resolvePropBiome` has no notion of latitude at all.
+	if (ny <= P.coldNorthNy) return 'conifer';
+	const biome = resolvePropBiome({
+		heightAboveSeaMeters,
+		slopeDegrees,
+		forest01: sampleMapForest01(nx, ny),
+		aridity01: sampleMapAridity01(nx, ny),
+		nearSeatMeters: Infinity,
+	});
+	return P.biomeToModel[biome] ?? P.defaultModel;
+}
+
 function readSpeciesPairs(vegetationGroup) {
 	const pairs = [];
 	const children = vegetationGroup?.children ?? [];
@@ -154,9 +234,13 @@ function readSpeciesPairs(vegetationGroup) {
  * @param {object} options
  * @param {THREE.Group} options.vegetationGroup The group `createVegetation` returned.
  * @param {boolean} [options.isMobileClass]
+ * @param {(x: number, z: number) => number} [options.sampleHeightMeters] The same ground field every
+ *   other world system reads. Without it every tree falls back to the temperate model, which is the
+ *   run-417 behaviour — so this stays optional and the layer never fails for want of it.
+ * @param {number} [options.seaLevelMeters]
  * @returns {{group: THREE.Group, ready: Promise<boolean>, stats: object}}
  */
-export function createVegetationNearDetail({ vegetationGroup, isMobileClass = false }) {
+export function createVegetationNearDetail({ vegetationGroup, isMobileClass = false, sampleHeightMeters = null, seaLevelMeters = 0 }) {
 	const group = new THREE.Group();
 	group.name = 'vegetation-near-detail';
 	const budget = isMobileClass ? VEGETATION_NEAR_DETAIL_POLICY.mobile : VEGETATION_NEAR_DETAIL_POLICY.desktop;
@@ -166,26 +250,55 @@ export function createVegetationNearDetail({ vegetationGroup, isMobileClass = fa
 	const pairs = readSpeciesPairs(vegetationGroup);
 	if (!pairs.length) return { group, ready: Promise.resolve(false), stats };
 
+	// Slope from the same four-neighbour stencil the prop scatter uses, so both systems call the same
+	// ground the same way and cannot disagree about what counts as a mountainside.
+	const SLOPE_STENCIL_METERS = 6;
+	const resolveBiomeAt = sampleHeightMeters
+		? (x, z) => {
+			const height = sampleHeightMeters(x, z);
+			const east = sampleHeightMeters(x + SLOPE_STENCIL_METERS, z);
+			const north = sampleHeightMeters(x, z + SLOPE_STENCIL_METERS);
+			const rise = Math.max(Math.abs(east - height), Math.abs(north - height));
+			return {
+				heightAboveSeaMeters: height - seaLevelMeters,
+				slopeDegrees: (Math.atan2(rise, SLOPE_STENCIL_METERS) * 180) / Math.PI,
+			};
+		}
+		: null;
+
 	// One flat list of every placed tree, read once. `count` is the real placed count, so the unused
 	// trailing capacity `createVegetation` allocates is never walked.
+	//
+	// Each tree's biome is resolved here, once, rather than on every re-selection: it is a property of
+	// the ground, and the ground does not move. Three height samples and two owner-map lookups per
+	// tree, at build time, for a world of a few thousand trees.
 	const matrix = new THREE.Matrix4();
+	const heightScale = new THREE.Matrix4();
 	const trees = [];
 	for (let speciesIndex = 0; speciesIndex < pairs.length; speciesIndex += 1) {
-		const { trunkMesh } = pairs[speciesIndex];
+		const { trunkMesh, foliageMesh } = pairs[speciesIndex];
+		// The geometry is normalised to one metre, so the species' real standing height goes into the
+		// matrix — composed on the right, so it scales the model before the tree's own yaw and scale.
+		const speciesHeight = speciesHeightMeters(trunkMesh, foliageMesh);
+		heightScale.makeScale(speciesHeight, speciesHeight, speciesHeight);
 		for (let instanceIndex = 0; instanceIndex < trunkMesh.count; instanceIndex += 1) {
 			trunkMesh.getMatrixAt(instanceIndex, matrix);
+			const x = matrix.elements[12];
+			const z = matrix.elements[14];
 			trees.push({
 				speciesIndex,
 				instanceIndex,
-				x: matrix.elements[12],
-				z: matrix.elements[14],
-				matrix: matrix.clone(),
+				x,
+				z,
+				modelKey: resolveTreeModelKey(x, z, resolveBiomeAt),
+				matrix: matrix.clone().multiply(heightScale),
 			});
 		}
 	}
 
 	const hiddenFlags = pairs.map(({ trunkMesh, foliageMesh }) => attachHiddenFlag(trunkMesh, foliageMesh));
-	const detailBySpecies = [];
+	/** @type {Map<string, THREE.InstancedMesh[]>} */
+	const detailByModel = new Map();
 	let selection = [];
 	const lastCamera = new THREE.Vector3(Infinity, Infinity, Infinity);
 
@@ -193,7 +306,7 @@ export function createVegetationNearDetail({ vegetationGroup, isMobileClass = fa
 		for (const tree of selection) hiddenFlags[tree.speciesIndex].array[tree.instanceIndex] = 0;
 		for (const flag of hiddenFlags) flag.needsUpdate = true;
 		selection = [];
-		for (const species of detailBySpecies) for (const mesh of species) mesh.count = 0;
+		for (const meshes of detailByModel.values()) for (const mesh of meshes) mesh.count = 0;
 	};
 
 	const select = (cameraPosition) => {
@@ -207,27 +320,31 @@ export function createVegetationNearDetail({ vegetationGroup, isMobileClass = fa
 			if (distanceSq <= radiusSq) near.push({ tree, distanceSq });
 		}
 		near.sort((a, b) => a.distanceSq - b.distanceSq);
-		const perSpeciesCount = detailBySpecies.map(() => 0);
+		const slots = new Map();
+		for (const key of detailByModel.keys()) slots.set(key, 0);
 		for (const candidate of near) {
 			if (selection.length >= budget.maxDetailTrees) break;
-			const speciesIndex = candidate.tree.speciesIndex;
-			const meshes = detailBySpecies[speciesIndex];
+			const { modelKey, speciesIndex, instanceIndex } = candidate.tree;
+			const meshes = detailByModel.get(modelKey);
 			if (!meshes?.length) continue;
-			const slot = perSpeciesCount[speciesIndex];
+			const slot = slots.get(modelKey);
+			// Each model has its own instance buffer sized to the whole budget, so a near field that is
+			// entirely one biome still fills; the shared `maxDetailTrees` above is what bounds the total.
 			if (slot >= budget.maxDetailTrees) continue;
 			for (const mesh of meshes) mesh.setMatrixAt(slot, candidate.tree.matrix);
-			perSpeciesCount[speciesIndex] = slot + 1;
-			hiddenFlags[speciesIndex].array[candidate.tree.instanceIndex] = 1;
+			slots.set(modelKey, slot + 1);
+			hiddenFlags[speciesIndex].array[instanceIndex] = 1;
 			selection.push(candidate.tree);
 		}
-		for (let speciesIndex = 0; speciesIndex < detailBySpecies.length; speciesIndex += 1) {
-			for (const mesh of detailBySpecies[speciesIndex] ?? []) {
-				mesh.count = perSpeciesCount[speciesIndex];
+		for (const [key, meshes] of detailByModel) {
+			for (const mesh of meshes) {
+				mesh.count = slots.get(key);
 				mesh.instanceMatrix.needsUpdate = true;
 			}
 		}
 		for (const flag of hiddenFlags) flag.needsUpdate = true;
 		stats.detailedCount = selection.length;
+		stats.byModel = Object.fromEntries(slots);
 	};
 
 	// Driven off a render hook rather than the game loop: `world/windGrass.js` already re-centres
@@ -252,30 +369,31 @@ export function createVegetationNearDetail({ vegetationGroup, isMobileClass = fa
 	group.add(ticker);
 
 	const loader = new GLTFLoader();
-	const ready = Promise.all(pairs.map(async ({ trunkMesh, foliageMesh }, speciesIndex) => {
-		const url = VEGETATION_NEAR_DETAIL_POLICY.speciesModels[speciesIndex];
-		if (!url) return null;
+	const shadowSource = pairs[0].trunkMesh;
+	const modelKeys = Object.keys(VEGETATION_NEAR_DETAIL_POLICY.biomeModels);
+	const ready = Promise.all(modelKeys.map(async (key) => {
+		const url = VEGETATION_NEAR_DETAIL_POLICY.biomeModels[key];
 		// Loaded straight through `GLTFLoader`, not `assetLoader.loadModel`, on purpose: that one
 		// answers a missing file with a magenta placeholder box, and a box standing where a tree should
 		// be is worse than the primitive this replaces. A rejection here leaves the layer inactive and
 		// the world exactly as `world/vegetation.js` drew it.
 		const gltf = await loader.loadAsync(url);
 		const parts = collectModelParts(gltf.scene);
-		if (!parts.length || !normalizeParts(parts, speciesHeightMeters(trunkMesh, foliageMesh))) return null;
-		return parts.map((part) => {
+		if (!parts.length || !normalizeParts(parts, 1)) return null;
+		return [key, parts.map((part) => {
 			const mesh = new THREE.InstancedMesh(part.geometry, part.material, budget.maxDetailTrees);
 			mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 			mesh.count = 0;
 			mesh.frustumCulled = false;
-			mesh.castShadow = trunkMesh.castShadow;
-			mesh.receiveShadow = trunkMesh.receiveShadow;
+			mesh.castShadow = shadowSource.castShadow;
+			mesh.receiveShadow = shadowSource.receiveShadow;
 			return mesh;
-		});
+		})];
 	})).then((built) => {
-		if (built.some((species) => !species)) return false;
-		for (const species of built) {
-			detailBySpecies.push(species);
-			for (const mesh of species) group.add(mesh);
+		if (built.some((entry) => !entry)) return false;
+		for (const [key, meshes] of built) {
+			detailByModel.set(key, meshes);
+			for (const mesh of meshes) group.add(mesh);
 		}
 		stats.active = true;
 		return true;

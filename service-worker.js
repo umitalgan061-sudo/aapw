@@ -53,6 +53,8 @@ self.addEventListener('install', () => {
 self.addEventListener('install', () => {
     GAME3D_SHELL_FILES.push('./assets/models/vegetation/pine_Zt62gceKXZ.glb');
     GAME3D_SHELL_FILES.push('./assets/models/vegetation/tree_QVOop92WmG.glb');
+    // Run423 — the dry-country model, added when the near-detail layer started choosing by biome.
+    GAME3D_SHELL_FILES.push('./assets/models/vegetation/tree_VfZbAkek1r.glb');
 });
 
 // Run407 Valyria magma-hound offline shell extension — `gameplay/animalConfig.js`'s new `magmaHound`
@@ -347,7 +349,7 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run 414 gives the road an actual dirt surface -- broad damp patching, wheel ruts, a drier crown,
 // grit and scattered stones, all procedural because this container has no git-lfs and so no texture
 // file can be committed. A stale shell keeps drawing the flat tan band. v64->v65.
-const SHELL_CACHE = 'westeros-shell-v68';
+const SHELL_CACHE = 'westeros-shell-v69';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -471,6 +473,10 @@ const SHELL_FILES = [
 // run 421 (3D_GAME_PROGRESS.md ADR-0369): added `world/riverEdgeAppearance.js`, imported by
 // `world/rivers.js`. Same reason again — an offline install holding the older `rivers.js` would 404 on
 // it and take the whole 3D mode down. `SHELL_CACHE` bumped v67->v68.
+//
+// run 423 (3D_GAME_PROGRESS.md ADR-0371): no new module, but the near-detail tree layer now picks its
+// model by biome and needs a third one cached. An offline install would otherwise keep serving two.
+// `SHELL_CACHE` bumped v68->v69.
 const GAME3D_SHELL_FILES = [
     './src/3d/editor/EditorFallbackMaterialPalette.js',
     './game3d.html',

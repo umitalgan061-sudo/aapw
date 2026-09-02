@@ -19253,3 +19253,48 @@ kapı taraması gerekiyor.
 
 Kod geri alındı; depoda kalan tek şey bu ölçüm. Negatif sonuç da sonuçtur: bir sonraki deneme aynı
 yolu tekrar yürümesin.
+
+## Tur 423 — Yakındaki ağaç artık coğrafyayı biliyor (ADR-0371)
+
+Tur 417 modeli, ağacın ait olduğu **primitif türden** seçiyordu — ve o tür bir yazı tura:
+`pickSpeciesIndex` onu tohumlu bir akıştan atıyor, nerede olduğuna dair hiçbir fikri yok. Yani yakın
+alanda rastgele bir kozalaklı ya da geniş yapraklı duruyordu; Kuzey ile Reach aynı ağaçları
+yetiştiriyordu.
+
+Oysa dünya bunu zaten biliyor. `world/worldPropScatter.js` sahip haritasının kendi orman ve kuraklık
+alanlarını okuyup zemini isimlendirilmiş biyomlara ayırıyor (`resolvePropBiome`). Aynı soruyu burada
+sormak ağaç başına üç yükseklik örneği ve iki harita araması — hepsi **bir kez**, kurulum anında,
+çünkü biyom zeminin özelliği ve zemin yer değiştirmiyor.
+
+Üç model, hepsi tek ağaç (çoklu paket değil, yani bir instance bir ağaç) ve hiçbiri Tur 417'nin
+bütçelediği kozalaklıdan ağır değil — **en kötü durum değişmedi**: 44 × 3.648 üçgen.
+
+| model | dosya | üçgen | nerede |
+|---|---|---|---|
+| conifer | `pine_Zt62gceKXZ.glb` | 3.648 | Kuzey, yayla, kar sınırı |
+| broadleaf | `tree_QVOop92WmG.glb` | 3.505 | ılıman her yer |
+| dryland | `tree_VfZbAkek1r.glb` | **1.210** | kurak bölge |
+
+**Ve ilk ölçüm bir eksik yakaladı.** Sadece biyomla, haritaya serilen bir ızgara şunu verdi: 273
+geniş yapraklı, 18 kurak, **15 kozalaklı** — yani %5. Kimsenin göremeyeceği bir değişiklik. Sebep
+açık: `resolvePropBiome` yüksekliğe bakıyor (240 m üstü 'upland', 470 m üstü 'snowline') ama
+**enleme hiç bakmıyor** — Kuzey'in çam ormanı olmasının sebebi yüksek olması değil, soğuk olması.
+Bir enlem kuralı eklendi (`ny <= 0,36`, Boyun'un hemen güneyi, `terrain.js`'in `NORTHERN_SNOW`
+enlemleriyle aynı hizada). Sonuç: **50 kozalaklı (%16), 238 geniş yapraklı, 18 kurak.**
+
+Görsel doğrulama (§8.5), aynı sahnede dört açı: güneydeki üç kare 44/44 geniş yapraklı, kuzeydeki
+kare **20/20 kozalaklı** (`artifacts/near-trees/north.png`). Sayı ve görüntü aynı şeyi söylüyor.
+
+Geometri artık **bir metreye** normalize ediliyor, tür boyuna değil: model biyoma göre seçildiği için
+iki primitif türden (8,7 m ve 6,9 m) hangisinin yerine geçeceği önceden bilinmiyor. Gerçek boy
+instance matrisine biniyor — ağaç başına ölçek ve yaw'ın zaten yaşadığı yere.
+
+`normalizedMapPoint` `worldPropScatter.js`'ten export edildi; bu dönüşümün depoda üçüncü bir özel
+kopyası olmasındansa paylaşılması doğru.
+
+Kapılar: `checkVegetationVisualContract`, `checkSmokeCheckRegistry`, `checkServiceWorkerCache`,
+`checkAssetCoverage`, `checkAssetsManifest`, `checkTechnicalDebt`, `checkSeededRandomPolicy`,
+`checkPwaInstallability`, `checkWindGrassContractRun180` — hepsi PASS. `SHELL_CACHE` v68 -> v69.
+
+**Aynı kuzey karesinde görülen sıradaki kusur:** karın içinden yemyeşil yaz çimi bitiyor. Rüzgâr çimi
+biyoma bakmıyor.

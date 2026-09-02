@@ -98,7 +98,12 @@ const SEA_LEVEL = WORLD_DEFAULTS.WATER_LEVEL_METERS;
 const CHUNK_METERS = CHUNK_CONFIG.CHUNK_SIZE_METERS;
 
 /** World X/Z to normalized owner-map coordinates — the projection every canonical consumer uses. */
-function normalizedMapPoint(worldX, worldZ) {
+/**
+ * World metres to normalized owner-map coordinates. Exported since run 423 so
+ * `world/vegetationNearDetail.js` can ask `resolvePropBiome` the same question this module does,
+ * against the same coordinates, rather than carrying a third private copy of this transform.
+ */
+export function normalizedMapPoint(worldX, worldZ) {
 	const { MAP_BOUNDS, METERS_PER_MAP_UNIT } = WORLD_SCALE;
 	const nx = (worldX / METERS_PER_MAP_UNIT + (MAP_BOUNDS.minX + MAP_BOUNDS.maxX) * 0.5) / WORLD_REFERENCE_ALIGNMENT.mapCanvasWidthUnits;
 	const ny = (worldZ / METERS_PER_MAP_UNIT + (MAP_BOUNDS.minY + MAP_BOUNDS.maxY) * 0.5) / WORLD_REFERENCE_ALIGNMENT.mapCanvasHeightUnits;

@@ -465,6 +465,11 @@ createScene = function createSceneWithNearTreesRun417(canvas) {
 	const nearTrees = createVegetationNearDetail({
 		vegetationGroup: state.vegetation,
 		isMobileClass: isCoarsePointerDevice(),
+		// Run 423: the same ground field every other world system reads, so the layer can ask the owner
+		// map which biome each tree stands in and pick its model from that rather than from the coin
+		// flip that chose the primitive species.
+		sampleHeightMeters: state.groundCollider.getGroundHeight,
+		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
 	});
 	// Parented to the vegetation group, not to the scene: `disposeVegetation` walks that group and
 	// releases everything under it, so the layer's geometries and textures cannot outlive the world.
