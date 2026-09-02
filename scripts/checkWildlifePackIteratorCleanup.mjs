@@ -6,9 +6,12 @@ import * as THREE from '../src/3d/vendor/three/three.module.js';
 const sourcePath = new URL('../src/3d/gameplay/animals.js', import.meta.url);
 const harnessPath = new URL('../src/3d/gameplay/.pack-cleanup-animals-harness.mjs', import.meta.url);
 const source = await readFile(sourcePath, 'utf8');
+const faunaWorldPlacementImport = "import { evaluateConfiguredFaunaRoute, prepareConfiguredAnimalWorldAsset } from './faunaWorldPlacement.js';";
 const harness = source
   .replace("from 'three'", "from '../vendor/three/three.module.js'")
-  .replace("import { AssetLoader } from '../assetLoader.js';", 'const AssetLoader = { disposeObject3D() {} };');
+  .replace("import { AssetLoader } from '../assetLoader.js';", 'const AssetLoader = { disposeObject3D() {} };')
+  .replace(faunaWorldPlacementImport, 'const evaluateConfiguredFaunaRoute = () => ({ ok: true }); const prepareConfiguredAnimalWorldAsset = () => ({ ok: true });');
+assert(!harness.includes("from './faunaWorldPlacement.js'"), 'iterator harness must not re-enter geographic-placement bare-Three imports');
 await writeFile(harnessPath, harness, 'utf8');
 let createWolf;
 try {
