@@ -27,10 +27,11 @@ import { normalizeText } from './textureMatcher.js';
  * Slot keywords, Turkish + English. Order matters only through `priority`; a longer keyword beats a
  * shorter one at equal priority, same rule the palette matcher uses.
  *
- * Architecture keeps generic `wall` unclassified so the destination region still owns the dominant
- * façade. Bare physical material names (`wood`, `stone`, `glass`, `iron`, `metal`) are different:
- * they are strong authored PBR signals, kept at priority 0 so character/creature anatomy and equipment
- * rules always win whenever a more specific semantic clue exists.
+ * Structure slots deliberately avoid generic bare substance names such as `wood`, `stone`, `glass`
+ * and `metal`. Those are useful signals only after the caller knows it is dressing architecture;
+ * making them global would relabel unrelated props, vegetation and equipment. Runtime adapters may
+ * add that contextual knowledge locally. Generic `wall` likewise remains unclassified so the
+ * destination architecture policy can decide whether to preserve or replace the façade.
  * @type {ReadonlyArray<{slot: string, priority?: number, words: string[]}>}
  */
 const SLOT_RULES = Object.freeze([
@@ -53,18 +54,17 @@ const SLOT_RULES = Object.freeze([
 	{ slot: 'armor', priority: 1, words: ['armor', 'armour', 'plate', 'mail', 'shield', 'sword', 'blade', 'weapon', 'zirh', 'zırh', 'kalkan', 'kilic', 'kılıç', 'silah'] },
 	{ slot: 'skin', priority: 1, words: ['skin', 'head', 'face', 'body', 'hand', 'arm', 'flesh', 'cilt', 'ten', 'kafa', 'yuz', 'yüz', 'el', 'kol'] },
 
-	// Authored architecture. Generic walls intentionally stay unclassified so the region's base
-	// house/brick palette continues to own the dominant façade identity.
+	// Authored architecture. Strong, explicit nouns only; generic walls and bare substances stay
+	// contextual so one shared classifier does not accidentally own every wooden/stone object.
 	{ slot: 'structure-window', priority: 1, words: ['window', 'windows', 'windowpane', 'glass pane', 'pencere', 'vitray'] },
 	{ slot: 'structure-door', priority: 1, words: ['door', 'doors', 'doorway', 'doorframe', 'kapi', 'kapı'] },
 	{ slot: 'structure-thatch', priority: 1, words: ['thatch', 'thatched', 'straw roof', 'reed roof', 'saman cati', 'saman çatı'] },
 	{ slot: 'structure-roof', priority: 1, words: ['roof', 'roofing', 'roof tile', 'rooftile', 'shingle', 'shingles', 'slate roof', 'cati', 'çatı', 'kiremit'] },
 	{ slot: 'structure-brick', words: ['brick', 'brickwork', 'tugla', 'tuğla'] },
 	{ slot: 'structure-plaster', words: ['plaster', 'stucco', 'render coat', 'siva', 'sıva'] },
-	{ slot: 'structure-stone', words: ['stonework', 'masonry', 'foundation', 'footing', 'rubble stone', 'stone', 'tas temel', 'taş temel'] },
-	{ slot: 'structure-timber', words: ['timber', 'wooden beam', 'wood beam', 'plank', 'rafter', 'joist', 'log wall', 'wood', 'wooden', 'ahsap', 'ahşap', 'tahta'] },
-	{ slot: 'structure-window', words: ['glass', 'cam'] },
-	{ slot: 'structure-metal', words: ['hinge', 'door handle', 'latch', 'ironwork', 'wrought iron', 'metal trim', 'metal fitting', 'iron', 'metal'] },
+	{ slot: 'structure-stone', words: ['stonework', 'masonry', 'foundation', 'footing', 'rubble stone', 'tas temel', 'taş temel'] },
+	{ slot: 'structure-timber', words: ['timber', 'wooden beam', 'wood beam', 'plank', 'rafter', 'joist', 'log wall', 'ahsap', 'ahşap', 'tahta'] },
+	{ slot: 'structure-metal', words: ['hinge', 'door handle', 'latch', 'ironwork', 'wrought iron', 'metal trim', 'metal fitting'] },
 
 	{ slot: 'fur', words: ['fur', 'pelt', 'coat', 'hide', 'kurk', 'kürk', 'post', 'tuy', 'tüy'] },
 	{ slot: 'scale', words: ['scale', 'scales', 'pul', 'pullar'] },
