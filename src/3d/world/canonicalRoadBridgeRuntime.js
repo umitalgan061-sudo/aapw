@@ -1,16 +1,17 @@
 /**
- * Live runtime adoption of the owner-approved Run191 canonical stone-bridge system.
+ * Live adoption of the owner-approved medieval stone-bridge policy for the shipped road network.
  *
- * The base road builder intentionally rejects a route whose ribbon would remain submerged for more
- * than one audit interval. Run192 already proved the correct visual replacement for those gaps:
- * preserve the dry road portions, suppress every water-crossing sample, connect each dry bank to a
- * bounded bridge deck approach, and render the deterministic medieval stone arches. This module
- * moves that proven composition into the shipped road group without changing route topology,
- * terrain, hydrology, or the underlying ground collider.
+ * `world/roads.js` is the authority for whether a current route is a water transport gap: it samples
+ * each routed segment every 6 m and rejects sustained ribbon runs whose final road surface is below
+ * `WORLD_DEFAULTS.WATER_LEVEL_METERS`. Earlier shadow work proved the bridge visual grammar against a
+ * separate canonical-hydrology migration model; that model must not be recomputed at game startup or
+ * substituted for the shipped road-water decision. This module therefore derives bridge spans only
+ * from the already-computed live `submerged-route` gaps, while reusing Run191's owner-approved bridge
+ * dimensions and batched stone geometry/material.
  *
- * The live scene installs the exported bounded ground-height resolver only after geology, vegetation
- * and villages have consumed the canonical terrain sampler. That keeps bridge traversal physical for
- * the player without letting the elevated deck contaminate biome placement, hydrology or terrain.
+ * The scene installs the exported bridge-aware ground resolver only after geology, vegetation and
+ * villages have consumed the canonical terrain sampler. Bridge decks are traversal surfaces, never
+ * terrain/biome authority.
  * @module world/canonicalRoadBridgeRuntime
  */
 
@@ -18,20 +19,22 @@ import * as THREE from 'three';
 import { WORLD_DEFAULTS } from '../config.js';
 import {
 	STONE_BRIDGE_OWNER_POLICY,
-	buildCanonicalStoneBridgePlan,
 	createCanonicalStoneBridgeGeometry,
 } from './worldReferenceStoneBridgeShadow.js';
 
 export const CANONICAL_ROAD_BRIDGE_RUNTIME_POLICY = Object.freeze({
-	id: 'canonical-road-stone-bridge-live-2026-09-01-v1',
+	id: 'canonical-road-stone-bridge-live-2026-09-02-v2-live-water-authority',
 	ownerPolicy: STONE_BRIDGE_OWNER_POLICY.key,
+	roadWaterAuditSpacingMeters: 6,
 	maxApproachGradeDegrees: 18,
 	maxApproachLengthMeters: 320,
 	roadVerticalOffsetMeters: 0.4,
 	deckSurfaceOffsetMeters: 0.04,
+	coverageLateralToleranceMeters: 6,
 	canonicalTopologyUnchanged: true,
 	canonicalTerrainUnchanged: true,
 	canonicalHydrologyUnchanged: true,
+	liveRoadWaterAuthority: true,
 	waterRouteSuppressionRequired: true,
 	dryRoadPreservationRequired: true,
 	batchedBridgeGeometry: true,
@@ -42,8 +45,9 @@ export const CANONICAL_ROAD_BRIDGE_RUNTIME_POLICY = Object.freeze({
 const RESTORATION_MESH_NAME = 'canonical-bridge-road-restoration';
 const BRIDGE_GROUP_NAME = 'canonical-stone-bridges-live';
 
-function pairKey(fromId, toId) {
-	return [String(fromId), String(toId)].sort().join('|');
+function round(value, digits = 3) {
+	const factor = 10 ** digits;
+	return Math.round(value * factor) / factor;
 }
 
 function distance2(a, b) {
@@ -75,6 +79,176 @@ function isRoadPointSubmerged(sampleHeightMeters, point) {
 	return finalRoadY(sampleHeightMeters, point) < WORLD_DEFAULTS.WATER_LEVEL_METERS;
 }
 
+/** Mirrors `roads.js::measureSubmergedRibbonExposure` exactly, while retaining sample coordinates. */
+function sampleLiveRoadWater(points, sampleHeightMeters) {
+	const samples = [];
+	let routeBaseMeters = 0;
+	for (let segmentIndex = 1; segmentIndex < points.length; segmentIndex += 1) {
+		const start = points[segmentIndex - 1];
+		const end = points[segmentIndex];
+		const dx = end.x - start.x;
+		const dz = end.z - start.z;
+		const segmentLengthMeters = Math.hypot(dx, dz);
+		const intervalCount = Math.max(1, Math.ceil(
+			segmentLengthMeters / CANONICAL_ROAD_BRIDGE_RUNTIME_POLICY.roadWaterAuditSpacingMeters,
+		));
+		const intervalMeters = segmentLengthMeters / intervalCount;
+		const invLength = segmentLengthMeters > 1e-6 ? 1 / segmentLengthMeters : 0;
+		const ux = segmentLengthMeters > 1e-6 ? dx * invLength : 1;
+		const uz = segmentLengthMeters > 1e-6 ? dz * invLength : 0;
+		for (let intervalIndex = 1; intervalIndex <= intervalCount; intervalIndex += 1) {
+			const t = intervalIndex / intervalCount;
+			const x = start.x + dx * t;
+			const z = start.z + dz * t;
+			const ribbonY = sampleHeightMeters(x, z) + CANONICAL_ROAD_BRIDGE_RUNTIME_POLICY.roadVerticalOffsetMeters;
+			samples.push(Object.freeze({
+				x,
+				z,
+				y: ribbonY,
+				submerged: ribbonY < WORLD_DEFAULTS.WATER_LEVEL_METERS,
+				intervalMeters,
+				segmentIndex,
+				intervalIndex,
+				routeMeters: routeBaseMeters + segmentLengthMeters * t,
+				ux,
+				uz,
+			}));
+		}
+		routeBaseMeters += segmentLengthMeters;
+	}
+	return samples;
+}
+
+function collectLiveWaterCrossings(samples) {
+	const crossings = [];
+	let current = null;
+	for (const sample of samples) {
+		if (sample.submerged) {
+			if (!current) current = { samples: [], waterMeters: 0 };
+			current.samples.push(sample);
+			current.waterMeters += sample.intervalMeters;
+		} else if (current) {
+			crossings.push(current);
+			current = null;
+		}
+	}
+	if (current) crossings.push(current);
+	return crossings;
+}
+
+function crossingDirection(crossing) {
+	const first = crossing.samples[0];
+	const last = crossing.samples[crossing.samples.length - 1];
+	let dx = last.x - first.x;
+	let dz = last.z - first.z;
+	let length = Math.hypot(dx, dz);
+	if (length > 1e-4) return { ux: dx / length, uz: dz / length, chordMeters: length };
+	let ux = 0;
+	let uz = 0;
+	for (const sample of crossing.samples) {
+		ux += sample.ux;
+		uz += sample.uz;
+	}
+	length = Math.hypot(ux, uz);
+	if (length < 1e-6) return { ux: 1, uz: 0, chordMeters: Math.max(crossing.waterMeters, 0.001) };
+	return { ux: ux / length, uz: uz / length, chordMeters: Math.max(crossing.waterMeters, 0.001) };
+}
+
+function bridgeFromLiveCrossing(gap, crossing, crossingIndex, sampleHeightMeters) {
+	const first = crossing.samples[0];
+	const last = crossing.samples[crossing.samples.length - 1];
+	const { ux, uz, chordMeters } = crossingDirection(crossing);
+	const start = {
+		x: first.x - ux * STONE_BRIDGE_OWNER_POLICY.bankMarginMeters,
+		z: first.z - uz * STONE_BRIDGE_OWNER_POLICY.bankMarginMeters,
+	};
+	const end = {
+		x: last.x + ux * STONE_BRIDGE_OWNER_POLICY.bankMarginMeters,
+		z: last.z + uz * STONE_BRIDGE_OWNER_POLICY.bankMarginMeters,
+	};
+	const structuralSpanMeters = Math.max(0.001, Math.hypot(end.x - start.x, end.z - start.z));
+	const archCount = Math.max(1, Math.ceil(structuralSpanMeters / STONE_BRIDGE_OWNER_POLICY.targetArchSpanMeters));
+	const archSpanMeters = structuralSpanMeters / archCount;
+	const archRiseMeters = Math.min(
+		STONE_BRIDGE_OWNER_POLICY.maximumArchRiseMeters,
+		Math.max(STONE_BRIDGE_OWNER_POLICY.minimumArchRiseMeters, archSpanMeters * 0.22),
+	);
+	const startGroundY = sampleHeightMeters(start.x, start.z);
+	const endGroundY = sampleHeightMeters(end.x, end.z);
+	const deckBottomY = Math.max(
+		startGroundY,
+		endGroundY,
+		WORLD_DEFAULTS.WATER_LEVEL_METERS + archRiseMeters + 0.8,
+	);
+	const deckY = deckBottomY + STONE_BRIDGE_OWNER_POLICY.deckThicknessMeters * 0.5;
+	return Object.freeze({
+		id: `${gap.fromId}->${gap.toId}#${crossingIndex + 1}`,
+		edgeId: `${gap.fromId}->${gap.toId}`,
+		fromId: gap.fromId,
+		toId: gap.toId,
+		crossingIndex,
+		waterMeters: round(crossing.waterMeters),
+		waterChordMeters: round(chordMeters),
+		structuralSpanMeters: round(structuralSpanMeters),
+		archCount,
+		archSpanMeters: round(archSpanMeters),
+		archRiseMeters: round(archRiseMeters),
+		bridgeWidthMeters: STONE_BRIDGE_OWNER_POLICY.bridgeWidthMeters,
+		deckY: round(deckY),
+		startGroundY: round(startGroundY),
+		endGroundY: round(endGroundY),
+		centerX: round((start.x + end.x) * 0.5),
+		centerZ: round((start.z + end.z) * 0.5),
+		yawRadians: round(Math.atan2(-uz, ux), 6),
+		startX: round(start.x),
+		startZ: round(start.z),
+		endX: round(end.x),
+		endZ: round(end.z),
+	});
+}
+
+function distanceToBridgeAxis(sample, bridge) {
+	const ax = bridge.startX;
+	const az = bridge.startZ;
+	const dx = bridge.endX - ax;
+	const dz = bridge.endZ - az;
+	const lengthSquared = dx * dx + dz * dz;
+	if (lengthSquared < 1e-6) return { t: 0, lateralMeters: Infinity };
+	const t = ((sample.x - ax) * dx + (sample.z - az) * dz) / lengthSquared;
+	const centerX = ax + dx * t;
+	const centerZ = az + dz * t;
+	return { t, lateralMeters: Math.hypot(sample.x - centerX, sample.z - centerZ) };
+}
+
+function buildLiveBridgePlanForGap(gap, sampleHeightMeters) {
+	const samples = sampleLiveRoadWater(gap.points, sampleHeightMeters);
+	const crossings = collectLiveWaterCrossings(samples);
+	if (crossings.length === 0) return null;
+	const bridges = crossings.map((crossing, index) => bridgeFromLiveCrossing(gap, crossing, index, sampleHeightMeters));
+	let waterSampleCount = 0;
+	let coveredWaterSampleCount = 0;
+	for (let crossingIndex = 0; crossingIndex < crossings.length; crossingIndex += 1) {
+		const crossing = crossings[crossingIndex];
+		const bridge = bridges[crossingIndex];
+		for (const sample of crossing.samples) {
+			waterSampleCount += 1;
+			const coverage = distanceToBridgeAxis(sample, bridge);
+			if (
+				coverage.t >= 0 && coverage.t <= 1
+				&& coverage.lateralMeters <= bridge.bridgeWidthMeters * 0.5
+					+ CANONICAL_ROAD_BRIDGE_RUNTIME_POLICY.coverageLateralToleranceMeters
+			) coveredWaterSampleCount += 1;
+		}
+	}
+	if (waterSampleCount === 0 || coveredWaterSampleCount !== waterSampleCount) return null;
+	return Object.freeze({
+		bridges: Object.freeze(bridges),
+		waterSampleCount,
+		coveredWaterSampleCount,
+		waterMeters: round(crossings.reduce((sum, crossing) => sum + crossing.waterMeters, 0)),
+	});
+}
+
 function orientBridgeToRoute(points, bridge) {
 	const start = { x: bridge.startX, z: bridge.startZ };
 	const end = { x: bridge.endX, z: bridge.endZ };
@@ -92,7 +266,6 @@ function resolveBridgeRange(points, oriented, sampleHeightMeters, searchFloor) {
 	const endTarget = { x: routeEnd.x, y: deckTopY, z: routeEnd.z };
 	const startIndex = nearestPointIndex(points, routeStart, searchFloor);
 	const endIndex = nearestPointIndex(points, routeEnd, startIndex);
-
 	let startApproachIndex = -1;
 	for (let index = startIndex; index >= searchFloor; index -= 1) {
 		const raw = points[index];
@@ -106,7 +279,6 @@ function resolveBridgeRange(points, oriented, sampleHeightMeters, searchFloor) {
 			break;
 		}
 	}
-
 	let endApproachIndex = -1;
 	for (let index = endIndex; index < points.length; index += 1) {
 		const raw = points[index];
@@ -120,7 +292,6 @@ function resolveBridgeRange(points, oriented, sampleHeightMeters, searchFloor) {
 			break;
 		}
 	}
-
 	if (startApproachIndex < 0 || endApproachIndex < 0 || endApproachIndex <= startApproachIndex) return null;
 	const startRaw = points[startApproachIndex];
 	const endRaw = points[endApproachIndex];
@@ -145,8 +316,8 @@ function resolveBridgeRange(points, oriented, sampleHeightMeters, searchFloor) {
 	});
 }
 
-function routePlanForGap(gap, bridges, sampleHeightMeters) {
-	const oriented = bridges
+function routePlanForGap(gap, liveBridgePlan, sampleHeightMeters) {
+	const oriented = liveBridgePlan.bridges
 		.map((bridge) => orientBridgeToRoute(gap.points, bridge))
 		.sort((a, b) => a.startIndex - b.startIndex);
 	const ranges = [];
@@ -157,25 +328,17 @@ function routePlanForGap(gap, bridges, sampleHeightMeters) {
 		ranges.push(range);
 		searchFloor = Math.min(gap.points.length - 1, range.endIndex + 1);
 	}
-
-	let waterPointCount = 0;
-	let coveredWaterPointCount = 0;
-	for (let index = 0; index < gap.points.length; index += 1) {
-		if (!isRoadPointSubmerged(sampleHeightMeters, gap.points[index])) continue;
-		waterPointCount += 1;
-		if (ranges.some((range) => index >= range.startIndex && index <= range.endIndex)) coveredWaterPointCount += 1;
-	}
-	if (waterPointCount === 0 || coveredWaterPointCount !== waterPointCount) return null;
-	return Object.freeze({ ranges: Object.freeze(ranges), waterPointCount, coveredWaterPointCount });
+	return Object.freeze({
+		ranges: Object.freeze(ranges),
+		waterSampleCount: liveBridgePlan.waterSampleCount,
+		coveredWaterSampleCount: liveBridgePlan.coveredWaterSampleCount,
+	});
 }
 
 function createRibbonBuffers(sourceRoadMesh) {
 	const sourceColors = sourceRoadMesh?.geometry?.getAttribute?.('color');
 	return {
-		positions: [],
-		colors: [],
-		roadSide: [],
-		indices: [],
+		positions: [], colors: [], roadSide: [], indices: [],
 		color: {
 			r: sourceColors?.count ? sourceColors.getX(0) : 0.50,
 			g: sourceColors?.count ? sourceColors.getY(0) : 0.42,
@@ -251,29 +414,22 @@ export function installCanonicalRoadBridgeRuntime(network, { sampleHeightMeters 
 	if (network.group.children.some((child) => child.userData?.canonicalBridgeRuntimeMesh)) return network;
 	const roadMesh = network.group.getObjectByName('roads');
 	if (!roadMesh?.material) return network;
-
-	const bridgePlan = buildCanonicalStoneBridgePlan();
-	const bridgesByPair = new Map();
-	for (const bridge of bridgePlan.bridges) {
-		const key = pairKey(bridge.fromId, bridge.toId);
-		if (!bridgesByPair.has(key)) bridgesByPair.set(key, []);
-		bridgesByPair.get(key).push(bridge);
-	}
-
+	const sourceWaterGaps = (network.unroutableEdges ?? []).filter(
+		(gap) => gap?.diagnostics?.transportGapReason === 'submerged-route',
+	);
 	const restorationBuffers = createRibbonBuffers(roadMesh);
 	const restoredEdges = [];
 	const restoredGapSet = new Set();
 	const activatedBridges = [];
 	const approachRecords = [];
 	let restoredDryRoadPointCount = 0;
-	let coveredWaterPointCount = 0;
-	let totalWaterPointCount = 0;
+	let coveredWaterSampleCount = 0;
+	let totalWaterSampleCount = 0;
 
-	for (const gap of network.unroutableEdges ?? []) {
-		if (gap?.diagnostics?.transportGapReason !== 'submerged-route') continue;
-		const bridges = bridgesByPair.get(pairKey(gap.fromId, gap.toId));
-		if (!bridges?.length) continue;
-		const routePlan = routePlanForGap(gap, bridges, sampleHeightMeters);
+	for (const gap of sourceWaterGaps) {
+		const liveBridgePlan = buildLiveBridgePlanForGap(gap, sampleHeightMeters);
+		if (!liveBridgePlan) continue;
+		const routePlan = routePlanForGap(gap, liveBridgePlan, sampleHeightMeters);
 		if (!routePlan) continue;
 		restoredDryRoadPointCount += appendDryRouteRuns(restorationBuffers, gap, routePlan.ranges, sampleHeightMeters);
 		for (const range of routePlan.ranges) {
@@ -282,8 +438,8 @@ export function installCanonicalRoadBridgeRuntime(network, { sampleHeightMeters 
 			activatedBridges.push(range.bridge);
 			approachRecords.push(range.startApproach, range.endApproach);
 		}
-		coveredWaterPointCount += routePlan.coveredWaterPointCount;
-		totalWaterPointCount += routePlan.waterPointCount;
+		coveredWaterSampleCount += routePlan.coveredWaterSampleCount;
+		totalWaterSampleCount += routePlan.waterSampleCount;
 		restoredGapSet.add(gap);
 		restoredEdges.push(Object.freeze({
 			...gap,
@@ -297,12 +453,26 @@ export function installCanonicalRoadBridgeRuntime(network, { sampleHeightMeters 
 		}));
 	}
 
+	const remainingGaps = (network.unroutableEdges ?? []).filter((gap) => !restoredGapSet.has(gap));
+	const remainingWaterGapCount = remainingGaps.filter(
+		(gap) => gap?.diagnostics?.transportGapReason === 'submerged-route',
+	).length;
+	const remainingGradeFallbackCount = remainingGaps.filter(
+		(gap) => gap?.diagnostics?.transportGapReason === 'grade-fallback',
+	).length;
 	if (activatedBridges.length === 0) {
 		network.bridgeRuntime = Object.freeze({
 			policyId: CANONICAL_ROAD_BRIDGE_RUNTIME_POLICY.id,
-			status: 'no-live-matching-water-gaps',
+			ownerPolicy: STONE_BRIDGE_OWNER_POLICY.key,
+			status: sourceWaterGaps.length > 0 ? 'live-water-gaps-unrestored' : 'no-live-water-gaps',
 			bridgeCount: 0,
-			planBridgeCount: bridgePlan.bridges.length,
+			affectedEdgeCount: 0,
+			sourceWaterGapCount: sourceWaterGaps.length,
+			unrestoredWaterGapCount: remainingWaterGapCount,
+			remainingGradeFallbackCount,
+			waterSuppression: Object.freeze({ covered: 0, total: 0 }),
+			groundSurfaces: Object.freeze([]),
+			colliderSegments: Object.freeze([]),
 		});
 		return network;
 	}
@@ -335,7 +505,7 @@ export function installCanonicalRoadBridgeRuntime(network, { sampleHeightMeters 
 	}
 
 	network.edges = [...(network.edges ?? []), ...restoredEdges];
-	network.unroutableEdges = (network.unroutableEdges ?? []).filter((gap) => !restoredGapSet.has(gap));
+	network.unroutableEdges = remainingGaps;
 	network.totalLengthMeters = (network.totalLengthMeters ?? 0)
 		+ restoredEdges.reduce((sum, edge) => sum + (edge.lengthMeters || 0), 0);
 	network.maxGradeDegrees = Math.max(
@@ -356,25 +526,33 @@ export function installCanonicalRoadBridgeRuntime(network, { sampleHeightMeters 
 	}));
 	const runtime = Object.freeze({
 		policyId: CANONICAL_ROAD_BRIDGE_RUNTIME_POLICY.id,
-		ownerPolicy: bridgePlan.policy,
+		ownerPolicy: STONE_BRIDGE_OWNER_POLICY.key,
 		status: 'active-render-topology',
 		bridgeCount: activatedBridges.length,
 		affectedEdgeCount: restoredEdges.length,
+		sourceWaterGapCount: sourceWaterGaps.length,
+		unrestoredWaterGapCount: remainingWaterGapCount,
+		remainingGradeFallbackCount,
 		bridgeIds: Object.freeze(activatedBridges.map((bridge) => bridge.id)),
 		approachCount: approachRecords.length,
 		maxApproachGradeDegrees: Math.max(...approachRecords.map((approach) => approach.gradeDegrees)),
 		maxApproachLengthMeters: Math.max(...approachRecords.map((approach) => approach.lengthMeters)),
 		restoredDryRoadPointCount,
-		waterSuppression: Object.freeze({ covered: coveredWaterPointCount, total: totalWaterPointCount }),
+		waterSuppression: Object.freeze({ covered: coveredWaterSampleCount, total: totalWaterSampleCount }),
 		groundSurfaces: Object.freeze([
 			...colliderSegments.map((segment) => Object.freeze({
-				id: segment.id, kind: 'deck', widthMeters: segment.widthMeters,
+				id: segment.id,
+				kind: 'deck',
+				widthMeters: segment.widthMeters,
 				from: Object.freeze({ x: segment.startX, y: segment.deckTopY, z: segment.startZ }),
 				to: Object.freeze({ x: segment.endX, y: segment.deckTopY, z: segment.endZ }),
 			})),
 			...approachRecords.map((approach, index) => Object.freeze({
-				id: `approach-${index + 1}`, kind: 'approach', widthMeters: STONE_BRIDGE_OWNER_POLICY.bridgeWidthMeters,
-				from: Object.freeze({ ...approach.from }), to: Object.freeze({ ...approach.to }),
+				id: `approach-${index + 1}`,
+				kind: 'approach',
+				widthMeters: STONE_BRIDGE_OWNER_POLICY.bridgeWidthMeters,
+				from: Object.freeze({ ...approach.from }),
+				to: Object.freeze({ ...approach.to }),
 			})),
 		]),
 		colliderSegments: Object.freeze(colliderSegments),
