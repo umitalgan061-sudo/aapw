@@ -84,7 +84,7 @@ export function sampleConfiguredFaunaGeography(worldX, worldZ, groundCollider) {
 	const gradientX = (east - west) / (SLOPE_SAMPLE_RADIUS_METERS * 2);
 	const gradientZ = (south - north) / (SLOPE_SAMPLE_RADIUS_METERS * 2);
 	const slopeDegrees = Math.atan(Math.hypot(gradientX, gradientZ)) * 180 / Math.PI;
-	const waterType = baseSurface === 'sea' || baseSurface === 'lake' ? baseSurface : null;
+	const waterType = baseSurface === 'sea' || baseSurface === 'lake' ? baseSurface : 'none';
 	return {
 		ok: true,
 		surface: {
