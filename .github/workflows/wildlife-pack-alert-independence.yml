@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'src/3d/gameplay/animals.js'
+      - 'src/3d/gameplay/animalConfig.js'
       - 'src/3d/gameplay/faunaWorldPlacement.js'
       - 'src/3d/materials/MaterialAssignmentCore.js'
       - 'scripts/checkConfiguredAnimalSpawnGroundSafetyBrowser.mjs'
@@ -49,14 +50,15 @@ jobs:
           git merge-base --is-ancestor origin/main HEAD
           changed="$(git diff --name-only origin/main...HEAD)"
           printf '%s\n' "$changed"
-          test "$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)" -le 11
-          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/animals\.js|src/3d/gameplay/faunaWorldPlacement\.js|src/3d/materials/MaterialAssignmentCore\.js|scripts/checkConfiguredAnimalSpawnGroundSafetyBrowser\.mjs|scripts/checkConfiguredFaunaGeographicMaterialBrowser\.mjs|scripts/checkWildlifePackAlertIndependence\.mjs|scripts/checkWildlifePackIteratorCleanup\.mjs|scripts/checkWildlifeLongFrameBudget\.mjs|scripts/checkWildlifePackLongFrameBrowser\.mjs|scripts/checkWildlifePackAdapterBrowser\.mjs|scripts/game3dSmokeChecksMovement\.js|\.github/workflows/configured-animal-spawn-ground-safety\.yml|\.github/workflows/wildlife-pack-alert-independence\.yml|\.github/workflows/wildlife-long-frame-budget\.yml|\.github/workflows/wildlife-pack-adapter-browser\.yml)$' && exit 1 || true
+          test "$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)" -le 12
+          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/animals\.js|src/3d/gameplay/animalConfig\.js|src/3d/gameplay/faunaWorldPlacement\.js|src/3d/materials/MaterialAssignmentCore\.js|scripts/checkConfiguredAnimalSpawnGroundSafetyBrowser\.mjs|scripts/checkConfiguredFaunaGeographicMaterialBrowser\.mjs|scripts/checkWildlifePackAlertIndependence\.mjs|scripts/checkWildlifePackIteratorCleanup\.mjs|scripts/checkWildlifeLongFrameBudget\.mjs|scripts/checkWildlifePackLongFrameBrowser\.mjs|scripts/checkWildlifePackAdapterBrowser\.mjs|scripts/game3dSmokeChecksMovement\.js|\.github/workflows/configured-animal-spawn-ground-safety\.yml|\.github/workflows/wildlife-pack-alert-independence\.yml|\.github/workflows/wildlife-long-frame-budget\.yml|\.github/workflows/wildlife-pack-adapter-browser\.yml)$' && exit 1 || true
           total="$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           echo "changed-lines=$total"
           test "$total" -le 1000
       - name: Syntax
         run: |
           node --check src/3d/gameplay/animals.js
+          node --check src/3d/gameplay/animalConfig.js
           node --check src/3d/gameplay/faunaWorldPlacement.js
           node --check src/3d/materials/MaterialAssignmentCore.js
           node --check scripts/checkConfiguredAnimalSpawnGroundSafetyBrowser.mjs
