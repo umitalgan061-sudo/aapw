@@ -109,6 +109,8 @@ async function main() {
 			'full-world proof must include wind-shaped snow micro normals');
 		assert.equal(summary.terrainSurfaceRealism?.snowRoughnessVariation, true,
 			'full-world proof must include granular snow roughness variation');
+		assert.deepEqual(summary.terrainSurfaceRealism?.snowSurfaceScaleMeters, [2.6, 11, 34],
+			'full-world proof must retain the authored fine/meso/sastrugi snow scales');
 		assert.equal(summary.terrainSurfaceRealism?.naturalAlbedoRemap, true,
 			'full-world proof must include natural vegetation/soil/snow albedo remapping');
 		assert.equal(summary.terrainSurfaceRealism?.macroColorBreakup, true,
