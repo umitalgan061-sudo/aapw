@@ -41,4 +41,12 @@ assert.equal(boundedSources[0], 'expedition-contract:watch', 'bounded restore mu
 assert.equal(boundedSources.includes('expedition-contract:receipt-only'), true, 'receipt-derived provenance must survive unrelated FIFO eviction');
 assert.equal(boundedSources.at(-1), 'expedition-contract:filler-60');
 
+const roundTrip = createInteractionEconomyState();
+roundTrip.restore(restored.snapshot());
+const roundTripSources = roundTrip.snapshot().ledger.creditedSourceIds;
+assert.deepEqual(roundTripSources, boundedSources, 'bounded provenance FIFO order must survive a second save/load roundtrip');
+assert.equal(roundTrip.credit(1, { sourceId: boundedSources[0] }).reason, 'duplicate-credit-source');
+assert.equal(roundTrip.credit(1, { sourceId: boundedSources.at(-1) }).reason, 'duplicate-credit-source');
+assert.deepEqual(roundTrip.snapshot().ledger.creditedSourceIds, boundedSources, 'replay rejection must not reorder persisted provenance');
+
 console.log('Interaction credit source ledger restore PASS');
