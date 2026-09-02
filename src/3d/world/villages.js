@@ -16,10 +16,11 @@
  * matching primitive instance hidden. Missing/LFS-unavailable assets therefore fail closed: no
  * magenta AssetLoader placeholder and no invisible collision hole are ever shipped.
  *
- * Multi-mesh imported houses keep authored material-slot structure. Strong semantic names such as
+ * Imported houses keep authored material-slot structure whenever the source exposes more than one
+ * surface, even when all slots live on a single glTF mesh. Strong semantic names such as
  * roof/window/door/timber/foundation are redirected through a regional shared-core surface recipe,
  * while unnamed or ambiguous imported surfaces remain untouched instead of being flattened to one
- * brown/stone texture. Single-mesh houses keep the regional layered fallback.
+ * brown/stone texture. Only genuinely single-surface houses use the regional layered fallback.
  * @module world/villages
  */
 
@@ -276,7 +277,11 @@ export function resolveVillageArchitectureSurfacePalette(profile, slot) {
 
 function regionalMaterialOptions(object, profile) {
 	const analysis = analyzeMaterialSurfaces(object);
-	if (analysis.meshCount === 1) {
+	// glTF commonly stores several authored material primitives on one mesh. Mesh count therefore is
+	// not a safe proxy for "single surface": flattening a one-mesh/nine-material house into a vertical
+	// shader discards its roof/window/door split. Use layered fallback only when there is truly one
+	// dressable material surface; otherwise keep the source slots and override only strong semantics.
+	if (analysis.meshCount === 1 && analysis.surfaceCount <= 1) {
 		return {
 			materialRecipe: {
 				version: 1,
