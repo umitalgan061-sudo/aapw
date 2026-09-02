@@ -21,6 +21,9 @@ assert.equal(policy.valyriaLinearWeatheringPatina, true);
 assert.equal(policy.valyriaPatchyLithicExposure, true);
 assert.equal(policy.valyriaLinearCarrierRoughnessResponse, true);
 assert.equal(policy.valyriaFineAggregateBreakup, true);
+assert.equal(policy.valyriaCoolingJointAlbedo, true);
+assert.equal(policy.valyriaObsidianLensBreakup, true);
+assert.equal(policy.valyriaAshPumiceGranules, true);
 assert.equal(policy.lowlandSoilAggregateBreakup, true);
 assert.equal(policy.definedRidgeDarkRecovery, true);
 assert.equal(policy.valyriaAuthorityPolicyId, VALYRIA_GEOLOGY_POLICY.id);
@@ -64,6 +67,11 @@ for (const marker of [
   'naturalSurfacePatchyLithicExposure',
   'naturalSurfaceVolcanicAggregate',
   'naturalSurfaceVolcanicChip',
+  'naturalSurfaceCoolingJointEdge',
+  'naturalSurfaceObsidianLens',
+  'naturalSurfaceAshPumiceGranule',
+  'naturalSurfaceRoughJoint',
+  'naturalSurfaceRoughGlassLens',
   'naturalSurfaceRoughLinearPatina',
   'naturalSurfacePerturbedWorldNormal',
 ]) assert(first.fragmentShader.includes(marker), `natural material shader lost ${marker}`);
@@ -81,6 +89,11 @@ assert(first.fragmentShader.includes('naturalSurfaceVolcanicAggregateFrame')
   && first.fragmentShader.includes('naturalSurfaceVolcanicAggregateMask * 0.175')
   && first.fragmentShader.includes('naturalSurfaceVolcanicAggregateMask * naturalSurfaceVolcanicChip * 0.095'),
 'Valyria fine basalt/ash aggregate lost its bounded material-only breakup');
+assert(first.fragmentShader.includes('naturalSurfaceCoolingJointEdge * 0.22')
+  && first.fragmentShader.includes('naturalSurfaceObsidianLens * 0.16')
+  && first.fragmentShader.includes('naturalSurfaceAshPumiceGranule * 0.13')
+  && first.fragmentShader.includes('naturalSurfaceRoughJoint * 0.045 - naturalSurfaceRoughGlassLens * 0.090'),
+'Valyria lithic plate/joint/glass/deposit contrast lost its bounded world-space response');
 assert(first.fragmentShader.includes('1.0 - smoothstep(0.055, 0.18, naturalSurfaceLuma)')
   && !first.fragmentShader.includes('smoothstep(0.18, 0.055, naturalSurfaceLuma)'),
 'ridge dark recovery returned to undefined reversed smoothstep');
@@ -94,3 +107,4 @@ assert(first.fragmentShader.includes('naturalSurfaceStructuralX * 0.58')
 'Valyria macro normal energy escaped its artifact-audited bound');
 
 console.log('[checkNaturalSurfaceMaterial] PASS: deterministic world-space Valyria PBR and all-world anti-airbrush/intertidal shading are render-only.');
+
