@@ -231,7 +231,8 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run346 first-audio addition (module + one .wav click sound); v16->v17 forces existing installs to
 // fetch+cache both so the game's first sound works offline too, not only on a fresh install.
 // RPG expedition readiness adds an offline-loadable gameplay module; v19->v20 refreshes existing installs.
-const SHELL_CACHE = 'westeros-shell-v20';
+// Current 3D shell reconciliation refreshes existing offline installs.
+const SHELL_CACHE = 'westeros-shell-v21';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -491,6 +492,47 @@ GAME3D_SHELL_FILES.push('./src/3d/world/WorldAssetPlacementPipeline.js');
 GAME3D_SHELL_FILES.push('./src/3d/world/temperateVegetationAsset.js');
 GAME3D_SHELL_FILES.push('./assets/models/vegetation/birch_trees_R7qMWzb7nk.glb');
 
+// Run 2026-09-02 current 3D shell completeness reconciliation.
+// Preserve the standing all-src/3d + referenced-model contract instead of weakening the gate.
+// Both Moon spellings are retained because shipped code references both; install canonicalizes URLs before addAll.
+GAME3D_SHELL_FILES.push('./src/3d/celestialLightState.js');
+GAME3D_SHELL_FILES.push('./src/3d/editor/EditorTerrainFoundationGrounder.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/foundationIslandProbes.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/geographicReferencePalette.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/iceLandmarkGeometryBreakup.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/iceLandmarkRealism.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/iceLandmarks.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/naturalGeology.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/naturalGeologyPlacement.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/northGroundCoverClimate.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/northReferenceCryosphere.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/roadSurfaceProfile.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/structureGroundingPolicy.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/terrainFoundationConformer.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/terrainMacroWeathering.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/terrainSnowSurfaceTone.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/terrainWindSnowExposure.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/valyriaCastleWeathering.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/valyriaEcology.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/valyriaGeology.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/westernMarineShelfTone.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/westernReferenceSurfaceFabric.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/windGrass.js');
+GAME3D_SHELL_FILES.push('./src/3d/world/winterVegetationAsset.js');
+GAME3D_SHELL_FILES.push('./assets/models/Ay/Moon 2K.fbx');
+GAME3D_SHELL_FILES.push('./assets/models/Ay/Moon%202K.fbx');
+GAME3D_SHELL_FILES.push('./assets/models/fbx/dirt_road_test.glb');
+GAME3D_SHELL_FILES.push('./assets/models/fbx/road_terrain.glb');
+GAME3D_SHELL_FILES.push('./assets/models/fbx/rocky_terrain_low_poly.glb');
+GAME3D_SHELL_FILES.push('./assets/models/fbx/rugged_mountain_landscape.glb');
+GAME3D_SHELL_FILES.push('./assets/models/fbx/desert_rocks.glb');
+GAME3D_SHELL_FILES.push('./assets/models/fbx/terrain_01.fbx');
+GAME3D_SHELL_FILES.push('./assets/models/fbx/snow_terrain_low_poly.glb');
+GAME3D_SHELL_FILES.push('./assets/models/fbx/sNOWlaNDSCAPE.glb');
+GAME3D_SHELL_FILES.push('./assets/models/vegetation/winter_tree.glb');
+GAME3D_SHELL_FILES.push('./assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb');
+GAME3D_SHELL_FILES.push('./assets/models/vegetation/pine_Zt62gceKXZ.glb');
+
 // Run346: first audio in the game — `audio/audioManager.js` (imported by `game3d.js`) plus the one
 // CC0 click sound it plays (see CREDITS.md). `.wav` is neither in IMAGE_EXTENSIONS nor
 // VIDEO_EXTENSIONS below, so it already takes the same network-first/shell-cache-fallback fetch
@@ -527,7 +569,7 @@ self.addEventListener('install', (event) => {
             // Ayrı addAll + ayrı catch: 3D shell'in önbelleğe alınması başarısız olsa bile (örn. bir
             // dosya geçici olarak erişilemez), yukarıdaki kritik 2D shell kurulumunu asla engellemez.
             caches.open(SHELL_CACHE)
-                .then(cache => cache.addAll(GAME3D_SHELL_FILES))
+                .then(cache => cache.addAll([...new Map(GAME3D_SHELL_FILES.map(file => [new URL(file, self.location.href).href, file])).values()]))
                 .catch(() => {}),
         ])
     );
