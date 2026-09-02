@@ -42,7 +42,7 @@ function meanAbsoluteNeighborDelta(data, size, channel) {
   return total / samples;
 }
 
-assert.equal(TERRAIN_MICRO_SURFACE_POLICY.id, 'terrain-micro-surface-world-uv-pbr-v7-coastal-weathering');
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.id, 'terrain-micro-surface-world-uv-pbr-v8-granular-snow');
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.uvChannel, 1, 'micro detail must use uv1, never owner-map albedo uv0');
 assert(TERRAIN_MICRO_SURFACE_POLICY.textureSize >= 256, 'photoreal terrain atlas needs enough fracture resolution');
 assert(TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters >= 12 && TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters <= 32);
@@ -58,6 +58,10 @@ assert.equal(TERRAIN_MICRO_SURFACE_POLICY.drainageBreakup, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.nonPeriodicRockWeathering, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.multiScaleAerialContrast, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.snowScourReadability, true);
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.snowGranularAlbedo, true);
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.snowMicroNormal, true);
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.snowRoughnessVariation, true);
+assert.deepEqual(TERRAIN_MICRO_SURFACE_POLICY.snowSurfaceScaleMeters, [2.6, 11, 34]);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.slopeAwareCliffWeathering, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.erosionRunnels, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.screeAprons, true);
@@ -97,6 +101,9 @@ assert.equal(standalone.userData.terrainMicroSurface.drainageBreakup, true);
 assert.equal(standalone.userData.terrainMicroSurface.nonPeriodicRockWeathering, true);
 assert.equal(standalone.userData.terrainMicroSurface.multiScaleAerialContrast, true);
 assert.equal(standalone.userData.terrainMicroSurface.snowScourReadability, true);
+assert.equal(standalone.userData.terrainMicroSurface.snowGranularAlbedo, true);
+assert.equal(standalone.userData.terrainMicroSurface.snowMicroNormal, true);
+assert.equal(standalone.userData.terrainMicroSurface.snowRoughnessVariation, true);
 assert.equal(standalone.userData.terrainMicroSurface.slopeAwareCliffWeathering, true);
 assert.equal(standalone.userData.terrainMicroSurface.erosionRunnels, true);
 assert.equal(standalone.userData.terrainMicroSurface.screeAprons, true);
@@ -106,7 +113,7 @@ assert.equal(standalone.userData.terrainMicroSurface.coastalSaltSprayWeathering,
 assert.equal(standalone.userData.terrainMicroSurface.coastalRoughnessResponse, true);
 assert.equal(standalone.userData.terrainMicroSurface.aspectWeathering, true);
 assert.equal(standalone.userData.terrainMicroSurface.roughnessResponse, true);
-assert.equal(standalone.customProgramCacheKey(), 'terrain-photoreal-world-surface-v7-coastal-weathering');
+assert.equal(standalone.customProgramCacheKey(), 'terrain-photoreal-world-surface-v8-granular-snow');
 const shaderHookSource = standalone.onBeforeCompile.toString();
 for (const marker of [
   'terrainPhotoFbm',
@@ -137,6 +144,13 @@ for (const marker of [
   'terrainPhotoRunnel',
   'terrainPhotoSnowRockReveal',
   'terrainPhotoSnowDeposit',
+  'terrainPhotoSnowFine',
+  'terrainPhotoSnowMeso',
+  'terrainPhotoSnowSastrugi',
+  'terrainPhotoSnowGranularValue',
+  'terrainPhotoSnowRoughness',
+  'terrainPhotoSnowMicroGradient',
+  'terrainPhotoSnowWorldPerturbation',
   'terrainPhotoWetPolish',
   'terrainPhotoGeoA',
   'modelMatrix * vec4(transformed, 1.0)',
@@ -218,3 +232,4 @@ standalone.dispose();
 disposeTerrainChunk(west);
 disposeTerrainChunk(east);
 console.log('[checkTerrainMicroSurface] PASS: coastal weathering + slope/cliff weathering + scree + erosion + snow rock reveal remain seam-continuous, render-only and canonical-height neutral.');
+
