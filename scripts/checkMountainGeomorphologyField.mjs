@@ -32,6 +32,7 @@ assert(policy.heightScale.minimum >= 0.70, 'geomorphology can erase too much can
 assert(policy.heightScale.maximum <= 1.15, 'geomorphology can over-amplify canonical relief');
 assert(policy.ridgeAsymmetry.strength <= 0.10, 'ridge asymmetry exceeds bounded visual envelope');
 assert(policy.shoulderIncision.end < 1, 'incision must finish inside canonical shoulder support');
+assert(policy.rangeConstriction.end < 0.9, 'range constriction must finish before the outer apron');
 assert(policy.outerEdgeFadeEnd < 1, 'geomorphology must return toward neutral before support edge');
 
 const evidence = {};
@@ -44,6 +45,7 @@ for (const chain of REFERENCE_RELIEF_CHAINS) {
 	const leftRightDeltas = [];
 	const edgeDeltas = [];
 	const incisionScales = [];
+	const constrictionScales = [];
 	const spurScales = [];
 	const talus = [];
 	const bedrock = [];
@@ -93,6 +95,7 @@ for (const chain of REFERENCE_RELIEF_CHAINS) {
 						context.ridgeAsymmetry,
 						context.crestNotch,
 						context.shoulderIncision,
+						context.rangeConstriction,
 						context.secondarySpur,
 					]) {
 						assert(Number.isFinite(value) && value > 0, `${chain.id}: invalid geomorphology component`);
@@ -101,6 +104,7 @@ for (const chain of REFERENCE_RELIEF_CHAINS) {
 					talus.push(context.talusExposure);
 					bedrock.push(context.bedrockExposure);
 					if (normalizedDistance >= 0.24 && normalizedDistance <= 0.94) incisionScales.push(context.shoulderIncision);
+					if (normalizedDistance >= 0.24 && normalizedDistance <= 0.84) constrictionScales.push(context.rangeConstriction);
 					if (normalizedDistance >= 0.30 && normalizedDistance <= 0.88) spurScales.push(context.secondarySpur);
 				}
 				leftRightDeltas.push(Math.abs(left.heightScale - right.heightScale));
@@ -131,6 +135,7 @@ for (const chain of REFERENCE_RELIEF_CHAINS) {
 	assert(edgeDeltas.length > 0, `${chain.id}: outer-edge neutralization has no samples`);
 	assert(Math.max(...edgeDeltas) <= 0.012, `${chain.id}: morphology does not neutralize at outer support edge`);
 	assert(Math.min(...incisionScales) < 0.995, `${chain.id}: shoulder incision never activates`);
+	assert(Math.min(...constrictionScales) < 0.995, `${chain.id}: longitudinal range constriction never activates`);
 	assert(Math.max(...spurScales) > 1.003, `${chain.id}: secondary spur signal never activates`);
 	assert(talus.some((value) => value > 0.08), `${chain.id}: talus context never becomes meaningful`);
 	assert(bedrock.some((value) => value > 0.18), `${chain.id}: bedrock context never becomes meaningful`);
@@ -150,6 +155,7 @@ for (const chain of REFERENCE_RELIEF_CHAINS) {
 		bilateralDeltaP75: rounded(percentile(leftRightDeltas, 0.75)),
 		bilateralDeltaMax: rounded(Math.max(...leftRightDeltas)),
 		maxOuterEdgeDelta: rounded(Math.max(...edgeDeltas)),
+		rangeConstrictionMin: rounded(Math.min(...constrictionScales)),
 		talusMax: rounded(Math.max(...talus)),
 		bedrockMax: rounded(Math.max(...bedrock)),
 	};
