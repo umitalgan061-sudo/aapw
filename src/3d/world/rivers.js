@@ -25,6 +25,7 @@ import { WORLD_SCALE } from '../config.js';
 import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
 import { densifyRiverPath } from './riverRibbonPath.js';
 import { extendCourseToCanonicalWater } from './riverMouth.js';
+import { applyNaturalRiverEdge } from './riverEdgeAppearance.js';
 import {
 	RIVER_BASE_FLOW_SPEED_MPS, RIVER_GRADE_FLOW_GAIN, RIVER_FLOW_WAVENUMBER,
 	WATERFALL_FLOW_SPEED_MPS, FROTH_SPEED_MIN_MPS, FROTH_SPEED_FULL_MPS,
@@ -362,6 +363,10 @@ export function createRiverMesh(points, widthMeters = 14, sampleHeightMeters = n
 		side: THREE.DoubleSide,
 	});
 	attachFlowAnimation(material, 'river-flow', 0.45);
+	// Run 421 — banks. Applied after the flow patch so the shallows tint finished water, not raw
+	// vertex colour; see `world/riverEdgeAppearance.js` for what this does and what it deliberately
+	// leaves to the course itself.
+	applyNaturalRiverEdge(material);
 
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.userData.totalFlowLengthMeters = arcLengthMeters;

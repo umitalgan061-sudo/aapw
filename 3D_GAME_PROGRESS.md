@@ -19169,3 +19169,50 @@ Kapılar: `checkMedievalRoadSurface`, `checkTerrainVisualContract`, `checkGround
 **Aynı taramada görülen ve sıradaki iş olan kusur:** nehirler. Yeşil bir tarlanın **üstüne** yatırılmış,
 kenarları keskin paralel, eni sabit, parlak camgöbeği bir şerit — vadi yok, kıyı yok, derinlik yok
 (`artifacts/world-survey/seat-ziya.png`). Deniz ağzında da sert siyah bir kama duruyor.
+
+## Tur 421 — Nehirlere kıyı: kesin ölçüm, kısmi düzeltme, dürüst sınır (ADR-0369)
+
+Tarama, nehirleri açık arazinin **üstüne** yatırılmış, kenarları keskin paralel, eni sabit parlak bir
+şerit olarak gösterdi (`artifacts/world-survey/seat-ziya.png`). Tahmin etmeden önce hangi katmanın
+zemini nereye koyduğunu ölçtüm — Green Fork boyunca, kanalın karşısında, faz faz:
+
+| mesafe | doğal | vadi kazısından sonra | son (yol yatağı dahil) |
+|---|---|---|---|
+| 0 m | 154,03 | **145,53** | 145,53 |
+| +15 m | 152,68 | 141,35 | 141,35 |
+| +90 m | 139,73 | **137,39** | 137,39 |
+| −15 m | 161,46 | 146,16 | 146,16 |
+
+**Vadi kazısı çalışıyor** — 8 ile 29 m arasında kesiyor ve izlenen yol tek bir adım bile yukarı
+çıkmıyor (21 noktanın 20 adımı, 0 yukarı adım). Ama kazı sözleşmesi gereği **sadece aşağı kesebiliyor**
+(`min(natural, carved)`), ve bu satırın çözemediği durum şu: nehrin izlediği rota yamacın **üst
+kısmından** geçiyor, dolayısıyla 15-90 m yandaki doğal zemin zaten su hattının altında. Kanalın
+tabanını 8 m kazmak, 90 m ötedeki zemin 6 m daha aşağıdayken suyu hâlâ sırtın üstünde bırakıyor.
+
+Yani kök neden **rota**: `generateRiverPath` aşağı iniyor ama talveg'i (vadinin en alçak çizgisi)
+takip etmiyor. Bunu bu turda düzeltmedim ve bilerek düzeltmedim: rota değiştirmek nehir yataklarını
+değiştirir, nehir yatakları köprüleri, yol geçişlerini ve yarım düzine kapıyı birlikte taşır. Bir
+shader'ın arkasına saklanacak bir değişiklik değil; kendi alt görevi olarak yazıldı.
+
+**Bu turda yapılan, görünüşün payına düşen kısım** — `world/riverEdgeAppearance.js`, tekniği Tur
+406'nın yol kenarından alıyor:
+
+1. **Saçaklı kıyı.** Gürültüyle modüle edilmiş yarı-genişliğin ötesindeki fragmentler `discard`
+   ediliyor, dünya uzayında — yani kıyı çizgisi zeminle birlikte kıvrılıyor, mesh'in vertex'leriyle
+   değil. Gerçek suyun düz kenarı yoktur.
+2. **Sığlık bandı.** Kıyıya doğru su açılıyor, mavisini kaybediyor ve altındakini saklamayı bırakıyor
+   (alfa %62'ye kadar düşüyor). Derinlik ipucu budur ve sabit alfalı bir şeritte hiç yoktu.
+3. **Pürüz.** Su ortada cam gibi, sığlıkta sürtündüğü için daha pürüzlü.
+
+Sıfır ek çizim çağrısı, sıfır vertex değişikliği, sıfır yeni attribute (`aFlowSide` zaten sol kenarda
+−1, sağ kenarda +1 taşıyor). Akış animasyonunun `<color_fragment>` çengelini kullanmıyor;
+`<roughnessmap_fragment>`'e bağlanıyor — böylece sığlık bitmiş suyu boyuyor, ham vertex rengini değil,
+ve iki yama aynı çengelde çakışmıyor.
+
+Kapılar: `checkNamedRivers`, `checkRiverValleyCarving`, `checkRun325RiverFlow`,
+`roadNetworkSafetyCheck`, `checkSmokeCheckRegistry`, `checkServiceWorkerCache`, `checkTechnicalDebt`,
+`checkSeededRandomPolicy` — hepsi PASS. `checkRoadWaterPolicyComparison` bu dalda **zaten kırık**
+(stash ile doğrulandı, bu turun değişikliğiyle ilgisi yok). `SHELL_CACHE` v67 -> v68.
+
+**Dürüst değerlendirme:** kenar artık düz değil ve sığlık okunuyor, ama nehir hâlâ bir yamacın üstünde
+duruyor. Görsel iyileşme gerçek ama ölçülü; asıl düzeltme yukarıdaki rota alt görevi.
