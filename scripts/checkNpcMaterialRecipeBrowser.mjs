@@ -85,6 +85,31 @@ try {
 		pbr.add(pbrMesh);
 		const authored = inspectConfiguredNpcMaterials(pbr);
 
+		const mixed = new THREE.Group();
+		const mixedSkin = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.3), new THREE.MeshStandardMaterial({ roughness: 0.8 }));
+		mixedSkin.name = 'Guard_Skin_Head';
+		const importedArmor = new THREE.MeshStandardMaterial({ roughness: 0.31, metalness: 0.82 });
+		const importedColorMap = new THREE.Texture();
+		const importedNormalMap = new THREE.Texture();
+		importedArmor.map = importedColorMap;
+		importedArmor.normalMap = importedNormalMap;
+		const mixedArmor = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.4), importedArmor);
+		mixedArmor.name = 'Guard_Armor';
+		mixed.add(mixedSkin, mixedArmor);
+		const mixedPlan = createConfiguredNpcMaterialRecipe(mixed, { ...spawn, id: 'mixed-authored-guard' }, geography);
+		const mixedApplied = applyMaterialRecipe(mixed, mixedPlan.recipe, { metadata: { category: 'soldier', id: 'mixed-authored-guard' } });
+		const mixedValidation = validateMaterialAssignment(mixed, { requireGeneratedTexture: true });
+		const mixedProof = {
+			mode: mixedPlan.mode,
+			preservedCount: mixedPlan.preservedHighQualitySurfaceCount ?? 0,
+			applied: mixedApplied.ok,
+			validation: mixedValidation.ok,
+			armorMaterialPreserved: mixedArmor.material === importedArmor,
+			armorMapsPreserved: mixedArmor.material.map === importedColorMap && mixedArmor.material.normalMap === importedNormalMap,
+			armorPbrPreserved: mixedArmor.material.roughness === 0.31 && mixedArmor.material.metalness === 0.82,
+			skinGenerated: mixedSkin.material?.userData?.generatedByTextureFactory === true,
+		};
+
 		return {
 			named: {
 				mode: namedPlan.mode,
@@ -108,6 +133,7 @@ try {
 				authoredTextureSlots: authored.authoredTextureSlots,
 				highQualityAuthoredSlots: authored.highQualityAuthoredSlots,
 			},
+			mixed: mixedProof,
 		};
 	});
 
@@ -156,6 +182,14 @@ try {
 	assert.equal(proof.authored.meshCount, 1);
 	assert.equal(proof.authored.authoredTextureSlots, 1, 'authored PBR fixture was not detected');
 	assert.equal(proof.authored.highQualityAuthoredSlots, 1, 'multi-map authored PBR quality signal was not detected');
+	assert.equal(proof.mixed.mode, 'named-parts-preserve-authored', `mixed guard did not select preserve-capable named mode: ${JSON.stringify(proof.mixed)}`);
+	assert.equal(proof.mixed.preservedCount, 1, 'mixed guard did not report one preserved high-quality surface');
+	assert.equal(proof.mixed.applied, true, 'mixed guard surface recipe failed');
+	assert.equal(proof.mixed.validation, true, 'mixed guard failed generated+authored validation');
+	assert.equal(proof.mixed.armorMaterialPreserved, true, 'high-quality imported armor material object was replaced');
+	assert.equal(proof.mixed.armorMapsPreserved, true, 'high-quality imported armor texture maps were replaced');
+	assert.equal(proof.mixed.armorPbrPreserved, true, 'high-quality imported armor PBR response was replaced');
+	assert.equal(proof.mixed.skinGenerated, true, 'low-quality skin surface was not dressed through shared palette material');
 	console.log('NPC_MATERIAL_RECIPE_BROWSER_PASS', JSON.stringify(proof));
 } finally {
 	await browser.close();
