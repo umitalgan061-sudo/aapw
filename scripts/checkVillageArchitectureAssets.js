@@ -13,6 +13,9 @@ function assertHydratedGlbs() {
 	assert(!source.includes('EditorMaterialStudio'), 'runtime villages must not import editor-only Material Studio UI');
 	assert(source.includes('WorldAssetPlacementPipeline.js'), 'village models must use the shared placement core');
 	assert(source.includes('placeWorldAsset('), 'village models must pass through placeWorldAsset');
+	assert(source.includes("mode: 'surface'"), 'multi-mesh village houses must support shared per-surface material recipes');
+	assert(source.includes('resolveVillageArchitectureSurfacePalette'), 'authored architecture slots must map through destination geography');
+	assert(source.includes('surfaceOverrides'), 'trusted authored slots must become shared-core surface overrides');
 	assert(source.includes('MAX_ARCHITECTURE_ASSETS_PER_HAMLET = 2'), 'hamlets must bound real residential upgrades to two');
 	assert(source.includes('MIN_ARCHITECTURE_ASSET_SPACING_METERS = 22'), 'real residential upgrades must be spatially separated');
 	assert(source.includes('secondaryAssetUrl'), 'regional profiles must provide a bounded secondary silhouette');
@@ -55,7 +58,14 @@ async function main() {
 			const THREE = await import('three');
 			const { AssetLoader } = await import('/src/3d/assetLoader.js');
 			const { analyzeMaterialSurfaces, autoAssignMaterials } = await import('/src/3d/materials/MaterialAssignmentCore.js');
-			const { VILLAGE_ARCHITECTURE_PROFILES, resolveVillageArchitectureProfile, upgradeVillageArchitectureAssets, disposeVillages } = await import('/src/3d/world/villages.js');
+			const { classifyPart } = await import('/src/3d/materials/meshPartClassifier.js');
+			const {
+				VILLAGE_ARCHITECTURE_PROFILES,
+				resolveVillageArchitectureProfile,
+				resolveVillageArchitectureSurfacePalette,
+				upgradeVillageArchitectureAssets,
+				disposeVillages,
+			} = await import('/src/3d/world/villages.js');
 			const seatIds = ['berkalp', 'ziya', 'stannis', 'doran', 'robin', 'twin', 'umit'];
 			const expectedRegions = ['north', 'fertile', 'maritime', 'arid', 'mountain', 'temperate', 'volcanic'];
 			const villageGroup = new THREE.Group();
@@ -98,6 +108,7 @@ async function main() {
 				recipeMode: entry.manifest?.recipe?.mode ?? null,
 				basePaletteId: entry.manifest?.recipe?.basePaletteId ?? null,
 				layerPalettes: (entry.manifest?.recipe?.layers || []).map((layer) => layer.palette),
+				surfaceOverridePalettes: Object.values(entry.manifest?.recipe?.surfaceOverrides || {}),
 				generatedMaterialCount: entry.manifest?.validation?.generatedMaterialCount ?? 0,
 				meshCount: entry.manifest?.validation?.meshCount ?? 0,
 				surfaceCount: entry.manifest?.validation?.surfaceCount ?? 0,
@@ -107,21 +118,33 @@ async function main() {
 				placementSurfaceHeight: entry.manifest?.placementSurface?.height ?? null,
 			}));
 
-			const sourceSurfaceProof = (villageGroup.getObjectByName('village-architectural-assets')?.children || []).map((object) => ({
-				name: object.name,
-				region: object.userData?.architectureRegion ?? null,
-				surfaces: analyzeMaterialSurfaces(object).surfaces.map((surface) => {
-					const original = surface.mesh?.userData?.originalMaterial;
-					const originalMaterials = Array.isArray(original) ? original : [original];
-					return {
-						key: surface.key,
-						meshName: surface.meshName || '',
-						originalMaterialName: originalMaterials[surface.materialIndex]?.name || '',
-						classifiedSlot: surface.slot || null,
-						generatedPaletteId: surface.material?.userData?.paletteId || null,
-					};
-				}),
-			}));
+			const sourceSurfaceProof = (villageGroup.getObjectByName('village-architectural-assets')?.children || []).map((object) => {
+				const profile = VILLAGE_ARCHITECTURE_PROFILES[object.userData?.architectureRegion];
+				return {
+					name: object.name,
+					region: object.userData?.architectureRegion ?? null,
+					surfaces: analyzeMaterialSurfaces(object).surfaces.map((surface) => {
+						const original = surface.mesh?.userData?.originalMaterial;
+						const originalMaterials = Array.isArray(original) ? original : [original];
+						const originalMaterialName = originalMaterials[surface.materialIndex]?.name || '';
+						const sourceMatch = classifyPart({ meshName: surface.meshName || '', materialName: originalMaterialName });
+						const generatedPaletteId = surface.material?.userData?.paletteId || null;
+						const image = surface.material?.map?.image;
+						return {
+							key: surface.key,
+							meshName: surface.meshName || '',
+							originalMaterialName,
+							sourceSlot: sourceMatch?.slot || null,
+							expectedRegionalPaletteId: resolveVillageArchitectureSurfacePalette(profile, sourceMatch?.slot || null),
+							generatedPaletteId,
+							roughness: Number.isFinite(surface.material?.roughness) ? surface.material.roughness : null,
+							metalness: Number.isFinite(surface.material?.metalness) ? surface.material.metalness : null,
+							textureWidth: Number(image?.width ?? image?.videoWidth) || null,
+							textureHeight: Number(image?.height ?? image?.videoHeight) || null,
+						};
+					}),
+				};
+			});
 
 			const lifecycleGroup = new THREE.Group();
 			lifecycleGroup.userData.villageLandmarkSites = [{ seatId: 'berkalp', assetIndex: 0, x: 0, z: 0, yaw: 0, houseIndex: 0, stepStartIndex: 0, stepCount: 3, targetWidthMeters: 5.2, targetDepthMeters: 4.4, targetFootprintMeters: 7.2 }];
@@ -178,6 +201,16 @@ async function main() {
 		assert.equal(new Set(result.profileTints.map((t) => t.roof)).size, 7);
 		assert.equal(result.sourceSurfaceProof.length, 14, 'source surface evidence must cover every hydrated house');
 		assert(result.sourceSurfaceProof.every((entry) => entry.surfaces.length > 0), 'source surface evidence must expose every house mesh/material family');
+		const allSurfaces = result.sourceSurfaceProof.flatMap((entry) => entry.surfaces.map((surface) => ({ ...surface, region: entry.region, objectName: entry.name })));
+		const semanticSurfaces = allSurfaces.filter((surface) => surface.sourceSlot && surface.expectedRegionalPaletteId);
+		assert(semanticSurfaces.length > 0, 'hydrated village GLBs must expose at least one trustworthy authored architecture surface');
+		for (const surface of semanticSurfaces) {
+			assert.equal(surface.generatedPaletteId, surface.expectedRegionalPaletteId, `${surface.region}/${surface.objectName}/${surface.key}: authored semantic slot missed regional palette`);
+			assert(Number.isFinite(surface.roughness), `${surface.region}/${surface.key}: generated PBR roughness missing`);
+			assert(Number.isFinite(surface.metalness), `${surface.region}/${surface.key}: generated PBR metalness missing`);
+			assert.equal(surface.textureWidth, 256, `${surface.region}/${surface.key}: semantic texture width must be 256`);
+			assert.equal(surface.textureHeight, 256, `${surface.region}/${surface.key}: semantic texture height must be 256`);
+		}
 		assert.equal(result.lifecycle.disposed, true);
 		assert.equal(result.lifecycle.ok, false);
 		assert.equal(result.lifecycle.upgradedCount, 0);
@@ -197,8 +230,12 @@ async function main() {
 			assert(footprint.fittedDepth <= footprint.targetDepth + 1e-6, `${proof.region}: GLB overflows procedural parcel depth`);
 			const fittedAxisRatio = Math.max(footprint.fittedWidth / footprint.targetWidth, footprint.fittedDepth / footprint.targetDepth);
 			assert(fittedAxisRatio >= 0.999 && fittedAxisRatio <= 1.000001, `${proof.region}: uniform GLB fit must touch one parcel axis without overflow`);
-			if (proof.recipeMode === 'layers') assert(proof.layerPalettes.length >= 3, `${proof.region}: layered fallback too shallow`);
-			else {
+			if (proof.recipeMode === 'layers') {
+				assert(proof.layerPalettes.length >= 3, `${proof.region}: layered fallback too shallow`);
+			} else if (proof.recipeMode === 'surface') {
+				assert(proof.surfaceOverridePalettes.length > 0, `${proof.region}: surface recipe has no semantic override`);
+				assert(proof.paletteIds.length > 0, `${proof.region}: surface recipe produced no generated palette evidence`);
+			} else {
 				assert.equal(proof.recipeMode, 'auto', `${proof.region}: unexpected material recipe mode`);
 				assert(proof.basePaletteId, `${proof.region}: auto material palette missing from manifest recipe`);
 			}
@@ -206,7 +243,7 @@ async function main() {
 		assert.deepEqual(pageErrors, [], `page errors: ${pageErrors.join(' | ')}`);
 		assert.deepEqual(consoleErrors, [], `console errors: ${consoleErrors.join(' | ')}`);
 		await page.screenshot({ path: path.join(ARTIFACT_DIR, 'regional-village-assets.png'), fullPage: true });
-		console.log('VILLAGE_ARCHITECTURE_ASSET_PASS', JSON.stringify({ assets: assetPaths.length, ...result.evidence, regions: result.regions, proof: result.manifestProof, sourceSurfaceProof: result.sourceSurfaceProof, pageErrors: pageErrors.length, consoleErrors: consoleErrors.length }));
+		console.log('VILLAGE_ARCHITECTURE_ASSET_PASS', JSON.stringify({ assets: assetPaths.length, ...result.evidence, regions: result.regions, proof: result.manifestProof, semanticSurfaces, sourceSurfaceProof: result.sourceSurfaceProof, pageErrors: pageErrors.length, consoleErrors: consoleErrors.length }));
 	} finally {
 		await browser.close();
 		server.close();
