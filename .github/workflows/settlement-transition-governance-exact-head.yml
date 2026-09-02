@@ -57,6 +57,7 @@ jobs:
         run: |
           node --check scripts/checkWorldReferenceHydrologyExtent.js
           node --check scripts/checkFullWorldRuntimeCoverage.mjs
+          node --check scripts/checkSeededRandomPolicy.js
 
       - name: Shipped 210m settlement transition contracts
         run: |
@@ -71,8 +72,8 @@ jobs:
           grep -Eq '210' scripts/checkFullWorldRuntimeCoverage.mjs
           grep -Eq '75' scripts/checkWorldReferenceHydrologyExtent.js
 
-      - name: Seeded determinism regression
-        run: node scripts/checkSeededRandom.js
+      - name: Seeded determinism policy regression
+        run: node scripts/checkSeededRandomPolicy.js
 
       - name: Final exact-main freshness
         shell: bash
