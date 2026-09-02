@@ -1,0 +1,134 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import { classifyPart, surveyParts, tokenize } from '../src/3d/materials/meshPartClassifier.js';
+import { FIGURE_KITS, kitForPalette, resolveKit } from '../src/3d/materials/figureKits.js';
+import { findPalette } from '../src/3d/materials/palettes.js';
+
+const CASES = [
+	{ meshName: 'House_Roof_Tiles', materialName: 'RoofTile_Clay', slot: 'structure-roof' },
+	{ meshName: 'Cottage_Thatch', materialName: 'Thatched_Roof', slot: 'structure-thatch' },
+	{ meshName: 'House_Window_Frame', materialName: 'Window_Glass', slot: 'structure-window' },
+	{ meshName: 'Cabin_Door', materialName: 'Oak_Door', slot: 'structure-door' },
+	{ meshName: 'Timber_Frame', materialName: 'Wooden_Beam', slot: 'structure-timber' },
+	{ meshName: 'Stone_Footing', materialName: 'Masonry_Foundation', slot: 'structure-stone' },
+	{ meshName: 'Brick_Chimney', materialName: 'Brickwork', slot: 'structure-brick' },
+	{ meshName: 'Plaster_Facade', materialName: 'Stucco', slot: 'structure-plaster' },
+	{ meshName: 'Door_Hardware', materialName: 'Wrought_Iron_Hinge', slot: 'structure-metal' },
+	{ meshName: 'Ev_Cati', materialName: 'Kiremit', slot: 'structure-roof' },
+	{ meshName: 'Ahsap_Kiris', materialName: 'Tahta', slot: 'structure-timber' },
+	{ meshName: 'Kapi', materialName: 'Kapi', slot: 'structure-door' },
+	{ meshName: 'Pencere', materialName: 'Vitray', slot: 'structure-window' },
+];
+
+for (const testCase of CASES) {
+	const match = classifyPart(testCase);
+	assert(match, `expected authored structure match for ${JSON.stringify(testCase)}`);
+	assert.equal(match.slot, testCase.slot, `${testCase.materialName || testCase.meshName}: wrong structure slot`);
+	assert(match.score > 0, `${testCase.slot}: semantic match must carry positive confidence`);
+}
+
+// Material names are the artist's stronger semantic signal. A Window_Glass material on a generic
+// roof-labelled mesh must stay glass instead of being flattened into the roof palette.
+assert.equal(
+	classifyPart({ meshName: 'House_Roof', materialName: 'Window_Glass' })?.slot,
+	'structure-window',
+	'artist material semantics must outrank a competing mesh name',
+);
+
+// Deliberately generic façade and hardware names remain unclassified. This is the fail-closed side of
+// the contract: the destination house/brick palette remains authoritative rather than guessing.
+for (const generic of [
+	{ meshName: 'House_Wall', materialName: 'Wall' },
+	{ meshName: 'StoneWall', materialName: 'Material.001' },
+	{ meshName: 'House', materialName: 'Metal' },
+	{ meshName: 'Building', materialName: 'Iron' },
+	{ meshName: 'Mesh_02', materialName: 'Material_04' },
+]) {
+	assert.equal(classifyPart(generic), null, `generic surface must fail closed: ${JSON.stringify(generic)}`);
+}
+
+// Existing high-priority creature/human vocabulary must still win. Architecture additions are not
+// allowed to relabel a character's equipment or a creature's anatomy.
+assert.equal(classifyPart({ meshName: 'Paladin_Helmet', materialName: 'Steel_Plate' })?.slot, 'helmet');
+assert.equal(classifyPart({ meshName: 'Knight_Shield', materialName: 'Wooden_Plank' })?.slot, 'armor');
+assert.equal(classifyPart({ meshName: 'Wolf3_teeth', materialName: 'Wolf Teeth' })?.slot, 'tooth');
+assert.equal(classifyPart({ meshName: 'GameDragonWing', materialName: 'Wing_Membrane' })?.slot, 'wing');
+assert.equal(classifyPart({ meshName: 'HumanBody', materialName: 'Skin' })?.slot, 'skin');
+
+assert.deepEqual(tokenize('OldHouse_RoofTiles02'), ['old', 'house', 'roof', 'tiles']);
+assert.deepEqual(tokenize('Pencere-Cam_04'), ['pencere', 'cam']);
+
+const fakeMesh = {
+	isMesh: true,
+	isInstancedMesh: false,
+	name: 'Authored_House',
+	material: [
+		{ name: 'Roof_Tile' },
+		{ name: 'Window_Glass' },
+		{ name: 'Oak_Door' },
+		{ name: 'Timber_Beam' },
+		{ name: 'Wall_Material' },
+	],
+};
+const fakeRoot = {
+	traverse(callback) { callback(fakeMesh); },
+};
+const survey = surveyParts(fakeRoot);
+assert.equal(survey.length, 5, 'multi-material architecture must be surveyed per material slot');
+assert.deepEqual(
+	survey.map((surface) => surface.slot),
+	['structure-roof', 'structure-window', 'structure-door', 'structure-timber', null],
+	'authored building surfaces must stay independently addressable without guessing the wall',
+);
+assert.deepEqual(survey.map((surface) => surface.materialIndex), [0, 1, 2, 3, 4]);
+
+const housePaletteIds = ['house', 'brick', 'plaster', 'thatch', 'roof-tile'];
+for (const paletteId of housePaletteIds) {
+	const palette = findPalette(paletteId);
+	assert(palette, `missing palette fixture: ${paletteId}`);
+	assert.equal(kitForPalette(palette)?.id, 'house', `${paletteId}: architecture palette must resolve the house kit`);
+}
+
+const house = FIGURE_KITS.house;
+assert(house, 'house material kit missing');
+assert.deepEqual(
+	{
+		window: house.slots['structure-window'],
+		door: house.slots['structure-door'],
+		thatch: house.slots['structure-thatch'],
+		roof: house.slots['structure-roof'],
+		brick: house.slots['structure-brick'],
+		plaster: house.slots['structure-plaster'],
+		stone: house.slots['structure-stone'],
+		timber: house.slots['structure-timber'],
+		metal: house.slots['structure-metal'],
+	},
+	{
+		window: 'glass',
+		door: 'wood',
+		thatch: 'thatch',
+		roof: 'roof-tile',
+		brick: 'brick',
+		plaster: 'plaster',
+		stone: 'stone',
+		timber: 'wood',
+		metal: 'iron',
+	},
+	'house kit must map semantic slots to physically distinct PBR palette families',
+);
+
+const resolved = resolveKit(house, 0xA11CE);
+for (const [slot, paletteId] of Object.entries(house.slots)) {
+	assert.equal(resolved.slots[slot], paletteId, `${slot}: architecture slot must not vary nondeterministically`);
+	assert(findPalette(paletteId), `${slot}: mapped palette does not exist: ${paletteId}`);
+}
+assert.equal(resolved.base, 'house', 'house base façade must remain the kit base when no skin slot exists');
+assert(house.bands.length >= 4, 'single-mesh architecture fallback must retain multi-surface vertical PBR bands');
+assert.equal(house.bands.at(-1)?.to, 1, 'house fallback must cover the complete mesh height');
+
+console.log('ARCHITECTURE_SURFACE_SEMANTICS_PASS', JSON.stringify({
+	classifiedCases: CASES.length,
+	surveySlots: survey.map((surface) => surface.slot),
+	houseSlots: house.slots,
+	fallbackBands: house.bands,
+}));
