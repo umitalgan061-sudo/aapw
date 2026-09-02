@@ -26,7 +26,7 @@ const ALWAYS_WINTER_ZONE = findZone('lands-always-winter');
 const NORTH_ZONE = findZone('north');
 
 export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
-	id: 'owner-map-north-cryosphere-2026-09-02-v8-shaped-weathered-ice-transition',
+	id: 'owner-map-north-cryosphere-2026-09-02-v9-eroded-multiscale-ice-transition',
 	source: 'WORLD_REFERENCE_MAP biome zones',
 	renderClimateOnly: true,
 	heightAuthorityUnchanged: true,
@@ -37,6 +37,7 @@ export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
 	curvedIceHalo: true,
 	deterministicTransitionWeathering: true,
 	domainWarpedTransitionWeathering: true,
+	multiscaleErodedTransitionWeathering: true,
 	alwaysWinterZoneId: ALWAYS_WINTER_ZONE.id,
 	northZoneId: NORTH_ZONE.id,
 	iceTransitionRadiusScale: 1.55,
@@ -45,9 +46,9 @@ export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
 	iceHaloCurveExponent: 0.88,
 	northTundraGain: 0.92,
 	winterHaloGain: 0.82,
-	transitionWeatheringMin: 0.58,
+	transitionWeatheringMin: 0.54,
 	transitionWeatheringMax: 1.0,
-	transitionWeatheringResponseExponent: 0.5,
+	transitionWeatheringResponseExponent: 0.72,
 });
 
 function scaledZone(zone, radiusScale) {
@@ -78,10 +79,19 @@ function transitionWeathering(normalizedX, normalizedY) {
 	const warpY = Math.sin(normalizedX * 9.7 - Math.sin(normalizedY * 6.3) * 1.10) * 0.023;
 	const x = normalizedX + warpX;
 	const y = normalizedY + warpY;
+	const continental = Math.sin(x * 8.3 - y * 6.7 + Math.sin((x + y) * 4.9) * 1.15);
 	const macro = Math.sin(x * 19.7 + y * 13.1 + Math.sin(y * 7.3) * 0.9);
 	const meso = Math.sin(x * 43.9 - y * 31.7 + Math.sin(x * 17.2) * 0.65);
 	const fine = Math.sin(x * 91.3 + y * 67.1 + Math.sin((x - y) * 29.4) * 0.42);
-	const raw = clamp01(0.5 + macro * 0.27 + meso * 0.19 + fine * 0.10);
+	const erosionRidge = 1 - Math.abs(Math.sin(x * 27.1 + y * 18.7 + macro * 0.75));
+	const raw = clamp01(
+		0.46
+		+ continental * 0.14
+		+ macro * 0.25
+		+ meso * 0.18
+		+ fine * 0.08
+		- erosionRidge * 0.09,
+	);
 	const eroded = raw * raw * (3 - 2 * raw);
 	const shaped = Math.pow(eroded, P.transitionWeatheringResponseExponent);
 	return P.transitionWeatheringMin + (P.transitionWeatheringMax - P.transitionWeatheringMin) * shaped;
