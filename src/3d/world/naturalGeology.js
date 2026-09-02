@@ -26,7 +26,7 @@ import {
 } from './valyriaGeology.js';
 
 export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
-  id: 'natural-geology-render-2026-09-01-v8-hydrated-texture-fidelity',
+  id: 'natural-geology-render-2026-09-02-v9-legacy-fbx-pbr-fidelity',
   renderOnly: true,
   deterministicPlacement: true,
   geographyAuthorityUnchanged: true,
@@ -69,6 +69,9 @@ export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
   hydratedMipFiltering: true,
   hydratedMaximumAnisotropy: 8,
   sourceUvAndTextureTransformPreserved: true,
+  legacyFbxMaterialPbrNormalization: true,
+  legacyFbxDiffuseAndNormalMapsPreserved: true,
+  legacyFbxTransparencyPreserved: true,
   proceduralRoughness: 0.90,
   worldSpaceRockWeathering: true,
   worldSpaceRockAlbedoVariation: true,
@@ -101,6 +104,77 @@ const HYDRATED_DATA_TEXTURE_KEYS = Object.freeze([
   'displacementMap',
   'alphaMap',
 ]);
+const HYDRATED_COMMON_RENDER_KEYS = Object.freeze([
+  'alphaTest',
+  'blending',
+  'blendDst',
+  'blendDstAlpha',
+  'blendEquation',
+  'blendEquationAlpha',
+  'blendSrc',
+  'blendSrcAlpha',
+  'colorWrite',
+  'depthFunc',
+  'depthTest',
+  'depthWrite',
+  'opacity',
+  'polygonOffset',
+  'polygonOffsetFactor',
+  'polygonOffsetUnits',
+  'premultipliedAlpha',
+  'shadowSide',
+  'side',
+  'transparent',
+  'vertexColors',
+  'visible',
+]);
+
+function cloneHydratedRockMaterial(sourceMaterial) {
+  if (sourceMaterial.isMeshStandardMaterial || sourceMaterial.isMeshPhysicalMaterial) {
+    return sourceMaterial.clone();
+  }
+
+  // FBXLoader commonly emits MeshPhongMaterial even for static rock assets. Rebuild that legacy
+  // lighting model as dielectric PBR while retaining the authored UV-backed channels and render-state
+  // contract. This keeps FBX boulders in the same rough, weatherable material family as glTF rocks.
+  const shininess = Number.isFinite(sourceMaterial.shininess) ? sourceMaterial.shininess : 30;
+  const material = new THREE.MeshStandardMaterial({
+    color: sourceMaterial.color?.clone?.() ?? new THREE.Color(0xffffff),
+    emissive: sourceMaterial.emissive?.clone?.() ?? new THREE.Color(0x000000),
+    emissiveIntensity: Number.isFinite(sourceMaterial.emissiveIntensity) ? sourceMaterial.emissiveIntensity : 1,
+    map: sourceMaterial.map ?? null,
+    normalMap: sourceMaterial.normalMap ?? null,
+    normalScale: sourceMaterial.normalScale?.clone?.() ?? new THREE.Vector2(1, 1),
+    bumpMap: sourceMaterial.bumpMap ?? null,
+    bumpScale: Number.isFinite(sourceMaterial.bumpScale) ? sourceMaterial.bumpScale : 1,
+    aoMap: sourceMaterial.aoMap ?? null,
+    aoMapIntensity: Number.isFinite(sourceMaterial.aoMapIntensity) ? sourceMaterial.aoMapIntensity : 1,
+    alphaMap: sourceMaterial.alphaMap ?? null,
+    emissiveMap: sourceMaterial.emissiveMap ?? null,
+    lightMap: sourceMaterial.lightMap ?? null,
+    lightMapIntensity: Number.isFinite(sourceMaterial.lightMapIntensity) ? sourceMaterial.lightMapIntensity : 1,
+    displacementMap: sourceMaterial.displacementMap ?? null,
+    displacementScale: Number.isFinite(sourceMaterial.displacementScale) ? sourceMaterial.displacementScale : 1,
+    displacementBias: Number.isFinite(sourceMaterial.displacementBias) ? sourceMaterial.displacementBias : 0,
+    roughness: Math.max(
+      NATURAL_GEOLOGY_RENDER_POLICY.hydratedRoughnessFloor,
+      1 - Math.sqrt(Math.min(1000, Math.max(0, shininess)) / 1000),
+    ),
+    metalness: 0,
+    flatShading: Boolean(sourceMaterial.flatShading),
+    fog: sourceMaterial.fog !== false,
+  });
+  material.name = sourceMaterial.name;
+  for (const key of HYDRATED_COMMON_RENDER_KEYS) {
+    if (sourceMaterial[key] !== undefined) material[key] = sourceMaterial[key];
+  }
+  material.userData = {
+    ...sourceMaterial.userData,
+    naturalGeologyLegacySourceMaterialType: sourceMaterial.type ?? 'Material',
+    naturalGeologyLegacyPbrNormalized: true,
+  };
+  return material;
+}
 
 function configureHydratedRockTexture(texture, { colorTexture, maxAnisotropy }) {
   if (!texture?.isTexture) return null;
@@ -147,7 +221,7 @@ function configureHydratedRockTexture(texture, { colorTexture, maxAnisotropy }) 
  */
 export function prepareNaturalGeologyHydratedMaterial(sourceMaterial, { maxAnisotropy = 1 } = {}) {
   if (!sourceMaterial?.clone) return sourceMaterial;
-  const material = sourceMaterial.clone();
+  const material = cloneHydratedRockMaterial(sourceMaterial);
   for (const key of HYDRATED_COLOR_TEXTURE_KEYS) {
     configureHydratedRockTexture(material[key], { colorTexture: true, maxAnisotropy });
   }
@@ -167,6 +241,7 @@ export function prepareNaturalGeologyHydratedMaterial(sourceMaterial, { maxAniso
     naturalGeologyHydratedMaterial: true,
     naturalGeologySourceMapsPreserved: true,
     naturalGeologyTextureColorSpaceContract: true,
+    naturalGeologyPbrMaterial: true,
   };
   material.needsUpdate = true;
   return material;
@@ -926,3 +1001,4 @@ export function disposeNaturalGeology(group) {
   });
   group.clear();
 }
+
