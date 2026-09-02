@@ -17,6 +17,7 @@ export const WORLD_MATERIAL_SURFACE_FABRIC_POLICY = Object.freeze({
   sourceMapsPreserved: true,
   sourceUvTransformsPreserved: true,
   sourceShaderHooksPreserved: true,
+  placementContextAtCompileTime: true,
   extraDrawCalls: 0,
   geometryUnchanged: true,
   placementUnchanged: true,
@@ -31,9 +32,7 @@ export const WORLD_MATERIAL_SURFACE_FABRIC_POLICY = Object.freeze({
   roughnessVariation: true,
   normalVariation: true,
   albedoVariation: true,
-  profileIds: Object.freeze([
-    'stone', 'wood', 'plaster', 'metal', 'cloth', 'vegetation', 'soil', 'snow', 'generic',
-  ]),
+  profileIds: Object.freeze(['stone', 'wood', 'plaster', 'metal', 'cloth', 'vegetation', 'soil', 'snow', 'generic']),
 });
 
 const PROFILE_TABLE = Object.freeze({
@@ -75,9 +74,8 @@ function cloneMaterialPreservingMaps(material) {
   const sourceOnBeforeCompile = material.onBeforeCompile;
   const sourceProgramKey = material.customProgramCacheKey;
   const clone = material.clone();
-  // Three material clones share texture objects, preserving the source maps/UV transforms. Explicitly
-  // carry custom shader hooks as well because layered/generated materials may already own a compile
-  // adapter and Three's base Material.copy contract does not promise to copy user callbacks.
+  // Texture objects stay shared, preserving authored UV transforms and mip memory. Shader hooks are
+  // copied explicitly because generated/layered materials can already own compile-time behaviour.
   clone.userData = { ...material.userData };
   if (typeof sourceOnBeforeCompile === 'function') clone.onBeforeCompile = sourceOnBeforeCompile;
   if (typeof sourceProgramKey === 'function') clone.customProgramCacheKey = sourceProgramKey;
@@ -100,19 +98,33 @@ function glsl(value) {
   return Number(value).toFixed(5);
 }
 
+function placementCompileContext(material, fallback) {
+  const placement = material?.userData?.worldPlacementMaterialContext;
+  if (!placement) return fallback;
+  return Object.freeze({
+    moisture: finite01(placement.moisture, fallback.moisture),
+    exposure: finite01(placement.exposure, fallback.exposure),
+    snow: finite01(placement.snow, fallback.snow),
+    slope: finite01(placement.slope, fallback.slope),
+  });
+}
+
 function installFabricShader(material, { profileId, seed, moisture = 0.42, exposure = 0.50, snow = 0, slope = 0 } = {}) {
   if (!material?.isMeshStandardMaterial && !material?.isMeshPhysicalMaterial) return material;
   const profile = PROFILE_TABLE[profileId] ?? PROFILE_TABLE.generic;
   const normalizedSeed = (seed >>> 0) % 104729;
-  const moisture01 = finite01(moisture, 0.42);
-  const exposure01 = finite01(exposure, 0.50);
-  const snow01 = finite01(snow, 0);
-  const slope01 = finite01(slope, 0);
+  const fallbackContext = Object.freeze({
+    moisture: finite01(moisture, 0.42),
+    exposure: finite01(exposure, 0.50),
+    snow: finite01(snow, 0),
+    slope: finite01(slope, 0),
+  });
   const previousCompile = material.onBeforeCompile?.bind(material);
   const previousKey = material.customProgramCacheKey?.bind(material);
 
   material.onBeforeCompile = (shader, renderer) => {
     previousCompile?.(shader, renderer);
+    const geographic = placementCompileContext(material, fallbackContext);
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vWorldFabricPosition;\nvarying vec3 vWorldFabricNormal;')
       .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\nvWorldFabricNormal = normalize(mat3(modelMatrix) * objectNormal);')
@@ -156,9 +168,9 @@ float worldFabricStain = worldFabricFbm(vec3(worldFabricP.x / ${glsl(WORLD_MATER
 float worldFabricFacingUp = smoothstep(0.28, 0.88, worldFabricN.y);
 float worldFabricFacingDown = smoothstep(0.18, 0.82, -worldFabricN.y);
 float worldFabricVertical = 1.0 - smoothstep(0.15, 0.70, abs(worldFabricN.y));
-float worldFabricMoist = clamp(${glsl(moisture01)} * 0.62 + (1.0 - worldFabricMacro) * 0.25 + worldFabricFacingDown * 0.13, 0.0, 1.0);
-float worldFabricExposed = clamp(${glsl(exposure01)} * 0.68 + worldFabricFacingUp * 0.22 + (worldFabricMeso - 0.5) * 0.10, 0.0, 1.0);
-float worldFabricSlopeContext = ${glsl(slope01)};
+float worldFabricMoist = clamp(${glsl(geographic.moisture)} * 0.62 + (1.0 - worldFabricMacro) * 0.25 + worldFabricFacingDown * 0.13, 0.0, 1.0);
+float worldFabricExposed = clamp(${glsl(geographic.exposure)} * 0.68 + worldFabricFacingUp * 0.22 + (worldFabricMeso - 0.5) * 0.10, 0.0, 1.0);
+float worldFabricSlopeContext = ${glsl(geographic.slope)};
 float worldFabricValue = (worldFabricMacro - 0.5) * ${glsl(profile.albedoMacro)} + (worldFabricMeso - 0.5) * ${glsl(profile.albedoMeso)} + (worldFabricFine - 0.5) * ${glsl(profile.albedoFine)};
 diffuseColor.rgb *= 1.0 + worldFabricValue;
 float worldFabricDamp = worldFabricMoist * smoothstep(0.48, 0.82, 1.0 - worldFabricStain);
@@ -172,7 +184,7 @@ float worldFabricOxide = smoothstep(0.66, 0.90, worldFabricMeso * 0.62 + worldFa
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.410, 0.225, 0.122), worldFabricOxide * ${glsl(profile.oxidation)});
 float worldFabricMoss = smoothstep(0.67, 0.90, 1.0 - worldFabricFine) * worldFabricMoist * (1.0 - worldFabricExposed * 0.55) * (0.55 + worldFabricFacingUp * 0.45);
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.090, 0.142, 0.073), worldFabricMoss * ${glsl(profile.moss)});
-float worldFabricSnow = ${glsl(snow01)} * worldFabricFacingUp * smoothstep(0.47, 0.78, worldFabricMacro + worldFabricMeso * 0.18);
+float worldFabricSnow = ${glsl(geographic.snow)} * worldFabricFacingUp * smoothstep(0.47, 0.78, worldFabricMacro + worldFabricMeso * 0.18);
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.735, 0.785, 0.802), worldFabricSnow * 0.22);
 diffuseColor.rgb = clamp(diffuseColor.rgb, vec3(0.008), vec3(0.94));`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
@@ -188,7 +200,10 @@ vec3 worldFabricPerturb = vec3(worldFabricWest - worldFabricEast, 0.0, worldFabr
 normal = normalize(normal + mat3(viewMatrix) * worldFabricPerturb * ${glsl(profile.normalGain)} * (0.78 + worldFabricMeso * 0.44));`);
   };
 
-  material.customProgramCacheKey = () => `${previousKey ? previousKey() : ''}|${WORLD_MATERIAL_SURFACE_FABRIC_POLICY.id}|${profileId}|${normalizedSeed}|m${moisture01.toFixed(3)}|e${exposure01.toFixed(3)}|s${snow01.toFixed(3)}|g${slope01.toFixed(3)}`;
+  material.customProgramCacheKey = () => {
+    const geographic = placementCompileContext(material, fallbackContext);
+    return `${previousKey ? previousKey() : ''}|${WORLD_MATERIAL_SURFACE_FABRIC_POLICY.id}|${profileId}|${normalizedSeed}|m${geographic.moisture.toFixed(3)}|e${geographic.exposure.toFixed(3)}|s${geographic.snow.toFixed(3)}|g${geographic.slope.toFixed(3)}`;
+  };
   material.userData.worldMaterialSurfaceFabric = Object.freeze({
     policyId: WORLD_MATERIAL_SURFACE_FABRIC_POLICY.id,
     profileId,
@@ -197,13 +212,11 @@ normal = normalize(normal + mat3(viewMatrix) * worldFabricPerturb * ${glsl(profi
     sourceMapsPreserved: true,
     sourceUvTransformsPreserved: true,
     sourceShaderHooksPreserved: true,
+    placementContextAtCompileTime: true,
     albedoVariation: true,
     normalVariation: true,
     roughnessVariation: true,
-    moisture: moisture01,
-    exposure: exposure01,
-    snow: snow01,
-    slope: slope01,
+    fallbackContext,
   });
   material.needsUpdate = true;
   return material;
@@ -239,6 +252,7 @@ export function applyWorldMaterialSurfaceFabric(root, { paletteId = '', subject 
     worldSpace: true,
     deterministic: true,
     sourceShaderHooksPreserved: true,
+    placementContextAtCompileTime: true,
     extraDrawCalls: 0,
   });
   return root.userData.worldMaterialSurfaceFabric;
