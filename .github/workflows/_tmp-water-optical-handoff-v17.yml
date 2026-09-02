@@ -1,0 +1,72 @@
+name: Temporary water optical handoff v17
+
+on:
+  push:
+    branches:
+      - codex/aapw-realism-20260831-ocean
+
+permissions:
+  contents: write
+
+jobs:
+  patch-water:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Defer far optical divergence beyond near geometry overlap
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/3d/world/water.js')
+          text = path.read_text()
+          replacements = [
+              (
+                  "id: 'water-world-surface-variation-2026-09-02-v16-owner-border-organic-handoff',",
+                  "id: 'water-world-surface-variation-2026-09-02-v17-deferred-optical-handoff',",
+              ),
+              (
+                  "\tlayerHandoffNearFadeEndMeters: 2000,\n\tdepthFieldOpticalFeatherMeters: 920,",
+                  "\tlayerHandoffNearFadeEndMeters: 2000,\n\tfarOpticalTransitionStartMeters: 1850,\n\tfarOpticalTransitionFullMeters: 3450,\n\tdepthFieldOpticalFeatherMeters: 920,",
+              ),
+              (
+                  "\t\tfloat farLayerBlend = smoothstep(${WATER_SURFACE_VARIATION_POLICY.layerHandoffFarStartMeters.toFixed(1)}, ${WATER_SURFACE_VARIATION_POLICY.layerHandoffFarFullMeters.toFixed(1)}, layerDistance);\n\t\tfloat nearLayerBlend = 1.0 - smoothstep",
+                  "\t\tfloat farLayerBlend = smoothstep(${WATER_SURFACE_VARIATION_POLICY.layerHandoffFarStartMeters.toFixed(1)}, ${WATER_SURFACE_VARIATION_POLICY.layerHandoffFarFullMeters.toFixed(1)}, layerDistance);\n\t\tfloat farOpticalBlend = smoothstep(${WATER_SURFACE_VARIATION_POLICY.farOpticalTransitionStartMeters.toFixed(1)}, ${WATER_SURFACE_VARIATION_POLICY.farOpticalTransitionFullMeters.toFixed(1)}, layerDistance);\n\t\tfloat nearLayerBlend = 1.0 - smoothstep",
+              ),
+              (
+                  "float fieldEdgeOpticalBlend = waterFieldEdgeOpticalBlend(vWorldPosition.xz) * uFarLayerMask * farLayerBlend",
+                  "float fieldEdgeOpticalBlend = waterFieldEdgeOpticalBlend(vWorldPosition.xz) * uFarLayerMask * farOpticalBlend",
+              ),
+              (
+                  "float farMarineOpticalFloor = uFarLayerMask * farLayerBlend * smoothstep(0.24, 0.92, rawOffshoreOptical)",
+                  "float farMarineOpticalFloor = uFarLayerMask * farOpticalBlend * smoothstep(0.24, 0.92, rawOffshoreOptical)",
+              ),
+              (
+                  "float farOffshoreOpacity = uFarLayerMask * farLayerBlend * smoothstep(0.62, 0.94, offshoreOptical);",
+                  "float farOffshoreOpacity = uFarLayerMask * farOpticalBlend * smoothstep(0.62, 0.94, offshoreOptical);",
+              ),
+              (
+                  "\t\torganicRadialLayerHandoff: true,\n\t\textendedBackdropBeyondFullWorldFrame: true,",
+                  "\t\torganicRadialLayerHandoff: true,\n\t\tdeferredFarOpticalHandoff: true,\n\t\textendedBackdropBeyondFullWorldFrame: true,",
+              ),
+          ]
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected one match, found {count}: {old[:110]!r}')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+      - name: Commit production fix and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/3d/world/water.js
+          git rm .github/workflows/_tmp-water-optical-handoff-v17.yml
+          git commit -m "fix(world): diffuse far-water optical handoff"
+          git push origin HEAD:codex/aapw-realism-20260831-ocean
