@@ -32,7 +32,7 @@ export const WAVE_TOTAL_AMPLITUDE_METERS = SWELL_COMPONENTS.reduce((sum, [, ampl
 export const WATER_OFFSHORE_OPTICAL_GAIN = 0.82;
 
 export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
-	id: 'water-world-surface-variation-2026-09-02-v12-far-marine-optical-floor',
+	id: 'water-world-surface-variation-2026-09-02-v13-far-offshore-opacity-seal',
 	renderOnly: true,
 	canonicalDepthUnchanged: true,
 	canonicalCoverageUnchanged: true,
@@ -56,7 +56,7 @@ export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	layerHandoffNearFadeEndMeters: 2000,
 	depthFieldOpticalFeatherMeters: 920,
 	depthFieldOpticalWarpMeters: 180,
-	farMarineOpticalDepthFloor: 0.90,
+	farMarineOpticalDepthFloor: 0.94,
 	shoreBreakerRevision: 'v1-bathymetry-directed-irregular-lace',
 	shoreGradientStepMeters: 68,
 	directionalBreakers: true,
@@ -66,6 +66,7 @@ export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	extendedBackdropBeyondFullWorldFrame: true,
 	depthFieldEdgeOpticalFeather: true,
 	farMarineOpticalDepthFromOffshoreDistance: true,
+	farOffshoreOpacitySeal: true,
 });
 
 const WATER_VERTEX_SHADER = /* glsl */ `
@@ -344,7 +345,8 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		opticalDepth = 1.0 - (1.0 - opticalDepth) * (1.0 - offshoreAbsorption);
 		float alpha = mix(0.14, 0.90, opticalDepth);
 		float farOffshoreOpacity = uFarLayerMask * farLayerBlend * smoothstep(0.62, 0.94, offshoreOptical);
-		alpha = mix(alpha, max(alpha, 0.995), max(deepMarineMask, farOffshoreOpacity));
+		alpha = mix(alpha, max(alpha, 0.995), deepMarineMask);
+		alpha = mix(alpha, 1.0, farOffshoreOpacity);
 		alpha *= 1.0 + shelfMottle * 0.22;
 		float bedReadability = max(enclosedLakeMask * clearShallowBand * 0.30, clearCoastMask * 0.18);
 		alpha *= 1.0 - bedReadability;
@@ -516,6 +518,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		extendedBackdropBeyondFullWorldFrame: true,
 		depthFieldEdgeOpticalFeather: true,
 		farMarineOpticalDepthFromOffshoreDistance: true,
+		farOffshoreOpacitySeal: true,
 	});
 
 	const farGeometry = new THREE.PlaneGeometry(WATER_FULL_WORLD_EXTENT_METERS, WATER_FULL_WORLD_EXTENT_METERS, 1, 1);
