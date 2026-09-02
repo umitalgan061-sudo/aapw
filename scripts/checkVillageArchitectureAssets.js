@@ -13,6 +13,8 @@ function assertHydratedGlbs() {
 	assert(!source.includes('EditorMaterialStudio'), 'runtime villages must not import editor-only Material Studio UI');
 	assert(source.includes('WorldAssetPlacementPipeline.js'), 'village models must use the shared placement core');
 	assert(source.includes('placeWorldAsset('), 'village models must pass through placeWorldAsset');
+	assert(source.includes('MAX_ARCHITECTURE_ASSETS_PER_HAMLET = 2'), 'hamlets must bound real residential upgrades to two');
+	assert(source.includes('MIN_ARCHITECTURE_ASSET_SPACING_METERS = 22'), 'real residential upgrades must be spatially separated');
 	assert(source.includes('bodyMesh.setColorAt(houseCount, wallTint)'), 'procedural village fabric must carry regional wall tint');
 	assert(source.includes('roofMesh.setColorAt(houseCount, roofTint)'), 'procedural village fabric must carry regional roof tint');
 	assert(source.includes('AssetLoader.disposeObject3D(source)'), 'late GLB completion must dispose source after teardown');
@@ -54,10 +56,12 @@ async function main() {
 			const expectedRegions = ['north', 'fertile', 'maritime', 'arid', 'mountain', 'temperate', 'volcanic'];
 			const villageGroup = new THREE.Group();
 			villageGroup.name = 'browser-proof-villages';
-			villageGroup.userData.villageLandmarkSites = seatIds.map((seatId, index) => ({
-				seatId, x: (index - 3) * 19, z: index % 2 === 0 ? -8 : 8, yaw: (index - 3) * 0.18,
-				houseIndex: index, stepStartIndex: index * 3, stepCount: 3, targetFootprintMeters: 7.2 + (index % 3) * 0.7,
-			}));
+			villageGroup.userData.villageLandmarkSites = seatIds.flatMap((seatId, seatIndex) => [0, 1].map((assetIndex) => ({
+				seatId, assetIndex, x: (seatIndex - 3) * 34 + assetIndex * 12, z: assetIndex === 0 ? -9 : 9,
+				yaw: (seatIndex - 3) * 0.18 + assetIndex * 0.11,
+				houseIndex: seatIndex * 2 + assetIndex, stepStartIndex: (seatIndex * 2 + assetIndex) * 3, stepCount: 3,
+				targetFootprintMeters: 7.2 + ((seatIndex + assetIndex) % 3) * 0.7,
+			})));
 			const sampleHeightMeters = (x, z) => 120 + x * 0.002 + z * 0.001;
 			const loader = new AssetLoader({ events: { emit() {} } });
 			const evidence = await upgradeVillageArchitectureAssets({ assetLoader: loader, villageGroup, sampleHeightMeters, seaLevelMeters: 0, roadEdges: [] });
@@ -83,7 +87,7 @@ async function main() {
 			}
 
 			const manifestProof = evidence.manifests.map((entry) => ({
-				seatId: entry.seatId, region: entry.region, textureSize: entry.textureSize,
+				seatId: entry.seatId, assetIndex: entry.assetIndex, region: entry.region, textureSize: entry.textureSize,
 				recipeMode: entry.manifest?.recipe?.mode ?? null,
 				basePaletteId: entry.manifest?.recipe?.basePaletteId ?? null,
 				layerPalettes: (entry.manifest?.recipe?.layers || []).map((layer) => layer.palette),
@@ -97,7 +101,7 @@ async function main() {
 			}));
 
 			const lifecycleGroup = new THREE.Group();
-			lifecycleGroup.userData.villageLandmarkSites = [{ seatId: 'berkalp', x: 0, z: 0, yaw: 0, houseIndex: 0, stepStartIndex: 0, stepCount: 3, targetFootprintMeters: 7.2 }];
+			lifecycleGroup.userData.villageLandmarkSites = [{ seatId: 'berkalp', assetIndex: 0, x: 0, z: 0, yaw: 0, houseIndex: 0, stepStartIndex: 0, stepCount: 3, targetFootprintMeters: 7.2 }];
 			let releaseLateLoad;
 			let lateGeometryDisposed = false;
 			let lateMaterialDisposed = false;
@@ -117,11 +121,11 @@ async function main() {
 			scene.background = new THREE.Color(0xa8bfd1);
 			scene.add(new THREE.HemisphereLight(0xf4f6ff, 0x4d4b3a, 2));
 			const sun = new THREE.DirectionalLight(0xffedcf, 3.2); sun.position.set(80, 140, 90); scene.add(sun);
-			const ground = new THREE.Mesh(new THREE.PlaneGeometry(210, 90), new THREE.MeshStandardMaterial({ color: 0x65784c, roughness: 1 }));
+			const ground = new THREE.Mesh(new THREE.PlaneGeometry(260, 100), new THREE.MeshStandardMaterial({ color: 0x65784c, roughness: 1 }));
 			ground.rotation.x = -Math.PI / 2; ground.position.y = 119.8; scene.add(ground, villageGroup);
 			const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
 			renderer.setSize(1440, 820, false); renderer.outputColorSpace = THREE.SRGBColorSpace; document.body.appendChild(renderer.domElement);
-			const camera = new THREE.PerspectiveCamera(42, 1440 / 820, 0.1, 600); camera.position.set(100, 176, 170); camera.lookAt(0, 124, 0); renderer.render(scene, camera);
+			const camera = new THREE.PerspectiveCamera(42, 1440 / 820, 0.1, 600); camera.position.set(105, 184, 190); camera.lookAt(0, 124, 0); renderer.render(scene, camera);
 			return {
 				evidence: { ok: evidence.ok, requestedSiteCount: evidence.requestedSiteCount, upgradedCount: evidence.upgradedCount, missingAssetCount: evidence.missingAssetCount, placementFailureCount: evidence.placementFailureCount, textureSize: evidence.textureSize },
 				assetCount: villageGroup.getObjectByName('village-architectural-assets')?.children.length ?? 0,
@@ -134,13 +138,14 @@ async function main() {
 		});
 
 		assert.equal(result.evidence.ok, true, `architecture evidence failed: ${JSON.stringify({ ...result.evidence, successfulSeats: result.manifestProof.map((p) => p.seatId), failureDiagnostics: result.failureDiagnostics })}`);
-		assert.equal(result.evidence.requestedSiteCount, 7);
-		assert.equal(result.evidence.upgradedCount, 7);
+		assert.equal(result.evidence.requestedSiteCount, 14);
+		assert.equal(result.evidence.upgradedCount, 14);
 		assert.equal(result.evidence.missingAssetCount, 0, 'real GLB load must have missing asset=0');
 		assert.equal(result.evidence.placementFailureCount, 0, 'all qualified sites must pass shared placement');
 		assert.equal(result.evidence.textureSize, 256);
-		assert.equal(result.assetCount, 7);
+		assert.equal(result.assetCount, 14);
 		assert.deepEqual(result.regions, result.expectedRegions);
+		assert.equal(new Set(result.manifestProof.map((proof) => `${proof.seatId}:${proof.assetIndex}`)).size, 14, 'dual residential upgrades need unique site manifests');
 		assert(result.profileCount >= 7);
 		assert.equal(new Set(result.profileTints.map((t) => t.wall)).size, 7);
 		assert.equal(new Set(result.profileTints.map((t) => t.roof)).size, 7);
