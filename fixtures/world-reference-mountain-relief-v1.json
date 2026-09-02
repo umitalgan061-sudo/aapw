@@ -10,35 +10,35 @@
   },
   "heightChecksumSha256": "316b6e0e1224f5328eb550ebecd2837cd5cff3195856976b2b1cdfec3b3ab2ad",
   "metrics": {
-    "peakMeters": 523.078506,
-    "nonZeroSamples": 3545,
-    "nonZeroRatio": 0.07147033,
+    "peakMeters": 544.110087,
+    "nonZeroSamples": 7041,
+    "nonZeroRatio": 0.14195278,
     "wetLeakMaxMeters": 0,
     "worldMappingMaxDeltaMeters": 0,
     "chains": {
       "vale-chain": {
-        "peakMeters": 245.065844,
+        "peakMeters": 245.067796,
         "dryOwnedSamples": 97,
         "dryPositiveSamples": 97,
-        "minDryOwnedMeters": 6.911848
+        "minDryOwnedMeters": 6.911856
       },
       "red-mountains": {
-        "peakMeters": 264.194849,
+        "peakMeters": 264.281771,
         "dryOwnedSamples": 93,
         "dryPositiveSamples": 93,
-        "minDryOwnedMeters": 18.398736
+        "minDryOwnedMeters": 18.39906
       },
       "bone-mountains": {
-        "peakMeters": 521.26079,
+        "peakMeters": 538.996497,
         "dryOwnedSamples": 193,
         "dryPositiveSamples": 193,
-        "minDryOwnedMeters": 58.24053
+        "minDryOwnedMeters": 9.587122
       },
       "eastern-chain": {
-        "peakMeters": 369.378353,
+        "peakMeters": 472.526401,
         "dryOwnedSamples": 170,
         "dryPositiveSamples": 170,
-        "minDryOwnedMeters": 133.997584
+        "minDryOwnedMeters": 282.899585
       }
     }
   }
