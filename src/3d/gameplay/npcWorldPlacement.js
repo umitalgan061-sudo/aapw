@@ -133,18 +133,18 @@ function resolveSeatSafeSurface(rawBaseSurface, normalized, protectedSeat) {
 
 export function sampleConfiguredNpcGeography(worldX, worldZ, sampleGroundHeight, protectedSeat = null) {
 	if (!Number.isFinite(worldX) || !Number.isFinite(worldZ)) return { ok: false, error: 'non-finite-position' };
-	const height = finiteGroundHeight(sampleGroundHeight, worldX, worldZ);
-	const west = finiteGroundHeight(sampleGroundHeight, worldX - SLOPE_SAMPLE_RADIUS_METERS, worldZ);
-	const east = finiteGroundHeight(sampleGroundHeight, worldX + SLOPE_SAMPLE_RADIUS_METERS, worldZ);
-	const north = finiteGroundHeight(sampleGroundHeight, worldX, worldZ - SLOPE_SAMPLE_RADIUS_METERS);
-	const south = finiteGroundHeight(sampleGroundHeight, worldX, worldZ + SLOPE_SAMPLE_RADIUS_METERS);
-	if ([height, west, east, north, south].some((value) => value === null)) return { ok: false, error: 'ground-sample-failed' };
 	let normalized;
 	try {
 		normalized = worldXZToNormalizedReference(worldX, worldZ, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT);
 	} catch {
 		return { ok: false, error: 'reference-map-out-of-range' };
 	}
+	const height = finiteGroundHeight(sampleGroundHeight, worldX, worldZ);
+	const west = finiteGroundHeight(sampleGroundHeight, worldX - SLOPE_SAMPLE_RADIUS_METERS, worldZ);
+	const east = finiteGroundHeight(sampleGroundHeight, worldX + SLOPE_SAMPLE_RADIUS_METERS, worldZ);
+	const north = finiteGroundHeight(sampleGroundHeight, worldX, worldZ - SLOPE_SAMPLE_RADIUS_METERS);
+	const south = finiteGroundHeight(sampleGroundHeight, worldX, worldZ + SLOPE_SAMPLE_RADIUS_METERS);
+	if ([height, west, east, north, south].some((value) => value === null)) return { ok: false, error: 'ground-sample-failed' };
 	const rawBaseSurface = classifyReferenceBaseSurface(normalized.x, normalized.y);
 	const seatSafe = resolveSeatSafeSurface(rawBaseSurface, normalized, protectedSeat);
 	const baseSurface = seatSafe.baseSurface;
