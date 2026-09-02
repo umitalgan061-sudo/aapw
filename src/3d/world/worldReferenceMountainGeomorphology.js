@@ -33,44 +33,44 @@ const FRAME_SCRATCH = {
 };
 
 export const WORLD_REFERENCE_MOUNTAIN_GEOMORPHOLOGY_POLICY = Object.freeze({
-	id: 'owner-map-mountain-geomorphology-2026-09-02-v1-eroded-ridge-frame',
+	id: 'owner-map-mountain-geomorphology-2026-09-02-v2-eroded-ridge-frame-saddles',
 	heightScale: Object.freeze({
-		minimum: 0.76,
-		maximum: 1.13,
+		minimum: 0.70,
+		maximum: 1.14,
 	}),
 	longitudinalMassing: Object.freeze({
-		broadCycles: 3.4,
-		detailCycles: 8.7,
-		strength: 0.095,
+		broadCycles: 4.2,
+		detailCycles: 10.6,
+		strength: 0.135,
 	}),
 	ridgeAsymmetry: Object.freeze({
-		strength: 0.085,
+		strength: 0.09,
 		coreFadeStart: 0.08,
 		coreFadeEnd: 0.62,
 	}),
 	crestNotches: Object.freeze({
-		frequency: 19,
-		threshold: 0.76,
-		strength: 0.085,
-		coreEnd: 0.34,
+		frequency: 15,
+		threshold: 0.68,
+		strength: 0.16,
+		coreEnd: 0.58,
 	}),
 	shoulderIncision: Object.freeze({
-		broadFrequency: 17,
-		detailFrequency: 41,
-		start: 0.24,
-		peak: 0.62,
+		broadFrequency: 15,
+		detailFrequency: 37,
+		start: 0.18,
+		peak: 0.56,
 		end: 0.94,
-		strength: 0.13,
+		strength: 0.17,
 	}),
 	secondarySpurs: Object.freeze({
-		frequency: 13,
-		start: 0.30,
-		peak: 0.58,
-		end: 0.88,
-		strength: 0.075,
+		frequency: 11,
+		start: 0.26,
+		peak: 0.55,
+		end: 0.90,
+		strength: 0.09,
 	}),
-	outerEdgeFadeStart: 0.86,
-	outerEdgeFadeEnd: 0.985,
+	outerEdgeFadeStart: 0.84,
+	outerEdgeFadeEnd: 0.98,
 });
 
 function clamp(value, min, max) {
