@@ -19051,3 +19051,53 @@ dejenere üçgen.
 
 **Sıradaki, aynı görsellerde apaçık duran kusur:** rüzgâr çimi (`world/windGrass.js`) devasa, koyu ve
 seyrek bıçaklar halinde — `artifacts/near-trees/eye2.png`. Karede kalan en yapay şey o.
+
+## Tur 418 — Çim: karenin %56'sı, ve hâlâ çıplak zeminde duran bıçaklar (ADR-0366)
+
+Tur 417'nin görsellerinde karede kalan en yapay şey rüzgâr çimiydi. Tahmin etmek yerine ölçtüm —
+gerçek sahnenin sistem sistem üçgen dökümü:
+
+| sistem | üçgen |
+|---|---|
+| **çim** | **1.536.000** |
+| bitki örtüsü (+yakın ağaçlar) | 464.930 |
+| su | 204.802 |
+| köyler | 5.604 |
+| yollar | 2.364 |
+| **kare toplamı** | **2.758.184** |
+
+Yani çim tek başına karenin **%56'sı** — ve buna rağmen ayrık bıçaklar halinde görünüyor. İkisinin
+aynı anda doğru olmasının sebebi yoğunluk: 130 m'lik daireye 48 bıçaklı 4000 patch,
+**metrekareye 3,6 bıçak** demek. 3,6 bıçağın hiçbir dizilişi çim değildir.
+
+Geometrik çim bu projenin hiçbir bütçesinde çim olamaz — gerçek çayır metrekarede binlerce sap. O
+yüzden iş bölündü: Tur 416'dan beri **zeminin kendi dokusu** çimenliği taşıyor, bu bıçaklar da onun
+içinde duran yakın alan tüyü. Bu, yarıçapı küçültmeyi fedakârlık değil doğru cevap yapıyor.
+
+Yapılanlar, hepsi ölçüye dayalı:
+1. **Segment 2 → 1.** Bıçak 4-7 cm genişliğinde; orta sıra kimsenin çözemeyeceği bir eğri için
+   sistemin üçgenlerinin yarısını harcıyordu. Patch başına 384 → 288 üçgen, 48 → 72 bıçak.
+2. **Yarıçap 130 → 72 m, patch 4000 → 3200.** Yoğunluk 3,6 → **14,1 bıçak/m²** (3,9 kat).
+3. **Üçgen 1.536.000 → 921.600 (−%40)**, kare toplamı 2.758.184 → 2.143.784 (−%22).
+4. **Boy 0,34-0,74 → 0,22-0,48 m.** Bu yoğunlukta uzun bıçak tek tek okunur, kısa bıçak üstünde
+   durduğu dokulu zemine karışır.
+5. **Renk açıldı ve ısındı.** Eski yeşil, üstünde durduğu zeminden çok daha koyu ve doygundu; bıçak
+   aralarındaki her boşluk çıplak toprak, bıçaklar da koyu kıymık gibi okunuyordu.
+6. **Kenar solması.** Dairenin dış %28'inde bıçaklar sıfıra iniyor, yoksa 72 m'de oyuncuyu takip eden
+   keskin bir çim çemberi olurdu.
+
+**Ve ilk denemede yakalanan gerçek hata:** daire kameranın değil **hücrenin** merkezine oturuyor, yani
+oyuncu merkezden yarım hücre uzakta durabiliyor. Eski 120 m'lik hücrede bu 60 m ediyor — ilk denediğim
+55 m'lik yarıçapla oyuncu kendi çiminin tamamen dışında kalıyordu, ki ilk görsel tam olarak bunu
+gösterdi: bir yanda çim tarlası, ayağının altında çıplak toprak. `cellMeters` artık katman başına:
+masaüstü 64, mobil 48 — yarım hücre her zaman yarıçapın rahatça içinde.
+
+**Bir de sessizce bozuk duran bir kapı bulundu ve düzeltildi:**
+`scripts/checkWindGrassContractRun180.js` `createWindGrassRun180`'i `sceneManager.js`'ten import
+ediyor — Tur 366 modülü `world/windGrass.js`'e taşırken kimse onu yeniden export etmemişti, yani bu
+canlı sözleşme o günden beri her çalıştırmada `is not a function` ile patlıyordu. Koruduğunu sanan,
+aslında hiç çalışmayan bir kapı. Tek satırlık re-export ile geri geldi ve artık PASS:
+mobil 900/1200, masaüstü 3200/4000, patch başına 288 üçgen.
+
+**Dürüst sınır:** bu hâlâ geometrik çim ve yakın çekimde tek tek bıçaklar seçiliyor. Bu bütçede
+gerçek çözüm bıçak değil **alfa-kesimli çim kartı** (bir quad = ~20 görünür bıçak); sıradaki adım o.

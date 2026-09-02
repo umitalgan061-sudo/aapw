@@ -17,11 +17,29 @@ const RUN180_WIND_GRASS_CONFIG = Object.freeze({
 	// rendered as isolated blades standing on bare ground however good each blade had become. At 130 m
 	// the same 4000 patches cover 53,000 m² at 15 m² each, i.e. they overlap into continuous turf. The
 	// grass given up beyond 130 m was never legible anyway: a 0.5 m blade at 300 m is well under a pixel.
-	desktop: Object.freeze({ radiusMeters: 130, maxPatches: 4000 }),
-	mobile: Object.freeze({ radiusMeters: 100, maxPatches: 1200 }),
-	cellMeters: 120,
-	bladesPerPatch: 48,
-	patchRadiusMeters: 2.2,
+	// Run 418: pulled in again, and this time from a measurement rather than from taste. A frame-cost
+	// breakdown of the real scene put this system at **1,536,000 of 2,758,184 rendered triangles — 56%
+	// of the entire frame** — while still rendering as separate blades on bare ground. The reason both
+	// were true at once is density: 4000 patches of 48 blades over a 130 m disc is 3.6 blades per square
+	// metre, and no arrangement of 3.6 blades per square metre is turf.
+	//
+	// Geometric grass cannot be turf at any budget this project has — real grassland is thousands of
+	// shoots per square metre. So the job is split: since run 416 the ground's own texture carries the
+	// sward, and these blades are the near-field fringe standing in it. That makes a much smaller radius
+	// the right answer rather than a sacrifice, and the triangles saved by shrinking it buy density
+	// where the player actually is.
+	//
+	// `cellMeters` is per tier for the first time, and it has to be: the disc is centred on the *cell*,
+	// not on the camera, so the player can stand up to half a cell from its centre. At the old 120 m
+	// cell that offset is 60 m, and a 55 m disc would have left the player standing entirely outside
+	// their own grass — which is exactly what the first run-418 capture showed, a field of grass off to
+	// one side and bare ground underfoot. Half a cell must stay well inside the radius.
+	desktop: Object.freeze({ radiusMeters: 72, maxPatches: 3200, cellMeters: 64 }),
+	mobile: Object.freeze({ radiusMeters: 52, maxPatches: 900, cellMeters: 48 }),
+	/** Fraction of the radius over which blades shrink to nothing, so the disc has no visible rim. */
+	edgeFadeFraction: 0.28,
+	bladesPerPatch: 72,
+	patchRadiusMeters: 1.2,
 	roadClearanceMeters: 10,
 	seatClearanceMeters: 100,
 	shoreMarginMeters: 1.5,
@@ -107,7 +125,10 @@ function run180GrassGeometry() {
 	const colors = [];
 	const count = RUN180_WIND_GRASS_CONFIG.bladesPerPatch;
 	const radius = RUN180_WIND_GRASS_CONFIG.patchRadiusMeters;
-	const SEGMENTS = 2;
+	// Run 418: one segment, not two. A blade is 4-7 cm wide; the middle row bought a curve nobody can
+	// resolve at that width and cost half the triangles in the whole system. Spending them on 50% more
+	// blades instead takes a patch from 384 triangles to 288 and from 48 blades to 72.
+	const SEGMENTS = 1;
 
 	for (let i = 0; i < count; i++) {
 		// Golden-angle placement, same as before — it spreads blades without clumping.
@@ -115,7 +136,9 @@ function run180GrassGeometry() {
 		const r = radius * Math.sqrt((i + 0.35) / count);
 		const cx = Math.cos(angle) * r;
 		const cz = Math.sin(angle) * r;
-		const height = 0.34 + 0.40 * ((i * 37 % 101) / 100);
+		// Shorter than run 366's 0.34-0.74 m. At the density this system can afford, a tall blade is a
+		// blade you read individually; a short one disappears into the textured ground it stands on.
+		const height = 0.22 + 0.26 * ((i * 37 % 101) / 100);
 		const baseWidth = 0.021 + 0.013 * ((i * 53 % 97) / 96);
 		// A slight lean per blade, so a patch does not look like a comb.
 		const lean = ((i * 29 % 71) / 71 - 0.5) * 0.28;
@@ -141,11 +164,15 @@ function run180GrassGeometry() {
 				// Wind bends the blade along its length rather than shearing it rigidly.
 				flex.push(t * t, t * t);
 				phase.push(i / count, i / count);
-				// Dark at the root, lit at the tip, with per-blade variation.
-				const shade = 0.45 + 0.55 * t;
-				const red = (0.20 + 0.10 * tint) * shade;
-				const green = (0.42 + 0.16 * tint) * shade;
-				const blue = (0.14 + 0.07 * tint) * shade;
+				// Dark at the root, lit at the tip, with per-blade variation. Run 418 lightened and warmed
+				// the whole ramp: the old green was far darker and more saturated than the ground it
+				// stands on, so every gap between blades read as bare earth showing through and the
+				// blades themselves read as dark shards. Grass that sits inside the terrain's own colour
+				// disappears into it, which is the entire point of a fringe layer.
+				const shade = 0.62 + 0.48 * t;
+				const red = (0.30 + 0.13 * tint) * shade;
+				const green = (0.47 + 0.17 * tint) * shade;
+				const blue = (0.19 + 0.08 * tint) * shade;
 				colors.push(red, green, blue);
 				colors.push(red, green, blue);
 			}
@@ -175,8 +202,8 @@ function run180PopulateGrass(mesh, params, cellX, cellZ) {
 	const scale = new THREE.Vector3();
 	const position = new THREE.Vector3();
 	const up = new THREE.Vector3(0, 1, 0);
-	const centerX = cellX * RUN180_WIND_GRASS_CONFIG.cellMeters;
-	const centerZ = cellZ * RUN180_WIND_GRASS_CONFIG.cellMeters;
+	const centerX = cellX * config.cellMeters;
+	const centerZ = cellZ * config.cellMeters;
 	let placed = 0;
 	for (let i = 0; i < config.maxPatches; i++) {
 		for (let attempt = 0; attempt < 8; attempt++) {
@@ -187,7 +214,12 @@ function run180PopulateGrass(mesh, params, cellX, cellZ) {
 			if (!run180GrassAllowed(x, z, params)) continue;
 			position.set(x, params.sampleHeightMeters(x, z) + 0.03, z);
 			quaternion.setFromAxisAngle(up, random() * Math.PI * 2);
-			const uniformScale = 0.78 + random() * 0.47;
+			// Run 418: blades shrink to nothing over the outer band of the disc. At 130 m the boundary
+			// was past anything legible; at 55 m a hard rim of full-height grass would be a circle
+			// following the player around, which is worse than no grass at all.
+			const edgeStart = 1 - RUN180_WIND_GRASS_CONFIG.edgeFadeFraction;
+			const edge01 = Math.min(1, Math.max(0, (radius / config.radiusMeters - edgeStart) / RUN180_WIND_GRASS_CONFIG.edgeFadeFraction));
+			const uniformScale = (0.78 + random() * 0.47) * (1 - edge01 * edge01 * (3 - 2 * edge01));
 			scale.set(uniformScale, uniformScale, uniformScale);
 			matrix.compose(position, quaternion, scale);
 			mesh.setMatrixAt(placed++, matrix);
@@ -223,14 +255,14 @@ export function createWindGrassRun180({ sampleHeightMeters, seaLevelMeters, seed
 		material.userData.run180Shader = shader;
 	};
 	material.customProgramCacheKey = () => 'run180-wind-grass-v1';
-	const initialX = Math.round(centerX / RUN180_WIND_GRASS_CONFIG.cellMeters);
-	const initialZ = Math.round(centerZ / RUN180_WIND_GRASS_CONFIG.cellMeters);
+	const initialX = Math.round(centerX / config.cellMeters);
+	const initialZ = Math.round(centerZ / config.cellMeters);
 	let placed = run180PopulateGrass(mesh, params, initialX, initialZ);
 	mesh.onBeforeRender = (_renderer, _scene, camera) => {
 		const shader = material.userData.run180Shader;
 		if (shader) shader.uniforms.uRun180WindTime.value = performance.now() * 0.001;
-		const cellX = Math.round(camera.position.x / RUN180_WIND_GRASS_CONFIG.cellMeters);
-		const cellZ = Math.round(camera.position.z / RUN180_WIND_GRASS_CONFIG.cellMeters);
+		const cellX = Math.round(camera.position.x / config.cellMeters);
+		const cellZ = Math.round(camera.position.z / config.cellMeters);
 		if (cellX !== mesh.userData.run180Cell.x || cellZ !== mesh.userData.run180Cell.z) {
 			placed = run180PopulateGrass(mesh, params, cellX, cellZ);
 			group.userData.run180WindGrass.placedCount = placed;

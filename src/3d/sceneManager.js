@@ -33,6 +33,11 @@ import { buildRoadNetwork } from './world/roads.js';
 import { createVegetation } from './world/vegetation.js';
 import { createWindGrassRun180 } from './world/windGrass.js';
 import { createVegetationNearDetail } from './world/vegetationNearDetail.js';
+// Re-exported, not merely imported: `scripts/checkWindGrassContractRun180.js` imports this name from
+// here, which is where it lived until run 366 moved it into `world/windGrass.js`. Nothing re-exported
+// it then, so that contract has thrown "createWindGrassRun180 is not a function" on every run since —
+// a live gate that has been silently failing rather than guarding. One line restores it.
+export { createWindGrassRun180 };
 import { createVillages } from './world/villages.js';
 import { createOrbitCamera } from './camera.js';
 import { createFreeCameraController } from './debug/freeCamera.js';
