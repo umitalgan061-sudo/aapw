@@ -17,7 +17,7 @@ const BARE_WINTER_TREE_ASSET = 'assets/models/vegetation/winter_tree.glb';
 const SNOW_DEAD_TREE_GROVE_ASSET = 'assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb';
 
 export const WINTER_VEGETATION_ASSET_POLICY = Object.freeze({
-	id: 'winter-vegetation-materialized-asset-2026-09-02-v5-hydrated-texture-fidelity',
+	id: 'winter-vegetation-materialized-asset-2026-09-02-v6-dense-shaded-needles',
 	preferredSnowPineAsset: PREFERRED_SNOW_PINE_ASSET,
 	bareWinterTreeAsset: BARE_WINTER_TREE_ASSET,
 	groveAsset: SNOW_DEAD_TREE_GROVE_ASSET,
@@ -45,8 +45,8 @@ export const WINTER_VEGETATION_ASSET_POLICY = Object.freeze({
 	pineFoliageFineScale: 0.71,
 	pineFoliageWeatheringStrength: 0.18,
 	pineFoliageRoughnessVariation: 0.09,
-	pineNeedleShadowTint: Object.freeze([0.52, 0.66, 0.57]),
-	pineNeedleShadowStrength: 0.46,
+	pineNeedleShadowTint: Object.freeze([0.32, 0.45, 0.36]),
+	pineNeedleShadowStrength: 0.64,
 	// One rotated inner copy fills card-like crown gaps without adding or moving a geographic tree.
 	pineFoliageDensityLayerYawRadians: 1.0472,
 	pineFoliageDensityLayerHorizontalScale: 0.94,
@@ -243,7 +243,7 @@ float winterPineNoise(vec2 p) {
 			#endif
 			float winterExposure = smoothstep(0.22, 0.78, winterMacro * 0.58 + winterMeso * 0.42);
 			float winterSnowMix = ${policy.pineFoliageSnowMixMin.toFixed(3)}
-				+ ${policy.pineFoliageSnowMixRange.toFixed(3)} * smoothstep(0.12, 0.52, winterFoliageLuma);
+				+ ${policy.pineFoliageSnowMixRange.toFixed(3)} * smoothstep(0.38, 0.78, winterFoliageLuma);
 			winterSnowMix *= mix(0.78, 1.12, winterExposure);
 			winterSnowMix = clamp(winterSnowMix, 0.18, 0.72);
 			diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${snowR.toFixed(3)}, ${snowG.toFixed(3)}, ${snowB.toFixed(3)}), winterSnowMix);
