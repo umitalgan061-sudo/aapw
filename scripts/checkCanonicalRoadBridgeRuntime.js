@@ -28,7 +28,9 @@ function assertSourceOrdering() {
 	assert(RUNTIME_SOURCE.includes("transportGapReason === 'submerged-route'"), 'runtime must only adopt live submerged road gaps');
 	assert(RUNTIME_SOURCE.includes('roadWaterAuditSpacingMeters: 6'), 'runtime must mirror the shipped road 6m water audit');
 	assert(RUNTIME_SOURCE.includes('sampleLiveRoadWater'), 'runtime lost live route water sampling');
-	assert(RUNTIME_SOURCE.includes('coveredWaterSampleCount !== waterSampleCount'), 'partial sampled-water suppression must fail closed');
+	assert(RUNTIME_SOURCE.includes('appendDryRouteRuns'), 'runtime must suppress obsolete underwater route ribbons');
+	assert(RUNTIME_SOURCE.includes('suppressedWaterSampleCount'), 'runtime must account for suppressed sampled-water exposure');
+	assert(!RUNTIME_SOURCE.includes('distanceToBridgeAxis'), 'new bridge traversal must not be forced to overlap obsolete underwater route curvature');
 	assert(!RUNTIME_SOURCE.includes('buildCanonicalStoneBridgePlan'), 'live startup must not recompute the shadow canonical pathfinder plan');
 	assert(RUNTIME_SOURCE.includes('canonicalBridgeRuntimeMesh'), 'bridge meshes must be flattened into road lifecycle ownership');
 	assert(!RUNTIME_SOURCE.includes('OBJLoader'), 'runtime must not bypass repository loader/licensing policy with an ad-hoc OBJ loader');
@@ -55,10 +57,7 @@ async function main() {
 		});
 		report = await page.evaluate(async () => {
 			const { createScene } = await import('/src/3d/sceneManager.js');
-			const { buildRoadNetwork, disposeRoadNetwork } = await import('/src/3d/world/roads.js');
-			const { WORLD_DEFAULTS, WORLD_SCALE, SETTLEMENT_CONFIG } = await import('/src/3d/config.js');
-			const { createHeightSampler } = await import('/src/3d/world/terrain.js');
-			const { computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');
+			const { disposeRoadNetwork } = await import('/src/3d/world/roads.js');
 			const canvas = document.createElement('canvas');
 			canvas.id = 'canonical-road-bridge-runtime-canvas';
 			canvas.style.width = '1440px';
@@ -95,42 +94,6 @@ async function main() {
 				);
 			}
 
-			// Exact live-water rejection diagnostics; never used to alter production acceptance.
-			const natural = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED);
-			const pads = computeSettlementFlattenPads({ sampleHeightMeters: natural,
-				seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
-				minGroundClearanceMeters: SETTLEMENT_CONFIG.MIN_GROUND_CLEARANCE_METERS,
-				mapBounds: WORLD_SCALE.MAP_BOUNDS, metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT });
-			const terrain = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, pads);
-			const audit = buildRoadNetwork({ seats: state.settlementSeats, sampleHeightMeters: terrain });
-			const gapDiagnostics = audit.unroutableEdges.filter((gap) => gap.diagnostics?.transportGapReason === 'submerged-route').map((gap) => {
-				const samples = [];
-				for (let i = 1; i < gap.points.length; i += 1) {
-					const a = gap.points[i - 1]; const b = gap.points[i]; const len = Math.hypot(b.x - a.x, b.z - a.z);
-					const n = Math.max(1, Math.ceil(len / 6));
-					for (let j = 1; j <= n; j += 1) { const t = j / n; const x = a.x + (b.x - a.x) * t; const z = a.z + (b.z - a.z) * t;
-						samples.push({ x, z, wet: terrain(x, z) + 0.4 < WORLD_DEFAULTS.WATER_LEVEL_METERS }); }
-				}
-				const runs = []; let run = [];
-				for (const sample of samples) { if (sample.wet) run.push(sample); else if (run.length) { runs.push(run); run = []; } }
-				if (run.length) runs.push(run);
-				const crossingDiagnostics = runs.map((water) => {
-					const first = water[0]; const last = water[water.length - 1]; let dx = last.x - first.x; let dz = last.z - first.z; let len = Math.hypot(dx, dz);
-					if (len < 0.001) { dx = 1; dz = 0; len = 1; } const ux = dx / len; const uz = dz / len;
-					const start = { x: first.x - ux * 6, z: first.z - uz * 6 }; const end = { x: last.x + ux * 6, z: last.z + uz * 6 };
-					const span = Math.hypot(end.x - start.x, end.z - start.z); const archSpan = span / Math.max(1, Math.ceil(span / 36));
-					const rise = Math.min(8.5, Math.max(3.4, archSpan * 0.22)); const deckTop = Math.max(terrain(start.x, start.z), terrain(end.x, end.z), WORLD_DEFAULTS.WATER_LEVEL_METERS + rise + 0.8) + 1.24;
-					const maxLateral = Math.max(...water.map((p) => { const vx = end.x - start.x; const vz = end.z - start.z; const l2 = vx * vx + vz * vz;
-						const t = ((p.x - start.x) * vx + (p.z - start.z) * vz) / l2; return Math.hypot(p.x - (start.x + vx * t), p.z - (start.z + vz * t)); }));
-					const nearest = (target) => gap.points.reduce((best, p, index) => Math.hypot(p.x - target.x, p.z - target.z) < best.d ? { index, d: Math.hypot(p.x - target.x, p.z - target.z) } : best, { index: 0, d: Infinity }).index;
-					let si = nearest(start); let ei = nearest(end); if (si > ei) [si, ei] = [ei, si];
-					const bestGrade = (from, to, target) => { let best = Infinity; for (let i = from; i <= to; i += 1) { const p = gap.points[i]; const y = terrain(p.x, p.z) + 0.4;
-						const d = Math.hypot(p.x - target.x, p.z - target.z); if (y < WORLD_DEFAULTS.WATER_LEVEL_METERS || d > 320) continue; best = Math.min(best, 180 / Math.PI * Math.atan2(Math.abs(deckTop - y), Math.max(0.001, d))); } return best; };
-					return { waterSamples: water.length, spanMeters: span, maxLateralMeters: maxLateral, startBestGrade: bestGrade(0, si, start), endBestGrade: bestGrade(ei, gap.points.length - 1, end) };
-				});
-				return { edgeId: `${gap.fromId}->${gap.toId}`, routePoints: gap.points.length, crossingCount: runs.length, crossingDiagnostics };
-			});
-
 			window.__canonicalBridgeSetView = (mode) => {
 				if (!deck || !center) return false;
 				const dx = deck.to.x - deck.from.x;
@@ -155,7 +118,7 @@ async function main() {
 				return error;
 			};
 			return {
-				sceneBuildMs, gapDiagnostics,
+				sceneBuildMs,
 				status: runtime?.status ?? null,
 				bridgeCount: runtime?.bridgeCount ?? 0,
 				affectedEdgeCount: runtime?.affectedEdgeCount ?? 0,
@@ -178,7 +141,6 @@ async function main() {
 			};
 		});
 
-		// Persist diagnostics before acceptance assertions so a failed exact head still uploads evidence.
 		fs.writeFileSync(path.join(ARTIFACT_DIR, 'proof.json'), JSON.stringify({ ...report, pageErrors }, null, 2));
 		assert(report.sceneBuildMs < 120000, `createScene took ${(report.sceneBuildMs / 1000).toFixed(1)}s; bridge adoption must stay startup-bounded`);
 		assert(report.status === 'active-render-topology', `runtime status ${report.status}`);
@@ -196,8 +158,8 @@ async function main() {
 		assert(report.maxApproachGradeDegrees <= 18 + 1e-9, `approach grade ${report.maxApproachGradeDegrees} > 18deg`);
 		assert(report.maxApproachLengthMeters <= 320 + 1e-9, `approach length ${report.maxApproachLengthMeters} > 320m`);
 		assert(report.waterSuppression?.total > 0, 'live road network exposed no sampled water intervals');
-		assert(report.waterSuppression.covered === report.waterSuppression.total,
-			`sampled-water suppression ${report.waterSuppression.covered}/${report.waterSuppression.total}`);
+		assert(report.waterSuppression.suppressed === report.waterSuppression.total,
+			`old underwater ribbon suppression ${report.waterSuppression.suppressed}/${report.waterSuppression.total}`);
 		assert(report.bridgeMeshCount > 0 && report.allRoadChildrenAreMeshes,
 			'road lifecycle must own only direct Mesh children after bridge adoption');
 		assert(report.restorationMesh, 'dry-road/approach restoration mesh missing');
@@ -229,7 +191,7 @@ async function main() {
 	console.log(
 		`[checkCanonicalRoadBridgeRuntime] PASS: ${report.bridgeCount} bridge(s) / `
 		+ `${report.affectedEdgeCount}/${report.sourceWaterGapCount} water-gap edges / `
-		+ `${report.approachCount} approaches / sampled water ${report.waterSuppression.covered}/${report.waterSuppression.total} / `
+		+ `${report.approachCount} approaches / old-water suppression ${report.waterSuppression.suppressed}/${report.waterSuppression.total} / `
 		+ `scene ${(report.sceneBuildMs / 1000).toFixed(1)}s`,
 	);
 }
