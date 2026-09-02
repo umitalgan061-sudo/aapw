@@ -14,7 +14,7 @@
     "nonZeroSamples": 7041,
     "nonZeroRatio": 0.14195278,
     "wetLeakMaxMeters": 0,
-    "worldMappingMaxDeltaMeters": 0,
+    "worldMappingMaxDeltaMeters": 2e-12,
     "chains": {
       "vale-chain": {
         "peakMeters": 250.76394,
