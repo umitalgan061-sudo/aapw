@@ -69,6 +69,11 @@ for (const revision of [Infinity, Number.NaN, 7.5, 0, -1]) {
   assert.equal(invalidRevision.accepted, false);
   assert.equal(invalidRevision.reason, 'stale');
 }
+for (const lastRevision of [Infinity, Number.NaN]) {
+  const invalidState = evaluate(baseAlert, { lastRevision });
+  assert.equal(invalidState.accepted, false);
+  assert.equal(invalidState.reason, 'stale');
+}
 for (const sourcePosition of [{ x: Infinity, z: 0 }, { x: 0, z: Number.NaN }]) {
   const invalid = evaluate({ ...baseAlert, sourcePosition }, { lastRevision: 0 });
   assert.equal(invalid.accepted, false);
