@@ -50,7 +50,7 @@ try {
     };
     const north = seatWorld('berkalp');
     const reach = seatWorld('ziya');
-    const rejectedPatrolTargetX = north.x + 10;
+    const rejectedPatrolSampleX = north.x + 8;
 
     const sampledXs = [];
     const sampleGroundY = (x) => {
@@ -61,7 +61,7 @@ try {
     };
     const groundCollider = {
       getGroundHeight(x) {
-        return Math.abs(x - rejectedPatrolTargetX) < 1e-6 ? Number.NaN : 3;
+        return Math.abs(x - rejectedPatrolSampleX) < 1e-6 ? Number.NaN : 3;
       },
     };
     const animalConfig = {
@@ -82,7 +82,7 @@ try {
       SPAWNS: [
         { id: 'animal-valid-wolf', seatId: 'valid-wolf', offsetXMeters: 0, offsetZMeters: 0 },
         { id: 'animal-valid-horse', seatId: 'valid-horse', offsetXMeters: 0, offsetZMeters: 0, speciesId: 'horse' },
-        { id: 'animal-patrol-rejected', seatId: 'patrol-route', offsetXMeters: 0, offsetZMeters: 0, patrol: { toOffsetXMeters: 10, toOffsetZMeters: 0 } },
+        { id: 'animal-patrol-rejected', seatId: 'patrol-route', offsetXMeters: 0, offsetZMeters: 0, patrol: { toOffsetXMeters: 12, toOffsetZMeters: 0 } },
         { id: 'animal-nan-ground', seatId: 'nan-ground', offsetXMeters: 0, offsetZMeters: 0 },
         { id: 'animal-throw-ground', seatId: 'throw-ground', offsetXMeters: 0, offsetZMeters: 0 },
         { id: 'animal-invalid-world', seatId: 'invalid-world', offsetXMeters: 0, offsetZMeters: 0 },
@@ -180,9 +180,11 @@ try {
   assert.equal(wolf?.position?.y, 3);
   assert.equal(horse?.position?.y, 3);
   assert.ok(proof.sampledXs.includes(10) && proof.sampledXs.includes(20));
-  assert.equal(rejectedRoute?.materialReadyForWorld, true, 'safe spawn must survive an unsafe patrol target');
-  assert.equal(rejectedRoute?.patrolPlacement?.enabled, false, 'unsafe patrol target must disable patrol');
+  assert.equal(rejectedRoute?.materialReadyForWorld, true, 'safe spawn must survive an unsafe patrol corridor');
+  assert.equal(rejectedRoute?.patrolPlacement?.enabled, false, 'unsafe patrol corridor must disable patrol');
   assert.equal(rejectedRoute?.patrolPlacement?.error, 'ground-sample-failed');
+  assert.equal(rejectedRoute?.patrolPlacement?.failedRouteSampleIndex, 2, 'corridor rejection must identify the interior failing sample');
+  assert.equal(rejectedRoute?.patrolPlacement?.routeSampleCount, 3, '12m patrol corridor must use bounded 4m sampling');
   assert.deepEqual(proof.rejectedRouteAfter, proof.rejectedRouteBefore, 'rejected geographic patrol must not move the animal');
 
   console.log('CONFIGURED_ANIMAL_SPAWN_GROUND_SAFETY_BROWSER_PASS', JSON.stringify({
