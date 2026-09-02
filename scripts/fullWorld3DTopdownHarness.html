@@ -252,6 +252,8 @@ for (const worldX of [-worldWidth / 2, worldWidth / 2]) {
 const frameMargin = 1.06;
 const fittedHalfHeight = Math.max(requiredHalfHeight * frameMargin, requiredHalfWidth * frameMargin / aspect);
 const fittedHalfWidth = fittedHalfHeight * aspect;
+let activeHalfHeight = fittedHalfHeight;
+let activeHalfWidth = fittedHalfWidth;
 camera.left = -fittedHalfWidth;
 camera.right = fittedHalfWidth;
 camera.top = fittedHalfHeight;
@@ -261,7 +263,9 @@ camera.updateProjectionMatrix();
 if (focus === 'valyria') {
 	const focusX = (VALYRIA_GEOLOGY_POLICY.coreCenter.nx - 0.5) * worldWidth;
 	const focusZ = (VALYRIA_GEOLOGY_POLICY.coreCenter.ny - 0.5) * worldDepth;
-	const regionalHalfHeight = 1380;
+	const regionalHalfHeight = 1080;
+	activeHalfHeight = regionalHalfHeight;
+	activeHalfWidth = regionalHalfHeight * aspect;
 	camera.position.set(focusX - 860, 2680, focusZ + 1180);
 	camera.up.set(0, 1, 0);
 	camera.lookAt(focusX, seaLevel + 95, focusZ);
@@ -343,6 +347,8 @@ window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
 		groupChildCount: naturalGeologyResult.group.children.length,
 		assetState: naturalGeologyResult.group.userData.naturalGeology?.assetState ?? null,
 		worldSpaceRockWeathering: naturalGeologyResult.group.userData.naturalGeology?.worldSpaceRockWeathering === true,
+		deterministicMineralFacetSeparation: naturalGeologyResult.group.userData.naturalGeology?.deterministicMineralFacetSeparation === true,
+		volcanicFallbackMaterialIsolation: naturalGeologyResult.group.userData.naturalGeology?.volcanicFallbackMaterialIsolation === true,
 		visualProofUsesDeterministicFallback: true,
 		roadExclusionGeometryCoveredBySeparateContract: true,
 	}),
@@ -373,8 +379,11 @@ window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
 		frameMargin,
 		fittedHalfWidth,
 		fittedHalfHeight,
+		activeHalfWidth,
+		activeHalfHeight,
 	}),
 });
 </script>
 </body>
 </html>
+
