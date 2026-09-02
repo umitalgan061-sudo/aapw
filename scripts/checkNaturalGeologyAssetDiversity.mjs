@@ -16,7 +16,7 @@ const ROOT = resolve(import.meta.dirname, '..');
 const rendererSource = readFileSync(resolve(ROOT, 'src/3d/world/naturalGeology.js'), 'utf8');
 const P = NATURAL_GEOLOGY_RENDER_POLICY;
 
-assert(P.id.includes('v9-legacy-fbx-pbr-fidelity'));
+assert(P.id.includes('v10-volcanic-facet-readability'));
 assert.equal(P.renderOnly, true);
 assert.equal(P.geographyAuthorityUnchanged, true);
 assert.equal(P.geographicAssetRouting, true);
@@ -28,6 +28,8 @@ assert.equal(P.hydratedTextureColorSpaceContract, true);
 assert.equal(P.hydratedMipFiltering, true);
 assert.equal(P.hydratedMaximumAnisotropy, 8);
 assert.equal(P.sourceUvAndTextureTransformPreserved, true);
+assert.equal(P.deterministicMineralFacetSeparation, true);
+assert.equal(P.volcanicFallbackMaterialIsolation, true);
 assert.equal(P.fallbackGeometryFamily, 'stratified-faceted-geologic-ledges');
 assert.equal(P.platonicFallbackGeometry, false);
 assert.equal(P.directAssetUrls.length, 4);
