@@ -32,7 +32,7 @@ export const WAVE_TOTAL_AMPLITUDE_METERS = SWELL_COMPONENTS.reduce((sum, [, ampl
 export const WATER_OFFSHORE_OPTICAL_GAIN = 0.82;
 
 export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
-	id: 'water-world-surface-variation-2026-09-02-v9-soft-layer-handoff',
+	id: 'water-world-surface-variation-2026-09-02-v10-soft-handoff-extended-backdrop',
 	renderOnly: true,
 	canonicalDepthUnchanged: true,
 	canonicalCoverageUnchanged: true,
@@ -60,6 +60,7 @@ export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	nonPeriodicFoamBreakup: true,
 	worldSpaceDeepBackdrop: true,
 	softNearFarLayerHandoff: true,
+	extendedBackdropBeyondFullWorldFrame: true,
 });
 
 const WATER_VERTEX_SHADER = /* glsl */ `
@@ -406,8 +407,8 @@ const DEEP_OCEAN_BACKDROP_FRAGMENT_SHADER = /* glsl */ `
 `;
 
 const WATER_PLANE_EXTENT_METERS = 4000;
-export const WATER_FULL_WORLD_EXTENT_METERS = 28000;
-export const WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS = 28000;
+export const WATER_FULL_WORLD_EXTENT_METERS = 48000;
+export const WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS = 48000;
 const WATER_DEEP_OCEAN_BACKDROP_LOCAL_Y_METERS = -32;
 const WATER_PLANE_SEGMENTS = 128;
 export const WATER_PLANE_SEGMENTS_DESKTOP = 320;
@@ -494,6 +495,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		nonPeriodicFoamLace: true,
 		nightAbsorptionFromCelestialState: true,
 		softNearFarLayerHandoff: true,
+		extendedBackdropBeyondFullWorldFrame: true,
 	});
 
 	const farGeometry = new THREE.PlaneGeometry(WATER_FULL_WORLD_EXTENT_METERS, WATER_FULL_WORLD_EXTENT_METERS, 1, 1);
