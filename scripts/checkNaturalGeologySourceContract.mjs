@@ -59,6 +59,8 @@ assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.volcanicSulfuricWeatheringResponse, t
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.smallFallbackShadowSuppression, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.roundedBoulderNormalResponse, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.volcanicFallbackSmoothedLightingNormals, true);
+assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.volcanicFallbackCalibratedBasaltReflectance, true);
+assert.deepEqual(NATURAL_GEOLOGY_RENDER_POLICY.volcanicFallbackLinearReflectanceRange, [0.10, 0.18]);
 assert(NATURAL_GEOLOGY_RENDER_POLICY.fallbackLinearAlbedoFloor >= 0.04);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.hydratedRegionalTint, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.canonicalTerrainOwnsValyriaSurface, true);
@@ -343,5 +345,6 @@ console.log(JSON.stringify({
   smallFallbackShadowSuppression: NATURAL_GEOLOGY_RENDER_POLICY.smallFallbackShadowSuppression,
   roundedBoulderNormalResponse: NATURAL_GEOLOGY_RENDER_POLICY.roundedBoulderNormalResponse,
   volcanicFallbackSmoothedLightingNormals: NATURAL_GEOLOGY_RENDER_POLICY.volcanicFallbackSmoothedLightingNormals,
+  volcanicFallbackCalibratedBasaltReflectance: NATURAL_GEOLOGY_RENDER_POLICY.volcanicFallbackCalibratedBasaltReflectance,
 }, null, 2));
 
