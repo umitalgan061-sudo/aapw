@@ -153,6 +153,32 @@ function replacementMeshes(group) {
 }
 
 {
+	const source = makeValidWinterModel();
+	source.children[1].material.map = new THREE.Texture();
+	source.children[1].material.transparent = true;
+	const group = makeProceduralGroup(2);
+	const status = await upgradeWinterVegetationAssets(group, {
+		assetLoader: { async loadModel() { return source; } },
+		candidates: [WINTER_VEGETATION_ASSET_POLICY.preferredSnowPineAsset],
+	});
+	assert.equal(status.treeCount, 2, 'foliage density must not add geographic tree placements');
+	const density = replacementMeshes(group).find((mesh) => mesh.userData.winterVegetationAsset?.detailLayer);
+	assert.ok(density, 'preferred mapped foliage must receive one deterministic inner density layer');
+	assert.equal(density.count, 2, 'density layer must reuse the exact authoritative tree matrix count');
+	const baseFoliage = replacementMeshes(group).find((mesh) => mesh.name === 'vegetation-snow-asset-1');
+	const baseMatrix = new THREE.Matrix4();
+	const densityMatrix = new THREE.Matrix4();
+	const basePosition = new THREE.Vector3();
+	const densityPosition = new THREE.Vector3();
+	baseFoliage.getMatrixAt(0, baseMatrix);
+	density.getMatrixAt(0, densityMatrix);
+	baseMatrix.decompose(basePosition, new THREE.Quaternion(), new THREE.Vector3());
+	densityMatrix.decompose(densityPosition, new THREE.Quaternion(), new THREE.Vector3());
+	assert.ok(basePosition.distanceTo(densityPosition) < 1e-6,
+		'crown density may rotate locally but must not move the canonical tree point');
+}
+
+{
 	const invalid = validateWinterAsset(makeWideCluster());
 	assert.equal(invalid.valid, false);
 	assert.equal(invalid.reason, 'implausibly-wide-tree');
