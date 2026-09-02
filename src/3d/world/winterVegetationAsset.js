@@ -45,6 +45,12 @@ export const WINTER_VEGETATION_ASSET_POLICY = Object.freeze({
 	pineFoliageFineScale: 0.71,
 	pineFoliageWeatheringStrength: 0.18,
 	pineFoliageRoughnessVariation: 0.09,
+	pineNeedleShadowTint: Object.freeze([0.52, 0.66, 0.57]),
+	pineNeedleShadowStrength: 0.46,
+	// One rotated inner copy fills card-like crown gaps without adding or moving a geographic tree.
+	pineFoliageDensityLayerYawRadians: 1.0472,
+	pineFoliageDensityLayerHorizontalScale: 0.94,
+	pineFoliageDensityLayerVerticalScale: 0.985,
 	// Hydrated GLBs retain every authored primitive/material and UV transform. Runtime texture state
 	// only establishes physically correct color decoding and stable oblique-distance filtering.
 	multiMaterialHydrationSupported: true,
@@ -221,8 +227,12 @@ float winterPineNoise(vec2 p) {
 
 		const marker = '#include <map_fragment>';
 		if (!shader.fragmentShader.includes(marker)) return;
+		const [needleR, needleG, needleB] = policy.pineNeedleShadowTint;
 		shader.fragmentShader = shader.fragmentShader.replace(marker, `${marker}\n
 			float winterFoliageLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+			float winterNeedleShade = 1.0 - smoothstep(0.20, 0.66, winterFoliageLuma);
+			diffuseColor.rgb *= mix(vec3(1.0), vec3(${needleR.toFixed(3)}, ${needleG.toFixed(3)}, ${needleB.toFixed(3)}),
+				${policy.pineNeedleShadowStrength.toFixed(3)} * (0.30 + 0.70 * winterNeedleShade));
 			float winterMacro = 0.5;
 			float winterMeso = 0.5;
 			float winterFine = 0.5;
@@ -376,6 +386,48 @@ function applyWinterAssetInstances({
 		instanced.instanceMatrix.needsUpdate = true;
 		group.add(instanced);
 		addedMeshes.push(instanced);
+
+		const authoredMaterials = Array.isArray(sourceAssetMesh.material)
+			? sourceAssetMesh.material
+			: [sourceAssetMesh.material];
+		const isPreferredFoliagePrimitive = assetUrl === WINTER_VEGETATION_ASSET_POLICY.preferredSnowPineAsset
+			&& authoredMaterials.every((entry) => entry?.map && entry.transparent);
+		if (isPreferredFoliagePrimitive) {
+			const densityMaterial = prepareWinterAssetMaterials(
+				sourceAssetMesh.material,
+				disposedTextures,
+				assetUrl,
+				maxAnisotropy,
+			);
+			const densityLayer = new THREE.InstancedMesh(sourceAssetMesh.geometry, densityMaterial, count);
+			densityLayer.name = `vegetation-snow-asset-${meshIndex}-foliage-density`;
+			densityLayer.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+			densityLayer.castShadow = instanced.castShadow;
+			densityLayer.receiveShadow = instanced.receiveShadow;
+			densityLayer.userData.winterVegetationAsset = Object.freeze({
+				assetUrl,
+				meshIndex,
+				detailLayer: 'deterministic-inner-foliage-density',
+			});
+			const densityTransform = new THREE.Matrix4()
+				.makeRotationY(WINTER_VEGETATION_ASSET_POLICY.pineFoliageDensityLayerYawRadians)
+				.scale(new THREE.Vector3(
+					WINTER_VEGETATION_ASSET_POLICY.pineFoliageDensityLayerHorizontalScale,
+					WINTER_VEGETATION_ASSET_POLICY.pineFoliageDensityLayerVerticalScale,
+					WINTER_VEGETATION_ASSET_POLICY.pineFoliageDensityLayerHorizontalScale,
+				));
+			for (let instanceIndex = 0; instanceIndex < count; instanceIndex++) {
+				sourceMesh.getMatrixAt(instanceIndex, treeMatrix);
+				finalMatrix.copy(treeMatrix)
+					.multiply(normalization)
+					.multiply(sourceAssetMesh.matrixWorld)
+					.multiply(densityTransform);
+				densityLayer.setMatrixAt(instanceIndex, finalMatrix);
+			}
+			densityLayer.instanceMatrix.needsUpdate = true;
+			group.add(densityLayer);
+			addedMeshes.push(densityLayer);
+		}
 	}
 	return addedMeshes;
 }
