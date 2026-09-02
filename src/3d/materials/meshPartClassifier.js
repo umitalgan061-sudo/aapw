@@ -62,7 +62,10 @@ const SLOT_RULES = Object.freeze([
 	{ slot: 'structure-roof', priority: 1, words: ['roof', 'roofing', 'roof tile', 'rooftile', 'shingle', 'shingles', 'slate roof', 'cati', 'çatı', 'kiremit'] },
 	{ slot: 'structure-brick', words: ['brick', 'brickwork', 'tugla', 'tuğla'] },
 	{ slot: 'structure-plaster', words: ['plaster', 'stucco', 'render coat', 'siva', 'sıva'] },
-	{ slot: 'structure-stone', words: ['stonework', 'masonry', 'foundation', 'footing', 'rubble stone', 'tas temel', 'taş temel'] },
+	// `footing` begins with the body keyword `foot`. Give explicit foundation/masonry language the
+	// same semantic priority as other authored structure roles so a building foundation cannot be
+	// dressed as a boot. Material-name weight still makes artist-authored foundation semantics win.
+	{ slot: 'structure-stone', priority: 1, words: ['stonework', 'masonry', 'foundation', 'footing', 'rubble stone', 'tas temel', 'taş temel'] },
 	{ slot: 'structure-timber', words: ['timber', 'wooden beam', 'wood beam', 'plank', 'rafter', 'joist', 'log wall', 'ahsap', 'ahşap', 'tahta'] },
 	{ slot: 'structure-metal', words: ['hinge', 'door handle', 'latch', 'ironwork', 'wrought iron', 'metal trim', 'metal fitting'] },
 
