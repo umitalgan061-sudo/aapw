@@ -30,6 +30,7 @@ import {
 	installCanonicalRoadBridgeRuntime,
 	createCanonicalRoadBridgeGroundHeightResolver,
 } from './world/canonicalRoadBridgeRuntime.js';
+import { createRoadsideWaystones } from './world/roadsideWaystones.js';
 import { createNaturalGeology, upgradeNaturalGeologyAssets } from './world/naturalGeology.js';
 import {
 	createValyriaBarrenEcologyPlacementProbe,
@@ -220,11 +221,24 @@ export function createScene(canvas) {
 		sampleHeightMeters: groundCollider.getGroundHeight,
 	});
 	installCanonicalRoadBridgeRuntime(roadsResult, { sampleHeightMeters: groundCollider.getGroundHeight });
+	const roadsideWaystonesResult = createRoadsideWaystones({
+		roadEdges: roadsResult.edges,
+		seats: settlementsResult.seats,
+		sampleHeightMeters: groundCollider.getGroundHeight,
+		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+		seed: WORLD_DEFAULTS.WORLD_SEED,
+		isMobileClass,
+	});
+	roadsResult.group.add(roadsideWaystonesResult.mesh);
 	scene.add(roadsResult.group);
 	console.info(
 		`[sceneManager] Built road network: ${roadsResult.edges.length} segment(s) connecting ` +
 			`${settlementsResult.seats.length} kingdom seats, ${(roadsResult.totalLengthMeters / 1000).toFixed(2)} km total, ` +
 			`steepest actual segment grade ${roadsResult.maxGradeDegrees.toFixed(1)}°.`,
+	);
+	console.info(
+		`[sceneManager] Roadside waystones: ${roadsideWaystonesResult.stats.placedCount}/${roadsideWaystonesResult.stats.candidateCount} ` +
+			`dry slope-safe marker(s), profiles ${JSON.stringify(roadsideWaystonesResult.stats.profiles)}.`,
 	);
 	if (roadsResult.bridgeRuntime?.status === 'active-render-topology') {
 		console.info(
@@ -333,6 +347,7 @@ export function createScene(canvas) {
 	applyShadowRoles(naturalGeologyResult.group, { quality: renderQuality });
 	applyShadowRoles(vegetationResult.group, { quality: renderQuality });
 	applyShadowRoles(roadsResult.group, { quality: renderQuality, cast: false });
+	applyShadowRoles(roadsideWaystonesResult.mesh, { quality: renderQuality });
 
 	return {
 		renderer, scene, camera, controls, freeCamera, chunkManager, groundCollider, playerCollider, sky, stars, water, river, waterfalls,
@@ -341,6 +356,7 @@ export function createScene(canvas) {
 		roads: roadsResult.group,
 		roadEdges: roadsResult.edges,
 		bridgeRuntime: roadsResult.bridgeRuntime ?? null,
+		roadsideWaystoneStats: roadsideWaystonesResult.stats,
 		naturalGeology: naturalGeologyResult.group,
 		naturalGeologyStats: naturalGeologyResult.stats,
 		valyriaEcologyPlacement,
