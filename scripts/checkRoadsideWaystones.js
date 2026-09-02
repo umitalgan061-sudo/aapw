@@ -22,11 +22,11 @@ function assertSourceContracts() {
 	assert(WAYSTONE_SOURCE.includes('northReferenceCryosphereAtWorldXZ'), 'north material must use map-aligned cryosphere authority');
 	assert(WAYSTONE_SOURCE.includes('valyriaInfluenceAtWorldXZ'), 'Valyria material must use Doom geography authority');
 	assert(WAYSTONE_SOURCE.includes('THREE.DataTexture'), 'waystones must ship generated stone textures');
-	assert(WAYSTONE_SOURCE.includes('THREE.LatheGeometry'), 'waystones must ship the authored plinth/shaft/cap silhouette');
-	assert(WAYSTONE_SOURCE.includes('bumpMap: textures.relief'), 'waystones must ship micro-relief instead of flat color-only stone');
+	assert(WAYSTONE_SOURCE.includes('THREE.LatheGeometry'), 'authored plinth/shaft/cap silhouette missing');
+	assert(WAYSTONE_SOURCE.includes('bumpMap: textures.relief'), 'masonry relief map contract missing');
 	assert(WAYSTONE_SOURCE.includes('THREE.InstancedMesh'), 'waystones must stay one batched asset layer');
-	assert(WAYSTONE_SOURCE.includes('shoreClearanceMeters'), 'waystones must reject wet/shoreline placement');
-	assert(WAYSTONE_SOURCE.includes('maxSlopeDegrees'), 'waystones must enforce terrain slope placement');
+	assert(WAYSTONE_SOURCE.includes('shoreClearanceMeters'), 'wet/shoreline placement gate missing');
+	assert(WAYSTONE_SOURCE.includes('maxSlopeDegrees'), 'terrain slope placement gate missing');
 }
 
 async function main() {
@@ -51,6 +51,7 @@ async function main() {
 		report = await page.evaluate(async () => {
 			const { createScene } = await import('/src/3d/sceneManager.js');
 			const { disposeRoadNetwork } = await import('/src/3d/world/roads.js');
+			const { updateDayNightLighting } = await import('/src/3d/lighting.js');
 			const { planRoadsideWaystoneSites, ROADSIDE_WAYSTONE_POLICY } = await import('/src/3d/world/roadsideWaystones.js');
 			const canvas = document.createElement('canvas');
 			canvas.id = 'roadside-waystone-proof-canvas';
@@ -91,13 +92,20 @@ async function main() {
 			const planA = planRoadsideWaystoneSites(syntheticOptions);
 			const planB = planRoadsideWaystoneSites(syntheticOptions);
 			const deterministic = JSON.stringify(planA.sites) === JSON.stringify(planB.sites);
+			const proofSite = sites.find((site) => site.profile === 'north') ?? sites[0] ?? null;
 
-			const firstSite = sites[0] ?? null;
 			window.__roadsideWaystoneSetView = () => {
-				if (!firstSite) return false;
-				state.camera.position.set(firstSite.x + 12, firstSite.y + 6, firstSite.z + 16);
-				state.camera.lookAt(firstSite.x, firstSite.y + 1.25, firstSite.z);
+				if (!proofSite) return false;
+				const daylight = updateDayNightLighting(state.lights, 0, 1200, 0.5);
+				const uniforms = state.sky?.material?.uniforms;
+				uniforms?.uHorizonColor?.value?.copy?.(daylight.horizonColor);
+				uniforms?.uZenithColor?.value?.copy?.(daylight.zenithColor);
+				if (uniforms?.uNightFactor) uniforms.uNightFactor.value = daylight.nightFactor;
+				if (uniforms?.uTime) uniforms.uTime.value = 0;
+				state.camera.position.set(proofSite.x + 12, proofSite.y + 6, proofSite.z + 16);
+				state.camera.lookAt(proofSite.x, proofSite.y + 1.25, proofSite.z);
 				state.camera.updateMatrixWorld(true);
+				state.sky?.position?.copy?.(state.camera.position);
 				state.renderer.render(state.scene, state.camera);
 				return true;
 			};
@@ -128,6 +136,8 @@ async function main() {
 				materialGeography: mesh?.userData?.materialGeography ?? null,
 				silhouetteProfile: mesh?.userData?.silhouetteProfile ?? null,
 				surfaceRelief: mesh?.userData?.surfaceRelief ?? null,
+				proofProfile: proofSite?.profile ?? null,
+				proofLighting: 'shipped-day-night-system/noon',
 				allSitesFinite: sites.every((site) => [site.x, site.y, site.z, site.slopeDegrees, site.groundClearanceMeters].every(Number.isFinite)),
 				allSitesDry: sites.every((site) => site.groundClearanceMeters > ROADSIDE_WAYSTONE_POLICY.shoreClearanceMeters),
 				allSitesSlopeSafe: sites.every((site) => site.slopeDegrees <= ROADSIDE_WAYSTONE_POLICY.maxSlopeDegrees + 1e-9),
@@ -140,32 +150,27 @@ async function main() {
 		fs.writeFileSync(path.join(ARTIFACT_DIR, 'proof.json'), JSON.stringify({ ...report, pageErrors }, null, 2));
 		assert(report.sceneBuildMs < 120000, `createScene took ${(report.sceneBuildMs / 1000).toFixed(1)}s`);
 		assert(report.isInstancedMesh, 'roadside-waystones is not an InstancedMesh');
-		assert(report.meshCount > 8, `expected a meaningful sparse route layer, got ${report.meshCount} waystones`);
-		assert(report.stats?.placedCount === report.meshCount, 'stats/mesh instance count mismatch');
+		assert(report.meshCount > 8 && report.stats?.placedCount === report.meshCount, 'live sparse route layer/count mismatch');
 		assert(report.stats?.candidateCount > report.stats?.placedCount, 'placement gate rejected no candidates');
-		assert(report.profileTotal === report.meshCount, 'geographic profile counts do not sum to placed count');
-		assert((report.stats?.profiles?.temperate ?? 0) > 0, 'no temperate waystone profile was placed');
-		assert(report.uniqueTintCount > 3, `instance material variation too flat (${report.uniqueTintCount} unique tints)`);
-		assert(report.geometryType === 'LatheGeometry' && report.geometryName === 'roadside-waystone-plinth-shaft-cap', 'authored plinth/shaft/cap silhouette missing');
-		assert(report.hasTexture && report.textureName === 'roadside-waystone-weathered-masonry', 'weathered masonry albedo missing');
-		assert(report.textureSize === 96, `expected 96px generated masonry texture, got ${report.textureSize}`);
+		assert(report.profileTotal === report.meshCount && (report.stats?.profiles?.temperate ?? 0) > 0, 'geographic profile accounting failed');
+		assert(report.uniqueTintCount > 3, `instance material variation too flat (${report.uniqueTintCount})`);
+		assert(report.geometryType === 'LatheGeometry' && report.geometryName === 'roadside-waystone-plinth-shaft-cap', 'authored silhouette missing');
+		assert(report.hasTexture && report.textureName === 'roadside-waystone-weathered-masonry' && report.textureSize === 96, 'weathered masonry albedo missing');
 		assert(report.hasBumpMap && report.bumpMapName === 'roadside-waystone-masonry-relief', 'masonry relief map missing');
-		assert(report.bumpScale > 0 && report.bumpScale <= 0.08, `unexpected masonry bump scale ${report.bumpScale}`);
+		assert(report.bumpScale > 0 && report.bumpScale <= 0.08, `unexpected bump scale ${report.bumpScale}`);
 		assert(report.roughness >= 0.9 && report.metalness === 0, 'stone PBR response is not rough/non-metallic');
 		assert(report.placementAuthority === 'bridge-aware-road-edges-render-only', 'placement authority metadata missing');
-		assert(report.materialGeography.includes('north-frost') && report.materialGeography.includes('valyria-basalt'), 'geographic material metadata incomplete');
+		assert(report.materialGeography.includes('north-frost') && report.materialGeography.includes('valyria-basalt'), 'material geography metadata incomplete');
 		assert(report.silhouetteProfile === 'faceted-plinth-shaft-shoulder-pointed-cap', 'silhouette metadata incomplete');
 		assert(report.surfaceRelief === 'procedural-masonry-bump', 'surface-relief metadata incomplete');
-		assert(report.allSitesFinite && report.allSitesDry && report.allSitesSlopeSafe && report.allSitesShouldered,
-			'one or more live waystones violate finite/dry/slope/shoulder policy');
-		assert(report.deterministic && report.syntheticCount > 0, 'deterministic site planner proof failed');
+		assert(report.proofProfile === 'north' && report.proofLighting === 'shipped-day-night-system/noon', 'visual proof must exercise a northern marker under shipped noon lighting');
+		assert(report.allSitesFinite && report.allSitesDry && report.allSitesSlopeSafe && report.allSitesShouldered, 'live placement policy violation');
+		assert(report.deterministic && report.syntheticCount > 0, 'deterministic planner proof failed');
 		assert(pageErrors.length === 0, `page errors: ${pageErrors.join(' | ')}`);
 
 		const viewSet = await page.evaluate(() => window.__roadsideWaystoneSetView());
 		assert(viewSet, 'could not resolve a live waystone camera target');
-		await page.locator('#roadside-waystone-proof-canvas').screenshot({
-			path: path.join(ARTIFACT_DIR, 'near.png'),
-		});
+		await page.locator('#roadside-waystone-proof-canvas').screenshot({ path: path.join(ARTIFACT_DIR, 'near.png') });
 		const disposeError = await page.evaluate(() => window.__roadsideWaystoneDispose());
 		assert(disposeError === null, `disposeRoadNetwork failed with waystones attached: ${disposeError}`);
 	} finally {
@@ -177,8 +182,7 @@ async function main() {
 	}
 	console.log(
 		`[checkRoadsideWaystones] PASS: ${report.meshCount} waystones from ${report.stats.candidateCount} candidates / `
-		+ `${report.uniqueTintCount} material tints / profiles ${JSON.stringify(report.stats.profiles)} / `
-		+ `scene ${(report.sceneBuildMs / 1000).toFixed(1)}s`,
+		+ `${report.uniqueTintCount} tints / profiles ${JSON.stringify(report.stats.profiles)} / scene ${(report.sceneBuildMs / 1000).toFixed(1)}s`,
 	);
 }
 
