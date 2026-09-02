@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/3d/gameplay/dragonSpawns.js'
       - 'scripts/checkConfiguredDragonSpawnGroundSafetyBrowser.mjs'
+      - 'scripts/checkConfiguredDragonConfigReadSafety.mjs'
       - '.github/workflows/configured-dragon-spawn-ground-safety.yml'
   workflow_dispatch:
 
@@ -35,7 +36,7 @@ jobs:
           test "$base" = "$(git rev-parse origin/main)"
           changed="$(git diff --name-only origin/main...HEAD)"
           printf '%s\n' "$changed"
-          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/dragonSpawns\.js|scripts/checkConfiguredDragonSpawnGroundSafetyBrowser\.mjs|\.github/workflows/configured-dragon-spawn-ground-safety\.yml)$' && exit 1 || true
+          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/dragonSpawns\.js|scripts/checkConfiguredDragonSpawnGroundSafetyBrowser\.mjs|scripts/checkConfiguredDragonConfigReadSafety\.mjs|\.github/workflows/configured-dragon-spawn-ground-safety\.yml)$' && exit 1 || true
           additions="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END {print s+0}')"
           deletions="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END {print s+0}')"
           test $((additions + deletions)) -le 1000
@@ -45,6 +46,8 @@ jobs:
         run: |
           node --check src/3d/gameplay/dragonSpawns.js
           node --check scripts/checkConfiguredDragonSpawnGroundSafetyBrowser.mjs
+          node --check scripts/checkConfiguredDragonConfigReadSafety.mjs
+          node scripts/checkConfiguredDragonConfigReadSafety.mjs
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkSharedMaterialPlacementContract.js
 
