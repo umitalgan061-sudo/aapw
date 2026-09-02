@@ -165,6 +165,12 @@ async function main() {
 			'small fallback families must not collapse into hard black shadow needles');
 		assert.equal(summary.naturalGeology?.roundedBoulderNormalResponse, true,
 			'fallback boulders must retain a rounded natural-light response');
+		assert.equal(summary.naturalGeology?.volcanicFallbackSmoothedLightingNormals, true,
+			'Valyria fallback facets must avoid sub-pixel black side-light aliasing');
+		assert.equal(Object.values(summary.naturalGeology?.kindCounts ?? {}).reduce((sum, count) => sum + count, 0),
+			summary.naturalGeology?.placementCount, 'geology kind breakdown must cover every placement');
+		assert.equal(Object.values(summary.naturalGeology?.valyriaKindCounts ?? {}).reduce((sum, count) => sum + count, 0),
+			summary.naturalGeology?.valyriaPlacementCount, 'Valyria kind breakdown must cover every volcanic placement');
 		assert.equal(summary.naturalGeology?.visualProofUsesDeterministicFallback, true,
 			'pointer-only CI proof must explicitly render deterministic procedural fallback geometry');
 		if (args.focus === 'valyria') {
