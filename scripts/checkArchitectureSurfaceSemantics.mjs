@@ -41,16 +41,33 @@ assert.equal(
 	'artist material semantics must outrank a competing mesh name',
 );
 
-// Bare substances are intentionally NOT global architecture semantics. `Wood`, `Stone`, `Glass`,
-// `Iron` and `Metal` also occur on shields, carts, tools and many other shared assets. In a village
-// house these ambiguous authored materials are better preserved than guessed; a strong structure
-// noun is required before the shared classifier may replace the imported material.
+// Real village GLBs frequently expose useful substance slots under a mesh that is explicitly a
+// house but do not repeat the architectural role in every material name. In that bounded context,
+// exact physical substances are safe signals and should receive destination-region PBR treatment.
+const CONTEXTUAL_HOUSE_CASES = [
+	{ meshName: 'House_2', materialName: 'Wood', slot: 'structure-timber' },
+	{ meshName: 'House_2', materialName: 'Wood_Light', slot: 'structure-timber' },
+	{ meshName: 'House_2', materialName: 'Wood_Side', slot: 'structure-timber' },
+	{ meshName: 'House_2', materialName: 'Stone', slot: 'structure-stone' },
+	{ meshName: 'House_2', materialName: 'Stone_Dark', slot: 'structure-stone' },
+	{ meshName: 'House_2', materialName: 'Stone_Light', slot: 'structure-stone' },
+	{ meshName: 'CottageShell', materialName: 'Glass', slot: 'structure-window' },
+	{ meshName: 'CabinShell', materialName: 'Iron', slot: 'structure-metal' },
+];
+for (const testCase of CONTEXTUAL_HOUSE_CASES) {
+	const match = classifyPart(testCase);
+	assert(match, `expected bounded house-context match for ${JSON.stringify(testCase)}`);
+	assert.equal(match.slot, testCase.slot, `${testCase.materialName}: wrong contextual structure slot`);
+}
+
+// Bare substances remain fail-closed everywhere that the mesh does not independently establish a
+// building context. This is the ownership boundary that protects carts, vegetation and equipment.
 const FAIL_CLOSED_CASES = [
-	{ meshName: 'HouseShell', materialName: 'Wood' },
-	{ meshName: 'HouseShell', materialName: 'Stone' },
-	{ meshName: 'HouseShell', materialName: 'Glass' },
-	{ meshName: 'HouseShell', materialName: 'Iron' },
-	{ meshName: 'HouseShell', materialName: 'Metal' },
+	{ meshName: 'CartShell', materialName: 'Wood' },
+	{ meshName: 'PropShell', materialName: 'Stone' },
+	{ meshName: 'DisplayCase', materialName: 'Glass' },
+	{ meshName: 'ToolHead', materialName: 'Iron' },
+	{ meshName: 'GenericMesh', materialName: 'Metal' },
 	{ meshName: 'House_Wall', materialName: 'Wall' },
 	{ meshName: 'House', materialName: 'Surface' },
 	{ meshName: 'Building', materialName: 'Material' },
@@ -83,6 +100,7 @@ const fakeMesh = {
 		{ name: 'Oak_Door' },
 		{ name: 'Wooden_Beam' },
 		{ name: 'Wood' },
+		{ name: 'Stone' },
 		{ name: 'Wall_Material' },
 	],
 };
@@ -90,13 +108,13 @@ const fakeRoot = {
 	traverse(callback) { callback(fakeMesh); },
 };
 const survey = surveyParts(fakeRoot);
-assert.equal(survey.length, 6, 'multi-material architecture must be surveyed per material slot');
+assert.equal(survey.length, 7, 'multi-material architecture must be surveyed per material slot');
 assert.deepEqual(
 	survey.map((surface) => surface.slot),
-	['structure-roof', 'structure-window', 'structure-door', 'structure-timber', null, null],
-	'only strong authored building semantics may override imported materials',
+	['structure-roof', 'structure-window', 'structure-door', 'structure-timber', 'structure-timber', 'structure-stone', null],
+	'authored building slots and bounded house substances must remain physically distinct',
 );
-assert.deepEqual(survey.map((surface) => surface.materialIndex), [0, 1, 2, 3, 4, 5]);
+assert.deepEqual(survey.map((surface) => surface.materialIndex), [0, 1, 2, 3, 4, 5, 6]);
 
 const housePaletteIds = ['house', 'brick', 'plaster', 'thatch', 'roof-tile'];
 for (const paletteId of housePaletteIds) {
@@ -188,6 +206,7 @@ assert.equal(new Set(regionalProof.map((entry) => entry.brick)).size, 4, 'region
 
 console.log('ARCHITECTURE_SURFACE_SEMANTICS_PASS', JSON.stringify({
 	classifiedCases: STRUCTURE_CASES.length,
+	contextualHouseCases: CONTEXTUAL_HOUSE_CASES.length,
 	failClosedCases: FAIL_CLOSED_CASES.length,
 	surveySlots: survey.map((surface) => surface.slot),
 	houseSlots: house.slots,
