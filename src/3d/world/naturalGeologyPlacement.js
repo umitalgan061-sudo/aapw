@@ -6,23 +6,26 @@ import {
   valyriaInfluenceAtWorldXZ,
   valyriaMorphologySignals,
 } from './valyriaGeology.js';
+import {
+  TERRAIN_HABITAT_POLICY,
+  geologyAssetHabitatHint,
+  geologySuitabilityForHabitat,
+  habitatPreferredOrientationRadians,
+  habitatScaleMultiplier,
+  sampleCanonicalTerrainHabitat,
+  terrainHabitatClass,
+} from './terrainHabitat.js';
 
 /**
  * Deterministic placement policy for natural bedrock, outcrops and talus.
  *
- * This module owns no geometry and no height authority. It reads the canonical terrain sampler and
- * returns placement descriptors only. Generic geology follows regional strata, terrain slope breaks
- * and local erosion. Valyria is stricter: its outcrop clusters consume the SAME v4 fault, caldera,
- * lava-drainage and gully signals that already shape canonical terrain height.
+ * Geography remains canonical-terrain owned. Candidate coordinates use a seed-scrambled R2 sequence;
+ * this module only decides whether a candidate deserves a render-only geology instance after reading
+ * slope, multi-scale relief, convexity/concavity and the already-established Valyria morphology.
  *
- * v3 removes the last regular sampling lattice from geology placement. Earlier revisions jittered one
- * candidate inside every 82x64 desktop cell. That passed simple "fraction inside the cell" checks but
- * still left one-candidate-per-cell blueprints which could become visible from aerial cameras after
- * cluster filtering. Candidate coordinates now come from a seed-scrambled R2 low-discrepancy sequence
- * (plastic-constant recurrence + Cranley-Patterson rotation). The old rows/columns remain only as a
- * deterministic candidate-count/performance budget and diagnostic reference; they no longer own X/Z.
- * Hard nearest-neighbour spacing remains the final acceptance authority.
- *
+ * v3 remains the public compatibility id because existing exact-head checks key on the R2 migration.
+ * The additional terrain-habitat pass is deliberately backwards compatible: it changes no coordinate
+ * authority and no map/hydrology/collider state.
  * @module world/naturalGeologyPlacement
  */
 export const NATURAL_GEOLOGY_PLACEMENT_POLICY = Object.freeze({
@@ -32,6 +35,13 @@ export const NATURAL_GEOLOGY_PLACEMENT_POLICY = Object.freeze({
   renderOnly: true,
   geographyAuthorityUnchanged: true,
   heightAuthority: 'world/terrain.js',
+  terrainHabitatPolicyId: TERRAIN_HABITAT_POLICY.id,
+  terrainMorphologyWeighted: true,
+  terrainMorphologyRejectsSyntheticClusters: true,
+  multiScaleReliefPlacement: true,
+  convexityConcavityPlacement: true,
+  habitatAwareAssetHint: true,
+  silhouetteVariantCount: 4,
   directAssetFamilies: Object.freeze([
     'assets/models/fbx/rocky_terrain_low_poly.glb',
     'assets/models/fbx/desert_rocks.glb',
@@ -89,6 +99,11 @@ export const NATURAL_GEOLOGY_PLACEMENT_POLICY = Object.freeze({
   minimumLargeOutcropSpacingMeters: 66,
   talusSlopeMinDegrees: 21,
   talusSlopeMaxDegrees: 48,
+  genericHabitatInfluenceFloor: 0.52,
+  genericHabitatInfluenceGain: 0.48,
+  genericHabitatRejectThreshold: 0.13,
+  largeOutcropHabitatMinimum: 0.18,
+  assetProxyHabitatBoost: 0.12,
 });
 
 const TAU = Math.PI * 2;
@@ -128,12 +143,6 @@ export function geologyHash01(seed, a = 0, b = 0, c = 0) {
 
 const hashSigned = (seed, a, b, c) => geologyHash01(seed, a, b, c) * 2 - 1;
 
-/**
- * Seed-scrambled R2 candidate in normalized [0,1)^2 space.
- * The plastic-constant recurrence has no axis-aligned cell ownership and low discrepancy without a
- * pseudo-random clump. A Cranley-Patterson rotation decorrelates world seeds while preserving the
- * sequence's uniformity. Index order is stable, so deterministic candidate budgets remain cheap.
- */
 export function naturalGeologyCandidateUv(seed, index) {
   const i = Math.max(0, Math.floor(finite(index)));
   const shiftX = geologyHash01(seed ^ 0x6d2b79f5, 701, 11, 3);
@@ -407,30 +416,58 @@ function dominantMorphology(morphology) {
   return Object.freeze({ kind: entries[0][0], strength: entries[0][1] });
 }
 
-function placementKind(clusterKind, frame, randomSelector, valyriaClass, morphology) {
+function genericKindFromHabitat(clusterKind, frame, habitat, selector) {
+  const talus = geologySuitabilityForHabitat(habitat, 'talus');
+  const boulder = geologySuitabilityForHabitat(habitat, 'boulder');
+  const scarp = geologySuitabilityForHabitat(habitat, 'fractured-scarp');
+  const bedrock = geologySuitabilityForHabitat(habitat, 'bedrock');
+  const low = geologySuitabilityForHabitat(habitat, 'low-outcrop');
+
+  if (frame.slopeDegrees > 39 && scarp > 0.34) return selector < 0.64 ? 'fractured-scarp' : 'bedrock';
+  if (clusterKind === 'talus-apron' && talus > 0.38 && frame.slopeDegrees >= 15) return selector < 0.78 ? 'talus' : 'boulder';
+  if (clusterKind === 'boulder-field' && boulder > 0.30) return selector < 0.70 ? 'boulder' : 'low-outcrop';
+  if (bedrock > 0.56 && frame.slopeDegrees > 18) return selector < 0.62 ? 'bedrock' : 'low-outcrop';
+  if (low > 0.44) return selector < 0.57 ? 'low-outcrop' : 'boulder';
+  return selector < 0.55 ? 'boulder' : 'low-outcrop';
+}
+
+function placementKind(clusterKind, frame, randomSelector, valyriaClass, morphology, habitat) {
   if (morphology.faultActivity > 0.48) return randomSelector < 0.82 ? 'fractured-scarp' : 'bedrock';
   if (morphology.brokenCalderaShoulder > 0.48) return randomSelector < 0.76 ? 'bedrock' : 'low-outcrop';
   if (morphology.lavaDrainage > 0.52) return frame.slopeDegrees > 20 ? 'talus' : 'low-outcrop';
   if (morphology.erosionGully > 0.52) return frame.slopeDegrees > 18 ? 'talus' : 'boulder';
   if (valyriaClass === 'fractured-volcanic-scarp') return randomSelector < 0.78 ? 'fractured-scarp' : 'bedrock';
   if (valyriaClass === 'doom-core' || valyriaClass === 'basalt-ridge') return randomSelector < 0.68 ? 'bedrock' : 'low-outcrop';
-  const slope = frame.slopeDegrees;
-  if (clusterKind === 'talus-apron' && slope >= NATURAL_GEOLOGY_PLACEMENT_POLICY.talusSlopeMinDegrees) return 'talus';
-  if (clusterKind === 'boulder-field' || slope < 12) return randomSelector < 0.72 ? 'boulder' : 'low-outcrop';
-  if (slope > 39) return randomSelector < 0.62 ? 'fractured-scarp' : 'bedrock';
-  return randomSelector < 0.58 ? 'bedrock' : 'low-outcrop';
+  return genericKindFromHabitat(clusterKind, frame, habitat, randomSelector);
 }
 
-function geometryScaleFor(kind, frame, a, b, c) {
+function geometryScaleFor(kind, frame, habitat, a, b, c) {
   const slopeFactor = smoothstep01((frame.slopeDegrees - 8) / 42);
-  if (kind === 'fractured-scarp') return { x: 12 + a * 24, y: 10 + b * 24 + slopeFactor * 8, z: 5 + c * 10 };
-  if (kind === 'bedrock') return { x: 9 + a * 19, y: 5 + b * 12 + slopeFactor * 5, z: 5 + c * 12 };
-  if (kind === 'low-outcrop') return { x: 7 + a * 16, y: 2.8 + b * 7, z: 6 + c * 14 };
-  if (kind === 'talus') return { x: 2.2 + a * 5.4, y: 1.3 + b * 3.8, z: 2 + c * 5 };
-  return { x: 3.8 + a * 9.5, y: 2.5 + b * 7.5, z: 3.2 + c * 8.2 };
+  const reliefScale = habitatScaleMultiplier(habitat, 0.88, 1.17);
+  let scale;
+  if (kind === 'fractured-scarp') scale = { x: 12 + a * 24, y: 10 + b * 24 + slopeFactor * 8, z: 5 + c * 10 };
+  else if (kind === 'bedrock') scale = { x: 9 + a * 19, y: 5 + b * 12 + slopeFactor * 5, z: 5 + c * 12 };
+  else if (kind === 'low-outcrop') scale = { x: 7 + a * 16, y: 2.8 + b * 7, z: 6 + c * 14 };
+  else if (kind === 'talus') scale = { x: 2.2 + a * 5.4, y: 1.3 + b * 3.8, z: 2 + c * 5 };
+  else scale = { x: 3.8 + a * 9.5, y: 2.5 + b * 7.5, z: 3.2 + c * 8.2 };
+  scale.x *= reliefScale;
+  scale.y *= 0.94 + (reliefScale - 0.88) * 0.42;
+  scale.z *= 0.93 + (1.17 - reliefScale) * 0.17;
+  return scale;
 }
 
-function placementScore({ influence, frame, kind, heightAboveSeaMeters, seed, candidateIndex, cluster, morphologyStrength = 0, valyriaInfluence = 0 }) {
+function placementScore({
+  influence,
+  frame,
+  habitat,
+  kind,
+  heightAboveSeaMeters,
+  seed,
+  candidateIndex,
+  cluster,
+  morphologyStrength = 0,
+  valyriaInfluence = 0,
+}) {
   const slope = frame.slopeDegrees;
   const slopePreference = kind === 'talus'
     ? 1 - Math.min(1, Math.abs(slope - 32) / 24)
@@ -438,8 +475,12 @@ function placementScore({ influence, frame, kind, heightAboveSeaMeters, seed, ca
       ? 1 - Math.min(1, Math.abs(slope - 13) / 28)
       : smoothstep01((slope - 5) / 28) * (1 - smoothstep01((slope - 56) / 9));
   const altitude = smoothstep01((heightAboveSeaMeters - 12) / 150);
+  const habitatSuitability = geologySuitabilityForHabitat(habitat, kind);
+  const habitatWeight = NATURAL_GEOLOGY_PLACEMENT_POLICY.genericHabitatInfluenceFloor
+    + habitatSuitability * NATURAL_GEOLOGY_PLACEMENT_POLICY.genericHabitatInfluenceGain;
   const base = influence
-    * (0.52 + slopePreference * 0.31 + altitude * 0.17)
+    * habitatWeight
+    * (0.48 + slopePreference * 0.30 + altitude * 0.12 + habitat.ridge * 0.10)
     * (0.58 + geologyHash01(seed, candidateIndex, cluster?.index ?? 0, 97) * 0.42);
   return base * (1 + valyriaInfluence * morphologyStrength * NATURAL_GEOLOGY_PLACEMENT_POLICY.valyriaMorphologyScoreBoost);
 }
@@ -452,7 +493,21 @@ function isTooClose(accepted, x, z, minimumDistance, largeOnly = false) {
   ));
 }
 
-function makePlacement({ seed, candidateIndex, x, z, frame, cluster, influence, heightAboveSeaMeters, worldWidthMeters, worldDepthMeters }) {
+function makePlacement({
+  sampleHeightMeters,
+  seaLevelMeters,
+  seed,
+  candidateIndex,
+  x,
+  z,
+  frame,
+  habitat,
+  cluster,
+  influence,
+  heightAboveSeaMeters,
+  worldWidthMeters,
+  worldDepthMeters,
+}) {
   const P = NATURAL_GEOLOGY_PLACEMENT_POLICY;
   const column = candidateIndex & 0xffff;
   const row = Math.floor(candidateIndex / 257);
@@ -467,20 +522,31 @@ function makePlacement({ seed, candidateIndex, x, z, frame, cluster, influence, 
     slopeDegrees: frame.slopeDegrees,
   });
 
-  let kind = placementKind(cluster.kind, frame, geologyHash01(seed, column, row, 101), valyriaClass, morphology);
+  let kind = placementKind(
+    cluster.kind,
+    frame,
+    geologyHash01(seed, column, row, 101),
+    valyriaClass,
+    morphology,
+    habitat,
+  );
   let assetFraction = valyriaInfluence > P.valyriaMinimumInfluence ? P.valyriaAssetProxyFraction : P.assetProxyFraction;
   if (morphology.faultActivity > 0.52 || morphology.brokenCalderaShoulder > 0.58) {
     assetFraction = Math.min(0.48, assetFraction + P.valyriaFaultAssetBoost);
+  } else {
+    assetFraction = Math.min(0.34, assetFraction + geologySuitabilityForHabitat(habitat, 'asset-proxy') * P.assetProxyHabitatBoost);
   }
   if (
     ['bedrock', 'low-outcrop', 'fractured-scarp'].includes(kind)
     && influence > 0.42
+    && geologySuitabilityForHabitat(habitat, 'asset-proxy') >= P.largeOutcropHabitatMinimum
     && geologyHash01(seed, column, row, 102) < assetFraction
   ) kind = 'asset-proxy';
 
   const scale = geometryScaleFor(
     kind === 'asset-proxy' ? 'bedrock' : kind,
     frame,
+    habitat,
     geologyHash01(seed, column, row, 103),
     geologyHash01(seed, column, row, 104),
     geologyHash01(seed, column, row, 105),
@@ -494,6 +560,7 @@ function makePlacement({ seed, candidateIndex, x, z, frame, cluster, influence, 
   }
 
   const strataAngle = regionalStrataAngle(x, z, worldWidthMeters, worldDepthMeters, seed);
+  const terrainAngle = habitatPreferredOrientationRadians(habitat, strataAngle);
   const faultAngle = valyriaFaultWorldAngle(worldWidthMeters, worldDepthMeters);
   const clusterAngle = cluster.orientation;
   const morphologyDrainage = Math.max(morphology.lavaDrainage, morphology.erosionGully);
@@ -502,26 +569,28 @@ function makePlacement({ seed, candidateIndex, x, z, frame, cluster, influence, 
     ? faultDominates
       ? morphologyDrainage * 0.10
       : morphologyDrainage * P.valyriaDrainageDownhillBlend
-    : smoothstep01((frame.slopeDegrees - 16) / 28) * 0.42;
-  let structuralAngle = strataAngle;
+    : smoothstep01((frame.slopeDegrees - 16) / 28) * (0.24 + habitat.drainage * 0.30);
+  let structuralAngle = terrainAngle;
   if (faultDominates) structuralAngle = faultAngle;
   else if (morphology.brokenCalderaShoulder > Math.max(morphologyDrainage, 0.32)) structuralAngle = clusterAngle;
   const yaw = structuralAngle
     + angleDifferenceRadians(frame.downhillAngleRadians, structuralAngle) * blendToDownhill
-    + hashSigned(seed, column, row, 106) * (valyriaInfluence > P.valyriaMinimumInfluence ? 0.22 : 0.34);
+    + hashSigned(seed, column, row, 106) * (valyriaInfluence > P.valyriaMinimumInfluence ? 0.22 : 0.28);
   const presentationYaw = yaw + (kind === 'asset-proxy' ? hashSigned(seed, column, row, 112) * P.assetProxyYawJitterRadians : 0);
 
-  const terrainTilt = Math.min(P.maxTiltDegrees / DEG, frame.slopeRadians * 0.52);
+  const terrainTilt = Math.min(P.maxTiltDegrees / DEG, frame.slopeRadians * (0.42 + habitat.exposedBedrock * 0.14));
   const buryFraction = kind === 'talus'
-    ? 0.24
+    ? 0.24 + habitat.depositional * 0.07
     : kind === 'boulder'
-      ? 0.19
-      : 0.12 + geologyHash01(seed, column, row, 108) * 0.10;
+      ? 0.19 + habitat.depositional * 0.05
+      : 0.12 + geologyHash01(seed, column, row, 108) * 0.10 + habitat.exposedBedrock * 0.025;
   const southernDryness = clamp01((z / worldDepthMeters) + 0.5);
   const northness = 1 - southernDryness;
+  const assetHabitatHint = geologyAssetHabitatHint(habitat, { northness, southernDryness, volcanic: valyriaInfluence > P.valyriaMinimumInfluence });
   const score = placementScore({
     influence,
     frame,
+    habitat,
     kind,
     heightAboveSeaMeters,
     cluster,
@@ -530,6 +599,10 @@ function makePlacement({ seed, candidateIndex, x, z, frame, cluster, influence, 
     morphologyStrength: morphologyDominant.strength,
     valyriaInfluence,
   });
+  const silhouetteVariant = Math.min(
+    P.silhouetteVariantCount - 1,
+    Math.floor(geologyHash01(seed, column, row, 114) * P.silhouetteVariantCount),
+  );
 
   return Object.freeze({
     id: `r2:${candidateIndex}:${cluster.index}`,
@@ -552,6 +625,22 @@ function makePlacement({ seed, candidateIndex, x, z, frame, cluster, influence, 
     normal: Object.freeze({ x: frame.nx, y: frame.ny, z: frame.nz }),
     curvatureMeters: frame.curvatureMeters,
     localReliefMeters: frame.localReliefMeters,
+    mesoReliefMeters: habitat.mesoReliefMeters,
+    broadReliefMeters: habitat.broadReliefMeters,
+    terrainRoughnessMeters: habitat.roughnessMeters,
+    terrainConvexityMeters: habitat.convexityMeters,
+    terrainConcavityMeters: habitat.concavityMeters,
+    terrainRidge: habitat.ridge,
+    terrainValley: habitat.valley,
+    terrainExposure: habitat.exposure,
+    terrainShelter: habitat.shelter,
+    terrainDepositional: habitat.depositional,
+    terrainDrainage: habitat.drainage,
+    terrainExposedBedrock: habitat.exposedBedrock,
+    terrainTalusCatchment: habitat.talusCatchment,
+    terrainBoulderField: habitat.boulderField,
+    terrainHabitatClass: terrainHabitatClass(habitat),
+    terrainHabitatPolicyId: habitat.policyId,
     heightAboveSeaMeters,
     northness,
     southernDryness,
@@ -561,6 +650,8 @@ function makePlacement({ seed, candidateIndex, x, z, frame, cluster, influence, 
     valyriaMorphologyDominant: morphologyDominant.kind,
     valyriaMorphologyStrength: morphologyDominant.strength,
     volcanic: valyriaInfluence > P.valyriaMinimumInfluence,
+    silhouetteVariant,
+    assetHabitatHint,
     assetFamily: kind === 'asset-proxy'
       ? (valyriaInfluence > P.valyriaMinimumInfluence
         ? 'rocky-terrain'
@@ -607,6 +698,8 @@ export function generateNaturalGeologyPlacements({
   let rejectedRoad = 0;
   let rejectedSlope = 0;
   let rejectedCluster = 0;
+  let rejectedHabitat = 0;
+  let terrainHabitatEvaluations = 0;
 
   for (let candidateIndex = 0; candidateIndex < candidateCount; candidateIndex += 1) {
     const point = naturalGeologyCandidateWorld(seed, candidateIndex, width, depth);
@@ -623,16 +716,41 @@ export function generateNaturalGeologyPlacements({
       rejectedRoad += 1;
       continue;
     }
+
     const dominant = chooseDominantCluster(clusters, x, z);
     if (!dominant.cluster || dominant.influence < 0.12) { rejectedCluster += 1; continue; }
+    const habitat = sampleCanonicalTerrainHabitat(sampleHeightMeters, x, z, {
+      seaLevelMeters: sea,
+      localProbeMeters: P.normalProbeMeters,
+    });
+    terrainHabitatEvaluations += 1;
+    const genericHabitatSignal = Math.max(
+      habitat.exposedBedrock,
+      habitat.talusCatchment,
+      habitat.boulderField,
+      habitat.ridge * 0.76,
+      habitat.depositional * 0.58,
+    );
+    const valyriaInfluence = valyriaInfluenceAtWorldXZ(x, z);
+    if (valyriaInfluence <= P.valyriaMinimumInfluence && genericHabitatSignal < P.genericHabitatRejectThreshold) {
+      rejectedHabitat += 1;
+      continue;
+    }
+
+    const habitatAdjustedInfluence = valyriaInfluence > P.valyriaMinimumInfluence
+      ? dominant.influence
+      : dominant.influence * (P.genericHabitatInfluenceFloor + genericHabitatSignal * P.genericHabitatInfluenceGain);
     const placement = makePlacement({
+      sampleHeightMeters,
+      seaLevelMeters: sea,
       seed,
       candidateIndex,
       x,
       z,
       frame,
+      habitat,
       cluster: dominant.cluster,
-      influence: dominant.influence,
+      influence: habitatAdjustedInfluence,
       heightAboveSeaMeters,
       worldWidthMeters: width,
       worldDepthMeters: depth,
@@ -640,7 +758,7 @@ export function generateNaturalGeologyPlacements({
     const valyrian = placement.valyriaInfluence > P.valyriaMinimumInfluence;
     const threshold = valyrian
       ? (placement.kind === 'boulder' || placement.kind === 'talus' ? 0.10 : 0.12)
-      : (placement.kind === 'boulder' ? 0.18 : placement.kind === 'talus' ? 0.16 : 0.22);
+      : (placement.kind === 'boulder' ? 0.15 : placement.kind === 'talus' ? 0.14 : 0.18);
     if (placement.score < threshold) { rejectedCluster += 1; continue; }
     candidates.push(valyrian
       ? Object.freeze({ ...placement, score: placement.score * VALYRIA_GEOLOGY_POLICY.geologyDensityBoost })
@@ -660,13 +778,23 @@ export function generateNaturalGeologyPlacements({
 
   const kinds = {};
   const assetFamilies = {};
+  const habitatClasses = {};
+  const assetHabitatHints = {};
+  const silhouetteVariants = {};
   const valyriaMorphologyKinds = {};
   let valyriaPlacementCount = 0;
   let faultAlignedPlacementCount = 0;
   let drainageAlignedPlacementCount = 0;
+  let terrainRidgePlacementCount = 0;
+  let terrainDepositionalPlacementCount = 0;
   for (const placement of accepted) {
     kinds[placement.kind] = (kinds[placement.kind] ?? 0) + 1;
     if (placement.assetFamily) assetFamilies[placement.assetFamily] = (assetFamilies[placement.assetFamily] ?? 0) + 1;
+    habitatClasses[placement.terrainHabitatClass] = (habitatClasses[placement.terrainHabitatClass] ?? 0) + 1;
+    assetHabitatHints[placement.assetHabitatHint] = (assetHabitatHints[placement.assetHabitatHint] ?? 0) + 1;
+    silhouetteVariants[placement.silhouetteVariant] = (silhouetteVariants[placement.silhouetteVariant] ?? 0) + 1;
+    if (placement.terrainRidge > 0.45) terrainRidgePlacementCount += 1;
+    if (placement.terrainDepositional > 0.45) terrainDepositionalPlacementCount += 1;
     if (placement.volcanic) {
       valyriaPlacementCount += 1;
       const dominant = placement.valyriaMorphologyDominant;
@@ -699,8 +827,17 @@ export function generateNaturalGeologyPlacements({
       rejectedRoad,
       rejectedSlope,
       rejectedCluster,
+      rejectedHabitat,
+      terrainHabitatEvaluations,
+      terrainHabitatPolicyId: TERRAIN_HABITAT_POLICY.id,
+      terrainMorphologyWeighted: true,
+      terrainRidgePlacementCount,
+      terrainDepositionalPlacementCount,
       kinds: Object.freeze(kinds),
       assetFamilies: Object.freeze(assetFamilies),
+      habitatClasses: Object.freeze(habitatClasses),
+      assetHabitatHints: Object.freeze(assetHabitatHints),
+      silhouetteVariants: Object.freeze(silhouetteVariants),
       valyriaPlacementCount,
       valyriaMorphologyKinds: Object.freeze(valyriaMorphologyKinds),
       faultAlignedPlacementCount,
@@ -712,23 +849,25 @@ export function generateNaturalGeologyPlacements({
 
 export function checksumNaturalGeologyPlacements(placements) {
   let hash = 2166136261 >>> 0;
-  const mix = (value) => {
+  const mixValue = (value) => {
     for (const character of String(value)) {
       hash ^= character.charCodeAt(0);
       hash = Math.imul(hash, 16777619) >>> 0;
     }
   };
   for (const placement of placements ?? []) {
-    mix(placement.id);
-    mix(Math.round(placement.x * 100));
-    mix(Math.round(placement.y * 100));
-    mix(Math.round(placement.z * 100));
-    mix(placement.kind);
-    mix(Math.round(placement.yawRadians * 10000));
-    mix(Math.round(placement.scale.x * 100));
-    mix(Math.round(placement.scale.y * 100));
-    mix(Math.round(placement.scale.z * 100));
-    mix(placement.valyriaMorphologyDominant ?? 'none');
+    mixValue(placement.id);
+    mixValue(Math.round(placement.x * 100));
+    mixValue(Math.round(placement.y * 100));
+    mixValue(Math.round(placement.z * 100));
+    mixValue(placement.kind);
+    mixValue(Math.round(placement.yawRadians * 10000));
+    mixValue(Math.round(placement.scale.x * 100));
+    mixValue(Math.round(placement.scale.y * 100));
+    mixValue(Math.round(placement.scale.z * 100));
+    mixValue(placement.valyriaMorphologyDominant ?? 'none');
+    mixValue(placement.silhouetteVariant ?? 0);
+    mixValue(placement.terrainHabitatClass ?? 'unknown');
   }
   return hash.toString(16).padStart(8, '0');
 }
