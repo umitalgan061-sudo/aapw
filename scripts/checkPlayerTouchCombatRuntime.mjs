@@ -125,7 +125,7 @@ async function capturePlayerAssetProof() {
     const state = window.__KIZIL_TOUCH_LIVE_STATE__;
     if (!state?.player?.object3D || !state?.groundCollider) return null;
     const [{ Box3 }, materialCore, playerConfigModule] = await Promise.all([
-      import('/src/3d/vendor/three/build/three.module.js'),
+      import('/src/3d/vendor/three/three.module.js'),
       import('/src/3d/materials/MaterialAssignmentCore.js'),
       import('/src/3d/gameplay/playerConfig.js'),
     ]);
