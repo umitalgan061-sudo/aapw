@@ -5,14 +5,18 @@ import {
 	VEGETATION_SPATIAL_PATTERN_POLICY,
 	createVegetation,
 	disposeVegetation,
+	pickTemperateSpeciesIndexForHabitat,
 	vegetationGrovePatternForClimate,
+	vegetationSpeciesId,
 } from '../src/3d/world/vegetation.js';
+import { resolveTerrainForestSuitability } from '../src/3d/world/terrainBiomeShading.js';
 
 const RADIUS_METERS = 1500;
 const DENSITY_PER_KM2 = 30;
 const GRID_CELL_METERS = 300;
 const SEED = 0x47524f56;
 const SETTLEMENT_RADIUS_METERS = 900;
+const SPECIES_ROLL_SAMPLES = 1000;
 
 function collectTreePositions(group) {
 	const matrix = new THREE.Matrix4();
@@ -84,6 +88,17 @@ function angularPocketStats(points, centerX = 0, centerZ = 0, sectorCount = 16) 
 	};
 }
 
+function broadleafCountForSuitability(suitability) {
+	let broadleaf = 0;
+	for (let index = 0; index < SPECIES_ROLL_SAMPLES; index += 1) {
+		const roll = (index + 0.5) / SPECIES_ROLL_SAMPLES;
+		const species = vegetationSpeciesId(pickTemperateSpeciesIndexForHabitat(roll, { suitability }));
+		if (species === 'round') broadleaf += 1;
+		else assert.equal(species, 'pine', 'temperate habitat picker emitted a non-temperate species');
+	}
+	return broadleaf;
+}
+
 function build(seed) {
 	return createVegetation({
 		sampleHeightMeters: () => 100,
@@ -109,7 +124,13 @@ function buildSettlement(seed) {
 }
 
 assert.equal(VEGETATION_SPATIAL_PATTERN_POLICY.id,
-	'vegetation-ecological-grove-scatter-2026-08-31-v2-settlement-pockets');
+	'vegetation-ecological-grove-scatter-2026-09-01-v4-habitat-species');
+assert.equal(VEGETATION_SPATIAL_PATTERN_POLICY.temperateHabitatAuthority,
+	'terrainBiomeShading.resolveTerrainForestSuitability');
+assert.equal(VEGETATION_SPATIAL_PATTERN_POLICY.temperateSpeciesCompositionAuthority,
+	'terrainBiomeShading.resolveTerrainForestSuitability');
+assert.equal(VEGETATION_SPATIAL_PATTERN_POLICY.temperateBroadleafSparseHabitatChance, 0.08);
+assert.equal(VEGETATION_SPATIAL_PATTERN_POLICY.temperateBroadleafStrongHabitatChance, 0.40);
 assert(VEGETATION_SPATIAL_PATTERN_POLICY.groveTreeCountMin >= 7);
 assert(VEGETATION_SPATIAL_PATTERN_POLICY.groveTreeCountMax <= 24);
 assert(VEGETATION_SPATIAL_PATTERN_POLICY.groveTreeCountMax > VEGETATION_SPATIAL_PATTERN_POLICY.groveTreeCountMin);
@@ -124,6 +145,25 @@ assert(VEGETATION_SPATIAL_PATTERN_POLICY.settlementGroveCenterMinMeters
 assert(VEGETATION_SPATIAL_PATTERN_POLICY.settlementTreeBudgetMin >= 24
 	&& VEGETATION_SPATIAL_PATTERN_POLICY.settlementTreeBudgetMax <= 56,
 	'settlement woodland budget must remain near the historical ~40-tree performance envelope');
+
+const sparseBroadleaf = broadleafCountForSuitability(0);
+const mixedBroadleaf = broadleafCountForSuitability(0.5);
+const strongBroadleaf = broadleafCountForSuitability(1);
+assert.equal(sparseBroadleaf, 80, 'sparse habitat must retain only an 8% broadleaf remnant');
+assert.equal(mixedBroadleaf, 240, 'mid-strength habitat must interpolate to a 24% broadleaf share');
+assert.equal(strongBroadleaf, 400, 'strong forest habitat must preserve the historical 40% broadleaf share');
+assert(sparseBroadleaf < mixedBroadleaf && mixedBroadleaf < strongBroadleaf,
+	'broadleaf share must increase monotonically with the visible terrain forest habitat');
+assert.equal(
+	vegetationSpeciesId(pickTemperateSpeciesIndexForHabitat(0.90, { suitability: 0 })),
+	'pine',
+	'a high roll that becomes broadleaf in strong forest must remain pine in sparse/treeline habitat',
+);
+assert.equal(
+	vegetationSpeciesId(pickTemperateSpeciesIndexForHabitat(0.90, { suitability: 1 })),
+	'round',
+	'strong forest must retain the historic broadleaf endpoint',
+);
 
 const temperatePattern = vegetationGrovePatternForClimate({ tundra: 0, permanentIce: 0 });
 const coldPattern = vegetationGrovePatternForClimate({ tundra: 0.85, permanentIce: 0.75 });
@@ -144,7 +184,10 @@ try {
 	const secondPoints = collectTreePositions(second.group);
 	const differentPoints = collectTreePositions(different.group);
 
-	assert.equal(first.placedCount, first.targetCount, 'flat-land fixture must retain the requested total tree budget');
+	assert(first.placedCount >= Math.floor(first.targetCount * 0.70),
+		`terrain habitat gating removed too much of the bounded tree budget: ${first.placedCount}/${first.targetCount}`);
+	assert(first.placedCount <= first.targetCount);
+	assert(first.baseHabitatRejected > 0, 'temperate base scatter never exercised terrain habitat rejection');
 	assert.equal(firstPoints.length, first.placedCount, 'every placed tree must have exactly one trunk position');
 	assert.deepEqual(firstPoints, secondPoints, 'same seed must reproduce the exact grove pattern');
 	assert.notDeepEqual(firstPoints.slice(0, 40), differentPoints.slice(0, 40), 'different seed must move grove geography');
@@ -164,6 +207,37 @@ try {
 	assert.equal(first.group.userData.vegetationSpatialPattern.policyId, VEGETATION_SPATIAL_PATTERN_POLICY.id);
 	assert.equal(first.group.userData.vegetationSpatialPattern.deterministic, true);
 	assert.equal(first.group.userData.vegetationSpatialPattern.baseDensityPerKm2, DENSITY_PER_KM2);
+	assert.equal(first.group.userData.vegetationSpatialPattern.temperateHabitatAuthority,
+		'terrainBiomeShading.resolveTerrainForestSuitability');
+	assert.equal(first.group.userData.vegetationSpatialPattern.temperateSpeciesCompositionAuthority,
+		'terrainBiomeShading.resolveTerrainForestSuitability');
+	assert.equal(first.group.userData.vegetationSpatialPattern.temperateBroadleafSparseHabitatChance, 0.08);
+	assert.equal(first.group.userData.vegetationSpatialPattern.temperateBroadleafStrongHabitatChance, 0.40);
+	assert.equal(first.group.userData.vegetationSpatialPattern.baseHabitatRejected, first.baseHabitatRejected);
+
+	const placedHabitatMean = firstPoints.reduce((sum, [x, z]) => sum + resolveTerrainForestSuitability({
+		heightAboveSeaMeters: 100,
+		slopeDegrees: 0,
+		worldX: x,
+		worldZ: z,
+	}).suitability, 0) / firstPoints.length;
+	let baselineHabitatSum = 0;
+	let baselineHabitatCount = 0;
+	for (let z = -RADIUS_METERS; z <= RADIUS_METERS; z += 150) {
+		for (let x = -RADIUS_METERS; x <= RADIUS_METERS; x += 150) {
+			if (Math.hypot(x, z) > RADIUS_METERS) continue;
+			baselineHabitatSum += resolveTerrainForestSuitability({
+				heightAboveSeaMeters: 100,
+				slopeDegrees: 0,
+				worldX: x,
+				worldZ: z,
+			}).suitability;
+			baselineHabitatCount++;
+		}
+	}
+	const baselineHabitatMean = baselineHabitatSum / baselineHabitatCount;
+	assert(placedHabitatMean > baselineHabitatMean + 0.035,
+		`tree scatter did not move toward terrain forest habitat: ${placedHabitatMean} <= ${baselineHabitatMean}`);
 
 	const settlementPoints = collectTreePositions(settlementFirst.group);
 	const settlementSecondPoints = collectTreePositions(settlementSecond.group);
@@ -200,6 +274,14 @@ try {
 		emptyCellFraction: Number(spatial.emptyCellFraction.toFixed(3)),
 		maxCellCount: spatial.maxCellCount,
 		meanNearestNeighbourMeters: Number(nearest.toFixed(2)),
+		baseHabitatRejected: first.baseHabitatRejected,
+		placedHabitatMean: Number(placedHabitatMean.toFixed(3)),
+		baselineHabitatMean: Number(baselineHabitatMean.toFixed(3)),
+		temperateSpeciesBroadleafCounts: {
+			sparse: sparseBroadleaf,
+			mixed: mixedBroadleaf,
+			strong: strongBroadleaf,
+		},
 		temperateGroveRadiusMeters: temperatePattern.groveRadiusMeters,
 		coldGroveRadiusMeters: Number(coldPattern.groveRadiusMeters.toFixed(1)),
 		settlementTreeCount: settlementPoints.length,

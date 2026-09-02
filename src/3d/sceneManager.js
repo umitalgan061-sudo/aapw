@@ -29,6 +29,7 @@ import { buildRoadNetwork } from './world/roads.js';
 import { createNaturalGeology, upgradeNaturalGeologyAssets } from './world/naturalGeology.js';
 import { createValyriaBarrenEcologyPlacementProbe } from './world/valyriaEcology.js';
 import { createVegetation } from './world/vegetation.js';
+import { upgradeTemperateBroadleafAssets } from './world/temperateVegetationAsset.js';
 import { upgradeWinterVegetationAssets } from './world/winterVegetationAsset.js';
 import { createWindGrassRun180 } from './world/windGrass.js';
 import { createVillages } from './world/villages.js';
@@ -258,6 +259,11 @@ export function createScene(canvas) {
 			`(${vegetationResult.clusterSeatCount} seat(s) with a local cluster ring).`,
 	);
 	const winterVegetationAbortController = new AbortController();
+	void upgradeTemperateBroadleafAssets(vegetationResult.group, { signal: winterVegetationAbortController.signal }).then((upgrade) => {
+		if (upgrade.status === 'active') console.info(`[sceneManager] Upgraded ${upgrade.treeCount} temperate broadleaf tree(s) across ${upgrade.variantCount} hydrated birch variants.`);
+	}).catch((error) => {
+		console.warn('[sceneManager] Optional temperate birch asset upgrade failed; procedural broadleaf fallback remains active.', error);
+	});
 	window.addEventListener('pagehide', () => winterVegetationAbortController.abort(), { once: true });
 	void upgradeWinterVegetationAssets(vegetationResult.group, {
 		signal: winterVegetationAbortController.signal,

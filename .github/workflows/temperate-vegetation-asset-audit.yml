@@ -1,0 +1,120 @@
+name: Temperate Vegetation Asset Audit
+
+on:
+  push:
+    branches:
+      - codex/vegetation-habitat-distribution-20260901
+    paths:
+      - 'src/3d/world/vegetation.js'
+      - 'scripts/checkTemperateVegetationAssetCandidates.mjs'
+      - 'scripts/checkTemperateVegetationMaterialBrowser.mjs'
+      - 'assets/models/vegetation/big_tree_by_3donimus_dnwh762pn_6_1_na.glb'
+      - 'assets/models/vegetation/birch_trees_R7qMWzb7nk.glb'
+      - 'assets/models/vegetation/fall_tree_4GYen9Xm3Kj.glb'
+      - '.github/workflows/temperate-vegetation-asset-audit.yml'
+  pull_request:
+    paths:
+      - 'src/3d/world/vegetation.js'
+      - 'scripts/checkTemperateVegetationAssetCandidates.mjs'
+      - 'scripts/checkTemperateVegetationMaterialBrowser.mjs'
+      - 'assets/models/vegetation/big_tree_by_3donimus_dnwh762pn_6_1_na.glb'
+      - 'assets/models/vegetation/birch_trees_R7qMWzb7nk.glb'
+      - 'assets/models/vegetation/fall_tree_4GYen9Xm3Kj.glb'
+      - '.github/workflows/temperate-vegetation-asset-audit.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  temperate-vegetation-asset-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+      REPORT: artifacts/temperate-vegetation-asset-audit/report.json
+      MATERIAL_MANIFEST: artifacts/temperate-vegetation-asset-audit/material-manifest.json
+    steps:
+      - name: Checkout exact candidate head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXACT_HEAD }}
+          fetch-depth: 2
+          lfs: false
+
+      - name: Verify exact head and audit syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+          node --check scripts/checkTemperateVegetationAssetCandidates.mjs
+          node --check scripts/checkTemperateVegetationMaterialBrowser.mjs
+          node --check src/3d/world/temperateVegetationAsset.js
+          git diff --check HEAD^ HEAD
+
+      - name: Selectively hydrate candidate tree family
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull \
+            --include="assets/models/vegetation/big_tree_by_3donimus_dnwh762pn_6_1_na.glb,assets/models/vegetation/birch_trees_R7qMWzb7nk.glb,assets/models/vegetation/fall_tree_4GYen9Xm3Kj.glb" \
+            --exclude=""
+          for asset in \
+            assets/models/vegetation/big_tree_by_3donimus_dnwh762pn_6_1_na.glb \
+            assets/models/vegetation/birch_trees_R7qMWzb7nk.glb \
+            assets/models/vegetation/fall_tree_4GYen9Xm3Kj.glb; do
+            test "$(wc -c < "$asset")" -gt 512
+            ! head -n 1 "$asset" | grep -q 'git-lfs.github.com/spec/v1'
+          done
+
+      - name: Audit hydrated mesh material and texture surfaces
+        run: node scripts/checkTemperateVegetationAssetCandidates.mjs --output="$REPORT"
+
+      - name: Mature broadleaf single-tree qualification
+        continue-on-error: true
+        run: |
+          node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync(process.env.REPORT,'utf8'));const c=r.candidates.find(x=>x.id==='mature-broadleaf');console.log(JSON.stringify(c,null,2));process.exit(c?.liveCandidate?0:1)"
+
+      - name: Birch family source-component qualification
+        continue-on-error: true
+        run: |
+          node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync(process.env.REPORT,'utf8'));const c=r.candidates.find(x=>x.id==='birch-family');console.log(JSON.stringify(c,null,2));process.exit(c?.liveCandidate?0:1)"
+
+      - name: Fall tree single-tree qualification
+        continue-on-error: true
+        run: |
+          node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync(process.env.REPORT,'utf8'));const c=r.candidates.find(x=>x.id==='fall-tree');console.log(JSON.stringify(c,null,2));process.exit(c?.liveCandidate?0:1)"
+
+      - name: Material and placement qualification entry gate
+        run: |
+          node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync(process.env.REPORT,'utf8'));if(!r.liveCandidates?.length)throw new Error('No hydrated textured single-tree temperate candidate or source component passed asset-first audit');console.log('qualified='+r.liveCandidates.join(','));console.log('sourceComponents='+(r.liveSourceComponents||[]).join(','));"
+          node scripts/checkSharedMaterialPlacementContract.js
+          test -f src/3d/materials/MaterialAssignmentCore.js
+          test -f src/3d/world/WorldAssetPlacementPipeline.js
+          ! grep -R "EditorMaterialStudio" src/3d/world/vegetation.js scripts/checkTemperateVegetationAssetCandidates.mjs scripts/checkTemperateVegetationMaterialBrowser.mjs
+
+      - name: Install exact browser material-proof runtime
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw" node_modules
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          ln -sfn "$RUNNER_TEMP/pw/node_modules/playwright" node_modules/playwright
+          ln -sfn "$RUNNER_TEMP/pw/node_modules/playwright-core" node_modules/playwright-core
+
+      - name: Shared material validation and manifest on hydrated birch
+        run: node scripts/checkTemperateVegetationMaterialBrowser.mjs --output="$MATERIAL_MANIFEST"
+
+      - name: Shared PWA cache contract
+        if: always()
+        run: node scripts/checkServiceWorkerCache.js
+
+      - name: Upload temperate vegetation asset audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: temperate-vegetation-asset-audit-${{ env.EXACT_HEAD }}
+          path: artifacts/temperate-vegetation-asset-audit/
+          if-no-files-found: warn
+          retention-days: 14

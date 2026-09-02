@@ -42,7 +42,7 @@ function meanAbsoluteNeighborDelta(data, size, channel) {
   return total / samples;
 }
 
-assert.equal(TERRAIN_MICRO_SURFACE_POLICY.id, 'terrain-micro-surface-world-uv-pbr-v7-coastal-weathering');
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.id, 'terrain-micro-surface-world-uv-pbr-v8-semantic-palette-retention');
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.uvChannel, 1, 'micro detail must use uv1, never owner-map albedo uv0');
 assert(TERRAIN_MICRO_SURFACE_POLICY.textureSize >= 256, 'photoreal terrain atlas needs enough fracture resolution');
 assert(TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters >= 12 && TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters <= 32);
@@ -50,6 +50,7 @@ assert(TERRAIN_MICRO_SURFACE_POLICY.normalStrength > 0.4 && TERRAIN_MICRO_SURFAC
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.macroColorBreakup, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.photorealDesaturation, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.naturalAlbedoRemap, true);
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.semanticPaletteRetention, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.regionalMoistureVariation, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.elevationWeathering, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.fractureNormals, true);
@@ -89,6 +90,7 @@ assert.equal(standalone.userData.terrainMicroSurface.renderOnly, true);
 assert.equal(standalone.userData.terrainMicroSurface.macroWorldSpaceColorBreakup, true);
 assert.equal(standalone.userData.terrainMicroSurface.photorealDesaturation, true);
 assert.equal(standalone.userData.terrainMicroSurface.naturalAlbedoRemap, true);
+assert.equal(standalone.userData.terrainMicroSurface.semanticPaletteRetention, true);
 assert.equal(standalone.userData.terrainMicroSurface.regionalMoistureVariation, true);
 assert.equal(standalone.userData.terrainMicroSurface.elevationWeathering, true);
 assert.equal(standalone.userData.terrainMicroSurface.fractureNormals, true);
@@ -106,7 +108,7 @@ assert.equal(standalone.userData.terrainMicroSurface.coastalSaltSprayWeathering,
 assert.equal(standalone.userData.terrainMicroSurface.coastalRoughnessResponse, true);
 assert.equal(standalone.userData.terrainMicroSurface.aspectWeathering, true);
 assert.equal(standalone.userData.terrainMicroSurface.roughnessResponse, true);
-assert.equal(standalone.customProgramCacheKey(), 'terrain-photoreal-world-surface-v7-coastal-weathering');
+assert.equal(standalone.customProgramCacheKey(), 'terrain-photoreal-world-surface-v8-semantic-palette-retention');
 const shaderHookSource = standalone.onBeforeCompile.toString();
 for (const marker of [
   'terrainPhotoFbm',
@@ -119,6 +121,7 @@ for (const marker of [
   'terrainPhotoHeathBreak',
   'terrainPhotoWarmGround',
   'terrainPhotoEarth',
+  'terrainPhotoPaletteRetention',
   'terrainPhotoStonyPatch',
   'terrainPhotoRock',
   'terrainPhotoSnow',

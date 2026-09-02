@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { mulberry32 } from './terrain.js';
-import { northClimateWeightsAtWorldZ } from './terrainBiomeShading.js';
+import { northClimateWeightsAtWorldZ, resolveTerrainForestSuitability } from './terrainBiomeShading.js';
 import { northReferenceCryosphereAtWorldXZ } from './northReferenceCryosphere.js';
 
 const SPECIES = [
@@ -51,8 +51,17 @@ export const VEGETATION_NORTH_CLIMATE_POLICY = Object.freeze({
 });
 
 export const VEGETATION_SPATIAL_PATTERN_POLICY = Object.freeze({
-	id: 'vegetation-ecological-grove-scatter-2026-08-31-v2-settlement-pockets',
+	id: 'vegetation-ecological-grove-scatter-2026-09-01-v4-habitat-species',
 	climateAuthority: VEGETATION_NORTH_CLIMATE_POLICY.climateAuthority,
+	temperateHabitatAuthority: 'terrainBiomeShading.resolveTerrainForestSuitability',
+	temperateSpeciesCompositionAuthority: 'terrainBiomeShading.resolveTerrainForestSuitability',
+	temperateHabitatAcceptanceFloor: 0.12,
+	temperateHabitatAcceptanceGain: 0.88,
+	// Keep the historical 40% broadleaf share only in the strongest visible forest habitat. Sparse
+	// meadow/heath and treeline survivors become pine-dominant instead of looking botanically uniform.
+	temperateBroadleafSparseHabitatChance: 0.08,
+	temperateBroadleafStrongHabitatChance: 0.40,
+	coldClimateHabitatPreserved: true,
 	groveTreeCountMin: 9,
 	groveTreeCountMax: 17,
 	temperateGroveRadiusMeters: 170,
@@ -193,7 +202,7 @@ export function distancePointToSegment2D(px, pz, ax, az, bx, bz) {
 	return Math.hypot(px - (ax + abx * t), pz - (az + abz * t));
 }
 
-export function isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges }) {
+export function isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges, outSite = null }) {
 	for (const seat of seats) {
 		if (Math.hypot(x - seat.x, z - seat.z) < SEAT_EXCLUSION_RADIUS_METERS) return false;
 	}
@@ -211,7 +220,13 @@ export function isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, 
 	const dzHeight = sampleHeightMeters(x, z + SLOPE_SAMPLE_OFFSET_METERS) - groundY;
 	const gradeXDegrees = (Math.atan2(Math.abs(dxHeight), SLOPE_SAMPLE_OFFSET_METERS) * 180) / Math.PI;
 	const gradeZDegrees = (Math.atan2(Math.abs(dzHeight), SLOPE_SAMPLE_OFFSET_METERS) * 180) / Math.PI;
-	return Math.max(gradeXDegrees, gradeZDegrees) <= MAX_GROUND_SLOPE_DEGREES;
+	const slopeDegrees = Math.max(gradeXDegrees, gradeZDegrees);
+	if (outSite && typeof outSite === 'object') {
+		outSite.groundY = groundY;
+		outSite.heightAboveSeaMeters = groundY - seaLevelMeters;
+		outSite.slopeDegrees = slopeDegrees;
+	}
+	return slopeDegrees <= MAX_GROUND_SLOPE_DEGREES;
 }
 
 export function pickSpeciesIndex(roll) {
@@ -224,7 +239,22 @@ export function pickSpeciesIndex(roll) {
 	return TEMPERATE_SPECIES_COUNT - 1;
 }
 
-function pickSpeciesIndexForClimate(roll, climate) {
+/**
+ * Keeps the historical 60/40 picker as the strongest-habitat endpoint, but makes accepted sparse
+ * temperate/treeline survivors conifer-dominant. This consumes the same terrain forest answer that
+ * already decides candidate acceptance, so visible ground and tree composition share one ecology.
+ */
+export function pickTemperateSpeciesIndexForHabitat(roll, habitat = {}) {
+	const suitability = Number.isFinite(habitat?.suitability)
+		? Math.max(0, Math.min(1, habitat.suitability))
+		: 1;
+	const policy = VEGETATION_SPATIAL_PATTERN_POLICY;
+	const broadleafChance = policy.temperateBroadleafSparseHabitatChance
+		+ (policy.temperateBroadleafStrongHabitatChance - policy.temperateBroadleafSparseHabitatChance) * suitability;
+	return roll < 1 - broadleafChance ? 0 : 1;
+}
+
+function pickSpeciesIndexForClimate(roll, climate, temperateHabitat = null) {
 	const policy = VEGETATION_NORTH_CLIMATE_POLICY;
 	if (climate.permanentIce >= policy.permanentIceSnowOnlyThreshold) return SNOW_PINE_SPECIES_INDEX;
 	if (Math.max(climate.permanentIce, climate.tundra) >= policy.tundraClimateThreshold) {
@@ -234,7 +264,7 @@ function pickSpeciesIndexForClimate(roll, climate) {
 			+ climate.permanentIce * policy.iceSnowGain);
 		return roll < snowChance ? SNOW_PINE_SPECIES_INDEX : 0;
 	}
-	return pickSpeciesIndex(roll);
+	return temperateHabitat ? pickTemperateSpeciesIndexForHabitat(roll, temperateHabitat) : pickSpeciesIndex(roll);
 }
 
 export function pickSpeciesIndexForWorldZ(roll, worldZ) {
@@ -595,6 +625,7 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 	let groveTreesRemaining = 0;
 	let groveRadiusMeters = spatialPolicy.temperateGroveRadiusMeters;
 	let groveBackgroundChance = spatialPolicy.temperateBackgroundChance;
+	let baseHabitatRejected = 0;
 
 	for (let treeIndex = 0; treeIndex < baseTargetCount; treeIndex++) {
 		if (groveTreesRemaining <= 0) {
@@ -608,16 +639,33 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 				: sampleAnnulusPoint(rng, groveCenterX, groveCenterZ, 0, groveRadiusMeters);
 			const { x, z } = candidate;
 			if (Math.hypot(x, z) > radiusMeters) continue;
-			if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
+			const site = {};
+			if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges, outSite: site })) continue;
+			const climate = northReferenceCryosphereAtWorldXZ(x, z);
+			let habitat = null;
+			if (Math.max(climate.permanentIce, climate.tundra) < VEGETATION_NORTH_CLIMATE_POLICY.tundraClimateThreshold) {
+				habitat = resolveTerrainForestSuitability({
+					heightAboveSeaMeters: site.heightAboveSeaMeters,
+					slopeDegrees: site.slopeDegrees,
+					worldX: x,
+					worldZ: z,
+				});
+				const habitatChance = Math.min(1, spatialPolicy.temperateHabitatAcceptanceFloor
+					+ habitat.suitability * spatialPolicy.temperateHabitatAcceptanceGain);
+				if (rng() > habitatChance) {
+					baseHabitatRejected++;
+					continue;
+				}
+			}
 			if (!groveHasCenter) {
 				groveHasCenter = true;
 				groveCenterX = x;
 				groveCenterZ = z;
-				const pattern = vegetationGrovePatternForClimate(northReferenceCryosphereAtWorldXZ(x, z));
+				const pattern = vegetationGrovePatternForClimate(climate);
 				groveRadiusMeters = pattern.groveRadiusMeters;
 				groveBackgroundChance = pattern.backgroundChance;
 			}
-			const entry = perSpecies[pickSpeciesIndexForWorldXZ(rng(), x, z)];
+			const entry = perSpecies[pickSpeciesIndexForClimate(rng(), climate, habitat)];
 			placeTreeInstance(entry, x, z, sampleHeightMeters, rng, up, matrix, position, quaternion, scaleVector);
 			placedCount++;
 			break;
@@ -631,8 +679,18 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 				const grove = pickSettlementWoodlandGrove(layout, clusterRng);
 				const { x, z } = sampleAnnulusPoint(clusterRng, grove.x, grove.z, 0, grove.radius);
 				if (Math.hypot(x, z) > radiusMeters) continue;
-				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
-				const entry = perSpecies[pickSpeciesIndexForWorldXZ(clusterRng(), x, z)];
+				const site = {};
+				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges, outSite: site })) continue;
+				const climate = northReferenceCryosphereAtWorldXZ(x, z);
+				const habitat = Math.max(climate.permanentIce, climate.tundra) < VEGETATION_NORTH_CLIMATE_POLICY.tundraClimateThreshold
+					? resolveTerrainForestSuitability({
+						heightAboveSeaMeters: site.heightAboveSeaMeters,
+						slopeDegrees: site.slopeDegrees,
+						worldX: x,
+						worldZ: z,
+					})
+					: null;
+				const entry = perSpecies[pickSpeciesIndexForClimate(clusterRng(), climate, habitat)];
 				placeTreeInstance(entry, x, z, sampleHeightMeters, clusterRng, up, matrix, position, quaternion, scaleVector);
 				placedCount++;
 				break;
@@ -662,6 +720,13 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 		deterministic: true,
 		climateAuthority: spatialPolicy.climateAuthority,
 		baseDensityPerKm2: densityPerKm2,
+		temperateHabitatAuthority: spatialPolicy.temperateHabitatAuthority,
+		temperateSpeciesCompositionAuthority: spatialPolicy.temperateSpeciesCompositionAuthority,
+		temperateHabitatAcceptanceFloor: spatialPolicy.temperateHabitatAcceptanceFloor,
+		temperateBroadleafSparseHabitatChance: spatialPolicy.temperateBroadleafSparseHabitatChance,
+		temperateBroadleafStrongHabitatChance: spatialPolicy.temperateBroadleafStrongHabitatChance,
+		baseHabitatRejected,
+		coldClimateHabitatPreserved: spatialPolicy.coldClimateHabitatPreserved,
 		groveTreeCountMin: spatialPolicy.groveTreeCountMin,
 		groveTreeCountMax: spatialPolicy.groveTreeCountMax,
 		settlementPattern: 'asymmetric-woodland-pockets',
@@ -683,6 +748,7 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 		clusterSeatCount: clusterSeats.length,
 		settlementWoodlandSeatCount: clusterSeats.length,
 		winterTreeCount,
+		baseHabitatRejected,
 	};
 }
 
