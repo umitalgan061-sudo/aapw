@@ -47,4 +47,31 @@ for (const amount of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFI
   assert.deepEqual(economy.snapshot(), stable, 'invalid credit inputs must not mutate restored economy state');
 }
 
+const normalizedProvenance = createInteractionEconomyState(40);
+const sharedPrefix = `expedition:${'x'.repeat(90)}`;
+const firstCredit = normalizedProvenance.credit(7, {
+  sourceId: `${sharedPrefix}:first`,
+  label: '  Liman   kontratı   ödülü  ',
+});
+assert.equal(firstCredit.ok, true, 'first normalized provenance credit should commit');
+assert.equal(firstCredit.receipt.sourceId.length, 80, 'persisted provenance keys must remain bounded');
+assert.equal(firstCredit.receipt.label, 'Liman kontratı ödülü', 'receipt labels must normalize whitespace before persistence');
+
+const collisionSnapshot = structuredClone(normalizedProvenance.snapshot());
+const truncatedCollision = normalizedProvenance.credit(9, {
+  sourceId: `${sharedPrefix}:second`,
+  label: 'forged duplicate reward',
+});
+assert.equal(truncatedCollision.ok, false, 'different raw IDs that normalize to the same persisted provenance key must not double-credit');
+assert.equal(truncatedCollision.reason, 'duplicate-credit-source');
+assert.equal(truncatedCollision.creditedCopper, 0);
+assert.deepEqual(normalizedProvenance.snapshot(), collisionSnapshot, 'normalized provenance collision rejection must be mutation-free');
+
+const restoredProvenance = createInteractionEconomyState(1);
+restoredProvenance.restore(collisionSnapshot);
+const replayAfterRestore = restoredProvenance.credit(5, { sourceId: `${sharedPrefix}:third` });
+assert.equal(replayAfterRestore.ok, false, 'normalized provenance replay protection must survive save/load');
+assert.equal(replayAfterRestore.reason, 'duplicate-credit-source');
+assert.equal(restoredProvenance.snapshot().copper, collisionSnapshot.copper, 'restore replay rejection must preserve the saved wallet exactly');
+
 console.log('Interaction economy hostile save restore acceptance PASS');
