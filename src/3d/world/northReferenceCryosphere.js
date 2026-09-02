@@ -26,7 +26,7 @@ const ALWAYS_WINTER_ZONE = findZone('lands-always-winter');
 const NORTH_ZONE = findZone('north');
 
 export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
-	id: 'owner-map-north-cryosphere-2026-09-02-v8-weathered-edge-material',
+	id: 'owner-map-north-cryosphere-2026-09-02-v8-deeper-weathered-transition',
 	source: 'WORLD_REFERENCE_MAP biome zones',
 	renderClimateOnly: true,
 	heightAuthorityUnchanged: true,
@@ -37,7 +37,6 @@ export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
 	curvedIceHalo: true,
 	deterministicTransitionWeathering: true,
 	domainWarpedTransitionWeathering: true,
-	weatheredCoreEdgeMaterial: true,
 	alwaysWinterZoneId: ALWAYS_WINTER_ZONE.id,
 	northZoneId: NORTH_ZONE.id,
 	iceTransitionRadiusScale: 1.55,
@@ -46,10 +45,8 @@ export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
 	iceHaloCurveExponent: 0.88,
 	northTundraGain: 0.92,
 	winterHaloGain: 0.82,
-	transitionWeatheringMin: 0.68,
+	transitionWeatheringMin: 0.58,
 	transitionWeatheringMax: 1.0,
-	coreEdgeWeatheringStart: 0.98,
-	coreEdgeWeatheringMaxAblation: 0.08,
 });
 
 function scaledZone(zone, radiusScale) {
@@ -103,23 +100,17 @@ export function northReferenceCryosphereAtNormalized(normalizedX, normalizedY) {
 	const northHalo = sampleReferenceInfluence(normalizedX, normalizedY, NORTH_TUNDRA_TRANSITION_ZONE);
 	const weathering = transitionWeathering(normalizedX, normalizedY);
 
-	// Preserve the authored deep core, but let its visual edge lose a small amount of snow/ice
-	// retention according to deterministic multi-scale weathering. This is climate/render strength
-	// only: zone centers/radii, terrain, collider and hydrology remain untouched.
-	const coreEdgeBand = clamp01((P.coreEdgeWeatheringStart - winterCore) / P.coreEdgeWeatheringStart);
-	const coreEdgeAblation = coreEdgeBand * (1 - weathering) * P.coreEdgeWeatheringMaxAblation;
-	const weatheredWinterCore = winterCore * (1 - coreEdgeAblation);
-
-	// Spend only halo influence that extends beyond the authored core. Multi-scale weathering can
-	// attenuate this transition contribution but can never expand the authored radius.
+	// Preserve authored full ice in the core, then spend only the halo influence that extends beyond it.
+	// Deterministic multi-scale weathering can only attenuate that transition contribution: it never
+	// expands the authored radius or changes the winter core, so the owner-map geography stays fixed.
 	const winterHaloExtension = Math.max(0, winterHalo - winterCore);
 	const curvedWinterHaloExtension = Math.pow(winterHaloExtension, P.iceHaloCurveExponent);
 	const weatheredWinterHaloExtension = curvedWinterHaloExtension * weathering;
-	const permanentIce = clamp01(weatheredWinterCore + weatheredWinterHaloExtension * P.iceHaloGain);
+	const permanentIce = clamp01(winterCore + weatheredWinterHaloExtension * P.iceHaloGain);
 
-	// Keep raw overlap telemetry for the public contract while applying weathering only to the
-	// render-climate transition actually consumed by terrain/vegetation. This preserves authority
-	// semantics and avoids treating a material breakup signal as a new biome footprint.
+	// Preserve the raw authored-union telemetry contract, while applying multi-scale weathering only
+	// to the transition contribution consumed by render climate. That keeps canonical zone footprint
+	// and core strength unchanged while allowing a more eroded, non-uniform snow/tundra fringe.
 	const northCoreTundra = northCore * P.northTundraGain;
 	const northHaloTundra = northHalo * P.northTundraGain;
 	const winterHaloTundra = winterHalo * P.winterHaloGain;
@@ -141,9 +132,6 @@ export function northReferenceCryosphereAtNormalized(normalizedX, normalizedY) {
 		curvedWinterHaloExtension,
 		weatheredWinterHaloExtension,
 		transitionWeathering: weathering,
-		coreEdgeBand,
-		coreEdgeAblation,
-		weatheredWinterCore,
 		northCore,
 		northHalo,
 		tundraUnion,
@@ -172,9 +160,6 @@ function neutralCryosphereOutsideReference(worldX, worldZ) {
 		curvedWinterHaloExtension: 0,
 		weatheredWinterHaloExtension: 0,
 		transitionWeathering: 1,
-		coreEdgeBand: 0,
-		coreEdgeAblation: 0,
-		weatheredWinterCore: 0,
 		northCore: 0,
 		northHalo: 0,
 		tundraUnion: 0,
