@@ -82,18 +82,24 @@ jobs:
         run: |
           set -euo pipefail
           npm install --no-save --no-package-lock --ignore-scripts three@0.180.0
-      - name: Full-map single-source and mountain contracts
-        run: |
-          set -euo pipefail
-          node scripts/checkFullWorldRuntimeCoverage.mjs
-          node scripts/checkWorldReferenceAlignment.js
-          node scripts/checkWorldReferenceHydrologyExtent.js
-          node scripts/checkWorldReferenceMountainRelief.mjs
-          node scripts/checkWorldReferenceMap.js
-          node scripts/checkWorldWaterCoverageP0.mjs
-          node scripts/checkWaterCoverageRasterQuality.mjs
-          node scripts/checkWaterCoverageSamplingBudget.mjs
-          node scripts/checkSeededRandomPolicy.js
+      - name: Full-world runtime extent contract
+        run: node scripts/checkFullWorldRuntimeCoverage.mjs
+      - name: World reference alignment contract
+        run: node scripts/checkWorldReferenceAlignment.js
+      - name: World hydrology and settlement-transition contract
+        run: node scripts/checkWorldReferenceHydrologyExtent.js
+      - name: World mountain relief contract
+        run: node scripts/checkWorldReferenceMountainRelief.mjs
+      - name: Canonical world reference map contract
+        run: node scripts/checkWorldReferenceMap.js
+      - name: Full-world water coverage contract
+        run: node scripts/checkWorldWaterCoverageP0.mjs
+      - name: Water coverage raster quality contract
+        run: node scripts/checkWaterCoverageRasterQuality.mjs
+      - name: Water coverage sampling budget contract
+        run: node scripts/checkWaterCoverageSamplingBudget.mjs
+      - name: Seeded random policy contract
+        run: node scripts/checkSeededRandomPolicy.js
       - name: Install browser harness
         run: |
           set -euo pipefail
