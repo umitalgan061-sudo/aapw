@@ -11,13 +11,8 @@ const config = read('src/3d/gameplay/npcConfig.js');
 const materialCore = read('src/3d/materials/MaterialAssignmentCore.js');
 const placementCore = read('src/3d/world/WorldAssetPlacementPipeline.js');
 
-function expect(source, expression, message) {
-	assert.match(source, expression, message);
-}
-
-function reject(source, expression, message) {
-	assert.doesNotMatch(source, expression, message);
-}
+function expect(source, expression, message) { assert.match(source, expression, message); }
+function reject(source, expression, message) { assert.doesNotMatch(source, expression, message); }
 
 expect(npc, /from '\.\/npcWorldPlacement\.js'/, 'NPC runtime must import its placement adapter');
 expect(npc, /resolveConfiguredNpcSpawnPlacement\s*\(/, 'configured spawn must resolve canonical geography before load');
@@ -37,7 +32,11 @@ expect(placement, /evaluateWorldSurfacePlacement\s*\(/, 'spawn and patrol surfac
 expect(placement, /maxSlopeDegrees:\s*26/, 'guard ground must have a bounded slope policy');
 expect(placement, /maxWaterDepth:\s*0\.05/, 'guard ground must reject meaningful water depth');
 expect(placement, /forbiddenWaterTypes:\s*\['sea', 'lake'\]/, 'guards must reject canonical sea and lake cells');
-expect(placement, /MAX_RELOCATION_METERS\s*=\s*8/, 'spawn repair must stay local to its settlement');
+expect(placement, /MAX_RELOCATION_METERS\s*=\s*8/, 'first-stage authored spawn repair must stay local');
+expect(placement, /SETTLEMENT_RING_STEP_METERS\s*=\s*2/, 'fallback settlement ring search must be bounded and deterministic');
+expect(placement, /settlementRingCandidates\s*\(/, 'coastal guards need deterministic settlement-envelope recovery');
+expect(placement, /relocationMode:\s*chosen\.relocationMode/, 'placement must distinguish local and settlement-ring repair');
+expect(placement, /displacementFromDesiredMeters/, 'placement must report actual authored-point displacement');
 expect(placement, /MIN_KEEP_CLEARANCE_METERS\s*=\s*10/, 'guard placement must clear the keep footprint');
 expect(placement, /MAX_KEEP_ENVELOPE_METERS\s*=\s*30/, 'guard placement must remain in settlement envelope');
 expect(placement, /ROUTE_SAMPLE_SPACING_METERS\s*=\s*4/, 'patrol corridors must be sampled densely enough for hydrology/slope safety');
@@ -74,17 +73,14 @@ for (const modelUrl of uniqueModels) {
 	assert.ok(fs.existsSync(absolute), `configured character asset path missing from checkout: ${modelUrl}`);
 	const bytes = fs.readFileSync(absolute);
 	assert.ok(bytes.length > 0, `configured character asset is empty: ${modelUrl}`);
-	if (bytes.subarray(0, 200).toString('utf8').includes('version https://git-lfs.github.com/spec/v1')) {
-		assert.ok(bytes.length < 1024, `LFS pointer sanity mismatch for ${modelUrl}`);
-	}
+	if (bytes.subarray(0, 200).toString('utf8').includes('version https://git-lfs.github.com/spec/v1')) assert.ok(bytes.length < 1024, `LFS pointer sanity mismatch for ${modelUrl}`);
 }
 
 const requiredGeographyTelemetry = [
-	'baseSurface', 'biome', 'zoneId', 'slopeDegrees', 'relocated', 'relocationMeters', 'seatDistanceMeters',
+	'baseSurface', 'biome', 'zoneId', 'slopeDegrees', 'relocated', 'relocationMode', 'relocationMeters',
+	'displacementFromDesiredMeters', 'seatDistanceMeters',
 ];
-for (const key of requiredGeographyTelemetry) {
-	expect(placement, new RegExp(`\\b${key}\\b`), `missing NPC geography telemetry field ${key}`);
-}
+for (const key of requiredGeographyTelemetry) expect(placement, new RegExp(`\\b${key}\\b`), `missing NPC geography telemetry field ${key}`);
 
 console.log('NPC_WORLD_PLACEMENT_CONTRACT_PASS', JSON.stringify({
 	configuredSpawns: modelUrls.length,
@@ -92,6 +88,7 @@ console.log('NPC_WORLD_PLACEMENT_CONTRACT_PASS', JSON.stringify({
 	sharedMaterialCore: true,
 	sharedPlacementCore: true,
 	maxSlopeDegrees: 26,
-	maxRelocationMeters: 8,
+	maxLocalRelocationMeters: 8,
+	settlementEnvelopeMeters: [10, 30],
 	routeSampleSpacingMeters: 4,
 }));
