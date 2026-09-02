@@ -71,15 +71,30 @@ emptyRoot.updateMatrixWorld(true);
 const unobstructed = resolveCameraCollision(raycaster, target, desired, [emptyRoot], 0.4, 1.5);
 assert.strictEqual(unobstructed, desired, 'empty/unobstructed geographic roots must preserve desired camera position object');
 
-// Regression: a nested mesh closer than the configured minimum still obeys the existing player
-// comfort floor rather than pulling the camera into the character.
+// Regression: collision clearance must outrank the comfort floor. The old Math.max(minDistance,...)
+// path pushed this camera to z=1.5 even though the wall begins at z=0.95, placing the camera through
+// the real surface. A cramped corridor may temporarily require a tighter camera, but must not clip.
 const closeRoot = new THREE.Group();
 const closeMesh = new THREE.Mesh(new THREE.BoxGeometry(1, 4, 0.5), new THREE.MeshBasicMaterial());
 closeMesh.position.set(0, 1.5, 1.2);
 closeRoot.add(closeMesh);
 closeRoot.updateMatrixWorld(true);
+const closeHits = (() => {
+	raycaster.set(target, new THREE.Vector3(0, 0, 1));
+	raycaster.near = 0;
+	raycaster.far = 10;
+	return raycaster.intersectObjects([closeRoot], true);
+})();
+assert.ok(closeHits.length > 0, 'near-wall fixture must expose a real collision surface');
+const closeSurfaceDistance = closeHits[0].distance;
 const closeResolved = resolveCameraCollision(raycaster, target, desired, [closeRoot], 0.4, 1.5);
-assert.ok(Math.abs(closeResolved.distanceTo(target) - 1.5) < 1e-6, 'nested near-wall collision must preserve minimum chase-camera distance');
+const closeResolvedDistance = closeResolved.distanceTo(target);
+assert.ok(closeResolvedDistance < 1.5, 'near wall must be allowed to override the chase-camera comfort floor');
+assert.ok(
+	closeResolvedDistance <= closeSurfaceDistance - 0.4 + 1e-6,
+	`camera must remain in front of near wall: resolved=${closeResolvedDistance}, surface=${closeSurfaceDistance}`,
+);
+assert.ok(closeResolvedDistance >= 0, 'near-wall collision resolution must remain finite and non-negative');
 
 nestedMesh.geometry.dispose();
 nestedMesh.material.dispose();
@@ -94,6 +109,13 @@ console.log(JSON.stringify({
 		nestedDepth: 2,
 		nonRecursiveHits: 0,
 		recursiveCollision: true,
+	},
+	nearWallPriority: {
+		comfortFloorMeters: 1.5,
+		marginMeters: 0.4,
+		surfaceDistanceMeters: closeSurfaceDistance,
+		resolvedDistanceMeters: closeResolvedDistance,
+		collisionClearanceOverridesComfortFloor: true,
 	},
 	geographicFamiliesExposedByScene: ['realCastles', 'naturalGeology', 'villages', 'iceLandmarks'],
 	cameraCandidatesAlreadyWired: ['terrain-chunks', 'settlements', 'realCastles', 'iceLandmarks'],
