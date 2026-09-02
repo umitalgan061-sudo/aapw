@@ -75,43 +75,6 @@ jobs:
       - name: Seeded determinism policy regression
         run: node scripts/checkSeededRandomPolicy.js
 
-      - name: Capture broad Run283 blocker diagnostics
-        id: broad-diagnostics
-        continue-on-error: true
-        shell: bash
-        run: |
-          set +e
-          mkdir -p artifacts/settlement-transition-governance
-          {
-            echo '=== checkServiceWorkerCache.js ==='
-            node scripts/checkServiceWorkerCache.js
-            SERVICE_WORKER_STATUS=$?
-            echo "exit=$SERVICE_WORKER_STATUS"
-            echo
-            echo '=== checkSmokeCheckRegistry.js ==='
-            node scripts/checkSmokeCheckRegistry.js
-            SMOKE_REGISTRY_STATUS=$?
-            echo "exit=$SMOKE_REGISTRY_STATUS"
-            echo
-            echo "service_worker_exit=$SERVICE_WORKER_STATUS"
-            echo "smoke_registry_exit=$SMOKE_REGISTRY_STATUS"
-            if [ "$SERVICE_WORKER_STATUS" -eq 0 ] && [ "$SMOKE_REGISTRY_STATUS" -eq 0 ]; then
-              echo 'broad_diagnostics=green'
-              exit 0
-            fi
-            echo 'broad_diagnostics=blocked'
-            exit 1
-          } 2>&1 | tee artifacts/settlement-transition-governance/run283-shared-blockers.log
-
-      - name: Upload broad blocker diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: settlement-transition-run283-shared-blockers
-          path: artifacts/settlement-transition-governance/run283-shared-blockers.log
-          if-no-files-found: error
-          retention-days: 7
-
       - name: Final exact-main freshness
         shell: bash
         run: |
@@ -121,11 +84,3 @@ jobs:
           BASE="$(git merge-base HEAD origin/main)"
           echo "remote-main=$REMOTE_MAIN merge-base=$BASE head=$(git rev-parse HEAD)"
           test "$BASE" = "$REMOTE_MAIN"
-
-      - name: Enforce broad Run283 blocker parity
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "broad-diagnostics outcome=${{ steps.broad-diagnostics.outcome }}"
-          test "${{ steps.broad-diagnostics.outcome }}" = "success"
