@@ -84,14 +84,26 @@ jobs:
           node scripts/checkMountainPassReliefSafety.mjs | tee "$RUNNER_TEMP/mountain-pass.log"
           node scripts/checkMountainVisualProofContract.mjs | tee "$RUNNER_TEMP/mountain-proof-contract.log"
 
-      - name: Offline determinism and repository policy
+      - name: Repository policy diagnostics
         run: |
-          set -euo pipefail
-          node scripts/checkServiceWorkerCache.js
-          node scripts/checkPwaInstallability.js
-          node scripts/checkSeededRandomPolicy.js
-          node scripts/checkTechnicalDebt.js
-          node scripts/checkSmokeCheckRegistry.js
+          set -u
+          FAILED=0
+          for CHECK in \
+            "node scripts/checkServiceWorkerCache.js" \
+            "node scripts/checkPwaInstallability.js" \
+            "node scripts/checkSeededRandomPolicy.js" \
+            "node scripts/checkTechnicalDebt.js" \
+            "node scripts/checkSmokeCheckRegistry.js"
+          do
+            echo "::group::$CHECK"
+            bash -o pipefail -c "$CHECK" 2>&1 | tee -a "$RUNNER_TEMP/repository-policy.log"
+            STATUS=${PIPESTATUS[0]}
+            echo "::endgroup::"
+            if [ "$STATUS" -ne 0 ]; then
+              FAILED=1
+            fi
+          done
+          echo "REPOSITORY_POLICY_FAILED=$FAILED" >> "$GITHUB_ENV"
 
       - name: Install Chromium dependency
         run: |
@@ -122,6 +134,12 @@ jobs:
           test -z "$(git diff --name-only "$BASE_SHA"...HEAD -- src/3d/world/worldReferenceMap.js)"
           test -z "$(git diff --name-only "$BASE_SHA"...HEAD -- src/3d/world/worldReferenceSurfacePindexes.js)"
 
+      - name: Enforce repository policy
+        if: always()
+        run: |
+          set -euo pipefail
+          test "${REPOSITORY_POLICY_FAILED:-1}" = "0"
+
       - name: Upload validation logs and shipped visual proof
         if: always()
         uses: actions/upload-artifact@v4
@@ -134,6 +152,7 @@ jobs:
             ${{ runner.temp }}/mountain-determinism.log
             ${{ runner.temp }}/mountain-pass.log
             ${{ runner.temp }}/mountain-proof-contract.log
+            ${{ runner.temp }}/repository-policy.log
             ${{ runner.temp }}/terrain-seat.log
             ${{ runner.temp }}/road-network.log
             ${{ runner.temp }}/game3d-smoke.log
