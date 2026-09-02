@@ -15,7 +15,7 @@
 
 import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
-import { evaluateConfiguredFaunaHabitat, prepareConfiguredAnimalWorldAsset } from './faunaWorldPlacement.js';
+import { evaluateConfiguredFaunaRoute, prepareConfiguredAnimalWorldAsset } from './faunaWorldPlacement.js';
 
 const MAX_WILDLIFE_SIMULATION_STEP_SECONDS = 0.1;
 const DEFAULT_FLEE_RELEASE_MARGIN_METERS = 3;
@@ -402,13 +402,13 @@ export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsB
 				? { x: seat.x + spawn.patrol.toOffsetXMeters, z: seat.z + spawn.patrol.toOffsetZMeters }
 				: null;
 			const patrolPlacement = patrolTarget
-				? evaluateConfiguredFaunaHabitat(speciesId, patrolTarget.x, patrolTarget.z, groundCollider)
+				? evaluateConfiguredFaunaRoute(speciesId, { x: worldX, z: worldZ }, patrolTarget, groundCollider)
 				: null;
 			const effectiveWaypoints = patrolPlacement?.ok
 				? [{ x: worldX, z: worldZ }, patrolTarget]
 				: undefined;
 			if (patrolTarget && !patrolPlacement?.ok) {
-				console.warn(`[gameplay/animals] Animal spawn "${spawn.id}" patrol target rejected by habitat placement (${patrolPlacement?.error ?? 'unknown'}) — keeping safe spawn without patrol.`);
+				console.warn(`[gameplay/animals] Animal spawn "${spawn.id}" patrol route rejected by habitat placement (${patrolPlacement?.error ?? 'unknown'}) — keeping safe spawn without patrol.`);
 			}
 			const fleeClipName = species ? clips?.flee : animalConfig.FLEE_CLIP_NAME;
 			const canFlee = spawn.canFlee !== false && Boolean(fleeClipName);
@@ -436,14 +436,20 @@ export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsB
 					fleeSpeedMps: animalConfig.FLEE_SPEED_MPS,
 					packAlertRadiusMeters: canFlee ? animalConfig.PACK_ALERT_RADIUS_METERS : undefined,
 				});
+				const targetGeography = patrolPlacement?.targetHabitat?.geography;
 				controller.object3D.userData.faunaPatrolPlacement = Object.freeze({
 					enabled: Boolean(effectiveWaypoints),
 					target: patrolTarget ? Object.freeze({ ...patrolTarget }) : null,
 					error: patrolTarget && !patrolPlacement?.ok ? (patrolPlacement?.error ?? 'unknown') : null,
-					biome: patrolPlacement?.geography?.surface?.biome ?? null,
-					slopeDegrees: Number.isFinite(patrolPlacement?.geography?.surface?.slopeDegrees)
-						? Number(patrolPlacement.geography.surface.slopeDegrees.toFixed(3))
+					biome: targetGeography?.surface?.biome ?? patrolPlacement?.geography?.surface?.biome ?? null,
+					slopeDegrees: Number.isFinite(targetGeography?.surface?.slopeDegrees)
+						? Number(targetGeography.surface.slopeDegrees.toFixed(3))
 						: null,
+					routeSampleCount: patrolPlacement?.routeSampleCount ?? 0,
+					routeDistanceMeters: Number.isFinite(patrolPlacement?.distanceMeters)
+						? Number(patrolPlacement.distanceMeters.toFixed(3))
+						: null,
+					failedRouteSampleIndex: patrolPlacement?.routeSampleIndex ?? null,
 				});
 				return controller;
 			} catch (error) {
