@@ -9,6 +9,7 @@ on:
       - 'scripts/checkTemperateVegetationAssetCandidates.mjs'
       - 'assets/models/vegetation/big_tree_by_3donimus_dnwh762pn_6_1_na.glb'
       - 'assets/models/vegetation/birch_trees_R7qMWzb7nk.glb'
+      - 'assets/models/vegetation/fall_tree_4GYen9Xm3Kj.glb'
       - '.github/workflows/temperate-vegetation-asset-audit.yml'
   pull_request:
     paths:
@@ -16,6 +17,7 @@ on:
       - 'scripts/checkTemperateVegetationAssetCandidates.mjs'
       - 'assets/models/vegetation/big_tree_by_3donimus_dnwh762pn_6_1_na.glb'
       - 'assets/models/vegetation/birch_trees_R7qMWzb7nk.glb'
+      - 'assets/models/vegetation/fall_tree_4GYen9Xm3Kj.glb'
       - '.github/workflows/temperate-vegetation-asset-audit.yml'
   workflow_dispatch:
 
@@ -51,11 +53,12 @@ jobs:
           set -euo pipefail
           git lfs install --local
           git lfs pull \
-            --include="assets/models/vegetation/big_tree_by_3donimus_dnwh762pn_6_1_na.glb,assets/models/vegetation/birch_trees_R7qMWzb7nk.glb" \
+            --include="assets/models/vegetation/big_tree_by_3donimus_dnwh762pn_6_1_na.glb,assets/models/vegetation/birch_trees_R7qMWzb7nk.glb,assets/models/vegetation/fall_tree_4GYen9Xm3Kj.glb" \
             --exclude=""
           for asset in \
             assets/models/vegetation/big_tree_by_3donimus_dnwh762pn_6_1_na.glb \
-            assets/models/vegetation/birch_trees_R7qMWzb7nk.glb; do
+            assets/models/vegetation/birch_trees_R7qMWzb7nk.glb \
+            assets/models/vegetation/fall_tree_4GYen9Xm3Kj.glb; do
             test "$(wc -c < "$asset")" -gt 512
             ! head -n 1 "$asset" | grep -q 'git-lfs.github.com/spec/v1'
           done
@@ -68,14 +71,19 @@ jobs:
         run: |
           node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync(process.env.REPORT,'utf8'));const c=r.candidates.find(x=>x.id==='mature-broadleaf');console.log(JSON.stringify(c,null,2));process.exit(c?.liveCandidate?0:1)"
 
-      - name: Birch family single-tree qualification
+      - name: Birch family source-component qualification
         continue-on-error: true
         run: |
           node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync(process.env.REPORT,'utf8'));const c=r.candidates.find(x=>x.id==='birch-family');console.log(JSON.stringify(c,null,2));process.exit(c?.liveCandidate?0:1)"
 
+      - name: Fall tree single-tree qualification
+        continue-on-error: true
+        run: |
+          node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync(process.env.REPORT,'utf8'));const c=r.candidates.find(x=>x.id==='fall-tree');console.log(JSON.stringify(c,null,2));process.exit(c?.liveCandidate?0:1)"
+
       - name: Material and placement qualification entry gate
         run: |
-          node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync(process.env.REPORT,'utf8'));if(!r.liveCandidates?.length)throw new Error('No hydrated textured single-tree temperate candidate passed asset-first audit');console.log('qualified='+r.liveCandidates.join(','));"
+          node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync(process.env.REPORT,'utf8'));if(!r.liveCandidates?.length)throw new Error('No hydrated textured single-tree temperate candidate or source component passed asset-first audit');console.log('qualified='+r.liveCandidates.join(','));console.log('sourceComponents='+(r.liveSourceComponents||[]).join(','));"
           node scripts/checkSharedMaterialPlacementContract.js
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
