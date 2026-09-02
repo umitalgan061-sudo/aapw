@@ -33,7 +33,7 @@ export const WAVE_TOTAL_AMPLITUDE_METERS = SWELL_COMPONENTS.reduce((sum, [, ampl
 export const WATER_OFFSHORE_OPTICAL_GAIN = 0.82;
 
 export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
-	id: 'water-world-surface-variation-2026-09-02-v16-owner-border-organic-handoff',
+	id: 'water-world-surface-variation-2026-09-02-v17-deferred-optical-handoff',
 	renderOnly: true,
 	canonicalDepthUnchanged: true,
 	canonicalCoverageUnchanged: true,
@@ -55,6 +55,8 @@ export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	layerHandoffFarFullMeters: 1980,
 	layerHandoffNearFadeStartMeters: 1780,
 	layerHandoffNearFadeEndMeters: 2000,
+	farOpticalTransitionStartMeters: 1850,
+	farOpticalTransitionFullMeters: 3450,
 	depthFieldOpticalFeatherMeters: 920,
 	depthFieldOpticalWarpMeters: 180,
 	farMarineOpticalDepthFloor: 0.94,
@@ -272,6 +274,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	void main() {
 		float layerDistance = organicLayerDistance(vWorldPosition.xz);
 		float farLayerBlend = smoothstep(${WATER_SURFACE_VARIATION_POLICY.layerHandoffFarStartMeters.toFixed(1)}, ${WATER_SURFACE_VARIATION_POLICY.layerHandoffFarFullMeters.toFixed(1)}, layerDistance);
+		float farOpticalBlend = smoothstep(${WATER_SURFACE_VARIATION_POLICY.farOpticalTransitionStartMeters.toFixed(1)}, ${WATER_SURFACE_VARIATION_POLICY.farOpticalTransitionFullMeters.toFixed(1)}, layerDistance);
 		float nearLayerBlend = 1.0 - smoothstep(${WATER_SURFACE_VARIATION_POLICY.layerHandoffNearFadeStartMeters.toFixed(1)}, ${WATER_SURFACE_VARIATION_POLICY.layerHandoffNearFadeEndMeters.toFixed(1)}, layerDistance);
 		float layerOpacity = mix(nearLayerBlend, farLayerBlend, uFarLayerMask);
 		if (uFarLayerMask > 0.5 && layerOpacity <= 0.001) discard;
@@ -280,10 +283,10 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float waterCoverage = smoothstep(0.08, 0.72, waterField.y);
 		if (waterCoverage <= 0.01) discard;
 		float rawOffshoreOptical = sampleOffshoreOptical(vWorldPosition.xz);
-		float fieldEdgeOpticalBlend = waterFieldEdgeOpticalBlend(vWorldPosition.xz) * uFarLayerMask * farLayerBlend
+		float fieldEdgeOpticalBlend = waterFieldEdgeOpticalBlend(vWorldPosition.xz) * uFarLayerMask * farOpticalBlend
 			* smoothstep(0.72, 0.98, waterField.y)
 			* smoothstep(0.48, 0.90, rawOffshoreOptical);
-		float farMarineOpticalFloor = uFarLayerMask * farLayerBlend * smoothstep(0.24, 0.92, rawOffshoreOptical) * ${WATER_SURFACE_VARIATION_POLICY.farMarineOpticalDepthFloor.toFixed(2)};
+		float farMarineOpticalFloor = uFarLayerMask * farOpticalBlend * smoothstep(0.24, 0.92, rawOffshoreOptical) * ${WATER_SURFACE_VARIATION_POLICY.farMarineOpticalDepthFloor.toFixed(2)};
 		float fragmentDepth = max(mix(waterField.x, 1.0, fieldEdgeOpticalBlend), farMarineOpticalFloor);
 		float offshoreOptical = smoothstep(0.08, 0.92, mix(rawOffshoreOptical, 1.0, fieldEdgeOpticalBlend));
 		float enclosedLakeMask = (1.0 - offshoreOptical) * (1.0 - uFarLayerMask);
@@ -375,7 +378,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float offshoreAbsorption = 1.0 - exp(-offshoreGain * 3.4);
 		opticalDepth = 1.0 - (1.0 - opticalDepth) * (1.0 - offshoreAbsorption);
 		float alpha = mix(0.14, 0.90, opticalDepth);
-		float farOffshoreOpacity = uFarLayerMask * farLayerBlend * smoothstep(0.62, 0.94, offshoreOptical);
+		float farOffshoreOpacity = uFarLayerMask * farOpticalBlend * smoothstep(0.62, 0.94, offshoreOptical);
 		alpha = mix(alpha, max(alpha, 0.995), deepMarineMask);
 		alpha = mix(alpha, 1.0, farOffshoreOpacity);
 		alpha *= 1.0 + shelfMottle * 0.22;
@@ -549,6 +552,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		nightAbsorptionFromCelestialState: true,
 		softNearFarLayerHandoff: true,
 		organicRadialLayerHandoff: true,
+		deferredFarOpticalHandoff: true,
 		extendedBackdropBeyondFullWorldFrame: true,
 		depthFieldEdgeOpticalFeather: true,
 		farMarineOpticalDepthFromOffshoreDistance: true,
