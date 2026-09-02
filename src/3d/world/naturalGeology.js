@@ -86,6 +86,8 @@ export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
   smallFallbackShadowSuppression: true,
   roundedBoulderNormalResponse: true,
   volcanicFallbackSmoothedLightingNormals: true,
+  volcanicFallbackCalibratedBasaltReflectance: true,
+  volcanicFallbackLinearReflectanceRange: Object.freeze([0.10, 0.18]),
   fallbackLinearAlbedoFloor: 0.046,
   instanceScaleCompensatedWorldNormal: true,
   cameraStableRockWeathering: true,
@@ -534,10 +536,10 @@ export function createNaturalRockPrototypeGeometry(kind) {
 
 function colorForPlacement(placement) {
   if (placement.volcanic) {
-    const c = new THREE.Color(0x514b48);
+    const c = new THREE.Color(0x625d59);
     const hot = clamp01((placement.valyriaInfluence - 0.45) / 0.55);
-    if (placement.kind === 'talus') c.lerp(new THREE.Color(0x5d5650), 0.26);
-    if (placement.kind === 'fractured-scarp') c.lerp(new THREE.Color(0x403d3b), 0.12);
+    if (placement.kind === 'talus') c.lerp(new THREE.Color(0x6d6560), 0.26);
+    if (placement.kind === 'fractured-scarp') c.lerp(new THREE.Color(0x5c5957), 0.12);
     if (hot > 0.6 && placement.curvatureMeters > 0.35) c.lerp(new THREE.Color(0x5a3025), 0.08);
     return c;
   }
@@ -771,6 +773,7 @@ export function createNaturalGeology({
     smallFallbackShadowSuppression: true,
     roundedBoulderNormalResponse: true,
     volcanicFallbackSmoothedLightingNormals: true,
+    volcanicFallbackCalibratedBasaltReflectance: true,
     worldNormalSpace: 'instance-scale-compensated-world',
     hydratedRegionalTint: true,
     fallbackGeometryFamily: NATURAL_GEOLOGY_RENDER_POLICY.fallbackGeometryFamily,
