@@ -146,7 +146,14 @@ try {
 			const root = representative.object3D;
 			const intents = new Set();
 			const start = { x: root.position.x, z: root.position.z };
-			const front = { x: root.position.x, z: root.position.z - 8 };
+			// Put the synthetic player in the guard's actual forward cone. A fixed world-axis
+			// offset can accidentally exercise the documented 120° rear blind zone when the
+			// authored spawn rotation changes, turning this shipped-runtime proof into a flaky
+			// orientation test instead of patrol→detect→chase→return acceptance.
+			const front = {
+				x: root.position.x + Math.sin(root.rotation.y) * 8,
+				z: root.position.z + Math.cos(root.rotation.y) * 8,
+			};
 			const far = { x: root.position.x + 80, z: root.position.z + 80 };
 			const startTime = performance.now();
 			for (let tick = 0; tick < 45; tick += 1) {
