@@ -34,6 +34,14 @@ assert.ok(
 	helperSource.includes('state.iceLandmarks?.children'),
 	'ice-landmark roots already exposed to gameplay must remain player-camera collision candidates',
 );
+assert.ok(
+	helperSource.includes('state.villages?.children'),
+	'geographically placed village render families must participate in player-camera collision',
+);
+assert.ok(
+	!helperSource.match(/_cameraCollidables\.push\([^\n;]*naturalGeology/),
+	'natural geology must not be added as an unbounded global per-frame camera raycast family',
+);
 
 const target = new THREE.Vector3(0, 1.5, 0);
 const desired = new THREE.Vector3(0, 1.5, 10);
@@ -76,6 +84,22 @@ assert.ok(resolved.z > 3 && resolved.z < 4.1, `camera should stop before the nes
 assert.equal(resolved.x, 0);
 assert.equal(resolved.y, 1.5);
 
+// Village houses/roofs/steps/walls are shipped as four InstancedMesh families. Player collision
+// already consumes their placement circles; the chase camera must consume their rendered surfaces
+// as well so the player cannot stand outside a cottage while the camera clips through its wall.
+const villageGeometry = new THREE.BoxGeometry(4, 3, 4);
+const villageMaterial = new THREE.MeshStandardMaterial({ color: 0x8d8878 });
+const villageHouses = new THREE.InstancedMesh(villageGeometry, villageMaterial, 1);
+villageHouses.name = 'village-houses';
+const villageTransform = new THREE.Matrix4().makeTranslation(0, 1.5, 5);
+villageHouses.setMatrixAt(0, villageTransform);
+villageHouses.instanceMatrix.needsUpdate = true;
+villageHouses.computeBoundingSphere();
+villageHouses.updateMatrixWorld(true);
+const villageResolved = resolveCameraCollision(raycaster, target, desired, [villageHouses], 0.4, 1.5);
+assert.notStrictEqual(villageResolved, desired, 'village InstancedMesh surface must occlude the third-person camera');
+assert.ok(villageResolved.z > 2.5 && villageResolved.z < 3.1, `camera should stop before village wall, got z=${villageResolved.z}`);
+
 const emptyRoot = new THREE.Group();
 emptyRoot.updateMatrixWorld(true);
 const unobstructed = resolveCameraCollision(raycaster, target, desired, [emptyRoot], 0.4, 1.5);
@@ -108,6 +132,8 @@ assert.ok(closeResolvedDistance >= 0, 'near-wall collision resolution must remai
 
 nestedMesh.geometry.dispose();
 nestedMesh.material.dispose();
+villageGeometry.dispose();
+villageMaterial.dispose();
 closeMesh.geometry.dispose();
 closeMesh.material.dispose();
 await rm(resolve(repoRoot, 'node_modules'), { recursive: true, force: true });
@@ -121,6 +147,12 @@ console.log(JSON.stringify({
 		nonRecursiveHits: 0,
 		recursiveCollision: true,
 	},
+	villageOcclusion: {
+		renderFamily: 'InstancedMesh',
+		candidateWired: true,
+		resolvedDistanceMeters: villageResolved.distanceTo(target),
+		globalNaturalGeologyRaycast: false,
+	},
 	nearWallPriority: {
 		comfortFloorMeters: 1.5,
 		marginMeters: 0.4,
@@ -128,7 +160,7 @@ console.log(JSON.stringify({
 		resolvedDistanceMeters: closeResolvedDistance,
 		collisionClearanceOverridesComfortFloor: true,
 	},
-	cameraCandidatesAlreadyWired: ['terrain-chunks', 'settlements', 'realCastles', 'iceLandmarks'],
+	cameraCandidatesAlreadyWired: ['terrain-chunks', 'settlements', 'villages', 'realCastles', 'iceLandmarks'],
 	ownership: {
 		terrainGenerationModified: false,
 		geographicPlacementModified: false,
