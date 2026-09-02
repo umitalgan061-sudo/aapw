@@ -37,8 +37,10 @@ assert.match(shader.fragmentShader, /winterFoliageLuma/,
 assert.match(shader.fragmentShader, /winterSnowMix/);
 assert.match(shader.fragmentShader, /winterNeedleShade/,
 	'source foliage must retain a darker needle response beneath the snow coverage');
-assert.match(shader.fragmentShader, /pineNeedleShadowStrength|0\.460/,
+assert.match(shader.fragmentShader, /pineNeedleShadowStrength|0\.640/,
 	'needle contrast must remain policy-controlled and deterministic');
+assert.match(shader.fragmentShader, /smoothstep\(0\.38, 0\.78, winterFoliageLuma\)/,
+	'snow coverage must reserve the strongest blend for genuinely bright authored texels');
 assert.match(shader.fragmentShader, /diffuseColor\.rgb = mix/);
 assert.match(shader.fragmentShader, /#include <map_fragment>/,
 	'source texture/alpha map fragment must remain in the compiled shader');
