@@ -249,6 +249,7 @@ for (const snippet of [
   'sampleHeightMeters: valyriaEcologyPlacement.sampleHeightMeters',
   'state.valyriaEcologyPlacement.sampleHeightMeters',
   'naturalGeology: naturalGeologyResult.group',
+  'maxAnisotropy: renderer.capabilities.getMaxAnisotropy()',
   'valyriaEcologyPlacement,',
 ]) {
   assert(sceneSource.includes(snippet), `scene Valyria runtime wiring lost: ${snippet}`);
