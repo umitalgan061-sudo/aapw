@@ -1,0 +1,81 @@
+name: Terrain Cryosphere Surface Fabric Visual QA
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/terrain.js'
+      - 'src/3d/world/terrainBiomeShading.js'
+      - 'src/3d/world/terrainSnowSurfaceTone.js'
+      - 'src/3d/world/terrainWindSnowExposure.js'
+      - 'src/3d/world/northReferenceCryosphere.js'
+      - 'src/3d/world/terrainMicroSurface.js'
+      - 'src/3d/world/terrainMicroSurfaceCore.js'
+      - 'src/3d/world/terrainCryosphereSurfaceFabric.js'
+      - 'scripts/checkTerrainMicroSurface.mjs'
+      - 'scripts/checkTerrainCryosphereSurfaceVisual.mjs'
+      - 'scripts/terrainCryosphereSurfaceHarness.html'
+      - '.github/workflows/terrain-cryosphere-surface-fabric.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cryosphere-surface:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - name: Checkout exact requested head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+          lfs: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Resolve vendored Three.js for node contracts
+        run: node scripts/setupNodeThreeShim.mjs
+
+      - name: Exact-head syntax and canonical-authority contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/terrainMicroSurfaceCore.js
+          node --check src/3d/world/terrainCryosphereSurfaceFabric.js
+          node --check src/3d/world/terrainMicroSurface.js
+          node --check src/3d/world/terrain.js
+          node --check scripts/checkTerrainMicroSurface.mjs
+          node --check scripts/checkTerrainCryosphereSurfaceVisual.mjs
+          grep -F "canonicalTerrainHeightUnchanged: true" src/3d/world/terrainCryosphereSurfaceFabric.js
+          grep -F "canonicalSnowCoverageUnchanged: true" src/3d/world/terrainCryosphereSurfaceFabric.js
+          grep -F "canonicalCryosphereMaskUnchanged: true" src/3d/world/terrainCryosphereSurfaceFabric.js
+          grep -F "canonicalHydrologyUnchanged: true" src/3d/world/terrainCryosphereSurfaceFabric.js
+          grep -F "canonicalColliderUnchanged: true" src/3d/world/terrainCryosphereSurfaceFabric.js
+          node scripts/checkTerrainMicroSurface.mjs
+
+      - name: Install Playwright Chromium
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Render canonical far-north and ice-edge terrain
+        env:
+          TERRAIN_CRYOSPHERE_SURFACE_ARTIFACT_DIR: artifacts/terrain-cryosphere-surface
+        run: node scripts/checkTerrainCryosphereSurfaceVisual.mjs
+
+      - name: Upload cryosphere material visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terrain-cryosphere-surface
+          path: artifacts/terrain-cryosphere-surface/
+          if-no-files-found: warn
+          retention-days: 7
