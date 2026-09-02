@@ -15,11 +15,16 @@ import {
 	WORLD_REFERENCE_MAP,
 } from './worldReferenceMap.js';
 import { WORLD_REFERENCE_BASE_SURFACE_MASK } from './worldReferenceSurfacePindexes.js';
+import {
+	WORLD_REFERENCE_MOUNTAIN_GEOMORPHOLOGY_POLICY,
+	sampleMountainGeomorphologyScale,
+} from './worldReferenceMountainGeomorphology.js';
 
 export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
-	id: 'owner-map-live-mountain-relief-2026-09-02-v8-bounded-eroded-shoulders',
+	id: 'owner-map-live-mountain-relief-2026-09-02-v9-ridge-frame-geomorphology',
 	sourceMapSha256: WORLD_REFERENCE_MAP.sha256,
 	surfaceMaskSha256: WORLD_REFERENCE_BASE_SURFACE_MASK.maskSha256,
+	geomorphologyPolicyId: WORLD_REFERENCE_MOUNTAIN_GEOMORPHOLOGY_POLICY.id,
 	landGateZero: 0.54,
 	landGateFull: 0.84,
 	coordinateWarpNormalized: 0.003,
@@ -453,10 +458,18 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 			(1 - summitFloor) *
 				Math.pow(summitNoise, summitExponent);
 		const talusBreakup = sampleTalusBreakup(normalizedX, normalizedY, normalizedDistance, chain.profile.seed);
+		const geomorphologyScale = sampleMountainGeomorphologyScale(
+			px / MAP_ASPECT,
+			py,
+			chain.points,
+			MAP_ASPECT,
+			normalizedDistance,
+			chain.profile.seed,
+		);
 		const passMultiplier = samplePassMultiplier(normalizedX, normalizedY, chain.profile.passes);
 		strongestMeters = Math.max(
 			strongestMeters,
-			chain.profile.peakMeters * ridge * modulation * talusBreakup * passMultiplier,
+			chain.profile.peakMeters * ridge * modulation * talusBreakup * geomorphologyScale * passMultiplier,
 		);
 	}
 	if (strongestMeters === 0) return 0;
