@@ -84,11 +84,17 @@ jobs:
           node scripts/checkNpcSimulationLod.mjs
           node --check scripts/checkNpcSimulationLodFairness.mjs
           node scripts/checkNpcSimulationLodFairness.mjs
-      - name: Shared material placement and offline determinism regressions
+      - name: Shared material placement contract
         run: |
           set -euo pipefail
           node scripts/checkSharedMaterialPlacementContract.js
+      - name: Service worker cache regression
+        run: |
+          set -euo pipefail
           node scripts/checkServiceWorkerCache.js
+      - name: Seeded random policy regression
+        run: |
+          set -euo pipefail
           node scripts/checkSeededRandomPolicy.js
       - name: Final exact-main freshness
         run: |
