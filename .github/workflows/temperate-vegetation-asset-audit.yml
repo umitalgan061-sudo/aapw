@@ -7,6 +7,7 @@ on:
     paths:
       - 'src/3d/world/vegetation.js'
       - 'scripts/checkTemperateVegetationAssetCandidates.mjs'
+      - 'scripts/checkTemperateVegetationMaterialBrowser.mjs'
       - 'assets/models/vegetation/big_tree_by_3donimus_dnwh762pn_6_1_na.glb'
       - 'assets/models/vegetation/birch_trees_R7qMWzb7nk.glb'
       - 'assets/models/vegetation/fall_tree_4GYen9Xm3Kj.glb'
@@ -15,6 +16,7 @@ on:
     paths:
       - 'src/3d/world/vegetation.js'
       - 'scripts/checkTemperateVegetationAssetCandidates.mjs'
+      - 'scripts/checkTemperateVegetationMaterialBrowser.mjs'
       - 'assets/models/vegetation/big_tree_by_3donimus_dnwh762pn_6_1_na.glb'
       - 'assets/models/vegetation/birch_trees_R7qMWzb7nk.glb'
       - 'assets/models/vegetation/fall_tree_4GYen9Xm3Kj.glb'
@@ -27,10 +29,11 @@ permissions:
 jobs:
   temperate-vegetation-asset-audit:
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 18
     env:
       EXACT_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
       REPORT: artifacts/temperate-vegetation-asset-audit/report.json
+      MATERIAL_MANIFEST: artifacts/temperate-vegetation-asset-audit/material-manifest.json
     steps:
       - name: Checkout exact candidate head
         uses: actions/checkout@v4
@@ -45,6 +48,7 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
           node --check scripts/checkTemperateVegetationAssetCandidates.mjs
+          node --check scripts/checkTemperateVegetationMaterialBrowser.mjs
           git diff --check HEAD^ HEAD
 
       - name: Selectively hydrate candidate tree family
@@ -87,7 +91,19 @@ jobs:
           node scripts/checkSharedMaterialPlacementContract.js
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
-          ! grep -R "EditorMaterialStudio" src/3d/world/vegetation.js scripts/checkTemperateVegetationAssetCandidates.mjs
+          ! grep -R "EditorMaterialStudio" src/3d/world/vegetation.js scripts/checkTemperateVegetationAssetCandidates.mjs scripts/checkTemperateVegetationMaterialBrowser.mjs
+
+      - name: Install exact browser material-proof runtime
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw" node_modules
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          ln -sfn "$RUNNER_TEMP/pw/node_modules/playwright" node_modules/playwright
+          ln -sfn "$RUNNER_TEMP/pw/node_modules/playwright-core" node_modules/playwright-core
+
+      - name: Shared material validation and manifest on hydrated birch
+        run: node scripts/checkTemperateVegetationMaterialBrowser.mjs --output="$MATERIAL_MANIFEST"
 
       - name: Upload temperate vegetation asset audit
         if: always()
