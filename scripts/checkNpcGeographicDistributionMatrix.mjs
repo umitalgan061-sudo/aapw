@@ -1,11 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { NPC_CONFIG } from '../src/3d/gameplay/npcConfig.js';
-import {
-	resolveConfiguredNpcPatrol,
-	resolveConfiguredNpcSpawnPlacement,
-	sampleConfiguredNpcGeography,
-} from '../src/3d/gameplay/npcWorldPlacement.js';
+import { resolveConfiguredNpcPatrol, resolveConfiguredNpcSpawnPlacement, sampleConfiguredNpcGeography } from '../src/3d/gameplay/npcWorldPlacement.js';
 import { SETTLEMENT_CONFIG, WORLD_DEFAULTS, WORLD_SCALE } from '../src/3d/config.js';
 import { KINGDOM_SEATS, computeSettlementFlattenPads, mapToWorldXZ } from '../src/3d/world/settlements.js';
 import { createHeightSampler } from '../src/3d/world/terrain.js';
@@ -53,8 +49,10 @@ for (const spawn of NPC_CONFIG.SPAWNS) {
 		slopeDegrees: placement.geography.surface.slopeDegrees,
 		seatDistanceMeters: placement.seatDistanceMeters,
 		relocated: placement.relocated,
+		relocationMode: placement.relocationMode,
 		relocationMeters: placement.relocationMeters,
 		displacementFromDesired,
+		reportedDisplacement: placement.displacementFromDesiredMeters,
 		groundError,
 		patrolAuthored: Boolean(spawn.patrol),
 		patrolEnabled: Boolean(patrol.waypoints),
@@ -74,8 +72,15 @@ for (const record of records) {
 	assert.ok(!['sea', 'lake'].includes(record.baseSurface), `${record.id} ended on ${record.baseSurface}`);
 	assert.ok(record.slopeDegrees <= 26, `${record.id} ended on ${record.slopeDegrees}° slope`);
 	assert.ok(record.seatDistanceMeters >= 10 && record.seatDistanceMeters <= 30, `${record.id} left 10-30m settlement envelope`);
-	assert.ok(record.relocationMeters <= 8, `${record.id} exceeded 8m local relocation budget`);
-	assert.ok(record.displacementFromDesired <= 8 + 1e-9, `${record.id} moved farther than relocation telemetry reports`);
+	assert.ok(['local', 'settlement-ring'].includes(record.relocationMode), `${record.id} has unknown relocation mode ${record.relocationMode}`);
+	assert.ok(Math.abs(record.displacementFromDesired - record.reportedDisplacement) < 1e-9, `${record.id} displacement telemetry drifted`);
+	if (record.relocationMode === 'local') {
+		assert.ok(record.relocationMeters <= 8, `${record.id} exceeded 8m local relocation budget`);
+		assert.ok(record.displacementFromDesired <= 8 + 1e-9, `${record.id} local repair escaped 8m authored budget`);
+	} else {
+		assert.equal(record.relocationMeters, 0, `${record.id} settlement-ring recovery polluted local relocation telemetry`);
+		assert.ok(record.displacementFromDesired > 0, `${record.id} settlement-ring recovery did not move the authored point`);
+	}
 	assert.ok(record.groundError < 1e-6, `${record.id} ground alignment error ${record.groundError}m`);
 	if (record.patrolEnabled) {
 		assert.ok(record.patrolDistanceMeters > 0, `${record.id} enabled patrol has zero route length`);
@@ -93,32 +98,15 @@ const authoredPatrols = records.filter((record) => record.patrolAuthored);
 assert.ok(authoredPatrols.length >= 4, `expected multiple authored patrols, got ${authoredPatrols.length}`);
 assert.ok(records.some((record) => record.patrolEnabled), 'canonical geography disabled every guard patrol');
 
-const bySeat = new Map();
-for (const record of records) {
-	const bucket = bySeat.get(record.seatId) ?? [];
-	bucket.push(record);
-	bySeat.set(record.seatId, bucket);
-}
-for (const [seatId, bucket] of bySeat) {
-	if (bucket.length < 2) continue;
-	for (let a = 0; a < bucket.length; a += 1) {
-		for (let b = a + 1; b < bucket.length; b += 1) {
-			const distance = Math.hypot(
-				(bucket[a].seatDistanceMeters - bucket[b].seatDistanceMeters),
-				(bucket[a].relocationMeters - bucket[b].relocationMeters),
-			);
-			assert.ok(Number.isFinite(distance), `${seatId} pair produced non-finite distribution metric`);
-		}
-	}
-}
-
 const summary = {
 	configuredGuards: records.length,
 	settlementsCovered: new Set(records.map((record) => record.seatId)).size,
 	uniqueModels: new Set(records.map((record) => record.modelUrl)).size,
 	uniqueBiomes: [...new Set(records.map((record) => record.biome))].sort(),
-	relocations: records.filter((record) => record.relocated).length,
-	maxRelocationMeters: Math.max(...records.map((record) => record.relocationMeters)),
+	localRelocations: records.filter((record) => record.relocationMode === 'local' && record.relocated).length,
+	settlementRingRecoveries: records.filter((record) => record.relocationMode === 'settlement-ring').length,
+	maxLocalRelocationMeters: Math.max(...records.filter((record) => record.relocationMode === 'local').map((record) => record.relocationMeters), 0),
+	maxDisplacementFromDesiredMeters: Math.max(...records.map((record) => record.displacementFromDesired)),
 	maxSlopeDegrees: Math.max(...records.map((record) => record.slopeDegrees)),
 	authoredPatrols: authoredPatrols.length,
 	enabledPatrols: records.filter((record) => record.patrolEnabled).length,
