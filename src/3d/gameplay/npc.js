@@ -7,6 +7,11 @@
 
 import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
+import {
+	prepareConfiguredNpcWorldAsset,
+	resolveConfiguredNpcPatrol,
+	resolveConfiguredNpcSpawnPlacement,
+} from './npcWorldPlacement.js';
 
 function easeBlendToward(currentBlend, targetBlend, delta, transitionSeconds) {
 	if (transitionSeconds > 0) {
@@ -532,40 +537,31 @@ export async function createNPC({
 
 export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, sampleGroundY, groundCollider, playerCollider }) {
 	const guardAlertChannel = { nextRevision: 1, groups: new Map() };
+	const sampleGroundHeight = groundCollider?.getGroundHeight
+		? (x, z) => groundCollider.getGroundHeight(x, z)
+		: sampleGroundY;
 	const npcs = await Promise.all(npcConfig.SPAWNS.map(async (spawn) => {
 		const seat = seatsById.get(spawn.seatId);
 		if (!seat) {
 			console.warn(`[gameplay/npc] NPC spawn "${spawn.id}" references unknown seat "${spawn.seatId}" — skipping.`);
 			return null;
 		}
-		const worldX = seat.x + spawn.offsetXMeters;
-		const worldZ = seat.z + spawn.offsetZMeters;
-		if (!Number.isFinite(worldX) || !Number.isFinite(worldZ)) {
-			console.warn(`[gameplay/npc] NPC spawn "${spawn.id}" resolved non-finite world coordinates — skipping.`);
+		const placement = resolveConfiguredNpcSpawnPlacement({ spawn, seat, sampleGroundHeight });
+		if (!placement.ok) {
+			console.warn(`[gameplay/npc] NPC spawn "${spawn.id}" failed canonical geography placement (${placement.error}) — skipping.`);
 			return null;
 		}
-		let groundY;
-		try {
-			groundY = sampleGroundY(worldX, worldZ);
-		} catch (error) {
-			console.warn(`[gameplay/npc] NPC spawn "${spawn.id}" ground sampling failed — skipping.`, error);
-			return null;
+		const patrol = resolveConfiguredNpcPatrol(spawn, seat, placement, sampleGroundHeight);
+		if (patrol.route?.disabled) {
+			console.warn(`[gameplay/npc] NPC patrol "${spawn.id}" crosses unsafe geography (${patrol.route.error}) — spawning stationary.`);
 		}
-		if (!Number.isFinite(groundY)) {
-			console.warn(`[gameplay/npc] NPC spawn "${spawn.id}" received non-finite ground height — skipping.`);
-			return null;
-		}
-		const patrolWaypoints = spawn.patrol ? [
-			{ x: worldX, z: worldZ },
-			{ x: seat.x + spawn.patrol.toOffsetXMeters, z: seat.z + spawn.patrol.toOffsetZMeters },
-		] : undefined;
-		return createNPC({
+		const controller = await createNPC({
 			assetLoader,
 			modelUrl: spawn.modelUrl,
 			idleAnimationUrl: npcConfig.IDLE_ANIMATION_URL,
-			worldX,
-			worldZ,
-			groundY,
+			worldX: placement.x,
+			worldZ: placement.z,
+			groundY: placement.groundY,
 			rotationYRadians: spawn.rotationYRadians,
 			name: spawn.id,
 			displayName: spawn.displayName,
@@ -574,8 +570,8 @@ export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, s
 			nameTagVerticalOffsetMeters: npcConfig.NAME_TAG_VERTICAL_OFFSET_METERS,
 			groundCollider,
 			playerCollider,
-			walkAnimationUrl: patrolWaypoints ? npcConfig.WALK_ANIMATION_URL : undefined,
-			patrolWaypoints,
+			walkAnimationUrl: patrol.waypoints ? npcConfig.WALK_ANIMATION_URL : undefined,
+			patrolWaypoints: patrol.waypoints,
 			speedMps: npcConfig.PATROL_SPEED_MPS,
 			pauseSeconds: npcConfig.PATROL_PAUSE_SECONDS,
 			combatStanceTriggerRadiusMeters: npcConfig.COMBAT_STANCE_TRIGGER_RADIUS_METERS,
@@ -588,6 +584,20 @@ export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, s
 			simulationLodEnabled: true,
 			simulationLodBootstrapDormant: true,
 		});
+		const prepared = prepareConfiguredNpcWorldAsset(controller.object3D, { spawn, placement, sampleGroundHeight });
+		if (!prepared.ok) {
+			console.warn(`[gameplay/npc] NPC spawn "${spawn.id}" failed shared material/placement contract (${prepared.error}) — skipping.`);
+			controller.dispose();
+			return null;
+		}
+		controller.object3D.userData.npcPatrolPlacement = Object.freeze({
+			enabled: Boolean(patrol.waypoints),
+			disabledByGeography: Boolean(patrol.route?.disabled),
+			error: patrol.route?.error ?? null,
+			distanceMeters: Number((patrol.route?.distanceMeters ?? 0).toFixed(3)),
+			routeSampleCount: patrol.route?.routeSampleCount ?? 0,
+		});
+		return controller;
 	}));
 	return npcs.filter(Boolean);
 }
