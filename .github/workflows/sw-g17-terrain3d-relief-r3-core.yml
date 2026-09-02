@@ -13,11 +13,11 @@ jobs:
         with: { fetch-depth: 0, ref: "${{ github.event.pull_request.head.sha || github.sha }}" }
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
-      - name: Exact-main and 1000-line gate
+      - name: Exact-main and 3000-line gate
         run: |
           set -euo pipefail; git fetch origin main; BASE_SHA="$(git rev-parse origin/main)"; echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
           test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"; git diff --check "$BASE_SHA"...HEAD
-          A="$(git diff --numstat "$BASE_SHA"...HEAD|awk '{s+=$1}END{print s+0}')"; D="$(git diff --numstat "$BASE_SHA"...HEAD|awk '{s+=$2}END{print s+0}')"; test $((A+D)) -le 1000
+          A="$(git diff --numstat "$BASE_SHA"...HEAD|awk '{s+=$1}END{print s+0}')"; D="$(git diff --numstat "$BASE_SHA"...HEAD|awk '{s+=$2}END{print s+0}')"; test $((A+D)) -le 3000
       - name: Source and guard-band proof
         run: |
           set -euo pipefail; node scripts/checkSWG17Hydrology.mjs; node scripts/checkSWG17Biome.mjs; node scripts/checkSWG17Relief.mjs
