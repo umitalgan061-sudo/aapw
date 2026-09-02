@@ -115,6 +115,7 @@ jobs:
           node --check scripts/checkPlayerHitStaggerRuntime.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferDrop.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferRuntime.mjs
+          node scripts/checkPlayerEquipmentAssetReadiness.mjs
           node scripts/checkPlayerGuardImpactExhaustion.mjs
           node scripts/checkPlayerCombatFeedback.mjs
           node scripts/checkPlayerStaminaDodge.mjs
