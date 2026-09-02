@@ -71,20 +71,24 @@ try {
       }
     });
 
+    const startPosition = { x: root.position.x, y: root.position.y, z: root.position.z };
     const start = performance.now();
-    for (let i = 0; i < 120; i += 1) controller.update(1 / 60, { x: root.position.x + 100, z: root.position.z + 100 }, []);
+    for (let i = 0; i < 360; i += 1) controller.update(1 / 60, { x: root.position.x + 100, z: root.position.z + 100 }, []);
     const elapsedMs = performance.now() - start;
+    const patrolMovementMeters = Math.hypot(root.position.x - startPosition.x, root.position.z - startPosition.z);
     const result = {
       assetErrors,
       missingController: false,
       placeholder: root.userData?.isPlaceholder === true,
       finiteTransform: [root.position.x, root.position.y, root.position.z].every(Number.isFinite),
       placement: root.userData.faunaWorldPlacement,
+      patrolPlacement: root.userData.faunaPatrolPlacement,
       manifest: root.userData.worldPlacementManifest,
       materialReadyForWorld: root.userData.materialReadyForWorld,
       textureSizes,
       paletteIds: [...paletteIds].sort(),
-      tickBudget: { ticks: 120, elapsedMs, averageMs: elapsedMs / 120 },
+      patrolMovementMeters,
+      tickBudget: { ticks: 360, elapsedMs, averageMs: elapsedMs / 360 },
     };
     controller.dispose();
     events.clear();
@@ -104,6 +108,10 @@ try {
   assert.ok(proof.placement?.baseSurface !== 'sea' && proof.placement?.baseSurface !== 'lake', `wolf spawned on ${proof.placement?.baseSurface}`);
   assert.ok(proof.placement?.slopeDegrees <= 38, `wolf slope ${proof.placement?.slopeDegrees}° exceeds habitat policy`);
   assert.ok(['cold-grassland', 'snow', 'mountain', 'rocky-hills', 'soil', 'rock'].includes(proof.placement?.biome), `wolf biome ${proof.placement?.biome} is not habitat-compatible`);
+  assert.equal(proof.patrolPlacement?.enabled, true, `canonical wolf patrol target rejected: ${proof.patrolPlacement?.error}`);
+  assert.ok(proof.patrolPlacement?.slopeDegrees <= 38, `wolf patrol slope ${proof.patrolPlacement?.slopeDegrees}° exceeds habitat policy`);
+  assert.ok(['cold-grassland', 'snow', 'mountain', 'rocky-hills', 'soil', 'rock'].includes(proof.patrolPlacement?.biome), `wolf patrol biome ${proof.patrolPlacement?.biome} is not habitat-compatible`);
+  assert.ok(proof.patrolMovementMeters > 0.25, `real wolf did not traverse its canonical patrol route (${proof.patrolMovementMeters}m)`);
   assert.ok(
     proof.placement?.materialMode === 'preserve-authored' || proof.placement?.generatedMaterialCount > 0,
     'real wolf has neither preserved authored PBR nor generated figure-kit material',
@@ -118,6 +126,8 @@ try {
 
   console.log('CONFIGURED_FAUNA_GEOGRAPHIC_MATERIAL_BROWSER_PASS', JSON.stringify({
     placement: proof.placement,
+    patrolPlacement: proof.patrolPlacement,
+    patrolMovementMeters: proof.patrolMovementMeters,
     textureSizes: proof.textureSizes,
     paletteIds: proof.paletteIds,
     tickBudget: proof.tickBudget,
