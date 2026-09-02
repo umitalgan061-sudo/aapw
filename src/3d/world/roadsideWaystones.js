@@ -13,7 +13,7 @@ import { northReferenceCryosphereAtWorldXZ } from './northReferenceCryosphere.js
 import { valyriaInfluenceAtWorldXZ } from './valyriaGeology.js';
 
 export const ROADSIDE_WAYSTONE_POLICY = Object.freeze({
-	id: 'roadside-waystones-geographic-material-2026-09-02-v1',
+	id: 'roadside-waystones-geographic-material-2026-09-02-v2',
 	renderOnly: true,
 	deterministic: true,
 	roadAuthorityUnchanged: true,
@@ -28,17 +28,22 @@ export const ROADSIDE_WAYSTONE_POLICY = Object.freeze({
 	maxSlopeDegrees: 20,
 	slopeProbeMeters: 2.5,
 	stoneHeightMeters: 2.8,
-	stoneTopRadiusMeters: 0.36,
-	stoneBaseRadiusMeters: 0.62,
+	stoneBaseRadiusMeters: 0.68,
+	stoneShaftRadiusMeters: 0.46,
+	stoneCapRadiusMeters: 0.50,
 	foundationInsetMeters: 0.12,
 	textureSizePixels: 96,
+	bumpScaleMeters: 0.055,
 });
 
-const BASE_STONE = new THREE.Color(0x81796c);
-const NORTH_STONE = new THREE.Color(0xaeb9b8);
-const DEEP_FROST_STONE = new THREE.Color(0xc6d1d0);
-const VALYRIA_STONE = new THREE.Color(0x4b4542);
-const MOSS_STONE = new THREE.Color(0x747866);
+// Instance tint is intentionally the geographic color authority. The albedo texture below stays
+// near-neutral and bright enough that multiplying it by these tints does not turn cold-climate
+// stones into black silhouettes under the shipped low-sun lighting.
+const BASE_STONE = new THREE.Color(0xb2aa9a);
+const NORTH_STONE = new THREE.Color(0xcbd4d2);
+const DEEP_FROST_STONE = new THREE.Color(0xe0e5e2);
+const VALYRIA_STONE = new THREE.Color(0x766f69);
+const MOSS_STONE = new THREE.Color(0x9ba289);
 
 function mix32(value) {
 	let x = value >>> 0;
@@ -137,7 +142,7 @@ function geographicTintAt(x, z, siteHash) {
 		const moss = 0.05 + hash01(siteHash ^ 0x6d6f7373) * 0.12;
 		tint.lerp(MOSS_STONE, moss);
 	}
-	const shade = 0.91 + hash01(siteHash ^ 0x73686164) * 0.16;
+	const shade = 0.94 + hash01(siteHash ^ 0x73686164) * 0.12;
 	tint.multiplyScalar(shade);
 	return { tint, profile, cryosphere, valyria };
 }
@@ -242,9 +247,19 @@ export function planRoadsideWaystoneSites({
 	});
 }
 
-function createStoneTexture(seed) {
+function configureRepeatingTexture(texture, name) {
+	texture.name = name;
+	texture.wrapS = THREE.RepeatWrapping;
+	texture.wrapT = THREE.RepeatWrapping;
+	texture.repeat.set(1.8, 3.2);
+	texture.needsUpdate = true;
+	return texture;
+}
+
+function createStoneTextures(seed) {
 	const size = ROADSIDE_WAYSTONE_POLICY.textureSizePixels;
-	const data = new Uint8Array(size * size * 4);
+	const albedoData = new Uint8Array(size * size * 4);
+	const reliefData = new Uint8Array(size * size * 4);
 	for (let y = 0; y < size; y += 1) {
 		for (let x = 0; x < size; x += 1) {
 			const pixel = (y * size + x) * 4;
@@ -253,55 +268,85 @@ function createStoneTexture(seed) {
 			const coarse = hash01(mix32(seed ^ Math.imul(cellX + 17, 0x45d9f3b) ^ Math.imul(cellY + 31, 0x119de1f3)));
 			const fine = hash01(mix32(seed ^ Math.imul(x + 101, 0x27d4eb2d) ^ Math.imul(y + 211, 0x165667b1)));
 			const mortar = (x % 24 <= 1) || ((y + (Math.floor(x / 24) % 2) * 8) % 18 <= 1);
-			const lichen = coarse > 0.78 && fine > 0.57;
-			let r = 142 + Math.round((coarse - 0.5) * 24 + (fine - 0.5) * 10);
-			let g = 137 + Math.round((coarse - 0.5) * 21 + (fine - 0.5) * 8);
-			let b = 126 + Math.round((coarse - 0.5) * 18 + (fine - 0.5) * 8);
-			if (mortar) { r -= 25; g -= 24; b -= 22; }
-			if (lichen) { r -= 23; g += 2; b -= 25; }
-			data[pixel] = Math.max(0, Math.min(255, r));
-			data[pixel + 1] = Math.max(0, Math.min(255, g));
-			data[pixel + 2] = Math.max(0, Math.min(255, b));
-			data[pixel + 3] = 255;
+			const lichen = coarse > 0.80 && fine > 0.60;
+			let r = 222 + Math.round((coarse - 0.5) * 24 + (fine - 0.5) * 12);
+			let g = 218 + Math.round((coarse - 0.5) * 20 + (fine - 0.5) * 10);
+			let b = 210 + Math.round((coarse - 0.5) * 18 + (fine - 0.5) * 9);
+			let relief = 176 + Math.round((coarse - 0.5) * 36 + (fine - 0.5) * 22);
+			if (mortar) { r -= 28; g -= 27; b -= 25; relief -= 58; }
+			if (lichen) { r -= 18; g -= 8; b -= 22; relief += 5; }
+			albedoData[pixel] = Math.max(0, Math.min(255, r));
+			albedoData[pixel + 1] = Math.max(0, Math.min(255, g));
+			albedoData[pixel + 2] = Math.max(0, Math.min(255, b));
+			albedoData[pixel + 3] = 255;
+			const reliefByte = Math.max(0, Math.min(255, relief));
+			reliefData[pixel] = reliefByte;
+			reliefData[pixel + 1] = reliefByte;
+			reliefData[pixel + 2] = reliefByte;
+			reliefData[pixel + 3] = 255;
 		}
 	}
-	const texture = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
-	texture.name = 'roadside-waystone-weathered-masonry';
-	texture.wrapS = THREE.RepeatWrapping;
-	texture.wrapT = THREE.RepeatWrapping;
-	texture.repeat.set(1.8, 3.2);
-	texture.colorSpace = THREE.SRGBColorSpace;
-	texture.needsUpdate = true;
-	return texture;
+	const albedo = configureRepeatingTexture(
+		new THREE.DataTexture(albedoData, size, size, THREE.RGBAFormat),
+		'roadside-waystone-weathered-masonry',
+	);
+	albedo.colorSpace = THREE.SRGBColorSpace;
+	const relief = configureRepeatingTexture(
+		new THREE.DataTexture(reliefData, size, size, THREE.RGBAFormat),
+		'roadside-waystone-masonry-relief',
+	);
+	return { albedo, relief };
+}
+
+function createWaystoneGeometry() {
+	const h = ROADSIDE_WAYSTONE_POLICY.stoneHeightMeters;
+	const profile = [
+		new THREE.Vector2(0.62, 0.00),
+		new THREE.Vector2(ROADSIDE_WAYSTONE_POLICY.stoneBaseRadiusMeters, 0.12),
+		new THREE.Vector2(0.61, 0.22),
+		new THREE.Vector2(0.50, 0.31),
+		new THREE.Vector2(ROADSIDE_WAYSTONE_POLICY.stoneShaftRadiusMeters, 1.82),
+		new THREE.Vector2(0.49, 1.94),
+		new THREE.Vector2(ROADSIDE_WAYSTONE_POLICY.stoneCapRadiusMeters, 2.08),
+		new THREE.Vector2(0.41, 2.18),
+		new THREE.Vector2(0.36, 2.36),
+		new THREE.Vector2(0.30, 2.53),
+		new THREE.Vector2(0.16, 2.70),
+		new THREE.Vector2(0.04, h),
+	];
+	const geometry = new THREE.LatheGeometry(profile, 7);
+	geometry.translate(0, -h * 0.5, 0);
+	geometry.computeVertexNormals();
+	geometry.name = 'roadside-waystone-plinth-shaft-cap';
+	return geometry;
 }
 
 export function createRoadsideWaystones(options = {}) {
 	const plan = planRoadsideWaystoneSites(options);
-	const texture = createStoneTexture((options.seed ?? 1) >>> 0);
+	const textures = createStoneTextures((options.seed ?? 1) >>> 0);
 	const material = new THREE.MeshStandardMaterial({
-		map: texture,
+		map: textures.albedo,
+		bumpMap: textures.relief,
+		bumpScale: ROADSIDE_WAYSTONE_POLICY.bumpScaleMeters,
 		color: 0xffffff,
-		roughness: 0.94,
+		roughness: 0.93,
 		metalness: 0,
 		vertexColors: true,
+		flatShading: false,
 	});
 	const originalDispose = material.dispose.bind(material);
-	let textureDisposed = false;
+	let texturesDisposed = false;
 	material.dispose = () => {
-		if (!textureDisposed) { texture.dispose(); textureDisposed = true; }
+		if (!texturesDisposed) {
+			textures.albedo.dispose();
+			textures.relief.dispose();
+			texturesDisposed = true;
+		}
 		originalDispose();
 	};
 	material.userData.roadsideWaystoneTextureDisposeGuard = true;
 
-	const geometry = new THREE.CylinderGeometry(
-		ROADSIDE_WAYSTONE_POLICY.stoneTopRadiusMeters,
-		ROADSIDE_WAYSTONE_POLICY.stoneBaseRadiusMeters,
-		ROADSIDE_WAYSTONE_POLICY.stoneHeightMeters,
-		7,
-		2,
-		false,
-	);
-	geometry.rotateY(Math.PI / 7);
+	const geometry = createWaystoneGeometry();
 	const mesh = new THREE.InstancedMesh(geometry, material, Math.max(1, plan.sites.length));
 	mesh.name = 'roadside-waystones';
 	mesh.count = plan.sites.length;
@@ -312,12 +357,13 @@ export function createRoadsideWaystones(options = {}) {
 	const position = new THREE.Vector3();
 	const rotation = new THREE.Quaternion();
 	const scale = new THREE.Vector3(1, 1, 1);
+	const upAxis = new THREE.Vector3(0, 1, 0);
 	const color = new THREE.Color();
 	for (let index = 0; index < plan.sites.length; index += 1) {
 		const site = plan.sites[index];
 		const visibleBaseY = site.y - ROADSIDE_WAYSTONE_POLICY.foundationInsetMeters;
 		position.set(site.x, visibleBaseY + ROADSIDE_WAYSTONE_POLICY.stoneHeightMeters * 0.5, site.z);
-		rotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), site.yawRadians);
+		rotation.setFromAxisAngle(upAxis, site.yawRadians);
 		matrix.compose(position, rotation, scale);
 		mesh.setMatrixAt(index, matrix);
 		color.setRGB(site.color[0], site.color[1], site.color[2]);
@@ -331,5 +377,7 @@ export function createRoadsideWaystones(options = {}) {
 	mesh.userData.roadsideWaystoneSites = plan.sites;
 	mesh.userData.placementAuthority = 'bridge-aware-road-edges-render-only';
 	mesh.userData.materialGeography = 'temperate-moss/north-frost/valyria-basalt';
+	mesh.userData.silhouetteProfile = 'faceted-plinth-shaft-shoulder-pointed-cap';
+	mesh.userData.surfaceRelief = 'procedural-masonry-bump';
 	return Object.freeze({ mesh, sites: plan.sites, stats: plan.stats, policy: ROADSIDE_WAYSTONE_POLICY });
 }
