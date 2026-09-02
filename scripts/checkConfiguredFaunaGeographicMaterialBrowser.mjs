@@ -150,6 +150,10 @@ try {
   if (proof.placement?.materialMode === 'preserve-authored') {
     assert.ok(proof.placement.authoredPbrMapSlots.length > 0, 'preserve mode recorded no authored PBR slots');
     assert.ok(proof.textureSizes.length > 0, 'authored PBR textures were not decoded in Chromium');
+    assert.ok(
+      proof.textureSizes.every(({ width, height }) => Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0),
+      `authored PBR texture dimensions are invalid: ${JSON.stringify(proof.textureSizes)}`,
+    );
   } else {
     assert.ok(proof.paletteIds.length > 0, 'generated fallback recorded no animal palette distribution');
   }
