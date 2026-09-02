@@ -274,6 +274,7 @@ export function createScene(canvas) {
 	const winterVegetationAbortController = new AbortController();
 	window.addEventListener('pagehide', () => winterVegetationAbortController.abort(), { once: true });
 	void upgradeWinterVegetationAssets(vegetationResult.group, {
+		maxAnisotropy: renderer.capabilities.getMaxAnisotropy(),
 		signal: winterVegetationAbortController.signal,
 	}).then((upgrade) => {
 		if (upgrade.status === 'active') {
