@@ -26,7 +26,7 @@ const ALWAYS_WINTER_ZONE = findZone('lands-always-winter');
 const NORTH_ZONE = findZone('north');
 
 export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
-	id: 'owner-map-north-cryosphere-2026-08-24-v5-mixed-belt-harmony',
+	id: 'owner-map-north-cryosphere-2026-09-02-v11-bounded-eroded-ice-transition',
 	source: 'WORLD_REFERENCE_MAP biome zones',
 	renderClimateOnly: true,
 	heightAuthorityUnchanged: true,
@@ -35,6 +35,9 @@ export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
 	tundraUnionBlend: true,
 	iceEdgeVisualHarmony: true,
 	curvedIceHalo: true,
+	deterministicTransitionWeathering: true,
+	domainWarpedTransitionWeathering: true,
+	multiscaleErodedTransitionWeathering: true,
 	alwaysWinterZoneId: ALWAYS_WINTER_ZONE.id,
 	northZoneId: NORTH_ZONE.id,
 	iceTransitionRadiusScale: 1.55,
@@ -43,6 +46,9 @@ export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
 	iceHaloCurveExponent: 0.88,
 	northTundraGain: 0.92,
 	winterHaloGain: 0.82,
+	transitionWeatheringMin: 0.52,
+	transitionWeatheringMax: 1.0,
+	transitionWeatheringResponseExponent: 0.76,
 });
 
 function scaledZone(zone, radiusScale) {
@@ -67,6 +73,30 @@ function union01(...weights) {
 	return clamp01(1 - remaining);
 }
 
+function transitionWeathering(normalizedX, normalizedY) {
+	const P = NORTH_REFERENCE_CRYOSPHERE_POLICY;
+	const warpX = Math.sin(normalizedY * 11.9 + Math.sin(normalizedX * 5.7) * 1.25) * 0.027;
+	const warpY = Math.sin(normalizedX * 9.7 - Math.sin(normalizedY * 6.3) * 1.10) * 0.023;
+	const x = normalizedX + warpX;
+	const y = normalizedY + warpY;
+	const continental = Math.sin(x * 8.3 - y * 6.7 + Math.sin((x + y) * 4.9) * 1.15);
+	const macro = Math.sin(x * 19.7 + y * 13.1 + Math.sin(y * 7.3) * 0.9);
+	const meso = Math.sin(x * 43.9 - y * 31.7 + Math.sin(x * 17.2) * 0.65);
+	const fine = Math.sin(x * 91.3 + y * 67.1 + Math.sin((x - y) * 29.4) * 0.42);
+	const erosionRidge = 1 - Math.abs(Math.sin(x * 27.1 + y * 18.7 + macro * 0.75));
+	const raw = clamp01(
+		0.45
+		+ continental * 0.15
+		+ macro * 0.26
+		+ meso * 0.185
+		+ fine * 0.08
+		- erosionRidge * 0.10,
+	);
+	const eroded = raw * raw * (3 - 2 * raw);
+	const shaped = Math.pow(eroded, P.transitionWeatheringResponseExponent);
+	return P.transitionWeatheringMin + (P.transitionWeatheringMax - P.transitionWeatheringMin) * shaped;
+}
+
 export function northReferenceCryosphereAtNormalized(normalizedX, normalizedY) {
 	if (!Number.isFinite(normalizedX) || !Number.isFinite(normalizedY)) {
 		throw new TypeError('normalized reference coordinates must be finite');
@@ -80,17 +110,19 @@ export function northReferenceCryosphereAtNormalized(normalizedX, normalizedY) {
 	const winterHalo = sampleReferenceInfluence(normalizedX, normalizedY, ALWAYS_WINTER_TRANSITION_ZONE);
 	const northCore = sampleReferenceInfluence(normalizedX, normalizedY, NORTH_ZONE);
 	const northHalo = sampleReferenceInfluence(normalizedX, normalizedY, NORTH_TUNDRA_TRANSITION_ZONE);
+	const weathering = transitionWeathering(normalizedX, normalizedY);
 
 	// Preserve authored full ice in the core, then spend only the halo influence that extends beyond it.
-	// A shallow sub-linear response strengthens the already-authored mixed belt without increasing its
-	// radius. This keeps ICE EDGE lowlands visually connected to glacial shorelines while avoiding any
-	// eastward or southward geographic expansion of permanent ice.
+	// Deterministic multi-scale weathering can only attenuate that transition contribution: it never
+	// expands the authored radius or changes the winter core, so the owner-map geography stays fixed.
 	const winterHaloExtension = Math.max(0, winterHalo - winterCore);
 	const curvedWinterHaloExtension = Math.pow(winterHaloExtension, P.iceHaloCurveExponent);
-	const permanentIce = clamp01(winterCore + curvedWinterHaloExtension * P.iceHaloGain);
+	const weatheredWinterHaloExtension = curvedWinterHaloExtension * weathering;
+	const permanentIce = clamp01(winterCore + weatheredWinterHaloExtension * P.iceHaloGain);
 
-	// Blend overlapping authored tundra envelopes as a bounded union instead of choosing one with max().
-	// The resulting field stays continuous where the North zone and always-winter halo overlap.
+	// Tundra remains the canonical bounded union of the authored north/halo fields. The stronger
+	// weathering pass is intentionally confined to the permanent-ice transition material, so this
+	// realism change cannot erode or invent the canonical tundra footprint.
 	const northCoreTundra = northCore * P.northTundraGain;
 	const northHaloTundra = northHalo * P.northTundraGain;
 	const winterHaloTundra = winterHalo * P.winterHaloGain;
@@ -105,6 +137,8 @@ export function northReferenceCryosphereAtNormalized(normalizedX, normalizedY) {
 		winterHalo,
 		winterHaloExtension,
 		curvedWinterHaloExtension,
+		weatheredWinterHaloExtension,
+		transitionWeathering: weathering,
 		northCore,
 		northHalo,
 		tundraUnion,
@@ -130,6 +164,8 @@ function neutralCryosphereOutsideReference(worldX, worldZ) {
 		winterHalo: 0,
 		winterHaloExtension: 0,
 		curvedWinterHaloExtension: 0,
+		weatheredWinterHaloExtension: 0,
+		transitionWeathering: 1,
 		northCore: 0,
 		northHalo: 0,
 		tundraUnion: 0,

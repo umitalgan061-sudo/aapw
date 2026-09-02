@@ -1,0 +1,58 @@
+name: Castle World Space Weathering Visual
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/materials.js'
+      - 'scripts/castleWorldSpaceWeatheringHarness.html'
+      - 'scripts/checkCastleWorldSpaceWeatheringVisual.js'
+      - '.github/workflows/castle-world-space-weathering.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  castle-world-space-weathering:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact requested head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          lfs: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-head scope and syntax
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          git diff --check "$BASE_SHA"...HEAD
+          CHANGED=$(git diff --numstat "$BASE_SHA"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$CHANGED" -le 2000
+          node --check src/3d/world/materials.js
+          node --check scripts/checkCastleWorldSpaceWeatheringVisual.js
+
+      - name: Install browser QA
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+
+      - name: Render production castle material proof
+        run: node scripts/checkCastleWorldSpaceWeatheringVisual.js
+
+      - name: Upload castle weathering proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: castle-world-space-weathering
+          path: artifacts/castle-world-space-weathering/
+          if-no-files-found: warn
+          retention-days: 7

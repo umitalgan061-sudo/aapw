@@ -7,9 +7,13 @@ on:
       - 'src/3d/world/terrainBiomeShading.js'
       - 'src/3d/world/terrainSnowSurfaceTone.js'
       - 'src/3d/world/terrainReliefDetail.js'
+      - 'src/3d/world/terrainMicroSurface.js'
+      - 'src/3d/world/terrainMicroSurfaceCore.js'
+      - 'src/3d/world/terrainCryosphereSurfaceFabric.js'
       - 'src/3d/world/iceLandmarks.js'
       - 'src/3d/world/worldReferenceAlignment.js'
       - 'src/3d/config.js'
+      - 'scripts/checkTerrainMicroSurface.mjs'
       - 'scripts/checkTerrainGeographicPalette.mjs'
       - 'scripts/checkNorthCoastalShoreContinuity.mjs'
       - 'scripts/checkIceLandmarks.mjs'
@@ -47,12 +51,17 @@ jobs:
         run: |
           node --check src/3d/world/terrainBiomeShading.js
           node --check src/3d/world/terrainSnowSurfaceTone.js
+          node --check src/3d/world/terrainMicroSurfaceCore.js
+          node --check src/3d/world/terrainCryosphereSurfaceFabric.js
+          node --check src/3d/world/terrainMicroSurface.js
           node --check src/3d/world/iceLandmarks.js
+          node --check scripts/checkTerrainMicroSurface.mjs
           node --check scripts/checkTerrainGeographicPalette.mjs
           node --check scripts/checkNorthCoastalShoreContinuity.mjs
           node --check scripts/checkIceLandmarks.mjs
           node --check scripts/checkIceLandmarksVisualQa.js
           node --check scripts/checkNorthTerrainVisualQa.js
+          node scripts/checkTerrainMicroSurface.mjs
           node scripts/checkTerrainGeographicPalette.mjs
           node scripts/checkNorthCoastalShoreContinuity.mjs
           node scripts/checkIceLandmarks.mjs

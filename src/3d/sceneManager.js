@@ -32,6 +32,7 @@ import { createVegetation } from './world/vegetation.js';
 import { upgradeWinterVegetationAssets } from './world/winterVegetationAsset.js';
 import { createWindGrassRun180 } from './world/windGrass.js';
 import { createVillages } from './world/villages.js';
+import { createSettlementAmbientProps, upgradeSettlementAmbientPropAssets } from './world/settlementAmbientProps.js';
 import { createIceLandmarks } from './world/iceLandmarks.js';
 import { createOrbitCamera } from './camera.js';
 import { createFreeCameraController } from './debug/freeCamera.js';
@@ -211,6 +212,44 @@ export function createScene(canvas) {
 			`steepest actual segment grade ${roadsResult.maxGradeDegrees.toFixed(1)}°.`,
 	);
 
+	// Small ambient props occupy only the already-canonical kingdom-seat apron. They do not
+	// participate in collision/gameplay and never create settlement coordinates; placement is
+	// derived from the same seat, terrain and routed-road authorities already live above.
+	const settlementAmbientPropsResult = createSettlementAmbientProps({
+		sampleHeightMeters: groundCollider.getGroundHeight,
+		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+		seed: WORLD_DEFAULTS.WORLD_SEED,
+		seats: settlementsResult.seats,
+		roadEdges: roadsResult.edges,
+		worldWidthMeters: WORLD_SCALE.WORLD_WIDTH_METERS,
+		worldDepthMeters: WORLD_SCALE.WORLD_DEPTH_METERS,
+		isMobileClass,
+	});
+	scene.add(settlementAmbientPropsResult.group);
+	console.info(
+		`[sceneManager] Settlement ambient props: ${settlementAmbientPropsResult.stats.placedCount}/` +
+			`${settlementAmbientPropsResult.stats.targetCount} deterministic apron placement(s), ` +
+			`checksum ${settlementAmbientPropsResult.stats.placementChecksum}.`,
+	);
+	const settlementAmbientAbortController = new AbortController();
+	window.addEventListener('pagehide', () => settlementAmbientAbortController.abort(), { once: true });
+	void upgradeSettlementAmbientPropAssets(settlementAmbientPropsResult.group, {
+		signal: settlementAmbientAbortController.signal,
+		isMobileClass,
+		sampleHeightMeters: groundCollider.getGroundHeight,
+		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+		seats: settlementsResult.seats,
+		roadEdges: roadsResult.edges,
+	}).then((upgrade) => {
+		if (upgrade.status === 'active') {
+			console.info(`[sceneManager] Hydrated ${upgrade.hydratedPlacementCount} settlement ambient prop placement(s) from ${upgrade.activeFamilyCount} repository GLB family/families.`);
+		} else if (upgrade.status === 'procedural-fallback') {
+			console.info('[sceneManager] Settlement ambient GLBs unavailable/mobile; deterministic weathered fallback remains active.');
+		}
+	}).catch((error) => {
+		console.warn('[sceneManager] Optional settlement ambient prop hydration failed; deterministic fallback remains active.', error);
+	});
+
 	// Asset-informed geology is deliberately created after roads/settlements so placement can reserve
 	// their corridors, but before vegetation so the geological read remains visually primary. The
 	// canonical collider/terrain sampler stays the only height authority; this layer is render-only.
@@ -294,6 +333,7 @@ export function createScene(canvas) {
 	const playerCollider = createComposedCollider([settlementCollider, villageCollider, iceLandmarkCollider]);
 
 	applyShadowRoles(settlementsResult.group, { quality: renderQuality });
+	applyShadowRoles(settlementAmbientPropsResult.group, { quality: renderQuality });
 	applyShadowRoles(villagesResult.group, { quality: renderQuality });
 	applyShadowRoles(iceLandmarksResult.group, { quality: renderQuality });
 	applyShadowRoles(naturalGeologyResult.group, { quality: renderQuality });
@@ -304,6 +344,8 @@ export function createScene(canvas) {
 		renderer, scene, camera, controls, freeCamera, chunkManager, groundCollider, playerCollider, sky, stars, water, river, waterfalls,
 		renderQuality,
 		settlements: settlementsResult.group,
+		settlementAmbientProps: settlementAmbientPropsResult.group,
+		settlementAmbientPropStats: settlementAmbientPropsResult.stats,
 		roads: roadsResult.group,
 		roadEdges: roadsResult.edges,
 		naturalGeology: naturalGeologyResult.group,

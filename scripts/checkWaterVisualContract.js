@@ -31,8 +31,11 @@ async function main() {
 				createWater,
 				updateWater,
 				disposeWater,
+				WATER_FULL_WORLD_EXTENT_METERS,
 				WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
+				WATER_SURFACE_VARIATION_POLICY,
 			} = await import('/src/3d/world/water.js');
+			const { GEOGRAPHIC_REFERENCE_PALETTE } = await import('/src/3d/world/geographicReferencePalette.js');
 			const { publishCelestialLightState } = await import('/src/3d/celestialLightState.js');
 			const fail = (condition, message) => { if (!condition) throw new Error(message); };
 			const close = (a, b, tolerance = 1e-6) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= tolerance;
@@ -49,7 +52,7 @@ async function main() {
 			fail(water.material.transparent === true && water.material.depthWrite === true && water.material.fog === true, 'near-water render signature drifted');
 
 			const far = water.userData.farWater;
-			fail(far?.isMesh === true && far.geometry.parameters?.width === 17000, 'full-world far-water underlay drifted');
+			fail(far?.isMesh === true && far.geometry.parameters?.width === WATER_FULL_WORLD_EXTENT_METERS, 'full-world far-water underlay drifted');
 			fail(far.material.depthWrite === false, 'far water must not occlude displaced near-water troughs');
 			fail(far.renderOrder === -1, 'far water must render before the near layer');
 			fail(far.material.uniforms.uFarLayerMask.value === 1, 'far water no longer masks itself under the near square');
@@ -61,22 +64,27 @@ async function main() {
 				'deep-ocean backdrop extent drifted');
 			fail(backdrop.geometry.parameters?.widthSegments === 1 && backdrop.geometry.parameters?.heightSegments === 1,
 				'deep-ocean backdrop must stay two triangles');
-			fail(backdrop.material?.isMeshBasicMaterial === true, 'deep-ocean backdrop must stay an unlit base layer');
+			fail(backdrop.material?.isShaderMaterial === true, 'deep-ocean backdrop must retain its world-space optical shader');
 			fail(backdrop.material.transparent === false && backdrop.material.depthWrite === true && backdrop.material.fog === true,
 				'deep-ocean backdrop must remain opaque, depth-writing and fog-aware');
+			fail(backdrop.material.fragmentShader.includes('backdropNoise') && backdrop.material.fragmentShader.includes('roughnessDriver'),
+				'deep-ocean backdrop lost deterministic world-space albedo/roughness breakup');
 			fail(backdrop.renderOrder === -2 && backdrop.position.y === -32,
 				'deep-ocean backdrop must render below/before both transparent water layers');
 			fail(water.userData.waterCoverage?.deepOceanBackdropExtentMeters === WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
 				'water coverage metadata lost the deep-ocean backdrop extent');
+			fail(water.userData.waterCoverage?.fullWorldExtentMeters === WATER_FULL_WORLD_EXTENT_METERS,
+				'water coverage metadata lost the full-world far-water extent');
 
 			const uniforms = water.material.uniforms;
 			for (const name of [
 				'uTime', 'uShallowColor', 'uDeepColor', 'uSunDirection', 'uSunColor', 'uSunIntensity',
-				'uNightFactor', 'uCameraPosition', 'uDepthMap', 'uDepthFieldExtentMeters', 'uSwellStrength', 'uFarLayerMask',
+				'uNightFactor', 'uCameraPosition', 'uDepthMap', 'uOffshoreMap', 'uDepthFieldExtentMeters',
+				'uOwnerWorldHalfExtent', 'uSwellStrength', 'uFarLayerMask',
 			]) fail(Boolean(uniforms?.[name]), `water uniform ${name} is missing`);
 			fail(Boolean(uniforms?.fogColor && uniforms?.fogNear && uniforms?.fogFar && uniforms?.fogDensity), 'water fog uniforms are missing');
-			fail(uniforms.uShallowColor.value.getHex() === 0x6aa39c, 'reference clear-shore hue drifted');
-			fail(uniforms.uDeepColor.value.getHex() === 0x092941, 'reference deep-sea hue drifted');
+			fail(uniforms.uShallowColor.value.getHex() === GEOGRAPHIC_REFERENCE_PALETTE.water.shoreClear, 'reference clear-shore hue drifted');
+			fail(uniforms.uDeepColor.value.getHex() === GEOGRAPHIC_REFERENCE_PALETTE.water.deepSea, 'reference deep-sea hue drifted');
 
 			const optical = water.userData.opticalProfile;
 			fail(optical?.shallowAlpha === 0.14 && optical?.deepAlpha === 0.90, 'depth-clear optical alpha profile drifted');
@@ -84,17 +92,35 @@ async function main() {
 			fail(optical.shallowAlpha < 0.2 && optical.deepAlpha >= 0.88, 'shallow water must stay bed-readable while deep water stays substantial');
 			fail(optical.enclosedLakeBedReadable === true && optical.clearCoastalDepthBand === true, 'explicit lake/coast clarity metadata disappeared');
 			fail(optical.nightAbsorptionFromCelestialState === true, 'water night-response metadata disappeared');
+			fail(optical.depthFieldEdgeOpticalFeather === true && optical.farMarineOpticalDepthFromOffshoreDistance === true,
+				'full-world marine optical handoff metadata disappeared');
+			fail(optical.organicRadialLayerHandoff === true && optical.ownerWorldBorderOpticalSeal === true,
+				'organic near/far or owner-world marine seam suppression metadata disappeared');
+			fail(optical.occlusionSafeNearFarOpacity === true, 'occlusion-safe near/far opacity metadata disappeared');
+			fail(WATER_SURFACE_VARIATION_POLICY.layerHandoffFarRevealFullMeters <= WATER_SURFACE_VARIATION_POLICY.layerHandoffNearFadeStartMeters,
+				'far water must become fully visible before near water starts fading');
+			fail(WATER_SURFACE_VARIATION_POLICY.farOpticalTransitionStartMeters >= WATER_SURFACE_VARIATION_POLICY.layerHandoffNearFadeEndMeters + 300,
+				'far-only optical depth must stay outside the transparent near/far handoff band');
+			fail(WATER_SURFACE_VARIATION_POLICY.renderOnly === true
+				&& WATER_SURFACE_VARIATION_POLICY.canonicalDepthUnchanged === true
+				&& WATER_SURFACE_VARIATION_POLICY.canonicalCoverageUnchanged === true,
+				'water render-only policy no longer preserves canonical depth/coverage authority');
 
 			const vertexShader = water.material.vertexShader;
 			const fragmentShader = water.material.fragmentShader;
 			fail(vertexShader.includes('sampleDepthFactor') && vertexShader.includes('uSwellStrength'), 'depth-tapered swell contract drifted');
+			fail(vertexShader.includes('length(position.xz)') && !vertexShader.includes('max(abs(position.x), abs(position.z))'),
+				'near-water swell taper regressed to an axis-aligned square footprint');
 			fail(fragmentShader.includes('smoothstep(0.04, 0.82, fragmentDepth)'), 'extended shallow-to-deep color grading disappeared');
 			fail(fragmentShader.includes('1.0 - exp(-fragmentDepth * 3.2)'), 'Beer-Lambert-inspired optical depth disappeared');
 			fail(fragmentShader.includes('uSunColor') && fragmentShader.includes('uSunIntensity') && fragmentShader.includes('celestialSpecular'), 'live celestial water specular disappeared');
 			for (const token of ['enclosedLakeMask', 'clearCoastMask', 'referenceLakeClear', 'bedReadability', 'uNightFactor', 'nightAbsorption']) {
 				fail(fragmentShader.includes(token), `water reference-optics shader missing ${token}`);
 			}
-			fail(fragmentShader.includes('nearLayerDistance < 1999.5') && fragmentShader.includes('discard'), 'near/far double-alpha mask disappeared');
+			for (const token of [
+				'organicLayerDistance', 'farLayerBlend', 'farLayerVisibility', 'nearLayerBlend', 'layerOpacity',
+				'waterFieldEdgeOpticalBlend', 'farMarineOpticalFloor', 'ownerWorldBorderOpticalSeal', 'ownerBorderMarineSeal',
+			]) fail(fragmentShader.includes(token), `water layer-handoff shader missing ${token}`);
 			fail(fragmentShader.includes('#include <fog_pars_fragment>') && fragmentShader.includes('#include <fog_fragment>'), 'water fog chunks drifted');
 
 			// Custom-shader key follows the same published celestial state as lighting.js. First prove a
@@ -160,13 +186,15 @@ async function main() {
 				vertexCount: positions.count,
 				indexCount: index.count,
 				optical,
+				fullWorldExtent: WATER_FULL_WORLD_EXTENT_METERS,
 				backdropExtent: WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
 			};
 		});
 
 		assert(result.vertexCount === 16641 && result.indexCount === 98304, 'water topology mismatch escaped browser contract');
-		assert(result.backdropExtent === 28000, 'deep-ocean backdrop contract escaped browser validation');
-		console.log(`[checkWaterVisualContract] PASS: depth-clear ${result.optical.shallowAlpha.toFixed(2)}→${result.optical.deepAlpha.toFixed(2)} alpha, live sun/moon specular, near/far/deep-ocean composition, ${result.vertexCount} near-water vertices.`);
+		assert(result.fullWorldExtent === result.backdropExtent && result.backdropExtent >= 28000,
+			'full-world water/backdrop extent composition escaped browser validation');
+		console.log(`[checkWaterVisualContract] PASS: depth-clear ${result.optical.shallowAlpha.toFixed(2)}→${result.optical.deepAlpha.toFixed(2)} alpha, live sun/moon specular, occlusion-safe organic near/far + owner-border marine seam suppression, ${result.vertexCount} near-water vertices.`);
 	} finally {
 		await browser.close();
 		await new Promise((resolve) => server.close(resolve));
