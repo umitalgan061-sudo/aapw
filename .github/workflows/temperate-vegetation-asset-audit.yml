@@ -90,7 +90,6 @@ jobs:
         run: |
           node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync(process.env.REPORT,'utf8'));if(!r.liveCandidates?.length)throw new Error('No hydrated textured single-tree temperate candidate or source component passed asset-first audit');console.log('qualified='+r.liveCandidates.join(','));console.log('sourceComponents='+(r.liveSourceComponents||[]).join(','));"
           node scripts/checkSharedMaterialPlacementContract.js
-          node scripts/checkServiceWorkerCache.js
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
           ! grep -R "EditorMaterialStudio" src/3d/world/vegetation.js scripts/checkTemperateVegetationAssetCandidates.mjs scripts/checkTemperateVegetationMaterialBrowser.mjs
@@ -106,6 +105,10 @@ jobs:
 
       - name: Shared material validation and manifest on hydrated birch
         run: node scripts/checkTemperateVegetationMaterialBrowser.mjs --output="$MATERIAL_MANIFEST"
+
+      - name: Shared PWA cache contract
+        if: always()
+        run: node scripts/checkServiceWorkerCache.js
 
       - name: Upload temperate vegetation asset audit
         if: always()
