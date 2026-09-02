@@ -30,6 +30,8 @@ function assertSourceOrdering() {
 	assert(RUNTIME_SOURCE.includes('sampleLiveRoadWater'), 'runtime lost live route water sampling');
 	assert(RUNTIME_SOURCE.includes('appendDryRouteRuns'), 'runtime must suppress obsolete underwater route ribbons');
 	assert(RUNTIME_SOURCE.includes('suppressedWaterSampleCount'), 'runtime must account for suppressed sampled-water exposure');
+	assert(RUNTIME_SOURCE.includes('buildBridgeAwareRoute'), 'downstream road consumers must receive the bridge traversal polyline');
+	assert(RUNTIME_SOURCE.includes('bridgeTraversalRewritten: true'), 'restored road edge metadata must mark bridge traversal rewriting');
 	assert(!RUNTIME_SOURCE.includes('distanceToBridgeAxis'), 'new bridge traversal must not be forced to overlap obsolete underwater route curvature');
 	assert(!RUNTIME_SOURCE.includes('buildCanonicalStoneBridgePlan'), 'live startup must not recompute the shadow canonical pathfinder plan');
 	assert(RUNTIME_SOURCE.includes('canonicalBridgeRuntimeMesh'), 'bridge meshes must be flattened into road lifecycle ownership');
@@ -58,6 +60,7 @@ async function main() {
 		report = await page.evaluate(async () => {
 			const { createScene } = await import('/src/3d/sceneManager.js');
 			const { disposeRoadNetwork } = await import('/src/3d/world/roads.js');
+			const { WORLD_DEFAULTS } = await import('/src/3d/config.js');
 			const canvas = document.createElement('canvas');
 			canvas.id = 'canonical-road-bridge-runtime-canvas';
 			canvas.style.width = '1440px';
@@ -74,6 +77,8 @@ async function main() {
 			const restorationMesh = state.roads.getObjectByName('canonical-bridge-road-restoration');
 			const decks = runtime?.groundSurfaces?.filter((surface) => surface.kind === 'deck') ?? [];
 			const approaches = runtime?.groundSurfaces?.filter((surface) => surface.kind === 'approach') ?? [];
+			const restoredRoadEdges = state.roadEdges.filter((edge) => edge.diagnostics?.bridgeRestored);
+			const restoredRoutePoints = restoredRoadEdges.flatMap((edge) => edge.points ?? []);
 			const deck = decks[0];
 			const center = deck ? {
 				x: (deck.from.x + deck.to.x) * 0.5,
@@ -129,6 +134,11 @@ async function main() {
 				maxApproachGradeDegrees: runtime?.maxApproachGradeDegrees ?? null,
 				maxApproachLengthMeters: runtime?.maxApproachLengthMeters ?? null,
 				waterSuppression: runtime?.waterSuppression ?? null,
+				bridgeAwareRoadEdgeCount: runtime?.bridgeAwareRoadEdgeCount ?? 0,
+				restoredRoadEdgeCount: restoredRoadEdges.length,
+				restoredRoutePointCount: restoredRoutePoints.length,
+				restoredRouteNonFiniteCount: restoredRoutePoints.filter((point) => !Number.isFinite(point.x) || !Number.isFinite(point.y) || !Number.isFinite(point.z)).length,
+				restoredRouteBelowWaterCount: restoredRoutePoints.filter((point) => point.y < WORLD_DEFAULTS.WATER_LEVEL_METERS).length,
 				bridgeMeshCount: bridgeMeshes.length,
 				allRoadChildrenAreMeshes: state.roads.children.every((child) => child.isMesh),
 				restorationMesh: Boolean(restorationMesh?.isMesh),
@@ -160,6 +170,11 @@ async function main() {
 		assert(report.waterSuppression?.total > 0, 'live road network exposed no sampled water intervals');
 		assert(report.waterSuppression.suppressed === report.waterSuppression.total,
 			`old underwater ribbon suppression ${report.waterSuppression.suppressed}/${report.waterSuppression.total}`);
+		assert(report.bridgeAwareRoadEdgeCount === EXPECTED_LIVE_WATER_GAP_EDGES && report.restoredRoadEdgeCount === EXPECTED_LIVE_WATER_GAP_EDGES,
+			`downstream bridge-aware road metadata ${report.bridgeAwareRoadEdgeCount}/${report.restoredRoadEdgeCount}`);
+		assert(report.restoredRoutePointCount > EXPECTED_LIVE_WATER_GAP_EDGES * 4, 'bridge-aware road polylines are unexpectedly empty');
+		assert(report.restoredRouteNonFiniteCount === 0 && report.restoredRouteBelowWaterCount === 0,
+			`bridge-aware consumer route invalid points finite=${report.restoredRouteNonFiniteCount} belowWater=${report.restoredRouteBelowWaterCount}`);
 		assert(report.bridgeMeshCount > 0 && report.allRoadChildrenAreMeshes,
 			'road lifecycle must own only direct Mesh children after bridge adoption');
 		assert(report.restorationMesh, 'dry-road/approach restoration mesh missing');
