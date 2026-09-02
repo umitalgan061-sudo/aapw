@@ -6,15 +6,27 @@ import path from 'node:path';
 
 const root = process.cwd();
 const configPath = path.join(root, 'src/3d/gameplay/npcConfig.js');
+const playerConfigPath = path.join(root, 'src/3d/gameplay/playerConfig.js');
 const configSource = fs.readFileSync(configPath, 'utf8');
+const playerConfigSource = fs.readFileSync(playerConfigPath, 'utf8');
 const manifestSource = fs.readFileSync(path.join(root, 'assets_manifest.json'), 'utf8');
 
 const configuredModels = [...new Set(
 	[...configSource.matchAll(/modelUrl:\s*'([^']+\.fbx)'/g)].map((match) => match[1]),
 )].sort();
-const animationPaths = [...new Set(
-	[...configSource.matchAll(/(?:IDLE|WALK)_ANIMATION_URL:\s*'([^']+\.fbx)'/g)].map((match) => match[1]),
-)].sort();
+
+function resolveNpcAnimationPath(npcKey, playerKey) {
+	const npcReference = new RegExp(`${npcKey}:\\s*PLAYER_CONFIG\\.ANIMATION_URLS\\.${playerKey}\\b`);
+	assert.match(configSource, npcReference, `${npcKey} must continue to reuse PLAYER_CONFIG.ANIMATION_URLS.${playerKey}`);
+	const playerLiteral = new RegExp(`\\b${playerKey}:\\s*'([^']+\\.fbx)'`).exec(playerConfigSource);
+	assert.ok(playerLiteral, `PLAYER_CONFIG.ANIMATION_URLS.${playerKey} must resolve to an FBX asset`);
+	return playerLiteral[1];
+}
+
+const animationPaths = [...new Set([
+	resolveNpcAnimationPath('IDLE_ANIMATION_URL', 'idle'),
+	resolveNpcAnimationPath('WALK_ANIMATION_URL', 'walking'),
+])].sort();
 
 assert.equal(configuredModels.length, 6, `expected six configured character FBX files, got ${configuredModels.length}`);
 assert.equal(animationPaths.length, 2, `expected idle + walking FBX animation files, got ${animationPaths.length}`);
