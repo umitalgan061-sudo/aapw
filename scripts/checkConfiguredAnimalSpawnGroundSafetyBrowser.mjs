@@ -38,7 +38,7 @@ try {
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material);
         mesh.name = modelUrl.includes('fake-horse') ? 'horse_body' : 'wolf_body';
         group.add(mesh);
-        group.animations = [];
+        group.animations = [new THREE.AnimationClip('Walk', 1, [])];
         return group;
       }
     }
@@ -50,6 +50,7 @@ try {
     };
     const north = seatWorld('berkalp');
     const reach = seatWorld('ziya');
+    const rejectedPatrolTargetX = north.x + 10;
 
     const sampledXs = [];
     const sampleGroundY = (x) => {
@@ -58,10 +59,15 @@ try {
       if (x === 20) throw new Error('synthetic fauna terrain failure');
       return 3;
     };
+    const groundCollider = {
+      getGroundHeight(x) {
+        return Math.abs(x - rejectedPatrolTargetX) < 1e-6 ? Number.NaN : 3;
+      },
+    };
     const animalConfig = {
       WOLF_MODEL_URL: '/fake-wolf.glb',
       IDLE_CLIP_NAME: 'Idle',
-      WALK_CLIP_NAME: undefined,
+      WALK_CLIP_NAME: 'Walk',
       FLEE_CLIP_NAME: undefined,
       STRIP_CHILD_NAMES: [],
       SPECIES: {
@@ -76,6 +82,7 @@ try {
       SPAWNS: [
         { id: 'animal-valid-wolf', seatId: 'valid-wolf', offsetXMeters: 0, offsetZMeters: 0 },
         { id: 'animal-valid-horse', seatId: 'valid-horse', offsetXMeters: 0, offsetZMeters: 0, speciesId: 'horse' },
+        { id: 'animal-patrol-rejected', seatId: 'patrol-route', offsetXMeters: 0, offsetZMeters: 0, patrol: { toOffsetXMeters: 10, toOffsetZMeters: 0 } },
         { id: 'animal-nan-ground', seatId: 'nan-ground', offsetXMeters: 0, offsetZMeters: 0 },
         { id: 'animal-throw-ground', seatId: 'throw-ground', offsetXMeters: 0, offsetZMeters: 0 },
         { id: 'animal-invalid-world', seatId: 'invalid-world', offsetXMeters: 0, offsetZMeters: 0 },
@@ -86,6 +93,7 @@ try {
     const seatsById = new Map([
       ['valid-wolf', north],
       ['valid-horse', reach],
+      ['patrol-route', north],
       ['nan-ground', { x: 10, z: 0 }],
       ['throw-ground', { x: 20, z: 0 }],
       ['invalid-world', { x: Infinity, z: 0 }],
@@ -96,7 +104,7 @@ try {
     const commonArgs = {
       animalConfig,
       seatsById,
-      groundCollider: { getGroundHeight: () => 3 },
+      groundCollider,
       playerCollider: { resolveXZ: (x, z) => ({ x, z }) },
     };
     const controllers = await spawnConfiguredAnimals({
@@ -104,11 +112,20 @@ try {
       assetLoader: new FakeAssetLoader(),
       sampleGroundY,
     });
+    const rejectedRouteController = controllers.find((controller) => controller.object3D.name === 'animal-patrol-rejected');
+    const rejectedRouteBefore = rejectedRouteController
+      ? { x: rejectedRouteController.object3D.position.x, y: rejectedRouteController.object3D.position.y, z: rejectedRouteController.object3D.position.z }
+      : null;
+    rejectedRouteController?.update(1, { x: north.x + 100, z: north.z + 100 }, []);
+    const rejectedRouteAfter = rejectedRouteController
+      ? { x: rejectedRouteController.object3D.position.x, y: rejectedRouteController.object3D.position.y, z: rejectedRouteController.object3D.position.z }
+      : null;
     const summaries = controllers.map((controller) => ({
       name: controller.object3D.name,
       position: { x: controller.object3D.position.x, y: controller.object3D.position.y, z: controller.object3D.position.z },
       materialReadyForWorld: controller.object3D.userData.materialReadyForWorld,
       placement: controller.object3D.userData.faunaWorldPlacement,
+      patrolPlacement: controller.object3D.userData.faunaPatrolPlacement,
       manifest: controller.object3D.userData.worldPlacementManifest,
     }));
     for (const controller of controllers) controller.dispose();
@@ -125,7 +142,15 @@ try {
       assetFailurePropagated = error?.message === 'synthetic fauna asset failure';
     }
 
-    return { controllerCount: controllers.length, summaries, modelLoadCount, sampledXs, assetFailurePropagated };
+    return {
+      controllerCount: controllers.length,
+      summaries,
+      modelLoadCount,
+      sampledXs,
+      assetFailurePropagated,
+      rejectedRouteBefore,
+      rejectedRouteAfter,
+    };
   });
 
   const faunaConsoleErrors = focusedConsoleErrors.filter((message) => (
@@ -133,12 +158,13 @@ try {
   ));
   assert.equal(pageErrors.length, 0, `page errors: ${pageErrors.join(' | ')}`);
   assert.equal(faunaConsoleErrors.length, 0, `fauna spawn console errors: ${faunaConsoleErrors.join(' | ')}`);
-  assert.equal(proof.controllerCount, 2, `expected two safe configured animals: ${JSON.stringify(proof)}`);
-  assert.equal(proof.modelLoadCount, 2, 'unsafe spawns must be rejected before model loading');
+  assert.equal(proof.controllerCount, 3, `expected three safe configured animals: ${JSON.stringify(proof)}`);
+  assert.equal(proof.modelLoadCount, 3, 'unsafe initial spawns must be rejected before model loading');
   assert.equal(proof.assetFailurePropagated, true, 'valid placement must not swallow an actual asset loading failure');
 
   const wolf = proof.summaries.find((entry) => entry.name === 'animal-valid-wolf');
   const horse = proof.summaries.find((entry) => entry.name === 'animal-valid-horse');
+  const rejectedRoute = proof.summaries.find((entry) => entry.name === 'animal-patrol-rejected');
   assert.equal(wolf?.materialReadyForWorld, true);
   assert.equal(horse?.materialReadyForWorld, true);
   assert.equal(wolf?.placement?.materialMode, 'preserve-authored');
@@ -154,6 +180,10 @@ try {
   assert.equal(wolf?.position?.y, 3);
   assert.equal(horse?.position?.y, 3);
   assert.ok(proof.sampledXs.includes(10) && proof.sampledXs.includes(20));
+  assert.equal(rejectedRoute?.materialReadyForWorld, true, 'safe spawn must survive an unsafe patrol target');
+  assert.equal(rejectedRoute?.patrolPlacement?.enabled, false, 'unsafe patrol target must disable patrol');
+  assert.equal(rejectedRoute?.patrolPlacement?.error, 'ground-sample-failed');
+  assert.deepEqual(proof.rejectedRouteAfter, proof.rejectedRouteBefore, 'rejected geographic patrol must not move the animal');
 
   console.log('CONFIGURED_ANIMAL_SPAWN_GROUND_SAFETY_BROWSER_PASS', JSON.stringify({
     ...proof,
