@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-02-v70-aerial-material-depth',
+	id: 'geographic-reference-palette-2026-09-02-v71-aerial-ecotone-depth',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -31,24 +31,24 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v70 follows exact-head full-world inspection after v69: lowlands gained separation but exposed soil and sunlit rock still merged at aerial distance. Meadow stays cool/deep, dry heather shifts slightly darker and less orange, exposed earth remains oxidized but lower-value, and granite/quartz are separated from soil without bleaching mountain faces. Height, shoreline, collider, biome and map-derived geography remain unchanged.',
-		water: 'v70 increases shallow/lake/deep-sea value spacing while preserving the existing coverage/depth/offshore authority. It changes optical colour only; shoreline, lake membership and bathymetry are untouched.',
-		road: 'v70 preserves established compacted-road and dust bases, keeping roads distinct from exposed-earth terrain without changing route geometry.',
-		celestial: 'v70 slightly restrains noon warmth and moon blue so terrain, ice and water material values remain readable instead of being washed into one lighting tint.',
+		terrain: 'v71 follows direct inspection of exact-head full-world #1186: canonical geography and relief remain stable, but broad central lowlands still flatten into a similar beige-olive value at aerial distance and some rocky belts merge into adjacent exposed soil. Meadow and moss are separated more strongly from dry heath, exposed earth is kept warmer but slightly darker, and granite shadow/sunlit values are pulled farther apart so ridge and cliff material reads without changing terrain height, shoreline, hydrology, collider, biome or map-derived geography.',
+		water: 'v71 preserves the v70 shallow/lake/deep-sea hierarchy and coverage/depth/offshore authority; shoreline, lake membership and bathymetry remain untouched.',
+		road: 'v71 preserves established compacted-road and dust bases, keeping roads distinct from exposed-earth terrain without changing route geometry.',
+		celestial: 'v71 preserves the restrained noon and moon calibration so the new terrain value separation remains visible under both daylight and night lighting.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x082819,
-		meadow: 0x2f6840,
-		dryHeather: 0x6f503d,
-		wetEarth: 0x0d1a14,
-		exposedEarth: 0x9d5e40,
-		graniteShadow: 0x18232a,
-		graniteSunlit: 0xa99c8d,
-		basaltWet: 0x020b0f,
-		quartz: 0xc0b5a4,
+		mossShadow: 0x062416,
+		meadow: 0x347346,
+		dryHeather: 0x624735,
+		wetEarth: 0x0b1812,
+		exposedEarth: 0x935438,
+		graniteShadow: 0x131e25,
+		graniteSunlit: 0xb0a393,
+		basaltWet: 0x02090d,
+		quartz: 0xc5baa9,
 	}),
 	road: Object.freeze({
 		compacted: 0x866347,
