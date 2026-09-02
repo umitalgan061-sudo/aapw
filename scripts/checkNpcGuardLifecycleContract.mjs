@@ -93,6 +93,14 @@ for (const invalidObserver of [{ x: Infinity, z: 0 }, { x: 0, z: Number.NaN }]) 
   assert.equal(invalid.reason, 'range');
   assert.equal(Number.isFinite(invalid.sourceDistanceMeters), false);
 }
+for (const assistRadiusMeters of [0, -1, Number.NaN]) {
+  const invalidRange = evaluate(baseAlert, { lastRevision: 0, assistRadiusMeters });
+  assert.equal(invalidRange.accepted, false);
+  assert.equal(invalidRange.reason, 'invalid');
+}
+const missingSource = evaluate({ ...baseAlert, sourcePosition: null }, { lastRevision: 0 });
+assert.equal(missingSource.accepted, false);
+assert.equal(missingSource.reason, 'invalid');
 assert.equal(evaluate({ ...baseAlert, sourcePosition: { x: 30, z: 0 } }, { lastRevision: 0 }).reason, 'range');
 
 assert.equal(/Math\.random\s*\(/.test(npc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')), false,
