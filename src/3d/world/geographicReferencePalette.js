@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-02-v74-aerial-lowland-ecotone-stratification',
+	id: 'geographic-reference-palette-2026-09-02-v75-lowland-ecological-material-depth',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -33,24 +33,24 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v74 follows direct inspection of the exact-head ad2b038 full-world artifact. v73 removed some chroma harshness but the central lowlands still read too close to one beige-olive value family at aerial scale. v74 widens the luminance/chroma spacing between damp meadow, dry heath, exposed soil and weathered stone so the existing deterministic world-space macro/meso/patch albedo, micro-normal and roughness domains resolve as ecological material transitions rather than a flat tint.',
-		water: 'v74 retains the verified v72-v73 marine correction: deep sea and abyss stay readable without near-black crushing and coastal water remains cooler/desaturated. Coverage, bathymetry, lake membership, shoreline and offshore authority are unchanged.',
-		road: 'v74 preserves established compacted-road and dust bases, keeping roads distinct from exposed-earth terrain without changing route geometry.',
-		celestial: 'v74 preserves restrained noon and moon calibration; lowland depth is produced by material stratification, not by increasing global light intensity.',
+		terrain: 'v75 follows direct inspection of the exact-head 4169eb0 full-world WebGL artifact. Relief is readable, but the broad central lowlands still collapse into a beige-grey family at aerial scale. v75 shifts living meadow toward a deeper natural green, dry heath toward a darker desaturated umber, and exposed mineral soil toward a warmer oxidised brown while keeping wet soil and rock distinctly darker. Existing deterministic world-space macro/meso/patch albedo, normal and roughness variation remains authoritative for local breakup; this palette only improves ecological material separation.',
+		water: 'v75 retains the verified v72-v74 marine correction: deep sea and abyss stay readable without near-black crushing and coastal water remains cooler/desaturated. Coverage, bathymetry, lake membership, shoreline and offshore authority are unchanged.',
+		road: 'v75 preserves established compacted-road and dust bases, keeping roads distinct from exposed-earth terrain without changing route geometry.',
+		celestial: 'v75 preserves restrained noon and moon calibration; lowland depth is produced by material stratification, not by increasing global light intensity.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x09251a,
-		meadow: 0x315a3d,
-		dryHeather: 0x70563f,
-		wetEarth: 0x101915,
-		exposedEarth: 0x7c5038,
-		graniteShadow: 0x232829,
-		graniteSunlit: 0x9e9284,
-		basaltWet: 0x091216,
-		quartz: 0xbeb2a2,
+		mossShadow: 0x082219,
+		meadow: 0x28543a,
+		dryHeather: 0x654b38,
+		wetEarth: 0x0e1814,
+		exposedEarth: 0x815038,
+		graniteShadow: 0x202627,
+		graniteSunlit: 0xa29587,
+		basaltWet: 0x081115,
+		quartz: 0xc0b5a5,
 	}),
 	road: Object.freeze({
 		compacted: 0x866347,
