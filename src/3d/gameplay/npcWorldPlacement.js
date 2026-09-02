@@ -330,11 +330,18 @@ export function createConfiguredNpcMaterialRecipe(object, spawn, geography) {
 	if (analysis.namedSurfaceCount > 0) {
 		const surfaceOverrides = {};
 		for (const surface of analysis.surfaces) {
+			if (authoredMapCount(surface.material) >= 2) continue;
 			const key = SLOT_PALETTE_KEYS[surface.slot];
 			if (key && profile[key]) surfaceOverrides[surface.key] = profile[key];
 		}
 		if (Object.keys(surfaceOverrides).length > 0) {
-			return { recipe: { version: 1, mode: 'surface', textureSize: 256, surfaceOverrides }, profile, analysis, mode: 'named-parts' };
+			return {
+				recipe: { version: 1, mode: 'surface', textureSize: 256, surfaceOverrides },
+				profile,
+				analysis,
+				mode: analysis.highQualityAuthoredSlots > 0 ? 'named-parts-preserve-authored' : 'named-parts',
+				preservedHighQualitySurfaceCount: analysis.highQualityAuthoredSlots,
+			};
 		}
 	}
 	if (analysis.meshCount === 1) {
@@ -390,6 +397,7 @@ export function prepareConfiguredNpcWorldAsset(object, { spawn, placement, sampl
 		seatDistanceMeters: Number(placement.seatDistanceMeters.toFixed(3)),
 		materialMode: materialPlan.mode,
 		uniformProfileId: materialPlan.profile.id,
+		preservedHighQualitySurfaceCount: materialPlan.preservedHighQualitySurfaceCount ?? 0,
 		meshCount: prepared.validation.meshCount,
 		materialSlotCount: prepared.validation.materialSlotCount,
 		generatedMaterialCount: prepared.validation.generatedMaterialCount,
