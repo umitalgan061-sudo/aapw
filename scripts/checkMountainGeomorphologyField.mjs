@@ -87,13 +87,13 @@ for (const chain of REFERENCE_RELIEF_CHAINS) {
 					assert(context.progress >= 0 && context.progress <= 1, `${chain.id}: context progress escaped [0,1]`);
 					assert(context.talusExposure >= 0 && context.talusExposure <= 1, `${chain.id}: talus exposure escaped [0,1]`);
 					assert(context.bedrockExposure >= 0 && context.bedrockExposure <= 1, `${chain.id}: bedrock exposure escaped [0,1]`);
+					assert(Number.isFinite(context.outerEdgeFade) && context.outerEdgeFade >= 0 && context.outerEdgeFade <= 1, `${chain.id}: invalid outer-edge fade`);
 					for (const value of [
 						context.longitudinalMassing,
 						context.ridgeAsymmetry,
 						context.crestNotch,
 						context.shoulderIncision,
 						context.secondarySpur,
-						context.outerEdgeFade,
 					]) {
 						assert(Number.isFinite(value) && value > 0, `${chain.id}: invalid geomorphology component`);
 					}
