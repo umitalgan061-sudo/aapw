@@ -29,9 +29,10 @@ import { normalizeText } from './textureMatcher.js';
  *
  * Structure slots deliberately avoid generic bare substance names such as `wood`, `stone`, `glass`
  * and `metal`. Those are useful signals only after the caller knows it is dressing architecture;
- * making them global would relabel unrelated props, vegetation and equipment. Runtime adapters may
- * add that contextual knowledge locally. Generic `wall` likewise remains unclassified so the
- * destination architecture policy can decide whether to preserve or replace the façade.
+ * making them global would relabel unrelated props, vegetation and equipment. A narrow contextual
+ * fallback below permits those exact substances only when the mesh itself is explicitly a building.
+ * Generic `wall` likewise remains unclassified so the destination architecture policy can decide
+ * whether to preserve or replace the façade.
  * @type {ReadonlyArray<{slot: string, priority?: number, words: string[]}>}
  */
 const SLOT_RULES = Object.freeze([
@@ -94,6 +95,25 @@ const SLOT_RULES = Object.freeze([
 	{ slot: 'mane', words: ['mane', 'tail', 'yele', 'kuyruk'] },
 ]);
 
+const ARCHITECTURE_CONTEXT_WORDS = Object.freeze([
+	'house', 'cottage', 'cabin', 'building', 'dwelling', 'home', 'hut', 'ev', 'kulube', 'kulübe',
+]);
+
+const CONTEXTUAL_STRUCTURE_MATERIALS = Object.freeze(new Map([
+	['wood', 'structure-timber'],
+	['wood light', 'structure-timber'],
+	['wood dark', 'structure-timber'],
+	['wood side', 'structure-timber'],
+	['stone', 'structure-stone'],
+	['stone light', 'structure-stone'],
+	['stone dark', 'structure-stone'],
+	['rock', 'structure-stone'],
+	['glass', 'structure-window'],
+	['iron', 'structure-metal'],
+	['metal', 'structure-metal'],
+	['steel', 'structure-metal'],
+]));
+
 /**
  * Word-boundary match with the same Turkish-aware suffix allowance the palette matcher uses, but
  * additionally splitting on digits and camelCase — asset names are `Wolf3_eyes_0`, `Paladin_J_Nordstrom_Helmet`,
@@ -107,6 +127,16 @@ export function tokenize(text) {
 			.replace(/([a-zçğıöşü])([A-ZÇĞİÖŞÜ])/g, '$1 $2')
 			.replace(/\d+/g, ' '),
 	).split(' ').filter(Boolean);
+}
+
+function contextualArchitectureMatch(meshName, materialName) {
+	const meshTokens = tokenize(meshName);
+	if (!meshTokens.some((token) => ARCHITECTURE_CONTEXT_WORDS.includes(token))) return null;
+	const materialKey = tokenize(materialName).join(' ');
+	const slot = CONTEXTUAL_STRUCTURE_MATERIALS.get(materialKey);
+	if (!slot) return null;
+	// Stronger than generic body/clothing vocabulary, weaker than explicit structural/equipment nouns.
+	return { slot, score: 1500 + materialKey.length, matchedWord: materialKey, contextual: true };
 }
 
 /**
@@ -138,6 +168,9 @@ export function classifyPart({ meshName = '', materialName = '' } = {}) {
 			}
 		}
 	}
+
+	const contextual = contextualArchitectureMatch(meshName, materialName);
+	if (contextual && (!best || contextual.score > best.score)) best = contextual;
 	return best;
 }
 
