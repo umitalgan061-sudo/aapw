@@ -7,6 +7,10 @@
  * MeshStandardMaterial produced by `createRiverMesh`, preserving its fog/day-night response and
  * downstream foam shader while replacing only the old single-polyline geometry.
  *
+ * The bank breakup in this module is deliberately render-only: river centerlines, terrain heights,
+ * owner-map hydrology and collision authority are never modified. Width perturbation is deterministic
+ * in world space and curvature-aware so long channels stop reading as uniformly extruded ribbons.
+ *
  * @module world/riverNetworkRender
  */
 
@@ -19,17 +23,25 @@ import {
 import { GEOGRAPHIC_REFERENCE_PALETTE } from './geographicReferencePalette.js';
 
 export const MAJOR_RIVER_RENDER_POLICY = Object.freeze({
-  id: 'major-river-render-2026-09-01-v1-single-draw-network',
+  id: 'major-river-render-2026-09-02-v2-natural-banks',
   renderOnly: true,
+  deterministic: true,
   canonicalHeightAuthorityUnchanged: true,
   canonicalHydrologyAuthority: 'world/riverNetwork.js',
+  canonicalCenterlinesUnchanged: true,
+  canonicalColliderUnchanged: true,
   disconnectedSingleGeometry: true,
   pointWidthAware: true,
+  curvatureAwareBankAsymmetry: true,
+  worldSpaceBankBreakup: true,
   maximumWaterfallMeshesDesktop: 14,
   maximumWaterfallMeshesMobile: 7,
   verticalSurfaceOffsetMeters: 0.30,
   baseFlowSpeedMetersPerSecond: 1.20,
   gradeFlowGain: 6.0,
+  bankBreakupMaximumFraction: 0.16,
+  outerBankMaximumFraction: 0.13,
+  minimumRenderedHalfWidthMeters: 0.55,
 });
 
 const POOL_COLOR = new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.water.riverPool);
@@ -39,6 +51,7 @@ const smooth01 = (value) => {
   const t = clamp01(value);
   return t * t * (3 - 2 * t);
 };
+const fract = (value) => value - Math.floor(value);
 
 function localWidth(point, fallbackWidth) {
   const width = Number(point?.widthMeters);
@@ -62,10 +75,53 @@ function countNetworkTriangles(network) {
   }, 0);
 }
 
+function riverBankNoise(worldX, worldZ, arcLengthMeters, seedOffset) {
+  // Irrational carriers plus a hashed low-frequency cell keep the signal deterministic while avoiding
+  // a visible repeating sine strip along long rivers. This only affects rendered bank position.
+  const carrierA = Math.sin(worldX * 0.0217 + worldZ * 0.0131 + arcLengthMeters * 0.035 + seedOffset * 1.73);
+  const carrierB = Math.sin(worldX * -0.0083 + worldZ * 0.0299 - arcLengthMeters * 0.017 + seedOffset * 2.41);
+  const cellX = Math.floor(worldX / 61 + seedOffset * 7.0);
+  const cellZ = Math.floor(worldZ / 47 - seedOffset * 11.0);
+  const hash = fract(Math.sin(cellX * 127.1 + cellZ * 311.7 + seedOffset * 74.7) * 43758.5453123) * 2 - 1;
+  return carrierA * 0.46 + carrierB * 0.29 + hash * 0.25;
+}
+
+function signedPlanCurvature(previous, point, next) {
+  const ax = point.x - previous.x;
+  const az = point.z - previous.z;
+  const bx = next.x - point.x;
+  const bz = next.z - point.z;
+  const aLength = Math.hypot(ax, az);
+  const bLength = Math.hypot(bx, bz);
+  if (aLength < 1e-6 || bLength < 1e-6) return 0;
+  const cross = (ax / aLength) * (bz / bLength) - (az / aLength) * (bx / bLength);
+  const dot = Math.max(-1, Math.min(1, (ax * bx + az * bz) / (aLength * bLength)));
+  const turn = Math.atan2(cross, dot);
+  const support = Math.max(8, (aLength + bLength) * 0.5);
+  return Math.max(-1, Math.min(1, turn * (72 / support)));
+}
+
+function renderedHalfWidths(point, previous, next, arcLengthMeters, widthMeters, riverIndex) {
+  const baseHalfWidth = Math.max(MAJOR_RIVER_RENDER_POLICY.minimumRenderedHalfWidthMeters, widthMeters * 0.5);
+  const leftNoise = riverBankNoise(point.x, point.z, arcLengthMeters, riverIndex * 2 + 0.37);
+  const rightNoise = riverBankNoise(point.x, point.z, arcLengthMeters, riverIndex * 2 + 1.19);
+  const curvature = signedPlanCurvature(previous, point, next);
+  const bendStrength = smooth01(Math.abs(curvature));
+  const outerFraction = bendStrength * MAJOR_RIVER_RENDER_POLICY.outerBankMaximumFraction;
+  const breakup = MAJOR_RIVER_RENDER_POLICY.bankBreakupMaximumFraction;
+  const leftOuter = curvature < 0 ? outerFraction : -outerFraction * 0.35;
+  const rightOuter = curvature > 0 ? outerFraction : -outerFraction * 0.35;
+  return {
+    left: Math.max(MAJOR_RIVER_RENDER_POLICY.minimumRenderedHalfWidthMeters, baseHalfWidth * (1 + leftNoise * breakup + leftOuter)),
+    right: Math.max(MAJOR_RIVER_RENDER_POLICY.minimumRenderedHalfWidthMeters, baseHalfWidth * (1 + rightNoise * breakup + rightOuter)),
+  };
+}
+
 /**
  * Builds one disconnected ribbon geometry for every accepted river in the network.
  * Each river starts a fresh index strip, so no triangles bridge the end of one river to the source
- * of the next. Per-point network widths naturally grow downstream.
+ * of the next. Per-point network widths naturally grow downstream. Rendered banks gain bounded,
+ * deterministic asymmetry while the authoritative centerline remains exactly on each source point.
  */
 export function createMajorRiverNetworkGeometry(network, {
   fallbackWidthMeters = 10,
@@ -81,14 +137,17 @@ export function createMajorRiverNetworkGeometry(network, {
   const flowDistances = new Float32Array(vertexCount);
   const flowSpeeds = new Float32Array(vertexCount);
   const flowSides = new Float32Array(vertexCount);
+  const bankFactors = new Float32Array(vertexCount);
   const indices = new Uint32Array(triangleCount * 3);
 
   let vertexBase = 0;
   let indexCursor = 0;
   let totalFlowLengthMeters = 0;
   let maximumRenderedWidthMeters = 0;
+  let maximumBankAsymmetryMeters = 0;
 
-  for (const river of rivers) {
+  for (let riverIndex = 0; riverIndex < rivers.length; riverIndex += 1) {
+    const river = rivers[riverIndex];
     const points = river?.points ?? [];
     if (points.length < 2) continue;
     let arcLengthMeters = 0;
@@ -103,12 +162,15 @@ export function createMajorRiverNetworkGeometry(network, {
       const perpendicularX = -tangentZ / tangentLength;
       const perpendicularZ = tangentX / tangentLength;
       const widthMeters = localWidth(point, fallbackWidthMeters);
-      const halfWidth = widthMeters * 0.5;
-      maximumRenderedWidthMeters = Math.max(maximumRenderedWidthMeters, widthMeters);
 
       if (i > 0) {
         arcLengthMeters += Math.hypot(point.x - points[i - 1].x, point.z - points[i - 1].z);
       }
+
+      const halfWidths = renderedHalfWidths(point, previous, next, arcLengthMeters, widthMeters, riverIndex);
+      const renderedWidthMeters = halfWidths.left + halfWidths.right;
+      maximumRenderedWidthMeters = Math.max(maximumRenderedWidthMeters, renderedWidthMeters);
+      maximumBankAsymmetryMeters = Math.max(maximumBankAsymmetryMeters, Math.abs(halfWidths.left - halfWidths.right));
 
       const neighbourhoodRunMeters = Math.hypot(next.x - previous.x, next.z - previous.z) || 1;
       const grade = Math.max(0, (previous.y - next.y) / neighbourhoodRunMeters);
@@ -116,23 +178,29 @@ export function createMajorRiverNetworkGeometry(network, {
         + Math.sqrt(grade) * MAJOR_RIVER_RENDER_POLICY.gradeFlowGain;
       const rapidMix = smooth01((flowSpeed - 1.2) / (4.5 - 1.2));
       const color = POOL_COLOR.clone().lerp(RAPID_COLOR, rapidMix);
+      const leftWetVariation = 0.92 + riverBankNoise(point.x, point.z, arcLengthMeters, riverIndex * 2 + 2.73) * 0.045;
+      const rightWetVariation = 0.92 + riverBankNoise(point.x, point.z, arcLengthMeters, riverIndex * 2 + 3.91) * 0.045;
+      const leftColor = color.clone().multiplyScalar(leftWetVariation);
+      const rightColor = color.clone().multiplyScalar(rightWetVariation);
 
       const left = vertexBase + i * 2;
       const right = left + 1;
-      positions[left * 3] = point.x + perpendicularX * halfWidth;
+      positions[left * 3] = point.x + perpendicularX * halfWidths.left;
       positions[left * 3 + 1] = point.y + verticalOffsetMeters;
-      positions[left * 3 + 2] = point.z + perpendicularZ * halfWidth;
-      positions[right * 3] = point.x - perpendicularX * halfWidth;
+      positions[left * 3 + 2] = point.z + perpendicularZ * halfWidths.left;
+      positions[right * 3] = point.x - perpendicularX * halfWidths.right;
       positions[right * 3 + 1] = point.y + verticalOffsetMeters;
-      positions[right * 3 + 2] = point.z - perpendicularZ * halfWidth;
-      writeColor(colors, left * 3, color);
-      writeColor(colors, right * 3, color);
+      positions[right * 3 + 2] = point.z - perpendicularZ * halfWidths.right;
+      writeColor(colors, left * 3, leftColor);
+      writeColor(colors, right * 3, rightColor);
       flowDistances[left] = arcLengthMeters;
       flowDistances[right] = arcLengthMeters;
       flowSpeeds[left] = flowSpeed;
       flowSpeeds[right] = flowSpeed;
       flowSides[left] = -1;
       flowSides[right] = 1;
+      bankFactors[left] = halfWidths.left / Math.max(0.001, widthMeters * 0.5);
+      bankFactors[right] = halfWidths.right / Math.max(0.001, widthMeters * 0.5);
 
       if (i > 0) {
         const previousLeft = left - 2;
@@ -156,6 +224,7 @@ export function createMajorRiverNetworkGeometry(network, {
   geometry.setAttribute('aFlowDistance', new THREE.BufferAttribute(flowDistances, 1));
   geometry.setAttribute('aFlowSpeed', new THREE.BufferAttribute(flowSpeeds, 1));
   geometry.setAttribute('aFlowSide', new THREE.BufferAttribute(flowSides, 1));
+  geometry.setAttribute('aBankFactor', new THREE.BufferAttribute(bankFactors, 1));
   geometry.setIndex(new THREE.BufferAttribute(indices, 1));
   geometry.computeVertexNormals();
   geometry.computeBoundingBox();
@@ -165,7 +234,9 @@ export function createMajorRiverNetworkGeometry(network, {
     riverCount: rivers.length,
     totalFlowLengthMeters,
     maximumRenderedWidthMeters,
+    maximumBankAsymmetryMeters,
     disconnected: true,
+    canonicalCenterlinesUnchanged: true,
   });
   return geometry;
 }
@@ -184,6 +255,7 @@ function createAnimatedRiverMaterial(network) {
     networkPolicyId: network.policyId,
     riverCount: network.rivers.length,
     singleDrawCall: true,
+    naturalizedBanks: true,
   });
   return material;
 }
@@ -262,6 +334,7 @@ export function createMajorRiverRenderSet(network, options = {}) {
       riverCount: network?.stats?.riverCount ?? 0,
       waterfallCount: waterfalls.length,
       singleRiverDrawCall: river != null,
+      naturalizedBanks: river != null,
       totalLengthMeters: network?.stats?.totalLengthMeters ?? 0,
     }),
   });
