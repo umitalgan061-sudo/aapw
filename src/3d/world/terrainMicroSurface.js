@@ -18,7 +18,7 @@ const smoothstep = (a, b, value) => {
 export const TERRAIN_MICRO_SURFACE_POLICY = Object.freeze({
 	// Public id advances because the coastal response is now a bounded, multi-scale weathering pass
 	// rather than a broad uniform dampness halo. Geography, height and hydrology remain untouched.
-	id: 'terrain-micro-surface-world-uv-pbr-v7-coastal-weathering',
+	id: 'terrain-micro-surface-world-uv-pbr-v8-granular-snow',
 	textureSize: 256,
 	detailRepeatMeters: 22,
 	normalStrength: 0.92,
@@ -40,6 +40,10 @@ export const TERRAIN_MICRO_SURFACE_POLICY = Object.freeze({
 	nonPeriodicRockWeathering: true,
 	multiScaleAerialContrast: true,
 	snowScourReadability: true,
+	snowGranularAlbedo: true,
+	snowMicroNormal: true,
+	snowRoughnessVariation: true,
+	snowSurfaceScaleMeters: Object.freeze([2.6, 11, 34]),
 	slopeAwareCliffWeathering: true,
 	erosionRunnels: true,
 	screeAprons: true,
@@ -192,17 +196,17 @@ export function getSharedTerrainMicroSurfaceTextures() {
 	const field = buildTerrainDetailField(size);
 	const normalMap = configureTerrainDataTexture(
 		new THREE.DataTexture(buildTerrainNormalData(field, size), size, size, THREE.RGBAFormat, THREE.UnsignedByteType),
-		'terrain-world-micro-normal-v7-coastal-weathering',
+		'terrain-world-micro-normal-v8-granular-snow',
 	);
 	const roughnessMap = configureTerrainDataTexture(
 		new THREE.DataTexture(buildTerrainRoughnessData(field, size), size, size, THREE.RGBAFormat, THREE.UnsignedByteType),
-		'terrain-world-micro-roughness-v7-coastal-weathering',
+		'terrain-world-micro-roughness-v8-granular-snow',
 	);
 	sharedTerrainMicroSurface = Object.freeze({ normalMap, roughnessMap });
 	return sharedTerrainMicroSurface;
 }
 
-const TERRAIN_PHOTOREAL_SHADER_KEY = 'terrain-photoreal-world-surface-v7-coastal-weathering';
+const TERRAIN_PHOTOREAL_SHADER_KEY = 'terrain-photoreal-world-surface-v8-granular-snow';
 const WATER_LEVEL_GLSL = Number(WORLD_DEFAULTS.WATER_LEVEL_METERS).toFixed(3);
 
 function installWorldSpaceColorBreakup(material) {
@@ -293,6 +297,12 @@ float terrainPhotoMacro = terrainPhotoFbm(terrainPhotoWarpedXZ / 620.0 + vec2(-7
 float terrainPhotoLandform = terrainPhotoFbm(terrainPhotoWarpedXZ / 240.0 + vec2(4.9, -11.7));
 float terrainPhotoMeso = terrainPhotoFbm(terrainPhotoXZ / 92.0 + vec2(23.8, 3.6));
 float terrainPhotoGrain = terrainPhotoNoise(terrainPhotoXZ / 38.0 + vec2(5.4, -18.2));
+float terrainPhotoSnowFine = terrainPhotoNoise(terrainPhotoXZ / 2.6 + vec2(37.4, -12.8));
+float terrainPhotoSnowMeso = terrainPhotoFbm(terrainPhotoXZ / 11.0 + vec2(-18.7, 41.2));
+float terrainPhotoSnowSastrugi = terrainPhotoRidgeNoise(vec2(
+	terrainPhotoXZ.x / 7.5 + terrainPhotoXZ.y / 34.0,
+	terrainPhotoXZ.y / 18.0 - terrainPhotoXZ.x / 52.0
+) + vec2(terrainPhotoSnowMeso * 1.7, -terrainPhotoSnowMeso * 1.1));
 float terrainPhotoEco = terrainPhotoFbm(terrainPhotoWarpedXZ / 690.0 + vec2(2.8, 21.6));
 float terrainPhotoDrainage = terrainPhotoFbm(terrainPhotoWarpedXZ / 260.0 + vec2(-17.4, 6.2));
 float terrainPhotoElevation = smoothstep(45.0, 330.0, vTerrainPhotorealWorldPosition.y);
@@ -432,6 +442,12 @@ diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.392, 0.390, 0.370), terrainPhoto
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.540, 0.580, 0.596), terrainPhotoSnowScour * 0.16);
 diffuseColor.rgb = mix(diffuseColor.rgb, terrainPhotoRockTone, terrainPhotoSnowRockReveal * 0.46);
 diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.805, 0.820, 0.820), terrainPhotoSnowDeposit * 0.12);
+float terrainPhotoSnowGranularValue = (terrainPhotoSnowFine - 0.5) * 0.090
+	+ (terrainPhotoSnowMeso - 0.5) * 0.075 + (terrainPhotoSnowSastrugi - 0.5) * 0.055;
+diffuseColor.rgb *= 1.0 + terrainPhotoSnow * terrainPhotoSnowGranularValue;
+float terrainPhotoSnowCrustShadow = terrainPhotoSnow * smoothstep(0.58, 0.86, terrainPhotoSnowSastrugi)
+	* smoothstep(0.42, 0.78, 1.0 - terrainPhotoSnowFine);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.570, 0.628, 0.657), terrainPhotoSnowCrustShadow * 0.13);
 
 vec3 terrainPhotoAspectCool = vec3(0.915, 0.955, 0.970);
 vec3 terrainPhotoAspectWarm = vec3(1.035, 1.010, 0.965);
@@ -448,12 +464,30 @@ float terrainPhotoRockPolish = terrainPhotoRockFace * terrainPhotoMoisture * 0.0
 float terrainPhotoSaltCrustRoughness = terrainPhotoSaltSpray * 0.065;
 float terrainPhotoGranularRoughness = terrainPhotoScreeBand * 0.055 + terrainPhotoSnowDeposit * 0.025
 	+ terrainPhotoDryShoulder * 0.045 + terrainPhotoSaltCrustRoughness;
+float terrainPhotoSnowRoughness = terrainPhotoSnow
+	* ((terrainPhotoSnowFine - 0.5) * 0.085 + (terrainPhotoSnowSastrugi - 0.5) * 0.060);
 roughnessFactor = clamp(
-	roughnessFactor - terrainPhotoWetPolish - terrainPhotoRockPolish + terrainPhotoGranularRoughness,
+	roughnessFactor - terrainPhotoWetPolish - terrainPhotoRockPolish + terrainPhotoGranularRoughness
+		+ terrainPhotoSnowRoughness,
 	0.48,
 	1.0
 );`,
 			);
+		shader.fragmentShader = shader.fragmentShader.replace(
+			'#include <normal_fragment_maps>',
+			`#include <normal_fragment_maps>
+float terrainPhotoSnowNormalStep = 0.52;
+float terrainPhotoSnowFineEast = terrainPhotoNoise((terrainPhotoXZ + vec2(terrainPhotoSnowNormalStep, 0.0)) / 2.6 + vec2(37.4, -12.8));
+float terrainPhotoSnowFineWest = terrainPhotoNoise((terrainPhotoXZ - vec2(terrainPhotoSnowNormalStep, 0.0)) / 2.6 + vec2(37.4, -12.8));
+float terrainPhotoSnowFineNorth = terrainPhotoNoise((terrainPhotoXZ + vec2(0.0, terrainPhotoSnowNormalStep)) / 2.6 + vec2(37.4, -12.8));
+float terrainPhotoSnowFineSouth = terrainPhotoNoise((terrainPhotoXZ - vec2(0.0, terrainPhotoSnowNormalStep)) / 2.6 + vec2(37.4, -12.8));
+vec2 terrainPhotoSnowMicroGradient = vec2(
+	terrainPhotoSnowFineEast - terrainPhotoSnowFineWest,
+	terrainPhotoSnowFineNorth - terrainPhotoSnowFineSouth
+);
+vec3 terrainPhotoSnowWorldPerturbation = vec3(-terrainPhotoSnowMicroGradient.x, 0.0, -terrainPhotoSnowMicroGradient.y);
+normal = normalize(normal + mat3(viewMatrix) * terrainPhotoSnowWorldPerturbation * terrainPhotoSnow * 0.105);`,
+		);
 	};
 	material.customProgramCacheKey = () => TERRAIN_PHOTOREAL_SHADER_KEY;
 }
@@ -483,6 +517,9 @@ export function applyTerrainMicroSurface(material) {
 		nonPeriodicRockWeathering: true,
 		multiScaleAerialContrast: true,
 		snowScourReadability: true,
+		snowGranularAlbedo: true,
+		snowMicroNormal: true,
+		snowRoughnessVariation: true,
 		slopeAwareCliffWeathering: true,
 		erosionRunnels: true,
 		screeAprons: true,
@@ -502,3 +539,4 @@ export function applyTerrainMicroSurface(material) {
 	material.needsUpdate = true;
 	return material;
 }
+
