@@ -81,8 +81,10 @@ const _rayDirection = new THREE.Vector3();
  *   against. Kept small by the caller (nearby terrain chunks + settlement/model roots only).
  * @param {number} marginMeters Distance to stop short of the hit surface (`PLAYER_CONFIG.
  *   CAMERA_COLLISION_MARGIN_METERS`).
- * @param {number} minDistanceMeters Hard floor the resolved distance is clamped above (`PLAYER_
- *   CONFIG.CAMERA_COLLISION_MIN_DISTANCE_METERS`).
+ * @param {number} minDistanceMeters Preferred chase-camera comfort floor (`PLAYER_CONFIG.
+ *   CAMERA_COLLISION_MIN_DISTANCE_METERS`). A nearer real surface is authoritative: when keeping
+ *   this floor would place the camera through the surface, collision clearance wins and the camera
+ *   is allowed to move closer to the target for that frame.
  * @returns {import('three').Vector3} Either `desiredPosition` unchanged (no occlusion) or a new
  *   `Vector3` pulled in along the ray — never mutates `desiredPosition` itself, since the caller
  *   needs the original value to restore `camera.position` after render.
@@ -99,6 +101,9 @@ export function resolveCameraCollision(raycaster, target, desiredPosition, colli
 	const hits = raycaster.intersectObjects(collidables, true);
 	if (hits.length === 0) return desiredPosition;
 
-	const clampedDistance = Math.max(minDistanceMeters, hits[0].distance - marginMeters);
+	const surfaceClearanceDistance = Math.max(0, hits[0].distance - marginMeters);
+	const clampedDistance = hits[0].distance <= minDistanceMeters + marginMeters
+		? surfaceClearanceDistance
+		: Math.max(minDistanceMeters, surfaceClearanceDistance);
 	return target.clone().addScaledVector(_rayDirection, clampedDistance);
 }
