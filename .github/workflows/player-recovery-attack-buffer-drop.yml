@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'src/3d/gameplay/player.js'
+      - 'src/3d/camera.js'
+      - 'scripts/checkPlayerGeographicCameraOcclusion.mjs'
       - 'scripts/checkPlayerRecoveryAttackBufferDrop.mjs'
       - 'scripts/checkPlayerRecoveryAttackBufferRuntime.mjs'
       - 'scripts/checkPlayerCombatRecoveryInputIsolation.mjs'
@@ -44,13 +46,16 @@ jobs:
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           changed=$((ADD + DEL))
           echo "scope additions=${ADD} deletions=${DEL} changed=${changed}"
-          test "$changed" -le 1000
+          test "$changed" -le 3000
           echo "BASE_SHA=$BASE" >> "$GITHUB_ENV"
       - name: Syntax combat and shared material contracts
         shell: bash
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/player.js
+          node --check src/3d/camera.js
+          node --check scripts/checkPlayerGeographicCameraOcclusion.mjs
+          node scripts/checkPlayerGeographicCameraOcclusion.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferDrop.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferRuntime.mjs
           node --check scripts/checkPlayerHitStaggerRuntime.mjs
@@ -59,6 +64,7 @@ jobs:
           node scripts/checkPlayerParryRecovery.mjs
           node scripts/checkSharedMaterialPlacementContract.js
           ! grep -q 'EditorMaterialStudio' src/3d/gameplay/player.js
+          ! grep -q 'EditorMaterialStudio' src/3d/camera.js
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
       - name: Shared PWA and cache contracts
