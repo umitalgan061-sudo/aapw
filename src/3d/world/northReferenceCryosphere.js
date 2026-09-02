@@ -26,7 +26,7 @@ const ALWAYS_WINTER_ZONE = findZone('lands-always-winter');
 const NORTH_ZONE = findZone('north');
 
 export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
-	id: 'owner-map-north-cryosphere-2026-09-02-v10-eroded-multiscale-ice-transition',
+	id: 'owner-map-north-cryosphere-2026-09-02-v11-bounded-eroded-ice-transition',
 	source: 'WORLD_REFERENCE_MAP biome zones',
 	renderClimateOnly: true,
 	heightAuthorityUnchanged: true,
@@ -46,9 +46,9 @@ export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
 	iceHaloCurveExponent: 0.88,
 	northTundraGain: 0.92,
 	winterHaloGain: 0.82,
-	transitionWeatheringMin: 0.44,
+	transitionWeatheringMin: 0.52,
 	transitionWeatheringMax: 1.0,
-	transitionWeatheringResponseExponent: 0.82,
+	transitionWeatheringResponseExponent: 0.76,
 });
 
 function scaledZone(zone, radiusScale) {
@@ -85,12 +85,12 @@ function transitionWeathering(normalizedX, normalizedY) {
 	const fine = Math.sin(x * 91.3 + y * 67.1 + Math.sin((x - y) * 29.4) * 0.42);
 	const erosionRidge = 1 - Math.abs(Math.sin(x * 27.1 + y * 18.7 + macro * 0.75));
 	const raw = clamp01(
-		0.43
-		+ continental * 0.16
-		+ macro * 0.27
-		+ meso * 0.19
+		0.45
+		+ continental * 0.15
+		+ macro * 0.26
+		+ meso * 0.185
 		+ fine * 0.08
-		- erosionRidge * 0.12,
+		- erosionRidge * 0.10,
 	);
 	const eroded = raw * raw * (3 - 2 * raw);
 	const shaped = Math.pow(eroded, P.transitionWeatheringResponseExponent);
