@@ -11,6 +11,7 @@ on:
       - 'src/3d/gameLoopHelpers.js'
       - 'scripts/checkPlayerGeographicCameraOcclusion.mjs'
       - 'scripts/checkPlayerTouchCombatRuntime.mjs'
+      - 'scripts/checkPlayerEquipmentAssetReadiness.mjs'
       - '.github/workflows/player-touch-combat-runtime.yml'
   workflow_dispatch:
 
@@ -24,7 +25,7 @@ concurrency:
 jobs:
   shipped-mobile-proof:
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -49,9 +50,11 @@ jobs:
         run: |
           set -euo pipefail
           git lfs version
-          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**,assets/models/vegetation/pine_Zt62gceKXZ.glb,assets/models/vegetation/winter_tree.glb,assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb,assets/models/Ay/Moon 2K.fbx" --exclude=""
+          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**,assets/models/vegetation/pine_Zt62gceKXZ.glb,assets/models/vegetation/winter_tree.glb,assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb,assets/models/Ay/Moon 2K.fbx,assets/models/fbx/Viking Sword Blend_Viking Sword.fbx" --exclude=""
           test "$(wc -c < assets/models/characters/peasant_girl.fbx)" -gt 512
           test "$(wc -c < assets/animations/peasant_girl/idle.fbx)" -gt 512
+          test "$(wc -c < 'assets/models/fbx/Viking Sword Blend_Viking Sword.fbx')" -eq 72380
+          ! head -c 128 'assets/models/fbx/Viking Sword Blend_Viking Sword.fbx' | grep -q 'git-lfs.github.com/spec'
       - name: Touch input lifecycle contract
         run: |
           set -euo pipefail
@@ -64,6 +67,7 @@ jobs:
           node --check src/3d/gameLoopHelpers.js
           node --check scripts/checkPlayerGeographicCameraOcclusion.mjs
           node --check scripts/checkPlayerTouchCombatRuntime.mjs
+          node --check scripts/checkPlayerEquipmentAssetReadiness.mjs
           node scripts/checkPlayerGeographicCameraOcclusion.mjs
           node scripts/checkPlayerCombatVerticalSlice.mjs
       - name: Shared material placement contract
@@ -72,7 +76,7 @@ jobs:
           node scripts/checkSharedMaterialPlacementContract.js
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
-          ! grep -q 'EditorMaterialStudio' src/3d/ui/touchJoystick.js src/3d/input.js src/3d/camera.js src/3d/gameLoopHelpers.js
+          ! grep -q 'EditorMaterialStudio' src/3d/ui/touchJoystick.js src/3d/input.js src/3d/camera.js src/3d/gameLoopHelpers.js scripts/checkPlayerEquipmentAssetReadiness.mjs
       - name: Install Chromium
         if: always()
         shell: bash
@@ -82,6 +86,19 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Hydrated player equipment readiness proof
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/player-touch-combat/equipment
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerEquipmentAssetReadiness.mjs --out-dir=artifacts/player-touch-combat/equipment | tee artifacts/player-touch-combat/equipment.log
+          grep -q 'PLAYER_EQUIPMENT_ASSET_READINESS_OK' artifacts/player-touch-combat/equipment.log
+          test -s artifacts/player-touch-combat/equipment/equipment-asset-readiness.json
+          grep -q '"missingAssetCount": 0' artifacts/player-touch-combat/equipment/equipment-asset-readiness.json
+          grep -q '"recommendedPalette": "steel"' artifacts/player-touch-combat/equipment/equipment-asset-readiness.json
+          grep -q '"productionAttached": false' artifacts/player-touch-combat/equipment/equipment-asset-readiness.json
+          grep -q '"browserErrors": \[\]' artifacts/player-touch-combat/equipment/equipment-asset-readiness.json
       - name: Shipped mobile touch combat proof
         if: always()
         shell: bash
