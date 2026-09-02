@@ -54,6 +54,7 @@ try {
     document.body.innerHTML = '<canvas id="world-acceptance"></canvas>';
     const THREE = await import('/src/3d/vendor/three/three.module.js');
     const { createScene } = await import('/src/3d/sceneManager.js');
+    const { updateWater } = await import('/src/3d/world/water.js');
     const { WORLD_SCALE } = await import('/src/3d/config.js');
     const { normalizedReferenceToWorldXZ } = await import('/src/3d/world/worldReferenceAlignment.js');
     const {
@@ -86,7 +87,7 @@ try {
       metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
     };
     globalThis.__worldAcceptance = {
-      THREE, state, world, normalizedReferenceToWorldXZ, proofFog,
+      THREE, state, world, normalizedReferenceToWorldXZ, proofFog, updateWater,
       updateDayNightLighting, updateAuroraSky, updateStarfield, updateFog, focusSunShadow,
     };
     return {
@@ -146,7 +147,7 @@ try {
 
   const fullMetrics = await page.evaluate(({ width, height, elapsedSeconds, dayRatio }) => {
     const {
-      THREE, state, world, updateDayNightLighting, updateAuroraSky, updateStarfield, focusSunShadow,
+      THREE, state, world, updateWater, updateDayNightLighting, updateAuroraSky, updateStarfield, focusSunShadow,
     } = globalThis.__worldAcceptance;
     const aspect = width / height;
     const halfWidth = Math.max(world.width / 2, world.depth * aspect / 2) * 1.025;
@@ -158,6 +159,7 @@ try {
     camera.updateProjectionMatrix();
     state.scene.fog = null;
     const dayNight = updateDayNightLighting(state.lights, 0, 3600, dayRatio);
+    updateWater(state.water, camera.position, elapsedSeconds);
     updateAuroraSky(state.sky, camera.position, elapsedSeconds, dayNight);
     updateStarfield(state.stars, camera.position, elapsedSeconds, dayNight.nightFactor);
     focusSunShadow(state.lights.sun, 0, 0, 0);
@@ -178,7 +180,7 @@ try {
   for (const sample of samples) {
     const metrics = await page.evaluate(({ sample, width, height, elapsedSeconds, dayRatio }) => {
       const {
-        THREE, state, world, normalizedReferenceToWorldXZ, proofFog,
+        THREE, state, world, normalizedReferenceToWorldXZ, proofFog, updateWater,
         updateDayNightLighting, updateAuroraSky, updateStarfield, updateFog, focusSunShadow,
       } = globalThis.__worldAcceptance;
       const target = normalizedReferenceToWorldXZ(sample.u, sample.v, world.bounds, world.metersPerMapUnit);
@@ -197,6 +199,7 @@ try {
       camera.updateProjectionMatrix();
 
       const dayNight = updateDayNightLighting(state.lights, 0, 3600, dayRatio);
+      updateWater(state.water, camera.position, elapsedSeconds);
       updateAuroraSky(state.sky, camera.position, elapsedSeconds, dayNight);
       updateStarfield(state.stars, camera.position, elapsedSeconds, dayNight.nightFactor);
       state.scene.fog = proofFog;
