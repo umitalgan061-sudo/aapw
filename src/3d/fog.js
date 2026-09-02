@@ -23,6 +23,9 @@ const FOG_DENSITY_DAY = 0.00036;
 const FOG_DENSITY_NIGHT = 0.00054;
 /** Startup must never expose a black fog horizon before the first lighting tick. */
 const FOG_BOOT_HORIZON_COLOR = 0x596979;
+/** Dynamic lighting is authoritative, but a transient near-black horizon must not black-hole distant terrain. */
+const FOG_HORIZON_LUMINANCE_FLOOR = 0.035;
+const FOG_HORIZON_FLOOR_COLOR = new THREE.Color(FOG_BOOT_HORIZON_COLOR);
 /** Keep all phase-dependent clarity/aerosol terms inside a safe aerial-perspective envelope. */
 const FOG_DENSITY_MIN = 0.00026;
 const FOG_DENSITY_MAX = 0.00072;
@@ -197,6 +200,12 @@ export function updateFog(fog, dayNight) {
 		.lerp(FOG_NIGHT_COOL_TINT, deepNight * FOG_NIGHT_COOL_TINT_MAX)
 		.lerp(FOG_CLEAR_DEEP_NIGHT_TINT, clearDeepNight * FOG_CLEAR_DEEP_NIGHT_TINT_MAX)
 		.lerp(FOG_MOONLIT_TINT, moonlitNight * FOG_MOONLIT_TINT_MAX);
+
+	const fogLuminance = fog.color.r * 0.2126 + fog.color.g * 0.7152 + fog.color.b * 0.0722;
+	if (fogLuminance < FOG_HORIZON_LUMINANCE_FLOOR) {
+		const rescue = THREE.MathUtils.clamp((FOG_HORIZON_LUMINANCE_FLOOR - fogLuminance) / FOG_HORIZON_LUMINANCE_FLOOR, 0, 1);
+		fog.color.lerp(FOG_HORIZON_FLOOR_COLOR, rescue);
+	}
 
 	const density = THREE.MathUtils.lerp(FOG_DENSITY_DAY, FOG_DENSITY_NIGHT, nightFactor)
 		+ twilight * FOG_TWILIGHT_DENSITY_GAIN
