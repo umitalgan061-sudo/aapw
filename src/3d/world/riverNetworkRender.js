@@ -10,6 +10,9 @@
  * The bank breakup in this module is deliberately render-only: river centerlines, terrain heights,
  * owner-map hydrology and collision authority are never modified. Width perturbation is deterministic
  * in world space and curvature-aware so long channels stop reading as uniformly extruded ribbons.
+ * The network material adds a second, bounded physical reading layer: outer bends stay slightly
+ * faster/cleaner, inner banks accumulate sediment, and irregular bank-edge foam/roughness responds to
+ * the already-rendered width asymmetry without changing a single hydrology sample.
  *
  * @module world/riverNetworkRender
  */
@@ -23,7 +26,7 @@ import {
 import { GEOGRAPHIC_REFERENCE_PALETTE } from './geographicReferencePalette.js';
 
 export const MAJOR_RIVER_RENDER_POLICY = Object.freeze({
-  id: 'major-river-render-2026-09-02-v2-natural-banks',
+  id: 'major-river-render-2026-09-02-v3-bank-flow-material',
   renderOnly: true,
   deterministic: true,
   canonicalHeightAuthorityUnchanged: true,
@@ -34,6 +37,12 @@ export const MAJOR_RIVER_RENDER_POLICY = Object.freeze({
   pointWidthAware: true,
   curvatureAwareBankAsymmetry: true,
   worldSpaceBankBreakup: true,
+  bankFlowMaterialVariation: true,
+  innerBankSedimentResponse: true,
+  outerBankCurrentResponse: true,
+  irregularBankFoam: true,
+  worldSpaceTurbidityBreakup: true,
+  worldSpaceRoughnessBreakup: true,
   maximumWaterfallMeshesDesktop: 14,
   maximumWaterfallMeshesMobile: 7,
   verticalSurfaceOffsetMeters: 0.30,
@@ -46,6 +55,8 @@ export const MAJOR_RIVER_RENDER_POLICY = Object.freeze({
 
 const POOL_COLOR = new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.water.riverPool);
 const RAPID_COLOR = new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.water.rapid);
+const BANK_SEDIMENT_COLOR = new THREE.Color(0x5c6958);
+const BANK_AERATED_COLOR = new THREE.Color(GEOGRAPHIC_REFERENCE_PALETTE.water.foam);
 const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
 const smooth01 = (value) => {
   const t = clamp01(value);
@@ -114,6 +125,7 @@ function renderedHalfWidths(point, previous, next, arcLengthMeters, widthMeters,
   return {
     left: Math.max(MAJOR_RIVER_RENDER_POLICY.minimumRenderedHalfWidthMeters, baseHalfWidth * (1 + leftNoise * breakup + leftOuter)),
     right: Math.max(MAJOR_RIVER_RENDER_POLICY.minimumRenderedHalfWidthMeters, baseHalfWidth * (1 + rightNoise * breakup + rightOuter)),
+    curvature,
   };
 }
 
@@ -138,6 +150,7 @@ export function createMajorRiverNetworkGeometry(network, {
   const flowSpeeds = new Float32Array(vertexCount);
   const flowSides = new Float32Array(vertexCount);
   const bankFactors = new Float32Array(vertexCount);
+  const bendFactors = new Float32Array(vertexCount);
   const indices = new Uint32Array(triangleCount * 3);
 
   let vertexBase = 0;
@@ -145,6 +158,7 @@ export function createMajorRiverNetworkGeometry(network, {
   let totalFlowLengthMeters = 0;
   let maximumRenderedWidthMeters = 0;
   let maximumBankAsymmetryMeters = 0;
+  let maximumAbsoluteCurvature = 0;
 
   for (let riverIndex = 0; riverIndex < rivers.length; riverIndex += 1) {
     const river = rivers[riverIndex];
@@ -171,6 +185,7 @@ export function createMajorRiverNetworkGeometry(network, {
       const renderedWidthMeters = halfWidths.left + halfWidths.right;
       maximumRenderedWidthMeters = Math.max(maximumRenderedWidthMeters, renderedWidthMeters);
       maximumBankAsymmetryMeters = Math.max(maximumBankAsymmetryMeters, Math.abs(halfWidths.left - halfWidths.right));
+      maximumAbsoluteCurvature = Math.max(maximumAbsoluteCurvature, Math.abs(halfWidths.curvature));
 
       const neighbourhoodRunMeters = Math.hypot(next.x - previous.x, next.z - previous.z) || 1;
       const grade = Math.max(0, (previous.y - next.y) / neighbourhoodRunMeters);
@@ -178,10 +193,19 @@ export function createMajorRiverNetworkGeometry(network, {
         + Math.sqrt(grade) * MAJOR_RIVER_RENDER_POLICY.gradeFlowGain;
       const rapidMix = smooth01((flowSpeed - 1.2) / (4.5 - 1.2));
       const color = POOL_COLOR.clone().lerp(RAPID_COLOR, rapidMix);
-      const leftWetVariation = 0.92 + riverBankNoise(point.x, point.z, arcLengthMeters, riverIndex * 2 + 2.73) * 0.045;
-      const rightWetVariation = 0.92 + riverBankNoise(point.x, point.z, arcLengthMeters, riverIndex * 2 + 3.91) * 0.045;
-      const leftColor = color.clone().multiplyScalar(leftWetVariation);
-      const rightColor = color.clone().multiplyScalar(rightWetVariation);
+      const leftWetVariation = 0.94 + riverBankNoise(point.x, point.z, arcLengthMeters, riverIndex * 2 + 2.73) * 0.038;
+      const rightWetVariation = 0.94 + riverBankNoise(point.x, point.z, arcLengthMeters, riverIndex * 2 + 3.91) * 0.038;
+      const bendStrength = smooth01(Math.abs(halfWidths.curvature));
+      const leftInner = halfWidths.curvature > 0 ? bendStrength : 0;
+      const rightInner = halfWidths.curvature < 0 ? bendStrength : 0;
+      const leftOuter = halfWidths.curvature < 0 ? bendStrength : 0;
+      const rightOuter = halfWidths.curvature > 0 ? bendStrength : 0;
+      const leftColor = color.clone().multiplyScalar(leftWetVariation)
+        .lerp(BANK_SEDIMENT_COLOR, leftInner * 0.12)
+        .lerp(BANK_AERATED_COLOR, leftOuter * rapidMix * 0.045);
+      const rightColor = color.clone().multiplyScalar(rightWetVariation)
+        .lerp(BANK_SEDIMENT_COLOR, rightInner * 0.12)
+        .lerp(BANK_AERATED_COLOR, rightOuter * rapidMix * 0.045);
 
       const left = vertexBase + i * 2;
       const right = left + 1;
@@ -201,6 +225,8 @@ export function createMajorRiverNetworkGeometry(network, {
       flowSides[right] = 1;
       bankFactors[left] = halfWidths.left / Math.max(0.001, widthMeters * 0.5);
       bankFactors[right] = halfWidths.right / Math.max(0.001, widthMeters * 0.5);
+      bendFactors[left] = halfWidths.curvature;
+      bendFactors[right] = halfWidths.curvature;
 
       if (i > 0) {
         const previousLeft = left - 2;
@@ -225,6 +251,7 @@ export function createMajorRiverNetworkGeometry(network, {
   geometry.setAttribute('aFlowSpeed', new THREE.BufferAttribute(flowSpeeds, 1));
   geometry.setAttribute('aFlowSide', new THREE.BufferAttribute(flowSides, 1));
   geometry.setAttribute('aBankFactor', new THREE.BufferAttribute(bankFactors, 1));
+  geometry.setAttribute('aBendFactor', new THREE.BufferAttribute(bendFactors, 1));
   geometry.setIndex(new THREE.BufferAttribute(indices, 1));
   geometry.computeVertexNormals();
   geometry.computeBoundingBox();
@@ -235,10 +262,87 @@ export function createMajorRiverNetworkGeometry(network, {
     totalFlowLengthMeters,
     maximumRenderedWidthMeters,
     maximumBankAsymmetryMeters,
+    maximumAbsoluteCurvature,
     disconnected: true,
     canonicalCenterlinesUnchanged: true,
   });
   return geometry;
+}
+
+function installMajorRiverBankMaterial(material) {
+  if (!material?.isMeshStandardMaterial) return material;
+  if (material.userData?.majorRiverBankMaterial === MAJOR_RIVER_RENDER_POLICY.id) return material;
+  const priorCompile = material.onBeforeCompile.bind(material);
+  const priorCacheKey = material.customProgramCacheKey.bind(material);
+  material.onBeforeCompile = (shader, renderer) => {
+    priorCompile(shader, renderer);
+    shader.vertexShader = shader.vertexShader
+      .replace(
+        '#include <common>',
+        '#include <common>\nattribute float aBankFactor;\nattribute float aBendFactor;\nvarying float vMajorRiverBankFactor;\nvarying float vMajorRiverBendFactor;\nvarying vec3 vMajorRiverWorldPosition;',
+      )
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\nvMajorRiverBankFactor=aBankFactor;\nvMajorRiverBendFactor=aBendFactor;\nvMajorRiverWorldPosition=(modelMatrix*vec4(transformed,1.0)).xyz;',
+      );
+    shader.fragmentShader = shader.fragmentShader
+      .replace(
+        '#include <common>',
+        `#include <common>
+varying float vMajorRiverBankFactor;
+varying float vMajorRiverBendFactor;
+varying vec3 vMajorRiverWorldPosition;
+float majorRiverHash(vec2 p){
+  p=fract(p*vec2(0.1031,0.1030));
+  p+=dot(p,p.yx+33.33);
+  return fract((p.x+p.y)*p.x);
+}
+float majorRiverNoise(vec2 p){
+  vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);
+  float a=majorRiverHash(i),b=majorRiverHash(i+vec2(1.0,0.0));
+  float c=majorRiverHash(i+vec2(0.0,1.0)),d=majorRiverHash(i+vec2(1.0,1.0));
+  return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);
+}
+float majorRiverFbm(vec2 p){
+  return majorRiverNoise(p)*0.57+majorRiverNoise(p*2.11+vec2(13.7,-5.1))*0.29+majorRiverNoise(p*4.73+vec2(-8.9,21.4))*0.14;
+}`,
+      )
+      .replace(
+        '#include <color_fragment>',
+        `#include <color_fragment>
+float majorRiverBankDistance=clamp(abs(vFlowSide),0.0,1.0);
+float majorRiverBend=clamp(vMajorRiverBendFactor,-1.0,1.0);
+float majorRiverOuter=smoothstep(0.05,0.70,majorRiverBend*vFlowSide);
+float majorRiverInner=smoothstep(0.05,0.70,-majorRiverBend*vFlowSide);
+vec2 majorRiverXZ=vMajorRiverWorldPosition.xz;
+float majorRiverMacro=majorRiverFbm(majorRiverXZ/180.0+vec2(7.1,-12.3));
+float majorRiverMeso=majorRiverFbm(majorRiverXZ/47.0+vec2(-19.4,4.7));
+float majorRiverFine=majorRiverNoise(majorRiverXZ/11.0+vec2(31.2,18.6));
+float majorRiverBankIrregular=smoothstep(0.48,0.82,majorRiverMacro*0.52+majorRiverMeso*0.34+majorRiverFine*0.14);
+float majorRiverSediment=majorRiverInner*majorRiverBankDistance*majorRiverBankIrregular*(1.0-smoothstep(2.2,4.6,vFlowSpeed));
+float majorRiverShear=majorRiverOuter*smoothstep(1.5,4.4,vFlowSpeed)*(0.58+majorRiverMeso*0.42);
+float majorRiverBankFoam=smoothstep(0.66,0.98,majorRiverBankDistance)*smoothstep(0.53,0.86,majorRiverMeso)*(0.28+majorRiverShear*0.72);
+float majorRiverWidthWet=clamp((vMajorRiverBankFactor-0.82)/0.38,0.0,1.0);
+vec3 majorRiverSedimentColor=vec3(0.19,0.245,0.205);
+vec3 majorRiverDeepCurrent=vec3(0.075,0.285,0.335);
+vec3 majorRiverFoamColor=vec3(0.82,0.91,0.90);
+diffuseColor.rgb=mix(diffuseColor.rgb,majorRiverSedimentColor,majorRiverSediment*0.18);
+diffuseColor.rgb=mix(diffuseColor.rgb,majorRiverDeepCurrent,majorRiverShear*0.12);
+diffuseColor.rgb=mix(diffuseColor.rgb,majorRiverFoamColor,majorRiverBankFoam*0.11);
+diffuseColor.rgb*=1.0+(majorRiverMacro-0.5)*0.055+(majorRiverFine-0.5)*0.018*majorRiverWidthWet;`,
+      )
+      .replace(
+        '#include <roughnessmap_fragment>',
+        `#include <roughnessmap_fragment>
+float majorRiverRoughMacro=majorRiverFbm(vMajorRiverWorldPosition.xz/71.0+vec2(5.8,17.1));
+float majorRiverRoughBank=smoothstep(0.62,0.98,abs(vFlowSide));
+roughnessFactor=clamp(roughnessFactor+(majorRiverRoughMacro-0.5)*0.10+majorRiverRoughBank*0.045-majorRiverShear*0.065,0.18,0.92);`,
+      );
+  };
+  material.customProgramCacheKey = () => `${priorCacheKey()}|${MAJOR_RIVER_RENDER_POLICY.id}`;
+  material.userData.majorRiverBankMaterial = MAJOR_RIVER_RENDER_POLICY.id;
+  material.needsUpdate = true;
+  return material;
 }
 
 function createAnimatedRiverMaterial(network) {
@@ -250,12 +354,14 @@ function createAnimatedRiverMaterial(network) {
   if (!prototype) return null;
   const material = prototype.material;
   prototype.geometry.dispose();
+  installMajorRiverBankMaterial(material);
   material.userData.majorRiverNetwork = Object.freeze({
     policyId: MAJOR_RIVER_RENDER_POLICY.id,
     networkPolicyId: network.policyId,
     riverCount: network.rivers.length,
     singleDrawCall: true,
     naturalizedBanks: true,
+    curvatureAwareFlowMaterial: true,
   });
   return material;
 }
@@ -335,6 +441,7 @@ export function createMajorRiverRenderSet(network, options = {}) {
       waterfallCount: waterfalls.length,
       singleRiverDrawCall: river != null,
       naturalizedBanks: river != null,
+      curvatureAwareFlowMaterial: river != null,
       totalLengthMeters: network?.stats?.totalLengthMeters ?? 0,
     }),
   });
