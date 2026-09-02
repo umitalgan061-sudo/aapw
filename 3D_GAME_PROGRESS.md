@@ -18990,7 +18990,11 @@ Görsel doğrulama (§8.5) 3 gerçek kamera açısı: `artifacts/ground-grain/`.
 LFS binary'leri pointer olduğu için, görsel doğrulama script'leri artık `assets/` yükleme hatalarını
 ayırt ediyor. Ders: "render byte-identical" bulgusunda önce **render'ın gerçekten çalıştığı** kanıtlanır.
 
-**Bilinen, bu turun kapsamı dışında kalan kusur:** `artifacts/ground-grain/road-walking.png`'de yol
-şeridi bir tepe sırtında zeminden ayrılıp havada asılı kalıyor. Sebebi doku değil: şerit yüksekliğini
-`sampleHeightMeters`'tan **analitik** alıyor, terrain mesh'i ise 500 m'yi 64 segmentle (7,8 m aralık)
-örnekliyor, yani keskin sırtta mesh gerçek yüzeyin altından kesiyor. Sıradaki alt görev bu.
+**Yayınladıktan sonra düzeltilen bir yanlış teşhis:** ilk render'da yol şeridi bir tepe sırtında
+zeminden ayrılıp havada asılı görünüyordu ve bunu terrain LOD'una bağlamıştım. Değildi — hata benim
+capture script'imdeydi: `createTerrainChunk`'ı `roadCorridor` ve `valleyField` **olmadan** çağırıyordum,
+yani oyunun hiç çizmediği bir zemini render ediyordum. `worldFoundation.js`'in `buildWorldFoundation()`
+çıktısıyla (yerleşim pad'leri + nehir vadileri + ADR-0304 yol yatağı) ve masaüstünün gerçek NEAR
+çözünürlüğüyle (128 segment) tekrar alındığında şerit zemine tam oturuyor. `artifacts/ground-grain/`
+altındaki üç görsel bu doğru kurulumdan. Ders: görsel kanıt, oyunun kendi dünya kurulum zincirinden
+geçmeden alınmaz.
