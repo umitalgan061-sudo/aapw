@@ -15,7 +15,7 @@
 
 import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
-import { prepareConfiguredAnimalWorldAsset } from './faunaWorldPlacement.js';
+import { evaluateConfiguredFaunaHabitat, prepareConfiguredAnimalWorldAsset } from './faunaWorldPlacement.js';
 
 const MAX_WILDLIFE_SIMULATION_STEP_SECONDS = 0.1;
 const DEFAULT_FLEE_RELEASE_MARGIN_METERS = 3;
@@ -395,19 +395,25 @@ export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsB
 				return null;
 			}
 			const { worldX, worldZ, groundY } = placement;
-			const patrolWaypoints = spawn.patrol
-				? [
-						{ x: worldX, z: worldZ },
-						{ x: seat.x + spawn.patrol.toOffsetXMeters, z: seat.z + spawn.patrol.toOffsetZMeters },
-					]
-				: undefined;
 			const clips = species?.clips;
 			const walkClipName = species ? clips?.walk : animalConfig.WALK_CLIP_NAME;
-			const effectiveWaypoints = walkClipName ? patrolWaypoints : undefined;
+			const speciesId = spawn.speciesId ?? 'wolf';
+			const patrolTarget = spawn.patrol && walkClipName
+				? { x: seat.x + spawn.patrol.toOffsetXMeters, z: seat.z + spawn.patrol.toOffsetZMeters }
+				: null;
+			const patrolPlacement = patrolTarget
+				? evaluateConfiguredFaunaHabitat(speciesId, patrolTarget.x, patrolTarget.z, groundCollider)
+				: null;
+			const effectiveWaypoints = patrolPlacement?.ok
+				? [{ x: worldX, z: worldZ }, patrolTarget]
+				: undefined;
+			if (patrolTarget && !patrolPlacement?.ok) {
+				console.warn(`[gameplay/animals] Animal spawn "${spawn.id}" patrol target rejected by habitat placement (${patrolPlacement?.error ?? 'unknown'}) — keeping safe spawn without patrol.`);
+			}
 			const fleeClipName = species ? clips?.flee : animalConfig.FLEE_CLIP_NAME;
 			const canFlee = spawn.canFlee !== false && Boolean(fleeClipName);
 			try {
-				return await createWolf({
+				const controller = await createWolf({
 					assetLoader,
 					modelUrl: species?.modelUrl ?? spawn.modelUrl ?? animalConfig.WOLF_MODEL_URL,
 					idleClipName: species ? clips?.idle : animalConfig.IDLE_CLIP_NAME,
@@ -417,7 +423,7 @@ export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsB
 					groundY,
 					rotationYRadians: spawn.rotationYRadians,
 					name: spawn.id,
-					worldPlacementSpeciesId: spawn.speciesId ?? 'wolf',
+					worldPlacementSpeciesId: speciesId,
 					groundCollider,
 					playerCollider,
 					walkClipName: effectiveWaypoints ? walkClipName : undefined,
@@ -430,6 +436,16 @@ export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsB
 					fleeSpeedMps: animalConfig.FLEE_SPEED_MPS,
 					packAlertRadiusMeters: canFlee ? animalConfig.PACK_ALERT_RADIUS_METERS : undefined,
 				});
+				controller.object3D.userData.faunaPatrolPlacement = Object.freeze({
+					enabled: Boolean(effectiveWaypoints),
+					target: patrolTarget ? Object.freeze({ ...patrolTarget }) : null,
+					error: patrolTarget && !patrolPlacement?.ok ? (patrolPlacement?.error ?? 'unknown') : null,
+					biome: patrolPlacement?.geography?.surface?.biome ?? null,
+					slopeDegrees: Number.isFinite(patrolPlacement?.geography?.surface?.slopeDegrees)
+						? Number(patrolPlacement.geography.surface.slopeDegrees.toFixed(3))
+						: null,
+				});
+				return controller;
 			} catch (error) {
 				if (error?.code !== 'configured-fauna-world-placement') throw error;
 				console.warn(`[gameplay/animals] Animal spawn "${spawn.id}" rejected by geographic/material placement (${error.message}) — skipping.`);
