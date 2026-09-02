@@ -1,0 +1,152 @@
+name: Temporary settlement ambient prop runtime integration
+
+on:
+  push:
+    paths:
+      - '.github/workflows/_tmp-integrate-settlement-ambient-props.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/aapw-realism-20260831-ocean
+          fetch-depth: 0
+
+      - name: Integrate ambient prop production lifecycle
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          scene_path = Path('src/3d/sceneManager.js')
+          scene = scene_path.read_text()
+          scene_replacements = [
+              (
+                  "import { createVillages } from './world/villages.js';\nimport { createIceLandmarks } from './world/iceLandmarks.js';",
+                  "import { createVillages } from './world/villages.js';\n"
+                  "import { createSettlementAmbientProps, upgradeSettlementAmbientPropAssets } from './world/settlementAmbientProps.js';\n"
+                  "import { createIceLandmarks } from './world/iceLandmarks.js';",
+              ),
+              (
+                  "\tscene.add(roadsResult.group);\n\tconsole.info(\n\t\t`[sceneManager] Built road network: ${roadsResult.edges.length} segment(s) connecting ` +\n\t\t\t`${settlementsResult.seats.length} kingdom seats, ${(roadsResult.totalLengthMeters / 1000).toFixed(2)} km total, ` +\n\t\t\t`steepest actual segment grade ${roadsResult.maxGradeDegrees.toFixed(1)}°.` ,\n\t);",
+                  "\tscene.add(roadsResult.group);\n\tconsole.info(\n\t\t`[sceneManager] Built road network: ${roadsResult.edges.length} segment(s) connecting ` +\n\t\t\t`${settlementsResult.seats.length} kingdom seats, ${(roadsResult.totalLengthMeters / 1000).toFixed(2)} km total, ` +\n\t\t\t`steepest actual segment grade ${roadsResult.maxGradeDegrees.toFixed(1)}°.` ,\n\t);\n\n"
+                  "\t// Small ambient props occupy only the already-canonical kingdom-seat apron. They do not\n"
+                  "\t// participate in collision/gameplay and never create settlement coordinates; placement is\n"
+                  "\t// derived from the same seat, terrain and routed-road authorities already live above.\n"
+                  "\tconst settlementAmbientPropsResult = createSettlementAmbientProps({\n"
+                  "\t\tsampleHeightMeters: groundCollider.getGroundHeight,\n"
+                  "\t\tseaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,\n"
+                  "\t\tseed: WORLD_DEFAULTS.WORLD_SEED,\n"
+                  "\t\tseats: settlementsResult.seats,\n"
+                  "\t\troadEdges: roadsResult.edges,\n"
+                  "\t\tworldWidthMeters: WORLD_SCALE.WORLD_WIDTH_METERS,\n"
+                  "\t\tworldDepthMeters: WORLD_SCALE.WORLD_DEPTH_METERS,\n"
+                  "\t\tisMobileClass,\n"
+                  "\t});\n"
+                  "\tscene.add(settlementAmbientPropsResult.group);\n"
+                  "\tconsole.info(\n"
+                  "\t\t`[sceneManager] Settlement ambient props: ${settlementAmbientPropsResult.stats.placedCount}/` +\n"
+                  "\t\t\t`${settlementAmbientPropsResult.stats.targetCount} deterministic apron placement(s), ` +\n"
+                  "\t\t\t`checksum ${settlementAmbientPropsResult.stats.placementChecksum}.`,\n"
+                  "\t);\n"
+                  "\tconst settlementAmbientAbortController = new AbortController();\n"
+                  "\twindow.addEventListener('pagehide', () => settlementAmbientAbortController.abort(), { once: true });\n"
+                  "\tvoid upgradeSettlementAmbientPropAssets(settlementAmbientPropsResult.group, {\n"
+                  "\t\tsignal: settlementAmbientAbortController.signal,\n"
+                  "\t\tisMobileClass,\n"
+                  "\t\tsampleHeightMeters: groundCollider.getGroundHeight,\n"
+                  "\t\tseaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,\n"
+                  "\t\tseats: settlementsResult.seats,\n"
+                  "\t\troadEdges: roadsResult.edges,\n"
+                  "\t}).then((upgrade) => {\n"
+                  "\t\tif (upgrade.status === 'active') {\n"
+                  "\t\t\tconsole.info(`[sceneManager] Hydrated ${upgrade.hydratedPlacementCount} settlement ambient prop placement(s) from ${upgrade.activeFamilyCount} repository GLB family/families.`);\n"
+                  "\t\t} else if (upgrade.status === 'procedural-fallback') {\n"
+                  "\t\t\tconsole.info('[sceneManager] Settlement ambient GLBs unavailable/mobile; deterministic weathered fallback remains active.');\n"
+                  "\t\t}\n"
+                  "\t}).catch((error) => {\n"
+                  "\t\tconsole.warn('[sceneManager] Optional settlement ambient prop hydration failed; deterministic fallback remains active.', error);\n"
+                  "\t});",
+              ),
+              (
+                  "\tapplyShadowRoles(settlementsResult.group, { quality: renderQuality });\n\tapplyShadowRoles(villagesResult.group, { quality: renderQuality });",
+                  "\tapplyShadowRoles(settlementsResult.group, { quality: renderQuality });\n"
+                  "\tapplyShadowRoles(settlementAmbientPropsResult.group, { quality: renderQuality });\n"
+                  "\tapplyShadowRoles(villagesResult.group, { quality: renderQuality });",
+              ),
+              (
+                  "\t\tsettlements: settlementsResult.group,\n\t\troads: roadsResult.group,",
+                  "\t\tsettlements: settlementsResult.group,\n"
+                  "\t\tsettlementAmbientProps: settlementAmbientPropsResult.group,\n"
+                  "\t\tsettlementAmbientPropStats: settlementAmbientPropsResult.stats,\n"
+                  "\t\troads: roadsResult.group,",
+              ),
+          ]
+          # The road log in historical branches has occasionally varied by one whitespace before the comma;
+          # use a narrower anchor if the exact block above changed without altering semantics.
+          first_old, first_new = scene_replacements[0]
+          if scene.count(first_old) != 1:
+              raise SystemExit('sceneManager import anchor drifted')
+          scene = scene.replace(first_old, first_new, 1)
+
+          road_old, road_new = scene_replacements[1]
+          if scene.count(road_old) == 1:
+              scene = scene.replace(road_old, road_new, 1)
+          else:
+              anchor = "\t// Asset-informed geology is deliberately created after roads/settlements so placement can reserve\n"
+              if scene.count(anchor) != 1:
+                  raise SystemExit('sceneManager geology insertion anchor drifted')
+              production = road_new.split("\n\n", 1)[1]
+              scene = scene.replace(anchor, production + "\n\n" + anchor, 1)
+
+          for old, new in scene_replacements[2:]:
+              if scene.count(old) != 1:
+                  raise SystemExit(f'sceneManager expected one anchor, got {scene.count(old)}: {old[:80]!r}')
+              scene = scene.replace(old, new, 1)
+          scene_path.write_text(scene)
+
+          game_path = Path('src/3d/game3d.js')
+          game = game_path.read_text()
+          game_replacements = [
+              (
+                  "import { disposeVillages } from './world/villages.js';\nimport { disposeIceLandmarks } from './world/iceLandmarks.js';",
+                  "import { disposeVillages } from './world/villages.js';\n"
+                  "import { disposeSettlementAmbientProps } from './world/settlementAmbientProps.js';\n"
+                  "import { disposeIceLandmarks } from './world/iceLandmarks.js';",
+              ),
+              (
+                  "\t\t\tdisposeSettlements(state.settlements);\n\t\t\tdisposeRealCastleModels(state.realCastles);\n\t\t\tdisposeRoadNetwork(state.roads);",
+                  "\t\t\tdisposeSettlements(state.settlements);\n"
+                  "\t\t\tdisposeRealCastleModels(state.realCastles);\n"
+                  "\t\t\tdisposeSettlementAmbientProps(state.settlementAmbientProps);\n"
+                  "\t\t\tdisposeRoadNetwork(state.roads);",
+              ),
+          ]
+          for old, new in game_replacements:
+              if game.count(old) != 1:
+                  raise SystemExit(f'game3d expected one anchor, got {game.count(old)}: {old[:80]!r}')
+              game = game.replace(old, new, 1)
+          game_path.write_text(game)
+          PY
+
+          node --check src/3d/world/settlementAmbientProps.js
+          node --check src/3d/sceneManager.js
+          node --check src/3d/game3d.js
+          git diff --check
+
+      - name: Commit runtime integration and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/_tmp-integrate-settlement-ambient-props.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/3d/sceneManager.js src/3d/game3d.js .github/workflows/_tmp-integrate-settlement-ambient-props.yml
+          git commit -m 'feat(world): integrate settlement ambient prop lifecycle'
+          git push origin HEAD:codex/aapw-realism-20260831-ocean
