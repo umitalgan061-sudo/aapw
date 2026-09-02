@@ -466,3 +466,12 @@ Snapshot'ta okuyup geçici varsayılanlara uymaya devam edecek.
   kendi perf-snapshot'ları gerçek doku/geometri sayıları raporlamıştı — o oturumların ortamı bu
   sorundan etkilenmemiş olabilir (rename daha sonra mı oldu, yoksa onlarda `git-lfs` zaten mı kuruluydu,
   bilinmiyor) — tahmin edilmedi.
+
+  **(run 349 ek doğrulama, aynı 🔴 madde, yeniden bildirilmedi):** Bu sonraki run'ın kendi ortamı da
+  aynı şekilde etkilendi — `git-lfs` burada da önceden kurulu değildi, `apt-get install -y git-lfs` +
+  `git lfs install` başarıyla çalıştı ama `git lfs pull` yine sessizce hiçbir şey yapmadan bitti (0
+  exit code, 0 dosya smudge edildi). Bu, run341-343'ün "belki onlarda git-lfs zaten kuruluydu" sorusuna
+  kısmi bir veri noktası ekliyor: en azından run344 VE run349'un ikisi de aynı bloğu görüyor — tek
+  seferlik bir durum değil, tutarlı/süregelen bir ortam koşulu. Owner henüz bir aksiyon almadı (rename
+  hâlâ `aapw`, environment hâlâ eski adı gösteriyor). Kod değişikliği yapılmadı, tekrar push bildirimi
+  atılmadı (run344 zaten iletmişti).
