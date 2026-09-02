@@ -46,6 +46,15 @@ self.addEventListener('install', () => {
     GAME3D_SHELL_FILES.push('./assets/models/animals/sheep_C39AUXUUes.glb');
 });
 
+// Run417 near-detail tree offline shell extension — the two real tree models
+// `world/vegetationNearDetail.js` stands in place of the primitive scatter within 220 m of the
+// camera. Without them cached an offline session keeps the cones and spheres, which degrades rather
+// than breaks; with them the near field looks the same offline as online.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./assets/models/vegetation/pine_Zt62gceKXZ.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/vegetation/tree_QVOop92WmG.glb');
+});
+
 // Run407 Valyria magma-hound offline shell extension — `gameplay/animalConfig.js`'s new `magmaHound`
 // species model, spawned nine times in the Doom of Valyria. Without it an offline session puts nine
 // placeholder boxes there instead of the pack.
@@ -338,7 +347,7 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run 414 gives the road an actual dirt surface -- broad damp patching, wheel ruts, a drier crown,
 // grit and scattered stones, all procedural because this container has no git-lfs and so no texture
 // file can be committed. A stale shell keeps drawing the flat tan band. v64->v65.
-const SHELL_CACHE = 'westeros-shell-v66';
+const SHELL_CACHE = 'westeros-shell-v67';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -454,6 +463,10 @@ const SHELL_FILES = [
 // imported by `world/terrainMicroSurface.js` and `world/roads.js`, plus its three image tiles. An
 // offline install cached before this run would fetch a `terrainMicroSurface.js` whose import of it
 // 404s, taking the whole 3D mode down rather than degrading, so `SHELL_CACHE` is bumped v65->v66.
+//
+// run 417 (3D_GAME_PROGRESS.md ADR-0365): added `world/vegetationNearDetail.js`, imported by
+// `sceneManager.js`, plus the two real tree models it draws. Same reason as above: an offline install
+// holding the older `sceneManager.js` would 404 on the new module. `SHELL_CACHE` bumped v66->v67.
 const GAME3D_SHELL_FILES = [
     './src/3d/editor/EditorFallbackMaterialPalette.js',
     './game3d.html',
@@ -534,6 +547,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/world/terrainContinentalUplift.js',
     './src/3d/world/terrainMicroSurface.js',
     './src/3d/world/groundSurfaceGrain.js',
+    './src/3d/world/vegetationNearDetail.js',
     './src/3d/world/terrainReliefDetail.js',
     './src/3d/world/chunkManager.js',
     './src/3d/world/waterLatitude.js',

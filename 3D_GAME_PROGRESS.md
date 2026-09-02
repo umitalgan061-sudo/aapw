@@ -18998,3 +18998,56 @@ yani oyunun hiç çizmediği bir zemini render ediyordum. `worldFoundation.js`'i
 çözünürlüğüyle (128 segment) tekrar alındığında şerit zemine tam oturuyor. `artifacts/ground-grain/`
 altındaki üç görsel bu doğru kurulumdan. Ders: görsel kanıt, oyunun kendi dünya kurulum zincirinden
 geçmeden alınmaz.
+
+## Tur 417 — Kameranın yanındaki ağaçlar artık gerçek model (ADR-0365)
+
+Tur 416'dan sonra zemini yakından çekince asıl yapaylık ortaya çıktı: **ağaçlar koni ve küre.**
+`world/vegetation.js` her ağacı iki primitif çiziyor — altı kenarlı silindir gövde, üstünde yedi
+kenarlı koni ya da 7x6 küre. Yazıldığında doğru karardı (ADR-0138/0139: parça başına tek draw call,
+dosya yok, bedavaya orman) ve uzak yamaçlardaki binlerce ağaç için hâlâ doğru. Yanı başındaki sekiz
+on ağaç için yanlış — ve dünyayı yapay gösteren tam olarak onlar.
+
+Bu arada `assets/models/vegetation/` altında sahibin içe aktardığı **yirmi gerçek ağaç modeli**
+duruyor. `worldPropCatalogue.js` onları yerleştiriyor ama kilometrekareye ~2 yoğunlukla — bir ağaca
+baktığınızda gördüğünüz şey olacak kadar değil.
+
+**`world/vegetationNearDetail.js`:** kameranın çevresinde, sadece orada, her primitif ağaç aynı yerde
+duran gerçek bir modelle değiştiriliyor — aynı konum, aynı yaw, aynı boy. Yarıçapın dışında hiçbir şey
+değişmiyor, yani maliyet dünyanın ağaç sayısına değil **alana** bağlı: 220 m'lik bir daire harita ne
+kadar büyürse büyüsün 40 küsur ağaç tutar.
+
+**Primitif neden matrisle değil attribute ile gizleniyor:** bir instance'ı gizlemenin bariz yolu
+üstüne sıfır ölçekli matris yazmak, ve burada olmaması gereken tam olarak bu —
+`scripts/checkVegetationVisualContract.js` hem `instanceMatrix.usage`'ı `StaticDrawUsage`'a hem de her
+matrisi bağımsız kurulmuş ikinci bir scatter'a pinliyor. İkisi de kırılırdı. Bu yüzden matrislere hiç
+dokunulmuyor: instanced bir float attribute ağaç başına gizli bayrağını taşıyor ve iki satırlık vertex
+yaması gizli ağacın vertex'lerini kendi orijinine çökertiyor — üçgenleri dejenere oluyor, hiçbir şey
+rasterize edilmiyor.
+
+**Boy eşleşmesi ölçüyle:** modelin tabanı y=0'a, gövdesi x=z=0'a alınıyor ve boyu — varsayılarak
+değil, primitiflerin kendi bounding box'ından **ölçülerek** — değiştirdiği türün boyuna ölçekleniyor.
+Bu sayede primitifin instance matrisi olduğu gibi yeniden kullanılıyor; yaw ve ağaç başına ölçek
+farkı dahil. Yukarıdan bakıldığında geçiş görünmüyor (`artifacts/near-trees/over.png`).
+
+**Bütçe:** masaüstü 220 m / 44 ağaç, mobil 90 m / 10 ağaç. Modeller ~3.500 üçgen, yani mobilde en
+kötü ihtimalle +36.500 üçgen — `checkMobilePerfBudget.js`'in 500.000'lik tavanının %7'si. Draw call
++4. `checkMobilePerfBudget.js` bu konteynerde çalışmıyor (RCA_RUN344, LFS pointer'ları), o yüzden bu
+rakam ölçüm değil hesap; mobil sınırlar da zaten bu hesaba göre seçildi.
+
+**Model `assetLoader.loadModel` ile değil doğrudan `GLTFLoader` ile yükleniyor:** o fonksiyon eksik
+dosyaya macenta bir kutuyla cevap veriyor ve ağacın yerinde duran bir kutu, yerine geçtiği primitiften
+kötüdür. Yükleme başarısız olursa katman pasif kalıyor ve dünya `world/vegetation.js`'in çizdiği gibi
+kalıyor.
+
+Kapılar: `checkVegetationVisualContract`, `checkSmokeCheckRegistry`, `checkAssetCoverage`,
+`checkAssetsManifest`, `checkServiceWorkerCache`, `checkPwaInstallability`, `checkTechnicalDebt`,
+`checkSeededRandomPolicy` — hepsi PASS. `SHELL_CACHE` v66 -> v67.
+
+**Yol boyunca bulunan ve düzeltilen iki şey:** (1) `disposeVegetation` `children` üzerinde düz bir
+döngüydü; artık `traverse` — yoksa bu katmanın bütün geometri ve texture'ları sızardı. (2) İlk
+sürümde tetikleyici mesh `visible: false`'du ve three.js görünmeyen materyali render listesine hiç
+almadığı için seçim kancası hiç çalışmadı (`detailedCount` 0). Artık ne renk ne derinlik yazan tek bir
+dejenere üçgen.
+
+**Sıradaki, aynı görsellerde apaçık duran kusur:** rüzgâr çimi (`world/windGrass.js`) devasa, koyu ve
+seyrek bıçaklar halinde — `artifacts/near-trees/eye2.png`. Karede kalan en yapay şey o.

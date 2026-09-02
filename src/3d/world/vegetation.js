@@ -476,10 +476,12 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
  * @param {THREE.Group} group
  */
 export function disposeVegetation(group) {
-	for (const mesh of group.children) {
-		mesh.geometry.dispose();
-		mesh.material.dispose();
-	}
+	// `traverse`, not a flat loop over `children`: run 417 hangs a whole sub-group of real tree models
+	// off this one, and a flat loop would walk past it and leak every geometry and texture inside.
+	group.traverse((node) => {
+		if (node.geometry) node.geometry.dispose();
+		for (const material of Array.isArray(node.material) ? node.material : [node.material]) material?.dispose?.();
+	});
 }
 
 

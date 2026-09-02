@@ -32,6 +32,7 @@ import { buildWorldFoundation } from './worldFoundation.js';
 import { buildRoadNetwork } from './world/roads.js';
 import { createVegetation } from './world/vegetation.js';
 import { createWindGrassRun180 } from './world/windGrass.js';
+import { createVegetationNearDetail } from './world/vegetationNearDetail.js';
 import { createVillages } from './world/villages.js';
 import { createOrbitCamera } from './camera.js';
 import { createFreeCameraController } from './debug/freeCamera.js';
@@ -444,5 +445,27 @@ createScene = function createSceneWithWindGrassRun180(canvas) {
 	state.vegetation.userData.run180GrassGroup = grass.group;
 	state.grass = grass.group;
 	state.grassStats = grass.group.userData.run180WindGrass;
+	return state;
+};
+
+// Run 417 — real tree models for the trees near the camera, layered on top of the primitive scatter
+// that `world/vegetation.js` builds above (see that module for why the far field stays primitives).
+// Wrapped rather than inlined for the same reason the wind grass above is: `createScene` is already
+// long, and this is a purely additive render layer that must never be able to fail the scene build.
+// The model load is deliberately not awaited — the world is playable while it resolves, and if it
+// never does, `createVegetationNearDetail` leaves the primitives exactly as they were.
+const _createSceneBeforeNearTreesRun417 = createScene;
+createScene = function createSceneWithNearTreesRun417(canvas) {
+	const state = _createSceneBeforeNearTreesRun417(canvas);
+	const nearTrees = createVegetationNearDetail({
+		vegetationGroup: state.vegetation,
+		isMobileClass: isCoarsePointerDevice(),
+	});
+	// Parented to the vegetation group, not to the scene: `disposeVegetation` walks that group and
+	// releases everything under it, so the layer's geometries and textures cannot outlive the world.
+	state.vegetation.add(nearTrees.group);
+	state.nearTrees = nearTrees.group;
+	state.nearTreeStats = nearTrees.stats;
+	state.nearTreesReady = nearTrees.ready;
 	return state;
 };
