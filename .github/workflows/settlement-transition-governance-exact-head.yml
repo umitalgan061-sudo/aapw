@@ -121,3 +121,11 @@ jobs:
           BASE="$(git merge-base HEAD origin/main)"
           echo "remote-main=$REMOTE_MAIN merge-base=$BASE head=$(git rev-parse HEAD)"
           test "$BASE" = "$REMOTE_MAIN"
+
+      - name: Enforce broad Run283 blocker parity
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "broad-diagnostics outcome=${{ steps.broad-diagnostics.outcome }}"
+          test "${{ steps.broad-diagnostics.outcome }}" = "success"
