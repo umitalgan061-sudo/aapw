@@ -23,6 +23,7 @@ on:
       - 'scripts/checkMountainMeshFrequencyBudget.mjs'
       - 'scripts/checkMountainRuntimeGeometryParity.mjs'
       - 'scripts/checkMountainWallSilhouetteBreakup.mjs'
+      - 'scripts/checkMountainGeologyAssetReadiness.mjs'
       - 'scripts/checkMountainPassReliefSafety.mjs'
       - 'scripts/checkMountainVisualProofContract.mjs'
       - 'scripts/captureLiveWorldMountainNaturalization.mjs'
@@ -97,6 +98,7 @@ jobs:
           node --check scripts/checkMountainMeshFrequencyBudget.mjs
           node --check scripts/checkMountainRuntimeGeometryParity.mjs
           node --check scripts/checkMountainWallSilhouetteBreakup.mjs
+          node --check scripts/checkMountainGeologyAssetReadiness.mjs
           node --check scripts/checkMountainPassReliefSafety.mjs
           node --check scripts/checkMountainVisualProofContract.mjs
           node --check scripts/captureLiveWorldMountainNaturalization.mjs
@@ -150,6 +152,7 @@ jobs:
         run: |
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkMountainGeologyAssetReadiness.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-geology-assets.log"
           node scripts/checkMountainRuntimeGeometryParity.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-runtime-parity.log"
           node scripts/captureLiveWorldMountainNaturalization.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-visual.log"
           grep -F LIVE_WORLD_MOUNTAIN_NATURALIZATION_OK "$RUNNER_TEMP/mountain-visual.log"
@@ -194,6 +197,7 @@ jobs:
             ${{ runner.temp }}/mountain-frequency.log
             ${{ runner.temp }}/mountain-runtime-parity.log
             ${{ runner.temp }}/mountain-wall-breakup.log
+            ${{ runner.temp }}/mountain-geology-assets.log
             ${{ runner.temp }}/mountain-pass.log
             ${{ runner.temp }}/mountain-proof-contract.log
             ${{ runner.temp }}/repository-policy.log
