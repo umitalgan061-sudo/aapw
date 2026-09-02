@@ -69,7 +69,8 @@ try {
     });
 
     const wolfSpawn = ANIMAL_CONFIG.SPAWNS.find((spawn) => (spawn.speciesId ?? 'wolf') === 'wolf');
-    const config = { ...ANIMAL_CONFIG, SPAWNS: [wolfSpawn] };
+    const horseSpawn = ANIMAL_CONFIG.SPAWNS.find((spawn) => spawn.speciesId === 'horse');
+    const config = { ...ANIMAL_CONFIG, SPAWNS: [wolfSpawn, horseSpawn] };
     const controllers = await spawnConfiguredAnimals({
       assetLoader,
       animalConfig: config,
@@ -78,8 +79,9 @@ try {
       groundCollider,
       playerCollider: { resolveXZ: (x, z) => ({ x, z }) },
     });
-    const controller = controllers[0];
-    if (!controller) return { assetErrors, distributionAudit, missingController: true };
+    const controller = controllers.find((entry) => entry.object3D.name === wolfSpawn?.id);
+    const horseController = controllers.find((entry) => entry.object3D.name === horseSpawn?.id);
+    if (!controller || !horseController) return { assetErrors, distributionAudit, missingController: !controller, missingHorseController: !horseController };
 
     const root = controller.object3D;
     const textureSizes = [];
@@ -97,6 +99,23 @@ try {
       }
     });
 
+    const horseRoot = horseController.object3D;
+    const horseTextureSizes = [];
+    const horseSurfacePalettes = new Set();
+    horseRoot.traverse((node) => {
+      if (!node?.isMesh) return;
+      for (const material of (Array.isArray(node.material) ? node.material : [node.material])) {
+        if (material?.userData?.paletteId) horseSurfacePalettes.add(material.userData.paletteId);
+        for (const palette of material?.userData?.layeredBands ?? []) horseSurfacePalettes.add(palette);
+        for (const field of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap']) {
+          const texture = material?.[field];
+          if (!texture?.isTexture) continue;
+          const image = texture.image ?? texture.source?.data;
+          horseTextureSizes.push({ field, width: image?.width ?? null, height: image?.height ?? null });
+        }
+      }
+    });
+
     const startPosition = { x: root.position.x, y: root.position.y, z: root.position.z };
     const start = performance.now();
     for (let i = 0; i < 360; i += 1) controller.update(1 / 60, { x: root.position.x + 100, z: root.position.z + 100 }, []);
@@ -106,6 +125,7 @@ try {
       assetErrors,
       distributionAudit,
       missingController: false,
+      missingHorseController: false,
       placeholder: root.userData?.isPlaceholder === true,
       finiteTransform: [root.position.x, root.position.y, root.position.z].every(Number.isFinite),
       placement: root.userData.faunaWorldPlacement,
@@ -114,10 +134,19 @@ try {
       materialReadyForWorld: root.userData.materialReadyForWorld,
       textureSizes,
       paletteIds: [...paletteIds].sort(),
+      horse: {
+        placeholder: horseRoot.userData?.isPlaceholder === true,
+        finiteTransform: [horseRoot.position.x, horseRoot.position.y, horseRoot.position.z].every(Number.isFinite),
+        placement: horseRoot.userData.faunaWorldPlacement,
+        manifest: horseRoot.userData.worldPlacementManifest,
+        materialReadyForWorld: horseRoot.userData.materialReadyForWorld,
+        textureSizes: horseTextureSizes,
+        surfacePalettes: [...horseSurfacePalettes].sort(),
+      },
       patrolMovementMeters,
       tickBudget: { ticks: 360, elapsedMs, averageMs: elapsedMs / 360 },
     };
-    controller.dispose();
+    for (const spawnedController of controllers) spawnedController.dispose();
     events.clear();
     return result;
   });
@@ -125,12 +154,13 @@ try {
   const faunaConsoleErrors = consoleErrors.filter((message) => message.includes('animals/') || message.includes('gameplay/animals'));
   assert.equal(pageErrors.length, 0, `page errors: ${pageErrors.join(' | ')}`);
   assert.equal(faunaConsoleErrors.length, 0, `fauna console errors: ${faunaConsoleErrors.join(' | ')}`);
-  assert.deepEqual(proof.assetErrors, [], `real wolf asset failed to load: ${proof.assetErrors.join(', ')}`);
+  assert.deepEqual(proof.assetErrors, [], `real configured fauna asset failed to load: ${proof.assetErrors.join(', ')}`);
   const invalidSpawns = proof.distributionAudit.filter((entry) => !entry.spawnOk);
   const invalidRoutes = proof.distributionAudit.filter((entry) => entry.routeOk === false);
   assert.deepEqual(invalidSpawns, [], `configured fauna has habitat-invalid spawns: ${JSON.stringify(invalidSpawns)}`);
   assert.deepEqual(invalidRoutes, [], `configured fauna has habitat-invalid patrol corridors: ${JSON.stringify(invalidRoutes)}`);
   assert.equal(proof.missingController, false, 'canonical habitat gate rejected the configured wolf');
+  assert.equal(proof.missingHorseController, false, 'canonical habitat gate rejected the configured horse');
   assert.equal(proof.placeholder, false, 'real wolf resolved to placeholder');
   assert.equal(proof.finiteTransform, true, 'real wolf transform became non-finite');
   assert.equal(proof.materialReadyForWorld, true, 'real wolf bypassed shared world placement');
@@ -157,6 +187,21 @@ try {
   } else {
     assert.ok(proof.paletteIds.length > 0, 'generated fallback recorded no animal palette distribution');
   }
+
+  assert.equal(proof.horse?.placeholder, false, 'real horse resolved to placeholder');
+  assert.equal(proof.horse?.finiteTransform, true, 'real horse transform became non-finite');
+  assert.equal(proof.horse?.materialReadyForWorld, true, 'real horse bypassed shared world placement');
+  assert.equal(proof.horse?.manifest?.validation?.ok, true, `horse material validation failed: ${JSON.stringify(proof.horse?.manifest?.validation)}`);
+  assert.ok(proof.horse?.placement?.meshCount > 0 && proof.horse?.placement?.materialSlotCount > 0, 'real horse has no material-bearing mesh slots');
+  assert.ok(!['sea', 'lake'].includes(proof.horse?.placement?.baseSurface), `horse spawned on ${proof.horse?.placement?.baseSurface}`);
+  assert.ok(proof.horse?.placement?.slopeDegrees <= 28, `horse slope ${proof.horse?.placement?.slopeDegrees}° exceeds habitat policy`);
+  if (proof.horse?.placement?.materialMode === 'preserve-authored') {
+    assert.ok(proof.horse.textureSizes.length > 0, 'horse authored PBR textures were not decoded in Chromium');
+    assert.ok(proof.horse.textureSizes.every(({ width, height }) => Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0), 'horse authored PBR texture dimensions are invalid');
+  } else {
+    assert.ok(proof.horse?.placement?.generatedMaterialCount > 0, 'horse fallback generated no shared materials');
+    assert.ok(proof.horse.surfacePalettes.length > 1, `horse fallback collapsed to one surface palette: ${JSON.stringify(proof.horse.surfacePalettes)}`);
+  }
   assert.ok(proof.tickBudget.averageMs < 2, `single-wolf AI tick average ${proof.tickBudget.averageMs.toFixed(3)}ms exceeds 2ms proof budget`);
 
   console.log('CONFIGURED_FAUNA_GEOGRAPHIC_MATERIAL_BROWSER_PASS', JSON.stringify({
@@ -166,6 +211,7 @@ try {
     patrolMovementMeters: proof.patrolMovementMeters,
     textureSizes: proof.textureSizes,
     paletteIds: proof.paletteIds,
+    horse: proof.horse,
     tickBudget: proof.tickBudget,
   }));
 } finally {
