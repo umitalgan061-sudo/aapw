@@ -1,0 +1,79 @@
+name: Temporary water LOD opacity production fix
+
+on:
+  push:
+    branches:
+      - codex/aapw-realism-20260831-ocean
+
+permissions:
+  contents: write
+
+jobs:
+  patch-water:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Remove transparent near/far opacity ring
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/3d/world/water.js')
+          text = path.read_text()
+          replacements = [
+              (
+                  "id: 'water-world-surface-variation-2026-09-02-v16-owner-border-organic-handoff',",
+                  "id: 'water-world-surface-variation-2026-09-02-v17-occlusion-safe-organic-handoff',",
+              ),
+              (
+                  "\tlayerHandoffNearFadeEndMeters: 2000,\n\tdepthFieldOpticalFeatherMeters: 920,",
+                  "\tlayerHandoffNearFadeEndMeters: 2000,\n"
+                  "\tlayerHandoffFarRevealStartMeters: 1450,\n"
+                  "\tlayerHandoffFarRevealFullMeters: 1720,\n"
+                  "\tfarMarineOpticalFloorStartMeters: 2400,\n"
+                  "\tfarMarineOpticalFloorFullMeters: 3400,\n"
+                  "\tdepthFieldOpticalFeatherMeters: 920,",
+              ),
+              (
+                  "\townerWorldBorderOpticalSeal: true,\n});",
+                  "\townerWorldBorderOpticalSeal: true,\n"
+                  "\tocclusionSafeNearFarOpacity: true,\n"
+                  "});",
+              ),
+              (
+                  "\t\tfloat layerOpacity = mix(nearLayerBlend, farLayerBlend, uFarLayerMask);",
+                  "\t\tfloat farLayerVisibility = smoothstep(${WATER_SURFACE_VARIATION_POLICY.layerHandoffFarRevealStartMeters.toFixed(1)}, ${WATER_SURFACE_VARIATION_POLICY.layerHandoffFarRevealFullMeters.toFixed(1)}, layerDistance);\n"
+                  "\t\tfloat layerOpacity = mix(nearLayerBlend, farLayerVisibility, uFarLayerMask);",
+              ),
+              (
+                  "\t\tfloat farMarineOpticalFloor = uFarLayerMask * farLayerBlend * smoothstep(0.24, 0.92, rawOffshoreOptical) * ${WATER_SURFACE_VARIATION_POLICY.farMarineOpticalDepthFloor.toFixed(2)};",
+                  "\t\tfloat farMarineOpticalDistance = smoothstep(${WATER_SURFACE_VARIATION_POLICY.farMarineOpticalFloorStartMeters.toFixed(1)}, ${WATER_SURFACE_VARIATION_POLICY.farMarineOpticalFloorFullMeters.toFixed(1)}, layerDistance);\n"
+                  "\t\tfloat farMarineOpticalFloor = uFarLayerMask * farMarineOpticalDistance * smoothstep(0.24, 0.92, rawOffshoreOptical) * ${WATER_SURFACE_VARIATION_POLICY.farMarineOpticalDepthFloor.toFixed(2)};",
+              ),
+              (
+                  "\t\torganicRadialLayerHandoff: true,\n\t\textendedBackdropBeyondFullWorldFrame: true,",
+                  "\t\torganicRadialLayerHandoff: true,\n"
+                  "\t\tocclusionSafeNearFarOpacity: true,\n"
+                  "\t\textendedBackdropBeyondFullWorldFrame: true,",
+              ),
+          ]
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected one match, found {count}: {old[:120]!r}')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+      - name: Commit production fix and remove temporary workflow
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/3d/world/water.js
+          git rm .github/workflows/_tmp-water-lod-opacity-fix.yml
+          git commit -m "fix(world): remove transparent water LOD opacity ring"
+          git push origin HEAD:codex/aapw-realism-20260831-ocean
