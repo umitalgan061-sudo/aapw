@@ -154,10 +154,8 @@ const outOfCanvas = [
 assert(outOfCanvas.every((height) => height === 0), 'out-of-canvas sampler must preserve zero-addition behavior');
 
 const terrainSource = fs.readFileSync(path.join(ROOT, 'src/3d/world/terrain.js'), 'utf8');
-assert(
-	terrainSource.includes("import { sampleWorldReferenceMountainReliefMeters } from './worldReferenceMountainRelief.js';"),
-	'live terrain import missing',
-);
+const terrainMountainImport = /import\s*\{[^}]*\bsampleWorldReferenceMountainReliefMeters\b[^}]*\}\s*from\s*['"]\.\/worldReferenceMountainRelief\.js['"];?/s;
+assert(terrainMountainImport.test(terrainSource), 'live terrain import missing');
 const liveCalls = terrainSource.match(/sampleWorldReferenceMountainReliefMeters\(worldX, worldZ\)/g) ?? [];
 assert(liveCalls.length === 1, `live terrain must consume canonical relief exactly once, found ${liveCalls.length}`);
 
