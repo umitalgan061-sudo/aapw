@@ -142,6 +142,8 @@ try {
 		const passH = sampleHeight(passX, passZ);
 
 		const daylight = lightingModule.updateDayNightLighting(state.lights, 0, WORLD_DEFAULTS.DAY_LENGTH_SECONDS, 0.48);
+		const fogModule = await import('/src/3d/fog.js');
+		fogModule.updateFog(state.scene.fog, daylight);
 		const aspect = width / height;
 		const orthoHeight = Math.max(worldDepth * 1.08, worldWidth / aspect * 1.08);
 		const orthoWidth = orthoHeight * aspect;
