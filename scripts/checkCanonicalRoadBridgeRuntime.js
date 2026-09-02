@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Exact-head shipped-scene proof for canonical road/water stone bridges. */
+/** Exact-head shipped-scene proof for live road/water stone bridges. */
 const fs = require('fs');
 const path = require('path');
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
@@ -8,6 +8,7 @@ const ROOT = path.resolve(__dirname, '..');
 const ARTIFACT_DIR = path.join(ROOT, 'artifacts', 'canonical-road-bridge-runtime');
 const SCENE_SOURCE = fs.readFileSync(path.join(ROOT, 'src/3d/sceneManager.js'), 'utf8');
 const RUNTIME_SOURCE = fs.readFileSync(path.join(ROOT, 'src/3d/world/canonicalRoadBridgeRuntime.js'), 'utf8');
+const EXPECTED_LIVE_WATER_GAP_EDGES = 5;
 
 function assert(condition, message) {
 	if (!condition) throw new Error(`[checkCanonicalRoadBridgeRuntime] ${message}`);
@@ -24,10 +25,13 @@ function assertSourceOrdering() {
 		'bridge-restored road edges must exist before geology/vegetation/village placement consumes roadEdges');
 	assert(groundResolver > villages,
 		'bridge traversal height must be installed only after geography/biome placement has used canonical terrain');
-	assert(RUNTIME_SOURCE.includes("transportGapReason !== 'submerged-route'"), 'runtime must only adopt submerged road gaps');
-	assert(RUNTIME_SOURCE.includes('coveredWaterPointCount !== waterPointCount'), 'partial water suppression must fail closed');
+	assert(RUNTIME_SOURCE.includes("transportGapReason === 'submerged-route'"), 'runtime must only adopt live submerged road gaps');
+	assert(RUNTIME_SOURCE.includes('roadWaterAuditSpacingMeters: 6'), 'runtime must mirror the shipped road 6m water audit');
+	assert(RUNTIME_SOURCE.includes('sampleLiveRoadWater'), 'runtime lost live route water sampling');
+	assert(RUNTIME_SOURCE.includes('coveredWaterSampleCount !== waterSampleCount'), 'partial sampled-water suppression must fail closed');
+	assert(!RUNTIME_SOURCE.includes('buildCanonicalStoneBridgePlan'), 'live startup must not recompute the shadow canonical pathfinder plan');
 	assert(RUNTIME_SOURCE.includes('canonicalBridgeRuntimeMesh'), 'bridge meshes must be flattened into road lifecycle ownership');
-	assert(!RUNTIME_SOURCE.includes('OBJLoader'), 'runtime must not bypass the repository loader/licensing gap with an ad-hoc OBJ loader');
+	assert(!RUNTIME_SOURCE.includes('OBJLoader'), 'runtime must not bypass repository loader/licensing policy with an ad-hoc OBJ loader');
 }
 
 async function main() {
@@ -41,16 +45,15 @@ async function main() {
 	const server = await startStaticServer();
 	const { port } = server.address();
 	const browser = await playwright.chromium.launch({ headless: true });
-	let report;
+	let report = null;
+	let pageErrors = [];
 	try {
 		const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-		const pageErrors = [];
 		page.on('pageerror', (error) => pageErrors.push(String(error.message)));
 		await page.goto(`http://127.0.0.1:${port}/scripts/geographicMaterialHarness.html`, {
 			waitUntil: 'domcontentloaded', timeout: 30000,
 		});
 		report = await page.evaluate(async () => {
-			const THREE = await import('three');
 			const { createScene } = await import('/src/3d/sceneManager.js');
 			const { disposeRoadNetwork } = await import('/src/3d/world/roads.js');
 			const canvas = document.createElement('canvas');
@@ -58,7 +61,9 @@ async function main() {
 			canvas.style.width = '1440px';
 			canvas.style.height = '900px';
 			document.body.appendChild(canvas);
+			const sceneStartedAt = performance.now();
 			const state = createScene(canvas);
+			const sceneBuildMs = performance.now() - sceneStartedAt;
 			state.renderer.setSize(1440, 900, false);
 			state.camera.aspect = 1440 / 900;
 			state.camera.updateProjectionMatrix();
@@ -111,9 +116,13 @@ async function main() {
 				return error;
 			};
 			return {
+				sceneBuildMs,
 				status: runtime?.status ?? null,
 				bridgeCount: runtime?.bridgeCount ?? 0,
 				affectedEdgeCount: runtime?.affectedEdgeCount ?? 0,
+				sourceWaterGapCount: runtime?.sourceWaterGapCount ?? 0,
+				unrestoredWaterGapCount: runtime?.unrestoredWaterGapCount ?? null,
+				remainingGradeFallbackCount: runtime?.remainingGradeFallbackCount ?? null,
 				approachCount: runtime?.approachCount ?? 0,
 				maxApproachGradeDegrees: runtime?.maxApproachGradeDegrees ?? null,
 				maxApproachLengthMeters: runtime?.maxApproachLengthMeters ?? null,
@@ -130,21 +139,32 @@ async function main() {
 			};
 		});
 
+		// Persist diagnostics before acceptance assertions so a failed exact head still uploads evidence.
+		fs.writeFileSync(path.join(ARTIFACT_DIR, 'proof.json'), JSON.stringify({ ...report, pageErrors }, null, 2));
+		assert(report.sceneBuildMs < 120000, `createScene took ${(report.sceneBuildMs / 1000).toFixed(1)}s; bridge adoption must stay startup-bounded`);
 		assert(report.status === 'active-render-topology', `runtime status ${report.status}`);
-		assert(report.bridgeCount === 7, `expected 7 canonical bridges, got ${report.bridgeCount}`);
-		assert(report.affectedEdgeCount === 6, `expected 6 restored road edges, got ${report.affectedEdgeCount}`);
-		assert(report.approachCount === 14, `expected 14 bounded approaches, got ${report.approachCount}`);
+		assert(report.sourceWaterGapCount === EXPECTED_LIVE_WATER_GAP_EDGES,
+			`expected ${EXPECTED_LIVE_WATER_GAP_EDGES} live water-gap edges, got ${report.sourceWaterGapCount}`);
+		assert(report.affectedEdgeCount === EXPECTED_LIVE_WATER_GAP_EDGES,
+			`restored ${report.affectedEdgeCount}/${EXPECTED_LIVE_WATER_GAP_EDGES} live water-gap edges`);
+		assert(report.unrestoredWaterGapCount === 0, `${report.unrestoredWaterGapCount} live water-gap edge(s) remain unrestored`);
+		assert(report.remainingGradeFallbackCount === 1,
+			`grade-fallback authority changed; expected one untouched fallback, got ${report.remainingGradeFallbackCount}`);
+		assert(report.bridgeCount >= report.affectedEdgeCount,
+			`bridge count ${report.bridgeCount} cannot cover ${report.affectedEdgeCount} water-gap edges`);
+		assert(report.approachCount === report.bridgeCount * 2,
+			`expected two approaches per bridge; bridge=${report.bridgeCount} approach=${report.approachCount}`);
 		assert(report.maxApproachGradeDegrees <= 18 + 1e-9, `approach grade ${report.maxApproachGradeDegrees} > 18deg`);
 		assert(report.maxApproachLengthMeters <= 320 + 1e-9, `approach length ${report.maxApproachLengthMeters} > 320m`);
-		assert(report.waterSuppression?.total > 0, 'live road network exposed no water-route samples');
+		assert(report.waterSuppression?.total > 0, 'live road network exposed no sampled water intervals');
 		assert(report.waterSuppression.covered === report.waterSuppression.total,
-			`water suppression ${report.waterSuppression.covered}/${report.waterSuppression.total}`);
+			`sampled-water suppression ${report.waterSuppression.covered}/${report.waterSuppression.total}`);
 		assert(report.bridgeMeshCount > 0 && report.allRoadChildrenAreMeshes,
 			'road lifecycle must own only direct Mesh children after bridge adoption');
 		assert(report.restorationMesh, 'dry-road/approach restoration mesh missing');
 		assert(report.bridgeTextureCount > 0, 'stone bridge meshes lost their masonry texture');
-		assert(report.deckSurfaceCount === 7 && report.approachSurfaceCount === 14,
-			`ground surface count deck=${report.deckSurfaceCount} approach=${report.approachSurfaceCount}`);
+		assert(report.deckSurfaceCount === report.bridgeCount && report.approachSurfaceCount === report.approachCount,
+			`ground surface count deck=${report.deckSurfaceCount}/${report.bridgeCount} approach=${report.approachSurfaceCount}/${report.approachCount}`);
 		assert(Math.abs(report.groundAtDeck - report.deckY) < 0.06,
 			`player ground ${report.groundAtDeck} does not follow bridge deck ${report.deckY}`);
 		assert(Math.abs(report.outsideGround - report.deckY) > 0.1,
@@ -161,11 +181,18 @@ async function main() {
 		const disposeError = await page.evaluate(() => window.__canonicalBridgeDispose());
 		assert(disposeError === null, `disposeRoadNetwork failed after bridge adoption: ${disposeError}`);
 	} finally {
+		if (report && !fs.existsSync(path.join(ARTIFACT_DIR, 'proof.json'))) {
+			fs.writeFileSync(path.join(ARTIFACT_DIR, 'proof.json'), JSON.stringify({ ...report, pageErrors }, null, 2));
+		}
 		await browser.close();
 		server.close();
 	}
-	fs.writeFileSync(path.join(ARTIFACT_DIR, 'proof.json'), JSON.stringify(report, null, 2));
-	console.log(`[checkCanonicalRoadBridgeRuntime] PASS: ${report.bridgeCount} bridges / ${report.affectedEdgeCount} edges / ${report.approachCount} approaches / water ${report.waterSuppression.covered}/${report.waterSuppression.total}`);
+	console.log(
+		`[checkCanonicalRoadBridgeRuntime] PASS: ${report.bridgeCount} bridge(s) / `
+		+ `${report.affectedEdgeCount}/${report.sourceWaterGapCount} water-gap edges / `
+		+ `${report.approachCount} approaches / sampled water ${report.waterSuppression.covered}/${report.waterSuppression.total} / `
+		+ `scene ${(report.sceneBuildMs / 1000).toFixed(1)}s`,
+	);
 }
 
 main().catch((error) => {
