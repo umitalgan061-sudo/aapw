@@ -74,9 +74,11 @@ const SLOT_RULES = Object.freeze([
 	// dressed as a boot. Material-name weight still makes artist-authored foundation semantics win.
 	{ slot: 'structure-stone', priority: 1, words: ['stonework', 'masonry', 'foundation', 'footing', 'rubble stone', 'tas temel', 'taş temel'] },
 	// A window frame is structural timber, not glazing. It contains the high-priority `window` token,
-	// so the explicit compound must outrank the generic window rule or wooden frames become glass.
-	// Keep bare `frame` excluded: frames also occur on shields, carts and other non-building assets.
-	{ slot: 'structure-timber', priority: 4, words: ['window frame', 'windowframe', 'pencere cerceve', 'pencere çerçeve', 'timber', 'wooden beam', 'wood beam', 'plank', 'rafter', 'joist', 'log wall', 'ahsap', 'ahşap', 'tahta'] },
+	// so the explicit compound must beat the generic window rule when both are expressed on the same
+	// naming field. Keep it at the same priority as glazing so an artist-authored `Window_Glass`
+	// material (the stronger field) can still override a parent mesh named `House_Window_Frame`.
+	// Bare `frame` stays excluded: frames also occur on shields, carts and other non-building assets.
+	{ slot: 'structure-timber', priority: 3, words: ['window frame', 'windowframe', 'pencere cerceve', 'pencere çerçeve', 'timber', 'wooden beam', 'wood beam', 'plank', 'rafter', 'joist', 'log wall', 'ahsap', 'ahşap', 'tahta'] },
 	// Artist-authored fitting materials (for example Wrought_Iron_Hinge on a mesh named Door)
 	// describe the surface more precisely than the parent mesh. Keep that metal treatment dominant
 	// without making bare "iron"/"metal" global classifier words.
