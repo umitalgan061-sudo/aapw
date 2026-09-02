@@ -56,7 +56,11 @@ const SLOT_RULES = Object.freeze([
 
 	// Authored architecture. Strong, explicit nouns only; generic walls and bare substances stay
 	// contextual so one shared classifier does not accidentally own every wooden/stone object.
-	{ slot: 'structure-window', priority: 1, words: ['window', 'windows', 'windowpane', 'glass pane', 'pencere', 'vitray'] },
+	// Window nouns receive the highest explicit-structure priority because Turkish `pencere` begins
+	// with the normalized claw token `pence`. The shared suffix matcher intentionally accepts inflected
+	// creature words (for example `penceler`), so an exact architectural window noun must outrank that
+	// lexical prefix without weakening animal classification globally.
+	{ slot: 'structure-window', priority: 3, words: ['window', 'windows', 'windowpane', 'glass pane', 'pencere', 'vitray'] },
 	{ slot: 'structure-door', priority: 1, words: ['door', 'doors', 'doorway', 'doorframe', 'kapi', 'kapı'] },
 	{ slot: 'structure-thatch', priority: 1, words: ['thatch', 'thatched', 'straw roof', 'reed roof', 'saman cati', 'saman çatı'] },
 	{ slot: 'structure-roof', priority: 1, words: ['roof', 'roofing', 'roof tile', 'rooftile', 'shingle', 'shingles', 'slate roof', 'cati', 'çatı', 'kiremit'] },
