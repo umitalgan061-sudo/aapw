@@ -312,7 +312,7 @@ function samplePassMultiplier(normalizedX, normalizedY, passes = []) {
 					corridorVia[0] * MAP_ASPECT,
 					corridorVia[1],
 					pass.corridorEnd[0] * MAP_ASPECT,
-					pass.corridorEnd[1] * 1,
+					pass.corridorEnd[1],
 				),
 			);
 			corridorInfluence = corridorDistance >= pass.corridorOuterRadiusNormalized
