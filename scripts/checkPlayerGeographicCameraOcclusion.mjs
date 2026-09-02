@@ -1,8 +1,22 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import * as THREE from 'three';
-import { readFile } from 'node:fs/promises';
-import { resolveCameraCollision } from '../src/3d/camera.js';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// The shipped browser resolves bare `three` imports through its import map, while this repository
+// intentionally has no npm package manifest. Build a deterministic, local-only Node package shim
+// that re-exports the exact vendored Three.js module used by the game instead of downloading a
+// potentially different npm release during CI.
+const scriptDir = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(scriptDir, '..');
+const nodeThreeDir = resolve(repoRoot, 'node_modules/three');
+await mkdir(nodeThreeDir, { recursive: true });
+await writeFile(resolve(nodeThreeDir, 'package.json'), JSON.stringify({ type: 'module', exports: './index.js' }));
+await writeFile(resolve(nodeThreeDir, 'index.js'), "export * from '../../src/3d/vendor/three/three.module.js';\n");
+
+const THREE = await import('three');
+const { resolveCameraCollision } = await import('../src/3d/camera.js');
 
 const cameraSource = await readFile(new URL('../src/3d/camera.js', import.meta.url), 'utf8');
 const helperSource = await readFile(new URL('../src/3d/gameLoopHelpers.js', import.meta.url), 'utf8');
@@ -100,6 +114,7 @@ nestedMesh.geometry.dispose();
 nestedMesh.material.dispose();
 closeMesh.geometry.dispose();
 closeMesh.material.dispose();
+await rm(resolve(repoRoot, 'node_modules'), { recursive: true, force: true });
 
 console.log(JSON.stringify({
 	ok: true,
