@@ -21,7 +21,9 @@ function assertSourceContracts() {
 	assert(geology > waystones, 'waystones must be attached before downstream road-clearance geography');
 	assert(WAYSTONE_SOURCE.includes('northReferenceCryosphereAtWorldXZ'), 'north material must use map-aligned cryosphere authority');
 	assert(WAYSTONE_SOURCE.includes('valyriaInfluenceAtWorldXZ'), 'Valyria material must use Doom geography authority');
-	assert(WAYSTONE_SOURCE.includes('THREE.DataTexture'), 'waystones must ship a real generated stone texture');
+	assert(WAYSTONE_SOURCE.includes('THREE.DataTexture'), 'waystones must ship generated stone textures');
+	assert(WAYSTONE_SOURCE.includes('THREE.LatheGeometry'), 'waystones must ship the authored plinth/shaft/cap silhouette');
+	assert(WAYSTONE_SOURCE.includes('bumpMap: textures.relief'), 'waystones must ship micro-relief instead of flat color-only stone');
 	assert(WAYSTONE_SOURCE.includes('THREE.InstancedMesh'), 'waystones must stay one batched asset layer');
 	assert(WAYSTONE_SOURCE.includes('shoreClearanceMeters'), 'waystones must reject wet/shoreline placement');
 	assert(WAYSTONE_SOURCE.includes('maxSlopeDegrees'), 'waystones must enforce terrain slope placement');
@@ -93,8 +95,8 @@ async function main() {
 			const firstSite = sites[0] ?? null;
 			window.__roadsideWaystoneSetView = () => {
 				if (!firstSite) return false;
-				state.camera.position.set(firstSite.x + 34, firstSite.y + 15, firstSite.z + 42);
-				state.camera.lookAt(firstSite.x, firstSite.y + 1.3, firstSite.z);
+				state.camera.position.set(firstSite.x + 12, firstSite.y + 6, firstSite.z + 16);
+				state.camera.lookAt(firstSite.x, firstSite.y + 1.25, firstSite.z);
 				state.camera.updateMatrixWorld(true);
 				state.renderer.render(state.scene, state.camera);
 				return true;
@@ -112,13 +114,20 @@ async function main() {
 				stats,
 				profileTotal,
 				uniqueTintCount: colorKeys.size,
+				geometryType: mesh?.geometry?.type ?? null,
+				geometryName: mesh?.geometry?.name ?? null,
 				hasTexture: Boolean(mesh?.material?.map?.isTexture),
 				textureName: mesh?.material?.map?.name ?? null,
 				textureSize: mesh?.material?.map?.image?.width ?? null,
+				hasBumpMap: Boolean(mesh?.material?.bumpMap?.isTexture),
+				bumpMapName: mesh?.material?.bumpMap?.name ?? null,
+				bumpScale: mesh?.material?.bumpScale ?? null,
 				roughness: mesh?.material?.roughness ?? null,
 				metalness: mesh?.material?.metalness ?? null,
 				placementAuthority: mesh?.userData?.placementAuthority ?? null,
 				materialGeography: mesh?.userData?.materialGeography ?? null,
+				silhouetteProfile: mesh?.userData?.silhouetteProfile ?? null,
+				surfaceRelief: mesh?.userData?.surfaceRelief ?? null,
 				allSitesFinite: sites.every((site) => [site.x, site.y, site.z, site.slopeDegrees, site.groundClearanceMeters].every(Number.isFinite)),
 				allSitesDry: sites.every((site) => site.groundClearanceMeters > ROADSIDE_WAYSTONE_POLICY.shoreClearanceMeters),
 				allSitesSlopeSafe: sites.every((site) => site.slopeDegrees <= ROADSIDE_WAYSTONE_POLICY.maxSlopeDegrees + 1e-9),
@@ -137,11 +146,16 @@ async function main() {
 		assert(report.profileTotal === report.meshCount, 'geographic profile counts do not sum to placed count');
 		assert((report.stats?.profiles?.temperate ?? 0) > 0, 'no temperate waystone profile was placed');
 		assert(report.uniqueTintCount > 3, `instance material variation too flat (${report.uniqueTintCount} unique tints)`);
-		assert(report.hasTexture && report.textureName === 'roadside-waystone-weathered-masonry', 'weathered masonry texture missing');
+		assert(report.geometryType === 'LatheGeometry' && report.geometryName === 'roadside-waystone-plinth-shaft-cap', 'authored plinth/shaft/cap silhouette missing');
+		assert(report.hasTexture && report.textureName === 'roadside-waystone-weathered-masonry', 'weathered masonry albedo missing');
 		assert(report.textureSize === 96, `expected 96px generated masonry texture, got ${report.textureSize}`);
+		assert(report.hasBumpMap && report.bumpMapName === 'roadside-waystone-masonry-relief', 'masonry relief map missing');
+		assert(report.bumpScale > 0 && report.bumpScale <= 0.08, `unexpected masonry bump scale ${report.bumpScale}`);
 		assert(report.roughness >= 0.9 && report.metalness === 0, 'stone PBR response is not rough/non-metallic');
 		assert(report.placementAuthority === 'bridge-aware-road-edges-render-only', 'placement authority metadata missing');
 		assert(report.materialGeography.includes('north-frost') && report.materialGeography.includes('valyria-basalt'), 'geographic material metadata incomplete');
+		assert(report.silhouetteProfile === 'faceted-plinth-shaft-shoulder-pointed-cap', 'silhouette metadata incomplete');
+		assert(report.surfaceRelief === 'procedural-masonry-bump', 'surface-relief metadata incomplete');
 		assert(report.allSitesFinite && report.allSitesDry && report.allSitesSlopeSafe && report.allSitesShouldered,
 			'one or more live waystones violate finite/dry/slope/shoulder policy');
 		assert(report.deterministic && report.syntheticCount > 0, 'deterministic site planner proof failed');
