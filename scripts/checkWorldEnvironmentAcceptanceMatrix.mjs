@@ -47,6 +47,9 @@ try {
     waitUntil: 'load', timeout: 30000,
   });
   await page.evaluate(() => {
+    const base = document.createElement('base');
+    base.href = '/';
+    document.head.prepend(base);
     const map = document.createElement('script');
     map.type = 'importmap';
     map.textContent = JSON.stringify({ imports: {
