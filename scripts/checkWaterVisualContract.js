@@ -96,6 +96,11 @@ async function main() {
 				'full-world marine optical handoff metadata disappeared');
 			fail(optical.organicRadialLayerHandoff === true && optical.ownerWorldBorderOpticalSeal === true,
 				'organic near/far or owner-world marine seam suppression metadata disappeared');
+			fail(optical.occlusionSafeNearFarOpacity === true, 'occlusion-safe near/far opacity metadata disappeared');
+			fail(WATER_SURFACE_VARIATION_POLICY.layerHandoffFarRevealFullMeters <= WATER_SURFACE_VARIATION_POLICY.layerHandoffNearFadeStartMeters,
+				'far water must become fully visible before near water starts fading');
+			fail(WATER_SURFACE_VARIATION_POLICY.farOpticalTransitionStartMeters >= WATER_SURFACE_VARIATION_POLICY.layerHandoffNearFadeEndMeters + 300,
+				'far-only optical depth must stay outside the transparent near/far handoff band');
 			fail(WATER_SURFACE_VARIATION_POLICY.renderOnly === true
 				&& WATER_SURFACE_VARIATION_POLICY.canonicalDepthUnchanged === true
 				&& WATER_SURFACE_VARIATION_POLICY.canonicalCoverageUnchanged === true,
@@ -113,7 +118,7 @@ async function main() {
 				fail(fragmentShader.includes(token), `water reference-optics shader missing ${token}`);
 			}
 			for (const token of [
-				'organicLayerDistance', 'farLayerBlend', 'nearLayerBlend', 'layerOpacity',
+				'organicLayerDistance', 'farLayerBlend', 'farLayerVisibility', 'nearLayerBlend', 'layerOpacity',
 				'waterFieldEdgeOpticalBlend', 'farMarineOpticalFloor', 'ownerWorldBorderOpticalSeal', 'ownerBorderMarineSeal',
 			]) fail(fragmentShader.includes(token), `water layer-handoff shader missing ${token}`);
 			fail(fragmentShader.includes('#include <fog_pars_fragment>') && fragmentShader.includes('#include <fog_fragment>'), 'water fog chunks drifted');
@@ -189,7 +194,7 @@ async function main() {
 		assert(result.vertexCount === 16641 && result.indexCount === 98304, 'water topology mismatch escaped browser contract');
 		assert(result.fullWorldExtent === result.backdropExtent && result.backdropExtent >= 28000,
 			'full-world water/backdrop extent composition escaped browser validation');
-		console.log(`[checkWaterVisualContract] PASS: depth-clear ${result.optical.shallowAlpha.toFixed(2)}→${result.optical.deepAlpha.toFixed(2)} alpha, live sun/moon specular, organic near/far + owner-border marine seam suppression, ${result.vertexCount} near-water vertices.`);
+		console.log(`[checkWaterVisualContract] PASS: depth-clear ${result.optical.shallowAlpha.toFixed(2)}→${result.optical.deepAlpha.toFixed(2)} alpha, live sun/moon specular, occlusion-safe organic near/far + owner-border marine seam suppression, ${result.vertexCount} near-water vertices.`);
 	} finally {
 		await browser.close();
 		await new Promise((resolve) => server.close(resolve));

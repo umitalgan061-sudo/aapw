@@ -33,7 +33,7 @@ export const WAVE_TOTAL_AMPLITUDE_METERS = SWELL_COMPONENTS.reduce((sum, [, ampl
 export const WATER_OFFSHORE_OPTICAL_GAIN = 0.82;
 
 export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
-	id: 'water-world-surface-variation-2026-09-02-v17-deferred-optical-handoff',
+	id: 'water-world-surface-variation-2026-09-02-v18-occlusion-safe-organic-handoff',
 	renderOnly: true,
 	canonicalDepthUnchanged: true,
 	canonicalCoverageUnchanged: true,
@@ -55,8 +55,10 @@ export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	layerHandoffFarFullMeters: 1980,
 	layerHandoffNearFadeStartMeters: 1780,
 	layerHandoffNearFadeEndMeters: 2000,
-	farOpticalTransitionStartMeters: 1850,
-	farOpticalTransitionFullMeters: 3450,
+	layerHandoffFarRevealStartMeters: 1430,
+	layerHandoffFarRevealFullMeters: 1710,
+	farOpticalTransitionStartMeters: 2400,
+	farOpticalTransitionFullMeters: 3600,
 	depthFieldOpticalFeatherMeters: 920,
 	depthFieldOpticalWarpMeters: 180,
 	farMarineOpticalDepthFloor: 0.94,
@@ -69,6 +71,7 @@ export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	nonPeriodicFoamBreakup: true,
 	worldSpaceDeepBackdrop: true,
 	softNearFarLayerHandoff: true,
+	occlusionSafeNearFarOpacity: true,
 	extendedBackdropBeyondFullWorldFrame: true,
 	depthFieldEdgeOpticalFeather: true,
 	farMarineOpticalDepthFromOffshoreDistance: true,
@@ -274,9 +277,14 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	void main() {
 		float layerDistance = organicLayerDistance(vWorldPosition.xz);
 		float farLayerBlend = smoothstep(${WATER_SURFACE_VARIATION_POLICY.layerHandoffFarStartMeters.toFixed(1)}, ${WATER_SURFACE_VARIATION_POLICY.layerHandoffFarFullMeters.toFixed(1)}, layerDistance);
+		float farLayerVisibility = smoothstep(${WATER_SURFACE_VARIATION_POLICY.layerHandoffFarRevealStartMeters.toFixed(1)}, ${WATER_SURFACE_VARIATION_POLICY.layerHandoffFarRevealFullMeters.toFixed(1)}, layerDistance);
 		float farOpticalBlend = smoothstep(${WATER_SURFACE_VARIATION_POLICY.farOpticalTransitionStartMeters.toFixed(1)}, ${WATER_SURFACE_VARIATION_POLICY.farOpticalTransitionFullMeters.toFixed(1)}, layerDistance);
 		float nearLayerBlend = 1.0 - smoothstep(${WATER_SURFACE_VARIATION_POLICY.layerHandoffNearFadeStartMeters.toFixed(1)}, ${WATER_SURFACE_VARIATION_POLICY.layerHandoffNearFadeEndMeters.toFixed(1)}, layerDistance);
-		float layerOpacity = mix(nearLayerBlend, farLayerBlend, uFarLayerMask);
+		// Keep the far layer fully present before the near layer starts fading. With two
+		// transparent surfaces, complementary 0.5/0.5 alpha still reveals the opaque
+		// backdrop and draws a visible LOD ring. This earlier far reveal makes the handoff
+		// occlusion-safe while the organic distance warp keeps the transition non-periodic.
+		float layerOpacity = mix(nearLayerBlend, farLayerVisibility, uFarLayerMask);
 		if (uFarLayerMask > 0.5 && layerOpacity <= 0.001) discard;
 
 		vec2 waterField = sampleWaterField(vWorldPosition.xz);
@@ -552,6 +560,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		nightAbsorptionFromCelestialState: true,
 		softNearFarLayerHandoff: true,
 		organicRadialLayerHandoff: true,
+		occlusionSafeNearFarOpacity: true,
 		deferredFarOpticalHandoff: true,
 		extendedBackdropBeyondFullWorldFrame: true,
 		depthFieldEdgeOpticalFeather: true,
