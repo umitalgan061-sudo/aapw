@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import * as THREE from 'three';
 import {
   applyTerrainMicroSurface,
@@ -9,6 +10,11 @@ import {
   TERRAIN_MICRO_SURFACE_POLICY,
   terrainMicroUvAt,
 } from '../src/3d/world/terrain.js';
+import {
+  TERRAIN_CRYOSPHERE_SURFACE_FABRIC_POLICY,
+  getSharedTerrainCryosphereSurfaceAtlas,
+  auditTerrainCryosphereSurfaceFabric,
+} from '../src/3d/world/terrainMicroSurface.js';
 
 const EPSILON = 1e-5;
 const CHUNK_SIZE = 500;
@@ -42,7 +48,18 @@ function meanAbsoluteNeighborDelta(data, size, channel) {
   return total / samples;
 }
 
-assert.equal(TERRAIN_MICRO_SURFACE_POLICY.id, 'terrain-micro-surface-world-uv-pbr-v8-cryosphere-firn-weathering');
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.id, 'terrain-micro-surface-world-uv-pbr-v9-dedicated-cryosphere-fabric');
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.basePolicyId, 'terrain-micro-surface-world-uv-pbr-v8-cryosphere-firn-weathering');
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.cryosphereSurfaceFabricPolicyId, TERRAIN_CRYOSPHERE_SURFACE_FABRIC_POLICY.id);
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.dedicatedCryosphereFabricAtlas, true);
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.cryosphereWorldSpaceMultiScale, true);
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.cryosphereWindAlignedSastrugi, true);
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.cryosphereBlueIceLenses, true);
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.cryosphereMineralAblation, true);
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.cryosphereVariableRoughness, true);
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.cryosphereMicroNormal, true);
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.canonicalSnowCoverageUnchanged, true);
+assert.equal(TERRAIN_MICRO_SURFACE_POLICY.canonicalCryosphereMaskUnchanged, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.uvChannel, 1, 'micro detail must use uv1, never owner-map albedo uv0');
 assert(TERRAIN_MICRO_SURFACE_POLICY.textureSize >= 256, 'photoreal terrain atlas needs enough fracture resolution');
 assert(TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters >= 12 && TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters <= 32);
@@ -69,6 +86,18 @@ assert.equal(TERRAIN_MICRO_SURFACE_POLICY.aspectWeathering, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.roughnessResponse, true);
 assert.deepEqual(TERRAIN_MICRO_SURFACE_POLICY.worldSpaceMacroScaleMeters, [38, 92, 240, 620, 1450, 3200]);
 
+assert.equal(TERRAIN_CRYOSPHERE_SURFACE_FABRIC_POLICY.renderOnly, true);
+assert.equal(TERRAIN_CRYOSPHERE_SURFACE_FABRIC_POLICY.canonicalTerrainHeightUnchanged, true);
+assert.equal(TERRAIN_CRYOSPHERE_SURFACE_FABRIC_POLICY.canonicalSnowCoverageUnchanged, true);
+assert.equal(TERRAIN_CRYOSPHERE_SURFACE_FABRIC_POLICY.canonicalCryosphereMaskUnchanged, true);
+assert.equal(TERRAIN_CRYOSPHERE_SURFACE_FABRIC_POLICY.canonicalHydrologyUnchanged, true);
+assert.equal(TERRAIN_CRYOSPHERE_SURFACE_FABRIC_POLICY.canonicalColliderUnchanged, true);
+assert.equal(TERRAIN_CRYOSPHERE_SURFACE_FABRIC_POLICY.windAlignedSastrugi, true);
+assert.equal(TERRAIN_CRYOSPHERE_SURFACE_FABRIC_POLICY.blueIceLenses, true);
+assert.equal(TERRAIN_CRYOSPHERE_SURFACE_FABRIC_POLICY.mineralAblation, true);
+assert(TERRAIN_CRYOSPHERE_SURFACE_FABRIC_POLICY.fineScaleMeters < TERRAIN_CRYOSPHERE_SURFACE_FABRIC_POLICY.mesoScaleMeters);
+assert(TERRAIN_CRYOSPHERE_SURFACE_FABRIC_POLICY.mesoScaleMeters < TERRAIN_CRYOSPHERE_SURFACE_FABRIC_POLICY.coarseScaleMeters);
+
 const standalone = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
 applyTerrainMicroSurface(standalone);
 assert(standalone.normalMap?.isDataTexture, 'terrain needs a generated normal DataTexture');
@@ -86,6 +115,15 @@ for (const texture of [standalone.normalMap, standalone.roughnessMap]) {
 close(standalone.normalScale.x, TERRAIN_MICRO_SURFACE_POLICY.normalStrength, 'normal strength x');
 close(standalone.normalScale.y, TERRAIN_MICRO_SURFACE_POLICY.normalStrength, 'normal strength y');
 assert.equal(standalone.userData.terrainMicroSurface.renderOnly, true);
+assert.equal(standalone.userData.terrainMicroSurface.policyId, TERRAIN_MICRO_SURFACE_POLICY.id);
+assert.equal(standalone.userData.terrainMicroSurface.basePolicyId, TERRAIN_MICRO_SURFACE_POLICY.basePolicyId);
+assert.equal(standalone.userData.terrainMicroSurface.dedicatedCryosphereFabricAtlas, true);
+assert.equal(standalone.userData.terrainMicroSurface.cryosphereWorldSpaceMultiScale, true);
+assert.equal(standalone.userData.terrainMicroSurface.cryosphereWindAlignedSastrugi, true);
+assert.equal(standalone.userData.terrainMicroSurface.cryosphereBlueIceLenses, true);
+assert.equal(standalone.userData.terrainMicroSurface.cryosphereMineralAblation, true);
+assert.equal(standalone.userData.terrainMicroSurface.cryosphereVariableRoughness, true);
+assert.equal(standalone.userData.terrainMicroSurface.cryosphereMicroNormal, true);
 assert.equal(standalone.userData.terrainMicroSurface.macroWorldSpaceColorBreakup, true);
 assert.equal(standalone.userData.terrainMicroSurface.photorealDesaturation, true);
 assert.equal(standalone.userData.terrainMicroSurface.naturalAlbedoRemap, true);
@@ -106,8 +144,30 @@ assert.equal(standalone.userData.terrainMicroSurface.coastalSaltSprayWeathering,
 assert.equal(standalone.userData.terrainMicroSurface.coastalRoughnessResponse, true);
 assert.equal(standalone.userData.terrainMicroSurface.aspectWeathering, true);
 assert.equal(standalone.userData.terrainMicroSurface.roughnessResponse, true);
-assert.equal(standalone.customProgramCacheKey(), 'terrain-photoreal-world-surface-v7-coastal-weathering');
-const shaderHookSource = standalone.onBeforeCompile.toString();
+assert.equal(
+  standalone.customProgramCacheKey(),
+  `terrain-photoreal-world-surface-v8-cryosphere-firn-weathering|${TERRAIN_CRYOSPHERE_SURFACE_FABRIC_POLICY.id}`,
+);
+
+const cryosphereAudit = auditTerrainCryosphereSurfaceFabric(standalone);
+assert.equal(cryosphereAudit.ok, true, `cryosphere surface audit failed: ${cryosphereAudit.errors.join(',')}`);
+const cryosphereAtlas = getSharedTerrainCryosphereSurfaceAtlas();
+assert(cryosphereAtlas?.isDataTexture, 'cryosphere fabric atlas missing');
+assert.equal(cryosphereAtlas.image.width, TERRAIN_CRYOSPHERE_SURFACE_FABRIC_POLICY.atlasSize);
+assert.equal(cryosphereAtlas.image.height, TERRAIN_CRYOSPHERE_SURFACE_FABRIC_POLICY.atlasSize);
+assert.equal(cryosphereAtlas.wrapS, THREE.RepeatWrapping);
+assert.equal(cryosphereAtlas.wrapT, THREE.RepeatWrapping);
+assert.equal(cryosphereAtlas.colorSpace, THREE.NoColorSpace);
+const cryosphereData = cryosphereAtlas.image.data;
+for (const [channel, label, minSpan] of [[0, 'albedo', 45], [1, 'roughness', 38], [2, 'micro-height', 48], [3, 'mineral', 75]]) {
+  const range = channelRange(cryosphereData, channel);
+  assert(range.max - range.min >= minSpan, `cryosphere ${label} channel collapsed: ${range.min}-${range.max}`);
+}
+assert(meanAbsoluteNeighborDelta(cryosphereData, TERRAIN_CRYOSPHERE_SURFACE_FABRIC_POLICY.atlasSize, 2) > 2.0, 'cryosphere micro-height atlas is too smooth');
+
+// Do not depend on Function#toString of the composed wrapper. Verify the source contracts of both
+// shader layers independently so extraction/refactoring cannot accidentally weaken the assertions.
+const coreSource = readFileSync(new URL('../src/3d/world/terrainMicroSurfaceCore.js', import.meta.url), 'utf8');
 for (const marker of [
   'terrainPhotoFbm',
   'terrainPhotoRidgeNoise',
@@ -142,9 +202,25 @@ for (const marker of [
   'modelMatrix * vec4(transformed, 1.0)',
   'mat3(modelMatrix) * objectNormal',
 ]) {
-  assert(shaderHookSource.includes(marker), `terrain shader lost ${marker} realism signal`);
+  assert(coreSource.includes(marker), `terrain core shader lost ${marker} realism signal`);
 }
-assert(!shaderHookSource.includes('worldPosition.xyz'), 'terrain shader must not depend on conditional Three.js worldPosition declaration');
+assert(!coreSource.includes('worldPosition.xyz'), 'terrain core shader must not depend on conditional Three.js worldPosition declaration');
+const cryosphereSource = readFileSync(new URL('../src/3d/world/terrainCryosphereSurfaceFabric.js', import.meta.url), 'utf8');
+for (const marker of [
+  'uTerrainCryosphereSurfaceAtlas',
+  'terrainCryoDirectionalRibbon',
+  'terrainCryoOldFirn',
+  'terrainCryoBlueIceLens',
+  'terrainCryoWindCrust',
+  'terrainCryoSastrugi',
+  'terrainCryoMineralAblation',
+  'terrainCryoShelteredPowder',
+  'terrainCryoMaterialRoughness',
+  'terrainCryoCombinedNormal',
+  'canonicalSnowCoverageUnchanged: true',
+]) {
+  assert(cryosphereSource.includes(marker), `cryosphere surface shader lost ${marker}`);
+}
 
 const normalData = standalone.normalMap.image.data;
 const roughnessData = standalone.roughnessMap.image.data;
@@ -170,6 +246,8 @@ assert.equal(west.material.roughnessMap, east.material.roughnessMap, 'all chunks
 assert.equal(west.material.normalMap.channel, 1);
 assert.equal(west.material.roughnessMap.channel, 1);
 assert.equal(west.userData.currentTerrainMicroSurface.policyId, TERRAIN_MICRO_SURFACE_POLICY.id);
+assert.equal(west.userData.currentTerrainMicroSurface.dedicatedCryosphereFabricAtlas, true);
+assert.equal(west.userData.currentTerrainMicroSurface.cryosphereSurfaceFabricPolicyId, TERRAIN_CRYOSPHERE_SURFACE_FABRIC_POLICY.id);
 assert.equal(west.userData.currentTerrainMicroSurface.macroWorldSpaceColorBreakup, true);
 
 for (const chunk of [west, east]) {
@@ -217,4 +295,4 @@ close(oneTileNorth.v - origin.v, 1, 'one detail period north must advance exactl
 standalone.dispose();
 disposeTerrainChunk(west);
 disposeTerrainChunk(east);
-console.log('[checkTerrainMicroSurface] PASS: coastal weathering + slope/cliff weathering + scree + erosion + snow rock reveal remain seam-continuous, render-only and canonical-height neutral.');
+console.log('[checkTerrainMicroSurface] PASS: composite core + dedicated cryosphere fabric remain seam-continuous, render-only and canonical-height/snow neutral.');
