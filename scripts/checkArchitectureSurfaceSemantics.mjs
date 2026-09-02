@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import { classifyPart, surveyParts, tokenize } from '../src/3d/materials/meshPartClassifier.js';
 import { FIGURE_KITS, kitForPalette, resolveKit } from '../src/3d/materials/figureKits.js';
 import { findPalette } from '../src/3d/materials/palettes.js';
+import {
+	VILLAGE_ARCHITECTURE_PROFILES,
+	resolveVillageArchitectureSurfacePalette,
+} from '../src/3d/world/villages.js';
 
 const CASES = [
 	{ meshName: 'House_Roof_Tiles', materialName: 'RoofTile_Clay', slot: 'structure-roof' },
@@ -126,9 +130,54 @@ assert.equal(resolved.base, 'house', 'house base façade must remain the kit bas
 assert(house.bands.length >= 4, 'single-mesh architecture fallback must retain multi-surface vertical PBR bands');
 assert.equal(house.bands.at(-1)?.to, 1, 'house fallback must cover the complete mesh height');
 
+const EXPECTED_REGION_SURFACES = Object.freeze({
+	north: { roof: 'roof-tile', stone: 'stone', brick: 'stone', plaster: 'house' },
+	fertile: { roof: 'thatch', stone: 'stone', brick: 'plaster', plaster: 'plaster' },
+	maritime: { roof: 'roof-tile', stone: 'rock', brick: 'rock', plaster: 'house' },
+	arid: { roof: 'roof-tile', stone: 'stone', brick: 'plaster', plaster: 'plaster' },
+	mountain: { roof: 'roof-tile', stone: 'rock', brick: 'brick', plaster: 'brick' },
+	temperate: { roof: 'thatch', stone: 'stone', brick: 'stone', plaster: 'house' },
+	volcanic: { roof: 'roof-tile', stone: 'rock', brick: 'brick', plaster: 'brick' },
+});
+
+const regionalProof = [];
+for (const [regionId, expected] of Object.entries(EXPECTED_REGION_SURFACES)) {
+	const profile = VILLAGE_ARCHITECTURE_PROFILES[regionId];
+	assert(profile, `missing village architecture profile: ${regionId}`);
+	const actual = {
+		roof: resolveVillageArchitectureSurfacePalette(profile, 'structure-roof'),
+		stone: resolveVillageArchitectureSurfacePalette(profile, 'structure-stone'),
+		brick: resolveVillageArchitectureSurfacePalette(profile, 'structure-brick'),
+		plaster: resolveVillageArchitectureSurfacePalette(profile, 'structure-plaster'),
+		window: resolveVillageArchitectureSurfacePalette(profile, 'structure-window'),
+		door: resolveVillageArchitectureSurfacePalette(profile, 'structure-door'),
+		timber: resolveVillageArchitectureSurfacePalette(profile, 'structure-timber'),
+		metal: resolveVillageArchitectureSurfacePalette(profile, 'structure-metal'),
+		thatch: resolveVillageArchitectureSurfacePalette(profile, 'structure-thatch'),
+	};
+	assert.deepEqual(
+		{ roof: actual.roof, stone: actual.stone, brick: actual.brick, plaster: actual.plaster },
+		expected,
+		`${regionId}: masonry/roof semantics must follow destination geography`,
+	);
+	assert.equal(actual.window, 'glass');
+	assert.equal(actual.door, 'wood');
+	assert.equal(actual.timber, 'wood');
+	assert.equal(actual.metal, 'iron');
+	assert.equal(actual.thatch, 'thatch');
+	for (const paletteId of Object.values(actual)) assert(findPalette(paletteId), `${regionId}: unknown regional surface palette ${paletteId}`);
+	assert.equal(resolveVillageArchitectureSurfacePalette(profile, 'unknown-slot'), null, `${regionId}: unknown slots must fail closed`);
+	regionalProof.push({ regionId, ...actual });
+}
+
+assert.equal(new Set(regionalProof.map((entry) => entry.roof)).size, 2, 'regional roof identity must distinguish thatch from tile families');
+assert.equal(new Set(regionalProof.map((entry) => entry.stone)).size, 2, 'regional foundations must distinguish stone from rock families');
+assert.equal(new Set(regionalProof.map((entry) => entry.brick)).size, 4, 'regional masonry must retain distinct brick/plaster/rock/stone identities');
+
 console.log('ARCHITECTURE_SURFACE_SEMANTICS_PASS', JSON.stringify({
 	classifiedCases: CASES.length,
 	surveySlots: survey.map((surface) => surface.slot),
 	houseSlots: house.slots,
 	fallbackBands: house.bands,
+	regionalProof,
 }));
