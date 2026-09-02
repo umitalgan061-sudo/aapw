@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-01-v67-open-ocean-value-floor',
+	id: 'geographic-reference-palette-2026-09-02-v68-aerial-lowland-separation',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -18,6 +18,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	rockValueCompressionReduced: true,
 	waterDepthHierarchyRaised: true,
 	aerialChromaRecovery: true,
+	aerialLowlandMaterialSeparationRaised: true,
 	legacyRoadBaseContractPreserved: true,
 	exposedRockSeparationRaised: true,
 	assetReferences: Object.freeze([
@@ -27,22 +28,22 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v67 preserves the v65-v66 lowland chroma balance and all terrain-authority contracts. No terrain height, shoreline, collider, biome ownership or map-derived geography is changed.',
-		water: 'v67 follows exact-head #89 artifact inspection: open sea still read as near-black ink. Deep sea and abyss receive a restrained value floor while abyss stays darker; canonical wet coverage, shoreline and bathymetry remain untouched.',
-		road: 'v67 preserves established compacted-road and dust bases plus damp-rut/stone/moss-edge separation; route geometry remains unchanged.',
+		terrain: 'v68 follows exact-head full-world artifact inspection: broad lowland meadow, dry-heather and exposed-earth families still collapsed into one olive-beige aerial mass. Their render-only reference hues are separated modestly while terrain height, shoreline, collider, biome ownership and map-derived geography remain unchanged.',
+		water: 'v68 preserves the v67 open-sea value floor and depth hierarchy; canonical wet coverage, shoreline and bathymetry remain untouched.',
+		road: 'v68 preserves established compacted-road and dust bases plus damp-rut/stone/moss-edge separation; route geometry remains unchanged.',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x062417,
-		meadow: 0x477a4d,
-		dryHeather: 0x826b51,
-		wetEarth: 0x0b1813,
-		exposedEarth: 0xb2734e,
-		graniteShadow: 0x151f25,
-		graniteSunlit: 0xb3a491,
+		mossShadow: 0x082819,
+		meadow: 0x3f7f4b,
+		dryHeather: 0x8b694b,
+		wetEarth: 0x0d1a14,
+		exposedEarth: 0xb97a52,
+		graniteShadow: 0x18232a,
+		graniteSunlit: 0xb7a894,
 		basaltWet: 0x020b0f,
 		quartz: 0xbeb09d,
 	}),
