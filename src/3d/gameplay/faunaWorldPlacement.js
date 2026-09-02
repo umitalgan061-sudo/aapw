@@ -90,7 +90,7 @@ export function sampleConfiguredFaunaGeography(worldX, worldZ, groundCollider) {
 		surface: {
 			height,
 			slopeDegrees,
-			waterDepth: Math.max(0, WORLD_DEFAULTS.WATER_LEVEL_METERS - height),
+			waterDepth: waterType === 'none' ? 0 : Math.max(0, WORLD_DEFAULTS.WATER_LEVEL_METERS - height),
 			biome: dominant.biome,
 			waterType,
 		},
