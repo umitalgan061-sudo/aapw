@@ -83,6 +83,8 @@ export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
   volcanicCoolingFractureResponse: true,
   volcanicOxidationWeatheringResponse: true,
   volcanicSulfuricWeatheringResponse: true,
+  smallFallbackShadowSuppression: true,
+  roundedBoulderNormalResponse: true,
   fallbackLinearAlbedoFloor: 0.046,
   instanceScaleCompensatedWorldNormal: true,
   cameraStableRockWeathering: true,
@@ -364,8 +366,8 @@ vec3 naturalRockIronOxide = vec3(0.345, 0.188, 0.112);
 vec3 naturalRockSulfurStain = vec3(0.335, 0.310, 0.155);
 diffuseColor.rgb = mix(diffuseColor.rgb, naturalRockWeathered, naturalRockRecess * 0.16);
 diffuseColor.rgb = mix(diffuseColor.rgb, naturalRockFreshBreak, naturalRockExposure * naturalRockSlope * 0.11);
-diffuseColor.rgb = mix(diffuseColor.rgb, naturalRockAshPumice, naturalRockAshDeposit * 0.24);
-diffuseColor.rgb = mix(diffuseColor.rgb, naturalRockCoolingBreak, naturalRockCoolingFacet * 0.16);
+diffuseColor.rgb = mix(diffuseColor.rgb, naturalRockAshPumice, naturalRockAshDeposit * 0.30);
+diffuseColor.rgb = mix(diffuseColor.rgb, naturalRockCoolingBreak, naturalRockCoolingFacet * 0.20);
 diffuseColor.rgb = mix(diffuseColor.rgb, naturalRockIronOxide, naturalRockOxidation * 0.075);
 diffuseColor.rgb = mix(diffuseColor.rgb, naturalRockSulfurStain, naturalRockSulfuric * 0.045);
 diffuseColor.rgb = clamp(diffuseColor.rgb, vec3(${NATURAL_GEOLOGY_RENDER_POLICY.fallbackLinearAlbedoFloor.toFixed(3)}), vec3(0.78));`,
@@ -401,12 +403,12 @@ normal = normalize(mix(normal, normalize(mat3(viewMatrix) * naturalRockPerturbed
   return material;
 }
 
-function createRockMaterial(color, { volcanic = false } = {}) {
+function createRockMaterial(color, { volcanic = false, flatShading = true } = {}) {
   return installRockMaterialWeathering(new THREE.MeshStandardMaterial({
     color,
     roughness: NATURAL_GEOLOGY_RENDER_POLICY.proceduralRoughness,
     metalness: 0,
-    flatShading: true,
+    flatShading,
   }), { volcanic });
 }
 
@@ -531,10 +533,10 @@ export function createNaturalRockPrototypeGeometry(kind) {
 
 function colorForPlacement(placement) {
   if (placement.volcanic) {
-    const c = new THREE.Color(0x47413e);
+    const c = new THREE.Color(0x514b48);
     const hot = clamp01((placement.valyriaInfluence - 0.45) / 0.55);
-    if (placement.kind === 'talus') c.lerp(new THREE.Color(0x57504b), 0.26);
-    if (placement.kind === 'fractured-scarp') c.lerp(new THREE.Color(0x3b3939), 0.30);
+    if (placement.kind === 'talus') c.lerp(new THREE.Color(0x5d5650), 0.26);
+    if (placement.kind === 'fractured-scarp') c.lerp(new THREE.Color(0x403d3b), 0.12);
     if (hot > 0.6 && placement.curvatureMeters > 0.35) c.lerp(new THREE.Color(0x5a3025), 0.08);
     return c;
   }
@@ -578,11 +580,11 @@ function makeInstancedFamily(kind, placements, { volcanic = false } = {}) {
   };
   const mesh = new THREE.InstancedMesh(
     createNaturalRockPrototypeGeometry(kind),
-    createRockMaterial(colors[kind] ?? 0x66615a, { volcanic }),
+    createRockMaterial(colors[kind] ?? 0x66615a, { volcanic, flatShading: kind !== 'boulder' }),
     placements.length,
   );
   mesh.name = `natural-geology-${kind}${volcanic ? '-valyria-volcanic' : ''}`;
-  mesh.castShadow = kind !== 'talus';
+  mesh.castShadow = kind === 'fractured-scarp' || kind === 'bedrock' || kind === 'asset-proxy';
   mesh.receiveShadow = true;
   for (let index = 0; index < placements.length; index += 1) {
     composePlacementMatrix(placements[index], tempMatrix);
@@ -593,6 +595,8 @@ function makeInstancedFamily(kind, placements, { volcanic = false } = {}) {
   if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   mesh.computeBoundingSphere?.();
   mesh.userData.naturalGeologyKind = kind;
+  mesh.userData.smallFallbackShadowSuppressed = !mesh.castShadow;
+  mesh.userData.roundedNormalResponse = kind === 'boulder';
   mesh.userData.naturalGeologyWeatheringProfile = volcanic
     ? 'valyria-volcanic-mineral-facets'
     : 'regional-rock-weathering';
@@ -763,6 +767,8 @@ export function createNaturalGeology({
     worldSpaceRockWeathering: true,
     deterministicMineralFacetSeparation: true,
     volcanicFallbackMaterialIsolation: true,
+    smallFallbackShadowSuppression: true,
+    roundedBoulderNormalResponse: true,
     worldNormalSpace: 'instance-scale-compensated-world',
     hydratedRegionalTint: true,
     fallbackGeometryFamily: NATURAL_GEOLOGY_RENDER_POLICY.fallbackGeometryFamily,
