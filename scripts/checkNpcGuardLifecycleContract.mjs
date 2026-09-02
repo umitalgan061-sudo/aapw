@@ -80,6 +80,19 @@ for (const sourcePosition of [{ x: Infinity, z: 0 }, { x: 0, z: Number.NaN }]) {
   assert.equal(invalid.reason, 'range');
   assert.equal(Number.isFinite(invalid.sourceDistanceMeters), false);
 }
+for (const invalidObserver of [{ x: Infinity, z: 0 }, { x: 0, z: Number.NaN }]) {
+  const invalid = evaluateNpcGuardAssistAlert({
+    alert: baseAlert,
+    observer: invalidObserver,
+    groupId: 'winterfell-guard',
+    sourceId: 'guard-b',
+    lastRevision: 0,
+    assistRadiusMeters: 25,
+  });
+  assert.equal(invalid.accepted, false);
+  assert.equal(invalid.reason, 'range');
+  assert.equal(Number.isFinite(invalid.sourceDistanceMeters), false);
+}
 assert.equal(evaluate({ ...baseAlert, sourcePosition: { x: 30, z: 0 } }, { lastRevision: 0 }).reason, 'range');
 
 assert.equal(/Math\.random\s*\(/.test(npc.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')), false,
