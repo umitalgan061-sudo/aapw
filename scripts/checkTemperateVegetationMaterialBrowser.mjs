@@ -34,7 +34,9 @@ async function waitForServer(url, attempts = 80) {
 
 const { output } = parseArgs(process.argv.slice(2));
 const outputPath = path.resolve(repoRoot, output);
+const harnessPath = path.join(path.dirname(outputPath), 'material-harness.html');
 await fs.mkdir(path.dirname(outputPath), { recursive: true });
+await fs.writeFile(harnessPath, '<!doctype html><script type="importmap">{"imports":{"three":"/src/3d/vendor/three/three.module.js","three/addons/":"/src/3d/vendor/three/addons/"}}</script>\n', 'utf8');
 
 const server = spawn('python3', ['-m', 'http.server', '4179', '--bind', '127.0.0.1'], {
 	cwd: repoRoot,
@@ -49,7 +51,8 @@ try {
 	const errors = [];
 	page.on('pageerror', (error) => errors.push(error.message));
 	page.on('console', (message) => { if (message.type() === 'error') errors.push(`console: ${message.text()}`); });
-	await page.setContent(`<!doctype html><script type="importmap">{"imports":{"three":"${base}/src/3d/vendor/three/three.module.js","three/addons/":"${base}/src/3d/vendor/three/addons/"}}</script>`);
+	const harnessUrl = `${base}/${path.relative(repoRoot, harnessPath).replaceAll(path.sep, '/')}`;
+	await page.goto(harnessUrl, { waitUntil: 'domcontentloaded' });
 
 	const proof = await page.evaluate(async ({ baseUrl, sourcePath, sourceComponent }) => {
 		const [{ AssetLoader }, materialCore] = await Promise.all([
