@@ -1,12 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { NPC_CONFIG } from '../src/3d/gameplay/npcConfig.js';
-import {
-	evaluateConfiguredNpcRoute,
-	resolveConfiguredNpcPatrol,
-	resolveConfiguredNpcSpawnPlacement,
-	sampleConfiguredNpcGeography,
-} from '../src/3d/gameplay/npcWorldPlacement.js';
+import { evaluateConfiguredNpcRoute, resolveConfiguredNpcPatrol, resolveConfiguredNpcSpawnPlacement, sampleConfiguredNpcGeography } from '../src/3d/gameplay/npcWorldPlacement.js';
 import { SETTLEMENT_CONFIG, WORLD_DEFAULTS, WORLD_SCALE } from '../src/3d/config.js';
 import { KINGDOM_SEATS, computeSettlementFlattenPads, mapToWorldXZ } from '../src/3d/world/settlements.js';
 import { createHeightSampler } from '../src/3d/world/terrain.js';
@@ -41,7 +36,9 @@ function stablePlacementRecord(spawn, sampleGroundHeight = gameplayHeight) {
 		biome: placement.geography?.surface?.biome ?? null,
 		slopeDegrees: placement.geography?.surface?.slopeDegrees ?? null,
 		relocated: placement.relocated ?? null,
+		relocationMode: placement.relocationMode ?? null,
 		relocationMeters: placement.relocationMeters ?? null,
+		displacementFromDesiredMeters: placement.displacementFromDesiredMeters ?? null,
 		seatDistanceMeters: placement.seatDistanceMeters ?? null,
 		patrolEnabled: Boolean(patrol?.waypoints),
 		patrolDisabledByGeography: Boolean(patrol?.route?.disabled),
@@ -53,18 +50,22 @@ function stablePlacementRecord(spawn, sampleGroundHeight = gameplayHeight) {
 const firstPass = NPC_CONFIG.SPAWNS.map((spawn) => stablePlacementRecord(spawn));
 const secondPass = NPC_CONFIG.SPAWNS.map((spawn) => stablePlacementRecord(spawn));
 assert.deepEqual(secondPass, firstPass, 'same exact world/config produced non-deterministic NPC placement');
-
 const reversedPass = [...NPC_CONFIG.SPAWNS].reverse().map((spawn) => stablePlacementRecord(spawn));
 const byId = new Map(firstPass.map((entry) => [entry.id, entry]));
-for (const entry of reversedPass) {
-	assert.deepEqual(entry, byId.get(entry.id), `placement for ${entry.id} depended on spawn iteration order`);
-}
+for (const entry of reversedPass) assert.deepEqual(entry, byId.get(entry.id), `placement for ${entry.id} depended on spawn iteration order`);
 
 for (const entry of firstPass) {
 	assert.equal(entry.ok, true, `configured guard ${entry.id} rejected by canonical geography: ${entry.error}`);
 	assert.ok(!['sea', 'lake'].includes(entry.baseSurface), `${entry.id} resolved onto ${entry.baseSurface}`);
 	assert.ok(Number.isFinite(entry.slopeDegrees) && entry.slopeDegrees <= 26, `${entry.id} slope ${entry.slopeDegrees} exceeds policy`);
-	assert.ok(entry.relocationMeters <= 8, `${entry.id} moved farther than bounded relocation budget`);
+	assert.ok(['local', 'settlement-ring'].includes(entry.relocationMode), `${entry.id} has invalid relocation mode ${entry.relocationMode}`);
+	if (entry.relocationMode === 'local') {
+		assert.ok(entry.relocationMeters <= 8, `${entry.id} moved farther than bounded local relocation budget`);
+		assert.ok(entry.displacementFromDesiredMeters <= 8 + 1e-9, `${entry.id} local authored repair escaped 8m`);
+	} else {
+		assert.equal(entry.relocationMeters, 0, `${entry.id} settlement-ring recovery polluted local budget telemetry`);
+		assert.ok(entry.displacementFromDesiredMeters > 0, `${entry.id} settlement-ring recovery failed to move`);
+	}
 	assert.ok(entry.seatDistanceMeters >= 10 && entry.seatDistanceMeters <= 30, `${entry.id} left settlement guard envelope`);
 }
 
@@ -73,7 +74,6 @@ const pilotSeat = seatsById.get(pilot.seatId);
 const desiredX = pilotSeat.x + pilot.offsetXMeters;
 const desiredZ = pilotSeat.z + pilot.offsetZMeters;
 const baselineAtPilot = gameplayHeight(desiredX, desiredZ);
-
 function localRidgeHeight(x, z) {
 	const base = gameplayHeight(x, z);
 	const dx = x - desiredX;
@@ -90,6 +90,7 @@ const relocatedB = resolveConfiguredNpcSpawnPlacement({ spawn: pilot, seat: pilo
 assert.equal(relocatedA.ok, true, `bounded relocation could not escape local unsafe ridge: ${relocatedA.error}`);
 assert.deepEqual(relocatedB, relocatedA, 'bounded relocation changed across identical evaluations');
 assert.equal(relocatedA.relocated, true, 'unsafe desired guard point did not trigger relocation');
+assert.equal(relocatedA.relocationMode, 'local', 'small synthetic ridge should be repaired by authored local search');
 assert.ok(relocatedA.relocationMeters >= 2 && relocatedA.relocationMeters <= 8, `relocation ${relocatedA.relocationMeters}m escaped bounded search`);
 assert.ok(Math.abs(relocatedA.groundY - baselineAtPilot) < 20, 'relocated guard produced implausible terrain height jump');
 
@@ -110,7 +111,8 @@ const summary = {
 	configuredSpawns: firstPass.length,
 	patrolsEnabled: firstPass.filter((entry) => entry.patrolEnabled).length,
 	patrolsDisabledByGeography: firstPass.filter((entry) => entry.patrolDisabledByGeography).length,
-	canonicalRelocations: firstPass.filter((entry) => entry.relocated).length,
+	localRelocations: firstPass.filter((entry) => entry.relocationMode === 'local' && entry.relocated).length,
+	settlementRingRecoveries: firstPass.filter((entry) => entry.relocationMode === 'settlement-ring').length,
 	syntheticRelocationMeters: relocatedA.relocationMeters,
 	syntheticRelocationSlopeDegrees: relocatedA.geography.surface.slopeDegrees,
 	safeRouteSamples: safeRouteA.routeSampleCount,
