@@ -47,19 +47,34 @@ jobs:
           CHANGED="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           test "$CHANGED" -le 3000
           git diff --check "$BASE_SHA" HEAD
-      - name: NPC asset spawn perception attack and leash contracts
+      - name: NPC runtime syntax
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/npc.js
           node --check src/3d/gameplay/livingWorldSpawner.js
+      - name: NPC asset spawn contract
+        run: |
+          set -euo pipefail
           node --check scripts/checkNpcAssetSpawnContract.mjs
           node scripts/checkNpcAssetSpawnContract.mjs
+      - name: NPC guard perception contract
+        run: |
+          set -euo pipefail
           node --check scripts/checkNpcGuardPerception.mjs
           node scripts/checkNpcGuardPerception.mjs
+      - name: NPC guard attack contract
+        run: |
+          set -euo pipefail
           node --check scripts/checkNpcGuardAttack.mjs
           node scripts/checkNpcGuardAttack.mjs
+      - name: NPC guard leash contract
+        run: |
+          set -euo pipefail
           node --check scripts/checkNpcGuardLeash.mjs
           node scripts/checkNpcGuardLeash.mjs
+      - name: NPC browser contract syntax
+        run: |
+          set -euo pipefail
           node --check scripts/checkNpcGuardLeashBrowser.mjs
           node --check scripts/game3dSmokeChecksNpcPerception.js
       - name: Deterministic NPC simulation LOD contract
