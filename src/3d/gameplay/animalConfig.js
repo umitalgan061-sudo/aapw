@@ -221,7 +221,7 @@ export const ANIMAL_CONFIG = Object.freeze({
 			offsetXMeters: -30,
 			offsetZMeters: 0,
 			rotationYRadians: Math.PI * 0.5,
-			patrol: Object.freeze({ toOffsetXMeters: -30, toOffsetZMeters: -24 }),
+			patrol: Object.freeze({ toOffsetXMeters: -30, toOffsetZMeters: -12 }),
 		}),
 		/** House Baratheon's sigil is a crowned stag, so `stannis` gets the stag — the same deliberate
 		 * lore-fit reasoning that put every wolf at `berkalp` (House Stark/direwolf), not an arbitrary
