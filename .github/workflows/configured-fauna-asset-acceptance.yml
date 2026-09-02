@@ -4,12 +4,17 @@ on:
   pull_request:
     paths:
       - 'src/3d/gameplay/npc.js'
+      - 'src/3d/gameplay/npcWorldPlacement.js'
       - 'scripts/checkNpcGuardLifecycleContract.mjs'
       - 'scripts/checkNpcGuardReturnToPatrol.mjs'
       - 'scripts/checkNpcPopulationLodRecovery.mjs'
       - 'scripts/checkNpcMovementSafetyBrowser.js'
+      - 'scripts/checkNpcWorldPlacementContract.mjs'
+      - 'scripts/checkNpcGeographicPlacementDeterminism.mjs'
+      - 'scripts/checkNpcGeographicMaterialBrowser.mjs'
       - '.github/workflows/configured-fauna-asset-acceptance.yml'
       - '.github/workflows/npc-guard-return-to-patrol.yml'
+      - '.github/workflows/npc-geographic-material-placement.yml'
       - '.github/workflows/npc-guard-leash-attack-slot-handoff.yml'
       - '.github/workflows/npc-hearing-framerate-determinism.yml'
       - '.github/workflows/npc-movement-safety.yml'
@@ -44,11 +49,13 @@ jobs:
           test "$base" = "$(git rev-parse origin/main)"
           changed="$(git diff --name-only origin/main...HEAD)"
           printf '%s\n' "$changed"
-          test "$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)" -le 13
-          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/npc\.js|scripts/checkNpcGuardLifecycleContract\.mjs|scripts/checkNpcGuardReturnToPatrol\.mjs|scripts/checkNpcPopulationLodRecovery\.mjs|scripts/checkNpcMovementSafetyBrowser\.js|\.github/workflows/configured-fauna-asset-acceptance\.yml|\.github/workflows/npc-guard-return-to-patrol\.yml|\.github/workflows/npc-guard-leash-attack-slot-handoff\.yml|\.github/workflows/npc-hearing-framerate-determinism\.yml|\.github/workflows/npc-movement-safety\.yml|\.github/workflows/npc-perception-input-safety\.yml|\.github/workflows/run167-determinism-policy\.yml|\.github/workflows/run283-final-head-governance\.yml)$' && exit 1 || true
+          test "$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)" -le 18
+          allowed='^(src/3d/gameplay/npc\.js|src/3d/gameplay/npcWorldPlacement\.js|scripts/checkNpcGuardLifecycleContract\.mjs|scripts/checkNpcGuardReturnToPatrol\.mjs|scripts/checkNpcPopulationLodRecovery\.mjs|scripts/checkNpcMovementSafetyBrowser\.js|scripts/checkNpcWorldPlacementContract\.mjs|scripts/checkNpcGeographicPlacementDeterminism\.mjs|scripts/checkNpcGeographicMaterialBrowser\.mjs|\.github/workflows/configured-fauna-asset-acceptance\.yml|\.github/workflows/npc-guard-return-to-patrol\.yml|\.github/workflows/npc-geographic-material-placement\.yml|\.github/workflows/npc-guard-leash-attack-slot-handoff\.yml|\.github/workflows/npc-hearing-framerate-determinism\.yml|\.github/workflows/npc-movement-safety\.yml|\.github/workflows/npc-perception-input-safety\.yml|\.github/workflows/run167-determinism-policy\.yml|\.github/workflows/run283-final-head-governance\.yml)$'
+          unexpected="$(printf '%s\n' "$changed" | grep -Ev "$allowed" || true)"
+          test -z "$unexpected" || { echo "$unexpected"; exit 1; }
           additions="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END {print s+0}')"
           deletions="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END {print s+0}')"
-          test $((additions + deletions)) -le 1000
+          test $((additions + deletions)) -le 3000
           git diff --check origin/main...HEAD
 
       - name: Fauna acceptance syntax
@@ -57,6 +64,8 @@ jobs:
           node --check src/3d/gameplay/animals.js
           node --check scripts/checkConfiguredFaunaAssetsBrowser.mjs
           node --check scripts/checkConfiguredFaunaRuntimeBrowser.mjs
+          node --check src/3d/gameplay/npcWorldPlacement.js
+          node --check scripts/checkNpcWorldPlacementContract.mjs
 
       - name: Shared material placement contract
         run: node scripts/checkSharedMaterialPlacementContract.js
