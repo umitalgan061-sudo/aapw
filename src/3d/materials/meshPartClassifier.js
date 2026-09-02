@@ -1,10 +1,11 @@
 /**
- * Mesh/material -> body-part slot classification.
+ * Mesh/material -> body-part and authored-structure surface classification.
  *
  * A figure is not one surface. Dressing a whole character in a single texture is what the first
  * version of this library did, and it is wrong: a person needs separate skin, hair, eyes, tunic,
  * trousers and boots; a wolf needs fur, claws, teeth and eyes; a dragon needs scales, wing membrane
- * and eyes.
+ * and eyes. The same rule applies to authored architecture: a named roof, timber frame, window,
+ * door, footing or plaster slot should not be flattened into the wall material.
  *
  * Classification is name-driven because that is what the project's real assets actually carry —
  * verified by inspecting them rather than assumed:
@@ -25,6 +26,10 @@ import { normalizeText } from './textureMatcher.js';
 /**
  * Slot keywords, Turkish + English. Order matters only through `priority`; a longer keyword beats a
  * shorter one at equal priority, same rule the palette matcher uses.
+ *
+ * Structure slots deliberately avoid generic words such as bare `metal` or `wall`: those terms occur
+ * in unrelated assets and would create false confidence. Wall material remains the destination
+ * palette's main surface; only artist-authored details with strong semantic names are separated.
  * @type {ReadonlyArray<{slot: string, priority?: number, words: string[]}>}
  */
 const SLOT_RULES = Object.freeze([
@@ -46,6 +51,18 @@ const SLOT_RULES = Object.freeze([
 	{ slot: 'tunic', priority: 1, words: ['tunic', 'shirt', 'robe', 'dress', 'torso', 'chest', 'cloth', 'coat', 'jacket', 'gomlek', 'gömlek', 'giysi', 'elbise', 'govde', 'gövde'] },
 	{ slot: 'armor', priority: 1, words: ['armor', 'armour', 'plate', 'mail', 'shield', 'sword', 'blade', 'weapon', 'zirh', 'zırh', 'kalkan', 'kilic', 'kılıç', 'silah'] },
 	{ slot: 'skin', priority: 1, words: ['skin', 'head', 'face', 'body', 'hand', 'arm', 'flesh', 'cilt', 'ten', 'kafa', 'yuz', 'yüz', 'el', 'kol'] },
+
+	// Authored architecture. Strong, explicit nouns only; generic walls intentionally stay unclassified
+	// so the region's base house/brick palette continues to own the dominant façade identity.
+	{ slot: 'structure-window', priority: 1, words: ['window', 'windows', 'windowpane', 'glass pane', 'pencere', 'vitray'] },
+	{ slot: 'structure-door', priority: 1, words: ['door', 'doors', 'doorway', 'doorframe', 'kapi', 'kapı'] },
+	{ slot: 'structure-thatch', priority: 1, words: ['thatch', 'thatched', 'straw roof', 'reed roof', 'saman cati', 'saman çatı'] },
+	{ slot: 'structure-roof', priority: 1, words: ['roof', 'roofing', 'roof tile', 'rooftile', 'shingle', 'shingles', 'slate roof', 'cati', 'çatı', 'kiremit'] },
+	{ slot: 'structure-brick', words: ['brick', 'brickwork', 'tugla', 'tuğla'] },
+	{ slot: 'structure-plaster', words: ['plaster', 'stucco', 'render coat', 'siva', 'sıva'] },
+	{ slot: 'structure-stone', words: ['stonework', 'masonry', 'foundation', 'footing', 'rubble stone', 'tas temel', 'taş temel'] },
+	{ slot: 'structure-timber', words: ['timber', 'wooden beam', 'wood beam', 'plank', 'rafter', 'joist', 'log wall', 'ahsap', 'ahşap', 'tahta'] },
+	{ slot: 'structure-metal', words: ['hinge', 'door handle', 'latch', 'ironwork', 'wrought iron', 'metal trim', 'metal fitting'] },
 
 	{ slot: 'fur', words: ['fur', 'pelt', 'coat', 'hide', 'kurk', 'kürk', 'post', 'tuy', 'tüy'] },
 	{ slot: 'scale', words: ['scale', 'scales', 'pul', 'pullar'] },
@@ -69,7 +86,7 @@ export function tokenize(text) {
 }
 
 /**
- * Classifies one mesh/material name pair into a body-part slot.
+ * Classifies one mesh/material name pair into a body-part or authored-structure slot.
  *
  * @param {object} input
  * @param {string} [input.meshName]
@@ -122,7 +139,8 @@ function matchesToken(tokens, needle) {
  *
  * Multi-material meshes are expanded into one entry per material index, because the dragon in this
  * project is a single mesh carrying five materials — treating it as one surface would flatten the
- * eyes and wing into the body scales.
+ * eyes and wing into the body scales. Architecture uses the same per-slot rule for authored roofs,
+ * windows, doors and structural trims.
  *
  * @param {import('three').Object3D} root
  * @returns {{mesh: object, materialIndex: number, meshName: string, materialName: string, slot: string|null}[]}
