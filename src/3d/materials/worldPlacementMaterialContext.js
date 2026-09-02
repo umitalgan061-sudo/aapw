@@ -11,6 +11,7 @@ export const WORLD_PLACEMENT_MATERIAL_CONTEXT_POLICY = Object.freeze({
   id: 'world-placement-material-context-2026-09-02-v1',
   renderOnly: true,
   canonicalSurfaceContextOnly: true,
+  footprintSurfaceAggregation: true,
   sourceTexturesPreserved: true,
   sourceUvTransformsPreserved: true,
   geometryUnchanged: true,
@@ -63,6 +64,31 @@ function surfaceContext(surface = {}) {
   const exposure = clamp01(slope * 0.62 + biome.alpine * 0.48);
   const coast = clamp01(biome.coast + (waterDepth > 0 && waterDepth < 0.8 ? 0.34 : 0));
   return Object.freeze({ moisture, slope, wet, dry, cold, snow, exposure, coast, ...biome });
+}
+
+function aggregatePlacementContext(surface, footprint) {
+  const samples = [surface, ...(footprint?.samples ?? []), ...(footprint?.islandSamples ?? [])].filter(Boolean);
+  const contexts = samples.map(surfaceContext);
+  if (contexts.length <= 1) return contexts[0] ?? surfaceContext(surface);
+  const fields = ['moisture', 'slope', 'wet', 'dry', 'cold', 'snow', 'exposure', 'coast', 'forest', 'marsh', 'alpine'];
+  const aggregate = {};
+  for (const field of fields) {
+    const values = contexts.map((context) => context[field]).filter(Number.isFinite);
+    if (!values.length) aggregate[field] = 0;
+    else {
+      values.sort((a, b) => a - b);
+      const median = values[Math.floor(values.length * 0.5)];
+      const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+      // Median resists one anomalous footprint probe while the mean keeps broad transitions smooth.
+      aggregate[field] = clamp01(median * 0.62 + mean * 0.38);
+    }
+  }
+  // Preserve a real wet/cold edge if several corners enter it; one isolated sample cannot recolour an
+  // entire keep, but a substantial footprint transition should be visible in material weathering.
+  aggregate.wet = Math.max(aggregate.wet, contexts.filter((context) => context.wet > 0.62).length / contexts.length * 0.72);
+  aggregate.snow = Math.max(aggregate.snow, contexts.filter((context) => context.snow > 0.5).length / contexts.length * 0.80);
+  aggregate.coast = Math.max(aggregate.coast, contexts.filter((context) => context.coast > 0.45).length / contexts.length * 0.64);
+  return Object.freeze({ ...aggregate, sampleCount: contexts.length });
 }
 
 function materialProfile(material) {
@@ -150,6 +176,7 @@ function applyContextToMaterial(material, context) {
     snow: context.snow,
     exposure: context.exposure,
     coast: context.coast,
+    sampleCount: context.sampleCount ?? 1,
     colorMix: totalMix,
     roughnessDelta,
     metalnessReduction,
@@ -168,7 +195,7 @@ export function applyWorldPlacementMaterialContext(root, surface, footprint = nu
     });
   }
 
-  const context = surfaceContext(surface);
+  const context = aggregatePlacementContext(surface, footprint);
   let appliedMaterialCount = 0;
   const profileCounts = {};
   root.traverse((node) => {
@@ -187,6 +214,8 @@ export function applyWorldPlacementMaterialContext(root, surface, footprint = nu
     appliedMaterialCount,
     profileCounts: Object.freeze({ ...profileCounts }),
     surfaceContextAvailable: true,
+    footprintSurfaceAggregation: true,
+    contextSampleCount: context.sampleCount ?? 1,
     moisture: context.moisture,
     slope: context.slope,
     wet: context.wet,
