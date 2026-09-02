@@ -19298,3 +19298,29 @@ Kapılar: `checkVegetationVisualContract`, `checkSmokeCheckRegistry`, `checkServ
 
 **Aynı kuzey karesinde görülen sıradaki kusur:** karın içinden yemyeşil yaz çimi bitiyor. Rüzgâr çimi
 biyoma bakmıyor.
+
+## Tur 424 — Karın içinden yaz çimi bitmiyor artık (ADR-0372)
+
+Tur 423'ün kuzey karesi (`artifacts/near-trees/north.png`) apaçık bir kusuru gösterdi: dizboyu karın
+içinden **yemyeşil yaz çimi** çıkıyordu. Sebebi basit — `world/windGrass.js` suyu, yolları,
+yerleşimleri ve eğimi kontrol ediyor ama **iklime dair hiçbir fikri yok**.
+
+Zeminin beyaza dönmesinin iki yolu var, iki kural eklendi:
+
+- **Enlem.** `world/terrain.js`'in `northernLatitudeSnow` eğrisi — arazinin kendini gölgelendirdiği
+  eğrinin ta kendisi (ny 0,15'e kadar tam kar, 0,30'da biter). Çim tam olarak oyuncunun gördüğü zemin
+  beyaza döndüğü yerde bitiyor; ikinci bir eşik koysaydım zamanla ondan kayardı.
+- **Yükseklik.** Kar sınırının üstünde de bir şey bitmez; 470 m zaten
+  `world/worldPropScatter.js`'in `snowlineMinHeightMeters` dediği rakam.
+
+`northernLatitudeSnow` bunun için export edildi — satır eklemeden, sadece anahtar kelimeyle; yorumu da
+"tek çağıranı" demeyi bırakıp doğruyu söylüyor.
+
+Görsel doğrulama, iki dal da: kuzey karesinde kar temiz ve üstünde kozalaklılar duruyor
+(`north.png`); güney karesinde çim ve geniş yapraklılar olduğu gibi duruyor (`eye2.png`). Kural
+sadece karın olduğu yeri kesiyor.
+
+Kapılar: `checkWindGrassContractRun180`, `checkVegetationVisualContract`, `checkSmokeCheckRegistry`,
+`checkServiceWorkerCache`, `checkTechnicalDebt`, `checkSeededRandomPolicy`,
+`checkTerrainVisualContract`, `checkNorthernIce` — hepsi PASS. `checkTerrainMicroSurface.mjs` bu
+konteynerde zaten kırık (Node'da `three` çözümlenmiyor, Tur 416'da stash ile doğrulandı).

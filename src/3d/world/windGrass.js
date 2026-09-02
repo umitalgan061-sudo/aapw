@@ -9,6 +9,8 @@
 
 import * as THREE from 'three';
 import { WORLD_DEFAULTS } from '../config.js';
+import { northernLatitudeSnow } from './terrain.js';
+import { normalizedMapPoint } from './worldPropScatter.js';
 
 // Run 180 / ADR-0201 — bounded deterministic physical grass with shader-only natural wind.
 const RUN180_WIND_GRASS_CONFIG = Object.freeze({
@@ -51,6 +53,22 @@ const RUN180_WIND_GRASS_CONFIG = Object.freeze({
 	seatClearanceMeters: 100,
 	shoreMarginMeters: 1.5,
 	maxSlopeDegrees: 38,
+	/**
+	 * Run 424 — no summer grass on snow.
+	 *
+	 * Run 423's northern capture (`artifacts/near-trees/north.png`) shows bright green blades growing
+	 * out of deep snow, because this system checks water, roads, seats and slope and has never had any
+	 * notion of climate. Two rules, matching the two ways ground turns white:
+	 *
+	 *   * **Latitude.** `world/terrain.js`'s `northernLatitudeSnow` is the same curve the terrain
+	 *     shades itself with — full snow to ny 0.15, gone by 0.30 — so grass stops exactly where the
+	 *     ground the player sees turns white, rather than at some second threshold that would drift
+	 *     away from it.
+	 *   * **Altitude.** Above the snowline nothing grows either, and 470 m is the figure
+	 *     `world/worldPropScatter.js` already calls `snowlineMinHeightMeters`.
+	 */
+	snowLatitudeCeiling: 0.35,
+	snowlineMinHeightMeters: 470,
 });
 
 function run180GrassRng(seed) {
@@ -84,6 +102,9 @@ function run180GrassAllowed(x, z, { sampleHeightMeters, seaLevelMeters, seats, r
 	}
 	const y = sampleHeightMeters(x, z);
 	if (y <= seaLevelMeters + RUN180_WIND_GRASS_CONFIG.shoreMarginMeters) return false;
+	if (y - seaLevelMeters >= RUN180_WIND_GRASS_CONFIG.snowlineMinHeightMeters) return false;
+	const { ny } = normalizedMapPoint(x, z);
+	if (northernLatitudeSnow(ny) >= RUN180_WIND_GRASS_CONFIG.snowLatitudeCeiling) return false;
 	const d = 4;
 	const dx = sampleHeightMeters(x + d, z) - y;
 	const dz = sampleHeightMeters(x, z + d) - y;
