@@ -338,7 +338,7 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run 414 gives the road an actual dirt surface -- broad damp patching, wheel ruts, a drier crown,
 // grit and scattered stones, all procedural because this container has no git-lfs and so no texture
 // file can be committed. A stale shell keeps drawing the flat tan band. v64->v65.
-const SHELL_CACHE = 'westeros-shell-v65';
+const SHELL_CACHE = 'westeros-shell-v66';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -449,6 +449,11 @@ const SHELL_FILES = [
 // materially — its detail atlas was rebuilt from plane waves to tileable value noise. An existing
 // offline install would otherwise keep serving the cached copy and keep rendering the diagonal weave
 // this run removed, so `SHELL_CACHE` is bumped v31->v32 to retire it.
+//
+// run 416 (3D_GAME_PROGRESS.md ADR-0364): added `world/groundSurfaceGrain.js` — the 1.6-7.3 m detail layer
+// imported by `world/terrainMicroSurface.js` and `world/roads.js`, plus its three image tiles. An
+// offline install cached before this run would fetch a `terrainMicroSurface.js` whose import of it
+// 404s, taking the whole 3D mode down rather than degrading, so `SHELL_CACHE` is bumped v65->v66.
 const GAME3D_SHELL_FILES = [
     './src/3d/editor/EditorFallbackMaterialPalette.js',
     './game3d.html',
@@ -528,6 +533,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/worldFoundation.js',
     './src/3d/world/terrainContinentalUplift.js',
     './src/3d/world/terrainMicroSurface.js',
+    './src/3d/world/groundSurfaceGrain.js',
     './src/3d/world/terrainReliefDetail.js',
     './src/3d/world/chunkManager.js',
     './src/3d/world/waterLatitude.js',
@@ -627,6 +633,23 @@ self.addEventListener('install', (event) => {
         caches.open(MEDIA_CACHE)
             .then(cache => cache.add('./assets/textures/yüzey/overlay/overlay.png'))
             .catch(error => console.warn('[SW] Run210 surface media cache skipped:', error))
+    );
+});
+
+// Run416 ground-grain media cache — the three tiles `world/groundSurfaceGrain.js` and `world/roads.js`
+// load. Unlike a JS module these are not part of the shell graph, so they follow the overlay above into
+// MEDIA_CACHE. Without them an offline session renders ground and roads as flat untextured colour,
+// which is the exact defect this run closed; the shader itself still runs, so it degrades rather than
+// breaks, and the `.catch` keeps a missing tile from failing the whole install.
+self.addEventListener('install', (event) => {
+    event.waitUntil(
+        caches.open(MEDIA_CACHE)
+            .then(cache => cache.addAll([
+                './assets/textures/ground/ground_grain_normal.png',
+                './assets/textures/ground/ground_grain_albedo.png',
+                './assets/textures/roads/road_verge_grass.png',
+            ]))
+            .catch(error => console.warn('[SW] Run416 ground grain media cache skipped:', error))
     );
 });
 

@@ -18932,3 +18932,65 @@ bir kenar" gibi değil.
 **Hâlâ dürüst sınır:** bu prosedürel toprak, taranmış fotoğraf dokusu değil. Yakın çekimde artık aşınmış
 bir toprak yol gibi okunuyor ama `dirt_road_test.glb`'nin gerçek foto dokusu ile aynı şey değil. O
 seviye, depoya doku dosyası eklenebildiği gün mümkün.
+
+## Tur 416 — Zeminin yüzey dokusu: haritanın tamamı için, sahibin kendi asset'inden (ADR-0364)
+
+Sahip üç kez aynı şeyi söyledi: *"Yine yapay kalmış."* Tur 414/415 sadece **yola** bakmıştı; asıl
+sorun bütün zemindi ve nedeni ölçüldü:
+
+- `overlay.png` (sahibin hava fotoğrafı) 9000x7000 haritanın **tamamına** tek parça geriliyor — yürüme
+  mesafesinde metrelerce alana bir texel düşüyor, yani hiçbir şey görünmüyor.
+- `world/terrainMicroSurface.js`'in prosedürel atlası **22 m**'de tekrar ediyor; en küçük detayı ~5,5 m.
+  Bu tepe-vadi ölçeği, yüzey dokusu değil.
+
+Yani **1,5-8 m arası tamamen boştu** — insanın yürürken gerçekten gördüğü bant. Zemin bu yüzden düz
+renk bir kabuk gibi çıkıyordu, ne kadar renk oynanırsa oynansın.
+
+**Yeni katman: `world/groundSurfaceGrain.js`.** Gürültüden değil, sahibin kendi
+`assets/models/fbx/dirt_road_test.glb`'sinden: o model 1024x1024 **pişmiş normal map** taşıyor ve
+kenar bandı yoğun çim öbeği kabartması — prosedürel value noise'un taklit edemeyeceği tam olarak bu.
+Ölçülerek en temiz pencere seçildi (x20,y40, 112 px; pink atlas dikişi %0,06, düz yol bandı %0,7),
+yüksek geçiren filtreden geçirildi ve 128x128'e indirildi. Üç dosya, toplam 90 KB:
+
+| dosya | kaynak | rol |
+|---|---|---|
+| `ground_grain_normal.png` | GLB normal map | kabartma, iki ölçekte (1,6 m + 7,3 m) |
+| `ground_grain_albedo.png` | GLB albedo | ortalaması 1 olan renk kırılması (7,3 m) |
+| `road_verge_grass.png` | GLB albedo, gerçek renk | yolun kenar çimi — sahibin sorduğu şey |
+
+**Kazançlar sayı olarak, tahminle değil:** normal karonun teğet kanalları 18/255 standart sapmada,
+albedo karo 6/255. Ağırlık 1 ile bu 4 derecelik eğim ve %2 renk oynaması demek — ölçülebilir ama
+görünmez, ki modülün ilk render'ı tam olarak bunu gösterdi. Kazançlar ölçüye göre kondu (1,8 / 1,1 /
+4,0), ince tane ~15 derecelik eğime ve renk kırılması ~%20'ye çıktı.
+
+**Neden dünya-uzayı XZ, UV değil:** terrain uv0'ı sahip haritasına, uv1'i 22 m atlasa harcamış; yol
+şeridi ise hiç `uv` yazmıyor ve o vertex düzenini `checkRoadVisualContract.js` sabitliyor. Dünya XZ
+hiçbir attribute istemiyor, chunk ve yol kenarları arasında kendiliğinden sürekli, ve 1,6 m dünyanın
+her yerinde 1,6 m.
+
+**Yol da ilk kez normal map aldı.** O ana kadar yolun hiç normal map'i yoktu: rengi nasıl kurulursa
+kurulsun matematiksel olarak düz bir düzlem gibi gölgeleniyordu — "yapay" görünmesinin büyük kısmı
+buydu. Aynı karo, aynı dünya ölçeği, daha düşük kazançlarla (1,15 / 0,7 / 2,6), çünkü sıkışmış toprak
+merayla aynı kabartmayı taşımaz.
+
+**Renk otoritesi değişmedi:** albedo karonun ortalaması nötr ve kazanç *sapmaya* uygulanıyor, yani
+ortalama çarpan her zaman 1. `world/terrainBiomeShading.js` rengin sahibi olmaya devam ediyor; bu
+katman sadece onun kararının etrafında değişkenlik ekliyor. Geometri, yükseklik, kıyı, hidroloji,
+yerleşim ve çarpışma tek satır bile değişmedi — patch tamamen fragment aşamasında.
+
+Görsel doğrulama (§8.5) 3 gerçek kamera açısı: `artifacts/ground-grain/`. Kapılar: `checkMedievalRoadSurface`,
+`roadNetworkSafetyCheck`, `terrainSeatSafetyCheck`, `checkTerrainVisualContract`, `checkTerrainDetailAtlasIsotropy`,
+`checkGroundColorVariety`, `checkTerrainGroundRealism`, `checkSmokeCheckRegistry`, `checkAssetsManifest`,
+`checkAssetCoverage`, `checkServiceWorkerCache`, `checkPwaInstallability`, `checkSeededRandomPolicy`,
+`checkTechnicalDebt` — hepsi PASS. `SHELL_CACHE` v65 -> v66.
+
+**Bu turda ayrıca düzeltilen bir ölçüm hatası:** Tur 415'te dört render arka arkaya birbirinin aynısı
+çıkmıştı ve bunu shader'a bağlamıştım. Değildi — capture script'i `2k_sun.jpg` LFS pointer'ı yüzünden
+**hiç çalışmadan** hata veriyordu ve ben bir önceki turun eski PNG'lerini kopyalıyordum. Bu konteynerde
+LFS binary'leri pointer olduğu için, görsel doğrulama script'leri artık `assets/` yükleme hatalarını
+ayırt ediyor. Ders: "render byte-identical" bulgusunda önce **render'ın gerçekten çalıştığı** kanıtlanır.
+
+**Bilinen, bu turun kapsamı dışında kalan kusur:** `artifacts/ground-grain/road-walking.png`'de yol
+şeridi bir tepe sırtında zeminden ayrılıp havada asılı kalıyor. Sebebi doku değil: şerit yüksekliğini
+`sampleHeightMeters`'tan **analitik** alıyor, terrain mesh'i ise 500 m'yi 64 segmentle (7,8 m aralık)
+örnekliyor, yani keskin sırtta mesh gerçek yüzeyin altından kesiyor. Sıradaki alt görev bu.

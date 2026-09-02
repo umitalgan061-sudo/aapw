@@ -28,6 +28,12 @@
 
 import * as THREE from 'three';
 import { findSlopeAwarePath } from './roadPathfinder.js';
+import {
+	GROUND_SURFACE_GRAIN_FRAGMENT_PARS,
+	groundSurfaceGrainColorChunk,
+	groundSurfaceGrainNormalChunk,
+	groundSurfaceGrainUniforms,
+} from './groundSurfaceGrain.js';
 
 /** Ribbon width, in meters, for the single road tier this first pass renders — wide enough to read
  * clearly as a real cart road against the terrain at this world's scale (chunks are 500m/edge),
@@ -417,6 +423,28 @@ buildRoadNetwork = function buildRoadNetworkWithMedievalSurfaceRun177(options) {
 // It keeps run 177's cache key deliberately: that key is asserted by name, and both patches are
 // applied unconditionally to every road material, so a program compiled under it is always this
 // shader. Add a third patch that can be applied selectively and that stops being true.
+/**
+ * The verge grass the owner asked about — the real one, cropped out of their own
+ * `assets/models/fbx/dirt_road_test.glb` baked albedo rather than approximated with a constant.
+ *
+ * Run 414 built the whole surface out of noise on the belief that "no texture file can be committed",
+ * and that was wrong: `*.png` is LFS-tracked, but `.gitattributes` already carries a documented
+ * exemption for `resimler/map.png`, added in run 361 for exactly this reason — a renderer that has to
+ * read real pixels cannot be handed a 130-byte pointer. The same exemption now covers this tile.
+ *
+ * Sampled in **world space** rather than through UVs: `appendRoadRibbon` writes position, colour and
+ * index and no `uv` at all, and adding one would change a vertex layout
+ * `scripts/checkRoadVisualContract.js` pins. World XZ also tiles continuously across the whole network,
+ * so no seam appears where two edges meet.
+ */
+const ROAD_VERGE_GRASS_TILE = new THREE.TextureLoader().load('assets/textures/roads/road_verge_grass.png');
+ROAD_VERGE_GRASS_TILE.wrapS = THREE.MirroredRepeatWrapping;
+ROAD_VERGE_GRASS_TILE.wrapT = THREE.MirroredRepeatWrapping;
+ROAD_VERGE_GRASS_TILE.colorSpace = THREE.SRGBColorSpace;
+ROAD_VERGE_GRASS_TILE.anisotropy = 8;
+/** Metres one verge tile covers. Small enough that the grass reads as blades, not as a green wash. */
+const ROAD_TILE_METERS = 2.2;
+
 const RUN406_NATURAL_ROAD_EDGE_KEY = 'run406-natural-road-edge-v1';
 const buildRoadNetworkBeforeNaturalEdgeRun406 = buildRoadNetwork;
 
@@ -453,6 +481,21 @@ function applyNaturalRoadEdgeRun406(network) {
 		const previousOnBeforeCompile = material.onBeforeCompile.bind(material);
 		material.onBeforeCompile = (shader, renderer) => {
 			previousOnBeforeCompile(shader, renderer);
+			// `scripts/checkMedievalRoadSurface.js` calls this hook with a stub that carries only the two
+			// shader strings, so the uniform block is guarded rather than assumed. The real renderer
+			// always supplies `uniforms`; the check only wants to read the compiled GLSL.
+			if (shader.uniforms) {
+				shader.uniforms.run415GrassMap = { value: ROAD_VERGE_GRASS_TILE };
+				shader.uniforms.run415TileMeters = { value: ROAD_TILE_METERS };
+				// A road is packed earth: it takes the same grain the surrounding ground does, at the same
+				// world scale so the two never disagree about how big a clod is, but at reduced relief and
+				// with less colour break-up, because that is the difference between soil and a worn track.
+				Object.assign(shader.uniforms, groundSurfaceGrainUniforms({
+					fineNormalStrength: 1.15,
+					coarseNormalStrength: 0.7,
+					albedoStrength: 2.6,
+				}));
+			}
 			shader.vertexShader = shader.vertexShader
 				.replace(
 					'#include <common>',
@@ -468,6 +511,8 @@ function applyNaturalRoadEdgeRun406(network) {
 					`#include <common>
 varying float vRun406Side;
 varying vec3 vRun406Position;
+uniform sampler2D run415GrassMap;
+uniform float run415TileMeters;${GROUND_SURFACE_GRAIN_FRAGMENT_PARS}
 float run406Hash(vec2 p) { return fract(sin(dot(p, vec2(41.7, 289.3))) * 24634.6345); }
 float run406Noise(vec2 p) {
 	vec2 cell = floor(p);
@@ -498,15 +543,17 @@ if (run406Across > run406KeptHalfWidth) discard;
 // Where the dirt gives out it does not simply stop: it thins into trodden ground with grass coming
 // back through it, which is what the owner's own reference shows either side of the track.
 float run406Verge = smoothstep(run406KeptHalfWidth * 0.55, run406KeptHalfWidth, run406Across);
+// Run 415: the verge blends into the owner's own grass tile rather than into a flat green constant.
+vec2 run415Uv = vRun406Position.xz / run415TileMeters;
+vec3 run415Grass = texture2D(run415GrassMap, run415Uv).rgb;
 float run406Regrowth = run406Fbm(vRun406Position.xz * 1.7);
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.30, 0.34, 0.19), run406Verge * (0.24 + run406Regrowth * 0.42));
+diffuseColor.rgb = mix(diffuseColor.rgb, run415Grass, run406Verge * (0.35 + run406Regrowth * 0.45));
 
 // --- Run 414: an actual dirt surface, not a tinted band. -----------------------------------------
 // The owner asked twice whether the roads read as real. The lift and the frayed edge fixed the shape;
-// what was left was that the surface is one flat tan at any distance you can see it from. There is no
-// texture file to reach for -- this container has no git-lfs, so no image can be committed -- so the
-// dirt is built out of the same world-space noise the edge uses, at four scales that do different
-// jobs. Zero extra draw calls, zero bytes downloaded.
+// what was left was the surface. These four noise scales shape it -- patching, ruts, crown -- and run
+// 415 lays the owner's own photographic dirt over the top of them; run 414's claim that no texture
+// file could be committed was wrong, see this file's ROAD_DIRT_TILE note.
 //
 // Broad damp/dry patching, metres across: the largest thing the eye picks up on a real track.
 float run414Patch = run406Fbm(vRun406Position.xz * 0.22);
@@ -517,15 +564,21 @@ diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.72, 0.70, 0.6
 // The crown between and outside the ruts stays drier and paler, which is what makes ruts read as ruts.
 float run414Crown = (1.0 - run414Rut) * (1.0 - smoothstep(0.0, 0.9, run406Across));
 diffuseColor.rgb *= 1.0 + run414Crown * 0.10;
-// Grit and small stones, close to per-pixel at walking distance.
-float run414Grit = run406Fbm(vRun406Position.xz * 26.0);
-diffuseColor.rgb *= 0.86 + run414Grit * 0.30;
-// A scatter of pale stones sitting proud of the dirt.
-float run414Stone = smoothstep(0.78, 0.92, run406Fbm(vRun406Position.xz * 11.0));
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.52, 0.49, 0.43), run414Stone * 0.45 * (1.0 - run414Rut));
 // Lighter and darker stretches along the length, so no two hundred metres read the same.
 float run406Along = run406Fbm(vRun406Position.xz * 0.028);
-diffuseColor.rgb *= 0.87 + run406Along * 0.29;`,
+diffuseColor.rgb *= 0.87 + run406Along * 0.29;
+// Run 416: the same soil break-up the ground either side of the road carries, so the track reads as
+// worn into the terrain instead of laid on top of it. Unit mean, so the tier colours that
+// checkRoadVisualContract.js pins still decide cart road from footpath.
+// (No backticks in GLSL comments -- this whole shader is a JS template literal, and a stray one
+//  terminates it early. That is exactly how this block broke the module once already.)${groundSurfaceGrainColorChunk('vRun406Position.xz')}`,
+				)
+				// Run 416: relief. Until now the road had no normal map at all, so however the colour was
+				// composed it was still shaded as a mathematically flat plane -- which is most of why it
+				// read as artificial however much dirt was painted on it.
+				.replace(
+					'#include <normal_fragment_maps>',
+					`#include <normal_fragment_maps>${groundSurfaceGrainNormalChunk('vRun406Position.xz')}`,
 				);
 		};
 		material.needsUpdate = true;

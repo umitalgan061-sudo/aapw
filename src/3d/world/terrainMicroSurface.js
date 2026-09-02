@@ -15,6 +15,7 @@
  */
 
 import * as THREE from 'three';
+import { applyGroundSurfaceGrain } from './groundSurfaceGrain.js';
 
 const TAU = Math.PI * 2;
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
@@ -216,6 +217,12 @@ export function applyTerrainMicroSurface(material) {
 	material.normalScale.setScalar(TERRAIN_MICRO_SURFACE_POLICY.normalStrength);
 	material.roughnessMap = surface.roughnessMap;
 	material.roughness = TERRAIN_MICRO_SURFACE_POLICY.roughnessBase;
+	// Run 416 — the near layer, applied here rather than at the `terrain.js` call site because it is the
+	// same concern this module already owns and `terrain.js` is at its 600-line cap. The atlas above
+	// repeats every 22 m, so its smallest feature is metres wide and the ground reads as flat colour
+	// from standing height; `world/groundSurfaceGrain.js` adds the 1.6-7.3 m band underneath it, out of
+	// the owner's own baked normal map. Layered, not replaced: this normal map still runs first.
+	applyGroundSurfaceGrain(material);
 	material.userData.terrainMicroSurface = Object.freeze({
 		policyId: TERRAIN_MICRO_SURFACE_POLICY.id,
 		detailRepeatMeters: TERRAIN_MICRO_SURFACE_POLICY.detailRepeatMeters,

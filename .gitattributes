@@ -20,3 +20,14 @@
 # `map.png/map.png` (the owner's own upload, PR #792) keeps the LFS rule and stays a pointer; nothing
 # loads it, and scripts/checkOwnerMapAndRoadRoutes.js compares it against this one when it is hydrated.
 resimler/map.png -filter -diff -merge -text
+
+# Run 416 — the ground's micro-surface tiles, cropped out of the owner's own `dirt_road_test.glb`
+# (its baked normal and albedo atlas) and committed as plain blobs for exactly the reason
+# `resimler/map.png` above is: the renderer has to read their real pixels, and an LFS-tracked file is a
+# 130-byte pointer in any environment that has not run `git lfs pull` — including this one, which has no
+# git-lfs binary at all. Tracked in LFS they would render as broken textures rather than as ground.
+# All three are 128x128 and together under 100 KB; they are the only image assets this rule exempts
+# besides the canonical map.
+assets/textures/ground/ground_grain_normal.png -filter -diff -merge -text
+assets/textures/ground/ground_grain_albedo.png -filter -diff -merge -text
+assets/textures/roads/road_verge_grass.png -filter -diff -merge -text
