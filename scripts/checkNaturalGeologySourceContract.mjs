@@ -37,6 +37,9 @@ assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.minimumNearestNeighborMeters >= 20);
 assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.settlementReserveMeters >= 120);
 assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.roadReserveMeters >= 18);
 assert(NATURAL_GEOLOGY_PLACEMENT_POLICY.shorelineReserveMeters >= 8);
+assert.equal(NATURAL_GEOLOGY_PLACEMENT_POLICY.assetProxyUsesRawClusterEligibility, true);
+assert.equal(NATURAL_GEOLOGY_PLACEMENT_POLICY.assetProxyCanonicalTiltRatio, 0.52);
+assert.equal(NATURAL_GEOLOGY_PLACEMENT_POLICY.assetProxyCanonicalBurialEnvelopePreserved, true);
 
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.renderOnly, true);
 assert.equal(NATURAL_GEOLOGY_RENDER_POLICY.geographyAuthorityUnchanged, true);
@@ -137,6 +140,9 @@ for (const snippet of [
   'valyriaMorphologyDominant',
   'faultDominates',
   'morphologyDrainage * 0.10',
+  'rawClusterInfluence: dominant.influence',
+  'assetProxySuitability',
+  'assetProxyCanonicalTiltRatio',
   'naturalGeologyCandidateUv',
   'naturalGeologyCandidateWorld',
   "candidateDistribution: 'r2-low-discrepancy-cranley-patterson'",
@@ -336,6 +342,9 @@ console.log(JSON.stringify({
   naturalVolcanicMorphology: true,
   morphologyAlignedOutcropPlacement: true,
   lowDiscrepancyGeologyCandidates: true,
+  assetProxyRawClusterEligibility: NATURAL_GEOLOGY_PLACEMENT_POLICY.assetProxyUsesRawClusterEligibility,
+  assetProxyCanonicalTiltRatio: NATURAL_GEOLOGY_PLACEMENT_POLICY.assetProxyCanonicalTiltRatio,
+  assetProxyCanonicalBurialEnvelopePreserved: NATURAL_GEOLOGY_PLACEMENT_POLICY.assetProxyCanonicalBurialEnvelopePreserved,
   geographicAssetRouting: true,
   fbxHydration: true,
   legacyFbxPbrNormalization: NATURAL_GEOLOGY_RENDER_POLICY.legacyFbxMaterialPbrNormalization,
