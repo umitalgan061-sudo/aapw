@@ -101,7 +101,7 @@ jobs:
           test -s assets/animations/peasant_girl/idle.fbx
           test -s assets/animations/peasant_girl/walking.fbx
           test -s assets/animations/peasant_girl/running.fbx
-      - name: Static and shared contracts
+      - name: Static gameplay contracts
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/player.js
@@ -141,14 +141,19 @@ jobs:
           node scripts/checkPlayerDodgeIFrames.mjs
           node scripts/checkPlayerGroundingCombatContract.mjs
           node scripts/checkPlayerRecoveryAttackBufferDrop.mjs
-          node scripts/checkSharedMaterialPlacementContract.js
-          node scripts/checkServiceWorkerCache.js
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
           ! grep -q 'EditorMaterialStudio' src/3d/gameplay/player.js
           ! grep -q 'EditorMaterialStudio' src/3d/gameLoopHelpers.js
           ! grep -q 'EditorMaterialStudio' src/3d/input.js
+      - name: Shared material placement contract
+        if: always()
+        run: node scripts/checkSharedMaterialPlacementContract.js
+      - name: Shared PWA cache contract
+        if: always()
+        run: node scripts/checkServiceWorkerCache.js
       - name: Install Chromium
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
@@ -157,6 +162,7 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
       - name: Shipped scene sprint dodge guard parry melee gamepad lock-on and combat HUD proof
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
@@ -197,6 +203,7 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
       - name: Final main freshness
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
