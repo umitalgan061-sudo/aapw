@@ -32,7 +32,7 @@ export const WAVE_TOTAL_AMPLITUDE_METERS = SWELL_COMPONENTS.reduce((sum, [, ampl
 export const WATER_OFFSHORE_OPTICAL_GAIN = 0.82;
 
 export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
-	id: 'water-world-surface-variation-2026-08-31-v8-cross-current-backdrop',
+	id: 'water-world-surface-variation-2026-09-02-v9-soft-layer-handoff',
 	renderOnly: true,
 	canonicalDepthUnchanged: true,
 	canonicalCoverageUnchanged: true,
@@ -50,11 +50,16 @@ export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	backdropCrossCurrentScaleMeters: 3600,
 	backdropRoughnessMin: 0.24,
 	backdropRoughnessMax: 0.76,
+	layerHandoffFarStartMeters: 1650,
+	layerHandoffFarFullMeters: 1980,
+	layerHandoffNearFadeStartMeters: 1780,
+	layerHandoffNearFadeEndMeters: 2000,
 	shoreBreakerRevision: 'v1-bathymetry-directed-irregular-lace',
 	shoreGradientStepMeters: 68,
 	directionalBreakers: true,
 	nonPeriodicFoamBreakup: true,
 	worldSpaceDeepBackdrop: true,
+	softNearFarLayerHandoff: true,
 });
 
 const WATER_VERTEX_SHADER = /* glsl */ `
@@ -222,10 +227,11 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	}
 
 	void main() {
-		if (uFarLayerMask > 0.5) {
-			float nearLayerDistance = max(abs(vWorldPosition.x - uCameraPosition.x), abs(vWorldPosition.z - uCameraPosition.z));
-			if (nearLayerDistance < 1999.5) discard;
-		}
+		float layerDistance = max(abs(vWorldPosition.x - uCameraPosition.x), abs(vWorldPosition.z - uCameraPosition.z));
+		float farLayerBlend = smoothstep(${WATER_SURFACE_VARIATION_POLICY.layerHandoffFarStartMeters.toFixed(1)}, ${WATER_SURFACE_VARIATION_POLICY.layerHandoffFarFullMeters.toFixed(1)}, layerDistance);
+		float nearLayerBlend = 1.0 - smoothstep(${WATER_SURFACE_VARIATION_POLICY.layerHandoffNearFadeStartMeters.toFixed(1)}, ${WATER_SURFACE_VARIATION_POLICY.layerHandoffNearFadeEndMeters.toFixed(1)}, layerDistance);
+		float layerOpacity = mix(nearLayerBlend, farLayerBlend, uFarLayerMask);
+		if (uFarLayerMask > 0.5 && layerOpacity <= 0.001) discard;
 
 		vec2 waterField = sampleWaterField(vWorldPosition.xz);
 		float fragmentDepth = waterField.x;
@@ -318,14 +324,14 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float offshoreAbsorption = 1.0 - exp(-offshoreGain * 3.4);
 		opticalDepth = 1.0 - (1.0 - opticalDepth) * (1.0 - offshoreAbsorption);
 		float alpha = mix(0.14, 0.90, opticalDepth);
-		float farOffshoreOpacity = uFarLayerMask * smoothstep(0.62, 0.94, offshoreOptical);
+		float farOffshoreOpacity = uFarLayerMask * farLayerBlend * smoothstep(0.62, 0.94, offshoreOptical);
 		alpha = mix(alpha, max(alpha, 0.995), max(deepMarineMask, farOffshoreOpacity));
 		alpha *= 1.0 + shelfMottle * 0.22;
 		float bedReadability = max(enclosedLakeMask * clearShallowBand * 0.30, clearCoastMask * 0.18);
 		alpha *= 1.0 - bedReadability;
 		alpha *= waterCoverage;
 
-		gl_FragColor = vec4(color, max(alpha, foam * 0.78));
+		gl_FragColor = vec4(color, max(alpha, foam * 0.78) * layerOpacity);
 		#include <fog_fragment>
 	}
 `;
@@ -487,6 +493,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		bathymetryDirectedIrregularBreakers: true,
 		nonPeriodicFoamLace: true,
 		nightAbsorptionFromCelestialState: true,
+		softNearFarLayerHandoff: true,
 	});
 
 	const farGeometry = new THREE.PlaneGeometry(WATER_FULL_WORLD_EXTENT_METERS, WATER_FULL_WORLD_EXTENT_METERS, 1, 1);
