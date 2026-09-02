@@ -31,6 +31,7 @@ on:
       - 'scripts/checkPlayerHitStaggerRuntime.mjs'
       - 'scripts/checkPlayerRecoveryAttackBufferDrop.mjs'
       - 'scripts/checkPlayerRecoveryAttackBufferRuntime.mjs'
+      - 'scripts/checkPlayerEquipmentAssetReadiness.mjs'
       - '.github/workflows/player-combat-feedback.yml'
       - '.github/workflows/player-combat-vertical-slice.yml'
       - '.github/workflows/player-dodge-iframes.yml'
@@ -73,7 +74,7 @@ jobs:
           git diff --check "$BASE"...HEAD
           CHANGED="$(git diff --name-only "$BASE"...HEAD)"
           echo "$CHANGED"
-          OUT_OF_SCOPE="$(printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/gameplay/health\.js|src/3d/gameplay/damageResolution\.js|src/3d/input\.js|src/3d/camera\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/controlsHelp\.js|scripts/checkPlayerCombatVerticalSlice\.mjs|scripts/checkPlayerGeographicCameraOcclusion\.mjs|scripts/checkTouchJoystickInputContract\.js|scripts/checkPlayerCombatFeedback\.mjs|scripts/checkPlayerCombatFeedbackHapticParity\.mjs|scripts/checkPlayerCombatFeedbackHotplug\.mjs|scripts/checkPlayerCombatHealthReceipt\.mjs|scripts/checkPlayerImmutableDefenseDamage\.mjs|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGroundingCombatContract\.mjs|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|scripts/checkPlayerDodgeIFrames\.mjs|scripts/checkPlayerDodgeIFrameRuntime\.mjs|scripts/checkPlayerCombatHudRuntime\.mjs|scripts/checkPlayerHitStaggerRuntime\.mjs|scripts/checkPlayerRecoveryAttackBufferDrop\.mjs|scripts/checkPlayerRecoveryAttackBufferRuntime\.mjs|scripts/checkPlayerTouchCombatRuntime\.mjs|\.github/workflows/player-combat-feedback\.yml|\.github/workflows/player-combat-vertical-slice\.yml|\.github/workflows/player-dodge-iframes\.yml|\.github/workflows/player-grounding-combat-contract\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-hit-stagger-runtime\.yml|\.github/workflows/player-recovery-attack-buffer-drop\.yml|\.github/workflows/player-combat-recovery-input-isolation\.yml|\.github/workflows/player-parry-recovery\.yml|\.github/workflows/player-guard-impact-exhaustion\.yml|\.github/workflows/player-stamina-dodge\.yml|\.github/workflows/player-touch-combat-runtime\.yml)$' || true)"
+          OUT_OF_SCOPE="$(printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/gameplay/health\.js|src/3d/gameplay/damageResolution\.js|src/3d/input\.js|src/3d/camera\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/controlsHelp\.js|scripts/checkPlayerCombatVerticalSlice\.mjs|scripts/checkPlayerGeographicCameraOcclusion\.mjs|scripts/checkTouchJoystickInputContract\.js|scripts/checkPlayerCombatFeedback\.mjs|scripts/checkPlayerCombatFeedbackHapticParity\.mjs|scripts/checkPlayerCombatFeedbackHotplug\.mjs|scripts/checkPlayerCombatHealthReceipt\.mjs|scripts/checkPlayerImmutableDefenseDamage\.mjs|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGroundingCombatContract\.mjs|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|scripts/checkPlayerDodgeIFrames\.mjs|scripts/checkPlayerDodgeIFrameRuntime\.mjs|scripts/checkPlayerCombatHudRuntime\.mjs|scripts/checkPlayerHitStaggerRuntime\.mjs|scripts/checkPlayerRecoveryAttackBufferDrop\.mjs|scripts/checkPlayerRecoveryAttackBufferRuntime\.mjs|scripts/checkPlayerEquipmentAssetReadiness\.mjs|scripts/checkPlayerTouchCombatRuntime\.mjs|\.github/workflows/player-combat-feedback\.yml|\.github/workflows/player-combat-vertical-slice\.yml|\.github/workflows/player-dodge-iframes\.yml|\.github/workflows/player-grounding-combat-contract\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-hit-stagger-runtime\.yml|\.github/workflows/player-recovery-attack-buffer-drop\.yml|\.github/workflows/player-combat-recovery-input-isolation\.yml|\.github/workflows/player-parry-recovery\.yml|\.github/workflows/player-guard-impact-exhaustion\.yml|\.github/workflows/player-stamina-dodge\.yml|\.github/workflows/player-touch-combat-runtime\.yml)$' || true)"
           test -z "$OUT_OF_SCOPE"
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           test "$((ADD + DEL))" -le 3000
@@ -116,6 +117,7 @@ jobs:
           node --check scripts/checkPlayerHitStaggerRuntime.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferDrop.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferRuntime.mjs
+          node --check scripts/checkPlayerEquipmentAssetReadiness.mjs
           node scripts/checkPlayerRecoveryAttackBufferDrop.mjs
           node --check src/3d/gameplay/player.js
           node scripts/checkSharedMaterialPlacementContract.js
