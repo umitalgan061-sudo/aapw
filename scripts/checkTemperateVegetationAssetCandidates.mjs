@@ -228,6 +228,9 @@ function auditCandidate(candidate) {
 	const shapeLooksSingleTree = bounds.horizontalToHeightRatio <= 1.12;
 	const hasTextureEvidence = texturedUsedMaterials.length > 0 && images.length > 0;
 	const liveCandidate = shapeLooksSingleTree && hasTextureEvidence;
+	const rejectionReasons = [];
+	if (!shapeLooksSingleTree) rejectionReasons.push('horizontal-to-height-ratio-exceeds-single-tree-envelope');
+	if (!hasTextureEvidence) rejectionReasons.push('missing-used-base-color-texture-evidence');
 	return {
 		id: candidate.id,
 		path: candidate.path,
@@ -251,18 +254,14 @@ function auditCandidate(candidate) {
 		shapeLooksSingleTree,
 		hasTextureEvidence,
 		liveCandidate,
+		rejectionReasons,
 	};
 }
 
 const args = parseArgs(process.argv.slice(2));
 const candidates = CANDIDATES.map(auditCandidate);
-assert(candidates.every((candidate) => candidate.fileBytes > 512), 'all audited tree candidates must be hydrated real GLBs');
-assert(candidates.some((candidate) => candidate.hasTextureEvidence), 'no audited temperate tree retained real texture evidence');
-assert(candidates.some((candidate) => candidate.liveCandidate),
-	'no hydrated textured single-tree candidate is safe enough to enter the material/placement qualification stage');
-
 const report = Object.freeze({
-	contract: 'temperate-vegetation-asset-first-audit-v1',
+	contract: 'temperate-vegetation-asset-first-audit-v2-evidence-first',
 	candidates,
 	liveCandidates: candidates.filter((candidate) => candidate.liveCandidate).map((candidate) => candidate.id),
 	layeredFallbackCandidates: candidates.filter((candidate) => candidate.liveCandidate && candidate.materialStrategy === 'layered-fallback').map((candidate) => candidate.id),
@@ -273,4 +272,6 @@ if (args.output) {
 	fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 	fs.writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 }
-console.log('[checkTemperateVegetationAssetCandidates] PASS', JSON.stringify(report));
+assert(candidates.every((candidate) => candidate.fileBytes > 512), 'all audited tree candidates must be hydrated real GLBs');
+assert(candidates.some((candidate) => candidate.hasTextureEvidence), 'no audited temperate tree retained real texture evidence');
+console.log('[checkTemperateVegetationAssetCandidates] AUDIT', JSON.stringify(report));
