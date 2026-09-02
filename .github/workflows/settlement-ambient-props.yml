@@ -3,6 +3,8 @@ name: Settlement Ambient Prop Geographic Visual QA
 on:
   push:
     paths:
+      - 'src/3d/world/settlementAmbientPlacement.js'
+      - 'src/3d/world/settlementAmbientMaterials.js'
       - 'src/3d/world/settlementAmbientProps.js'
       - 'src/3d/sceneManager.js'
       - 'src/3d/game3d.js'
@@ -11,6 +13,8 @@ on:
       - '.github/workflows/settlement-ambient-props.yml'
   pull_request:
     paths:
+      - 'src/3d/world/settlementAmbientPlacement.js'
+      - 'src/3d/world/settlementAmbientMaterials.js'
       - 'src/3d/world/settlementAmbientProps.js'
       - 'src/3d/sceneManager.js'
       - 'src/3d/game3d.js'
@@ -67,6 +71,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          node --check src/3d/world/settlementAmbientPlacement.js
+          node --check src/3d/world/settlementAmbientMaterials.js
           node --check src/3d/world/settlementAmbientProps.js
           node --check src/3d/sceneManager.js
           node --check src/3d/game3d.js
@@ -74,9 +80,11 @@ jobs:
           grep -F "createSettlementAmbientProps" src/3d/sceneManager.js
           grep -F "upgradeSettlementAmbientPropAssets" src/3d/sceneManager.js
           grep -F "disposeSettlementAmbientProps" src/3d/game3d.js
-          grep -F "canonicalTerrainUnchanged: true" src/3d/world/settlementAmbientProps.js
-          grep -F "canonicalHydrologyUnchanged: true" src/3d/world/settlementAmbientProps.js
-          grep -F "canonicalCollidersUnchanged: true" src/3d/world/settlementAmbientProps.js
+          grep -F "canonicalTerrainUnchanged: true" src/3d/world/settlementAmbientPlacement.js
+          grep -F "canonicalHydrologyUnchanged: true" src/3d/world/settlementAmbientPlacement.js
+          grep -F "canonicalCollidersUnchanged: true" src/3d/world/settlementAmbientPlacement.js
+          grep -F "routeShoulderProjection: true" src/3d/world/settlementAmbientPlacement.js
+          grep -F "normalMap: fabric.normalMap" src/3d/world/settlementAmbientMaterials.js
 
       - name: Canonical geographic placement and real WebGL visual acceptance
         env:
