@@ -5,6 +5,7 @@ on:
     paths:
       - 'scripts/checkWorldReferenceHydrologyExtent.js'
       - 'scripts/checkFullWorldRuntimeCoverage.mjs'
+      - '.github/workflows/full-world-runtime-coverage.yml'
       - '.github/workflows/settlement-transition-governance-exact-head.yml'
   workflow_dispatch:
 
@@ -42,7 +43,7 @@ jobs:
 
           for path in "${CHANGED[@]}"; do
             case "$path" in
-              scripts/checkWorldReferenceHydrologyExtent.js|scripts/checkFullWorldRuntimeCoverage.mjs|.github/workflows/settlement-transition-governance-exact-head.yml) ;;
+              scripts/checkWorldReferenceHydrologyExtent.js|scripts/checkFullWorldRuntimeCoverage.mjs|.github/workflows/full-world-runtime-coverage.yml|.github/workflows/settlement-transition-governance-exact-head.yml) ;;
               *) echo "Unexpected path in bounded settlement-transition candidate: $path" >&2; exit 1 ;;
             esac
           done
