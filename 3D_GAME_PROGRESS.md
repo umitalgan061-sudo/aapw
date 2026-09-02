@@ -19101,3 +19101,44 @@ mobil 900/1200, masaüstü 3200/4000, patch başına 288 üçgen.
 
 **Dürüst sınır:** bu hâlâ geometrik çim ve yakın çekimde tek tek bıçaklar seçiliyor. Bu bütçede
 gerçek çözüm bıçak değil **alfa-kesimli çim kartı** (bir quad = ~20 görünür bıçak); sıradaki adım o.
+
+## Tur 419 — Çim artık bıçak başına ödemiyor: alfa-kesimli kart (ADR-0367)
+
+Tur 418 geometrik çimin tavanını ölçmüştü: 921.600 üçgen, metrekareye 14 bıçak — ve çayır metrekarede
+binlerce sap. Sebebi basit: bıçağa harcanan her üçgen **tam olarak bir bıçak** çiziyor.
+
+Bir kart, iki üçgen karşılığında **yirmi küsur** bıçak çiziyor, çünkü bıçaklar vertex buffer'da değil
+**alfa kanalında** yaşıyor. İkna edici çim çizen her motor bunu böyle yapar ve bu bütçenin çimenlik
+yoğunluğuna ulaşmasının tek yolu bu.
+
+`run180GrassCardTexture()` bir canvas'a 22 bıçak çiziyor: her biri kendi konturuyla (bir kenardan
+eğriyle yukarı, ucundan geç, öbür kenardan aşağı — stroke edilmiş çizgi sabit kalınlık verir, sivrilme
+vermez), kökte koyu uçta açık dikey gradyan, bıçak başına ton oynaması. Determinist: tam sayısız trig
+hash, `Math.random()` yok (`checkSeededRandomPolicy` zaten yasaklıyor).
+
+Patch başına 16 çapraz kart = **64 üçgen** (418'de 288, 366'da 384), yaklaşık **290 görünür bıçak**
+(418'de 72). Alfa **test**, blend değil: sıralama yok, saydamlık geçişi yok, çim delikleri olan sıradan
+opak bir yüzey olarak kalıyor ve derinlik yazmaya devam ediyor.
+
+Kazanılan üçgenler menzile ve yoğunluğa gitti — sözleşmenin izin verdiği tam 4000/1200 patch, 80/56
+m'lik dairede:
+
+| | Tur 366 | Tur 418 | **Tur 419** |
+|---|---|---|---|
+| çim üçgeni | 1.536.000 | 921.600 | **256.000** |
+| kare toplamı | 2.758.184 | 2.143.784 | **1.531.760** |
+| patch başına üçgen | 384 | 288 | **64** |
+| görünür bıçak/patch | 48 | 72 | **~290** |
+
+Yani çim %83 daha ucuz ve dört kattan fazla yoğun. Kare toplamı da %44 düştü.
+
+İlk çekimden sonra bir düzeltme: kart dokusunun kök/uç renkleri fazla koyuydu, tutamlar açık zeminde
+koyu çalılar gibi okunuyordu; ton zeminin kendi rengine yaklaştırıldı.
+
+Sızıntı notu: `Material.dispose()` texture'ına dokunmuyor ve buradaki bütün teardown yolları
+materyalden geçiyor, o yüzden canvas materyalin `dispose` olayına bağlandı.
+
+Kapılar: `checkWindGrassContractRun180` (patch başına 64 üçgen, mobil 1200/1200, masaüstü 4000/4000),
+`checkVegetationVisualContract`, `checkSmokeCheckRegistry`, `checkServiceWorkerCache`,
+`checkAssetCoverage`, `checkTechnicalDebt`, `checkSeededRandomPolicy`, `checkPwaInstallability` —
+hepsi PASS.

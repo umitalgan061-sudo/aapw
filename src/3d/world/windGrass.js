@@ -34,12 +34,19 @@ const RUN180_WIND_GRASS_CONFIG = Object.freeze({
 	// cell that offset is 60 m, and a 55 m disc would have left the player standing entirely outside
 	// their own grass — which is exactly what the first run-418 capture showed, a field of grass off to
 	// one side and bare ground underfoot. Half a cell must stay well inside the radius.
-	desktop: Object.freeze({ radiusMeters: 72, maxPatches: 3200, cellMeters: 64 }),
-	mobile: Object.freeze({ radiusMeters: 52, maxPatches: 900, cellMeters: 48 }),
-	/** Fraction of the radius over which blades shrink to nothing, so the disc has no visible rim. */
+	//
+	// Run 419 spends the card saving on reach and density at once: 64 triangles a patch instead of 288
+	// pays for the full 4000/1200 patch allowance the contract permits, over a disc wide enough that
+	// grass no longer stops a few strides away.
+	desktop: Object.freeze({ radiusMeters: 80, maxPatches: 4000, cellMeters: 68 }),
+	mobile: Object.freeze({ radiusMeters: 56, maxPatches: 1200, cellMeters: 48 }),
+	/** Fraction of the radius over which cards shrink to nothing, so the disc has no visible rim. */
 	edgeFadeFraction: 0.28,
-	bladesPerPatch: 72,
-	patchRadiusMeters: 1.2,
+	/** Crossed quads per patch. Each carries about twenty blades in its alpha channel. */
+	cardsPerPatch: 16,
+	/** What those cards add up to, for the render-contract record: cards x blades drawn per card. */
+	bladesPerPatch: 16 * 22,
+	patchRadiusMeters: 1.5,
 	roadClearanceMeters: 10,
 	seatClearanceMeters: 100,
 	shoreMarginMeters: 1.5,
@@ -84,38 +91,83 @@ function run180GrassAllowed(x, z, { sampleHeightMeters, seaLevelMeters, seats, r
 }
 
 /**
+ * The blade-cluster texture every grass card carries, drawn once into a canvas.
+ *
+ * **Why a texture at all (run 419).** Run 418 measured the ceiling on geometric blades: 921,600
+ * triangles bought 14 blades per square metre, and grassland is thousands. Every triangle spent on a
+ * blade draws exactly one blade. A card draws about twenty for the price of two triangles, because the
+ * blades live in the alpha channel instead of in the vertex buffer — which is how every engine that
+ * renders convincing grass does it, and the only way this budget reaches a density that reads as turf.
+ *
+ * Deterministic by construction: an integer-free trig hash, the same family the terrain's own detail
+ * atlas uses, so this canvas is byte-identical on every boot. `scripts/checkSeededRandomPolicy.js`
+ * forbids `Math.random()` under `src/3d` and this obeys it.
+ */
+function run180GrassCardTexture() {
+	const SIZE = 256;
+	const BLADES = 22;
+	const canvas = document.createElement('canvas');
+	canvas.width = SIZE;
+	canvas.height = SIZE;
+	const context = canvas.getContext('2d');
+	context.clearRect(0, 0, SIZE, SIZE);
+	const hash = (n) => {
+		const value = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+		return value - Math.floor(value);
+	};
+	for (let i = 0; i < BLADES; i += 1) {
+		const rootX = SIZE * ((i + 0.5) / BLADES + (hash(i * 3.1) - 0.5) * 0.06);
+		const height = SIZE * (0.52 + hash(i * 5.7) * 0.46);
+		const lean = SIZE * (hash(i * 7.3) - 0.5) * 0.34;
+		const halfWidth = SIZE * (0.010 + hash(i * 11.9) * 0.008);
+		const tipY = SIZE - height;
+		const controlX = rootX + lean * 0.45;
+		const controlY = SIZE - height * 0.55;
+		// A blade is drawn as its own outline: up one side on a curve, across the tip, back down the
+		// other. Filling a stroked line instead would give a constant width and no taper.
+		context.beginPath();
+		context.moveTo(rootX - halfWidth, SIZE);
+		context.quadraticCurveTo(controlX - halfWidth * 0.55, controlY, rootX + lean, tipY);
+		context.quadraticCurveTo(controlX + halfWidth * 0.55, controlY, rootX + halfWidth, SIZE);
+		context.closePath();
+		// Dark at the root where light does not reach, brighter at the tip. Per-blade hue variation so a
+		// card reads as many plants rather than one stencil repeated.
+		const tint = hash(i * 13.7);
+		const gradient = context.createLinearGradient(0, SIZE, 0, tipY);
+		// Lightened after the first capture: at the original values the tufts read as dark bushes
+		// scattered over pale ground. Grass that sits inside the terrain's own tone disappears into it,
+		// which is the whole job of a fringe layer.
+		gradient.addColorStop(0, `rgb(${Math.round(78 + tint * 20)}, ${Math.round(104 + tint * 24)}, ${Math.round(50 + tint * 16)})`);
+		gradient.addColorStop(1, `rgb(${Math.round(156 + tint * 36)}, ${Math.round(186 + tint * 30)}, ${Math.round(100 + tint * 28)})`);
+		context.fillStyle = gradient;
+		context.fill();
+	}
+	const texture = new THREE.CanvasTexture(canvas);
+	texture.colorSpace = THREE.SRGBColorSpace;
+	texture.anisotropy = 4;
+	texture.needsUpdate = true;
+	return texture;
+}
+
+/**
  * One grass patch's geometry, shared by every instance.
  *
- * **Why this was rebuilt (run 366).** The first version gave each blade a single flat rectangle — four
- * vertices, no taper — and put ten of them in a 4.5 m patch. At that spacing and that shape they never
- * merged into turf: each card read individually, and from an oblique angle the world looked like green
- * rectangles standing on the ground rather than grass. The owner saw exactly that in the editor.
+ * **The history this replaces.** Run 180 gave each blade one flat untapered rectangle and put ten of
+ * them in a 4.5 m patch; from an oblique angle the world looked like green rectangles standing on the
+ * ground. Run 366 made each blade two crossed tapered quads, 48 to a 2.2 m patch, and pulled the disc
+ * in from 350 m to 130 m after captures showed that radius *is* density. Run 418 measured what that
+ * had actually cost — 1,536,000 triangles, 56% of the whole frame — for 3.6 blades per square metre,
+ * and cut it to 921,600 for 14.
  *
- * Three changes, all of them free: the geometry is instanced, so it is built once and reused by every
- * patch. Vertex count here costs nothing per instance.
+ * **Run 419 stops paying per blade.** Each card is one quad carrying
+ * `run180GrassCardTexture()`'s twenty-odd blades in its alpha channel, crossed with a second quad at
+ * right angles so it has presence from any direction. Sixteen crossed cards is 64 triangles a patch
+ * against run 418's 288, and roughly 290 apparent blades against 72 — a quarter of the triangles for
+ * four times the grass. Alpha *test*, not blending: no sorting, no transparency pass, and grass can
+ * still write depth like any opaque surface.
  *
- *   1. **Crossed blades.** Each blade is now two quads at right angles, so it has presence from any
- *      viewing direction instead of vanishing edge-on and flashing broadside.
- *   2. **Tapered and bendable.** Height segments narrowing from base to tip, so a blade is a blade
- *      rather than a card, and the existing `run180Flex` wind term bends it along its length instead of
- *      shearing a rigid rectangle.
- *   3. **Denser, tighter patches.** 48 blades in a 2.2 m patch instead of 10 in 4.5 m — about thirty
- *      times the blades per square metre, which is what turns individual blades into ground cover.
- *
- * **Two things the §8.5 captures caught that reasoning had not.** Neither was visible from the code.
- *
- * *Radius is density.* The first pass fixed only the blade and left the patch budget spread over a
- * 350 m disc — good blades, still isolated, still bare ground between them. See the radius note in
- * `RUN180_WIND_GRASS_CONFIG`.
- *
- * *Width, not height, was making them read as spears.* At eye level the blades looked like reeds even
- * though 0.34-0.74 m is right for grass. The base half-width was 0.055-0.09, i.e. an 11-18 cm wide
- * blade — twenty-odd times life size — so each one read as a leaf. Narrowed to 4-7 cm, with the
- * triangle budget spent on twice as many blades (48 at two segments instead of 32 at three) rather than
- * on curvature nobody can see at 4 cm wide. Per-patch triangle count is unchanged at 384.
- *
- * Vertex colours carry a dark base to a lighter tip plus per-blade variation, so a patch reads as many
- * plants rather than one flat green mass.
+ * Vertex colours are now a mild per-card tint only. The root-to-tip shading that used to live in them
+ * is in the texture, where it belongs, and where it costs nothing per vertex.
  */
 function run180GrassGeometry() {
 	const positions = [];
@@ -123,68 +175,47 @@ function run180GrassGeometry() {
 	const flex = [];
 	const phase = [];
 	const colors = [];
-	const count = RUN180_WIND_GRASS_CONFIG.bladesPerPatch;
+	const uvs = [];
+	const count = RUN180_WIND_GRASS_CONFIG.cardsPerPatch;
 	const radius = RUN180_WIND_GRASS_CONFIG.patchRadiusMeters;
-	// Run 418: one segment, not two. A blade is 4-7 cm wide; the middle row bought a curve nobody can
-	// resolve at that width and cost half the triangles in the whole system. Spending them on 50% more
-	// blades instead takes a patch from 384 triangles to 288 and from 48 blades to 72.
-	const SEGMENTS = 1;
 
-	for (let i = 0; i < count; i++) {
-		// Golden-angle placement, same as before — it spreads blades without clumping.
+	for (let i = 0; i < count; i += 1) {
+		// Golden-angle placement, same as every version before it — it spreads cards without clumping.
 		const angle = i * 2.3999632297;
 		const r = radius * Math.sqrt((i + 0.35) / count);
 		const cx = Math.cos(angle) * r;
 		const cz = Math.sin(angle) * r;
-		// Shorter than run 366's 0.34-0.74 m. At the density this system can afford, a tall blade is a
-		// blade you read individually; a short one disappears into the textured ground it stands on.
-		const height = 0.22 + 0.26 * ((i * 37 % 101) / 100);
-		const baseWidth = 0.021 + 0.013 * ((i * 53 % 97) / 96);
-		// A slight lean per blade, so a patch does not look like a comb.
-		const lean = ((i * 29 % 71) / 71 - 0.5) * 0.28;
+		const width = 0.40 + 0.20 * ((i * 37 % 101) / 100);
+		const height = 0.30 + 0.22 * ((i * 53 % 97) / 96);
 		const tint = (i * 17 % 53) / 53;
+		// Near white: the texture carries the colour, so this only keeps one card from being the exact
+		// twin of the next.
+		const red = 0.90 + 0.16 * tint;
+		const green = 0.92 + 0.14 * tint;
+		const blue = 0.86 + 0.18 * tint;
 
-		for (let quad = 0; quad < 2; quad++) {
-			const bladeAngle = angle + quad * (Math.PI / 2);
-			const sideX = Math.cos(bladeAngle + Math.PI / 2);
-			const sideZ = Math.sin(bladeAngle + Math.PI / 2);
-			const leanX = Math.cos(bladeAngle) * lean;
-			const leanZ = Math.sin(bladeAngle) * lean;
+		for (let quad = 0; quad < 2; quad += 1) {
+			const cardAngle = angle + quad * (Math.PI / 2);
+			const sideX = Math.cos(cardAngle + Math.PI / 2) * width * 0.5;
+			const sideZ = Math.sin(cardAngle + Math.PI / 2) * width * 0.5;
 			const base = positions.length / 3;
-
-			for (let row = 0; row <= SEGMENTS; row++) {
-				const t = row / SEGMENTS;
-				// Width tapers to a point; the curve keeps the blade full near the ground.
-				const halfWidth = baseWidth * (1 - t * t * 0.92);
-				const y = height * t;
-				const dx = cx + leanX * t * t;
-				const dz = cz + leanZ * t * t;
-				positions.push(dx - sideX * halfWidth, y, dz - sideZ * halfWidth);
-				positions.push(dx + sideX * halfWidth, y, dz + sideZ * halfWidth);
-				// Wind bends the blade along its length rather than shearing it rigidly.
-				flex.push(t * t, t * t);
+			for (let row = 0; row <= 1; row += 1) {
+				const y = height * row;
+				positions.push(cx - sideX, y, cz - sideZ);
+				positions.push(cx + sideX, y, cz + sideZ);
+				uvs.push(0, row, 1, row);
+				// Wind moves the top edge and leaves the roots planted.
+				flex.push(row, row);
 				phase.push(i / count, i / count);
-				// Dark at the root, lit at the tip, with per-blade variation. Run 418 lightened and warmed
-				// the whole ramp: the old green was far darker and more saturated than the ground it
-				// stands on, so every gap between blades read as bare earth showing through and the
-				// blades themselves read as dark shards. Grass that sits inside the terrain's own colour
-				// disappears into it, which is the entire point of a fringe layer.
-				const shade = 0.62 + 0.48 * t;
-				const red = (0.30 + 0.13 * tint) * shade;
-				const green = (0.47 + 0.17 * tint) * shade;
-				const blue = (0.19 + 0.08 * tint) * shade;
-				colors.push(red, green, blue);
-				colors.push(red, green, blue);
+				colors.push(red, green, blue, red, green, blue);
 			}
-			for (let row = 0; row < SEGMENTS; row++) {
-				const a = base + row * 2;
-				indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
-			}
+			indices.push(base, base + 1, base + 2, base + 1, base + 3, base + 2);
 		}
 	}
 
 	const geometry = new THREE.BufferGeometry();
 	geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+	geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
 	geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
 	geometry.setAttribute('run180Flex', new THREE.Float32BufferAttribute(flex, 1));
 	geometry.setAttribute('run180Phase', new THREE.Float32BufferAttribute(phase, 1));
@@ -236,9 +267,22 @@ function run180PopulateGrass(mesh, params, cellX, cellZ) {
 export function createWindGrassRun180({ sampleHeightMeters, seaLevelMeters, seed, seats, roadEdges, isMobileClass = false, centerX = 0, centerZ = 0 }) {
 	const config = isMobileClass ? RUN180_WIND_GRASS_CONFIG.mobile : RUN180_WIND_GRASS_CONFIG.desktop;
 	const geometry = run180GrassGeometry();
-	// Vertex colours carry the root-to-tip shading the geometry writes, so the material stays neutral
-	// white rather than flattening every blade to one green.
-	const material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, side: THREE.DoubleSide });
+	// The blades live in the card texture's alpha, and `alphaTest` cuts them out per fragment. Alpha
+	// *test*, not `transparent: true`: a transparent grass field would need back-to-front sorting on
+	// thousands of instances every frame and would stop writing depth, so anything behind it would draw
+	// through. This way grass stays an ordinary opaque surface that happens to have holes in it.
+	const cardTexture = run180GrassCardTexture();
+	const material = new THREE.MeshStandardMaterial({
+		map: cardTexture,
+		alphaTest: 0.4,
+		vertexColors: true,
+		roughness: 1,
+		metalness: 0,
+		side: THREE.DoubleSide,
+	});
+	// `Material.dispose()` does not touch its textures, and every teardown path here goes through the
+	// material — so the canvas would outlive the world it was built for without this.
+	material.addEventListener('dispose', () => cardTexture.dispose());
 	const mesh = new THREE.InstancedMesh(geometry, material, config.maxPatches);
 	mesh.name = 'run180-wind-grass';
 	const group = new THREE.Group();
