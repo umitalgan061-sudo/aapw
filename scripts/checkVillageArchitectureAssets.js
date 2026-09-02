@@ -110,7 +110,7 @@ async function main() {
 			const sourceSurfaceProof = (villageGroup.getObjectByName('village-architectural-assets')?.children || []).map((object) => ({
 				name: object.name,
 				region: object.userData?.architectureRegion ?? null,
-				surfaces: analyzeMaterialSurfaces(object).map((surface) => {
+				surfaces: analyzeMaterialSurfaces(object).surfaces.map((surface) => {
 					const original = surface.mesh?.userData?.originalMaterial;
 					const originalMaterials = Array.isArray(original) ? original : [original];
 					return {
