@@ -10,6 +10,7 @@ on:
       - 'scripts/checkVillageArchitectureAssets.js'
       - 'scripts/checkVillageArchitectureDistribution.mjs'
       - 'scripts/checkArchitectureSurfaceSemantics.mjs'
+      - 'scripts/checkVillageWindowFrameSemantics.mjs'
       - 'scripts/checkVillageGlbAssetInventory.mjs'
       - 'scripts/checkVillageRuntimeArchitectureIntegration.js'
       - 'scripts/village-architecture-harness.html'
@@ -43,7 +44,7 @@ jobs:
           while IFS= read -r path; do
             [ -z "$path" ] && continue
             case "$path" in
-              src/3d/world/villages.js|src/3d/materials/meshPartClassifier.js|src/3d/materials/figureKits.js|src/3d/materials/palettes.js|scripts/checkVillageArchitectureAssets.js|scripts/checkVillageArchitectureDistribution.mjs|scripts/checkArchitectureSurfaceSemantics.mjs|scripts/checkVillageGlbAssetInventory.mjs|scripts/checkVillageRuntimeArchitectureIntegration.js|scripts/village-architecture-harness.html|service-worker.js|.github/workflows/run167-determinism-policy.yml|.github/workflows/run283-final-head-governance.yml|.github/workflows/village-architecture-assets.yml) ;;
+              src/3d/world/villages.js|src/3d/materials/meshPartClassifier.js|src/3d/materials/figureKits.js|src/3d/materials/palettes.js|scripts/checkVillageArchitectureAssets.js|scripts/checkVillageArchitectureDistribution.mjs|scripts/checkArchitectureSurfaceSemantics.mjs|scripts/checkVillageWindowFrameSemantics.mjs|scripts/checkVillageGlbAssetInventory.mjs|scripts/checkVillageRuntimeArchitectureIntegration.js|scripts/village-architecture-harness.html|service-worker.js|.github/workflows/run167-determinism-policy.yml|.github/workflows/run283-final-head-governance.yml|.github/workflows/village-architecture-assets.yml) ;;
               *) echo "unexpected village architecture scope path: $path"; exit 1 ;;
             esac
           done <<< "$CHANGED"
@@ -82,6 +83,7 @@ jobs:
           node --check scripts/checkVillageArchitectureAssets.js
           node --check scripts/checkVillageArchitectureDistribution.mjs
           node --check scripts/checkArchitectureSurfaceSemantics.mjs
+          node --check scripts/checkVillageWindowFrameSemantics.mjs
           node --check scripts/checkVillageGlbAssetInventory.mjs
           node --check scripts/checkVillageRuntimeArchitectureIntegration.js
 
@@ -97,6 +99,7 @@ jobs:
         run: |
           set -o pipefail
           node scripts/checkArchitectureSurfaceSemantics.mjs 2>&1 | tee artifacts/village-architecture-assets/surface-semantics.log
+          node scripts/checkVillageWindowFrameSemantics.mjs 2>&1 | tee artifacts/village-architecture-assets/window-frame-semantics.log
 
       - name: Landmark geography and deterministic policy
         shell: bash
