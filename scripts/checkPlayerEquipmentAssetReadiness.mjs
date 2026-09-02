@@ -52,13 +52,15 @@ try {
   // This is an asset/material readiness proof, not the shipped-scene proof. Keep the
   // real localhost origin so browser imports and FBX fetches exercise production URLs,
   // but replace only the document shell to avoid coupling this focused contract to
-  // unrelated world startup/shader failures. The touch/gamepad workflows separately
-  // boot the shipped game3d.html scene and enforce zero browser/page errors there.
+  // unrelated world startup/shader failures. Mirror the shipped import map because
+  // AssetLoader's vendored Three.js add-ons intentionally use the bare "three" specifier.
+  // The touch/gamepad workflows separately boot the shipped game3d.html scene and enforce
+  // zero browser/page errors there.
   await page.route('**/game3d.html', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'text/html',
-      body: '<!doctype html><meta charset="utf-8"><title>player-equipment-readiness</title>',
+      body: '<!doctype html><meta charset="utf-8"><script type="importmap">{"imports":{"three":"/src/3d/vendor/three/three.module.js","three/addons/":"/src/3d/vendor/three/addons/"}}</script><title>player-equipment-readiness</title>',
     });
   });
   await page.goto(`${server.baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 10000 });
