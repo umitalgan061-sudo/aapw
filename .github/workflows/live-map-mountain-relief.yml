@@ -113,16 +113,16 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
-      - name: Live seat road full-scene and mountain-view regressions
+      - name: Live seat road mountain-view and full-scene regressions
         run: |
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           node scripts/terrainSeatSafetyCheck.js | tee "$RUNNER_TEMP/terrain-seat.log"
           node scripts/roadNetworkSafetyCheck.js | tee "$RUNNER_TEMP/road-network.log"
-          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/game3d-smoke.log"
-          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/game3d-smoke.log")" -ge 40
           node scripts/captureLiveWorldMountainNaturalization.mjs | tee "$RUNNER_TEMP/mountain-visual.log"
           grep -F LIVE_WORLD_MOUNTAIN_NATURALIZATION_OK "$RUNNER_TEMP/mountain-visual.log"
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/game3d-smoke.log"
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/game3d-smoke.log")" -ge 40
 
       - name: Final source-preservation gate
         if: github.event_name == 'pull_request'
