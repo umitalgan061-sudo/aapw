@@ -8,6 +8,7 @@ import {
 import { REFERENCE_BIOME_ZONES, sampleReferenceInfluence } from '../world/worldReferenceMap.js';
 import { worldXZToNormalizedReference } from '../world/worldReferenceAlignment.js';
 import { classifyReferenceBaseSurface } from '../world/worldReferenceSurfacePindexes.js';
+import { referenceProtectionRadiiFromMeters, sampleSeatSafeReferenceHydrology } from '../world/worldReferenceHydrology.js';
 
 const SLOPE_SAMPLE_RADIUS_METERS = 1.5;
 const BIOME_INFLUENCE_FLOOR = 0.05;
@@ -18,6 +19,11 @@ const MAX_KEEP_ENVELOPE_METERS = 30;
 const MAX_RELOCATION_METERS = 8;
 const RELOCATION_STEP_METERS = 2;
 const SETTLEMENT_RING_STEP_METERS = 2;
+const NPC_SEAT_PROTECTION_RADIUS_METERS = MAX_KEEP_ENVELOPE_METERS + SLOPE_SAMPLE_RADIUS_METERS;
+const NPC_SEAT_PROTECTION_RADII = referenceProtectionRadiiFromMeters(
+	NPC_SEAT_PROTECTION_RADIUS_METERS,
+	WORLD_SCALE.METERS_PER_MAP_UNIT,
+);
 
 const SKIN_PALETTES = Object.freeze(['skin-fair', 'skin-olive', 'skin-brown', 'skin-deep']);
 const HAIR_PALETTES = Object.freeze(['hair-black', 'hair-blonde', 'hair-red']);
@@ -94,7 +100,38 @@ function dominantBiomeAt(normalizedX, normalizedY, baseSurface) {
 	};
 }
 
-export function sampleConfiguredNpcGeography(worldX, worldZ, sampleGroundHeight) {
+function resolveSeatSafeSurface(rawBaseSurface, normalized, protectedSeat) {
+	const rawWaterType = rawBaseSurface === 'sea' || rawBaseSurface === 'lake' ? rawBaseSurface : 'none';
+	if (!Number.isFinite(protectedSeat?.x) || !Number.isFinite(protectedSeat?.z)) {
+		return { baseSurface: rawBaseSurface, waterType: rawWaterType, protectedLand: false, protectedLandWeight: 0 };
+	}
+	let seatNormalized;
+	try {
+		seatNormalized = worldXZToNormalizedReference(
+			protectedSeat.x,
+			protectedSeat.z,
+			WORLD_SCALE.MAP_BOUNDS,
+			WORLD_SCALE.METERS_PER_MAP_UNIT,
+		);
+	} catch {
+		return { baseSurface: rawBaseSurface, waterType: rawWaterType, protectedLand: false, protectedLandWeight: 0 };
+	}
+	const hydrology = sampleSeatSafeReferenceHydrology(
+		normalized.x,
+		normalized.y,
+		[seatNormalized],
+		NPC_SEAT_PROTECTION_RADII,
+	);
+	const falseWater = hydrology.protectedLand && rawWaterType !== 'none';
+	return {
+		baseSurface: falseWater ? 'soil' : rawBaseSurface,
+		waterType: falseWater ? 'none' : rawWaterType,
+		protectedLand: hydrology.protectedLand,
+		protectedLandWeight: hydrology.protectedLandWeight,
+	};
+}
+
+export function sampleConfiguredNpcGeography(worldX, worldZ, sampleGroundHeight, protectedSeat = null) {
 	if (!Number.isFinite(worldX) || !Number.isFinite(worldZ)) return { ok: false, error: 'non-finite-position' };
 	const height = finiteGroundHeight(sampleGroundHeight, worldX, worldZ);
 	const west = finiteGroundHeight(sampleGroundHeight, worldX - SLOPE_SAMPLE_RADIUS_METERS, worldZ);
@@ -108,30 +145,34 @@ export function sampleConfiguredNpcGeography(worldX, worldZ, sampleGroundHeight)
 	} catch {
 		return { ok: false, error: 'reference-map-out-of-range' };
 	}
-	const baseSurface = classifyReferenceBaseSurface(normalized.x, normalized.y);
+	const rawBaseSurface = classifyReferenceBaseSurface(normalized.x, normalized.y);
+	const seatSafe = resolveSeatSafeSurface(rawBaseSurface, normalized, protectedSeat);
+	const baseSurface = seatSafe.baseSurface;
 	const dominant = dominantBiomeAt(normalized.x, normalized.y, baseSurface);
 	const gradientX = (east - west) / (SLOPE_SAMPLE_RADIUS_METERS * 2);
 	const gradientZ = (south - north) / (SLOPE_SAMPLE_RADIUS_METERS * 2);
 	const slopeDegrees = Math.atan(Math.hypot(gradientX, gradientZ)) * 180 / Math.PI;
-	const waterType = baseSurface === 'sea' || baseSurface === 'lake' ? baseSurface : 'none';
 	return {
 		ok: true,
 		surface: {
 			height,
 			slopeDegrees,
-			waterDepth: waterType === 'none' ? 0 : Math.max(0, WORLD_DEFAULTS.WATER_LEVEL_METERS - height),
+			waterDepth: seatSafe.waterType === 'none' ? 0 : Math.max(0, WORLD_DEFAULTS.WATER_LEVEL_METERS - height),
 			biome: dominant.biome,
-			waterType,
+			waterType: seatSafe.waterType,
 		},
 		baseSurface,
+		rawBaseSurface,
+		seatProtectedLand: seatSafe.protectedLand,
+		seatProtectedLandWeight: seatSafe.protectedLandWeight,
 		zoneId: dominant.zoneId,
 		biomeInfluence: dominant.influence,
 		normalizedReference: Object.freeze({ x: normalized.x, y: normalized.y }),
 	};
 }
 
-export function evaluateConfiguredNpcHabitat(worldX, worldZ, sampleGroundHeight, placementPolicy = DEFAULT_GUARD_SURFACE_POLICY) {
-	const geography = sampleConfiguredNpcGeography(worldX, worldZ, sampleGroundHeight);
+export function evaluateConfiguredNpcHabitat(worldX, worldZ, sampleGroundHeight, placementPolicy = DEFAULT_GUARD_SURFACE_POLICY, protectedSeat = null) {
+	const geography = sampleConfiguredNpcGeography(worldX, worldZ, sampleGroundHeight, protectedSeat);
 	if (!geography.ok) return geography;
 	const evaluation = evaluateWorldSurfacePlacement(geography.surface, placementPolicy);
 	if (!evaluation.ok) return { ok: false, error: `surface:${evaluation.errors.join(',')}`, geography, placementPolicy, evaluation };
@@ -173,7 +214,7 @@ function settlementRingCandidates(spawnId, seat) {
 function safePlacementCandidate(x, z, desired, seat, sampleGroundHeight, relocationMode) {
 	const seatDistanceMeters = Math.hypot(x - seat.x, z - seat.z);
 	if (seatDistanceMeters < MIN_KEEP_CLEARANCE_METERS || seatDistanceMeters > MAX_KEEP_ENVELOPE_METERS) return null;
-	const habitat = evaluateConfiguredNpcHabitat(x, z, sampleGroundHeight);
+	const habitat = evaluateConfiguredNpcHabitat(x, z, sampleGroundHeight, DEFAULT_GUARD_SURFACE_POLICY, seat);
 	if (!habitat.ok) return null;
 	const displacementFromDesiredMeters = Math.hypot(x - desired.x, z - desired.z);
 	const score = displacementFromDesiredMeters + habitat.geography.surface.slopeDegrees * 0.08;
@@ -210,11 +251,12 @@ export function resolveConfiguredNpcSpawnPlacement({ spawn, seat, sampleGroundHe
 		relocationMeters: chosen.relocationMode === 'local' ? chosen.displacementFromDesiredMeters : 0,
 		displacementFromDesiredMeters: chosen.displacementFromDesiredMeters,
 		seatDistanceMeters: chosen.seatDistanceMeters,
+		protectedSeat: Object.freeze({ x: seat.x, z: seat.z }),
 		desired,
 	};
 }
 
-export function evaluateConfiguredNpcRoute(start, target, sampleGroundHeight, placementPolicy = DEFAULT_GUARD_SURFACE_POLICY) {
+export function evaluateConfiguredNpcRoute(start, target, sampleGroundHeight, placementPolicy = DEFAULT_GUARD_SURFACE_POLICY, protectedSeat = null) {
 	if (![start?.x, start?.z, target?.x, target?.z].every(Number.isFinite)) return { ok: false, error: 'non-finite-route' };
 	const distanceMeters = Math.hypot(target.x - start.x, target.z - start.z);
 	const sampleCount = Math.max(1, Math.min(MAX_ROUTE_SAMPLES, Math.ceil(distanceMeters / ROUTE_SAMPLE_SPACING_METERS)));
@@ -223,7 +265,7 @@ export function evaluateConfiguredNpcRoute(start, target, sampleGroundHeight, pl
 		const t = index / sampleCount;
 		const x = start.x + (target.x - start.x) * t;
 		const z = start.z + (target.z - start.z) * t;
-		const habitat = evaluateConfiguredNpcHabitat(x, z, sampleGroundHeight, placementPolicy);
+		const habitat = evaluateConfiguredNpcHabitat(x, z, sampleGroundHeight, placementPolicy, protectedSeat);
 		if (!habitat.ok) return { ...habitat, routeSampleIndex: index, routeSampleCount: sampleCount, distanceMeters };
 		targetGeography = habitat.geography;
 	}
@@ -238,7 +280,13 @@ export function resolveConfiguredNpcPatrol(spawn, seat, placement, sampleGroundH
 		x: seat.x + spawn.patrol.toOffsetXMeters + relocationX,
 		z: seat.z + spawn.patrol.toOffsetZMeters + relocationZ,
 	};
-	const route = evaluateConfiguredNpcRoute({ x: placement.x, z: placement.z }, target, sampleGroundHeight, placement.placementPolicy);
+	const route = evaluateConfiguredNpcRoute(
+		{ x: placement.x, z: placement.z },
+		target,
+		sampleGroundHeight,
+		placement.placementPolicy,
+		seat,
+	);
 	if (!route.ok) return { ok: true, waypoints: undefined, route: { ...route, disabled: true } };
 	return { ok: true, waypoints: [{ x: placement.x, z: placement.z }, target], route: { ...route, disabled: false } };
 }
@@ -314,7 +362,7 @@ export function prepareConfiguredNpcWorldAsset(object, { spawn, placement, sampl
 		materialRecipe: materialPlan.recipe,
 		position: { x: placement.x, y: placement.groundY, z: placement.z },
 		rotation: { x: object.rotation.x, y: spawn.rotationYRadians ?? 0, z: object.rotation.z },
-		surfaceQuery: (x, z) => sampleConfiguredNpcGeography(x, z, sampleGroundHeight).surface ?? null,
+		surfaceQuery: (x, z) => sampleConfiguredNpcGeography(x, z, sampleGroundHeight, placement.protectedSeat).surface ?? null,
 		placementPolicy: placement.placementPolicy,
 		requireSurfaceContext: true,
 		snapToGround: true,
@@ -326,6 +374,9 @@ export function prepareConfiguredNpcWorldAsset(object, { spawn, placement, sampl
 	if (!audit.ok) return { ok: false, error: `audit:${audit.errors.join(',')}`, audit };
 	object.userData.npcWorldPlacement = Object.freeze({
 		baseSurface: placement.geography.baseSurface,
+		rawBaseSurface: placement.geography.rawBaseSurface,
+		seatProtectedLand: placement.geography.seatProtectedLand,
+		seatProtectedLandWeight: Number(placement.geography.seatProtectedLandWeight.toFixed(4)),
 		biome: placement.geography.surface.biome,
 		zoneId: placement.geography.zoneId,
 		biomeInfluence: Number(placement.geography.biomeInfluence.toFixed(4)),
