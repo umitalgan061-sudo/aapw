@@ -32,7 +32,7 @@ export const WAVE_TOTAL_AMPLITUDE_METERS = SWELL_COMPONENTS.reduce((sum, [, ampl
 export const WATER_OFFSHORE_OPTICAL_GAIN = 0.82;
 
 export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
-	id: 'water-world-surface-variation-2026-09-02-v13-far-offshore-opacity-seal',
+	id: 'water-world-surface-variation-2026-09-02-v14-far-surface-depth-order',
 	renderOnly: true,
 	canonicalDepthUnchanged: true,
 	canonicalCoverageUnchanged: true,
@@ -57,6 +57,7 @@ export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	depthFieldOpticalFeatherMeters: 920,
 	depthFieldOpticalWarpMeters: 180,
 	farMarineOpticalDepthFloor: 0.94,
+	farLayerSurfaceOffsetMeters: 0.12,
 	shoreBreakerRevision: 'v1-bathymetry-directed-irregular-lace',
 	shoreGradientStepMeters: 68,
 	directionalBreakers: true,
@@ -67,6 +68,7 @@ export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	depthFieldEdgeOpticalFeather: true,
 	farMarineOpticalDepthFromOffshoreDistance: true,
 	farOffshoreOpacitySeal: true,
+	farLayerAboveWetTerrainDepth: true,
 });
 
 const WATER_VERTEX_SHADER = /* glsl */ `
@@ -519,6 +521,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		depthFieldEdgeOpticalFeather: true,
 		farMarineOpticalDepthFromOffshoreDistance: true,
 		farOffshoreOpacitySeal: true,
+		farLayerAboveWetTerrainDepth: true,
 	});
 
 	const farGeometry = new THREE.PlaneGeometry(WATER_FULL_WORLD_EXTENT_METERS, WATER_FULL_WORLD_EXTENT_METERS, 1, 1);
@@ -527,7 +530,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 	farMaterial.depthWrite = false;
 	farMaterial.uniforms.uFarLayerMask.value = 1;
 	const farWater = new THREE.Mesh(farGeometry, farMaterial);
-	farWater.position.y = -0.06;
+	farWater.position.y = WATER_SURFACE_VARIATION_POLICY.farLayerSurfaceOffsetMeters;
 	farWater.renderOrder = -1;
 	farWater.frustumCulled = false;
 	mesh.add(farWater);
