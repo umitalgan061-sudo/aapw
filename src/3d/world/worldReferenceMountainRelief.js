@@ -19,17 +19,12 @@ import {
 	WORLD_REFERENCE_MOUNTAIN_GEOMORPHOLOGY_POLICY,
 	sampleMountainGeomorphologyScale,
 } from './worldReferenceMountainGeomorphology.js';
-import {
-	WORLD_REFERENCE_MOUNTAIN_LANDFORM_POLICY,
-	sampleMountainLandformDetailScale,
-} from './worldReferenceMountainLandformDetail.js';
 
 export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
-	id: 'owner-map-live-mountain-relief-2026-09-02-v10-ridge-local-landform-breakup',
+	id: 'owner-map-live-mountain-relief-2026-09-02-v9-ridge-frame-geomorphology',
 	sourceMapSha256: WORLD_REFERENCE_MAP.sha256,
 	surfaceMaskSha256: WORLD_REFERENCE_BASE_SURFACE_MASK.maskSha256,
 	geomorphologyPolicyId: WORLD_REFERENCE_MOUNTAIN_GEOMORPHOLOGY_POLICY.id,
-	landformPolicyId: WORLD_REFERENCE_MOUNTAIN_LANDFORM_POLICY.id,
 	landGateZero: 0.54,
 	landGateFull: 0.84,
 	coordinateWarpNormalized: 0.003,
@@ -63,16 +58,14 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 	}),
 	// Western chains overlap shipped kingdom roads, so their audited map-space approaches are
 	// lowered into traversable passes instead of flattening/removing the surrounding mountains.
-	// Bone/eastern chains receive the strongest ridge-local landform breakup because shipped oblique
-	// proof still reads their long broad shoulders as smooth walls. The scale changes height only
-	// inside the already accepted chain support and never moves source-owned centerlines.
+	// Bone/eastern chains use broad shoulders and a high modulation floor so the same source-owned
+	// polylines read as connected eroded ranges rather than narrow volcanic plugs from aerial views.
 	chains: Object.freeze({
 		'vale-chain': Object.freeze({
 			peakMeters: 430,
 			coreWidthNormalized: 0.007,
 			outerWidthNormalized: 0.052,
 			summitFloor: 0.65,
-			landformDetailStrength: 0.82,
 			seed: 11,
 			passes: Object.freeze([
 				Object.freeze({ id: 'vale-northwest-approach', center: [0.206, 0.399], innerRadiusNormalized: 0.015, outerRadiusNormalized: 0.050, minimumMultiplier: 0.02, corridorVia: [0.1755, 0.3738], corridorEnd: [0.169444, 0.250], corridorInnerRadiusNormalized: 0.012, corridorOuterRadiusNormalized: 0.030 }),
@@ -84,7 +77,6 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 			coreWidthNormalized: 0.008,
 			outerWidthNormalized: 0.050,
 			summitFloor: 0.55,
-			landformDetailStrength: 0.88,
 			seed: 23,
 			passes: Object.freeze([
 				Object.freeze({ id: 'red-west-approach', center: [0.145, 0.610], innerRadiusNormalized: 0.014, outerRadiusNormalized: 0.045, minimumMultiplier: 0.08 }),
@@ -101,7 +93,6 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 			coordinateWarpScale: 2.35,
 			shoulderDetailStrength: 0.27,
 			shoulderDetailFrequency: 31,
-			landformDetailStrength: 1.04,
 			seed: 37,
 		}),
 		'eastern-chain': Object.freeze({
@@ -113,7 +104,6 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 			coordinateWarpScale: 2.30,
 			shoulderDetailStrength: 0.26,
 			shoulderDetailFrequency: 29,
-			landformDetailStrength: 1.10,
 			seed: 53,
 		}),
 	}),
@@ -476,25 +466,10 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 			normalizedDistance,
 			chain.profile.seed,
 		);
-		const landformScale = sampleMountainLandformDetailScale(
-			px / MAP_ASPECT,
-			py,
-			chain.points,
-			MAP_ASPECT,
-			normalizedDistance,
-			chain.profile.seed,
-			chain.profile.landformDetailStrength ?? 1,
-		);
 		const passMultiplier = samplePassMultiplier(normalizedX, normalizedY, chain.profile.passes);
 		strongestMeters = Math.max(
 			strongestMeters,
-			chain.profile.peakMeters
-				* ridge
-				* modulation
-				* talusBreakup
-				* geomorphologyScale
-				* landformScale
-				* passMultiplier,
+			chain.profile.peakMeters * ridge * modulation * talusBreakup * geomorphologyScale * passMultiplier,
 		);
 	}
 	if (strongestMeters === 0) return 0;
