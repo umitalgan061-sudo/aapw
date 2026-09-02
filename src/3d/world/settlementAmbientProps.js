@@ -55,6 +55,7 @@ const tempObject = new THREE.Object3D();
 const tempMatrix = new THREE.Matrix4();
 const inFlightUpgrades = new WeakMap();
 const LFS_POINTER_PREFIX = 'version https://git-lfs.github.com/spec/v1';
+const FALLBACK_CLIMATE_BUCKETS = Object.freeze(['temperate', 'snow', 'ash']);
 
 function fallbackScale(familyId, scale) {
 	if (familyId === 'bench') return { x: scale * 1.02, y: scale, z: scale };
@@ -70,14 +71,29 @@ function composeFallbackMatrix(placement) {
 	return tempMatrix.copy(tempObject.matrix);
 }
 
-function createFallbackFamilyMesh(familyId, placements) {
+function fallbackClimateBucket(placement) {
+	if (placement.snow >= 0.25 && placement.snow >= placement.valyria) return 'snow';
+	if (placement.valyria >= 0.25) return 'ash';
+	return 'temperate';
+}
+
+function fallbackClimateMaterialProfile(bucket, placements) {
+	if (!placements.length || bucket === 'temperate') return { snow: 0, ash: 0 };
+	const mean = (key) => placements.reduce((sum, placement) => sum + Number(placement[key] || 0), 0) / placements.length;
+	return bucket === 'snow'
+		? { snow: Math.max(0.28, Math.min(1, mean('snow'))), ash: 0 }
+		: { snow: 0, ash: Math.max(0.28, Math.min(1, mean('valyria'))) };
+}
+
+function createFallbackFamilyMesh(familyId, climateBucket, placements) {
 	if (!placements.length) return null;
+	const climate = fallbackClimateMaterialProfile(climateBucket, placements);
 	const mesh = new THREE.InstancedMesh(
 		createAmbientFallbackGeometry(familyId),
-		createAmbientFallbackMaterial(familyId),
+		createAmbientFallbackMaterial(familyId, climate),
 		placements.length,
 	);
-	mesh.name = `settlement-ambient-fallback-${familyId}`;
+	mesh.name = `settlement-ambient-fallback-${familyId}-${climateBucket}`;
 	mesh.castShadow = true;
 	mesh.receiveShadow = true;
 	mesh.instanceMatrix.setUsage(THREE.StaticDrawUsage);
@@ -90,6 +106,8 @@ function createFallbackFamilyMesh(familyId, placements) {
 	mesh.computeBoundingSphere?.();
 	mesh.userData.placementIds = placements.map((placement) => placement.id);
 	mesh.userData.familyId = familyId;
+	mesh.userData.climateBucket = climateBucket;
+	mesh.userData.climateMaterialProfile = Object.freeze(climate);
 	mesh.userData.settlementAmbientFallback = true;
 	return mesh;
 }
@@ -100,9 +118,13 @@ export function createSettlementAmbientProps(options) {
 	group.name = SETTLEMENT_AMBIENT_PROP_POLICY.groupName;
 	const fallbackMeshes = [];
 	for (const familyId of SETTLEMENT_AMBIENT_FAMILY_IDS) {
-		const placements = placementResult.placements.filter((placement) => placement.familyId === familyId);
-		const mesh = createFallbackFamilyMesh(familyId, placements);
-		if (mesh) fallbackMeshes.push(mesh);
+		for (const climateBucket of FALLBACK_CLIMATE_BUCKETS) {
+			const placements = placementResult.placements.filter((placement) => (
+				placement.familyId === familyId && fallbackClimateBucket(placement) === climateBucket
+			));
+			const mesh = createFallbackFamilyMesh(familyId, climateBucket, placements);
+			if (mesh) fallbackMeshes.push(mesh);
+		}
 	}
 	group.add(...fallbackMeshes);
 	group.userData.settlementAmbientPlacements = placementResult.placements;
@@ -125,6 +147,7 @@ export function createSettlementAmbientProps(options) {
 		meanLogisticsRoadDistanceMeters: placementResult.stats.meanLogisticsRoadDistanceMeters,
 		maxLogisticsRoadDistanceMeters: placementResult.stats.maxLogisticsRoadDistanceMeters,
 		fallbackDrawCalls: fallbackMeshes.length,
+		fallbackClimateVariantCount: new Set(fallbackMeshes.map((mesh) => mesh.userData.climateBucket)).size,
 		assetState: 'procedural-fallback',
 		hydratedPlacementCount: 0,
 	});
@@ -219,10 +242,13 @@ function normalizeHydratedClone(source, measurement, familyId, placement) {
 }
 
 function hideFallbackPlacement(group, familyId, placementId) {
-	const mesh = group.children.find((child) => child?.userData?.settlementAmbientFallback && child.userData.familyId === familyId);
+	const mesh = group.children.find((child) => (
+		child?.userData?.settlementAmbientFallback
+		&& child.userData.familyId === familyId
+		&& child.userData.placementIds?.includes(placementId)
+	));
 	if (!mesh) return false;
-	const index = mesh.userData.placementIds?.indexOf(placementId) ?? -1;
-	if (index < 0) return false;
+	const index = mesh.userData.placementIds.indexOf(placementId);
 	mesh.getMatrixAt(index, tempMatrix);
 	tempMatrix.decompose(tempObject.position, tempObject.quaternion, tempObject.scale);
 	tempObject.scale.setScalar(0);
@@ -418,8 +444,6 @@ export function disposeSettlementAmbientProps(group) {
 	if (!group || group.userData.settlementAmbientDisposed) return;
 	group.userData.settlementAmbientDisposed = true;
 	const sourceSet = new Set(group.userData?.settlementAmbientSources || []);
-	// Fallback textures/geometries are owned by the group. Hydrated clone materials are owned by the
-	// group too, but their authored textures are shared with the source GLB and are disposed once below.
 	for (const child of group.children) {
 		if (child?.userData?.settlementAmbientFallback) {
 			disposeAmbientObjectResources(child, { disposeGeometry: true, disposeTextures: true });
