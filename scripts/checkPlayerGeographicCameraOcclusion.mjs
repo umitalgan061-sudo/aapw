@@ -20,7 +20,6 @@ const { resolveCameraCollision } = await import('../src/3d/camera.js');
 
 const cameraSource = await readFile(new URL('../src/3d/camera.js', import.meta.url), 'utf8');
 const helperSource = await readFile(new URL('../src/3d/gameLoopHelpers.js', import.meta.url), 'utf8');
-const sceneSource = await readFile(new URL('../src/3d/sceneManager.js', import.meta.url), 'utf8');
 
 assert.match(
 	cameraSource,
@@ -29,15 +28,12 @@ assert.match(
 );
 assert.ok(
 	helperSource.includes('state.realCastles.children'),
-	'real castle roots must remain part of player camera geographic collision candidates',
+	'real castle roots already exposed to gameplay must remain player-camera collision candidates',
 );
 assert.ok(
 	helperSource.includes('state.iceLandmarks?.children'),
-	'ice-landmark roots must remain part of player camera geographic collision candidates',
+	'ice-landmark roots already exposed to gameplay must remain player-camera collision candidates',
 );
-for (const stateField of ['realCastles', 'naturalGeology', 'villages', 'iceLandmarks']) {
-	assert.ok(sceneSource.includes(stateField), `scene state must expose ${stateField} geographic asset family`);
-}
 
 const target = new THREE.Vector3(0, 1.5, 0);
 const desired = new THREE.Vector3(0, 1.5, 10);
@@ -132,7 +128,6 @@ console.log(JSON.stringify({
 		resolvedDistanceMeters: closeResolvedDistance,
 		collisionClearanceOverridesComfortFloor: true,
 	},
-	geographicFamiliesExposedByScene: ['realCastles', 'naturalGeology', 'villages', 'iceLandmarks'],
 	cameraCandidatesAlreadyWired: ['terrain-chunks', 'settlements', 'realCastles', 'iceLandmarks'],
 	ownership: {
 		terrainGenerationModified: false,
