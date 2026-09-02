@@ -66,10 +66,15 @@ try {
 				ok: placement.ok,
 				error: placement.error ?? null,
 				baseSurface: placement.geography?.baseSurface ?? null,
+				rawBaseSurface: placement.geography?.rawBaseSurface ?? null,
+				seatProtectedLand: placement.geography?.seatProtectedLand ?? false,
+				seatProtectedLandWeight: placement.geography?.seatProtectedLandWeight ?? 0,
 				biome: placement.geography?.surface?.biome ?? null,
 				slopeDegrees: placement.geography?.surface?.slopeDegrees ?? null,
 				relocated: placement.relocated ?? null,
+				relocationMode: placement.relocationMode ?? null,
 				relocationMeters: placement.relocationMeters ?? null,
+				displacementFromDesiredMeters: placement.displacementFromDesiredMeters ?? null,
 				seatDistanceMeters: placement.seatDistanceMeters ?? null,
 				patrolEnabled: Boolean(patrol?.waypoints),
 				patrolDisabledByGeography: Boolean(patrol?.route?.disabled),
@@ -192,7 +197,18 @@ try {
 		assert.ok(!['sea', 'lake'].includes(entry.baseSurface), `${entry.id} is placed on ${entry.baseSurface}`);
 		assert.ok(Number.isFinite(entry.slopeDegrees) && entry.slopeDegrees <= 26, `${entry.id} slope ${entry.slopeDegrees} exceeds guard policy`);
 		assert.ok(Number.isFinite(entry.seatDistanceMeters) && entry.seatDistanceMeters >= 10 && entry.seatDistanceMeters <= 30, `${entry.id} left settlement guard envelope`);
-		assert.ok(entry.relocationMeters <= 8, `${entry.id} relocation exceeded bounded local search`);
+		assert.ok(['local', 'settlement-ring'].includes(entry.relocationMode), `${entry.id} has invalid relocation mode ${entry.relocationMode}`);
+		if (entry.relocationMode === 'local') assert.ok(entry.relocationMeters <= 8, `${entry.id} relocation exceeded true local radius`);
+	}
+	const protectedFalseWater = proof.distributionAudit.filter((entry) => ['sea', 'lake'].includes(entry.rawBaseSurface));
+	assert.ok(protectedFalseWater.length >= 2, `expected Balon/Jon false-water recoveries, got ${JSON.stringify(protectedFalseWater)}`);
+	for (const entry of protectedFalseWater) {
+		assert.equal(entry.seatProtectedLand, true, `${entry.id} false-water cell was not protected by shared seat hydrology`);
+		assert.ok(entry.seatProtectedLandWeight > 0, `${entry.id} protected land weight is zero`);
+		assert.equal(entry.baseSurface, 'soil', `${entry.id} false-water cell was not composed back to dry soil`);
+	}
+	for (const requiredId of ['balon-guard-1', 'jon-guard-1']) {
+		assert.ok(protectedFalseWater.some((entry) => entry.id === requiredId), `${requiredId} no longer exercises shared protected-seat hydrology`);
 	}
 	assert.ok(proof.distributionAudit.some((entry) => entry.patrolEnabled), 'no configured patrol survived canonical route validation');
 
