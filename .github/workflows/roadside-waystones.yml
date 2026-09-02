@@ -1,0 +1,80 @@
+name: Roadside Waystone Geography
+
+on:
+  pull_request:
+    branches:
+      - codex/canonical-road-stone-bridge-live-20260901
+    paths:
+      - 'src/3d/sceneManager.js'
+      - 'src/3d/world/roadsideWaystones.js'
+      - 'scripts/checkRoadsideWaystones.js'
+      - 'scripts/devServerHelper.js'
+      - '.github/workflows/roadside-waystones.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  shipped-scene-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact child head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enforce stacked ownership and hard cap
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_REF="${{ github.base_ref }}"
+          if [ -z "$BASE_REF" ]; then
+            BASE_REF="codex/canonical-road-stone-bridge-live-20260901"
+          fi
+          git fetch origin "$BASE_REF"
+          git diff --check "origin/$BASE_REF"...HEAD
+          CHANGED_LINES=$(git diff --numstat "origin/$BASE_REF"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$CHANGED_LINES" -le 1000 || { echo "Child scope is $CHANGED_LINES changed lines (>1000)"; exit 1; }
+          ALLOWED='^(src/3d/sceneManager\.js|src/3d/world/roadsideWaystones\.js|scripts/checkRoadsideWaystones\.js|\.github/workflows/roadside-waystones\.yml)$'
+          UNEXPECTED=$(git diff --name-only "origin/$BASE_REF"...HEAD | grep -Ev "$ALLOWED" || true)
+          test -z "$UNEXPECTED" || { echo "Unexpected child-owned paths:"; echo "$UNEXPECTED"; exit 1; }
+          echo "Roadside waystone child scope: $CHANGED_LINES changed lines"
+
+      - name: Resolve vendored Three.js for runtime imports
+        run: node scripts/setupNodeThreeShim.mjs
+
+      - name: Static waystone contracts
+        run: |
+          node --check src/3d/world/roadsideWaystones.js
+          node --check src/3d/sceneManager.js
+          node --check scripts/checkRoadsideWaystones.js
+
+      - name: Install Playwright Chromium
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          ln -sfn "$RUNNER_TEMP/pw/node_modules" "$GITHUB_WORKSPACE/node_modules"
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Prove shipped roadside waystones
+        run: |
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkRoadsideWaystones.js
+
+      - name: Upload roadside waystone proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: roadside-waystone-proof
+          path: artifacts/roadside-waystones/
+          if-no-files-found: error
+          retention-days: 14
