@@ -11,6 +11,8 @@ on:
       - 'src/3d/world/terrainReliefDetail.js'
       - 'src/3d/world/terrainMacroWeathering.js'
       - 'src/3d/world/terrainMicroSurface.js'
+      - 'src/3d/world/terrainMicroSurfaceCore.js'
+      - 'src/3d/world/terrainCryosphereSurfaceFabric.js'
       - 'src/3d/world/terrainBiomeShading.js'
       - 'src/3d/world/geographicReferencePalette.js'
       - 'src/3d/world/northReferenceCryosphere.js'
@@ -72,6 +74,9 @@ jobs:
           node --check src/3d/nightVisualEnhancement.js
           node --check src/3d/world/terrainMacroWeathering.js
           node --check src/3d/world/terrainReliefDetail.js
+          node --check src/3d/world/terrainMicroSurfaceCore.js
+          node --check src/3d/world/terrainCryosphereSurfaceFabric.js
+          node --check src/3d/world/terrainMicroSurface.js
           node --check src/3d/world/worldReferenceMountainRelief.js
           node --check src/3d/world/westernMarineShelfTone.js
           node --check src/3d/world/westernReferenceSurfaceFabric.js
