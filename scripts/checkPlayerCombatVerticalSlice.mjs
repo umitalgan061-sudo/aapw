@@ -64,6 +64,10 @@ requireFragments(input, 'desktop/gamepad parity', [
   "LIGHT_ATTACK_KEYS.has(event.code) && !isInteractiveTarget(event.target)",
   "HEAVY_ATTACK_KEYS.has(event.code) && !isInteractiveTarget(event.target)",
 ]);
+requireFragments(input, 'interactive UI input isolation', [
+  'readPlayerGameplayInputBlocked(this._isInputBlocked) || isInteractiveTarget(event.target)',
+  'if (readPlayerGameplayInputBlocked(this._isInputBlocked) || isInteractiveTarget(event.target)) return;',
+]);
 requireFragments(input, 'shared pause-input isolation', [
   "'.g3d-pause-menu-overlay:not([hidden])'",
   'export function isPlayerGameplayInputBlocked()',
@@ -146,6 +150,7 @@ console.log(JSON.stringify({
   chain: ['asset+animation', 'spawn+ground+collider', 'input', 'movement+stamina+poise', 'dodge+guard+parry', 'melee-combo', 'lock-on', 'damage+feedback'],
   inputs: ['keyboard:C-light/R-heavy/E-interaction', 'mouse', 'gamepad', 'touch/PWA'],
   pauseIsolation: ['keyboard', 'pointer', 'gamepad', 'touch'],
+  interactiveUiIsolation: ['keyboard-movement', 'keyboard-jump', 'keyboard-guard', 'keyboard-combat', 'pointer-guard', 'pointer-combat'],
   touchLifecycleRecovery: ['visibilitychange', 'pagehide', 'blur', 'lostpointercapture'],
   desktopHelp: ['C / Sol tık = Hafif saldırı', 'R = Ağır saldırı', 'Q / Sağ tık = Savun', 'Tab = Hedef kilidi', 'E = Yakındaki kişiyle konuş'],
   gamepadHelp: ['sol çubuk/L3', 'A/B', 'X/Y', 'LB/RB', 'sağ çubuk/R3'],
