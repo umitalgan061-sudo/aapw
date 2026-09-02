@@ -18,8 +18,8 @@ assert.match(
 );
 assert.match(
   source,
-  /if \(fogLuminance < FOG_HORIZON_LUMINANCE_FLOOR\) \{[\s\S]*?fog\.color\.lerp\(FOG_HORIZON_FLOOR_COLOR, rescue\);[\s\S]*?\}/,
-  'updateFog must rescue transient near-black lighting horizons',
+  /const floorLuminance = FOG_HORIZON_FLOOR_COLOR\.r \* 0\.2126[\s\S]*?\(FOG_HORIZON_LUMINANCE_FLOOR - fogLuminance\) \/ Math\.max\(floorLuminance - fogLuminance, 1e-6\)[\s\S]*?fog\.color\.lerp\(FOG_HORIZON_FLOOR_COLOR, rescue\);/,
+  'updateFog must solve the blend required to reach the luminance floor',
 );
 assert.match(source, /const FOG_DENSITY_MIN = 0\.00026;/, 'minimum aerial-perspective density contract drifted');
 assert.match(source, /const FOG_DENSITY_MAX = 0\.00072;/, 'maximum aerial-perspective density contract drifted');
@@ -40,6 +40,18 @@ assert.ok(luminance < 0.55, `boot horizon must remain restrained, got ${luminanc
 const minDynamicLuminance = 0.035;
 assert.ok(minDynamicLuminance > 0.025, 'dynamic horizon rescue must remain visibly above numerical black');
 assert.ok(minDynamicLuminance < 0.08, 'dynamic horizon rescue must not wash out legitimate deep night');
+
+for (const sourceLuminance of [0, 0.005, 0.02, 0.0349]) {
+  const rescue = Math.min(1, Math.max(0,
+    (minDynamicLuminance - sourceLuminance) / Math.max(luminance - sourceLuminance, 1e-6),
+  ));
+  const result = sourceLuminance + (luminance - sourceLuminance) * rescue;
+  assert.ok(
+    result >= minDynamicLuminance - 1e-9,
+    `dynamic rescue failed to reach floor from ${sourceLuminance}: ${result}`,
+  );
+  assert.ok(result <= luminance + 1e-9, `dynamic rescue overshot atmospheric floor color: ${result}`);
+}
 
 const minDensity = 0.00026;
 const maxDensity = 0.00072;
