@@ -17,14 +17,14 @@
 const TAU = Math.PI * 2;
 
 export const WORLD_REFERENCE_MOUNTAIN_EROSION_POLICY = Object.freeze({
-	id: 'owner-map-mountain-erosion-2026-09-02-v2-ridge-local-drainage-basin-safe',
+	id: 'owner-map-mountain-erosion-2026-09-02-v3-ridge-local-drainage-basin-apron-safe',
 	heightScale: Object.freeze({ minimum: 0.82, maximum: 1.10 }),
 	headwall: Object.freeze({
 		frequency: 8.4,
 		threshold: 0.58,
 		start: 0.08,
 		peak: 0.30,
-		end: 0.60,
+		end: 0.58,
 		strength: 0.115,
 	}),
 	gullies: Object.freeze({
@@ -32,26 +32,26 @@ export const WORLD_REFERENCE_MOUNTAIN_EROSION_POLICY = Object.freeze({
 		secondaryFrequency: 37,
 		branchSkew: 7.1,
 		start: 0.20,
-		peak: 0.60,
-		end: 0.90,
+		peak: 0.56,
+		end: 0.82,
 		strength: 0.145,
 	}),
 	interfluveRibs: Object.freeze({
 		frequency: 16,
 		branchSkew: 4.9,
 		start: 0.26,
-		peak: 0.58,
-		end: 0.88,
+		peak: 0.54,
+		end: 0.80,
 		strength: 0.055,
 	}),
 	convexConcave: Object.freeze({
 		frequency: 6.1,
 		start: 0.18,
-		end: 0.88,
+		end: 0.80,
 		strength: 0.038,
 	}),
-	outerFadeStart: 0.80,
-	outerFadeEnd: 0.965,
+	outerFadeStart: 0.72,
+	outerFadeEnd: 0.90,
 });
 
 function clamp(value, min, max) {
@@ -199,9 +199,9 @@ export function sampleMountainErosionFieldInto(
 	const intensityScale = 1 + (rawScale - 1) * intensity;
 	const edgeScale = 1 + (intensityScale - 1) * outerFade;
 
-	const upperSlope = triangularBand(normalizedDistance, 0.08, 0.34, 0.68);
-	const midSlope = triangularBand(normalizedDistance, 0.30, 0.62, 0.90);
-	const lowerSlope = triangularBand(normalizedDistance, 0.50, 0.76, 0.94);
+	const upperSlope = triangularBand(normalizedDistance, 0.08, 0.34, 0.64);
+	const midSlope = triangularBand(normalizedDistance, 0.28, 0.54, 0.80);
+	const lowerSlope = triangularBand(normalizedDistance, 0.46, 0.66, 0.82);
 	const concavity = clamp01(0.5 - convexConcave * 0.5);
 	const cliffPotential = outerFade * clamp01(
 		headwallExposure * 0.62
