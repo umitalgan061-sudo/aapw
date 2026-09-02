@@ -3,17 +3,21 @@
  *
  * This module changes no centerline, water ownership, coastline, biome zone, road, settlement, or
  * collider authority. It supplies deterministic morphology *inside* the existing mountain support:
- * longitudinal massing, side asymmetry, sparse crest notches, shoulder gullies, and secondary spur
- * energy. The caller still owns the canonical ridge envelope and multiplies these terms only after
- * proving that a sample lies inside it.
+ * longitudinal massing, side asymmetry, crest saddles, shoulder incision, secondary spurs and the
+ * ridge-local drainage field from `worldReferenceMountainErosionField.js`.
  *
- * The intent is to remove the smooth grey wall / extruded-tube read from long ranges while keeping
- * the same source-derived geography and the same height sampler for rendering and collision.
+ * The caller still owns the canonical ridge envelope and multiplies these terms only after proving
+ * that a sample lies inside it. Terrain geometry and collision therefore continue to consume one
+ * shared height authority while long ranges gain real headwall/gully/interfluve breakup.
  *
  * @module world/worldReferenceMountainGeomorphology
  */
 
 import { sampleMountainRidgeFrameInto } from './worldReferenceMountainRidgeFrame.js';
+import {
+	WORLD_REFERENCE_MOUNTAIN_EROSION_POLICY,
+	sampleMountainErosionFieldInto,
+} from './worldReferenceMountainErosionField.js';
 
 const TAU = Math.PI * 2;
 const FRAME_SCRATCH = {
@@ -31,9 +35,23 @@ const FRAME_SCRATCH = {
 	normalY: 1,
 	totalLength: 0,
 };
+const EROSION_SCRATCH = {
+	heightScale: 1,
+	headwallExposure: 0,
+	gullyExposure: 0,
+	ribExposure: 0,
+	convexConcave: 0,
+	concavity: 0.5,
+	outerFade: 1,
+	cliffPotential: 0,
+	screePotential: 0,
+	depositionPotential: 0,
+	snowRetentionPotential: 0,
+};
 
 export const WORLD_REFERENCE_MOUNTAIN_GEOMORPHOLOGY_POLICY = Object.freeze({
-	id: 'owner-map-mountain-geomorphology-2026-09-02-v2-eroded-ridge-frame-saddles',
+	id: 'owner-map-mountain-geomorphology-2026-09-02-v3-ridge-drainage-headwalls',
+	erosionPolicyId: WORLD_REFERENCE_MOUNTAIN_EROSION_POLICY.id,
 	heightScale: Object.freeze({
 		minimum: 0.70,
 		maximum: 1.14,
@@ -186,7 +204,6 @@ function sampleShoulderIncision(normalizedX, normalizedY, progress, normalizedDi
 		normalizedY * policy.detailFrequency + progress * 5.3,
 		seed + 1151,
 	);
-	// Bias toward erosion: only the upper half of the field cuts into the shoulder.
 	const erosionSignal = smoothstep(0.48, 0.92, broad * 0.68 + detail * 0.32);
 	return 1 - erosionSignal * policy.strength * envelope;
 }
@@ -221,6 +238,7 @@ const COMPONENT_SCRATCH = {
 	crestNotch: 1,
 	incision: 1,
 	spur: 1,
+	erosionScale: 1,
 	outerFade: 1,
 };
 
@@ -231,6 +249,7 @@ function resolveComponentsInto(
 	mapAspect,
 	normalizedDistance,
 	seed,
+	erosionIntensity,
 	out,
 ) {
 	sampleMountainRidgeFrameInto(
@@ -245,30 +264,19 @@ function resolveComponentsInto(
 	const side = FRAME_SCRATCH.side;
 	const longitudinal = sampleLongitudinalMassing(progress, normalizedX, normalizedY, seed);
 	const asymmetry = sampleRidgeAsymmetry(side, progress, normalizedDistance, seed);
-	const crestNotch = sampleCrestNotch(
-		progress,
-		normalizedDistance,
-		normalizedX,
-		normalizedY,
-		seed,
-	);
-	const incision = sampleShoulderIncision(
-		normalizedX,
-		normalizedY,
-		progress,
-		normalizedDistance,
-		seed,
-	);
-	const spur = sampleSecondarySpur(
-		normalizedX,
-		normalizedY,
+	const crestNotch = sampleCrestNotch(progress, normalizedDistance, normalizedX, normalizedY, seed);
+	const incision = sampleShoulderIncision(normalizedX, normalizedY, progress, normalizedDistance, seed);
+	const spur = sampleSecondarySpur(normalizedX, normalizedY, progress, normalizedDistance, side, seed);
+	sampleMountainErosionFieldInto(
 		progress,
 		normalizedDistance,
 		side,
 		seed,
+		erosionIntensity,
+		EROSION_SCRATCH,
 	);
 	const outerFade = sampleOuterEdgeFade(normalizedDistance);
-	const rawScale = longitudinal * asymmetry * crestNotch * incision * spur;
+	const rawScale = longitudinal * asymmetry * crestNotch * incision * spur * EROSION_SCRATCH.heightScale;
 	const edgeBlendedScale = 1 + (rawScale - 1) * outerFade;
 	const scalePolicy = WORLD_REFERENCE_MOUNTAIN_GEOMORPHOLOGY_POLICY.heightScale;
 	out.heightScale = clamp(edgeBlendedScale, scalePolicy.minimum, scalePolicy.maximum);
@@ -280,16 +288,12 @@ function resolveComponentsInto(
 	out.crestNotch = crestNotch;
 	out.incision = incision;
 	out.spur = spur;
+	out.erosionScale = EROSION_SCRATCH.heightScale;
 	out.outerFade = outerFade;
 	return out;
 }
 
-/**
- * Hot-path scalar used by the canonical mountain relief sampler.
- *
- * The function never widens support. It is called only after the owner-map ridge distance has already
- * passed the caller's `distance < outerWidth` gate.
- */
+/** Hot-path scalar used by the canonical mountain relief sampler. */
 export function sampleMountainGeomorphologyScale(
 	normalizedX,
 	normalizedY,
@@ -297,9 +301,13 @@ export function sampleMountainGeomorphologyScale(
 	mapAspect,
 	normalizedDistance,
 	seed,
+	erosionIntensity = 1,
 ) {
 	if (!Number.isFinite(normalizedDistance) || normalizedDistance < 0 || normalizedDistance > 1) {
 		throw new RangeError('normalizedDistance must be finite in [0,1]');
+	}
+	if (!Number.isFinite(erosionIntensity) || erosionIntensity < 0.5 || erosionIntensity > 1.35) {
+		throw new RangeError('erosionIntensity must be finite in [0.5,1.35]');
 	}
 	return resolveComponentsInto(
 		normalizedX,
@@ -308,6 +316,7 @@ export function sampleMountainGeomorphologyScale(
 		mapAspect,
 		normalizedDistance,
 		seed,
+		erosionIntensity,
 		COMPONENT_SCRATCH,
 	).heightScale;
 }
@@ -315,8 +324,9 @@ export function sampleMountainGeomorphologyScale(
 /**
  * Rich deterministic evidence for visual QA and downstream mountain-aware placement.
  *
- * `talusExposure` and `bedrockExposure` are context signals only; they do not place assets or replace
- * the shared MaterialAssignmentCore/WorldAssetPlacementPipeline contract.
+ * Context signals do not place assets or replace MaterialAssignmentCore /
+ * WorldAssetPlacementPipeline. Cliff/scree/deposition/snow channels are fade-bounded before the
+ * canonical support edge so consumers cannot leak dressing beyond the mountain envelope.
  */
 export function sampleMountainGeomorphologyContext(
 	normalizedX,
@@ -325,6 +335,7 @@ export function sampleMountainGeomorphologyContext(
 	mapAspect,
 	normalizedDistance,
 	seed,
+	erosionIntensity = 1,
 ) {
 	const components = resolveComponentsInto(
 		normalizedX,
@@ -333,19 +344,28 @@ export function sampleMountainGeomorphologyContext(
 		mapAspect,
 		normalizedDistance,
 		seed,
+		erosionIntensity,
 		COMPONENT_SCRATCH,
 	);
-	const talusExposure = triangularBand(normalizedDistance, 0.42, 0.70, 0.96)
-		* clamp((1 - components.incision) * 4.5 + (components.spur - 1) * 2.2, 0, 1);
-	const bedrockExposure = clamp(
-		(1 - normalizedDistance) * 0.58
-		+ (1 - components.crestNotch) * 2.6
-		+ Math.max(0, 1 - components.asymmetry) * 1.8,
+	const talusExposure = components.outerFade * triangularBand(normalizedDistance, 0.42, 0.70, 0.96)
+		* clamp(
+			(1 - components.incision) * 3.4
+				+ (components.spur - 1) * 1.8
+				+ EROSION_SCRATCH.screePotential * 0.72,
+			0,
+			1,
+		);
+	const bedrockExposure = components.outerFade * clamp(
+		(1 - normalizedDistance) * 0.48
+			+ (1 - components.crestNotch) * 2.2
+			+ Math.max(0, 1 - components.asymmetry) * 1.45
+			+ EROSION_SCRATCH.cliffPotential * 0.62,
 		0,
 		1,
 	);
 	return Object.freeze({
 		policyId: WORLD_REFERENCE_MOUNTAIN_GEOMORPHOLOGY_POLICY.id,
+		erosionPolicyId: WORLD_REFERENCE_MOUNTAIN_EROSION_POLICY.id,
 		heightScale: components.heightScale,
 		progress: components.progress,
 		side: components.side,
@@ -355,7 +375,16 @@ export function sampleMountainGeomorphologyContext(
 		crestNotch: components.crestNotch,
 		shoulderIncision: components.incision,
 		secondarySpur: components.spur,
+		erosionScale: components.erosionScale,
 		outerEdgeFade: components.outerFade,
+		headwallExposure: EROSION_SCRATCH.headwallExposure,
+		gullyExposure: EROSION_SCRATCH.gullyExposure,
+		interfluveRibExposure: EROSION_SCRATCH.ribExposure,
+		concavity: EROSION_SCRATCH.concavity,
+		cliffPotential: EROSION_SCRATCH.cliffPotential,
+		screePotential: EROSION_SCRATCH.screePotential,
+		depositionPotential: EROSION_SCRATCH.depositionPotential,
+		snowRetentionPotential: EROSION_SCRATCH.snowRetentionPotential,
 		talusExposure,
 		bedrockExposure,
 	});
