@@ -64,6 +64,23 @@ function makeValidWinterModel() {
 	return root;
 }
 
+function makeMultiMaterialWinterModel() {
+	const albedo = new THREE.Texture();
+	albedo.offset.set(0.17, 0.23);
+	albedo.repeat.set(1.7, 2.3);
+	albedo.rotation = 0.19;
+	const normal = new THREE.Texture();
+	const roughness = new THREE.Texture();
+	const bark = new THREE.MeshStandardMaterial({ map: albedo, normalMap: normal, roughnessMap: roughness });
+	const snow = new THREE.MeshStandardMaterial({ map: albedo, transparent: true, roughnessMap: roughness });
+	const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.9, 4.2, 0.9), [bark, snow]);
+	mesh.position.y = 2.1;
+	const root = new THREE.Group();
+	root.add(mesh);
+	root.updateMatrixWorld(true);
+	return { root, mesh, albedo, normal, roughness };
+}
+
 function makePlaceholder() {
 	const mesh = new THREE.Mesh(
 		new THREE.BoxGeometry(1, 1, 1),
@@ -103,6 +120,36 @@ function replacementMeshes(group) {
 	assert.equal(collectWinterAssetMeshes(valid).length, 2);
 	const normalization = createWinterAssetNormalization(validation.measurement);
 	assert.ok(normalization instanceof THREE.Matrix4);
+}
+
+{
+	const source = makeMultiMaterialWinterModel();
+	const validation = validateWinterAsset(source.root);
+	assert.equal(validation.valid, true, 'authored multi-material GLB primitives must remain eligible');
+	assert.equal(collectWinterAssetMeshes(source.root).length, 1);
+	const group = makeProceduralGroup(1);
+	const status = await upgradeWinterVegetationAssets(group, {
+		assetLoader: { async loadModel() { return source.root; } },
+		candidates: [WINTER_VEGETATION_ASSET_POLICY.preferredSnowPineAsset],
+		maxAnisotropy: 16,
+	});
+	assert.equal(status.status, 'active');
+	const [replacement] = replacementMeshes(group);
+	assert.ok(Array.isArray(replacement.material), 'source material groups must survive instancing');
+	assert.equal(replacement.material.length, 2);
+	assert.strictEqual(replacement.material[0].map, source.albedo, 'hydration must retain authored texture objects');
+	assert.equal(source.albedo.colorSpace, THREE.SRGBColorSpace, 'albedo must decode as sRGB');
+	assert.equal(source.normal.colorSpace, THREE.NoColorSpace, 'normal maps must stay linear data');
+	assert.equal(source.roughness.colorSpace, THREE.NoColorSpace, 'roughness maps must stay linear data');
+	assert.equal(source.albedo.minFilter, THREE.LinearMipmapLinearFilter);
+	assert.equal(source.albedo.magFilter, THREE.LinearFilter);
+	assert.equal(source.albedo.anisotropy, WINTER_VEGETATION_ASSET_POLICY.maxTextureAnisotropy,
+		'renderer capability must be capped to the production texture budget');
+	assert.equal(source.albedo.offset.x, 0.17, 'authored UV offset must not be rewritten');
+	assert.equal(source.albedo.offset.y, 0.23);
+	assert.equal(source.albedo.repeat.x, 1.7, 'authored UV scale must not be rewritten');
+	assert.equal(source.albedo.repeat.y, 2.3);
+	assert.equal(source.albedo.rotation, 0.19, 'authored UV rotation must not be rewritten');
 }
 
 {
@@ -293,6 +340,9 @@ function replacementMeshes(group) {
 		'sceneManager must wire the optional materialized winter asset upgrade into the live world');
 	assert.match(sceneManagerSource, /winterVegetationAsset\.js/,
 		'sceneManager must import the dedicated winter vegetation asset module');
+	assert.match(sceneManagerSource, /maxAnisotropy:\s*renderer\.capabilities\.getMaxAnisotropy\(\)/,
+		'sceneManager must pass live renderer filtering capability to hydrated winter textures');
 }
 
-console.log('[checkWinterVegetationAssetUpgrade] PASS: materialized GLB upgrade preserves placement, lifecycle safety and fallback.');
+console.log('[checkWinterVegetationAssetUpgrade] PASS: materialized GLB upgrade preserves placement, hydrated multi-material texture fidelity, lifecycle safety and fallback.');
+
