@@ -55,9 +55,9 @@ try {
 	await page.goto(harnessUrl, { waitUntil: 'domcontentloaded' });
 
 	const proof = await page.evaluate(async ({ baseUrl, sourcePath, sourceComponent }) => {
-		const [{ AssetLoader }, materialCore] = await Promise.all([
-			import(`${baseUrl}/src/3d/assetLoader.js`),
-			import(`${baseUrl}/src/3d/materials/MaterialAssignmentCore.js`),
+		const [{ AssetLoader }, materialCore, THREE, { upgradeTemperateBroadleafAssets }] = await Promise.all([
+			import(`${baseUrl}/src/3d/assetLoader.js`), import(`${baseUrl}/src/3d/materials/MaterialAssignmentCore.js`),
+			import('three'), import(`${baseUrl}/src/3d/world/temperateVegetationAsset.js`),
 		]);
 		const model = await new AssetLoader().loadModel(`${baseUrl}/${sourcePath}`);
 		if (model.userData?.isPlaceholder) throw new Error('hydrated birch loaded as placeholder');
@@ -72,6 +72,13 @@ try {
 				src: sourcePath,
 			},
 		});
+		const group = new THREE.Group(), matrix = new THREE.Matrix4();
+		for (const name of ['vegetation-round-trunks', 'vegetation-round-foliage']) {
+			const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial(), 7); mesh.name = name;
+			for (let index = 0; index < 7; index++) { matrix.makeTranslation(index * 3, 0, 0); mesh.setMatrixAt(index, matrix); }
+			group.add(mesh);
+		}
+		const upgrade = await upgradeTemperateBroadleafAssets(group);
 		return {
 			validation: {
 				ok: validation.ok,
@@ -84,6 +91,7 @@ try {
 			},
 			manifest,
 			materialNames: manifest.surfaces.map((surface) => surface.material),
+			upgrade: { status: upgrade.status, treeCount: upgrade.treeCount, variantCount: upgrade.variantCount, meshCount: upgrade.meshCount, manifestCount: upgrade.manifests?.length, proceduralHidden: !group.getObjectByName('vegetation-round-trunks').visible && !group.getObjectByName('vegetation-round-foliage').visible },
 		};
 	}, { baseUrl: base, sourcePath: assetPath, sourceComponent: componentName });
 
@@ -95,7 +103,8 @@ try {
 	assert(proof.materialNames.includes('BirchTree_Bark'), 'authored birch bark material was not preserved');
 	assert(proof.materialNames.includes('BirchTree_Leaves'), 'authored birch leaf material was not preserved');
 	assert.equal(proof.manifest.validation.ok, true, 'shared material manifest must remain valid before live placement');
-	const result = { contract: 'temperate-birch-shared-material-browser-v1', assetPath, componentName, browserErrors: errors, ...proof };
+	assert.deepEqual(proof.upgrade, { status: 'active', treeCount: 7, variantCount: 5, meshCount: 10, manifestCount: 5, proceduralHidden: true });
+	const result = { contract: 'temperate-birch-shared-material-browser-v2-live-adapter', assetPath, componentName, browserErrors: errors, ...proof };
 	await fs.writeFile(outputPath, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
 	console.log('[checkTemperateVegetationMaterialBrowser] PASS', JSON.stringify(result));
 } finally {
