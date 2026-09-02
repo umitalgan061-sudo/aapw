@@ -68,7 +68,7 @@ jobs:
         run: |
           set -euo pipefail
           npm install --no-save --no-package-lock --ignore-scripts three@0.180.0
-      - name: Static syntax and shared placement contract
+      - name: Static syntax
         run: |
           set -euo pipefail
           node --check scripts/checkWorldEnvironmentAcceptanceMatrix.mjs
@@ -86,14 +86,22 @@ jobs:
           node --check src/3d/world/water.js
           node --check src/3d/world/waterDepthField.js
           node --check src/3d/world/WorldAssetPlacementPipeline.js
-          node scripts/checkSharedMaterialPlacementContract.js
-          node scripts/checkWorldSurfacePlacementPolicy.mjs
-          node scripts/checkMapAlignedTerrainPBR.mjs
-          node scripts/checkTerrainMicroSurface.mjs
-          node scripts/checkWorldWaterCoverageP0.mjs
-          node scripts/checkWaterCoverageRasterQuality.mjs
-          node scripts/checkWaterCoverageSamplingBudget.mjs
-          node scripts/checkFogHorizonSafety.mjs
+      - name: Shared material placement contract
+        run: node scripts/checkSharedMaterialPlacementContract.js
+      - name: World surface placement policy
+        run: node scripts/checkWorldSurfacePlacementPolicy.mjs
+      - name: Map aligned terrain PBR
+        run: node scripts/checkMapAlignedTerrainPBR.mjs
+      - name: Terrain micro surface
+        run: node scripts/checkTerrainMicroSurface.mjs
+      - name: World water coverage P0
+        run: node scripts/checkWorldWaterCoverageP0.mjs
+      - name: Water raster quality
+        run: node scripts/checkWaterCoverageRasterQuality.mjs
+      - name: Water sampling budget
+        run: node scripts/checkWaterCoverageSamplingBudget.mjs
+      - name: Fog horizon safety
+        run: node scripts/checkFogHorizonSafety.mjs
       - name: Hydrate scoped runtime assets
         run: |
           set -euo pipefail
