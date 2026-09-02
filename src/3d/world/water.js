@@ -32,7 +32,7 @@ export const WAVE_TOTAL_AMPLITUDE_METERS = SWELL_COMPONENTS.reduce((sum, [, ampl
 export const WATER_OFFSHORE_OPTICAL_GAIN = 0.82;
 
 export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
-	id: 'water-world-surface-variation-2026-09-02-v10-soft-handoff-extended-backdrop',
+	id: 'water-world-surface-variation-2026-09-02-v11-depth-field-optical-feather',
 	renderOnly: true,
 	canonicalDepthUnchanged: true,
 	canonicalCoverageUnchanged: true,
@@ -54,6 +54,8 @@ export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	layerHandoffFarFullMeters: 1980,
 	layerHandoffNearFadeStartMeters: 1780,
 	layerHandoffNearFadeEndMeters: 2000,
+	depthFieldOpticalFeatherMeters: 920,
+	depthFieldOpticalWarpMeters: 180,
 	shoreBreakerRevision: 'v1-bathymetry-directed-irregular-lace',
 	shoreGradientStepMeters: 68,
 	directionalBreakers: true,
@@ -61,6 +63,7 @@ export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	worldSpaceDeepBackdrop: true,
 	softNearFarLayerHandoff: true,
 	extendedBackdropBeyondFullWorldFrame: true,
+	depthFieldEdgeOpticalFeather: true,
 });
 
 const WATER_VERTEX_SHADER = /* glsl */ `
@@ -189,6 +192,15 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 	}
 
+	float waterFieldEdgeOpticalBlend(vec2 worldXZ) {
+		vec2 uv = worldXZ / uDepthFieldExtentMeters + 0.5;
+		if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 1.0;
+		float edgeUv = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y));
+		float edgeMeters = edgeUv * uDepthFieldExtentMeters;
+		float edgeWarp = (waterSurfaceNoise(worldXZ / 1450.0 + vec2(12.4, -8.7)) - 0.5) * 2.0 * ${WATER_SURFACE_VARIATION_POLICY.depthFieldOpticalWarpMeters.toFixed(1)};
+		return 1.0 - smoothstep(0.0, ${WATER_SURFACE_VARIATION_POLICY.depthFieldOpticalFeatherMeters.toFixed(1)}, max(0.0, edgeMeters + edgeWarp));
+	}
+
 	float openOceanSurfaceFabric(vec2 worldXZ) {
 		float warpA = waterSurfaceNoise(worldXZ / 1850.0 + vec2(8.2, -5.4));
 		float warpB = waterSurfaceNoise(worldXZ / 2460.0 + vec2(-3.7, 11.6));
@@ -235,11 +247,14 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		if (uFarLayerMask > 0.5 && layerOpacity <= 0.001) discard;
 
 		vec2 waterField = sampleWaterField(vWorldPosition.xz);
-		float fragmentDepth = waterField.x;
 		float waterCoverage = smoothstep(0.08, 0.72, waterField.y);
 		if (waterCoverage <= 0.01) discard;
-
-		float offshoreOptical = smoothstep(0.08, 0.92, sampleOffshoreOptical(vWorldPosition.xz));
+		float rawOffshoreOptical = sampleOffshoreOptical(vWorldPosition.xz);
+		float fieldEdgeOpticalBlend = waterFieldEdgeOpticalBlend(vWorldPosition.xz) * uFarLayerMask
+			* smoothstep(0.72, 0.98, waterField.y)
+			* smoothstep(0.48, 0.90, rawOffshoreOptical);
+		float fragmentDepth = mix(waterField.x, 1.0, fieldEdgeOpticalBlend);
+		float offshoreOptical = smoothstep(0.08, 0.92, mix(rawOffshoreOptical, 1.0, fieldEdgeOpticalBlend));
 		float enclosedLakeMask = (1.0 - offshoreOptical) * (1.0 - uFarLayerMask);
 		float clearShallowBand = 1.0 - smoothstep(0.10, 0.52, fragmentDepth);
 		float clearCoastMask = clearShallowBand * smoothstep(0.08, 0.74, offshoreOptical);
@@ -496,6 +511,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		nightAbsorptionFromCelestialState: true,
 		softNearFarLayerHandoff: true,
 		extendedBackdropBeyondFullWorldFrame: true,
+		depthFieldEdgeOpticalFeather: true,
 	});
 
 	const farGeometry = new THREE.PlaneGeometry(WATER_FULL_WORLD_EXTENT_METERS, WATER_FULL_WORLD_EXTENT_METERS, 1, 1);
