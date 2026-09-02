@@ -15,6 +15,11 @@
  * footprint-aware world placement, produced a manifest and attached successfully. Only then is the
  * matching primitive instance hidden. Missing/LFS-unavailable assets therefore fail closed: no
  * magenta AssetLoader placeholder and no invisible collision hole are ever shipped.
+ *
+ * Multi-mesh imported houses keep authored material-slot structure. Strong semantic names such as
+ * roof/window/door/timber/foundation are redirected through a regional shared-core surface recipe,
+ * while unnamed or ambiguous imported surfaces remain untouched instead of being flattened to one
+ * brown/stone texture. Single-mesh houses keep the regional layered fallback.
  * @module world/villages
  */
 
@@ -235,6 +240,40 @@ function createVillageArchitectureSurfaceQuery(sampleHeightMeters, seaLevelMeter
 	};
 }
 
+function profileHasPalette(profile, paletteId) {
+	return (profile?.layers || []).some((layer) => layer?.palette === paletteId);
+}
+
+function preferredProfilePalette(profile, paletteIds, fallback = null) {
+	for (const paletteId of paletteIds) {
+		if (paletteId && profileHasPalette(profile, paletteId)) return paletteId;
+	}
+	return fallback;
+}
+
+/**
+ * Maps a high-confidence authored architecture slot to the destination region's palette language.
+ * This is an adapter over the shared #590 classifier/material core, not another material framework.
+ */
+export function resolveVillageArchitectureSurfacePalette(profile, slot) {
+	if (!profile || !slot) return null;
+	if (slot === 'structure-window') return 'glass';
+	if (slot === 'structure-door' || slot === 'structure-timber') return 'wood';
+	if (slot === 'structure-metal') return 'iron';
+	if (slot === 'structure-thatch') return 'thatch';
+	if (slot === 'structure-roof') return profile.layers?.at(-1)?.palette || 'roof-tile';
+	if (slot === 'structure-stone') {
+		return preferredProfilePalette(profile, ['stone', 'rock', 'brick'], profile.paletteId);
+	}
+	if (slot === 'structure-brick') {
+		return preferredProfilePalette(profile, ['brick', 'plaster', 'rock', 'stone'], profile.paletteId);
+	}
+	if (slot === 'structure-plaster') {
+		return preferredProfilePalette(profile, ['plaster', profile.paletteId, 'brick', 'house'], profile.paletteId);
+	}
+	return null;
+}
+
 function regionalMaterialOptions(object, profile) {
 	const analysis = analyzeMaterialSurfaces(object);
 	if (analysis.meshCount === 1) {
@@ -249,6 +288,26 @@ function regionalMaterialOptions(object, profile) {
 			},
 		};
 	}
+
+	const surfaceOverrides = {};
+	for (const surface of analysis.surfaces) {
+		const paletteId = resolveVillageArchitectureSurfacePalette(profile, surface.slot);
+		if (paletteId) surfaceOverrides[surface.key] = paletteId;
+	}
+	if (Object.keys(surfaceOverrides).length > 0) {
+		return {
+			materialRecipe: {
+				version: 1,
+				mode: 'surface',
+				basePaletteId: profile.paletteId,
+				textureSize: ARCHITECTURE_TEXTURE_SIZE,
+				surfaceOverrides,
+			},
+		};
+	}
+
+	// No trustworthy authored slot name: preserve the previous shared auto/layer behavior rather than
+	// fabricating a semantic split that the source model does not support.
 	return { paletteId: profile.paletteId, textureSize: ARCHITECTURE_TEXTURE_SIZE };
 }
 
