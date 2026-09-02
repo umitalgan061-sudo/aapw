@@ -18,9 +18,16 @@ import { createDragon } from './dragonController.js';
  * isolated invalid/throwing samples while preserving the last proven-safe altitude.
  */
 export function resolveConfiguredDragonSpawnCenter({ spawn, seat, sampleGroundY } = {}) {
-	const centerX = seat?.x;
-	const centerZ = seat?.z;
-	const altitudeMeters = spawn?.altitudeMeters;
+	let centerX;
+	let centerZ;
+	let altitudeMeters;
+	try {
+		centerX = seat?.x;
+		centerZ = seat?.z;
+		altitudeMeters = spawn?.altitudeMeters;
+	} catch (error) {
+		return { ok: false, reason: 'config-read-error', error };
+	}
 	if (!Number.isFinite(centerX) || !Number.isFinite(centerZ) || !Number.isFinite(altitudeMeters)) {
 		return { ok: false, reason: 'non-finite-config' };
 	}
@@ -56,19 +63,6 @@ export function resolveConfiguredDragonSpawnCenter({ spawn, seat, sampleGroundY 
  *   with biting disabled regardless of any per-spawn `biteDamage` — same "requires its own defining
  *   value" gate `createDragon`'s own `canBite` already enforces per-dragon.
  * @returns {Promise<Awaited<ReturnType<typeof createDragon>>[]>} Already filtered — no `null` entries.
- *   Each spawn's own `reactiveSpeedMultiplier`/`reactiveBankAngleRadians`/`reactiveTransitionSeconds`
- *   (run 58, ADR-0077) and `alarmRadiusMeters`/`diveDropMeters`/`diveLateralPullFraction`/
- *   `diveTransitionSeconds`/`minAltitudeAboveGroundMeters` (run 64, ADR-0082) and
- *   `pursuitRadiusMeters`/`pursuitCenterSpeedMps`/`pursuitCircleRadiusMeters`/
- *   `pursuitTransitionSeconds`/`pursuitMaxSeconds` (run 66, ADR-0085) and
- *   `agitatedWingFlapMultiplier` (run 70, ADR-0089) and
- *   `giveUpBankAngleMultiplier`/`giveUpTransitionSeconds` (run 71, ADR-0091) and
- *   `diveTelegraphSeconds`/`diveTelegraphTransitionSeconds` (run 72) and
- *   `attackTriggerSeconds`/`attackLateralPullFraction`/`attackDropMeters`/`attackTransitionSeconds`/
- *   `biteRadiusMeters`/`biteDamage`/`biteCooldownSeconds` (run 90, ADR-0116) are passed straight
- *   through to `createDragon` — omitted per-spawn fields fall back to `createDragon`'s own no-op
- *   defaults (calm flight, unaffected by the player). `sampleGroundY` itself is always passed
- *   through too (run 64), needed for the dive's and the traveling circle's terrain-safety clamp.
  */
 export async function spawnConfiguredDragons({ assetLoader, dragonConfig, seatsById, sampleGroundY, eventsBus, eventName, biteEventName }) {
 	const dragons = await Promise.all(
@@ -118,12 +112,8 @@ export async function spawnConfiguredDragons({ assetLoader, dragonConfig, seatsB
 				pursuitMaxSeconds: spawn.pursuitMaxSeconds,
 				giveUpBankAngleMultiplier: spawn.giveUpBankAngleMultiplier,
 				giveUpTransitionSeconds: spawn.giveUpTransitionSeconds,
-				// The same number `centerY` above was resolved from — passed separately so the
-				// traveling circle can re-derive its cruise altitude over new terrain (run 66).
 				cruiseAltitudeAboveGroundMeters: spawn.altitudeMeters,
 				agitatedWingFlapMultiplier: spawn.agitatedWingFlapMultiplier,
-				// Run 90 (ADR-0116) attack lunge/bite: `biteEventName` shared across every spawn (like
-				// `eventName`), the rest per-spawn (like every other dive/pursuit tunable above).
 				attackTriggerSeconds: spawn.attackTriggerSeconds,
 				attackLateralPullFraction: spawn.attackLateralPullFraction,
 				attackDropMeters: spawn.attackDropMeters,
