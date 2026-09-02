@@ -15,7 +15,7 @@ import {
 } from './worldReferenceStoneBridgeShadow.js';
 
 export const CANONICAL_ROAD_BRIDGE_RUNTIME_POLICY = Object.freeze({
-	id: 'canonical-road-stone-bridge-live-2026-09-02-v3-bank-to-bank-reroute',
+	id: 'canonical-road-stone-bridge-live-2026-09-02-v4-traversal-polyline',
 	ownerPolicy: STONE_BRIDGE_OWNER_POLICY.key,
 	roadWaterAuditSpacingMeters: 6,
 	maxApproachGradeDegrees: 18,
@@ -28,6 +28,7 @@ export const CANONICAL_ROAD_BRIDGE_RUNTIME_POLICY = Object.freeze({
 	liveRoadWaterAuthority: true,
 	waterRouteSuppressionRequired: true,
 	dryRoadPreservationRequired: true,
+	bridgeAwareRoadMetadataRequired: true,
 	batchedBridgeGeometry: true,
 	groundSurfaceMetadataExported: true,
 	groundResolverAvailable: true,
@@ -281,6 +282,40 @@ function routePlanForGap(gap, liveBridgePlan, sampleHeightMeters) {
 	return Object.freeze({ ranges: Object.freeze(ranges), waterSampleCount: liveBridgePlan.waterSampleCount });
 }
 
+function pushDistinctRoutePoint(points, point) {
+	const previous = points[points.length - 1];
+	if (previous && Math.hypot(previous.x - point.x, previous.z - point.z) < 0.01 && Math.abs(previous.y - point.y) < 0.01) return;
+	points.push(Object.freeze({ x: point.x, y: point.y, z: point.z }));
+}
+
+/** Publish the actual traversable road line consumed by carts and road-clearance asset placement. */
+function buildBridgeAwareRoute(gap, ranges, sampleHeightMeters) {
+	const points = [];
+	let cursor = 0;
+	for (const range of ranges) {
+		for (let index = cursor; index < range.startIndex; index += 1) {
+			const raw = gap.points[index];
+			if (!isRoadPointSubmerged(sampleHeightMeters, raw)) pushDistinctRoutePoint(points, { x: raw.x, y: finalRoadY(sampleHeightMeters, raw), z: raw.z });
+		}
+		pushDistinctRoutePoint(points, range.startApproach.from);
+		pushDistinctRoutePoint(points, range.startApproach.to);
+		pushDistinctRoutePoint(points, range.endApproach.from);
+		pushDistinctRoutePoint(points, range.endApproach.to);
+		cursor = range.endIndex + 1;
+	}
+	for (let index = cursor; index < gap.points.length; index += 1) {
+		const raw = gap.points[index];
+		if (!isRoadPointSubmerged(sampleHeightMeters, raw)) pushDistinctRoutePoint(points, { x: raw.x, y: finalRoadY(sampleHeightMeters, raw), z: raw.z });
+	}
+	let lengthMeters = 0;
+	let maxGradeDegrees = 0;
+	for (let index = 1; index < points.length; index += 1) {
+		lengthMeters += distance2(points[index - 1], points[index]);
+		maxGradeDegrees = Math.max(maxGradeDegrees, gradeDegrees(points[index - 1], points[index]));
+	}
+	return Object.freeze({ points: Object.freeze(points), lengthMeters, maxGradeDegrees });
+}
+
 function createRibbonBuffers(sourceRoadMesh) {
 	const sourceColors = sourceRoadMesh?.geometry?.getAttribute?.('color');
 	return {
@@ -376,6 +411,8 @@ export function installCanonicalRoadBridgeRuntime(network, { sampleHeightMeters 
 		if (!liveBridgePlan) continue;
 		const routePlan = routePlanForGap(gap, liveBridgePlan, sampleHeightMeters);
 		if (!routePlan) continue;
+		const restoredRoute = buildBridgeAwareRoute(gap, routePlan.ranges, sampleHeightMeters);
+		if (restoredRoute.points.length < 2) continue;
 		restoredDryRoadPointCount += appendDryRouteRuns(restorationBuffers, gap, routePlan.ranges, sampleHeightMeters);
 		for (const range of routePlan.ranges) {
 			appendRibbon(restorationBuffers, [range.startApproach.from, range.startApproach.to]);
@@ -387,11 +424,15 @@ export function installCanonicalRoadBridgeRuntime(network, { sampleHeightMeters 
 		restoredGapSet.add(gap);
 		restoredEdges.push(Object.freeze({
 			...gap,
+			points: restoredRoute.points,
+			lengthMeters: restoredRoute.lengthMeters,
+			maxGradeDegrees: restoredRoute.maxGradeDegrees,
 			diagnostics: Object.freeze({
 				...gap.diagnostics,
 				transportGap: false,
 				transportGapReason: null,
 				bridgeRestored: true,
+				bridgeTraversalRewritten: true,
 				bridgeIds: Object.freeze(routePlan.ranges.map((range) => range.bridge.id)),
 				suppressedWaterSampleCount: routePlan.waterSampleCount,
 			}),
@@ -487,6 +528,7 @@ export function installCanonicalRoadBridgeRuntime(network, { sampleHeightMeters 
 		maxApproachGradeDegrees: Math.max(...approachRecords.map((approach) => approach.gradeDegrees), 0),
 		maxApproachLengthMeters: Math.max(...approachRecords.map((approach) => approach.lengthMeters), 0),
 		restoredDryRoadPointCount,
+		bridgeAwareRoadEdgeCount: restoredEdges.filter((edge) => edge.diagnostics?.bridgeTraversalRewritten).length,
 		waterSuppression: Object.freeze({ suppressed: suppressedWaterSampleCount, total: totalWaterSampleCount }),
 		groundSurfaces: Object.freeze([
 			...colliderSegments.map((segment) => Object.freeze({
