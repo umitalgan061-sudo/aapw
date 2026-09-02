@@ -53,45 +53,44 @@ const THATCH_COLOR = new THREE.Color(0x9c7b42);
  * they are deliberately residential only, so this visual pass does not invent a second vendor,
  * blacksmith, tavern or stable interaction system beside the established RPG owner.
  *
- * `proceduralWallHex` / `proceduralRoofHex` intentionally tint the cheap instanced fabric too. A
- * single hydrated landmark should not be the only geographic cue in a ten-house hamlet: the North,
- * coast, arid south, mountains and volcanic east must still read differently before/without GLB
- * hydration, without multiplying draw calls or replacing the shared procedural PBR maps.
+ * Primary and secondary silhouettes both come from the already-hydrated seven-house acceptance
+ * set. The destination profile remains the material authority, so borrowing a compatible silhouette
+ * never borrows another region's surface identity or creates a new offline/LFS dependency.
  */
 export const VILLAGE_ARCHITECTURE_PROFILES = Object.freeze({
 	north: Object.freeze({
 		id: 'north', label: 'Kuzey ahşap yerleşimi', paletteId: 'house', proceduralWallHex: 0xb8b6ae, proceduralRoofHex: 0x59636d,
-		assetUrl: 'assets/models/settlements/log_cabin_et0OmFeZVkb.glb',
+		assetUrl: 'assets/models/settlements/log_cabin_et0OmFeZVkb.glb', secondaryAssetUrl: 'assets/models/settlements/cabin_shed_HTx7PZt6Zm.glb',
 		layers: Object.freeze([{ to: 0.16, palette: 'stone' }, { to: 0.72, palette: 'wood' }, { to: 1, palette: 'roof-tile' }]),
 	}),
 	fertile: Object.freeze({
 		id: 'fertile', label: 'Verimli ova yerleşimi', paletteId: 'house', proceduralWallHex: 0xe2d3af, proceduralRoofHex: 0xa9874d,
-		assetUrl: 'assets/models/settlements/fantasy_house_dcPho4SUA3.glb',
+		assetUrl: 'assets/models/settlements/fantasy_house_dcPho4SUA3.glb', secondaryAssetUrl: 'assets/models/settlements/small_wooden_house.glb',
 		layers: Object.freeze([{ to: 0.12, palette: 'stone' }, { to: 0.62, palette: 'plaster' }, { to: 0.7, palette: 'wood' }, { to: 1, palette: 'thatch' }]),
 	}),
 	maritime: Object.freeze({
 		id: 'maritime', label: 'Rüzgârlı kıyı yerleşimi', paletteId: 'house', proceduralWallHex: 0xaeb8b8, proceduralRoofHex: 0x68757c,
-		assetUrl: 'assets/models/settlements/cabin_shed_HTx7PZt6Zm.glb',
+		assetUrl: 'assets/models/settlements/cabin_shed_HTx7PZt6Zm.glb', secondaryAssetUrl: 'assets/models/settlements/log_cabin_et0OmFeZVkb.glb',
 		layers: Object.freeze([{ to: 0.16, palette: 'rock' }, { to: 0.64, palette: 'house' }, { to: 0.72, palette: 'wood' }, { to: 1, palette: 'roof-tile' }]),
 	}),
 	arid: Object.freeze({
 		id: 'arid', label: 'Kurak güney yerleşimi', paletteId: 'house', proceduralWallHex: 0xe0c39b, proceduralRoofHex: 0xb67852,
-		assetUrl: 'assets/models/settlements/house_fdaqERLQCc.glb',
+		assetUrl: 'assets/models/settlements/house_fdaqERLQCc.glb', secondaryAssetUrl: 'assets/models/settlements/house_roqiHdrpgc.glb',
 		layers: Object.freeze([{ to: 0.18, palette: 'stone' }, { to: 0.72, palette: 'plaster' }, { to: 0.79, palette: 'wood' }, { to: 1, palette: 'roof-tile' }]),
 	}),
 	mountain: Object.freeze({
 		id: 'mountain', label: 'Dağ eteği yerleşimi', paletteId: 'brick', proceduralWallHex: 0xaaa59d, proceduralRoofHex: 0x515b61,
-		assetUrl: 'assets/models/settlements/medium_house_4hI5fNvl6z.glb',
+		assetUrl: 'assets/models/settlements/medium_house_4hI5fNvl6z.glb', secondaryAssetUrl: 'assets/models/settlements/log_cabin_et0OmFeZVkb.glb',
 		layers: Object.freeze([{ to: 0.2, palette: 'rock' }, { to: 0.74, palette: 'brick' }, { to: 0.82, palette: 'wood' }, { to: 1, palette: 'roof-tile' }]),
 	}),
 	temperate: Object.freeze({
 		id: 'temperate', label: 'Ilıman kır yerleşimi', paletteId: 'house', proceduralWallHex: 0xd1c3a7, proceduralRoofHex: 0x846849,
-		assetUrl: 'assets/models/settlements/small_wooden_house.glb',
+		assetUrl: 'assets/models/settlements/small_wooden_house.glb', secondaryAssetUrl: 'assets/models/settlements/fantasy_house_dcPho4SUA3.glb',
 		layers: Object.freeze([{ to: 0.12, palette: 'stone' }, { to: 0.62, palette: 'house' }, { to: 0.7, palette: 'wood' }, { to: 1, palette: 'thatch' }]),
 	}),
 	volcanic: Object.freeze({
 		id: 'volcanic', label: 'Volkanik taş yerleşimi', paletteId: 'brick', proceduralWallHex: 0x7f7770, proceduralRoofHex: 0x3f4146,
-		assetUrl: 'assets/models/settlements/house_roqiHdrpgc.glb',
+		assetUrl: 'assets/models/settlements/house_roqiHdrpgc.glb', secondaryAssetUrl: 'assets/models/settlements/medium_house_4hI5fNvl6z.glb',
 		layers: Object.freeze([{ to: 0.2, palette: 'rock' }, { to: 0.72, palette: 'brick' }, { to: 0.8, palette: 'iron' }, { to: 1, palette: 'roof-tile' }]),
 	}),
 });
@@ -107,6 +106,10 @@ const SEAT_ARCHITECTURE_REGION = Object.freeze({
 export function resolveVillageArchitectureProfile(seatId) {
 	const regionId = SEAT_ARCHITECTURE_REGION[String(seatId ?? '')];
 	return regionId ? VILLAGE_ARCHITECTURE_PROFILES[regionId] : null;
+}
+
+function resolveVillageArchitectureAssetUrl(profile, site) {
+	return (site?.assetIndex ?? 0) > 0 ? (profile.secondaryAssetUrl || profile.assetUrl) : profile.assetUrl;
 }
 
 export function pickHouseTypeIndex(roll) {
@@ -275,14 +278,15 @@ export async function upgradeVillageArchitectureAssets({
 	for (const site of sites) {
 		if (villageGroup.userData?.disposed === true) break;
 		const profile = resolveVillageArchitectureProfile(site.seatId);
-		let source = sourceCache.get(profile.assetUrl);
+		const assetUrl = resolveVillageArchitectureAssetUrl(profile, site);
+		let source = sourceCache.get(assetUrl);
 		if (!source) {
-			source = await assetLoader.loadModel(profile.assetUrl, { fallbackSize: site.targetFootprintMeters });
+			source = await assetLoader.loadModel(assetUrl, { fallbackSize: site.targetFootprintMeters });
 			if (villageGroup.userData?.disposed === true) {
 				AssetLoader.disposeObject3D(source);
 				break;
 			}
-			sourceCache.set(profile.assetUrl, source);
+			sourceCache.set(assetUrl, source);
 		}
 		if (source?.userData?.isPlaceholder === true) {
 			missingAssetCount++;
@@ -299,7 +303,7 @@ export async function upgradeVillageArchitectureAssets({
 				id: `village-${site.seatId}-${profile.id}-${site.assetIndex ?? 0}`,
 				name: profile.label,
 				category: 'settlement',
-				src: profile.assetUrl,
+				src: assetUrl,
 			},
 			...materialOptions,
 			textureSize: ARCHITECTURE_TEXTURE_SIZE,
@@ -321,7 +325,7 @@ export async function upgradeVillageArchitectureAssets({
 			seatId: site.seatId,
 			assetIndex: site.assetIndex ?? 0,
 			region: profile.id,
-			assetUrl: profile.assetUrl,
+			assetUrl,
 			textureSize: ARCHITECTURE_TEXTURE_SIZE,
 			manifest: prepared.manifest,
 		});
