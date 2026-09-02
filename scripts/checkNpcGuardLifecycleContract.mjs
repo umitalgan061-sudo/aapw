@@ -64,6 +64,11 @@ assert.equal(evaluate(baseAlert, { sourceId: 'guard-a', lastRevision: 0 }).reaso
 const crossGroup = evaluate({ ...baseAlert, groupId: 'dreadfort-guard' }, { lastRevision: 0 });
 assert.equal(crossGroup.accepted, false);
 assert.equal(crossGroup.reason, 'stale');
+for (const revision of [Infinity, Number.NaN, 7.5, 0, -1]) {
+  const invalidRevision = evaluate({ ...baseAlert, revision }, { lastRevision: 0 });
+  assert.equal(invalidRevision.accepted, false);
+  assert.equal(invalidRevision.reason, 'stale');
+}
 for (const sourcePosition of [{ x: Infinity, z: 0 }, { x: 0, z: Number.NaN }]) {
   const invalid = evaluate({ ...baseAlert, sourcePosition }, { lastRevision: 0 });
   assert.equal(invalid.accepted, false);
