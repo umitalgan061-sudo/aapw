@@ -3,8 +3,8 @@
  *
  * This module changes no centerline, water ownership, coastline, biome zone, road, settlement, or
  * collider authority. It supplies deterministic morphology *inside* the existing mountain support:
- * longitudinal massing, side asymmetry, crest saddles, shoulder incision, secondary spurs and the
- * ridge-local drainage field from `worldReferenceMountainErosionField.js`.
+ * longitudinal massing, side asymmetry, crest saddles, range constrictions, shoulder incision,
+ * secondary spurs and the ridge-local drainage field from `worldReferenceMountainErosionField.js`.
  *
  * The caller still owns the canonical ridge envelope and multiplies these terms only after proving
  * that a sample lies inside it. Terrain geometry and collision therefore continue to consume one
@@ -50,7 +50,7 @@ const EROSION_SCRATCH = {
 };
 
 export const WORLD_REFERENCE_MOUNTAIN_GEOMORPHOLOGY_POLICY = Object.freeze({
-	id: 'owner-map-mountain-geomorphology-2026-09-02-v3-ridge-drainage-headwalls',
+	id: 'owner-map-mountain-geomorphology-2026-09-02-v4-eroded-ridge-frame-constrictions',
 	erosionPolicyId: WORLD_REFERENCE_MOUNTAIN_EROSION_POLICY.id,
 	heightScale: Object.freeze({
 		minimum: 0.70,
@@ -79,6 +79,14 @@ export const WORLD_REFERENCE_MOUNTAIN_GEOMORPHOLOGY_POLICY = Object.freeze({
 		peak: 0.56,
 		end: 0.94,
 		strength: 0.17,
+	}),
+	rangeConstriction: Object.freeze({
+		frequency: 6.8,
+		threshold: 0.46,
+		start: 0.22,
+		peak: 0.58,
+		end: 0.86,
+		strength: 0.11,
 	}),
 	secondarySpurs: Object.freeze({
 		frequency: 11,
@@ -208,6 +216,15 @@ function sampleShoulderIncision(normalizedX, normalizedY, progress, normalizedDi
 	return 1 - erosionSignal * policy.strength * envelope;
 }
 
+function sampleRangeConstriction(progress, normalizedDistance, seed) {
+	const policy = WORLD_REFERENCE_MOUNTAIN_GEOMORPHOLOGY_POLICY.rangeConstriction;
+	const envelope = triangularBand(normalizedDistance, policy.start, policy.peak, policy.end);
+	if (envelope <= 0) return 1;
+	const carrier = valueNoise1D(progress * policy.frequency + seed * 0.011, seed + 1177);
+	const constriction = smoothstep(policy.threshold, 0.94, carrier);
+	return 1 - constriction * policy.strength * envelope;
+}
+
 function sampleSecondarySpur(normalizedX, normalizedY, progress, normalizedDistance, side, seed) {
 	const policy = WORLD_REFERENCE_MOUNTAIN_GEOMORPHOLOGY_POLICY.secondarySpurs;
 	const envelope = triangularBand(normalizedDistance, policy.start, policy.peak, policy.end);
@@ -237,6 +254,7 @@ const COMPONENT_SCRATCH = {
 	asymmetry: 1,
 	crestNotch: 1,
 	incision: 1,
+	constriction: 1,
 	spur: 1,
 	erosionScale: 1,
 	outerFade: 1,
@@ -266,6 +284,7 @@ function resolveComponentsInto(
 	const asymmetry = sampleRidgeAsymmetry(side, progress, normalizedDistance, seed);
 	const crestNotch = sampleCrestNotch(progress, normalizedDistance, normalizedX, normalizedY, seed);
 	const incision = sampleShoulderIncision(normalizedX, normalizedY, progress, normalizedDistance, seed);
+	const constriction = sampleRangeConstriction(progress, normalizedDistance, seed);
 	const spur = sampleSecondarySpur(normalizedX, normalizedY, progress, normalizedDistance, side, seed);
 	sampleMountainErosionFieldInto(
 		progress,
@@ -276,7 +295,7 @@ function resolveComponentsInto(
 		EROSION_SCRATCH,
 	);
 	const outerFade = sampleOuterEdgeFade(normalizedDistance);
-	const rawScale = longitudinal * asymmetry * crestNotch * incision * spur * EROSION_SCRATCH.heightScale;
+	const rawScale = longitudinal * asymmetry * crestNotch * incision * constriction * spur * EROSION_SCRATCH.heightScale;
 	const edgeBlendedScale = 1 + (rawScale - 1) * outerFade;
 	const scalePolicy = WORLD_REFERENCE_MOUNTAIN_GEOMORPHOLOGY_POLICY.heightScale;
 	out.heightScale = clamp(edgeBlendedScale, scalePolicy.minimum, scalePolicy.maximum);
@@ -287,6 +306,7 @@ function resolveComponentsInto(
 	out.asymmetry = asymmetry;
 	out.crestNotch = crestNotch;
 	out.incision = incision;
+	out.constriction = constriction;
 	out.spur = spur;
 	out.erosionScale = EROSION_SCRATCH.heightScale;
 	out.outerFade = outerFade;
@@ -374,6 +394,7 @@ export function sampleMountainGeomorphologyContext(
 		ridgeAsymmetry: components.asymmetry,
 		crestNotch: components.crestNotch,
 		shoulderIncision: components.incision,
+		rangeConstriction: components.constriction,
 		secondarySpur: components.spur,
 		erosionScale: components.erosionScale,
 		outerEdgeFade: components.outerFade,
