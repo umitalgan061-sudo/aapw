@@ -167,7 +167,7 @@ export class KeyboardInput {
 		this._keys = new Set(); this._jumpRequested = false; this._lockOnRequested = false; this._guardPointerHeld = false;
 		this._gamepadButtons = { jump: false, dodge: false, light: false, heavy: false, parry: false, lockOn: false }; this._gamepadSprintActive = false; this._activeGamepadIndex = null; this._lastPollSeconds = null; this._lastCombatFeedbackSerial = 0; this._pendingCombatFeedbackSerial = 0; this._target = target; this._visibilityTarget = globalThis.document?.addEventListener ? globalThis.document : target; this._isInputBlocked = typeof isInputBlocked === 'function' ? isInputBlocked : isPlayerGameplayInputBlocked;
 		this._onKeyDown = (event) => {
-			if (readPlayerGameplayInputBlocked(this._isInputBlocked)) return;
+			if (readPlayerGameplayInputBlocked(this._isInputBlocked) || isInteractiveTarget(event.target)) return;
 			const wasHeld = this._keys.has(event.code);
 			if (event.repeat === true && !wasHeld) return;
 			const firstPress = !wasHeld;
@@ -178,7 +178,7 @@ export class KeyboardInput {
 			this._keys.add(event.code);
 		};
 		this._onKeyUp = (event) => this._keys.delete(event.code);
-		this._onPointerDown = (event) => { if (readPlayerGameplayInputBlocked(this._isInputBlocked)) return; if (event.button === GUARD_POINTER_BUTTON) { this._guardPointerHeld = true; event.preventDefault?.(); return; } if (event.button === LIGHT_ATTACK_POINTER_BUTTON && !isInteractiveTarget(event.target)) emitPlayerCombatIntent('light', 'mouse'); };
+		this._onPointerDown = (event) => { if (readPlayerGameplayInputBlocked(this._isInputBlocked) || isInteractiveTarget(event.target)) return; if (event.button === GUARD_POINTER_BUTTON) { this._guardPointerHeld = true; event.preventDefault?.(); return; } if (event.button === LIGHT_ATTACK_POINTER_BUTTON && !isInteractiveTarget(event.target)) emitPlayerCombatIntent('light', 'mouse'); };
 		this._onPointerUp = (event) => { if (event.button === GUARD_POINTER_BUTTON) this._guardPointerHeld = false; };
 		this._onContextMenu = (event) => { if (this._guardPointerHeld) event.preventDefault?.(); };
 		this._onCombatFeedback = (event) => {
