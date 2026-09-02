@@ -86,13 +86,13 @@ jobs:
           node --check scripts/terrainSeatSafetyCheck.js
           node --check scripts/roadNetworkSafetyCheck.js
           node --check service-worker.js
-          node scripts/checkWorldReferenceMountainRelief.mjs | tee "$RUNNER_TEMP/mountain-source.log"
-          node scripts/checkMountainNaturalizationProfile.mjs | tee "$RUNNER_TEMP/mountain-profile.log"
-          node scripts/checkMountainNaturalizationDeterminism.mjs | tee "$RUNNER_TEMP/mountain-determinism.log"
-          node scripts/checkMountainGeomorphologyField.mjs | tee "$RUNNER_TEMP/mountain-geomorphology.log"
-          node scripts/checkMountainSurfaceContext.mjs | tee "$RUNNER_TEMP/mountain-surface-context.log"
-          node scripts/checkMountainPassReliefSafety.mjs | tee "$RUNNER_TEMP/mountain-pass.log"
-          node scripts/checkMountainVisualProofContract.mjs | tee "$RUNNER_TEMP/mountain-proof-contract.log"
+          node scripts/checkWorldReferenceMountainRelief.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-source.log"
+          node scripts/checkMountainNaturalizationProfile.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-profile.log"
+          node scripts/checkMountainNaturalizationDeterminism.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-determinism.log"
+          node scripts/checkMountainGeomorphologyField.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-geomorphology.log"
+          node scripts/checkMountainSurfaceContext.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-surface-context.log"
+          node scripts/checkMountainPassReliefSafety.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-pass.log"
+          node scripts/checkMountainVisualProofContract.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-proof-contract.log"
 
       - name: Repository policy diagnostics
         run: |
@@ -127,11 +127,11 @@ jobs:
         run: |
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
-          node scripts/captureLiveWorldMountainNaturalization.mjs | tee "$RUNNER_TEMP/mountain-visual.log"
+          node scripts/captureLiveWorldMountainNaturalization.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-visual.log"
           grep -F LIVE_WORLD_MOUNTAIN_NATURALIZATION_OK "$RUNNER_TEMP/mountain-visual.log"
-          node scripts/terrainSeatSafetyCheck.js | tee "$RUNNER_TEMP/terrain-seat.log"
-          node scripts/roadNetworkSafetyCheck.js | tee "$RUNNER_TEMP/road-network.log"
-          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/game3d-smoke.log"
+          node scripts/terrainSeatSafetyCheck.js 2>&1 | tee "$RUNNER_TEMP/terrain-seat.log"
+          node scripts/roadNetworkSafetyCheck.js 2>&1 | tee "$RUNNER_TEMP/road-network.log"
+          node scripts/smokeTestGame3D.js 2>&1 | tee "$RUNNER_TEMP/game3d-smoke.log"
           test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/game3d-smoke.log")" -ge 40
 
       - name: Final source-preservation gate
