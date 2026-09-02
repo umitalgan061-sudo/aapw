@@ -58,11 +58,11 @@ jobs:
           test $((A+D)) -le 1000
           echo "BASE_SHA=$MAIN_SHA" >> "$GITHUB_ENV"
 
-      - name: Hydrate scoped smoke-test LFS assets
+      - name: Hydrate scoped shipped-scene LFS assets
         run: |
           set -euo pipefail
           git lfs version
-          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
+          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/Ay/Moon 2K.fbx,assets/models/vegetation/pine_Zt62gceKXZ.glb,assets/models/vegetation/winter_tree.glb,assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb" --exclude=""
 
       - name: Mountain source syntax and deterministic contract
         run: |
