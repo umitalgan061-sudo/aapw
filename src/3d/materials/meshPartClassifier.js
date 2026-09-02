@@ -54,7 +54,11 @@ const SLOT_RULES = Object.freeze([
 	{ slot: 'cloak', priority: 1, words: ['cloak', 'cape', 'mantle', 'pelerin', 'harmani', 'harmaniye'] },
 	{ slot: 'trousers', priority: 1, words: ['trouser', 'trousers', 'pants', 'leg', 'legs', 'skirt', 'pantolon', 'bacak', 'etek'] },
 	{ slot: 'tunic', priority: 1, words: ['tunic', 'shirt', 'robe', 'dress', 'torso', 'chest', 'cloth', 'coat', 'jacket', 'gomlek', 'gömlek', 'giysi', 'elbise', 'govde', 'gövde'] },
-	{ slot: 'armor', priority: 1, words: ['armor', 'armour', 'plate', 'mail', 'shield', 'sword', 'blade', 'weapon', 'zirh', 'zırh', 'kalkan', 'kilic', 'kılıç', 'silah'] },
+	// Explicit equipment nouns are stronger contextual evidence than a structural-looking material
+	// such as `Wooden_Plank`. Keep this narrow: generic `plate`/`mail` remain at normal armour priority,
+	// while shield/sword/weapon meshes cannot be re-owned by the settlement architecture classifier.
+	{ slot: 'armor', priority: 4, words: ['shield', 'sword', 'blade', 'weapon', 'kalkan', 'kilic', 'kılıç', 'silah'] },
+	{ slot: 'armor', priority: 1, words: ['armor', 'armour', 'plate', 'mail', 'zirh', 'zırh'] },
 	{ slot: 'skin', priority: 1, words: ['skin', 'head', 'face', 'body', 'hand', 'arm', 'flesh', 'cilt', 'ten', 'kafa', 'yuz', 'yüz', 'el', 'kol'] },
 
 	// Authored architecture. Strong, explicit nouns only; generic walls and bare substances stay
