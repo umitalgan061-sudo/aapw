@@ -49,7 +49,19 @@ page.on('console', (message) => {
 });
 
 try {
-  await page.goto(`${server.baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  // This is an asset/material readiness proof, not the shipped-scene proof. Keep the
+  // real localhost origin so browser imports and FBX fetches exercise production URLs,
+  // but replace only the document shell to avoid coupling this focused contract to
+  // unrelated world startup/shader failures. The touch/gamepad workflows separately
+  // boot the shipped game3d.html scene and enforce zero browser/page errors there.
+  await page.route('**/game3d.html', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/html',
+      body: '<!doctype html><meta charset="utf-8"><title>player-equipment-readiness</title>',
+    });
+  });
+  await page.goto(`${server.baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 10000 });
 
   const proof = await page.evaluate(async ({ characterAsset, characterUrl, equipmentAsset, equipmentUrl, textureSize }) => {
     const [{ AssetLoader }, materialCore, THREE] = await Promise.all([
