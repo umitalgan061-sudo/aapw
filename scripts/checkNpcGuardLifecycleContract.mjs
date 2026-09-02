@@ -57,6 +57,8 @@ const evaluate = (alert, overrides = {}) => evaluateNpcGuardAssistAlert({
 const validAssist = evaluate(baseAlert);
 assert.equal(validAssist.accepted, true);
 assert.equal(validAssist.reason, 'assist');
+assert.equal(validAssist.revision, 7, 'receiver must consume the exact published revision');
+assert.equal(validAssist.sourceId, 'guard-a', 'receiver must retain the publishing guard identity');
 assert.equal(validAssist.sourceDistanceMeters, 5);
 assert.deepEqual(validAssist.lastKnown, { x: 6, z: 8 });
 assert.notEqual(validAssist.lastKnown, baseAlert.lastKnown, 'receiver must copy shared alert last-known state');
