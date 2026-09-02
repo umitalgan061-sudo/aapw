@@ -118,7 +118,9 @@ const CONTEXTUAL_STRUCTURE_MATERIALS = Object.freeze(new Map([
 	['steel', 'structure-metal'],
 ]));
 
-const NON_CHARACTER_CONTEXT_WORDS = Object.freeze(['tool']);
+// Imported vehicle/prop meshes commonly use names such as CartBody/WagonBody. Generic anatomy
+// suffixes on those non-character contexts must preserve authored materials just like ToolHead does.
+const NON_CHARACTER_CONTEXT_WORDS = Object.freeze(['tool', 'cart', 'wagon', 'carriage']);
 const GENERIC_SKIN_WORDS = Object.freeze(new Set(['head', 'body', 'hand', 'arm']));
 
 /**
@@ -184,9 +186,9 @@ export function classifyPart({ meshName = '', materialName = '' } = {}) {
 
 	const contextual = contextualArchitectureMatch(meshName, materialName);
 	if (contextual && (!best || contextual.score > best.score)) best = contextual;
-	// Compound prop names such as `ToolHead` are common in imported models. Their generic anatomy
-	// suffix must not turn a non-character object into skin; preserve its authored material unless a
-	// stronger explicit equipment/structure semantic exists.
+	// Compound prop names such as `ToolHead`/`CartBody` are common in imported models. Their generic
+	// anatomy suffix must not turn a non-character object into skin; preserve its authored material
+	// unless a stronger explicit equipment/structure semantic exists.
 	if (!contextual && suppressNonCharacterAnatomy(meshName, best)) return null;
 	return best;
 }
