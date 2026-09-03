@@ -19953,3 +19953,64 @@ Görev 21 bu ölçümle güncellendi.
 Kapılar: `checkSmokeCheckRegistry`, `checkTechnicalDebt` — PASS. Kaynak değişmedi, SW bump yok.
 
 **Technical debt.** 0 new.
+
+## Tur 440 — Köprünün birinci yarısı: geçişler artık **çizilen** dünyadan çıkıyor (ADR-0387)
+
+Tur 439 oyunun hiç köprüsü olmadığını ve üç yolun çizilen nehir geometrisinin içinden geçtiğini
+saptamıştı. Bu tur o işin birinci yarısını bitiriyor: **canlı yolların canlı nehirleri nerede
+kestiğini ve güvertenin ne kadar yükseğe oturması gerektiğini** söyleyen modül, kendi kapısıyla.
+
+Yeni: `src/3d/world/roadRiverBridges.js` + `scripts/checkRoadRiverBridgeCrossings.js`.
+
+**Gölge planlayıcısı neden çağrılmadı.** O başka bir soruya cevap veriyor: kendi MST'sini ve kendi
+rotalarını *kanonik* bir yükseklik örnekleyicisi üzerinden yeniden hesaplayıp suyu
+`hydrologyAtWorld`'e soruyor. Canlı dünya ise canlı örnekleyiciyle rota atıyor ve nehirlerini
+`generateRiverPath`'ten çiziyor. İkisi ortak **tek bir geçiş** adı bile vermeyecek kadar ayrılmış.
+Bu modül yalnızca çizilene bakıyor: `buildRoadNetwork`'ün döndürdüğü rotalar, `sceneManager.js`'in
+zaten köy/bitki yerleşim kuralı için topladığı nehir kursları.
+
+**Ve gölgenin güverte formülü taşınmaya dayanmıyor.** Tabanı `seaLevel + archRise + 0,8`; kıyıdaki
+bir geçiş için doğru, başka her yerde yanlış. Sekiz canlı geçişin yedisi 36–75 m yükseklikte, ve o
+formül güverteyi kendi suyunun **0,2–1,4 m altına** koyuyor. Bir güverte geçtiği suyu temizler,
+denizi değil.
+
+**Kendi hatam, ölçümle yakalandı ve düzeltildi.** Su yüzeyini önce kursun kendi `y`'sinden okudum.
+O noktalar vadinin oyulmasından *önceki* iz yüksekliğini taşıyor: `robin->berkalp`'te güverte
+**31,7 m** çıktı, oysa oradaki su **7,8 m**'de çiziliyor — 23 metre sapma. Yüzey artık
+`createRiverMesh`'in kendi kuralıyla türetiliyor: her kıyı kendi zemininden, artı 0,3 m, yükseği
+kazanır.
+
+**Sonuç — sekiz geçiş, hepsi isimli:**
+
+```
+robin->berkalp#1   Blue Fork          su 15,4 m   güverte  8,283   +1,50 su / +1,88 yüksek kıyı
+doran->ziya#1      The Mander         su 41,4 m   güverte 75,086   +1,50 / +1,63
+stannis->robin#1   Blackwater Rush    su 16,0 m   güverte 38,106   +1,50 / +1,80
+stannis->robin#2   Blackwater Rush    su 71,6 m   güverte 40,309   +1,50 / +1,56
+stannis->robin#3   Blackwater Rush    su 28,3 m   güverte 47,624   +1,50 / +1,63
+stannis->robin#4   Green Fork         su 21,2 m   güverte 73,245   +1,50 / +1,79
+stannis->robin#5   Red Fork           su 15,4 m   güverte 75,276   +1,50 / +2,71
+stannis->robin#6   Blue Fork          su 15,4 m   güverte 61,484   +1,50 / +1,90
+```
+
+**Bu, ikinci yarıyı sandığımdan çok daha kolay yapıyor:** güvertenin yüksek kıyıya göre yükselmesi
+gereken miktar **1,56–2,71 m**. 6 metrelik kıyı payına sıkıştırılırsa 15–24 derece, çok dik; ama
+20 metrelik bir yaklaşmaya yayılırsa **4,5–7,7 derece** — rahat bir rampa.
+
+**Kapı bilerek geçiş *sayısı* sabitlemiyor.** Yol rotası da nehir kursu da yükseklik alanına tepki
+verir; buraya bir sayı çakmak, her meşru arazi değişikliğini köprüyle ilgisi olmayan bir sebepten
+kırmızıya çevirir — `checkCanonicalRoadBridgeSceneShadow`'un "expected 7 bridges" ile yaptığı ve o
+gün bugündür kırmızı kalmasının sebebi olan hata. Sabitlenen şey cevabın *biçimi*: her geçiş kendi
+suyunu ve iki kıyısını temizliyor mu, kimlikler tekil mi, açıklık su payından uzun mu, ve aynı dünya
+iki kez sorulunca aynı listeyi mi veriyor.
+
+Kapılar: `checkRoadRiverBridgeCrossings` (yeni), `checkRoadRibbonGrounding`, `roadNetworkSafetyCheck`,
+`checkNamedRivers`, `checkRiverValleyCarving`, `checkSeededRandomPolicy`, `checkServiceWorkerCache`,
+`checkSmokeCheckRegistry`, `checkTechnicalDebt`, `game3dSmokeChecksScene` — hepsi PASS.
+`SHELL_CACHE` v75 → v76, modül kayıtlı.
+
+**Technical debt.** 0 new. Hiçbir geometri kımıldamadı — bu tur yalnızca ölçüyor ve rapor ediyor.
+
+**İkinci yarı, sıradaki iş:** şerit güvertenin üstüne kaldırılacak (yaklaşma rampalarıyla birlikte,
+`checkRoadRibbonGrounding`'in 1,2 m yüzme tavanı köprülü açıklıkları tanıyacak şekilde) ve
+`createCanonicalStoneBridgeMedievalArtV2` bu sekiz geçişe bağlanacak.

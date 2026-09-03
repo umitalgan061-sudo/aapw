@@ -340,7 +340,12 @@ export function createScene(canvas) {
 	// Measured before this: 52 of 14344 scattered instances stood inside a channel, some 0.3 m from the
 	// centreline. `isPlaceablePosition` knew the sea and the roads but not the rivers, and a river runs
 	// above sea level so the waterline test could never catch one.
-	const riverCourses = [{ points: riverPoints }, ...(valleyField.namedRivers ?? []).map((river) => ({ points: river.points }))];
+	// Run 440 carries each river's name through as well: `world/roadRiverBridges.js` reports which
+	// river a road crosses, and "river x8" is not a thing anyone can act on.
+	const riverCourses = [
+		{ name: 'river', points: riverPoints },
+		...(valleyField.namedRivers ?? []).map((river) => ({ name: river.name ?? river.id, points: river.points })),
+	];
 
 	const villagesResult = createVillages({
 		sampleHeightMeters: groundCollider.getGroundHeight,
@@ -418,6 +423,13 @@ export function createScene(canvas) {
 		settlements: settlementsResult.group,
 		roads: roadsResult.group,
 		roadEdges: roadsResult.edges,
+		/**
+		 * The historical river plus every named river, as courses. Already assembled above for the
+		 * village and vegetation placement rules; exposed since run 440 so `world/roadRiverBridges.js`
+		 * can ask where the roads cross the rivers the game actually draws, rather than recomputing a
+		 * parallel hydrology the way the run-191 shadow planner does.
+		 */
+		riverCourses,
 		vegetation: vegetationResult.group,
 		villages: villagesResult.group,
 		// Exposed (not just the settlements.group mesh) so initGame3D can place FAZ 5 NPCs relative to
