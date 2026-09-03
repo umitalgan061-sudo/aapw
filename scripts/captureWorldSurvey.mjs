@@ -66,7 +66,7 @@ async function main() {
 		});
 		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
 
-		const shots = await page.evaluate(async ({ seatIds, streamRadius }) => {
+		const survey = await page.evaluate(async ({ seatIds, streamRadius }) => {
 			const { createScene, worldToChunkCoord } = await import('/src/3d/sceneManager.js');
 			const { WORLD_DEFAULTS, CHUNK_CONFIG } = await import('/src/3d/config.js');
 			const { updateDayNightLighting } = await import('/src/3d/lighting.js');
@@ -81,6 +81,12 @@ async function main() {
 			document.body.style.margin = '0';
 			document.body.appendChild(canvas);
 			const world = await createScene(canvas);
+			// `createScene` deliberately does not await the near-field tree models: the world is playable
+			// while they resolve, and if they never do the primitive scatter simply stays. A survey that
+			// shoots straight after the build therefore photographs the cones and spheres every time,
+			// however many real models are on disk — which is not what a player sees a second later.
+			// `false` here means the layer stood down (no models, or none placeable), not a failure.
+			const nearTreesLoaded = await world.nearTreesReady;
 			world.renderer.setSize(1280, 720, false);
 			world.camera.aspect = 1280 / 720;
 			world.camera.updateProjectionMatrix();
@@ -134,16 +140,19 @@ async function main() {
 					{ x: fromX, y: ground(fromX, fromZ) + 14, z: fromZ },
 					{ x: seat.x, y: seat.groundY + 6, z: seat.z });
 			}
-			return done;
+			return { done, nearTreesLoaded, nearTreeStats: world.nearTreeStats ?? null };
 		}, { seatIds: SURVEY_SEATS, streamRadius: STREAM_RADIUS_CHUNKS });
 
+		const shots = survey.done;
 		for (const shot of shots) {
 			fs.writeFileSync(path.join(OUT, `${shot.name}.png`), Buffer.from(shot.url.split(',')[1], 'base64'));
 		}
 		const bands = [...new Set(shots.map((shot) => shot.nearestSegments))].join('/');
 		console.log(
 			`[captureWorldSurvey] OK: ${shots.length} renders at ${path.relative(ROOT, OUT)}; ` +
-			`finest terrain LOD present ${bands} segments; ${errors.length} unexpected page errors`,
+			`finest terrain LOD present ${bands} segments; ` +
+			`near-field tree models ${survey.nearTreesLoaded ? 'loaded' : 'NOT loaded (primitives only)'}; ` +
+			`${errors.length} unexpected page errors`,
 		);
 		for (const error of errors.slice(0, 5)) console.log(`  ${error}`);
 		if (errors.length) process.exitCode = 1;

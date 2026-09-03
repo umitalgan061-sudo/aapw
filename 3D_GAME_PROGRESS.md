@@ -19653,3 +19653,39 @@ koştum, aynı şekilde kırmızılar:
   yazılıyor ve ayrı bir turun işi olarak duruyor.
 
 **Technical debt.** 0 new.
+
+## Tur 433 — Taramada ağaçlar hâlâ koni: model yüklemesi beklenmiyormuş (ADR-0380)
+
+Sahibin sorduğu şeyin tam ortası: *asset'lerin model dokusu.* Bunu görebilmek için önce üç ağaç
+GLB'sini LFS'ten hidratladım — ve tarama **yine** koni ve küre çizdi. Yani modellerin diskte olmaması
+tek sebep değilmiş.
+
+**Sebep, Tur 431'in tam olarak aynı sınıfı.** `sceneManager.js`'in kendi yorumu söylüyor: *"The model
+load is deliberately not awaited — the world is playable while it resolves."* Doğru bir karar; ama
+sahne kurulur kurulmaz fotoğraf çeken bir tarama, diskte kaç gerçek model olursa olsun **her seferinde
+ilkel biçimleri** çekiyor. Oyuncunun bir saniye sonra gördüğü şey bu değil.
+
+**Düzeltme:** tarama artık `world.nearTreesReady`'yi bekliyor ve çıktısına gerçekten ne çizdiğini
+yazıyor:
+
+```
+[captureWorldSurvey] OK: 6 renders ...; finest terrain LOD present 128 segments;
+near-field tree models loaded; 0 unexpected page errors
+```
+
+LFS hidratlanmamış bir ortamda aynı satır `NOT loaded (primitives only)` diyecek — yani render'ın
+ilkel biçim gösterdiği artık sessizce geçmiyor, kaydın kendisinde yazıyor.
+
+**Ve artık asıl soru görülebiliyor.** `artifacts/world-survey/seat-cersei.png`'te yakın ağaçlar gerçek
+model: dallanan bir gövde, katmanlı yaprak. Ama iki şey ortada duruyor ve dürüstçe yazılıyor:
+
+* Modeller **dokusuz** — düz yeşil yaprak, düz kahverengi gövde. Koniden iyi, gerçek ağaçtan uzak.
+* **Geçiş görünüyor.** 220 m'de gerçek model bitiyor, ilkel koni başlıyor; benzer ekran boyutunda iki
+  farklı siluet yan yana duruyor.
+
+İkisi de ayrı birer iş; bu tur ölçüm aletini düzeltti, ikisini birden düzeltmiş gibi yapmıyor.
+
+Kapılar: `checkSmokeCheckRegistry`, `checkTechnicalDebt`, `checkServiceWorkerCache` — hepsi PASS.
+
+**Technical debt.** 0 new. Çalışma zamanı kaynağı değişmedi, SW bump yok. Hidratlanan GLB'ler
+commit'ten önce `git checkout -- assets/` ile geri alındı (CLAUDE.md).
