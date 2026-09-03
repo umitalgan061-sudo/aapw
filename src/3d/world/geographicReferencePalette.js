@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-03-v104-aerial-water-separation',
+	id: 'geographic-reference-palette-2026-09-03-v105-medieval-road-material-hierarchy',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -63,6 +63,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	lakeRiverOpticalSeparationRaised: true,
 	openSeaSlateDepthRaised: true,
 	aerialWaterSeparationRaised: true,
+	roadMaterialHierarchyRaised: true,
+	roadDustOrangeCastReduced: true,
+	roadStoneRutSeparationRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -70,10 +73,10 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v104 preserves the v102 lowland material separation calibrated from exact-head Full World 3D Topdown imagery. No terrain domain coverage, map.png interpretation, height, route, coastline or collider authority changes are introduced.',
-		water: 'v104 follows direct inspection of exact-head Full World 3D Topdown #1297. v103 moved all water into a more natural slate-teal family but aerial lake/river/sea values still converged too much. v104 gently raises clear inland/shallow water while deepening open marine and abyss values, preserving the existing world-space roughness, current and shelf shader breakup and all canonical hydrology authority.',
-		road: 'v104 preserves established compacted-road, rut, dust and moss-edge bases so route geometry and ownership remain unchanged.',
-		celestial: 'v104 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v105 preserves the v102 lowland material separation calibrated from exact-head Full World 3D Topdown imagery. No terrain domain coverage, map.png interpretation, height, route, coastline or collider authority changes are introduced.',
+		water: 'v105 preserves the v104 aerial lake/river/sea hierarchy and all existing world-space roughness, current and shelf shader breakup; canonical hydrology authority remains unchanged.',
+		road: 'v105 recalibrates only render pigments from the existing dirt-road and road-terrain references: compacted earth is less orange, wheel-rut shadow is warmer/denser, dust is lower-chroma and embedded stone is more neutral. Route topology, ribbon width, terrain sampling and water exclusion are unchanged.',
+		celestial: 'v105 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
@@ -90,11 +93,11 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		quartz: 0xd2cec6,
 	}),
 	road: Object.freeze({
-		compacted: 0x866347,
-		rut: 0x1b1917,
-		dust: 0xaa8b67,
-		stone: 0x68706a,
-		mossEdge: 0x2c5435,
+		compacted: 0x745b45,
+		rut: 0x211c18,
+		dust: 0x9b856d,
+		stone: 0x72736d,
+		mossEdge: 0x35513a,
 	}),
 	water: Object.freeze({
 		shoreClear: 0x5a8382,
