@@ -360,20 +360,31 @@ export function createScene(canvas) {
 		riverCourses,
 		sampleHeightMeters: groundCollider.getGroundHeight,
 	});
+	// A run the road makes *along* the channel rather than across it gets no deck — a straight chord
+	// there spans a field. `roadRiverBridges.js` decides that and says why; both halves are logged.
+	const deckedCrossings = bridgeCrossings.filter((crossing) => crossing.decked);
+	const fordedCrossings = bridgeCrossings.filter((crossing) => !crossing.decked);
 	const bridgeDeckSummary = applyBridgeDecks({
 		roadMesh: roadsResult.group.children[0],
 		roadEdges: roadsResult.edges,
-		crossings: bridgeCrossings,
+		crossings: deckedCrossings,
 	});
 	const stoneBridges = createCanonicalStoneBridgeMedievalArtV2({
-		bridges: bridgeCrossings.map((crossing) => toStoneBridgeDescriptor(crossing, STONE_BRIDGE_OWNER_POLICY)),
+		bridges: deckedCrossings.map((crossing) => toStoneBridgeDescriptor(crossing, STONE_BRIDGE_OWNER_POLICY)),
 	});
 	if (stoneBridges) scene.add(stoneBridges);
 	console.info(
-		`[sceneManager] Bridges: ${bridgeCrossings.length} road/river crossing(s) decked — ` +
-		`${bridgeDeckSummary.raisedVertices} ribbon vertices raised, worst lift ` +
+		`[sceneManager] Bridges: ${deckedCrossings.length} of ${bridgeCrossings.length} road/river ` +
+		`crossing(s) decked — ${bridgeDeckSummary.raisedVertices} ribbon vertices raised, worst lift ` +
 		`${bridgeDeckSummary.maxLiftMeters} m, steepest approach ${bridgeDeckSummary.maxApproachGradeDegrees} deg.`,
 	);
+	for (const forded of fordedCrossings) {
+		console.warn(
+			`[sceneManager] ${forded.id} left as a ford: the road runs ${forded.waterMeters} m inside ` +
+			`${forded.river} and only ${forded.chordWetSharePercent}% of a deck's chord would be over ` +
+			`water (${forded.expectedWetSharePercent}% expected) — that is a route to fix, not a bridge.`,
+		);
+	}
 
 	const villagesResult = createVillages({
 		sampleHeightMeters: groundCollider.getGroundHeight,
@@ -454,6 +465,8 @@ export function createScene(canvas) {
 		/** The stone arch bridges standing where the roads cross the rivers (run 441). */
 		stoneBridges,
 		bridgeCrossings,
+		deckedCrossings,
+		fordedCrossings,
 		/**
 		 * Teardown for those bridges, handed over as a closure rather than left for `game3d.js` to
 		 * import: they are instanced meshes carrying their own masonry texture, so they leak exactly the

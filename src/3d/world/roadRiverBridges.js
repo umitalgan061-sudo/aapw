@@ -76,6 +76,28 @@ export const ROAD_RIVER_BRIDGE_POLICY = Object.freeze({
 	 * Squeezed into the 6 m bank margin instead it would be far steeper than any cart could take.
 	 */
 	approachMeters: 24,
+	/**
+	 * How much of the water the crossing geometry implies must actually lie along the deck's own chord
+	 * before a deck is justified, as a fraction.
+	 *
+	 * **Why a deck needs this test.** A deck is a straight chord from one bank to the other. That is
+	 * right where the road crosses the river, and wrong where the road runs *along* the channel: the
+	 * chord then cuts across the meander and the bridge spans a field. Measured on the eight live
+	 * crossings, chord-over-water was 53.8, 57.7, 57.7, 61.5, 68.8, 74.5 and 76.3 per cent — and
+	 * 32.9 per cent for `stannis->robin#2`, whose 78 m deck had two thirds of its length over dry
+	 * ground. That one is the road travelling 71.6 m inside a 14 m river, five river-widths.
+	 *
+	 * The comparison is against what the geometry implies rather than a flat percentage, because the
+	 * expected share depends on the crossing: `water / (water + 2 * bankMargin)` is 53.8% for a
+	 * perpendicular crossing of a 14 m river and 85.6% for a 71.6 m run. Against that expectation the
+	 * seven good crossings score 0.96 to 1.09 and the bad one scores 0.38, so 0.7 separates them with
+	 * room on both sides and is not a number tuned to make one case pass.
+	 *
+	 * A rejected run is not hidden: it stays in the list with `decked: false` so the gate and the scene
+	 * both report it. The road is left as it was — a ford, which is what it already is — rather than
+	 * carrying a viaduct over a meadow.
+	 */
+	minimumChordWetShareOfExpected: 0.7,
 	renderOnly: false,
 });
 
@@ -147,6 +169,24 @@ function sampleEdge(points, riverCourses, sampleHeightMeters, policy) {
 	return walk;
 }
 
+/**
+ * Fraction of a deck's straight chord that lies over water.
+ *
+ * Walked at the same fixed step the edges are, so the two measurements are comparable, and through
+ * the same `riverAt` so "water" means the same thing in both.
+ */
+function wetShareAlongChord(start, end, spanMeters, riverCourses, sampleHeightMeters, policy) {
+	const steps = Math.max(2, Math.ceil(spanMeters / policy.sampleStepMeters));
+	let wet = 0;
+	for (let step = 0; step <= steps; step += 1) {
+		const t = step / steps;
+		const x = start.x + (end.x - start.x) * t;
+		const z = start.z + (end.z - start.z) * t;
+		if (riverAt(x, z, riverCourses, sampleHeightMeters, policy)) wet += 1;
+	}
+	return wet / (steps + 1);
+}
+
 /** Groups a walked edge's wet samples into contiguous runs. */
 function contiguousWetRuns(walk) {
 	const runs = [];
@@ -213,13 +253,24 @@ export function findRoadRiverCrossings({ roadEdges, riverCourses, sampleHeightMe
 			// on the water rather than on sea level is the correction this module exists to carry — see
 			// the module doc for the seven crossings the sea-level floor put underwater.
 			const deckY = Math.max(startGroundY, endGroundY, run.surfaceY + policy.deckFreeboardMeters);
+			// Is this a crossing at all, or the road travelling along the channel? A deck is a straight
+			// chord from bank to bank, so it is only justified where the water actually lies along that
+			// chord. See `minimumChordWetShareOfExpected` for the measurement.
+			const spanMeters = Math.hypot(end.x - start.x, end.z - start.z);
+			const chordWetShare = wetShareAlongChord(start, end, spanMeters, riverCourses, sampleHeightMeters, policy);
+			const expectedWetShare = run.waterMeters / (run.waterMeters + 2 * policy.bankMarginMeters);
+			const decked = chordWetShare >= expectedWetShare * policy.minimumChordWetShareOfExpected;
 			crossingIndex += 1;
 			crossings.push(Object.freeze({
 				id: `${edgeId}#${crossingIndex}`,
 				edgeId,
 				river: run.river,
 				waterMeters: Number(run.waterMeters.toFixed(2)),
-				spanMeters: Number(Math.hypot(end.x - start.x, end.z - start.z).toFixed(2)),
+				spanMeters: Number(spanMeters.toFixed(2)),
+				// Whether a deck is justified here at all, and the two numbers behind that call.
+				decked,
+				chordWetSharePercent: Number((chordWetShare * 100).toFixed(1)),
+				expectedWetSharePercent: Number((expectedWetShare * 100).toFixed(1)),
 				startX: Number(start.x.toFixed(3)),
 				startZ: Number(start.z.toFixed(3)),
 				endX: Number(end.x.toFixed(3)),

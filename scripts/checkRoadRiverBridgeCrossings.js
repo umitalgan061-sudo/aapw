@@ -77,6 +77,13 @@ async function main() {
 			if (!(crossing.spanMeters > crossing.waterMeters)) {
 				failures.push(`${crossing.id}: span ${crossing.spanMeters} m does not exceed its water ${crossing.waterMeters} m — the bank margin is missing`);
 			}
+			// A decked crossing must be one the road actually makes. Run 442's measurement: seven live
+			// crossings carry 54-76% of their chord over water, and the one that carried 33% was the road
+			// travelling 71.6 m along a 14 m river, where a straight deck spans a field.
+			// Both figures are percentages, so the 0.7 fraction applies directly to the expectation.
+			if (crossing.decked && !(crossing.chordWetSharePercent >= crossing.expectedWetSharePercent * 0.7)) {
+				failures.push(`${crossing.id}: decked, but only ${crossing.chordWetSharePercent}% of its chord is over water against ${crossing.expectedWetSharePercent}% expected`);
+			}
 			// The defect that made this module necessary: a deck floored on sea level ends up under a
 			// river that is 70 m up a valley.
 			if (!(crossing.deckAboveWaterMeters > 0)) {
@@ -96,9 +103,17 @@ async function main() {
 		);
 		for (const crossing of result.crossings) {
 			console.log(
-				`  ${crossing.id.padEnd(20)} ${crossing.river.padEnd(24)} water ${String(crossing.waterMeters).padStart(6)} m  ` +
-				`deck ${String(crossing.deckY).padStart(8)} m  (+${crossing.deckAboveWaterMeters} over water, ` +
-				`+${crossing.deckAboveHigherBankMeters} over the higher bank)`,
+				`  ${crossing.decked ? 'BRIDGE' : 'ford  '} ${crossing.id.padEnd(20)} ${crossing.river.padEnd(24)} ` +
+				`water ${String(crossing.waterMeters).padStart(6)} m  deck ${String(crossing.deckY).padStart(8)} m  ` +
+				`(+${crossing.deckAboveWaterMeters} over water, +${crossing.deckAboveHigherBankMeters} over the higher bank, ` +
+				`chord ${crossing.chordWetSharePercent}% wet vs ${crossing.expectedWetSharePercent}% expected)`,
+			);
+		}
+		const forded = result.crossings.filter((crossing) => !crossing.decked);
+		if (forded.length) {
+			console.log(
+				`[checkRoadRiverBridgeCrossings] ${forded.length} run(s) left as fords — the road travels along ` +
+				`the channel there, so a straight deck would span dry ground. Those are routes to fix, not bridges.`,
 			);
 		}
 		if (failures.length) {

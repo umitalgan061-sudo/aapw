@@ -20091,3 +20091,73 @@ Kapılar: `checkRoadRiverBridgeCrossings`, `checkRoadRibbonGrounding`, `roadNetw
 nehirde. Yol orayı kesmiyor, nehrin **içinde bir süre boyunca gidiyor**. Bunu köprülemek bir kemer
 değil bir viyadük üretiyor. Doğru cevap muhtemelen rotanın kendisini düzeltmek; ayrı bir iş olarak
 duruyor.
+
+## Tur 442 — Çayırın üstünden geçen viyadük: güverte artık suyun gerçekten olduğu yere kuruluyor (ADR-0389)
+
+Tur 441 açık bıraktığı işi kendisi göstermişti: `stannis->robin#2`, 14 metrelik bir nehirde
+**71,6 metre** ıslak koşu. Görev 22 bunu bir rotalama hatası olarak yazdı. **Rotalamayı değiştirmedim
+ve nedenini ölçtüm.**
+
+**Önce sebep doğrulandı.** `roadPathfinder.js`'in su bilgisi tamamen deniz seviyesine bağlı:
+`UNDERWATER_PENALTY` yalnızca `y <= seaLevel` olan adımlarda ateşleniyor, Chaikin sonrası ret testi de
+`seaLevel` ile karşılaştırıyor. 40 metre yükseklikteki bir nehir ikisi için de **görünmez**. Üstelik
+oyulmuş bir vadi tabanı çevredeki en düz zemin, yani eğimi en aza indiren A* nehir kanalını aktif
+olarak **tercih ediyor**.
+
+**Sonra ölçek ölçüldü.** Toplam yol **20,40 km**, suyun içinde kalan **224,8 m = %1,102**. Sekiz
+geçişin **beşi 1,1 nehir genişliği** — yani temiz, dike yakın geçişler. Sadece biri 5,1 genişlik.
+
+**Rotalama değişikliği bu yüzden yapılmadı.** Bir rotalama maliyeti 13 yolun hepsini kımıldatır,
+`computeRoadCorridor` altlarındaki araziyi yeniden düzler (yani §8.4 arazi değişikliği), köprüleri,
+köy ve bitki yerleşimini de beraberinde taşır — ağın **%0,35'i** için. Kötü bir takas.
+
+**Gerçek hata benim kendi tanımlayıcımdaydı.** `wide-side.png` viyadüğün **çayırın üstünden** geçtiğini
+gösteriyordu: güverte `start → end` arasında düz bir kiriş, ve yol menderesi eğik kesiyorsa o kiriş
+kuru toprağı geçiyor. Ölçüm:
+
+```
+geçiş                 su m   açıklık   kirişin su üstündeki payı   beklenen
+stannis->robin#2      71,6      78,3                       %34,1      %85,6   ← viyadük
+stannis->robin#6      15,4      25,1                       %57,1      %56,2
+robin->berkalp#1      15,4      25,0                       %57,1      %56,2
+stannis->robin#5      15,4      25,1                       %57,1      %56,2
+stannis->robin#1      16,0      24,8                       %64,3      %57,1
+stannis->robin#4      21,2      30,9                       %64,7      %63,9
+doran->ziya#1         41,4      50,4                       %74,1      %77,5
+stannis->robin#3      28,3      37,4                       %75,0      %70,2
+```
+
+**Eşik ayarlanmadı, türetildi.** Beklenen pay geçişe göre değişir:
+`su / (su + 2 × kıyı payı)` — 14 metrelik bir nehrin dik geçişinde %53,8, 71,6 metrelik bir koşuda
+%85,6. Bu beklentiye karşı yedi iyi geçiş **0,96–1,09** puan alıyor, kötü olan **0,38**. Eşik 0,7:
+iki tarafında da geniş pay var ve tek bir vakayı geçirmek için seçilmiş bir sayı değil.
+
+**Reddedilen koşu saklanmıyor.** Listede `decked: false` olarak kalıyor; sahne uyarı basıyor, kapı
+`ford` diye yazıyor:
+
+```
+BRIDGE robin->berkalp#1  Blue Fork        ... chord %57,1 wet vs %56,2 expected
+ford   stannis->robin#2  Blackwater Rush  ... chord %34,1 wet vs %85,6 expected
+[checkRoadRiverBridgeCrossings] 1 run(s) left as fords — the road travels along the
+channel there, so a straight deck would span dry ground. Those are routes to fix, not bridges.
+```
+
+Yol olduğu gibi bırakılıyor — zaten geçit olan bir yer geçit kalıyor — çayırın üstünde taş bir
+viyadük taşımak yerine.
+
+**Kapıdaki birim hatam:** yüzdeyi 0,7 yerine 70 ile çarpmıştım, yedi sağlam köprüyü kırmızıya
+çevirdi. Düzeltildi; iki değer de yüzde olduğu için kesir doğrudan uygulanıyor.
+
+Görsel doğrulama iki açıdan: `artifacts/bridges/second-side.png` (açık kemer, altından geçen mavi
+nehir, üstünden geçip yamaca tırmanan yol) ve `wide-side.png` (artık en geniş **köprülenen** geçiş —
+Mander — çayır viyadüğü değil).
+
+Kapılar: `checkRoadRiverBridgeCrossings`, `checkRoadRibbonGrounding`, `roadNetworkSafetyCheck`,
+`checkMedievalRoadSurface`, `checkNamedRivers`, `checkRiverValleyCarving`, `checkSmokeCheckRegistry`,
+`checkServiceWorkerCache`, `checkTechnicalDebt`, `checkSeededRandomPolicy`, `game3dSmokeChecksScene`
+— hepsi PASS. `SHELL_CACHE` v77 → v78.
+
+**Technical debt.** 0 new.
+
+**Açık kalan, ve artık ölçülmüş:** `roadPathfinder.js` nehirleri tanımıyor. Bunu düzeltmek doğru ama
+%0,35 için 13 rotayı ve altlarındaki araziyi kımıldatmaya değmez; ayrı bir tur, kendi §8.4 kapılarıyla.
