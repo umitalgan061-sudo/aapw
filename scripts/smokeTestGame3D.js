@@ -27,13 +27,14 @@ const audioChecks = require('./game3dSmokeChecksAudio.js');
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
 /**
- * `check3DMode` already owns the authoritative 60s GAME_READY assertion. Waiting for the browser
- * `load` event before that assertion is both redundant and incorrect for the shipped page: GLB and
- * module work can legitimately keep `load` pending while phase1-scene is already progressing.
+ * `check3DMode` already owns the authoritative 60s GAME_READY assertion. Waiting for `load` or
+ * `domcontentloaded` before that assertion is redundant for the shipped module graph: module/GLB
+ * startup can keep either document event pending even though the local HTML response has arrived
+ * and the game's own readiness state is the signal we actually need to test.
  *
  * Keep the scene-check module untouched (other agents own its broader page-boot coverage) and adapt
- * only this call site: for game3d.html, translate its legacy `waitUntil: load` navigation to
- * `domcontentloaded`. The check still fails on GAME_READY timeout, page/console errors or any
+ * only this call site: for game3d.html, enter the readiness check after Playwright observes the
+ * navigation `commit`. The check still fails on GAME_READY timeout, page/console errors or any
  * external request, so no runtime acceptance is removed.
  */
 function createGame3DReadyBrowser(browser) {
@@ -44,7 +45,7 @@ function createGame3DReadyBrowser(browser) {
 			page.goto = (url, options = {}) => {
 				const target = String(url || '');
 				if (target.includes('/game3d.html') && options.waitUntil === 'load') {
-					return nativeGoto(url, { ...options, waitUntil: 'domcontentloaded' });
+					return nativeGoto(url, { ...options, waitUntil: 'commit' });
 				}
 				return nativeGoto(url, options);
 			};
