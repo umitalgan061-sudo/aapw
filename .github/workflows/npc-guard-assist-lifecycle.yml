@@ -39,21 +39,29 @@ jobs:
           CHANGED="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           test "$CHANGED" -le 3000
           git diff --check "$BASE_SHA" HEAD
-      - name: Guard group-AI lifecycle regressions
+      - name: NPC runtime syntax
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/npc.js
           node --check scripts/checkNpcGuardAssistLifecycle.mjs
           node --check scripts/checkNpcGuardAssistIsolation.mjs
           node --check scripts/checkNpcGuardAssistLifecycleBrowser.js
-          node scripts/checkNpcGuardAssistLifecycle.mjs
-          node scripts/checkNpcGuardAssistIsolation.mjs
-          node scripts/checkNpcGuardPerception.mjs
-          node scripts/checkNpcGuardAttack.mjs
-          node scripts/checkNpcGuardLeash.mjs
-          node scripts/checkSeededRandomPolicy.js
-          node scripts/checkServiceWorkerCache.js
-          node scripts/checkSharedMaterialPlacementContract.js
+      - name: Guard assist lifecycle regression
+        run: node scripts/checkNpcGuardAssistLifecycle.mjs
+      - name: Guard assist isolation regression
+        run: node scripts/checkNpcGuardAssistIsolation.mjs
+      - name: Guard perception regression
+        run: node scripts/checkNpcGuardPerception.mjs
+      - name: Guard attack regression
+        run: node scripts/checkNpcGuardAttack.mjs
+      - name: Guard leash regression
+        run: node scripts/checkNpcGuardLeash.mjs
+      - name: Seeded randomness contract
+        run: node scripts/checkSeededRandomPolicy.js
+      - name: Shared service-worker contract
+        run: node scripts/checkServiceWorkerCache.js
+      - name: Shared material placement contract
+        run: node scripts/checkSharedMaterialPlacementContract.js
       - name: Install Chromium outside repo
         shell: bash
         run: |
