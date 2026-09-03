@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { selectVillageArchitectureLandmarks } from '../src/3d/world/villages.js';
+import { fitArchitectureToProceduralFootprint, selectVillageArchitectureLandmarks } from '../src/3d/world/villages.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const source = fs.readFileSync(path.join(ROOT, 'src/3d/world/villages.js'), 'utf8');
@@ -61,10 +61,27 @@ const duplicates = selectVillageArchitectureLandmarks([
 ]);
 assert.deepEqual(duplicates.map((site) => site.houseIndex), [9, 10], 'duplicate candidate records must not destabilize the farthest valid pair');
 
+const deepAssetFit = fitArchitectureToProceduralFootprint(
+	{ x: 2.22, z: 3.42 },
+	{ targetWidthMeters: 7.9, targetDepthMeters: 5.1 },
+);
+assert.equal(deepAssetFit.quarterTurn, true, 'deep authored houses should quarter-turn when that fills the same parcel better');
+assert(deepAssetFit.parcelCoverage > 0.98, `quarter-turned deep asset should fill its parcel, got ${deepAssetFit.parcelCoverage}`);
+assert(deepAssetFit.fittedWidth <= deepAssetFit.targetWidth + 1e-9 && deepAssetFit.fittedDepth <= deepAssetFit.targetDepth + 1e-9, 'quarter-turn must never overflow the authored parcel');
+
+const wideAssetFit = fitArchitectureToProceduralFootprint(
+	{ x: 11.8, z: 6.64 },
+	{ targetWidthMeters: 8.6, targetDepthMeters: 4.6 },
+);
+assert.equal(wideAssetFit.quarterTurn, false, 'already parcel-aligned wide houses must retain authored orientation');
+assert(wideAssetFit.parcelCoverage > 0.94, `wide asset should preserve strong parcel coverage, got ${wideAssetFit.parcelCoverage}`);
+assert.equal(fitArchitectureToProceduralFootprint({ x: 0, z: 4 }, { targetWidthMeters: 8, targetDepthMeters: 5 }), null, 'invalid source footprint must fail closed');
+
 console.log('VILLAGE_ARCHITECTURE_DISTRIBUTION_PASS', JSON.stringify({
 	selected: selected.map(({ houseIndex, assetIndex, distributionDistanceMeters }) => ({ houseIndex, assetIndex, distributionDistanceMeters })),
 	noPair: noPair.map(({ houseIndex, assetIndex }) => ({ houseIndex, assetIndex })),
 	tie: tie.map(({ houseIndex, assetIndex, distributionDistanceMeters }) => ({ houseIndex, assetIndex, distributionDistanceMeters })),
 	filtered: filtered.map(({ houseIndex, assetIndex, distributionDistanceMeters }) => ({ houseIndex, assetIndex, distributionDistanceMeters })),
 	duplicates: duplicates.map(({ houseIndex, assetIndex, distributionDistanceMeters }) => ({ houseIndex, assetIndex, distributionDistanceMeters })),
+	parcelFit: { deepAssetFit, wideAssetFit },
 }));
