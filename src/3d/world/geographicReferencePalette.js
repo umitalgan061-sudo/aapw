@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-03-v97-aerial-material-contrast',
+	id: 'geographic-reference-palette-2026-09-03-v98-fullworld-domain-clarity',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -50,6 +50,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	lowlandAerialDomainContrastRaised: true,
 	lowlandDistanceReadabilityRaised: true,
 	aerialMaterialContrastRaised: true,
+	fullWorldDomainClarityRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -57,23 +58,23 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v97 follows direct visual inspection of exact-head Full World 3D Topdown #1257. v96 is safe and improves domain separation, but broad central/western lowlands still compress toward a grey-olive aerial average. v97 therefore makes a restrained source-palette correction rather than changing biome coverage: meadow and moss deepen toward natural chlorophyll, dry heather shifts warmer/darker, exposed earth gains oxidised mineral identity, and weathered granite is pulled cooler and slightly darker so lithic surfaces do not collapse into soil. map.png, terrain height, hydrology, routes, coastline and collider authority remain unchanged.',
-		water: 'v97 preserves the verified v96 marine hierarchy; no water coverage, bathymetry, lake membership, shoreline or offshore authority changes are introduced.',
-		road: 'v97 preserves established compacted-road and dust bases, keeping roads distinct from exposed-earth terrain without changing route geometry.',
-		celestial: 'v97 preserves restrained noon and moon calibration; aerial depth continues to come from material/ecotone separation rather than stronger global illumination.',
+		terrain: 'v98 follows direct A/B inspection of exact-head Full World 3D Topdown #1257 and #1259. v97 was safe but the measured frame delta remained too small and broad lowlands still read as a soft grey-olive average. v98 therefore increases source-domain clarity one restrained step further: wet vegetation deepens, dry heather warms/darkens, oxidised earth separates from vegetation, and weathered granite shifts cooler/darker. This remains palette-only/render-only; biome coverage, map.png, terrain height, hydrology, routes, coastline and collider authority are unchanged.',
+		water: 'v98 preserves the verified v96-v97 marine hierarchy; no water coverage, bathymetry, lake membership, shoreline or offshore authority changes are introduced.',
+		road: 'v98 preserves established compacted-road and dust bases, keeping roads distinct from exposed-earth terrain without changing route geometry.',
+		celestial: 'v98 preserves restrained noon and moon calibration; aerial depth continues to come from material/ecotone separation rather than stronger global illumination.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x053517,
-		meadow: 0x069537,
-		dryHeather: 0x63301b,
-		wetEarth: 0x0d2119,
-		exposedEarth: 0xc96437,
-		graniteShadow: 0x406d80,
-		graniteSunlit: 0xbdaE9c,
-		basaltWet: 0x08181d,
+		mossShadow: 0x022f13,
+		meadow: 0x008f31,
+		dryHeather: 0x592b18,
+		wetEarth: 0x0c2018,
+		exposedEarth: 0xc45b30,
+		graniteShadow: 0x37657a,
+		graniteSunlit: 0xb7a794,
+		basaltWet: 0x07171c,
 		quartz: 0xd9d1c7,
 	}),
 	road: Object.freeze({
