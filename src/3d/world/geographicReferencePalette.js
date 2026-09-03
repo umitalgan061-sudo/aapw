@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-03-v106-road-river-material-hierarchy',
+	id: 'geographic-reference-palette-2026-09-03-v107-full-world-material-hierarchy',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -69,6 +69,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	riverReachValueSeparationRaised: true,
 	waterfallAerationContrastRaised: true,
 	plungePoolDepthRaised: true,
+	fullWorldTerrainMaterialHierarchyRaised: true,
+	meadowDrylandValueSeparationRaised: true,
+	lithologyShadowSeparationRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -76,24 +79,24 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v106 preserves the v102 lowland material separation calibrated from exact-head Full World 3D Topdown imagery. No terrain domain coverage, map.png interpretation, height, route, coastline or collider authority changes are introduced.',
-		water: 'v106 preserves the v104 lake/sea hierarchy while separating calm river pools, aerated rapid reaches and waterfall plunge/splash values. It changes render pigments only; traced river paths, waterfall detection, depth/coverage textures and canonical hydrology authority are unchanged.',
-		road: 'v106 preserves v105 road calibration: compacted earth is less orange, wheel-rut shadow is denser, dust is lower-chroma and embedded stone is more neutral. Route topology, ribbon width, terrain sampling and water exclusion are unchanged.',
-		celestial: 'v106 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v107 follows direct pixel comparison of exact-head Full World #1299 and #1303, which showed the road/river-only palette refinement was invisible at world scale. v107 therefore widens only established vegetation, dry-earth and lithology render values so broad land does not collapse into one grey-olive mean. Domain coverage, map.png interpretation, terrain height, routes, coastline and colliders remain unchanged.',
+		water: 'v107 preserves the v106 river/water hierarchy and all existing world-space roughness, current, shelf and flow shader breakup; canonical hydrology authority remains unchanged.',
+		road: 'v107 preserves v105/v106 road calibration. Route topology, ribbon width, terrain sampling and water exclusion are unchanged.',
+		celestial: 'v107 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x102b1d,
-		meadow: 0x517f45,
-		dryHeather: 0x856646,
-		wetEarth: 0x182721,
-		exposedEarth: 0xaa805d,
-		graniteShadow: 0x45545a,
-		graniteSunlit: 0xb6aa93,
-		basaltWet: 0x13242a,
-		quartz: 0xd2cec6,
+		mossShadow: 0x0f291c,
+		meadow: 0x4a7841,
+		dryHeather: 0x8c6948,
+		wetEarth: 0x172620,
+		exposedEarth: 0xa77b58,
+		graniteShadow: 0x414f55,
+		graniteSunlit: 0xb9ad96,
+		basaltWet: 0x122329,
+		quartz: 0xd4d0c8,
 	}),
 	road: Object.freeze({
 		compacted: 0x745b45,
