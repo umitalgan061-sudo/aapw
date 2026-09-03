@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-03-v107-full-world-material-hierarchy',
+	id: 'geographic-reference-palette-2026-09-03-v108-water-optical-depth-hierarchy',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -72,6 +72,10 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	fullWorldTerrainMaterialHierarchyRaised: true,
 	meadowDrylandValueSeparationRaised: true,
 	lithologyShadowSeparationRaised: true,
+	shallowSedimentOpticalSeparationRaised: true,
+	lakeMarineHueDecorrelationRaised: true,
+	riverPoolRapidEnergySeparationRaised: true,
+	waterfallPlungeFoamValueRangeRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -79,10 +83,10 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v107 follows direct pixel comparison of exact-head Full World #1299 and #1303, which showed the road/river-only palette refinement was invisible at world scale. v107 therefore widens only established vegetation, dry-earth and lithology render values so broad land does not collapse into one grey-olive mean. Domain coverage, map.png interpretation, terrain height, routes, coastline and colliders remain unchanged.',
-		water: 'v107 preserves the v106 river/water hierarchy and all existing world-space roughness, current, shelf and flow shader breakup; canonical hydrology authority remains unchanged.',
-		road: 'v107 preserves v105/v106 road calibration. Route topology, ribbon width, terrain sampling and water exclusion are unchanged.',
-		celestial: 'v107 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v108 preserves the v107 full-world terrain hierarchy. No terrain height, map.png interpretation, coastline, route or collider authority is changed.',
+		water: 'v108 recalibrates only render pigments consumed by the existing world-space water, river and waterfall materials. Clear shelves move toward sediment-filtered green-grey, enclosed lakes stay cooler and darker than shelves, boundary-connected open sea remains slate-blue, abyssal water separates in value without black crush, calm river pools separate from aerated rapids, and waterfall plunge/splash values widen. Existing depth, coverage, offshore masks, current shear, micro-normal and roughness breakup remain authoritative.',
+		road: 'v108 preserves v105/v106 road calibration. Route topology, ribbon width, terrain sampling and water exclusion are unchanged.',
+		celestial: 'v108 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
@@ -106,14 +110,14 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		mossEdge: 0x35513a,
 	}),
 	water: Object.freeze({
-		shoreClear: 0x5a8382,
-		lakeClear: 0x356b78,
-		riverPool: 0x2f6570,
-		rapid: 0x7f9da0,
-		deepSea: 0x13384c,
-		abyss: 0x071f2d,
-		plunge: 0x467a89,
-		splash: 0xdbe9e6,
+		shoreClear: 0x628c87,
+		lakeClear: 0x315f70,
+		riverPool: 0x28565f,
+		rapid: 0x88a4a5,
+		deepSea: 0x103247,
+		abyss: 0x061b29,
+		plunge: 0x3b6d7d,
+		splash: 0xdfece8,
 		foam: 0xf2f7f4,
 	}),
 	celestial: Object.freeze({
