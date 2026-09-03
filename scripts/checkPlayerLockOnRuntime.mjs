@@ -147,7 +147,9 @@ try {
 	await sleep(250);
 	need((await histories()).locks.length === eventCountBeforeRelease + 1, 'held R3 emitted repeated lock toggles');
 
-	await page.screenshot({ path: path.join(outDir, 'lock-on-runtime.png'), fullPage: true });
+	// The shipped proof only needs the live game viewport. Capturing fullPage can force Chromium to
+	// rasterize off-screen world/UI surfaces and has timed out after every gameplay acceptance already passed.
+	await page.screenshot({ path: path.join(outDir, 'lock-on-runtime.png'), animations: 'disabled', timeout: 15000 });
 	need(errors.length === 0, `browser/page errors: ${JSON.stringify(errors)}`);
 	const metrics = {
 		ok: true,
