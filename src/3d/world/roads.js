@@ -60,10 +60,17 @@ const ROAD_COLOR = new THREE.Color(0x9c7b4a);
  * stays visible at typical play-camera distance. Roughly a third of `ROAD_WIDTH_METERS`. */
 const FOOTPATH_WIDTH_METERS = 2.5;
 
-/** Footpath color — a paler, more worn tan than `ROAD_COLOR` (less compacted dirt, no cart-wheel
- * churn) so the two tiers read as visually distinct at a glance, while staying in the same warm
- * dirt-path family (not a jarring color swap). */
-const FOOTPATH_COLOR = new THREE.Color(0xbfae82);
+/** Footpath color — a darker, muddier dirt than `ROAD_COLOR`, in the same warm-dirt family.
+ *
+ * Run 448 fixed the reverse: this was `0xbfae82`, luminance 0.68 against the cart road's 0.50, on the
+ * theory that a footpath is "less compacted, more worn, so paler". Measured in the world survey, that
+ * made the narrowest, least-important line in the landscape the *brightest* thing on the ground — the
+ * `patika` popped as a pale chevron at the olena seat, brighter than the cart road it branches from.
+ * A trail worn into grass is thin bare earth churned darker by feet, not a sun-bleached track; the
+ * wide, dusty cart road is the paler of the two. So the footpath now sits *below* the cart road in
+ * luminance (0.41 vs 0.50) and recedes, which is what a lesser path should do. The two tiers still
+ * read apart — narrower and darker — without either shouting. */
+const FOOTPATH_COLOR = new THREE.Color(0x7d6743);
 
 /** Maximum seat-to-seat Euclidean distance, in meters, for a non-MST pair to qualify as a "patika"
  * footpath (run 314, ADR-0264 — answers ADR-0076's deferred "every edge, or only short/local ones"

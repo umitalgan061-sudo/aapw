@@ -193,7 +193,7 @@ async function main() {
 					expectedName: 'patika',
 					edges: network.footpathEdges,
 					expectedWidth: expectedFootpathWidth,
-					expectedColorHex: 0xbfae82,
+					expectedColorHex: 0x7d6743,
 				})
 				: null;
 

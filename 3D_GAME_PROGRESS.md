@@ -20477,3 +20477,41 @@ Kapılar (15): `checkNamedRivers`, `checkRiverValleyCarving`, `checkRiverHeadwat
 yüksekliği değişmedi (yalnızca hangi kursun çizildiği), hidroloji ızgara kapıları etkilenmez.
 
 **Technical debt.** 0 new.
+
+---
+
+## ADR-0395 — İkincil yollar ana yoldan parlak değil, sönük (run 448)
+
+Run 448 dünya taraması (`captureWorldSurvey`), olena koltuğunda çimenin üstünde soluk bir çene/ok
+şekli gösterdi. Raycast onu `patika` yol ağı mesh'i olarak adlandırdı — bir kusur değil, bir renk
+hatası: `roads.js`'in `FOOTPATH_COLOR`'u `0xbfae82` (parlaklık 0,68), araba yolunun `ROAD_COLOR`'undan
+(`0x9c7b4a`, 0,50) **daha parlak**. Yani manzaranın en dar, en önemsiz çizgisi zemindeki en parlak
+şeydi. Yorumun kendi gerekçesi ("daha az sıkışmış toprak, daha soluk") tersine dönmüştü: çimene açılan
+bir patika, ayakla kararmış ince çıplak topraktır — güneşte ağarmış geniş araba yolu ikisinden **daha
+soluk** olandır.
+
+Aynı kusur ikinci bir sınıfta daha vardı: `worldReferenceRoadNetwork.js`'in `COLOR_BY_KIND.pass` (dağ
+geçidi izi) de aynı soluk `0xbfae82` idi, beslediği `highway`'den (`0x9c7b4a`) parlak. Geçit çıplak
+kayalık toprak — daha gri ve koyu.
+
+Düzeltme, ölçülmüş parlaklıklarla:
+
+```
+              önce            sonra
+araba yolu    0x9c7b4a 0,50   (değişmedi)
+patika        0xbfae82 0,68   0x7d6743 0,41   (araba yolunun altında)
+geçit         0xbfae82 0,68   0x796b54 0,43   (highway'in altında, daha gri)
+```
+
+Her iki ikincil yol da artık geri çekiliyor; araba yolu/highway zeminin belirgin tozlu şeridi olarak
+kalıyor. Görsel doğrulama iki koltukta: `artifacts/world-survey/seat-olena.png` (soluk çene gitti,
+yerinde sönük ince iz) ve `seat-cersei.png` (uzaktaki patikalar sönük).
+
+Kapı `checkRoadVisualContract.js` patika hex'ini (`0xbfae82` → `0x7d6743`) kilit adımda güncellendi;
+`pass` rengini hiçbir kapı çivilemiyordu. Sadece renk sabitleri değişti, yeni dosya yok — app shell
+network-first olduğu için `SHELL_CACHE` bump'ı gerekmez.
+
+Kapılar: `checkRoadVisualContract`, `checkOwnerMapAndRoadRoutes`, `checkRoadRibbonGrounding`,
+`roadNetworkSafetyCheck` — hepsi PASS.
+
+**Technical debt.** 0 new.

@@ -30,11 +30,15 @@ import { WORLD_DEFAULTS } from '../config.js';
 /** Widths, in metres, by the `kind` a route records. A Valyrian road is a monumental highway; a
  * mountain pass is a track. */
 const WIDTH_BY_KIND = Object.freeze({ highway: 7, valyrian: 9, pass: 3.5 });
-/** Colours, so the map's road classes stay visually distinguishable on the ground. */
+/** Colours, so the map's road classes stay visually distinguishable on the ground. The mountain
+ * `pass` was a pale `0xbfae82` (luminance 0.68) — brighter than the `highway` it feeds (0.50), which
+ * made the roughest, narrowest track the most prominent line on the ground (run 448, the same defect
+ * corrected on `roads.js`'s footpath tier). A pass is bare rocky earth, greyer and darker than a
+ * dusty highway, so it now sits below it in luminance (0.43) and reads as the lesser track it is. */
 const COLOR_BY_KIND = Object.freeze({
 	highway: new THREE.Color(0x9c7b4a),
 	valyrian: new THREE.Color(0x8d8578),
-	pass: new THREE.Color(0xbfae82),
+	pass: new THREE.Color(0x796b54),
 });
 
 /**
