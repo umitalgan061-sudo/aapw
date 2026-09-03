@@ -167,18 +167,30 @@ jobs:
           PWA_WORLD_SAFETY: ${{ steps.pwa_world_safety.outcome }}
         run: |
           set -euo pipefail
-          echo "static_world_contracts=$STATIC_WORLD_CONTRACTS"
-          echo "browser_render_parity=$BROWSER_RENDER_PARITY"
-          echo "runtime_world_safety=$RUNTIME_WORLD_SAFETY"
-          echo "pwa_world_safety=$PWA_WORLD_SAFETY"
+          {
+            echo '### Full-world exact-head outcomes'
+            echo '| Contract | Outcome |'
+            echo '| --- | --- |'
+            echo "| static world contracts | $STATIC_WORLD_CONTRACTS |"
+            echo "| browser render parity | $BROWSER_RENDER_PARITY |"
+            echo "| runtime terrain/road/mobile safety | $RUNTIME_WORLD_SAFETY |"
+            echo "| PWA/technical-debt/shell safety | $PWA_WORLD_SAFETY |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
           failures=0
-          for outcome in \
-            "$STATIC_WORLD_CONTRACTS" \
-            "$BROWSER_RENDER_PARITY" \
-            "$RUNTIME_WORLD_SAFETY" \
-            "$PWA_WORLD_SAFETY"; do
+          check_outcome() {
+            local label="$1"
+            local outcome="$2"
             if [ "$outcome" != success ]; then
+              echo "::error title=Full-world qualification blocker::$label outcome=$outcome"
               failures=$((failures + 1))
             fi
-          done
+          }
+
+          check_outcome 'static world contracts' "$STATIC_WORLD_CONTRACTS"
+          check_outcome 'browser render parity' "$BROWSER_RENDER_PARITY"
+          check_outcome 'runtime terrain/road/mobile safety' "$RUNTIME_WORLD_SAFETY"
+          check_outcome 'PWA/technical-debt/shell safety' "$PWA_WORLD_SAFETY"
+
+          echo "full_world_failure_count=$failures" >> "$GITHUB_STEP_SUMMARY"
           test "$failures" -eq 0
