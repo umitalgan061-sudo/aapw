@@ -24,7 +24,8 @@ function smoothstep(edge0, edge1, value) {
 }
 
 export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
-	id: 'terrain-map-climate-cryosphere-2026-09-03-v19-directional-lowland-domains',
+	id: 'terrain-map-climate-cryosphere-2026-09-03-v20-competitive-lowland-ecotones',
+	naturalTransitionRevision: 'v1-slope-aspect-shelter',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	mapAlignedCryosphere: true,
@@ -32,6 +33,9 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 	geologicalRockSurface: true,
 	multiscaleLowlandEcotones: true,
 	directionalLowlandDomains: true,
+	competitiveLowlandDomains: true,
+	alluvialLowlandFabric: true,
+	multiscaleSurfaceMottle: true,
 	measured: Object.freeze({
 		probeGrid: '220x220 full-map + 200x200 land-only, live createHeightSampler',
 		seaLevelMeters: 6,
@@ -83,6 +87,14 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 	lowlandDirectionalCrossFrequency: 0.00073,
 	lowlandDirectionalStrength: 0.24,
 	lowlandDomainContrast: 0.18,
+	lowlandDominanceSoftness: 0.12,
+	lowlandWetSoilStrength: 0.24,
+	lowlandDrySoilStrength: 0.20,
+	lowlandAlluvialFrequency: 0.00088,
+	lowlandAlluvialStrength: 0.26,
+	lowlandEdgeFrequency: 0.00112,
+	lowlandEdgeStrength: 0.10,
+	lowlandForestWetBias: 0.18,
 	rockSlopeStartDegrees: 22,
 	rockSlopeFullDegrees: 45,
 	canonicalRockGain: 0.85,
@@ -152,8 +164,10 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 	grassVariationFrequency: 0.00042,
 	grassVariationStrength: 0.30,
 	seabedFullDepthMeters: 2.5,
-	mottleAmplitude: 0.075,
+	mottleAmplitude: 0.060,
 	mottleCellMeters: 37,
+	mottleMacroAmplitude: 0.045,
+	mottleMacroCellMeters: 113,
 	detailTextureSize: 2048,
 	detailMinMultiplier: 0.62,
 	detailMaxMultiplier: 1.45,
@@ -176,6 +190,8 @@ export const TERRAIN_BIOME_PALETTE = Object.freeze({
 	GRASS_MID: new THREE.Color(0x78834a),
 	HEATH: new THREE.Color(0x77724b),
 	DRY_UPLAND: new THREE.Color(0x918657),
+	WET_LOWLAND: new THREE.Color(0x51634a),
+	DRY_SOIL: new THREE.Color(0x8b7355),
 	TUNDRA: new THREE.Color(0x77806f),
 	FOREST: new THREE.Color(0x354d2b),
 	ROCK_WARM: new THREE.Color(0x6c6257),
@@ -197,6 +213,8 @@ TERRAIN_BIOME_PALETTE.MEADOW.lerp(new THREE.Color(REFERENCE_TERRAIN.meadow), 0.4
 TERRAIN_BIOME_PALETTE.GRASS_MID.lerp(new THREE.Color(REFERENCE_TERRAIN.dryHeather), 0.30);
 TERRAIN_BIOME_PALETTE.HEATH.lerp(new THREE.Color(REFERENCE_TERRAIN.dryHeather), 0.48);
 TERRAIN_BIOME_PALETTE.DRY_UPLAND.lerp(new THREE.Color(REFERENCE_TERRAIN.exposedEarth), 0.32);
+TERRAIN_BIOME_PALETTE.WET_LOWLAND.lerp(new THREE.Color(REFERENCE_TERRAIN.wetEarth), 0.38);
+TERRAIN_BIOME_PALETTE.DRY_SOIL.lerp(new THREE.Color(REFERENCE_TERRAIN.exposedEarth), 0.28);
 TERRAIN_BIOME_PALETTE.FOREST.lerp(new THREE.Color(REFERENCE_TERRAIN.mossShadow), 0.46);
 TERRAIN_BIOME_PALETTE.ROCK_WARM.lerp(new THREE.Color(REFERENCE_TERRAIN.graniteSunlit), 0.34);
 TERRAIN_BIOME_PALETTE.ROCK_COOL.lerp(new THREE.Color(REFERENCE_TERRAIN.graniteShadow), 0.38);
@@ -218,8 +236,8 @@ function latticeHash01(ix, iz) {
 	return value - Math.floor(value);
 }
 
-function positionHash01(worldX, worldZ) {
-	const cell = TERRAIN_BIOME_SHADING_POLICY.mottleCellMeters;
+function positionHash01(worldX, worldZ, cellMeters = TERRAIN_BIOME_SHADING_POLICY.mottleCellMeters) {
+	const cell = Math.max(1, cellMeters);
 	const gx = worldX / cell;
 	const gz = worldZ / cell;
 	const x0 = Math.floor(gx);
@@ -435,31 +453,59 @@ export function resolveTerrainBiomeColor(target, { heightAboveSeaMeters, slopeDe
 	const fine = signedFbmNoise(worldX * P.lowlandFineFrequency + 12.4, worldZ * P.lowlandFineFrequency - 14.2, 2);
 	const directionalAlong = signedFbmNoise((worldX * 0.84 + worldZ * 0.54) * P.lowlandDirectionalFrequency + 4.7, (worldZ * 0.84 - worldX * 0.54) * P.lowlandDirectionalCrossFrequency - 11.3, 3);
 	const directionalCross = signedFbmNoise((worldX * 0.31 - worldZ * 0.95) * P.lowlandDirectionalCrossFrequency + 15.8, (worldZ * 0.31 + worldX * 0.95) * P.lowlandDirectionalFrequency - 6.2, 3);
+	const alluvialNoise = signedFbmNoise((worldX + warp * 0.17) * P.lowlandAlluvialFrequency + 21.7, (worldZ - warp * 0.11) * P.lowlandAlluvialFrequency - 4.2, 3) * 0.5 + 0.5;
+	const edgeNoise = signedFbmNoise(worldX * P.lowlandEdgeFrequency - 16.4, worldZ * P.lowlandEdgeFrequency + 12.8, 3) * 0.5 + 0.5;
 	const depositionalFabric = clamp01(0.5 + directionalAlong * 0.34 + directionalCross * 0.16);
 	const moistureForm = smoothstep(0, P.lowlandConcavityMoistureMeters, Math.max(0, terrainConcavityMeters));
 	const exposedSlope = smoothstep(P.lowlandSlopeDryStartDegrees, P.lowlandSlopeDryFullDegrees, slope);
 	const moistureDomain = clamp01(0.47 + macro * 0.35 + meso * 0.18 + (0.5 - depositionalFabric) * P.lowlandDirectionalStrength + moistureForm * P.lowlandMoistureStrength - exposedSlope * 0.18);
 	const dryDomain = clamp01(0.43 - macro * 0.26 - meso * 0.22 + fine * 0.11 + (depositionalFabric - 0.5) * P.lowlandDirectionalStrength + exposedSlope * P.lowlandDryStrength - moistureForm * 0.16);
-	const wetGate = smoothstep(0.48 - P.lowlandDomainContrast, 0.66 + P.lowlandDomainContrast * 0.25, moistureDomain);
-	const dryGate = smoothstep(0.47 - P.lowlandDomainContrast, 0.66 + P.lowlandDomainContrast * 0.25, dryDomain);
-	const meadowAmount = clamp01(0.16 + moistureDomain * 0.48 + wetGate * 0.31 + Math.max(0, meso) * 0.10);
+	const domainCompetition = moistureDomain - dryDomain;
+	const wetDominance = smoothstep(-P.lowlandDominanceSoftness, P.lowlandDominanceSoftness * 1.6, domainCompetition);
+	const dryDominance = smoothstep(-P.lowlandDominanceSoftness, P.lowlandDominanceSoftness * 1.6, -domainCompetition);
+	const neutralDomain = clamp01(1 - Math.max(wetDominance, dryDominance));
+	const wetGateRaw = smoothstep(0.48 - P.lowlandDomainContrast, 0.66 + P.lowlandDomainContrast * 0.25, moistureDomain);
+	const dryGateRaw = smoothstep(0.47 - P.lowlandDomainContrast, 0.66 + P.lowlandDomainContrast * 0.25, dryDomain);
+	const wetGate = clamp01(wetGateRaw * lerp(0.72, 1.16, wetDominance) * (1 - dryDominance * 0.28));
+	const dryGate = clamp01(dryGateRaw * lerp(0.72, 1.16, dryDominance) * (1 - wetDominance * 0.28));
+	const alluvialDeposition = clamp01(
+		(1 - exposedSlope) * (
+			moistureForm * 0.40
+			+ alluvialNoise * 0.30
+			+ (1 - Math.abs(directionalAlong)) * 0.18
+			+ (1 - Math.abs(directionalCross)) * 0.12
+		),
+	);
+	const meadowAmount = clamp01(0.12 + moistureDomain * 0.42 + wetGate * 0.34 + wetDominance * 0.10 + Math.max(0, meso) * 0.08);
 	scratchGround.copy(TERRAIN_BIOME_PALETTE.GRASS_LOW).lerp(TERRAIN_BIOME_PALETTE.MEADOW, meadowAmount);
 	target.copy(scratchGround);
 	const midAltitude = smoothstep(P.grassMidStartMeters, P.grassMidFullMeters, height);
 	const uplandAltitude = smoothstep(P.dryUplandStartMeters, P.dryUplandFullMeters, height);
-	const heathAmount = clamp01(midAltitude * (0.24 + dryDomain * 0.36 + dryGate * 0.25) + Math.max(0, -meso) * P.lowlandEcotoneStrength * (1 - uplandAltitude));
-	const dryUplandAmount = clamp01(uplandAltitude * (0.46 + dryDomain * 0.31 + dryGate * 0.23));
-	const midGrassAmount = midAltitude * (0.20 + (1 - moistureDomain) * 0.24 + dryGate * 0.13);
+	const lowlandEnvelope = (1 - uplandAltitude) * landEmergence * (1 - permanentNorth * 0.78);
+	const wetSoilAmount = clamp01(wetDominance * (alluvialDeposition * 0.68 + wetGate * 0.32) * P.lowlandWetSoilStrength * lowlandEnvelope);
+	const drySoilFabric = clamp01(exposedSlope * 0.34 + dryGate * 0.42 + edgeNoise * 0.14 + Math.max(0, -directionalAlong) * 0.10);
+	const drySoilAmount = clamp01(dryDominance * drySoilFabric * P.lowlandDrySoilStrength * lowlandEnvelope);
+	if (wetSoilAmount > 0) target.lerp(TERRAIN_BIOME_PALETTE.WET_LOWLAND, wetSoilAmount);
+	if (drySoilAmount > 0) target.lerp(TERRAIN_BIOME_PALETTE.DRY_SOIL, drySoilAmount);
+	const heathAmount = clamp01(midAltitude * (0.22 + dryDomain * 0.34 + dryGate * 0.27 + dryDominance * 0.08) + Math.max(0, -meso) * P.lowlandEcotoneStrength * (1 - uplandAltitude));
+	const dryUplandAmount = clamp01(uplandAltitude * (0.43 + dryDomain * 0.31 + dryGate * 0.24 + dryDominance * 0.08));
+	const midGrassAmount = midAltitude * (0.18 + (1 - moistureDomain) * 0.22 + dryGate * 0.12);
 	target.lerp(TERRAIN_BIOME_PALETTE.GRASS_MID, midGrassAmount);
 	target.lerp(TERRAIN_BIOME_PALETTE.HEATH, heathAmount);
 	target.lerp(TERRAIN_BIOME_PALETTE.DRY_UPLAND, dryUplandAmount);
+	const ecotoneEdge = neutralDomain * smoothstep(0.46, 0.78, edgeNoise) * P.lowlandEdgeStrength * lowlandEnvelope;
+	if (ecotoneEdge > 0) {
+		const edgeValue = 1 - ecotoneEdge * 0.16;
+		target.setRGB(clamp01(target.r * edgeValue), clamp01(target.g * edgeValue), clamp01(target.b * edgeValue));
+	}
 	if (tundraNorth > 0) target.lerp(TERRAIN_BIOME_PALETTE.TUNDRA, tundraNorth * 0.78);
 
 	const forestNoise01 = signedFbmNoise(worldX * P.forestPatchFrequency - 13.1, worldZ * P.forestPatchFrequency + 7.4, P.forestPatchOctaves) * 0.5 + 0.5;
 	const forestPatch = smoothstep(P.forestPatchStart, P.forestPatchFull, forestNoise01);
 	const notCliff = 1 - smoothstep(P.forestSlopeFalloffStartDegrees, P.forestSlopeFalloffFullDegrees, slope);
 	const belowTreeLine = 1 - smoothstep(P.forestTreeLineStartMeters, P.forestTreeLineFullMeters, height);
-	const forestAmount = forestPatch * notCliff * belowTreeLine * P.forestMaxStrength * (1 - permanentNorth) * (1 - tundraNorth * 0.62) * lerp(0.64, 1.12, wetGate);
+	const forestMoisture = clamp01(wetGate * 0.70 + wetDominance * P.lowlandForestWetBias + moistureForm * 0.12);
+	const forestAmount = forestPatch * notCliff * belowTreeLine * P.forestMaxStrength * (1 - permanentNorth) * (1 - tundraNorth * 0.62) * lerp(0.58, 1.16, forestMoisture);
 	if (forestAmount > 0) target.lerp(TERRAIN_BIOME_PALETTE.FOREST, clamp01(forestAmount));
 
 	const shoreAmount = (1 - smoothstep(P.shoreSandFullMeters, P.shoreSandTopMeters, height)) * (1 - smoothstep(P.rockSlopeStartDegrees, P.rockSlopeFullDegrees, slope)) * landEmergence;
@@ -506,8 +552,10 @@ export function resolveTerrainBiomeColor(target, { heightAboveSeaMeters, slopeDe
 		if (glacialShallowAmount > 0) target.lerp(TERRAIN_BIOME_PALETTE.GLACIAL_SHALLOW, glacialShallowAmount);
 	}
 
-	const mottleStrength = P.mottleAmplitude * (1 - permanentNorth * 0.45);
-	const mottle = 1 + (positionHash01(worldX, worldZ) - 0.5) * 2 * mottleStrength;
+	const fineMottle = (positionHash01(worldX, worldZ, P.mottleCellMeters) - 0.5) * 2 * P.mottleAmplitude;
+	const macroMottle = (positionHash01(worldX + 47.3, worldZ - 81.6, P.mottleMacroCellMeters) - 0.5) * 2 * P.mottleMacroAmplitude;
+	const coldMottleSuppression = 1 - permanentNorth * 0.45;
+	const mottle = 1 + (fineMottle + macroMottle) * coldMottleSuppression;
 	target.setRGB(clamp01(target.r * mottle), clamp01(target.g * mottle), clamp01(target.b * mottle));
 	return target;
 }
