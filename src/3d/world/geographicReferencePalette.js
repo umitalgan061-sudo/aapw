@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-03-v93-directional-domain-readability',
+	id: 'geographic-reference-palette-2026-09-03-v94-material-domain-depth',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -45,6 +45,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	lowlandBiomeDomainSeparationRaised: true,
 	fullWorldLowlandValueSeparationRaised: true,
 	directionalDomainReadabilityRaised: true,
+	materialDomainDepthRaised: true,
+	wetLithicSeparationRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -52,23 +54,23 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v93 follows direct A/B inspection of exact-head Full World 3D Topdown #1247 and v19 #1249. The new deterministic directional lowland domains are structurally safe but were visually too subtle at full-world distance. v93 therefore increases wet-meadow chlorophyll readability, darkens warm dry-heather, strengthens oxidised exposed-earth separation, and nudges weathered granite cooler so the existing v19 wet/dry/lithic domains survive aerial averaging. This remains render-only: biome coverage, terrain height, map, hydrology, route, coastline and collider authority are unchanged.',
-		water: 'v93 preserves the verified marine correction: deep sea and abyss remain readable without near-black crushing and coastal water stays cooler/desaturated. Coverage, bathymetry, lake membership, shoreline and offshore authority are unchanged.',
-		road: 'v93 preserves established compacted-road and dust bases, keeping roads distinct from exposed-earth terrain without changing route geometry.',
-		celestial: 'v93 preserves restrained noon and moon calibration; aerial depth is produced by material/ecotone separation rather than stronger global illumination.',
+		terrain: 'v94 follows direct A/B inspection of exact-head Full World 3D Topdown #1251 after v19 directional lowland domains. Large central lowlands still compress into a soft olive/grey average at aerial distance, so v94 deepens wet-meadow chlorophyll, warms and darkens dry-heather, pushes oxidised exposed earth farther from vegetation, and separates cool weathered granite from both soil and wet basalt. The change is palette-only and render-only; biome coverage, map.png, terrain height, hydrology, routes, coastline and collider authority are unchanged.',
+		water: 'v94 preserves the verified marine hierarchy while slightly widening clear-shore/lake/deep-sea value separation so shallow water does not collapse into surrounding wet land. Coverage, bathymetry, lake membership, shoreline and offshore authority are unchanged.',
+		road: 'v94 preserves established compacted-road and dust bases, keeping roads distinct from exposed-earth terrain without changing route geometry.',
+		celestial: 'v94 preserves restrained noon and moon calibration; aerial depth is produced by material/ecotone separation rather than stronger global illumination.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x063b1d,
-		meadow: 0x0b8034,
-		dryHeather: 0x422318,
-		wetEarth: 0x10231b,
-		exposedEarth: 0xa35231,
-		graniteShadow: 0x304953,
-		graniteSunlit: 0xc2b4a1,
-		basaltWet: 0x0b1b20,
+		mossShadow: 0x053318,
+		meadow: 0x08782d,
+		dryHeather: 0x4a281b,
+		wetEarth: 0x0e2119,
+		exposedEarth: 0xac5934,
+		graniteShadow: 0x2d4d59,
+		graniteSunlit: 0xc6b6a0,
+		basaltWet: 0x08181d,
 		quartz: 0xd9d1c7,
 	}),
 	road: Object.freeze({
@@ -79,12 +81,12 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		mossEdge: 0x2c5435,
 	}),
 	water: Object.freeze({
-		shoreClear: 0x4d8278,
-		lakeClear: 0x286373,
+		shoreClear: 0x548a80,
+		lakeClear: 0x28677a,
 		riverPool: 0x247182,
 		rapid: 0x88adaf,
-		deepSea: 0x174b62,
-		abyss: 0x0b3040,
+		deepSea: 0x15485f,
+		abyss: 0x0a2c3b,
 		plunge: 0x518996,
 		splash: 0xe1eeec,
 		foam: 0xf2f7f4,
