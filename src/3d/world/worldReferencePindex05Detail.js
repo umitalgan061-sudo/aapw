@@ -5,12 +5,16 @@ import { plannedWorldXZToMapCanvas } from './worldReferenceMigrationPlan.js';
 import { classifyReferenceBaseSurface, referencePindexFromNormalizedX } from './worldReferenceSurfacePindexes.js';
 
 export const PINDEX05_DETAIL_POLICY = Object.freeze({
-  id: 'owner-map-pindex05-detail-2026-08-27-v7-readable-lowland-drainage-mosaic',
+  id: 'owner-map-pindex05-detail-2026-08-31-v11-lowland-broad-material-contrast',
   pindex: 5,
-  amplitudeBySurface: Object.freeze({ sea: 0.004, lake: 0.004, soil: 0.058, rock: 0.046, snow: 0.020 }),
+  amplitudeBySurface: Object.freeze({ sea: 0.004, lake: 0.004, soil: 0.085, rock: 0.060, snow: 0.026 }),
   naturalSoilFabric: true,
   worldSpaceWeathering: true,
   lowlandDrainageMosaic: true,
+  worldSpaceNormalWeathering: true,
+  normalStrengthBySurface: Object.freeze({ sea: 0, lake: 0, soil: 0.35, rock: 0.52, snow: 0.14 }),
+  normalScaleWeights: Object.freeze({ grain: 0.08, fine: 0.32, drainage: 0.32, meso: 0.28 }),
+  normalGradientStepFraction: 0.18,
   legacyNormalized1024GrainRemoved: true,
   pindexStartX: 0.4,
   pindexEndX: 0.5,
@@ -32,7 +36,7 @@ export const PINDEX05_DETAIL_POLICY = Object.freeze({
   humicStrength: 0.26,
   clayStrength: 0.20,
   erosionApronStrength: 0.18,
-  luminanceStrength: 0.17,
+  luminanceStrength: 0.21,
   wetSoilColor: 0x405735,
   dryHeathColor: 0xa48b52,
   alluviumColor: 0x617157,
@@ -53,6 +57,13 @@ const HUMIC = new THREE.Color(PINDEX05_DETAIL_POLICY.humicColor);
 const CLAY = new THREE.Color(PINDEX05_DETAIL_POLICY.clayColor);
 const EROSION_APRON = new THREE.Color(PINDEX05_DETAIL_POLICY.erosionApronColor);
 const scratch = new THREE.Color();
+
+const PINDEX05_NORMAL_FRAMES = Object.freeze([
+  Object.freeze({ scale: PINDEX05_DETAIL_POLICY.grainScaleMeters, weight: PINDEX05_DETAIL_POLICY.normalScaleWeights.grain, seed: 0x7a31, cos: 0.939693, sin: 0.342020, offsetX: 8.3, offsetZ: -5.7 }),
+  Object.freeze({ scale: PINDEX05_DETAIL_POLICY.fineScaleMeters, weight: PINDEX05_DETAIL_POLICY.normalScaleWeights.fine, seed: 0x8b47, cos: 0.766044, sin: -0.642788, offsetX: -13.1, offsetZ: 9.4 }),
+  Object.freeze({ scale: PINDEX05_DETAIL_POLICY.drainageScaleMeters, weight: PINDEX05_DETAIL_POLICY.normalScaleWeights.drainage, seed: 0x9c59, cos: 0.573576, sin: 0.819152, offsetX: 4.6, offsetZ: 17.2 }),
+  Object.freeze({ scale: PINDEX05_DETAIL_POLICY.mesoScaleMeters, weight: PINDEX05_DETAIL_POLICY.normalScaleWeights.meso, seed: 0xad6b, cos: 0.342020, sin: -0.939693, offsetX: -21.8, offsetZ: -6.4 }),
+]);
 
 const clamp01 = (value) => THREE.MathUtils.clamp(value, 0, 1);
 function smoothstep(edge0, edge1, value) {
@@ -107,6 +118,57 @@ function pindexEdgeMask(normalizedX) {
   const P = PINDEX05_DETAIL_POLICY;
   const localX = clamp01((normalizedX - P.pindexStartX) / (P.pindexEndX - P.pindexStartX));
   return smoothstep(0, P.edgeFeatherFraction, localX) * smoothstep(0, P.edgeFeatherFraction, 1 - localX);
+}
+
+function pindex05NormalField(worldX, worldZ, frame) {
+  const rotatedX = worldX * frame.cos - worldZ * frame.sin;
+  const rotatedZ = worldX * frame.sin + worldZ * frame.cos;
+  return valueNoise(rotatedX / frame.scale + frame.offsetX, rotatedZ / frame.scale + frame.offsetZ, frame.seed);
+}
+
+function pindex05NormalGradient(worldX, worldZ, frame) {
+  const step = frame.scale * PINDEX05_DETAIL_POLICY.normalGradientStepFraction;
+  return {
+    x: pindex05NormalField(worldX + step, worldZ, frame) - pindex05NormalField(worldX - step, worldZ, frame),
+    z: pindex05NormalField(worldX, worldZ + step, frame) - pindex05NormalField(worldX, worldZ - step, frame),
+  };
+}
+
+function applyPindex05WeatheredNormal(normal, index, worldX, worldZ, classification, signal) {
+  if (!normal || classification.surface === 'sea' || classification.surface === 'lake') return false;
+  const baseStrength = PINDEX05_DETAIL_POLICY.normalStrengthBySurface[classification.surface] ?? 0;
+  if (baseStrength <= 0 || signal.edgeMask <= 0) return false;
+
+  let materialResponse = 1;
+  if (classification.surface === 'soil') {
+    materialResponse = THREE.MathUtils.clamp(
+      0.52
+      + signal.mineralDry * 0.30
+      + signal.interfluve * 0.28
+      + signal.stony * 0.20
+      + signal.erosionApron * 0.16
+      - signal.moisture * 0.20
+      - signal.humic * 0.17,
+      0.32,
+      1.18,
+    );
+  } else if (classification.surface === 'rock') materialResponse = 1.12;
+  else if (classification.surface === 'snow') materialResponse = 0.62;
+
+  let gradientX = 0;
+  let gradientZ = 0;
+  for (const frame of PINDEX05_NORMAL_FRAMES) {
+    const gradient = pindex05NormalGradient(worldX, worldZ, frame);
+    gradientX += gradient.x * frame.weight;
+    gradientZ += gradient.z * frame.weight;
+  }
+  const perturbation = baseStrength * signal.edgeMask * materialResponse * 0.78;
+  const nx = normal.getX(index) + gradientX * perturbation;
+  const ny = Math.max(0.08, normal.getY(index));
+  const nz = normal.getZ(index) + gradientZ * perturbation;
+  const length = Math.hypot(nx, ny, nz) || 1;
+  normal.setXYZ(index, nx / length, ny / length, nz / length);
+  return true;
 }
 
 /** Compatibility helper retained for existing QA. The richer production path below uses world metres. */
@@ -194,6 +256,7 @@ function classificationForWorld(worldX, worldZ) {
 export function applyPindex05DetailToTerrainMesh(mesh) {
   const position = mesh?.geometry?.getAttribute?.('position');
   const color = mesh?.geometry?.getAttribute?.('color');
+  const normal = mesh?.geometry?.getAttribute?.('normal');
   if (!position || !color) throw new TypeError('semantic terrain position+color attributes are required');
   let touchedVertices = 0;
   let naturalSoilVertices = 0;
@@ -203,6 +266,7 @@ export function applyPindex05DetailToTerrainMesh(mesh) {
   let interfluveVertices = 0;
   let humicVertices = 0;
   let erosionApronVertices = 0;
+  let normalVertices = 0;
   for (let index = 0; index < position.count; index += 1) {
     const worldX = mesh.position.x + position.getX(index);
     const worldZ = mesh.position.z + position.getZ(index);
@@ -258,10 +322,12 @@ export function applyPindex05DetailToTerrainMesh(mesh) {
     } else if (c.surface === 'snow') {
       scratch.lerp(STONY, signal.edgeMask * signal.stony * 0.04);
     }
+    if (applyPindex05WeatheredNormal(normal, index, worldX, worldZ, c, signal)) normalVertices += 1;
     color.setXYZ(index, clamp01(scratch.r), clamp01(scratch.g), clamp01(scratch.b));
     touchedVertices += 1;
   }
   color.needsUpdate = true;
+  if (normal) normal.needsUpdate = true;
   const summary = Object.freeze({
     policyId: PINDEX05_DETAIL_POLICY.id,
     pindex: 5,
@@ -273,6 +339,7 @@ export function applyPindex05DetailToTerrainMesh(mesh) {
     interfluveVertices,
     humicVertices,
     erosionApronVertices,
+    normalVertices,
   });
   mesh.userData.run292Pindex05Detail = summary;
   return summary;
@@ -288,6 +355,7 @@ export function applyPindex05DetailToTerrainGroup(terrainGroup) {
   let interfluveVertices = 0;
   let humicVertices = 0;
   let erosionApronVertices = 0;
+  let normalVertices = 0;
   for (const mesh of terrainGroup.children) {
     const summary = applyPindex05DetailToTerrainMesh(mesh);
     touchedVertices += summary.touchedVertices;
@@ -298,6 +366,7 @@ export function applyPindex05DetailToTerrainGroup(terrainGroup) {
     interfluveVertices += summary.interfluveVertices;
     humicVertices += summary.humicVertices;
     erosionApronVertices += summary.erosionApronVertices;
+    normalVertices += summary.normalVertices;
   }
   const summary = Object.freeze({
     policyId: PINDEX05_DETAIL_POLICY.id,
@@ -310,6 +379,7 @@ export function applyPindex05DetailToTerrainGroup(terrainGroup) {
     interfluveVertices,
     humicVertices,
     erosionApronVertices,
+    normalVertices,
     meshCount: terrainGroup.children.length,
   });
   terrainGroup.userData.run292Pindex05Detail = summary;
