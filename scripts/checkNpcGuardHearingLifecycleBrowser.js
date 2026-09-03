@@ -28,14 +28,7 @@ async function main() {
   page.on('console', (message) => { if (message.type() === 'error') pageErrors.push(`console:${message.text()}`); });
 
   try {
-    await page.goto(`${BASE_URL}/service-worker.js`, { waitUntil: 'domcontentloaded', timeout: 10_000 });
-    await page.addScriptTag({
-      type: 'importmap',
-      content: JSON.stringify({ imports: {
-        three: '/src/3d/vendor/three/three.module.js',
-        'three/addons/': '/src/3d/vendor/three/addons/',
-      } }),
-    });
+    await page.goto(`${BASE_URL}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
     const result = await page.evaluate(async () => {
       const THREE = await import('three');
       const { createNPC } = await import('/src/3d/gameplay/npc.js');
