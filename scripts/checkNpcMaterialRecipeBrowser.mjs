@@ -11,9 +11,16 @@ try {
 	const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
 	const pageErrors = [];
 	page.on('pageerror', (error) => pageErrors.push(String(error)));
-	await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+	await page.goto(`${baseUrl}/service-worker.js`, { waitUntil: 'domcontentloaded', timeout: 10000 });
+	await page.addScriptTag({
+		type: 'importmap',
+		content: JSON.stringify({ imports: {
+			three: '/src/3d/vendor/three/three.module.js',
+			'three/addons/': '/src/3d/vendor/three/addons/',
+		} }),
+	});
 	const proof = await page.evaluate(async () => {
-		const THREE = await import('/vendor/three.module.js');
+		const THREE = await import('three');
 		const {
 			createConfiguredNpcMaterialRecipe,
 			inspectConfiguredNpcMaterials,
@@ -169,7 +176,7 @@ try {
 
 	assert.equal(proof.layered.mode, 'layered-fallback', `single mesh selected ${proof.layered.mode}`);
 	assert.equal(proof.layered.applied.ok, true, `layered recipe failed: ${JSON.stringify(proof.layered.applied)}`);
-	assert.equal(proof.layered.validation.ok, true, `layered validation failed: ${JSON.stringify(proof.layered.validation)}`);
+	assert.equal(proof.layered.validation.ok, true, `layered material validation failed: ${JSON.stringify(proof.layered.validation)}`);
 	assert.equal(proof.layered.layers.length, 6, 'single-mesh fallback must have six vertical material bands');
 	assert.ok(proof.layered.bands.includes('boot'), 'layered fallback lacks boots');
 	assert.ok(proof.layered.bands.includes('trousers-brown'), 'desert layered fallback lacks brown trousers');
