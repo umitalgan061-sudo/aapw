@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-03-v86-aerial-structural-contrast',
+	id: 'geographic-reference-palette-2026-09-03-v87-lowland-aerial-recovery',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -37,6 +37,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	fullWorldLowlandMaterialSeparationRaised: true,
 	lowlandAerialValueDecorrelationRaised: true,
 	aerialStructuralContrastRaised: true,
+	lowlandAerialRecoveryRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -44,24 +45,24 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v86 follows direct inspection of the exact-head 6a9f1e10 full-world WebGL artifact. The render is geographically coherent, but broad central lowlands still collapse into a pale olive-grey aerial average and weathered rock is not separated strongly enough from dry soil. v86 makes a deliberately larger but still render-only correction: meadow/moss retain chlorophyll while moving out of the grey-beige value band, dry heather darkens into a warmer umber, exposed soil loses excessive orange brightness, and granite gains a cooler midtone span. Existing deterministic world-space macro/meso/patch albedo, micro-normal and roughness breakup remains authoritative; this palette changes render response only and does not alter terrain, hydrology, routes, coastline or collider authority.',
-		water: 'v86 retains the verified marine correction: deep sea and abyss remain readable without near-black crushing and coastal water stays cooler/desaturated. Coverage, bathymetry, lake membership, shoreline and offshore authority are unchanged.',
-		road: 'v86 preserves established compacted-road and dust bases, keeping roads distinct from exposed-earth terrain without changing route geometry.',
-		celestial: 'v86 preserves restrained noon and moon calibration; aerial depth is produced by material stratification rather than stronger global illumination.',
+		terrain: 'v87 follows direct inspection of the exact-head f87e217e full-world WebGL artifact. v86 remained safe but was visibly underpowered because downstream biome calibration intentionally blends the shared reference palette at restrained weights. v87 therefore increases source-family separation rather than altering classification or geometry: meadow moves to a deeper chlorophyll green, moss shadow deepens, dry heather becomes a darker warm umber, exposed soil regains a controlled oxidised red-brown, and granite expands toward cooler shadow and pale weathered faces. The change stays render-only and deterministic; map.png-derived terrain, hydrology, routes, coastline and collider authority remain untouched.',
+		water: 'v87 retains the verified marine correction: deep sea and abyss remain readable without near-black crushing and coastal water stays cooler/desaturated. Coverage, bathymetry, lake membership, shoreline and offshore authority are unchanged.',
+		road: 'v87 preserves established compacted-road and dust bases, keeping roads distinct from exposed-earth terrain without changing route geometry.',
+		celestial: 'v87 preserves restrained noon and moon calibration; aerial depth is produced by material stratification rather than stronger global illumination.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x092f1d,
-		meadow: 0x1a5730,
-		dryHeather: 0x63402e,
-		wetEarth: 0x101c17,
-		exposedEarth: 0x8b5136,
-		graniteShadow: 0x3b4850,
-		graniteSunlit: 0x9f968d,
-		basaltWet: 0x0d1a1f,
-		quartz: 0xd3ccc2,
+		mossShadow: 0x00361c,
+		meadow: 0x006b28,
+		dryHeather: 0x60341f,
+		wetEarth: 0x0c1b16,
+		exposedEarth: 0x994b28,
+		graniteShadow: 0x273841,
+		graniteSunlit: 0xa99b8f,
+		basaltWet: 0x09171c,
+		quartz: 0xd7cec3,
 	}),
 	road: Object.freeze({
 		compacted: 0x866347,
