@@ -47,8 +47,12 @@ async function main() {
 			const expectedColors = [0x5b4028, 0x2f5c26, 0x5b4028, 0x4a7a2e].map((hex) => new THREE.Color(hex));
 			const expectedRoughness = [1, 0.9, 1, 0.9];
 			const expectedGeometry = [
-				{ type: 'CylinderGeometry', params: { radiusTop: 0.22, radiusBottom: 0.38, height: 3.4, radialSegments: 6 } },
-				{ type: 'ConeGeometry', params: { radius: 2.15, height: 5.6, radialSegments: 7 } },
+				// Run 437: the pine primitive's proportions now come from pine_Zt62gceKXZ.glb, the model
+				// world/vegetationNearDetail.js swaps it for inside 220 m — crown start 0.183 and crown
+				// width 0.777 of total height, against 0.356 and 0.494 before. Total height is unchanged
+				// at 8.7 m (1.89 + 7.11 - 0.3 overlap) and so are the segment counts.
+				{ type: 'CylinderGeometry', params: { radiusTop: 0.22, radiusBottom: 0.38, height: 1.89, radialSegments: 6 } },
+				{ type: 'ConeGeometry', params: { radius: 3.38, height: 7.11, radialSegments: 7 } },
 				{ type: 'CylinderGeometry', params: { radiusTop: 0.2, radiusBottom: 0.34, height: 2.8, radialSegments: 6 } },
 				{ type: 'SphereGeometry', params: { radius: 2.4, widthSegments: 7, heightSegments: 6 } },
 			];

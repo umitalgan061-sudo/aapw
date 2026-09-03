@@ -349,7 +349,7 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run 414 gives the road an actual dirt surface -- broad damp patching, wheel ruts, a drier crown,
 // grit and scattered stones, all procedural because this container has no git-lfs and so no texture
 // file can be committed. A stale shell keeps drawing the flat tan band. v64->v65.
-const SHELL_CACHE = 'westeros-shell-v74';
+const SHELL_CACHE = 'westeros-shell-v75';
 const SHELL_FILES = [
     './',
     './index.html',

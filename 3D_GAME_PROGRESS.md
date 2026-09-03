@@ -19811,3 +19811,54 @@ Bu, bu projede ölçümle elenen üçüncü hipotez (Tur 422 talveg, Tur 425 kay
 Kapılar: `checkSmokeCheckRegistry`, `checkTechnicalDebt` — PASS. Kaynak değişmedi, SW bump yok.
 
 **Technical debt.** 0 new.
+
+## Tur 437 — Uzaktaki çam artık yakındaki çamla aynı ağaç (ADR-0384)
+
+Tur 434'ün açık bıraktığı iş: 220 m'de gerçek model bitiyor, ilkel koni başlıyor ve sınır bir halka
+gibi okunuyordu — benzer ekran boyutunda iki bambaşka siluet.
+
+**Önce ölçüm, tahmin değil.** Üç modelin geometrisi kendi yüksekliklerine oranla ölçüldü:
+
+```
+model                       taç başlangıcı   taç genişliği   yükseklik
+pine_Zt62gceKXZ  (conifer)          0,183 H         0,777 H     7,38 m
+tree_QVOop92WmG  (broadleaf)        0,299 H         0,450 H     9,43 m
+tree_VfZbAkek1r  (dryland)          0,241 H         1,072 H    13,16 m
+```
+
+**Ve ilkel biçimlerle karşılaştırınca:**
+
+```
+                 taç başlangıcı   taç genişliği
+gerçek çam              0,183 H         0,777 H
+ilkel 'pine'            0,356 H         0,494 H   (öncesi)
+gerçek yapraklı         0,299 H         0,450 H
+ilkel 'round'           0,304 H         0,696 H
+```
+
+**Piksel üzerinden verdiğim ilk yargı yanlıştı** — "modelin gövdesi daha uzun" diye okumuştum;
+ölçüm tersini söylüyor: modelin tacı **daha aşağıdan** başlıyor. Ölçmeseydim ters yöne çekecektim.
+
+**Değiştirilen tek şey `pine`.** Tacı iki kat yüksekten başlayan ve üçte iki genişlikteki koni —
+çıplak bir sırığın üstünde lolipop — gerçek modelin oranlarına getirildi: gövde 3,4 → **1,89 m**,
+koni yarıçapı 2,15 → **3,38 m**, koni yüksekliği 5,6 → **7,11 m**. Toplam yükseklik **8,7 m'de
+sabit** (1,89 + 7,11 − 0,3 örtüşme), radyal segment sayıları aynı.
+
+**`round` bilerek dokunulmadan bırakıldı:** taç başlangıcı zaten uyuşuyor (0,304 / 0,299) ve tek fark
+genişlik. Yuvarlak, dolgun bir yapraklı taç hayatta yanlış değil; ölçüm bir eleştiri getirmiyor.
+
+**Maliyet: sıfır.** 1.530.759 üçgen / 94 çizim çağrısı — Tur 426'nın kaydettiği sayının **birebir
+aynısı**. Segment sayıları değişmediği için değişemezdi.
+
+`scripts/checkVegetationVisualContract.js` bu parametreleri sabitliyor; **aynı commit'te**
+güncellendi — ek bir muafiyet değil, kasıtlı bir sözleşme değişikliği (Tur 314'ün kalıbı).
+
+Görsel doğrulama iki açıdan: `artifacts/world-survey/seat-cersei.png` ve `seat-berkalp.png` —
+özellikle ikincisinde yakın gerçek çamlarla uzaktaki koniler artık **aynı tür ağaç** olarak okunuyor;
+sınır zıplaması gitti.
+
+Kapılar: `checkVegetationVisualContract`, `game3dSmokeChecksVegetation`, `checkVegetationRiverClearance`,
+`checkSmokeCheckRegistry` (600 satır tavanı dahil — `vegetation.js` 599), `checkSeededRandomPolicy`,
+`checkServiceWorkerCache`, `checkTechnicalDebt`, `game3dSmokeChecksScene` — hepsi PASS.
+
+**Technical debt.** 0 new. Hidratlanan GLB'ler commit'ten önce geri alındı.

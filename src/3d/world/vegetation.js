@@ -59,9 +59,14 @@ import { valyriaInfluenceAtWorldXZ, VALYRIA_BARREN_ABOVE_INFLUENCE } from './wor
 const SPECIES = [
 	{
 		id: 'pine',
+		// Run 437 — proportions measured off pine_Zt62gceKXZ.glb, the model `vegetationNearDetail.js`
+		// shows inside 220 m, so the boundary stops reading as two different trees: crown starts at
+		// 0.183 of height and is 0.777 wide, against 0.356 / 0.494 here before — a lollipop on a pole
+		// where the model is a broad conifer with a low skirt. Total height stays 8.7 m and the segment
+		// counts are untouched, so nothing calibrated against either moves.
 		weight: 0.6,
-		trunk: { radiusTop: 0.22, radiusBottom: 0.38, height: 3.4, radialSegments: 6, color: 0x5b4028 },
-		foliage: { kind: 'cone', radius: 2.15, height: 5.6, radialSegments: 7, overlapMeters: 0.3, color: 0x2f5c26 },
+		trunk: { radiusTop: 0.22, radiusBottom: 0.38, height: 1.89, radialSegments: 6, color: 0x5b4028 },
+		foliage: { kind: 'cone', radius: 3.38, height: 7.11, radialSegments: 7, overlapMeters: 0.3, color: 0x2f5c26 },
 	},
 	{
 		id: 'round',
