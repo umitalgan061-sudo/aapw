@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-03-v109-aerial-water-fabric-readability',
+	id: 'geographic-reference-palette-2026-09-03-v110-natural-relief-separation',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -78,6 +78,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	waterfallPlungeFoamValueRangeRaised: true,
 	aerialOpenWaterMidtoneRaised: true,
 	openWaterFabricVisibilityRaised: true,
+	weatheredStoneNeutralityRaised: true,
+	wetGroundBlackCrushReduced: true,
+	dryGroundOrangeCastReduced: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -85,31 +88,31 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v109 preserves the v107 full-world terrain hierarchy. No terrain height, map.png interpretation, coastline, route or collider authority is changed.',
-		water: 'v109 follows direct inspection of exact-head Full World #1307: the v108 hierarchy was measurable, but the north open sea still read too dark and optically calm at aerial distance. The boundary-connected deep-sea midtone is therefore lifted slightly while abyssal water remains dark, exposing more of the existing deterministic macro/meso/current-shear albedo and roughness breakup without changing depth, coverage, offshore masks, normals, geometry or hydrology.',
-		road: 'v109 preserves v105/v106 road calibration. Route topology, ribbon width, terrain sampling and water exclusion are unchanged.',
-		celestial: 'v109 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v110 keeps canonical geography untouched and separates damp organic ground, dry mineral soil and exposed lithology with a narrower natural-earth gamut. Wet earth is lifted out of near-black crush, dry ground loses orange saturation, and granite/basalt preserve weathered neutral separation at aerial distance.',
+		water: 'v110 preserves the v109 boundary-connected marine hierarchy and all canonical depth/coverage/offshore masks. No hydrology, normal field or shoreline authority changes are introduced.',
+		road: 'v110 preserves route topology and ribbon geometry while keeping compacted earth, ruts, dust and embedded stone in the same restrained mineral family as surrounding terrain.',
+		celestial: 'v110 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x0f291c,
-		meadow: 0x4a7841,
-		dryHeather: 0x8c6948,
-		wetEarth: 0x172620,
-		exposedEarth: 0xa77b58,
-		graniteShadow: 0x414f55,
-		graniteSunlit: 0xb9ad96,
-		basaltWet: 0x122329,
-		quartz: 0xd4d0c8,
+		mossShadow: 0x132a20,
+		meadow: 0x4c7444,
+		dryHeather: 0x82694f,
+		wetEarth: 0x202b27,
+		exposedEarth: 0x98765d,
+		graniteShadow: 0x465158,
+		graniteSunlit: 0xada796,
+		basaltWet: 0x1a292d,
+		quartz: 0xcecbc3,
 	}),
 	road: Object.freeze({
-		compacted: 0x745b45,
-		rut: 0x211c18,
-		dust: 0x9b856d,
-		stone: 0x72736d,
-		mossEdge: 0x35513a,
+		compacted: 0x6e5a49,
+		rut: 0x27211d,
+		dust: 0x90806d,
+		stone: 0x70716d,
+		mossEdge: 0x36503d,
 	}),
 	water: Object.freeze({
 		shoreClear: 0x628c87,
