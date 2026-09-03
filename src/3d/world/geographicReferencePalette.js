@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-03-v103-natural-water-depth-hierarchy',
+	id: 'geographic-reference-palette-2026-09-03-v104-aerial-water-separation',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -62,6 +62,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	naturalWaterDepthHierarchyRaised: true,
 	lakeRiverOpticalSeparationRaised: true,
 	openSeaSlateDepthRaised: true,
+	aerialWaterSeparationRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -69,10 +70,10 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v103 preserves the v102 lowland material separation calibrated from exact-head Full World 3D Topdown imagery. No terrain domain coverage, map.png interpretation, height, route, coastline or collider authority changes are introduced.',
-		water: 'v103 separates clear shore, enclosed lake, flowing river, deep marine and abyss values inside a restrained slate-teal reference range. This is render-only pigment calibration: canonical coverage, bathymetry, shoreline, lake membership, river centerlines and offshore authority remain unchanged.',
-		road: 'v103 preserves established compacted-road, rut, dust and moss-edge bases so route geometry and ownership remain unchanged.',
-		celestial: 'v103 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v104 preserves the v102 lowland material separation calibrated from exact-head Full World 3D Topdown imagery. No terrain domain coverage, map.png interpretation, height, route, coastline or collider authority changes are introduced.',
+		water: 'v104 follows direct inspection of exact-head Full World 3D Topdown #1297. v103 moved all water into a more natural slate-teal family but aerial lake/river/sea values still converged too much. v104 gently raises clear inland/shallow water while deepening open marine and abyss values, preserving the existing world-space roughness, current and shelf shader breakup and all canonical hydrology authority.',
+		road: 'v104 preserves established compacted-road, rut, dust and moss-edge bases so route geometry and ownership remain unchanged.',
+		celestial: 'v104 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
@@ -96,13 +97,13 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		mossEdge: 0x2c5435,
 	}),
 	water: Object.freeze({
-		shoreClear: 0x527a7d,
-		lakeClear: 0x2b6170,
-		riverPool: 0x2c6c77,
-		rapid: 0x8da9a7,
-		deepSea: 0x173f54,
-		abyss: 0x092736,
-		plunge: 0x4e8390,
+		shoreClear: 0x5a8382,
+		lakeClear: 0x356b78,
+		riverPool: 0x357681,
+		rapid: 0x91aca9,
+		deepSea: 0x13384c,
+		abyss: 0x071f2d,
+		plunge: 0x548b96,
 		splash: 0xe1eeec,
 		foam: 0xf2f7f4,
 	}),
