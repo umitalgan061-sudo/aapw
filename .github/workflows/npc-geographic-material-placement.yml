@@ -160,11 +160,11 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
-      - name: Real shipped FBX material, placement, AI and tick-budget proof
+      - name: Shipped material recipe browser proof
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m http.server 4173 --bind 127.0.0.1 >"$RUNNER_TEMP/http.log" 2>&1 &
+          python3 -m http.server 4173 --bind 127.0.0.1 >"$RUNNER_TEMP/http-material.log" 2>&1 &
           SERVER_PID=$!
           trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
           for i in $(seq 1 30); do
@@ -172,6 +172,18 @@ jobs:
             sleep 1
           done
           BASE_URL=http://127.0.0.1:4173 node scripts/checkNpcMaterialRecipeBrowser.mjs
+
+      - name: Real shipped FBX placement, AI and tick-budget proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4173 --bind 127.0.0.1 >"$RUNNER_TEMP/http-geographic.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:4173/game3d.html >/dev/null && break
+            sleep 1
+          done
           # The geographic proof imports the shipped runtime modules itself. Running it on the full
           # game3d boot made the proof depend on unrelated world-startup DOMContentLoaded latency and
           # hit its exact 60s navigation timeout. A same-origin inert document keeps browser/module,
