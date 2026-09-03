@@ -20360,3 +20360,70 @@ Kapılar: `checkRoadRiverBridgeCrossings`, `checkRoadRibbonGrounding`, `checkNam
 `SHELL_CACHE` v79 → v80.
 
 **Technical debt.** 0 new. Bu, ölçümle elenen **beşinci** hipotez.
+
+---
+
+## ADR-0393 — Nehirler zirveden değil, kaynak hattından doğuyor (run 446)
+
+`rivers.js`'in kaynak araması `searchRadiusMeters` içindeki **en yüksek** noktayı seçiyor, dolayısıyla
+her nehir tanımı gereği bir tepede başlıyor. Run 444 bunu ölçmüştü; run 446 önce **fotoğrafladı**:
+
+`artifacts/river-source/the-white-knife-from-head.png` (önceki hâli) tam genişlikte bir nehrin açık
+bir kar alanında, her yönde arazi aşağı düşerken ortaya çıktığını gösteriyor. `the-rhoyne-from-head.png`
+ise iyi görünüyordu — yani sayı ne kadar kötü olursa olsun, iki nehirden biri gerçekte sorunlu değildi.
+Kararı resim verdi, sayı değil.
+
+**Neden çizilen şeridi kırpmak, kaynağı taşımak değil.** Alternatif, izi yerel bir **çukura**
+oturtmaktı: daha ilkeli ama her kursu, onunla birlikte oymayı, oymanın altındaki zemini (§8.4) ve run
+441'in sekiz köprüsünü kaydırırdı. Kırpmanın fiziksel bir okuması var, sorunu gizlemesi değil: bir
+nehir havzasının başladığı yerde değil, yamacın yarısındaki **kaynak hattında** başlar; üstünde kalan
+kuru kanal gerçek bir yer şeklidir. Oyma tam kursta kalıyor, dolayısıyla yeni başın üstünde kalan şey
+zirveden inen sığ bir oluk — render'ın zaten öyle gösterdiği şey.
+
+**Yüzey dizisini kırpmak, kursu kırpıp yeniden kurmakla aynı şey.** `buildRiverSurface` ağızdan yukarı
+doğru `surface = max(surfaceDownstream, bed + freeboard)` süpürüyor, yani korunan her noktanın
+yüksekliği yalnızca **kendisinden aşağıdaki** noktalara bağlı. Baş noktalarını atmak suyu kaldığı hiçbir
+yerde oynatamaz; göllenme davranışı aynen korunur. Bu yüzden kırpma üç çağrı yerinde değil,
+`buildRiverSurface`'in içinde: çizilen şeritler ile `sceneManager.js`'in geçiş kursları suyun nerede
+başladığı konusunda anlaşmazlığa düşemez.
+
+**Ölçüm — başın çevresindeki 200 m'de suyun alçak kıyıdan yüksekliği (+ = tepede):**
+
+```
+                      önce (istasyon 0,05)      sonra (baş)     kırpılan
+medyan                        +46,0                 -0,3
+en kötü                      +193,0 (Ak Bıçak)     +92,8 (Greenblood)
+Ak Bıçak                     +193,0                -46,0          248 m
+Rhoyne                          —                  +21,8          168 m
+Mander                          —                   -1,9          200 m
+Yeşil Çatal                     —                   +0,6          232 m
+Blackwater Rush                 —                  -23,1          120 m
+```
+
+On bir kurstan **dokuzu** artık oturmuş (≤ +7,1 m). İkisi değil: eski `river` kursu (+76,6) baştan
+sona tepede akıyor, kırpma bütçesi onu kurtarmıyor; Greenblood ise toplam ~240 m'lik bir güdük, %25
+tavanı 60 m veriyor. İkisi de kayda geçti, uydurma bir tavan yükseltmesiyle örtülmedi.
+
+**Kapı — canlı dünyaya değil, sözleşmeye karşı.** `checkRiverHeadwaterSpring.js` sentetik bir yükseklik
+alanı kullanıyor: canlı perch sayıları arazi her değiştiğinde oynar, onları buraya çivilemek her meşru
+yükseklik değişikliğini nehirlerle ilgisi olmayan bir sebeple kırmızıya çevirirdi —
+`checkCanonicalRoadBridgeSceneShadow`'un dondurulmuş köprü sayısıyla yaptığı hata. Çivilenen davranış:
+ilk oturmuş noktada durur, kendi tavanını aşmaz, korunan nokta tabanının altına inmez, başı **asla
+kötüleştirmez**, deterministik ve idempotenttir (§8.9). Kapının ısırdığı, kırpma devre dışı bırakılarak
+doğrulandı (3 iddia kırmızı).
+
+Görsel doğrulama iki nehir, ikişer açı: `artifacts/river-source/`. Yeni hâlde iki baş da vadi omzunda,
+mansaba doğru akıyor; kuru oluk hiçbir karede görünmüyor.
+
+Kapılar (22 + 2): `checkNamedRivers`, `checkRiverValleyCarving`, `checkRiverHeadwaterSpring`,
+`checkVegetationRiverClearance`, `checkRun325RiverFlow`, `checkWaterVisualContract`,
+`checkCanonicalHydrologyTerrainShadow`, `checkRoadRiverBridgeCrossings`, `checkRoadRibbonGrounding`,
+`checkCanonicalRoadBridgeSceneShadow`, `checkRoadVisualContract`, `roadNetworkSafetyCheck`,
+`terrainSeatSafetyCheck`, `checkSmokeCheckRegistry`, `checkServiceWorkerCache`, `checkTechnicalDebt`,
+sekiz NEG/NWG hidroloji kapısı ve `checkSEG65`/`checkSEG77`/`checkSWG17` — hepsi PASS.
+`checkWorldWaterCoverageP0.mjs` bu konteynerde çıplak `three` tanımlayıcısını çözemediği için düşüyor;
+dokunmadığım `waterDepthField.js`'i içe aktarıyor, ortam sorunu, regresyon değil.
+
+`SHELL_CACHE` v80 → v81 (`world/riverHeadwaterSpring.js` kabuk listesine eklendi).
+
+**Technical debt.** 0 new.

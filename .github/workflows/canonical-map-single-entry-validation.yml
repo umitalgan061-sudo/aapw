@@ -73,6 +73,7 @@ jobs:
           node scripts/checkNightsWatchCastles.js
           node scripts/checkNamedRivers.js
           node scripts/checkRiverValleyCarving.js
+          node scripts/checkRiverHeadwaterSpring.js
           node scripts/checkTerrainGroundRealism.js
           node scripts/checkTerrainDetailAtlasIsotropy.js
           node scripts/checkAssetCoverage.js

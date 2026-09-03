@@ -26,6 +26,7 @@ import { WORLD_REFERENCE_ALIGNMENT } from './worldReferenceAlignment.js';
 import { densifyRiverPath } from './riverRibbonPath.js';
 import { extendCourseToCanonicalWater } from './riverMouth.js';
 import { applyNaturalRiverEdge } from './riverEdgeAppearance.js';
+import { trimHeadwaterPerch } from './riverHeadwaterSpring.js';
 import {
 	RIVER_BASE_FLOW_SPEED_MPS, RIVER_GRADE_FLOW_GAIN, RIVER_FLOW_WAVENUMBER,
 	WATERFALL_FLOW_SPEED_MPS, FROTH_SPEED_MIN_MPS, FROTH_SPEED_FULL_MPS,
@@ -396,9 +397,12 @@ const RIVER_FREEBOARD_METERS = 1;
  * ponds the water behind it instead of tunnelling through — which is what a landscape does with a
  * dammed valley, and is legible as a lake rather than as a rendering fault.
  *
+ * Finally the perched head is trimmed to the spring line — see `world/riverHeadwaterSpring.js` for the
+ * measurement and for why the carve deliberately keeps the full course.
+ *
  * @param {{x: number, y: number, z: number}[]} points Traced course, source first.
  * @param {(x: number, z: number) => number} sampleHeightMeters The **final** ground field.
- * @returns {THREE.Vector3[]} Dense surface points, source first.
+ * @returns {THREE.Vector3[]} Dense surface points, spring first.
  */
 export function buildRiverSurface(points, sampleHeightMeters) {
 	const dense = [];
@@ -423,7 +427,11 @@ export function buildRiverSurface(points, sampleHeightMeters) {
 		running = Math.max(running, dense[i].bed + RIVER_FREEBOARD_METERS);
 		surface[i] = running;
 	}
-	return dense.map((point, i) => new THREE.Vector3(point.x, surface[i], point.z));
+	// Trimmed here, not at the three call sites, so the drawn ribbons and `sceneManager.js`'s crossing
+	// courses cannot disagree about where the water starts; the sweep above makes trimming the head equal
+	// to trimming the course and rebuilding. The carve does not come through here, so no ground moves.
+	const points3d = dense.map((point, i) => new THREE.Vector3(point.x, surface[i], point.z));
+	return trimHeadwaterPerch(points3d, sampleHeightMeters);
 }
 
 /**
