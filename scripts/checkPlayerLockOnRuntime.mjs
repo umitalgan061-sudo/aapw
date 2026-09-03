@@ -100,7 +100,7 @@ function facingDot(attack, targetPosition) {
 }
 
 try {
-	await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+	await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'commit', timeout: 30000 });
 	await page.locator('#run266-entry-enter').click();
 	await page.waitForFunction(() => document.querySelector('#game3d-loading')?.classList.contains('g3d-loading-hidden'), null, { timeout: 90000 });
 	const baseline = await waitHistory('motion', (motion) => motion.state === 'idle' && motion.isGrounded, 'grounded player baseline', 15000);
