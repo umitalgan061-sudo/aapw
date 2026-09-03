@@ -1,12 +1,29 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import devServerHelper from './devServerHelper.js';
 
 const { loadPlaywright, startStaticServer } = devServerHelper;
 const outArg = process.argv.find((arg) => arg.startsWith('--out-dir='));
 const outDir = path.resolve(outArg ? outArg.slice('--out-dir='.length) : 'artifacts/player-dodge-iframes');
 const need = (ok, message) => { if (!ok) throw new Error(`[player-dodge-iframes-runtime] ${message}`); };
+const runtimeTextureAssets = [
+  'assets/models/creatures/dragon/textures/Dragon_ground_color.jpg',
+  'assets/models/creatures/dragon/textures/Dragon_Bump_Col2.jpg',
+  'assets/models/creatures/dragon/textures/Dragon_Nor.jpg',
+  'assets/models/creatures/dragon/textures/Dragon_Nor_mirror2.jpg',
+];
+const isLfsPointer = (assetPath) => fs.existsSync(assetPath)
+  && fs.readFileSync(assetPath, { encoding: 'utf8', flag: 'r' }).slice(0, 96).startsWith('version https://git-lfs');
+const needsHydration = runtimeTextureAssets.some((assetPath) => !fs.existsSync(assetPath) || isLfsPointer(assetPath));
+if (needsHydration) {
+  execFileSync('git', ['lfs', 'pull', `--include=${runtimeTextureAssets.join(',')}`, '--exclude='], { stdio: 'inherit' });
+}
+for (const assetPath of runtimeTextureAssets) {
+  need(fs.existsSync(assetPath) && fs.statSync(assetPath).size > 0, `missing runtime texture ${assetPath}`);
+  need(!isLfsPointer(assetPath), `runtime texture remains an LFS pointer ${assetPath}`);
+}
 const playwright = loadPlaywright();
 need(Boolean(playwright), 'Playwright unavailable');
 fs.mkdirSync(outDir, { recursive: true });
