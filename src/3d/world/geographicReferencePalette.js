@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-03-v110-natural-relief-separation',
+	id: 'geographic-reference-palette-2026-09-03-v111-lowland-material-recovery',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -81,6 +81,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	weatheredStoneNeutralityRaised: true,
 	wetGroundBlackCrushReduced: true,
 	dryGroundOrangeCastReduced: true,
+	lowlandWetDryLumaGapRaised: true,
+	vegetationMineralHueGapRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -88,31 +90,31 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v110 keeps canonical geography untouched and separates damp organic ground, dry mineral soil and exposed lithology with a narrower natural-earth gamut. Wet earth is lifted out of near-black crush, dry ground loses orange saturation, and granite/basalt preserve weathered neutral separation at aerial distance.',
-		water: 'v110 preserves the v109 boundary-connected marine hierarchy and all canonical depth/coverage/offshore masks. No hydrology, normal field or shoreline authority changes are introduced.',
-		road: 'v110 preserves route topology and ribbon geometry while keeping compacted earth, ruts, dust and embedded stone in the same restrained mineral family as surrounding terrain.',
-		celestial: 'v110 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v111 follows direct inspection of exact-head Full World #1311. The v110 neutralisation removed some black/orange bias but broad lowlands remained too grey-olive at aerial distance. Damp organic ground is therefore held cool/dark, meadow is separated with restrained chlorophyll, dry heather and exposed mineral soil recover a modest warm-value gap, and granite/basalt retain neutral lithologic contrast. Canonical height, map.png, hydrology, coastline, routes and collider authority remain unchanged.',
+		water: 'v111 preserves the v109 boundary-connected marine hierarchy and all canonical depth/coverage/offshore masks. No hydrology, normal field or shoreline authority changes are introduced.',
+		road: 'v111 keeps roads inside the surrounding mineral gamut while increasing the compacted/rut/stone value hierarchy enough to survive aerial distance. Route topology, width, terrain sampling and water exclusion are unchanged.',
+		celestial: 'v111 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x132a20,
-		meadow: 0x4c7444,
-		dryHeather: 0x82694f,
-		wetEarth: 0x202b27,
-		exposedEarth: 0x98765d,
-		graniteShadow: 0x465158,
-		graniteSunlit: 0xada796,
-		basaltWet: 0x1a292d,
-		quartz: 0xcecbc3,
+		mossShadow: 0x10291f,
+		meadow: 0x4f7945,
+		dryHeather: 0x866b4c,
+		wetEarth: 0x1d2a26,
+		exposedEarth: 0x9d7859,
+		graniteShadow: 0x424e55,
+		graniteSunlit: 0xb1aa98,
+		basaltWet: 0x17272c,
+		quartz: 0xd0cdc5,
 	}),
 	road: Object.freeze({
-		compacted: 0x6e5a49,
-		rut: 0x27211d,
-		dust: 0x90806d,
-		stone: 0x70716d,
-		mossEdge: 0x36503d,
+		compacted: 0x715a47,
+		rut: 0x241f1c,
+		dust: 0x93816b,
+		stone: 0x747570,
+		mossEdge: 0x34513b,
 	}),
 	water: Object.freeze({
 		shoreClear: 0x628c87,
