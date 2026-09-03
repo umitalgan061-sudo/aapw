@@ -65,6 +65,8 @@ jobs:
           node scripts/checkSeededRandomPolicy.js
 
       - name: Mirror Run283 governance contracts
+        id: run283_mirror
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -99,7 +101,7 @@ jobs:
           done
           printf '%s\n' "$failures" > artifacts/run283-governance/failure-count.txt
           if [ "$failures" -ne 0 ]; then
-            echo "[run283-mirror] FAIL: $failures governance contract(s) failed" >&2
+            echo "[run283-mirror] FAIL: $failures governance contract(s) failed; preserving failure while continuing exact-head mobile evidence" >&2
             exit 1
           fi
 
@@ -169,3 +171,15 @@ jobs:
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
           git diff --check "$BASE_SHA" HEAD
+
+      - name: Enforce mirrored Run283 governance
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f artifacts/run283-governance/failure-count.txt
+          failures="$(cat artifacts/run283-governance/failure-count.txt)"
+          if [ "$failures" -ne 0 ]; then
+            echo "[run283-mirror] hard gate remains red: $failures governance contract(s) failed" >&2
+            exit 1
+          fi
