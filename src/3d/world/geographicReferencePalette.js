@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-03-v99-natural-pigment-distance-readability',
+	id: 'geographic-reference-palette-2026-09-03-v100-natural-lowland-value-separation',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -54,6 +54,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	naturalPigmentCalibration: true,
 	highDistanceChannelExtremesReduced: true,
 	coastalCyanBalanceRaised: true,
+	naturalLowlandValueSeparationRaised: true,
+	wetVegetationShadowDepthRaised: true,
+	dryMineralHighlightSeparationRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -61,23 +64,23 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v99 follows direct inspection of exact-head Full World 3D Topdown #1271. v98 separated source domains but used channel-extreme greens, orange earth and cyan rock that collapse into synthetic pigment bands at aerial distance. v99 keeps luminance and material-domain separation while moving vegetation, earth and lithology toward natural mineral/chlorophyll pigments. This is render-only; biome coverage, map.png, terrain height, hydrology, routes, coastline and collider authority are unchanged.',
-		water: 'v99 preserves verified water coverage and depth hierarchy while shifting only the clear-shore tint slightly toward mineral blue-cyan to reduce the green halo seen around lowland coasts in #1271.',
-		road: 'v99 keeps established compacted-road and dust bases so route geometry and road ownership remain unchanged.',
-		celestial: 'v99 preserves restrained noon and moon calibration; no day-clock or lighting authority changes are introduced.',
+		terrain: 'v100 follows direct A/B inspection of exact-head Full World 3D Topdown #1271 and #1273. v99 removed synthetic channel extremes safely, but broad centre-lowland domains remained too close in aerial value. v100 keeps natural pigments while deepening wet vegetation/earth and modestly lifting dry mineral/heather and sunlit lithology, improving distance readability without changing coverage or geography. map.png, terrain height, hydrology, routes, coastline and collider authority remain untouched.',
+		water: 'v100 preserves v99 water coverage and the reduced green-cast clear-shore balance; no bathymetry, shoreline, lake membership or offshore authority changes are introduced.',
+		road: 'v100 preserves established compacted-road, rut, dust and moss-edge bases so route geometry and ownership remain unchanged.',
+		celestial: 'v100 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x183522,
-		meadow: 0x3f7138,
-		dryHeather: 0x6b4936,
-		wetEarth: 0x293229,
-		exposedEarth: 0x9f6848,
-		graniteShadow: 0x4d5d61,
-		graniteSunlit: 0xb1a590,
-		basaltWet: 0x1b2b30,
+		mossShadow: 0x102d1d,
+		meadow: 0x46783d,
+		dryHeather: 0x74513b,
+		wetEarth: 0x202a24,
+		exposedEarth: 0xa87350,
+		graniteShadow: 0x46575e,
+		graniteSunlit: 0xb7aa92,
+		basaltWet: 0x16262b,
 		quartz: 0xd5d0c8,
 	}),
 	road: Object.freeze({
