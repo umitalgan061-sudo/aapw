@@ -105,10 +105,14 @@ jobs:
         run: |
           set -euo pipefail
           NODE_PATH="$NODE_PATH" node scripts/checkFullWorldRuntimeBrowser.mjs
-      - name: Hydrate scoped smoke LFS assets
+      - name: Hydrate shipped full-world LFS assets
         run: |
           set -euo pipefail
-          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
+          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/Ay/Moon 2K.fbx,assets/models/vegetation/pine_Zt62gceKXZ.glb,assets/models/vegetation/winter_tree.glb,assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb" --exclude=""
+          test "$(stat -c %s 'assets/models/Ay/Moon 2K.fbx')" -eq 33404
+          test "$(stat -c %s assets/models/vegetation/pine_Zt62gceKXZ.glb)" -eq 2219996
+          test "$(stat -c %s assets/models/vegetation/winter_tree.glb)" -eq 2008660
+          test "$(stat -c %s assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb)" -eq 659652
       - name: Settlement road PWA mobile and browser safety
         run: |
           set -euo pipefail
