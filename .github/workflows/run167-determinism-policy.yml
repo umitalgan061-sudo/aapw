@@ -190,28 +190,22 @@ jobs:
         run: |
           set -uo pipefail
           run_smoke() {
-            local log="$1"
-            set +e
-            node scripts/smokeTestGame3D.js 2>&1 | tee "$log"
-            local status="${PIPESTATUS[0]}"
-            set -e
-            return "$status"
+            node scripts/smokeTestGame3D.js 2>&1 | tee "$1"
+            return "${PIPESTATUS[0]}"
           }
 
           SMOKE_LOG="$RUNNER_TEMP/smoke.log"
-          if ! run_smoke "$SMOKE_LOG"; then
+          set +e
+          run_smoke "$SMOKE_LOG"
+          SMOKE_STATUS=$?
+          set -e
+          if [ "$SMOKE_STATUS" -ne 0 ] && grep -q 'page.goto: Timeout 30000ms exceeded' "$SMOKE_LOG"; then
+            echo '[run167] transient initial domcontentloaded timeout; retrying browser smoke once on the same exact head'
+            SMOKE_LOG="$RUNNER_TEMP/smoke-retry.log"
+            set +e
+            run_smoke "$SMOKE_LOG"
             SMOKE_STATUS=$?
-            if grep -q 'page.goto: Timeout 30000ms exceeded' "$SMOKE_LOG"; then
-              echo '[run167] transient initial domcontentloaded timeout; retrying browser smoke once on the same exact head'
-              SMOKE_LOG="$RUNNER_TEMP/smoke-retry.log"
-              if run_smoke "$SMOKE_LOG"; then
-                SMOKE_STATUS=0
-              else
-                SMOKE_STATUS=$?
-              fi
-            fi
-          else
-            SMOKE_STATUS=0
+            set -e
           fi
           PASS_COUNT="$(grep -c '\[smokeTestGame3D\] PASS:' "$SMOKE_LOG" || true)"
           grep -Ei '\[smokeTestGame3D\] (FAIL|SKIP):|FAIL: unexpected error|WebGL disabled|git lfs|pointer|FBXLoader|GLTFLoader|failed to load|unexpected token|page\.(evaluate|goto)' "$SMOKE_LOG" \
