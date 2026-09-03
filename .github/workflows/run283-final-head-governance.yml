@@ -90,11 +90,16 @@ jobs:
             echo "[run283] no new offline-shell misses versus exact main"
           fi
 
-      - name: PWA and smoke registry contracts
+      - name: PWA installability contract
         shell: bash
         run: |
           set -euxo pipefail
           node scripts/checkPwaInstallability.js
+
+      - name: Smoke registry contract
+        shell: bash
+        run: |
+          set -euxo pipefail
           node scripts/checkSmokeCheckRegistry.js
 
       - name: World reference contracts
