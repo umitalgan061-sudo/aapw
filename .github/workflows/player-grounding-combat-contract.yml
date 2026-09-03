@@ -181,8 +181,8 @@ jobs:
           test -s artifacts/player-dodge-iframes/dodge-iframes-runtime.json
           grep -q 'PLAYER_DODGE_IFRAMES_RUNTIME_OK' artifacts/player-dodge-iframes.log
           grep -q '"browserErrors": \[\]' artifacts/player-dodge-iframes/dodge-iframes-runtime.json
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js 2>&1 | tee artifacts/player-dodge-iframes/mobile-perf.log
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js 2>&1 | tee artifacts/player-dodge-iframes/smoke-game3d.log
       - name: PWA shell cache hard gate
         if: always()
         run: node scripts/checkServiceWorkerCache.js
