@@ -56,16 +56,37 @@ const morphologyMax = {
 };
 let positiveFaultSamples = 0;
 let negativeFaultSamples = 0;
+let quietRidgeCandidate = null;
+let drainageCandidate = null;
 for (let iy = 0; iy <= 80; iy += 1) {
   const ny = 0.63 + iy / 80 * 0.18;
   for (let ix = 0; ix <= 80; ix += 1) {
     const nx = 0.37 + ix / 80 * 0.16;
-    if (valyriaInfluence01(nx, ny) <= 0) continue;
+    const influence = valyriaInfluence01(nx, ny);
+    if (influence <= 0) continue;
     uplifts.push(valyriaUpliftMeters(nx, ny, 90));
     const morphology = valyriaMorphologySignals(nx, ny);
     for (const key of Object.keys(morphologyMax)) morphologyMax[key] = Math.max(morphologyMax[key], morphology[key]);
     if (morphology.faultEscarpment > 0.55) positiveFaultSamples += 1;
     if (morphology.faultEscarpment < -0.55) negativeFaultSamples += 1;
+
+    // Surface QA must be process-aware. A steep point can legitimately carry a cooled drainage seam,
+    // so choose an interfluve ridge only where the morphology itself says drainage is quiet.
+    if (
+      influence > 0.58
+      && morphology.lavaDrainage < 0.10
+      && morphology.calderaBasin < 0.62
+      && (!quietRidgeCandidate || morphology.lavaDrainage < quietRidgeCandidate.morphology.lavaDrainage)
+    ) {
+      quietRidgeCandidate = { nx, ny, influence, morphology };
+    }
+    if (
+      influence > 0.58
+      && morphology.lavaDrainage > 0.80
+      && (!drainageCandidate || morphology.lavaDrainage > drainageCandidate.morphology.lavaDrainage)
+    ) {
+      drainageCandidate = { nx, ny, influence, morphology };
+    }
   }
 }
 assert(uplifts.length > 700);
@@ -78,6 +99,8 @@ assert(morphologyMax.faultActivity > 0.75, 'fault activity never activates');
 assert(morphologyMax.lavaDrainage > 0.80, 'lava drainage network never activates');
 assert(morphologyMax.erosionGully > 0.80, 'erosion gullies never activate');
 assert(positiveFaultSamples > 10 && negativeFaultSamples > 10, 'fault escarpments became one-sided or absent');
+assert(quietRidgeCandidate, 'no quiet interfluve ridge fixture was found');
+assert(drainageCandidate, 'no active lava-drainage fixture was found');
 
 const ring = [];
 for (let i = 0; i < 64; i += 1) {
@@ -99,8 +122,27 @@ assert(basalt.g < base.g * 0.55, `Valyria remained meadow-green: ${JSON.stringif
 const pool = valyriaSurfaceWeights({ nx: P.coreCenter.nx, ny: P.coreCenter.ny, heightAboveSeaMeters: 130, concavityMeters: 2.2, slopeDegrees: 8 });
 assert(pool.lava > 0.75, `core lava corridor/pool signal too weak: ${pool.lava}`);
 assert(pool.drainage > 0.45, `core drainage signal missing: ${pool.drainage}`);
-const ridge = valyriaSurfaceWeights({ nx: P.coreCenter.nx, ny: P.coreCenter.ny, heightAboveSeaMeters: 260, concavityMeters: -0.4, slopeDegrees: 38 });
-assert(ridge.lava < 0.12 && ridge.ash > 0.5);
+
+const quietRidge = valyriaSurfaceWeights({
+  nx: quietRidgeCandidate.nx,
+  ny: quietRidgeCandidate.ny,
+  heightAboveSeaMeters: 260,
+  concavityMeters: -0.4,
+  slopeDegrees: 38,
+});
+assert(quietRidge.drainage < 0.11, `quiet ridge fixture drifted into drainage: ${quietRidge.drainage}`);
+assert(quietRidge.lava < 0.12, `quiet ridge carries too much active lava: ${quietRidge.lava}`);
+assert(quietRidge.ash > 0.5, `high ridge lost ash deposition: ${quietRidge.ash}`);
+
+const drainageSurface = valyriaSurfaceWeights({
+  nx: drainageCandidate.nx,
+  ny: drainageCandidate.ny,
+  heightAboveSeaMeters: 150,
+  concavityMeters: 0.55,
+  slopeDegrees: 14,
+});
+assert(drainageSurface.drainage > 0.80, `drainage fixture lost morphology: ${drainageSurface.drainage}`);
+assert(drainageSurface.lava > quietRidge.lava + 0.35, `lava no longer follows drainage: ${drainageSurface.lava} vs ${quietRidge.lava}`);
 
 const worldX = (P.coreCenter.nx * 9000 - 4500) * 1.477342100713197;
 const worldZ = (P.coreCenter.ny * 7000 - 3500) * 1.477342100713197;
@@ -126,4 +168,16 @@ console.log(JSON.stringify({
   mixedWaterGate: mixedGate,
   basaltColor: basalt,
   centerSurface: pool,
+  quietRidge: {
+    nx: quietRidgeCandidate.nx,
+    ny: quietRidgeCandidate.ny,
+    morphology: quietRidgeCandidate.morphology,
+    surface: quietRidge,
+  },
+  drainageCorridor: {
+    nx: drainageCandidate.nx,
+    ny: drainageCandidate.ny,
+    morphology: drainageCandidate.morphology,
+    surface: drainageSurface,
+  },
 }, null, 2));
