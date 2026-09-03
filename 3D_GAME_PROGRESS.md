@@ -19912,3 +19912,44 @@ başlanacak bir iş değil. Sayılar burada, kendi görevinde duruyor.
 Kapılar: `checkSmokeCheckRegistry`, `checkTechnicalDebt` — PASS. Kaynak değişmedi, SW bump yok.
 
 **Technical debt.** 0 new.
+
+## Tur 439 — Düzeltme: köprüler yanlış kenarda değil, oyunda **hiç köprü yok** (ADR-0386)
+
+Tur 438 "köprüler `umit->doran`, `twin->balon`, `umit->Xaro`'da" diye yazdı. **Yanlış çerçeveydi.**
+O üçü çizilen nesneler değil, *gölge planındaki kayıtlar*. Oynanabilir sahneyi kendi adları üzerinden
+taradım:
+
+```
+canlı sahnede köprü benzeri nesne sayısı: 0
+```
+
+`sceneManager.js` `worldReferenceStoneBridgeShadow.js`'i **hiç import etmiyor.** Bütün taş köprü
+sistemi — planlayıcı, geometri üreteci, sahne kanıtı ve kendi kapısı — `worldReference*Shadow`
+ailesinin içinde, hiçbir şeyin render etmediği paralel bir dünyada duruyor.
+
+**Doğru ifade şu:** oyunun dünyasında **tek bir köprü yok**, ve yollarından üçü çizilen nehir
+geometrisinin **içinden geçiyor**:
+
+```
+canlı yol kenarı     nehrin içinde kalan örnek   hangi nehirler
+stannis->robin                              96   blackwater-rush, green-fork, red-fork, blue-fork
+doran->ziya                                 25   mander
+robin->berkalp                               8   blue-fork
+```
+
+Oyuncu `stannis->robin` yolunu yürürse dört isimli nehri **suyun içinden** geçer.
+
+**Bu, düzeltmeyi Tur 438'de sandığımdan hem daha net hem daha küçük yapıyor.** Köprü planlayıcısını
+"doğru kenarlara" taşımak gerekmiyor — zaten çalışan, zaten kapılı geometri **canlı sahneye
+bağlanmamış.** İş toplayıcı değil, ekleyici: canlı yolların canlı nehirleri kestiği yerlerde
+`createCanonicalStoneBridgeGeometry` çağırmak. Yol da arazi de kımıldamıyor.
+
+**Yine de küçük bir iş değil ve yarısı yapılırsa hiç yapılmamasından kötü olur:** güverte yüksekliği
+nehir yüzeyine oturmalı ve yolun güverteye çıkması için yaklaşma rampaları gerekir — gölge kapısının
+zaten bir azami rampa eğimi şartı var. Rampasız bir güverte yolun üstünde havada durur.
+
+Görev 21 bu ölçümle güncellendi.
+
+Kapılar: `checkSmokeCheckRegistry`, `checkTechnicalDebt` — PASS. Kaynak değişmedi, SW bump yok.
+
+**Technical debt.** 0 new.
