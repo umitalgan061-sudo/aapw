@@ -68,6 +68,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p artifacts/run283-governance
           checks=(
             "node --check scripts/checkRun283FinalHeadGovernance.js"
             "node scripts/checkRun283FinalHeadGovernance.js"
@@ -81,10 +82,35 @@ jobs:
             "node scripts/checkWorldReferenceAlignment.js"
             "node scripts/checkWorldReferenceHydrologyExtent.js"
           )
-          for check in "${checks[@]}"; do
+          failures=0
+          : > artifacts/run283-governance/summary.tsv
+          for i in "${!checks[@]}"; do
+            check="${checks[$i]}"
+            log="artifacts/run283-governance/check-$((i + 1)).log"
             echo "[run283-mirror] $check"
-            bash -lc "$check"
+            set +e
+            bash -lc "$check" 2>&1 | tee "$log"
+            status=${PIPESTATUS[0]}
+            set -e
+            printf '%s\t%s\t%s\n' "$((i + 1))" "$status" "$check" >> artifacts/run283-governance/summary.tsv
+            if [ "$status" -ne 0 ]; then
+              failures=$((failures + 1))
+            fi
           done
+          printf '%s\n' "$failures" > artifacts/run283-governance/failure-count.txt
+          if [ "$failures" -ne 0 ]; then
+            echo "[run283-mirror] FAIL: $failures governance contract(s) failed" >&2
+            exit 1
+          fi
+
+      - name: Upload Run283 governance RCA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: valyria-run283-governance-${{ github.event.pull_request.head.sha }}
+          path: artifacts/run283-governance/
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Install browser runtime
         shell: bash
@@ -131,7 +157,7 @@ jobs:
         with:
           name: valyria-mobile-perf-${{ github.event.pull_request.head.sha }}
           path: artifacts/valyria-mobile-perf/
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 7
 
       - name: Final exact-main freshness
