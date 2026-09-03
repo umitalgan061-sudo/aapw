@@ -24,13 +24,14 @@ function smoothstep(edge0, edge1, value) {
 }
 
 export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
-	id: 'terrain-map-climate-cryosphere-2026-09-03-v18-multiscale-lowland-ecotones',
+	id: 'terrain-map-climate-cryosphere-2026-09-03-v19-directional-lowland-domains',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	mapAlignedCryosphere: true,
 	snowSurfaceTone: true,
 	geologicalRockSurface: true,
 	multiscaleLowlandEcotones: true,
+	directionalLowlandDomains: true,
 	measured: Object.freeze({
 		probeGrid: '220x220 full-map + 200x200 land-only, live createHeightSampler',
 		seaLevelMeters: 6,
@@ -78,6 +79,10 @@ export const TERRAIN_BIOME_SHADING_POLICY = Object.freeze({
 	lowlandConcavityMoistureMeters: 3.2,
 	lowlandSlopeDryStartDegrees: 7,
 	lowlandSlopeDryFullDegrees: 23,
+	lowlandDirectionalFrequency: 0.00029,
+	lowlandDirectionalCrossFrequency: 0.00073,
+	lowlandDirectionalStrength: 0.24,
+	lowlandDomainContrast: 0.18,
 	rockSlopeStartDegrees: 22,
 	rockSlopeFullDegrees: 45,
 	canonicalRockGain: 0.85,
@@ -428,18 +433,24 @@ export function resolveTerrainBiomeColor(target, { heightAboveSeaMeters, slopeDe
 	const macro = signedFbmNoise((worldX + warp) * P.lowlandMacroFrequency + 5.3, (worldZ - warp * 0.61) * P.lowlandMacroFrequency - 2.9, 4);
 	const meso = signedFbmNoise((worldX - warp * 0.23) * P.lowlandMesoFrequency - 8.1, (worldZ + warp * 0.37) * P.lowlandMesoFrequency + 6.7, 3);
 	const fine = signedFbmNoise(worldX * P.lowlandFineFrequency + 12.4, worldZ * P.lowlandFineFrequency - 14.2, 2);
+	const directionalAlong = signedFbmNoise((worldX * 0.84 + worldZ * 0.54) * P.lowlandDirectionalFrequency + 4.7, (worldZ * 0.84 - worldX * 0.54) * P.lowlandDirectionalCrossFrequency - 11.3, 3);
+	const directionalCross = signedFbmNoise((worldX * 0.31 - worldZ * 0.95) * P.lowlandDirectionalCrossFrequency + 15.8, (worldZ * 0.31 + worldX * 0.95) * P.lowlandDirectionalFrequency - 6.2, 3);
+	const depositionalFabric = clamp01(0.5 + directionalAlong * 0.34 + directionalCross * 0.16);
 	const moistureForm = smoothstep(0, P.lowlandConcavityMoistureMeters, Math.max(0, terrainConcavityMeters));
 	const exposedSlope = smoothstep(P.lowlandSlopeDryStartDegrees, P.lowlandSlopeDryFullDegrees, slope);
-	const moistureDomain = clamp01(0.48 + macro * 0.33 + meso * 0.18 + moistureForm * P.lowlandMoistureStrength - exposedSlope * 0.18);
-	const dryDomain = clamp01(0.44 - macro * 0.24 - meso * 0.21 + fine * 0.11 + exposedSlope * P.lowlandDryStrength - moistureForm * 0.16);
-	const meadowAmount = clamp01(0.25 + moistureDomain * 0.62 + Math.max(0, meso) * 0.14);
+	const moistureDomain = clamp01(0.47 + macro * 0.35 + meso * 0.18 + (0.5 - depositionalFabric) * P.lowlandDirectionalStrength + moistureForm * P.lowlandMoistureStrength - exposedSlope * 0.18);
+	const dryDomain = clamp01(0.43 - macro * 0.26 - meso * 0.22 + fine * 0.11 + (depositionalFabric - 0.5) * P.lowlandDirectionalStrength + exposedSlope * P.lowlandDryStrength - moistureForm * 0.16);
+	const wetGate = smoothstep(0.48 - P.lowlandDomainContrast, 0.66 + P.lowlandDomainContrast * 0.25, moistureDomain);
+	const dryGate = smoothstep(0.47 - P.lowlandDomainContrast, 0.66 + P.lowlandDomainContrast * 0.25, dryDomain);
+	const meadowAmount = clamp01(0.16 + moistureDomain * 0.48 + wetGate * 0.31 + Math.max(0, meso) * 0.10);
 	scratchGround.copy(TERRAIN_BIOME_PALETTE.GRASS_LOW).lerp(TERRAIN_BIOME_PALETTE.MEADOW, meadowAmount);
 	target.copy(scratchGround);
 	const midAltitude = smoothstep(P.grassMidStartMeters, P.grassMidFullMeters, height);
 	const uplandAltitude = smoothstep(P.dryUplandStartMeters, P.dryUplandFullMeters, height);
-	const heathAmount = clamp01(midAltitude * (0.32 + dryDomain * 0.48) + Math.max(0, -meso) * P.lowlandEcotoneStrength * (1 - uplandAltitude));
-	const dryUplandAmount = clamp01(uplandAltitude * (0.58 + dryDomain * 0.42));
-	target.lerp(TERRAIN_BIOME_PALETTE.GRASS_MID, midAltitude * (0.28 + (1 - moistureDomain) * 0.34));
+	const heathAmount = clamp01(midAltitude * (0.24 + dryDomain * 0.36 + dryGate * 0.25) + Math.max(0, -meso) * P.lowlandEcotoneStrength * (1 - uplandAltitude));
+	const dryUplandAmount = clamp01(uplandAltitude * (0.46 + dryDomain * 0.31 + dryGate * 0.23));
+	const midGrassAmount = midAltitude * (0.20 + (1 - moistureDomain) * 0.24 + dryGate * 0.13);
+	target.lerp(TERRAIN_BIOME_PALETTE.GRASS_MID, midGrassAmount);
 	target.lerp(TERRAIN_BIOME_PALETTE.HEATH, heathAmount);
 	target.lerp(TERRAIN_BIOME_PALETTE.DRY_UPLAND, dryUplandAmount);
 	if (tundraNorth > 0) target.lerp(TERRAIN_BIOME_PALETTE.TUNDRA, tundraNorth * 0.78);
@@ -448,7 +459,7 @@ export function resolveTerrainBiomeColor(target, { heightAboveSeaMeters, slopeDe
 	const forestPatch = smoothstep(P.forestPatchStart, P.forestPatchFull, forestNoise01);
 	const notCliff = 1 - smoothstep(P.forestSlopeFalloffStartDegrees, P.forestSlopeFalloffFullDegrees, slope);
 	const belowTreeLine = 1 - smoothstep(P.forestTreeLineStartMeters, P.forestTreeLineFullMeters, height);
-	const forestAmount = forestPatch * notCliff * belowTreeLine * P.forestMaxStrength * (1 - permanentNorth) * (1 - tundraNorth * 0.62) * lerp(0.72, 1.08, moistureDomain);
+	const forestAmount = forestPatch * notCliff * belowTreeLine * P.forestMaxStrength * (1 - permanentNorth) * (1 - tundraNorth * 0.62) * lerp(0.64, 1.12, wetGate);
 	if (forestAmount > 0) target.lerp(TERRAIN_BIOME_PALETTE.FOREST, clamp01(forestAmount));
 
 	const shoreAmount = (1 - smoothstep(P.shoreSandFullMeters, P.shoreSandTopMeters, height)) * (1 - smoothstep(P.rockSlopeStartDegrees, P.rockSlopeFullDegrees, slope)) * landEmergence;
