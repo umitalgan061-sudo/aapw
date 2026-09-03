@@ -351,12 +351,33 @@ function smoothAndResamplePath(rawPoints, start, end, sampleHeightMeters) {
 	// wherever smoothing would put the road below the water plane. The road keeps the sharper corner —
 	// which is what a real coast road does anyway.
 	const seaLevel = WORLD_DEFAULTS.WATER_LEVEL_METERS;
-	const points = smoothedXZ.map(({ x, z }, index) => {
+	const substituted = smoothedXZ.map(({ x, z }, index) => {
 		const y = sampleHeightMeters(x, z);
 		if (y > seaLevel) return { x, z, y };
 		const fallback = rawPoints[Math.min(rawPoints.length - 1, Math.round((index / Math.max(1, smoothedXZ.length - 1)) * (rawPoints.length - 1)))];
 		const fallbackY = sampleHeightMeters(fallback.x, fallback.z);
 		return fallbackY > y ? { x: fallback.x, z: fallback.z, y: fallbackY } : { x, z, y };
+	});
+
+	// The substitution above maps a *smoothed* index onto a *raw* one, and the two lists are different
+	// lengths — so several consecutive smoothed points can round to the same raw point and be emitted
+	// twice. A repeated point is not harmless downstream: `world/roads.js`'s `appendRoadRibbon` takes
+	// each rib's perpendicular from `points[i-1] -> points[i+1]`, and when those two coincide the
+	// tangent is zero, both edge vertices land on the centreline, and the ribbon collapses to nothing
+	// there. Measured on the live network: 41 duplicate points producing 20 zero-width ribs of 1184
+	// (1.69%), every one of them on `umit->doran` — the edge with two water crossings and 1440 m of
+	// water, which is where the substitution fires most.
+	//
+	// This had been invisible because `scripts/checkRoadVisualContract.js` died on an earlier, stale
+	// assertion before reaching its width check; run 443 repaired that assertion and the gate found
+	// this immediately.
+	//
+	// Dropping the repeats removes only zero-length segments, so no route moves, no length changes and
+	// no grade changes — a zero-length segment was already skipped by the grade loop below.
+	const points = substituted.filter((point, index) => {
+		if (index === 0) return true;
+		const previous = substituted[index - 1];
+		return Math.hypot(point.x - previous.x, point.z - previous.z) >= 1e-6;
 	});
 
 	let maxGradeDegrees = 0;

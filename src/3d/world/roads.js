@@ -152,8 +152,12 @@ export function appendRoadRibbon(buffers, points, widthMeters = ROAD_WIDTH_METER
 		const point = points[i];
 		const prev = points[Math.max(0, i - 1)];
 		const next = points[Math.min(points.length - 1, i + 1)];
-		const tangentX = next.x - prev.x;
-		const tangentZ = next.z - prev.z;
+		// Run 443: at a hairpin `prev` and `next` coincide, so the central-difference tangent is zero and
+		// the ribbon pinches to nothing. A one-sided tangent is well defined there.
+		const hairpin = Math.hypot(next.x - prev.x, next.z - prev.z) < 1e-6;
+		const beside = i > 0 ? prev : next;
+		const tangentX = hairpin ? point.x - beside.x : next.x - prev.x;
+		const tangentZ = hairpin ? point.z - beside.z : next.z - prev.z;
 		const tangentLength = Math.hypot(tangentX, tangentZ) || 1;
 		const perpX = -tangentZ / tangentLength;
 		const perpZ = tangentX / tangentLength;

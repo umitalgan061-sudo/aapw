@@ -131,8 +131,28 @@ async function main() {
 
 						fail(nearlyEqual(centerX, point.x, positionTolerance), `${expectedName} ribbon center X drift at vertex ${vertexCursor}`);
 						fail(nearlyEqual(centerZ, point.z, positionTolerance), `${expectedName} ribbon center Z drift at vertex ${vertexCursor}`);
-						fail(nearlyEqual(centerY, point.y + expectedOffset, positionTolerance), `${expectedName} ribbon vertical offset drift at vertex ${vertexCursor}`);
-						fail(nearlyEqual(left.y, right.y, positionTolerance), `${expectedName} left/right vertices disagree in Y at vertex ${vertexCursor}`);
+						// Run 443: these two assertions replace a pair that had been red since run 406 and were
+						// therefore guarding nothing — the same failure mode as the wind-grass contract that
+						// threw "is not a function" for sixty runs.
+						//
+						// They asserted that `centerY` equals the *centreline's* ground plus the offset, and
+						// that the two edge vertices agree in Y. Run 390 deliberately stopped both being
+						// true: each edge of the ribbon is now founded on the terrain **under that edge**,
+						// because taking one mid-road sample for something 8 m wide floats the downhill edge
+						// on any cross-slope (a 30-degree cross-slope lifts a 4 m half-width by 2.3 m) and
+						// buries the uphill one. The contract was forbidding what the fix does.
+						//
+						// What replaces them is the invariant `appendRoadRibbon` actually implements, and it
+						// is a stronger claim than either of the two it retires: every edge vertex sits on
+						// the ground beneath *itself*, plus the offset.
+						fail(
+							nearlyEqual(left.y, sampleHeightMeters(left.x, left.z) + expectedOffset, positionTolerance),
+							`${expectedName} left vertex is not grounded on its own terrain at vertex ${vertexCursor}`,
+						);
+						fail(
+							nearlyEqual(right.y, sampleHeightMeters(right.x, right.z) + expectedOffset, positionTolerance),
+							`${expectedName} right vertex is not grounded on its own terrain at vertex ${vertexCursor}`,
+						);
 						fail(nearlyEqual(measuredWidth, expectedWidth, widthTolerance), `${expectedName} width ${measuredWidth.toFixed(3)}m != ${expectedWidth}m at vertex ${vertexCursor}`);
 
 						for (const i of [leftIndex, rightIndex]) {

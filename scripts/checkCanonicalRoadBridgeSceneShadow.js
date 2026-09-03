@@ -350,6 +350,8 @@ async function main() {
 				policy: bridgePlan.policy,
 				bridgeCount: bridgePlan.bridges.length,
 				affectedEdges: bridgePlan.affectedEdges,
+				// Needed by the consistency assertions that replaced the frozen counts (run 443).
+				routeSummaries: bridgePlan.routeSummaries.map((route) => ({ edgeId: route.edgeId, crossingCount: route.crossingCount })),
 				totalWaterRoutePoints,
 				coveredWaterRoutePoints,
 				renderedDryRoadPointCount,
@@ -376,8 +378,28 @@ async function main() {
 	}
 
 	assert(report.policy === 'stone-arch-bridge', `unexpected policy ${report.policy}`);
-	assert(report.bridgeCount === 7, `expected 7 bridges, got ${report.bridgeCount}`);
-	assert(report.affectedEdges.length === 6, `expected 6 affected edges, got ${report.affectedEdges.length}`);
+	// Run 443: these two used to read `=== 7` and `=== 6`, and had been red since the canonical routes
+	// last moved — so this whole gate stopped running its other twelve assertions, which is worse than
+	// having no gate at all. The counts were never the invariant. Both the MST routes and the hydrology
+	// this plan reads respond to the height field, so any legitimate terrain change re-partitions which
+	// edges meet water, and a frozen number turns that into a red gate for a reason unrelated to
+	// bridges. `scripts/checkRoadRiverBridgeCrossings.js` avoids the same trap deliberately.
+	//
+	// What replaces them is the internal consistency the plan must always have: it reports water on
+	// some edges, and `affectedEdges` is exactly the set of routes whose crossing count is non-zero.
+	// That cannot go stale, and it would catch the bookkeeping bug a count never could.
+	assert(report.bridgeCount > 0, 'the canonical plan produced no bridges at all');
+	assert(report.affectedEdges.length > 0, 'the canonical plan reports no water-crossing edges');
+	const edgesWithCrossings = report.routeSummaries.filter((route) => route.crossingCount > 0).map((route) => route.edgeId);
+	assert(
+		edgesWithCrossings.length === report.affectedEdges.length
+			&& edgesWithCrossings.every((edgeId) => report.affectedEdges.includes(edgeId)),
+		`affectedEdges ${JSON.stringify(report.affectedEdges)} does not match the routes reporting crossings ${JSON.stringify(edgesWithCrossings)}`,
+	);
+	assert(
+		report.bridgeCount === report.routeSummaries.reduce((sum, route) => sum + route.crossingCount, 0),
+		`bridgeCount ${report.bridgeCount} does not match the crossings the route summaries report`,
+	);
 	assert(report.totalWaterRoutePoints > 0, 'canonical routes produced no water points');
 	assert(report.coveredWaterRoutePoints === report.totalWaterRoutePoints, `water-route suppression coverage ${report.coveredWaterRoutePoints}/${report.totalWaterRoutePoints}`);
 	assert(report.approachCount === report.bridgeCount * 2, `expected ${report.bridgeCount * 2} approaches, got ${report.approachCount}`);

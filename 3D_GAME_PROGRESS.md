@@ -20161,3 +20161,71 @@ Kapılar: `checkRoadRiverBridgeCrossings`, `checkRoadRibbonGrounding`, `roadNetw
 
 **Açık kalan, ve artık ölçülmüş:** `roadPathfinder.js` nehirleri tanımıyor. Bunu düzeltmek doğru ama
 %0,35 için 13 rotayı ve altlarındaki araziyi kımıldatmaya değmez; ayrı bir tur, kendi §8.4 kapılarıyla.
+
+## Tur 443 — İki kırmızı kapı yeşile döndü, ve biri kapatılırken saklandığı hatayı buldu (ADR-0390)
+
+Tur 432'de "bu turun sebep olmadığı" diye not düştüğüm iki kırmızı kapı vardı. İkisi de aylardır
+kırmızı, yani **hiçbir şeyi korumuyorlardı** — Tur 366'dan beri `is not a function` atan
+`checkWindGrassContractRun180` ile aynı arıza türü.
+
+**1. `checkRoadVisualContract`: sözleşme kodun kasten yaptığı şeyi yasaklıyordu.** İki iddia vardı:
+`centerY` merkez çizgisinin zemini artı offset'e eşit olmalı, ve iki kenar vertex'i Y'de anlaşmalı.
+Tur 390 ikisini de bilerek bozmuştu: şeridin her kenarı artık **kendi altındaki** araziye oturuyor,
+çünkü 8 metre genişliğinde bir şey için tek bir orta örnek almak her enine eğimde aşağı kenarı
+havaya kaldırıyor (30 derecelik enine eğim 4 metrelik yarım genişliği 2,3 m kaldırır) ve yukarı
+kenarı gömüyor.
+
+Yerine `appendRoadRibbon`'ın gerçekten uyguladığı değişmez kondu, ki elediği ikisinden **daha güçlü**
+bir iddia: her kenar vertex'i **kendi** altındaki zemine artı offset'e oturur.
+
+**Ve düzeltir düzeltmez kapı, altında sakladığı gerçek hatayı buldu:**
+`roads width 0.000m != 8m at vertex 560`. Kapı eski iddiada vertex 14'te ölüyordu, genişlik testine
+hiç gelmiyordu.
+
+**2. Sıfır genişlikli kaburgalar — iki ayrı sebep, ikisi de ölçüldü.**
+
+`appendRoadRibbon` her kaburganın dikini `points[i-1] → points[i+1]`'den alıyor. O ikisi çakışırsa
+teğet sıfır, `|| 1` dik vektörü sıfırda bırakıyor ve iki kenar vertex'i merkez çizgisine düşüyor —
+şerit orada hiçliğe büzülüyor.
+
+*Sebep A, kaynakta:* Tur 406'nın deniz altı yedeklemesi *yumuşatılmış* bir indeksi *ham* bir indekse
+eşliyor, iki liste farklı uzunlukta, dolayısıyla üst üste birkaç yumuşatılmış nokta aynı ham noktaya
+yuvarlanıp **iki kez** yazılıyor. Ölçüm: **41 tekrar noktası, 1184 kaburganın 20'si sıfır genişlikte
+(%1,69)** — hepsi `umit->doran`'da, yani iki su geçişi ve 1440 m suyu olan kenarda, yedeklemenin en
+çok ateşlendiği yer. `roadPathfinder.js` artık üst üste tekrarları atıyor: sadece sıfır uzunlukta
+segmentler gidiyor, hiçbir rota kımıldamıyor, uzunluk ve eğim değişmiyor.
+
+*Sebep B, geometride:* tekrarlar gidince **1** kaburga kaldı, `umit->Xaro`'da — gerçek bir
+**firkete**, yolun kendi üstüne katlandığı yer, `p[i-1] == p[i+1]` ama `p[i]` farklı. Bunun çözümü
+kaynakta değil şerit üreticisinde: teğet dejenere olduğunda tek taraflı teğete düşülüyor, ki her
+poliçizgi için tanımlı.
+
+```
+tekrar noktası    41 → 0
+sıfır kaburga     20 → 1 → 0
+```
+
+**3. `checkCanonicalRoadBridgeSceneShadow`: donmuş sayılar.** `=== 7 bridges` ve `=== 6 edges`
+diyordu; kanonik rotalar son kımıldadığında kırmızıya döndü ve **diğer on iki iddiasını da
+koşmamaya** başladı, ki kapısız olmaktan kötüdür. Sayılar hiçbir zaman değişmez değildi: hem MST
+rotaları hem okuduğu hidroloji yükseklik alanına tepki verir. Yerine bayatlamayacak bir tutarlılık
+kondu: `affectedEdges`, geçiş sayısı sıfır olmayan rotaların tam kümesi olmalı, ve `bridgeCount`
+rota özetlerinin bildirdiği geçişlerin toplamı olmalı.
+
+Şimdi diğer on iki iddiası gerçekten koşuyor ve geçiyor: su bastırma 95/95 rota noktası, azami
+yaklaşma 17,96° / 38,4 m, çekirdek 6 çizim çağrısı / 17.396 üçgen, frustum kesme kanıtı 1/4.
+
+```
+[checkRoadVisualContract] PASS: 13 edges, 2234 vertices, 6624 indices,
+  width 8.000-8.000m, road 20.19km, patika 1 edge(s) width 2.500-2.500m 0.19km, disposal 2/2
+[checkCanonicalRoadBridgeSceneShadow] PASS: 4 bridges / 8 bounded approaches / ...
+```
+
+Kapılar: `checkRoadVisualContract` (**Tur 406'dan beri ilk kez yeşil**),
+`checkCanonicalRoadBridgeSceneShadow` (**ilk kez yeşil**), `roadNetworkSafetyCheck`,
+`checkRoadRibbonGrounding`, `checkRoadRiverBridgeCrossings`, `checkMedievalRoadSurface`,
+`checkRoadCorridorSmoothing`, `terrainSeatSafetyCheck`, `checkNamedRivers`, `checkSmokeCheckRegistry`
+(600 tavanı dahil — `roads.js` 598), `checkServiceWorkerCache`, `checkTechnicalDebt`,
+`checkSeededRandomPolicy`, `game3dSmokeChecksScene` — hepsi PASS. `SHELL_CACHE` v78 → v79.
+
+**Technical debt.** 0 new. Bu turdan sonra bildiğim kırmızı yol kapısı kalmadı.
