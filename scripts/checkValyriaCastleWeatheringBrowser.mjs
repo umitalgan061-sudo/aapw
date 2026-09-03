@@ -44,7 +44,14 @@ page.on('console', (message) => {
 page.on('pageerror', (error) => pageErrors.push(String(error)));
 
 try {
-  await page.goto(`http://127.0.0.1:${port}/`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  // Use the repository's intentionally empty same-origin FBX directory index instead of `/`.
+  // Loading `/` boots the complete application and can fail this focused shader compile proof on
+  // unrelated scene/LFS/runtime errors before the Valyria material is even exercised. The blank
+  // same-origin document still gives ESM imports access to the shipped repository paths below.
+  await page.goto(`http://127.0.0.1:${port}/assets/models/fbx/index.html`, {
+    waitUntil: 'domcontentloaded',
+    timeout: 30000,
+  });
 
   const result = await page.evaluate(async () => {
     const THREE = await import('/node_modules/three/build/three.module.js');
