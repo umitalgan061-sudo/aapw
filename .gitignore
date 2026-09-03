@@ -12,3 +12,6 @@ node_modules/
 .claude/
 .env
 /artifacts/
+# Gate-generated terrain3d proof/evidence JSON (written by scripts/check*Hydrology.mjs et al. on every
+# run, regenerated deterministically, never a source of truth). Run 448.
+godot/terrain-authoring/.terrain3d-proof/
