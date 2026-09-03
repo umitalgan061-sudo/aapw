@@ -108,18 +108,18 @@ jobs:
         run: |
           {
             echo '### Run283 governance RCA'
-            echo '| Contract | Outcome |'
-            echo '| --- | --- |'
-            echo '| Run283 workflow | ${{ steps.run283_contract.outcome }} |'
-            echo '| Seeded random | ${{ steps.seeded_random.outcome }} |'
-            echo '| Assets manifest | ${{ steps.assets_manifest.outcome }} |'
-            echo '| Service worker cache | ${{ steps.service_worker_cache.outcome }} |'
-            echo '| PWA installability | ${{ steps.pwa_installability.outcome }} |'
-            echo '| Smoke registry | ${{ steps.smoke_registry.outcome }} |'
-            echo '| World reference map | ${{ steps.world_reference_map.outcome }} |'
-            echo '| World water mask | ${{ steps.world_reference_water_mask.outcome }} |'
-            echo '| World alignment | ${{ steps.world_reference_alignment.outcome }} |'
-            echo '| Hydrology extent | ${{ steps.world_reference_hydrology_extent.outcome }} |'
+            echo '| Contract | Outcome | Conclusion |'
+            echo '| --- | --- | --- |'
+            echo '| Run283 workflow | ${{ steps.run283_contract.outcome }} | ${{ steps.run283_contract.conclusion }} |'
+            echo '| Seeded random | ${{ steps.seeded_random.outcome }} | ${{ steps.seeded_random.conclusion }} |'
+            echo '| Assets manifest | ${{ steps.assets_manifest.outcome }} | ${{ steps.assets_manifest.conclusion }} |'
+            echo '| Service worker cache | ${{ steps.service_worker_cache.outcome }} | ${{ steps.service_worker_cache.conclusion }} |'
+            echo '| PWA installability | ${{ steps.pwa_installability.outcome }} | ${{ steps.pwa_installability.conclusion }} |'
+            echo '| Smoke registry | ${{ steps.smoke_registry.outcome }} | ${{ steps.smoke_registry.conclusion }} |'
+            echo '| World reference map | ${{ steps.world_reference_map.outcome }} | ${{ steps.world_reference_map.conclusion }} |'
+            echo '| World water mask | ${{ steps.world_reference_water_mask.outcome }} | ${{ steps.world_reference_water_mask.conclusion }} |'
+            echo '| World alignment | ${{ steps.world_reference_alignment.outcome }} | ${{ steps.world_reference_alignment.conclusion }} |'
+            echo '| Hydrology extent | ${{ steps.world_reference_hydrology_extent.outcome }} | ${{ steps.world_reference_hydrology_extent.conclusion }} |'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install Chromium
@@ -182,15 +182,15 @@ jobs:
         run: |
           {
             echo '### Run283 runtime/browser DoD RCA'
-            echo '| Contract | Outcome |'
-            echo '| --- | --- |'
-            echo '| Mobile performance | ${{ steps.mobile_perf.outcome }} |'
-            echo '| Runtime seeded random | ${{ steps.runtime_seeded_random.outcome }} |'
-            echo '| Terrain seat safety | ${{ steps.terrain_seat.outcome }} |'
-            echo '| Road network safety | ${{ steps.road_network.outcome }} |'
-            echo '| Performance trend | ${{ steps.perf_trend.outcome }} |'
-            echo '| Technical debt | ${{ steps.technical_debt.outcome }} |'
-            echo '| Shipped Game3D Chromium smoke | ${{ steps.game3d_smoke.outcome }} |'
+            echo '| Contract | Outcome | Conclusion |'
+            echo '| --- | --- | --- |'
+            echo '| Mobile performance | ${{ steps.mobile_perf.outcome }} | ${{ steps.mobile_perf.conclusion }} |'
+            echo '| Runtime seeded random | ${{ steps.runtime_seeded_random.outcome }} | ${{ steps.runtime_seeded_random.conclusion }} |'
+            echo '| Terrain seat safety | ${{ steps.terrain_seat.outcome }} | ${{ steps.terrain_seat.conclusion }} |'
+            echo '| Road network safety | ${{ steps.road_network.outcome }} | ${{ steps.road_network.conclusion }} |'
+            echo '| Performance trend | ${{ steps.perf_trend.outcome }} | ${{ steps.perf_trend.conclusion }} |'
+            echo '| Technical debt | ${{ steps.technical_debt.outcome }} | ${{ steps.technical_debt.conclusion }} |'
+            echo '| Shipped Game3D Chromium smoke | ${{ steps.game3d_smoke.outcome }} | ${{ steps.game3d_smoke.conclusion }} |'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Final exact-main concurrency and additive-only gate
@@ -214,28 +214,36 @@ jobs:
           check_outcome() {
             local name="$1"
             local outcome="$2"
+            local conclusion="$3"
+            echo "Run283 contract: $name outcome=$outcome conclusion=$conclusion"
+            printf '| %s | %s | %s |\n' "$name" "$outcome" "$conclusion" >> "$GITHUB_STEP_SUMMARY"
             if [ "$outcome" != "success" ]; then
-              echo "::error title=Run283 mandatory contract failed::$name outcome=$outcome"
+              echo "::error title=Run283 mandatory contract failed::$name outcome=$outcome conclusion=$conclusion"
               failures=$((failures + 1))
             fi
           }
-          check_outcome 'Run283 workflow governance' '${{ steps.run283_contract.outcome }}'
-          check_outcome 'Seeded random policy' '${{ steps.seeded_random.outcome }}'
-          check_outcome 'Assets manifest' '${{ steps.assets_manifest.outcome }}'
-          check_outcome 'Service worker cache' '${{ steps.service_worker_cache.outcome }}'
-          check_outcome 'PWA installability' '${{ steps.pwa_installability.outcome }}'
-          check_outcome 'Smoke registry' '${{ steps.smoke_registry.outcome }}'
-          check_outcome 'World reference map' '${{ steps.world_reference_map.outcome }}'
-          check_outcome 'World reference water mask' '${{ steps.world_reference_water_mask.outcome }}'
-          check_outcome 'World reference alignment' '${{ steps.world_reference_alignment.outcome }}'
-          check_outcome 'World reference hydrology extent' '${{ steps.world_reference_hydrology_extent.outcome }}'
-          check_outcome 'Mobile performance budget' '${{ steps.mobile_perf.outcome }}'
-          check_outcome 'Runtime seeded-random replay' '${{ steps.runtime_seeded_random.outcome }}'
-          check_outcome 'Terrain seat safety' '${{ steps.terrain_seat.outcome }}'
-          check_outcome 'Road network safety' '${{ steps.road_network.outcome }}'
-          check_outcome 'Performance trend contract' '${{ steps.perf_trend.outcome }}'
-          check_outcome 'Technical debt contract' '${{ steps.technical_debt.outcome }}'
-          check_outcome 'Shipped Game3D Chromium smoke' '${{ steps.game3d_smoke.outcome }}'
-          check_outcome 'Final exact-main concurrency and additive-only gate' '${{ steps.final_exact_main.outcome }}'
-          echo "Run283 mandatory failure count: $failures" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo '### Run283 final enforcement raw outcomes'
+            echo '| Contract | Outcome | Conclusion |'
+            echo '| --- | --- | --- |'
+          } >> "$GITHUB_STEP_SUMMARY"
+          check_outcome 'Run283 workflow governance' '${{ steps.run283_contract.outcome }}' '${{ steps.run283_contract.conclusion }}'
+          check_outcome 'Seeded random policy' '${{ steps.seeded_random.outcome }}' '${{ steps.seeded_random.conclusion }}'
+          check_outcome 'Assets manifest' '${{ steps.assets_manifest.outcome }}' '${{ steps.assets_manifest.conclusion }}'
+          check_outcome 'Service worker cache' '${{ steps.service_worker_cache.outcome }}' '${{ steps.service_worker_cache.conclusion }}'
+          check_outcome 'PWA installability' '${{ steps.pwa_installability.outcome }}' '${{ steps.pwa_installability.conclusion }}'
+          check_outcome 'Smoke registry' '${{ steps.smoke_registry.outcome }}' '${{ steps.smoke_registry.conclusion }}'
+          check_outcome 'World reference map' '${{ steps.world_reference_map.outcome }}' '${{ steps.world_reference_map.conclusion }}'
+          check_outcome 'World reference water mask' '${{ steps.world_reference_water_mask.outcome }}' '${{ steps.world_reference_water_mask.conclusion }}'
+          check_outcome 'World reference alignment' '${{ steps.world_reference_alignment.outcome }}' '${{ steps.world_reference_alignment.conclusion }}'
+          check_outcome 'World reference hydrology extent' '${{ steps.world_reference_hydrology_extent.outcome }}' '${{ steps.world_reference_hydrology_extent.conclusion }}'
+          check_outcome 'Mobile performance budget' '${{ steps.mobile_perf.outcome }}' '${{ steps.mobile_perf.conclusion }}'
+          check_outcome 'Runtime seeded-random replay' '${{ steps.runtime_seeded_random.outcome }}' '${{ steps.runtime_seeded_random.conclusion }}'
+          check_outcome 'Terrain seat safety' '${{ steps.terrain_seat.outcome }}' '${{ steps.terrain_seat.conclusion }}'
+          check_outcome 'Road network safety' '${{ steps.road_network.outcome }}' '${{ steps.road_network.conclusion }}'
+          check_outcome 'Performance trend contract' '${{ steps.perf_trend.outcome }}' '${{ steps.perf_trend.conclusion }}'
+          check_outcome 'Technical debt contract' '${{ steps.technical_debt.outcome }}' '${{ steps.technical_debt.conclusion }}'
+          check_outcome 'Shipped Game3D Chromium smoke' '${{ steps.game3d_smoke.outcome }}' '${{ steps.game3d_smoke.conclusion }}'
+          check_outcome 'Final exact-main concurrency and additive-only gate' '${{ steps.final_exact_main.outcome }}' '${{ steps.final_exact_main.conclusion }}'
+          echo "Run283 mandatory failure count: $failures" | tee -a "$GITHUB_STEP_SUMMARY"
           test "$failures" -eq 0
