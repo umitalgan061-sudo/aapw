@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/3d/world/valyriaCastleWeathering.js'
       - 'scripts/checkValyriaCastleWeathering.mjs'
+      - 'scripts/checkValyriaCastleWeatheringBrowser.mjs'
       - '.github/workflows/valyria-castle-worldpos-shader-exact-head.yml'
 
 permissions:
@@ -38,7 +39,7 @@ jobs:
           test -n "$CHANGED"
           while IFS= read -r path; do
             case "$path" in
-              src/3d/world/valyriaCastleWeathering.js|scripts/checkValyriaCastleWeathering.mjs|.github/workflows/valyria-castle-worldpos-shader-exact-head.yml) ;;
+              src/3d/world/valyriaCastleWeathering.js|scripts/checkValyriaCastleWeathering.mjs|scripts/checkValyriaCastleWeatheringBrowser.mjs|.github/workflows/valyria-castle-worldpos-shader-exact-head.yml) ;;
               *) echo "unexpected path: $path" >&2; exit 1 ;;
             esac
           done <<< "$CHANGED"
@@ -53,6 +54,7 @@ jobs:
           set -euo pipefail
           node --check src/3d/world/valyriaCastleWeathering.js
           node --check scripts/checkValyriaCastleWeathering.mjs
+          node --check scripts/checkValyriaCastleWeatheringBrowser.mjs
           node scripts/checkValyriaCastleWeathering.mjs
 
       - name: Shared placement and determinism contracts
@@ -62,12 +64,23 @@ jobs:
           node scripts/checkSharedMaterialPlacementContract.js
           node scripts/checkSeededRandomPolicy.js
 
-      - name: Mobile shader compile regression
+      - name: Install browser runtime
         shell: bash
         run: |
           set -euo pipefail
           npm ci --ignore-scripts --no-audit --no-fund
           npx playwright install chromium
+
+      - name: Mobile Chromium Valyria shader compile proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkValyriaCastleWeatheringBrowser.mjs
+
+      - name: Repository mobile performance safety
+        shell: bash
+        run: |
+          set -euo pipefail
           node scripts/checkMobilePerfBudget.js
 
       - name: Final exact-main freshness
