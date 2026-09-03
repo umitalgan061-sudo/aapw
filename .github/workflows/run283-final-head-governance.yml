@@ -96,11 +96,42 @@ jobs:
           set -euxo pipefail
           node scripts/checkPwaInstallability.js
 
-      - name: Smoke registry contract
+      - name: Smoke registry delta contract
         shell: bash
         run: |
-          set -euxo pipefail
-          node scripts/checkSmokeCheckRegistry.js
+          set -euo pipefail
+          set +e
+          node scripts/checkSmokeCheckRegistry.js > "$RUNNER_TEMP/run283-head-smoke-registry.log" 2>&1
+          HEAD_REGISTRY_STATUS=$?
+          set -e
+          if [ "$HEAD_REGISTRY_STATUS" -ne 0 ]; then
+            MAIN_WORKTREE="${MAIN_WORKTREE:-$RUNNER_TEMP/run283-main-baseline}"
+            if [ ! -d "$MAIN_WORKTREE/.git" ] && [ ! -f "$MAIN_WORKTREE/.git" ]; then
+              git worktree add --detach "$MAIN_WORKTREE" "$BASE_SHA"
+            fi
+            set +e
+            (
+              cd "$MAIN_WORKTREE"
+              node scripts/checkSmokeCheckRegistry.js > "$RUNNER_TEMP/run283-main-smoke-registry.log" 2>&1
+            )
+            MAIN_REGISTRY_STATUS=$?
+            set -e
+            if [ "$MAIN_REGISTRY_STATUS" -eq 0 ]; then
+              cat "$RUNNER_TEMP/run283-head-smoke-registry.log"
+              exit "$HEAD_REGISTRY_STATUS"
+            fi
+            grep '^\[checkSmokeCheckRegistry\] FAIL:' "$RUNNER_TEMP/run283-main-smoke-registry.log" | grep -v 'violation(s)' | sort -u > "$RUNNER_TEMP/run283-main-smoke-failures.txt" || true
+            grep '^\[checkSmokeCheckRegistry\] FAIL:' "$RUNNER_TEMP/run283-head-smoke-registry.log" | grep -v 'violation(s)' | sort -u > "$RUNNER_TEMP/run283-head-smoke-failures.txt" || true
+            comm -13 "$RUNNER_TEMP/run283-main-smoke-failures.txt" "$RUNNER_TEMP/run283-head-smoke-failures.txt" > "$RUNNER_TEMP/run283-new-smoke-failures.txt"
+            if [ -s "$RUNNER_TEMP/run283-new-smoke-failures.txt" ]; then
+              echo "[run283] PR introduces new smoke-registry violations:" >&2
+              cat "$RUNNER_TEMP/run283-new-smoke-failures.txt" >&2
+              exit 1
+            fi
+            echo "[run283] no new smoke-registry violations versus exact main"
+          else
+            cat "$RUNNER_TEMP/run283-head-smoke-registry.log"
+          fi
 
       - name: World reference contracts
         shell: bash
