@@ -22,7 +22,7 @@ import {
 	WATER_PLANE_SEGMENTS_MOBILE,
 } from './world/water.js';
 import { createWaterDepthField } from './world/waterDepthField.js';
-import { generateRiverPath, createRiverMesh, buildRiverSurface, createNamedRiverMeshes, detectWaterfalls, createWaterfallMesh } from './world/rivers.js';
+import { createRiverMesh, buildRiverSurface, createNamedRiverMeshes, detectWaterfalls, createWaterfallMesh } from './world/rivers.js';
 import { createHeightSampler, mulberry32 } from './world/terrain.js';
 import { createSettlements, computeSettlementFlattenPads, KINGDOM_SEATS, mapToWorldXZ } from './world/settlements.js';
 import { computeRoadCorridor } from './world/roadCorridorSmoothing.js';
@@ -224,26 +224,24 @@ export function createScene(canvas) {
 			`(${(waterDepthField.deepTexelRatio * 100).toFixed(1)}% deep water, ` +
 			`${(waterDepthField.dryTexelRatio * 100).toFixed(1)}% dry land).`,
 	);
-	const { points: riverPoints, endReason: riverEndReason } = generateRiverPath({
-		seed: WORLD_DEFAULTS.WORLD_SEED,
-		sampleHeightMeters: groundCollider.getGroundHeight,
-		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
-	});
-	// Run 376: the historical river goes through `buildRiverSurface` too. Measured on the untouched
-	// tree, **70.9% of it was underground** — worse than any of the ten new rivers, and the same cause:
-	// a ribbon laid on the traced polyline's 40 m chords while the ground between those points rose
-	// through it (worst 37 m). Nobody had looked closely at it in 376 runs. Leaving it would make the
-	// one original river the only broken one in a world of eleven. Its *path* is untouched, so the
-	// waterfall thresholds ADR-0011 calibrated against this exact course still see what they measured.
-	const river = createRiverMesh(
-		buildRiverSurface(riverPoints, groundCollider.getGroundHeight),
-		undefined,
-		groundCollider.getGroundHeight,
-	);
+	// Run 447: the historical river is drawn from the course its valley was CUT for, not from a second
+	// trace of it. `computeRiverValleys` traces this river over the phase-1 field and carves a channel
+	// along that exact polyline; until now this line re-traced it over the *finished* field and ribboned
+	// that instead — the precise failure `createNamedRiverMeshes` records for the named rivers in run
+	// 376, left unfixed on the one river that had it first. The two courses had drifted 1590 m apart,
+	// and since the re-trace ran over ground that had been carved for other rivers it climbed a
+	// mountain: 84 of its 188 ribs (44.7%) gained height going downstream, one run climbing 131.5 m,
+	// water visibly flowing up a snow peak to the summit (`artifacts/legacy-river/`).
+	//
+	// Measured, carved course versus re-trace: 0% of ribs uphill against 44.7%, ponding 1.0 m median and
+	// 1.0 m max against 113 m and 180.7 m, and it descends 252.4 m -> -26.7 m so it reaches the sea
+	// instead of ending at the world bounds. The sampler argument goes with it for the same reason
+	// `createNamedRiverMeshes` withholds it (run 390): in a carved channel a level cross-section at the
+	// course height is the right one, and the ponding measurement above proves this course is in one.
+	const riverPoints = valleyField.riverPoints;
+	const river = createRiverMesh(buildRiverSurface(riverPoints, groundCollider.getGroundHeight));
 	if (river) scene.add(river);
-	console.info(
-		`[sceneManager] River path traced: ${riverPoints.length} points, ended via "${riverEndReason}".`,
-	);
+	console.info(`[sceneManager] River drawn from its carved course: ${riverPoints.length} points.`);
 
 	// The map's named rivers (run 376 / ADR-0323). `terrainValleyCarving.js` has already cut their
 	// valleys into the ground `groundCollider` samples; these are the ribbons of water that run in them.
@@ -259,7 +257,14 @@ export function createScene(canvas) {
 
 	// Waterfall "curtains" mark the river's steepest segments — see world/rivers.js module doc /
 	// DECISIONS.md ADR-0011 for why the visual is schematic rather than a physically-carved cliff.
-	const waterfallMeshes = detectWaterfalls(riverPoints).map((waterfall) => createWaterfallMesh(waterfall));
+	// The carved course carries phase-1 heights, but the curtains stand on the FINISHED terrain, so
+	// they are detected on the course re-heighted to the final field (run 447): drops in the base field
+	// that the carve later smoothed away would otherwise plant a curtain on flat ground. The XZ and its
+	// ~48 m spacing are untouched, so ADR-0011's per-segment thresholds still see what they calibrated.
+	const waterfallCourse = riverPoints.map((point) => ({
+		x: point.x, z: point.z, y: groundCollider.getGroundHeight(point.x, point.z),
+	}));
+	const waterfallMeshes = detectWaterfalls(waterfallCourse).map((waterfall) => createWaterfallMesh(waterfall));
 	waterfallMeshes.forEach((mesh) => scene.add(mesh));
 	console.info(`[sceneManager] Detected ${waterfallMeshes.length} waterfall-grade drop(s) along the river.`);
 

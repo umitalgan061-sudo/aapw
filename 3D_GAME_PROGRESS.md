@@ -20427,3 +20427,53 @@ dokunmadığım `waterDepthField.js`'i içe aktarıyor, ortam sorunu, regresyon 
 `SHELL_CACHE` v80 → v81 (`world/riverHeadwaterSpring.js` kabuk listesine eklendi).
 
 **Technical debt.** 0 new.
+
+---
+
+## ADR-0394 — Tarihsel nehri, vadisinin oyulduğu kursla çizmek (run 447)
+
+Run 446 on bir kurstan dokuzunu oturttu; oturmayan ikisinden biri, `sceneManager.js`'in `river` dediği,
+run 1'den kalma prosedürel kurs. Run 446 bunu bir görev olarak kaydetti, run 447 fotoğrafladı:
+`artifacts/legacy-river/uphill-broadside.png` ve `uphill-downstream.png` — su bir kar zirvesine
+**tırmanıp** tepeden aşıyor. 188 kaburgasının 86'sı (%44,7) mansaba doğru yükseliyordu, bir kesinti
+131,5 m tırmanıyordu.
+
+**Kök neden, oymanın simetrisiyle değil ölçümle.** `computeRiverValleys` bu nehri faz-1 alanı üzerinde
+izliyor ve tam o çizgi boyunca bir vadi oyuyor (`valleyField.riverPoints`). `sceneManager.js` ise onu
+**bitmiş** alan üzerinde **yeniden** izleyip onu çiziyordu — `createNamedRiverMeshes`'in run 376 için
+kaydettiği "ikinci iz kendi hendeğinden çıkıyor" hatasının ta kendisi, ilk sahip olan tek nehirde
+düzeltilmemiş kalmış. İki kurs 1590 m ayrılmıştı ve yeniden-iz, başka nehirler için oyulmuş zeminin
+üzerinden geçtiği için dağa tırmanıyordu.
+
+**Ölçüm — oyulan kurs / yeniden-iz:**
+
+```
+                        oyulan     yeniden-iz
+yokuş yukarı kaburga      %0          %44,7
+en uzun sürekli tırmanış  0 m         131,5 m
+göllenme medyan           1,0 m       113 m
+göllenme maks             1,0 m       180,7 m
+baş → ağız yatağı     252,4→-26,7   257,6→61,5 (denize varmıyor)
+```
+
+Düzeltme tek satır: `riverPoints = valleyField.riverPoints` ve örnekleyicisiz `createRiverMesh` (oyulmuş
+kanalda düz kesit doğru olanı — `createNamedRiverMeshes`'in run 390 gerekçesi). `generateRiverPath`
+importu artık kullanılmadığından kaldırıldı. Yeni ölçüm: 86 → **0** yokuş yukarı kaburga, nehir yeşil
+ovadan denize iniyor (`artifacts/legacy-river/rebased-mid.png`).
+
+**Şelale perdeleri de düzeltildi.** Oyulan kurs faz-1 yükseklikleri taşıyor ama perdeler **bitmiş**
+arazinin üstünde duruyor; ham kurs y'siyle `detectWaterfalls`, oymanın sonradan düzlediği düşüşlere
+düz ovada gri perdeler dikiyordu (ilk render'da görünür). Perdeler artık kursun XZ'sine bitmiş alandan
+yeniden örneklenmiş y ile tespit ediliyor — ~48 m aralık korunuyor, dolayısıyla ADR-0011 eşikleri
+kalibre ettikleri şeyi görüyor. Sonuç: ovadaki sahte perdeler kayboldu.
+
+Kalan iki oturmayan kurstan biri (bu) çözüldü; Greenblood (240 m güdük) task #25'te.
+
+Kapılar (15): `checkNamedRivers`, `checkRiverValleyCarving`, `checkRiverHeadwaterSpring`,
+`checkVegetationRiverClearance`, `checkRun325RiverFlow`, `checkWaterVisualContract`,
+`checkRoadRiverBridgeCrossings`, `checkRoadRibbonGrounding`, `checkCanonicalRoadBridgeSceneShadow`,
+`roadNetworkSafetyCheck`, `terrainSeatSafetyCheck`, `checkSmokeCheckRegistry`,
+`checkServiceWorkerCache`, `checkTechnicalDebt`, `game3dSmokeChecksScene` — hepsi PASS. Terrain
+yüksekliği değişmedi (yalnızca hangi kursun çizildiği), hidroloji ızgara kapıları etkilenmez.
+
+**Technical debt.** 0 new.
