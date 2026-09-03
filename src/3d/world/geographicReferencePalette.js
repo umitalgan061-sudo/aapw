@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-03-v87-lowland-aerial-recovery',
+	id: 'geographic-reference-palette-2026-09-03-v88-lowland-ecotone-recovery',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -38,6 +38,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	lowlandAerialValueDecorrelationRaised: true,
 	aerialStructuralContrastRaised: true,
 	lowlandAerialRecoveryRaised: true,
+	lowlandEcotoneRecoveryRaised: true,
+	fullWorldVegetationReadabilityRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -45,24 +47,24 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v87 follows direct inspection of the exact-head f87e217e full-world WebGL artifact. v86 remained safe but was visibly underpowered because downstream biome calibration intentionally blends the shared reference palette at restrained weights. v87 therefore increases source-family separation rather than altering classification or geometry: meadow moves to a deeper chlorophyll green, moss shadow deepens, dry heather becomes a darker warm umber, exposed soil regains a controlled oxidised red-brown, and granite expands toward cooler shadow and pale weathered faces. The change stays render-only and deterministic; map.png-derived terrain, hydrology, routes, coastline and collider authority remain untouched.',
-		water: 'v87 retains the verified marine correction: deep sea and abyss remain readable without near-black crushing and coastal water stays cooler/desaturated. Coverage, bathymetry, lake membership, shoreline and offshore authority are unchanged.',
-		road: 'v87 preserves established compacted-road and dust bases, keeping roads distinct from exposed-earth terrain without changing route geometry.',
-		celestial: 'v87 preserves restrained noon and moon calibration; aerial depth is produced by material stratification rather than stronger global illumination.',
+		terrain: 'v88 follows direct inspection of the exact-head fda81576 full-world WebGL artifact. The image is structurally healthy, but the broad central lowlands still collapse toward a beige-grey aerial average while greener ecological patches remain too local. v88 increases source-family ecological separation without changing biome classification or geometry: meadow gains readable mid-distance chlorophyll, moss shadow is lifted slightly out of near-black, dry heather is kept warm but less muddy, exposed soil remains oxidised and mineral, and weathered granite stays cool enough to separate from soil. The change is render-only and deterministic; map.png-derived terrain, hydrology, routes, coastline and collider authority remain untouched.',
+		water: 'v88 preserves the verified marine correction: deep sea and abyss remain readable without near-black crushing and coastal water stays cooler/desaturated. Coverage, bathymetry, lake membership, shoreline and offshore authority are unchanged.',
+		road: 'v88 preserves established compacted-road and dust bases, keeping roads distinct from exposed-earth terrain without changing route geometry.',
+		celestial: 'v88 preserves restrained noon and moon calibration; aerial depth is produced by material stratification rather than stronger global illumination.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x00361c,
-		meadow: 0x006b28,
-		dryHeather: 0x60341f,
-		wetEarth: 0x0c1b16,
-		exposedEarth: 0x994b28,
-		graniteShadow: 0x273841,
-		graniteSunlit: 0xa99b8f,
-		basaltWet: 0x09171c,
-		quartz: 0xd7cec3,
+		mossShadow: 0x0b4526,
+		meadow: 0x157f35,
+		dryHeather: 0x704029,
+		wetEarth: 0x10231b,
+		exposedEarth: 0xa3522d,
+		graniteShadow: 0x2c3d47,
+		graniteSunlit: 0xb0a397,
+		basaltWet: 0x0b1b20,
+		quartz: 0xd9d1c7,
 	}),
 	road: Object.freeze({
 		compacted: 0x866347,
