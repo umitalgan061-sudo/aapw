@@ -134,6 +134,7 @@ try {
 	await sleep(100);
 	await setPad({ buttons: { 2: true } });
 	const attack = await waitHistory('attacks', (event) => event.kind === 'light' && event.phase === 'start', 'locked light attack start', 7000);
+	await setPad();
 	const dot = facingDot(attack, acquired.targetPosition);
 	need(dot > 0.92, `locked attack must face acquired target; dot=${dot}`);
 	await waitHistory('attacks', (event) => event.serial === attack.serial && event.phase === 'finish', 'locked light attack finish', 10000);
