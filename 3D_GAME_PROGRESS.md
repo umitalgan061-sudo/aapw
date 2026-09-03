@@ -19862,3 +19862,53 @@ Kapılar: `checkVegetationVisualContract`, `game3dSmokeChecksVegetation`, `check
 `checkServiceWorkerCache`, `checkTechnicalDebt`, `game3dSmokeChecksScene` — hepsi PASS.
 
 **Technical debt.** 0 new. Hidratlanan GLB'ler commit'ten önce geri alındı.
+
+## Tur 438 — Köprüler bir yerde, nehir geçişleri başka yerde (ADR-0385)
+
+Tur 432'de "bu turun sebep olmadığı" diye not düştüğüm kırmızı kapıyı —
+`checkCanonicalRoadBridgeSceneShadow: expected 7 bridges, got 4` — açtım. Kapı haklı, ve arkasında
+not ettiğimden çok daha ciddi bir şey var.
+
+**Önce plan ile beklenti karşılaştırıldı.** Kapının yazıldığı altı kenardan **üçü** artık hiç su
+geçişi üretmiyor:
+
+```
+kenar                    rota noktası   geçiş   su metresi
+robin->berkalp                    116       0          0,0
+cersei->stannis                    36       0          0,0
+jon->Night King                   108       0          0,0
+umit->doran                       264       2       1440,2
+umit->Xaro                        228       1       1090,4
+twin->balon                        48       1        162,5
+```
+
+**"Yollar artık suya girmiyor" olabilirdi. Değil.** Canlı yol kenarlarını **çizilen nehir
+geometrisine** karşı ölçtüm — alan fonksiyonuna değil, oyuncunun gördüğü üçgenlere. Her yol segmenti
+2 metrede bir örneklenip 2.820 nehir üçgeninin içinde mi diye bakıldı:
+
+```
+canlı yol kenarı     nehrin içinde kalan örnek   hangi nehirler
+stannis->robin                              96   blackwater-rush, green-fork, red-fork, blue-fork
+doran->ziya                                 25   mander
+robin->berkalp                               8   blue-fork
+```
+
+**Ve köprülerin bulunduğu kenarlar bu listede yok.** Köprüler `umit->doran`, `twin->balon`,
+`umit->Xaro`'da; nehirleri gerçekten kesen yollar `stannis->robin`, `doran->ziya`,
+`robin->berkalp`. **İki küme hiç kesişmiyor.**
+
+Yani: **gerçekten nehir geçen yolların köprüsü yok, var olan köprüler ise nehir geçmeyen kenarlarda.**
+`stannis->robin` tek başına dört isimli nehrin — Blackwater Rush, Green Fork, Red Fork, Blue Fork —
+içinden geçiyor ve üstünde geçecek hiçbir şey yok.
+
+Sebep, köprü planlayıcısının `hydrologyAtWorld` alanı ile çizilen nehir kurslarının **birbirinden
+kopmuş** olması. Kapı bunu yakalıyor; Tur 432'de "önceden var olan kırmızı" diye geçmem doğruydu ama
+**eksikti** — bu bir kapı bakımı değil, dünyanın kendisinde bir hata.
+
+**Bu tur düzeltmiyor, ölçüyor.** Düzeltme köprü planlayıcısını çizilen kursların otoritesine bağlamak
+demek; bu yol/köprü/yaklaşım rampası geometrisini ve en az beş kapıyı birden kımıldatır, tahminle
+başlanacak bir iş değil. Sayılar burada, kendi görevinde duruyor.
+
+Kapılar: `checkSmokeCheckRegistry`, `checkTechnicalDebt` — PASS. Kaynak değişmedi, SW bump yok.
+
+**Technical debt.** 0 new.
