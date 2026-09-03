@@ -33,7 +33,6 @@ on:
       - 'scripts/checkInteractionExpeditionTavernRecovery.mjs'
       - 'scripts/checkInteractionExpeditionMasterySmithingReward.mjs'
       - 'scripts/checkInteractionMasteryArmorerServiceBrowser.mjs'
-      - 'service-worker.js'
       - '.github/workflows/rpg-expedition-board.yml'
       - '.github/workflows/rpg-mastery-armorer-service.yml'
       - '.github/workflows/rpg-mastery-to-smithing.yml'
