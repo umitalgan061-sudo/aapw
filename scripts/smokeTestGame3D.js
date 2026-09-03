@@ -82,7 +82,7 @@ async function main() {
 		results.push(await checks.checkPlayerCartDynamicCollider(committedBrowser, baseUrl));
 		results.push(await checks.checkJumpArc(committedBrowser, baseUrl));
 		results.push(await checks.checkInteractionController(committedBrowser, baseUrl));
-		results.push(await checks.checkInteractionPromptTap(browser, baseUrl));
+		results.push(await checks.checkInteractionPromptTap(committedBrowser, baseUrl));
 		results.push(await dialogueTouchChecks.checkDialogueChoiceTap(browser, baseUrl));
 		results.push(await dialogueTouchChecks.checkDialoguePauseGate(browser, baseUrl));
 		results.push(await controlsHelpChecks.checkControlsHelp(browser, baseUrl));
