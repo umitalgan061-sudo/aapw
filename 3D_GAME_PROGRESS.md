@@ -19456,3 +19456,50 @@ Kapılar: `checkNamedRivers`, `checkRiverValleyCarving`, `checkRun325RiverFlow`,
 
 **Kalan, dürüstçe:** haliç hâlâ düz, sert kenarlı bir dörtgen olarak okunuyor (`riverMouth.js`) —
 ayrı bir iş olarak duruyor, bu yamanın arkasına saklanmadı.
+
+## Tur 429 — Çayır neden siyah bir hasır gibi: kart normalleri dikeydi (ADR-0376)
+
+Tur 428'in kıyı çekimlerinde ikinci bir hata görünür hale geldi: orta mesafedeki çim, yanındaki
+çıplak zeminden **üç kat koyu** bir bant çiziyordu.
+
+```
+artifacts/river-bank/bank-low.png  (öncesi)
+  çim bandı y450: parlaklık 22 · yakın çim y690: 46 · arkadaki çıplak zemin y360: 64
+```
+
+**Sebep.** Çim kartı dikey bir dörtgen ve `computeVertexNormals` dikey bir dörtgene **yatay** normal
+verir. Güneş tepedeyken hiç ışık almayan tek yön tam olarak budur; yani her bıçak, aydınlanmayan bir
+duvar olarak gölgeleniyordu. Yakında belli olmuyor, çünkü kartların arasından aydınlık zemin
+görünüyor ve göz ikisini ortalıyor. Kırk metrede kartlar zemini tamamen kapatıyor ve geriye sadece
+duvar kalıyor.
+
+**Bir çim örtüsü duvar değildir.** Uzaktan bakıldığında, üstünden aydınlanan pürüzlü yatay bir
+yüzeydir — öğle vakti bir çayırın parlak olmasının, siyah olmamasının sebebi budur.
+
+**Düzeltme, iki parça:**
+
+1. **Tutam normali.** Paylaşılan yama geometrisine normaller bir kez pişiriliyor: çoğunlukla yukarı,
+   yama merkezinden dışa doğru `tuftNormalSplay = 0.35` kadar yayılmış. Yakındaki kartların hepsinin
+   aynı gölgelenmesini bu yayılma engelliyor. Çalışma zamanı maliyeti **sıfır**.
+2. **`normal.y = abs(normal.y)`** — Tur 428'in nehir tabakasındaki ile aynısı, aynı sebeple. Kartlar
+   `DoubleSide` ve çapraz çiftin yarısı her zaman arkasını döner; three.js o yüzde normali çevirir ve
+   yeni yukarı bakan normali yere doğrultup tam olarak kurtulmak istediğimiz duvarı geri getirirdi.
+
+**Ölçüm (aynı kare, aynı satırlar):**
+
+```
+bank-low   y390 34→74 · y450 22→76 · y510 32→81 · y570 33→83 · y630 37→84 · y690 46→87
+bank-mid   y390 56→87 · y450 54→80 · y510 52→85 · y570 58→85 · y630 66→88 · y690 74→86
+```
+
+Görsel doğrulama iki açıdan: `artifacts/river-bank/bank-low.png` ve `bank-mid.png` — koyu bant gitti,
+yerine tek tek bıçakları okunan güneşli bir çayır geldi ve çim artık arkasındaki araziyle aynı ışıkta.
+
+Kapılar: `checkWindGrassContractRun180`, `checkVegetationVisualContract`, `checkTerrainVisualContract`,
+`checkGroundColorVariety`, `checkTerrainGroundRealism`, `checkMedievalRoadSurface`,
+`checkSeededRandomPolicy`, `roadNetworkSafetyCheck`, `checkServiceWorkerCache`,
+`checkSmokeCheckRegistry`, `checkTechnicalDebt`, `game3dSmokeChecksVegetation`,
+`game3dSmokeChecksScene` — hepsi PASS.
+
+**Technical debt.** 0 new. Üçgen sayısı, yama sayısı, yerleşim ve determinizm değişmedi; normaller
+aynı geometriye bir kez yazılıyor. `SHELL_CACHE` v70 → v71.

@@ -69,6 +69,25 @@ const RUN180_WIND_GRASS_CONFIG = Object.freeze({
 	 */
 	snowLatitudeCeiling: 0.35,
 	snowlineMinHeightMeters: 470,
+	/**
+	 * Run 429 — how much of the tuft's shading normal splays outward from straight up.
+	 *
+	 * A grass card is a vertical quad, and `computeVertexNormals` gives a vertical quad a *horizontal*
+	 * normal. With the sun overhead that is the one direction that catches no light at all, so every
+	 * blade shades as an unlit wall. Near the camera it does not show, because the lit ground shows
+	 * between the cards and the eye averages the two; at forty metres the cards close over the ground
+	 * completely and all that is left is the wall. Measured on `artifacts/river-bank/bank-low.png`: the
+	 * grass band reads 22 against 64 for the bare terrain a little further off — the same field, three
+	 * times darker where it happens to be grassy.
+	 *
+	 * A grass canopy is not a wall. Seen from any distance it is a rough horizontal surface, lit from
+	 * above like the ground it grows out of, which is why a meadow at noon is bright and not black.
+	 * So the shading normal is built as a tuft instead: mostly up, splayed outward from the patch
+	 * centre by this much, which keeps the near-field cards from all shading identically.
+	 *
+	 * Costs nothing — the normals are baked once into the shared patch geometry.
+	 */
+	tuftNormalSplay: 0.35,
 });
 
 function run180GrassRng(seed) {
@@ -241,7 +260,20 @@ function run180GrassGeometry() {
 	geometry.setAttribute('run180Flex', new THREE.Float32BufferAttribute(flex, 1));
 	geometry.setAttribute('run180Phase', new THREE.Float32BufferAttribute(phase, 1));
 	geometry.setIndex(indices);
-	geometry.computeVertexNormals();
+	// Run 429: tuft normals, not quad normals. `computeVertexNormals` would give these vertical cards
+	// horizontal normals and the field would shade as a wall — see `tuftNormalSplay` for the
+	// measurement and the reason. Each vertex leans up, splayed outward from the patch centre.
+	const splay = RUN180_WIND_GRASS_CONFIG.tuftNormalSplay;
+	const normals = new Float32Array(positions.length);
+	for (let v = 0; v < positions.length; v += 3) {
+		const outX = positions[v] * splay;
+		const outZ = positions[v + 2] * splay;
+		const length = Math.hypot(outX, 1, outZ);
+		normals[v] = outX / length;
+		normals[v + 1] = 1 / length;
+		normals[v + 2] = outZ / length;
+	}
+	geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
 	return geometry;
 }
 
@@ -316,7 +348,13 @@ export function createWindGrassRun180({ sampleHeightMeters, seaLevelMeters, seed
 	material.onBeforeCompile = (shader) => {
 		shader.uniforms.uRun180WindTime = { value: 0 };
 		shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nuniform float uRun180WindTime;\nattribute float run180Flex;\nattribute float run180Phase;\nvarying float vRun180GrassVariation;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvec2 run180XZ=instanceMatrix[3].xz;\nfloat run180P=dot(run180XZ,vec2(0.021,0.017))+run180Phase*6.2831853;\nfloat run180Wave=sin(uRun180WindTime*1.05+run180P)+0.35*sin(uRun180WindTime*2.15+run180P*1.73);\ntransformed.xz+=vec2(0.78,0.62)*run180Wave*run180Flex*run180Flex*0.24;\nvRun180GrassVariation=fract(sin(dot(run180XZ,vec2(12.9898,78.233)))*43758.5453);');
-		shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vRun180GrassVariation;').replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb*=mix(0.84,1.10,vRun180GrassVariation);');
+		shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vRun180GrassVariation;').replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb*=mix(0.84,1.10,vRun180GrassVariation);')
+			// Run 429, and the tuft normals are worth nothing without it. The cards are DoubleSide, so
+			// three.js flips the shading normal on whichever side faces away from you — and half the
+			// cards in a crossed pair always do. That flip would point the new up-leaning normal at the
+			// ground and hand back exactly the unlit wall it was built to get rid of. A blade has no
+			// underside that the sky does not reach, same as the river sheet in run 428.
+			.replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\nnormal.y=abs(normal.y);');
 		material.userData.run180Shader = shader;
 	};
 	material.customProgramCacheKey = () => 'run180-wind-grass-v1';
