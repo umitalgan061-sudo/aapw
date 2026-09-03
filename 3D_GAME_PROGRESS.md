@@ -19601,3 +19601,55 @@ Kapılar: `checkSmokeCheckRegistry` (600 satır tavanı dahil), `checkTechnicalD
 
 **Sıradaki ipucu:** `artifacts/world-survey/seat-cersei.png`'te köyün yanında sert kenarlı siyah bir
 dikdörtgen var. Bir sonraki koşunun konusu.
+
+## Tur 432 — Köyün altındaki siyah çubuk: yol da nehirle aynı hatayı yapıyormuş (ADR-0379)
+
+Tur 431'in düzeltilmiş tarama aracıyla alınan ilk kare bir sonraki hatayı doğrudan gösterdi:
+`artifacts/world-survey/seat-cersei.png`'te köyün altında, zeminin üstünde duran, **iki piksel
+yüksekliğinde, dört başı mamur düz, saf siyah bir çubuk.**
+
+**İzolasyon adını verdi.** Aynı kare, sırayla tek bir sistem gizlenerek. Çubuğun üstündeki
+90×13 piksellik alanda:
+
+```
+temel / eteksiz / susuz / nehirsiz / köysüz / gölgesiz   en koyu piksel 1,0 · lum<40 olan 49 piksel
+yolsuz                                                   en koyu piksel 83,3 · lum<40 olan 0 piksel
+```
+
+Tek aday: yol. Başka hiçbir şey onu kımıldatmadı.
+
+**Sebep, üçüncü kez aynı sebep.** Yol şeridi `DoubleSide` ve normalleri neredeyse düz bir şeritten
+`computeVertexNormals` ile geliyor; three.js size sırtını dönen yüzde gölgeleme normalini çeviriyor.
+Sıyırma açısında — ki her sırt çizgisi ve her uzak menzil odur — çevrilmiş normal **yere** bakıyor,
+difüz ışınım sıfıra iniyor ve aydınlık bir toprak yol ışıksız siyah bir fırça darbesi olarak
+çiziliyor. Tur 428 bunu nehirlerde, Tur 429 çimde ölçmüştü; bu üçüncüsü.
+
+**Ortak modül.** Aynı tek satır artık üç yerde tekrarlanmak yerine kendi modülünde:
+`src/3d/world/skyFacingShadingNormal.js` — üç ölçümün üçü de orada yazılı. Yol tarafında
+`buildMesh`'e uygulanıyor, Tur 177 sarmalayıcısına değil: patika katmanı da aynı geometriyi ve aynı
+malzeme ayarlarını kullanıyor, yani aynı hataya sahip, ama o sarmalayıcı yalnızca
+`group.children[0]`'ı görüyor.
+
+**Sonuç (aynı kare, aynı alan):** en koyu piksel **1,0 → 74,7**, lum<40 olan piksel **49 → 0**.
+
+**İkinci açı, `berkalp`:** karedeki 51.891 yol pikselinin **yalnızca 14'ü** 30 parlaklığın altında
+(binde 0,3), medyan 80,7.
+
+**Dosya tavanı.** Düzeltme roads.js'i 591 → 643 satıra çıkarıyordu; ortak modüle taşınınca
+**594** satırda kaldı ve `checkSmokeCheckRegistry` 600 tavanını geçmiyor. `checkRoadVisualContract`'ın
+sabitlediği beş malzeme özelliğinin (type, vertexColors, roughness, metalness, **side**) hiçbiri
+değişmedi — bütün mesele `DoubleSide`'ın kalabilmesiydi.
+
+Kapılar: `checkMedievalRoadSurface`, `checkRoadRibbonGrounding`, `checkRoadCorridorSmoothing`,
+`roadNetworkSafetyCheck`, `checkSmokeCheckRegistry`, `checkServiceWorkerCache`, `checkTechnicalDebt`,
+`game3dSmokeChecksScene` — hepsi PASS. `SHELL_CACHE` v72 → v73, yeni modül kayıtlı.
+
+**Bu turun sebep olmadığı iki kırmızı, dürüstçe.** Değişikliğimi stash'leyip ikisini de bensiz
+koştum, aynı şekilde kırmızılar:
+
+* `checkRoadVisualContract` — `left.y === right.y` iddiası. Tur 406'da zaten yazılmıştı: sözleşme,
+  şeridin iki kenarını ayrı ayrı araziye oturtan kodun kasten yaptığı şeyi yasaklıyor.
+* `checkCanonicalRoadBridgeSceneShadow` — `expected 7 bridges, got 4`. Bu not edilmemişti; buraya
+  yazılıyor ve ayrı bir turun işi olarak duruyor.
+
+**Technical debt.** 0 new.

@@ -34,6 +34,7 @@ import {
 	groundSurfaceGrainNormalChunk,
 	groundSurfaceGrainUniforms,
 } from './groundSurfaceGrain.js';
+import { applySkyFacingShadingNormal, ROAD_SKY_FACING_NORMAL_KEY } from './skyFacingShadingNormal.js';
 
 /** Ribbon width, in meters, for the single road tier this first pass renders — wide enough to read
  * clearly as a real cart road against the terrain at this world's scale (chunks are 500m/edge),
@@ -282,6 +283,8 @@ export function buildRoadNetwork({ seats, sampleHeightMeters }) {
 			vertexColors: true, roughness: 0.95, metalness: 0, side: THREE.DoubleSide,
 			polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8,
 		});
+		// Run 432: both tiers, not just the cart road -- see `world/skyFacingShadingNormal.js`.
+		applySkyFacingShadingNormal(material, ROAD_SKY_FACING_NORMAL_KEY);
 		const mesh = new THREE.Mesh(geometry, material);
 		mesh.name = name;
 		return mesh;

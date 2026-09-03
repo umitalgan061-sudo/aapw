@@ -349,7 +349,7 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run 414 gives the road an actual dirt surface -- broad damp patching, wheel ruts, a drier crown,
 // grit and scattered stones, all procedural because this container has no git-lfs and so no texture
 // file can be committed. A stale shell keeps drawing the flat tan band. v64->v65.
-const SHELL_CACHE = 'westeros-shell-v72';
+const SHELL_CACHE = 'westeros-shell-v73';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -567,6 +567,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/world/riverMouth.js',
     './src/3d/world/riverRibbonPath.js',
     './src/3d/world/riverEdgeAppearance.js',
+    './src/3d/world/skyFacingShadingNormal.js',
     './src/3d/world/rivers.js',
     './src/3d/world/settlements.js',
     './src/3d/world/materials.js',
