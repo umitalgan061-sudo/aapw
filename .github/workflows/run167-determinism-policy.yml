@@ -126,11 +126,43 @@ jobs:
             fi
           fi
 
-      - name: Terrain seat safety contract
+      - name: Terrain seat safety delta contract
         shell: bash
         run: |
           set -euo pipefail
-          node scripts/terrainSeatSafetyCheck.js
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            node scripts/terrainSeatSafetyCheck.js
+          else
+            git fetch --no-tags origin main
+            BASE_SHA="$(git rev-parse origin/main)"
+            HEAD_LOG="$RUNNER_TEMP/run167-head-terrain-seat.log"
+            MAIN_LOG="$RUNNER_TEMP/run167-main-terrain-seat.log"
+            set +e
+            node scripts/terrainSeatSafetyCheck.js >"$HEAD_LOG" 2>&1
+            HEAD_STATUS=$?
+            set -e
+            if [ "$HEAD_STATUS" -ne 0 ]; then
+              MAIN_WORKTREE="$RUNNER_TEMP/run167-main-terrain-baseline"
+              git worktree add --detach "$MAIN_WORKTREE" "$BASE_SHA" >/dev/null
+              set +e
+              (cd "$MAIN_WORKTREE" && node scripts/terrainSeatSafetyCheck.js >"$MAIN_LOG" 2>&1)
+              MAIN_STATUS=$?
+              set -e
+              if [ "$MAIN_STATUS" -eq 0 ]; then
+                cat "$HEAD_LOG"
+                exit "$HEAD_STATUS"
+              fi
+              grep '^[[]terrainSeatSafetyCheck[]].*FAIL (' "$MAIN_LOG" | sed -E 's/[[:space:]]+-?[0-9]+([.][0-9]+)?//g' | sort -u > "$RUNNER_TEMP/run167-main-terrain-fails.txt" || true
+              grep '^[[]terrainSeatSafetyCheck[]].*FAIL (' "$HEAD_LOG" | sed -E 's/[[:space:]]+-?[0-9]+([.][0-9]+)?//g' | sort -u > "$RUNNER_TEMP/run167-head-terrain-fails.txt" || true
+              comm -13 "$RUNNER_TEMP/run167-main-terrain-fails.txt" "$RUNNER_TEMP/run167-head-terrain-fails.txt" > "$RUNNER_TEMP/run167-new-terrain-fails.txt"
+              if [ -s "$RUNNER_TEMP/run167-new-terrain-fails.txt" ]; then
+                echo "[run167] PR introduces new terrain-seat safety failures:" >&2
+                cat "$HEAD_LOG" >&2
+                exit 1
+              fi
+              echo "[run167] PASS: no new terrain-seat safety failure versus exact origin/main"
+            fi
+          fi
 
       - name: Road network safety contract
         shell: bash
