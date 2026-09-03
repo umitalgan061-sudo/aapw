@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-03-v102-distant-lowland-contrast',
+	id: 'geographic-reference-palette-2026-09-03-v103-natural-water-depth-hierarchy',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -59,6 +59,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	dryMineralHighlightSeparationRaised: true,
 	lowlandMaterialReliefRaised: true,
 	distantLowlandContrastRaised: true,
+	naturalWaterDepthHierarchyRaised: true,
+	lakeRiverOpticalSeparationRaised: true,
+	openSeaSlateDepthRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -66,10 +69,10 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v102 follows direct full-resolution inspection of exact-head Full World 3D Topdown #1293 against #1287. v101 made the intended canonical-domain change measurable but broad lowlands still averaged toward grey-olive at aerial distance. v102 therefore deepens damp organic/mafic shadows and gently lifts dry heather/alluvium/sunlit lithology while preserving restrained natural pigments. Domain coverage is unchanged: map.png, terrain height, hydrology, routes, coastline and collider authority remain untouched.',
-		water: 'v102 preserves v101 water coverage and clear-shore/deep-water hierarchy; no bathymetry, shoreline, lake membership or offshore authority changes are introduced.',
-		road: 'v102 preserves established compacted-road, rut, dust and moss-edge bases so route geometry and ownership remain unchanged.',
-		celestial: 'v102 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v103 preserves the v102 lowland material separation calibrated from exact-head Full World 3D Topdown imagery. No terrain domain coverage, map.png interpretation, height, route, coastline or collider authority changes are introduced.',
+		water: 'v103 separates clear shore, enclosed lake, flowing river, deep marine and abyss values inside a restrained slate-teal reference range. This is render-only pigment calibration: canonical coverage, bathymetry, shoreline, lake membership, river centerlines and offshore authority remain unchanged.',
+		road: 'v103 preserves established compacted-road, rut, dust and moss-edge bases so route geometry and ownership remain unchanged.',
+		celestial: 'v103 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
@@ -93,13 +96,13 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		mossEdge: 0x2c5435,
 	}),
 	water: Object.freeze({
-		shoreClear: 0x4f7f88,
-		lakeClear: 0x28677a,
-		riverPool: 0x247182,
-		rapid: 0x88adaf,
-		deepSea: 0x15485f,
-		abyss: 0x0a2c3b,
-		plunge: 0x518996,
+		shoreClear: 0x527a7d,
+		lakeClear: 0x2b6170,
+		riverPool: 0x2c6c77,
+		rapid: 0x8da9a7,
+		deepSea: 0x173f54,
+		abyss: 0x092736,
+		plunge: 0x4e8390,
 		splash: 0xe1eeec,
 		foam: 0xf2f7f4,
 	}),
