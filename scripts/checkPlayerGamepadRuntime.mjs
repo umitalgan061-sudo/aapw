@@ -210,7 +210,8 @@ try {
 	const dodge = await waitHistory('motion', (motion) => motion.state === 'dodge' && motion.dodgeRemaining > 0 && motion.stamina < dodgeBase.stamina, 'B dodge', 5000);
 	need(dodge.speedMps > full.speedMps, `dodge speed ${dodge.speedMps}`);
 	await setPads([{ index: 1 }]);
-	await waitHistory('motion', (motion) => motion.state === 'idle' && motion.dodgeRemaining === 0, 'dodge recovery', 5000);
+	const dodgeRecovered = await waitHistory('motion', (motion) => motion.dodgeRemaining === 0 && motion.isDodgeInvulnerable === false && motion.isGrounded, 'dodge recovery', 5000);
+	need(dodgeRecovered.canDodge === false && dodgeRecovered.dodgeCooldownRemaining > 0, `dodge recovery must preserve authored cooldown ${JSON.stringify(dodgeRecovered)}`);
 
 	await resetMotionHistory();
 	await setPads([{ index: 1, axes: [0, -1, 0, 0], buttons: { 10: true } }]);
