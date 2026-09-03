@@ -79,7 +79,7 @@ async function main() {
 		results.push(await worldEventChecks.checkWorldEvents(browser, baseUrl));
 		results.push(await worldEventChecks.checkWorldEventsTimeGating(browser, baseUrl));
 		results.push(await checks.checkSettlementCollider(committedBrowser, baseUrl));
-		results.push(await checks.checkPlayerCartDynamicCollider(browser, baseUrl));
+		results.push(await checks.checkPlayerCartDynamicCollider(committedBrowser, baseUrl));
 		results.push(await checks.checkJumpArc(committedBrowser, baseUrl));
 		results.push(await checks.checkInteractionController(committedBrowser, baseUrl));
 		results.push(await checks.checkInteractionPromptTap(browser, baseUrl));
