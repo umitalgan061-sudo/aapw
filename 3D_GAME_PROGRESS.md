@@ -19554,3 +19554,50 @@ Kapılar: `checkNamedRivers`, `checkRiverValleyCarving`, `checkRun325RiverFlow`,
 
 **Kalan, dürüstçe:** haliç hâlâ sert kenarlı bir dörtgen olarak okunuyor — şeridin kendi geometrisinin
 kenarı, ayrı bir iş.
+
+## Tur 431 — Kanıtın kendisi yanlıştı: tarama render'ları oyuncunun görmediği araziyi gösteriyordu (ADR-0378)
+
+Tur 430'dan sonra zeminde uzun, paralel, çapraz koyu çizgiler kovalarken kaynağı buldum ve **kaynak
+araziden değil, harness'ten çıktı.**
+
+**Kanıtlanan sıra.** Önce çizgilerin ışıktan gelmediğini gösterdim: aynı kare, güneş tamamen kapalı —
+çizgiler yerinde (yüksek geçiren sd 9,262 → 9,248). Yani albedo'da, yani köşe rengi
+interpolasyonunda. Sonra çizgi aralığının köşe ızgarasıyla eşleştiğini ölçtüm. Ve ızgarayı ölçünce
+sebep ortaya çıktı.
+
+**Masaüstü arazi LOD'u *akış merkezine* bağlı, onu da yalnızca `ChunkManager.streamTowards`
+kımıldatıyor** — canlı oyun her karede oyuncunun konumundan çağırıyor. Kamerayı sadece ışınlayan bir
+harness o merkezi dünya orijininde bırakıyor, dolayısıyla merceğin altındaki her chunk **FAR**
+bandında kalıyor. `ziya` koltuğunda ölçüldü:
+
+```
+streamTowards olmadan   500 m chunk'ta  32 segment = köşeler arası 15,625 m
+streamTowards ile       500 m chunk'ta 128 segment = köşeler arası  3,906 m
+```
+
+**Oyuncunun bastığı her şeyden dört kat kaba.** Bu şekilde alınmış render'lardan çıkarılan arazi
+sonuçları, ekrana hiç ulaşmayan bir geometri hakkındaki sonuçlardır — koca bir hayalet hata sınıfı,
+ve bu koşu daha sebebi bulunmadan bir tane üretmişti bile. Tur 416'nın harness'e özgü şerit-yüzme
+hatasıyla aynı tuzak.
+
+**Düzeltme kalıcı hale getirildi.** Tarama artık scratchpad'de değil, depoda:
+`scripts/captureWorldSurvey.mjs`. Her çekimden **önce** akış merkezini kameraya taşıyor, ve çıktısına
+gerçekten hangi LOD bandını gösterdiğini yazıyor:
+
+```
+[captureWorldSurvey] OK: 6 renders at artifacts/world-survey; finest terrain LOD present 128 segments; 0 unexpected page errors
+```
+
+Doğru bantla bakıldığında zemin bambaşka okunuyor: ince paralel çizikler büyük ölçüde kayboluyor,
+yerlerine yamacı kesen geniş, yumuşak kenarlı bir drenaj çukuru geliyor — yani gerçek arazi.
+
+**Bu koşuda düzeltilen bir hata yok; düzeltilen şey ölçüm aletiydi.** Nehir (428/430) ve çim (429)
+bulguları etkilenmiyor: o sistemler arazi LOD'una bağlı değil ve her biri kendi ölçümüyle doğrulandı.
+
+Kapılar: `checkSmokeCheckRegistry` (600 satır tavanı dahil), `checkTechnicalDebt`,
+`checkServiceWorkerCache`, `roadNetworkSafetyCheck`, `game3dSmokeChecksScene` — hepsi PASS.
+
+**Technical debt.** 0 new. Çalışma zamanı kaynağı değişmedi, SW bump yok.
+
+**Sıradaki ipucu:** `artifacts/world-survey/seat-cersei.png`'te köyün yanında sert kenarlı siyah bir
+dikdörtgen var. Bir sonraki koşunun konusu.
