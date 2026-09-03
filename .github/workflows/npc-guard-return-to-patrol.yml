@@ -21,6 +21,7 @@ on:
       - 'service-worker.js'
       - '.github/workflows/configured-fauna-asset-acceptance.yml'
       - '.github/workflows/npc-asset-spawn-contract.yml'
+      - '.github/workflows/npc-guard-assist-lifecycle.yml'
       - '.github/workflows/npc-guard-lifecycle.yml'
       - '.github/workflows/npc-guard-return-to-patrol.yml'
       - '.github/workflows/npc-geographic-material-placement.yml'
@@ -58,8 +59,8 @@ jobs:
           main_sha="$(git rev-parse origin/main)"
           test "$(git merge-base HEAD origin/main)" = "$main_sha"
           mapfile -t files < <(git diff --name-only origin/main...HEAD)
-          test "${#files[@]}" -le 26
-          allowed='^(src/3d/gameplay/npc\.js|src/3d/gameplay/npcWorldPlacement\.js|scripts/checkNpcAssetSpawnContract\.mjs|scripts/checkNpcGuardLifecycleContract\.mjs|scripts/checkNpcGuardReturnToPatrol\.mjs|scripts/checkNpcPopulationLodRecovery\.mjs|scripts/checkNpcMovementSafetyBrowser\.js|scripts/checkNpcWorldPlacementContract\.mjs|scripts/checkNpcGeographicPlacementDeterminism\.mjs|scripts/checkNpcGeographicDistributionMatrix\.mjs|scripts/checkNpcPlacementFailureSafety\.mjs|scripts/checkNpcConfiguredAssetHydration\.mjs|scripts/checkNpcMaterialRecipeBrowser\.mjs|scripts/checkNpcGeographicMaterialBrowser\.mjs|service-worker\.js|\.github/workflows/configured-fauna-asset-acceptance\.yml|\.github/workflows/npc-asset-spawn-contract\.yml|\.github/workflows/npc-guard-lifecycle\.yml|\.github/workflows/npc-guard-return-to-patrol\.yml|\.github/workflows/npc-geographic-material-placement\.yml|\.github/workflows/npc-movement-safety\.yml|\.github/workflows/npc-hearing-framerate-determinism\.yml|\.github/workflows/npc-perception-input-safety\.yml|\.github/workflows/npc-guard-leash-attack-slot-handoff\.yml|\.github/workflows/run167-determinism-policy\.yml|\.github/workflows/run283-final-head-governance\.yml)$'
+          test "${#files[@]}" -le 27
+          allowed='^(src/3d/gameplay/npc\.js|src/3d/gameplay/npcWorldPlacement\.js|scripts/checkNpcAssetSpawnContract\.mjs|scripts/checkNpcGuardLifecycleContract\.mjs|scripts/checkNpcGuardReturnToPatrol\.mjs|scripts/checkNpcPopulationLodRecovery\.mjs|scripts/checkNpcMovementSafetyBrowser\.js|scripts/checkNpcWorldPlacementContract\.mjs|scripts/checkNpcGeographicPlacementDeterminism\.mjs|scripts/checkNpcGeographicDistributionMatrix\.mjs|scripts/checkNpcPlacementFailureSafety\.mjs|scripts/checkNpcConfiguredAssetHydration\.mjs|scripts/checkNpcMaterialRecipeBrowser\.mjs|scripts/checkNpcGeographicMaterialBrowser\.mjs|service-worker\.js|\.github/workflows/configured-fauna-asset-acceptance\.yml|\.github/workflows/npc-asset-spawn-contract\.yml|\.github/workflows/npc-guard-assist-lifecycle\.yml|\.github/workflows/npc-guard-lifecycle\.yml|\.github/workflows/npc-guard-return-to-patrol\.yml|\.github/workflows/npc-geographic-material-placement\.yml|\.github/workflows/npc-movement-safety\.yml|\.github/workflows/npc-hearing-framerate-determinism\.yml|\.github/workflows/npc-perception-input-safety\.yml|\.github/workflows/npc-guard-leash-attack-slot-handoff\.yml|\.github/workflows/run167-determinism-policy\.yml|\.github/workflows/run283-final-head-governance\.yml)$'
           unexpected="$(printf '%s\n' "${files[@]}" | grep -Ev "$allowed" || true)"
           test -z "$unexpected" || { printf 'Unexpected path(s):\n%s\n' "$unexpected"; exit 1; }
           read -r additions deletions < <(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
