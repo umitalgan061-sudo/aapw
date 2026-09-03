@@ -58,14 +58,15 @@ for (const [speciesId, budget] of Object.entries(expected)) {
   };
 }
 
-// State-machine structure: direct/flock reaction may only launch from grounded; landing is monotonic,
-// returns exactly to ground, recenters the wander envelope at the landing position, and applies the
-// alert gait only while airborne.
-assert.match(source, /if \(currentlyReacting && flightPhase === 'grounded'\) \{\s*flightPhase = 'climbing'/,
-  'startle may launch only from grounded state');
-assert.match(source, /flightElapsedSeconds = 0/, 'each takeoff must reset its bounded flight timer');
-assert.match(source, /flightAltitudeMeters = Math\.max\(0, flightAltitudeMeters - profile\.takeoffClimbMps \* delta\)/,
-  'landing altitude must decrease monotonically toward zero');
+assert.match(source, /if \(flightPhase === 'grounded'\) \{\s*if \(currentlyReacting\) \{/,
+  'startle may attempt takeoff only from grounded state');
+assert.match(source, /if \(tryCommitFlightMove\(nextX, nextZ, nextAltitude\)\) \{\s*flightHeadingX = heading\.x;/,
+  'takeoff state may commit only after its terrain-relative transform is valid');
+assert.match(source, /flightElapsedSeconds = delta;/, 'successful takeoff must start its bounded flight timer from simulation delta');
+assert.match(source, /const nextAltitude = Math\.max\(0, flightAltitudeMeters - profile\.takeoffClimbMps \* delta\)/,
+  'landing altitude candidate must decrease monotonically toward zero');
+assert.match(source, /if \(tryCommitFlightMove\(object3D\.position\.x, object3D\.position\.z, nextAltitude\)\) \{\s*flightAltitudeMeters = nextAltitude;/,
+  'landing altitude may advance only after a valid terrain-relative transform commits');
 assert.match(source, /if \(flightAltitudeMeters <= 0\) \{\s*flightPhase = 'grounded'/,
   'landing must return to grounded rather than leave an airborne latch');
 assert.match(source, /return currentlyReacting \|\| \(isFlightSpecies && flightPhase !== 'grounded'\)/,
@@ -74,35 +75,42 @@ assert.match(source, /wanderCenter\.x = object3D\.position\.x;\s*wanderCenter\.z
   'post-flight wander center must move to the actual landing site');
 assert.match(source, /pickNewWanderTarget\(\);\s*pauseTimer = profile\.wanderPauseSeconds/,
   'landing must re-enter ordinary bounded ground wander');
-assert.match(source, /flightAltitudeMeters = Math\.min\(profile\.flightAltitudeMeters, flightAltitudeMeters \+ profile\.takeoffClimbMps \* delta\)/,
-  'climb must be clamped to the authored altitude ceiling');
-assert.match(source, /else if \(flightElapsedSeconds >= profile\.flightDurationSeconds\) \{\s*flightPhase = 'landing'/,
+assert.match(source, /const nextAltitude = Math\.min\(profile\.flightAltitudeMeters, profile\.takeoffClimbMps \* delta\)/,
+  'first climb candidate must be clamped to the authored altitude ceiling');
+assert.match(source, /nextAltitude = Math\.min\(profile\.flightAltitudeMeters, flightAltitudeMeters \+ profile\.takeoffClimbMps \* delta\)/,
+  'continued climb must stay clamped to the authored altitude ceiling');
+assert.match(source, /else if \(nextElapsedSeconds >= profile\.flightDurationSeconds\) nextPhase = 'landing';/,
   'cruise must terminate on the authored timer');
 assert.match(source, /gaitName: flightPhase === 'grounded' \? plan\.restGait : plan\.alertGait/,
   'ground and airborne gait families must stay distinct');
 
-// Airborne birds intentionally bypass ground/player collision resolution so a raven can clear a wall
-// or roof. Ground wander still resolves X/Z through the canonical player collider. Lock both halves of
-// that contract: removing the ground collider is a regression; adding collider resolution inside the
-// flight branch is also a regression.
-const flightStart = source.indexOf("if (isFlightSpecies) {");
-const groundBranch = source.indexOf("if (currentlyReacting) {", flightStart);
-assert.ok(flightStart >= 0 && groundBranch > flightStart, 'flight branch boundaries must remain discoverable');
-const flightBranch = source.slice(flightStart, groundBranch);
-assert.equal(flightBranch.includes('playerCollider.resolveXZ'), false,
+const flightHelperStart = source.indexOf('function tryCommitFlightMove');
+const flightHelperEnd = source.indexOf('\n\tfunction stepGroundWander', flightHelperStart);
+assert.ok(flightHelperStart >= 0 && flightHelperEnd > flightHelperStart, 'flight movement helper must remain discoverable');
+const flightHelper = source.slice(flightHelperStart, flightHelperEnd);
+assert.equal(flightHelper.includes('playerCollider'), false,
   'airborne flight must not be blocked by ground-player X/Z collision resolution');
-const wanderFunctionStart = source.indexOf('function stepGroundWander');
-const wanderFunctionEnd = source.indexOf('\n\treturn {', wanderFunctionStart);
-const wanderBlock = source.slice(wanderFunctionStart, wanderFunctionEnd);
-assert.match(wanderBlock, /playerCollider\.resolveXZ/, 'ground hopping must keep canonical collision resolution');
-assert.match(wanderBlock, /groundCollider\.getGroundHeight/, 'ground hopping must remain terrain-aligned');
+assert.match(flightHelper, /groundCollider\.getGroundHeight\(candidateX, candidateZ\)/,
+  'airborne flight must remain terrain-relative');
+assert.match(flightHelper, /object3D\.position\.set\(candidateX, candidateY, candidateZ\)/,
+  'airborne transform must publish atomically after terrain validation');
 
-// Determinism policy for bird movement: no executable wall-clock or random source may appear in the
-// brain. Flight is advanced solely by supplied simulation delta and the seeded wander stream.
+const groundedHelperStart = source.indexOf('function tryCommitGroundedMove');
+const groundedHelperEnd = source.indexOf('\n\tfunction tryCommitFlightMove', groundedHelperStart);
+assert.ok(groundedHelperStart >= 0 && groundedHelperEnd > groundedHelperStart, 'ground movement helper must remain discoverable');
+const groundedHelper = source.slice(groundedHelperStart, groundedHelperEnd);
+assert.match(groundedHelper, /playerCollider\.resolveXZ/, 'ground hopping must keep canonical collision resolution');
+assert.match(groundedHelper, /groundCollider\.getGroundHeight/, 'ground hopping must remain terrain-aligned');
+assert.match(groundedHelper, /object3D\.position\.set\(resolvedX, resolvedY, resolvedZ\)/,
+  'grounded movement must publish one complete finite transform');
+
 const executableSource = source.split('\n').filter((line) => !/^\s*(?:\/\/|\*)/.test(line)).join('\n');
 assert.equal(/Math\.random\s*\(/.test(executableSource), false, 'bird brain must not use Math.random');
 assert.equal(/Date\.now\s*\(|performance\.now\s*\(/.test(executableSource), false, 'bird flight must not use wall-clock time');
-assert.match(source, /flightElapsedSeconds \+= delta/, 'flight lifetime must advance through simulation delta');
+assert.match(source, /const nextElapsedSeconds = flightElapsedSeconds \+ delta/,
+  'airborne flight lifetime must derive its next timer solely from simulation delta');
+assert.match(source, /if \(tryCommitFlightMove\(nextX, nextZ, nextAltitude\)\) \{\s*flightElapsedSeconds = nextElapsedSeconds;/,
+  'airborne timer must commit only when the matching transform commits');
 
 console.log('CREATURE_BIRD_FLIGHT_LIFECYCLE_PASS', JSON.stringify({
   ...lifecycle,
@@ -111,5 +119,6 @@ console.log('CREATURE_BIRD_FLIGHT_LIFECYCLE_PASS', JSON.stringify({
   airborneUrgency: true,
   collisionAwareGround: true,
   airborneObstacleClearance: true,
+  atomicTerrainCommit: true,
   deterministicDeltaClock: true,
 }));
