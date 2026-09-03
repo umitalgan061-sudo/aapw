@@ -58,6 +58,9 @@ jobs:
           node scripts/checkNpcGuardAssistLodWakeStress.mjs
           node scripts/checkNpcSimulationLod.mjs
           node scripts/checkSeededRandomPolicy.js
+      - name: Shared PWA and material placement regression gates
+        run: |
+          set -euo pipefail
           node scripts/checkServiceWorkerCache.js
           node scripts/checkSharedMaterialPlacementContract.js
       - name: Install Chromium outside repo
