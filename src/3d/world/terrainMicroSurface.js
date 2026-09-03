@@ -42,6 +42,9 @@ export const TERRAIN_MICRO_SURFACE_POLICY = Object.freeze({
 	aerialLowlandLithologyContrast: true,
 	aerialLowlandChromaRecovery: true,
 	aerialDepositionalDomains: true,
+	lowlandMesoNormalRecovery: true,
+	lowlandGeomorphicRoughness: true,
+	lowlandNormalScaleMeters: Object.freeze([18, 54, 128]),
 	snowScourReadability: true,
 	snowGranularAlbedo: true,
 	snowMicroNormal: true,
@@ -209,7 +212,7 @@ export function getSharedTerrainMicroSurfaceTextures() {
 	return sharedTerrainMicroSurface;
 }
 
-const TERRAIN_PHOTOREAL_SHADER_KEY = 'terrain-photoreal-world-surface-v8-granular-snow';
+const TERRAIN_PHOTOREAL_SHADER_KEY = 'terrain-photoreal-world-surface-v8-granular-snow-lowland-meso';
 const WATER_LEVEL_GLSL = Number(WORLD_DEFAULTS.WATER_LEVEL_METERS).toFixed(3);
 
 function installWorldSpaceColorBreakup(material) {
@@ -492,24 +495,60 @@ diffuseColor.rgb = clamp(diffuseColor.rgb, vec3(0.010), vec3(0.845));`,
 				`#include <roughnessmap_fragment>
 float terrainPhotoWetPolish = terrainPhotoCoastalWet * 0.085 + terrainPhotoTideStain * 0.095
 	+ terrainPhotoCoastalRockWet * 0.055 + terrainPhotoRunnel * 0.10 + terrainPhotoAlluvialWash * 0.055
-	+ terrainPhotoWetSwaleDomain * 0.025;
+	+ terrainPhotoWetSwaleDomain * 0.036;
 float terrainPhotoRockPolish = terrainPhotoRockFace * terrainPhotoMoisture * 0.045;
 float terrainPhotoSaltCrustRoughness = terrainPhotoSaltSpray * 0.065;
+float terrainPhotoLowlandSoilCrust = terrainPhotoAerialLowland
+	* ((terrainPhotoMeso - 0.5) * 0.036 + (terrainPhotoGrain - 0.5) * 0.026
+		+ terrainPhotoAerialHighPass * 0.030);
+float terrainPhotoLowlandDomainRoughness = terrainPhotoDryBenchDomain * (0.040 + terrainPhotoGrain * 0.024)
+	+ terrainPhotoMineralLagDomain * (0.052 + terrainPhotoMeso * 0.025)
+	- terrainPhotoWetSwaleDomain * (0.028 + (1.0 - terrainPhotoDrainage) * 0.018);
 float terrainPhotoGranularRoughness = terrainPhotoScreeBand * 0.055 + terrainPhotoSnowDeposit * 0.025
 	+ terrainPhotoDryShoulder * 0.045 + terrainPhotoSaltCrustRoughness
-	+ terrainPhotoDryBenchDomain * 0.030 + terrainPhotoMineralLagDomain * 0.045;
+	+ terrainPhotoLowlandDomainRoughness + terrainPhotoLowlandSoilCrust;
 float terrainPhotoSnowRoughness = terrainPhotoSnow
 	* ((terrainPhotoSnowFine - 0.5) * 0.085 + (terrainPhotoSnowSastrugi - 0.5) * 0.060);
 roughnessFactor = clamp(
 	roughnessFactor - terrainPhotoWetPolish - terrainPhotoRockPolish + terrainPhotoGranularRoughness
 		+ terrainPhotoSnowRoughness,
-	0.48,
+	0.46,
 	1.0
 );`,
 			);
 		shader.fragmentShader = shader.fragmentShader.replace(
 			'#include <normal_fragment_maps>',
 			`#include <normal_fragment_maps>
+// The lowland albedo domains already describe canonical wet swales, dry benches and mineral lag.
+// Recover lighting-scale relief from those same fields so broad plains no longer read as a painted
+// flat card. These are render-only world-space normal perturbations; no terrain vertex is displaced.
+float terrainPhotoLowlandNormalStep = 8.0;
+vec2 terrainPhotoLowlandFrameEast = terrainPhotoXZ + vec2(terrainPhotoLowlandNormalStep, 0.0);
+vec2 terrainPhotoLowlandFrameWest = terrainPhotoXZ - vec2(terrainPhotoLowlandNormalStep, 0.0);
+vec2 terrainPhotoLowlandFrameNorth = terrainPhotoXZ + vec2(0.0, terrainPhotoLowlandNormalStep);
+vec2 terrainPhotoLowlandFrameSouth = terrainPhotoXZ - vec2(0.0, terrainPhotoLowlandNormalStep);
+float terrainPhotoLowlandEast = terrainPhotoFbm(terrainPhotoLowlandFrameEast / 54.0 + vec2(23.8, 3.6)) * 0.54
+	+ terrainPhotoRidgeNoise(vec2(terrainPhotoLowlandFrameEast.x / 128.0, terrainPhotoLowlandFrameEast.y / 36.0) + vec2(-6.2, 14.1)) * 0.31
+	+ terrainPhotoNoise(terrainPhotoLowlandFrameEast / 18.0 + vec2(5.4, -18.2)) * 0.15;
+float terrainPhotoLowlandWest = terrainPhotoFbm(terrainPhotoLowlandFrameWest / 54.0 + vec2(23.8, 3.6)) * 0.54
+	+ terrainPhotoRidgeNoise(vec2(terrainPhotoLowlandFrameWest.x / 128.0, terrainPhotoLowlandFrameWest.y / 36.0) + vec2(-6.2, 14.1)) * 0.31
+	+ terrainPhotoNoise(terrainPhotoLowlandFrameWest / 18.0 + vec2(5.4, -18.2)) * 0.15;
+float terrainPhotoLowlandNorth = terrainPhotoFbm(terrainPhotoLowlandFrameNorth / 54.0 + vec2(23.8, 3.6)) * 0.54
+	+ terrainPhotoRidgeNoise(vec2(terrainPhotoLowlandFrameNorth.x / 128.0, terrainPhotoLowlandFrameNorth.y / 36.0) + vec2(-6.2, 14.1)) * 0.31
+	+ terrainPhotoNoise(terrainPhotoLowlandFrameNorth / 18.0 + vec2(5.4, -18.2)) * 0.15;
+float terrainPhotoLowlandSouth = terrainPhotoFbm(terrainPhotoLowlandFrameSouth / 54.0 + vec2(23.8, 3.6)) * 0.54
+	+ terrainPhotoRidgeNoise(vec2(terrainPhotoLowlandFrameSouth.x / 128.0, terrainPhotoLowlandFrameSouth.y / 36.0) + vec2(-6.2, 14.1)) * 0.31
+	+ terrainPhotoNoise(terrainPhotoLowlandFrameSouth / 18.0 + vec2(5.4, -18.2)) * 0.15;
+vec2 terrainPhotoLowlandGradient = vec2(
+	terrainPhotoLowlandEast - terrainPhotoLowlandWest,
+	terrainPhotoLowlandNorth - terrainPhotoLowlandSouth
+);
+float terrainPhotoLowlandNormalMask = terrainPhotoAerialLowland
+	* clamp(0.32 + terrainPhotoDryBenchDomain * 0.34 + terrainPhotoMineralLagDomain * 0.42
+		+ terrainPhotoWetSwaleDomain * 0.18, 0.0, 1.0);
+vec3 terrainPhotoLowlandWorldPerturbation = vec3(-terrainPhotoLowlandGradient.x, 0.0, -terrainPhotoLowlandGradient.y);
+normal = normalize(normal + mat3(viewMatrix) * terrainPhotoLowlandWorldPerturbation * terrainPhotoLowlandNormalMask * 0.24);
+
 float terrainPhotoSnowNormalStep = 0.52;
 float terrainPhotoSnowFineEast = terrainPhotoNoise((terrainPhotoXZ + vec2(terrainPhotoSnowNormalStep, 0.0)) / 2.6 + vec2(37.4, -12.8));
 float terrainPhotoSnowFineWest = terrainPhotoNoise((terrainPhotoXZ - vec2(terrainPhotoSnowNormalStep, 0.0)) / 2.6 + vec2(37.4, -12.8));
@@ -553,6 +592,9 @@ export function applyTerrainMicroSurface(material) {
 		aerialLowlandLithologyContrast: true,
 		aerialLowlandChromaRecovery: true,
 		aerialDepositionalDomains: true,
+		lowlandMesoNormalRecovery: true,
+		lowlandGeomorphicRoughness: true,
+		lowlandNormalScaleMeters: TERRAIN_MICRO_SURFACE_POLICY.lowlandNormalScaleMeters,
 		snowScourReadability: true,
 		snowGranularAlbedo: true,
 		snowMicroNormal: true,
