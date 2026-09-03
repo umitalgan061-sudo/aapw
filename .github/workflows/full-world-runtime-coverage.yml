@@ -126,10 +126,15 @@ jobs:
           test "$(stat -c %s assets/models/fbx/rocky_terrain_low_poly.glb)" -eq 5708516
           test "$(stat -c %s assets/models/fbx/desert_rocks.glb)" -eq 12773288
       - name: Browser render physics parity
+        id: browser_render_parity
+        continue-on-error: true
         run: |
           set -euo pipefail
           NODE_PATH="$NODE_PATH" node scripts/checkFullWorldRuntimeBrowser.mjs
       - name: Runtime terrain road and mobile safety
+        id: runtime_world_safety
+        if: always()
+        continue-on-error: true
         run: |
           set -euo pipefail
           NODE_PATH="$NODE_PATH" node scripts/checkMobilePerfBudget.js
@@ -137,6 +142,9 @@ jobs:
           NODE_PATH="$NODE_PATH" node scripts/roadNetworkSafetyCheck.js
           NODE_PATH="$NODE_PATH" node scripts/smokeTestGame3D.js
       - name: PWA technical-debt and external shell safety
+        id: pwa_world_safety
+        if: always()
+        continue-on-error: true
         run: |
           set -euo pipefail
           node scripts/checkPwaInstallability.js
@@ -150,10 +158,27 @@ jobs:
           MAIN="$(git rev-parse origin/main)"
           test "$(git merge-base HEAD origin/main)" = "$MAIN"
           git diff --check origin/main...HEAD
-      - name: Enforce full-world static contracts
+      - name: Enforce full-world qualification
         if: always()
         env:
           STATIC_WORLD_CONTRACTS: ${{ steps.static_world_contracts.outcome }}
+          BROWSER_RENDER_PARITY: ${{ steps.browser_render_parity.outcome }}
+          RUNTIME_WORLD_SAFETY: ${{ steps.runtime_world_safety.outcome }}
+          PWA_WORLD_SAFETY: ${{ steps.pwa_world_safety.outcome }}
         run: |
+          set -euo pipefail
           echo "static_world_contracts=$STATIC_WORLD_CONTRACTS"
-          test "$STATIC_WORLD_CONTRACTS" = success
+          echo "browser_render_parity=$BROWSER_RENDER_PARITY"
+          echo "runtime_world_safety=$RUNTIME_WORLD_SAFETY"
+          echo "pwa_world_safety=$PWA_WORLD_SAFETY"
+          failures=0
+          for outcome in \
+            "$STATIC_WORLD_CONTRACTS" \
+            "$BROWSER_RENDER_PARITY" \
+            "$RUNTIME_WORLD_SAFETY" \
+            "$PWA_WORLD_SAFETY"; do
+            if [ "$outcome" != success ]; then
+              failures=$((failures + 1))
+            fi
+          done
+          test "$failures" -eq 0
