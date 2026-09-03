@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-03-v105-medieval-road-material-hierarchy',
+	id: 'geographic-reference-palette-2026-09-03-v106-road-river-material-hierarchy',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -66,6 +66,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	roadMaterialHierarchyRaised: true,
 	roadDustOrangeCastReduced: true,
 	roadStoneRutSeparationRaised: true,
+	riverReachValueSeparationRaised: true,
+	waterfallAerationContrastRaised: true,
+	plungePoolDepthRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -73,10 +76,10 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v105 preserves the v102 lowland material separation calibrated from exact-head Full World 3D Topdown imagery. No terrain domain coverage, map.png interpretation, height, route, coastline or collider authority changes are introduced.',
-		water: 'v105 preserves the v104 aerial lake/river/sea hierarchy and all existing world-space roughness, current and shelf shader breakup; canonical hydrology authority remains unchanged.',
-		road: 'v105 recalibrates only render pigments from the existing dirt-road and road-terrain references: compacted earth is less orange, wheel-rut shadow is warmer/denser, dust is lower-chroma and embedded stone is more neutral. Route topology, ribbon width, terrain sampling and water exclusion are unchanged.',
-		celestial: 'v105 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v106 preserves the v102 lowland material separation calibrated from exact-head Full World 3D Topdown imagery. No terrain domain coverage, map.png interpretation, height, route, coastline or collider authority changes are introduced.',
+		water: 'v106 preserves the v104 lake/sea hierarchy while separating calm river pools, aerated rapid reaches and waterfall plunge/splash values. It changes render pigments only; traced river paths, waterfall detection, depth/coverage textures and canonical hydrology authority are unchanged.',
+		road: 'v106 preserves v105 road calibration: compacted earth is less orange, wheel-rut shadow is denser, dust is lower-chroma and embedded stone is more neutral. Route topology, ribbon width, terrain sampling and water exclusion are unchanged.',
+		celestial: 'v106 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
@@ -102,12 +105,12 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	water: Object.freeze({
 		shoreClear: 0x5a8382,
 		lakeClear: 0x356b78,
-		riverPool: 0x357681,
-		rapid: 0x91aca9,
+		riverPool: 0x2f6570,
+		rapid: 0x7f9da0,
 		deepSea: 0x13384c,
 		abyss: 0x071f2d,
-		plunge: 0x548b96,
-		splash: 0xe1eeec,
+		plunge: 0x467a89,
+		splash: 0xdbe9e6,
 		foam: 0xf2f7f4,
 	}),
 	celestial: Object.freeze({
