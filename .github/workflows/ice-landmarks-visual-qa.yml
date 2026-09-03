@@ -8,6 +8,7 @@ on:
       - 'src/3d/world/iceLandmarks.js'
       - 'src/3d/world/iceLandmarkRealism.js'
       - 'src/3d/world/iceLandmarkGeometryBreakup.js'
+      - 'src/3d/world/iceLandmarkPresentationNaturalization.js'
       - 'src/3d/world/worldReferenceMap.js'
       - 'src/3d/world/terrain.js'
       - 'src/3d/world/terrainBiomeShading.js'
@@ -16,6 +17,7 @@ on:
       - 'src/3d/physics.js'
       - 'ice-landmarks-visual-qa.html'
       - 'scripts/checkIceLandmarks.mjs'
+      - 'scripts/checkIceLandmarkGeometryBreakup.mjs'
       - 'scripts/checkIceLandmarksVisualQa.js'
       - 'scripts/devServerHelper.js'
       - 'scripts/setupNodeThreeShim.mjs'
@@ -48,12 +50,15 @@ jobs:
           node --check src/3d/world/iceLandmarks.js
           node --check src/3d/world/iceLandmarkRealism.js
           node --check src/3d/world/iceLandmarkGeometryBreakup.js
+          node --check src/3d/world/iceLandmarkPresentationNaturalization.js
           node --check src/3d/world/worldReferenceMap.js
           node --check src/3d/sceneManager.js
           node --check src/3d/game3d.js
           node --check scripts/checkIceLandmarks.mjs
+          node --check scripts/checkIceLandmarkGeometryBreakup.mjs
           node --check scripts/checkIceLandmarksVisualQa.js
           node scripts/checkIceLandmarks.mjs
+          node scripts/checkIceLandmarkGeometryBreakup.mjs
           test -s map.png/map.png
           test -s ice-landmarks-visual-qa.html
 
