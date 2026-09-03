@@ -125,16 +125,19 @@ jobs:
           test "$(stat -c %s assets/models/vegetation/pine_Zt62gceKXZ.glb)" -eq 2219996
           test "$(stat -c %s assets/models/vegetation/winter_tree.glb)" -eq 2008660
           test "$(stat -c %s assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb)" -eq 659652
-      - name: Settlement road PWA mobile and browser safety
+      - name: Runtime terrain road and mobile safety
         run: |
           set -euo pipefail
+          NODE_PATH="$NODE_PATH" node scripts/checkMobilePerfBudget.js
           NODE_PATH="$NODE_PATH" node scripts/terrainSeatSafetyCheck.js
           NODE_PATH="$NODE_PATH" node scripts/roadNetworkSafetyCheck.js
-          node scripts/checkPwaInstallability.js
-          node scripts/checkServiceWorkerCache.js
-          node scripts/checkTechnicalDebt.js
-          NODE_PATH="$NODE_PATH" node scripts/checkMobilePerfBudget.js
           NODE_PATH="$NODE_PATH" node scripts/smokeTestGame3D.js
+      - name: PWA technical-debt and external shell safety
+        run: |
+          set -euo pipefail
+          node scripts/checkPwaInstallability.js
+          node scripts/checkTechnicalDebt.js
+          node scripts/checkServiceWorkerCache.js
       - name: Final exact-main freshness
         run: |
           set -euo pipefail
