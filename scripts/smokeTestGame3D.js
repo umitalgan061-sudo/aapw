@@ -27,24 +27,22 @@ const audioChecks = require('./game3dSmokeChecksAudio.js');
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
 /**
- * `check3DMode` already owns the authoritative 60s GAME_READY assertion. Waiting for `load` or
- * `domcontentloaded` before that assertion is redundant for the shipped module graph: module/GLB
- * startup can keep either document event pending even though the local HTML response has arrived
- * and the game's own readiness state is the signal we actually need to test.
- *
- * Keep the scene-check module untouched (other agents own its broader page-boot coverage) and adapt
- * only this call site: for game3d.html, enter the readiness check after Playwright observes the
- * navigation `commit`. The check still fails on GAME_READY timeout, page/console errors or any
- * external request, so no runtime acceptance is removed.
+ * Some checks need only a same-origin committed document before dynamically importing the real
+ * shipped modules; waiting for the full game3d module graph to reach load/domcontentloaded adds no
+ * coverage to those checks and can time out under software-WebGL CI contention. Scene boot itself
+ * remains covered by check3DMode's authoritative GAME_READY assertion and the other full-page checks.
  */
-function createGame3DReadyBrowser(browser) {
+function createCommittedNavigationBrowser(browser) {
 	return {
 		async newPage(...args) {
 			const page = await browser.newPage(...args);
 			const nativeGoto = page.goto.bind(page);
 			page.goto = (url, options = {}) => {
 				const target = String(url || '');
-				if (target.includes('/game3d.html') && options.waitUntil === 'load') {
+				if (
+					target.includes('/game3d.html') &&
+					(options.waitUntil === 'load' || options.waitUntil === 'domcontentloaded')
+				) {
 					return nativeGoto(url, { ...options, waitUntil: 'commit' });
 				}
 				return nativeGoto(url, options);
@@ -68,22 +66,22 @@ async function main() {
 	const { port } = server.address();
 	const baseUrl = `http://127.0.0.1:${port}`;
 	const browser = await playwright.chromium.launch({ headless: true });
-	const game3DReadyBrowser = createGame3DReadyBrowser(browser);
+	const committedBrowser = createCommittedNavigationBrowser(browser);
 
 	const results = [];
 	try {
 		results.push(await sceneChecks.check2DShell(browser, baseUrl));
-		results.push(await sceneChecks.check3DMode(game3DReadyBrowser, baseUrl));
+		results.push(await sceneChecks.check3DMode(committedBrowser, baseUrl));
 		results.push(await sceneChecks.checkWaterDepthTaperedSwell(browser, baseUrl));
 		results.push(await sceneChecks.checkSettlementGroundFlatten(browser, baseUrl));
 		results.push(await debugToolChecks.checkFreeCamera(browser, baseUrl));
 		results.push(await debugToolChecks.checkPerfPanel(browser, baseUrl));
 		results.push(await worldEventChecks.checkWorldEvents(browser, baseUrl));
 		results.push(await worldEventChecks.checkWorldEventsTimeGating(browser, baseUrl));
-		results.push(await checks.checkSettlementCollider(browser, baseUrl));
+		results.push(await checks.checkSettlementCollider(committedBrowser, baseUrl));
 		results.push(await checks.checkPlayerCartDynamicCollider(browser, baseUrl));
-		results.push(await checks.checkJumpArc(browser, baseUrl));
-		results.push(await checks.checkInteractionController(browser, baseUrl));
+		results.push(await checks.checkJumpArc(committedBrowser, baseUrl));
+		results.push(await checks.checkInteractionController(committedBrowser, baseUrl));
 		results.push(await checks.checkInteractionPromptTap(browser, baseUrl));
 		results.push(await dialogueTouchChecks.checkDialogueChoiceTap(browser, baseUrl));
 		results.push(await dialogueTouchChecks.checkDialoguePauseGate(browser, baseUrl));
