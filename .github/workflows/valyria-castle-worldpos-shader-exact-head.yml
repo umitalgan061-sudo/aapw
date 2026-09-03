@@ -94,7 +94,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node scripts/checkMobilePerfBudget.js
+          mkdir -p artifacts/valyria-mobile-perf
+          set +e
+          node scripts/checkMobilePerfBudget.js 2>&1 | tee artifacts/valyria-mobile-perf/mobile-perf.log
+          status=${PIPESTATUS[0]}
+          set -e
+          printf '%s\n' "$status" > artifacts/valyria-mobile-perf/exit-code.txt
+          exit "$status"
+
+      - name: Upload mobile performance RCA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: valyria-mobile-perf-${{ github.event.pull_request.head.sha }}
+          path: artifacts/valyria-mobile-perf/
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Final exact-main freshness
         if: always()
