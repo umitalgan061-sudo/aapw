@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-03-v101-lowland-material-relief',
+	id: 'geographic-reference-palette-2026-09-03-v102-distant-lowland-contrast',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -58,6 +58,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	wetVegetationShadowDepthRaised: true,
 	dryMineralHighlightSeparationRaised: true,
 	lowlandMaterialReliefRaised: true,
+	distantLowlandContrastRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -65,23 +66,23 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v101 follows direct A/B inspection of exact-head Full World 3D Topdown #1287 and #1291. The new lowland meso normal/roughness is physically present but too subtle at full-world distance, so v101 keeps natural pigments while slightly separating damp organic ground from dry heather/alluvium and weathered lithology. This strengthens the same canonical lowland domains without changing their coverage. map.png, terrain height, hydrology, routes, coastline and collider authority remain untouched.',
-		water: 'v101 preserves v100 water coverage and clear-shore/deep-water hierarchy; no bathymetry, shoreline, lake membership or offshore authority changes are introduced.',
-		road: 'v101 preserves established compacted-road, rut, dust and moss-edge bases so route geometry and ownership remain unchanged.',
-		celestial: 'v101 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v102 follows direct full-resolution inspection of exact-head Full World 3D Topdown #1293 against #1287. v101 made the intended canonical-domain change measurable but broad lowlands still averaged toward grey-olive at aerial distance. v102 therefore deepens damp organic/mafic shadows and gently lifts dry heather/alluvium/sunlit lithology while preserving restrained natural pigments. Domain coverage is unchanged: map.png, terrain height, hydrology, routes, coastline and collider authority remain untouched.',
+		water: 'v102 preserves v101 water coverage and clear-shore/deep-water hierarchy; no bathymetry, shoreline, lake membership or offshore authority changes are introduced.',
+		road: 'v102 preserves established compacted-road, rut, dust and moss-edge bases so route geometry and ownership remain unchanged.',
+		celestial: 'v102 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x163522,
-		meadow: 0x4d7a42,
-		dryHeather: 0x7b5d43,
-		wetEarth: 0x1d3028,
-		exposedEarth: 0xa17a59,
-		graniteShadow: 0x49585d,
-		graniteSunlit: 0xb1a58f,
-		basaltWet: 0x18282d,
+		mossShadow: 0x102b1d,
+		meadow: 0x517f45,
+		dryHeather: 0x856646,
+		wetEarth: 0x182721,
+		exposedEarth: 0xaa805d,
+		graniteShadow: 0x45545a,
+		graniteSunlit: 0xb6aa93,
+		basaltWet: 0x13242a,
 		quartz: 0xd2cec6,
 	}),
 	road: Object.freeze({
