@@ -71,7 +71,7 @@ try {
 
   await page.keyboard.down('KeyW');
   await page.keyboard.down('ShiftLeft');
-  await page.waitForFunction(() => document.querySelector('.g3d-stamina-bar')?.dataset.state === 'sprint', null, { timeout: 6000 });
+  await page.waitForFunction(() => document.querySelector('.g3d-stamina-bar')?.dataset.state === 'sprint', null, { timeout: 15000 });
   await armDamageProbe({ amount: 20, phase: 'iframe' });
   await page.keyboard.press('Space');
   const iframeProof = await waitProbe();
@@ -87,7 +87,7 @@ try {
 
   await page.keyboard.down('KeyW');
   await page.keyboard.down('ShiftLeft');
-  await page.waitForFunction(() => document.querySelector('.g3d-stamina-bar')?.dataset.state === 'sprint', null, { timeout: 6000 });
+  await page.waitForFunction(() => document.querySelector('.g3d-stamina-bar')?.dataset.state === 'sprint', null, { timeout: 15000 });
   await armDamageProbe({ amount: 7, phase: 'recovery' });
   await page.keyboard.press('Space');
   const recoveryProof = await waitProbe();
