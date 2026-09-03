@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-03-v108-water-optical-depth-hierarchy',
+	id: 'geographic-reference-palette-2026-09-03-v109-aerial-water-fabric-readability',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -76,6 +76,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	lakeMarineHueDecorrelationRaised: true,
 	riverPoolRapidEnergySeparationRaised: true,
 	waterfallPlungeFoamValueRangeRaised: true,
+	aerialOpenWaterMidtoneRaised: true,
+	openWaterFabricVisibilityRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -83,10 +85,10 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v108 preserves the v107 full-world terrain hierarchy. No terrain height, map.png interpretation, coastline, route or collider authority is changed.',
-		water: 'v108 recalibrates only render pigments consumed by the existing world-space water, river and waterfall materials. Clear shelves move toward sediment-filtered green-grey, enclosed lakes stay cooler and darker than shelves, boundary-connected open sea remains slate-blue, abyssal water separates in value without black crush, calm river pools separate from aerated rapids, and waterfall plunge/splash values widen. Existing depth, coverage, offshore masks, current shear, micro-normal and roughness breakup remain authoritative.',
-		road: 'v108 preserves v105/v106 road calibration. Route topology, ribbon width, terrain sampling and water exclusion are unchanged.',
-		celestial: 'v108 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v109 preserves the v107 full-world terrain hierarchy. No terrain height, map.png interpretation, coastline, route or collider authority is changed.',
+		water: 'v109 follows direct inspection of exact-head Full World #1307: the v108 hierarchy was measurable, but the north open sea still read too dark and optically calm at aerial distance. The boundary-connected deep-sea midtone is therefore lifted slightly while abyssal water remains dark, exposing more of the existing deterministic macro/meso/current-shear albedo and roughness breakup without changing depth, coverage, offshore masks, normals, geometry or hydrology.',
+		road: 'v109 preserves v105/v106 road calibration. Route topology, ribbon width, terrain sampling and water exclusion are unchanged.',
+		celestial: 'v109 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
@@ -111,10 +113,10 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	}),
 	water: Object.freeze({
 		shoreClear: 0x628c87,
-		lakeClear: 0x315f70,
+		lakeClear: 0x326474,
 		riverPool: 0x28565f,
 		rapid: 0x88a4a5,
-		deepSea: 0x103247,
+		deepSea: 0x173d52,
 		abyss: 0x061b29,
 		plunge: 0x3b6d7d,
 		splash: 0xdfece8,
