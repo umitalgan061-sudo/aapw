@@ -83,8 +83,8 @@ async function main() {
 		results.push(await checks.checkJumpArc(committedBrowser, baseUrl));
 		results.push(await checks.checkInteractionController(committedBrowser, baseUrl));
 		results.push(await checks.checkInteractionPromptTap(committedBrowser, baseUrl));
-		results.push(await dialogueTouchChecks.checkDialogueChoiceTap(browser, baseUrl));
-		results.push(await dialogueTouchChecks.checkDialoguePauseGate(browser, baseUrl));
+		results.push(await dialogueTouchChecks.checkDialogueChoiceTap(committedBrowser, baseUrl));
+		results.push(await dialogueTouchChecks.checkDialoguePauseGate(committedBrowser, baseUrl));
 		results.push(await controlsHelpChecks.checkControlsHelp(browser, baseUrl));
 		results.push(await settlementCompassChecks.checkSettlementCompass(browser, baseUrl));
 		results.push(await settlementDiscoveryChecks.checkSettlementDiscovery(browser, baseUrl));
