@@ -19,8 +19,7 @@ function extractProfileBlock(region) {
 	const marker = `${region}: architectureProfile({`;
 	const start = villages.indexOf(marker);
 	assert(start >= 0, `missing ${region} architecture profile`);
-	const nextProfile = villages.indexOf('\n\t', start + marker.length);
-	const close = villages.indexOf('}),', nextProfile);
+	const close = villages.indexOf('}),', start + marker.length);
 	assert(close > start, `cannot parse ${region} architecture profile`);
 	return villages.slice(start, close + 3);
 }
@@ -99,16 +98,16 @@ for (const region of regions) {
 	assert(colorDistance(profile.wallHex, profile.roofHex) >= 35, `${region}: procedural wall/roof colors are too similar; silhouette reads as one material`);
 }
 
-assert.deepEqual(profiles.north.layers.map((layer) => layer.palette), ['stone', 'wood', 'roof-tile'], 'north must read as stone foundation + timber + hard roof');
-assert(profiles.fertile.layers.some((layer) => layer.palette === 'plaster'), 'fertile settlements need plaster body surfaces');
-assert(profiles.fertile.layers.some((layer) => layer.palette === 'thatch'), 'fertile settlements need agricultural thatch roof language');
-assert(profiles.maritime.layers.some((layer) => layer.palette === 'rock'), 'maritime settlements need weathered rock foundation language');
-assert(profiles.arid.layers.some((layer) => layer.palette === 'plaster'), 'arid settlements need pale plaster body language');
-assert(profiles.mountain.layers.some((layer) => layer.palette === 'rock'), 'mountain settlements need rock foundation language');
-assert(profiles.mountain.layers.some((layer) => layer.palette === 'brick'), 'mountain settlements need masonry body language');
-assert(profiles.temperate.layers.some((layer) => layer.palette === 'thatch'), 'temperate rural settlements need thatch roof language');
-assert(profiles.volcanic.layers.some((layer) => layer.palette === 'iron'), 'volcanic settlements need dark metal structural accents');
-assert(profiles.volcanic.layers.some((layer) => layer.palette === 'rock'), 'volcanic settlements need rock foundation language');
+assert.deepEqual(profiles.north.layers.map((layer) => layer.palette), ['stone', 'wood', 'roof-tile']);
+assert(profiles.fertile.layers.some((layer) => layer.palette === 'plaster'));
+assert(profiles.fertile.layers.some((layer) => layer.palette === 'thatch'));
+assert(profiles.maritime.layers.some((layer) => layer.palette === 'rock'));
+assert(profiles.arid.layers.some((layer) => layer.palette === 'plaster'));
+assert(profiles.mountain.layers.some((layer) => layer.palette === 'rock'));
+assert(profiles.mountain.layers.some((layer) => layer.palette === 'brick'));
+assert(profiles.temperate.layers.some((layer) => layer.palette === 'thatch'));
+assert(profiles.volcanic.layers.some((layer) => layer.palette === 'iron'));
+assert(profiles.volcanic.layers.some((layer) => layer.palette === 'rock'));
 
 const primaryCounts = new Map();
 const secondaryCounts = new Map();
@@ -119,30 +118,31 @@ for (const region of regions) {
 assert(Math.max(...primaryCounts.values()) <= 1, 'one primary prefab must not dominate multiple geographic regions');
 assert(Math.max(...secondaryCounts.values()) <= 2, 'secondary silhouette reuse must remain bounded');
 
-const seatRegionPairs = [...villages.matchAll(/([A-Za-z' ]+):\s*'(north|fertile|maritime|arid|mountain|temperate|volcanic)'/g)]
-	.map((match) => ({ seat: match[1].trim().replace(/^'|'$/g, ''), region: match[2] }));
-const seatMap = new Map(seatRegionPairs.map((entry) => [entry.seat, entry.region]));
-for (const seat of ['berkalp', 'jon', 'Night King']) assert.equal(seatMap.get(seat), 'north', `${seat}: northern geography drift`);
-for (const seat of ['ziya', 'berk', 'olena']) assert.equal(seatMap.get(seat), 'fertile', `${seat}: fertile geography drift`);
-for (const seat of ['balon', 'stannis']) assert.equal(seatMap.get(seat), 'maritime', `${seat}: maritime geography drift`);
-for (const seat of ['doran', 'Xaro']) assert.equal(seatMap.get(seat), 'arid', `${seat}: arid geography drift`);
-assert.equal(seatMap.get('robin'), 'mountain', 'robin: mountain geography drift');
-for (const seat of ['twin', 'cersei']) assert.equal(seatMap.get(seat), 'temperate', `${seat}: temperate geography drift`);
-assert.equal(seatMap.get('umit'), 'volcanic', 'umit: volcanic geography drift');
+const seatMapBlock = villages.slice(villages.indexOf('const SEAT_ARCHITECTURE_REGION'), villages.indexOf('export function resolveVillageArchitectureProfile'));
+for (const [seat, region] of [
+	['berkalp', 'north'], ['jon', 'north'], ['Night King', 'north'],
+	['ziya', 'fertile'], ['berk', 'fertile'], ['olena', 'fertile'],
+	['balon', 'maritime'], ['stannis', 'maritime'],
+	['doran', 'arid'], ['Xaro', 'arid'], ['robin', 'mountain'],
+	['twin', 'temperate'], ['cersei', 'temperate'], ['umit', 'volcanic'],
+]) {
+	const quotedSeat = seat.includes(' ') ? `'${seat}'` : seat;
+	assert(seatMapBlock.includes(`${quotedSeat}: '${region}'`), `${seat}: geography mapping drifted from ${region}`);
+}
 
-assert(villages.includes('MAX_ARCHITECTURE_ASSETS_PER_HAMLET = 2'), 'real asset count per hamlet must remain bounded');
-assert(villages.includes('MIN_ARCHITECTURE_ASSET_SPACING_METERS = 22'), 'real silhouettes must remain spatially separated');
-assert(villages.includes('Math.hypot(valid[j].x - valid[i].x, valid[j].z - valid[i].z)'), 'landmark distribution must measure real world-space distance');
-assert(villages.includes('valid[i].houseIndex < best.first.houseIndex'), 'equal-distance landmark selection must keep deterministic tie-breaking');
-assert(villages.includes('targetWidthMeters: type.width'), 'replacement GLBs must inherit authored procedural parcel width');
-assert(villages.includes('targetDepthMeters: type.depth'), 'replacement GLBs must inherit authored procedural parcel depth');
-assert(villages.includes('Math.min(targetWidth / sourceWidth, targetDepth / sourceDepth)'), 'GLBs must fit both parcel axes without stretching');
-assert(villages.includes('sampleFootprintRange(sampleHeightMeters'), 'procedural buildings must sample full rotated footprints');
-assert(villages.includes('support.min - GROUND_EMBED_EPSILON_METERS'), 'procedural buildings must embed low side into terrain');
-assert(villages.includes('support.max - support.min'), 'procedural foundations must absorb terrain relief rather than float');
-assert(villages.includes('roadDistanceMeters(x, z, roadEdges)'), 'shared placement surface query must preserve road-distance context');
-assert(villages.includes('waterDepth: Math.max(0, seaLevelMeters - height)'), 'shared placement surface query must preserve water context');
-assert(villages.includes('slopeDegrees: Math.atan(Math.hypot(dx, dz))'), 'shared placement surface query must preserve slope context');
+assert(villages.includes('MAX_ARCHITECTURE_ASSETS_PER_HAMLET = 2'));
+assert(villages.includes('MIN_ARCHITECTURE_ASSET_SPACING_METERS = 22'));
+assert(villages.includes('Math.hypot(valid[j].x - valid[i].x, valid[j].z - valid[i].z)'));
+assert(villages.includes('valid[i].houseIndex < best.first.houseIndex'));
+assert(villages.includes('targetWidthMeters: type.width'));
+assert(villages.includes('targetDepthMeters: type.depth'));
+assert(villages.includes('Math.min(targetWidth / sourceWidth, targetDepth / sourceDepth)'));
+assert(villages.includes('sampleFootprintRange(sampleHeightMeters'));
+assert(villages.includes('support.min - GROUND_EMBED_EPSILON_METERS'));
+assert(villages.includes('support.max - support.min'));
+assert(villages.includes('roadDistanceMeters(x, z, roadEdges)'));
+assert(villages.includes('waterDepth: Math.max(0, seaLevelMeters - height)'));
+assert(villages.includes('slopeDegrees: Math.atan(Math.hypot(dx, dz))'));
 
 for (const semantic of ['structure-window', 'structure-door', 'structure-timber', 'structure-metal', 'structure-thatch', 'structure-roof', 'structure-stone', 'structure-brick', 'structure-plaster']) {
 	assert(villages.includes(`slot === '${semantic}'`), `missing village material routing for ${semantic}`);
@@ -150,27 +150,28 @@ for (const semantic of ['structure-window', 'structure-door', 'structure-timber'
 for (const token of ['window', 'door', 'timber', 'roof', 'stone', 'brick', 'plaster']) {
 	assert(classifier.toLowerCase().includes(token), `mesh classifier lacks architecture semantic token: ${token}`);
 }
-assert(villages.includes("if (slot === 'structure-window') return 'glass'"), 'windows must remain a distinct glass surface');
-assert(villages.includes("if (slot === 'structure-door' || slot === 'structure-timber') return 'wood'"), 'doors/timbers must remain wood surfaces');
-assert(villages.includes("if (slot === 'structure-metal') return 'iron'"), 'metal trim must remain distinct from wall/roof material');
-assert(villages.includes("mode: 'surface'"), 'multi-surface imported buildings must use surface material recipe');
-assert(villages.includes("mode: 'layers'"), 'single-surface imported buildings need layered geographic fallback');
-assert(villages.includes('analysis.meshCount === 1 && analysis.surfaceCount <= 1'), 'layer fallback must be restricted to true single-surface models');
-assert(villages.includes('surfaceOverrides[surface.key] = paletteId'), 'authored material slots must feed shared-core surface overrides');
+assert(villages.includes("if (slot === 'structure-window') return 'glass'"));
+assert(villages.includes("if (slot === 'structure-door' || slot === 'structure-timber') return 'wood'"));
+assert(villages.includes("if (slot === 'structure-metal') return 'iron'"));
+assert(villages.includes("mode: 'surface'"));
+assert(villages.includes("mode: 'layers'"));
+assert(villages.includes('analysis.meshCount === 1 && analysis.surfaceCount <= 1'));
+assert(villages.includes('surfaceOverrides[surface.key] = paletteId'));
 
-assert(villages.includes('bodyMesh.setColorAt(houseCount, wallTint)'), 'procedural settlement fabric needs regional wall tint variation');
-assert(villages.includes('roofMesh.setColorAt(houseCount, roofTint)'), 'procedural settlement fabric needs regional roof tint variation');
-assert(villages.includes('const materialVariation = rng() - 0.5'), 'regional procedural surfaces need deterministic per-house variation');
-assert(villages.includes('.offsetHSL(0, 0, materialVariation * 0.035)'), 'wall variation must stay subtle');
-assert(villages.includes('.offsetHSL(0, 0, materialVariation * 0.08)'), 'roof variation must stay visible but bounded');
+assert(villages.includes('bodyMesh.setColorAt(houseCount, wallTint)'));
+assert(villages.includes('roofMesh.setColorAt(houseCount, roofTint)'));
+assert(villages.includes('const materialVariation = rng() - 0.5'));
+assert(villages.includes('.offsetHSL(0, 0, materialVariation * 0.035)'));
+assert(villages.includes('.offsetHSL(0, 0, materialVariation * 0.08)'));
 
-const evidenceFields = ['requestedSiteCount', 'upgradedCount', 'missingAssetCount', 'placementFailureCount', 'textureSize', 'manifests'];
-for (const field of evidenceFields) assert(villages.includes(field), `runtime architecture evidence lost field: ${field}`);
-assert(villages.includes('distributionDistanceMeters'), 'placement evidence must expose real-asset spacing');
-assert(villages.includes('architectureFootprint'), 'placement evidence must expose fitted model footprint');
-assert(villages.includes('prepared.manifest'), 'shared placement/material manifest must be retained as acceptance evidence');
-assert(villages.includes('villageArchitectureEvidence'), 'runtime group must retain architecture evidence');
-assert(villages.includes('villageArchitecturePromise'), 'shipped runtime must expose async architecture completion for acceptance');
+for (const field of ['requestedSiteCount', 'upgradedCount', 'missingAssetCount', 'placementFailureCount', 'textureSize', 'manifests']) {
+	assert(villages.includes(field), `runtime architecture evidence lost field: ${field}`);
+}
+assert(villages.includes('distributionDistanceMeters'));
+assert(villages.includes('architectureFootprint'));
+assert(villages.includes('prepared.manifest'));
+assert(villages.includes('villageArchitectureEvidence'));
+assert(villages.includes('villageArchitecturePromise'));
 
 console.log('VILLAGE_GEOGRAPHY_TEXTURE_CONTRACT_PASS', JSON.stringify({
 	villagesLines: villages.split(/\r?\n/).length,
