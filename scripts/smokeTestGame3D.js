@@ -82,6 +82,21 @@ const pauseMenuChecks = require('./game3dSmokeChecksPauseMenu.js');
 const audioChecks = require('./game3dSmokeChecksAudio.js');
 const { startStaticServer, loadPlaywright } = require('./devServerHelper.js');
 
+function isNavigationTimeout(error) {
+	const message = String(error?.message || error || '');
+	return /page\.goto: Timeout \d+ms exceeded/.test(message);
+}
+
+async function runNavigationCheckWithSingleRetry(checkFn, browser, baseUrl) {
+	try {
+		return await checkFn(browser, baseUrl);
+	} catch (error) {
+		if (!isNavigationTimeout(error)) throw error;
+		console.warn(`[smokeTestGame3D] RETRY: ${checkFn.name} hit an isolated page.goto timeout; retrying once on a fresh page.`);
+		return checkFn(browser, baseUrl);
+	}
+}
+
 async function main() {
 	const playwright = loadPlaywright();
 	if (!playwright) {
@@ -100,8 +115,8 @@ async function main() {
 
 	const results = [];
 	try {
-		results.push(await sceneChecks.check2DShell(browser, baseUrl));
-		results.push(await sceneChecks.check3DMode(browser, baseUrl));
+		results.push(await runNavigationCheckWithSingleRetry(sceneChecks.check2DShell, browser, baseUrl));
+		results.push(await runNavigationCheckWithSingleRetry(sceneChecks.check3DMode, browser, baseUrl));
 		results.push(await sceneChecks.checkWaterDepthTaperedSwell(browser, baseUrl));
 		results.push(await sceneChecks.checkSettlementGroundFlatten(browser, baseUrl));
 		results.push(await debugToolChecks.checkFreeCamera(browser, baseUrl));
