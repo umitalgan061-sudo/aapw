@@ -131,20 +131,67 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
-      - name: Performance determinism world safety debt and browser DoD
-        id: runtime_dod
+      - name: Mobile performance budget
+        id: mobile_perf
+        continue-on-error: true
+        shell: bash
+        run: node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run283-mobile.log"
+
+      - name: Runtime seeded-random replay
+        id: runtime_seeded_random
+        continue-on-error: true
+        shell: bash
+        run: node scripts/checkSeededRandomPolicy.js
+
+      - name: Terrain seat safety
+        id: terrain_seat
+        continue-on-error: true
+        shell: bash
+        run: node scripts/terrainSeatSafetyCheck.js
+
+      - name: Road network safety
+        id: road_network
+        continue-on-error: true
+        shell: bash
+        run: node scripts/roadNetworkSafetyCheck.js
+
+      - name: Performance trend contract
+        id: perf_trend
+        continue-on-error: true
+        shell: bash
+        run: node scripts/analyzePerfTrend.js
+
+      - name: Technical debt contract
+        id: technical_debt
+        continue-on-error: true
+        shell: bash
+        run: node scripts/checkTechnicalDebt.js
+
+      - name: Shipped Game3D Chromium smoke
+        id: game3d_smoke
         continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
-          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run283-mobile.log"
-          node scripts/checkSeededRandomPolicy.js
-          node scripts/terrainSeatSafetyCheck.js
-          node scripts/roadNetworkSafetyCheck.js
-          node scripts/analyzePerfTrend.js
-          node scripts/checkTechnicalDebt.js
           node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run283-smoke.log"
           test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run283-smoke.log")" -ge 34
+
+      - name: Report runtime DoD outcomes
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### Run283 runtime/browser DoD RCA'
+            echo '| Contract | Outcome |'
+            echo '| --- | --- |'
+            echo '| Mobile performance | ${{ steps.mobile_perf.outcome }} |'
+            echo '| Runtime seeded random | ${{ steps.runtime_seeded_random.outcome }} |'
+            echo '| Terrain seat safety | ${{ steps.terrain_seat.outcome }} |'
+            echo '| Road network safety | ${{ steps.road_network.outcome }} |'
+            echo '| Performance trend | ${{ steps.perf_trend.outcome }} |'
+            echo '| Technical debt | ${{ steps.technical_debt.outcome }} |'
+            echo '| Shipped Game3D Chromium smoke | ${{ steps.game3d_smoke.outcome }} |'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Final exact-main concurrency and additive-only gate
         id: final_exact_main
@@ -182,7 +229,13 @@ jobs:
           check_outcome 'World reference water mask' '${{ steps.world_reference_water_mask.outcome }}'
           check_outcome 'World reference alignment' '${{ steps.world_reference_alignment.outcome }}'
           check_outcome 'World reference hydrology extent' '${{ steps.world_reference_hydrology_extent.outcome }}'
-          check_outcome 'Runtime/browser DoD' '${{ steps.runtime_dod.outcome }}'
+          check_outcome 'Mobile performance budget' '${{ steps.mobile_perf.outcome }}'
+          check_outcome 'Runtime seeded-random replay' '${{ steps.runtime_seeded_random.outcome }}'
+          check_outcome 'Terrain seat safety' '${{ steps.terrain_seat.outcome }}'
+          check_outcome 'Road network safety' '${{ steps.road_network.outcome }}'
+          check_outcome 'Performance trend contract' '${{ steps.perf_trend.outcome }}'
+          check_outcome 'Technical debt contract' '${{ steps.technical_debt.outcome }}'
+          check_outcome 'Shipped Game3D Chromium smoke' '${{ steps.game3d_smoke.outcome }}'
           check_outcome 'Final exact-main concurrency and additive-only gate' '${{ steps.final_exact_main.outcome }}'
           echo "Run283 mandatory failure count: $failures" >> "$GITHUB_STEP_SUMMARY"
           test "$failures" -eq 0
