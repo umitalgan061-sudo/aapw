@@ -72,18 +72,34 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Prepare focused NPC browser docroot
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/npc-browser-root"
+          rm -rf "$root"
+          mkdir -p "$root"
+          ln -s "$GITHUB_WORKSPACE/src" "$root/src"
+          cat > "$root/game3d.html" <<'HTML'
+          <!doctype html>
+          <meta charset="utf-8">
+          <script type="importmap">
+          {"imports":{"three":"./src/3d/vendor/three/three.module.js","three/addons/":"./src/3d/vendor/three/addons/"}}
+          </script>
+          HTML
+          echo "NPC_BROWSER_ROOT=$root" >> "$GITHUB_ENV"
       - name: Real shipped Three.js guard lifecycle proof
         id: lifecycle_browser
         continue-on-error: true
-        run: node scripts/checkNpcGuardLifecycleBrowser.js
+        run: cd "$NPC_BROWSER_ROOT" && node "$GITHUB_WORKSPACE/scripts/checkNpcGuardLifecycleBrowser.js"
       - name: Real shipped Three.js guard group proof
-        run: node scripts/checkNpcGuardGroupLifecycleBrowser.js
+        run: cd "$NPC_BROWSER_ROOT" && node "$GITHUB_WORKSPACE/scripts/checkNpcGuardGroupLifecycleBrowser.js"
       - name: Real shipped Three.js guard frame-rate proof
-        run: node scripts/checkNpcGuardLifecycleFrameRateBrowser.js
+        run: cd "$NPC_BROWSER_ROOT" && node "$GITHUB_WORKSPACE/scripts/checkNpcGuardLifecycleFrameRateBrowser.js"
       - name: Real shipped Three.js guard occlusion proof
-        run: node scripts/checkNpcGuardOcclusionLifecycleBrowser.js
+        run: cd "$NPC_BROWSER_ROOT" && node "$GITHUB_WORKSPACE/scripts/checkNpcGuardOcclusionLifecycleBrowser.js"
       - name: Real shipped Three.js guard hearing proof
-        run: node scripts/checkNpcGuardHearingLifecycleBrowser.js
+        run: cd "$NPC_BROWSER_ROOT" && node "$GITHUB_WORKSPACE/scripts/checkNpcGuardHearingLifecycleBrowser.js"
       - name: Final exact-main freshness
         if: ${{ always() }}
         shell: bash
