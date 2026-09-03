@@ -64,6 +64,28 @@ jobs:
           node scripts/checkSharedMaterialPlacementContract.js
           node scripts/checkSeededRandomPolicy.js
 
+      - name: Mirror Run283 governance contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          checks=(
+            "node --check scripts/checkRun283FinalHeadGovernance.js"
+            "node scripts/checkRun283FinalHeadGovernance.js"
+            "node scripts/checkSeededRandomPolicy.js"
+            "node scripts/checkAssetsManifest.js"
+            "node scripts/checkServiceWorkerCache.js"
+            "node scripts/checkPwaInstallability.js"
+            "node scripts/checkSmokeCheckRegistry.js"
+            "node scripts/checkWorldReferenceMap.js"
+            "node scripts/checkWorldReferenceWaterMask.js"
+            "node scripts/checkWorldReferenceAlignment.js"
+            "node scripts/checkWorldReferenceHydrologyExtent.js"
+          )
+          for check in "${checks[@]}"; do
+            echo "[run283-mirror] $check"
+            bash -lc "$check"
+          done
+
       - name: Install browser runtime
         shell: bash
         run: |
