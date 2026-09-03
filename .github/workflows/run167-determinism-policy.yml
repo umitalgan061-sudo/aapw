@@ -66,7 +66,7 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
-      - name: Syntax and determinism policy
+      - name: Syntax contracts
         shell: bash
         run: |
           set -euo pipefail
@@ -78,11 +78,20 @@ jobs:
           node --check scripts/checkNpcGuardLifecycleFrameRateBrowser.js
           node --check scripts/checkNpcGuardOcclusionLifecycleBrowser.js
           node --check scripts/checkNpcGuardHearingLifecycleBrowser.js
+
+      - name: Determinism and asset contracts
+        shell: bash
+        run: |
+          set -euo pipefail
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkNpcGuardLifecycleContract.mjs
           node scripts/checkAssetsManifest.js
           node scripts/checkPwaInstallability.js
 
+      - name: Offline shell delta guard
+        shell: bash
+        run: |
+          set -euo pipefail
           if [ "${{ github.event_name }}" != "pull_request" ]; then
             node scripts/checkServiceWorkerCache.js
           else
@@ -117,6 +126,10 @@ jobs:
             fi
           fi
 
+      - name: World safety contracts
+        shell: bash
+        run: |
+          set -euo pipefail
           node scripts/terrainSeatSafetyCheck.js
           node scripts/roadNetworkSafetyCheck.js
 
