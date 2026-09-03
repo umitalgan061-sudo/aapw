@@ -88,7 +88,8 @@ jobs:
           # Match the established browser/mobile lanes so real model binaries are available instead
           # of letting Git-LFS pointer text trigger unrelated loader/placeholder failures.
           git lfs install --local
-          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**" --exclude=""
+          git lfs pull --include="assets/models/Ay/Moon 2K.fbx,assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**" --exclude=""
+          test "$(wc -c < 'assets/models/Ay/Moon 2K.fbx')" -eq 33404
 
       - name: Repository mobile performance safety
         shell: bash
