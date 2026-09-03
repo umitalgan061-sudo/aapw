@@ -39,15 +39,24 @@ jobs:
           git diff --check "$BASE_SHA" HEAD
           echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
 
-      - name: Governance and core regression contracts
+      - name: Run283 governance contract
         shell: bash
         run: |
           set -euxo pipefail
           node --check scripts/checkRun283FinalHeadGovernance.js
           node scripts/checkRun283FinalHeadGovernance.js
+
+      - name: Determinism and asset registry contracts
+        shell: bash
+        run: |
+          set -euxo pipefail
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkAssetsManifest.js
 
+      - name: Offline shell delta guard
+        shell: bash
+        run: |
+          set -euxo pipefail
           # The global offline-shell inventory on exact main currently has pre-existing debt.
           # Keep this gate strict for this PR by failing on every new missing entry while allowing
           # the branch to remove exact-main misses incrementally instead of forcing unrelated world
@@ -81,8 +90,17 @@ jobs:
             echo "[run283] no new offline-shell misses versus exact main"
           fi
 
+      - name: PWA and smoke registry contracts
+        shell: bash
+        run: |
+          set -euxo pipefail
           node scripts/checkPwaInstallability.js
           node scripts/checkSmokeCheckRegistry.js
+
+      - name: World reference contracts
+        shell: bash
+        run: |
+          set -euxo pipefail
           node scripts/checkWorldReferenceMap.js
           node scripts/checkWorldReferenceWaterMask.js
           node scripts/checkWorldReferenceAlignment.js
