@@ -19735,3 +19735,38 @@ hepsi PASS. `SHELL_CACHE` v73 → v74.
 **Technical debt.** 0 new. Hidratlanan GLB'ler commit'ten önce geri alındı.
 
 **Açık kalan:** 220 m'deki gerçek model / ilkel koni sınırı hâlâ zıplıyor.
+
+## Tur 435 — Ölçüm turu: koltuğa yaklaşan yollar tek bir önlüğe dönüşüyor (ADR-0382)
+
+Tur 434'ten sonra tarama `artifacts/world-survey/seat-olena.png`'de iki şey gösterdi ve ikisi de
+ölçüldü. Bu tur bir şey **düzeltmiyor**; iki bulguyu numaralarıyla kayda geçiriyor, çünkü ikisi de
+kendi başına birer iş ve tahminle başlanacak işler değil.
+
+**1. Soluk çevron: `patika`.** Işın izleme zinciri verdi: `patika < road-network < Scene`. Kırık bir
+geometri değil — parlak görünüyor çünkü `FOOTPATH_COLOR` 0xbfae82 (parlaklık ~176), at arabası
+yolunun 0x9c7b4a'sından (~124) **çok daha açık.** Bu, kendi gerekçesinin tersi: daha az çiğnenmiş bir
+patika daha çok ot tutar ve çevresindeki zemine **yaklaşır**, ondan daha parlak çıplak bir şerit
+olmaz. Ama bu renk `checkRoadVisualContract`'ın sabitlediği bir değer, ve o kapı zaten başka bir
+iddiadan kırmızı (Tur 432'de yazıldı) — ikisi birlikte onarılmalı.
+
+**2. Sert kenarlı geniş ten rengi yamuklar: yolun kendisi, arazi değil.** Önce iki ışın araziye düştü
+ve "arazi" diye okudum; **yanlıştı**, ışınlar boşluğa denk gelmiş. Kare genelinde sayınca kesin:
+
+```
+karedeki ten rengi piksel        68.314
+yol gizlenince kaybolan          55.574   = %81
+yolsuz hâlâ ten rengi kalan      14.533
+```
+
+Yani koltuğa yaklaşan MST kenarları ve patika kenarları, 8 metrelik şeritleriyle üst üste binip
+**düz kenarlı sürekli bir levhaya** dönüşüyor. Bir kavşak gibi değil, asfaltlanmış bir önlük gibi
+okunuyor. Tur 355'in "kavşakta şerit araziden kalkıyor" işiyle akraba, ama bu onun kuşbakışı hâli.
+
+**Sıradaki iş için gereken ölçüm** (bu turda yapılmadı, tahminle seçim yapılmasın diye yazılıyor):
+koltuk çevresinde kaç şerit üst üste biniyor ve birleşen alan ne kadar genişliyor. Ondan sonra
+seçenekler arasında — örtüşmeyi kırpmak, koltuğa yakın kenarları daraltmak, ya da gerçek bir kavşak
+yelpazesi — ölçüye bakarak seçilir.
+
+Kapılar: `checkSmokeCheckRegistry`, `checkTechnicalDebt` — PASS. Kaynak değişmedi, SW bump yok.
+
+**Technical debt.** 0 new.
