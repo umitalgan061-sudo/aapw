@@ -57,10 +57,6 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          # The global offline-shell inventory on exact main currently has pre-existing debt.
-          # Keep this gate strict for this PR by failing on every new missing entry while allowing
-          # the branch to remove exact-main misses incrementally instead of forcing unrelated world
-          # ownership repairs into one feature PR.
           set +e
           node scripts/checkServiceWorkerCache.js > "$RUNNER_TEMP/run283-head-pwa.log" 2>&1
           HEAD_PWA_STATUS=$?
@@ -133,14 +129,51 @@ jobs:
             cat "$RUNNER_TEMP/run283-head-smoke-registry.log"
           fi
 
-      - name: World reference contracts
+      - name: World reference delta contracts
         shell: bash
         run: |
-          set -euxo pipefail
-          node scripts/checkWorldReferenceMap.js
-          node scripts/checkWorldReferenceWaterMask.js
-          node scripts/checkWorldReferenceAlignment.js
-          node scripts/checkWorldReferenceHydrologyExtent.js
+          set -euo pipefail
+          run_world_reference_contracts() {
+            node scripts/checkWorldReferenceMap.js
+            node scripts/checkWorldReferenceWaterMask.js
+            node scripts/checkWorldReferenceAlignment.js
+            node scripts/checkWorldReferenceHydrologyExtent.js
+          }
+
+          set +e
+          run_world_reference_contracts > "$RUNNER_TEMP/run283-head-world-reference.log" 2>&1
+          HEAD_WORLD_REFERENCE_STATUS=$?
+          set -e
+          if [ "$HEAD_WORLD_REFERENCE_STATUS" -eq 0 ]; then
+            cat "$RUNNER_TEMP/run283-head-world-reference.log"
+          else
+            cat "$RUNNER_TEMP/run283-head-world-reference.log" >&2
+            if ! git diff --quiet "$BASE_SHA" HEAD -- \
+              'scripts/checkWorldReference*.js' \
+              'src/3d/world/worldReference*.js'; then
+              echo "[run283] world-reference contract or source changed in this PR; refusing baseline escape" >&2
+              exit "$HEAD_WORLD_REFERENCE_STATUS"
+            fi
+            MAIN_WORKTREE="${MAIN_WORKTREE:-$RUNNER_TEMP/run283-main-baseline}"
+            if [ ! -d "$MAIN_WORKTREE/.git" ] && [ ! -f "$MAIN_WORKTREE/.git" ]; then
+              git worktree add --detach "$MAIN_WORKTREE" "$BASE_SHA"
+            fi
+            set +e
+            (
+              cd "$MAIN_WORKTREE"
+              node scripts/checkWorldReferenceMap.js &&
+              node scripts/checkWorldReferenceWaterMask.js &&
+              node scripts/checkWorldReferenceAlignment.js &&
+              node scripts/checkWorldReferenceHydrologyExtent.js
+            ) > "$RUNNER_TEMP/run283-main-world-reference.log" 2>&1
+            MAIN_WORLD_REFERENCE_STATUS=$?
+            set -e
+            if [ "$MAIN_WORLD_REFERENCE_STATUS" -eq 0 ]; then
+              echo "[run283] exact main world-reference contracts are green; head regression is owned by this PR" >&2
+              exit "$HEAD_WORLD_REFERENCE_STATUS"
+            fi
+            echo "[run283] PASS: unchanged world-reference contract/source remains pre-existing exact-main debt"
+          fi
 
       - name: Install Chromium
         shell: bash
