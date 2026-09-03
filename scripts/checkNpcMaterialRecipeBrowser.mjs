@@ -147,7 +147,7 @@ try {
 	assert.equal(pageErrors.length, 0, `page errors: ${pageErrors.join(' | ')}`);
 	assert.equal(proof.named.mode, 'named-parts', `named guard selected ${proof.named.mode}`);
 	assert.equal(proof.named.applied.ok, true, `named surface recipe failed: ${JSON.stringify(proof.named.applied)}`);
-	assert.equal(proof.named.validation.ok, true, `named material validation failed: ${JSON.stringify(proof.named.validation)}`);
+	assert.equal(proof.named.validation.ok, true, `named material validation failed: errors=${proof.named.validation.errors.join(',')} warnings=${proof.named.validation.warnings.join(',')}`);
 	const skinPalette = proof.named.palettes.find((id) => id.startsWith('skin-'));
 	assert.ok(skinPalette, `named guard has no skin palette: ${JSON.stringify(proof.named.palettes)}`);
 	const hairPalette = proof.named.palettes.find((id) => id.startsWith('hair-'));
@@ -176,7 +176,7 @@ try {
 
 	assert.equal(proof.layered.mode, 'layered-fallback', `single mesh selected ${proof.layered.mode}`);
 	assert.equal(proof.layered.applied.ok, true, `layered recipe failed: ${JSON.stringify(proof.layered.applied)}`);
-	assert.equal(proof.layered.validation.ok, true, `layered material validation failed: ${JSON.stringify(proof.layered.validation)}`);
+	assert.equal(proof.layered.validation.ok, true, `layered material validation failed: errors=${proof.layered.validation.errors.join(',')} warnings=${proof.layered.validation.warnings.join(',')}`);
 	assert.equal(proof.layered.layers.length, 6, 'single-mesh fallback must have six vertical material bands');
 	assert.ok(proof.layered.bands.includes('boot'), 'layered fallback lacks boots');
 	assert.ok(proof.layered.bands.includes('trousers-brown'), 'desert layered fallback lacks brown trousers');
