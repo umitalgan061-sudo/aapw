@@ -131,25 +131,41 @@ jobs:
         run: |
           set -euo pipefail
           NODE_PATH="$NODE_PATH" node scripts/checkFullWorldRuntimeBrowser.mjs
-      - name: Runtime terrain road and mobile safety
-        id: runtime_world_safety
+      - name: Mobile performance budget
+        id: mobile_perf
         if: always()
         continue-on-error: true
-        run: |
-          set -euo pipefail
-          NODE_PATH="$NODE_PATH" node scripts/checkMobilePerfBudget.js
-          NODE_PATH="$NODE_PATH" node scripts/terrainSeatSafetyCheck.js
-          NODE_PATH="$NODE_PATH" node scripts/roadNetworkSafetyCheck.js
-          NODE_PATH="$NODE_PATH" node scripts/smokeTestGame3D.js
-      - name: PWA technical-debt and external shell safety
-        id: pwa_world_safety
+        run: NODE_PATH="$NODE_PATH" node scripts/checkMobilePerfBudget.js
+      - name: Terrain seat safety
+        id: terrain_seat
         if: always()
         continue-on-error: true
-        run: |
-          set -euo pipefail
-          node scripts/checkPwaInstallability.js
-          node scripts/checkTechnicalDebt.js
-          node scripts/checkServiceWorkerCache.js
+        run: NODE_PATH="$NODE_PATH" node scripts/terrainSeatSafetyCheck.js
+      - name: Road network safety
+        id: road_network
+        if: always()
+        continue-on-error: true
+        run: NODE_PATH="$NODE_PATH" node scripts/roadNetworkSafetyCheck.js
+      - name: Shipped game3d smoke proof
+        id: game3d_smoke
+        if: always()
+        continue-on-error: true
+        run: NODE_PATH="$NODE_PATH" node scripts/smokeTestGame3D.js
+      - name: PWA installability
+        id: pwa_installability
+        if: always()
+        continue-on-error: true
+        run: node scripts/checkPwaInstallability.js
+      - name: Technical debt contract
+        id: technical_debt
+        if: always()
+        continue-on-error: true
+        run: node scripts/checkTechnicalDebt.js
+      - name: Service worker cache contract
+        id: service_worker_cache
+        if: always()
+        continue-on-error: true
+        run: node scripts/checkServiceWorkerCache.js
       - name: Final exact-main freshness
         if: always()
         run: |
@@ -163,34 +179,39 @@ jobs:
         env:
           STATIC_WORLD_CONTRACTS: ${{ steps.static_world_contracts.outcome }}
           BROWSER_RENDER_PARITY: ${{ steps.browser_render_parity.outcome }}
-          RUNTIME_WORLD_SAFETY: ${{ steps.runtime_world_safety.outcome }}
-          PWA_WORLD_SAFETY: ${{ steps.pwa_world_safety.outcome }}
+          MOBILE_PERF: ${{ steps.mobile_perf.outcome }}
+          TERRAIN_SEAT: ${{ steps.terrain_seat.outcome }}
+          ROAD_NETWORK: ${{ steps.road_network.outcome }}
+          GAME3D_SMOKE: ${{ steps.game3d_smoke.outcome }}
+          PWA_INSTALLABILITY: ${{ steps.pwa_installability.outcome }}
+          TECHNICAL_DEBT: ${{ steps.technical_debt.outcome }}
+          SERVICE_WORKER_CACHE: ${{ steps.service_worker_cache.outcome }}
         run: |
           set -euo pipefail
+          failures=0
           {
             echo '### Full-world exact-head outcomes'
             echo '| Contract | Outcome |'
             echo '| --- | --- |'
-            echo "| static world contracts | $STATIC_WORLD_CONTRACTS |"
-            echo "| browser render parity | $BROWSER_RENDER_PARITY |"
-            echo "| runtime terrain/road/mobile safety | $RUNTIME_WORLD_SAFETY |"
-            echo "| PWA/technical-debt/shell safety | $PWA_WORLD_SAFETY |"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          failures=0
-          check_outcome() {
-            local label="$1"
-            local outcome="$2"
-            if [ "$outcome" != success ]; then
-              echo "::error title=Full-world qualification blocker::$label outcome=$outcome"
-              failures=$((failures + 1))
-            fi
-          }
-
-          check_outcome 'static world contracts' "$STATIC_WORLD_CONTRACTS"
-          check_outcome 'browser render parity' "$BROWSER_RENDER_PARITY"
-          check_outcome 'runtime terrain/road/mobile safety' "$RUNTIME_WORLD_SAFETY"
-          check_outcome 'PWA/technical-debt/shell safety' "$PWA_WORLD_SAFETY"
-
-          echo "full_world_failure_count=$failures" >> "$GITHUB_STEP_SUMMARY"
+            for pair in \
+              "static_world:$STATIC_WORLD_CONTRACTS" \
+              "browser_render:$BROWSER_RENDER_PARITY" \
+              "mobile_perf:$MOBILE_PERF" \
+              "terrain_seat:$TERRAIN_SEAT" \
+              "road_network:$ROAD_NETWORK" \
+              "game3d_smoke:$GAME3D_SMOKE" \
+              "pwa_installability:$PWA_INSTALLABILITY" \
+              "technical_debt:$TECHNICAL_DEBT" \
+              "service_worker_cache:$SERVICE_WORKER_CACHE"; do
+              name="${pair%%:*}"
+              outcome="${pair#*:}"
+              echo "| $name | $outcome |"
+              if [ "$outcome" != success ]; then
+                echo "::error title=Full-world qualification blocker::$name outcome=$outcome"
+                failures=$((failures + 1))
+              fi
+            done
+            echo
+            echo "**full_world_failure_count:** $failures"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
           test "$failures" -eq 0
