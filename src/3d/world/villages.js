@@ -1,26 +1,8 @@
 /**
- * Procedural villages around kingdom seats.
- *
- * Grounding rule: a rigid structure is never positioned from a single centre-height sample. Every
- * house samples its rotated footprint (centre, corners and edge mid-points). The wall body extends
- * from the lowest sampled terrain point to a flat top above the highest sampled point, so downhill
- * corners cannot hover while uphill corners remain safely embedded in the terrain. Stairs and field
- * walls are grounded from their own footprints as well.
- *
- * Up to two separated procedural houses in every canonical hamlet are asset-upgrade sites. The sites
- * are selected only after the procedural hamlet is complete, choosing the farthest valid pair without
- * consuming another RNG draw. This keeps canonical house coordinates untouched while preventing both
- * high-detail silhouettes from clustering on the same hamlet edge. The cheap instanced house remains
- * visible until a real repository GLB has loaded, passed the shared material contract, passed
- * footprint-aware world placement, produced a manifest and attached successfully. Only then is the
- * matching primitive instance hidden. Missing/LFS-unavailable assets therefore fail closed: no
- * magenta AssetLoader placeholder and no invisible collision hole are ever shipped.
- *
- * Imported houses keep authored material-slot structure whenever the source exposes more than one
- * surface, even when all slots live on a single glTF mesh. Strong semantic names such as
- * roof/window/door/timber/foundation are redirected through a regional shared-core surface recipe,
- * while unnamed or ambiguous imported surfaces remain untouched instead of being flattened to one
- * brown/stone texture. Only genuinely single-surface houses use the regional layered fallback.
+ * Procedural villages around canonical kingdom seats.
+ * Rigid structures sample full rotated footprints; real residential GLBs replace at most two
+ * separated procedural houses only after shared material validation and footprint-aware placement.
+ * Missing/LFS-unavailable assets fail closed to the procedural settlement.
  * @module world/villages
  */
 
@@ -57,58 +39,31 @@ const WALL_COLOR = new THREE.Color(0xbdae91);
 const STONE_WALL_COLOR = new THREE.Color(0x8d8878);
 const THATCH_COLOR = new THREE.Color(0x9c7b42);
 
-/**
- * Canonical, bounded architecture families. These are existing repository assets under Git LFS;
- * they are deliberately residential only, so this visual pass does not invent a second vendor,
- * blacksmith, tavern or stable interaction system beside the established RPG owner.
- *
- * Primary and secondary silhouettes both come from the already-hydrated seven-house acceptance
- * set. The destination profile remains the material authority, so borrowing a compatible silhouette
- * never borrows another region's surface identity or creates a new offline/LFS dependency.
- */
+function architectureProfile(profile) {
+	return Object.freeze({ ...profile, layers: Object.freeze(profile.layers.map((layer) => Object.freeze({ ...layer }))) });
+}
+
 export const VILLAGE_ARCHITECTURE_PROFILES = Object.freeze({
-	north: Object.freeze({
-		id: 'north', label: 'Kuzey ahşap yerleşimi', paletteId: 'house', proceduralWallHex: 0xb8b6ae, proceduralRoofHex: 0x59636d,
-		assetUrl: 'assets/models/settlements/log_cabin_et0OmFeZVkb.glb', secondaryAssetUrl: 'assets/models/settlements/cabin_shed_HTx7PZt6Zm.glb',
-		layers: Object.freeze([{ to: 0.16, palette: 'stone' }, { to: 0.72, palette: 'wood' }, { to: 1, palette: 'roof-tile' }]),
-	}),
-	fertile: Object.freeze({
-		id: 'fertile', label: 'Verimli ova yerleşimi', paletteId: 'house', proceduralWallHex: 0xe2d3af, proceduralRoofHex: 0xa9874d,
-		assetUrl: 'assets/models/settlements/fantasy_house_dcPho4SUA3.glb', secondaryAssetUrl: 'assets/models/settlements/small_wooden_house.glb',
-		layers: Object.freeze([{ to: 0.12, palette: 'stone' }, { to: 0.62, palette: 'plaster' }, { to: 0.7, palette: 'wood' }, { to: 1, palette: 'thatch' }]),
-	}),
-	maritime: Object.freeze({
-		id: 'maritime', label: 'Rüzgârlı kıyı yerleşimi', paletteId: 'house', proceduralWallHex: 0xaeb8b8, proceduralRoofHex: 0x68757c,
-		assetUrl: 'assets/models/settlements/cabin_shed_HTx7PZt6Zm.glb', secondaryAssetUrl: 'assets/models/settlements/log_cabin_et0OmFeZVkb.glb',
-		layers: Object.freeze([{ to: 0.16, palette: 'rock' }, { to: 0.64, palette: 'house' }, { to: 0.72, palette: 'wood' }, { to: 1, palette: 'roof-tile' }]),
-	}),
-	arid: Object.freeze({
-		id: 'arid', label: 'Kurak güney yerleşimi', paletteId: 'house', proceduralWallHex: 0xe0c39b, proceduralRoofHex: 0xb67852,
-		assetUrl: 'assets/models/settlements/house_fdaqERLQCc.glb', secondaryAssetUrl: 'assets/models/settlements/house_roqiHdrpgc.glb',
-		layers: Object.freeze([{ to: 0.18, palette: 'stone' }, { to: 0.72, palette: 'plaster' }, { to: 0.79, palette: 'wood' }, { to: 1, palette: 'roof-tile' }]),
-	}),
-	mountain: Object.freeze({
-		id: 'mountain', label: 'Dağ eteği yerleşimi', paletteId: 'brick', proceduralWallHex: 0xaaa59d, proceduralRoofHex: 0x515b61,
-		assetUrl: 'assets/models/settlements/medium_house_4hI5fNvl6z.glb', secondaryAssetUrl: 'assets/models/settlements/log_cabin_et0OmFeZVkb.glb',
-		layers: Object.freeze([{ to: 0.2, palette: 'rock' }, { to: 0.74, palette: 'brick' }, { to: 0.82, palette: 'wood' }, { to: 1, palette: 'roof-tile' }]),
-	}),
-	temperate: Object.freeze({
-		id: 'temperate', label: 'Ilıman kır yerleşimi', paletteId: 'house', proceduralWallHex: 0xd1c3a7, proceduralRoofHex: 0x846849,
-		assetUrl: 'assets/models/settlements/small_wooden_house.glb', secondaryAssetUrl: 'assets/models/settlements/fantasy_house_dcPho4SUA3.glb',
-		layers: Object.freeze([{ to: 0.12, palette: 'stone' }, { to: 0.62, palette: 'house' }, { to: 0.7, palette: 'wood' }, { to: 1, palette: 'thatch' }]),
-	}),
-	volcanic: Object.freeze({
-		id: 'volcanic', label: 'Volkanik taş yerleşimi', paletteId: 'brick', proceduralWallHex: 0x7f7770, proceduralRoofHex: 0x3f4146,
-		assetUrl: 'assets/models/settlements/house_roqiHdrpgc.glb', secondaryAssetUrl: 'assets/models/settlements/medium_house_4hI5fNvl6z.glb',
-		layers: Object.freeze([{ to: 0.2, palette: 'rock' }, { to: 0.72, palette: 'brick' }, { to: 0.8, palette: 'iron' }, { to: 1, palette: 'roof-tile' }]),
-	}),
+	north: architectureProfile({ id: 'north', label: 'Kuzey ahşap yerleşimi', paletteId: 'house', proceduralWallHex: 0xb8b6ae, proceduralRoofHex: 0x59636d,
+		assetUrl: 'assets/models/settlements/log_cabin_et0OmFeZVkb.glb', secondaryAssetUrl: 'assets/models/settlements/cabin_shed_HTx7PZt6Zm.glb', layers: [{ to: 0.16, palette: 'stone' }, { to: 0.72, palette: 'wood' }, { to: 1, palette: 'roof-tile' }] }),
+	fertile: architectureProfile({ id: 'fertile', label: 'Verimli ova yerleşimi', paletteId: 'house', proceduralWallHex: 0xe2d3af, proceduralRoofHex: 0xa9874d,
+		assetUrl: 'assets/models/settlements/fantasy_house_dcPho4SUA3.glb', secondaryAssetUrl: 'assets/models/settlements/small_wooden_house.glb', layers: [{ to: 0.12, palette: 'stone' }, { to: 0.62, palette: 'plaster' }, { to: 0.7, palette: 'wood' }, { to: 1, palette: 'thatch' }] }),
+	maritime: architectureProfile({ id: 'maritime', label: 'Rüzgârlı kıyı yerleşimi', paletteId: 'house', proceduralWallHex: 0xaeb8b8, proceduralRoofHex: 0x68757c,
+		assetUrl: 'assets/models/settlements/cabin_shed_HTx7PZt6Zm.glb', secondaryAssetUrl: 'assets/models/settlements/log_cabin_et0OmFeZVkb.glb', layers: [{ to: 0.16, palette: 'rock' }, { to: 0.64, palette: 'house' }, { to: 0.72, palette: 'wood' }, { to: 1, palette: 'roof-tile' }] }),
+	arid: architectureProfile({ id: 'arid', label: 'Kurak güney yerleşimi', paletteId: 'house', proceduralWallHex: 0xe0c39b, proceduralRoofHex: 0xb67852,
+		assetUrl: 'assets/models/settlements/house_fdaqERLQCc.glb', secondaryAssetUrl: 'assets/models/settlements/house_roqiHdrpgc.glb', layers: [{ to: 0.18, palette: 'stone' }, { to: 0.72, palette: 'plaster' }, { to: 0.79, palette: 'wood' }, { to: 1, palette: 'roof-tile' }] }),
+	mountain: architectureProfile({ id: 'mountain', label: 'Dağ eteği yerleşimi', paletteId: 'brick', proceduralWallHex: 0xaaa59d, proceduralRoofHex: 0x515b61,
+		assetUrl: 'assets/models/settlements/medium_house_4hI5fNvl6z.glb', secondaryAssetUrl: 'assets/models/settlements/log_cabin_et0OmFeZVkb.glb', layers: [{ to: 0.2, palette: 'rock' }, { to: 0.74, palette: 'brick' }, { to: 0.82, palette: 'wood' }, { to: 1, palette: 'roof-tile' }] }),
+	temperate: architectureProfile({ id: 'temperate', label: 'Ilıman kır yerleşimi', paletteId: 'house', proceduralWallHex: 0xd1c3a7, proceduralRoofHex: 0x846849,
+		assetUrl: 'assets/models/settlements/small_wooden_house.glb', secondaryAssetUrl: 'assets/models/settlements/fantasy_house_dcPho4SUA3.glb', layers: [{ to: 0.12, palette: 'stone' }, { to: 0.62, palette: 'house' }, { to: 0.7, palette: 'wood' }, { to: 1, palette: 'thatch' }] }),
+	volcanic: architectureProfile({ id: 'volcanic', label: 'Volkanik taş yerleşimi', paletteId: 'brick', proceduralWallHex: 0x7f7770, proceduralRoofHex: 0x3f4146,
+		assetUrl: 'assets/models/settlements/house_roqiHdrpgc.glb', secondaryAssetUrl: 'assets/models/settlements/medium_house_4hI5fNvl6z.glb', layers: [{ to: 0.2, palette: 'rock' }, { to: 0.72, palette: 'brick' }, { to: 0.8, palette: 'iron' }, { to: 1, palette: 'roof-tile' }] }),
 });
 
 const SEAT_ARCHITECTURE_REGION = Object.freeze({
 	berkalp: 'north', jon: 'north', 'Night King': 'north',
 	ziya: 'fertile', berk: 'fertile', olena: 'fertile',
-	balon: 'maritime', stannis: 'maritime',
-	doran: 'arid', Xaro: 'arid',
+	balon: 'maritime', stannis: 'maritime', doran: 'arid', Xaro: 'arid',
 	robin: 'mountain', twin: 'temperate', cersei: 'temperate', umit: 'volcanic',
 });
 
@@ -131,11 +86,6 @@ export function pickHouseTypeIndex(roll) {
 	return HOUSE_TYPES.length - 1;
 }
 
-/**
- * Chooses which already-authored procedural houses receive the two real GLB upgrades.
- * The planner is deterministic and consumes no RNG. It maximizes pair separation, then uses
- * house-index ordering as a stable tie-break so visual-detail placement cannot perturb world layout.
- */
 export function selectVillageArchitectureLandmarks(candidates = []) {
 	const valid = (Array.isArray(candidates) ? candidates : [])
 		.filter((candidate) => Number.isFinite(candidate?.x) && Number.isFinite(candidate?.z) && Number.isInteger(candidate?.houseIndex))
@@ -145,7 +95,6 @@ export function selectVillageArchitectureLandmarks(candidates = []) {
 	if (MAX_ARCHITECTURE_ASSETS_PER_HAMLET <= 1 || valid.length === 1) {
 		return [{ ...valid[0], assetIndex: 0, distributionDistanceMeters: 0 }];
 	}
-
 	let best = null;
 	for (let i = 0; i < valid.length - 1; i++) {
 		for (let j = i + 1; j < valid.length; j++) {
@@ -158,7 +107,6 @@ export function selectVillageArchitectureLandmarks(candidates = []) {
 			if (betterDistance || stableTie) best = { first: valid[i], second: valid[j], distance };
 		}
 	}
-
 	if (!best) return [{ ...valid[0], assetIndex: 0, distributionDistanceMeters: 0 }];
 	return [best.first, best.second]
 		.slice(0, MAX_ARCHITECTURE_ASSETS_PER_HAMLET)
@@ -181,20 +129,13 @@ function buildVillageGeometries() {
 function rotatedWorldPoint(x, z, yaw, localX, localZ) {
 	const sin = Math.sin(yaw);
 	const cos = Math.cos(yaw);
-	return {
-		x: x + localX * cos + localZ * sin,
-		z: z - localX * sin + localZ * cos,
-	};
+	return { x: x + localX * cos + localZ * sin, z: z - localX * sin + localZ * cos };
 }
 
-/** Sample the complete support footprint instead of trusting one centre point. */
 function sampleFootprintRange(sampleHeightMeters, x, z, width, depth, yaw) {
 	const hx = width * 0.5;
 	const hz = depth * 0.5;
-	const offsets = [
-		[0, 0], [-hx, -hz], [hx, -hz], [-hx, hz], [hx, hz],
-		[-hx, 0], [hx, 0], [0, -hz], [0, hz],
-	];
+	const offsets = [[0, 0], [-hx, -hz], [hx, -hz], [-hx, hz], [hx, hz], [-hx, 0], [hx, 0], [0, -hz], [0, hz]];
 	let min = Infinity;
 	let max = -Infinity;
 	for (const [localX, localZ] of offsets) {
@@ -226,7 +167,6 @@ function roadDistanceMeters(x, z, roadEdges = []) {
 	return Number.isFinite(nearest) ? nearest : 1_000_000;
 }
 
-/** Adapter only: samples the existing ground API; it does not own or mutate terrain. */
 function createVillageArchitectureSurfaceQuery(sampleHeightMeters, seaLevelMeters, roadEdges) {
 	return (x, z) => {
 		const height = sampleHeightMeters(x, z);
@@ -246,16 +186,10 @@ function profileHasPalette(profile, paletteId) {
 }
 
 function preferredProfilePalette(profile, paletteIds, fallback = null) {
-	for (const paletteId of paletteIds) {
-		if (paletteId && profileHasPalette(profile, paletteId)) return paletteId;
-	}
+	for (const paletteId of paletteIds) if (paletteId && profileHasPalette(profile, paletteId)) return paletteId;
 	return fallback;
 }
 
-/**
- * Maps a high-confidence authored architecture slot to the destination region's palette language.
- * This is an adapter over the shared #590 classifier/material core, not another material framework.
- */
 export function resolveVillageArchitectureSurfacePalette(profile, slot) {
 	if (!profile || !slot) return null;
 	if (slot === 'structure-window') return 'glass';
@@ -263,24 +197,14 @@ export function resolveVillageArchitectureSurfacePalette(profile, slot) {
 	if (slot === 'structure-metal') return 'iron';
 	if (slot === 'structure-thatch') return 'thatch';
 	if (slot === 'structure-roof') return profile.layers?.at(-1)?.palette || 'roof-tile';
-	if (slot === 'structure-stone') {
-		return preferredProfilePalette(profile, ['stone', 'rock', 'brick'], profile.paletteId);
-	}
-	if (slot === 'structure-brick') {
-		return preferredProfilePalette(profile, ['brick', 'plaster', 'rock', 'stone'], profile.paletteId);
-	}
-	if (slot === 'structure-plaster') {
-		return preferredProfilePalette(profile, ['plaster', profile.paletteId, 'brick', 'house'], profile.paletteId);
-	}
+	if (slot === 'structure-stone') return preferredProfilePalette(profile, ['stone', 'rock', 'brick'], profile.paletteId);
+	if (slot === 'structure-brick') return preferredProfilePalette(profile, ['brick', 'plaster', 'rock', 'stone'], profile.paletteId);
+	if (slot === 'structure-plaster') return preferredProfilePalette(profile, ['plaster', profile.paletteId, 'brick', 'house'], profile.paletteId);
 	return null;
 }
 
 function regionalMaterialOptions(object, profile) {
 	const analysis = analyzeMaterialSurfaces(object);
-	// glTF commonly stores several authored material primitives on one mesh. Mesh count therefore is
-	// not a safe proxy for "single surface": flattening a one-mesh/nine-material house into a vertical
-	// shader discards its roof/window/door split. Use layered fallback only when there is truly one
-	// dressable material surface; otherwise keep the source slots and override only strong semantics.
 	if (analysis.meshCount === 1 && analysis.surfaceCount <= 1) {
 		return {
 			materialRecipe: {
@@ -293,7 +217,6 @@ function regionalMaterialOptions(object, profile) {
 			},
 		};
 	}
-
 	const surfaceOverrides = {};
 	for (const surface of analysis.surfaces) {
 		const paletteId = resolveVillageArchitectureSurfacePalette(profile, surface.slot);
@@ -310,9 +233,6 @@ function regionalMaterialOptions(object, profile) {
 			},
 		};
 	}
-
-	// No trustworthy authored slot name: preserve the previous shared auto/layer behavior rather than
-	// fabricating a semantic split that the source model does not support.
 	return { paletteId: profile.paletteId, textureSize: ARCHITECTURE_TEXTURE_SIZE };
 }
 
@@ -325,13 +245,7 @@ function fitArchitectureToProceduralFootprint(size, site) {
 	if (![sourceWidth, sourceDepth, targetWidth, targetDepth].every((value) => Number.isFinite(value) && value > 1e-6)) return null;
 	const scale = Math.min(targetWidth / sourceWidth, targetDepth / sourceDepth);
 	if (!Number.isFinite(scale) || scale <= 1e-6) return null;
-	return Object.freeze({
-		scale,
-		targetWidth,
-		targetDepth,
-		fittedWidth: sourceWidth * scale,
-		fittedDepth: sourceDepth * scale,
-	});
+	return Object.freeze({ scale, targetWidth, targetDepth, fittedWidth: sourceWidth * scale, fittedDepth: sourceDepth * scale });
 }
 
 function normalizedArchitecturePivot(source, site, profile) {
@@ -369,17 +283,7 @@ function hidePrimitiveLandmark(villageGroup, site) {
 	if (steps) steps.instanceMatrix.needsUpdate = true;
 }
 
-/**
- * Loads up to two spatially separated high-detail residences for each canonical hamlet and sends
- * every model through the merged #590 material/placement core before hiding its primitive fallback.
- */
-export async function upgradeVillageArchitectureAssets({
-	assetLoader,
-	villageGroup,
-	sampleHeightMeters,
-	seaLevelMeters,
-	roadEdges = [],
-} = {}) {
+export async function upgradeVillageArchitectureAssets({ assetLoader, villageGroup, sampleHeightMeters, seaLevelMeters, roadEdges = [] } = {}) {
 	if (!assetLoader?.loadModel || !villageGroup || typeof sampleHeightMeters !== 'function') {
 		return { ok: false, error: 'missing-upgrade-context' };
 	}
@@ -417,15 +321,9 @@ export async function upgradeVillageArchitectureAssets({
 			placementFailureCount++;
 			continue;
 		}
-		const materialOptions = regionalMaterialOptions(object, profile);
 		const prepared = placeWorldAsset(assetGroup, object, {
-			metadata: {
-				id: `village-${site.seatId}-${profile.id}-${site.assetIndex ?? 0}`,
-				name: profile.label,
-				category: 'settlement',
-				src: assetUrl,
-			},
-			...materialOptions,
+			metadata: { id: `village-${site.seatId}-${profile.id}-${site.assetIndex ?? 0}`, name: profile.label, category: 'settlement', src: assetUrl },
+			...regionalMaterialOptions(object, profile),
 			textureSize: ARCHITECTURE_TEXTURE_SIZE,
 			position: new THREE.Vector3(site.x, 0, site.z),
 			rotation: new THREE.Euler(0, site.yaw, 0),
@@ -472,15 +370,11 @@ function scheduleVillageArchitectureUpgrade({ villageGroup, sampleHeightMeters, 
 	if (typeof window === 'undefined' || typeof document === 'undefined') return;
 	const sites = villageGroup.userData?.villageLandmarkSites || [];
 	if (!sites.some((site) => resolveVillageArchitectureProfile(site.seatId))) return;
-	const silentEvents = { emit() {} };
-	const loader = new AssetLoader({ events: silentEvents });
+	const loader = new AssetLoader({ events: { emit() {} } });
 	const promise = upgradeVillageArchitectureAssets({ assetLoader: loader, villageGroup, sampleHeightMeters, seaLevelMeters, roadEdges })
 		.then((evidence) => {
 			if (evidence.disposed) return evidence;
-			console.info(
-				`[villages] Regional architecture: ${evidence.upgradedCount}/${evidence.requestedSiteCount} real house(s), ` +
-				`missing=${evidence.missingAssetCount}, placement-failed=${evidence.placementFailureCount}.`,
-			);
+			console.info(`[villages] Regional architecture: ${evidence.upgradedCount}/${evidence.requestedSiteCount} real house(s), missing=${evidence.missingAssetCount}, placement-failed=${evidence.placementFailureCount}.`);
 			return evidence;
 		})
 		.catch((error) => {
@@ -512,7 +406,6 @@ export function createVillages({
 	const wallMaterial = createStoneMaterial({ seed: seed + 41, baseColor: WALL_COLOR, repeat: 0.6 });
 	const roofMaterial = createRoofMaterial({ seed: seed + 42, repeat: 3 });
 	const stoneMaterial = createStoneMaterial({ seed: seed + 43, baseColor: STONE_WALL_COLOR, repeat: 0.8 });
-
 	const bodyMesh = new THREE.InstancedMesh(geometries.body, wallMaterial, maxHouses);
 	const roofMesh = new THREE.InstancedMesh(geometries.roof, roofMaterial, maxHouses);
 	const stepMesh = new THREE.InstancedMesh(geometries.step, stoneMaterial, maxHouses * STOOP_STEP_COUNT);
@@ -617,8 +510,7 @@ export function createVillages({
 		if (architectureProfile) landmarkSites.push(...selectVillageArchitectureLandmarks(architectureCandidatesHere));
 		if (placedHere.length === 0) continue;
 		villageCount++;
-		const ringOrder = [...placedHere].sort((p, q) =>
-			Math.atan2(p.z - hamletZ, p.x - hamletX) - Math.atan2(q.z - hamletZ, q.x - hamletX));
+		const ringOrder = [...placedHere].sort((p, q) => Math.atan2(p.z - hamletZ, p.x - hamletX) - Math.atan2(q.z - hamletZ, q.x - hamletX));
 		for (let i = 0; i < ringOrder.length && wallCount < maxWalls; i++) {
 			const a = ringOrder[i];
 			const b = ringOrder[(i + 1) % ringOrder.length];
@@ -670,8 +562,6 @@ export function disposeVillages(group) {
 			disposedMaterials.add(material);
 			const factoryGenerated = material.userData?.generatedByTextureFactory === true;
 			const factoryCached = factoryGenerated && Boolean(material.userData?.cacheKey);
-			// Factory-generated textures are cache-owned even when the layered wrapper material itself
-			// is not cached. Village teardown may dispose that wrapper, but never shared cache textures.
 			if (!factoryGenerated) {
 				for (const key of ['map', 'roughnessMap', 'normalMap', 'metalnessMap']) {
 					const texture = material[key];
