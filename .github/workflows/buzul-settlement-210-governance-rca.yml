@@ -114,29 +114,37 @@ jobs:
           WATER_MASK: ${{ steps.water_mask.outcome }}
           ALIGNMENT: ${{ steps.alignment.outcome }}
         run: |
-          printf '%-24s %s\n' \
-            hydrology "$HYDROLOGY" \
-            full_world_coverage "$COVERAGE" \
-            run283_authority "$RUN283_AUTHORITY" \
-            seeded "$SEEDED" \
-            assets "$ASSETS" \
-            service_worker "$SW" \
-            pwa "$PWA" \
-            smoke_registry "$SMOKE" \
-            reference_map "$MAP" \
-            water_mask "$WATER_MASK" \
-            alignment "$ALIGNMENT"
-          test "$HYDROLOGY" = success
-          test "$COVERAGE" = success
-          test "$RUN283_AUTHORITY" = success
-          test "$SEEDED" = success
-          test "$ASSETS" = success
-          test "$SW" = success
-          test "$PWA" = success
-          test "$SMOKE" = success
-          test "$MAP" = success
-          test "$WATER_MASK" = success
-          test "$ALIGNMENT" = success
+          set -euo pipefail
+          failures=0
+          {
+            echo '### Buzul exact-head governance matrix'
+            echo
+            echo '| Contract | Outcome |'
+            echo '|---|---|'
+            for pair in \
+              "hydrology:$HYDROLOGY" \
+              "full_world_coverage:$COVERAGE" \
+              "run283_authority:$RUN283_AUTHORITY" \
+              "seeded:$SEEDED" \
+              "assets:$ASSETS" \
+              "service_worker:$SW" \
+              "pwa:$PWA" \
+              "smoke_registry:$SMOKE" \
+              "reference_map:$MAP" \
+              "water_mask:$WATER_MASK" \
+              "alignment:$ALIGNMENT"; do
+              name="${pair%%:*}"
+              outcome="${pair#*:}"
+              echo "| $name | $outcome |"
+              if [ "$outcome" != success ]; then
+                echo "::error title=Buzul governance blocker::$name outcome=$outcome"
+                failures=$((failures + 1))
+              fi
+            done
+            echo
+            echo "**failure_count:** $failures"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$failures" -eq 0
 
       - name: Final exact-main freshness
         if: always()
