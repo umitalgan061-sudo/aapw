@@ -19770,3 +19770,44 @@ yelpazesi — ölçüye bakarak seçilir.
 Kapılar: `checkSmokeCheckRegistry`, `checkTechnicalDebt` — PASS. Kaynak değişmedi, SW bump yok.
 
 **Technical debt.** 0 new.
+
+## Tur 436 — "Yol önlüğü" diye bir şey yokmuş: Tur 435'in iddiası ölçüldü ve düzeltildi (ADR-0383)
+
+Tur 435 sıradaki turun neyi ölçmesi gerektiğini yazmıştı: koltuk çevresinde kaç şerit üst üste
+biniyor ve birleşen alan ne kadar. Ölçüldü. **Ve Tur 435'in kendi iddiasını çürüttü.**
+
+Çizilen geometrinin kendisi rasterlendi — her yol ağı mesh'inin her üçgeni, iki katman da dahil,
+koltuk başına 150 m yarıçaplı diskte 1 m'lik ızgaraya:
+
+```
+dünyadaki yol üçgeni toplamı   roads 2342 + patika 22 = 2364
+                seat      yol m²   % disk   örtüşen m²   en fazla üst üste
+en yoğun        ziya        4932      7,0           95        3
+                olena       4250      6,0          103        3
+en çok örtüşen  berkalp     2541      3,6          198        4
+en seyrek       balon       1170      1,7           42        3
+```
+
+**En yoğun koltukta bile yol, diskin %7'sini kaplıyor ve örtüşme yolun %1,9'u.** En kötü örtüşen
+koltukta bile %7,8. Bu bir önlük değil, sıradan bir kavşak.
+
+**Gördüğüm şey neydi öyleyse?** Perspektif. 8 metrelik bir şerit, 37–80 metreden ve boyuna
+bakıldığında ekranda gerçekten geniş bir bant kaplar; iki tanesi birleşirken de levha gibi görünür.
+Tur 435'in "%81 ten rengi piksel yol" ölçümü doğruydu ama **yanlış şeyi kanıtlıyordu**: yolların
+kameraya yakın olduğunu gösteriyordu, birleştiklerini değil.
+
+**Ve ilk ölçümüm de kirliydi, atıldı.** Rota çizgilerinden hesaplayan ilk sürüm `world.footpathEdges`
+okuyordu; `createScene` o alanı hiç dışa vermiyor, yani sessizce `[]` oluyor ve **patika katmanı
+tamamen ölçüm dışı kalıyordu.** Onun yerine çizilen mesh'lerin üçgenlerini rasterledim: ne çiziliyorsa
+o ölçülüyor, varsayım yok.
+
+**Sonuç: bu turda düzeltilecek bir hata yok.** Tur 435'in 2. bulgusu geri çekildi, görev kapatıldı.
+Tur 435'in 1. bulgusu (patika rengi at arabası yolundan parlak, kendi gerekçesinin tersi) ayakta ve
+`checkRoadVisualContract`'ın onarımıyla birlikte duruyor.
+
+Bu, bu projede ölçümle elenen üçüncü hipotez (Tur 422 talveg, Tur 425 kaya rampası, ve şimdi bu).
+Ölçüm kaydı belge olarak kalıyor.
+
+Kapılar: `checkSmokeCheckRegistry`, `checkTechnicalDebt` — PASS. Kaynak değişmedi, SW bump yok.
+
+**Technical debt.** 0 new.
