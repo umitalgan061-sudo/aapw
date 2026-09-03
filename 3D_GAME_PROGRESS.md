@@ -19689,3 +19689,49 @@ Kapılar: `checkSmokeCheckRegistry`, `checkTechnicalDebt`, `checkServiceWorkerCa
 
 **Technical debt.** 0 new. Çalışma zamanı kaynağı değişmedi, SW bump yok. Hidratlanan GLB'ler
 commit'ten önce `git checkout -- assets/` ile geri alındı (CLAUDE.md).
+
+## Tur 434 — Ağaç modellerinin kendi malzemesi yanlıştı; ve Tur 433'te yanlış yazdığım şey (ADR-0381)
+
+**Önce düzeltme.** Tur 433'te "modeller dokusuz" diye yazmıştım. **Yanlış.** Yakın planda bakınca gövde
+kabuk dokulu — dikey çizgiler, renk geçişi — ve yapraklar alfa-kesimli yaprak kümeleri. O yargıyı
+ekranda 20 piksel yer kaplayan bir ağaçtan vermiştim. Doğru kırpma alınca gerçek hata başka çıktı:
+**ağaç fazla koyu.**
+
+**GLB başlıklarından okunan, iki gerçek hata:**
+
+```
+pine_Zt62gceKXZ   Bark_NormalTree    metallicFactor 0,4   alphaMode OPAQUE
+                  Leaves_Pine        metallicFactor 0,4   alphaMode BLEND
+tree_QVOop92WmG   Bark_NormalTree    metallicFactor 0,4   alphaMode OPAQUE
+                  Leaves_NormalTree  metallicFactor 0,4   alphaMode BLEND
+```
+
+**Metalness.** Kabuk da yaprak da dielektrik; bir ağaçta metal yoktur. 0,4'te standart BRDF taban
+renginin %40'ını metalik loba özgül yansıma olarak veriyor ve **difüz albedodan çıkarıyor**, yani
+aydınlatılmış ağaç kendi dokusundan daha koyu ve daha gri dönüyor. Ölçüm: `cersei` bakışında tepe
+tacı 74,7 parlaklık veriyordu, yanındaki güneşli çayır 75,4 — öğle güneşindeki bir ağaç, bastığı
+zeminden parlak değil.
+
+**Alfa modu.** `BLEND` bir pencerenin istediği şey, bir tepe tacının değil: yükleyici bunu
+`transparent: true` + `depthWrite: false`'a çeviriyor, yani yaprak kartları derinlik yazmayı bırakıyor
+ve sıralama ne verirse o sırayla çiziliyor. Bir tepe tacı üst üste cam levhalar değil, **delikli bir
+katı**dır — `alphaTest` tam olarak bunu tanımlar. Eşik 0,4: `world/windGrass.js`'in çim kartları için
+zaten yazdığı gerekçenin ve sayının aynısı.
+
+**Düzeltme yükleme anında, klon üzerinde** — sahibin diskteki dosyalarına dokunulmuyor ve bu modelleri
+yükleyen başka hiçbir şey değişikliği miras almıyor.
+
+**Sonuç, dürüstçe: mütevazı.** Değişikliğin dokunduğu 39.808 pikselde ortalama parlaklık
+**65,1 → 68,2** (%4,8). Metalness 0,4'ten beklediğim büyük sıçrama gelmedi; pürüzlülük 1,0'da özgül
+lobun bir kısmını geri vermesi bunu yumuşatıyor. Görsel kazanç sayıdan büyük: yaprak kümeleri artık
+keskin kenarlı ayrı kütleler ve dallar taca doğru düzgün gizleniyor.
+
+Görsel doğrulama iki açıdan: `artifacts/world-survey/seat-cersei.png` ve `seat-berk.png`.
+
+Kapılar: `checkVegetationVisualContract`, `game3dSmokeChecksVegetation`, `checkVegetationRiverClearance`,
+`checkSmokeCheckRegistry`, `checkServiceWorkerCache`, `checkTechnicalDebt`, `game3dSmokeChecksScene` —
+hepsi PASS. `SHELL_CACHE` v73 → v74.
+
+**Technical debt.** 0 new. Hidratlanan GLB'ler commit'ten önce geri alındı.
+
+**Açık kalan:** 220 m'deki gerçek model / ilkel koni sınırı hâlâ zıplıyor.

@@ -98,6 +98,12 @@ export const VEGETATION_NEAR_DETAIL_POLICY = Object.freeze({
 	defaultModel: 'broadleaf',
 	/** Camera travel that triggers a re-selection. Below this the same trees stay chosen. */
 	rebuildAfterCameraMoveMeters: 12,
+	/**
+	 * Cut-out threshold for foliage the model files mark `BLEND` — see `correctFoliageMaterial`. The
+	 * same 0.4 `world/windGrass.js` cuts its grass cards at, and for the same reason: high enough that
+	 * a texel the leaf texture calls background is gone, low enough to keep the soft edge of a leaf.
+	 */
+	foliageAlphaTest: 0.4,
 	renderOnly: true,
 });
 
@@ -131,6 +137,43 @@ function attachHiddenFlag(trunkMesh, foliageMesh) {
 	return attribute;
 }
 
+/**
+ * Corrects what the tree models' own glTF materials get wrong for foliage (run 434).
+ *
+ * These are the owner's imported assets and they are read exactly as authored, which is how two
+ * mistakes in the source files reached the screen unchallenged. Read straight out of the GLB headers:
+ *
+ *   pine_Zt62gceKXZ   Bark_NormalTree   metallicFactor 0.4  alphaMode OPAQUE
+ *                     Leaves_Pine       metallicFactor 0.4  alphaMode BLEND
+ *   tree_QVOop92WmG   Bark_NormalTree   metallicFactor 0.4  alphaMode OPAQUE
+ *                     Leaves_NormalTree metallicFactor 0.4  alphaMode BLEND
+ *
+ * **Metalness.** Bark and leaves are dielectrics; there is no metal in a tree. At 0.4 the standard
+ * BRDF hands 40% of the base colour to the metallic lobe as specular tint and takes it *out* of the
+ * diffuse albedo, so a lit tree comes back darker and greyer than its own texture. Measured against
+ * the grass it stands in at the cersei viewpoint, the canopy was returning luminance 74.7 where the
+ * sunlit sward beside it returns 75.4 — a tree in full midday sun no brighter than the ground.
+ *
+ * **Alpha mode.** `BLEND` is what a window wants, not what a canopy wants: the loader turns it into
+ * `transparent: true` with `depthWrite: false`, so leaf cards stop writing depth and are drawn in
+ * whatever order the sort happens to give them. A canopy is not a stack of glass panes, it is a solid
+ * with holes in it, which is exactly what `alphaTest` describes — the same reasoning, and the same
+ * threshold, `world/windGrass.js` already writes down for its grass cards.
+ *
+ * Applied at load, on a clone, so the files on disk are untouched and nothing else that loads these
+ * models inherits the change.
+ */
+function correctFoliageMaterial(material) {
+	const corrected = material.clone();
+	corrected.metalness = 0;
+	if (corrected.transparent) {
+		corrected.transparent = false;
+		corrected.depthWrite = true;
+		corrected.alphaTest = VEGETATION_NEAR_DETAIL_POLICY.foliageAlphaTest;
+	}
+	return corrected;
+}
+
 /** Every mesh in a loaded model, baked into world space and merged per material. */
 function collectModelParts(root) {
 	root.updateMatrixWorld(true);
@@ -139,7 +182,7 @@ function collectModelParts(root) {
 		if (!child.isMesh || !child.geometry) return;
 		const geometry = child.geometry.clone();
 		geometry.applyMatrix4(child.matrixWorld);
-		parts.push({ geometry, material: child.material });
+		parts.push({ geometry, material: correctFoliageMaterial(child.material) });
 	});
 	return parts;
 }
