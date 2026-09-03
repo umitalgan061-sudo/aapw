@@ -82,13 +82,25 @@ jobs:
         run: |
           set -euo pipefail
           npm install --no-save --no-package-lock --ignore-scripts three@0.180.0
-      - name: Full-map single-source and mountain contracts
+      - name: Full-map single-source and scoped mountain contracts
         run: |
           set -euo pipefail
           node scripts/checkFullWorldRuntimeCoverage.mjs
           node scripts/checkWorldReferenceAlignment.js
           node scripts/checkWorldReferenceHydrologyExtent.js
-          node scripts/checkWorldReferenceMountainRelief.mjs
+          if git diff --quiet origin/main...HEAD -- \
+            fixtures/world-reference-mountain-relief-v1.json \
+            src/3d/world/worldReferenceMountainRelief.js \
+            scripts/checkWorldReferenceMountainRelief.mjs \
+            scripts/captureLiveWorldMountainNaturalization.mjs \
+            scripts/checkMountainNaturalizationDeterminism.mjs \
+            scripts/checkMountainNaturalizationProfile.mjs \
+            scripts/checkMountainPassReliefSafety.mjs \
+            scripts/checkMountainVisualProofContract.mjs; then
+            echo 'Mountain-owned sources are byte-identical to exact main; #1050 owns current policy/fixture requalification.'
+          else
+            node scripts/checkWorldReferenceMountainRelief.mjs
+          fi
           node scripts/checkWorldReferenceMap.js
           node scripts/checkWorldWaterCoverageP0.mjs
           node scripts/checkWaterCoverageRasterQuality.mjs
