@@ -19,7 +19,14 @@ try {
 	page.on('console', (message) => {
 		if (message.type() === 'error') consoleErrors.push(message.text());
 	});
-	await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+	await page.goto(`${baseUrl}/service-worker.js`, { waitUntil: 'domcontentloaded', timeout: 10000 });
+	await page.addScriptTag({
+		type: 'importmap',
+		content: JSON.stringify({ imports: {
+			three: '/src/3d/vendor/three/three.module.js',
+			'three/addons/': '/src/3d/vendor/three/addons/',
+		} }),
+	});
 
 	const proof = await page.evaluate(async () => {
 		const { NPC_CONFIG } = await import('/src/3d/gameplay/npcConfig.js');
