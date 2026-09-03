@@ -126,11 +126,16 @@ jobs:
             fi
           fi
 
-      - name: World safety contracts
+      - name: Terrain seat safety contract
         shell: bash
         run: |
           set -euo pipefail
           node scripts/terrainSeatSafetyCheck.js
+
+      - name: Road network safety contract
+        shell: bash
+        run: |
+          set -euo pipefail
           node scripts/roadNetworkSafetyCheck.js
 
       - name: Determinism guard regression fixture
