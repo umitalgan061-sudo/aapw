@@ -108,8 +108,13 @@ jobs:
           git fetch origin main
           test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
       - name: Enforce diagnostic gates
-        if: ${{ always() }}
+        if: ${{ always() && (steps.shared_pwa.outcome != 'success' || steps.lifecycle_browser.outcome != 'success') }}
         shell: bash
+        env:
+          SHARED_PWA_OUTCOME: ${{ steps.shared_pwa.outcome }}
+          LIFECYCLE_BROWSER_OUTCOME: ${{ steps.lifecycle_browser.outcome }}
         run: |
-          test "${{ steps.shared_pwa.outcome }}" = "success"
-          test "${{ steps.lifecycle_browser.outcome }}" = "success"
+          set -euo pipefail
+          echo "shared_pwa=$SHARED_PWA_OUTCOME"
+          echo "lifecycle_browser=$LIFECYCLE_BROWSER_OUTCOME"
+          exit 1
