@@ -40,9 +40,10 @@ export const RIVER_EDGE_POLICY = Object.freeze({
 	/** Fraction of the half-width, measured in from the bank, that reads as shallows. */
 	shallowBandFraction: 0.62,
 	/**
-	 * Grazing-angle response (run 427). Schlick's approximation uses an exponent of 5; 4 here, because
-	 * this stands in for a whole environment reflection rather than just the Fresnel factor, and 5 kept
-	 * the effect too close to the silhouette to read at the distances the defect shows up at.
+	 * Grazing-angle response (run 427, corrected run 430). Schlick's approximation uses an exponent of
+	 * 5; 4 here, because this stands in for a whole environment reflection rather than just the Fresnel
+	 * factor, and 5 kept the effect too close to the silhouette to read at the distances the defect
+	 * shows up at. Applied to the *lit* colour, not the albedo — see `applyNaturalRiverEdge`.
 	 */
 	glanceExponent: 4,
 	/** How far toward the sky's own horizon colour the water goes when seen edge-on. */
@@ -114,7 +115,7 @@ ${shader.fragmentShader}`.replace(
 	roughnessFactor = mix(roughnessFactor, 0.55, riverShallow * 0.7);
 }`,
 			)
-			// Run 427: the glance angle. Anchored after the normal maps so `normal` is the finished one.
+			// Run 428: the shading normal. Anchored after the normal maps so `normal` is the finished one.
 			.replace(
 				'#include <normal_fragment_maps>',
 				`#include <normal_fragment_maps>
@@ -138,24 +139,47 @@ ${shader.fragmentShader}`.replace(
 	// map put there, and only ever changes back faces -- on a front face normal.y is already positive
 	// and this is a no-op.
 	normal.y = abs(normal.y);
-	// Water seen edge-on is a mirror of the sky, and it gets *lighter*, not darker. This material has
-	// no environment to reflect, so at a grazing angle its specular term returns nothing and all that
-	// is left is a dark blue albedo -- which is why, from a distance, every river in the world drew a
-	// near-black line across the landscape. Hiding the river group was what proved it: the line went
-	// with it and nothing else in the scene moved.
+}`,
+			)
+			// Run 430: the sky reflection, and *where* it happens is the whole point. See the comment.
+			.replace(
+				'#include <fog_fragment>',
+				`{
+	// Water seen edge-on is a mirror of the sky, and it gets lighter, not darker. This material has no
+	// environment to reflect, so at a grazing angle its specular term returns nothing and all that is
+	// left is a dark blue albedo. Run 427 added this term. Run 430 had to move it twice, and both
+	// wrong placements are worth keeping written down because each one looked right.
 	//
-	// fogColor is the sky's own horizon colour, updated every frame by fog.js from the day/night
-	// state, so the water blends to exactly what the atmosphere behind it is doing rather than to a
-	// second colour that would drift away from it. Guarded on USE_FOG: nothing in this project turns
-	// scene fog off, but a shader that fails to compile if someone does is a trap.
+	// **First it mixed the sky into diffuseColor** -- the albedo -- and the lighting then multiplied
+	// that albedo by the full sun and ambient irradiance. The water was not showing you the sky, it was
+	// painted sky-coloured and then lit, which is a different and much brighter thing.
+	//
+	// **Then it mixed into gl_FragColor at opaque_fragment,** which is after the lighting but *before*
+	// tonemapping and the sRGB encode. fogColor is not a linear value: three.js applies its own fog at
+	// <fog_fragment>, downstream of <colorspace_fragment>, so fogColor lives in output space. Dropping
+	// it in upstream meant the encode ran over it a second time. Measured on the ziya viewpoint: the
+	// river came out at RGB (186,201,206) against a horizon sky of (31,66,118) -- and a roughness sweep
+	// plus a sun switched off entirely moved it by less than one count, which is what proved the colour
+	// was not lit at all but pasted in.
+	//
+	// Here, at <fog_fragment>, gl_FragColor is in exactly the space fogColor is quoted in, so the mix
+	// is a reflection rather than a repaint and the water can approach the sky's brightness without
+	// passing it. three.js's own distance fog runs immediately after and still gets the last word.
+	//
+	// fogColor is the sky's own horizon colour, updated every frame by fog.js from the day/night state,
+	// so the water follows exactly what the atmosphere behind it is doing rather than a second colour
+	// that would drift away from it. Guarded on USE_FOG: nothing in this project turns scene fog off,
+	// but a shader that fails to compile if someone does is a trap.
 	#ifdef USE_FOG
 		float riverFacing = abs(dot(normalize(vViewPosition), normal));
 		float riverGlance = pow(1.0 - riverFacing, ${P.glanceExponent.toFixed(1)});
-		diffuseColor.rgb = mix(diffuseColor.rgb, fogColor, riverGlance * ${P.glanceSkyStrength.toFixed(2)});
-		// ...and it stops being see-through at the same time, for the same reason.
-		diffuseColor.a = mix(diffuseColor.a, 1.0, riverGlance * ${P.glanceOpacityStrength.toFixed(2)});
+		gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, riverGlance * ${P.glanceSkyStrength.toFixed(2)});
+		// ...and it stops being see-through at the same time, for the same reason: what you are looking
+		// at is reflected sky, and reflected sky hides the bed.
+		gl_FragColor.a = mix(gl_FragColor.a, 1.0, riverGlance * ${P.glanceOpacityStrength.toFixed(2)});
 	#endif
-}`,
+}
+#include <fog_fragment>`,
 			);
 	};
 	material.userData.riverNaturalEdge = Object.freeze({

@@ -19503,3 +19503,54 @@ Kapılar: `checkWindGrassContractRun180`, `checkVegetationVisualContract`, `chec
 
 **Technical debt.** 0 new. Üçgen sayısı, yama sayısı, yerleşim ve determinizm değişmedi; normaller
 aynı geometriye bir kez yazılıyor. `SHELL_CACHE` v70 → v71.
+
+## Tur 430 — Nehir bu sefer fazla beyaz: gökyüzü yansıması yanlış yerdeydi (ADR-0377)
+
+Tur 428'den sonra dünya taraması yeniden alındı ve `artifacts/world-survey/seat-ziya.png` ikinci bir
+hata gösterdi: nehir artık siyah değil, **süt beyazı**. Ölçüm:
+
+```
+nehir (186,201,206) · ufuktaki gökyüzü (31,66,118) · deniz (42,101,130)
+```
+
+Yansıttığı şeyden **iki buçuk kat parlak**. Bir ayna yansıttığı şeyi geçemez.
+
+**Tur 427'nin terimi iki kez yanlış yerdeydi ve ikisi de yazmaya değer, çünkü her ikisi de doğru
+görünüyordu.**
+
+1. **Önce `diffuseColor`'a karıştırıyordu** — yani albedo'ya — ve aydınlatma o albedo'yu güneşin ve
+   ortam ışığının tamamıyla çarpıyordu. Su size gökyüzünü göstermiyordu; gök rengine **boyanıp sonra
+   aydınlatılıyordu**, ki bu çok daha parlak, bambaşka bir şey.
+2. **Sonra `opaque_fragment`'ta `gl_FragColor`'a** — aydınlatmadan sonra, ama tonemapping ve sRGB
+   kodlamasından **önce**. `fogColor` doğrusal bir değer değil: three.js kendi sisini
+   `<colorspace_fragment>`'ın altında, `<fog_fragment>`'ta uygular, yani `fogColor` çıkış uzayında
+   yaşar. Yukarı akışta bırakınca kodlama onun üstünden bir kez daha geçiyordu.
+
+**Bunu kanıtlayan ölçüm:** pürüzlülüğü 0,15'ten 1,0'a süpürdüm **ve güneşi tamamen kapattım** —
+bant bir birimden az kımıldadı (166 → 166). Yani renk aydınlatılmıyordu, yapıştırılıyordu.
+
+**Düzeltme:** terim `<fog_fragment>`'a taşındı. Orada `gl_FragColor` tam olarak `fogColor`'ın
+verildiği uzayda, dolayısıyla karıştırma bir **yansıma** oluyor, yeniden boyama değil; su gökyüzünün
+parlaklığına yaklaşabiliyor ama onu geçemiyor. three.js'in kendi mesafe sisi hemen ardından çalışıyor
+ve son sözü hâlâ o söylüyor.
+
+**Sonuç (aynı kare, aynı pikseller):**
+
+```
+(1000,424) (186,201,206) → ( 88,159,191)
+( 400,408) (186,201,206) → (108,173,203)
+soluk piksel sayısı 13.163 → 5.048
+```
+
+Görsel doğrulama iki açıdan: `artifacts/world-survey/seat-ziya.png` ve `seat-berk.png` — nehir artık
+denize inen mavi bir su yolu; ne siyah, ne beyaz.
+
+Kapılar: `checkNamedRivers`, `checkRiverValleyCarving`, `checkRun325RiverFlow`, `checkRun325WaterSwell`,
+`checkWaterVisualContract`, `checkVegetationRiverClearance`, `checkWindGrassContractRun180`,
+`roadNetworkSafetyCheck`, `checkServiceWorkerCache`, `checkSmokeCheckRegistry`, `checkTechnicalDebt`,
+`game3dSmokeChecksScene` — hepsi PASS.
+
+**Technical debt.** 0 new. Sadece render. `SHELL_CACHE` v71 → v72.
+
+**Kalan, dürüstçe:** haliç hâlâ sert kenarlı bir dörtgen olarak okunuyor — şeridin kendi geometrisinin
+kenarı, ayrı bir iş.
