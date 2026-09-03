@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'src/3d/world/villages.js'
+      - 'src/3d/gameplay/interactionEconomy.js'
       - 'src/3d/materials/palettes.js'
       - 'src/3d/materials/meshPartClassifier.js'
       - 'src/3d/materials/MaterialAssignmentCore.js'
@@ -11,6 +12,7 @@ on:
       - 'assets/models/settlements/**'
       - 'service-worker.js'
       - 'scripts/checkVillageGeographyTextureContract.mjs'
+      - 'scripts/checkVillageBlacksmithServiceReadiness.mjs'
       - '.github/workflows/village-geography-texture-contract.yml'
   workflow_dispatch:
 
@@ -47,11 +49,16 @@ jobs:
           echo "scope additions=$additions deletions=$deletions total=$total"
           test "$total" -le 3000
 
-      - name: Syntax-check geography contract
-        run: node --check scripts/checkVillageGeographyTextureContract.mjs
+      - name: Syntax-check geography contracts
+        run: |
+          node --check scripts/checkVillageGeographyTextureContract.mjs
+          node --check scripts/checkVillageBlacksmithServiceReadiness.mjs
 
       - name: Validate canonical geography, model diversity and material semantics
         run: node scripts/checkVillageGeographyTextureContract.mjs
+
+      - name: Validate blacksmith asset and RPG service adoption boundary
+        run: node scripts/checkVillageBlacksmithServiceReadiness.mjs
 
       - name: Preserve shared material and placement authority
         shell: bash
