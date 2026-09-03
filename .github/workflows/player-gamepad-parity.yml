@@ -179,17 +179,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerGamepadRuntime.mjs --out-dir=artifacts/player-gamepad | tee artifacts-player-gamepad.log
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerGamepadRuntime.mjs --out-dir=artifacts/player-gamepad 2>&1 | tee artifacts-player-gamepad.log
           test -s artifacts/player-gamepad/gamepad-runtime.png
           test -s artifacts/player-gamepad/gamepad-runtime.json
           grep -q 'PLAYER_GAMEPAD_RUNTIME_OK' artifacts-player-gamepad.log
           grep -Fq '"browserErrors": []' artifacts/player-gamepad/gamepad-runtime.json
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerLockOnRuntime.mjs --out-dir=artifacts/player-lock-on | tee artifacts-player-lock-on.log
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerLockOnRuntime.mjs --out-dir=artifacts/player-lock-on 2>&1 | tee artifacts-player-lock-on.log
           test -s artifacts/player-lock-on/lock-on-runtime.png
           test -s artifacts/player-lock-on/lock-on-runtime.json
           grep -q 'PLAYER_LOCK_ON_RUNTIME_OK' artifacts-player-lock-on.log
           grep -Fq '"browserErrors": []' artifacts/player-lock-on/lock-on-runtime.json
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerRecoveryAttackBufferRuntime.mjs --out-dir=artifacts/player-recovery-attack-buffer | tee artifacts-player-recovery-attack-buffer.log
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerRecoveryAttackBufferRuntime.mjs --out-dir=artifacts/player-recovery-attack-buffer 2>&1 | tee artifacts-player-recovery-attack-buffer.log
           grep -q 'PLAYER_RECOVERY_ATTACK_BUFFER_RUNTIME_OK' artifacts-player-recovery-attack-buffer.log
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
