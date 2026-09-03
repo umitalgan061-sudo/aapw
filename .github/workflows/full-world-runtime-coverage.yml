@@ -113,10 +113,6 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-      - name: Browser render physics parity
-        run: |
-          set -euo pipefail
-          NODE_PATH="$NODE_PATH" node scripts/checkFullWorldRuntimeBrowser.mjs
       - name: Hydrate shipped full-world LFS assets
         run: |
           set -euo pipefail
@@ -125,6 +121,10 @@ jobs:
           test "$(stat -c %s assets/models/vegetation/pine_Zt62gceKXZ.glb)" -eq 2219996
           test "$(stat -c %s assets/models/vegetation/winter_tree.glb)" -eq 2008660
           test "$(stat -c %s assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb)" -eq 659652
+      - name: Browser render physics parity
+        run: |
+          set -euo pipefail
+          NODE_PATH="$NODE_PATH" node scripts/checkFullWorldRuntimeBrowser.mjs
       - name: Runtime terrain road and mobile safety
         run: |
           set -euo pipefail
