@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-03-v92-full-world-lowland-value-separation',
+	id: 'geographic-reference-palette-2026-09-03-v93-directional-domain-readability',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -44,6 +44,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	fullWorldLowlandDomainRecoveryRaised: true,
 	lowlandBiomeDomainSeparationRaised: true,
 	fullWorldLowlandValueSeparationRaised: true,
+	directionalDomainReadabilityRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -51,22 +52,22 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v92 follows direct inspection of exact-head 1829f269 Full World 3D Topdown #1243. The render is structurally healthy, but broad central lowlands still collapse toward a beige-grey aerial mean and the existing green patches lose contrast at full-world distance. v92 therefore deepens meadow/moss chlorophyll values, darkens dry heather, separates oxidised soil from vegetation, and cools weathered granite while slightly lifting sunlit granite. This is a render-only value/hue separation inside the existing classifier: no biome coverage, height, map, hydrology, route, coastline or collider authority changes.',
-		water: 'v92 preserves the verified marine correction: deep sea and abyss remain readable without near-black crushing and coastal water stays cooler/desaturated. Coverage, bathymetry, lake membership, shoreline and offshore authority are unchanged.',
-		road: 'v92 preserves established compacted-road and dust bases, keeping roads distinct from exposed-earth terrain without changing route geometry.',
-		celestial: 'v92 preserves restrained noon and moon calibration; aerial depth is produced by material/ecotone separation rather than stronger global illumination.',
+		terrain: 'v93 follows direct A/B inspection of exact-head Full World 3D Topdown #1247 and v19 #1249. The new deterministic directional lowland domains are structurally safe but were visually too subtle at full-world distance. v93 therefore increases wet-meadow chlorophyll readability, darkens warm dry-heather, strengthens oxidised exposed-earth separation, and nudges weathered granite cooler so the existing v19 wet/dry/lithic domains survive aerial averaging. This remains render-only: biome coverage, terrain height, map, hydrology, route, coastline and collider authority are unchanged.',
+		water: 'v93 preserves the verified marine correction: deep sea and abyss remain readable without near-black crushing and coastal water stays cooler/desaturated. Coverage, bathymetry, lake membership, shoreline and offshore authority are unchanged.',
+		road: 'v93 preserves established compacted-road and dust bases, keeping roads distinct from exposed-earth terrain without changing route geometry.',
+		celestial: 'v93 preserves restrained noon and moon calibration; aerial depth is produced by material/ecotone separation rather than stronger global illumination.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x06341a,
-		meadow: 0x0b742d,
-		dryHeather: 0x4b291c,
+		mossShadow: 0x063b1d,
+		meadow: 0x0b8034,
+		dryHeather: 0x422318,
 		wetEarth: 0x10231b,
-		exposedEarth: 0x965033,
-		graniteShadow: 0x2d424c,
-		graniteSunlit: 0xc0b2a0,
+		exposedEarth: 0xa35231,
+		graniteShadow: 0x304953,
+		graniteSunlit: 0xc2b4a1,
 		basaltWet: 0x0b1b20,
 		quartz: 0xd9d1c7,
 	}),
