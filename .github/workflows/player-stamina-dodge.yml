@@ -160,7 +160,11 @@ jobs:
         run: node scripts/checkSharedMaterialPlacementContract.js
       - name: Shared PWA cache contract
         if: always()
-        run: node scripts/checkServiceWorkerCache.js
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/player-stamina-dodge
+          node scripts/checkServiceWorkerCache.js 2>&1 | tee artifacts/player-stamina-dodge/pwa-cache.log
       - name: Install Chromium
         if: always()
         shell: bash
@@ -209,8 +213,8 @@ jobs:
           test -s artifacts/player-stamina-dodge/dodge-iframes/dodge-iframes-runtime.json
           grep -q 'PLAYER_DODGE_IFRAMES_RUNTIME_OK' artifacts/player-stamina-dodge/dodge-iframes.log
           grep -q '"browserErrors": \[\]' artifacts/player-stamina-dodge/dodge-iframes/dodge-iframes-runtime.json
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js 2>&1 | tee artifacts/player-stamina-dodge/mobile-perf.log
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js 2>&1 | tee artifacts/player-stamina-dodge/smoke-game3d.log
       - name: Final main freshness
         if: always()
         shell: bash
