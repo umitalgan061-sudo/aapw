@@ -20295,3 +20295,68 @@ Kapılar: `checkSmokeCheckRegistry`, `checkTechnicalDebt` — PASS. Kaynak deği
 
 **Technical debt.** 0 new. Bu, projede ölçümle elenen **dördüncü** hipotez (Tur 422 talveg, Tur 425
 kaya rampası, Tur 436 yol önlüğü, ve şimdi Görev 14'ün dar vadileri).
+
+## Tur 445 — Köprünün su yüksekliği artık tahmin değil, çizilenin ta kendisi (ADR-0392)
+
+Görev 23 için kaynak kırpmasını ölçerken bir varsayımımı kontrol ettim ve **kendi Tur 440/441
+işimde bir hata buldum.**
+
+`sceneManager.js` tarihsel nehrin mesh'ine yükseklik örnekleyicisi veriyor, isimli nehirlerinkine
+**vermiyor**. Yani iki farklı kural:
+
+```
+tarihsel   her kıyı kendi zemininden + 0,3   (createRiverMesh, örnekleyiciyle)
+isimli     kursun kendi y'si + 0,3           (createRiverMesh, örnekleyicisiz)
+```
+
+`roadRiverBridges.js` hepsini **birinci** kurala göre türetiyordu. Kurulmuş mesh'lere karşı ölçüldü:
+
+```
+isimli nehirlerde türetilen eksi çizilen: medyan -0,74 … -1,00 m, en kötü -5,71 m (Mander)
+```
+
+Yani her isimli nehirde su yaklaşık **bir metre alçak** okunuyordu, ve Mander'de bir noktada 5,71 m —
+orada güverte 2,4 − 5,71 = **suyun 3,3 metre altında** kalırdı. Tam olarak bu modülün var olma
+sebebi olan hata, isimli nehirler için hâlâ canlıydı.
+
+**Asıl çözüm yukarı akıştaydı.** Tur 440 kıyıdan türetiyordu çünkü *ham* kurs noktaları vadi
+oyulmadan önceki yüksekliği taşıyor (23 m'ye kadar sapıyor). Doğru cevap türetmek değil, kursları
+**yüzeylendirmekti**: `sceneManager.js` artık `buildRiverSurface`'ten geçmiş kursları veriyor — şeritleri
+kuran fonksiyonun ta kendisi — yani bir kurs noktasının `y`'si yapı gereği suyun çizildiği yükseklik.
+
+**Ve bu yolda bir hipotezim daha ölçümle elendi.** Yüzeylendirdikten sonra hata hiç eksiye düşmedi
+(iyi) ama **+30,33 m**'ye kadar çıktı. "Aramanın ilk eşleşen segmenti döndürmesi, menderesin kendi üst
+menzillerine yaklaşması" diye düşündüm; en yakın segmenti seçecek şekilde değiştirdim ve **her aykırı
+değer olduğu yerde kaldı.** Sebep başkaydı: `max(a.y, b.y)` bir segmentin *üst* ucunu alıyor, ve bu
+kurslarda şelaleler var — 8 metrelik bir segment onlarca metre düşebiliyor. Şeridin kendi yüksekliği
+segment boyunca **doğrusal**, dolayısıyla doğru okuma interpolasyon.
+
+**Sonuç, kurulmuş mesh'lere karşı:**
+
+```
+                    medyan   en kötü alçak   en kötü yüksek
+Tur 440 (kıyıdan)    -1,00           -5,71            +1,07
+yüzey + max(a,b)      0,00…5,37       0,00           +30,33
+yüzey + interpolasyon 0,00            0,00             0,00   ← on nehrin onunda da
+```
+
+**Santimetre hatasız.** En yakın-segment değişikliği kaldı — kendi başına doğru — ama aykırı değerleri
+onun **çözmediği** koda yazıldı; öyle sanmıştım.
+
+Güverteler yaklaşık bir metre yükseldi: yüksek kıyının üstünde 2,46–4,09 m (önce 2,46–3,61 m).
+Sekiz geçişin yedisi hâlâ köprü, biri hâlâ geçit.
+
+**Kapıların göremediği bir şey, dürüstçe:** `checkRoadRiverBridgeCrossings` güverteyi modülün *kendi*
+su yüzeyine karşı ölçüyor, dolayısıyla o yüzey yanlışsa yine de yeşil kalır. +30 m'lik aykırı değeri
+yakalayan şey kapı değil, çizilmiş mesh'lerin köşelerini okuyan harici bir ölçümdü
+(`scratchpad/surfaceTruth2.cjs`).
+
+Görsel doğrulama iki açıdan: `artifacts/bridges/second-side.png` ve `wide-approach.png`.
+
+Kapılar: `checkRoadRiverBridgeCrossings`, `checkRoadRibbonGrounding`, `checkNamedRivers`,
+`checkRiverValleyCarving`, `checkRun325RiverFlow`, `checkWaterVisualContract`,
+`checkVegetationRiverClearance`, `roadNetworkSafetyCheck`, `checkSmokeCheckRegistry`,
+`checkServiceWorkerCache`, `checkTechnicalDebt`, `game3dSmokeChecksScene` — hepsi PASS.
+`SHELL_CACHE` v79 → v80.
+
+**Technical debt.** 0 new. Bu, ölçümle elenen **beşinci** hipotez.

@@ -345,9 +345,20 @@ export function createScene(canvas) {
 	// above sea level so the waterline test could never catch one.
 	// Run 440 carries each river's name through as well: `world/roadRiverBridges.js` reports which
 	// river a road crosses, and "river x8" is not a thing anyone can act on.
+	//
+	// Run 445: and the points are the *surfaced* ones, run through the same `buildRiverSurface` the
+	// ribbons themselves are built from. Run 440 could not read a course's `y` because the raw traced
+	// points carry the height from before the valley was carved — up to 23 m out — so it derived the
+	// water surface from bank ground instead. Measured against the built meshes, that derivation is
+	// systematically about a metre low for the named rivers and 5.71 m low at one point on the Mander,
+	// where it would have put a bridge deck 3.3 m *under* the water it spans. Surfacing the courses
+	// removes the guess: this is, by construction, the height the ribbon is drawn at.
 	const riverCourses = [
-		{ name: 'river', points: riverPoints },
-		...(valleyField.namedRivers ?? []).map((river) => ({ name: river.name ?? river.id, points: river.points })),
+		{ name: 'river', points: buildRiverSurface(riverPoints, groundCollider.getGroundHeight) },
+		...(valleyField.namedRivers ?? []).map((river) => ({
+			name: river.name ?? river.id,
+			points: buildRiverSurface(river.points, groundCollider.getGroundHeight),
+		})),
 	];
 
 	// Run 441 — bridges, at last, where the roads actually meet the rivers. Run 439 measured that this

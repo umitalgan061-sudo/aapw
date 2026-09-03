@@ -43,11 +43,19 @@ export const ROAD_RIVER_BRIDGE_POLICY = Object.freeze({
 	/** Dry ground kept either side of the wet run before the deck starts. The shadow policy's figure. */
 	bankMarginMeters: 6,
 	/**
-	 * Metres the water surface sits above the ground its banks stand on — `createRiverMesh`'s own
-	 * `verticalOffset`. The surface height has to be *derived* this way rather than read off the
-	 * course's own `y`: those points carry the traced path's height from before the valley was carved,
-	 * and on the live world they run up to 23 m away from the ribbon the player actually sees. Taking
-	 * them at face value put one deck at 31.7 m over water drawn at 7.8 m.
+	 * Metres the drawn water surface sits above its course points — `createRiverMesh`'s own
+	 * `verticalOffset`.
+	 *
+	 * **Read from the course, not derived from the banks (run 445).** Run 440 sampled the ground either
+	 * side and took the higher bank, because the *raw* traced points carry the height from before the
+	 * valley was carved and are up to 23 m out. That worked, but only approximately: measured against
+	 * the built meshes, bank-derivation came out about a metre low for every named river and 5.71 m low
+	 * at one point on the Mander — enough to have put a deck 3.3 m *under* the water it spans, the very
+	 * defect this module exists to prevent.
+	 *
+	 * The real fix was upstream. `sceneManager.js` now hands over courses already run through
+	 * `buildRiverSurface`, the same function the ribbons are built from, so a course point's `y` is by
+	 * construction the height the water is drawn at and there is nothing left to guess.
 	 */
 	surfaceAboveBankMeters: 0.3,
 	/**
@@ -101,48 +109,81 @@ export const ROAD_RIVER_BRIDGE_POLICY = Object.freeze({
 	renderOnly: false,
 });
 
-/** Distance from a point to a segment in the XZ plane. */
-function distanceToSegmentXZ(px, pz, a, b) {
+/**
+ * Distance from a point to a segment in the XZ plane, with the clamped parameter along it.
+ *
+ * `t` is what makes the water height exact rather than approximate: `createRiverMesh` interpolates a
+ * rib's height linearly between its course points, so reading the surface at `t` reads the same value
+ * the ribbon is drawn at.
+ */
+function closestOnSegmentXZ(px, pz, a, b) {
 	const dx = b.x - a.x;
 	const dz = b.z - a.z;
 	const lengthSquared = dx * dx + dz * dz;
-	if (!lengthSquared) return Math.hypot(px - a.x, pz - a.z);
+	if (!lengthSquared) return { distance: Math.hypot(px - a.x, pz - a.z), t: 0 };
 	let t = ((px - a.x) * dx + (pz - a.z) * dz) / lengthSquared;
 	t = Math.max(0, Math.min(1, t));
-	return Math.hypot(px - (a.x + dx * t), pz - (a.z + dz * t));
+	return { distance: Math.hypot(px - (a.x + dx * t), pz - (a.z + dz * t)), t };
+}
+
+/** Distance only, for callers that do not need the parameter. */
+function distanceToSegmentXZ(px, pz, a, b) {
+	return closestOnSegmentXZ(px, pz, a, b).distance;
 }
 
 /**
  * Which river course, if any, covers this point — and how high its water is drawn there.
  *
- * The surface is *derived* the way `world/rivers.js`'s `createRiverMesh` derives it — each bank
- * founded on its own ground, plus `surfaceAboveBankMeters`, and the higher of the two wins — rather
- * than read off the course's `y`. See `surfaceAboveBankMeters` for what taking those at face value
- * cost. Both banks are sampled because a channel on a cross-slope has one bank well above the other,
- * and a deck has to clear the water at its highest edge.
+ * The courses arrive already surfaced by `buildRiverSurface` (see `surfaceAboveBankMeters`), so the
+ * water height is read straight off the segment the point falls on rather than reconstructed from the
+ * terrain. The higher of the segment's two ends wins, which is what `createRiverMesh` does across a
+ * rib: a level cross-section has to clear the upstream end of the reach it spans.
  */
 function riverAt(px, pz, riverCourses, sampleHeightMeters, policy) {
+	// The *nearest* covering segment, not the first one found. A meander passes within a ribbon width
+	// of its own upstream reaches and two courses can run close together, so "first match" can hand
+	// back a segment from higher up the valley. Correct on its own terms — but it is worth recording
+	// that this was NOT what caused the 30.33 m overestimate measured on the Blue Fork: swapping first
+	// for nearest left every outlier exactly where it was. That was the interpolation below.
+	let nearestDistance = Infinity;
+	let nearest = null;
 	for (const course of riverCourses) {
 		const points = course.points;
 		for (let index = 1; index < points.length; index += 1) {
 			const a = points[index - 1];
 			const b = points[index];
-			if (distanceToSegmentXZ(px, pz, a, b) > policy.riverHalfWidthMeters) continue;
-			const flowX = b.x - a.x;
-			const flowZ = b.z - a.z;
-			const flowLength = Math.hypot(flowX, flowZ) || 1;
-			// Perpendicular to the flow, exactly as the ribbon's own left/right offsets are built.
-			const acrossX = (-flowZ / flowLength) * policy.riverHalfWidthMeters;
-			const acrossZ = (flowX / flowLength) * policy.riverHalfWidthMeters;
-			const leftBank = sampleHeightMeters(px + acrossX, pz + acrossZ);
-			const rightBank = sampleHeightMeters(px - acrossX, pz - acrossZ);
-			return {
+			const { distance, t } = closestOnSegmentXZ(px, pz, a, b);
+			if (distance > policy.riverHalfWidthMeters || distance >= nearestDistance) continue;
+			nearestDistance = distance;
+			nearest = {
 				name: course.name ?? 'river',
-				surfaceY: Math.max(leftBank, rightBank) + policy.surfaceAboveBankMeters,
+				// Interpolated, not `max(a.y, b.y)`. Taking the higher end reads the top of whatever drop
+				// the segment contains, and these courses contain waterfalls: measured against the built
+				// meshes that came out up to 30.33 m too high on the Blue Fork. The ribbon's own height is
+				// linear along the segment, so this is the height actually drawn.
+				surfaceY: a.y + (b.y - a.y) * t + policy.surfaceAboveBankMeters,
 			};
 		}
 	}
-	return null;
+	return nearest;
+}
+
+/**
+ * Fraction of a deck's straight chord that lies over water.
+ *
+ * Walked at the same fixed step the edges are, so the two measurements are comparable, and through
+ * the same `riverAt` so "water" means the same thing in both.
+ */
+function wetShareAlongChord(start, end, spanMeters, riverCourses, sampleHeightMeters, policy) {
+	const steps = Math.max(2, Math.ceil(spanMeters / policy.sampleStepMeters));
+	let wet = 0;
+	for (let step = 0; step <= steps; step += 1) {
+		const t = step / steps;
+		const x = start.x + (end.x - start.x) * t;
+		const z = start.z + (end.z - start.z) * t;
+		if (riverAt(x, z, riverCourses, sampleHeightMeters, policy)) wet += 1;
+	}
+	return wet / (steps + 1);
 }
 
 /** Walks one routed edge at a fixed step, tagging every sample wet or dry. */
@@ -167,24 +208,6 @@ function sampleEdge(points, riverCourses, sampleHeightMeters, policy) {
 		}
 	}
 	return walk;
-}
-
-/**
- * Fraction of a deck's straight chord that lies over water.
- *
- * Walked at the same fixed step the edges are, so the two measurements are comparable, and through
- * the same `riverAt` so "water" means the same thing in both.
- */
-function wetShareAlongChord(start, end, spanMeters, riverCourses, sampleHeightMeters, policy) {
-	const steps = Math.max(2, Math.ceil(spanMeters / policy.sampleStepMeters));
-	let wet = 0;
-	for (let step = 0; step <= steps; step += 1) {
-		const t = step / steps;
-		const x = start.x + (end.x - start.x) * t;
-		const z = start.z + (end.z - start.z) * t;
-		if (riverAt(x, z, riverCourses, sampleHeightMeters, policy)) wet += 1;
-	}
-	return wet / (steps + 1);
 }
 
 /** Groups a walked edge's wet samples into contiguous runs. */
