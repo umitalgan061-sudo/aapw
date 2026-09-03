@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-03-v113-full-world-land-water-separation',
+	id: 'geographic-reference-palette-2026-09-04-v114-lowland-material-depth',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -88,6 +88,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	terrainWaterValueCollisionReduced: true,
 	fullWorldGreyBeigeCompressionReduced: true,
 	openSeaAerialBlackCrushReduced: true,
+	lowlandSoilStoneValueGapRaised: true,
+	wetOrganicCoolBiasRaised: true,
+	dryHeatherDustCastReduced: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -95,24 +98,24 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v113 follows direct inspection of exact-head Full World #1315. Broad lowlands still merged into a grey-beige field, so damp organic ground remains cool while meadow, dry heather, exposed mineral earth and lithology are separated by restrained value and hue rather than saturation. Canonical height, map.png, hydrology, coastline, routes and collider authority remain unchanged.',
-		water: 'v113 follows direct #1315 inspection and lifts boundary-connected open-sea midtones slightly to avoid aerial black crush while preserving lake, river, shelf and abyss hierarchy. Canonical depth, coverage, offshore connectivity and shoreline ownership are unchanged.',
-		road: 'v113 keeps compacted medieval earth inside the surrounding mineral gamut while preserving darker ruts and embedded-stone separation. Route topology, width, terrain sampling and water exclusion are unchanged.',
-		celestial: 'v113 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v114 follows direct inspection of exact-head Full World #1317. Broad lowlands still read too softly at aerial scale, so damp organic ground is cooled and darkened slightly, dry heather is desaturated away from dust-orange, exposed mineral soil is lifted, and granite/basalt separation is widened without changing canonical geography.',
+		water: 'v114 preserves the #1317 open-sea midtone calibration so this pass isolates land-material readability. Canonical depth, coverage, offshore connectivity and shoreline ownership are unchanged.',
+		road: 'v114 preserves compacted medieval earth, darker ruts and embedded-stone separation. Route topology, width, terrain sampling and water exclusion are unchanged.',
+		celestial: 'v114 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x173328,
-		meadow: 0x5b824c,
-		dryHeather: 0x927654,
-		wetEarth: 0x26342e,
-		exposedEarth: 0xa48062,
-		graniteShadow: 0x48565e,
-		graniteSunlit: 0xb7b09f,
-		basaltWet: 0x1d2e34,
-		quartz: 0xd4d2cc,
+		mossShadow: 0x163126,
+		meadow: 0x5e854d,
+		dryHeather: 0x8b7458,
+		wetEarth: 0x21312e,
+		exposedEarth: 0xa98a6b,
+		graniteShadow: 0x46555d,
+		graniteSunlit: 0xbcb5a4,
+		basaltWet: 0x192c33,
+		quartz: 0xd7d4cc,
 	}),
 	road: Object.freeze({
 		compacted: 0x735d4b,
