@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-03-v88-lowland-ecotone-recovery',
+	id: 'geographic-reference-palette-2026-09-03-v89-aerial-ecotone-clarity',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -40,6 +40,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	lowlandAerialRecoveryRaised: true,
 	lowlandEcotoneRecoveryRaised: true,
 	fullWorldVegetationReadabilityRaised: true,
+	aerialEcotoneClarityRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -47,22 +48,22 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v88 follows direct inspection of the exact-head fda81576 full-world WebGL artifact. The image is structurally healthy, but the broad central lowlands still collapse toward a beige-grey aerial average while greener ecological patches remain too local. v88 increases source-family ecological separation without changing biome classification or geometry: meadow gains readable mid-distance chlorophyll, moss shadow is lifted slightly out of near-black, dry heather is kept warm but less muddy, exposed soil remains oxidised and mineral, and weathered granite stays cool enough to separate from soil. The change is render-only and deterministic; map.png-derived terrain, hydrology, routes, coastline and collider authority remain untouched.',
-		water: 'v88 preserves the verified marine correction: deep sea and abyss remain readable without near-black crushing and coastal water stays cooler/desaturated. Coverage, bathymetry, lake membership, shoreline and offshore authority are unchanged.',
-		road: 'v88 preserves established compacted-road and dust bases, keeping roads distinct from exposed-earth terrain without changing route geometry.',
-		celestial: 'v88 preserves restrained noon and moon calibration; aerial depth is produced by material stratification rather than stronger global illumination.',
+		terrain: 'v89 follows direct inspection of exact-head b3b9a158 Full World 3D Topdown #1237. The render is structurally stable but the broad central lowlands still average toward beige-grey while greener ecological patches remain too local. v89 increases full-world ecotone readability without changing classification or geometry: meadow and moss gain slightly deeper chlorophyll separation, dry heather moves warmer/darker, exposed soil remains oxidised but is pulled away from vegetation, and weathered granite is kept cooler and less soil-like. This is a deterministic render-only calibration; map.png-derived terrain, hydrology, routes, coastline and collider authority remain untouched.',
+		water: 'v89 preserves the verified marine correction: deep sea and abyss remain readable without near-black crushing and coastal water stays cooler/desaturated. Coverage, bathymetry, lake membership, shoreline and offshore authority are unchanged.',
+		road: 'v89 preserves established compacted-road and dust bases, keeping roads distinct from exposed-earth terrain without changing route geometry.',
+		celestial: 'v89 preserves restrained noon and moon calibration; aerial depth is produced by material/ecotone separation rather than stronger global illumination.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x0b4526,
-		meadow: 0x157f35,
-		dryHeather: 0x704029,
+		mossShadow: 0x093d22,
+		meadow: 0x12742f,
+		dryHeather: 0x633824,
 		wetEarth: 0x10231b,
-		exposedEarth: 0xa3522d,
-		graniteShadow: 0x2c3d47,
-		graniteSunlit: 0xb0a397,
+		exposedEarth: 0x984a29,
+		graniteShadow: 0x293b47,
+		graniteSunlit: 0xb4a89d,
 		basaltWet: 0x0b1b20,
 		quartz: 0xd9d1c7,
 	}),
