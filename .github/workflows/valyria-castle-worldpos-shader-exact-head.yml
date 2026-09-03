@@ -68,8 +68,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm ci --ignore-scripts --no-audit --no-fund
-          npx playwright install chromium
+          # This repository intentionally has no root package.json/lockfile. Follow the established
+          # exact-head browser lane used by the atmosphere workflow instead of npm ci, which cannot
+          # succeed without a project manifest.
+          npm install --no-save playwright three
+          npx playwright install --with-deps chromium
 
       - name: Mobile Chromium Valyria shader compile proof
         shell: bash
