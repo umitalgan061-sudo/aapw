@@ -20229,3 +20229,69 @@ Kapılar: `checkRoadVisualContract` (**Tur 406'dan beri ilk kez yeşil**),
 `checkSeededRandomPolicy`, `game3dSmokeChecksScene` — hepsi PASS. `SHELL_CACHE` v78 → v79.
 
 **Technical debt.** 0 new. Bu turdan sonra bildiğim kırmızı yol kapısı kalmadı.
+
+## Tur 444 — Görev 14'ün öncülü yanlıştı: vadiler dar değil, **kaynaklar zirvede** (ADR-0391)
+
+Görev 14 aylardır "nehir vadilerini genişlet, araziye oturmuyorlar" diye duruyordu.
+`TERRAIN_VALLEY_POLICY`'nin rim yarı genişlikleri (kaynakta 130 m, ağızda 420 m) çevredeki yamaca
+göre dar görünüyordu. **Ölçtüm ve öncül yanlış çıktı.**
+
+11 nehrin her birinde beş istasyonda (kaynak, çeyrek, orta, üç çeyrek, ağız) akışa dik kesitler
+alındı; zemin, şeridin gerçekten çizildiği su hattına karşı (`createRiverMesh`'in kendi kuralı: kıyı
+zemini + 0,3) 600 metreye kadar örneklendi.
+
+**Vadiler nehirlerini büyük ölçüde tutuyor.** 50 istasyonun **47'sinde (%94)** kara 600 m içinde su
+hattının üstüne çıkıyor, ve çıktığı yerde medyan mesafe **100 m** — yani 130 m'lik kaynak rim'inin
+bile içinde. Rim dar değil.
+
+**Ama asıl hata, kesitleri istasyona göre ayırınca ortaya çıktı.** 200 metredeki zeminin su hattının
+ne kadar altında kaldığı:
+
+```
+istasyon      n    medyan       p90       maks
+    0,05     10      46,0     143,4      193,0   ← kaynaklar
+    0,30     10      -2,1       9,5       24,3
+    0,50     10      -1,1      23,0       45,0
+    0,75     10      17,9      38,1       38,8
+    0,95     10       0,3      33,4      104,9
+```
+
+Orta menziller (0,30 ve 0,50) **eksi** veriyor — yani kara 200 metrede suyun *üstünde*, tam bir vadi
+kesiti. Sorun **kaynaklarda**: medyan 46 m havada, en kötü on istasyonun altısı 0,05.
+
+```
+The White Knife   kaynak   su 283,8 m   200 m ötedeki kara 193,0 m aşağıda
+The Rhoyne        kaynak   su 181,4 m                     143,4 m aşağıda
+Green Fork        kaynak   su 172,4 m                      94,6 m aşağıda
+Red Fork          kaynak   su 160,5 m                      61,5 m aşağıda
+```
+
+Green Fork'un kaynak kesiti tek başına yeter: merkezde 172 m, 600 metrede 15/7 m. Nehir bir tepenin
+**üstünde** başlıyor.
+
+**Sebep kodun kendi yorumunda yazılı.** `rivers.js`, `SOURCE_SEARCH_STEP_METERS`'in yanında:
+*"the deterministic search that picks the river's source point (**the highest sampled point** within
+`searchRadiusMeters` of the origin)"*. Yani tasarım her nehri, nominal kaynağının yakınındaki **en
+yüksek** noktadan başlatıyor. Uzun bir iniş vermek için tutarlı bir karar — ve tam olarak kaynakların
+zirvede oturmasının sebebi. Gerçek nehir kaynakları pınar hatlarında, koyaklarda, boyunlarda doğar;
+zirvede doğmaz.
+
+**Rim'i genişletmek bunu düzeltemez.** 200 metrede 193 m aşağıda olan bir araziyi hiçbir vadi oyması
+kapsayamaz; nehir bir dağın tepesinde. Görev 14 bu ölçümle kapatıldı ve yerine gerçek bulgu yazıldı.
+
+**Sıradaki tur için iki seçenek, maliyetleriyle** (bu turda seçim yapılmadı, çünkü ikisi de ölçüm
+gerektiriyor):
+
+1. **Kaynağı koyağa taşı** — `generateRiverPath` en yükseği değil, `searchRadiusMeters` içinde yerel
+   bir *düşük* noktayı seçsin. Doğru cevap bu, ama her nehir kursunu kımıldatır, dolayısıyla vadi
+   oymasını ve altındaki arazi yüksekliklerini de (§8.4), ve Tur 441'in sekiz köprüsünü beraberinde
+   taşır. Kendi turu, kendi §8.4 kapı takımıyla.
+2. **Şeridin ilk bölümünü kırp** — kurs ve arazi kımıldamadan, sadece nehrin *çizildiği* yer
+   aşağıdan başlasın; nehir yamacın içinden çıkmış gibi görünür, ki bir pınar hattı tam olarak öyledir.
+   Oyulan vadinin üst ucu susuz kalır — bu da gerçekçi, kuru bir kaynak vadisidir. Çok daha ucuz ve
+   §8.4'e dokunmuyor, ama ne kadar kırpılacağı ölçülmeli.
+
+Kapılar: `checkSmokeCheckRegistry`, `checkTechnicalDebt` — PASS. Kaynak değişmedi, SW bump yok.
+
+**Technical debt.** 0 new. Bu, projede ölçümle elenen **dördüncü** hipotez (Tur 422 talveg, Tur 425
+kaya rampası, Tur 436 yol önlüğü, ve şimdi Görev 14'ün dar vadileri).
