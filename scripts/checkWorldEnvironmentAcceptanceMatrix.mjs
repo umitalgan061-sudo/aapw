@@ -144,6 +144,36 @@ try {
   });
   assert(albedoImage.width > 0 && albedoImage.height > 0, 'authored terrain albedo did not decode before visual proof');
 
+  await page.waitForFunction(() => {
+    const { state } = globalThis.__worldAcceptance;
+    const geology = state.naturalGeology?.userData?.naturalGeology?.assetState;
+    const winter = state.vegetation?.userData?.winterVegetationAssetUpgrade?.status;
+    return geology === 'active' && (winter === 'active' || winter === 'no-winter-trees');
+  }, { timeout: 45000 });
+  const assetReadiness = await page.evaluate(() => {
+    const { state } = globalThis.__worldAcceptance;
+    const geology = state.naturalGeology?.userData?.naturalGeology ?? null;
+    const winter = state.vegetation?.userData?.winterVegetationAssetUpgrade ?? null;
+    return {
+      geologyState: geology?.assetState ?? null,
+      geologyFamilies: geology?.hydratedFamilies?.map?.((family) => ({
+        family: family.family,
+        status: family.status,
+        assetUrl: family.assetUrl ?? null,
+        placementCount: family.placementCount ?? 0,
+      })) ?? [],
+      winterStatus: winter?.status ?? null,
+      winterAssetUrl: winter?.assetUrl ?? null,
+      winterTreeCount: winter?.treeCount ?? 0,
+      winterMeshCount: winter?.meshCount ?? 0,
+    };
+  });
+  assert(assetReadiness.geologyState === 'active', 'natural geology real-asset upgrade was not active before visual proof');
+  assert(
+    assetReadiness.winterStatus === 'active' || assetReadiness.winterStatus === 'no-winter-trees',
+    `winter vegetation asset state was not settled before visual proof: ${assetReadiness.winterStatus}`,
+  );
+
   const fullMetrics = await page.evaluate(({ width, height, elapsedSeconds, dayRatio }) => {
     const {
       THREE, state, world, updateDayNightLighting, updateAuroraSky, updateStarfield, focusSunShadow,
@@ -237,6 +267,7 @@ try {
     deterministicSamples: samples,
     proofFrame: { elapsedSeconds: PROOF_ELAPSED_SECONDS, dayRatio: PROOF_DAY_RATIO },
     albedoImage,
+    assetReadiness,
     boot,
     full: { ...fullMetrics, sha256: hash(fullPng) },
     near: sampleMetrics,
