@@ -19397,3 +19397,62 @@ Kapılar: `checkMedievalRoadSurface`, `checkTerrainVisualContract`, `checkGround
 `checkServiceWorkerCache`, `checkTechnicalDebt`, `checkSeededRandomPolicy`, `roadNetworkSafetyCheck`,
 `checkWindGrassContractRun180` — hepsi PASS. Yol şeridi dünya normali vermiyor, dolayısıyla saf XZ
 kalıyor ve davranışı bit bit aynı.
+
+## Tur 427–428 — Manzaraya çizilen siyah çizgi: nehrin **alt yüzü** (ADR-0375)
+
+`artifacts/world-survey/seat-berk.png`'te sırtın ve kıyının üzerinden geçen koyu bir çizgi vardı.
+Önce yanlış tahmin ettim: chunk eteğinin normalleri. Etek normallerini yukarı çevirip dudağı
+`0.55` → `0.86` açtım, bütün kapılar geçti ve **çizgi hiç değişmedi**; değişikliği geri aldım.
+
+**Sonra sistemleri teker teker gizledim.** `lineHunt.cjs` aynı kareyi yedi kez çiziyor: temel,
+eteksiz, susuz, nehirsiz, yolsuz, gölgesiz ve "nehir gölge düşürmesin". Çizgi yolu boyunca ortalama
+parlaklık:
+
+```
+temel 32,1 · eteksiz 32,1 · yolsuz 32,1 · gölgesiz 32,1 · susuz 30,3 · nehirsiz 117,9
+```
+
+Tek bir aday: nehir. "Nehir gölge düşürmesin" varyantı da piksel piksel temelle **aynı** çıktı —
+yani gölge değil, nehrin kendisi.
+
+**Işın izleme adını verdi.** Çizginin içinden atılan ışınlar her seferinde `river-mander` buldu ve
+dünya normalleri şunlardı: `(0,25, -0,95, -0,20)`, `(0,29, -0,96, -0,03)`, `(0,11, -0,99, -0,01)`.
+Üçü de **yere bakıyor**.
+
+**Sebep.** Nehir şeridi `DoubleSide`; three.js arka yüzde gölgeleme normalini bakana doğru çevirir.
+Katı bir cisim için doğru, bir **su tabakası** için değil. Şerit oyulmuş kanalı düz bir kiriş gibi
+geçtiği ve kendi kıyıları zeminden 0,3 m yukarıda durduğu için, alçaktan bakan kamera sürekli suyun
+altını görüyor: normal aşağı bakıyor, güneşten gelen difüz ışınım sıfıra iniyor, su **ışıksız siyah
+bir levha** olarak çiziliyor.
+
+**Tur 427 tek başına yetmedi ve nedenini yazmak önemli.** Sıyırma açısı terimi (Schlick, üs 4,
+`fogColor`'a %85 karışım) `diffuseColor`'ı açıyor — ama `diffuseColor` sonra neredeyse sıfır olan
+ışınımla çarpılıyor. **Daha parlak bir albedo çarpı ışık yok, yine siyah.** Önce normalin
+düzeltilmesi gerekiyordu.
+
+**Tur 428, tek satır:** `normal.y = abs(normal.y)`. Bir su tabakasının gökyüzüne sırtını dönen yüzü
+yoktur; altından bakınca da aynı gökyüzüyle aydınlanmış aynı yüzeyi görürsünüz. Akış yamasının ve
+normal haritasının koyduğu bütün yatay kıpırtı korunuyor, ön yüzde `normal.y` zaten pozitif olduğu
+için **hiçbir şey değişmiyor** — sadece arka yüz düzeliyor.
+
+**Ölçüm (aynı kare, aynı pikseller):**
+
+```
+(200,462)  (4, 9,12) → ( 73,126,157)
+(640,430)  (8,11, 9) → (102,144,163)
+(1240,336) (5, 7, 4) → (160,182,191)
+```
+
+Görsel doğrulama iki açıdan: `artifacts/line-hunt/baseline.png` (sırt üstü, siyah bant gitti, yerine
+denize inen soluk bir su yolu geldi) ve `artifacts/river-bank/bank-low.png` + `bank-mid.png`
+(kıyıdan alçak bakış, nehir parlak şerit).
+
+Kapılar: `checkNamedRivers`, `checkRiverValleyCarving`, `checkRun325RiverFlow`, `checkRun325WaterSwell`,
+`checkWaterVisualContract`, `checkVegetationRiverClearance`, `roadNetworkSafetyCheck`,
+`checkSmokeCheckRegistry`, `checkTechnicalDebt`, `game3dSmokeChecksScene` — hepsi PASS.
+
+**Technical debt.** 0 new. Sadece render; hiçbir vertex kımıldamadı, kurs/genişlik/oturma aynı.
+`SHELL_CACHE` v69 → v70 (modülün içeriği değişti).
+
+**Kalan, dürüstçe:** haliç hâlâ düz, sert kenarlı bir dörtgen olarak okunuyor (`riverMouth.js`) —
+ayrı bir iş olarak duruyor, bu yamanın arkasına saklanmadı.

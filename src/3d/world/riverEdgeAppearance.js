@@ -39,6 +39,24 @@ export const RIVER_EDGE_POLICY = Object.freeze({
 	bankDetailScale: 0.28,
 	/** Fraction of the half-width, measured in from the bank, that reads as shallows. */
 	shallowBandFraction: 0.62,
+	/**
+	 * Grazing-angle response (run 427). Schlick's approximation uses an exponent of 5; 4 here, because
+	 * this stands in for a whole environment reflection rather than just the Fresnel factor, and 5 kept
+	 * the effect too close to the silhouette to read at the distances the defect shows up at.
+	 */
+	glanceExponent: 4,
+	/** How far toward the sky's own horizon colour the water goes when seen edge-on. */
+	glanceSkyStrength: 0.85,
+	/** ...and how much of its transparency it gives up there. Reflected sky hides the bed. */
+	glanceOpacityStrength: 0.7,
+	/**
+	 * Run 428. The ribbon material is `DoubleSide`, and three.js flips the shading normal on back faces
+	 * so they light as if they faced you. For an opaque solid that is right; for a water sheet it is
+	 * not, and it is what actually drew the black band (see `applyNaturalRiverEdge` for the
+	 * measurement). With this on, the shading normal's vertical component is forced upward, so both
+	 * faces of the sheet take their light from the sky.
+	 */
+	skyLitFromBothSides: true,
 	renderOnly: true,
 });
 
@@ -95,7 +113,50 @@ ${shader.fragmentShader}`.replace(
 	// Water is glassy midstream and rougher where it drags over the shallows.
 	roughnessFactor = mix(roughnessFactor, 0.55, riverShallow * 0.7);
 }`,
-		);
+			)
+			// Run 427: the glance angle. Anchored after the normal maps so `normal` is the finished one.
+			.replace(
+				'#include <normal_fragment_maps>',
+				`#include <normal_fragment_maps>
+{
+	// Run 428, and this is the half that mattered. The ribbon is DoubleSide, and three.js flips the
+	// shading normal on a back face so it points at the viewer. Look up at a river from lower ground --
+	// which happens constantly, because the ribbon spans a carved channel as a flat chord and its own
+	// banks sit 0.3 m proud of the terrain -- and you are shading a surface whose normal now points
+	// DOWN, away from the sun. Diffuse irradiance goes to zero and the water renders as an unlit black
+	// plate. Raycasts through the band at the berk viewpoint returned river-mander every time with
+	// world normals of (0.25,-0.95,-0.20), (0.29,-0.96,-0.03) and (0.11,-0.99,-0.01): all three
+	// pointing at the ground.
+	//
+	// This is also why run 427's glance term alone did not fix it. That term lightens diffuseColor, and
+	// diffuseColor is then multiplied by an irradiance of nearly nothing -- a brighter albedo times no
+	// light is still black. The normal has to be corrected first.
+	//
+	// A sheet of water has no side that faces away from the sky: from underneath you see the same
+	// surface lit by the same sky, which is why looking up through water is bright rather than dark.
+	// Forcing the vertical component upward keeps every horizontal wobble the flow patch and the normal
+	// map put there, and only ever changes back faces -- on a front face normal.y is already positive
+	// and this is a no-op.
+	normal.y = abs(normal.y);
+	// Water seen edge-on is a mirror of the sky, and it gets *lighter*, not darker. This material has
+	// no environment to reflect, so at a grazing angle its specular term returns nothing and all that
+	// is left is a dark blue albedo -- which is why, from a distance, every river in the world drew a
+	// near-black line across the landscape. Hiding the river group was what proved it: the line went
+	// with it and nothing else in the scene moved.
+	//
+	// fogColor is the sky's own horizon colour, updated every frame by fog.js from the day/night
+	// state, so the water blends to exactly what the atmosphere behind it is doing rather than to a
+	// second colour that would drift away from it. Guarded on USE_FOG: nothing in this project turns
+	// scene fog off, but a shader that fails to compile if someone does is a trap.
+	#ifdef USE_FOG
+		float riverFacing = abs(dot(normalize(vViewPosition), normal));
+		float riverGlance = pow(1.0 - riverFacing, ${P.glanceExponent.toFixed(1)});
+		diffuseColor.rgb = mix(diffuseColor.rgb, fogColor, riverGlance * ${P.glanceSkyStrength.toFixed(2)});
+		// ...and it stops being see-through at the same time, for the same reason.
+		diffuseColor.a = mix(diffuseColor.a, 1.0, riverGlance * ${P.glanceOpacityStrength.toFixed(2)});
+	#endif
+}`,
+			);
 	};
 	material.userData.riverNaturalEdge = Object.freeze({
 		policyId: P.id,
