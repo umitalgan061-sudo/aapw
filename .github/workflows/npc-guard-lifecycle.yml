@@ -73,6 +73,8 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
       - name: Real shipped Three.js guard lifecycle proof
+        id: lifecycle_browser
+        continue-on-error: true
         run: node scripts/checkNpcGuardLifecycleBrowser.js
       - name: Real shipped Three.js guard group proof
         run: node scripts/checkNpcGuardGroupLifecycleBrowser.js
@@ -89,8 +91,9 @@ jobs:
           set -euo pipefail
           git fetch origin main
           test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
-      - name: Enforce shared PWA regression gate
+      - name: Enforce diagnostic gates
         if: ${{ always() }}
         shell: bash
         run: |
           test "${{ steps.shared_pwa.outcome }}" = "success"
+          test "${{ steps.lifecycle_browser.outcome }}" = "success"
