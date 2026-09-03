@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-03-v98-fullworld-domain-clarity',
+	id: 'geographic-reference-palette-2026-09-03-v99-natural-pigment-distance-readability',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -51,6 +51,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	lowlandDistanceReadabilityRaised: true,
 	aerialMaterialContrastRaised: true,
 	fullWorldDomainClarityRaised: true,
+	naturalPigmentCalibration: true,
+	highDistanceChannelExtremesReduced: true,
+	coastalCyanBalanceRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -58,24 +61,24 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v98 follows direct A/B inspection of exact-head Full World 3D Topdown #1257 and #1259. v97 was safe but the measured frame delta remained too small and broad lowlands still read as a soft grey-olive average. v98 therefore increases source-domain clarity one restrained step further: wet vegetation deepens, dry heather warms/darkens, oxidised earth separates from vegetation, and weathered granite shifts cooler/darker. This remains palette-only/render-only; biome coverage, map.png, terrain height, hydrology, routes, coastline and collider authority are unchanged.',
-		water: 'v98 preserves the verified v96-v97 marine hierarchy; no water coverage, bathymetry, lake membership, shoreline or offshore authority changes are introduced.',
-		road: 'v98 preserves established compacted-road and dust bases, keeping roads distinct from exposed-earth terrain without changing route geometry.',
-		celestial: 'v98 preserves restrained noon and moon calibration; aerial depth continues to come from material/ecotone separation rather than stronger global illumination.',
+		terrain: 'v99 follows direct inspection of exact-head Full World 3D Topdown #1271. v98 separated source domains but used channel-extreme greens, orange earth and cyan rock that collapse into synthetic pigment bands at aerial distance. v99 keeps luminance and material-domain separation while moving vegetation, earth and lithology toward natural mineral/chlorophyll pigments. This is render-only; biome coverage, map.png, terrain height, hydrology, routes, coastline and collider authority are unchanged.',
+		water: 'v99 preserves verified water coverage and depth hierarchy while shifting only the clear-shore tint slightly toward mineral blue-cyan to reduce the green halo seen around lowland coasts in #1271.',
+		road: 'v99 keeps established compacted-road and dust bases so route geometry and road ownership remain unchanged.',
+		celestial: 'v99 preserves restrained noon and moon calibration; no day-clock or lighting authority changes are introduced.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x022f13,
-		meadow: 0x008f31,
-		dryHeather: 0x592b18,
-		wetEarth: 0x0c2018,
-		exposedEarth: 0xc45b30,
-		graniteShadow: 0x37657a,
-		graniteSunlit: 0xb7a794,
-		basaltWet: 0x07171c,
-		quartz: 0xd9d1c7,
+		mossShadow: 0x183522,
+		meadow: 0x3f7138,
+		dryHeather: 0x6b4936,
+		wetEarth: 0x293229,
+		exposedEarth: 0x9f6848,
+		graniteShadow: 0x4d5d61,
+		graniteSunlit: 0xb1a590,
+		basaltWet: 0x1b2b30,
+		quartz: 0xd5d0c8,
 	}),
 	road: Object.freeze({
 		compacted: 0x866347,
@@ -85,7 +88,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		mossEdge: 0x2c5435,
 	}),
 	water: Object.freeze({
-		shoreClear: 0x548a80,
+		shoreClear: 0x4f7f88,
 		lakeClear: 0x28677a,
 		riverPool: 0x247182,
 		rapid: 0x88adaf,
