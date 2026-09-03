@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-03-v85-lowland-ecotone-contrast',
+	id: 'geographic-reference-palette-2026-09-03-v86-aerial-structural-contrast',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -36,6 +36,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	weatheredLithologySeparationRaised: true,
 	fullWorldLowlandMaterialSeparationRaised: true,
 	lowlandAerialValueDecorrelationRaised: true,
+	aerialStructuralContrastRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -43,24 +44,24 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v85 follows direct inspection of the exact-head b1613be7 full-world WebGL artifact after v84. The render remained coherent and all full-world checks passed, but the broad central temperate lowlands were still too close to one pale olive aerial average, so the first correction was visually underpowered. v85 increases the same material-family separation without changing classification: meadow/moss move a further step toward deep chlorophyll, dry heather warms into a darker umber, exposed soil gains clearer oxidised mineral value, and granite spans a wider cool-shadow / pale-weathered range. Existing deterministic world-space macro/meso/patch albedo, micro-normal and roughness breakup remains authoritative; this palette changes render response only and does not alter terrain, hydrology, routes, coastline or collider authority.',
-		water: 'v85 retains the verified marine correction: deep sea and abyss remain readable without near-black crushing and coastal water stays cooler/desaturated. Coverage, bathymetry, lake membership, shoreline and offshore authority are unchanged.',
-		road: 'v85 preserves established compacted-road and dust bases, keeping roads distinct from exposed-earth terrain without changing route geometry.',
-		celestial: 'v85 preserves restrained noon and moon calibration; aerial depth is produced by material stratification rather than stronger global illumination.',
+		terrain: 'v86 follows direct inspection of the exact-head 6a9f1e10 full-world WebGL artifact. The render is geographically coherent, but broad central lowlands still collapse into a pale olive-grey aerial average and weathered rock is not separated strongly enough from dry soil. v86 makes a deliberately larger but still render-only correction: meadow/moss retain chlorophyll while moving out of the grey-beige value band, dry heather darkens into a warmer umber, exposed soil loses excessive orange brightness, and granite gains a cooler midtone span. Existing deterministic world-space macro/meso/patch albedo, micro-normal and roughness breakup remains authoritative; this palette changes render response only and does not alter terrain, hydrology, routes, coastline or collider authority.',
+		water: 'v86 retains the verified marine correction: deep sea and abyss remain readable without near-black crushing and coastal water stays cooler/desaturated. Coverage, bathymetry, lake membership, shoreline and offshore authority are unchanged.',
+		road: 'v86 preserves established compacted-road and dust bases, keeping roads distinct from exposed-earth terrain without changing route geometry.',
+		celestial: 'v86 preserves restrained noon and moon calibration; aerial depth is produced by material stratification rather than stronger global illumination.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x062718,
-		meadow: 0x0f4326,
-		dryHeather: 0x70452d,
-		wetEarth: 0x081a16,
-		exposedEarth: 0xa55f39,
-		graniteShadow: 0x34414a,
-		graniteSunlit: 0xafa59b,
-		basaltWet: 0x0a171c,
-		quartz: 0xd8d0c5,
+		mossShadow: 0x092f1d,
+		meadow: 0x1a5730,
+		dryHeather: 0x63402e,
+		wetEarth: 0x101c17,
+		exposedEarth: 0x8b5136,
+		graniteShadow: 0x3b4850,
+		graniteSunlit: 0x9f968d,
+		basaltWet: 0x0d1a1f,
+		quartz: 0xd3ccc2,
 	}),
 	road: Object.freeze({
 		compacted: 0x866347,
