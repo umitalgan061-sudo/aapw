@@ -53,8 +53,14 @@ export const ROAD_RIVER_BRIDGE_POLICY = Object.freeze({
 	/**
 	 * Headroom between the water surface and the underside of the deck. Enough that the arch has
 	 * somewhere to spring from and the water clearly passes beneath rather than touching the stone.
+	 *
+	 * 2.4 m is not a taste: `deckThicknessMeters` is 1.2, so this leaves 1.8 m between the water and
+	 * the underside of the deck for the arch to rise through. The run-191 policy's own
+	 * `minimumArchRiseMeters` of 3.4 cannot be honoured here and is deliberately not used — an arch
+	 * springing 3.4 m below a deck only 1.5 m above the water would start under the river. The rise is
+	 * fitted to the headroom that exists instead, which is what a segmental arch is.
 	 */
-	deckFreeboardMeters: 1.5,
+	deckFreeboardMeters: 2.4,
 	/**
 	 * A wet run shorter than this is a ford, not a bridge. Two metres of water across a road is a
 	 * puddle at the edge of a course, and putting a stone arch over it would look far stranger than
@@ -62,6 +68,14 @@ export const ROAD_RIVER_BRIDGE_POLICY = Object.freeze({
 	 * path.
 	 */
 	minimumWaterMeters: 6,
+	/**
+	 * Metres either side of a crossing over which the road climbs to the deck. The decks measured on
+	 * the live world stand 1.56-2.71 m above their higher bank; over 20 m that is a 4.5-7.7 degree
+	 * ramp before the deck freeboard is added; at the 2.4 m freeboard this module settles on, a 24 m
+	 * approach keeps every ramp under 10 degrees, inside the 12 the run-192 shadow gate allows its own.
+	 * Squeezed into the 6 m bank margin instead it would be far steeper than any cart could take.
+	 */
+	approachMeters: 24,
 	renderOnly: false,
 });
 
@@ -121,7 +135,13 @@ function sampleEdge(points, riverCourses, sampleHeightMeters, policy) {
 			const t = (step + 0.5) / steps;
 			const x = a.x + (b.x - a.x) * t;
 			const z = a.z + (b.z - a.z) * t;
-			walk.push({ x, z, meters: runMeters / steps, river: riverAt(x, z, riverCourses, sampleHeightMeters, policy) });
+			walk.push({
+				x, z, meters: runMeters / steps,
+				// Which routed point this sample came from, so a crossing can name the ribbon vertices it
+				// covers: `appendRoadRibbon` emits exactly two vertices per point, in order.
+				pointIndex: index - 1,
+				river: riverAt(x, z, riverCourses, sampleHeightMeters, policy),
+			});
 		}
 	}
 	return walk;
@@ -134,9 +154,20 @@ function contiguousWetRuns(walk) {
 	for (let index = 0; index < walk.length; index += 1) {
 		const sample = walk[index];
 		if (sample.river) {
-			if (!current) current = { river: sample.river.name, firstIndex: index, waterMeters: 0, surfaceY: -Infinity };
+			if (!current) {
+				current = {
+					river: sample.river.name,
+					firstIndex: index,
+					// The routed point this run starts at. `appendRoadRibbon` emits two vertices per point
+					// in order, so this and `lastPointIndex` name the ribbon vertices a deck has to carry.
+					firstPointIndex: sample.pointIndex,
+					waterMeters: 0,
+					surfaceY: -Infinity,
+				};
+			}
 			current.waterMeters += sample.meters;
 			current.lastIndex = index;
+			current.lastPointIndex = sample.pointIndex + 1;
 			current.surfaceY = Math.max(current.surfaceY, sample.river.surfaceY);
 		} else if (current) {
 			runs.push(current);
@@ -196,6 +227,10 @@ export function findRoadRiverCrossings({ roadEdges, riverCourses, sampleHeightMe
 				startGroundY: Number(startGroundY.toFixed(3)),
 				endGroundY: Number(endGroundY.toFixed(3)),
 				waterSurfaceY: Number(run.surfaceY.toFixed(3)),
+				// Inclusive range of routed points the water covers. `appendRoadRibbon` emits two vertices
+				// per point in order, so this names the ribbon vertices a deck has to carry.
+				firstPointIndex: run.firstPointIndex,
+				lastPointIndex: Math.min(run.lastPointIndex, edge.points.length - 1),
 				deckY: Number(deckY.toFixed(3)),
 				deckAboveWaterMeters: Number((deckY - run.surfaceY).toFixed(3)),
 				deckAboveHigherBankMeters: Number((deckY - Math.max(startGroundY, endGroundY)).toFixed(3)),
@@ -203,4 +238,160 @@ export function findRoadRiverCrossings({ roadEdges, riverCourses, sampleHeightMe
 		}
 	}
 	return crossings;
+}
+
+/**
+ * Name of the per-vertex attribute marking how much of a bridge deck a road vertex carries: 0 on
+ * ordinary road, 1 on the deck itself, and the ramp fraction in between. `scripts/
+ * checkRoadRibbonGrounding.js` reads it to know which vertices are *meant* to stand off the ground.
+ */
+export const ROAD_BRIDGE_DECK_ATTRIBUTE = 'roadBridgeDeck';
+
+/** Along-path distance to each routed point, so an approach can be measured in metres not indices. */
+function arcLengths(points) {
+	const arc = [0];
+	for (let index = 1; index < points.length; index += 1) {
+		const a = points[index - 1];
+		const b = points[index];
+		arc.push(arc[index - 1] + Math.hypot(b.x - a.x, b.z - a.z));
+	}
+	return arc;
+}
+
+/**
+ * Raises a road ribbon onto its bridge decks, with a graded approach at each end.
+ *
+ * **Why this mutates the built mesh instead of building it differently.** `appendRoadRibbon` emits
+ * exactly two vertices per routed point, edge after edge in order, and `buildRoadNetwork` hands back
+ * the very same `points` arrays it ribboned. So the mapping from a crossing's routed-point range to
+ * its ribbon vertices is exact and can be reconstructed afterwards — which means the roads keep being
+ * built the way they always were, and nothing that reads `roads.js` has to learn about rivers.
+ *
+ * **The profile.** Flat at `deckY` across the crossing, then a straight ramp back down to the road's
+ * own height over `approachMeters` at each end. A vertex is only ever raised, never lowered: the road
+ * already climbs and falls with the ground, and pulling it *down* onto a deck would bury it.
+ *
+ * Measured on the eight live crossings, the deck stands 1.56-2.71 m above the higher bank, so a 20 m
+ * approach puts every ramp between 4.5 and 7.7 degrees — well inside what a cart road takes.
+ *
+ * @param {object} options
+ * @param {import('three').Mesh} options.roadMesh The cart-road ribbon, `roads.js`'s `group.children[0]`.
+ * @param {{fromId: string, toId: string, points: object[]}[]} options.roadEdges The same `edges` those
+ *   ribbon vertices were built from, in the same order.
+ * @param {ReturnType<typeof findRoadRiverCrossings>} options.crossings
+ * @returns {{raisedVertices: number, maxLiftMeters: number, maxApproachGradeDegrees: number}} What it did.
+ */
+export function applyBridgeDecks({ roadMesh, roadEdges, crossings }) {
+	const summary = { raisedVertices: 0, maxLiftMeters: 0, maxApproachGradeDegrees: 0 };
+	const position = roadMesh?.geometry?.getAttribute('position');
+	if (!position || !crossings?.length) return summary;
+
+	// Vertex offset of each edge, in the order `routeEdges` appended them.
+	const offsets = new Map();
+	let vertex = 0;
+	for (const edge of roadEdges) {
+		offsets.set(`${edge.fromId}->${edge.toId}`, { vertex, edge });
+		vertex += edge.points.length * 2;
+	}
+	if (vertex > position.count) return summary; // Not the mesh these edges built; leave it alone.
+
+	const deck = new Float32Array(position.count);
+	const approachMeters = ROAD_RIVER_BRIDGE_POLICY.approachMeters;
+
+	for (const crossing of crossings) {
+		const entry = offsets.get(crossing.edgeId);
+		if (!entry) continue;
+		const { edge, vertex: base } = entry;
+		const arc = arcLengths(edge.points);
+		const spanStart = arc[crossing.firstPointIndex];
+		const spanEnd = arc[crossing.lastPointIndex];
+		// A crossing whose point range does not land on this edge cannot be decked, and must not be
+		// guessed at. Getting this wrong once already cost a road vertex a 1772 m lift: an undefined
+		// index made `spanStart` NaN, both range tests fell through to the trailing-ramp branch, and
+		// `1 - (here - spanEnd) / approach` on a point 960 m *before* the span returned a carry of 41
+		// instead of a fraction. Silent, and visible only as a road standing in the stratosphere.
+		if (!Number.isFinite(spanStart) || !Number.isFinite(spanEnd)) continue;
+		for (let index = 0; index < edge.points.length; index += 1) {
+			const here = arc[index];
+			// 1 across the span, falling linearly to 0 over the approach at either end.
+			let carry = 0;
+			if (here >= spanStart && here <= spanEnd) carry = 1;
+			else if (here < spanStart) carry = Math.max(0, 1 - (spanStart - here) / approachMeters);
+			else carry = Math.max(0, 1 - (here - spanEnd) / approachMeters);
+			// Belt as well as braces: the profile is a fraction by construction, and clamping says so.
+			carry = Math.min(1, Math.max(0, carry));
+			if (!(carry > 0)) continue;
+			deck[base + index * 2] = Math.max(deck[base + index * 2], carry);
+			deck[base + index * 2 + 1] = Math.max(deck[base + index * 2 + 1], carry);
+			for (const side of [0, 1]) {
+				const target = base + index * 2 + side;
+				const naturalY = position.getY(target);
+				// Only ever raised. The ramp interpolates between the road's own height and the deck.
+				const raisedY = Math.max(naturalY, naturalY + (crossing.deckY - naturalY) * carry);
+				if (raisedY <= naturalY) continue;
+				position.setY(target, raisedY);
+				summary.raisedVertices += 1;
+				summary.maxLiftMeters = Math.max(summary.maxLiftMeters, raisedY - naturalY);
+			}
+		}
+		const lift = crossing.deckAboveHigherBankMeters;
+		if (lift > 0) {
+			summary.maxApproachGradeDegrees = Math.max(
+				summary.maxApproachGradeDegrees,
+				(Math.atan(lift / approachMeters) * 180) / Math.PI,
+			);
+		}
+	}
+
+	position.needsUpdate = true;
+	// Built through the position attribute's own constructor rather than by importing three: this
+	// module is otherwise pure arithmetic over plain objects, and it is worth keeping it that way.
+	const BufferAttribute = Object.getPrototypeOf(position).constructor;
+	roadMesh.geometry.setAttribute(ROAD_BRIDGE_DECK_ATTRIBUTE, new BufferAttribute(deck, 1));
+	roadMesh.geometry.computeVertexNormals();
+	summary.maxLiftMeters = Number(summary.maxLiftMeters.toFixed(3));
+	summary.maxApproachGradeDegrees = Number(summary.maxApproachGradeDegrees.toFixed(2));
+	return summary;
+}
+
+/**
+ * Turns a crossing into the descriptor `world/worldReferenceStoneBridgeMedievalArtV2.js` draws from.
+ *
+ * The arch geometry is fitted to the headroom that actually exists rather than to the run-191
+ * policy's `minimumArchRiseMeters` of 3.4 m. That figure was written for a shadow world whose decks
+ * were floored on sea level; here a deck stands `deckFreeboardMeters` above its own river, so an arch
+ * rising 3.4 m beneath it would spring from under the water. What is left between the water and the
+ * underside of the deck is the rise, and an arch of that rise over this span is a segmental arch —
+ * which is the form a medieval mason reaches for over a wide, shallow river anyway.
+ *
+ * @param {ReturnType<typeof findRoadRiverCrossings>[number]} crossing
+ * @param {{deckThicknessMeters: number, bridgeWidthMeters: number, targetArchSpanMeters: number}} stonePolicy
+ *   `STONE_BRIDGE_OWNER_POLICY`, passed in so this module keeps no dependency on the shadow tree.
+ */
+export function toStoneBridgeDescriptor(crossing, stonePolicy) {
+	const spanMeters = crossing.spanMeters;
+	const archCount = Math.max(1, Math.round(spanMeters / stonePolicy.targetArchSpanMeters));
+	const deckBottomY = crossing.deckY - stonePolicy.deckThicknessMeters * 0.5;
+	const archRiseMeters = Math.max(0.6, deckBottomY - crossing.waterSurfaceY);
+	const dx = crossing.endX - crossing.startX;
+	const dz = crossing.endZ - crossing.startZ;
+	return Object.freeze({
+		id: crossing.id,
+		edgeId: crossing.edgeId,
+		startX: crossing.startX,
+		startZ: crossing.startZ,
+		endX: crossing.endX,
+		endZ: crossing.endZ,
+		centerX: (crossing.startX + crossing.endX) * 0.5,
+		centerZ: (crossing.startZ + crossing.endZ) * 0.5,
+		// The same convention `yawForDirection` uses in the shadow planner, so the art module orients
+		// these exactly as it orients its own.
+		yawRadians: Math.atan2(-dz, dx),
+		deckY: crossing.deckY,
+		structuralSpanMeters: spanMeters,
+		archCount,
+		archSpanMeters: spanMeters / archCount,
+		archRiseMeters,
+		bridgeWidthMeters: stonePolicy.bridgeWidthMeters,
+	});
 }

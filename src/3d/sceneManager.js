@@ -30,6 +30,9 @@ import { computeRiverValleys } from './world/terrainValleyCarving.js';
 import { createReferenceRoadMeshes } from './world/worldReferenceRoadNetwork.js';
 import { buildWorldFoundation } from './worldFoundation.js';
 import { buildRoadNetwork } from './world/roads.js';
+import { applyBridgeDecks, findRoadRiverCrossings, toStoneBridgeDescriptor } from './world/roadRiverBridges.js';
+import { STONE_BRIDGE_OWNER_POLICY } from './world/worldReferenceStoneBridgeShadow.js';
+import { createCanonicalStoneBridgeMedievalArtV2, disposeCanonicalStoneBridgeMedievalArtV2 } from './world/worldReferenceStoneBridgeMedievalArtV2.js';
 import { createVegetation } from './world/vegetation.js';
 import { createWindGrassRun180 } from './world/windGrass.js';
 import { createVegetationNearDetail } from './world/vegetationNearDetail.js';
@@ -347,6 +350,31 @@ export function createScene(canvas) {
 		...(valleyField.namedRivers ?? []).map((river) => ({ name: river.name ?? river.id, points: river.points })),
 	];
 
+	// Run 441 — bridges, at last, where the roads actually meet the rivers. Run 439 measured that this
+	// world had none and that three of its roads ran straight through drawn river geometry; run 440
+	// built the crossing finder. This raises the ribbon onto a deck at each crossing and stands a stone
+	// arch under it. Deliberately after the roads and the rivers both exist, and driven by what each of
+	// them actually drew rather than by the parallel hydrology the run-191 shadow planner recomputes.
+	const bridgeCrossings = findRoadRiverCrossings({
+		roadEdges: roadsResult.edges,
+		riverCourses,
+		sampleHeightMeters: groundCollider.getGroundHeight,
+	});
+	const bridgeDeckSummary = applyBridgeDecks({
+		roadMesh: roadsResult.group.children[0],
+		roadEdges: roadsResult.edges,
+		crossings: bridgeCrossings,
+	});
+	const stoneBridges = createCanonicalStoneBridgeMedievalArtV2({
+		bridges: bridgeCrossings.map((crossing) => toStoneBridgeDescriptor(crossing, STONE_BRIDGE_OWNER_POLICY)),
+	});
+	if (stoneBridges) scene.add(stoneBridges);
+	console.info(
+		`[sceneManager] Bridges: ${bridgeCrossings.length} road/river crossing(s) decked — ` +
+		`${bridgeDeckSummary.raisedVertices} ribbon vertices raised, worst lift ` +
+		`${bridgeDeckSummary.maxLiftMeters} m, steepest approach ${bridgeDeckSummary.maxApproachGradeDegrees} deg.`,
+	);
+
 	const villagesResult = createVillages({
 		sampleHeightMeters: groundCollider.getGroundHeight,
 		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
@@ -423,6 +451,16 @@ export function createScene(canvas) {
 		settlements: settlementsResult.group,
 		roads: roadsResult.group,
 		roadEdges: roadsResult.edges,
+		/** The stone arch bridges standing where the roads cross the rivers (run 441). */
+		stoneBridges,
+		bridgeCrossings,
+		/**
+		 * Teardown for those bridges, handed over as a closure rather than left for `game3d.js` to
+		 * import: they are instanced meshes carrying their own masonry texture, so they leak exactly the
+		 * way the near-detail vegetation layer once did if nothing releases them — and `game3d.js` sits
+		 * one line under the 600-line cap, with no room for another import.
+		 */
+		disposeStoneBridges: () => { if (stoneBridges) disposeCanonicalStoneBridgeMedievalArtV2(stoneBridges); },
 		/**
 		 * The historical river plus every named river, as courses. Already assembled above for the
 		 * village and vegetation placement rules; exposed since run 440 so `world/roadRiverBridges.js`

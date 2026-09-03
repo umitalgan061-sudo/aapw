@@ -572,6 +572,7 @@ export async function initGame3D() {
 			disposeStarfield(state.stars);
 			disposeWater(state.water);
 			if (state.river) disposeRiverMesh(state.river);
+			state.disposeStoneBridges?.();
 			state.waterFeatures.forEach(disposeWaterfallMesh);
 			disposeSettlements(state.settlements);
 			disposeRealCastleModels(state.realCastles);

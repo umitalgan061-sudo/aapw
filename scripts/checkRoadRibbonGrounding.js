@@ -71,6 +71,8 @@ const MAX_FLOATING_FRACTION = 0.002;
 			let worstFloat = 0;
 			let worstBury = 0;
 			let worstAt = null;
+			let deckVertices = 0;
+			let worstDeckFloat = 0;
 			const byMesh = new Map();
 			for (const group of groups) {
 				group.updateMatrixWorld(true);
@@ -78,10 +80,21 @@ const MAX_FLOATING_FRACTION = 0.002;
 					if (!node.isMesh || !node.geometry) return;
 					const position = node.geometry.getAttribute('position');
 					if (!position) return;
+					// Run 441: a bridge deck is *supposed* to stand off the ground — that is what a bridge is.
+					// `world/roadRiverBridges.js` marks the vertices it raised, so they are counted and
+					// reported separately instead of being read as the ribbon failing to follow the terrain.
+					// The exemption is precise: only vertices the deck attribute actually marks, and the
+					// deck's own height is checked by `scripts/checkRoadRiverBridgeCrossings.js`.
+					const deckCarry = node.geometry.getAttribute('roadBridgeDeck');
 					for (let i = 0; i < position.count; i += 1) {
 						vertex.fromBufferAttribute(position, i).applyMatrix4(node.matrixWorld);
 						const gap = vertex.y - ground(vertex.x, vertex.z);
 						vertices += 1;
+						if (deckCarry && deckCarry.getX(i) > 0) {
+							deckVertices += 1;
+							if (gap > worstDeckFloat) worstDeckFloat = gap;
+							continue;
+						}
 						if (gap > 1.2) {
 							floating += 1;
 							byMesh.set(node.name || '(unnamed)', (byMesh.get(node.name || '(unnamed)') ?? 0) + 1);
@@ -97,6 +110,8 @@ const MAX_FLOATING_FRACTION = 0.002;
 
 			return {
 				groupCount: groups.length,
+				deckVertices,
+				worstDeckFloat: Number(worstDeckFloat.toFixed(2)),
 				vertices,
 				floating,
 				worstFloat: +worstFloat.toFixed(2),
@@ -121,6 +136,7 @@ const MAX_FLOATING_FRACTION = 0.002;
 
 		console.log(`[road-grounding] ${result.vertices} vertices across ${result.groupCount} road group(s)`);
 		console.log(`[road-grounding] worst float ${result.worstFloat} m (max ${MAX_VERTEX_FLOAT_METERS}), worst bury ${result.worstBury} m (max ${MAX_VERTEX_BURY_METERS}), ${result.floating} floating`);
+		console.log(`[road-grounding] ${result.deckVertices} vertices carry a bridge deck and are exempt; the highest stands ${result.worstDeckFloat} m over the channel it spans`);
 		console.log(`[road-grounding] worst vertex is in mesh "${result.worstAt?.mesh}"; floating by mesh: ${JSON.stringify(result.byMesh)}`);
 
 		if (failures.length) {

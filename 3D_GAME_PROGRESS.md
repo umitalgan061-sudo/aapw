@@ -20014,3 +20014,80 @@ Kapılar: `checkRoadRiverBridgeCrossings` (yeni), `checkRoadRibbonGrounding`, `r
 **İkinci yarı, sıradaki iş:** şerit güvertenin üstüne kaldırılacak (yaklaşma rampalarıyla birlikte,
 `checkRoadRibbonGrounding`'in 1,2 m yüzme tavanı köprülü açıklıkları tanıyacak şekilde) ve
 `createCanonicalStoneBridgeMedievalArtV2` bu sekiz geçişe bağlanacak.
+
+## Tur 441 — Oyunun ilk köprüleri: sekiz geçiş, sekiz taş kemer (ADR-0388)
+
+Tur 439 oyunda **hiç köprü olmadığını** ve üç yolun nehirlerin içinden geçtiğini saptamıştı; Tur 440
+geçiş bulucusunu yazdı. Bu tur işi bitiriyor: **şerit güverteye kaldırılıyor ve altına taş kemer
+konuyor.**
+
+```
+[sceneManager] Bridges: 8 road/river crossing(s) decked — 84 ribbon vertices raised,
+worst lift 7.892 m, steepest approach 8.55 deg.
+```
+
+Sahnede duran: 8 güverte, 9 kemer gövdesi, 18 dokulu kemer cephesi, 17 ayak, 16 korkuluk — hepsi
+`worldReferenceStoneBridgeMedievalArtV2`'nin **zaten var olan** geometrisi, ilk kez gerçekten
+render edilerek.
+
+**Şerit neden inşa sonrası kaldırılıyor.** `appendRoadRibbon` her rota noktası için tam iki vertex
+üretiyor, kenar kenar, sırayla — ve `buildRoadNetwork` ribonladığı `points` dizilerinin **aynısını**
+geri veriyor. Yani geçişin nokta aralığından vertex aralığına eşleme birebir kurulabiliyor. Böylece
+yollar hep kurulduğu gibi kuruluyor ve `roads.js`'i okuyan hiçbir şeyin nehirlerden haberi olması
+gerekmiyor. Profil: geçiş boyunca `deckY`'de düz, sonra her uçta 24 metrede kendi yüksekliğine inen
+düz bir rampa. Bir vertex **yalnızca yükseltiliyor**, hiç indirilmiyor.
+
+**Kendi hatam, ve sessizdi.** İlk koşuda bir yol vertex'i **1772 metre** yükseldi. Sebep:
+`firstPointIndex` alanı geçiş nesnesine hiç yazılmamıştı, `arc[undefined]` NaN verdi, iki aralık
+testi de düştü ve sondaki rampa dalı, açıklığın 960 metre *öncesindeki* bir nokta için
+`1 - (here - spanEnd) / 24` hesaplayıp kesir yerine **41** döndürdü. Hiçbir yerde hata çıkmadı;
+yalnızca stratosferde duran bir yol olarak görünürdü. Artık üç savunma var: aralık bu kenara
+düşmüyorsa geçiş **atlanıyor**, profil `[0,1]`'e kıstırılıyor, ve sebebi koda yazıldı.
+
+**Kapı sözleşmesi, kasıtlı olarak değiştirildi.** `checkRoadRibbonGrounding` 1,2 m yüzme tavanı
+koyuyor; bir köprü güvertesi zaten yüzmek zorunda, köprü olmasının sebebi bu. Kaldırılan vertex'ler
+`roadBridgeDeck` niteliğiyle işaretleniyor ve kapı onları **ayrı** sayıp raporluyor:
+
+```
+[road-grounding] worst float 0.06 m (max 1.2), worst bury 0 m (max 3), 0 floating
+[road-grounding] 74 vertices carry a bridge deck and are exempt;
+                 the highest stands 8.03 m over the channel it spans
+```
+
+Muafiyet dar: yalnızca niteliğin gerçekten işaretlediği vertex'ler, ve güvertenin **kendi**
+yüksekliğini Tur 440'ın kapısı denetliyor.
+
+**Kemer yükselişi mevcut boşluğa uyduruluyor.** Run-191 politikasının `minimumArchRiseMeters` 3,4'ü
+burada onurlandırılamaz — suyun 2,4 m üstündeki bir güvertenin 3,4 m altından yay atan bir kemer
+nehrin içinden başlardı. Su ile güverte altı arasında ne varsa yükseliş odur; o açıklıkta bu bir
+**segmental kemer**, ki geniş ve sığ bir nehir için bir taş ustasının zaten seçeceği biçim.
+
+**Görsel doğrulama iki açıdan:** `artifacts/bridges/second-approach.png` (yol köprüye çıkıyor,
+korkuluklar, altında mavi nehir) ve `second-side.png` (yandan, kemer ve ayaklar). Taşın koyuluğu
+ölçüldü ve **hata değil**: dikey taş yüz 35,5 parlaklık, güverte üstündeki yol 81,2, çim 72,1, yamaç
+78,7 — öğle güneşinde dikey bir duvar yatay yüzeylerin yarısı kadar alır.
+
+**Maliyet:** beş instanced mesh, yani görüş alanındayken en fazla +5 çizim çağrısı. Kameranın
+köprüleri görmediği referans karede 1.478.184 üçgen / 92 çağrı — değişmedi.
+
+**Sızıntı kapatıldı:** `state.disposeStoneBridges()` teardown'a bağlandı. `game3d.js` 600 satır
+tavanının bir satır altındaydı, o yüzden import yerine `sceneManager`'dan bir closure geçiyor —
+dosya 600'de kaldı.
+
+Kapılar: `checkRoadRiverBridgeCrossings`, `checkRoadRibbonGrounding`, `roadNetworkSafetyCheck`,
+`checkMedievalRoadSurface`, `checkNamedRivers`, `checkRiverValleyCarving`,
+`checkVegetationRiverClearance`, `checkSmokeCheckRegistry` (600 tavanı dahil), `checkServiceWorkerCache`,
+`checkTechnicalDebt`, `checkSeededRandomPolicy`, `game3dSmokeChecksScene`, `...Movement`,
+`...Vegetation`, `...SafeMode` — hepsi PASS.
+
+**Dürüstçe, iki not.**
+1. Toplu `smokeTestGame3D.js` bu konteynerde 10 dakikalık kabuk sınırına sığmıyor (Tur 404 masaüstü
+   açılışını ~133 s ölçmüştü ve suite sahneyi defalarca kuruyor). Dokunduğum alanları kapsayan
+   üyeleri **tek tek** koşturdum; hepsi yukarıda.
+2. `checkRoadVisualContract` hâlâ kırmızı — **aynı** `left.y === right.y` iddiası, **aynı** vertex 14,
+   Tur 432'de yazıldığı gibi bu turdan bağımsız.
+
+**Açık kalan, saklanmıyor:** `stannis->robin#2`'nin ıslak koşusu **71,6 metre**, 14 metrelik bir
+nehirde. Yol orayı kesmiyor, nehrin **içinde bir süre boyunca gidiyor**. Bunu köprülemek bir kemer
+değil bir viyadük üretiyor. Doğru cevap muhtemelen rotanın kendisini düzeltmek; ayrı bir iş olarak
+duruyor.
