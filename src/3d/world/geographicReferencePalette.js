@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-04-v115-lowland-material-relief',
+	id: 'geographic-reference-palette-2026-09-04-v116-lowland-aerial-separation',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -93,6 +93,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	dryHeatherDustCastReduced: true,
 	lowlandMaterialReliefContrastRaised: true,
 	lithologyAerialRangeRaised: true,
+	lowlandAerialSeparationRaised: true,
+	wetDryMineralDistanceGapRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -100,24 +102,24 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v115 follows direct inspection of exact-head Full World #1319. Broad lowlands still merge into a soft grey-olive field at aerial scale, so meadow and exposed mineral soil are lifted slightly, wet earth is cooled and deepened, dry heather is neutralized, and granite/basalt shadow range is widened. This is render-only pigment calibration; canonical terrain, hydrology and collision remain unchanged.',
-		water: 'v115 preserves the #1319 open-sea midtone calibration so this pass isolates land-material readability. Canonical depth, coverage, offshore connectivity and shoreline ownership are unchanged.',
-		road: 'v115 preserves compacted medieval earth, darker ruts and embedded-stone separation. Route topology, width, terrain sampling and water exclusion are unchanged.',
-		celestial: 'v115 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v116 follows direct pixel and visual inspection of exact-head Full World #1321, where v115 changed too little at aerial distance. Meadow/exposed mineral values are therefore separated more decisively from damp organic ground and heather, while granite/basalt shadows gain additional range. The adjustment remains within muted natural pigments and changes no canonical geography.',
+		water: 'v116 preserves the #1321 open-sea midtone calibration so this pass isolates land-material readability. Canonical depth, coverage, offshore connectivity and shoreline ownership are unchanged.',
+		road: 'v116 preserves compacted medieval earth, darker ruts and embedded-stone separation. Route topology, width, terrain sampling and water exclusion are unchanged.',
+		celestial: 'v116 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x153026,
-		meadow: 0x62894f,
-		dryHeather: 0x85715b,
-		wetEarth: 0x1d2d2d,
-		exposedEarth: 0xad8f70,
-		graniteShadow: 0x414f58,
-		graniteSunlit: 0xc0b9a8,
-		basaltWet: 0x172a31,
-		quartz: 0xd8d5cd,
+		mossShadow: 0x142f25,
+		meadow: 0x689153,
+		dryHeather: 0x806d59,
+		wetEarth: 0x19292b,
+		exposedEarth: 0xb39775,
+		graniteShadow: 0x3b4954,
+		graniteSunlit: 0xc5bead,
+		basaltWet: 0x13262e,
+		quartz: 0xd9d6ce,
 	}),
 	road: Object.freeze({
 		compacted: 0x735d4b,
