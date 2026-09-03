@@ -137,7 +137,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts/player-dodge-iframes
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerDodgeIFrameRuntime.mjs --out-dir=artifacts/player-dodge-iframes | tee artifacts/player-dodge-iframes.log
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerDodgeIFrameRuntime.mjs --out-dir=artifacts/player-dodge-iframes 2>&1 | tee artifacts/player-dodge-iframes.log
           test -s artifacts/player-dodge-iframes/dodge-iframes-runtime.png
           test -s artifacts/player-dodge-iframes/dodge-iframes-runtime.json
           grep -q 'PLAYER_DODGE_IFRAMES_RUNTIME_OK' artifacts/player-dodge-iframes.log
