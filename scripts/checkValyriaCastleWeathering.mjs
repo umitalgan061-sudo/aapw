@@ -54,6 +54,9 @@ for (const snippet of [
   'soot: true',
   'sparseThermalFissures: true',
   'vValyriaCastleWorldPosition',
+  '#include <project_vertex>',
+  'valyriaCastleWorldPosition = vec4(transformed, 1.0)',
+  'modelMatrix * valyriaCastleWorldPosition',
   'valyriaCastleMacro',
   'valyriaCastleMeso',
   'valyriaCastleFine',
@@ -62,6 +65,7 @@ for (const snippet of [
 ]) {
   assert(weatheringSource.includes(snippet), `Valyria castle weathering source contract lost: ${snippet}`);
 }
+assert(!weatheringSource.includes('vValyriaCastleWorldPosition = worldPosition.xyz'), 'shader must not depend on conditional Three.js worldPosition');
 assert(!weatheringSource.includes('Math.random()'), 'castle weathering must remain deterministic');
 assert(!weatheringSource.includes('setFromObject'), 'weathering must not mutate castle geometry/footprint');
 assert(!weatheringSource.includes('position.set('), 'weathering must not move settlement geometry');
@@ -121,12 +125,15 @@ assert.equal(umit.onBeforeCompile, hook);
 assert.equal(umit.customProgramCacheKey(), key);
 assert.equal(umit.userData.valyriaCastleWeathering.groundY, 146.25);
 
+// Reproduce the shipped Three.js variant where <worldpos_vertex> does not declare worldPosition.
 const shader = {
   uniforms: {},
   vertexShader: `
 #include <common>
 void main() {
-  vec4 worldPosition = vec4(0.0);
+  vec3 transformed = vec3(0.0);
+  mat4 modelMatrix = mat4(1.0);
+  #include <project_vertex>
   #include <worldpos_vertex>
 }`,
   fragmentShader: `
@@ -147,10 +154,12 @@ assert.equal(shader.uniforms.uValyriaCastleHeightScale.value, 46 * 1.18);
 assert.equal(shader.uniforms.uValyriaCastleSeed.value.length, 2);
 for (const snippet of [
   'varying vec3 vValyriaCastleWorldPosition',
-  'vValyriaCastleWorldPosition = worldPosition.xyz',
+  'vec4 valyriaCastleWorldPosition = vec4(transformed, 1.0)',
+  'vValyriaCastleWorldPosition = (modelMatrix * valyriaCastleWorldPosition).xyz',
 ]) {
   assert(shader.vertexShader.includes(snippet), `vertex shader injection lost: ${snippet}`);
 }
+assert(!shader.vertexShader.includes('vValyriaCastleWorldPosition = worldPosition.xyz'));
 for (const snippet of [
   'valyriaCastleHash',
   'valyriaCastleNoise',
@@ -178,5 +187,7 @@ console.log(JSON.stringify({
     soot: true,
     sparseThermalFissures: true,
   },
+  shaderWorldPositionSource: 'transformed+modelMatrix',
+  conditionalWorldposDependency: false,
   geometryAuthorityUnchanged: true,
 }, null, 2));

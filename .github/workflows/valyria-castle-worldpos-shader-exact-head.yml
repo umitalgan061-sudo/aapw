@@ -1,0 +1,185 @@
+name: Valyria Castle Worldpos Shader Exact Head
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/valyriaCastleWeathering.js'
+      - 'scripts/checkValyriaCastleWeathering.mjs'
+      - 'scripts/checkValyriaCastleWeatheringBrowser.mjs'
+      - '.github/workflows/valyria-castle-worldpos-shader-exact-head.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  valyria-castle-worldpos-shader:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          lfs: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Exact-main scope and budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE_SHA="$(git rev-parse origin/main)"
+          test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
+          CHANGED="$(git diff --name-only "$BASE_SHA" HEAD)"
+          test -n "$CHANGED"
+          while IFS= read -r path; do
+            case "$path" in
+              src/3d/world/valyriaCastleWeathering.js|scripts/checkValyriaCastleWeathering.mjs|scripts/checkValyriaCastleWeatheringBrowser.mjs|.github/workflows/valyria-castle-worldpos-shader-exact-head.yml) ;;
+              *) echo "unexpected path: $path" >&2; exit 1 ;;
+            esac
+          done <<< "$CHANGED"
+          TOTAL="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          test "$TOTAL" -le 1000
+          git diff --check "$BASE_SHA" HEAD
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+
+      - name: Shader source and regression contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/valyriaCastleWeathering.js
+          node --check scripts/checkValyriaCastleWeathering.mjs
+          node --check scripts/checkValyriaCastleWeatheringBrowser.mjs
+          node scripts/checkValyriaCastleWeathering.mjs
+
+      - name: Shared placement and determinism contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkSharedMaterialPlacementContract.js
+          node scripts/checkSeededRandomPolicy.js
+
+      - name: Mirror Run283 governance contracts
+        id: run283_mirror
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/run283-governance
+          checks=(
+            "node --check scripts/checkRun283FinalHeadGovernance.js"
+            "node scripts/checkRun283FinalHeadGovernance.js"
+            "node scripts/checkSeededRandomPolicy.js"
+            "node scripts/checkAssetsManifest.js"
+            "node scripts/checkServiceWorkerCache.js"
+            "node scripts/checkPwaInstallability.js"
+            "node scripts/checkSmokeCheckRegistry.js"
+            "node scripts/checkWorldReferenceMap.js"
+            "node scripts/checkWorldReferenceWaterMask.js"
+            "node scripts/checkWorldReferenceAlignment.js"
+            "node scripts/checkWorldReferenceHydrologyExtent.js"
+          )
+          failures=0
+          : > artifacts/run283-governance/summary.tsv
+          for i in "${!checks[@]}"; do
+            check="${checks[$i]}"
+            log="artifacts/run283-governance/check-$((i + 1)).log"
+            echo "[run283-mirror] $check"
+            set +e
+            bash -lc "$check" 2>&1 | tee "$log"
+            status=${PIPESTATUS[0]}
+            set -e
+            printf '%s\t%s\t%s\n' "$((i + 1))" "$status" "$check" >> artifacts/run283-governance/summary.tsv
+            if [ "$status" -ne 0 ]; then
+              failures=$((failures + 1))
+            fi
+          done
+          printf '%s\n' "$failures" > artifacts/run283-governance/failure-count.txt
+          if [ "$failures" -ne 0 ]; then
+            echo "[run283-mirror] FAIL: $failures governance contract(s) failed; preserving failure while continuing exact-head mobile evidence" >&2
+            exit 1
+          fi
+
+      - name: Upload Run283 governance RCA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: valyria-run283-governance-${{ github.event.pull_request.head.sha }}
+          path: artifacts/run283-governance/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Install browser runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          # This repository intentionally has no root package.json/lockfile. Follow the established
+          # exact-head browser lane used by the atmosphere workflow instead of npm ci, which cannot
+          # succeed without a project manifest.
+          npm install --no-save playwright three
+          npx playwright install --with-deps chromium
+
+      - name: Mobile Chromium Valyria shader compile proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkValyriaCastleWeatheringBrowser.mjs
+
+      - name: Hydrate shipped mobile-runtime LFS families
+        shell: bash
+        run: |
+          set -euo pipefail
+          # checkMobilePerfBudget boots the shipped game3d scene, not the isolated Valyria fixture.
+          # Match the established browser/mobile lanes so real model binaries are available instead
+          # of letting Git-LFS pointer text trigger unrelated loader/placeholder failures.
+          git lfs install --local
+          git lfs pull --include="assets/models/Ay/Moon 2K.fbx,assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**" --exclude=""
+          test "$(wc -c < 'assets/models/Ay/Moon 2K.fbx')" -eq 33404
+
+      - name: Repository mobile performance safety
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/valyria-mobile-perf
+          set +e
+          node scripts/checkMobilePerfBudget.js 2>&1 | tee artifacts/valyria-mobile-perf/mobile-perf.log
+          status=${PIPESTATUS[0]}
+          set -e
+          printf '%s\n' "$status" > artifacts/valyria-mobile-perf/exit-code.txt
+          exit "$status"
+
+      - name: Upload mobile performance RCA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: valyria-mobile-perf-${{ github.event.pull_request.head.sha }}
+          path: artifacts/valyria-mobile-perf/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Final exact-main freshness
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          test "$(git rev-parse origin/main)" = "$BASE_SHA"
+          test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
+          git diff --check "$BASE_SHA" HEAD
+
+      - name: Enforce mirrored Run283 governance
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f artifacts/run283-governance/failure-count.txt
+          failures="$(cat artifacts/run283-governance/failure-count.txt)"
+          if [ "$failures" -ne 0 ]; then
+            echo "[run283-mirror] hard gate remains red: $failures governance contract(s) failed" >&2
+            exit 1
+          fi
