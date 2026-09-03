@@ -86,7 +86,7 @@ async function main() {
 		results.push(await dialogueTouchChecks.checkDialogueChoiceTap(committedBrowser, baseUrl));
 		results.push(await dialogueTouchChecks.checkDialoguePauseGate(committedBrowser, baseUrl));
 		results.push(await controlsHelpChecks.checkControlsHelp(browser, baseUrl));
-		results.push(await settlementCompassChecks.checkSettlementCompass(browser, baseUrl));
+		results.push(await settlementCompassChecks.checkSettlementCompass(committedBrowser, baseUrl));
 		results.push(await settlementDiscoveryChecks.checkSettlementDiscovery(browser, baseUrl));
 		results.push(await dayNightClockChecks.checkDayNightClock(browser, baseUrl));
 		results.push(await vegetationChecks.checkVegetation(browser, baseUrl));
