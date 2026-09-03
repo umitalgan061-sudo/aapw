@@ -50,7 +50,7 @@ export const VEGETATION_NORTH_CLIMATE_POLICY = Object.freeze({
 });
 
 export const VEGETATION_SPATIAL_PATTERN_POLICY = Object.freeze({
-	id: 'vegetation-ecological-grove-scatter-2026-08-26-v1',
+	id: 'vegetation-ecological-grove-scatter-2026-08-31-v2-settlement-pockets',
 	climateAuthority: VEGETATION_NORTH_CLIMATE_POLICY.climateAuthority,
 	groveTreeCountMin: 9,
 	groveTreeCountMax: 17,
@@ -58,6 +58,15 @@ export const VEGETATION_SPATIAL_PATTERN_POLICY = Object.freeze({
 	coldGroveRadiusMeters: 125,
 	temperateBackgroundChance: 0.26,
 	coldBackgroundChance: 0.18,
+	settlementGroveCountMin: 2,
+	settlementGroveCountMax: 4,
+	settlementGroveCenterMinMeters: 165,
+	settlementGroveCenterMaxMeters: 235,
+	settlementGroveRadiusMinMeters: 44,
+	settlementGroveRadiusMaxMeters: 72,
+	settlementTreeBudgetMin: 32,
+	settlementTreeBudgetMax: 46,
+	settlementGoldenAngleRadians: Math.PI * (3 - Math.sqrt(5)),
 });
 
 const TARGET_DENSITY_PER_KM2 = 30;
@@ -69,9 +78,6 @@ const MAX_GROUND_SLOPE_DEGREES = 45;
 const SLOPE_SAMPLE_OFFSET_METERS = 3;
 const SCALE_MIN = 0.75;
 const SCALE_MAX = 1.35;
-const CLUSTER_RING_INNER_MARGIN_METERS = 10;
-const CLUSTER_RING_OUTER_RADIUS_METERS = 260;
-const CLUSTER_DENSITY_PER_KM2 = 220;
 
 const VEGETATION_SURFACE_FABRIC_KEY = 'vegetation-world-surface-fabric-v1';
 
@@ -249,6 +255,47 @@ export function vegetationGrovePatternForClimate(climate = {}) {
 	};
 }
 
+function createSettlementWoodlandLayout(seat, rng) {
+	const policy = VEGETATION_SPATIAL_PATTERN_POLICY;
+	const climatePattern = vegetationGrovePatternForClimate(northReferenceCryosphereAtWorldXZ(seat.x, seat.z));
+	const climateRadiusScale = climatePattern.groveRadiusMeters / policy.temperateGroveRadiusMeters;
+	const groveCount = policy.settlementGroveCountMin
+		+ Math.floor(rng() * (policy.settlementGroveCountMax - policy.settlementGroveCountMin + 1));
+	const treeBudget = policy.settlementTreeBudgetMin
+		+ Math.floor(rng() * (policy.settlementTreeBudgetMax - policy.settlementTreeBudgetMin + 1));
+	const phase = rng() * Math.PI * 2;
+	const groves = [];
+	let totalWeight = 0;
+	for (let index = 0; index < groveCount; index++) {
+		const angle = phase
+			+ index * policy.settlementGoldenAngleRadians
+			+ (rng() - 0.5) * 0.52;
+		const centerDistance = policy.settlementGroveCenterMinMeters
+			+ rng() * (policy.settlementGroveCenterMaxMeters - policy.settlementGroveCenterMinMeters);
+		const radius = (policy.settlementGroveRadiusMinMeters
+			+ rng() * (policy.settlementGroveRadiusMaxMeters - policy.settlementGroveRadiusMinMeters))
+			* climateRadiusScale;
+		const weight = 0.72 + rng() * 0.56;
+		groves.push({
+			x: seat.x + Math.cos(angle) * centerDistance,
+			z: seat.z + Math.sin(angle) * centerDistance,
+			radius,
+			weight,
+		});
+		totalWeight += weight;
+	}
+	return { seat, treeBudget, groves, totalWeight };
+}
+
+function pickSettlementWoodlandGrove(layout, rng) {
+	let threshold = rng() * layout.totalWeight;
+	for (const grove of layout.groves) {
+		threshold -= grove.weight;
+		if (threshold <= 0) return grove;
+	}
+	return layout.groves[layout.groves.length - 1];
+}
+
 function buildSpeciesAssets(species) {
 	const { trunk, foliage } = species;
 	const trunkGeometry = new THREE.CylinderGeometry(trunk.radiusTop, trunk.radiusBottom, trunk.height, trunk.radialSegments);
@@ -289,16 +336,25 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 	const group = new THREE.Group();
 	const areaKm2 = (Math.PI * radiusMeters * radiusMeters) / 1_000_000;
 	const baseTargetCount = Math.max(0, Math.round(areaKm2 * densityPerKm2));
-	const clusterInnerRadius = SEAT_EXCLUSION_RADIUS_METERS + CLUSTER_RING_INNER_MARGIN_METERS;
-	const clusterSeats = seats.filter((seat) => Math.hypot(seat.x, seat.z) + CLUSTER_RING_OUTER_RADIUS_METERS <= radiusMeters);
-	const ringAreaKm2 = (Math.PI * (CLUSTER_RING_OUTER_RADIUS_METERS ** 2 - clusterInnerRadius ** 2)) / 1_000_000;
-	const clusterTargetPerSeat = Math.max(0, Math.round(ringAreaKm2 * CLUSTER_DENSITY_PER_KM2));
-	const clusterTargetTotal = clusterSeats.length * clusterTargetPerSeat;
+	const spatialPolicy = VEGETATION_SPATIAL_PATTERN_POLICY;
+	const settlementMaxReach = spatialPolicy.settlementGroveCenterMaxMeters + spatialPolicy.settlementGroveRadiusMaxMeters;
+	const clusterSeats = seats.filter((seat) => Math.hypot(seat.x, seat.z) + settlementMaxReach <= radiusMeters);
+	const clusterRng = mulberry32(seed ^ 0x434c5354);
+	const settlementWoodlands = clusterSeats.map((seat) => createSettlementWoodlandLayout(seat, clusterRng));
+	const clusterTargetTotal = settlementWoodlands.reduce((sum, layout) => sum + layout.treeBudget, 0);
 	const targetCount = baseTargetCount + clusterTargetTotal;
-	if (targetCount === 0) return { group, targetCount: 0, placedCount: 0, clusterSeatCount: 0, winterTreeCount: 0 };
+	if (targetCount === 0) {
+		return {
+			group,
+			targetCount: 0,
+			placedCount: 0,
+			clusterSeatCount: 0,
+			settlementWoodlandSeatCount: 0,
+			winterTreeCount: 0,
+		};
+	}
 
 	const rng = mulberry32(seed ^ 0x56454745);
-	const clusterRng = mulberry32(seed ^ 0x434c5354);
 	const up = new THREE.Vector3(0, 1, 0);
 	const perSpecies = SPECIES.map((species) => {
 		const { trunkGeometry, foliageGeometry, trunkMaterial, foliageMaterial } = buildSpeciesAssets(species);
@@ -315,7 +371,6 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 	const position = new THREE.Vector3();
 	const quaternion = new THREE.Quaternion();
 	const scaleVector = new THREE.Vector3();
-	const spatialPolicy = VEGETATION_SPATIAL_PATTERN_POLICY;
 	let placedCount = 0;
 	let groveCenterX = 0;
 	let groveCenterZ = 0;
@@ -353,10 +408,12 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 		groveTreesRemaining--;
 	}
 
-	for (const seat of clusterSeats) {
-		for (let treeIndex = 0; treeIndex < clusterTargetPerSeat; treeIndex++) {
+	for (const layout of settlementWoodlands) {
+		for (let treeIndex = 0; treeIndex < layout.treeBudget; treeIndex++) {
 			for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_TREE; attempt++) {
-				const { x, z } = sampleAnnulusPoint(clusterRng, seat.x, seat.z, clusterInnerRadius, CLUSTER_RING_OUTER_RADIUS_METERS);
+				const grove = pickSettlementWoodlandGrove(layout, clusterRng);
+				const { x, z } = sampleAnnulusPoint(clusterRng, grove.x, grove.z, 0, grove.radius);
+				if (Math.hypot(x, z) > radiusMeters) continue;
 				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
 				const entry = perSpecies[pickSpeciesIndexForWorldXZ(clusterRng(), x, z)];
 				placeTreeInstance(entry, x, z, sampleHeightMeters, clusterRng, up, matrix, position, quaternion, scaleVector);
@@ -390,9 +447,21 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 		baseDensityPerKm2: densityPerKm2,
 		groveTreeCountMin: spatialPolicy.groveTreeCountMin,
 		groveTreeCountMax: spatialPolicy.groveTreeCountMax,
+		settlementPattern: 'asymmetric-woodland-pockets',
+		settlementGroveCountMin: spatialPolicy.settlementGroveCountMin,
+		settlementGroveCountMax: spatialPolicy.settlementGroveCountMax,
+		settlementTreeBudgetMin: spatialPolicy.settlementTreeBudgetMin,
+		settlementTreeBudgetMax: spatialPolicy.settlementTreeBudgetMax,
 	});
 	group.userData.vegetationSurfaceFabric = Object.freeze({ key: VEGETATION_SURFACE_FABRIC_KEY, worldSpace: true, multiScale: true });
-	return { group, targetCount, placedCount, clusterSeatCount: clusterSeats.length, winterTreeCount };
+	return {
+		group,
+		targetCount,
+		placedCount,
+		clusterSeatCount: clusterSeats.length,
+		settlementWoodlandSeatCount: clusterSeats.length,
+		winterTreeCount,
+	};
 }
 
 export function disposeVegetation(group) {
