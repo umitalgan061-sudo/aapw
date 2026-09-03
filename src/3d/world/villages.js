@@ -236,16 +236,22 @@ function regionalMaterialOptions(object, profile) {
 	return { paletteId: profile.paletteId, textureSize: ARCHITECTURE_TEXTURE_SIZE };
 }
 
-function fitArchitectureToProceduralFootprint(size, site) {
+export function fitArchitectureToProceduralFootprint(size, site) {
 	const sourceWidth = Number(size?.x);
 	const sourceDepth = Number(size?.z);
 	const legacySpan = Number(site?.targetFootprintMeters);
 	const targetWidth = Number(site?.targetWidthMeters ?? legacySpan);
 	const targetDepth = Number(site?.targetDepthMeters ?? legacySpan);
 	if (![sourceWidth, sourceDepth, targetWidth, targetDepth].every((value) => Number.isFinite(value) && value > 1e-6)) return null;
-	const scale = Math.min(targetWidth / sourceWidth, targetDepth / sourceDepth);
+	const directScale = Math.min(targetWidth / sourceWidth, targetDepth / sourceDepth);
+	const quarterTurnScale = Math.min(targetWidth / sourceDepth, targetDepth / sourceWidth);
+	const quarterTurn = quarterTurnScale > directScale + 1e-9;
+	const scale = quarterTurn ? quarterTurnScale : directScale;
 	if (!Number.isFinite(scale) || scale <= 1e-6) return null;
-	return Object.freeze({ scale, targetWidth, targetDepth, fittedWidth: sourceWidth * scale, fittedDepth: sourceDepth * scale });
+	const fittedWidth = (quarterTurn ? sourceDepth : sourceWidth) * scale;
+	const fittedDepth = (quarterTurn ? sourceWidth : sourceDepth) * scale;
+	const parcelCoverage = (fittedWidth * fittedDepth) / (targetWidth * targetDepth);
+	return Object.freeze({ scale, quarterTurn, targetWidth, targetDepth, fittedWidth, fittedDepth, parcelCoverage });
 }
 
 function normalizedArchitecturePivot(source, site, profile) {
@@ -259,6 +265,7 @@ function normalizedArchitecturePivot(source, site, profile) {
 	const size = box.getSize(new THREE.Vector3());
 	const footprint = fitArchitectureToProceduralFootprint(size, site);
 	if (!footprint) return null;
+	if (footprint.quarterTurn) model.rotation.y += Math.PI / 2;
 	model.scale.multiplyScalar(footprint.scale);
 	model.updateMatrixWorld(true);
 	box = new THREE.Box3().setFromObject(model);
