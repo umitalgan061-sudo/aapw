@@ -5,8 +5,10 @@
  * Run 348 extended it again with `playDiscoveryChime()` resolving cleanly — the callback-fires side
  * of that feature lives in `game3dSmokeChecksSettlementDiscovery.js`'s own `checkSettlementDiscovery`. */
 
-// Same environment-quirk margin `game3dSmokeChecksControlsHelp.js`/`game3dSmokeChecksPauseMenu.js`
-// already document (this project's own boot cost, not this run's change).
+// Navigation only needs the response committed. This check separately waits for the real entry gate
+// and then for the shipped `#game3d-loading` overlay to disappear, which is the stronger runtime-ready
+// condition required before the trusted audio gesture is exercised. Waiting for DOMContentLoaded here
+// made the check fail before those authoritative assertions under software-WebGL CI contention.
 const NAV_TIMEOUT_MS = 30_000;
 // Same value `game3dSmokeChecksScene.js`'s `check3DMode` already waits on for full scene boot
 // (GAME_READY phase1-scene) -- this check drives a real pointer click, so unlike `PauseMenu`'s own
@@ -26,12 +28,13 @@ async function checkAudioManager(browser, baseUrl) {
 	const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 	let result;
 	try {
-		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'commit', timeout: NAV_TIMEOUT_MS });
 		// Run 266's full-viewport consent overlay (`#run266-entry-gate`) intercepts pointer events
 		// until dismissed -- a real `page.click()` below (unlike `PauseMenu`'s own smoke check, which
 		// bypasses hit-testing entirely via `element.click()`) would otherwise time out clicking a
-		// button appended underneath it. Same dismissal `captureRun339PauseMenuEvidence.js` already
-		// uses.
+		// button appended underneath it. Wait for the actual shipped control after commit instead of
+		// using DOMContentLoaded as an indirect readiness signal.
+		await page.waitForSelector('#run266-entry-enter', { state: 'visible', timeout: NAV_TIMEOUT_MS });
 		await page.click('#run266-entry-enter');
 		await page.waitForFunction(
 			() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
