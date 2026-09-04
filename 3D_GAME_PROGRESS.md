@@ -20515,3 +20515,44 @@ Kapılar: `checkRoadVisualContract`, `checkOwnerMapAndRoadRoutes`, `checkRoadRib
 `roadNetworkSafetyCheck` — hepsi PASS.
 
 **Technical debt.** 0 new.
+
+---
+
+## ADR-0396 — Greenblood: kaynağı taşımak işe yaramıyor (run 449, ölçümle elenen hipotez)
+
+Run 448 Greenblood'u (240 m güdük) §8.4'e ertelerken gerekçesi bir **varsayımdı**: "kaynağı taşımak
+muhtemelen yine en yakın denize kısa bir iniş bulur." Run 449 varsayımı test etti; sonuç varsayımdan
+daha kesin ve fix'i eliyor.
+
+**Harita okuması doğruladı ki transkripsiyon gerçekten yanlış.** `map.png` tarayıcı canvas'ıyla ince
+okundu (`scratchpad/greenbloodFix.cjs`): Greenblood'un çizili kanalının iç/batı ucu **nx 0,182–0,188,
+ny 0,602–0,620**, oradan doğu-güneydoğuya nx~0,248'deki denize akıyor. Yapılandırılmış kaynak
+(nx 0,163, ny 0,630) çizili nehrin ~0,022 batısında — nehrin *dışında* ve belirtilen ±0,015 okuma
+toleransının ötesinde.
+
+**Ama taşımak çalışmıyor.** Adayların izleri (`scratchpad/gbVerify.cjs`):
+
+```
+(0,185, 0,611)  ->  240 m   hâlâ güdük
+(0,188, 0,602)  -> 1000 m   ama BATIYA akıyor (doğu ekseni -943 m)
+(0,19 , 0,61 )  -> 1120 m   ama GÜNEYE akıyor (güney ekseni ~850 m)
+(0,22 , 0,60 )  -> 1120 m   aynı güney havzası
+```
+
+Birbirinden 0,006 uzaktaki üç nokta 240/1000/1120 m veriyor. Sebep: `generateRiverPath` kaynağı
+"`searchRadiusMeters` içindeki **en yüksek** nokta" olarak seçiyor, dolayısıyla küçük kaymalar farklı
+havzalara düşüyor — sonuç girdiye göre **kaotik**. Okumadan kaynağa sürüklenme 224–283 m.
+
+**Belirleyici olan uzunluk değil, yön.** Hiçbir aday haritanın çizdiği gibi **doğuya** akmıyor; Dorne'un
+üretilmiş arazisi güneye ve batıya drene oluyor. En uzun adayı seçmek (a) haritayı okumak değil sonuca
+göre eğri uydurmak olurdu, (b) yanlış yöne akan bir nehir koyardı — sahibin sabit "map.png'den sapma
+yok" kuralının doğrudan ihlali — ve (c) The Mander'a 274 m'ye sokulurdu. 240 m'lik güdük en azından
+haritanın nehrinin yanında duruyor; 1120 m'lik güney nehri **daha büyük** bir sapma olurdu.
+
+**Dolayısıyla kaynak taşınmadı.** Tek doğru düzeltme bir **arazi-şekli** değişikliği: Dorne'a Dorne
+kıyısına doğru drene olan bir vadi vermek, ki o zaman haritaya yerleştirilmiş bir kaynak çizili kursu
+üretsin. Bu bir koordinat rötuşu değil, bütün bir bölgeyi yeniden şekillendirmek (§8.4, tam kapı
+takımı) ve yürütülmeden önce sahibin haberdar olmasını hak edecek kadar büyük.
+
+Bu, ölçümle elenen **altıncı** hipotez. Kod değişmedi; kayıt, sonraki bir koşu aynı çıkmazı yeniden
+denemesin diye.
