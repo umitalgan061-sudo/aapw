@@ -96,13 +96,13 @@ async function main() {
 		results.push(await pauseMenuChecks.checkPauseMenuMute(committedBrowser, baseUrl));
 		results.push(await audioChecks.checkAudioManager(browser, baseUrl));
 		results.push(await checks.checkStarfieldTwinkle(browser, baseUrl));
-		results.push(await movementChecks.checkWolfPackAlert(browser, baseUrl));
-		results.push(await movementChecks.checkNpcPatrol(browser, baseUrl));
-		results.push(await movementChecks.checkWolfPatrol(browser, baseUrl));
-		results.push(await movementChecks.checkNpcCombatStance(browser, baseUrl));
+		results.push(await movementChecks.checkWolfPackAlert(committedBrowser, baseUrl));
+		results.push(await movementChecks.checkNpcPatrol(committedBrowser, baseUrl));
+		results.push(await movementChecks.checkWolfPatrol(committedBrowser, baseUrl));
+		results.push(await movementChecks.checkNpcCombatStance(committedBrowser, baseUrl));
 		results.push(await npcPerceptionChecks.checkNpcGuardPerception(browser, baseUrl));
 		results.push(await creatureThreatChecks.checkCreatureThreatMemory(browser, baseUrl));
-		results.push(await movementChecks.checkNpcAnimalCreatureObstacleCollider(browser, baseUrl));
+		results.push(await movementChecks.checkNpcAnimalCreatureObstacleCollider(committedBrowser, baseUrl));
 		results.push(await dragonFlightChecks.checkDragonFlight(browser, baseUrl));
 		results.push(await dragonFlightChecks.checkDragonNotice(browser, baseUrl));
 		results.push(await dragonFlightChecks.checkDragonReactiveFlight(browser, baseUrl));
