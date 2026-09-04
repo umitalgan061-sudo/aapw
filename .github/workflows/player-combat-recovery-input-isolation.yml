@@ -97,7 +97,7 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-      - name: Shipped scene recovery/browser proof
+      - name: Shipped scene recovery combat runtime proof
         shell: bash
         run: |
           set -euo pipefail
@@ -108,8 +108,13 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerHitStaggerRuntime.mjs --out-dir=artifacts/player-combat-recovery-input/hit-stagger | tee artifacts/player-combat-recovery-input/hit-stagger.log
           grep -q 'PLAYER_HIT_STAGGER_RUNTIME_OK' artifacts/player-combat-recovery-input/hit-stagger.log
           grep -q '"browserErrors": \[\]' artifacts/player-combat-recovery-input/hit-stagger/hit-stagger-runtime.json
-          node scripts/checkMobilePerfBudget.js | tee artifacts/player-combat-recovery-input/mobile-perf.log
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js | tee artifacts/player-combat-recovery-input/browser-smoke.log
+      - name: Shared mobile perf and browser smoke hard gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/player-combat-recovery-input/shared
+          node scripts/checkMobilePerfBudget.js | tee artifacts/player-combat-recovery-input/shared/mobile-perf.log
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js | tee artifacts/player-combat-recovery-input/shared/browser-smoke.log
       - name: Final main freshness
         shell: bash
         run: |
