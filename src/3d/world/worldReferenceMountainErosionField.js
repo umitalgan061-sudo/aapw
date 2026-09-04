@@ -112,7 +112,7 @@ function sampleGully(progress, normalizedDistance, side, seed) {
 	const policy = WORLD_REFERENCE_MOUNTAIN_EROSION_POLICY.gullies;
 	const band = triangularBand(normalizedDistance, policy.start, policy.peak, policy.end);
 	if (band <= 0) return 0;
-	const sidePhase = side < 0 ? -0.31 : side > 0 ? 0.43 : 0;
+	const sidePhase = side < 0 ? -0.18 : side > 0 ? 0.26 : 0;
 	const branch = normalizedDistance * policy.branchSkew;
 	const primaryDistance = stripeDistance(
 		progress * policy.primaryFrequency + branch + sidePhase + seed * 0.0027,
