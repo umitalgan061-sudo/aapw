@@ -86,7 +86,11 @@ try {
 				const sampledY = sampler(worldX, worldZ);
 				const colliderY = collider.getGroundHeight(worldX, worldZ);
 				const relief = sampleWorldReferenceMountainReliefMeters(worldX, worldZ);
-				const meshDelta = Math.abs(meshY - sampledY);
+				// THREE.BufferGeometry stores PlaneGeometry positions in Float32Array. Compare the shipped
+				// vertex against the exact Float32 realization of the canonical sampler rather than against
+				// its JS double, so this remains an equality/parity test instead of a tolerance for drift.
+				const realizedSampleY = Math.fround(sampledY);
+				const meshDelta = Math.abs(meshY - realizedSampleY);
 				const colliderDelta = Math.abs(colliderY - sampledY);
 				maxMeshSamplerDelta = Math.max(maxMeshSamplerDelta, meshDelta);
 				maxColliderSamplerDelta = Math.max(maxColliderSamplerDelta, colliderDelta);
