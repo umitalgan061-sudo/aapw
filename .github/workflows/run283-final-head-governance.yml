@@ -184,16 +184,46 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
-      - name: Performance determinism world safety debt and browser DoD
+      - name: Mobile performance budget
         shell: bash
         run: |
           set -euo pipefail
           node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run283-mobile.log"
+
+      - name: Runtime determinism contract
+        shell: bash
+        run: |
+          set -euo pipefail
           node scripts/checkSeededRandomPolicy.js
+
+      - name: Terrain seat safety contract
+        shell: bash
+        run: |
+          set -euo pipefail
           node scripts/terrainSeatSafetyCheck.js
+
+      - name: Road network safety contract
+        shell: bash
+        run: |
+          set -euo pipefail
           node scripts/roadNetworkSafetyCheck.js
+
+      - name: Performance trend contract
+        shell: bash
+        run: |
+          set -euo pipefail
           node scripts/analyzePerfTrend.js
+
+      - name: Technical debt contract
+        shell: bash
+        run: |
+          set -euo pipefail
           node scripts/checkTechnicalDebt.js
+
+      - name: Shipped browser definition of done
+        shell: bash
+        run: |
+          set -euo pipefail
           node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run283-smoke.log"
           test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run283-smoke.log")" -ge 34
 
