@@ -48,6 +48,8 @@ async function waitHealth(expected, { timeout = 3000, interval = 20 } = {}) {
     await sleep(interval);
     health = await readHealth();
   }
+  health = await readHealth();
+  if (health === expected) return health;
   throw new Error(`[player-guard-impact-runtime] timed out waiting for health=${expected}; current=${health}`);
 }
 async function isolateDamageSource(sourceId) {
