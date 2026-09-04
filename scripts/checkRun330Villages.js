@@ -42,8 +42,7 @@ async function main() {
 		const page = await browser.newPage({ viewport: { width: 1400, height: 800 } });
 		const pageErrors = [];
 		page.on('pageerror', (error) => pageErrors.push(String(error.message)));
-		await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
-		await page.waitForTimeout(9000);
+		await page.goto(`http://127.0.0.1:${port}/scripts/village-architecture-harness.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
 		const result = await page.evaluate(async () => {
 			const THREE = await import('three');
