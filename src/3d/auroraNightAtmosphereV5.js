@@ -17,11 +17,11 @@ export function applyAuroraNightAtmosphereV5(material) {
 	material.fragmentShader = material.fragmentShader
 		.replace(
 			'vec3 deepHorizon = vec3(0.018, 0.042, 0.086);',
-			'vec3 deepHorizon = vec3(0.050, 0.092, 0.165);',
+			'vec3 deepHorizon = vec3(0.060, 0.108, 0.188);',
 		)
 		.replace(
 			'vec3 deepZenith = vec3(0.0035, 0.009, 0.027);',
-			'vec3 deepZenith = vec3(0.009, 0.020, 0.052);',
+			'vec3 deepZenith = vec3(0.014, 0.028, 0.066);',
 		)
 		.replace(
 			'float t = uTime;',
@@ -43,9 +43,9 @@ export function applyAuroraNightAtmosphereV5(material) {
 			* (1.0 - smoothstep(0.43, 0.72, elevation))
 			* smoothstep(0.37, 0.76, ray4Fbm(vec2(azimuth * 2.30 + upperAirWarp.x * 0.46 + 21.1, elevation * 2.10 + upperAirWarp.y * 0.34 - t * 0.00018)));
 		skyColor *= 1.0 + extinction * uNightFactor;
-		skyColor = mix(skyColor, vec3(0.060, 0.115, 0.175), horizonMoisture * 0.105 * uNightFactor);
-		skyColor = mix(skyColor, vec3(0.047, 0.083, 0.128), aerosolVeil * 0.045 * uNightFactor);
-		skyColor += vec3(0.012, 0.032, 0.030) * airglowBand * uNightFactor;`,
+		skyColor = mix(skyColor, vec3(0.068, 0.126, 0.188), horizonMoisture * 0.115 * uNightFactor);
+		skyColor = mix(skyColor, vec3(0.052, 0.092, 0.141), aerosolVeil * 0.055 * uNightFactor);
+		skyColor += vec3(0.014, 0.038, 0.036) * airglowBand * uNightFactor;`,
 		)
 		.replace(
 			'finalColor += oxygenGreen * haze * 0.10;',
@@ -54,7 +54,7 @@ export function applyAuroraNightAtmosphereV5(material) {
 	material.needsUpdate = true;
 	material.userData.auroraNightAtmosphereV5 = true;
 	material.userData.nightAtmosphereRealism = Object.freeze({
-		version: 7,
+		version: 8,
 		deterministicMultiscaleUpperAir: true,
 		domainWarpedAerosolVeil: true,
 		uniformGradientRemoved: true,
