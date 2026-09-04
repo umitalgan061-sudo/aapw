@@ -156,8 +156,15 @@ jobs:
             visualBottomGroundDeltaMeters: player.geography.visualBottomGroundDeltaMeters,
             browserErrors: metrics.browserErrors ?? [],
           };
-          if (summary.browserErrors.length) throw new Error(`browser errors: ${JSON.stringify(summary.browserErrors)}`);
           fs.writeFileSync('artifacts/player-touch-combat/player-material-acceptance.json', `${JSON.stringify(summary, null, 2)}\n`);
+          console.log('PLAYER_MATERIAL_GROUNDING_GEOMETRY_OK', JSON.stringify({
+            source: summary.source,
+            meshCount: summary.meshCount,
+            materialSlotCount: summary.materialSlotCount,
+            rootGroundDeltaMeters: summary.rootGroundDeltaMeters,
+            visualBottomGroundDeltaMeters: summary.visualBottomGroundDeltaMeters,
+          }));
+          if (summary.browserErrors.length) throw new Error(`browser errors: ${JSON.stringify(summary.browserErrors)}`);
           console.log('PLAYER_MATERIAL_GROUNDING_ACCEPTANCE_OK', JSON.stringify(summary));
           NODE
       - name: Final main freshness
