@@ -208,8 +208,14 @@ jobs:
           grep -Fq '"browserErrors": []' artifacts/player-lock-on/lock-on-runtime.json
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerRecoveryAttackBufferRuntime.mjs --out-dir=artifacts/player-recovery-attack-buffer 2>&1 | tee artifacts-player-recovery-attack-buffer.log
           grep -q 'PLAYER_RECOVERY_ATTACK_BUFFER_RUNTIME_OK' artifacts-player-recovery-attack-buffer.log
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
+      - name: Shared mobile perf and browser smoke hard gate
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/player-gamepad/shared
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js 2>&1 | tee artifacts/player-gamepad/shared/mobile-perf.log
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js 2>&1 | tee artifacts/player-gamepad/shared/browser-smoke.log
       - name: Final main freshness
         if: always() && github.event_name == 'pull_request'
         shell: bash
