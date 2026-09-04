@@ -13,8 +13,8 @@ const NAV_TIMEOUT_MS = 30_000;
 
 /**
  * Constructs a real `createAudioManager` against a real `THREE.PerspectiveCamera` (the same shape
- * `game3d.js` passes it), then drives `playClick()` through an actual Playwright `page.click()` —
- * a trusted synthetic input event, unlike a plain `page.evaluate()` call — so the browser's
+ * `game3d.js` passes it), then drives `playClick()` through an actual Playwright mouse input —
+ * a trusted browser input event, unlike a plain `page.evaluate()` call — so the browser's
  * autoplay-gesture requirement is exercised the same way a real player's pause-button click
  * satisfies it in production (see `audio/audioManager.js`'s own module doc).
  */
@@ -44,19 +44,22 @@ async function checkAudioManager(browser, baseUrl) {
 			const mutedFlagUpdates = audio.isMuted() === true;
 			audio.setMuted(false);
 			const unmuteFlagUpdates = audio.isMuted() === false;
-			// Stashed on `window` so the follow-up real click's handler (installed next) and the final
-			// evaluate() below can all reach the same instances -- Playwright's page.click() runs
-			// against page DOM, not this evaluate()'s local scope.
-			window.__audioCheck = { audio, camera };
+			// Stashed on `window` so the follow-up native mouse input and the final evaluate() below can
+			// all reach the same instances. The click handler records Event.isTrusted so this proof cannot
+			// silently degrade into a scripted DOM dispatch.
+			window.__audioCheck = { audio, camera, trustedClick: false, clickPromise: null };
 
 			const btn = document.createElement('button');
 			btn.id = '__audio-check-btn';
 			btn.textContent = 'trigger click sound';
-			// `#game3d-canvas` and loading UI may still be active while the rest of the game boots.
-			// Fixed position plus a deliberately topmost z-index keeps this trusted pointer target
-			// hittable without weakening the gesture semantics or waiting on unrelated scene work.
-			btn.style.cssText = 'position:fixed;top:0;left:0;width:200px;height:60px;z-index:999999;';
-			btn.onclick = () => { window.__audioCheck.clickPromise = audio.playClick(); };
+			// Scene/layout work can keep Playwright's locator actionability stability check busy even
+			// though this fixed target is already hittable. Put it at a deterministic viewport coordinate
+			// above every game overlay, then use native page.mouse input rather than locator.click().
+			btn.style.cssText = 'position:fixed;top:0;left:0;width:200px;height:60px;z-index:2147483647;pointer-events:auto;';
+			btn.onclick = (event) => {
+				window.__audioCheck.trustedClick = event.isTrusted === true;
+				window.__audioCheck.clickPromise = audio.playClick();
+			};
 			document.body.appendChild(btn);
 
 			return {
@@ -65,12 +68,22 @@ async function checkAudioManager(browser, baseUrl) {
 			};
 		});
 
-		// A real trusted click, not a scripted DOM event -- the one thing this check exists to prove
-		// that a plain unit test of the module in isolation could not.
-		await page.click('#__audio-check-btn');
+		// Native browser mouse input at the fixed target. This remains a real trusted click while
+		// avoiding locator.click()'s unrelated "stable" actionability wait during heavy scene layout.
+		await page.mouse.click(100, 30);
 
 		const afterClick = await page.evaluate(async () => {
+			if (!window.__audioCheck.clickPromise) {
+				return {
+					trustedClickReceived: false,
+					contextNotClosed: false,
+					discoveryChimeResolvedWithoutThrow: false,
+					disposeRemovesListener: false,
+					secondDisposeIsSafe: false,
+				};
+			}
 			await window.__audioCheck.clickPromise;
+			const trustedClickReceived = window.__audioCheck.trustedClick === true;
 			const listener = window.__audioCheck.camera.children.find((child) => child.type === 'AudioListener');
 			// 'running' after a resumed gesture-triggered context is the real-world success case;
 			// some CI/automation Chromium profiles start contexts already unsuspended, which is not a
@@ -98,7 +111,13 @@ async function checkAudioManager(browser, baseUrl) {
 				secondDisposeIsSafe = false;
 			}
 
-			return { contextNotClosed, discoveryChimeResolvedWithoutThrow, disposeRemovesListener, secondDisposeIsSafe };
+			return {
+				trustedClickReceived,
+				contextNotClosed,
+				discoveryChimeResolvedWithoutThrow,
+				disposeRemovesListener,
+				secondDisposeIsSafe,
+			};
 		});
 
 		result = { ...setup, ...afterClick };
@@ -112,9 +131,9 @@ async function checkAudioManager(browser, baseUrl) {
 		details: ok
 			? 'createAudioManager() adds a real THREE.AudioListener to the camera, starts unmuted '
 				+ '(readStoredMuted() defaults false), and setMuted()/isMuted() track state correctly; a '
-				+ 'real trusted click (not a scripted event) resolves playClick() without throwing and '
-				+ 'leaves the audio context open; playDiscoveryChime() also resolves without throwing; '
-				+ 'dispose() removes the listener and is safe to call twice'
+				+ 'native trusted mouse click (Event.isTrusted=true, not a scripted event) resolves playClick() '
+				+ 'without throwing and leaves the audio context open; playDiscoveryChime() also resolves '
+				+ 'without throwing; dispose() removes the listener and is safe to call twice'
 			: `FAILED assertion(s): ${JSON.stringify(result)}`,
 	};
 }
