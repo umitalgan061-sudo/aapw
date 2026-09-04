@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-04-v130-lowland-material-depth',
+	id: 'geographic-reference-palette-2026-09-04-v131-weathered-domain-depth',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -137,6 +137,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	fullWorldAerialDomainSeparationRaised: true,
 	meadowMineralHueGapRaised: true,
 	weatheredRockValueRangeRaised: true,
+	weatheredGroundHueDecorrelationRaised: true,
+	distantLithologyMidtoneGapRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -144,23 +146,23 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v130 is the second visual-QA iteration after v129 proved too subtle at full-world distance: meadow greens gain modest depth, weathered heath moves farther from the grey-khaki midpoint, wet soil remains cool but readable, mineral earth stays sunlit, and granite/basalt gain a wider midtone span. Deterministic world-space normal/roughness breakup remains authoritative and canonical terrain, hydrology and collider authority are unchanged.',
-		water: 'v130 preserves v128-v129 shore/lake/open-sea depth hierarchy, current/shear/foam/normal fabric, coverage and bathymetric authority.',
-		road: 'v130 preserves v129 compacted-earth/rut/dust/stone calibration, route topology, width, terrain sampling and water exclusion.',
-		celestial: 'v130 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v131 keeps the v130 aerial domain hierarchy but pushes weathered material hue/value separation rather than generic saturation: meadow shifts cooler and darker, dry heath becomes less khaki/orange, exposed mineral earth loses orange cast, and granite/basalt retain a broader neutral midtone span. Deterministic world-space normal/roughness breakup remains authoritative and canonical terrain, hydrology and collider authority are unchanged.',
+		water: 'v131 preserves v128-v130 shore/lake/open-sea depth hierarchy, current/shear/foam/normal fabric, coverage and bathymetric authority.',
+		road: 'v131 preserves v129-v130 compacted-earth/rut/dust/stone calibration, route topology, width, terrain sampling and water exclusion.',
+		celestial: 'v131 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
 		mossShadow: 0x102a22,
-		meadow: 0x2d6338,
-		dryHeather: 0x806953,
-		wetEarth: 0x16322c,
-		exposedEarth: 0xc29a66,
-		graniteShadow: 0x3c464b,
-		graniteSunlit: 0xcec5b7,
-		basaltWet: 0x25454a,
+		meadow: 0x285d37,
+		dryHeather: 0x776b60,
+		wetEarth: 0x15332e,
+		exposedEarth: 0xb6946d,
+		graniteShadow: 0x404a50,
+		graniteSunlit: 0xc8c2b8,
+		basaltWet: 0x29474b,
 		quartz: 0xdad6ce,
 	}),
 	road: Object.freeze({
