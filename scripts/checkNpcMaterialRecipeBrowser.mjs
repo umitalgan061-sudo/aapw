@@ -12,12 +12,13 @@ try {
 	const pageErrors = [];
 	page.on('pageerror', (error) => pageErrors.push(String(error)));
 	await page.goto(`${baseUrl}/404.html?npc-material-proof=`, { waitUntil: 'domcontentloaded', timeout: 10000 });
-	await page.addScriptTag({
-		type: 'importmap',
-		content: JSON.stringify({ imports: {
-			three: '/src/3d/vendor/three/three.module.js',
-			'three/addons/': '/src/3d/vendor/three/addons/',
-		} }),
+	const importMap = JSON.stringify({ imports: {
+		three: '/src/3d/vendor/three/three.module.js',
+		'three/addons/': '/src/3d/vendor/three/addons/',
+	} });
+	await page.setContent(`<!doctype html><html><head><meta charset="utf-8"><base href="${baseUrl}/"><script type="importmap">${importMap}</script></head><body></body></html>`, {
+		waitUntil: 'domcontentloaded',
+		timeout: 10000,
 	});
 	const proof = await page.evaluate(async () => {
 		const THREE = await import('three');
