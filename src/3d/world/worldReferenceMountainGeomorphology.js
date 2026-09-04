@@ -62,7 +62,7 @@ export const WORLD_REFERENCE_MOUNTAIN_GEOMORPHOLOGY_POLICY = Object.freeze({
 		strength: 0.135,
 	}),
 	ridgeAsymmetry: Object.freeze({
-		strength: 0.07,
+		strength: 0.05,
 		coreFadeStart: 0.08,
 		coreFadeEnd: 0.62,
 	}),
