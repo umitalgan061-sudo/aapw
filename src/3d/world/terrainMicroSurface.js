@@ -314,6 +314,8 @@ float terrainPhotoDrainage = terrainPhotoFbm(terrainPhotoWarpedXZ / 260.0 + vec2
 float terrainPhotoElevation = smoothstep(45.0, 330.0, vTerrainPhotorealWorldPosition.y);
 float terrainPhotoHighAlpine = smoothstep(180.0, 520.0, vTerrainPhotorealWorldPosition.y);
 float terrainPhotoLowland = 1.0 - smoothstep(22.0, 120.0, vTerrainPhotorealWorldPosition.y);
+float terrainPhotoPlainReach = (1.0 - smoothstep(105.0, 265.0, vTerrainPhotorealWorldPosition.y))
+	* (1.0 - smoothstep(0.11, 0.31, terrainPhotoSlope));
 
 // The previous coastal term covered almost every vertex from +2 m to +34 m above water uniformly,
 // which read as a continuous green halo in full-world renders. Keep the authority height-based, but
@@ -349,7 +351,8 @@ float terrainPhotoDryShoulder = (1.0 - terrainPhotoSnow) * terrainPhotoShoulder
 // Recover aerial material domains from existing terrain signals instead of adding unrelated noise.
 // The high-pass differences remove the broad olive/grey wash while retaining the same canonical
 // lowland ownership. Wet swales stay darker/greener, dry benches warmer and lag deposits mineral.
-float terrainPhotoAerialLowland = terrainPhotoLowland * (1.0 - terrainPhotoSnow) * (1.0 - terrainPhotoCliff * 0.58);
+float terrainPhotoAerialLowland = max(terrainPhotoLowland, terrainPhotoPlainReach * 0.76)
+	* (1.0 - terrainPhotoSnow) * (1.0 - terrainPhotoCliff * 0.68);
 float terrainPhotoAerialHighPass = clamp(
 	(terrainPhotoMacro - terrainPhotoBroad) * 0.72
 	+ (terrainPhotoLandform - terrainPhotoMacro) * 0.46
@@ -500,15 +503,15 @@ diffuseColor.rgb = clamp(diffuseColor.rgb, vec3(0.010), vec3(0.845));`,
 				`#include <roughnessmap_fragment>
 float terrainPhotoWetPolish = terrainPhotoCoastalWet * 0.085 + terrainPhotoTideStain * 0.095
 	+ terrainPhotoCoastalRockWet * 0.055 + terrainPhotoRunnel * 0.10 + terrainPhotoAlluvialWash * 0.055
-	+ terrainPhotoWetSwaleDomain * 0.036;
+	+ terrainPhotoWetSwaleDomain * 0.042;
 float terrainPhotoRockPolish = terrainPhotoRockFace * terrainPhotoMoisture * 0.045;
 float terrainPhotoSaltCrustRoughness = terrainPhotoSaltSpray * 0.065;
 float terrainPhotoLowlandSoilCrust = terrainPhotoAerialLowland
-	* ((terrainPhotoMeso - 0.5) * 0.075 + (terrainPhotoGrain - 0.5) * 0.050
-		+ terrainPhotoAerialHighPass * 0.060);
-float terrainPhotoLowlandDomainRoughness = terrainPhotoDryBenchDomain * (0.075 + terrainPhotoGrain * 0.045)
-	+ terrainPhotoMineralLagDomain * (0.092 + terrainPhotoMeso * 0.045)
-	- terrainPhotoWetSwaleDomain * (0.045 + (1.0 - terrainPhotoDrainage) * 0.028);
+	* ((terrainPhotoMeso - 0.5) * 0.092 + (terrainPhotoGrain - 0.5) * 0.061
+		+ terrainPhotoAerialHighPass * 0.074);
+float terrainPhotoLowlandDomainRoughness = terrainPhotoDryBenchDomain * (0.088 + terrainPhotoGrain * 0.052)
+	+ terrainPhotoMineralLagDomain * (0.108 + terrainPhotoMeso * 0.052)
+	- terrainPhotoWetSwaleDomain * (0.052 + (1.0 - terrainPhotoDrainage) * 0.032);
 float terrainPhotoGranularRoughness = terrainPhotoScreeBand * 0.055 + terrainPhotoSnowDeposit * 0.025
 	+ terrainPhotoDryShoulder * 0.045 + terrainPhotoSaltCrustRoughness
 	+ terrainPhotoLowlandDomainRoughness + terrainPhotoLowlandSoilCrust;
@@ -532,27 +535,27 @@ vec2 terrainPhotoLowlandFrameEast = terrainPhotoXZ + vec2(terrainPhotoLowlandNor
 vec2 terrainPhotoLowlandFrameWest = terrainPhotoXZ - vec2(terrainPhotoLowlandNormalStep, 0.0);
 vec2 terrainPhotoLowlandFrameNorth = terrainPhotoXZ + vec2(0.0, terrainPhotoLowlandNormalStep);
 vec2 terrainPhotoLowlandFrameSouth = terrainPhotoXZ - vec2(0.0, terrainPhotoLowlandNormalStep);
-float terrainPhotoLowlandEast = terrainPhotoFbm(terrainPhotoLowlandFrameEast / 54.0 + vec2(23.8, 3.6)) * 0.54
-	+ terrainPhotoRidgeNoise(vec2(terrainPhotoLowlandFrameEast.x / 128.0, terrainPhotoLowlandFrameEast.y / 36.0) + vec2(-6.2, 14.1)) * 0.31
+float terrainPhotoLowlandEast = terrainPhotoFbm(terrainPhotoLowlandFrameEast / 54.0 + vec2(23.8, 3.6)) * 0.50
+	+ terrainPhotoRidgeNoise(vec2(terrainPhotoLowlandFrameEast.x / 128.0, terrainPhotoLowlandFrameEast.y / 36.0) + vec2(-6.2, 14.1)) * 0.35
 	+ terrainPhotoNoise(terrainPhotoLowlandFrameEast / 18.0 + vec2(5.4, -18.2)) * 0.15;
-float terrainPhotoLowlandWest = terrainPhotoFbm(terrainPhotoLowlandFrameWest / 54.0 + vec2(23.8, 3.6)) * 0.54
-	+ terrainPhotoRidgeNoise(vec2(terrainPhotoLowlandFrameWest.x / 128.0, terrainPhotoLowlandFrameWest.y / 36.0) + vec2(-6.2, 14.1)) * 0.31
+float terrainPhotoLowlandWest = terrainPhotoFbm(terrainPhotoLowlandFrameWest / 54.0 + vec2(23.8, 3.6)) * 0.50
+	+ terrainPhotoRidgeNoise(vec2(terrainPhotoLowlandFrameWest.x / 128.0, terrainPhotoLowlandFrameWest.y / 36.0) + vec2(-6.2, 14.1)) * 0.35
 	+ terrainPhotoNoise(terrainPhotoLowlandFrameWest / 18.0 + vec2(5.4, -18.2)) * 0.15;
-float terrainPhotoLowlandNorth = terrainPhotoFbm(terrainPhotoLowlandFrameNorth / 54.0 + vec2(23.8, 3.6)) * 0.54
-	+ terrainPhotoRidgeNoise(vec2(terrainPhotoLowlandFrameNorth.x / 128.0, terrainPhotoLowlandFrameNorth.y / 36.0) + vec2(-6.2, 14.1)) * 0.31
+float terrainPhotoLowlandNorth = terrainPhotoFbm(terrainPhotoLowlandFrameNorth / 54.0 + vec2(23.8, 3.6)) * 0.50
+	+ terrainPhotoRidgeNoise(vec2(terrainPhotoLowlandFrameNorth.x / 128.0, terrainPhotoLowlandFrameNorth.y / 36.0) + vec2(-6.2, 14.1)) * 0.35
 	+ terrainPhotoNoise(terrainPhotoLowlandFrameNorth / 18.0 + vec2(5.4, -18.2)) * 0.15;
-float terrainPhotoLowlandSouth = terrainPhotoFbm(terrainPhotoLowlandFrameSouth / 54.0 + vec2(23.8, 3.6)) * 0.54
-	+ terrainPhotoRidgeNoise(vec2(terrainPhotoLowlandFrameSouth.x / 128.0, terrainPhotoLowlandFrameSouth.y / 36.0) + vec2(-6.2, 14.1)) * 0.31
+float terrainPhotoLowlandSouth = terrainPhotoFbm(terrainPhotoLowlandFrameSouth / 54.0 + vec2(23.8, 3.6)) * 0.50
+	+ terrainPhotoRidgeNoise(vec2(terrainPhotoLowlandFrameSouth.x / 128.0, terrainPhotoLowlandFrameSouth.y / 36.0) + vec2(-6.2, 14.1)) * 0.35
 	+ terrainPhotoNoise(terrainPhotoLowlandFrameSouth / 18.0 + vec2(5.4, -18.2)) * 0.15;
 vec2 terrainPhotoLowlandGradient = vec2(
 	terrainPhotoLowlandEast - terrainPhotoLowlandWest,
 	terrainPhotoLowlandNorth - terrainPhotoLowlandSouth
 );
 float terrainPhotoLowlandNormalMask = terrainPhotoAerialLowland
-	* clamp(0.48 + terrainPhotoDryBenchDomain * 0.52 + terrainPhotoMineralLagDomain * 0.66
-		+ terrainPhotoWetSwaleDomain * 0.28, 0.0, 1.0);
+	* clamp(0.52 + terrainPhotoDryBenchDomain * 0.56 + terrainPhotoMineralLagDomain * 0.72
+		+ terrainPhotoWetSwaleDomain * 0.30, 0.0, 1.0);
 vec3 terrainPhotoLowlandWorldPerturbation = vec3(-terrainPhotoLowlandGradient.x, 0.0, -terrainPhotoLowlandGradient.y);
-normal = normalize(normal + mat3(viewMatrix) * terrainPhotoLowlandWorldPerturbation * terrainPhotoLowlandNormalMask * 0.46);
+normal = normalize(normal + mat3(viewMatrix) * terrainPhotoLowlandWorldPerturbation * terrainPhotoLowlandNormalMask * 0.62);
 
 float terrainPhotoSnowNormalStep = 0.52;
 float terrainPhotoSnowFineEast = terrainPhotoNoise((terrainPhotoXZ + vec2(terrainPhotoSnowNormalStep, 0.0)) / 2.6 + vec2(37.4, -12.8));
