@@ -349,7 +349,7 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run 414 gives the road an actual dirt surface -- broad damp patching, wheel ruts, a drier crown,
 // grit and scattered stones, all procedural because this container has no git-lfs and so no texture
 // file can be committed. A stale shell keeps drawing the flat tan band. v64->v65.
-const SHELL_CACHE = 'westeros-shell-v81';
+const SHELL_CACHE = 'westeros-shell-v82';
 const SHELL_FILES = [
     './',
     './index.html',
@@ -474,6 +474,10 @@ const SHELL_FILES = [
 // `world/rivers.js`. Same reason again — an offline install holding the older `rivers.js` would 404 on
 // it and take the whole 3D mode down. `SHELL_CACHE` bumped v67->v68.
 //
+// run 450 (3D_GAME_PROGRESS.md ADR-0399): added `world/vegetationFoliageTint.js`, imported by
+// `world/vegetation.js`. Same reason as the run 421/446 entries: an offline install holding the
+// older `vegetation.js` would 404 on it. `SHELL_CACHE` bumped v81->v82.
+//
 // run 446 (3D_GAME_PROGRESS.md ADR-0393): added `world/riverHeadwaterSpring.js`, imported by
 // `world/rivers.js`. Same reason as the run 421 entry above — an offline install holding the older
 // `rivers.js` would 404 on it and take the whole 3D mode down. `SHELL_CACHE` bumped v80->v81.
@@ -540,6 +544,7 @@ const GAME3D_SHELL_FILES = [
     './src/3d/world/terrainChunkSkirt.js',
     './src/3d/world/roadCorridorSmoothing.js',
     './src/3d/world/vegetationForestScatter.js',
+    './src/3d/world/vegetationFoliageTint.js',
     './src/3d/world/worldReferenceForestAffinity.js',
     './src/3d/world/worldReferenceBiomeField.js',
     './src/3d/world/windGrass.js',

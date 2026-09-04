@@ -45,6 +45,7 @@ import * as THREE from 'three';
 import { mulberry32 } from './terrain.js';
 import { generateForestPositions } from './vegetationForestScatter.js';
 import { valyriaInfluenceAtWorldXZ, VALYRIA_BARREN_ABOVE_INFLUENCE } from './worldReferenceValyria.js';
+import { prepareFoliageForTinting, foliageTintAt } from './vegetationFoliageTint.js';
 
 /**
  * Two low-poly species, each a self-contained silhouette recipe. `weight` values are relative and
@@ -282,6 +283,8 @@ function buildSpeciesAssets(species) {
 
 	const trunkMaterial = new THREE.MeshStandardMaterial({ color: trunk.color, roughness: 1, metalness: 0 });
 	const foliageMaterial = new THREE.MeshStandardMaterial({ color: foliage.color, roughness: 0.9, metalness: 0 });
+	// Run 450: without this the per-tree instance colour below is a silent no-op — see the module doc.
+	prepareFoliageForTinting(foliageGeometry, foliageMaterial);
 	return { trunkGeometry, foliageGeometry, trunkMaterial, foliageMaterial };
 }
 
@@ -311,6 +314,8 @@ function placeTreeInstance(entry, x, z, sampleHeightMeters, rng, up, matrix, pos
 	matrix.compose(position, quaternion, scaleVector);
 	entry.trunkMesh.setMatrixAt(entry.placedCount, matrix);
 	entry.foliageMesh.setMatrixAt(entry.placedCount, matrix);
+	// Derived from position, never from `rng`: a draw taken here would shift every tree placed after it.
+	entry.foliageMesh.setColorAt(entry.placedCount, foliageTintAt(x, z, entry.foliageMesh.material.color));
 	entry.placedCount++;
 }
 
@@ -325,20 +330,16 @@ function placeTreeInstance(entry, x, z, sampleHeightMeters, rng, up, matrix, pos
  *    ADR-0138/ADR-0139 — same rng draw order, same output for the same inputs.
  * 2. **Seat-local clustering** (run 113/ADR-0140) — an additive second pass placing extra trees in an
  *    annulus ring (`CLUSTER_RING_INNER_MARGIN_METERS` past `SEAT_EXCLUSION_RADIUS_METERS`, out to
- *    `CLUSTER_RING_OUTER_RADIUS_METERS`) around each seat in `seats`, at `CLUSTER_DENSITY_PER_KM2` —
- *    denser than the base scatter, reading as a managed treeline near a castle. Draws from its own
- *    XOR-tagged rng stream (never perturbs the base pass's own draw sequence, so passing `seats: []`
- *    reproduces ADR-0138/ADR-0139's scatter bit-for-bit) and reuses the same `isPlaceablePosition`
- *    exclusion check (so a cluster point too close to a *different* seat, or on water/a steep
- *    slope/a road, is rejected exactly like a base-pass point would be). **Only seats whose entire
- *    ring already fits inside the base scatter disc get one** — `Math.hypot(seat.x, seat.z) +
- *    CLUSTER_RING_OUTER_RADIUS_METERS <= radiusMeters` — the same "no trees over a chunk that was
- *    never generated" guarantee the base pass already gives itself, generalized to the ring's own
- *    outer edge. In this project's actual geography this means most of the 14 kingdom seats qualify
- *    on desktop (`PHASE1_PREVIEW_RADIUS_CHUNKS` 11 * 500m = 5500m disc) and none qualify on mobile
- *    (`STREAM_RADIUS_CHUNKS` 2 * 500m = 1000m disc, smaller than every seat's own distance from
- *    origin) — an honest, expected consequence of the existing mobile-budget scoping, not a bug; see
- *    DECISIONS.md's newest ADR.
+ *    `CLUSTER_RING_OUTER_RADIUS_METERS`) around each seat, at the denser `CLUSTER_DENSITY_PER_KM2`, so
+ *    it reads as a managed treeline near a castle. It draws from its own XOR-tagged rng stream, so it
+ *    never perturbs the base pass and `seats: []` reproduces ADR-0138/ADR-0139 bit-for-bit, and reuses
+ *    `isPlaceablePosition`, so a cluster point near a *different* seat or on water/steep ground/a road
+ *    is rejected exactly as a base-pass point would be. **Only seats whose whole ring fits inside the
+ *    base disc get one** (`hypot(seat.x, seat.z) + CLUSTER_RING_OUTER_RADIUS_METERS <= radiusMeters`),
+ *    generalizing the base pass's own "no trees over a chunk that was never generated" rule. In this
+ *    geography most of the 14 seats qualify on desktop (11 * 500 m = 5500 m disc) and none on mobile
+ *    (2 * 500 m = 1000 m, smaller than every seat's distance from origin) — an expected consequence of
+ *    mobile-budget scoping, not a bug; see DECISIONS.md's newest ADR.
  * @param {object} options
  * @param {(x: number, z: number) => number} options.sampleHeightMeters Same shared sampler every
  *   other world system reads through (`physics.js`'s ground collider).

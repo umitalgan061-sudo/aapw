@@ -20653,3 +20653,60 @@ Yani bu, sahibin "map.png'den sapma yok" kuralının **çalıştığının** kan
 yapılmadı. Bunu "düzeltmek" haritadan sapmak olurdu.
 
 Bu, ölçümle elenen **yedinci** hipotez.
+
+---
+
+## ADR-0399 — Her ağacın kendi yaprak rengi var (run 450)
+
+`world/vegetation.js` tür başına tek bir düz renkli `MeshStandardMaterial` kuruyordu — çam için
+`0x2f5c26`, yuvarlak taçlı için `0x4a7a2e` — ne `vertexColors` ne de örnek başına renk. Yani binlerce
+örnek boyunca dünyada tam **iki** yaprak rengi vardı; kuzey yaylasında ve Reach'te aynı, ve uzaktaki
+bir koru bir ağacın damgalanmış tekrarı gibi okunuyordu. Run 449'un çim için ölçüp düzelttiği düzlüğün
+aynısı, ekranın çok daha büyük bir bölümünü kaplayan katmanda.
+
+**Sessiz no-op tuzağı — asıl bulgu.** `InstancedMesh` `instanceColor` taşıyor ve three.js bunu bedava
+uygulayacakmış gibi duruyor. Uygulamıyor. Vendor'daki r160'ta `color_vertex`, `USE_INSTANCING_COLOR`
+altında `instanceColor`'ı `vColor`'a katlıyor, ama `color_fragment` şöyle:
+
+```
+#if defined( USE_COLOR_ALPHA )   diffuseColor *= vColor;
+#elif defined( USE_COLOR )       diffuseColor.rgb *= vColor;
+```
+
+`USE_INSTANCING_COLOR` yok. `vertexColors: false` olan bir materyalde varying hesaplanıp **hiç
+okunmuyor**; `setColorAt` bir tampon harcayıp hiçbir şeyi değiştirmiyor. (Çim bundan yalnızca
+`windGrass.js` zaten `vertexColors: true` olduğu ve kendi renk niteliğini taşıdığı için kurtuluyor —
+run 449'un ölçülen etkisi bu yüzden gerçekti.) `prepareFoliageForTinting` geometriye sabit beyaz bir
+renk niteliği verip `vertexColors`'ı açıyor, böylece `USE_COLOR` tanımlanıyor ve `vColor` gerçekten
+`diffuseColor`'a ulaşıyor.
+
+**Tint iki parçalı.** Bölgesel kısım yalnızca *chroma* oynatıyor, parlaklığı koruyor —
+`terrainBiomeShading.js`'in harita rengini aktarma gerekçesiyle aynı: yaprak her zemin renginden çok
+daha koyu, dolayısıyla zeminin ham değerine çekmek koyu bir çamı tint'lemek yerine tene çevirirdi.
+Zemini kendi parlaklığına normalize etmek "0,73 0,73 0,60 haki"yi bir parlaklık değil bir **yön**
+yapıyor; kurak bölge ağaçlarını zeytine büküyor, yeşil bölge yeşil bırakıyor. Ağaç başına parlaklık
+sarsıntısı ise tek bir tam yeşilden oluşan koruyu kırıyor.
+
+Sarsıntı **konumdan** türetiliyor, `rng`'den değil: burada bir çekiliş tüketmek kendisinden sonra
+yerleştirilen her ağacı kaydırır ve bütün ormanı oynatırdı (§8.9 ve vegetation sözleşmesinin
+çivilediği yerleşim).
+
+**Sonuç** (canlı `instanceColor`'dan okundu):
+
+```
+                         önce      sonra
+çam yaprağı (4161)      1 renk    2094 farklı renk
+yuvarlak taç (2962)     1 renk    2317 farklı renk
+çarpan parlaklığı         —       0,91 – 1,15
+```
+
+Gövdeler dokunulmadı; materyalin taban rengi değişmedi, dolayısıyla
+`checkVegetationVisualContract`'ın çivilediği `0x2f5c26`/`0x4a7a2e` yerinde duruyor (çarpan 1
+etrafında). Görsel doğrulama iki koltukta: `seat-cersei.png` (uzak ağaç hattı artık ağaçtan ağaca
+değişiyor) ve `seat-berkalp.png`.
+
+Kapılar: `checkVegetationVisualContract`, `checkWindGrassContractRun180`,
+`checkVegetationRiverClearance`, `checkTechnicalDebt`, `game3dSmokeChecksScene`,
+`checkServiceWorkerCache` — hepsi PASS. `SHELL_CACHE` v81 → v82 (yeni modül kabuk listesine eklendi).
+
+**Technical debt.** 0 new.
