@@ -148,9 +148,10 @@ try {
 		const assetProofs = controllers.map(inspectController);
 		const patrolReady = (controller) => {
 			const patrolPlacement = controller.object3D.userData?.npcPatrolPlacement;
-			return Array.isArray(patrolPlacement?.waypoints)
-				&& patrolPlacement.waypoints.length >= 2
-				&& patrolPlacement.route?.disabled !== true;
+			return patrolPlacement?.enabled === true
+				&& patrolPlacement.disabledByGeography !== true
+				&& Number.isFinite(patrolPlacement.routeSampleCount)
+				&& patrolPlacement.routeSampleCount > 0;
 		};
 		const representative = controllers.find((controller) => controller.object3D.name === 'stannis-guard-1' && patrolReady(controller))
 			?? controllers.find(patrolReady)
