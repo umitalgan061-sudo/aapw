@@ -90,6 +90,8 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 			outerWidthNormalized: 0.116,
 			summitFloor: 0.48,
 			summitNoiseExponent: 1.10,
+			summitBroadFrequency: 11,
+			summitDetailFrequency: 23,
 			coordinateWarpScale: 2.35,
 			shoulderDetailStrength: 0.27,
 			shoulderDetailFrequency: 31,
@@ -448,9 +450,11 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 		const coreRatio = clamp(coreWidth / Math.max(outerWidth, 1e-9), 0.06, 0.24);
 		const ridgeExponent = 0.88 + coreRatio * 1.65;
 		const ridge = Math.pow(Math.cos(normalizedDistance * Math.PI * 0.5), ridgeExponent);
+		const summitBroadFrequency = chain.profile.summitBroadFrequency ?? 8;
+		const summitDetailFrequency = chain.profile.summitDetailFrequency ?? 17;
 		const summitNoise = (
-			valueNoise2D(normalizedX * 8, normalizedY * 8, chain.profile.seed + 101) * 0.75 +
-			valueNoise2D(normalizedX * 17, normalizedY * 17, chain.profile.seed + 211) * 0.25
+			valueNoise2D(normalizedX * summitBroadFrequency, normalizedY * summitBroadFrequency, chain.profile.seed + 101) * 0.75 +
+			valueNoise2D(normalizedX * summitDetailFrequency, normalizedY * summitDetailFrequency, chain.profile.seed + 211) * 0.25
 		);
 		const summitFloor = chain.profile.summitFloor ?? WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.summitModulationMinimum;
 		const summitExponent = chain.profile.summitNoiseExponent ?? WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.summitNoiseExponent;
