@@ -253,7 +253,10 @@ try {
 		assert.equal(asset.manifest?.validation?.ok, true, `${asset.id} material manifest failed validation: ${JSON.stringify(asset.manifest?.validation)}`);
 		assert.ok(asset.meshes > 0 && asset.materialSlots > 0, `${asset.id} has no renderable material slots`);
 		assert.ok(asset.placement?.generatedMaterialCount > 0, `${asset.id} produced no shared generated guard material`);
-		assert.ok(['named-parts', 'layered-fallback', 'soldier-kit-fallback'].includes(asset.placement?.materialMode), `${asset.id} has unknown material mode ${asset.placement?.materialMode}`);
+		assert.ok(['named-parts', 'named-parts-preserve-authored', 'layered-fallback', 'soldier-kit-fallback'].includes(asset.placement?.materialMode), `${asset.id} has unknown material mode ${asset.placement?.materialMode}`);
+		if (asset.placement?.materialMode === 'named-parts-preserve-authored') {
+			assert.ok(asset.placement.preservedHighQualitySurfaceCount > 0, `${asset.id} preserve-authored mode reported no high-quality authored surfaces`);
+		}
 		assert.ok(!['sea', 'lake'].includes(asset.placement?.baseSurface), `${asset.id} placement telemetry reports ${asset.placement?.baseSurface}`);
 		assert.ok(asset.placement?.slopeDegrees <= 26, `${asset.id} placement telemetry slope exceeds policy`);
 		assertFiniteRecord(asset.position, `${asset.id} transform`);
@@ -283,6 +286,7 @@ try {
 			id: asset.id,
 			materialMode: asset.placement?.materialMode ?? null,
 			generatedMaterialCount: asset.placement?.generatedMaterialCount ?? 0,
+			preservedHighQualitySurfaceCount: asset.placement?.preservedHighQualitySurfaceCount ?? 0,
 			manifestValid: asset.manifest?.validation?.ok === true,
 			meshes: asset.meshes,
 			materialSlots: asset.materialSlots,
