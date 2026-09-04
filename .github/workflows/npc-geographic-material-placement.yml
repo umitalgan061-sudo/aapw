@@ -191,7 +191,18 @@ jobs:
           # game3d boot made the proof depend on unrelated world-startup DOMContentLoaded latency and
           # hit its exact 60s navigation timeout. A same-origin inert document keeps browser/module,
           # FBX, material, placement and AI assertions real while removing unrelated scene bootstrap.
-          BASE_URL='http://127.0.0.1:4173/404.html?npc-proof=' node scripts/checkNpcGeographicMaterialBrowser.mjs
+          BASE_URL='http://127.0.0.1:4173/404.html?npc-proof=' node scripts/checkNpcGeographicMaterialBrowser.mjs 2>&1 | tee "$RUNNER_TEMP/npc-geographic-proof.log"
+
+      - name: Upload shipped FBX proof diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-geographic-material-${{ github.event.pull_request.head.sha }}
+          path: |
+            ${{ runner.temp }}/npc-geographic-proof.log
+            ${{ runner.temp }}/http-geographic.log
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Final exact-main freshness
         shell: bash
