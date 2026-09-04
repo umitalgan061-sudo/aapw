@@ -19,17 +19,20 @@ try {
 		await route.fulfill({
 			status: 200,
 			contentType: 'text/html; charset=utf-8',
-			body: `<!doctype html><html><head><meta charset="utf-8"><script type="importmap">${importMap}</script></head><body></body></html>`,
+			body: `<!doctype html><html><head><meta charset="utf-8"><script type="importmap">${importMap}</script><script type="module">Promise.all([import('/src/3d/vendor/three/three.module.js'),import('/src/3d/gameplay/npcWorldPlacement.js'),import('/src/3d/materials/MaterialAssignmentCore.js')]).then(([THREE,npcWorldPlacement,materialCore])=>{globalThis.__npcMaterialProofModules={THREE,npcWorldPlacement,materialCore};}).catch((error)=>{globalThis.__npcMaterialProofModuleError=String(error?.stack||error);});</script></head><body></body></html>`,
 		});
 	});
 	await page.goto(`${baseUrl}/__npc-material-proof.html`, { waitUntil: 'domcontentloaded', timeout: 10000 });
+	await page.waitForFunction(() => globalThis.__npcMaterialProofModules || globalThis.__npcMaterialProofModuleError, null, { timeout: 10000 });
+	const moduleBootstrapError = await page.evaluate(() => globalThis.__npcMaterialProofModuleError ?? null);
+	assert.equal(moduleBootstrapError, null, `document module bootstrap failed: ${moduleBootstrapError}`);
 	const proof = await page.evaluate(async () => {
-		const THREE = await import('/src/3d/vendor/three/three.module.js');
+		const { THREE, npcWorldPlacement, materialCore } = globalThis.__npcMaterialProofModules;
 		const {
 			createConfiguredNpcMaterialRecipe,
 			inspectConfiguredNpcMaterials,
-		} = await import('/src/3d/gameplay/npcWorldPlacement.js');
-		const { applyMaterialRecipe, validateMaterialAssignment } = await import('/src/3d/materials/MaterialAssignmentCore.js');
+		} = npcWorldPlacement;
+		const { applyMaterialRecipe, validateMaterialAssignment } = materialCore;
 
 		function namedGuard() {
 			const root = new THREE.Group();
