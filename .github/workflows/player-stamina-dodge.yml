@@ -99,11 +99,35 @@ jobs:
         run: |
           set -euo pipefail
           git lfs version
-          git lfs pull --include="assets/models/characters/peasant_girl.fbx,assets/animations/peasant_girl/idle.fbx,assets/animations/peasant_girl/walking.fbx,assets/animations/peasant_girl/running.fbx" --exclude=""
-          test -s assets/models/characters/peasant_girl.fbx
-          test -s assets/animations/peasant_girl/idle.fbx
-          test -s assets/animations/peasant_girl/walking.fbx
-          test -s assets/animations/peasant_girl/running.fbx
+          LFS_INCLUDE="assets/models/characters/peasant_girl.fbx,assets/animations/peasant_girl/idle.fbx,assets/animations/peasant_girl/walking.fbx,assets/animations/peasant_girl/running.fbx,assets/models/vegetation/*.glb,assets/models/settlements/castles/*_decimated.glb,assets/models/Ay/Moon 2K.fbx,assets/models/characters/arissa.fbx,assets/models/characters/paladin_j_nordstrom.fbx,assets/models/characters/dreyar.fbx,assets/models/characters/paladin_wprop_j_nordstrom.fbx,assets/models/characters/erika_archer.fbx,assets/models/characters/uriel_a_plotexia.fbx,assets/models/animals/white_horse_bEdE4rmZy9.glb,assets/models/animals/wolf/Wolf-Blender-2.82a.glb,assets/models/animals/cow_26zM1outCr.glb,assets/models/animals/stag_tQdzbZ1Cmw.glb,assets/models/animals/sheep_C39AUXUUes.glb,assets/models/animals/bull_a8PIIYwF7r.glb,assets/models/animals/deer_T6Cs7tmMHJ.glb,assets/models/animals/fox_Bc97C66HKi.glb,assets/models/animals/husky_wcWiuEqwzq.glb,assets/models/animals/zebra_iclPBR6SBZ.glb,assets/models/animals/alpaca_bCVFD48i2l.glb,assets/models/creatures/dragon/Dragon_Baked_Actions_fbx_7.4_binary.fbx,assets/models/creatures/dragon/textures/*.jpg"
+          git lfs pull --include="$LFS_INCLUDE" --exclude=""
+          for asset in \
+            assets/models/characters/peasant_girl.fbx \
+            assets/animations/peasant_girl/idle.fbx \
+            assets/animations/peasant_girl/walking.fbx \
+            assets/animations/peasant_girl/running.fbx \
+            assets/models/vegetation/pine_Zt62gceKXZ.glb \
+            assets/models/settlements/castles/icebound_citadel_decimated.glb \
+            'assets/models/Ay/Moon 2K.fbx' \
+            assets/models/characters/arissa.fbx \
+            assets/models/animals/white_horse_bEdE4rmZy9.glb \
+            assets/models/animals/wolf/Wolf-Blender-2.82a.glb \
+            assets/models/animals/cow_26zM1outCr.glb \
+            assets/models/animals/stag_tQdzbZ1Cmw.glb \
+            assets/models/animals/sheep_C39AUXUUes.glb \
+            assets/models/animals/bull_a8PIIYwF7r.glb \
+            assets/models/animals/deer_T6Cs7tmMHJ.glb \
+            assets/models/animals/fox_Bc97C66HKi.glb \
+            assets/models/animals/husky_wcWiuEqwzq.glb \
+            assets/models/animals/zebra_iclPBR6SBZ.glb \
+            assets/models/animals/alpaca_bCVFD48i2l.glb \
+            assets/models/creatures/dragon/Dragon_Baked_Actions_fbx_7.4_binary.fbx \
+            assets/models/creatures/dragon/textures/Dragon_ground_color.jpg \
+            assets/models/creatures/dragon/textures/Dragon_Nor.jpg
+          do
+            test -s "$asset"
+            ! head -c 128 "$asset" | grep -q 'version https://git-lfs.github.com/spec/v1'
+          done
       - name: Static gameplay contracts
         run: |
           set -euo pipefail
