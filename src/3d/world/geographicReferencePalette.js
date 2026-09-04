@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-04-v117-lithology-lowland-depth',
+	id: 'geographic-reference-palette-2026-09-04-v118-fullworld-lowland-depth',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -98,6 +98,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	rockShadowBlackCrushReduced: true,
 	weatheredRockWarmthRaised: true,
 	lowlandMineralNeutralityRaised: true,
+	fullWorldKhakiCompressionReduced: true,
+	weatheredRockMidtoneRecoveryRaised: true,
+	lowlandVegetationEarthHueGapRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -105,23 +108,23 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v117 follows exact-head Full World #1323 inspection: broad lowlands remained too grey-olive and exposed rock shadows were still compressed. Wet organic ground stays cool, dry mineral earth is made less orange, and granite/basalt values are separated with warmer weathered stone and less black crush. This remains render-only and changes no canonical geography.',
-		water: 'v117 preserves the #1323 water calibration so this pass isolates land and lithology readability. Canonical depth, coverage, offshore connectivity and shoreline ownership are unchanged.',
-		road: 'v117 preserves compacted medieval earth, darker ruts and embedded-stone separation. Route topology, width, terrain sampling and water exclusion are unchanged.',
-		celestial: 'v117 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v118 follows direct visual and pixel inspection of exact-head Full World #1325. The first v117 pass was real but too subtle at aerial distance, so meadow/heather/organic/mineral earth are separated more decisively while weathered granite and wet basalt recover midtone detail instead of collapsing into dark blobs. This remains render-only and changes no canonical geography.',
+		water: 'v118 preserves the #1325 water calibration so this pass isolates land and lithology readability. Canonical depth, coverage, offshore connectivity and shoreline ownership are unchanged.',
+		road: 'v118 preserves compacted medieval earth, darker ruts and embedded-stone separation. Route topology, width, terrain sampling and water exclusion are unchanged.',
+		celestial: 'v118 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
 		mossShadow: 0x142f25,
-		meadow: 0x668b50,
-		dryHeather: 0x776a59,
-		wetEarth: 0x1c2b2d,
-		exposedEarth: 0xa88f72,
-		graniteShadow: 0x454d50,
-		graniteSunlit: 0xbfb6a4,
-		basaltWet: 0x1a3035,
+		meadow: 0x5f864a,
+		dryHeather: 0x706354,
+		wetEarth: 0x1a292c,
+		exposedEarth: 0xad9476,
+		graniteShadow: 0x4b514f,
+		graniteSunlit: 0xbcb29f,
+		basaltWet: 0x20353a,
 		quartz: 0xd7d3ca,
 	}),
 	road: Object.freeze({
