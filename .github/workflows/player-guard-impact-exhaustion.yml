@@ -192,8 +192,13 @@ jobs:
           test -s artifacts/player-guard-impact-exhaustion/runtime.log
           grep -q '"defenseResult": "guard"' artifacts/player-guard-impact-exhaustion/metrics.json
           grep -q '"browserErrors": \[\]' artifacts/player-guard-impact-exhaustion/metrics.json
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
+      - name: Shared mobile perf and browser smoke hard gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/player-guard-impact-exhaustion/shared
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js 2>&1 | tee artifacts/player-guard-impact-exhaustion/shared/mobile-perf.log
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js 2>&1 | tee artifacts/player-guard-impact-exhaustion/shared/browser-smoke.log
       - name: Shared PWA cache contract
         run: node scripts/checkServiceWorkerCache.js
       - name: Final main freshness
