@@ -20611,3 +20611,45 @@ hidratlanmadığı için düşüyor (`2k_sun.jpg`, kale GLB'leri "version ht… 
 doğrulandı: **değişiklik öncesi kodda da aynı şekilde düşüyorlar**, regresyon değil.
 
 **Technical debt.** 0 new.
+
+---
+
+## ADR-0398 — umit kıyısının karanlığı kusur değil, haritaya sadakat (run 449)
+
+Dünya taramasında `seat-umit.png` diğer beş koltuğun yanında belirgin biçimde karanlık duruyor: öğle
+vakti, kaya-yeşili yerine koyu arduvaz bir zemin. İki kez araştırıldı; ikisi de kusur bulmadı, o yüzden
+sonuç buraya yazılıyor ki üçüncü kez araştırılmasın.
+
+**Işık değil.** Güneş 1,4 yoğunluk, ortam 1,1, `nightFactor` 0, ve umit'in koltuğunda yüzey normali ile
+güneş arasındaki nokta çarpım 0,918 — parlak cersei'nin 0,928'iyle aynı sınıf. Karanlık gölgeden
+gelmiyor.
+
+**Kıyı/deniz-yatağı teriminin karaya sızması da değil.** `terrainBiomeShading.js` deniz yatağına doğru
+2,5 m'de, kumu 0,25–1,6 m arasında uyguluyor. Sızsaydı, deniz seviyesinin hemen üstünde keskin bir
+basamak ve sonra toparlanma görülürdü. Ölçülen eğri (koltuğun 1200 m çevresindeki gerçek köşe
+renkleri, deniz üstü yüksekliğe göre kovalandı) **düz**:
+
+```
+yükseklik   -1    0    2    4    6    8   10   12   18   24   30   42   60
+parlaklık  0,07 0,13 0,11 0,11 0,12 0,12 0,12 0,07 0,09 0,13 0,14 0,09 0,12
+```
+
+Deniz seviyesinin üstünde basamak yok; bütün bölge her yükseklikte aynı ölçüde koyu.
+
+**Sebep haritanın kendisi.** Koltuk koltuk, mesh köşe rengi ile `sampleMapGroundColor`:
+
+```
+koltuk    yük.   mesh parlaklık   harita parlaklık
+umit      15,9       0,065            0,508
+cersei    51,4       0,273            0,701
+berkalp   55,7       0,331            0,734
+berk      56,0       0,137            0,695
+```
+
+umit'in **harita** rengi (0,481 0,517 0,499) zaten gri ve diğer bölgelerin ~0,70'inin çok altında —
+`map.png` orayı koyu gri kayalık kıyı olarak boyuyor. Arazi onu sadakatle üretiyor.
+
+Yani bu, sahibin "map.png'den sapma yok" kuralının **çalıştığının** kanıtı, ihlali değil. Değişiklik
+yapılmadı. Bunu "düzeltmek" haritadan sapmak olurdu.
+
+Bu, ölçümle elenen **yedinci** hipotez.
