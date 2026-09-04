@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-04-v146-broad-plain-material-separation',
+	id: 'geographic-reference-palette-2026-09-05-v147-broad-plain-optical-depth',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -167,6 +167,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	broadPlainPigmentDepthRaised: true,
 	broadPlainHeathNeutralityRaised: true,
 	broadPlainRockFacetMidtoneRangeRaised: true,
+	broadPlainOpticalSeparationRaised: true,
+	broadPlainWetOrganicCoolDepthRaised: true,
+	broadPlainMineralHighlightCompressionReduced: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -174,23 +177,23 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v146 keeps canonical geography untouched and responds to the opened v144/v145 full-world artifacts: meadow shadow is slightly deeper and cooler, weathered heath is moved away from the grey-khaki midpoint, wet organic earth gains cool readable depth, exposed mineral soil loses chalky brightness, and granite/basalt facets preserve coherent luminance ordering while retaining a broader weathered midtone range. World-space normal/roughness remains the physical relief authority.',
-		water: 'v146 retains the v136 shore/lake/river/open-sea hierarchy; coverage, bathymetry, hydrology and foam authority are unchanged.',
-		road: 'v146 keeps compacted earth, moist ruts, dust and embedded stone neutral and separated at distance; route topology, width, terrain sampling and water exclusion are unchanged.',
-		celestial: 'v146 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v147 keeps canonical geography untouched and responds to the opened v146 full-world artifact: wet meadow and organic ground gain a small cool-depth increase, weathered heath moves farther from the grey-khaki midpoint, exposed mineral soil loses another step of chalky aerial brightness, and granite/basalt facets retain the validated luminance ordering while widening weathered midtone separation. World-space normal/roughness remains the physical relief authority.',
+		water: 'v147 retains the v136 shore/lake/river/open-sea hierarchy; coverage, bathymetry, hydrology and foam authority are unchanged.',
+		road: 'v147 keeps compacted earth, moist ruts, dust and embedded stone neutral and separated at distance; route topology, width, terrain sampling and water exclusion are unchanged.',
+		celestial: 'v147 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
 		mossShadow: 0x082b20,
-		meadow: 0x073825,
-		dryHeather: 0x65635c,
-		wetEarth: 0x173832,
-		exposedEarth: 0xb49f7d,
-		graniteShadow: 0x324b5b,
-		graniteSunlit: 0xc7c0b5,
-		basaltWet: 0x22464d,
+		meadow: 0x073b28,
+		dryHeather: 0x5f6259,
+		wetEarth: 0x16352f,
+		exposedEarth: 0xaa9878,
+		graniteShadow: 0x364d5a,
+		graniteSunlit: 0xc3bcb2,
+		basaltWet: 0x244850,
 		quartz: 0xdedbd2,
 	}),
 	road: Object.freeze({
