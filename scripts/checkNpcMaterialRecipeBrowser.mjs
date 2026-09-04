@@ -182,7 +182,7 @@ try {
 	}
 
 	assert.equal(proof.layered.mode, 'layered-fallback', `single mesh selected ${proof.layered.mode}`);
-	assert.equal(proof.layered.applied.ok, true, `layered recipe failed: ${JSON.stringify(proof.layered.applied)}`);
+	assert.equal(proof.layered.applied.ok, true, 'layered recipe application failed');
 	assert.equal(proof.layered.validation.ok, true, `layered material validation failed: errors=${proof.layered.validation.errors.join(',')} warnings=${proof.layered.validation.warnings.join(',')}`);
 	assert.equal(proof.layered.layers.length, 6, 'single-mesh fallback must have six vertical material bands');
 	assert.ok(proof.layered.bands.includes('boot'), 'layered fallback lacks boots');
