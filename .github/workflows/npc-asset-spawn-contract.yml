@@ -90,8 +90,20 @@ jobs:
           node scripts/checkSharedMaterialPlacementContract.js
       - name: Service worker cache regression
         run: |
-          set -euo pipefail
-          node scripts/checkServiceWorkerCache.js
+          set -uo pipefail
+          set +e
+          node scripts/checkServiceWorkerCache.js 2>&1 | tee "$RUNNER_TEMP/service-worker-cache.log"
+          STATUS="${PIPESTATUS[0]}"
+          set -e
+          exit "$STATUS"
+      - name: Upload service-worker cache diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-service-worker-cache-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/service-worker-cache.log
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Seeded random policy regression
         run: |
           set -euo pipefail
