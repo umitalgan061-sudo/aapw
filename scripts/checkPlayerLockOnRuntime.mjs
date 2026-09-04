@@ -147,9 +147,13 @@ try {
 	await sleep(250);
 	need((await histories()).locks.length === eventCountBeforeRelease + 1, 'held R3 emitted repeated lock toggles');
 
-	// The shipped proof only needs the live game viewport. Capturing fullPage can force Chromium to
-	// rasterize off-screen world/UI surfaces and has timed out after every gameplay acceptance already passed.
-	await page.screenshot({ path: path.join(outDir, 'lock-on-runtime.png'), animations: 'disabled', timeout: 15000 });
+	// Capture the shipped WebGL surface directly instead of asking Playwright to rasterize the whole page.
+	// The latter can stall after gameplay acceptance on this continuously-rendering Three.js scene.
+	const canvasPng = await page.locator('#game3d-canvas').evaluate((canvas) => canvas.toDataURL('image/png'));
+	need(typeof canvasPng === 'string' && canvasPng.startsWith('data:image/png;base64,'), 'game canvas did not produce PNG proof');
+	const canvasBytes = Buffer.from(canvasPng.slice('data:image/png;base64,'.length), 'base64');
+	need(canvasBytes.length > 1024, `game canvas PNG proof is unexpectedly small: ${canvasBytes.length} bytes`);
+	fs.writeFileSync(path.join(outDir, 'lock-on-runtime.png'), canvasBytes);
 	need(errors.length === 0, `browser/page errors: ${JSON.stringify(errors)}`);
 	const metrics = {
 		ok: true,
@@ -159,10 +163,11 @@ try {
 		acquired,
 		attack: { serial: attack.serial, kind: attack.kind, position: attack.position, facing: attack.facing, targetFacingDot: Number(dot.toFixed(4)) },
 		released,
+		proof: { canvasPngBytes: canvasBytes.length },
 		browserErrors: errors,
 	};
 	fs.writeFileSync(path.join(outDir, 'lock-on-runtime.json'), `${JSON.stringify(metrics, null, 2)}\n`);
-	console.log(`PLAYER_LOCK_ON_RUNTIME_OK ${JSON.stringify({ targetId: acquired.targetId, distanceMeters: acquired.distanceMeters, approachMeters: metrics.approach.displacementMeters, guidedBursts: approachBursts, sweepAttempts, targetFacingDot: metrics.attack.targetFacingDot, errors: errors.length })}`);
+	console.log(`PLAYER_LOCK_ON_RUNTIME_OK ${JSON.stringify({ targetId: acquired.targetId, distanceMeters: acquired.distanceMeters, approachMeters: metrics.approach.displacementMeters, guidedBursts: approachBursts, sweepAttempts, targetFacingDot: metrics.attack.targetFacingDot, canvasPngBytes: canvasBytes.length, errors: errors.length })}`);
 } finally {
 	await browser.close();
 	await new Promise((resolve) => server.close(resolve));
