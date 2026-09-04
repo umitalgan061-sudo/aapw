@@ -153,6 +153,14 @@ try {
 			const root = representative.object3D;
 			const intents = new Set();
 			const start = { x: root.position.x, z: root.position.z };
+			let previous = { ...start };
+			let movementMeters = 0;
+			let maxDistanceFromHomeMeters = 0;
+			const recordMotion = () => {
+				movementMeters += Math.hypot(root.position.x - previous.x, root.position.z - previous.z);
+				previous = { x: root.position.x, z: root.position.z };
+				maxDistanceFromHomeMeters = Math.max(maxDistanceFromHomeMeters, Math.hypot(root.position.x - start.x, root.position.z - start.z));
+			};
 			// Put the synthetic player in the guard's actual forward cone. A fixed world-axis
 			// offset can accidentally exercise the documented 120° rear blind zone when the
 			// authored spawn rotation changes, turning this shipped-runtime proof into a flaky
@@ -165,17 +173,20 @@ try {
 			const startTime = performance.now();
 			for (let tick = 0; tick < 45; tick += 1) {
 				representative.update(1 / 60, front);
+				recordMotion();
 				if (root.userData.npcPerception?.intent) intents.add(root.userData.npcPerception.intent);
 			}
 			for (let tick = 0; tick < 900; tick += 1) {
 				representative.update(1 / 60, far);
+				recordMotion();
 				if (root.userData.npcPerception?.intent) intents.add(root.userData.npcPerception.intent);
 			}
 			const elapsedMs = performance.now() - startTime;
 			lifecycle = {
 				intents: [...intents],
 				finalIntent: root.userData.npcPerception?.intent ?? null,
-				movementMeters: Math.hypot(root.position.x - start.x, root.position.z - start.z),
+				movementMeters,
+				maxDistanceFromHomeMeters,
 				finalDistanceFromHomeMeters: Math.hypot(root.position.x - start.x, root.position.z - start.z),
 			};
 			tickBudget = { ticks: 945, elapsedMs, averageMs: elapsedMs / 945 };
