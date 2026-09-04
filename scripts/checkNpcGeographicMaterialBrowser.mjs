@@ -90,13 +90,16 @@ try {
 			};
 		});
 
-		const representativeSpawns = [];
-		const seenModels = new Set();
+		const auditById = new Map(distributionAudit.map((entry) => [entry.id, entry]));
+		const representativeByModel = new Map();
 		for (const spawn of NPC_CONFIG.SPAWNS) {
-			if (seenModels.has(spawn.modelUrl)) continue;
-			seenModels.add(spawn.modelUrl);
-			representativeSpawns.push(spawn);
+			const existing = representativeByModel.get(spawn.modelUrl);
+			const existingPatrolReady = existing ? auditById.get(existing.id)?.patrolEnabled === true : false;
+			const candidatePatrolReady = auditById.get(spawn.id)?.patrolEnabled === true;
+			if (!existing || (!existingPatrolReady && candidatePatrolReady)) representativeByModel.set(spawn.modelUrl, spawn);
 		}
+		const representativeSpawns = [...representativeByModel.values()];
+		const seenModels = new Set(representativeSpawns.map((spawn) => spawn.modelUrl));
 		const config = { ...NPC_CONFIG, SPAWNS: representativeSpawns };
 		const controllers = await spawnConfiguredNPCs({
 			assetLoader,
