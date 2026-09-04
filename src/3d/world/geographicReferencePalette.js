@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-04-v145-broad-plain-material-separation',
+	id: 'geographic-reference-palette-2026-09-04-v146-broad-plain-material-separation',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -174,10 +174,10 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v145 keeps canonical geography untouched and responds to the opened v144 full-world artifact: meadow shadow is slightly deeper and cooler, weathered heath is moved away from the grey-khaki midpoint, wet organic earth gains cool readable depth, exposed mineral soil loses chalky brightness, and granite/basalt facets retain a broader weathered midtone range. World-space normal/roughness remains the physical relief authority.',
-		water: 'v145 retains the v136 shore/lake/river/open-sea hierarchy; coverage, bathymetry, hydrology and foam authority are unchanged.',
-		road: 'v145 keeps compacted earth, moist ruts, dust and embedded stone neutral and separated at distance; route topology, width, terrain sampling and water exclusion are unchanged.',
-		celestial: 'v145 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v146 keeps canonical geography untouched and responds to the opened v144/v145 full-world artifacts: meadow shadow is slightly deeper and cooler, weathered heath is moved away from the grey-khaki midpoint, wet organic earth gains cool readable depth, exposed mineral soil loses chalky brightness, and granite/basalt facets preserve coherent luminance ordering while retaining a broader weathered midtone range. World-space normal/roughness remains the physical relief authority.',
+		water: 'v146 retains the v136 shore/lake/river/open-sea hierarchy; coverage, bathymetry, hydrology and foam authority are unchanged.',
+		road: 'v146 keeps compacted earth, moist ruts, dust and embedded stone neutral and separated at distance; route topology, width, terrain sampling and water exclusion are unchanged.',
+		celestial: 'v146 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
@@ -190,7 +190,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		exposedEarth: 0xb49f7d,
 		graniteShadow: 0x324b5b,
 		graniteSunlit: 0xc7c0b5,
-		basaltWet: 0x25505a,
+		basaltWet: 0x22464d,
 		quartz: 0xdedbd2,
 	}),
 	road: Object.freeze({
