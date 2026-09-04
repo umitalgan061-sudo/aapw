@@ -22,6 +22,7 @@ on:
       - 'scripts/checkPlayerHitStaggerRuntime.mjs'
       - 'scripts/checkPlayerStaminaDodgeRuntime.mjs'
       - 'scripts/checkPlayerTouchCombatRuntime.mjs'
+      - 'scripts/checkPlayerGuardImpactExhaustionRuntime.mjs'
       - 'scripts/checkPlayerEquipmentAssetReadiness.mjs'
       - '.github/workflows/player-combat-vertical-slice.yml'
       - '.github/workflows/player-recovery-attack-buffer-drop.yml'
@@ -59,7 +60,7 @@ jobs:
           printf '%s\n' "${files[@]}"
           for file in "${files[@]}"; do
             case "$file" in
-              src/3d/gameplay/player.js|src/3d/input.js|src/3d/camera.js|src/3d/gameLoopHelpers.js|src/3d/ui/touchJoystick.js|src/3d/ui/controlsHelp.js|scripts/checkPlayerCombatVerticalSlice.mjs|scripts/checkPlayerGeographicCameraOcclusion.mjs|scripts/checkPlayerMeleeCombo.mjs|scripts/checkTouchJoystickInputContract.js|scripts/checkPlayerParryRecovery.mjs|scripts/checkPlayerRecoveryAttackBufferDrop.mjs|scripts/checkPlayerRecoveryAttackBufferRuntime.mjs|scripts/checkPlayerGamepadRuntime.mjs|scripts/checkPlayerLockOnRuntime.mjs|scripts/checkPlayerDodgeIFrameRuntime.mjs|scripts/checkPlayerHitStaggerRuntime.mjs|scripts/checkPlayerStaminaDodgeRuntime.mjs|scripts/checkPlayerTouchCombatRuntime.mjs|scripts/checkPlayerEquipmentAssetReadiness.mjs|.github/workflows/player-combat-vertical-slice.yml|.github/workflows/player-recovery-attack-buffer-drop.yml|.github/workflows/player-combat-recovery-input-isolation.yml|.github/workflows/player-stamina-dodge.yml|.github/workflows/player-guard-impact-exhaustion.yml|.github/workflows/player-gamepad-parity.yml|.github/workflows/player-grounding-combat-contract.yml|.github/workflows/player-hit-stagger-runtime.yml|.github/workflows/player-touch-combat-runtime.yml|.github/workflows/player-parry-recovery.yml) ;;
+              src/3d/gameplay/player.js|src/3d/input.js|src/3d/camera.js|src/3d/gameLoopHelpers.js|src/3d/ui/touchJoystick.js|src/3d/ui/controlsHelp.js|scripts/checkPlayerCombatVerticalSlice.mjs|scripts/checkPlayerGeographicCameraOcclusion.mjs|scripts/checkPlayerMeleeCombo.mjs|scripts/checkTouchJoystickInputContract.js|scripts/checkPlayerParryRecovery.mjs|scripts/checkPlayerRecoveryAttackBufferDrop.mjs|scripts/checkPlayerRecoveryAttackBufferRuntime.mjs|scripts/checkPlayerGamepadRuntime.mjs|scripts/checkPlayerLockOnRuntime.mjs|scripts/checkPlayerDodgeIFrameRuntime.mjs|scripts/checkPlayerHitStaggerRuntime.mjs|scripts/checkPlayerStaminaDodgeRuntime.mjs|scripts/checkPlayerTouchCombatRuntime.mjs|scripts/checkPlayerGuardImpactExhaustionRuntime.mjs|scripts/checkPlayerEquipmentAssetReadiness.mjs|.github/workflows/player-combat-vertical-slice.yml|.github/workflows/player-recovery-attack-buffer-drop.yml|.github/workflows/player-combat-recovery-input-isolation.yml|.github/workflows/player-stamina-dodge.yml|.github/workflows/player-guard-impact-exhaustion.yml|.github/workflows/player-gamepad-parity.yml|.github/workflows/player-grounding-combat-contract.yml|.github/workflows/player-hit-stagger-runtime.yml|.github/workflows/player-touch-combat-runtime.yml|.github/workflows/player-parry-recovery.yml) ;;
               *) echo "Unexpected path: $file" >&2; exit 1 ;;
             esac
           done
@@ -82,6 +83,7 @@ jobs:
           node --check scripts/checkPlayerHitStaggerRuntime.mjs
           node --check scripts/checkPlayerStaminaDodgeRuntime.mjs
           node --check scripts/checkPlayerTouchCombatRuntime.mjs
+          node --check scripts/checkPlayerGuardImpactExhaustionRuntime.mjs
           node --check scripts/checkPlayerEquipmentAssetReadiness.mjs
       - name: Geographic camera regression
         run: node scripts/checkPlayerGeographicCameraOcclusion.mjs
