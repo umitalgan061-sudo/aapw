@@ -104,6 +104,8 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 			outerWidthNormalized: 0.108,
 			summitFloor: 0.47,
 			summitNoiseExponent: 1.12,
+			summitBroadFrequency: 11,
+			summitDetailFrequency: 23,
 			coordinateWarpScale: 2.30,
 			shoulderDetailStrength: 0.26,
 			shoulderDetailFrequency: 29,
