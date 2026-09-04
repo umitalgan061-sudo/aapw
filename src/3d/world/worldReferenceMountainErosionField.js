@@ -28,8 +28,8 @@ export const WORLD_REFERENCE_MOUNTAIN_EROSION_POLICY = Object.freeze({
 		strength: 0.115,
 	}),
 	gullies: Object.freeze({
-		primaryFrequency: 21,
-		secondaryFrequency: 37,
+		primaryFrequency: 12,
+		secondaryFrequency: 23,
 		branchSkew: 7.1,
 		start: 0.20,
 		peak: 0.56,
@@ -37,7 +37,7 @@ export const WORLD_REFERENCE_MOUNTAIN_EROSION_POLICY = Object.freeze({
 		strength: 0.145,
 	}),
 	interfluveRibs: Object.freeze({
-		frequency: 16,
+		frequency: 10,
 		branchSkew: 4.9,
 		start: 0.26,
 		peak: 0.54,
