@@ -11,6 +11,7 @@ import * as THREE from 'three';
 import { WORLD_DEFAULTS } from '../config.js';
 import { northernLatitudeSnow } from './terrain.js';
 import { normalizedMapPoint } from './worldPropScatter.js';
+import { sampleMapGroundColor } from './worldReferenceGroundColorField.js';
 
 // Run 180 / ADR-0201 — bounded deterministic physical grass with shader-only natural wind.
 const RUN180_WIND_GRASS_CONFIG = Object.freeze({
@@ -69,6 +70,38 @@ const RUN180_WIND_GRASS_CONFIG = Object.freeze({
 	 */
 	snowLatitudeCeiling: 0.35,
 	snowlineMinHeightMeters: 470,
+	/**
+	 * Run 449 — how far each card's colour is pulled toward the ground it stands on.
+	 *
+	 * Run 424 gave this system a notion of climate for *placement*; it still had none for *colour*. One
+	 * green gradient is baked into the card texture and varied only ±8% per card, so grass is the same
+	 * green everywhere. Measured over 646 land samples below the snowline, 313 of them — **48.5%** —
+	 * stand on pale khaki ground (red ≈ green, blue below 0.85 × green): dry grassland like
+	 * (0.73, 0.73, 0.60) and (0.64, 0.64, 0.44), against a card mid-tone of (0.46, 0.57, 0.29). The
+	 * distance between grass and its own ground runs to a median of 0.365 and a p90 of 0.502 in unit
+	 * RGB, which is what makes the blades read as dark green confetti scattered on pale steppe rather
+	 * than as that steppe's own turf.
+	 *
+	 * Tinting toward the canonical ground colour fixes it without a second texture or a second draw
+	 * call: `InstancedMesh` carries a per-instance colour that three.js multiplies into the same
+	 * `vColor` the ±8% variation already rides on. The strength is a blend, not a match — grass pulled
+	 * all the way to the ground colour stops being visible as grass at all. At 0.55 a khaki sample
+	 * lands near (0.61, 0.66, 0.46), still greener than its ground, while grass already standing on
+	 * green farmland moves by under 3% and is left alone.
+	 */
+	groundTintStrength: 0.55,
+	/**
+	 * The card texture's own mid-tone, midway along the baked gradient (root 78,104,50 → tip
+	 * 156,186,100). The per-instance colour is a *multiplier*, so this is the value it multiplies
+	 * against and the tint has to be solved relative to it rather than assigned absolutely.
+	 */
+	cardMidTone: Object.freeze({ r: 117 / 255, g: 145 / 255, b: 75 / 255 }),
+	/**
+	 * Clamp on that multiplier, per channel. The card's blue is only 0.29, so a ground blue of 0.60
+	 * alone would ask for a 2.07× lift and wash the blades toward grey; bounding the ratio keeps an
+	 * extreme ground colour from bleaching the grass instead of tinting it.
+	 */
+	groundTintMultiplierRange: Object.freeze({ min: 0.65, max: 1.6 }),
 	/**
 	 * Run 429 — how much of the tuft's shading normal splays outward from straight up.
 	 *
@@ -277,6 +310,36 @@ function run180GrassGeometry() {
 	return geometry;
 }
 
+/**
+ * The per-instance colour for a card at `x, z` — a multiplier that pulls the baked green toward the
+ * canonical ground colour there. See `groundTintStrength` for the measurement behind it.
+ *
+ * Pure: `sampleMapGroundColor` is a function of position alone, so two builds of the same cell produce
+ * identical tints, the same way the instance matrices already do (GOVERNANCE §8.9).
+ *
+ * @param {THREE.Color} target Written in place and returned.
+ * @param {number} x
+ * @param {number} z
+ * @returns {THREE.Color}
+ */
+function run180GroundTint(target, x, z) {
+	const { cardMidTone, groundTintStrength, groundTintMultiplierRange } = RUN180_WIND_GRASS_CONFIG;
+	const { nx, ny } = normalizedMapPoint(x, z);
+	sampleMapGroundColor(target, nx, ny);
+	const channel = (ground, card) => {
+		// Blend toward the ground, then express that as the multiplier the card has to be scaled by.
+		const blended = card + (ground - card) * groundTintStrength;
+		const ratio = card > 1e-4 ? blended / card : 1;
+		return Math.min(groundTintMultiplierRange.max, Math.max(groundTintMultiplierRange.min, ratio));
+	};
+	target.setRGB(
+		channel(target.r, cardMidTone.r),
+		channel(target.g, cardMidTone.g),
+		channel(target.b, cardMidTone.b),
+	);
+	return target;
+}
+
 function run180PopulateGrass(mesh, params, cellX, cellZ) {
 	const config = params.isMobileClass ? RUN180_WIND_GRASS_CONFIG.mobile : RUN180_WIND_GRASS_CONFIG.desktop;
 	const seed = (params.seed ^ Math.imul(cellX, 73856093) ^ Math.imul(cellZ, 19349663) ^ 0x47524153) >>> 0;
@@ -286,6 +349,7 @@ function run180PopulateGrass(mesh, params, cellX, cellZ) {
 	const scale = new THREE.Vector3();
 	const position = new THREE.Vector3();
 	const up = new THREE.Vector3(0, 1, 0);
+	const tint = new THREE.Color();
 	const centerX = cellX * config.cellMeters;
 	const centerZ = cellZ * config.cellMeters;
 	let placed = 0;
@@ -306,12 +370,14 @@ function run180PopulateGrass(mesh, params, cellX, cellZ) {
 			const uniformScale = (0.78 + random() * 0.47) * (1 - edge01 * edge01 * (3 - 2 * edge01));
 			scale.set(uniformScale, uniformScale, uniformScale);
 			matrix.compose(position, quaternion, scale);
+			mesh.setColorAt(placed, run180GroundTint(tint, x, z));
 			mesh.setMatrixAt(placed++, matrix);
 			break;
 		}
 	}
 	mesh.count = placed;
 	mesh.instanceMatrix.needsUpdate = true;
+	if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
 	if (typeof mesh.computeBoundingSphere === 'function') mesh.computeBoundingSphere();
 	mesh.userData.run180Cell = { x: cellX, z: cellZ };
 	return placed;

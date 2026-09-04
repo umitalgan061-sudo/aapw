@@ -20556,3 +20556,58 @@ takımı) ve yürütülmeden önce sahibin haberdar olmasını hak edecek kadar 
 
 Bu, ölçümle elenen **altıncı** hipotez. Kod değişmedi; kayıt, sonraki bir koşu aynı çıkmazı yeniden
 denemesin diye.
+
+---
+
+## ADR-0397 — Çim, üstünde durduğu zemine göre renk alıyor (run 449)
+
+Run 424 bu sisteme **yerleşim** için bir iklim kavramı vermişti ("karda yaz çimi yok"). **Renk** için
+hâlâ yoktu: kart dokusuna tek bir yeşil gradyan pişiriliyor ve kart başına yalnızca ±%8
+değiştiriliyordu, yani çim her yerde aynı yeşildi.
+
+**Ölçüm** (`scratchpad/grassBiome.cjs`), kar sınırının altındaki 646 kara örneği üzerinde:
+
+```
+soluk haki zemin (r ≈ g, mavi < 0,85×g)   313 örnek = %48,5
+örnek zeminler   (0,73 0,73 0,60) (0,69 0,69 0,49) (0,64 0,64 0,44)
+kart orta tonu   (0,46 0,57 0,29)
+çim ↔ zemin uzaklığı   medyan 0,365   p90 0,502   maks 0,989  (birim RGB)
+```
+
+Yani habitat arazisinin neredeyse yarısı soluk haki bozkırken çim koyu yeşil kalıyordu — bu da
+`seat-berkalp` ve `seat-berk` ön planındaki "koyu yeşil konfeti" görüntüsünün sebebi: çim, üstünde
+durduğu bozkırın çimi gibi değil, üzerine serpilmiş bir şey gibi okunuyordu.
+
+**Düzeltme ikinci doku ya da ikinci çizim çağrısı gerektirmiyor.** `InstancedMesh` örnek başına bir
+renk taşıyor ve three.js onu, ±%8 varyasyonun zaten bindiği aynı `vColor`'a çarpıyor. Renk bir
+*çarpan* olduğu için tint kart orta tonuna **göreli** çözülüyor: `blended = card + (ground − card)×s`,
+sonra `multiplier = blended / card`, kanal başına [0,65 – 1,6] arasına kırpılıyor (kartın mavisi
+yalnızca 0,29; 0,60'lık bir zemin mavisi tek başına 2,07× isteyip blade'leri griye ağartırdı).
+
+Güç bir **karışım**, eşleme değil — zemine tamamen çekilen çim, çim olarak görünmeyi bırakıyor.
+`groundTintStrength: 0,55`.
+
+**Sonuç** (`scratchpad/grassTintCheck.cjs`, 4000 örnek, canlı `instanceColor`'dan okundu):
+
+```
+çim ↔ zemin uzaklığı   medyan 0,389 → 0,175    p90 0,400 → 0,180
+çarpan aralığı          1,16 – 1,45  (kırpmaya dayanmıyor)
+haki örnek              zemin (0,73 0,73 0,50) → etkin çim (0,61 0,66 0,41)
+```
+
+Etkin çim hâlâ zemininden **yeşil** (g 0,66 > r 0,61), yani bitki olarak okunuyor; sadece o bozkıra
+ait bir bitki. Yeşil tarım arazisinde çarpan 1'e yakın kalıyor ve çim olduğu gibi bırakılıyor.
+
+Görsel doğrulama iki koltukta: `artifacts/world-survey/seat-berkalp.png` (konfeti gitti, soluk yaylaya
+ait mat adaçayı) ve `seat-cersei.png` (yeşil tarım arazisi neredeyse değişmemiş).
+
+Determinizm: `sampleMapGroundColor` yalnızca konumun fonksiyonu, dolayısıyla aynı hücrenin iki
+yapımı aynı tint'i veriyor — instance matrisleri için zaten geçerli olan kural (§8.9).
+
+Kapılar: `checkWindGrassContractRun180`, `checkVegetationVisualContract`, `checkTerrainVisualContract`,
+`checkTechnicalDebt`, `game3dSmokeChecksScene` — PASS. `checkMobilePerfBudget`,
+`checkMobileVegetationLod`, `checkMobileVegetationCullingRun141` bu konteynerde LFS ikilileri
+hidratlanmadığı için düşüyor (`2k_sun.jpg`, kale GLB'leri "version ht… not valid JSON"); stash ile
+doğrulandı: **değişiklik öncesi kodda da aynı şekilde düşüyorlar**, regresyon değil.
+
+**Technical debt.** 0 new.
