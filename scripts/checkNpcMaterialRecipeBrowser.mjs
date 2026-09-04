@@ -24,7 +24,7 @@ try {
 	});
 	await page.goto(`${baseUrl}/__npc-material-proof.html`, { waitUntil: 'domcontentloaded', timeout: 10000 });
 	const proof = await page.evaluate(async () => {
-		const THREE = await import('three');
+		const THREE = await import('/src/3d/vendor/three/three.module.js');
 		const {
 			createConfiguredNpcMaterialRecipe,
 			inspectConfiguredNpcMaterials,
