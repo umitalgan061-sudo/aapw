@@ -315,7 +315,7 @@ function placeTreeInstance(entry, x, z, sampleHeightMeters, rng, up, matrix, pos
 	entry.trunkMesh.setMatrixAt(entry.placedCount, matrix);
 	entry.foliageMesh.setMatrixAt(entry.placedCount, matrix);
 	// Derived from position, never from `rng`: a draw taken here would shift every tree placed after it.
-	entry.foliageMesh.setColorAt(entry.placedCount, foliageTintAt(x, z, entry.foliageMesh.material.color));
+	entry.foliageMesh.setColorAt(entry.placedCount, foliageTintAt(x, z));
 	entry.placedCount++;
 }
 

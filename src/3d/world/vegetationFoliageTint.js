@@ -29,16 +29,29 @@
 import * as THREE from 'three';
 import { normalizedMapPoint } from './worldPropScatter.js';
 import { sampleMapGroundColor } from './worldReferenceGroundColorField.js';
+import { TERRAIN_BIOME_SHADING_POLICY } from './terrainBiomeShading.js';
 
 export const FOLIAGE_TINT_POLICY = Object.freeze({
 	/**
-	 * How far foliage is pulled toward the *hue* of its region's ground, with luminance preserved.
+	 * How far foliage is bent toward what makes its region's ground *different from the average*.
 	 *
 	 * Only chroma moves, for the same reason `terrainBiomeShading.js` transfers the map's colour that
 	 * way: foliage is far darker than any ground colour, so pulling toward the ground's raw value would
-	 * brighten a dark pine into tan rather than tint it. Luminance-normalising the ground first turns
-	 * "0.73, 0.73, 0.60 khaki" into a direction rather than a brightness, and a dry region then bends
-	 * its trees toward olive while a green one leaves them green.
+	 * brighten a dark pine into tan rather than tint it.
+	 *
+	 * **Measured against the map mean, not against the ground directly.** The first cut of this pulled
+	 * toward the luminance-normalised ground colour, and measurement showed it was mostly doing the
+	 * wrong thing: across the fourteen seats it differentiated regions by only 0.0067 of green-excess
+	 * while desaturating *every* tree in the world by 0.0102 — the unintended global shift was larger
+	 * than the regional character it bought. Foliage is far more saturated than any ground, so pulling
+	 * toward "ground hue" at all is mostly a pull toward grey.
+	 *
+	 * Expressing the ground as a ratio to `mapGroundColorLandMean` fixes it, and is exactly the trick
+	 * `terrainBiomeShading.js` documents for the same problem: an average region now yields a
+	 * multiplier of 1 and its trees are left alone, while only a genuinely distinctive region — Dorne's
+	 * khaki, the north's grey — bends its trees at all. That also keeps the shift off the far side of
+	 * the 220 m near-detail ring, where `vegetationNearDetail.js` hides the primitive and draws a GLB
+	 * model this tint cannot reach.
 	 */
 	regionalStrength: 0.18,
 	/** Per-tree luminance jitter, plus or minus. A stand of one exact green is the thing being fixed. */
@@ -78,39 +91,42 @@ export function prepareFoliageForTinting(geometry, material) {
 }
 
 /**
- * The instance colour for a tree standing at `x, z` — a multiplier on its species colour.
+ * The instance colour for a tree standing at `x, z` — a multiplier applied to whatever species colour
+ * the material carries. It is deliberately independent of that colour: the regional term is a *hue
+ * deviation from the map's average land*, so it bends a pine and a round-crown by the same factor and
+ * neither species drifts away from the base colour the vegetation contract pins.
  *
- * Pure in position and species colour, so two builds of the same world produce the same forest.
+ * Pure in position, so two builds of the same world produce the same forest.
  *
  * Returns a module-scratch colour rather than allocating: `InstancedMesh.setColorAt` copies the value
  * out immediately, so one buffer can serve every tree in the scatter loop.
  *
  * @param {number} x
  * @param {number} z
- * @param {THREE.Color} speciesColor The material colour the multiplier will be applied to.
  * @returns {THREE.Color}
  */
 const scratch = new THREE.Color();
-export function foliageTintAt(x, z, speciesColor) {
+export function foliageTintAt(x, z) {
 	const P = FOLIAGE_TINT_POLICY;
 	const target = scratch;
 	const luminance = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
 	const { nx, ny } = normalizedMapPoint(x, z);
 	sampleMapGroundColor(target, nx, ny);
 	const groundLuminance = Math.max(1e-4, luminance(target.r, target.g, target.b));
-	const foliageLuminance = Math.max(1e-4, luminance(speciesColor.r, speciesColor.g, speciesColor.b));
-	// Same luminance as the species colour, but the region's hue direction.
+	const mean = TERRAIN_BIOME_SHADING_POLICY.mapGroundColorLandMean;
+	const meanLuminance = Math.max(1e-4, luminance(mean.r, mean.g, mean.b));
 	const jitter = 1 + (positionHash01(x, z, 1) - 0.5) * 2 * P.perTreeJitter;
-	const channel = (groundChannel, speciesChannel) => {
-		const wanted = foliageLuminance * (groundChannel / groundLuminance);
-		const ratio = speciesChannel > 1e-4 ? wanted / speciesChannel : 1;
-		const regional = 1 + (ratio - 1) * P.regionalStrength;
+	const channel = (groundChannel, meanChannel) => {
+		// Both sides normalised by their own luminance, so this is "how does this region's hue differ
+		// from the map's average land hue" — 1 for an average region, and only deviation survives.
+		const deviation = (groundChannel / groundLuminance) / (meanChannel / meanLuminance);
+		const regional = 1 + (deviation - 1) * P.regionalStrength;
 		return Math.min(P.multiplierRange.max, Math.max(P.multiplierRange.min, regional * jitter));
 	};
 	target.setRGB(
-		channel(target.r, speciesColor.r),
-		channel(target.g, speciesColor.g),
-		channel(target.b, speciesColor.b),
+		channel(target.r, mean.r),
+		channel(target.g, mean.g),
+		channel(target.b, mean.b),
 	);
 	return target;
 }

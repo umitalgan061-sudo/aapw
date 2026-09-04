@@ -20710,3 +20710,55 @@ Kapılar: `checkVegetationVisualContract`, `checkWindGrassContractRun180`,
 `checkServiceWorkerCache` — hepsi PASS. `SHELL_CACHE` v81 → v82 (yeni modül kabuk listesine eklendi).
 
 **Technical debt.** 0 new.
+
+---
+
+## ADR-0400 — Run 450'nin bölgesel terimi yanlış şeyi yapıyordu (run 451, kendi işimin düzeltmesi)
+
+ADR-0399 bölgesel terim için "kurak bölge ağaçlarını zeytine büküyor, yeşil bölge yeşil bırakıyor"
+dedi. **Bu iddia fazlaydı.** Kendi değişikliğimi ölçtüm ve terim çoğunlukla başka bir şey yapıyordu.
+
+`regionalOnly` çarpanı (sarsıntı çıkarılmış) on dört koltukta:
+
+```
+                         önce (zemine doğru)   sonra (ortalamaya oranla)
+bölgeler arası yayılım        0,0067                 0,0030
+her ağaçta tekdüze doygunluk
+kaybı                         0,0102                -0,0015  (yok)
+```
+
+Yani terim, satın aldığı bölgesel karakterden (0,0067) **daha büyük** bir tekdüze doygunluk kaybı
+(0,0102) uyguluyordu. Sebep basit: yaprak her zemin renginden çok daha doygun, dolayısıyla "zemin
+tonuna doğru çekmek" büyük ölçüde **griye doğru çekmek** demek. Bu, bölgesel karakter değil, bütün
+dünyanın sanat yönünde sessiz bir kaydırmaydı — ve 220 m yakın-detay halkasının yalnızca **dış**
+tarafına uygulanıyordu, çünkü `vegetationNearDetail.js` içeride primitifi gizleyip bu tint'in
+erişemediği GLB modelini çiziyor.
+
+**Düzeltme zaten depoda belgeliydi.** `terrainBiomeShading.js` aynı sorunu `mapGroundColorLandMean`
+ile çözüyor: "Bölgesel renk buna oran olarak ifade edilir, böylece yalnızca bir yeri ortalamadan
+*farklı* kılan şey hayatta kalır." Zemin artık kendi parlaklığına **ve** harita kara ortalamasına göre
+normalize ediliyor, dolayısıyla ortalama bir bölge tam olarak 1 çarpanı alıyor ve ağaçları hiç
+oynamıyor; yalnızca gerçekten ayırt edici bir bölge büküyor.
+
+**Sonuç canlı `instanceColor`'dan:**
+
+```
+                       run 450        run 451
+çam farklı renk       2094 / 4161    4135 / 4161
+çarpan medyanı            1,06          1,003
+çarpan aralığı        0,916–1,154    0,879–1,122
+```
+
+Medyanın 1,06'dan 1,003'e inmesi tekdüze kaymanın gittiğinin sayısal kanıtı; farklı renk sayısının
+2094'ten 4135'e çıkması da varyasyonun azalmadığını, arttığını gösteriyor. `speciesColor` parametresi
+artık kullanılmadığı için imzadan kaldırıldı — bölgesel terim türden bağımsız, ki bu da çam ile
+yuvarlak taçın taban renklerinden ayrı yönlere sürüklenmemesini garanti ediyor.
+
+Görsel doğrulama iki koltukta: `seat-cersei.png` (ortalamaya yakın yeşil bölge — varyasyon duruyor,
+genel yeşil değişmemiş) ve `seat-berkalp.png` (soluk yayla).
+
+Kapılar: `checkVegetationVisualContract`, `checkWindGrassContractRun180`,
+`checkVegetationRiverClearance`, `checkTerrainVisualContract`, `checkTechnicalDebt`,
+`game3dSmokeChecksScene`, `checkServiceWorkerCache` — hepsi PASS.
+
+**Technical debt.** 0 new. Kendi turumun fazla iddiasını ölçümle geri alan ilk kayıt.
