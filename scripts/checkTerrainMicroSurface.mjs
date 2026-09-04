@@ -62,7 +62,7 @@ assert.equal(TERRAIN_MICRO_SURFACE_POLICY.aerialLowlandChromaRecovery, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.aerialDepositionalDomains, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.lowlandMesoNormalRecovery, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.lowlandGeomorphicRoughness, true);
-assert.deepEqual(TERRAIN_MICRO_SURFACE_POLICY.lowlandNormalScaleMeters, [18, 54, 128]);
+assert.deepEqual(TERRAIN_MICRO_SURFACE_POLICY.lowlandNormalScaleMeters, [18, 54, 128, 260]);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.snowScourReadability, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.snowGranularAlbedo, true);
 assert.equal(TERRAIN_MICRO_SURFACE_POLICY.snowMicroNormal, true);
@@ -111,7 +111,7 @@ assert.equal(standalone.userData.terrainMicroSurface.aerialLowlandChromaRecovery
 assert.equal(standalone.userData.terrainMicroSurface.aerialDepositionalDomains, true);
 assert.equal(standalone.userData.terrainMicroSurface.lowlandMesoNormalRecovery, true);
 assert.equal(standalone.userData.terrainMicroSurface.lowlandGeomorphicRoughness, true);
-assert.deepEqual(standalone.userData.terrainMicroSurface.lowlandNormalScaleMeters, [18, 54, 128]);
+assert.deepEqual(standalone.userData.terrainMicroSurface.lowlandNormalScaleMeters, [18, 54, 128, 260]);
 assert.equal(standalone.userData.terrainMicroSurface.snowScourReadability, true);
 assert.equal(standalone.userData.terrainMicroSurface.snowGranularAlbedo, true);
 assert.equal(standalone.userData.terrainMicroSurface.snowMicroNormal, true);
@@ -169,8 +169,10 @@ for (const marker of [
   'terrainPhotoDryBenchDomain',
   'terrainPhotoMineralLagDomain',
   'terrainPhotoLowlandSoilCrust',
+  'terrainPhotoBroadDepositionalRoughness',
   'terrainPhotoLowlandDomainRoughness',
   'terrainPhotoLowlandGradient',
+  'terrainPhotoLowlandBroadWarp',
   'terrainPhotoLowlandWorldPerturbation',
   'terrainPhotoGeoA',
   'modelMatrix * vec4(transformed, 1.0)',
