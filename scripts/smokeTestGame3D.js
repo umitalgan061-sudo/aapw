@@ -89,7 +89,7 @@ async function main() {
 		results.push(await settlementCompassChecks.checkSettlementCompass(committedBrowser, baseUrl));
 		results.push(await settlementDiscoveryChecks.checkSettlementDiscovery(committedBrowser, baseUrl));
 		results.push(await dayNightClockChecks.checkDayNightClock(committedBrowser, baseUrl));
-		results.push(await vegetationChecks.checkVegetation(browser, baseUrl));
+		results.push(await vegetationChecks.checkVegetation(committedBrowser, baseUrl));
 		results.push(await pauseMenuChecks.checkPauseMenu(browser, baseUrl));
 		results.push(await pauseMenuChecks.checkPauseMenuSettings(browser, baseUrl));
 		results.push(await pauseMenuChecks.checkControlsHelpPauseMenuEscapeCoexistence(browser, baseUrl));
