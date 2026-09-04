@@ -90,10 +90,10 @@ async function main() {
 		results.push(await settlementDiscoveryChecks.checkSettlementDiscovery(committedBrowser, baseUrl));
 		results.push(await dayNightClockChecks.checkDayNightClock(committedBrowser, baseUrl));
 		results.push(await vegetationChecks.checkVegetation(committedBrowser, baseUrl));
-		results.push(await pauseMenuChecks.checkPauseMenu(browser, baseUrl));
-		results.push(await pauseMenuChecks.checkPauseMenuSettings(browser, baseUrl));
-		results.push(await pauseMenuChecks.checkControlsHelpPauseMenuEscapeCoexistence(browser, baseUrl));
-		results.push(await pauseMenuChecks.checkPauseMenuMute(browser, baseUrl));
+		results.push(await pauseMenuChecks.checkPauseMenu(committedBrowser, baseUrl));
+		results.push(await pauseMenuChecks.checkPauseMenuSettings(committedBrowser, baseUrl));
+		results.push(await pauseMenuChecks.checkControlsHelpPauseMenuEscapeCoexistence(committedBrowser, baseUrl));
+		results.push(await pauseMenuChecks.checkPauseMenuMute(committedBrowser, baseUrl));
 		results.push(await audioChecks.checkAudioManager(browser, baseUrl));
 		results.push(await checks.checkStarfieldTwinkle(browser, baseUrl));
 		results.push(await movementChecks.checkWolfPackAlert(browser, baseUrl));
