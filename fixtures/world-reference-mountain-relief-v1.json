@@ -8,13 +8,13 @@
     "height": 193,
     "quantizationCentimeters": 1
   },
-  "heightChecksumSha256": "f9cde9d761bdc3818bc7f1c13ca10ec52b42b5564dc11e5d71fd37c3828f97a5",
+  "heightChecksumSha256": "730f7648e2f0c3fc26fe73e7fd15ce76c934455ae6cccb775fd0f79ff7794202",
   "metrics": {
     "peakMeters": 557.337834,
     "nonZeroSamples": 7041,
     "nonZeroRatio": 0.14195278,
     "wetLeakMaxMeters": 0,
-    "worldMappingMaxDeltaMeters": 2e-12,
+    "worldMappingMaxDeltaMeters": 0,
     "chains": {
       "vale-chain": {
         "peakMeters": 250.76394,
