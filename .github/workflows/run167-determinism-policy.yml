@@ -97,7 +97,7 @@ jobs:
       - name: Syntax and determinism policy
         shell: bash
         run: |
-          set -euo pipefail
+          set -euxo pipefail
           node --check scripts/checkSeededRandomPolicy.js
           node --check scripts/smokeTestGame3D.js
           node --check scripts/checkNpcGuardLifecycleContract.mjs
