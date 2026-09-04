@@ -251,7 +251,27 @@ try {
 	assert.ok(proof.lifecycle.movementMeters > 0.25, `guard did not move through shipped runtime (${proof.lifecycle.movementMeters}m)`);
 	assert.ok(proof.tickBudget?.averageMs < 2, `guard AI tick average ${proof.tickBudget?.averageMs?.toFixed?.(3)}ms exceeds 2ms budget`);
 
-	console.log('NPC_GEOGRAPHIC_MATERIAL_BROWSER_PASS', JSON.stringify(proof));
+	const evidence = {
+		configuredCount: proof.configuredCount,
+		uniqueConfiguredModels: proof.uniqueConfiguredModels,
+		spawnedRepresentativeCount: proof.spawnedRepresentativeCount,
+		missingAssets: proof.assetErrors.length,
+		distribution: proof.distributionAudit.map(({ id, seatId, baseSurface, rawBaseSurface, biome, slopeDegrees, relocationMode, relocationMeters, seatDistanceMeters, patrolEnabled }) => ({ id, seatId, baseSurface, rawBaseSurface, biome, slopeDegrees, relocationMode, relocationMeters, seatDistanceMeters, patrolEnabled })),
+		assets: proof.assetProofs.map((asset) => ({
+			id: asset.id,
+			materialMode: asset.placement?.materialMode ?? null,
+			generatedMaterialCount: asset.placement?.generatedMaterialCount ?? 0,
+			manifestValid: asset.manifest?.validation?.ok === true,
+			meshes: asset.meshes,
+			materialSlots: asset.materialSlots,
+			palettes: asset.palettes,
+			layeredBands: asset.layeredBands,
+			generated256Textures: asset.textureSizes.filter(({ width, height }) => width === 256 && height === 256).length,
+		})),
+		lifecycle: proof.lifecycle,
+		tickBudget: proof.tickBudget,
+	};
+	console.log('NPC_GEOGRAPHIC_MATERIAL_BROWSER_PASS', JSON.stringify(evidence));
 } finally {
 	await browser.close();
 }
