@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-04-v126-lowland-optical-depth',
+	id: 'geographic-reference-palette-2026-09-04-v127-weathered-domain-depth',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -131,6 +131,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	lowlandOpticalDepthRaised: true,
 	wetMeadowMineralContrastRaised: true,
 	distantRockFacetClarityRaised: true,
+	weatheredDomainDepthRaised: true,
+	lowlandWetDryHueDecorrelationRaised: true,
+	rockSoilMidtoneCollisionReduced: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -138,35 +141,35 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v126 widens the lowland optical-depth envelope: meadow is cooler/brighter, wet organic earth remains dark without clipping, dry heath is less khaki, mineral soil is brighter and granite/basalt facets span a broader neutral range. Existing deterministic world-space micro/meso normal and roughness remain the breakup authority; canonical terrain, hydrology and collider authority are unchanged.',
-		water: 'v126 preserves v125 lake/open-sea depth separation and current/shear/foam/normal fabric while keeping abyss water dark; no water coverage or bathymetric authority changes.',
-		road: 'v126 preserves neutral compacted earth while keeping rut, dust and embedded stone separated at distance; route topology, width, terrain sampling and water exclusion are unchanged.',
-		celestial: 'v126 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v127 deepens weathered material domains without changing geography: meadow is slightly cooler/darker, damp organic earth is lifted out of black crush, dry heath is less beige, exposed mineral soil remains sunlit, and granite/basalt midtones separate more clearly under aerial lighting. Existing deterministic world-space micro/meso normal and roughness remain the breakup authority; canonical terrain, hydrology and collider authority are unchanged.',
+		water: 'v127 keeps the established lake/open-sea depth hierarchy and current/shear/foam/normal fabric while slightly reducing shore/lake cyan collision; no water coverage or bathymetric authority changes.',
+		road: 'v127 preserves neutral compacted earth while lifting deep ruts just enough to retain texture detail and keeping dust/embedded stone separated; route topology, width, terrain sampling and water exclusion are unchanged.',
+		celestial: 'v127 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
 		mossShadow: 0x102a22,
-		meadow: 0x4e813d,
-		dryHeather: 0x766f60,
-		wetEarth: 0x0b2227,
-		exposedEarth: 0xcbaa80,
-		graniteShadow: 0x384449,
-		graniteSunlit: 0xcec8bd,
-		basaltWet: 0x214047,
+		meadow: 0x477a3a,
+		dryHeather: 0x71695b,
+		wetEarth: 0x10282a,
+		exposedEarth: 0xc5a274,
+		graniteShadow: 0x3e4a4e,
+		graniteSunlit: 0xc8c1b5,
+		basaltWet: 0x27474b,
 		quartz: 0xdad6ce,
 	}),
 	road: Object.freeze({
 		compacted: 0x61584f,
-		rut: 0x161b1b,
-		dust: 0x99948d,
+		rut: 0x1a2020,
+		dust: 0x95918b,
 		stone: 0x8b9291,
 		mossEdge: 0x34533c,
 	}),
 	water: Object.freeze({
-		shoreClear: 0x82aaa1,
-		lakeClear: 0x477b88,
+		shoreClear: 0x7aa79f,
+		lakeClear: 0x477986,
 		riverPool: 0x2c6473,
 		rapid: 0xb0c8c8,
 		deepSea: 0x315f75,
