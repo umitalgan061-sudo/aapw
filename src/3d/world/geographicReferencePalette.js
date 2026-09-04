@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-04-v140-broad-plain-material-distance-read',
+	id: 'geographic-reference-palette-2026-09-04-v141-broad-plain-natural-depth',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -162,6 +162,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	broadPlainDistanceMaterialReadRaised: true,
 	broadPlainMeadowShadowDepthRaised: true,
 	broadPlainWeatheredRockRangeRaised: true,
+	broadPlainNaturalValueDepthRaised: true,
+	broadPlainWetMineralHueGapRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -169,24 +171,24 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v140 keeps canonical geography untouched while increasing distance-readable separation between wet meadow, neutral weathered heath, wet organic earth, exposed mineral earth and weathered granite/basalt. Values remain within restrained natural ranges so world-space normal/roughness breakup, not colour, remains the physical relief authority.',
-		water: 'v140 retains the v136 shore/lake/river/open-sea hierarchy; coverage, bathymetry, hydrology and foam authority are unchanged.',
-		road: 'v140 keeps compacted earth, moist ruts, dust and embedded stone neutral and separated at distance; route topology, width, terrain sampling and water exclusion are unchanged.',
-		celestial: 'v140 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v141 keeps canonical geography untouched while deepening the natural value and hue gap between shadowed meadow, neutral weathered heath, cool wet organic earth, exposed mineral soil and weathered granite/basalt. The change remains restrained so world-space normal/roughness breakup stays the primary physical relief authority.',
+		water: 'v141 retains the v136 shore/lake/river/open-sea hierarchy; coverage, bathymetry, hydrology and foam authority are unchanged.',
+		road: 'v141 keeps compacted earth, moist ruts, dust and embedded stone neutral and separated at distance; route topology, width, terrain sampling and water exclusion are unchanged.',
+		celestial: 'v141 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x0a3022,
-		meadow: 0x0b4b30,
-		dryHeather: 0x706c68,
-		wetEarth: 0x183f37,
-		exposedEarth: 0xcdbb98,
-		graniteShadow: 0x455763,
-		graniteSunlit: 0xd8d3ca,
-		basaltWet: 0x2d555c,
-		quartz: 0xdddad3,
+		mossShadow: 0x092d21,
+		meadow: 0x09452f,
+		dryHeather: 0x716d69,
+		wetEarth: 0x163b36,
+		exposedEarth: 0xd1bea0,
+		graniteShadow: 0x415563,
+		graniteSunlit: 0xdad5cc,
+		basaltWet: 0x2a5159,
+		quartz: 0xdfdcd5,
 	}),
 	road: Object.freeze({
 		compacted: 0x584f48,
