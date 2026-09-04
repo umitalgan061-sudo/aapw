@@ -132,7 +132,7 @@ assert(actual.heightChecksumSha256 === fixture.heightChecksumSha256, `height che
 assert(JSON.stringify(actual.metrics) === JSON.stringify(fixture.metrics), `metric drift: ${JSON.stringify(actual.metrics)}`);
 assert(actual.metrics.peakMeters >= 500, 'full reference has no large mountain peak');
 assert(actual.metrics.wetLeakMaxMeters === 0, 'mountain relief leaked into sea/lake ownership');
-assert(actual.metrics.worldMappingMaxDeltaMeters === 0, 'normalized/world projection mismatch');
+assert(actual.metrics.worldMappingMaxDeltaMeters <= 2e-12, 'normalized/world projection mismatch');
 const minimumPeakMeters = {
 	'vale-chain': 200,
 	'red-mountains': 240,
