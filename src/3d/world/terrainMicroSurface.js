@@ -212,7 +212,7 @@ export function getSharedTerrainMicroSurfaceTextures() {
 	return sharedTerrainMicroSurface;
 }
 
-const TERRAIN_PHOTOREAL_SHADER_KEY = 'terrain-photoreal-world-surface-v9-granular-snow-lowland-meso';
+const TERRAIN_PHOTOREAL_SHADER_KEY = 'terrain-photoreal-world-surface-v8-granular-snow-lowland-meso';
 const WATER_LEVEL_GLSL = Number(WORLD_DEFAULTS.WATER_LEVEL_METERS).toFixed(3);
 
 function installWorldSpaceColorBreakup(material) {
