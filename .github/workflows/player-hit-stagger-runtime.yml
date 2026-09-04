@@ -38,7 +38,7 @@ jobs:
           BASE="$(git rev-parse origin/main)"
           test "$(git merge-base origin/main HEAD)" = "$BASE"
           git diff --check "$BASE"...HEAD
-          read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+=$2} END {print a+0, d+0}')
+          read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           test "$((ADD + DEL))" -le 3000
           echo "BASE_SHA=$BASE" >> "$GITHUB_ENV"
       - name: Asset-first shipped-scene hydration
