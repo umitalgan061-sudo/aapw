@@ -8,9 +8,9 @@
     "height": 193,
     "quantizationCentimeters": 1
   },
-  "heightChecksumSha256": "74be4f225339b8afc35b62830302cfe4768f366a3eff0fc535686ba010a7eb1a",
+  "heightChecksumSha256": "741abe7a6784b264cc9c153176fbab0c57417bfb1bc28fcce3645cddafd14b6a",
   "metrics": {
-    "peakMeters": 557.337834,
+    "peakMeters": 517.222358,
     "nonZeroSamples": 7041,
     "nonZeroRatio": 0.14195278,
     "wetLeakMaxMeters": 0,
@@ -29,10 +29,10 @@
         "minDryOwnedMeters": 16.428194
       },
       "bone-mountains": {
-        "peakMeters": 552.435292,
+        "peakMeters": 514.113141,
         "dryOwnedSamples": 193,
         "dryPositiveSamples": 193,
-        "minDryOwnedMeters": 9.445147
+        "minDryOwnedMeters": 6.984107
       },
       "eastern-chain": {
         "peakMeters": 497.086709,
