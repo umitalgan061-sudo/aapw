@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-04-v123-aerial-weathered-separation',
+	id: 'geographic-reference-palette-2026-09-04-v124-distant-water-weathering',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -120,6 +120,10 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	lowlandMineralHighlightHeadroomRaised: true,
 	roadWearValueRangeRaised: true,
 	riverAerationValueRangeRaised: true,
+	distantWaterMesoReadabilityRaised: true,
+	openSeaLakeHueGapRaised: true,
+	riverPlungeEnergyReadabilityRaised: true,
+	weatheredRoadNeutralityRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -127,10 +131,10 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v123 increases full-world material value separation after v122 proved visually too subtle: meadow and wet organic ground move cooler/deeper, exposed mineral earth gains highlight headroom, and granite/basalt facet intervals widen while staying neutral and weathered. Existing deterministic world-space micro/meso normal and roughness remain the lighting breakup authority; canonical terrain, hydrology and collider authority are unchanged.',
-		water: 'v123 increases shallow-sediment and aerated river/rapid separation while retaining the accepted deep-sea slate value. Canonical depth, coverage, offshore connectivity and shoreline ownership are unchanged.',
-		road: 'v123 widens compacted-earth/rut/dust/embedded-stone values so wear reads through aerial distance without changing route topology, width, terrain sampling or water exclusion.',
-		celestial: 'v123 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v124 preserves the accepted v123 lowland/rock hierarchy and keeps deterministic world-space micro/meso normal and roughness as the lighting breakup authority. Canonical terrain, hydrology and collider authority remain unchanged.',
+		water: 'v124 lifts deep-sea and lake midtones slightly, keeps abyss depth dark, and widens river/rapid/plunge separation so existing current, shear, foam and normal fabric survives full-world distance without inventing water coverage.',
+		road: 'v124 cools dust and embedded stone slightly while preserving compacted/rut depth, reducing orange cast without changing route topology, width, terrain sampling or water exclusion.',
+		celestial: 'v124 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
@@ -149,18 +153,18 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	road: Object.freeze({
 		compacted: 0x66584d,
 		rut: 0x1b1e1d,
-		dust: 0x938c80,
-		stone: 0x818686,
+		dust: 0x918d87,
+		stone: 0x858a89,
 		mossEdge: 0x38563f,
 	}),
 	water: Object.freeze({
-		shoreClear: 0x77a09a,
-		lakeClear: 0x3a6d7c,
-		riverPool: 0x285966,
-		rapid: 0xa0babc,
-		deepSea: 0x28556a,
+		shoreClear: 0x7da69e,
+		lakeClear: 0x3f7381,
+		riverPool: 0x2b5f6d,
+		rapid: 0xa9c2c2,
+		deepSea: 0x2e5e74,
 		abyss: 0x0b2738,
-		plunge: 0x3c7083,
+		plunge: 0x42798b,
 		splash: 0xecf4f1,
 		foam: 0xf4f9f6,
 	}),
