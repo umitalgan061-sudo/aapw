@@ -146,7 +146,15 @@ try {
 		}
 
 		const assetProofs = controllers.map(inspectController);
-		const representative = controllers.find((controller) => controller.object3D.name === 'stannis-guard-1') ?? controllers[0];
+		const patrolReady = (controller) => {
+			const patrolPlacement = controller.object3D.userData?.npcPatrolPlacement;
+			return Array.isArray(patrolPlacement?.waypoints)
+				&& patrolPlacement.waypoints.length >= 2
+				&& patrolPlacement.route?.disabled !== true;
+		};
+		const representative = controllers.find((controller) => controller.object3D.name === 'stannis-guard-1' && patrolReady(controller))
+			?? controllers.find(patrolReady)
+			?? controllers[0];
 		let lifecycle = null;
 		let tickBudget = null;
 		if (representative) {
@@ -161,10 +169,6 @@ try {
 				previous = { x: root.position.x, z: root.position.z };
 				maxDistanceFromHomeMeters = Math.max(maxDistanceFromHomeMeters, Math.hypot(root.position.x - start.x, root.position.z - start.z));
 			};
-			// Put the synthetic player in the guard's actual forward cone. A fixed world-axis
-			// offset can accidentally exercise the documented 120° rear blind zone when the
-			// authored spawn rotation changes, turning this shipped-runtime proof into a flaky
-			// orientation test instead of patrol→detect→chase→return acceptance.
 			const front = {
 				x: root.position.x + Math.sin(root.rotation.y) * 8,
 				z: root.position.z + Math.cos(root.rotation.y) * 8,
@@ -183,6 +187,8 @@ try {
 			}
 			const elapsedMs = performance.now() - startTime;
 			lifecycle = {
+				id: root.name,
+				patrolReady: patrolReady(representative),
 				intents: [...intents],
 				finalIntent: root.userData.npcPerception?.intent ?? null,
 				movementMeters,
@@ -257,6 +263,7 @@ try {
 	}
 
 	assert.ok(proof.lifecycle, 'representative guard lifecycle proof missing');
+	assert.equal(proof.lifecycle.patrolReady, true, `representative guard ${proof.lifecycle.id} is not canonical-patrol ready`);
 	assert.ok(proof.lifecycle.intents.includes('chase') || proof.lifecycle.intents.includes('combat'), `guard never entered chase/combat: ${JSON.stringify(proof.lifecycle)}`);
 	assert.ok(proof.lifecycle.intents.includes('investigate') || proof.lifecycle.intents.includes('return') || proof.lifecycle.finalIntent === 'patrol', `guard never left combat toward investigation/return: ${JSON.stringify(proof.lifecycle)}`);
 	assert.ok(proof.lifecycle.movementMeters > 0.25, `guard did not move through shipped runtime (${proof.lifecycle.movementMeters}m)`);
