@@ -11,7 +11,7 @@ try {
 	const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
 	const pageErrors = [];
 	page.on('pageerror', (error) => pageErrors.push(String(error)));
-	await page.goto(`${baseUrl}/service-worker.js`, { waitUntil: 'domcontentloaded', timeout: 10000 });
+	await page.goto(`${baseUrl}/404.html?npc-material-proof=`, { waitUntil: 'domcontentloaded', timeout: 10000 });
 	await page.addScriptTag({
 		type: 'importmap',
 		content: JSON.stringify({ imports: {
