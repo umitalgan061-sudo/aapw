@@ -99,6 +99,37 @@ jobs:
           grep -q '"recommendedPalette": "steel"' artifacts/player-touch-combat/equipment/equipment-asset-readiness.json
           grep -q '"productionAttached": false' artifacts/player-touch-combat/equipment/equipment-asset-readiness.json
           grep -q '"browserErrors": \[\]' artifacts/player-touch-combat/equipment/equipment-asset-readiness.json
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const path = 'artifacts/player-touch-combat/equipment/equipment-asset-readiness.json';
+          const proof = JSON.parse(fs.readFileSync(path, 'utf8'));
+          const equipment = proof.equipment;
+          if (!equipment || equipment.placeholder !== false) throw new Error('hydrated equipment proof missing or placeholder');
+          if (proof.attachment?.socketSemantic !== 'right-hand' || !proof.attachment?.resolvedBone) throw new Error(`right-hand equipment socket unresolved: ${JSON.stringify(proof.attachment)}`);
+          if (proof.materialContract?.sharedMaterialCoreUsed !== true || proof.materialContract?.editorMaterialStudioImported !== false) throw new Error(`shared material contract drift: ${JSON.stringify(proof.materialContract)}`);
+          if (equipment.manifest?.asset?.src !== proof.hydration?.equipment?.path) throw new Error(`equipment manifest source drift: ${JSON.stringify(equipment.manifest?.asset)}`);
+          if (equipment.manifest?.validation?.ok !== true || equipment.manifest?.validation?.errors?.length) throw new Error(`equipment manifest validation failed: ${JSON.stringify(equipment.manifest?.validation)}`);
+          if (!(equipment.meshCount > 0) || !(equipment.materialSlotCount > 0) || !(equipment.namedMaterialCount > 0)) throw new Error('equipment lacks named render/material surfaces');
+          const importedSlots = Array.isArray(equipment.textureSlots) ? equipment.textureSlots.filter((slot) => !slot.generated) : [];
+          const importedSlotKinds = new Set(importedSlots.map((slot) => slot.slot));
+          const hasImportedPbrResponse = importedSlotKinds.has('map') && importedSlotKinds.has('normalMap');
+          const hasGeneratedPbrResponse = (equipment.generatedMaterialCount ?? 0) > 0 || (equipment.layeredMaterialCount ?? 0) > 0;
+          if (!hasImportedPbrResponse && !hasGeneratedPbrResponse) throw new Error(`visual failure: weapon has no imported or generated PBR response: ${JSON.stringify(importedSlots)}`);
+          if (proof.materialContract?.recommendedPalette !== 'steel' || proof.materialContract?.recommendedTextureSize !== 256) throw new Error(`weapon recipe drift: ${JSON.stringify(proof.materialContract)}`);
+          if (proof.materialContract?.importedMaterialPreserved !== true) throw new Error('equipment readiness proof unexpectedly rewrote imported material');
+          if (proof.browserErrors?.length) throw new Error(`equipment parser browser errors: ${JSON.stringify(proof.browserErrors)}`);
+          console.log('PLAYER_EQUIPMENT_MATERIAL_SOCKET_ACCEPTANCE_OK', JSON.stringify({
+            source: equipment.source,
+            resolvedBone: proof.attachment.resolvedBone,
+            meshCount: equipment.meshCount,
+            materialSlotCount: equipment.materialSlotCount,
+            importedTextureSlots: [...importedSlotKinds].sort(),
+            sharedMaterialCoreUsed: proof.materialContract.sharedMaterialCoreUsed,
+            recommendedPalette: proof.materialContract.recommendedPalette,
+            recommendedTextureSize: proof.materialContract.recommendedTextureSize,
+            browserErrors: proof.browserErrors.length,
+          }));
+          NODE
       - name: Shipped mobile touch combat proof
         if: always()
         shell: bash
