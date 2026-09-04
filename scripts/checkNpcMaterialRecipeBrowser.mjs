@@ -153,7 +153,7 @@ try {
 
 	assert.equal(pageErrors.length, 0, `page errors: ${pageErrors.join(' | ')}`);
 	assert.equal(proof.named.mode, 'named-parts', `named guard selected ${proof.named.mode}`);
-	assert.equal(proof.named.applied.ok, true, `named surface recipe failed: ${JSON.stringify(proof.named.applied)}`);
+	assert.equal(proof.named.applied.ok, true, 'named surface recipe failed');
 	assert.equal(proof.named.validation.ok, true, `named material validation failed: errors=${proof.named.validation.errors.join(',')} warnings=${proof.named.validation.warnings.join(',')}`);
 	const skinPalette = proof.named.palettes.find((id) => id.startsWith('skin-'));
 	assert.ok(skinPalette, `named guard has no skin palette: ${JSON.stringify(proof.named.palettes)}`);
@@ -204,7 +204,13 @@ try {
 	assert.equal(proof.mixed.armorMapsPreserved, true, 'high-quality imported armor texture maps were replaced');
 	assert.equal(proof.mixed.armorPbrPreserved, true, 'high-quality imported armor PBR response was replaced');
 	assert.equal(proof.mixed.skinGenerated, true, 'low-quality skin surface was not dressed through shared palette material');
-	console.log('NPC_MATERIAL_RECIPE_BROWSER_PASS', JSON.stringify(proof));
+	const report = {
+		named: { mode: proof.named.mode, applied: proof.named.applied.ok, validation: proof.named.validation.ok, palettes: proof.named.palettes, pbr: proof.named.pbr },
+		layered: { mode: proof.layered.mode, applied: proof.layered.applied.ok, validation: proof.layered.validation.ok, layerCount: proof.layered.layers.length, bands: proof.layered.bands },
+		authored: proof.authored,
+		mixed: proof.mixed,
+	};
+	console.log('NPC_MATERIAL_RECIPE_BROWSER_PASS', JSON.stringify(report));
 } finally {
 	await browser.close();
 }
