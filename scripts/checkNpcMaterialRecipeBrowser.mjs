@@ -11,15 +11,18 @@ try {
 	const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
 	const pageErrors = [];
 	page.on('pageerror', (error) => pageErrors.push(String(error)));
-	await page.goto(`${baseUrl}/404.html?npc-material-proof=`, { waitUntil: 'domcontentloaded', timeout: 10000 });
 	const importMap = JSON.stringify({ imports: {
 		three: '/src/3d/vendor/three/three.module.js',
 		'three/addons/': '/src/3d/vendor/three/addons/',
 	} });
-	await page.setContent(`<!doctype html><html><head><meta charset="utf-8"><base href="${baseUrl}/"><script type="importmap">${importMap}</script></head><body></body></html>`, {
-		waitUntil: 'domcontentloaded',
-		timeout: 10000,
+	await page.route('**/__npc-material-proof.html', async (route) => {
+		await route.fulfill({
+			status: 200,
+			contentType: 'text/html; charset=utf-8',
+			body: `<!doctype html><html><head><meta charset="utf-8"><script type="importmap">${importMap}</script></head><body></body></html>`,
+		});
 	});
+	await page.goto(`${baseUrl}/__npc-material-proof.html`, { waitUntil: 'domcontentloaded', timeout: 10000 });
 	const proof = await page.evaluate(async () => {
 		const THREE = await import('three');
 		const {
