@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-04-v129-lowland-material-depth',
+	id: 'geographic-reference-palette-2026-09-04-v130-lowland-material-depth',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -144,23 +144,23 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v129 responds to the v128 full-world proof by deepening meadow greens without oversaturation, moving dry heath toward weathered brown-grey, keeping wet organic soil readable above black, and opening granite/basalt midtones so broad plains and exposed lithology separate at aerial distance. Existing deterministic world-space normal/roughness breakup remains authoritative and canonical terrain, hydrology and collider authority are unchanged.',
-		water: 'v129 preserves v128 shore/lake/open-sea depth hierarchy, current/shear/foam/normal fabric, coverage and bathymetric authority.',
-		road: 'v129 slightly cools compacted earth and dust while preserving rut/embedded-stone contrast, route topology, width, terrain sampling and water exclusion.',
-		celestial: 'v129 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v130 is the second visual-QA iteration after v129 proved too subtle at full-world distance: meadow greens gain modest depth, weathered heath moves farther from the grey-khaki midpoint, wet soil remains cool but readable, mineral earth stays sunlit, and granite/basalt gain a wider midtone span. Deterministic world-space normal/roughness breakup remains authoritative and canonical terrain, hydrology and collider authority are unchanged.',
+		water: 'v130 preserves v128-v129 shore/lake/open-sea depth hierarchy, current/shear/foam/normal fabric, coverage and bathymetric authority.',
+		road: 'v130 preserves v129 compacted-earth/rut/dust/stone calibration, route topology, width, terrain sampling and water exclusion.',
+		celestial: 'v130 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
 		mossShadow: 0x102a22,
-		meadow: 0x356b40,
-		dryHeather: 0x756653,
-		wetEarth: 0x1b3430,
-		exposedEarth: 0xb99266,
-		graniteShadow: 0x414c51,
-		graniteSunlit: 0xc8c0b5,
-		basaltWet: 0x29494d,
+		meadow: 0x2d6338,
+		dryHeather: 0x806953,
+		wetEarth: 0x16322c,
+		exposedEarth: 0xc29a66,
+		graniteShadow: 0x3c464b,
+		graniteSunlit: 0xcec5b7,
+		basaltWet: 0x25454a,
 		quartz: 0xdad6ce,
 	}),
 	road: Object.freeze({
