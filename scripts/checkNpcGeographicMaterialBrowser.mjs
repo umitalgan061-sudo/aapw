@@ -261,7 +261,10 @@ try {
 		assert.ok(asset.placement?.slopeDegrees <= 26, `${asset.id} placement telemetry slope exceeds policy`);
 		assertFiniteRecord(asset.position, `${asset.id} transform`);
 		const paletteDistribution = new Set([...asset.palettes, ...asset.layeredBands]);
-		assert.ok(paletteDistribution.size >= 2, `${asset.id} collapsed to a single visual surface palette: ${JSON.stringify([...paletteDistribution])}`);
+		const preservedSurfaceCount = asset.placement?.materialMode === 'named-parts-preserve-authored'
+			? asset.placement.preservedHighQualitySurfaceCount
+			: 0;
+		assert.ok(paletteDistribution.size + preservedSurfaceCount >= 2, `${asset.id} collapsed below two visual surfaces: generated=${JSON.stringify([...paletteDistribution])} preserved=${preservedSurfaceCount}`);
 		if (asset.placement?.materialMode === 'layered-fallback') {
 			assert.ok(asset.layeredBands.length >= 5, `${asset.id} layered fallback did not separate boots/trousers/belt/clothing/skin/hair`);
 		}
