@@ -92,6 +92,7 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 			summitNoiseExponent: 1.10,
 			summitBroadFrequency: 11,
 			summitDetailFrequency: 23,
+			ridgeExponentScale: 1.18,
 			coordinateWarpScale: 2.35,
 			shoulderDetailStrength: 0.27,
 			shoulderDetailFrequency: 31,
@@ -448,7 +449,7 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 		if (distance >= outerWidth) continue;
 		const normalizedDistance = clamp(distance / Math.max(outerWidth, 1e-9), 0, 1);
 		const coreRatio = clamp(coreWidth / Math.max(outerWidth, 1e-9), 0.06, 0.24);
-		const ridgeExponent = 0.88 + coreRatio * 1.65;
+		const ridgeExponent = (0.88 + coreRatio * 1.65) * (chain.profile.ridgeExponentScale ?? 1);
 		const ridge = Math.pow(Math.cos(normalizedDistance * Math.PI * 0.5), ridgeExponent);
 		const summitBroadFrequency = chain.profile.summitBroadFrequency ?? 8;
 		const summitDetailFrequency = chain.profile.summitDetailFrequency ?? 17;
