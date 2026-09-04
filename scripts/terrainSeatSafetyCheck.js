@@ -118,7 +118,9 @@ async function main() {
 	let seatResults;
 	try {
 		const page = await browser.newPage();
-		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+		// The check only needs a same-origin document for dynamic imports. Loading game3d.html boots
+		// the full shipped scene and can exceed CI navigation time before these module-only checks run.
+		await page.goto(`${baseUrl}/manifest.json`, { waitUntil: 'domcontentloaded', timeout: 30000 });
 		seatResults = await page.evaluate(
 			async ({ slopeOffset }) => {
 				const { KINGDOM_SEATS, mapToWorldXZ, computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');
