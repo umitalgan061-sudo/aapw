@@ -6,16 +6,10 @@
  * of that feature lives in `game3dSmokeChecksSettlementDiscovery.js`'s own `checkSettlementDiscovery`. */
 
 // Navigation only needs the response committed. This check separately waits for the real entry gate
-// and then for the shipped `#game3d-loading` overlay to disappear, which is the stronger runtime-ready
-// condition required before the trusted audio gesture is exercised. Waiting for DOMContentLoaded here
-// made the check fail before those authoritative assertions under software-WebGL CI contention.
+// and drives its own top-layer trusted pointer target. Full GAME_READY/scene boot is authoritative in
+// `game3dSmokeChecksScene.js`'s `check3DMode`; making the audio module smoke wait for that unrelated
+// software-WebGL work caused false 60s failures before any audio assertion could execute.
 const NAV_TIMEOUT_MS = 30_000;
-// Same value `game3dSmokeChecksScene.js`'s `check3DMode` already waits on for full scene boot
-// (GAME_READY phase1-scene) -- this check drives a real pointer click, so unlike `PauseMenu`'s own
-// smoke check (which builds an isolated `PauseMenu` instance and uses hit-test-bypassing
-// `element.click()`), it must wait for the real `#game3d-loading` overlay/canvas to stop covering
-// the page first, or the click times out against whichever element is on top mid-boot.
-const GAME3D_READY_TIMEOUT_MS = 60_000;
 
 /**
  * Constructs a real `createAudioManager` against a real `THREE.PerspectiveCamera` (the same shape
@@ -30,16 +24,10 @@ async function checkAudioManager(browser, baseUrl) {
 	try {
 		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'commit', timeout: NAV_TIMEOUT_MS });
 		// Run 266's full-viewport consent overlay (`#run266-entry-gate`) intercepts pointer events
-		// until dismissed -- a real `page.click()` below (unlike `PauseMenu`'s own smoke check, which
-		// bypasses hit-testing entirely via `element.click()`) would otherwise time out clicking a
-		// button appended underneath it. Wait for the actual shipped control after commit instead of
-		// using DOMContentLoaded as an indirect readiness signal.
+		// until dismissed. Waiting for the actual shipped control is the only page-readiness condition
+		// this module smoke needs; full scene readiness is proven independently by `check3DMode`.
 		await page.waitForSelector('#run266-entry-enter', { state: 'visible', timeout: NAV_TIMEOUT_MS });
 		await page.click('#run266-entry-enter');
-		await page.waitForFunction(
-			() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
-			{ timeout: GAME3D_READY_TIMEOUT_MS, polling: 250 },
-		);
 		const setup = await page.evaluate(async () => {
 			const THREE = await import('three');
 			const { createAudioManager, readStoredMuted } = await import('/src/3d/audio/audioManager.js');
@@ -64,10 +52,9 @@ async function checkAudioManager(browser, baseUrl) {
 			const btn = document.createElement('button');
 			btn.id = '__audio-check-btn';
 			btn.textContent = 'trigger click sound';
-			// `#game3d-canvas` is `position: fixed` and covers the full viewport to receive real
-			// pointer/drag input (game3d.css) -- a plain appended button renders underneath it in the
-			// normal stacking order and a real `page.click()` below would hit the canvas instead. Fixed
-			// position + a z-index above the canvas's own puts it on top without faking the click event.
+			// `#game3d-canvas` and loading UI may still be active while the rest of the game boots.
+			// Fixed position plus a deliberately topmost z-index keeps this trusted pointer target
+			// hittable without weakening the gesture semantics or waiting on unrelated scene work.
 			btn.style.cssText = 'position:fixed;top:0;left:0;width:200px;height:60px;z-index:999999;';
 			btn.onclick = () => { window.__audioCheck.clickPromise = audio.playClick(); };
 			document.body.appendChild(btn);
