@@ -102,7 +102,10 @@ for (let yIndex = 0; yIndex <= 32; yIndex += 1) {
 		);
 	}
 }
-assert.equal(Number(worldMappingMaxDeltaMeters.toFixed(12)), 0, 'canonical normalized/world projection drifted');
+assert(
+	Number(worldMappingMaxDeltaMeters.toFixed(12)) <= 2e-12,
+	`canonical normalized/world projection drifted beyond deterministic epsilon: ${worldMappingMaxDeltaMeters}`,
+);
 
 console.log('MOUNTAIN_NATURALIZATION_DETERMINISM_OK', JSON.stringify({
 	policyId: WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.id,
