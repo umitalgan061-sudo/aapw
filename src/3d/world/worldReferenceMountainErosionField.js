@@ -34,7 +34,7 @@ export const WORLD_REFERENCE_MOUNTAIN_EROSION_POLICY = Object.freeze({
 		start: 0.20,
 		peak: 0.56,
 		end: 0.82,
-		strength: 0.125,
+		strength: 0.11,
 	}),
 	interfluveRibs: Object.freeze({
 		frequency: 10,
