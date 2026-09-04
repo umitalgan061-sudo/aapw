@@ -67,7 +67,11 @@ async function main() {
 	page.on('pageerror', (error) => pageErrors.push(String(error)));
 
 	try {
-		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+		// The shipped 3D mode is consent-gated. Commit navigation first, then enter through the
+		// real visible control so the mobile budget samples the same runtime a player actually sees.
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'commit', timeout: 60000 });
+		await page.waitForSelector('#run266-entry-enter', { state: 'visible', timeout: 30000 });
+		await page.click('#run266-entry-enter');
 		await page.waitForFunction(
 			() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
 			{ timeout: 60000, polling: 250 },
