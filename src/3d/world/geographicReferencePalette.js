@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-05-v149-road-water-material-depth',
+	id: 'geographic-reference-palette-2026-09-05-v150-road-water-optical-depth',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -175,6 +175,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	distantWeatheredLithicOrderingRaised: true,
 	roadRutDustStoneValueGapRaised: true,
 	riverRapidPlungeEnergyGapRaised: true,
+	roadMicroWearContrastRaised: true,
+	openWaterAerialFabricRaised: true,
+	riverAerationOpticalDepthRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -182,10 +185,10 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v149 retains the validated v148 lowland/lithology ordering and canonical geography while avoiding another pigment-only terrain pass; world-space normal/roughness remains the physical relief authority.',
-		water: 'v149 keeps canonical coverage and bathymetry unchanged while opening the river-pool/rapid/plunge value-energy gap so moving water reads as aerated rather than flat turquoise paint.',
-		road: 'v149 deepens moist compacted ruts and slightly lifts neutral dust/embedded stone so the road surface reads as layered wear instead of a uniform grey strip; topology, width, terrain sampling and water exclusion are unchanged.',
-		celestial: 'v149 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v150 preserves the validated v149 terrain/lithology ordering and canonical geography; this pass intentionally avoids another pigment-only broad-plain adjustment.',
+		water: 'v150 keeps canonical coverage and bathymetry unchanged while slightly widening shore/lake/river/deep-sea value separation and brightening aerated rapid/plunge water so moving-water energy remains readable at distance without flattening open water.',
+		road: 'v150 deepens damp compacted ruts, neutralizes dust and lifts embedded stone by a restrained amount so wheel wear reads as layered material rather than one uniform grey strip; topology, width, terrain sampling and water exclusion are unchanged.',
+		celestial: 'v150 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
@@ -202,22 +205,22 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		quartz: 0xdedbd2,
 	}),
 	road: Object.freeze({
-		compacted: 0x554c45,
-		rut: 0x202a28,
-		dust: 0x96928d,
-		stone: 0xa4a5a2,
-		mossEdge: 0x34533c,
+		compacted: 0x514943,
+		rut: 0x1c2726,
+		dust: 0x999693,
+		stone: 0xa7a8a5,
+		mossEdge: 0x31503a,
 	}),
 	water: Object.freeze({
-		shoreClear: 0x729d98,
-		lakeClear: 0x3c7688,
-		riverPool: 0x2c6475,
-		rapid: 0xbcd4d2,
-		deepSea: 0x2e657f,
-		abyss: 0x092a3e,
-		plunge: 0x447f93,
-		splash: 0xf0f7f4,
-		foam: 0xf6fbf8,
+		shoreClear: 0x789f9b,
+		lakeClear: 0x3a7284,
+		riverPool: 0x285e70,
+		rapid: 0xc6dad7,
+		deepSea: 0x316a83,
+		abyss: 0x0b2c40,
+		plunge: 0x3e788d,
+		splash: 0xf2f8f6,
+		foam: 0xf8fcfa,
 	}),
 	celestial: Object.freeze({
 		dawn: 0xffae63,
