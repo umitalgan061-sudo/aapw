@@ -7,11 +7,7 @@
 
 import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
-import {
-	prepareConfiguredNpcWorldAsset,
-	resolveConfiguredNpcPatrol,
-	resolveConfiguredNpcSpawnPlacement,
-} from './npcWorldPlacement.js';
+import { prepareConfiguredNpcWorldAsset, resolveConfiguredNpcPatrol, resolveConfiguredNpcSpawnPlacement } from './npcWorldPlacement.js';
 
 function easeBlendToward(currentBlend, targetBlend, delta, transitionSeconds) {
 	if (transitionSeconds > 0) {
@@ -537,9 +533,7 @@ export async function createNPC({
 
 export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, sampleGroundY, groundCollider, playerCollider }) {
 	const guardAlertChannel = { nextRevision: 1, groups: new Map() };
-	const sampleGroundHeight = groundCollider?.getGroundHeight
-		? (x, z) => groundCollider.getGroundHeight(x, z)
-		: sampleGroundY;
+	const sampleGroundHeight = groundCollider?.getGroundHeight ? (x, z) => groundCollider.getGroundHeight(x, z) : sampleGroundY;
 	const npcs = await Promise.all(npcConfig.SPAWNS.map(async (spawn) => {
 		const seat = seatsById.get(spawn.seatId);
 		if (!seat) {
