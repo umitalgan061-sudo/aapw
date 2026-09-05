@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-05-v174-fullworld-lowland-contrast-pass3',
+	id: 'geographic-reference-palette-2026-09-05-v175-ridge-cliff-aerial-neutrality',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -236,6 +236,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	fullWorldLowlandContrastPass3: true,
 	fullWorldRockFacetRecoveryPass3: true,
 	fullWorldEcotoneDistanceGapPass3: true,
+	ridgelineAerialNeutralityPass4: true,
+	cliffShadowColorRecoveryPass4: true,
+	weatheredLithicHighlightCompressionPass4: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -243,24 +246,24 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v174 is a third render-guided full-world pass on unchanged canonical geography: wet ground stays cool and dark, meadow green and dry-heath brown separate further at distance, mineral ground gains restrained highlight headroom, and weathered granite/basalt shadow floors are lifted to preserve cliff facets through aerial haze.',
-		water: 'v174 keeps the v167 water palette unchanged so terrain-only contrast remains directly comparable against identical canonical hydrology and water optics.',
-		road: 'v174 keeps the v172 road palette and all route topology, width, terrain sampling and water exclusion unchanged.',
-		celestial: 'v174 preserves dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v175 is render-guided against full-world #1504 on unchanged canonical geography: lowland wet earth is lifted out of navy-black, exposed mineral and sunlit granite are compressed away from pale chalk, meadow/dry-heath separation remains readable, and granite/basalt shadows stay neutral enough to preserve ridge and cliff facets through aerial haze.',
+		water: 'v175 keeps the v167 water palette unchanged so terrain-only contrast remains directly comparable against identical canonical hydrology and water optics.',
+		road: 'v175 keeps the v172 road palette and all route topology, width, terrain sampling and water exclusion unchanged.',
+		celestial: 'v175 preserves dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x113527,
-		meadow: 0x2b6741,
-		dryHeather: 0x806747,
-		wetEarth: 0x091f2b,
-		exposedEarth: 0xdfc39a,
-		graniteShadow: 0x596064,
-		graniteSunlit: 0xe2d0b9,
-		basaltWet: 0x294047,
-		quartz: 0xd7d4cb,
+		mossShadow: 0x14382a,
+		meadow: 0x326b43,
+		dryHeather: 0x786549,
+		wetEarth: 0x172b27,
+		exposedEarth: 0xb7a07f,
+		graniteShadow: 0x4f575a,
+		graniteSunlit: 0xbcb09e,
+		basaltWet: 0x25383c,
+		quartz: 0xbebdb7,
 	}),
 	road: Object.freeze({
 		compacted: 0x4d423d,
