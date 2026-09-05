@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-05-v171-broad-plain-aerial-readability',
+	id: 'geographic-reference-palette-2026-09-05-v172-lowland-lithic-distance-depth',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -226,6 +226,10 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	broadPlainAerialLumaGapRaised: true,
 	weatheredRockShadowHighlightSpanRaised: true,
 	distantRoadWearHierarchyRaised: true,
+	lowlandLithicMidtoneCompressionReduced: true,
+	broadPlainEcotoneValueRangeRaised: true,
+	weatheredCliffShadowFloorRaised: true,
+	distantRoadStoneSeparationRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -233,30 +237,30 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v171 preserves canonical terrain geometry and pushes broad-plain separation to survive aerial distance: wet organic ground is cooler/darker, meadow stays distinctly green, dry heath moves neutral-brown, exposed mineral gains warmer value headroom, and granite/basalt shadow-highlight ordering is widened without clipping to black or white.',
-		water: 'v171 keeps the v167 water palette unchanged so terrain and weathered-surface changes remain directly comparable against identical canonical water coverage and optical hierarchy.',
-		road: 'v171 keeps route topology, width, terrain sampling and water exclusion unchanged while increasing compacted-earth, damp-rut, dust and embedded-stone neutral value spacing for distant wear readability.',
-		celestial: 'v171 preserves dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v172 keeps canonical terrain geometry fixed and targets the full-world render directly: broad plains gain a wider cool-wet/green-meadow/brown-heath/mineral value spread, while granite and basalt shadow floors are lifted to preserve facet structure instead of collapsing into dark aerial smudges.',
+		water: 'v172 keeps the v167 water palette unchanged so lowland and lithic changes remain directly comparable against identical canonical water coverage and optical hierarchy.',
+		road: 'v172 preserves route topology, width, terrain sampling and water exclusion while widening compacted-earth, damp-rut, dust and embedded-stone neutral value spacing for distance wear readability.',
+		celestial: 'v172 preserves dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
 		mossShadow: 0x113527,
-		meadow: 0x185438,
-		dryHeather: 0x685b4d,
-		wetEarth: 0x142a31,
-		exposedEarth: 0xccb28d,
-		graniteShadow: 0x394247,
-		graniteSunlit: 0xd5c2aa,
-		basaltWet: 0x132a33,
+		meadow: 0x1d5b3b,
+		dryHeather: 0x735f4d,
+		wetEarth: 0x102832,
+		exposedEarth: 0xd4b98f,
+		graniteShadow: 0x485057,
+		graniteSunlit: 0xd9c7af,
+		basaltWet: 0x1b3037,
 		quartz: 0xd7d4cb,
 	}),
 	road: Object.freeze({
-		compacted: 0x483d39,
-		rut: 0x15201f,
-		dust: 0xa49e96,
-		stone: 0xb7b2aa,
+		compacted: 0x4d423d,
+		rut: 0x1c2927,
+		dust: 0xa9a49d,
+		stone: 0xbdb7ae,
 		mossEdge: 0x31503a,
 	}),
 	water: Object.freeze({
