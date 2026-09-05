@@ -72,7 +72,7 @@ jobs:
         run: |
           set -euo pipefail
           npm install --no-save --no-package-lock --ignore-scripts three@0.180.0
-      - name: Static syntax and shared placement contract
+      - name: Static syntax
         run: |
           set -euo pipefail
           node --check scripts/checkWorldEnvironmentAcceptanceMatrix.mjs
@@ -88,6 +88,9 @@ jobs:
           node --check src/3d/world/water.js
           node --check src/3d/world/waterDepthField.js
           node --check src/3d/world/WorldAssetPlacementPipeline.js
+      - name: Shared placement and environment contracts
+        run: |
+          set -euo pipefail
           node scripts/checkSharedMaterialPlacementContract.js
           node scripts/checkWorldSurfacePlacementPolicy.mjs
           node scripts/checkMapAlignedTerrainPBR.mjs
