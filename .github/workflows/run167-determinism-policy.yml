@@ -170,11 +170,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node scripts/checkNpcGuardLifecycleBrowser.js
-          node scripts/checkNpcGuardGroupLifecycleBrowser.js
-          node scripts/checkNpcGuardLifecycleFrameRateBrowser.js
-          node scripts/checkNpcGuardOcclusionLifecycleBrowser.js
-          node scripts/checkNpcGuardHearingLifecycleBrowser.js
+          root="$RUNNER_TEMP/npc-browser-root"; rm -rf "$root"; mkdir -p "$root"; ln -s "$GITHUB_WORKSPACE/src" "$root/src"; printf '%s\n' '<!doctype html>' '<meta charset="utf-8">' '<script type="importmap">{"imports":{"three":"./src/3d/vendor/three/three.module.js","three/addons/":"./src/3d/vendor/three/addons/"}}</script>' > "$root/game3d.html"
+          for check in checkNpcGuardLifecycleBrowser.js checkNpcGuardGroupLifecycleBrowser.js checkNpcGuardLifecycleFrameRateBrowser.js checkNpcGuardOcclusionLifecycleBrowser.js checkNpcGuardHearingLifecycleBrowser.js; do (cd "$root" && node "$GITHUB_WORKSPACE/scripts/$check"); done
 
       - name: Upload browser smoke diagnostic
         if: always()
