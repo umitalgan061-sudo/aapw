@@ -85,31 +85,18 @@ jobs:
           node --check scripts/checkNpcSimulationLodFairness.mjs
           node scripts/checkNpcSimulationLodFairness.mjs
       - name: Shared material placement contract
-        run: |
-          set -euo pipefail
-          node scripts/checkSharedMaterialPlacementContract.js
+        run: node scripts/checkSharedMaterialPlacementContract.js
       - name: Service worker cache regression
-        run: |
-          set -uo pipefail
-          set +e
-          node scripts/checkServiceWorkerCache.js 2>&1 | tee "$RUNNER_TEMP/service-worker-cache.log"
-          STATUS="${PIPESTATUS[0]}"
-          set -e
-          exit "$STATUS"
-      - name: Upload service-worker cache diagnostic
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: npc-service-worker-cache-${{ github.event.pull_request.head.sha || github.sha }}
-          path: ${{ runner.temp }}/service-worker-cache.log
-          if-no-files-found: ignore
-          retention-days: 7
+        id: shared_pwa
+        continue-on-error: true
+        run: node scripts/checkServiceWorkerCache.js
       - name: Seeded random policy regression
-        run: |
-          set -euo pipefail
-          node scripts/checkSeededRandomPolicy.js
+        run: node scripts/checkSeededRandomPolicy.js
       - name: Final exact-main freshness
         run: |
           set -euo pipefail
           git fetch origin main
           test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - name: Enforce shared PWA gate
+        if: always()
+        run: test "${{ steps.shared_pwa.outcome }}" = success
