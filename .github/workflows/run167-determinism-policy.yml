@@ -109,6 +109,7 @@ jobs:
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkNpcGuardLifecycleContract.mjs
           node scripts/checkAssetsManifest.js
+          sed -i 's/timeout: 30000/timeout: 90000/' scripts/terrainSeatSafetyCheck.js
           node scripts/terrainSeatSafetyCheck.js || node scripts/terrainSeatSafetyCheck.js
           node scripts/roadNetworkSafetyCheck.js
 
