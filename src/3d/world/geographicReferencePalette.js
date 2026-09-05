@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-05-v163-weathered-domain-depth',
+	id: 'geographic-reference-palette-2026-09-05-v164-broad-plain-optical-structure',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -208,30 +208,30 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v163 preserves canonical terrain geometry while reducing broad-plain beige compression, cooling wet organic ground, neutralizing cliff shadows, and preserving warmer weathered granite facets so soil, vegetation and lithology remain separated at aerial distance.',
-		water: 'v163 preserves canonical coverage and bathymetry while reducing shoreline green cast and maintaining a distinct lake/river/deep-sea optical hierarchy with aerated rapid and waterfall highlights.',
-		road: 'v163 preserves route topology, width, terrain sampling and water exclusion while widening compacted-earth / damp-rut / dust / embedded-stone separation and reducing flat grey road reads.',
-		celestial: 'v163 preserves dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v164 preserves canonical terrain geometry while increasing broad-plain wet/dry/mineral value spacing and widening weathered granite/basalt facet response so lowlands retain more optical structure at full-world distance.',
+		water: 'v164 preserves canonical coverage and bathymetry; the existing lake/river/deep-sea hierarchy and aerated rapid/waterfall highlights are intentionally held stable while terrain structure is evaluated.',
+		road: 'v164 preserves route topology, width, terrain sampling and water exclusion while slightly widening compacted-earth / damp-rut / dust / embedded-stone value spacing for stronger worn-road readability.',
+		celestial: 'v164 preserves dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
 		mossShadow: 0x08291f,
-		meadow: 0x07352a,
-		dryHeather: 0x62635f,
-		wetEarth: 0x10232b,
-		exposedEarth: 0xb8aa93,
-		graniteShadow: 0x354553,
-		graniteSunlit: 0xc9bcad,
-		basaltWet: 0x1b343d,
-		quartz: 0xd4d2cb,
+		meadow: 0x07382d,
+		dryHeather: 0x68655c,
+		wetEarth: 0x0d2028,
+		exposedEarth: 0xc0b19a,
+		graniteShadow: 0x314554,
+		graniteSunlit: 0xd0c0ae,
+		basaltWet: 0x182f38,
+		quartz: 0xd9d7cf,
 	}),
 	road: Object.freeze({
-		compacted: 0x514840,
-		rut: 0x202a28,
-		dust: 0x90877d,
-		stone: 0x9e9c95,
+		compacted: 0x574b41,
+		rut: 0x1d2726,
+		dust: 0x968d83,
+		stone: 0xa6a39c,
 		mossEdge: 0x31503a,
 	}),
 	water: Object.freeze({
