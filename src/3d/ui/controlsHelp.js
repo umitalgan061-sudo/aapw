@@ -10,6 +10,7 @@ const DESKTOP_CONTROLS = Object.freeze([
 	['C / Sol tık', 'Hafif saldırı'],
 	['R', 'Ağır saldırı'],
 	['Q / Sağ tık', 'Savunmayı basılı tut'],
+	['V', 'Kısa savuşturma penceresi aç'],
 	['Tab', 'Yakındaki hedefe kilitlen veya kilidi kaldır'],
 	['Fare', 'Kamerayı döndür ve yakınlaştır'],
 	['Gamepad sol çubuk / L3', 'Yürü / koş'],
