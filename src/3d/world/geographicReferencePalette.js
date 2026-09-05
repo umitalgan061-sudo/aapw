@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-01-v60-shallow-water-restraint',
+	id: 'geographic-reference-palette-2026-09-05-v61-deep-water-readability',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v60 preserves v56 aerial lowland separation: meadow remains lifted away from damp moss, dry heath stays darker/desaturated, ferric earth remains warm, and exposed stone stays compressed without changing terrain height, shoreline, hydrology or colliders',
-		water: 'v60 preserves the accepted deep-sea/abyss aerial blackwater continuity and pulls only clear shore, lake and river body colours toward lower-saturation mineral water. This reduces the shipped cyan shallow-water read while preserving canonical wet coverage, shoreline, bathymetry, lake/river membership and all collider authority.',
-		road: 'v60 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
+		terrain: 'v61 preserves v56 aerial lowland separation: meadow remains lifted away from damp moss, dry heath stays darker/desaturated, ferric earth remains warm, and exposed stone stays compressed without changing terrain height, shoreline, hydrology or colliders',
+		water: 'v61 preserves the restrained mineral shore/lake/river palette and lifts only deep-sea/abyss luminance enough for shipped swell, roughness and celestial reflection breakup to remain readable instead of collapsing into near-black. Deep sea and abyss remain chroma-identical, so no rectangular underlay seam is introduced; canonical wet coverage, shoreline, bathymetry, lake/river membership and collider authority remain unchanged.',
+		road: 'v61 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -51,8 +51,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		lakeClear: 0x2c5962,
 		riverPool: 0x2b5e67,
 		rapid: 0x789a9a,
-		deepSea: 0x03131f,
-		abyss: 0x03131f,
+		deepSea: 0x071f2c,
+		abyss: 0x071f2c,
 		plunge: 0x47727a,
 		splash: 0xdeedeb,
 		foam: 0xf1f7f4,
