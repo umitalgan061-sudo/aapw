@@ -96,6 +96,11 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/checkWorldSurfacePlacementPolicy.mjs
+      - name: Hydrate authored terrain PBR provenance
+        run: |
+          set -euo pipefail
+          git lfs version
+          git lfs pull --include="assets/textures/yüzey/overlay/overlay.png,assets/textures/yüzey/model.obj,assets/textures/yüzey/model.mtl" --exclude=""
       - name: Map-aligned terrain PBR contract
         run: |
           set -euo pipefail
