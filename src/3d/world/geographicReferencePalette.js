@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-05-v158-broad-plain-tonal-relief',
+	id: 'geographic-reference-palette-2026-09-05-v159-broad-plain-material-depth',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -192,6 +192,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	broadPlainTonalReliefRaised: true,
 	broadPlainWetHeathMineralOrderingRaised: true,
 	broadPlainRockSoilSeparationRaised: true,
+	fullWorldLowlandTonalRangeRaised: true,
+	distantWeatheredRockContrastRaised: true,
+	broadPlainMaterialDepthValidated: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -199,24 +202,24 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v158 preserves canonical terrain geometry and pushes broad-plain tonal relief through a darker wet/vegetated floor, cooler neutral heath, controlled mineral highlight and wider weathered lithic shadow range after the exact v157 full-world render remained too optically soft.',
-		water: 'v158 preserves canonical coverage and bathymetry while retaining the established slate/cyan hierarchy and aerated rapid/plunge separation.',
-		road: 'v158 preserves route topology, width, terrain sampling and water exclusion while retaining the compacted/rut/dust/embedded-stone hierarchy.',
-		celestial: 'v158 preserves dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v159 keeps canonical terrain geometry unchanged and widens distant broad-plain material depth after the exact v158 render showed only a subtle tonal response: wet organic and meadow floors deepen, heath stays neutral, exposed mineral highlight is controlled, and weathered granite/basalt facets gain a wider shadow range.',
+		water: 'v159 preserves canonical coverage and bathymetry while retaining the established slate/cyan hierarchy and aerated rapid/plunge separation.',
+		road: 'v159 preserves route topology, width, terrain sampling and water exclusion while retaining the compacted/rut/dust/embedded-stone hierarchy.',
+		celestial: 'v159 preserves dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x082b23,
-		meadow: 0x073c29,
-		dryHeather: 0x676961,
-		wetEarth: 0x102b33,
-		exposedEarth: 0xc1b49f,
-		graniteShadow: 0x40596a,
-		graniteSunlit: 0xd3c9bc,
-		basaltWet: 0x203c47,
-		quartz: 0xdedbd2,
+		mossShadow: 0x07261f,
+		meadow: 0x083725,
+		dryHeather: 0x60645d,
+		wetEarth: 0x102630,
+		exposedEarth: 0xb9ae9a,
+		graniteShadow: 0x395367,
+		graniteSunlit: 0xcbbfb2,
+		basaltWet: 0x193844,
+		quartz: 0xd7d5ce,
 	}),
 	road: Object.freeze({
 		compacted: 0x574f49,
