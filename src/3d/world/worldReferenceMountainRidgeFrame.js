@@ -76,7 +76,9 @@ export function sampleMountainRidgeFrameInto(
 	const px = normalizedX * mapAspect;
 	const py = normalizedY;
 	let totalLength = 0;
-	let nearestDistance = Infinity;
+	let nearestDistanceSquared = Infinity;
+	let nearestOffsetX = 0;
+	let nearestOffsetY = 0;
 	let nearestSignedDistance = 0;
 	let nearestSegment = 0;
 	let nearestT = 0;
@@ -108,13 +110,15 @@ export function sampleMountainRidgeFrameInto(
 		const projectedY = ay + dy * t;
 		const offsetX = px - projectedX;
 		const offsetY = py - projectedY;
-		const distance = Math.hypot(offsetX, offsetY);
-		if (distance < nearestDistance) {
+		const distanceSquared = offsetX * offsetX + offsetY * offsetY;
+		if (distanceSquared < nearestDistanceSquared) {
 			const tangentX = length > EPSILON ? dx / length : 1;
 			const tangentY = length > EPSILON ? dy / length : 0;
 			const normalX = -tangentY;
 			const normalY = tangentX;
-			nearestDistance = distance;
+			nearestDistanceSquared = distanceSquared;
+			nearestOffsetX = offsetX;
+			nearestOffsetY = offsetY;
 			nearestSignedDistance = offsetX * normalX + offsetY * normalY;
 			nearestSegment = index;
 			nearestT = t;
@@ -130,7 +134,7 @@ export function sampleMountainRidgeFrameInto(
 		totalLength += length;
 	}
 
-	out.distance = nearestDistance;
+	out.distance = Math.hypot(nearestOffsetX, nearestOffsetY);
 	out.signedDistance = nearestSignedDistance;
 	out.side = nearestSignedDistance < -EPSILON ? -1 : nearestSignedDistance > EPSILON ? 1 : 0;
 	out.segmentIndex = nearestSegment;
