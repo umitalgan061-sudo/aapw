@@ -98,7 +98,8 @@ export function sampleMountainRidgeFrameInto(
 		const length = Math.sqrt(lengthSquared);
 		let t = 0;
 		if (lengthSquared > EPSILON) {
-			t = clamp01(((px - ax) * dx + (py - ay) * dy) / lengthSquared);
+			const projection = (px - ax) * dx + (py - ay) * dy;
+			t = projection <= 0 ? 0 : projection >= lengthSquared ? 1 : projection / lengthSquared;
 		}
 		const projectedX = ax + dx * t;
 		const projectedY = ay + dy * t;
