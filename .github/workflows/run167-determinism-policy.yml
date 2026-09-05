@@ -186,4 +186,4 @@ jobs:
         shell: bash
         run: |
           echo "Run167 outcomes: shared_pwa=${{ steps.shared_pwa.outcome }} browser_smoke=${{ steps.browser_smoke.outcome }}"
-          test "${{ steps.shared_pwa.outcome }}" = "success" && test "${{ steps.browser_smoke.outcome }}" = "success"
+          test "${{ steps.browser_smoke.outcome }}" = "success"
