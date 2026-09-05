@@ -52,6 +52,10 @@ function createCommittedNavigationBrowser(browser) {
 	};
 }
 
+function markSmokePhase(name) {
+	console.log(`[smokeTestGame3D] PHASE: ${name}`);
+}
+
 async function main() {
 	const playwright = loadPlaywright();
 	if (!playwright) {
@@ -70,12 +74,14 @@ async function main() {
 
 	const results = [];
 	try {
+		markSmokePhase('scene-and-debug');
 		results.push(await sceneChecks.check2DShell(browser, baseUrl));
 		results.push(await sceneChecks.check3DMode(committedBrowser, baseUrl));
 		results.push(await sceneChecks.checkWaterDepthTaperedSwell(browser, baseUrl));
 		results.push(await sceneChecks.checkSettlementGroundFlatten(browser, baseUrl));
 		results.push(await debugToolChecks.checkFreeCamera(browser, baseUrl));
 		results.push(await debugToolChecks.checkPerfPanel(browser, baseUrl));
+		markSmokePhase('world-events-and-interaction');
 		results.push(await worldEventChecks.checkWorldEvents(browser, baseUrl));
 		results.push(await worldEventChecks.checkWorldEventsTimeGating(browser, baseUrl));
 		results.push(await checks.checkSettlementCollider(committedBrowser, baseUrl));
@@ -85,6 +91,7 @@ async function main() {
 		results.push(await checks.checkInteractionPromptTap(committedBrowser, baseUrl));
 		results.push(await dialogueTouchChecks.checkDialogueChoiceTap(committedBrowser, baseUrl));
 		results.push(await dialogueTouchChecks.checkDialoguePauseGate(committedBrowser, baseUrl));
+		markSmokePhase('settlement-and-ui');
 		results.push(await controlsHelpChecks.checkControlsHelp(browser, baseUrl));
 		results.push(await settlementCompassChecks.checkSettlementCompass(committedBrowser, baseUrl));
 		results.push(await settlementDiscoveryChecks.checkSettlementDiscovery(committedBrowser, baseUrl));
@@ -94,6 +101,7 @@ async function main() {
 		results.push(await pauseMenuChecks.checkPauseMenuSettings(committedBrowser, baseUrl));
 		results.push(await pauseMenuChecks.checkControlsHelpPauseMenuEscapeCoexistence(committedBrowser, baseUrl));
 		results.push(await pauseMenuChecks.checkPauseMenuMute(committedBrowser, baseUrl));
+		markSmokePhase('audio-and-movement');
 		results.push(await audioChecks.checkAudioManager(browser, baseUrl));
 		results.push(await checks.checkStarfieldTwinkle(browser, baseUrl));
 		results.push(await movementChecks.checkWolfPackAlert(committedBrowser, baseUrl));
@@ -103,6 +111,7 @@ async function main() {
 		results.push(await npcPerceptionChecks.checkNpcGuardPerception(committedBrowser, baseUrl));
 		results.push(await creatureThreatChecks.checkCreatureThreatMemory(committedBrowser, baseUrl));
 		results.push(await movementChecks.checkNpcAnimalCreatureObstacleCollider(committedBrowser, baseUrl));
+		markSmokePhase('dragon-runtime');
 		results.push(await dragonFlightChecks.checkDragonFlight(committedBrowser, baseUrl));
 		results.push(await dragonFlightChecks.checkDragonNotice(committedBrowser, baseUrl));
 		results.push(await dragonFlightChecks.checkDragonReactiveFlight(committedBrowser, baseUrl));
@@ -112,6 +121,7 @@ async function main() {
 		results.push(await dragonPursuitChecks.checkDragonGiveUpCue(committedBrowser, baseUrl));
 		results.push(await dragonDiveChecks.checkDragonDiveTelegraph(committedBrowser, baseUrl));
 		results.push(await dragonDiveChecks.checkDragonBiteAttack(committedBrowser, baseUrl));
+		markSmokePhase('safe-mode-disposal');
 		results.push(await safeModeChecks.checkSafeModeEntityDisposeThrows(browser, baseUrl));
 		results.push(await safeModeChecks.checkSafeModeSystemDisposeThrows(browser, baseUrl));
 	} finally {
