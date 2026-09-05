@@ -84,13 +84,17 @@ jobs:
           node scripts/checkRun283FinalHeadGovernance.js
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkAssetsManifest.js
-          node scripts/checkServiceWorkerCache.js
-          node scripts/checkPwaInstallability.js
           node scripts/checkSmokeCheckRegistry.js
           node scripts/checkWorldReferenceMap.js
           node scripts/checkWorldReferenceWaterMask.js
           node scripts/checkWorldReferenceAlignment.js
           node scripts/checkWorldReferenceHydrologyExtent.js
+
+      - name: Enforce shared PWA gate
+        shell: bash
+        run: |
+          node scripts/checkServiceWorkerCache.js
+          node scripts/checkPwaInstallability.js
 
       - name: Install Chromium
         shell: bash
