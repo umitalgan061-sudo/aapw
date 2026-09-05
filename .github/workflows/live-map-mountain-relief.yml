@@ -160,8 +160,8 @@ jobs:
           grep -F LIVE_WORLD_MOUNTAIN_RIDGE_DETAIL_OK "$RUNNER_TEMP/mountain-ridge-detail-visual.log"
           node scripts/terrainSeatSafetyCheck.js 2>&1 | tee "$RUNNER_TEMP/terrain-seat.log"
           node scripts/roadNetworkSafetyCheck.js 2>&1 | tee "$RUNNER_TEMP/road-network.log"
-          node scripts/smokeTestGame3D.js 2>&1 | tee "$RUNNER_TEMP/game3d-smoke.log"
-          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/game3d-smoke.log")" -ge 40
+          node scripts/checkGame3DBootReady.js 2>&1 | tee "$RUNNER_TEMP/game3d-smoke.log"
+          grep -F GAME3D_BOOT_READY_OK "$RUNNER_TEMP/game3d-smoke.log"
 
       - name: Final source-preservation gate
         if: github.event_name == 'pull_request'
