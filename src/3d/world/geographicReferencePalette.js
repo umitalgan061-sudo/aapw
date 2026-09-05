@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-05-v151-lithology-ecotone-depth',
+	id: 'geographic-reference-palette-2026-09-05-v152-aerial-lithic-contrast',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -189,10 +189,10 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v151 preserves canonical terrain geometry while increasing wet meadow/mineral separation and widening granite-versus-basalt weathered facet depth so ridges, cliffs and broad lowlands retain material identity at aerial distance without inventing new geography.',
-		water: 'v151 preserves the validated v150 canonical coverage/bathymetry and open-water hierarchy; no water-authority change is introduced in this pass.',
-		road: 'v151 preserves the validated v150 rut/dust/embedded-stone hierarchy and does not alter route topology, width, terrain sampling or water exclusion.',
-		celestial: 'v151 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v152 preserves canonical terrain geometry while separating damp organic lowland, neutral heath, exposed mineral soil and cool/warm weathered lithology more strongly at aerial distance; the intent is to reduce the remaining smooth grey-khaki collapse without inventing landforms.',
+		water: 'v152 preserves the validated v150 canonical coverage/bathymetry and open-water hierarchy; no water-authority change is introduced in this pass.',
+		road: 'v152 preserves the validated v150 rut/dust/embedded-stone hierarchy and does not alter route topology, width, terrain sampling or water exclusion.',
+		celestial: 'v152 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
@@ -200,12 +200,12 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
 		mossShadow: 0x082b20,
 		meadow: 0x06442e,
-		dryHeather: 0x555b54,
-		wetEarth: 0x12352f,
-		exposedEarth: 0x9d8f79,
-		graniteShadow: 0x3d5360,
-		graniteSunlit: 0xbab5ae,
-		basaltWet: 0x274a50,
+		dryHeather: 0x4d5650,
+		wetEarth: 0x102f2b,
+		exposedEarth: 0xa1947e,
+		graniteShadow: 0x465b67,
+		graniteSunlit: 0xbeb9b1,
+		basaltWet: 0x24434a,
 		quartz: 0xdedbd2,
 	}),
 	road: Object.freeze({
