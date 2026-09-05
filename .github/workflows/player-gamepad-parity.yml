@@ -172,19 +172,31 @@ jobs:
           node scripts/checkPlayerDodgeIFrames.mjs
           node scripts/checkPlayerGroundingCombatContract.mjs
           node scripts/checkPlayerRecoveryAttackBufferDrop.mjs
-      - name: Shared material PWA and cache contracts
+      - name: Shared material runtime contract
         run: |
           set -euo pipefail
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
           node scripts/checkSharedMaterialPlacementContract.js
-          node scripts/checkPwaInstallability.js
-          node scripts/checkServiceWorkerCache.js
           ! grep -q 'EditorMaterialStudio' src/3d/gameplay/player.js
           ! grep -q 'EditorMaterialStudio' src/3d/input.js
           ! grep -q 'EditorMaterialStudio' src/3d/gameLoopHelpers.js
           ! grep -q 'EditorMaterialStudio' src/3d/camera.js
           ! grep -q 'EditorMaterialStudio' src/3d/ui/healthBar.js
+      - name: Shared PWA and cache hard gate
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts/player-gamepad/shared
+          set +e
+          node scripts/checkPwaInstallability.js 2>&1 | tee artifacts/player-gamepad/shared/pwa-installability.log
+          PWA_STATUS=${PIPESTATUS[0]}
+          node scripts/checkServiceWorkerCache.js 2>&1 | tee artifacts/player-gamepad/shared/service-worker-cache.log
+          CACHE_STATUS=${PIPESTATUS[0]}
+          set -e
+          test "$PWA_STATUS" -eq 0
+          test "$CACHE_STATUS" -eq 0
       - name: Install Chromium
         if: always()
         shell: bash
@@ -215,10 +227,16 @@ jobs:
         if: always()
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           mkdir -p artifacts/player-gamepad/shared
+          set +e
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js 2>&1 | tee artifacts/player-gamepad/shared/mobile-perf.log
+          PERF_STATUS=${PIPESTATUS[0]}
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js 2>&1 | tee artifacts/player-gamepad/shared/browser-smoke.log
+          SMOKE_STATUS=${PIPESTATUS[0]}
+          set -e
+          test "$PERF_STATUS" -eq 0
+          test "$SMOKE_STATUS" -eq 0
       - name: Final main freshness
         if: always() && github.event_name == 'pull_request'
         shell: bash
