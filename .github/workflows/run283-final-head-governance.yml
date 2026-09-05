@@ -34,9 +34,7 @@ jobs:
           git lfs fsck --pointers HEAD
           INCLUDE='assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**'
           for attempt in 1 2 3; do
-            if git lfs pull --include="$INCLUDE" --exclude=""; then
-              break
-            fi
+            if git lfs pull --include="$INCLUDE" --exclude=""; then break; fi
             if [ "$attempt" -lt 3 ]; then sleep $((attempt * 2)); fi
           done
           mapfile -t scoped_paths < <(git lfs ls-files -n --include="$INCLUDE")
@@ -80,14 +78,8 @@ jobs:
         run: |
           set -euxo pipefail
           node --check scripts/checkRun283FinalHeadGovernance.js
-          node scripts/checkRun283FinalHeadGovernance.js
-          node scripts/checkSeededRandomPolicy.js
-          node scripts/checkAssetsManifest.js
-          node scripts/checkSmokeCheckRegistry.js
-          node scripts/checkWorldReferenceMap.js
-          node scripts/checkWorldReferenceWaterMask.js
-          node scripts/checkWorldReferenceAlignment.js
-          node scripts/checkWorldReferenceHydrologyExtent.js
+          node scripts/checkRun283FinalHeadGovernance.js; node scripts/checkSeededRandomPolicy.js; node scripts/checkAssetsManifest.js; node scripts/checkSmokeCheckRegistry.js
+          node scripts/checkWorldReferenceMap.js; node scripts/checkWorldReferenceWaterMask.js; node scripts/checkWorldReferenceAlignment.js; node scripts/checkWorldReferenceHydrologyExtent.js
 
       - name: Enforce shared PWA gate
         id: shared_pwa
@@ -109,14 +101,21 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run283-mobile.log"
+          { node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run283-mobile.log"
           node scripts/checkSeededRandomPolicy.js
           sed -i 's/timeout: 30000/timeout: 90000/' scripts/terrainSeatSafetyCheck.js && (node scripts/terrainSeatSafetyCheck.js || node scripts/terrainSeatSafetyCheck.js)
           node scripts/roadNetworkSafetyCheck.js
           node scripts/analyzePerfTrend.js
           node scripts/checkTechnicalDebt.js
           node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run283-smoke.log"
-          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run283-smoke.log")" -ge 34
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run283-smoke.log")" -ge 34; } 2>&1 | tee "$RUNNER_TEMP/run283-browser-perf.log"
+
+      - name: Upload Run283 browser perf diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run283-browser-perf-${{ github.run_id }}
+          path: ${{ runner.temp }}/run283-browser-perf.log
 
       - name: Final exact-main concurrency and additive-only gate
         shell: bash
