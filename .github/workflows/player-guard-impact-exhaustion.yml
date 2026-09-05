@@ -10,6 +10,7 @@ on:
       - 'src/3d/gameLoopHelpers.js'
       - 'src/3d/ui/touchJoystick.js'
       - 'scripts/checkPlayerCombatVerticalSlice.mjs'
+      - 'scripts/checkPlayerGamepadInput.mjs'
       - 'scripts/checkPlayerEquipmentAssetReadiness.mjs'
       - 'scripts/checkPlayerEquipmentSocketRuntime.mjs'
       - 'scripts/checkPlayerGeographicCameraOcclusion.mjs'
@@ -69,7 +70,7 @@ jobs:
           git diff --check "$BASE"...HEAD
           CHANGED="$(git diff --name-only "$BASE"...HEAD)"
           echo "$CHANGED"
-          OUT_OF_SCOPE="$(printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/input\.js|src/3d/camera\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/controlsHelp\.js|scripts/checkPlayerCombatVerticalSlice\.mjs|scripts/checkPlayerEquipmentAssetReadiness\.mjs|scripts/checkPlayerEquipmentSocketRuntime\.mjs|scripts/checkPlayerGeographicCameraOcclusion\.mjs|scripts/checkTouchJoystickInputContract\.js|scripts/checkPlayerTouchCombatRuntime\.mjs|scripts/checkPlayerGuardImpactExhaustion\.mjs|scripts/checkPlayerGuardImpactExhaustionRuntime\.mjs|scripts/checkPlayerCombatFeedback\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerDodgeIFrameRuntime\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOnRuntime\.mjs|scripts/checkPlayerHitStaggerRuntime\.mjs|scripts/checkPlayerRecoveryAttackBufferDrop\.mjs|scripts/checkPlayerRecoveryAttackBufferRuntime\.mjs|\.github/workflows/player-touch-combat-runtime\.yml|\.github/workflows/player-hit-stagger-runtime\.yml|\.github/workflows/player-recovery-attack-buffer-drop\.yml|\.github/workflows/player-combat-recovery-input-isolation\.yml|\.github/workflows/player-parry-recovery\.yml|\.github/workflows/player-stamina-dodge\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-grounding-combat-contract\.yml|\.github/workflows/player-combat-vertical-slice\.yml|\.github/workflows/player-equipment-socket-runtime\.yml|\.github/workflows/player-guard-impact-exhaustion\.yml)$' || true)"
+          OUT_OF_SCOPE="$(printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/input\.js|src/3d/camera\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/controlsHelp\.js|scripts/checkPlayerCombatVerticalSlice\.mjs|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerEquipmentAssetReadiness\.mjs|scripts/checkPlayerEquipmentSocketRuntime\.mjs|scripts/checkPlayerGeographicCameraOcclusion\.mjs|scripts/checkTouchJoystickInputContract\.js|scripts/checkPlayerTouchCombatRuntime\.mjs|scripts/checkPlayerGuardImpactExhaustion\.mjs|scripts/checkPlayerGuardImpactExhaustionRuntime\.mjs|scripts/checkPlayerCombatFeedback\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerDodgeIFrameRuntime\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOnRuntime\.mjs|scripts/checkPlayerHitStaggerRuntime\.mjs|scripts/checkPlayerRecoveryAttackBufferDrop\.mjs|scripts/checkPlayerRecoveryAttackBufferRuntime\.mjs|\.github/workflows/player-touch-combat-runtime\.yml|\.github/workflows/player-hit-stagger-runtime\.yml|\.github/workflows/player-recovery-attack-buffer-drop\.yml|\.github/workflows/player-combat-recovery-input-isolation\.yml|\.github/workflows/player-parry-recovery\.yml|\.github/workflows/player-stamina-dodge\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-grounding-combat-contract\.yml|\.github/workflows/player-combat-vertical-slice\.yml|\.github/workflows/player-equipment-socket-runtime\.yml|\.github/workflows/player-guard-impact-exhaustion\.yml)$' || true)"
           test -z "$OUT_OF_SCOPE"
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           TOTAL=$((ADD + DEL))
@@ -124,6 +125,7 @@ jobs:
           node --check src/3d/gameplay/player.js
           node --check src/3d/gameLoopHelpers.js
           node --check src/3d/ui/touchJoystick.js
+          node --check scripts/checkPlayerGamepadInput.mjs
           node --check scripts/checkPlayerEquipmentAssetReadiness.mjs
           node --check scripts/checkPlayerEquipmentSocketRuntime.mjs
           node --check scripts/checkPlayerGuardImpactExhaustion.mjs
