@@ -116,6 +116,7 @@ jobs:
           node scripts/checkMobilePerfBudget.js | tee artifacts/player-combat-recovery-input/shared/mobile-perf.log
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js | tee artifacts/player-combat-recovery-input/shared/browser-smoke.log
       - name: Final main freshness
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
@@ -124,6 +125,7 @@ jobs:
           test "$(git merge-base origin/main HEAD)" = "$BASE_SHA"
           git diff --check "$BASE_SHA"...HEAD
       - name: Shared PWA shell contract
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
