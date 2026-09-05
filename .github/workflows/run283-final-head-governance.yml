@@ -96,6 +96,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "Run283 outcomes: governance=${{ steps.governance.outcome }} shared_pwa=${{ steps.shared_pwa.outcome }} browser_dod=${{ steps.browser_dod.outcome }}"
           test "${{ steps.governance.outcome }}" = "success"; test "${{ steps.shared_pwa.outcome }}" = "success"; test "${{ steps.browser_dod.outcome }}" = "success"
           git fetch origin main
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
