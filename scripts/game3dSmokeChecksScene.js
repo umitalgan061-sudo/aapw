@@ -135,6 +135,8 @@ async function check2DShell(browser, baseUrl) {
 	});
 	page.on('console', (msg) => {
 		if (msg.type() === 'error') errors.push(`console.error: ${msg.text()}`);
+		// `script.js`'s own final statement — see its last line. Reaching it proves the whole file
+		// executed, which is precisely what the pre-ADR-0109 crash prevented.
 		if (msg.text().includes('Script başarıyla yüklendi')) ranToCompletion = true;
 	});
 	await page.route('**/*', (route, request) => {
@@ -188,6 +190,10 @@ async function check3DMode(browser, baseUrl) {
 		outcome = 'timeout';
 	}
 	await page.close();
+	// `externalBlocked` must be 0 here, and that is a real assertion rather than a diagnostic: Altın
+	// Kural 4 requires the 3D mode to run offline, so any request the 3D path makes to a non-local
+	// origin is an offline-PWA regression — the boot only appeared to succeed because this sandbox
+	// happened to have a network. See `loadAndCollectErrors`'s comment (ADR-0099).
 	const ok = outcome === 'ready' && errors.length === 0 && externalBlocked === 0;
 	const details = ok
 		? 'loading screen hid (GAME_READY phase1-scene), zero console/page errors, zero external requests (offline-capable)'
