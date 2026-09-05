@@ -90,6 +90,13 @@ Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { ge
 try {
 	const target = new FakeInputTarget();
 	const controller = new KeyboardInput(target);
+	target.dispatch('keydown', { code: 'KeyQ' });
+	assert.equal(controller.getAxes().guarding, true, 'keyboard Q must establish sustained guard');
+	target.dispatch('keydown', { code: 'KeyV' });
+	assert.equal(controller.getAxes().guarding, false, 'keyboard V while Q is held must isolate one guard-off frame');
+	assert.equal(controller.getAxes().guarding, true, 'keyboard guard must re-arm on the frame after held-guard parry isolation');
+	target.dispatch('blur');
+	assert.equal(controller.getAxes().guarding, false, 'focus loss must clear both held guard and any parry re-arm state');
 	controller._activeGamepadIndex = 4;
 	target.dispatch('aapw:player-combat-feedback', { detail: { serial: 11, outcome: 'hit', appliedAmount: 12 } });
 	assert.equal(lifecycleCalls.length, 1, 'active Standard controller must receive authoritative combat feedback');
