@@ -99,11 +99,14 @@ jobs:
           node scripts/checkPlayerParryRecovery.mjs
           node scripts/checkPlayerRecoveryAttackBufferDrop.mjs
       - name: Stamina dodge standing contract
+        id: stamina
         run: node scripts/checkPlayerStaminaDodge.mjs
       - name: Combat vertical slice standing contract
+        id: vertical
         if: success() || failure()
         run: node scripts/checkPlayerCombatVerticalSlice.mjs
       - name: Immutable defense damage standing contract
+        id: immutable
         if: success() || failure()
         run: node scripts/checkPlayerImmutableDefenseDamage.mjs
       - name: Require standing player combat contracts
@@ -114,7 +117,6 @@ jobs:
           test "${{ steps.stamina.outcome }}" != failure
           test "${{ steps.vertical.outcome }}" != failure
           test "${{ steps.immutable.outcome }}" != failure
-        id: standing_gate
       - name: Shared Material Placement Contract
         run: node scripts/checkSharedMaterialPlacementContract.js
       - name: Final exact-main freshness
