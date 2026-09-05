@@ -59,6 +59,8 @@ async function main() {
 		userAgent: 'WesterosPWA-MobileBudgetGate/1.0',
 	});
 	const page = await context.newPage();
+	const startedAt = Date.now();
+	let phase = 'created-page';
 
 	const consoleErrors = [];
 	const pageErrors = [];
@@ -73,7 +75,9 @@ async function main() {
 		// Resolve the static consent control directly from the parsed DOM instead of handing it to a
 		// Locator, whose default 30s resolution timeout can mask a missing/already-dismissed gate and
 		// prevent this test from ever reaching the independent GAME_READY/render-budget assertion.
+		phase = 'navigate-domcontentloaded';
 		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
+		phase = 'dismiss-entry-gate';
 		const entryState = await page.evaluate(() => {
 			const button = document.getElementById('run266-entry-enter');
 			if (!button) {
@@ -88,12 +92,14 @@ async function main() {
 		if (!entryState.clicked && entryState.gatePresent) {
 			throw new Error('run266 entry gate is present but its enter control is missing');
 		}
+		phase = 'wait-game-ready';
 		await page.waitForFunction(
 			() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
 			null,
 			{ timeout: 60000, polling: 250 },
 		);
 
+		phase = 'verify-mobile-profile';
 		const pointerProfile = await page.evaluate(() => ({
 			coarse: window.matchMedia('(pointer: coarse)').matches,
 			fine: window.matchMedia('(pointer: fine)').matches,
@@ -109,6 +115,7 @@ async function main() {
 		// test into an opaque 10s sampling timeout. If the real key did not toggle the existing panel,
 		// dispatch the same debug-only keydown contract directly. This fallback does not bypass scene
 		// readiness or fabricate renderer.info values — it only activates the shipped read-only panel.
+		phase = 'activate-perf-panel';
 		await page.keyboard.press('F2');
 		let panelActivation = await page.evaluate(() => {
 			const panel = document.querySelector('.g3d-perf-panel');
@@ -135,7 +142,9 @@ async function main() {
 		}
 		console.log(`[checkMobilePerfBudget] perf panel activation ${JSON.stringify({ activationPath, panelActivation })}`);
 
+		phase = 'settle-render-sample';
 		await page.waitForTimeout(SAMPLE_WAIT_MS);
+		phase = 'wait-render-sample';
 		await page.waitForFunction(
 			() => {
 				const text = document.querySelector('.g3d-perf-panel')?.textContent ?? '';
@@ -148,6 +157,7 @@ async function main() {
 			null,
 			{ timeout: SAMPLE_READY_TIMEOUT_MS, polling: 250 },
 		);
+		phase = 'parse-render-sample';
 		const panelText = await page.evaluate(() => document.querySelector('.g3d-perf-panel')?.textContent ?? null);
 		if (panelText === null) {
 			throw new Error('F2 perf panel is missing after scene-ready activation');
@@ -161,6 +171,7 @@ async function main() {
 			throw new Error(`console/page errors: ${JSON.stringify({ consoleErrors, pageErrors })}`);
 		}
 
+		phase = 'assert-render-budget';
 		const payload = {
 			profile: pointerProfile,
 			...result,
@@ -177,6 +188,28 @@ async function main() {
 			throw new Error(`triangle budget exceeded: ${result.triangles} >= ${MOBILE_BUDGET.trianglesExclusiveMax}`);
 		}
 		console.log('[checkMobilePerfBudget] PASS: measurable mobile render budgets are respected.');
+	} catch (error) {
+		let browserState = null;
+		try {
+			browserState = await page.evaluate(() => {
+				const panel = document.querySelector('.g3d-perf-panel');
+				return {
+					loadingClass: document.getElementById('game3d-loading')?.className ?? null,
+					panelExists: Boolean(panel),
+					panelHidden: panel?.hidden ?? null,
+					panelText: panel?.textContent ?? null,
+				};
+			});
+		} catch (diagnosticError) {
+			browserState = { diagnosticError: String(diagnosticError) };
+		}
+		throw new Error(`${error.message || error}; diagnostic=${JSON.stringify({
+			phase,
+			elapsedMs: Date.now() - startedAt,
+			browserState,
+			consoleErrors,
+			pageErrors,
+		})}`);
 	} finally {
 		await context.close();
 		await browser.close();
