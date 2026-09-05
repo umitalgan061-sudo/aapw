@@ -18,10 +18,6 @@ function clamp01(value) {
 	return Math.max(0, Math.min(1, value));
 }
 
-function aspectX(point, mapAspect, pointsAreAspectCorrected) {
-	return pointsAreAspectCorrected ? point[0] : point[0] * mapAspect;
-}
-
 /**
  * Calculates the nearest local frame on a canonical relief polyline.
  *
@@ -75,6 +71,7 @@ export function sampleMountainRidgeFrameInto(
 
 	const px = normalizedX * mapAspect;
 	const py = normalizedY;
+	const pointXScale = pointsAreAspectCorrected ? 1 : mapAspect;
 	let totalLength = 0;
 	let nearestDistanceSquared = Infinity;
 	let nearestSignedDistance = 0;
@@ -87,14 +84,13 @@ export function sampleMountainRidgeFrameInto(
 	let nearestNormalX = 0;
 	let nearestNormalY = 1;
 	let nearestProgressDistance = 0;
-	let prefixLength = 0;
 
 	for (let index = 0; index < points.length - 1; index += 1) {
 		const a = points[index];
 		const b = points[index + 1];
-		const ax = aspectX(a, mapAspect, pointsAreAspectCorrected);
+		const ax = a[0] * pointXScale;
 		const ay = a[1];
-		const bx = aspectX(b, mapAspect, pointsAreAspectCorrected);
+		const bx = b[0] * pointXScale;
 		const by = b[1];
 		const dx = bx - ax;
 		const dy = by - ay;
@@ -110,8 +106,9 @@ export function sampleMountainRidgeFrameInto(
 		const offsetY = py - projectedY;
 		const distanceSquared = offsetX * offsetX + offsetY * offsetY;
 		if (distanceSquared < nearestDistanceSquared) {
-			const tangentX = length > EPSILON ? dx / length : 1;
-			const tangentY = length > EPSILON ? dy / length : 0;
+			const inverseLength = length > EPSILON ? 1 / length : 0;
+			const tangentX = inverseLength ? dx * inverseLength : 1;
+			const tangentY = dy * inverseLength;
 			const normalX = -tangentY;
 			const normalY = tangentX;
 			nearestDistanceSquared = distanceSquared;
@@ -124,9 +121,8 @@ export function sampleMountainRidgeFrameInto(
 			nearestTangentY = tangentY;
 			nearestNormalX = normalX;
 			nearestNormalY = normalY;
-			nearestProgressDistance = prefixLength + length * t;
+			nearestProgressDistance = totalLength + length * t;
 		}
-		prefixLength += length;
 		totalLength += length;
 	}
 
