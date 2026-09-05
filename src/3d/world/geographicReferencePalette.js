@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-05-v154-full-world-aerial-separation',
+	id: 'geographic-reference-palette-2026-09-05-v155-distant-material-relief',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -190,24 +190,24 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v154 preserves canonical terrain geometry while widening full-world meadow, wet-organic, mineral and weathered-lithology value/hue separation after the exact-head topdown still showed broad lowland compression.',
-		water: 'v154 preserves canonical coverage and bathymetry while lifting the validated slate/cyan hierarchy enough to retain meso-fabric readability at full-world aerial distance.',
-		road: 'v154 preserves route topology, width, terrain sampling and water exclusion while slightly widening compacted/rut/dust/embedded-stone value separation for distance readability.',
-		celestial: 'v154 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v155 preserves canonical terrain geometry while increasing distant meadow/heath/mineral and granite/basalt facet separation after v154 remained physically soft in the exact-head full-world render.',
+		water: 'v155 preserves canonical coverage and bathymetry while maintaining the lifted slate/cyan hierarchy for meso-fabric readability at aerial distance.',
+		road: 'v155 preserves route topology, width, terrain sampling and water exclusion while retaining the widened compacted/rut/dust/embedded-stone distance hierarchy.',
+		celestial: 'v155 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x082b22,
-		meadow: 0x064632,
-		dryHeather: 0x5b6058,
-		wetEarth: 0x102d2d,
-		exposedEarth: 0xb3a58f,
-		graniteShadow: 0x4b6272,
-		graniteSunlit: 0xc9c3ba,
-		basaltWet: 0x294b52,
-		quartz: 0xdedbd2,
+		mossShadow: 0x092f25,
+		meadow: 0x074b34,
+		dryHeather: 0x62665d,
+		wetEarth: 0x123132,
+		exposedEarth: 0xb9aa92,
+		graniteShadow: 0x526979,
+		graniteSunlit: 0xcec7bd,
+		basaltWet: 0x2d5057,
+		quartz: 0xe0ddd4,
 	}),
 	road: Object.freeze({
 		compacted: 0x574f49,
@@ -217,13 +217,13 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		mossEdge: 0x31503a,
 	}),
 	water: Object.freeze({
-		shoreClear: 0x7ba5a1,
-		lakeClear: 0x3d7687,
-		riverPool: 0x2c6274,
+		shoreClear: 0x7fa8a3,
+		lakeClear: 0x40798a,
+		riverPool: 0x2f6577,
 		rapid: 0xc9dedb,
-		deepSea: 0x356f88,
-		abyss: 0x0d3045,
-		plunge: 0x427d91,
+		deepSea: 0x39758e,
+		abyss: 0x0f3348,
+		plunge: 0x447f93,
 		splash: 0xf2f8f6,
 		foam: 0xf8fcfa,
 	}),
