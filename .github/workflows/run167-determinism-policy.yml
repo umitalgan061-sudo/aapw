@@ -55,7 +55,7 @@ jobs:
         run: |
           set -euo pipefail
           git lfs version
-          git lfs pull --include="assets/models/settlements/castles/**,assets/models/settlements/log_cabin_et0OmFeZVkb.glb,assets/models/settlements/fantasy_house_dcPho4SUA3.glb,assets/models/settlements/cabin_shed_HTx7PZt6Zm.glb,assets/models/settlements/house_fdaqERLQCc.glb,assets/models/settlements/medium_house_4hI5fNvl6z.glb,assets/models/settlements/small_wooden_house.glb,assets/models/settlements/house_roqiHdrpgc.glb,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
+          git lfs pull --include="assets/models/settlements/castles/**,assets/models/settlements/log_cabin_et0OmFeZVkb.glb,assets/models/settlements/fantasy_house_dcPho4SUA3.glb,assets/models/settlements/cabin_shed_HTx7PZt6Zm.glb,assets/models/settlements/house_fdaqERLQCc.glb,assets/models/settlements/medium_house_4hI5fNvl6z.glb,assets/models/settlements/small_wooden_house.glb,assets/models/settlements/house_roqiHdrpgc.glb,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/vegetation/**,assets/models/Ay/Moon 2K.fbx" --exclude=""
 
       - name: Install Playwright outside repo
         shell: bash
