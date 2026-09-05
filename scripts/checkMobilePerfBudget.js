@@ -203,13 +203,17 @@ async function main() {
 		} catch (diagnosticError) {
 			browserState = { diagnosticError: String(diagnosticError) };
 		}
-		throw new Error(`${error.message || error}; diagnostic=${JSON.stringify({
+		const diagnostic = {
 			phase,
 			elapsedMs: Date.now() - startedAt,
 			browserState,
 			consoleErrors,
 			pageErrors,
-		})}`);
+		};
+		// Emit the authoritative failure snapshot before Playwright teardown. A stuck context/browser
+		// close must never hide the phase that actually failed in GitHub Actions logs.
+		console.error(`[checkMobilePerfBudget] RCA ${JSON.stringify(diagnostic)}`);
+		throw new Error(`${error.message || error}; diagnostic=${JSON.stringify(diagnostic)}`);
 	} finally {
 		await context.close();
 		await browser.close();
