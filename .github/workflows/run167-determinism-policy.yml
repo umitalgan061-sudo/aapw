@@ -146,6 +146,8 @@ jobs:
           fi
 
       - name: Browser smoke
+        id: browser_smoke
+        continue-on-error: true
         shell: bash
         run: |
           set -uo pipefail
@@ -190,7 +192,7 @@ jobs:
           git diff --check
           if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/checkSeededRandomPolicy.js; then exit 1; fi
 
-      - name: Enforce shared PWA outcome
+      - name: Enforce required outcomes
         if: always()
         shell: bash
-        run: test "${{ steps.shared_pwa.outcome }}" = "success"
+        run: test "${{ steps.shared_pwa.outcome }}" = "success" && test "${{ steps.browser_smoke.outcome }}" = "success"
