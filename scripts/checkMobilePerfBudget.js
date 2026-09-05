@@ -76,6 +76,7 @@ async function main() {
 		await entryControl.evaluate((button) => button.click());
 		await page.waitForFunction(
 			() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
+			null,
 			{ timeout: 60000, polling: 250 },
 		);
 
