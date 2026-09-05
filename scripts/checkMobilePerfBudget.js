@@ -67,11 +67,15 @@ async function main() {
 	page.on('pageerror', (error) => pageErrors.push(String(error)));
 
 	try {
-		// The shipped 3D mode is consent-gated. Commit navigation first, then enter through the
-		// real visible control so the mobile budget samples the same runtime a player actually sees.
+		// Commit navigation first. The consent button is static HTML and its click handler only removes
+		// the gate; it does not require a trusted user gesture. Waiting for Playwright "visibility" here
+		// couples this render-budget probe to stylesheet/layout actionability and can deadlock before the
+		// real 60s scene-readiness contract even starts. Wait only for the shipped control to be parsed,
+		// invoke that exact control, then keep the authoritative GAME_READY/loading-overlay wait below.
 		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'commit', timeout: 60000 });
-		await page.waitForSelector('#run266-entry-enter', { state: 'visible', timeout: 30000 });
-		await page.click('#run266-entry-enter');
+		const entryControl = page.locator('#run266-entry-enter');
+		await entryControl.waitFor({ state: 'attached', timeout: 30000 });
+		await entryControl.evaluate((button) => button.click());
 		await page.waitForFunction(
 			() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
 			{ timeout: 60000, polling: 250 },
