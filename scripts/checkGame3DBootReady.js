@@ -18,7 +18,7 @@ const { startStaticServer, loadPlaywright } = require('./devServerHelper');
 		return route.abort();
 	});
 	try {
-		await page.goto(`${server.baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+		await page.goto(`${server.baseUrl}/game3d.html`, { waitUntil: 'commit', timeout: 30_000 });
 		const state = await page.waitForFunction(() => {
 			const el = document.getElementById('game3d-loading');
 			return el?.classList.contains('g3d-loading-hidden') ? 'ready' : el?.classList.contains('g3d-loading-error') ? 'error' : false;
