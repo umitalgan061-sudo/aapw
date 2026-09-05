@@ -55,8 +55,9 @@ jobs:
           node --check scripts/checkNpcSimulationLod.mjs
           node scripts/checkNpcSimulationLod.mjs
           node scripts/checkSharedMaterialPlacementContract.js
-          node scripts/checkServiceWorkerCache.js
           node scripts/checkSeededRandomPolicy.js
+      - name: Enforce shared PWA gate
+        run: node scripts/checkServiceWorkerCache.js
       - name: Hydrate real configured guard assets
         shell: bash
         run: |
