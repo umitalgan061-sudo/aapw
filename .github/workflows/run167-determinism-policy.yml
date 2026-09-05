@@ -118,9 +118,8 @@ jobs:
         continue-on-error: true
         shell: bash
         run: |
-          set -euo pipefail
-          node scripts/checkPwaInstallability.js
-          node scripts/checkServiceWorkerCache.js
+          set +e
+          node scripts/checkPwaInstallability.js; PWA_STATUS=$?; node scripts/checkServiceWorkerCache.js; SW_STATUS=$?; echo "Run167 PWA checks: installability=$PWA_STATUS service_worker=$SW_STATUS"; test "$PWA_STATUS" -eq 0 && test "$SW_STATUS" -eq 0
 
       - name: Determinism guard regression fixture
         shell: bash
