@@ -1,9 +1,3 @@
-// Şafak Kartalı NPC geographic placement offline-shell extension. npc.js imports this runtime
-// placement helper, so an offline 3D boot must cache it before configured NPCs can spawn.
-self.addEventListener('install', () => {
-    GAME3D_SHELL_FILES.push('./src/3d/gameplay/npcWorldPlacement.js');
-});
-
 // Owner-map mountain relief offline shell extension. terrain.js imports this canonical live-height
 // source, so an offline 3D boot must cache it before any chunk can be generated.
 self.addEventListener('install', () => {
@@ -237,8 +231,7 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run346 first-audio addition (module + one .wav click sound); v16->v17 forces existing installs to
 // fetch+cache both so the game's first sound works offline too, not only on a fresh install.
 // RPG expedition readiness adds an offline-loadable gameplay module; v19->v20 refreshes existing installs.
-// Şafak Kartalı NPC geographic placement adds an offline-loadable gameplay module; v20->v21 refreshes existing installs.
-const SHELL_CACHE = 'westeros-shell-v21';
+const SHELL_CACHE = 'westeros-shell-v20';
 const SHELL_FILES = [
     './',
     './index.html',
