@@ -30,9 +30,7 @@ jobs:
       - name: Hydrate runtime LFS assets
         run: |
           set -euo pipefail
-          HEAD_SHA="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
-          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
-          git lfs version
+          HEAD_SHA="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"; test "$(git rev-parse HEAD)" = "$HEAD_SHA"; git lfs version
           git lfs fsck --pointers HEAD
           INCLUDE='assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**'
           for attempt in 1 2 3; do
