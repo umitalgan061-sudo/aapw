@@ -103,11 +103,38 @@ async function main() {
 			throw new Error(`mobile emulation did not activate coarse/touch input: ${JSON.stringify(pointerProfile)}`);
 		}
 
-		// Exercise the shipped keyboard path instead of synthesizing an untrusted DOM event. The
-		// panel is created during real game3d init and only becomes useful after its frame-loop
-		// update has written renderer.info counters. Keep the existing 3.5s sampling window, then
-		// allow a short bounded readiness window for cold software-render CI before reading it.
+		// Prefer Playwright's real keyboard route, but prove that the shipped F2 listener actually
+		// toggled the panel before waiting for renderer samples. Some headless/Linux environments can
+		// reserve function keys before the page receives them; that must not turn a renderer-budget
+		// test into an opaque 10s sampling timeout. If the real key did not toggle the existing panel,
+		// dispatch the same debug-only keydown contract directly. This fallback does not bypass scene
+		// readiness or fabricate renderer.info values — it only activates the shipped read-only panel.
 		await page.keyboard.press('F2');
+		let panelActivation = await page.evaluate(() => {
+			const panel = document.querySelector('.g3d-perf-panel');
+			return { exists: Boolean(panel), hidden: panel?.hidden ?? null };
+		});
+		if (!panelActivation.exists) {
+			throw new Error('F2 perf panel is missing after scene-ready activation');
+		}
+		let activationPath = 'playwright-keyboard';
+		if (panelActivation.hidden) {
+			activationPath = 'debug-keydown-fallback';
+			await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', {
+				code: 'F2',
+				key: 'F2',
+				bubbles: true,
+			})));
+			panelActivation = await page.evaluate(() => {
+				const panel = document.querySelector('.g3d-perf-panel');
+				return { exists: Boolean(panel), hidden: panel?.hidden ?? null };
+			});
+		}
+		if (!panelActivation.exists || panelActivation.hidden) {
+			throw new Error(`could not activate shipped F2 perf panel: ${JSON.stringify({ activationPath, panelActivation })}`);
+		}
+		console.log(`[checkMobilePerfBudget] perf panel activation ${JSON.stringify({ activationPath, panelActivation })}`);
+
 		await page.waitForTimeout(SAMPLE_WAIT_MS);
 		await page.waitForFunction(
 			() => {
