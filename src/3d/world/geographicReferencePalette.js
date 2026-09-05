@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-05-v159-broad-plain-material-depth',
+	id: 'geographic-reference-palette-2026-09-05-v160-open-water-aerial-depth',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -202,10 +202,10 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v159 keeps canonical terrain geometry unchanged and widens distant broad-plain material depth after the exact v158 render showed only a subtle tonal response: wet organic and meadow floors deepen, heath stays neutral, exposed mineral highlight is controlled, and weathered granite/basalt facets gain a wider shadow range.',
-		water: 'v159 preserves canonical coverage and bathymetry while retaining the established slate/cyan hierarchy and aerated rapid/plunge separation.',
-		road: 'v159 preserves route topology, width, terrain sampling and water exclusion while retaining the compacted/rut/dust/embedded-stone hierarchy.',
-		celestial: 'v159 preserves dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v160 preserves the v159 broad-plain material-depth calibration and canonical terrain geometry while the production focus moves to open-water aerial readability.',
+		water: 'v160 preserves canonical coverage and bathymetry while widening the open-sea slate value hierarchy: deep water gets more aerial midtone headroom and abyssal water is lifted slightly so normal/fabric response remains visible instead of collapsing toward black.',
+		road: 'v160 preserves route topology, width, terrain sampling and water exclusion while retaining the compacted/rut/dust/embedded-stone hierarchy.',
+		celestial: 'v160 preserves dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
@@ -229,12 +229,12 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		mossEdge: 0x31503a,
 	}),
 	water: Object.freeze({
-		shoreClear: 0x7fa8a3,
+		shoreClear: 0x84aaa4,
 		lakeClear: 0x40798a,
 		riverPool: 0x2f6577,
 		rapid: 0xc9dedb,
-		deepSea: 0x39758e,
-		abyss: 0x0f3348,
+		deepSea: 0x427e95,
+		abyss: 0x123a50,
 		plunge: 0x447f93,
 		splash: 0xf2f8f6,
 		foam: 0xf8fcfa,
