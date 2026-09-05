@@ -46,7 +46,7 @@ for (const token of [
   'const sampleHeightMeters = createHeightSampler',
 ]) assert(terrainSource.includes(token), `terrain source contract missing: ${token}`);
 assert(!terrainSource.includes('fbm2D('), 'legacy FBM remains in production terrain source');
-assert(settlementsSource.includes('SETTLEMENT_FLATTEN_OUTER_RADIUS_METERS = 150'), 'settlement transition radius must remain canonical 150m');
+assert(settlementsSource.includes('SETTLEMENT_FLATTEN_OUTER_RADIUS_METERS = 210'), 'settlement transition radius must remain qualified 210m');
 
 console.log(`FULL_WORLD_RUNTIME_EXTENT=${JSON.stringify({ runtimeBounds, areaKm2: FULL_REFERENCE_EXTENT_PLAN.areaKm2, grid: [CHUNK_CONFIG.GRID_COLUMNS, CHUNK_CONFIG.GRID_ROWS] })}`);
 console.log('FULL_WORLD_RUNTIME_COVERAGE_OK');

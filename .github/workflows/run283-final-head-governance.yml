@@ -39,21 +39,88 @@ jobs:
           git diff --check "$BASE_SHA" HEAD
           echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
 
-      - name: Governance and core regression contracts
+      - name: Run283 workflow governance contract
+        id: run283_contract
+        continue-on-error: true
         shell: bash
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           node --check scripts/checkRun283FinalHeadGovernance.js
           node scripts/checkRun283FinalHeadGovernance.js
-          node scripts/checkSeededRandomPolicy.js
-          node scripts/checkAssetsManifest.js
-          node scripts/checkServiceWorkerCache.js
-          node scripts/checkPwaInstallability.js
-          node scripts/checkSmokeCheckRegistry.js
-          node scripts/checkWorldReferenceMap.js
-          node scripts/checkWorldReferenceWaterMask.js
-          node scripts/checkWorldReferenceAlignment.js
-          node scripts/checkWorldReferenceHydrologyExtent.js
+
+      - name: Seeded random policy
+        id: seeded_random
+        continue-on-error: true
+        shell: bash
+        run: node scripts/checkSeededRandomPolicy.js
+
+      - name: Assets manifest contract
+        id: assets_manifest
+        continue-on-error: true
+        shell: bash
+        run: node scripts/checkAssetsManifest.js
+
+      - name: Service worker cache contract
+        id: service_worker_cache
+        continue-on-error: true
+        shell: bash
+        run: node scripts/checkServiceWorkerCache.js
+
+      - name: PWA installability contract
+        id: pwa_installability
+        continue-on-error: true
+        shell: bash
+        run: node scripts/checkPwaInstallability.js
+
+      - name: Smoke registry contract
+        id: smoke_registry
+        continue-on-error: true
+        shell: bash
+        run: node scripts/checkSmokeCheckRegistry.js
+
+      - name: World reference map contract
+        id: world_reference_map
+        continue-on-error: true
+        shell: bash
+        run: node scripts/checkWorldReferenceMap.js
+
+      - name: World reference water mask contract
+        id: world_reference_water_mask
+        continue-on-error: true
+        shell: bash
+        run: node scripts/checkWorldReferenceWaterMask.js
+
+      - name: World reference alignment contract
+        id: world_reference_alignment
+        continue-on-error: true
+        shell: bash
+        run: node scripts/checkWorldReferenceAlignment.js
+
+      - name: World reference hydrology extent contract
+        id: world_reference_hydrology_extent
+        continue-on-error: true
+        shell: bash
+        run: node scripts/checkWorldReferenceHydrologyExtent.js
+
+      - name: Report governance outcomes
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### Run283 governance RCA'
+            echo '| Contract | Outcome | Conclusion |'
+            echo '| --- | --- | --- |'
+            echo '| Run283 workflow | ${{ steps.run283_contract.outcome }} | ${{ steps.run283_contract.conclusion }} |'
+            echo '| Seeded random | ${{ steps.seeded_random.outcome }} | ${{ steps.seeded_random.conclusion }} |'
+            echo '| Assets manifest | ${{ steps.assets_manifest.outcome }} | ${{ steps.assets_manifest.conclusion }} |'
+            echo '| Service worker cache | ${{ steps.service_worker_cache.outcome }} | ${{ steps.service_worker_cache.conclusion }} |'
+            echo '| PWA installability | ${{ steps.pwa_installability.outcome }} | ${{ steps.pwa_installability.conclusion }} |'
+            echo '| Smoke registry | ${{ steps.smoke_registry.outcome }} | ${{ steps.smoke_registry.conclusion }} |'
+            echo '| World reference map | ${{ steps.world_reference_map.outcome }} | ${{ steps.world_reference_map.conclusion }} |'
+            echo '| World water mask | ${{ steps.world_reference_water_mask.outcome }} | ${{ steps.world_reference_water_mask.conclusion }} |'
+            echo '| World alignment | ${{ steps.world_reference_alignment.outcome }} | ${{ steps.world_reference_alignment.conclusion }} |'
+            echo '| Hydrology extent | ${{ steps.world_reference_hydrology_extent.outcome }} | ${{ steps.world_reference_hydrology_extent.conclusion }} |'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Install Chromium
         shell: bash
@@ -64,20 +131,72 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
-      - name: Performance determinism world safety debt and browser DoD
+      - name: Mobile performance budget
+        id: mobile_perf
+        continue-on-error: true
+        shell: bash
+        run: node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run283-mobile.log"
+
+      - name: Runtime seeded-random replay
+        id: runtime_seeded_random
+        continue-on-error: true
+        shell: bash
+        run: node scripts/checkSeededRandomPolicy.js
+
+      - name: Terrain seat safety
+        id: terrain_seat
+        continue-on-error: true
+        shell: bash
+        run: node scripts/terrainSeatSafetyCheck.js
+
+      - name: Road network safety
+        id: road_network
+        continue-on-error: true
+        shell: bash
+        run: node scripts/roadNetworkSafetyCheck.js
+
+      - name: Performance trend contract
+        id: perf_trend
+        continue-on-error: true
+        shell: bash
+        run: node scripts/analyzePerfTrend.js
+
+      - name: Technical debt contract
+        id: technical_debt
+        continue-on-error: true
+        shell: bash
+        run: node scripts/checkTechnicalDebt.js
+
+      - name: Shipped Game3D Chromium smoke
+        id: game3d_smoke
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
-          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run283-mobile.log"
-          node scripts/checkSeededRandomPolicy.js
-          node scripts/terrainSeatSafetyCheck.js
-          node scripts/roadNetworkSafetyCheck.js
-          node scripts/analyzePerfTrend.js
-          node scripts/checkTechnicalDebt.js
           node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run283-smoke.log"
           test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run283-smoke.log")" -ge 34
 
+      - name: Report runtime DoD outcomes
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### Run283 runtime/browser DoD RCA'
+            echo '| Contract | Outcome | Conclusion |'
+            echo '| --- | --- | --- |'
+            echo '| Mobile performance | ${{ steps.mobile_perf.outcome }} | ${{ steps.mobile_perf.conclusion }} |'
+            echo '| Runtime seeded random | ${{ steps.runtime_seeded_random.outcome }} | ${{ steps.runtime_seeded_random.conclusion }} |'
+            echo '| Terrain seat safety | ${{ steps.terrain_seat.outcome }} | ${{ steps.terrain_seat.conclusion }} |'
+            echo '| Road network safety | ${{ steps.road_network.outcome }} | ${{ steps.road_network.conclusion }} |'
+            echo '| Performance trend | ${{ steps.perf_trend.outcome }} | ${{ steps.perf_trend.conclusion }} |'
+            echo '| Technical debt | ${{ steps.technical_debt.outcome }} | ${{ steps.technical_debt.conclusion }} |'
+            echo '| Shipped Game3D Chromium smoke | ${{ steps.game3d_smoke.outcome }} | ${{ steps.game3d_smoke.conclusion }} |'
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Final exact-main concurrency and additive-only gate
+        id: final_exact_main
+        if: always()
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -85,3 +204,46 @@ jobs:
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA" HEAD
+
+      - name: Enforce Run283 final-head qualification
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          failures=0
+          check_outcome() {
+            local name="$1"
+            local outcome="$2"
+            local conclusion="$3"
+            echo "Run283 contract: $name outcome=$outcome conclusion=$conclusion"
+            printf '| %s | %s | %s |\n' "$name" "$outcome" "$conclusion" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$outcome" != "success" ]; then
+              echo "::error title=Run283 mandatory contract failed::$name outcome=$outcome conclusion=$conclusion"
+              failures=$((failures + 1))
+            fi
+          }
+          {
+            echo '### Run283 final enforcement raw outcomes'
+            echo '| Contract | Outcome | Conclusion |'
+            echo '| --- | --- | --- |'
+          } >> "$GITHUB_STEP_SUMMARY"
+          check_outcome 'Run283 workflow governance' '${{ steps.run283_contract.outcome }}' '${{ steps.run283_contract.conclusion }}'
+          check_outcome 'Seeded random policy' '${{ steps.seeded_random.outcome }}' '${{ steps.seeded_random.conclusion }}'
+          check_outcome 'Assets manifest' '${{ steps.assets_manifest.outcome }}' '${{ steps.assets_manifest.conclusion }}'
+          check_outcome 'Service worker cache' '${{ steps.service_worker_cache.outcome }}' '${{ steps.service_worker_cache.conclusion }}'
+          check_outcome 'PWA installability' '${{ steps.pwa_installability.outcome }}' '${{ steps.pwa_installability.conclusion }}'
+          check_outcome 'Smoke registry' '${{ steps.smoke_registry.outcome }}' '${{ steps.smoke_registry.conclusion }}'
+          check_outcome 'World reference map' '${{ steps.world_reference_map.outcome }}' '${{ steps.world_reference_map.conclusion }}'
+          check_outcome 'World reference water mask' '${{ steps.world_reference_water_mask.outcome }}' '${{ steps.world_reference_water_mask.conclusion }}'
+          check_outcome 'World reference alignment' '${{ steps.world_reference_alignment.outcome }}' '${{ steps.world_reference_alignment.conclusion }}'
+          check_outcome 'World reference hydrology extent' '${{ steps.world_reference_hydrology_extent.outcome }}' '${{ steps.world_reference_hydrology_extent.conclusion }}'
+          check_outcome 'Mobile performance budget' '${{ steps.mobile_perf.outcome }}' '${{ steps.mobile_perf.conclusion }}'
+          check_outcome 'Runtime seeded-random replay' '${{ steps.runtime_seeded_random.outcome }}' '${{ steps.runtime_seeded_random.conclusion }}'
+          check_outcome 'Terrain seat safety' '${{ steps.terrain_seat.outcome }}' '${{ steps.terrain_seat.conclusion }}'
+          check_outcome 'Road network safety' '${{ steps.road_network.outcome }}' '${{ steps.road_network.conclusion }}'
+          check_outcome 'Performance trend contract' '${{ steps.perf_trend.outcome }}' '${{ steps.perf_trend.conclusion }}'
+          check_outcome 'Technical debt contract' '${{ steps.technical_debt.outcome }}' '${{ steps.technical_debt.conclusion }}'
+          check_outcome 'Shipped Game3D Chromium smoke' '${{ steps.game3d_smoke.outcome }}' '${{ steps.game3d_smoke.conclusion }}'
+          check_outcome 'Final exact-main concurrency and additive-only gate' '${{ steps.final_exact_main.outcome }}' '${{ steps.final_exact_main.conclusion }}'
+          echo "Run283 mandatory failure count: $failures" | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$failures" -eq 0
