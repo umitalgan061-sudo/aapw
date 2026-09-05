@@ -110,7 +110,7 @@ jobs:
       - name: Performance determinism world safety debt and browser DoD
         shell: bash
         run: |
-          set -euo pipefail
+          set -euxo pipefail
           node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run283-mobile.log"
           node scripts/checkSeededRandomPolicy.js
           sed -i 's/timeout: 30000/timeout: 90000/' scripts/terrainSeatSafetyCheck.js && (node scripts/terrainSeatSafetyCheck.js || node scripts/terrainSeatSafetyCheck.js)
