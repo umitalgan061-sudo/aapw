@@ -114,6 +114,8 @@ jobs:
           node scripts/roadNetworkSafetyCheck.js
 
       - name: Enforce shared PWA gate
+        id: shared_pwa
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -187,3 +189,8 @@ jobs:
           set -euo pipefail
           git diff --check
           if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/checkSeededRandomPolicy.js; then exit 1; fi
+
+      - name: Enforce shared PWA outcome
+        if: always()
+        shell: bash
+        run: test "${{ steps.shared_pwa.outcome }}" = "success"
