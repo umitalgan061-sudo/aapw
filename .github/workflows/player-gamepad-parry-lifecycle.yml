@@ -1,0 +1,46 @@
+name: Player Gamepad Parry Lifecycle
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/input.js'
+      - 'scripts/checkPlayerGamepadParryLifecycle.mjs'
+      - '.github/workflows/player-gamepad-parry-lifecycle.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: player-gamepad-parry-lifecycle-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact-main bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          BASE="$(git rev-parse origin/main)"
+          test "$(git merge-base origin/main HEAD)" = "$BASE"
+          git diff --check "$BASE"...HEAD
+          read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
+          test "$((ADD + DEL))" -le 3000
+      - name: Syntax
+        run: |
+          node --check src/3d/input.js
+          node --check scripts/checkPlayerGamepadParryLifecycle.mjs
+      - name: Gamepad guard-held parry lifecycle
+        run: node scripts/checkPlayerGamepadParryLifecycle.mjs
