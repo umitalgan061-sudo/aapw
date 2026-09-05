@@ -68,12 +68,25 @@ async function main() {
 
 	try {
 		// Use the shipped entry-gate readiness contract rather than a short locator-specific wait.
-		// Run266's authoritative browser gate allows 120s for DOMContentLoaded on cold CI runners;
-		// once that fires the static consent control is guaranteed parsed, so invoke that exact control
-		// and then keep the independent 60s GAME_READY/loading-overlay budget below.
+		// Run266's authoritative browser gate allows 120s for DOMContentLoaded on cold CI runners.
+		// Resolve the static consent control directly from the parsed DOM instead of handing it to a
+		// Locator, whose default 30s resolution timeout can mask a missing/already-dismissed gate and
+		// prevent this test from ever reaching the independent GAME_READY/render-budget assertion.
 		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
-		const entryControl = page.locator('#run266-entry-enter');
-		await entryControl.evaluate((button) => button.click());
+		const entryState = await page.evaluate(() => {
+			const button = document.getElementById('run266-entry-enter');
+			if (!button) {
+				return {
+					clicked: false,
+					gatePresent: Boolean(document.getElementById('run266-entry-gate')),
+				};
+			}
+			button.click();
+			return { clicked: true, gatePresent: true };
+		});
+		if (!entryState.clicked && entryState.gatePresent) {
+			throw new Error('run266 entry gate is present but its enter control is missing');
+		}
 		await page.waitForFunction(
 			() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
 			null,
