@@ -101,7 +101,7 @@ async function main() {
 		results.push(await movementChecks.checkWolfPatrol(committedBrowser, baseUrl));
 		results.push(await movementChecks.checkNpcCombatStance(committedBrowser, baseUrl));
 		results.push(await npcPerceptionChecks.checkNpcGuardPerception(committedBrowser, baseUrl));
-		results.push(await creatureThreatChecks.checkCreatureThreatMemory(browser, baseUrl));
+		results.push(await creatureThreatChecks.checkCreatureThreatMemory(committedBrowser, baseUrl));
 		results.push(await movementChecks.checkNpcAnimalCreatureObstacleCollider(committedBrowser, baseUrl));
 		results.push(await dragonFlightChecks.checkDragonFlight(browser, baseUrl));
 		results.push(await dragonFlightChecks.checkDragonNotice(browser, baseUrl));
