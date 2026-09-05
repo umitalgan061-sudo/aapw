@@ -83,24 +83,20 @@ jobs:
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
       - name: Performance determinism world safety debt and browser DoD
+        id: browser_dod
+        continue-on-error: true
         shell: bash
         run: |
-          set -euxo pipefail
-          { node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run283-mobile.log"
-          node scripts/checkSeededRandomPolicy.js
-          sed -i 's/timeout: 30000/timeout: 90000/' scripts/terrainSeatSafetyCheck.js && (node scripts/terrainSeatSafetyCheck.js || node scripts/terrainSeatSafetyCheck.js)
-          node scripts/roadNetworkSafetyCheck.js
-          node scripts/analyzePerfTrend.js
-          node scripts/checkTechnicalDebt.js
-          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run283-smoke.log"
-          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run283-smoke.log")" -ge 34; } 2>&1 | tee "$RUNNER_TEMP/run283-browser-perf.log"
-
-      - name: Upload Run283 browser perf diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: run283-browser-perf-${{ github.run_id }}
-          path: ${{ runner.temp }}/run283-browser-perf.log
+          set -uxo pipefail; rc=0
+          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run283-mobile.log" || rc=1
+          node scripts/checkSeededRandomPolicy.js || rc=1
+          sed -i 's/timeout: 30000/timeout: 90000/' scripts/terrainSeatSafetyCheck.js && (node scripts/terrainSeatSafetyCheck.js || node scripts/terrainSeatSafetyCheck.js) || rc=1
+          node scripts/roadNetworkSafetyCheck.js || rc=1
+          node scripts/analyzePerfTrend.js || rc=1
+          node scripts/checkTechnicalDebt.js || rc=1
+          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run283-smoke.log" || rc=1
+          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run283-smoke.log")" -ge 34 || rc=1
+          exit "$rc"
 
       - name: Final exact-main concurrency and additive-only gate
         shell: bash
@@ -108,6 +104,7 @@ jobs:
           set -euo pipefail
           test "${{ steps.governance.outcome }}" = "success"
           test "${{ steps.shared_pwa.outcome }}" = "success"
+          test "${{ steps.browser_dod.outcome }}" = "success"
           git fetch origin main
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
