@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-05-v166-ecological-broad-plain-depth',
+	id: 'geographic-reference-palette-2026-09-05-v167-coastal-river-optical-depth',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -207,6 +207,10 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	broadPlainEcologicalHueRangeRaised: true,
 	broadPlainWetDryMineralOrderingRaised: true,
 	weatheredLithicMidtoneClarityRaised: true,
+	coastalRiverOpticalDepthRaised: true,
+	shallowWaterCyanCompressionReduced: true,
+	riverPoolDepthRaised: true,
+	rapidFoamValueCompressionReduced: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -214,10 +218,10 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v166 preserves canonical terrain geometry while widening the ecological hue/value spacing between meadow, dry heath, wet earth and exposed mineral soil, and strengthening neutral weathered granite/basalt ordering so full-world lowlands read as material domains rather than one khaki sheet.',
-		water: 'v166 preserves canonical coverage, bathymetry and the existing lake/river/deep-sea optical hierarchy while terrain material depth is evaluated against the full-world render.',
-		road: 'v166 preserves route topology, width, terrain sampling and water exclusion; road values remain stable to isolate the broad-plain and weathered-rock material change.',
-		celestial: 'v166 preserves dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v167 preserves the v166 broad-plain and weathered-rock ordering so the water pass can be judged without moving canonical terrain geometry or lowland material domains.',
+		water: 'v167 preserves canonical coverage and bathymetry while reducing shallow cyan bias, deepening river pools/plunge water, and compressing rapid foam values so lake, river, rapid and open-sea surfaces keep distinct optical depth under the existing world-space water fabric.',
+		road: 'v167 preserves route topology, width, terrain sampling and water exclusion; road values remain stable to isolate the coastal and river optical-depth change.',
+		celestial: 'v167 preserves dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
@@ -241,13 +245,13 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		mossEdge: 0x31503a,
 	}),
 	water: Object.freeze({
-		shoreClear: 0x729da1,
-		lakeClear: 0x3b7484,
-		riverPool: 0x2e6474,
-		rapid: 0xd1e4e0,
-		deepSea: 0x447d92,
-		abyss: 0x173d50,
-		plunge: 0x3d778a,
+		shoreClear: 0x6b9394,
+		lakeClear: 0x356b79,
+		riverPool: 0x285969,
+		rapid: 0xc7d9d6,
+		deepSea: 0x3e7286,
+		abyss: 0x16394a,
+		plunge: 0x356a7a,
 		splash: 0xf3f8f5,
 		foam: 0xf9fcfa,
 	}),
