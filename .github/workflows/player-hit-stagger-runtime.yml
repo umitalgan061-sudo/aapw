@@ -99,20 +99,18 @@ jobs:
           test -s artifacts/player-hit-stagger/hit-stagger-runtime.png
           test -s artifacts/player-hit-stagger/hit-stagger-runtime.json
           grep -q '"browserErrors": \[\]' artifacts/player-hit-stagger/hit-stagger-runtime.json
-      - name: Mobile performance budget
+      - name: Shared mobile perf and browser smoke hard gate
         if: always()
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifacts/player-hit-stagger/shared
-          node scripts/checkMobilePerfBudget.js 2>&1 | tee artifacts/player-hit-stagger/shared/mobile-perf.log
-      - name: Shipped game3d smoke
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p artifacts/player-hit-stagger/shared
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js 2>&1 | tee artifacts/player-hit-stagger/shared/browser-smoke.log
+          perf_status=0
+          smoke_status=0
+          node scripts/checkMobilePerfBudget.js 2>&1 | tee artifacts/player-hit-stagger/shared/mobile-perf.log || perf_status=$?
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js 2>&1 | tee artifacts/player-hit-stagger/shared/browser-smoke.log || smoke_status=$?
+          test "$perf_status" -eq 0
+          test "$smoke_status" -eq 0
       - name: Final main freshness
         if: always()
         shell: bash
