@@ -103,15 +103,15 @@ async function main() {
 		results.push(await npcPerceptionChecks.checkNpcGuardPerception(committedBrowser, baseUrl));
 		results.push(await creatureThreatChecks.checkCreatureThreatMemory(committedBrowser, baseUrl));
 		results.push(await movementChecks.checkNpcAnimalCreatureObstacleCollider(committedBrowser, baseUrl));
-		results.push(await dragonFlightChecks.checkDragonFlight(browser, baseUrl));
-		results.push(await dragonFlightChecks.checkDragonNotice(browser, baseUrl));
-		results.push(await dragonFlightChecks.checkDragonReactiveFlight(browser, baseUrl));
-		results.push(await dragonFlightChecks.checkDragonWingFlapAgitation(browser, baseUrl));
-		results.push(await dragonDiveChecks.checkDragonDive(browser, baseUrl));
-		results.push(await dragonPursuitChecks.checkDragonPursuit(browser, baseUrl));
-		results.push(await dragonPursuitChecks.checkDragonGiveUpCue(browser, baseUrl));
-		results.push(await dragonDiveChecks.checkDragonDiveTelegraph(browser, baseUrl));
-		results.push(await dragonDiveChecks.checkDragonBiteAttack(browser, baseUrl));
+		results.push(await dragonFlightChecks.checkDragonFlight(committedBrowser, baseUrl));
+		results.push(await dragonFlightChecks.checkDragonNotice(committedBrowser, baseUrl));
+		results.push(await dragonFlightChecks.checkDragonReactiveFlight(committedBrowser, baseUrl));
+		results.push(await dragonFlightChecks.checkDragonWingFlapAgitation(committedBrowser, baseUrl));
+		results.push(await dragonDiveChecks.checkDragonDive(committedBrowser, baseUrl));
+		results.push(await dragonPursuitChecks.checkDragonPursuit(committedBrowser, baseUrl));
+		results.push(await dragonPursuitChecks.checkDragonGiveUpCue(committedBrowser, baseUrl));
+		results.push(await dragonDiveChecks.checkDragonDiveTelegraph(committedBrowser, baseUrl));
+		results.push(await dragonDiveChecks.checkDragonBiteAttack(committedBrowser, baseUrl));
 		results.push(await safeModeChecks.checkSafeModeEntityDisposeThrows(browser, baseUrl));
 		results.push(await safeModeChecks.checkSafeModeSystemDisposeThrows(browser, baseUrl));
 	} finally {
