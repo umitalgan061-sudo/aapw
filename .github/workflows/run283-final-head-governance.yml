@@ -56,7 +56,7 @@ jobs:
       - name: Offline shell delta guard
         shell: bash
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           set +e
           node scripts/checkServiceWorkerCache.js > "$RUNNER_TEMP/run283-head-pwa.log" 2>&1
           HEAD_PWA_STATUS=$?
@@ -188,7 +188,16 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node scripts/checkMobilePerfBudget.js | tee "$RUNNER_TEMP/run283-mobile.log"
+          node scripts/checkMobilePerfBudget.js 2>&1 | tee "$RUNNER_TEMP/run283-mobile.log"
+
+      - name: Preserve mobile performance RCA
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: run283-mobile-perf-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/run283-mobile.log
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Runtime determinism contract
         shell: bash
