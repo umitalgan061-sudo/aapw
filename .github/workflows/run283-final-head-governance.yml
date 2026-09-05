@@ -96,9 +96,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "${{ steps.governance.outcome }}" = "success"
-          test "${{ steps.shared_pwa.outcome }}" = "success"
-          test "${{ steps.browser_dod.outcome }}" = "success"
+          test "${{ steps.governance.outcome }}" = "success"; test "${{ steps.shared_pwa.outcome }}" = "success"; test "${{ steps.browser_dod.outcome }}" = "success"
           git fetch origin main
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
