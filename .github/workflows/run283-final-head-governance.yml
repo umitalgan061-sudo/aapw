@@ -233,8 +233,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/run283-smoke.log"
+          node scripts/smokeTestGame3D.js 2>&1 | tee "$RUNNER_TEMP/run283-smoke.log"
           test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/run283-smoke.log")" -ge 34
+
+      - name: Preserve shipped browser RCA
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: run283-shipped-browser-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/run283-smoke.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Final exact-main concurrency and additive-only gate
         shell: bash
