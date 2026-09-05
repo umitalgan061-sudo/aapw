@@ -22,8 +22,6 @@ on:
       - 'scripts/checkFullWorldMarineRectangles.mjs'
       - 'scripts/captureLiveWorldWaterTopdown.mjs'
       - '.github/workflows/live-map-shallow-water-visual.yml'
-      - '.github/workflows/water-layer-transition.yml'
-      - '.github/workflows/full-world-3d-topdown.yml'
       - '.github/workflows/full-world-runtime-coverage.yml'
       - '.github/workflows/world-environment-acceptance.yml'
   workflow_dispatch:
