@@ -77,10 +77,18 @@ jobs:
       - name: Shared PWA and cache contracts
         id: shared_pwa
         continue-on-error: true
+        shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           mkdir -p artifacts/player-hit-stagger/shared
+          set +e
+          node scripts/checkPwaInstallability.js 2>&1 | tee artifacts/player-hit-stagger/shared/pwa-installability.log
+          PWA_STATUS=${PIPESTATUS[0]}
           node scripts/checkServiceWorkerCache.js 2>&1 | tee artifacts/player-hit-stagger/shared/service-worker-cache.log
+          CACHE_STATUS=${PIPESTATUS[0]}
+          set -e
+          test "$PWA_STATUS" -eq 0
+          test "$CACHE_STATUS" -eq 0
       - name: Install Chromium
         shell: bash
         run: |
