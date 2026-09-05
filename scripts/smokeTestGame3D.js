@@ -77,13 +77,13 @@ async function main() {
 		markSmokePhase('scene-and-debug');
 		results.push(await sceneChecks.check2DShell(browser, baseUrl));
 		results.push(await sceneChecks.check3DMode(committedBrowser, baseUrl));
-		results.push(await sceneChecks.checkWaterDepthTaperedSwell(browser, baseUrl));
-		results.push(await sceneChecks.checkSettlementGroundFlatten(browser, baseUrl));
-		results.push(await debugToolChecks.checkFreeCamera(browser, baseUrl));
-		results.push(await debugToolChecks.checkPerfPanel(browser, baseUrl));
+		results.push(await sceneChecks.checkWaterDepthTaperedSwell(committedBrowser, baseUrl));
+		results.push(await sceneChecks.checkSettlementGroundFlatten(committedBrowser, baseUrl));
+		results.push(await debugToolChecks.checkFreeCamera(committedBrowser, baseUrl));
+		results.push(await debugToolChecks.checkPerfPanel(committedBrowser, baseUrl));
 		markSmokePhase('world-events-and-interaction');
-		results.push(await worldEventChecks.checkWorldEvents(browser, baseUrl));
-		results.push(await worldEventChecks.checkWorldEventsTimeGating(browser, baseUrl));
+		results.push(await worldEventChecks.checkWorldEvents(committedBrowser, baseUrl));
+		results.push(await worldEventChecks.checkWorldEventsTimeGating(committedBrowser, baseUrl));
 		results.push(await checks.checkSettlementCollider(committedBrowser, baseUrl));
 		results.push(await checks.checkPlayerCartDynamicCollider(committedBrowser, baseUrl));
 		results.push(await checks.checkJumpArc(committedBrowser, baseUrl));
@@ -103,7 +103,7 @@ async function main() {
 		results.push(await pauseMenuChecks.checkPauseMenuMute(committedBrowser, baseUrl));
 		markSmokePhase('audio-and-movement');
 		results.push(await audioChecks.checkAudioManager(browser, baseUrl));
-		results.push(await checks.checkStarfieldTwinkle(browser, baseUrl));
+		results.push(await checks.checkStarfieldTwinkle(committedBrowser, baseUrl));
 		results.push(await movementChecks.checkWolfPackAlert(committedBrowser, baseUrl));
 		results.push(await movementChecks.checkNpcPatrol(committedBrowser, baseUrl));
 		results.push(await movementChecks.checkWolfPatrol(committedBrowser, baseUrl));
@@ -122,8 +122,8 @@ async function main() {
 		results.push(await dragonDiveChecks.checkDragonDiveTelegraph(committedBrowser, baseUrl));
 		results.push(await dragonDiveChecks.checkDragonBiteAttack(committedBrowser, baseUrl));
 		markSmokePhase('safe-mode-disposal');
-		results.push(await safeModeChecks.checkSafeModeEntityDisposeThrows(browser, baseUrl));
-		results.push(await safeModeChecks.checkSafeModeSystemDisposeThrows(browser, baseUrl));
+		results.push(await safeModeChecks.checkSafeModeEntityDisposeThrows(committedBrowser, baseUrl));
+		results.push(await safeModeChecks.checkSafeModeSystemDisposeThrows(committedBrowser, baseUrl));
 	} finally {
 		await browser.close();
 		server.close();
