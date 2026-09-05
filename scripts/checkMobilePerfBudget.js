@@ -104,8 +104,15 @@ async function main() {
 
 		await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'F2' })));
 		await page.waitForTimeout(SAMPLE_WAIT_MS);
-		const panelText = await page.locator('.g3d-perf-panel').textContent();
-		const result = parsePanel(panelText ?? '');
+		// Once scene-ready is proven, the perf panel should already exist synchronously. Reading it
+		// through a Locator adds Playwright's unrelated default ~30s element-resolution timeout and
+		// can hide the real failure (missing panel / inactive F2 hook). Inspect the shipped DOM
+		// directly so absence fails immediately while the renderer sample itself stays unchanged.
+		const panelText = await page.evaluate(() => document.querySelector('.g3d-perf-panel')?.textContent ?? null);
+		if (panelText === null) {
+			throw new Error('F2 perf panel is missing after scene-ready activation');
+		}
+		const result = parsePanel(panelText);
 
 		if (Object.values(result).some(Number.isNaN)) {
 			throw new Error(`could not parse F2 panel: ${JSON.stringify(panelText)}`);
