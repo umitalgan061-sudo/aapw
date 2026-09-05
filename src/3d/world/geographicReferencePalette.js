@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-05-v150-road-water-optical-depth',
+	id: 'geographic-reference-palette-2026-09-05-v151-lithology-ecotone-depth',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -178,6 +178,10 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	roadMicroWearContrastRaised: true,
 	openWaterAerialFabricRaised: true,
 	riverAerationOpticalDepthRaised: true,
+	cliffFacetCoolWarmSeparationRaised: true,
+	wetBasaltGraniteShadowGapRaised: true,
+	ecotoneVegetationMineralHueGapRaised: true,
+	distantLithologyFacetReadabilityRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -185,23 +189,23 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v150 preserves the validated v149 terrain/lithology ordering and canonical geography; this pass intentionally avoids another pigment-only broad-plain adjustment.',
-		water: 'v150 keeps canonical coverage and bathymetry unchanged while slightly widening shore/lake/river/deep-sea value separation and brightening aerated rapid/plunge water so moving-water energy remains readable at distance without flattening open water.',
-		road: 'v150 deepens damp compacted ruts, neutralizes dust and lifts embedded stone by a restrained amount so wheel wear reads as layered material rather than one uniform grey strip; topology, width, terrain sampling and water exclusion are unchanged.',
-		celestial: 'v150 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v151 preserves canonical terrain geometry while increasing wet meadow/mineral separation and widening granite-versus-basalt weathered facet depth so ridges, cliffs and broad lowlands retain material identity at aerial distance without inventing new geography.',
+		water: 'v151 preserves the validated v150 canonical coverage/bathymetry and open-water hierarchy; no water-authority change is introduced in this pass.',
+		road: 'v151 preserves the validated v150 rut/dust/embedded-stone hierarchy and does not alter route topology, width, terrain sampling or water exclusion.',
+		celestial: 'v151 preserves restrained dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
 		mossShadow: 0x082b20,
-		meadow: 0x063e29,
-		dryHeather: 0x596057,
-		wetEarth: 0x14332d,
-		exposedEarth: 0xa18f72,
-		graniteShadow: 0x394f5c,
-		graniteSunlit: 0xbeb7ae,
-		basaltWet: 0x254951,
+		meadow: 0x06442e,
+		dryHeather: 0x555b54,
+		wetEarth: 0x12352f,
+		exposedEarth: 0x9d8f79,
+		graniteShadow: 0x3d5360,
+		graniteSunlit: 0xbab5ae,
+		basaltWet: 0x274a50,
 		quartz: 0xdedbd2,
 	}),
 	road: Object.freeze({
