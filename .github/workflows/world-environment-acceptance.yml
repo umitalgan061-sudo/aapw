@@ -88,15 +88,33 @@ jobs:
           node --check src/3d/world/water.js
           node --check src/3d/world/waterDepthField.js
           node --check src/3d/world/WorldAssetPlacementPipeline.js
-      - name: Shared placement and environment contracts
+      - name: Shared material placement contract
         run: |
           set -euo pipefail
           node scripts/checkSharedMaterialPlacementContract.js
+      - name: World surface placement policy
+        run: |
+          set -euo pipefail
           node scripts/checkWorldSurfacePlacementPolicy.mjs
+      - name: Map-aligned terrain PBR contract
+        run: |
+          set -euo pipefail
           node scripts/checkMapAlignedTerrainPBR.mjs
+      - name: Terrain micro-surface contract
+        run: |
+          set -euo pipefail
           node scripts/checkTerrainMicroSurface.mjs
+      - name: World water coverage P0 contract
+        run: |
+          set -euo pipefail
           node scripts/checkWorldWaterCoverageP0.mjs
+      - name: Water coverage raster quality
+        run: |
+          set -euo pipefail
           node scripts/checkWaterCoverageRasterQuality.mjs
+      - name: Water coverage sampling budget
+        run: |
+          set -euo pipefail
           node scripts/checkWaterCoverageSamplingBudget.mjs
       - name: Hydrate scoped runtime assets
         run: |
