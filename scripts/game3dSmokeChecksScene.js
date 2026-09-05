@@ -19,7 +19,7 @@
  * (DECISIONS.md ADR-0087) split the check modules again and this header's per-file breakdown is a
  * summary, not the registry.
  *
- * Every function here takes `(browser, baseUrl)` and returns `Promise<{name, ok: boolean, details: string}>`. See
+ * Every function here takes `(browser, baseUrl)` and returns `Promise<{name: string, ok: boolean, details: string}>`. See
  * each function's own comment for what it guards against.
  * @module scripts/game3dSmokeChecksScene
  */
@@ -80,6 +80,12 @@ const GAME3D_READY_TIMEOUT_MS = 120000;
 async function loadAndCollectErrors(browser, url, baseUrl) {
 	const page = await browser.newPage();
 	const errors = [];
+	// Uncaught `pageerror`s are tracked separately from `console.error`s (run 83, ADR-0109). The two
+	// are not the same severity: a `console.error` here is usually this sandbox reporting a blocked
+	// external request or a `.gitignore`d media file (`/resimler/`, `/videolar/`), i.e. an artifact
+	// of the hermetic environment. An uncaught `pageerror` is a real thrown exception that aborted
+	// whatever script raised it — which is exactly how the 2D game's offline crash went unnoticed
+	// for 83 runs, averaged into an "11 errors, non-blocking" count.
 	const pageErrors = [];
 	let externalBlocked = 0;
 	page.on('pageerror', (err) => {
@@ -102,6 +108,21 @@ async function loadAndCollectErrors(browser, url, baseUrl) {
 	return { page, errors, pageErrors, externalBlocked };
 }
 
+/**
+ * Guards Altın Kural 1 ("preserve the existing 2D game") against the specific failure ADR-0109
+ * fixed: with every external origin blocked (the offline/installed-PWA case, since the Firebase SDK
+ * is loaded from Google's CDN), `script.js` used to throw an uncaught `ReferenceError: firebase is
+ * not defined` on its second line and abort the entire 4,100-line game script.
+ *
+ * Two assertions, deliberately at different strictness:
+ * - **Hard (fails the check):** zero uncaught `pageerror`s, and `script.js` must run to completion.
+ *   Completion is proven by the file's own last statement, a `console.log` — a real end-of-file
+ *   marker, not a proxy like "some global exists" that an early abort could still satisfy.
+ * - **Soft (reported only):** the `console.error` count. Those are dominated by this sandbox's
+ *   blocked external requests and by `/resimler/`+`/videolar/` media that `.gitignore` deliberately
+ *   keeps out of the repo, so failing on them would make this check environment-dependent.
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
 async function check2DShell(browser, baseUrl) {
 	const page = await browser.newPage();
 	const errors = [];
@@ -114,6 +135,8 @@ async function check2DShell(browser, baseUrl) {
 	});
 	page.on('console', (msg) => {
 		if (msg.type() === 'error') errors.push(`console.error: ${msg.text()}`);
+		// `script.js`'s own final statement — see its last line. Reaching it proves the whole file
+		// executed, which is precisely what the pre-ADR-0109 crash prevented.
 		if (msg.text().includes('Script başarıyla yüklendi')) ranToCompletion = true;
 	});
 	await page.route('**/*', (route, request) => {
@@ -142,6 +165,7 @@ async function check2DShell(browser, baseUrl) {
 	return { name: '2D shell (index.html) — offline/no-CDN resilience', ok, details };
 }
 
+/** @returns {Promise<{name: string, ok: boolean, details: string}>} */
 async function check3DMode(browser, baseUrl) {
 	const { page, errors, externalBlocked } = await loadAndCollectErrors(
 		browser,
@@ -165,6 +189,10 @@ async function check3DMode(browser, baseUrl) {
 		outcome = 'timeout';
 	}
 	await page.close();
+	// `externalBlocked` must be 0 here, and that is a real assertion rather than a diagnostic: Altın
+	// Kural 4 requires the 3D mode to run offline, so any request the 3D path makes to a non-local
+	// origin is an offline-PWA regression — the boot only appeared to succeed because this sandbox
+	// happened to have a network. See `loadAndCollectErrors`'s comment (ADR-0099).
 	const ok = outcome === 'ready' && errors.length === 0 && externalBlocked === 0;
 	const details = ok
 		? 'loading screen hid (GAME_READY phase1-scene), zero console/page errors, zero external requests (offline-capable)'
@@ -175,6 +203,31 @@ async function check3DMode(browser, baseUrl) {
 	return { name: '3D mode (game3d.html)', ok, details };
 }
 
+/**
+ * Regression guard for ADR-0270's depth-tapered water swell — the **successor** to the ADR-0048
+ * guard this function used to be, kept at the same position in the smoke suite.
+ *
+ * History, because deleting it would look like a lost guard: ADR-0048 fixed a real lake-water
+ * flicker (constant-amplitude Gerstner waves, ~1m, dipped the trough below shallow lake beds and
+ * popped the shoreline every frame) by removing vertex displacement entirely, and this check
+ * enforced that by asserting the vertex shader contained no `uTime` and no `sin(`/`cos(`. ADR-0270
+ * deliberately reinstates displacement, so that source-level assertion is now provably wrong to
+ * keep. What replaces it is stronger, not weaker: instead of banning the mechanism, this asserts
+ * the *inequality that makes the mechanism safe* —
+ *
+ *     maxDisplacement(depth) = WAVE_TOTAL_AMPLITUDE_METERS * min(1, depth / FULL_WAVE_DEPTH_METERS)
+ *                            < depth,   for every depth > 0
+ *
+ * — so the trough can never reach the bed at any depth, which is the actual property ADR-0048's
+ * flicker violated. A future amplitude/full-depth tweak that breaks the inequality fails here.
+ *
+ * Also asserted, since the inequality alone would not catch a shader that ignored the taper: the
+ * displacement is still gated on the baked depth field (`uSwellStrength` is exactly 0 on a fresh
+ * mesh, so water is never displaced against unknown bathymetry — the ADR-0048-equivalent safe
+ * state), attaching a field turns it on and wires the right texture/extent, and the vertex source
+ * really does multiply its displacement by the sampled depth factor.
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
 async function checkWaterDepthTaperedSwell(browser, baseUrl) {
 	const page = await browser.newPage();
 	let result;
@@ -186,7 +239,6 @@ async function checkWaterDepthTaperedSwell(browser, baseUrl) {
 			);
 			const { createWaterDepthField, FULL_WAVE_DEPTH_METERS } = await import('/src/3d/world/waterDepthField.js');
 			const failures = [];
-
 			if (!(WAVE_TOTAL_AMPLITUDE_METERS < FULL_WAVE_DEPTH_METERS)) {
 				failures.push(`amplitude ${WAVE_TOTAL_AMPLITUDE_METERS} >= full-wave depth ${FULL_WAVE_DEPTH_METERS}`);
 			}
@@ -200,7 +252,6 @@ async function checkWaterDepthTaperedSwell(browser, baseUrl) {
 					break;
 				}
 			}
-
 			const water = createWater(6);
 			if (water.material.uniforms.uSwellStrength.value !== 0) {
 				failures.push('fresh water mesh has non-zero uSwellStrength (would displace against unknown bathymetry)');
@@ -212,7 +263,6 @@ async function checkWaterDepthTaperedSwell(browser, baseUrl) {
 			if (!/amplitudeScale\s*=\s*depthFactor\s*\*\s*uSwellStrength/.test(vertexSource)) {
 				failures.push('vertex shader no longer derives amplitudeScale from the sampled depth factor');
 			}
-
 			const depthField = createWaterDepthField({
 				sampleHeightMeters: (x) => (x < 0 ? 40 : -40),
 				waterLevelMeters: 6,
@@ -228,7 +278,6 @@ async function checkWaterDepthTaperedSwell(browser, baseUrl) {
 			if (texels[0] !== 0) failures.push(`dry-land texel baked ${texels[0]}, expected 0`);
 			const lastTexelOffset = (16 * 16 - 1) * 4;
 			if (texels[lastTexelOffset] !== 255) failures.push(`deep-water texel baked ${texels[lastTexelOffset]}, expected 255`);
-
 			disposeWater(water);
 			return {
 				failures,
@@ -250,6 +299,24 @@ async function checkWaterDepthTaperedSwell(browser, baseUrl) {
 	return { name: 'depth-tapered water swell (world/water.js + world/waterDepthField.js, ADR-0270)', ok, details };
 }
 
+/**
+ * Regression guard for ADR-0118 (settlement ground-flatten pads — fixes castles visibly floating/
+ * gapping over uneven terrain). Drives the *real* `createHeightSampler`/`computeSettlementFlattenPads`
+ * the live game imports, in-page, against all 14 real `KINGDOM_SEATS` — not a re-derived
+ * approximation. Three invariants, none of which held before ADR-0118 (there was no flattening at
+ * all):
+ *   1. Every seat's exact center samples to precisely its own pad's `anchorHeightMeters` (proves the
+ *      pad's anchor formula matches what `createSettlements` actually places the castle at — see
+ *      `world/settlements.js`'s `computeSettlementFlattenPads` doc comment for why this must be the
+ *      *clamped* height, not the raw terrain sample).
+ *   2. 8 points spaced around each seat's full `innerRadiusMeters` ring sample to that exact same
+ *      anchor height (within float tolerance) — proves the *entire* castle footprint is flat, not
+ *      just the single center point the old code sampled, which is the actual bug this fixes.
+ *   3. A point just beyond each seat's `outerRadiusMeters`, chosen in a direction outside every
+ *      other settlement pad too, samples identically with or without `flattenPads` — proves pad
+ *      influence is bounded without misclassifying legitimate overlap from a nearby castle.
+ * @returns {Promise<{name: string, ok: boolean, details: string}>}
+ */
 async function checkSettlementGroundFlatten(browser, baseUrl) {
 	const page = await browser.newPage();
 	let result;
@@ -259,7 +326,6 @@ async function checkSettlementGroundFlatten(browser, baseUrl) {
 			const { createHeightSampler } = await import('/src/3d/world/terrain.js');
 			const { KINGDOM_SEATS, mapToWorldXZ, computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');
 			const { WORLD_SCALE, WORLD_DEFAULTS, SETTLEMENT_CONFIG } = await import('/src/3d/config.js');
-
 			const baseSampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED);
 			const flattenPads = computeSettlementFlattenPads({
 				sampleHeightMeters: baseSampleHeightMeters,
@@ -269,13 +335,11 @@ async function checkSettlementGroundFlatten(browser, baseUrl) {
 				metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
 			});
 			const flatSampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
-
 			const EPSILON_METERS = 1e-6;
 			const failures = [];
 			KINGDOM_SEATS.forEach((seat, index) => {
 				const pad = flattenPads[index];
 				const { x, z } = mapToWorldXZ(seat.mapX, seat.mapY, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT);
-
 				const centerHeight = flatSampleHeightMeters(x, z);
 				if (Math.abs(centerHeight - pad.anchorHeightMeters) > EPSILON_METERS) {
 					failures.push(`${seat.id}: center=${centerHeight.toFixed(4)} != anchor=${pad.anchorHeightMeters.toFixed(4)}`);
@@ -283,7 +347,6 @@ async function checkSettlementGroundFlatten(browser, baseUrl) {
 				if (pad.anchorHeightMeters <= WORLD_DEFAULTS.WATER_LEVEL_METERS) {
 					failures.push(`${seat.id}: anchor=${pad.anchorHeightMeters.toFixed(4)} at/below water level ${WORLD_DEFAULTS.WATER_LEVEL_METERS}`);
 				}
-
 				for (let i = 0; i < 8; i++) {
 					const angle = (i / 8) * Math.PI * 2;
 					const ringX = x + Math.cos(angle) * pad.innerRadiusMeters;
@@ -293,7 +356,6 @@ async function checkSettlementGroundFlatten(browser, baseUrl) {
 						failures.push(`${seat.id} ring#${i}: height=${ringHeight.toFixed(4)} != anchor=${pad.anchorHeightMeters.toFixed(4)}`);
 					}
 				}
-
 				let beyondPoint = null;
 				const probeRadiusMeters = pad.outerRadiusMeters + 5;
 				for (let i = 0; i < 32 && !beyondPoint; i++) {
@@ -315,7 +377,6 @@ async function checkSettlementGroundFlatten(browser, baseUrl) {
 					failures.push(`${seat.id} beyond-all-pads: flattened=${flattenedBeyond.toFixed(4)} != base=${baseBeyond.toFixed(4)}`);
 				}
 			});
-
 			return { seatCount: KINGDOM_SEATS.length, failures };
 		});
 	} catch (error) {
