@@ -118,7 +118,15 @@ jobs:
         run: |
           set -euo pipefail
           node scripts/checkPwaInstallability.js
-          node scripts/checkServiceWorkerCache.js
+          node scripts/checkServiceWorkerCache.js 2>&1 | tee "$RUNNER_TEMP/run167-pwa.log"
+
+      - name: Upload shared PWA diagnostic
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run167-pwa-${{ github.run_id }}
+          path: ${{ runner.temp }}/run167-pwa.log
+          if-no-files-found: ignore
 
       - name: Determinism guard regression fixture
         shell: bash
