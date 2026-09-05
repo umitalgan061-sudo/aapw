@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-05-v164-broad-plain-optical-structure',
+	id: 'geographic-reference-palette-2026-09-05-v165-natural-broad-plain-material-depth',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -201,6 +201,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	weatheredRoadGreyCompressionReduced: true,
 	coastalBlueGreenBalanceRaised: true,
 	weatheredCliffNeutralityRaised: true,
+	broadPlainMidtoneNaturalized: true,
+	wetEarthBlackCrushReduced: true,
+	weatheredRockAerialNeutralityRaised: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -208,24 +211,24 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v164 preserves canonical terrain geometry while increasing broad-plain wet/dry/mineral value spacing and widening weathered granite/basalt facet response so lowlands retain more optical structure at full-world distance.',
-		water: 'v164 preserves canonical coverage and bathymetry; the existing lake/river/deep-sea hierarchy and aerated rapid/waterfall highlights are intentionally held stable while terrain structure is evaluated.',
-		road: 'v164 preserves route topology, width, terrain sampling and water exclusion while slightly widening compacted-earth / damp-rut / dust / embedded-stone value spacing for stronger worn-road readability.',
-		celestial: 'v164 preserves dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v165 preserves canonical terrain geometry while lifting wet-ground black crush, moving broad-plain vegetation into a more natural mid-dark green, reducing dry-heath khaki compression, and tightening weathered granite/basalt midtone ordering for stronger aerial material depth without painting new landforms.',
+		water: 'v165 preserves canonical coverage, bathymetry and the existing lake/river/deep-sea optical hierarchy while terrain material depth is evaluated against the full-world render.',
+		road: 'v165 preserves route topology, width, terrain sampling and water exclusion; road values remain stable to isolate the broad-plain and weathered-rock material change.',
+		celestial: 'v165 preserves dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
-		mossShadow: 0x08291f,
-		meadow: 0x07382d,
-		dryHeather: 0x68655c,
-		wetEarth: 0x0d2028,
-		exposedEarth: 0xc0b19a,
-		graniteShadow: 0x314554,
-		graniteSunlit: 0xd0c0ae,
-		basaltWet: 0x182f38,
-		quartz: 0xd9d7cf,
+		mossShadow: 0x17352a,
+		meadow: 0x254b35,
+		dryHeather: 0x746e5c,
+		wetEarth: 0x22302d,
+		exposedEarth: 0xaa987d,
+		graniteShadow: 0x3e484d,
+		graniteSunlit: 0xb9ad9b,
+		basaltWet: 0x29383c,
+		quartz: 0xd7d4cb,
 	}),
 	road: Object.freeze({
 		compacted: 0x574b41,
