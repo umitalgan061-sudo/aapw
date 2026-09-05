@@ -67,14 +67,12 @@ async function main() {
 	page.on('pageerror', (error) => pageErrors.push(String(error)));
 
 	try {
-		// Commit navigation first. The consent button is static HTML and its click handler only removes
-		// the gate; it does not require a trusted user gesture. Waiting for Playwright "visibility" here
-		// couples this render-budget probe to stylesheet/layout actionability and can deadlock before the
-		// real 60s scene-readiness contract even starts. Wait only for the shipped control to be parsed,
-		// invoke that exact control, then keep the authoritative GAME_READY/loading-overlay wait below.
-		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'commit', timeout: 60000 });
+		// Use the shipped entry-gate readiness contract rather than a short locator-specific wait.
+		// Run266's authoritative browser gate allows 120s for DOMContentLoaded on cold CI runners;
+		// once that fires the static consent control is guaranteed parsed, so invoke that exact control
+		// and then keep the independent 60s GAME_READY/loading-overlay budget below.
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
 		const entryControl = page.locator('#run266-entry-enter');
-		await entryControl.waitFor({ state: 'attached', timeout: 30000 });
 		await entryControl.evaluate((button) => button.click());
 		await page.waitForFunction(
 			() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
