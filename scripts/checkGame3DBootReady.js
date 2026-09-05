@@ -22,7 +22,7 @@ const { startStaticServer, loadPlaywright } = require('./devServerHelper');
 		const state = await page.waitForFunction(() => {
 			const el = document.getElementById('game3d-loading');
 			return el?.classList.contains('g3d-loading-hidden') ? 'ready' : el?.classList.contains('g3d-loading-error') ? 'error' : false;
-		}, { timeout: 60_000, polling: 250 }).then((handle) => handle.jsonValue());
+		}, null, { timeout: 60_000, polling: 250 }).then((handle) => handle.jsonValue());
 		if (state !== 'ready' || errors.length || externalBlocked) throw new Error(`state=${state} errors=${errors.join('; ')} externalBlocked=${externalBlocked}`);
 		console.log('GAME3D_BOOT_READY_OK');
 	} finally { await page.close(); await browser.close(); await server.stop(); }
