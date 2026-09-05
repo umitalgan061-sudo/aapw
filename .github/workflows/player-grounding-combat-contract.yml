@@ -189,12 +189,30 @@ jobs:
       - name: Shared mobile perf and browser smoke hard gate
         shell: bash
         run: |
-          set -euo pipefail
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js 2>&1 | tee artifacts/player-dodge-iframes/mobile-perf.log
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js 2>&1 | tee artifacts/player-dodge-iframes/smoke-game3d.log
-      - name: PWA shell cache hard gate
+          set -uo pipefail
+          mkdir -p artifacts/player-dodge-iframes/shared
+          set +e
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js 2>&1 | tee artifacts/player-dodge-iframes/shared/mobile-perf.log
+          PERF_STATUS=${PIPESTATUS[0]}
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js 2>&1 | tee artifacts/player-dodge-iframes/shared/smoke-game3d.log
+          SMOKE_STATUS=${PIPESTATUS[0]}
+          set -e
+          test "$PERF_STATUS" -eq 0
+          test "$SMOKE_STATUS" -eq 0
+      - name: Shared PWA and cache hard gate
         if: always()
-        run: node scripts/checkServiceWorkerCache.js
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts/player-dodge-iframes/shared
+          set +e
+          node scripts/checkPwaInstallability.js 2>&1 | tee artifacts/player-dodge-iframes/shared/pwa-installability.log
+          PWA_STATUS=${PIPESTATUS[0]}
+          node scripts/checkServiceWorkerCache.js 2>&1 | tee artifacts/player-dodge-iframes/shared/service-worker-cache.log
+          CACHE_STATUS=${PIPESTATUS[0]}
+          set -e
+          test "$PWA_STATUS" -eq 0
+          test "$CACHE_STATUS" -eq 0
       - name: Final main freshness
         if: always()
         shell: bash
