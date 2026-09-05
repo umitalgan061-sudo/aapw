@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-05-v160-open-water-aerial-depth',
+	id: 'geographic-reference-palette-2026-09-05-v161-weathered-cliff-road-water-depth',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -195,6 +195,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	fullWorldLowlandTonalRangeRaised: true,
 	distantWeatheredRockContrastRaised: true,
 	broadPlainMaterialDepthValidated: true,
+	cliffWeatheringValueGapRaised: true,
+	roadRutStoneMicroContrastRaised: true,
+	openWaterAerialDepthRefined: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -202,10 +205,10 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v160 preserves the v159 broad-plain material-depth calibration and canonical terrain geometry while the production focus moves to open-water aerial readability.',
-		water: 'v160 preserves canonical coverage and bathymetry while widening the open-sea slate value hierarchy: deep water gets more aerial midtone headroom and abyssal water is lifted slightly so normal/fabric response remains visible instead of collapsing toward black.',
-		road: 'v160 preserves route topology, width, terrain sampling and water exclusion while retaining the compacted/rut/dust/embedded-stone hierarchy.',
-		celestial: 'v160 preserves dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v161 preserves canonical terrain geometry while increasing the cool-shadow/warm-weathered facet range for exposed granite, basalt and mineral ground so cliffs and ridges retain material depth at aerial distance.',
+		water: 'v161 preserves canonical coverage and bathymetry while retaining open-sea midtone headroom and slightly refining deep-water value separation so meso-normal fabric remains visible without black crush.',
+		road: 'v161 preserves route topology, width, terrain sampling and water exclusion while deepening damp ruts and separating embedded stone from compacted earth for less uniform road wear.',
+		celestial: 'v161 preserves dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
@@ -215,17 +218,17 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		meadow: 0x083725,
 		dryHeather: 0x60645d,
 		wetEarth: 0x102630,
-		exposedEarth: 0xb9ae9a,
-		graniteShadow: 0x395367,
-		graniteSunlit: 0xcbbfb2,
-		basaltWet: 0x193844,
+		exposedEarth: 0xbfae96,
+		graniteShadow: 0x334d61,
+		graniteSunlit: 0xd0c4b7,
+		basaltWet: 0x183b47,
 		quartz: 0xd7d5ce,
 	}),
 	road: Object.freeze({
 		compacted: 0x574f49,
-		rut: 0x202b2a,
+		rut: 0x1d2928,
 		dust: 0x9f9b96,
-		stone: 0xaaaba8,
+		stone: 0xb0afaa,
 		mossEdge: 0x31503a,
 	}),
 	water: Object.freeze({
@@ -233,8 +236,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		lakeClear: 0x40798a,
 		riverPool: 0x2f6577,
 		rapid: 0xc9dedb,
-		deepSea: 0x427e95,
-		abyss: 0x123a50,
+		deepSea: 0x477f94,
+		abyss: 0x163f54,
 		plunge: 0x447f93,
 		splash: 0xf2f8f6,
 		foam: 0xf8fcfa,
