@@ -98,22 +98,23 @@ jobs:
         run: |
           node scripts/checkPlayerParryRecovery.mjs
           node scripts/checkPlayerRecoveryAttackBufferDrop.mjs
-      - name: Standing player combat contracts
+      - name: Stamina dodge standing contract
+        run: node scripts/checkPlayerStaminaDodge.mjs
+      - name: Combat vertical slice standing contract
+        if: success() || failure()
+        run: node scripts/checkPlayerCombatVerticalSlice.mjs
+      - name: Immutable defense damage standing contract
+        if: success() || failure()
+        run: node scripts/checkPlayerImmutableDefenseDamage.mjs
+      - name: Require standing player combat contracts
+        if: success() || failure()
         shell: bash
         run: |
-          set +e
-          mkdir -p artifacts/player-parry-recovery/standing
-          node scripts/checkPlayerStaminaDodge.mjs > artifacts/player-parry-recovery/standing/stamina-dodge.log 2>&1
-          stamina_status=$?
-          node scripts/checkPlayerCombatVerticalSlice.mjs > artifacts/player-parry-recovery/standing/combat-vertical-slice.log 2>&1
-          vertical_status=$?
-          node scripts/checkPlayerImmutableDefenseDamage.mjs > artifacts/player-parry-recovery/standing/immutable-defense-damage.log 2>&1
-          immutable_status=$?
-          cat artifacts/player-parry-recovery/standing/stamina-dodge.log
-          cat artifacts/player-parry-recovery/standing/combat-vertical-slice.log
-          cat artifacts/player-parry-recovery/standing/immutable-defense-damage.log
-          printf 'standing combat statuses: stamina=%s vertical=%s immutable=%s\n' "$stamina_status" "$vertical_status" "$immutable_status"
-          test "$stamina_status" -eq 0 -a "$vertical_status" -eq 0 -a "$immutable_status" -eq 0
+          set -euo pipefail
+          test "${{ steps.stamina.outcome }}" != failure
+          test "${{ steps.vertical.outcome }}" != failure
+          test "${{ steps.immutable.outcome }}" != failure
+        id: standing_gate
       - name: Shared Material Placement Contract
         run: node scripts/checkSharedMaterialPlacementContract.js
       - name: Final exact-main freshness
