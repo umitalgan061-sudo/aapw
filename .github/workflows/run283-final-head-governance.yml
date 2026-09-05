@@ -30,32 +30,17 @@ jobs:
       - name: Hydrate runtime LFS assets
         run: |
           set -euo pipefail
-          HEAD_SHA="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"; test "$(git rev-parse HEAD)" = "$HEAD_SHA"; git lfs version
-          git lfs fsck --pointers HEAD
+          HEAD_SHA="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"; test "$(git rev-parse HEAD)" = "$HEAD_SHA"; git lfs version; git lfs fsck --pointers HEAD
           INCLUDE='assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**'
-          for attempt in 1 2 3; do
-            if git lfs pull --include="$INCLUDE" --exclude=""; then break; fi
-            if [ "$attempt" -lt 3 ]; then sleep $((attempt * 2)); fi
-          done
-          mapfile -t scoped_paths < <(git lfs ls-files -n --include="$INCLUDE")
-          test "${#scoped_paths[@]}" -gt 0
+          for attempt in 1 2 3; do git lfs pull --include="$INCLUDE" --exclude="" && break; test "$attempt" -lt 3 && sleep $((attempt * 2)); done
+          mapfile -t scoped_paths < <(git lfs ls-files -n --include="$INCLUDE"); test "${#scoped_paths[@]}" -gt 0
           for asset_path in "${scoped_paths[@]}"; do
             if head -n 1 "$asset_path" | grep -q '^version https://git-lfs.github.com/spec/v1$'; then
               encoded_path="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe="/"))' "$asset_path")"
-              curl --fail --location --retry 3 --retry-delay 2 --output "$RUNNER_TEMP/lfs-asset" \
-                "https://media.githubusercontent.com/media/umitalgan061-sudo/aapw/$HEAD_SHA/$encoded_path"
-              test -s "$RUNNER_TEMP/lfs-asset"
-              if head -n 1 "$RUNNER_TEMP/lfs-asset" | grep -q '^version https://git-lfs.github.com/spec/v1$'; then
-                echo "Run283 runtime asset remained an LFS pointer: $asset_path" >&2
-                exit 1
-              fi
-              mv "$RUNNER_TEMP/lfs-asset" "$asset_path"
+              curl --fail --location --retry 3 --retry-delay 2 --output "$RUNNER_TEMP/lfs-asset" "https://media.githubusercontent.com/media/umitalgan061-sudo/aapw/$HEAD_SHA/$encoded_path"
+              test -s "$RUNNER_TEMP/lfs-asset"; ! head -n 1 "$RUNNER_TEMP/lfs-asset" | grep -q '^version https://git-lfs.github.com/spec/v1$'; mv "$RUNNER_TEMP/lfs-asset" "$asset_path"
             fi
-            test -s "$asset_path"
-            if head -n 1 "$asset_path" | grep -q '^version https://git-lfs.github.com/spec/v1$'; then
-              echo "Run283 runtime asset was not hydrated: $asset_path" >&2
-              exit 1
-            fi
+            test -s "$asset_path"; ! head -n 1 "$asset_path" | grep -q '^version https://git-lfs.github.com/spec/v1$'
           done
 
       - name: Exact-main additive entry gate
