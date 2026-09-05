@@ -76,16 +76,6 @@ export function sampleMountainRidgeFrameInto(
 	const px = normalizedX * mapAspect;
 	const py = normalizedY;
 	let totalLength = 0;
-	for (let index = 0; index < points.length - 1; index += 1) {
-		const a = points[index];
-		const b = points[index + 1];
-		totalLength += Math.hypot(
-			aspectX(b, mapAspect, pointsAreAspectCorrected)
-				- aspectX(a, mapAspect, pointsAreAspectCorrected),
-			b[1] - a[1],
-		);
-	}
-
 	let nearestDistance = Infinity;
 	let nearestSignedDistance = 0;
 	let nearestSegment = 0;
@@ -137,6 +127,7 @@ export function sampleMountainRidgeFrameInto(
 			nearestProgressDistance = prefixLength + length * t;
 		}
 		prefixLength += length;
+		totalLength += length;
 	}
 
 	out.distance = nearestDistance;
