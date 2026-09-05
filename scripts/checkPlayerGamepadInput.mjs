@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { KeyboardInput, applyGamepadRadialDeadzone, applyGamepadTriggerDeadzone, pulsePlayerGamepadAction, pulsePlayerGamepadCombatFeedback, pulsePlayerGamepadMelee, resolveGamepadSprintIntent, resolvePlayerCombatFeedbackHaptic, samplePlayerGamepad, selectPlayerGamepad } from '../src/3d/input.js';
+import { KeyboardInput, applyGamepadRadialDeadzone, applyGamepadTriggerDeadzone, pulsePlayerGamepadAction, pulsePlayerGamepadCombatFeedback, pulsePlayerGamepadMelee, resolveGamepadSprintIntent, resolveParryGuardFrame, resolvePlayerCombatFeedbackHaptic, samplePlayerGamepad, selectPlayerGamepad } from '../src/3d/input.js';
 function makePad({ index = 0, mapping = 'standard', axes = [0, 0], buttons = {}, values = {}, connected = true } = {}) {
 	return { index, mapping, connected, axes, buttons: Array.from({ length: 16 }, (_, i) => ({ pressed: Boolean(buttons[i]) || Number(values[i] ?? 0) > 0.5, value: Number(values[i] ?? (buttons[i] ? 1 : 0)) })) };
 }
@@ -17,6 +17,11 @@ assert.equal(resolveGamepadSprintIntent(0.72, true, false), true, 'fresh sprint 
 assert.equal(resolveGamepadSprintIntent(0.65, true, true), true, 'active sprint must survive bounded threshold noise');
 assert.equal(resolveGamepadSprintIntent(0.54, true, true), false, 'active sprint must release below hysteresis floor');
 assert.equal(resolveGamepadSprintIntent(1, false, true), false, 'releasing L3 must end sprint immediately');
+assert.deepEqual(resolveParryGuardFrame(false, true, false), { guarding: true, rearmPending: false }, 'unguarded parry must produce a one-frame guard edge immediately');
+const heldGuardParry = resolveParryGuardFrame(true, true, false);
+assert.deepEqual(heldGuardParry, { guarding: false, rearmPending: true }, 'parry while guard is held must drop guard for one frame so Player can observe a fresh edge');
+assert.deepEqual(resolveParryGuardFrame(true, false, heldGuardParry.rearmPending), { guarding: true, rearmPending: false }, 'held guard must re-arm on the next frame after parry edge isolation');
+assert.deepEqual(resolveParryGuardFrame(false, false, true), { guarding: true, rearmPending: false }, 'pending re-arm must survive a transient guard-source release for the edge frame only');
 const hysteresisPad = makePad({ axes: [0, -0.72], buttons: { 10: true } }); const hysteresisSample = samplePlayerGamepad(hysteresisPad, {}, true); assert.equal(hysteresisSample.running, true, 'sampler must carry previous sprint state into release threshold');
 const dpadSprint = samplePlayerGamepad(makePad({ buttons: { 10: true, 12: true } })); assert.equal(dpadSprint.magnitude, 1); assert.equal(dpadSprint.running, true, 'digital D-pad movement must retain sprint parity');
 const dpadForward = samplePlayerGamepad(makePad({ buttons: { 12: true } })); assert.equal(dpadForward.forward, 1); assert.equal(dpadForward.strafe, 0); assert.equal(dpadForward.magnitude, 1);
