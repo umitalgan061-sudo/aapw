@@ -55,6 +55,7 @@ requireFragments(input, 'desktop/gamepad parity', [
   "const LOCK_ON_KEYS = new Set(['Tab'])",
   "const LIGHT_ATTACK_KEYS = new Set(['KeyC'])",
   "const HEAVY_ATTACK_KEYS = new Set(['KeyR'])",
+  "const PARRY_KEYS = new Set(['KeyV'])",
   'LOCK_ON: 11',
   'LIGHT: 2',
   'HEAVY: 3',
@@ -82,6 +83,7 @@ requireFragments(controlsHelp, 'desktop combat and interaction help', [
   "['C / Sol tık', 'Hafif saldırı']",
   "['R', 'Ağır saldırı']",
   "['Q / Sağ tık', 'Savunmayı basılı tut']",
+  "['V', 'Kısa savuşturma penceresi aç; savunurken de kullanılabilir']",
   "['Tab', 'Yakındaki hedefe kilitlen veya kilidi kaldır']",
   "['E', 'Yakındaki kişiyle konuş']",
 ]);
@@ -89,7 +91,7 @@ requireFragments(controlsHelp, 'gamepad combat help', [
   "['Gamepad sol çubuk / L3', 'Yürü / koş']",
   "['Gamepad A / B', 'Zıpla / kaçın']",
   "['Gamepad X / Y', 'Hafif / ağır saldırı']",
-  "['Gamepad LB / RB', 'Savun / savuştur']",
+  "['Gamepad LB / RB', 'Savun / savuştur; LB basılıyken RB ile yeni savuşturma penceresi aç']",
   "['Gamepad sağ çubuk / R3', 'Kamera / hedef kilidi']",
 ]);
 requireFragments(controlsHelp, 'touch combat help', [
@@ -98,7 +100,7 @@ requireFragments(controlsHelp, 'touch combat help', [
   "['Hafif', 'Hafif saldırı']",
   "['Ağır', 'Ağır saldırı']",
   "['Kaçın', 'Hareket ederken kaçınma hamlesi yap']",
-  "['Savuştur', 'Kısa savuşturma penceresi aç']",
+  "['Savuştur', 'Kısa savuşturma penceresi aç; savunurken de kullanılabilir']",
 ]);
 requireFragments(touch, 'mobile/PWA input parity', [
   "className = 'g3d-touch-lock-on-button'",
@@ -148,13 +150,13 @@ console.log(JSON.stringify({
   ok: true,
   contract: 'player-combat-vertical-slice-composition',
   chain: ['asset+animation', 'spawn+ground+collider', 'input', 'movement+stamina+poise', 'dodge+guard+parry', 'melee-combo', 'lock-on', 'damage+feedback'],
-  inputs: ['keyboard:C-light/R-heavy/E-interaction', 'mouse', 'gamepad', 'touch/PWA'],
+  inputs: ['keyboard:C-light/R-heavy/V-parry/E-interaction', 'mouse', 'gamepad', 'touch/PWA'],
   pauseIsolation: ['keyboard', 'pointer', 'gamepad', 'touch'],
   interactiveUiIsolation: ['keyboard-movement', 'keyboard-jump', 'keyboard-guard', 'keyboard-combat', 'pointer-guard', 'pointer-combat'],
   touchLifecycleRecovery: ['visibilitychange', 'pagehide', 'blur', 'lostpointercapture'],
-  desktopHelp: ['C / Sol tık = Hafif saldırı', 'R = Ağır saldırı', 'Q / Sağ tık = Savun', 'Tab = Hedef kilidi', 'E = Yakındaki kişiyle konuş'],
-  gamepadHelp: ['sol çubuk/L3', 'A/B', 'X/Y', 'LB/RB', 'sağ çubuk/R3'],
-  touchHelp: ['Savun', 'Hedef', 'Hafif', 'Ağır', 'Kaçın', 'Savuştur'],
+  desktopHelp: ['C / Sol tık = Hafif saldırı', 'R = Ağır saldırı', 'Q / Sağ tık = Savun', 'V = Savuştur', 'Tab = Hedef kilidi', 'E = Yakındaki kişiyle konuş'],
+  gamepadHelp: ['sol çubuk/L3', 'A/B', 'X/Y', 'LB/RB guard-held parry', 'sağ çubuk/R3'],
+  touchHelp: ['Savun', 'Hedef', 'Hafif', 'Ağır', 'Kaçın', 'Savuştur guard-held parry'],
   sharedMaterialPlacement: true,
   newAsset: false,
 }, null, 2));
