@@ -26,6 +26,7 @@ const MOBILE_BUDGET = Object.freeze({
 });
 
 const SAMPLE_WAIT_MS = 3500;
+const SAMPLE_READY_TIMEOUT_MS = 10000;
 
 function parsePanel(text) {
 	const num = (re) => Number((text.match(re) ?? [])[1]?.replace(/,/g, '') ?? NaN);
@@ -102,12 +103,24 @@ async function main() {
 			throw new Error(`mobile emulation did not activate coarse/touch input: ${JSON.stringify(pointerProfile)}`);
 		}
 
-		await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'F2' })));
+		// Exercise the shipped keyboard path instead of synthesizing an untrusted DOM event. The
+		// panel is created during real game3d init and only becomes useful after its frame-loop
+		// update has written renderer.info counters. Keep the existing 3.5s sampling window, then
+		// allow a short bounded readiness window for cold software-render CI before reading it.
+		await page.keyboard.press('F2');
 		await page.waitForTimeout(SAMPLE_WAIT_MS);
-		// Once scene-ready is proven, the perf panel should already exist synchronously. Reading it
-		// through a Locator adds Playwright's unrelated default ~30s element-resolution timeout and
-		// can hide the real failure (missing panel / inactive F2 hook). Inspect the shipped DOM
-		// directly so absence fails immediately while the renderer sample itself stays unchanged.
+		await page.waitForFunction(
+			() => {
+				const text = document.querySelector('.g3d-perf-panel')?.textContent ?? '';
+				return /FPS:\s*\d+/.test(text)
+					&& /Draw calls:\s*\d+/.test(text)
+					&& /Triangles:\s*[\d,]+/.test(text)
+					&& /Geometries:\s*\d+/.test(text)
+					&& /Textures:\s*\d+/.test(text);
+			},
+			null,
+			{ timeout: SAMPLE_READY_TIMEOUT_MS, polling: 250 },
+		);
 		const panelText = await page.evaluate(() => document.querySelector('.g3d-perf-panel')?.textContent ?? null);
 		if (panelText === null) {
 			throw new Error('F2 perf panel is missing after scene-ready activation');
