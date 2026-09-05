@@ -19,7 +19,6 @@ on:
       - 'scripts/checkRun330Villages.js'
       - 'scripts/checkMobilePerfBudget.js'
       - 'scripts/game3dSmokeChecksAudio.js'
-      - 'scripts/game3dSmokeChecksScene.js'
       - 'scripts/smokeTestGame3D.js'
       - 'scripts/village-architecture-harness.html'
       - 'service-worker.js'
@@ -56,7 +55,7 @@ jobs:
           while IFS= read -r path; do
             [ -z "$path" ] && continue
             case "$path" in
-              src/3d/world/villages.js|src/3d/materials/meshPartClassifier.js|src/3d/materials/figureKits.js|src/3d/materials/palettes.js|scripts/checkVillageArchitectureAssets.js|scripts/checkVillageArchitectureDistribution.mjs|scripts/checkArchitectureSurfaceSemantics.mjs|scripts/checkVillageWindowFrameSemantics.mjs|scripts/checkVillageGlbAssetInventory.mjs|scripts/checkVillageRuntimeArchitectureIntegration.js|scripts/checkVillageArchitectureNavigationBrowser.mjs|scripts/checkVillageBlacksmithServiceReadiness.mjs|scripts/checkVillageGeographyTextureContract.mjs|scripts/checkRun330Villages.js|scripts/checkMobilePerfBudget.js|scripts/game3dSmokeChecksAudio.js|scripts/game3dSmokeChecksScene.js|scripts/smokeTestGame3D.js|scripts/village-architecture-harness.html|service-worker.js|.github/workflows/rpg-interaction-quest-loop.yml|.github/workflows/run167-determinism-policy.yml|.github/workflows/run283-final-head-governance.yml|.github/workflows/village-architecture-assets.yml|.github/workflows/village-architecture-navigation.yml|.github/workflows/village-geography-texture-contract.yml) ;;
+              src/3d/world/villages.js|src/3d/world/valyriaCastleWeathering.js|src/3d/materials/meshPartClassifier.js|src/3d/materials/figureKits.js|src/3d/materials/palettes.js|scripts/checkVillageArchitectureAssets.js|scripts/checkVillageArchitectureDistribution.mjs|scripts/checkArchitectureSurfaceSemantics.mjs|scripts/checkVillageWindowFrameSemantics.mjs|scripts/checkVillageGlbAssetInventory.mjs|scripts/checkVillageRuntimeArchitectureIntegration.js|scripts/checkVillageArchitectureNavigationBrowser.mjs|scripts/checkVillageBlacksmithServiceReadiness.mjs|scripts/checkVillageGeographyTextureContract.mjs|scripts/checkRun330Villages.js|scripts/checkMobilePerfBudget.js|scripts/checkValyriaCastleWeathering.mjs|scripts/game3dSmokeChecksAudio.js|scripts/game3dSmokeChecksSafeMode.js|scripts/game3dSmokeChecksVegetation.js|scripts/smokeTestGame3D.js|scripts/terrainSeatSafetyCheck.js|scripts/village-architecture-harness.html|service-worker.js|.github/workflows/rpg-interaction-quest-loop.yml|.github/workflows/run167-determinism-policy.yml|.github/workflows/run283-final-head-governance.yml|.github/workflows/village-architecture-assets.yml|.github/workflows/village-architecture-navigation.yml|.github/workflows/village-geography-texture-contract.yml) ;;
               *) echo "unexpected village architecture scope path: $path"; exit 1 ;;
             esac
           done <<< "$CHANGED"
