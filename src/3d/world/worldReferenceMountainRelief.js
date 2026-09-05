@@ -15,11 +15,16 @@ import {
 	WORLD_REFERENCE_MAP,
 } from './worldReferenceMap.js';
 import { WORLD_REFERENCE_BASE_SURFACE_MASK } from './worldReferenceSurfacePindexes.js';
+import {
+	WORLD_REFERENCE_MOUNTAIN_GEOMORPHOLOGY_POLICY,
+	sampleMountainGeomorphologyScale,
+} from './worldReferenceMountainGeomorphology.js';
 
 export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
-	id: 'owner-map-live-mountain-relief-2026-08-26-v7-lake-basin-cirques',
+	id: 'owner-map-live-mountain-relief-2026-09-02-v9-ridge-frame-geomorphology',
 	sourceMapSha256: WORLD_REFERENCE_MAP.sha256,
 	surfaceMaskSha256: WORLD_REFERENCE_BASE_SURFACE_MASK.maskSha256,
+	geomorphologyPolicyId: WORLD_REFERENCE_MOUNTAIN_GEOMORPHOLOGY_POLICY.id,
 	landGateZero: 0.54,
 	landGateFull: 0.84,
 	coordinateWarpNormalized: 0.003,
@@ -29,7 +34,7 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 		broadFrequency: 5.5,
 		detailFrequency: 13.5,
 		minimumScale: 0.94,
-		maximumScale: 1.76,
+		maximumScale: 1.68,
 	}),
 	coastalReliefTaper: Object.freeze({
 		radiusNormalized: 0.012,
@@ -47,9 +52,9 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 	talusBreakup: Object.freeze({
 		broadFrequency: 22,
 		detailFrequency: 47,
-		strength: 0.20,
-		shoulderStart: 0.18,
-		shoulderEnd: 0.92,
+		strength: 0.22,
+		shoulderStart: 0.14,
+		shoulderEnd: 0.94,
 	}),
 	// Western chains overlap shipped kingdom roads, so their audited map-space approaches are
 	// lowered into traversable passes instead of flattening/removing the surrounding mountains.
@@ -85,6 +90,9 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 			outerWidthNormalized: 0.116,
 			summitFloor: 0.48,
 			summitNoiseExponent: 1.10,
+			summitBroadFrequency: 11,
+			summitDetailFrequency: 23,
+			ridgeExponentScale: 1.18,
 			coordinateWarpScale: 2.35,
 			shoulderDetailStrength: 0.27,
 			shoulderDetailFrequency: 31,
@@ -96,6 +104,8 @@ export const WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY = Object.freeze({
 			outerWidthNormalized: 0.108,
 			summitFloor: 0.47,
 			summitNoiseExponent: 1.12,
+			summitBroadFrequency: 11,
+			summitDetailFrequency: 23,
 			coordinateWarpScale: 2.30,
 			shoulderDetailStrength: 0.26,
 			shoulderDetailFrequency: 29,
@@ -441,11 +451,13 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 		if (distance >= outerWidth) continue;
 		const normalizedDistance = clamp(distance / Math.max(outerWidth, 1e-9), 0, 1);
 		const coreRatio = clamp(coreWidth / Math.max(outerWidth, 1e-9), 0.06, 0.24);
-		const ridgeExponent = 0.88 + coreRatio * 1.65;
+		const ridgeExponent = (0.88 + coreRatio * 1.65) * (chain.profile.ridgeExponentScale ?? 1);
 		const ridge = Math.pow(Math.cos(normalizedDistance * Math.PI * 0.5), ridgeExponent);
+		const summitBroadFrequency = chain.profile.summitBroadFrequency ?? 8;
+		const summitDetailFrequency = chain.profile.summitDetailFrequency ?? 17;
 		const summitNoise = (
-			valueNoise2D(normalizedX * 8, normalizedY * 8, chain.profile.seed + 101) * 0.75 +
-			valueNoise2D(normalizedX * 17, normalizedY * 17, chain.profile.seed + 211) * 0.25
+			valueNoise2D(normalizedX * summitBroadFrequency, normalizedY * summitBroadFrequency, chain.profile.seed + 101) * 0.75 +
+			valueNoise2D(normalizedX * summitDetailFrequency, normalizedY * summitDetailFrequency, chain.profile.seed + 211) * 0.25
 		);
 		const summitFloor = chain.profile.summitFloor ?? WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.summitModulationMinimum;
 		const summitExponent = chain.profile.summitNoiseExponent ?? WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.summitNoiseExponent;
@@ -453,10 +465,18 @@ export function sampleNormalizedReferenceMountainReliefMeters(normalizedX, norma
 			(1 - summitFloor) *
 				Math.pow(summitNoise, summitExponent);
 		const talusBreakup = sampleTalusBreakup(normalizedX, normalizedY, normalizedDistance, chain.profile.seed);
+		const geomorphologyScale = sampleMountainGeomorphologyScale(
+			px / MAP_ASPECT,
+			py,
+			chain.points,
+			MAP_ASPECT,
+			normalizedDistance,
+			chain.profile.seed,
+		);
 		const passMultiplier = samplePassMultiplier(normalizedX, normalizedY, chain.profile.passes);
 		strongestMeters = Math.max(
 			strongestMeters,
-			chain.profile.peakMeters * ridge * modulation * talusBreakup * passMultiplier,
+			chain.profile.peakMeters * ridge * modulation * talusBreakup * geomorphologyScale * passMultiplier,
 		);
 	}
 	if (strongestMeters === 0) return 0;

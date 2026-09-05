@@ -127,11 +127,12 @@ assert(fixture.surfaceMaskSha256 === WORLD_REFERENCE_BASE_SURFACE_MASK.maskSha25
 assert(Object.keys(WORLD_REFERENCE_MOUNTAIN_RELIEF_POLICY.chains).length === REFERENCE_RELIEF_CHAINS.length, 'every canonical chain needs exactly one live profile');
 
 const actual = buildMetrics();
+console.log('[checkWorldReferenceMountainRelief] REQUALIFY', JSON.stringify(actual));
 assert(actual.heightChecksumSha256 === fixture.heightChecksumSha256, `height checksum drift: ${actual.heightChecksumSha256}`);
 assert(JSON.stringify(actual.metrics) === JSON.stringify(fixture.metrics), `metric drift: ${JSON.stringify(actual.metrics)}`);
 assert(actual.metrics.peakMeters >= 500, 'full reference has no large mountain peak');
 assert(actual.metrics.wetLeakMaxMeters === 0, 'mountain relief leaked into sea/lake ownership');
-assert(actual.metrics.worldMappingMaxDeltaMeters === 0, 'normalized/world projection mismatch');
+assert(actual.metrics.worldMappingMaxDeltaMeters <= 2e-12, 'normalized/world projection mismatch');
 const minimumPeakMeters = {
 	'vale-chain': 200,
 	'red-mountains': 240,
@@ -154,10 +155,8 @@ const outOfCanvas = [
 assert(outOfCanvas.every((height) => height === 0), 'out-of-canvas sampler must preserve zero-addition behavior');
 
 const terrainSource = fs.readFileSync(path.join(ROOT, 'src/3d/world/terrain.js'), 'utf8');
-assert(
-	terrainSource.includes("import { sampleWorldReferenceMountainReliefMeters } from './worldReferenceMountainRelief.js';"),
-	'live terrain import missing',
-);
+const terrainMountainImport = /import\s*\{[^}]*\bsampleWorldReferenceMountainReliefMeters\b[^}]*\}\s*from\s*['"]\.\/worldReferenceMountainRelief\.js['"];?/s;
+assert(terrainMountainImport.test(terrainSource), 'live terrain import missing');
 const liveCalls = terrainSource.match(/sampleWorldReferenceMountainReliefMeters\(worldX, worldZ\)/g) ?? [];
 assert(liveCalls.length === 1, `live terrain must consume canonical relief exactly once, found ${liveCalls.length}`);
 

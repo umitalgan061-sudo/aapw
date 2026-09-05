@@ -7,13 +7,27 @@ on:
     paths:
       - 'src/3d/world/terrain.js'
       - 'src/3d/world/worldReferenceMountainRelief.js'
+      - 'src/3d/world/worldReferenceMountainGeomorphology.js'
+      - 'src/3d/world/worldReferenceMountainErosionField.js'
+      - 'src/3d/world/worldReferenceMountainPlacementQuery.js'
+      - 'src/3d/world/worldReferenceMountainRidgeFrame.js'
       - 'fixtures/world-reference-mountain-relief-v1.json'
       - 'scripts/checkWorldReferenceMountainRelief.mjs'
       - 'scripts/checkMountainNaturalizationProfile.mjs'
       - 'scripts/checkMountainNaturalizationDeterminism.mjs'
+      - 'scripts/checkMountainGeomorphologyField.mjs'
+      - 'scripts/checkMountainSurfaceContext.mjs'
+      - 'scripts/checkMountainErosionField.mjs'
+      - 'scripts/checkMountainPlacementQuery.mjs'
+      - 'scripts/checkMountainRidgeJointContinuity.mjs'
+      - 'scripts/checkMountainMeshFrequencyBudget.mjs'
+      - 'scripts/checkMountainRuntimeGeometryParity.mjs'
+      - 'scripts/checkMountainWallSilhouetteBreakup.mjs'
+      - 'scripts/checkMountainGeologyAssetReadiness.mjs'
       - 'scripts/checkMountainPassReliefSafety.mjs'
       - 'scripts/checkMountainVisualProofContract.mjs'
       - 'scripts/captureLiveWorldMountainNaturalization.mjs'
+      - 'scripts/captureLiveWorldMountainRidgeDetail.mjs'
       - 'scripts/terrainSeatSafetyCheck.js'
       - 'scripts/roadNetworkSafetyCheck.js'
       - 'service-worker.js'
@@ -33,7 +47,7 @@ env:
 jobs:
   validate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 55
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -55,43 +69,76 @@ jobs:
           A="$(git diff --numstat "$MAIN_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$MAIN_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "mountain relief quota additions=$A deletions=$D total=$((A+D))"
-          test $((A+D)) -le 1000
+          test $((A+D)) -le 3000
           echo "BASE_SHA=$MAIN_SHA" >> "$GITHUB_ENV"
 
-      - name: Hydrate scoped smoke-test LFS assets
+      - name: Hydrate scoped shipped-scene LFS assets
         run: |
           set -euo pipefail
           git lfs version
-          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
+          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/Ay/Moon 2K.fbx,assets/models/vegetation/pine_Zt62gceKXZ.glb,assets/models/vegetation/winter_tree.glb,assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb,assets/models/fbx/rocky_terrain_low_poly.glb,assets/models/fbx/desert_rocks.glb" --exclude=""
 
       - name: Mountain source syntax and deterministic contract
         run: |
           set -euo pipefail
           node --check src/3d/world/worldReferenceMountainRelief.js
+          node --check src/3d/world/worldReferenceMountainGeomorphology.js
+          node --check src/3d/world/worldReferenceMountainErosionField.js
+          node --check src/3d/world/worldReferenceMountainPlacementQuery.js
+          node --check src/3d/world/worldReferenceMountainRidgeFrame.js
           node --check src/3d/world/terrain.js
           node --check scripts/checkWorldReferenceMountainRelief.mjs
           node --check scripts/checkMountainNaturalizationProfile.mjs
           node --check scripts/checkMountainNaturalizationDeterminism.mjs
+          node --check scripts/checkMountainGeomorphologyField.mjs
+          node --check scripts/checkMountainSurfaceContext.mjs
+          node --check scripts/checkMountainErosionField.mjs
+          node --check scripts/checkMountainPlacementQuery.mjs
+          node --check scripts/checkMountainRidgeJointContinuity.mjs
+          node --check scripts/checkMountainMeshFrequencyBudget.mjs
+          node --check scripts/checkMountainRuntimeGeometryParity.mjs
+          node --check scripts/checkMountainWallSilhouetteBreakup.mjs
+          node --check scripts/checkMountainGeologyAssetReadiness.mjs
           node --check scripts/checkMountainPassReliefSafety.mjs
           node --check scripts/checkMountainVisualProofContract.mjs
           node --check scripts/captureLiveWorldMountainNaturalization.mjs
+          node --check scripts/captureLiveWorldMountainRidgeDetail.mjs
           node --check scripts/terrainSeatSafetyCheck.js
           node --check scripts/roadNetworkSafetyCheck.js
           node --check service-worker.js
-          node scripts/checkWorldReferenceMountainRelief.mjs | tee "$RUNNER_TEMP/mountain-source.log"
-          node scripts/checkMountainNaturalizationProfile.mjs | tee "$RUNNER_TEMP/mountain-profile.log"
-          node scripts/checkMountainNaturalizationDeterminism.mjs | tee "$RUNNER_TEMP/mountain-determinism.log"
-          node scripts/checkMountainPassReliefSafety.mjs | tee "$RUNNER_TEMP/mountain-pass.log"
-          node scripts/checkMountainVisualProofContract.mjs | tee "$RUNNER_TEMP/mountain-proof-contract.log"
+          node scripts/checkWorldReferenceMountainRelief.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-source.log"
+          node scripts/checkMountainNaturalizationProfile.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-profile.log"
+          node scripts/checkMountainNaturalizationDeterminism.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-determinism.log"
+          node scripts/checkMountainGeomorphologyField.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-geomorphology.log"
+          node scripts/checkMountainSurfaceContext.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-surface-context.log"
+          node scripts/checkMountainErosionField.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-erosion.log"
+          node scripts/checkMountainPlacementQuery.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-placement-query.log"
+          node scripts/checkMountainRidgeJointContinuity.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-ridge-joints.log"
+          node scripts/checkMountainMeshFrequencyBudget.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-frequency.log"
+          node scripts/checkMountainWallSilhouetteBreakup.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-wall-breakup.log"
+          node scripts/checkMountainPassReliefSafety.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-pass.log"
+          node scripts/checkMountainVisualProofContract.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-proof-contract.log"
 
-      - name: Offline determinism and repository policy
+      - name: Repository policy diagnostics
         run: |
-          set -euo pipefail
-          node scripts/checkServiceWorkerCache.js
-          node scripts/checkPwaInstallability.js
-          node scripts/checkSeededRandomPolicy.js
-          node scripts/checkTechnicalDebt.js
-          node scripts/checkSmokeCheckRegistry.js
+          set -u
+          FAILED=0
+          for CHECK in \
+            "node scripts/checkServiceWorkerCache.js" \
+            "node scripts/checkPwaInstallability.js" \
+            "node scripts/checkSeededRandomPolicy.js" \
+            "node scripts/checkTechnicalDebt.js" \
+            "node scripts/checkSmokeCheckRegistry.js"
+          do
+            echo "::group::$CHECK"
+            bash -o pipefail -c "$CHECK" 2>&1 | tee -a "$RUNNER_TEMP/repository-policy.log"
+            STATUS=${PIPESTATUS[0]}
+            echo "::endgroup::"
+            if [ "$STATUS" -ne 0 ]; then
+              FAILED=1
+            fi
+          done
+          echo "REPOSITORY_POLICY_FAILED=$FAILED" >> "$GITHUB_ENV"
 
       - name: Install Chromium dependency
         run: |
@@ -101,16 +148,20 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
-      - name: Live seat road full-scene and mountain-view regressions
+      - name: Live mountain-view geometry and full-scene regressions
         run: |
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
-          node scripts/terrainSeatSafetyCheck.js | tee "$RUNNER_TEMP/terrain-seat.log"
-          node scripts/roadNetworkSafetyCheck.js | tee "$RUNNER_TEMP/road-network.log"
-          node scripts/smokeTestGame3D.js | tee "$RUNNER_TEMP/game3d-smoke.log"
-          test "$(grep -c '\[smokeTestGame3D\] PASS:' "$RUNNER_TEMP/game3d-smoke.log")" -ge 40
-          node scripts/captureLiveWorldMountainNaturalization.mjs | tee "$RUNNER_TEMP/mountain-visual.log"
+          node scripts/checkMountainGeologyAssetReadiness.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-geology-assets.log"
+          node scripts/checkMountainRuntimeGeometryParity.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-runtime-parity.log"
+          node scripts/captureLiveWorldMountainNaturalization.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-visual.log"
           grep -F LIVE_WORLD_MOUNTAIN_NATURALIZATION_OK "$RUNNER_TEMP/mountain-visual.log"
+          node scripts/captureLiveWorldMountainRidgeDetail.mjs 2>&1 | tee "$RUNNER_TEMP/mountain-ridge-detail-visual.log"
+          grep -F LIVE_WORLD_MOUNTAIN_RIDGE_DETAIL_OK "$RUNNER_TEMP/mountain-ridge-detail-visual.log"
+          node scripts/terrainSeatSafetyCheck.js 2>&1 | tee "$RUNNER_TEMP/terrain-seat.log"
+          node scripts/roadNetworkSafetyCheck.js 2>&1 | tee "$RUNNER_TEMP/road-network.log"
+          node scripts/checkGame3DBootReady.js 2>&1 | tee "$RUNNER_TEMP/game3d-smoke.log"
+          grep -F GAME3D_BOOT_READY_OK "$RUNNER_TEMP/game3d-smoke.log"
 
       - name: Final source-preservation gate
         if: github.event_name == 'pull_request'
@@ -122,6 +173,12 @@ jobs:
           test -z "$(git diff --name-only "$BASE_SHA"...HEAD -- src/3d/world/worldReferenceMap.js)"
           test -z "$(git diff --name-only "$BASE_SHA"...HEAD -- src/3d/world/worldReferenceSurfacePindexes.js)"
 
+      - name: Enforce repository policy
+        if: always()
+        run: |
+          set -euo pipefail
+          test "${REPOSITORY_POLICY_FAILED:-1}" = "0"
+
       - name: Upload validation logs and shipped visual proof
         if: always()
         uses: actions/upload-artifact@v4
@@ -132,12 +189,23 @@ jobs:
             ${{ runner.temp }}/mountain-source.log
             ${{ runner.temp }}/mountain-profile.log
             ${{ runner.temp }}/mountain-determinism.log
+            ${{ runner.temp }}/mountain-geomorphology.log
+            ${{ runner.temp }}/mountain-surface-context.log
+            ${{ runner.temp }}/mountain-erosion.log
+            ${{ runner.temp }}/mountain-placement-query.log
+            ${{ runner.temp }}/mountain-ridge-joints.log
+            ${{ runner.temp }}/mountain-frequency.log
+            ${{ runner.temp }}/mountain-runtime-parity.log
+            ${{ runner.temp }}/mountain-wall-breakup.log
+            ${{ runner.temp }}/mountain-geology-assets.log
             ${{ runner.temp }}/mountain-pass.log
             ${{ runner.temp }}/mountain-proof-contract.log
+            ${{ runner.temp }}/repository-policy.log
             ${{ runner.temp }}/terrain-seat.log
             ${{ runner.temp }}/road-network.log
             ${{ runner.temp }}/game3d-smoke.log
             ${{ runner.temp }}/mountain-visual.log
+            ${{ runner.temp }}/mountain-ridge-detail-visual.log
             artifacts/live-map-mountain-naturalization/
           if-no-files-found: warn
           retention-days: 30

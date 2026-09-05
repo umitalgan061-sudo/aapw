@@ -55,6 +55,17 @@ const SLOPE_SAMPLE_OFFSET_METERS = 2;
 
 const MIME_TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8' };
 
+const MODULE_HARNESS_HTML = `<!doctype html>
+<meta charset="utf-8">
+<script type="importmap">
+{
+  "imports": {
+    "three": "/src/3d/vendor/three/three.module.js",
+    "three/addons/": "/src/3d/vendor/three/addons/"
+  }
+}
+</script>`;
+
 /**
  * Starts a plain static file server over the repo root — same minimal pattern
  * `smokeTestGame3D.js` uses, trimmed to only the MIME types this check's page load needs.
@@ -118,7 +129,10 @@ async function main() {
 	let seatResults;
 	try {
 		const page = await browser.newPage();
-		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+		// Establish the real repo origin without booting createScene(), then install the same local
+		// import-map contract game3d.html uses before any production module is evaluated.
+		await page.goto(`${baseUrl}/manifest.json`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+		await page.setContent(MODULE_HARNESS_HTML, { waitUntil: 'domcontentloaded' });
 		seatResults = await page.evaluate(
 			async ({ slopeOffset }) => {
 				const { KINGDOM_SEATS, mapToWorldXZ, computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');

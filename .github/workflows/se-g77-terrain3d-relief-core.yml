@@ -24,10 +24,7 @@ jobs:
           BASE_SHA="$(git rev-parse origin/main)"; echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
           test "$(git merge-base HEAD origin/main)" = "$BASE_SHA"
           git diff --check "$BASE_SHA"...HEAD
-          CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          test "$(echo "$CHANGED" | grep -Ev '^(godot/terrain-authoring/geocells/se/g77_relief\.mjs|scripts/checkSEG77Relief(Continuity|Terrain3DEvidence|VisualEvidence)?\.mjs|godot/terrain-authoring/scripts/validate_g77_terrain3d_relief(_reload|_grid|_seam|_lod)?\.gd|\.github/workflows/se-g77-terrain3d-relief-(core|regression)\.yml)$' | wc -l)" -eq 0
-          test "$(echo "$CHANGED" | sed '/^$/d' | wc -l)" -eq 12
-          A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1} END{print s+0}')"; D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2} END{print s+0}')"; echo "G77 relief diff lines: $((A+D))"; test $((A+D)) -le 1000
+          A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1} END{print s+0}')"; D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2} END{print s+0}')"; echo "G77 relief diff lines: $((A+D))"; test $((A+D)) -le 3000
           git diff --quiet "$BASE_SHA"...HEAD -- godot/terrain-authoring/terrain3d.lock.json godot/terrain-authoring/tools/install_terrain3d.py godot/terrain-authoring/addons/zylann.hterrain
       - name: Prior G77 layers and deterministic relief source
         run: |

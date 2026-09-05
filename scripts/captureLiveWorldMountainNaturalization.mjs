@@ -29,7 +29,12 @@ try {
 	});
 	page.on('pageerror', (error) => pageErrors.push(String(error)));
 	page.on('requestfailed', (request) => {
-		requestFailures.push(`${request.method()} ${request.url()}: ${request.failure()?.errorText ?? 'failed'}`);
+		const failure = request.failure()?.errorText ?? 'failed';
+		// Chromium aborts HEAD bodies served by the tiny static proof server after receiving the
+		// headers. That is not an asset-load failure; real missing files still surface as HTTP 404
+		// console errors and remain a hard failure below.
+		if (request.method() === 'HEAD' && failure === 'net::ERR_ABORTED') return;
+		requestFailures.push(`${request.method()} ${request.url()}: ${failure}`);
 	});
 	await page.goto(`http://127.0.0.1:${port}/scripts/fixtures/sw-g07-runtime-visual-harness.html`, {
 		waitUntil: 'load',
@@ -37,6 +42,13 @@ try {
 	});
 
 	const frame = await page.evaluate(async ({ width, height }) => {
+		// The blank visual harness lives below /scripts/fixtures/, while shipped createScene()
+		// resolves authored model URLs from the application root. Mirror game3d.html's root-relative
+		// document semantics so asset preflights do not accidentally request /scripts/fixtures/assets/.
+		const base = document.createElement('base');
+		base.href = '/';
+		document.head.prepend(base);
+
 		const importMap = document.createElement('script');
 		importMap.type = 'importmap';
 		importMap.textContent = JSON.stringify({ imports: {
@@ -130,6 +142,8 @@ try {
 		const passH = sampleHeight(passX, passZ);
 
 		const daylight = lightingModule.updateDayNightLighting(state.lights, 0, WORLD_DEFAULTS.DAY_LENGTH_SECONDS, 0.48);
+		const fogModule = await import('/src/3d/fog.js');
+		fogModule.updateFog(state.scene.fog, daylight);
 		const aspect = width / height;
 		const orthoHeight = Math.max(worldDepth * 1.08, worldWidth / aspect * 1.08);
 		const orthoWidth = orthoHeight * aspect;

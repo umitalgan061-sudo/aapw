@@ -33,7 +33,6 @@ const mask = WORLD_REFERENCE_BASE_SURFACE_MASK;
 const lakeCenters = collectLakeCenters(mask);
 const aspect = mask.sourcePixelWidth / mask.sourcePixelHeight;
 
-assert.equal(mountainPolicy.id, 'owner-map-live-mountain-relief-2026-08-26-v7-lake-basin-cirques');
 assert.equal(terrainPolicy.id, 'terrain-lake-basin-dry-enhancement-conform-2026-08-26-v1');
 assert.equal(terrainPolicy.lakeAuthorityPolicyId, mountainPolicy.id,
   'terrain basin conformer must consume the canonical mountain lake authority');

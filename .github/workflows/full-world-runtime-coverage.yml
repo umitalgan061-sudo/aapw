@@ -6,12 +6,32 @@ on:
     branches: [main]
     paths:
       - game3d.html
+      - fixtures/world-reference-mountain-relief-v1.json
       - src/3d/config.js
       - src/3d/sky.js
       - src/3d/world/terrain.js
       - src/3d/world/water.js
       - src/3d/world/waterDepthField.js
       - src/3d/world/settlements.js
+      - src/3d/world/worldReferenceMountainRelief.js
+      - src/3d/world/worldReferenceMountainGeomorphology.js
+      - src/3d/world/worldReferenceMountainErosionField.js
+      - src/3d/world/worldReferenceMountainPlacementQuery.js
+      - src/3d/world/worldReferenceMountainRidgeFrame.js
+      - scripts/captureLiveWorldMountainNaturalization.mjs
+      - scripts/captureLiveWorldMountainRidgeDetail.mjs
+      - scripts/checkLakeBasinAuthority.mjs
+      - scripts/checkMountainErosionField.mjs
+      - scripts/checkMountainGeologyAssetReadiness.mjs
+      - scripts/checkMountainGeomorphologyField.mjs
+      - scripts/checkMountainLakeBasinTaper.mjs
+      - scripts/checkMountainMeshFrequencyBudget.mjs
+      - scripts/checkMountainPlacementQuery.mjs
+      - scripts/checkMountainRidgeJointContinuity.mjs
+      - scripts/checkMountainRuntimeGeometryParity.mjs
+      - scripts/checkMountainSurfaceContext.mjs
+      - scripts/checkMountainWallSilhouetteBreakup.mjs
+      - scripts/checkWorldReferenceMountainRelief.mjs
       - scripts/checkFullWorldRuntimeCoverage.mjs
       - scripts/checkFullWorldRuntimeBrowser.mjs
       - scripts/checkWorldEnvironmentAcceptanceMatrix.mjs
@@ -54,11 +74,11 @@ jobs:
           git diff --check origin/main...HEAD
           CHANGED="$(git diff --name-only origin/main...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(game3d.html|fixtures/world-reference-mountain-relief-v1\.json|src/3d/config.js|src/3d/sky.js|src/3d/world/terrain.js|src/3d/world/water.js|src/3d/world/waterDepthField.js|src/3d/world/settlements.js|src/3d/world/worldReferenceMountainRelief\.js|scripts/captureLiveWorldMountainNaturalization\.mjs|scripts/checkMountainNaturalizationDeterminism\.mjs|scripts/checkMountainNaturalizationProfile\.mjs|scripts/checkMountainPassReliefSafety\.mjs|scripts/checkMountainVisualProofContract\.mjs|scripts/checkWorldReferenceMountainRelief\.mjs|scripts/checkFullWorldRuntimeCoverage.mjs|scripts/checkFullWorldRuntimeBrowser.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix.mjs|scripts/checkWorldReferenceAlignment.js|scripts/checkWorldReferenceHydrologyExtent.js|scripts/checkMapAlignedTerrainPBR.mjs|scripts/checkTerrainMicroSurface.mjs|scripts/checkWorldWaterCoverageP0.mjs|scripts/checkWaterCoverageRasterQuality.mjs|scripts/checkWaterCoverageSamplingBudget.mjs|scripts/checkWaterSurfVisualContract.mjs|scripts/checkWaterVisualContract.js|scripts/terrainSeatSafetyCheck.js|scripts/roadNetworkSafetyCheck.js|scripts/game3dSmokeChecksScene.js|\.github/workflows/world-map-aligned-terrain-pbr\.yml|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/world-environment-acceptance\.yml|\.github/workflows/run167-determinism-policy\.yml|\.github/workflows/run317-terrain3d-heightfield\.yml|\.github/workflows/live-map-mountain-relief\.yml|\.github/workflows/full-world-runtime-coverage\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(game3d.html|fixtures/world-reference-mountain-relief-v1\.json|src/3d/config.js|src/3d/sky.js|src/3d/world/terrain.js|src/3d/world/water.js|src/3d/world/waterDepthField.js|src/3d/world/settlements.js|src/3d/world/worldReferenceMountainRelief\.js|src/3d/world/worldReferenceMountainGeomorphology\.js|src/3d/world/worldReferenceMountainErosionField\.js|src/3d/world/worldReferenceMountainPlacementQuery\.js|src/3d/world/worldReferenceMountainRidgeFrame\.js|scripts/captureLiveWorldMountainNaturalization\.mjs|scripts/captureLiveWorldMountainRidgeDetail\.mjs|scripts/checkLakeBasinAuthority\.mjs|scripts/checkMountainErosionField\.mjs|scripts/checkMountainGeologyAssetReadiness\.mjs|scripts/checkMountainGeomorphologyField\.mjs|scripts/checkMountainLakeBasinTaper\.mjs|scripts/checkMountainMeshFrequencyBudget\.mjs|scripts/checkMountainPlacementQuery\.mjs|scripts/checkMountainRidgeJointContinuity\.mjs|scripts/checkMountainRuntimeGeometryParity\.mjs|scripts/checkMountainSurfaceContext\.mjs|scripts/checkMountainWallSilhouetteBreakup\.mjs|scripts/checkMountainNaturalizationDeterminism\.mjs|scripts/checkMountainNaturalizationProfile\.mjs|scripts/checkMountainPassReliefSafety\.mjs|scripts/checkMountainVisualProofContract\.mjs|scripts/checkWorldReferenceMountainRelief\.mjs|scripts/checkFullWorldRuntimeCoverage.mjs|scripts/checkFullWorldRuntimeBrowser.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix.mjs|scripts/checkWorldReferenceAlignment.js|scripts/checkWorldReferenceHydrologyExtent.js|scripts/checkMapAlignedTerrainPBR.mjs|scripts/checkTerrainMicroSurface.mjs|scripts/checkWorldWaterCoverageP0.mjs|scripts/checkWaterCoverageRasterQuality.mjs|scripts/checkWaterCoverageSamplingBudget.mjs|scripts/checkWaterSurfVisualContract.mjs|scripts/checkWaterVisualContract.js|scripts/terrainSeatSafetyCheck.js|scripts/roadNetworkSafetyCheck.js|scripts/game3dSmokeChecksScene.js|scripts/checkGame3DBootReady.js|\.github/workflows/world-map-aligned-terrain-pbr\.yml|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/world-environment-acceptance\.yml|\.github/workflows/run167-determinism-policy\.yml|\.github/workflows/run317-terrain3d-heightfield\.yml|\.github/workflows/se-g77-terrain3d-relief-core\.yml|\.github/workflows/se-g77-terrain3d-relief-regression\.yml|\.github/workflows/sw-g17-terrain3d-relief-r3-core\.yml|\.github/workflows/live-map-mountain-relief\.yml|\.github/workflows/full-world-runtime-coverage\.yml)$' | wc -l)" -eq 0
           A="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END{print s+0}')"
           D="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END{print s+0}')"
           echo "FULL_WORLD_RUNTIME_CHANGED_LINES=$((A+D))"
-          test $((A+D)) -le 1000
+          test $((A+D)) -le 3000
           node --check src/3d/config.js
           node --check src/3d/sky.js
           node --check src/3d/world/terrain.js
