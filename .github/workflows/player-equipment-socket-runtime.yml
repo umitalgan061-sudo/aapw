@@ -8,6 +8,7 @@ on:
       - 'assets/models/fbx/Viking Sword Blend_Viking Sword.fbx'
       - 'src/3d/assetLoader.js'
       - 'src/3d/materials/MaterialAssignmentCore.js'
+      - 'scripts/checkPlayerEquipmentAssetReadiness.mjs'
       - 'scripts/checkPlayerEquipmentSocketRuntime.mjs'
       - '.github/workflows/player-equipment-socket-runtime.yml'
   workflow_dispatch:
@@ -56,9 +57,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          node --check scripts/checkPlayerEquipmentAssetReadiness.mjs
           node --check scripts/checkPlayerEquipmentSocketRuntime.mjs
           node scripts/checkSharedMaterialPlacementContract.js
           test -f src/3d/materials/MaterialAssignmentCore.js
+          ! grep -q 'EditorMaterialStudio' scripts/checkPlayerEquipmentAssetReadiness.mjs
           ! grep -q 'EditorMaterialStudio' scripts/checkPlayerEquipmentSocketRuntime.mjs
       - name: Install Chromium
         shell: bash
@@ -68,6 +71,15 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Hydrated equipment surface and material readiness proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/player-equipment-readiness
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerEquipmentAssetReadiness.mjs --out-dir=artifacts/player-equipment-readiness | tee artifacts/player-equipment-readiness.log
+          grep -q 'PLAYER_EQUIPMENT_ASSET_READINESS_OK' artifacts/player-equipment-readiness.log
+          test -s artifacts/player-equipment-readiness/equipment-asset-readiness.json
+          node --input-type=module -e "import fs from 'node:fs'; const p=JSON.parse(fs.readFileSync('artifacts/player-equipment-readiness/equipment-asset-readiness.json','utf8')); if (p.missingAssetCount !== 0 || p.browserErrors.length !== 0) throw new Error('equipment readiness errors'); if (!(p.equipment.surfaceCount > 0 && p.equipment.materialSlotCount > 0 && p.equipment.namedMaterialCount > 0)) throw new Error('missing named render/material surfaces'); if (p.materialContract.recommendedPalette !== 'steel' || p.materialContract.recommendedTextureSize !== 256) throw new Error('material recommendation drift'); if (p.materialContract.importedMaterialPreserved !== true) throw new Error('imported material was not preserved');"
       - name: Hydrated right-hand socket runtime proof
         shell: bash
         run: |
@@ -95,5 +107,7 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
           path: |
+            artifacts/player-equipment-readiness/
+            artifacts/player-equipment-readiness.log
             artifacts/player-equipment-socket-runtime/
             artifacts/player-equipment-socket-runtime.log
