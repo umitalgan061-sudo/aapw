@@ -137,6 +137,8 @@ try {
   need(finite(proof.socket.worldQuaternion), `non-finite socket quaternion: ${JSON.stringify(proof.socket.worldQuaternion)}`);
   need(Math.abs(Math.hypot(...proof.socket.worldQuaternion) - 1) < 1e-5, `socket quaternion lost unit length: ${JSON.stringify(proof.socket.worldQuaternion)}`);
   need(finite(proof.socket.worldScale) && proof.socket.worldScale.every((value) => value > 1e-8), `mirrored or degenerate socket scale: ${JSON.stringify(proof.socket.worldScale)}`);
+  const socketScaleSpread = Math.max(...proof.socket.worldScale) - Math.min(...proof.socket.worldScale);
+  need(socketScaleSpread < 1e-6, `non-uniform socket scale would distort equipment: ${JSON.stringify(proof.socket.worldScale)}`);
   need(finite(proof.geometry.originalSize) && Math.max(...proof.geometry.originalSize) > 0, 'equipment original bounds are empty');
   need(finite(proof.geometry.socketSize) && Math.max(...proof.geometry.socketSize) > 0, 'equipment socket bounds are empty');
   need(proof.material.beforeAttach.ok && proof.material.beforeAttach.errors.length === 0, `material invalid before attach: ${JSON.stringify(proof.material.beforeAttach)}`);
