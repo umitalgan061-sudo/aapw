@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-06-v65-deep-water-near-black-rca',
+	id: 'geographic-reference-palette-2026-09-06-v66-desaturated-deep-water',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v65 preserves v56 aerial lowland separation: meadow remains lifted away from damp moss, dry heath stays darker/desaturated, ferric earth remains warm, and exposed stone stays compressed without changing terrain height, shoreline, hydrology or colliders',
-		water: 'v65 responds to fresh shipped Run325 near-water proof that still collapses most open ocean toward black. The shared deep-sea/abyss floor is lifted only one restrained step, while keeping deep sea and abyss chroma-identical so the underlay cannot expose a rectangular colour-family seam. Shore/lake/river colours, canonical wet coverage, shoreline, bathymetry, lake/river membership and collider authority remain unchanged.',
-		road: 'v65 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
+		terrain: 'v66 preserves v56 aerial lowland separation: meadow remains lifted away from damp moss, dry heath stays darker/desaturated, ferric earth remains warm, and exposed stone stays compressed without changing terrain height, shoreline, hydrology or colliders',
+		water: 'v66 responds to fresh shipped Run325 framebuffer evidence by desaturating the shared deep-sea/abyss base toward restrained mineral blue-grey while keeping it inside the same low luminance band. This reduces cyan/teal horizon banding without brightening the ocean to chase the motion metric. Deep sea and abyss remain chroma-identical so the underlay cannot expose a rectangular colour-family seam; shore/lake/river colours, canonical wet coverage, shoreline, bathymetry, lake/river membership and collider authority remain unchanged.',
+		road: 'v66 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -51,8 +51,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		lakeClear: 0x2c5962,
 		riverPool: 0x2b5e67,
 		rapid: 0x789a9a,
-		deepSea: 0x153f50,
-		abyss: 0x153f50,
+		deepSea: 0x243c46,
+		abyss: 0x243c46,
 		plunge: 0x47727a,
 		splash: 0xdeedeb,
 		foam: 0xf1f7f4,
