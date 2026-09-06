@@ -185,6 +185,7 @@ const BUILDING = [
 	{ id: 'castle-dark', label: 'Kale — Kara Taş', family: 'Yapı', base: 0x5e5c58, dark: 0x35342f, light: 0x86837d, accent: 0x3f4a35, pattern: 'castle-block', roughness: 0.9, metalness: 0.03 },
 	{ id: 'castle-ice', label: 'Kale — Buz Hisarı', family: 'Yapı', base: 0xb4cede, dark: 0x7493a6, light: 0xe4f2fa, accent: 0x4a8ab0, pattern: 'castle-block', roughness: 0.35, metalness: 0.08 },
 	{ id: 'house', label: 'Ev', family: 'Yapı', base: 0xc4b294, dark: 0x8e7f65, light: 0xe0d3ba, accent: 0x6b4a30, pattern: 'plaster', roughness: 0.9, metalness: 0 },
+	{ id: 'plaster', label: 'Sıva', family: 'Yapı', base: 0xd9ccb2, dark: 0xa89a82, light: 0xeee4d0, accent: 0xb9aa90, pattern: 'plaster', roughness: 0.94, metalness: 0 },
 	{ id: 'wood', label: 'Ahşap', family: 'Yapı', base: 0x8a6435, dark: 0x573e1f, light: 0xb08a55, accent: 0x3f2c16, pattern: 'wood', roughness: 0.85, metalness: 0 },
 	{ id: 'brick', label: 'Tuğla', family: 'Yapı', base: 0x9c4f37, dark: 0x63301f, light: 0xc47a5c, accent: 0xd8d0c0, pattern: 'brick', roughness: 0.88, metalness: 0 },
 	{ id: 'roof-tile', label: 'Kiremit', family: 'Yapı', base: 0x8a4030, dark: 0x55241a, light: 0xb0644c, accent: 0x3f2a20, pattern: 'roof-tile', roughness: 0.85, metalness: 0 },

@@ -88,13 +88,13 @@ async function checkVegetation(browser, baseUrl) {
 				|| matricesA.length !== matricesC.length
 				|| matricesA.some((value, index) => value !== matricesC[index]);
 			const placedNeverExceedsTarget = runA.placedCount <= runA.targetCount;
-			// 2 species * (trunk + foliage) = 4 draw calls for the whole forest, species pairs always
-			// present in `SPECIES` order regardless of whether a given seed/area placed 0 of one species.
-			const fourDrawCallsForTwoSpecies = runA.group.children.length === 6;
-			// This seed/area/density combination places enough trees (verified, not assumed) that both
-			// species are actually represented — proves the mix is real, not one species starving out.
-			const bothSpeciesRepresented = runA.group.children[0].count > 0 && runA.group.children[2].count > 0;
-			const speciesCountsSumToPlaced = runA.group.children[0].count + runA.group.children[2].count === runA.placedCount;
+			// 3 species * (trunk + foliage) = 6 draw calls. Snow-pine remains a real mesh pair even
+			// when this temperate fixture gives it zero instances, preserving stable species ordering.
+			const sixDrawCallsForThreeSpecies = runA.group.children.length === 6;
+			// This seed/area/density combination places enough temperate trees (verified, not assumed)
+			// that both weighted temperate species are represented.
+			const bothTemperateSpeciesRepresented = runA.group.children[0].count > 0 && runA.group.children[2].count > 0;
+			const speciesCountsSumToPlaced = runA.group.children[0].count + runA.group.children[2].count + runA.group.children[4].count === runA.placedCount;
 
 			// Total exclusion: a seat placed at the disc's own center with a disc radius (80m) smaller
 			// than the seat's own 90m exclusion radius means every candidate point is rejected — proves
@@ -182,7 +182,7 @@ async function checkVegetation(browser, baseUrl) {
 				rejectsNearRoad, acceptsFarFromRoad, rejectsSteepSlope,
 				speciesPickLowRoll, speciesPickJustBelowBoundary, speciesPickAtBoundary, speciesPickHighRoll,
 				sameSeedIsDeterministic, differentSeedDiffers, placedNeverExceedsTarget,
-				fourDrawCallsForTwoSpecies, bothSpeciesRepresented, speciesCountsSumToPlaced,
+				sixDrawCallsForThreeSpecies, bothTemperateSpeciesRepresented, speciesCountsSumToPlaced,
 				rejectionActuallyRejects, zeroRadiusIsInert, disposeDidNotThrow: !disposeThrew,
 				annulusInnerEdgeExact, annulusOuterEdgeExact, annulusOffCenterExact,
 				qualifyingSeatGetsCluster, allClusterTreesWithinRing, nonQualifyingSeatGetsNoCluster, emptySeatsGetsNoCluster,
@@ -196,7 +196,7 @@ async function checkVegetation(browser, baseUrl) {
 		name: 'procedural vegetation (world/vegetation.js, ADR-0138/ADR-0139/ADR-0140)',
 		ok,
 		details: ok
-			? 'segment-distance exact-value, isPlaceablePosition rejects water/steep-slope/near-seat/near-road and accepts ordinary ground, pickSpeciesIndex exact at/around its weight boundary, same-seed scatter is bit-identical across every species mesh, different seed differs, placed never exceeds target, 4 draw calls (2 species x trunk+foliage), both species represented and their counts sum to placedCount, full-exclusion disc places zero, zero-radius disc is inert, dispose does not throw, sampleAnnulusPoint exact at inner/outer edges and off-center, a qualifying seat gets a cluster ring with every instance provably inside it, a too-far seat gets none, empty seats never triggers clustering'
+			? 'segment-distance exact-value, isPlaceablePosition rejects water/steep-slope/near-seat/near-road and accepts ordinary ground, pickSpeciesIndex exact at/around its weight boundary, same-seed scatter is bit-identical across every species mesh, different seed differs, placed never exceeds target, 6 draw calls (3 species x trunk+foliage), both weighted temperate species represented and all three species counts sum to placedCount, full-exclusion disc places zero, zero-radius disc is inert, dispose does not throw, sampleAnnulusPoint exact at inner/outer edges and off-center, a qualifying seat gets a cluster ring with every instance provably inside it, a too-far seat gets none, empty seats never triggers clustering'
 			: `FAILED assertion(s): ${JSON.stringify(result)}`,
 	};
 }

@@ -1,0 +1,215 @@
+name: Village Architecture Assets
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/villages.js'
+      - 'src/3d/materials/meshPartClassifier.js'
+      - 'src/3d/materials/figureKits.js'
+      - 'src/3d/materials/palettes.js'
+      - 'scripts/checkVillageArchitectureAssets.js'
+      - 'scripts/checkVillageArchitectureDistribution.mjs'
+      - 'scripts/checkArchitectureSurfaceSemantics.mjs'
+      - 'scripts/checkVillageWindowFrameSemantics.mjs'
+      - 'scripts/checkVillageGlbAssetInventory.mjs'
+      - 'scripts/checkVillageRuntimeArchitectureIntegration.js'
+      - 'scripts/checkVillageArchitectureNavigationBrowser.mjs'
+      - 'scripts/checkVillageBlacksmithServiceReadiness.mjs'
+      - 'scripts/checkVillageGeographyTextureContract.mjs'
+      - 'scripts/checkRun330Villages.js'
+      - 'scripts/checkMobilePerfBudget.js'
+      - 'scripts/game3dSmokeChecksAudio.js'
+      - 'scripts/game3dSmokeChecksScene.js'
+      - 'scripts/smokeTestGame3D.js'
+      - 'scripts/village-architecture-harness.html'
+      - 'service-worker.js'
+      - '.github/workflows/rpg-interaction-quest-loop.yml'
+      - '.github/workflows/run167-determinism-policy.yml'
+      - '.github/workflows/run283-final-head-governance.yml'
+      - '.github/workflows/village-architecture-assets.yml'
+      - '.github/workflows/village-architecture-navigation.yml'
+      - '.github/workflows/village-geography-texture-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  regional-village-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          lfs: false
+
+      - name: Exact-main ancestry and bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          MAIN_SHA="$(git rev-parse origin/main)"
+          BASE_SHA="$(git merge-base origin/main HEAD)"
+          test "$BASE_SHA" = "$MAIN_SHA" || { echo "branch is stale: base=$BASE_SHA main=$MAIN_SHA"; exit 1; }
+          CHANGED="$(git diff --name-only "$BASE_SHA"..HEAD)"
+          while IFS= read -r path; do
+            [ -z "$path" ] && continue
+            case "$path" in
+              src/3d/world/villages.js|src/3d/world/valyriaCastleWeathering.js|src/3d/materials/meshPartClassifier.js|src/3d/materials/figureKits.js|src/3d/materials/palettes.js|scripts/checkVillageArchitectureAssets.js|scripts/checkVillageArchitectureDistribution.mjs|scripts/checkArchitectureSurfaceSemantics.mjs|scripts/checkVillageWindowFrameSemantics.mjs|scripts/checkVillageGlbAssetInventory.mjs|scripts/checkVillageRuntimeArchitectureIntegration.js|scripts/checkVillageArchitectureNavigationBrowser.mjs|scripts/checkVillageBlacksmithServiceReadiness.mjs|scripts/checkVillageGeographyTextureContract.mjs|scripts/checkRun330Villages.js|scripts/checkMobilePerfBudget.js|scripts/checkValyriaCastleWeathering.mjs|scripts/game3dSmokeChecksAudio.js|scripts/game3dSmokeChecksSafeMode.js|scripts/game3dSmokeChecksScene.js|scripts/game3dSmokeChecksVegetation.js|scripts/smokeTestGame3D.js|scripts/terrainSeatSafetyCheck.js|scripts/checkNpcGuardLifecycleBrowser.js|scripts/checkNpcGuardGroupLifecycleBrowser.js|scripts/checkNpcGuardLifecycleFrameRateBrowser.js|scripts/checkNpcGuardOcclusionLifecycleBrowser.js|scripts/checkNpcGuardHearingLifecycleBrowser.js|scripts/village-architecture-harness.html|service-worker.js|.github/workflows/rpg-interaction-quest-loop.yml|.github/workflows/run167-determinism-policy.yml|.github/workflows/run283-final-head-governance.yml|.github/workflows/village-architecture-assets.yml|.github/workflows/village-architecture-navigation.yml|.github/workflows/village-geography-texture-contract.yml) ;;
+              *) echo "unexpected village architecture scope path: $path"; exit 1 ;;
+            esac
+          done <<< "$CHANGED"
+          TOTAL="$(git diff --numstat "$BASE_SHA"..HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          echo "base=$BASE_SHA head=$(git rev-parse HEAD) changed_lines=$TOTAL"
+          test "$TOTAL" -le 3000 || { echo "scope quota exceeded: $TOTAL > 3000"; exit 1; }
+
+      - name: Selectively hydrate village GLB families
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull --include="assets/models/settlements/log_cabin_et0OmFeZVkb.glb,assets/models/settlements/fantasy_house_dcPho4SUA3.glb,assets/models/settlements/cabin_shed_HTx7PZt6Zm.glb,assets/models/settlements/house_fdaqERLQCc.glb,assets/models/settlements/medium_house_4hI5fNvl6z.glb,assets/models/settlements/small_wooden_house.glb,assets/models/settlements/house_roqiHdrpgc.glb" --exclude=""
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install browser proof tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global playwright@1.55.0
+          echo "NODE_PATH=$(npm root -g)" >> "$GITHUB_ENV"
+          playwright install --with-deps chromium
+
+      - name: Resolve vendored Three.js for Node contracts
+        run: node scripts/setupNodeThreeShim.mjs
+
+      - name: Syntax
+        run: |
+          node --check src/3d/world/villages.js
+          node --check src/3d/materials/meshPartClassifier.js
+          node --check src/3d/materials/figureKits.js
+          node --check src/3d/materials/palettes.js
+          node --check scripts/checkVillageArchitectureAssets.js
+          node --check scripts/checkVillageArchitectureDistribution.mjs
+          node --check scripts/checkArchitectureSurfaceSemantics.mjs
+          node --check scripts/checkVillageWindowFrameSemantics.mjs
+          node --check scripts/checkVillageGlbAssetInventory.mjs
+          node --check scripts/checkVillageRuntimeArchitectureIntegration.js
+          node --check scripts/checkVillageArchitectureNavigationBrowser.mjs
+          node --check scripts/checkVillageBlacksmithServiceReadiness.mjs
+          node --check scripts/checkVillageGeographyTextureContract.mjs
+          node --check scripts/checkRun330Villages.js
+          node --check scripts/checkMobilePerfBudget.js
+
+      - name: Hydrated GLB inventory and PBR integrity
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p artifacts/village-architecture-assets
+          node scripts/checkVillageGlbAssetInventory.mjs 2>&1 | tee artifacts/village-architecture-assets/glb-inventory.log
+
+      - name: Authored architecture surface semantics
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/checkArchitectureSurfaceSemantics.mjs 2>&1 | tee artifacts/village-architecture-assets/surface-semantics.log
+          node scripts/checkVillageWindowFrameSemantics.mjs 2>&1 | tee artifacts/village-architecture-assets/window-frame-semantics.log
+
+      - name: Landmark geography and deterministic policy
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/checkVillageArchitectureDistribution.mjs 2>&1 | tee artifacts/village-architecture-assets/distribution.log
+          node scripts/checkSeededRandomPolicy.js 2>&1 | tee artifacts/village-architecture-assets/determinism.log
+
+      - name: Existing village grounding regressions
+        run: |
+          node scripts/checkVillageFootprintGrounding.mjs
+          node scripts/checkRun330Villages.js
+
+      - name: Shared Material Placement Contract
+        run: node scripts/checkSharedMaterialPlacementContract.js
+
+      - name: Real regional GLB material and placement proof
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/checkVillageArchitectureAssets.js 2>&1 | tee artifacts/village-architecture-assets/proof.log
+
+      - name: Shipped createVillages geography and replacement proof
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/checkVillageRuntimeArchitectureIntegration.js 2>&1 | tee artifacts/village-architecture-assets/generated-runtime.log
+
+      - name: PWA offline shell regression against exact main
+        shell: bash
+        run: |
+          set -euo pipefail
+          ARTIFACT_DIR="artifacts/village-architecture-assets"
+          PR_LOG="$ARTIFACT_DIR/pwa-offline-shell.log"
+          MAIN_LOG="$ARTIFACT_DIR/pwa-main-baseline.log"
+          mkdir -p "$ARTIFACT_DIR"
+
+          if node scripts/checkServiceWorkerCache.js >"$PR_LOG" 2>&1; then
+            cat "$PR_LOG"
+            exit 0
+          fi
+          cat "$PR_LOG"
+
+          BASE_DIR="$(mktemp -d)"
+          cleanup() { git worktree remove --force "$BASE_DIR" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          git worktree add --detach "$BASE_DIR" origin/main >/dev/null
+          (cd "$BASE_DIR" && node scripts/checkServiceWorkerCache.js >"$GITHUB_WORKSPACE/$MAIN_LOG" 2>&1) || true
+          cat "$MAIN_LOG"
+
+          sed -n 's/^  - //p' "$PR_LOG" | sort -u > /tmp/village-pr-pwa-missing.txt
+          sed -n 's/^  - //p' "$MAIN_LOG" | sort -u > /tmp/village-main-pwa-missing.txt
+          comm -23 /tmp/village-pr-pwa-missing.txt /tmp/village-main-pwa-missing.txt > /tmp/village-new-pwa-missing.txt
+          if [ -s /tmp/village-new-pwa-missing.txt ]; then
+            echo "[village-pwa-delta] FAIL: this PR introduces new offline-shell misses beyond exact origin/main:"
+            cat /tmp/village-new-pwa-missing.txt
+            exit 1
+          fi
+
+          for asset in \
+            assets/models/settlements/log_cabin_et0OmFeZVkb.glb \
+            assets/models/settlements/fantasy_house_dcPho4SUA3.glb \
+            assets/models/settlements/cabin_shed_HTx7PZt6Zm.glb \
+            assets/models/settlements/house_fdaqERLQCc.glb \
+            assets/models/settlements/medium_house_4hI5fNvl6z.glb \
+            assets/models/settlements/small_wooden_house.glb \
+            assets/models/settlements/house_roqiHdrpgc.glb; do
+            grep -Fq "GAME3D_SHELL_FILES.push('./$asset')" service-worker.js || {
+              echo "[village-pwa-delta] FAIL: live village asset is not precached: $asset"
+              exit 1
+            }
+          done
+
+          PR_CACHE="$(sed -n "s/^const SHELL_CACHE = '\([^']*\)';$/\1/p" service-worker.js)"
+          MAIN_CACHE="$(sed -n "s/^const SHELL_CACHE = '\([^']*\)';$/\1/p" "$BASE_DIR/service-worker.js")"
+          test -n "$PR_CACHE" && test -n "$MAIN_CACHE"
+          test "$PR_CACHE" != "$MAIN_CACHE" || {
+            echo "[village-pwa-delta] FAIL: village asset precache changed without a shell cache version bump"
+            exit 1
+          }
+          echo "[village-pwa-delta] PASS: zero new offline-shell misses vs exact origin/main; 7/7 village GLBs precached; shell cache $MAIN_CACHE -> $PR_CACHE."
+
+      - name: Final main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git merge-base origin/main HEAD)" = "$(git rev-parse origin/main)"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: village-architecture-assets-${{ github.event.pull_request.head.sha }}
+          path: artifacts/village-architecture-assets/
+          if-no-files-found: error
+          retention-days: 7

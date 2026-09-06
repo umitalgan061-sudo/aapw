@@ -1,3 +1,16 @@
+// Günbatımı Ustası regional village architecture offline shell extension.
+// Seven canonical settlement GLBs are now live runtime references from villages.js, so every
+// existing PWA install must precache them rather than silently depending on network availability.
+self.addEventListener('install', () => {
+    GAME3D_SHELL_FILES.push('./assets/models/settlements/log_cabin_et0OmFeZVkb.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/settlements/fantasy_house_dcPho4SUA3.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/settlements/cabin_shed_HTx7PZt6Zm.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/settlements/house_fdaqERLQCc.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/settlements/medium_house_4hI5fNvl6z.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/settlements/small_wooden_house.glb');
+    GAME3D_SHELL_FILES.push('./assets/models/settlements/house_roqiHdrpgc.glb');
+});
+
 // Owner-map mountain relief offline shell extension. terrain.js imports this canonical live-height
 // source, so an offline 3D boot must cache it before any chunk can be generated.
 self.addEventListener('install', () => {
@@ -117,7 +130,6 @@ self.addEventListener('install', () => {
 self.addEventListener('install', () => {
     GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindex03Detail.js');
 });
-
 // Run278 Pindex-02 detail offline shell extension.
 self.addEventListener('install', () => {
     GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindex02Detail.js');
@@ -231,7 +243,8 @@ const MEDIA_CACHE = 'westeros-media-v4';
 // Run346 first-audio addition (module + one .wav click sound); v16->v17 forces existing installs to
 // fetch+cache both so the game's first sound works offline too, not only on a fresh install.
 // RPG expedition readiness adds an offline-loadable gameplay module; v19->v20 refreshes existing installs.
-const SHELL_CACHE = 'westeros-shell-v20';
+// Regional village architecture adds seven live settlement GLBs; v20->v21 refreshes existing installs.
+const SHELL_CACHE = 'westeros-shell-v21';
 const SHELL_FILES = [
     './',
     './index.html',

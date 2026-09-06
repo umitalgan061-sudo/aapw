@@ -118,7 +118,11 @@ async function main() {
 	let seatResults;
 	try {
 		const page = await browser.newPage();
-		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+		// Cold GitHub runners can spend well over 30s parsing the shipped Three.js entry document
+		// before this checker imports the terrain modules. Navigation latency is not a terrain-safety
+		// assertion, so match the shipped browser checks' bounded cold-CI tolerance and keep every
+		// flood/slope assertion below unchanged.
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
 		seatResults = await page.evaluate(
 			async ({ slopeOffset }) => {
 				const { KINGDOM_SEATS, mapToWorldXZ, computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');

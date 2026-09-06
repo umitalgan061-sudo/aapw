@@ -1,0 +1,59 @@
+name: Village Architecture Navigation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/villages.js'
+      - 'src/3d/world/WorldAssetPlacementPipeline.js'
+      - 'src/3d/materials/**'
+      - 'scripts/checkVillageArchitectureNavigationBrowser.mjs'
+      - '.github/workflows/village-architecture-navigation.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/world/villages.js'
+      - 'src/3d/world/WorldAssetPlacementPipeline.js'
+      - 'src/3d/materials/**'
+      - 'scripts/checkVillageArchitectureNavigationBrowser.mjs'
+      - '.github/workflows/village-architecture-navigation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  shipped-runtime-village-navigation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Hydrate village architecture GLBs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs version
+          git lfs pull --include="assets/models/settlements/log_cabin_et0OmFeZVkb.glb,assets/models/settlements/fantasy_house_dcPho4SUA3.glb,assets/models/settlements/cabin_shed_HTx7PZt6Zm.glb,assets/models/settlements/house_fdaqERLQCc.glb,assets/models/settlements/medium_house_4hI5fNvl6z.glb,assets/models/settlements/small_wooden_house.glb,assets/models/settlements/house_roqiHdrpgc.glb" --exclude=""
+
+      - name: Install Playwright outside repo
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Syntax
+        run: node --check scripts/checkVillageArchitectureNavigationBrowser.mjs
+
+      - name: Shipped browser village navigation
+        run: node scripts/checkVillageArchitectureNavigationBrowser.mjs
