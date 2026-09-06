@@ -19,8 +19,8 @@ assert(relativeLuminanceFromHex(terrain.graniteShadow) > relativeLuminanceFromHe
 assert(relativeLuminanceFromHex(road.dust) > relativeLuminanceFromHex(road.compacted));
 assert(relativeLuminanceFromHex(road.compacted) > relativeLuminanceFromHex(road.rut));
 assert(relativeLuminanceFromHex(water.shoreClear) > relativeLuminanceFromHex(water.deepSea));
-assert(relativeLuminanceFromHex(water.deepSea) > 0.04, 'deep sea must retain enough shipped luminance for swell/reflection motion to remain readable instead of collapsing toward black');
-assert(relativeLuminanceFromHex(water.deepSea) < 0.05 && (((water.deepSea >> 8) & 0xff) - ((water.deepSea >> 16) & 0xff)) <= 24, 'deep sea must remain restrained and desaturated enough to prevent bright cyan/teal open-ocean banding');
+assert(relativeLuminanceFromHex(water.deepSea) > 0.047, 'deep sea must retain enough shipped luminance for swell/reflection structure to remain readable instead of collapsing toward black');
+assert(relativeLuminanceFromHex(water.deepSea) < 0.052 && (((water.deepSea >> 8) & 0xff) - ((water.deepSea >> 16) & 0xff)) <= 22, 'deep sea must remain restrained and desaturated enough to prevent bright cyan/teal open-ocean banding');
 assert.equal(water.abyss, water.deepSea, 'abyss underlay must share deep-sea chroma so transparent marine water cannot expose a rectangular colour-family seam');
 assert.equal(relativeLuminanceFromHex(water.abyss), relativeLuminanceFromHex(water.deepSea));
 assert(relativeLuminanceFromHex(water.foam) > relativeLuminanceFromHex(water.plunge));
