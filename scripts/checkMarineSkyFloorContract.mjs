@@ -55,6 +55,10 @@ assert(WORLD_SKY_MARINE_FLOOR_POLICY.allLightingContinuity === true,
 	'finite marine-footprint continuity must remain active outside night-only rendering');
 assert(WORLD_SKY_MARINE_FLOOR_POLICY.blackBackgroundFallback === false,
 	'black lower-sky fallback returned');
+assert(WORLD_SKY_MARINE_FLOOR_POLICY.lowerHemisphereGradient === true,
+	'lower marine sky returned to a flat single-colour fill');
+assert(WORLD_SKY_MARINE_FLOOR_POLICY.gradientLift > 0 && WORLD_SKY_MARINE_FLOOR_POLICY.gradientLift <= 0.16,
+	'lower marine gradient must remain subtle enough to avoid a new bright horizon band');
 assert(finalShader.includes('float marineFloorMask = 1.0 - smoothstep('),
 	'V5 did not inject the all-lighting below-horizon marine floor into the shipped V4 shader');
 assert(!finalShader.includes('marineFloorMask = (1.0 - smoothstep('),
@@ -63,8 +67,16 @@ assert(!finalShader.match(/marineFloorMask[^;]*uNightFactor/),
 	'marine-floor continuity must not disappear during daylight/twilight captures');
 assert(finalShader.includes(`vec3 marineNightFloor = vec3(${expectedRgb});`),
 	'shipped marine floor is not derived from the shared deep-sea palette');
-assert(finalShader.includes('skyColor = mix(skyColor, marineNightFloor, marineFloorMask);'),
-	'shared marine floor is declared but not applied to final sky colour');
+assert(finalShader.includes('float marineGradient = smoothstep('),
+	'lower marine sky is missing the direction-driven anti-flat gradient');
+assert(finalShader.includes('vec3 marineHorizonFloor = mix(marineNightFloor, deepHorizon,'),
+	'lower marine gradient is not bounded to the existing atmospheric horizon family');
+assert(finalShader.includes('vec3 marineFloorColor = mix(marineNightFloor, marineHorizonFloor, marineGradient);'),
+	'lower marine gradient is declared but not composed into a bounded floor colour');
+assert(finalShader.includes('skyColor = mix(skyColor, marineFloorColor, marineFloorMask);'),
+	'gradient marine floor is declared but not applied to final sky colour');
+assert(!finalShader.includes('skyColor = mix(skyColor, marineNightFloor, marineFloorMask);'),
+	'flat lower-hemisphere fill returned and can recreate a single-colour background field');
 assert(finalShader.indexOf('marineFloorMask') < finalShader.indexOf('vec3 finalColor = skyColor;'),
 	'marine-floor blend must happen before final sky colour composition');
 assert(material.needsUpdate === true && material.userData.auroraNightAtmosphereV5 === true,
@@ -78,5 +90,7 @@ console.log(JSON.stringify({
 	sharedDeepSeaHex: `0x${GEOGRAPHIC_REFERENCE_PALETTE.water.deepSea.toString(16).padStart(6, '0')}`,
 	marineFloorRgb: expectedRgb,
 	allLightingContinuity: true,
+	lowerHemisphereGradient: true,
+	gradientLift: WORLD_SKY_MARINE_FLOOR_POLICY.gradientLift,
 	effectiveShaderBlend: true,
 }, null, 2));
