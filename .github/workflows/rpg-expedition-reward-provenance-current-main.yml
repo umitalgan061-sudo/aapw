@@ -6,6 +6,7 @@ on:
       - 'src/3d/gameplay/interaction.js'
       - 'src/3d/gameplay/interactionEconomy.js'
       - 'scripts/checkInteractionExpeditionRewardProvenance.mjs'
+      - '.github/workflows/rpg-expedition-credit-ledger.yml'
       - '.github/workflows/rpg-expedition-reward-provenance-current-main.yml'
   workflow_dispatch:
 
@@ -35,7 +36,7 @@ jobs:
           mapfile -t FILES < <(git diff --name-only "$BASE_SHA" HEAD)
           for path in "${FILES[@]}"; do
             case "$path" in
-              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionEconomy.js|scripts/checkInteractionExpeditionRewardProvenance.mjs|.github/workflows/rpg-expedition-reward-provenance-current-main.yml) ;;
+              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionEconomy.js|scripts/checkInteractionExpeditionRewardProvenance.mjs|.github/workflows/rpg-expedition-credit-ledger.yml|.github/workflows/rpg-expedition-reward-provenance-current-main.yml) ;;
               *) echo "unexpected reward-provenance scope path: $path" >&2; exit 1 ;;
             esac
           done
