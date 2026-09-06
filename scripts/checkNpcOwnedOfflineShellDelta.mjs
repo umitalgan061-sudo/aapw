@@ -38,11 +38,16 @@ const ownedRuntimeJs = [...new Set(changed
     .sort())];
 
 const sw = fs.readFileSync('service-worker.js', 'utf8');
-const missing = ownedRuntimeJs.filter(path => !sw.includes(`./${path}`));
+const shellEntries = new Set(
+    [...sw.matchAll(/GAME3D_SHELL_FILES\.push\(['"]\.\/(src\/3d\/[^'"]+\.js)['"]\)/g)]
+        .map(([, path]) => path),
+);
+const missing = ownedRuntimeJs.filter(path => !shellEntries.has(path));
 const summary = {
     base,
     head,
     runtimeJs: ownedRuntimeJs,
+    shellEntries: shellEntries.size,
     missing,
     enforce,
 };
@@ -51,6 +56,7 @@ console.log(`[npc-owned-offline-shell] base=${summary.base}`);
 console.log(`[npc-owned-offline-shell] head=${summary.head}`);
 console.log(`[npc-owned-offline-shell] runtime-js=${summary.runtimeJs.length}`);
 for (const path of summary.runtimeJs) console.log(`  owned: ${path}`);
+console.log(`[npc-owned-offline-shell] shell-entries=${summary.shellEntries}`);
 console.log(`[npc-owned-offline-shell] missing=${summary.missing.length}`);
 for (const path of summary.missing) console.log(`  missing: ${path}`);
 
