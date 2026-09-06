@@ -12,7 +12,7 @@ const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 
 export const WESTERN_REFERENCE_SURFACE_FABRIC_POLICY = Object.freeze({
-  id: 'western-reference-surface-fabric-2026-09-06-v22-depositional-meso-scale',
+  id: 'western-reference-surface-fabric-2026-09-06-v23-aerial-relief-carrier',
   renderOnly: true,
   geographyAuthorityUnchanged: true,
   heightAuthorityUnchanged: true,
@@ -21,8 +21,8 @@ export const WESTERN_REFERENCE_SURFACE_FABRIC_POLICY = Object.freeze({
   macroMeters: 1760,
   broadReliefMeters: 3180,
   continentalMeters: 4620,
-  mesoMeters: 470,
-  fineMeters: 126,
+  mesoMeters: 430,
+  fineMeters: 118,
   microMeters: 44,
   subMicroMeters: 17,
   warpMeters: 184,
@@ -40,8 +40,8 @@ export const WESTERN_REFERENCE_SURFACE_FABRIC_POLICY = Object.freeze({
   colluviumMeters: 820,
   wetHollowMeters: 430,
   dryBenchMeters: 1380,
-  aerialReliefMeters: 900,
-  surfaceCarrierMeters: 260,
+  aerialReliefMeters: 780,
+  surfaceCarrierMeters: 220,
   soilShadeAmplitude: 0.248,
   rockShadeAmplitude: 0.194,
   snowShadeAmplitude: 0.046,
@@ -303,8 +303,8 @@ function shadeColor(base, shade) {
 function soilColor(base, f) {
   const shade = 1
     + (f.broadRelief - 0.5) * 0.220 + (f.continental - 0.5) * 0.070
-    + (f.aerialRelief - 0.5) * 0.228 + (f.surfaceCarrier - 0.5) * 0.154
-    + (f.macro - 0.5) * 0.154 + (f.meso - 0.5) * 0.138
+    + (f.aerialRelief - 0.5) * 0.252 + (f.surfaceCarrier - 0.5) * 0.176
+    + (f.macro - 0.5) * 0.154 + (f.meso - 0.5) * 0.150
     + (f.fine - 0.5) * 0.060 + (f.micro - 0.5) * 0.020 + (f.subMicro - 0.5) * 0.012
     - f.drainageThread * 0.132 - f.braidedDrainage * 0.106 - f.wetHollow * 0.112 + f.exposedInterfluve * 0.074
     + f.frostWash * 0.064 + f.colluvium * 0.050 + f.stonyPatch * 0.036
@@ -326,7 +326,7 @@ function rockColor(base, f) {
   const strata = ridge01((f.streak * 0.74 + f.meso * 0.26) % 1);
   const shade = 1
     + (f.broadRelief - 0.5) * 0.132 + (f.continental - 0.5) * 0.052
-    + (f.aerialRelief - 0.5) * 0.150 + (f.surfaceCarrier - 0.5) * 0.096
+    + (f.aerialRelief - 0.5) * 0.168 + (f.surfaceCarrier - 0.5) * 0.110
     + (f.macro - 0.5) * 0.100 + (strata - 0.5) * 0.146
     + (f.fine - 0.5) * 0.056 + (f.micro - 0.5) * 0.026 + (f.subMicro - 0.5) * 0.026
     + f.exposedInterfluve * 0.080 - f.fracture * 0.172 + f.frostWash * 0.088
