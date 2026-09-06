@@ -42,7 +42,22 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin main
-          BASE_SHA="$(git rev-parse origin/main)"
+          MAIN_SHA="$(git rev-parse origin/main)"
+          BASE_SHA="${{ github.event.pull_request.base.sha || github.sha }}"
+          if ! git cat-file -e "${BASE_SHA}^{commit}"; then
+            echo "Exact PR base commit is unavailable: ${BASE_SHA}" >&2
+            exit 1
+          fi
+          if ! git cat-file -e "${MAIN_SHA}^{commit}"; then
+            echo "Exact origin/main commit is unavailable: ${MAIN_SHA}" >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$MAIN_SHA" "$BASE_SHA"; then
+            MERGE_BASE="$(git merge-base "$MAIN_SHA" "$BASE_SHA" || true)"
+            echo "PR base is stale/diverged from exact origin/main; rebase the stacked PR before qualification." >&2
+            echo "origin/main=${MAIN_SHA} base=${BASE_SHA} merge_base=${MERGE_BASE:-none}" >&2
+            exit 1
+          fi
           test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
           CHANGED="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           test "$CHANGED" -le 1000
