@@ -11,6 +11,7 @@ on:
       - 'scripts/checkNpcGuardLifecycleFrameRateBrowser.js'
       - 'scripts/checkNpcGuardOcclusionLifecycleBrowser.js'
       - 'scripts/checkNpcGuardHearingLifecycleBrowser.js'
+      - 'scripts/checkNpcOwnedOfflineShellDelta.mjs'
       - '.github/workflows/npc-guard-lifecycle.yml'
   workflow_dispatch:
 
@@ -48,6 +49,7 @@ jobs:
           node --check scripts/checkNpcGuardLifecycleFrameRateBrowser.js
           node --check scripts/checkNpcGuardOcclusionLifecycleBrowser.js
           node --check scripts/checkNpcGuardHearingLifecycleBrowser.js
+          node --check scripts/checkNpcOwnedOfflineShellDelta.mjs
           node scripts/checkNpcGuardLifecycleContract.mjs
           node scripts/checkNpcGuardPerception.mjs
           node scripts/checkNpcGuardAttack.mjs
@@ -58,6 +60,7 @@ jobs:
           node scripts/checkNpcGuardAssistLodWakeStress.mjs
           node scripts/checkNpcSimulationLod.mjs
           node scripts/checkSeededRandomPolicy.js
+          node scripts/checkNpcOwnedOfflineShellDelta.mjs
       - name: Shared PWA regression gate
         id: shared_pwa
         continue-on-error: true
