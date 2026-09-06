@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const read = async (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
-const [player, playerConfig, loop, game3d, input, touch, health, materialCore, placement] = await Promise.all([
+const [player, playerConfig, loop, game3d, input, touch, health, materialCore, placement, interaction, controlsHelp] = await Promise.all([
   read('src/3d/gameplay/player.js'),
   read('src/3d/gameplay/playerConfig.js'),
   read('src/3d/gameLoopHelpers.js'),
@@ -13,6 +13,8 @@ const [player, playerConfig, loop, game3d, input, touch, health, materialCore, p
   read('src/3d/gameplay/health.js'),
   read('src/3d/materials/MaterialAssignmentCore.js'),
   read('src/3d/world/WorldAssetPlacementPipeline.js'),
+  read('src/3d/gameplay/interaction.js'),
+  read('src/3d/ui/controlsHelp.js'),
 ]);
 
 const requireFragments = (source, label, fragments) => {
@@ -51,22 +53,81 @@ requireFragments(loop, 'third-person lock-on integration', [
 ]);
 requireFragments(input, 'desktop/gamepad parity', [
   "const LOCK_ON_KEYS = new Set(['Tab'])",
-  "const LIGHT_ATTACK_KEYS = new Set(['KeyE'])",
+  "const LIGHT_ATTACK_KEYS = new Set(['KeyC'])",
   "const HEAVY_ATTACK_KEYS = new Set(['KeyR'])",
+  "const PARRY_KEYS = new Set(['KeyV'])",
   'LOCK_ON: 11',
   'LIGHT: 2',
   'HEAVY: 3',
   "emitPlayerCombatIntent('light', 'mouse')",
   "emitPlayerCombatIntent('light', 'gamepad')",
   "emitPlayerCombatIntent('heavy', 'gamepad')",
+  "LIGHT_ATTACK_KEYS.has(event.code) && !isInteractiveTarget(event.target)",
+  "HEAVY_ATTACK_KEYS.has(event.code) && !isInteractiveTarget(event.target)",
+]);
+requireFragments(input, 'interactive UI input isolation', [
+  'readPlayerGameplayInputBlocked(this._isInputBlocked) || isInteractiveTarget(event.target)',
+  'if (readPlayerGameplayInputBlocked(this._isInputBlocked) || isInteractiveTarget(event.target)) return;',
+]);
+requireFragments(input, 'shared pause-input isolation', [
+  "'.g3d-pause-menu-overlay:not([hidden])'",
+  'export function isPlayerGameplayInputBlocked()',
+  'export function readPlayerGameplayInputBlocked(',
+  'constructor(target = window, { isInputBlocked = isPlayerGameplayInputBlocked } = {})',
+  'readPlayerGameplayInputBlocked(this._isInputBlocked)',
+  'this._gamepadButtons = sample.buttons',
+]);
+assert.ok(!input.includes("const LIGHT_ATTACK_KEYS = new Set(['KeyE'])"), 'nearby interaction E must not also be bound to keyboard light melee');
+requireFragments(interaction, 'interaction key ownership', ["if (event.code !== 'KeyE') return"]);
+requireFragments(controlsHelp, 'desktop combat and interaction help', [
+  "['C / Sol tık', 'Hafif saldırı']",
+  "['R', 'Ağır saldırı']",
+  "['Q / Sağ tık', 'Savunmayı basılı tut']",
+  "['V', 'Kısa savuşturma penceresi aç; savunurken de kullanılabilir']",
+  "['Tab', 'Yakındaki hedefe kilitlen veya kilidi kaldır']",
+  "['E', 'Yakındaki kişiyle konuş']",
+]);
+requireFragments(controlsHelp, 'gamepad combat help', [
+  "['Gamepad sol çubuk / L3', 'Yürü / koş']",
+  "['Gamepad A / B', 'Zıpla / kaçın']",
+  "['Gamepad X / Y', 'Hafif / ağır saldırı']",
+  "['Gamepad LB / RB', 'Savun / savuştur; LB basılıyken RB ile yeni savuşturma penceresi aç']",
+  "['Gamepad sağ çubuk / R3', 'Kamera / hedef kilidi']",
+]);
+requireFragments(controlsHelp, 'touch combat help', [
+  "['Savun', 'Savunmayı basılı tut']",
+  "['Hedef', 'Yakındaki hedefe kilitlen veya kilidi kaldır']",
+  "['Hafif', 'Hafif saldırı']",
+  "['Ağır', 'Ağır saldırı']",
+  "['Kaçın', 'Hareket ederken kaçınma hamlesi yap']",
+  "['Savuştur', 'Kısa savuşturma penceresi aç; savunurken de kullanılabilir']",
 ]);
 requireFragments(touch, 'mobile/PWA input parity', [
   "className = 'g3d-touch-lock-on-button'",
   "className = 'g3d-touch-light-attack-button'",
   "className = 'g3d-touch-heavy-attack-button'",
+  "className = 'g3d-touch-dodge-button'",
+  "className = 'g3d-touch-parry-button'",
   "emitPlayerCombatIntent('light', 'touch')",
   "emitPlayerCombatIntent('heavy', 'touch')",
   'consumeLockOnRequested()',
+]);
+requireFragments(touch, 'touch pause-input isolation', [
+  'isPlayerGameplayInputBlocked',
+  'readPlayerGameplayInputBlocked',
+  'constructor(container = document.body, { isInputBlocked = isPlayerGameplayInputBlocked } = {})',
+  '_resetGameplayState()',
+  'return { forward: 0, strafe: 0, running: false, guarding: false }',
+]);
+requireFragments(touch, 'touch pointer-loss recovery', [
+  "this._base.addEventListener('lostpointercapture', this._onLostPointerCapture)",
+  "if (event.pointerId === this._pointerId) this._resetMovementState()",
+  "this._base.removeEventListener('lostpointercapture', this._onLostPointerCapture)",
+  '_resetMovementState() {',
+]);
+requireFragments(touch, 'touch app-lifecycle recovery', [
+  "this._pageLifecycleTarget?.addEventListener('blur', this._onWindowBlur)",
+  "this._pageLifecycleTarget?.removeEventListener('blur', this._onWindowBlur)",
 ]);
 requireFragments(game3d, 'authoritative player health wiring', [
   'createHealthState({',
@@ -89,7 +150,13 @@ console.log(JSON.stringify({
   ok: true,
   contract: 'player-combat-vertical-slice-composition',
   chain: ['asset+animation', 'spawn+ground+collider', 'input', 'movement+stamina+poise', 'dodge+guard+parry', 'melee-combo', 'lock-on', 'damage+feedback'],
-  inputs: ['keyboard', 'mouse', 'gamepad', 'touch/PWA'],
+  inputs: ['keyboard:C-light/R-heavy/V-parry/E-interaction', 'mouse', 'gamepad', 'touch/PWA'],
+  pauseIsolation: ['keyboard', 'pointer', 'gamepad', 'touch'],
+  interactiveUiIsolation: ['keyboard-movement', 'keyboard-jump', 'keyboard-guard', 'keyboard-combat', 'pointer-guard', 'pointer-combat'],
+  touchLifecycleRecovery: ['visibilitychange', 'pagehide', 'blur', 'lostpointercapture'],
+  desktopHelp: ['C / Sol tık = Hafif saldırı', 'R = Ağır saldırı', 'Q / Sağ tık = Savun', 'V = Savuştur', 'Tab = Hedef kilidi', 'E = Yakındaki kişiyle konuş'],
+  gamepadHelp: ['sol çubuk/L3', 'A/B', 'X/Y', 'LB/RB guard-held parry', 'sağ çubuk/R3'],
+  touchHelp: ['Savun', 'Hedef', 'Hafif', 'Ağır', 'Kaçın', 'Savuştur guard-held parry'],
   sharedMaterialPlacement: true,
   newAsset: false,
 }, null, 2));

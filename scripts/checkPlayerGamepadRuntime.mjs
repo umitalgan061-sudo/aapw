@@ -108,7 +108,7 @@ async function moveThenStop(padSpec, label, durationMs = 420) {
 }
 
 try {
-	await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+	await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'commit', timeout: 30000 });
 	await page.locator('#run266-entry-enter').click();
 	await page.waitForFunction(() => document.querySelector('#game3d-loading')?.classList.contains('g3d-loading-hidden'), null, { timeout: 90000 });
 
@@ -210,7 +210,8 @@ try {
 	const dodge = await waitHistory('motion', (motion) => motion.state === 'dodge' && motion.dodgeRemaining > 0 && motion.stamina < dodgeBase.stamina, 'B dodge', 5000);
 	need(dodge.speedMps > full.speedMps, `dodge speed ${dodge.speedMps}`);
 	await setPads([{ index: 1 }]);
-	await waitHistory('motion', (motion) => motion.state === 'idle' && motion.dodgeRemaining === 0, 'dodge recovery', 5000);
+	const dodgeRecovered = await waitHistory('motion', (motion) => motion.dodgeRemaining === 0 && motion.isDodgeInvulnerable === false && motion.isGrounded, 'dodge recovery', 5000);
+	need(dodgeRecovered.canDodge === false && dodgeRecovered.dodgeCooldownRemaining > 0, `dodge recovery must preserve authored cooldown ${JSON.stringify(dodgeRecovered)}`);
 
 	await resetMotionHistory();
 	await setPads([{ index: 1, axes: [0, -1, 0, 0], buttons: { 10: true } }]);

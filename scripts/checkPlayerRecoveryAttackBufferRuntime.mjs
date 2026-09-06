@@ -42,17 +42,29 @@ const windows = () => structuredClone(window.__recoveryBufferWindows);
 const inputs = () => structuredClone(window.__recoveryBufferInputs);
 
 try {
-  await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.locator('#run266-entry-enter').click();
+  const gameUrl = `http://127.0.0.1:${server.address().port}/game3d.html`;
+  await page.goto(gameUrl, { waitUntil: 'commit', timeout: 30000 });
+  const entryButton = page.locator('#run266-entry-enter');
+  await entryButton.waitFor({ state: 'visible', timeout: 30000 });
+  await entryButton.click();
   await page.waitForFunction(() => document.querySelector('#game3d-loading')?.classList.contains('g3d-loading-hidden'), null, { timeout: 90000 });
   const baseline = await waitFor(motions, (history) => [...history].reverse().find((frame) => frame?.state === 'idle' && frame?.isGrounded && frame?.attackKind === 'none') ?? null, 'grounded idle baseline', 20000);
+
+  const windowsBeforeInteraction = (await page.evaluate(windows)).length;
+  const inputsBeforeInteraction = (await page.evaluate(inputs)).length;
+  await page.keyboard.press('KeyE');
+  await sleep(100);
+  const windowsAfterInteraction = (await page.evaluate(windows)).length;
+  const inputsAfterInteraction = (await page.evaluate(inputs)).length;
+  need(inputsAfterInteraction === inputsBeforeInteraction, `reserved interaction key emitted combat input; before=${inputsBeforeInteraction} after=${inputsAfterInteraction}`);
+  need(windowsAfterInteraction === windowsBeforeInteraction, `reserved interaction key opened an attack window; before=${windowsBeforeInteraction} after=${windowsAfterInteraction}`);
 
   await page.keyboard.down('KeyQ');
   const guarded = await waitFor(motions, (history) => [...history].reverse().find((frame) => frame?.state === 'guard' && frame?.guarding && frame?.attackKind === 'none') ?? null, 'held guard');
   const windowsBeforeBlockedIntent = (await page.evaluate(windows)).length;
   const inputsBeforeBlockedIntent = (await page.evaluate(inputs)).length;
 
-  await page.keyboard.press('KeyE');
+  await page.keyboard.press('KeyC');
   await waitFor(inputs, (history) => history.length > inputsBeforeBlockedIntent && [...history].reverse().find((event) => event?.kind === 'light' && event?.source === 'keyboard'), 'blocked light combat intent');
   await sleep(80);
   await page.keyboard.up('KeyQ');
@@ -64,7 +76,7 @@ try {
   need(windowsAfterBlockedIntent.length === windowsBeforeBlockedIntent, `guard-blocked attack intent must not survive release; before=${windowsBeforeBlockedIntent} after=${windowsAfterBlockedIntent.length}`);
   need(afterBlockedIntent?.attackKind === 'none' && afterBlockedIntent?.attackPhase === 'none', `guard-blocked input created a ghost attack ${JSON.stringify(afterBlockedIntent)}`);
 
-  await page.keyboard.press('KeyE');
+  await page.keyboard.press('KeyC');
   const eligibleStart = await waitFor(windows, (history) => [...history].reverse().find((event) => event?.phase === 'start' && event?.kind === 'light') ?? null, 'eligible post-guard light attack');
   need(eligibleStart.comboStep === 1, `post-guard eligible attack must start a fresh combo ${JSON.stringify(eligibleStart)}`);
 
@@ -73,9 +85,22 @@ try {
   need(box && box.width > 100 && box.height > 100, 'invalid shipped canvas bounds');
   await page.screenshot({ path: path.join(outDir, 'recovery-attack-buffer-runtime.png'), clip: box });
   need(errors.length === 0, `browser/page errors: ${JSON.stringify(errors)}`);
-  const metrics = { baseline, guarded, released, afterBlockedIntent, eligibleStart, browserErrors: errors };
+  const metrics = {
+    baseline,
+    interactionReservation: {
+      inputsBefore: inputsBeforeInteraction,
+      inputsAfter: inputsAfterInteraction,
+      windowsBefore: windowsBeforeInteraction,
+      windowsAfter: windowsAfterInteraction,
+    },
+    guarded,
+    released,
+    afterBlockedIntent,
+    eligibleStart,
+    browserErrors: errors,
+  };
   fs.writeFileSync(path.join(outDir, 'recovery-attack-buffer-runtime.json'), `${JSON.stringify(metrics, null, 2)}\n`);
-  console.log(`PLAYER_RECOVERY_ATTACK_BUFFER_RUNTIME_OK ${JSON.stringify({ blockedWindows: windowsAfterBlockedIntent.length - windowsBeforeBlockedIntent, eligibleSerial: eligibleStart.serial, errors: errors.length })}`);
+  console.log(`PLAYER_RECOVERY_ATTACK_BUFFER_RUNTIME_OK ${JSON.stringify({ interactionCombatInputs: inputsAfterInteraction - inputsBeforeInteraction, blockedWindows: windowsAfterBlockedIntent.length - windowsBeforeBlockedIntent, eligibleSerial: eligibleStart.serial, errors: errors.length })}`);
 } catch (error) {
   fs.writeFileSync(path.join(outDir, 'failure.json'), `${JSON.stringify({ error: String(error?.stack ?? error), browserErrors: errors }, null, 2)}\n`);
   throw error;

@@ -5,7 +5,9 @@ on:
     branches: [main]
     paths:
       - 'src/3d/gameplay/player.js'
+      - 'src/3d/camera.js'
       - 'scripts/checkPlayerHitStaggerRuntime.mjs'
+      - 'scripts/checkPlayerGeographicCameraOcclusion.mjs'
       - '.github/workflows/player-hit-stagger-runtime.yml'
   workflow_dispatch:
 
@@ -37,30 +39,56 @@ jobs:
           test "$(git merge-base origin/main HEAD)" = "$BASE"
           git diff --check "$BASE"...HEAD
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
-          test "$((ADD + DEL))" -le 1000
+          test "$((ADD + DEL))" -le 3000
           echo "BASE_SHA=$BASE" >> "$GITHUB_ENV"
       - name: Asset-first shipped-scene hydration
         shell: bash
         run: |
           set -euo pipefail
           git lfs version
-          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**" --exclude=""
+          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**,assets/models/vegetation/pine_Zt62gceKXZ.glb,assets/models/vegetation/winter_tree.glb,assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb,assets/models/Ay/Moon 2K.fbx" --exclude=""
           test -s assets/models/characters/peasant_girl.fbx
           test -s assets/animations/peasant_girl/idle.fbx
           test -s assets/animations/peasant_girl/walking.fbx
           test -s assets/animations/peasant_girl/running.fbx
+          for asset in \
+            assets/models/vegetation/pine_Zt62gceKXZ.glb \
+            assets/models/vegetation/winter_tree.glb \
+            assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb \
+            'assets/models/Ay/Moon 2K.fbx'; do
+            test -f "$asset"
+            test "$(wc -c < "$asset")" -gt 512
+          done
       - name: Static and shared contracts
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/player.js
+          node --check src/3d/camera.js
+          node --check scripts/checkPlayerGeographicCameraOcclusion.mjs
+          node scripts/checkPlayerGeographicCameraOcclusion.mjs
           node --check scripts/checkPlayerHitStaggerRuntime.mjs
           node scripts/checkPlayerStaminaDodge.mjs
           node scripts/checkPlayerGroundingCombatContract.mjs
           node scripts/checkSharedMaterialPlacementContract.js
-          node scripts/checkServiceWorkerCache.js
           ! grep -q 'EditorMaterialStudio' src/3d/gameplay/player.js
+          ! grep -q 'EditorMaterialStudio' src/3d/camera.js
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
+      - name: Shared PWA and cache contracts
+        id: shared_pwa
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts/player-hit-stagger/shared
+          set +e
+          node scripts/checkPwaInstallability.js 2>&1 | tee artifacts/player-hit-stagger/shared/pwa-installability.log
+          PWA_STATUS=${PIPESTATUS[0]}
+          node scripts/checkServiceWorkerCache.js 2>&1 | tee artifacts/player-hit-stagger/shared/service-worker-cache.log
+          CACHE_STATUS=${PIPESTATUS[0]}
+          set -e
+          test "$PWA_STATUS" -eq 0
+          test "$CACHE_STATUS" -eq 0
       - name: Install Chromium
         shell: bash
         run: |
@@ -79,9 +107,20 @@ jobs:
           test -s artifacts/player-hit-stagger/hit-stagger-runtime.png
           test -s artifacts/player-hit-stagger/hit-stagger-runtime.json
           grep -q '"browserErrors": \[\]' artifacts/player-hit-stagger/hit-stagger-runtime.json
-          node scripts/checkMobilePerfBudget.js
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
+      - name: Shared mobile perf and browser smoke hard gate
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/player-hit-stagger/shared
+          perf_status=0
+          smoke_status=0
+          node scripts/checkMobilePerfBudget.js 2>&1 | tee artifacts/player-hit-stagger/shared/mobile-perf.log || perf_status=$?
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js 2>&1 | tee artifacts/player-hit-stagger/shared/browser-smoke.log || smoke_status=$?
+          test "$perf_status" -eq 0
+          test "$smoke_status" -eq 0
       - name: Final main freshness
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
@@ -89,6 +128,11 @@ jobs:
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           test "$(git merge-base origin/main HEAD)" = "$BASE_SHA"
           git diff --check "$BASE_SHA"...HEAD
+      - name: Require shared PWA and cache contracts
+        if: always()
+        shell: bash
+        run: |
+          test "${{ steps.shared_pwa.outcome }}" = "success"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

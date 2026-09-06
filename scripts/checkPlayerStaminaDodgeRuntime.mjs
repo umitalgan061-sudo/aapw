@@ -108,7 +108,7 @@ function findSprintEvidence(frames) {
   return displaced ? [origin, displaced] : null;
 }
 try {
-  await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'commit', timeout: 30000 });
   await page.locator('#run266-entry-enter').click();
   await page.waitForFunction(() => document.querySelector('#game3d-loading')?.classList.contains('g3d-loading-hidden'), null, { timeout: 90000 });
   await waitForHistoryEvidence((frames) => frames.length > 0 ? frames.at(-1) : null, { timeout: 30000, label: 'first player motion frame' });
@@ -162,10 +162,6 @@ try {
   need(parryReady.stamina - parryImpact.stamina >= 7.5 && parryImpact.poise === parryReady.poise, 'parry must cost stamina without poise damage');
   await page.keyboard.up('KeyQ'); await waitState('idle', 6000);
 
-  // Guard-break proof must start from a fresh authoritative respawn. Earlier guard coverage chips
-  // health by design; without this boundary, seven later guarded hits can cross zero and the correct
-  // death reset clears poise before the guard-break HUD can be observed. Drive the shipped death
-  // path once, then prove the actual guard-break burst is non-lethal and independent from respawn.
   await page.evaluate(() => { window.__playerMotionFrames.length = 0; });
   await emitPlayerDamage(999, 'guard-break-isolation-reset');
   const pressureBaseline = await waitForHistoryEvidence((frames) => {
@@ -184,11 +180,6 @@ try {
   need(pressureHealthBaseline === 100, `guard-break pressure must begin at full authoritative health after respawn, got ${pressureHealthBaseline}`);
   await page.evaluate(() => { window.__playerMotionFrames.length = 0; });
 
-  // Each real 20-point guarded hit blocks 12 damage, spends 4.2 stamina and removes 15 poise.
-  // Seven hits therefore remove 56 health and 105 poise: from the fresh 100-health baseline the
-  // seventh real hit must break guard at 44 health without entering PLAYER_DIED/respawn. Waiting
-  // through the authored parry window legitimately drains a few stamina while guard is held, so the
-  // ready-state assertion preserves a near-full budget instead of requiring an impossible 97.0.
   await page.keyboard.down('KeyQ');
   const pressureReady = await waitForHistoryEvidence((frames) => { const frame = frames.at(-1); return frame?.state === 'guard' && frame.guarding && frame.parryWindowRemaining === 0 ? frame : null; }, { timeout: 12000, interval: 100, label: 'guard ready for poise pressure' });
   need(pressureReady.stamina >= 95 && pressureReady.poise === 100, `poise pressure must preserve the near-full respawn resource budget after normal guard hold ${JSON.stringify(pressureReady)}`);
@@ -238,10 +229,6 @@ try {
   need(breakHealthBefore === 100 && breakHealthAfter === 44, `guard-break proof must stay on the isolated 100 -> 44 health path, got ${breakHealthBefore} -> ${breakHealthAfter}`);
   await page.keyboard.up('KeyQ');
 
-  // Guard-break ending, poise regeneration, and dodge eligibility are separate simulation-time
-  // milestones. The break itself can intentionally exhaust stamina; proving canDodge therefore
-  // requires enough real stamina regeneration to cross the existing dodge-cost threshold rather
-  // than treating the first post-break poise tick as immediate dodge readiness.
   const recoveredPoise = await waitForHistoryEvidence((frames) => {
     const frame = frames.at(-1);
     return frame?.guardBreakRemaining === 0 && frame.poise > 0 && frame.state !== 'guard-break' ? frame : null;
@@ -255,17 +242,23 @@ try {
   need(recoveredDodge.canDodge && recoveredDodge.stamina >= 27.5 && recoveredDodge.poise > 0, `stamina recovery must restore real dodge eligibility ${JSON.stringify(recoveredDodge)}`);
 
   const canvas = page.locator('#game3d-canvas');
-  const canvasBox = await canvas.boundingBox();
-  need(canvasBox && canvasBox.width > 100 && canvasBox.height > 100, `bad canvas bounds ${JSON.stringify(canvasBox)}`);
-  const canvasPng = await page.screenshot({ clip: canvasBox, timeout: 20000 });
+  const canvasCapture = await canvas.evaluate((element) => ({
+    width: element.width,
+    height: element.height,
+    dataUrl: element.toDataURL('image/png'),
+  }));
+  need(canvasCapture.width > 100 && canvasCapture.height > 100, `bad canvas dimensions ${JSON.stringify(canvasCapture)}`);
+  need(/^data:image\/png;base64,/.test(canvasCapture.dataUrl), 'WebGL canvas must produce a PNG data URL');
+  const canvasPng = Buffer.from(canvasCapture.dataUrl.slice(canvasCapture.dataUrl.indexOf(',') + 1), 'base64');
   need(canvasPng.length > 1024, `canvas proof too small (${canvasPng.length} bytes)`);
+  need(canvasPng[0] === 0x89 && canvasPng.subarray(1, 4).toString('ascii') === 'PNG', 'canvas proof must have PNG signature');
   fs.writeFileSync(path.join(outDir, 'player-runtime.png'), canvasPng);
   fs.writeFileSync(path.join(outDir, 'metrics.json'), `${JSON.stringify({
     baseline, sprintA, sprintB, beforeRunJumpDodge, runJumpDodge, airborneFrames: airborneFrames.slice(0, 8), recoveryStart, recoveryEnd, vitals,
     guard: { ready: guardReady, impact: guardImpact, healthBefore: guardHealthBefore, healthAfter: guardHealthAfter },
     parry: { ready: parryReady, impact: parryImpact, trigger: parryProof?.frame ?? null, healthBefore: parryHealthBefore, healthAfter: parryHealthAfter },
     poise: { baseline: pressureBaseline, healthBaseline: pressureHealthBaseline, ready: pressureReady, impacts: pressureImpacts, break: breakFrame, recovered: recoveredPoise, dodgeRecovered: recoveredDodge, healthBefore: breakHealthBefore, healthAfter: breakHealthAfter, controlledMitigatedDamage, controlledHealthLoss, healthBurst, hud: breakVitals },
-    canvas: { width: canvasBox.width, height: canvasBox.height, pngBytes: canvasPng.length }, browserErrors: errors,
+    canvas: { width: canvasCapture.width, height: canvasCapture.height, pngBytes: canvasPng.length }, browserErrors: errors,
   }, null, 2)}\n`);
   need(errors.length === 0, errors.join(' | '));
   console.log('PLAYER_STAMINA_DODGE_GUARD_PARRY_POISE_RUNTIME_OK');

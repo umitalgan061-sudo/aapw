@@ -48,6 +48,8 @@ async function waitHealth(expected, { timeout = 3000, interval = 20 } = {}) {
     await sleep(interval);
     health = await readHealth();
   }
+  health = await readHealth();
+  if (health === expected) return health;
   throw new Error(`[player-guard-impact-runtime] timed out waiting for health=${expected}; current=${health}`);
 }
 async function isolateDamageSource(sourceId) {
@@ -79,7 +81,7 @@ async function armDamageOnGuard(amount, sourceId, maxGuardStamina) {
 }
 
 try {
-  await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'commit', timeout: 30000 });
   await isolateDamageSource('stamina-only-impact-break');
   await page.locator('#run266-entry-enter').click();
   await page.waitForFunction(() => document.querySelector('#game3d-loading')?.classList.contains('g3d-loading-hidden'), null, { timeout: 90000 });

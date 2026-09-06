@@ -60,6 +60,13 @@ const _rayDirection = new THREE.Vector3();
  * Pulls `desiredPosition` in along the target->camera ray if it's occluded by anything in
  * `collidables` (terrain chunks, castle parts — see `gameLoopHelpers.js`'s `collectCameraCollidables`),
  * so the chase camera lands just in front of a wall/hillside instead of clipping through it.
+ *
+ * Collision roots are intentionally raycast recursively. Repository castle/ice-landmark entries can
+ * be imported FBX/GLB `Group`s whose renderable meshes sit one or more levels below the root; a
+ * non-recursive ray against those roots silently sees no triangles and lets the third-person camera
+ * pass straight through the real asset. Recursive traversal keeps the world-generation ownership
+ * unchanged while making the player camera honor the actual shipped model hierarchy.
+ *
  * Deliberately does not mutate `OrbitControls`' own spherical radius — `game3d.js` restores
  * `camera.position` to `desiredPosition` right after each frame's render, so a collision pull-in
  * is purely a one-frame visual adjustment: the user's actual zoom/orbit distance is preserved and
@@ -70,13 +77,14 @@ const _rayDirection = new THREE.Vector3();
  *   point), not the player's feet, so the ray starts roughly at chest height.
  * @param {import('three').Vector3} desiredPosition The free-orbit camera position `OrbitControls.
  *   update()` computed this frame, before any collision adjustment.
- * @param {import('three').Object3D[]} collidables Candidate meshes to test against. Kept small by
- *   the caller (nearby terrain chunks + settlement parts only) — this function does no filtering
- *   of its own.
+ * @param {import('three').Object3D[]} collidables Candidate meshes or imported model roots to test
+ *   against. Kept small by the caller (nearby terrain chunks + settlement/model roots only).
  * @param {number} marginMeters Distance to stop short of the hit surface (`PLAYER_CONFIG.
  *   CAMERA_COLLISION_MARGIN_METERS`).
- * @param {number} minDistanceMeters Hard floor the resolved distance is clamped above (`PLAYER_
- *   CONFIG.CAMERA_COLLISION_MIN_DISTANCE_METERS`).
+ * @param {number} minDistanceMeters Preferred chase-camera comfort floor (`PLAYER_CONFIG.
+ *   CAMERA_COLLISION_MIN_DISTANCE_METERS`). A nearer real surface is authoritative: when keeping
+ *   this floor would place the camera through the surface, collision clearance wins and the camera
+ *   is allowed to move closer to the target for that frame.
  * @returns {import('three').Vector3} Either `desiredPosition` unchanged (no occlusion) or a new
  *   `Vector3` pulled in along the ray — never mutates `desiredPosition` itself, since the caller
  *   needs the original value to restore `camera.position` after render.
@@ -90,9 +98,12 @@ export function resolveCameraCollision(raycaster, target, desiredPosition, colli
 	raycaster.set(target, _rayDirection);
 	raycaster.near = 0;
 	raycaster.far = desiredDistance;
-	const hits = raycaster.intersectObjects(collidables, false);
+	const hits = raycaster.intersectObjects(collidables, true);
 	if (hits.length === 0) return desiredPosition;
 
-	const clampedDistance = Math.max(minDistanceMeters, hits[0].distance - marginMeters);
+	const surfaceClearanceDistance = Math.max(0, hits[0].distance - marginMeters);
+	const clampedDistance = hits[0].distance <= minDistanceMeters + marginMeters
+		? surfaceClearanceDistance
+		: Math.max(minDistanceMeters, surfaceClearanceDistance);
 	return target.clone().addScaledVector(_rayDirection, clampedDistance);
 }
