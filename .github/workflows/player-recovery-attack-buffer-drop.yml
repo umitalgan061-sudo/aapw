@@ -69,14 +69,26 @@ jobs:
           test -f src/3d/world/WorldAssetPlacementPipeline.js
       - name: PWA installability contract
         id: pwa-installability
-        continue-on-error: true
         shell: bash
-        run: node scripts/checkPwaInstallability.js
+        run: |
+          set -uo pipefail
+          set +e
+          node scripts/checkPwaInstallability.js
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
       - name: Service worker cache contract
         id: service-worker-cache
-        continue-on-error: true
         shell: bash
-        run: node scripts/checkServiceWorkerCache.js
+        run: |
+          set -uo pipefail
+          set +e
+          node scripts/checkServiceWorkerCache.js
+          status=$?
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
       - name: Asset-first shipped-scene hydration
         shell: bash
         run: |
@@ -143,10 +155,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "pwa_installability=${{ steps['pwa-installability'].outcome }}"
-          echo "service_worker_cache=${{ steps['service-worker-cache'].outcome }}"
-          test "${{ steps['pwa-installability'].outcome }}" = "success"
-          test "${{ steps['service-worker-cache'].outcome }}" = "success"
+          echo "pwa_installability_status=${{ steps['pwa-installability'].outputs.status }}"
+          echo "service_worker_cache_status=${{ steps['service-worker-cache'].outputs.status }}"
+          test "${{ steps['pwa-installability'].outputs.status }}" = "0"
+          test "${{ steps['service-worker-cache'].outputs.status }}" = "0"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
