@@ -62,13 +62,22 @@ jobs:
           node scripts/checkNpcSimulationLod.mjs
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkNpcOwnedOfflineShellDelta.mjs --base "$BASE_SHA" --head "${{ github.event.pull_request.head.sha || github.sha }}"
-      - name: Shared PWA regression gate
+      - name: Shared PWA regression diagnostic
         id: shared_pwa
         continue-on-error: true
         shell: bash
         run: |
           set -o pipefail
           node scripts/checkServiceWorkerCache.js 2>&1 | tee "$RUNNER_TEMP/npc-guard-lifecycle-pwa.log"
+      - name: Owned offline-shell delta gate
+        id: owned_offline_shell
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkNpcOwnedOfflineShellDelta.mjs \
+            --base "$BASE_SHA" \
+            --head "${{ github.event.pull_request.head.sha || github.sha }}" \
+            --enforce
       - name: Preserve shared PWA diagnostic
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
@@ -120,11 +129,11 @@ jobs:
           set -euo pipefail
           git fetch origin main
           test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
-      - name: Enforce shared PWA gate
+      - name: Enforce owned offline-shell gate
         if: ${{ always() }}
         shell: bash
         env:
-          SHARED_PWA_OUTCOME: ${{ steps.shared_pwa.outcome }}
+          OWNED_OFFLINE_SHELL_OUTCOME: ${{ steps.owned_offline_shell.outcome }}
         run: |
           set -euo pipefail
-          test "$SHARED_PWA_OUTCOME" = "success"
+          test "$OWNED_OFFLINE_SHELL_OUTCOME" = "success"
