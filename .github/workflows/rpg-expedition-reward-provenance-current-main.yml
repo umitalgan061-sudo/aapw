@@ -11,6 +11,7 @@ on:
       - '.github/workflows/rpg-expedition-reward-provenance-current-main.yml'
       - '.github/workflows/rpg-interaction-quest-loop.yml'
       - '.github/workflows/rpg-expedition-tavern-recovery.yml'
+      - '.github/workflows/rpg-tavern-receipt-integrity.yml'
   workflow_dispatch:
 
 concurrency:
@@ -39,7 +40,7 @@ jobs:
           mapfile -t FILES < <(git diff --name-only "$BASE_SHA" HEAD)
           for path in "${FILES[@]}"; do
             case "$path" in
-              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionEconomy.js|scripts/checkInteractionExpeditionBoard.mjs|scripts/checkInteractionExpeditionRewardProvenance.mjs|.github/workflows/rpg-expedition-credit-ledger.yml|.github/workflows/rpg-expedition-reward-provenance-current-main.yml|.github/workflows/rpg-interaction-quest-loop.yml|.github/workflows/rpg-expedition-tavern-recovery.yml) ;;
+              src/3d/gameplay/interaction.js|src/3d/gameplay/interactionEconomy.js|scripts/checkInteractionExpeditionBoard.mjs|scripts/checkInteractionExpeditionRewardProvenance.mjs|.github/workflows/rpg-expedition-credit-ledger.yml|.github/workflows/rpg-expedition-reward-provenance-current-main.yml|.github/workflows/rpg-interaction-quest-loop.yml|.github/workflows/rpg-expedition-tavern-recovery.yml|.github/workflows/rpg-tavern-receipt-integrity.yml) ;;
               *) echo "unexpected reward-provenance scope path: $path" >&2; exit 1 ;;
             esac
           done
