@@ -4,7 +4,11 @@ on:
   pull_request:
     paths:
       - 'src/3d/gameplay/animals.js'
+      - 'src/3d/gameplay/animalConfig.js'
+      - 'src/3d/gameplay/faunaWorldPlacement.js'
+      - 'src/3d/materials/MaterialAssignmentCore.js'
       - 'scripts/checkConfiguredAnimalSpawnGroundSafetyBrowser.mjs'
+      - 'scripts/checkConfiguredFaunaGeographicMaterialBrowser.mjs'
       - 'scripts/checkWildlifeLongFrameBudget.mjs'
       - 'scripts/checkWildlifeLongFrameBrowser.mjs'
       - 'scripts/checkWildlifePackAlertIndependence.mjs'
@@ -43,7 +47,7 @@ jobs:
           test "$base" = "$(git rev-parse origin/main)"
           changed="$(git diff --name-only origin/main...HEAD)"
           printf '%s\n' "$changed"
-          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/animals\.js|scripts/checkConfiguredAnimalSpawnGroundSafetyBrowser\.mjs|scripts/checkWildlifeLongFrameBudget\.mjs|scripts/checkWildlifeLongFrameBrowser\.mjs|scripts/checkWildlifePackAlertIndependence\.mjs|scripts/checkWildlifePackIteratorCleanup\.mjs|scripts/checkWildlifePackLongFrameBrowser\.mjs|scripts/checkWildlifePackAdapterBrowser\.mjs|scripts/game3dSmokeChecksMovement\.js|\.github/workflows/configured-animal-spawn-ground-safety\.yml|\.github/workflows/wildlife-long-frame-budget\.yml|\.github/workflows/wildlife-pack-alert-independence\.yml|\.github/workflows/wildlife-pack-adapter-browser\.yml)$' && exit 1 || true
+          printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/animals\.js|src/3d/gameplay/animalConfig\.js|src/3d/gameplay/faunaWorldPlacement\.js|src/3d/materials/MaterialAssignmentCore\.js|scripts/checkConfiguredAnimalSpawnGroundSafetyBrowser\.mjs|scripts/checkConfiguredFaunaGeographicMaterialBrowser\.mjs|scripts/checkWildlifeLongFrameBudget\.mjs|scripts/checkWildlifeLongFrameBrowser\.mjs|scripts/checkWildlifePackAlertIndependence\.mjs|scripts/checkWildlifePackIteratorCleanup\.mjs|scripts/checkWildlifePackLongFrameBrowser\.mjs|scripts/checkWildlifePackAdapterBrowser\.mjs|scripts/game3dSmokeChecksMovement\.js|\.github/workflows/configured-animal-spawn-ground-safety\.yml|\.github/workflows/wildlife-long-frame-budget\.yml|\.github/workflows/wildlife-pack-alert-independence\.yml|\.github/workflows/wildlife-pack-adapter-browser\.yml)$' && exit 1 || true
           additions="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END {print s+0}')"
           deletions="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END {print s+0}')"
           test $((additions + deletions)) -le 1000
@@ -58,7 +62,11 @@ jobs:
       - name: Wildlife syntax guard
         run: |
           node --check src/3d/gameplay/animals.js
+          node --check src/3d/gameplay/animalConfig.js
+          node --check src/3d/gameplay/faunaWorldPlacement.js
+          node --check src/3d/materials/MaterialAssignmentCore.js
           node --check scripts/checkConfiguredAnimalSpawnGroundSafetyBrowser.mjs
+          node --check scripts/checkConfiguredFaunaGeographicMaterialBrowser.mjs
           node --check scripts/checkWildlifeLongFrameBrowser.mjs
           node --check scripts/checkWildlifePackAlertIndependence.mjs
           node --check scripts/checkWildlifePackIteratorCleanup.mjs
@@ -68,23 +76,23 @@ jobs:
       - name: Shared material placement contract
         run: node scripts/checkSharedMaterialPlacementContract.js
 
-      - name: Hydrate real configured wolf asset
+      - name: Hydrate real configured wolf and horse assets
         shell: bash
         run: |
           set -euo pipefail
           git lfs version
           asset_ref="$(git rev-parse HEAD)"
-          family='assets/models/animals/wolf/'
-          if ! git lfs pull --include="${family}**" --exclude=""; then
-            echo 'LFS transfer unavailable; hydrating exact wolf pointers through GitHub media.'
+          include='assets/models/animals/wolf/**,assets/models/animals/white_horse_bEdE4rmZy9.glb'
+          if ! git lfs pull --include="$include" --exclude=""; then
+            echo 'LFS transfer unavailable; hydrating exact fauna pointers through GitHub media.'
           fi
-          mapfile -t lfs_paths < <(git lfs ls-files -n | grep "^${family}" || true)
-          test "${#lfs_paths[@]}" -gt 0
+          mapfile -t lfs_paths < <(git lfs ls-files -n | grep -E '^(assets/models/animals/wolf/|assets/models/animals/white_horse_bEdE4rmZy9\.glb$)' || true)
+          test "${#lfs_paths[@]}" -gt 1
           for asset_path in "${lfs_paths[@]}"; do
             if test -s "$asset_path" && ! head -c 200 "$asset_path" | grep -aq 'version https://git-lfs.github.com/spec/v1'; then
               continue
             fi
-            tmp_asset="${RUNNER_TEMP}/wolf-$(basename "$asset_path").download"
+            tmp_asset="${RUNNER_TEMP}/fauna-$(basename "$asset_path").download"
             media_url="https://media.githubusercontent.com/media/${GITHUB_REPOSITORY}/${asset_ref}/${asset_path}"
             curl --fail --location --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors --connect-timeout 15 --max-time 120 "$media_url" --output "$tmp_asset"
             test -s "$tmp_asset"
@@ -101,7 +109,7 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
-      - name: Real wolf pack and long-frame browser proof
+      - name: Real wolf pack, fauna geography/material and long-frame browser proof
         shell: bash
         run: |
           set -euo pipefail
@@ -114,6 +122,7 @@ jobs:
           done
           BASE_URL=http://127.0.0.1:4173 node scripts/checkWildlifePackLongFrameBrowser.mjs
           BASE_URL=http://127.0.0.1:4173 node scripts/checkWildlifePackAdapterBrowser.mjs
+          BASE_URL=http://127.0.0.1:4173 node scripts/checkConfiguredFaunaGeographicMaterialBrowser.mjs
 
       - name: Final exact-main freshness
         shell: bash

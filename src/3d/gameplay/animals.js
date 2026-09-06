@@ -15,6 +15,7 @@
 
 import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
+import { evaluateConfiguredFaunaRoute, prepareConfiguredAnimalWorldAsset } from './faunaWorldPlacement.js';
 
 const MAX_WILDLIFE_SIMULATION_STEP_SECONDS = 0.1;
 const DEFAULT_FLEE_RELEASE_MARGIN_METERS = 3;
@@ -55,6 +56,8 @@ function stripNamedChildren(object3D, names) {
  * @param {number} options.groundY
  * @param {number} [options.rotationYRadians]
  * @param {string} [options.name] Assigned to the loaded `Object3D` (useful for debugging/tests).
+ * @param {string} [options.worldPlacementSpeciesId] When set by configured-fauna spawning, routes
+ *   the hydrated GLB through the shared material + geographic placement contract before scene add.
  * @param {{getGroundHeight: (x: number, z: number) => number}} [options.groundCollider] Required for
  *   patrol and/or flee — resamples ground height every frame while moving, same as
  *   `gameplay/npc.js`'s own movement.
@@ -96,6 +99,7 @@ export async function createWolf({
 	groundY,
 	rotationYRadians = 0,
 	name,
+	worldPlacementSpeciesId = null,
 	groundCollider,
 	playerCollider = null,
 	walkClipName,
@@ -112,8 +116,26 @@ export async function createWolf({
 	const model = await assetLoader.loadModel(modelUrl, { fallbackColor: 0x5a5148, fallbackSize: 1.2 });
 	stripNamedChildren(model, stripChildNames);
 	if (name) model.name = name;
-	model.position.set(worldX, groundY, worldZ);
-	model.rotation.y = rotationYRadians;
+	if (worldPlacementSpeciesId) {
+		const prepared = prepareConfiguredAnimalWorldAsset(model, {
+			speciesId: worldPlacementSpeciesId,
+			assetId: name,
+			modelUrl,
+			worldX,
+			worldZ,
+			rotationYRadians,
+			groundCollider,
+		});
+		if (!prepared.ok) {
+			AssetLoader.disposeObject3D(model);
+			const error = new Error(`configured fauna world placement failed: ${prepared.error ?? 'unknown'}`);
+			error.code = 'configured-fauna-world-placement';
+			throw error;
+		}
+	} else {
+		model.position.set(worldX, groundY, worldZ);
+		model.rotation.y = rotationYRadians;
+	}
 
 	const mixer = new THREE.AnimationMixer(model);
 	const idleClip = THREE.AnimationClip.findByName(model.animations, idleClipName);
@@ -373,39 +395,68 @@ export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsB
 				return null;
 			}
 			const { worldX, worldZ, groundY } = placement;
-			const patrolWaypoints = spawn.patrol
-				? [
-						{ x: worldX, z: worldZ },
-						{ x: seat.x + spawn.patrol.toOffsetXMeters, z: seat.z + spawn.patrol.toOffsetZMeters },
-					]
-				: undefined;
 			const clips = species?.clips;
 			const walkClipName = species ? clips?.walk : animalConfig.WALK_CLIP_NAME;
-			const effectiveWaypoints = walkClipName ? patrolWaypoints : undefined;
+			const speciesId = spawn.speciesId ?? 'wolf';
+			const patrolTarget = spawn.patrol && walkClipName
+				? { x: seat.x + spawn.patrol.toOffsetXMeters, z: seat.z + spawn.patrol.toOffsetZMeters }
+				: null;
+			const patrolPlacement = patrolTarget
+				? evaluateConfiguredFaunaRoute(speciesId, { x: worldX, z: worldZ }, patrolTarget, groundCollider)
+				: null;
+			const effectiveWaypoints = patrolPlacement?.ok
+				? [{ x: worldX, z: worldZ }, patrolTarget]
+				: undefined;
+			if (patrolTarget && !patrolPlacement?.ok) {
+				console.warn(`[gameplay/animals] Animal spawn "${spawn.id}" patrol route rejected by habitat placement (${patrolPlacement?.error ?? 'unknown'}) — keeping safe spawn without patrol.`);
+			}
 			const fleeClipName = species ? clips?.flee : animalConfig.FLEE_CLIP_NAME;
 			const canFlee = spawn.canFlee !== false && Boolean(fleeClipName);
-			return createWolf({
-				assetLoader,
-				modelUrl: species?.modelUrl ?? spawn.modelUrl ?? animalConfig.WOLF_MODEL_URL,
-				idleClipName: species ? clips?.idle : animalConfig.IDLE_CLIP_NAME,
-				stripChildNames: species ? (species.stripChildNames ?? []) : animalConfig.STRIP_CHILD_NAMES,
-				worldX,
-				worldZ,
-				groundY,
-				rotationYRadians: spawn.rotationYRadians,
-				name: spawn.id,
-				groundCollider,
-				playerCollider,
-				walkClipName: effectiveWaypoints ? walkClipName : undefined,
-				patrolWaypoints: effectiveWaypoints,
-				speedMps: animalConfig.PATROL_SPEED_MPS,
-				pauseSeconds: animalConfig.PATROL_PAUSE_SECONDS,
-				turnRateRadiansPerSecond: animalConfig.PATROL_TURN_RATE_RADIANS_PER_SECOND,
-				fleeClipName: canFlee ? fleeClipName : undefined,
-				fleeTriggerRadiusMeters: canFlee ? animalConfig.FLEE_TRIGGER_RADIUS_METERS : undefined,
-				fleeSpeedMps: animalConfig.FLEE_SPEED_MPS,
-				packAlertRadiusMeters: canFlee ? animalConfig.PACK_ALERT_RADIUS_METERS : undefined,
-			});
+			try {
+				const controller = await createWolf({
+					assetLoader,
+					modelUrl: species?.modelUrl ?? spawn.modelUrl ?? animalConfig.WOLF_MODEL_URL,
+					idleClipName: species ? clips?.idle : animalConfig.IDLE_CLIP_NAME,
+					stripChildNames: species ? (species.stripChildNames ?? []) : animalConfig.STRIP_CHILD_NAMES,
+					worldX,
+					worldZ,
+					groundY,
+					rotationYRadians: spawn.rotationYRadians,
+					name: spawn.id,
+					worldPlacementSpeciesId: speciesId,
+					groundCollider,
+					playerCollider,
+					walkClipName: effectiveWaypoints ? walkClipName : undefined,
+					patrolWaypoints: effectiveWaypoints,
+					speedMps: animalConfig.PATROL_SPEED_MPS,
+					pauseSeconds: animalConfig.PATROL_PAUSE_SECONDS,
+					turnRateRadiansPerSecond: animalConfig.PATROL_TURN_RATE_RADIANS_PER_SECOND,
+					fleeClipName: canFlee ? fleeClipName : undefined,
+					fleeTriggerRadiusMeters: canFlee ? animalConfig.FLEE_TRIGGER_RADIUS_METERS : undefined,
+					fleeSpeedMps: animalConfig.FLEE_SPEED_MPS,
+					packAlertRadiusMeters: canFlee ? animalConfig.PACK_ALERT_RADIUS_METERS : undefined,
+				});
+				const targetGeography = patrolPlacement?.targetHabitat?.geography;
+				controller.object3D.userData.faunaPatrolPlacement = Object.freeze({
+					enabled: Boolean(effectiveWaypoints),
+					target: patrolTarget ? Object.freeze({ ...patrolTarget }) : null,
+					error: patrolTarget && !patrolPlacement?.ok ? (patrolPlacement?.error ?? 'unknown') : null,
+					biome: targetGeography?.surface?.biome ?? patrolPlacement?.geography?.surface?.biome ?? null,
+					slopeDegrees: Number.isFinite(targetGeography?.surface?.slopeDegrees)
+						? Number(targetGeography.surface.slopeDegrees.toFixed(3))
+						: null,
+					routeSampleCount: patrolPlacement?.routeSampleCount ?? 0,
+					routeDistanceMeters: Number.isFinite(patrolPlacement?.distanceMeters)
+						? Number(patrolPlacement.distanceMeters.toFixed(3))
+						: null,
+					failedRouteSampleIndex: patrolPlacement?.routeSampleIndex ?? null,
+				});
+				return controller;
+			} catch (error) {
+				if (error?.code !== 'configured-fauna-world-placement') throw error;
+				console.warn(`[gameplay/animals] Animal spawn "${spawn.id}" rejected by geographic/material placement (${error.message}) — skipping.`);
+				return null;
+			}
 		}),
 	);
 	return animals.filter(Boolean);

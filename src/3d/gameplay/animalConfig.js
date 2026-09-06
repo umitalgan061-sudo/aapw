@@ -221,7 +221,7 @@ export const ANIMAL_CONFIG = Object.freeze({
 			offsetXMeters: -30,
 			offsetZMeters: 0,
 			rotationYRadians: Math.PI * 0.5,
-			patrol: Object.freeze({ toOffsetXMeters: -30, toOffsetZMeters: -24 }),
+			patrol: Object.freeze({ toOffsetXMeters: -30, toOffsetZMeters: -12 }),
 		}),
 		/** House Baratheon's sigil is a crowned stag, so `stannis` gets the stag — the same deliberate
 		 * lore-fit reasoning that put every wolf at `berkalp` (House Stark/direwolf), not an arbitrary
@@ -231,9 +231,9 @@ export const ANIMAL_CONFIG = Object.freeze({
 			seatId: 'stannis',
 			speciesId: 'stag',
 			offsetXMeters: 36,
-			offsetZMeters: 20,
+			offsetZMeters: 10,
 			rotationYRadians: Math.PI,
-			patrol: Object.freeze({ toOffsetXMeters: 36, toOffsetZMeters: 44 }),
+			patrol: Object.freeze({ toOffsetXMeters: 36, toOffsetZMeters: -14 }),
 		}),
 		/** `ziya`/`berk`/`olena` are the three Tyrell seats — the agricultural heartland in this world's
 		 * own 2D lore — so the farm animals (cows, sheep) cluster there rather than at a war seat. Two
@@ -314,9 +314,9 @@ export const ANIMAL_CONFIG = Object.freeze({
 			seatId: 'jon',
 			speciesId: 'dog',
 			offsetXMeters: -30,
-			offsetZMeters: 22,
+			offsetZMeters: 55,
 			rotationYRadians: Math.PI * 1.25,
-			patrol: Object.freeze({ toOffsetXMeters: -48, toOffsetZMeters: 30 }),
+			patrol: Object.freeze({ toOffsetXMeters: -48, toOffsetZMeters: 75 }),
 		}),
 		/** `Xaro` is this world's Qarth merchant seat — the one place non-native, imported exotic
 		 * animals (zebra, alpaca) are a deliberate thematic fit rather than a continuity break. Placed

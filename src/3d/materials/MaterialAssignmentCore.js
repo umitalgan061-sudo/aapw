@@ -100,6 +100,7 @@ export function applyMaterialRecipe(object, recipe, { metadata = {} } = {}) {
   if (recipe.mode === 'auto') result = applyAutoRecipe(object, recipe, metadata);
   else if (recipe.mode === 'surface') result = applySurfaceRecipe(object, recipe);
   else if (recipe.mode === 'layers') result = applyLayerRecipe(object, recipe);
+  else if (recipe.mode === 'preserve') result = applyPreserveRecipe(object);
   else return { ok: false, error: `unsupported-mode:${recipe.mode}` };
 
   if (result.ok) {
@@ -133,6 +134,21 @@ function applyAutoRecipe(object, recipe, metadata) {
     paletteId: recipe.basePaletteId,
     meshes: applied.named + applied.banded + applied.main + applied.plain,
     ...applied,
+  };
+}
+
+function applyPreserveRecipe(object) {
+  const analysis = analyzeMaterialSurfaces(object);
+  if (!analysis.meshCount) return { ok: false, error: 'no-renderable-mesh' };
+  return {
+    ok: true,
+    mode: 'preserve',
+    meshes: analysis.meshCount,
+    surfaces: analysis.surfaceCount,
+    named: analysis.namedSurfaceCount,
+    banded: 0,
+    main: 0,
+    plain: analysis.surfaceCount,
   };
 }
 

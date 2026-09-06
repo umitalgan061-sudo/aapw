@@ -42,7 +42,22 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin main
-          BASE_SHA="$(git rev-parse origin/main)"
+          MAIN_SHA="$(git rev-parse origin/main)"
+          BASE_SHA="${{ github.event.pull_request.base.sha || github.sha }}"
+          if ! git cat-file -e "${BASE_SHA}^{commit}"; then
+            echo "Exact PR base commit is unavailable: ${BASE_SHA}" >&2
+            exit 1
+          fi
+          if ! git cat-file -e "${MAIN_SHA}^{commit}"; then
+            echo "Exact origin/main commit is unavailable: ${MAIN_SHA}" >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$MAIN_SHA" "$BASE_SHA"; then
+            MERGE_BASE="$(git merge-base "$MAIN_SHA" "$BASE_SHA" || true)"
+            echo "PR base is stale/diverged from exact origin/main; rebase the stacked PR before qualification." >&2
+            echo "origin/main=${MAIN_SHA} base=${BASE_SHA} merge_base=${MERGE_BASE:-none}" >&2
+            exit 1
+          fi
           test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
           CHANGED="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           test "$CHANGED" -le 1000
@@ -69,12 +84,36 @@ jobs:
           node scripts/checkNpcSimulationLod.mjs
           node --check scripts/checkNpcSimulationLodFairness.mjs
           node scripts/checkNpcSimulationLodFairness.mjs
-      - name: Shared material placement and offline determinism regressions
+      - name: Shared material placement contract
+        run: node scripts/checkSharedMaterialPlacementContract.js
+      - name: Repository-wide offline-shell diagnostic
+        id: offline_shell_diagnostic
+        continue-on-error: true
+        run: node scripts/checkServiceWorkerCache.js
+      - name: Enforce owned offline-shell entries
+        shell: bash
         run: |
           set -euo pipefail
-          node scripts/checkSharedMaterialPlacementContract.js
-          node scripts/checkServiceWorkerCache.js
-          node scripts/checkSeededRandomPolicy.js
+          git fetch origin main
+          mapfile -t owned_paths < <(git diff --name-only origin/main...HEAD | grep -E '^src/3d/.*\.js$' || true)
+          if (( ${#owned_paths[@]} == 0 )); then
+            echo 'No owned src/3d JavaScript paths changed; owned offline-shell check is vacuously clean.'
+            exit 0
+          fi
+          missing=0
+          for path in "${owned_paths[@]}"; do
+            if ! grep -Fq "./$path" service-worker.js && ! grep -Fq "'$path'" service-worker.js; then
+              echo "[owned-offline-shell] missing: $path"
+              missing=1
+            fi
+          done
+          if (( missing != 0 )); then
+            echo 'Owned offline-shell entries are incomplete.'
+            exit 1
+          fi
+          echo "Owned offline-shell entries present for ${#owned_paths[@]} changed src/3d file(s)."
+      - name: Seeded-random determinism regression
+        run: node scripts/checkSeededRandomPolicy.js
       - name: Final exact-main freshness
         run: |
           set -euo pipefail
