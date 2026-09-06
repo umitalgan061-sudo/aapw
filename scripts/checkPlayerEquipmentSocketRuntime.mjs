@@ -85,6 +85,7 @@ try {
     equipment.updateMatrixWorld(true);
     character.updateMatrixWorld(true);
 
+    const anchorWorldPosition = rightHand.getWorldPosition(new THREE.Vector3());
     const worldPosition = equipment.getWorldPosition(new THREE.Vector3());
     const worldQuaternion = equipment.getWorldQuaternion(new THREE.Quaternion());
     const worldScale = equipment.getWorldScale(new THREE.Vector3());
@@ -99,6 +100,7 @@ try {
         semantic: 'right-hand',
         bone: rightHand.name,
         parentMatches: equipment.parent === rightHand,
+        anchorWorldPosition: anchorWorldPosition.toArray(),
         worldPosition: worldPosition.toArray(),
         worldQuaternion: worldQuaternion.toArray(),
         worldScale: worldScale.toArray(),
@@ -133,7 +135,9 @@ try {
   need(proof.characterPlaceholder === false, 'character resolved to placeholder');
   need(proof.equipmentPlaceholder === false, 'equipment resolved to placeholder');
   need(proof.socket.semantic === 'right-hand' && proof.socket.parentMatches === true, `socket attachment failed: ${JSON.stringify(proof.socket)}`);
+  need(finite(proof.socket.anchorWorldPosition), `non-finite socket anchor: ${JSON.stringify(proof.socket.anchorWorldPosition)}`);
   need(finite(proof.socket.worldPosition), `non-finite socket position: ${JSON.stringify(proof.socket.worldPosition)}`);
+  need(Math.hypot(...proof.socket.worldPosition.map((value, index) => value - proof.socket.anchorWorldPosition[index])) < 1e-5, `equipment origin drifted from right-hand anchor: ${JSON.stringify(proof.socket)}`);
   need(finite(proof.socket.worldQuaternion), `non-finite socket quaternion: ${JSON.stringify(proof.socket.worldQuaternion)}`);
   need(Math.abs(Math.hypot(...proof.socket.worldQuaternion) - 1) < 1e-5, `socket quaternion lost unit length: ${JSON.stringify(proof.socket.worldQuaternion)}`);
   need(finite(proof.socket.worldScale) && proof.socket.worldScale.every((value) => value > 1e-8), `mirrored or degenerate socket scale: ${JSON.stringify(proof.socket.worldScale)}`);
