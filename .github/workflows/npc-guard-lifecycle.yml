@@ -40,6 +40,7 @@ jobs:
           CHANGED="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
           test "$CHANGED" -le 3000
           git diff --check "$BASE_SHA" HEAD
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
       - name: Guard lifecycle and regression contracts
         run: |
           set -euo pipefail
@@ -60,7 +61,7 @@ jobs:
           node scripts/checkNpcGuardAssistLodWakeStress.mjs
           node scripts/checkNpcSimulationLod.mjs
           node scripts/checkSeededRandomPolicy.js
-          node scripts/checkNpcOwnedOfflineShellDelta.mjs
+          node scripts/checkNpcOwnedOfflineShellDelta.mjs --base "$BASE_SHA" --head "$GITHUB_SHA"
       - name: Shared PWA regression gate
         id: shared_pwa
         continue-on-error: true
