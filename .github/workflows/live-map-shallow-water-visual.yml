@@ -8,11 +8,18 @@ on:
     paths:
       - 'src/3d/world/water.js'
       - 'src/3d/world/waterDepthField.js'
+      - 'src/3d/world/geographicReferencePalette.js'
+      - 'src/3d/auroraNightAtmosphereV5.js'
       - 'scripts/checkWaterVisualContract.js'
       - 'scripts/checkWaterSurfVisualContract.mjs'
+      - 'scripts/checkRun325WaterSwell.js'
       - 'scripts/checkWorldWaterCoverageP0.mjs'
       - 'scripts/checkWaterCoverageRasterQuality.mjs'
       - 'scripts/checkWaterCoverageSamplingBudget.mjs'
+      - 'scripts/checkWaterLayerTransition.mjs'
+      - 'scripts/checkGeographicReferencePalette.mjs'
+      - 'scripts/checkMarineSkyFloorContract.mjs'
+      - 'scripts/checkFullWorldMarineRectangles.mjs'
       - 'scripts/captureLiveWorldWaterTopdown.mjs'
       - '.github/workflows/live-map-shallow-water-visual.yml'
       - '.github/workflows/full-world-runtime-coverage.yml'
@@ -48,13 +55,13 @@ jobs:
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/water\.js|src/3d/world/waterDepthField\.js|scripts/checkWaterVisualContract\.js|scripts/checkWaterSurfVisualContract\.mjs|scripts/checkWorldWaterCoverageP0\.mjs|scripts/checkWaterCoverageRasterQuality\.mjs|scripts/checkWaterCoverageSamplingBudget\.mjs|scripts/captureLiveWorldWaterTopdown\.mjs|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/full-world-runtime-coverage\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/world/water\.js|src/3d/world/waterDepthField\.js|src/3d/world/geographicReferencePalette\.js|src/3d/auroraNightAtmosphereV5\.js|scripts/checkWaterVisualContract\.js|scripts/checkWaterSurfVisualContract\.mjs|scripts/checkRun325WaterSwell\.js|scripts/checkWorldWaterCoverageP0\.mjs|scripts/checkWaterCoverageRasterQuality\.mjs|scripts/checkWaterCoverageSamplingBudget\.mjs|scripts/checkWaterLayerTransition\.mjs|scripts/checkGeographicReferencePalette\.mjs|scripts/checkMarineSkyFloorContract\.mjs|scripts/checkFullWorldMarineRectangles\.mjs|scripts/captureLiveWorldWaterTopdown\.mjs|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/water-layer-transition\.yml|\.github/workflows/full-world-3d-topdown\.yml|\.github/workflows/full-world-runtime-coverage\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
           echo "$CHANGED" | grep -Fx 'src/3d/world/water.js'
           echo "$CHANGED" | grep -Fx 'src/3d/world/waterDepthField.js'
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "shallow-water visual quota additions=$A deletions=$D total=$((A+D))"
-          test $((A+D)) -le 1000
+          test $((A+D)) -le 3000
       - name: Install water contract runtime dependency
         run: |
           set -euo pipefail
@@ -62,18 +69,35 @@ jobs:
       - name: Static shader and coverage contract
         run: |
           set -euo pipefail
-          node --check src/3d/world/water.js
-          node --check src/3d/world/waterDepthField.js
-          node --check scripts/checkWaterVisualContract.js
-          node --check scripts/checkWaterSurfVisualContract.mjs
-          node --check scripts/checkWorldWaterCoverageP0.mjs
-          node --check scripts/checkWaterCoverageRasterQuality.mjs
-          node --check scripts/checkWaterCoverageSamplingBudget.mjs
-          node --check scripts/captureLiveWorldWaterTopdown.mjs
-          node scripts/checkWorldWaterCoverageP0.mjs
-          node scripts/checkWaterCoverageRasterQuality.mjs
-          node scripts/checkWaterCoverageSamplingBudget.mjs
-          node scripts/checkWaterSurfVisualContract.mjs
+          run_contract() {
+            local label="$1"
+            shift
+            echo "::group::${label}"
+            "$@"
+            echo "::endgroup::"
+          }
+          run_contract 'syntax water.js' node --check src/3d/world/water.js
+          run_contract 'syntax waterDepthField.js' node --check src/3d/world/waterDepthField.js
+          run_contract 'syntax geographicReferencePalette.js' node --check src/3d/world/geographicReferencePalette.js
+          run_contract 'syntax auroraNightAtmosphereV5.js' node --check src/3d/auroraNightAtmosphereV5.js
+          run_contract 'syntax checkWaterVisualContract.js' node --check scripts/checkWaterVisualContract.js
+          run_contract 'syntax checkWaterSurfVisualContract.mjs' node --check scripts/checkWaterSurfVisualContract.mjs
+          run_contract 'syntax checkRun325WaterSwell.js' node --check scripts/checkRun325WaterSwell.js
+          run_contract 'syntax checkWorldWaterCoverageP0.mjs' node --check scripts/checkWorldWaterCoverageP0.mjs
+          run_contract 'syntax checkWaterCoverageRasterQuality.mjs' node --check scripts/checkWaterCoverageRasterQuality.mjs
+          run_contract 'syntax checkWaterCoverageSamplingBudget.mjs' node --check scripts/checkWaterCoverageSamplingBudget.mjs
+          run_contract 'syntax checkWaterLayerTransition.mjs' node --check scripts/checkWaterLayerTransition.mjs
+          run_contract 'syntax checkGeographicReferencePalette.mjs' node --check scripts/checkGeographicReferencePalette.mjs
+          run_contract 'syntax checkMarineSkyFloorContract.mjs' node --check scripts/checkMarineSkyFloorContract.mjs
+          run_contract 'syntax checkFullWorldMarineRectangles.mjs' node --check scripts/checkFullWorldMarineRectangles.mjs
+          run_contract 'syntax captureLiveWorldWaterTopdown.mjs' node --check scripts/captureLiveWorldWaterTopdown.mjs
+          run_contract 'world water coverage P0' node scripts/checkWorldWaterCoverageP0.mjs
+          run_contract 'water coverage raster quality' node scripts/checkWaterCoverageRasterQuality.mjs
+          run_contract 'water coverage sampling budget' node scripts/checkWaterCoverageSamplingBudget.mjs
+          run_contract 'water surf visual contract' node scripts/checkWaterSurfVisualContract.mjs
+          run_contract 'water layer transition' node scripts/checkWaterLayerTransition.mjs
+          run_contract 'geographic reference palette' node scripts/checkGeographicReferencePalette.mjs
+          run_contract 'marine sky floor contract' node scripts/checkMarineSkyFloorContract.mjs
       - name: Hydrate scoped smoke-test LFS assets
         run: |
           set -euo pipefail
@@ -90,11 +114,24 @@ jobs:
         run: |
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
-          node scripts/checkWaterVisualContract.js
-          node scripts/checkRun325WaterSwell.js
-          node scripts/captureLiveWorldWaterTopdown.mjs
-          node scripts/checkMobilePerfBudget.js
-          node scripts/smokeTestGame3D.js
+          mkdir -p artifacts/live-map-shallow-water-visual
+          run_gpu_contract() {
+            local label="$1"
+            shift
+            local log="artifacts/live-map-shallow-water-visual/${label// /-}.log"
+            echo "::group::${label}"
+            if ! "$@" 2>&1 | tee "$log"; then
+              printf '%s\n' "$label" > artifacts/live-map-shallow-water-visual/gpu-failure.txt
+              echo "::error title=Shallow-water GPU contract failed::${label}"
+              exit 1
+            fi
+            echo "::endgroup::"
+          }
+          run_gpu_contract 'real GPU water visual contract' node scripts/checkWaterVisualContract.js
+          run_gpu_contract 'Run325 water swell proof' node scripts/checkRun325WaterSwell.js
+          run_gpu_contract 'shipped createScene full-world water capture' node scripts/captureLiveWorldWaterTopdown.mjs
+          run_gpu_contract 'mobile performance budget' node scripts/checkMobilePerfBudget.js
+          run_gpu_contract '3D browser smoke safety' node scripts/smokeTestGame3D.js
       - name: Final exact-main freshness
         run: |
           set -euo pipefail

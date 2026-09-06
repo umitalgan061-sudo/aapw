@@ -19,10 +19,11 @@ need(!/smoothstep\(\s*0\.22\s*,\s*0\.0\s*,\s*(?:vDepthFactor|fragmentDepth)\s*\)
 requirePattern(/float\s+shallowMask\s*=\s*1\.0\s*-\s*smoothstep\(\s*0\.0\s*,\s*0\.22\s*,\s*fragmentDepth\s*\)\s*;/, 'defined inverse shallow-depth mask missing or surf envelope drifted');
 requirePattern(/shallowMask\s*\*=\s*shorelineGradientMask\(\s*vWorldPosition\.xz\s*\)\s*\*\s*waterCoverage\s*;/, 'surf must require a real bathymetry shoreline gradient and canonical water coverage');
 requirePattern(/float\s+foam\s*=\s*clamp\(\s*shallowMask\s*\*\s*surge\s*,\s*0\.0\s*,\s*1\.0\s*\)\s*;/, 'foam must remain shoreline/depth gated');
-requirePattern(/1\.0\s*-\s*smoothstep\(\s*90\.0\s*,\s*360\.0\s*,\s*distance\(\s*uCameraPosition\s*,\s*vWorldPosition\s*\)\s*\)/, 'fine ripple near-field anti-moire fade drifted');
-requirePattern(/float\s+swellShadingFade\s*=\s*1\.0\s*-\s*smoothstep\(\s*700\.0\s*,\s*1800\.0\s*,\s*distance\(\s*uCameraPosition\s*,\s*vWorldPosition\s*\)\s*\)\s*;/, 'long-swell normal must fade before far/orthographic views can resolve stripe bands');
-requirePattern(/vSwellSlope\s*\*\s*swellShadingFade\s*\+\s*rippleSlope\(\s*vWorldPosition\.xz\s*,\s*uTime\s*\)\s*\*\s*rippleFade/, 'water normal must apply the independent swell and ripple distance fades');
-requirePattern(/smoothstep\(\s*1500\.0\s*,\s*1950\.0\s*,\s*localEdgeDistance\s*\)/, 'near swell must blend to zero before the dense mesh edge');
+requirePattern(/float\s+cameraDistance\s*=\s*distance\(\s*uCameraPosition\s*,\s*vWorldPosition\s*\)\s*;/, 'shared camera-distance basis for water anti-moire fades drifted');
+requirePattern(/float\s+rippleFade\s*=\s*1\.0\s*-\s*smoothstep\(\s*90\.0\s*,\s*360\.0\s*,\s*cameraDistance\s*\)\s*;/, 'fine ripple near-field anti-moire fade drifted');
+requirePattern(/float\s+swellShadingFade\s*=\s*1\.0\s*-\s*smoothstep\(\s*700\.0\s*,\s*3600\.0\s*,\s*cameraDistance\s*\)\s*;/, 'long-swell normal must stay readable through far water views without restoring micro-ripple moire');
+requirePattern(/vSwellSlope\s*\*\s*swellShadingFade\s*\*\s*7\.8\s*\+\s*rippleSlope\(\s*vWorldPosition\.xz\s*,\s*uTime\s*\)\s*\*\s*rippleFade/, 'water normal must retain the depth-safe long-swell geometry while amplifying only its reflection response');
+requirePattern(/smoothstep\(\$\{WATER_LAYER_TRANSITION_POLICY\.featherStartMeters\.toFixed\(1\)\},\s*\$\{WATER_LAYER_TRANSITION_POLICY\.featherEndMeters\.toFixed\(1\)\},\s*localEdgeDistance\)/, 'near swell must derive its fade from WATER_LAYER_TRANSITION_POLICY before the dense mesh edge');
 requirePattern(/new\s+THREE\.PlaneGeometry\(\s*WATER_FULL_WORLD_EXTENT_METERS\s*,\s*WATER_FULL_WORLD_EXTENT_METERS\s*,\s*1\s*,\s*1\s*\)/, 'two-triangle full-world far-water coverage missing');
 requirePattern(/vec2\s+waterField\s*=\s*sampleWaterField\(\s*vWorldPosition\.xz\s*\)\s*;/, 'far water must sample canonical depth and wet/dry coverage per fragment');
 requirePattern(/float\s+waterCoverage\s*=\s*smoothstep\(\s*0\.08\s*,\s*0\.72\s*,\s*waterField\.y\s*\)\s*;/, 'canonical wet/dry coverage shoreline fade drifted');
@@ -60,7 +61,7 @@ console.log('WATER_SURF_VISUAL_CONTRACT_OK', JSON.stringify({
 	directionCross: Number(cross.toFixed(6)),
 	depthEnvelope: 0.22,
 	rippleFadeMeters: [90, 360],
-	swellShadingFadeMeters: [700, 1800],
+	swellShadingFadeMeters: [700, 3600],
 	waterExtent,
 	worldDiagonal: Number(worldDiagonal.toFixed(3)),
 }));

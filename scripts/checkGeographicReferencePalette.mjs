@@ -19,8 +19,11 @@ assert(relativeLuminanceFromHex(terrain.graniteShadow) > relativeLuminanceFromHe
 assert(relativeLuminanceFromHex(road.dust) > relativeLuminanceFromHex(road.compacted));
 assert(relativeLuminanceFromHex(road.compacted) > relativeLuminanceFromHex(road.rut));
 assert(relativeLuminanceFromHex(water.shoreClear) > relativeLuminanceFromHex(water.deepSea));
-assert(relativeLuminanceFromHex(water.deepSea) > relativeLuminanceFromHex(water.abyss));
+assert(relativeLuminanceFromHex(water.deepSea) > 0.039, 'deep sea must remain above the near-black collapse band while the shipped GPU motion lane is requalified');
+assert(relativeLuminanceFromHex(water.deepSea) < 0.043 && (((water.deepSea >> 8) & 0xff) - ((water.deepSea >> 16) & 0xff)) <= 24, 'deep sea must remain restrained and mineral enough to prevent bright cyan/teal open-ocean banding');
+assert.equal(water.abyss, water.deepSea, 'abyss underlay must share deep-sea chroma so transparent marine water cannot expose a rectangular colour-family seam');
+assert.equal(relativeLuminanceFromHex(water.abyss), relativeLuminanceFromHex(water.deepSea));
 assert(relativeLuminanceFromHex(water.foam) > relativeLuminanceFromHex(water.plunge));
 assert.notEqual(celestial.dawn, celestial.moon);
 
-console.log(`[checkGeographicReferencePalette] PASS: ${GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id}; terrain/road/depth/foam/celestial luminance ordering is coherent.`);
+console.log(`[checkGeographicReferencePalette] PASS: ${GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id}; terrain/road/shore-depth/abyss-continuity/foam/celestial luminance contract is coherent.`);
