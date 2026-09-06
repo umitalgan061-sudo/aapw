@@ -10,6 +10,14 @@ const valueFor = (flag, fallback) => {
 
 const base = valueFor('--base', execFileSync('git', ['rev-parse', 'origin/main'], { encoding: 'utf8' }).trim());
 const head = valueFor('--head', execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim());
+for (const [label, ref] of [['base', base], ['head', head]]) {
+    try {
+        execFileSync('git', ['cat-file', '-e', `${ref}^{commit}`], { stdio: 'ignore' });
+    } catch {
+        console.error(`[npc-owned-offline-shell] FAIL: ${label} is not a resolvable commit: ${ref}`);
+        process.exit(2);
+    }
+}
 const changed = execFileSync(
     'git',
     ['diff', '--name-status', `${base}...${head}`, '--', 'src/3d'],
