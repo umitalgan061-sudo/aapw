@@ -67,14 +67,16 @@ jobs:
           ! grep -q 'EditorMaterialStudio' src/3d/camera.js
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
-      - name: Shared PWA and cache contracts
-        id: shared-pwa
+      - name: PWA installability contract
+        id: pwa-installability
         continue-on-error: true
         shell: bash
-        run: |
-          set -euo pipefail
-          node scripts/checkPwaInstallability.js
-          node scripts/checkServiceWorkerCache.js
+        run: node scripts/checkPwaInstallability.js
+      - name: Service worker cache contract
+        id: service-worker-cache
+        continue-on-error: true
+        shell: bash
+        run: node scripts/checkServiceWorkerCache.js
       - name: Asset-first shipped-scene hydration
         shell: bash
         run: |
@@ -141,7 +143,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "${{ steps['shared-pwa'].outcome }}" = "success"
+          echo "pwa_installability=${{ steps['pwa-installability'].outcome }}"
+          echo "service_worker_cache=${{ steps['service-worker-cache'].outcome }}"
+          test "${{ steps['pwa-installability'].outcome }}" = "success"
+          test "${{ steps['service-worker-cache'].outcome }}" = "success"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
