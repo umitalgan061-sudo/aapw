@@ -135,6 +135,7 @@ try {
   need(proof.socket.semantic === 'right-hand' && proof.socket.parentMatches === true, `socket attachment failed: ${JSON.stringify(proof.socket)}`);
   need(finite(proof.socket.worldPosition), `non-finite socket position: ${JSON.stringify(proof.socket.worldPosition)}`);
   need(finite(proof.socket.worldQuaternion), `non-finite socket quaternion: ${JSON.stringify(proof.socket.worldQuaternion)}`);
+  need(Math.abs(Math.hypot(...proof.socket.worldQuaternion) - 1) < 1e-5, `socket quaternion lost unit length: ${JSON.stringify(proof.socket.worldQuaternion)}`);
   need(finite(proof.socket.worldScale) && proof.socket.worldScale.every((value) => Math.abs(value) > 1e-8), `degenerate socket scale: ${JSON.stringify(proof.socket.worldScale)}`);
   need(finite(proof.geometry.originalSize) && Math.max(...proof.geometry.originalSize) > 0, 'equipment original bounds are empty');
   need(finite(proof.geometry.socketSize) && Math.max(...proof.geometry.socketSize) > 0, 'equipment socket bounds are empty');
