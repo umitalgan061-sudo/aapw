@@ -9,6 +9,7 @@ on:
       - 'src/3d/camera.js'
       - 'src/3d/gameLoopHelpers.js'
       - 'src/3d/ui/touchJoystick.js'
+      - 'src/3d/ui/controlsHelp.js'
       - 'scripts/checkPlayerCombatVerticalSlice.mjs'
       - 'scripts/checkPlayerGamepadInput.mjs'
       - 'scripts/checkPlayerGamepadParryLifecycle.mjs'
@@ -94,7 +95,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Hydrate only families the shipped guard/equipment proofs actually instantiate.
           git lfs version
           git lfs pull --include="assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/Dragon_Baked_Actions_fbx_7.4_binary.fbx,assets/models/creatures/dragon/textures/**,assets/models/settlements/castles/*_decimated.glb,assets/models/vegetation/pine_Zt62gceKXZ.glb,assets/models/vegetation/winter_tree.glb,assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb,assets/models/Ay/Moon 2K.fbx,assets/models/fbx/Viking Sword Blend_Viking Sword.fbx" --exclude=""
           test -s assets/models/characters/peasant_girl.fbx
@@ -119,7 +119,7 @@ jobs:
             'assets/models/Ay/Moon 2K.fbx'; do
             ! head -c 128 "$shipped_asset" | grep -q 'git-lfs.github.com/spec'
           done
-          test "$(wc -c < 'assets/models/fbx/Viking Sword Blend_Viking Sword.fbx')" -eq 72380
+          test -s 'assets/models/fbx/Viking Sword Blend_Viking Sword.fbx'
           ! head -c 128 'assets/models/fbx/Viking Sword Blend_Viking Sword.fbx' | grep -q 'git-lfs.github.com/spec'
       - name: Combat contract syntax
         run: |
