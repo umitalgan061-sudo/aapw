@@ -59,6 +59,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "new_misses=unknown" >> "$GITHUB_OUTPUT"
           set +e
           node scripts/checkServiceWorkerCache.js > "$RUNNER_TEMP/run283-head-pwa.log" 2>&1
           HEAD_PWA_STATUS=$?
@@ -262,4 +263,10 @@ jobs:
       - name: Enforce offline shell delta outcome
         if: ${{ always() }}
         shell: bash
-        run: test "${{ steps.offline_shell.outputs.new_misses }}" != true
+        run: |
+          set -euo pipefail
+          case "${{ steps.offline_shell.outputs.new_misses }}" in
+            false) ;;
+            true) echo "[run283] FAIL: PR introduces new offline-shell misses" >&2; exit 1 ;;
+            *) echo "[run283] FAIL: offline-shell classifier did not publish a deterministic result" >&2; exit 2 ;;
+          esac
