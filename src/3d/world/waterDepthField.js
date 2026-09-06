@@ -29,11 +29,11 @@ export const WATER_OFFSHORE_OPTICAL_VARIATION_POLICY = Object.freeze({
 	physicalDepthUnchanged: true,
 	coverageUnchanged: true,
 	lakeIsolationPreserved: true,
-	macroScaleMeters: 2600,
-	mesoScaleMeters: 920,
-	fineScaleMeters: 340,
-	warpScaleMeters: 1800,
-	maxFactorPerturbation: 0.115,
+	macroScaleMeters: 2850,
+	mesoScaleMeters: 820,
+	fineScaleMeters: 300,
+	warpScaleMeters: 2100,
+	maxFactorPerturbation: 0.125,
 	shoreFadeStart: 0.12,
 	shoreFadeFull: 0.58,
 	fullDistanceScaleStartMeters: 240,
@@ -82,11 +82,11 @@ export function sampleOffshoreOpticalFabric(worldX, worldZ) {
 	const crossZ = ax;
 	const along = worldX * ax + worldZ * az;
 	const across = worldX * crossX + worldZ * crossZ;
-	const macro = valueNoise2D((along + warp * 430) / P.macroScaleMeters, across / (P.macroScaleMeters * 0.58), 0x41d3);
-	const meso = valueNoise2D((worldX - warp * 170) / P.mesoScaleMeters, (worldZ + warp * 210) / P.mesoScaleMeters, 0x93a7);
+	const macro = valueNoise2D((along + warp * 520) / P.macroScaleMeters, across / (P.macroScaleMeters * 0.64), 0x41d3);
+	const meso = valueNoise2D((worldX - warp * 210) / P.mesoScaleMeters, (worldZ + warp * 260) / P.mesoScaleMeters, 0x93a7);
 	const fine = valueNoise2D((worldX + worldZ * 0.23) / P.fineScaleMeters, (worldZ - worldX * 0.17) / P.fineScaleMeters, 0xc15b);
 	const ridge = 1 - Math.abs(macro * 2 - 1);
-	const signed = (macro - 0.5) * 0.94 + (meso - 0.5) * 0.58 + (fine - 0.5) * 0.24 + (ridge - 0.5) * 0.20;
+	const signed = (macro - 0.5) * 0.90 + (meso - 0.5) * 0.64 + (fine - 0.5) * 0.26 + (ridge - 0.5) * 0.18;
 	return Math.max(-1, Math.min(1, signed));
 }
 
@@ -95,8 +95,8 @@ export function createCoverageSubsampleOffsets(samplesPerAxis = WATER_COVERAGE_S
 		throw new RangeError('coverageSubsamplesPerAxis must be an integer in [1, 4]');
 	}
 	const offsets = [];
-	for (let row = 0; row < samplesPerAxis; row++) {
-		for (let column = 0; column < samplesPerAxis; column++) {
+	for (let row = 0; row < samplesPerAxis; row += 1) {
+		for (let column = 0; column < samplesPerAxis; column += 1) {
 			offsets.push(Object.freeze([
 				(column + 0.5) / samplesPerAxis - 0.5,
 				(row + 0.5) / samplesPerAxis - 0.5,
