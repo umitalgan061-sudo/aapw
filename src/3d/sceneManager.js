@@ -27,7 +27,10 @@ import { createHeightSampler, mulberry32 } from './world/terrain.js';
 import { createSettlements, computeSettlementFlattenPads } from './world/settlements.js';
 import { buildRoadNetwork } from './world/roads.js';
 import { createNaturalGeology, upgradeNaturalGeologyAssets } from './world/naturalGeology.js';
-import { createValyriaBarrenEcologyPlacementProbe } from './world/valyriaEcology.js';
+import {
+	createValyriaBarrenEcologyPlacementProbe,
+	VALYRIA_ECOLOGY_PLACEMENT_SYSTEMS,
+} from './world/valyriaEcology.js';
 import { createVegetation } from './world/vegetation.js';
 import { upgradeWinterVegetationAssets } from './world/winterVegetationAsset.js';
 import { createWindGrassRun180 } from './world/windGrass.js';
@@ -136,13 +139,21 @@ export function createScene(canvas) {
 	);
 
 	const groundCollider = createGroundCollider(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
-	// One placement-only adapter keeps the Doom barren without lying to physics, water, roads or
-	// natural geology about the actual volcanic terrain height.
-	const valyriaEcologyPlacement = createValyriaBarrenEcologyPlacementProbe({
+	// Valyria ecology is placement-only: all three consumers share the same canonical terrain sampler
+	// and refugia field, but each consumes its own survival threshold. This keeps grass, trees and
+	// villages geographically coherent without leaking ecology into physics, water, roads or geology.
+	const createValyriaPlacementFor = (ecologySystem) => createValyriaBarrenEcologyPlacementProbe({
 		sampleHeightMeters: groundCollider.getGroundHeight,
 		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+		ecologySystem,
 	});
-	console.info(`[sceneManager] Valyria barren ecology policy active: ${valyriaEcologyPlacement.policyId}.`);
+	const valyriaEcologyPlacement = createValyriaPlacementFor(VALYRIA_ECOLOGY_PLACEMENT_SYSTEMS.GRASS);
+	const valyriaVegetationPlacement = createValyriaPlacementFor(VALYRIA_ECOLOGY_PLACEMENT_SYSTEMS.VEGETATION);
+	const valyriaVillagePlacement = createValyriaPlacementFor(VALYRIA_ECOLOGY_PLACEMENT_SYSTEMS.VILLAGE);
+	console.info(
+		`[sceneManager] Valyria ecology policy active: ${valyriaEcologyPlacement.policyId} ` +
+		`(${valyriaVegetationPlacement.ecologySystem}/${valyriaVillagePlacement.ecologySystem}/${valyriaEcologyPlacement.ecologySystem}).`,
+	);
 
 	// The Wall and cave use the same collider-owned terrain sampler as every live grounded system.
 	const iceLandmarksResult = createIceLandmarks({
@@ -245,7 +256,7 @@ export function createScene(canvas) {
 	});
 
 	const vegetationResult = createVegetation({
-		sampleHeightMeters: valyriaEcologyPlacement.sampleHeightMeters,
+		sampleHeightMeters: valyriaVegetationPlacement.sampleHeightMeters,
 		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
 		seed: WORLD_DEFAULTS.WORLD_SEED,
 		seats: settlementsResult.seats,
@@ -275,7 +286,7 @@ export function createScene(canvas) {
 	});
 
 	const villagesResult = createVillages({
-		sampleHeightMeters: valyriaEcologyPlacement.sampleHeightMeters,
+		sampleHeightMeters: valyriaVillagePlacement.sampleHeightMeters,
 		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
 		seed: WORLD_DEFAULTS.WORLD_SEED,
 		seats: settlementsResult.seats,
