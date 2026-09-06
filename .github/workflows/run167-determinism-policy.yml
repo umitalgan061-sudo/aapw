@@ -58,14 +58,14 @@ jobs:
           HEAD_SHA="${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
           git lfs version
-          INCLUDE='assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**'
+          INCLUDE='assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/vegetation/pine_Zt62gceKXZ.glb,assets/models/vegetation/winter_tree.glb,assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb,assets/models/Ay/Moon 2K.fbx'
           for attempt in 1 2 3; do
             if git lfs pull --include="$INCLUDE" --exclude=""; then
               break
             fi
             if [ "$attempt" -lt 3 ]; then sleep $((attempt * 2)); fi
           done
-          mapfile -t scoped_paths < <(git lfs ls-files -n | grep -E '^assets/models/settlements/castles/|^assets/models/characters/|^assets/animations/peasant_girl/|^assets/models/animals/|^assets/models/creatures/dragon/' || true)
+          mapfile -t scoped_paths < <(git lfs ls-files -n | grep -E '^assets/models/settlements/castles/|^assets/models/characters/|^assets/animations/peasant_girl/|^assets/models/animals/|^assets/models/creatures/dragon/|^assets/models/vegetation/(pine_Zt62gceKXZ|winter_tree|dead_trees_with_snow_iEuwXWner0)\.glb$|^assets/models/Ay/Moon 2K\.fbx$' || true)
           for asset_path in "${scoped_paths[@]}"; do
             if head -n 1 "$asset_path" | grep -q '^version https://git-lfs.github.com/spec/v1$'; then
               encoded_path="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe="/"))' "$asset_path")"
