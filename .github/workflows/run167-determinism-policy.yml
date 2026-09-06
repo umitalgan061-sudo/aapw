@@ -56,6 +56,17 @@ jobs:
           set -euo pipefail
           git lfs version
           git lfs pull --include="assets/models/settlements/castles/**,assets/models/settlements/log_cabin_et0OmFeZVkb.glb,assets/models/settlements/fantasy_house_dcPho4SUA3.glb,assets/models/settlements/cabin_shed_HTx7PZt6Zm.glb,assets/models/settlements/house_fdaqERLQCc.glb,assets/models/settlements/medium_house_4hI5fNvl6z.glb,assets/models/settlements/small_wooden_house.glb,assets/models/settlements/house_roqiHdrpgc.glb,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/vegetation/**,assets/models/Ay/Moon 2K.fbx" --exclude=""
+          for asset in \
+            "assets/models/vegetation/pine_Zt62gceKXZ.glb" \
+            "assets/models/vegetation/winter_tree.glb" \
+            "assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb" \
+            "assets/models/Ay/Moon 2K.fbx"; do
+            test -s "$asset"
+            if head -n 1 "$asset" | grep -q '^version https://git-lfs.github.com/spec/v1$'; then
+              echo "[run167] FAIL: LFS pointer remains after hydration: $asset" >&2
+              exit 1
+            fi
+          done
 
       - name: Install Playwright outside repo
         shell: bash
