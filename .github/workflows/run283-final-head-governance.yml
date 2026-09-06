@@ -263,4 +263,7 @@ jobs:
       - name: Enforce offline shell delta outcome
         if: ${{ always() }}
         shell: bash
-        run: test "${{ steps.offline_shell.outputs.new_misses }}" = false
+        run: |
+          set -euo pipefail
+          latest_new_misses="$(awk -F= '/^new_misses=/{value=$2} END{print value}' "$GITHUB_OUTPUT")"
+          test "$latest_new_misses" = false
