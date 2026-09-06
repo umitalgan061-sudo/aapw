@@ -143,8 +143,11 @@ try {
   need(finite(proof.socket.worldScale) && proof.socket.worldScale.every((value) => value > 1e-8), `mirrored or degenerate socket scale: ${JSON.stringify(proof.socket.worldScale)}`);
   const socketScaleSpread = Math.max(...proof.socket.worldScale) - Math.min(...proof.socket.worldScale);
   need(socketScaleSpread < 1e-6, `non-uniform socket scale would distort equipment: ${JSON.stringify(proof.socket.worldScale)}`);
-  need(finite(proof.geometry.originalSize) && Math.max(...proof.geometry.originalSize) > 0, 'equipment original bounds are empty');
-  need(finite(proof.geometry.socketSize) && Math.max(...proof.geometry.socketSize) > 0, 'equipment socket bounds are empty');
+  need(finite(proof.geometry.originalSize) && proof.geometry.originalSize.every((value) => value > 1e-8), 'equipment original bounds are empty or degenerate');
+  need(finite(proof.geometry.socketSize) && proof.geometry.socketSize.every((value) => value > 1e-8), 'equipment socket bounds are empty or degenerate');
+  const geometryScale = proof.geometry.socketSize.map((value, index) => value / proof.geometry.originalSize[index]);
+  need(finite(geometryScale) && geometryScale.every((value) => value > 0), `invalid socket geometry scale: ${JSON.stringify(geometryScale)}`);
+  need(Math.max(...geometryScale) - Math.min(...geometryScale) < 1e-5, `socket attachment distorted equipment geometry: ${JSON.stringify({ originalSize: proof.geometry.originalSize, socketSize: proof.geometry.socketSize, geometryScale })}`);
   need(proof.material.beforeAttach.ok && proof.material.beforeAttach.errors.length === 0, `material invalid before attach: ${JSON.stringify(proof.material.beforeAttach)}`);
   need(proof.material.afterAttach.ok && proof.material.afterAttach.errors.length === 0, `material invalid after attach: ${JSON.stringify(proof.material.afterAttach)}`);
   need(proof.material.afterAttach.meshCount === proof.material.beforeAttach.meshCount, 'socket attach changed equipment mesh count');
