@@ -141,7 +141,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "${{ steps.shared-pwa.outcome }}" = "success"
+          test "${{ steps['shared-pwa'].outcome }}" = "success"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
