@@ -61,7 +61,7 @@ jobs:
           node scripts/checkNpcGuardAssistLodWakeStress.mjs
           node scripts/checkNpcSimulationLod.mjs
           node scripts/checkSeededRandomPolicy.js
-          node scripts/checkNpcOwnedOfflineShellDelta.mjs --base "$BASE_SHA" --head "$GITHUB_SHA"
+          node scripts/checkNpcOwnedOfflineShellDelta.mjs --base "$BASE_SHA" --head "${{ github.event.pull_request.head.sha || github.sha }}"
       - name: Shared PWA regression gate
         id: shared_pwa
         continue-on-error: true
