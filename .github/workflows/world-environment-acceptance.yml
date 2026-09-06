@@ -7,14 +7,17 @@ on:
     branches: [main]
     paths:
       - 'scripts/checkWorldEnvironmentAcceptanceMatrix.mjs'
+      - 'scripts/runWorldEnvironmentAcceptanceWithDiagnostics.mjs'
       - 'scripts/checkWorldSurfacePlacementPolicy.mjs'
       - 'scripts/checkMapAlignedTerrainPBR.mjs'
       - 'scripts/checkTerrainMicroSurface.mjs'
       - 'scripts/checkWorldWaterCoverageP0.mjs'
       - 'scripts/checkWaterCoverageRasterQuality.mjs'
       - 'scripts/checkWaterCoverageSamplingBudget.mjs'
+      - 'scripts/checkFogHorizonSafety.mjs'
       - 'scripts/checkSharedMaterialPlacementContract.js'
       - 'scripts/roadNetworkSafetyCheck.js'
+      - 'src/3d/fog.js'
       - 'src/3d/sky.js'
       - 'src/3d/world/terrain.js'
       - 'src/3d/world/water.js'
@@ -57,7 +60,7 @@ jobs:
           echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
           git diff --check "$BASE_SHA"...HEAD
           CHANGED="$(git diff --name-only "$BASE_SHA"...HEAD)"
-          test "$(echo "$CHANGED" | grep -Ev '^(fixtures/world-reference-mountain-relief-v1\.json|scripts/captureLiveWorldMountainNaturalization\.mjs|scripts/checkMountainNaturalizationDeterminism\.mjs|scripts/checkMountainNaturalizationProfile\.mjs|scripts/checkMountainPassReliefSafety\.mjs|scripts/checkMountainVisualProofContract\.mjs|scripts/checkWorldReferenceMountainRelief\.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix\.mjs|scripts/checkWorldSurfacePlacementPolicy\.mjs|scripts/checkMapAlignedTerrainPBR\.mjs|scripts/checkTerrainMicroSurface\.mjs|scripts/checkWorldWaterCoverageP0\.mjs|scripts/checkWaterCoverageRasterQuality\.mjs|scripts/checkWaterCoverageSamplingBudget\.mjs|scripts/checkWaterSurfVisualContract\.mjs|scripts/checkWaterVisualContract\.js|scripts/terrainSeatSafetyCheck\.js|scripts/roadNetworkSafetyCheck\.js|scripts/checkSharedMaterialPlacementContract\.js|src/3d/sky\.js|src/3d/world/terrain\.js|src/3d/world/water\.js|src/3d/world/waterDepthField\.js|src/3d/world/worldReferenceMountainRelief\.js|src/3d/world/WorldAssetPlacementPipeline\.js|\.github/workflows/world-map-aligned-terrain-pbr\.yml|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/run167-determinism-policy\.yml|\.github/workflows/run317-terrain3d-heightfield\.yml|\.github/workflows/live-map-mountain-relief\.yml|\.github/workflows/full-world-runtime-coverage\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(fixtures/world-reference-mountain-relief-v1\.json|scripts/captureLiveWorldMountainNaturalization\.mjs|scripts/checkMountainNaturalizationDeterminism\.mjs|scripts/checkMountainNaturalizationProfile\.mjs|scripts/checkMountainPassReliefSafety\.mjs|scripts/checkMountainVisualProofContract\.mjs|scripts/checkWorldReferenceMountainRelief\.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix\.mjs|scripts/runWorldEnvironmentAcceptanceWithDiagnostics\.mjs|scripts/checkWorldSurfacePlacementPolicy\.mjs|scripts/checkMapAlignedTerrainPBR\.mjs|scripts/checkTerrainMicroSurface\.mjs|scripts/checkWorldWaterCoverageP0\.mjs|scripts/checkWaterCoverageRasterQuality\.mjs|scripts/checkWaterCoverageSamplingBudget\.mjs|scripts/checkWaterSurfVisualContract\.mjs|scripts/checkWaterVisualContract\.js|scripts/checkFogHorizonSafety\.mjs|scripts/terrainSeatSafetyCheck\.js|scripts/roadNetworkSafetyCheck\.js|scripts/checkSharedMaterialPlacementContract\.js|src/3d/fog\.js|src/3d/sky\.js|src/3d/world/terrain\.js|src/3d/world/water\.js|src/3d/world/waterDepthField\.js|src/3d/world/worldReferenceMountainRelief\.js|src/3d/world/WorldAssetPlacementPipeline\.js|\.github/workflows/world-map-aligned-terrain-pbr\.yml|\.github/workflows/live-map-shallow-water-visual\.yml|\.github/workflows/run167-determinism-policy\.yml|\.github/workflows/run317-terrain3d-heightfield\.yml|\.github/workflows/live-map-mountain-relief\.yml|\.github/workflows/full-world-runtime-coverage\.yml|\.github/workflows/world-environment-acceptance\.yml)$' | wc -l)" -eq 0
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "world acceptance quota additions=$A deletions=$D total=$((A+D))"
@@ -66,34 +69,55 @@ jobs:
         run: |
           set -euo pipefail
           npm install --no-save --no-package-lock --ignore-scripts three@0.180.0
-      - name: Static syntax and shared placement contract
+      - name: Hydrate terrain PBR provenance asset
+        run: |
+          set -euo pipefail
+          git lfs version
+          git lfs pull --include="assets/textures/yüzey/overlay/overlay.png" --exclude=""
+          test "$(wc -c < 'assets/textures/yüzey/overlay/overlay.png')" -gt 10000000
+      - name: Static syntax
         run: |
           set -euo pipefail
           node --check scripts/checkWorldEnvironmentAcceptanceMatrix.mjs
+          node --check scripts/runWorldEnvironmentAcceptanceWithDiagnostics.mjs
           node --check scripts/checkWorldSurfacePlacementPolicy.mjs
           node --check scripts/checkMapAlignedTerrainPBR.mjs
           node --check scripts/checkTerrainMicroSurface.mjs
           node --check scripts/checkWorldWaterCoverageP0.mjs
           node --check scripts/checkWaterCoverageRasterQuality.mjs
           node --check scripts/checkWaterCoverageSamplingBudget.mjs
+          node --check scripts/checkFogHorizonSafety.mjs
           node --check src/3d/materials/MaterialAssignmentCore.js
+          node --check src/3d/fog.js
           node --check src/3d/sky.js
           node --check src/3d/world/terrain.js
           node --check src/3d/world/water.js
           node --check src/3d/world/waterDepthField.js
           node --check src/3d/world/WorldAssetPlacementPipeline.js
-          node scripts/checkSharedMaterialPlacementContract.js
-          node scripts/checkWorldSurfacePlacementPolicy.mjs
-          node scripts/checkMapAlignedTerrainPBR.mjs
-          node scripts/checkTerrainMicroSurface.mjs
-          node scripts/checkWorldWaterCoverageP0.mjs
-          node scripts/checkWaterCoverageRasterQuality.mjs
-          node scripts/checkWaterCoverageSamplingBudget.mjs
+      - name: Shared material placement contract
+        run: node scripts/checkSharedMaterialPlacementContract.js
+      - name: World surface placement policy
+        run: node scripts/checkWorldSurfacePlacementPolicy.mjs
+      - name: Map aligned terrain PBR
+        run: node scripts/checkMapAlignedTerrainPBR.mjs
+      - name: Terrain micro surface
+        run: node scripts/checkTerrainMicroSurface.mjs
+      - name: World water coverage P0
+        run: node scripts/checkWorldWaterCoverageP0.mjs
+      - name: Water raster quality
+        run: node scripts/checkWaterCoverageRasterQuality.mjs
+      - name: Water sampling budget
+        run: node scripts/checkWaterCoverageSamplingBudget.mjs
+      - name: Fog horizon safety
+        run: node scripts/checkFogHorizonSafety.mjs
       - name: Hydrate scoped runtime assets
         run: |
           set -euo pipefail
           git lfs version
-          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
+          git lfs pull --include="assets/models/Ay/Moon 2K.fbx,assets/models/vegetation/pine_Zt62gceKXZ.glb,assets/models/vegetation/winter_tree.glb,assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
+          test "$(wc -c < 'assets/models/Ay/Moon 2K.fbx')" -gt 1024
+          test "$(wc -c < 'assets/models/vegetation/pine_Zt62gceKXZ.glb')" -eq 2219996
+          test "$(wc -c < 'assets/models/vegetation/winter_tree.glb')" -eq 2008660
       - name: Install Playwright Chromium
         run: |
           set -euo pipefail
@@ -105,7 +129,7 @@ jobs:
         run: |
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
-          node scripts/checkWorldEnvironmentAcceptanceMatrix.mjs
+          node scripts/runWorldEnvironmentAcceptanceWithDiagnostics.mjs
       - name: Browser mobile and terrain regression safety
         run: |
           set -euo pipefail

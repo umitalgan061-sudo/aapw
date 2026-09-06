@@ -13,6 +13,12 @@ const PROOF_ELAPSED_SECONDS = 23;
 const PROOF_DAY_RATIO = 0.5;
 const hash = (bytes) => crypto.createHash('sha256').update(bytes).digest('hex');
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
+const decodePngDataUrl = (dataUrl, label) => {
+  assert(typeof dataUrl === 'string' && dataUrl.startsWith('data:image/png;base64,'), `${label}: shipped renderer did not return PNG data`);
+  const png = Buffer.from(dataUrl.slice('data:image/png;base64,'.length), 'base64');
+  assert(png.length > 4096, `${label}: proof PNG unexpectedly small`);
+  return png;
+};
 
 const playwright = devServerHelper.loadPlaywright();
 assert(Boolean(playwright), 'Playwright is required for world environment acceptance');
@@ -41,6 +47,9 @@ try {
     waitUntil: 'load', timeout: 30000,
   });
   await page.evaluate(() => {
+    const base = document.createElement('base');
+    base.href = '/';
+    document.head.prepend(base);
     const map = document.createElement('script');
     map.type = 'importmap';
     map.textContent = JSON.stringify({ imports: {
@@ -134,17 +143,28 @@ try {
 
   await page.waitForFunction(() => {
     const terrain = [...globalThis.__worldAcceptance.state.chunkManager.loaded.values()][0];
-    const image = terrain?.material?.map?.image;
-    return Boolean(image?.complete && image.naturalWidth > 0 && image.naturalHeight > 0);
+    const texture = terrain?.material?.map;
+    const image = texture?.image;
+    const width = Number(image?.naturalWidth ?? image?.width ?? 0);
+    const height = Number(image?.naturalHeight ?? image?.height ?? 0);
+    return Boolean(!texture?.userData?.loadFailed && width > 0 && height > 0);
   }, { timeout: 30000 });
   const albedoImage = await page.evaluate(() => {
     const terrain = [...globalThis.__worldAcceptance.state.chunkManager.loaded.values()][0];
-    const image = terrain.material.map.image;
-    return { width: image.naturalWidth, height: image.naturalHeight };
+    const texture = terrain.material.map;
+    const image = texture.image;
+    return {
+      width: Number(image?.naturalWidth ?? image?.width ?? 0),
+      height: Number(image?.naturalHeight ?? image?.height ?? 0),
+      neutralisedDetail: texture.userData?.neutralisedDetail === true,
+      loadFailed: texture.userData?.loadFailed === true,
+    };
   });
+  assert(albedoImage.loadFailed === false, 'authored terrain albedo load failed before visual proof');
   assert(albedoImage.width > 0 && albedoImage.height > 0, 'authored terrain albedo did not decode before visual proof');
+  assert(albedoImage.neutralisedDetail === true, 'authored terrain albedo was not neutralised before visual proof');
 
-  const fullMetrics = await page.evaluate(({ width, height, elapsedSeconds, dayRatio }) => {
+  const fullResult = await page.evaluate(({ width, height, elapsedSeconds, dayRatio }) => {
     const {
       THREE, state, world, updateDayNightLighting, updateAuroraSky, updateStarfield, focusSunShadow,
     } = globalThis.__worldAcceptance;
@@ -163,20 +183,23 @@ try {
     focusSunShadow(state.lights.sun, 0, 0, 0);
     state.renderer.render(state.scene, camera);
     return {
-      camera: 'orthographic', pitchDegrees: 90,
-      sceneChildren: state.scene.children.length,
-      rendererTriangles: state.renderer.info.render.triangles,
-      rendererCalls: state.renderer.info.render.calls,
-      proofDayRatio: dayNight.timeRatio,
+      metrics: {
+        camera: 'orthographic', pitchDegrees: 90,
+        sceneChildren: state.scene.children.length,
+        rendererTriangles: state.renderer.info.render.triangles,
+        rendererCalls: state.renderer.info.render.calls,
+        proofDayRatio: dayNight.timeRatio,
+      },
+      pngDataUrl: state.renderer.domElement.toDataURL('image/png'),
     };
   }, { width: WIDTH, height: HEIGHT, elapsedSeconds: PROOF_ELAPSED_SECONDS, dayRatio: PROOF_DAY_RATIO });
-  const fullPng = await page.screenshot({ type: 'png' });
-  assert(fullPng.length > 4096, 'full-world proof PNG unexpectedly small');
+  const fullMetrics = fullResult.metrics;
+  const fullPng = decodePngDataUrl(fullResult.pngDataUrl, 'full-world');
   fs.writeFileSync(path.join(OUT_DIR, 'full-world-orthographic.png'), fullPng);
 
   const sampleMetrics = [];
   for (const sample of samples) {
-    const metrics = await page.evaluate(({ sample, width, height, elapsedSeconds, dayRatio }) => {
+    const result = await page.evaluate(({ sample, width, height, elapsedSeconds, dayRatio }) => {
       const {
         THREE, state, world, normalizedReferenceToWorldXZ, proofFog,
         updateDayNightLighting, updateAuroraSky, updateStarfield, updateFog, focusSunShadow,
@@ -204,29 +227,32 @@ try {
       focusSunShadow(state.lights.sun, target.x, groundY, target.z);
       state.renderer.render(state.scene, camera);
       return {
-        id: sample.id,
-        target,
-        groundHit: Boolean(hit),
-        groundY,
-        rendererCalls: state.renderer.info.render.calls,
-        rendererTriangles: state.renderer.info.render.triangles,
-        proofDayRatio: dayNight.timeRatio,
-        skyDistanceToCamera: state.sky.position.distanceTo(camera.position),
-        starDistanceToCamera: state.stars.position.distanceTo(camera.position),
-        fogEnabled: Boolean(state.scene.fog),
+        metrics: {
+          id: sample.id,
+          target,
+          groundHit: Boolean(hit),
+          groundY,
+          rendererCalls: state.renderer.info.render.calls,
+          rendererTriangles: state.renderer.info.render.triangles,
+          proofDayRatio: dayNight.timeRatio,
+          skyDistanceToCamera: state.sky.position.distanceTo(camera.position),
+          starDistanceToCamera: state.stars.position.distanceTo(camera.position),
+          fogEnabled: Boolean(state.scene.fog),
+        },
+        pngDataUrl: state.renderer.domElement.toDataURL('image/png'),
       };
     }, {
       sample, width: WIDTH, height: HEIGHT,
       elapsedSeconds: PROOF_ELAPSED_SECONDS, dayRatio: PROOF_DAY_RATIO,
     });
+    const metrics = result.metrics;
     assert(metrics.groundHit, `${sample.id}: no terrain ground hit at deterministic sample`);
     assert(Number.isFinite(metrics.groundY), `${sample.id}: invalid terrain height`);
     assert(metrics.rendererCalls > 0, `${sample.id}: scene produced zero draw calls`);
     assert(metrics.skyDistanceToCamera < 1e-6, `${sample.id}: sky was not camera-centered`);
     assert(metrics.starDistanceToCamera < 1e-6, `${sample.id}: stars were not camera-centered`);
     assert(metrics.fogEnabled, `${sample.id}: shipped atmospheric fog was not enabled`);
-    const png = await page.screenshot({ type: 'png' });
-    assert(png.length > 4096, `${sample.id}: near proof PNG unexpectedly small`);
+    const png = decodePngDataUrl(result.pngDataUrl, sample.id);
     fs.writeFileSync(path.join(OUT_DIR, `${sample.id}-terrain-near.png`), png);
     sampleMetrics.push({ ...metrics, sha256: hash(png) });
   }
@@ -236,6 +262,7 @@ try {
     resolution: [WIDTH, HEIGHT],
     deterministicSamples: samples,
     proofFrame: { elapsedSeconds: PROOF_ELAPSED_SECONDS, dayRatio: PROOF_DAY_RATIO },
+    capture: { source: 'shipped-renderer-canvas', synchronousAfterRender: true },
     albedoImage,
     boot,
     full: { ...fullMetrics, sha256: hash(fullPng) },
