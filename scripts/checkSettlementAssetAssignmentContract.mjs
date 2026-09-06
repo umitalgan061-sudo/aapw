@@ -15,7 +15,7 @@ for (const marker of requiredMarkers) {
 }
 if (source.includes('EditorMaterialStudio.js')) throw new Error('SETTLEMENT_ASSET_CONTRACT_FAIL editor runtime import');
 
-const assignmentBlock = source.match(/export const CASTLE_MODEL_ASSIGNMENTS[\s\S]*?\n\]);/u)?.[0] || '';
+const assignmentBlock = source.match(/export const CASTLE_MODEL_ASSIGNMENTS[\s\S]*?\n\]\);/u)?.[0] || '';
 const entries = [...assignmentBlock.matchAll(/seatId:\s*'([^']+)'[\s\S]*?assetId:\s*'([^']+)'[\s\S]*?file:\s*'([^']+)'/gu)].map(([, seatId, assetId, file]) => ({ seatId, assetId, file }));
 if (entries.length < 14) throw new Error(`SETTLEMENT_ASSET_CONTRACT_FAIL expected >=14 assignments, got ${entries.length}`);
 const seatIds = new Set(entries.map((entry) => entry.seatId));
