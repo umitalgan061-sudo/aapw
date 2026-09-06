@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-06-v67-readable-mineral-deep-water',
+	id: 'geographic-reference-palette-2026-09-06-v68-motion-proof-rollback',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v67 preserves v56 aerial lowland separation: meadow remains lifted away from damp moss, dry heath stays darker/desaturated, ferric earth remains warm, and exposed stone stays compressed without changing terrain height, shoreline, hydrology or colliders',
-		water: 'v67 responds to the fresh shipped Run325 framebuffer, where structural cyan rectangles remain absent but open water still collapses close to black. The shared deep-sea/abyss pair is lifted to the top of the restrained luminance band while becoming more neutral mineral blue-grey, so swell/reflection structure can remain readable without recreating cyan/teal dominance. Deep sea and abyss remain chroma-identical so the underlay cannot expose a rectangular colour-family seam; shore/lake/river colours, canonical wet coverage, shoreline, bathymetry, lake/river membership and collider authority remain unchanged.',
-		road: 'v67 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
+		terrain: 'v68 preserves v56 aerial lowland separation: meadow remains lifted away from damp moss, dry heath stays darker/desaturated, ferric earth remains warm, and exposed stone stays compressed without changing terrain height, shoreline, hydrology or colliders',
+		water: 'v68 is a data-driven rollback of the v67 deep-water lift after fresh shipped Run325 proof regressed to 11.80% changed pixels. Deep sea and abyss return to the last neutral mineral pair that produced stronger real-GPU motion response while keeping the former giant cyan rectangle absent. This does not change swell geometry, wet coverage, shoreline, bathymetry, lake/river membership or colliders; it only restores the render-only deep-water optical baseline for the next exact-head proof.',
+		road: 'v68 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -51,8 +51,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		lakeClear: 0x2c5962,
 		riverPool: 0x2b5e67,
 		rapid: 0x789a9a,
-		deepSea: 0x2c4249,
-		abyss: 0x2c4249,
+		deepSea: 0x243c46,
+		abyss: 0x243c46,
 		plunge: 0x47727a,
 		splash: 0xdeedeb,
 		foam: 0xf1f7f4,
