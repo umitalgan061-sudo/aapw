@@ -26,9 +26,10 @@
 // (already recorded as an "environment quirk" by game3dSmokeChecksScene.js's own run-68 comment)
 // that reproduced on unmodified `main` in this run's own RCA, not something the run's actual code
 // change caused (confirmed: that change executes strictly after the domcontentloaded event this
-// timeout gates on). 30s gives real margin above the observed range, including one measured 20s+
-// outlier under sandbox contention.
-const NAV_TIMEOUT_MS = 30_000;
+// timeout gates on). Run283 later measured a cold shared-runner outlier beyond 30s after the full
+// shipped-browser suite had already exercised five smoke phases. 120s is navigation tolerance only;
+// it does not relax any safe-mode assertion or in-page gameplay/runtime contract below.
+const NAV_TIMEOUT_MS = 120_000;
 
 /**
  * Regression guard for `safeMode.js`'s `updateEntitiesSafely` (DECISIONS.md ADR-0106): a throwing

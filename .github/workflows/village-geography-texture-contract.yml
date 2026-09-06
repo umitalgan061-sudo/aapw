@@ -1,0 +1,78 @@
+name: Village Geography Texture Contract
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/villages.js'
+      - 'src/3d/gameplay/interactionEconomy.js'
+      - 'src/3d/materials/palettes.js'
+      - 'src/3d/materials/meshPartClassifier.js'
+      - 'src/3d/materials/MaterialAssignmentCore.js'
+      - 'src/3d/world/WorldAssetPlacementPipeline.js'
+      - 'assets/models/settlements/**'
+      - 'service-worker.js'
+      - 'scripts/checkVillageGeographyTextureContract.mjs'
+      - 'scripts/checkVillageBlacksmithServiceReadiness.mjs'
+      - '.github/workflows/village-geography-texture-contract.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: village-geography-texture-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  geography-texture-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          lfs: false
+
+      - name: Assert exact main ancestry and scope budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          base="$(git merge-base HEAD origin/main)"
+          test "$base" = "$(git rev-parse origin/main)"
+          stats="$(git diff --numstat origin/main...HEAD)"
+          additions="$(printf '%s\n' "$stats" | awk '{a+=$1} END {print a+0}')"
+          deletions="$(printf '%s\n' "$stats" | awk '{d+=$2} END {print d+0}')"
+          total=$((additions + deletions))
+          echo "scope additions=$additions deletions=$deletions total=$total"
+          test "$total" -le 3000
+
+      - name: Syntax-check geography contracts
+        run: |
+          node --check scripts/checkVillageGeographyTextureContract.mjs
+          node --check scripts/checkVillageBlacksmithServiceReadiness.mjs
+
+      - name: Validate canonical geography, model diversity and material semantics
+        run: node scripts/checkVillageGeographyTextureContract.mjs
+
+      - name: Validate blacksmith asset and RPG service adoption boundary
+        run: node scripts/checkVillageBlacksmithServiceReadiness.mjs
+
+      - name: Preserve shared material and placement authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "MaterialAssignmentCore.js" src/3d/world/villages.js
+          grep -q "WorldAssetPlacementPipeline.js" src/3d/world/villages.js
+          ! grep -q "EditorMaterialStudio" src/3d/world/villages.js
+          grep -q "footprintGrounding: 'always'" src/3d/world/villages.js
+          grep -q "requireSurfaceContext: true" src/3d/world/villages.js
+
+      - name: Freshness recheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"

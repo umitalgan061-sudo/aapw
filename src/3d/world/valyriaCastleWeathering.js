@@ -104,7 +104,15 @@ varying vec3 vValyriaCastleWorldPosition;`,
       .replace(
         '#include <worldpos_vertex>',
         `#include <worldpos_vertex>
-vValyriaCastleWorldPosition = worldPosition.xyz;`,
+vec4 valyriaCastleWorldPosition = vec4(transformed, 1.0);
+#ifdef USE_BATCHING
+  valyriaCastleWorldPosition = batchingMatrix * valyriaCastleWorldPosition;
+#endif
+#ifdef USE_INSTANCING
+  valyriaCastleWorldPosition = instanceMatrix * valyriaCastleWorldPosition;
+#endif
+valyriaCastleWorldPosition = modelMatrix * valyriaCastleWorldPosition;
+vValyriaCastleWorldPosition = valyriaCastleWorldPosition.xyz;`,
       );
 
     shader.fragmentShader = shader.fragmentShader

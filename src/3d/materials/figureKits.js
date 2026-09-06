@@ -1,19 +1,22 @@
 /**
- * Figure kits — how a *kind* of figure is dressed part by part.
+ * Figure/surface kits — how a *kind* of renderable asset is dressed part by part.
  *
  * A kit answers two separate questions:
- *   1. `slots`  — if a part was identified by name (eyes, claws, tunic...), which palette does it get?
+ *   1. `slots`  — if a part was identified by name (eyes, claws, tunic, roof, window...), which
+ *                 palette does it get?
  *   2. `bands`  — if nothing could be identified (a single unnamed mesh with one material, which is
- *                 exactly what `peasant-girl` is), how should the figure be dressed by height?
+ *                 exactly what `peasant-girl` and some settlement houses are), how should the asset
+ *                 be dressed by height?
  *
  * The band fallback is the interesting half. Most character models in this project arrive as one
  * mesh with one material and no part names at all, so name-based classification has nothing to work
  * with. Rather than give up and paint the whole person one colour — the flaw this system exists to
  * fix — the bands describe a figure vertically: boots at the bottom, trousers, tunic, then skin and
- * hair at the top. `layeredMaterial.js` turns that into a single shader that blends the band
- * textures by object-space height, so one draw call still yields a properly dressed figure.
+ * hair at the top. Authored structures use the same fallback principle for footing/wall/timber/roof.
+ * `layeredMaterial.js` turns those bands into a single shader that blends the textures by object-space
+ * height, so one draw call can still retain surface hierarchy.
  *
- * Bands are expressed as normalized heights over the mesh's own bounding box (0 = feet, 1 = crown),
+ * Bands are expressed as normalized heights over the mesh's own bounding box (0 = bottom, 1 = top),
  * so they follow the model whatever its real scale is.
  * @module materials/figureKits
  */
@@ -153,7 +156,21 @@ export const FIGURE_KITS = Object.freeze({
 		id: 'house',
 		label: 'Ev',
 		base: 'house',
-		slots: { armor: 'iron' },
+		// The dominant wall deliberately has no fixed slot. Its palette is the matched main palette
+		// (`house`, `brick`, `plaster`...), which lets a destination region keep authority over the
+		// façade while artist-authored detail names retain their own physically distinct surfaces.
+		slots: {
+			armor: 'iron',
+			'structure-window': 'glass',
+			'structure-door': 'wood',
+			'structure-thatch': 'thatch',
+			'structure-roof': 'roof-tile',
+			'structure-brick': 'brick',
+			'structure-plaster': 'plaster',
+			'structure-stone': 'stone',
+			'structure-timber': 'wood',
+			'structure-metal': 'iron',
+		},
 		bands: [
 			{ to: 0.12, palette: 'stone' },
 			{ to: 0.62, palette: 'house' },

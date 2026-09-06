@@ -26,6 +26,7 @@ const MOBILE_BUDGET = Object.freeze({
 });
 
 const SAMPLE_WAIT_MS = 3500;
+const SAMPLE_READY_TIMEOUT_MS = 10000;
 
 function parsePanel(text) {
 	const num = (re) => Number((text.match(re) ?? [])[1]?.replace(/,/g, '') ?? NaN);
@@ -58,6 +59,8 @@ async function main() {
 		userAgent: 'WesterosPWA-MobileBudgetGate/1.0',
 	});
 	const page = await context.newPage();
+	const startedAt = Date.now();
+	let phase = 'created-page';
 
 	const consoleErrors = [];
 	const pageErrors = [];
@@ -67,12 +70,36 @@ async function main() {
 	page.on('pageerror', (error) => pageErrors.push(String(error)));
 
 	try {
-		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+		// Use the shipped entry-gate readiness contract rather than a short locator-specific wait.
+		// Run266's authoritative browser gate allows 120s for DOMContentLoaded on cold CI runners.
+		// Resolve the static consent control directly from the parsed DOM instead of handing it to a
+		// Locator, whose default 30s resolution timeout can mask a missing/already-dismissed gate and
+		// prevent this test from ever reaching the independent GAME_READY/render-budget assertion.
+		phase = 'navigate-domcontentloaded';
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
+		phase = 'dismiss-entry-gate';
+		const entryState = await page.evaluate(() => {
+			const button = document.getElementById('run266-entry-enter');
+			if (!button) {
+				return {
+					clicked: false,
+					gatePresent: Boolean(document.getElementById('run266-entry-gate')),
+				};
+			}
+			button.click();
+			return { clicked: true, gatePresent: true };
+		});
+		if (!entryState.clicked && entryState.gatePresent) {
+			throw new Error('run266 entry gate is present but its enter control is missing');
+		}
+		phase = 'wait-game-ready';
 		await page.waitForFunction(
 			() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
+			null,
 			{ timeout: 60000, polling: 250 },
 		);
 
+		phase = 'verify-mobile-profile';
 		const pointerProfile = await page.evaluate(() => ({
 			coarse: window.matchMedia('(pointer: coarse)').matches,
 			fine: window.matchMedia('(pointer: fine)').matches,
@@ -82,10 +109,60 @@ async function main() {
 			throw new Error(`mobile emulation did not activate coarse/touch input: ${JSON.stringify(pointerProfile)}`);
 		}
 
-		await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', { code: 'F2' })));
+		// Prefer Playwright's real keyboard route, but prove that the shipped F2 listener actually
+		// toggled the panel before waiting for renderer samples. Some headless/Linux environments can
+		// reserve function keys before the page receives them; that must not turn a renderer-budget
+		// test into an opaque 10s sampling timeout. If the real key did not toggle the existing panel,
+		// dispatch the same debug-only keydown contract directly. This fallback does not bypass scene
+		// readiness or fabricate renderer.info values — it only activates the shipped read-only panel.
+		phase = 'activate-perf-panel';
+		await page.keyboard.press('F2');
+		let panelActivation = await page.evaluate(() => {
+			const panel = document.querySelector('.g3d-perf-panel');
+			return { exists: Boolean(panel), hidden: panel?.hidden ?? null };
+		});
+		if (!panelActivation.exists) {
+			throw new Error('F2 perf panel is missing after scene-ready activation');
+		}
+		let activationPath = 'playwright-keyboard';
+		if (panelActivation.hidden) {
+			activationPath = 'debug-keydown-fallback';
+			await page.evaluate(() => window.dispatchEvent(new KeyboardEvent('keydown', {
+				code: 'F2',
+				key: 'F2',
+				bubbles: true,
+			})));
+			panelActivation = await page.evaluate(() => {
+				const panel = document.querySelector('.g3d-perf-panel');
+				return { exists: Boolean(panel), hidden: panel?.hidden ?? null };
+			});
+		}
+		if (!panelActivation.exists || panelActivation.hidden) {
+			throw new Error(`could not activate shipped F2 perf panel: ${JSON.stringify({ activationPath, panelActivation })}`);
+		}
+		console.log(`[checkMobilePerfBudget] perf panel activation ${JSON.stringify({ activationPath, panelActivation })}`);
+
+		phase = 'settle-render-sample';
 		await page.waitForTimeout(SAMPLE_WAIT_MS);
-		const panelText = await page.locator('.g3d-perf-panel').textContent();
-		const result = parsePanel(panelText ?? '');
+		phase = 'wait-render-sample';
+		await page.waitForFunction(
+			() => {
+				const text = document.querySelector('.g3d-perf-panel')?.textContent ?? '';
+				return /FPS:\s*\d+/.test(text)
+					&& /Draw calls:\s*\d+/.test(text)
+					&& /Triangles:\s*[\d,]+/.test(text)
+					&& /Geometries:\s*\d+/.test(text)
+					&& /Textures:\s*\d+/.test(text);
+			},
+			null,
+			{ timeout: SAMPLE_READY_TIMEOUT_MS, polling: 250 },
+		);
+		phase = 'parse-render-sample';
+		const panelText = await page.evaluate(() => document.querySelector('.g3d-perf-panel')?.textContent ?? null);
+		if (panelText === null) {
+			throw new Error('F2 perf panel is missing after scene-ready activation');
+		}
+		const result = parsePanel(panelText);
 
 		if (Object.values(result).some(Number.isNaN)) {
 			throw new Error(`could not parse F2 panel: ${JSON.stringify(panelText)}`);
@@ -94,6 +171,7 @@ async function main() {
 			throw new Error(`console/page errors: ${JSON.stringify({ consoleErrors, pageErrors })}`);
 		}
 
+		phase = 'assert-render-budget';
 		const payload = {
 			profile: pointerProfile,
 			...result,
@@ -110,6 +188,32 @@ async function main() {
 			throw new Error(`triangle budget exceeded: ${result.triangles} >= ${MOBILE_BUDGET.trianglesExclusiveMax}`);
 		}
 		console.log('[checkMobilePerfBudget] PASS: measurable mobile render budgets are respected.');
+	} catch (error) {
+		let browserState = null;
+		try {
+			browserState = await page.evaluate(() => {
+				const panel = document.querySelector('.g3d-perf-panel');
+				return {
+					loadingClass: document.getElementById('game3d-loading')?.className ?? null,
+					panelExists: Boolean(panel),
+					panelHidden: panel?.hidden ?? null,
+					panelText: panel?.textContent ?? null,
+				};
+			});
+		} catch (diagnosticError) {
+			browserState = { diagnosticError: String(diagnosticError) };
+		}
+		const diagnostic = {
+			phase,
+			elapsedMs: Date.now() - startedAt,
+			browserState,
+			consoleErrors,
+			pageErrors,
+		};
+		// Emit the authoritative failure snapshot before Playwright teardown. A stuck context/browser
+		// close must never hide the phase that actually failed in GitHub Actions logs.
+		console.error(`[checkMobilePerfBudget] RCA ${JSON.stringify(diagnostic)}`);
+		throw new Error(`${error.message || error}; diagnostic=${JSON.stringify(diagnostic)}`);
 	} finally {
 		await context.close();
 		await browser.close();
