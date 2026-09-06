@@ -594,9 +594,7 @@ export function disposeWater(waterMesh) {
 	const depthField = waterMesh.userData.depthField;
 	if (depthField && depthField.texture !== PLACEHOLDER_DEPTH_TEXTURE) {
 		depthField.texture.dispose();
-		if (depthField.offshoreTexture && depthField.offshoreTexture !== PLACEHOLDER_OFFSHORE_TEXTURE) {
-			depthField.offshoreTexture.dispose();
-		}
+		if (depthField.offshoreTexture && depthField.offshoreTexture !== PLACEHOLDER_OFFSHORE_TEXTURE) depthField.offshoreTexture.dispose();
 		waterMesh.userData.depthField = null;
 	}
 }
