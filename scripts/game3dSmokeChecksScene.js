@@ -19,7 +19,7 @@
  * (DECISIONS.md ADR-0087) split the check modules again and this header's per-file breakdown is a
  * summary, not the registry.
  *
- * Every function here takes `(browser, baseUrl)` and returns `Promise<{name, ok, details}>`. See
+ * Every function here takes `(browser, baseUrl)` and returns `Promise<{name: string, ok: boolean, details: string}>`. See
  * each function's own comment for what it guards against.
  * @module scripts/game3dSmokeChecksScene
  */
@@ -40,8 +40,10 @@
 const NAV_TIMEOUT_MS = 30_000;
 /** Timeout for the 3D mode's boot sequence (444 terrain chunks + ~76MB of character/animal
  *  models decoded under SwiftShader software rendering in a headless sandbox can be slow — see
- *  3D_GAME_PROGRESS.md's FPS caveat). Generous on purpose to avoid environment-flaky failures. */
-const GAME3D_READY_TIMEOUT_MS = 60000;
+ *  3D_GAME_PROGRESS.md's FPS caveat). Generous on purpose to avoid environment-flaky failures.
+ *  Run 1039's preserved exact-head artifact showed every shipped module/gameplay assertion green
+ *  while the authoritative cold GAME_READY boot alone exceeded the historical 60s ceiling. */
+const GAME3D_READY_TIMEOUT_MS = 120000;
 
 /**
  * Navigates to `url` and collects uncaught exceptions / console errors seen during the load.
@@ -67,7 +69,7 @@ const GAME3D_READY_TIMEOUT_MS = 60000;
  *
  * `game3d.html` references no external origins at all (verified run 76), so blocking is a no-op for
  * the 3D path in the current tree — but it is applied there too on purpose: this project's Altın
- * Kural 4 requires the 3D mode to be offline-PWA-capable, so a future external dependency sneaking
+ * Kural 4 requires the 3D mode to run offline-PWA-capable, so a future external dependency sneaking
  * into the 3D path is a real regression, and `externalBlocked` surfacing a non-zero count on a
  * `game3d.html` load is exactly how it would get noticed.
  * @param {import('playwright').Browser} browser
@@ -180,6 +182,7 @@ async function check3DMode(browser, baseUrl) {
 				if (el.classList.contains('g3d-loading-error')) return 'error';
 				return false;
 			},
+			null,
 			{ timeout: GAME3D_READY_TIMEOUT_MS, polling: 250 },
 		);
 		outcome = await handle.jsonValue();
@@ -237,13 +240,9 @@ async function checkWaterDepthTaperedSwell(browser, baseUrl) {
 			);
 			const { createWaterDepthField, FULL_WAVE_DEPTH_METERS } = await import('/src/3d/world/waterDepthField.js');
 			const failures = [];
-
-			// 1. The safety inequality itself, on the real exported constants.
 			if (!(WAVE_TOTAL_AMPLITUDE_METERS < FULL_WAVE_DEPTH_METERS)) {
 				failures.push(`amplitude ${WAVE_TOTAL_AMPLITUDE_METERS} >= full-wave depth ${FULL_WAVE_DEPTH_METERS}`);
 			}
-			// 2. Swept numerically over the depths that actually occur, including the shallow lake
-			//    edges ADR-0048 tripped on. 1cm steps out to twice the full-wave depth.
 			let worstClearanceMeters = Infinity;
 			for (let depthMeters = 0.01; depthMeters <= FULL_WAVE_DEPTH_METERS * 2; depthMeters += 0.01) {
 				const taper = Math.min(1, depthMeters / FULL_WAVE_DEPTH_METERS);
@@ -254,13 +253,10 @@ async function checkWaterDepthTaperedSwell(browser, baseUrl) {
 					break;
 				}
 			}
-
-			// 3. A fresh mesh must be provably undisplaced — no field, no waves.
 			const water = createWater(6);
 			if (water.material.uniforms.uSwellStrength.value !== 0) {
 				failures.push('fresh water mesh has non-zero uSwellStrength (would displace against unknown bathymetry)');
 			}
-			// 4. The vertex shader must actually apply the depth taper, not just declare it.
 			const vertexSource = water.material.vertexShader;
 			if (!/worldPos\.y\s*\+=\s*swellHeight\s*\*\s*amplitudeScale/.test(vertexSource)) {
 				failures.push('vertex shader no longer scales its displacement by the depth-tapered amplitude');
@@ -268,10 +264,8 @@ async function checkWaterDepthTaperedSwell(browser, baseUrl) {
 			if (!/amplitudeScale\s*=\s*depthFactor\s*\*\s*uSwellStrength/.test(vertexSource)) {
 				failures.push('vertex shader no longer derives amplitudeScale from the sampled depth factor');
 			}
-
-			// 5. Attaching a real field turns swell on and wires the texture/extent through.
 			const depthField = createWaterDepthField({
-				sampleHeightMeters: (x) => (x < 0 ? 40 : -40), // dry cliff on one side, deep trench on the other
+				sampleHeightMeters: (x) => (x < 0 ? 40 : -40),
 				waterLevelMeters: 6,
 				extentMeters: 1000,
 				resolution: 16,
@@ -281,12 +275,10 @@ async function checkWaterDepthTaperedSwell(browser, baseUrl) {
 			if (uniforms.uSwellStrength.value !== 1) failures.push('attaching a depth field did not enable swell');
 			if (uniforms.uDepthMap.value !== depthField.texture) failures.push('depth texture not bound to uDepthMap');
 			if (uniforms.uDepthFieldExtentMeters.value !== 1000) failures.push('depth field extent not forwarded');
-			// Dry land must bake to exactly 0 and deep water to exactly 255 — the taper's two endpoints.
 			const texels = depthField.texture.image.data;
 			if (texels[0] !== 0) failures.push(`dry-land texel baked ${texels[0]}, expected 0`);
 			const lastTexelOffset = (16 * 16 - 1) * 4;
 			if (texels[lastTexelOffset] !== 255) failures.push(`deep-water texel baked ${texels[lastTexelOffset]}, expected 255`);
-
 			disposeWater(water);
 			return {
 				failures,
@@ -335,7 +327,6 @@ async function checkSettlementGroundFlatten(browser, baseUrl) {
 			const { createHeightSampler } = await import('/src/3d/world/terrain.js');
 			const { KINGDOM_SEATS, mapToWorldXZ, computeSettlementFlattenPads } = await import('/src/3d/world/settlements.js');
 			const { WORLD_SCALE, WORLD_DEFAULTS, SETTLEMENT_CONFIG } = await import('/src/3d/config.js');
-
 			const baseSampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED);
 			const flattenPads = computeSettlementFlattenPads({
 				sampleHeightMeters: baseSampleHeightMeters,
@@ -345,13 +336,11 @@ async function checkSettlementGroundFlatten(browser, baseUrl) {
 				metersPerMapUnit: WORLD_SCALE.METERS_PER_MAP_UNIT,
 			});
 			const flatSampleHeightMeters = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
-
 			const EPSILON_METERS = 1e-6;
 			const failures = [];
 			KINGDOM_SEATS.forEach((seat, index) => {
 				const pad = flattenPads[index];
 				const { x, z } = mapToWorldXZ(seat.mapX, seat.mapY, WORLD_SCALE.MAP_BOUNDS, WORLD_SCALE.METERS_PER_MAP_UNIT);
-
 				const centerHeight = flatSampleHeightMeters(x, z);
 				if (Math.abs(centerHeight - pad.anchorHeightMeters) > EPSILON_METERS) {
 					failures.push(`${seat.id}: center=${centerHeight.toFixed(4)} != anchor=${pad.anchorHeightMeters.toFixed(4)}`);
@@ -359,7 +348,6 @@ async function checkSettlementGroundFlatten(browser, baseUrl) {
 				if (pad.anchorHeightMeters <= WORLD_DEFAULTS.WATER_LEVEL_METERS) {
 					failures.push(`${seat.id}: anchor=${pad.anchorHeightMeters.toFixed(4)} at/below water level ${WORLD_DEFAULTS.WATER_LEVEL_METERS}`);
 				}
-
 				for (let i = 0; i < 8; i++) {
 					const angle = (i / 8) * Math.PI * 2;
 					const ringX = x + Math.cos(angle) * pad.innerRadiusMeters;
@@ -369,7 +357,6 @@ async function checkSettlementGroundFlatten(browser, baseUrl) {
 						failures.push(`${seat.id} ring#${i}: height=${ringHeight.toFixed(4)} != anchor=${pad.anchorHeightMeters.toFixed(4)}`);
 					}
 				}
-
 				let beyondPoint = null;
 				const probeRadiusMeters = pad.outerRadiusMeters + 5;
 				for (let i = 0; i < 32 && !beyondPoint; i++) {
@@ -391,7 +378,6 @@ async function checkSettlementGroundFlatten(browser, baseUrl) {
 					failures.push(`${seat.id} beyond-all-pads: flattened=${flattenedBeyond.toFixed(4)} != base=${baseBeyond.toFixed(4)}`);
 				}
 			});
-
 			return { seatCount: KINGDOM_SEATS.length, failures };
 		});
 	} catch (error) {

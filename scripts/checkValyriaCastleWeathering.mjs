@@ -126,7 +126,8 @@ const shader = {
   vertexShader: `
 #include <common>
 void main() {
-  vec4 worldPosition = vec4(0.0);
+  vec3 transformed = vec3(0.0);
+  mat4 modelMatrix = mat4(1.0);
   #include <worldpos_vertex>
 }`,
   fragmentShader: `
@@ -147,10 +148,13 @@ assert.equal(shader.uniforms.uValyriaCastleHeightScale.value, 46 * 1.18);
 assert.equal(shader.uniforms.uValyriaCastleSeed.value.length, 2);
 for (const snippet of [
   'varying vec3 vValyriaCastleWorldPosition',
-  'vValyriaCastleWorldPosition = worldPosition.xyz',
+  'vec4 valyriaCastleWorldPosition = vec4(transformed, 1.0)',
+  'valyriaCastleWorldPosition = modelMatrix * valyriaCastleWorldPosition',
+  'vValyriaCastleWorldPosition = valyriaCastleWorldPosition.xyz',
 ]) {
   assert(shader.vertexShader.includes(snippet), `vertex shader injection lost: ${snippet}`);
 }
+assert(!shader.vertexShader.includes('vValyriaCastleWorldPosition = worldPosition.xyz'), 'weathering must not depend on conditional Three.js worldPosition');
 for (const snippet of [
   'valyriaCastleHash',
   'valyriaCastleNoise',
@@ -177,6 +181,7 @@ console.log(JSON.stringify({
     ash: true,
     soot: true,
     sparseThermalFissures: true,
+    unconditionalWorldPosition: true,
   },
   geometryAuthorityUnchanged: true,
 }, null, 2));
