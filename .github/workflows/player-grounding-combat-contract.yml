@@ -193,6 +193,7 @@ jobs:
           grep -q 'PLAYER_DODGE_IFRAMES_RUNTIME_OK' artifacts/player-dodge-iframes.log
           grep -q '"browserErrors": \[\]' artifacts/player-dodge-iframes/dodge-iframes-runtime.json
       - name: Shared mobile perf and browser smoke hard gate
+        if: always()
         shell: bash
         run: |
           set -uo pipefail
