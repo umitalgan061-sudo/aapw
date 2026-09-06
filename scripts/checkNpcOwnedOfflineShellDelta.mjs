@@ -1,11 +1,18 @@
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
-const args = new Set(process.argv.slice(2));
+const argv = process.argv.slice(2);
+const args = new Set(argv);
 const enforce = args.has('--enforce');
 const valueFor = (flag, fallback) => {
-    const index = process.argv.indexOf(flag);
-    return index >= 0 && process.argv[index + 1] ? process.argv[index + 1] : fallback;
+    const index = argv.indexOf(flag);
+    if (index < 0) return fallback;
+    const value = argv[index + 1];
+    if (!value || value.startsWith('--')) {
+        console.error(`[npc-owned-offline-shell] FAIL: ${flag} requires a non-empty ref`);
+        process.exit(2);
+    }
+    return value;
 };
 
 const base = valueFor('--base', execFileSync('git', ['rev-parse', 'origin/main'], { encoding: 'utf8' }).trim());
