@@ -5,20 +5,16 @@
  * Run 348 extended it again with `playDiscoveryChime()` resolving cleanly — the callback-fires side
  * of that feature lives in `game3dSmokeChecksSettlementDiscovery.js`'s own `checkSettlementDiscovery`. */
 
-// Same environment-quirk margin `game3dSmokeChecksControlsHelp.js`/`game3dSmokeChecksPauseMenu.js`
-// already document (this project's own boot cost, not this run's change).
+// Navigation only needs the response committed. This check separately waits for the real entry gate
+// and drives its own top-layer trusted pointer target. Full GAME_READY/scene boot is authoritative in
+// `game3dSmokeChecksScene.js`'s `check3DMode`; making the audio module smoke wait for that unrelated
+// software-WebGL work caused false 60s failures before any audio assertion could execute.
 const NAV_TIMEOUT_MS = 30_000;
-// Same value `game3dSmokeChecksScene.js`'s `check3DMode` already waits on for full scene boot
-// (GAME_READY phase1-scene) -- this check drives a real pointer click, so unlike `PauseMenu`'s own
-// smoke check (which builds an isolated `PauseMenu` instance and uses hit-test-bypassing
-// `element.click()`), it must wait for the real `#game3d-loading` overlay/canvas to stop covering
-// the page first, or the click times out against whichever element is on top mid-boot.
-const GAME3D_READY_TIMEOUT_MS = 60_000;
 
 /**
  * Constructs a real `createAudioManager` against a real `THREE.PerspectiveCamera` (the same shape
- * `game3d.js` passes it), then drives `playClick()` through an actual Playwright `page.click()` —
- * a trusted synthetic input event, unlike a plain `page.evaluate()` call — so the browser's
+ * `game3d.js` passes it), then drives `playClick()` through an actual Playwright mouse input —
+ * a trusted browser input event, unlike a plain `page.evaluate()` call — so the browser's
  * autoplay-gesture requirement is exercised the same way a real player's pause-button click
  * satisfies it in production (see `audio/audioManager.js`'s own module doc).
  */
@@ -26,17 +22,12 @@ async function checkAudioManager(browser, baseUrl) {
 	const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 	let result;
 	try {
-		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: NAV_TIMEOUT_MS });
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'commit', timeout: NAV_TIMEOUT_MS });
 		// Run 266's full-viewport consent overlay (`#run266-entry-gate`) intercepts pointer events
-		// until dismissed -- a real `page.click()` below (unlike `PauseMenu`'s own smoke check, which
-		// bypasses hit-testing entirely via `element.click()`) would otherwise time out clicking a
-		// button appended underneath it. Same dismissal `captureRun339PauseMenuEvidence.js` already
-		// uses.
+		// until dismissed. Waiting for the actual shipped control is the only page-readiness condition
+		// this module smoke needs; full scene readiness is proven independently by `check3DMode`.
+		await page.waitForSelector('#run266-entry-enter', { state: 'visible', timeout: NAV_TIMEOUT_MS });
 		await page.click('#run266-entry-enter');
-		await page.waitForFunction(
-			() => document.getElementById('game3d-loading')?.classList.contains('g3d-loading-hidden'),
-			{ timeout: GAME3D_READY_TIMEOUT_MS, polling: 250 },
-		);
 		const setup = await page.evaluate(async () => {
 			const THREE = await import('three');
 			const { createAudioManager, readStoredMuted } = await import('/src/3d/audio/audioManager.js');
@@ -53,20 +44,22 @@ async function checkAudioManager(browser, baseUrl) {
 			const mutedFlagUpdates = audio.isMuted() === true;
 			audio.setMuted(false);
 			const unmuteFlagUpdates = audio.isMuted() === false;
-			// Stashed on `window` so the follow-up real click's handler (installed next) and the final
-			// evaluate() below can all reach the same instances -- Playwright's page.click() runs
-			// against page DOM, not this evaluate()'s local scope.
-			window.__audioCheck = { audio, camera };
+			// Stashed on `window` so the follow-up native mouse input and the final evaluate() below can
+			// all reach the same instances. The click handler records Event.isTrusted so this proof cannot
+			// silently degrade into a scripted DOM dispatch.
+			window.__audioCheck = { audio, camera, trustedClick: false, clickPromise: null };
 
 			const btn = document.createElement('button');
 			btn.id = '__audio-check-btn';
 			btn.textContent = 'trigger click sound';
-			// `#game3d-canvas` is `position: fixed` and covers the full viewport to receive real
-			// pointer/drag input (game3d.css) -- a plain appended button renders underneath it in the
-			// normal stacking order and a real `page.click()` below would hit the canvas instead. Fixed
-			// position + a z-index above the canvas's own puts it on top without faking the click event.
-			btn.style.cssText = 'position:fixed;top:0;left:0;width:200px;height:60px;z-index:999999;';
-			btn.onclick = () => { window.__audioCheck.clickPromise = audio.playClick(); };
+			// Scene/layout work can keep Playwright's locator actionability stability check busy even
+			// though this fixed target is already hittable. Put it at a deterministic viewport coordinate
+			// above every game overlay, then use native page.mouse input rather than locator.click().
+			btn.style.cssText = 'position:fixed;top:0;left:0;width:200px;height:60px;z-index:2147483647;pointer-events:auto;';
+			btn.onclick = (event) => {
+				window.__audioCheck.trustedClick = event.isTrusted === true;
+				window.__audioCheck.clickPromise = audio.playClick();
+			};
 			document.body.appendChild(btn);
 
 			return {
@@ -75,12 +68,22 @@ async function checkAudioManager(browser, baseUrl) {
 			};
 		});
 
-		// A real trusted click, not a scripted DOM event -- the one thing this check exists to prove
-		// that a plain unit test of the module in isolation could not.
-		await page.click('#__audio-check-btn');
+		// Native browser mouse input at the fixed target. This remains a real trusted click while
+		// avoiding locator.click()'s unrelated "stable" actionability wait during heavy scene layout.
+		await page.mouse.click(100, 30);
 
 		const afterClick = await page.evaluate(async () => {
+			if (!window.__audioCheck.clickPromise) {
+				return {
+					trustedClickReceived: false,
+					contextNotClosed: false,
+					discoveryChimeResolvedWithoutThrow: false,
+					disposeRemovesListener: false,
+					secondDisposeIsSafe: false,
+				};
+			}
 			await window.__audioCheck.clickPromise;
+			const trustedClickReceived = window.__audioCheck.trustedClick === true;
 			const listener = window.__audioCheck.camera.children.find((child) => child.type === 'AudioListener');
 			// 'running' after a resumed gesture-triggered context is the real-world success case;
 			// some CI/automation Chromium profiles start contexts already unsuspended, which is not a
@@ -108,7 +111,13 @@ async function checkAudioManager(browser, baseUrl) {
 				secondDisposeIsSafe = false;
 			}
 
-			return { contextNotClosed, discoveryChimeResolvedWithoutThrow, disposeRemovesListener, secondDisposeIsSafe };
+			return {
+				trustedClickReceived,
+				contextNotClosed,
+				discoveryChimeResolvedWithoutThrow,
+				disposeRemovesListener,
+				secondDisposeIsSafe,
+			};
 		});
 
 		result = { ...setup, ...afterClick };
@@ -122,9 +131,9 @@ async function checkAudioManager(browser, baseUrl) {
 		details: ok
 			? 'createAudioManager() adds a real THREE.AudioListener to the camera, starts unmuted '
 				+ '(readStoredMuted() defaults false), and setMuted()/isMuted() track state correctly; a '
-				+ 'real trusted click (not a scripted event) resolves playClick() without throwing and '
-				+ 'leaves the audio context open; playDiscoveryChime() also resolves without throwing; '
-				+ 'dispose() removes the listener and is safe to call twice'
+				+ 'native trusted mouse click (Event.isTrusted=true, not a scripted event) resolves playClick() '
+				+ 'without throwing and leaves the audio context open; playDiscoveryChime() also resolves '
+				+ 'without throwing; dispose() removes the listener and is safe to call twice'
 			: `FAILED assertion(s): ${JSON.stringify(result)}`,
 	};
 }
