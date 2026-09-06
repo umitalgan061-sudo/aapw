@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-06-v57-lowland-material-separation',
+	id: 'geographic-reference-palette-2026-09-06-v58-deep-sea-optical-anchor',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v57 strengthens aerial lowland separation after exact-main review: meadow is kept brighter than damp moss, dry heath shifts toward a drier mineral olive-brown, ferric earth carries a restrained warm anchor, and exposed stone remains compressed so broad lowlands read as layered ground rather than one olive-grey field without changing deterministic world-space fabric, terrain height, shoreline, hydrology or colliders',
-		water: 'v57 preserves the v56 shore/inland/deep-water hierarchy and restrained cyan; canonical wet coverage, shoreline and hydrology are unchanged',
-		road: 'v57 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
+		terrain: 'v58 preserves the v57 aerial lowland separation: meadow is kept brighter than damp moss, dry heath shifts toward a drier mineral olive-brown, ferric earth carries a restrained warm anchor, and exposed stone remains compressed so broad lowlands read as layered ground rather than one olive-grey field without changing deterministic world-space fabric, terrain height, shoreline, hydrology or colliders',
+		water: 'v58 restores the shipped deep-sea optical anchor consumed by the live water contract while preserving the v57 shore/inland/deep-water hierarchy and restrained cyan; canonical wet coverage, shoreline and hydrology are unchanged',
+		road: 'v58 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -51,7 +51,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		lakeClear: 0x2a6170,
 		riverPool: 0x246776,
 		rapid: 0x82a7aa,
-		deepSea: 0x08263a,
+		deepSea: 0x092941,
 		abyss: 0x020a12,
 		plunge: 0x4d818b,
 		splash: 0xdeedeb,
