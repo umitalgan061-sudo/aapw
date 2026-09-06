@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-06-v68-motion-proof-rollback',
+	id: 'geographic-reference-palette-2026-09-06-v69-exact-main-deep-water-readability',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v68 preserves v56 aerial lowland separation: meadow remains lifted away from damp moss, dry heath stays darker/desaturated, ferric earth remains warm, and exposed stone stays compressed without changing terrain height, shoreline, hydrology or colliders',
-		water: 'v68 is a data-driven rollback of the v67 deep-water lift after fresh shipped Run325 proof regressed to 11.80% changed pixels. Deep sea and abyss return to the last neutral mineral pair that produced stronger real-GPU motion response while keeping the former giant cyan rectangle absent. This does not change swell geometry, wet coverage, shoreline, bathymetry, lake/river membership or colliders; it only restores the render-only deep-water optical baseline for the next exact-head proof.',
-		road: 'v68 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
+		terrain: 'v69 preserves v56 aerial lowland separation: meadow remains lifted away from damp moss, dry heath stays darker/desaturated, ferric earth remains warm, and exposed stone stays compressed without changing terrain height, shoreline, hydrology or colliders',
+		water: 'v69 responds to the first fresh exact-main shipped Run325 proof after the 172-commit branch refresh: the former giant cyan rectangular field remains absent, but the near open-ocean body is still too close to black and only 12.49% of the GPU framebuffer changes versus the required 15%. Deep sea and abyss move together from 0x243c46 to the slightly brighter, less blue 0x263e45 mineral pair, staying inside the existing restrained luminance/chroma contract while improving body-water readability without changing swell geometry, wet coverage, shoreline, bathymetry, lake/river membership or colliders.',
+		road: 'v69 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -51,8 +51,8 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		lakeClear: 0x2c5962,
 		riverPool: 0x2b5e67,
 		rapid: 0x789a9a,
-		deepSea: 0x243c46,
-		abyss: 0x243c46,
+		deepSea: 0x263e45,
+		abyss: 0x263e45,
 		plunge: 0x47727a,
 		splash: 0xdeedeb,
 		foam: 0xf1f7f4,
