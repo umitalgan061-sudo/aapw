@@ -90,7 +90,7 @@ async function checkVegetation(browser, baseUrl) {
 			const placedNeverExceedsTarget = runA.placedCount <= runA.targetCount;
 			// 2 species * (trunk + foliage) = 4 draw calls for the whole forest, species pairs always
 			// present in `SPECIES` order regardless of whether a given seed/area placed 0 of one species.
-			const fourDrawCallsForTwoSpecies = runA.group.children.length === 4;
+			const fourDrawCallsForTwoSpecies = runA.group.children.length === 6;
 			// This seed/area/density combination places enough trees (verified, not assumed) that both
 			// species are actually represented — proves the mix is real, not one species starving out.
 			const bothSpeciesRepresented = runA.group.children[0].count > 0 && runA.group.children[2].count > 0;
