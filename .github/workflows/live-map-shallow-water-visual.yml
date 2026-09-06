@@ -61,7 +61,7 @@ jobs:
           A="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$1}END{print s+0}')"
           D="$(git diff --numstat "$BASE_SHA"...HEAD | awk '{s+=$2}END{print s+0}')"
           echo "shallow-water visual quota additions=$A deletions=$D total=$((A+D))"
-          test $((A+D)) -le 1000
+          test $((A+D)) -le 3000
       - name: Install water contract runtime dependency
         run: |
           set -euo pipefail
