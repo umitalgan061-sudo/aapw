@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-06-v180-broad-plain-distance-separation',
+	id: 'geographic-reference-palette-2026-09-06-v181-broad-plain-optical-depth',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -244,6 +244,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 	meadowEarthDistanceGapPass5: true,
 	broadPlainDistanceBalancePass6: true,
 	broadPlainDistanceSeparationPass7: true,
+	broadPlainOpticalDepthPass8: true,
 	assetReferences: Object.freeze([
 		'assets/models/fbx/dirt_road_test.glb',
 		'assets/models/fbx/road_terrain.glb',
@@ -251,22 +252,22 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v180 responds to exact-head full-world #1520: v179 was measurable but too subtle at aerial scale, so broad-plain meadow, wet organic soil, dry heath and mineral/lithic values are separated more decisively while preserving the same canonical height, shoreline, hydrology and collider authority.',
-		water: 'v180 keeps the v167 water palette unchanged so terrain-only contrast remains directly comparable against identical canonical hydrology and water optics.',
-		road: 'v180 keeps the v172 road palette and all route topology, width, terrain sampling and water exclusion unchanged.',
-		celestial: 'v180 preserves dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
+		terrain: 'v181 responds to exact-head full-world #1528: broad plains remain visually compressed, so meadow, wet organic soil, dry heath and weathered lithology are separated by a small natural-value step while canonical height, shoreline, hydrology and collider authority remain unchanged.',
+		water: 'v181 keeps the v167 water palette unchanged so terrain-only contrast remains directly comparable against identical canonical hydrology and water optics.',
+		road: 'v181 keeps the v172 road palette and all route topology, width, terrain sampling and water exclusion unchanged.',
+		celestial: 'v181 preserves dawn/noon/sunset/moon calibration and does not alter the day clock or lighting authority.',
 	}),
 });
 
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
 		mossShadow: 0x123b29,
-		meadow: 0x287c43,
-		dryHeather: 0x7f4a30,
-		wetEarth: 0x183d34,
-		exposedEarth: 0x8b7157,
-		graniteShadow: 0x3d5260,
-		graniteSunlit: 0x938878,
+		meadow: 0x2d8048,
+		dryHeather: 0x81523b,
+		wetEarth: 0x163c35,
+		exposedEarth: 0x92775e,
+		graniteShadow: 0x415462,
+		graniteSunlit: 0x968b7b,
 		basaltWet: 0x203e49,
 		quartz: 0xa2a5a1,
 	}),
