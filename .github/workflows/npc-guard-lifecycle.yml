@@ -61,7 +61,18 @@ jobs:
       - name: Shared PWA regression gate
         id: shared_pwa
         continue-on-error: true
-        run: node scripts/checkServiceWorkerCache.js
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/checkServiceWorkerCache.js 2>&1 | tee "$RUNNER_TEMP/npc-guard-lifecycle-pwa.log"
+      - name: Preserve shared PWA diagnostic
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-guard-lifecycle-pwa-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/npc-guard-lifecycle-pwa.log
+          if-no-files-found: error
+          retention-days: 7
       - name: Shared material placement regression gate
         run: node scripts/checkSharedMaterialPlacementContract.js
       - name: Install Chromium outside repo
