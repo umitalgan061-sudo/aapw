@@ -72,10 +72,9 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          set +e
-          node scripts/checkPwaInstallability.js
-          status=$?
-          set -e
+          mkdir -p artifacts/player-recovery-attack-buffer-drop/shared
+          node scripts/checkPwaInstallability.js 2>&1 | tee artifacts/player-recovery-attack-buffer-drop/shared/pwa-installability.log
+          status=${PIPESTATUS[0]}
           echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
       - name: Service worker cache contract
@@ -83,10 +82,9 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          set +e
-          node scripts/checkServiceWorkerCache.js
-          status=$?
-          set -e
+          mkdir -p artifacts/player-recovery-attack-buffer-drop/shared
+          node scripts/checkServiceWorkerCache.js 2>&1 | tee artifacts/player-recovery-attack-buffer-drop/shared/service-worker-cache.log
+          status=${PIPESTATUS[0]}
           echo "status=$status" >> "$GITHUB_OUTPUT"
           exit 0
       - name: Asset-first shipped-scene hydration
