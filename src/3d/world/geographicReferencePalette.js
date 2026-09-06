@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-06-v58-deep-sea-optical-anchor',
+	id: 'geographic-reference-palette-2026-09-06-v59-road-ribbon-anchor',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v58 preserves the v57 aerial lowland separation: meadow is kept brighter than damp moss, dry heath shifts toward a drier mineral olive-brown, ferric earth carries a restrained warm anchor, and exposed stone remains compressed so broad lowlands read as layered ground rather than one olive-grey field without changing deterministic world-space fabric, terrain height, shoreline, hydrology or colliders',
-		water: 'v58 restores the shipped deep-sea optical anchor consumed by the live water contract while preserving the v57 shore/inland/deep-water hierarchy and restrained cyan; canonical wet coverage, shoreline and hydrology are unchanged',
-		road: 'v58 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
+		terrain: 'v59 preserves the v58 aerial lowland separation: meadow is kept brighter than damp moss, dry heath shifts toward a drier mineral olive-brown, ferric earth carries a restrained warm anchor, and exposed stone remains compressed so broad lowlands read as layered ground rather than one olive-grey field without changing deterministic world-space fabric, terrain height, shoreline, hydrology or colliders',
+		water: 'v59 preserves the shipped deep-sea optical anchor and restrained shore/inland/deep-water hierarchy; canonical wet coverage, shoreline and hydrology are unchanged',
+		road: 'v59 aligns compacted cart-road and footpath dust anchors with the live ribbon contract while preserving darker damp ruts and subdued mineral variation so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -40,9 +40,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		quartz: 0x6b655d,
 	}),
 	road: Object.freeze({
-		compacted: 0x684b38,
+		compacted: 0x8b6849,
 		rut: 0x28231f,
-		dust: 0xa98f6f,
+		dust: 0xb0926d,
 		stone: 0x5c6562,
 		mossEdge: 0x294a31,
 	}),
