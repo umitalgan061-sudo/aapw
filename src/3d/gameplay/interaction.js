@@ -354,7 +354,7 @@ export function createInteractionController({ interactionPrompt, dialogueBox, gr
 				rewardCopper = Math.max(0, Math.floor(Number(entry.reward?.copper) || 0));
 				if (progression.grant(rewardExperience)) onProgressionChanged(progression.snapshot());
 				if (reputation.grant(INTERACTION_FACTIONS.DRAGONSTONE, rewardReputation)) onReputationChanged(reputation.snapshot());
-				const credit = economy.credit(rewardCopper);
+				const credit = economy.credit(rewardCopper, { sourceId: `expedition-contract:${entry.id}`, label: entry.label });
 				if (credit.ok) { balanceCopper = credit.balanceCopper; onEconomyChanged(economy.snapshot()); }
 			}
 			const masteryClaimed = worldState.claimExpeditionMastery();

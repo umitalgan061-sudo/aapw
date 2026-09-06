@@ -8,6 +8,7 @@ export const QUARTERMASTER_NPC_ID = 'stannis-guard-1';
 export const STARTING_COPPER = 40;
 export const RECENT_TRANSACTION_LIMIT = 5;
 export const RECENT_CREDIT_LIMIT = 5;
+const CREDIT_SOURCE_LIMIT = 64;
 
 export const QUARTERMASTER_OFFERS = Object.freeze([
 	Object.freeze({
@@ -74,6 +75,8 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 	let lifetimeSpentCopper = 0;
 	let recentTransactions = [];
 	let recentCredits = [];
+	let purchaseInFlight = false;
+	const creditedSourceIds = new Set();
 	const stockByOffer = new Map();
 	const purchasesByOffer = new Map();
 	resetStock();
@@ -124,8 +127,15 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 		lifetimeSpentCopper = 0;
 		recentTransactions = [];
 		recentCredits = [];
+		creditedSourceIds.clear();
 		purchasesByOffer.clear();
 		for (const offer of offers) purchasesByOffer.set(offer.id, 0);
+	}
+
+	function rememberCreditSource(sourceId) {
+		if (!sourceId) return;
+		creditedSourceIds.add(sourceId);
+		while (creditedSourceIds.size > CREDIT_SOURCE_LIMIT) creditedSourceIds.delete(creditedSourceIds.values().next().value);
 	}
 
 	function syncLedgerTotalsFromStock() {
@@ -173,6 +183,7 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 			recentTransactions: recentTransactions.map((receipt) => ({ ...receipt })),
 		};
 		if (recentCredits.length > 0) ledger.recentCredits = recentCredits.map((receipt) => ({ ...receipt }));
+		if (creditedSourceIds.size > 0) ledger.creditedSourceIds = [...creditedSourceIds];
 		return ledger;
 	}
 
@@ -183,6 +194,7 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 	}
 
 	function restore(saved) {
+		if (purchaseInFlight) return false;
 		copper = normalizeCopper(saved?.copper, STARTING_COPPER);
 		resetStock();
 		resetLedger();
@@ -199,6 +211,14 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 
 		const savedLedger = saved?.ledger;
 		if (!savedLedger || typeof savedLedger !== 'object' || Array.isArray(savedLedger)) return;
+		if (Array.isArray(savedLedger.creditedSourceIds)) {
+			const restoredSources = [];
+			for (let index = savedLedger.creditedSourceIds.length - 1; index >= 0 && restoredSources.length < CREDIT_SOURCE_LIMIT; index -= 1) {
+				const sourceId = normalizeReceiptText(savedLedger.creditedSourceIds[index], '');
+				if (sourceId && !restoredSources.includes(sourceId)) restoredSources.push(sourceId);
+			}
+			for (const sourceId of restoredSources.reverse()) rememberCreditSource(sourceId);
+		}
 		if (Array.isArray(savedLedger.recentCredits)) {
 			const validCredits = [];
 			const seenSequences = new Set();
@@ -211,6 +231,7 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 				validCredits.push(creditReceipt(creditedCopper, savedReceipt, sequence, savedReceipt.balanceCopper));
 			}
 			recentCredits = validCredits.sort((left, right) => left.sequence - right.sequence).slice(-RECENT_CREDIT_LIMIT);
+			for (const receipt of recentCredits) rememberCreditSource(receipt.sourceId);
 		}
 		if (!Array.isArray(savedLedger.recentTransactions) || transactionCount <= 0) return;
 
@@ -247,48 +268,73 @@ export function createInteractionEconomyState(initialCopper = STARTING_COPPER, o
 	}
 
 	function credit(amount, metadata = {}) {
+		if (purchaseInFlight) return { ok: false, reason: 'purchase-in-progress', creditedCopper: 0, balanceCopper: copper };
 		const creditedCopper = normalizeCopper(amount, 0);
 		if (creditedCopper <= 0) return { ok: false, reason: 'invalid-credit', creditedCopper: 0, balanceCopper: copper };
+		const sourceId = normalizeReceiptText(metadata?.sourceId, '');
+		if (sourceId && creditedSourceIds.has(sourceId)) return { ok: false, reason: 'duplicate-credit-source', creditedCopper: 0, balanceCopper: copper, sourceId };
 		copper += creditedCopper;
 		const sequence = (recentCredits.at(-1)?.sequence ?? 0) + 1;
 		const receipt = creditReceipt(creditedCopper, metadata, sequence, copper);
+		rememberCreditSource(sourceId);
 		recentCredits.push(receipt);
 		if (recentCredits.length > RECENT_CREDIT_LIMIT) recentCredits.splice(0, recentCredits.length - RECENT_CREDIT_LIMIT);
 		return { ok: true, creditedCopper, balanceCopper: copper, receipt, ledger: ledgerSnapshot() };
 	}
 
+	function canonicalConsumedItems(craftUpgrade) {
+		if (!craftUpgrade || typeof craftUpgrade !== 'object') return [];
+		const authoredInputs = Array.isArray(craftUpgrade.inputs) && craftUpgrade.inputs.length > 0
+			? craftUpgrade.inputs
+			: [{ itemId: craftUpgrade.inputItemId, quantity: craftUpgrade.inputQuantity }];
+		const requiredByItem = new Map();
+		for (const input of authoredInputs) {
+			const itemId = String(input?.itemId ?? '').trim();
+			if (!itemId) continue;
+			const quantity = Math.max(1, normalizeCount(input?.quantity, 1));
+			requiredByItem.set(itemId, (requiredByItem.get(itemId) ?? 0) + quantity);
+		}
+		return [...requiredByItem.entries()].map(([itemId, quantity]) => ({ itemId, quantity }));
+	}
+
 	function purchase(offer, grantItem) {
 		if (typeof grantItem !== 'function') return { ok: false, reason: 'invalid-offer' };
+		if (purchaseInFlight) return { ok: false, reason: 'purchase-in-progress', balanceCopper: copper };
 		const purchaseQuote = quote(offer);
 		if (!purchaseQuote.ok) return purchaseQuote;
 		const configuredOffer = configuredOfferFor(offer);
 		const fulfillment = configuredOffer.fulfillment;
-		const grantResult = grantItem(configuredOffer.itemId, configuredOffer.quantity ?? 1, {
-			sourceType: fulfillment?.kind ?? 'vendor',
-			sourceId: fulfillment?.serviceId ?? QUARTERMASTER_NPC_ID,
-			craftUpgrade: fulfillment?.craftUpgrade ?? null,
-		});
+		let grantResult;
+		purchaseInFlight = true;
+		try {
+			grantResult = grantItem(configuredOffer.itemId, configuredOffer.quantity ?? 1, {
+				sourceType: fulfillment?.kind ?? 'vendor',
+				sourceId: fulfillment?.serviceId ?? QUARTERMASTER_NPC_ID,
+				craftUpgrade: fulfillment?.craftUpgrade ?? null,
+			});
+		} finally {
+			purchaseInFlight = false;
+		}
 		const granted = grantResult === true || grantResult?.ok === true;
 		if (!granted) return { ...purchaseQuote, ok: false, reason: grantResult?.reason ?? 'inventory-full' };
+		const crafted = grantResult?.crafted === true && Boolean(fulfillment?.craftUpgrade);
+		const consumedItems = crafted ? canonicalConsumedItems(fulfillment.craftUpgrade) : [];
 		copper -= purchaseQuote.priceCopper;
 		stockByOffer.set(configuredOffer.id, purchaseQuote.remainingStock - 1);
 		syncLedgerTotalsFromStock();
 		recentTransactions.push(transactionReceipt(configuredOffer, transactionCount, copper));
 		if (recentTransactions.length > RECENT_TRANSACTION_LIMIT) recentTransactions.splice(0, recentTransactions.length - RECENT_TRANSACTION_LIMIT);
-		const consumedItems = Array.isArray(grantResult?.consumedItems)
-			? grantResult.consumedItems.map((input) => ({ itemId: String(input.itemId), quantity: normalizeCount(input.quantity, 1) }))
-			: [];
 		return {
 			ok: true,
 			spentCopper: purchaseQuote.priceCopper,
 			balanceCopper: copper,
 			offerId: configuredOffer.id,
 			remainingStock: purchaseQuote.remainingStock - 1,
-			crafted: grantResult?.crafted === true,
-			craftedItemId: grantResult?.outputItemId ?? null,
+			crafted,
+			craftedItemId: crafted ? fulfillment.craftUpgrade.outputItemId ?? null : null,
 			consumedItems,
-			consumedItemId: grantResult?.consumedItemId ?? (consumedItems.length === 1 ? consumedItems[0].itemId : null),
-			consumedQuantity: grantResult?.consumedQuantity ?? (consumedItems.length === 1 ? consumedItems[0].quantity : null),
+			consumedItemId: consumedItems.length === 1 ? consumedItems[0].itemId : null,
+			consumedQuantity: consumedItems.length === 1 ? consumedItems[0].quantity : null,
 			ledger: ledgerSnapshot(),
 		};
 	}
