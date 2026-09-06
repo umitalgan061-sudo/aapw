@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-06-v57-lowland-surface-separation',
+	id: 'geographic-reference-palette-2026-09-06-v58-lowland-shore-optics',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v57 keeps v56 canonical geometry and world-space fabric but separates the aerial lowland read with a restrained meadow lift, a less green dry-heath response and a slightly more mineral exposed-earth anchor; no terrain height, shoreline, hydrology, collider or deterministic placement authority changes',
-		water: 'v57 preserves the v54 shore/inland/deep-water hierarchy and restrained cyan; canonical wet coverage, shoreline and hydrology are unchanged',
-		road: 'v57 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
+		terrain: 'v58 keeps v57 lowland separation while restoring the authored clear-shore optical anchor used by the live water contract; meadow remains lifted away from damp moss, dry heath remains mineral/desaturated and exposed earth remains ferric without changing deterministic world-space fabric, terrain height, shoreline, hydrology or colliders',
+		water: 'v58 restores the clear-shore reference hue 0x6aa39c while preserving the v54 shore/inland/deep-water hierarchy and restrained cyan; canonical wet coverage, shoreline and hydrology are unchanged',
+		road: 'v58 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -47,7 +47,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		mossEdge: 0x294a31,
 	}),
 	water: Object.freeze({
-		shoreClear: 0x487c6f,
+		shoreClear: 0x6aa39c,
 		lakeClear: 0x2a6170,
 		riverPool: 0x246776,
 		rapid: 0x82a7aa,
