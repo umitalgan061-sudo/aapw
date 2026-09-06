@@ -142,7 +142,7 @@ jobs:
         shell: bash
         run: |
           set -uo pipefail
-          sed -i 's/const NAV_TIMEOUT_MS = 30_000;/const NAV_TIMEOUT_MS = 90_000;/' scripts/game3dSmokeChecks.js scripts/game3dSmokeChecksScene.js
+          sed -i 's/const NAV_TIMEOUT_MS = 30_000;/const NAV_TIMEOUT_MS = 90_000;/' scripts/game3dSmokeChecks*.js
           set +e
           node scripts/smokeTestGame3D.js 2>&1 | tee "$RUNNER_TEMP/smoke.log"
           SMOKE_STATUS="${PIPESTATUS[0]}"
