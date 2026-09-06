@@ -21,8 +21,12 @@ requireMatch(player, /Math\.ceil\(travelMeters \/ PLAYER_ACTION_CONFIG\.MAX_COLL
   'Movement must subdivide long frames before playerCollider resolution.');
 requireMatch(player, /playerCollider\.resolveXZ\(nextX, nextZ\)/,
   'Movement must continue to use the existing composed player collider.');
-requireMatch(player, /const startX = model\.position\.x, startZ = model\.position\.z;[\s\S]*return Math\.hypot\(model\.position\.x - startX, model\.position\.z - startZ\);/,
-  'Movement must report actual collider-resolved X/Z travel rather than requested distance.');
+requireMatch(player, /let travelledMeters = 0;[\s\S]*?const stepStartX = model\.position\.x, stepStartZ = model\.position\.z;[\s\S]*?playerCollider\.resolveXZ\(nextX, nextZ\)[\s\S]*?travelledMeters \+= Math\.hypot\(nextX - stepStartX, nextZ - stepStartZ\);[\s\S]*?frameTravelMeters \+= travelledMeters;[\s\S]*?return travelledMeters;/,
+  'Movement must report and accumulate collider-resolved X/Z path travel rather than start-to-end chord distance.');
+requireMatch(player, /update\(delta, moveDirectionXZ, isRunning, jumpRequested = false\) \{[\s\S]*?frameTravelMeters = 0;[\s\S]*?planarSpeedMps = dt > 0 \? frameTravelMeters \/ dt : 0;/,
+  'Player motion speed telemetry must be derived from this frame\'s accumulated collider-resolved path.');
+if (/return Math\.hypot\(model\.position\.x - startX, model\.position\.z - startZ\);/.test(player)) throw new Error('Movement must not collapse a collider-sliding path into start-to-end chord distance.');
+if (/planarSpeedMps\s*=\s*dt > 0 \? Math\.hypot\(model\.position\.x - frameStartX, model\.position\.z - frameStartZ\) \/ dt : 0/.test(player)) throw new Error('Motion telemetry must not regress to frame start-to-end chord speed.');
 requireMatch(player, /const committedMeters = moveBy\([\s\S]*?attackCommitRemaining = Math\.max\(0, attackCommitRemaining - committedMeters\);/,
   'Melee commit budget must be consumed only by actual collider-resolved travel.');
 requireMatch(player, /computeAttackCommitStep\(previousElapsed, attackElapsed, tuning\.activeEnd,[\s\S]*attackCommitRemaining\)/,
@@ -50,6 +54,54 @@ requireMatch(player, /hitStaggerRemaining > 0\) \{ guarding = false; movementSta
 requireMatch(player, /hitStaggerRemaining: Number\(hitStaggerRemaining\.toFixed\(3\)\)/,
   'Hit stagger state must be exposed through existing player motion telemetry.');
 if (/payload\.amount\s*=\s*0/.test(player.match(/if \(!guarding \|\| stamina <= 0\)[\s\S]*?return; \}/)?.[0] || '')) throw new Error('Unguarded stagger must not erase authoritative health damage.');
+
+function sourceFunction(name, nextName) {
+  const start = player.indexOf(`function ${name}`);
+  const nextFunction = player.indexOf(`function ${nextName}`, start + 1);
+  if (start < 0 || nextFunction <= start) throw new Error(`Missing ${name}() source for executable combat contract.`);
+  const nextLineStart = player.lastIndexOf('\n', nextFunction) + 1;
+  return player.slice(start, nextLineStart > start ? nextLineStart : nextFunction);
+}
+
+const actionConfigSource = player.match(/const PLAYER_ACTION_CONFIG = Object\.freeze\((\{[\s\S]*?\})\);/)?.[1];
+if (!actionConfigSource) throw new Error('Missing PLAYER_ACTION_CONFIG source for executable combat contract.');
+const actionConfig = Function(`"use strict"; return (${actionConfigSource});`)();
+const attackCommitRuntime = Function('PLAYER_ACTION_CONFIG', 'clamp', `"use strict";\n${sourceFunction('attackCommitBudget', 'computeAttackCommitStep')}\n${sourceFunction('computeAttackCommitStep', 'createPlayer')}\nreturn { attackCommitBudget, computeAttackCommitStep };`)(actionConfig, (value, min, max) => Math.max(min, Math.min(max, value)));
+
+function simulateCommit({ baseMeters, comboStep, activeEnd, frameSeconds }) {
+  const total = attackCommitRuntime.attackCommitBudget(baseMeters, comboStep);
+  let elapsed = 0;
+  let remaining = total;
+  let travelled = 0;
+  for (let guard = 0; guard < 10000 && elapsed < activeEnd && remaining > 1e-9; guard += 1) {
+    const previous = elapsed;
+    elapsed += frameSeconds;
+    const step = attackCommitRuntime.computeAttackCommitStep(previous, elapsed, activeEnd, total, remaining);
+    if (step < -1e-9 || step > remaining + 1e-9) throw new Error('Attack commit helper emitted an invalid per-frame distance.');
+    travelled += step;
+    remaining -= step;
+  }
+  return { total, travelled, remaining };
+}
+
+for (const fixture of [
+  { label: 'light-1', baseMeters: actionConfig.LIGHT_ATTACK_COMMIT_METERS, comboStep: 1, activeEnd: actionConfig.LIGHT_ATTACK_ACTIVE_END_SECONDS },
+  { label: 'light-3', baseMeters: actionConfig.LIGHT_ATTACK_COMMIT_METERS, comboStep: 3, activeEnd: actionConfig.LIGHT_ATTACK_ACTIVE_END_SECONDS },
+  { label: 'heavy-1', baseMeters: actionConfig.HEAVY_ATTACK_COMMIT_METERS, comboStep: 1, activeEnd: actionConfig.HEAVY_ATTACK_ACTIVE_END_SECONDS },
+  { label: 'heavy-3', baseMeters: actionConfig.HEAVY_ATTACK_COMMIT_METERS, comboStep: 3, activeEnd: actionConfig.HEAVY_ATTACK_ACTIVE_END_SECONDS },
+]) {
+  const results = [1 / 30, 1 / 60, 1 / 144, 0.1].map((frameSeconds) => simulateCommit({ ...fixture, frameSeconds }));
+  for (const result of results) {
+    if (Math.abs(result.travelled - result.total) > 1e-8 || result.remaining > 1e-8) {
+      throw new Error(`${fixture.label} attack commit is frame-partition dependent: ${JSON.stringify(result)}`);
+    }
+  }
+  const reference = results[0].travelled;
+  if (results.some((result) => Math.abs(result.travelled - reference) > 1e-8)) {
+    throw new Error(`${fixture.label} attack commit differs between 30/60/144 Hz and bounded hitch frames.`);
+  }
+}
+
 requireMatch(playerConfig, /MODEL_URL:\s*['"][^'"]+\.fbx['"]/, 'Player must use a shipped FBX character asset.');
 requireMatch(playerConfig, /idle:\s*['"][^'"]+\.fbx['"]/, 'Player must use a shipped idle animation asset.');
 requireMatch(playerConfig, /walking:\s*['"][^'"]+\.fbx['"]/, 'Player must use a shipped walking animation asset.');

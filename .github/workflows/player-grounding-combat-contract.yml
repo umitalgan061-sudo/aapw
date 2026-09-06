@@ -35,6 +35,7 @@ on:
       - '.github/workflows/player-parry-recovery.yml'
       - '.github/workflows/player-guard-impact-exhaustion.yml'
       - '.github/workflows/player-stamina-dodge.yml'
+      - '.github/workflows/player-defeat-reset.yml'
   workflow_dispatch:
 
 permissions:
@@ -66,22 +67,18 @@ jobs:
           git diff --check "$BASE"...HEAD
           CHANGED="$(git diff --name-only "$BASE"...HEAD)"
           echo "$CHANGED"
-          OUT_OF_SCOPE="$(printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/gameplay/health\.js|src/3d/gameplay/damageResolution\.js|src/3d/input\.js|scripts/checkPlayerCombatFeedback\.mjs|scripts/checkPlayerCombatFeedbackHapticParity\.mjs|scripts/checkPlayerCombatFeedbackHotplug\.mjs|scripts/checkPlayerCombatHealthReceipt\.mjs|scripts/checkPlayerImmutableDefenseDamage\.mjs|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGroundingCombatContract\.mjs|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|scripts/checkPlayerDodgeIFrames\.mjs|scripts/checkPlayerDodgeIFrameRuntime\.mjs|scripts/checkPlayerCombatHudRuntime\.mjs|scripts/checkPlayerHitStaggerRuntime\.mjs|scripts/checkPlayerRecoveryAttackBufferDrop\.mjs|scripts/checkPlayerRecoveryAttackBufferRuntime\.mjs|\.github/workflows/player-combat-feedback\.yml|\.github/workflows/player-dodge-iframes\.yml|\.github/workflows/player-grounding-combat-contract\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-hit-stagger-runtime\.yml|\.github/workflows/player-recovery-attack-buffer-drop\.yml|\.github/workflows/player-combat-recovery-input-isolation\.yml|\.github/workflows/player-parry-recovery\.yml|\.github/workflows/player-guard-impact-exhaustion\.yml|\.github/workflows/player-stamina-dodge\.yml)$' || true)"
+          OUT_OF_SCOPE="$(printf '%s\n' "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/gameplay/health\.js|src/3d/gameplay/damageResolution\.js|src/3d/input\.js|scripts/checkPlayerCombatFeedback\.mjs|scripts/checkPlayerCombatFeedbackHapticParity\.mjs|scripts/checkPlayerCombatFeedbackHotplug\.mjs|scripts/checkPlayerCombatHealthReceipt\.mjs|scripts/checkPlayerImmutableDefenseDamage\.mjs|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGroundingCombatContract\.mjs|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|scripts/checkPlayerDodgeIFrames\.mjs|scripts/checkPlayerDodgeIFrameRuntime\.mjs|scripts/checkPlayerCombatHudRuntime\.mjs|scripts/checkPlayerHitStaggerRuntime\.mjs|scripts/checkPlayerRecoveryAttackBufferDrop\.mjs|scripts/checkPlayerRecoveryAttackBufferRuntime\.mjs|\.github/workflows/player-combat-feedback\.yml|\.github/workflows/player-dodge-iframes\.yml|\.github/workflows/player-grounding-combat-contract\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-hit-stagger-runtime\.yml|\.github/workflows/player-recovery-attack-buffer-drop\.yml|\.github/workflows/player-combat-recovery-input-isolation\.yml|\.github/workflows/player-parry-recovery\.yml|\.github/workflows/player-guard-impact-exhaustion\.yml|\.github/workflows/player-stamina-dodge\.yml|\.github/workflows/player-defeat-reset\.yml)$' || true)"
           test -z "$OUT_OF_SCOPE"
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           test "$((ADD + DEL))" -le 1000
           echo "BASE_SHA=$BASE" >> "$GITHUB_ENV"
-      - name: Asset-first targeted hydration
-        shell: bash
+      - name: Canonical grounding source contract
         run: |
           set -euo pipefail
-          git lfs version
-          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**" --exclude=""
-          test -s assets/models/characters/peasant_girl.fbx
-          test -s assets/animations/peasant_girl/idle.fbx
-          test -s assets/animations/peasant_girl/walking.fbx
-          test -s assets/animations/peasant_girl/running.fbx
-      - name: Grounding combat static acceptance
+          node --check src/3d/gameplay/player.js
+          node --check scripts/checkPlayerGroundingCombatContract.mjs
+          node scripts/checkPlayerGroundingCombatContract.mjs
+      - name: Input and feedback source contracts
         run: |
           set -euo pipefail
           node --check src/3d/input.js
@@ -93,8 +90,9 @@ jobs:
           node scripts/checkPlayerImmutableDefenseDamage.mjs
           node --check scripts/checkPlayerGamepadInput.mjs
           node scripts/checkPlayerGamepadInput.mjs
-          node --check scripts/checkPlayerGroundingCombatContract.mjs
-          node scripts/checkPlayerGroundingCombatContract.mjs
+      - name: Combat state source contracts
+        run: |
+          set -euo pipefail
           node --check scripts/checkPlayerMeleeCombo.mjs
           node scripts/checkPlayerMeleeCombo.mjs
           node --check scripts/checkPlayerMeleeComboRuntime.mjs
@@ -105,10 +103,33 @@ jobs:
           node --check scripts/checkPlayerRecoveryAttackBufferDrop.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferRuntime.mjs
           node scripts/checkPlayerRecoveryAttackBufferDrop.mjs
-          node --check src/3d/gameplay/player.js
-          node scripts/checkSharedMaterialPlacementContract.js
-          node scripts/checkSeededRandomPolicy.js
+      - name: Shared Material Placement Contract
+        run: node scripts/checkSharedMaterialPlacementContract.js
+      - name: Seeded determinism contract
+        run: node scripts/checkSeededRandomPolicy.js
+      - name: Service worker cache contract
+        run: |
+          set -euo pipefail
+          # This stays a hard dependency. Keeping it isolated makes current-main offline-shell drift
+          # explicit instead of misreporting a healthy player source contract as a combat failure.
           node scripts/checkServiceWorkerCache.js
+      - name: Asset-first targeted hydration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs version
+          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**" --exclude=""
+          for asset in \
+            assets/models/characters/peasant_girl.fbx \
+            assets/animations/peasant_girl/idle.fbx \
+            assets/animations/peasant_girl/walking.fbx \
+            assets/animations/peasant_girl/running.fbx; do
+            test -s "$asset"
+            if git lfs pointer --check --file="$asset"; then
+              echo "Expected hydrated binary, found Git LFS pointer: $asset" >&2
+              exit 1
+            fi
+          done
       - name: Install Chromium
         shell: bash
         run: |

@@ -4,7 +4,13 @@ on:
   pull_request:
     paths:
       - 'src/3d/gameplay/player.js'
+      - 'scripts/checkPlayerGroundingCombatContract.mjs'
       - 'scripts/checkPlayerDefeatResetContract.mjs'
+      - '.github/workflows/player-parry-recovery.yml'
+      - '.github/workflows/player-guard-impact-exhaustion.yml'
+      - '.github/workflows/player-stamina-dodge.yml'
+      - '.github/workflows/player-gamepad-parity.yml'
+      - '.github/workflows/player-grounding-combat-contract.yml'
       - '.github/workflows/player-defeat-reset.yml'
   push:
     branches:
@@ -38,10 +44,10 @@ jobs:
           git diff --check "$BASE"...HEAD
           mapfile -t files < <(git diff --name-only "$BASE"...HEAD)
           printf '%s\n' "${files[@]}"
-          test "${#files[@]}" -le 2
+          test "${#files[@]}" -le 8
           for file in "${files[@]}"; do
             case "$file" in
-              scripts/checkPlayerDefeatResetContract.mjs|.github/workflows/player-defeat-reset.yml) ;;
+              src/3d/gameplay/player.js|scripts/checkPlayerGroundingCombatContract.mjs|.github/workflows/player-parry-recovery.yml|.github/workflows/player-guard-impact-exhaustion.yml|.github/workflows/player-stamina-dodge.yml|.github/workflows/player-gamepad-parity.yml|.github/workflows/player-grounding-combat-contract.yml|.github/workflows/player-defeat-reset.yml) ;;
               *) echo "unexpected scope: $file" >&2; exit 1 ;;
             esac
           done
@@ -50,23 +56,14 @@ jobs:
           test $((additions + deletions)) -le 1000
           echo "BASE_SHA=$BASE" >> "$GITHUB_ENV"
 
-      - name: Asset-first targeted hydration
-        shell: bash
-        run: |
-          set -euo pipefail
-          git lfs version
-          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**" --exclude=""
-          test -s assets/models/characters/peasant_girl.fbx
-          test -s assets/animations/peasant_girl/idle.fbx
-          test -s assets/animations/peasant_girl/walking.fbx
-          test -s assets/animations/peasant_girl/running.fbx
-
-      - name: Syntax shared PWA and defeat lifecycle contracts
+      - name: Syntax shared PWA grounding and defeat lifecycle contracts
         shell: bash
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/player.js
+          node --check scripts/checkPlayerGroundingCombatContract.mjs
           node --check scripts/checkPlayerDefeatResetContract.mjs
+          node scripts/checkPlayerGroundingCombatContract.mjs
           node scripts/checkPlayerDefeatResetContract.mjs
           node scripts/checkSharedMaterialPlacementContract.js
           node scripts/checkPwaInstallability.js
@@ -83,6 +80,25 @@ jobs:
           node scripts/checkPlayerCombatRecoveryInputIsolation.mjs
           node --check scripts/checkPlayerHitStaggerRuntime.mjs
           node scripts/checkPlayerDodgeIFrames.mjs
+
+      - name: Asset-first targeted hydration
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs version
+          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**" --exclude=""
+          assert_hydrated() {
+            local path="$1"
+            test -s "$path"
+            if head -n 1 "$path" | grep -qx 'version https://git-lfs.github.com/spec/v1'; then
+              echo "LFS pointer remained after hydration: $path" >&2
+              exit 1
+            fi
+          }
+          assert_hydrated assets/models/characters/peasant_girl.fbx
+          assert_hydrated assets/animations/peasant_girl/idle.fbx
+          assert_hydrated assets/animations/peasant_girl/walking.fbx
+          assert_hydrated assets/animations/peasant_girl/running.fbx
 
       - name: Install Chromium
         shell: bash
