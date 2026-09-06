@@ -49,10 +49,16 @@ jobs:
           set -euo pipefail
           git lfs version
           git lfs pull --include="assets/models/characters/peasant_girl.fbx,assets/models/fbx/Viking Sword Blend_Viking Sword.fbx" --exclude=""
-          test "$(wc -c < assets/models/characters/peasant_girl.fbx)" -gt 512
-          test "$(wc -c < 'assets/models/fbx/Viking Sword Blend_Viking Sword.fbx')" -eq 72380
-          ! head -c 128 assets/models/characters/peasant_girl.fbx | grep -q 'git-lfs.github.com/spec'
-          ! head -c 128 'assets/models/fbx/Viking Sword Blend_Viking Sword.fbx' | grep -q 'git-lfs.github.com/spec'
+          for asset in \
+            "assets/models/characters/peasant_girl.fbx" \
+            "assets/models/fbx/Viking Sword Blend_Viking Sword.fbx"; do
+            test -s "$asset"
+            test "$(wc -c < "$asset")" -gt 512
+            if head -c 128 "$asset" | grep -q 'git-lfs.github.com/spec'; then
+              echo "LFS pointer remained after hydration: $asset" >&2
+              exit 1
+            fi
+          done
       - name: Shared material and syntax contracts
         shell: bash
         run: |
