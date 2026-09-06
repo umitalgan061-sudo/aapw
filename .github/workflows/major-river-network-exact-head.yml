@@ -1,0 +1,76 @@
+name: Major River Network Exact Head
+
+on:
+  push:
+    branches:
+      - codex/foundation-grounding-20260821
+    paths:
+      - 'src/3d/world/riverNetwork.js'
+      - 'src/3d/world/rivers.js'
+      - 'src/3d/world/roadPathfinder.js'
+      - 'src/3d/world/terrain.js'
+      - 'src/3d/world/terrainMacroWeathering.js'
+      - 'src/3d/sceneManager.js'
+      - 'scripts/checkMajorRiverNetwork.mjs'
+      - 'scripts/checkMajorRiverNetworkSourceContract.mjs'
+      - '.github/workflows/major-river-network-exact-head.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canonical-network:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact pushed head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          lfs: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify exact head and syntax
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          node --check src/3d/world/riverNetwork.js
+          node --check scripts/checkMajorRiverNetwork.mjs
+          if test -f scripts/checkMajorRiverNetworkSourceContract.mjs; then
+            node --check scripts/checkMajorRiverNetworkSourceContract.mjs
+          fi
+
+      - name: Resolve vendored Three.js for canonical terrain imports
+        run: node scripts/setupNodeThreeShim.mjs
+
+      - name: Canonical major-river network geometry
+        run: |
+          mkdir -p artifacts/major-river-network-exact-head
+          node scripts/checkMajorRiverNetwork.mjs \
+            | tee artifacts/major-river-network-exact-head/network.log
+
+      - name: Shared renderer and road authority contract
+        if: ${{ hashFiles('scripts/checkMajorRiverNetworkSourceContract.mjs') != '' }}
+        run: |
+          node scripts/checkMajorRiverNetworkSourceContract.mjs \
+            | tee artifacts/major-river-network-exact-head/source-contract.log
+
+      - name: Record exact head
+        if: always()
+        run: |
+          mkdir -p artifacts/major-river-network-exact-head
+          printf '%s\n' "$GITHUB_SHA" > artifacts/major-river-network-exact-head/head-sha.txt
+
+      - name: Upload exact-head river proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: major-river-network-exact-head-${{ github.sha }}
+          path: artifacts/major-river-network-exact-head/
+          if-no-files-found: warn
+          retention-days: 14

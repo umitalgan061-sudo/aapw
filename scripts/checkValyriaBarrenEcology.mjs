@@ -103,6 +103,9 @@ assert.equal(canonicalSurface.touched, 1);
 let banned = 0;
 let allowed = 0;
 let mismatches = 0;
+let transitionAccepted = 0;
+let transitionRejected = 0;
+let zeroInfluenceRejected = 0;
 for (let iy = 0; iy <= 64; iy += 1) {
   const ny = 0.60 + iy / 64 * 0.24;
   for (let ix = 0; ix <= 64; ix += 1) {
@@ -113,10 +116,20 @@ for (let iy = 0; iy <= 64; iy += 1) {
     const actualAllow = isOrdinaryEcologyAllowedAtWorldXZ(world.x, world.z);
     if (actualAllow) allowed += 1;
     else banned += 1;
-    if (actualAllow !== shouldAllow) mismatches += 1;
+    if (!shouldAllow && actualAllow) mismatches += 1;
+    if (influence === 0 && !actualAllow) zeroInfluenceRejected += 1;
+    if (influence > 0 && influence < E.exclusionInfluence) {
+      const profile = valyriaEcologyProfileAtWorldXZ(world.x, world.z);
+      assert(profile.ordinaryGrassDensity >= 0 && profile.ordinaryGrassDensity <= 1);
+      if (actualAllow) transitionAccepted += 1;
+      else transitionRejected += 1;
+    }
   }
 }
-assert.equal(mismatches, 0, 'ecology boundary diverged from shared Valyria geology influence');
+assert.equal(mismatches, 0, 'hard barren core admitted ordinary ecology');
+assert.equal(zeroInfluenceRejected, 0, 'outside-zero influence rejected ordinary ecology');
+assert(transitionAccepted > 0, 'feathered transition did not preserve any deterministic refugia');
+assert(transitionRejected > 0, 'feathered transition did not suppress any ordinary ecology');
 assert(banned > 100, `barren region unexpectedly tiny: ${banned}`);
 assert(allowed > 1000, `falloff/outer region unexpectedly over-blocked: ${allowed}`);
 
@@ -131,6 +144,8 @@ console.log(JSON.stringify({
   geologyPolicyId: P.id,
   bannedGridSamples: banned,
   allowedGridSamples: allowed,
+  transitionAccepted,
+  transitionRejected,
   canonicalDelegationCalls: canonicalCalls,
   corePlacementHeight,
   outsidePlacementHeight,

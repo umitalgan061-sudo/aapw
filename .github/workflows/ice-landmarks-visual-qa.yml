@@ -1,6 +1,9 @@
 name: Ice Landmarks Visual QA
 
 on:
+  push:
+    branches:
+      - codex/foundation-grounding-20260821
   pull_request:
     branches: [main]
     paths:

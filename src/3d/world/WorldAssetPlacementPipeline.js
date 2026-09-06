@@ -5,6 +5,7 @@ import {
   createMaterialManifest,
   validateMaterialAssignment,
 } from '../materials/MaterialAssignmentCore.js';
+import { applyWorldPlacementMaterialContext } from '../materials/worldPlacementMaterialContext.js';
 import {
   isStructureGroundingCandidate,
   resolveStructureSurfaceProfile,
@@ -108,6 +109,16 @@ export function prepareWorldAssetForPlacement(object, {
   });
   if (!surfaceResult.ok) return surfaceResult;
 
+  // Material assignment remains palette-owned, but once the canonical placement query has approved
+  // the site we can safely apply bounded damp/dry/cold/exposure response from that exact surface.
+  // This changes neither placement nor source maps and prevents identical assets from reading as
+  // freshly cloned props across visibly different ecological contexts.
+  const placementMaterialContext = applyWorldPlacementMaterialContext(
+    object,
+    surfaceResult.surface,
+    surfaceResult.footprint,
+  );
+
   object.updateMatrixWorld?.(true);
   const validation = validateMaterialAssignment(object, { requireGeneratedTexture });
   if (!validation.ok) return { ok: false, error: validation.errors.join(','), validation };
@@ -122,6 +133,7 @@ export function prepareWorldAssetForPlacement(object, {
     placementSurface: surfaceResult.surface,
     placementFootprint: surfaceResult.footprint || null,
     placementPolicy: surfaceResult.policy,
+    placementMaterialContext,
   };
   object.userData.worldPlacementSurface = surfaceResult.surface;
   object.userData.worldPlacementFootprint = surfaceResult.footprint || null;
@@ -137,6 +149,7 @@ export function prepareWorldAssetForPlacement(object, {
     surface: surfaceResult.surface,
     footprint: surfaceResult.footprint || null,
     placementPolicy: surfaceResult.policy,
+    placementMaterialContext,
     manifest,
   };
 }
@@ -189,6 +202,7 @@ export function auditWorldAssetPlacement(object) {
     surface: storedSurface || null,
     footprint: storedFootprint || null,
     placementPolicy: storedPolicy || null,
+    placementMaterialContext: object?.userData?.worldPlacementMaterialContext || null,
     manifest: object?.userData?.worldPlacementManifest || null,
   };
 }

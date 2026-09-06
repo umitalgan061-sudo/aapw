@@ -31,7 +31,7 @@ function createGlacialTextureSet(seed, { cave = false } = {}) {
 }
 
 function replaceMaterialSurface(material, textures, { cave = false } = {}) {
-	material.map = textures.colorMap; material.roughnessMap = textures.roughnessMap; material.normalMap = textures.normalMap; material.vertexColors = false; material.normalScale.set(cave ? 0.42 : 0.38, cave ? 0.52 : 0.48); material.color.set(cave ? 0xd0d8d7 : 0xe0e3e1); material.roughness = cave ? 0.48 : 0.60; material.clearcoat = cave ? 0.20 : 0.08; material.clearcoatRoughness = cave ? 0.38 : 0.52; material.transmission = cave ? 0.060 : 0.012; material.thickness = cave ? 4.8 : 3.2; material.attenuationColor.set(cave ? 0x467d8a : 0x708b8f); material.attenuationDistance = cave ? 14 : 31; material.emissive.set(cave ? 0x0b2d35 : 0x000000); material.emissiveIntensity = cave ? 0.10 : 0; material.userData.iceSurface = Object.freeze({ ...(material.userData.iceSurface || {}), realismVersion: 4, naturalReferencePalette: true, macroFractures: true, mesoStriations: true, microCrystalNormals: true, variableWetness: true, debrisAndFrost: true, textureResolution: textures.stats.resolution }); material.needsUpdate = true;
+	material.map = textures.colorMap; material.roughnessMap = textures.roughnessMap; material.normalMap = textures.normalMap; material.vertexColors = false; material.normalScale.set(cave ? 0.42 : 0.38, cave ? 0.52 : 0.48); material.color.set(cave ? 0xd0d8d7 : 0xe0e3e1); material.roughness = cave ? 0.48 : 0.60; material.clearcoat = cave ? 0.20 : 0.08; material.clearcoatRoughness = cave ? 0.38 : 0.52; material.transmission = cave ? 0.060 : 0.012; material.thickness = cave ? 4.8 : 3.2; material.attenuationColor.set(cave ? 0x467d8a : 0x708b8f); material.attenuationDistance = cave ? 14 : 31; material.emissive.set(cave ? 0x0b2d35 : 0x000000); material.emissiveIntensity = cave ? 0.10 : 0; material.userData.iceSurface = Object.freeze({ ...(material.userData.iceSurface || {}), realismVersion: 5, naturalReferencePalette: true, macroFractures: true, mesoStriations: true, microCrystalNormals: true, variableWetness: true, debrisAndFrost: true, textureResolution: textures.stats.resolution }); material.needsUpdate = true;
 }
 
 function cloneSolidMaterial(source, { cave = false } = {}) { const material = source.clone(); material.vertexColors = false; material.color.set(cave ? 0xc1cecd : 0xd5dad7); material.roughness = cave ? 0.51 : 0.63; material.transmission *= 0.65; material.needsUpdate = true; return material; }
@@ -47,6 +47,103 @@ function roughenPortalShellGeometry(portal, seed) {
 }
 
 function createInstancedDetail(name, role, geometry, material, transforms, seed = 0) { const mesh = new THREE.InstancedMesh(geometry, material, transforms.length); mesh.name = name; mesh.castShadow = true; mesh.receiveShadow = true; mesh.userData.iceLandmarkRole = role; const matrix = new THREE.Matrix4(); const quaternion = new THREE.Quaternion(); const tint = new THREE.Color(); for (let index = 0; index < transforms.length; index += 1) { const transform = transforms[index]; quaternion.setFromEuler(new THREE.Euler(transform.rx || 0, transform.ry || 0, transform.rz || 0)); matrix.compose(transform.position, quaternion, transform.scale); mesh.setMatrixAt(index, matrix); const variation = 0.80 + hash2D(index, role.length, seed + 4513) * 0.22; tint.setRGB(variation, variation * (0.985 + hash2D(index, 3, seed + 4603) * 0.03), variation * (1.00 + hash2D(index, 7, seed + 4703) * 0.055)); mesh.setColorAt(index, tint); } mesh.instanceMatrix.needsUpdate = true; if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true; return mesh; }
+
+function createFracturedIcicleGeometry(seed) {
+	const sides = 7;
+	const rings = [
+		{ y: 0.00, radius: 0.38, cx: 0.00, cz: 0.00 },
+		{ y: -0.18, radius: 0.34, cx: 0.015, cz: -0.018 },
+		{ y: -0.43, radius: 0.24, cx: -0.018, cz: -0.028 },
+		{ y: -0.72, radius: 0.13, cx: 0.028, cz: 0.012 },
+		{ y: -0.94, radius: 0.055, cx: 0.012, cz: 0.018 },
+	];
+	const positions = [];
+	const indices = [];
+	for (let ringIndex = 0; ringIndex < rings.length; ringIndex += 1) {
+		const ring = rings[ringIndex];
+		for (let side = 0; side < sides; side += 1) {
+			const angle = (side / sides) * Math.PI * 2 + ringIndex * 0.11;
+			const fracture = 0.82 + hash2D(ringIndex * 17 + side, 91, seed + 7103) * 0.34;
+			positions.push(
+				ring.cx + Math.cos(angle) * ring.radius * fracture,
+				ring.y,
+				ring.cz + Math.sin(angle) * ring.radius * fracture,
+			);
+		}
+	}
+	for (let ringIndex = 0; ringIndex < rings.length - 1; ringIndex += 1) {
+		for (let side = 0; side < sides; side += 1) {
+			const next = (side + 1) % sides;
+			const a = ringIndex * sides + side;
+			const b = ringIndex * sides + next;
+			const c = (ringIndex + 1) * sides + side;
+			const d = (ringIndex + 1) * sides + next;
+			indices.push(a, c, d, a, d, b);
+		}
+	}
+	const cap = positions.length / 3;
+	positions.push(0, 0.015, 0);
+	for (let side = 0; side < sides; side += 1) indices.push(cap, side, (side + 1) % sides);
+	const tip = positions.length / 3;
+	positions.push(0.018, -1.02, 0.012);
+	const lastRing = (rings.length - 1) * sides;
+	for (let side = 0; side < sides; side += 1) indices.push(lastRing + side, tip, lastRing + ((side + 1) % sides));
+	const geometry = new THREE.BufferGeometry();
+	geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+	geometry.setIndex(indices);
+	geometry.computeVertexNormals();
+	geometry.computeBoundingBox();
+	geometry.computeBoundingSphere();
+	geometry.userData.glacialIciclePrototype = 'fractured-seven-sided-multi-ring-v1';
+	return geometry;
+}
+
+function naturalizePrimaryIcicles(group, portal, caveRings, solidCaveMaterial, seed) {
+	const icicles = group.getObjectByName('ice-cave-icicles');
+	if (!icicles?.isInstancedMesh || caveRings.length < 4) return Object.freeze({ changed: false, count: 0 });
+	const oldGeometry = icicles.geometry;
+	icicles.geometry = createFracturedIcicleGeometry(seed ^ 0x1c1c1e);
+	oldGeometry?.dispose?.();
+	icicles.material = solidCaveMaterial;
+	const matrix = new THREE.Matrix4();
+	const quaternion = new THREE.Quaternion();
+	const scale = new THREE.Vector3();
+	const position = new THREE.Vector3();
+	const count = icicles.count;
+	let maximumLengthMeters = 0;
+	let centerLaneRejected = 0;
+	for (let index = 0; index < count; index += 1) {
+		const t = 0.22 + hash2D(index, 9, seed + 607) * 0.56;
+		const ringIndex = Math.min(caveRings.length - 2, Math.max(1, Math.round(t * (caveRings.length - 1))));
+		const ring = caveRings[ringIndex];
+		let lateralRatio = (hash2D(index, 13, seed + 701) - 0.5) * 1.42;
+		if (Math.abs(lateralRatio) < 0.22) {
+			lateralRatio = (lateralRatio < 0 ? -1 : 1) * (0.22 + hash2D(index, 37, seed + 901) * 0.12);
+			centerLaneRejected += 1;
+		}
+		const lateral = lateralRatio * ring.halfWidth;
+		const normalized = Math.min(0.96, Math.abs(lateral) / Math.max(0.01, ring.halfWidth));
+		const ceilingY = ring.centerY + ring.height * Math.sqrt(Math.max(0, 1 - normalized * normalized));
+		const lengthMeters = 0.78 + hash2D(index, 17, seed + 809) * 1.82;
+		const radiusMeters = 0.20 + hash2D(index, 23, seed + 853) * 0.26;
+		const lean = (hash2D(index, 29, seed + 881) - 0.5) * 0.13;
+		maximumLengthMeters = Math.max(maximumLengthMeters, lengthMeters);
+		position.set(ring.centerX + portal.tx * lateral, ceilingY - 0.04, ring.centerZ + portal.tz * lateral);
+		quaternion.setFromEuler(new THREE.Euler(lean * 0.55, hash2D(index, 31, seed + 887) * Math.PI * 2, lean));
+		scale.set(radiusMeters / 0.38, lengthMeters, radiusMeters / 0.38 * (0.82 + hash2D(index, 41, seed + 929) * 0.26));
+		matrix.compose(position, quaternion, scale);
+		icicles.setMatrixAt(index, matrix);
+	}
+	icicles.instanceMatrix.needsUpdate = true;
+	icicles.userData.glacialIcicleNaturalization = Object.freeze({
+		version: 1,
+		fracturedPrototype: true,
+		maximumLengthMeters,
+		centerLaneRejected,
+		uniformConeRemoved: true,
+	});
+	return icicles.userData.glacialIcicleNaturalization;
+}
 
 function createWallDetails(sections, caveGapSegment, solidWallMaterial, seed) {
 	const seracs = []; const talus = []; const cornices = [];
@@ -84,6 +181,6 @@ function createCaveFractureRibs(portal, caveRings, solidCaveMaterial, seed) { co
 export function enhanceIceLandmarkRealism({ group, wallMaterial, caveMaterial, wallSections, caveGapSegment, portal, caveRings, seed }) {
 	const oldTextures = new Set(); for (const material of [wallMaterial, caveMaterial]) for (const key of ['map', 'roughnessMap', 'normalMap']) if (material[key]) oldTextures.add(material[key]); const wallTextures = createGlacialTextureSet(seed ^ 0x474c4143, { cave: false }); const caveTextures = createGlacialTextureSet(seed ^ 0x43415645, { cave: true }); replaceMaterialSurface(wallMaterial, wallTextures, { cave: false }); replaceMaterialSurface(caveMaterial, caveTextures, { cave: true }); for (const texture of oldTextures) texture.dispose();
 	const solidWallMaterial = cloneSolidMaterial(wallMaterial, { cave: false }); const solidCaveMaterial = cloneSolidMaterial(caveMaterial, { cave: true }); const portalMaterial = wallMaterial.clone(); portalMaterial.color.set(0xf0f3f0); portalMaterial.roughness = 0.70; portalMaterial.clearcoat = 0.035; portalMaterial.clearcoatRoughness = 0.62; portalMaterial.transmission = 0.004; portalMaterial.emissive.set(0x29464d); portalMaterial.emissiveIntensity = 0.055; portalMaterial.needsUpdate = true; portal.mesh.material = portalMaterial; roughenPortalShellGeometry(portal, seed);
-	const icicles = group.getObjectByName('ice-cave-icicles'); if (icicles) icicles.material = solidCaveMaterial; const wallDetails = createWallDetails(wallSections, caveGapSegment, solidWallMaterial, seed); const portalRim = createPortalFractureRim(portal, solidWallMaterial, seed); const caveRibs = createCaveFractureRibs(portal, caveRings, solidCaveMaterial, seed); for (const object of [...wallDetails, portalRim, caveRibs]) group.add(object); const geometryBreakup = applyIceLandmarkGeometryBreakup({ group, wallSections, portal, caveRings, seed });
-	return Object.freeze({ stats: Object.freeze({ version: 4, wallTexture: wallTextures.stats, caveTexture: caveTextures.stats, seracCount: wallDetails[0].count, talusCount: wallDetails[1].count, corniceCount: wallDetails[2].count, portalFractureCount: portalRim.count, caveFractureRibCount: caveRibs.count, geometryBreakup }) });
+	const icicleNaturalization = naturalizePrimaryIcicles(group, portal, caveRings, solidCaveMaterial, seed); const wallDetails = createWallDetails(wallSections, caveGapSegment, solidWallMaterial, seed); const portalRim = createPortalFractureRim(portal, solidWallMaterial, seed); const caveRibs = createCaveFractureRibs(portal, caveRings, solidCaveMaterial, seed); for (const object of [...wallDetails, portalRim, caveRibs]) group.add(object); const geometryBreakup = applyIceLandmarkGeometryBreakup({ group, wallSections, portal, caveRings, seed });
+	return Object.freeze({ stats: Object.freeze({ version: 5, wallTexture: wallTextures.stats, caveTexture: caveTextures.stats, primaryIcicleNaturalization: icicleNaturalization, seracCount: wallDetails[0].count, talusCount: wallDetails[1].count, corniceCount: wallDetails[2].count, portalFractureCount: portalRim.count, caveFractureRibCount: caveRibs.count, geometryBreakup }) });
 }

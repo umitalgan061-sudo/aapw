@@ -6,20 +6,33 @@ on:
       - codex/foundation-grounding-20260821
     paths:
       - 'src/3d/world/valyriaGeology.js'
+      - 'src/3d/world/naturalSurfaceMaterial.js'
+      - 'src/3d/world/terrainMicroSurface.js'
+      - 'src/3d/world/water.js'
       - 'src/3d/world/valyriaEcology.js'
       - 'src/3d/world/valyriaCastleWeathering.js'
       - 'src/3d/world/settlements.js'
       - 'src/3d/world/terrain.js'
       - 'src/3d/world/naturalGeologyPlacement.js'
       - 'src/3d/world/naturalGeology.js'
+      - 'src/3d/world/naturalGeologyCollision.js'
       - 'src/3d/sceneManager.js'
       - 'scripts/checkValyriaGeology.mjs'
       - 'scripts/checkValyriaVolcanicMorphology.mjs'
+      - 'scripts/checkValyriaSurfaceMorphologyAlignment.mjs'
+      - 'scripts/checkValyriaSingleSurfaceAuthority.mjs'
       - 'scripts/checkValyriaCanonicalTerrain.mjs'
       - 'scripts/checkValyriaBarrenEcology.mjs'
       - 'scripts/checkValyriaCastleWeathering.mjs'
       - 'scripts/checkNaturalGeologyPlacement.mjs'
+      - 'scripts/checkNaturalGeologyAssetGrounding.mjs'
+      - 'scripts/checkNaturalGeologyCollision.mjs'
       - 'scripts/checkNaturalGeologySourceContract.mjs'
+      - 'scripts/checkNaturalGeologyWorldNormalContract.mjs'
+      - 'scripts/checkNaturalSurfaceMaterial.mjs'
+      - 'scripts/checkWaterVisualContract.js'
+      - 'scripts/captureFullWorld3DTopdown.mjs'
+      - 'scripts/fullWorld3DTopdownHarness.html'
       - '.github/workflows/natural-geology-exact-head.yml'
   workflow_dispatch:
 
@@ -51,6 +64,7 @@ jobs:
           node --check src/3d/world/terrain.js
           node --check src/3d/world/naturalGeologyPlacement.js
           node --check src/3d/world/naturalGeology.js
+          node --check src/3d/world/naturalGeologyCollision.js
           node --check src/3d/sceneManager.js
           node --check scripts/checkValyriaGeology.mjs
           node --check scripts/checkValyriaVolcanicMorphology.mjs
@@ -58,7 +72,11 @@ jobs:
           node --check scripts/checkValyriaBarrenEcology.mjs
           node --check scripts/checkValyriaCastleWeathering.mjs
           node --check scripts/checkNaturalGeologyPlacement.mjs
+          node --check scripts/checkNaturalGeologyAssetGrounding.mjs
+          node --check scripts/checkNaturalGeologyAssetDiversity.mjs
+          node --check scripts/checkNaturalGeologyCollision.mjs
           node --check scripts/checkNaturalGeologySourceContract.mjs
+          node --check scripts/checkNaturalGeologyWorldNormalContract.mjs
       - name: Resolve vendored Three.js for canonical terrain imports
         run: node scripts/setupNodeThreeShim.mjs
       - name: Valyria geography authority
@@ -73,6 +91,14 @@ jobs:
         run: node scripts/checkValyriaCastleWeathering.mjs
       - name: Natural geology deterministic placement
         run: node scripts/checkNaturalGeologyPlacement.mjs
+      - name: GLB proxy terrain grounding and transform diversity
+        run: node scripts/checkNaturalGeologyAssetGrounding.mjs
+      - name: Hydrated GLB/FBX texture and multi-material fidelity
+        run: node scripts/checkNaturalGeologyAssetDiversity.mjs
+      - name: Large outcrop collision circles
+        run: node scripts/checkNaturalGeologyCollision.mjs
+      - name: Natural geology instance-correct world normals
+        run: node scripts/checkNaturalGeologyWorldNormalContract.mjs
       - name: Asset and authority source contract
         run: node scripts/checkNaturalGeologySourceContract.mjs
 
@@ -91,6 +117,11 @@ jobs:
           node-version: 22
       - name: Resolve vendored Three.js for Node imports
         run: node scripts/setupNodeThreeShim.mjs
+      - name: Verify geology renderer syntax
+        run: |
+          node --check src/3d/world/naturalGeology.js
+          node --check scripts/checkNaturalGeologyWorldNormalContract.mjs
+          node --check scripts/checkValyriaSingleSurfaceAuthority.mjs
       - name: Import render layer without hydrated LFS assets
         run: |
           set -euo pipefail
@@ -98,14 +129,79 @@ jobs:
           const geology = await import('./src/3d/world/naturalGeology.js');
           if (!geology.NATURAL_GEOLOGY_RENDER_POLICY?.renderOnly) throw new Error('render-only contract lost');
           if (geology.NATURAL_GEOLOGY_RENDER_POLICY.referenceLandscapeRuntimeLoad !== false) throw new Error('heavy landscape became runtime load');
+          if (geology.NATURAL_GEOLOGY_RENDER_POLICY.legacyValyriaSurfaceOverlayEnabled !== false) throw new Error('legacy Valyria overlay re-enabled');
+          if (geology.NATURAL_GEOLOGY_RENDER_POLICY.canonicalTerrainOwnsValyriaSurface !== true) throw new Error('canonical Valyria surface authority lost');
+          if (geology.NATURAL_GEOLOGY_RENDER_POLICY.instanceScaleCompensatedWorldNormal !== true) throw new Error('instance-correct rock normals lost');
+          if (geology.NATURAL_GEOLOGY_RENDER_POLICY.hydratedRegionalTint !== true) throw new Error('hydrated GLB regional tint lost');
           const g = geology.createNaturalRockPrototypeGeometry('fractured-scarp');
           if (!g?.getAttribute?.('position')?.count) throw new Error('procedural fallback geometry missing');
           g.dispose();
           console.log('[natural-geology-render-import] PASS');
           NODE
+      - name: Natural geology instance-correct world normals
+        run: node scripts/checkNaturalGeologyWorldNormalContract.mjs
+      - name: Single canonical Valyria surface authority
+        run: node scripts/checkValyriaSingleSurfaceAuthority.mjs
       - name: Confirm LFS pointer state is a supported fallback
         run: |
           set -euo pipefail
           test -f assets/models/fbx/rocky_terrain_low_poly.glb
           test -f assets/models/fbx/desert_rocks.glb
           echo '[natural-geology-lfs-fallback] PASS'
+
+  visual-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 24
+    steps:
+      - name: Checkout exact pushed head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify exact head and render-only material contracts
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          node --check src/3d/world/naturalSurfaceMaterial.js
+          node --check src/3d/world/terrainMicroSurface.js
+          node --check src/3d/world/water.js
+          node --check scripts/checkNaturalSurfaceMaterial.mjs
+          node --check scripts/checkValyriaSurfaceMorphologyAlignment.mjs
+          node --check scripts/captureFullWorld3DTopdown.mjs
+      - name: Install exact browser runtime
+        run: |
+          npm install --no-save playwright@1.55.0 three
+          npx playwright install --with-deps chromium
+      - name: Deterministic material, morphology-alignment and live water contracts
+        run: |
+          node scripts/checkNaturalSurfaceMaterial.mjs
+          node scripts/checkValyriaSurfaceMorphologyAlignment.mjs
+          node scripts/checkWaterVisualContract.js
+      - name: Render full-world and Valyria regional proofs
+        run: |
+          node scripts/captureFullWorld3DTopdown.mjs \
+            --width=1600 --height=1100 --segments=240 \
+            --focus=world \
+            --output=artifacts/natural-geology-exact-head/full-world.png
+          node scripts/captureFullWorld3DTopdown.mjs \
+            --width=1600 --height=1100 --segments=240 \
+            --focus=valyria \
+            --port=4174 \
+            --output=artifacts/natural-geology-exact-head/valyria-regional.png
+      - name: Record exact head
+        if: always()
+        run: |
+          mkdir -p artifacts/natural-geology-exact-head
+          printf '%s\n' "$GITHUB_SHA" > artifacts/natural-geology-exact-head/head-sha.txt
+      - name: Upload exact-head geography render evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: natural-geology-visual-proof-${{ github.sha }}
+          path: artifacts/natural-geology-exact-head/
+          if-no-files-found: warn
+          retention-days: 7

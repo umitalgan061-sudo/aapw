@@ -17,7 +17,7 @@ const BARE_WINTER_TREE_ASSET = 'assets/models/vegetation/winter_tree.glb';
 const SNOW_DEAD_TREE_GROVE_ASSET = 'assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb';
 
 export const WINTER_VEGETATION_ASSET_POLICY = Object.freeze({
-	id: 'winter-vegetation-materialized-asset-2026-08-21-v4',
+	id: 'winter-vegetation-materialized-asset-2026-09-02-v6-dense-shaded-needles',
 	preferredSnowPineAsset: PREFERRED_SNOW_PINE_ASSET,
 	bareWinterTreeAsset: BARE_WINTER_TREE_ASSET,
 	groveAsset: SNOW_DEAD_TREE_GROVE_ASSET,
@@ -45,6 +45,22 @@ export const WINTER_VEGETATION_ASSET_POLICY = Object.freeze({
 	pineFoliageFineScale: 0.71,
 	pineFoliageWeatheringStrength: 0.18,
 	pineFoliageRoughnessVariation: 0.09,
+	pineNeedleShadowTint: Object.freeze([0.32, 0.45, 0.36]),
+	pineNeedleShadowStrength: 0.64,
+	// One rotated inner copy fills card-like crown gaps without adding or moving a geographic tree.
+	pineFoliageDensityLayerYawRadians: 1.0472,
+	pineFoliageDensityLayerHorizontalScale: 0.94,
+	pineFoliageDensityLayerVerticalScale: 0.985,
+	// Hydrated GLBs retain every authored primitive/material and UV transform. Runtime texture state
+	// only establishes physically correct color decoding and stable oblique-distance filtering.
+	multiMaterialHydrationSupported: true,
+	maxTextureAnisotropy: 8,
+	colorTextureSlots: Object.freeze(['map', 'emissiveMap', 'sheenColorMap', 'specularColorMap']),
+	dataTextureSlots: Object.freeze([
+		'alphaMap', 'aoMap', 'bumpMap', 'displacementMap', 'lightMap', 'metalnessMap',
+		'normalMap', 'roughnessMap', 'sheenRoughnessMap', 'specularIntensityMap',
+		'thicknessMap', 'transmissionMap',
+	]),
 	// A Git-LFS pointer is ~130 bytes. A real textured tree GLB is orders of magnitude larger. HEAD
 	// preflight lets Firebase/static hosting reject an unhydrated pointer without downloading it into
 	// GLTFLoader first. Keep the threshold deliberately tiny so it cannot reject a plausible real GLB.
@@ -89,17 +105,13 @@ export function isPlaceholderWinterAsset(model) {
 	return placeholder;
 }
 
-/**
- * GLTFLoader normally emits one material per primitive. Array-material meshes are rejected here
- * because `disposeVegetation()` historically owns simple Mesh/InstancedMesh resources and should not
- * gain a special disposal contract merely because an optional cosmetic asset loaded.
- */
+/** Collects every renderable GLB mesh, including authored multi-material primitives. */
 export function collectWinterAssetMeshes(model) {
 	const meshes = [];
 	model?.updateMatrixWorld?.(true);
 	model?.traverse?.((node) => {
 		if (!node?.isMesh || !node.geometry?.getAttribute?.('position') || !node.material) return;
-		if (Array.isArray(node.material)) return;
+		if (Array.isArray(node.material) && node.material.length === 0) return;
 		meshes.push(node);
 	});
 	return meshes;
@@ -215,8 +227,12 @@ float winterPineNoise(vec2 p) {
 
 		const marker = '#include <map_fragment>';
 		if (!shader.fragmentShader.includes(marker)) return;
+		const [needleR, needleG, needleB] = policy.pineNeedleShadowTint;
 		shader.fragmentShader = shader.fragmentShader.replace(marker, `${marker}\n
 			float winterFoliageLuma = dot(diffuseColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+			float winterNeedleShade = 1.0 - smoothstep(0.20, 0.66, winterFoliageLuma);
+			diffuseColor.rgb *= mix(vec3(1.0), vec3(${needleR.toFixed(3)}, ${needleG.toFixed(3)}, ${needleB.toFixed(3)}),
+				${policy.pineNeedleShadowStrength.toFixed(3)} * (0.30 + 0.70 * winterNeedleShade));
 			float winterMacro = 0.5;
 			float winterMeso = 0.5;
 			float winterFine = 0.5;
@@ -227,7 +243,7 @@ float winterPineNoise(vec2 p) {
 			#endif
 			float winterExposure = smoothstep(0.22, 0.78, winterMacro * 0.58 + winterMeso * 0.42);
 			float winterSnowMix = ${policy.pineFoliageSnowMixMin.toFixed(3)}
-				+ ${policy.pineFoliageSnowMixRange.toFixed(3)} * smoothstep(0.12, 0.52, winterFoliageLuma);
+				+ ${policy.pineFoliageSnowMixRange.toFixed(3)} * smoothstep(0.38, 0.78, winterFoliageLuma);
 			winterSnowMix *= mix(0.78, 1.12, winterExposure);
 			winterSnowMix = clamp(winterSnowMix, 0.18, 0.72);
 			diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${snowR.toFixed(3)}, ${snowG.toFixed(3)}, ${snowB.toFixed(3)}), winterSnowMix);
@@ -257,8 +273,30 @@ roughnessFactor = clamp(roughnessFactor + (winterMeso - 0.5) * ${policy.pineFoli
 	return material;
 }
 
-function cloneMaterialWithTextureCleanup(sourceMaterial, disposedTextures, assetUrl) {
+function configureWinterAssetTexture(texture, colorSpace, maxAnisotropy) {
+	if (!texture?.isTexture) return;
+	texture.colorSpace = colorSpace;
+	texture.minFilter = THREE.LinearMipmapLinearFilter;
+	texture.magFilter = THREE.LinearFilter;
+	texture.anisotropy = Math.max(1, Math.min(
+		WINTER_VEGETATION_ASSET_POLICY.maxTextureAnisotropy,
+		Number.isFinite(maxAnisotropy) ? maxAnisotropy : 1,
+	));
+	texture.needsUpdate = true;
+}
+
+/**
+ * Clones one authored material while preserving UV channels/transforms and all source texture
+ * objects. Color-bearing slots decode as sRGB; PBR scalar/vector slots remain linear data.
+ */
+export function prepareWinterAssetMaterial(sourceMaterial, disposedTextures, assetUrl, maxAnisotropy = 1) {
 	const material = sourceMaterial.clone();
+	for (const slot of WINTER_VEGETATION_ASSET_POLICY.colorTextureSlots) {
+		configureWinterAssetTexture(material[slot], THREE.SRGBColorSpace, maxAnisotropy);
+	}
+	for (const slot of WINTER_VEGETATION_ASSET_POLICY.dataTextureSlots) {
+		configureWinterAssetTexture(material[slot], THREE.NoColorSpace, maxAnisotropy);
+	}
 	applyWinterPineMaterialTreatment(material, assetUrl);
 	const originalDispose = material.dispose.bind(material);
 	material.dispose = function disposeWinterAssetMaterial() {
@@ -271,6 +309,15 @@ function cloneMaterialWithTextureCleanup(sourceMaterial, disposedTextures, asset
 		originalDispose();
 	};
 	return material;
+}
+
+function prepareWinterAssetMaterials(sourceMaterial, disposedTextures, assetUrl, maxAnisotropy) {
+	if (!Array.isArray(sourceMaterial)) {
+		return prepareWinterAssetMaterial(sourceMaterial, disposedTextures, assetUrl, maxAnisotropy);
+	}
+	return sourceMaterial.map((material) => (
+		prepareWinterAssetMaterial(material, disposedTextures, assetUrl, maxAnisotropy)
+	));
 }
 
 function disposeRejectedModel(model) {
@@ -286,14 +333,24 @@ function disposeRejectedModel(model) {
 function disposeSourceMaterials(modelMeshes) {
 	const disposedMaterials = new Set();
 	for (const mesh of modelMeshes) {
-		const material = mesh.material;
-		if (!material || disposedMaterials.has(material)) continue;
-		disposedMaterials.add(material);
-		material.dispose();
+		const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+		for (const material of materials) {
+			if (!material || disposedMaterials.has(material)) continue;
+			disposedMaterials.add(material);
+			material.dispose();
+		}
 	}
 }
 
-function applyWinterAssetInstances({ group, sourceMesh, sourceFoliageMesh, modelMeshes, normalization, assetUrl }) {
+function applyWinterAssetInstances({
+	group,
+	sourceMesh,
+	sourceFoliageMesh,
+	modelMeshes,
+	normalization,
+	assetUrl,
+	maxAnisotropy,
+}) {
 	const count = sourceMesh.count;
 	const treeMatrix = new THREE.Matrix4();
 	const finalMatrix = new THREE.Matrix4();
@@ -302,7 +359,12 @@ function applyWinterAssetInstances({ group, sourceMesh, sourceFoliageMesh, model
 
 	for (let meshIndex = 0; meshIndex < modelMeshes.length; meshIndex++) {
 		const sourceAssetMesh = modelMeshes[meshIndex];
-		const material = cloneMaterialWithTextureCleanup(sourceAssetMesh.material, disposedTextures, assetUrl);
+		const material = prepareWinterAssetMaterials(
+			sourceAssetMesh.material,
+			disposedTextures,
+			assetUrl,
+			maxAnisotropy,
+		);
 		const instanced = new THREE.InstancedMesh(sourceAssetMesh.geometry, material, count);
 		instanced.name = `vegetation-snow-asset-${meshIndex}`;
 		instanced.instanceMatrix.setUsage(THREE.StaticDrawUsage);
@@ -311,7 +373,9 @@ function applyWinterAssetInstances({ group, sourceMesh, sourceFoliageMesh, model
 		instanced.userData.winterVegetationAsset = Object.freeze({
 			assetUrl,
 			meshIndex,
-			materialTreatment: material.userData?.winterPineTreatment ?? 'source',
+			materialTreatment: Array.isArray(material)
+				? Object.freeze(material.map((entry) => entry.userData?.winterPineTreatment ?? 'source'))
+				: material.userData?.winterPineTreatment ?? 'source',
 		});
 
 		for (let instanceIndex = 0; instanceIndex < count; instanceIndex++) {
@@ -322,6 +386,48 @@ function applyWinterAssetInstances({ group, sourceMesh, sourceFoliageMesh, model
 		instanced.instanceMatrix.needsUpdate = true;
 		group.add(instanced);
 		addedMeshes.push(instanced);
+
+		const authoredMaterials = Array.isArray(sourceAssetMesh.material)
+			? sourceAssetMesh.material
+			: [sourceAssetMesh.material];
+		const isPreferredFoliagePrimitive = assetUrl === WINTER_VEGETATION_ASSET_POLICY.preferredSnowPineAsset
+			&& authoredMaterials.every((entry) => entry?.map && entry.transparent);
+		if (isPreferredFoliagePrimitive) {
+			const densityMaterial = prepareWinterAssetMaterials(
+				sourceAssetMesh.material,
+				disposedTextures,
+				assetUrl,
+				maxAnisotropy,
+			);
+			const densityLayer = new THREE.InstancedMesh(sourceAssetMesh.geometry, densityMaterial, count);
+			densityLayer.name = `vegetation-snow-asset-${meshIndex}-foliage-density`;
+			densityLayer.instanceMatrix.setUsage(THREE.StaticDrawUsage);
+			densityLayer.castShadow = instanced.castShadow;
+			densityLayer.receiveShadow = instanced.receiveShadow;
+			densityLayer.userData.winterVegetationAsset = Object.freeze({
+				assetUrl,
+				meshIndex,
+				detailLayer: 'deterministic-inner-foliage-density',
+			});
+			const densityTransform = new THREE.Matrix4()
+				.makeRotationY(WINTER_VEGETATION_ASSET_POLICY.pineFoliageDensityLayerYawRadians)
+				.scale(new THREE.Vector3(
+					WINTER_VEGETATION_ASSET_POLICY.pineFoliageDensityLayerHorizontalScale,
+					WINTER_VEGETATION_ASSET_POLICY.pineFoliageDensityLayerVerticalScale,
+					WINTER_VEGETATION_ASSET_POLICY.pineFoliageDensityLayerHorizontalScale,
+				));
+			for (let instanceIndex = 0; instanceIndex < count; instanceIndex++) {
+				sourceMesh.getMatrixAt(instanceIndex, treeMatrix);
+				finalMatrix.copy(treeMatrix)
+					.multiply(normalization)
+					.multiply(sourceAssetMesh.matrixWorld)
+					.multiply(densityTransform);
+				densityLayer.setMatrixAt(instanceIndex, finalMatrix);
+			}
+			densityLayer.instanceMatrix.needsUpdate = true;
+			group.add(densityLayer);
+			addedMeshes.push(densityLayer);
+		}
 	}
 	return addedMeshes;
 }
@@ -353,7 +459,7 @@ function headerValue(headers, name) {
 
 /**
  * Cheap hosting preflight. It deliberately does not try to parse the GLB: HEAD is enough to reject
- * the two deployment failures we can identify before GLTFLoader runs — an HTTP miss and a tiny/text
+ * the two deployment failures we can identify before GLTFLoader runs â€” an HTTP miss and a tiny/text
  * Git-LFS pointer response. Unknown/unsupported HEAD behavior is fail-open because AssetLoader still
  * validates the real model and preserves the procedural fallback.
  */
@@ -414,6 +520,7 @@ async function performWinterVegetationAssetUpgrade(group, {
 	assetProbe,
 	candidates,
 	targetHeightMeters,
+	maxAnisotropy,
 	signal,
 }) {
 	const { trunkMesh, foliageMesh } = findProceduralWinterMeshes(group);
@@ -488,6 +595,7 @@ async function performWinterVegetationAssetUpgrade(group, {
 			modelMeshes: validation.meshes,
 			normalization,
 			assetUrl,
+			maxAnisotropy,
 		});
 		disposeSourceMaterials(validation.meshes);
 
@@ -529,6 +637,7 @@ export function upgradeWinterVegetationAssets(group, {
 		: null,
 	candidates = WINTER_VEGETATION_ASSET_POLICY.candidates,
 	targetHeightMeters = WINTER_VEGETATION_ASSET_POLICY.targetHeightMeters,
+	maxAnisotropy = 1,
 	signal,
 } = {}) {
 	if (!group?.userData) return Promise.resolve(makeStatus('invalid-group', { attemptedAssets: 0 }));
@@ -545,6 +654,7 @@ export function upgradeWinterVegetationAssets(group, {
 		assetProbe,
 		candidates,
 		targetHeightMeters,
+		maxAnisotropy,
 		signal,
 	}).finally(() => {
 		if (inFlightUpgrades.get(group) === promise) inFlightUpgrades.delete(group);
@@ -552,3 +662,4 @@ export function upgradeWinterVegetationAssets(group, {
 	inFlightUpgrades.set(group, promise);
 	return promise;
 }
+

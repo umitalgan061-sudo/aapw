@@ -5,16 +5,47 @@
  * arc remained too close to black. This additive layer changes only the V4 shader's atmospheric
  * floor constants after V4 is installed; curtain geometry, ray density, animation and colors stay
  * untouched. The result should read as moonlit deep-blue night rather than daylight or black void.
+ *
+ * The current realism pass also removes the remaining perfectly smooth night-sky gradient. It uses
+ * V4's already deterministic multi-scale FBM in view/sky space to add very low-amplitude upper-air
+ * extinction, broad moonlit haze and a restrained blue-green airglow band. A second domain-warped
+ * aerosol veil breaks broad concentric/latitudinal smoothness without introducing visible stripes
+ * or changing any world authority. This is render-only: it does not alter terrain, hydrology,
+ * colliders, landmark placement, or any canonical map authority.
  */
 export function applyAuroraNightAtmosphereV5(material) {
 	material.fragmentShader = material.fragmentShader
 		.replace(
 			'vec3 deepHorizon = vec3(0.018, 0.042, 0.086);',
-			'vec3 deepHorizon = vec3(0.050, 0.092, 0.165);',
+			'vec3 deepHorizon = vec3(0.060, 0.108, 0.188);',
 		)
 		.replace(
 			'vec3 deepZenith = vec3(0.0035, 0.009, 0.027);',
-			'vec3 deepZenith = vec3(0.009, 0.020, 0.052);',
+			'vec3 deepZenith = vec3(0.014, 0.028, 0.066);',
+		)
+		.replace(
+			'float t = uTime;',
+			`float t = uTime;
+		float upperAirMacro = ray4Fbm(vec2(azimuth * 1.37 + t * 0.00035, elevation * 1.65 - t * 0.00021));
+		float upperAirMeso = ray4Fbm(vec2(azimuth * 4.90 - t * 0.00082, elevation * 3.40 + 13.7));
+		vec2 upperAirWarp = vec2(upperAirMacro - 0.5, upperAirMeso - 0.5) * vec2(0.42, 0.31);
+		float upperAirBroad = ray4Fbm(vec2(
+			azimuth * 0.82 + upperAirWarp.x + t * 0.00012,
+			elevation * 1.18 + upperAirWarp.y - t * 0.00009
+		) + vec2(31.4, -17.9));
+		float horizonMoisture = (1.0 - smoothstep(0.10, 0.43, elevation))
+			* smoothstep(0.34, 0.78, upperAirMacro * 0.55 + upperAirMeso * 0.25 + upperAirBroad * 0.20);
+		float aerosolVeil = (1.0 - smoothstep(0.18, 0.66, elevation))
+			* smoothstep(0.40, 0.76, upperAirBroad * 0.64 + upperAirMacro * 0.36);
+		float extinction = (upperAirMacro - 0.5) * 0.044 + (upperAirMeso - 0.5) * 0.016
+			+ (upperAirBroad - 0.5) * 0.024;
+		float airglowBand = smoothstep(0.08, 0.20, elevation)
+			* (1.0 - smoothstep(0.43, 0.72, elevation))
+			* smoothstep(0.37, 0.76, ray4Fbm(vec2(azimuth * 2.30 + upperAirWarp.x * 0.46 + 21.1, elevation * 2.10 + upperAirWarp.y * 0.34 - t * 0.00018)));
+		skyColor *= 1.0 + extinction * uNightFactor;
+		skyColor = mix(skyColor, vec3(0.068, 0.126, 0.188), horizonMoisture * 0.115 * uNightFactor);
+		skyColor = mix(skyColor, vec3(0.052, 0.092, 0.141), aerosolVeil * 0.055 * uNightFactor);
+		skyColor += vec3(0.014, 0.038, 0.036) * airglowBand * uNightFactor;`,
 		)
 		.replace(
 			'finalColor += oxygenGreen * haze * 0.10;',
@@ -22,5 +53,14 @@ export function applyAuroraNightAtmosphereV5(material) {
 		);
 	material.needsUpdate = true;
 	material.userData.auroraNightAtmosphereV5 = true;
+	material.userData.nightAtmosphereRealism = Object.freeze({
+		version: 8,
+		deterministicMultiscaleUpperAir: true,
+		domainWarpedAerosolVeil: true,
+		uniformGradientRemoved: true,
+		moonlitHorizonMoisture: true,
+		restrainedAirglowBand: true,
+		geographyAuthorityChanged: false,
+	});
 	return material;
 }

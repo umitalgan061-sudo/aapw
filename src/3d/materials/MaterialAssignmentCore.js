@@ -5,6 +5,7 @@ import { surveyParts } from './meshPartClassifier.js';
 import { kitForPalette, resolveKit } from './figureKits.js';
 import { createLayeredMaterial, meshHeightRange, MAX_BANDS } from './layeredMaterial.js';
 import { hashString } from './textureCore.js';
+import { applyWorldMaterialSurfaceFabric } from './worldMaterialSurfaceFabric.js';
 
 /**
  * Shared, DOM-free material pipeline used by both editor tooling and autonomous world builders.
@@ -105,6 +106,14 @@ export function applyMaterialRecipe(object, recipe, { metadata = {} } = {}) {
   if (result.ok) {
     object.userData.materialRecipe = cloneRecipe(recipe);
     object.userData.editorMaterialRecipe = cloneRecipe(recipe);
+    const subject = describeMaterialSubject(object, metadata);
+    const variant = object.userData?.editorId || object.userData?.assetId || subject.id || subject.name || object.name || 'asset';
+    const fabric = applyWorldMaterialSurfaceFabric(object, {
+      paletteId: recipe.basePaletteId || result.paletteId || '',
+      subject,
+      variant,
+    });
+    result.worldMaterialSurfaceFabric = fabric;
   }
   return result;
 }
@@ -196,6 +205,7 @@ export function restoreOriginalMaterials(root) {
     delete root.userData.autoTexturePaletteId;
     delete root.userData.materialRecipe;
     delete root.userData.editorMaterialRecipe;
+    delete root.userData.worldMaterialSurfaceFabric;
   }
   return restored;
 }
@@ -242,8 +252,10 @@ export function createMaterialManifest(object, { metadata = {}, placement = null
       material: surface.materialName,
       slot: surface.slot,
       paletteId: surface.material?.userData?.paletteId || null,
+      worldSurfaceProfile: surface.material?.userData?.worldMaterialSurfaceFabric?.profileId || null,
     })),
     placement: placement ? { ...placement } : null,
+    worldMaterialSurfaceFabric: object?.userData?.worldMaterialSurfaceFabric || null,
     validation: {
       ok: validation.ok,
       errors: [...validation.errors],

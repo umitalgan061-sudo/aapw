@@ -37,6 +37,11 @@ try {
     const { normalizedReferenceToWorldXZ } = await import('./src/3d/world/worldReferenceAlignment.js');
     const { createHeightSampler } = await import('./src/3d/world/terrain.js');
     const {
+      applyTerrainMicroSurface,
+      TERRAIN_MICRO_SURFACE_POLICY,
+      terrainMicroUvAt,
+    } = await import('./src/3d/world/terrainMicroSurface.js');
+    const {
       resolveTerrainBiomeColor,
       slopeDegreesFromNeighbours,
     } = await import('./src/3d/world/terrainBiomeShading.js');
@@ -80,6 +85,10 @@ try {
     );
     const sampleHeight = createHeightSampler(WORLD_DEFAULTS.WORLD_SEED, null, []);
     const anchorHeight = sampleHeight(winterCore.x, winterCore.z);
+    const worldOffset = new THREE.Vector3(winterCore.x, anchorHeight, winterCore.z);
+    sun.position.add(worldOffset);
+    sun.target.position.copy(worldOffset);
+    scene.add(sun.target);
     const radiusMeters = Math.hypot(winterCore.x, winterCore.z) + 1100;
     const vegetation = createVegetation({
       sampleHeightMeters: sampleHeight,
@@ -146,6 +155,7 @@ try {
     terrainGeometry.rotateX(-Math.PI / 2);
     const terrainPositions = terrainGeometry.getAttribute('position');
     const terrainColors = new Float32Array(terrainPositions.count * 3);
+    const terrainMicroUvs = new Float32Array(terrainPositions.count * 2);
     const color = new THREE.Color();
     const slopeOffset = Math.min(terrainWidth / segmentsX, terrainDepth / segmentsZ);
     let minLocalHeight = Infinity;
@@ -178,15 +188,22 @@ try {
       terrainColors[index * 3] = color.r;
       terrainColors[index * 3 + 1] = color.g;
       terrainColors[index * 3 + 2] = color.b;
+      const microUv = terrainMicroUvAt(worldX, worldZ);
+      terrainMicroUvs[index * 2] = microUv.u;
+      terrainMicroUvs[index * 2 + 1] = microUv.v;
       minLocalHeight = Math.min(minLocalHeight, localY);
       maxLocalHeight = Math.max(maxLocalHeight, localY);
       snowWeightSum += surface.snowWeight ?? 0;
       rockWeightSum += surface.rockWeight ?? 0;
     }
     terrainGeometry.setAttribute('color', new THREE.BufferAttribute(terrainColors, 3));
+    terrainGeometry.setAttribute('uv1', new THREE.BufferAttribute(terrainMicroUvs, 2));
     terrainGeometry.computeVertexNormals();
     const terrainMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.97, metalness: 0 });
+    applyTerrainMicroSurface(terrainMaterial);
     const terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
+    terrain.position.copy(worldOffset);
+    vegetation.group.position.copy(worldOffset);
     terrain.receiveShadow = true;
     terrain.castShadow = true;
     scene.add(terrain);
@@ -202,13 +219,13 @@ try {
 
     const camera = new THREE.PerspectiveCamera(38, viewport.width / viewport.height, 0.5, 5000);
     function renderView(cameraPosition, target, label) {
-      camera.position.fromArray(cameraPosition);
-      camera.lookAt(...target);
+      camera.position.fromArray(cameraPosition).add(worldOffset);
+      camera.lookAt(target[0] + worldOffset.x, target[1] + worldOffset.y, target[2] + worldOffset.z);
       camera.updateMatrixWorld(true);
       panel.textContent = [
-        `NORTH SNOW-PINE CROWD · ${WINTER_VEGETATION_ASSET_POLICY.id}`,
+        `NORTH SNOW-PINE CROWD Â· ${WINTER_VEGETATION_ASSET_POLICY.id}`,
         `${label}`,
-        `production crowd=${crowdMatrices.length} · permanent ice=${permanentIceCount}`,
+        `production crowd=${crowdMatrices.length} Â· permanent ice=${permanentIceCount}`,
         `terrain span Y=${minLocalHeight.toFixed(1)}..${maxLocalHeight.toFixed(1)} m`,
         `foliage snow mix=${WINTER_VEGETATION_ASSET_POLICY.pineFoliageSnowMixMin.toFixed(2)}..${(WINTER_VEGETATION_ASSET_POLICY.pineFoliageSnowMixMin + WINTER_VEGETATION_ASSET_POLICY.pineFoliageSnowMixRange).toFixed(2)}`,
       ].join('\n');
@@ -245,6 +262,10 @@ try {
         winterAssetTreatment: telemetry.winterAssetTreatment,
       },
       terrain: {
+        surfacePolicyId: TERRAIN_MICRO_SURFACE_POLICY.id,
+        snowGranularAlbedo: TERRAIN_MICRO_SURFACE_POLICY.snowGranularAlbedo,
+        snowMicroNormal: TERRAIN_MICRO_SURFACE_POLICY.snowMicroNormal,
+        snowRoughnessVariation: TERRAIN_MICRO_SURFACE_POLICY.snowRoughnessVariation,
         vertexCount: terrainPositions.count,
         minLocalHeight,
         maxLocalHeight,
@@ -292,6 +313,11 @@ try {
   assert(report.terrain.vertexCount > 10000, 'visual QA terrain patch is unexpectedly coarse');
   assert(report.terrain.maxLocalHeight - report.terrain.minLocalHeight > 20, 'canonical north terrain patch lost meaningful relief');
   assert(report.terrain.meanSnowWeight > 0.05, 'canonical far-north terrain no longer carries visible snow authority');
+  assert.equal(report.terrain.surfacePolicyId, 'terrain-micro-surface-world-uv-pbr-v8-granular-snow',
+    'north regional proof must render the production granular snow surface');
+  assert.equal(report.terrain.snowGranularAlbedo, true);
+  assert.equal(report.terrain.snowMicroNormal, true);
+  assert.equal(report.terrain.snowRoughnessVariation, true);
   assert(report.gameplayRender.triangles > 10000 && aerialRender.triangles > 10000, 'crowd QA did not render real terrain/tree geometry');
   assert.deepEqual(browserErrors, [], `crowd visual QA emitted browser errors: ${browserErrors.join(' | ')}`);
 
@@ -308,3 +334,4 @@ try {
   await browser.close();
   await new Promise((resolve) => server.close(resolve));
 }
+
