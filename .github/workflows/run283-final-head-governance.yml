@@ -75,6 +75,7 @@ jobs:
             set -e
             if [ "$MAIN_PWA_STATUS" -eq 0 ]; then
               cat "$RUNNER_TEMP/run283-head-pwa.log"
+              echo "new_misses=true" >> "$GITHUB_OUTPUT"
               exit "$HEAD_PWA_STATUS"
             fi
             sed -n 's/^  - //p' "$RUNNER_TEMP/run283-main-pwa.log" | sort -u > "$RUNNER_TEMP/run283-main-misses.txt"
@@ -83,10 +84,12 @@ jobs:
             if [ -s "$RUNNER_TEMP/run283-new-misses.txt" ]; then
               echo "[run283] PR introduces new offline-shell misses:" >&2
               cat "$RUNNER_TEMP/run283-new-misses.txt" >&2
+              echo "new_misses=true" >> "$GITHUB_OUTPUT"
               exit 1
             fi
             echo "[run283] no new offline-shell misses versus exact main"
           fi
+          echo "new_misses=false" >> "$GITHUB_OUTPUT"
 
       - name: PWA installability contract
         shell: bash
@@ -259,4 +262,4 @@ jobs:
       - name: Enforce offline shell delta outcome
         if: ${{ always() }}
         shell: bash
-        run: test "${{ steps.offline_shell.outcome }}" = success
+        run: test "${{ steps.offline_shell.outputs.new_misses }}" != true
