@@ -78,6 +78,21 @@ try {
     const validationBeforeAttach = materialCore.validateMaterialAssignment(equipment);
     const originalBounds = new THREE.Box3().setFromObject(equipment);
     const originalSize = originalBounds.getSize(new THREE.Vector3());
+    const captureLocalGeometry = (object) => {
+      const entries = [];
+      object.traverse((node) => {
+        if (!node?.isMesh || !node.geometry) return;
+        const box = node.geometry.boundingBox || new THREE.Box3().setFromBufferAttribute(node.geometry.attributes.position);
+        entries.push({
+          name: node.name,
+          min: box.min.toArray(),
+          max: box.max.toArray(),
+          matrix: node.matrix.toArray(),
+        });
+      });
+      return entries;
+    };
+    const originalLocalGeometry = captureLocalGeometry(equipment);
 
     rightHand.add(equipment);
     equipment.position.set(0, 0, 0);
@@ -91,6 +106,7 @@ try {
     const worldScale = equipment.getWorldScale(new THREE.Vector3());
     const socketBounds = new THREE.Box3().setFromObject(equipment);
     const socketSize = socketBounds.getSize(new THREE.Vector3());
+    const attachedLocalGeometry = captureLocalGeometry(equipment);
     const validationAfterAttach = materialCore.validateMaterialAssignment(equipment);
 
     const result = {
@@ -108,6 +124,8 @@ try {
       geometry: {
         originalSize: originalSize.toArray(),
         socketSize: socketSize.toArray(),
+        originalLocalGeometry,
+        attachedLocalGeometry,
       },
       material: {
         beforeAttach: {
@@ -132,6 +150,7 @@ try {
   }, { characterUrl: CHARACTER_URL, equipmentUrl: EQUIPMENT_URL });
 
   const finite = (values) => Array.isArray(values) && values.length > 0 && values.every(Number.isFinite);
+  const deepEqual = (left, right) => JSON.stringify(left) === JSON.stringify(right);
   need(proof.characterPlaceholder === false, 'character resolved to placeholder');
   need(proof.equipmentPlaceholder === false, 'equipment resolved to placeholder');
   need(proof.socket.semantic === 'right-hand' && proof.socket.parentMatches === true, `socket attachment failed: ${JSON.stringify(proof.socket)}`);
@@ -145,9 +164,8 @@ try {
   need(socketScaleSpread < 1e-6, `non-uniform socket scale would distort equipment: ${JSON.stringify(proof.socket.worldScale)}`);
   need(finite(proof.geometry.originalSize) && proof.geometry.originalSize.every((value) => value > 1e-8), 'equipment original bounds are empty or degenerate');
   need(finite(proof.geometry.socketSize) && proof.geometry.socketSize.every((value) => value > 1e-8), 'equipment socket bounds are empty or degenerate');
-  const geometryScale = proof.geometry.socketSize.map((value, index) => value / proof.geometry.originalSize[index]);
-  need(finite(geometryScale) && geometryScale.every((value) => value > 0), `invalid socket geometry scale: ${JSON.stringify(geometryScale)}`);
-  need(Math.max(...geometryScale) - Math.min(...geometryScale) < 1e-5, `socket attachment distorted equipment geometry: ${JSON.stringify({ originalSize: proof.geometry.originalSize, socketSize: proof.geometry.socketSize, geometryScale })}`);
+  need(Array.isArray(proof.geometry.originalLocalGeometry) && proof.geometry.originalLocalGeometry.length > 0, 'equipment local geometry inventory is empty');
+  need(deepEqual(proof.geometry.originalLocalGeometry, proof.geometry.attachedLocalGeometry), 'socket attachment mutated equipment local geometry');
   need(proof.material.beforeAttach.ok && proof.material.beforeAttach.errors.length === 0, `material invalid before attach: ${JSON.stringify(proof.material.beforeAttach)}`);
   need(proof.material.afterAttach.ok && proof.material.afterAttach.errors.length === 0, `material invalid after attach: ${JSON.stringify(proof.material.afterAttach)}`);
   need(proof.material.afterAttach.meshCount === proof.material.beforeAttach.meshCount, 'socket attach changed equipment mesh count');
