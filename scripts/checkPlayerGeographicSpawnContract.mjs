@@ -69,7 +69,8 @@ assert.equal(proof.missingAssets, 0);
 assert.equal(proof.consoleErrors, 0);
 
 const noCollider = resolvePlayerGeographicSpawn({ spawn: SPAWN, mapBounds: MAP_BOUNDS, metersPerMapUnit: MPM, groundCollider: null });
-assert.throws(() => noCollider, /groundCollider/);
+assert.equal(noCollider.ok, false);
+assert.match(noCollider.error, /ground-height-missing/);
 
 const badSlope = resolvePlayerGeographicSpawn({
   spawn: SPAWN,
@@ -111,6 +112,7 @@ const report = {
   colliderDelta: resolution.colliderDelta,
   auditOk: audit.ok,
   proofOk: proof.ok,
+  noColliderRejected: !noCollider.ok,
   badSlopeRejected: !badSlope.ok,
   badColliderRejected: !badCollider.ok,
   driftRejected: !driftAudit.ok,
