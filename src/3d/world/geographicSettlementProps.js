@@ -153,11 +153,15 @@ function candidateOkay(candidate, seat, accepted, context, roleId) {
   if (roleId === 'arid' && context.waterDepth > 0) return false;
   return true;
 }
-function pickFamily(roleId, seed, index, roadDist) {
+function pickFamily(roleId, seed, index, roadDist, previousFamily = null) {
   const families = GEOGRAPHIC_SETTLEMENT_PROP_ROLES[roleId]?.families || GEOGRAPHIC_SETTLEMENT_PROP_ROLES.temperate.families;
   const cargo = families.filter((family) => family === 'barrel' || family === 'crate');
   const choices = roadDist < 12 && cargo.length ? cargo : families;
-  return choices[Math.floor(rand(seed, index + 17) * choices.length) % choices.length];
+  const alternateChoices = previousFamily && choices.length > 1
+    ? choices.filter((family) => family !== previousFamily)
+    : choices;
+  const pool = alternateChoices.length ? alternateChoices : choices;
+  return pool[Math.floor(rand(seed, index + 17) * pool.length) % pool.length];
 }
 function cloneModel(model) {
   const clone = model?.clone?.(true);
@@ -211,7 +215,8 @@ export function planGeographicSettlementProps({ seats = [], roadEdges = [], samp
       if (Math.hypot(p.x, p.z) > Number(radiusMeters) + 120) continue;
       const surface = sampleSurface(p.x, p.z, sampleHeightMeters, seaLevelMeters, roadEdges);
       if (!candidateOkay(p, seat, placements, surface, role)) continue;
-      const family = pickFamily(role, `${seed}:${attempt}`, attempt, surface.roadDistance);
+      const previousFamily = placements[placements.length - 1]?.family || null;
+      const family = pickFamily(role, `${seed}:${attempt}`, attempt, surface.roadDistance, previousFamily);
       placements.push(Object.freeze({
         seatId: seat.id || `seat-${seatIndex}`,
         seatIndex, candidateIndex: attempt, x: p.x, z: p.z,
