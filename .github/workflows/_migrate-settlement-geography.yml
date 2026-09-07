@@ -31,11 +31,14 @@ jobs:
           git fetch origin agent/gunbatimi-settlement-geography-material-realism-20260907 --no-tags
           mkdir -p src/3d/world scripts .github/workflows
           git show origin/agent/gunbatimi-settlement-geography-material-realism-20260907:src/3d/world/settlementGeographyPolicy.js > src/3d/world/settlementGeographyPolicy.js
+          git show origin/agent/gunbatimi-settlement-geography-material-realism-20260907:src/3d/world/settlementHouseTypeMix.js > src/3d/world/settlementHouseTypeMix.js
           git show origin/agent/gunbatimi-settlement-geography-material-realism-20260907:scripts/checkSettlementGeographyAssetContract.mjs > scripts/checkSettlementGeographyAssetContract.mjs
           git show origin/agent/gunbatimi-settlement-geography-material-realism-20260907:scripts/checkSettlementGeographyAssetBrowser.js > scripts/checkSettlementGeographyAssetBrowser.js
           git show origin/agent/gunbatimi-settlement-geography-material-realism-20260907:.github/workflows/settlement-geography-asset-realism.yml > .github/workflows/settlement-geography-asset-realism.yml
           git show origin/agent/gunbatimi-settlement-geography-material-realism-20260907:scripts/migrateSettlementGeographyCurrentMain.mjs > /tmp/migrateSettlementGeographyCurrentMain.mjs
+          git show origin/agent/gunbatimi-settlement-geography-material-realism-20260907:scripts/applySettlementHouseMixPatch.mjs > /tmp/applySettlementHouseMixPatch.mjs
           node /tmp/migrateSettlementGeographyCurrentMain.mjs
+          node /tmp/applySettlementHouseMixPatch.mjs
 
       - name: Validate migrated production source
         shell: bash
@@ -43,9 +46,11 @@ jobs:
           set -euo pipefail
           node --check src/3d/world/villages.js
           node --check src/3d/world/settlementGeographyPolicy.js
+          node --check src/3d/world/settlementHouseTypeMix.js
           node --check scripts/checkSettlementGeographyAssetContract.mjs
           node --check scripts/checkSettlementGeographyAssetBrowser.js
           node scripts/checkSettlementGeographyAssetContract.mjs
+          node -e "import('./src/3d/world/settlementHouseTypeMix.js').then(m => { if (!m.isSettlementHouseTypeMixSane()) process.exit(1); console.log('HOUSE_TYPE_MIX_SANE', m.SETTLEMENT_HOUSE_TYPE_MIX_VERSION); })"
           git diff --check
 
       - name: Commit migrated production lane
@@ -54,7 +59,7 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/3d/world/villages.js src/3d/world/settlementGeographyPolicy.js scripts/checkSettlementGeographyAssetContract.mjs scripts/checkSettlementGeographyAssetBrowser.js .github/workflows/settlement-geography-asset-realism.yml
+          git add src/3d/world/villages.js src/3d/world/settlementGeographyPolicy.js src/3d/world/settlementHouseTypeMix.js scripts/checkSettlementGeographyAssetContract.mjs scripts/checkSettlementGeographyAssetBrowser.js .github/workflows/settlement-geography-asset-realism.yml
           git diff --cached --check
           git commit -m 'feat(world): route village assets by settlement geography'
           git push origin HEAD:${GITHUB_REF_NAME}
@@ -68,4 +73,4 @@ jobs:
           git push origin HEAD:${GITHUB_REF_NAME}
 
       - name: Migration workflow revision
-        run: echo 'current-main-migrator-2026-09-07'
+        run: echo 'current-main-geography-house-mix-2026-09-07'
