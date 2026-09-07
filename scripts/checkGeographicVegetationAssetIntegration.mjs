@@ -35,17 +35,22 @@ for (const name of [
   assert.ok(workflow.includes(name), `workflow must hydrate ${name}`);
 }
 
-const importPresent = vegetation.includes("./geographicVegetationAsset.js");
-const hookPresent = vegetation.includes('upgradeGeographicVegetationAssets');
-const policyTelemetryPresent = vegetation.includes('geographicVegetation');
+assert.match(vegetation, /from '\.\/geographicVegetationAsset\.js';/);
+assert.match(vegetation, /upgradeGeographicVegetationAssets/);
+assert.match(vegetation, /createVegetationWithGeographicAssetUpgradeRun331/);
+assert.match(vegetation, /geographic tree asset upgrade failed/i);
 
-// This gate deliberately distinguishes "adapter exists" from "production vegetation calls it".
-// A future integrator must satisfy all three before the asset upgrade can be considered shipped.
+for (const pattern of [
+  /import\s+EditorMaterialStudio/,
+  /new\s+SettlementManager/,
+  /Math\.random\(/,
+]) assert.doesNotMatch(vegetation + adapter, pattern);
+
 console.log(JSON.stringify({
   ok: true,
   adapterReady: true,
-  productionImportPresent: importPresent,
-  productionHookPresent: hookPresent,
-  productionTelemetryPresent: policyTelemetryPresent,
-  nextIntegrationRequired: !(importPresent && hookPresent && policyTelemetryPresent),
+  productionImportPresent: true,
+  productionHookPresent: true,
+  productionTelemetryPresent: true,
+  nextIntegrationRequired: false,
 }));
