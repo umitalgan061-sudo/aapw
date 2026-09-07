@@ -1,0 +1,61 @@
+name: World Asset Geography Exact Head
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/3d/world/worldAssetGeographyProfile.js'
+      - 'src/3d/world/worldAssetRegionalAnchors.js'
+      - 'src/3d/world/WorldAssetPlacementPipeline.js'
+      - 'src/3d/materials/worldPlacementMaterialContext.js'
+      - 'src/3d/world/worldEcologySurfaceField.js'
+      - 'src/3d/world/vegetation.js'
+      - 'scripts/checkWorldAssetGeographyDistribution.mjs'
+      - 'scripts/checkWorldAssetMaterialGeographyMatrix.mjs'
+      - 'scripts/checkWorldAssetGeographyStress.mjs'
+      - '.github/workflows/world-asset-geography-exact-head.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  asset-geography:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Verify geography policy source
+        run: |
+          node -e "import('./src/3d/world/worldAssetGeographyProfile.js').then(m => { if (m.WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.newGeographyIntroduced) process.exit(2); console.log(m.WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.id); })"
+
+      - name: Check asset geography distribution
+        run: node scripts/checkWorldAssetGeographyDistribution.mjs
+
+      - name: Check material geography compatibility
+        run: node scripts/checkWorldAssetMaterialGeographyMatrix.mjs
+
+      - name: Check stress matrix
+        run: node scripts/checkWorldAssetGeographyStress.mjs
+
+      - name: Print exact head
+        run: git rev-parse HEAD
+
+      - name: Geometry authority guard
+        run: |
+          node - <<'NODE'
+          import fs from 'node:fs';
+          const text = fs.readFileSync('src/3d/world/worldAssetGeographyProfile.js', 'utf8');
+          for (const term of ['setHeight', 'setY', 'terrainHeight =', 'waterLevel =']) {
+            if (text.includes(term)) throw new Error(`asset geography policy must not contain terrain authority write: ${term}`);
+          }
+          console.log('geometry-authority-guard=PASS');
+          NODE
