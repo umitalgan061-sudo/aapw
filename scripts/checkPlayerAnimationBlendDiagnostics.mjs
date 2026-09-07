@@ -79,7 +79,7 @@ function testAuditAcceptsValidContract() {
 
 function testAuditRejectsInvalidWeights() {
   const audit = auditAnimationBlendContract({
-    normalizedWeights: { heavy: 1.5, idle: -0.5 }, environmentalConfidence: 0.5, footPlantWeight: 0.7, combatReadiness: 0.7,
+    normalizedWeights: { heavy: 2, idle: -0.5 }, environmentalConfidence: 0.5, footPlantWeight: 0.7, combatReadiness: 0.7,
   });
   assert.equal(audit.ok, false);
   assert.ok(audit.errors.includes('weights-do-not-sum-to-one'));
