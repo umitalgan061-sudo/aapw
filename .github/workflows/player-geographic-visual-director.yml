@@ -7,8 +7,13 @@ on:
     paths:
       - 'src/3d/gameplay/playerRegionalAppearance.js'
       - 'src/3d/gameplay/playerGeographicVisualDirector.js'
+      - 'src/3d/gameplay/playerGeographicSpawnContract.js'
+      - 'src/3d/gameplay/playerGroundingVisualContract.js'
+      - 'src/3d/gameplay/playerAssetSurfaceAudit.js'
       - 'scripts/checkPlayerRegionalAppearance.mjs'
       - 'scripts/checkPlayerGeographicVisualDirector.mjs'
+      - 'scripts/checkPlayerGeographicSpawnContract.mjs'
+      - 'scripts/checkPlayerAssetSurfaceReadiness.mjs'
       - 'assets_manifest.json'
       - 'assets/models/characters/peasant_girl.fbx'
       - 'assets/models/fbx/Viking Sword Blend_Viking Sword.fbx'
@@ -21,8 +26,13 @@ on:
     paths:
       - 'src/3d/gameplay/playerRegionalAppearance.js'
       - 'src/3d/gameplay/playerGeographicVisualDirector.js'
+      - 'src/3d/gameplay/playerGeographicSpawnContract.js'
+      - 'src/3d/gameplay/playerGroundingVisualContract.js'
+      - 'src/3d/gameplay/playerAssetSurfaceAudit.js'
       - 'scripts/checkPlayerRegionalAppearance.mjs'
       - 'scripts/checkPlayerGeographicVisualDirector.mjs'
+      - 'scripts/checkPlayerGeographicSpawnContract.mjs'
+      - 'scripts/checkPlayerAssetSurfaceReadiness.mjs'
       - 'assets_manifest.json'
       - 'assets/models/characters/peasant_girl.fbx'
       - 'assets/models/fbx/Viking Sword Blend_Viking Sword.fbx'
@@ -90,7 +100,7 @@ jobs:
           set -euo pipefail
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
-          if grep -R "EditorMaterialStudio" -n src/3d/gameplay/playerRegionalAppearance.js src/3d/gameplay/playerGeographicVisualDirector.js; then
+          if grep -R "EditorMaterialStudio" -n src/3d/gameplay/playerRegionalAppearance.js src/3d/gameplay/playerGeographicVisualDirector.js src/3d/gameplay/playerAssetSurfaceAudit.js; then
             echo "EditorMaterialStudio is editor-only and cannot enter player runtime."
             exit 1
           fi
@@ -103,8 +113,13 @@ jobs:
           set -euo pipefail
           node --check src/3d/gameplay/playerRegionalAppearance.js
           node --check src/3d/gameplay/playerGeographicVisualDirector.js
+          node --check src/3d/gameplay/playerGeographicSpawnContract.js
+          node --check src/3d/gameplay/playerGroundingVisualContract.js
+          node --check src/3d/gameplay/playerAssetSurfaceAudit.js
           node --check scripts/checkPlayerRegionalAppearance.mjs
           node --check scripts/checkPlayerGeographicVisualDirector.mjs
+          node --check scripts/checkPlayerGeographicSpawnContract.mjs
+          node --check scripts/checkPlayerAssetSurfaceReadiness.mjs
 
       - name: Run regional appearance acceptance
         run: node scripts/checkPlayerRegionalAppearance.mjs
@@ -112,13 +127,19 @@ jobs:
       - name: Run geographic visual director acceptance
         run: node scripts/checkPlayerGeographicVisualDirector.mjs
 
+      - name: Run spawn grounding acceptance
+        run: node scripts/checkPlayerGeographicSpawnContract.mjs
+
+      - name: Run asset surface readiness acceptance
+        run: node scripts/checkPlayerAssetSurfaceReadiness.mjs
+
       - name: Verify no new gameplay framework duplication
         shell: bash
         run: |
           set -euo pipefail
           test "$(grep -R -l "playerGeographicVisualDirector\|playerRegionalAppearance" src/3d/gameplay | wc -l)" -ge 2
           test "$(grep -R -l "MaterialAssignmentCore.js" src/3d/gameplay/playerRegionalAppearance.js src/3d/gameplay/playerGeographicVisualDirector.js | wc -l)" -eq 1
-          ! grep -R "import.*EditorMaterialStudio" -n src/3d/gameplay/playerRegionalAppearance.js src/3d/gameplay/playerGeographicVisualDirector.js
+          ! grep -R "import.*EditorMaterialStudio" -n src/3d/gameplay/playerRegionalAppearance.js src/3d/gameplay/playerGeographicVisualDirector.js src/3d/gameplay/playerAssetSurfaceAudit.js
 
       - name: Emit exact-head acceptance proof
         if: always()
