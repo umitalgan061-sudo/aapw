@@ -1,15 +1,4 @@
-/**
- * Runtime adapter for binding the environment surface fabric to a terrain geometry.
- *
- * This is render-only: it enriches an already-created terrain mesh with deterministic vertex
- * colour, roughness and normal-gain channels derived from world-space samples. It never edits
- * positions, indices, canonical height, hydrology, roads, settlements or colliders.
- *
- * The adapter is intentionally geometry-bound rather than shader-global so chunk rebuilds can
- * reapply the exact same response without depending on camera state or chunk-local UVs.
- * @module world/terrainSurfaceFabricRuntime
- */
-
+import * as THREE from 'three';
 import {
   terrainSurfaceReliefContext,
   terrainSurfaceColorMultiplier,
@@ -25,7 +14,7 @@ function ensureAttribute(geometry, name, itemSize, count) {
   const current = geometry?.getAttribute?.(name);
   if (current && current.itemSize === itemSize && current.count === count) return current;
   const array = new Float32Array(count * itemSize);
-  const attribute = new globalThis.THREE.BufferAttribute(array, itemSize);
+  const attribute = new THREE.BufferAttribute(array, itemSize);
   geometry.setAttribute(name, attribute);
   return attribute;
 }
