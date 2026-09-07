@@ -1,0 +1,68 @@
+name: Migrate Settlement Geography Lane
+
+on:
+  push:
+    branches:
+      - agent/gunbatimi-settlement-geography-material-realism-20260907-main
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout current-main settlement lane
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Import qualified geography lane helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin agent/gunbatimi-settlement-geography-material-realism-20260907 --no-tags
+          mkdir -p src/3d/world scripts .github/workflows
+          git show origin/agent/gunbatimi-settlement-geography-material-realism-20260907:src/3d/world/settlementGeographyPolicy.js > src/3d/world/settlementGeographyPolicy.js
+          git show origin/agent/gunbatimi-settlement-geography-material-realism-20260907:scripts/checkSettlementGeographyAssetContract.mjs > scripts/checkSettlementGeographyAssetContract.mjs
+          git show origin/agent/gunbatimi-settlement-geography-material-realism-20260907:scripts/checkSettlementGeographyAssetBrowser.js > scripts/checkSettlementGeographyAssetBrowser.js
+          git show origin/agent/gunbatimi-settlement-geography-material-realism-20260907:.github/workflows/settlement-geography-asset-realism.yml > .github/workflows/settlement-geography-asset-realism.yml
+          git show origin/agent/gunbatimi-settlement-geography-material-realism-20260907:scripts/applySettlementGeographyPatch.mjs > /tmp/applySettlementGeographyPatch.mjs
+          node /tmp/applySettlementGeographyPatch.mjs
+
+      - name: Validate migrated production source
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/villages.js
+          node --check src/3d/world/settlementGeographyPolicy.js
+          node --check scripts/checkSettlementGeographyAssetContract.mjs
+          node --check scripts/checkSettlementGeographyAssetBrowser.js
+          node scripts/checkSettlementGeographyAssetContract.mjs
+          git diff --check
+
+      - name: Commit migrated production lane
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/3d/world/villages.js src/3d/world/settlementGeographyPolicy.js scripts/checkSettlementGeographyAssetContract.mjs scripts/checkSettlementGeographyAssetBrowser.js .github/workflows/settlement-geography-asset-realism.yml
+          git diff --cached --check
+          git commit -m 'feat(world): route village assets by settlement geography'
+          git push origin HEAD:${GITHUB_REF_NAME}
+
+      - name: Remove migration workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/_migrate-settlement-geography.yml
+          git commit -m 'ci(world): remove one-shot migration workflow'
+          git push origin HEAD:${GITHUB_REF_NAME}
