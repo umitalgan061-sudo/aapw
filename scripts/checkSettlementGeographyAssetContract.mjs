@@ -32,20 +32,22 @@ for (const regionId of REGION_IDS) {
 	assert.ok(region.preferredRoles.roof, `${regionId} must define a roof role`);
 }
 
-const flatRoad = { height: 30, seaLevel: 0, slopeDegrees: 2, roadDistance: 18, waterDepth: 0 };
-const steepFar = { height: 30, seaLevel: 0, slopeDegrees: 22, roadDistance: 120, waterDepth: 0 };
+const flatRoad = { height: 30, seaLevel: 0, slopeDegrees: 2, roadDistance: 18, waterDepth: 0, shorelineDistanceMeters: 18 };
+const steepFar = { height: 30, seaLevel: 0, slopeDegrees: 22, roadDistance: 120, waterDepth: 0, shorelineDistanceMeters: Infinity };
 assert.ok(scoreSettlementArchitectureSite('fertile', flatRoad) > scoreSettlementArchitectureSite('fertile', steepFar));
-assert.ok(scoreSettlementArchitectureSite('maritime', { ...flatRoad, waterDepth: 0.15 }) > scoreSettlementArchitectureSite('maritime', { ...flatRoad, waterDepth: 4 }));
+assert.ok(scoreSettlementArchitectureSite('maritime', { ...flatRoad, shorelineDistanceMeters: 18 }) > scoreSettlementArchitectureSite('maritime', { ...flatRoad, shorelineDistanceMeters: 180 }));
+assert.ok(scoreSettlementArchitectureSite('maritime', { ...flatRoad, waterDepth: 4, shorelineDistanceMeters: 18 }) < scoreSettlementArchitectureSite('maritime', { ...flatRoad, waterDepth: 0, shorelineDistanceMeters: 18 }));
 assert.ok(scoreSettlementArchitectureSite('mountain', { ...flatRoad, height: 120 }) > scoreSettlementArchitectureSite('mountain', { ...flatRoad, height: 4 }));
 assert.equal(selectSettlementArchitectureVariant('fertile', flatRoad, 0.99), 'primary');
 assert.equal(selectSettlementArchitectureVariant('fertile', steepFar, 0), 'secondary');
 assert.equal(resolveSettlementPreferredMaterialRole('volcanic', 'trim'), 'rock');
 
-const context = resolveSettlementGeographyContext({ height: 62, seaLevel: 6, slopeDegrees: 7, roadDistance: 21, waterDepth: 0.12 });
+const context = resolveSettlementGeographyContext({ height: 62, seaLevel: 6, slopeDegrees: 7, roadDistance: 21, waterDepth: 0.12, shorelineDistanceMeters: 24 });
 assert.equal(context.elevationAboveSea, 56);
 assert.ok(context.lowSlopeScore > 0.2 && context.lowSlopeScore <= 1);
 assert.ok(context.roadScore > 0.9);
-assert.ok(context.coastScore > 0.9);
+assert.ok(context.coastScore > 0.5);
+assert.equal(context.shorelineDistanceMeters, 24);
 
 const a = { houseIndex: 3, surfaceContext: flatRoad };
 const b = { houseIndex: 9, surfaceContext: steepFar };
@@ -66,6 +68,7 @@ const requiredVillageTokens = [
 	'resolveSettlementArchitectureEvidence',
 	'scoreSettlementArchitectureSite',
 	'selectSettlementArchitectureVariant',
+	'shorelineDistanceMeters',
 	'WorldAssetPlacementPipeline.js',
 	'placeWorldAsset(',
 	"requireSurfaceContext: true",
@@ -74,6 +77,7 @@ const requiredVillageTokens = [
 for (const token of requiredVillageTokens) assert.ok(villagesSource.includes(token), `villages.js missing geography integration token: ${token}`);
 assert.ok(!villagesSource.includes('EditorMaterialStudio'), 'runtime village code must remain editor-free');
 assert.ok(policySource.includes('Deterministic geography-to-settlement policy'));
+assert.ok(policySource.includes('shorelineDistanceMeters'));
 assert.ok(policySource.includes('does not own height, hydrology, roads, materials or asset loading'));
 
 const assetPaths = [...new Set([...villagesSource.matchAll(/\b(?:assetUrl|secondaryAssetUrl):\s*'([^']+\.glb)'/g)].map((match) => match[1]))];
@@ -92,8 +96,8 @@ console.log('[checkSettlementGeographyAssetContract] PASS', JSON.stringify({
 	assetCount: assetPaths.length,
 	flatRoadFertileScore: scoreSettlementArchitectureSite('fertile', flatRoad),
 	steepFarFertileScore: scoreSettlementArchitectureSite('fertile', steepFar),
-	maritimeCoastalScore: scoreSettlementArchitectureSite('maritime', { ...flatRoad, waterDepth: 0.15 }),
-	maritimeInlandScore: scoreSettlementArchitectureSite('maritime', { ...flatRoad, waterDepth: 4 }),
+	maritimeNearShoreScore: scoreSettlementArchitectureSite('maritime', { ...flatRoad, shorelineDistanceMeters: 18 }),
+	maritimeFarShoreScore: scoreSettlementArchitectureSite('maritime', { ...flatRoad, shorelineDistanceMeters: 180 }),
 	mountainHighlandScore: scoreSettlementArchitectureSite('mountain', { ...flatRoad, height: 120 }),
 	mountainLowlandScore: scoreSettlementArchitectureSite('mountain', { ...flatRoad, height: 4 }),
 }));
