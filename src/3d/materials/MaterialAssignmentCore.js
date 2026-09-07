@@ -139,27 +139,43 @@ function applyAutoRecipe(object, recipe, metadata) {
 function applySurfaceRecipe(object, recipe) {
   const analysis = analyzeMaterialSurfaces(object);
   const size = clampTextureSize(recipe.textureSize);
+  const fallbackPaletteId = recipe.fallbackPaletteId || recipe.basePaletteId || null;
+  const fallbackMaterial = fallbackPaletteId && findPalette(fallbackPaletteId)
+    ? getPaletteMaterial(fallbackPaletteId, {
+        size,
+        variant: `${object.userData?.editorId || object.userData?.assetId || object.name || 'asset'}:fallback`,
+      })
+    : null;
   const pending = new Map();
   let applied = 0;
+  let fallbackApplied = 0;
 
   for (const surface of analysis.surfaces) {
-    const paletteId = recipe.surfaceOverrides?.[surface.key];
+    const paletteId = recipe.surfaceOverrides?.[surface.key] || fallbackPaletteId;
     if (!findPalette(paletteId)) continue;
     if (!pending.has(surface.mesh)) {
       pending.set(surface.mesh, Array.isArray(surface.mesh.material) ? [...surface.mesh.material] : [surface.mesh.material]);
     }
     const variant = `${object.userData?.editorId || object.userData?.assetId || object.name || 'asset'}:${surface.key}`;
-    const material = getPaletteMaterial(paletteId, { size, variant });
+    const material = recipe.surfaceOverrides?.[surface.key]
+      ? getPaletteMaterial(paletteId, { size, variant })
+      : fallbackMaterial || getPaletteMaterial(paletteId, { size, variant });
     if (!material) continue;
     pending.get(surface.mesh)[surface.materialIndex] = material;
     applied += 1;
+    if (!recipe.surfaceOverrides?.[surface.key]) fallbackApplied += 1;
   }
 
   for (const [mesh, materials] of pending) {
     rememberOriginalMaterial(mesh);
     mesh.material = materials.length === 1 ? materials[0] : materials;
   }
-  return { ok: applied > 0, mode: 'surface', surfaces: applied };
+  return {
+    ok: applied > 0,
+    mode: 'surface',
+    surfaces: applied,
+    fallbackSurfaces: fallbackApplied,
+  };
 }
 
 function applyLayerRecipe(object, recipe) {
