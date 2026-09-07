@@ -10,6 +10,7 @@ on:
       - 'src/3d/world/settlementHouseTypeMix.js'
       - 'src/3d/world/settlementFrontagePolicy.js'
       - 'src/3d/world/settlementFunctionalPlacementPolicy.js'
+      - 'src/3d/world/settlementAssetRolePolicy.js'
       - 'scripts/migrateSettlementGeographyCurrentMain.mjs'
       - 'scripts/integrateSettlementHouseTypeMix.mjs'
       - 'scripts/applySettlementFrontageCurrentMain.mjs'
@@ -17,6 +18,7 @@ on:
       - 'scripts/checkSettlementGeographyPolicy.mjs'
       - 'scripts/checkSettlementFrontagePolicy.mjs'
       - 'scripts/checkSettlementFunctionalPlacementPolicy.mjs'
+      - 'scripts/checkSettlementAssetRolePolicy.mjs'
       - 'scripts/checkSettlementAssetFamily.mjs'
       - '.github/workflows/settlement-frontage-requalification.yml'
   workflow_dispatch:
@@ -59,6 +61,7 @@ jobs:
           node --check src/3d/world/settlementHouseTypeMix.js
           node --check src/3d/world/settlementFrontagePolicy.js
           node --check src/3d/world/settlementFunctionalPlacementPolicy.js
+          node --check src/3d/world/settlementAssetRolePolicy.js
           node --check scripts/migrateSettlementGeographyCurrentMain.mjs
           node --check scripts/integrateSettlementHouseTypeMix.mjs
           node --check scripts/applySettlementFrontageCurrentMain.mjs
@@ -66,6 +69,7 @@ jobs:
           node --check scripts/checkSettlementGeographyPolicy.mjs
           node --check scripts/checkSettlementFrontagePolicy.mjs
           node --check scripts/checkSettlementFunctionalPlacementPolicy.mjs
+          node --check scripts/checkSettlementAssetRolePolicy.mjs
           node --check scripts/checkSettlementAssetFamily.mjs
 
       - name: Geography policy qualification
@@ -76,6 +80,9 @@ jobs:
 
       - name: Functional zoning qualification
         run: node scripts/checkSettlementFunctionalPlacementPolicy.mjs
+
+      - name: Asset role and material qualification
+        run: node scripts/checkSettlementAssetRolePolicy.mjs
 
       - name: Asset family qualification
         run: node scripts/checkSettlementAssetFamily.mjs
