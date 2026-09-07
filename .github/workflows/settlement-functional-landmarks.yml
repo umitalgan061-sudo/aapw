@@ -8,10 +8,13 @@ on:
       - 'src/3d/world/settlementFunctionalLandmarks.js'
       - 'src/3d/world/WorldAssetPlacementPipeline.js'
       - 'src/3d/materials/MaterialAssignmentCore.js'
+      - 'src/3d/world/terrain.js'
+      - 'src/3d/world/terrainBiomeShading.js'
       - 'src/3d/world/structureGroundingPolicy.js'
       - 'scripts/checkSettlementFunctionalLandmarks.mjs'
       - 'scripts/checkSettlementGeographyCoverage.mjs'
       - 'scripts/checkSettlementAssetFamilyAudit.mjs'
+      - 'scripts/checkSettlementVisualCohesion.mjs'
       - 'scripts/checkSettlementFunctionalLandmarksBrowser.mjs'
       - 'scripts/settlement-functional-landmark-harness.html'
       - 'assets/models/settlements/**'
@@ -22,10 +25,13 @@ on:
       - 'src/3d/world/settlementFunctionalLandmarks.js'
       - 'src/3d/world/WorldAssetPlacementPipeline.js'
       - 'src/3d/materials/MaterialAssignmentCore.js'
+      - 'src/3d/world/terrain.js'
+      - 'src/3d/world/terrainBiomeShading.js'
       - 'src/3d/world/structureGroundingPolicy.js'
       - 'scripts/checkSettlementFunctionalLandmarks.mjs'
       - 'scripts/checkSettlementGeographyCoverage.mjs'
       - 'scripts/checkSettlementAssetFamilyAudit.mjs'
+      - 'scripts/checkSettlementVisualCohesion.mjs'
       - 'scripts/checkSettlementFunctionalLandmarksBrowser.mjs'
       - 'scripts/settlement-functional-landmark-harness.html'
       - 'assets/models/settlements/**'
@@ -95,9 +101,13 @@ jobs:
           node --check scripts/checkSettlementFunctionalLandmarks.mjs
           node --check scripts/checkSettlementGeographyCoverage.mjs
           node --check scripts/checkSettlementAssetFamilyAudit.mjs
+          node --check scripts/checkSettlementVisualCohesion.mjs
           node --check scripts/checkSettlementFunctionalLandmarksBrowser.mjs
+          node --check src/3d/materials/MaterialAssignmentCore.js
           node --check src/3d/world/settlementFunctionalLandmarks.js
           node --check src/3d/world/villages.js
+          node --check src/3d/world/terrain.js
+          node --check src/3d/world/terrainBiomeShading.js
 
       - name: Static settlement contract
         run: node scripts/checkSettlementFunctionalLandmarks.mjs
@@ -107,6 +117,9 @@ jobs:
 
       - name: Asset family readiness audit
         run: node scripts/checkSettlementAssetFamilyAudit.mjs
+
+      - name: Cross-layer visual cohesion audit
+        run: node scripts/checkSettlementVisualCohesion.mjs
 
       - name: Existing village regression
         run: node scripts/checkRun330Villages.js
