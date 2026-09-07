@@ -20,7 +20,7 @@ function replaceOnce(before, after, label) {
 
 replaceOnce(
 	"import { createStoneMaterial, createRoofMaterial } from './materials.js';\n",
-	"import { createStoneMaterial, createRoofMaterial } from './materials.js';\nimport {\n\tresolveSettlementArchitectureEvidence,\n\tscoreSettlementArchitectureSite,\n\tselectSettlementArchitectureVariant,\n} from './settlementGeographyPolicy.js';\n",
+	"import { createStoneMaterial, createRoofMaterial } from './materials.js';\nimport {\n\tresolveSettlementArchitectureEvidence,\n\tresolveSettlementPreferredMaterialRole,\n\tscoreSettlementArchitectureSite,\n\tselectSettlementArchitectureVariant,\n} from './settlementGeographyPolicy.js';\n",
 	'import block',
 );
 
@@ -50,8 +50,8 @@ replaceOnce(
 
 replaceOnce(
 "\t\t\tassetUrl,\n\t\t\ttextureSize: ARCHITECTURE_TEXTURE_SIZE,\n\t\t\tdistributionDistanceMeters: Number.isFinite(site.distributionDistanceMeters) ? site.distributionDistanceMeters : null,\n\t\tfootprint: object.userData.architectureFootprint,\n\t\t\tmanifest: prepared.manifest,\n",
-"\t\t\tassetUrl,\n\t\t\ttextureSize: ARCHITECTURE_TEXTURE_SIZE,\n\t\t\tdistributionDistanceMeters: Number.isFinite(site.distributionDistanceMeters) ? site.distributionDistanceMeters : null,\n\t\t\tgeographyScore: geographyEvidence.score,\n\t\t\tgeographyVariant: site.assetVariant || geographyEvidence.variant,\n\t\t\tsurfaceContext: geographyEvidence.context,\n\t\t\tfootprint: object.userData.architectureFootprint,\n\t\t\tmanifest: prepared.manifest,\n",
-	'geography manifest evidence',
+"\t\t\tassetUrl,\n\t\t\ttextureSize: ARCHITECTURE_TEXTURE_SIZE,\n\t\t\tdistributionDistanceMeters: Number.isFinite(site.distributionDistanceMeters) ? site.distributionDistanceMeters : null,\n\t\t\tgeographyScore: geographyEvidence.score,\n\t\t\tgeographyVariant: site.assetVariant || geographyEvidence.variant,\n\t\t\tpreferredMaterialRoles: Object.freeze({\n\t\t\t\twall: resolveSettlementPreferredMaterialRole(profile.id, 'wall'),\n\t\t\t\troof: resolveSettlementPreferredMaterialRole(profile.id, 'roof'),\n\t\t\t\ttimber: resolveSettlementPreferredMaterialRole(profile.id, 'timber'),\n\t\t\t\ttrim: resolveSettlementPreferredMaterialRole(profile.id, 'trim'),\n\t\t\t}),\n\t\t\tsurfaceContext: geographyEvidence.context,\n\t\t\tfootprint: object.userData.architectureFootprint,\n\t\t\tmanifest: prepared.manifest,\n",
+	'geography and material manifest evidence',
 );
 
 replaceOnce(
@@ -79,4 +79,4 @@ replaceOnce(
 );
 
 fs.writeFileSync(targetPath, updated);
-console.log('[applySettlementGeographyPatch] applied deterministic geography integration');
+console.log('[applySettlementGeographyPatch] applied deterministic geography integration + material provenance');
