@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settlement Functional Landmark Runtime Harness</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "/src/3d/vendor/three/three.module.js",
+    "three/addons/": "/src/3d/vendor/three/addons/"
+  }
+}
+</script>
+<style>
+  html, body { margin: 0; min-height: 100%; background: #10151a; color: #e7edf2; font: 14px/1.45 system-ui, sans-serif; }
+  body { overflow: hidden; }
+  #proof { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+  #status { position: fixed; left: 12px; top: 12px; z-index: 2; padding: 10px 12px; border: 1px solid rgba(255,255,255,.18); border-radius: 8px; background: rgba(8,10,12,.78); white-space: pre; max-width: min(760px, calc(100vw - 24px)); }
+</style>
+</head>
+<body>
+<canvas id="proof"></canvas>
+<pre id="status">Hazırlanıyor…</pre>
+<script type="module">
+import * as THREE from 'three';
+import { createVillages } from '/src/3d/world/villages.js';
+import { mulberry32 } from '/src/3d/world/terrain.js';
+
+const status = document.getElementById('status');
+const canvas = document.getElementById('proof');
+
+function sampleHeightMeters(x, z) {
+  return 62
+    + Math.sin(x * 0.0018) * 2.1
+    + Math.cos(z * 0.0021) * 1.8
+    + Math.sin((x - z) * 0.0011) * 1.1;
+}
+
+function roadForSeat(seat) {
+  const heading = seat.roadHeading;
+  const points = [];
+  for (let i = -4; i <= 4; i += 1) {
+    const distance = i * 55;
+    points.push({
+      x: seat.x + Math.cos(heading) * distance,
+      z: seat.z + Math.sin(heading) * distance,
+    });
+  }
+  return { id: `${seat.id}-road`, points };
+}
+
+const seats = [
+  { id: 'berkalp', x: -520, z: -360, roadHeading: 0.2 },
+  { id: 'ziya', x: 620, z: -220, roadHeading: 1.05 },
+  { id: 'balon', x: -610, z: 630, roadHeading: -0.85 },
+  { id: 'robin', x: 520, z: 690, roadHeading: 2.0 },
+];
+const roadEdges = seats.map(roadForSeat);
+
+const result = createVillages({
+  sampleHeightMeters,
+  seaLevelMeters: 0,
+  seed: 20260907,
+  seats,
+  roadEdges,
+  radiusMeters: 2500,
+  mulberry32,
+  housesPerVillage: 9,
+});
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x7b8791);
+scene.add(new THREE.HemisphereLight(0xf3f7ff, 0x3f4b34, 2.0));
+const sun = new THREE.DirectionalLight(0xfff0d0, 2.8);
+sun.position.set(320, 520, 240);
+scene.add(sun);
+
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(3200, 3200, 1, 1),
+  new THREE.MeshStandardMaterial({ color: 0x5c6f43, roughness: 1 }),
+);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = 62;
+scene.add(ground);
+scene.add(result.group);
+
+const promise = result.group.userData.villageFunctionalLandmarkPromise;
+if (!promise) throw new Error('villageFunctionalLandmarkPromise was not created by shipped createVillages');
+const evidence = await promise;
+const plans = result.group.userData.villageFunctionalLandmarkPlans || [];
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(1440, 900, false);
+renderer.shadowMap.enabled = true;
+
+const camera = new THREE.PerspectiveCamera(42, 1440 / 900, 1, 6000);
+const functionalGroup = result.group.getObjectByName('village-functional-landmarks');
+const bounds = new THREE.Box3().setFromObject(functionalGroup || result.group);
+const centre = bounds.getCenter(new THREE.Vector3());
+const size = bounds.getSize(new THREE.Vector3());
+const span = Math.max(size.x, size.z, 40);
+camera.position.set(centre.x + span * 0.76, Math.max(centre.y + span * 0.56, 100), centre.z + span * 0.76);
+camera.lookAt(centre.x, centre.y, centre.z);
+renderer.render(scene, camera);
+
+const rendererCanvas = renderer.domElement;
+const gl = renderer.getContext();
+const pixels = new Uint8Array(rendererCanvas.width * rendererCanvas.height * 4);
+gl.readPixels(0, 0, rendererCanvas.width, rendererCanvas.height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+let nonBackgroundPixels = 0;
+let highContrastPixels = 0;
+for (let i = 0; i < pixels.length; i += 4) {
+  const r = pixels[i];
+  const g = pixels[i + 1];
+  const b = pixels[i + 2];
+  if (r + g + b > 54) nonBackgroundPixels += 1;
+  if (Math.max(r, g, b) - Math.min(r, g, b) > 28) highContrastPixels += 1;
+}
+
+const preparedObjects = [];
+functionalGroup?.traverse((node) => {
+  if (node?.userData?.settlementFunctionalId) preparedObjects.push({
+    id: node.userData.settlementFunctionalId,
+    role: node.userData.settlementFunctionalRole,
+    materialReadyForWorld: node.userData.materialReadyForWorld === true,
+    manifestReady: Boolean(node.userData.worldPlacementManifest),
+    surface: node.userData.worldPlacementSurface || null,
+    footprint: node.userData.worldPlacementFootprint || null,
+  });
+});
+
+window.__SETTLEMENT_LANDMARK_PROOF__ = {
+  ok: evidence.ok === true,
+  evidence,
+  planCount: plans.length,
+  placedObjectCount: preparedObjects.length,
+  preparedObjects,
+  render: {
+    width: rendererCanvas.width,
+    height: rendererCanvas.height,
+    nonBackgroundPixels,
+    highContrastPixels,
+    camera: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
+  },
+};
+
+document.body.dataset.proofReady = 'true';
+status.textContent = JSON.stringify(window.__SETTLEMENT_LANDMARK_PROOF__, null, 2);
+</script>
+</body>
+</html>
