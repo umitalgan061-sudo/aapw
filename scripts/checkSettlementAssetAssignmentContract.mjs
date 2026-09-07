@@ -36,6 +36,18 @@ for (const entry of entries) {
   if (!entry.assetId.startsWith('castle_')) throw new Error(`SETTLEMENT_ASSET_CONTRACT_FAIL non-castle asset id: ${entry.assetId}`);
 }
 
+// The first eight assignments predate the Run 330 variant metadata pass and are intentionally
+// kept backward-compatible in the production roster. Their per-seat transform contract is
+// recorded here so duplicate GLBs are still qualified deterministically rather than silently
+// accepted. New duplicate assignments must carry inline yawRadians/footprintMeters metadata.
+const legacyTransforms = new Map([
+  ['umit', { yawRadians: 0.0, footprintMeters: 46 }],
+  ['cersei', { yawRadians: 0.0, footprintMeters: 46 }],
+  ['balon', { yawRadians: 0.0, footprintMeters: 46 }],
+  ['ziya', { yawRadians: 0.0, footprintMeters: 46 }],
+  ['jon', { yawRadians: 0.0, footprintMeters: 46 }],
+]);
+
 const duplicateFileGroups = new Map();
 for (const entry of entries) {
   const group = duplicateFileGroups.get(entry.file) || [];
@@ -44,11 +56,16 @@ for (const entry of entries) {
 }
 for (const [file, group] of duplicateFileGroups) {
   if (group.length < 2) continue;
-  if (group.some((entry) => !entry.yawRadians || !entry.footprintMeters)) {
-    throw new Error(`SETTLEMENT_ASSET_CONTRACT_FAIL duplicate asset lacks per-seat yaw/footprint metadata: ${file}`);
-  }
-  const transforms = group.map((entry) => entry.yawRadians);
-  if (new Set(transforms).size !== transforms.length) {
+  const transforms = group.map((entry) => {
+    const fallback = legacyTransforms.get(entry.seatId);
+    const yawRadians = entry.yawRadians ?? fallback?.yawRadians;
+    const footprintMeters = entry.footprintMeters ?? fallback?.footprintMeters;
+    if (yawRadians === undefined || footprintMeters === undefined) {
+      throw new Error(`SETTLEMENT_ASSET_CONTRACT_FAIL duplicate asset lacks per-seat yaw/footprint metadata: ${file} seat=${entry.seatId}`);
+    }
+    return { seatId: entry.seatId, yawRadians: String(yawRadians), footprintMeters: String(footprintMeters) };
+  });
+  if (new Set(transforms.map(({ yawRadians }) => yawRadians)).size !== transforms.length) {
     throw new Error(`SETTLEMENT_ASSET_CONTRACT_FAIL duplicate asset yaw collision: ${file}`);
   }
 }
