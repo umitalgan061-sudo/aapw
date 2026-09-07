@@ -1,0 +1,111 @@
+name: Player Regional Appearance
+
+on:
+  push:
+    branches:
+      - 'kizil-ufuk/geographic-player-appearance'
+    paths:
+      - 'src/3d/gameplay/playerRegionalAppearance.js'
+      - 'scripts/checkPlayerRegionalAppearance.mjs'
+      - 'assets/models/characters/peasant_girl.fbx'
+      - 'assets_manifest.json'
+      - 'src/3d/world/worldReferenceMap.js'
+      - 'src/3d/materials/MaterialAssignmentCore.js'
+      - 'src/3d/materials/palettes.js'
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerRegionalAppearance.js'
+      - 'scripts/checkPlayerRegionalAppearance.mjs'
+      - 'assets/models/characters/peasant_girl.fbx'
+      - 'assets_manifest.json'
+      - 'src/3d/world/worldReferenceMap.js'
+      - 'src/3d/materials/MaterialAssignmentCore.js'
+      - 'src/3d/materials/palettes.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  player-regional-appearance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+
+      - name: Install LFS
+        run: git lfs install
+
+      - name: Verify exact main ancestry and narrow scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          HEAD_SHA="$(git rev-parse HEAD)"
+          MAIN_SHA="$(git rev-parse origin/main)"
+          MERGE_BASE="$(git merge-base "$MAIN_SHA" "$HEAD_SHA")"
+          test "$MERGE_BASE" = "$MAIN_SHA"
+          changed_lines="$(git diff --numstat "$MAIN_SHA" "$HEAD_SHA" -- src/3d/gameplay/playerRegionalAppearance.js scripts/checkPlayerRegionalAppearance.mjs .github/workflows/player-regional-appearance.yml | awk '{a+=$1;d+=$2} END{print a+d+0}')"
+          test "$changed_lines" -le 1000
+          git diff --name-only "$MAIN_SHA" "$HEAD_SHA" | while IFS= read -r path; do
+            case "$path" in
+              src/3d/gameplay/playerRegionalAppearance.js|scripts/checkPlayerRegionalAppearance.mjs|.github/workflows/player-regional-appearance.yml) ;;
+              *) echo "Unexpected changed path: $path"; exit 1 ;;
+            esac
+          done
+          printf 'HEAD_SHA=%s\nMAIN_SHA=%s\nMERGE_BASE=%s\nCHANGED_LINES=%s\n' "$HEAD_SHA" "$MAIN_SHA" "$MERGE_BASE" "$changed_lines"
+
+      - name: Selectively hydrate shipped player asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs pull --include="assets/models/characters/peasant_girl.fbx" --exclude="*"
+          test -s assets/models/characters/peasant_girl.fbx
+          if grep -aEq '^(version https://git-lfs.github.com/spec/v1|oid sha256:|size [0-9]+)$' assets/models/characters/peasant_girl.fbx; then
+            echo 'Player FBX is still an LFS pointer after selective hydration.'
+            exit 1
+          fi
+
+      - name: Check regional resolver and shared material contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f src/3d/materials/MaterialAssignmentCore.js
+          test -f src/3d/world/worldReferenceMap.js
+          test -f src/3d/gameplay/playerRegionalAppearance.js
+          if grep -R "EditorMaterialStudio" -n src/3d/gameplay/playerRegionalAppearance.js; then
+            echo 'EditorMaterialStudio must never enter the runtime player adapter.'
+            exit 1
+          fi
+          grep -q "MaterialAssignmentCore.js" src/3d/gameplay/playerRegionalAppearance.js
+          grep -q "worldReferenceMap.js" src/3d/gameplay/playerRegionalAppearance.js
+
+      - name: Run deterministic geographic appearance acceptance
+        run: node scripts/checkPlayerRegionalAppearance.mjs
+
+      - name: Publish exact-head proof
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "# Player Regional Appearance proof"
+            echo
+            echo "HEAD_SHA=$(git rev-parse HEAD)"
+            echo "MAIN_SHA=$(git rev-parse origin/main)"
+            echo "MERGE_BASE=$(git merge-base origin/main HEAD)"
+            echo
+            git diff --numstat origin/main HEAD -- src/3d/gameplay/playerRegionalAppearance.js scripts/checkPlayerRegionalAppearance.mjs .github/workflows/player-regional-appearance.yml || true
+          } > player-regional-appearance-proof.txt
+          cat player-regional-appearance-proof.txt
+
+      - name: Upload proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: player-regional-appearance-proof
+          path: player-regional-appearance-proof.txt
+          if-no-files-found: error
