@@ -72,6 +72,8 @@ function checkRuntimeBoundaries() {
 	assert(pipeline.includes('createMaterialManifest'), 'placement manifest evidence disappeared');
 	assert(material.includes('validateMaterialAssignment'), 'material validation disappeared');
 	assert(material.includes('createMaterialManifest'), 'material manifest creator disappeared');
+	assert(material.includes('fallbackPaletteId || recipe.basePaletteId'), 'surface material pipeline no longer provides a regional fallback palette');
+	assert(material.includes('fallbackSurfaces'), 'surface material pipeline no longer reports fallback surface coverage');
 }
 
 function checkRoleCatalog() {
@@ -95,7 +97,7 @@ function main() {
 	checkRuntimeBoundaries();
 	checkRoleCatalog();
 	checkNoParallelSystems();
-	console.log(JSON.stringify({ ok: true, roleCount: EXPECTED_ROLES.length, regionCount: EXPECTED_REGIONS.length, assetCount: REQUIRED_ASSET_PATHS.length, textureSize: 512, maxLandmarksPerHamlet: 2 }, null, 2));
+	console.log(JSON.stringify({ ok: true, roleCount: EXPECTED_ROLES.length, regionCount: EXPECTED_REGIONS.length, assetCount: REQUIRED_ASSET_PATHS.length, textureSize: 512, maxLandmarksPerHamlet: 2, surfaceFallback: true }, null, 2));
 	console.log('[checkSettlementFunctionalLandmarks] PASS');
 }
 
