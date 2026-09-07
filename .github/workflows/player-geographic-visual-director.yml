@@ -1,0 +1,146 @@
+name: Player Geographic Visual Director
+
+on:
+  push:
+    branches:
+      - 'kizil-ufuk/geographic-player-appearance'
+    paths:
+      - 'src/3d/gameplay/playerRegionalAppearance.js'
+      - 'src/3d/gameplay/playerGeographicVisualDirector.js'
+      - 'scripts/checkPlayerRegionalAppearance.mjs'
+      - 'scripts/checkPlayerGeographicVisualDirector.mjs'
+      - 'assets_manifest.json'
+      - 'assets/models/characters/peasant_girl.fbx'
+      - 'assets/models/fbx/Viking Sword Blend_Viking Sword.fbx'
+      - 'src/3d/world/worldReferenceMap.js'
+      - 'src/3d/world/WorldAssetPlacementPipeline.js'
+      - 'src/3d/materials/MaterialAssignmentCore.js'
+      - 'src/3d/materials/palettes.js'
+      - '.github/workflows/player-geographic-visual-director.yml'
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerRegionalAppearance.js'
+      - 'src/3d/gameplay/playerGeographicVisualDirector.js'
+      - 'scripts/checkPlayerRegionalAppearance.mjs'
+      - 'scripts/checkPlayerGeographicVisualDirector.mjs'
+      - 'assets_manifest.json'
+      - 'assets/models/characters/peasant_girl.fbx'
+      - 'assets/models/fbx/Viking Sword Blend_Viking Sword.fbx'
+      - 'src/3d/world/worldReferenceMap.js'
+      - 'src/3d/world/WorldAssetPlacementPipeline.js'
+      - 'src/3d/materials/MaterialAssignmentCore.js'
+      - 'src/3d/materials/palettes.js'
+      - '.github/workflows/player-geographic-visual-director.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  geographic-visual-director:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+
+      - name: Establish exact-main ancestry and bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          HEAD_SHA="$(git rev-parse HEAD)"
+          MAIN_SHA="$(git rev-parse origin/main)"
+          MERGE_BASE="$(git merge-base "$MAIN_SHA" "$HEAD_SHA")"
+          test "$MERGE_BASE" = "$MAIN_SHA"
+          changed_lines="$(git diff --numstat "$MAIN_SHA" "$HEAD_SHA" | awk '{add+=$1;del+=$2} END{print add+del+0}')"
+          test "$changed_lines" -le 3000
+          echo "HEAD_SHA=$HEAD_SHA"
+          echo "MAIN_SHA=$MAIN_SHA"
+          echo "MERGE_BASE=$MERGE_BASE"
+          echo "CHANGED_LINES=$changed_lines"
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Install Git LFS
+        run: git lfs install
+
+      - name: Selectively hydrate player and equipment asset families
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs pull --include="assets/models/characters/peasant_girl.fbx,assets/models/fbx/Viking Sword Blend_Viking Sword.fbx" --exclude="*"
+          for asset in \
+            assets/models/characters/peasant_girl.fbx \
+            assets/models/fbx/Viking\ Sword\ Blend_Viking\ Sword.fbx; do
+            test -s "$asset"
+            if grep -aEq '^(version https://git-lfs.github.com/spec/v1|oid sha256:|size [0-9]+)$' "$asset"; then
+              echo "LFS pointer remained hydrated as text: $asset"
+              exit 1
+            fi
+          done
+
+      - name: Verify shared runtime material and placement contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f src/3d/materials/MaterialAssignmentCore.js
+          test -f src/3d/world/WorldAssetPlacementPipeline.js
+          if grep -R "EditorMaterialStudio" -n src/3d/gameplay/playerRegionalAppearance.js src/3d/gameplay/playerGeographicVisualDirector.js; then
+            echo "EditorMaterialStudio is editor-only and cannot enter player runtime."
+            exit 1
+          fi
+          grep -q "MaterialAssignmentCore.js" src/3d/gameplay/playerRegionalAppearance.js
+          grep -q "WorldAssetPlacementPipeline.js" src/3d/gameplay/playerGeographicVisualDirector.js
+
+      - name: Syntax-check production and proof modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/playerRegionalAppearance.js
+          node --check src/3d/gameplay/playerGeographicVisualDirector.js
+          node --check scripts/checkPlayerRegionalAppearance.mjs
+          node --check scripts/checkPlayerGeographicVisualDirector.mjs
+
+      - name: Run regional appearance acceptance
+        run: node scripts/checkPlayerRegionalAppearance.mjs
+
+      - name: Run geographic visual director acceptance
+        run: node scripts/checkPlayerGeographicVisualDirector.mjs
+
+      - name: Verify no new gameplay framework duplication
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(grep -R -l "playerGeographicVisualDirector\|playerRegionalAppearance" src/3d/gameplay | wc -l)" -ge 2
+          test "$(grep -R -l "MaterialAssignmentCore.js" src/3d/gameplay/playerRegionalAppearance.js src/3d/gameplay/playerGeographicVisualDirector.js | wc -l)" -eq 1
+          ! grep -R "import.*EditorMaterialStudio" -n src/3d/gameplay/playerRegionalAppearance.js src/3d/gameplay/playerGeographicVisualDirector.js
+
+      - name: Emit exact-head acceptance proof
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "# Player Geographic Visual Director proof"
+            echo "HEAD_SHA=$(git rev-parse HEAD)"
+            echo "MAIN_SHA=$(git rev-parse origin/main)"
+            echo "MERGE_BASE=$(git merge-base origin/main HEAD)"
+            echo "CHANGED_LINES=$(git diff --numstat origin/main HEAD | awk '{a+=$1;d+=$2} END{print a+d+0}')"
+            echo "PLAYER_ASSET_BYTES=$(wc -c < assets/models/characters/peasant_girl.fbx)"
+            echo "SWORD_ASSET_BYTES=$(wc -c < 'assets/models/fbx/Viking Sword Blend_Viking Sword.fbx')"
+            echo "PLAYER_MANIFEST_OK=$(grep -c 'assets/models/characters/peasant_girl.fbx' assets_manifest.json)"
+            echo "SWORD_MANIFEST_OK=$(grep -c 'assets/models/fbx/Viking Sword Blend_Viking Sword.fbx' assets_manifest.json)"
+          } | tee player-geographic-visual-director-proof.txt
+
+      - name: Upload exact-head proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: player-geographic-visual-director-proof
+          path: player-geographic-visual-director-proof.txt
+          if-no-files-found: error
