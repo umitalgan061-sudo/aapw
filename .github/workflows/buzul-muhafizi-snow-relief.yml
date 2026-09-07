@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'src/3d/world/terrainWindSnowExposure.js'
+      - 'src/3d/world/terrainWindSnowRuntimeGuard.js'
       - 'scripts/checkTerrainWindSnowExposure.mjs'
       - 'scripts/checkTerrainWindSnowOrographicFold.mjs'
       - 'scripts/checkTerrainWindSnowFieldMatrix.mjs'
@@ -58,7 +59,7 @@ jobs:
           git diff --check "$LIVE_MAIN_SHA...HEAD"
           git diff --name-only "$LIVE_MAIN_SHA...HEAD" | while IFS= read -r path; do
             case "$path" in
-              src/3d/world/terrainWindSnowExposure.js|scripts/checkTerrainWindSnowExposure.mjs|scripts/checkTerrainWindSnowOrographicFold.mjs|scripts/checkTerrainWindSnowFieldMatrix.mjs|scripts/checkTerrainWindSnowVisualEnvelope.mjs|scripts/checkTerrainWindSnowRuntimeParity.mjs|scripts/checkTerrainWindSnowReferenceFieldSweep.mjs|scripts/checkTerrainWindSnowEdgeCases.mjs|scripts/checkTerrainWindSnowToneChain.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix.mjs|.github/workflows/buzul-muhafizi-snow-relief.yml|docs/TERRAIN_WIND_SNOW_SURFACE_CONTRACT.md|docs/TERRAIN_WIND_SNOW_ACCEPTANCE_MATRIX.md|docs/TERRAIN_WIND_SNOW_RUNBOOK.md|docs/TERRAIN_WIND_SNOW_VISUAL_EXPECTATIONS.md) ;;
+              src/3d/world/terrainWindSnowExposure.js|src/3d/world/terrainWindSnowRuntimeGuard.js|scripts/checkTerrainWindSnowExposure.mjs|scripts/checkTerrainWindSnowOrographicFold.mjs|scripts/checkTerrainWindSnowFieldMatrix.mjs|scripts/checkTerrainWindSnowVisualEnvelope.mjs|scripts/checkTerrainWindSnowRuntimeParity.mjs|scripts/checkTerrainWindSnowReferenceFieldSweep.mjs|scripts/checkTerrainWindSnowEdgeCases.mjs|scripts/checkTerrainWindSnowToneChain.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix.mjs|.github/workflows/buzul-muhafizi-snow-relief.yml|docs/TERRAIN_WIND_SNOW_SURFACE_CONTRACT.md|docs/TERRAIN_WIND_SNOW_ACCEPTANCE_MATRIX.md|docs/TERRAIN_WIND_SNOW_RUNBOOK.md|docs/TERRAIN_WIND_SNOW_VISUAL_EXPECTATIONS.md) ;;
               *) echo "Unexpected path outside single-purpose snow-relief slice: $path"; exit 1 ;;
             esac
           done
@@ -76,6 +77,7 @@ jobs:
         run: |
           set -euo pipefail
           node --check src/3d/world/terrainWindSnowExposure.js
+          node --check src/3d/world/terrainWindSnowRuntimeGuard.js
           node --check scripts/checkTerrainWindSnowExposure.mjs
           node --check scripts/checkTerrainWindSnowOrographicFold.mjs
           node --check scripts/checkTerrainWindSnowFieldMatrix.mjs
