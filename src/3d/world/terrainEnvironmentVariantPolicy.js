@@ -12,7 +12,7 @@ const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(
 const freeze = Object.freeze;
 
 export const TERRAIN_ENVIRONMENT_VARIANT_POLICY = freeze({
-  id: 'terrain-environment-habitat-variant-policy-2026-09-07-v1',
+  id: 'terrain-environment-habitat-variant-policy-2026-09-07-v2',
   deterministic: true,
   canonicalGeographyUntouched: true,
   maxRepeatRadiusMeters: 140,
@@ -26,6 +26,28 @@ export const TERRAIN_ENVIRONMENT_VARIANT_POLICY = freeze({
     prop: freeze({ minDistinctVariants: 2, maxSameVariantFraction: 0.74 }),
   }),
 });
+
+function normalizeFamily(assetFamily = 'tree') {
+  const family = String(assetFamily || 'tree').trim().toLowerCase().replace(/[_\s]+/g, '-');
+  const aliases = {
+    'snow-tree': 'snowtree',
+    'snow_tree': 'snowtree',
+    'dead-tree': 'deadtree',
+    'dead_tree': 'deadtree',
+    vegetation: 'tree',
+    foliage: 'tree',
+    boulder: 'rock',
+    stones: 'rock',
+    decoration: 'prop',
+  };
+  return aliases[family] || family;
+}
+
+function familyRule(assetFamily) {
+  const family = normalizeFamily(assetFamily);
+  return TERRAIN_ENVIRONMENT_VARIANT_POLICY.familyRules[family]
+    || TERRAIN_ENVIRONMENT_VARIANT_POLICY.familyRules.prop;
+}
 
 function normalizeHabitat(context = {}) {
   const biome = String(context.biome || '').toLowerCase();
@@ -62,7 +84,7 @@ function hashString(value) {
 export function habitatVariantSeed({ assetFamily = 'tree', worldX = 0, worldZ = 0, ordinal = 0, seed = 0 } = {}) {
   const gx = Math.floor(finite(worldX) / TERRAIN_ENVIRONMENT_VARIANT_POLICY.maxRepeatRadiusMeters);
   const gz = Math.floor(finite(worldZ) / TERRAIN_ENVIRONMENT_VARIANT_POLICY.maxRepeatRadiusMeters);
-  return (hash32(hashString(String(assetFamily))) ^ hash32(gx * 73856093) ^ hash32(gz * 19349663) ^ hash32(finite(seed)) ^ hash32(finite(ordinal))) >>> 0;
+  return (hash32(hashString(normalizeFamily(assetFamily))) ^ hash32(gx * 73856093) ^ hash32(gz * 19349663) ^ hash32(finite(seed)) ^ hash32(finite(ordinal))) >>> 0;
 }
 
 export function habitatVariantIndex(variantCount, options = {}) {
@@ -72,20 +94,22 @@ export function habitatVariantIndex(variantCount, options = {}) {
 
 export function habitatVariantOrder(variantCount, options = {}) {
   const count = Math.max(1, Math.floor(finite(variantCount, 1)));
-  const first = habitatVariantIndex(count, options);
   if (count === 1) return [0];
-  const order = [first];
-  const step = 1 + (habitatVariantSeed({ ...options, ordinal: finite(options.ordinal) + 17 }) % (count - 1));
-  let current = first;
-  for (let i = 1; i < count; i += 1) {
-    current = (current + step) % count;
-    if (!order.includes(current)) order.push(current);
-  }
-  return order;
+  return Array.from({ length: count }, (_, index) => index)
+    .map((index) => ({
+      index,
+      rank: habitatVariantSeed({
+        ...options,
+        ordinal: finite(options.ordinal) + index * 31 + 17,
+        seed: finite(options.seed) + index * 101,
+      }),
+    }))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((entry) => entry.index);
 }
 
 export function variantEligibility(assetFamily, context = {}) {
-  const family = String(assetFamily || '').toLowerCase();
+  const family = normalizeFamily(assetFamily);
   const habitat = normalizeHabitat(context);
   const moisture = clamp01(context.moisture);
   const snow = clamp01(context.snowWeight);
@@ -104,7 +128,7 @@ export function variantEligibility(assetFamily, context = {}) {
 export function selectHabitatVariant(candidates = [], context = {}) {
   const normalized = candidates.filter(Boolean).map((candidate, index) => {
     const id = typeof candidate === 'string' ? candidate : candidate.id;
-    const family = typeof candidate === 'string' ? 'asset' : candidate.family || 'asset';
+    const family = typeof candidate === 'string' ? normalizeFamily(context.assetFamily || 'asset') : normalizeFamily(candidate.family || context.assetFamily || 'asset');
     const eligibility = variantEligibility(family, context);
     return { id, family, index, eligibility };
   }).filter((candidate) => candidate.eligibility.eligible);
@@ -112,7 +136,7 @@ export function selectHabitatVariant(candidates = [], context = {}) {
   const ordinal = finite(context.ordinal, 0);
   const seed = finite(context.seed, 0);
   const selected = normalized[habitatVariantIndex(normalized.length, {
-    assetFamily: context.assetFamily || normalized[0].family,
+    assetFamily: normalizeFamily(context.assetFamily || normalized[0].family),
     worldX: context.worldX,
     worldZ: context.worldZ,
     ordinal,
@@ -132,16 +156,17 @@ export function selectHabitatVariant(candidates = [], context = {}) {
 export function enforceVariantDiversity(selectedIds = [], family = 'tree') {
   const values = selectedIds.filter(Boolean).map(String);
   const total = values.length;
-  if (total === 0) return freeze({ ok: true, family, total: 0, distinct: 0, dominantFraction: 0 });
+  const normalizedFamily = normalizeFamily(family);
+  if (total === 0) return freeze({ ok: true, family: normalizedFamily, total: 0, distinct: 0, dominantFraction: 0 });
   const counts = new Map();
   for (const id of values) counts.set(id, (counts.get(id) || 0) + 1);
   let dominant = 0;
   for (const value of counts.values()) dominant = Math.max(dominant, value);
-  const rule = TERRAIN_ENVIRONMENT_VARIANT_POLICY.familyRules[family] || TERRAIN_ENVIRONMENT_VARIANT_POLICY.familyRules.tree;
+  const rule = familyRule(normalizedFamily);
   const dominantFraction = dominant / total;
   return freeze({
     ok: counts.size >= Math.min(rule.minDistinctVariants, total) && dominantFraction <= rule.maxSameVariantFraction,
-    family,
+    family: normalizedFamily,
     total,
     distinct: counts.size,
     dominantFraction,
@@ -150,22 +175,23 @@ export function enforceVariantDiversity(selectedIds = [], family = 'tree') {
 }
 
 export function buildVariantPlacementManifest({ assetFamily = 'tree', candidates = [], selectedIds = [], context = {} } = {}) {
-  const variantRules = variantEligibility(assetFamily, context);
-  const diversity = enforceVariantDiversity(selectedIds, assetFamily);
+  const normalizedFamily = normalizeFamily(assetFamily);
+  const variantRules = variantEligibility(normalizedFamily, context);
+  const diversity = enforceVariantDiversity(selectedIds, normalizedFamily);
   return freeze({
     policyId: TERRAIN_ENVIRONMENT_VARIANT_POLICY.id,
-    assetFamily,
+    assetFamily: normalizedFamily,
     habitat: normalizeHabitat(context),
     canonicalGeographyUntouched: true,
-    selection: selectHabitatVariant(candidates, { ...context, assetFamily }),
+    selection: selectHabitatVariant(candidates, { ...context, assetFamily: normalizedFamily }),
     diversity,
-    constraints: {
+    constraints: freeze({
       waterDepth: finite(context.waterDepth, 0),
       slopeDegrees: clamp(finite(context.slopeDegrees), 0, 90),
       moisture: clamp01(context.moisture),
       snowWeight: clamp01(context.snowWeight),
       rockWeight: clamp01(context.rockWeight),
       eligible: variantRules.eligible,
-    },
+    }),
   });
 }
