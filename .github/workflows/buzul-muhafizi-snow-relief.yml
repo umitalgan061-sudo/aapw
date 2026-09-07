@@ -9,6 +9,7 @@ on:
       - 'scripts/checkTerrainWindSnowOrographicFold.mjs'
       - 'scripts/checkTerrainWindSnowFieldMatrix.mjs'
       - 'scripts/checkTerrainWindSnowVisualEnvelope.mjs'
+      - 'scripts/checkTerrainWindSnowRuntimeParity.mjs'
       - 'scripts/checkWorldEnvironmentAcceptanceMatrix.mjs'
       - '.github/workflows/buzul-muhafizi-snow-relief.yml'
       - 'docs/TERRAIN_WIND_SNOW_SURFACE_CONTRACT.md'
@@ -51,7 +52,7 @@ jobs:
           git diff --check "$LIVE_MAIN_SHA...HEAD"
           git diff --name-only "$LIVE_MAIN_SHA...HEAD" | while IFS= read -r path; do
             case "$path" in
-              src/3d/world/terrainWindSnowExposure.js|scripts/checkTerrainWindSnowExposure.mjs|scripts/checkTerrainWindSnowOrographicFold.mjs|scripts/checkTerrainWindSnowFieldMatrix.mjs|scripts/checkTerrainWindSnowVisualEnvelope.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix.mjs|.github/workflows/buzul-muhafizi-snow-relief.yml|docs/TERRAIN_WIND_SNOW_SURFACE_CONTRACT.md) ;;
+              src/3d/world/terrainWindSnowExposure.js|scripts/checkTerrainWindSnowExposure.mjs|scripts/checkTerrainWindSnowOrographicFold.mjs|scripts/checkTerrainWindSnowFieldMatrix.mjs|scripts/checkTerrainWindSnowVisualEnvelope.mjs|scripts/checkTerrainWindSnowRuntimeParity.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix.mjs|.github/workflows/buzul-muhafizi-snow-relief.yml|docs/TERRAIN_WIND_SNOW_SURFACE_CONTRACT.md) ;;
               *) echo "Unexpected path outside single-purpose snow-relief slice: $path"; exit 1 ;;
             esac
           done
@@ -73,6 +74,10 @@ jobs:
           node --check scripts/checkTerrainWindSnowOrographicFold.mjs
           node --check scripts/checkTerrainWindSnowFieldMatrix.mjs
           node --check scripts/checkTerrainWindSnowVisualEnvelope.mjs
+          node --check scripts/checkTerrainWindSnowRuntimeParity.mjs
+
+      - name: Source-to-runtime parity contract
+        run: node scripts/checkTerrainWindSnowRuntimeParity.mjs
 
       - name: Existing directional snow contract
         run: node scripts/checkTerrainWindSnowExposure.mjs
