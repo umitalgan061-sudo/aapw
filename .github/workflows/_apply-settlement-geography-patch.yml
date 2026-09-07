@@ -49,3 +49,6 @@ jobs:
           git rm scripts/applySettlementGeographyPatch.mjs .github/workflows/_apply-settlement-geography-patch.yml
           git commit -m 'feat(world): route village assets by settlement geography'
           git push origin HEAD:${GITHUB_REF_NAME}
+
+      - name: Patch trigger revision
+        run: echo 'one-shot source patch workflow revision 2'
