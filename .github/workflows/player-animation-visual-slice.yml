@@ -15,6 +15,7 @@ on:
       - 'scripts/checkPlayerAnimationVisualSlice.mjs'
       - 'scripts/checkPlayerAnimationRuntimeEvidence.mjs'
       - 'scripts/checkPlayerAnimationBlendDiagnostics.mjs'
+      - 'scripts/checkPlayerSurfaceMaterialQuality.mjs'
       - '.github/workflows/player-animation-visual-slice.yml'
   pull_request:
     paths:
@@ -29,6 +30,7 @@ on:
       - 'scripts/checkPlayerAnimationVisualSlice.mjs'
       - 'scripts/checkPlayerAnimationRuntimeEvidence.mjs'
       - 'scripts/checkPlayerAnimationBlendDiagnostics.mjs'
+      - 'scripts/checkPlayerSurfaceMaterialQuality.mjs'
       - '.github/workflows/player-animation-visual-slice.yml'
   workflow_dispatch:
 
@@ -93,6 +95,7 @@ jobs:
           node --check scripts/checkPlayerAnimationVisualSlice.mjs
           node --check scripts/checkPlayerAnimationRuntimeEvidence.mjs
           node --check scripts/checkPlayerAnimationBlendDiagnostics.mjs
+          node --check scripts/checkPlayerSurfaceMaterialQuality.mjs
 
       - name: Enforce shared material ownership boundary
         shell: bash
@@ -115,6 +118,9 @@ jobs:
 
       - name: Run player animation visual slice
         run: node scripts/checkPlayerAnimationVisualSlice.mjs
+
+      - name: Run surface material quality contract
+        run: node scripts/checkPlayerSurfaceMaterialQuality.mjs
 
       - name: Run runtime evidence contract
         run: node scripts/checkPlayerAnimationRuntimeEvidence.mjs
