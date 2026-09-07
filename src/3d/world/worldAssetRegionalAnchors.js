@@ -24,7 +24,8 @@ const smooth = (value) => {
 const lerp = (a, b, t) => a + (b - a) * t;
 
 export const WORLD_ASSET_REGIONAL_ANCHOR_POLICY = Object.freeze({
-  id: 'world-asset-regional-anchors-2026-09-07-v1',
+  id: 'world-asset-regional-anchors-2026-09-07-v2-weighted-blending',
+  previousId: 'world-asset-regional-anchors-2026-09-07-v1',
   renderOnly: true,
   distributionOnly: true,
   canonicalTerrainReadOnly: true,
@@ -38,177 +39,71 @@ export const WORLD_ASSET_REGIONAL_ANCHOR_POLICY = Object.freeze({
   maritimeModeration: true,
   elevationBandResponse: true,
   climateBandResponse: true,
+  normalizedWeightedBlending: true,
+  neutralOutsideAnchorInfluence: true,
 });
 
 export const WORLD_ASSET_REGIONAL_ANCHORS = Object.freeze({
   northWesteros: Object.freeze({
-    id: 'north-westeros',
-    x: 0.17,
-    y: 0.25,
-    radius: Object.freeze([0.20, 0.23]),
+    id: 'north-westeros', x: 0.17, y: 0.25, radius: Object.freeze([0.20, 0.23]),
     climate: Object.freeze({ cold: 1, tundra: 0.88, snow: 0.74, maritime: 0.70 }),
-    assets: Object.freeze({
-      tree: 0.56,
-      vegetation: 0.72,
-      shrub: 0.82,
-      rock: 0.68,
-      snow: 1.00,
-      waterside: 0.58,
-      building: 0.74,
-      settlement: 0.72,
-    }),
+    assets: Object.freeze({ tree: 0.56, vegetation: 0.72, shrub: 0.82, rock: 0.68, snow: 1.00, waterside: 0.58, building: 0.74, settlement: 0.72 }),
     surface: Object.freeze({ wet: 0.16, shelter: 0.18, exposure: 0.22, lithic: 0.20 }),
     palette: Object.freeze({ grassHueBias: -0.10, rockCoolBias: 0.18, snowValueBias: 0.08, woodWeatheringBias: 0.10 }),
   }),
   riverlands: Object.freeze({
-    id: 'riverlands',
-    x: 0.40,
-    y: 0.51,
-    radius: Object.freeze([0.18, 0.16]),
+    id: 'riverlands', x: 0.40, y: 0.51, radius: Object.freeze([0.18, 0.16]),
     climate: Object.freeze({ cold: 0.32, tundra: 0.08, snow: 0.10, maritime: 0.58 }),
-    assets: Object.freeze({
-      tree: 0.94,
-      vegetation: 1.00,
-      shrub: 0.78,
-      rock: 0.24,
-      snow: 0.10,
-      waterside: 0.96,
-      building: 0.82,
-      settlement: 0.90,
-    }),
+    assets: Object.freeze({ tree: 0.94, vegetation: 1.00, shrub: 0.78, rock: 0.24, snow: 0.10, waterside: 0.96, building: 0.82, settlement: 0.90 }),
     surface: Object.freeze({ wet: 0.86, shelter: 0.62, exposure: 0.10, lithic: 0.26 }),
     palette: Object.freeze({ grassHueBias: 0.05, rockCoolBias: 0.00, snowValueBias: 0.00, woodWeatheringBias: 0.08 }),
   }),
   vale: Object.freeze({
-    id: 'vale',
-    x: 0.48,
-    y: 0.39,
-    radius: Object.freeze([0.12, 0.13]),
+    id: 'vale', x: 0.48, y: 0.39, radius: Object.freeze([0.12, 0.13]),
     climate: Object.freeze({ cold: 0.46, tundra: 0.14, snow: 0.26, maritime: 0.61 }),
-    assets: Object.freeze({
-      tree: 0.76,
-      vegetation: 0.82,
-      shrub: 0.62,
-      rock: 0.86,
-      snow: 0.42,
-      waterside: 0.48,
-      building: 0.76,
-      settlement: 0.68,
-    }),
+    assets: Object.freeze({ tree: 0.76, vegetation: 0.82, shrub: 0.62, rock: 0.86, snow: 0.42, waterside: 0.48, building: 0.76, settlement: 0.68 }),
     surface: Object.freeze({ wet: 0.58, shelter: 0.48, exposure: 0.44, lithic: 0.78 }),
     palette: Object.freeze({ grassHueBias: -0.01, rockCoolBias: 0.12, snowValueBias: 0.06, woodWeatheringBias: 0.12 }),
   }),
   westerlands: Object.freeze({
-    id: 'westerlands',
-    x: 0.31,
-    y: 0.49,
-    radius: Object.freeze([0.14, 0.15]),
+    id: 'westerlands', x: 0.31, y: 0.49, radius: Object.freeze([0.14, 0.15]),
     climate: Object.freeze({ cold: 0.28, tundra: 0.04, snow: 0.06, maritime: 0.76 }),
-    assets: Object.freeze({
-      tree: 0.86,
-      vegetation: 0.90,
-      shrub: 0.74,
-      rock: 0.42,
-      snow: 0.06,
-      waterside: 0.58,
-      building: 0.88,
-      settlement: 0.86,
-    }),
+    assets: Object.freeze({ tree: 0.86, vegetation: 0.90, shrub: 0.74, rock: 0.42, snow: 0.06, waterside: 0.58, building: 0.88, settlement: 0.86 }),
     surface: Object.freeze({ wet: 0.62, shelter: 0.54, exposure: 0.18, lithic: 0.42 }),
     palette: Object.freeze({ grassHueBias: 0.03, rockCoolBias: 0.02, snowValueBias: 0.00, woodWeatheringBias: 0.13 }),
   }),
   reach: Object.freeze({
-    id: 'reach',
-    x: 0.34,
-    y: 0.66,
-    radius: Object.freeze([0.18, 0.15]),
+    id: 'reach', x: 0.34, y: 0.66, radius: Object.freeze([0.18, 0.15]),
     climate: Object.freeze({ cold: 0.10, tundra: 0.00, snow: 0.02, maritime: 0.62 }),
-    assets: Object.freeze({
-      tree: 0.88,
-      vegetation: 0.98,
-      shrub: 0.68,
-      rock: 0.22,
-      snow: 0.02,
-      waterside: 0.46,
-      building: 0.90,
-      settlement: 0.92,
-    }),
+    assets: Object.freeze({ tree: 0.88, vegetation: 0.98, shrub: 0.68, rock: 0.22, snow: 0.02, waterside: 0.46, building: 0.90, settlement: 0.92 }),
     surface: Object.freeze({ wet: 0.52, shelter: 0.48, exposure: 0.08, lithic: 0.24 }),
     palette: Object.freeze({ grassHueBias: 0.08, rockCoolBias: -0.02, snowValueBias: 0.00, woodWeatheringBias: 0.06 }),
   }),
   stormlands: Object.freeze({
-    id: 'stormlands',
-    x: 0.53,
-    y: 0.66,
-    radius: Object.freeze([0.14, 0.14]),
+    id: 'stormlands', x: 0.53, y: 0.66, radius: Object.freeze([0.14, 0.14]),
     climate: Object.freeze({ cold: 0.30, tundra: 0.05, snow: 0.08, maritime: 0.91 }),
-    assets: Object.freeze({
-      tree: 0.94,
-      vegetation: 0.92,
-      shrub: 0.72,
-      rock: 0.48,
-      snow: 0.08,
-      waterside: 0.76,
-      building: 0.82,
-      settlement: 0.78,
-    }),
+    assets: Object.freeze({ tree: 0.94, vegetation: 0.92, shrub: 0.72, rock: 0.48, snow: 0.08, waterside: 0.76, building: 0.82, settlement: 0.78 }),
     surface: Object.freeze({ wet: 0.82, shelter: 0.34, exposure: 0.34, lithic: 0.44 }),
     palette: Object.freeze({ grassHueBias: 0.02, rockCoolBias: 0.05, snowValueBias: 0.01, woodWeatheringBias: 0.18 }),
   }),
   dorne: Object.freeze({
-    id: 'dorne',
-    x: 0.54,
-    y: 0.90,
-    radius: Object.freeze([0.18, 0.14]),
+    id: 'dorne', x: 0.54, y: 0.90, radius: Object.freeze([0.18, 0.14]),
     climate: Object.freeze({ cold: 0.00, tundra: 0.00, snow: 0.00, maritime: 0.34 }),
-    assets: Object.freeze({
-      tree: 0.32,
-      vegetation: 0.56,
-      shrub: 0.96,
-      rock: 0.68,
-      snow: 0.00,
-      waterside: 0.40,
-      building: 0.84,
-      settlement: 0.88,
-    }),
+    assets: Object.freeze({ tree: 0.32, vegetation: 0.56, shrub: 0.96, rock: 0.68, snow: 0.00, waterside: 0.40, building: 0.84, settlement: 0.88 }),
     surface: Object.freeze({ wet: 0.18, shelter: 0.30, exposure: 0.62, lithic: 0.74 }),
     palette: Object.freeze({ grassHueBias: -0.06, rockCoolBias: -0.12, snowValueBias: 0.00, woodWeatheringBias: 0.04 }),
   }),
   essosWest: Object.freeze({
-    id: 'essos-west',
-    x: 0.78,
-    y: 0.44,
-    radius: Object.freeze([0.18, 0.22]),
+    id: 'essos-west', x: 0.78, y: 0.44, radius: Object.freeze([0.18, 0.22]),
     climate: Object.freeze({ cold: 0.08, tundra: 0.00, snow: 0.00, maritime: 0.44 }),
-    assets: Object.freeze({
-      tree: 0.62,
-      vegetation: 0.76,
-      shrub: 0.74,
-      rock: 0.62,
-      snow: 0.02,
-      waterside: 0.54,
-      building: 0.94,
-      settlement: 0.96,
-    }),
+    assets: Object.freeze({ tree: 0.62, vegetation: 0.76, shrub: 0.74, rock: 0.62, snow: 0.02, waterside: 0.54, building: 0.94, settlement: 0.96 }),
     surface: Object.freeze({ wet: 0.42, shelter: 0.40, exposure: 0.36, lithic: 0.62 }),
     palette: Object.freeze({ grassHueBias: 0.01, rockCoolBias: -0.03, snowValueBias: 0.00, woodWeatheringBias: 0.08 }),
   }),
   valyria: Object.freeze({
-    id: 'valyria',
-    x: 0.66,
-    y: 0.67,
-    radius: Object.freeze([0.12, 0.10]),
+    id: 'valyria', x: 0.66, y: 0.67, radius: Object.freeze([0.12, 0.10]),
     climate: Object.freeze({ cold: 0.12, tundra: 0.00, snow: 0.00, maritime: 0.52 }),
-    assets: Object.freeze({
-      tree: 0.08,
-      vegetation: 0.22,
-      shrub: 0.18,
-      rock: 1.00,
-      snow: 0.00,
-      waterside: 0.36,
-      building: 0.54,
-      settlement: 0.38,
-    }),
+    assets: Object.freeze({ tree: 0.08, vegetation: 0.22, shrub: 0.18, rock: 1.00, snow: 0.00, waterside: 0.36, building: 0.54, settlement: 0.38 }),
     surface: Object.freeze({ wet: 0.28, shelter: 0.18, exposure: 0.72, lithic: 1.00 }),
     palette: Object.freeze({ grassHueBias: -0.16, rockCoolBias: -0.08, snowValueBias: 0.00, woodWeatheringBias: 0.20 }),
   }),
@@ -238,34 +133,45 @@ function strongestAnchors(influences, maximum = 3) {
     .filter(([, weight]) => weight > 0.02);
 }
 
-function weightedRegionalProperty(property, influences, fallback) {
+function weightedValue(influences, selector, fallback = 0.5) {
   let totalWeight = 0;
-  let total = 0;
+  let totalValue = 0;
   for (const [id, weight] of Object.entries(influences)) {
-    const value = WORLD_ASSET_REGIONAL_ANCHORS[id]?.[property];
-    if (Number.isFinite(Number(value)) && weight > 0) {
-      total += Number(value) * weight;
-      totalWeight += weight;
-    }
+    if (!(weight > 0)) continue;
+    const value = selector(WORLD_ASSET_REGIONAL_ANCHORS[id]);
+    if (!Number.isFinite(Number(value))) continue;
+    totalWeight += weight;
+    totalValue += Number(value) * weight;
   }
-  return totalWeight > 0 ? total / totalWeight : fallback;
+  return totalWeight > 1e-9 ? totalValue / totalWeight : fallback;
+}
+
+function weightedPalette(influences) {
+  const keys = ['grassHueBias', 'rockCoolBias', 'snowValueBias', 'woodWeatheringBias'];
+  const result = Object.fromEntries(keys.map((key) => [key, weightedValue(influences, (anchor) => anchor.palette?.[key], 0)]));
+  return Object.freeze(result);
+}
+
+function weightedClimate(influences) {
+  return Object.freeze({
+    cold: weightedValue(influences, (anchor) => anchor.climate?.cold, 0.3),
+    tundra: weightedValue(influences, (anchor) => anchor.climate?.tundra, 0),
+    snow: weightedValue(influences, (anchor) => anchor.climate?.snow, 0),
+    maritime: weightedValue(influences, (anchor) => anchor.climate?.maritime, 0.5),
+  });
+}
+
+function weightedSurface(influences) {
+  return Object.freeze({
+    wet: weightedValue(influences, (anchor) => anchor.surface?.wet, 0.5),
+    shelter: weightedValue(influences, (anchor) => anchor.surface?.shelter, 0.5),
+    exposure: weightedValue(influences, (anchor) => anchor.surface?.exposure, 0.5),
+    lithic: weightedValue(influences, (anchor) => anchor.surface?.lithic, 0.5),
+  });
 }
 
 function weightedFamilyResponse(family, influences) {
-  let totalWeight = 0;
-  let total = 0;
-  for (const [id, weight] of Object.entries(influences)) {
-    const value = WORLD_ASSET_REGIONAL_ANCHORS[id]?.assets?.[family];
-    if (Number.isFinite(Number(value)) && weight > 0) {
-      total += Number(value) * weight;
-      totalWeight += weight;
-    }
-  }
-  return totalWeight > 0 ? total / totalWeight : 0.5;
-}
-
-function weightedClimateResponse(key, influences) {
-  return weightedRegionalProperty('climate', influences, 0)[key] ?? 0.5;
+  return weightedValue(influences, (anchor) => anchor.assets?.[family], 0.5);
 }
 
 export function sampleRegionalAssetAnchor(normalizedX, normalizedY, family = 'vegetation') {
@@ -274,54 +180,12 @@ export function sampleRegionalAssetAnchor(normalizedX, normalizedY, family = 've
   const influences = regionalAnchorInfluences(x, y);
   const top = strongestAnchors(influences);
   const response = clamp01(weightedFamilyResponse(family, influences));
-  const cold = weightedRegionalProperty('climate', Object.fromEntries(Object.entries(influences).filter(([, w]) => w > 0)), 0.3);
-  const wet = weightedRegionalProperty('surface', Object.fromEntries(Object.entries(influences).filter(([, w]) => w > 0)), 0.5);
-  let climateCold = 0.3;
-  let climateTundra = 0;
-  let climateSnow = 0;
-  let climateMaritime = 0.5;
-  let surfaceWet = 0.5;
-  let surfaceShelter = 0.5;
-  let surfaceExposure = 0.5;
-  let surfaceLithic = 0.5;
-  let paletteGrass = 0;
-  let paletteRock = 0;
-  let paletteSnow = 0;
-  let paletteWood = 0;
-  let colorWeight = 0;
-  for (const [id, weight] of Object.entries(influences)) {
-    if (!(weight > 0)) continue;
-    const anchor = WORLD_ASSET_REGIONAL_ANCHORS[id];
-    climateCold += 0;
-    climateCold += 0;
-    climateCold = lerp(climateCold, finite(anchor.climate?.cold, climateCold), weight * 0.10);
-    climateTundra += finite(anchor.climate?.tundra, 0) * weight;
-    climateSnow += finite(anchor.climate?.snow, 0) * weight;
-    climateMaritime += finite(anchor.climate?.maritime, climateMaritime) * weight;
-    surfaceWet += finite(anchor.surface?.wet, surfaceWet) * weight;
-    surfaceShelter += finite(anchor.surface?.shelter, surfaceShelter) * weight;
-    surfaceExposure += finite(anchor.surface?.exposure, surfaceExposure) * weight;
-    surfaceLithic += finite(anchor.surface?.lithic, surfaceLithic) * weight;
-    paletteGrass += finite(anchor.palette?.grassHueBias, 0) * weight;
-    paletteRock += finite(anchor.palette?.rockCoolBias, 0) * weight;
-    paletteSnow += finite(anchor.palette?.snowValueBias, 0) * weight;
-    paletteWood += finite(anchor.palette?.woodWeatheringBias, 0) * weight;
-    colorWeight += weight;
-  }
-  if (colorWeight > 0) {
-    climateTundra /= colorWeight;
-    climateSnow /= colorWeight;
-    climateMaritime /= colorWeight;
-    surfaceWet /= colorWeight;
-    surfaceShelter /= colorWeight;
-    surfaceExposure /= colorWeight;
-    surfaceLithic /= colorWeight;
-    paletteGrass /= colorWeight;
-    paletteRock /= colorWeight;
-    paletteSnow /= colorWeight;
-    paletteWood /= colorWeight;
-  }
-  const maritime = clamp01(climateMaritime);
+  const climate = weightedClimate(influences);
+  const surface = weightedSurface(influences);
+  const palette = weightedPalette(influences);
+  const totalInfluence = Object.values(influences).reduce((sum, value) => sum + value, 0);
+  const dominantInfluence = clamp01(top[0]?.[1] ?? 0);
+
   return Object.freeze({
     policyId: WORLD_ASSET_REGIONAL_ANCHOR_POLICY.id,
     normalizedX: x,
@@ -329,25 +193,22 @@ export function sampleRegionalAssetAnchor(normalizedX, normalizedY, family = 've
     family,
     response,
     influences,
+    totalInfluence,
+    dominantInfluence,
     strongestAnchors: top.map(([id, weight]) => ({ id, weight })),
     climate: Object.freeze({
-      cold: clamp01(climateCold),
-      tundra: clamp01(climateTundra),
-      snow: clamp01(climateSnow),
-      maritime,
-      maritimeModeration: clamp01(maritime * WORLD_ASSET_REGIONAL_ANCHOR_POLICY.regionalInfluenceMax),
+      cold: clamp01(climate.cold),
+      tundra: clamp01(climate.tundra),
+      snow: clamp01(climate.snow),
+      maritime: clamp01(climate.maritime),
+      maritimeModeration: clamp01(climate.maritime * WORLD_ASSET_REGIONAL_ANCHOR_POLICY.regionalInfluenceMax),
     }),
-    surface: Object.freeze({
-      wet: clamp01(surfaceWet),
-      shelter: clamp01(surfaceShelter),
-      exposure: clamp01(surfaceExposure),
-      lithic: clamp01(surfaceLithic),
-    }),
+    surface,
     palette: Object.freeze({
-      grassHueBias: clampSigned(paletteGrass),
-      rockCoolBias: clampSigned(paletteRock),
-      snowValueBias: clampSigned(paletteSnow),
-      woodWeatheringBias: clampSigned(paletteWood),
+      grassHueBias: clampSigned(palette.grassHueBias),
+      rockCoolBias: clampSigned(palette.rockCoolBias),
+      snowValueBias: clampSigned(palette.snowValueBias),
+      woodWeatheringBias: clampSigned(palette.woodWeatheringBias),
     }),
   });
 }
@@ -363,7 +224,8 @@ export function applyRegionalAnchorToPlacementScore(profile, anchor, {
   if (!profile) return 0;
   const regional = clamp01(anchor?.response ?? 0.5);
   const score = clamp01(profile.placementScore);
-  const influence = clamp01(anchor?.strongestAnchors?.[0]?.weight ?? 0) * clamp01(maximumInfluence);
+  const influence = clamp01(anchor?.dominantInfluence ?? anchor?.strongestAnchors?.[0]?.weight ?? 0)
+    * clamp01(maximumInfluence);
   const centered = (regional - 0.5) * 2;
   return clamp01(score + centered * influence * 0.22);
 }
@@ -379,8 +241,8 @@ export function regionalAssetMaterialBias(anchor) {
 
 export function regionalAnchorDistance(a, b) {
   if (!a || !b) return Infinity;
-  const dx = finite(a.normalizedX) - finite(b.normalizedX);
-  const dy = finite(a.normalizedY) - finite(b.normalizedY);
+  const dx = finite(a.normalizedX ?? a.x) - finite(b.normalizedX ?? b.x);
+  const dy = finite(a.normalizedY ?? a.y) - finite(b.normalizedY ?? b.y);
   return Math.hypot(dx, dy);
 }
 
@@ -408,7 +270,7 @@ export function regionalAnchorBlend(a, b, amount = 0.5) {
 export function regionalAnchorDiagnostics(points = [], family = 'vegetation') {
   const samples = points.map((point) => sampleRegionalAssetAnchor(point.x, point.y, family));
   if (!samples.length) return Object.freeze({ count: 0, min: 0, max: 0, mean: 0, range: 0 });
-  const values = samples.map((sample) => sample.response);
+  const values = samples.map((sample) => finite(sample.response));
   const min = Math.min(...values);
   const max = Math.max(...values);
   const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
