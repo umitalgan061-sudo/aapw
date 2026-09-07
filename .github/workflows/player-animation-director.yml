@@ -1,0 +1,28 @@
+name: Player Animation Director
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerAnimationDirector.js'
+      - 'scripts/checkPlayerAnimationDirector.mjs'
+      - '.github/workflows/player-animation-director.yml'
+  workflow_dispatch:
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+      - name: Exact main freshness and scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          BASE=$(git rev-parse origin/main)
+          test "$(git merge-base HEAD origin/main)" = "$BASE"
+          read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
+          test "$((ADD + DEL))" -le 3000
+          git diff --check "$BASE"...HEAD
+      - name: Player animation director contract
+        run: node scripts/checkPlayerAnimationDirector.mjs
