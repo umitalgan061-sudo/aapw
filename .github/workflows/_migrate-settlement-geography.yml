@@ -34,8 +34,8 @@ jobs:
           git show origin/agent/gunbatimi-settlement-geography-material-realism-20260907:scripts/checkSettlementGeographyAssetContract.mjs > scripts/checkSettlementGeographyAssetContract.mjs
           git show origin/agent/gunbatimi-settlement-geography-material-realism-20260907:scripts/checkSettlementGeographyAssetBrowser.js > scripts/checkSettlementGeographyAssetBrowser.js
           git show origin/agent/gunbatimi-settlement-geography-material-realism-20260907:.github/workflows/settlement-geography-asset-realism.yml > .github/workflows/settlement-geography-asset-realism.yml
-          git show origin/agent/gunbatimi-settlement-geography-material-realism-20260907:scripts/applySettlementGeographyPatch.mjs > /tmp/applySettlementGeographyPatch.mjs
-          node /tmp/applySettlementGeographyPatch.mjs
+          git show origin/agent/gunbatimi-settlement-geography-material-realism-20260907:scripts/migrateSettlementGeographyCurrentMain.mjs > /tmp/migrateSettlementGeographyCurrentMain.mjs
+          node /tmp/migrateSettlementGeographyCurrentMain.mjs
 
       - name: Validate migrated production source
         shell: bash
@@ -68,4 +68,4 @@ jobs:
           git push origin HEAD:${GITHUB_REF_NAME}
 
       - name: Migration workflow revision
-        run: echo 'retrigger-current-main-2026-09-07'
+        run: echo 'current-main-migrator-2026-09-07'
