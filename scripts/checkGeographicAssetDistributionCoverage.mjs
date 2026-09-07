@@ -118,6 +118,15 @@ const warmProfiles = profileKinds.filter((kind) => ['desert', 'arid', 'steppe', 
 fail(warmProfiles.some((kind) => getGeographicBiomeVisualProfile(kind).characters.some((assetId) => !snowProfile.characters.includes(assetId))), 'warm biomes do not collapse to the snow character roster');
 const strictSnowAssets = snowProfile.characters.filter((assetId) => !getCharacterAssetProfile(assetId)?.preferredBiomes?.includes('temperate'));
 fail(strictSnowAssets.length > 0, 'at least one snow-oriented asset remains geographically exclusive');
+const texturedAssets = Object.values(CHARACTER_ASSET_PROFILES).filter((asset) => asset.textureEvidence?.length);
+const textureKinds = new Set(texturedAssets.flatMap((asset) => asset.textureEvidence.map((entry) => entry.split('/').at(-1)?.split('_')[0]).filter(Boolean)));
+fail(texturedAssets.length >= 2, 'multiple authored character assets retain explicit texture evidence');
+fail(textureKinds.size >= 2, 'texture evidence spans more than one source family');
+fail([...texturedAssets].every((asset) => asset.source.endsWith('.fbx') || asset.source.endsWith('.glb')), 'textured geographic assets remain loadable model sources');
+const exclusiveWarm = warmProfiles.filter((kind) => getGeographicBiomeVisualProfile(kind).characters.some((assetId) => strictSnowAssets.includes(assetId)));
+fail(exclusiveWarm.length === 0, 'snow-exclusive character assets do not leak into warm biome profiles');
+const warmPaletteCount = new Set(warmProfiles.flatMap((kind) => getGeographicBiomeVisualProfile(kind).characters.map((assetId) => getCharacterAssetProfile(assetId)?.palette))).size;
+fail(warmPaletteCount >= 2, 'warm geographic regions retain internal visual palette diversity');
 
 const invariantReport = {
   sourceMap: WORLD_REFERENCE_MAP.id,
