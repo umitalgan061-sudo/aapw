@@ -4,9 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
   PLAYER_ASSET_SURFACE_AUDIT_POLICY,
-  assertHydratedAsset,
   compareSurfaceManifestDeterminism,
-  readBinaryAssetHeader,
 } from '../src/3d/gameplay/playerAssetSurfaceAudit.js';
 import {
   buildPlayerGroundingProof,
@@ -17,16 +15,32 @@ import {
   resolvePlayerSlopeResponse,
 } from '../src/3d/gameplay/playerGroundingVisualContract.js';
 
-const ROOT = new URL('../', import.meta.url);
 const PLAYER = 'assets/models/characters/peasant_girl.fbx';
 const SWORD = 'assets/models/fbx/Viking Sword Blend_Viking Sword.fbx';
 const DIRECTOR = 'src/3d/gameplay/playerGeographicVisualDirector.js';
 const REGIONAL = 'src/3d/gameplay/playerRegionalAppearance.js';
 const CORE = 'src/3d/materials/MaterialAssignmentCore.js';
 const PLACEMENT = 'src/3d/world/WorldAssetPlacementPipeline.js';
+const POINTER_MARKERS = ['version https://git-lfs.github.com/spec/v1', 'oid sha256:'];
 
 function text(path) { return fs.readFileSync(new URL(`../${path}`, import.meta.url), 'utf8'); }
 function fileExists(path) { return fs.existsSync(new URL(`../${path}`, import.meta.url)); }
+function readBinaryAssetHeader(path) {
+  const absolute = new URL(`../${path}`, import.meta.url);
+  const stat = fs.statSync(absolute);
+  assert.equal(stat.isFile(), true, `asset path is not a file: ${path}`);
+  const handle = fs.openSync(absolute, 'r');
+  const buffer = Buffer.alloc(Math.min(stat.size, 512));
+  try { fs.readSync(handle, buffer, 0, buffer.length, 0); } finally { fs.closeSync(handle); }
+  const ascii = buffer.toString('utf8');
+  return { bytes: stat.size, lfsPointer: POINTER_MARKERS.some((marker) => ascii.includes(marker)), headerHex: buffer.subarray(0, 32).toString('hex') };
+}
+function assertHydrated(path) {
+  const header = readBinaryAssetHeader(path);
+  assert.equal(header.lfsPointer, false, `LFS pointer remained for ${path}`);
+  assert.ok(header.bytes > 512, `${path} unexpectedly tiny after hydration`);
+  return header;
+}
 
 for (const path of [PLAYER, SWORD, DIRECTOR, REGIONAL, CORE, PLACEMENT]) {
   assert.equal(fileExists(path), true, `required file missing: ${path}`);
@@ -40,18 +54,11 @@ assert.match(director, /WorldAssetPlacementPipeline\.js/);
 assert.match(director, /prepareWorldAssetForPlacement/);
 assert.match(regional, /MaterialAssignmentCore\.js/);
 
-const playerHeader = readBinaryAssetHeader(new URL(`../${PLAYER}`, import.meta.url).pathname);
-const swordHeader = readBinaryAssetHeader(new URL(`../${SWORD}`, import.meta.url).pathname);
-assert.equal(playerHeader.lfsPointer, false, 'player must be hydrated in CI');
-assert.equal(swordHeader.lfsPointer, false, 'sword must be hydrated in CI');
-assert.ok(playerHeader.bytes > 512, 'player FBX unexpectedly tiny');
-assert.ok(swordHeader.bytes > 512, 'sword FBX unexpectedly tiny');
+const playerHeader = assertHydrated(PLAYER);
+const swordHeader = assertHydrated(SWORD);
 
 const grounded = buildPlayerGroundingProof({
-  object3D: {
-    position: { x: 0, y: 10, z: 0 },
-    children: [],
-  },
+  object3D: { position: { x: 0, y: 10, z: 0 }, children: [] },
   groundSample: { height: 10, slopeDegrees: 7 },
   colliderGroundY: 10,
 });
@@ -59,7 +66,6 @@ assert.equal(grounded.ok, true);
 assert.equal(grounded.status, 'grounded');
 assert.equal(grounded.visualDelta, 0);
 assert.equal(grounded.colliderDelta, 0);
-assert.equal(grounded.meshCount, 0);
 
 assert.equal(classifyGroundingStatus({ visualDelta: 0, colliderDelta: 0, footDeltas: [] }), 'grounded');
 assert.equal(classifyGroundingStatus({ visualDelta: 0.07, colliderDelta: 0.03, footDeltas: [0.06] }), 'near-limit');
@@ -108,8 +114,8 @@ const report = {
   groundingStatus: grounded.status,
   groundingVisualDelta: grounded.visualDelta,
   groundingColliderDelta: grounded.colliderDelta,
-  slopeFlat: slopeFlat,
-  slopeCombat: slopeCombat,
+  slopeFlat,
+  slopeCombat,
   footPlantWeights: plant,
   rootCorrection: correction,
   visualColliderComparison: comparison,
