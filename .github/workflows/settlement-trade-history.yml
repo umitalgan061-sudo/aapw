@@ -1,0 +1,24 @@
+name: Settlement Trade History
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementTradeHistory.js'
+      - 'scripts/checkSettlementTradeHistory.mjs'
+      - '.github/workflows/settlement-trade-history.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check
+        run: node --check src/3d/gameplay/settlementTradeHistory.js && node --check scripts/checkSettlementTradeHistory.mjs
+      - name: Execute contract
+        run: node scripts/checkSettlementTradeHistory.mjs
