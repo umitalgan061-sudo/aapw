@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import { buildVisualSample, compareVisualSamples, terrainAssetEnvelope, validateVisualSample, buildVisualSamplingManifest } from '../src/3d/world/terrainEnvironmentVisualSampling.js';
+const low=buildVisualSample({worldX:0,worldZ:0,heightMeters:18,heightAboveSeaMeters:8,slopeDegrees:6,rockWeight:.04,snowWeight:0,waterWeight:.02,moisture:.7,biome:'meadow',waterDepth:0,concavityMeters:.3});
+const high=buildVisualSample({worldX:1000,worldZ:-600,heightMeters:310,heightAboveSeaMeters:300,slopeDegrees:48,rockWeight:.7,snowWeight:.75,waterWeight:0,moisture:.28,biome:'tundra',waterDepth:0,concavityMeters:-.8});
+assert.ok(low.coastal>0);assert.ok(high.steep>.7);assert.ok(high.exposedRock>.5);assert.ok(Number.isFinite(high.snowEdge));
+assert.equal(validateVisualSample(low).ok,true);assert.equal(validateVisualSample(high).ok,true);
+const diff=compareVisualSamples(low,high);assert.notEqual(diff.delta.heightMeters,0);assert.notEqual(diff.delta.slopeDegrees,0);
+const treeProfile={minHeightMeters:0,maxHeightMeters:120,minSlopeDegrees:0,maxSlopeDegrees:28,maxWaterDepthMeters:.02,allowedBiomes:['forest','meadow']};
+assert.equal(terrainAssetEnvelope({sample:low,category:'tree',profile:treeProfile,spatial:{densityMultiplier:1.2,coreWeight:.8,ecotoneWeight:.2,groveOpeningWeight:.1}}).allowed,true);
+assert.equal(terrainAssetEnvelope({sample:high,category:'tree',profile:treeProfile}).allowed,false);
+const manifest=buildVisualSamplingManifest([low,high]);assert.equal(manifest.acceptance.ok,true);assert.equal(manifest.reports.length,2);
+console.log(JSON.stringify({ok:true,samples:manifest.reports.length}));
