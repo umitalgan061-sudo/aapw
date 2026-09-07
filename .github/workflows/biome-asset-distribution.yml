@@ -13,6 +13,7 @@ on:
       - 'assets_manifest.json'
       - 'src/3d/world/worldReferenceMap.js'
       - 'src/3d/world/worldReferenceAlignment.js'
+      - 'TODO'
   push:
     branches:
       - 'kizil-ufuk/biome-asset-distribution'
@@ -27,6 +28,7 @@ on:
       - 'assets_manifest.json'
       - 'src/3d/world/worldReferenceMap.js'
       - 'src/3d/world/worldReferenceAlignment.js'
+      - 'TODO'
   workflow_dispatch:
 
 permissions:
@@ -57,11 +59,11 @@ jobs:
           main_sha="$(git rev-parse origin/main)"
           merge_base="$(git merge-base "$main_sha" "$head_sha")"
           test "$merge_base" = "$main_sha"
-          changed_lines="$(git diff --numstat "$main_sha" "$head_sha" -- src/3d/world/biomeAssetDistribution.js src/3d/world/biomeAssetPlacementPlanner.js src/3d/world/biomeAssetDistributionTelemetry.js src/3d/materials/biomeSurfaceFabric.js scripts/checkBiomeAssetDistribution.mjs scripts/checkBiomeAssetPlacementPlanner.mjs scripts/checkBiomeSurfaceFabric.mjs .github/workflows/biome-asset-distribution.yml | awk '{a+=$1;d+=$2} END{print a+d+0}')"
+          changed_lines="$(git diff --numstat "$main_sha" "$head_sha" -- src/3d/world/biomeAssetDistribution.js src/3d/world/biomeAssetPlacementPlanner.js src/3d/world/biomeAssetDistributionTelemetry.js src/3d/materials/biomeSurfaceFabric.js scripts/checkBiomeAssetDistribution.mjs scripts/checkBiomeAssetPlacementPlanner.mjs scripts/checkBiomeSurfaceFabric.mjs .github/workflows/biome-asset-distribution.yml TODO | awk '{a+=$1;d+=$2} END{print a+d+0}')"
           test "$changed_lines" -le 3000
           while IFS= read -r path; do
             case "$path" in
-              src/3d/world/biomeAssetDistribution.js|src/3d/world/biomeAssetPlacementPlanner.js|src/3d/world/biomeAssetDistributionTelemetry.js|src/3d/materials/biomeSurfaceFabric.js|scripts/checkBiomeAssetDistribution.mjs|scripts/checkBiomeAssetPlacementPlanner.mjs|scripts/checkBiomeSurfaceFabric.mjs|.github/workflows/biome-asset-distribution.yml) ;;
+              src/3d/world/biomeAssetDistribution.js|src/3d/world/biomeAssetPlacementPlanner.js|src/3d/world/biomeAssetDistributionTelemetry.js|src/3d/materials/biomeSurfaceFabric.js|scripts/checkBiomeAssetDistribution.mjs|scripts/checkBiomeAssetPlacementPlanner.mjs|scripts/checkBiomeSurfaceFabric.mjs|.github/workflows/biome-asset-distribution.yml|TODO) ;;
               *) echo "Unexpected path: $path"; exit 1 ;;
             esac
           done < <(git diff --name-only "$main_sha" "$head_sha")
