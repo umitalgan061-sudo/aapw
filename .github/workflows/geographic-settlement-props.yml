@@ -6,6 +6,7 @@ on:
       - 'src/3d/world/geographicSettlementPropQuality.js'
       - 'src/3d/sceneManager.js'
       - 'scripts/checkGeographicSettlementPropsContract.mjs'
+      - 'scripts/checkGeographicSettlementPropsIntegration.mjs'
       - 'scripts/checkGeographicSettlementPropsQuality.mjs'
       - 'scripts/checkGeographicSettlementPropsAssets.mjs'
       - 'scripts/checkGeographicSettlementPropsBrowser.mjs'
@@ -24,6 +25,7 @@ jobs:
         with: { lfs: false }
       - run: npm install --no-package-lock --ignore-scripts
       - run: node scripts/checkGeographicSettlementPropsContract.mjs
+      - run: node scripts/checkGeographicSettlementPropsIntegration.mjs
   quality-contract:
     runs-on: ubuntu-latest
     needs: contract
@@ -40,7 +42,7 @@ jobs:
         with: { lfs: true }
       - name: Hydrate only required prop families
         run: git lfs pull --include="assets/models/props/barrel_zjCQP1TAci.glb,assets/models/props/crate_3OEFd1AWfa.glb,assets/models/props/greek_stone_bench.glb,assets/models/props/bonfire_Azj9hJwwwG.glb,assets/models/props/farm_dirt_8BQFbUMOeC.glb"
-      - name: Reject unresolved LFS pointers and verify asset manifest paths
+      - name: Reject unresolved LFS pointers and verify asset catalogue
         run: |
           set -euo pipefail
           for f in assets/models/props/barrel_zjCQP1TAci.glb assets/models/props/crate_3OEFd1AWfa.glb assets/models/props/greek_stone_bench.glb assets/models/props/bonfire_Azj9hJwwwG.glb assets/models/props/farm_dirt_8BQFbUMOeC.glb; do
