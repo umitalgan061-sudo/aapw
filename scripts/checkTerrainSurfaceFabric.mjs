@@ -11,6 +11,35 @@ import {
   buildTerrainSurfaceManifest,
   validateTerrainSurfaceFabricPolicy,
 } from '../src/3d/world/terrainSurfaceFabric.js';
+import {
+  TERRAIN_ENVIRONMENT_PROFILE_POLICY,
+  TERRAIN_ENVIRONMENT_ASSET_PROFILES,
+  resolveTerrainEnvironmentProfile,
+  environmentSurfaceScore,
+  validateTerrainEnvironmentPlacement,
+  deterministicAssetTransform,
+  makeEnvironmentAssetManifest,
+} from '../src/3d/world/terrainEnvironmentProfiles.js';
+import {
+  ENVIRONMENT_ASSET_REGISTRY_POLICY,
+  VERIFIED_VEGETATION_ASSETS,
+  VERIFIED_PROP_ASSETS,
+  findVerifiedEnvironmentAsset,
+  selectVerifiedEnvironmentCandidates,
+  environmentAssetRequirement,
+  validateVerifiedEnvironmentAsset,
+  environmentAssetPlacementPlan,
+  deterministicEnvironmentSeed,
+  registrySummary,
+} from '../src/3d/world/terrainEnvironmentAssetRegistry.js';
+import {
+  TERRAIN_ENVIRONMENT_CONTRACT,
+  analyzeTerrainSurfaceForEnvironment,
+  prepareTerrainEnvironmentAssetContext,
+  assertTerrainEnvironmentAttachReady,
+  environmentContextForOtherOwners,
+  validateTerrainEnvironmentContract,
+} from '../src/3d/world/terrainEnvironmentContract.js';
 
 const failures = [];
 function check(label, fn) {
@@ -66,7 +95,6 @@ const samples = [
   { worldX: 25000, worldZ: 14000 },
   { worldX: -28000, worldZ: 12000 },
 ];
-
 for (const point of samples) {
   check(`noise deterministic ${point.worldX},${point.worldZ}`, () => {
     const first = terrainSurfaceNoise(point.worldX, point.worldZ);
@@ -98,7 +126,6 @@ const contexts = [
     expected: ['shoreline'],
   },
 ];
-
 const resolvedContexts = [];
 for (const fixture of contexts) {
   check(`context ${fixture.label}`, () => {
@@ -114,7 +141,6 @@ for (const fixture of contexts) {
     assert.ok(fixture.expected.includes(chooseTerrainSubstrate(context)), `unexpected substrate ${chooseTerrainSubstrate(context)}`);
   });
 }
-
 for (const { fixture, context } of resolvedContexts) {
   check(`response ${fixture.label}`, () => {
     const multiplier = terrainSurfaceColorMultiplier(context);
@@ -173,16 +199,194 @@ check('lowland and exposed-rock responses remain materially distinct', () => {
   assert.ok(rock.exposedRock > low.exposedRock);
 });
 
+check('terrain environment profile policy has no editor shortcut', () => {
+  assert.equal(TERRAIN_ENVIRONMENT_PROFILE_POLICY.editorRuntimeImportAllowed, false);
+  assert.equal(TERRAIN_ENVIRONMENT_PROFILE_POLICY.proceduralPlaceholderAllowed, false);
+  assert.equal(TERRAIN_ENVIRONMENT_PROFILE_POLICY.deterministicTransformRequired, true);
+  assert.equal(TERRAIN_ENVIRONMENT_PROFILE_POLICY.manifestRequired, true);
+});
+
+check('every environment profile resolves and has real PBR surface requirements', () => {
+  for (const [category, profile] of Object.entries(TERRAIN_ENVIRONMENT_ASSET_PROFILES)) {
+    const resolved = resolveTerrainEnvironmentProfile(category);
+    assert.equal(resolved.category, profile.category);
+    assert.ok(profile.requiredSurfaces.length >= 1, `${category} has no surface requirement`);
+    assert.ok(profile.preferredPalettes.length >= 1, `${category} has no palette preference`);
+    assert.ok(profile.lod.maxVisibleMeters > 0, `${category} has no LOD horizon`);
+  }
+});
+
+check('authored asset registry is grounded in observed repository families', () => {
+  assert.ok(VERIFIED_VEGETATION_ASSETS.length >= 6);
+  assert.ok(VERIFIED_PROP_ASSETS.length >= 6);
+  assert.equal(ENVIRONMENT_ASSET_REGISTRY_POLICY.placeholderAllowed, false);
+  assert.equal(ENVIRONMENT_ASSET_REGISTRY_POLICY.requireHydratedAssetBeforeSceneAttach, true);
+  assert.equal(ENVIRONMENT_ASSET_REGISTRY_POLICY.requireManifestBeforeSceneAttach, true);
+  const summary = registrySummary();
+  assert.equal(summary.totalVerifiedAssets, VERIFIED_VEGETATION_ASSETS.length + VERIFIED_PROP_ASSETS.length);
+});
+
+check('verified authored tree lookup is deterministic', () => {
+  const tree = findVerifiedEnvironmentAsset('assets/models/vegetation/birch_trees_R7qMWzb7nk.glb');
+  assert.ok(tree);
+  assert.equal(tree.family, 'tree');
+  assert.equal(findVerifiedEnvironmentAsset(tree.src).src, tree.src);
+  assert.equal(findVerifiedEnvironmentAsset(tree.src.toUpperCase()).src, tree.src);
+});
+
+const profileFixtures = [
+  { category: 'tree', biome: 'meadow', sample: { slopeDegrees: 8, heightMeters: 42, moisture: 0.66, waterDepth: 0, biome: 'meadow' }, winter: false },
+  { category: 'tree', biome: 'tundra', sample: { slopeDegrees: 12, heightMeters: 210, moisture: 0.61, waterDepth: 0, biome: 'tundra' }, winter: true },
+  { category: 'rock', biome: 'highland', sample: { slopeDegrees: 43, heightMeters: 180, moisture: 0.34, waterDepth: 0, biome: 'highland' }, winter: false },
+  { category: 'scree', biome: 'alpine-bare', sample: { slopeDegrees: 39, heightMeters: 310, moisture: 0.29, waterDepth: 0, biome: 'alpine-bare' }, winter: false },
+  { category: 'grass', biome: 'meadow', sample: { slopeDegrees: 11, heightMeters: 18, moisture: 0.70, waterDepth: 0, biome: 'meadow' }, winter: false },
+];
+for (const fixture of profileFixtures) {
+  check(`environment candidate ${fixture.category}/${fixture.biome}`, () => {
+    const candidates = selectVerifiedEnvironmentCandidates(fixture.category, {
+      biome: fixture.biome,
+      winter: fixture.winter,
+    });
+    if (fixture.category === 'tree') assert.ok(candidates.length >= 1);
+    const profile = resolveTerrainEnvironmentProfile(fixture.category);
+    const score = environmentSurfaceScore(profile, fixture.sample);
+    approx(score, 0, 1, `${fixture.category} score`);
+    const validity = validateTerrainEnvironmentPlacement(profile, fixture.sample);
+    assert.equal(validity.ok, true, validity.errors.join(','));
+    const requirement = environmentAssetRequirement(fixture.category);
+    assert.ok(requirement);
+    assert.equal(requirement.manifestRequired, true);
+  });
+}
+
+check('invalid tree placement fails water policy', () => {
+  const profile = resolveTerrainEnvironmentProfile('tree');
+  const result = validateTerrainEnvironmentPlacement(profile, { slopeDegrees: 3, heightMeters: 12, waterDepth: 1, biome: 'meadow' });
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.includes('water-depth-out-of-policy'));
+});
+
+check('invalid house placement fails steep-slope policy', () => {
+  const profile = resolveTerrainEnvironmentProfile('house');
+  const result = validateTerrainEnvironmentPlacement(profile, { slopeDegrees: 18, heightMeters: 20, waterDepth: 0, biome: 'settlement-envelope' });
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.includes('slope-out-of-policy'));
+});
+
+check('deterministic environment transform is stable and bounded', () => {
+  const profile = resolveTerrainEnvironmentProfile('rock');
+  const a = deterministicAssetTransform(0x4a7b91, 17, profile);
+  const b = deterministicAssetTransform(0x4a7b91, 17, profile);
+  assert.deepEqual(a, b);
+  assert.ok(a.scale >= profile.scale.min && a.scale <= profile.scale.max);
+  approx(a.yawRadians, 0, Math.PI * 2, 'yaw');
+  assert.ok(Math.abs(a.pitchRadians) < 0.2);
+  assert.ok(Math.abs(a.rollRadians) < 0.2);
+});
+
+check('environment manifest carries asset/material/placement evidence', () => {
+  const asset = findVerifiedEnvironmentAsset('assets/models/vegetation/birch_trees_R7qMWzb7nk.glb');
+  const profile = resolveTerrainEnvironmentProfile('tree', asset);
+  const manifest = makeEnvironmentAssetManifest({
+    asset: { ...asset, category: 'tree', hydrated: true, placeholder: false },
+    profile,
+    sample: { slopeDegrees: 8, heightMeters: 42, moisture: 0.66, waterDepth: 0, biome: 'meadow' },
+    transform: deterministicAssetTransform(42, 1, profile),
+    materialManifest: { materialReadyForWorld: true },
+    placementManifest: { grounded: true, queried: true },
+  });
+  assert.equal(manifest.acceptance.profileAccepted, true);
+  assert.equal(manifest.acceptance.placementAccepted, true);
+  assert.equal(manifest.acceptance.materialContractRequired, true);
+  assert.equal(manifest.acceptance.placeholderAllowed, false);
+  assert.equal(manifest.acceptance.canonicalGeometryModified, false);
+});
+
+check('asset placement plan never authorizes procedural replacement', () => {
+  const tree = findVerifiedEnvironmentAsset('assets/models/vegetation/birch_trees_R7qMWzb7nk.glb');
+  const plan = environmentAssetPlacementPlan(tree, {
+    category: 'tree',
+    worldX: 512,
+    worldZ: -840,
+    biome: 'meadow',
+    sample: { slopeDegrees: 8, heightMeters: 42, moisture: 0.66, waterDepth: 0, biome: 'meadow' },
+  });
+  assert.equal(plan.placement.required, true);
+  assert.equal(plan.material.required, true);
+  assert.equal(plan.placement.manifestRequired, true);
+  assert.equal(plan.validation.ok, true);
+});
+
+check('full environment facade preserves the mandatory operation sequence', () => {
+  const result = validateTerrainEnvironmentContract();
+  assert.equal(result.ok, true, result.errors.join(','));
+  assert.deepEqual(TERRAIN_ENVIRONMENT_CONTRACT.sequence, [
+    'asset-hydrate',
+    'surface-analysis',
+    'material-recipe',
+    'material-validation',
+    'ground-transform',
+    'placement-manifest',
+    'scene-attach',
+  ]);
+});
+
+check('surface analysis is deterministic and substrate-aware', () => {
+  const sample = { worldX: 730, worldZ: -1240, heightAboveSeaMeters: 260, slopeDegrees: 55, concavityMeters: 1.4, rockWeight: 0.88, snowWeight: 0.04, waterWeight: 0 };
+  const a = analyzeTerrainSurfaceForEnvironment(sample);
+  const b = analyzeTerrainSurfaceForEnvironment(sample);
+  assert.deepEqual(a, b);
+  assert.ok(['granite', 'quartz', 'scree'].includes(a.substrate));
+});
+
+check('environment context does not authorize editor/runtime shortcuts', () => {
+  const asset = findVerifiedEnvironmentAsset('assets/models/vegetation/birch_trees_R7qMWzb7nk.glb');
+  const context = prepareTerrainEnvironmentAssetContext(asset, {
+    category: 'tree',
+    worldX: 120,
+    worldZ: 280,
+    biome: 'meadow',
+    sample: { worldX: 120, worldZ: 280, slopeDegrees: 9, heightMeters: 52, moisture: 0.64, waterDepth: 0, biome: 'meadow' },
+  });
+  const gate = assertTerrainEnvironmentAttachReady(context);
+  assert.equal(gate.ok, true, gate.errors.join(','));
+  assert.equal(context.attachAllowed, true);
+  assert.equal(context.plan.placement.manifestRequired, true);
+});
+
+check('other-owner query stays query-only and exposes common authorities', () => {
+  const asset = findVerifiedEnvironmentAsset('assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb');
+  const context = environmentContextForOtherOwners('tree', {
+    worldX: -500,
+    worldZ: 920,
+    slopeDegrees: 15,
+    heightMeters: 320,
+    moisture: 0.58,
+    waterDepth: 0,
+    biome: 'tundra',
+    winter: true,
+  }, asset);
+  assert.equal(context.queryOnly, true);
+  assert.equal(context.heightAuthority, 'src/3d/world/terrain.js');
+  assert.equal(context.materialAuthority, 'src/3d/materials/MaterialAssignmentCore.js');
+  assert.equal(context.placementAuthority, 'src/3d/world/WorldAssetPlacementPipeline.js');
+});
+
 if (failures.length) {
   console.error(failures.join('\n'));
   process.exitCode = 1;
 } else {
   console.log(JSON.stringify({
     ok: true,
-    policyId: TERRAIN_SURFACE_FABRIC_POLICY.id,
-    fixtureCount: samples.length + contexts.length,
-    channels: Object.keys(TERRAIN_SURFACE_FABRIC_CHANNELS).length,
+    surfacePolicy: TERRAIN_SURFACE_FABRIC_POLICY.id,
+    environmentPolicy: TERRAIN_ENVIRONMENT_PROFILE_POLICY.id,
+    assetRegistryPolicy: ENVIRONMENT_ASSET_REGISTRY_POLICY.id,
+    contractId: TERRAIN_ENVIRONMENT_CONTRACT.id,
+    fixtureCount: samples.length + contexts.length + profileFixtures.length,
+    semanticChannels: Object.keys(TERRAIN_SURFACE_FABRIC_CHANNELS).length,
+    verifiedVegetationAssets: VERIFIED_VEGETATION_ASSETS.length,
+    verifiedPropAssets: VERIFIED_PROP_ASSETS.length,
     worldSpaceScalesMeters: TERRAIN_SURFACE_FABRIC_POLICY.worldSpaceScalesMeters,
-    message: 'terrain surface fabric contract passed',
+    message: 'terrain surface and environment asset contracts passed',
   }, null, 2));
 }
