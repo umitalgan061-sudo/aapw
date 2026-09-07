@@ -26,7 +26,6 @@ on:
       - '.github/workflows/npc-guard-leash-attack-slot-handoff.yml'
       - '.github/workflows/npc-guard-leash.yml'
       - '.github/workflows/npc-guard-assist-lifecycle.yml'
-      - '.github/workflows/npc-guard-assist-lod-wake.yml'
       - '.github/workflows/npc-hearing-framerate-determinism.yml'
       - '.github/workflows/npc-movement-safety.yml'
       - '.github/workflows/npc-perception-input-safety.yml'
