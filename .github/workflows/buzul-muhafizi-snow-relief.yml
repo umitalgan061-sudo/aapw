@@ -8,8 +8,10 @@ on:
       - 'scripts/checkTerrainWindSnowExposure.mjs'
       - 'scripts/checkTerrainWindSnowOrographicFold.mjs'
       - 'scripts/checkTerrainWindSnowFieldMatrix.mjs'
+      - 'scripts/checkTerrainWindSnowVisualEnvelope.mjs'
       - 'scripts/checkWorldEnvironmentAcceptanceMatrix.mjs'
       - '.github/workflows/buzul-muhafizi-snow-relief.yml'
+      - 'docs/TERRAIN_WIND_SNOW_SURFACE_CONTRACT.md'
   workflow_dispatch:
 
 permissions:
@@ -49,7 +51,7 @@ jobs:
           git diff --check "$LIVE_MAIN_SHA...HEAD"
           git diff --name-only "$LIVE_MAIN_SHA...HEAD" | while IFS= read -r path; do
             case "$path" in
-              src/3d/world/terrainWindSnowExposure.js|scripts/checkTerrainWindSnowExposure.mjs|scripts/checkTerrainWindSnowOrographicFold.mjs|scripts/checkTerrainWindSnowFieldMatrix.mjs|.github/workflows/buzul-muhafizi-snow-relief.yml|docs/TERRAIN_WIND_SNOW_SURFACE_CONTRACT.md) ;;
+              src/3d/world/terrainWindSnowExposure.js|scripts/checkTerrainWindSnowExposure.mjs|scripts/checkTerrainWindSnowOrographicFold.mjs|scripts/checkTerrainWindSnowFieldMatrix.mjs|scripts/checkTerrainWindSnowVisualEnvelope.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix.mjs|.github/workflows/buzul-muhafizi-snow-relief.yml|docs/TERRAIN_WIND_SNOW_SURFACE_CONTRACT.md) ;;
               *) echo "Unexpected path outside single-purpose snow-relief slice: $path"; exit 1 ;;
             esac
           done
@@ -58,7 +60,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
 
       - name: Install runtime Three.js dependency
         run: npm install --no-save --no-package-lock --ignore-scripts three@0.180.0
@@ -71,6 +72,7 @@ jobs:
           node --check scripts/checkTerrainWindSnowExposure.mjs
           node --check scripts/checkTerrainWindSnowOrographicFold.mjs
           node --check scripts/checkTerrainWindSnowFieldMatrix.mjs
+          node --check scripts/checkTerrainWindSnowVisualEnvelope.mjs
 
       - name: Existing directional snow contract
         run: node scripts/checkTerrainWindSnowExposure.mjs
@@ -80,6 +82,9 @@ jobs:
 
       - name: Exhaustive deterministic field matrix
         run: node scripts/checkTerrainWindSnowFieldMatrix.mjs
+
+      - name: Spatial visual-envelope acceptance
+        run: node scripts/checkTerrainWindSnowVisualEnvelope.mjs
 
       - name: Install Playwright Chromium for shipped runtime proof
         shell: bash
