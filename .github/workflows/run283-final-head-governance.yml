@@ -72,6 +72,7 @@ jobs:
           node scripts/checkLivingWorldGeographicSurfaceContract.mjs
           node scripts/checkLivingWorldAssetSourceCatalog.mjs
           node scripts/checkLivingWorldAssetFamilyContract.mjs
+          node scripts/checkLivingWorldPlacementBridge.mjs
 
       - name: Offline shell delta guard
         shell: bash
