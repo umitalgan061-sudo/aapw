@@ -55,7 +55,7 @@ async function main() {
   const page = await context.newPage();
   const errors = [];
   page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
-  page.on('pageerror', (error) => errors.push(String(error));
+  page.on('pageerror', (error) => errors.push(String(error)));
 
   try {
     await page.goto(`http://127.0.0.1:${port}/editor.html`, { waitUntil: 'domcontentloaded', timeout: 120000 });
