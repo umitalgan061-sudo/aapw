@@ -184,7 +184,8 @@ function surfaceAt(sampleHeightMeters, x, z, seaLevelMeters, sampleOffsetMeters)
 }
 
 function candidateAllowed(candidate, context) {
-	if (Math.hypot(candidate.x, candidate.z) > context.radiusMeters) return false;
+	const distanceFromOrigin = Math.hypot(candidate.x - context.origin.x, candidate.z - context.origin.z);
+	if (distanceFromOrigin > context.radiusMeters) return false;
 	if (context.surface.waterDepth > 0) return false;
 	if (context.surface.slopeDegrees > context.maxSlopeDegrees) return false;
 	if (context.seatDistance < context.minSeatDistanceMeters) return false;
@@ -198,6 +199,18 @@ function candidateAllowed(candidate, context) {
 function chooseFamily(context, seed, index) {
 	const scatter = context.distribution.scatter;
 	if (scatter.length === 0) return null;
+	if (context.category === 'architecture') {
+		const architecture = context.distribution.architecture;
+		if (architecture?.asset) {
+			return {
+				family: 'architecture',
+				asset: architecture.asset,
+				weight: architecture.weight,
+				scaleMin: 0.88,
+				scaleMax: 1.12,
+			};
+		}
+	}
 	const totalWeight = scatter.reduce((sum, item) => sum + Math.max(0, finite(item.weight)), 0);
 	if (totalWeight <= 0) return scatter[0];
 	let cursor = random01(seed, `family:${index}`) * totalWeight;
@@ -218,19 +231,15 @@ function chooseYaw(seed, index) {
 	return Number((random01(seed, `yaw:${index}`) * Math.PI * 2).toFixed(5));
 }
 
-function chooseAsset(family, context, seed, index) {
-	const requested = context.distribution.architecture;
+function chooseAsset(family, context) {
 	if (family?.asset) return family.asset;
-	if (requested?.asset && context.category === 'architecture') return requested.asset;
-	if (context.category === 'winter' && context.distribution.profileId === 'snow') {
-		return context.distribution.architecture?.asset || null;
-	}
+	if (context.category === 'architecture' && context.distribution.architecture?.asset) return context.distribution.architecture.asset;
 	return null;
 }
 
 export const BIOME_ASSET_PLACEMENT_POLICY = Object.freeze({
-	id: 'biome-asset-placement-planner-2026-09-07-v1',
-	version: 1,
+	id: 'biome-asset-placement-planner-2026-09-07-v2',
+	version: 2,
 	renderOnly: true,
 	maxPlacementAttempts: MAX_PLACEMENT_ATTEMPTS,
 	defaultSampleCount: DEFAULT_SAMPLE_COUNT,
@@ -241,6 +250,7 @@ export const BIOME_ASSET_PLACEMENT_POLICY = Object.freeze({
 	roadBufferMeters: ROAD_BUFFER_METERS,
 	seatBufferMeters: SEAT_BUFFER_METERS,
 	maxSlopeDegrees: MAX_SLOPE_DEGREES,
+	localRadiusAnchoring: 'world-origin-of-plan',
 	referenceCanvas: WORLD_REFERENCE_ALIGNMENT,
 });
 
@@ -268,12 +278,14 @@ export function createBiomeAssetPlacementPlan({
 	const safeRadius = clamp(finite(radiusMeters, DEFAULT_RADIUS_METERS), 0, MAX_RADIUS_METERS);
 	const requestedSamples = clamp(Math.trunc(finite(sampleCount, DEFAULT_SAMPLE_COUNT)), 0, 256);
 	const distribution = resolveBiomeAssetDistribution(point.x, point.y, seed, { sampleCount: Math.min(12, requestedSamples) });
+	const center = Object.freeze({ x: worldX, z: worldZ });
 	const surface = surfaceAt(sampleHeightMeters, worldX, worldZ, seaLevelMeters, sampleOffsetMeters);
-	const seatDistance = nearestSeatDistance({ x: worldX, z: worldZ }, seats);
-	const roadDistance = nearestRoadDistance({ x: worldX, z: worldZ }, roadEdges);
+	const seatDistance = nearestSeatDistance(center, seats);
+	const roadDistance = nearestRoadDistance(center, roadEdges);
 	const context = {
 		distribution,
 		category,
+		origin: center,
 		radiusMeters: safeRadius,
 		surface,
 		seatDistance,
@@ -292,7 +304,6 @@ export function createBiomeAssetPlacementPlan({
 	const targetCount = Math.min(256, Math.max(0, Math.round(areaKm2 * densityPerKm2)));
 	const placements = [];
 	const candidateRadius = Math.min(260, safeRadius);
-	const center = Object.freeze({ x: worldX, z: worldZ });
 	const deterministicSamples = Math.max(targetCount, requestedSamples);
 	for (let index = 0; index < deterministicSamples && placements.length < targetCount; index += 1) {
 		const candidate = index < requestedSamples
@@ -316,7 +327,7 @@ export function createBiomeAssetPlacementPlan({
 			yaw: chooseYaw(seed, placements.length),
 			scale: chooseScale(family, seed, placements.length),
 			family: family.family,
-			asset: chooseAsset(family, { ...pointContext, category }, seed, placements.length),
+			asset: chooseAsset(family, { ...pointContext, category }),
 			slopeDegrees: Number(pointSurface.slopeDegrees.toFixed(3)),
 			waterDepth: Number(pointSurface.waterDepth.toFixed(4)),
 			roadDistance: Number(pointContext.roadDistance.toFixed(3)),
@@ -331,7 +342,7 @@ export function createBiomeAssetPlacementPlan({
 		policyId: BIOME_ASSET_PLACEMENT_POLICY.id,
 		category,
 		point,
-		worldOrigin: Object.freeze({ x: worldX, z: worldZ }),
+		worldOrigin: center,
 		profileId: distribution.profileId,
 		climateFamily: distribution.climateFamily,
 		densityPerKm2: Number(densityPerKm2.toFixed(4)),
@@ -350,105 +361,22 @@ export function createBiomeAssetPlacementPlan({
 	});
 }
 
-export function createRegionalSceneryRing({
-	worldX,
-	worldZ,
-	normalizedX,
-	normalizedY,
-	seed,
-	sampleHeightMeters,
-	seaLevelMeters,
-	seats,
-	roadEdges,
-	radiusMeters,
-	sampleOffsetMeters = 2,
-}) {
-	return createBiomeAssetPlacementPlan({
-		worldX,
-		worldZ,
-		normalizedX,
-		normalizedY,
-		seed,
-		category: 'vegetation',
-		sampleHeightMeters,
-		seaLevelMeters,
-		seats,
-		roadEdges,
-		radiusMeters,
-		sampleOffsetMeters,
-		baseDensityPerKm2: 32,
-		sampleCount: 32,
-	});
+export function createRegionalSceneryRing({ worldX, worldZ, normalizedX, normalizedY, seed, sampleHeightMeters, seaLevelMeters, seats, roadEdges, radiusMeters, sampleOffsetMeters = 2 }) {
+	return createBiomeAssetPlacementPlan({ worldX, worldZ, normalizedX, normalizedY, seed, category: 'vegetation', sampleHeightMeters, seaLevelMeters, seats, roadEdges, radiusMeters, sampleOffsetMeters, baseDensityPerKm2: 32, sampleCount: 32 });
 }
 
-export function createRegionalRockField({
-	worldX,
-	worldZ,
-	normalizedX,
-	normalizedY,
-	seed,
-	sampleHeightMeters,
-	seaLevelMeters,
-	seats,
-	roadEdges,
-	radiusMeters,
-}) {
-	return createBiomeAssetPlacementPlan({
-		worldX,
-		worldZ,
-		normalizedX,
-		normalizedY,
-		seed,
-		category: 'geology',
-		sampleHeightMeters,
-		seaLevelMeters,
-		seats,
-		roadEdges,
-		radiusMeters,
-		baseDensityPerKm2: 18,
-		sampleCount: 28,
-		minSpacingMeters: 6,
-		minSeatDistanceMeters: 105,
-		minRoadDistanceMeters: 14,
-	});
+export function createRegionalRockField({ worldX, worldZ, normalizedX, normalizedY, seed, sampleHeightMeters, seaLevelMeters, seats, roadEdges, radiusMeters }) {
+	return createBiomeAssetPlacementPlan({ worldX, worldZ, normalizedX, normalizedY, seed, category: 'geology', sampleHeightMeters, seaLevelMeters, seats, roadEdges, radiusMeters, baseDensityPerKm2: 18, sampleCount: 28, minSpacingMeters: 6, minSeatDistanceMeters: 105, minRoadDistanceMeters: 14 });
 }
 
-export function createRegionalArchitectureRing({
-	worldX,
-	worldZ,
-	normalizedX,
-	normalizedY,
-	seed,
-	sampleHeightMeters,
-	seaLevelMeters,
-	seats,
-	roadEdges,
-	radiusMeters,
-}) {
-	return createBiomeAssetPlacementPlan({
-		worldX,
-		worldZ,
-		normalizedX,
-		normalizedY,
-		seed,
-		category: 'architecture',
-		sampleHeightMeters,
-		seaLevelMeters,
-		seats,
-		roadEdges,
-		radiusMeters: Math.min(150, radiusMeters),
-		baseDensityPerKm2: 4,
-		sampleCount: 14,
-		minSpacingMeters: 18,
-		minSeatDistanceMeters: 22,
-		minRoadDistanceMeters: 5,
-	});
+export function createRegionalArchitectureRing({ worldX, worldZ, normalizedX, normalizedY, seed, sampleHeightMeters, seaLevelMeters, seats, roadEdges, radiusMeters }) {
+	return createBiomeAssetPlacementPlan({ worldX, worldZ, normalizedX, normalizedY, seed, category: 'architecture', sampleHeightMeters, seaLevelMeters, seats, roadEdges, radiusMeters: Math.min(150, radiusMeters), baseDensityPerKm2: 4, sampleCount: 14, minSpacingMeters: 18, minSeatDistanceMeters: 22, minRoadDistanceMeters: 5 });
 }
 
 export function resolvePlacementSurfaceVariant(distribution, placement) {
 	if (!distribution || !placement) return Object.freeze({ surface: 'default', material: null });
 	if (distribution.water.signal > 0.55 || placement.waterDepth > 0) return Object.freeze({ surface: 'wet-edge', material: distribution.materialSignals.ground });
-	if (placement.slopeDegrees >= 30 || distribution.relieif?.signal > 0.6) return Object.freeze({ surface: 'exposed-rock', material: distribution.materialSignals.rock });
+	if (placement.slopeDegrees >= 30 || distribution.relief?.signal > 0.6) return Object.freeze({ surface: 'exposed-rock', material: distribution.materialSignals.rock });
 	if (distribution.seasonal.foliageRetention >= 0.9) return Object.freeze({ surface: 'lush', material: distribution.materialSignals.ground });
 	if (distribution.seasonal.exposedEarth >= 0.45) return Object.freeze({ surface: 'exposed-earth', material: distribution.materialSignals.ground });
 	return Object.freeze({ surface: 'default', material: distribution.materialSignals.ground });
