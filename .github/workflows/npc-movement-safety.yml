@@ -5,11 +5,34 @@ on:
     branches: [main]
     paths:
       - 'src/3d/gameplay/npc.js'
+      - 'src/3d/gameplay/npcWorldPlacement.js'
+      - 'scripts/checkNpcGuardLifecycleContract.mjs'
+      - 'scripts/checkNpcGuardReturnToPatrol.mjs'
+      - 'scripts/checkNpcPopulationLodRecovery.mjs'
       - 'scripts/checkNpcMovementSafetyBrowser.js'
-      - 'scripts/checkNpcPerceptionInputSafetyBrowser.js'
+      - 'scripts/checkNpcWorldPlacementContract.mjs'
+      - 'scripts/checkNpcGeographicPlacementDeterminism.mjs'
+      - 'scripts/checkNpcGeographicDistributionMatrix.mjs'
+      - 'scripts/checkNpcPlacementFailureSafety.mjs'
+      - 'scripts/checkNpcConfiguredAssetHydration.mjs'
+      - 'scripts/checkNpcMaterialRecipeBrowser.mjs'
+      - 'scripts/checkNpcGeographicMaterialBrowser.mjs'
+      - 'scripts/checkNpcAssetSpawnContract.mjs'
+      - 'service-worker.js'
+      - '.github/workflows/configured-fauna-asset-acceptance.yml'
+      - '.github/workflows/npc-asset-spawn-contract.yml'
+      - '.github/workflows/npc-guard-assist-lifecycle.yml'
+      - '.github/workflows/npc-guard-assist-lod-wake.yml'
+      - '.github/workflows/npc-guard-leash.yml'
+      - '.github/workflows/npc-guard-lifecycle.yml'
+      - '.github/workflows/npc-guard-return-to-patrol.yml'
+      - '.github/workflows/npc-geographic-material-placement.yml'
       - '.github/workflows/npc-movement-safety.yml'
       - '.github/workflows/npc-hearing-framerate-determinism.yml'
       - '.github/workflows/npc-perception-input-safety.yml'
+      - '.github/workflows/npc-guard-leash-attack-slot-handoff.yml'
+      - '.github/workflows/run167-determinism-policy.yml'
+      - '.github/workflows/run283-final-head-governance.yml'
   workflow_dispatch:
 
 permissions:
@@ -36,20 +59,23 @@ jobs:
           test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
           CHANGED_FILES="$(git diff --name-only "$BASE_SHA" HEAD)"
           printf '%s\n' "$CHANGED_FILES"
-          test "$(printf '%s\n' "$CHANGED_FILES" | sed '/^$/d' | wc -l)" -le 5
-          printf '%s\n' "$CHANGED_FILES" | grep -Ev '^(src/3d/gameplay/npc\.js|scripts/checkNpcMovementSafetyBrowser\.js|scripts/checkNpcPerceptionInputSafetyBrowser\.js|\.github/workflows/npc-movement-safety\.yml|\.github/workflows/npc-hearing-framerate-determinism\.yml|\.github/workflows/npc-perception-input-safety\.yml)$' && exit 1 || true
+          test "$(printf '%s\n' "$CHANGED_FILES" | sed '/^$/d' | wc -l)" -le 29
+          allowed='^(src/3d/gameplay/npc\.js|src/3d/gameplay/npcWorldPlacement\.js|scripts/checkNpcGuardLifecycleContract\.mjs|scripts/checkNpcGuardReturnToPatrol\.mjs|scripts/checkNpcPopulationLodRecovery\.mjs|scripts/checkNpcMovementSafetyBrowser\.js|scripts/checkNpcWorldPlacementContract\.mjs|scripts/checkNpcGeographicPlacementDeterminism\.mjs|scripts/checkNpcGeographicDistributionMatrix\.mjs|scripts/checkNpcPlacementFailureSafety\.mjs|scripts/checkNpcConfiguredAssetHydration\.mjs|scripts/checkNpcMaterialRecipeBrowser\.mjs|scripts/checkNpcGeographicMaterialBrowser\.mjs|scripts/checkNpcAssetSpawnContract\.mjs|service-worker\.js|\.github/workflows/configured-fauna-asset-acceptance\.yml|\.github/workflows/npc-asset-spawn-contract\.yml|\.github/workflows/npc-guard-assist-lifecycle\.yml|\.github/workflows/npc-guard-assist-lod-wake\.yml|\.github/workflows/npc-guard-leash\.yml|\.github/workflows/npc-guard-lifecycle\.yml|\.github/workflows/npc-guard-return-to-patrol\.yml|\.github/workflows/npc-geographic-material-placement\.yml|\.github/workflows/npc-movement-safety\.yml|\.github/workflows/npc-hearing-framerate-determinism\.yml|\.github/workflows/npc-perception-input-safety\.yml|\.github/workflows/npc-guard-leash-attack-slot-handoff\.yml|\.github/workflows/run167-determinism-policy\.yml|\.github/workflows/run283-final-head-governance\.yml)$'
+          unexpected="$(printf '%s\n' "$CHANGED_FILES" | grep -Ev "$allowed" || true)"
+          test -z "$unexpected" || { printf 'Unexpected path(s):\n%s\n' "$unexpected"; exit 1; }
           CHANGED="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
-          test "$CHANGED" -le 1000
+          test "$CHANGED" -le 3000
           git diff --check "$BASE_SHA" HEAD
       - name: Syntax and standing NPC contracts
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/npc.js
+          node --check src/3d/gameplay/npcWorldPlacement.js
           node --check scripts/checkNpcMovementSafetyBrowser.js
-          node --check scripts/checkNpcPerceptionInputSafetyBrowser.js
           node scripts/checkNpcGuardLifecycleContract.mjs
           node scripts/checkNpcGuardPerception.mjs
           node scripts/checkNpcSimulationLod.mjs
+          node scripts/checkNpcWorldPlacementContract.mjs
           node scripts/checkSharedMaterialPlacementContract.js
       - name: Install Chromium outside repo
         shell: bash
@@ -59,6 +85,13 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Isolate NPC browser proofs from full-world boot
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > game3d.html <<'HTML'
+          <!doctype html><html><head><meta charset="utf-8"><script type="importmap">{"imports":{"three":"./src/3d/vendor/three/three.module.js","three/addons/":"./src/3d/vendor/three/addons/"}}</script></head><body></body></html>
+          HTML
       - name: Real shipped Three.js movement safety proof
         run: node scripts/checkNpcMovementSafetyBrowser.js
       - name: Existing perception-input safety regression

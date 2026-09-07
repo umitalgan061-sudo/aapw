@@ -1,0 +1,213 @@
+name: NPC Geographic Material Placement
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'src/3d/gameplay/npc.js'
+      - 'src/3d/gameplay/npcWorldPlacement.js'
+      - 'service-worker.js'
+      - 'scripts/checkNpcAssetSpawnContract.mjs'
+      - 'scripts/checkNpcGuardLifecycleContract.mjs'
+      - 'scripts/checkNpcGuardReturnToPatrol.mjs'
+      - 'scripts/checkNpcPopulationLodRecovery.mjs'
+      - 'scripts/checkNpcMovementSafetyBrowser.js'
+      - 'scripts/checkNpcWorldPlacementContract.mjs'
+      - 'scripts/checkNpcGeographicPlacementDeterminism.mjs'
+      - 'scripts/checkNpcGeographicDistributionMatrix.mjs'
+      - 'scripts/checkNpcPlacementFailureSafety.mjs'
+      - 'scripts/checkNpcConfiguredAssetHydration.mjs'
+      - 'scripts/checkNpcMaterialRecipeBrowser.mjs'
+      - 'scripts/checkNpcGeographicMaterialBrowser.mjs'
+      - 'scripts/checkNpcOwnedOfflineShellDelta.mjs'
+      - '.github/workflows/configured-fauna-asset-acceptance.yml'
+      - '.github/workflows/npc-asset-spawn-contract.yml'
+      - '.github/workflows/npc-guard-assist-lifecycle.yml'
+      - '.github/workflows/npc-guard-assist-lod-wake.yml'
+      - '.github/workflows/npc-guard-leash.yml'
+      - '.github/workflows/npc-guard-lifecycle.yml'
+      - '.github/workflows/npc-guard-return-to-patrol.yml'
+      - '.github/workflows/npc-geographic-material-placement.yml'
+      - '.github/workflows/npc-movement-safety.yml'
+      - '.github/workflows/npc-hearing-framerate-determinism.yml'
+      - '.github/workflows/npc-perception-input-safety.yml'
+      - '.github/workflows/npc-guard-leash-attack-slot-handoff.yml'
+      - '.github/workflows/run167-determinism-policy.yml'
+      - '.github/workflows/run283-final-head-governance.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npc-geographic-material-placement-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  geographic-material-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          lfs: false
+
+      - name: Exact-main ownership and 3000-line budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          main_sha="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD origin/main)" = "$main_sha"
+          mapfile -t files < <(git diff --name-only origin/main...HEAD)
+          test "${#files[@]}" -le 29
+          allowed='^(src/3d/gameplay/npc\.js|src/3d/gameplay/npcWorldPlacement\.js|service-worker\.js|scripts/checkNpcAssetSpawnContract\.mjs|scripts/checkNpcGuardLifecycleContract\.mjs|scripts/checkNpcGuardReturnToPatrol\.mjs|scripts/checkNpcPopulationLodRecovery\.mjs|scripts/checkNpcMovementSafetyBrowser\.js|scripts/checkNpcWorldPlacementContract\.mjs|scripts/checkNpcGeographicPlacementDeterminism\.mjs|scripts/checkNpcGeographicDistributionMatrix\.mjs|scripts/checkNpcPlacementFailureSafety\.mjs|scripts/checkNpcConfiguredAssetHydration\.mjs|scripts/checkNpcMaterialRecipeBrowser\.mjs|scripts/checkNpcGeographicMaterialBrowser\.mjs|scripts/checkNpcOwnedOfflineShellDelta\.mjs|\.github/workflows/configured-fauna-asset-acceptance\.yml|\.github/workflows/npc-asset-spawn-contract\.yml|\.github/workflows/npc-guard-assist-lifecycle\.yml|\.github/workflows/npc-guard-assist-lod-wake\.yml|\.github/workflows/npc-guard-leash\.yml|\.github/workflows/npc-guard-lifecycle\.yml|\.github/workflows/npc-guard-return-to-patrol\.yml|\.github/workflows/npc-geographic-material-placement\.yml|\.github/workflows/npc-movement-safety\.yml|\.github/workflows/npc-hearing-framerate-determinism\.yml|\.github/workflows/npc-perception-input-safety\.yml|\.github/workflows/npc-guard-leash-attack-slot-handoff\.yml|\.github/workflows/run167-determinism-policy\.yml|\.github/workflows/run283-final-head-governance\.yml)$'
+          unexpected="$(printf '%s\n' "${files[@]}" | grep -Ev "$allowed" || true)"
+          test -z "$unexpected" || { echo "Unexpected ownership paths:"; printf '%s\n' "$unexpected"; exit 1; }
+          read -r additions deletions < <(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
+          total=$((additions + deletions))
+          echo "scope=${#files[@]} additions=$additions deletions=$deletions total=$total main=$main_sha head=$(git rev-parse HEAD)"
+          test "$total" -le 3000
+          git diff --check origin/main...HEAD
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install shipped Three.js dependency
+        run: npm install --no-save --no-package-lock --ignore-scripts three@0.180.0
+
+      - name: Syntax and static placement contract
+        run: |
+          node --check src/3d/gameplay/npc.js
+          node --check src/3d/gameplay/npcWorldPlacement.js
+          node --check scripts/checkNpcWorldPlacementContract.mjs
+          node --check scripts/checkNpcGeographicPlacementDeterminism.mjs
+          node --check scripts/checkNpcGeographicDistributionMatrix.mjs
+          node --check scripts/checkNpcPlacementFailureSafety.mjs
+          node --check scripts/checkNpcConfiguredAssetHydration.mjs
+          node --check scripts/checkNpcMaterialRecipeBrowser.mjs
+          node --check scripts/checkNpcGeographicMaterialBrowser.mjs
+          node scripts/checkNpcWorldPlacementContract.mjs
+          node scripts/checkNpcGeographicDistributionMatrix.mjs
+          node scripts/checkNpcPlacementFailureSafety.mjs
+
+      - name: Canonical geography determinism and bounded relocation
+        run: node scripts/checkNpcGeographicPlacementDeterminism.mjs
+
+      - name: Existing AI regressions and shared material placement contract
+        run: |
+          node scripts/checkNpcGuardLifecycleContract.mjs
+          node scripts/checkNpcGuardReturnToPatrol.mjs
+          node scripts/checkNpcPopulationLodRecovery.mjs
+          node scripts/checkSharedMaterialPlacementContract.js
+
+      - name: Runtime source determinism and editor isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -nE 'Math\.random\s*\(' src/3d/gameplay/npc.js src/3d/gameplay/npcWorldPlacement.js
+          ! grep -n 'EditorMaterialStudio' src/3d/gameplay/npc.js src/3d/gameplay/npcWorldPlacement.js
+          test "$(wc -l < src/3d/gameplay/npcWorldPlacement.js)" -le 600
+
+      - name: Selectively hydrate configured character and animation family
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs version
+          mapfile -t model_paths < <(grep -oE "assets/models/characters/[^'\"]+\.fbx" src/3d/gameplay/npcConfig.js | sort -u)
+          animation_paths=(
+            assets/animations/peasant_girl/idle.fbx
+            assets/animations/peasant_girl/walking.fbx
+          )
+          test "${#model_paths[@]}" -eq 6
+          paths=("${model_paths[@]}" "${animation_paths[@]}")
+          asset_ref="$(git rev-parse HEAD)"
+          for asset_path in "${paths[@]}"; do
+            test -f "$asset_path"
+            hydrated=false
+            for attempt in 1 2 3; do
+              if git lfs fetch --include="$asset_path" --exclude="" origin "$asset_ref" && git lfs checkout "$asset_path"; then
+                if test -s "$asset_path" && ! head -c 200 "$asset_path" | grep -aq 'version https://git-lfs.github.com/spec/v1'; then
+                  hydrated=true
+                  break
+                fi
+              fi
+              sleep "$attempt"
+            done
+            if test "$hydrated" != true; then
+              media_url="https://media.githubusercontent.com/media/${GITHUB_REPOSITORY}/${asset_ref}/${asset_path}"
+              tmp_asset="${RUNNER_TEMP}/$(basename "$asset_path").download"
+              if curl --fail --location --silent --show-error --retry 3 --retry-delay 2 --retry-all-errors --connect-timeout 15 --max-time 180 "$media_url" --output "$tmp_asset"; then
+                if test -s "$tmp_asset" && ! head -c 200 "$tmp_asset" | grep -aq 'version https://git-lfs.github.com/spec/v1'; then
+                  mv "$tmp_asset" "$asset_path"
+                  hydrated=true
+                fi
+              fi
+              rm -f "$tmp_asset"
+            fi
+            test "$hydrated" = true || { echo "Unable to hydrate required NPC asset: $asset_path" >&2; exit 1; }
+            printf '%s %s bytes\n' "$asset_path" "$(wc -c < "$asset_path")"
+          done
+
+      - name: Verify hydrated configured FBX family
+        run: node scripts/checkNpcConfiguredAssetHydration.mjs
+
+      - name: Install Chromium proof dependency outside repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Shipped material recipe browser proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4173 --bind 127.0.0.1 >"$RUNNER_TEMP/http-material.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:4173/game3d.html >/dev/null && break
+            sleep 1
+          done
+          BASE_URL=http://127.0.0.1:4173 node scripts/checkNpcMaterialRecipeBrowser.mjs
+
+      - name: Real shipped FBX placement, AI and tick-budget proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4173 --bind 127.0.0.1 >"$RUNNER_TEMP/http-geographic.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:4173/game3d.html >/dev/null && break
+            sleep 1
+          done
+          # The geographic proof imports the shipped runtime modules itself. Running it on the full
+          # game3d boot made the proof depend on unrelated world-startup DOMContentLoaded latency and
+          # hit its exact 60s navigation timeout. A same-origin inert document keeps browser/module,
+          # FBX, material, placement and AI assertions real while removing unrelated scene bootstrap.
+          BASE_URL='http://127.0.0.1:4173/404.html?npc-proof=' node scripts/checkNpcGeographicMaterialBrowser.mjs 2>&1 | tee "$RUNNER_TEMP/npc-geographic-proof.log"
+
+      - name: Upload shipped FBX proof diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-geographic-material-${{ github.event.pull_request.head.sha }}
+          path: |
+            ${{ runner.temp }}/npc-geographic-proof.log
+            ${{ runner.temp }}/http-geographic.log
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Final exact-main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"

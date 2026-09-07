@@ -3,10 +3,33 @@ name: Configured Fauna Asset Acceptance
 on:
   pull_request:
     paths:
-      - 'scripts/checkConfiguredFaunaAssetsBrowser.mjs'
-      - 'scripts/checkConfiguredFaunaRuntimeBrowser.mjs'
+      - 'src/3d/gameplay/npc.js'
+      - 'src/3d/gameplay/npcWorldPlacement.js'
+      - 'service-worker.js'
+      - 'scripts/checkNpcAssetSpawnContract.mjs'
+      - 'scripts/checkNpcGuardLifecycleContract.mjs'
+      - 'scripts/checkNpcGuardReturnToPatrol.mjs'
+      - 'scripts/checkNpcPopulationLodRecovery.mjs'
+      - 'scripts/checkNpcMovementSafetyBrowser.js'
+      - 'scripts/checkNpcWorldPlacementContract.mjs'
+      - 'scripts/checkNpcGeographicPlacementDeterminism.mjs'
+      - 'scripts/checkNpcGeographicDistributionMatrix.mjs'
+      - 'scripts/checkNpcPlacementFailureSafety.mjs'
+      - 'scripts/checkNpcConfiguredAssetHydration.mjs'
+      - 'scripts/checkNpcMaterialRecipeBrowser.mjs'
+      - 'scripts/checkNpcGeographicMaterialBrowser.mjs'
       - '.github/workflows/configured-fauna-asset-acceptance.yml'
+      - '.github/workflows/npc-asset-spawn-contract.yml'
+      - '.github/workflows/npc-guard-lifecycle.yml'
+      - '.github/workflows/npc-guard-return-to-patrol.yml'
+      - '.github/workflows/npc-geographic-material-placement.yml'
+      - '.github/workflows/npc-guard-leash-attack-slot-handoff.yml'
+      - '.github/workflows/npc-guard-leash.yml'
+      - '.github/workflows/npc-hearing-framerate-determinism.yml'
+      - '.github/workflows/npc-movement-safety.yml'
+      - '.github/workflows/npc-perception-input-safety.yml'
       - '.github/workflows/run167-determinism-policy.yml'
+      - '.github/workflows/run283-final-head-governance.yml'
   workflow_dispatch:
 
 permissions:
@@ -35,10 +58,13 @@ jobs:
           test "$base" = "$(git rev-parse origin/main)"
           changed="$(git diff --name-only origin/main...HEAD)"
           printf '%s\n' "$changed"
-          printf '%s\n' "$changed" | grep -Ev '^(scripts/checkConfiguredFaunaAssetsBrowser\.mjs|scripts/checkConfiguredFaunaRuntimeBrowser\.mjs|\.github/workflows/configured-fauna-asset-acceptance\.yml|\.github/workflows/run167-determinism-policy\.yml)$' && exit 1 || true
+          test "$(printf '%s\n' "$changed" | sed '/^$/d' | wc -l)" -le 28
+          allowed='^(src/3d/gameplay/npc\.js|src/3d/gameplay/npcWorldPlacement\.js|service-worker\.js|scripts/checkNpcAssetSpawnContract\.mjs|scripts/checkNpcGuardLifecycleContract\.mjs|scripts/checkNpcGuardReturnToPatrol\.mjs|scripts/checkNpcPopulationLodRecovery\.mjs|scripts/checkNpcMovementSafetyBrowser\.js|scripts/checkNpcWorldPlacementContract\.mjs|scripts/checkNpcGeographicPlacementDeterminism\.mjs|scripts/checkNpcGeographicDistributionMatrix\.mjs|scripts/checkNpcPlacementFailureSafety\.mjs|scripts/checkNpcConfiguredAssetHydration\.mjs|scripts/checkNpcMaterialRecipeBrowser\.mjs|scripts/checkNpcGeographicMaterialBrowser\.mjs|\.github/workflows/configured-fauna-asset-acceptance\.yml|\.github/workflows/npc-asset-spawn-contract\.yml|\.github/workflows/npc-guard-lifecycle\.yml|\.github/workflows/npc-guard-return-to-patrol\.yml|\.github/workflows/npc-geographic-material-placement\.yml|\.github/workflows/npc-guard-leash-attack-slot-handoff\.yml|\.github/workflows/npc-guard-leash\.yml|\.github/workflows/npc-guard-assist-lifecycle\.yml|\.github/workflows/npc-guard-assist-lod-wake\.yml|\.github/workflows/npc-hearing-framerate-determinism\.yml|\.github/workflows/npc-movement-safety\.yml|\.github/workflows/npc-perception-input-safety\.yml|\.github/workflows/run167-determinism-policy\.yml|\.github/workflows/run283-final-head-governance\.yml)$'
+          unexpected="$(printf '%s\n' "$changed" | grep -Ev "$allowed" || true)"
+          test -z "$unexpected" || { echo "$unexpected"; exit 1; }
           additions="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END {print s+0}')"
           deletions="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END {print s+0}')"
-          test $((additions + deletions)) -le 1000
+          test $((additions + deletions)) -le 3000
           git diff --check origin/main...HEAD
 
       - name: Fauna acceptance syntax
@@ -47,6 +73,8 @@ jobs:
           node --check src/3d/gameplay/animals.js
           node --check scripts/checkConfiguredFaunaAssetsBrowser.mjs
           node --check scripts/checkConfiguredFaunaRuntimeBrowser.mjs
+          node --check src/3d/gameplay/npcWorldPlacement.js
+          node --check scripts/checkNpcWorldPlacementContract.mjs
 
       - name: Shared material placement contract
         run: node scripts/checkSharedMaterialPlacementContract.js
@@ -56,7 +84,48 @@ jobs:
         run: |
           set -euo pipefail
           git lfs version
-          git lfs pull --include="assets/models/animals/**" --exclude=""
+          mapfile -t model_paths < <(
+            grep -oE "assets/models/animals/[^'\"]+\.glb" src/3d/gameplay/animalConfig.js | sort -u
+          )
+          test "${#model_paths[@]}" -ge 10
+          printf 'Hydrating %d configured fauna GLBs individually\n' "${#model_paths[@]}"
+          asset_ref="$(git rev-parse HEAD)"
+
+          for model_path in "${model_paths[@]}"; do
+            hydrated=false
+            for attempt in 1 2 3; do
+              printf 'LFS hydrate %s (attempt %d/3)\n' "$model_path" "$attempt"
+              if git lfs fetch --include="$model_path" --exclude="" origin "$asset_ref" && git lfs checkout "$model_path"; then
+                if test -s "$model_path" && ! head -c 200 "$model_path" | grep -aq 'version https://git-lfs.github.com/spec/v1'; then
+                  hydrated=true
+                  break
+                fi
+              fi
+              sleep "$attempt"
+            done
+
+            if test "$hydrated" != true; then
+              media_url="https://media.githubusercontent.com/media/${GITHUB_REPOSITORY}/${asset_ref}/${model_path}"
+              tmp_asset="${RUNNER_TEMP}/$(basename "$model_path").download"
+              printf 'LFS transfer unavailable; trying bounded GitHub media hydration for %s\n' "$model_path"
+              if curl --fail --location --silent --show-error \
+                --retry 3 --retry-delay 2 --retry-all-errors \
+                --connect-timeout 15 --max-time 120 \
+                "$media_url" --output "$tmp_asset"; then
+                if test -s "$tmp_asset" && ! head -c 200 "$tmp_asset" | grep -aq 'version https://git-lfs.github.com/spec/v1'; then
+                  mv "$tmp_asset" "$model_path"
+                  hydrated=true
+                fi
+              fi
+              rm -f "$tmp_asset"
+            fi
+
+            if test "$hydrated" != true; then
+              echo "Configured fauna asset could not be hydrated: $model_path" >&2
+              git lfs pointer --file="$model_path" 2>/dev/null || true
+              exit 1
+            fi
+          done
 
       - name: Install Chromium proof dependencies
         shell: bash

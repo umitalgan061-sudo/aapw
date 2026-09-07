@@ -54,9 +54,12 @@ jobs:
           node scripts/checkAssetsManifest.js
 
       - name: Offline shell delta guard
+        id: offline_shell
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
+          echo "new_misses=unknown" >> "$GITHUB_OUTPUT"
           set +e
           node scripts/checkServiceWorkerCache.js > "$RUNNER_TEMP/run283-head-pwa.log" 2>&1
           HEAD_PWA_STATUS=$?
@@ -73,6 +76,7 @@ jobs:
             set -e
             if [ "$MAIN_PWA_STATUS" -eq 0 ]; then
               cat "$RUNNER_TEMP/run283-head-pwa.log"
+              echo "new_misses=true" >> "$GITHUB_OUTPUT"
               exit "$HEAD_PWA_STATUS"
             fi
             sed -n 's/^  - //p' "$RUNNER_TEMP/run283-main-pwa.log" | sort -u > "$RUNNER_TEMP/run283-main-misses.txt"
@@ -81,10 +85,12 @@ jobs:
             if [ -s "$RUNNER_TEMP/run283-new-misses.txt" ]; then
               echo "[run283] PR introduces new offline-shell misses:" >&2
               cat "$RUNNER_TEMP/run283-new-misses.txt" >&2
+              echo "new_misses=true" >> "$GITHUB_OUTPUT"
               exit 1
             fi
             echo "[run283] no new offline-shell misses versus exact main"
           fi
+          echo "new_misses=false" >> "$GITHUB_OUTPUT"
 
       - name: PWA installability contract
         shell: bash
@@ -253,3 +259,11 @@ jobs:
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           node scripts/checkAdditiveOnlyDiff.js "$BASE_SHA" HEAD
           git diff --check "$BASE_SHA" HEAD
+
+      - name: Enforce offline shell delta outcome
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest_new_misses="$(awk -F= '/^new_misses=/{value=$2} END{print value}' "$GITHUB_OUTPUT")"
+          test "$latest_new_misses" = false

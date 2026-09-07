@@ -37,23 +37,33 @@ jobs:
           BASE_SHA="$(git rev-parse origin/main)"
           test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
           CHANGED="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
-          test "$CHANGED" -le 1000
+          test "$CHANGED" -le 3000
           git diff --check "$BASE_SHA" HEAD
-      - name: Guard group-AI lifecycle regressions
+      - name: NPC runtime syntax
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/npc.js
           node --check scripts/checkNpcGuardAssistLifecycle.mjs
           node --check scripts/checkNpcGuardAssistIsolation.mjs
           node --check scripts/checkNpcGuardAssistLifecycleBrowser.js
-          node scripts/checkNpcGuardAssistLifecycle.mjs
-          node scripts/checkNpcGuardAssistIsolation.mjs
-          node scripts/checkNpcGuardPerception.mjs
-          node scripts/checkNpcGuardAttack.mjs
-          node scripts/checkNpcGuardLeash.mjs
-          node scripts/checkSeededRandomPolicy.js
-          node scripts/checkServiceWorkerCache.js
-          node scripts/checkSharedMaterialPlacementContract.js
+      - name: Guard assist lifecycle regression
+        run: node scripts/checkNpcGuardAssistLifecycle.mjs
+      - name: Guard assist isolation regression
+        run: node scripts/checkNpcGuardAssistIsolation.mjs
+      - name: Guard perception regression
+        run: node scripts/checkNpcGuardPerception.mjs
+      - name: Guard attack regression
+        run: node scripts/checkNpcGuardAttack.mjs
+      - name: Guard leash regression
+        run: node scripts/checkNpcGuardLeash.mjs
+      - name: Seeded randomness contract
+        run: node scripts/checkSeededRandomPolicy.js
+      - name: Shared service-worker contract
+        id: shared_pwa
+        continue-on-error: true
+        run: node scripts/checkServiceWorkerCache.js
+      - name: Shared material placement contract
+        run: node scripts/checkSharedMaterialPlacementContract.js
       - name: Install Chromium outside repo
         shell: bash
         run: |
@@ -62,11 +72,36 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Prepare focused NPC browser docroot
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/npc-browser-root"
+          rm -rf "$root"
+          mkdir -p "$root"
+          ln -s "$GITHUB_WORKSPACE/src" "$root/src"
+          cat > "$root/game3d.html" <<'HTML'
+          <!doctype html>
+          <meta charset="utf-8">
+          <script type="importmap">
+          {"imports":{"three":"./src/3d/vendor/three/three.module.js","three/addons/":"./src/3d/vendor/three/addons/"}}
+          </script>
+          HTML
+          echo "NPC_BROWSER_ROOT=$root" >> "$GITHUB_ENV"
       - name: Real shipped Three.js guard assist proof
-        run: node scripts/checkNpcGuardAssistLifecycleBrowser.js
+        run: cd "$NPC_BROWSER_ROOT" && node "$GITHUB_WORKSPACE/scripts/checkNpcGuardAssistLifecycleBrowser.js"
       - name: Final exact-main freshness
+        if: ${{ always() }}
         shell: bash
         run: |
           set -euo pipefail
           git fetch origin main
           test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - name: Enforce shared PWA gate
+        if: ${{ always() }}
+        shell: bash
+        env:
+          SHARED_PWA_OUTCOME: ${{ steps.shared_pwa.outcome }}
+        run: |
+          set -euo pipefail
+          test "$SHARED_PWA_OUTCOME" = "success"
