@@ -16,6 +16,7 @@ on:
       - 'scripts/checkTerrainEnvironmentSpatialPolicy.mjs'
       - 'scripts/checkTerrainEnvironmentAssetRegistry.mjs'
       - 'scripts/checkTerrainEnvironmentVisualEnvelope.mjs'
+      - 'scripts/checkWorldAssetSurfaceFabric.mjs'
       - '.github/workflows/terrain-surface-fabric-exact-head.yml'
   push:
     branches:
@@ -63,6 +64,7 @@ jobs:
           node --check scripts/checkTerrainEnvironmentSpatialPolicy.mjs
           node --check scripts/checkTerrainEnvironmentAssetRegistry.mjs
           node --check scripts/checkTerrainEnvironmentVisualEnvelope.mjs
+          node --check scripts/checkWorldAssetSurfaceFabric.mjs
 
       - name: Terrain surface fabric contract
         run: node scripts/checkTerrainSurfaceFabric.mjs
@@ -75,6 +77,9 @@ jobs:
 
       - name: Visual ecology envelope contract
         run: node scripts/checkTerrainEnvironmentVisualEnvelope.mjs
+
+      - name: World asset surface fabric contract
+        run: node scripts/checkWorldAssetSurfaceFabric.mjs
 
       - name: Diff hygiene
         run: git diff --check
