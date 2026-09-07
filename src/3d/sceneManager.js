@@ -42,8 +42,6 @@ import { createDayNightLighting } from './lighting.js';
 import { createFog } from './fog.js';
 import { resolveRenderQuality, configureRendererRealism, configureSunShadow, applyShadowRoles } from './renderQuality.js';
 
-// Compatibility export: existing Run-180 browser contracts and any external callers import this
-// factory from sceneManager. The implementation itself now belongs to world/windGrass.js.
 export { createWindGrassRun180 };
 
 export function isCoarsePointerDevice() {
@@ -143,23 +141,15 @@ export function createScene(canvas) {
 	});
 	console.info(`[sceneManager] Valyria barren ecology policy active: ${valyriaEcologyPlacement.policyId}.`);
 
-	const iceLandmarksResult = createIceLandmarks({
-		sampleHeightMeters: groundCollider.getGroundHeight,
-		seed: WORLD_DEFAULTS.WORLD_SEED,
-	});
+	const iceLandmarksResult = createIceLandmarks({ sampleHeightMeters: groundCollider.getGroundHeight, seed: WORLD_DEFAULTS.WORLD_SEED });
 	scene.add(iceLandmarksResult.group);
 	console.info(`[sceneManager] Ice landmarks: ${iceLandmarksResult.stats.wallLengthMeters.toFixed(0)}m Wall, ${iceLandmarksResult.stats.cave.tunnelDepthMeters}m cave.`);
 
-	const waterDepthField = createWaterDepthField({
-		sampleHeightMeters: groundCollider.getGroundHeight,
-		waterLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
-	});
+	const waterDepthField = createWaterDepthField({ sampleHeightMeters: groundCollider.getGroundHeight, waterLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS });
 	setWaterDepthField(water, waterDepthField);
 	console.info(
-		`[sceneManager] Water depth field baked: ${waterDepthField.resolution}² texels over ` +
-			`${waterDepthField.extentMeters}m in ${waterDepthField.bakeMs.toFixed(0)}ms ` +
-			`(${(waterDepthField.deepTexelRatio * 100).toFixed(1)}% deep water, ` +
-			`${(waterDepthField.dryTexelRatio * 100).toFixed(1)}% dry land).`,
+		`[sceneManager] Water depth field baked: ${waterDepthField.resolution}² texels over ${waterDepthField.extentMeters}m in ${waterDepthField.bakeMs.toFixed(0)}ms ` +
+		`(${(waterDepthField.deepTexelRatio * 100).toFixed(1)}% deep water, ${(waterDepthField.dryTexelRatio * 100).toFixed(1)}% dry land).`,
 	);
 	const { points: riverPoints, endReason: riverEndReason } = generateRiverPath({
 		seed: WORLD_DEFAULTS.WORLD_SEED,
@@ -169,7 +159,6 @@ export function createScene(canvas) {
 	const river = createRiverMesh(riverPoints);
 	if (river) scene.add(river);
 	console.info(`[sceneManager] River path traced: ${riverPoints.length} points, ended via \"${riverEndReason}\".`);
-
 	const waterfalls = detectWaterfalls(riverPoints).map((waterfall) => createWaterfallMesh(waterfall));
 	waterfalls.forEach((mesh) => scene.add(mesh));
 	console.info(`[sceneManager] Detected ${waterfalls.length} waterfall-grade drop(s) along the river.`);
@@ -191,22 +180,16 @@ export function createScene(canvas) {
 		}
 	}
 	console.info(
-		`[sceneManager] Placed ${settlementsResult.seats.length} kingdom-seat settlements; ` +
-			`${chunkManager.loadedCount} terrain chunks resident ` +
+		`[sceneManager] Placed ${settlementsResult.seats.length} kingdom-seat settlements; ${chunkManager.loadedCount} terrain chunks resident ` +
 			`(~${chunkManager.getCoveredAreaKm2().toFixed(2)} km²)${isMobileClass ? ' (mobile — grounding skipped, see ADR-0013)' : ' after grounding them'}.`,
 	);
 
 	const settlementCollider = createSettlementCollider(settlementsResult.seats, SETTLEMENT_CONFIG);
-
-	const roadsResult = buildRoadNetwork({
-		seats: settlementsResult.seats,
-		sampleHeightMeters: groundCollider.getGroundHeight,
-	});
+	const roadsResult = buildRoadNetwork({ seats: settlementsResult.seats, sampleHeightMeters: groundCollider.getGroundHeight });
 	scene.add(roadsResult.group);
 	console.info(
-		`[sceneManager] Built road network: ${roadsResult.edges.length} segment(s) connecting ` +
-			`${settlementsResult.seats.length} kingdom seats, ${(roadsResult.totalLengthMeters / 1000).toFixed(2)} km total, ` +
-			`steepest actual segment grade ${roadsResult.maxGradeDegrees.toFixed(1)}°`,
+		`[sceneManager] Built road network: ${roadsResult.edges.length} segment(s) connecting ${settlementsResult.seats.length} kingdom seats, ` +
+			`${(roadsResult.totalLengthMeters / 1000).toFixed(2)} km total, steepest actual segment grade ${roadsResult.maxGradeDegrees.toFixed(1)}°`,
 	);
 
 	const naturalGeologyResult = createNaturalGeology({
@@ -220,24 +203,13 @@ export function createScene(canvas) {
 		isMobileClass,
 	});
 	scene.add(naturalGeologyResult.group);
-	console.info(
-		`[sceneManager] Natural geology: ${naturalGeologyResult.stats.placedCount} outcrop/talus placement(s), ` +
-		`${naturalGeologyResult.stats.valyriaPlacementCount ?? 0} in Valyria.`,
-	);
+	console.info(`[sceneManager] Natural geology: ${naturalGeologyResult.stats.placedCount} outcrop/talus placement(s), ${naturalGeologyResult.stats.valyriaPlacementCount ?? 0} in Valyria.`);
 	const naturalGeologyAbortController = new AbortController();
 	window.addEventListener('pagehide', () => naturalGeologyAbortController.abort(), { once: true });
-	void upgradeNaturalGeologyAssets(naturalGeologyResult.group, {
-		signal: naturalGeologyAbortController.signal,
-		isMobileClass,
-	}).then((upgrade) => {
-		if (upgrade.status === 'active') {
-			console.info(`[sceneManager] Hydrated ${upgrade.hydratedPlacementCount} natural geology placement(s) from repository GLB assets.`);
-		} else if (upgrade.status === 'procedural-fallback') {
-			console.info('[sceneManager] Natural geology GLBs unavailable/pointer-only/mobile; deterministic procedural fallback remains active.');
-		}
-	}).catch((error) => {
-		console.warn('[sceneManager] Optional natural geology asset hydration failed; procedural fallback remains active.', error);
-	});
+	void upgradeNaturalGeologyAssets(naturalGeologyResult.group, { signal: naturalGeologyAbortController.signal, isMobileClass }).then((upgrade) => {
+		if (upgrade.status === 'active') console.info(`[sceneManager] Hydrated ${upgrade.hydratedPlacementCount} natural geology placement(s) from repository GLB assets.`);
+		else if (upgrade.status === 'procedural-fallback') console.info('[sceneManager] Natural geology GLBs unavailable/pointer-only/mobile; deterministic procedural fallback remains active.');
+	}).catch((error) => console.warn('[sceneManager] Optional natural geology asset hydration failed; procedural fallback remains active.', error));
 
 	const vegetationResult = createVegetation({
 		sampleHeightMeters: valyriaEcologyPlacement.sampleHeightMeters,
@@ -250,6 +222,7 @@ export function createScene(canvas) {
 	const vegetationDistribution = applyLivingWorldVegetationDistribution(vegetationResult.group, {
 		seed: WORLD_DEFAULTS.WORLD_SEED,
 		sampleHeightMeters: valyriaEcologyPlacement.sampleHeightMeters,
+		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
 		settlementSeats: settlementsResult.seats,
 		roadEdges: roadsResult.edges,
 	});
@@ -261,20 +234,13 @@ export function createScene(canvas) {
 	);
 	const winterVegetationAbortController = new AbortController();
 	window.addEventListener('pagehide', () => winterVegetationAbortController.abort(), { once: true });
-	void upgradeWinterVegetationAssets(vegetationResult.group, {
-		signal: winterVegetationAbortController.signal,
-	}).then((upgrade) => {
+	void upgradeWinterVegetationAssets(vegetationResult.group, { signal: winterVegetationAbortController.signal }).then((upgrade) => {
 		if (upgrade.status === 'active') {
-			console.info(
-				`[sceneManager] Upgraded ${upgrade.treeCount} northern snow tree(s) from ${upgrade.assetUrl} ` +
-				`using ${upgrade.meshCount} instanced GLB primitive(s).`,
-			);
+			console.info(`[sceneManager] Upgraded ${upgrade.treeCount} northern snow tree(s) from ${upgrade.assetUrl} using ${upgrade.meshCount} instanced GLB primitive(s).`);
 		} else if (upgrade.status === 'procedural-fallback') {
 			console.info('[sceneManager] Winter GLB unavailable/pointer-only; procedural snow-pine fallback remains active.');
 		}
-	}).catch((error) => {
-		console.warn('[sceneManager] Optional winter vegetation asset upgrade failed; procedural fallback remains active.', error);
-	});
+	}).catch((error) => console.warn('[sceneManager] Optional winter vegetation asset upgrade failed; procedural fallback remains active.', error));
 
 	const villagesResult = createVillages({
 		sampleHeightMeters: valyriaEcologyPlacement.sampleHeightMeters,
@@ -286,15 +252,11 @@ export function createScene(canvas) {
 		mulberry32,
 	});
 	scene.add(villagesResult.group);
-	console.info(
-		`[sceneManager] Built villages: ${villagesResult.houseCount} house(s) and ${villagesResult.wallCount} field wall(s) ` +
-			`across ${villagesResult.villageCount} village(s).`,
-	);
+	console.info(`[sceneManager] Built villages: ${villagesResult.houseCount} house(s) and ${villagesResult.wallCount} field wall(s) across ${villagesResult.villageCount} village(s).`);
 
 	const villageCollider = createCircleCollider(villagesResult.houses);
 	const iceLandmarkCollider = createCircleCollider(iceLandmarksResult.blockers);
 	const playerCollider = createComposedCollider([settlementCollider, villageCollider, iceLandmarkCollider]);
-
 	applyShadowRoles(settlementsResult.group, { quality: renderQuality });
 	applyShadowRoles(villagesResult.group, { quality: renderQuality });
 	applyShadowRoles(iceLandmarksResult.group, { quality: renderQuality });
