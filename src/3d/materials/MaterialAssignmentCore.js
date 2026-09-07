@@ -28,6 +28,63 @@ export function collectMaterialMeshes(root) {
   return meshes;
 }
 
+/**
+ * Adds a deterministic box-style UV projection only to meshes that have no authored UV attribute.
+ * Existing UVs are never replaced. This is intentionally simple: imported settlement models are
+ * mostly architectural forms, so local-position projection keeps wall/roof detail coherent without
+ * storing derived UV assets back into the repository.
+ */
+export function ensureDeterministicMaterialUVs(root) {
+  let generated = 0;
+  root?.traverse?.((mesh) => {
+    if (!mesh?.isMesh || mesh.geometry?.attributes?.uv || !mesh.geometry?.attributes?.position) return;
+    const geometry = mesh.geometry;
+    const positions = geometry.attributes.position;
+    const normals = geometry.attributes.normal || null;
+    geometry.computeBoundingBox?.();
+    const box = geometry.boundingBox;
+    if (!box) return;
+    const sizeX = Math.max(1e-6, box.max.x - box.min.x);
+    const sizeY = Math.max(1e-6, box.max.y - box.min.y);
+    const sizeZ = Math.max(1e-6, box.max.z - box.min.z);
+    const uv = new Float32Array(positions.count * 2);
+
+    for (let index = 0; index < positions.count; index += 1) {
+      const x = positions.getX(index);
+      const y = positions.getY(index);
+      const z = positions.getZ(index);
+      let u = (x - box.min.x) / sizeX;
+      let v = (z - box.min.z) / sizeZ;
+
+      if (normals) {
+        const nx = Math.abs(normals.getX(index));
+        const ny = Math.abs(normals.getY(index));
+        const nz = Math.abs(normals.getZ(index));
+        if (ny >= nx && ny >= nz) {
+          u = (x - box.min.x) / sizeX;
+          v = (z - box.min.z) / sizeZ;
+        } else if (nx >= nz) {
+          u = (z - box.min.z) / sizeZ;
+          v = (y - box.min.y) / sizeY;
+        } else {
+          u = (x - box.min.x) / sizeX;
+          v = (y - box.min.y) / sizeY;
+        }
+      }
+
+      uv[index * 2] = u;
+      uv[index * 2 + 1] = 1 - v;
+    }
+
+    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geometry.attributes.uv.needsUpdate = true;
+    mesh.userData.generatedMaterialUV = Object.freeze({ strategy: 'deterministic-local-box', version: 1 });
+    generated += 1;
+  });
+  if (generated) root.userData.generatedMaterialUVCount = generated;
+  return generated;
+}
+
 export function analyzeMaterialSurfaces(root) {
   const meshes = collectMaterialMeshes(root);
   const survey = surveyParts(root);
@@ -49,6 +106,7 @@ export function analyzeMaterialSurfaces(root) {
     surfaceCount: surfaces.length,
     uvMeshCount: meshes.filter((mesh) => Boolean(mesh.geometry?.attributes?.uv)).length,
     namedSurfaceCount: surfaces.filter((surface) => Boolean(surface.slot)).length,
+    generatedUVCount: meshes.filter((mesh) => Boolean(mesh.userData?.generatedMaterialUV)).length,
     placeholder: Boolean(root?.userData?.isPlaceholder || meshes.some((mesh) => mesh.userData?.isPlaceholder)),
   };
 }
@@ -96,6 +154,7 @@ export function buildRecommendedLayerRecipe(object, {
 
 export function applyMaterialRecipe(object, recipe, { metadata = {} } = {}) {
   if (!object || !recipe) return { ok: false, error: 'missing-object-or-recipe' };
+  ensureDeterministicMaterialUVs(object);
   let result = null;
   if (recipe.mode === 'auto') result = applyAutoRecipe(object, recipe, metadata);
   else if (recipe.mode === 'surface') result = applySurfaceRecipe(object, recipe);
@@ -175,6 +234,7 @@ function applySurfaceRecipe(object, recipe) {
     mode: 'surface',
     surfaces: applied,
     fallbackSurfaces: fallbackApplied,
+    generatedUVs: Number(object.userData?.generatedMaterialUVCount) || 0,
   };
 }
 
@@ -195,7 +255,7 @@ function applyLayerRecipe(object, recipe) {
   if (!material) return { ok: false, error: 'layer-material-failed' };
   rememberOriginalMaterial(mesh);
   mesh.material = material;
-  return { ok: true, mode: 'layers', layers: Math.min(recipe.layers.length, MAX_BANDS), mesh };
+  return { ok: true, mode: 'layers', layers: Math.min(recipe.layers.length, MAX_BANDS), mesh, generatedUVs: Number(object.userData?.generatedMaterialUVCount) || 0 };
 }
 
 export function restoreOriginalMaterials(root) {
@@ -226,12 +286,18 @@ export function validateMaterialAssignment(root, { requireGeneratedTexture = fal
 
   let generated = 0;
   let materialSlots = 0;
+  let fallbackSurfaces = 0;
   for (const mesh of analysis.meshes) {
     const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
     materialSlots += materials.length;
     for (const material of materials) {
       if (material?.userData?.generatedByTextureFactory || material?.userData?.layeredMaterial) generated += 1;
     }
+  }
+  const recipe = root?.userData?.materialRecipe;
+  if (recipe?.mode === 'surface' && recipe?.basePaletteId) {
+    fallbackSurfaces = analysis.surfaces.filter((surface) => !recipe.surfaceOverrides?.[surface.key]).length;
+    if (fallbackSurfaces > 0 && analysis.surfaces.length > 0 && generated === 0) errors.push('surface-recipe-has-no-generated-materials');
   }
   if (requireGeneratedTexture && generated === 0) errors.push('no-generated-material');
   if (analysis.meshCount === 1 && materialSlots === 1 && generated === 0) warnings.push('single-surface-untextured-risk');
@@ -243,6 +309,7 @@ export function validateMaterialAssignment(root, { requireGeneratedTexture = fal
     ...analysis,
     generatedMaterialCount: generated,
     materialSlotCount: materialSlots,
+    fallbackSurfaceCount: fallbackSurfaces,
   };
 }
 
@@ -267,6 +334,8 @@ export function createMaterialManifest(object, { metadata = {}, placement = null
       meshCount: validation.meshCount,
       surfaceCount: validation.surfaceCount,
       generatedMaterialCount: validation.generatedMaterialCount,
+      generatedUVCount: validation.generatedUVCount,
+      fallbackSurfaceCount: validation.fallbackSurfaceCount,
     },
   };
 }
