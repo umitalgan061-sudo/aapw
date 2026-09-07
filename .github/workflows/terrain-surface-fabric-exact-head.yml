@@ -7,7 +7,13 @@ on:
       - 'src/3d/world/terrain.js'
       - 'src/3d/world/terrainSurfaceFabric.js'
       - 'src/3d/world/terrainEnvironmentProfiles.js'
+      - 'src/3d/world/terrainEnvironmentAssetRegistry.js'
+      - 'src/3d/world/terrainEnvironmentContract.js'
+      - 'src/3d/world/terrainEnvironmentSpatialPolicy.js'
       - 'scripts/checkTerrainSurfaceFabric.mjs'
+      - 'scripts/checkTerrainEnvironmentSpatialPolicy.mjs'
+      - 'scripts/checkTerrainEnvironmentAssetRegistry.mjs'
+      - 'scripts/checkTerrainEnvironmentVisualEnvelope.mjs'
       - '.github/workflows/terrain-surface-fabric-exact-head.yml'
   push:
     branches:
@@ -18,9 +24,9 @@ permissions:
 
 jobs:
   terrain-surface-fabric:
-    name: Exact-head terrain surface fabric contract
+    name: Exact-head terrain environment contract
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - name: Checkout exact PR head
         uses: actions/checkout@v4
@@ -41,10 +47,25 @@ jobs:
           node --check src/3d/world/terrain.js
           node --check src/3d/world/terrainSurfaceFabric.js
           node --check src/3d/world/terrainEnvironmentProfiles.js
+          node --check src/3d/world/terrainEnvironmentAssetRegistry.js
+          node --check src/3d/world/terrainEnvironmentContract.js
+          node --check src/3d/world/terrainEnvironmentSpatialPolicy.js
           node --check scripts/checkTerrainSurfaceFabric.mjs
+          node --check scripts/checkTerrainEnvironmentSpatialPolicy.mjs
+          node --check scripts/checkTerrainEnvironmentAssetRegistry.mjs
+          node --check scripts/checkTerrainEnvironmentVisualEnvelope.mjs
 
       - name: Terrain surface fabric contract
         run: node scripts/checkTerrainSurfaceFabric.mjs
+
+      - name: Spatial ecology contract
+        run: node scripts/checkTerrainEnvironmentSpatialPolicy.mjs
+
+      - name: Authored environment asset registry contract
+        run: node scripts/checkTerrainEnvironmentAssetRegistry.mjs
+
+      - name: Visual ecology envelope contract
+        run: node scripts/checkTerrainEnvironmentVisualEnvelope.mjs
 
       - name: Diff hygiene
         run: git diff --check
