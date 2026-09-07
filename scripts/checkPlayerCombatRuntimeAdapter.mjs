@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { EventTarget } from 'node:events';
 import {
   attachPlayerCombatRuntimeAdapter,
   PLAYER_ATTACK_WINDOW_EVENT,
