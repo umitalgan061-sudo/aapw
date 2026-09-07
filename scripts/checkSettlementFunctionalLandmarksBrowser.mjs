@@ -5,7 +5,8 @@
  * This boots the exact Three.js module graph used by `world/villages.js`, loads authored GLB/FBX
  * sources through AssetLoader, waits for the shared placement/material gate to finish, then renders
  * the placed buildings and reads GPU pixels back from the canvas. The test fails on any page error,
- * missing asset, placement/material validation failure, missing manifest, or blank render.
+ * missing asset, placement/material validation failure, missing manifest, blank render, or missing
+ * UV/material coverage evidence on the resulting world objects.
  */
 
 import fs from 'node:fs';
@@ -30,6 +31,9 @@ function assertManifest(manifest, id) {
 	assert.ok(manifest.placement?.scale, `${id}: missing placement scale evidence`);
 	assert.ok(Array.isArray(manifest.surfaces), `${id}: missing surface evidence`);
 	assert.ok(manifest.surfaces.length > 0, `${id}: placement manifest contains no material surfaces`);
+	assert.ok(Number(manifest.validation?.generatedMaterialCount) > 0, `${id}: no generated material survived the placement gate`);
+	assert.ok(finite(manifest.validation?.generatedUVCount), `${id}: generated UV evidence is missing`);
+	assert.ok(finite(manifest.validation?.fallbackSurfaceCount), `${id}: fallback surface evidence is missing`);
 }
 
 async function main() {
@@ -70,6 +74,9 @@ async function main() {
 		assert.ok(proof.render?.highContrastPixels > 100, `rendered proof lacks material/shape contrast: ${proof.render?.highContrastPixels}`);
 
 		const ids = new Set();
+		let generatedUVObjects = 0;
+		let generatedMaterialObjects = 0;
+		let fallbackSurfaceCount = 0;
 		for (const object of proof.preparedObjects || []) {
 			assert.equal(ids.has(object.id), false, `duplicate runtime functional landmark id: ${object.id}`);
 			ids.add(object.id);
@@ -81,10 +88,16 @@ async function main() {
 			assert.ok(finite(object.surface.slopeDegrees), `${object.id}: non-finite slope evidence`);
 			assert.ok(object.footprint.heightRange >= 0, `${object.id}: invalid footprint height range`);
 			assertManifest(object.manifest, object.id);
+			generatedUVObjects += Number(object.manifest.validation.generatedUVCount) > 0 ? 1 : 0;
+			generatedMaterialObjects += Number(object.manifest.validation.generatedMaterialCount) > 0 ? 1 : 0;
+			fallbackSurfaceCount += Number(object.manifest.validation.fallbackSurfaceCount) || 0;
 		}
+		assert.equal(generatedMaterialObjects, proof.preparedObjects?.length || 0, 'every prepared landmark needs generated material coverage');
+		assert.ok(generatedUVObjects >= 0, 'generated UV diagnostic became non-finite');
+		assert.ok(fallbackSurfaceCount >= 0, 'fallback surface coverage became negative');
 
 		const image = await page.screenshot({ path: path.join(ARTIFACT_DIR, 'functional-landmarks.png'), fullPage: false });
-		fs.writeFileSync(path.join(ARTIFACT_DIR, 'proof.json'), JSON.stringify({ proof, pageErrors, consoleErrors, screenshotBytes: image.length }, null, 2));
+		fs.writeFileSync(path.join(ARTIFACT_DIR, 'proof.json'), JSON.stringify({ proof, pageErrors, consoleErrors, screenshotBytes: image.length, generatedUVObjects, generatedMaterialObjects, fallbackSurfaceCount }, null, 2));
 		console.log(JSON.stringify({
 			ok: true,
 			planCount: proof.planCount,
@@ -93,6 +106,9 @@ async function main() {
 			placementFailureCount: proof.evidence.placementFailureCount,
 			materialValidationFailureCount: proof.evidence.materialValidationFailureCount,
 			textureSize: proof.evidence.textureSize,
+			generatedUVObjects,
+			generatedMaterialObjects,
+			fallbackSurfaceCount,
 			nonBackgroundPixels: proof.render.nonBackgroundPixels,
 			highContrastPixels: proof.render.highContrastPixels,
 			pageErrors: pageErrors.length,
