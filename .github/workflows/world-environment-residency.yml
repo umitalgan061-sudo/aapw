@@ -12,6 +12,7 @@ on:
       - 'scripts/checkWorldEnvironmentAssetFidelity.mjs'
       - 'scripts/checkWorldEnvironmentResidencyBrowser.mjs'
       - 'scripts/checkWorldEnvironmentMaterialSurfacesBrowser.mjs'
+      - 'scripts/checkWorldEnvironmentResidencyAuthority.mjs'
       - '.github/workflows/world-environment-residency.yml'
   workflow_dispatch:
 
@@ -72,6 +73,7 @@ jobs:
           node --check scripts/checkWorldEnvironmentAssetFidelity.mjs
           node --check scripts/checkWorldEnvironmentResidencyBrowser.mjs
           node --check scripts/checkWorldEnvironmentMaterialSurfacesBrowser.mjs
+          node --check scripts/checkWorldEnvironmentResidencyAuthority.mjs
 
       - name: Deterministic residency contract
         run: node scripts/checkWorldEnvironmentResidency.mjs
@@ -81,6 +83,9 @@ jobs:
 
       - name: Asset fidelity matrix
         run: node scripts/checkWorldEnvironmentAssetFidelity.mjs
+
+      - name: Residency authority boundary
+        run: node scripts/checkWorldEnvironmentResidencyAuthority.mjs
 
       - name: Install Playwright Chromium
         shell: bash
