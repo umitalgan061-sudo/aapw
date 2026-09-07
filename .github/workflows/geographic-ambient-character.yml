@@ -1,0 +1,130 @@
+name: Geographic Ambient Character Contract
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/geographicAmbientCharacterDirector.js'
+      - 'scripts/checkGeographicAmbientCharacterDirector.mjs'
+      - 'scripts/checkGeographicAmbientCharacterAssetInventory.mjs'
+      - 'scripts/checkGeographicAmbientCharacterBrowser.mjs'
+      - 'service-worker.js'
+      - 'src/3d/materials/**'
+      - 'src/3d/world/WorldAssetPlacementPipeline.js'
+      - 'src/3d/world/worldReferenceMap.js'
+      - 'src/3d/world/worldReferenceAlignment.js'
+      - 'assets/models/characters/**'
+      - '.github/workflows/geographic-ambient-character.yml'
+  push:
+    branches:
+      - main
+      - 'agent/safak-kartali-geographic-ambient-assets-**'
+    paths:
+      - 'src/3d/world/geographicAmbientCharacterDirector.js'
+      - 'scripts/checkGeographicAmbientCharacterDirector.mjs'
+      - 'scripts/checkGeographicAmbientCharacterAssetInventory.mjs'
+      - 'scripts/checkGeographicAmbientCharacterBrowser.mjs'
+      - '.github/workflows/geographic-ambient-character.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  geographic-ambient-character:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout exact PR ref
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+
+      - name: Establish exact main and head
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          BASE_SHA="$(git rev-parse origin/main)"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          git cat-file -e "${BASE_SHA}^{commit}"
+          git cat-file -e "${HEAD_SHA}^{commit}"
+          git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          echo "HEAD_SHA=$HEAD_SHA" >> "$GITHUB_ENV"
+          echo "Exact base: $BASE_SHA"
+          echo "Exact head: $HEAD_SHA"
+
+      - name: Enforce hard PR scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(git diff --name-only "$BASE_SHA...$HEAD_SHA" | sed '/^$/d')
+          for file in "${files[@]}"; do
+            case "$file" in
+              src/3d/world/geographicAmbientCharacterDirector.js|\
+              scripts/checkGeographicAmbientCharacterDirector.mjs|\
+              scripts/checkGeographicAmbientCharacterAssetInventory.mjs|\
+              scripts/checkGeographicAmbientCharacterBrowser.mjs|\
+              .github/workflows/geographic-ambient-character.yml)
+                ;;
+              *)
+                echo "Unexpected scope path: $file"
+                exit 1
+                ;;
+            esac
+          done
+          git diff --check "$BASE_SHA...$HEAD_SHA"
+          ADDITIONS="$(git diff --numstat "$BASE_SHA...$HEAD_SHA" | awk '{a+=$1} END{print a+0}')"
+          DELETIONS="$(git diff --numstat "$BASE_SHA...$HEAD_SHA" | awk '{d+=$2} END{print d+0}')"
+          TOTAL=$((ADDITIONS + DELETIONS))
+          echo "Scope: ${#files[@]} files, $ADDITIONS additions + $DELETIONS deletions = $TOTAL"
+          test "$TOTAL" -le 3000
+
+      - name: Selective hydrate ambient character source assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull --include="assets/models/characters/peasant_girl.fbx,assets/models/characters/paladin_j_nordstrom.fbx,assets/models/characters/erika_archer.fbx" --exclude=""
+          for file in \
+            assets/models/characters/peasant_girl.fbx \
+            assets/models/characters/paladin_j_nordstrom.fbx \
+            assets/models/characters/erika_archer.fbx; do
+            test -s "$file"
+            if head -c 64 "$file" | grep -q 'version https://git-lfs.github.com/spec'; then
+              echo "LFS pointer remains hydrated source: $file"
+              exit 1
+            fi
+          done
+
+      - name: Node syntax and geographic policy checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/checkGeographicAmbientCharacterDirector.mjs
+          node --check scripts/checkGeographicAmbientCharacterAssetInventory.mjs
+          node scripts/checkGeographicAmbientCharacterAssetInventory.mjs
+          node scripts/checkGeographicAmbientCharacterDirector.mjs
+
+      - name: Shared Material Placement Contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkSharedMaterialPlacementContract.js
+
+      - name: Real Chromium Three.js geographic asset proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0 three
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkGeographicAmbientCharacterBrowser.mjs
+
+      - name: Publish visual and machine-readable proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: geographic-ambient-character-proof
+          path: artifacts/geographic-ambient-character/
+          if-no-files-found: ignore
