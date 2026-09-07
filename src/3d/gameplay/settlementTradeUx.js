@@ -19,6 +19,15 @@ function normalizeInventoryItems(snapshot) {
   return Array.isArray(snapshot?.items) ? snapshot.items : [];
 }
 
+function stableHash(value) {
+  let hash = 2166136261;
+  for (const char of String(value ?? '')) {
+    hash ^= char.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
 function sellValue(item, priceCopper) {
   const unitPrice = Math.max(0, finiteInt(priceCopper));
   const quantity = Math.max(0, finiteInt(item?.quantity));
@@ -63,6 +72,12 @@ export function buildSettlementTradePanel({ economySnapshot = {}, inventorySnaps
     });
   }));
   const sellQuotes = buildSettlementSellQuotes(inventorySnapshot, offers);
+  const fingerprint = stableHash(JSON.stringify({
+    serviceId: service?.serviceId || 'settlement-market',
+    balanceCopper: Math.max(0, finiteInt(economySnapshot?.copper)),
+    buyQuotes,
+    sellQuotes,
+  }));
   return Object.freeze({
     policyId: SETTLEMENT_TRADE_UX_POLICY.id,
     serviceId: service?.serviceId || 'settlement-market',
@@ -70,11 +85,15 @@ export function buildSettlementTradePanel({ economySnapshot = {}, inventorySnaps
     buyQuotes,
     sellQuotes,
     primaryAction: buyQuotes.some((quote) => quote.available) ? 'buy' : sellQuotes.some((quote) => quote.available) ? 'sell' : null,
+    snapshotFingerprint: fingerprint,
   });
 }
 
-export function buildSettlementTradeActionIntent(panel, { action = '', offerId = null, itemId = null, quantity = 1 } = {}) {
+export function buildSettlementTradeActionIntent(panel, { action = '', offerId = null, itemId = null, quantity = 1, expectedFingerprint = null } = {}) {
   const requestedQuantity = Math.max(1, finiteInt(quantity, 1));
+  if (expectedFingerprint && expectedFingerprint !== panel?.snapshotFingerprint) {
+    return Object.freeze({ ok: false, action: null, quantity: requestedQuantity, reason: 'stale-trade-snapshot', expectedFingerprint, actualFingerprint: panel?.snapshotFingerprint || null });
+  }
   if (action === 'buy') {
     const quote = panel?.buyQuotes?.find((entry) => entry.offerId === offerId) || null;
     return Object.freeze({
@@ -82,7 +101,9 @@ export function buildSettlementTradeActionIntent(panel, { action = '', offerId =
       action,
       offerId,
       quantity: requestedQuantity,
+      expectedCopper: quote?.available ? quote.priceCopper * requestedQuantity : 0,
       reason: quote?.available ? 'ready-for-existing-economy-purchase' : quote?.reason || 'unknown-offer',
+      snapshotFingerprint: panel?.snapshotFingerprint || null,
     });
   }
   if (action === 'sell') {
@@ -95,7 +116,8 @@ export function buildSettlementTradeActionIntent(panel, { action = '', offerId =
       quantity: requestedQuantity,
       expectedCopper: ok ? quote.unitSellCopper * requestedQuantity : 0,
       reason: ok ? 'ready-for-existing-economy-sell' : quote?.reason || 'unknown-item',
+      snapshotFingerprint: panel?.snapshotFingerprint || null,
     });
   }
-  return Object.freeze({ ok: false, action: null, quantity: requestedQuantity, reason: 'unsupported-action' });
+  return Object.freeze({ ok: false, action: null, quantity: requestedQuantity, reason: 'unsupported-action', snapshotFingerprint: panel?.snapshotFingerprint || null });
 }
