@@ -12,6 +12,11 @@
  * @module world/worldAssetTransitionField
  */
 
+import {
+  sampleWorldAssetTransitionDetail,
+  transitionDetailPolicyId,
+} from './worldAssetTransitionDetail.js';
+
 export const WORLD_ASSET_TRANSITION_FIELD_POLICY = Object.freeze({
   id: 'world-asset-transition-field-2026-09-07-v1',
   renderOnly: true,
@@ -22,7 +27,10 @@ export const WORLD_ASSET_TRANSITION_FIELD_POLICY = Object.freeze({
   canonicalHydrologyReadOnly: true,
   canonicalRoadReadOnly: true,
   canonicalSettlementReadOnly: true,
+  canonicalBoundaryDetailReadOnly: true,
   newGeographyIntroduced: false,
+  boundaryDetailPolicyId: transitionDetailPolicyId(),
+  irregularWorldBoundaryFabric: true,
   coastalBandMeters: Object.freeze({ inner: 24, middle: 72, outer: 180 }),
   riverBandMeters: Object.freeze({ inner: 12, middle: 34, outer: 90 }),
   lakeBandMeters: Object.freeze({ inner: 10, middle: 30, outer: 84 }),
@@ -65,14 +73,6 @@ function ring(distance, inner, middle, outer) {
     outer: band(distance, middle, outer),
     total: band(distance, 0, outer),
   });
-}
-
-function proximityGradient(distance, near, far) {
-  const d = finite(distance, Infinity);
-  if (!Number.isFinite(d) || d < 0) return 0;
-  if (d <= near) return 1;
-  if (d >= far) return 0;
-  return 1 - smooth((d - near) / Math.max(0.001, far - near));
 }
 
 function normalizeFamily(family) {
@@ -170,17 +170,47 @@ function transitionGradient(a, b, weight) {
 }
 
 function materialTransition(field) {
-  const salt = clamp01(field.coast.inner * 0.72 + field.maritime * 0.12);
-  const damp = clamp01(field.river.inner * 0.50 + field.lake.inner * 0.42 + field.wetland * 0.18);
-  const dust = clamp01(field.road.inner * 0.70 + field.road.middle * 0.28);
-  const wear = clamp01(field.settlement.inner * 0.64 + field.settlement.middle * 0.26);
+  const detail = field.transitionDetail?.local ?? {};
+  const salt = clamp01(
+    field.coast.inner * 0.66
+      + field.maritime * 0.10
+      + finite(detail.saltStress, 0) * 0.24,
+  );
+  const damp = clamp01(
+    field.river.inner * 0.44
+      + field.lake.inner * 0.37
+      + field.wetland * 0.13
+      + finite(detail.freshwaterDamp, 0) * 0.16,
+  );
+  const dust = clamp01(
+    field.road.inner * 0.58
+      + field.road.middle * 0.22
+      + finite(detail.trampling, 0) * 0.20,
+  );
+  const wear = clamp01(
+    field.settlement.inner * 0.52
+      + field.settlement.middle * 0.21
+      + finite(detail.trampling, 0) * 0.27,
+  );
   const weathering = clamp01(
-    field.exposure * 0.22
-      + field.erosion * 0.24
-      + salt * 0.18
-      + damp * 0.10
-      + field.frost * 0.16
-      + field.lithic * 0.10,
+    field.exposure * 0.18
+      + field.erosion * 0.20
+      + salt * 0.15
+      + damp * 0.08
+      + field.frost * 0.14
+      + field.lithic * 0.08
+      + finite(detail.weathering, 0) * 0.17,
+  );
+  const sedimentFabric = clamp01(
+    finite(detail.sedimentFabric, 0) * 0.62
+      + field.deposition * 0.21
+      + field.riparian * 0.10
+      + field.coast.total * 0.07,
+  );
+  const wetPolish = clamp01(
+    finite(detail.wetPolish, 0) * 0.68
+      + damp * 0.20
+      + salt * 0.12,
   );
   return Object.freeze({
     salt,
@@ -188,43 +218,54 @@ function materialTransition(field) {
     dust,
     wear,
     weathering,
-    albedoShift: clamp01(salt * 0.34 + dust * 0.18 + damp * 0.10),
-    roughnessShift: clamp01(weathering * 0.42 + dust * 0.14),
-    normalStrength: clamp01(0.26 + weathering * 0.40 + field.lithic * 0.18),
+    sedimentFabric,
+    wetPolish,
+    albedoShift: clamp01(salt * 0.30 + dust * 0.16 + damp * 0.09 + sedimentFabric * 0.11),
+    roughnessShift: clamp01(weathering * 0.36 + dust * 0.12 + finite(detail.granularRoughness, 0.5) * 0.10),
+    normalStrength: clamp01(0.24 + weathering * 0.35 + field.lithic * 0.16 + finite(detail.normalEnergy, 0.5) * 0.15),
   });
 }
 
 export function sampleWorldAssetTransitionField(surface = {}) {
-  const coast = ring(
+  const detail = sampleWorldAssetTransitionDetail(surface, {
+    seed: finite(surface.seed, 0),
+    family: surface.assetFamily ?? surface.materialFamily ?? surface.family ?? 'vegetation',
+  });
+  const fallbackCoast = ring(
     surface.coastDistance,
     WORLD_ASSET_TRANSITION_FIELD_POLICY.coastalBandMeters.inner,
     WORLD_ASSET_TRANSITION_FIELD_POLICY.coastalBandMeters.middle,
     WORLD_ASSET_TRANSITION_FIELD_POLICY.coastalBandMeters.outer,
   );
-  const river = ring(
+  const fallbackRiver = ring(
     surface.riverDistance,
     WORLD_ASSET_TRANSITION_FIELD_POLICY.riverBandMeters.inner,
     WORLD_ASSET_TRANSITION_FIELD_POLICY.riverBandMeters.middle,
     WORLD_ASSET_TRANSITION_FIELD_POLICY.riverBandMeters.outer,
   );
-  const lake = ring(
+  const fallbackLake = ring(
     surface.lakeDistance,
     WORLD_ASSET_TRANSITION_FIELD_POLICY.lakeBandMeters.inner,
     WORLD_ASSET_TRANSITION_FIELD_POLICY.lakeBandMeters.middle,
     WORLD_ASSET_TRANSITION_FIELD_POLICY.lakeBandMeters.outer,
   );
-  const road = ring(
+  const fallbackRoad = ring(
     surface.roadDistance,
     WORLD_ASSET_TRANSITION_FIELD_POLICY.roadBandMeters.inner,
     WORLD_ASSET_TRANSITION_FIELD_POLICY.roadBandMeters.middle,
     WORLD_ASSET_TRANSITION_FIELD_POLICY.roadBandMeters.outer,
   );
-  const settlement = ring(
+  const fallbackSettlement = ring(
     surface.settlementDistance,
     WORLD_ASSET_TRANSITION_FIELD_POLICY.settlementBandMeters.inner,
     WORLD_ASSET_TRANSITION_FIELD_POLICY.settlementBandMeters.middle,
     WORLD_ASSET_TRANSITION_FIELD_POLICY.settlementBandMeters.outer,
   );
+  const coast = detail.coordinateAware ? detail.bands.coast : fallbackCoast;
+  const river = detail.coordinateAware ? detail.bands.river : fallbackRiver;
+  const lake = detail.coordinateAware ? detail.bands.lake : fallbackLake;
+  const road = detail.coordinateAware ? detail.bands.road : fallbackRoad;
+  const settlement = detail.coordinateAware ? detail.bands.settlement : fallbackSettlement;
 
   const moisture = clamp01(surface.moisture ?? 0.5);
   const slope = clamp01(finite(surface.slopeDegrees, 0) / 60);
@@ -275,6 +316,7 @@ export function sampleWorldAssetTransitionField(surface = {}) {
 
   const field = {
     policyId: WORLD_ASSET_TRANSITION_FIELD_POLICY.id,
+    boundaryDetailPolicyId: transitionDetailPolicyId(),
     coast,
     river,
     lake,
@@ -298,6 +340,7 @@ export function sampleWorldAssetTransitionField(surface = {}) {
     dryness,
     frost,
     access,
+    transitionDetail: detail,
     transition: Object.freeze({
       coastRiver: transitionGradient(coast.total, river.total, 0.86),
       coastInland: transitionGradient(coast.total, 1 - coast.total, 0.52),
