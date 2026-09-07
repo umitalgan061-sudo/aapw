@@ -126,6 +126,7 @@ functionalGroup?.traverse((node) => {
     role: node.userData.settlementFunctionalRole,
     materialReadyForWorld: node.userData.materialReadyForWorld === true,
     manifestReady: Boolean(node.userData.worldPlacementManifest),
+    manifest: node.userData.worldPlacementManifest || null,
     surface: node.userData.worldPlacementSurface || null,
     footprint: node.userData.worldPlacementFootprint || null,
   });
