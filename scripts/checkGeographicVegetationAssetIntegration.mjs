@@ -11,6 +11,7 @@ const vegetation = fs.readFileSync(vegetationPath, 'utf8');
 const adapter = fs.readFileSync(adapterPath, 'utf8');
 const workflow = fs.readFileSync(workflowPath, 'utf8');
 
+for (const source of [adapter, workflow]) assert.ok(source.length > 100, 'geographic vegetation source must not be empty');
 assert.match(adapter, /GEOGRAPHIC_VEGETATION_ASSET_POLICY/);
 assert.match(adapter, /GEOGRAPHIC_VEGETATION_ASSETS/);
 assert.match(adapter, /REFERENCE_BIOME_ZONES/);
@@ -35,22 +36,20 @@ for (const name of [
   assert.ok(workflow.includes(name), `workflow must hydrate ${name}`);
 }
 
-assert.match(vegetation, /from '\.\/geographicVegetationAsset\.js';/);
-assert.match(vegetation, /upgradeGeographicVegetationAssets/);
-assert.match(vegetation, /createVegetationWithGeographicAssetUpgradeRun331/);
-assert.match(vegetation, /geographic tree asset upgrade failed/i);
-
-for (const pattern of [
-  /import\s+EditorMaterialStudio/,
-  /new\s+SettlementManager/,
-  /Math\.random\(/,
-]) assert.doesNotMatch(vegetation + adapter, pattern);
+// The adapter is intentionally not wired into the canonical vegetation producer in this PR.
+// This check makes that boundary explicit so a dormant asset module cannot be mistaken for a shipped runtime feature.
+assert.doesNotMatch(vegetation, /geographicVegetationAsset\.js/);
+assert.doesNotMatch(vegetation, /upgradeGeographicVegetationAssets/);
+for (const pattern of [/import\s+EditorMaterialStudio/, /new\s+SettlementManager/, /Math\.random\(/]) {
+  assert.doesNotMatch(vegetation + adapter, pattern);
+}
 
 console.log(JSON.stringify({
   ok: true,
   adapterReady: true,
-  productionImportPresent: true,
-  productionHookPresent: true,
-  productionTelemetryPresent: true,
-  nextIntegrationRequired: false,
+  canonicalVegetationUntouched: true,
+  productionImportPresent: false,
+  productionHookPresent: false,
+  productionTelemetryPresent: false,
+  nextIntegrationRequired: true,
 }));
