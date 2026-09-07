@@ -306,7 +306,7 @@ float terrainSurfaceFabricWarpB = terrainSurfaceFabricFbm(terrainSurfaceFabricWo
 vec2 terrainSurfaceFabricWarped = terrainSurfaceFabricWorldXZ + (vec2(terrainSurfaceFabricWarpA, terrainSurfaceFabricWarpB) - 0.5) * 360.0;
 float terrainSurfaceFabricEco = terrainSurfaceFabricFbm(terrainSurfaceFabricWarped / 690.0 + vec2(1.8, 28.9));
 float terrainSurfaceFabricDrainage = terrainSurfaceFabricFbm(terrainSurfaceFabricWarped / 270.0 + vec2(-18.1, 6.7));
-float terrainSurfaceFabricRidge = terrainSurfaceFabricRidge(terrainSurfaceFabricWarped / 170.0 + vec2(12.4, -17.2));
+float terrainSurfaceFabricRidgeValue = terrainSurfaceFabricRidge(terrainSurfaceFabricWarped / 170.0 + vec2(12.4, -17.2));
 float terrainSurfaceFabricHeight = vTerrainSurfaceFabricWorldPosition.y;
 float terrainSurfaceFabricSlope = 1.0 - clamp(abs(vTerrainSurfaceFabricWorldNormal.y), 0.0, 1.0);
 float terrainSurfaceFabricRock = smoothstep(0.22, 0.72, terrainSurfaceFabricSlope);
@@ -334,7 +334,7 @@ float terrainSurfaceFabricValue = 0.97
   + (terrainSurfaceFabricGrain - 0.5) * 0.023;
 float terrainSurfaceFabricWetDamp = terrainSurfaceFabricMoisture * (0.34 + terrainSurfaceFabricLowland * 0.30);
 float terrainSurfaceFabricDryLift = (1.0 - terrainSurfaceFabricMoisture) * (0.30 + terrainSurfaceFabricRock * 0.22);
-float terrainSurfaceFabricRockLift = terrainSurfaceFabricRock * (0.40 + terrainSurfaceFabricRidge * 0.31);
+float terrainSurfaceFabricRockLift = terrainSurfaceFabricRock * (0.40 + terrainSurfaceFabricRidgeValue * 0.31);
 float terrainSurfaceFabricSnowLift = terrainSurfaceFabricSnow * 0.62;
 float terrainSurfaceFabricGreener = (1.0 - terrainSurfaceFabricRock) * (1.0 - terrainSurfaceFabricSnow) * terrainSurfaceFabricLowland;
 float terrainSurfaceFabricMosaic = (terrainSurfaceFabricEco - 0.5) * 0.24 + (terrainSurfaceFabricDrainage - 0.5) * 0.16 + (terrainSurfaceFabricAntiTile - 0.5) * 0.16;
@@ -367,7 +367,7 @@ export function applyTerrainSurfaceFabric(material) {
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
 float terrainSurfaceFabricRoughNoise = terrainSurfaceFabricFbm(vTerrainSurfaceFabricWorldPosition.xz / 58.0 + vec2(21.3, -11.4));
 float terrainSurfaceFabricRoughSlope = 1.0 - clamp(abs(vTerrainSurfaceFabricWorldNormal.y), 0.0, 1.0);
-float terrainSurfaceFabricRoughWet = terrainSurfaceFabricFabricMoisture;
+float terrainSurfaceFabricRoughWet = terrainSurfaceFabricMoisture;
 roughnessFactor = clamp(roughnessFactor + (terrainSurfaceFabricRoughNoise - 0.5) * 0.16 + terrainSurfaceFabricRoughSlope * 0.07 - terrainSurfaceFabricRoughWet * 0.08, 0.48, 1.0);`)
       .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
 vec2 terrainSurfaceFabricNormalP = vTerrainSurfaceFabricWorldPosition.xz / 48.0;
