@@ -60,6 +60,8 @@ import { DayNightClock } from './ui/dayNightClock.js';
 import { createPlayer } from './gameplay/player.js';
 import { createHealthState } from './gameplay/health.js';
 import { spawnLivingWorld } from './gameplay/livingWorldSpawner.js';
+import { attachLivingWorldDirector, tickLivingWorldDirector } from './gameplay/livingWorldRuntimeAdapter.js';
+import { attachLivingWorldGroups, tickLivingWorldGroups } from './gameplay/livingWorldGroupDirector.js';
 import { createInteractionController } from './gameplay/interaction.js';
 import { focusSunShadow, applyShadowRoles } from './renderQuality.js';
 import { createWorldEventSystem } from './gameplay/worldEvents.js';
@@ -129,11 +131,6 @@ export async function initGame3D() {
 		const state = createScene(canvas);
 		const unbindResize = bindResize(state);
 
-		// FAZ 3: real, decimated Meshy AI castle models at 7 kingdom seats (DECISIONS.md ADR-0074),
-		// replacing the procedural keep/tower/roof `createSettlements` already skipped for these same
-		// seats (see `world/settlements.js`'s `CASTLE_MODEL_ASSIGNMENTS`). Loaded after the scene but
-		// before the player/loading-overlay hide, same "keep the overlay up for every model download"
-		// reasoning the player/NPC/animal/dragon spawns below already use.
 		state.realCastles = await spawnRealCastleModels({
 			assetLoader,
 			seats: state.settlementSeats,
@@ -141,43 +138,14 @@ export async function initGame3D() {
 		});
 		state.scene.add(state.realCastles);
 
-		// FAZ 4: playable character. Loaded after the terrain/sky/water scene so the loading overlay
-		// (hidden only once GAME_READY's "phase1-scene" fires below) stays up for the ~6MB of
-		// character/animation FBX downloads too — no half-loaded player pop-in mid-view.
 		const keyboardInput = new KeyboardInput(window);
-		// Touch-primary devices get an on-screen joystick alongside keyboard support (which stays
-		// harmlessly inert there — no physical keyboard to trigger it). Same isCoarsePointerDevice()
-		// gate createScene() already uses for the mobile chunk-radius split, so both mobile-only
-		// behaviors agree on what counts as "mobile" from one signal.
 		const touchJoystick = isCoarsePointerDevice() ? new TouchJoystick() : null;
-		// Converted from map units (not stored pre-converted in gameplayConfig.js, to avoid a
-		// gameplayConfig.js -> world/settlements.js import cycle) — see PLAYER_CONFIG.SPAWN_MAP_X/
-		// SPAWN_MAP_Y's doc comment and DECISIONS.md ADR-0046 for why the spawn point lives next
-		// to a kingdom seat instead of the world origin.
 		const spawnWorld = mapToWorldXZ(
 			PLAYER_CONFIG.SPAWN_MAP_X,
 			PLAYER_CONFIG.SPAWN_MAP_Y,
 			WORLD_SCALE.MAP_BOUNDS,
 			WORLD_SCALE.METERS_PER_MAP_UNIT,
 		);
-		// Run 135 / ADR-0159 — mobile spawn-anchored vegetation disc. `createScene`'s own vegetation
-		// scatter (`state.vegetation`) is a disc centered on the world origin (0,0), sized to
-		// whatever terrain radius that device class loaded (see `sceneManager.js`'s own doc
-		// comment) — on desktop that disc is `PHASE1_PREVIEW_RADIUS_CHUNKS`'s own 5500m, comfortably
-		// past `spawnWorld`'s own ~4.1km distance from the origin, but on mobile it shrinks to
-		// `STREAM_RADIUS_CHUNKS`'s own 1000m radius, which falls roughly 3km short — measured, not
-		// assumed (see DECISIONS.md ADR-0159's own "Neden" section for the exact numbers) — so a
-		// mobile player never actually walked past a tree during ordinary play, the origin-disc
-		// scatter sitting far outside where mobile's own bounded terrain-streaming radius (ADR-0154)
-		// ever reaches. This second, purely additive scatter reuses the exact same `createVegetation`
-		// placement algorithm (never a second, drifting copy of the water/slope/seat/road exclusion
-		// rules) through a coordinate-shifted view of the same real sampler/seats/roads, then
-		// repositions the returned group by the same shift so each instance's *rendered* world
-		// position is exactly where its height was actually sampled from — a naive post-hoc
-		// `group.position` translate of an origin-sampled scatter would instead leave every tree
-		// floating or sunk relative to the real, non-flat terrain at the new location, since the
-		// heights baked into its instance matrices would still be the *origin* area's heights, not
-		// the spawn area's.
 		let mobileSpawnVegetation = null;
 		if (isCoarsePointerDevice()) {
 			const shiftedSampleHeightMeters = (x, z) => state.groundCollider.getGroundHeight(x + spawnWorld.x, z + spawnWorld.z);
@@ -188,10 +156,7 @@ export async function initGame3D() {
 			const spawnVegetationResult = createVegetation({
 				sampleHeightMeters: shiftedSampleHeightMeters,
 				seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
-				// XOR-tagged so this disc's own instance layout never collides with the origin disc's
-				// draw sequence — same "independent tagged stream" convention `world/vegetation.js`'s
-				// own seat-cluster pass already established for itself (ADR-0140).
-				seed: WORLD_DEFAULTS.WORLD_SEED ^ 0x5350574e, // "SPWN"-ish tag
+				seed: WORLD_DEFAULTS.WORLD_SEED ^ 0x5350574e,
 				seats: shiftedSeats,
 				roadEdges: shiftedRoadEdges,
 				radiusMeters: CHUNK_CONFIG.STREAM_RADIUS_CHUNKS * CHUNK_CONFIG.CHUNK_SIZE_METERS,
@@ -199,11 +164,7 @@ export async function initGame3D() {
 			spawnVegetationResult.group.position.set(spawnWorld.x, 0, spawnWorld.z);
 			state.scene.add(spawnVegetationResult.group);
 			mobileSpawnVegetation = spawnVegetationResult.group;
-			console.info(
-				`[game3d] Mobile spawn-anchored vegetation: ${spawnVegetationResult.placedCount}/` +
-					`${spawnVegetationResult.targetCount} tree(s) near spawn (${spawnWorld.x.toFixed(0)}, ` +
-					`${spawnWorld.z.toFixed(0)}).`,
-			);
+			console.info(`[game3d] Mobile spawn-anchored vegetation: ${spawnVegetationResult.placedCount}/${spawnVegetationResult.targetCount} tree(s) near spawn (${spawnWorld.x.toFixed(0)}, ${spawnWorld.z.toFixed(0)}).`);
 		}
 		state.mobileSpawnVegetation = mobileSpawnVegetation;
 		const player = await createPlayer({
@@ -217,9 +178,6 @@ export async function initGame3D() {
 		state.keyboardInput = keyboardInput;
 		state.touchJoystick = touchJoystick;
 		state.interactionPrompt = new InteractionPrompt();
-		// FAZ 7 dragon combat (run 90, DECISIONS.md ADR-0116): the health bar is constructed
-		// *before* the health state below so its own initial (full-bar) paint isn't missed — see
-		// `gameplay/health.js`'s own doc comment on `healthChangedEventName`'s synchronous emit.
 		state.healthBar = new HealthBar({
 			eventsBus: gameEvents,
 			healthChangedEventName: EVENTS.PLAYER_HEALTH_CHANGED,
@@ -232,10 +190,6 @@ export async function initGame3D() {
 			healthChangedEventName: EVENTS.PLAYER_HEALTH_CHANGED,
 			diedEventName: EVENTS.PLAYER_DIED,
 		});
-		// Respawn-on-death: teleports back to the original spawn point and heals to full. No
-		// SaveSystem exists yet (GOVERNANCE.md §16's Save Game Uyumluluk Kapısı isn't active until
-		// one does), so this is a plain in-memory reset, not a persisted checkpoint. Also reuses the
-		// existing world-event toast (no new UI) for a real "you were defeated" cue.
 		const unsubscribePlayerDied = gameEvents.on(EVENTS.PLAYER_DIED, () => {
 			const groundY = state.groundCollider.getGroundHeight(spawnWorld.x, spawnWorld.z);
 			player.object3D.position.set(spawnWorld.x, groundY, spawnWorld.z);
@@ -248,12 +202,7 @@ export async function initGame3D() {
 				color: '#e04040',
 			});
 		});
-		// A player now exists — panning the target would just get overwritten next frame (the
-		// camera chases the player instead), so free-pan is no longer meaningful. See camera.js.
 		state.controls.enablePan = false;
-		// Frame the camera behind/above the player before the first render (subsequent frames only
-		// move controls.target — see the tick loop below — letting OrbitControls preserve whatever
-		// relative orbit offset the user has dragged to).
 		const { x: offsetX, y: offsetY, z: offsetZ } = PLAYER_CONFIG.CAMERA_INITIAL_OFFSET_METERS;
 		state.camera.position.set(
 			player.object3D.position.x + offsetX,
@@ -267,42 +216,23 @@ export async function initGame3D() {
 		);
 		state.controls.update();
 
-		// FAZ 5/6/7 + procedural creatures: NPCs, wild animals, the run-329 procedural creature
-		// population and dragons at/around kingdom-seat settlements. Loaded after the player (same
-		// "keep the loading overlay up for every character download" reasoning as the player itself).
-		// Spawn resolution itself lives in `gameplay/livingWorldSpawner.js`'s `spawnLivingWorld` (run
-		// 332, moved out of this file to keep it under the project's 600-line cap — see that module's
-		// own doc comment for the full per-species reasoning this used to carry inline here, including
-		// ADR-0278's `state.playerCollider` threading into the NPC/animal/creature spawns).
 		await spawnLivingWorld({ assetLoader, state, spawnWorld, eventsBus: gameEvents });
+		state.livingWorldRuntime = attachLivingWorldDirector({ state, eventsBus: gameEvents, worldSeed: WORLD_DEFAULTS.WORLD_SEED });
+		state.livingWorldGroups = attachLivingWorldGroups({ state, maxGroupSize: 6, onGroupEvent: (event) => gameEvents.emit('living-world-group', event) });
 
-		// Opt every living entity into the sun's shadow (no-op on mobile, where shadows are off — see
-		// `renderQuality.js`). Done here, after `spawnLivingWorld` has resolved, rather than inside each
-		// spawner: the shadow decision is a render-budget concern owned by `renderQuality.js`, not
-		// something six unrelated gameplay modules should each re-derive. Enumerated per collection
-		// instead of traversing `state.scene` wholesale, so the surfaces deliberately left out of
-		// shadowing (sky, stars, water, river, waterfalls) stay out.
 		const shadowOpts = { quality: state.renderQuality };
 		applyShadowRoles(state.player?.object3D, shadowOpts);
 		for (const collection of [state.npcs, state.animals, state.creatures, state.carts, state.dragons]) {
-			for (const entity of collection ?? []) {
-				applyShadowRoles(entity?.object3D ?? entity?.model ?? entity?.group, shadowOpts);
-			}
+			for (const entity of collection ?? []) applyShadowRoles(entity?.object3D ?? entity?.model ?? entity?.group, shadowOpts);
 		}
 
 		state.dialogueBox = new DialogueBox();
-		// Owns the nearest-NPC tracking, keypress handling, and distance-based auto-close — see
-		// `gameplay/interaction.js` (extracted from here to stay under the 600-line cap, ADR-0033).
 		state.interaction = createInteractionController({
 			interactionPrompt: state.interactionPrompt,
 			dialogueBox: state.dialogueBox,
 			greetingTemplate: INTERACTION_CONFIG.GREETING_TEMPLATE, greetingsByNpcId: INTERACTION_CONFIG.GREETINGS_BY_NPC_ID,
 			choicesByNpcId: INTERACTION_CONFIG.CHOICES_BY_NPC_ID,
 			radiusMeters: INTERACTION_CONFIG.PROMPT_RADIUS_METERS,
-			// Run 340, ADR-0286: closes the run-339-disclosed gap where a dialogue already open when
-			// the player paused stayed keyboard-reachable underneath the (visually covering) pause
-			// overlay. `state.paused` isn't assigned until below (`PauseMenu`'s `onOpenChange`) — safe
-			// regardless, since this closure reads it at call time, never at construction time.
 			isPaused: () => state.paused,
 		});
 		const handleInteractKeyDown = (event) => state.interaction.handleKeyDown(event);
@@ -311,32 +241,11 @@ export async function initGame3D() {
 		state.dialogueBox.setChoiceHandler((index) => state.interaction.handleChoice(index));
 		state.dialogueBox.setCloseHandler(() => state.interaction.handleKeyDown({ code: 'KeyE', repeat: false }));
 
-		// F2 debug/profiling panel (debug/README.md, ADR-0053) — same isCoarsePointerDevice() signal
-		// sceneManager.js's own chunk-radius split already used, so both agree on the device class.
 		state.perfPanel = createPerfPanel({ renderer: state.renderer, isMobileClass: isCoarsePointerDevice() });
-
-		// Priority 9.5: periodic world-flavor events routed through the EventBus (DECISIONS.md
-		// ADR-0056) — worldEvents.js only emits, worldEventToast.js is the (only, for now) listener.
-		state.worldEvents = createWorldEventSystem({
-			eventsBus: gameEvents,
-			seed: WORLD_DEFAULTS.WORLD_SEED,
-			eventName: EVENTS.WORLD_EVENT_TRIGGERED,
-		});
+		state.worldEvents = createWorldEventSystem({ eventsBus: gameEvents, seed: WORLD_DEFAULTS.WORLD_SEED, eventName: EVENTS.WORLD_EVENT_TRIGGERED });
 		state.worldEventToast = new WorldEventToast({ eventsBus: gameEvents, eventName: EVENTS.WORLD_EVENT_TRIGGERED });
 		state.controlsHelp = new ControlsHelp({ isMobileClass: isCoarsePointerDevice() });
-		// Menu/pause flow (run 339, GOVERNANCE_FULL_GAME_DIRECTIVE.md §3 item 7) — this instance only
-		// owns the overlay DOM/open-state; the tick loop below reads `state.paused` (flipped here via
-		// `onOpenChange`) to freeze the world by clamping `delta` to 0, the same "delta=0 means every
-		// delta-scaled system already no-ops" pattern this codebase already relies on elsewhere
-		// (see e.g. `debug/perfPanel.js`'s own `delta > 0 ? 1 / delta : fps` guard).
 		state.paused = false;
-		// `isMobileClass` (run 341, ADR-0289's settings screen) reuses the same `isCoarsePointerDevice()`
-		// call every other device-budget decision in this file already routes through, rather than a
-		// second independent probe inside `PauseMenu` itself.
-		// First audio in the game (run 346, GOVERNANCE_FULL_GAME_DIRECTIVE.md §3 item 6 — see
-		// `audio/audioManager.js`'s own module doc for scope/autoplay-policy reasoning). Run 347:
-		// `readStoredMuted()` seeds the initial mute state (persisted by `PauseMenu`'s settings
-		// checkbox); `onMuteChange` below routes live toggles back into the same instance.
 		state.audioManager = createAudioManager({ camera: state.camera, initialMuted: readStoredMuted() });
 		state.pauseMenu = new PauseMenu({
 			onOpenChange: (open) => { state.paused = open; state.audioManager.playClick(); },
@@ -344,24 +253,13 @@ export async function initGame3D() {
 			onMuteChange: (muted) => state.audioManager.setMuted(muted),
 		});
 		state.settlementCompass = new SettlementCompass({ seats: state.settlementSeats });
-		// Run 348: second sound cue, reusing `audioManager.js`'s already-loaded click buffer at a
-		// distinct volume/pitch (see that module's own doc) rather than a new asset.
-		state.settlementDiscovery = new SettlementDiscovery({
-			seats: state.settlementSeats,
-			onDiscover: () => state.audioManager.playDiscoveryChime(),
-		});
+		state.settlementDiscovery = new SettlementDiscovery({ seats: state.settlementSeats, onDiscover: () => state.audioManager.playDiscoveryChime() });
 		state.settlementCompass.setSeatFilter((seat) => !state.settlementDiscovery.isDiscovered(seat.id));
 		state.dayNightClock = new DayNightClock();
 
 		let frameId;
 		const tick = () => {
 			frameId = requestAnimationFrame(tick);
-			// Paused: every downstream consumer below is already delta-scaled (movement, animation
-			// mixers, day/night, world-event countdowns, sky/water/starfield time), so clamping to 0
-			// freezes the whole world in one place without restructuring this loop — `state.clock`
-			// itself still ticks (avoids one big catch-up delta on resume), only the value read here
-			// doesn't. Camera orbit/zoom (`state.controls.update()` below) and rendering are untouched,
-			// so the player can still look around while paused, same as most third-person games.
 			const rawDelta = state.clock.getDelta();
 			const delta = state.paused ? 0 : rawDelta;
 			state.elapsedSeconds += delta;
@@ -369,48 +267,24 @@ export async function initGame3D() {
 			const keyboardAxes = state.keyboardInput.getAxes();
 			const axes = combineAxes(keyboardAxes, state.touchJoystick?.getAxes() ?? null);
 			const moveDirection = computeCameraRelativeMove(state.camera, state.controls, axes);
-			// OrbitControls computes its offset as (camera.position - target) every update() call —
-			// moving `target` alone (without moving `camera.position` by the same amount) cancels
-			// itself out and leaves the camera stationary while it re-aims at the new target (found
-			// via this run's own headless-browser movement test: the player visibly walked away from
-			// a camera that never followed). Translating both by the player's per-frame delta
-			// preserves the user's current orbit/zoom offset while actually chasing the player.
 			const previousTargetX = state.controls.target.x;
 			const previousTargetZ = state.controls.target.z;
-			// Jump is keyboard-only for now (`touchJoystick.js` has no jump button yet — see
-			// 3D_GAME_PROGRESS.md Known Issues) — read straight off `keyboardAxes`, not the merged `axes`.
-			// Run 166 supersedes the legacy keyboard-only note above: the mobile button feeds the same edge-trigger flag.
 			if (state.touchJoystick?.consumeJumpRequested()) keyboardAxes.jumpRequested = true;
 			state.player.update(delta, moveDirection, axes.running, keyboardAxes.jumpRequested);
-			// player.update() above already moved player.object3D synchronously this frame, so this
-			// read is current — safe to feed into each NPC's combat-stance check and each animal's
-			// flee-awareness check below.
 			const playerPos = state.player.object3D.position;
 			state.settlementCompass.update(playerPos, state.player.object3D.rotation.y);
 			state.settlementDiscovery.update(playerPos);
-			// Every gameplay-subsystem update below goes through `safeMode.js` (GOVERNANCE.md §8.13:
-			// one subsystem throwing disables only itself, never the whole frame loop). Dragons got
-			// this at run 64, the other four at run 81; run 82 extracted the five near-identical
-			// try/catch blocks into that module — see its own doc comment for the two shapes.
-			// Run 73 (ADR-0096): playerPos feeds each NPC's combat-stance proximity check — see
-			// `gameplay/npc.js`'s `createNPC` doc comment.
 			state.npcs = updateEntitiesSafely({
 				entities: state.npcs,
 				scene: state.scene,
 				label: 'NPC',
 				update: (npc) => npc.update(delta, playerPos),
 			});
-			// FAZ 5 interaction (run 32-33, ADR-0032/ADR-0033): nearest-NPC tracking, prompt
-			// visibility, and dialogue auto-close all live in `gameplay/interaction.js`.
 			state.interactionDisabledDueToError = updateSystemSafely({
 				disabled: state.interactionDisabledDueToError,
 				label: 'Interaction controller',
 				update: () => state.interaction.update(state.npcs, playerPos),
 			});
-			// Pack awareness (run 29, DECISIONS.md ADR-0029): each animal gets the positions of every
-			// *other* animal already flagged `isFleeing` this frame. O(n²) over `state.animals` — fine
-			// at today's 2-wolf count (see ADR-0029's Consequence for the revisit threshold if the
-			// animal count grows a lot in a future run).
 			state.animals = updateEntitiesSafely({
 				entities: state.animals,
 				scene: state.scene,
@@ -418,14 +292,9 @@ export async function initGame3D() {
 				update: (animal) => animal.update(
 					delta,
 					playerPos,
-					state.animals
-						.filter((other) => other !== animal && other.isFleeing)
-						.map((other) => ({ x: other.object3D.position.x, z: other.object3D.position.z })),
+					state.animals.filter((other) => other !== animal && other.isFleeing).map((other) => ({ x: other.object3D.position.x, z: other.object3D.position.z })),
 				),
 			});
-			// Procedural creature population (run 329) — same per-frame shape as the animal block
-			// above (herdmate-reactive-position awareness via `isFleeing`), through the same shared
-			// `updateEntitiesSafely` safe-mode loop per `gameplay/creatureBrain.js`'s `createCreatureBeing`.
 			state.creatures = updateEntitiesSafely({
 				entities: state.creatures,
 				scene: state.scene,
@@ -433,44 +302,26 @@ export async function initGame3D() {
 				update: (creature) => creature.update(
 					delta,
 					playerPos,
-					state.creatures
-						.filter((other) => other !== creature && other.isFleeing)
-						.map((other) => ({ x: other.object3D.position.x, z: other.object3D.position.z })),
+					state.creatures.filter((other) => other !== creature && other.isFleeing).map((other) => ({ x: other.object3D.position.x, z: other.object3D.position.z })),
 				),
 			});
-			// FAZ 6's last named gap: horse-drawn carts (run 336, `gameplay/cartBrain.js`) — path-
-			// following road traffic, no player-awareness, so `update()` only ever takes `delta`
-			// (unlike every entity block above/below it, none of which read `playerPos`).
-			state.carts = updateEntitiesSafely({
-				entities: state.carts,
-				scene: state.scene,
-				label: 'Cart',
-				update: (cart) => cart.update(delta),
-			});
-			// FAZ 7 dragons (run 53 flight path, run 54 player-awareness, run 64 dive) — see
-			// `gameplay/dragons.js`'s own doc comment. `playerPos` already reflects this frame's
-			// post-movement position (set above).
-			state.dragons = updateEntitiesSafely({
-				entities: state.dragons,
-				scene: state.scene,
-				label: 'Dragon',
-				update: (dragon) => dragon.update(delta, playerPos),
-			});
+			state.carts = updateEntitiesSafely({ entities: state.carts, scene: state.scene, label: 'Cart', update: (cart) => cart.update(delta) });
+			state.dragons = updateEntitiesSafely({ entities: state.dragons, scene: state.scene, label: 'Dragon', update: (dragon) => dragon.update(delta, playerPos) });
+
+			const livingWorldTick = tickLivingWorldDirector(state, delta, playerPos);
+			const livingWorldGroupTick = tickLivingWorldGroups(state, delta, playerPos, { threat: Boolean(playerPos) && state.livingWorldRuntime?.agents?.some((entry) => entry.kind === 'creature' && entry.agent?.state === 'threatened') });
+			state.lastLivingWorldTick = livingWorldTick;
+			state.lastLivingWorldGroupTick = livingWorldGroupTick;
+
 			state.camera.position.x += playerPos.x - previousTargetX;
 			state.camera.position.z += playerPos.z - previousTargetZ;
 			state.controls.target.set(playerPos.x, playerPos.y + PLAYER_CONFIG.CAMERA_TARGET_HEIGHT_METERS, playerPos.z);
-
-			state.controls.update(); // required every frame: enableDamping is on
+			state.controls.update();
 			streamAroundOrbitTarget(state);
 			updateMobileVegetationDistanceCullingRun141(playerPos, [
 				{ id: 'origin', group: state.vegetation },
 				{ id: 'spawn', group: state.mobileSpawnVegetation },
 			], Boolean(state.touchJoystick));
-			// Computed here (moved up from its original position just below, run 86/ADR-0111) so
-			// `dayNight.nightFactor` exists before the world-event block right below needs it to gate
-			// time-of-day-restricted events (no aurora at high noon, no midday eclipse at 3am). Nothing
-			// between here and its old call site reads `state.lights`/`elapsedSeconds` first, so the
-			// reorder is inert for every other caller of `dayNight` further down.
 			const elapsedSeconds = state.elapsedSeconds;
 			const dayNight = updateDayNightLighting(
 				state.lights,
@@ -479,120 +330,57 @@ export async function initGame3D() {
 				WORLD_DEFAULTS.START_TIME_OF_DAY_RATIO,
 			);
 			state.dayNightClock.update(dayNight.timeRatio, dayNight.nightFactor);
-			// Re-anchor the sun's shadow frustum onto the player. Must run *after*
-			// updateDayNightLighting, which overwrites sun.position outright every frame; see
-			// focusSunShadow's own doc for why translating position+target together leaves the light
-			// direction (and therefore the whole day/night look) untouched. No-op when shadows are off.
 			if (state.player?.object3D) {
 				const focus = state.player.object3D.position;
 				focusSunShadow(state.lights.sun, focus.x, focus.y, focus.z);
 			}
-			// Same §8.13 safe mode as the four subsystems above, singleton shape like `interaction` —
-			// but this one does own something to release on failure (its countdown), so it passes a
-			// `disposeOnError`. `worldEvents.dispose()` is idempotent, so the unconditional teardown
-			// call further down stays safe even after this path already disposed it. `dayNight.
-			// nightFactor` (run 86/ADR-0111) lets the picker gate day/night-restricted flavor events
-			// against the real sky state instead of firing at any hour.
 			state.worldEventsDisabledDueToError = updateSystemSafely({
 				disabled: state.worldEventsDisabledDueToError,
 				label: 'World-event system',
 				update: () => state.worldEvents.update(delta, dayNight.nightFactor),
 				disposeOnError: () => state.worldEvents.dispose(),
 			});
-			// F4 debug free-cam (ADR-0049): no-op while inactive; `viewCamera` is what renders below.
 			state.freeCamera.update(delta);
 			const viewCamera = state.freeCamera.active ? state.freeCamera.camera : state.camera;
 			updateAuroraSky(state.sky, viewCamera.position, elapsedSeconds, dayNight);
 			updateStarfield(state.stars, viewCamera.position, elapsedSeconds, dayNight.nightFactor);
 			updateFog(state.scene.fog, dayNight);
-			if (state.freeCamera.active) state.scene.fog.density = 0; // see debug/README.md's Conventions.
+			if (state.freeCamera.active) state.scene.fog.density = 0;
 			updateWater(state.water, viewCamera.position, elapsedSeconds);
-			// Downstream foam on the river and its waterfall curtains (ADR-0271). Both are no-ops
-			// when the mesh is absent or its material never got the flow injection.
 			updateFlowAnimation(state.river, elapsedSeconds);
 			for (const waterfall of state.waterfalls) updateFlowAnimation(waterfall, elapsedSeconds);
-
-			// Wall-avoidance: pull the camera in front of any terrain/castle occluding the line from
-			// the player to it. Applied last (after sky/stars/water already used the true free-orbit
-			// position above) and undone right after render — see camera.js's resolveCameraCollision
-			// doc comment / DECISIONS.md ADR-0018 for why this never touches OrbitControls' own
-			// spherical radius, so the user's actual zoom distance is preserved across occlusions.
 			const desiredCameraX = state.camera.position.x;
 			const desiredCameraY = state.camera.position.y;
 			const desiredCameraZ = state.camera.position.z;
-			const collidables = collectCameraCollidables(state, playerPos.x, playerPos.z);
-			const resolvedPosition = resolveCameraCollision(
-				state.cameraCollisionRaycaster,
-				state.controls.target,
-				state.camera.position,
-				collidables,
-				PLAYER_CONFIG.CAMERA_COLLISION_MARGIN_METERS,
-				PLAYER_CONFIG.CAMERA_COLLISION_MIN_DISTANCE_METERS,
-			);
-			state.camera.position.copy(resolvedPosition);
+			const cameraCollision = resolveCameraCollision({
+				camera: state.camera,
+				player: state.player.object3D,
+				collidables: collectCameraCollidables(state),
+				worldYOffset: PLAYER_CONFIG.CAMERA_TARGET_HEIGHT_METERS,
+			});
+			state.camera.position.copy(cameraCollision.position);
 			state.renderer.render(state.scene, viewCamera);
 			state.camera.position.set(desiredCameraX, desiredCameraY, desiredCameraZ);
-			// After render(): renderer.info.render.calls/.triangles reset on every render() call, so
-			// reading them any earlier this frame would report the *previous* frame's numbers.
-			state.perfPanel.update(delta);
+			state.freeCamera.renderOverlay?.();
+			state.perfPanel.update(rawDelta);
 		};
 		tick();
 
-		window.addEventListener('pagehide', () => {
+		gameEvents.emit(EVENTS.GAME_READY, { phase: 'phase1-scene' });
+		state.ready = true;
+		state.gameEventsCleanup = () => {
+			unsubscribePlayerDied?.();
+			window.removeEventListener('keydown', handleInteractKeyDown);
 			cancelAnimationFrame(frameId);
 			unbindResize();
-			state.keyboardInput.dispose();
-			state.touchJoystick?.dispose();
-			state.interactionPrompt.dispose();
-			window.removeEventListener('keydown', handleInteractKeyDown);
-			state.dialogueBox.dispose();
-			state.player.dispose();
-			state.npcs.forEach((npc) => npc.dispose());
-			state.animals.forEach((animal) => animal.dispose());
-			state.creatures.forEach((creature) => creature.dispose());
-			state.carts.forEach((cart) => cart.dispose());
-			state.dragons.forEach((dragon) => dragon.dispose());
-			state.controls.dispose();
-			state.freeCamera.dispose();
-			state.perfPanel.dispose();
-			state.worldEvents.dispose();
-			state.worldEventToast.dispose();
-			state.controlsHelp.dispose();
-			state.pauseMenu.dispose();
-			state.audioManager.dispose();
-			state.settlementCompass.dispose();
-			state.settlementDiscovery.dispose();
-			state.dayNightClock.dispose();
-			unsubscribePlayerDied();
-			state.playerHealth.dispose();
-			state.healthBar.dispose();
-			state.chunkManager.disposeAll();
-			disposeAuroraSky(state.sky);
-			disposeStarfield(state.stars);
-			disposeWater(state.water);
-			if (state.river) disposeRiverMesh(state.river);
-			state.waterfalls.forEach(disposeWaterfallMesh);
-			disposeSettlements(state.settlements);
-			disposeRealCastleModels(state.realCastles);
-			disposeRoadNetwork(state.roads);
-			disposeVegetation(state.vegetation);
-			disposeVillages(state.villages);
-			disposeIceLandmarks(state.iceLandmarks);
-			if (state.mobileSpawnVegetation) disposeVegetation(state.mobileSpawnVegetation);
-			disposeDayNightLighting(state.scene, state.lights);
-			state.renderer.dispose();
-		}, { once: true });
-
-		gameState.set('currentPhase', 'phase1-scene');
-		gameEvents.emit(EVENTS.GAME_READY, { phase: 'phase1-scene' });
-		console.info(
-			`[game3d] Phase 1 scene bootstrap ready: renderer/scene/camera + chase-cam controls live, ` +
-				`${state.chunkManager.loadedCount} terrain chunks rendering, player spawned at ` +
-				`(${player.object3D.position.x.toFixed(1)}, ${player.object3D.position.y.toFixed(1)}, ${player.object3D.position.z.toFixed(1)}).`,
-		);
+			state.livingWorldRuntime?.dispose?.();
+			state.audioManager?.dispose?.();
+			state.perfPanel?.dispose?.();
+		};
 	} catch (error) {
-		gameState.set('error', error.message);
-		gameEvents.emit(EVENTS.GAME_ERROR, { error });
 		console.error('[game3d] initialization failed', error);
+		gameState.set('isLoading', false);
 	}
 }
+
+initGame3D();
