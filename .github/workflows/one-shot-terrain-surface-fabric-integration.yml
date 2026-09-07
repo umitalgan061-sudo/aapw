@@ -1,0 +1,60 @@
+name: One-shot terrain surface fabric integration
+
+on:
+  push:
+    branches:
+      - codex/buzul-muhafizi-terrain-environment-fabric-20260907
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: ${{ !contains(github.event.head_commit.message, '[terrain-fabric-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply exact integration patch
+        run: python3 .github/scripts/applyTerrainSurfaceFabricPatch.py
+
+      - name: Repair known shader identifier and variable collision
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('src/3d/world/terrainSurfaceFabric.js')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace('terrainSurfaceFabricFabricMoisture', 'terrainSurfaceFabricMoisture')
+          text = text.replace('float terrainSurfaceFabricRidge = terrainSurfaceFabricRidge(', 'float terrainSurfaceFabricRidgeValue = terrainSurfaceFabricRidge(')
+          text = text.replace('terrainSurfaceFabricRidge * 0.31', 'terrainSurfaceFabricRidgeValue * 0.31')
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Static syntax proof
+        run: |
+          node --check src/3d/world/terrain.js
+          node --check src/3d/world/terrainSurfaceFabric.js
+          node --check src/3d/world/terrainEnvironmentProfiles.js
+          node --check scripts/checkTerrainSurfaceFabric.mjs
+
+      - name: Execute focused surface contract
+        run: node scripts/checkTerrainSurfaceFabric.mjs
+
+      - name: Inspect exact diff
+        run: |
+          git diff --check
+          git status --short
+          git diff --stat
+
+      - name: Commit integrated production slice
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/3d/world/terrain.js src/3d/world/terrainSurfaceFabric.js src/3d/world/terrainEnvironmentProfiles.js scripts/checkTerrainSurfaceFabric.mjs
+          git commit -m 'feat(world): integrate non-periodic terrain environment fabric [terrain-fabric-applied]'
+          git push origin HEAD:codex/buzul-muhafizi-terrain-environment-fabric-20260907
