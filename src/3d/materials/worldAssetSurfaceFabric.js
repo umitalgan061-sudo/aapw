@@ -1,0 +1,388 @@
+/**
+ * Deterministic world-space micro/macro surface fabric for authored world assets.
+ *
+ * This is a material-only layer: source maps, source UVs, geometry, terrain height, hydrology and
+ * placement transforms remain untouched. The shader adds restrained stochastic breakup to authored
+ * albedo/roughness/normal response so repeated model textures acquire scale-aware weathering and
+ * environmental context without becoming noisy or visibly procedural.
+ *
+ * @module materials/worldAssetSurfaceFabric
+ */
+
+export const WORLD_ASSET_SURFACE_FABRIC_REVISION = 'v1-world-space-organic-material-fabric';
+
+export const WORLD_ASSET_SURFACE_FABRIC_POLICY = Object.freeze({
+  id: 'world-asset-surface-fabric-2026-09-07-v1',
+  revision: WORLD_ASSET_SURFACE_FABRIC_REVISION,
+  renderOnly: true,
+  deterministic: true,
+  worldSpace: true,
+  geometryUnchanged: true,
+  sourceMapsPreserved: true,
+  sourceUvsPreserved: true,
+  canonicalTerrainReadOnly: true,
+  canonicalHydrologyReadOnly: true,
+  canonicalColliderReadOnly: true,
+  newGeographyIntroduced: false,
+  macroScaleMeters: 260,
+  mesoScaleMeters: 71,
+  patchScaleMeters: 19,
+  fineScaleMeters: 4.7,
+  grainScaleMeters: 1.35,
+  maximumColorDeviation: 0.065,
+  maximumRoughnessDeviation: 0.095,
+  maximumNormalDeviation: 0.075,
+  familyResponseGain: Object.freeze({
+    stone: 1.12,
+    rock: 1.12,
+    soil: 1.06,
+    wood: 1.00,
+    foliage: 0.84,
+    roof: 0.92,
+    metal: 0.72,
+    cryosphere: 0.78,
+    generic: 0.88,
+  }),
+});
+
+const FAMILY_CODE = Object.freeze({
+  generic: 0,
+  stone: 1,
+  rock: 1,
+  soil: 2,
+  wood: 3,
+  foliage: 4,
+  roof: 5,
+  metal: 6,
+  cryosphere: 7,
+});
+
+const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+const clamp01 = (value) => Math.max(0, Math.min(1, finite(value, 0)));
+const clampSigned = (value) => Math.max(-1, Math.min(1, finite(value, 0)));
+
+function familyCode(family) {
+  const id = String(family ?? 'generic').trim().toLowerCase();
+  return FAMILY_CODE[id] ?? 0;
+}
+
+function shaderNumber(value, fallback = 0) {
+  const number = finite(value, fallback);
+  return Number.isInteger(number) ? String(number) : number.toFixed(6);
+}
+
+function vec3Literal(values, fallback = 0.5) {
+  const list = Array.isArray(values) ? values : [];
+  return `vec3(${shaderNumber(list[0], fallback)}, ${shaderNumber(list[1], fallback)}, ${shaderNumber(list[2], fallback)})`;
+}
+
+function installVertexWorldPosition(shader) {
+  shader.vertexShader = shader.vertexShader
+    .replace(
+      '#include <common>',
+      '#include <common>\nvarying vec3 vWorldAssetSurfaceFabricPosition;\nvarying vec3 vWorldAssetSurfaceFabricNormal;\n',
+    )
+    .replace(
+      '#include <begin_vertex>',
+      `#include <begin_vertex>
+vec4 worldAssetSurfaceFabricPosition = vec4(transformed, 1.0);
+#ifdef USE_INSTANCING
+worldAssetSurfaceFabricPosition = instanceMatrix * worldAssetSurfaceFabricPosition;
+#endif
+vWorldAssetSurfaceFabricPosition = (modelMatrix * worldAssetSurfaceFabricPosition).xyz;
+`,
+    )
+    .replace(
+      '#include <beginnormal_vertex>',
+      `#include <beginnormal_vertex>
+vec3 worldAssetSurfaceFabricObjectNormal = objectNormal;
+#ifdef USE_INSTANCING
+worldAssetSurfaceFabricObjectNormal = mat3(instanceMatrix) * worldAssetSurfaceFabricObjectNormal;
+#endif
+vWorldAssetSurfaceFabricNormal = normalize(mat3(modelMatrix) * worldAssetSurfaceFabricObjectNormal);
+`,
+    );
+}
+
+function installFragmentCommon(shader) {
+  shader.fragmentShader = shader.fragmentShader.replace(
+    '#include <common>',
+    `#include <common>
+varying vec3 vWorldAssetSurfaceFabricPosition;
+varying vec3 vWorldAssetSurfaceFabricNormal;
+
+float worldAssetSurfaceFabricHash(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+float worldAssetSurfaceFabricNoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  float a = worldAssetSurfaceFabricHash(i);
+  float b = worldAssetSurfaceFabricHash(i + vec2(1.0, 0.0));
+  float c = worldAssetSurfaceFabricHash(i + vec2(0.0, 1.0));
+  float d = worldAssetSurfaceFabricHash(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
+float worldAssetSurfaceFabricFbm(vec2 p) {
+  float total = 0.0;
+  float amplitude = 0.53;
+  float normalization = 0.0;
+  for (int octave = 0; octave < 4; octave++) {
+    total += worldAssetSurfaceFabricNoise(p) * amplitude;
+    normalization += amplitude;
+    p = p * 2.03 + vec2(17.17, -11.43);
+    amplitude *= 0.48;
+  }
+  return total / normalization;
+}
+
+float worldAssetSurfaceFabricRidge(vec2 p) {
+  float n = worldAssetSurfaceFabricFbm(p);
+  return 1.0 - abs(n * 2.0 - 1.0);
+}
+
+float worldAssetSurfaceFabricLuma(vec3 c) {
+  return dot(c, vec3(0.2126, 0.7152, 0.0722));
+}
+
+float worldAssetSurfaceFabricMottle(vec2 p, float scale) {
+  return worldAssetSurfaceFabricFbm(p / scale + vec2(5.7, -8.9));
+}
+`,
+  );
+}
+
+function installColorFragment(shader, constants) {
+  const colorInclude = '#include <color_fragment>';
+  if (!shader.fragmentShader.includes(colorInclude)) return;
+  shader.fragmentShader = shader.fragmentShader.replace(
+    colorInclude,
+    `${colorInclude}
+vec3 worldAssetSurfaceFabricBase = diffuseColor.rgb;
+vec3 worldAssetSurfaceFabricXZ = vWorldAssetSurfaceFabricPosition;
+float worldAssetSurfaceFabricMacro = worldAssetSurfaceFabricFbm(worldAssetSurfaceFabricXZ.xz / ${shaderNumber(constants.macroScale, 260.0)} + vec2(2.7, -4.9));
+float worldAssetSurfaceFabricMeso = worldAssetSurfaceFabricFbm(worldAssetSurfaceFabricXZ.xz / ${shaderNumber(constants.mesoScale, 71.0)} + vec2(-17.1, 8.2));
+float worldAssetSurfaceFabricPatch = worldAssetSurfaceFabricFbm(worldAssetSurfaceFabricXZ.xz / ${shaderNumber(constants.patchScale, 19.0)} + vec2(12.4, 19.7));
+float worldAssetSurfaceFabricFine = worldAssetSurfaceFabricNoise(worldAssetSurfaceFabricXZ.xz / ${shaderNumber(constants.fineScale, 4.7)} + vec2(-31.4, 7.6));
+float worldAssetSurfaceFabricGrain = worldAssetSurfaceFabricNoise(worldAssetSurfaceFabricXZ.xz / ${shaderNumber(constants.grainScale, 1.35)} + vec2(9.6, -21.2));
+float worldAssetSurfaceFabricDirectional = worldAssetSurfaceFabricFbm(vec2(
+  dot(worldAssetSurfaceFabricXZ.xz, vec2(0.83, 0.55)) / ${shaderNumber(constants.directionScale, 33.0)},
+  dot(worldAssetSurfaceFabricXZ.xz, vec2(-0.55, 0.83)) / ${shaderNumber(constants.crossScale, 11.0)}
+) + vec2(4.2, -8.4));
+float worldAssetSurfaceFabricNormalSlope = 1.0 - clamp(abs(normalize(vWorldAssetSurfaceFabricNormal).y), 0.0, 1.0);
+float worldAssetSurfaceFabricMaterialLuma = worldAssetSurfaceFabricLuma(worldAssetSurfaceFabricBase);
+float worldAssetSurfaceFabricMottle = clamp(
+  (worldAssetSurfaceFabricMacro - 0.5) * 0.42
+  + (worldAssetSurfaceFabricMeso - 0.5) * 0.28
+  + (worldAssetSurfaceFabricPatch - 0.5) * 0.18
+  + (worldAssetSurfaceFabricFine - 0.5) * 0.08
+  + (worldAssetSurfaceFabricGrain - 0.5) * 0.04,
+  -0.5,
+  0.5
+);
+float worldAssetSurfaceFabricMoisture = ${shaderNumber(constants.moisture, 0.5)};
+float worldAssetSurfaceFabricDryness = ${shaderNumber(constants.dryness, 0.5)};
+float worldAssetSurfaceFabricFrost = ${shaderNumber(constants.frost, 0.0)};
+float worldAssetSurfaceFabricSalt = ${shaderNumber(constants.salt, 0.0)};
+float worldAssetSurfaceFabricDamp = ${shaderNumber(constants.damp, 0.0)};
+float worldAssetSurfaceFabricDust = ${shaderNumber(constants.dust, 0.0)};
+float worldAssetSurfaceFabricMoss = ${shaderNumber(constants.moss, 0.0)};
+float worldAssetSurfaceFabricLichen = ${shaderNumber(constants.lichen, 0.0)};
+float worldAssetSurfaceFabricSediment = ${shaderNumber(constants.sediment, 0.0)};
+float worldAssetSurfaceFabricWeathering = ${shaderNumber(constants.weathering, 0.0)};
+float worldAssetSurfaceFabricWind = ${shaderNumber(constants.wind, 0.0)};
+float worldAssetSurfaceFabricRegion = ${shaderNumber(constants.region, 0.5)};
+float worldAssetSurfaceFabricFamilyGain = ${shaderNumber(constants.familyGain, 0.88)};
+float worldAssetSurfaceFabricFamilyCode = ${shaderNumber(constants.familyCode, 0.0)};
+
+float worldAssetSurfaceFabricWetDark = worldAssetSurfaceFabricDamp * (0.050 + worldAssetSurfaceFabricMoss * 0.032);
+float worldAssetSurfaceFabricDryDust = worldAssetSurfaceFabricDryness * worldAssetSurfaceFabricDust * 0.040;
+float worldAssetSurfaceFabricSaltBleach = worldAssetSurfaceFabricSalt * 0.028;
+float worldAssetSurfaceFabricFrostVeil = worldAssetSurfaceFabricFrost * 0.034;
+float worldAssetSurfaceFabricWeatherFade = worldAssetSurfaceFabricWeathering * 0.028;
+float worldAssetSurfaceFabricSlopeReveal = worldAssetSurfaceFabricNormalSlope * (0.012 + worldAssetSurfaceFabricWind * 0.015);
+
+vec3 worldAssetSurfaceFabricNeutral = vec3(
+  worldAssetSurfaceFabricMottle,
+  worldAssetSurfaceFabricMottle * 0.86,
+  worldAssetSurfaceFabricMottle * 0.72
+) * ${shaderNumber(constants.maximumColorDeviation, 0.065)} * worldAssetSurfaceFabricFamilyGain;
+
+if (worldAssetSurfaceFabricFamilyCode < 2.5) {
+  float mineral = (worldAssetSurfaceFabricRidge(worldAssetSurfaceFabricXZ.xz / 23.0 + vec2(3.8, -6.7)) - 0.5) * 0.78;
+  float sediment = (worldAssetSurfaceFabricMottle * 0.55 + worldAssetSurfaceFabricSediment * 0.45);
+  worldAssetSurfaceFabricNeutral += vec3(mineral * 0.026, mineral * 0.020, mineral * 0.012);
+  worldAssetSurfaceFabricNeutral += vec3(sediment * 0.018, sediment * 0.014, sediment * 0.010);
+} else if (worldAssetSurfaceFabricFamilyCode < 3.5) {
+  float grain = (worldAssetSurfaceFabricDirectional - 0.5) * 0.52;
+  worldAssetSurfaceFabricNeutral += vec3(grain * 0.018, grain * 0.014, grain * 0.010);
+} else if (worldAssetSurfaceFabricFamilyCode < 4.5) {
+  float canopyBreak = (worldAssetSurfaceFabricPatch - 0.5) * 0.50 + (worldAssetSurfaceFabricGrain - 0.5) * 0.18;
+  worldAssetSurfaceFabricNeutral += vec3(canopyBreak * 0.014, canopyBreak * 0.022, canopyBreak * 0.010);
+} else if (worldAssetSurfaceFabricFamilyCode < 5.5) {
+  float roofWear = (worldAssetSurfaceFabricDirectional - 0.5) * 0.34 + (worldAssetSurfaceFabricFrost - 0.5) * 0.14;
+  worldAssetSurfaceFabricNeutral += vec3(roofWear * 0.012, roofWear * 0.009, roofWear * 0.006);
+} else if (worldAssetSurfaceFabricFamilyCode < 6.5) {
+  float oxide = worldAssetSurfaceFabricWeathering * (0.32 + worldAssetSurfaceFabricSalt * 0.68);
+  worldAssetSurfaceFabricNeutral += vec3(oxide * 0.022, oxide * 0.010, -oxide * 0.006);
+} else {
+  float snowGrain = (worldAssetSurfaceFabricMeso - 0.5) * 0.34 + (worldAssetSurfaceFabricFine - 0.5) * 0.14;
+  worldAssetSurfaceFabricNeutral += vec3(snowGrain * 0.016);
+}
+
+worldAssetSurfaceFabricNeutral += vec3(-worldAssetSurfaceFabricWetDark, -worldAssetSurfaceFabricWetDark * 0.92, -worldAssetSurfaceFabricWetDark * 0.82);
+worldAssetSurfaceFabricNeutral += vec3(worldAssetSurfaceFabricDryDust * 0.82, worldAssetSurfaceFabricDryDust * 0.63, worldAssetSurfaceFabricDryDust * 0.42);
+worldAssetSurfaceFabricNeutral += vec3(worldAssetSurfaceFabricSaltBleach * 0.76);
+worldAssetSurfaceFabricNeutral += vec3(worldAssetSurfaceFabricFrostVeil * 0.82);
+worldAssetSurfaceFabricNeutral -= vec3(worldAssetSurfaceFabricWeatherFade * 0.52, worldAssetSurfaceFabricWeatherFade * 0.42, worldAssetSurfaceFabricWeatherFade * 0.32);
+worldAssetSurfaceFabricNeutral += vec3(worldAssetSurfaceFabricSlopeReveal * 0.54);
+worldAssetSurfaceFabricNeutral += vec3(
+  (worldAssetSurfaceFabricLichen - 0.5) * 0.016,
+  (worldAssetSurfaceFabricLichen - 0.5) * 0.010,
+  -(worldAssetSurfaceFabricLichen - 0.5) * 0.006
+);
+
+diffuseColor.rgb = max(vec3(0.0), diffuseColor.rgb + worldAssetSurfaceFabricNeutral);
+`,
+  );
+}
+
+function installRoughnessFragment(shader, constants) {
+  const include = '#include <roughnessmap_fragment>';
+  if (!shader.fragmentShader.includes(include)) return;
+  shader.fragmentShader = shader.fragmentShader.replace(
+    include,
+    `${include}
+float worldAssetSurfaceFabricRoughMacro = worldAssetSurfaceFabricFbm(vWorldAssetSurfaceFabricPosition.xz / ${shaderNumber(constants.macroScale, 260.0)} + vec2(13.1, -7.5));
+float worldAssetSurfaceFabricRoughMeso = worldAssetSurfaceFabricFbm(vWorldAssetSurfaceFabricPosition.xz / ${shaderNumber(constants.mesoScale, 71.0)} + vec2(-9.8, 18.2));
+float worldAssetSurfaceFabricRoughFine = worldAssetSurfaceFabricNoise(vWorldAssetSurfaceFabricPosition.xz / ${shaderNumber(constants.fineScale, 4.7)} + vec2(27.4, -15.3));
+float worldAssetSurfaceFabricRoughDirectional = worldAssetSurfaceFabricRidge(vec2(
+  dot(vWorldAssetSurfaceFabricPosition.xz, vec2(0.78, 0.62)) / 27.0,
+  dot(vWorldAssetSurfaceFabricPosition.xz, vec2(-0.62, 0.78)) / 9.5
+) + vec2(4.2, -2.6));
+float worldAssetSurfaceFabricRoughContext = clamp(
+  worldAssetSurfaceFabricWeathering * 0.34
+  + worldAssetSurfaceFabricDust * 0.12
+  + worldAssetSurfaceFabricSalt * 0.12
+  + worldAssetSurfaceFabricFrost * 0.12
+  + worldAssetSurfaceFabricSediment * 0.10
+  + worldAssetSurfaceFabricWind * 0.10
+  + (worldAssetSurfaceFabricRoughDirectional - 0.5) * 0.10,
+  -0.5,
+  0.5
+);
+float worldAssetSurfaceFabricRoughPattern = (worldAssetSurfaceFabricRoughMacro - 0.5) * 0.060
+  + (worldAssetSurfaceFabricRoughMeso - 0.5) * 0.042
+  + (worldAssetSurfaceFabricRoughFine - 0.5) * 0.018
+  + worldAssetSurfaceFabricRoughContext * ${shaderNumber(constants.maximumRoughnessDeviation, 0.095)};
+roughnessFactor = clamp(roughnessFactor + worldAssetSurfaceFabricRoughPattern * worldAssetSurfaceFabricFamilyGain, 0.20, 1.0);
+`,
+  );
+}
+
+function installNormalFragment(shader, constants) {
+  const include = '#include <normal_fragment_maps>';
+  if (!shader.fragmentShader.includes(include)) return;
+  shader.fragmentShader = shader.fragmentShader.replace(
+    include,
+    `${include}
+vec2 worldAssetSurfaceFabricNormalP = vWorldAssetSurfaceFabricPosition.xz * ${shaderNumber(1 / constants.normalScale, 0.034)};
+float worldAssetSurfaceFabricNormalX = worldAssetSurfaceFabricNoise(worldAssetSurfaceFabricNormalP + vec2(0.071, 0.0)) - worldAssetSurfaceFabricNoise(worldAssetSurfaceFabricNormalP - vec2(0.071, 0.0));
+float worldAssetSurfaceFabricNormalZ = worldAssetSurfaceFabricNoise(worldAssetSurfaceFabricNormalP + vec2(0.0, 0.071)) - worldAssetSurfaceFabricNoise(worldAssetSurfaceFabricNormalP - vec2(0.0, 0.071));
+float worldAssetSurfaceFabricNormalScale = ${shaderNumber(constants.maximumNormalDeviation, 0.075)} * (${shaderNumber(0.50, 0.50)} + worldAssetSurfaceFabricNormalEnergy * 0.50) * worldAssetSurfaceFabricFamilyGain;
+vec3 worldAssetSurfaceFabricNormalDelta = mat3(viewMatrix) * vec3(worldAssetSurfaceFabricNormalX, 0.0, worldAssetSurfaceFabricNormalZ) * worldAssetSurfaceFabricNormalScale;
+normal = normalize(normal + worldAssetSurfaceFabricNormalDelta);
+`,
+  );
+}
+
+function compileConstants(context, family, options) {
+  const ecology = context?.ecology ?? context?.transition ?? {};
+  const source = {
+    moisture: clamp01(context?.moisture ?? ecology.moisture ?? 0.5),
+    dryness: clamp01(context?.dry ?? ecology.aridity ?? 0.5),
+    frost: clamp01(context?.snow ?? ecology.frost ?? 0),
+    salt: clamp01(context?.coast ?? ecology.coastal ?? 0),
+    damp: clamp01(context?.wet ?? ecology.moisture ?? 0.5),
+    dust: clamp01(context?.roadDust ?? 0),
+    moss: clamp01(ecology.moss ?? 0),
+    lichen: clamp01(ecology.lichen ?? 0),
+    sediment: clamp01(ecology.sedimentFabric ?? 0),
+    weathering: clamp01(ecology.weathering ?? 0),
+    wind: clamp01(ecology.exposure ?? context?.exposure ?? 0.5),
+    region: clamp01(context?.region ?? 0.5),
+  };
+  const material = options?.materialResponse ?? {};
+  const familyGain = clamp01(options?.familyGain ?? WORLD_ASSET_SURFACE_FABRIC_POLICY.familyResponseGain[family] ?? 0.88);
+  return Object.freeze({
+    ...source,
+    familyCode: familyCode(family),
+    familyGain,
+    macroScale: finite(options?.macroScale, WORLD_ASSET_SURFACE_FABRIC_POLICY.macroScaleMeters),
+    mesoScale: finite(options?.mesoScale, WORLD_ASSET_SURFACE_FABRIC_POLICY.mesoScaleMeters),
+    patchScale: finite(options?.patchScale, WORLD_ASSET_SURFACE_FABRIC_POLICY.patchScaleMeters),
+    fineScale: finite(options?.fineScale, WORLD_ASSET_SURFACE_FABRIC_POLICY.fineScaleMeters),
+    grainScale: finite(options?.grainScale, WORLD_ASSET_SURFACE_FABRIC_POLICY.grainScaleMeters),
+    directionScale: finite(options?.directionScale, 33),
+    crossScale: finite(options?.crossScale, 11),
+    normalScale: Math.max(0.01, finite(material.normalStrength ?? options?.normalStrength, 1)),
+    normalEnergy: clamp01(material.normalEnergy ?? ecology.normalFine ?? 0.5),
+    maximumColorDeviation: finite(options?.maximumColorDeviation, WORLD_ASSET_SURFACE_FABRIC_POLICY.maximumColorDeviation),
+    maximumRoughnessDeviation: finite(options?.maximumRoughnessDeviation, WORLD_ASSET_SURFACE_FABRIC_POLICY.maximumRoughnessDeviation),
+    maximumNormalDeviation: finite(options?.maximumNormalDeviation, WORLD_ASSET_SURFACE_FABRIC_POLICY.maximumNormalDeviation),
+  });
+}
+
+export function installWorldAssetSurfaceFabric(material, context = {}, {
+  family = 'generic',
+  materialResponse = null,
+  customProgramSuffix = '',
+} = {}) {
+  if (!material || typeof material.onBeforeCompile !== 'function') {
+    return { ok: false, error: 'material-does-not-support-shader-hook' };
+  }
+  const constants = compileConstants(context, family, { materialResponse: materialResponse ?? {}, familyGain: WORLD_ASSET_SURFACE_FABRIC_POLICY.familyResponseGain[family] });
+  const previousOnBeforeCompile = material.onBeforeCompile?.bind(material);
+  material.onBeforeCompile = (shader, renderer) => {
+    previousOnBeforeCompile?.(shader, renderer);
+    installVertexWorldPosition(shader);
+    installFragmentCommon(shader);
+    installColorFragment(shader, constants);
+    installRoughnessFragment(shader, constants);
+    installNormalFragment(shader, constants);
+  };
+  material.customProgramCacheKey = () => `${WORLD_ASSET_SURFACE_FABRIC_POLICY.id}:${familyCode(family)}:${customProgramSuffix}`;
+  material.userData ||= {};
+  material.userData.worldAssetSurfaceFabric = Object.freeze({
+    policyId: WORLD_ASSET_SURFACE_FABRIC_POLICY.id,
+    revision: WORLD_ASSET_SURFACE_FABRIC_REVISION,
+    family,
+    worldSpace: true,
+    sourceMapsPreserved: true,
+    sourceUvsPreserved: true,
+    deterministic: true,
+    maximumColorDeviation: constants.maximumColorDeviation,
+    maximumRoughnessDeviation: constants.maximumRoughnessDeviation,
+    maximumNormalDeviation: constants.maximumNormalDeviation,
+    normalEnergy: constants.normalEnergy,
+  });
+  material.needsUpdate = true;
+  return { ok: true, policyId: WORLD_ASSET_SURFACE_FABRIC_POLICY.id, constants };
+}
+
+export function worldAssetSurfaceFabricConstants(context = {}, family = 'generic', options = {}) {
+  return compileConstants(context, family, options);
+}
+
+export function worldAssetSurfaceFabricPolicy() {
+  return WORLD_ASSET_SURFACE_FABRIC_POLICY;
+}
+
+export function worldAssetSurfaceFabricRevision() {
+  return WORLD_ASSET_SURFACE_FABRIC_REVISION;
+}
