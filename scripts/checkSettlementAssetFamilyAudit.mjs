@@ -2,13 +2,10 @@
 /**
  * Asset-first settlement audit.
  *
- * The rule is deliberately broader than the six functional landmark assets: before expanding the
- * world with additional settlement art, the repository's existing model families are inventoried
- * and the runtime assignment layer is checked against those sources. This prevents a well-written
- * placement algorithm from quietly falling back to decorative boxes or one generic brown material.
- *
- * The audit is deterministic and read-only. It never modifies source assets and never hydrates the
- * entire LFS repository. Hydration remains selective in CI.
+ * Read-only, deterministic inventory of the settlement/house/prop/model support families plus the
+ * runtime material and placement boundaries. It prevents a geographically rich placement algorithm
+ * from silently regressing to missing sources, LFS pointers, primitive stand-ins, or a single generic
+ * material recipe. Source assets are never modified by this audit.
  */
 
 import fs from 'node:fs';
@@ -26,31 +23,8 @@ const SOURCE_DIRS = Object.freeze([
   'assets/particles',
   'assets/shaders',
 ]);
-
-const FUNCTIONAL_ROLES = Object.freeze([
-  'blacksmith',
-  'barracks',
-  'farm',
-  'stable',
-  'tavern',
-  'market',
-]);
-
-const SEMANTIC_MATERIAL_TOKENS = Object.freeze([
-  'stone',
-  'brick',
-  'wood',
-  'timber',
-  'door',
-  'window',
-  'glass',
-  'metal',
-  'iron',
-  'roof',
-  'thatch',
-  'plaster',
-]);
-
+const FUNCTIONAL_ROLES = Object.freeze(['blacksmith', 'barracks', 'farm', 'stable', 'tavern', 'market']);
+const SEMANTIC_MATERIAL_TOKENS = Object.freeze(['stone', 'brick', 'wood', 'timber', 'door', 'window', 'glass', 'metal', 'iron', 'roof', 'thatch', 'plaster']);
 const MODEL_EXTENSIONS = new Set(['.glb', '.gltf', '.fbx', '.blend', '.obj', '.dae']);
 const TEXTURE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.ktx2', '.basis']);
 const SOURCE_ASSET_MIN_BYTES = 4096;
@@ -62,9 +36,8 @@ function read(relative) { return fs.readFileSync(path.join(ROOT, relative), 'utf
 function walk(directory) {
   const absolute = path.join(ROOT, directory);
   if (!fs.existsSync(absolute)) return [];
-  const entries = fs.readdirSync(absolute, { withFileTypes: true });
   const result = [];
-  for (const entry of entries) {
+  for (const entry of fs.readdirSync(absolute, { withFileTypes: true })) {
     const relative = path.posix.join(directory, entry.name);
     if (entry.isDirectory()) result.push(...walk(relative));
     else result.push(relative);
@@ -118,24 +91,22 @@ function checkAssetFamilyDiversity(inventory) {
   expect(byFamily['assets/models/houses'].length >= 3, 'house family lacks regional source diversity');
   expect(byFamily['assets/models/props'].length >= 3, 'prop family is empty; settlement UX should not become building-only');
   expect(byFamily['assets/models/fbx'].some((file) => /market/i.test(file)), 'market FBX source family is missing');
-  const extensions = new Set(inventory.models.map((file) => path.extname(file).toLowerCase()));
-  expect(extensions.size >= 2, 'asset inventory collapsed to one model format');
+  expect(new Set(inventory.models.map((file) => path.extname(file).toLowerCase())).size >= 2, 'asset inventory collapsed to one model format');
   return byFamily;
 }
 
 function checkModelTokenCoverage(inventory) {
   const namedModels = inventory.models.filter((file) => /settlement|house|cabin|barn|market|blacksmith|barracks|stable|tavern|inn|door|chest|stall|forge|smith/i.test(file));
   expect(namedModels.length >= 18, `named settlement model coverage is too small: ${namedModels.length}`);
-  const tokenCoverage = Object.fromEntries(SEMANTIC_MATERIAL_TOKENS.map((token) => [token, namedModels.filter((file) => file.toLowerCase().includes(token)).length]));
-  return tokenCoverage;
+  return Object.fromEntries(SEMANTIC_MATERIAL_TOKENS.map((token) => [token, namedModels.filter((file) => file.toLowerCase().includes(token)).length]));
 }
 
 function checkRuntimeMaterialSurfaceLanguage() {
   const source = read('src/3d/world/settlementFunctionalLandmarks.js').toLowerCase();
   const covered = SEMANTIC_MATERIAL_TOKENS.filter((token) => source.includes(token));
   expect(covered.length >= 9, `functional runtime exposes too few semantic material surface tokens: ${covered.length}`);
-  expect(source.includes('mode: \'layers\''), 'single-surface fallback does not use layered material recipe');
-  expect(source.includes('mode: \'surface\''), 'multi-surface imported models lack semantic surface override path');
+  expect(source.includes("mode: 'layers'"), 'single-surface fallback does not use layered material recipe');
+  expect(source.includes("mode: 'surface'"), 'multi-surface imported models lack semantic surface override path');
   expect(source.includes('textureSize: functional_landmark_texture_size'), 'functional material evidence lacks texture size');
   expect(source.includes('analyzematerialsurfaces'), 'source material analysis is not referenced');
   return covered;
@@ -154,21 +125,21 @@ function checkPlacementContractLanguage() {
 }
 
 function checkSourceMutationSafety() {
-  const landmarkSource = read('src/3d/world/settlementFunctionalLandmarks.js');
-  expect(!/writeFileSync|rmSync|unlinkSync|renameSync/.test(landmarkSource), 'runtime landmark module must never mutate source assets');
-  expect(!landmarkSource.includes('assets/models/settlements/').includes('derived'), 'source asset references must remain authored paths');
+  const source = read('src/3d/world/settlementFunctionalLandmarks.js');
+  expect(!/writeFileSync|rmSync|unlinkSync|renameSync/.test(source), 'runtime landmark module must never mutate source assets');
+  expect(!/assets\/models\/settlements\/[^'\"]*derived/i.test(source), 'runtime landmark source paths must remain authored assets');
 }
 
 function buildRegionalAssetMatrix(inventory) {
   const files = inventory.models.map((file) => file.toLowerCase());
   return Object.freeze({
-    north: Object.freeze({ cold: files.filter((file) => /log|cabin|barracks|fort|snow|ice/.test(file)).length, total: files.length }),
-    fertile: Object.freeze({ agricultural: files.filter((file) => /barn|farm|house|market|shed/.test(file)).length, total: files.length }),
-    maritime: Object.freeze({ coastal: files.filter((file) => /dock|boat|wood|market|house|cabin/.test(file)).length, total: files.length }),
-    arid: Object.freeze({ dry: files.filter((file) => /desert|sand|stone|market|stable|house/.test(file)).length, total: files.length }),
-    mountain: Object.freeze({ rugged: files.filter((file) => /stone|rock|brick|forge|blacksmith|stable/.test(file)).length, total: files.length }),
-    temperate: Object.freeze({ rural: files.filter((file) => /cottage|house|market|tavern|barn/.test(file)).length, total: files.length }),
-    volcanic: Object.freeze({ harsh: files.filter((file) => /rock|stone|brick|iron|blacksmith|barracks/.test(file)).length, total: files.length }),
+    north: { cold: files.filter((file) => /log|cabin|barracks|fort|snow|ice/.test(file)).length },
+    fertile: { agricultural: files.filter((file) => /barn|farm|house|market|shed/.test(file)).length },
+    maritime: { coastal: files.filter((file) => /dock|boat|wood|market|house|cabin/.test(file)).length },
+    arid: { dry: files.filter((file) => /desert|sand|stone|market|stable|house/.test(file)).length },
+    mountain: { rugged: files.filter((file) => /stone|rock|brick|forge|blacksmith|stable/.test(file)).length },
+    temperate: { rural: files.filter((file) => /cottage|house|market|tavern|barn/.test(file)).length },
+    volcanic: { harsh: files.filter((file) => /rock|stone|brick|iron|blacksmith|barracks/.test(file)).length },
   });
 }
 
@@ -183,19 +154,7 @@ function main() {
   checkPlacementContractLanguage();
   checkSourceMutationSafety();
   const regional = buildRegionalAssetMatrix(inventory);
-
-  console.log(JSON.stringify({
-    ok: true,
-    functionalSourceCount: referenced.length,
-    modelCount: inventory.models.length,
-    textureCount: inventory.textures.length,
-    modelFamilyCounts: Object.fromEntries(Object.entries(family).map(([key, value]) => [key, value.length])),
-    semanticModelTokenCoverage: tokenCoverage,
-    runtimeMaterialSurfaceTokens: surfaceTokens,
-    regionalSourceSignals: regional,
-    lfsPointerModelCount: inventory.pointerCandidates.length,
-    emptySourceCount: inventory.emptyFiles.length,
-  }, null, 2));
+  console.log(JSON.stringify({ ok: true, functionalSourceCount: referenced.length, modelCount: inventory.models.length, textureCount: inventory.textures.length, modelFamilyCounts: Object.fromEntries(Object.entries(family).map(([key, value]) => [key, value.length])), semanticModelTokenCoverage: tokenCoverage, runtimeMaterialSurfaceTokens: surfaceTokens, regionalSourceSignals: regional, lfsPointerModelCount: inventory.pointerCandidates.length, emptySourceCount: inventory.emptyFiles.length }, null, 2));
   console.log('[checkSettlementAssetFamilyAudit] PASS');
 }
 
