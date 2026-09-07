@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AAPW Geographic Settlement Props Runtime Proof</title><style>html,body{margin:0;height:100%;background:#101010;color:#eee;font:13px system-ui}#game3d-canvas{display:block;width:100%;height:100%}#proof{position:fixed;left:12px;top:12px;right:12px;max-height:50vh;overflow:auto;padding:10px;background:#000b;border:1px solid #777;border-radius:6px;z-index:2;white-space:pre-wrap}.ok{border-color:#79d479}.bad{border-color:#d46d6d}</style></head>
+<body><canvas id="game3d-canvas"></canvas><pre id="proof">Booting actual sceneManager.createScene()…</pre>
+<script type="module">
+import { createScene } from '../src/3d/sceneManager.js';
+import { createGeographicSettlementPropLayer } from '../src/3d/world/geographicSettlementProps.js';
+import { WORLD_DEFAULTS } from '../src/3d/config.js';
+const proof=document.querySelector('#proof'); const pageErrors=[]; const consoleErrors=[];
+window.addEventListener('error',e=>pageErrors.push(String(e.error||e.message||'error')));
+window.addEventListener('unhandledrejection',e=>pageErrors.push(String(e.reason||'unhandled-rejection')));
+try {
+  const state=createScene(document.querySelector('#game3d-canvas'));
+  const result=await createGeographicSettlementPropLayer({scene:state.scene,seats:state.settlementSeats,roadEdges:state.roadEdges,sampleHeightMeters:state.valyriaEcologyPlacement.sampleHeightMeters,seaLevelMeters:WORLD_DEFAULTS.WATER_LEVEL_METERS,radiusMeters:4200,isMobileClass:false});
+  const children=result.group.children; const manifestCount=children.filter(x=>Boolean(x.userData?.geographicManifest)).length; const gateCount=children.filter(x=>x.userData?.materialReadyForWorld===true).length; const failures=[];
+  if(!result.ok) failures.push('result-not-ok');
+  if(result.failedAssetFamilies?.length) failures.push('missing-assets:'+result.failedAssetFamilies.join(','));
+  if(children.length===0) failures.push('no-runtime-props');
+  if(manifestCount!==children.length) failures.push('manifest-mismatch');
+  if(gateCount!==children.length) failures.push('placement-gate-mismatch');
+  if(children.some(x=>x.userData?.geographicManifest?.validation?.ok===false)) failures.push('invalid-final-material-manifest');
+  window.__GEOGRAPHIC_SETTLEMENT_PROPS_PROOF__={ok:failures.length===0&&pageErrors.length===0,failures,pageErrors,placementCount:children.length,manifestCount,gateCount,hydratedAssetFamilies:result.hydratedAssetFamilies,failedAssetFamilies:result.failedAssetFamilies,samples:children.slice(0,5).map(x=>({asset:x.userData?.geographicSourceAsset,role:x.userData?.geographicRole,biome:x.userData?.geographicBiomeId,slope:x.userData?.geographicPlacement?.slopeDegrees,roadDistance:x.userData?.geographicPlacement?.roadDistance,materialMode:x.userData?.geographicManifest?.recipe?.mode||null,generated:x.userData?.geographicManifest?.validation?.generatedMaterialCount??null,placementSurface:x.userData?.geographicManifest?.placementSurface||null}))};
+  proof.textContent=JSON.stringify(window.__GEOGRAPHIC_SETTLEMENT_PROPS_PROOF__,null,2); proof.className=window.__GEOGRAPHIC_SETTLEMENT_PROPS_PROOF__.ok?'ok':'bad';
+} catch(e) { window.__GEOGRAPHIC_SETTLEMENT_PROPS_PROOF__={ok:false,failures:[String(e)],pageErrors}; proof.textContent=JSON.stringify(window.__GEOGRAPHIC_SETTLEMENT_PROPS_PROOF__,null,2); proof.className='bad'; }
+</script></body></html>

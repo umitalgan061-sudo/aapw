@@ -1,0 +1,45 @@
+name: Geographic Settlement Props
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/geographicSettlementProps.js'
+      - 'scripts/checkGeographicSettlementPropsContract.mjs'
+      - 'scripts/checkGeographicSettlementPropsBrowser.mjs'
+      - 'scripts/geographic-settlement-props-harness.html'
+      - 'assets/models/props/**'
+      - '.github/workflows/geographic-settlement-props.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { lfs: false }
+      - run: npm ci
+      - run: node scripts/checkGeographicSettlementPropsContract.mjs
+  browser-runtime:
+    runs-on: ubuntu-latest
+    needs: contract
+    steps:
+      - uses: actions/checkout@v4
+        with: { lfs: true }
+      - name: Hydrate only required prop families
+        run: git lfs pull --include="assets/models/props/barrel_zjCQP1TAci.glb,assets/models/props/crate_3OEFd1AWfa.glb,assets/models/props/greek_stone_bench.glb,assets/models/props/bonfire_Azj9hJwwwG.glb,assets/models/props/farm_dirt_8BQFbUMOeC.glb"
+      - name: Reject unresolved LFS pointers
+        run: |
+          set -euo pipefail
+          for f in assets/models/props/barrel_zjCQP1TAci.glb assets/models/props/crate_3OEFd1AWfa.glb assets/models/props/greek_stone_bench.glb assets/models/props/bonfire_Azj9hJwwwG.glb assets/models/props/farm_dirt_8BQFbUMOeC.glb; do
+            test -s "$f"
+            test "$(wc -c < "$f")" -gt 1024
+            ! grep -a -q 'version https://git-lfs.github.com/spec/v1' "$f"
+          done
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Serve repository
+        run: npx --yes http-server . -p 4173 > /tmp/aapw-http.log 2>&1 &
+      - name: Run actual createScene runtime proof
+        run: node scripts/checkGeographicSettlementPropsBrowser.mjs http://127.0.0.1:4173/scripts/geographic-settlement-props-harness.html
+      - if: failure()
+        run: cat /tmp/aapw-http.log || true
