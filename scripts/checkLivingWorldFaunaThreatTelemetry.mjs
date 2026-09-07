@@ -14,6 +14,14 @@ assert.equal(first.actors[2].inRadius, false);
 const bounded = buildLivingWorldFaunaThreatSnapshot(new Set(Array.from({ length: 200 }, (_, index) => make(String(index), index, 0))), { x: 0, z: 0 }, { maxSamples: 16 });
 assert.equal(bounded.actors.length, 16);
 assert.equal(bounded.truncated, true);
+let pulled = 0;
+function* source() {
+  for (let index = 0; index < 4; index += 1) { pulled += 1; yield make(`g${index}`, index, 0); }
+}
+const generated = buildLivingWorldFaunaThreatSnapshot(source(), { x: 0, z: 0 }, { maxSamples: 2 });
+assert.equal(generated.actors.length, 2);
+assert.equal(pulled, 2);
+assert.equal(generated.truncated, true);
 const object3D = { userData: {} };
 assert.equal(writeLivingWorldFaunaThreatTelemetry(object3D, first), true);
 assert.deepEqual(object3D.userData.livingWorldFaunaThreat, { version: 1, threatCount: 2, fleeingCount: 1, reactingCount: 1, truncated: false });
