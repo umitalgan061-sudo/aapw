@@ -9,6 +9,10 @@ import {
   deriveWorldAssetSurfaceResponse,
   WORLD_ASSET_SURFACE_PROFILES_REVISION,
 } from './worldAssetSurfaceProfiles.js';
+import {
+  installWorldAssetSurfaceFabric,
+  WORLD_ASSET_SURFACE_FABRIC_POLICY,
+} from './worldAssetSurfaceFabric.js';
 
 /**
  * Bounded placement-context adapter for generated/authored world materials.
@@ -20,7 +24,7 @@ import {
 export const WORLD_PLACEMENT_MATERIAL_CONTEXT_POLICY = Object.freeze({
   // Compatibility id intentionally stays stable for exact-head guards.
   id: 'world-placement-material-context-2026-09-02-v2-footprint-weathering',
-  revision: 'v4-multiscale-ecology-family-material-response',
+  revision: 'v5-multiscale-ecology-family-material-response-world-fabric',
   renderOnly: true,
   canonicalSurfaceContextOnly: true,
   footprintSurfaceAggregation: true,
@@ -33,6 +37,8 @@ export const WORLD_PLACEMENT_MATERIAL_CONTEXT_POLICY = Object.freeze({
   canonicalHydrologyUnchanged: true,
   canonicalColliderUnchanged: true,
   newGeographyIntroduced: false,
+  irregularBoundaryDetailMaterial: true,
+  worldAssetSurfaceFabricPolicyId: WORLD_ASSET_SURFACE_FABRIC_POLICY.id,
   maximumColorMix: 0.14,
   maximumRoughnessDelta: 0.12,
   maximumMetalnessReduction: 0.075,
@@ -147,6 +153,13 @@ function surfaceContext(surface = {}) {
   return Object.freeze({
     x: finite(surface.x, 0),
     z: finite(surface.z, 0),
+    seed: finite(surface.seed, 0),
+    coastDistance: finite(surface.coastDistance),
+    riverDistance: finite(surface.riverDistance),
+    lakeDistance: finite(surface.lakeDistance),
+    roadDistance,
+    settlementDistance,
+    biomeId: normalizedBiome(surface.biome),
     moisture,
     slope,
     slopeDegrees,
@@ -191,7 +204,7 @@ function aggregatePlacementContext(surface, footprint) {
     'soilDepth', 'frost', 'wetMeadow', 'dryHeath', 'woodland', 'scrub', 'bareRock',
     'talus', 'riparian', 'coastal', 'alpine', 'albedoMacro', 'albedoMeso',
     'albedoFine', 'roughnessMacro', 'roughnessFine', 'normalMacro', 'normalFine',
-    'weathering', 'lichen', 'moss', 'sedimentFabric',
+    'weathering', 'lichen', 'moss', 'sedimentFabric', 'sedimentAngle',
   ];
   const aggregate = {};
   for (const field of fields) aggregate[field] = robustAggregate(contexts.map((context) => context[field]));
@@ -253,9 +266,19 @@ function aggregatePlacementContext(surface, footprint) {
       + (footprint?.groundingMode === 'embedded-low-side' ? 0.07 : 0.02),
   );
 
+  const center = contexts[0] ?? null;
   return Object.freeze({
     ...aggregate,
     ecology: Object.freeze(ecology),
+    x: finite(center?.x, finite(surface?.x, 0)),
+    z: finite(center?.z, finite(surface?.z, 0)),
+    seed: finite(center?.seed, finite(surface?.seed, 0)),
+    coastDistance: finite(center?.coastDistance, finite(surface?.coastDistance)),
+    riverDistance: finite(center?.riverDistance, finite(surface?.riverDistance)),
+    lakeDistance: finite(center?.lakeDistance, finite(surface?.lakeDistance)),
+    roadDistance: finite(center?.roadDistance, finite(surface?.roadDistance)),
+    settlementDistance: finite(center?.settlementDistance, finite(surface?.settlementDistance)),
+    biomeId: center?.biomeId ?? normalizedBiome(surface?.biome),
     footprintRelief,
     footprintStress,
     foundationDamp,
@@ -280,6 +303,29 @@ function applyTint(material, target, weight, state) {
   if (!(mixAmount > 0)) return;
   material.color.lerp(target, mixAmount);
   state.total += mixAmount;
+}
+
+function transitionSurfaceForMaterial(context, family) {
+  return Object.freeze({
+    x: finite(context.x, 0),
+    z: finite(context.z, 0),
+    seed: finite(context.seed, 0),
+    coastDistance: finite(context.coastDistance),
+    riverDistance: finite(context.riverDistance),
+    lakeDistance: finite(context.lakeDistance),
+    roadDistance: finite(context.roadDistance),
+    settlementDistance: finite(context.settlementDistance),
+    moisture: finite(context.moisture, 0.5),
+    shelter: finite(context.ecology?.shelter, 0.5),
+    exposure: finite(context.ecology?.exposure, 0.5),
+    erosion: finite(context.ecology?.erosion, 0.5),
+    deposition: finite(context.ecology?.deposition, 0.5),
+    lithic: finite(context.ecology?.lithic, 0.5),
+    slopeDegrees: finite(context.slopeDegrees, 0),
+    snow: finite(context.snow, 0),
+    biome: context.biomeId,
+    assetFamily: family,
+  });
 }
 
 function materialProfileContext(material, context) {
@@ -315,7 +361,10 @@ function materialProfileContext(material, context) {
     },
   };
   const response = deriveWorldAssetSurfaceResponse(profile, ecologyShape);
-  return Object.freeze({ profile, response });
+  return Object.freeze({
+    profile,
+    response,
+  });
 }
 
 function applyContextToMaterial(material, context) {
@@ -327,6 +376,16 @@ function applyContextToMaterial(material, context) {
     maximum: WORLD_PLACEMENT_MATERIAL_CONTEXT_POLICY.maximumColorMix * influence,
   };
   const baseColor = material.color?.clone?.() ?? null;
+
+  const transitionSurface = transitionSurfaceForMaterial(context, profile.family);
+  const fabricResult = installWorldAssetSurfaceFabric(material, context, {
+    family: profile.family,
+    materialResponse: Object.freeze({
+      normalStrength: response.normalStrength,
+      normalEnergy: context.ecology.normalFine,
+    }),
+    customProgramSuffix: `${context.biomeId}:${context.ecology.sedimentAngle.toFixed(3)}`,
+  });
 
   if (material.color) {
     const environment = response.environment;
@@ -362,6 +421,7 @@ function applyContextToMaterial(material, context) {
   roughnessDelta += context.footprintStress * (profile.family === 'rock' ? 0.016 : 0.006);
   roughnessDelta += context.roadDust * (profile.family === 'soil' ? 0.015 : 0.007);
   roughnessDelta -= context.foundationDamp * (profile.family === 'rock' || profile.family === 'wood' ? 0.020 : 0.008);
+  roughnessDelta += context.ecology.sedimentFabric * 0.006;
   roughnessDelta = THREE.MathUtils.clamp(
     roughnessDelta,
     -WORLD_PLACEMENT_MATERIAL_CONTEXT_POLICY.maximumRoughnessDelta,
@@ -445,6 +505,18 @@ function applyContextToMaterial(material, context) {
     sourceColorHex: baseColor ? baseColor.getHex() : null,
     surfaceScales: response.scales,
     fabric: response.fabric,
+    worldAssetSurfaceFabric: fabricResult.ok ? fabricResult.policyId : null,
+    worldAssetTransitionDetail: Object.freeze({
+      coordinateAware: true,
+      x: transitionSurface.x,
+      z: transitionSurface.z,
+      seed: transitionSurface.seed,
+      coastDistance: transitionSurface.coastDistance,
+      riverDistance: transitionSurface.riverDistance,
+      lakeDistance: transitionSurface.lakeDistance,
+      roadDistance: transitionSurface.roadDistance,
+      settlementDistance: transitionSurface.settlementDistance,
+    }),
   });
   material.needsUpdate = true;
   return true;
@@ -486,6 +558,7 @@ export function applyWorldPlacementMaterialContext(root, surface, footprint = nu
     policyId: WORLD_PLACEMENT_MATERIAL_CONTEXT_POLICY.id,
     revision: WORLD_PLACEMENT_MATERIAL_CONTEXT_POLICY.revision,
     surfaceProfileRevision: WORLD_ASSET_SURFACE_PROFILES_REVISION,
+    worldAssetSurfaceFabricPolicyId: WORLD_ASSET_SURFACE_FABRIC_POLICY.id,
     appliedMaterialCount,
     profileCounts: Object.freeze({ ...profileCounts }),
     assetProfileCounts: Object.freeze({ ...assetProfileCounts }),
