@@ -144,6 +144,19 @@ float worldAssetSurfaceFabricLuma(vec3 c) {
 }
 
 float worldAssetSurfaceFabricNormalEnergy = ${shaderNumber(constants.normalEnergy, 0.5)};
+float worldAssetSurfaceFabricMoisture = ${shaderNumber(constants.moisture, 0.5)};
+float worldAssetSurfaceFabricDryness = ${shaderNumber(constants.dryness, 0.5)};
+float worldAssetSurfaceFabricFrost = ${shaderNumber(constants.frost, 0.0)};
+float worldAssetSurfaceFabricSalt = ${shaderNumber(constants.salt, 0.0)};
+float worldAssetSurfaceFabricDamp = ${shaderNumber(constants.damp, 0.0)};
+float worldAssetSurfaceFabricDust = ${shaderNumber(constants.dust, 0.0)};
+float worldAssetSurfaceFabricMoss = ${shaderNumber(constants.moss, 0.0)};
+float worldAssetSurfaceFabricLichen = ${shaderNumber(constants.lichen, 0.0)};
+float worldAssetSurfaceFabricSediment = ${shaderNumber(constants.sediment, 0.0)};
+float worldAssetSurfaceFabricWeathering = ${shaderNumber(constants.weathering, 0.0)};
+float worldAssetSurfaceFabricWind = ${shaderNumber(constants.wind, 0.0)};
+float worldAssetSurfaceFabricFamilyGain = ${shaderNumber(constants.familyGain, 0.88)};
+float worldAssetSurfaceFabricFamilyCode = ${shaderNumber(constants.familyCode, 0.0)};
 `,
   );
 }
@@ -174,20 +187,6 @@ float worldAssetSurfaceFabricMottle = clamp(
   -0.5,
   0.5
 );
-float worldAssetSurfaceFabricMoisture = ${shaderNumber(constants.moisture, 0.5)};
-float worldAssetSurfaceFabricDryness = ${shaderNumber(constants.dryness, 0.5)};
-float worldAssetSurfaceFabricFrost = ${shaderNumber(constants.frost, 0.0)};
-float worldAssetSurfaceFabricSalt = ${shaderNumber(constants.salt, 0.0)};
-float worldAssetSurfaceFabricDamp = ${shaderNumber(constants.damp, 0.0)};
-float worldAssetSurfaceFabricDust = ${shaderNumber(constants.dust, 0.0)};
-float worldAssetSurfaceFabricMoss = ${shaderNumber(constants.moss, 0.0)};
-float worldAssetSurfaceFabricLichen = ${shaderNumber(constants.lichen, 0.0)};
-float worldAssetSurfaceFabricSediment = ${shaderNumber(constants.sediment, 0.0)};
-float worldAssetSurfaceFabricWeathering = ${shaderNumber(constants.weathering, 0.0)};
-float worldAssetSurfaceFabricWind = ${shaderNumber(constants.wind, 0.0)};
-float worldAssetSurfaceFabricFamilyGain = ${shaderNumber(constants.familyGain, 0.88)};
-float worldAssetSurfaceFabricFamilyCode = ${shaderNumber(constants.familyCode, 0.0)};
-
 float worldAssetSurfaceFabricWetDark = worldAssetSurfaceFabricDamp * (0.050 + worldAssetSurfaceFabricMoss * 0.032);
 float worldAssetSurfaceFabricDryDust = worldAssetSurfaceFabricDryness * worldAssetSurfaceFabricDust * 0.040;
 float worldAssetSurfaceFabricSaltBleach = worldAssetSurfaceFabricSalt * 0.028;
@@ -315,6 +314,9 @@ export function installWorldAssetSurfaceFabric(material, context = {}, {
   if (!material || typeof material.onBeforeCompile !== 'function') {
     return { ok: false, error: 'material-does-not-support-shader-hook' };
   }
+  if (material.userData?.worldAssetSurfaceFabric?.installed) {
+    return { ok: true, policyId: WORLD_ASSET_SURFACE_FABRIC_POLICY.id, alreadyInstalled: true };
+  }
   const constants = compileConstants(context, family, {
     materialResponse: materialResponse ?? {},
     familyGain: WORLD_ASSET_SURFACE_FABRIC_POLICY.familyResponseGain[family],
@@ -332,6 +334,7 @@ export function installWorldAssetSurfaceFabric(material, context = {}, {
   material.customProgramCacheKey = () => `${WORLD_ASSET_SURFACE_FABRIC_POLICY.id}:${familyCode(family)}:${customProgramSuffix}`;
   material.userData ||= {};
   material.userData.worldAssetSurfaceFabric = Object.freeze({
+    installed: true,
     policyId: WORLD_ASSET_SURFACE_FABRIC_POLICY.id,
     revision: WORLD_ASSET_SURFACE_FABRIC_REVISION,
     family,
