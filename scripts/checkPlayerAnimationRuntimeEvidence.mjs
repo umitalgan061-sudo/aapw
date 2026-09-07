@@ -38,8 +38,7 @@ function testBadClipFailsClosed() {
     actions: { idle: action(0, 0), walking: action(1), running: action(1) },
   });
   assert.equal(setup.ok, false);
-  assert.ok(setup.errors.some((error) => error.includes('invalid-duration:idle')));
-  assert.ok(setup.errors.some((error) => error.includes('no-tracks:idle')));
+  assert.ok(setup.errors.includes('unhealthy-clip:idle'));
 }
 
 function testMissingModelAndMixerFail() {
