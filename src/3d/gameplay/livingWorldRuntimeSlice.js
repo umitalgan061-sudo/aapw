@@ -11,6 +11,7 @@ const distanceTo = (actor, player) => {
   if (!position || !player) return Infinity;
   return Math.hypot(finite(position.x) - finite(player.x), finite(position.z) - finite(player.z));
 };
+const asEntries = (value) => Array.isArray(value) ? value : value && typeof value[Symbol.iterator] === 'function' ? [...value] : [];
 
 export const LIVING_WORLD_RUNTIME_BUDGET = Object.freeze({
   npc: Object.freeze({ nearMeters: 90, farIntervalSeconds: 0.25, distantIntervalSeconds: 0.75 }),
@@ -19,24 +20,23 @@ export const LIVING_WORLD_RUNTIME_BUDGET = Object.freeze({
   dragon: Object.freeze({ nearMeters: 140, farIntervalSeconds: 0.2, distantIntervalSeconds: 0.6 }),
 });
 
-function laneFor(kind) {
-  return LIVING_WORLD_RUNTIME_BUDGET[kind] ?? LIVING_WORLD_RUNTIME_BUDGET.creature;
-}
+function laneFor(kind) { return LIVING_WORLD_RUNTIME_BUDGET[kind] ?? LIVING_WORLD_RUNTIME_BUDGET.creature; }
 
-function invokeLane(entries, kind, delta, playerPosition, elapsed) {
+function invokeLane(entries, kind, delta, playerPosition, elapsed, accumulators) {
   const lane = laneFor(kind);
   let updated = 0;
   let skipped = 0;
-  for (const entry of entries) {
+  for (const entry of asEntries(entries)) {
     if (!entry || typeof entry.update !== 'function') continue;
     const distance = distanceTo(entry, playerPosition);
     const interval = distance <= lane.nearMeters ? 0 : distance <= lane.nearMeters * 2 ? lane.farIntervalSeconds : lane.distantIntervalSeconds;
-    entry.__livingWorldRuntimeAccumulator = finite(entry.__livingWorldRuntimeAccumulator) + delta;
-    if (interval > 0 && entry.__livingWorldRuntimeAccumulator < interval) { skipped += 1; continue; }
-    const step = Math.min(entry.__livingWorldRuntimeAccumulator, 0.25);
-    entry.__livingWorldRuntimeAccumulator = 0;
+    const accumulated = finite(accumulators.get(entry)) + delta;
+    accumulators.set(entry, accumulated);
+    if (interval > 0 && accumulated < interval) { skipped += 1; continue; }
+    const step = Math.min(accumulated, 0.25);
+    accumulators.set(entry, 0);
     entry.update(step, playerPosition);
-    entry.object3D?.userData && (entry.object3D.userData.livingWorldRuntime = { kind, distanceMeters: Number(distance.toFixed(2)), intervalSeconds: interval, elapsedSeconds: Number(elapsed.toFixed(2)) });
+    if (entry.object3D?.userData) entry.object3D.userData.livingWorldRuntime = { kind, distanceMeters: Number(distance.toFixed(2)), intervalSeconds: interval, elapsedSeconds: Number(elapsed.toFixed(2)) };
     updated += 1;
   }
   return { updated, skipped };
@@ -45,6 +45,7 @@ function invokeLane(entries, kind, delta, playerPosition, elapsed) {
 export function createLivingWorldRuntimeSlice({ state = {}, playerPositionProvider = () => null } = {}) {
   let elapsed = 0;
   let disposed = false;
+  const accumulators = new WeakMap();
   const telemetry = { frames: 0, updated: 0, skipped: 0, lanes: {} };
   const lanes = [
     ['npc', () => state.npcs ?? []],
@@ -61,16 +62,13 @@ export function createLivingWorldRuntimeSlice({ state = {}, playerPositionProvid
       telemetry.updated = 0;
       telemetry.skipped = 0;
       for (const [kind, read] of lanes) {
-        const result = invokeLane(read(), kind, dt, playerPosition, elapsed);
+        const result = invokeLane(read(), kind, dt, playerPosition, elapsed, accumulators);
         telemetry.lanes[kind] = result;
         telemetry.updated += result.updated;
         telemetry.skipped += result.skipped;
       }
       return Object.freeze({ disposed: false, elapsedSeconds: Number(elapsed.toFixed(3)), frames: telemetry.frames, updated: telemetry.updated, skipped: telemetry.skipped, lanes: Object.freeze({ ...telemetry.lanes }) });
     },
-    dispose() {
-      disposed = true;
-      for (const [, read] of lanes) for (const entry of read()) delete entry.__livingWorldRuntimeAccumulator;
-    },
+    dispose() { disposed = true; },
   };
 }

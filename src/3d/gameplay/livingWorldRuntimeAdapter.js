@@ -6,6 +6,7 @@
 import { createLivingWorldRuntimeSlice } from './livingWorldRuntimeSlice.js';
 
 export function attachLivingWorldRuntime({ state = {}, playerPositionProvider } = {}) {
+  state.livingWorldRuntimeSlice?.dispose?.();
   const slice = createLivingWorldRuntimeSlice({ state, playerPositionProvider });
   state.livingWorldRuntimeSlice = slice;
   return slice;
