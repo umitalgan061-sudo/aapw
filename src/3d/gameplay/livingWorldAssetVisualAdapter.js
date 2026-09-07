@@ -1,762 +1,88 @@
 /**
- * Şafak Kartalı — geography-aware actor visual adapter.
- *
- * This module is deliberately an adapter over the merged shared material/placement authorities.
- * It never imports EditorMaterialStudio.js, never replaces an authored source asset and never owns
- * spawning. Existing NPC/creature controllers can use it to prove that the model currently in the
- * Three.js scene has the expected semantic surfaces for its geographic role, and to request the
- * shared layered fallback only when an authored model is genuinely under-specified.
+ * Şafak Kartalı — runtime actor visual evidence seam over the shared material/placement core.
+ * It audits the actual Three.js actor, preserves healthy authored materials and only uses the shared
+ * layered/auto dressing fallback when the model is under-specified. No spawning or editor ownership.
  */
-import {
-  analyzeMaterialSurfaces,
-  autoAssignMaterials,
-  buildRecommendedLayerRecipe,
-  createMaterialManifest,
-  validateMaterialAssignment,
-} from '../materials/MaterialAssignmentCore.js';
+import { analyzeMaterialSurfaces, autoAssignMaterials, buildRecommendedLayerRecipe, createMaterialManifest, validateMaterialAssignment } from '../materials/MaterialAssignmentCore.js';
 import { auditWorldAssetPlacement } from '../world/WorldAssetPlacementPipeline.js';
 import { resolveLivingWorldGeography, resolveLivingWorldAssetProfile } from './livingWorldGeographyAdapter.js';
 
 export const LIVING_WORLD_VISUAL_POLICY = Object.freeze({
-  id: 'living-world-actor-visual-2026-09-07-v1',
-  deterministic: true,
-  noSecondMaterialFramework: true,
-  materialAuthority: 'MaterialAssignmentCore.js',
-  placementAuthority: 'WorldAssetPlacementPipeline.js',
-  editorMaterialStudioRuntimeImport: false,
-  preserveAuthoredMaterialsWhenHealthy: true,
-  layeredFallbackOnlyWhenUnderSpecified: true,
-  semanticCoverageThreshold: 0.55,
-  texturedMaterialRatioThreshold: 0.50,
-  strongTexturedMaterialRatioThreshold: 0.80,
-  minimumTextureDimension: 128,
-  preferredTextureDimension: 512,
-  mobilePreferredTextureDimension: 256,
+  id: 'living-world-actor-visual-2026-09-07-v2', deterministic: true, noSecondMaterialFramework: true,
+  materialAuthority: 'MaterialAssignmentCore.js', placementAuthority: 'WorldAssetPlacementPipeline.js', editorMaterialStudioRuntimeImport: false,
+  preserveAuthoredMaterialsWhenHealthy: true, layeredFallbackOnlyWhenUnderSpecified: true,
+  semanticCoverageThreshold: 0.55, texturedMaterialRatioThreshold: 0.50, strongTexturedMaterialRatioThreshold: 0.80,
+  minimumTextureDimension: 128, preferredTextureDimension: 512, mobilePreferredTextureDimension: 256,
 });
 
 export const LIVING_WORLD_ROLE_SURFACES = Object.freeze({
-  human: Object.freeze(['skin', 'hair', 'eyes', 'clothing', 'boots', 'gear']),
-  guard: Object.freeze(['skin', 'hair', 'eyes', 'clothing', 'boots', 'gear']),
-  farmer: Object.freeze(['skin', 'hair', 'eyes', 'clothing', 'boots', 'gear']),
-  companion: Object.freeze(['skin', 'hair', 'eyes', 'clothing', 'boots', 'gear']),
-  horse: Object.freeze(['coat', 'mane', 'tail', 'hoof', 'saddle', 'harness']),
-  wildlife: Object.freeze(['fur', 'eye', 'claw', 'tooth']),
-  wolf: Object.freeze(['fur', 'eye', 'claw', 'tooth']),
-  bear: Object.freeze(['fur', 'eye', 'claw', 'tooth']),
-  deer: Object.freeze(['fur', 'eye', 'hoof', 'antler']),
-  bison: Object.freeze(['fur', 'eye', 'hoof', 'horn']),
-  sheep: Object.freeze(['fur', 'eye', 'hoof', 'horn']),
-  cow: Object.freeze(['fur', 'eye', 'hoof', 'horn']),
-  goat: Object.freeze(['fur', 'eye', 'hoof', 'horn']),
-  fox: Object.freeze(['fur', 'eye', 'claw', 'tooth']),
-  bird: Object.freeze(['feather', 'eye', 'beak', 'claw']),
-  dragon: Object.freeze(['scale', 'wing', 'eye', 'horn', 'claw']),
-  creature: Object.freeze(['fur', 'eye', 'claw', 'tooth']),
+  human: ['skin', 'hair', 'eyes', 'clothing', 'boots', 'gear'], guard: ['skin', 'hair', 'eyes', 'clothing', 'boots', 'gear'],
+  farmer: ['skin', 'hair', 'eyes', 'clothing', 'boots', 'gear'], companion: ['skin', 'hair', 'eyes', 'clothing', 'boots', 'gear'],
+  horse: ['coat', 'mane', 'tail', 'hoof', 'saddle', 'harness'], wildlife: ['fur', 'eye', 'claw', 'tooth'],
+  wolf: ['fur', 'eye', 'claw', 'tooth'], bear: ['fur', 'eye', 'claw', 'tooth'], deer: ['fur', 'eye', 'hoof', 'antler'],
+  bison: ['fur', 'eye', 'hoof', 'horn'], sheep: ['fur', 'eye', 'hoof', 'horn'], cow: ['fur', 'eye', 'hoof', 'horn'], goat: ['fur', 'eye', 'hoof', 'horn'],
+  fox: ['fur', 'eye', 'claw', 'tooth'], bird: ['feather', 'eye', 'beak', 'claw'], dragon: ['scale', 'wing', 'eye', 'horn', 'claw'],
 });
 
-const SURFACE_ALIASES = Object.freeze({
-  skin: Object.freeze(['skin', 'body', 'flesh', 'human']),
-  hair: Object.freeze(['hair', 'beard', 'brow']),
-  eyes: Object.freeze(['eye', 'eyes', 'iris', 'pupil']),
-  clothing: Object.freeze(['cloth', 'clothing', 'shirt', 'tunic', 'robe', 'armor', 'dress', 'jacket', 'torso']),
-  boots: Object.freeze(['boot', 'boots', 'shoe', 'shoes', 'foot', 'feet', 'leg']),
-  gear: Object.freeze(['gear', 'belt', 'bag', 'weapon', 'shield', 'strap', 'equipment', 'metal']),
-  coat: Object.freeze(['coat', 'body', 'hide', 'fur', 'horse']),
-  mane: Object.freeze(['mane', 'neck-hair']),
-  tail: Object.freeze(['tail']),
-  hoof: Object.freeze(['hoof', 'hooves', 'foot', 'feet']),
-  saddle: Object.freeze(['saddle', 'seat']),
-  harness: Object.freeze(['harness', 'bridle', 'reins', 'halter']),
-  fur: Object.freeze(['fur', 'pelt', 'hide', 'coat', 'body']),
-  eye: Object.freeze(['eye', 'eyes', 'iris', 'pupil']),
-  claw: Object.freeze(['claw', 'talon', 'nail', 'paw']),
-  tooth: Object.freeze(['tooth', 'teeth', 'fang', 'mouth']),
-  antler: Object.freeze(['antler', 'antlers']),
-  horn: Object.freeze(['horn', 'horns']),
-  feather: Object.freeze(['feather', 'feathers', 'plume', 'wing']),
-  beak: Object.freeze(['beak', 'bill']),
-  scale: Object.freeze(['scale', 'scales', 'hide', 'armor']),
-  wing: Object.freeze(['wing', 'wings', 'membrane']),
+const ALIASES = Object.freeze({
+  skin: ['skin', 'body', 'flesh', 'human'], hair: ['hair', 'beard', 'brow'], eyes: ['eye', 'eyes', 'iris', 'pupil'],
+  clothing: ['cloth', 'clothing', 'shirt', 'tunic', 'robe', 'armor', 'dress', 'jacket', 'torso'], boots: ['boot', 'boots', 'shoe', 'foot', 'feet', 'leg'],
+  gear: ['gear', 'belt', 'bag', 'weapon', 'shield', 'strap', 'equipment', 'metal'], coat: ['coat', 'body', 'hide', 'fur', 'horse'], mane: ['mane'], tail: ['tail'],
+  hoof: ['hoof', 'hooves', 'foot', 'feet'], saddle: ['saddle', 'seat'], harness: ['harness', 'bridle', 'reins', 'halter'], fur: ['fur', 'pelt', 'hide', 'coat', 'body'],
+  eye: ['eye', 'eyes', 'iris', 'pupil'], claw: ['claw', 'talon', 'nail', 'paw'], tooth: ['tooth', 'teeth', 'fang', 'mouth'], antler: ['antler', 'antlers'],
+  horn: ['horn', 'horns'], feather: ['feather', 'feathers', 'plume', 'wing'], beak: ['beak', 'bill'], scale: ['scale', 'scales', 'hide', 'armor'], wing: ['wing', 'wings', 'membrane'],
 });
-
-const REGION_VISUAL_CLIMATE = Object.freeze({
-  snow: Object.freeze({ cold: 1, wet: 0.55, dry: 0.15, volcanic: 0, paletteBias: 'snow', scale: 0.98 }),
-  north: Object.freeze({ cold: 0.82, wet: 0.50, dry: 0.18, volcanic: 0, paletteBias: 'boreal', scale: 1 }),
-  marsh: Object.freeze({ cold: 0.22, wet: 1, dry: 0.05, volcanic: 0, paletteBias: 'marsh', scale: 0.99 }),
-  mountain: Object.freeze({ cold: 0.65, wet: 0.35, dry: 0.28, volcanic: 0.08, paletteBias: 'highland', scale: 0.99 }),
-  westerlands: Object.freeze({ cold: 0.28, wet: 0.43, dry: 0.26, volcanic: 0, paletteBias: 'temperate', scale: 1 }),
-  reach: Object.freeze({ cold: 0.18, wet: 0.40, dry: 0.20, volcanic: 0, paletteBias: 'fertile', scale: 1.01 }),
-  desert: Object.freeze({ cold: 0.02, wet: 0.05, dry: 1, volcanic: 0.05, paletteBias: 'dorne', scale: 0.99 }),
-  steppe: Object.freeze({ cold: 0.20, wet: 0.18, dry: 0.72, volcanic: 0, paletteBias: 'steppe', scale: 1.01 }),
-  arid: Object.freeze({ cold: 0.04, wet: 0.08, dry: 0.92, volcanic: 0.18, paletteBias: 'red-waste', scale: 0.99 }),
-  coast: Object.freeze({ cold: 0.16, wet: 0.72, dry: 0.24, volcanic: 0, paletteBias: 'maritime', scale: 1 }),
-  jungle: Object.freeze({ cold: 0.02, wet: 0.95, dry: 0.08, volcanic: 0, paletteBias: 'jungle', scale: 1.02 }),
-  valyria: Object.freeze({ cold: 0.02, wet: 0.04, dry: 0.65, volcanic: 1, paletteBias: 'volcanic', scale: 1.03 }),
-  temperate: Object.freeze({ cold: 0.18, wet: 0.42, dry: 0.24, volcanic: 0, paletteBias: 'temperate', scale: 1 }),
+const CLIMATE = Object.freeze({
+  snow: [1,.55,.15,0,'snow',.98], north:[.82,.50,.18,0,'boreal',1], marsh:[.22,1,.05,0,'marsh',.99], mountain:[.65,.35,.28,.08,'highland',.99],
+  westerlands:[.28,.43,.26,0,'temperate',1], reach:[.18,.40,.20,0,'fertile',1.01], desert:[.02,.05,1,.05,'dorne',.99], steppe:[.20,.18,.72,0,'steppe',1.01],
+  arid:[.04,.08,.92,.18,'red-waste',.99], coast:[.16,.72,.24,0,'maritime',1], jungle:[.02,.95,.08,0,'jungle',1.02], valyria:[.02,.04,.65,1,'volcanic',1.03], temperate:[.18,.42,.24,0,'temperate',1],
 });
+const finite = (v, fallback = 0) => Number.isFinite(v) ? v : fallback;
+const norm = (v) => String(v ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+const mats = (v) => !v ? [] : Array.isArray(v) ? v.filter(Boolean) : [v];
+function family({ role = 'guard', speciesId = null } = {}) { const s = norm(speciesId); if (s && LIVING_WORLD_ROLE_SURFACES[s]) return s; const r = norm(role); return LIVING_WORLD_ROLE_SURFACES[r] ? r : 'human'; }
+function expected(options) { return [...(LIVING_WORLD_ROLE_SURFACES[family(options)] || LIVING_WORLD_ROLE_SURFACES.human)]; }
+function textureSize(texture) { const i = texture?.image || texture?.source?.data || null; const w = Number(i?.width ?? i?.videoWidth ?? 0); const h = Number(i?.height ?? i?.videoHeight ?? 0); return w > 0 && h > 0 ? { width:w, height:h, min:Math.min(w,h), max:Math.max(w,h) } : null; }
+function texture(texture) { return texture ? { size:textureSize(texture), colorSpace:texture.colorSpace ?? null } : null; }
+function tokenScore(name, aliases) { const n = norm(name); return Math.max(0, ...(aliases || []).map((a) => { const x = norm(a); return n === x ? 1 : n.includes(x) ? .6 : 0; })); }
+function roleMatch(mesh, material, roles) { return roles.map((role) => ({ role, score: tokenScore(`${mesh?.name || ''} ${material?.name || ''}`, ALIASES[role] || [role]) })).filter((x) => x.score > 0).sort((a,b) => b.score - a.score || a.role.localeCompare(b.role))[0] || { role:null, score:0 }; }
+function materialFeatures(material) { return { baseColor:texture(material?.map ?? material?.diffuseMap), normal:texture(material?.normalMap), roughness:texture(material?.roughnessMap), metalness:texture(material?.metalnessMap), ao:texture(material?.aoMap), emissive:texture(material?.emissiveMap), displacement:texture(material?.displacementMap) }; }
+function pbrScore(f) { let score = f.baseColor ? .45 : 0; if (f.normal) score += .2; if (f.roughness) score += .15; if (f.metalness) score += .1; if (f.ao) score += .1; return Math.min(1, score); }
+function textureScore(f, mobile) { const size = f.baseColor?.size?.min; if (!Number.isFinite(size)) return 0; const preferred = mobile ? 256 : 512; return size < 128 ? .15 : size < preferred ? .6 : size < preferred * 2 ? .9 : 1; }
 
-function finite(value, fallback = 0) {
-  return Number.isFinite(value) ? value : fallback;
+export function geographicVisualClimate(region, { moisture = 0, waterDepth = 0, slopeDegrees = 0, dayTemperatureBias = 0 } = {}) {
+  const base = CLIMATE[norm(region)] || CLIMATE.temperate; const wet = Math.max(0, Math.min(1, base[1] + Math.max(0,finite(moisture))*.35 + Math.max(0,finite(waterDepth))*.4)); const exposure = Math.max(0, Math.min(1, Math.abs(finite(slopeDegrees))/45));
+  return Object.freeze({ region:norm(region)||'temperate', cold:+Math.max(0,Math.min(1,base[0]-finite(dayTemperatureBias)*.08+exposure*.08)).toFixed(3), wet:+wet.toFixed(3), dry:+Math.max(0,Math.min(1,base[2]+(1-wet)*.15)).toFixed(3), volcanic:base[3], paletteBias:base[4], scaleBias:base[5], exposure:+exposure.toFixed(3) });
 }
 
-function clamp(value, min, max) {
-  return Math.max(min, Math.min(max, finite(value, min)));
-}
-
-function normalize(value) {
-  return String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
-}
-
-function listMaterials(material) {
-  if (!material) return [];
-  return Array.isArray(material) ? material.filter(Boolean) : [material];
-}
-
-function listMeshes(object) {
-  const meshes = [];
-  object?.traverse?.((node) => {
-    if (node?.isMesh && !node?.isInstancedMesh) meshes.push(node);
-  });
-  return meshes;
-}
-
-function getRoleFamily({ role = 'guard', speciesId = null } = {}) {
-  const normalizedSpecies = normalize(speciesId);
-  if (normalizedSpecies && LIVING_WORLD_ROLE_SURFACES[normalizedSpecies]) return normalizedSpecies;
-  const normalizedRole = normalize(role);
-  if (normalizedRole === 'wildlife' || normalizedRole === 'creature') return 'wildlife';
-  return normalizedRole && LIVING_WORLD_ROLE_SURFACES[normalizedRole] ? normalizedRole : 'human';
-}
-
-function expectedSurfacesFor({ role = 'guard', speciesId = null } = {}) {
-  return [...(LIVING_WORLD_ROLE_SURFACES[getRoleFamily({ role, speciesId })] || LIVING_WORLD_ROLE_SURFACES.human)];
-}
-
-function textureDimension(texture) {
-  const image = texture?.image || texture?.source?.data || texture?.source?.image || null;
-  const width = Number(image?.width ?? image?.videoWidth ?? 0);
-  const height = Number(image?.height ?? image?.videoHeight ?? 0);
-  return Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0
-    ? { width, height, min: Math.min(width, height), max: Math.max(width, height) }
-    : null;
-}
-
-function textureSummary(texture) {
-  if (!texture) return null;
-  const size = textureDimension(texture);
-  return {
-    size,
-    colorSpace: texture.colorSpace ?? null,
-    flipY: texture.flipY ?? null,
-    channel: texture.channel ?? null,
-  };
-}
-
-function tokenScore(name, aliases) {
-  const normalized = normalize(name);
-  if (!normalized) return 0;
-  let score = 0;
-  for (const token of aliases || []) {
-    const alias = normalize(token);
-    if (!alias) continue;
-    if (normalized === alias) score = Math.max(score, 1);
-    else if (normalized.startsWith(`${alias}-`) || normalized.endsWith(`-${alias}`)) score = Math.max(score, 0.9);
-    else if (normalized.includes(alias)) score = Math.max(score, 0.6);
-  }
-  return score;
-}
-
-function inferSurfaceRole(mesh, material, expected) {
-  const name = `${mesh?.name || ''} ${material?.name || ''}`.trim();
-  const ranked = expected
-    .map((role) => ({ role, score: tokenScore(name, SURFACE_ALIASES[role] || [role]) }))
-    .filter((entry) => entry.score > 0)
-    .sort((a, b) => b.score - a.score || a.role.localeCompare(b.role));
-  return ranked[0] || { role: null, score: 0 };
-}
-
-function materialFeatures(material) {
-  if (!material) return {
-    baseColor: null, normal: null, roughness: null, metalness: null, ao: null, emissive: null, displacement: null,
-  };
-  return {
-    baseColor: textureSummary(material.map ?? material.diffuseMap ?? null),
-    normal: textureSummary(material.normalMap ?? null),
-    roughness: textureSummary(material.roughnessMap ?? null),
-    metalness: textureSummary(material.metalnessMap ?? null),
-    ao: textureSummary(material.aoMap ?? null),
-    emissive: textureSummary(material.emissiveMap ?? null),
-    displacement: textureSummary(material.displacementMap ?? null),
-  };
-}
-
-function semanticCoverage(entries, expected) {
-  if (!expected.length) return 1;
-  const covered = new Set(entries.filter((entry) => entry.role && entry.roleScore >= 0.6).map((entry) => entry.role));
-  return covered.size / expected.length;
-}
-
-function textureCoverage(entries) {
-  const materials = entries.length;
-  if (!materials) return 0;
-  return entries.filter((entry) => entry.features.baseColor).length / materials;
-}
-
-function normalCoverage(entries) {
-  const materials = entries.length;
-  if (!materials) return 0;
-  return entries.filter((entry) => entry.features.normal).length / materials;
-}
-
-function preferredTextureDimension({ mobile = false } = {}) {
-  return mobile ? LIVING_WORLD_VISUAL_POLICY.mobilePreferredTextureDimension : LIVING_WORLD_VISUAL_POLICY.preferredTextureDimension;
-}
-
-function textureQuality(entry, { mobile = false } = {}) {
-  const preferred = preferredTextureDimension({ mobile });
-  const size = entry?.features?.baseColor?.size?.min;
-  if (!Number.isFinite(size)) return { score: 0, band: 'untextured' };
-  if (size < LIVING_WORLD_VISUAL_POLICY.minimumTextureDimension) return { score: 0.15, band: 'undersized' };
-  if (size < preferred) return { score: 0.60, band: 'usable' };
-  if (size < preferred * 2) return { score: 0.90, band: 'preferred' };
-  return { score: 1, band: 'high-resolution' };
-}
-
-function pbrScore(entry) {
-  const features = entry?.features || {};
-  const values = [features.baseColor, features.normal, features.roughness, features.metalness, features.ao].filter(Boolean);
-  if (!values.length) return 0;
-  let score = features.baseColor ? 0.45 : 0;
-  if (features.normal) score += 0.20;
-  if (features.roughness) score += 0.15;
-  if (features.metalness) score += 0.10;
-  if (features.ao) score += 0.10;
-  return Math.min(1, score);
-}
-
-function roleMaterialHealth(entry, { mobile = false } = {}) {
-  const texture = textureQuality(entry, { mobile });
-  return {
-    textureScore: texture.score,
-    textureBand: texture.band,
-    pbrScore: pbrScore(entry),
-    hasBaseColor: Boolean(entry?.features?.baseColor),
-    hasNormal: Boolean(entry?.features?.normal),
-    hasRoughness: Boolean(entry?.features?.roughness),
-    hasMetalness: Boolean(entry?.features?.metalness),
-    hasAo: Boolean(entry?.features?.ao),
-  };
-}
-
-function determineFallbackNeed({ validation, semanticScore, texturedRatio, entries }) {
-  if (!validation?.ok) return 'validation-failure';
-  if (semanticScore < LIVING_WORLD_VISUAL_POLICY.semanticCoverageThreshold) return 'semantic-under-specification';
-  if (texturedRatio < LIVING_WORLD_VISUAL_POLICY.texturedMaterialRatioThreshold) return 'texture-under-specification';
-  if (entries.length === 1 && texturedRatio === 0) return 'single-surface-untextured';
-  return null;
-}
-
-function safeAssetPath(path) {
-  return typeof path === 'string' && /^assets\/models\//.test(path) ? path : null;
-}
-
-export function geographicVisualClimate(region, {
-  moisture = 0,
-  waterDepth = 0,
-  slopeDegrees = 0,
-  dayTemperatureBias = 0,
-} = {}) {
-  const base = REGION_VISUAL_CLIMATE[normalize(region)] || REGION_VISUAL_CLIMATE.temperate;
-  const wetness = clamp(base.wet + Math.max(0, finite(moisture)) * 0.35 + Math.max(0, finite(waterDepth)) * 0.4, 0, 1);
-  const exposure = clamp(Math.abs(finite(slopeDegrees)) / 45, 0, 1);
-  const cold = clamp(base.cold + (-finite(dayTemperatureBias) * 0.08) + exposure * 0.08, 0, 1);
-  const dry = clamp(base.dry + Math.max(0, 1 - wetness) * 0.15, 0, 1);
-  return Object.freeze({
-    region: normalize(region) || 'temperate',
-    cold: Number(cold.toFixed(3)),
-    wet: Number(wetness.toFixed(3)),
-    dry: Number(dry.toFixed(3)),
-    volcanic: base.volcanic,
-    paletteBias: base.paletteBias,
-    scaleBias: base.scale,
-    exposure: Number(exposure.toFixed(3)),
-  });
-}
-
-export function resolveLivingWorldVisualContext({
-  worldX = 0,
-  worldZ = 0,
-  role = 'guard',
-  speciesId = null,
-  groundHeight = null,
-  slopeDegrees = 0,
-  waterDepth = 0,
-  settlementDistance = Infinity,
-  roadDistance = Infinity,
-  moisture = 0,
-  dayTemperatureBias = 0,
-  seed = 0x51afac,
-} = {}) {
-  const geography = resolveLivingWorldGeography({
-    worldX,
-    worldZ,
-    role,
-    speciesId,
-    groundHeight,
-    slopeDegrees,
-    waterDepth,
-    settlementDistance,
-    roadDistance,
-    seed,
-  });
-  const climate = geographicVisualClimate(geography.region, { moisture, waterDepth, slopeDegrees, dayTemperatureBias });
+export function resolveLivingWorldVisualContext(options = {}) {
+  const { worldX=0, worldZ=0, role='guard', speciesId=null, groundHeight=null, slopeDegrees=0, waterDepth=0, settlementDistance=Infinity, roadDistance=Infinity, moisture=0, seed=0x51afac } = options;
+  const geography = resolveLivingWorldGeography({ worldX, worldZ, role, speciesId, groundHeight, slopeDegrees, waterDepth, settlementDistance, roadDistance, seed });
   const profile = resolveLivingWorldAssetProfile({ worldX, worldZ, role, speciesId });
-  const authoredCandidates = (profile?.assetCandidates || []).map(safeAssetPath).filter(Boolean);
-  return Object.freeze({
-    ok: geography.ok,
-    region: geography.region,
-    reason: geography.reason,
-    profileId: geography.profileId,
-    normalizedReference: geography.normalizedReference,
-    climate,
-    expectedSurfaces: expectedSurfacesFor({ role, speciesId }),
-    assetCandidates: authoredCandidates,
-    assetFamily: profile?.family || getRoleFamily({ role, speciesId }),
-    habitat: profile?.habitat || null,
-  });
+  return Object.freeze({ ok:geography.ok, region:geography.region, reason:geography.reason, profileId:geography.profileId, normalizedReference:geography.normalizedReference, climate:geographicVisualClimate(geography.region,{ moisture, waterDepth, slopeDegrees }), expectedSurfaces:expected({role,speciesId}), assetCandidates:(profile?.assetCandidates||[]).map((p)=>typeof p==='string'&&/^assets\/models\//.test(p)?p:null).filter(Boolean), assetFamily:profile?.family||family({role,speciesId}) });
 }
 
-export function inspectLivingWorldAssetVisual(object, {
-  role = 'guard',
-  speciesId = null,
-  region = 'temperate',
-  mobile = false,
-  requireGeneratedTexture = false,
-  sourcePath = null,
-  assetId = null,
-} = {}) {
-  const expected = expectedSurfacesFor({ role, speciesId });
-  const analysis = analyzeMaterialSurfaces(object);
-  const entries = [];
-  for (const mesh of analysis.meshes) {
-    const materials = listMaterials(mesh.material);
-    materials.forEach((material, materialIndex) => {
-      const roleMatch = inferSurfaceRole(mesh, material, expected);
-      const health = roleMaterialHealth({ features: materialFeatures(material) }, { mobile });
-      entries.push({
-        meshName: mesh.name || '',
-        materialName: material?.name || '',
-        materialIndex,
-        role: roleMatch.role,
-        roleScore: roleMatch.score,
-        generatedByFactory: Boolean(material?.userData?.generatedByTextureFactory),
-        layeredMaterial: Boolean(material?.userData?.layeredMaterial),
-        features: materialFeatures(material),
-        ...health,
-      });
-    });
+export function inspectLivingWorldAssetVisual(object, { role='guard', speciesId=null, region='temperate', mobile=false, requireGeneratedTexture=false, sourcePath=null, assetId=null } = {}) {
+  const roles = expected({role,speciesId}); const analysis = analyzeMaterialSurfaces(object); const surfaces = [];
+  for (const mesh of analysis.meshes) for (const [materialIndex, material] of mats(mesh.material).entries()) {
+    const f = materialFeatures(material); const match = roleMatch(mesh, material, roles); surfaces.push({ meshName:mesh.name||'', materialName:material?.name||'', materialIndex, role:match.role, roleScore:match.score, features:f, ...(() => ({ hasBaseColor:Boolean(f.baseColor), hasNormal:Boolean(f.normal), hasRoughness:Boolean(f.roughness), hasMetalness:Boolean(f.metalness), hasAo:Boolean(f.ao), pbrScore:pbrScore(f), textureScore:textureScore(f,mobile) }))(), generatedByFactory:Boolean(material?.userData?.generatedByTextureFactory), layeredMaterial:Boolean(material?.userData?.layeredMaterial) });
   }
-
-  const validation = validateMaterialAssignment(object, { requireGeneratedTexture });
-  const semanticScore = semanticCoverage(entries, expected);
-  const texturedRatio = textureCoverage(entries);
-  const normalRatio = normalCoverage(entries);
-  const climate = geographicVisualClimate(region);
-  const fallbackReason = determineFallbackNeed({ validation, semanticScore, texturedRatio, entries });
-  const presentRoles = [...new Set(entries.map((entry) => entry.role).filter(Boolean))].sort();
-  const missingRoles = expected.filter((expectedRole) => !presentRoles.includes(expectedRole));
-  const averageTextureQuality = entries.length
-    ? entries.reduce((sum, entry) => sum + entry.textureScore, 0) / entries.length
-    : 0;
-  const averagePbrScore = entries.length
-    ? entries.reduce((sum, entry) => sum + entry.pbrScore, 0) / entries.length
-    : 0;
-
-  return Object.freeze({
-    policyId: LIVING_WORLD_VISUAL_POLICY.id,
-    ok: validation.ok,
-    role: getRoleFamily({ role, speciesId }),
-    speciesId: speciesId || null,
-    region: normalize(region) || 'temperate',
-    climate,
-    expectedSurfaces: expected,
-    presentRoles,
-    missingRoles,
-    semanticCoverage: Number(semanticScore.toFixed(3)),
-    texturedMaterialRatio: Number(texturedRatio.toFixed(3)),
-    normalMappedMaterialRatio: Number(normalRatio.toFixed(3)),
-    averageTextureQuality: Number(averageTextureQuality.toFixed(3)),
-    averagePbrScore: Number(averagePbrScore.toFixed(3)),
-    meshCount: analysis.meshCount,
-    surfaceCount: analysis.surfaceCount,
-    materialSlotCount: entries.length,
-    generatedMaterialCount: validation.generatedMaterialCount,
-    warnings: [...validation.warnings],
-    errors: [...validation.errors],
-    fallbackReason,
-    sourcePath: sourcePath || null,
-    assetId: assetId || object?.userData?.assetId || null,
-    surfaces: entries,
-  });
+  const validation = validateMaterialAssignment(object,{requireGeneratedTexture}); const present = new Set(surfaces.filter((s)=>s.role&&s.roleScore>=.6).map((s)=>s.role)); const semanticCoverage = roles.length ? present.size/roles.length : 1; const texturedMaterialRatio = surfaces.length ? surfaces.filter((s)=>s.hasBaseColor).length/surfaces.length : 0;
+  let fallbackReason = null; if (!validation.ok) fallbackReason='validation-failure'; else if (semanticCoverage < LIVING_WORLD_VISUAL_POLICY.semanticCoverageThreshold) fallbackReason='semantic-under-specification'; else if (texturedMaterialRatio < LIVING_WORLD_VISUAL_POLICY.texturedMaterialRatioThreshold) fallbackReason='texture-under-specification';
+  const normalMappedMaterialRatio = surfaces.length ? surfaces.filter((s)=>s.hasNormal).length/surfaces.length : 0;
+  return Object.freeze({ policyId:LIVING_WORLD_VISUAL_POLICY.id, ok:validation.ok, role:family({role,speciesId}), speciesId, region:norm(region)||'temperate', climate:geographicVisualClimate(region), expectedSurfaces:roles, presentRoles:[...present].sort(), missingRoles:roles.filter((r)=>!present.has(r)), semanticCoverage:+semanticCoverage.toFixed(3), texturedMaterialRatio:+texturedMaterialRatio.toFixed(3), normalMappedMaterialRatio:+normalMappedMaterialRatio.toFixed(3), averageTextureQuality:surfaces.length?+(surfaces.reduce((n,s)=>n+s.textureScore,0)/surfaces.length).toFixed(3):0, averagePbrScore:surfaces.length?+(surfaces.reduce((n,s)=>n+s.pbrScore,0)/surfaces.length).toFixed(3):0, meshCount:analysis.meshCount, surfaceCount:analysis.surfaceCount, materialSlotCount:surfaces.length, generatedMaterialCount:validation.generatedMaterialCount, warnings:[...validation.warnings], errors:[...validation.errors], fallbackReason, sourcePath, assetId, surfaces });
 }
 
-export function shouldPreserveAuthoredVisuals(audit) {
-  if (!audit?.ok) return false;
-  if (audit.fallbackReason) return false;
-  return audit.semanticCoverage >= LIVING_WORLD_VISUAL_POLICY.semanticCoverageThreshold
-    && audit.texturedMaterialRatio >= LIVING_WORLD_VISUAL_POLICY.strongTexturedMaterialRatioThreshold;
+export function shouldPreserveAuthoredVisuals(audit) { return Boolean(audit?.ok && !audit.fallbackReason && audit.semanticCoverage >= LIVING_WORLD_VISUAL_POLICY.semanticCoverageThreshold && audit.texturedMaterialRatio >= LIVING_WORLD_VISUAL_POLICY.strongTexturedMaterialRatioThreshold); }
+export function prepareLivingWorldAssetVisual(object, { role='guard', speciesId=null, region='temperate', paletteId=null, textureSize=512, mobile=false, allowLayeredFallback=true, requireGeneratedTexture=false, metadata={} } = {}) {
+  const before = inspectLivingWorldAssetVisual(object,{role,speciesId,region,mobile,requireGeneratedTexture,sourcePath:metadata.src,assetId:metadata.id}); if (shouldPreserveAuthoredVisuals(before)) return Object.freeze({ok:true,status:'authored-preserved',changed:false,before,after:before}); if (!allowLayeredFallback) return Object.freeze({ok:false,error:before.fallbackReason||'visual-quality-below-threshold',changed:false,before,after:before});
+  let operation; if (before.meshCount===1&&before.materialSlotCount===1) { const recipe=buildRecommendedLayerRecipe(object,{metadata,paletteId,textureSize:mobile?256:textureSize,targetMeshIndex:0}); if(!recipe)return Object.freeze({ok:false,error:'layered-fallback-recipe-unavailable',changed:false,before,after:before}); operation={mode:'layers',recipe}; } else { const result=autoAssignMaterials(object,{metadata,paletteId,textureSize:mobile?256:textureSize}); if(!result?.ok)return Object.freeze({ok:false,error:`auto-dressing:${result?.error||'failed'}`,changed:false,before,after:before}); operation={mode:'auto',recipe:result.recipe,result}; }
+  const after=inspectLivingWorldAssetVisual(object,{role,speciesId,region,mobile,requireGeneratedTexture,sourcePath:metadata.src,assetId:metadata.id}); return Object.freeze({ok:after.ok&&!after.fallbackReason,status:operation.mode==='layers'?'shared-layered-fallback':'shared-auto-dressing',changed:true,before,after,operation});
 }
 
-export function prepareLivingWorldAssetVisual(object, {
-  role = 'guard',
-  speciesId = null,
-  region = 'temperate',
-  paletteId = null,
-  textureSize = null,
-  mobile = false,
-  allowLayeredFallback = true,
-  requireGeneratedTexture = false,
-  metadata = {},
-} = {}) {
-  if (!object) return { ok: false, error: 'missing-object' };
-  const before = inspectLivingWorldAssetVisual(object, {
-    role, speciesId, region, mobile, requireGeneratedTexture,
-    sourcePath: metadata.src, assetId: metadata.id,
-  });
-  if (shouldPreserveAuthoredVisuals(before)) {
-    return { ok: true, status: 'authored-preserved', before, after: before, changed: false };
-  }
-
-  if (!allowLayeredFallback) {
-    return { ok: false, error: before.fallbackReason || 'visual-quality-below-threshold', before, after: before, changed: false };
-  }
-
-  const targetTextureSize = textureSize || preferredTextureDimension({ mobile });
-  let operation = null;
-  if (before.meshCount === 1 && before.materialSlotCount === 1) {
-    const recipe = buildRecommendedLayerRecipe(object, {
-      metadata,
-      paletteId,
-      textureSize: targetTextureSize,
-      targetMeshIndex: 0,
-    });
-    if (!recipe) {
-      return { ok: false, error: 'layered-fallback-recipe-unavailable', before, after: before, changed: false };
-    }
-    operation = { mode: 'layers', recipe };
-  } else {
-    const result = autoAssignMaterials(object, { metadata, paletteId, textureSize: targetTextureSize });
-    if (!result?.ok) {
-      return { ok: false, error: `auto-dressing:${result?.error || 'failed'}`, before, after: before, changed: false };
-    }
-    operation = { mode: 'auto', recipe: result.recipe, result };
-  }
-
-  const after = inspectLivingWorldAssetVisual(object, {
-    role, speciesId, region, mobile, requireGeneratedTexture,
-    sourcePath: metadata.src, assetId: metadata.id,
-  });
-  return Object.freeze({
-    ok: after.ok && !after.fallbackReason,
-    status: operation.mode === 'layers' ? 'shared-layered-fallback' : 'shared-auto-dressing',
-    before,
-    after,
-    changed: true,
-    operation,
-  });
+export function createLivingWorldVisualManifest(object, { role='guard', speciesId=null, region='temperate', placement=null, metadata={} } = {}) {
+  const audit=inspectLivingWorldAssetVisual(object,{role,speciesId,region,sourcePath:metadata.src,assetId:metadata.id}); return Object.freeze({version:1,policyId:LIVING_WORLD_VISUAL_POLICY.id,asset:{id:metadata.id||object?.userData?.assetId||null,src:metadata.src||object?.userData?.assetSrc||null,role:audit.role,speciesId,region:audit.region},geographicVisual:{climate:audit.climate,expectedSurfaces:audit.expectedSurfaces,semanticCoverage:audit.semanticCoverage,texturedMaterialRatio:audit.texturedMaterialRatio,normalMappedMaterialRatio:audit.normalMappedMaterialRatio,averageTextureQuality:audit.averageTextureQuality,averagePbrScore:audit.averagePbrScore},surfaces:audit.surfaces.map((s)=>({meshName:s.meshName,materialName:s.materialName,role:s.role,roleScore:s.roleScore,baseColor:s.features.baseColor,normal:s.features.normal,roughness:s.features.roughness,metalness:s.features.metalness,ao:s.features.ao,generatedByFactory:s.generatedByFactory,layeredMaterial:s.layeredMaterial})),materialManifest:createMaterialManifest(object,{metadata,placement}),validation:{ok:audit.ok,errors:[...audit.errors],warnings:[...audit.warnings],fallbackReason:audit.fallbackReason}});
 }
-
-export function createLivingWorldVisualManifest(object, {
-  role = 'guard',
-  speciesId = null,
-  region = 'temperate',
-  placement = null,
-  metadata = {},
-} = {}) {
-  const audit = inspectLivingWorldAssetVisual(object, { role, speciesId, region, sourcePath: metadata.src, assetId: metadata.id });
-  const materialManifest = createMaterialManifest(object, { metadata, placement });
-  return Object.freeze({
-    version: 1,
-    policyId: LIVING_WORLD_VISUAL_POLICY.id,
-    asset: {
-      id: metadata.id || object?.userData?.assetId || null,
-      src: metadata.src || object?.userData?.assetSrc || null,
-      role: audit.role,
-      speciesId: speciesId || null,
-      region: audit.region,
-    },
-    geographicVisual: {
-      climate: audit.climate,
-      expectedSurfaces: audit.expectedSurfaces,
-      semanticCoverage: audit.semanticCoverage,
-      texturedMaterialRatio: audit.texturedMaterialRatio,
-      normalMappedMaterialRatio: audit.normalMappedMaterialRatio,
-      averageTextureQuality: audit.averageTextureQuality,
-      averagePbrScore: audit.averagePbrScore,
-    },
-    surfaces: audit.surfaces.map((surface) => ({
-      meshName: surface.meshName,
-      materialName: surface.materialName,
-      role: surface.role,
-      roleScore: surface.roleScore,
-      baseColor: surface.features.baseColor,
-      normal: surface.features.normal,
-      roughness: surface.features.roughness,
-      metalness: surface.features.metalness,
-      ao: surface.features.ao,
-      generatedByFactory: surface.generatedByFactory,
-      layeredMaterial: surface.layeredMaterial,
-    })),
-    materialManifest,
-    validation: {
-      ok: audit.ok,
-      errors: [...audit.errors],
-      warnings: [...audit.warnings],
-      fallbackReason: audit.fallbackReason,
-    },
-  });
-}
-
-export function auditLivingWorldVisualPlacement(object, {
-  role = 'guard',
-  speciesId = null,
-  region = 'temperate',
-  metadata = {},
-} = {}) {
-  const visual = inspectLivingWorldAssetVisual(object, { role, speciesId, region, sourcePath: metadata.src, assetId: metadata.id });
-  const placement = auditWorldAssetPlacement(object);
-  return Object.freeze({
-    ok: visual.ok && placement.ok,
-    visual,
-    placement,
-    errors: [...visual.errors, ...placement.errors.map((error) => `placement:${error}`)],
-    warnings: [...visual.warnings, ...placement.warnings.map((warning) => `placement:${warning}`)],
-  });
-}
-
-export function applyLivingWorldVisualMetadata(object, {
-  role = 'guard',
-  speciesId = null,
-  region = 'temperate',
-  climate = null,
-  sourcePath = null,
-  assetId = null,
-} = {}) {
-  if (!object) return null;
-  const resolvedClimate = climate || geographicVisualClimate(region);
-  object.userData ||= {};
-  object.userData.livingWorldVisual = {
-    policyId: LIVING_WORLD_VISUAL_POLICY.id,
-    role: getRoleFamily({ role, speciesId }),
-    speciesId: speciesId || null,
-    region: normalize(region) || 'temperate',
-    climate: resolvedClimate,
-    sourcePath: sourcePath || object.userData.assetSrc || null,
-    assetId: assetId || object.userData.assetId || null,
-  };
-  return object.userData.livingWorldVisual;
-}
-
-export function buildLivingWorldVisualEvidence(object, context = {}) {
-  const visualContext = resolveLivingWorldVisualContext(context);
-  const audit = inspectLivingWorldAssetVisual(object, {
-    role: context.role,
-    speciesId: context.speciesId,
-    region: visualContext.region,
-    mobile: context.mobile,
-    sourcePath: context.sourcePath,
-    assetId: context.assetId,
-  });
-  const manifest = createLivingWorldVisualManifest(object, {
-    role: context.role,
-    speciesId: context.speciesId,
-    region: visualContext.region,
-    placement: context.placement,
-    metadata: { id: context.assetId, src: context.sourcePath },
-  });
-  return Object.freeze({
-    ok: audit.ok,
-    geography: visualContext,
-    visual: audit,
-    manifest,
-    acceptance: {
-      missingAsset: !(context.sourcePath || visualContext.assetCandidates.length),
-      sourcePathIsRepositoryAsset: Boolean(safeAssetPath(context.sourcePath)),
-      semanticCoveragePass: audit.semanticCoverage >= LIVING_WORLD_VISUAL_POLICY.semanticCoverageThreshold,
-      textureCoveragePass: audit.texturedMaterialRatio >= LIVING_WORLD_VISUAL_POLICY.texturedMaterialRatioThreshold,
-      authoredPreserved: shouldPreserveAuthoredVisuals(audit),
-      fallbackApplied: Boolean(object?.userData?.materialRecipe || object?.userData?.editorMaterialRecipe),
-    },
-  });
-}
-
-export function deterministicVisualVariant({ assetId = '', speciesId = '', region = '', worldSeed = 0x51afac } = {}) {
-  let hash = 2166136261;
-  const input = `${worldSeed}:${assetId}:${speciesId}:${region}`;
-  for (const char of input) {
-    hash ^= char.charCodeAt(0);
-    hash = Math.imul(hash, 16777619) >>> 0;
-  }
-  hash ^= hash >>> 16;
-  hash = Math.imul(hash, 0x7feb352d) >>> 0;
-  hash ^= hash >>> 15;
-  hash = Math.imul(hash, 0x846ca68b) >>> 0;
-  return (hash ^ (hash >>> 16)) >>> 0;
-}
-
-export function chooseVisualPaletteHint({ region = 'temperate', speciesId = null } = {}) {
-  const normalizedRegion = normalize(region);
-  const climate = REGION_VISUAL_CLIMATE[normalizedRegion] || REGION_VISUAL_CLIMATE.temperate;
-  const species = normalize(speciesId);
-  const suffix = species ? `${climate.paletteBias}-${species}` : climate.paletteBias;
-  return Object.freeze({
-    region: normalizedRegion || 'temperate',
-    speciesId: species || null,
-    paletteHint: climate.paletteBias,
-    deterministicVariantKey: suffix,
-  });
-}
-
-export function visualSurfaceRoleReport(audit) {
-  const expected = audit?.expectedSurfaces || [];
-  const entries = audit?.surfaces || [];
-  return Object.freeze(expected.map((role) => {
-    const matches = entries.filter((entry) => entry.role === role);
-    return {
-      role,
-      present: matches.length > 0,
-      materialCount: matches.length,
-      texturedCount: matches.filter((entry) => entry.hasBaseColor).length,
-      normalMappedCount: matches.filter((entry) => entry.hasNormal).length,
-      averagePbrScore: matches.length ? Number((matches.reduce((sum, entry) => sum + entry.pbrScore, 0) / matches.length).toFixed(3)) : 0,
-    };
-  }));
-}
-
-export function visualAuditSummary(audit) {
-  return Object.freeze({
-    ok: Boolean(audit?.ok),
-    role: audit?.role || null,
-    speciesId: audit?.speciesId || null,
-    region: audit?.region || null,
-    meshes: audit?.meshCount ?? 0,
-    materials: audit?.materialSlotCount ?? 0,
-    semanticCoverage: audit?.semanticCoverage ?? 0,
-    texturedMaterialRatio: audit?.texturedMaterialRatio ?? 0,
-    normalMappedMaterialRatio: audit?.normalMappedMaterialRatio ?? 0,
-    averageTextureQuality: audit?.averageTextureQuality ?? 0,
-    averagePbrScore: audit?.averagePbrScore ?? 0,
-    missingRoles: [...(audit?.missingRoles || [])],
-    fallbackReason: audit?.fallbackReason || null,
-    sourcePath: audit?.sourcePath || null,
-  });
-}
-
-export function validateLivingWorldVisualContract({ audit, placementAudit = null, sourcePath = null } = {}) {
-  const errors = [];
-  const warnings = [];
-  if (!audit?.ok) errors.push('visual-validation-failed');
-  if (audit?.semanticCoverage < LIVING_WORLD_VISUAL_POLICY.semanticCoverageThreshold) errors.push('semantic-surface-coverage');
-  if (audit?.texturedMaterialRatio < LIVING_WORLD_VISUAL_POLICY.texturedMaterialRatioThreshold) warnings.push('textured-material-coverage');
-  if (!sourcePath && !(audit?.assetId || audit?.sourcePath)) warnings.push('source-path-missing');
-  if (sourcePath && !safeAssetPath(sourcePath)) errors.push('asset-outside-repository-model-root');
-  if (placementAudit && !placementAudit.ok) errors.push('placement-contract-failed');
-  return Object.freeze({
-    ok: errors.length === 0,
-    errors,
-    warnings,
-    policyId: LIVING_WORLD_VISUAL_POLICY.id,
-    materialAuthority: LIVING_WORLD_VISUAL_POLICY.materialAuthority,
-    placementAuthority: LIVING_WORLD_VISUAL_POLICY.placementAuthority,
-  });
-}
-
-export function deriveActorVisualEvidence({
-  object,
-  role,
-  speciesId,
-  worldX,
-  worldZ,
-  slopeDegrees,
-  waterDepth,
-  settlementDistance,
-  roadDistance,
-  moisture,
-  dayTemperatureBias,
-  seed,
-  mobile,
-  metadata = {},
-  placement = null,
-} = {}) {
-  const context = resolveLivingWorldVisualContext({
-    worldX, worldZ, role, speciesId, slopeDegrees, waterDepth, settlementDistance, roadDistance, moisture,
-    dayTemperatureBias, seed,
-  });
-  const visualAudit = inspectLivingWorldAssetVisual(object, {
-    role, speciesId, region: context.region, mobile, sourcePath: metadata.src, assetId: metadata.id,
-  });
-  const manifest = createLivingWorldVisualManifest(object, {
-    role, speciesId, region: context.region, placement, metadata,
-  });
-  const placementAudit = object?.userData?.materialReadyForWorld ? auditWorldAssetPlacement(object) : null;
-  const contract = validateLivingWorldVisualContract({ audit: visualAudit, placementAudit, sourcePath: metadata.src });
-  return Object.freeze({
-    ok: contract.ok && context.ok,
-    geography: context,
-    visual: visualAudit,
-    placement: placementAudit,
-    contract,
-    manifest,
-  });
-}
-
-export function listAssetCandidatesWithSurfaceExpectations({
-  worldX = 0,
-  worldZ = 0,
-  role = 'guard',
-  speciesId = null,
-} = {}) {
-  const context = resolveLivingWorldVisualContext({ worldX, worldZ, role, speciesId });
-  return Object.freeze(context.assetCandidates.map((sourcePath, index) => ({
-    index,
-    sourcePath,
-    role: getRoleFamily({ role, speciesId }),
-    expectedSurfaces: [...context.expectedSurfaces],
-    region: context.region,
-    profileId: context.profileId,
-    climate: context.climate,
-  })));
-}
-
-export function geographicVisualTags({ region = 'temperate', role = 'guard', speciesId = null } = {}) {
-  const climate = geographicVisualClimate(region);
-  const family = getRoleFamily({ role, speciesId });
-  const tags = new Set([family, normalize(region) || 'temperate', climate.paletteBias]);
-  if (climate.cold >= 0.7) tags.add('cold-weather');
-  if (climate.wet >= 0.7) tags.add('wet-surface');
-  if (climate.dry >= 0.7) tags.add('dry-surface');
-  if (climate.volcanic >= 0.7) tags.add('volcanic-exposure');
-  return Object.freeze([...tags].sort());
-}
-
-export function visualDistributionWeight({ region = 'temperate', speciesId = null, role = 'guard' } = {}) {
-  const climate = geographicVisualClimate(region);
-  const family = getRoleFamily({ role, speciesId });
-  const familyBias = family === 'dragon' ? (climate.volcanic * 0.7 + climate.dry * 0.3) : family === 'horse' ? (1 - climate.cold * 0.6) : family === 'wildlife' ? (1 - climate.volcanic * 0.3) : 1;
-  return Number(clamp(familyBias, 0.05, 1).toFixed(3));
-}
-
-export function mergeVisualContextIntoActorMetadata(object, context = {}) {
-  if (!object) return null;
-  const visualContext = resolveLivingWorldVisualContext(context);
-  object.userData ||= {};
-  object.userData.livingWorldVisualContext = visualContext;
-  object.userData.livingWorldVisualTags = geographicVisualTags(context);
-  object.userData.livingWorldVisualVariant = deterministicVisualVariant({
-    assetId: context.assetId || object.userData.assetId,
-    speciesId: context.speciesId,
-    region: visualContext.region,
-    worldSeed: context.seed,
-  });
-  return object.userData.livingWorldVisualContext;
-}
+export function auditLivingWorldVisualPlacement(object, options = {}) { const visual=inspectLivingWorldAssetVisual(object,options); const placement=auditWorldAssetPlacement(object); return Object.freeze({ok:visual.ok&&placement.ok,visual,placement,errors:[...visual.errors,...placement.errors.map((e)=>`placement:${e}`)],warnings:[...visual.warnings,...placement.warnings.map((w)=>`placement:${w}`)]}); }
+export function buildLivingWorldVisualEvidence(object, context = {}) { const geography=resolveLivingWorldVisualContext(context); const visual=inspectLivingWorldAssetVisual(object,{role:context.role,speciesId:context.speciesId,region:geography.region,mobile:context.mobile,sourcePath:context.sourcePath,assetId:context.assetId}); return Object.freeze({ok:visual.ok,geography,visual,manifest:createLivingWorldVisualManifest(object,{role:context.role,speciesId:context.speciesId,region:geography.region,placement:context.placement,metadata:{id:context.assetId,src:context.sourcePath}}),acceptance:{missingAsset:!(context.sourcePath||geography.assetCandidates.length),sourcePathIsRepositoryAsset:Boolean(context.sourcePath?.startsWith('assets/models/')),semanticCoveragePass:visual.semanticCoverage>=LIVING_WORLD_VISUAL_POLICY.semanticCoverageThreshold,textureCoveragePass:visual.texturedMaterialRatio>=LIVING_WORLD_VISUAL_POLICY.texturedMaterialRatioThreshold,authoredPreserved:shouldPreserveAuthoredVisuals(visual),fallbackApplied:Boolean(object?.userData?.materialRecipe||object?.userData?.editorMaterialRecipe)}}); }
+export function mergeVisualContextIntoActorMetadata(object, context = {}) { if(!object)return null; const visual=resolveLivingWorldVisualContext(context); object.userData ||= {}; object.userData.livingWorldVisualContext=visual; object.userData.livingWorldVisualTags=[visual.assetFamily,visual.region,visual.climate.paletteBias].filter(Boolean); object.userData.livingWorldVisualVariant=`${context.seed||0}:${context.assetId||object.userData.assetId||''}:${visual.region}`; return visual; }
