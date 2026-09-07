@@ -66,3 +66,6 @@ jobs:
           git rm .github/workflows/_migrate-settlement-geography.yml
           git commit -m 'ci(world): remove one-shot migration workflow'
           git push origin HEAD:${GITHUB_REF_NAME}
+
+      - name: Migration workflow revision
+        run: echo 'retrigger-current-main-2026-09-07'
