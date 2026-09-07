@@ -50,7 +50,7 @@ requireTokens(surfaceFabric, 'asset surface fabric contract', [
 	'canonicalColliderReadOnly: true',
 	'usesIrregularBoundaryDetail: true',
 	'worldAssetSurfaceFabricFbm',
-	'worldAssetSurfaceFabricRoughness',
+	'worldAssetSurfaceFabricRoughPattern',
 ]);
 
 requireTokens(water, 'coast breaker contract', [
