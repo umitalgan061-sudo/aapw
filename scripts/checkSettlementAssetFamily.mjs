@@ -105,8 +105,10 @@ const duplicateSecondaryCount = profiles.length - new Set(profiles.map((profile)
 assert.ok(duplicatePrimaryCount >= 0);
 assert.ok(duplicateSecondaryCount >= 0);
 
-const referencedSettlementCount = REFERENCED_ASSETS.filter((asset) => asset.startsWith('assets/models/settlements/')).length;
-assert.equal(referencedSettlementCount, REFERENCED_ASSETS.filter((asset) => !asset.startsWith('assets/models/houses/')).length);
+const settlementReferences = REFERENCED_ASSETS.filter((asset) => asset.startsWith('assets/models/settlements/'));
+const nonSettlementHouseReferences = REFERENCED_ASSETS.filter((asset) => asset.startsWith('assets/models/houses/'));
+assert.equal(settlementReferences.length + nonSettlementHouseReferences.length, REFERENCED_ASSETS.length);
+assert.ok(settlementReferences.length >= 6, 'settlement architecture must remain in the approved settlement asset family');
 assert.ok(seenRoles.has('residential'), 'settlement architecture must include residential authored models');
 
 const placeholderReferences = REFERENCED_ASSETS.filter((asset) => /(placeholder|cube|box|dummy|test_asset)/i.test(asset));
@@ -115,7 +117,8 @@ assert.deepEqual(placeholderReferences, [], 'settlement architecture references 
 console.log('[checkSettlementAssetFamily] PASS', JSON.stringify({
 	uniqueReferencedAssets: REFERENCED_ASSETS.length,
 	regionalProfiles: profiles.length,
-	settlementPathReferences: referencedSettlementCount,
+	settlementPathReferences: settlementReferences.length,
+	housePathReferences: nonSettlementHouseReferences.length,
 	roles: [...seenRoles].sort(),
 	hydratedGlbs: report.filter((item) => item.hydratedGlb).length,
 	lfsPointers: report.filter((item) => item.lfsPointer).length,
