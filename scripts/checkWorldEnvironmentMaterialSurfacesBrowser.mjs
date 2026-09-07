@@ -24,33 +24,6 @@ const WIDTH = 1536;
 const HEIGHT = 1024;
 const MOBILE_MODE = process.env.WORLD_MATERIAL_DESKTOP !== '1';
 
-function isMaterialLike(value) {
-	return Boolean(value && typeof value === 'object' && ('isMaterial' in value || 'color' in value || 'roughness' in value));
-}
-
-function inspectMaterial(material) {
-	const maps = {
-		albedo: Boolean(material.map),
-		normal: Boolean(material.normalMap),
-		roughness: Boolean(material.roughnessMap),
-		metalness: Boolean(material.metalnessMap),
-		ao: Boolean(material.aoMap),
-		displacement: Boolean(material.displacementMap),
-	};
-	const channelCount = Object.values(maps).filter(Boolean).length;
-	const singleColorMarker = material.userData?.placeholder === true || material.userData?.singleColor === true;
-	return {
-		name: material.name || '(unnamed)',
-		maps,
-		channelCount,
-		roughness: Number.isFinite(material.roughness) ? material.roughness : null,
-		metalness: Number.isFinite(material.metalness) ? material.metalness : null,
-		singleColorMarker,
-		transparent: Boolean(material.transparent),
-		vertexColors: Boolean(material.vertexColors),
-	};
-}
-
 async function main() {
 	const playwright = loadPlaywright();
 	if (!playwright) process.exit(2);
@@ -76,7 +49,10 @@ async function main() {
 		await page.waitForTimeout(3000);
 
 		const report = await page.evaluate(async ({ width, height }) => {
-			const { createScene } = await import('/src/3d/sceneManager.js');
+			const [{ createScene }, THREE] = await Promise.all([
+				import('/src/3d/sceneManager.js'),
+				import('/src/3d/vendor/three/three.module.js'),
+			]);
 			const canvas = document.createElement('canvas');
 			canvas.width = width;
 			canvas.height = height;
