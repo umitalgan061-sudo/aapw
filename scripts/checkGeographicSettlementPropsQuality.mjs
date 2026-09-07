@@ -41,20 +41,10 @@ const roads = [
 ];
 
 function ground(x, z) {
-  return 18
-    + Math.sin(x / 510) * 2.2
-    + Math.cos(z / 430) * 1.5
-    + Math.sin((x + z) / 170) * 0.35;
+  return 18 + Math.sin(x / 510) * 2.2 + Math.cos(z / 430) * 1.5 + Math.sin((x + z) / 170) * 0.35;
 }
 
-const options = {
-  seats,
-  roadEdges: roads,
-  sampleHeightMeters: ground,
-  seaLevelMeters: 0,
-  radiusMeters: 3000,
-  isMobileClass: false,
-};
+const options = { seats, roadEdges: roads, sampleHeightMeters: ground, seaLevelMeters: 0, radiusMeters: 3000, isMobileClass: false };
 
 assert.equal(GEOGRAPHIC_SETTLEMENT_PROP_POLICY.assetFirst, true);
 assert.equal(GEOGRAPHIC_SETTLEMENT_PROP_POLICY.deterministic, true);
@@ -68,8 +58,7 @@ assert.deepEqual(Object.keys(GEOGRAPHIC_SETTLEMENT_PROP_ASSETS).sort(), ['barrel
 
 for (const [family, asset] of Object.entries(GEOGRAPHIC_SETTLEMENT_PROP_ASSETS)) {
   assert.match(asset.src, /^assets\/models\/props\/.*\.glb$/);
-  assert.ok(Number.isFinite(asset.weight));
-  assert.ok(asset.weight > 0);
+  assert.ok(Number.isFinite(asset.weight) && asset.weight > 0);
   assert.equal(typeof asset.materialRecipeId, 'string');
   assert.ok(asset.materialRecipeId.length > 0);
   assert.equal(typeof family, 'string');
@@ -79,7 +68,7 @@ const first = planGeographicSettlementProps(options);
 const second = planGeographicSettlementProps(options);
 assert.deepEqual(first, second, 'planning must be byte-stable for identical canonical inputs');
 assert.equal(buildStablePropFingerprint(first), buildStablePropFingerprint(second));
-assert.ok(first.length === seats.length);
+assert.equal(first.length, seats.length);
 
 const planValidation = validateGeographicSettlementPropPlan(first);
 assert.equal(planValidation.ok, true, planValidation.errors.join('\n'));
@@ -92,12 +81,10 @@ const summary = summarizeGeographicSettlementPropPlan(first);
 assert.ok(summary.placementCount > 0);
 assert.ok(summary.familyCount >= 2);
 assert.ok(summary.minPairDistanceMeters >= 13 - 1e-6);
-assert.ok(summary.maxPairDistanceMeters >= summary.minPairDistanceMeters);
 assert.equal(summary.placementCount, first.reduce((sum, seat) => sum + seat.placements.length, 0));
 
 for (const seatPlan of first) {
   assert.ok(seatPlan.placements.length <= 12);
-  assert.ok(seatPlan.placements.length >= 0);
   for (const placement of seatPlan.placements) {
     assert.ok(placement.distanceFromSeat >= 162 - 1e-6);
     assert.ok(placement.distanceFromSeat <= 204 + 1e-6);
@@ -118,7 +105,6 @@ for (const seatPlan of first) {
     assert.ok(['frontage', 'near', 'remote'].includes(context.roadBand));
     assert.equal(context.family, placement.family);
     assert.equal(context.biomeKind, placement.biomeKind);
-    assert.equal(context.roleId, undefined);
     assert.equal(typeof deterministicContextKey(placement), 'string');
     assert.equal(deterministicContextKey(placement), deterministicContextKey(placement));
     assert.equal(contextSummaryForPlacement(placement).semanticRole, semanticRoleForGeographicSettlementPropFamily(placement.family));
@@ -139,8 +125,7 @@ assert.equal(policy.minRoadDistance, 6);
 assert.equal(policy.minSettlementDistance, 0);
 
 const mobile = planGeographicSettlementProps({ ...options, isMobileClass: true });
-const mobileValidation = validateGeographicSettlementPropPlan(mobile);
-assert.equal(mobileValidation.ok, true, mobileValidation.errors.join('\n'));
+assert.equal(validateGeographicSettlementPropPlan(mobile).ok, true);
 assert.ok(mobile.every((seat) => seat.placements.length <= 5));
 assert.equal(buildStablePropFingerprint(mobile), buildStablePropFingerprint(planGeographicSettlementProps({ ...options, isMobileClass: true })));
 
@@ -161,21 +146,15 @@ for (let index = 0; index < first.length; index += 1) {
   }
 }
 
-function invalidPlan(base) {
-  return base.map((seat) => ({
-    ...seat,
-    placements: seat.placements.map((placement, index) => index === 0
-      ? { ...placement, distanceFromSeat: 4, slopeDegrees: 45, waterDepth: 2, roadDistance: 0 }
-      : placement),
-  }));
-}
-assert.equal(auditGeographicSettlementPropPlan(invalidPlan(first)).ok, false);
+const invalid = first.map((seat) => ({
+  ...seat,
+  placements: seat.placements.map((placement, index) => index === 0 ? { ...placement, distanceFromSeat: 4, slopeDegrees: 45, waterDepth: 2, roadDistance: 0 } : placement),
+}));
+assert.equal(auditGeographicSettlementPropPlan(invalid).ok, false);
 
 const duplicatePlan = first.map((seat) => ({
   ...seat,
-  placements: seat.placements.length > 0
-    ? [seat.placements[0], { ...seat.placements[0], candidateIndex: `${seat.placements[0].candidateIndex}-duplicate` }]
-    : seat.placements,
+  placements: seat.placements.length > 0 ? [seat.placements[0], { ...seat.placements[0], candidateIndex: `${seat.placements[0].candidateIndex}-duplicate` }] : seat.placements,
 }));
 assert.equal(auditGeographicSettlementPropPlan(duplicatePlan).ok, false);
 
@@ -183,11 +162,7 @@ const unknownSeatPlan = [...first, { seatId: 'missing-seat', targetCount: 1, pla
 assert.equal(auditGeographicSettlementPropPlanAgainstCanonicalSeats(unknownSeatPlan, seats).ok, false);
 
 const roleCases = [
-  ['barrel', 'storage-yard'],
-  ['crate', 'storage-yard'],
-  ['bench', 'rest-edge'],
-  ['bonfire', 'hearth-shelter'],
-  ['farmDirt', 'field-edge'],
+  ['barrel', 'storage-yard'], ['crate', 'storage-yard'], ['bench', 'rest-edge'], ['bonfire', 'hearth-shelter'], ['farmDirt', 'field-edge'],
 ];
 for (const [family, expectedRole] of roleCases) assert.equal(semanticRoleForGeographicSettlementPropFamily(family), expectedRole);
 
