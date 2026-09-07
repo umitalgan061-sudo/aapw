@@ -1,0 +1,109 @@
+name: Settlement Functional Landmarks
+
+on:
+  push:
+    branches: [main, 'agent/gunbatimi-geographic-settlement-landmarks-20260907']
+    paths:
+      - 'src/3d/world/villages.js'
+      - 'src/3d/world/settlementFunctionalLandmarks.js'
+      - 'src/3d/world/WorldAssetPlacementPipeline.js'
+      - 'src/3d/materials/MaterialAssignmentCore.js'
+      - 'src/3d/world/structureGroundingPolicy.js'
+      - 'scripts/checkSettlementFunctionalLandmarks.mjs'
+      - 'scripts/checkSettlementFunctionalLandmarksBrowser.mjs'
+      - 'scripts/settlement-functional-landmark-harness.html'
+      - 'assets/models/settlements/**'
+      - 'assets/models/fbx/Medieval_Market*.fbx'
+  pull_request:
+    paths:
+      - 'src/3d/world/villages.js'
+      - 'src/3d/world/settlementFunctionalLandmarks.js'
+      - 'src/3d/world/WorldAssetPlacementPipeline.js'
+      - 'src/3d/materials/MaterialAssignmentCore.js'
+      - 'src/3d/world/structureGroundingPolicy.js'
+      - 'scripts/checkSettlementFunctionalLandmarks.mjs'
+      - 'scripts/checkSettlementFunctionalLandmarksBrowser.mjs'
+      - 'scripts/settlement-functional-landmark-harness.html'
+      - 'assets/models/settlements/**'
+      - 'assets/models/fbx/Medieval_Market*.fbx'
+
+permissions:
+  contents: read
+
+jobs:
+  exact-main-and-assets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: false
+
+      - name: Verify exact main ancestry and bounded diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          BASE_SHA="$(git rev-parse origin/main)"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          MERGE_BASE="$(git merge-base HEAD origin/main)"
+          test "${MERGE_BASE}" = "${BASE_SHA}"
+          CHANGED="$(git diff --numstat "${BASE_SHA}"...HEAD | awk '{a+=$1;d+=$2} END{print (a+0)+0, (d+0)+0, (a+0)+(d+0)}')"
+          echo "base=${BASE_SHA} head=${HEAD_SHA} mergeBase=${MERGE_BASE} additions/deletions/total=${CHANGED}"
+          TOTAL="$(printf '%s' "${CHANGED}" | awk '{print $3}')"
+          test "${TOTAL}" -le 3000
+
+      - name: Install selective LFS sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull --include='assets/models/settlements/blacksmith_bV52eTG1Aj.glb,assets/models/settlements/barracks_UXCOwRBSxx.glb,assets/models/settlements/barn_0QTh_KUZRYE.glb,assets/models/settlements/barn_A6UkPq33aZ.glb,assets/models/settlements/barn_dSsUaUlaxHk.glb,assets/models/settlements/barn_vSqQNA7ez6.glb,assets/models/settlements/big_barn_q1N3xn2SpC.glb,assets/models/settlements/fantasy_house_dcPho4SUA3.glb,assets/models/settlements/small_wooden_house.glb,assets/models/settlements/log_cabin_et0OmFeZVkb.glb,assets/models/settlements/cabin_shed_HTx7PZt6Zm.glb,assets/models/settlements/house_fdaqERLQCc.glb,assets/models/settlements/house_roqiHdrpgc.glb,assets/models/settlements/medium_house_4hI5fNvl6z.glb,assets/models/fbx/Medieval_Market_.fbx,assets/models/fbx/Medieval_Market_Asset_Pack.fbx'
+
+      - name: Verify hydrated functional sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          paths = [
+              'assets/models/settlements/blacksmith_bV52eTG1Aj.glb',
+              'assets/models/settlements/barracks_UXCOwRBSxx.glb',
+              'assets/models/settlements/barn_0QTh_KUZRYE.glb',
+              'assets/models/settlements/barn_A6UkPq33aZ.glb',
+              'assets/models/settlements/barn_dSsUaUlaxHk.glb',
+              'assets/models/settlements/barn_vSqQNA7ez6.glb',
+              'assets/models/settlements/big_barn_q1N3xn2SpC.glb',
+              'assets/models/settlements/fantasy_house_dcPho4SUA3.glb',
+              'assets/models/settlements/small_wooden_house.glb',
+              'assets/models/settlements/log_cabin_et0OmFeZVkb.glb',
+              'assets/models/settlements/cabin_shed_HTx7PZt6Zm.glb',
+              'assets/models/settlements/house_fdaqERLQCc.glb',
+              'assets/models/settlements/house_roqiHdrpgc.glb',
+              'assets/models/settlements/medium_house_4hI5fNvl6z.glb',
+              'assets/models/fbx/Medieval_Market_.fbx',
+              'assets/models/fbx/Medieval_Market_Asset_Pack.fbx',
+          ]
+          for raw in paths:
+              p = Path(raw)
+              if not p.is_file(): raise SystemExit(f'missing asset: {raw}')
+              if p.stat().st_size <= 4096: raise SystemExit(f'LFS pointer not hydrated: {raw}')
+          print('hydrated assets:', len(paths))
+          PY
+
+      - name: Syntax checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check scripts/checkSettlementFunctionalLandmarks.mjs
+          node --check scripts/checkSettlementFunctionalLandmarksBrowser.mjs
+          node --check src/3d/world/settlementFunctionalLandmarks.js
+          node --check src/3d/world/villages.js
+
+      - name: Static settlement contract
+        run: node scripts/checkSettlementFunctionalLandmarks.mjs
+
+      - name: Existing village regression
+        run: node scripts/checkRun330Villages.js
+
+      - name: Real Three.js Chromium proof
+        run: node scripts/checkSettlementFunctionalLandmarksBrowser.mjs
