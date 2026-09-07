@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+const root = resolve(new URL('..', import.meta.url).pathname, '..');
+const source = readFileSync(resolve(root, 'src/3d/world/geographicSettlementProps.js'), 'utf8');
+const prepare = source.indexOf('prepareWorldAssetForPlacement(object');
+const validate = source.indexOf('validateMaterialAssignment(object', prepare);
+const restore = source.indexOf('restoreOriginalMaterials(object)', validate);
+const attach = source.indexOf('attachPreparedWorldAsset(group, prepared)', validate);
+assert.ok(prepare >= 0, 'shared placement prepare missing');
+assert.ok(validate > prepare, 'material validation must follow placement preparation');
+assert.ok(restore > validate, 'authored material restoration must follow validation');
+assert.ok(attach > restore, 'scene attachment must follow material/placement validation');
+assert.equal(source.includes('EditorMaterialStudio.js'), false);
+console.log(JSON.stringify({ ok: true, order: ['prepare', 'validate', 'restore-authored', 'attach'] }));
