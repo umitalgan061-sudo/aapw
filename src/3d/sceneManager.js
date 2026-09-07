@@ -137,15 +137,12 @@ export function createScene(canvas) {
 	);
 
 	const groundCollider = createGroundCollider(WORLD_DEFAULTS.WORLD_SEED, undefined, flattenPads);
-	// One placement-only adapter keeps the Doom barren without lying to physics, water, roads or
-	// natural geology about the actual volcanic terrain height.
 	const valyriaEcologyPlacement = createValyriaBarrenEcologyPlacementProbe({
 		sampleHeightMeters: groundCollider.getGroundHeight,
 		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
 	});
 	console.info(`[sceneManager] Valyria barren ecology policy active: ${valyriaEcologyPlacement.policyId}.`);
 
-	// The Wall and cave use the same collider-owned terrain sampler as every live grounded system.
 	const iceLandmarksResult = createIceLandmarks({
 		sampleHeightMeters: groundCollider.getGroundHeight,
 		seed: WORLD_DEFAULTS.WORLD_SEED,
@@ -209,12 +206,9 @@ export function createScene(canvas) {
 	console.info(
 		`[sceneManager] Built road network: ${roadsResult.edges.length} segment(s) connecting ` +
 			`${settlementsResult.seats.length} kingdom seats, ${(roadsResult.totalLengthMeters / 1000).toFixed(2)} km total, ` +
-			`steepest actual segment grade ${roadsResult.maxGradeDegrees.toFixed(1)}°.",
+			`steepest actual segment grade ${roadsResult.maxGradeDegrees.toFixed(1)}°`,
 	);
 
-	// Asset-informed geology is deliberately created after roads/settlements so placement can reserve
-	// their corridors, but before vegetation so the geological read remains visually primary. The
-	// canonical collider/terrain sampler stays the only height authority; this layer is render-only.
 	const naturalGeologyResult = createNaturalGeology({
 		sampleHeightMeters: groundCollider.getGroundHeight,
 		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
