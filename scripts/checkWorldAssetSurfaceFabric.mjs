@@ -30,7 +30,7 @@ const surfaceContext = {
   },
 };
 
-assert.equal(WORLD_ASSET_SURFACE_FABRIC_REVISION, 'v1-world-space-organic-material-fabric');
+assert.equal(WORLD_ASSET_SURFACE_FABRIC_REVISION, 'v2-world-space-organic-material-fabric-micro-normal');
 assert.equal(WORLD_ASSET_SURFACE_FABRIC_POLICY.renderOnly, true);
 assert.equal(WORLD_ASSET_SURFACE_FABRIC_POLICY.deterministic, true);
 assert.equal(WORLD_ASSET_SURFACE_FABRIC_POLICY.worldSpace, true);
@@ -41,12 +41,17 @@ assert.equal(WORLD_ASSET_SURFACE_FABRIC_POLICY.canonicalTerrainReadOnly, true);
 assert.equal(WORLD_ASSET_SURFACE_FABRIC_POLICY.canonicalHydrologyReadOnly, true);
 assert.equal(WORLD_ASSET_SURFACE_FABRIC_POLICY.canonicalColliderReadOnly, true);
 assert.equal(WORLD_ASSET_SURFACE_FABRIC_POLICY.newGeographyIntroduced, false);
+assert.equal(WORLD_ASSET_SURFACE_FABRIC_POLICY.multiscaleNormalVariation, true);
+assert.equal(WORLD_ASSET_SURFACE_FABRIC_POLICY.worldSpaceNormalVariation, true);
+assert.equal(WORLD_ASSET_SURFACE_FABRIC_POLICY.independentNormalDomain, true);
 assert(WORLD_ASSET_SURFACE_FABRIC_POLICY.macroScaleMeters > WORLD_ASSET_SURFACE_FABRIC_POLICY.mesoScaleMeters);
 assert(WORLD_ASSET_SURFACE_FABRIC_POLICY.mesoScaleMeters > WORLD_ASSET_SURFACE_FABRIC_POLICY.patchScaleMeters);
 assert(WORLD_ASSET_SURFACE_FABRIC_POLICY.patchScaleMeters > WORLD_ASSET_SURFACE_FABRIC_POLICY.fineScaleMeters);
 assert(WORLD_ASSET_SURFACE_FABRIC_POLICY.fineScaleMeters > WORLD_ASSET_SURFACE_FABRIC_POLICY.grainScaleMeters);
 assert(WORLD_ASSET_SURFACE_FABRIC_POLICY.maximumColorDeviation > 0);
 assert(WORLD_ASSET_SURFACE_FABRIC_POLICY.maximumRoughnessDeviation > 0);
+assert(WORLD_ASSET_SURFACE_FABRIC_POLICY.maximumNormalDeviation > 0);
+assert(WORLD_ASSET_SURFACE_FABRIC_POLICY.normalDetailStepMeters > 0);
 
 const families = ['stone', 'rock', 'soil', 'wood', 'foliage', 'roof', 'metal', 'cryosphere', 'generic'];
 for (const family of families) {
@@ -59,6 +64,11 @@ for (const family of families) {
   assert(constantsA.mesoScale > constantsA.patchScale);
   assert(constantsA.patchScale > constantsA.fineScale);
   assert(constantsA.fineScale > constantsA.grainScale);
+  assert(constantsA.normalEnergy >= 0 && constantsA.normalEnergy <= 1);
+  assert(constantsA.maximumNormalDeviation > 0);
+  assert(constantsA.normalDetailStepMeters >= 0.85);
+  assert(constantsA.normalMacroScale > constantsA.normalMesoScale);
+  assert(constantsA.normalMesoScale > constantsA.normalFineScale);
 }
 
 const material = new THREE.MeshStandardMaterial({
@@ -78,6 +88,9 @@ assert.equal(material.userData.worldAssetSurfaceFabric.installed, true);
 assert.equal(material.userData.worldAssetSurfaceFabric.worldSpace, true);
 assert.equal(material.userData.worldAssetSurfaceFabric.sourceMapsPreserved, true);
 assert.equal(material.userData.worldAssetSurfaceFabric.sourceUvsPreserved, true);
+assert.equal(material.userData.worldAssetSurfaceFabric.maximumNormalDeviation, WORLD_ASSET_SURFACE_FABRIC_POLICY.maximumNormalDeviation);
+assert.equal(material.userData.worldAssetSurfaceFabric.normalDetailStepMeters, WORLD_ASSET_SURFACE_FABRIC_POLICY.normalDetailStepMeters);
+assert.equal(material.userData.worldAssetSurfaceFabric.normalEnergy, 0.73);
 assert.equal(material.customProgramCacheKey(), `${WORLD_ASSET_SURFACE_FABRIC_POLICY.id}:1:qa-rock-riverbank`);
 assert.equal(typeof material.onBeforeCompile, 'function');
 
@@ -117,6 +130,15 @@ for (const marker of [
   'worldAssetSurfaceFabricRoughMeso',
   'worldAssetSurfaceFabricRoughFine',
   'worldAssetSurfaceFabricRoughDirectional',
+  'worldAssetSurfaceFabricNormalCenter',
+  'worldAssetSurfaceFabricNormalMeso',
+  'worldAssetSurfaceFabricNormalFine',
+  'worldAssetSurfaceFabricNormalDirectional',
+  'worldAssetSurfaceFabricNormalGradientX',
+  'worldAssetSurfaceFabricNormalGradientZ',
+  'worldAssetSurfaceFabricNormalAmplitude',
+  'worldAssetSurfaceFabricMicroEdgeWorld',
+  'normal = normalize(normal +',
   'roughnessFactor',
 ]) {
   assert(shader.vertexShader.includes(marker) || shader.fragmentShader.includes(marker), `shader lost ${marker}`);
@@ -124,6 +146,9 @@ for (const marker of [
 
 assert(shader.vertexShader.includes('#ifdef USE_INSTANCING'), 'instanced meshes need instance-space world coordinates');
 assert(shader.vertexShader.includes('instanceMatrix'), 'asset fabric must account for instanced transforms');
+assert(shader.fragmentShader.includes('worldAssetSurfaceFabricNormalEnergy'), 'normal detail must be driven by calibrated normal energy');
+assert(shader.fragmentShader.includes('worldAssetSurfaceFabricNormalFamilyGain'), 'normal detail must use family-specific gain');
+assert(shader.fragmentShader.includes('worldAssetSurfaceFabricNormalMaterialBias'), 'normal detail must respond to environment/material stress');
 assert(shader.fragmentShader.includes('worldAssetSurfaceFabricWeathering'), 'fragment shader must contain environmental weathering response');
 assert(shader.fragmentShader.includes('worldAssetSurfaceFabricSediment'), 'fragment shader must contain directional sediment response');
 assert(shader.fragmentShader.includes('worldAssetSurfaceFabricFamilyCode'), 'fragment shader must select family-specific fabric');
@@ -142,4 +167,4 @@ assert.equal(material.userData.worldAssetSurfaceFabric.sourceMapsPreserved, true
 sourceMap.dispose();
 material.dispose();
 
-console.log('[checkWorldAssetSurfaceFabric] PASS: placed authored asset materials gain deterministic world-space multiscale albedo/roughness fabric while source maps/UVs and scene geometry remain preserved.');
+console.log('[checkWorldAssetSurfaceFabric] PASS: placed authored asset materials gain deterministic world-space multiscale albedo/roughness/normal fabric while source maps/UVs and scene geometry remain preserved.');
