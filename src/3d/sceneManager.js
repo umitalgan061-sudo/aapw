@@ -32,6 +32,12 @@ import { createVegetation } from './world/vegetation.js';
 import { upgradeWinterVegetationAssets } from './world/winterVegetationAsset.js';
 import { createWindGrassRun180 } from './world/windGrass.js';
 import { createVillages } from './world/villages.js';
+import { createGeographicSettlementPropLayer } from './world/geographicSettlementProps.js';
+import {
+	decorateGeographicSettlementPropGroup,
+	auditGeographicSettlementPropGroup,
+	buildGeographicSettlementPropRuntimeSummary,
+} from './world/geographicSettlementPropQuality.js';
 import { createIceLandmarks } from './world/iceLandmarks.js';
 import { createOrbitCamera } from './camera.js';
 import { createFreeCameraController } from './debug/freeCamera.js';
@@ -289,6 +295,47 @@ export function createScene(canvas) {
 			`across ${villagesResult.villageCount} village(s).`,
 	);
 
+	const geographicSettlementPropsReady = createGeographicSettlementPropLayer({
+		scene,
+		seats: settlementsResult.seats,
+		roadEdges: roadsResult.edges,
+		sampleHeightMeters: groundCollider.getGroundHeight,
+		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+		radiusMeters: previewRadiusChunks * CHUNK_CONFIG.CHUNK_SIZE_METERS,
+		isMobileClass,
+	}).then((result) => {
+		const decoration = decorateGeographicSettlementPropGroup(result.group, result.plan);
+		const quality = auditGeographicSettlementPropGroup(result.group, result.plan);
+		const runtimeSummary = buildGeographicSettlementPropRuntimeSummary({
+			result,
+			plan: result.plan,
+			quality,
+			seats: settlementsResult.seats,
+		});
+		if (result.ok && !quality.ok) {
+			console.error('[sceneManager] Geographic settlement prop quality gate failed.', quality);
+		} else if (result.ok) {
+			console.info(
+				`[sceneManager] Geographic settlement fringe: ${result.stats.placementCount} authored prop placement(s), ` +
+				`${decoration.semanticRoleCount} semantic role(s), ${quality.mappedAssetCount} mapped-PBR asset instance(s).`,
+			);
+		}
+		result.group.userData.geographicSettlementPropRuntimeSummary = runtimeSummary;
+		applyShadowRoles(result.group, { quality: renderQuality });
+		return Object.freeze({ ...result, decoration, quality, runtimeSummary });
+	}).catch((error) => {
+		console.warn('[sceneManager] Geographic settlement fringe asset layer failed closed; no placeholders will be substituted.', error);
+		return Object.freeze({
+			ok: false,
+			group: new THREE.Group(),
+			plan: [],
+			stats: { placementCount: 0 },
+			hydratedAssetFamilies: [],
+			failedAssetFamilies: ['runtime-error'],
+			error: String(error),
+		});
+	});
+
 	const villageCollider = createCircleCollider(villagesResult.houses);
 	const iceLandmarkCollider = createCircleCollider(iceLandmarksResult.blockers);
 	const playerCollider = createComposedCollider([settlementCollider, villageCollider, iceLandmarkCollider]);
@@ -311,6 +358,8 @@ export function createScene(canvas) {
 		valyriaEcologyPlacement,
 		vegetation: vegetationResult.group,
 		villages: villagesResult.group,
+		geographicSettlementProps: null,
+		geographicSettlementPropsReady,
 		iceLandmarks: iceLandmarksResult.group,
 		iceLandmarkStats: iceLandmarksResult.stats,
 		settlementSeats: settlementsResult.seats,
