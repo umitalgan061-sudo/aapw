@@ -1,0 +1,55 @@
+export const TERRAIN_ENVIRONMENT_ACCEPTANCE_CATALOG=Object.freeze([
+Object.freeze({id:'P0-WATER-RECT',target:'water',severity:'P0',metric:'rectangularOverlayPixels',max:0}),
+Object.freeze({id:'P0-WATER-TILE',target:'water',severity:'P0',metric:'visibleTileBoundaries',max:0}),
+Object.freeze({id:'P0-WATER-MOIRE',target:'water',severity:'P0',metric:'obviousMoiréBands',max:0}),
+Object.freeze({id:'P0-TERRAIN-GRID',target:'terrain',severity:'P0',metric:'visibleGridSeams',max:0}),
+Object.freeze({id:'P0-COAST-STAIR',target:'coast',severity:'P0',metric:'stairStepSegments',max:0}),
+Object.freeze({id:'P0-SKY-BLACK',target:'sky',severity:'P0',metric:'blackSkyPixels',max:0}),
+Object.freeze({id:'P0-CYAN-BLOCK',target:'water',severity:'P0',metric:'cyanBlockRegions',max:0}),
+Object.freeze({id:'P1-SMOOTH-WALL',target:'mountain',severity:'P1',metric:'smoothWallRegions',max:0}),
+Object.freeze({id:'P1-PLATEAU',target:'mountain',severity:'P1',metric:'syntheticPlateauRegions',max:0}),
+Object.freeze({id:'P1-ROCK',target:'mountain',severity:'P1',metric:'rockExposureZones',min:1}),
+Object.freeze({id:'P1-SCREE',target:'mountain',severity:'P1',metric:'screeApronZones',min:1}),
+Object.freeze({id:'P1-CLIFF',target:'mountain',severity:'P1',metric:'cliffBreakupZones',min:1}),
+Object.freeze({id:'P1-RIDGE',target:'mountain',severity:'P1',metric:'ridgeShoulderVariation',min:.2}),
+Object.freeze({id:'P1-VALLEY',target:'valley',severity:'P1',metric:'valleyWidthVariation',min:.2}),
+Object.freeze({id:'P2-OLIVE-FLAT',target:'terrain',severity:'P2',metric:'dominantOliveCoverage',max:.76}),
+Object.freeze({id:'P2-WHITE-FLAT',target:'snow',severity:'P2',metric:'uniformWhiteCoverage',max:.72}),
+Object.freeze({id:'P2-GRAY-FLAT',target:'rock',severity:'P2',metric:'uniformGrayCoverage',max:.7}),
+Object.freeze({id:'P2-MACRO',target:'terrain',severity:'P2',metric:'macroLuminanceStdDev',min:.035}),
+Object.freeze({id:'P2-MESO',target:'terrain',severity:'P2',metric:'mesoLuminanceStdDev',min:.018}),
+Object.freeze({id:'P2-NORMAL',target:'terrain-near',severity:'P2',metric:'normalDetailGain',min:.04}),
+Object.freeze({id:'P2-ROUGHNESS',target:'terrain-near',severity:'P2',metric:'roughnessStdDev',min:.035}),
+Object.freeze({id:'P2-TILING',target:'terrain-near',severity:'P2',metric:'visibleRepeatFrequency',max:.12}),
+Object.freeze({id:'P2-SNOWLINE',target:'snow',severity:'P2',metric:'transitionBandMeters',min:18}),
+Object.freeze({id:'P2-WET-EDGE',target:'coast',severity:'P2',metric:'wetEdgeBandMeters',min:1}),
+Object.freeze({id:'P3-TREE-SPARSITY',target:'forest',severity:'P3',metric:'clusterCoverage',min:.22}),
+Object.freeze({id:'P3-TREE-PRIMITIVE',target:'forest',severity:'P3',metric:'primitiveTreeRatio',max:0}),
+Object.freeze({id:'P3-FLOATING',target:'vegetation',severity:'P3',metric:'floatingAssets',max:0}),
+Object.freeze({id:'P3-WATER-TREE',target:'vegetation',severity:'P3',metric:'treesInWater',max:0}),
+Object.freeze({id:'P3-CLIFF-TREE',target:'vegetation',severity:'P3',metric:'treesOnForbiddenSlope',max:0}),
+Object.freeze({id:'P3-CLEARING',target:'forest',severity:'P3',metric:'clearingPatches',min:1}),
+Object.freeze({id:'P3-ECOTONE',target:'forest-edge',severity:'P3',metric:'ecotoneZones',min:1}),
+Object.freeze({id:'P3-SCALE',target:'vegetation',severity:'P3',metric:'scaleVariation',min:.18}),
+Object.freeze({id:'P3-YAW',target:'vegetation',severity:'P3',metric:'yawVariation',min:.25}),
+Object.freeze({id:'P3-INSTANCING',target:'vegetation',severity:'P3',metric:'instancedShare',min:.7}),
+Object.freeze({id:'P3-LOD',target:'vegetation',severity:'P3',metric:'lodCoverage',min:1}),
+Object.freeze({id:'P4-DEEP-SHALLOW',target:'water',severity:'P4',metric:'depthColorGradient',min:.15}),
+Object.freeze({id:'P4-HALO',target:'water',severity:'P4',metric:'hardShorelineHaloPixels',max:0}),
+Object.freeze({id:'P4-CYAN',target:'water',severity:'P4',metric:'cyanDominance',max:.4}),
+Object.freeze({id:'P4-RIVER-BLOCK',target:'river',severity:'P4',metric:'rectangularRiverRegions',max:0}),
+Object.freeze({id:'P4-LAKE-CUT',target:'lake',severity:'P4',metric:'incorrectShorelineCuts',max:0}),
+Object.freeze({id:'P5-FOG',target:'atmosphere',severity:'P5',metric:'farMountainAtmosphericFalloff',min:.08}),
+Object.freeze({id:'P5-SKY',target:'sky',severity:'P5',metric:'skyLuminanceStdDev',min:.015}),
+Object.freeze({id:'P5-EXPOSURE',target:'lighting',severity:'P5',metric:'exposureClippingRatio',max:.03}),
+Object.freeze({id:'P5-SUN',target:'lighting',severity:'P5',metric:'sunDirectionConsistency',min:.95}),
+Object.freeze({id:'P5-FAR-TERRAIN',target:'mountain-far',severity:'P5',metric:'farDepthCue',min:.08}),
+]);
+const freeze=(v)=>Object.freeze(v);
+export function ruleById(id){return TERRAIN_ENVIRONMENT_ACCEPTANCE_CATALOG.find((rule)=>rule.id===id)||null;}
+export function rulesForTarget(target){return freeze(TERRAIN_ENVIRONMENT_ACCEPTANCE_CATALOG.filter((rule)=>rule.target===target));}
+export function rulesForSeverity(severity){return freeze(TERRAIN_ENVIRONMENT_ACCEPTANCE_CATALOG.filter((rule)=>rule.severity===severity));}
+export function evaluateRule(rule,value){if(!rule)return freeze({ok:false,error:'missing-rule'});const number=Number(value);if(!Number.isFinite(number))return freeze({ok:false,error:'non-finite-value'});if(rule.max!=null&&number>rule.max)return freeze({ok:false,error:'above-maximum',rule,value});if(rule.min!=null&&number<rule.min)return freeze({ok:false,error:'below-minimum',rule,value});return freeze({ok:true,rule,value});}
+export function evaluateCatalog(metrics={}){const reports=TERRAIN_ENVIRONMENT_ACCEPTANCE_CATALOG.map((rule)=>evaluateRule(rule,metrics[rule.metric]));const failed=reports.filter((report)=>!report.ok);return freeze({ok:failed.length===0,reports,failedCount:failed.length,failed:Object.freeze(failed)});}
+export function requiredProofTargets(){return freeze(['full-world','terrain-near','far','coast-near','forest-near','settlement-near','water-near','snow-near']);}
+export function catalogSummary(){const summary={};for(const rule of TERRAIN_ENVIRONMENT_ACCEPTANCE_CATALOG)summary[rule.severity]=(summary[rule.severity]||0)+1;return freeze({count:TERRAIN_ENVIRONMENT_ACCEPTANCE_CATALOG.length,bySeverity:freeze(summary),requiredProofTargets:requiredProofTargets()});}
