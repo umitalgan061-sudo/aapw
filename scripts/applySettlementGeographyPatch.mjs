@@ -20,7 +20,7 @@ function replaceOnce(before, after, label) {
 
 replaceOnce(
 	"import { createStoneMaterial, createRoofMaterial } from './materials.js';\n",
-	"import { createStoneMaterial, createRoofMaterial } from './materials.js';\nimport {\n\tcompareSettlementArchitectureCandidates,\n\tresolveSettlementArchitectureEvidence,\n\tresolveSettlementArchitectureVariant,\n\tresolveSettlementPreferredMaterialRole,\n\tscoreSettlementArchitectureSite,\n\tselectSettlementArchitectureVariant,\n} from './settlementGeographyPolicy.js';\n",
+	"import { createStoneMaterial, createRoofMaterial } from './materials.js';\nimport {\n\tresolveSettlementArchitectureEvidence,\n\tscoreSettlementArchitectureSite,\n\tselectSettlementArchitectureVariant,\n} from './settlementGeographyPolicy.js';\n",
 	'import block',
 );
 
@@ -44,20 +44,26 @@ replaceOnce(
 
 replaceOnce(
 "\t\tconst profile = resolveVillageArchitectureProfile(site.seatId);\n\t\tconst assetUrl = resolveVillageArchitectureAssetUrl(profile, site);\n",
-"\t\tconst profile = resolveVillageArchitectureProfile(site.seatId);\n\t\tconst assetUrl = resolveVillageArchitectureAssetUrl(profile, site);\n\t\tconst geographyEvidence = resolveSettlementArchitectureEvidence(profile.id, {\n\t\t\t...(site.surfaceContext || {}),\n\t\t\troll: ((site.houseIndex ?? 0) * 0.61803398875) % 1,\n\t\t});\n",
+"\t\tconst profile = resolveVillageArchitectureProfile(site.seatId);\n\t\tconst assetUrl = resolveVillageArchitectureAssetUrl(profile, site);\n\t\tconst geographyEvidence = resolveSettlementArchitectureEvidence(profile.id, {\n\t\t\t...(site.surfaceContext || {}),\n\t\t\troll: ((site.houseIndex + 1) * 0.61803398875) % 1,\n\t\t});\n",
 	'upgrade geography evidence',
 );
 
 replaceOnce(
 "\t\t\tassetUrl,\n\t\t\ttextureSize: ARCHITECTURE_TEXTURE_SIZE,\n\t\t\tdistributionDistanceMeters: Number.isFinite(site.distributionDistanceMeters) ? site.distributionDistanceMeters : null,\n\t\tfootprint: object.userData.architectureFootprint,\n\t\t\tmanifest: prepared.manifest,\n",
-"\t\t\tassetUrl,\n\t\t\ttextureSize: ARCHITECTURE_TEXTURE_SIZE,\n\t\t\tdistributionDistanceMeters: Number.isFinite(site.distributionDistanceMeters) ? site.distributionDistanceMeters : null,\n\t\t\tgeographyScore: geographyEvidence.score,\n\t\t\tgeographyVariant: geographyEvidence.variant,\n\t\t\tsurfaceContext: geographyEvidence.context,\n\t\t\tfootprint: object.userData.architectureFootprint,\n\t\t\tmanifest: prepared.manifest,\n",
+"\t\t\tassetUrl,\n\t\t\ttextureSize: ARCHITECTURE_TEXTURE_SIZE,\n\t\t\tdistributionDistanceMeters: Number.isFinite(site.distributionDistanceMeters) ? site.distributionDistanceMeters : null,\n\t\t\tgeographyScore: geographyEvidence.score,\n\t\t\tgeographyVariant: site.assetVariant || geographyEvidence.variant,\n\t\t\tsurfaceContext: geographyEvidence.context,\n\t\t\tfootprint: object.userData.architectureFootprint,\n\t\t\tmanifest: prepared.manifest,\n",
 	'geography manifest evidence',
 );
 
 replaceOnce(
 "\t\t\tconst type = HOUSE_TYPES[pickHouseTypeIndex(rng())];\n\t\t\tconst yaw = Math.atan2(hamletX - x, hamletZ - z) + (rng() - 0.5) * 0.5;\n\t\t\tconst support = sampleFootprintRange(sampleHeightMeters, x, z, type.width, type.depth, yaw);\n",
-"\t\t\tconst type = HOUSE_TYPES[pickHouseTypeIndex(rng())];\n\t\t\tconst yaw = Math.atan2(hamletX - x, hamletZ - z) + (rng() - 0.5) * 0.5;\n\t\t\tconst support = sampleFootprintRange(sampleHeightMeters, x, z, type.width, type.depth, yaw);\n\t\t\tconst candidateSurfaceContext = createVillageArchitectureSurfaceQuery(sampleHeightMeters, seaLevelMeters, roadEdges)(x, z);\n",
+"\t\t\tconst type = HOUSE_TYPES[pickHouseTypeIndex(rng())];\n\t\t\tconst yaw = Math.atan2(hamletX - x, hamletZ - z) + (rng() - 0.5) * 0.5;\n\t\t\tconst support = sampleFootprintRange(sampleHeightMeters, x, z, type.width, type.depth, yaw);\n\t\t\tconst candidateSurfaceContext = architectureSurfaceQuery(x, z);\n",
 	'candidate surface context',
+);
+
+replaceOnce(
+"\tconst landmarkSites = [];\n",
+"\tconst landmarkSites = [];\n\tconst architectureSurfaceQuery = createVillageArchitectureSurfaceQuery(sampleHeightMeters, seaLevelMeters, roadEdges);\n",
+	'cached surface query',
 );
 
 replaceOnce(
@@ -70,11 +76,6 @@ replaceOnce(
 "\tgroup.add(bodyMesh, roofMesh, stepMesh, wallMesh);\n\tgroup.userData.villageLandmarkSites = landmarkSites.map((site) => ({ ...site }));\n",
 "\tgroup.add(bodyMesh, roofMesh, stepMesh, wallMesh);\n\tgroup.userData.villageLandmarkSites = landmarkSites.map((site) => ({ ...site }));\n\tgroup.userData.villageArchitectureGeographyPolicy = 'settlement-geography-asset-material-v1-2026-09-07';\n",
 	'policy evidence metadata',
-);
-
-updated = updated.replace(
-"\tcompareSettlementArchitectureCandidates,\n\tresolveSettlementArchitectureEvidence,\n\tresolveSettlementArchitectureVariant,\n\tresolveSettlementPreferredMaterialRole,\n",
-"\tresolveSettlementArchitectureEvidence,\n",
 );
 
 fs.writeFileSync(targetPath, updated);
