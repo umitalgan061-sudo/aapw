@@ -5,11 +5,7 @@ import { surveyParts } from './meshPartClassifier.js';
 import { kitForPalette, resolveKit } from './figureKits.js';
 import { createLayeredMaterial, meshHeightRange, MAX_BANDS } from './layeredMaterial.js';
 import { hashString } from './textureCore.js';
-
-/**
- * Shared, DOM-free material pipeline used by both editor tooling and autonomous world builders.
- * The editor may add UI around these functions, but material decisions and application live here.
- */
+import { applyWorldAssetSurfaceFabric } from './worldAssetSurfaceFabric.js';
 
 export function describeMaterialSubject(object, metadata = {}) {
   return {
@@ -53,11 +49,7 @@ export function analyzeMaterialSurfaces(root) {
   };
 }
 
-export function buildAutoMaterialRecipe(object, {
-  metadata = {},
-  paletteId,
-  textureSize = 256,
-} = {}) {
+export function buildAutoMaterialRecipe(object, { metadata = {}, paletteId, textureSize = 256 } = {}) {
   const subject = describeMaterialSubject(object, metadata);
   const match = paletteId ? null : matchPalette(subject);
   const chosen = paletteId || match?.paletteId;
@@ -72,10 +64,7 @@ export function buildAutoMaterialRecipe(object, {
 }
 
 export function buildRecommendedLayerRecipe(object, {
-  metadata = {},
-  paletteId,
-  textureSize = 256,
-  targetMeshIndex = 0,
+  metadata = {}, paletteId, textureSize = 256, targetMeshIndex = 0,
 } = {}) {
   const auto = buildAutoMaterialRecipe(object, { metadata, paletteId, textureSize });
   if (!auto) return null;
@@ -103,10 +92,47 @@ export function applyMaterialRecipe(object, recipe, { metadata = {} } = {}) {
   else return { ok: false, error: `unsupported-mode:${recipe.mode}` };
 
   if (result.ok) {
+    applyWorldAssetSurfaceFabricToMaterials(object, {
+      family: metadata.category || object.userData?.assetCategory || recipe.basePaletteId || 'asset',
+      variant: metadata.id || object.userData?.assetId || object.name || '',
+    });
     object.userData.materialRecipe = cloneRecipe(recipe);
     object.userData.editorMaterialRecipe = cloneRecipe(recipe);
   }
   return result;
+}
+
+/**
+ * Every generated world asset gets the same downstream, render-only world-space breakup layer.
+ * This is deliberately centralized here instead of in individual asset callers, so editor-authored,
+ * autonomous and placement-pipeline assets cannot silently bypass weathering/roughness/normal detail.
+ */
+export function applyWorldAssetSurfaceFabricToMaterials(root, { family = 'asset', variant = '' } = {}) {
+  let applied = 0;
+  root?.traverse?.((child) => {
+    if (!child?.isMesh && !child?.isInstancedMesh) return;
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    const next = materials.map((material, index) => {
+      if (!material) return material;
+      const paletteId = material.userData?.paletteId || '';
+      const surface = material.userData?.surface || paletteId || `${family}:${index}`;
+      applyWorldAssetSurfaceFabric(material, {
+        family: paletteId || family,
+        surface,
+        variant: `${variant}:${paletteId || index}`,
+      });
+      applied += 1;
+      return material;
+    });
+    if (Array.isArray(child.material)) child.material = next;
+  });
+  root?.userData && (root.userData.worldAssetSurfaceFabric = {
+    policyId: 'world-asset-surface-fabric-2026-09-07-v1',
+    deterministic: true,
+    renderOnly: true,
+    materialCount: applied,
+  });
+  return applied;
 }
 
 export function autoAssignMaterials(object, options = {}) {
@@ -120,11 +146,7 @@ function applyAutoRecipe(object, recipe, metadata) {
   const subject = describeMaterialSubject(object, metadata);
   const variant = object.userData?.editorId || object.userData?.assetId || subject.id || subject.name || '';
   const size = clampTextureSize(recipe.textureSize);
-  const applied = applyKitToObject(object, recipe.basePaletteId, {
-    variant,
-    size,
-    layeredSize: size,
-  });
+  const applied = applyKitToObject(object, recipe.basePaletteId, { variant, size, layeredSize: size });
   if (!applied.ok) return { ok: false, error: 'no-dressable-mesh' };
   object.userData.autoTexturePaletteId = recipe.basePaletteId;
   return {
@@ -145,9 +167,7 @@ function applySurfaceRecipe(object, recipe) {
   for (const surface of analysis.surfaces) {
     const paletteId = recipe.surfaceOverrides?.[surface.key];
     if (!findPalette(paletteId)) continue;
-    if (!pending.has(surface.mesh)) {
-      pending.set(surface.mesh, Array.isArray(surface.mesh.material) ? [...surface.mesh.material] : [surface.mesh.material]);
-    }
+    if (!pending.has(surface.mesh)) pending.set(surface.mesh, Array.isArray(surface.mesh.material) ? [...surface.mesh.material] : [surface.mesh.material]);
     const variant = `${object.userData?.editorId || object.userData?.assetId || object.name || 'asset'}:${surface.key}`;
     const material = getPaletteMaterial(paletteId, { size, variant });
     if (!material) continue;
@@ -165,9 +185,7 @@ function applySurfaceRecipe(object, recipe) {
 function applyLayerRecipe(object, recipe) {
   const meshes = collectMaterialMeshes(object);
   const mesh = meshes[Number(recipe.targetMeshIndex) || 0];
-  if (!mesh || !Array.isArray(recipe.layers) || !recipe.layers.length) {
-    return { ok: false, error: 'invalid-layer-target' };
-  }
+  if (!mesh || !Array.isArray(recipe.layers) || !recipe.layers.length) return { ok: false, error: 'invalid-layer-target' };
   const range = meshHeightRange(mesh);
   if (!range) return { ok: false, error: 'missing-height-range' };
   const material = createLayeredMaterial({

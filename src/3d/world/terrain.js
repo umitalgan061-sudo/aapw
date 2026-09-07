@@ -28,6 +28,16 @@ import {
 	applyTerrainMicroSurface,
 } from './terrainMicroSurface.js';
 import {
+	TERRAIN_SURFACE_FABRIC_POLICY,
+	applyTerrainSurfaceFabric,
+	buildTerrainSurfaceManifest,
+} from './terrainSurfaceFabric.js';
+import {
+	TERRAIN_ENVIRONMENT_PROFILE_POLICY,
+	listEnvironmentAssetFamilyRequirements,
+	resolveTerrainEnvironmentProfile,
+} from './terrainEnvironmentProfiles.js';
+import {
 	TERRAIN_BIOME_SHADING_POLICY,
 	NEUTRAL_DETAIL_GAIN,
 	resolveTerrainBiomeColor,
@@ -45,6 +55,8 @@ import {
 
 // Re-exported so the micro-surface extraction stays invisible to every existing importer and check.
 export { TERRAIN_MICRO_SURFACE_POLICY, terrainMicroUvAt, getSharedTerrainMicroSurfaceTextures, applyTerrainMicroSurface };
+export { TERRAIN_SURFACE_FABRIC_POLICY, applyTerrainSurfaceFabric, buildTerrainSurfaceManifest };
+export { TERRAIN_ENVIRONMENT_PROFILE_POLICY, listEnvironmentAssetFamilyRequirements, resolveTerrainEnvironmentProfile };
 
 export const DEFAULT_MAX_HEIGHT_METERS = 24; // compatibility only; production height is map-derived.
 const SEA_LEVEL = WORLD_DEFAULTS.WATER_LEVEL_METERS;
@@ -464,6 +476,7 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 	material.color.setScalar(terrainDetailGain);
 	material.userData.terrainDetailGain = terrainDetailGain;
 	applyTerrainMicroSurface(material);
+	applyTerrainSurfaceFabric(material);
 	const mesh = new THREE.Mesh(geometry, material);
 	mesh.receiveShadow = true;
 	mesh.position.set(chunkX * size, 0, chunkZ * size);
@@ -500,6 +513,22 @@ export function createTerrainChunk({ chunkX, chunkZ, size = 500, segments = 64, 
 		volcanicVertexColorIntegrated: true,
 	});
 	mesh.userData.currentTerrainMicroSurface = material.userData.terrainMicroSurface;
+	mesh.userData.currentTerrainSurfaceFabric = Object.freeze({
+		policyId: TERRAIN_SURFACE_FABRIC_POLICY.id,
+		worldSpace: true,
+		periodicTextureSupplemental: true,
+		canonicalHeightUnchanged: true,
+		canonicalHydrologyUnchanged: true,
+		canonicalColliderUnchanged: true,
+	});
+	mesh.userData.currentTerrainEnvironmentProfiles = Object.freeze({
+		policyId: TERRAIN_ENVIRONMENT_PROFILE_POLICY.id,
+		materialAuthority: TERRAIN_ENVIRONMENT_PROFILE_POLICY.materialAuthority,
+		placementAuthority: TERRAIN_ENVIRONMENT_PROFILE_POLICY.placementAuthority,
+		placeholderAllowed: false,
+		deterministicTransformRequired: true,
+		manifestRequired: true,
+	});
 	return mesh;
 }
 

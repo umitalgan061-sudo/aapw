@@ -1,0 +1,85 @@
+name: Terrain Surface Fabric Exact Head
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/terrain.js'
+      - 'src/3d/world/terrainSurfaceFabric.js'
+      - 'src/3d/world/terrainEnvironmentProfiles.js'
+      - 'src/3d/world/terrainEnvironmentAssetRegistry.js'
+      - 'src/3d/world/terrainEnvironmentContract.js'
+      - 'src/3d/world/terrainEnvironmentSpatialPolicy.js'
+      - 'src/3d/materials/MaterialAssignmentCore.js'
+      - 'src/3d/materials/worldAssetSurfaceFabric.js'
+      - 'scripts/checkTerrainSurfaceFabric.mjs'
+      - 'scripts/checkTerrainEnvironmentSpatialPolicy.mjs'
+      - 'scripts/checkTerrainEnvironmentAssetRegistry.mjs'
+      - 'scripts/checkTerrainEnvironmentVisualEnvelope.mjs'
+      - 'scripts/checkWorldAssetSurfaceFabric.mjs'
+      - '.github/workflows/terrain-surface-fabric-exact-head.yml'
+  push:
+    branches:
+      - codex/buzul-muhafizi-terrain-environment-fabric-20260907
+
+permissions:
+  contents: read
+
+jobs:
+  terrain-surface-fabric:
+    name: Exact-head terrain environment contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact main ancestry
+        run: |
+          git fetch origin main --depth=1
+          BASE_SHA="$(git rev-parse origin/main)"
+          HEAD_SHA="$(git rev-parse HEAD)"
+          echo "main=${BASE_SHA}"
+          echo "head=${HEAD_SHA}"
+          git merge-base --is-ancestor "${BASE_SHA}" "${HEAD_SHA}"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: JavaScript syntax
+        run: |
+          node --check src/3d/world/terrain.js
+          node --check src/3d/world/terrainSurfaceFabric.js
+          node --check src/3d/world/terrainEnvironmentProfiles.js
+          node --check src/3d/world/terrainEnvironmentAssetRegistry.js
+          node --check src/3d/world/terrainEnvironmentContract.js
+          node --check src/3d/world/terrainEnvironmentSpatialPolicy.js
+          node --check src/3d/materials/MaterialAssignmentCore.js
+          node --check src/3d/materials/worldAssetSurfaceFabric.js
+          node --check scripts/checkTerrainSurfaceFabric.mjs
+          node --check scripts/checkTerrainEnvironmentSpatialPolicy.mjs
+          node --check scripts/checkTerrainEnvironmentAssetRegistry.mjs
+          node --check scripts/checkTerrainEnvironmentVisualEnvelope.mjs
+          node --check scripts/checkWorldAssetSurfaceFabric.mjs
+
+      - name: Terrain surface fabric contract
+        run: node scripts/checkTerrainSurfaceFabric.mjs
+
+      - name: Spatial ecology contract
+        run: node scripts/checkTerrainEnvironmentSpatialPolicy.mjs
+
+      - name: Authored environment asset registry contract
+        run: node scripts/checkTerrainEnvironmentAssetRegistry.mjs
+
+      - name: Visual ecology envelope contract
+        run: node scripts/checkTerrainEnvironmentVisualEnvelope.mjs
+
+      - name: World asset surface fabric contract
+        run: node scripts/checkWorldAssetSurfaceFabric.mjs
+
+      - name: Diff hygiene
+        run: git diff --check
