@@ -37,7 +37,7 @@ assert.equal(WORLD_ASSET_REGIONAL_ANCHOR_POLICY.renderOnly, true);
 assert.equal(WORLD_ASSET_REGIONAL_ANCHOR_POLICY.distributionOnly, true);
 assert.equal(WORLD_ASSET_REGIONAL_ANCHOR_POLICY.newGeographyIntroduced, false);
 assert(WORLD_ASSET_REGIONAL_ANCHOR_POLICY.regionalInfluenceMax <= 0.34);
-assert.equal(REGION_NAMES.length, 10);
+assert.equal(REGION_NAMES.length, 9);
 
 for (const [region, anchor] of Object.entries(WORLD_ASSET_REGIONAL_ANCHORS)) {
   assert(anchor.id === region, `${region} anchor id mismatch`);
