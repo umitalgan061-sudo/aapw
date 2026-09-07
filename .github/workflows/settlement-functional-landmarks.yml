@@ -10,6 +10,7 @@ on:
       - 'src/3d/materials/MaterialAssignmentCore.js'
       - 'src/3d/world/structureGroundingPolicy.js'
       - 'scripts/checkSettlementFunctionalLandmarks.mjs'
+      - 'scripts/checkSettlementGeographyCoverage.mjs'
       - 'scripts/checkSettlementFunctionalLandmarksBrowser.mjs'
       - 'scripts/settlement-functional-landmark-harness.html'
       - 'assets/models/settlements/**'
@@ -22,6 +23,7 @@ on:
       - 'src/3d/materials/MaterialAssignmentCore.js'
       - 'src/3d/world/structureGroundingPolicy.js'
       - 'scripts/checkSettlementFunctionalLandmarks.mjs'
+      - 'scripts/checkSettlementGeographyCoverage.mjs'
       - 'scripts/checkSettlementFunctionalLandmarksBrowser.mjs'
       - 'scripts/settlement-functional-landmark-harness.html'
       - 'assets/models/settlements/**'
@@ -57,7 +59,7 @@ jobs:
         run: |
           set -euo pipefail
           git lfs install --local
-          git lfs pull --include='assets/models/settlements/blacksmith_bV52eTG1Aj.glb,assets/models/settlements/barracks_UXCOwRBSxx.glb,assets/models/settlements/barn_0QTh_KUZRYE.glb,assets/models/settlements/barn_A6UkPq33aZ.glb,assets/models/settlements/barn_dSsUaUlaxHk.glb,assets/models/settlements/barn_vSqQNA7ez6.glb,assets/models/settlements/big_barn_q1N3xn2SpC.glb,assets/models/settlements/fantasy_house_dcPho4SUA3.glb,assets/models/settlements/small_wooden_house.glb,assets/models/settlements/log_cabin_et0OmFeZVkb.glb,assets/models/settlements/cabin_shed_HTx7PZt6Zm.glb,assets/models/settlements/house_fdaqERLQCc.glb,assets/models/settlements/house_roqiHdrpgc.glb,assets/models/settlements/medium_house_4hI5fNvl6z.glb,assets/models/fbx/Medieval_Market_.fbx,assets/models/fbx/Medieval_Market_Asset_Pack.fbx'
+          git lfs pull --include='assets/models/settlements/blacksmith_bV52eTG1Aj.glb,assets/models/settlements/barracks_UXCOwRBSxx.glb,assets/models/settlements/barn_0QTh_KUZRYE.glb,assets/models/settlements/barn_A6UkPq33aZ.glb,assets/models/settlements/barn_dSsUaUlaxHk.glb,assets/models/settlements/big_barn_q1N3xn2SpC.glb,assets/models/settlements/fantasy_house_dcPho4SUA3.glb,assets/models/settlements/small_wooden_house.glb,assets/models/fbx/Medieval_Market_.fbx,assets/models/fbx/Medieval_Market_Asset_Pack.fbx'
 
       - name: Verify hydrated functional sources
         shell: bash
@@ -71,15 +73,9 @@ jobs:
               'assets/models/settlements/barn_0QTh_KUZRYE.glb',
               'assets/models/settlements/barn_A6UkPq33aZ.glb',
               'assets/models/settlements/barn_dSsUaUlaxHk.glb',
-              'assets/models/settlements/barn_vSqQNA7ez6.glb',
               'assets/models/settlements/big_barn_q1N3xn2SpC.glb',
               'assets/models/settlements/fantasy_house_dcPho4SUA3.glb',
               'assets/models/settlements/small_wooden_house.glb',
-              'assets/models/settlements/log_cabin_et0OmFeZVkb.glb',
-              'assets/models/settlements/cabin_shed_HTx7PZt6Zm.glb',
-              'assets/models/settlements/house_fdaqERLQCc.glb',
-              'assets/models/settlements/house_roqiHdrpgc.glb',
-              'assets/models/settlements/medium_house_4hI5fNvl6z.glb',
               'assets/models/fbx/Medieval_Market_.fbx',
               'assets/models/fbx/Medieval_Market_Asset_Pack.fbx',
           ]
@@ -95,12 +91,16 @@ jobs:
         run: |
           set -euo pipefail
           node --check scripts/checkSettlementFunctionalLandmarks.mjs
+          node --check scripts/checkSettlementGeographyCoverage.mjs
           node --check scripts/checkSettlementFunctionalLandmarksBrowser.mjs
           node --check src/3d/world/settlementFunctionalLandmarks.js
           node --check src/3d/world/villages.js
 
       - name: Static settlement contract
         run: node scripts/checkSettlementFunctionalLandmarks.mjs
+
+      - name: Geographic coverage audit
+        run: node scripts/checkSettlementGeographyCoverage.mjs
 
       - name: Existing village regression
         run: node scripts/checkRun330Villages.js
