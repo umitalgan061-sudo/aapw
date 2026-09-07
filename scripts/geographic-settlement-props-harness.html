@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AAPW Geographic Settlement Props Runtime Proof</title><style>html,body{margin:0;height:100%;background:#101010;color:#eee;font:13px system-ui}#game3d-canvas{display:block;width:100%;height:100%}#proof{position:fixed;left:12px;top:12px;right:12px;max-height:70vh;overflow:auto;padding:10px;background:#000b;border:1px solid #777;border-radius:6px;z-index:2;white-space:pre-wrap}.ok{border-color:#79d479}.bad{border-color:#d46d6d}</style></head>
 <body><canvas id="game3d-canvas"></canvas><pre id="proof">Booting actual sceneManager.createScene()…</pre>
+<script type="importmap">{"imports":{"three":"/src/3d/vendor/three/three.module.js","three/addons/":"/src/3d/vendor/three/addons/"}}</script>
 <script type="module">
 import { createScene } from '../src/3d/sceneManager.js';
 import { collectGeographicPropMaterialEvidence, auditGeographicSettlementPropGroup } from '../src/3d/world/geographicSettlementPropQuality.js';
