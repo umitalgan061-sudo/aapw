@@ -1,0 +1,60 @@
+name: World Asset Geography Planner
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - codex/foundation-grounding-20260821
+  pull_request:
+    paths:
+      - 'src/3d/world/worldAssetGeographyProfile.js'
+      - 'src/3d/world/worldAssetRegionalAnchors.js'
+      - 'src/3d/world/worldAssetGeographyDistributionPlanner.js'
+      - 'src/3d/world/worldAssetTransitionField.js'
+      - 'src/3d/world/WorldAssetGeographyPlacementBridge.js'
+      - 'scripts/checkWorldAssetGeographyDistributionPlanner.mjs'
+      - 'scripts/checkWorldAssetTransitionField.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  planner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run geography planner contract
+        run: node scripts/checkWorldAssetGeographyDistributionPlanner.mjs
+
+      - name: Run transition field contract
+        run: node scripts/checkWorldAssetTransitionField.mjs
+
+      - name: Guard against canonical geometry writes
+        run: |
+          node - <<'NODE'
+          import fs from 'node:fs';
+          const sources = [
+            'src/3d/world/worldAssetGeographyDistributionPlanner.js',
+            'src/3d/world/worldAssetTransitionField.js',
+          ];
+          for (const source of sources) {
+            const text = fs.readFileSync(source, 'utf8');
+            for (const term of ['setHeight', 'setY', 'terrainHeight =', 'waterLevel =']) {
+              if (text.includes(term)) throw new Error(`${source} contains geometry-authority write: ${term}`);
+            }
+          }
+          console.log('geometry-authority-guard=PASS');
+          NODE
+
+      - name: Print exact head
+        run: git rev-parse HEAD
