@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-07-v60-aerial-lowland-ecotones',
+	id: 'geographic-reference-palette-2026-09-07-v61-aerial-lowland-ecotones',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v60 follows direct inspection of exact-main aerial lowland evidence: preserve the canonical semantic palette, increase separation between meadow, damp moss, dry heath and ferric exposed earth, and retain a restrained stone family so broad terrain does not collapse into one olive-grey field without changing world-space fabric, terrain height, shoreline, hydrology or colliders',
-		water: 'v60 preserves the v54 shore/inland/deep-water hierarchy and restrained cyan; canonical wet coverage, shoreline and hydrology are unchanged',
-		road: 'v60 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
+		terrain: 'v61 follows direct inspection of exact-main aerial lowland evidence: preserve the canonical semantic palette, lift meadow above dry heath enough to remain legible at aerial scale, keep damp moss/shadow dark, and retain a restrained stone family so broad terrain does not collapse into one olive-grey field without changing world-space fabric, terrain height, shoreline, hydrology or colliders',
+		water: 'v61 preserves the v54 shore/inland/deep-water hierarchy and restrained cyan; canonical wet coverage, shoreline and hydrology are unchanged',
+		road: 'v61 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -30,7 +30,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
 		mossShadow: 0x021109,
-		meadow: 0x125a2e,
+		meadow: 0x195f34,
 		dryHeather: 0x554632,
 		wetEarth: 0x07110d,
 		exposedEarth: 0xa8613f,
