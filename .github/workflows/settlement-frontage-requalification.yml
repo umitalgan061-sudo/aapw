@@ -9,11 +9,15 @@ on:
       - 'src/3d/world/settlementGeographyPolicy.js'
       - 'src/3d/world/settlementHouseTypeMix.js'
       - 'src/3d/world/settlementFrontagePolicy.js'
+      - 'src/3d/world/settlementFunctionalPlacementPolicy.js'
       - 'scripts/migrateSettlementGeographyCurrentMain.mjs'
       - 'scripts/integrateSettlementHouseTypeMix.mjs'
       - 'scripts/applySettlementFrontageCurrentMain.mjs'
+      - 'scripts/repairSettlementShorelineSampling.mjs'
       - 'scripts/checkSettlementGeographyPolicy.mjs'
       - 'scripts/checkSettlementFrontagePolicy.mjs'
+      - 'scripts/checkSettlementFunctionalPlacementPolicy.mjs'
+      - 'scripts/checkSettlementAssetFamily.mjs'
       - '.github/workflows/settlement-frontage-requalification.yml'
   workflow_dispatch:
 
@@ -32,16 +36,19 @@ jobs:
           fetch-depth: 2
           lfs: true
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
+      - name: Hydrate settlement asset family
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs pull --include='assets/models/settlements/**' --exclude=''
+          git lfs checkout assets/models/settlements || true
 
       - name: Materialize production integration
         shell: bash
         run: |
           set -euo pipefail
           node scripts/applySettlementFrontageCurrentMain.mjs
+          node scripts/repairSettlementShorelineSampling.mjs
 
       - name: Syntax qualification
         shell: bash
@@ -51,17 +58,27 @@ jobs:
           node --check src/3d/world/settlementGeographyPolicy.js
           node --check src/3d/world/settlementHouseTypeMix.js
           node --check src/3d/world/settlementFrontagePolicy.js
+          node --check src/3d/world/settlementFunctionalPlacementPolicy.js
           node --check scripts/migrateSettlementGeographyCurrentMain.mjs
           node --check scripts/integrateSettlementHouseTypeMix.mjs
           node --check scripts/applySettlementFrontageCurrentMain.mjs
+          node --check scripts/repairSettlementShorelineSampling.mjs
           node --check scripts/checkSettlementGeographyPolicy.mjs
           node --check scripts/checkSettlementFrontagePolicy.mjs
+          node --check scripts/checkSettlementFunctionalPlacementPolicy.mjs
+          node --check scripts/checkSettlementAssetFamily.mjs
 
       - name: Geography policy qualification
         run: node scripts/checkSettlementGeographyPolicy.mjs
 
       - name: Road frontage qualification
         run: node scripts/checkSettlementFrontagePolicy.mjs
+
+      - name: Functional zoning qualification
+        run: node scripts/checkSettlementFunctionalPlacementPolicy.mjs
+
+      - name: Asset family qualification
+        run: node scripts/checkSettlementAssetFamily.mjs
 
       - name: Whitespace and integration diff
         shell: bash
@@ -83,5 +100,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/3d/world/villages.js
           git diff --cached --check
-          git commit -m 'fix(world): materialize geography-aware settlement frontage [skip ci]'
+          git commit -m 'fix(world): materialize geography-aware settlement zoning [skip ci]'
           git push origin HEAD:${GITHUB_REF_NAME}
