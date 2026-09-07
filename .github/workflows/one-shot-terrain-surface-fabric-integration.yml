@@ -4,13 +4,17 @@ on:
   push:
     branches:
       - codex/buzul-muhafizi-terrain-environment-fabric-20260907
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize]
 
 permissions:
   contents: write
 
 jobs:
   integrate:
-    if: ${{ !contains(github.event.head_commit.message, '[terrain-fabric-applied]') }}
+    if: ${{ !contains(github.event.head_commit.message || '', '[terrain-fabric-applied]') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout exact branch
@@ -50,11 +54,13 @@ jobs:
           git diff --stat
 
       - name: Commit integrated production slice
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/3d/world/terrain.js src/3d/world/terrainSurfaceFabric.js src/3d/world/terrainEnvironmentProfiles.js scripts/checkTerrainSurfaceFabric.mjs
+          if git diff --cached --quiet; then
+            echo 'No integration changes required.'
+            exit 0
+          fi
           git commit -m 'feat(world): integrate non-periodic terrain environment fabric [terrain-fabric-applied]'
           git push origin HEAD:codex/buzul-muhafizi-terrain-environment-fabric-20260907
