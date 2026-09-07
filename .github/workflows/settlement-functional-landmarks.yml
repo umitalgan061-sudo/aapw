@@ -11,6 +11,7 @@ on:
       - 'src/3d/world/structureGroundingPolicy.js'
       - 'scripts/checkSettlementFunctionalLandmarks.mjs'
       - 'scripts/checkSettlementGeographyCoverage.mjs'
+      - 'scripts/checkSettlementAssetFamilyAudit.mjs'
       - 'scripts/checkSettlementFunctionalLandmarksBrowser.mjs'
       - 'scripts/settlement-functional-landmark-harness.html'
       - 'assets/models/settlements/**'
@@ -24,6 +25,7 @@ on:
       - 'src/3d/world/structureGroundingPolicy.js'
       - 'scripts/checkSettlementFunctionalLandmarks.mjs'
       - 'scripts/checkSettlementGeographyCoverage.mjs'
+      - 'scripts/checkSettlementAssetFamilyAudit.mjs'
       - 'scripts/checkSettlementFunctionalLandmarksBrowser.mjs'
       - 'scripts/settlement-functional-landmark-harness.html'
       - 'assets/models/settlements/**'
@@ -92,6 +94,7 @@ jobs:
           set -euo pipefail
           node --check scripts/checkSettlementFunctionalLandmarks.mjs
           node --check scripts/checkSettlementGeographyCoverage.mjs
+          node --check scripts/checkSettlementAssetFamilyAudit.mjs
           node --check scripts/checkSettlementFunctionalLandmarksBrowser.mjs
           node --check src/3d/world/settlementFunctionalLandmarks.js
           node --check src/3d/world/villages.js
@@ -101,6 +104,9 @@ jobs:
 
       - name: Geographic coverage audit
         run: node scripts/checkSettlementGeographyCoverage.mjs
+
+      - name: Asset family readiness audit
+        run: node scripts/checkSettlementAssetFamilyAudit.mjs
 
       - name: Existing village regression
         run: node scripts/checkRun330Villages.js
