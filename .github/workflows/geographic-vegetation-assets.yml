@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { lfs: false }
-      - run: npm install --no-package-lock --ignore-scripts
+      - run: node scripts/setupNodeThreeShim.mjs
       - run: node scripts/checkGeographicVegetationAssets.mjs
   asset-preflight:
     runs-on: ubuntu-latest
