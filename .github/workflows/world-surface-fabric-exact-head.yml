@@ -1,0 +1,68 @@
+name: World Surface Fabric Exact Head
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/3d/world/worldAssetTransitionDetail.js'
+      - 'src/3d/world/worldAssetTransitionField.js'
+      - 'src/3d/materials/worldAssetSurfaceFabric.js'
+      - 'src/3d/materials/worldPlacementMaterialContext.js'
+      - 'scripts/checkWorldAssetTransitionDetail.mjs'
+      - 'scripts/checkWorldAssetSurfaceFabric.mjs'
+      - '.github/workflows/world-surface-fabric-exact-head.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  surface-fabric:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup local three shim
+        run: node scripts/setupNodeThreeShim.mjs
+
+      - name: Syntax check changed production modules
+        run: |
+          node --check src/3d/world/worldAssetTransitionDetail.js
+          node --check src/3d/world/worldAssetTransitionField.js
+          node --check src/3d/materials/worldAssetSurfaceFabric.js
+          node --check src/3d/materials/worldPlacementMaterialContext.js
+
+      - name: Exact-head transition detail test
+        run: node scripts/checkWorldAssetTransitionDetail.mjs
+
+      - name: Exact-head surface fabric test
+        run: node scripts/checkWorldAssetSurfaceFabric.mjs
+
+      - name: Print exact head
+        run: test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}" || test "${{ github.event_name }}" = "workflow_dispatch"
+
+      - name: Authority policy guard
+        run: |
+          node - <<'NODE'
+          import fs from 'node:fs';
+          const files = [
+            'src/3d/world/worldAssetTransitionDetail.js',
+            'src/3d/world/worldAssetTransitionField.js',
+            'src/3d/materials/worldAssetSurfaceFabric.js',
+          ];
+          for (const file of files) {
+            const text = fs.readFileSync(file, 'utf8');
+            for (const term of ['setHeight(', 'setY(', 'terrainHeight =', 'waterLevel =', 'colliderY =']) {
+              if (text.includes(term)) throw new Error(`${file}: render-only surface code must not write canonical geography: ${term}`);
+            }
+          }
+          console.log('authority-guard=PASS');
+          NODE
