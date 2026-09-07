@@ -16,14 +16,24 @@ for (const marker of requiredMarkers) {
 if (source.includes('EditorMaterialStudio.js')) throw new Error('SETTLEMENT_ASSET_CONTRACT_FAIL editor runtime import');
 
 const assignmentBlock = source.match(/export const CASTLE_MODEL_ASSIGNMENTS[\s\S]*?\n\]\);/u)?.[0] || '';
-const entries = [...assignmentBlock.matchAll(/seatId:\s*'([^']+)'[\s\S]*?assetId:\s*'([^']+)'[\s\S]*?file:\s*'([^']+)'[\s\S]*?stoneColorHex:\s*([^,}]+)/gu)].map(([, seatId, assetId, file, stoneColorHex]) => ({ seatId, assetId, file, stoneColorHex: stoneColorHex.trim() }));
+const objectBlocks = [...assignmentBlock.matchAll(/Object\.freeze\(\{([\s\S]*?)\}\)/gu)].map(([, body]) => body);
+const entries = objectBlocks.map((body) => ({
+  seatId: body.match(/\bseatId:\s*'([^']+)'/u)?.[1],
+  assetId: body.match(/\bassetId:\s*'([^']+)'/u)?.[1],
+  file: body.match(/\bfile:\s*'([^']+)'/u)?.[1],
+  stoneColorHex: body.match(/\bstoneColorHex:\s*([^,}]+)/u)?.[1]?.trim(),
+  yawRadians: body.match(/\byawRadians:\s*([0-9.]+)/u)?.[1],
+  footprintMeters: body.match(/\bfootprintMeters:\s*([0-9.]+)/u)?.[1],
+}));
+if (entries.some((entry) => !entry.seatId || !entry.assetId || !entry.file || !entry.stoneColorHex)) {
+  throw new Error('SETTLEMENT_ASSET_CONTRACT_FAIL malformed castle assignment entry');
+}
 if (entries.length < 14) throw new Error(`SETTLEMENT_ASSET_CONTRACT_FAIL expected >=14 assignments, got ${entries.length}`);
 const seatIds = new Set(entries.map((entry) => entry.seatId));
 if (seatIds.size !== entries.length) throw new Error('SETTLEMENT_ASSET_CONTRACT_FAIL duplicate seat assignment');
 for (const entry of entries) {
   if (!entry.file.startsWith('assets/models/settlements/')) throw new Error(`SETTLEMENT_ASSET_CONTRACT_FAIL non-settlement asset: ${entry.file}`);
   if (!entry.assetId.startsWith('castle_')) throw new Error(`SETTLEMENT_ASSET_CONTRACT_FAIL non-castle asset id: ${entry.assetId}`);
-  if (!entry.stoneColorHex) throw new Error(`SETTLEMENT_ASSET_CONTRACT_FAIL missing stone palette for ${entry.seatId}`);
 }
 
 const duplicateFileGroups = new Map();
@@ -34,15 +44,10 @@ for (const entry of entries) {
 }
 for (const [file, group] of duplicateFileGroups) {
   if (group.length < 2) continue;
-  const groupSource = group.map(({ seatId }) => {
-    const match = assignmentBlock.match(new RegExp(`seatId:\\s*'${seatId}'[\\s\\S]*?\\n\\s*\\}\)`));
-    return match?.[0] || '';
-  });
-  const hasPerSeatTransform = groupSource.every((text) => /yawRadians:\s*[0-9.]+/u.test(text) && /footprintMeters:\s*[0-9.]+/u.test(text));
-  if (!hasPerSeatTransform) {
+  if (group.some((entry) => !entry.yawRadians || !entry.footprintMeters)) {
     throw new Error(`SETTLEMENT_ASSET_CONTRACT_FAIL duplicate asset lacks per-seat yaw/footprint metadata: ${file}`);
   }
-  const transforms = groupSource.map((text) => text.match(/yawRadians:\s*([0-9.]+)/u)?.[1]);
+  const transforms = group.map((entry) => entry.yawRadians);
   if (new Set(transforms).size !== transforms.length) {
     throw new Error(`SETTLEMENT_ASSET_CONTRACT_FAIL duplicate asset yaw collision: ${file}`);
   }
