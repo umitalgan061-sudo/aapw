@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { prepareTerrainEnvironmentSceneAsset, attachTerrainEnvironmentSceneAsset } from '../src/3d/world/terrainEnvironmentSceneAdapter.js';
+import { TERRAIN_ENVIRONMENT_CONTRACT } from '../src/3d/world/terrainEnvironmentContract.js';
 
 const failures = [];
 const check = (label, fn) => { try { fn(); } catch (error) { failures.push(`${label}: ${error.message}`); } };
 
 check('adapter exposes shared placement sequence', () => {
-  const source = (await import('../src/3d/world/terrainEnvironmentContract.js')).TERRAIN_ENVIRONMENT_CONTRACT;
-  assert.deepEqual(source.sequence, [
+  assert.deepEqual(TERRAIN_ENVIRONMENT_CONTRACT.sequence, [
     'asset-hydrate', 'surface-analysis', 'material-recipe', 'material-validation',
     'ground-transform', 'placement-manifest', 'scene-attach',
   ]);
