@@ -22,6 +22,7 @@ export const SETTLEMENT_GEOGRAPHY_POLICY = Object.freeze({
 	id: 'settlement-geography-asset-material-v1-2026-09-07',
 	context: Object.freeze({
 		maxArchitecturalSlopeDegrees: 12,
+		maxFoundationReliefMeters: 1.15,
 		preferredRoadDistanceMeters: 17,
 		roadComfortHalfWidthMeters: 28,
 		coastalWaterDepthMeters: 2.0,
@@ -94,14 +95,21 @@ function resolveSurfaceContext({
 	slopeDegrees = 0,
 	roadDistance = 1_000_000,
 	waterDepth = 0,
+	shorelineDistanceMeters = Infinity,
+	footprintReliefMeters = 0,
 } = {}) {
 	const elevationAboveSea = finiteOr(height) - finiteOr(seaLevel);
 	const lowSlopeScore = 1 - smoothstep(SETTLEMENT_GEOGRAPHY_POLICY.context.maxArchitecturalSlopeDegrees * 0.45, SETTLEMENT_GEOGRAPHY_POLICY.context.maxArchitecturalSlopeDegrees, Math.abs(finiteOr(slopeDegrees)));
 	const roadDistanceMeters = Math.max(0, finiteOr(roadDistance, 1_000_000));
 	const roadScore = Math.exp(-Math.pow((roadDistanceMeters - SETTLEMENT_GEOGRAPHY_POLICY.context.preferredRoadDistanceMeters) / SETTLEMENT_GEOGRAPHY_POLICY.context.roadComfortHalfWidthMeters, 2));
-	const coastScore = 1 - smoothstep(SETTLEMENT_GEOGRAPHY_POLICY.context.coastalPreferredMaxWaterDepthMeters, SETTLEMENT_GEOGRAPHY_POLICY.context.coastalWaterDepthMeters, Math.max(0, finiteOr(waterDepth)));
+	const shorelineDistance = Math.max(0, finiteOr(shorelineDistanceMeters, Infinity));
+	const shorelineScore = Number.isFinite(shorelineDistance) ? Math.exp(-Math.pow(shorelineDistance / 42, 2)) : 0;
+	const landWaterPenalty = smoothstep(0.02, SETTLEMENT_GEOGRAPHY_POLICY.context.coastalWaterDepthMeters, Math.max(0, finiteOr(waterDepth)));
+	const coastScore = clamp01(shorelineScore * (1 - landWaterPenalty));
 	const elevationScore = smoothstep(SETTLEMENT_GEOGRAPHY_POLICY.context.uplandStartMeters, SETTLEMENT_GEOGRAPHY_POLICY.context.highlandStartMeters, Math.max(0, elevationAboveSea));
 	const shelterScore = 1 - smoothstep(SETTLEMENT_GEOGRAPHY_POLICY.context.maxArchitecturalSlopeDegrees * 0.5, SETTLEMENT_GEOGRAPHY_POLICY.context.maxArchitecturalSlopeDegrees + 8, Math.abs(finiteOr(slopeDegrees)));
+	const foundationReliefMeters = Math.max(0, finiteOr(footprintReliefMeters));
+	const foundationScore = 1 - smoothstep(0.35, SETTLEMENT_GEOGRAPHY_POLICY.context.maxFoundationReliefMeters, foundationReliefMeters);
 	return Object.freeze({
 		height: finiteOr(height),
 		seaLevel: finiteOr(seaLevel),
@@ -109,11 +117,14 @@ function resolveSurfaceContext({
 		slopeDegrees: finiteOr(slopeDegrees),
 		roadDistanceMeters,
 		waterDepth: Math.max(0, finiteOr(waterDepth)),
+		shorelineDistanceMeters: Number.isFinite(shorelineDistance) ? shorelineDistance : null,
+		footprintReliefMeters: foundationReliefMeters,
 		lowSlopeScore: clamp01(lowSlopeScore),
 		roadScore: clamp01(roadScore),
 		coastScore: clamp01(coastScore),
 		elevationScore: clamp01(elevationScore),
 		shelterScore: clamp01(shelterScore),
+		foundationScore: clamp01(foundationScore),
 	});
 }
 
@@ -132,7 +143,8 @@ export function scoreSettlementArchitectureSite(regionId, surface = {}) {
 		+ context.coastScore * weights.coast
 		+ context.shelterScore * weights.shelter;
 	const hardSlopePenalty = context.slopeDegrees > SETTLEMENT_GEOGRAPHY_POLICY.context.maxArchitecturalSlopeDegrees ? 0.05 : 1;
-	return clamp01(raw * hardSlopePenalty);
+	const foundationPenalty = context.footprintReliefMeters > SETTLEMENT_GEOGRAPHY_POLICY.context.maxFoundationReliefMeters ? 0.12 : (0.55 + 0.45 * context.foundationScore);
+	return clamp01(raw * hardSlopePenalty * foundationPenalty);
 }
 
 export function selectSettlementArchitectureVariant(regionId, surface = {}, roll = 0.5) {
