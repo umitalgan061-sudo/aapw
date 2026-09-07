@@ -12,6 +12,7 @@ on:
       - 'scripts/checkGeographicSettlementPropsBrowser.mjs'
       - 'scripts/checkGeographicSettlementPropGroundEvidence.mjs'
       - 'scripts/checkGeographicSettlementPropsDiversity.mjs'
+      - 'scripts/checkGeographicSettlementPropPlacementOrder.mjs'
       - 'scripts/geographic-settlement-props-harness.html'
       - 'docs/GEOGRAPHIC_SETTLEMENT_PROP_RUNTIME.md'
       - 'assets/models/props/**'
@@ -30,6 +31,7 @@ jobs:
       - run: node scripts/checkGeographicSettlementPropsIntegration.mjs
       - run: node scripts/checkGeographicSettlementPropGroundEvidence.mjs
       - run: node scripts/checkGeographicSettlementPropsDiversity.mjs
+      - run: node scripts/checkGeographicSettlementPropPlacementOrder.mjs
   quality-contract:
     runs-on: ubuntu-latest
     needs: contract
