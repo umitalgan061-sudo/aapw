@@ -127,6 +127,8 @@ const exclusiveWarm = warmProfiles.filter((kind) => getGeographicBiomeVisualProf
 fail(exclusiveWarm.length === 0, 'snow-exclusive character assets do not leak into warm biome profiles');
 const warmPaletteCount = new Set(warmProfiles.flatMap((kind) => getGeographicBiomeVisualProfile(kind).characters.map((assetId) => getCharacterAssetProfile(assetId)?.palette))).size;
 fail(warmPaletteCount >= 2, 'warm geographic regions retain internal visual palette diversity');
+fail(new Set(profileKinds.map((kind) => getGeographicBiomeVisualProfile(kind).groundMood)).size >= 4, 'geographic ground moods do not collapse to one global terrain read');
+fail(profileKinds.some((kind) => getGeographicBiomeVisualProfile(kind).groundMood !== getGeographicBiomeVisualProfile('snow').groundMood), 'non-snow geography retains a distinct terrain surface language');
 
 const invariantReport = {
   sourceMap: WORLD_REFERENCE_MAP.id,
