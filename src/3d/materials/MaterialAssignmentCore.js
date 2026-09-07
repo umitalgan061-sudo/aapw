@@ -266,12 +266,17 @@ export function restoreOriginalMaterials(root) {
     if (child.userData?.originalMaterial === undefined) return;
     child.material = child.userData.originalMaterial;
     delete child.userData.autoTexturePaletteId;
+    if (child.userData?.generatedMaterialUV && child.geometry?.attributes?.uv) {
+      child.geometry.deleteAttribute?.('uv');
+      delete child.userData.generatedMaterialUV;
+    }
     restored += 1;
   });
   if (restored) {
     delete root.userData.autoTexturePaletteId;
     delete root.userData.materialRecipe;
     delete root.userData.editorMaterialRecipe;
+    delete root.userData.generatedMaterialUVCount;
   }
   return restored;
 }
