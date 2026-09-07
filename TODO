@@ -16,4 +16,3 @@ Current QA interpretation:
 - Any integration must preserve road, seat, collider and gameplay ownership boundaries.
 - Geometry frequency, density and material contrast should vary with geographic context rather than uniform global noise.
 - This file is intentionally a compact continuation ledger; detailed implementation belongs in the canonical world modules and their acceptance scripts.
-- Re-run the exact-head workflow after each integration and investigate failures at the first failing ownership boundary.
