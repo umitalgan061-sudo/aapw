@@ -4,12 +4,35 @@
  * without creating a second spawn, faction, combat or world-event framework.
  */
 import { createLivingWorldAgent, createDeterministicWorldEventDirector } from './livingWorldDirector.js';
+import { resolveLivingWorldGeography, resolveLivingWorldAssetProfile, livingWorldGeographyDigest } from './livingWorldGeographyAdapter.js';
 
 const finite = (value, fallback = 0) => Number.isFinite(value) ? value : fallback;
 const distance2D = (a, b) => Math.hypot(finite(a?.x) - finite(b?.x), finite(a?.z) - finite(b?.z));
 
 function toPosition(object3D) {
   return object3D?.position ? { x: object3D.position.x, z: object3D.position.z } : null;
+}
+
+function speciesIdFor(controller) {
+  return controller?.object3D?.userData?.speciesId || controller?.speciesId || null;
+}
+
+function sampleWorldContext(state, position) {
+  const surface = state?.worldSurface || state?.worldContext || {};
+  let groundHeight = null;
+  if (typeof surface.sampleHeightMeters === 'function') groundHeight = surface.sampleHeightMeters(position.x, position.z);
+  else if (typeof state?.groundCollider?.getGroundHeight === 'function') groundHeight = state.groundCollider.getGroundHeight(position.x, position.z);
+  let slopeDegrees = 0;
+  if (typeof surface.sampleSlopeDegrees === 'function') slopeDegrees = surface.sampleSlopeDegrees(position.x, position.z);
+  let waterDepth = 0;
+  if (typeof surface.sampleWaterDepth === 'function') waterDepth = surface.sampleWaterDepth(position.x, position.z);
+  return {
+    groundHeight: Number.isFinite(groundHeight) ? groundHeight : null,
+    slopeDegrees: finite(slopeDegrees),
+    waterDepth: Math.max(0, finite(waterDepth)),
+    settlementSeats: surface.settlementSeats || state?.settlementSeats || [],
+    roadEdges: surface.roadEdges || state?.roadEdges || [],
+  };
 }
 
 /**
@@ -79,6 +102,20 @@ export function attachLivingWorldDirector({ state, eventsBus, worldSeed = 0x51af
       for (const entry of this.agents) {
         const position = toPosition(entry.controller.object3D) ?? { x: 0, z: 0 };
         const distanceToPlayer = playerPosition ? distance2D(position, playerPosition) : Infinity;
+        const surface = sampleWorldContext(state, position);
+        const speciesId = speciesIdFor(entry.controller);
+        const geography = resolveLivingWorldGeography({
+          worldX: position.x,
+          worldZ: position.z,
+          speciesId,
+          role: entry.kind === 'creature' ? 'wildlife' : 'guard',
+          groundHeight: surface.groundHeight,
+          slopeDegrees: surface.slopeDegrees,
+          waterDepth: surface.waterDepth,
+          settlementDistance: distance2D(position, surface.settlementSeats?.[0]) || Infinity,
+          roadDistance: Infinity,
+          seed: worldSeed,
+        });
         const result = entry.agent.observe({
           delta: dt,
           targetPosition: playerPosition,
@@ -87,18 +124,32 @@ export function attachLivingWorldDirector({ state, eventsBus, worldSeed = 0x51af
           threat: entry.kind === 'creature' && distanceToPlayer < 18,
           noise: 0,
         });
+        entry.controller.object3D.userData.livingWorldGeography = {
+          region: geography.region,
+          profileId: geography.profileId,
+          habitatValid: geography.ok,
+          habitatReason: geography.reason,
+          normalizedReference: geography.normalizedReference,
+          slopeDegrees: geography.slopeDegrees,
+          waterDepth: geography.waterDepth,
+          assetProfile: resolveLivingWorldAssetProfile({ worldX: position.x, worldZ: position.z, speciesId, role: entry.kind === 'creature' ? 'wildlife' : 'guard' }),
+          digest: livingWorldGeographyDigest(geography),
+        };
         entry.controller.object3D.userData.livingWorldDirector = {
           kind: entry.kind,
           distanceToPlayer: Number(distanceToPlayer.toFixed(3)),
           result,
         };
-        snapshots.push(result);
+        snapshots.push({ ...result, geography: geography.region, habitatValid: geography.ok });
       }
       this.lastTick = { dt, events, snapshots };
       return this.lastTick;
     },
     dispose() {
-      for (const entry of this.agents) delete entry.controller.object3D.userData.livingWorldDirector;
+      for (const entry of this.agents) {
+        delete entry.controller.object3D.userData.livingWorldDirector;
+        delete entry.controller.object3D.userData.livingWorldGeography;
+      }
       this.agents.length = 0;
     },
   };
