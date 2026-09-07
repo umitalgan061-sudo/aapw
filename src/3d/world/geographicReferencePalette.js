@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-07-v62-aerial-lowland-ecotones',
+	id: 'geographic-reference-palette-2026-09-07-v63-aerial-lowland-ecotones',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v62 follows exact-head aerial contrast evidence: retain v61 meadow/heath/stone separation while keeping the inland-lake family chromatically restrained enough to avoid neon-cyan water blocks in broad views. Canonical world-space fabric, terrain height, shoreline, hydrology and colliders remain unchanged',
-		water: 'v62 preserves the v54 shore/inland/deep-water hierarchy; lake clear is shifted toward a lower-cyan mineral teal without changing wet coverage or hydrology',
-		road: 'v62 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
+		terrain: 'v63 follows exact-head aerial contrast evidence: retain v62 meadow/heath/stone separation while pulling the deep-sea anchor away from cyan-dominant channel balance. Canonical world-space fabric, terrain height, shoreline, hydrology and colliders remain unchanged',
+		water: 'v63 preserves the v54 shore/inland/deep-water hierarchy; lake clear remains mineral teal and deep sea is restrained against blue-channel cyan drift without changing wet coverage or hydrology',
+		road: 'v63 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -51,7 +51,7 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		lakeClear: 0x3d5f68,
 		riverPool: 0x246776,
 		rapid: 0x82a7aa,
-		deepSea: 0x08263a,
+		deepSea: 0x0b2630,
 		abyss: 0x020a12,
 		plunge: 0x4d818b,
 		splash: 0xdeedeb,
