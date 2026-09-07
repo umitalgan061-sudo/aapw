@@ -26,5 +26,10 @@ jobs:
         run: |
           node --check src/3d/gameplay/livingWorldGeographyAdapter.js
           node --check src/3d/gameplay/livingWorldRuntimeAdapter.js
+          node --check src/3d/gameplay/livingWorldSceneryDistribution.js
+          node --check src/3d/materials/RuntimeSurfaceAudit.js
+          node --check src/3d/sceneManager.js
       - name: Validate living-world geography contract
         run: node scripts/checkLivingWorldGeographyContract.mjs
+      - name: Validate scenery distribution and authored-surface contract
+        run: node scripts/checkLivingWorldSceneryDistributionContract.mjs
