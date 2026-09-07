@@ -1,0 +1,19 @@
+name: Living World Habitat Contract
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/livingWorldHabitatContract.js'
+      - 'scripts/checkLivingWorldHabitatContract.mjs'
+      - '.github/workflows/living-world-habitat-contract.yml'
+  workflow_dispatch:
+
+jobs:
+  habitat-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check module syntax
+        run: node --check src/3d/gameplay/livingWorldHabitatContract.js
+      - name: Run habitat contract
+        run: node scripts/checkLivingWorldHabitatContract.mjs
