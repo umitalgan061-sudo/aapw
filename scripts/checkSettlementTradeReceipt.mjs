@@ -27,7 +27,14 @@ const malformed = buildSettlementTradeReceipt({ intent: null, result: null });
 assert.equal(malformed.action, null);
 assert.equal(malformed.quantity, 0);
 assert.equal(malformed.expectedCopper, 0);
-assert.equal(malformed.reason, 'trade-failed');
+assert.equal(malformed.reason, 'invalid-trade-intent');
+
+const invalidSuccess = buildSettlementTradeReceipt({
+  intent: { action: 'buy', quantity: 0, expectedCopper: 20 },
+  result: { ok: true },
+});
+assert.equal(invalidSuccess.ok, false);
+assert.equal(invalidSuccess.reason, 'invalid-trade-intent');
 
 const customCurrency = buildSettlementTradeReceipt({
   intent: { action: 'sell', itemId: 'ore', quantity: 3, expectedCopper: 9 },
