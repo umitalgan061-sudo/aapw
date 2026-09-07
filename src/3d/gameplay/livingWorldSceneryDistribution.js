@@ -11,12 +11,12 @@ import * as THREE from 'three';
 import { resolveLivingWorldGeography, resolveLivingWorldSceneryFamilies } from './livingWorldGeographyAdapter.js';
 
 export const LIVING_WORLD_SCENERY_DISTRIBUTION_POLICY = Object.freeze({
-  id: 'living-world-scenery-distribution-2026-09-07-v1',
+  id: 'living-world-scenery-distribution-2026-09-07-v2',
   deterministic: true,
   geographyAuthority: 'livingWorldGeographyAdapter.js',
   placementAuthority: 'WorldAssetPlacementPipeline.js',
   noSecondBiomeFramework: true,
-  defaultMaxSlopeDegrees: 34,
+  slopeSampleOffsetMeters: 4,
   minimumWaterDepthMeters: 0.05,
   settlementBufferMeters: 75,
   roadBufferMeters: 3,
@@ -26,7 +26,7 @@ export const LIVING_WORLD_SCENERY_DISTRIBUTION_POLICY = Object.freeze({
     'vegetation-round-trunks': Object.freeze({ snow: 0.03, north: 0.52, mountain: 0.20, westerlands: 0.86, reach: 0.94, desert: 0.04, steppe: 0.16, arid: 0.02, coast: 0.58, marsh: 0.48, jungle: 0.22, temperate: 0.90, valyria: 0.02 }),
     'vegetation-round-foliage': Object.freeze({ snow: 0.03, north: 0.52, mountain: 0.20, westerlands: 0.86, reach: 0.94, desert: 0.04, steppe: 0.16, arid: 0.02, coast: 0.58, marsh: 0.48, jungle: 0.22, temperate: 0.90, valyria: 0.02 }),
     'vegetation-snow-pine-trunks': Object.freeze({ snow: 0.96, north: 0.92, mountain: 0.88, westerlands: 0.20, reach: 0.12, desert: 0.00, steppe: 0.10, arid: 0.00, coast: 0.16, marsh: 0.06, jungle: 0.00, temperate: 0.12, valyria: 0.00 }),
-    'vegetation-snow-pine-foliage': Object.freeze({ snow: 0.96, north: 0.92, mountain: 0.88, westerlands: 0.20, reach: 0.12, desert: 0.00, steppe: 0.10, arid: 0.00, coast: 0.16, marsh: 0.06, jungle: 0.00, temperate: 0.12, valyria: 0.00 }),
+    'vegetation-snow-pine-foliage': Object.freeze({ snow: 0.96, north: 0.92, mountain: 0.88, westerlands: 0.20, reach: 0.12, arid: 0.00, coast: 0.16, marsh: 0.06, jungle: 0.00, desert: 0.00, steppe: 0.10, temperate: 0.12, valyria: 0.00 }),
   }),
 });
 
@@ -40,11 +40,8 @@ function finite(value, fallback = 0) {
 }
 
 function hash01(x, z, seed = 0) {
-  let h = (Math.imul(Math.trunc(x * 0.173), 374761393) ^ Math.imul(Math.trunc(z * 0.197), 668265263) ^ Math.trunc(seed)) >>> 0;
-  h ^= h >>> 13;
-  h = Math.imul(h, 1274126177) >>> 0;
-  h ^= h >>> 16;
-  return h / 4294967296;
+  const mixed = Math.sin(x * 12.9898 + z * 78.233 + seed * 0.01337) * 43758.5453;
+  return mixed - Math.floor(mixed);
 }
 
 function acceptanceForMesh(meshName, region) {
@@ -52,7 +49,7 @@ function acceptanceForMesh(meshName, region) {
 }
 
 function regionScaleBias(region, meshName) {
-  if (meshName.includes('snow-pine')) return region === 'snow' || region === 'north' || region === 'mountain' ? 1.04 : 0.96;
+  if (meshName.includes('snow-pine')) return ['snow', 'north', 'mountain'].includes(region) ? 1.04 : 0.96;
   if (meshName.includes('pine')) return ['mountain', 'north'].includes(region) ? 1.08 : 0.96;
   if (meshName.includes('round')) return ['reach', 'westerlands', 'temperate'].includes(region) ? 1.05 : 0.94;
   return 1;
@@ -73,25 +70,46 @@ function compactInstancedMesh(mesh, keepIndices, matrixCache = new THREE.Matrix4
 function sampleInstancePosition(mesh, index) {
   mesh.getMatrixAt(index, _matrix);
   _matrix.decompose(_position, _quaternion, _scale);
-  return { x: finite(_position.x), z: finite(_position.z), scale: Math.max(0.001, finite(_scale.x, 1)) };
+  return { x: finite(_position.x), y: finite(_position.y), z: finite(_position.z), scale: Math.max(0.001, finite(_scale.x, 1)) };
+}
+
+function deriveTerrainContext(point, { sampleHeightMeters, seaLevelMeters, slopeSampleOffsetMeters }) {
+  if (typeof sampleHeightMeters !== 'function') {
+    return { groundHeight: point.y, slopeDegrees: 0, waterDepth: 0 };
+  }
+  const groundHeight = finite(sampleHeightMeters(point.x, point.z), point.y);
+  const offset = Math.max(1, finite(slopeSampleOffsetMeters, 4));
+  const dx = finite(sampleHeightMeters(point.x + offset, point.z), groundHeight) - groundHeight;
+  const dz = finite(sampleHeightMeters(point.x, point.z + offset), groundHeight) - groundHeight;
+  const slopeDegrees = (Math.atan2(Math.max(Math.abs(dx), Math.abs(dz)), offset) * 180) / Math.PI;
+  const waterDepth = Math.max(0, finite(seaLevelMeters, 0) - groundHeight);
+  return { groundHeight, slopeDegrees, waterDepth };
 }
 
 export function auditLivingWorldSceneryInstance(mesh, index, {
   seed = 0,
   sampleHeightMeters = null,
+  seaLevelMeters = 0,
   settlementSeats = [],
   roadEdges = [],
-  waterDepthMeters = 0,
-  slopeDegrees = 0,
+  waterDepthMeters = null,
+  slopeDegrees = null,
 } = {}) {
   const point = sampleInstancePosition(mesh, index);
+  const terrain = deriveTerrainContext(point, {
+    sampleHeightMeters,
+    seaLevelMeters,
+    slopeSampleOffsetMeters: LIVING_WORLD_SCENERY_DISTRIBUTION_POLICY.slopeSampleOffsetMeters,
+  });
+  const resolvedSlopeDegrees = Number.isFinite(slopeDegrees) ? slopeDegrees : terrain.slopeDegrees;
+  const resolvedWaterDepth = Number.isFinite(waterDepthMeters) ? waterDepthMeters : terrain.waterDepth;
   const geography = resolveLivingWorldGeography({
     worldX: point.x,
     worldZ: point.z,
     role: 'guard',
-    groundHeight: typeof sampleHeightMeters === 'function' ? sampleHeightMeters(point.x, point.z) : null,
-    slopeDegrees,
-    waterDepth: waterDepthMeters,
+    groundHeight: terrain.groundHeight,
+    slopeDegrees: resolvedSlopeDegrees,
+    waterDepth: resolvedWaterDepth,
     settlementDistance: nearestSettlementDistance(point, settlementSeats),
     roadDistance: nearestRoadDistance(point, roadEdges),
     seed,
@@ -109,14 +127,18 @@ export function auditLivingWorldSceneryInstance(mesh, index, {
     geography,
     roll,
     acceptance,
+    groundHeight: terrain.groundHeight,
+    slopeDegrees: resolvedSlopeDegrees,
+    waterDepth: resolvedWaterDepth,
     scale: point.scale * regionScaleBias(geography.region, mesh.name),
-    position: Object.freeze({ x: point.x, z: point.z }),
+    position: Object.freeze({ x: point.x, y: point.y, z: point.z }),
   });
 }
 
 export function applyLivingWorldVegetationDistribution(group, {
   seed = 0,
   sampleHeightMeters = null,
+  seaLevelMeters = 0,
   settlementSeats = [],
   roadEdges = [],
 } = {}) {
@@ -128,6 +150,8 @@ export function applyLivingWorldVegetationDistribution(group, {
     rejectedByGeography: 0,
     rejectedByRegionDensity: 0,
     regions: Object.create(null),
+    maxObservedSlopeDegrees: 0,
+    maxObservedWaterDepth: 0,
   };
 
   if (!group) return Object.freeze(stats);
@@ -138,7 +162,15 @@ export function applyLivingWorldVegetationDistribution(group, {
     const count = mesh.count;
     stats.scannedInstances += count;
     for (let index = 0; index < count; index += 1) {
-      const audit = auditLivingWorldSceneryInstance(mesh, index, { seed, sampleHeightMeters, settlementSeats, roadEdges });
+      const audit = auditLivingWorldSceneryInstance(mesh, index, {
+        seed,
+        sampleHeightMeters,
+        seaLevelMeters,
+        settlementSeats,
+        roadEdges,
+      });
+      stats.maxObservedSlopeDegrees = Math.max(stats.maxObservedSlopeDegrees, finite(audit.slopeDegrees));
+      stats.maxObservedWaterDepth = Math.max(stats.maxObservedWaterDepth, finite(audit.waterDepth));
       stats.regions[audit.region] = (stats.regions[audit.region] || 0) + (audit.ok ? 1 : 0);
       if (!audit.ok) {
         if (audit.reason.startsWith('geography:')) stats.rejectedByGeography += 1;
@@ -162,6 +194,8 @@ export function applyLivingWorldVegetationDistribution(group, {
     settlementAware: true,
     roadAware: true,
     terrainAware: typeof sampleHeightMeters === 'function',
+    slopeDerivedFromTerrain: typeof sampleHeightMeters === 'function',
+    waterDepthDerivedFromTerrain: typeof sampleHeightMeters === 'function',
     familyAuthority: 'livingWorldGeographyAdapter.js',
   });
   return Object.freeze({
