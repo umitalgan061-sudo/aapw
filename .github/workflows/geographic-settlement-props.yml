@@ -10,6 +10,7 @@ on:
       - 'scripts/checkGeographicSettlementPropsQuality.mjs'
       - 'scripts/checkGeographicSettlementPropsAssets.mjs'
       - 'scripts/checkGeographicSettlementPropsBrowser.mjs'
+      - 'scripts/checkGeographicSettlementPropGroundEvidence.mjs'
       - 'scripts/geographic-settlement-props-harness.html'
       - 'docs/GEOGRAPHIC_SETTLEMENT_PROP_RUNTIME.md'
       - 'assets/models/props/**'
@@ -26,6 +27,7 @@ jobs:
       - run: node scripts/setupNodeThreeShim.mjs
       - run: node scripts/checkGeographicSettlementPropsContract.mjs
       - run: node scripts/checkGeographicSettlementPropsIntegration.mjs
+      - run: node scripts/checkGeographicSettlementPropGroundEvidence.mjs
   quality-contract:
     runs-on: ubuntu-latest
     needs: contract
