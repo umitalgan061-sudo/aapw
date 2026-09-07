@@ -53,12 +53,24 @@ jobs:
           node scripts/checkSeededRandomPolicy.js
           node scripts/checkAssetsManifest.js
 
-      - name: Living-world geography and asset-surface contract
+      - name: Living-world geography, authored asset and surface contracts
         shell: bash
         run: |
           set -euxo pipefail
+          node --check src/3d/gameplay/livingWorldDirector.js
           node --check src/3d/gameplay/livingWorldGeographyAdapter.js
-          node scripts/checkLivingWorldGeographyAdapter.mjs
+          node --check src/3d/gameplay/livingWorldGroupDirector.js
+          node --check src/3d/gameplay/livingWorldRuntimeAdapter.js
+          node --check src/3d/gameplay/livingWorldAssetVisualAdapter.js
+          node --check src/3d/gameplay/livingWorldGeographicSurfaceContract.js
+          node scripts/checkLivingWorldDirector.mjs
+          node scripts/checkLivingWorldGeographyContract.mjs
+          node scripts/checkLivingWorldGroupDirector.mjs
+          node scripts/checkLivingWorldRuntimeAdapter.mjs
+          node scripts/checkLivingWorldSceneryDistributionContract.mjs
+          node scripts/checkLivingWorldAssetVisualAdapter.mjs
+          node scripts/checkLivingWorldGeographicSurfaceContract.mjs
+          node scripts/checkLivingWorldAssetSourceCatalog.mjs
 
       - name: Offline shell delta guard
         shell: bash
