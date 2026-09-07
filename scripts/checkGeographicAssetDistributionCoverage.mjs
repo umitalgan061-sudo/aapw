@@ -111,6 +111,13 @@ for (const [kind, palette] of expectedSingleFamily) {
 
 fail(contractText.includes('preferredBiomes'), 'source contract retains geographic preference vocabulary');
 fail(contractText.includes('textureEvidence'), 'source contract retains explicit texture provenance vocabulary');
+const distinctPalettes = new Set(profileKinds.map((kind) => getGeographicBiomeVisualProfile(kind).characters.map((assetId) => getCharacterAssetProfile(assetId)?.palette).filter(Boolean).join('|')));
+fail(distinctPalettes.size >= 4, 'geographic profiles preserve multiple visually distinct character palettes');
+const snowProfile = getGeographicBiomeVisualProfile('snow');
+const warmProfiles = profileKinds.filter((kind) => ['desert', 'arid', 'steppe', 'jungle', 'lush'].includes(kind));
+fail(warmProfiles.some((kind) => getGeographicBiomeVisualProfile(kind).characters.some((assetId) => !snowProfile.characters.includes(assetId))), 'warm biomes do not collapse to the snow character roster');
+const strictSnowAssets = snowProfile.characters.filter((assetId) => !getCharacterAssetProfile(assetId)?.preferredBiomes?.includes('temperate'));
+fail(strictSnowAssets.length > 0, 'at least one snow-oriented asset remains geographically exclusive');
 
 const invariantReport = {
   sourceMap: WORLD_REFERENCE_MAP.id,
