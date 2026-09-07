@@ -2,6 +2,8 @@
  * Procedural villages around canonical kingdom seats.
  * Rigid structures sample full rotated footprints; real residential GLBs replace at most two
  * separated procedural houses only after shared material validation and footprint-aware placement.
+ * Functional settlement buildings are then distributed around the same deterministic hamlet centres,
+ * with role-specific road/slope/clearance rules and the shared material/placement contract.
  * Missing/LFS-unavailable assets fail closed to the procedural settlement.
  * @module world/villages
  */
@@ -12,6 +14,10 @@ import { analyzeMaterialSurfaces } from '../materials/MaterialAssignmentCore.js'
 import { placeWorldAsset, WORLD_SURFACE_POLICY_PRESETS } from './WorldAssetPlacementPipeline.js';
 import { isPlaceablePosition } from './vegetation.js';
 import { createStoneMaterial, createRoofMaterial } from './materials.js';
+import {
+	placeFunctionalSettlementLandmarks,
+	disposeFunctionalSettlementLandmarks,
+} from './settlementFunctionalLandmarks.js';
 
 const VILLAGE_OUTER_RADIUS_METERS = 210;
 const HAMLET_DISTANCE_MIN_METERS = 115;
@@ -391,6 +397,31 @@ function scheduleVillageArchitectureUpgrade({ villageGroup, sampleHeightMeters, 
 	villageGroup.userData.villageArchitecturePromise = promise;
 }
 
+function scheduleFunctionalSettlementLandmarks({ villageGroup, sampleHeightMeters, seaLevelMeters, roadEdges, seed }) {
+	if (typeof window === 'undefined' || typeof document === 'undefined') return;
+	const centres = villageGroup.userData?.villageHamletCenters || [];
+	if (centres.length === 0) return;
+	const loader = new AssetLoader({ events: { emit() {} } });
+	const promise = placeFunctionalSettlementLandmarks({
+		assetLoader: loader,
+		villageGroup,
+		sampleHeightMeters,
+		seaLevelMeters,
+		roadEdges,
+		seed,
+	})
+		.then((evidence) => {
+			if (villageGroup.userData?.disposed === true) return evidence;
+			console.info(`[villages] Functional landmarks: ${evidence.placedCount}/${evidence.requestedSiteCount}, missing=${evidence.missingAssetCount}, placement-failed=${evidence.placementFailureCount}, material-failed=${evidence.materialValidationFailureCount}.`);
+			return evidence;
+		})
+		.catch((error) => {
+			console.warn('[villages] Functional landmark upgrade failed; residential settlement remains visible.', error);
+			return Object.freeze({ ok: false, error: String(error?.message || error) });
+		});
+	villageGroup.userData.villageFunctionalLandmarkPromise = promise;
+}
+
 export function createVillages({
 	sampleHeightMeters,
 	seaLevelMeters,
@@ -436,8 +467,10 @@ export function createVillages({
 	let villageCount = 0;
 	const houses = [];
 	const landmarkSites = [];
+	const hamletCenters = [];
 
-	for (const seat of eligibleSeats) {
+	for (let seatIndex = 0; seatIndex < eligibleSeats.length; seatIndex++) {
+		const seat = eligibleSeats[seatIndex];
 		const placedHere = [];
 		const architectureCandidatesHere = [];
 		const architectureProfile = resolveVillageArchitectureProfile(seat.id);
@@ -445,6 +478,7 @@ export function createVillages({
 		const hamletDistance = HAMLET_DISTANCE_MIN_METERS + rng() * (HAMLET_DISTANCE_MAX_METERS - HAMLET_DISTANCE_MIN_METERS);
 		const hamletX = seat.x + Math.cos(hamletBearing) * hamletDistance;
 		const hamletZ = seat.z + Math.sin(hamletBearing) * hamletDistance;
+		hamletCenters.push({ seatId: seat.id, regionId: architectureProfile?.id || 'temperate', hamletIndex: seatIndex, x: hamletX, z: hamletZ, bearing: hamletBearing, distanceFromSeat: hamletDistance });
 
 		for (let i = 0; i < housesPerVillage; i++) {
 			for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_BUILDING; attempt++) {
@@ -498,7 +532,7 @@ export function createVillages({
 				}
 
 				placedHere.push({ x, z });
-				houses.push({ x, z, radius: Math.hypot(type.width, type.depth) / 2 });
+				houses.push({ x, z, radius: Math.hypot(type.width, type.depth) / 2, seatId: seat.id, hamletIndex: seatIndex });
 				if (architectureProfile) {
 					architectureCandidatesHere.push({
 						seatId: seat.id, x, z, yaw, houseIndex, stepStartIndex,
@@ -548,13 +582,17 @@ export function createVillages({
 	if (roofMesh.instanceColor) roofMesh.instanceColor.needsUpdate = true;
 	group.add(bodyMesh, roofMesh, stepMesh, wallMesh);
 	group.userData.villageLandmarkSites = landmarkSites.map((site) => ({ ...site }));
+	group.userData.villageHamletCenters = hamletCenters.map((centre) => ({ ...centre }));
+	group.userData.villageHouses = houses.map((house) => ({ ...house }));
 	scheduleVillageArchitectureUpgrade({ villageGroup: group, sampleHeightMeters, seaLevelMeters, roadEdges });
-	return { group, villageCount, houseCount, wallCount, houses, landmarkSites };
+	scheduleFunctionalSettlementLandmarks({ villageGroup: group, sampleHeightMeters, seaLevelMeters, roadEdges, seed });
+	return { group, villageCount, houseCount, wallCount, houses, landmarkSites, hamletCenters };
 }
 
 export function disposeVillages(group) {
 	if (!group) return;
 	group.userData.disposed = true;
+	disposeFunctionalSettlementLandmarks(group);
 	const disposedGeometries = new Set();
 	const disposedMaterials = new Set();
 	const disposedTextures = new Set();
