@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { auditWorldAssetPlacement } from './WorldAssetPlacementPipeline.js';
+import { validateMaterialAssignment } from '../materials/MaterialAssignmentCore.js';
 
 /**
  * Runtime quality/context layer for the geographic settlement fringe prop slice.
@@ -200,7 +200,7 @@ export function deriveGeographicSettlementPropContext(placement = {}) {
   const biomeInfluence = clamp01(placement.influence);
   const seatVector = vectorFromSeat(placement);
   const approach = approachFor(family, roadDistance);
-  const context = Object.freeze({
+  return Object.freeze({
     family,
     semanticRole: role,
     biomeId: placement.biomeId || null,
@@ -225,7 +225,6 @@ export function deriveGeographicSettlementPropContext(placement = {}) {
     sourceAsset: placement.asset?.src || null,
     contextVersion: GEOGRAPHIC_SETTLEMENT_PROP_QUALITY_POLICY.version,
   });
-  return context;
 }
 
 export function scoreGeographicSettlementPropContext(placement = {}) {
@@ -233,80 +232,40 @@ export function scoreGeographicSettlementPropContext(placement = {}) {
   const family = context.family;
   let score = 0;
   const reasons = [];
-
-  if (context.ringBand === 'inner') {
-    score += 18;
-    reasons.push('inner-fringe');
-  } else if (context.ringBand === 'middle') {
-    score += 24;
-    reasons.push('middle-fringe');
-  } else if (context.ringBand === 'outer') {
-    score += 10;
-    reasons.push('outer-fringe');
-  } else {
-    score -= 100;
-    reasons.push('invalid-ring');
-  }
-
-  if (context.roadBand === 'frontage') {
-    score += family === 'barrel' || family === 'crate' ? 16 : 8;
-    reasons.push('road-frontage');
-  } else if (context.roadBand === 'near') {
-    score += 8;
-    reasons.push('road-near');
-  } else {
-    score += family === 'bench' || family === 'bonfire' ? 5 : 2;
-    reasons.push('remote-edge');
-  }
-
-  if ((context.biomeInfluence || 0) >= 0.62) {
-    score += 10;
-    reasons.push('strong-biome-fit');
-  } else if ((context.biomeInfluence || 0) >= GEOGRAPHIC_SETTLEMENT_PROP_QUALITY_POLICY.biomeTransitionFloor) {
-    score += 4;
-    reasons.push('transition-biome-fit');
-  } else {
-    score -= 3;
-    reasons.push('weak-biome-fit');
-  }
-
-  if (family === 'farmDirt' && !['fertile', 'temperate'].includes(context.biomeKind)) {
-    score -= 30;
-    reasons.push('field-family-biome-risk');
-  }
-  if (family === 'bonfire' && !['cold', 'mountain'].includes(placement.roleId)) {
-    score -= 18;
-    reasons.push('hearth-family-region-risk');
-  }
-  if ((family === 'barrel' || family === 'crate') && context.roadBand !== 'remote') {
-    score += 5;
-    reasons.push('cargo-access');
-  }
-
+  if (context.ringBand === 'inner') { score += 18; reasons.push('inner-fringe'); }
+  else if (context.ringBand === 'middle') { score += 24; reasons.push('middle-fringe'); }
+  else if (context.ringBand === 'outer') { score += 10; reasons.push('outer-fringe'); }
+  else { score -= 100; reasons.push('invalid-ring'); }
+  if (context.roadBand === 'frontage') { score += family === 'barrel' || family === 'crate' ? 16 : 8; reasons.push('road-frontage'); }
+  else if (context.roadBand === 'near') { score += 8; reasons.push('road-near'); }
+  else { score += family === 'bench' || family === 'bonfire' ? 5 : 2; reasons.push('remote-edge'); }
+  if ((context.biomeInfluence || 0) >= 0.62) { score += 10; reasons.push('strong-biome-fit'); }
+  else if ((context.biomeInfluence || 0) >= GEOGRAPHIC_SETTLEMENT_PROP_QUALITY_POLICY.biomeTransitionFloor) { score += 4; reasons.push('transition-biome-fit'); }
+  else { score -= 3; reasons.push('weak-biome-fit'); }
+  if (family === 'farmDirt' && !['fertile', 'temperate'].includes(placement.roleId)) { score -= 30; reasons.push('field-family-biome-risk'); }
+  if (family === 'bonfire' && !['cold', 'mountain'].includes(placement.roleId)) { score -= 18; reasons.push('hearth-family-region-risk'); }
+  if ((family === 'barrel' || family === 'crate') && context.roadBand !== 'remote') { score += 5; reasons.push('cargo-access'); }
   return Object.freeze({ score, context, reasons: Object.freeze(reasons) });
 }
 
 export function decorateGeographicSettlementPropGroup(group, plan = []) {
   if (!group) return Object.freeze({ ok: false, error: 'missing-group' });
   const placements = (plan || []).flatMap((seat) => seat?.placements || []);
-  const byKey = new Map();
-  for (const placement of placements) {
-    byKey.set(`${placement.seatId}:${placement.candidateIndex}:${placement.family}`, placement);
-  }
-
-  let decoratedCount = 0;
-  let semanticFamilies = 0;
-  const seenFamilies = new Set();
+  const propChildren = [];
   group.traverse?.((child) => {
-    if (!child?.userData?.geographicSettlementProp) return;
-    const key = `${child.userData.geographicSeatId}:${child.userData.geographicPlacement?.candidateIndex ?? ''}:${child.userData.geographicFamily ?? child.userData.geographicPlacement?.family ?? ''}`;
-    const placement = byKey.get(key) || {
+    if (child?.userData?.geographicSettlementProp) propChildren.push(child);
+  });
+  let decoratedCount = 0;
+  const seenFamilies = new Set();
+  for (let index = 0; index < propChildren.length; index += 1) {
+    const child = propChildren[index];
+    const placement = placements[index] || {
       seatId: child.userData.geographicSeatId,
-      x: child.userData.geographicPlacement?.x ?? child.position.x,
-      z: child.userData.geographicPlacement?.z ?? child.position.z,
-      seatX: child.userData.geographicSeatX,
-      seatZ: child.userData.geographicSeatZ,
-      family: child.userData.geographicFamily,
+      x: child.position.x,
+      z: child.position.z,
+      seatX: child.userData.geographicPlacement?.seatX,
+      seatZ: child.userData.geographicPlacement?.seatZ,
+      family: child.userData.geographicFamily || child.userData.geographicManifest?.metadata?.id,
       roleId: child.userData.geographicRole,
       distanceFromSeat: child.userData.geographicPlacement?.distanceFromSeat,
       roadDistance: child.userData.geographicPlacement?.roadDistance,
@@ -324,22 +283,14 @@ export function decorateGeographicSettlementPropGroup(group, plan = []) {
     child.userData.geographicContextReasons = scored.reasons;
     seenFamilies.add(scored.context.semanticRole);
     decoratedCount += 1;
-  });
-  semanticFamilies = seenFamilies.size;
-
+  }
   group.userData.geographicSettlementPropQuality = Object.freeze({
     policyId: GEOGRAPHIC_SETTLEMENT_PROP_QUALITY_POLICY.id,
     decoratedCount,
-    semanticRoleCount: semanticFamilies,
+    semanticRoleCount: seenFamilies.size,
     planPlacementCount: placements.length,
   });
-
-  return Object.freeze({
-    ok: true,
-    decoratedCount,
-    semanticRoleCount: semanticFamilies,
-    planPlacementCount: placements.length,
-  });
+  return Object.freeze({ ok: true, decoratedCount, semanticRoleCount: seenFamilies.size, planPlacementCount: placements.length });
 }
 
 function transformIsFinite(object) {
@@ -366,9 +317,7 @@ function auditPlacementRecord(placement, seatPlacements, index) {
   for (let j = 0; j < seatPlacements.length; j += 1) {
     if (j === index) continue;
     const other = seatPlacements[j];
-    if (distance2D(placement, other) < GEOGRAPHIC_SETTLEMENT_PROP_QUALITY_POLICY.minSpacingMeters) {
-      errors.push(`placement-${index}:spacing-with-${j}`);
-    }
+    if (distance2D(placement, other) < GEOGRAPHIC_SETTLEMENT_PROP_QUALITY_POLICY.minSpacingMeters) errors.push(`placement-${index}:spacing-with-${j}`);
   }
   const contextScore = scoreGeographicSettlementPropContext(placement);
   if (contextScore.score < 0) warnings.push(`placement-${index}:low-context-score`);
@@ -383,7 +332,6 @@ export function auditGeographicSettlementPropPlan(plan = []) {
   let placementCount = 0;
   let lowScoreCount = 0;
   let exactAdjacentRepeats = 0;
-
   for (const seat of plan || []) {
     const placements = Array.isArray(seat?.placements) ? seat.placements : [];
     const localFamilies = [];
@@ -397,16 +345,12 @@ export function auditGeographicSettlementPropPlan(plan = []) {
       localFamilies.push(String(placement?.family || ''));
       if (audit.contextScore.score < 0) lowScoreCount += 1;
       placementCount += 1;
-      if (index > 0 && localFamilies[index - 1] === localFamilies[index]) exactAdjacentRepeats += 1;
     }
-    if (placements.length > 1 && new Set(localFamilies).size < 2 && seat?.targetCount >= 2) {
-      warnings.push(`${seat?.seatId || 'seat'}:single-family-plan`);
-    }
+    for (let index = 1; index < localFamilies.length; index += 1) if (localFamilies[index] === localFamilies[index - 1]) exactAdjacentRepeats += 1;
+    if (placements.length > 1 && new Set(localFamilies).size < 2 && seat?.targetCount >= 2) warnings.push(`${seat?.seatId || 'seat'}:single-family-plan`);
   }
-
   if (placementCount > 0 && familyIds.size < 2) warnings.push('global:insufficient-family-variety');
   if (exactAdjacentRepeats > 0) errors.push(`global:adjacent-family-repeat-count=${exactAdjacentRepeats}`);
-
   return Object.freeze({
     ok: errors.length === 0,
     errors: Object.freeze(errors),
@@ -417,6 +361,24 @@ export function auditGeographicSettlementPropPlan(plan = []) {
     lowScoreCount,
     exactAdjacentRepeats,
   });
+}
+
+export function auditGeographicSettlementPropPlanAgainstCanonicalSeats(plan, seats = []) {
+  const errors = [];
+  const seatById = new Map((seats || []).map((seat) => [String(seat?.id ?? ''), seat]));
+  for (const seatPlan of plan || []) {
+    const seat = seatById.get(String(seatPlan?.seatId ?? ''));
+    if (!seat) {
+      errors.push(`${seatPlan?.seatId || 'unknown'}:missing-canonical-seat`);
+      continue;
+    }
+    for (const [index, placement] of (seatPlan.placements.entries()) ) {
+      const radialDistance = Math.hypot(Number(placement.x) - Number(seat.x), Number(placement.z) - Number(seat.z));
+      if (Math.abs(radialDistance - Number(placement.distanceFromSeat)) > 1e-5) errors.push(`${seatPlan.seatId}:${index}:seat-distance-mismatch`);
+      if (Math.abs(Number(placement.seatX) - Number(seat.x)) > 1e-5 || Math.abs(Number(placement.seatZ) - Number(seat.z)) > 1e-5) errors.push(`${seatPlan.seatId}:${index}:seat-anchor-mismatch`);
+    }
+  }
+  return Object.freeze({ ok: errors.length === 0, errors: Object.freeze(errors) });
 }
 
 export function auditGeographicSettlementPropGroup(group, plan = []) {
@@ -430,18 +392,21 @@ export function auditGeographicSettlementPropGroup(group, plan = []) {
   let placeholderCount = 0;
   let transformErrorCount = 0;
 
+  const propChildren = [];
   group?.traverse?.((child) => {
     if (!child?.userData?.geographicSettlementProp) return;
+    propChildren.push(child);
     renderableCount += 1;
     if (child.userData?.worldPlacementManifest || child.userData?.geographicManifest) manifestCount += 1;
     if (child.userData?.materialReadyForWorld === true) materialReadyCount += 1;
-    if (child.userData?.worldPlacementPolicy) placementGateCount += 1;
+    if (child.userData?.worldPlacementSurface) placementGateCount += 1;
     if (child.userData?.isPlaceholder) placeholderCount += 1;
     if (!transformIsFinite(child)) transformErrorCount += 1;
 
-    const placementAudit = auditWorldAssetPlacement(child);
-    if (!placementAudit.ok) errors.push(`${child.name || 'prop'}:${placementAudit.errors.join(',')}`);
-    warnings.push(...placementAudit.warnings.map((warning) => `${child.name || 'prop'}:${warning}`));
+    const validation = validateMaterialAssignment(child, { requireGeneratedTexture: false });
+    if (!validation.ok) errors.push(`${child.name || 'prop'}:final-material:${validation.errors.join(',')}`);
+    warnings.push(...validation.warnings.map((warning) => `${child.name || 'prop'}:final-material:${warning}`));
+    if (!child.userData?.worldPlacementManifest?.placement) errors.push(`${child.name || 'prop'}:placement-manifest-missing`);
     materialEvidence.push({
       name: child.name || '',
       sourceAsset: child.userData?.geographicSourceAsset || null,
@@ -449,15 +414,9 @@ export function auditGeographicSettlementPropGroup(group, plan = []) {
     });
   });
 
-  if (GEOGRAPHIC_SETTLEMENT_PROP_QUALITY_POLICY.requireManifest && renderableCount !== manifestCount) {
-    errors.push(`manifest-coverage:${manifestCount}/${renderableCount}`);
-  }
-  if (GEOGRAPHIC_SETTLEMENT_PROP_QUALITY_POLICY.requireWorldPlacementGate && renderableCount !== materialReadyCount) {
-    errors.push(`material-ready-coverage:${materialReadyCount}/${renderableCount}`);
-  }
-  if (GEOGRAPHIC_SETTLEMENT_PROP_QUALITY_POLICY.requireWorldPlacementGate && renderableCount !== placementGateCount) {
-    errors.push(`placement-gate-coverage:${placementGateCount}/${renderableCount}`);
-  }
+  if (GEOGRAPHIC_SETTLEMENT_PROP_QUALITY_POLICY.requireManifest && renderableCount !== manifestCount) errors.push(`manifest-coverage:${manifestCount}/${renderableCount}`);
+  if (GEOGRAPHIC_SETTLEMENT_PROP_QUALITY_POLICY.requireWorldPlacementGate && renderableCount !== materialReadyCount) errors.push(`material-ready-coverage:${materialReadyCount}/${renderableCount}`);
+  if (GEOGRAPHIC_SETTLEMENT_PROP_QUALITY_POLICY.requireWorldPlacementGate && renderableCount !== placementGateCount) errors.push(`placement-surface-coverage:${placementGateCount}/${renderableCount}`);
   if (placeholderCount) errors.push(`placeholder-count:${placeholderCount}`);
   if (transformErrorCount) errors.push(`transform-error-count:${transformErrorCount}`);
 
@@ -465,22 +424,15 @@ export function auditGeographicSettlementPropGroup(group, plan = []) {
   const mappedAssetCount = assetEvidence.filter((entry) => entry.authoredPbrEvidence || entry.mappedMaterialCount > 0).length;
   const textureEvidenceMissingCount = assetEvidence.filter((entry) => entry.mappedMaterialCount > 0 && entry.textures.length === 0).length;
   const textureDimensionErrorCount = assetEvidence.filter((entry) => entry.textures.length > 0 && !entry.allMappedTexturesSized).length;
-  if (GEOGRAPHIC_SETTLEMENT_PROP_QUALITY_POLICY.requireTextureEvidenceForMappedMaterial && textureEvidenceMissingCount) {
-    errors.push(`mapped-material-without-texture-evidence:${textureEvidenceMissingCount}`);
-  }
-  if (GEOGRAPHIC_SETTLEMENT_PROP_QUALITY_POLICY.requireTextureEvidenceForMappedMaterial && textureDimensionErrorCount) {
-    errors.push(`texture-dimension-evidence-missing:${textureDimensionErrorCount}`);
-  }
+  if (GEOGRAPHIC_SETTLEMENT_PROP_QUALITY_POLICY.requireTextureEvidenceForMappedMaterial && textureEvidenceMissingCount) errors.push(`mapped-material-without-texture-evidence:${textureEvidenceMissingCount}`);
+  if (GEOGRAPHIC_SETTLEMENT_PROP_QUALITY_POLICY.requireTextureEvidenceForMappedMaterial && textureDimensionErrorCount) errors.push(`texture-dimension-evidence-missing:${textureDimensionErrorCount}`);
 
   const planAudit = auditGeographicSettlementPropPlan(plan);
   errors.push(...planAudit.errors);
   warnings.push(...planAudit.warnings);
+  const seatAudit = auditGeographicSettlementPropPlanAgainstCanonicalSeats(plan, plan.map((entry) => ({ id: entry.seatId, x: entry.placements?.[0]?.seatX, z: entry.placements?.[0]?.seatZ })));
 
-  const contexts = [];
-  group?.traverse?.((child) => {
-    if (child?.userData?.geographicContext) contexts.push(child.userData.geographicContext);
-  });
-
+  const contexts = propChildren.map((child) => child.userData?.geographicContext).filter(Boolean);
   const report = Object.freeze({
     ok: errors.length === 0,
     policyId: GEOGRAPHIC_SETTLEMENT_PROP_QUALITY_POLICY.id,
@@ -494,32 +446,14 @@ export function auditGeographicSettlementPropGroup(group, plan = []) {
     textureEvidenceMissingCount,
     textureDimensionErrorCount,
     planAudit,
+    seatAudit,
     materialEvidence: Object.freeze(materialEvidence),
     contexts: Object.freeze(contexts),
     errors: Object.freeze(errors),
     warnings: Object.freeze(warnings),
   });
-
   if (group) group.userData.geographicSettlementPropQualityReport = report;
   return report;
-}
-
-export function auditGeographicSettlementPropPlanAgainstCanonicalSeats(plan, seats = []) {
-  const errors = [];
-  const seatById = new Map((seats || []).map((seat) => [String(seat?.id ?? ''), seat]));
-  for (const seatPlan of plan || []) {
-    const seat = seatById.get(String(seatPlan?.seatId ?? ''));
-    if (!seat) {
-      errors.push(`${seatPlan?.seatId || 'unknown'}:missing-canonical-seat`);
-      continue;
-    }
-    for (const [index, placement] of (seatPlan.placements.entries()) {
-      const radialDistance = Math.hypot(Number(placement.x) - Number(seat.x), Number(placement.z) - Number(seat.z));
-      if (Math.abs(radialDistance - Number(placement.distanceFromSeat)) > 1e-5) errors.push(`${seatPlan.seatId}:${index}:seat-distance-mismatch`);
-      if (Math.abs(Number(placement.seatX) - Number(seat.x)) > 1e-5 || Math.abs(Number(placement.seatZ) - Number(seat.z)) > 1e-5) errors.push(`${seatPlan.seatId}:${index}:seat-anchor-mismatch`);
-    }
-  }
-  return Object.freeze({ ok: errors.length === 0, errors: Object.freeze(errors) });
 }
 
 export function buildGeographicSettlementPropRuntimeSummary({ result, plan = [], quality = null, seats = [] } = {}) {
@@ -527,7 +461,7 @@ export function buildGeographicSettlementPropRuntimeSummary({ result, plan = [],
   const seatAudit = auditGeographicSettlementPropPlanAgainstCanonicalSeats(plan, seats);
   const group = result?.group || null;
   const groupAudit = quality || (group ? auditGeographicSettlementPropGroup(group, plan) : null);
-  const summary = Object.freeze({
+  return Object.freeze({
     policyId: GEOGRAPHIC_SETTLEMENT_PROP_QUALITY_POLICY.id,
     ok: Boolean(result?.ok) && planAudit.ok && seatAudit.ok && Boolean(groupAudit?.ok ?? true),
     runtime: Object.freeze({
@@ -540,25 +474,13 @@ export function buildGeographicSettlementPropRuntimeSummary({ result, plan = [],
     seatAudit,
     groupAudit,
   });
-  return summary;
 }
 
 export function buildStablePropFingerprint(plan = []) {
   const entries = [];
-  for (const seat of plan || []) {
-    for (const placement of seat?.placements || []) {
-      entries.push([
-        placement.seatId,
-        placement.family,
-        Number(placement.x).toFixed(4),
-        Number(placement.z).toFixed(4),
-        Number(placement.distanceFromSeat).toFixed(4),
-        Number(placement.roadDistance).toFixed(4),
-        placement.biomeId || '',
-        placement.roleId || '',
-      ].join('|'));
-    }
-  }
+  for (const seat of plan || []) for (const placement of seat?.placements || []) entries.push([
+    placement.seatId, placement.family, Number(placement.x).toFixed(4), Number(placement.z).toFixed(4), Number(placement.distanceFromSeat).toFixed(4), Number(placement.roadDistance).toFixed(4), placement.biomeId || '', placement.roleId || '',
+  ].join('|'));
   entries.sort();
   let hash = 2166136261;
   for (const entry of entries) hash = Math.imul(hash ^ hashString(entry), 16777619) >>> 0;
@@ -573,20 +495,19 @@ export function summarizeGeographicSettlementPropMaterialEvidence(group) {
     if (!byAsset.has(source)) byAsset.set(source, []);
     byAsset.get(source).push(collectGeographicPropMaterialEvidence(child));
   });
-  return Object.freeze([...byAsset.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([source, entries]) => {
-    const meshCount = Math.max(...entries.map((entry) => entry.meshCount), 0);
-    const surfaceCount = Math.max(...entries.map((entry) => entry.surfaceCount), 0);
-    const mappedMaterialCount = Math.max(...entries.map((entry) => entry.mappedMaterialCount), 0);
-    const authoredPbrEvidence = entries.some((entry) => entry.authoredPbrEvidence);
-    const generatedMaterialCount = Math.max(...entries.map((entry) => entry.generatedMaterialCount), 0);
-    return Object.freeze({ source, instanceCount: entries.length, meshCount, surfaceCount, mappedMaterialCount, authoredPbrEvidence, generatedMaterialCount });
-  }));
+  return Object.freeze([...byAsset.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([source, entries]) => Object.freeze({
+    source,
+    instanceCount: entries.length,
+    meshCount: Math.max(...entries.map((entry) => entry.meshCount), 0),
+    surfaceCount: Math.max(...entries.map((entry) => entry.surfaceCount), 0),
+    mappedMaterialCount: Math.max(...entries.map((entry) => entry.mappedMaterialCount), 0),
+    authoredPbrEvidence: entries.some((entry) => entry.authoredPbrEvidence),
+    generatedMaterialCount: Math.max(...entries.map((entry) => entry.generatedMaterialCount), 0),
+  })));
 }
 
 export function assertGeographicSettlementPropQuality(report) {
-  if (!report?.ok) {
-    throw new Error(`Geographic settlement prop quality gate failed: ${(report?.errors || []).join('; ')}`);
-  }
+  if (!report?.ok) throw new Error(`Geographic settlement prop quality gate failed: ${(report?.errors || []).join('; ')}`);
   return report;
 }
 
@@ -626,11 +547,4 @@ export function contextSummaryForPlacement(placement = {}) {
   });
 }
 
-export const __QUALITY_TEST_HOOKS = Object.freeze({
-  clamp01,
-  distance2D,
-  roadBand,
-  ringBand,
-  hashString,
-  normalizeAngle,
-});
+export const __QUALITY_TEST_HOOKS = Object.freeze({ clamp01, distance2D, roadBand, ringBand, hashString, normalizeAngle });
