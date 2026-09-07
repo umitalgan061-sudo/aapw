@@ -2,9 +2,9 @@
 /**
  * Static source-to-runtime ownership proof for the wind/snow slice.
  *
- * This check is deliberately source-oriented: the numerical suites validate the algorithm, while
- * this file verifies that the production terrain path is still wired to that algorithm and that no
- * detached replacement authority appeared in the same change.
+ * The numerical suites validate the algorithm. This check validates the live source graph: the
+ * terrain biome shader must still own the snow-coverage call path, while the wind/snow module stays
+ * a render-only helper and does not introduce a second terrain, water or asset authority.
  */
 
 import fs from 'node:fs';
@@ -25,16 +25,18 @@ const expect = (condition, message) => {
   }
 };
 
-expect(terrain.includes("from './terrainWindSnowExposure.js'"),
-  'terrain height/render source must retain the existing wind snow module import');
 expect(shading.includes("from './terrainWindSnowExposure.js'"),
-  'terrain biome shading must retain the existing wind snow module import');
+  'terrain biome shading must retain the live wind/snow module import');
 expect(shading.includes('terrainWindExposureFromNeighbours'),
-  'biome shading must continue to derive wind exposure from canonical neighbours');
+  'biome shading must continue to derive wind exposure from terrain neighbours');
 expect(shading.includes('resolveTerrainWindSnowAdjustment'),
   'biome shading must continue to send exposure through the climate-aware resolver');
 expect(shading.includes('terrainWindward') && shading.includes('terrainLee'),
   'terrain snow coverage must keep explicit windward/lee inputs');
+expect(terrain.includes('createHeightSampler'),
+  'terrain.js must retain the canonical terrain sampler authority');
+expect(terrain.includes('CURRENT_TERRAIN_POLICY'),
+  'terrain.js must retain the canonical owner-map policy marker');
 expect(wind.includes('heightAuthorityUnchanged: true'),
   'wind/snow module must remain explicitly non-authoritative for height');
 expect(wind.includes('renderOnly: true'),
@@ -50,7 +52,7 @@ expect(wind.includes('crustScour'),
 expect(wind.includes('packGain'),
   'production module must expose bounded pack response');
 expect(wind.includes('Math.max(ridgelineExposure, windwardWeight * 0.34)'),
-  'compatibility projection must make the richer response visible on the existing renderer path');
+  'compatibility projection must make the richer response visible on the shipped renderer path');
 expect(wind.includes('Math.max(shelterPocket, leeWeight * 0.38)'),
   'lee compatibility projection must remain bounded and renderer-visible');
 expect(wind.includes('Math.max(snowMobility, Math.max(windwardWeight, leeWeight) * 0.24)'),
@@ -76,12 +78,18 @@ const policyMatch = wind.match(/id:\s*'([^']+)'/);
 expect(policyMatch, 'wind/snow policy id must be explicit');
 expect(policyMatch[1].includes('2026-09-07'), 'current production policy must carry the current dated id');
 
+const callIndex = shading.indexOf('resolveTerrainWindSnowAdjustment');
+const inputIndex = shading.indexOf('terrainWindward', callIndex);
+expect(callIndex >= 0 && inputIndex >= callIndex,
+  'the live snow resolver call must be followed by its terrain wind inputs');
+
 console.log(JSON.stringify({
   policyId: policyMatch[1],
-  terrainImport: terrain.includes("from './terrainWindSnowExposure.js'"),
+  canonicalTerrainSampler: terrain.includes('createHeightSampler'),
+  canonicalTerrainPolicy: terrain.includes('CURRENT_TERRAIN_POLICY'),
   shadingImport: shading.includes("from './terrainWindSnowExposure.js'"),
-  climateResolverAttached: shading.includes('resolveTerrainWindSnowAdjustment'),
-  canonicalNeighboursAttached: shading.includes('terrainWindExposureFromNeighbours'),
+  climateResolverAttached: callIndex >= 0,
+  windInputsPresent: inputIndex >= callIndex,
   deterministic: !wind.includes('Math.random('),
   secondHeightAuthority: wind.includes('createHeightSampler('),
 }, null, 2));
