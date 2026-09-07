@@ -1,0 +1,157 @@
+name: Temporary full owner-map vegetation coverage patch
+
+on:
+  push:
+    branches:
+      - codex/aapw-realism-20260831-ocean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tmp-owner-map-vegetation-coverage
+  cancel-in-progress: true
+
+jobs:
+  patch-test-and-commit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Fast-forward to current live branch before editing
+        shell: bash
+        run: |
+          set -euo pipefail
+          BRANCH=codex/aapw-realism-20260831-ocean
+          git fetch origin "$BRANCH"
+          git checkout -B "$BRANCH" "origin/$BRANCH"
+          echo "PATCH_BASE=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Expand desktop vegetation to the canonical owner rectangle
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one replacement, found {count}: {old[:140]!r}')
+              p.write_text(text.replace(old, new, 1))
+
+          vegetation = 'src/3d/world/vegetation.js'
+          replace_once(
+              vegetation,
+              """export function sampleAnnulusPoint(rng, centerX, centerZ, innerRadius, outerRadius) {\n\tconst angle = rng() * Math.PI * 2;\n\tconst radius = Math.sqrt(rng() * (outerRadius * outerRadius - innerRadius * innerRadius) + innerRadius * innerRadius);\n\treturn { x: centerX + Math.cos(angle) * radius, z: centerZ + Math.sin(angle) * radius };\n}\n""",
+              """export function sampleAnnulusPoint(rng, centerX, centerZ, innerRadius, outerRadius) {\n\tconst angle = rng() * Math.PI * 2;\n\tconst radius = Math.sqrt(rng() * (outerRadius * outerRadius - innerRadius * innerRadius) + innerRadius * innerRadius);\n\treturn { x: centerX + Math.cos(angle) * radius, z: centerZ + Math.sin(angle) * radius };\n}\n\nfunction createPlacementDomain({ radiusMeters, worldWidthMeters, worldDepthMeters }) {\n\tconst ownerRectangle = Number.isFinite(worldWidthMeters) && worldWidthMeters > 0\n\t\t&& Number.isFinite(worldDepthMeters) && worldDepthMeters > 0;\n\tif (ownerRectangle) {\n\t\treturn Object.freeze({\n\t\t\tkind: 'owner-rectangle',\n\t\t\thalfWidthMeters: worldWidthMeters * 0.5,\n\t\t\thalfDepthMeters: worldDepthMeters * 0.5,\n\t\t\tareaKm2: (worldWidthMeters * worldDepthMeters) / 1_000_000,\n\t\t});\n\t}\n\treturn Object.freeze({\n\t\tkind: 'preview-disc',\n\t\tradiusMeters,\n\t\tareaKm2: (Math.PI * radiusMeters * radiusMeters) / 1_000_000,\n\t});\n}\n\nfunction samplePlacementDomainPoint(rng, domain) {\n\tif (domain.kind === 'owner-rectangle') {\n\t\treturn {\n\t\t\tx: (rng() * 2 - 1) * domain.halfWidthMeters,\n\t\t\tz: (rng() * 2 - 1) * domain.halfDepthMeters,\n\t\t};\n\t}\n\treturn sampleAnnulusPoint(rng, 0, 0, 0, domain.radiusMeters);\n}\n\nfunction placementDomainContains(x, z, domain, insetMeters = 0) {\n\tif (domain.kind === 'owner-rectangle') {\n\t\treturn Math.abs(x) <= Math.max(0, domain.halfWidthMeters - insetMeters)\n\t\t\t&& Math.abs(z) <= Math.max(0, domain.halfDepthMeters - insetMeters);\n\t}\n\treturn Math.hypot(x, z) + insetMeters <= domain.radiusMeters;\n}\n""",
+          )
+          replace_once(
+              vegetation,
+              """export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, seats, roadEdges, radiusMeters, densityPerKm2 = TARGET_DENSITY_PER_KM2 }) {\n\tconst group = new THREE.Group();\n\tconst areaKm2 = (Math.PI * radiusMeters * radiusMeters) / 1_000_000;\n\tconst baseTargetCount = Math.max(0, Math.round(areaKm2 * densityPerKm2));\n\tconst clusterInnerRadius = SEAT_EXCLUSION_RADIUS_METERS + CLUSTER_RING_INNER_MARGIN_METERS;\n\tconst clusterSeats = seats.filter((seat) => Math.hypot(seat.x, seat.z) + CLUSTER_RING_OUTER_RADIUS_METERS <= radiusMeters);""",
+              """export function createVegetation({\n\tsampleHeightMeters,\n\tseaLevelMeters,\n\tseed,\n\tseats,\n\troadEdges,\n\tradiusMeters,\n\tworldWidthMeters = null,\n\tworldDepthMeters = null,\n\tdensityPerKm2 = TARGET_DENSITY_PER_KM2,\n}) {\n\tconst group = new THREE.Group();\n\tconst placementDomain = createPlacementDomain({ radiusMeters, worldWidthMeters, worldDepthMeters });\n\tconst areaKm2 = placementDomain.areaKm2;\n\tconst baseTargetCount = Math.max(0, Math.round(areaKm2 * densityPerKm2));\n\tconst clusterInnerRadius = SEAT_EXCLUSION_RADIUS_METERS + CLUSTER_RING_INNER_MARGIN_METERS;\n\tconst clusterSeats = seats.filter((seat) => placementDomainContains(\n\t\tseat.x, seat.z, placementDomain, CLUSTER_RING_OUTER_RADIUS_METERS,\n\t));""",
+          )
+          replace_once(
+              vegetation,
+              """\t\t\tconst backgroundCandidate = !groveHasCenter || rng() < groveBackgroundChance;\n\t\t\tconst candidate = backgroundCandidate\n\t\t\t\t? sampleAnnulusPoint(rng, 0, 0, 0, radiusMeters)\n\t\t\t\t: sampleAnnulusPoint(rng, groveCenterX, groveCenterZ, 0, groveRadiusMeters);\n\t\t\tconst { x, z } = candidate;\n\t\t\tif (Math.hypot(x, z) > radiusMeters) continue;""",
+              """\t\t\tconst backgroundCandidate = !groveHasCenter || rng() < groveBackgroundChance;\n\t\t\tconst candidate = backgroundCandidate\n\t\t\t\t? samplePlacementDomainPoint(rng, placementDomain)\n\t\t\t\t: sampleAnnulusPoint(rng, groveCenterX, groveCenterZ, 0, groveRadiusMeters);\n\t\t\tconst { x, z } = candidate;\n\t\t\tif (!placementDomainContains(x, z, placementDomain)) continue;""",
+          )
+          replace_once(
+              vegetation,
+              """\t\tanisotropicSilhouetteScale: true,\n\t});""",
+              """\t\tanisotropicSilhouetteScale: true,\n\t\tplacementDomain: placementDomain.kind,\n\t\tcoverageAreaKm2: placementDomain.areaKm2,\n\t\tworldHalfWidthMeters: placementDomain.kind === 'owner-rectangle' ? placementDomain.halfWidthMeters : null,\n\t\tworldHalfDepthMeters: placementDomain.kind === 'owner-rectangle' ? placementDomain.halfDepthMeters : null,\n\t});""",
+          )
+
+          scene = 'src/3d/sceneManager.js'
+          replace_once(
+              scene,
+              """\t\troadEdges: roadsResult.edges,\n\t\tradiusMeters: previewRadiusChunks * CHUNK_CONFIG.CHUNK_SIZE_METERS,\n\t});\n\tscene.add(vegetationResult.group);\n\tconsole.info(\n\t\t`[sceneManager] Scattered vegetation: ${vegetationResult.placedCount}/${vegetationResult.targetCount} tree(s) placed ` +\n\t\t\t`(${vegetationResult.clusterSeatCount} seat(s) with a local cluster ring).`,\n\t);""",
+              """\t\troadEdges: roadsResult.edges,\n\t\tradiusMeters: previewRadiusChunks * CHUNK_CONFIG.CHUNK_SIZE_METERS,\n\t\t// Desktop owns the complete canonical 9000x7000 reference rectangle, not the historical\n\t\t// circular boot-preview radius. Mobile deliberately keeps its bounded origin/spawn discs.\n\t\tworldWidthMeters: isMobileClass ? null : WORLD_SCALE.WORLD_WIDTH_METERS,\n\t\tworldDepthMeters: isMobileClass ? null : WORLD_SCALE.WORLD_DEPTH_METERS,\n\t});\n\tscene.add(vegetationResult.group);\n\tconsole.info(\n\t\t`[sceneManager] Scattered vegetation: ${vegetationResult.placedCount}/${vegetationResult.targetCount} tree(s) placed ` +\n\t\t\t`over ${vegetationResult.group.userData.vegetationSpatialPattern?.placementDomain ?? 'preview-disc'} ` +\n\t\t\t`(${vegetationResult.clusterSeatCount} seat(s) with a local cluster ring).`,\n\t);""",
+          )
+
+          test = 'scripts/checkVegetationEcologicalGroves.mjs'
+          replace_once(
+              test,
+              """function build(seed) {\n\treturn createVegetation({\n\t\tsampleHeightMeters: () => 100,\n\t\tseaLevelMeters: 0,\n\t\tseed,\n\t\tseats: [],\n\t\troadEdges: [],\n\t\tradiusMeters: RADIUS_METERS,\n\t\tdensityPerKm2: DENSITY_PER_KM2,\n\t});\n}\n""",
+              """function build(seed) {\n\treturn createVegetation({\n\t\tsampleHeightMeters: () => 100,\n\t\tseaLevelMeters: 0,\n\t\tseed,\n\t\tseats: [],\n\t\troadEdges: [],\n\t\tradiusMeters: RADIUS_METERS,\n\t\tdensityPerKm2: DENSITY_PER_KM2,\n\t});\n}\n\nfunction buildOwnerRectangle(seed) {\n\treturn createVegetation({\n\t\tsampleHeightMeters: () => 100,\n\t\tseaLevelMeters: 0,\n\t\tseed,\n\t\tseats: [],\n\t\troadEdges: [],\n\t\t// Deliberately much smaller than the rectangle: this proves the owner rectangle, rather\n\t\t// than the legacy preview disc, is the active geography authority when extents are supplied.\n\t\tradiusMeters: 500,\n\t\tworldWidthMeters: 3000,\n\t\tworldDepthMeters: 1800,\n\t\tdensityPerKm2: DENSITY_PER_KM2,\n\t});\n}\n""",
+          )
+          replace_once(
+              test,
+              """const first = build(SEED);\nconst second = build(SEED);\nconst different = build(SEED ^ 0x01010101);\ntry {""",
+              """const first = build(SEED);\nconst second = build(SEED);\nconst different = build(SEED ^ 0x01010101);\nconst ownerRectangle = buildOwnerRectangle(SEED ^ 0x4f574e52);\ntry {""",
+          )
+          replace_once(
+              test,
+              """\tassert.equal(first.group.userData.vegetationSpatialPattern.baseDensityPerKm2, DENSITY_PER_KM2);\n\n\tconsole.log('[checkVegetationEcologicalGroves] PASS', JSON.stringify({""",
+              """\tassert.equal(first.group.userData.vegetationSpatialPattern.baseDensityPerKm2, DENSITY_PER_KM2);\n\n\tconst ownerPoints = collectTreePositions(ownerRectangle.group);\n\tassert.equal(ownerRectangle.targetCount, Math.round(3 * 1.8 * DENSITY_PER_KM2),\n\t\t'owner rectangle tree budget must derive from rectangular canonical area');\n\tassert.equal(ownerRectangle.group.userData.vegetationSpatialPattern.placementDomain, 'owner-rectangle');\n\tassert.equal(ownerRectangle.group.userData.vegetationSpatialPattern.coverageAreaKm2, 5.4);\n\tassert(ownerPoints.every(([x, z]) => Math.abs(x) <= 1500 + 1e-6 && Math.abs(z) <= 900 + 1e-6),\n\t\t'owner rectangle vegetation must never leak outside canonical X/Z extents');\n\tassert(ownerPoints.some(([x, z]) => Math.hypot(x, z) > 650),\n\t\t'owner rectangle must populate geography beyond the legacy preview-disc radius');\n\n\tconsole.log('[checkVegetationEcologicalGroves] PASS', JSON.stringify({""",
+          )
+          replace_once(
+              test,
+              """\t\ttemperateGroveRadiusMeters: temperatePattern.groveRadiusMeters,\n\t\tcoldGroveRadiusMeters: Number(coldPattern.groveRadiusMeters.toFixed(1)),""",
+              """\t\ttemperateGroveRadiusMeters: temperatePattern.groveRadiusMeters,\n\t\tcoldGroveRadiusMeters: Number(coldPattern.groveRadiusMeters.toFixed(1)),\n\t\townerRectanglePlacedCount: ownerRectangle.placedCount,\n\t\townerRectangleCoverageKm2: ownerRectangle.group.userData.vegetationSpatialPattern.coverageAreaKm2,""",
+          )
+          replace_once(
+              test,
+              """\tdisposeVegetation(different.group);\n}""",
+              """\tdisposeVegetation(different.group);\n\tdisposeVegetation(ownerRectangle.group);\n}""",
+          )
+          PY
+
+      - name: Resolve vendored Three.js for Node contracts
+        run: node scripts/setupNodeThreeShim.mjs
+
+      - name: Verify vegetation geography and runtime contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/vegetation.js
+          node --check src/3d/sceneManager.js
+          node --check scripts/checkVegetationEcologicalGroves.mjs
+          node scripts/checkVegetationEcologicalGroves.mjs
+          node scripts/checkNorthernVegetationClimate.mjs
+          node scripts/checkNorthernVegetationRuntime.mjs
+          node scripts/checkNorthernVegetationDeterminism.mjs
+          node scripts/checkNorthSnowPineCrowdReadability.mjs
+          node scripts/checkVegetationVisualContract.js
+
+      - name: Commit and push with target-file concurrency guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          BRANCH=codex/aapw-realism-20260831-ocean
+          TARGETS=(src/3d/world/vegetation.js src/3d/sceneManager.js scripts/checkVegetationEcologicalGroves.mjs)
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add "${TARGETS[@]}"
+          git rm .github/workflows/_tmp-owner-map-vegetation-coverage.yml
+          git commit -m "feat(world): cover canonical map with desktop vegetation"
+
+          for attempt in 1 2 3 4; do
+            git fetch origin "$BRANCH"
+            REMOTE_HEAD=$(git rev-parse "origin/$BRANCH")
+            LOCAL_PARENT=$(git rev-parse HEAD^)
+            if [ "$REMOTE_HEAD" != "$LOCAL_PARENT" ]; then
+              if ! git diff --quiet "$PATCH_BASE..$REMOTE_HEAD" -- "${TARGETS[@]}"; then
+                echo "Target vegetation files changed concurrently; refusing to overwrite newer production work."
+                git diff --stat "$PATCH_BASE..$REMOTE_HEAD" -- "${TARGETS[@]}"
+                exit 3
+              fi
+              git rebase "origin/$BRANCH"
+            fi
+            if git push origin HEAD:"$BRANCH"; then
+              exit 0
+            fi
+            echo "Push raced on attempt $attempt; retrying against latest remote head."
+          done
+          echo "Unable to push safely after four races."
+          exit 4

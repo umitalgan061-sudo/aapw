@@ -98,7 +98,7 @@ async function main() {
 		assert(summary.surfaceCounts.lake > 0, 'canonical inland lakes disappeared from full-world sampling');
 		assert(summary.northPermanentIceMax >= 0.8, 'authored permanent-ice core disappeared from the north');
 		assert(summary.northPermanentIceActiveSamples > 0, 'no strong permanent-ice samples were represented');
-		assert.equal(summary.terrainSurfaceRealism?.policyId, 'terrain-micro-surface-world-uv-pbr-v7-coastal-weathering',
+		assert.equal(summary.terrainSurfaceRealism?.policyId, 'terrain-micro-surface-world-uv-pbr-v9-dedicated-cryosphere-fabric',
 			'full-world proof must render the production photoreal terrain surface policy');
 		assert.equal(summary.terrainSurfaceRealism?.naturalAlbedoRemap, true,
 			'full-world proof must include natural vegetation/soil/snow albedo remapping');
@@ -121,7 +121,8 @@ async function main() {
 		assert.equal(summary.waterLayerComposition.nearDepthWrite, true, 'near swell must retain depth writes');
 		assert.equal(summary.waterLayerComposition.farDepthWrite, false, 'far transparent water underlay must not occlude near swell');
 		assert(summary.waterLayerComposition.farRenderOrder < 0, 'far water underlay must render before near swell');
-		assert(summary.waterLayerComposition.farLocalY < 0, 'far water underlay must remain slightly below near water');
+		assert(summary.waterLayerComposition.farLocalY > 0 && summary.waterLayerComposition.farLocalY <= 0.2,
+			'far-water render surface must sit just above wet terrain depth while near swell renders later');
 		assert.equal(summary.waterLayerComposition.deepBackdropDepthWrite, true, 'deep-ocean backdrop must write depth behind transparent water');
 		assert.equal(summary.waterLayerComposition.deepBackdropOpaque, true, 'deep-ocean backdrop must remain opaque');
 		assert.equal(summary.waterLayerComposition.deepBackdropFog, true, 'deep-ocean backdrop must participate in scene fog');

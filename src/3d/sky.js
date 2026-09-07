@@ -26,12 +26,13 @@ const smoothstep01 = (edge0, edge1, value) => {
 const lerp = (a, b, t) => a + (b - a) * t;
 
 export const SKY_ATMOSPHERE_PROFILE_POLICY = Object.freeze({
-	id: 'world-sky-day-night-atmosphere-profile-v3-upper-air-multiscale-breakup',
+	id: 'world-sky-day-night-atmosphere-profile-v4-cirrus-aerosol-fabric',
 	input: 'lighting-day-night-factor',
 	cameraRelative: true,
 	mapSpaceNoise: false,
 	horizonAirmassVariation: true,
 	upperAirMultiscaleVariation: true,
+	cirrusMultiscaleVariation: true,
 	renderOnly: true,
 });
 
@@ -49,12 +50,14 @@ export function sampleSkyAtmosphereProfile(nightFactor) {
 		groundBounceStrength: clamp01(lerp(0.085, 0.145, fullDay) + twilightCurve * 0.018 + deepNight * 0.018),
 		upperAirStrength: clamp01(lerp(0.055, 0.105, fullDay) + twilightCurve * 0.012 - deepNight * 0.012),
 		upperAirVariationStrength: clamp01(0.030 + fullDay * 0.032 + twilightCurve * 0.025 - deepNight * 0.012),
+		cirrusStrength: clamp01(0.024 + fullDay * 0.030 + twilightCurve * 0.026 - deepNight * 0.010),
+		cirrusContrast: clamp01(0.075 + fullDay * 0.030 + twilightCurve * 0.035 - deepNight * 0.018),
 		bandingDitherStrength: 0.006,
 	});
 }
 
 export const WORLD_SKY_ATMOSPHERE_POLICY = Object.freeze({
-	id: 'camera-relative-horizon-atmosphere-2026-08-26-v3-upper-air-multiscale-breakup',
+	id: 'camera-relative-horizon-atmosphere-2026-08-31-v4-cirrus-aerosol-fabric',
 	cameraRelative: true,
 	blackBackgroundFallback: false,
 	profilePolicyId: SKY_ATMOSPHERE_PROFILE_POLICY.id,
@@ -63,6 +66,8 @@ export const WORLD_SKY_ATMOSPHERE_POLICY = Object.freeze({
 	groundBounceStrength: 0.12,
 	upperAirStrength: 0.08,
 	upperAirVariationStrength: 0.052,
+	cirrusStrength: 0.054,
+	cirrusContrast: 0.105,
 	bandingDitherStrength: 0.006,
 	renderOnly: true,
 });
@@ -87,6 +92,8 @@ const SKY_FRAGMENT_SHADER = /* glsl */ `
 	uniform float uGroundBounceStrength;
 	uniform float uUpperAirStrength;
 	uniform float uUpperAirVariationStrength;
+	uniform float uCirrusStrength;
+	uniform float uCirrusContrast;
 	uniform float uBandingDitherStrength;
 	varying vec3 vWorldPosition;
 
@@ -131,6 +138,19 @@ const SKY_FRAGMENT_SHADER = /* glsl */ `
 		return clamp((broad - 0.5) * 0.88 + (meso - 0.5) * 0.52 + (fine - 0.5) * 0.18, -0.58, 0.58);
 	}
 
+	float cirrusFabric(vec3 dir, float time) {
+		vec2 horizontal = normalize(dir.xz + vec2(0.0001));
+		float drift = time * 0.00023;
+		vec2 frameA = vec2(horizontal.x * 0.82 + horizontal.y * 0.57, horizontal.y * 0.82 - horizontal.x * 0.57);
+		float broad = valueNoise(frameA * vec2(5.2, 1.65) + vec2(drift, -drift * 0.44) + vec2(7.4, -12.8));
+		vec2 warp = vec2(broad - 0.5, valueNoise(frameA * 2.73 + vec2(-9.6, 3.1)) - 0.5);
+		vec2 frameB = vec2(horizontal.x * 0.39 - horizontal.y * 0.92, horizontal.x * 0.92 + horizontal.y * 0.39);
+		float meso = valueNoise(frameB * vec2(11.8, 2.9) + warp * 1.35 + vec2(-4.2, 17.6));
+		float fine = valueNoise(frameA * vec2(23.0, 6.4) - warp * 0.62 + vec2(16.1, 5.7));
+		float filament = 1.0 - abs(meso * 2.0 - 1.0);
+		return clamp((broad - 0.5) * 0.46 + (filament - 0.5) * 0.70 + (fine - 0.5) * 0.22, -0.72, 0.72);
+	}
+
 	vec3 atmosphericBase(vec3 dir, vec3 horizonColor, vec3 zenithColor) {
 		float skyHeight = smoothstep(-0.22, 0.82, dir.y);
 		float zenithBlend = pow(clamp(skyHeight, 0.0, 1.0), 0.62);
@@ -157,6 +177,15 @@ const SKY_FRAGMENT_SHADER = /* glsl */ `
 		base += upperTint * upperAir * uUpperAirStrength;
 		base = mix(base, upperBreakup >= 0.0 ? upperCool : upperNeutral, abs(upperBreakup) * 0.22);
 		base *= 1.0 + upperBreakup * 0.17;
+
+		float cirrusBand = smoothstep(0.14, 0.46, dir.y) * (1.0 - smoothstep(0.94, 1.0, dir.y));
+		float cirrus = cirrusFabric(dir, uTime) * cirrusBand;
+		float veil = smoothstep(0.06, 0.64, cirrus * 0.5 + 0.5) * uCirrusStrength;
+		vec3 dayCirrus = mix(vec3(0.70, 0.77, 0.83), vec3(0.86, 0.88, 0.88), smoothstep(0.20, 0.84, dir.y));
+		vec3 nightCirrus = vec3(0.085, 0.105, 0.155);
+		vec3 cirrusTint = mix(dayCirrus, nightCirrus, uNightFactor);
+		base = mix(base, cirrusTint, veil);
+		base *= 1.0 + cirrus * uCirrusContrast * 0.18;
 		return base;
 	}
 
@@ -201,6 +230,8 @@ export function createAuroraSky() {
 			uGroundBounceStrength: { value: initialProfile.groundBounceStrength },
 			uUpperAirStrength: { value: initialProfile.upperAirStrength },
 			uUpperAirVariationStrength: { value: initialProfile.upperAirVariationStrength },
+			uCirrusStrength: { value: initialProfile.cirrusStrength },
+			uCirrusContrast: { value: initialProfile.cirrusContrast },
 			uBandingDitherStrength: { value: initialProfile.bandingDitherStrength },
 		},
 		side: THREE.BackSide,
@@ -239,6 +270,8 @@ export function updateAuroraSky(skyMesh, cameraPosition, elapsedSeconds, dayNigh
 	uniforms.uGroundBounceStrength.value = profile.groundBounceStrength;
 	uniforms.uUpperAirStrength.value = profile.upperAirStrength;
 	uniforms.uUpperAirVariationStrength.value = profile.upperAirVariationStrength;
+	uniforms.uCirrusStrength.value = profile.cirrusStrength;
+	uniforms.uCirrusContrast.value = profile.cirrusContrast;
 	uniforms.uBandingDitherStrength.value = profile.bandingDitherStrength;
 }
 

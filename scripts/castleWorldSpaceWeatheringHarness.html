@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Castle world-space weathering QA</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "../src/3d/vendor/three/three.module.js",
+      "three/addons/": "../src/3d/vendor/three/addons/"
+    }
+  }
+  </script>
+  <style>
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#9aabaf}
+    canvas{display:block;width:100%;height:100%}
+  </style>
+</head>
+<body>
+<canvas id="qa"></canvas>
+<script type="module">
+import * as THREE from 'three';
+import {
+  CASTLE_WORLD_SPACE_WEATHERING_POLICY,
+  createRoofMaterial,
+  createStoneMaterial,
+} from '../src/3d/world/materials.js';
+
+const canvas = document.getElementById('qa');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(1280, 760, false);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9aabaf);
+const camera = new THREE.PerspectiveCamera(36, 1280 / 760, 0.1, 800);
+camera.position.set(88, 53, 112);
+camera.lookAt(0, 13, 0);
+
+scene.add(new THREE.HemisphereLight(0xdde8ef, 0x514839, 1.35));
+const sun = new THREE.DirectionalLight(0xffe8c6, 3.2);
+sun.position.set(-70, 95, 45);
+scene.add(sun);
+
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(220, 150),
+  new THREE.MeshStandardMaterial({ color: 0x596149, roughness: 0.94, metalness: 0 }),
+);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -0.15;
+scene.add(ground);
+
+const stone = createStoneMaterial({ seed: 0x71a5, baseColor: new THREE.Color(0x8a8578), repeat: 11 });
+const roof = createRoofMaterial({ seed: 0x2fc9, repeat: 7 });
+
+function addKeep(x, z, yaw, label) {
+  const group = new THREE.Group();
+  group.position.set(x, 0, z);
+  group.rotation.y = yaw;
+  group.name = label;
+
+  const keep = new THREE.Mesh(new THREE.BoxGeometry(38, 22, 30), stone);
+  keep.position.y = 11;
+  group.add(keep);
+
+  const towerGeometry = new THREE.CylinderGeometry(6.2, 7.2, 29, 18, 1, false);
+  for (const [tx, tz] of [[-19,-15],[19,-15],[-19,15],[19,15]]) {
+    const tower = new THREE.Mesh(towerGeometry, stone);
+    tower.position.set(tx, 14.5, tz);
+    group.add(tower);
+    const cap = new THREE.Mesh(new THREE.ConeGeometry(7.5, 8.5, 18), roof);
+    cap.position.set(tx, 33.25, tz);
+    group.add(cap);
+  }
+
+  const ridge = new THREE.Mesh(new THREE.ConeGeometry(12.5, 10, 4), roof);
+  ridge.rotation.y = Math.PI / 4;
+  ridge.scale.z = 1.35;
+  ridge.position.y = 27;
+  group.add(ridge);
+
+  scene.add(group);
+  return group;
+}
+
+const westKeep = addKeep(-40, -7, -0.18, 'west-keep');
+const eastKeep = addKeep(41, 10, 0.24, 'east-keep');
+
+renderer.compile(scene, camera);
+renderer.render(scene, camera);
+const glError = renderer.getContext().getError();
+
+window.__CASTLE_WEATHERING_QA__ = {
+  ready: true,
+  glError,
+  policy: CASTLE_WORLD_SPACE_WEATHERING_POLICY,
+  stoneWeathering: stone.userData.castleWorldSpaceWeathering || null,
+  roofWeathering: roof.userData.castleWorldSpaceWeathering || null,
+  programCount: renderer.info.programs?.length ?? 0,
+  westWorldX: westKeep.position.x,
+  eastWorldX: eastKeep.position.x,
+};
+</script>
+</body>
+</html>

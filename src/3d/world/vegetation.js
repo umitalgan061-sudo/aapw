@@ -6,7 +6,7 @@
 
 import * as THREE from 'three';
 import { mulberry32 } from './terrain.js';
-import { northClimateWeightsAtWorldZ } from './terrainBiomeShading.js';
+import { northClimateWeightsAtWorldZ, terrainForestSuitabilityAtWorldXZ } from './terrainBiomeShading.js';
 import { northReferenceCryosphereAtWorldXZ } from './northReferenceCryosphere.js';
 
 const SPECIES = [
@@ -50,7 +50,7 @@ export const VEGETATION_NORTH_CLIMATE_POLICY = Object.freeze({
 });
 
 export const VEGETATION_SPATIAL_PATTERN_POLICY = Object.freeze({
-	id: 'vegetation-ecological-grove-scatter-2026-08-26-v1',
+	id: 'vegetation-ecological-grove-scatter-2026-09-02-v2-terrain-coherent',
 	climateAuthority: VEGETATION_NORTH_CLIMATE_POLICY.climateAuthority,
 	groveTreeCountMin: 9,
 	groveTreeCountMax: 17,
@@ -58,6 +58,9 @@ export const VEGETATION_SPATIAL_PATTERN_POLICY = Object.freeze({
 	coldGroveRadiusMeters: 125,
 	temperateBackgroundChance: 0.26,
 	coldBackgroundChance: 0.18,
+	terrainForestSuitability: true,
+	bestCandidateEcologySelection: true,
+	anisotropicSilhouetteScale: true,
 });
 
 const TARGET_DENSITY_PER_KM2 = 30;
@@ -173,25 +176,48 @@ export function distancePointToSegment2D(px, pz, ax, az, bx, bz) {
 	return Math.hypot(px - (ax + abx * t), pz - (az + abz * t));
 }
 
-export function isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges }) {
+function vegetationSiteProfile(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges }) {
 	for (const seat of seats) {
-		if (Math.hypot(x - seat.x, z - seat.z) < SEAT_EXCLUSION_RADIUS_METERS) return false;
+		if (Math.hypot(x - seat.x, z - seat.z) < SEAT_EXCLUSION_RADIUS_METERS) {
+			return { placeable: false, forestSuitability: 0, slopeDegrees: 90 };
+		}
 	}
 	for (const edge of roadEdges) {
 		const points = edge.points;
 		for (let i = 1; i < points.length; i++) {
 			const distance = distancePointToSegment2D(x, z, points[i - 1].x, points[i - 1].z, points[i].x, points[i].z);
-			if (distance < ROAD_EXCLUSION_RADIUS_METERS) return false;
+			if (distance < ROAD_EXCLUSION_RADIUS_METERS) {
+				return { placeable: false, forestSuitability: 0, slopeDegrees: 90 };
+			}
 		}
 	}
 	const groundY = sampleHeightMeters(x, z);
-	if (groundY <= seaLevelMeters + SHORE_MARGIN_METERS) return false;
+	if (groundY <= seaLevelMeters + SHORE_MARGIN_METERS) {
+		return { placeable: false, forestSuitability: 0, slopeDegrees: 90 };
+	}
 
 	const dxHeight = sampleHeightMeters(x + SLOPE_SAMPLE_OFFSET_METERS, z) - groundY;
 	const dzHeight = sampleHeightMeters(x, z + SLOPE_SAMPLE_OFFSET_METERS) - groundY;
 	const gradeXDegrees = (Math.atan2(Math.abs(dxHeight), SLOPE_SAMPLE_OFFSET_METERS) * 180) / Math.PI;
 	const gradeZDegrees = (Math.atan2(Math.abs(dzHeight), SLOPE_SAMPLE_OFFSET_METERS) * 180) / Math.PI;
-	return Math.max(gradeXDegrees, gradeZDegrees) <= MAX_GROUND_SLOPE_DEGREES;
+	const slopeDegrees = Math.max(gradeXDegrees, gradeZDegrees);
+	if (slopeDegrees > MAX_GROUND_SLOPE_DEGREES) {
+		return { placeable: false, forestSuitability: 0, slopeDegrees };
+	}
+	return {
+		placeable: true,
+		slopeDegrees,
+		forestSuitability: terrainForestSuitabilityAtWorldXZ({
+			worldX: x,
+			worldZ: z,
+			heightAboveSeaMeters: groundY - seaLevelMeters,
+			slopeDegrees,
+		}),
+	};
+}
+
+export function isPlaceablePosition(x, z, context) {
+	return vegetationSiteProfile(x, z, context).placeable;
 }
 
 export function pickSpeciesIndex(roll) {
@@ -276,9 +302,12 @@ function placeTreeInstance(entry, x, z, sampleHeightMeters, rng, up, matrix, pos
 	const groundY = sampleHeightMeters(x, z);
 	const scale = SCALE_MIN + rng() * (SCALE_MAX - SCALE_MIN);
 	const yaw = rng() * Math.PI * 2;
+	const widthScale = scale * (0.88 + rng() * 0.24);
+	const heightScale = scale * (0.91 + rng() * 0.24);
+	const depthScale = scale * (0.90 + rng() * 0.20);
 	position.set(x, groundY, z);
 	quaternion.setFromAxisAngle(up, yaw);
-	scaleVector.set(scale, scale, scale);
+	scaleVector.set(widthScale, heightScale, depthScale);
 	matrix.compose(position, quaternion, scaleVector);
 	entry.trunkMesh.setMatrixAt(entry.placedCount, matrix);
 	entry.foliageMesh.setMatrixAt(entry.placedCount, matrix);
@@ -330,13 +359,27 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 			groveTreesRemaining = spatialPolicy.groveTreeCountMin
 				+ Math.floor(rng() * (spatialPolicy.groveTreeCountMax - spatialPolicy.groveTreeCountMin + 1));
 		}
+		let bestCandidate = null;
+		let bestCandidateScore = -Infinity;
 		for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_TREE; attempt++) {
-			const candidate = !groveHasCenter || rng() < groveBackgroundChance
+			const backgroundCandidate = !groveHasCenter || rng() < groveBackgroundChance;
+			const candidate = backgroundCandidate
 				? sampleAnnulusPoint(rng, 0, 0, 0, radiusMeters)
 				: sampleAnnulusPoint(rng, groveCenterX, groveCenterZ, 0, groveRadiusMeters);
 			const { x, z } = candidate;
 			if (Math.hypot(x, z) > radiusMeters) continue;
-			if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
+			const site = vegetationSiteProfile(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges });
+			if (!site.placeable) continue;
+			// Keep a little deterministic exploration so low-suitability clearings remain possible, but
+			// strongly prefer the exact forest field that shades the canonical terrain beneath the tree.
+			const ecologyScore = site.forestSuitability + rng() * 0.10 + (backgroundCandidate ? 0 : 0.035);
+			if (ecologyScore > bestCandidateScore) {
+				bestCandidate = candidate;
+				bestCandidateScore = ecologyScore;
+			}
+		}
+		if (bestCandidate) {
+			const { x, z } = bestCandidate;
 			if (!groveHasCenter) {
 				groveHasCenter = true;
 				groveCenterX = x;
@@ -348,21 +391,30 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 			const entry = perSpecies[pickSpeciesIndexForWorldXZ(rng(), x, z)];
 			placeTreeInstance(entry, x, z, sampleHeightMeters, rng, up, matrix, position, quaternion, scaleVector);
 			placedCount++;
-			break;
 		}
 		groveTreesRemaining--;
 	}
 
 	for (const seat of clusterSeats) {
 		for (let treeIndex = 0; treeIndex < clusterTargetPerSeat; treeIndex++) {
+			let bestCandidate = null;
+			let bestCandidateScore = -Infinity;
 			for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_TREE; attempt++) {
-				const { x, z } = sampleAnnulusPoint(clusterRng, seat.x, seat.z, clusterInnerRadius, CLUSTER_RING_OUTER_RADIUS_METERS);
-				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
-				const entry = perSpecies[pickSpeciesIndexForWorldXZ(clusterRng(), x, z)];
-				placeTreeInstance(entry, x, z, sampleHeightMeters, clusterRng, up, matrix, position, quaternion, scaleVector);
-				placedCount++;
-				break;
+				const candidate = sampleAnnulusPoint(clusterRng, seat.x, seat.z, clusterInnerRadius, CLUSTER_RING_OUTER_RADIUS_METERS);
+				const { x, z } = candidate;
+				const site = vegetationSiteProfile(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges });
+				if (!site.placeable) continue;
+				const ecologyScore = site.forestSuitability + clusterRng() * 0.10;
+				if (ecologyScore > bestCandidateScore) {
+					bestCandidate = candidate;
+					bestCandidateScore = ecologyScore;
+				}
 			}
+			if (!bestCandidate) continue;
+			const { x, z } = bestCandidate;
+			const entry = perSpecies[pickSpeciesIndexForWorldXZ(clusterRng(), x, z)];
+			placeTreeInstance(entry, x, z, sampleHeightMeters, clusterRng, up, matrix, position, quaternion, scaleVector);
+			placedCount++;
 		}
 	}
 
@@ -390,6 +442,9 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 		baseDensityPerKm2: densityPerKm2,
 		groveTreeCountMin: spatialPolicy.groveTreeCountMin,
 		groveTreeCountMax: spatialPolicy.groveTreeCountMax,
+		terrainForestSuitability: true,
+		bestCandidateEcologySelection: true,
+		anisotropicSilhouetteScale: true,
 	});
 	group.userData.vegetationSurfaceFabric = Object.freeze({ key: VEGETATION_SURFACE_FABRIC_KEY, worldSpace: true, multiScale: true });
 	return { group, targetCount, placedCount, clusterSeatCount: clusterSeats.length, winterTreeCount };

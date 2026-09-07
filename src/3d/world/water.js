@@ -11,6 +11,7 @@
  */
 
 import * as THREE from 'three';
+import { WORLD_SCALE } from '../config.js';
 import { getCelestialLightState } from '../celestialLightState.js';
 import { GEOGRAPHIC_REFERENCE_PALETTE, GEOGRAPHIC_REFERENCE_PALETTE_POLICY } from './geographicReferencePalette.js';
 
@@ -32,7 +33,7 @@ export const WAVE_TOTAL_AMPLITUDE_METERS = SWELL_COMPONENTS.reduce((sum, [, ampl
 export const WATER_OFFSHORE_OPTICAL_GAIN = 0.82;
 
 export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
-	id: 'water-world-surface-variation-2026-08-27-v3-readable-current-shear',
+	id: 'water-world-surface-variation-2026-09-02-v18-occlusion-safe-organic-handoff',
 	renderOnly: true,
 	canonicalDepthUnchanged: true,
 	canonicalCoverageUnchanged: true,
@@ -41,13 +42,42 @@ export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
 	fineScaleMeters: 390,
 	currentShearScaleMeters: 680,
 	capillaryScaleMeters: 72,
-	deepColorVariationMax: 0.13,
+	deepColorVariationMax: 0.22,
 	roughnessMin: 0.20,
 	roughnessMax: 0.72,
+	backdropMacroScaleMeters: 6200,
+	backdropMesoScaleMeters: 2300,
+	backdropFineScaleMeters: 740,
+	backdropCrossCurrentScaleMeters: 3600,
+	backdropRoughnessMin: 0.24,
+	backdropRoughnessMax: 0.76,
+	layerHandoffFarStartMeters: 1650,
+	layerHandoffFarFullMeters: 1980,
+	layerHandoffNearFadeStartMeters: 1780,
+	layerHandoffNearFadeEndMeters: 2000,
+	layerHandoffFarRevealStartMeters: 1430,
+	layerHandoffFarRevealFullMeters: 1710,
+	farOpticalTransitionStartMeters: 2400,
+	farOpticalTransitionFullMeters: 3600,
+	depthFieldOpticalFeatherMeters: 920,
+	depthFieldOpticalWarpMeters: 180,
+	farMarineOpticalDepthFloor: 0.94,
+	farLayerSurfaceOffsetMeters: 0.12,
+	ownerWorldEdgeOpticalSealMeters: 560,
+	ownerWorldEdgeOpticalWarpMeters: 120,
 	shoreBreakerRevision: 'v1-bathymetry-directed-irregular-lace',
 	shoreGradientStepMeters: 68,
 	directionalBreakers: true,
 	nonPeriodicFoamBreakup: true,
+	worldSpaceDeepBackdrop: true,
+	softNearFarLayerHandoff: true,
+	occlusionSafeNearFarOpacity: true,
+	extendedBackdropBeyondFullWorldFrame: true,
+	depthFieldEdgeOpticalFeather: true,
+	farMarineOpticalDepthFromOffshoreDistance: true,
+	farOffshoreOpacitySeal: true,
+	farLayerAboveWetTerrainDepth: true,
+	ownerWorldBorderOpticalSeal: true,
 });
 
 const WATER_VERTEX_SHADER = /* glsl */ `
@@ -87,7 +117,7 @@ const WATER_VERTEX_SHADER = /* glsl */ `
 		addSwell(vec2(${SWELL_COMPONENTS[1][2]}, ${SWELL_COMPONENTS[1][3]}), ${SWELL_COMPONENTS[1][0]}.0, ${SWELL_COMPONENTS[1][1]}, worldPos.xz, uTime, swellHeight, swellSlope);
 		addSwell(vec2(${SWELL_COMPONENTS[2][2]}, ${SWELL_COMPONENTS[2][3]}), ${SWELL_COMPONENTS[2][0]}.0, ${SWELL_COMPONENTS[2][1]}, worldPos.xz, uTime, swellHeight, swellSlope);
 
-		float localEdgeDistance = max(abs(position.x), abs(position.z));
+		float localEdgeDistance = length(position.xz);
 		float nearCoverageFade = 1.0 - smoothstep(1500.0, 1950.0, localEdgeDistance);
 		float amplitudeScale = depthFactor * uSwellStrength * nearCoverageFade;
 		worldPos.y += swellHeight * amplitudeScale;
@@ -112,6 +142,7 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	uniform sampler2D uDepthMap;
 	uniform sampler2D uOffshoreMap;
 	uniform float uDepthFieldExtentMeters;
+	uniform vec2 uOwnerWorldHalfExtent;
 	uniform float uFarLayerMask;
 	varying vec3 vWorldPosition;
 	varying float vDepthFactor;
@@ -176,6 +207,35 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
 	}
 
+	float organicLayerDistance(vec2 worldXZ) {
+		vec2 delta = worldXZ - uCameraPosition.xz;
+		float radial = length(delta);
+		float broadWarp = waterSurfaceNoise(worldXZ / 1180.0 + vec2(-4.7, 9.3)) - 0.5;
+		vec2 rotated = worldXZ * mat2(0.78, -0.63, 0.63, 0.78);
+		float mesoWarp = waterSurfaceNoise(rotated / 540.0 + vec2(13.1, -6.8)) - 0.5;
+		return max(0.0, radial + broadWarp * 150.0 + mesoWarp * 62.0);
+	}
+
+	float waterFieldEdgeOpticalBlend(vec2 worldXZ) {
+		vec2 uv = worldXZ / uDepthFieldExtentMeters + 0.5;
+		if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 1.0;
+		float edgeUv = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y));
+		float edgeMeters = edgeUv * uDepthFieldExtentMeters;
+		float edgeWarp = (waterSurfaceNoise(worldXZ / 1450.0 + vec2(12.4, -8.7)) - 0.5) * 2.0 * ${WATER_SURFACE_VARIATION_POLICY.depthFieldOpticalWarpMeters.toFixed(1)};
+		return 1.0 - smoothstep(0.0, ${WATER_SURFACE_VARIATION_POLICY.depthFieldOpticalFeatherMeters.toFixed(1)}, max(0.0, edgeMeters + edgeWarp));
+	}
+
+	float ownerWorldBorderOpticalSeal(vec2 worldXZ) {
+		vec2 distanceToBorder = abs(abs(worldXZ) - uOwnerWorldHalfExtent);
+		float borderDistance = min(distanceToBorder.x, distanceToBorder.y);
+		float warpA = waterSurfaceNoise(worldXZ / 1730.0 + vec2(-6.8, 14.2)) - 0.5;
+		float warpB = waterSurfaceNoise((worldXZ * mat2(0.79, -0.61, 0.61, 0.79)) / 610.0 + vec2(18.3, -11.7)) - 0.5;
+		float warpedDistance = borderDistance
+			+ warpA * ${WATER_SURFACE_VARIATION_POLICY.ownerWorldEdgeOpticalWarpMeters.toFixed(1)}
+			+ warpB * ${(WATER_SURFACE_VARIATION_POLICY.ownerWorldEdgeOpticalWarpMeters * 0.46).toFixed(1)};
+		return 1.0 - smoothstep(0.0, ${WATER_SURFACE_VARIATION_POLICY.ownerWorldEdgeOpticalSealMeters.toFixed(1)}, max(0.0, warpedDistance));
+	}
+
 	float openOceanSurfaceFabric(vec2 worldXZ) {
 		float warpA = waterSurfaceNoise(worldXZ / 1850.0 + vec2(8.2, -5.4));
 		float warpB = waterSurfaceNoise(worldXZ / 2460.0 + vec2(-3.7, 11.6));
@@ -215,22 +275,38 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	}
 
 	void main() {
-		if (uFarLayerMask > 0.5) {
-			float nearLayerDistance = max(abs(vWorldPosition.x - uCameraPosition.x), abs(vWorldPosition.z - uCameraPosition.z));
-			if (nearLayerDistance < 1999.5) discard;
-		}
+		float layerDistance = organicLayerDistance(vWorldPosition.xz);
+		float farLayerBlend = smoothstep(${WATER_SURFACE_VARIATION_POLICY.layerHandoffFarStartMeters.toFixed(1)}, ${WATER_SURFACE_VARIATION_POLICY.layerHandoffFarFullMeters.toFixed(1)}, layerDistance);
+		float farLayerVisibility = smoothstep(${WATER_SURFACE_VARIATION_POLICY.layerHandoffFarRevealStartMeters.toFixed(1)}, ${WATER_SURFACE_VARIATION_POLICY.layerHandoffFarRevealFullMeters.toFixed(1)}, layerDistance);
+		float farOpticalBlend = smoothstep(${WATER_SURFACE_VARIATION_POLICY.farOpticalTransitionStartMeters.toFixed(1)}, ${WATER_SURFACE_VARIATION_POLICY.farOpticalTransitionFullMeters.toFixed(1)}, layerDistance);
+		float nearLayerBlend = 1.0 - smoothstep(${WATER_SURFACE_VARIATION_POLICY.layerHandoffNearFadeStartMeters.toFixed(1)}, ${WATER_SURFACE_VARIATION_POLICY.layerHandoffNearFadeEndMeters.toFixed(1)}, layerDistance);
+		// Keep the far layer fully present before the near layer starts fading. With two
+		// transparent surfaces, complementary 0.5/0.5 alpha still reveals the opaque
+		// backdrop and draws a visible LOD ring. This earlier far reveal makes the handoff
+		// occlusion-safe while the organic distance warp keeps the transition non-periodic.
+		float layerOpacity = mix(nearLayerBlend, farLayerVisibility, uFarLayerMask);
+		if (uFarLayerMask > 0.5 && layerOpacity <= 0.001) discard;
 
 		vec2 waterField = sampleWaterField(vWorldPosition.xz);
-		float fragmentDepth = waterField.x;
 		float waterCoverage = smoothstep(0.08, 0.72, waterField.y);
 		if (waterCoverage <= 0.01) discard;
-
-		float offshoreOptical = smoothstep(0.08, 0.92, sampleOffshoreOptical(vWorldPosition.xz));
+		float rawOffshoreOptical = sampleOffshoreOptical(vWorldPosition.xz);
+		float fieldEdgeOpticalBlend = waterFieldEdgeOpticalBlend(vWorldPosition.xz) * uFarLayerMask * farOpticalBlend
+			* smoothstep(0.72, 0.98, waterField.y)
+			* smoothstep(0.48, 0.90, rawOffshoreOptical);
+		float farMarineOpticalFloor = uFarLayerMask * farOpticalBlend * smoothstep(0.24, 0.92, rawOffshoreOptical) * ${WATER_SURFACE_VARIATION_POLICY.farMarineOpticalDepthFloor.toFixed(2)};
+		float fragmentDepth = max(mix(waterField.x, 1.0, fieldEdgeOpticalBlend), farMarineOpticalFloor);
+		float offshoreOptical = smoothstep(0.08, 0.92, mix(rawOffshoreOptical, 1.0, fieldEdgeOpticalBlend));
 		float enclosedLakeMask = (1.0 - offshoreOptical) * (1.0 - uFarLayerMask);
 		float clearShallowBand = 1.0 - smoothstep(0.10, 0.52, fragmentDepth);
 		float clearCoastMask = clearShallowBand * smoothstep(0.08, 0.74, offshoreOptical);
 		float offshoreGain = offshoreOptical * (1.0 - fragmentDepth) * ${WATER_OFFSHORE_OPTICAL_GAIN.toFixed(2)};
 		float deepMarineMask = smoothstep(0.54, 0.96, fragmentDepth) * smoothstep(0.42, 0.94, offshoreOptical);
+		float offshoreSurfaceMask = smoothstep(0.30, 0.90, offshoreOptical) * smoothstep(0.24, 0.78, fragmentDepth);
+		float ownerBorderMarineSeal = ownerWorldBorderOpticalSeal(vWorldPosition.xz)
+			* uFarLayerMask
+			* farLayerBlend
+			* smoothstep(0.005, 0.060, rawOffshoreOptical);
 		float oceanFabric = openOceanSurfaceFabric(vWorldPosition.xz);
 		float oceanShear = openOceanCurrentShear(vWorldPosition.xz, uTime);
 
@@ -255,15 +331,16 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		bodyColor = mix(bodyColor, referenceLakeClear, enclosedLakeMask * clearShallowBand * 0.34);
 		bodyColor = mix(bodyColor, referenceShoreClear, clearCoastMask * 0.24);
 
-		// Deep open water gets bounded kilometre- and hectometre-scale variation independent of
-		// physical depth. Current shear is masked to boundary-connected offshore water, so enclosed
-		// lakes and the canonical shoreline remain owned by the depth/coverage textures above.
-		float deepLumaVariation = (oceanFabric * 0.085 + oceanShear * 0.060) * deepMarineMask;
+		// Boundary-connected offshore water gets bounded kilometre- and hectometre-scale variation
+		// without changing the canonical coverage or depth fields. The wider optical mask exposes
+		// natural aerial fabric before the deepest bathymetric band, while enclosed lakes stay out.
+		float deepLumaVariation = (oceanFabric * 0.140 + oceanShear * 0.100) * offshoreSurfaceMask;
 		deepLumaVariation = clamp(deepLumaVariation, -${WATER_SURFACE_VARIATION_POLICY.deepColorVariationMax.toFixed(3)}, ${WATER_SURFACE_VARIATION_POLICY.deepColorVariationMax.toFixed(3)});
 		bodyColor *= 1.0 + deepLumaVariation;
 		float currentMix = clamp(0.5 + oceanFabric * 0.26 + oceanShear * 0.34, 0.0, 1.0);
-		vec3 currentTint = mix(vec3(0.018, 0.043, 0.066), vec3(0.060, 0.125, 0.148), currentMix);
-		bodyColor = mix(bodyColor, currentTint, (abs(oceanFabric) * 0.075 + abs(oceanShear) * 0.095) * deepMarineMask);
+		vec3 currentTint = mix(vec3(0.014, 0.041, 0.064), vec3(0.072, 0.150, 0.180), currentMix);
+		float currentTintStrength = (0.060 + abs(oceanFabric) * 0.080 + abs(oceanShear) * 0.090) * offshoreSurfaceMask;
+		bodyColor = mix(bodyColor, currentTint, currentTintStrength);
 		vec3 nightAbsorption = vec3(0.010, 0.030, 0.052);
 		bodyColor = mix(bodyColor, bodyColor * 0.62 + nightAbsorption, clamp(uNightFactor, 0.0, 1.0) * 0.34);
 
@@ -272,15 +349,15 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 
 		vec3 halfVector = normalize(uSunDirection + viewDir);
 		float localSlopeEnergy = clamp(length(slope) * 13.0, 0.0, 1.0);
-		float roughnessDriver = clamp(0.50 + oceanFabric * 0.24 + oceanShear * 0.28 + (localSlopeEnergy - 0.5) * 0.22, 0.0, 1.0);
+		float roughnessDriver = clamp(0.50 + oceanFabric * 0.30 + oceanShear * 0.34 + (localSlopeEnergy - 0.5) * 0.22, 0.0, 1.0);
 		float waterRoughness = mix(${WATER_SURFACE_VARIATION_POLICY.roughnessMin.toFixed(2)}, ${WATER_SURFACE_VARIATION_POLICY.roughnessMax.toFixed(2)}, roughnessDriver);
-		waterRoughness = mix(0.36, waterRoughness, deepMarineMask);
+		waterRoughness = mix(0.36, waterRoughness, offshoreSurfaceMask);
 		float specularPower = mix(132.0, 28.0, waterRoughness);
 		float specular = pow(clamp(dot(normal, halfVector), 0.0, 1.0), specularPower);
 		float specularFresnel = 0.02 + 0.98 * pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 5.0);
 		float broadGlint = pow(clamp(dot(normal, halfVector), 0.0, 1.0), mix(48.0, 10.0, waterRoughness));
 		float glintField = clamp(0.5 + oceanFabric * 0.31 + oceanShear * 0.42, 0.0, 1.0);
-		float glintBreakup = smoothstep(0.18, 0.82, glintField) * deepMarineMask;
+		float glintBreakup = smoothstep(0.18, 0.82, glintField) * offshoreSurfaceMask;
 		vec3 celestialSpecular = uSunColor * (specular + broadGlint * glintBreakup * 0.16) * specularFresnel * (0.12 + clamp(uSunIntensity, 0.0, 1.6) * 0.34);
 
 		float surfA = sin(dot(vWorldPosition.xz, vec2(0.018, -0.013)) + uTime * 0.55);
@@ -309,19 +386,92 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float offshoreAbsorption = 1.0 - exp(-offshoreGain * 3.4);
 		opticalDepth = 1.0 - (1.0 - opticalDepth) * (1.0 - offshoreAbsorption);
 		float alpha = mix(0.14, 0.90, opticalDepth);
+		float farOffshoreOpacity = uFarLayerMask * farOpticalBlend * smoothstep(0.62, 0.94, offshoreOptical);
+		alpha = mix(alpha, max(alpha, 0.995), deepMarineMask);
+		alpha = mix(alpha, 1.0, farOffshoreOpacity);
 		alpha *= 1.0 + shelfMottle * 0.22;
 		float bedReadability = max(enclosedLakeMask * clearShallowBand * 0.30, clearCoastMask * 0.18);
 		alpha *= 1.0 - bedReadability;
 		alpha *= waterCoverage;
+		alpha = mix(alpha, 1.0, ownerBorderMarineSeal * waterCoverage);
 
-		gl_FragColor = vec4(color, max(alpha, foam * 0.78));
+		gl_FragColor = vec4(color, max(alpha, foam * 0.78) * layerOpacity);
+		#include <fog_fragment>
+	}
+`;
+
+const DEEP_OCEAN_BACKDROP_VERTEX_SHADER = /* glsl */ `
+	varying vec3 vBackdropWorldPosition;
+	#include <fog_pars_vertex>
+	void main() {
+		vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+		vBackdropWorldPosition = worldPosition.xyz;
+		vec4 mvPosition = viewMatrix * worldPosition;
+		gl_Position = projectionMatrix * mvPosition;
+		#include <fog_vertex>
+	}
+`;
+
+const DEEP_OCEAN_BACKDROP_FRAGMENT_SHADER = /* glsl */ `
+	uniform vec3 uBackdropColor;
+	uniform vec3 uSunDirection;
+	uniform vec3 uSunColor;
+	uniform float uSunIntensity;
+	uniform float uNightFactor;
+	uniform vec3 uCameraPosition;
+	varying vec3 vBackdropWorldPosition;
+	#include <fog_pars_fragment>
+	float backdropHash(vec2 p) {
+		p = fract(p * vec2(0.1031, 0.1030));
+		p += dot(p, p.yx + 33.33);
+		return fract((p.x + p.y) * p.x);
+	}
+	float backdropNoise(vec2 p) {
+		vec2 i = floor(p); vec2 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+		float a = backdropHash(i); float b = backdropHash(i + vec2(1.0, 0.0));
+		float c = backdropHash(i + vec2(0.0, 1.0)); float d = backdropHash(i + vec2(1.0, 1.0));
+		return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+	}
+	void main() {
+		vec2 worldXZ = vBackdropWorldPosition.xz;
+		float warpA = backdropNoise(worldXZ / 7200.0 + vec2(3.7, -8.1));
+		float warpB = backdropNoise(worldXZ / 5100.0 + vec2(-9.4, 2.6));
+		vec2 warp = vec2(warpA - 0.5, warpB - 0.5) * 980.0;
+		float macro = backdropNoise((worldXZ + warp) / ${WATER_SURFACE_VARIATION_POLICY.backdropMacroScaleMeters.toFixed(1)});
+		float meso = backdropNoise((worldXZ * mat2(0.82, -0.57, 0.57, 0.82) - warp * 0.22) / ${WATER_SURFACE_VARIATION_POLICY.backdropMesoScaleMeters.toFixed(1)} + vec2(11.8, -6.2));
+		float fine = backdropNoise((worldXZ * mat2(0.53, 0.85, -0.85, 0.53) + warp * 0.09) / ${WATER_SURFACE_VARIATION_POLICY.backdropFineScaleMeters.toFixed(1)} + vec2(-4.7, 14.3));
+		float streak = backdropNoise(vec2((worldXZ.x * 0.74 + worldXZ.y * 0.67) / 1450.0, (worldXZ.y * 0.74 - worldXZ.x * 0.67) / 430.0) + vec2(warpA, warpB));
+		vec2 crossFrame = worldXZ * mat2(0.36, 0.93, -0.93, 0.36);
+		float crossCurrent = backdropNoise((crossFrame + warp * 0.17) / ${WATER_SURFACE_VARIATION_POLICY.backdropCrossCurrentScaleMeters.toFixed(1)} + vec2(23.4, -12.7));
+		float crossVein = 1.0 - abs(backdropNoise(vec2(crossFrame.x / 910.0, crossFrame.y / 310.0) - warp * 0.0018 + vec2(-7.8, 18.6)) * 2.0 - 1.0);
+		float fabric = clamp((macro - 0.5) * 0.88 + (meso - 0.5) * 0.62 + (fine - 0.5) * 0.32 + (streak - 0.5) * 0.14 + (crossCurrent - 0.5) * 0.30 + (crossVein - 0.5) * 0.18, -1.0, 1.0);
+		float tone = clamp(0.5 + fabric * 0.66, 0.0, 1.0);
+		vec3 bodyColor = mix(uBackdropColor * vec3(0.74, 0.84, 0.94), uBackdropColor * vec3(1.30, 1.22, 1.11) + vec3(0.005, 0.014, 0.019), tone);
+		float slopeWarp = sin(dot(worldXZ, vec2(0.0017, -0.0012)) + fabric * 1.42 + (crossCurrent - 0.5) * 0.96);
+		vec2 slope = vec2(
+			sin(dot(worldXZ, vec2(0.0069, 0.0031)) + slopeWarp * 0.72) + sin(dot(worldXZ, vec2(-0.0038, 0.0081)) - slopeWarp * 0.42) * 0.55,
+			sin(dot(worldXZ, vec2(0.0027, -0.0062)) - slopeWarp * 0.61) + sin(dot(worldXZ, vec2(0.0088, -0.0045)) + slopeWarp * 0.31) * 0.44
+		) * 0.018;
+		vec3 normal = normalize(vec3(-slope.x, 1.0, -slope.y));
+		vec3 viewDir = normalize(uCameraPosition - vBackdropWorldPosition);
+		vec3 halfVector = normalize(uSunDirection + viewDir);
+		float roughnessDriver = clamp(0.50 + (macro - 0.5) * 0.16 + (meso - 0.5) * 0.56 + (fine - 0.5) * 0.68 + (streak - 0.5) * 0.18 + (crossCurrent - 0.5) * 0.44 + (crossVein - 0.5) * 0.26, 0.0, 1.0);
+		float roughness = mix(${WATER_SURFACE_VARIATION_POLICY.backdropRoughnessMin.toFixed(2)}, ${WATER_SURFACE_VARIATION_POLICY.backdropRoughnessMax.toFixed(2)}, roughnessDriver);
+		float specular = pow(clamp(dot(normal, halfVector), 0.0, 1.0), mix(92.0, 16.0, roughness));
+		float broadSpecular = pow(clamp(dot(normal, halfVector), 0.0, 1.0), mix(28.0, 6.0, roughness));
+		float fresnel = 0.02 + 0.98 * pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 5.0);
+		float glintBreakup = smoothstep(0.26, 0.78, clamp(0.5 + fabric * 0.30 + (streak - 0.5) * 0.24 + (crossVein - 0.5) * 0.46, 0.0, 1.0));
+		bodyColor += uSunColor * (specular + broadSpecular * glintBreakup * 0.22) * fresnel * (0.045 + clamp(uSunIntensity, 0.0, 1.6) * 0.080);
+		bodyColor *= 1.0 + (roughnessDriver - 0.5) * -0.055;
+		bodyColor = mix(bodyColor, bodyColor * 0.58 + vec3(0.004, 0.014, 0.026), clamp(uNightFactor, 0.0, 1.0) * 0.38);
+		gl_FragColor = vec4(bodyColor, 1.0);
 		#include <fog_fragment>
 	}
 `;
 
 const WATER_PLANE_EXTENT_METERS = 4000;
-export const WATER_FULL_WORLD_EXTENT_METERS = 17000;
-export const WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS = 28000;
+export const WATER_FULL_WORLD_EXTENT_METERS = 48000;
+export const WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS = 48000;
 const WATER_DEEP_OCEAN_BACKDROP_LOCAL_Y_METERS = -32;
 const WATER_PLANE_SEGMENTS = 128;
 export const WATER_PLANE_SEGMENTS_DESKTOP = 320;
@@ -379,6 +529,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 				uDepthMap: { value: PLACEHOLDER_DEPTH_TEXTURE },
 				uOffshoreMap: { value: PLACEHOLDER_OFFSHORE_TEXTURE },
 				uDepthFieldExtentMeters: { value: 1 },
+				uOwnerWorldHalfExtent: { value: new THREE.Vector2(WORLD_SCALE.WORLD_WIDTH_METERS * 0.5, WORLD_SCALE.WORLD_DEPTH_METERS * 0.5) },
 				uSwellStrength: { value: 0 },
 				uFarLayerMask: { value: 0 },
 			},
@@ -399,6 +550,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		offshoreOpticalGain: WATER_OFFSHORE_OPTICAL_GAIN,
 		celestialSpecular: true,
 		deepMarineSurfaceVariation: WATER_SURFACE_VARIATION_POLICY.id,
+		deepOceanBackdropVariation: WATER_SURFACE_VARIATION_POLICY.id,
 		variableRoughness: true,
 		referencePalettePolicyId: GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id,
 		enclosedLakeBedReadable: true,
@@ -406,6 +558,16 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		bathymetryDirectedIrregularBreakers: true,
 		nonPeriodicFoamLace: true,
 		nightAbsorptionFromCelestialState: true,
+		softNearFarLayerHandoff: true,
+		organicRadialLayerHandoff: true,
+		occlusionSafeNearFarOpacity: true,
+		deferredFarOpticalHandoff: true,
+		extendedBackdropBeyondFullWorldFrame: true,
+		depthFieldEdgeOpticalFeather: true,
+		farMarineOpticalDepthFromOffshoreDistance: true,
+		farOffshoreOpacitySeal: true,
+		farLayerAboveWetTerrainDepth: true,
+		ownerWorldBorderOpticalSeal: true,
 	});
 
 	const farGeometry = new THREE.PlaneGeometry(WATER_FULL_WORLD_EXTENT_METERS, WATER_FULL_WORLD_EXTENT_METERS, 1, 1);
@@ -414,7 +576,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 	farMaterial.depthWrite = false;
 	farMaterial.uniforms.uFarLayerMask.value = 1;
 	const farWater = new THREE.Mesh(farGeometry, farMaterial);
-	farWater.position.y = -0.06;
+	farWater.position.y = WATER_SURFACE_VARIATION_POLICY.farLayerSurfaceOffsetMeters;
 	farWater.renderOrder = -1;
 	farWater.frustumCulled = false;
 	mesh.add(farWater);
@@ -426,8 +588,20 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		1,
 	);
 	deepOceanGeometry.rotateX(-Math.PI / 2);
-	const deepOceanMaterial = new THREE.MeshBasicMaterial({
-		color: DEFAULT_DEEP_OCEAN_BACKDROP_COLOR,
+	const deepOceanMaterial = new THREE.ShaderMaterial({
+		vertexShader: DEEP_OCEAN_BACKDROP_VERTEX_SHADER,
+		fragmentShader: DEEP_OCEAN_BACKDROP_FRAGMENT_SHADER,
+		uniforms: THREE.UniformsUtils.merge([
+			THREE.UniformsLib.fog,
+			{
+				uBackdropColor: { value: DEFAULT_DEEP_OCEAN_BACKDROP_COLOR },
+				uSunDirection: { value: DEFAULT_SUN_DIRECTION },
+				uSunColor: { value: DEFAULT_SUN_COLOR },
+				uSunIntensity: { value: 1 },
+				uNightFactor: { value: 0 },
+				uCameraPosition: { value: new THREE.Vector3() },
+			},
+		]),
 		fog: true,
 		depthTest: true,
 		depthWrite: true,
@@ -472,6 +646,14 @@ export function updateWater(waterMesh, cameraPosition, elapsedSeconds) {
 		uniforms.uSunColor.value.setRGB(celestial.color.r, celestial.color.g, celestial.color.b);
 		uniforms.uSunIntensity.value = celestial.intensity;
 		uniforms.uNightFactor.value = celestial.nightFactor;
+	}
+	const backdropUniforms = waterMesh.userData.deepOceanBackdrop?.material?.uniforms;
+	if (backdropUniforms) {
+		backdropUniforms.uCameraPosition.value.copy(cameraPosition);
+		backdropUniforms.uSunDirection.value.set(celestial.direction.x, celestial.direction.y, celestial.direction.z);
+		backdropUniforms.uSunColor.value.setRGB(celestial.color.r, celestial.color.g, celestial.color.b);
+		backdropUniforms.uSunIntensity.value = celestial.intensity;
+		backdropUniforms.uNightFactor.value = celestial.nightFactor;
 	}
 }
 

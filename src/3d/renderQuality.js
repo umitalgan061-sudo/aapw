@@ -185,7 +185,9 @@ export function focusSunShadow(sun, focusX, focusY, focusZ) {
 
 /**
  * Marks a subtree as shadow-casting and/or shadow-receiving. A no-op when `shadowsEnabled` is false,
- * so callers do not need to branch.
+ * so callers do not need to branch. A mesh may set `userData.preserveShadowRole = true` when its
+ * deliberately assigned role must survive a broad subtree pass (for example transparent terrain
+ * contact dressing that should receive light/shadow but must never cast a decal-shaped shadow).
  *
  * `InstancedMesh` is included deliberately: `world/settlements.js` draws all 14 castles as three
  * shared instanced meshes, and Three.js supports shadows on instanced geometry, so skipping them
@@ -201,6 +203,7 @@ export function applyShadowRoles(root, { quality, cast = true, receive = true })
 	if (!root || !quality.shadowsEnabled) return;
 	root.traverse((object) => {
 		if (!object.isMesh && !object.isInstancedMesh && !object.isSkinnedMesh) return;
+		if (object.userData?.preserveShadowRole === true) return;
 		object.castShadow = cast;
 		object.receiveShadow = receive;
 	});
