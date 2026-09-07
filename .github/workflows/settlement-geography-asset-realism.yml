@@ -1,0 +1,64 @@
+name: Settlement Geography Asset Realism
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/villages.js'
+      - 'src/3d/world/settlementGeographyPolicy.js'
+      - 'src/3d/world/WorldAssetPlacementPipeline.js'
+      - 'src/3d/materials/**'
+      - 'scripts/checkSettlementGeographyAssetContract.mjs'
+      - 'scripts/checkSettlementGeographyAssetBrowser.js'
+      - 'scripts/checkVillageArchitectureAssets.js'
+      - '.github/workflows/settlement-geography-asset-realism.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  settlement-geography-asset-realism:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact requested head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+          lfs: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install browser dependency outside repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Static syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/villages.js
+          node --check src/3d/world/settlementGeographyPolicy.js
+          node --check scripts/checkSettlementGeographyAssetBrowser.js
+          node --check scripts/checkSettlementGeographyAssetContract.mjs
+
+      - name: Geography asset contract
+        run: node scripts/checkSettlementGeographyAssetContract.mjs
+
+      - name: Shipped browser geography/material/placement proof
+        run: node scripts/checkSettlementGeographyAssetBrowser.js
+
+      - name: Existing village asset proof
+        run: node scripts/checkVillageArchitectureAssets.js
+
+      - name: Diff whitespace
+        run: git diff --check HEAD^ HEAD
