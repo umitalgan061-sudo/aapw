@@ -30,6 +30,7 @@ import { createNaturalGeology, upgradeNaturalGeologyAssets } from './world/natur
 import { createValyriaBarrenEcologyPlacementProbe } from './world/valyriaEcology.js';
 import { createVegetation } from './world/vegetation.js';
 import { upgradeWinterVegetationAssets } from './world/winterVegetationAsset.js';
+import { applyLivingWorldVegetationDistribution } from './gameplay/livingWorldSceneryDistribution.js';
 import { createWindGrassRun180 } from './world/windGrass.js';
 import { createVillages } from './world/villages.js';
 import { createIceLandmarks } from './world/iceLandmarks.js';
@@ -170,7 +171,7 @@ export function createScene(canvas) {
 	});
 	const river = createRiverMesh(riverPoints);
 	if (river) scene.add(river);
-	console.info(`[sceneManager] River path traced: ${riverPoints.length} points, ended via "${riverEndReason}".`);
+	console.info(`[sceneManager] River path traced: ${riverPoints.length} points, ended via \"${riverEndReason}\".`);
 
 	const waterfalls = detectWaterfalls(riverPoints).map((waterfall) => createWaterfallMesh(waterfall));
 	waterfalls.forEach((mesh) => scene.add(mesh));
@@ -208,7 +209,7 @@ export function createScene(canvas) {
 	console.info(
 		`[sceneManager] Built road network: ${roadsResult.edges.length} segment(s) connecting ` +
 			`${settlementsResult.seats.length} kingdom seats, ${(roadsResult.totalLengthMeters / 1000).toFixed(2)} km total, ` +
-			`steepest actual segment grade ${roadsResult.maxGradeDegrees.toFixed(1)}°.`,
+			`steepest actual segment grade ${roadsResult.maxGradeDegrees.toFixed(1)}°.",
 	);
 
 	// Asset-informed geology is deliberately created after roads/settlements so placement can reserve
@@ -252,10 +253,17 @@ export function createScene(canvas) {
 		roadEdges: roadsResult.edges,
 		radiusMeters: previewRadiusChunks * CHUNK_CONFIG.CHUNK_SIZE_METERS,
 	});
+	const vegetationDistribution = applyLivingWorldVegetationDistribution(vegetationResult.group, {
+		seed: WORLD_DEFAULTS.WORLD_SEED,
+		sampleHeightMeters: valyriaEcologyPlacement.sampleHeightMeters,
+		settlementSeats: settlementsResult.seats,
+		roadEdges: roadsResult.edges,
+	});
 	scene.add(vegetationResult.group);
 	console.info(
-		`[sceneManager] Scattered vegetation: ${vegetationResult.placedCount}/${vegetationResult.targetCount} tree(s) placed ` +
-			`(${vegetationResult.clusterSeatCount} seat(s) with a local cluster ring).`,
+		`[sceneManager] Scattered vegetation: ${vegetationResult.placedCount}/${vegetationResult.targetCount} tree(s) before geography gate; ` +
+			`${vegetationDistribution.keptInstances} visible instance(s) after region/habitat distribution, ` +
+			`${vegetationDistribution.rejectedByGeography + vegetationDistribution.rejectedByRegionDensity} filtered.`,
 	);
 	const winterVegetationAbortController = new AbortController();
 	window.addEventListener('pagehide', () => winterVegetationAbortController.abort(), { once: true });
@@ -310,6 +318,7 @@ export function createScene(canvas) {
 		naturalGeologyStats: naturalGeologyResult.stats,
 		valyriaEcologyPlacement,
 		vegetation: vegetationResult.group,
+		vegetationDistribution,
 		villages: villagesResult.group,
 		iceLandmarks: iceLandmarksResult.group,
 		iceLandmarkStats: iceLandmarksResult.stats,
