@@ -1,0 +1,30 @@
+name: Safak Kartali Living World Geography Contract
+
+on:
+  push:
+    branches:
+      - 'agent/safak-kartali-living-world-director-20260907'
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  geography-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate JavaScript syntax
+        run: |
+          node --check src/3d/gameplay/livingWorldGeographyAdapter.js
+          node --check src/3d/gameplay/livingWorldRuntimeAdapter.js
+      - name: Validate living-world geography contract
+        run: node scripts/checkLivingWorldGeographyContract.mjs
