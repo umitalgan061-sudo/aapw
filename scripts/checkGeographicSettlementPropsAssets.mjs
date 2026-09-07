@@ -3,7 +3,7 @@ import { statSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { GEOGRAPHIC_SETTLEMENT_PROP_ASSETS } from '../src/3d/world/geographicSettlementProps.js';
 
-const ROOT = resolve(new URL('..', import.meta.url).pathname, '..');
+const ROOT = resolve(new URL('..', import.meta.url).pathname);
 const POINTER = 'version https://git-lfs.github.com/spec/v1';
 const REQUIRED = Object.entries(GEOGRAPHIC_SETTLEMENT_PROP_ASSETS);
 
