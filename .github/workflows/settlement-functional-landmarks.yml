@@ -15,6 +15,7 @@ on:
       - 'scripts/checkSettlementGeographyCoverage.mjs'
       - 'scripts/checkSettlementAssetFamilyAudit.mjs'
       - 'scripts/checkSettlementVisualCohesion.mjs'
+      - 'scripts/checkSettlementAssetFit.mjs'
       - 'scripts/checkSettlementFunctionalLandmarksBrowser.mjs'
       - 'scripts/settlement-functional-landmark-harness.html'
       - 'assets/models/settlements/**'
@@ -32,6 +33,7 @@ on:
       - 'scripts/checkSettlementGeographyCoverage.mjs'
       - 'scripts/checkSettlementAssetFamilyAudit.mjs'
       - 'scripts/checkSettlementVisualCohesion.mjs'
+      - 'scripts/checkSettlementAssetFit.mjs'
       - 'scripts/checkSettlementFunctionalLandmarksBrowser.mjs'
       - 'scripts/settlement-functional-landmark-harness.html'
       - 'assets/models/settlements/**'
@@ -102,6 +104,7 @@ jobs:
           node --check scripts/checkSettlementGeographyCoverage.mjs
           node --check scripts/checkSettlementAssetFamilyAudit.mjs
           node --check scripts/checkSettlementVisualCohesion.mjs
+          node --check scripts/checkSettlementAssetFit.mjs
           node --check scripts/checkSettlementFunctionalLandmarksBrowser.mjs
           node --check src/3d/materials/MaterialAssignmentCore.js
           node --check src/3d/world/settlementFunctionalLandmarks.js
@@ -120,6 +123,9 @@ jobs:
 
       - name: Cross-layer visual cohesion audit
         run: node scripts/checkSettlementVisualCohesion.mjs
+
+      - name: Asset footprint and scale audit
+        run: node scripts/checkSettlementAssetFit.mjs
 
       - name: Existing village regression
         run: node scripts/checkRun330Villages.js
