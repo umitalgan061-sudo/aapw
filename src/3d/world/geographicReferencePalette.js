@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-09-07-v57-terrain-material-contrast',
+	id: 'geographic-reference-palette-2026-09-07-v60-aerial-surface-separation',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v57 strengthens aerial-scale separation between meadow, damp moss, dry heath, exposed ferric earth and sunlit rock while preserving deterministic world-space fabric, terrain height, shoreline, hydrology and colliders',
-		water: 'v57 preserves the v56 shore/inland/deep-water hierarchy and restrained cyan; canonical wet coverage, shoreline and hydrology are unchanged',
-		road: 'v57 preserves shared shipped road anchors and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
+		terrain: 'v60 preserves canonical geography while separating aerial meadow, damp moss, dry heath, ferric earth and exposed stone with restrained, material-readable anchors',
+		water: 'v60 preserves the shipped shore/inland/deep-water hierarchy and restrained cyan; canonical wet coverage, shoreline and hydrology are unchanged',
+		road: 'v60 preserves shipped road anchors and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
