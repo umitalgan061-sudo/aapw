@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { lfs: false }
-      - run: npm ci
+      - run: npm install --no-package-lock --ignore-scripts
       - run: node scripts/checkGeographicSettlementPropsContract.mjs
   browser-runtime:
     runs-on: ubuntu-latest
@@ -35,7 +35,7 @@ jobs:
             test "$(wc -c < "$f")" -gt 1024
             ! grep -a -q 'version https://git-lfs.github.com/spec/v1' "$f"
           done
-      - run: npm ci
+      - run: npm install --no-package-lock --ignore-scripts
       - run: npx playwright install --with-deps chromium
       - name: Serve repository
         run: npx --yes http-server . -p 4173 > /tmp/aapw-http.log 2>&1 &
