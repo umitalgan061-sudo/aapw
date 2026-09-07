@@ -117,6 +117,7 @@ async function main() {
 					name: material.name || '(unnamed)',
 					maps,
 					channelCount: Object.values(maps).filter(Boolean).length,
+					vertexColors: Boolean(material.vertexColors),
 					roughness: Number.isFinite(material.roughness) ? material.roughness : null,
 					metalness: Number.isFinite(material.metalness) ? material.metalness : null,
 					singleColorMarker: Boolean(material.userData?.placeholder || material.userData?.singleColor),
