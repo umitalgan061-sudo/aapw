@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import { sourceCandidates, selectSourceAsset, resolveRuntimeEnvironmentSource, sourceCoverageSummary, validateSourceRequest, sourceDeterministicOrdinal } from '../src/3d/world/terrainEnvironmentAssetSourceAdapter.js';
+import { TERRAIN_ENVIRONMENT_ASSET_MANIFEST } from '../src/3d/world/terrainEnvironmentAssetManifest.js';
+
+const forestTrees = sourceCandidates('tree', { biome: 'forest', assetManifest: TERRAIN_ENVIRONMENT_ASSET_MANIFEST });
+assert.ok(forestTrees.length > 0);
+assert.ok(forestTrees.every((entry) => Array.isArray(entry.materialSurfaces)));
+const selected = selectSourceAsset('tree', { biome: 'forest', season: 'summer', winter: false, sample: { biome: 'forest', moisture: .64, heightAboveSeaMeters: 32, slopeDegrees: 7, rockWeight: .04, snowWeight: 0, waterDepth: 0 } });
+assert.ok(selected?.entry?.src);
+assert.ok(selected.score > 0);
+const runtime = resolveRuntimeEnvironmentSource('tree', { biome: 'forest', sample: { biome: 'forest', moisture: .64, heightAboveSeaMeters: 32, slopeDegrees: 7, rockWeight: .04, snowWeight: 0, waterDepth: 0 } });
+assert.equal(runtime?.ok, true);
+const coverage = sourceCoverageSummary(['tree', 'grass', 'shrub']);
+assert.equal(coverage.missing.length, 0);
+const valid = validateSourceRequest({ category: 'tree', src: selected.entry.src, sample: { biome: 'forest' } });
+assert.equal(valid.ok, true);
+const invalid = validateSourceRequest({ category: 'tree', src: 'assets/models/vegetation/not-a-real-model.glb' });
+assert.equal(invalid.ok, false);
+assert.equal(sourceDeterministicOrdinal('tree', 10.25, -42.75, 7), sourceDeterministicOrdinal('tree', 10.25, -42.75, 7));
+console.log(JSON.stringify({ ok: true, candidates: forestTrees.length, selected: selected.entry.src, coverage }));
