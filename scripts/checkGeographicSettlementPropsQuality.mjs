@@ -58,10 +58,12 @@ assert.deepEqual(Object.keys(GEOGRAPHIC_SETTLEMENT_PROP_ASSETS).sort(), ['barrel
 
 for (const [family, asset] of Object.entries(GEOGRAPHIC_SETTLEMENT_PROP_ASSETS)) {
   assert.match(asset.src, /^assets\/models\/props\/.*\.glb$/);
-  assert.ok(Number.isFinite(asset.weight) && asset.weight > 0);
-  assert.equal(typeof asset.materialRecipeId, 'string');
-  assert.ok(asset.materialRecipeId.length > 0);
-  assert.equal(typeof family, 'string');
+  assert.equal(asset.category === 'settlement-prop' || asset.category === 'settlement-prop-ground', true);
+  assert.ok(Array.isArray(asset.scale) && asset.scale.length === 2);
+  assert.ok(asset.scale[0] > 0 && asset.scale[1] >= asset.scale[0]);
+  assert.ok(Number.isFinite(asset.yaw));
+  assert.equal(typeof asset.id, 'string');
+  assert.ok(asset.id.includes(family.replace('farmDirt', 'farm-dirt')) || family === 'farmDirt');
 }
 
 const first = planGeographicSettlementProps(options);
@@ -154,7 +156,7 @@ assert.equal(auditGeographicSettlementPropPlan(invalid).ok, false);
 
 const duplicatePlan = first.map((seat) => ({
   ...seat,
-  placements: seat.placements.length > 0 ? [seat.placements[0], { ...seat.placements[0], candidateIndex: `${seat.placements[0].candidateIndex}-duplicate` }] : seat.placements,
+  placements: seat.placements.length > 0 ? [seat.placements[0], { ...seat.placements[0], x: seat.placements[0].x + 1, z: seat.placements[0].z + 1, candidateIndex: `${seat.placements[0].candidateIndex}-duplicate` }] : seat.placements,
 }));
 assert.equal(auditGeographicSettlementPropPlan(duplicatePlan).ok, false);
 
