@@ -3,8 +3,8 @@
  *
  * This is a material-only layer: source maps, source UVs, geometry, terrain height, hydrology and
  * placement transforms remain untouched. The shader adds restrained stochastic breakup to authored
- * albedo/roughness/normal response so repeated model textures acquire scale-aware weathering and
- * environmental context without becoming noisy or visibly procedural.
+ * albedo/roughness response while the existing CPU material context remains the authority for normal
+ * scale. World-space carriers prevent a repeated mesh texture from reading like a repeated world grid.
  *
  * @module materials/worldAssetSurfaceFabric
  */
@@ -31,7 +31,6 @@ export const WORLD_ASSET_SURFACE_FABRIC_POLICY = Object.freeze({
   grainScaleMeters: 1.35,
   maximumColorDeviation: 0.065,
   maximumRoughnessDeviation: 0.095,
-  maximumNormalDeviation: 0.075,
   familyResponseGain: Object.freeze({
     stone: 1.12,
     rock: 1.12,
@@ -59,7 +58,6 @@ const FAMILY_CODE = Object.freeze({
 
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 const clamp01 = (value) => Math.max(0, Math.min(1, finite(value, 0)));
-const clampSigned = (value) => Math.max(-1, Math.min(1, finite(value, 0)));
 
 function familyCode(family) {
   const id = String(family ?? 'generic').trim().toLowerCase();
@@ -69,11 +67,6 @@ function familyCode(family) {
 function shaderNumber(value, fallback = 0) {
   const number = finite(value, fallback);
   return Number.isInteger(number) ? String(number) : number.toFixed(6);
-}
-
-function vec3Literal(values, fallback = 0.5) {
-  const list = Array.isArray(values) ? values : [];
-  return `vec3(${shaderNumber(list[0], fallback)}, ${shaderNumber(list[1], fallback)}, ${shaderNumber(list[2], fallback)})`;
 }
 
 function installVertexWorldPosition(shader) {
@@ -104,7 +97,7 @@ vWorldAssetSurfaceFabricNormal = normalize(mat3(modelMatrix) * worldAssetSurface
     );
 }
 
-function installFragmentCommon(shader) {
+function installFragmentCommon(shader, constants) {
   shader.fragmentShader = shader.fragmentShader.replace(
     '#include <common>',
     `#include <common>
@@ -130,7 +123,7 @@ float worldAssetSurfaceFabricNoise(vec2 p) {
 
 float worldAssetSurfaceFabricFbm(vec2 p) {
   float total = 0.0;
-  float amplitude = 0.53;
+  float amplitude = 0.54;
   float normalization = 0.0;
   for (int octave = 0; octave < 4; octave++) {
     total += worldAssetSurfaceFabricNoise(p) * amplitude;
@@ -150,9 +143,7 @@ float worldAssetSurfaceFabricLuma(vec3 c) {
   return dot(c, vec3(0.2126, 0.7152, 0.0722));
 }
 
-float worldAssetSurfaceFabricMottle(vec2 p, float scale) {
-  return worldAssetSurfaceFabricFbm(p / scale + vec2(5.7, -8.9));
-}
+float worldAssetSurfaceFabricNormalEnergy = ${shaderNumber(constants.normalEnergy, 0.5)};
 `,
   );
 }
@@ -163,19 +154,17 @@ function installColorFragment(shader, constants) {
   shader.fragmentShader = shader.fragmentShader.replace(
     colorInclude,
     `${colorInclude}
-vec3 worldAssetSurfaceFabricBase = diffuseColor.rgb;
-vec3 worldAssetSurfaceFabricXZ = vWorldAssetSurfaceFabricPosition;
-float worldAssetSurfaceFabricMacro = worldAssetSurfaceFabricFbm(worldAssetSurfaceFabricXZ.xz / ${shaderNumber(constants.macroScale, 260.0)} + vec2(2.7, -4.9));
-float worldAssetSurfaceFabricMeso = worldAssetSurfaceFabricFbm(worldAssetSurfaceFabricXZ.xz / ${shaderNumber(constants.mesoScale, 71.0)} + vec2(-17.1, 8.2));
-float worldAssetSurfaceFabricPatch = worldAssetSurfaceFabricFbm(worldAssetSurfaceFabricXZ.xz / ${shaderNumber(constants.patchScale, 19.0)} + vec2(12.4, 19.7));
-float worldAssetSurfaceFabricFine = worldAssetSurfaceFabricNoise(worldAssetSurfaceFabricXZ.xz / ${shaderNumber(constants.fineScale, 4.7)} + vec2(-31.4, 7.6));
-float worldAssetSurfaceFabricGrain = worldAssetSurfaceFabricNoise(worldAssetSurfaceFabricXZ.xz / ${shaderNumber(constants.grainScale, 1.35)} + vec2(9.6, -21.2));
+vec2 worldAssetSurfaceFabricXZ = vWorldAssetSurfaceFabricPosition.xz;
+float worldAssetSurfaceFabricMacro = worldAssetSurfaceFabricFbm(worldAssetSurfaceFabricXZ / ${shaderNumber(constants.macroScale, 260.0)} + vec2(2.7, -4.9));
+float worldAssetSurfaceFabricMeso = worldAssetSurfaceFabricFbm(worldAssetSurfaceFabricXZ / ${shaderNumber(constants.mesoScale, 71.0)} + vec2(-17.1, 8.2));
+float worldAssetSurfaceFabricPatch = worldAssetSurfaceFabricFbm(worldAssetSurfaceFabricXZ / ${shaderNumber(constants.patchScale, 19.0)} + vec2(12.4, 19.7));
+float worldAssetSurfaceFabricFine = worldAssetSurfaceFabricNoise(worldAssetSurfaceFabricXZ / ${shaderNumber(constants.fineScale, 4.7)} + vec2(-31.4, 7.6));
+float worldAssetSurfaceFabricGrain = worldAssetSurfaceFabricNoise(worldAssetSurfaceFabricXZ / ${shaderNumber(constants.grainScale, 1.35)} + vec2(9.6, -21.2));
 float worldAssetSurfaceFabricDirectional = worldAssetSurfaceFabricFbm(vec2(
-  dot(worldAssetSurfaceFabricXZ.xz, vec2(0.83, 0.55)) / ${shaderNumber(constants.directionScale, 33.0)},
-  dot(worldAssetSurfaceFabricXZ.xz, vec2(-0.55, 0.83)) / ${shaderNumber(constants.crossScale, 11.0)}
+  dot(worldAssetSurfaceFabricXZ, vec2(0.83, 0.55)) / ${shaderNumber(constants.directionScale, 33.0)},
+  dot(worldAssetSurfaceFabricXZ, vec2(-0.55, 0.83)) / ${shaderNumber(constants.crossScale, 11.0)}
 ) + vec2(4.2, -8.4));
 float worldAssetSurfaceFabricNormalSlope = 1.0 - clamp(abs(normalize(vWorldAssetSurfaceFabricNormal).y), 0.0, 1.0);
-float worldAssetSurfaceFabricMaterialLuma = worldAssetSurfaceFabricLuma(worldAssetSurfaceFabricBase);
 float worldAssetSurfaceFabricMottle = clamp(
   (worldAssetSurfaceFabricMacro - 0.5) * 0.42
   + (worldAssetSurfaceFabricMeso - 0.5) * 0.28
@@ -196,7 +185,6 @@ float worldAssetSurfaceFabricLichen = ${shaderNumber(constants.lichen, 0.0)};
 float worldAssetSurfaceFabricSediment = ${shaderNumber(constants.sediment, 0.0)};
 float worldAssetSurfaceFabricWeathering = ${shaderNumber(constants.weathering, 0.0)};
 float worldAssetSurfaceFabricWind = ${shaderNumber(constants.wind, 0.0)};
-float worldAssetSurfaceFabricRegion = ${shaderNumber(constants.region, 0.5)};
 float worldAssetSurfaceFabricFamilyGain = ${shaderNumber(constants.familyGain, 0.88)};
 float worldAssetSurfaceFabricFamilyCode = ${shaderNumber(constants.familyCode, 0.0)};
 
@@ -214,7 +202,7 @@ vec3 worldAssetSurfaceFabricNeutral = vec3(
 ) * ${shaderNumber(constants.maximumColorDeviation, 0.065)} * worldAssetSurfaceFabricFamilyGain;
 
 if (worldAssetSurfaceFabricFamilyCode < 2.5) {
-  float mineral = (worldAssetSurfaceFabricRidge(worldAssetSurfaceFabricXZ.xz / 23.0 + vec2(3.8, -6.7)) - 0.5) * 0.78;
+  float mineral = (worldAssetSurfaceFabricRidge(worldAssetSurfaceFabricXZ / 23.0 + vec2(3.8, -6.7)) - 0.5) * 0.78;
   float sediment = (worldAssetSurfaceFabricMottle * 0.55 + worldAssetSurfaceFabricSediment * 0.45);
   worldAssetSurfaceFabricNeutral += vec3(mineral * 0.026, mineral * 0.020, mineral * 0.012);
   worldAssetSurfaceFabricNeutral += vec3(sediment * 0.018, sediment * 0.014, sediment * 0.010);
@@ -285,23 +273,7 @@ roughnessFactor = clamp(roughnessFactor + worldAssetSurfaceFabricRoughPattern * 
   );
 }
 
-function installNormalFragment(shader, constants) {
-  const include = '#include <normal_fragment_maps>';
-  if (!shader.fragmentShader.includes(include)) return;
-  shader.fragmentShader = shader.fragmentShader.replace(
-    include,
-    `${include}
-vec2 worldAssetSurfaceFabricNormalP = vWorldAssetSurfaceFabricPosition.xz * ${shaderNumber(1 / constants.normalScale, 0.034)};
-float worldAssetSurfaceFabricNormalX = worldAssetSurfaceFabricNoise(worldAssetSurfaceFabricNormalP + vec2(0.071, 0.0)) - worldAssetSurfaceFabricNoise(worldAssetSurfaceFabricNormalP - vec2(0.071, 0.0));
-float worldAssetSurfaceFabricNormalZ = worldAssetSurfaceFabricNoise(worldAssetSurfaceFabricNormalP + vec2(0.0, 0.071)) - worldAssetSurfaceFabricNoise(worldAssetSurfaceFabricNormalP - vec2(0.0, 0.071));
-float worldAssetSurfaceFabricNormalScale = ${shaderNumber(constants.maximumNormalDeviation, 0.075)} * (${shaderNumber(0.50, 0.50)} + worldAssetSurfaceFabricNormalEnergy * 0.50) * worldAssetSurfaceFabricFamilyGain;
-vec3 worldAssetSurfaceFabricNormalDelta = mat3(viewMatrix) * vec3(worldAssetSurfaceFabricNormalX, 0.0, worldAssetSurfaceFabricNormalZ) * worldAssetSurfaceFabricNormalScale;
-normal = normalize(normal + worldAssetSurfaceFabricNormalDelta);
-`,
-  );
-}
-
-function compileConstants(context, family, options) {
+function compileConstants(context, family, options = {}) {
   const ecology = context?.ecology ?? context?.transition ?? {};
   const source = {
     moisture: clamp01(context?.moisture ?? ecology.moisture ?? 0.5),
@@ -315,26 +287,23 @@ function compileConstants(context, family, options) {
     sediment: clamp01(ecology.sedimentFabric ?? 0),
     weathering: clamp01(ecology.weathering ?? 0),
     wind: clamp01(ecology.exposure ?? context?.exposure ?? 0.5),
-    region: clamp01(context?.region ?? 0.5),
   };
-  const material = options?.materialResponse ?? {};
-  const familyGain = clamp01(options?.familyGain ?? WORLD_ASSET_SURFACE_FABRIC_POLICY.familyResponseGain[family] ?? 0.88);
+  const material = options.materialResponse ?? {};
+  const configuredGain = finite(options.familyGain, WORLD_ASSET_SURFACE_FABRIC_POLICY.familyResponseGain[family] ?? 0.88);
   return Object.freeze({
     ...source,
     familyCode: familyCode(family),
-    familyGain,
-    macroScale: finite(options?.macroScale, WORLD_ASSET_SURFACE_FABRIC_POLICY.macroScaleMeters),
-    mesoScale: finite(options?.mesoScale, WORLD_ASSET_SURFACE_FABRIC_POLICY.mesoScaleMeters),
-    patchScale: finite(options?.patchScale, WORLD_ASSET_SURFACE_FABRIC_POLICY.patchScaleMeters),
-    fineScale: finite(options?.fineScale, WORLD_ASSET_SURFACE_FABRIC_POLICY.fineScaleMeters),
-    grainScale: finite(options?.grainScale, WORLD_ASSET_SURFACE_FABRIC_POLICY.grainScaleMeters),
-    directionScale: finite(options?.directionScale, 33),
-    crossScale: finite(options?.crossScale, 11),
-    normalScale: Math.max(0.01, finite(material.normalStrength ?? options?.normalStrength, 1)),
+    familyGain: Math.max(0.45, Math.min(1.18, configuredGain)),
+    macroScale: Math.max(24, finite(options.macroScale, WORLD_ASSET_SURFACE_FABRIC_POLICY.macroScaleMeters)),
+    mesoScale: Math.max(12, finite(options.mesoScale, WORLD_ASSET_SURFACE_FABRIC_POLICY.mesoScaleMeters)),
+    patchScale: Math.max(5, finite(options.patchScale, WORLD_ASSET_SURFACE_FABRIC_POLICY.patchScaleMeters)),
+    fineScale: Math.max(1.2, finite(options.fineScale, WORLD_ASSET_SURFACE_FABRIC_POLICY.fineScaleMeters)),
+    grainScale: Math.max(0.45, finite(options.grainScale, WORLD_ASSET_SURFACE_FABRIC_POLICY.grainScaleMeters)),
+    directionScale: Math.max(10, finite(options.directionScale, 33)),
+    crossScale: Math.max(4, finite(options.crossScale, 11)),
     normalEnergy: clamp01(material.normalEnergy ?? ecology.normalFine ?? 0.5),
-    maximumColorDeviation: finite(options?.maximumColorDeviation, WORLD_ASSET_SURFACE_FABRIC_POLICY.maximumColorDeviation),
-    maximumRoughnessDeviation: finite(options?.maximumRoughnessDeviation, WORLD_ASSET_SURFACE_FABRIC_POLICY.maximumRoughnessDeviation),
-    maximumNormalDeviation: finite(options?.maximumNormalDeviation, WORLD_ASSET_SURFACE_FABRIC_POLICY.maximumNormalDeviation),
+    maximumColorDeviation: Math.max(0, finite(options.maximumColorDeviation, WORLD_ASSET_SURFACE_FABRIC_POLICY.maximumColorDeviation)),
+    maximumRoughnessDeviation: Math.max(0, finite(options.maximumRoughnessDeviation, WORLD_ASSET_SURFACE_FABRIC_POLICY.maximumRoughnessDeviation)),
   });
 }
 
@@ -346,15 +315,19 @@ export function installWorldAssetSurfaceFabric(material, context = {}, {
   if (!material || typeof material.onBeforeCompile !== 'function') {
     return { ok: false, error: 'material-does-not-support-shader-hook' };
   }
-  const constants = compileConstants(context, family, { materialResponse: materialResponse ?? {}, familyGain: WORLD_ASSET_SURFACE_FABRIC_POLICY.familyResponseGain[family] });
-  const previousOnBeforeCompile = material.onBeforeCompile?.bind(material);
+  const constants = compileConstants(context, family, {
+    materialResponse: materialResponse ?? {},
+    familyGain: WORLD_ASSET_SURFACE_FABRIC_POLICY.familyResponseGain[family],
+  });
+  const previousOnBeforeCompile = typeof material.onBeforeCompile === 'function'
+    ? material.onBeforeCompile.bind(material)
+    : null;
   material.onBeforeCompile = (shader, renderer) => {
     previousOnBeforeCompile?.(shader, renderer);
     installVertexWorldPosition(shader);
-    installFragmentCommon(shader);
+    installFragmentCommon(shader, constants);
     installColorFragment(shader, constants);
     installRoughnessFragment(shader, constants);
-    installNormalFragment(shader, constants);
   };
   material.customProgramCacheKey = () => `${WORLD_ASSET_SURFACE_FABRIC_POLICY.id}:${familyCode(family)}:${customProgramSuffix}`;
   material.userData ||= {};
@@ -368,7 +341,6 @@ export function installWorldAssetSurfaceFabric(material, context = {}, {
     deterministic: true,
     maximumColorDeviation: constants.maximumColorDeviation,
     maximumRoughnessDeviation: constants.maximumRoughnessDeviation,
-    maximumNormalDeviation: constants.maximumNormalDeviation,
     normalEnergy: constants.normalEnergy,
   });
   material.needsUpdate = true;
