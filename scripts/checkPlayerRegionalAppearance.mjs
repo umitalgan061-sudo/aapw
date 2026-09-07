@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import {
   PLAYER_REGIONAL_APPEARANCE_POLICY,
   resolvePlayerRegionalAppearance,
@@ -10,6 +11,7 @@ import { findPalette } from '../src/3d/materials/palettes.js';
 const EXPECTED_PALETTE_SLOTS = ['skin', 'hair', 'eye', 'tunic', 'trousers', 'boot', 'belt', 'cloak'];
 const MIN_REQUIRED_PROFILES = 4;
 const MAP_SHA = '20702972e8f45f0fbdc4da5fa68e890a82e4e822e1d58e2f369d8bc5b9c571a1';
+const PLAYER_MODEL = 'assets/models/characters/peasant_girl.fbx';
 
 function requireFinite(value, label) {
   assert.equal(Number.isFinite(value), true, `${label} must be finite`);
@@ -21,6 +23,20 @@ function checkProfilePalettes(context) {
     assert.ok(findPalette(context.profile[slot]), `unknown ${slot} palette: ${context.profile[slot]}`);
   }
 }
+
+function readPlayerManifestEntry() {
+  const manifest = JSON.parse(fs.readFileSync(new URL('../assets_manifest.json', import.meta.url), 'utf8'));
+  const entry = manifest.assets.find((asset) => asset.file === PLAYER_MODEL);
+  assert.ok(entry, `missing assets_manifest entry for ${PLAYER_MODEL}`);
+  assert.equal(entry.type, 'character_model');
+  assert.equal(entry.deprecated, false);
+  assert.equal(entry.format, 'FBX Binary');
+  return entry;
+}
+
+const playerManifestEntry = readPlayerManifestEntry();
+assert.equal(playerManifestEntry.textureSize, null, 'player texture metadata unexpectedly became authoritative');
+assert.match(playerManifestEntry.notes || '', /base mesh/i);
 
 function checkDeterminism(x, y) {
   const first = resolvePlayerRegionalAppearance(x, y, 'acceptance-seed');
@@ -42,14 +58,11 @@ const contexts = REFERENCE_BIOME_ZONES.map((zone) => {
 const profileKeys = new Set(contexts.map((context) => context.profileKey));
 assert.ok(profileKeys.size >= MIN_REQUIRED_PROFILES, `geographic dressing collapsed to only ${profileKeys.size} visual profiles`);
 
-// Mountain relief is a secondary signal; it must not erase a stronger explicit desert/lush biome.
 for (const context of contexts) {
   assert.ok(context.biomeKind, `biome kind missing for ${context.zoneId}`);
   assert.ok(context.profileKey, `profile key missing for ${context.zoneId}`);
 }
 
-// World-space conversion stays affine and bounded; this is the seam the future player runtime caller
-// can use without importing world config into gameplay. Exact bounds are supplied by the owner.
 const conversion = worldXZToCanonicalMap({
   worldX: 0,
   worldZ: 0,
@@ -58,7 +71,6 @@ const conversion = worldXZToCanonicalMap({
 });
 assert.deepEqual(conversion, { x: 0.5, y: 0.5 });
 
-// The policy must describe the same owner-map SHA used by the reference surface stack.
 assert.equal(PLAYER_REGIONAL_APPEARANCE_POLICY.sourceMapSha256, MAP_SHA);
 assert.equal(PLAYER_REGIONAL_APPEARANCE_POLICY.deterministic, true);
 assert.equal(PLAYER_REGIONAL_APPEARANCE_POLICY.mode, 'render-semantic-only');
@@ -71,6 +83,10 @@ const report = {
   ok: true,
   policyId: PLAYER_REGIONAL_APPEARANCE_POLICY.id,
   mapSha256: MAP_SHA,
+  playerAsset: PLAYER_MODEL,
+  playerAssetFormat: playerManifestEntry.format,
+  playerTextureMetadata: playerManifestEntry.textureSize,
+  runtimeTextureSize: PLAYER_REGIONAL_APPEARANCE_POLICY.textureSize,
   biomeZoneCount: REFERENCE_BIOME_ZONES.length,
   resolvedZoneCount: contexts.length,
   profileKeys: [...profileKeys].sort(),
