@@ -5,20 +5,14 @@
  * assignment and validation. This adapter only observes the resulting mesh/material topology and records
  * whether a shipped asset has enough surface diversity to avoid a monochrome runtime presentation.
  *
- * It also provides an LFS-pointer guard for proof scripts and a compact manifest that can accompany a
- * browser/runtime acceptance report.
+ * Filesystem/LFS byte checks intentionally live in proof scripts, not this browser-runtime module.
  *
  * @module gameplay/playerAssetSurfaceAudit
  */
 
-import fs from 'node:fs';
 import { analyzeMaterialSurfaces, validateMaterialAssignment } from '../materials/MaterialAssignmentCore.js';
 
 const AUDIT_VERSION = '2026-09-07-v1';
-const POINTER_MARKERS = Object.freeze([
-  'version https://git-lfs.github.com/spec/v1',
-  'oid sha256:',
-]);
 const SURFACE_ROLE_ALIASES = Object.freeze({
   skin: ['skin', 'body', 'face', 'head', 'arm', 'hand'],
   hair: ['hair', 'brow', 'beard', 'mustache'],
@@ -92,16 +86,13 @@ function finiteNumber(value) {
 
 function inferTextureSize(material) {
   const textures = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap', 'alphaMap'];
-  const sizes = [];
   for (const key of textures) {
-    const texture = material?.[key];
-    const image = texture?.image;
+    const image = material?.[key]?.image;
     const width = finiteNumber(image?.width);
     const height = finiteNumber(image?.height);
-    if (width && height) sizes.push({ key, width, height });
+    if (width && height) return Object.freeze({ key, width, height });
   }
-  if (!sizes.length) return null;
-  return Object.freeze(sizes[0]);
+  return null;
 }
 
 function uniqueRoles(records) {
@@ -125,8 +116,7 @@ function monochromeRisk(records, validation) {
   const roles = uniqueRoles(records);
   const materialNames = new Set(records.map((record) => record.material).filter(Boolean));
   if (validation?.warnings?.some((warning) => /single material|single surface|monochrome/i.test(String(warning)))) return true;
-  if (roles.size <= 1 && materialNames.size <= 1) return true;
-  return false;
+  return roles.size <= 1 && materialNames.size <= 1;
 }
 
 export function inspectPlayerSurfaceTopology(object3D) {
@@ -146,7 +136,7 @@ export function inspectPlayerSurfaceTopology(object3D) {
     roles: Object.freeze(roles),
     textureResponse: textures,
     layeredFallbackRecommended: roles.length <= 1 || renderStats.materialCount <= 1,
-    monochromeRisk: roles.length <= 1 && renderStats.materialCount <= 1,
+    monochromeRisk: monochromeRisk(records, null),
   });
 }
 
@@ -179,7 +169,7 @@ export function inspectPlayerAssetSurfaceReadiness(object3D, {
   const errors = [...audit.errors];
   const topology = audit.topology;
   if (topology.renderStats.meshCount <= 0) errors.push('no-renderable-mesh');
-  if (requireNamedOrLayered && topology.monochromeRisk && !topology.layeredFallbackRecommended) errors.push('surface-diversity-missing');
+  if (requireNamedOrLayered && audit.monochromeRisk && !topology.layeredFallbackRecommended) errors.push('surface-diversity-missing');
   if (expectedTextureSize && topology.textureResponse.diffuseMapped > 0) {
     const mismatches = topology.records.filter((record) => record.textureSize && (record.textureSize.width !== expectedTextureSize || record.textureSize.height !== expectedTextureSize));
     if (mismatches.length === topology.textureResponse.diffuseMapped) errors.push(`texture-size-unexpected:${expectedTextureSize}`);
@@ -195,41 +185,14 @@ export function inspectPlayerAssetSurfaceReadiness(object3D, {
   });
 }
 
-export function readBinaryAssetHeader(path) {
-  if (!path || typeof path !== 'string') throw new TypeError('asset path is required');
-  const stat = fs.statSync(path);
-  if (!stat.isFile()) throw new TypeError(`asset path is not a file: ${path}`);
-  const handle = fs.openSync(path, 'r');
-  const buffer = Buffer.alloc(Math.min(stat.size, 512));
-  try {
-    fs.readSync(handle, buffer, 0, buffer.length, 0);
-  } finally {
-    fs.closeSync(handle);
-  }
-  const ascii = buffer.toString('utf8');
-  const lfsPointer = POINTER_MARKERS.some((marker) => ascii.includes(marker));
-  return Object.freeze({
-    path,
-    bytes: stat.size,
-    lfsPointer,
-    headerHex: buffer.subarray(0, 32).toString('hex'),
-  });
-}
-
-export function assertHydratedAsset(path) {
-  const header = readBinaryAssetHeader(path);
-  if (header.bytes <= 512 && header.lfsPointer) throw new Error(`LFS pointer is not hydrated: ${path}`);
-  return header;
-}
-
-export function createPlayerAssetSurfaceManifest({ object3D, assetId, assetSrc, textureSize = 256, hydratedHeader = null } = {}) {
+export function createPlayerAssetSurfaceManifest({ object3D, assetId, assetSrc, textureSize = 256, hydrated = null, bytes = null } = {}) {
   const readiness = inspectPlayerAssetSurfaceReadiness(object3D, { assetId, assetSrc, expectedTextureSize: textureSize });
   return Object.freeze({
     version: AUDIT_VERSION,
     assetId,
     assetSrc,
-    hydrated: hydratedHeader ? !hydratedHeader.lfsPointer : null,
-    bytes: hydratedHeader?.bytes ?? null,
+    hydrated,
+    bytes,
     textureSize,
     meshCount: readiness.audit.topology.renderStats.meshCount,
     materialCount: readiness.audit.topology.renderStats.materialCount,
