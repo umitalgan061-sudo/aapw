@@ -34,21 +34,30 @@ check('nearby grid cells are not forced to use the same variant forever', () => 
 });
 
 check('variant index remains in bounds', () => {
-  for (let count = 1; count <= 9; count += 1) {
+  for (let count = 1; count <= 16; count += 1) {
     const index = habitatVariantIndex(count, { assetFamily: 'tree', worldX: 10, worldZ: 20, ordinal: count, seed: 3 });
     assert.ok(index >= 0 && index < count);
   }
 });
 
-check('variant order covers every candidate exactly once', () => {
-  const order = habitatVariantOrder(7, { assetFamily: 'tree', worldX: 10, worldZ: 20, seed: 3 });
-  assert.equal(order.length, 7);
-  assert.equal(new Set(order).size, 7);
+check('variant order covers every candidate exactly once for every supported count', () => {
+  for (let count = 1; count <= 32; count += 1) {
+    const order = habitatVariantOrder(count, { assetFamily: 'tree', worldX: 10, worldZ: 20, seed: count * 3 });
+    assert.equal(order.length, count);
+    assert.equal(new Set(order).size, count);
+    assert.deepEqual([...order].sort((a, b) => a - b), Array.from({ length: count }, (_, index) => index));
+  }
 });
 
 check('temperate trees are rejected from alpine and barren habitats', () => {
   assert.equal(variantEligibility('tree', { snowWeight: 0.90, heightAboveSeaMeters: 600 }).eligible, false);
-  assert.equal(variantEligibility('tree', { barren: true, moisture: 0.15 }).eligible, false);
+  assert.equal(variantEligibility('boulder', { barren: true, slopeDegrees: 52, rockWeight: 0.90 }).family, 'rock');
+  assert.equal(variantEligibility('vegetation', { barren: true, moisture: 0.15 }).eligible, false);
+});
+
+check('family aliases normalize before eligibility', () => {
+  assert.equal(variantEligibility('snow-tree', { snowWeight: 0.05 }).family, 'snowtree');
+  assert.equal(variantEligibility('dead-tree', { moisture: 0.90, biome: 'wet marsh' }).family, 'deadtree');
 });
 
 check('snow trees require a snow-bearing habitat', () => {
@@ -76,11 +85,17 @@ check('selection is deterministic and returns provenance', () => {
   assert.ok(a.candidateCount === 3);
 });
 
+check('selection rejects habitat-incompatible family before choosing a model', () => {
+  const alpineTrees = selectHabitatVariant(candidates, { assetFamily: 'tree', snowWeight: 0.95, heightAboveSeaMeters: 800, seed: 11 });
+  assert.equal(alpineTrees, null);
+});
+
 check('diversity gate detects a single-model stencil', () => {
   const weak = enforceVariantDiversity(['tree-a', 'tree-a', 'tree-a', 'tree-a'], 'tree');
   assert.equal(weak.ok, false);
   const healthy = enforceVariantDiversity(['tree-a', 'tree-b', 'tree-a', 'tree-c'], 'tree');
   assert.equal(healthy.ok, true);
+  assert.equal(enforceVariantDiversity(['rock-a', 'rock-a', 'rock-b'], 'boulder').family, 'rock');
 });
 
 check('manifest is immutable and canonical-neutral', () => {
@@ -102,6 +117,7 @@ check('manifest is immutable and canonical-neutral', () => {
   assert.equal(manifest.policyId, TERRAIN_ENVIRONMENT_VARIANT_POLICY.id);
   assert.equal(manifest.canonicalGeographyUntouched, true);
   assert.ok(Object.isFrozen(manifest));
+  assert.ok(Object.isFrozen(manifest.constraints));
   assert.ok(manifest.selection?.id);
 });
 
@@ -109,5 +125,5 @@ if (failures.length) {
   console.error(failures.join('\n'));
   process.exitCode = 1;
 } else {
-  console.log(JSON.stringify({ ok: true, policyId: TERRAIN_ENVIRONMENT_VARIANT_POLICY.id, checks: 11 }));
+  console.log(JSON.stringify({ ok: true, policyId: TERRAIN_ENVIRONMENT_VARIANT_POLICY.id, checks: 14 }));
 }
