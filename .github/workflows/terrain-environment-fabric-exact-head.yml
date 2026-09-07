@@ -25,6 +25,7 @@ jobs:
       - run: node scripts/checkTerrainEnvironmentTextureAudit.mjs
       - run: node scripts/checkTerrainEnvironmentSceneBridge.mjs
       - run: node scripts/checkTerrainEnvironmentAssetSourceAdapter.mjs
+      - run: node scripts/checkTerrainEnvironmentContractV3.mjs
       - run: node -e "import('./src/3d/world/terrainEnvironmentContract.js').then(m=>{const r=m.validateTerrainEnvironmentContract();if(!r.ok)process.exit(1);console.log(JSON.stringify(r));})"
   exact-head-guard:
     runs-on: ubuntu-latest
