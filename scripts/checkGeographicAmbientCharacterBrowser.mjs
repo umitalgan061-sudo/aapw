@@ -26,7 +26,7 @@ async function main() {
 
   try {
     await page.goto(`http://127.0.0.1:${port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 90000 });
-    const result = await page.evaluate(async ({ port: serverPort }) => {
+    const result = await page.evaluate(async () => {
       const THREE = await import('three');
       const { createScene } = await import('/src/3d/sceneManager.js');
       const { AssetLoader } = await import('/src/3d/assetLoader.js');
@@ -35,7 +35,6 @@ async function main() {
       const { createGeographicAmbientCharacterDirector, GEOGRAPHIC_AMBIENT_POLICY, AMBIENT_CHARACTER_ASSETS } = await import('/src/3d/world/geographicAmbientCharacterDirector.js');
       const { validateMaterialAssignment } = await import('/src/3d/materials/MaterialAssignmentCore.js');
 
-      const errors = [];
       const check = (condition, message) => { if (!condition) throw new Error(message); };
       const canvas = document.createElement('canvas');
       canvas.id = 'geographic-ambient-proof-canvas';
@@ -92,16 +91,15 @@ async function main() {
 
       const camera = new THREE.PerspectiveCamera(62, 1200 / 700, 0.1, 4000);
       const focus = state.settlementSeats[0];
-      camera.position.set(focus.x + 170, focus.y + 90, focus.z + 210);
-      camera.lookAt(focus.x, focus.y, focus.z);
+      const focusY = Number.isFinite(Number(focus.y)) ? Number(focus.y) : state.groundCollider.getGroundHeight(focus.x, focus.z);
+      camera.position.set(focus.x + 170, focusY + 90, focus.z + 210);
+      camera.lookAt(focus.x, focusY, focus.z);
       const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
       renderer.setSize(1200, 700, false);
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.toneMappingExposure = 1.02;
       renderer.render(state.scene, camera);
-      const pixels = renderer.readRenderTargetPixels ? null : null;
-      void pixels;
 
       director.update(camera.position, 0.20);
       const visibleBefore = director.getProofSnapshot().visibleCount;
@@ -131,7 +129,7 @@ async function main() {
       director.dispose();
       renderer.dispose();
       return summary;
-    }, { port });
+    });
 
     fs.mkdirSync(OUT, { recursive: true });
     await page.screenshot({ path: path.join(OUT, 'geographic-ambient-browser.png'), fullPage: false });
