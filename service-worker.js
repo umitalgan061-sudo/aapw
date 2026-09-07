@@ -76,218 +76,9 @@ self.addEventListener('install', () => {
 
 // Run329 creature-brain offline shell extension — `gameplay/creatureBrain.js`/`creatureSpawner.js`
 // (ADR-0274), now actually imported by `game3d.js` (unlike the run 326/327 rig/gait modules they
-// finally drive, which shipped inert), so an offline PWA load needs these cached to boot the scene.
-self.addEventListener('install', () => {
-    GAME3D_SHELL_FILES.push('./src/3d/gameplay/creatureBrain.js');
-    GAME3D_SHELL_FILES.push('./src/3d/gameplay/creatureSpawner.js');
-});
-
-// G07 Terrain3D runtime parity offline shell extension.
-self.addEventListener('install', () => {
-    GAME3D_SHELL_FILES.push('./src/3d/world/g07Terrain3dBake.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/g07Terrain3dBakeHeights.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/g07Terrain3dBakeRock.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/g07Terrain3dBakeColor.js');
-});
-
-// Run317 Pindex-10 detail offline shell extension.
-self.addEventListener('install', () => {
-    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindex10Detail.js');
-});
-
-// Run296 Pindex-09 detail offline shell extension.
-self.addEventListener('install', () => {
-    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindex09Detail.js');
-});
-
-// Run295 Pindex-08 detail offline shell extension.
-self.addEventListener('install', () => {
-    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindex08Detail.js');
-});
-
-// Run294 Pindex-07 detail offline shell extension.
-self.addEventListener('install', () => {
-    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindex07Detail.js');
-});
-
-// Run293 Pindex-06 detail offline shell extension.
-self.addEventListener('install', () => {
-    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindex06Detail.js');
-});
-
-// Run292 Pindex-05 detail offline shell extension.
-self.addEventListener('install', () => {
-    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindex05Detail.js');
-});
-
-// Run216 complete World Editor offline shell extension.
-// Run282 Pindex-04 detail offline shell extension.
-self.addEventListener('install', () => {
-    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindex04Detail.js');
-});
-
-// Run281 Pindex-03 detail offline shell extension.
-self.addEventListener('install', () => {
-    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindex03Detail.js');
-});
-// Run278 Pindex-02 detail offline shell extension.
-self.addEventListener('install', () => {
-    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindex02Detail.js');
-});
-
-// Run277 Pindex-01 detail offline shell extension.
-self.addEventListener('install', () => {
-    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferencePindex01Detail.js');
-});
-
-// Run276 owner-map semantic terrain offline shell extension.
-self.addEventListener('install', () => {
-    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceSurfacePindexes.js');
-    GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceSurfaceTerrainVisual.js');
-});
-
-// Run216 complete World Editor offline shell extension.
-// Run221 realistic gameplay aurora offline shell extension.
-self.addEventListener('install', () => {
-    GAME3D_SHELL_FILES.push('./src/3d/auroraRealism.js');
-    GAME3D_SHELL_FILES.push('./src/3d/nightVisualEnhancement.js');
-    GAME3D_SHELL_FILES.push('./src/3d/auroraRayCurtainV4.js');
-    GAME3D_SHELL_FILES.push('./src/3d/auroraNightAtmosphereV5.js');
-});
-
-// Run216 complete World Editor offline shell extension.
-self.addEventListener('install', () => {
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorAssetScalePolicy.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorClipboardController.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorEditModeEnvironment.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorGamePatchPreview.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorGamePatchPreviewGate.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorGamePatchPreviewGateSafe.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorGamePreviewLauncher.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorHistoryController.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceBoundsSafety.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceCoordinatorLifecycle.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceEditCoordinator.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceEditCoordinatorSafe.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceEditOperations.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceEditSession.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceInteractionBootstrap.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceInteractionInstaller.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceInteractionPipeline.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceInteractionRuntime.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceInteractionSingleton.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceLifecycleSafety.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstancePickingModel.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstancePointerController.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstancePointerOwnership.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceRaycastSource.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceRenderAdapter.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceSelectionModel.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceTransformBridge.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceTransformProxy.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorLiveWorldAuthoring.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorLiveWorldBridge.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorLiveWorldResourceCleanup.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorLiveWorldVisualSync.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorLocalSession.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorLocationNavigator.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorMaterialStudio.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorPlacementController.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorPlacementControllerSafe.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorRoadController.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorRoadModel.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorScaleInputController.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorTerrainCellModel.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorTerrainPaintController.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorTerrainSemantics.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorTransformControls.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorWorldPatchCompiler.js');
-    GAME3D_SHELL_FILES.push('./src/3d/vendor/three/addons/controls/TransformControls.js');
-});
-
-// Run214 Westeros World Editor offline authoring shell; registered before the established cache install handler.
-self.addEventListener('install', () => {
-    GAME3D_SHELL_FILES.push('./editor.html');
-    GAME3D_SHELL_FILES.push('./editor.css');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/worldEditor.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/editorAssetLibrary.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorAssetManager.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorInstanceManager.js');
-    GAME3D_SHELL_FILES.push('./src/3d/editor/EditorSceneSerializer.js');
-    GAME3D_SHELL_FILES.push('./scenes/westeros-world.example.json');
-});
-
-// Run207 registers first so the established install handler receives the RTS entries without replacing any prior cache line.
-self.addEventListener('install', () => {
-    GAME3D_SHELL_FILES.push('./rts.html');
-    GAME3D_SHELL_FILES.push('./rts.css');
-    GAME3D_SHELL_FILES.push('./src/3d/rts/rtsArmy.js');
-    GAME3D_SHELL_FILES.push('./src/3d/rts/rtsGame.js');
-});
-
-// ══ WESTEROS SERVICE WORKER v4 — iOS VIDEO FIX + OFFLINE APP SHELL ══
-// Video (mp4): SW BYPASS — iOS Safari Range request için direkt ağa git
-// Resimler: cache-first
-// App shell (html/css/js/manifest): network-first, offline'da cache'e düş
-// Diğer: network-first
-
-const SW_VERSION = 'westeros-media-v4';
-const MEDIA_CACHE = 'westeros-media-v4';
-// `SHELL_CACHE` bumped v11->v12 (run 341): GAME3D_SHELL_FILES gained `renderQuality.js`,
-// `world/g01Terrain3dRuntimeAdapter.js` and 10 animal model .glb files above, same "existing installs
-// must actually clean up the old, now-stale entry" reasoning as every prior bump entry in this file.
-// G70 runtime parity adds another offline-loadable `src/3d` module, so v12->v13 forces existing
-// installs to replace the old shell rather than retaining a cache that cannot load the G70 adapter.
-// Material Studio adds a new editor module to the offline graph; v14->v15 replaces existing editor caches.
-// Shared material placement adds two runtime/headless modules; v15->v16 forces existing installs to cache them.
-// Run346 first-audio addition (module + one .wav click sound); v16->v17 forces existing installs to
-// fetch+cache both so the game's first sound works offline too, not only on a fresh install.
-// RPG expedition readiness adds an offline-loadable gameplay module; v19->v20 refreshes existing installs.
-// Regional village architecture adds seven live settlement GLBs; v20->v21 refreshes existing installs.
-const SHELL_CACHE = 'westeros-shell-v21';
-const SHELL_FILES = [
-    './',
-    './index.html',
-    './style.css',
-    './ios-pwa-fix.css',
-    './script.js',
-    './manifest.json',
-    './logo.png'
-];
-
-// 3D mode's own app shell — precached separately (own cache.addAll call, own catch) so a failure
-// here can never block the 2D shell above from installing. FAZ 4 was the first system to actually
-// fetch a character/animation asset (peasant_girl + its 3 clips); FAZ 5 added the 6 shared-skeleton
-// NPC character FBXes; FAZ 6 added the wolf glTF/GLB (a single self-contained .glb — its
-// buffer/textures are embedded, so no separate .bin/texture entries are needed here) and the
-// horse glb; FAZ 7 added the dragon FBX + its unbaked texture folder (9 files — the FBX references
-// them externally, unlike the wolf/horse glbs, so each one needs its own entry here).
-//
-// run 65 (GOVERNANCE.md §15 "PWA Cache Versiyonlama"): this list had drifted badly behind
-// `src/3d`'s real import graph and the settlements/dragon/horse assets actually spawned in-game —
-// 10 live JS modules (sceneManager.js, both debug/ files, worldEvents.js + its toast UI, the
-// dragon/dialogue-choice gameplay files, both road files) and 3 asset groups (the dragon FBX +
-// textures, the horse glb, all 7 real castle glbs) were being fetched over the network on every
-// load with no offline fallback at all, silently, because a missing cache entry fails open (network
-// request) rather than throwing — see `scripts/checkServiceWorkerCache.js` for the standing
-// regression check that prevents this from silently drifting again (asserts every `src/3d/**/*.js`
-// file and every model asset path referenced from anywhere under `src/3d/` is present in this exact
-// list). Cache names bumped (v1->v2 shell, v3->v4 media) so every existing install actually
-// re-fetches this file and its new entries instead of quietly keeping a stale, incomplete
-// `SHELL_CACHE`.
-//
-// run 67 (DECISIONS.md ADR-0086): added the 8th real castle model (`gatehouse_reference_decimated
-// .glb`, the `twin` kingdom seat) once `world/settlements.js`'s `CASTLE_MODEL_ASSIGNMENTS` grew a
-// new entry. `SHELL_CACHE` bumped v2->v3 so existing installs actually clean up the old, now-stale
-// cache entry set rather than accumulating it alongside the new one (the `activate` handler's
-// `KEEP`-array cleanup deletes the unreferenced old cache automatically).
-//
-// run 71 (DECISIONS.md ADR-0092): `gameplay/dragons.js` reached the 600-line cap and was split by
-// subsystem into `dragonController.js` + `dragonFlightMath.js` + `dragonSpawns.js` (`dragons.js`
-// itself stays, now as the re-exporting entry point every caller still imports), so the three new
-// modules are precached here alongside it — without them an offline install would fetch
-// `dragons.js` from cache and then fail on its three uncached `export ... from` targets. Same
-// reasoning as the run 65/67 entries above: `SHELL_CACHE` bumped v3->v4 so an existing install
+// finally drive, which shipped inert), so an offline install would fetch `dragons.js` from cache
+// and then fail on its three uncached `export ... from` targets. Same
+// reasoning as the run 71/ADR-0092 `dragons.js` split above: `SHELL_CACHE` bumped v3->v4 so an existing install
 // replaces its now-incomplete entry set wholesale instead of mixing the new `dragons.js` facade
 // with a cache that has no modules to re-export from.
 //
@@ -330,6 +121,17 @@ const SHELL_FILES = [
 // run 111 (DECISIONS.md ADR-0138): added `world/vegetation.js` — procedural instanced trees, now
 // imported directly by `sceneManager.js`/`game3d.js`. Same failure mode as every entry above
 // without it. `SHELL_CACHE` bumped v10->v11.
+const SHELL_CACHE = 'westeros-shell-v21';
+const SHELL_FILES = [
+    './',
+    './index.html',
+    './style.css',
+    './ios-pwa-fix.css',
+    './script.js',
+    './manifest.json',
+    './logo.png'
+];
+
 const GAME3D_SHELL_FILES = [
     './src/3d/editor/EditorFallbackMaterialPalette.js',
     './game3d.html',
@@ -439,22 +241,14 @@ const GAME3D_SHELL_FILES = [
     './assets/models/settlements/castles/emerald_citadel_decimated.glb',
     './assets/models/settlements/castles/greystone_castle_decimated.glb',
     './assets/models/settlements/castles/brickstone_citadel_decimated.glb',
-    './assets/models/settlements/castles/gatehouse_reference_decimated.glb'
-    ,
-    './src/3d/world/worldReferenceMap.js'
-    ,
-    './src/3d/world/worldReferenceWaterMask.js'
-    ,
-    './src/3d/world/worldReferenceAlignment.js'
-    ,
-    './src/3d/world/worldReferenceHydrology.js'
-    ,
-    './src/3d/world/worldReferenceExtent.js'
-    ,
-    './src/3d/world/worldReferenceMigrationPlan.js'
-    ,
-    './src/3d/world/worldReferenceTerrainAdapter.js'
-    ,
+    './assets/models/settlements/castles/gatehouse_reference_decimated.glb',
+    './src/3d/world/worldReferenceMap.js',
+    './src/3d/world/worldReferenceWaterMask.js',
+    './src/3d/world/worldReferenceAlignment.js',
+    './src/3d/world/worldReferenceHydrology.js',
+    './src/3d/world/worldReferenceExtent.js',
+    './src/3d/world/worldReferenceMigrationPlan.js',
+    './src/3d/world/worldReferenceTerrainAdapter.js',
     './src/3d/world/worldReferenceChunkShadow.js'
 ];
 GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceStoneBridgeMedievalArtV2.js');
@@ -464,10 +258,9 @@ GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceClippedWindowOwnershipShad
 GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceOptInMigrationControllerShadow.js');
 GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceCurrentRuntimeIntegrationShadow.js');
 GAME3D_SHELL_FILES.push('./src/3d/world/worldReferenceCurrentTickOwnershipShadow.js');
+GAME3D_SHELL_FILES.push('./src/3d/gameplay/npc.js');
+GAME3D_SHELL_FILES.push('./src/3d/gameplay/npcWorldPlacement.js');
 
-// Run210 owner surface offline cache: additive-only extension for the current RTS terrain detail.
-// Image requests are cache-first in MEDIA_CACHE, while the JS module belongs to the shell graph.
-GAME3D_SHELL_FILES.push('./src/3d/rts/rtsSurfaceTexture.js');
 // Run213 read-only RTS selection readability module.
 GAME3D_SHELL_FILES.push('./src/3d/rts/rtsSelectionReadability.js');
 self.addEventListener('install', (event) => {
@@ -534,9 +327,7 @@ self.addEventListener('install', (event) => {
         Promise.all([
             caches.open(SHELL_CACHE)
                 .then(cache => cache.addAll(SHELL_FILES))
-                .catch(() => {}), // offline ilk kurulum: sessizce geç, sonraki ziyaretlerde tamamlanır
-            // Ayrı addAll + ayrı catch: 3D shell'in önbelleğe alınması başarısız olsa bile (örn. bir
-            // dosya geçici olarak erişilemez), yukarıdaki kritik 2D shell kurulumunu asla engellemez.
+                .catch(() => {}),
             caches.open(SHELL_CACHE)
                 .then(cache => cache.addAll(GAME3D_SHELL_FILES))
                 .catch(() => {}),
@@ -545,14 +336,12 @@ self.addEventListener('install', (event) => {
     self.skipWaiting();
 });
 
-// ── MESSAGE (index.html: reg.waiting.postMessage({type:'SKIP_WAITING'})) ──
 self.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'SKIP_WAITING') {
         self.skipWaiting();
     }
 });
 
-// ── ACTIVATE ──
 self.addEventListener('activate', (event) => {
     const KEEP = [MEDIA_CACHE, SHELL_CACHE];
     event.waitUntil(
@@ -567,19 +356,15 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-// ── FETCH ──
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
-    // Firebase: bypass
     if (isFirebaseRequest(url)) return;
 
-    // *** VIDEO: tamamen bypass — iOS Safari Range request için SW'den geçirme ***
     if (isVideoRequest(url)) {
-        return; // SW hiçbir şey yapmaz, tarayıcı direkt ağa gider
+        return;
     }
 
-    // Resimler: cache-first
     if (isImageRequest(url)) {
         event.respondWith(
             caches.open(MEDIA_CACHE).then(cache => {
@@ -599,7 +384,6 @@ self.addEventListener('fetch', (event) => {
         return;
     }
 
-    // Diğer (app shell dahil): network-first, başarısız olursa shell cache'e düş
     const isSameOrigin = url.origin === self.location.origin;
     event.respondWith(
         fetch(event.request, { cache: 'no-store' }).then(response => {
@@ -622,7 +406,6 @@ self.addEventListener('fetch', (event) => {
     );
 });
 
-// ── PUSH ──
 self.addEventListener('push', (event) => {
     const data = event.data?.json() ?? {};
     event.waitUntil(self.registration.showNotification(
