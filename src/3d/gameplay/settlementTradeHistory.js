@@ -37,24 +37,35 @@ export function createSettlementTradeHistory({ limit = DEFAULT_LIMIT, initial = 
   const entries = [];
   const seen = new Set();
 
+  const keyFor = (entry) => [entry.kind, entry.subject, entry.quantity, entry.copper, entry.snapshotFingerprint, entry.ok, entry.reason || ''].join('|');
+
   const add = (receipt) => {
     const normalized = normalizeReceipt(receipt);
     if (!normalized) return Object.freeze({ added: false, reason: 'invalid-trade-receipt' });
-    const key = [normalized.kind, normalized.subject, normalized.quantity, normalized.copper, normalized.snapshotFingerprint, normalized.ok, normalized.reason || ''].join('|');
+    const key = keyFor(normalized);
     if (seen.has(key)) return Object.freeze({ added: false, reason: 'duplicate-trade-receipt', key });
     seen.add(key);
     entries.unshift(normalized);
     while (entries.length > maxEntries) {
       const removed = entries.pop();
-      if (removed) {
-        const removedKey = [removed.kind, removed.subject, removed.quantity, removed.copper, removed.snapshotFingerprint, removed.ok, removed.reason || ''].join('|');
-        seen.delete(removedKey);
-      }
+      if (removed) seen.delete(keyFor(removed));
     }
     return Object.freeze({ added: true, entry: normalized, size: entries.length });
   };
 
   const list = () => Object.freeze(entries.slice());
+  const summarize = () => {
+    const summary = entries.reduce((acc, entry) => {
+      acc.total += 1;
+      acc[entry.kind] += 1;
+      if (entry.ok) acc.successful += 1;
+      else acc.failed += 1;
+      acc.copper += entry.ok ? entry.copper : 0;
+      acc.quantity += entry.ok ? entry.quantity : 0;
+      return acc;
+    }, { total: 0, buy: 0, sell: 0, successful: 0, failed: 0, copper: 0, quantity: 0 });
+    return Object.freeze(summary);
+  };
   const exportSnapshot = () => Object.freeze({ version: 1, limit: maxEntries, entries: list() });
 
   const importSnapshot = (snapshot) => {
@@ -69,5 +80,5 @@ export function createSettlementTradeHistory({ limit = DEFAULT_LIMIT, initial = 
 
   for (const receipt of Array.isArray(initial) ? initial.slice(0, maxEntries).reverse() : []) add(receipt);
 
-  return Object.freeze({ add, list, exportSnapshot, importSnapshot });
+  return Object.freeze({ add, list, summarize, exportSnapshot, importSnapshot });
 }
