@@ -1,1 +1,19 @@
 Next integration owners: vegetation.js should consume biomeAssetRuntimeAdapter without replacing its existing north cryosphere policy; naturalGeology.js should consume geology family/material signals while retaining terrain sampler authority; villages.js should pass architecture candidates through the existing WorldAssetPlacementPipeline; playerRegionalAppearance.js should consume the same distribution policy so player clothing and scenery remain geographically coherent. Keep all four production paths additive and preserve exact-head acceptance gates.
+
+Current QA interpretation:
+- The biome policy is canonical geography data, not a replacement terrain or hydrology owner.
+- Placement must be evaluated against the live terrain sampler at every candidate point, not only at the regional centre.
+- Water proximity, shoreline transition and slope should suppress unsuitable ecology before asset hydration.
+- Real authored GLB candidates remain preferred; procedural geometry is fallback, never proof that the authored asset is hydrated.
+- Surface fabric must remain world-space and biome-aware so adjacent assets share regional material continuity.
+- Near-field assets need higher silhouette fidelity than background scatter; LOD and culling must remain deterministic.
+- Settlement assets need terrain grounding and local architecture fit before promotion to a visible landmark.
+- North cryosphere assets must not leak into temperate regions merely because a generic vegetation fallback is available.
+- Asset selection, placement and material semantics should produce stable digests for identical map/seed inputs.
+- A missing texture or GLB should fail readiness explicitly instead of silently masquerading as a successful render.
+- Browser visual proof remains necessary after headless contracts pass; contract green is not equivalent to visual realism.
+- The next production integration should prefer existing loaders and owners over introducing a parallel asset framework.
+- Any integration must preserve road, seat, collider and gameplay ownership boundaries.
+- Geometry frequency, density and material contrast should vary with geographic context rather than uniform global noise.
+- This file is intentionally a compact continuation ledger; detailed implementation belongs in the canonical world modules and their acceptance scripts.
+- Re-run the exact-head workflow after each integration and investigate failures at the first failing ownership boundary.
