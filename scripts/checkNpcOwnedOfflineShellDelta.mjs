@@ -61,8 +61,6 @@ for (const path of summary.runtimeJs) console.log(`  owned: ${path}`);
 console.log(`[npc-owned-offline-shell] shell-entries=${summary.shellEntries}`);
 console.log(`[npc-owned-offline-shell] missing=${summary.missing.length}`);
 for (const path of summary.missing) console.log(`  missing: ${path}`);
-
-// Keep diagnostic mode non-blocking for shared gates; callers that own the shell can opt into enforcement.
 if (enforce && missing.length) {
     console.error('[npc-owned-offline-shell] FAIL: branch-owned runtime files are not in service-worker.js');
     process.exitCode = 1;
