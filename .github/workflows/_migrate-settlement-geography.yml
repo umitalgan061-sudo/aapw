@@ -11,7 +11,7 @@ permissions:
 jobs:
   migrate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Checkout current-main settlement lane
         uses: actions/checkout@v4
@@ -19,33 +19,42 @@ jobs:
           fetch-depth: 2
           lfs: true
 
+      - name: Hydrate settlement model family
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs pull --include='assets/models/settlements/**' --exclude=''
+          git lfs checkout assets/models/settlements || true
+
       - name: Validate and integrate settlement geography lane
         shell: bash
         run: |
           set -euo pipefail
           node scripts/migrateSettlementGeographyCurrentMain.mjs
           node scripts/integrateSettlementHouseTypeMix.mjs
+          node scripts/repairSettlementShorelineSampling.mjs
+          node scripts/applySettlementFrontageCurrentMain.mjs
           node --check src/3d/world/villages.js
           node --check src/3d/world/settlementGeographyPolicy.js
           node --check src/3d/world/settlementHouseTypeMix.js
+          node --check src/3d/world/settlementFrontagePolicy.js
+          node --check scripts/checkSettlementGeographyPolicy.mjs
+          node --check scripts/checkSettlementFrontagePolicy.mjs
           node scripts/checkSettlementGeographyPolicy.mjs
+          node scripts/checkSettlementFrontagePolicy.mjs
           git diff --check
 
       - name: Commit production integration
         shell: bash
         run: |
           set -euo pipefail
+          if git diff --quiet -- src/3d/world/villages.js; then
+            echo 'Settlement production integration is already materialized on this branch.'
+            exit 0
+          fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/3d/world/villages.js src/3d/world/settlementGeographyPolicy.js src/3d/world/settlementHouseTypeMix.js scripts/checkSettlementGeographyPolicy.mjs scripts/migrateSettlementGeographyCurrentMain.mjs scripts/integrateSettlementHouseTypeMix.mjs .github/workflows/settlement-geography-asset-realism.yml
+          git add src/3d/world/villages.js
           git diff --cached --check
-          git commit -m 'feat(world): route settlement assets by geography'
-          git push origin HEAD:${GITHUB_REF_NAME}
-
-      - name: Remove one-shot migration workflow
-        shell: bash
-        run: |
-          set -euo pipefail
-          git rm .github/workflows/_migrate-settlement-geography.yml
-          git commit -m 'ci(world): remove one-shot settlement migration'
+          git commit -m 'fix(world): materialize geography shoreline and frontage [skip ci]'
           git push origin HEAD:${GITHUB_REF_NAME}
