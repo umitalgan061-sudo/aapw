@@ -1,0 +1,34 @@
+name: Geographic Reference Palette Aerial Contrast
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/geographicReferencePalette.js'
+      - 'scripts/checkGeographicReferencePaletteAerialContrast.mjs'
+      - '.github/workflows/geographic-reference-palette-aerial-contrast.yml'
+  push:
+    branches:
+      - main
+      - 'codex/**'
+    paths:
+      - 'src/3d/world/geographicReferencePalette.js'
+      - 'scripts/checkGeographicReferencePaletteAerialContrast.mjs'
+      - '.github/workflows/geographic-reference-palette-aerial-contrast.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  aerial-contrast:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax check
+        run: node --check src/3d/world/geographicReferencePalette.js
+      - name: Execute aerial contrast contract
+        run: node scripts/checkGeographicReferencePaletteAerialContrast.mjs
