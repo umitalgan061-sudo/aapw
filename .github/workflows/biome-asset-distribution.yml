@@ -1,0 +1,106 @@
+name: Biome Asset Distribution
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/biomeAssetDistribution.js'
+      - 'src/3d/world/biomeAssetPlacementPlanner.js'
+      - 'src/3d/world/biomeAssetDistributionTelemetry.js'
+      - 'src/3d/materials/biomeSurfaceFabric.js'
+      - 'scripts/checkBiomeAssetDistribution.mjs'
+      - 'scripts/checkBiomeAssetPlacementPlanner.mjs'
+      - 'scripts/checkBiomeSurfaceFabric.mjs'
+      - 'assets_manifest.json'
+      - 'src/3d/world/worldReferenceMap.js'
+      - 'src/3d/world/worldReferenceAlignment.js'
+  push:
+    branches:
+      - 'kizil-ufuk/biome-asset-distribution'
+    paths:
+      - 'src/3d/world/biomeAssetDistribution.js'
+      - 'src/3d/world/biomeAssetPlacementPlanner.js'
+      - 'src/3d/world/biomeAssetDistributionTelemetry.js'
+      - 'src/3d/materials/biomeSurfaceFabric.js'
+      - 'scripts/checkBiomeAssetDistribution.mjs'
+      - 'scripts/checkBiomeAssetPlacementPlanner.mjs'
+      - 'scripts/checkBiomeSurfaceFabric.mjs'
+      - 'assets_manifest.json'
+      - 'src/3d/world/worldReferenceMap.js'
+      - 'src/3d/world/worldReferenceAlignment.js'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Verify exact-main ancestry and bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          head_sha="$(git rev-parse HEAD)"
+          main_sha="$(git rev-parse origin/main)"
+          merge_base="$(git merge-base "$main_sha" "$head_sha")"
+          test "$merge_base" = "$main_sha"
+          changed_lines="$(git diff --numstat "$main_sha" "$head_sha" -- src/3d/world/biomeAssetDistribution.js src/3d/world/biomeAssetPlacementPlanner.js src/3d/world/biomeAssetDistributionTelemetry.js src/3d/materials/biomeSurfaceFabric.js scripts/checkBiomeAssetDistribution.mjs scripts/checkBiomeAssetPlacementPlanner.mjs scripts/checkBiomeSurfaceFabric.mjs .github/workflows/biome-asset-distribution.yml | awk '{a+=$1;d+=$2} END{print a+d+0}')"
+          test "$changed_lines" -le 3000
+          while IFS= read -r path; do
+            case "$path" in
+              src/3d/world/biomeAssetDistribution.js|src/3d/world/biomeAssetPlacementPlanner.js|src/3d/world/biomeAssetDistributionTelemetry.js|src/3d/materials/biomeSurfaceFabric.js|scripts/checkBiomeAssetDistribution.mjs|scripts/checkBiomeAssetPlacementPlanner.mjs|scripts/checkBiomeSurfaceFabric.mjs|.github/workflows/biome-asset-distribution.yml) ;;
+              *) echo "Unexpected path: $path"; exit 1 ;;
+            esac
+          done < <(git diff --name-only "$main_sha" "$head_sha")
+          printf 'HEAD_SHA=%s\nMAIN_SHA=%s\nMERGE_BASE=%s\nCHANGED_LINES=%s\n' "$head_sha" "$main_sha" "$merge_base" "$changed_lines"
+
+      - name: Syntax-check new world modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/biomeAssetDistribution.js
+          node --check src/3d/world/biomeAssetPlacementPlanner.js
+          node --check src/3d/world/biomeAssetDistributionTelemetry.js
+          node --check src/3d/materials/biomeSurfaceFabric.js
+          node --check scripts/checkBiomeAssetDistribution.mjs
+          node --check scripts/checkBiomeAssetPlacementPlanner.mjs
+          node --check scripts/checkBiomeSurfaceFabric.mjs
+
+      - name: Run canonical geography distribution acceptance
+        run: node scripts/checkBiomeAssetDistribution.mjs
+
+      - name: Run placement planner acceptance
+        run: node scripts/checkBiomeAssetPlacementPlanner.mjs
+
+      - name: Run surface fabric acceptance
+        run: node scripts/checkBiomeSurfaceFabric.mjs
+
+      - name: Emit deterministic QA snapshot
+        run: |
+          node --input-type=module <<'NODE' > biome-distribution-qa.txt
+          import { collectBiomeDistributionSnapshot, createQaDigest, densityDirectionCheck } from './src/3d/world/biomeAssetDistributionTelemetry.js';
+          const snapshot = collectBiomeDistributionSnapshot({ seed: 'workflow-qa', sampleCount: 6 });
+          console.log(JSON.stringify({ snapshot, digest: createQaDigest(snapshot), densityDirection: densityDirectionCheck() }, null, 2));
+          NODE
+          cat biome-distribution-qa.txt
+
+      - name: Upload QA snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: biome-asset-distribution-qa
+          path: biome-distribution-qa.txt
+          if-no-files-found: error
