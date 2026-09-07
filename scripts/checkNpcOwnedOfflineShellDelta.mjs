@@ -38,10 +38,12 @@ const ownedRuntimeJs = [...new Set(changed
     .sort())];
 
 const sw = fs.readFileSync('service-worker.js', 'utf8');
-const shellEntries = new Set(
-    [...sw.matchAll(/GAME3D_SHELL_FILES\.push\(['"]\.\/(src\/3d\/[^'"]+\.js)['"]\)/g)]
+const shellEntries = new Set([
+    ...[...sw.matchAll(/GAME3D_SHELL_FILES\.push\(['"]\.\/(src\/3d\/[^'"]+\.js)['"]\)/g)]
         .map(([, path]) => path),
-);
+    ...[...sw.matchAll(/['"]\.\/(src\/3d\/[^'"]+\.js)['"]/g)]
+        .map(([, path]) => path),
+]);
 const missing = ownedRuntimeJs.filter(path => !shellEntries.has(path));
 const summary = {
     base,
