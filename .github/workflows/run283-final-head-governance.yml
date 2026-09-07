@@ -63,6 +63,7 @@ jobs:
           node --check src/3d/gameplay/livingWorldRuntimeAdapter.js
           node --check src/3d/gameplay/livingWorldAssetVisualAdapter.js
           node --check src/3d/gameplay/livingWorldGeographicSurfaceContract.js
+          node --check src/3d/gameplay/livingWorldSceneryAssetCatalog.js
           node scripts/checkLivingWorldDirector.mjs
           node scripts/checkLivingWorldGeographyContract.mjs
           node scripts/checkLivingWorldGroupDirector.mjs
@@ -73,6 +74,7 @@ jobs:
           node scripts/checkLivingWorldAssetSourceCatalog.mjs
           node scripts/checkLivingWorldAssetFamilyContract.mjs
           node scripts/checkLivingWorldPlacementBridge.mjs
+          node scripts/checkLivingWorldSceneryAssetCatalog.mjs
 
       - name: Offline shell delta guard
         shell: bash
