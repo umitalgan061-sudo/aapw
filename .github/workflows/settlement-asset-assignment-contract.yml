@@ -23,6 +23,24 @@ jobs:
           fetch-depth: 0
           lfs: false
 
+      - name: Hydrate assigned settlement assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs install --local
+          git lfs pull --include="assets/models/settlements/castles/icebound_citadel_decimated.glb,assets/models/settlements/castles/walled_city_fortress_decimated.glb,assets/models/settlements/castles/fortress_of_the_crown_decimated.glb,assets/models/settlements/castles/castle_on_a_rock_decimated.glb,assets/models/settlements/castles/emerald_citadel_decimated.glb,assets/models/settlements/castles/greystone_castle_decimated.glb,assets/models/settlements/castles/brickstone_citadel_decimated.glb,assets/models/settlements/castles/gatehouse_reference_decimated.glb"
+          node --input-type=module <<'NODE'
+          import { readFile, stat } from 'node:fs/promises';
+          const source = await readFile('src/3d/world/settlements.js', 'utf8');
+          const files = [...source.matchAll(/file:\s*'([^']+)'/gu)].map(([, file]) => file);
+          const unique = [...new Set(files.filter((file) => file.startsWith('assets/models/settlements/castles/')))];
+          for (const file of unique) {
+            const metadata = await stat(file);
+            if (!metadata.isFile() || metadata.size < 1024) throw new Error(`SETTLEMENT_ASSET_HYDRATION_FAIL ${file}`);
+          }
+          console.log(`SETTLEMENT_ASSET_HYDRATION_OK files=${unique.length}`);
+          NODE
+
       - name: Verify exact-main ancestry and bounded scope
         shell: bash
         run: |
