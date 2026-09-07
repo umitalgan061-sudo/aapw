@@ -7,10 +7,11 @@
  * the same placement semantics until they migrate.
  *
  * The bridge records a deterministic explanation of why an asset belongs where it was placed:
- * geography family, dominant domains, climate signal, material response, cohort, preferred rotation
- * and distribution decision. None of these values modify the canonical map or the already-grounded
- * transform. A strict caller can request rejection when geographic plausibility is too low; the default
- * is advisory mode so production content cannot disappear merely because a new policy is introduced.
+ * geography family, dominant domains, climate signal, material response, cohort, preferred rotation,
+ * regional character and distribution decision. None of these values modify the canonical map or the
+ * already-grounded transform. A strict caller can request rejection when geographic plausibility is too
+ * low; the default is advisory mode so production content cannot disappear merely because a new policy
+ * is introduced.
  *
  * @module world/WorldAssetGeographyPlacementBridge
  */
@@ -18,7 +19,6 @@
 import {
   auditWorldAssetPlacement,
   attachPreparedWorldAsset,
-  placeWorldAsset,
   prepareWorldAssetForPlacement,
 } from './WorldAssetPlacementPipeline.js';
 import {
@@ -30,9 +30,14 @@ import {
   summarizeAssetGeography,
   validateAssetGeographyProfile,
 } from './worldAssetGeographyProfile.js';
+import {
+  sampleRegionalAssetAnchor,
+  applyRegionalAnchorToPlacementScore,
+  regionalAssetMaterialBias,
+} from './worldAssetRegionalAnchors.js';
 
 export const WORLD_ASSET_GEOGRAPHY_PLACEMENT_BRIDGE_POLICY = Object.freeze({
-  id: 'world-asset-geography-placement-bridge-2026-09-07-v1',
+  id: 'world-asset-geography-placement-bridge-2026-09-07-v2-regional-coordinate-preservation',
   profilePolicyId: WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.id,
   advisoryByDefault: true,
   strictOptIn: true,
@@ -43,18 +48,63 @@ export const WORLD_ASSET_GEOGRAPHY_PLACEMENT_BRIDGE_POLICY = Object.freeze({
   transformAuthorityPreserved: true,
   sourceUvAuthorityPreserved: true,
   manifestAugmentationOnly: true,
+  regionalCharacterOptIn: true,
+  explicitNormalizedCoordinatesOnly: true,
 });
 
 function finite(value, fallback = 0) {
   return Number.isFinite(Number(value)) ? Number(value) : fallback;
 }
 
+function optionalFinite(value) {
+  return Number.isFinite(Number(value)) ? Number(value) : null;
+}
+
 function surfaceForProfile(prepared) {
   const surface = prepared?.surface;
   if (!surface || typeof surface !== 'object') return null;
+  const position = prepared.object?.position;
+  const footprintSample = prepared.footprint?.samples?.[0] ?? null;
+  const centerX = optionalFinite(surface.x);
+  const centerZ = optionalFinite(surface.z);
   return {
     ...surface,
-    ...(prepared.footprint?.samples?.[0] ?? {}),
+    ...(footprintSample ?? {}),
+    // Footprint sampling is useful for relief/moisture aggregation, but the object transform is the
+    // authoritative world-space location for a geography profile. Do not let the first footprint sample
+    // silently move the asset into another ecological patch.
+    x: centerX ?? optionalFinite(position?.x) ?? optionalFinite(footprintSample?.x) ?? 0,
+    z: centerZ ?? optionalFinite(position?.z) ?? optionalFinite(footprintSample?.z) ?? 0,
+  };
+}
+
+function normalizedRegionCoordinates(surface = {}, metadata = {}, object = null) {
+  const candidatesX = [
+    surface.normalizedX,
+    surface.regionNormalizedX,
+    surface.mapNormalizedX,
+    metadata.normalizedX,
+    metadata.regionNormalizedX,
+    object?.userData?.normalizedWorldX,
+    object?.userData?.worldNormalizedX,
+  ];
+  const candidatesY = [
+    surface.normalizedZ,
+    surface.normalizedY,
+    surface.regionNormalizedY,
+    surface.mapNormalizedY,
+    metadata.normalizedZ,
+    metadata.normalizedY,
+    metadata.regionNormalizedY,
+    object?.userData?.normalizedWorldZ,
+    object?.userData?.worldNormalizedZ,
+  ];
+  const x = candidatesX.map(optionalFinite).find((value) => value !== null);
+  const y = candidatesY.map(optionalFinite).find((value) => value !== null);
+  if (x === null || y === null) return null;
+  return {
+    x: Math.max(0, Math.min(1, x)),
+    y: Math.max(0, Math.min(1, y)),
   };
 }
 
@@ -77,17 +127,18 @@ function resolveGeographyFamily(metadata = {}, object = null) {
     ?? 'vegetation';
 }
 
-function attachGeographyMetadata(object, profile, decision, summary) {
+function attachGeographyMetadata(object, profile, decision, summary, regional = null) {
   if (!object) return;
   object.userData ||= {};
   object.userData.worldAssetGeographyProfile = profile;
   object.userData.worldAssetGeographyDecision = decision;
   object.userData.worldAssetGeographySummary = summary;
+  object.userData.worldAssetGeographyRegional = regional;
   object.userData.worldAssetGeographyPolicy = WORLD_ASSET_GEOGRAPHY_PLACEMENT_BRIDGE_POLICY.id;
   object.userData.worldAssetGeographyProfilePolicy = WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.id;
 }
 
-function augmentManifest(prepared, profile, decision, summary) {
+function augmentManifest(prepared, profile, decision, summary, regional = null) {
   const manifest = {
     ...(prepared.manifest || {}),
     assetGeography: {
@@ -104,11 +155,45 @@ function augmentManifest(prepared, profile, decision, summary) {
       preferredRotationRadians: profile.preferredRotationRadians,
       deterministicScale: deterministicAssetScale(profile, finite(prepared.object?.position?.x), finite(prepared.object?.position?.z)),
       deterministicYaw: deterministicAssetYaw(profile, finite(prepared.object?.position?.x), finite(prepared.object?.position?.z)),
+      regional: regional ?? null,
       decision,
     },
   };
   if (prepared.object) prepared.object.userData.worldPlacementManifest = manifest;
   return manifest;
+}
+
+function enrichRegionalCharacter(profile, surface, metadata, object, decision) {
+  const coordinates = normalizedRegionCoordinates(surface, metadata, object);
+  if (!coordinates) {
+    return Object.freeze({
+      enabled: false,
+      reason: 'missing-explicit-normalized-coordinates',
+      score: finite(profile?.placementScore, 0),
+      materialBias: null,
+    });
+  }
+  const family = profile?.family || resolveGeographyFamily(metadata, object);
+  const anchor = sampleRegionalAssetAnchor(coordinates.x, coordinates.y, family);
+  const regionalScore = applyRegionalAnchorToPlacementScore(
+    profile?.placementScore ?? 0,
+    family,
+    anchor,
+  );
+  const materialBias = regionalAssetMaterialBias(coordinates.x, coordinates.y, family);
+  return Object.freeze({
+    enabled: true,
+    normalizedX: coordinates.x,
+    normalizedY: coordinates.y,
+    dominantAnchor: anchor?.dominantAnchor ?? anchor?.id ?? null,
+    anchors: anchor?.anchors ?? anchor?.topAnchors ?? [],
+    family,
+    familyResponse: finite(anchor?.familyResponse, 0.5),
+    regionalScore: finite(regionalScore, decision?.score ?? profile?.placementScore ?? 0),
+    climate: anchor?.climate ?? null,
+    surface: anchor?.surface ?? null,
+    materialBias: materialBias ?? null,
+  });
 }
 
 /**
@@ -134,7 +219,16 @@ export function prepareWorldAssetWithGeography(object, {
       plausible: null,
       reasons: ['missing-surface-context'],
     });
-    const manifest = augmentManifest(prepared, { family: resolveGeographyFamily(metadata, object), placementScore: 0.5, placementClass: 'unknown', climateSignal: 0, cohort: 0.5, preferredAspect: 0, preferredRotationRadians: 0, material: null }, decision, null);
+    const manifest = augmentManifest(prepared, {
+      family: resolveGeographyFamily(metadata, object),
+      placementScore: 0.5,
+      placementClass: 'unknown',
+      climateSignal: 0,
+      cohort: 0.5,
+      preferredAspect: 0,
+      preferredRotationRadians: 0,
+      material: null,
+    }, decision, null, null);
     prepared.manifest = manifest;
     return { ...prepared, geography: profile, geographyDecision: decision, manifest };
   }
@@ -155,19 +249,36 @@ export function prepareWorldAssetWithGeography(object, {
     };
   }
 
-  const decision = assetGeographyPlacementDecision(profile, {
+  const baseDecision = assetGeographyPlacementDecision(profile, {
     rejectPoor: strictGeography,
     minimumScore,
   });
+  const regional = enrichRegionalCharacter(
+    profile,
+    surface,
+    metadata,
+    object,
+    baseDecision,
+  );
+  const decision = regional.enabled && Number.isFinite(regional.regionalScore)
+    ? Object.freeze({
+      ...baseDecision,
+      baseScore: baseDecision.score,
+      regionalScore: regional.regionalScore,
+      score: regional.regionalScore,
+      regionalApplied: true,
+      accept: !strictGeography || regional.regionalScore >= minimumScore,
+    })
+    : baseDecision;
   const summary = summarizeAssetGeography(profile);
-  const manifest = augmentManifest(prepared, profile, decision, summary);
-  attachGeographyMetadata(prepared.object, profile, decision, summary);
+  const manifest = augmentManifest(prepared, profile, decision, summary, regional);
+  attachGeographyMetadata(prepared.object, profile, decision, summary, regional);
 
   if (strictGeography && !decision.accept) {
     return {
       ...prepared,
       ok: false,
-      error: `geography:${decision.reasons.join(',') || 'placement-not-plausible'}`,
+      error: `geography:${decision.reasons?.join(',') || 'placement-not-plausible'}`,
       geography: profile,
       geographyDecision: decision,
       geographyValidation: validity,
@@ -180,6 +291,7 @@ export function prepareWorldAssetWithGeography(object, {
     geography: profile,
     geographyDecision: decision,
     geographyValidation: validity,
+    geographyRegional: regional,
     manifest,
   };
 }
@@ -220,6 +332,7 @@ export function placeWorldAssetWithGeographyCompatibility(scene, object, options
     manifest: attached.manifest,
     geography: prepared.geography,
     geographyDecision: prepared.geographyDecision,
+    geographyRegional: prepared.geographyRegional ?? null,
   } : attached;
 }
 
@@ -234,8 +347,14 @@ export function auditWorldAssetWithGeography(object, {
 } = {}) {
   const placementAudit = auditWorldAssetPlacement(object);
   const storedSurface = object?.userData?.worldPlacementSurface;
+  const footprint = object?.userData?.worldPlacementFootprint;
   const surface = storedSurface
-    ? { ...storedSurface, ...(object?.userData?.worldPlacementFootprint?.samples?.[0] ?? {}) }
+    ? {
+      ...storedSurface,
+      ...(footprint?.samples?.[0] ?? {}),
+      x: optionalFinite(storedSurface.x) ?? optionalFinite(object?.position?.x) ?? optionalFinite(footprint?.samples?.[0]?.x) ?? 0,
+      z: optionalFinite(storedSurface.z) ?? optionalFinite(object?.position?.z) ?? optionalFinite(footprint?.samples?.[0]?.z) ?? 0,
+    }
     : null;
   if (!surface) {
     return {
@@ -252,9 +371,10 @@ export function auditWorldAssetWithGeography(object, {
     };
   }
 
-  const profile = sampleWorldAssetGeographyProfile(surface, metadataForProfile(metadata, object));
+  const profileMetadata = metadataForProfile(metadata, object);
+  const profile = sampleWorldAssetGeographyProfile(surface, profileMetadata);
   const validity = validateAssetGeographyProfile(profile);
-  const decision = validity.ok
+  const baseDecision = validity.ok
     ? assetGeographyPlacementDecision(profile, { rejectPoor: strictGeography, minimumScore })
     : Object.freeze({
       accept: false,
@@ -263,12 +383,26 @@ export function auditWorldAssetWithGeography(object, {
       plausible: false,
       reasons: validity.errors,
     });
+  const regional = validity.ok
+    ? enrichRegionalCharacter(profile, surface, metadata, object, baseDecision)
+    : null;
+  const decision = validity.ok && regional?.enabled
+    ? Object.freeze({
+      ...baseDecision,
+      baseScore: baseDecision.score,
+      regionalScore: regional.regionalScore,
+      score: regional.regionalScore,
+      regionalApplied: true,
+      accept: !strictGeography || regional.regionalScore >= minimumScore,
+    })
+    : baseDecision;
   return {
     ...placementAudit,
     ok: placementAudit.ok && (!strictGeography || decision.accept),
     geography: profile,
     geographyDecision: decision,
     geographyValidation: validity,
+    geographyRegional: regional,
     geographySummary: summarizeAssetGeography(profile),
   };
 }
@@ -279,7 +413,12 @@ export function evaluateWorldAssetGeographyOnly(object, {
 } = {}) {
   const surface = object?.userData?.worldPlacementSurface;
   if (!surface) return Object.freeze({ ok: false, error: 'missing-surface-context' });
-  const profile = sampleWorldAssetGeographyProfile(surface, metadataForProfile(metadata, object));
+  const resolvedSurface = {
+    ...surface,
+    x: optionalFinite(surface.x) ?? optionalFinite(object?.position?.x) ?? 0,
+    z: optionalFinite(surface.z) ?? optionalFinite(object?.position?.z) ?? 0,
+  };
+  const profile = sampleWorldAssetGeographyProfile(resolvedSurface, metadataForProfile(metadata, object));
   const decision = assetGeographyPlacementDecision(profile, { minimumScore, rejectPoor: true });
   return Object.freeze({
     ok: decision.accept,
