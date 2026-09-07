@@ -1,0 +1,87 @@
+name: Settlement Frontage Requalification
+
+on:
+  push:
+    branches:
+      - agent/gunbatimi-settlement-geography-material-realism-20260907-main
+    paths:
+      - 'src/3d/world/villages.js'
+      - 'src/3d/world/settlementGeographyPolicy.js'
+      - 'src/3d/world/settlementHouseTypeMix.js'
+      - 'src/3d/world/settlementFrontagePolicy.js'
+      - 'scripts/migrateSettlementGeographyCurrentMain.mjs'
+      - 'scripts/integrateSettlementHouseTypeMix.mjs'
+      - 'scripts/applySettlementFrontageCurrentMain.mjs'
+      - 'scripts/checkSettlementGeographyPolicy.mjs'
+      - 'scripts/checkSettlementFrontagePolicy.mjs'
+      - '.github/workflows/settlement-frontage-requalification.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  qualify-and-materialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact branch head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 2
+          lfs: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Materialize production integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/applySettlementFrontageCurrentMain.mjs
+
+      - name: Syntax qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/villages.js
+          node --check src/3d/world/settlementGeographyPolicy.js
+          node --check src/3d/world/settlementHouseTypeMix.js
+          node --check src/3d/world/settlementFrontagePolicy.js
+          node --check scripts/migrateSettlementGeographyCurrentMain.mjs
+          node --check scripts/integrateSettlementHouseTypeMix.mjs
+          node --check scripts/applySettlementFrontageCurrentMain.mjs
+          node --check scripts/checkSettlementGeographyPolicy.mjs
+          node --check scripts/checkSettlementFrontagePolicy.mjs
+
+      - name: Geography policy qualification
+        run: node scripts/checkSettlementGeographyPolicy.mjs
+
+      - name: Road frontage qualification
+        run: node scripts/checkSettlementFrontagePolicy.mjs
+
+      - name: Whitespace and integration diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git status --short
+
+      - name: Commit materialized production integration
+        if: ${{ success() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- src/3d/world/villages.js; then
+            echo 'No new village integration delta; current branch is already materialized.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/3d/world/villages.js
+          git diff --cached --check
+          git commit -m 'fix(world): materialize geography-aware settlement frontage [skip ci]'
+          git push origin HEAD:${GITHUB_REF_NAME}
