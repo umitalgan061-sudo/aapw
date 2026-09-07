@@ -26,7 +26,7 @@ replaceOnce(
 
 replaceOnce(
 "function resolveVillageArchitectureAssetUrl(profile, site) {\n\treturn (site?.assetIndex ?? 0) > 0 ? (profile.secondaryAssetUrl || profile.assetUrl) : profile.assetUrl;\n}\n",
-"function resolveVillageArchitectureAssetUrl(profile, site) {\n\tif (site?.assetVariant === 'secondary') return profile.secondaryAssetUrl || profile.assetUrl;\n\treturn (site?.assetIndex ?? 0) > 0 ? (profile.secondaryAssetUrl || profile.assetUrl) : profile.assetUrl;\n}\n",
+"function resolveVillageArchitectureAssetUrl(profile, site) {\n\tif (site?.assetVariant === 'secondary') return profile.secondaryAssetUrl || profile.assetUrl;\n\tif (site?.assetVariant === 'primary') return profile.assetUrl;\n\treturn (site?.assetIndex ?? 0) > 0 ? (profile.secondaryAssetUrl || profile.assetUrl) : profile.assetUrl;\n}\n",
 	'asset variant selection',
 );
 
@@ -49,7 +49,7 @@ replaceOnce(
 );
 
 replaceOnce(
-"\t\t\tassetUrl,\n\t\t\ttextureSize: ARCHITECTURE_TEXTURE_SIZE,\n\t\t\tdistributionDistanceMeters: Number.isFinite(site.distributionDistanceMeters) ? site.distributionDistanceMeters : null,\n\t\t\tfootprint: object.userData.architectureFootprint,\n\t\t\tmanifest: prepared.manifest,\n",
+"\t\t\tassetUrl,\n\t\t\ttextureSize: ARCHITECTURE_TEXTURE_SIZE,\n\t\t\tdistributionDistanceMeters: Number.isFinite(site.distributionDistanceMeters) ? site.distributionDistanceMeters : null,\n\t\tfootprint: object.userData.architectureFootprint,\n\t\t\tmanifest: prepared.manifest,\n",
 "\t\t\tassetUrl,\n\t\t\ttextureSize: ARCHITECTURE_TEXTURE_SIZE,\n\t\t\tdistributionDistanceMeters: Number.isFinite(site.distributionDistanceMeters) ? site.distributionDistanceMeters : null,\n\t\t\tgeographyScore: geographyEvidence.score,\n\t\t\tgeographyVariant: geographyEvidence.variant,\n\t\t\tsurfaceContext: geographyEvidence.context,\n\t\t\tfootprint: object.userData.architectureFootprint,\n\t\t\tmanifest: prepared.manifest,\n",
 	'geography manifest evidence',
 );
@@ -74,7 +74,7 @@ replaceOnce(
 
 updated = updated.replace(
 "\tcompareSettlementArchitectureCandidates,\n\tresolveSettlementArchitectureEvidence,\n\tresolveSettlementArchitectureVariant,\n\tresolveSettlementPreferredMaterialRole,\n",
-"\tcompareSettlementArchitectureCandidates,\n\tresolveSettlementArchitectureEvidence,\n",
+"\tresolveSettlementArchitectureEvidence,\n",
 );
 
 fs.writeFileSync(targetPath, updated);
