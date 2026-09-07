@@ -38,12 +38,17 @@ const ownedRuntimeJs = [...new Set(changed
     .sort())];
 
 const sw = fs.readFileSync('service-worker.js', 'utf8');
-const shellEntries = new Set([
-    ...[...sw.matchAll(/GAME3D_SHELL_FILES\.push\(['"]\.\/(src\/3d\/[^'"]+\.js)['"]\)/g)]
-        .map(([, path]) => path),
-    ...[...sw.matchAll(/['"]\.\/(src\/3d\/[^'"]+\.js)['"]/g)]
-        .map(([, path]) => path),
-]);
+const shellEntrySources = new Map();
+const remember = (path, source) => {
+    if (!shellEntrySources.has(path)) shellEntrySources.set(path, source);
+};
+for (const match of sw.matchAll(/GAME3D_SHELL_FILES\.push\(['"]\.\/(src\/3d\/[^'"]+\.js)['"]\)/g)) {
+    remember(match[1], 'push');
+}
+for (const match of sw.matchAll(/['"]\.\/(src\/3d\/[^'"]+\.js)['"]/g)) {
+    remember(match[1], 'static');
+}
+const shellEntries = new Set(shellEntrySources.keys());
 const missing = ownedRuntimeJs.filter(path => !shellEntries.has(path));
 const summary = {
     base,
@@ -51,16 +56,27 @@ const summary = {
     runtimeJs: ownedRuntimeJs,
     shellEntries: shellEntries.size,
     missing,
+    missingRemediation: missing.map(path => ({
+        path,
+        requiredEntry: `GAME3D_SHELL_FILES.push('./${path}');`,
+        serviceWorker: 'service-worker.js',
+    })),
     enforce,
 };
 
 console.log(`[npc-owned-offline-shell] base=${summary.base}`);
 console.log(`[npc-owned-offline-shell] head=${summary.head}`);
 console.log(`[npc-owned-offline-shell] runtime-js=${summary.runtimeJs.length}`);
-for (const path of summary.runtimeJs) console.log(`  owned: ${path}`);
+for (const path of summary.runtimeJs) {
+    const source = shellEntrySources.get(path) ?? 'missing';
+    console.log(`  owned: ${path} source=${source}`);
+}
 console.log(`[npc-owned-offline-shell] shell-entries=${summary.shellEntries}`);
 console.log(`[npc-owned-offline-shell] missing=${summary.missing.length}`);
-for (const path of summary.missing) console.log(`  missing: ${path}`);
+for (const item of summary.missingRemediation) {
+    console.log(`  missing: ${item.path}`);
+    console.log(`  remediation: add ${item.requiredEntry} to ${item.serviceWorker}`);
+}
 if (enforce && missing.length) {
     console.error('[npc-owned-offline-shell] FAIL: branch-owned runtime files are not in service-worker.js');
     process.exitCode = 1;
