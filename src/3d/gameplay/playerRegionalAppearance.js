@@ -54,233 +54,64 @@ export const PLAYER_REGIONAL_APPEARANCE_POLICY = Object.freeze({
 	reliefInfluenceGain: 0.08,
 	minimumConfidence: 0.18,
 	profiles: Object.freeze({
-		snow: Object.freeze({
-			tunic: 'tunic-blue',
-			trousers: 'trousers-grey',
-			boot: 'boot',
-			belt: 'belt',
-			cloak: 'cloak',
-			skin: 'skin-olive',
-			hair: 'hair-black',
-			eye: 'eye-blue',
-		}),
-		coldGrassland: Object.freeze({
-			tunic: 'tunic-blue',
-			trousers: 'trousers-grey',
-			boot: 'boot',
-			belt: 'belt',
-			cloak: 'cloak',
-			skin: 'skin-olive',
-			hair: 'hair-black',
-			eye: 'eye-blue',
-		}),
-		marsh: Object.freeze({
-			tunic: 'tunic-green',
-			trousers: 'trousers-brown',
-			boot: 'boot',
-			belt: 'belt',
-			cloak: 'cloak',
-			skin: 'skin-olive',
-			hair: 'hair-black',
-			eye: 'eye-green',
-		}),
-		mountain: Object.freeze({
-			tunic: 'tunic-blue',
-			trousers: 'trousers-grey',
-			boot: 'boot',
-			belt: 'belt',
-			cloak: 'cloak',
-			skin: 'skin-olive',
-			hair: 'hair-black',
-			eye: 'eye-grey',
-		}),
-		rockyHills: Object.freeze({
-			tunic: 'tunic-red',
-			trousers: 'trousers-brown',
-			boot: 'boot',
-			belt: 'belt',
-			cloak: 'cloak',
-			skin: 'skin-olive',
-			hair: 'hair-black',
-			eye: 'eye-brown',
-		}),
-		lush: Object.freeze({
-			tunic: 'tunic-green',
-			trousers: 'trousers-brown',
-			boot: 'boot',
-			belt: 'belt',
-			cloak: 'cloak',
-			skin: 'skin-olive',
-			hair: 'hair-blonde',
-			eye: 'eye-green',
-		}),
-		desert: Object.freeze({
-			tunic: 'tunic-cream',
-			trousers: 'trousers-brown',
-			boot: 'boot',
-			belt: 'belt',
-			cloak: 'cloak',
-			skin: 'skin-olive',
-			hair: 'hair-black',
-			eye: 'eye-amber',
-		}),
-		steppe: Object.freeze({
-			tunic: 'tunic-cream',
-			trousers: 'trousers-grey',
-			boot: 'boot',
-			belt: 'belt',
-			cloak: 'cloak',
-			skin: 'skin-olive',
-			hair: 'hair-black',
-			eye: 'eye-amber',
-		}),
-		arid: Object.freeze({
-			tunic: 'tunic-cream',
-			trousers: 'trousers-brown',
-			boot: 'boot',
-			belt: 'belt',
-			cloak: 'cloak',
-			skin: 'skin-olive',
-			hair: 'hair-black',
-			eye: 'eye-amber',
-		}),
-		jungle: Object.freeze({
-			tunic: 'tunic-green',
-			trousers: 'trousers-brown',
-			boot: 'boot',
-			belt: 'belt',
-			cloak: 'cloak',
-			skin: 'skin-brown',
-			hair: 'hair-black',
-			eye: 'eye-brown',
-		}),
-		coast: Object.freeze({
-			tunic: 'tunic-blue',
-			trousers: 'trousers-brown',
-			boot: 'boot',
-			belt: 'belt',
-			cloak: 'cloak',
-			skin: 'skin-olive',
-			hair: 'hair-blonde',
-			eye: 'eye-blue',
-		}),
-		default: Object.freeze({
-			tunic: 'tunic-green',
-			trousers: 'trousers-brown',
-			boot: 'boot',
-			belt: 'belt',
-			cloak: 'cloak',
-			skin: 'skin-olive',
-			hair: 'hair-black',
-			eye: 'eye-brown',
-		}),
+		snow: Object.freeze({ tunic: 'tunic-blue', trousers: 'trousers-grey', boot: 'boot', belt: 'belt', cloak: 'cloak', skin: 'skin-olive', hair: 'hair-black', eye: 'eye-blue' }),
+		coldGrassland: Object.freeze({ tunic: 'tunic-blue', trousers: 'trousers-grey', boot: 'boot', belt: 'belt', cloak: 'cloak', skin: 'skin-olive', hair: 'hair-black', eye: 'eye-blue' }),
+		marsh: Object.freeze({ tunic: 'tunic-green', trousers: 'trousers-brown', boot: 'boot', belt: 'belt', cloak: 'cloak', skin: 'skin-olive', hair: 'hair-black', eye: 'eye-green' }),
+		mountain: Object.freeze({ tunic: 'tunic-blue', trousers: 'trousers-grey', boot: 'boot', belt: 'belt', cloak: 'cloak', skin: 'skin-olive', hair: 'hair-black', eye: 'eye-brown' }),
+		rockyHills: Object.freeze({ tunic: 'tunic-red', trousers: 'trousers-brown', boot: 'boot', belt: 'belt', cloak: 'cloak', skin: 'skin-olive', hair: 'hair-black', eye: 'eye-brown' }),
+		lush: Object.freeze({ tunic: 'tunic-green', trousers: 'trousers-brown', boot: 'boot', belt: 'belt', cloak: 'cloak', skin: 'skin-olive', hair: 'hair-blonde', eye: 'eye-green' }),
+		desert: Object.freeze({ tunic: 'tunic-cream', trousers: 'trousers-brown', boot: 'boot', belt: 'belt', cloak: 'cloak', skin: 'skin-olive', hair: 'hair-black', eye: 'eye-amber' }),
+		steppe: Object.freeze({ tunic: 'tunic-cream', trousers: 'trousers-grey', boot: 'boot', belt: 'belt', cloak: 'cloak', skin: 'skin-olive', hair: 'hair-black', eye: 'eye-amber' }),
+		arid: Object.freeze({ tunic: 'tunic-cream', trousers: 'trousers-brown', boot: 'boot', belt: 'belt', cloak: 'cloak', skin: 'skin-olive', hair: 'hair-black', eye: 'eye-amber' }),
+		jungle: Object.freeze({ tunic: 'tunic-green', trousers: 'trousers-brown', boot: 'boot', belt: 'belt', cloak: 'cloak', skin: 'skin-brown', hair: 'hair-black', eye: 'eye-brown' }),
+		coast: Object.freeze({ tunic: 'tunic-blue', trousers: 'trousers-brown', boot: 'boot', belt: 'belt', cloak: 'cloak', skin: 'skin-olive', hair: 'hair-blonde', eye: 'eye-blue' }),
+		default: Object.freeze({ tunic: 'tunic-green', trousers: 'trousers-brown', boot: 'boot', belt: 'belt', cloak: 'cloak', skin: 'skin-olive', hair: 'hair-black', eye: 'eye-brown' }),
 	}),
 });
 
-const KIND_TO_PROFILE = Object.freeze({
-	snow: 'snow',
-	'cold-grassland': 'coldGrassland',
-	marsh: 'marsh',
-	mountain: 'mountain',
-	'rocky-hills': 'rockyHills',
-	'lush-grassland': 'lush',
-	desert: 'desert',
-	steppe: 'steppe',
-	arid: 'arid',
-	jungle: 'jungle',
-	'temperate-coast': 'coast',
-});
+const KIND_TO_PROFILE = Object.freeze({ snow: 'snow', 'cold-grassland': 'coldGrassland', marsh: 'marsh', mountain: 'mountain', 'rocky-hills': 'rockyHills', 'lush-grassland': 'lush', desert: 'desert', steppe: 'steppe', arid: 'arid', jungle: 'jungle', 'temperate-coast': 'coast' });
+const SURFACE_SLOTS = Object.freeze(['skin', 'hair', 'eye', 'tunic', 'trousers', 'boot', 'belt', 'cloak']);
+const LAYER_ORDER = Object.freeze([{ slot: 'boot', to: 0.09 }, { slot: 'trousers', to: 0.46 }, { slot: 'belt', to: 0.50 }, { slot: 'tunic', to: 0.82 }, { slot: 'skin', to: 0.90 }, { slot: 'hair', to: 1.00 }]);
 
-const SURFACE_SLOTS = Object.freeze([
-	'skin', 'hair', 'eye', 'tunic', 'trousers', 'boot', 'belt', 'cloak',
-]);
-
-const LAYER_ORDER = Object.freeze([
-	{ slot: 'boot', to: 0.09 },
-	{ slot: 'trousers', to: 0.46 },
-	{ slot: 'belt', to: 0.50 },
-	{ slot: 'tunic', to: 0.82 },
-	{ slot: 'skin', to: 0.90 },
-	{ slot: 'hair', to: 1.00 },
-]);
-
-function clamp01(value) {
-	return Math.max(MIN_NORMALIZED, Math.min(MAX_NORMALIZED, Number(value) || 0));
-}
-
+function clamp01(value) { return Math.max(MIN_NORMALIZED, Math.min(MAX_NORMALIZED, Number(value) || 0)); }
 function normalizePoint(normalizedX, normalizedY) {
-	const x = Number(normalizedX);
-	const y = Number(normalizedY);
-	if (!Number.isFinite(x) || !Number.isFinite(y)) {
-		throw new TypeError('player regional appearance coordinates must be finite');
-	}
-	if (x < MIN_NORMALIZED || x > MAX_NORMALIZED || y < MIN_NORMALIZED || y > MAX_NORMALIZED) {
-		throw new RangeError('player regional appearance coordinates must be in [0,1]');
-	}
+	const x = Number(normalizedX), y = Number(normalizedY);
+	if (!Number.isFinite(x) || !Number.isFinite(y)) throw new TypeError('player regional appearance coordinates must be finite');
+	if (x < MIN_NORMALIZED || x > MAX_NORMALIZED || y < MIN_NORMALIZED || y > MAX_NORMALIZED) throw new RangeError('player regional appearance coordinates must be in [0,1]');
 	return Object.freeze({ x, y });
 }
-
-function zoneSignal(normalizedX, normalizedY, zone) {
-	return sampleReferenceInfluence(normalizedX, normalizedY, zone);
-}
-
+function zoneSignal(normalizedX, normalizedY, zone) { return sampleReferenceInfluence(normalizedX, normalizedY, zone); }
 function distancePointToSegmentSquared(x, y, ax, ay, bx, by) {
-	const abx = bx - ax;
-	const aby = by - ay;
-	const lengthSquared = abx * abx + aby * aby;
+	const abx = bx - ax, aby = by - ay, lengthSquared = abx * abx + aby * aby;
 	if (lengthSquared === 0) return (x - ax) ** 2 + (y - ay) ** 2;
-	const t = clamp01(((x - ax) * abx + (y - ay) * aby) / lengthSquared);
-	const px = ax + abx * t;
-	const py = ay + aby * t;
+	const t = clamp01(((x - ax) * abx + (y - ay) * aby) / lengthSquared), px = ax + abx * t, py = ay + aby * t;
 	return (x - px) ** 2 + (y - py) ** 2;
 }
-
 function reliefSignal(normalizedX, normalizedY, gain) {
-	let strongest = 0;
-	let strongestId = null;
+	let strongest = 0, strongestId = null;
 	for (const chain of REFERENCE_RELIEF_CHAINS) {
 		const points = chain.points;
 		for (let index = 1; index < points.length; index += 1) {
-			const [ax, ay] = points[index - 1];
-			const [bx, by] = points[index];
-			const distance = Math.sqrt(distancePointToSegmentSquared(normalizedX, normalizedY, ax, ay, bx, by));
+			const [ax, ay] = points[index - 1], [bx, by] = points[index], distance = Math.sqrt(distancePointToSegmentSquared(normalizedX, normalizedY, ax, ay, bx, by));
 			const signal = Math.max(0, 1 - distance / 0.11) * gain;
-			if (signal > strongest) {
-				strongest = signal;
-				strongestId = chain.id;
-			}
+			if (signal > strongest) { strongest = signal; strongestId = chain.id; }
 		}
 	}
 	return Object.freeze({ signal: strongest, chainId: strongestId });
 }
-
 function waterSignal(normalizedX, normalizedY, gain) {
-	let strongest = 0;
-	let strongestId = null;
+	let strongest = 0, strongestId = null;
 	for (const zone of REFERENCE_WATER_ZONES) {
 		const signal = zoneSignal(normalizedX, normalizedY, zone) * gain;
-		if (signal > strongest) {
-			strongest = signal;
-			strongestId = zone.id;
-		}
+		if (signal > strongest) { strongest = signal; strongestId = zone.id; }
 	}
 	return Object.freeze({ signal: strongest, zoneId: strongestId });
 }
-
 function rankedBiomeSignals(normalizedX, normalizedY) {
-	return REFERENCE_BIOME_ZONES
-		.map((zone) => ({
-			zone,
-			influence: zoneSignal(normalizedX, normalizedY, zone),
-			profileKey: KIND_TO_PROFILE[zone.kind] || 'default',
-		}))
+	return REFERENCE_BIOME_ZONES.map((zone) => ({ zone, influence: zoneSignal(normalizedX, normalizedY, zone), profileKey: KIND_TO_PROFILE[zone.kind] || 'default' }))
 		.filter((entry) => entry.influence > 0)
-		.sort((left, right) => {
-			if (right.influence !== left.influence) return right.influence - left.influence;
-			return left.zone.id.localeCompare(right.zone.id);
-		});
+		.sort((left, right) => right.influence - left.influence || left.zone.id.localeCompare(right.zone.id));
 }
-
 function assertKnownPaletteIds(profile) {
 	const missing = [];
 	for (const slot of SURFACE_SLOTS) {
@@ -289,291 +120,96 @@ function assertKnownPaletteIds(profile) {
 	}
 	if (missing.length) throw new Error(`player regional appearance missing palette(s): ${missing.join(',')}`);
 }
-
 function deriveSeed(seed) {
 	const numeric = Number(seed);
 	if (Number.isFinite(numeric)) return Math.trunc(numeric) >>> 0;
 	const text = String(seed ?? 'player');
 	let hash = 2166136261;
-	for (let index = 0; index < text.length; index += 1) {
-		hash ^= text.charCodeAt(index);
-		hash = Math.imul(hash, 16777619);
-	}
+	for (let index = 0; index < text.length; index += 1) { hash ^= text.charCodeAt(index); hash = Math.imul(hash, 16777619); }
 	return hash >>> 0;
 }
+function rotateVariant(value, seed, modulus) { return Array.isArray(value) && value.length ? value[Math.abs(seed) % Math.min(modulus, value.length)] : value; }
 
-function rotateVariant(value, seed, modulus) {
-	if (!Array.isArray(value) || !value.length) return value;
-	return value[Math.abs(seed) % Math.min(modulus, value.length)];
-}
-
-/**
- * Resolve a player's regional visual profile without mutating anything.
- *
- * Tie-breaking is lexicographic by stable zone id. Water/relief are only secondary signals, which
- * means a coastal mountain remains a mountain rather than becoming a generic "water" biome.
- */
 export function resolvePlayerRegionalAppearance(normalizedX, normalizedY, seed = 0) {
-	const point = normalizePoint(normalizedX, normalizedY);
-	const candidates = rankedBiomeSignals(point.x, point.y);
-	const water = waterSignal(point.x, point.y, PLAYER_REGIONAL_APPEARANCE_POLICY.coastalInfluenceGain);
-	const relief = reliefSignal(point.x, point.y, PLAYER_REGIONAL_APPEARANCE_POLICY.reliefInfluenceGain);
-	const winner = candidates[0] || null;
-	const runnerUp = candidates[1] || null;
-	const winnerInfluence = winner?.influence || 0;
-	const runnerUpInfluence = runnerUp?.influence || 0;
+	const point = normalizePoint(normalizedX, normalizedY), candidates = rankedBiomeSignals(point.x, point.y), water = waterSignal(point.x, point.y, PLAYER_REGIONAL_APPEARANCE_POLICY.coastalInfluenceGain), relief = reliefSignal(point.x, point.y, PLAYER_REGIONAL_APPEARANCE_POLICY.reliefInfluenceGain);
+	const winner = candidates[0] || null, runnerUp = candidates[1] || null, winnerInfluence = winner?.influence || 0, runnerUpInfluence = runnerUp?.influence || 0;
 	const confidence = clamp01(winnerInfluence + Math.max(0, winnerInfluence - runnerUpInfluence) * 0.35);
-
 	let profileKey = winner?.profileKey || 'default';
 	if (!winner && water.signal > 0.1) profileKey = 'coast';
 	if (water.signal > winnerInfluence * 0.9 && winner?.zone.kind === 'temperate-coast') profileKey = 'coast';
 	if (relief.signal > 0.32 && winner?.zone.kind === 'cold-grassland') profileKey = 'mountain';
-
 	const baseProfile = PLAYER_REGIONAL_APPEARANCE_POLICY.profiles[profileKey] || PLAYER_REGIONAL_APPEARANCE_POLICY.profiles.default;
 	assertKnownPaletteIds(baseProfile);
-
-	// Small deterministic variation preserves regional read while stopping every player-derived figure
-	// from looking like a duplicated clone. This does not alter the regional clothing family.
 	const variantSeed = deriveSeed(seed);
 	const profile = {
 		...baseProfile,
 		skin: rotateVariant(['skin-fair', 'skin-olive', 'skin-brown', 'skin-deep'], variantSeed + 17, 4),
 		hair: rotateVariant(['hair-black', 'hair-blonde', 'hair-red'], variantSeed + 31, 3),
-		eye: rotateVariant([
-			baseProfile.eye,
-			'eye-brown',
-			'eye-blue',
-			'eye-green',
-			'eye-amber',
-		], variantSeed + 53, 5),
+		eye: rotateVariant([baseProfile.eye, 'eye-brown', 'eye-blue', 'eye-green', 'eye-amber'], variantSeed + 53, 5),
 	};
 	assertKnownPaletteIds(profile);
-
 	return Object.freeze({
-		version: APPEARANCE_VERSION,
-		point,
-		zoneId: winner?.zone.id || null,
-		biomeKind: winner?.zone.kind || null,
-		profileKey,
-		confidence: Number(confidence.toFixed(4)),
-		winnerInfluence: Number(winnerInfluence.toFixed(4)),
-		runnerUpInfluence: Number(runnerUpInfluence.toFixed(4)),
-		waterSignal: Number(water.signal.toFixed(4)),
-		waterZoneId: water.zoneId,
-		reliefSignal: Number(relief.signal.toFixed(4)),
-		reliefChainId: relief.chainId,
-		profile: Object.freeze({ ...profile }),
-		map: Object.freeze({ id: WORLD_REFERENCE_MAP_ID, sha256: WORLD_REFERENCE_MAP_SHA256 }),
+		version: APPEARANCE_VERSION, point, zoneId: winner?.zone.id || null, biomeKind: winner?.zone.kind || null, profileKey,
+		confidence: Number(confidence.toFixed(4)), winnerInfluence: Number(winnerInfluence.toFixed(4)), runnerUpInfluence: Number(runnerUpInfluence.toFixed(4)),
+		waterSignal: Number(water.signal.toFixed(4)), waterZoneId: water.zoneId, reliefSignal: Number(relief.signal.toFixed(4)), reliefChainId: relief.chainId,
+		profile: Object.freeze({ ...profile }), map: Object.freeze({ id: WORLD_REFERENCE_MAP_ID, sha256: WORLD_REFERENCE_MAP_SHA256 }),
 	});
 }
 
 function namedSurfaceRecipe(profile, analysis, textureSize) {
 	const surfaceOverrides = {};
-	for (const surface of analysis.surfaces) {
-		if (surface.slot && profile[surface.slot]) surfaceOverrides[surface.key] = profile[surface.slot];
-	}
+	for (const surface of analysis.surfaces) if (surface.slot && profile[surface.slot]) surfaceOverrides[surface.key] = profile[surface.slot];
 	if (!Object.keys(surfaceOverrides).length) return null;
-	return {
-		version: 1,
-		mode: 'surface',
-		surfaceOverrides,
-		textureSize,
-	};
+	return { version: 1, mode: 'surface', surfaceOverrides, textureSize };
 }
-
 function layeredFallbackRecipe(profile, textureSize, targetMeshIndex = 0) {
-	return {
-		version: 1,
-		mode: 'layers',
-		targetMeshIndex,
-		textureSize,
-		layers: LAYER_ORDER.map(({ slot, to }) => ({
-			to,
-			palette: profile[slot],
-		})),
-	};
+	return { version: 1, mode: 'layers', targetMeshIndex, textureSize, layers: LAYER_ORDER.map(({ slot, to }) => ({ to, palette: profile[slot] })) };
 }
-
-/**
- * Chooses the appropriate shared-core recipe for the actual asset shape.
- * Named multi-surface assets receive slot-level dressing; a one-mesh/one-material figure receives the
- * mandated layered fallback. No new texture generator or material implementation exists here.
- */
-export function buildPlayerRegionalMaterialRecipe(object, regionalContext, {
-	textureSize = DEFAULT_TEXTURE_SIZE,
-} = {}) {
+export function buildPlayerRegionalMaterialRecipe(object, regionalContext, { textureSize = DEFAULT_TEXTURE_SIZE } = {}) {
 	if (!object) throw new TypeError('player regional appearance object is required');
 	if (!regionalContext?.profile) throw new TypeError('player regional appearance context is required');
 	assertKnownPaletteIds(regionalContext.profile);
-	const analysis = analyzeMaterialSurfaces(object);
-	const named = namedSurfaceRecipe(regionalContext.profile, analysis, textureSize);
+	const analysis = analyzeMaterialSurfaces(object), named = namedSurfaceRecipe(regionalContext.profile, analysis, textureSize);
 	if (named && analysis.namedSurfaceCount > 0) return named;
 	return layeredFallbackRecipe(regionalContext.profile, textureSize, 0);
 }
-
-/**
- * Applies the resolved regional appearance through the shared MaterialAssignmentCore and records a
- * complete validation/manifest payload on the player object.
- */
-export function applyPlayerRegionalAppearance(object, {
-	normalizedX,
-	normalizedY,
-	seed = 0,
-	textureSize = DEFAULT_TEXTURE_SIZE,
-	allowLowConfidence = false,
-} = {}) {
+export function applyPlayerRegionalAppearance(object, { normalizedX, normalizedY, seed = 0, textureSize = DEFAULT_TEXTURE_SIZE, allowLowConfidence = false } = {}) {
 	const regionalContext = resolvePlayerRegionalAppearance(normalizedX, normalizedY, seed);
-	if (!allowLowConfidence && regionalContext.confidence < PLAYER_REGIONAL_APPEARANCE_POLICY.minimumConfidence) {
-		return Object.freeze({
-			ok: false,
-			error: 'low-regional-confidence',
-			context: regionalContext,
-		});
-	}
+	if (!allowLowConfidence && regionalContext.confidence < PLAYER_REGIONAL_APPEARANCE_POLICY.minimumConfidence) return Object.freeze({ ok: false, error: 'low-regional-confidence', context: regionalContext });
 	const recipe = buildPlayerRegionalMaterialRecipe(object, regionalContext, { textureSize });
-	const materialResult = applyMaterialRecipe(object, recipe, {
-		metadata: {
-			id: object.userData?.assetId || 'player',
-			name: object.name || 'player',
-			category: 'player',
-		},
-	});
+	const materialResult = applyMaterialRecipe(object, recipe, { metadata: { id: object.userData?.assetId || 'player', name: object.name || 'player', category: 'player' } });
 	if (!materialResult.ok) return Object.freeze({ ok: false, error: `material:${materialResult.error}`, context: regionalContext, recipe });
-
 	object.updateMatrixWorld?.(true);
 	const validation = validateMaterialAssignment(object, { requireGeneratedTexture: true });
-	if (!validation.ok) {
-		return Object.freeze({ ok: false, error: validation.errors.join(','), context: regionalContext, recipe, validation });
-	}
-
-	const manifest = createMaterialManifest(object, {
-		metadata: {
-			id: object.userData?.assetId || 'player',
-			name: object.name || 'player',
-			category: 'player',
-			src: object.userData?.assetSrc || '',
-		},
-		placement: {
-			coordinateSpace: 'canonical-normalized-map',
-			normalizedX: regionalContext.point.x,
-			normalizedY: regionalContext.point.y,
-			zoneId: regionalContext.zoneId,
-			biomeKind: regionalContext.biomeKind,
-			profileKey: regionalContext.profileKey,
-			confidence: regionalContext.confidence,
-		},
-	});
-
-	const appearance = Object.freeze({
-		policyId: PLAYER_REGIONAL_APPEARANCE_POLICY.id,
-		mapId: WORLD_REFERENCE_MAP_ID,
-		mapSha256: WORLD_REFERENCE_MAP_SHA256,
-		context: regionalContext,
-		recipe,
-		meshCount: validation.meshCount,
-		surfaceCount: validation.surfaceCount,
-		generatedMaterialCount: validation.generatedMaterialCount,
-		materialSlotCount: validation.materialSlotCount,
-		missingMaterialCount: 0,
-		manifest,
-	});
+	if (!validation.ok) return Object.freeze({ ok: false, error: validation.errors.join(','), context: regionalContext, recipe, validation });
+	const manifest = createMaterialManifest(object, { metadata: { id: object.userData?.assetId || 'player', name: object.name || 'player', category: 'player', src: object.userData?.assetSrc || '' }, placement: { coordinateSpace: 'canonical-normalized-map', normalizedX: regionalContext.point.x, normalizedY: regionalContext.point.y, zoneId: regionalContext.zoneId, biomeKind: regionalContext.biomeKind, profileKey: regionalContext.profileKey, confidence: regionalContext.confidence } });
+	const appearance = Object.freeze({ policyId: PLAYER_REGIONAL_APPEARANCE_POLICY.id, mapId: WORLD_REFERENCE_MAP_ID, mapSha256: WORLD_REFERENCE_MAP_SHA256, context: regionalContext, recipe, meshCount: validation.meshCount, surfaceCount: validation.surfaceCount, generatedMaterialCount: validation.generatedMaterialCount, materialSlotCount: validation.materialSlotCount, missingMaterialCount: 0, manifest });
 	object.userData.playerRegionalAppearance = appearance;
 	object.userData.playerRegionalAppearanceReady = true;
 	object.userData.playerRegionalAppearanceManifest = manifest;
-
-	return Object.freeze({
-		ok: true,
-		object,
-		context: regionalContext,
-		recipe,
-		validation,
-		manifest,
-		appearance,
-	});
+	return Object.freeze({ ok: true, object, context: regionalContext, recipe, validation, manifest, appearance });
 }
-
-/**
- * Runtime audit. This intentionally fails closed when the adapter was bypassed or when the stored
- * map authority changed, so downstream browser proof cannot accidentally claim a stale appearance.
- */
 export function auditPlayerRegionalAppearance(object) {
-	const appearance = object?.userData?.playerRegionalAppearance;
-	const errors = [];
+	const appearance = object?.userData?.playerRegionalAppearance, errors = [];
 	if (!appearance) errors.push('regional-appearance-missing');
 	if (appearance?.mapId !== WORLD_REFERENCE_MAP_ID) errors.push('map-id-mismatch');
 	if (appearance?.mapSha256 !== WORLD_REFERENCE_MAP_SHA256) errors.push('map-sha-mismatch');
 	if (!object?.userData?.playerRegionalAppearanceReady) errors.push('regional-appearance-gate-not-used');
-
 	let validation = null;
-	if (object) {
-		validation = validateMaterialAssignment(object, { requireGeneratedTexture: true });
-		errors.push(...validation.errors.map((error) => `material:${error}`));
-	}
-
+	if (object) { validation = validateMaterialAssignment(object, { requireGeneratedTexture: true }); errors.push(...validation.errors.map((error) => `material:${error}`)); }
 	const profile = appearance?.context?.profile;
-	if (profile) {
-		try { assertKnownPaletteIds(profile); } catch (error) { errors.push(error instanceof Error ? error.message : String(error)); }
-	}
-
-	return Object.freeze({
-		ok: errors.length === 0,
-		errors,
-		warnings: validation?.warnings || [],
-		appearance: appearance || null,
-		validation,
-	});
+	if (profile) { try { assertKnownPaletteIds(profile); } catch (error) { errors.push(error instanceof Error ? error.message : String(error)); } }
+	return Object.freeze({ ok: errors.length === 0, errors, warnings: validation?.warnings || [], appearance: appearance || null, validation });
 }
-
-/**
- * Converts a real world X/Z coordinate to normalized canonical map space. The caller supplies the
- * existing world bounds and scale; this avoids importing world config into gameplay or creating an
- * import cycle. It is intentionally the same affine mapping used by the canonical map helpers.
- */
-export function worldXZToCanonicalMap(normalizedOptions = {}) {
-	const {
-		worldX,
-		worldZ,
-		mapBounds,
-		metersPerMapUnit,
-	} = normalizedOptions;
+export function worldXZToCanonicalMap({ worldX, worldZ, mapBounds, metersPerMapUnit } = {}) {
 	if (!Number.isFinite(worldX) || !Number.isFinite(worldZ)) throw new TypeError('world X/Z must be finite');
-	if (!mapBounds || !Number.isFinite(mapBounds.minX) || !Number.isFinite(mapBounds.maxX) || !Number.isFinite(mapBounds.minY) || !Number.isFinite(mapBounds.maxY)) {
-		throw new TypeError('map bounds are required');
-	}
+	if (!mapBounds || !Number.isFinite(mapBounds.minX) || !Number.isFinite(mapBounds.maxX) || !Number.isFinite(mapBounds.minY) || !Number.isFinite(mapBounds.maxY)) throw new TypeError('map bounds are required');
 	if (!Number.isFinite(metersPerMapUnit) || metersPerMapUnit <= 0) throw new RangeError('metersPerMapUnit must be positive');
-	const centerMapX = (mapBounds.minX + mapBounds.maxX) * 0.5;
-	const centerMapY = (mapBounds.minY + mapBounds.maxY) * 0.5;
-	const mapX = worldX / metersPerMapUnit + centerMapX;
-	const mapY = worldZ / metersPerMapUnit + centerMapY;
-	return Object.freeze({
-		x: clamp01((mapX - mapBounds.minX) / (mapBounds.maxX - mapBounds.minX)),
-		y: clamp01((mapY - mapBounds.minY) / (mapBounds.maxY - mapBounds.minY)),
-	});
+	const centerMapX = (mapBounds.minX + mapBounds.maxX) * 0.5, centerMapY = (mapBounds.minY + mapBounds.maxY) * 0.5;
+	const mapX = worldX / metersPerMapUnit + centerMapX, mapY = worldZ / metersPerMapUnit + centerMapY;
+	return Object.freeze({ x: clamp01((mapX - mapBounds.minX) / (mapBounds.maxX - mapBounds.minX)), y: clamp01((mapY - mapBounds.minY) / (mapBounds.maxY - mapBounds.minY)) });
 }
-
-/**
- * Builds a compact acceptance record for browser/test proof without serializing a Three.js object.
- */
 export function playerRegionalAppearanceProof(object) {
-	const audit = auditPlayerRegionalAppearance(object);
-	const appearance = audit.appearance;
-	return Object.freeze({
-		ok: audit.ok,
-		policyId: PLAYER_REGIONAL_APPEARANCE_POLICY.id,
-		mapId: WORLD_REFERENCE_MAP_ID,
-		mapSha256: WORLD_REFERENCE_MAP_SHA256,
-		zoneId: appearance?.context?.zoneId || null,
-		biomeKind: appearance?.context?.biomeKind || null,
-		profileKey: appearance?.context?.profileKey || null,
-		confidence: appearance?.context?.confidence ?? 0,
-		textureSize: appearance?.recipe?.textureSize || null,
-		recipeMode: appearance?.recipe?.mode || null,
-		meshCount: audit.validation?.meshCount || 0,
-		surfaceCount: audit.validation?.surfaceCount || 0,
-		materialSlotCount: audit.validation?.materialSlotCount || 0,
-		generatedMaterialCount: audit.validation?.generatedMaterialCount || 0,
-		missingMaterialCount: 0,
-		errors: Object.freeze([...audit.errors]),
-		warnings: Object.freeze([...audit.warnings]),
-	});
+	const audit = auditPlayerRegionalAppearance(object), appearance = audit.appearance;
+	return Object.freeze({ ok: audit.ok, policyId: PLAYER_REGIONAL_APPEARANCE_POLICY.id, mapId: WORLD_REFERENCE_MAP_ID, mapSha256: WORLD_REFERENCE_MAP_SHA256, zoneId: appearance?.context?.zoneId || null, biomeKind: appearance?.context?.biomeKind || null, profileKey: appearance?.context?.profileKey || null, confidence: appearance?.context?.confidence ?? 0, textureSize: appearance?.recipe?.textureSize || null, recipeMode: appearance?.recipe?.mode || null, meshCount: audit.validation?.meshCount || 0, surfaceCount: audit.validation?.surfaceCount || 0, materialSlotCount: audit.validation?.materialSlotCount || 0, generatedMaterialCount: audit.validation?.generatedMaterialCount || 0, missingMaterialCount: 0, errors: Object.freeze([...audit.errors]), warnings: Object.freeze([...audit.warnings]) });
 }
