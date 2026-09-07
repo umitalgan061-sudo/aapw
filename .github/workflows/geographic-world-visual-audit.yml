@@ -1,0 +1,34 @@
+name: Geographic World Visual Audit
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/**'
+      - 'src/3d/sceneManager.js'
+      - 'assets/models/**'
+      - 'scripts/geographic-world-visual-audit-harness.html'
+      - 'scripts/checkGeographicWorldVisualAuditBrowser.mjs'
+      - '.github/workflows/geographic-world-visual-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser-runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { lfs: true }
+      - run: git lfs pull --include="assets/models/settlements/**,assets/models/vegetation/**,assets/models/props/**"
+      - name: Reject unresolved model pointers
+        run: |
+          set -euo pipefail
+          if grep -R -a -q 'version https://git-lfs.github.com/spec/v1' assets/models; then
+            echo 'Unresolved Git LFS pointer remains under assets/models'; exit 1
+          fi
+      - run: npm install --no-package-lock --ignore-scripts
+      - run: npx playwright install --with-deps chromium
+      - name: Serve repository
+        run: npx --yes http-server . -p 4173 > /tmp/aapw-http.log 2>&1 &
+      - name: Boot exact production 3D scene and run visual smoke audit
+        run: node scripts/checkGeographicWorldVisualAuditBrowser.mjs
+      - if: failure()
+        run: cat /tmp/aapw-http.log || true
