@@ -1,13 +1,15 @@
-/**
+/*
  * Deterministic world-space micro/macro surface fabric for authored world assets.
  *
- * This is a material-only layer: source maps, source UVs, geometry, terrain height, hydrology and
- * placement transforms remain untouched. The shader adds restrained stochastic breakup to authored
- * albedo/roughness response while the existing CPU material context remains the authority for normal
- * scale. World-space carriers prevent a repeated mesh texture from reading like a repeated world grid.
+ * Material-only: source maps, source UVs, geometry, terrain height, hydrology and placement transforms
+ * remain authoritative. This layer breaks visible repeated texture cadence with deterministic world-space
+ * multiscale albedo/roughness variation and feeds the same environmental transition model used by the
+ * geography placement/material system.
  *
  * @module materials/worldAssetSurfaceFabric
  */
+
+import { sampleWorldAssetTransitionDetail } from '../world/worldAssetTransitionDetail.js';
 
 export const WORLD_ASSET_SURFACE_FABRIC_REVISION = 'v1-world-space-organic-material-fabric';
 
@@ -24,6 +26,7 @@ export const WORLD_ASSET_SURFACE_FABRIC_POLICY = Object.freeze({
   canonicalHydrologyReadOnly: true,
   canonicalColliderReadOnly: true,
   newGeographyIntroduced: false,
+  usesIrregularBoundaryDetail: true,
   macroScaleMeters: 260,
   mesoScaleMeters: 71,
   patchScaleMeters: 19,
@@ -139,22 +142,18 @@ float worldAssetSurfaceFabricRidge(vec2 p) {
   return 1.0 - abs(n * 2.0 - 1.0);
 }
 
-float worldAssetSurfaceFabricLuma(vec3 c) {
-  return dot(c, vec3(0.2126, 0.7152, 0.0722));
-}
-
 float worldAssetSurfaceFabricNormalEnergy = ${shaderNumber(constants.normalEnergy, 0.5)};
 float worldAssetSurfaceFabricMoisture = ${shaderNumber(constants.moisture, 0.5)};
 float worldAssetSurfaceFabricDryness = ${shaderNumber(constants.dryness, 0.5)};
 float worldAssetSurfaceFabricFrost = ${shaderNumber(constants.frost, 0.0)};
 float worldAssetSurfaceFabricSalt = ${shaderNumber(constants.salt, 0.0)};
-float worldAssetSurfaceFabricDamp = ${shaderNumber(constants.damp, 0.0)};
+float worldAssetSurfaceFabricDamp = ${shaderNumber(constants.damp, 0.5)};
 float worldAssetSurfaceFabricDust = ${shaderNumber(constants.dust, 0.0)};
 float worldAssetSurfaceFabricMoss = ${shaderNumber(constants.moss, 0.0)};
 float worldAssetSurfaceFabricLichen = ${shaderNumber(constants.lichen, 0.0)};
 float worldAssetSurfaceFabricSediment = ${shaderNumber(constants.sediment, 0.0)};
 float worldAssetSurfaceFabricWeathering = ${shaderNumber(constants.weathering, 0.0)};
-float worldAssetSurfaceFabricWind = ${shaderNumber(constants.wind, 0.0)};
+float worldAssetSurfaceFabricWind = ${shaderNumber(constants.wind, 0.5)};
 float worldAssetSurfaceFabricFamilyGain = ${shaderNumber(constants.familyGain, 0.88)};
 float worldAssetSurfaceFabricFamilyCode = ${shaderNumber(constants.familyCode, 0.0)};
 `,
@@ -274,17 +273,19 @@ roughnessFactor = clamp(roughnessFactor + worldAssetSurfaceFabricRoughPattern * 
 
 function compileConstants(context, family, options = {}) {
   const ecology = context?.ecology ?? context?.transition ?? {};
+  const transition = options.transitionDetail?.material ?? {};
+  const blend = (a, b, amount) => a * (1 - amount) + b * amount;
   const source = {
     moisture: clamp01(context?.moisture ?? ecology.moisture ?? 0.5),
     dryness: clamp01(context?.dry ?? ecology.aridity ?? 0.5),
-    frost: clamp01(context?.snow ?? ecology.frost ?? 0),
-    salt: clamp01(context?.coast ?? ecology.coastal ?? 0),
-    damp: clamp01(context?.wet ?? ecology.moisture ?? 0.5),
-    dust: clamp01(context?.roadDust ?? 0),
-    moss: clamp01(ecology.moss ?? 0),
-    lichen: clamp01(ecology.lichen ?? 0),
-    sediment: clamp01(ecology.sedimentFabric ?? 0),
-    weathering: clamp01(ecology.weathering ?? 0),
+    frost: blend(clamp01(context?.snow ?? ecology.frost ?? 0), clamp01(transition.frost ?? 0), 0.24),
+    salt: blend(clamp01(context?.coast ?? ecology.coastal ?? 0), clamp01(transition.salt ?? 0), 0.32),
+    damp: blend(clamp01(context?.wet ?? ecology.moisture ?? 0.5), clamp01(transition.wet ?? ecology.moisture ?? 0.5), 0.26),
+    dust: blend(clamp01(context?.roadDust ?? 0), clamp01(transition.dust ?? 0), 0.32),
+    moss: blend(clamp01(ecology.moss ?? 0), clamp01(transition.moss ?? 0), 0.28),
+    lichen: blend(clamp01(ecology.lichen ?? 0), clamp01(transition.lichen ?? 0), 0.28),
+    sediment: blend(clamp01(ecology.sedimentFabric ?? 0), clamp01(transition.sedimentFabric ?? 0), 0.36),
+    weathering: blend(clamp01(ecology.weathering ?? 0), clamp01(transition.weathering ?? 0), 0.34),
     wind: clamp01(ecology.exposure ?? context?.exposure ?? 0.5),
   };
   const material = options.materialResponse ?? {};
@@ -309,6 +310,7 @@ function compileConstants(context, family, options = {}) {
 export function installWorldAssetSurfaceFabric(material, context = {}, {
   family = 'generic',
   materialResponse = null,
+  transitionDetail = null,
   customProgramSuffix = '',
 } = {}) {
   if (!material || typeof material.onBeforeCompile !== 'function') {
@@ -317,8 +319,36 @@ export function installWorldAssetSurfaceFabric(material, context = {}, {
   if (material.userData?.worldAssetSurfaceFabric?.installed) {
     return { ok: true, policyId: WORLD_ASSET_SURFACE_FABRIC_POLICY.id, alreadyInstalled: true };
   }
+
+  const resolvedTransitionDetail = transitionDetail ?? (
+    Number.isFinite(Number(context?.x)) && Number.isFinite(Number(context?.z))
+      ? sampleWorldAssetTransitionDetail({
+        x: context.x,
+        z: context.z,
+        seed: context.seed,
+        coastDistance: context.coastDistance,
+        riverDistance: context.riverDistance,
+        lakeDistance: context.lakeDistance,
+        roadDistance: context.roadDistance,
+        settlementDistance: context.settlementDistance,
+        moisture: context.moisture,
+        shelter: context.ecology?.shelter,
+        exposure: context.ecology?.exposure,
+        erosion: context.ecology?.erosion,
+        deposition: context.ecology?.deposition,
+        lithic: context.ecology?.lithic,
+        slopeDegrees: context.slopeDegrees,
+        snow: context.snow,
+        biome: context.biomeId,
+      },
+      { seed: finite(context.seed, 0), family },
+    )
+      : null
+  );
+
   const constants = compileConstants(context, family, {
     materialResponse: materialResponse ?? {},
+    transitionDetail: resolvedTransitionDetail,
     familyGain: WORLD_ASSET_SURFACE_FABRIC_POLICY.familyResponseGain[family],
   });
   const previousOnBeforeCompile = typeof material.onBeforeCompile === 'function'
@@ -342,6 +372,8 @@ export function installWorldAssetSurfaceFabric(material, context = {}, {
     sourceMapsPreserved: true,
     sourceUvsPreserved: true,
     deterministic: true,
+    irregularBoundaryDetail: Boolean(resolvedTransitionDetail),
+    transitionDetailPolicyId: resolvedTransitionDetail?.policyId ?? null,
     maximumColorDeviation: constants.maximumColorDeviation,
     maximumRoughnessDeviation: constants.maximumRoughnessDeviation,
     normalEnergy: constants.normalEnergy,
