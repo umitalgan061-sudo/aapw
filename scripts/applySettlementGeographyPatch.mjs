@@ -8,10 +8,9 @@ const targetPath = path.join(ROOT, 'src/3d/world/villages.js');
 const policyPath = path.join(ROOT, 'src/3d/world/settlementGeographyPolicy.js');
 const source = fs.readFileSync(targetPath, 'utf8');
 const policySource = fs.readFileSync(policyPath, 'utf8');
-if (source.includes("./settlementGeographyPolicy.js")) {
-	console.log('[applySettlementGeographyPatch] village integration already applied');
-} else {
-	let updated = source;
+
+let updated = source;
+if (!updated.includes("./settlementGeographyPolicy.js")) {
 	function replaceOnce(before, after, label) {
 		const count = updated.split(before).length - 1;
 		if (count !== 1) throw new Error(`[applySettlementGeographyPatch] ${label}: expected 1 match, found ${count}`);
@@ -43,33 +42,27 @@ if (source.includes("./settlementGeographyPolicy.js")) {
 	);
 
 	replaceOnce(
-	"\t\tconst profile = resolveVillageArchitectureProfile(site.seatId);\n\t\tconst assetUrl = resolveVillageArchitectureAssetUrl(profile, site);\n",
-	"\t\tconst profile = resolveVillageArchitectureProfile(site.seatId);\n\t\tconst assetUrl = resolveVillageArchitectureAssetUrl(profile, site);\n\t\tconst geographyEvidence = resolveSettlementArchitectureEvidence(profile.id, {\n\t\t\t...(site.surfaceContext || {}),\n\t\t\troll: ((site.houseIndex + 1) * 0.61803398875) % 1,\n\t\t});\n",
-		'upgrade geography evidence',
+	"\tconst candidateSurfaceContext = createVillageArchitectureSurfaceQuery(sampleHeightMeters, seaLevelMeters, roadEdges);\n",
+	"\tconst candidateSurfaceContext = createVillageArchitectureSurfaceQuery(sampleHeightMeters, seaLevelMeters, roadEdges);\n",
+		'candidate surface query compatibility check',
 	);
 
 	replaceOnce(
-	"\t\t\tassetUrl,\n\t\t\ttextureSize: ARCHITECTURE_TEXTURE_SIZE,\n\t\t\tdistributionDistanceMeters: Number.isFinite(site.distributionDistanceMeters) ? site.distributionDistanceMeters : null,\n\t\tfootprint: object.userData.architectureFootprint,\n\t\t\tmanifest: prepared.manifest,\n",
-	"\t\t\tassetUrl,\n\t\t\ttextureSize: ARCHITECTURE_TEXTURE_SIZE,\n\t\t\tdistributionDistanceMeters: Number.isFinite(site.distributionDistanceMeters) ? site.distributionDistanceMeters : null,\n\t\t\tgeographyScore: geographyEvidence.score,\n\t\t\tgeographyVariant: site.assetVariant || geographyEvidence.variant,\n\t\t\tpreferredMaterialRoles: Object.freeze({\n\t\t\t\twall: resolveSettlementPreferredMaterialRole(profile.id, 'wall'),\n\t\t\t\troof: resolveSettlementPreferredMaterialRole(profile.id, 'roof'),\n\t\t\t\ttimber: resolveSettlementPreferredMaterialRole(profile.id, 'timber'),\n\t\t\t\ttrim: resolveSettlementPreferredMaterialRole(profile.id, 'trim'),\n\t\t\t}),\n\t\t\tsurfaceContext: geographyEvidence.context,\n\t\t\tfootprint: object.userData.architectureFootprint,\n\t\t\tmanifest: prepared.manifest,\n",
-		'geography and material manifest evidence',
+	"function createVillageArchitectureSurfaceQuery(sampleHeightMeters, seaLevelMeters, roadEdges) {\n\treturn (x, z) => {\n\t\tconst height = sampleHeightMeters(x, z);\n\t\tconst dx = (sampleHeightMeters(x + SURFACE_SLOPE_SAMPLE_METERS, z) - sampleHeightMeters(x - SURFACE_SLOPE_SAMPLE_METERS, z)) / (SURFACE_SLOPE_SAMPLE_METERS * 2);\n\t\tconst dz = (sampleHeightMeters(x, z + SURFACE_SLOPE_SAMPLE_METERS) - sampleHeightMeters(x, z - SURFACE_SLOPE_SAMPLE_METERS)) / (SURFACE_SLOPE_SAMPLE_METERS * 2);\n\t\treturn {\n\t\t\theight,\n\t\t\tslopeDegrees: Math.atan(Math.hypot(dx, dz)) * 180 / Math.PI,\n\t\t\twaterDepth: Math.max(0, seaLevelMeters - height),\n\t\t\troadDistance: roadDistanceMeters(x, z, roadEdges),\n\t\t};\n\t};\n}\n",
+	"function createVillageArchitectureSurfaceQuery(sampleHeightMeters, seaLevelMeters, roadEdges) {\n\treturn (x, z) => {\n\t\tconst height = sampleHeightMeters(x, z);\n\t\tconst dx = (sampleHeightMeters(x + SURFACE_SLOPE_SAMPLE_METERS, z) - sampleHeightMeters(x - SURFACE_SLOPE_SAMPLE_METERS, z)) / (SURFACE_SLOPE_SAMPLE_METERS * 2);\n\t\tconst dz = (sampleHeightMeters(x, z + SURFACE_SLOPE_SAMPLE_METERS) - sampleHeightMeters(x, z - SURFACE_SLOPE_SAMPLE_METERS)) / (SURFACE_SLOPE_SAMPLE_METERS * 2);\n\t\tlet shorelineDistanceMeters = Infinity;\n\t\tif (height >= seaLevelMeters) {\n\t\t\tconst probeDirections = 16;\n\t\t\tconst probeSteps = [8, 16, 24, 32, 48, 64];\n\t\t\tfor (let directionIndex = 0; directionIndex < probeDirections && !Number.isFinite(shorelineDistanceMeters); directionIndex++) {\n\t\t\t\tconst angle = directionIndex * Math.PI * 2 / probeDirections;\n\t\t\t\tlet previousDistance = 0;\n\t\t\t\tlet previousHeight = height;\n\t\t\t\tfor (const distance of probeSteps) {\n\t\t\t\t\tconst probeHeight = sampleHeightMeters(x + Math.cos(angle) * distance, z + Math.sin(angle) * distance);\n\t\t\t\t\tif (probeHeight <= seaLevelMeters) {\n\t\t\t\t\t\tconst denominator = Math.abs(probeHeight - previousHeight);\n\t\t\t\t\t\tconst interpolation = denominator > 1e-9 ? Math.max(0, Math.min(1, (previousHeight - seaLevelMeters) / (previousHeight - probeHeight))) : 1;\n\t\t\t\t\t\tshorelineDistanceMeters = previousDistance + (distance - previousDistance) * interpolation;\n\t\t\t\t\t\tbreak;\n\t\t\t\t\t}\n\t\t\t\t\tpreviousDistance = distance;\n\t\t\t\t\tpreviousHeight = probeHeight;\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t\treturn {\n\t\t\theight,\n\t\t\tslopeDegrees: Math.atan(Math.hypot(dx, dz)) * 180 / Math.PI,\n\t\t\twaterDepth: Math.max(0, seaLevelMeters - height),\n\t\t\troadDistance: roadDistanceMeters(x, z, roadEdges),\n\t\t\tshorelineDistanceMeters,\n\t\t};\n\t};\n}\n",
+		'shoreline surface sampling',
 	);
 
 	replaceOnce(
-	"\t\t\tconst type = HOUSE_TYPES[pickHouseTypeIndex(rng())];\n\t\t\tconst yaw = Math.atan2(hamletX - x, hamletZ - z) + (rng() - 0.5) * 0.5;\n\t\t\tconst support = sampleFootprintRange(sampleHeightMeters, x, z, type.width, type.depth, yaw);\n",
-	"\t\t\tconst type = HOUSE_TYPES[pickHouseTypeIndex(rng())];\n\t\t\tconst yaw = Math.atan2(hamletX - x, hamletZ - z) + (rng() - 0.5) * 0.5;\n\t\t\tconst support = sampleFootprintRange(sampleHeightMeters, x, z, type.width, type.depth, yaw);\n\t\t\tconst candidateSurfaceContext = architectureSurfaceQuery(x, z);\n",
-		'candidate surface context',
+	"\t\tconst geographyEvidence = resolveSettlementArchitectureEvidence(profile.id, {\n\t\t\t...(site.surfaceContext || {}),\n\t\t\troll: ((site.houseIndex + 1) * 0.61803398875) % 1,\n\t\t});\n",
+	"\t\tconst geographyEvidence = resolveSettlementArchitectureEvidence(profile.id, {\n\t\t\t...(site.surfaceContext || {}),\n\t\t\troll: ((site.houseIndex + 1) * 0.61803398875) % 1,\n\t\t});\n",
+		'geography evidence compatibility check',
 	);
 
 	replaceOnce(
-	"\tconst landmarkSites = [];\n",
-	"\tconst landmarkSites = [];\n\tconst architectureSurfaceQuery = createVillageArchitectureSurfaceQuery(sampleHeightMeters, seaLevelMeters, roadEdges);\n",
-		'cached surface query',
-	);
-
-	replaceOnce(
-	"\t\t\t\tif (architectureProfile) {\n\t\t\t\t\tarchitectureCandidatesHere.push({\n\t\t\t\t\t\tseatId: seat.id, x, z, yaw, houseIndex, stepStartIndex,\n\t\t\t\t\t\tstepCount: STOOP_STEP_COUNT,\n\t\t\t\t\t\ttargetWidthMeters: type.width,\n\t\t\t\t\t\ttargetDepthMeters: type.depth,\n\t\t\t\t\t\ttargetFootprintMeters: Math.max(type.width, type.depth),\n\t\t\t\t\t\tproceduralType: type.id,\n\t\t\t\t\t});\n\t\t\t\t}\n",
-	"\t\t\t\tif (architectureProfile) {\n\t\t\t\t\tconst geographyScore = scoreSettlementArchitectureSite(architectureProfile.id, candidateSurfaceContext);\n\t\t\t\t\tconst assetVariant = selectSettlementArchitectureVariant(\n\t\t\t\t\t\tarchitectureProfile.id,\n\t\t\t\t\t\tcandidateSurfaceContext,\n\t\t\t\t\t\t((houseIndex + 1) * 0.61803398875) % 1,\n\t\t\t\t\t);\n\t\t\t\t\tarchitectureCandidatesHere.push({\n\t\t\t\t\t\tseatId: seat.id, x, z, yaw, houseIndex, stepStartIndex,\n\t\t\t\t\t\tstepCount: STOOP_STEP_COUNT,\n\t\t\t\t\t\ttargetWidthMeters: type.width,\n\t\t\t\t\t\ttargetDepthMeters: type.depth,\n\t\t\t\t\t\ttargetFootprintMeters: Math.max(type.width, type.depth),\n\t\t\t\t\t\tproceduralType: type.id,\n\t\t\t\t\t\tassetVariant,\n\t\t\t\t\t\tsurfaceContext: candidateSurfaceContext,\n\t\t\t\t\t\tarchitectureScore: geographyScore,\n\t\t\t\t\t});\n\t\t\t\t}\n",
-		'candidate geography selection',
+	"\t\t\tgeographyScore: geographyEvidence.score,\n\t\t\tgeographyVariant: site.assetVariant || geographyEvidence.variant,\n\t\t\tpreferredMaterialRoles: Object.freeze({\n\t\t\t\twall: resolveSettlementPreferredMaterialRole(profile.id, 'wall'),\n\t\t\t\troof: resolveSettlementPreferredMaterialRole(profile.id, 'roof'),\n\t\t\t\ttimber: resolveSettlementPreferredMaterialRole(profile.id, 'timber'),\n\t\t\t\ttrim: resolveSettlementPreferredMaterialRole(profile.id, 'trim'),\n\t\t\t}),\n\t\t\tsurfaceContext: geographyEvidence.context,\n",
+		"\t\t\tgeographyScore: geographyEvidence.score,\n\t\t\tgeographyVariant: site.assetVariant || geographyEvidence.variant,\n\t\t\tpreferredMaterialRoles: Object.freeze({\n\t\t\t\twall: resolveSettlementPreferredMaterialRole(profile.id, 'wall'),\n\t\t\t\troof: resolveSettlementPreferredMaterialRole(profile.id, 'roof'),\n\t\t\t\ttimber: resolveSettlementPreferredMaterialRole(profile.id, 'timber'),\n\t\t\t\ttrim: resolveSettlementPreferredMaterialRole(profile.id, 'trim'),\n\t\t\t}),\n\t\t\tsurfaceContext: geographyEvidence.context,\n",
+		'geography material evidence compatibility check',
 	);
 
 	replaceOnce(
@@ -77,9 +70,8 @@ if (source.includes("./settlementGeographyPolicy.js")) {
 	"\tgroup.add(bodyMesh, roofMesh, stepMesh, wallMesh);\n\tgroup.userData.villageLandmarkSites = landmarkSites.map((site) => ({ ...site }));\n\tgroup.userData.villageArchitectureGeographyPolicy = 'settlement-geography-asset-material-v1-2026-09-07';\n",
 		'policy evidence metadata',
 	);
-
 	fs.writeFileSync(targetPath, updated);
-	console.log('[applySettlementGeographyPatch] applied deterministic geography integration + material provenance');
+	console.log('[applySettlementGeographyPatch] applied deterministic geography integration + material provenance + shoreline probe');
 }
 
 let patchedPolicy = policySource;
@@ -90,7 +82,7 @@ function policyReplaceOnce(before, after, label) {
 }
 if (!patchedPolicy.includes('shorelineDistanceMeters')) {
 	policyReplaceOnce(
-		"\t\twaterDepth: 0,\n\t} = {}) {\n",
+		"\t\twaterDepth = 0,\n\t} = {}) {\n",
 		"\t\twaterDepth = 0,\n\t\tshorelineDistanceMeters = Infinity,\n\t} = {}) {\n",
 		'policy shoreline input',
 	);
