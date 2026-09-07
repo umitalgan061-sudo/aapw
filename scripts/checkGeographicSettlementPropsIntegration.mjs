@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const ROOT = resolve(new URL('..', import.meta.url).pathname, '..');
+const ROOT = resolve(new URL('..', import.meta.url).pathname);
 const sceneManager = readFileSync(resolve(ROOT, 'src/3d/sceneManager.js'), 'utf8');
 const geographicProps = readFileSync(resolve(ROOT, 'src/3d/world/geographicSettlementProps.js'), 'utf8');
 const quality = readFileSync(resolve(ROOT, 'src/3d/world/geographicSettlementPropQuality.js'), 'utf8');
