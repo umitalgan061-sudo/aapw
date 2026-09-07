@@ -1,0 +1,28 @@
+name: Terrain Surface Fabric Runtime
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/terrainSurfaceFabric.js'
+      - 'src/3d/world/terrainSurfaceFabricRuntime.js'
+      - 'scripts/checkTerrainSurfaceFabricRuntime.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/terrain-surface-fabric-runtime.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/world/terrainSurfaceFabric.js'
+      - 'src/3d/world/terrainSurfaceFabricRuntime.js'
+      - 'scripts/checkTerrainSurfaceFabricRuntime.mjs'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node --check src/3d/world/terrainSurfaceFabricRuntime.js
+      - run: node scripts/checkTerrainSurfaceFabricRuntime.mjs
