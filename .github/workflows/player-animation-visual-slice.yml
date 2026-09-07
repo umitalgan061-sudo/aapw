@@ -9,10 +9,12 @@ on:
       - 'src/3d/gameplay/playerEnvironmentalAnimationProfile.js'
       - 'src/3d/gameplay/playerAnimationSurfaceEvidence.js'
       - 'src/3d/gameplay/playerAnimationRuntimeEvidence.js'
+      - 'src/3d/gameplay/playerAnimationBlendDiagnostics.js'
       - 'scripts/checkPlayerAnimationDirector.mjs'
       - 'scripts/checkPlayerAnimationAssetContract.mjs'
       - 'scripts/checkPlayerAnimationVisualSlice.mjs'
       - 'scripts/checkPlayerAnimationRuntimeEvidence.mjs'
+      - 'scripts/checkPlayerAnimationBlendDiagnostics.mjs'
       - '.github/workflows/player-animation-visual-slice.yml'
   pull_request:
     paths:
@@ -21,10 +23,12 @@ on:
       - 'src/3d/gameplay/playerEnvironmentalAnimationProfile.js'
       - 'src/3d/gameplay/playerAnimationSurfaceEvidence.js'
       - 'src/3d/gameplay/playerAnimationRuntimeEvidence.js'
+      - 'src/3d/gameplay/playerAnimationBlendDiagnostics.js'
       - 'scripts/checkPlayerAnimationDirector.mjs'
       - 'scripts/checkPlayerAnimationAssetContract.mjs'
       - 'scripts/checkPlayerAnimationVisualSlice.mjs'
       - 'scripts/checkPlayerAnimationRuntimeEvidence.mjs'
+      - 'scripts/checkPlayerAnimationBlendDiagnostics.mjs'
       - '.github/workflows/player-animation-visual-slice.yml'
   workflow_dispatch:
 
@@ -83,10 +87,12 @@ jobs:
           node --check src/3d/gameplay/playerEnvironmentalAnimationProfile.js
           node --check src/3d/gameplay/playerAnimationSurfaceEvidence.js
           node --check src/3d/gameplay/playerAnimationRuntimeEvidence.js
+          node --check src/3d/gameplay/playerAnimationBlendDiagnostics.js
           node --check scripts/checkPlayerAnimationDirector.mjs
           node --check scripts/checkPlayerAnimationAssetContract.mjs
           node --check scripts/checkPlayerAnimationVisualSlice.mjs
           node --check scripts/checkPlayerAnimationRuntimeEvidence.mjs
+          node --check scripts/checkPlayerAnimationBlendDiagnostics.mjs
 
       - name: Enforce shared material ownership boundary
         shell: bash
@@ -99,7 +105,8 @@ jobs:
             src/3d/gameplay/playerAnimationAssetCatalog.js \
             src/3d/gameplay/playerEnvironmentalAnimationProfile.js \
             src/3d/gameplay/playerAnimationSurfaceEvidence.js \
-            src/3d/gameplay/playerAnimationRuntimeEvidence.js
+            src/3d/gameplay/playerAnimationRuntimeEvidence.js \
+            src/3d/gameplay/playerAnimationBlendDiagnostics.js
           grep -q "MaterialAssignmentCore.js" src/3d/gameplay/playerAnimationSurfaceEvidence.js
           echo "PLAYER_SHARED_MATERIAL_BOUNDARY_OK"
 
@@ -111,6 +118,9 @@ jobs:
 
       - name: Run runtime evidence contract
         run: node scripts/checkPlayerAnimationRuntimeEvidence.mjs
+
+      - name: Run blend diagnostics contract
+        run: node scripts/checkPlayerAnimationBlendDiagnostics.mjs
 
       - name: Run existing director regression
         run: node scripts/checkPlayerAnimationDirector.mjs
