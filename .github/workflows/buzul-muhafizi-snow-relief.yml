@@ -101,7 +101,7 @@ jobs:
         run: node scripts/checkTerrainWindSnowVisualEnvelope.mjs
 
       - name: Reference relief field sweep
-n        run: node scripts/checkTerrainWindSnowReferenceFieldSweep.mjs
+        run: node scripts/checkTerrainWindSnowReferenceFieldSweep.mjs
 
       - name: Numerical edge-case acceptance
         run: node scripts/checkTerrainWindSnowEdgeCases.mjs
