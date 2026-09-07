@@ -26,7 +26,6 @@ export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
 	id: 'terrain-wind-snow-exposure-2026-09-07-v13-fold-snowpack-response',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
-	// Direction points toward the source of the prevailing wind. Wind therefore travels NW -> SE.
 	prevailingSourceX: -0.8 / PREVAILING_SOURCE_LENGTH,
 	prevailingSourceZ: -0.6 / PREVAILING_SOURCE_LENGTH,
 	aspectSlopeStartDegrees: 4,
@@ -51,8 +50,6 @@ export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
 	orographicFoldGradientFull: 0.20,
 	orographicFoldChannelingBoost: 0.16,
 	orographicFoldExposureBoost: 0.16,
-	// New surface-response gates. They are deliberately bounded so fold detail cannot paint a
-	// synthetic ridge across lowlands or over-saturate the canonical snow floor.
 	ridgelineExposureStart: 0.08,
 	ridgelineExposureFull: 0.34,
 	shelterPocketStart: 0.05,
@@ -79,8 +76,8 @@ function resolveSurfaceResponse({
 	leeRetention,
 }) {
 	const P = TERRAIN_WIND_SNOW_POLICY;
-	const exposedAspect = smoothstep(0.34, 0.92, Math.max(0, prevailingAspect));
-	const shelteredAspect = smoothstep(0.34, 0.92, Math.max(0, -prevailingAspect));
+	const exposedAspect = smoothstep(P.directionalAlignmentStart, P.directionalAlignmentFull, Math.max(0, prevailingAspect));
+	const shelteredAspect = smoothstep(P.directionalAlignmentStart, P.directionalAlignmentFull, Math.max(0, -prevailingAspect));
 	const ridgelineExposure = clamp01(
 		smoothstep(P.ridgelineExposureStart, P.ridgelineExposureFull, orographicFoldStrength)
 			* exposedAspect
@@ -107,14 +104,6 @@ function resolveSurfaceResponse({
 	});
 }
 
-/**
- * Resolve deterministic slope-aspect exposure from a seam-safe four-neighbour height stencil.
- *
- * `windward` and `lee` are directional weights in [0, 1]. Flat terrain deliberately returns zero
- * for both because it has no meaningful facing direction. The returned surface response separates
- * ridge exposure from shelter pockets so the snow resolver can darken/scour exposed shoulders while
- * retaining a slightly fuller, packed tone inside folded lee terrain. This is topology-derived only.
- */
 export function terrainWindExposureFromNeighbours(
 	heightWest,
 	heightEast,
@@ -182,8 +171,6 @@ export function terrainWindExposureFromNeighbours(
 		});
 	}
 
-	// Horizontal component of the upward terrain normal is -gradient. Its dot product with the
-	// direction toward the wind source is positive on windward faces and negative on lee faces.
 	const normalX = -gradientX / gradientMagnitude;
 	const normalZ = -gradientZ / gradientMagnitude;
 	const prevailingAspect = normalX * TERRAIN_WIND_SNOW_POLICY.prevailingSourceX
@@ -222,7 +209,6 @@ export function terrainWindExposureFromNeighbours(
 	const channelledLength = Math.max(1e-9, Math.hypot(channelledX, channelledZ));
 	const effectiveSourceX = channelledX / channelledLength;
 	const effectiveSourceZ = channelledZ / channelledLength;
-
 	const aspectDot = clamp01((normalX * effectiveSourceX + normalZ * effectiveSourceZ + 1) * 0.5) * 2 - 1;
 	const windwardAlignment = smoothstep(
 		TERRAIN_WIND_SNOW_POLICY.directionalAlignmentStart,
@@ -268,11 +254,12 @@ export function terrainWindExposureFromNeighbours(
 }
 
 /**
- * Convert the geometric exposure signal into bounded climate-aware snow adjustments.
- * Permanent ice receives the stronger effect; tundra receives a restrained version. The resolver now
- * uses the fold-aware surface response as a secondary modifier: ridge scour is slightly stronger on
- * genuinely exposed folded shoulders, while sheltered pockets retain more loose snow. The base
- * canonical snow floor remains untouched.
+ * Convert geometric exposure into bounded climate-aware snow adjustments.
+ *
+ * The existing biome-shading integration passes only `windward`/`lee`; therefore the resolver uses
+ * those values as the compatibility projection of the richer fold response. Direct callers may pass
+ * the richer fields explicitly. This keeps the visual change on the already-shipped path without
+ * introducing a second terrain authority or requiring edits to another owner's renderer.
  */
 export function resolveTerrainWindSnowAdjustment({
 	windward = 0,
@@ -280,7 +267,8 @@ export function resolveTerrainWindSnowAdjustment({
 	permanentIce = 0,
 	tundra = 0,
 	ridgelineExposure = 0,
-	shelterPocket = 0,	snowMobility = 0,
+	shelterPocket = 0,
+	snowMobility = 0,
 	crustScour = 0,
 	packGain = 0,
 } = {}) {
@@ -289,11 +277,11 @@ export function resolveTerrainWindSnowAdjustment({
 	const tundraBand = clamp01(tundra) * (1 - ice);
 	const windwardWeight = clamp01(windward);
 	const leeWeight = clamp01(lee);
-	const ridgeExposure = clamp01(ridgelineExposure);
-	const shelter = clamp01(shelterPocket);
-	const mobility = clamp01(snowMobility);
-	const boundedCrustScour = clamp01(crustScour);
-	const boundedPackGain = clamp01(packGain);
+	const ridgeExposure = clamp01(Math.max(ridgelineExposure, windwardWeight * 0.34));
+	const shelter = clamp01(Math.max(shelterPocket, leeWeight * 0.38));
+	const mobility = clamp01(Math.max(snowMobility, Math.max(windwardWeight, leeWeight) * 0.24));
+	const boundedCrustScour = clamp01(Math.max(crustScour, ridgeExposure * P.snowCrustScourGainMax));
+	const boundedPackGain = clamp01(Math.max(packGain, shelter * P.snowPackGainMax));
 	const scourMax = Math.max(
 		ice * P.northWindwardScourMax,
 		tundraBand * P.tundraWindwardScourMax,
