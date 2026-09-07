@@ -1,6 +1,6 @@
 /**
  * Read-only bridge for existing animal/creature controllers.
- * It turns their shipped flee/react flags into bounded telemetry for world events,
+ * It turns shipped flee/react flags into bounded telemetry for world events,
  * group AI and UI callers without owning fauna behavior or spawning.
  */
 const MAX_SAMPLES = 128;
@@ -24,6 +24,12 @@ function iteratorOf(value) {
   }
 }
 
+function knownSize(value) {
+  if (Array.isArray(value)) return value.length;
+  if (Number.isInteger(value?.size) && value.size >= 0) return value.size;
+  return null;
+}
+
 function readThreat(entry) {
   const actor = entry?.controller ?? entry;
   const object3D = actor?.object3D ?? entry?.object3D ?? null;
@@ -36,15 +42,18 @@ function readThreat(entry) {
   return { id, species, position: { x: position.x, z: position.z }, fleeing, reacting };
 }
 
+function emptySnapshot(radiusMeters) {
+  return Object.freeze({ version: 1, radiusMeters, actors: Object.freeze([]), counts: Object.freeze({ fleeing: 0, reacting: 0, threat: 0 }), truncated: false });
+}
+
 export function buildLivingWorldFaunaThreatSnapshot(entries, playerPosition, options = {}) {
   const radius = Number.isFinite(options.radiusMeters) && options.radiusMeters >= 0 ? options.radiusMeters : 24;
   const maxSamples = Number.isInteger(options.maxSamples) && options.maxSamples > 0 ? Math.min(options.maxSamples, MAX_SAMPLES) : MAX_SAMPLES;
   const player = finiteXZ(playerPosition) ? playerPosition : null;
   const iterator = iteratorOf(entries);
-  if (!iterator) return Object.freeze({ version: 1, radiusMeters: radius, actors: Object.freeze([]), counts: Object.freeze({ fleeing: 0, reacting: 0, threat: 0 }), truncated: false });
+  if (!iterator) return emptySnapshot(radius);
   const actors = [];
   let scanned = 0;
-  let truncated = false;
   while (scanned < maxSamples) {
     let next;
     try { next = iterator.next(); } catch { break; }
@@ -54,14 +63,17 @@ export function buildLivingWorldFaunaThreatSnapshot(entries, playerPosition, opt
     if (!sample) continue;
     const distanceMeters = player ? Math.sqrt(distanceSquared(sample.position, player)) : null;
     const inRadius = distanceMeters != null && distanceMeters <= radius;
-    const threat = sample.fleeing || sample.reacting;
-    actors.push(Object.freeze({ ...sample, distanceMeters, inRadius, threat }));
+    actors.push(Object.freeze({ ...sample, distanceMeters, inRadius, threat: sample.fleeing || sample.reacting }));
   }
-  if (scanned >= maxSamples) {
-    try { truncated = !iterator.next().done; } catch { truncated = false; }
-  }
-  actors.sort((a, b) => (Number(b.threat) - Number(a.threat)) || ((a.distanceMeters ?? Infinity) - (b.distanceMeters ?? Infinity)) || a.id.localeCompare(b.id));
-  const counts = actors.reduce((acc, actor) => { acc.fleeing += Number(actor.fleeing); acc.reacting += Number(actor.reacting); acc.threat += Number(actor.threat && actor.inRadius); return acc; }, { fleeing: 0, reacting: 0, threat: 0 });
+  const size = knownSize(entries);
+  const truncated = size == null ? scanned === maxSamples : size > scanned;
+  actors.sort((a, b) => (Number(b.threat && b.inRadius) - Number(a.threat && a.inRadius)) || ((a.distanceMeters ?? Infinity) - (b.distanceMeters ?? Infinity)) || a.id.localeCompare(b.id));
+  const counts = actors.reduce((acc, actor) => {
+    acc.fleeing += Number(actor.fleeing && actor.inRadius);
+    acc.reacting += Number(actor.reacting && actor.inRadius);
+    acc.threat += Number(actor.threat && actor.inRadius);
+    return acc;
+  }, { fleeing: 0, reacting: 0, threat: 0 });
   return Object.freeze({ version: 1, radiusMeters: radius, actors: Object.freeze(actors), counts: Object.freeze(counts), truncated });
 }
 
