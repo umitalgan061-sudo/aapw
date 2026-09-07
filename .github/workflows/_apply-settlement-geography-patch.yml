@@ -1,0 +1,51 @@
+name: Apply Settlement Geography Source Patch
+
+on:
+  push:
+    branches:
+      - agent/gunbatimi-settlement-geography-material-realism-20260907
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          lfs: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Apply source patch
+        run: node scripts/applySettlementGeographyPatch.mjs
+
+      - name: Validate patched sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/villages.js
+          node --check src/3d/world/settlementGeographyPolicy.js
+          node scripts/checkSettlementGeographyAssetContract.mjs
+
+      - name: Commit clean production/test patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/3d/world/villages.js src/3d/world/settlementGeographyPolicy.js scripts/checkSettlementGeographyAssetContract.mjs scripts/checkSettlementGeographyAssetBrowser.js .github/workflows/settlement-geography-asset-realism.yml scripts/applySettlementGeographyPatch.mjs .github/workflows/_apply-settlement-geography-patch.yml
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo 'No source changes to commit.'
+            exit 0
+          fi
+          git rm scripts/applySettlementGeographyPatch.mjs .github/workflows/_apply-settlement-geography-patch.yml
+          git commit -m 'feat(world): route village assets by settlement geography'
+          git push origin HEAD:${GITHUB_REF_NAME}
