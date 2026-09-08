@@ -1,0 +1,58 @@
+#!/usr/bin/env node
+import assert from 'node:assert/strict';
+import { TERRAIN_ENVIRONMENT_ECOTONE_POLICY as P, resolveTerrainEnvironmentEcotone, resolveTerrainEnvironmentEcotoneLayers, recommendTerrainEnvironmentCategories, resolveTerrainEnvironmentEcotoneBands, resolveTerrainEnvironmentEcotoneQuality, resolveTerrainEcotoneDominantBiome, resolveTerrainEcotoneTransitionStrength, serializeTerrainEnvironmentEcotone } from '../src/3d/world/terrainEnvironmentEcotone.js';
+
+assert.equal(P.readOnly, true); assert.equal(P.deterministic, true); assert.equal(P.biomeAuthorityUnchanged, true); assert.equal(P.heightAuthorityUnchanged, true); assert.equal(P.hydrologyAuthorityUnchanged, true); assert.equal(P.periodicGrid, false); assert.equal(P.binaryMask, false);
+const validKeys = ['forestMargin','shrubMargin','grassRockEdge','screeEdge','snowlineEdge','wetShoreEdge','exposedGround','shoreline','wetGround','transitionStrength'];
+function check(e, label) { assert(Object.isFrozen(e), `${label}: not frozen`); for (const key of validKeys) assert(Number.isFinite(e[key]) && e[key] >= 0 && e[key] <= 1, `${label}.${key}`); assert(Number.isFinite(e.slopeDegrees)); assert(Number.isFinite(e.heightAboveSeaMeters)); assert(Number.isFinite(e.waterDistanceMeters)); }
+
+const plain = resolveTerrainEnvironmentEcotone({ slopeDegrees: 6, heightAboveSeaMeters: 60, waterDistanceMeters: 20, biome: { grass: 0.85, forest: 0.5, rock: 0.05 }, snowAmount: 0.02 });
+const mountain = resolveTerrainEnvironmentEcotone({ slopeDegrees: 38, heightAboveSeaMeters: 120, waterDistanceMeters: 40, biome: { grass: 0.3, forest: 0.15, rock: 0.9 }, snowAmount: 0.4 });
+const shore = resolveTerrainEnvironmentEcotone({ slopeDegrees: 8, heightAboveSeaMeters: 0, waterDistanceMeters: 0, biome: { grass: 0.2, rock: 0.4 }, snowAmount: 0.02 });
+const snowy = resolveTerrainEnvironmentEcotone({ slopeDegrees: 28, heightAboveSeaMeters: 150, waterDistanceMeters: 80, biome: { tundra: 0.5, snow: 0.9, rock: 0.5 }, snowAmount: 0.9 });
+[plain, mountain, shore, snowy].forEach((e, i) => check(e, `fixture-${i}`));
+assert(plain.exposedGround > 0); assert(mountain.screeEdge > plain.screeEdge); assert(shore.wetShoreEdge > plain.wetShoreEdge); assert(snowy.snowlineEdge > plain.snowlineEdge);
+assert(shoredown = true, true);
+
+const layers = resolveTerrainEnvironmentEcotoneLayers({ slopeDegrees: 32, heightAboveSeaMeters: 130, waterDistanceMeters: 15, biome: { forest: 0.6, grass: 0.4, rock: 0.3 }, snowAmount: 0.2 });
+for (const value of Object.values(layers)) assert(Number.isFinite(value) && value >= 0 && value <= 1);
+assert(Object.isFrozen(layers));
+
+for (const biome of [
+  { grass: 1 }, { forest: 1 }, { tundra: 1 }, { desert: 1 }, { rock: 1 }, { snow: 1 },
+  { grass: 0.5, forest: 0.5 }, { grass: 0.51, forest: 0.49 }, {},
+]) {
+  const dominant = resolveTerrainEcotoneDominantBiome(biome);
+  assert(['grass','forest','tundra','desert','rock','snow','mixed'].includes(dominant));
+}
+
+for (const slope of [0, 10, 20, 30, 40, 55]) {
+  const e = resolveTerrainEnvironmentEcotone({ slopeDegrees: slope, heightAboveSeaMeters: 100, waterDistanceMeters: 20, biome: { forest: 0.8, grass: 0.6, rock: 0.7, snow: 0.2 } });
+  check(e, `slope-${slope}`); assert(e.transitionStrength >= 0 && e.transitionStrength <= 1);
+}
+for (const waterDistanceMeters of [0, 0.5, 1, 2, 3, 6, 12, 50]) {
+  const e = resolveTerrainEnvironmentEcotone({ slopeDegrees: 8, heightAboveSeaMeters: 0, waterDistanceMeters, biome: { grass: 0.4, rock: 0.2 } });
+  check(e, `water-${waterDistanceMeters}`); assert(e.wetGround >= e.shoreline - 1e-9);
+}
+
+const recommendations = recommendTerrainEnvironmentCategories({ slopeDegrees: 34, heightAboveSeaMeters: 120, waterDistanceMeters: 10, biome: { forest: 0.8, grass: 0.7, rock: 0.7, tundra: 0.2 }, snowAmount: 0.15 });
+assert(Object.isFrozen(recommendations)); assert(recommendations.length > 0); assert(recommendations.every((v) => typeof v === 'string'));
+const bands = resolveTerrainEnvironmentEcotoneBands({ slopeDegrees: 40, heightAboveSeaMeters: 145, waterDistanceMeters: 2, biome: { forest: 0.5, grass: 0.5, rock: 0.8, snow: 0.5 }, snowAmount: 0.6 });
+assert(Object.isFrozen(bands)); bands.forEach((band) => { assert(Object.isFrozen(band)); assert(band.strength >= 0 && band.strength <= 1); });
+const quality = resolveTerrainEnvironmentEcotoneQuality({ slopeDegrees: 24, heightAboveSeaMeters: 90, waterDistanceMeters: 5, biome: { grass: 0.7, forest: 0.4, rock: 0.3 }, snowAmount: 0.15 });
+assert.equal(quality.pass, true); assert.equal(quality.finite, true); assert.equal(quality.normalized, true); assert(Object.isFrozen(quality));
+
+const serialized = serializeTerrainEnvironmentEcotone({ slopeDegrees: 27, heightAboveSeaMeters: 110, waterDistanceMeters: 7, biome: { forest: 0.6, grass: 0.4, rock: 0.3 }, snowAmount: 0.2 });
+const parsed = JSON.parse(serialized); assert.equal(parsed.slopeDegrees, 27); assert(Number.isFinite(parsed.transitionStrength));
+
+const deterministicInput = { slopeDegrees: 31, heightAboveSeaMeters: 140, waterDistanceMeters: 9, biome: { forest: 0.65, grass: 0.45, rock: 0.55, snow: 0.3 }, snowAmount: 0.23 };
+const a = resolveTerrainEnvironmentEcotone(deterministicInput); const b = resolveTerrainEnvironmentEcotone(deterministicInput); assert.deepEqual(a, b);
+
+const malformed = [
+  { slopeDegrees: NaN, heightAboveSeaMeters: Infinity, waterDistanceMeters: -Infinity, biome: { forest: NaN, rock: Infinity }, snowAmount: NaN },
+  { slopeDegrees: -100, heightAboveSeaMeters: -50, waterDistanceMeters: -5, biome: { grass: 2, snow: -2 }, snowAmount: -1 },
+  {}, null,
+];
+for (const input of malformed) check(resolveTerrainEnvironmentEcotone(input ?? {}), 'malformed');
+
+console.log('[checkTerrainEnvironmentEcotone] PASS', JSON.stringify({ fixtureCount: 4, slopeSamples: 6, waterSamples: 8, profileBands: bands.length }));
