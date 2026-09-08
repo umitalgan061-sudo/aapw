@@ -11,10 +11,10 @@
 
 import { sampleWorldAssetTransitionDetail } from '../world/worldAssetTransitionDetail.js';
 
-export const WORLD_ASSET_SURFACE_FABRIC_REVISION = 'v2-world-space-organic-material-fabric-micro-normal';
+export const WORLD_ASSET_SURFACE_FABRIC_REVISION = 'v2-world-space-organic-material-fabric-micro-normal-uniform-context';
 
 export const WORLD_ASSET_SURFACE_FABRIC_POLICY = Object.freeze({
-  id: 'world-asset-surface-fabric-2026-09-07-v2-micro-normal',
+  id: 'world-asset-surface-fabric-2026-09-08-v3-uniform-context',
   revision: WORLD_ASSET_SURFACE_FABRIC_REVISION,
   renderOnly: true,
   deterministic: true,
@@ -30,6 +30,8 @@ export const WORLD_ASSET_SURFACE_FABRIC_POLICY = Object.freeze({
   multiscaleNormalVariation: true,
   worldSpaceNormalVariation: true,
   independentNormalDomain: true,
+  dynamicSurfaceContextUniforms: true,
+  cacheKeyExcludesDynamicSurfaceContext: true,
   macroScaleMeters: 260,
   mesoScaleMeters: 71,
   patchScaleMeters: 19,
@@ -105,12 +107,24 @@ vWorldAssetSurfaceFabricNormal = normalize(mat3(modelMatrix) * worldAssetSurface
     );
 }
 
-function installFragmentCommon(shader, constants) {
+function installFragmentCommon(shader) {
   shader.fragmentShader = shader.fragmentShader.replace(
     '#include <common>',
     `#include <common>
 varying vec3 vWorldAssetSurfaceFabricPosition;
 varying vec3 vWorldAssetSurfaceFabricNormal;
+uniform float worldAssetSurfaceFabricNormalEnergy;
+uniform float worldAssetSurfaceFabricMoisture;
+uniform float worldAssetSurfaceFabricDryness;
+uniform float worldAssetSurfaceFabricFrost;
+uniform float worldAssetSurfaceFabricSalt;
+uniform float worldAssetSurfaceFabricDamp;
+uniform float worldAssetSurfaceFabricDust;
+uniform float worldAssetSurfaceFabricMoss;
+uniform float worldAssetSurfaceFabricLichen;
+uniform float worldAssetSurfaceFabricSediment;
+uniform float worldAssetSurfaceFabricWeathering;
+uniform float worldAssetSurfaceFabricWind;
 
 float worldAssetSurfaceFabricHash(vec2 p) {
   vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
@@ -147,20 +161,8 @@ float worldAssetSurfaceFabricRidge(vec2 p) {
   return 1.0 - abs(n * 2.0 - 1.0);
 }
 
-float worldAssetSurfaceFabricNormalEnergy = ${shaderNumber(constants.normalEnergy, 0.5)};
-float worldAssetSurfaceFabricMoisture = ${shaderNumber(constants.moisture, 0.5)};
-float worldAssetSurfaceFabricDryness = ${shaderNumber(constants.dryness, 0.5)};
-float worldAssetSurfaceFabricFrost = ${shaderNumber(constants.frost, 0.0)};
-float worldAssetSurfaceFabricSalt = ${shaderNumber(constants.salt, 0.0)};
-float worldAssetSurfaceFabricDamp = ${shaderNumber(constants.damp, 0.5)};
-float worldAssetSurfaceFabricDust = ${shaderNumber(constants.dust, 0.0)};
-float worldAssetSurfaceFabricMoss = ${shaderNumber(constants.moss, 0.0)};
-float worldAssetSurfaceFabricLichen = ${shaderNumber(constants.lichen, 0.0)};
-float worldAssetSurfaceFabricSediment = ${shaderNumber(constants.sediment, 0.0)};
-float worldAssetSurfaceFabricWeathering = ${shaderNumber(constants.weathering, 0.0)};
-float worldAssetSurfaceFabricWind = ${shaderNumber(constants.wind, 0.5)};
-float worldAssetSurfaceFabricFamilyGain = ${shaderNumber(constants.familyGain, 0.88)};
-float worldAssetSurfaceFabricFamilyCode = ${shaderNumber(constants.familyCode, 0.0)};
+float worldAssetSurfaceFabricFamilyGain = ${shaderNumber(0.88)};
+float worldAssetSurfaceFabricFamilyCode = ${shaderNumber(0.0)};
 `,
   );
 }
@@ -460,6 +462,47 @@ function compileConstants(context, family, options = {}) {
   });
 }
 
+const DYNAMIC_UNIFORM_NAMES = Object.freeze([
+  'worldAssetSurfaceFabricNormalEnergy',
+  'worldAssetSurfaceFabricMoisture',
+  'worldAssetSurfaceFabricDryness',
+  'worldAssetSurfaceFabricFrost',
+  'worldAssetSurfaceFabricSalt',
+  'worldAssetSurfaceFabricDamp',
+  'worldAssetSurfaceFabricDust',
+  'worldAssetSurfaceFabricMoss',
+  'worldAssetSurfaceFabricLichen',
+  'worldAssetSurfaceFabricSediment',
+  'worldAssetSurfaceFabricWeathering',
+  'worldAssetSurfaceFabricWind',
+]);
+
+function installDynamicUniforms(shader, constants) {
+  shader.uniforms ||= {};
+  for (const name of DYNAMIC_UNIFORM_NAMES) {
+    shader.uniforms[name] = { value: finite(constants[name.replace('worldAssetSurfaceFabric', '').toLowerCase()] ?? 0.5) };
+  }
+}
+
+function assignDynamicUniforms(shader, constants) {
+  const values = {
+    worldAssetSurfaceFabricNormalEnergy: constants.normalEnergy,
+    worldAssetSurfaceFabricMoisture: constants.moisture,
+    worldAssetSurfaceFabricDryness: constants.dryness,
+    worldAssetSurfaceFabricFrost: constants.frost,
+    worldAssetSurfaceFabricSalt: constants.salt,
+    worldAssetSurfaceFabricDamp: constants.damp,
+    worldAssetSurfaceFabricDust: constants.dust,
+    worldAssetSurfaceFabricMoss: constants.moss,
+    worldAssetSurfaceFabricLichen: constants.lichen,
+    worldAssetSurfaceFabricSediment: constants.sediment,
+    worldAssetSurfaceFabricWeathering: constants.weathering,
+    worldAssetSurfaceFabricWind: constants.wind,
+  };
+  shader.uniforms ||= {};
+  for (const [name, value] of Object.entries(values)) shader.uniforms[name] = { value };
+}
+
 export function installWorldAssetSurfaceFabric(material, context = {}, {
   family = 'generic',
   materialResponse = null,
@@ -510,7 +553,8 @@ export function installWorldAssetSurfaceFabric(material, context = {}, {
   material.onBeforeCompile = (shader, renderer) => {
     previousOnBeforeCompile?.(shader, renderer);
     installVertexWorldPosition(shader);
-    installFragmentCommon(shader, constants);
+    installFragmentCommon(shader);
+    assignDynamicUniforms(shader, constants);
     installColorFragment(shader, constants);
     installRoughnessFragment(shader, constants);
     installNormalFragment(shader, constants);
@@ -528,6 +572,9 @@ export function installWorldAssetSurfaceFabric(material, context = {}, {
     deterministic: true,
     irregularBoundaryDetail: Boolean(resolvedTransitionDetail),
     transitionDetailPolicyId: resolvedTransitionDetail?.policyId ?? null,
+    dynamicSurfaceContextUniforms: true,
+    cacheKeyExcludesDynamicSurfaceContext: true,
+    dynamicUniformNames: DYNAMIC_UNIFORM_NAMES,
     maximumColorDeviation: constants.maximumColorDeviation,
     maximumRoughnessDeviation: constants.maximumRoughnessDeviation,
     maximumNormalDeviation: constants.maximumNormalDeviation,
@@ -535,7 +582,7 @@ export function installWorldAssetSurfaceFabric(material, context = {}, {
     normalEnergy: constants.normalEnergy,
   });
   material.needsUpdate = true;
-  return { ok: true, policyId: WORLD_ASSET_SURFACE_FABRIC_POLICY.id, constants };
+  return { ok: true, policyId: WORLD_ASSET_SURFACE_FABRIC_POLICY.id, constants, dynamicUniformNames: DYNAMIC_UNIFORM_NAMES };
 }
 
 export function worldAssetSurfaceFabricConstants(context = {}, family = 'generic', options = {}) {
