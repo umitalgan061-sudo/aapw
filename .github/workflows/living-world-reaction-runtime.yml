@@ -6,11 +6,16 @@ on:
     paths:
       - 'src/3d/gameplay/livingWorldReactionRuntime.js'
       - 'src/3d/gameplay/livingWorldReactionEvidence.js'
+      - 'src/3d/gameplay/livingWorldReactionIntegrationAdapter.js'
       - 'scripts/checkLivingWorldReactionRuntime.mjs'
       - 'scripts/checkLivingWorldReactionBrowser.mjs'
       - 'scripts/checkLivingWorldReactionArchitecture.mjs'
       - 'scripts/checkLivingWorldReactionBudget.mjs'
       - 'scripts/checkLivingWorldReactionScenarioMatrix.mjs'
+      - 'scripts/checkLivingWorldReactionIntegration.mjs'
+      - 'scripts/checkLivingWorldReactionIntegrationBrowser.mjs'
+      - 'scripts/checkLivingWorldReactionTelemetryContract.mjs'
+      - 'scripts/checkLivingWorldReactionAssetContract.mjs'
       - '.github/workflows/living-world-reaction-runtime.yml'
   workflow_dispatch:
 
@@ -47,7 +52,7 @@ jobs:
           test "$total" -le 3000
           changed="$(git diff --name-only "$BASE_SHA"...HEAD)"
           printf '%s\n' "$changed"
-          unexpected="$(printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/livingWorldReaction(Runtime|Evidence)\.js|scripts/checkLivingWorldReaction(Runtime|Browser|Architecture|Budget|ScenarioMatrix)\.mjs|\.github/workflows/living-world-reaction-runtime\.yml)$' || true)"
+          unexpected="$(printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/livingWorldReaction(Runtime|Evidence|IntegrationAdapter)\.js|scripts/checkLivingWorldReaction(Runtime|Browser|Architecture|Budget|ScenarioMatrix|Integration|IntegrationBrowser|TelemetryContract|AssetContract)\.mjs|\.github/workflows/living-world-reaction-runtime\.yml)$' || true)"
           test -z "$unexpected"
           git diff --check "$BASE_SHA"...HEAD
 
@@ -56,11 +61,16 @@ jobs:
           set -euo pipefail
           node --check src/3d/gameplay/livingWorldReactionRuntime.js
           node --check src/3d/gameplay/livingWorldReactionEvidence.js
+          node --check src/3d/gameplay/livingWorldReactionIntegrationAdapter.js
           node --check scripts/checkLivingWorldReactionRuntime.mjs
           node --check scripts/checkLivingWorldReactionBrowser.mjs
           node --check scripts/checkLivingWorldReactionArchitecture.mjs
           node --check scripts/checkLivingWorldReactionBudget.mjs
           node --check scripts/checkLivingWorldReactionScenarioMatrix.mjs
+          node --check scripts/checkLivingWorldReactionIntegration.mjs
+          node --check scripts/checkLivingWorldReactionIntegrationBrowser.mjs
+          node --check scripts/checkLivingWorldReactionTelemetryContract.mjs
+          node --check scripts/checkLivingWorldReactionAssetContract.mjs
 
       - name: Runtime vertical slice
         run: node scripts/checkLivingWorldReactionRuntime.mjs
@@ -68,8 +78,17 @@ jobs:
       - name: Scenario matrix
         run: node scripts/checkLivingWorldReactionScenarioMatrix.mjs
 
+      - name: Runtime telemetry contract
+        run: node scripts/checkLivingWorldReactionTelemetryContract.mjs
+
+      - name: Existing-director composition contract
+        run: node scripts/checkLivingWorldReactionIntegration.mjs
+
       - name: Ownership and architecture
         run: node scripts/checkLivingWorldReactionArchitecture.mjs
+
+      - name: Asset-first and shared placement boundary
+        run: node scripts/checkLivingWorldReactionAssetContract.mjs
 
       - name: Deterministic population and sensing budget
         run: node scripts/checkLivingWorldReactionBudget.mjs
@@ -86,7 +105,7 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
 
-      - name: Real shipped Three.js browser proof
+      - name: Real shipped Three.js reaction browser proof
         shell: bash
         run: |
           set -euo pipefail
@@ -98,6 +117,7 @@ jobs:
             sleep 1
           done
           BASE_URL=http://127.0.0.1:4173 node scripts/checkLivingWorldReactionBrowser.mjs
+          BASE_URL=http://127.0.0.1:4173 node scripts/checkLivingWorldReactionIntegrationBrowser.mjs
 
       - name: Final exact-main freshness recheck
         shell: bash
