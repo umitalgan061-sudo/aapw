@@ -26,7 +26,7 @@ assert(P.fissureEmissiveMax > 0 && P.fissureEmissiveMax <= 0.15);
 for (const snippet of [
   "from './valyriaCastleWeathering.js'",
   'VALYRIA_CASTLE_WEATHERING_POLICY.baseStoneHex',
-  'applyValyriaCastleWeathering(stoneMaterial',
+  'decorateMaterial: (material) => applyValyriaCastleWeathering(material',
   'seatId: assignment.seatId',
   'groundY: seat.groundY',
   'footprintMeters: footprint',
