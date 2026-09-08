@@ -1,0 +1,68 @@
+name: Valyria Ecology System Distribution
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/valyriaEcology.js'
+      - 'src/3d/sceneManager.js'
+      - 'scripts/checkValyriaEcologySystemDistribution.mjs'
+      - '.github/workflows/valyria-ecology-system-distribution.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  valyria-ecology-system-distribution:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          lfs: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main ancestry and bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"
+          git fetch origin main --force
+          git merge-base --is-ancestor origin/main HEAD
+          read additions deletions < <(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
+          changed=$((additions + deletions))
+          echo "Valyria ecology scope: +${additions}/-${deletions} = ${changed}"
+          test "${changed}" -le 1000
+          git diff --check origin/main...HEAD
+
+      - name: Syntax and deterministic ecology distribution
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/valyriaEcology.js
+          node --check src/3d/sceneManager.js
+          node --check scripts/checkValyriaEcologySystemDistribution.mjs
+          node scripts/checkValyriaEcologySystemDistribution.mjs
+          node scripts/checkSeededRandomPolicy.js
+
+      - name: Preserve Shared Material Placement authority
+        run: |
+          set -euo pipefail
+          node scripts/checkSharedMaterialPlacementContract.js
+          test -f src/3d/materials/MaterialAssignmentCore.js
+          test -f src/3d/world/WorldAssetPlacementPipeline.js
+          ! grep -R "EditorMaterialStudio" src/3d/world/valyriaEcology.js src/3d/sceneManager.js
+
+      - name: Final exact-main freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --force
+          git merge-base --is-ancestor origin/main HEAD
+          test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha || github.sha }}"

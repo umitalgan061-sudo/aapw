@@ -50,6 +50,14 @@ export const VALYRIA_BARREN_ECOLOGY_POLICY = Object.freeze({
   rejectionDepthBelowSeaMeters: 2,
 });
 
+export const VALYRIA_ECOLOGY_PLACEMENT_SYSTEMS = Object.freeze({
+  GRASS: 'grass',
+  VEGETATION: 'vegetation',
+  VILLAGE: 'village',
+});
+
+const VALID_PLACEMENT_SYSTEMS = new Set(Object.values(VALYRIA_ECOLOGY_PLACEMENT_SYSTEMS));
+
 function clamp01(value) {
   return Math.min(1, Math.max(0, value));
 }
@@ -119,15 +127,53 @@ export function valyriaEcologyProfileAtWorldXZ(worldX, worldZ) {
   });
 }
 
-export function isOrdinaryEcologyAllowedAtWorldXZ(worldX, worldZ) {
-  const profile = valyriaEcologyProfileAtWorldXZ(worldX, worldZ);
-  if (profile.barren) return false;
-  const acceptance = hashCell(Math.floor(worldX / 54), Math.floor(worldZ / 54), 0x3d72c91f);
-  return acceptance <= profile.ordinaryGrassDensity;
+function assertPlacementSystem(ecologySystem) {
+  if (!VALID_PLACEMENT_SYSTEMS.has(ecologySystem)) {
+    throw new TypeError(`Unknown Valyria ecology placement system: ${ecologySystem}`);
+  }
 }
 
 /**
- * Build one shared placement-only sampler for vegetation, villages and wind grass.
+ * Resolve a system-specific acceptance density without creating a second ecology authority.
+ *
+ * All systems reuse the same 54m deterministic acceptance field. The stricter systems therefore
+ * become spatial subsets of the more resilient ground-cover mask: ordinary grass can persist in
+ * stressed refugia where trees disappear, while procedural villages require both tree-grade survival
+ * and the profile's explicit settlement viability veto.
+ */
+export function valyriaEcologyPlacementDensityAtWorldXZ(
+  worldX,
+  worldZ,
+  ecologySystem = VALYRIA_ECOLOGY_PLACEMENT_SYSTEMS.GRASS,
+) {
+  assertPlacementSystem(ecologySystem);
+  const profile = valyriaEcologyProfileAtWorldXZ(worldX, worldZ);
+  if (profile.barren) return 0;
+  if (ecologySystem === VALYRIA_ECOLOGY_PLACEMENT_SYSTEMS.VEGETATION) {
+    return profile.ordinaryTreeDensity;
+  }
+  if (ecologySystem === VALYRIA_ECOLOGY_PLACEMENT_SYSTEMS.VILLAGE) {
+    return profile.proceduralVillageAllowed ? profile.ordinaryTreeDensity : 0;
+  }
+  return profile.ordinaryGrassDensity;
+}
+
+export function isOrdinaryEcologyAllowedAtWorldXZ(
+  worldX,
+  worldZ,
+  ecologySystem = VALYRIA_ECOLOGY_PLACEMENT_SYSTEMS.GRASS,
+) {
+  const density = valyriaEcologyPlacementDensityAtWorldXZ(worldX, worldZ, ecologySystem);
+  if (density <= 0) return false;
+  if (density >= 1) return true;
+  // Deliberately share the same acceptance field/salt across systems so stricter masks are coherent
+  // subsets rather than unrelated speckle patterns.
+  const acceptance = hashCell(Math.floor(worldX / 54), Math.floor(worldZ / 54), 0x3d72c91f);
+  return acceptance <= density;
+}
+
+/**
+ * Build one shared placement-only sampler for vegetation, villages or wind grass.
  *
  * The returned object, rather than a bare function, makes ownership visible at call sites and gives QA
  * a stable policy identifier. `sampleHeightMeters` preserves the complete argument list for existing
@@ -136,6 +182,7 @@ export function isOrdinaryEcologyAllowedAtWorldXZ(worldX, worldZ) {
 export function createValyriaBarrenEcologyPlacementProbe({
   sampleHeightMeters,
   seaLevelMeters,
+  ecologySystem = VALYRIA_ECOLOGY_PLACEMENT_SYSTEMS.GRASS,
 }) {
   if (typeof sampleHeightMeters !== 'function') {
     throw new TypeError('createValyriaBarrenEcologyPlacementProbe requires sampleHeightMeters');
@@ -143,6 +190,7 @@ export function createValyriaBarrenEcologyPlacementProbe({
   if (!Number.isFinite(seaLevelMeters)) {
     throw new TypeError('createValyriaBarrenEcologyPlacementProbe requires finite seaLevelMeters');
   }
+  assertPlacementSystem(ecologySystem);
 
   const rejectionHeightMeters = seaLevelMeters - VALYRIA_BARREN_ECOLOGY_POLICY.rejectionDepthBelowSeaMeters;
 
@@ -151,10 +199,11 @@ export function createValyriaBarrenEcologyPlacementProbe({
     worldZ,
     ...rest
   ) {
-    if (!isOrdinaryEcologyAllowedAtWorldXZ(worldX, worldZ)) {
+    if (!isOrdinaryEcologyAllowedAtWorldXZ(worldX, worldZ, ecologySystem)) {
       const maybeOutSurface = rest.length > 0 ? rest[rest.length - 1] : null;
       if (maybeOutSurface && typeof maybeOutSurface === 'object') {
         maybeOutSurface.valyriaBarrenPlacementRejected = true;
+        maybeOutSurface.valyriaEcologySystem = ecologySystem;
       }
       return rejectionHeightMeters;
     }
@@ -164,9 +213,11 @@ export function createValyriaBarrenEcologyPlacementProbe({
   return Object.freeze({
     policyId: VALYRIA_BARREN_ECOLOGY_POLICY.id,
     geologyPolicyId: VALYRIA_BARREN_ECOLOGY_POLICY.geologyPolicyId,
+    ecologySystem,
     sampleHeightMeters: placementSampleHeightMeters,
-    isAllowedAtWorldXZ: isOrdinaryEcologyAllowedAtWorldXZ,
+    isAllowedAtWorldXZ: (worldX, worldZ) => isOrdinaryEcologyAllowedAtWorldXZ(worldX, worldZ, ecologySystem),
     profileAtWorldXZ: valyriaEcologyProfileAtWorldXZ,
+    placementDensityAtWorldXZ: (worldX, worldZ) => valyriaEcologyPlacementDensityAtWorldXZ(worldX, worldZ, ecologySystem),
     rejectionHeightMeters,
     terrainHeightAuthorityUnchanged: true,
     colliderAuthorityUnchanged: true,
