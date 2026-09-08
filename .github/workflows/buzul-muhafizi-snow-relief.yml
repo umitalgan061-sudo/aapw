@@ -53,7 +53,7 @@ jobs:
           echo "ADDITIONS=$ADD DELETIONS=$DEL TOTAL=$TOTAL"
           echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
           test "$TOTAL" -le 3000
-          test "$TOTAL" -ge 250
+          test "$TOTAL" -ge 2700
           git diff --check "$LIVE_MAIN_SHA...HEAD"
           git diff --name-only "$LIVE_MAIN_SHA...HEAD" | while IFS= read -r path; do
             case "$path" in
@@ -138,7 +138,10 @@ jobs:
           git diff --check "$FINAL_LIVE_MAIN_SHA...HEAD"
           ADD="$(git diff --numstat "$FINAL_LIVE_MAIN_SHA...HEAD" | awk '{a+=$1} END {print a+0}')"
           DEL="$(git diff --numstat "$FINAL_LIVE_MAIN_SHA...HEAD" | awk '{d+=$2} END {print d+0}')"
-          test $((ADD + DEL)) -le 3000
+          TOTAL=$((ADD + DEL))
+          echo "FINAL_ADDITIONS=$ADD FINAL_DELETIONS=$DEL FINAL_TOTAL=$TOTAL"
+          test "$TOTAL" -le 3000
+          test "$TOTAL" -ge 2700
 
       - name: Upload shipped visual evidence
         if: always()
