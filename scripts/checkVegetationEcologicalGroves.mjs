@@ -12,6 +12,7 @@ const RADIUS_METERS = 1500;
 const DENSITY_PER_KM2 = 30;
 const GRID_CELL_METERS = 300;
 const SEED = 0x47524f56;
+const SETTLEMENT_RADIUS_METERS = 900;
 
 function collectTreePositions(group) {
 	const matrix = new THREE.Matrix4();
@@ -62,6 +63,27 @@ function meanNearestNeighbourMeters(points) {
 	return sum / points.length;
 }
 
+function angularPocketStats(points, centerX = 0, centerZ = 0, sectorCount = 16) {
+	const counts = new Array(sectorCount).fill(0);
+	const distances = [];
+	for (const [x, z] of points) {
+		const dx = x - centerX;
+		const dz = z - centerZ;
+		const angle = (Math.atan2(dz, dx) + Math.PI * 2) % (Math.PI * 2);
+		const sector = Math.min(sectorCount - 1, Math.floor((angle / (Math.PI * 2)) * sectorCount));
+		counts[sector] += 1;
+		distances.push(Math.hypot(dx, dz));
+	}
+	return {
+		counts,
+		occupiedSectors: counts.filter((value) => value > 0).length,
+		emptySectors: counts.filter((value) => value === 0).length,
+		maxSectorCount: Math.max(...counts),
+		minRadiusMeters: Math.min(...distances),
+		maxRadiusMeters: Math.max(...distances),
+	};
+}
+
 function build(seed) {
 	return createVegetation({
 		sampleHeightMeters: () => 100,
@@ -74,10 +96,34 @@ function build(seed) {
 	});
 }
 
-assert.equal(VEGETATION_SPATIAL_PATTERN_POLICY.id, 'vegetation-ecological-grove-scatter-2026-08-26-v1');
+function buildSettlement(seed) {
+	return createVegetation({
+		sampleHeightMeters: () => 100,
+		seaLevelMeters: 0,
+		seed,
+		seats: [{ x: 0, z: 0, id: 'settlement-pocket-fixture' }],
+		roadEdges: [],
+		radiusMeters: SETTLEMENT_RADIUS_METERS,
+		densityPerKm2: 0,
+	});
+}
+
+assert.equal(VEGETATION_SPATIAL_PATTERN_POLICY.id,
+	'vegetation-ecological-grove-scatter-2026-08-31-v2-settlement-pockets');
 assert(VEGETATION_SPATIAL_PATTERN_POLICY.groveTreeCountMin >= 7);
 assert(VEGETATION_SPATIAL_PATTERN_POLICY.groveTreeCountMax <= 24);
 assert(VEGETATION_SPATIAL_PATTERN_POLICY.groveTreeCountMax > VEGETATION_SPATIAL_PATTERN_POLICY.groveTreeCountMin);
+assert(VEGETATION_SPATIAL_PATTERN_POLICY.settlementGroveCountMin >= 2);
+assert(VEGETATION_SPATIAL_PATTERN_POLICY.settlementGroveCountMax <= 5);
+assert(VEGETATION_SPATIAL_PATTERN_POLICY.settlementGroveCountMax > VEGETATION_SPATIAL_PATTERN_POLICY.settlementGroveCountMin);
+assert(VEGETATION_SPATIAL_PATTERN_POLICY.settlementGroveCenterMinMeters > 90,
+	'settlement woodland centres must remain beyond the canonical seat exclusion');
+assert(VEGETATION_SPATIAL_PATTERN_POLICY.settlementGroveCenterMinMeters
+	- VEGETATION_SPATIAL_PATTERN_POLICY.settlementGroveRadiusMaxMeters >= 90,
+	'settlement woodland lobes must not geometrically force trees through the seat exclusion');
+assert(VEGETATION_SPATIAL_PATTERN_POLICY.settlementTreeBudgetMin >= 24
+	&& VEGETATION_SPATIAL_PATTERN_POLICY.settlementTreeBudgetMax <= 56,
+	'settlement woodland budget must remain near the historical ~40-tree performance envelope');
 
 const temperatePattern = vegetationGrovePatternForClimate({ tundra: 0, permanentIce: 0 });
 const coldPattern = vegetationGrovePatternForClimate({ tundra: 0.85, permanentIce: 0.75 });
@@ -90,6 +136,9 @@ assert(coldPattern.groveRadiusMeters >= 100 && temperatePattern.groveRadiusMeter
 const first = build(SEED);
 const second = build(SEED);
 const different = build(SEED ^ 0x01010101);
+const settlementFirst = buildSettlement(SEED);
+const settlementSecond = buildSettlement(SEED);
+const settlementDifferent = buildSettlement(SEED ^ 0x01010101);
 try {
 	const firstPoints = collectTreePositions(first.group);
 	const secondPoints = collectTreePositions(second.group);
@@ -116,6 +165,35 @@ try {
 	assert.equal(first.group.userData.vegetationSpatialPattern.deterministic, true);
 	assert.equal(first.group.userData.vegetationSpatialPattern.baseDensityPerKm2, DENSITY_PER_KM2);
 
+	const settlementPoints = collectTreePositions(settlementFirst.group);
+	const settlementSecondPoints = collectTreePositions(settlementSecond.group);
+	const settlementDifferentPoints = collectTreePositions(settlementDifferent.group);
+	assert.equal(settlementFirst.placedCount, settlementFirst.targetCount,
+		'flat settlement fixture must retain its bounded local woodland budget');
+	assert.equal(settlementFirst.clusterSeatCount, 1);
+	assert.equal(settlementFirst.settlementWoodlandSeatCount, 1);
+	assert.deepEqual(settlementPoints, settlementSecondPoints,
+		'same seed must reproduce identical settlement woodland pockets');
+	assert.notDeepEqual(settlementPoints, settlementDifferentPoints,
+		'different seed must rotate/re-shape settlement woodland pockets');
+	assert(settlementPoints.length >= VEGETATION_SPATIAL_PATTERN_POLICY.settlementTreeBudgetMin
+		&& settlementPoints.length <= VEGETATION_SPATIAL_PATTERN_POLICY.settlementTreeBudgetMax,
+		`settlement woodland budget escaped policy: ${settlementPoints.length}`);
+
+	const settlementAngular = angularPocketStats(settlementPoints);
+	assert(settlementAngular.minRadiusMeters >= 90 - 1e-6,
+		`settlement woodland invaded the seat exclusion: ${settlementAngular.minRadiusMeters}`);
+	assert(settlementAngular.maxRadiusMeters <= 308,
+		`settlement woodland escaped its bounded influence envelope: ${settlementAngular.maxRadiusMeters}`);
+	assert(settlementAngular.emptySectors >= 4,
+		`settlement vegetation refilled a near-continuous annulus: ${JSON.stringify(settlementAngular.counts)}`);
+	assert(settlementAngular.occupiedSectors <= 12,
+		`settlement woodland became too ring-like: ${JSON.stringify(settlementAngular.counts)}`);
+	assert(settlementAngular.maxSectorCount >= Math.ceil(settlementPoints.length * 0.16),
+		`settlement woodland lost locally dominant grove pockets: ${JSON.stringify(settlementAngular.counts)}`);
+	assert.equal(settlementFirst.group.userData.vegetationSpatialPattern.settlementPattern,
+		'asymmetric-woodland-pockets');
+
 	console.log('[checkVegetationEcologicalGroves] PASS', JSON.stringify({
 		placedCount: first.placedCount,
 		coefficientOfVariation: Number(spatial.coefficientOfVariation.toFixed(3)),
@@ -124,9 +202,20 @@ try {
 		meanNearestNeighbourMeters: Number(nearest.toFixed(2)),
 		temperateGroveRadiusMeters: temperatePattern.groveRadiusMeters,
 		coldGroveRadiusMeters: Number(coldPattern.groveRadiusMeters.toFixed(1)),
+		settlementTreeCount: settlementPoints.length,
+		settlementOccupiedSectors: settlementAngular.occupiedSectors,
+		settlementEmptySectors: settlementAngular.emptySectors,
+		settlementMaxSectorCount: settlementAngular.maxSectorCount,
+		settlementRadiusMeters: [
+			Number(settlementAngular.minRadiusMeters.toFixed(1)),
+			Number(settlementAngular.maxRadiusMeters.toFixed(1)),
+		],
 	}));
 } finally {
 	disposeVegetation(first.group);
 	disposeVegetation(second.group);
 	disposeVegetation(different.group);
+	disposeVegetation(settlementFirst.group);
+	disposeVegetation(settlementSecond.group);
+	disposeVegetation(settlementDifferent.group);
 }
