@@ -89,11 +89,11 @@ jobs:
           node scripts/checkWorldWaterCoverageP0.mjs
           node scripts/checkWaterCoverageRasterQuality.mjs
           node scripts/checkWaterCoverageSamplingBudget.mjs
-      - name: Hydrate scoped runtime assets
+      - name: Hydrate scoped runtime and environment proof assets
         run: |
           set -euo pipefail
           git lfs version
-          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**" --exclude=""
+          git lfs pull --include="assets/models/settlements/castles/**,assets/models/characters/**,assets/animations/peasant_girl/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/fbx/rocky_terrain_low_poly.glb,assets/models/fbx/desert_rocks.glb,assets/models/vegetation/pine_Zt62gceKXZ.glb,assets/models/vegetation/winter_tree.glb,assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb" --exclude=""
       - name: Install Playwright Chromium
         run: |
           set -euo pipefail
