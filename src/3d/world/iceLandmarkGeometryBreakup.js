@@ -1,19 +1,713 @@
 import * as THREE from 'three';
 
-function hash2D(x,y,seed){let v=Math.imul((x|0)^seed,0x27d4eb2d)^Math.imul((y|0)+seed,0x165667b1);v^=v>>>15;v=Math.imul(v,0x85ebca6b);v^=v>>>13;return(v>>>0)/0x100000000;}
-function smoothNoise2D(x,z,scale,seed){const fx=x/scale,fz=z/scale,ix=Math.floor(fx),iz=Math.floor(fz),tx=fx-ix,tz=fz-iz,ux=tx*tx*(3-2*tx),uz=tz*tz*(3-2*tz),a=hash2D(ix,iz,seed),b=hash2D(ix+1,iz,seed),c=hash2D(ix,iz+1,seed),d=hash2D(ix+1,iz+1,seed);return THREE.MathUtils.lerp(THREE.MathUtils.lerp(a,b,ux),THREE.MathUtils.lerp(c,d,ux),uz);}
-function refreshGeometry(g){const p=g?.getAttribute?.('position');if(!p)return false;p.needsUpdate=true;g.computeVertexNormals();g.computeBoundingBox();g.computeBoundingSphere();return true;}
-function installIceRoughnessFabric(mat,seed){const salt=(Math.abs(seed)%4093)+17,prior=mat.onBeforeCompile;mat.onBeforeCompile=(shader,renderer)=>{if(prior)prior(shader,renderer);shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vIceWorldPosition;').replace('#include <project_vertex>','#include <project_vertex>\nvIceWorldPosition=(modelMatrix*vec4(transformed,1.0)).xyz;');shader.fragmentShader=shader.fragmentShader.replace('#include <common>',`#include <common>\nvarying vec3 vIceWorldPosition;\nfloat iceHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7))+${salt.toFixed(1)})*43758.5453123);}\nfloat iceNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(iceHash(i),iceHash(i+vec2(1.0,0.0)),f.x),mix(iceHash(i+vec2(0.0,1.0)),iceHash(i+vec2(1.0,1.0)),f.x),f.y);}` ).replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nfloat iceRoughBroad=iceNoise(vIceWorldPosition.xz/118.0);\nfloat iceRoughMacro=iceNoise((vIceWorldPosition.xz+vIceWorldPosition.yy*0.19)/41.0);\nfloat iceRoughMeso=iceNoise((vIceWorldPosition.xz+vIceWorldPosition.yy*0.43)/10.5);\nfloat iceRoughBand=iceNoise(vec2(vIceWorldPosition.x*0.052+vIceWorldPosition.y*0.018,vIceWorldPosition.z*0.071-vIceWorldPosition.y*0.011));\nroughnessFactor=clamp(roughnessFactor*(0.69+iceRoughBroad*0.18+iceRoughMacro*0.25+iceRoughMeso*0.14+iceRoughBand*0.09),0.18,0.94);');};const priorKey=mat.customProgramCacheKey?.bind(mat);mat.customProgramCacheKey=()=>`${priorKey?priorKey():''}|ice-rough-v2-${salt}`;mat.needsUpdate=true;}
-function iceVertexFabric(mesh,seed,{low=0x8aa5ab,mid=0xb7c9cb,high=0xe0e8e6,roughness=.58}={}){const p=mesh?.geometry?.getAttribute?.('position');if(!p||!mesh?.material)return 0;const lo=new THREE.Color(low),mi=new THREE.Color(mid),hi=new THREE.Color(high),c=new THREE.Color(),colors=new Float32Array(p.count*3);let minY=Infinity,maxY=-Infinity;for(let i=0;i<p.count;i++){const y=p.getY(i);minY=Math.min(minY,y);maxY=Math.max(maxY,y);}const span=Math.max(1,maxY-minY);for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i),macro=smoothNoise2D(x,z,74,seed+13001),meso=smoothNoise2D(x+y*.24,z-y*.11,21,seed+13109),micro=smoothNoise2D(x+y*.13,z,6.5,seed+13217),height=(y-minY)/span,weather=Math.min(1,Math.max(0,.20+macro*.37+meso*.26+micro*.07+height*.16));c.copy(lo).lerp(mi,Math.min(1,weather*1.16));if(weather>.61)c.lerp(hi,(weather-.61)/.39*.64);const crevasse=Math.max(0,.40-meso)*.20;c.multiplyScalar(1-crevasse);colors[i*3]=c.r;colors[i*3+1]=c.g;colors[i*3+2]=c.b;}mesh.geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));const mat=mesh.material.clone();mat.vertexColors=true;mat.color.set(0xffffff);mat.roughness=roughness;if(mat.emissive){mat.emissive.set(0x1b424c);mat.emissiveIntensity=Math.max(.078,mat.emissiveIntensity||0);}installIceRoughnessFabric(mat,seed+13513);mesh.material=mat;mesh.userData.worldSpaceGlacialAlbedoFabric='deterministic-smoothed-multiscale-v4-aerial';mesh.userData.worldSpaceGlacialRoughnessFabric='deterministic-shader-multiscale-v2-aerial';return p.count;}
-function fractureWall(group,sections,seed){const wall=group.getObjectByName('the-wall-natural-ice-cliff');const p=wall?.geometry?.getAttribute?.('position');if(!p)return 0;let moved=0;for(let i=0;i<sections.length;i++){const s=sections[i],b=s.baseVertex,macro=hash2D(i,7,seed+6101)-.5,shear=hash2D(i,11,seed+6203)-.5;for(const[v,sign,a]of[[b+1,1,macro*9],[b+3,-1,macro*6.5],[b,1,shear*2.8],[b+2,-1,shear*1.8]]){p.setX(v,p.getX(v)+s.nx*a*sign+s.tx*shear*1.7);p.setZ(v,p.getZ(v)+s.nz*a*sign+s.tz*shear*1.7);moved++;}p.setY(b+1,p.getY(b+1)+(hash2D(i,17,seed+6301)-.5)*6.5);p.setY(b+3,p.getY(b+3)+(hash2D(i,19,seed+6401)-.5)*5);}refreshGeometry(wall.geometry);iceVertexFabric(wall,seed+13331,{low:0xb0c8cc,mid:0xd5e2e1,high:0xedf4f1,roughness:.51});if(wall.material?.emissive){wall.material.emissive.set(0x285563);wall.material.emissiveIntensity=Math.max(.13,wall.material.emissiveIntensity||0);wall.material.needsUpdate=true;}wall.userData.primaryGlacialBreakup=true;return moved;}
-function fractureCave(group,portal,rings,seed){const cave=group.getObjectByName('ice-cave-shell');const p=cave?.geometry?.getAttribute?.('position');if(!p||!rings.length)return 0;const stride=Math.round(p.count/rings.length);let moved=0;for(let r=0;r<rings.length;r++)for(let s=0;s<stride;s++){const v=r*stride+s;if(v>=p.count)continue;const edge=Math.abs(s/Math.max(1,stride-1)-.5)*2,warp=(hash2D(r*37+s,23,seed+6503)-.5)*(.8+edge*.9),lift=(hash2D(r*41+s,29,seed+6607)-.5)*(.55+(1-edge)*1.15);p.setX(v,p.getX(v)+portal.tx*warp);p.setZ(v,p.getZ(v)+portal.tz*warp);p.setY(v,p.getY(v)+lift);moved++;}refreshGeometry(cave.geometry);iceVertexFabric(cave,seed+13441,{low:0x7faab3,mid:0xb1cfd1,high:0xdce9e6,roughness:.39});cave.userData.primaryGlacialBreakup=true;return moved;}
-function field(name,role,geometry,material,transforms,seed,tints=null){const mesh=new THREE.InstancedMesh(geometry,material,transforms.length);mesh.name=name;mesh.castShadow=true;mesh.receiveShadow=true;mesh.userData.iceLandmarkRole=role;const m=new THREE.Matrix4(),q=new THREE.Quaternion(),c=new THREE.Color(),lo=tints?new THREE.Color(tints[0]):null,hi=tints?new THREE.Color(tints[1]):null;for(let i=0;i<transforms.length;i++){const t=transforms[i];q.setFromEuler(new THREE.Euler(t.rx||0,t.ry||0,t.rz||0));m.compose(t.position,q,t.scale);mesh.setMatrixAt(i,m);const shade=.82+hash2D(i,role.length,seed+7013)*.18;if(lo&&hi)c.copy(lo).lerp(hi,hash2D(i,71,seed+7069));else c.setRGB(shade*.96,shade*.995,Math.min(1,shade*1.04));mesh.setColorAt(i,c);}mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;return mesh;}
-function wallPlates(group,sections,portal,seed){const wall=group.getObjectByName('the-wall-natural-ice-cliff');if(!wall?.material)return 0;const mat=wall.material.clone();mat.vertexColors=false;mat.color.set(0xcbd6d6);mat.roughness=Math.max(.62,mat.roughness||.62);mat.transmission=Math.min(.014,mat.transmission||0);mat.clearcoat=Math.min(.055,mat.clearcoat||0);mat.needsUpdate=true;const ts=[];for(let i=3;i<sections.length-3;i+=5){const s=sections[i];if(Math.hypot(s.x-portal.centerX,s.z-portal.centerZ)<62)continue;const side=hash2D(i,5,seed+7103)>.5?1:-1,width=7+hash2D(i,7,seed+7207)*11,height=22+hash2D(i,11,seed+7307)*30,depth=.55+hash2D(i,13,seed+7403)*.95,elevation=.18+hash2D(i,17,seed+7507)*.57,offset=s.thicknessMeters*.5+depth*.04;ts.push({position:new THREE.Vector3(s.x+s.nx*offset*side,s.centerGround+s.heightMeters*elevation,s.z+s.nz*offset*side),scale:new THREE.Vector3(width*.5,height*.5,depth*.5),rx:(hash2D(i,19,seed+7603)-.5)*.3,ry:-Math.atan2(s.tz,s.tx)+(hash2D(i,23,seed+7703)-.5)*.26,rz:(hash2D(i,29,seed+7801)-.5)*.46});}if(!ts.length)return 0;const mesh=field('ice-wall-macro-fracture-plates','wall-macro-fracture-plates',new THREE.OctahedronGeometry(1,0),mat,ts,seed+7901,[0xaac2c7,0xd5dfdf]);group.add(mesh);return mesh.count;}
-function wallRibs(group,sections,portal,seed){const wall=group.getObjectByName('the-wall-natural-ice-cliff');if(!wall?.material)return 0;const mat=wall.material.clone();mat.vertexColors=false;mat.color.set(0xb6ced2);mat.roughness=.47;mat.transmission=Math.max(.018,mat.transmission||0);mat.clearcoat=Math.max(.08,mat.clearcoat||0);mat.clearcoatRoughness=.34;mat.needsUpdate=true;const ts=[];for(let i=2;i<sections.length-2;i+=3){const s=sections[i];if(Math.hypot(s.x-portal.centerX,s.z-portal.centerZ)<46)continue;for(const side of[-1,1]){if(hash2D(i,side+83,seed+8707)<.38)continue;const h=s.heightMeters*(.08+hash2D(i,side+89,seed+8803)*.14),w=2.2+hash2D(i,side+97,seed+8909)*2.4,d=.4+hash2D(i,side+101,seed+9001)*.55,offset=s.thicknessMeters*.5+d*.12,along=(hash2D(i,side+103,seed+9103)-.5)*8;ts.push({position:new THREE.Vector3(s.x+s.tx*along+s.nx*offset*side,s.centerGround+s.heightMeters*.2+h*.5,s.z+s.tz*along+s.nz*offset*side),scale:new THREE.Vector3(w*.5,h*.25,d*.5),rx:(hash2D(i,side+109,seed+9257)-.5)*.07,ry:-Math.atan2(s.tz,s.tx),rz:(hash2D(i,side+107,seed+9209)-.5)*.1});}}if(!ts.length)return 0;const mesh=field('ice-wall-vertical-flow-ribs','wall-vertical-flow-ribs',new THREE.CapsuleGeometry(1,2,3,6),mat,ts,seed+9301,[0x9fbfc7,0xd2dfe0]);group.add(mesh);return mesh.count;}
-function portalShroud(group,portal,seed){const wall=group.getObjectByName('the-wall-natural-ice-cliff');if(!wall?.material)return 0;const pm=group.getObjectByName('ice-wall-cave-portal');if(pm?.material){const m=pm.material.clone();m.vertexColors=false;m.color.set(0xd9e3e2);m.roughness=Math.max(.50,Math.min(.60,m.roughness||.54));m.transmission=Math.max(.016,Math.min(.028,m.transmission||0));m.clearcoat=Math.max(.045,m.clearcoat||0);m.clearcoatRoughness=.42;if(m.emissive){m.emissive.set(0x244d56);m.emissiveIntensity=Math.max(.11,m.emissiveIntensity||0);}installIceRoughnessFabric(m,seed+12401);m.needsUpdate=true;pm.material=m;pm.userData.portalMaterialBlend='wall-matched-low-light-v12';}const mat=wall.material.clone();mat.vertexColors=false;mat.color.set(0xc8d8d8);mat.roughness=.58;mat.transmission=.012;mat.clearcoat=.04;mat.clearcoatRoughness=.48;if(mat.emissive){mat.emissive.set(0x234b54);mat.emissiveIntensity=Math.max(.095,mat.emissiveIntensity||0);}installIceRoughnessFabric(mat,seed+12437);mat.needsUpdate=true;const ts=[],half=7.8,yaw=-Math.atan2(portal.tz,portal.tx);for(const face of[-1,1])for(let layer=0;layer<1;layer++){const normal=(portal.depth*.5-.72)*face;for(const side of[-1,1])for(let level=0;level<2;level++){const lateral=side*(half+.10+level*.14)+(hash2D(level,side+271,seed+11677)-.5)*.06,w=.10+hash2D(level,side+layer*19,seed+11701)*.06,h=.24+hash2D(level,side+239,seed+11807)*.12;ts.push({position:new THREE.Vector3(portal.centerX+portal.tx*lateral+portal.nx*normal,portal.groundY+2.05+level*3.12,portal.centerZ+portal.tz*lateral+portal.nz*normal),scale:new THREE.Vector3(w,h,.010),rx:(hash2D(level,side+251,seed+11891)-.5)*.05,ry:yaw+side*.010,rz:side*(.018+level*.006)+(hash2D(level,layer+263,seed+11921)-.5)*.05});}for(let step=1;step<=3;step++){const angle=Math.PI-(step/4)*Math.PI,lateral=Math.cos(angle)*(half-.32)+(hash2D(step,face+layer*23,seed+11903)-.5)*.05,height=5.55+Math.sin(angle)*7.62;ts.push({position:new THREE.Vector3(portal.centerX+portal.tx*lateral+portal.nx*normal,portal.groundY+height,portal.centerZ+portal.tz*lateral+portal.nz*normal),scale:new THREE.Vector3(.10+hash2D(step,layer+271,seed+12001)*.06,.22+hash2D(step,face+277,seed+12037)*.12,.010),rx:(hash2D(step,face+281,seed+12071)-.5)*.04,ry:yaw,rz:(hash2D(step,face+layer*29,seed+12101)-.5)*.07});}}const mesh=field('ice-cave-natural-portal-shroud','natural-fractured-portal-shroud',new THREE.CapsuleGeometry(.58,.78,6,10),mat,ts,seed+8209,[0xc2d3d4,0xe0e8e7]);mesh.userData.portalShroudGeometry='wall-embedded-flow-ribs-v12-wall-matched';mesh.userData.worldSpaceGlacialRoughnessFabric='deterministic-shader-multiscale-v2-aerial';group.add(mesh);return mesh.count;}
-function ribbon(rings,portal,mult,yOff,seed){const pos=[],colors=[],idx=[];for(let r=0;r<rings.length;r++){const ring=rings[r],w=ring.halfWidth*mult*(.88+hash2D(r,59,seed+8303)*.16),y=ring.centerY+yOff+(hash2D(r,61,seed+8401)-.5)*.08;for(const side of[-1,1]){pos.push(ring.centerX+portal.tx*w*side,y,ring.centerZ+portal.tz*w*side);const dirt=hash2D(r,side+67,seed+8501);colors.push(.34+dirt*.1,.43+dirt*.08,.44+dirt*.09);}if(r>0){const b=r*2;idx.push(b-2,b,b+1,b-2,b+1,b-1);}}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));g.setIndex(idx);g.computeVertexNormals();return g;}
-function caveFloor(group,portal,rings,seed){if(rings.length<2)return 0;const floor=new THREE.Mesh(ribbon(rings,portal,.84,.06,seed),new THREE.MeshStandardMaterial({vertexColors:true,color:0xb0bab7,roughness:.82,metalness:0,side:THREE.DoubleSide}));floor.name='ice-cave-sediment-floor';floor.receiveShadow=true;floor.userData.iceLandmarkRole='cave-sediment-floor';group.add(floor);const wet=new THREE.Mesh(ribbon(rings,portal,.25,.105,seed+8609),new THREE.MeshPhysicalMaterial({color:0x476f78,roughness:.3,metalness:0,clearcoat:.25,clearcoatRoughness:.22,transmission:.025,ior:1.31,side:THREE.DoubleSide}));wet.name='ice-cave-wet-melt-ribbon';wet.receiveShadow=true;wet.userData.iceLandmarkRole='cave-wet-melt-ribbon';group.add(wet);const cave=group.getObjectByName('ice-cave-shell');if(cave?.material){cave.material.color.set(cave.userData.worldSpaceGlacialAlbedoFabric?0xffffff:0xd5dddd);cave.material.roughness=Math.min(.47,cave.material.roughness||.47);cave.material.transmission=Math.max(.072,cave.material.transmission||0);cave.material.attenuationColor.set(0x3f7f8d);cave.material.emissive.set(0x0b3139);cave.material.emissiveIntensity=.13;cave.material.needsUpdate=true;}return floor.geometry.index.count/3+wet.geometry.index.count/3;}
-function caveLights(group,portal,rings,seed){if(rings.length<8)return 0;const ids=[4,8,12,Math.min(rings.length-3,15)];let count=0;for(let i=0;i<ids.length;i++){const ri=Math.min(rings.length-2,ids[i]),ring=rings[ri];if(!ring)continue;const lateral=(hash2D(ri,251,seed+12101)-.5)*ring.halfWidth*.28,lift=ring.height*(.28+hash2D(ri,257,seed+12203)*.16),light=new THREE.PointLight(i%2===0?0x46b9cf:0x6bd0db,1.15+hash2D(ri,263,seed+12301)*.65,25+hash2D(ri,269,seed+12409)*11,2);light.name=`ice-cave-subsurface-light-${i+1}`;light.position.set(ring.centerX+portal.tx*lateral,ring.centerY+lift,ring.centerZ+portal.tz*lateral);light.userData.iceLandmarkRole='cave-cyan-subsurface-depth-light';light.userData.glacialDepthLayer=ri;group.add(light);count++;}return count;}
-function caveBits(group,portal,rings,seed){if(rings.length<4)return Object.freeze({icicleCount:0,debrisCount:0});const iceMat=new THREE.MeshPhysicalMaterial({color:0x9cc9d4,roughness:.24,metalness:0,transmission:.13,thickness:1.6,ior:1.31,attenuationColor:0x2e7386,attenuationDistance:8,clearcoat:.18,clearcoatRoughness:.2}),icicles=[];for(let r=1;r<rings.length-1;r+=2){const ring=rings[r],n=1+Math.floor(hash2D(r,113,seed+9403)*3);for(let j=0;j<n;j++){const lateral=(hash2D(r*13+j,127,seed+9503)-.5)*ring.halfWidth*1.35,len=1+hash2D(r*17+j,131,seed+9601)*3.6;icicles.push({position:new THREE.Vector3(ring.centerX+portal.tx*lateral,ring.centerY+ring.height*.82-len*.5,ring.centerZ+portal.tz*lateral),scale:new THREE.Vector3(.22+len*.055,len,.22+len*.055),rx:Math.PI,ry:-Math.atan2(portal.tz,portal.tx),rz:(hash2D(r,j+137,seed+9701)-.5)*.11});}}const im=field('ice-cave-ceiling-icicles','cave-ceiling-icicles',new THREE.ConeGeometry(1,1,7,1),iceMat,icicles,seed+9803,[0x6fabbc,0xcbe3e7]);group.add(im);const debris=[];for(let r=1;r<rings.length-1;r+=2){const ring=rings[r];for(const side of[-1,1]){if(hash2D(r,side+149,seed+9901)<.34)continue;const lateral=side*ring.halfWidth*(.6+hash2D(r,side+151,seed+10007)*.22),size=.25+hash2D(r,side+157,seed+10103)*.85;debris.push({position:new THREE.Vector3(ring.centerX+portal.tx*lateral,ring.centerY+.16,ring.centerZ+portal.tz*lateral),scale:new THREE.Vector3(size*1.25,size*.55,size),rx:hash2D(r,side+163,seed+10211)*.45,ry:hash2D(r,side+167,seed+10301)*Math.PI,rz:hash2D(r,side+173,seed+10427)*.35});}}const dm=field('ice-cave-sediment-debris','cave-sediment-debris',new THREE.DodecahedronGeometry(1,0),new THREE.MeshStandardMaterial({color:0x4f5552,roughness:.94,metalness:0}),debris,seed+10501,[0x343a38,0x69675d]);group.add(dm);return Object.freeze({icicleCount:im.count,debrisCount:dm.count});}
-function blueCore(group,portal,rings,seed){if(rings.length<6)return 0;const mat=new THREE.MeshPhysicalMaterial({color:0x2f8197,roughness:.19,metalness:0,transmission:.24,thickness:2.4,ior:1.31,attenuationColor:0x14576b,attenuationDistance:6.5,clearcoat:.28,clearcoatRoughness:.18,emissive:0x062f3b,emissiveIntensity:.16}),ts=[];for(let r=3;r<rings.length-2;r+=2){const ring=rings[r];for(const side of[-1,1]){if(hash2D(r,side+181,seed+10601)<.26)continue;const lateral=side*ring.halfWidth*(.73+hash2D(r,side+191,seed+10709)*.16),lift=ring.height*(.18+hash2D(r,side+193,seed+10831)*.42);ts.push({position:new THREE.Vector3(ring.centerX+portal.tx*lateral,ring.centerY+lift,ring.centerZ+portal.tz*lateral),scale:new THREE.Vector3(.55+hash2D(r,side+197,seed+10939)*1.15,2.2+hash2D(r,side+199,seed+11003)*4.6,.45+hash2D(r,side+211,seed+11113)*.95),ry:-Math.atan2(portal.tz,portal.tx)+side*(.18+hash2D(r,223,seed+11239)*.18),rz:side*(.08+hash2D(r,227,seed+11329)*.18)});}}if(!ts.length)return 0;const mesh=field('ice-cave-dense-blue-core-slabs','cave-dense-blue-core-slabs',new THREE.OctahedronGeometry(1,1),mat,ts,seed+11443,[0x1d6378,0x65b2c1]);group.add(mesh);return mesh.count;}
-export function applyIceLandmarkGeometryBreakup({group,wallSections,portal,caveRings,seed}){const wallVertexMoves=fractureWall(group,wallSections,seed),caveVertexMoves=fractureCave(group,portal,caveRings,seed),macroFracturePlateCount=wallPlates(group,wallSections,portal,seed),wallFlowRibCount=wallRibs(group,wallSections,portal,seed),portalShroudCount=portalShroud(group,portal,seed),caveFloorTriangleCount=caveFloor(group,portal,caveRings,seed),caveSubsurfaceLightCount=caveLights(group,portal,caveRings,seed),bits=caveBits(group,portal,caveRings,seed),caveBlueCoreCount=blueCore(group,portal,caveRings,seed);return Object.freeze({wallVertexMoves,caveVertexMoves,macroFracturePlateCount,wallFlowRibCount,portalShroudCount,caveFloorTriangleCount,caveSubsurfaceLightCount,caveIcicleCount:bits.icicleCount,caveDebrisCount:bits.debrisCount,caveBlueCoreCount,primaryMeshesFractured:wallVertexMoves>0&&caveVertexMoves>0,secondaryBreakupPresent:macroFracturePlateCount>8&&wallFlowRibCount>8&&portalShroudCount>10&&caveFloorTriangleCount>20&&caveSubsurfaceLightCount>=3&&bits.icicleCount>4&&caveBlueCoreCount>4});}
+function hash2D(x, y, seed) {
+	let value = Math.imul((x | 0) ^ seed, 0x27d4eb2d)
+		^ Math.imul((y | 0) + seed, 0x165667b1);
+	value ^= value >>> 15;
+	value = Math.imul(value, 0x85ebca6b);
+	value ^= value >>> 13;
+	return (value >>> 0) / 0x100000000;
+}
+
+function smoothNoise2D(x, z, scale, seed) {
+	const fx = x / scale;
+	const fz = z / scale;
+	const ix = Math.floor(fx);
+	const iz = Math.floor(fz);
+	const tx = fx - ix;
+	const tz = fz - iz;
+	const ux = tx * tx * (3 - 2 * tx);
+	const uz = tz * tz * (3 - 2 * tz);
+	const a = hash2D(ix, iz, seed);
+	const b = hash2D(ix + 1, iz, seed);
+	const c = hash2D(ix, iz + 1, seed);
+	const d = hash2D(ix + 1, iz + 1, seed);
+	return THREE.MathUtils.lerp(
+		THREE.MathUtils.lerp(a, b, ux),
+		THREE.MathUtils.lerp(c, d, ux),
+		uz,
+	);
+}
+
+function refreshGeometry(geometry) {
+	const position = geometry?.getAttribute?.('position');
+	if (!position) return false;
+	position.needsUpdate = true;
+	geometry.computeVertexNormals();
+	geometry.computeBoundingBox();
+	geometry.computeBoundingSphere();
+	return true;
+}
+
+function createFacetedSlabGeometry(contour, {
+	frontDepth = 0.24,
+	backDepth = -0.14,
+	frontCrown = 0.34,
+} = {}) {
+	const count = contour.length;
+	const positions = [];
+	const indices = [];
+	for (const [x, y] of contour) positions.push(x, y, frontDepth);
+	for (const [x, y] of contour) positions.push(x, y, backDepth);
+	const frontCenter = positions.length / 3;
+	positions.push(0, 0, frontCrown);
+	const backCenter = positions.length / 3;
+	positions.push(0, 0, backDepth * 0.92);
+	for (let index = 0; index < count; index += 1) {
+		const next = (index + 1) % count;
+		indices.push(frontCenter, index, next);
+		indices.push(backCenter, count + next, count + index);
+		indices.push(index, count + index, count + next, index, count + next, next);
+	}
+	const geometry = new THREE.BufferGeometry();
+	geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+	geometry.setIndex(indices);
+	geometry.computeVertexNormals();
+	geometry.computeBoundingBox();
+	geometry.computeBoundingSphere();
+	return geometry;
+}
+
+function createEmbeddedFracturePlateGeometry() {
+	return createFacetedSlabGeometry([
+		[-0.88, -0.60], [-0.38, -1.00], [0.32, -0.91], [0.91, -0.34],
+		[0.76, 0.48], [0.18, 1.00], [-0.56, 0.78], [-1.00, 0.06],
+	], { frontDepth: 0.20, backDepth: -0.16, frontCrown: 0.30 });
+}
+
+function createEmbeddedFlowRibGeometry() {
+	return createFacetedSlabGeometry([
+		[-0.42, -1.00], [0.36, -0.94], [0.55, -0.30], [0.38, 0.34],
+		[0.12, 1.00], [-0.30, 0.66], [-0.52, 0.02],
+	], { frontDepth: 0.13, backDepth: -0.10, frontCrown: 0.19 });
+}
+
+function installIceRoughnessFabric(material, seed) {
+	const salt = (Math.abs(seed) % 4093) + 17;
+	const prior = material.onBeforeCompile;
+	material.onBeforeCompile = (shader, renderer) => {
+		if (prior) prior.call(material, shader, renderer);
+		shader.vertexShader = shader.vertexShader
+			.replace('#include <common>', '#include <common>\nvarying vec3 vIceWorldPosition;')
+			.replace('#include <project_vertex>', '#include <project_vertex>\nvIceWorldPosition=(modelMatrix*vec4(transformed,1.0)).xyz;');
+		shader.fragmentShader = shader.fragmentShader
+			.replace('#include <common>', `#include <common>\nvarying vec3 vIceWorldPosition;\nfloat iceHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7))+${salt.toFixed(1)})*43758.5453123);}\nfloat iceNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(iceHash(i),iceHash(i+vec2(1.0,0.0)),f.x),mix(iceHash(i+vec2(0.0,1.0)),iceHash(i+vec2(1.0,1.0)),f.x),f.y);}`)
+			.replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nfloat iceRoughBroad=iceNoise(vIceWorldPosition.xz/118.0);\nfloat iceRoughMacro=iceNoise((vIceWorldPosition.xz+vIceWorldPosition.yy*0.19)/41.0);\nfloat iceRoughMeso=iceNoise((vIceWorldPosition.xz+vIceWorldPosition.yy*0.43)/10.5);\nfloat iceRoughBand=iceNoise(vec2(vIceWorldPosition.x*0.052+vIceWorldPosition.y*0.018,vIceWorldPosition.z*0.071-vIceWorldPosition.y*0.011));\nroughnessFactor=clamp(roughnessFactor*(0.69+iceRoughBroad*0.18+iceRoughMacro*0.25+iceRoughMeso*0.14+iceRoughBand*0.09),0.18,0.94);');
+	};
+	const priorKey = material.customProgramCacheKey?.bind(material);
+	material.customProgramCacheKey = () => `${priorKey ? priorKey() : ''}|ice-rough-v3-${salt}`;
+	material.needsUpdate = true;
+}
+
+function iceVertexFabric(mesh, seed, {
+	low = 0xaebfc1,
+	mid = 0xd2dddc,
+	high = 0xf0f4f1,
+	roughness = 0.58,
+} = {}) {
+	const position = mesh?.geometry?.getAttribute?.('position');
+	if (!position || !mesh?.material) return 0;
+	const lowColor = new THREE.Color(low);
+	const midColor = new THREE.Color(mid);
+	const highColor = new THREE.Color(high);
+	const color = new THREE.Color();
+	const colors = new Float32Array(position.count * 3);
+	let minY = Infinity;
+	let maxY = -Infinity;
+	for (let index = 0; index < position.count; index += 1) {
+		const y = position.getY(index);
+		minY = Math.min(minY, y);
+		maxY = Math.max(maxY, y);
+	}
+	const span = Math.max(1, maxY - minY);
+	for (let index = 0; index < position.count; index += 1) {
+		const x = position.getX(index);
+		const y = position.getY(index);
+		const z = position.getZ(index);
+		const macro = smoothNoise2D(x, z, 74, seed + 13001);
+		const meso = smoothNoise2D(x + y * 0.24, z - y * 0.11, 21, seed + 13109);
+		const micro = smoothNoise2D(x + y * 0.13, z, 6.5, seed + 13217);
+		const height = (y - minY) / span;
+		const weather = THREE.MathUtils.clamp(
+			0.25 + macro * 0.33 + meso * 0.24 + micro * 0.06 + height * 0.12,
+			0,
+			1,
+		);
+		color.copy(lowColor).lerp(midColor, Math.min(1, weather * 1.12));
+		if (weather > 0.61) color.lerp(highColor, ((weather - 0.61) / 0.39) * 0.58);
+		const crevasse = Math.max(0, 0.40 - meso) * 0.13;
+		color.multiplyScalar(1 - crevasse);
+		colors[index * 3] = color.r;
+		colors[index * 3 + 1] = color.g;
+		colors[index * 3 + 2] = color.b;
+	}
+	mesh.geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+	const material = mesh.material.clone();
+	material.vertexColors = true;
+	material.color.set(0xffffff);
+	material.roughness = roughness;
+	if (material.emissive) {
+		material.emissive.set(0x183942);
+		material.emissiveIntensity = Math.max(0.064, material.emissiveIntensity || 0);
+	}
+	installIceRoughnessFabric(material, seed + 13513);
+	mesh.material = material;
+	mesh.userData.worldSpaceGlacialAlbedoFabric = 'deterministic-smoothed-multiscale-v5-neutral-ice';
+	mesh.userData.worldSpaceGlacialRoughnessFabric = 'deterministic-shader-multiscale-v3-aerial';
+	return position.count;
+}
+
+function fractureWall(group, sections, seed) {
+	const wall = group.getObjectByName('the-wall-natural-ice-cliff');
+	const position = wall?.geometry?.getAttribute?.('position');
+	if (!position) return 0;
+	let moved = 0;
+	for (let index = 0; index < sections.length; index += 1) {
+		const section = sections[index];
+		const base = section.baseVertex;
+		const macro = hash2D(index, 7, seed + 6101) - 0.5;
+		const shear = hash2D(index, 11, seed + 6203) - 0.5;
+		for (const [vertex, sign, amount] of [
+			[base + 1, 1, macro * 9],
+			[base + 3, -1, macro * 6.5],
+			[base, 1, shear * 2.8],
+			[base + 2, -1, shear * 1.8],
+		]) {
+			position.setX(vertex, position.getX(vertex) + section.nx * amount * sign + section.tx * shear * 1.7);
+			position.setZ(vertex, position.getZ(vertex) + section.nz * amount * sign + section.tz * shear * 1.7);
+			moved += 1;
+		}
+		position.setY(base + 1, position.getY(base + 1) + (hash2D(index, 17, seed + 6301) - 0.5) * 6.5);
+		position.setY(base + 3, position.getY(base + 3) + (hash2D(index, 19, seed + 6401) - 0.5) * 5);
+	}
+	refreshGeometry(wall.geometry);
+	iceVertexFabric(wall, seed + 13331, {
+		low: 0xc8d5d5,
+		mid: 0xe1e9e7,
+		high: 0xf5f8f5,
+		roughness: 0.53,
+	});
+	if (wall.material?.emissive) {
+		wall.material.emissive.set(0x214650);
+		wall.material.emissiveIntensity = Math.max(0.095, wall.material.emissiveIntensity || 0);
+		wall.material.needsUpdate = true;
+	}
+	wall.userData.primaryGlacialBreakup = true;
+	return moved;
+}
+
+function fractureCave(group, portal, rings, seed) {
+	const cave = group.getObjectByName('ice-cave-shell');
+	const position = cave?.geometry?.getAttribute?.('position');
+	if (!position || !rings.length) return 0;
+	const stride = Math.round(position.count / rings.length);
+	let moved = 0;
+	for (let ringIndex = 0; ringIndex < rings.length; ringIndex += 1) {
+		for (let step = 0; step < stride; step += 1) {
+			const vertex = ringIndex * stride + step;
+			if (vertex >= position.count) continue;
+			const edge = Math.abs(step / Math.max(1, stride - 1) - 0.5) * 2;
+			const warp = (hash2D(ringIndex * 37 + step, 23, seed + 6503) - 0.5) * (0.8 + edge * 0.9);
+			const lift = (hash2D(ringIndex * 41 + step, 29, seed + 6607) - 0.5) * (0.55 + (1 - edge) * 1.15);
+			position.setX(vertex, position.getX(vertex) + portal.tx * warp);
+			position.setZ(vertex, position.getZ(vertex) + portal.tz * warp);
+			position.setY(vertex, position.getY(vertex) + lift);
+			moved += 1;
+		}
+	}
+	refreshGeometry(cave.geometry);
+	iceVertexFabric(cave, seed + 13441, {
+		low: 0xa4bec4,
+		mid: 0xc8dcdd,
+		high: 0xeaf2ef,
+		roughness: 0.40,
+	});
+	cave.userData.primaryGlacialBreakup = true;
+	return moved;
+}
+
+function field(name, role, geometry, material, transforms, seed, tints = null) {
+	const mesh = new THREE.InstancedMesh(geometry, material, transforms.length);
+	mesh.name = name;
+	mesh.castShadow = true;
+	mesh.receiveShadow = true;
+	mesh.userData.iceLandmarkRole = role;
+	const matrix = new THREE.Matrix4();
+	const quaternion = new THREE.Quaternion();
+	const color = new THREE.Color();
+	const low = tints ? new THREE.Color(tints[0]) : null;
+	const high = tints ? new THREE.Color(tints[1]) : null;
+	for (let index = 0; index < transforms.length; index += 1) {
+		const transform = transforms[index];
+		quaternion.setFromEuler(new THREE.Euler(transform.rx || 0, transform.ry || 0, transform.rz || 0));
+		matrix.compose(transform.position, quaternion, transform.scale);
+		mesh.setMatrixAt(index, matrix);
+		const shade = 0.82 + hash2D(index, role.length, seed + 7013) * 0.18;
+		if (low && high) color.copy(low).lerp(high, hash2D(index, 71, seed + 7069));
+		else color.setRGB(shade * 0.96, shade * 0.995, Math.min(1, shade * 1.04));
+		mesh.setColorAt(index, color);
+	}
+	mesh.instanceMatrix.needsUpdate = true;
+	if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+	return mesh;
+}
+
+function wallPlates(group, sections, portal, seed) {
+	const wall = group.getObjectByName('the-wall-natural-ice-cliff');
+	if (!wall?.material) return 0;
+	const material = wall.material.clone();
+	material.vertexColors = false;
+	material.color.set(0xc4d0cf);
+	material.roughness = Math.max(0.64, material.roughness || 0.64);
+	material.transmission = Math.min(0.012, material.transmission || 0);
+	material.clearcoat = Math.min(0.045, material.clearcoat || 0);
+	installIceRoughnessFabric(material, seed + 7867);
+	const transforms = [];
+	for (let index = 3; index < sections.length - 3; index += 5) {
+		const section = sections[index];
+		if (Math.hypot(section.x - portal.centerX, section.z - portal.centerZ) < 62) continue;
+		const side = hash2D(index, 5, seed + 7103) > 0.5 ? 1 : -1;
+		const width = 7 + hash2D(index, 7, seed + 7207) * 11;
+		const height = 22 + hash2D(index, 11, seed + 7307) * 30;
+		const depth = 0.55 + hash2D(index, 13, seed + 7403) * 0.95;
+		const elevation = 0.18 + hash2D(index, 17, seed + 7507) * 0.57;
+		const offset = section.thicknessMeters * 0.5 + depth * 0.035;
+		transforms.push({
+			position: new THREE.Vector3(
+				section.x + section.nx * offset * side,
+				section.centerGround + section.heightMeters * elevation,
+				section.z + section.nz * offset * side,
+			),
+			scale: new THREE.Vector3(width * 0.5, height * 0.5, depth),
+			rx: (hash2D(index, 19, seed + 7603) - 0.5) * 0.12,
+			ry: -Math.atan2(section.tz, section.tx) + (hash2D(index, 23, seed + 7703) - 0.5) * 0.16,
+			rz: (hash2D(index, 29, seed + 7801) - 0.5) * 0.32,
+		});
+	}
+	if (!transforms.length) return 0;
+	const mesh = field(
+		'ice-wall-macro-fracture-plates',
+		'wall-macro-fracture-plates',
+		createEmbeddedFracturePlateGeometry(),
+		material,
+		transforms,
+		seed + 7901,
+		[0x9fb5b8, 0xcbd6d5],
+	);
+	mesh.userData.breakupGeometry = 'embedded-irregular-glacial-slab-v13';
+	mesh.userData.worldSpaceGlacialRoughnessFabric = 'deterministic-shader-multiscale-v3-aerial';
+	group.add(mesh);
+	return mesh.count;
+}
+
+function wallRibs(group, sections, portal, seed) {
+	const wall = group.getObjectByName('the-wall-natural-ice-cliff');
+	if (!wall?.material) return 0;
+	const material = wall.material.clone();
+	material.vertexColors = false;
+	material.color.set(0xb5c9cb);
+	material.roughness = 0.49;
+	material.transmission = Math.max(0.016, material.transmission || 0);
+	material.clearcoat = Math.max(0.065, material.clearcoat || 0);
+	material.clearcoatRoughness = 0.36;
+	installIceRoughnessFabric(material, seed + 9281);
+	const transforms = [];
+	for (let index = 2; index < sections.length - 2; index += 3) {
+		const section = sections[index];
+		if (Math.hypot(section.x - portal.centerX, section.z - portal.centerZ) < 46) continue;
+		for (const side of [-1, 1]) {
+			if (hash2D(index, side + 83, seed + 8707) < 0.38) continue;
+			const height = section.heightMeters * (0.08 + hash2D(index, side + 89, seed + 8803) * 0.14);
+			const width = 2.2 + hash2D(index, side + 97, seed + 8909) * 2.4;
+			const depth = 0.4 + hash2D(index, side + 101, seed + 9001) * 0.55;
+			const offset = section.thicknessMeters * 0.5 + depth * 0.075;
+			const along = (hash2D(index, side + 103, seed + 9103) - 0.5) * 8;
+			transforms.push({
+				position: new THREE.Vector3(
+					section.x + section.tx * along + section.nx * offset * side,
+					section.centerGround + section.heightMeters * 0.2 + height * 0.5,
+					section.z + section.tz * along + section.nz * offset * side,
+				),
+				scale: new THREE.Vector3(width * 0.5, height * 0.5, depth),
+				rx: (hash2D(index, side + 109, seed + 9257) - 0.5) * 0.045,
+				ry: -Math.atan2(section.tz, section.tx),
+				rz: (hash2D(index, side + 107, seed + 9209) - 0.5) * 0.075,
+			});
+		}
+	}
+	if (!transforms.length) return 0;
+	const mesh = field(
+		'ice-wall-vertical-flow-ribs',
+		'wall-vertical-flow-ribs',
+		createEmbeddedFlowRibGeometry(),
+		material,
+		transforms,
+		seed + 9301,
+		[0x9bb5ba, 0xc9d7d7],
+	);
+	mesh.userData.breakupGeometry = 'embedded-tapered-glacial-flow-rib-v13';
+	mesh.userData.worldSpaceGlacialRoughnessFabric = 'deterministic-shader-multiscale-v3-aerial';
+	group.add(mesh);
+	return mesh.count;
+}
+
+function portalShroud(group, portal, seed) {
+	const wall = group.getObjectByName('the-wall-natural-ice-cliff');
+	if (!wall?.material) return 0;
+	const portalMesh = group.getObjectByName('ice-wall-cave-portal');
+	if (portalMesh?.material) {
+		const material = portalMesh.material.clone();
+		material.vertexColors = false;
+		material.color.set(0xc8d6d5);
+		material.roughness = Math.max(0.54, Math.min(0.62, material.roughness || 0.56));
+		material.transmission = Math.max(0.014, Math.min(0.024, material.transmission || 0));
+		material.clearcoat = Math.max(0.035, material.clearcoat || 0);
+		material.clearcoatRoughness = 0.45;
+		if (material.emissive) {
+			material.emissive.set(0x1e4149);
+			material.emissiveIntensity = Math.max(0.075, material.emissiveIntensity || 0);
+		}
+		installIceRoughnessFabric(material, seed + 12401);
+		portalMesh.material = material;
+		portalMesh.userData.portalMaterialBlend = 'wall-matched-neutral-ice-v13';
+	}
+	const material = wall.material.clone();
+	material.vertexColors = false;
+	material.color.set(0xc4d2d2);
+	material.roughness = 0.60;
+	material.transmission = 0.010;
+	material.clearcoat = 0.035;
+	material.clearcoatRoughness = 0.50;
+	if (material.emissive) {
+		material.emissive.set(0x1d4048);
+		material.emissiveIntensity = Math.max(0.072, material.emissiveIntensity || 0);
+	}
+	installIceRoughnessFabric(material, seed + 12437);
+	const transforms = [];
+	const half = 7.8;
+	const yaw = -Math.atan2(portal.tz, portal.tx);
+	for (const face of [-1, 1]) {
+		const normal = (portal.depth * 0.5 - 0.72) * face;
+		for (const side of [-1, 1]) {
+			for (let level = 0; level < 2; level += 1) {
+				const lateral = side * (half + 0.10 + level * 0.14)
+					+ (hash2D(level, side + 271, seed + 11677) - 0.5) * 0.06;
+				const width = 0.10 + hash2D(level, side + 19, seed + 11701) * 0.06;
+				const height = 0.24 + hash2D(level, side + 239, seed + 11807) * 0.12;
+				transforms.push({
+					position: new THREE.Vector3(
+						portal.centerX + portal.tx * lateral + portal.nx * normal,
+						portal.groundY + 2.05 + level * 3.12,
+						portal.centerZ + portal.tz * lateral + portal.nz * normal,
+					),
+					scale: new THREE.Vector3(width, height, 0.055),
+					rx: (hash2D(level, side + 251, seed + 11891) - 0.5) * 0.04,
+					ry: yaw + side * 0.010,
+					rz: side * (0.018 + level * 0.006) + (hash2D(level, side + 263, seed + 11921) - 0.5) * 0.04,
+				});
+			}
+		}
+		for (let step = 1; step <= 3; step += 1) {
+			const angle = Math.PI - (step / 4) * Math.PI;
+			const lateral = Math.cos(angle) * (half - 0.32)
+				+ (hash2D(step, face + 23, seed + 11903) - 0.5) * 0.05;
+			const height = 5.55 + Math.sin(angle) * 7.62;
+			transforms.push({
+				position: new THREE.Vector3(
+					portal.centerX + portal.tx * lateral + portal.nx * normal,
+					portal.groundY + height,
+					portal.centerZ + portal.tz * lateral + portal.nz * normal,
+				),
+				scale: new THREE.Vector3(
+					0.10 + hash2D(step, 271, seed + 12001) * 0.06,
+					0.22 + hash2D(step, face + 277, seed + 12037) * 0.12,
+					0.055,
+				),
+				rx: (hash2D(step, face + 281, seed + 12071) - 0.5) * 0.035,
+				ry: yaw,
+				rz: (hash2D(step, face + 29, seed + 12101) - 0.5) * 0.055,
+			});
+		}
+	}
+	const mesh = field(
+		'ice-cave-natural-portal-shroud',
+		'natural-fractured-portal-shroud',
+		createEmbeddedFlowRibGeometry(),
+		material,
+		transforms,
+		seed + 8209,
+		[0xb8c9ca, 0xd8e2e0],
+	);
+	mesh.userData.portalShroudGeometry = 'wall-embedded-tapered-flow-ribs-v13';
+	mesh.userData.worldSpaceGlacialRoughnessFabric = 'deterministic-shader-multiscale-v3-aerial';
+	group.add(mesh);
+	return mesh.count;
+}
+
+function ribbon(rings, portal, multiplier, yOffset, seed) {
+	const positions = [];
+	const colors = [];
+	const indices = [];
+	for (let ringIndex = 0; ringIndex < rings.length; ringIndex += 1) {
+		const ring = rings[ringIndex];
+		const width = ring.halfWidth * multiplier * (0.88 + hash2D(ringIndex, 59, seed + 8303) * 0.16);
+		const y = ring.centerY + yOffset + (hash2D(ringIndex, 61, seed + 8401) - 0.5) * 0.08;
+		for (const side of [-1, 1]) {
+			positions.push(
+				ring.centerX + portal.tx * width * side,
+				y,
+				ring.centerZ + portal.tz * width * side,
+			);
+			const dirt = hash2D(ringIndex, side + 67, seed + 8501);
+			colors.push(0.34 + dirt * 0.1, 0.43 + dirt * 0.08, 0.44 + dirt * 0.09);
+		}
+		if (ringIndex > 0) {
+			const base = ringIndex * 2;
+			indices.push(base - 2, base, base + 1, base - 2, base + 1, base - 1);
+		}
+	}
+	const geometry = new THREE.BufferGeometry();
+	geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+	geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+	geometry.setIndex(indices);
+	geometry.computeVertexNormals();
+	return geometry;
+}
+
+function caveFloor(group, portal, rings, seed) {
+	if (rings.length < 2) return 0;
+	const floor = new THREE.Mesh(
+		ribbon(rings, portal, 0.84, 0.06, seed),
+		new THREE.MeshStandardMaterial({
+			vertexColors: true,
+			color: 0xb0bab7,
+			roughness: 0.82,
+			metalness: 0,
+			side: THREE.DoubleSide,
+		}),
+	);
+	floor.name = 'ice-cave-sediment-floor';
+	floor.receiveShadow = true;
+	floor.userData.iceLandmarkRole = 'cave-sediment-floor';
+	group.add(floor);
+	const wet = new THREE.Mesh(
+		ribbon(rings, portal, 0.25, 0.105, seed + 8609),
+		new THREE.MeshPhysicalMaterial({
+			color: 0x476f78,
+			roughness: 0.3,
+			metalness: 0,
+			clearcoat: 0.25,
+			clearcoatRoughness: 0.22,
+			transmission: 0.025,
+			ior: 1.31,
+			side: THREE.DoubleSide,
+		}),
+	);
+	wet.name = 'ice-cave-wet-melt-ribbon';
+	wet.receiveShadow = true;
+	wet.userData.iceLandmarkRole = 'cave-wet-melt-ribbon';
+	group.add(wet);
+	const cave = group.getObjectByName('ice-cave-shell');
+	if (cave?.material) {
+		cave.material.color.set(cave.userData.worldSpaceGlacialAlbedoFabric ? 0xffffff : 0xd5dddd);
+		cave.material.roughness = Math.min(0.47, cave.material.roughness || 0.47);
+		cave.material.transmission = Math.max(0.072, cave.material.transmission || 0);
+		cave.material.attenuationColor.set(0x3f7f8d);
+		cave.material.emissive.set(0x0b3139);
+		cave.material.emissiveIntensity = 0.13;
+		cave.material.needsUpdate = true;
+	}
+	return floor.geometry.index.count / 3 + wet.geometry.index.count / 3;
+}
+
+function caveLights(group, portal, rings, seed) {
+	if (rings.length < 8) return 0;
+	const ringIds = [4, 8, 12, Math.min(rings.length - 3, 15)];
+	let count = 0;
+	for (let index = 0; index < ringIds.length; index += 1) {
+		const ringIndex = Math.min(rings.length - 2, ringIds[index]);
+		const ring = rings[ringIndex];
+		if (!ring) continue;
+		const lateral = (hash2D(ringIndex, 251, seed + 12101) - 0.5) * ring.halfWidth * 0.28;
+		const lift = ring.height * (0.28 + hash2D(ringIndex, 257, seed + 12203) * 0.16);
+		const light = new THREE.PointLight(
+			index % 2 === 0 ? 0x46b9cf : 0x6bd0db,
+			1.15 + hash2D(ringIndex, 263, seed + 12301) * 0.65,
+			25 + hash2D(ringIndex, 269, seed + 12409) * 11,
+			2,
+		);
+		light.name = `ice-cave-subsurface-light-${index + 1}`;
+		light.position.set(
+			ring.centerX + portal.tx * lateral,
+			ring.centerY + lift,
+			ring.centerZ + portal.tz * lateral,
+		);
+		light.userData.iceLandmarkRole = 'cave-cyan-subsurface-depth-light';
+		light.userData.glacialDepthLayer = ringIndex;
+		group.add(light);
+		count += 1;
+	}
+	return count;
+}
+
+function caveBits(group, portal, rings, seed) {
+	if (rings.length < 4) return Object.freeze({ icicleCount: 0, debrisCount: 0 });
+	const iceMaterial = new THREE.MeshPhysicalMaterial({
+		color: 0x9cc9d4,
+		roughness: 0.24,
+		metalness: 0,
+		transmission: 0.13,
+		thickness: 1.6,
+		ior: 1.31,
+		attenuationColor: 0x2e7386,
+		attenuationDistance: 8,
+		clearcoat: 0.18,
+		clearcoatRoughness: 0.2,
+	});
+	const icicles = [];
+	for (let ringIndex = 1; ringIndex < rings.length - 1; ringIndex += 2) {
+		const ring = rings[ringIndex];
+		const count = 1 + Math.floor(hash2D(ringIndex, 113, seed + 9403) * 3);
+		for (let index = 0; index < count; index += 1) {
+			const lateral = (hash2D(ringIndex * 13 + index, 127, seed + 9503) - 0.5) * ring.halfWidth * 1.35;
+			const length = 1 + hash2D(ringIndex * 17 + index, 131, seed + 9601) * 3.6;
+			icicles.push({
+				position: new THREE.Vector3(
+					ring.centerX + portal.tx * lateral,
+					ring.centerY + ring.height * 0.82 - length * 0.5,
+					ring.centerZ + portal.tz * lateral,
+				),
+				scale: new THREE.Vector3(0.22 + length * 0.055, length, 0.22 + length * 0.055),
+				rx: Math.PI,
+				ry: -Math.atan2(portal.tz, portal.tx),
+				rz: (hash2D(ringIndex, index + 137, seed + 9701) - 0.5) * 0.11,
+			});
+		}
+	}
+	const icicleMesh = field(
+		'ice-cave-ceiling-icicles',
+		'cave-ceiling-icicles',
+		new THREE.ConeGeometry(1, 1, 7, 1),
+		iceMaterial,
+		icicles,
+		seed + 9803,
+		[0x6fabbc, 0xcbe3e7],
+	);
+	group.add(icicleMesh);
+	const debris = [];
+	for (let ringIndex = 1; ringIndex < rings.length - 1; ringIndex += 2) {
+		const ring = rings[ringIndex];
+		for (const side of [-1, 1]) {
+			if (hash2D(ringIndex, side + 149, seed + 9901) < 0.34) continue;
+			const lateral = side * ring.halfWidth * (0.6 + hash2D(ringIndex, side + 151, seed + 10007) * 0.22);
+			const size = 0.25 + hash2D(ringIndex, side + 157, seed + 10103) * 0.85;
+			debris.push({
+				position: new THREE.Vector3(
+					ring.centerX + portal.tx * lateral,
+					ring.centerY + 0.16,
+					ring.centerZ + portal.tz * lateral,
+				),
+				scale: new THREE.Vector3(size * 1.25, size * 0.55, size),
+				rx: hash2D(ringIndex, side + 163, seed + 10211) * 0.45,
+				ry: hash2D(ringIndex, side + 167, seed + 10301) * Math.PI,
+				rz: hash2D(ringIndex, side + 173, seed + 10427) * 0.35,
+			});
+		}
+	}
+	const debrisMesh = field(
+		'ice-cave-sediment-debris',
+		'cave-sediment-debris',
+		new THREE.DodecahedronGeometry(1, 0),
+		new THREE.MeshStandardMaterial({ color: 0x4f5552, roughness: 0.94, metalness: 0 }),
+		debris,
+		seed + 10501,
+		[0x343a38, 0x69675d],
+	);
+	group.add(debrisMesh);
+	return Object.freeze({ icicleCount: icicleMesh.count, debrisCount: debrisMesh.count });
+}
+
+function blueCore(group, portal, rings, seed) {
+	if (rings.length < 6) return 0;
+	const material = new THREE.MeshPhysicalMaterial({
+		color: 0x2f8197,
+		roughness: 0.19,
+		metalness: 0,
+		transmission: 0.24,
+		thickness: 2.4,
+		ior: 1.31,
+		attenuationColor: 0x14576b,
+		attenuationDistance: 6.5,
+		clearcoat: 0.28,
+		clearcoatRoughness: 0.18,
+		emissive: 0x062f3b,
+		emissiveIntensity: 0.16,
+	});
+	const transforms = [];
+	for (let ringIndex = 3; ringIndex < rings.length - 2; ringIndex += 2) {
+		const ring = rings[ringIndex];
+		for (const side of [-1, 1]) {
+			if (hash2D(ringIndex, side + 181, seed + 10601) < 0.26) continue;
+			const lateral = side * ring.halfWidth * (0.73 + hash2D(ringIndex, side + 191, seed + 10709) * 0.16);
+			const lift = ring.height * (0.18 + hash2D(ringIndex, side + 193, seed + 10831) * 0.42);
+			transforms.push({
+				position: new THREE.Vector3(
+					ring.centerX + portal.tx * lateral,
+					ring.centerY + lift,
+					ring.centerZ + portal.tz * lateral,
+				),
+				scale: new THREE.Vector3(
+					0.55 + hash2D(ringIndex, side + 197, seed + 10939) * 1.15,
+					2.2 + hash2D(ringIndex, side + 199, seed + 11003) * 4.6,
+					0.45 + hash2D(ringIndex, side + 211, seed + 11113) * 0.95,
+				),
+				ry: -Math.atan2(portal.tz, portal.tx) + side * (0.18 + hash2D(ringIndex, 223, seed + 11239) * 0.18),
+				rz: side * (0.08 + hash2D(ringIndex, 227, seed + 11329) * 0.18),
+			});
+		}
+	}
+	if (!transforms.length) return 0;
+	const mesh = field(
+		'ice-cave-dense-blue-core-slabs',
+		'cave-dense-blue-core-slabs',
+		new THREE.OctahedronGeometry(1, 1),
+		material,
+		transforms,
+		seed + 11443,
+		[0x1d6378, 0x65b2c1],
+	);
+	group.add(mesh);
+	return mesh.count;
+}
+
+export function applyIceLandmarkGeometryBreakup({ group, wallSections, portal, caveRings, seed }) {
+	const wallVertexMoves = fractureWall(group, wallSections, seed);
+	const caveVertexMoves = fractureCave(group, portal, caveRings, seed);
+	const macroFracturePlateCount = wallPlates(group, wallSections, portal, seed);
+	const wallFlowRibCount = wallRibs(group, wallSections, portal, seed);
+	const portalShroudCount = portalShroud(group, portal, seed);
+	const caveFloorTriangleCount = caveFloor(group, portal, caveRings, seed);
+	const caveSubsurfaceLightCount = caveLights(group, portal, caveRings, seed);
+	const bits = caveBits(group, portal, caveRings, seed);
+	const caveBlueCoreCount = blueCore(group, portal, caveRings, seed);
+	return Object.freeze({
+		wallVertexMoves,
+		caveVertexMoves,
+		macroFracturePlateCount,
+		wallFlowRibCount,
+		portalShroudCount,
+		caveFloorTriangleCount,
+		caveSubsurfaceLightCount,
+		caveIcicleCount: bits.icicleCount,
+		caveDebrisCount: bits.debrisCount,
+		caveBlueCoreCount,
+		primaryMeshesFractured: wallVertexMoves > 0 && caveVertexMoves > 0,
+		secondaryBreakupPresent: macroFracturePlateCount > 8
+			&& wallFlowRibCount > 8
+			&& portalShroudCount > 10
+			&& caveFloorTriangleCount > 20
+			&& caveSubsurfaceLightCount >= 3
+			&& bits.icicleCount > 4
+			&& caveBlueCoreCount > 4,
+	});
+}
