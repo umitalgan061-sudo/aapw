@@ -9,6 +9,13 @@ on:
       - 'src/3d/gameplay/interactionFieldReadiness.js'
       - 'scripts/checkInteractionJourneyHistoryWindow.mjs'
       - 'scripts/checkInteractionJourneyHistoryWindowCurrent.mjs'
+      - 'scripts/checkInteractionExpeditionBoard.mjs'
+      - 'scripts/checkInteractionExpeditionRewardProvenance.mjs'
+      - '.github/workflows/rpg-expedition-credit-ledger.yml'
+      - '.github/workflows/rpg-expedition-reward-provenance-current-main.yml'
+      - '.github/workflows/rpg-expedition-tavern-recovery.yml'
+      - '.github/workflows/rpg-interaction-quest-loop.yml'
+      - '.github/workflows/rpg-tavern-receipt-integrity.yml'
       - '.github/workflows/rpg-journey-ledger-ux.yml'
       - '.github/workflows/rpg-journey-history-current.yml'
   workflow_dispatch:
@@ -36,7 +43,7 @@ jobs:
           base="$(git merge-base HEAD origin/main)"
           test "$base" = "$(git rev-parse origin/main)"
           mapfile -t paths < <(git diff --name-only "$base"...HEAD)
-          allowed='^(src/3d/gameplay/interaction(Config|Economy|FieldReadiness)?\.js|scripts/checkInteractionJourneyHistoryWindow(Current)?\.mjs|\.github/workflows/rpg-journey-(history-current|ledger-ux)\.yml)$'
+          allowed='^(src/3d/gameplay/interaction(Config|Economy|FieldReadiness)?\.js|scripts/checkInteraction(JourneyHistoryWindow(Current)?|Expedition(Board|RewardProvenance))\.mjs|\.github/workflows/rpg-(journey-history-current|journey-ledger-ux|expedition-credit-ledger|expedition-reward-provenance-current-main|expedition-tavern-recovery|interaction-quest-loop|tavern-receipt-integrity)\.yml)$'
           if (( ${#paths[@]} )); then
             printf '%s\n' "${paths[@]}" | grep -Ev "$allowed" && exit 1 || true
           fi
@@ -73,3 +80,4 @@ jobs:
           set -euo pipefail
           git fetch origin main --no-tags
           test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          git diff --check origin/main...HEAD
