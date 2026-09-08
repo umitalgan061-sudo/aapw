@@ -86,6 +86,10 @@ export const VALYRIA_GEOLOGY_POLICY = Object.freeze({
   faultScarpMeters: 19,
   faultScarpAcrossFrequency: 8.6,
   faultScarpAlongFrequency: 2.15,
+  macroMassFloor: 0.24,
+  macroStrikeSpineWeight: 0.40,
+  macroFaultBlockWeight: 0.34,
+  macroCollapseTrenchStrength: 0.48,
   lavaDrainageFrequency: 34,
   lavaDrainageIncisionMeters: 14,
   erosionGullyFrequency: 79,
@@ -128,6 +132,27 @@ export function valyriaMorphologySignals(nx, ny) {
   const P = VALYRIA_GEOLOGY_POLICY;
   const frame = valyriaRegionalFrame(nx, ny);
 
+  // Break the broad province into elongated volcanic highlands separated by a strike-aligned graben.
+  // This modulates uplift amplitude only: owner-map coastline, water and ecology influence are untouched.
+  // The rift centre meanders slightly so the split reads tectonic rather than as a ruler-straight trench.
+  const macroWarp = signedFbmNoise(frame.along * 0.52 + 4.7, frame.across * 0.41 - 2.1, 2) * 0.22;
+  const strikeSpine = 1 - smoothstep(0.50, 1.16, Math.abs(frame.across + macroWarp));
+  const macroBlockField = signedFbmNoise(frame.along * 0.82 + 2.3, frame.across * 0.36 - 1.1, 2);
+  const macroFaultBlock = smoothstep(-0.52, 0.46, macroBlockField);
+  const collapseCarrier = 1 - Math.abs(signedFbmNoise(frame.along * 0.58 - 2.2, frame.across * 1.46 + 5.8, 2));
+  const stochasticCollapse = smoothstep(0.73, 0.94, collapseCarrier);
+  const riftWarp = signedFbmNoise(frame.along * 0.47 - 3.8, frame.across * 0.31 + 7.2, 2) * 0.15;
+  const riftCenter = 0.10 * Math.sin(frame.along * 1.35 + 0.6) + riftWarp;
+  const tectonicRift = 1 - smoothstep(0.14, 0.48, Math.abs(frame.across - riftCenter));
+  const macroCollapseTrench = Math.max(stochasticCollapse, tectonicRift * (0.72 + macroFaultBlock * 0.28));
+  const macroHighland = Math.min(1,
+    0.36 + strikeSpine * P.macroStrikeSpineWeight + macroFaultBlock * P.macroFaultBlockWeight,
+  );
+  const macroMassEnvelope = Math.max(
+    P.macroMassFloor,
+    macroHighland * (1 - macroCollapseTrench * P.macroCollapseTrenchStrength),
+  );
+
   const collapseA = 1 - Math.abs(signedFbmNoise(nx * P.calderaFrequency + 7.1, ny * P.calderaFrequency - 13.6, 2));
   const collapseB = 1 - Math.abs(signedFbmNoise(nx * (P.calderaFrequency * 0.73) - 21.4, ny * (P.calderaFrequency * 0.91) + 17.2, 2));
   const collapseField = clamp01(collapseA * 0.58 + collapseB * 0.42);
@@ -166,6 +191,11 @@ export function valyriaMorphologySignals(nx, ny) {
   const erosionGully = smoothstep(0.86, 0.985, 1 - Math.abs(gullyField));
 
   return Object.freeze({
+    macroMassEnvelope,
+    macroStrikeSpine: strikeSpine,
+    macroFaultBlock,
+    macroCollapseTrench,
+    macroTectonicRift: tectonicRift,
     calderaBasin,
     brokenCalderaShoulder,
     faultEscarpment,
@@ -218,7 +248,7 @@ export function valyriaUpliftMeters(nx, ny, heightAboveSeaMeters, waterWeight = 
   const morphology = valyriaMorphologySignals(nx, ny);
   const legacyFault = signedFbmNoise(nx * P.faultFrequency - 23.9, ny * P.faultFrequency + 51.4, 2);
 
-  const mass = P.upliftMeters * Math.pow(influence, 1.45) * broadMass;
+  const mass = P.upliftMeters * Math.pow(influence, 1.45) * broadMass * morphology.macroMassEnvelope;
   const calderaCut = P.calderaCutMeters * morphology.calderaBasin * Math.pow(influence, 1.8);
   const shoulderLift = P.brokenCalderaShoulderMeters * morphology.brokenCalderaShoulder * influence;
   const faulting = P.faultAmplitudeMeters * legacyFault * influence;

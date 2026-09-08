@@ -19,6 +19,10 @@ assert.equal(E.placementOnly, true);
 assert.equal(E.terrainHeightAuthorityUnchanged, true);
 assert.equal(E.colliderAuthorityUnchanged, true);
 assert.equal(E.canonicalWaterAuthorityUnchanged, true);
+assert(E.id.includes('v2-feathered-refugia'));
+assert(Number.isFinite(E.transitionWidth) && E.transitionWidth > 0);
+const configuredTransitionStart = Math.max(0, E.exclusionInfluence - E.transitionWidth);
+assert(configuredTransitionStart >= 0 && configuredTransitionStart < E.exclusionInfluence);
 assert(E.excludedOrdinarySystems.includes('vegetation-tree-scatter'));
 assert(E.excludedOrdinarySystems.includes('procedural-villages'));
 assert(E.excludedOrdinarySystems.includes('wind-grass-ground-cover'));
@@ -98,39 +102,86 @@ assert.equal(outsideOut.canonicalDelegated, true);
 assert.equal(canonicalCalls, 1);
 assert.equal(canonicalSurface.touched, 1);
 
-// Exercise the whole falloff, not only the centre. The boundary should contain both banned and allowed
-// points and the transition must be controlled by the shared geology influence threshold.
-let banned = 0;
-let allowed = 0;
-let mismatches = 0;
+// Exercise the whole falloff. V2 intentionally feathers the pre-Doom transition with deterministic
+// refugia instead of drawing a perfect binary ring. The configured width may be broader than the hard
+// barren threshold; production deliberately clamps transitionStart to zero in that case so the outermost
+// zero-influence world remains untouched while the full non-zero influence falloff can feather naturally.
+// Hard-barren points must always be rejected; zero-influence points must always survive; the transition
+// should contain both survivors and rejected pockets, which avoids a visible vegetation contour around
+// the volcanic province.
+let hardBarren = 0;
+let hardBarrenViolations = 0;
+let outerWorld = 0;
+let outerWorldViolations = 0;
+let transitionSamples = 0;
+let transitionAllowed = 0;
+let transitionRejected = 0;
+let transitionDensityMin = 1;
+let transitionDensityMax = 0;
 for (let iy = 0; iy <= 64; iy += 1) {
   const ny = 0.60 + iy / 64 * 0.24;
   for (let ix = 0; ix <= 64; ix += 1) {
     const nx = 0.35 + ix / 64 * 0.20;
     const world = worldFromNormalized(nx, ny);
     const influence = valyriaInfluenceAtWorldXZ(world.x, world.z);
-    const shouldAllow = influence < E.exclusionInfluence;
+    const profile = valyriaEcologyProfileAtWorldXZ(world.x, world.z);
     const actualAllow = isOrdinaryEcologyAllowedAtWorldXZ(world.x, world.z);
-    if (actualAllow) allowed += 1;
-    else banned += 1;
-    if (actualAllow !== shouldAllow) mismatches += 1;
+    assert.equal(profile.influence, influence);
+    assert(profile.refugia >= 0 && profile.refugia <= 1);
+    assert(profile.ordinaryTreeDensity >= 0 && profile.ordinaryTreeDensity <= 1);
+    assert(profile.ordinaryGrassDensity >= 0 && profile.ordinaryGrassDensity <= 1);
+
+    if (influence >= E.exclusionInfluence) {
+      hardBarren += 1;
+      if (actualAllow || !profile.barren || profile.ordinaryTreeDensity !== 0 || profile.ordinaryGrassDensity !== 0) {
+        hardBarrenViolations += 1;
+      }
+      continue;
+    }
+
+    const transitionStart = Math.max(0, E.exclusionInfluence - E.transitionWidth);
+    if (influence <= transitionStart + 1e-12) {
+      outerWorld += 1;
+      if (!actualAllow || profile.barren || profile.ordinaryTreeDensity < 0.999999 || profile.ordinaryGrassDensity < 0.999999) {
+        outerWorldViolations += 1;
+      }
+      continue;
+    }
+
+    transitionSamples += 1;
+    if (actualAllow) transitionAllowed += 1;
+    else transitionRejected += 1;
+    transitionDensityMin = Math.min(transitionDensityMin, profile.ordinaryGrassDensity);
+    transitionDensityMax = Math.max(transitionDensityMax, profile.ordinaryGrassDensity);
+    assert.equal(profile.barren, false, 'pre-threshold feather must not claim hard-barren authority');
   }
 }
-assert.equal(mismatches, 0, 'ecology boundary diverged from shared Valyria geology influence');
-assert(banned > 100, `barren region unexpectedly tiny: ${banned}`);
-assert(allowed > 1000, `falloff/outer region unexpectedly over-blocked: ${allowed}`);
+assert.equal(hardBarrenViolations, 0, 'hard Valyria core leaked ordinary ecology');
+assert.equal(outerWorldViolations, 0, 'zero/low-pressure outer world lost ordinary ecology');
+assert(hardBarren > 100, `barren region unexpectedly tiny: ${hardBarren}`);
+assert(outerWorld > 1000, `outer world unexpectedly small: ${outerWorld}`);
+assert(transitionSamples > 20, `ecology feather band was not sampled: ${transitionSamples}`);
+assert(transitionAllowed > 0, 'feather band lost all ecological refugia');
+assert(transitionRejected > 0, 'feather band became a hard all-allowed ring');
+assert(transitionDensityMin < 0.95 && transitionDensityMax > transitionDensityMin + 0.05, 'feather band lost density variation');
 
-// Determinism: repeated profile answers are structural equals at representative points.
+// Determinism: repeated profile and acceptance answers must remain stable at representative points.
 for (const point of [core, neck, outside, worldFromNormalized(0.39, 0.70), worldFromNormalized(0.50, 0.75)]) {
   assert.deepEqual(valyriaEcologyProfileAtWorldXZ(point.x, point.z), valyriaEcologyProfileAtWorldXZ(point.x, point.z));
+  assert.equal(isOrdinaryEcologyAllowedAtWorldXZ(point.x, point.z), isOrdinaryEcologyAllowedAtWorldXZ(point.x, point.z));
 }
 
 console.log('[checkValyriaBarrenEcology] PASS');
 console.log(JSON.stringify({
   ecologyPolicyId: E.id,
   geologyPolicyId: P.id,
-  bannedGridSamples: banned,
-  allowedGridSamples: allowed,
+  configuredTransitionStart,
+  hardBarrenGridSamples: hardBarren,
+  outerWorldGridSamples: outerWorld,
+  transitionSamples,
+  transitionAllowed,
+  transitionRejected,
+  transitionDensityRange: [transitionDensityMin, transitionDensityMax],
   canonicalDelegationCalls: canonicalCalls,
   corePlacementHeight,
   outsidePlacementHeight,

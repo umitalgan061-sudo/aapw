@@ -4,10 +4,12 @@ on:
   push:
     branches:
       - codex/foundation-grounding-20260821
+      - codex/valyria-geology-realism-20260831
     paths:
       - 'src/3d/world/valyriaGeology.js'
       - 'src/3d/world/valyriaEcology.js'
       - 'src/3d/world/valyriaCastleWeathering.js'
+      - 'src/3d/world/valyriaVolcanicFeatures.js'
       - 'src/3d/world/settlements.js'
       - 'src/3d/world/terrain.js'
       - 'src/3d/world/naturalGeologyPlacement.js'
@@ -15,6 +17,28 @@ on:
       - 'src/3d/sceneManager.js'
       - 'scripts/checkValyriaGeology.mjs'
       - 'scripts/checkValyriaVolcanicMorphology.mjs'
+      - 'scripts/checkValyriaVolcanicFeatureNaturalness.mjs'
+      - 'scripts/checkValyriaCanonicalTerrain.mjs'
+      - 'scripts/checkValyriaBarrenEcology.mjs'
+      - 'scripts/checkValyriaCastleWeathering.mjs'
+      - 'scripts/checkNaturalGeologyPlacement.mjs'
+      - 'scripts/checkNaturalGeologySourceContract.mjs'
+      - '.github/workflows/natural-geology-exact-head.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/valyriaGeology.js'
+      - 'src/3d/world/valyriaEcology.js'
+      - 'src/3d/world/valyriaCastleWeathering.js'
+      - 'src/3d/world/valyriaVolcanicFeatures.js'
+      - 'src/3d/world/settlements.js'
+      - 'src/3d/world/terrain.js'
+      - 'src/3d/world/naturalGeologyPlacement.js'
+      - 'src/3d/world/naturalGeology.js'
+      - 'src/3d/sceneManager.js'
+      - 'scripts/checkValyriaGeology.mjs'
+      - 'scripts/checkValyriaVolcanicMorphology.mjs'
+      - 'scripts/checkValyriaVolcanicFeatureNaturalness.mjs'
       - 'scripts/checkValyriaCanonicalTerrain.mjs'
       - 'scripts/checkValyriaBarrenEcology.mjs'
       - 'scripts/checkValyriaCastleWeathering.mjs'
@@ -31,10 +55,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
-      - name: Checkout exact pushed head
+      - name: Checkout exact tested head
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
           lfs: false
       - uses: actions/setup-node@v4
@@ -43,10 +67,12 @@ jobs:
       - name: Verify exact head and syntax
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          EXPECTED_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
           node --check src/3d/world/valyriaGeology.js
           node --check src/3d/world/valyriaEcology.js
           node --check src/3d/world/valyriaCastleWeathering.js
+          node --check src/3d/world/valyriaVolcanicFeatures.js
           node --check src/3d/world/settlements.js
           node --check src/3d/world/terrain.js
           node --check src/3d/world/naturalGeologyPlacement.js
@@ -54,6 +80,7 @@ jobs:
           node --check src/3d/sceneManager.js
           node --check scripts/checkValyriaGeology.mjs
           node --check scripts/checkValyriaVolcanicMorphology.mjs
+          node --check scripts/checkValyriaVolcanicFeatureNaturalness.mjs
           node --check scripts/checkValyriaCanonicalTerrain.mjs
           node --check scripts/checkValyriaBarrenEcology.mjs
           node --check scripts/checkValyriaCastleWeathering.mjs
@@ -65,6 +92,8 @@ jobs:
         run: node scripts/checkValyriaGeology.mjs
       - name: Valyria volcanic morphology matrix
         run: node scripts/checkValyriaVolcanicMorphology.mjs
+      - name: Sparse Valyria volcanic render naturalness
+        run: node scripts/checkValyriaVolcanicFeatureNaturalness.mjs
       - name: Canonical Valyria terrain integration
         run: node scripts/checkValyriaCanonicalTerrain.mjs
       - name: Valyria barren ecology placement
@@ -80,10 +109,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
-      - name: Checkout exact pushed head
+      - name: Checkout exact tested head
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 1
           lfs: false
       - uses: actions/setup-node@v4
@@ -96,8 +125,11 @@ jobs:
           set -euo pipefail
           node --input-type=module <<'NODE'
           const geology = await import('./src/3d/world/naturalGeology.js');
-          if (!geology.NATURAL_GEOLOGY_RENDER_POLICY?.renderOnly) throw new Error('render-only contract lost');
-          if (geology.NATURAL_GEOLOGY_RENDER_POLICY.referenceLandscapeRuntimeLoad !== false) throw new Error('heavy landscape became runtime load');
+          const policy = geology.NATURAL_GEOLOGY_RENDER_POLICY;
+          if (!policy?.renderOnly) throw new Error('render-only contract lost');
+          if (policy.referenceLandscapeRuntimeLoad !== false) throw new Error('heavy landscape became runtime load');
+          if (policy.legacyBlanketSurfaceRemoved !== true) throw new Error('blanket Valyria overlay returned');
+          if (policy.canonicalTerrainOwnsContinuousValyriaSurface !== true) throw new Error('continuous Valyria surface authority drifted');
           const g = geology.createNaturalRockPrototypeGeometry('fractured-scarp');
           if (!g?.getAttribute?.('position')?.count) throw new Error('procedural fallback geometry missing');
           g.dispose();
