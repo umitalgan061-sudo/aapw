@@ -15,8 +15,13 @@ const text = (value, fallback = '') => {
   const v = String(value ?? '').trim();
   return v ? v.slice(0, 160) : fallback;
 };
-const integer = (value, min = 0, max = 999999) => Math.max(min, Math.min(max, Math.trunc(Number(value) || 0)));
 const clone = value => value == null ? value : JSON.parse(JSON.stringify(value));
+const freeze = value => {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+  Object.freeze(value);
+  for (const child of Object.values(value)) freeze(child);
+  return value;
+};
 
 function normalizedCompleted(completed) {
   return Array.isArray(completed) ? [...new Set(completed.map(value => text(value)).filter(Boolean))] : [];
@@ -55,7 +60,7 @@ export function buildSettlementCampaignStageTracker(input = {}) {
   const summary = complete
     ? 'Yerleşim zinciri tamamlandı.'
     : activeId ? `${stepView(activeId, completedSet, activeId)?.title ?? activeId} sıradaki adım.` : 'Yerleşim zinciri hazır.';
-  return Object.freeze({
+  return freeze({
     version: SETTLEMENT_STAGE_TRACKER_VERSION,
     activeStep: activeId,
     completed: completed.slice(0, ids.length),
@@ -82,8 +87,7 @@ export function recordSettlementCampaignStep(tracker, stepId, options = {}) {
 }
 
 export function serializeSettlementCampaignStageTracker(tracker) {
-  const value = buildSettlementCampaignStageTracker(tracker);
-  return JSON.stringify(value);
+  return JSON.stringify(buildSettlementCampaignStageTracker(tracker));
 }
 
 export function getSettlementCampaignStageTrackerLimits() {
