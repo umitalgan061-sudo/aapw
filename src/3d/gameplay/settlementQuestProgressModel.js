@@ -4,6 +4,7 @@
  */
 import {
   buildSettlementQuestChainProgress,
+  evaluateSettlementQuestChainStep,
   getSettlementQuestChain,
   listSettlementQuestChains,
 } from './settlementCampaignQuestChains.js';
@@ -48,18 +49,17 @@ export function createSettlementQuestProgressModel({
       service: text(chain?.service),
       totalSteps: steps.length,
       completedSteps: steps.filter((step) => step.completed).length,
-      nextStepId: progress?.nextStepId || steps.find((step) => !step.completed)?.id || null,
-      ready: progress?.ready === true,
+      nextStepId: progress?.steps?.find((step) => step.state !== 'complete')?.id || steps.find((step) => !step.completed)?.id || null,
+      ready: progress?.steps?.find((step) => step.state !== 'complete')?.ready === true,
       steps,
     };
   });
 
   const active = chains.find((chain) => chain.id === activeChainId) || chains[0] || null;
   const activeStep = active?.steps.find((step) => step.id === active.nextStepId) || null;
-  let evaluation = null;
-  if (active && activeStep && typeof ruleEvaluator === 'function') {
-    evaluation = buildSettlementQuestChainProgress(active.id, snapshot, completed, ruleEvaluator)?.evaluation || null;
-  }
+  const evaluation = active && activeStep && typeof ruleEvaluator === 'function'
+    ? evaluateSettlementQuestChainStep(active.id, activeStep.id, snapshot, ruleEvaluator)
+    : null;
 
   return freeze({
     activeChainId: active?.id || null,
