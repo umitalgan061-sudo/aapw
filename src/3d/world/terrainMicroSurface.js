@@ -6,6 +6,7 @@
 
 import * as THREE from 'three';
 import { WORLD_DEFAULTS } from '../config.js';
+import { installNaturalSurfaceMaterial, NATURAL_SURFACE_MATERIAL_POLICY } from './naturalSurfaceMaterial.js';
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -465,6 +466,7 @@ export function applyTerrainMicroSurface(material) {
 	material.normalScale.setScalar(TERRAIN_MICRO_SURFACE_POLICY.normalStrength);
 	material.roughnessMap = surface.roughnessMap;
 	material.roughness = TERRAIN_MICRO_SURFACE_POLICY.roughnessBase;
+	installNaturalSurfaceMaterial(material);
 	installWorldSpaceColorBreakup(material);
 	material.userData.terrainMicroSurface = Object.freeze({
 		policyId: TERRAIN_MICRO_SURFACE_POLICY.id,
@@ -490,6 +492,11 @@ export function applyTerrainMicroSurface(material) {
 		coastalRoughnessResponse: true,
 		aspectWeathering: true,
 		roughnessResponse: true,
+		naturalSurfaceMaterialPolicyId: NATURAL_SURFACE_MATERIAL_POLICY.id,
+		valyriaWorldSpacePbr: true,
+		lowlandHighPassMosaic: true,
+		ridgeFacetRecovery: true,
+		patchyIntertidalTransition: true,
 		renderOnly: true,
 	});
 	material.needsUpdate = true;

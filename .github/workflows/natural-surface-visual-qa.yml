@@ -1,0 +1,80 @@
+name: Natural Surface Visual QA
+
+on:
+  push:
+    branches:
+      - codex/natural-geography-20260831
+    paths:
+      - 'src/3d/world/naturalSurfaceMaterial.js'
+      - 'src/3d/world/terrainMicroSurface.js'
+      - 'src/3d/world/water.js'
+      - 'scripts/checkNaturalSurfaceMaterial.mjs'
+      - 'scripts/checkWaterLayerTransition.mjs'
+      - 'scripts/captureFullWorld3DTopdown.mjs'
+      - 'scripts/fullWorld3DTopdownHarness.html'
+      - '.github/workflows/natural-surface-visual-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  material-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout exact pushed head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install shader runtime dependency
+        run: npm install --no-save three
+      - name: Exact-head syntax and combined material contract
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          node --check src/3d/world/naturalSurfaceMaterial.js
+          node --check src/3d/world/terrainMicroSurface.js
+          node --check src/3d/world/water.js
+          node --check scripts/checkNaturalSurfaceMaterial.mjs
+          node --check scripts/checkWaterLayerTransition.mjs
+          node scripts/checkNaturalSurfaceMaterial.mjs
+          node scripts/checkWaterLayerTransition.mjs
+
+  browser-visual:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - name: Checkout exact pushed head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install browser runtime
+        run: |
+          npm install --no-save playwright three
+          npx playwright install --with-deps chromium
+      - name: Render exact-head full world and Valyria
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"
+          node scripts/captureFullWorld3DTopdown.mjs --width=1536 --height=1024 --segments=360 --focus=world --output=artifacts/natural-surface/full-world.png
+          node scripts/captureFullWorld3DTopdown.mjs --width=1536 --height=1024 --segments=360 --focus=valyria --port=4174 --output=artifacts/natural-surface/valyria-regional.png
+          printf '%s\n' "$GITHUB_SHA" > artifacts/natural-surface/head-sha.txt
+      - name: Upload exact-head visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: natural-surface-visual-${{ github.sha }}
+          path: artifacts/natural-surface/
+          if-no-files-found: warn
+          retention-days: 7
