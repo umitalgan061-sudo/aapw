@@ -20,6 +20,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - run: npm install --no-save three@0.160.0
       - name: Exact main ancestry and diff cap
         shell: bash
         run: |
