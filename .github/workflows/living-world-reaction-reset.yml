@@ -1,0 +1,48 @@
+name: Living World Reaction Reset Contract
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/livingWorldReactionRuntime.js'
+      - 'scripts/checkLivingWorldReactionReset.mjs'
+      - '.github/workflows/living-world-reaction-reset.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reset-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exact-main scope and syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          base="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD "$base")" = "$base"
+          total="$(git diff --numstat "$base"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          test "$total" -le 3000
+          git diff --check "$base"...HEAD
+          node --check src/3d/gameplay/livingWorldReactionRuntime.js
+          node --check scripts/checkLivingWorldReactionReset.mjs
+      - name: Reset determinism contract
+        run: node scripts/checkLivingWorldReactionReset.mjs
+      - name: Final freshness recheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
