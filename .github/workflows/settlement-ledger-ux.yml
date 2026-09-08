@@ -1,0 +1,21 @@
+name: Settlement Ledger UX
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementLedgerUx.js'
+      - 'scripts/checkSettlementLedgerUx.mjs'
+      - '.github/workflows/settlement-ledger-ux.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: node --check src/3d/gameplay/settlementLedgerUx.js && node --check scripts/checkSettlementLedgerUx.mjs
+      - name: Focused contract
+        run: node scripts/checkSettlementLedgerUx.mjs
