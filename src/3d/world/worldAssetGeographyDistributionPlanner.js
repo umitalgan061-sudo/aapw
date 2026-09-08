@@ -160,7 +160,7 @@ function normalizeSurface(candidate = {}) {
     roadDistance: finite(source.roadDistance ?? candidate.roadDistance, Infinity),
     settlementDistance: finite(source.settlementDistance ?? candidate.settlementDistance, Infinity),
     snow: clamp01(source.snow ?? candidate.snow),
-    concavity: clamp01(source.concavity ?? candidate.concavity ?? 0.5),
+    concavity: clampSigned(source.concavity ?? candidate.concavity ?? 0),
     shelter: clamp01(source.shelter ?? candidate.shelter ?? 0.5),
     erosion: clamp01(source.erosion ?? candidate.erosion ?? 0.5),
     deposition: clamp01(source.deposition ?? candidate.deposition ?? 0.5),
@@ -363,9 +363,13 @@ function cohortAffinity(candidate, selected, options = {}) {
     if (candidate.family !== previous.family) continue;
     const distance = Math.sqrt(distanceSquared(candidate, previous));
     if (distance > radius) continue;
-    const sameCohort = deterministicAssetCohortOffset(candidate.profile, candidate.surface.x, candidate.surface.z)
-      === deterministicAssetCohortOffset(previous.profile, previous.surface.x, previous.surface.z);
-    const affinity = (1 - smooth(distance / Math.max(1, radius))) * (sameCohort ? 1 : 0.46);
+    const candidateCohort = deterministicAssetCohortOffset(candidate.surface.x, candidate.surface.z, candidate.family);
+    const previousCohort = deterministicAssetCohortOffset(previous.surface.x, previous.surface.z, previous.family);
+    const cohortDelta = Math.abs(candidateCohort - previousCohort);
+    const sameCohort = cohortDelta <= 0.18;
+    const affinity = (1 - smooth(distance / Math.max(1, radius)))
+      * (sameCohort ? 1 : 0.46)
+      * (1 - smooth(Math.max(0, cohortDelta - 0.18) / 0.42) * 0.24);
     best = Math.max(best, affinity);
   }
   return best;
@@ -413,7 +417,7 @@ function selectByGreedyUtility(candidates, limit, options = {}) {
   while (selected.length < maximum && remaining.length) {
     let bestIndex = 0;
     let bestUtility = -Infinity;
-    for (let i = 0; i < remaining.length; i++) {
+    for (let i = 0; i < remaining.length; i += 1) {
       const utility = candidateUtility(remaining[i], selected, options);
       if (utility > bestUtility) {
         bestUtility = utility;
