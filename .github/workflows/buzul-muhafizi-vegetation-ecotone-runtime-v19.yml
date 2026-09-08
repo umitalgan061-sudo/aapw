@@ -1,0 +1,50 @@
+name: Buzul Muhafizi Vegetation Ecotone Runtime v19
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/vegetationEcotoneRuntimeAdapter.js'
+      - 'scripts/checkVegetationEcotoneRuntimeAdapter.mjs'
+      - '.github/workflows/buzul-muhafizi-vegetation-ecotone-runtime-v19.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/world/vegetationEcotoneRuntimeAdapter.js'
+      - 'scripts/checkVegetationEcotoneRuntimeAdapter.mjs'
+      - '.github/workflows/buzul-muhafizi-vegetation-ecotone-runtime-v19.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify exact main ancestry and focused scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git fetch origin main --depth=1
+            git merge-base --is-ancestor origin/main HEAD
+            files=$(git diff --name-only "origin/main...HEAD")
+            test "$(printf '%s\n' "$files" | sed '/^$/d' | wc -l | tr -d ' ')" -eq 3
+            while IFS= read -r file; do
+              case "$file" in
+                src/3d/world/vegetationEcotoneRuntimeAdapter.js|scripts/checkVegetationEcotoneRuntimeAdapter.mjs|.github/workflows/buzul-muhafizi-vegetation-ecotone-runtime-v19.yml) ;;
+                *) echo "unexpected changed path: $file"; exit 1;;
+              esac
+            done <<< "$files"
+            changed=$(git diff --numstat "origin/main...HEAD" | awk '{a+=$1; d+=$2} END {print a+d+0}')
+            test "$changed" -le 3000
+          fi
+      - name: Syntax check
+        run: node --check src/3d/world/vegetationEcotoneRuntimeAdapter.js && node --check scripts/checkVegetationEcotoneRuntimeAdapter.mjs
+      - name: Execute deterministic runtime contract
+        run: node scripts/checkVegetationEcotoneRuntimeAdapter.mjs
+      - name: Enforce shared runtime boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -n "EditorMaterialStudio\\|document\\|window\\|MaterialAssignmentCore\\|WorldAssetPlacementPipeline" src/3d/world/vegetationEcotoneRuntimeAdapter.js
