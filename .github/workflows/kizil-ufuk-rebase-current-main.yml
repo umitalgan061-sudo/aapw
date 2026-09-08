@@ -7,7 +7,6 @@ permissions:
   contents: write
 jobs:
   rebase:
-    if: github.actor == 'umitalgan061-sudo'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
