@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
   buildSettlementActivityFeed,
+  acknowledgeSettlementActivityFeed,
   summarizeSettlementActivityFeed,
   serializeSettlementActivityFeed,
 } from '../src/3d/gameplay/settlementCampaignActivityFeed.js';
@@ -18,26 +19,34 @@ const view = {
   feedback: { status: 'blocked', code: 'missing-material', message: 'Demir eksik.', action: 'craft' },
 };
 
-const first = buildSettlementActivityFeed(view, { limit: 4, unread: 2 });
-const second = buildSettlementActivityFeed(view, { limit: 4, unread: 2 });
+const first = buildSettlementActivityFeed(view, { limit: 4, readThroughSequence: 2 });
+const second = buildSettlementActivityFeed(view, { limit: 4, readThroughSequence: 2 });
 assert.equal(first.digest, second.digest, 'deterministic-digest');
 assert.equal(first.settlementId, 'north-settlement', 'settlement-id');
 assert.equal(first.activeService, 'blacksmith', 'active-service');
 assert.equal(first.panel, 'craft', 'panel');
 assert.equal(first.entries.length, 4, 'bounded-entry-count');
 assert.equal(first.latest.status, 'blocked', 'latest-feedback');
+assert.equal(first.latest.label, 'Üretim', 'action-label');
 assert.equal(first.statusCounts.blocked, 1, 'blocked-count');
 assert.equal(first.statusCounts.success, 1, 'success-count');
-assert.equal(first.unread, 2, 'unread-clamp');
+assert.equal(first.unread, 2, 'derived-unread');
+assert.equal(first.readThroughSequence, 2, 'read-through');
 assert(Object.isFrozen(first), 'feed-frozen');
 assert(Object.isFrozen(first.entries[0]), 'entry-frozen');
 assert.equal(serializeSettlementActivityFeed(first), serializeSettlementActivityFeed(second), 'stable-serialization');
 
-const summary = summarizeSettlementActivityFeed(first);
+const acknowledged = acknowledgeSettlementActivityFeed(first, 4);
+assert.equal(acknowledged.unread, 0, 'acknowledge-all');
+assert.equal(acknowledged.readThroughSequence, 4, 'acknowledge-sequence');
+assert(Object.isFrozen(acknowledged), 'acknowledged-frozen');
+
+const summary = summarizeSettlementActivityFeed(acknowledged);
 assert.deepEqual(summary, {
-  digest: first.digest,
+  digest: acknowledged.digest,
   count: 4,
-  unread: 2,
+  unread: 0,
+  readThroughSequence: 4,
   latestAction: 'craft',
   latestStatus: 'blocked',
   latestMessage: 'Demir eksik.',
