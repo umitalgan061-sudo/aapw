@@ -1,0 +1,70 @@
+name: Settlement Asset Hydration QA
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/villages.js'
+      - 'src/3d/world/settlementGeographyPolicy.js'
+      - 'src/3d/world/settlementHouseTypeMix.js'
+      - 'src/3d/world/settlementFrontagePolicy.js'
+      - 'scripts/checkSettlementGeographyBrowser.mjs'
+      - 'scripts/checkSettlementFrontagePolicy.mjs'
+      - 'assets/models/settlements/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hydrate-and-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact pull request head with LFS
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+          lfs: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Selectively hydrate settlement model family
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs pull --include='assets/models/settlements/**' --exclude=''
+          git lfs checkout assets/models/settlements || true
+
+      - name: Confirm authored assets are either hydrated GLBs or explicit LFS pointers
+        shell: bash
+        run: |
+          set -euo pipefail
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const root = path.join(process.cwd(), 'assets', 'models', 'settlements');
+          const files = fs.readdirSync(root, { recursive: true }).filter((p) => p.endsWith('.glb'));
+          if (!files.length) throw new Error('settlement asset family is missing');
+          const report = files.map((relative) => {
+            const full = path.join(root, relative);
+            const bytes = fs.readFileSync(full);
+            const isGlb = bytes.subarray(0, 4).toString('ascii') === 'glTF';
+            const isPointer = bytes.toString('utf8').startsWith('version https://git-lfs.github.com/spec/v1');
+            if (!isGlb && !isPointer) throw new Error(`neither hydrated GLB nor LFS pointer: ${relative}`);
+            return { path: relative, hydratedGlb: isGlb, lfsPointer: isPointer, bytes: bytes.length };
+          });
+          const hydrated = report.filter((item) => item.hydratedGlb).length;
+          const pointers = report.filter((item) => item.lfsPointer).length;
+          if (hydrated === 0 && pointers === 0) throw new Error('no usable settlement assets found');
+          console.log(JSON.stringify({ settlementAssetFiles: report.length, hydrated, pointers }));
+          NODE
+
+      - name: Shared settlement runtime contracts
+        run: node scripts/checkSettlementGeographyBrowser.mjs
+
+      - name: Road-frontage contracts
+        run: node scripts/checkSettlementFrontagePolicy.mjs
