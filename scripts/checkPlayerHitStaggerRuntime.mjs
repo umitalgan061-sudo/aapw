@@ -47,9 +47,12 @@ async function isolateDamageSources() {
   });
 }
 try {
-  await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  const gameUrl = `http://127.0.0.1:${server.address().port}/game3d.html`;
+  await page.goto(gameUrl, { waitUntil: 'commit', timeout: 30000 });
+  const entryButton = page.locator('#run266-entry-enter');
+  await entryButton.waitFor({ state: 'visible', timeout: 30000 });
   await isolateDamageSources();
-  await page.locator('#run266-entry-enter').click();
+  await entryButton.click();
   await page.waitForFunction(() => document.querySelector('#game3d-loading')?.classList.contains('g3d-loading-hidden'), null, { timeout: 90000 });
   const baseline = await waitFor(() => {
     const frame = window.__hitStaggerMotion.at(-1);

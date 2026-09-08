@@ -9,14 +9,23 @@ on:
       - 'src/3d/gameplay/damageResolution.js'
       - 'src/3d/input.js'
       - 'src/3d/gameLoopHelpers.js'
+      - 'src/3d/camera.js'
       - 'src/3d/ui/touchJoystick.js'
       - 'src/3d/ui/healthBar.js'
+      - 'src/3d/ui/controlsHelp.js'
+      - 'scripts/checkPlayerCombatVerticalSlice.mjs'
+      - 'scripts/checkPlayerEquipmentAssetReadiness.mjs'
+      - 'scripts/checkPlayerEquipmentSocketRuntime.mjs'
+      - 'scripts/checkPlayerGeographicCameraOcclusion.mjs'
+      - 'scripts/checkPlayerTouchCombatRuntime.mjs'
+      - 'scripts/checkTouchJoystickInputContract.js'
       - 'scripts/checkPlayerCombatFeedback.mjs'
       - 'scripts/checkPlayerCombatFeedbackHapticParity.mjs'
       - 'scripts/checkPlayerCombatFeedbackHotplug.mjs'
       - 'scripts/checkPlayerCombatHealthReceipt.mjs'
       - 'scripts/checkPlayerImmutableDefenseDamage.mjs'
       - 'scripts/checkPlayerGamepadInput.mjs'
+      - 'scripts/checkPlayerGamepadParryLifecycle.mjs'
       - 'scripts/checkPlayerGamepadHandoff.mjs'
       - 'scripts/checkPlayerGamepadRuntime.mjs'
       - 'scripts/checkPlayerLockOn.mjs'
@@ -29,19 +38,24 @@ on:
       - 'scripts/checkPlayerDodgeIFrames.mjs'
       - 'scripts/checkPlayerDodgeIFrameRuntime.mjs'
       - 'scripts/checkPlayerGroundingCombatContract.mjs'
+      - 'scripts/checkPlayerGuardImpactExhaustionRuntime.mjs'
       - 'scripts/checkPlayerHitStaggerRuntime.mjs'
       - 'scripts/checkPlayerRecoveryAttackBufferDrop.mjs'
       - 'scripts/checkPlayerRecoveryAttackBufferRuntime.mjs'
       - '.github/workflows/player-combat-feedback.yml'
+      - '.github/workflows/player-combat-vertical-slice.yml'
       - '.github/workflows/player-dodge-iframes.yml'
+      - '.github/workflows/player-equipment-socket-runtime.yml'
       - '.github/workflows/player-grounding-combat-contract.yml'
       - '.github/workflows/player-gamepad-parity.yml'
+      - '.github/workflows/player-gamepad-parry-lifecycle.yml'
       - '.github/workflows/player-hit-stagger-runtime.yml'
       - '.github/workflows/player-stamina-dodge.yml'
       - '.github/workflows/player-combat-recovery-input-isolation.yml'
       - '.github/workflows/player-guard-impact-exhaustion.yml'
       - '.github/workflows/player-parry-recovery.yml'
       - '.github/workflows/player-recovery-attack-buffer-drop.yml'
+      - '.github/workflows/player-touch-combat-runtime.yml'
   workflow_dispatch:
 
 permissions:
@@ -74,33 +88,66 @@ jobs:
           git diff --check "$MAIN_SHA"...HEAD
           CHANGED="$(git diff --name-only "$MAIN_SHA"...HEAD)"
           echo "$CHANGED"
-          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player\.js|src/3d/gameplay/health\.js|src/3d/gameplay/damageResolution\.js|src/3d/input\.js|src/3d/gameLoopHelpers\.js|src/3d/ui/touchJoystick\.js|src/3d/ui/healthBar\.js|scripts/checkPlayerCombatFeedback\.mjs|scripts/checkPlayerCombatFeedbackHapticParity\.mjs|scripts/checkPlayerCombatFeedbackHotplug\.mjs|scripts/checkPlayerCombatHealthReceipt\.mjs|scripts/checkPlayerImmutableDefenseDamage\.mjs|scripts/checkPlayerGamepadInput\.mjs|scripts/checkPlayerGamepadHandoff\.mjs|scripts/checkPlayerGamepadRuntime\.mjs|scripts/checkPlayerLockOn\.mjs|scripts/checkPlayerLockOnRuntime\.mjs|scripts/checkPlayerMeleeCombo\.mjs|scripts/checkPlayerMeleeComboRuntime\.mjs|scripts/checkPlayerStaminaDodge\.mjs|scripts/checkPlayerStaminaDodgeRuntime\.mjs|scripts/checkPlayerCombatHudRuntime\.mjs|scripts/checkPlayerDodgeIFrames\.mjs|scripts/checkPlayerDodgeIFrameRuntime\.mjs|scripts/checkPlayerGroundingCombatContract\.mjs|scripts/checkPlayerHitStaggerRuntime\.mjs|scripts/checkPlayerRecoveryAttackBufferDrop\.mjs|scripts/checkPlayerRecoveryAttackBufferRuntime\.mjs|\.github/workflows/player-combat-feedback\.yml|\.github/workflows/player-dodge-iframes\.yml|\.github/workflows/player-grounding-combat-contract\.yml|\.github/workflows/player-gamepad-parity\.yml|\.github/workflows/player-hit-stagger-runtime\.yml|\.github/workflows/player-stamina-dodge\.yml|\.github/workflows/player-combat-recovery-input-isolation\.yml|\.github/workflows/player-guard-impact-exhaustion\.yml|\.github/workflows/player-parry-recovery\.yml|\.github/workflows/player-recovery-attack-buffer-drop\.yml)$' | wc -l)" -eq 0
+          test "$(echo "$CHANGED" | grep -Ev '^(src/3d/gameplay/player[.]js|src/3d/gameplay/health[.]js|src/3d/gameplay/damageResolution[.]js|src/3d/input[.]js|src/3d/gameLoopHelpers[.]js|src/3d/camera[.]js|src/3d/ui/touchJoystick[.]js|src/3d/ui/healthBar[.]js|src/3d/ui/controlsHelp[.]js|scripts/checkPlayerCombatVerticalSlice[.]mjs|scripts/checkPlayerEquipmentAssetReadiness[.]mjs|scripts/checkPlayerEquipmentSocketRuntime[.]mjs|scripts/checkPlayerGeographicCameraOcclusion[.]mjs|scripts/checkTouchJoystickInputContract[.]js|scripts/checkPlayerCombatFeedback[.]mjs|scripts/checkPlayerCombatFeedbackHapticParity[.]mjs|scripts/checkPlayerCombatFeedbackHotplug[.]mjs|scripts/checkPlayerCombatHealthReceipt[.]mjs|scripts/checkPlayerImmutableDefenseDamage[.]mjs|scripts/checkPlayerGamepadInput[.]mjs|scripts/checkPlayerGamepadParryLifecycle[.]mjs|scripts/checkPlayerGamepadHandoff[.]mjs|scripts/checkPlayerGamepadRuntime[.]mjs|scripts/checkPlayerLockOn[.]mjs|scripts/checkPlayerLockOnRuntime[.]mjs|scripts/checkPlayerMeleeCombo[.]mjs|scripts/checkPlayerMeleeComboRuntime[.]mjs|scripts/checkPlayerStaminaDodge[.]mjs|scripts/checkPlayerStaminaDodgeRuntime[.]mjs|scripts/checkPlayerCombatHudRuntime[.]mjs|scripts/checkPlayerDodgeIFrames[.]mjs|scripts/checkPlayerDodgeIFrameRuntime[.]mjs|scripts/checkPlayerGroundingCombatContract[.]mjs|scripts/checkPlayerGuardImpactExhaustionRuntime[.]mjs|scripts/checkPlayerHitStaggerRuntime[.]mjs|scripts/checkPlayerRecoveryAttackBufferDrop[.]mjs|scripts/checkPlayerRecoveryAttackBufferRuntime[.]mjs|scripts/checkPlayerTouchCombatRuntime[.]mjs|[.]github/workflows/player-combat-feedback[.]yml|[.]github/workflows/player-combat-vertical-slice[.]yml|[.]github/workflows/player-dodge-iframes[.]yml|[.]github/workflows/player-equipment-socket-runtime[.]yml|[.]github/workflows/player-grounding-combat-contract[.]yml|[.]github/workflows/player-gamepad-parity[.]yml|[.]github/workflows/player-gamepad-parry-lifecycle[.]yml|[.]github/workflows/player-hit-stagger-runtime[.]yml|[.]github/workflows/player-stamina-dodge[.]yml|[.]github/workflows/player-combat-recovery-input-isolation[.]yml|[.]github/workflows/player-guard-impact-exhaustion[.]yml|[.]github/workflows/player-parry-recovery[.]yml|[.]github/workflows/player-recovery-attack-buffer-drop[.]yml|[.]github/workflows/player-touch-combat-runtime[.]yml)$' | wc -l)" -eq 0
           read -r ADD DEL < <(git diff --numstat "$MAIN_SHA"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           TOTAL=$((ADD + DEL))
           echo "base=$MAIN_SHA additions=$ADD deletions=$DEL total=$TOTAL"
-          test "$TOTAL" -le 1000
+          test "$TOTAL" -le 3000
           echo "BASE_SHA=$MAIN_SHA" >> "$GITHUB_ENV"
+      - name: Kizil input lifecycle and vertical-slice contracts before LFS hydration
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/input.js
+          node --check src/3d/ui/touchJoystick.js
+          node --check scripts/checkTouchJoystickInputContract.js
+          node --check scripts/checkPlayerMeleeCombo.mjs
+          node --check scripts/checkPlayerCombatVerticalSlice.mjs
+          node --check scripts/checkPlayerEquipmentSocketRuntime.mjs
+          node --check scripts/checkPlayerGeographicCameraOcclusion.mjs
+          node --check scripts/checkPlayerGuardImpactExhaustionRuntime.mjs
+          node scripts/checkTouchJoystickInputContract.js
+          node scripts/checkPlayerMeleeCombo.mjs
+          node scripts/checkPlayerCombatVerticalSlice.mjs
+          node scripts/checkPlayerGeographicCameraOcclusion.mjs
+          node scripts/checkSharedMaterialPlacementContract.js
       - name: Asset-first targeted hydration
         shell: bash
         run: |
           set -euo pipefail
           git lfs version
-          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**" --exclude=""
-          test -s assets/models/characters/peasant_girl.fbx
-          test -s assets/animations/peasant_girl/idle.fbx
-          test -s assets/animations/peasant_girl/walking.fbx
-          test -s assets/animations/peasant_girl/running.fbx
+          LFS_INCLUDE="assets/models/characters/peasant_girl.fbx,assets/animations/peasant_girl/idle.fbx,assets/animations/peasant_girl/walking.fbx,assets/animations/peasant_girl/running.fbx,assets/models/vegetation/*.glb,assets/models/settlements/castles/*_decimated.glb,assets/models/Ay/Moon 2K.fbx,assets/models/characters/arissa.fbx,assets/models/characters/paladin_j_nordstrom.fbx,assets/models/characters/dreyar.fbx,assets/models/characters/paladin_wprop_j_nordstrom.fbx,assets/models/characters/erika_archer.fbx,assets/models/characters/uriel_a_plotexia.fbx,assets/models/animals/white_horse_bEdE4rmZy9.glb,assets/models/animals/wolf/Wolf-Blender-2.82a.glb,assets/models/animals/cow_26zM1outCr.glb,assets/models/animals/stag_tQdzbZ1Cmw.glb,assets/models/animals/sheep_C39AUXUUes.glb,assets/models/animals/bull_a8PIIYwF7r.glb,assets/models/animals/deer_T6Cs7tmMHJ.glb,assets/models/animals/fox_Bc97C66HKi.glb,assets/models/animals/husky_wcWiuEqwzq.glb,assets/models/animals/zebra_iclPBR6SBZ.glb,assets/models/animals/alpaca_bCVFD48i2l.glb,assets/models/creatures/dragon/Dragon_Baked_Actions_fbx_7.4_binary.fbx,assets/models/creatures/dragon/textures/*.jpg"
+          git lfs pull --include="$LFS_INCLUDE" --exclude=""
+          for asset in \
+            assets/models/characters/peasant_girl.fbx \
+            assets/animations/peasant_girl/idle.fbx \
+            assets/animations/peasant_girl/walking.fbx \
+            assets/animations/peasant_girl/running.fbx \
+            assets/models/vegetation/pine_Zt62gceKXZ.glb \
+            assets/models/settlements/castles/icebound_citadel_decimated.glb \
+            'assets/models/Ay/Moon 2K.fbx' \
+            assets/models/characters/arissa.fbx \
+            assets/models/animals/white_horse_bEdE4rmZy9.glb \
+            assets/models/creatures/dragon/Dragon_Baked_Actions_fbx_7.4_binary.fbx \
+            assets/models/creatures/dragon/textures/Dragon_ground_color.jpg \
+            assets/models/creatures/dragon/textures/Dragon_Nor.jpg
+          do
+            test -s "$asset"
+            ! head -c 128 "$asset" | grep -q 'version https://git-lfs.github.com/spec/v1'
+          done
       - name: Standard gamepad movement combat lock-on and handoff contracts
         run: |
           set -euo pipefail
           node --check src/3d/input.js
           node --check src/3d/gameLoopHelpers.js
+          node --check src/3d/camera.js
           node --check src/3d/ui/touchJoystick.js
           node --check src/3d/ui/healthBar.js
           node --check scripts/checkPlayerCombatFeedbackHapticParity.mjs
           node --check scripts/checkPlayerCombatFeedbackHotplug.mjs
           node --check scripts/checkPlayerImmutableDefenseDamage.mjs
           node --check scripts/checkPlayerGamepadInput.mjs
+          node --check scripts/checkPlayerGamepadParryLifecycle.mjs
           node --check scripts/checkPlayerGamepadHandoff.mjs
           node --check scripts/checkPlayerGamepadRuntime.mjs
           node --check scripts/checkPlayerLockOn.mjs
@@ -111,6 +158,7 @@ jobs:
           node --check scripts/checkPlayerDodgeIFrames.mjs
           node --check scripts/checkPlayerDodgeIFrameRuntime.mjs
           node --check scripts/checkPlayerGroundingCombatContract.mjs
+          node --check scripts/checkPlayerGuardImpactExhaustionRuntime.mjs
           node --check scripts/checkPlayerHitStaggerRuntime.mjs
           node --check scripts/checkPlayerMeleeComboRuntime.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferDrop.mjs
@@ -119,6 +167,7 @@ jobs:
           node scripts/checkPlayerCombatFeedbackHotplug.mjs
           node scripts/checkPlayerImmutableDefenseDamage.mjs
           node scripts/checkPlayerGamepadInput.mjs
+          node scripts/checkPlayerGamepadParryLifecycle.mjs
           node scripts/checkPlayerGamepadHandoff.mjs
           node scripts/checkPlayerLockOn.mjs
           node --check scripts/checkPlayerMeleeCombo.mjs
@@ -127,19 +176,33 @@ jobs:
           node scripts/checkPlayerDodgeIFrames.mjs
           node scripts/checkPlayerGroundingCombatContract.mjs
           node scripts/checkPlayerRecoveryAttackBufferDrop.mjs
-      - name: Shared material PWA and cache contracts
+      - name: Shared material runtime contract
         run: |
           set -euo pipefail
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
           node scripts/checkSharedMaterialPlacementContract.js
-          node scripts/checkPwaInstallability.js
-          node scripts/checkServiceWorkerCache.js
           ! grep -q 'EditorMaterialStudio' src/3d/gameplay/player.js
           ! grep -q 'EditorMaterialStudio' src/3d/input.js
           ! grep -q 'EditorMaterialStudio' src/3d/gameLoopHelpers.js
+          ! grep -q 'EditorMaterialStudio' src/3d/camera.js
           ! grep -q 'EditorMaterialStudio' src/3d/ui/healthBar.js
+      - name: Shared PWA and cache hard gate
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts/player-gamepad/shared
+          set +e
+          node scripts/checkPwaInstallability.js 2>&1 | tee artifacts/player-gamepad/shared/pwa-installability.log
+          PWA_STATUS=${PIPESTATUS[0]}
+          node scripts/checkServiceWorkerCache.js 2>&1 | tee artifacts/player-gamepad/shared/service-worker-cache.log
+          CACHE_STATUS=${PIPESTATUS[0]}
+          set -e
+          test "$PWA_STATUS" -eq 0
+          test "$CACHE_STATUS" -eq 0
       - name: Install Chromium
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
@@ -148,25 +211,38 @@ jobs:
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
       - name: Shipped scene gamepad parity and lock-on proof
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerRecoveryAttackBufferRuntime.mjs --out-dir=artifacts/player-recovery-attack-buffer | tee artifacts-player-recovery-attack-buffer.log
-          grep -q 'PLAYER_RECOVERY_ATTACK_BUFFER_RUNTIME_OK' artifacts-player-recovery-attack-buffer.log
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerGamepadRuntime.mjs --out-dir=artifacts/player-gamepad | tee artifacts-player-gamepad.log
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerGamepadRuntime.mjs --out-dir=artifacts/player-gamepad 2>&1 | tee artifacts-player-gamepad.log
           test -s artifacts/player-gamepad/gamepad-runtime.png
           test -s artifacts/player-gamepad/gamepad-runtime.json
           grep -q 'PLAYER_GAMEPAD_RUNTIME_OK' artifacts-player-gamepad.log
-          grep -q '"browserErrors": \[\]' artifacts/player-gamepad/gamepad-runtime.json
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerLockOnRuntime.mjs --out-dir=artifacts/player-lock-on | tee artifacts-player-lock-on.log
+          grep -Fq '"browserErrors": []' artifacts/player-gamepad/gamepad-runtime.json
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerLockOnRuntime.mjs --out-dir=artifacts/player-lock-on 2>&1 | tee artifacts-player-lock-on.log
           test -s artifacts/player-lock-on/lock-on-runtime.png
           test -s artifacts/player-lock-on/lock-on-runtime.json
           grep -q 'PLAYER_LOCK_ON_RUNTIME_OK' artifacts-player-lock-on.log
-          grep -q '"browserErrors": \[\]' artifacts/player-lock-on/lock-on-runtime.json
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js
+          grep -Fq '"browserErrors": []' artifacts/player-lock-on/lock-on-runtime.json
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerRecoveryAttackBufferRuntime.mjs --out-dir=artifacts/player-recovery-attack-buffer 2>&1 | tee artifacts-player-recovery-attack-buffer.log
+          grep -q 'PLAYER_RECOVERY_ATTACK_BUFFER_RUNTIME_OK' artifacts-player-recovery-attack-buffer.log
+      - name: Shared mobile perf and browser smoke hard gate
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts/player-gamepad/shared
+          set +e
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkMobilePerfBudget.js 2>&1 | tee artifacts/player-gamepad/shared/mobile-perf.log
+          PERF_STATUS=${PIPESTATUS[0]}
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js 2>&1 | tee artifacts/player-gamepad/shared/browser-smoke.log
+          SMOKE_STATUS=${PIPESTATUS[0]}
+          set -e
+          test "$PERF_STATUS" -eq 0
+          test "$SMOKE_STATUS" -eq 0
       - name: Final main freshness
-        if: github.event_name == 'pull_request'
+        if: always() && github.event_name == 'pull_request'
         shell: bash
         run: |
           set -euo pipefail

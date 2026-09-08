@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { KeyboardInput, applyGamepadRadialDeadzone, applyGamepadTriggerDeadzone, pulsePlayerGamepadAction, pulsePlayerGamepadCombatFeedback, pulsePlayerGamepadMelee, resolveGamepadSprintIntent, resolvePlayerCombatFeedbackHaptic, samplePlayerGamepad, selectPlayerGamepad } from '../src/3d/input.js';
+import { KeyboardInput, applyGamepadRadialDeadzone, applyGamepadTriggerDeadzone, pulsePlayerGamepadAction, pulsePlayerGamepadCombatFeedback, pulsePlayerGamepadMelee, resolveGamepadSprintIntent, resolveParryGuardFrame, resolvePlayerCombatFeedbackHaptic, samplePlayerGamepad, selectPlayerGamepad } from '../src/3d/input.js';
 function makePad({ index = 0, mapping = 'standard', axes = [0, 0], buttons = {}, values = {}, connected = true } = {}) {
 	return { index, mapping, connected, axes, buttons: Array.from({ length: 16 }, (_, i) => ({ pressed: Boolean(buttons[i]) || Number(values[i] ?? 0) > 0.5, value: Number(values[i] ?? (buttons[i] ? 1 : 0)) })) };
 }
@@ -17,6 +17,11 @@ assert.equal(resolveGamepadSprintIntent(0.72, true, false), true, 'fresh sprint 
 assert.equal(resolveGamepadSprintIntent(0.65, true, true), true, 'active sprint must survive bounded threshold noise');
 assert.equal(resolveGamepadSprintIntent(0.54, true, true), false, 'active sprint must release below hysteresis floor');
 assert.equal(resolveGamepadSprintIntent(1, false, true), false, 'releasing L3 must end sprint immediately');
+assert.deepEqual(resolveParryGuardFrame(false, true, false), { guarding: true, rearmPending: false }, 'unguarded parry must produce a one-frame guard edge immediately');
+const heldGuardParry = resolveParryGuardFrame(true, true, false);
+assert.deepEqual(heldGuardParry, { guarding: false, rearmPending: true }, 'parry while guard is held must drop guard for one frame so Player can observe a fresh edge');
+assert.deepEqual(resolveParryGuardFrame(true, false, heldGuardParry.rearmPending), { guarding: true, rearmPending: false }, 'held guard must re-arm on the next frame after parry edge isolation');
+assert.deepEqual(resolveParryGuardFrame(false, false, true), { guarding: true, rearmPending: false }, 'pending re-arm must survive a transient guard-source release for the edge frame only');
 const hysteresisPad = makePad({ axes: [0, -0.72], buttons: { 10: true } }); const hysteresisSample = samplePlayerGamepad(hysteresisPad, {}, true); assert.equal(hysteresisSample.running, true, 'sampler must carry previous sprint state into release threshold');
 const dpadSprint = samplePlayerGamepad(makePad({ buttons: { 10: true, 12: true } })); assert.equal(dpadSprint.magnitude, 1); assert.equal(dpadSprint.running, true, 'digital D-pad movement must retain sprint parity');
 const dpadForward = samplePlayerGamepad(makePad({ buttons: { 12: true } })); assert.equal(dpadForward.forward, 1); assert.equal(dpadForward.strafe, 0); assert.equal(dpadForward.magnitude, 1);
@@ -85,6 +90,13 @@ Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { ge
 try {
 	const target = new FakeInputTarget();
 	const controller = new KeyboardInput(target);
+	target.dispatch('keydown', { code: 'KeyQ' });
+	assert.equal(controller.getAxes().guarding, true, 'keyboard Q must establish sustained guard');
+	target.dispatch('keydown', { code: 'KeyV' });
+	assert.equal(controller.getAxes().guarding, false, 'keyboard V while Q is held must isolate one guard-off frame');
+	assert.equal(controller.getAxes().guarding, true, 'keyboard guard must re-arm on the frame after held-guard parry isolation');
+	target.dispatch('blur');
+	assert.equal(controller.getAxes().guarding, false, 'focus loss must clear both held guard and any parry re-arm state');
 	controller._activeGamepadIndex = 4;
 	target.dispatch('aapw:player-combat-feedback', { detail: { serial: 11, outcome: 'hit', appliedAmount: 12 } });
 	assert.equal(lifecycleCalls.length, 1, 'active Standard controller must receive authoritative combat feedback');
@@ -108,7 +120,7 @@ try {
 const unmapped = samplePlayerGamepad(makePad({ mapping: '', axes: [1, -1, 1, -1], buttons: { 0: true, 1: true, 2: true, 3: true, 4: true, 5: true, 10: true, 12: true, 15: true }, values: { 6: 1, 7: 1 } })); assert.equal(unmapped.forward, 0); assert.equal(unmapped.lookX, 0); assert.equal(unmapped.running, false); assert.equal(unmapped.dodgePressed, false); assert.equal(unmapped.parryPressed, false); assert.equal(unmapped.lightPressed, false);
 const pads = [makePad({ index: 3, mapping: '' }), makePad({ index: 2 }), makePad({ index: 1 })]; assert.equal(selectPlayerGamepad(pads)?.index, 1); assert.equal(selectPlayerGamepad(pads, 2)?.index, 2); assert.equal(selectPlayerGamepad([pads[0]], 3), null);
 const source = fs.readFileSync(new URL('../src/3d/input.js', import.meta.url), 'utf8');
-for (const contract of ["JUMP: 0", "DODGE: 1", "LIGHT: 2", "HEAVY: 3", "GUARD: 4", "PARRY: 5", "ZOOM_OUT: 6", "ZOOM_IN: 7", "SPRINT: 10", "DPAD_UP: 12", "DPAD_DOWN: 13", "DPAD_LEFT: 14", "DPAD_RIGHT: 15", "readGamepadDpad", "stick.magnitude > 0 ? stick : dpad", "GAMEPAD_TRIGGER_DEADZONE = 0.08", "applyGamepadTriggerDeadzone", "GAMEPAD_SPRINT_MIN_MAGNITUDE = 0.72", "GAMEPAD_SPRINT_RELEASE_MAGNITUDE = 0.55", "GAMEPAD_DODGE_MIN_MAGNITUDE = 0.45", "resolveGamepadSprintIntent", "this._gamepadSprintActive", "sample.dodgePressed && sample.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE", "gamepad.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE", "GAMEPAD_CAMERA_MAX_FRAME_SECONDS = 0.3", "Math.min(GAMEPAD_CAMERA_MAX_FRAME_SECONDS, nowSeconds - this._lastPollSeconds)", "dodgePressed: buttons.dodge && !previousButtons.dodge", "parryPressed: buttons.parry && !previousButtons.parry", "if (gamepad.parryPressed) guarding = true", "pulsePlayerGamepadAction(gamepad, 'dodge')", "pulsePlayerGamepadAction(gamepad, 'parry')", "gamepad.axes?.[2]", "gamepad.axes?.[3]", "pad.mapping === 'standard'", "GAMEPAD_ACTION_HAPTICS", "GAMEPAD_COMBAT_FEEDBACK_HAPTICS", "resolvePlayerCombatFeedbackHaptic", "pulsePlayerGamepadCombatFeedback", "Object.hasOwn", "COMBAT_FEEDBACK_EVENT", "dual-rumble", "visibilitychange", "visibility-hidden"]) assert.ok(source.includes(contract), `missing ${contract}`);
+for (const contract of ["JUMP: 0", "DODGE: 1", "LIGHT: 2", "HEAVY: 3", "GUARD: 4", "PARRY: 5", "ZOOM_OUT: 6", "ZOOM_IN: 7", "SPRINT: 10", "DPAD_UP: 12", "DPAD_DOWN: 13", "DPAD_LEFT: 14", "DPAD_RIGHT: 15", "readGamepadDpad", "stick.magnitude > 0 ? stick : dpad", "GAMEPAD_TRIGGER_DEADZONE = 0.08", "applyGamepadTriggerDeadzone", "GAMEPAD_SPRINT_MIN_MAGNITUDE = 0.72", "GAMEPAD_SPRINT_RELEASE_MAGNITUDE = 0.55", "GAMEPAD_DODGE_MIN_MAGNITUDE = 0.45", "resolveGamepadSprintIntent", "this._gamepadSprintActive", "sample.dodgePressed && sample.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE", "gamepad.magnitude >= GAMEPAD_DODGE_MIN_MAGNITUDE", "GAMEPAD_CAMERA_MAX_FRAME_SECONDS = 0.3", "Math.min(GAMEPAD_CAMERA_MAX_FRAME_SECONDS, nowSeconds - this._lastPollSeconds)", "dodgePressed: buttons.dodge && !previousButtons.dodge", "parryPressed: buttons.parry && !previousButtons.parry", "resolveParryGuardFrame", "this._parryRearmRequested", "pulsePlayerGamepadAction(gamepad, 'dodge')", "pulsePlayerGamepadAction(gamepad, 'parry')", "gamepad.axes?.[2]", "gamepad.axes?.[3]", "pad.mapping === 'standard'", "GAMEPAD_ACTION_HAPTICS", "GAMEPAD_COMBAT_FEEDBACK_HAPTICS", "resolvePlayerCombatFeedbackHaptic", "pulsePlayerGamepadCombatFeedback", "Object.hasOwn", "COMBAT_FEEDBACK_EVENT", "dual-rumble", "visibilitychange", "visibility-hidden"]) assert.ok(source.includes(contract), `missing ${contract}`);
 const movementSource = fs.readFileSync(new URL('../src/3d/gameLoopHelpers.js', import.meta.url), 'utf8');
 for (const contract of ['const inputMagnitude = Math.min(1, Math.hypot(axes.forward, axes.strafe))', '_move.normalize().multiplyScalar(inputMagnitude)', 'export function applyGamepadCameraLook(camera, controls, axes)', 'GAMEPAD_CAMERA_ZOOM_METERS_PER_SECOND', 'GAMEPAD_CAMERA_MAX_FRAME_SECONDS = 0.3', 'Math.min(GAMEPAD_CAMERA_MAX_FRAME_SECONDS, Number.isFinite(axes?.lookDeltaSeconds)']) assert.ok(movementSource.includes(contract), `missing ${contract}`);
 assert.ok(!source.includes('Math.min(0.05, nowSeconds - this._lastPollSeconds)'), 'legacy 50ms input clamp must stay removed');

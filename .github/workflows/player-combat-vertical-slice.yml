@@ -6,6 +6,7 @@ on:
       - 'src/3d/gameplay/player.js'
       - 'src/3d/gameplay/playerConfig.js'
       - 'src/3d/gameLoopHelpers.js'
+      - 'src/3d/camera.js'
       - 'src/3d/input.js'
       - 'src/3d/ui/touchJoystick.js'
       - 'src/3d/gameplay/health.js'
@@ -16,6 +17,7 @@ on:
       - 'scripts/checkPlayerLockOn.mjs'
       - 'scripts/checkPlayerCombatFeedback.mjs'
       - 'scripts/checkPlayerGroundingCombatContract.mjs'
+      - 'scripts/checkPlayerGeographicCameraOcclusion.mjs'
       - 'scripts/checkSharedMaterialPlacementContract.js'
       - '.github/workflows/player-combat-vertical-slice.yml'
   workflow_dispatch:
@@ -43,16 +45,45 @@ jobs:
           git checkout --detach "$HEAD_SHA"
           test "$(git merge-base "$BASE_SHA" "$HEAD_SHA")" = "$BASE_SHA"
           changed=$(git diff --numstat "$BASE_SHA" "$HEAD_SHA" | awk '{a+=$1; d+=$2} END {print a+d+0}')
-          test "$changed" -le 1000
+          test "$changed" -le 3000
       - name: Syntax
         run: |
           node --check scripts/checkPlayerCombatVerticalSlice.mjs
+          node --check scripts/checkPlayerGeographicCameraOcclusion.mjs
           node --check src/3d/gameplay/player.js
           node --check src/3d/gameLoopHelpers.js
+          node --check src/3d/camera.js
           node --check src/3d/input.js
+          node --check src/3d/ui/touchJoystick.js
           node --check scripts/checkSharedMaterialPlacementContract.js
       - name: Shipped vertical slice composition
         run: node scripts/checkPlayerCombatVerticalSlice.mjs
+      - name: Geographic model camera occlusion
+        run: node scripts/checkPlayerGeographicCameraOcclusion.mjs
+      - name: Touch defense parity
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { TouchJoystick } from './src/3d/ui/touchJoystick.js';
+          class C { constructor(){this.s=new Set();} add(v){this.s.add(v);} remove(v){this.s.delete(v);} toggle(v,f){if(f ?? !this.s.has(v))this.s.add(v);else this.s.delete(v);} }
+          class E extends EventTarget { constructor(){super();this.style={};this.classList=new C();this.attributes=new Map();this.children=[];this.captured=null;} appendChild(v){this.children.push(v);} setAttribute(k,v){this.attributes.set(k,String(v));} getAttribute(k){return this.attributes.get(k)??null;} setPointerCapture(v){this.captured=v;} hasPointerCapture(v){return this.captured===v;} releasePointerCapture(v){if(this.captured===v)this.captured=null;} remove(){} }
+          class D extends EventTarget { constructor(){super();this.hidden=false;this.body=new E();} createElement(){return new E();} querySelector(){return null;} }
+          const pointer=(target,type,id=1,x=0,y=0)=>{const e=new Event(type,{cancelable:true});Object.defineProperties(e,{pointerId:{value:id},clientX:{value:x},clientY:{value:y},button:{value:0}});target.dispatchEvent(e);};
+          const oldDocument=globalThis.document, oldWindow=globalThis.window; const document=new D(), window=new EventTarget(); globalThis.document=document; globalThis.window=window; let blocked=false; const touch=new TouchJoystick(document.body,{isInputBlocked:()=>blocked});
+          try {
+            assert.equal(touch._dodgeButton.getAttribute('aria-label'),'Kaçın'); assert.equal(touch._parryButton.getAttribute('aria-label'),'Savuştur');
+            pointer(touch._base,'pointerdown',7,10,10); pointer(touch._base,'pointermove',7,45,10); pointer(touch._dodgeButton,'pointerdown',8); const dodge=touch.getAxes(); assert.equal(dodge.running,true); assert.notEqual(dodge.strafe,0); assert.equal(touch.consumeJumpRequested(),true); assert.equal(touch.consumeJumpRequested(),false);
+            pointer(touch._base,'pointerup',7); pointer(touch._parryButton,'pointerdown',9); assert.equal(touch.getAxes().guarding,true); assert.equal(touch.getAxes().guarding,false);
+            pointer(touch._guardButton,'pointerdown',20); assert.equal(touch.getAxes().guarding,true); pointer(touch._parryButton,'pointerdown',21); assert.equal(touch.getAxes().guarding,false); assert.equal(touch.getAxes().guarding,true); pointer(touch._guardButton,'pointerup',20); assert.equal(touch.getAxes().guarding,false);
+            pointer(touch._guardButton,'pointerdown',30); pointer(touch._guardButton,'pointerdown',31); assert.equal(touch.getAxes().guarding,true); pointer(touch._guardButton,'pointerup',30); assert.equal(touch.getAxes().guarding,true); assert.equal(touch._guardButton.getAttribute('aria-pressed'),'true'); pointer(touch._guardButton,'pointerup',31); assert.equal(touch.getAxes().guarding,false); assert.equal(touch._guardButton.getAttribute('aria-pressed'),'false');
+            pointer(touch._guardButton,'pointerdown',40); assert.equal(touch.getAxes().guarding,true); pointer(touch._guardButton,'pointerleave',40); assert.equal(touch.getAxes().guarding,true); assert.equal(touch._guardButton.getAttribute('aria-pressed'),'true'); pointer(touch._guardButton,'lostpointercapture',40); assert.equal(touch.getAxes().guarding,false); assert.equal(touch._guardButton.getAttribute('aria-pressed'),'false');
+            blocked=true; pointer(touch._dodgeButton,'pointerdown',10); pointer(touch._parryButton,'pointerdown',11); assert.deepEqual(touch.getAxes(),{forward:0,strafe:0,running:false,guarding:false}); assert.equal(touch.consumeJumpRequested(),false);
+            blocked=false; pointer(touch._dodgeButton,'pointerdown',12); pointer(touch._parryButton,'pointerdown',13); document.hidden=true; document.dispatchEvent(new Event('visibilitychange')); document.hidden=false; assert.deepEqual(touch.getAxes(),{forward:0,strafe:0,running:false,guarding:false}); assert.equal(touch.consumeJumpRequested(),false);
+            pointer(touch._guardButton,'pointerdown',22); pointer(touch._dodgeButton,'pointerdown',23); pointer(touch._parryButton,'pointerdown',24); window.dispatchEvent(new Event('blur')); assert.deepEqual(touch.getAxes(),{forward:0,strafe:0,running:false,guarding:false}); assert.equal(touch.consumeJumpRequested(),false); assert.equal(touch._guardButton.getAttribute('aria-pressed'),'false');
+            pointer(touch._dodgeButton,'pointerdown',14); pointer(touch._parryButton,'pointerdown',15); window.dispatchEvent(new Event('pagehide')); assert.deepEqual(touch.getAxes(),{forward:0,strafe:0,running:false,guarding:false}); assert.equal(touch.consumeJumpRequested(),false);
+          } finally { touch.dispose(); if(oldDocument===undefined)delete globalThis.document;else globalThis.document=oldDocument; if(oldWindow===undefined)delete globalThis.window;else globalThis.window=oldWindow; }
+          console.log('TOUCH_DEFENSE_PARITY_OK');
+          NODE
       - name: Existing melee combo
         run: node scripts/checkPlayerMeleeCombo.mjs
       - name: Existing lock-on

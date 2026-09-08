@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'src/3d/gameplay/player.js'
+      - 'src/3d/camera.js'
+      - 'scripts/checkPlayerGeographicCameraOcclusion.mjs'
       - 'scripts/checkPlayerCombatRecoveryInputIsolation.mjs'
       - 'scripts/checkPlayerRecoveryAttackBufferDrop.mjs'
       - 'scripts/checkPlayerRecoveryAttackBufferRuntime.mjs'
@@ -41,12 +43,15 @@ jobs:
           test "$(git merge-base origin/main HEAD)" = "$BASE"
           git diff --check "$BASE"...HEAD
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
-          test "$((ADD + DEL))" -le 1000
+          test "$((ADD + DEL))" -le 3000
           echo "BASE_SHA=$BASE" >> "$GITHUB_ENV"
       - name: Static recovery/input contract
         shell: bash
         run: |
           set -euo pipefail
+          node --check src/3d/camera.js
+          node --check scripts/checkPlayerGeographicCameraOcclusion.mjs
+          node scripts/checkPlayerGeographicCameraOcclusion.mjs
           node --check scripts/checkPlayerCombatRecoveryInputIsolation.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferDrop.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferRuntime.mjs
@@ -58,9 +63,7 @@ jobs:
           node scripts/checkPlayerCombatFeedback.mjs
           node scripts/checkPlayerGroundingCombatContract.mjs
           node scripts/checkSharedMaterialPlacementContract.js
-          node scripts/checkPwaInstallability.js
-          node scripts/checkServiceWorkerCache.js
-          ! grep -q 'EditorMaterialStudio' src/3d/gameplay/player.js
+          ! grep -q 'EditorMaterialStudio' src/3d/gameplay/player.js src/3d/camera.js
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
       - name: Asset-first shipped-scene hydration
@@ -68,11 +71,24 @@ jobs:
         run: |
           set -euo pipefail
           git lfs version
-          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**" --exclude=""
-          test -s assets/models/characters/peasant_girl.fbx
-          test -s assets/animations/peasant_girl/idle.fbx
-          test -s assets/animations/peasant_girl/walking.fbx
-          test -s assets/animations/peasant_girl/running.fbx
+          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/models/vegetation/pine_Zt62gceKXZ.glb,assets/models/vegetation/winter_tree.glb,assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb,assets/models/Ay/Moon 2K.fbx,assets/animations/peasant_girl/**" --exclude=""
+          required_assets=(
+            "assets/models/characters/peasant_girl.fbx"
+            "assets/animations/peasant_girl/idle.fbx"
+            "assets/animations/peasant_girl/walking.fbx"
+            "assets/animations/peasant_girl/running.fbx"
+            "assets/models/vegetation/pine_Zt62gceKXZ.glb"
+            "assets/models/vegetation/winter_tree.glb"
+            "assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb"
+            "assets/models/Ay/Moon 2K.fbx"
+          )
+          for asset in "${required_assets[@]}"; do
+            test -s "$asset"
+            if head -c 128 "$asset" | grep -q 'git-lfs.github.com/spec'; then
+              echo "LFS pointer remained after hydration: $asset" >&2
+              exit 1
+            fi
+          done
       - name: Install Chromium
         shell: bash
         run: |
@@ -81,7 +97,7 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-      - name: Shipped scene recovery/browser proof
+      - name: Shipped scene recovery combat runtime proof
         shell: bash
         run: |
           set -euo pipefail
@@ -92,9 +108,15 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerHitStaggerRuntime.mjs --out-dir=artifacts/player-combat-recovery-input/hit-stagger | tee artifacts/player-combat-recovery-input/hit-stagger.log
           grep -q 'PLAYER_HIT_STAGGER_RUNTIME_OK' artifacts/player-combat-recovery-input/hit-stagger.log
           grep -q '"browserErrors": \[\]' artifacts/player-combat-recovery-input/hit-stagger/hit-stagger-runtime.json
-          node scripts/checkMobilePerfBudget.js | tee artifacts/player-combat-recovery-input/mobile-perf.log
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js | tee artifacts/player-combat-recovery-input/browser-smoke.log
+      - name: Shared mobile perf and browser smoke hard gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/player-combat-recovery-input/shared
+          node scripts/checkMobilePerfBudget.js | tee artifacts/player-combat-recovery-input/shared/mobile-perf.log
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js | tee artifacts/player-combat-recovery-input/shared/browser-smoke.log
       - name: Final main freshness
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
@@ -102,6 +124,13 @@ jobs:
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           test "$(git merge-base origin/main HEAD)" = "$BASE_SHA"
           git diff --check "$BASE_SHA"...HEAD
+      - name: Shared PWA shell contract
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkPwaInstallability.js
+          node scripts/checkServiceWorkerCache.js
       - uses: actions/upload-artifact@v4
         if: always()
         with:

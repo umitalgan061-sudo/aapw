@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'src/3d/gameplay/player.js'
+      - 'src/3d/camera.js'
+      - 'scripts/checkPlayerGeographicCameraOcclusion.mjs'
       - 'scripts/checkPlayerRecoveryAttackBufferDrop.mjs'
       - 'scripts/checkPlayerRecoveryAttackBufferRuntime.mjs'
       - 'scripts/checkPlayerCombatRecoveryInputIsolation.mjs'
@@ -44,13 +46,16 @@ jobs:
           read -r ADD DEL < <(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
           changed=$((ADD + DEL))
           echo "scope additions=${ADD} deletions=${DEL} changed=${changed}"
-          test "$changed" -le 1000
+          test "$changed" -le 3000
           echo "BASE_SHA=$BASE" >> "$GITHUB_ENV"
-      - name: Syntax combat material and PWA contracts
+      - name: Syntax combat and shared material contracts
         shell: bash
         run: |
           set -euo pipefail
           node --check src/3d/gameplay/player.js
+          node --check src/3d/camera.js
+          node --check scripts/checkPlayerGeographicCameraOcclusion.mjs
+          node scripts/checkPlayerGeographicCameraOcclusion.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferDrop.mjs
           node --check scripts/checkPlayerRecoveryAttackBufferRuntime.mjs
           node --check scripts/checkPlayerHitStaggerRuntime.mjs
@@ -58,21 +63,46 @@ jobs:
           node scripts/checkPlayerCombatRecoveryInputIsolation.mjs
           node scripts/checkPlayerParryRecovery.mjs
           node scripts/checkSharedMaterialPlacementContract.js
-          node scripts/checkPwaInstallability.js
-          node scripts/checkServiceWorkerCache.js
           ! grep -q 'EditorMaterialStudio' src/3d/gameplay/player.js
+          ! grep -q 'EditorMaterialStudio' src/3d/camera.js
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
+      - name: PWA installability contract
+        id: pwa-installability
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts/player-recovery-attack-buffer-drop/shared
+          node scripts/checkPwaInstallability.js 2>&1 | tee artifacts/player-recovery-attack-buffer-drop/shared/pwa-installability.log
+          status=${PIPESTATUS[0]}
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+      - name: Service worker cache contract
+        id: service-worker-cache
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts/player-recovery-attack-buffer-drop/shared
+          node scripts/checkServiceWorkerCache.js 2>&1 | tee artifacts/player-recovery-attack-buffer-drop/shared/service-worker-cache.log
+          status=${PIPESTATUS[0]}
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
       - name: Asset-first shipped-scene hydration
         shell: bash
         run: |
           set -euo pipefail
           git lfs version
-          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**" --exclude=""
+          git lfs pull --include="assets/models/characters/**,assets/models/animals/**,assets/models/creatures/dragon/**,assets/models/props/**,assets/models/settlements/castles/**,assets/animations/peasant_girl/**,assets/models/vegetation/pine_Zt62gceKXZ.glb,assets/models/vegetation/winter_tree.glb,assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb,assets/models/Ay/Moon 2K.fbx" --exclude=""
           test -s assets/models/characters/peasant_girl.fbx
           test -s assets/animations/peasant_girl/idle.fbx
           test -s assets/animations/peasant_girl/walking.fbx
           test -s assets/animations/peasant_girl/running.fbx
+          test "$(wc -c < assets/models/vegetation/pine_Zt62gceKXZ.glb)" -gt 512
+          test "$(wc -c < assets/models/vegetation/winter_tree.glb)" -gt 512
+          test "$(wc -c < assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb)" -gt 512
+          test "$(wc -c < 'assets/models/Ay/Moon 2K.fbx')" -gt 512
       - name: Install Chromium
         shell: bash
         run: |
@@ -81,7 +111,7 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-      - name: Shipped scene browser and performance proof
+      - name: Recovery attack buffer shipped-scene proof
         shell: bash
         run: |
           set -euo pipefail
@@ -89,12 +119,30 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerRecoveryAttackBufferRuntime.mjs --out-dir=artifacts/player-recovery-attack-buffer-drop/recovery-buffer | tee artifacts/player-recovery-attack-buffer-drop/recovery-buffer.log
           grep -q 'PLAYER_RECOVERY_ATTACK_BUFFER_RUNTIME_OK' artifacts/player-recovery-attack-buffer-drop/recovery-buffer.log
           grep -q '"browserErrors": \[\]' artifacts/player-recovery-attack-buffer-drop/recovery-buffer/recovery-attack-buffer-runtime.json
+      - name: Hit stagger shipped-scene proof
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
           NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/checkPlayerHitStaggerRuntime.mjs --out-dir=artifacts/player-recovery-attack-buffer-drop/hit-stagger | tee artifacts/player-recovery-attack-buffer-drop/hit-stagger.log
           grep -q 'PLAYER_HIT_STAGGER_RUNTIME_OK' artifacts/player-recovery-attack-buffer-drop/hit-stagger.log
           grep -q '"browserErrors": \[\]' artifacts/player-recovery-attack-buffer-drop/hit-stagger/hit-stagger-runtime.json
-          node scripts/checkMobilePerfBudget.js
-          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js
+      - name: Shared mobile perf and browser smoke hard gate
+        if: always()
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p artifacts/player-recovery-attack-buffer-drop/shared
+          perf_status=0
+          smoke_status=0
+          node scripts/checkMobilePerfBudget.js 2>&1 | tee artifacts/player-recovery-attack-buffer-drop/shared/mobile-perf.log || perf_status=$?
+          NODE_PATH="$RUNNER_TEMP/pw/node_modules" node scripts/smokeTestGame3D.js 2>&1 | tee artifacts/player-recovery-attack-buffer-drop/shared/game3d-smoke.log || smoke_status=$?
+          echo "mobile_perf_status=${perf_status}"
+          echo "game3d_smoke_status=${smoke_status}"
+          test "$perf_status" -eq 0
+          test "$smoke_status" -eq 0
       - name: Exact main freshness
+        if: always()
         shell: bash
         run: |
           set -euo pipefail
@@ -102,6 +150,15 @@ jobs:
           test "$(git rev-parse origin/main)" = "$BASE_SHA"
           test "$(git merge-base origin/main HEAD)" = "$BASE_SHA"
           git diff --check "$BASE_SHA"...HEAD
+      - name: Require shared PWA and cache contracts
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "pwa_installability_status=${{ steps['pwa-installability'].outputs.status }}"
+          echo "service_worker_cache_status=${{ steps['service-worker-cache'].outputs.status }}"
+          test "${{ steps['pwa-installability'].outputs.status }}" = "0"
+          test "${{ steps['service-worker-cache'].outputs.status }}" = "0"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

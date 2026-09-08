@@ -100,7 +100,7 @@ function facingDot(attack, targetPosition) {
 }
 
 try {
-	await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+	await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'commit', timeout: 30000 });
 	await page.locator('#run266-entry-enter').click();
 	await page.waitForFunction(() => document.querySelector('#game3d-loading')?.classList.contains('g3d-loading-hidden'), null, { timeout: 90000 });
 	const baseline = await waitHistory('motion', (motion) => motion.state === 'idle' && motion.isGrounded, 'grounded player baseline', 15000);
@@ -134,6 +134,7 @@ try {
 	await sleep(100);
 	await setPad({ buttons: { 2: true } });
 	const attack = await waitHistory('attacks', (event) => event.kind === 'light' && event.phase === 'start', 'locked light attack start', 7000);
+	await setPad();
 	const dot = facingDot(attack, acquired.targetPosition);
 	need(dot > 0.92, `locked attack must face acquired target; dot=${dot}`);
 	await waitHistory('attacks', (event) => event.serial === attack.serial && event.phase === 'finish', 'locked light attack finish', 10000);
@@ -146,7 +147,13 @@ try {
 	await sleep(250);
 	need((await histories()).locks.length === eventCountBeforeRelease + 1, 'held R3 emitted repeated lock toggles');
 
-	await page.screenshot({ path: path.join(outDir, 'lock-on-runtime.png'), fullPage: true });
+	// Capture the shipped WebGL surface directly instead of asking Playwright to rasterize the whole page.
+	// The latter can stall after gameplay acceptance on this continuously-rendering Three.js scene.
+	const canvasPng = await page.locator('#game3d-canvas').evaluate((canvas) => canvas.toDataURL('image/png'));
+	need(typeof canvasPng === 'string' && canvasPng.startsWith('data:image/png;base64,'), 'game canvas did not produce PNG proof');
+	const canvasBytes = Buffer.from(canvasPng.slice('data:image/png;base64,'.length), 'base64');
+	need(canvasBytes.length > 1024, `game canvas PNG proof is unexpectedly small: ${canvasBytes.length} bytes`);
+	fs.writeFileSync(path.join(outDir, 'lock-on-runtime.png'), canvasBytes);
 	need(errors.length === 0, `browser/page errors: ${JSON.stringify(errors)}`);
 	const metrics = {
 		ok: true,
@@ -156,10 +163,11 @@ try {
 		acquired,
 		attack: { serial: attack.serial, kind: attack.kind, position: attack.position, facing: attack.facing, targetFacingDot: Number(dot.toFixed(4)) },
 		released,
+		proof: { canvasPngBytes: canvasBytes.length },
 		browserErrors: errors,
 	};
 	fs.writeFileSync(path.join(outDir, 'lock-on-runtime.json'), `${JSON.stringify(metrics, null, 2)}\n`);
-	console.log(`PLAYER_LOCK_ON_RUNTIME_OK ${JSON.stringify({ targetId: acquired.targetId, distanceMeters: acquired.distanceMeters, approachMeters: metrics.approach.displacementMeters, guidedBursts: approachBursts, sweepAttempts, targetFacingDot: metrics.attack.targetFacingDot, errors: errors.length })}`);
+	console.log(`PLAYER_LOCK_ON_RUNTIME_OK ${JSON.stringify({ targetId: acquired.targetId, distanceMeters: acquired.distanceMeters, approachMeters: metrics.approach.displacementMeters, guidedBursts: approachBursts, sweepAttempts, targetFacingDot: metrics.attack.targetFacingDot, canvasPngBytes: canvasBytes.length, errors: errors.length })}`);
 } finally {
 	await browser.close();
 	await new Promise((resolve) => server.close(resolve));

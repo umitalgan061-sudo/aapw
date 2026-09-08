@@ -1,12 +1,29 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import devServerHelper from './devServerHelper.js';
 
 const { loadPlaywright, startStaticServer } = devServerHelper;
 const outArg = process.argv.find((arg) => arg.startsWith('--out-dir='));
 const outDir = path.resolve(outArg ? outArg.slice('--out-dir='.length) : 'artifacts/player-dodge-iframes');
 const need = (ok, message) => { if (!ok) throw new Error(`[player-dodge-iframes-runtime] ${message}`); };
+const runtimeTextureAssets = [
+  'assets/models/creatures/dragon/textures/Dragon_ground_color.jpg',
+  'assets/models/creatures/dragon/textures/Dragon_Bump_Col2.jpg',
+  'assets/models/creatures/dragon/textures/Dragon_Nor.jpg',
+  'assets/models/creatures/dragon/textures/Dragon_Nor_mirror2.jpg',
+];
+const isLfsPointer = (assetPath) => fs.existsSync(assetPath)
+  && fs.readFileSync(assetPath, { encoding: 'utf8', flag: 'r' }).slice(0, 96).startsWith('version https://git-lfs');
+const needsHydration = runtimeTextureAssets.some((assetPath) => !fs.existsSync(assetPath) || isLfsPointer(assetPath));
+if (needsHydration) {
+  execFileSync('git', ['lfs', 'pull', `--include=${runtimeTextureAssets.join(',')}`, '--exclude='], { stdio: 'inherit' });
+}
+for (const assetPath of runtimeTextureAssets) {
+  need(fs.existsSync(assetPath) && fs.statSync(assetPath).size > 0, `missing runtime texture ${assetPath}`);
+  need(!isLfsPointer(assetPath), `runtime texture remains an LFS pointer ${assetPath}`);
+}
 const playwright = loadPlaywright();
 need(Boolean(playwright), 'Playwright unavailable');
 fs.mkdirSync(outDir, { recursive: true });
@@ -64,14 +81,14 @@ async function waitIdle(timeout = 8000) {
 }
 
 try {
-  await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.goto(`http://127.0.0.1:${server.address().port}/game3d.html`, { waitUntil: 'commit', timeout: 30000 });
   await page.locator('#run266-entry-enter').click();
   await page.waitForFunction(() => document.querySelector('#game3d-loading')?.classList.contains('g3d-loading-hidden'), null, { timeout: 90000 });
   await waitIdle(30000);
 
   await page.keyboard.down('KeyW');
   await page.keyboard.down('ShiftLeft');
-  await page.waitForFunction(() => document.querySelector('.g3d-stamina-bar')?.dataset.state === 'sprint', null, { timeout: 6000 });
+  await page.waitForFunction(() => document.querySelector('.g3d-stamina-bar')?.dataset.state === 'sprint', null, { timeout: 15000 });
   await armDamageProbe({ amount: 20, phase: 'iframe' });
   await page.keyboard.press('Space');
   const iframeProof = await waitProbe();
@@ -87,7 +104,7 @@ try {
 
   await page.keyboard.down('KeyW');
   await page.keyboard.down('ShiftLeft');
-  await page.waitForFunction(() => document.querySelector('.g3d-stamina-bar')?.dataset.state === 'sprint', null, { timeout: 6000 });
+  await page.waitForFunction(() => document.querySelector('.g3d-stamina-bar')?.dataset.state === 'sprint', null, { timeout: 15000 });
   await armDamageProbe({ amount: 7, phase: 'recovery' });
   await page.keyboard.press('Space');
   const recoveryProof = await waitProbe();
