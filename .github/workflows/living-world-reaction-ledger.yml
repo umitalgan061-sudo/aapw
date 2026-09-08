@@ -1,0 +1,83 @@
+name: Living World Reaction Ledger
+
+on:
+  push:
+    branches:
+      - main
+      - 'agent/safak-kartali-reaction-ledger-*'
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/livingWorldReactionLedger.js'
+      - 'src/3d/gameplay/livingWorldReactionProjection.js'
+      - 'scripts/checkLivingWorldReactionLedger.mjs'
+      - 'scripts/checkLivingWorldReactionProjection.mjs'
+      - '.github/workflows/living-world-reaction-ledger.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: living-world-reaction-ledger-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: Deterministic ledger/projection contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Validate JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/gameplay/livingWorldReactionLedger.js
+          node --check src/3d/gameplay/livingWorldReactionProjection.js
+          node --check scripts/checkLivingWorldReactionLedger.mjs
+          node --check scripts/checkLivingWorldReactionProjection.mjs
+
+      - name: Run ledger contract
+        run: node scripts/checkLivingWorldReactionLedger.mjs
+
+      - name: Run projection contract
+        run: node scripts/checkLivingWorldReactionProjection.mjs
+
+      - name: Re-run contracts for determinism
+        shell: bash
+        run: |
+          set -euo pipefail
+          first_ledger="$(node scripts/checkLivingWorldReactionLedger.mjs)"
+          second_ledger="$(node scripts/checkLivingWorldReactionLedger.mjs)"
+          test "$first_ledger" = "$second_ledger"
+          first_projection="$(node scripts/checkLivingWorldReactionProjection.mjs)"
+          second_projection="$(node scripts/checkLivingWorldReactionProjection.mjs)"
+          test "$first_projection" = "$second_projection"
+
+      - name: Verify ownership boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -nE "from ['\"].*(three|EventBus|ActorRegistry)|require\(['\"].*(three|EventBus|ActorRegistry)" src/3d/gameplay/livingWorldReactionLedger.js src/3d/gameplay/livingWorldReactionProjection.js
+          ! grep -nE "(^|[^A-Za-z])(publish|dispatch|emit)\s*\(" src/3d/gameplay/livingWorldReactionLedger.js
+          ! grep -n "EditorMaterialStudio" src/3d/gameplay/livingWorldReactionLedger.js src/3d/gameplay/livingWorldReactionProjection.js
+
+      - name: Emit contract evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "LIVING_WORLD_REACTION_LEDGER_POLICY=${{ github.sha }}"
+          echo "ledger_contract=PASS"
+          echo "projection_contract=PASS"
+          echo "determinism_replay=PASS"
+          echo "ownership_boundary=PASS"
