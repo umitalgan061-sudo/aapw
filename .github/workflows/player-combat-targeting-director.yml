@@ -1,0 +1,29 @@
+name: Kızıl Ufuk - Player Combat Targeting Director
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatTargetingDirector.js'
+      - 'scripts/checkPlayerCombatTargetingDirector.mjs'
+      - '.github/workflows/player-combat-targeting-director.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Exact-main ancestry
+        run: git merge-base --is-ancestor origin/main HEAD
+      - name: Diff cap
+        run: test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+      - name: Runtime boundary
+        run: '! grep -R "EditorMaterialStudio\|WorldAssetPlacementPipeline\|MaterialAssignmentCore" src/3d/gameplay/playerCombatTargetingDirector.js scripts/checkPlayerCombatTargetingDirector.mjs'
+      - name: Syntax
+        run: node --check scripts/checkPlayerCombatTargetingDirector.mjs && node --check src/3d/gameplay/playerCombatTargetingDirector.js
+      - name: Focused contract
+        run: node scripts/checkPlayerCombatTargetingDirector.mjs
