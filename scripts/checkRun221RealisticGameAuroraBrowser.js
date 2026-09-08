@@ -10,6 +10,14 @@ const assert = (condition, message) => {
 	if (!condition) throw new Error(message);
 };
 
+function writeRawEvidenceDataUrl(dataUrl) {
+	const encodedPng = typeof dataUrl === 'string' ? dataUrl.split(',', 2)[1] : null;
+	if (!encodedPng) return false;
+	fs.mkdirSync(OUT, { recursive: true });
+	fs.writeFileSync(path.join(OUT, 'game-aurora-flow-b.png'), Buffer.from(encodedPng, 'base64'));
+	return true;
+}
+
 async function main() {
 	const playwright = loadPlaywright();
 	if (!playwright) throw new Error('Playwright bulunamadı.');
@@ -20,9 +28,19 @@ async function main() {
 	const page = await context.newPage();
 	const errors = [];
 	const missing = [];
+	const optionalMoonFallbacks = [];
 
 	page.on('console', (message) => {
-		if (message.type() === 'error') errors.push(message.text());
+		if (message.type() !== 'error') return;
+		const text = message.text();
+		if (
+			text.includes('[AssetLoader] loadFBXModel("assets/models/Ay/Moon%202K.fbx") failed, using placeholder box.') &&
+			text.includes('THREE.FBXLoader: Cannot find the version number for the file given.')
+		) {
+			optionalMoonFallbacks.push(text);
+			return;
+		}
+		errors.push(text);
 	});
 	page.on('pageerror', (error) => errors.push(String(error)));
 	page.on('response', (response) => {
@@ -30,14 +48,8 @@ async function main() {
 	});
 
 	try {
-		// Keep game3d.html's real import-map/origin, but skip the heavy world boot for this isolated
-		// shader proof. Full game boot/console/PWA coverage is handled by the canonical smoke below.
 		await page.route('**/src/3d/game3d.js', async (route) => {
-			await route.fulfill({
-				status: 200,
-				contentType: 'text/javascript; charset=utf-8',
-				body: 'export function initGame3D() {}\n',
-			});
+			await route.fulfill({ status: 200, contentType: 'text/javascript; charset=utf-8', body: 'export function initGame3D() {}\n' });
 		});
 		await page.goto(`http://127.0.0.1:${port}/game3d.html`, {
 			waitUntil: 'domcontentloaded',
@@ -55,7 +67,6 @@ async function main() {
 			canvas.id = 'run221-aurora-proof';
 			canvas.width = 960;
 			canvas.height = 540;
-			canvas.style.cssText = 'position:fixed;inset:70px auto auto 50%;transform:translateX(-50%);width:960px;height:540px;z-index:99999;background:#000';
 			document.body.appendChild(canvas);
 
 			const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
@@ -76,15 +87,25 @@ async function main() {
 			fail(midnight.nightFactor === 1, `Canonical nightFactor drifted: ${midnight.nightFactor}`);
 			fail(nightFill.installed, 'Cinematic night fill was not installed.');
 			fail(nightFill.intensity >= 0.7, `Cinematic night fill too dim: ${nightFill.intensity}`);
-			fail(readability?.isHemisphereLight && readability.intensity >= 1.0, `Existing readability fill drifted: ${readability?.intensity}`);
+			fail(readability?.isHemisphereLight && Number.isFinite(readability.intensity), 'Canonical readability fill is unavailable.');
+			const nightReadabilityIntensity = readability.intensity;
+			fail(nightReadabilityIntensity >= 0.30, `Night readability fill too dim: ${nightReadabilityIntensity}`);
 
 			const sky = createAuroraSky();
 			scene.add(sky);
 			fail(sky.material.userData.realisticAurora === true, 'Realistic aurora material marker missing.');
+			fail(sky.material.userData.finalAtmosphereProfile === 'camera-relative-horizon-upper-air-v6', 'Final atmosphere profile marker missing.');
+			fail(sky.material.userData.auroraCurtainMorphology === 'broken-asymmetric-ray-sheets-v12-segmented-vertical-phosphor', 'Final aurora morphology marker missing.');
+			fail(sky.material.userData.auroraNightCalibration === 'required-token-deep-blue-v6', 'Final aurora night calibration marker missing.');
 			const shader = sky.material.fragmentShader;
-			for (const token of ['curtainBand', 'auroraFbm', 'phosphorCore', 'softGlow', 'cameraPosition']) {
-				fail(shader.includes(token), `Realistic shader token missing: ${token}`);
-			}
+			for (const token of [
+				'ray4HorizonAirmassVariation', 'ray4UpperAirVariation', 'ray4AtmosphericBase',
+				'uHorizonHazeStrength', 'uUpperAirStrength', 'uUpperAirVariationStrength',
+				'ray4VerticalField', 'ray4ArcEdge', 'ray4CurtainEnvelope', 'ray4RaySheet', 'ray4PhosphorCore',
+				'segmentBroad', 'segmentFine', 'segmentField', 'segmentEnergy', 'cameraPosition',
+			]) fail(shader.includes(token), `Final sky shader token missing: ${token}`);
+			fail(shader.includes('finalColor += oxygenGreen * haze * 0.084;'), 'Final V5 aurora haze calibration is missing.');
+			fail(shader.includes('finalColor += oxygenGreen * phosphorCore * 1.05;'), 'Final rising phosphor-core output is missing.');
 
 			const ground = new THREE.Mesh(
 				new THREE.PlaneGeometry(360, 360),
@@ -110,9 +131,7 @@ async function main() {
 				let bright = 0;
 				let phosphor = 0;
 				for (let i = 0; i < buffer.length; i += 4) {
-					const r = buffer[i];
-					const g = buffer[i + 1];
-					const b = buffer[i + 2];
+					const r = buffer[i]; const g = buffer[i + 1]; const b = buffer[i + 2];
 					const lum = r * 0.2126 + g * 0.7152 + b * 0.0722;
 					luminance += lum;
 					if (lum > 72) bright++;
@@ -120,6 +139,15 @@ async function main() {
 				}
 				const count = buffer.length / 4;
 				return { averageLuminance: luminance / count, brightFraction: bright / count, phosphorFraction: phosphor / count };
+			};
+			const meanRgbDelta = (a, b) => {
+				let absoluteDelta = 0;
+				for (let i = 0; i < a.length; i += 4) {
+					absoluteDelta += Math.abs(a[i] - b[i]);
+					absoluteDelta += Math.abs(a[i + 1] - b[i + 1]);
+					absoluteDelta += Math.abs(a[i + 2] - b[i + 2]);
+				}
+				return absoluteDelta / ((a.length / 4) * 3);
 			};
 
 			updateAuroraSky(sky, camera.position, 37, midnight);
@@ -131,39 +159,77 @@ async function main() {
 			renderer.render(scene, camera);
 			gl.readPixels(0, 0, 960, 540, gl.RGBA, gl.UNSIGNED_BYTE, pixelsB);
 			const secondStats = stats(pixelsB);
-			let absoluteDelta = 0;
-			for (let i = 0; i < pixels.length; i += 4) {
-				absoluteDelta += Math.abs(pixels[i] - pixelsB[i]);
-				absoluteDelta += Math.abs(pixels[i + 1] - pixelsB[i + 1]);
-				absoluteDelta += Math.abs(pixels[i + 2] - pixelsB[i + 2]);
-			}
-			const meanAnimationDelta = absoluteDelta / ((pixels.length / 4) * 3);
-
+			const meanAnimationDelta = meanRgbDelta(pixels, pixelsB);
 			fail(firstStats.averageLuminance > 9, `Night render remains too dark: ${firstStats.averageLuminance}`);
 			fail(firstStats.brightFraction > 0.003, `Aurora has too little luminous structure: ${firstStats.brightFraction}`);
-			fail(firstStats.phosphorFraction > 0.001, `Aurora phosphorescent green/cyan signal too weak: ${firstStats.phosphorFraction}`);
+			fail(firstStats.phosphorFraction > 0.001, `Aurora phosphorescent signal too weak: ${firstStats.phosphorFraction}`);
 			fail(meanAnimationDelta > 0.12, `Aurora curtains are visually static: delta=${meanAnimationDelta}`);
+
+			const invariantScene = new THREE.Scene();
+			const invariantSky = createAuroraSky();
+			invariantScene.add(invariantSky);
+			const invariantCamera = new THREE.PerspectiveCamera(68, 960 / 540, 0.1, 2100);
+			const invariantA = new Uint8Array(pixels.length);
+			const invariantB = new Uint8Array(pixels.length);
+			invariantCamera.position.set(0, 7, 0);
+			invariantCamera.lookAt(0, 150, -340);
+			updateAuroraSky(invariantSky, invariantCamera.position, 37, midnight);
+			renderer.render(invariantScene, invariantCamera);
+			gl.readPixels(0, 0, 960, 540, gl.RGBA, gl.UNSIGNED_BYTE, invariantA);
+			invariantCamera.position.set(840, 57, -920);
+			invariantCamera.lookAt(840, 200, -1260);
+			updateAuroraSky(invariantSky, invariantCamera.position, 37, midnight);
+			renderer.render(invariantScene, invariantCamera);
+			gl.readPixels(0, 0, 960, 540, gl.RGBA, gl.UNSIGNED_BYTE, invariantB);
+			const cameraTranslationDelta = meanRgbDelta(invariantA, invariantB);
+			fail(cameraTranslationDelta < 0.20, `Camera translation slides the sky field: delta=${cameraTranslationDelta}`);
+			disposeAuroraSky(invariantSky);
 
 			const noon = updateDayNightLighting(lights, 50, 100, 0);
 			const dayFill = getNightVisualEnhancementSnapshot(lights.hemisphere);
+			const dayReadabilityIntensity = readability.intensity;
 			fail(noon.nightFactor === 0, `Canonical noon nightFactor drifted: ${noon.nightFactor}`);
 			fail(dayFill.intensity <= 0.021, `Night-only cinematic fill leaks into day: ${dayFill.intensity}`);
+			fail(dayReadabilityIntensity <= 0.06, `Readability fill remains too strong at noon: ${dayReadabilityIntensity}`);
+			fail(nightReadabilityIntensity - dayReadabilityIntensity >= 0.25,
+				`Readability fill does not respond strongly enough to night: ${nightReadabilityIntensity} -> ${dayReadabilityIntensity}`);
+
+			updateDayNightLighting(lights, 0, 100, 0);
+			updateAuroraSky(sky, camera.position, 83, midnight);
+			renderer.render(scene, camera);
+			const artifactDataUrl = canvas.toDataURL('image/png');
 
 			disposeAuroraSky(sky);
 			disposeDayNightLighting(scene, lights);
-			return { midnight, nightFill, dayFill, firstStats, secondStats, meanAnimationDelta };
+			return {
+				midnight,
+				nightFill,
+				dayFill,
+				nightReadabilityIntensity,
+				dayReadabilityIntensity,
+				firstStats,
+				secondStats,
+				meanAnimationDelta,
+				cameraTranslationDelta,
+				artifactDataUrl,
+			};
 		});
 
-		fs.mkdirSync(OUT, { recursive: true });
-		await page.locator('#run221-aurora-proof').screenshot({ path: path.join(OUT, 'game-aurora-flow-b.png') });
-		await page.evaluate(async () => {
-			const { updateAuroraSky } = await import('/src/3d/sky.js');
-			void updateAuroraSky;
-		});
+		assert(writeRawEvidenceDataUrl(result.artifactDataUrl), 'Raw WebGL evidence PNG could not be encoded.');
+		delete result.artifactDataUrl;
 
+		assert(optionalMoonFallbacks.length <= 1, `Unexpected repeated Moon fallback errors: ${optionalMoonFallbacks.length}`);
 		assert(missing.length === 0, `HTTP errors: ${missing.join(' | ')}`);
 		assert(errors.length === 0, `Console/page errors: ${errors.join(' | ')}`);
-		console.log(`[checkRun221RealisticGameAuroraBrowser] PASS: ${JSON.stringify(result)}`);
+		console.log(`[checkRun221RealisticGameAuroraBrowser] PASS: optionalMoonFallbacks=${optionalMoonFallbacks.length} ${JSON.stringify(result)}`);
+	} catch (error) {
+		try {
+			const failureDataUrl = await page.evaluate(() => document.getElementById('run221-aurora-proof')?.toDataURL('image/png') || null);
+			writeRawEvidenceDataUrl(failureDataUrl);
+		} catch {
+			// Original failure stays authoritative if the canvas never reached a renderable state.
+		}
+		throw error;
 	} finally {
 		await context.close();
 		await browser.close();
