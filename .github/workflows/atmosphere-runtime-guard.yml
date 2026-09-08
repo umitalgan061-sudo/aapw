@@ -1,0 +1,51 @@
+name: Atmosphere Runtime Guard
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/atmosphereRuntimeGuard.js'
+      - 'scripts/checkAtmosphereRuntimeGuard.mjs'
+      - '.github/workflows/atmosphere-runtime-guard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: '${{ github.event.pull_request.head.sha || github.sha }}'
+      - name: Exact-main and diff guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD "$LIVE_MAIN_SHA")" = "$LIVE_MAIN_SHA"
+          ADD="$(git diff --numstat "$LIVE_MAIN_SHA...HEAD" | awk '{a+=$1} END {print a+0}')"
+          DEL="$(git diff --numstat "$LIVE_MAIN_SHA...HEAD" | awk '{d+=$2} END {print d+0}')"
+          TOTAL=$((ADD + DEL))
+          test "$TOTAL" -le 3000
+          test "$TOTAL" -ge 120
+          git diff --check "$LIVE_MAIN_SHA...HEAD"
+          git diff --name-only "$LIVE_MAIN_SHA...HEAD" | while IFS= read -r path; do
+            case "$path" in
+              src/3d/atmosphereRuntimeGuard.js|scripts/checkAtmosphereRuntimeGuard.mjs|.github/workflows/atmosphere-runtime-guard.yml) ;;
+              *) echo "Unexpected path: $path"; exit 1 ;;
+            esac
+          done
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax
+        run: |
+          node --check src/3d/atmosphereRuntimeGuard.js
+          node --check scripts/checkAtmosphereRuntimeGuard.mjs
+      - name: Executable contract
+        run: node scripts/checkAtmosphereRuntimeGuard.mjs
