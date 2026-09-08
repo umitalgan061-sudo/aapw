@@ -5,7 +5,7 @@ const freeze = (v) => Object.freeze(v);
 const norm = (v) => String(v ?? '').trim().replaceAll('\\', '/').replace(/^\.\//, '').toLowerCase();
 
 export const ENVIRONMENT_ASSET_REGISTRY_POLICY = freeze({
-  id: 'terrain-environment-authored-asset-registry-2026-09-07-v1',
+  id: 'terrain-environment-authored-asset-registry-2026-09-08-v2',
   sourceDirectories: freeze(['assets/models/vegetation','assets/models/props','assets/models/settlements','assets/models/fbx','assets/textures']),
   materialAuthority: TERRAIN_ENVIRONMENT_PROFILE_POLICY.materialAuthority,
   placementAuthority: TERRAIN_ENVIRONMENT_PROFILE_POLICY.placementAuthority,
@@ -14,6 +14,10 @@ export const ENVIRONMENT_ASSET_REGISTRY_POLICY = freeze({
   requireGroundValidation: true,
   placeholderAllowed: false,
   proceduralReplacementAllowed: false,
+  directNaturalGeologySources: freeze([
+    'assets/models/fbx/rocky_terrain_low_poly.glb',
+    'assets/models/fbx/desert_rocks.glb',
+  ]),
 });
 
 export const VERIFIED_ENVIRONMENT_ASSETS = freeze([
@@ -31,6 +35,8 @@ export const VERIFIED_ENVIRONMENT_ASSETS = freeze([
   freeze({ id:'stone-bench', src:'assets/models/props/greek_stone_bench.glb', family:'prop', contexts:['settlement','garden','roadside'], pbr:['stone','moss'] }),
   freeze({ id:'hand-statue', src:'assets/models/props/hand_statue_prop.glb', family:'prop', contexts:['settlement','shrine','garden'], pbr:['stone','weathering'] }),
   freeze({ id:'athena-arms', src:'assets/models/props/statue_athena_arms.glb', family:'prop', contexts:['settlement','shrine'], pbr:['stone','weathering'] }),
+  freeze({ id:'rocky-terrain-low-poly', src:'assets/models/fbx/rocky_terrain_low_poly.glb', family:'rock', climates:['temperate','forest','forest-edge','highland','alpine-bare','tundra'], biomes:['forest','forest-edge','heath','tundra','alpine-bare','meadow'], contexts:['outcrop','bedrock','cliff','scree'], pbr:['albedo','normal','roughness'], winter:true, geology:true }),
+  freeze({ id:'desert-rocks', src:'assets/models/fbx/desert_rocks.glb', family:'rock', climates:['dryland','hot-arid','temperate'], biomes:['dryland','heath','meadow'], contexts:['outcrop','scree','dry-rock'], pbr:['albedo','normal','roughness'], winter:false, geology:true }),
 ]);
 
 export function findVerifiedEnvironmentAsset(identifier) {
@@ -51,15 +57,16 @@ export function selectVerifiedEnvironmentCandidates(category, { biome = '', wint
   const c = norm(context);
   const candidates = VERIFIED_ENVIRONMENT_ASSETS.filter((asset) => {
     if (winter && asset.winter === false) return false;
-    if (asset.family === 'prop' && c && !(asset.contexts ?? []).map(norm).includes(c)) return false;
-    if (b && asset.climates && !asset.climates.some((climate) => norm(climate) === b)) return false;
-    return profile.category === 'tree'
-      ? ['tree','dead-tree','snow-dead-tree'].includes(asset.family)
-      : profile.category === 'grass'
-        ? ['crop','ground-prop'].includes(asset.family)
-        : profile.category === 'rock' || profile.category === 'cliff' || profile.category === 'scree'
-          ? false
-          : asset.family === 'prop';
+    if (asset.contexts && c && !asset.contexts.map(norm).includes(c)) return false;
+    if (b && asset.biomes && !asset.biomes.some((biomeName) => norm(biomeName) === b)) {
+      if (asset.climates && !asset.climates.some((climate) => norm(climate) === b)) return false;
+    }
+    if (profile.category === 'tree') return ['tree','dead-tree','snow-dead-tree'].includes(asset.family);
+    if (profile.category === 'grass') return ['crop','ground-prop'].includes(asset.family);
+    if (profile.category === 'rock') return asset.geology === true;
+    if (profile.category === 'cliff') return asset.geology === true && ['outcrop','bedrock','cliff'].some((name) => asset.contexts?.map(norm).includes(name));
+    if (profile.category === 'scree') return asset.geology === true && ['scree','outcrop'].some((name) => asset.contexts?.map(norm).includes(name));
+    return asset.family === 'prop';
   });
   return freeze(candidates);
 }
@@ -80,6 +87,7 @@ export function validateVerifiedEnvironmentAsset(asset, { category = null, sampl
   if (asset?.placeholder === true) errors.push('placeholder-asset');
   const profile = category ? resolveTerrainEnvironmentProfile(category, asset) : null;
   if (profile && sample.biome && profile.forbiddenBiomes.includes(norm(sample.biome))) errors.push(`forbidden-biome:${norm(sample.biome)}`);
+  if (profile && ['rock','cliff','scree'].includes(profile.category) && !verified?.geology) errors.push('natural-geology-source-required');
   return freeze({ ok: errors.length === 0, errors: freeze(errors), verified: Boolean(verified), registryAsset: verified, profile, policyId: ENVIRONMENT_ASSET_REGISTRY_POLICY.id });
 }
 
@@ -102,5 +110,5 @@ export function environmentAssetPlacementPlan(asset, options = {}) {
 export function registrySummary() {
   const families = {};
   for (const asset of VERIFIED_ENVIRONMENT_ASSETS) families[asset.family] = (families[asset.family] ?? 0) + 1;
-  return freeze({ policyId: ENVIRONMENT_ASSET_REGISTRY_POLICY.id, total: VERIFIED_ENVIRONMENT_ASSETS.length, families: freeze(families), placeholderAllowed: false, proceduralReplacementAllowed: false });
+  return freeze({ policyId: ENVIRONMENT_ASSET_REGISTRY_POLICY.id, total: VERIFIED_ENVIRONMENT_ASSETS.length, families: freeze(families), geologyAssetCount: VERIFIED_ENVIRONMENT_ASSETS.filter((asset) => asset.geology).length, placeholderAllowed: false, proceduralReplacementAllowed: false });
 }
