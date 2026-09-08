@@ -96,4 +96,21 @@ const geographyFailure = validateLivingWorldAssetSurfaceContext({
 assert.equal(geographyFailure.ok, false);
 assert(geographyFailure.geographic.errors.includes('geography-placement-digest-mismatch'));
 
+const rangeFailure = validateLivingWorldAssetSurfaceContext({
+	material: { roles: ['fur'], textures: [{ name: 'albedo', width: 1024, height: 1024, path: 'assets/legacy/wolf.png' }] },
+	geographicContext: { ...geographicContext, moisture: 1.2, slope: 91, habitatScore: -0.1, settlementDistance: -4 },
+	placement: { placementDigest: 'p1' },
+});
+assert.equal(rangeFailure.ok, false);
+assert(rangeFailure.textureErrors.includes('non-canonical-texture-path:albedo'));
+assert(rangeFailure.geographic.errors.includes('moisture-out-of-range'));
+assert(rangeFailure.geographic.errors.includes('slope-out-of-range'));
+assert(rangeFailure.geographic.errors.includes('habitat-score-out-of-range'));
+assert(rangeFailure.geographic.errors.includes('settlement-distance-negative'));
+
+const warningSurface = validateLivingWorldAssetSurfaceContext({ geographicContext: {} });
+assert.equal(warningSurface.ok, false);
+assert(warningSurface.warnings.includes('no-textures-observed'));
+assert(warningSurface.warnings.includes('no-material-roles-observed'));
+
 console.log(JSON.stringify({ pass: true, pointerStatus: pointer.status, wolfAccepted: evidence.accepted, surfaceDigest: surfaceContext.digest, missingRoleErrors: missingRole.errors, digest: assetEvidenceDigest(evidence) }, null, 2));
