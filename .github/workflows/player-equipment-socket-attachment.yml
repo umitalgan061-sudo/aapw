@@ -1,0 +1,48 @@
+name: Player Equipment Socket Attachment
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerEquipmentCombatProfile.js'
+      - 'src/3d/gameplay/playerEquipmentSocketAttachment.js'
+      - 'scripts/checkPlayerEquipmentSocketAttachment.mjs'
+      - '.github/workflows/player-equipment-socket-attachment.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  socket-attachment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact main ancestry and diff cap
+        shell: bash
+        run: |
+          git fetch origin main --depth=1
+          BASE="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$BASE" HEAD
+          test "$(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+          git diff --check "$BASE"...HEAD
+      - name: Runtime boundary
+        shell: bash
+        run: |
+          BASE="$(git rev-parse origin/main)"
+          CHANGED="$(git diff --name-only "$BASE"...HEAD)"
+          ALLOW='^(src/3d/gameplay/playerEquipmentCombatProfile\.js|src/3d/gameplay/playerEquipmentCombatRules\.js|src/3d/gameplay/playerEquipmentCombatRuntime\.js|src/3d/gameplay/playerEquipmentSocketAttachment\.js|src/3d/gameplay/playerEquipmentEvidenceManifest\.js|scripts/checkPlayerEquipmentCombatRules\.mjs|scripts/checkPlayerEquipmentCombatRuntime\.mjs|scripts/checkPlayerEquipmentCombatSceneContract\.mjs|scripts/checkPlayerEquipmentMaterialAcceptance\.mjs|scripts/checkPlayerEquipmentSocketAttachment\.mjs|scripts/checkPlayerEquipmentEvidenceManifest\.mjs|\.github/workflows/player-equipment-combat-rules\.yml|\.github/workflows/player-equipment-combat-runtime\.yml|\.github/workflows/player-equipment-evidence-manifest\.yml|\.github/workflows/player-equipment-socket-attachment\.yml)$'
+          if printf '%s\n' "$CHANGED" | grep -Ev "$ALLOW" | grep -q .; then
+            echo "Unexpected out-of-scope files changed"
+            exit 1
+          fi
+          test "$(printf '%s\n' "$CHANGED" | sed '/^$/d' | wc -l | tr -d ' ')" -eq 15
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/playerEquipmentCombatProfile.js
+          node --check src/3d/gameplay/playerEquipmentSocketAttachment.js
+          node --check scripts/checkPlayerEquipmentSocketAttachment.mjs
+      - name: Socket attachment contract
+        run: node scripts/checkPlayerEquipmentSocketAttachment.mjs
