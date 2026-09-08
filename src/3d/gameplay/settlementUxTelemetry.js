@@ -1,0 +1,12 @@
+/** Bounded deterministic telemetry for settlement UX. */
+export const SETTLEMENT_UX_TELEMETRY_VERSION=1;
+export const SETTLEMENT_UX_TELEMETRY_LIMITS=Object.freeze({events:64,text:160});
+const TYPES=Object.freeze(['open','focus','execute','close','save','restore','reset']);
+const ACTIONS=Object.freeze(['enter','exit','interact','talk','trade','craft','acceptQuest','advanceQuest','travel','save','back']);
+const text=(v,f='')=>String(v??f).trim().slice(0,160);
+const finite=(v,f=0)=>Number.isFinite(Number(v))?Number(v):f;
+export function normalizeSettlementUxTelemetry(entry={}){return {version:1,sequence:Math.max(0,Math.trunc(finite(entry.sequence))),at:finite(entry.at),type:TYPES.includes(entry.type)?entry.type:'unknown',action:ACTIONS.includes(entry.action)?entry.action:'',nodeId:text(entry.nodeId),role:text(entry.role),status:text(entry.status,'ok'),code:text(entry.code),message:text(entry.message),requestId:text(entry.requestId)};}
+export function settlementUxTelemetryDigest(entries=[]){let hash=2166136261>>>0;for(const entry of entries){const raw=JSON.stringify(normalizeSettlementUxTelemetry(entry));for(let i=0;i<raw.length;i++){hash^=raw.charCodeAt(i);hash=Math.imul(hash,16777619)>>>0;}}return hash>>>0;}
+export function validateSettlementUxTelemetry(entries=[]){const errors=[];let previous=0;if(!Array.isArray(entries))return {ok:false,errors:['entries']};if(entries.length>64)errors.push('limit');for(const entry of entries){const value=normalizeSettlementUxTelemetry(entry);if(value.sequence<previous)errors.push('sequence');previous=value.sequence;if(!Number.isFinite(value.at))errors.push('timestamp');}return {ok:!errors.length,errors};}
+export function summarizeSettlementUxTelemetry(entries=[]){const counts={};for(const entry of entries){const key=`${entry.type}:${entry.status}`;counts[key]=(counts[key]??0)+1;}return {count:entries.length,types:counts,digest:settlementUxTelemetryDigest(entries)};}
+export function createSettlementUxTelemetryBuffer(options={}){let entries=[];let sequence=0;const now=typeof options.now==='function'?options.now:()=>Date.now();return {push(entry={}){const value=normalizeSettlementUxTelemetry({...entry,sequence:++sequence,at:entry.at??now()});entries=[...entries,value].slice(-64);return value;},list:()=>entries.map(e=>({...e})),clear:()=>{entries=[];sequence=0;},digest:()=>settlementUxTelemetryDigest(entries),size:()=>entries.length};}
