@@ -1,0 +1,40 @@
+name: Terrain Ground Query Contract
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/terrainGroundQuery.js'
+      - 'scripts/checkTerrainGroundQuery.mjs'
+      - '.github/workflows/terrain-ground-query-contract.yml'
+  push:
+    branches:
+      - main
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verify syntax
+        run: |
+          node --check src/3d/world/terrainGroundQuery.js
+          node --check scripts/checkTerrainGroundQuery.mjs
+      - name: Run deterministic contract
+        run: node scripts/checkTerrainGroundQuery.mjs
+      - name: Verify bounded scope
+        shell: bash
+        run: |
+          base=$(git merge-base HEAD origin/main)
+          changed=$(git diff --name-only "$base" HEAD)
+          allowed=$'src/3d/world/terrainGroundQuery.js\nscripts/checkTerrainGroundQuery.mjs\n.github/workflows/terrain-ground-query-contract.yml'
+          while IFS= read -r path; do
+            [[ -z "$path" ]] && continue
+            grep -Fxq "$path" <<< "$allowed" || { echo "Unexpected path: $path"; exit 1; }
+          done <<< "$changed"
+          total=$(git diff --numstat "$base" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          (( total <= 3000 )) || { echo "Diff budget exceeded: $total"; exit 1; }
