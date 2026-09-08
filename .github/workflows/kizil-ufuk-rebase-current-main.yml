@@ -1,0 +1,44 @@
+name: Kizil Ufuk Rebase Current Main
+on:
+  push:
+    branches:
+      - codex/kizil-ufuk-player-combat-loadout-runtime-20260908
+permissions:
+  contents: write
+jobs:
+  rebase:
+    if: github.actor == 'umitalgan061-sudo'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Rebase onto latest origin/main
+        shell: bash
+        env:
+          BRANCH: codex/kizil-ufuk-player-combat-loadout-runtime-20260908
+        run: |
+          set -euo pipefail
+          git config user.name 'umitalgan061-sudo'
+          git config user.email 'umitalgan.061@gmail.com'
+          git fetch origin main --prune
+          BASE="$(git rev-parse origin/main)"
+          git rebase "$BASE"
+          git fetch origin main --prune
+          LATEST="$(git rev-parse origin/main)"
+          if [ "$LATEST" != "$BASE" ]; then
+            git rebase "$LATEST"
+          fi
+          test "$(git rev-list --count "$LATEST"..HEAD)" -ge 1
+      - name: Remove one-shot workflow and publish rebased branch
+        shell: bash
+        env:
+          BRANCH: codex/kizil-ufuk-player-combat-loadout-runtime-20260908
+        run: |
+          set -euo pipefail
+          rm -f .github/workflows/kizil-ufuk-rebase-current-main.yml
+          git add -u .github/workflows/kizil-ufuk-rebase-current-main.yml
+          git commit -m 'chore(ci): remove one-shot rebase workflow'
+          git push --force-with-lease origin "HEAD:$BRANCH"
