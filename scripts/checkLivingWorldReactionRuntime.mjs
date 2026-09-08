@@ -213,12 +213,10 @@ equal(LIVING_WORLD_REACTION_RUNTIME_POLICY.sensingIntervalSeconds, 0.15, 'percep
 // Actor collections are hard-capped before simulation; no 1000-agent full-tick path is admitted.
 {
   const actors = Array.from({ length: 300 }, (_, i) => makeActor(`crowd-${i}`, i, 0));
-  let updated = 0;
   const runtime = createLivingWorldReactionRuntime({ actors, services: { perception: { sense() { return []; } } } });
   const result = runtime.tick({ deltaSeconds: 0.1, playerPosition: { x: 0, z: 0 } });
   equal(result.actorCount, 128, 'actor collection is capped before runtime simulation');
   assert(result.stats.trackedActors <= 128, 'tracked actor state remains bounded');
-  assert(updated === 0, 'runtime does not fabricate controller updates');
   assert(auditLivingWorldReactionResult(result).ok, 'capped crowd still produces an auditable result');
 }
 
@@ -232,22 +230,23 @@ equal(LIVING_WORLD_REACTION_RUNTIME_POLICY.sensingIntervalSeconds, 0.15, 'percep
   equal(negative.clockSeconds, 0.25, 'negative delta contributes no time');
 }
 
-// Deterministic seeds produce identical state/digests even when optional services are absent.
+// Deterministic seeds produce identical full tick telemetry; different seeds may change the deterministic sample.
 {
   function run(seed) {
     const actorA = makeActor('det-a', 2, 4);
     const actorB = makeActor('det-b', 40, 4);
     const runtime = createLivingWorldReactionRuntime({ actors: [actorA, actorB], seed });
     runtime.tick({ deltaSeconds: 0.2, playerPosition: { x: 0, z: 0 } });
-    runtime.tick({ deltaSeconds: 0.2, playerPosition: { x: 0, z: 0 } });
-    return { snapshot: runtime.snapshot(), digest: livingWorldReactionDigest(runtime.snapshot()) };
+    const finalTick = runtime.tick({ deltaSeconds: 0.2, playerPosition: { x: 0, z: 0 } });
+    return { snapshot: runtime.snapshot(), tick: finalTick, digest: livingWorldReactionDigest(finalTick) };
   }
   const left = run('same-seed');
   const right = run('same-seed');
-  equal(left.digest, right.digest, 'same seed generates the same digest');
+  equal(left.digest, right.digest, 'same seed generates the same full tick digest');
   equal(JSON.stringify(left.snapshot), JSON.stringify(right.snapshot), 'same seed generates identical state');
   const other = run('other-seed');
-  assert(other.digest !== left.digest, 'different seed can produce a distinct deterministic digest');
+  assert(other.digest !== left.digest, 'different seed changes only the deterministic sample digest');
+  assert(other.tick.results.map((entry) => entry.randomSample).every((sample) => Number.isFinite(sample)), 'random samples remain finite');
 }
 
 // Audit rejects malformed externally supplied-style results instead of silently passing them.
