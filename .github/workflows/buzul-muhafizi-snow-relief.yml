@@ -19,10 +19,10 @@ on:
       - 'scripts/checkTerrainWindSnowEdgeCases.mjs'
       - 'scripts/checkTerrainGroundContext.mjs'
       - 'scripts/checkTerrainGroundContextProfiles.mjs'
+      - 'scripts/checkTerrainEnvironmentEcotone.mjs'
       - 'scripts/checkWorldEnvironmentAcceptanceMatrix.mjs'
       - '.github/workflows/buzul-muhafizi-snow-relief.yml'
   workflow_dispatch:
-
 permissions:
   contents: read
 
@@ -36,11 +36,7 @@ jobs:
     steps:
       - name: Checkout exact PR head
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          lfs: false
-          ref: '${{ github.event.pull_request.head.sha || github.sha }}'
-
+        with: { fetch-depth: 0, lfs: false, ref: '${{ github.event.pull_request.head.sha || github.sha }}' }
       - name: Re-read live main and enforce bounded production scope
         shell: bash
         run: |
@@ -51,28 +47,22 @@ jobs:
           ADD="$(git diff --numstat "$LIVE_MAIN_SHA...HEAD" | awk '{a+=$1} END {print a+0}')"
           DEL="$(git diff --numstat "$LIVE_MAIN_SHA...HEAD" | awk '{d+=$2} END {print d+0}')"
           TOTAL=$((ADD + DEL))
-          echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA"
-          echo "HEAD_SHA=$(git rev-parse HEAD)"
-          echo "ADDITIONS=$ADD DELETIONS=$DEL TOTAL=$TOTAL"
+          echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA HEAD_SHA=$(git rev-parse HEAD) ADDITIONS=$ADD DELETIONS=$DEL TOTAL=$TOTAL"
           echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
           test "$TOTAL" -le 3000
           test "$TOTAL" -ge 2700
           git diff --check "$LIVE_MAIN_SHA...HEAD"
           git diff --name-only "$LIVE_MAIN_SHA...HEAD" | while IFS= read -r path; do
             case "$path" in
-              src/3d/world/terrainWindSnowExposure.js|src/3d/world/terrainWindSnowSurfaceFabric.js|src/3d/world/terrainWindSnowRuntimeGuard.js|src/3d/world/terrainGroundContext.js|src/3d/world/terrainGroundContextProfiles.js|src/3d/world/terrainEnvironmentEcotone.js|scripts/checkTerrainWindSnowExposure.mjs|scripts/checkTerrainWindSnowOrographicFold.mjs|scripts/checkTerrainWindSnowFieldMatrix.mjs|scripts/checkTerrainWindSnowRuntimeParity.mjs|scripts/checkTerrainWindSnowReferenceFieldSweep.mjs|scripts/checkTerrainWindSnowVisualEnvelope.mjs|scripts/checkTerrainWindSnowEdgeCases.mjs|scripts/checkTerrainGroundContext.mjs|scripts/checkTerrainGroundContextProfiles.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix.mjs|.github/workflows/buzul-muhafizi-snow-relief.yml) ;;
+              src/3d/world/terrainWindSnowExposure.js|src/3d/world/terrainWindSnowSurfaceFabric.js|src/3d/world/terrainWindSnowRuntimeGuard.js|src/3d/world/terrainGroundContext.js|src/3d/world/terrainGroundContextProfiles.js|src/3d/world/terrainEnvironmentEcotone.js|scripts/checkTerrainWindSnowExposure.mjs|scripts/checkTerrainWindSnowOrographicFold.mjs|scripts/checkTerrainWindSnowFieldMatrix.mjs|scripts/checkTerrainWindSnowRuntimeParity.mjs|scripts/checkTerrainWindSnowReferenceFieldSweep.mjs|scripts/checkTerrainWindSnowVisualEnvelope.mjs|scripts/checkTerrainWindSnowEdgeCases.mjs|scripts/checkTerrainGroundContext.mjs|scripts/checkTerrainGroundContextProfiles.mjs|scripts/checkTerrainEnvironmentEcotone.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix.mjs|.github/workflows/buzul-muhafizi-snow-relief.yml) ;;
               *) echo "Unexpected path outside snow relief production slice: $path"; exit 1 ;;
             esac
           done
-
       - name: Setup Node
         uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
+        with: { node-version: 22 }
       - name: Install runtime Three.js dependency
         run: npm install --no-save --no-package-lock --ignore-scripts three@0.180.0
-
       - name: Static syntax checks
         shell: bash
         run: |
@@ -83,16 +73,7 @@ jobs:
           node --check src/3d/world/terrainGroundContext.js
           node --check src/3d/world/terrainGroundContextProfiles.js
           node --check src/3d/world/terrainEnvironmentEcotone.js
-          node --check scripts/checkTerrainWindSnowExposure.mjs
-          node --check scripts/checkTerrainWindSnowOrographicFold.mjs
-          node --check scripts/checkTerrainWindSnowFieldMatrix.mjs
-          node --check scripts/checkTerrainWindSnowRuntimeParity.mjs
-          node --check scripts/checkTerrainWindSnowReferenceFieldSweep.mjs
-          node --check scripts/checkTerrainWindSnowVisualEnvelope.mjs
-          node --check scripts/checkTerrainWindSnowEdgeCases.mjs
-          node --check scripts/checkTerrainGroundContext.mjs
-          node --check scripts/checkTerrainGroundContextProfiles.mjs
-
+          for file in scripts/checkTerrainWindSnowExposure.mjs scripts/checkTerrainWindSnowOrographicFold.mjs scripts/checkTerrainWindSnowFieldMatrix.mjs scripts/checkTerrainWindSnowRuntimeParity.mjs scripts/checkTerrainWindSnowReferenceFieldSweep.mjs scripts/checkTerrainWindSnowVisualEnvelope.mjs scripts/checkTerrainWindSnowEdgeCases.mjs scripts/checkTerrainGroundContext.mjs scripts/checkTerrainGroundContextProfiles.mjs scripts/checkTerrainEnvironmentEcotone.mjs; do node --check "$file"; done
       - name: Directional snow contract
         run: node scripts/checkTerrainWindSnowExposure.mjs
       - name: Orographic fold contract
@@ -111,7 +92,8 @@ jobs:
         run: node scripts/checkTerrainGroundContext.mjs
       - name: Ground placement profile contract
         run: node scripts/checkTerrainGroundContextProfiles.mjs
-
+      - name: Environment ecotone contract
+        run: node scripts/checkTerrainEnvironmentEcotone.mjs
       - name: Install Playwright Chromium for shipped runtime proof
         shell: bash
         run: |
@@ -120,14 +102,12 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
-
       - name: Run shipped createScene world-environment evidence
         shell: bash
         run: |
           set -euo pipefail
           export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
           node scripts/checkWorldEnvironmentAcceptanceMatrix.mjs
-
       - name: Final exact-main freshness and diff hygiene
         shell: bash
         run: |
@@ -143,7 +123,6 @@ jobs:
           echo "FINAL_ADDITIONS=$ADD FINAL_DELETIONS=$DEL FINAL_TOTAL=$TOTAL"
           test "$TOTAL" -le 3000
           test "$TOTAL" -ge 2700
-
       - name: Upload shipped visual evidence
         if: always()
         uses: actions/upload-artifact@v4
