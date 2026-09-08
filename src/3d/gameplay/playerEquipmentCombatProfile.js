@@ -270,7 +270,7 @@ function readItemId(item, fallback) {
 function readWeaponProfile(item) {
   const id = readItemId(item, DEFAULT_WEAPON_ID);
   const explicitType = normalizeId(item?.weaponType ?? item?.type ?? item?.category, '');
-  const profile = PLAYER_WEAPON_PROFILES[id] || PLAYER_WEAPON_PROFILES[explicitType] || PLAYER_WEAPON_PROFILES[DEFAULT_WEAPON_ID];
+  const profile = PLAYER_WEAPON_PROFILES[id] || PLAYER_WEAPON_PROFILES[explicitType] || Object.values(PLAYER_WEAPON_PROFILES).find((candidate) => candidate.id === id) || PLAYER_WEAPON_PROFILES[DEFAULT_WEAPON_ID];
   const overrides = item?.combat || item?.stats || item?.weaponStats || {};
   return {
     ...profile,
@@ -297,7 +297,7 @@ function readArmorProfile(items = {}) {
   const source = [items.chest, items.head].find(Boolean) || null;
   const id = readItemId(source, DEFAULT_ARMOR_ID);
   const explicitType = normalizeId(source?.armorType ?? source?.type ?? source?.category, '');
-  const profile = PLAYER_ARMOR_PROFILES[id] || PLAYER_ARMOR_PROFILES[explicitType] || PLAYER_ARMOR_PROFILES[DEFAULT_ARMOR_ID];
+  const profile = PLAYER_ARMOR_PROFILES[id] || PLAYER_ARMOR_PROFILES[explicitType] || Object.values(PLAYER_ARMOR_PROFILES).find((candidate) => candidate.id === id) || PLAYER_ARMOR_PROFILES[DEFAULT_ARMOR_ID];
   const stats = source?.armor || source?.stats || source?.armorStats || {};
   const extraPoise = finiteOr(stats.poiseBonus, 0);
   return {
