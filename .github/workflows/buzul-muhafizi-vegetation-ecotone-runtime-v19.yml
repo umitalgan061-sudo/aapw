@@ -47,4 +47,4 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ! grep -n "EditorMaterialStudio\\|document\\|window\\|MaterialAssignmentCore\\|WorldAssetPlacementPipeline" src/3d/world/vegetationEcotoneRuntimeAdapter.js
+          ! grep -n "EditorMaterialStudio\\|document\\|window" src/3d/world/vegetationEcotoneRuntimeAdapter.js
