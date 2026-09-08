@@ -129,6 +129,20 @@ for (const family of families) {
   }
 }
 
+// Convex terrain information is meaningful to the distribution planner: a positive bowl signal and a
+// negative/convex signal must survive normalization instead of both collapsing to the same value.
+const convexCandidate = {
+  ...fixture(1, 'rock', 'scree', 12),
+  surface: {
+    ...fixture(1, 'rock', 'scree', 12).surface,
+    concavity: -0.80,
+  },
+};
+const convexRanked = rankWorldAssetDistributionCandidates([convexCandidate], { seed: 0x7733 });
+assert.equal(convexRanked.length, 1);
+assert(convexRanked[0].profile.surface.concavity < -0.70, 'asset planner must preserve signed convexity/concavity');
+assert(convexRanked[0].profile.landform.ridge > convexRanked[0].profile.landform.bowl, 'convex terrain should remain ridge-dominant after planner normalization');
+
 const edgeCandidates = [
   fixture(2, 'waterside', 'coast', 12),
   fixture(3, 'tree', 'woodland', 12),
@@ -152,5 +166,6 @@ console.log(JSON.stringify({
   anchorCount,
   plannerCases,
   determinismCases,
+  signedConcavityRegression: true,
   strictSelectionCount: strict.selected.length,
 }, null, 2));
