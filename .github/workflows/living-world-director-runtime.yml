@@ -10,12 +10,14 @@ on:
       - 'src/3d/gameplay/livingWorldRuntimeEvidence.js'
       - 'src/3d/gameplay/livingWorldGroupAiPolicy.js'
       - 'src/3d/gameplay/livingWorldGroupDirectorAdapter.js'
+      - 'src/3d/gameplay/livingWorldAssetEvidencePolicy.js'
       - 'scripts/checkLivingWorldDirectorRuntimeAdapter.mjs'
       - 'scripts/checkLivingWorldOccupationSchedule.mjs'
       - 'scripts/checkLivingWorldEcologyPolicy.mjs'
       - 'scripts/checkLivingWorldEventDirectorAdapter.mjs'
       - 'scripts/checkLivingWorldGroupAiPolicy.mjs'
       - 'scripts/checkLivingWorldGroupDirectorAdapter.mjs'
+      - 'scripts/checkLivingWorldAssetEvidencePolicy.mjs'
       - 'scripts/checkLivingWorldDirectorBrowser.mjs'
       - '.github/workflows/living-world-director-runtime.yml'
   workflow_dispatch:
@@ -50,7 +52,7 @@ jobs:
           test "$total" -le 3000
           changed="$(git diff --name-only origin/main...HEAD)"
           printf '%s\n' "$changed"
-          unexpected="$(printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/(livingWorldOccupationSchedule|livingWorldEcologyPolicy|livingWorldEventDirectorAdapter|livingWorldDirectorRuntimeAdapter|livingWorldRuntimeEvidence|livingWorldGroupAiPolicy|livingWorldGroupDirectorAdapter)\.js|scripts/checkLivingWorld(DirectorRuntimeAdapter|OccupationSchedule|EcologyPolicy|EventDirectorAdapter|GroupAiPolicy|GroupDirectorAdapter|DirectorBrowser)\.mjs|\.github/workflows/living-world-director-runtime\.yml)$' || true)"
+          unexpected="$(printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/(livingWorldOccupationSchedule|livingWorldEcologyPolicy|livingWorldEventDirectorAdapter|livingWorldDirectorRuntimeAdapter|livingWorldRuntimeEvidence|livingWorldGroupAiPolicy|livingWorldGroupDirectorAdapter|livingWorldAssetEvidencePolicy)\.js|scripts/checkLivingWorld(DirectorRuntimeAdapter|OccupationSchedule|EcologyPolicy|EventDirectorAdapter|GroupAiPolicy|GroupDirectorAdapter|AssetEvidencePolicy|DirectorBrowser)\.mjs|\.github/workflows/living-world-director-runtime\.yml)$' || true)"
           test -z "$unexpected"
           git diff --check origin/main...HEAD
 
@@ -63,6 +65,7 @@ jobs:
           node --check src/3d/gameplay/livingWorldRuntimeEvidence.js
           node --check src/3d/gameplay/livingWorldGroupAiPolicy.js
           node --check src/3d/gameplay/livingWorldGroupDirectorAdapter.js
+          node --check src/3d/gameplay/livingWorldAssetEvidencePolicy.js
 
       - name: Occupation regression
         run: node scripts/checkLivingWorldOccupationSchedule.mjs
@@ -78,6 +81,9 @@ jobs:
 
       - name: Group director adapter regression
         run: node scripts/checkLivingWorldGroupDirectorAdapter.mjs
+
+      - name: Asset-first evidence regression
+        run: node scripts/checkLivingWorldAssetEvidencePolicy.mjs
 
       - name: Director vertical slice regression
         run: node scripts/checkLivingWorldDirectorRuntimeAdapter.mjs
