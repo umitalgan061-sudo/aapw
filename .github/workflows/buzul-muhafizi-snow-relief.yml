@@ -1,0 +1,142 @@
+name: Buzul Muhafızı Snow Relief
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/terrainWindSnowExposure.js'
+      - 'src/3d/world/terrainWindSnowSurfaceFabric.js'
+      - 'src/3d/world/terrainWindSnowRuntimeGuard.js'
+      - 'scripts/checkTerrainWindSnowExposure.mjs'
+      - 'scripts/checkTerrainWindSnowOrographicFold.mjs'
+      - 'scripts/checkTerrainWindSnowFieldMatrix.mjs'
+      - 'scripts/checkTerrainWindSnowRuntimeParity.mjs'
+      - 'scripts/checkTerrainWindSnowReferenceFieldSweep.mjs'
+      - 'scripts/checkTerrainWindSnowVisualEnvelope.mjs'
+      - 'scripts/checkTerrainWindSnowEdgeCases.mjs'
+      - 'scripts/checkWorldEnvironmentAcceptanceMatrix.mjs'
+      - '.github/workflows/buzul-muhafizi-snow-relief.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TZ: Europe/Istanbul
+
+jobs:
+  production-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+          ref: '${{ github.event.pull_request.head.sha || github.sha }}'
+
+      - name: Re-read live main and enforce bounded production scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          test "$(git merge-base HEAD "$LIVE_MAIN_SHA")" = "$LIVE_MAIN_SHA"
+          ADD="$(git diff --numstat "$LIVE_MAIN_SHA...HEAD" | awk '{a+=$1} END {print a+0}')"
+          DEL="$(git diff --numstat "$LIVE_MAIN_SHA...HEAD" | awk '{d+=$2} END {print d+0}')"
+          TOTAL=$((ADD + DEL))
+          echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA"
+          echo "HEAD_SHA=$(git rev-parse HEAD)"
+          echo "ADDITIONS=$ADD DELETIONS=$DEL TOTAL=$TOTAL"
+          echo "LIVE_MAIN_SHA=$LIVE_MAIN_SHA" >> "$GITHUB_ENV"
+          test "$TOTAL" -le 3000
+          test "$TOTAL" -ge 250
+          git diff --check "$LIVE_MAIN_SHA...HEAD"
+          git diff --name-only "$LIVE_MAIN_SHA...HEAD" | while IFS= read -r path; do
+            case "$path" in
+              src/3d/world/terrainWindSnowExposure.js|src/3d/world/terrainWindSnowSurfaceFabric.js|src/3d/world/terrainWindSnowRuntimeGuard.js|scripts/checkTerrainWindSnowExposure.mjs|scripts/checkTerrainWindSnowOrographicFold.mjs|scripts/checkTerrainWindSnowFieldMatrix.mjs|scripts/checkTerrainWindSnowRuntimeParity.mjs|scripts/checkTerrainWindSnowReferenceFieldSweep.mjs|scripts/checkTerrainWindSnowVisualEnvelope.mjs|scripts/checkTerrainWindSnowEdgeCases.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix.mjs|.github/workflows/buzul-muhafizi-snow-relief.yml) ;;
+              *) echo "Unexpected path outside snow relief production slice: $path"; exit 1 ;;
+            esac
+          done
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install runtime Three.js dependency
+        run: npm install --no-save --no-package-lock --ignore-scripts three@0.180.0
+
+      - name: Static syntax checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/terrainWindSnowExposure.js
+          node --check src/3d/world/terrainWindSnowSurfaceFabric.js
+          node --check src/3d/world/terrainWindSnowRuntimeGuard.js
+          node --check scripts/checkTerrainWindSnowExposure.mjs
+          node --check scripts/checkTerrainWindSnowOrographicFold.mjs
+          node --check scripts/checkTerrainWindSnowFieldMatrix.mjs
+          node --check scripts/checkTerrainWindSnowRuntimeParity.mjs
+          node --check scripts/checkTerrainWindSnowReferenceFieldSweep.mjs
+          node --check scripts/checkTerrainWindSnowVisualEnvelope.mjs
+          node --check scripts/checkTerrainWindSnowEdgeCases.mjs
+
+      - name: Directional snow contract
+        run: node scripts/checkTerrainWindSnowExposure.mjs
+
+      - name: Orographic fold contract
+        run: node scripts/checkTerrainWindSnowOrographicFold.mjs
+
+      - name: Relief family field matrix
+        run: node scripts/checkTerrainWindSnowFieldMatrix.mjs
+
+      - name: Runtime parity contract
+        run: node scripts/checkTerrainWindSnowRuntimeParity.mjs
+
+      - name: Canonical-style reference field sweep
+        run: node scripts/checkTerrainWindSnowReferenceFieldSweep.mjs
+
+      - name: Visual snow envelope
+        run: node scripts/checkTerrainWindSnowVisualEnvelope.mjs
+
+      - name: Fail-closed edge cases
+        run: node scripts/checkTerrainWindSnowEdgeCases.mjs
+
+      - name: Install Playwright Chromium for shipped runtime proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Run shipped createScene world-environment evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$RUNNER_TEMP/pw/node_modules"
+          node scripts/checkWorldEnvironmentAcceptanceMatrix.mjs
+
+      - name: Final exact-main freshness and diff hygiene
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          FINAL_LIVE_MAIN_SHA="$(git rev-parse origin/main)"
+          test "$FINAL_LIVE_MAIN_SHA" = "$LIVE_MAIN_SHA"
+          test "$(git merge-base HEAD "$FINAL_LIVE_MAIN_SHA")" = "$FINAL_LIVE_MAIN_SHA"
+          git diff --check "$FINAL_LIVE_MAIN_SHA...HEAD"
+          ADD="$(git diff --numstat "$FINAL_LIVE_MAIN_SHA...HEAD" | awk '{a+=$1} END {print a+0}')"
+          DEL="$(git diff --numstat "$FINAL_LIVE_MAIN_SHA...HEAD" | awk '{d+=$2} END {print d+0}')"
+          test $((ADD + DEL)) -le 3000
+
+      - name: Upload shipped visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: buzul-muhafizi-snow-relief-proof
+          if-no-files-found: warn
+          path: artifacts/world-environment-acceptance/
