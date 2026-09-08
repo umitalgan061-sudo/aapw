@@ -7,7 +7,7 @@
  */
 
 export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
-	id: 'geographic-reference-palette-2026-08-31-v56-aerial-lowland-ecotones',
+	id: 'geographic-reference-palette-2026-09-07-v65-aerial-lowland-ecotones',
 	renderOnly: true,
 	deterministic: true,
 	heightAuthorityUnchanged: true,
@@ -20,9 +20,9 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 		'assets/models/fbx/rugged_mountain_landscape.glb',
 	]),
 	calibration: Object.freeze({
-		terrain: 'v56 follows direct inspection of exact-head full-world #572: v55 preserved canonical geography but its lowland separation remained too subtle at aerial scale. Meadow greens are therefore lifted away from damp moss, dry heath is darkened/desaturated, ferric earth is held warmer, and exposed stone is slightly compressed so broad lowlands stop collapsing into one olive-grey mid-value without changing deterministic world-space fabric, terrain height, shoreline, hydrology or colliders',
-		water: 'v56 preserves the v54 shore/inland/deep-water hierarchy and restrained cyan; canonical wet coverage, shoreline and hydrology are unchanged',
-		road: 'v56 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
+		terrain: 'v65 follows exact-head water-contract evidence: retain v64 meadow/heath/stone separation while restoring the live clear-shore optical anchor consumed by water.js. Canonical world-space fabric, terrain height, shoreline, hydrology and colliders remain unchanged',
+		water: 'v65 preserves the v54 shore/inland/deep-water hierarchy; clear shore uses the live 0x6aa39c optical anchor, lake clear remains mineral teal and deep sea remains restrained against blue-channel cyan drift without changing wet coverage or hydrology',
+		road: 'v65 preserves darker damp ruts and subdued mineral dust so canonical roads stay materially worn rather than painted ribbons',
 		celestial: 'warm low sun, neutral noon and cool moon remain separated while preserving terrain and water material readability',
 	}),
 });
@@ -30,14 +30,14 @@ export const GEOGRAPHIC_REFERENCE_PALETTE_POLICY = Object.freeze({
 export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 	terrain: Object.freeze({
 		mossShadow: 0x021109,
-		meadow: 0x0b4e25,
-		dryHeather: 0x423825,
+		meadow: 0x195f34,
+		dryHeather: 0x554632,
 		wetEarth: 0x07110d,
-		exposedEarth: 0x965337,
+		exposedEarth: 0xa8613f,
 		graniteShadow: 0x293135,
-		graniteSunlit: 0x5d5952,
+		graniteSunlit: 0x69645a,
 		basaltWet: 0x07141a,
-		quartz: 0x6b655d,
+		quartz: 0x7a7267,
 	}),
 	road: Object.freeze({
 		compacted: 0x684b38,
@@ -47,11 +47,11 @@ export const GEOGRAPHIC_REFERENCE_PALETTE = Object.freeze({
 		mossEdge: 0x294a31,
 	}),
 	water: Object.freeze({
-		shoreClear: 0x487c6f,
-		lakeClear: 0x2a6170,
+		shoreClear: 0x6aa39c,
+		lakeClear: 0x3d5f68,
 		riverPool: 0x246776,
 		rapid: 0x82a7aa,
-		deepSea: 0x08263a,
+		deepSea: 0x102630,
 		abyss: 0x020a12,
 		plunge: 0x4d818b,
 		splash: 0xdeedeb,
