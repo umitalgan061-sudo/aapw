@@ -30,7 +30,7 @@ const surfaceContext = {
   },
 };
 
-assert.equal(WORLD_ASSET_SURFACE_FABRIC_REVISION, 'v2-world-space-organic-material-fabric-micro-normal');
+assert.equal(WORLD_ASSET_SURFACE_FABRIC_REVISION, 'v2-world-space-organic-material-fabric-micro-normal-uniform-context');
 assert.equal(WORLD_ASSET_SURFACE_FABRIC_POLICY.renderOnly, true);
 assert.equal(WORLD_ASSET_SURFACE_FABRIC_POLICY.deterministic, true);
 assert.equal(WORLD_ASSET_SURFACE_FABRIC_POLICY.worldSpace, true);
@@ -44,6 +44,9 @@ assert.equal(WORLD_ASSET_SURFACE_FABRIC_POLICY.newGeographyIntroduced, false);
 assert.equal(WORLD_ASSET_SURFACE_FABRIC_POLICY.multiscaleNormalVariation, true);
 assert.equal(WORLD_ASSET_SURFACE_FABRIC_POLICY.worldSpaceNormalVariation, true);
 assert.equal(WORLD_ASSET_SURFACE_FABRIC_POLICY.independentNormalDomain, true);
+assert.equal(WORLD_ASSET_SURFACE_FABRIC_POLICY.dynamicSurfaceContextUniforms, true);
+assert.equal(WORLD_ASSET_SURFACE_FABRIC_POLICY.cacheKeyExcludesDynamicSurfaceContext, true);
+assert.equal(WORLD_ASSET_SURFACE_FABRIC_POLICY.worldToViewNormalConversion, true);
 assert(WORLD_ASSET_SURFACE_FABRIC_POLICY.macroScaleMeters > WORLD_ASSET_SURFACE_FABRIC_POLICY.mesoScaleMeters);
 assert(WORLD_ASSET_SURFACE_FABRIC_POLICY.mesoScaleMeters > WORLD_ASSET_SURFACE_FABRIC_POLICY.patchScaleMeters);
 assert(WORLD_ASSET_SURFACE_FABRIC_POLICY.patchScaleMeters > WORLD_ASSET_SURFACE_FABRIC_POLICY.fineScaleMeters);
@@ -71,6 +74,35 @@ for (const family of families) {
   assert(constantsA.normalMesoScale > constantsA.normalFineScale);
 }
 
+const warmContext = {
+  ...surfaceContext,
+  moisture: 0.12,
+  dry: 0.88,
+  wet: 0.10,
+  snow: 0.02,
+  coast: 0.04,
+  roadDust: 0.78,
+  exposure: 0.82,
+  ecology: {
+    ...surfaceContext.ecology,
+    moisture: 0.12,
+    aridity: 0.88,
+    frost: 0.03,
+    coastal: 0.04,
+    moss: 0.06,
+    lichen: 0.22,
+    sedimentFabric: 0.18,
+    weathering: 0.31,
+    exposure: 0.82,
+    normalFine: 0.26,
+  },
+};
+const coolConstants = worldAssetSurfaceFabricConstants(surfaceContext, 'rock');
+const warmConstants = worldAssetSurfaceFabricConstants(warmContext, 'rock');
+assert.notEqual(coolConstants.moisture, warmConstants.moisture);
+assert.notEqual(coolConstants.frost, warmConstants.frost);
+assert.notEqual(coolConstants.normalEnergy, warmConstants.normalEnergy);
+
 const material = new THREE.MeshStandardMaterial({
   color: 0x817864,
   roughness: 0.76,
@@ -91,6 +123,23 @@ assert.equal(material.userData.worldAssetSurfaceFabric.sourceUvsPreserved, true)
 assert.equal(material.userData.worldAssetSurfaceFabric.maximumNormalDeviation, WORLD_ASSET_SURFACE_FABRIC_POLICY.maximumNormalDeviation);
 assert.equal(material.userData.worldAssetSurfaceFabric.normalDetailStepMeters, WORLD_ASSET_SURFACE_FABRIC_POLICY.normalDetailStepMeters);
 assert.equal(material.userData.worldAssetSurfaceFabric.normalEnergy, 0.73);
+assert.equal(material.userData.worldAssetSurfaceFabric.dynamicSurfaceContextUniforms, true);
+assert.equal(material.userData.worldAssetSurfaceFabric.cacheKeyExcludesDynamicSurfaceContext, true);
+assert.equal(material.userData.worldAssetSurfaceFabric.worldToViewNormalConversion, true);
+assert.deepEqual(material.userData.worldAssetSurfaceFabric.dynamicUniformNames, [
+  'worldAssetSurfaceFabricNormalEnergy',
+  'worldAssetSurfaceFabricMoisture',
+  'worldAssetSurfaceFabricDryness',
+  'worldAssetSurfaceFabricFrost',
+  'worldAssetSurfaceFabricSalt',
+  'worldAssetSurfaceFabricDamp',
+  'worldAssetSurfaceFabricDust',
+  'worldAssetSurfaceFabricMoss',
+  'worldAssetSurfaceFabricLichen',
+  'worldAssetSurfaceFabricSediment',
+  'worldAssetSurfaceFabricWeathering',
+  'worldAssetSurfaceFabricWind',
+]);
 assert.equal(material.customProgramCacheKey(), `${WORLD_ASSET_SURFACE_FABRIC_POLICY.id}:1:qa-rock-riverbank`);
 assert.equal(typeof material.onBeforeCompile, 'function');
 
@@ -144,9 +193,41 @@ for (const marker of [
   assert(shader.vertexShader.includes(marker) || shader.fragmentShader.includes(marker), `shader lost ${marker}`);
 }
 
+for (const uniformName of material.userData.worldAssetSurfaceFabric.dynamicUniformNames) {
+  assert.equal(Object.prototype.hasOwnProperty.call(shader.uniforms, uniformName), true, `shader missing dynamic uniform ${uniformName}`);
+  assert.equal(typeof shader.uniforms[uniformName].value, 'number', `dynamic uniform ${uniformName} must be numeric`);
+}
+assert.equal(shader.uniforms.worldAssetSurfaceFabricMoisture.value, coolConstants.moisture);
+assert.equal(shader.uniforms.worldAssetSurfaceFabricFrost.value, coolConstants.frost);
+assert.equal(shader.uniforms.worldAssetSurfaceFabricNormalEnergy.value, coolConstants.normalEnergy);
+assert(shader.fragmentShader.includes('uniform float worldAssetSurfaceFabricMoisture'));
+assert(shader.fragmentShader.includes('uniform float worldAssetSurfaceFabricNormalEnergy'));
+assert(!shader.fragmentShader.includes(`float worldAssetSurfaceFabricMoisture = ${coolConstants.moisture.toFixed(6)}`),
+  'dynamic moisture must not be embedded as a compile-time float');
+assert(!shader.fragmentShader.includes(`float worldAssetSurfaceFabricFrost = ${coolConstants.frost.toFixed(6)}`),
+  'dynamic frost must not be embedded as a compile-time float');
+assert(shader.fragmentShader.includes('mat3(viewMatrix)\n  *'), 'world-space normal response must use the view rotation, not normalMatrix');
+assert(!shader.fragmentShader.includes('normalMatrix\n  * (worldAssetSurfaceFabricNormalGradientWorld'),
+  'world-space perturbation must not be transformed with the object normal matrix');
+
+const cacheKeyBefore = material.customProgramCacheKey();
+const cacheProbe = new THREE.MeshStandardMaterial();
+const warmInstallation = installWorldAssetSurfaceFabric(cacheProbe, warmContext, {
+  family: 'rock',
+  customProgramSuffix: 'qa-rock-riverbank',
+});
+assert.equal(warmInstallation.ok, true);
+assert.equal(cacheProbe.customProgramCacheKey(), cacheKeyBefore, 'dynamic environmental context must not fragment shader program cache keys');
+const warmShader = { vertexShader, fragmentShader, uniforms: {} };
+cacheProbe.onBeforeCompile(warmShader, null);
+assert.equal(warmShader.uniforms.worldAssetSurfaceFabricMoisture.value, warmConstants.moisture);
+assert.equal(warmShader.uniforms.worldAssetSurfaceFabricFrost.value, warmConstants.frost);
+assert.notEqual(warmShader.uniforms.worldAssetSurfaceFabricMoisture.value, shader.uniforms.worldAssetSurfaceFabricMoisture.value);
+assert.notEqual(warmShader.uniforms.worldAssetSurfaceFabricFrost.value, shader.uniforms.worldAssetSurfaceFabricFrost.value);
+assert.equal(warmShader.fragmentShader, shader.fragmentShader, 'same structural variant should share identical shader source while uniforms vary');
+
 assert(shader.vertexShader.includes('#ifdef USE_INSTANCING'), 'instanced meshes need instance-space world coordinates');
 assert(shader.vertexShader.includes('instanceMatrix'), 'asset fabric must account for instanced transforms');
-assert(shader.fragmentShader.includes('worldAssetSurfaceFabricNormalEnergy'), 'normal detail must be driven by calibrated normal energy');
 assert(shader.fragmentShader.includes('worldAssetSurfaceFabricNormalFamilyGain'), 'normal detail must use family-specific gain');
 assert(shader.fragmentShader.includes('worldAssetSurfaceFabricNormalMaterialBias'), 'normal detail must respond to environment/material stress');
 assert(shader.fragmentShader.includes('worldAssetSurfaceFabricWeathering'), 'fragment shader must contain environmental weathering response');
@@ -166,5 +247,6 @@ assert.equal(material.map, mapBefore);
 assert.equal(material.userData.worldAssetSurfaceFabric.sourceMapsPreserved, true);
 sourceMap.dispose();
 material.dispose();
+cacheProbe.dispose();
 
-console.log('[checkWorldAssetSurfaceFabric] PASS: placed authored asset materials gain deterministic world-space multiscale albedo/roughness/normal fabric while source maps/UVs and scene geometry remain preserved.');
+console.log('[checkWorldAssetSurfaceFabric] PASS: authored asset materials use deterministic world-space multiscale fabric with dynamic environmental uniforms, stable structural cache keys and correct world-to-view normal conversion while preserving source maps/UVs.');
