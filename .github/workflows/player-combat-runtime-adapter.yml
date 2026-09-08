@@ -1,0 +1,51 @@
+name: Player Combat Runtime Adapter
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatRuntimeAdapter.js'
+      - 'src/3d/gameplay/playerPresentationRuntimeBridge.js'
+      - 'src/3d/gameplay/playerAnimationEquipmentDirector.js'
+      - 'src/3d/gameplay/playerCombatFeedbackPresentation.js'
+      - 'scripts/checkPlayerCombatRuntimeAdapter.mjs'
+      - '.github/workflows/player-combat-runtime-adapter.yml'
+  push:
+    branches:
+      - 'codex/kizil-ufuk-combat-resolution-director-20260907'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact main freshness and bounded scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          main_sha=$(git rev-parse origin/main)
+          test "$(git merge-base HEAD "$main_sha")" = "$main_sha"
+          read -r additions deletions < <(git diff --numstat "$main_sha" HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
+          test "$((additions + deletions))" -le 3000
+          git diff --check "$main_sha" HEAD
+      - name: Shared Material Placement boundary
+        shell: bash
+        run: |
+          test -f src/3d/materials/MaterialAssignmentCore.js
+          test -f src/3d/world/WorldAssetPlacementPipeline.js
+          ! grep -R "EditorMaterialStudio" -n src/3d/gameplay/playerCombatRuntimeAdapter.js
+      - name: Syntax and adapter contract
+        run: |
+          node --check src/3d/gameplay/playerCombatRuntimeAdapter.js
+          node --check scripts/checkPlayerCombatRuntimeAdapter.mjs
+          node scripts/checkPlayerCombatRuntimeAdapter.mjs
