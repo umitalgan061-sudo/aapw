@@ -32,7 +32,10 @@ async function main() {
 				updateWater,
 				disposeWater,
 				WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
+				WATER_FULL_WORLD_EXTENT_METERS,
+				WATER_LAYER_TRANSITION_POLICY,
 			} = await import('/src/3d/world/water.js');
+			const { GEOGRAPHIC_REFERENCE_PALETTE } = await import('/src/3d/world/geographicReferencePalette.js');
 			const { publishCelestialLightState } = await import('/src/3d/celestialLightState.js');
 			const fail = (condition, message) => { if (!condition) throw new Error(message); };
 			const close = (a, b, tolerance = 1e-6) => Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= tolerance;
@@ -49,7 +52,7 @@ async function main() {
 			fail(water.material.transparent === true && water.material.depthWrite === true && water.material.fog === true, 'near-water render signature drifted');
 
 			const far = water.userData.farWater;
-			fail(far?.isMesh === true && far.geometry.parameters?.width === 17000, 'full-world far-water underlay drifted');
+			fail(far?.isMesh === true && far.geometry.parameters?.width === WATER_FULL_WORLD_EXTENT_METERS, 'full-world far-water underlay drifted');
 			fail(far.material.depthWrite === false, 'far water must not occlude displaced near-water troughs');
 			fail(far.renderOrder === -1, 'far water must render before the near layer');
 			fail(far.material.uniforms.uFarLayerMask.value === 1, 'far water no longer masks itself under the near square');
@@ -75,8 +78,8 @@ async function main() {
 				'uNightFactor', 'uCameraPosition', 'uDepthMap', 'uDepthFieldExtentMeters', 'uSwellStrength', 'uFarLayerMask',
 			]) fail(Boolean(uniforms?.[name]), `water uniform ${name} is missing`);
 			fail(Boolean(uniforms?.fogColor && uniforms?.fogNear && uniforms?.fogFar && uniforms?.fogDensity), 'water fog uniforms are missing');
-			fail(uniforms.uShallowColor.value.getHex() === 0x6aa39c, 'reference clear-shore hue drifted');
-			fail(uniforms.uDeepColor.value.getHex() === 0x092941, 'reference deep-sea hue drifted');
+			fail(uniforms.uShallowColor.value.getHex() === GEOGRAPHIC_REFERENCE_PALETTE.water.shoreClear, 'reference clear-shore hue drifted');
+			fail(uniforms.uDeepColor.value.getHex() === GEOGRAPHIC_REFERENCE_PALETTE.water.deepSea, 'reference deep-sea hue drifted');
 
 			const optical = water.userData.opticalProfile;
 			fail(optical?.shallowAlpha === 0.14 && optical?.deepAlpha === 0.90, 'depth-clear optical alpha profile drifted');
@@ -94,7 +97,13 @@ async function main() {
 			for (const token of ['enclosedLakeMask', 'clearCoastMask', 'referenceLakeClear', 'bedReadability', 'uNightFactor', 'nightAbsorption']) {
 				fail(fragmentShader.includes(token), `water reference-optics shader missing ${token}`);
 			}
-			fail(fragmentShader.includes('nearLayerDistance < 1999.5') && fragmentShader.includes('discard'), 'near/far double-alpha mask disappeared');
+			const featherStart = WATER_LAYER_TRANSITION_POLICY.featherStartMeters.toFixed(1);
+			const featherEnd = WATER_LAYER_TRANSITION_POLICY.featherEndMeters.toFixed(1);
+			fail(fragmentShader.includes(`smoothstep(${featherStart}, ${featherEnd}, nearLayerDistance)`) &&
+				fragmentShader.includes('surfaceAlpha *= 1.0 - layerBlend') &&
+				fragmentShader.includes('(surfaceAlpha * layerBlend) / max(1.0 - nearAlpha, 0.001)'),
+				'near/far opacity-conserving feather contract drifted');
+			fail(!fragmentShader.includes('nearLayerDistance < 1999.5'), 'legacy hard-square near/far cutoff returned');
 			fail(fragmentShader.includes('#include <fog_pars_fragment>') && fragmentShader.includes('#include <fog_fragment>'), 'water fog chunks drifted');
 
 			// Custom-shader key follows the same published celestial state as lighting.js. First prove a
