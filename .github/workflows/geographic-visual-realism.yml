@@ -100,7 +100,17 @@ jobs:
           node scripts/checkMedievalRoadSurface.js
 
       - name: River and waterfall visual contract
+        if: always()
         run: node scripts/checkGeographicRiverVisualContract.js
+
+      - name: Upload river and waterfall visual proof
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: geographic-river-visual-${{ github.event.pull_request.head.sha || github.sha }}
+          path: artifacts/geographic-river-visual/waterfall-regional.png
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Geological rock surface contract
         run: node scripts/checkGeologicalRockSurface.js
