@@ -77,6 +77,24 @@ export function buildLivingWorldFaunaThreatSnapshot(entries, playerPosition, opt
   return Object.freeze({ version: 1, radiusMeters: radius, actors: Object.freeze(actors), counts: Object.freeze(counts), truncated });
 }
 
+export function buildLivingWorldFaunaThreatTransition(previousSnapshot, nextSnapshot) {
+  const previous = new Map((previousSnapshot?.actors ?? []).map((actor) => [String(actor.id), Boolean(actor.threat && actor.inRadius)]));
+  const next = new Map((nextSnapshot?.actors ?? []).map((actor) => [String(actor.id), Boolean(actor.threat && actor.inRadius)]));
+  const entered = [];
+  const exited = [];
+  const persisted = [];
+  for (const [id, isThreat] of next) {
+    if (!isThreat) continue;
+    if (previous.get(id) === true) persisted.push(id);
+    else entered.push(id);
+  }
+  for (const [id, wasThreat] of previous) {
+    if (wasThreat && next.get(id) !== true) exited.push(id);
+  }
+  const sortIds = (ids) => ids.sort((a, b) => a.localeCompare(b));
+  return Object.freeze({ version: 1, entered: Object.freeze(sortIds(entered)), exited: Object.freeze(sortIds(exited)), persisted: Object.freeze(sortIds(persisted)) });
+}
+
 export function writeLivingWorldFaunaThreatTelemetry(object3D, snapshot) {
   if (!object3D || !snapshot || typeof snapshot !== 'object') return false;
   object3D.userData ??= {};
