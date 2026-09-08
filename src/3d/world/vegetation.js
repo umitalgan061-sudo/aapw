@@ -58,6 +58,12 @@ export const VEGETATION_SPATIAL_PATTERN_POLICY = Object.freeze({
 	coldGroveRadiusMeters: 125,
 	temperateBackgroundChance: 0.26,
 	coldBackgroundChance: 0.18,
+	permanentIceTreeCutoff: 0.62,
+	permanentIceFadeStart: 0.34,
+	tundraDensityFloor: 0.30,
+	shelterProbeMeters: 14,
+	steepDensityFadeStartDegrees: 22,
+	steepDensityFadeEndDegrees: 42,
 });
 
 const TARGET_DENSITY_PER_KM2 = 30;
@@ -74,6 +80,11 @@ const CLUSTER_RING_OUTER_RADIUS_METERS = 260;
 const CLUSTER_DENSITY_PER_KM2 = 220;
 
 const VEGETATION_SURFACE_FABRIC_KEY = 'vegetation-world-surface-fabric-v1';
+const clamp01 = (value) => Math.max(0, Math.min(1, value));
+const smoothstep = (a, b, value) => {
+	const t = clamp01((value - a) / Math.max(1e-9, b - a));
+	return t * t * (3 - 2 * t);
+};
 
 /**
  * Render-only vegetation weathering. This does not touch scatter, climate ownership, height,
@@ -192,6 +203,47 @@ export function isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, 
 	const gradeXDegrees = (Math.atan2(Math.abs(dxHeight), SLOPE_SAMPLE_OFFSET_METERS) * 180) / Math.PI;
 	const gradeZDegrees = (Math.atan2(Math.abs(dzHeight), SLOPE_SAMPLE_OFFSET_METERS) * 180) / Math.PI;
 	return Math.max(gradeXDegrees, gradeZDegrees) <= MAX_GROUND_SLOPE_DEGREES;
+}
+
+/**
+ * Ecological acceptance for tree scatter. The canonical climate/height samplers remain authoritative;
+ * this only thins visual instances across glacier, tundra, exposed shoulders and dry convex ground.
+ * Sheltered/concave terrain keeps a higher survival probability, producing natural ecotones instead
+ * of a uniform forest density extending onto permanent ice.
+ */
+export function vegetationEcologicalSuitabilityAtWorldXZ(x, z, { sampleHeightMeters, seaLevelMeters }) {
+	const policy = VEGETATION_SPATIAL_PATTERN_POLICY;
+	const climate = northReferenceCryosphereAtWorldXZ(x, z);
+	const groundY = sampleHeightMeters(x, z);
+	const probe = policy.shelterProbeMeters;
+	const left = sampleHeightMeters(x - probe, z);
+	const right = sampleHeightMeters(x + probe, z);
+	const down = sampleHeightMeters(x, z - probe);
+	const up = sampleHeightMeters(x, z + probe);
+	const dx = (right - left) / (2 * probe);
+	const dz = (up - down) / (2 * probe);
+	const slopeDegrees = Math.atan(Math.hypot(dx, dz)) * 180 / Math.PI;
+	const concavityMeters = (left + right + down + up) * 0.25 - groundY;
+	const permanentIce = clamp01(Number(climate.permanentIce) || 0);
+	const tundra = clamp01(Number(climate.tundra) || 0);
+	const aboveSeaMeters = Math.max(0, groundY - seaLevelMeters);
+	if (permanentIce >= policy.permanentIceTreeCutoff) {
+		return Object.freeze({ suitability: 0, climate, slopeDegrees, concavityMeters, aboveSeaMeters, permanentIceRejected: true });
+	}
+	const iceSurvival = 1 - smoothstep(policy.permanentIceFadeStart, policy.permanentIceTreeCutoff, permanentIce);
+	const tundraSurvival = 1 - tundra * (1 - policy.tundraDensityFloor);
+	const slopeStress = smoothstep(policy.steepDensityFadeStartDegrees, policy.steepDensityFadeEndDegrees, slopeDegrees);
+	const shelter = clamp01(0.52 + concavityMeters * 0.20 - slopeDegrees * 0.008);
+	const altitudeStress = smoothstep(260, 560, aboveSeaMeters) * (0.12 + tundra * 0.28);
+	const terrainSurvival = (1 - slopeStress * 0.48) * (0.74 + shelter * 0.26) * (1 - altitudeStress);
+	return Object.freeze({
+		suitability: clamp01(iceSurvival * tundraSurvival * terrainSurvival),
+		climate,
+		slopeDegrees,
+		concavityMeters,
+		aboveSeaMeters,
+		permanentIceRejected: false,
+	});
 }
 
 export function pickSpeciesIndex(roll) {
@@ -317,6 +369,8 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 	const scaleVector = new THREE.Vector3();
 	const spatialPolicy = VEGETATION_SPATIAL_PATTERN_POLICY;
 	let placedCount = 0;
+	let ecologyRejectedCount = 0;
+	let permanentIceRejectedCount = 0;
 	let groveCenterX = 0;
 	let groveCenterZ = 0;
 	let groveHasCenter = false;
@@ -337,15 +391,21 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 			const { x, z } = candidate;
 			if (Math.hypot(x, z) > radiusMeters) continue;
 			if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
+			const ecology = vegetationEcologicalSuitabilityAtWorldXZ(x, z, { sampleHeightMeters, seaLevelMeters });
+			if (ecology.suitability <= 0 || rng() > ecology.suitability) {
+				ecologyRejectedCount++;
+				if (ecology.permanentIceRejected) permanentIceRejectedCount++;
+				continue;
+			}
 			if (!groveHasCenter) {
 				groveHasCenter = true;
 				groveCenterX = x;
 				groveCenterZ = z;
-				const pattern = vegetationGrovePatternForClimate(northReferenceCryosphereAtWorldXZ(x, z));
+				const pattern = vegetationGrovePatternForClimate(ecology.climate);
 				groveRadiusMeters = pattern.groveRadiusMeters;
 				groveBackgroundChance = pattern.backgroundChance;
 			}
-			const entry = perSpecies[pickSpeciesIndexForWorldXZ(rng(), x, z)];
+			const entry = perSpecies[pickSpeciesIndexForClimate(rng(), ecology.climate)];
 			placeTreeInstance(entry, x, z, sampleHeightMeters, rng, up, matrix, position, quaternion, scaleVector);
 			placedCount++;
 			break;
@@ -358,7 +418,13 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 			for (let attempt = 0; attempt < MAX_ATTEMPTS_PER_TREE; attempt++) {
 				const { x, z } = sampleAnnulusPoint(clusterRng, seat.x, seat.z, clusterInnerRadius, CLUSTER_RING_OUTER_RADIUS_METERS);
 				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
-				const entry = perSpecies[pickSpeciesIndexForWorldXZ(clusterRng(), x, z)];
+				const ecology = vegetationEcologicalSuitabilityAtWorldXZ(x, z, { sampleHeightMeters, seaLevelMeters });
+				if (ecology.suitability <= 0 || clusterRng() > ecology.suitability) {
+					ecologyRejectedCount++;
+					if (ecology.permanentIceRejected) permanentIceRejectedCount++;
+					continue;
+				}
+				const entry = perSpecies[pickSpeciesIndexForClimate(clusterRng(), ecology.climate)];
 				placeTreeInstance(entry, x, z, sampleHeightMeters, clusterRng, up, matrix, position, quaternion, scaleVector);
 				placedCount++;
 				break;
@@ -390,6 +456,10 @@ export function createVegetation({ sampleHeightMeters, seaLevelMeters, seed, sea
 		baseDensityPerKm2: densityPerKm2,
 		groveTreeCountMin: spatialPolicy.groveTreeCountMin,
 		groveTreeCountMax: spatialPolicy.groveTreeCountMax,
+		ecologicalThinning: true,
+		permanentIceTreeCutoff: spatialPolicy.permanentIceTreeCutoff,
+		ecologyRejectedCount,
+		permanentIceRejectedCount,
 	});
 	group.userData.vegetationSurfaceFabric = Object.freeze({ key: VEGETATION_SURFACE_FABRIC_KEY, worldSpace: true, multiScale: true });
 	return { group, targetCount, placedCount, clusterSeatCount: clusterSeats.length, winterTreeCount };

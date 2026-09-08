@@ -32,7 +32,7 @@ const canonicalNorthHighRoll = speciesAt(0.95, 0.175, 0.285);
 const temperateSouth = speciesAt(0.95, 0.18, 0.55);
 
 assert.equal(alwaysWinter, 'snow-pine',
-  'canonical lands-always-winter must resolve to snow pine even for a high species roll');
+  'canonical lands-always-winter species resolver must remain snow pine even though ecological scatter rejects its ice core');
 assert.equal(sameLatitudeEast, 'round',
   'same-latitude eastern reference space must retain temperate species instead of false snow pine');
 assert.equal(sameLatitudeFarEast, 'round',
@@ -50,10 +50,11 @@ assert.equal(VEGETATION_NORTH_CLIMATE_POLICY.climateAuthority, 'northReferenceCr
   'live winter species policy must identify the canonical X+Z cryosphere authority');
 
 const source = fs.readFileSync(new URL('../src/3d/world/vegetation.js', import.meta.url), 'utf8');
-assert(source.includes('pickSpeciesIndexForWorldXZ(rng(), x, z)'),
-  'base live scatter must select species from X+Z map-aligned climate');
-assert(source.includes('pickSpeciesIndexForWorldXZ(clusterRng(), x, z)'),
-  'seat-cluster scatter must select species from X+Z map-aligned climate');
+assert(source.includes('vegetationEcologicalSuitabilityAtWorldXZ(x, z'),
+  'live scatter must evaluate the canonical X+Z ecological/climate field before species selection');
+const climateReuseCalls = source.match(/pickSpeciesIndexForClimate\((?:rng|clusterRng)\(\), ecology\.climate\)/g) ?? [];
+assert.equal(climateReuseCalls.length, 2,
+  'base and seat-cluster scatter must reuse the same map-aligned climate sample used by ecological acceptance');
 assert(source.includes('mapAligned: true'),
   'runtime vegetation telemetry must expose map-aligned climate ownership');
 
@@ -65,4 +66,5 @@ console.log('[checkMapAlignedSnowPineClimate] PASS', JSON.stringify({
   canonicalNorthLowRoll,
   canonicalNorthHighRoll,
   temperateSouth,
+  liveClimateReuseCalls: climateReuseCalls.length,
 }));

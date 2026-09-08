@@ -10,6 +10,7 @@
 
 import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
+import { applyNaturalGeologyAssetSurface } from './naturalGeologyAssetSurface.js';
 import {
   NATURAL_GEOLOGY_PLACEMENT_POLICY,
   checksumNaturalGeologyPlacements,
@@ -40,6 +41,7 @@ export const NATURAL_GEOLOGY_RENDER_POLICY = Object.freeze({
   minimumSourceExtentMeters: 0.001,
   maximumSourceAspectRatio: 18,
   hydratedRoughnessFloor: 0.86,
+  hydratedGeographicInstanceTint: true,
   proceduralRoughness: 0.96,
   groupName: 'natural-geology',
   valyriaSurfaceName: 'valyria-volcanic-surface',
@@ -54,6 +56,7 @@ const clamp01 = (value) => value < 0 ? 0 : value > 1 ? 1 : value;
 function createRockMaterial(color) {
   const material = new THREE.MeshStandardMaterial({ color, roughness: NATURAL_GEOLOGY_RENDER_POLICY.proceduralRoughness, metalness: 0, flatShading: true });
   material.userData.naturalGeology = true;
+  applyNaturalGeologyAssetSurface(material, { family: 'procedural' });
   return material;
 }
 
@@ -99,6 +102,24 @@ function colorForPlacement(placement) {
   if (south > 0.69) return new THREE.Color().setRGB(0.31 + south * 0.12, 0.255 + south * 0.07, 0.18 + south * 0.035);
   if (north > 0.72 || altitude > 0.72) return new THREE.Color().setRGB(0.34 + altitude * 0.08, 0.37 + altitude * 0.08, 0.39 + altitude * 0.08);
   return new THREE.Color().setRGB(0.31 + altitude * 0.055, 0.30 + altitude * 0.05, 0.27 + altitude * 0.045);
+}
+
+/**
+ * Hydrated GLBs keep their authored maps, so this is deliberately a restrained multiplier rather
+ * than the absolute fallback-rock palette above. The goal is to retain geographic identity after
+ * hydration without bleaching source albedo or splitting one asset family into extra draw calls.
+ */
+export function naturalGeologyHydratedTintForPlacement(placement = {}) {
+  const altitude = clamp01((Number(placement.heightAboveSeaMeters) || 0) / 520);
+  if (placement.volcanic) {
+    const hot = clamp01(((Number(placement.valyriaInfluence) || 0) - 0.45) / 0.55);
+    return new THREE.Color().setRGB(0.62 + hot * 0.07, 0.56 - hot * 0.08, 0.52 - hot * 0.10);
+  }
+  const south = clamp01(Number(placement.southernDryness) || 0);
+  if (south > 0.69) return new THREE.Color().setRGB(1.0, 0.94, 0.84 + (1 - south) * 0.08);
+  const north = clamp01(Number(placement.northness) || 0);
+  if (north > 0.72 || altitude > 0.72) return new THREE.Color().setRGB(0.88 + altitude * 0.05, 0.93 + altitude * 0.04, 0.98);
+  return new THREE.Color().setRGB(0.96 + altitude * 0.025, 0.97 + altitude * 0.018, 0.95 + altitude * 0.025);
 }
 
 function composePlacementMatrix(placement, output = new THREE.Matrix4()) {
@@ -237,12 +258,21 @@ async function hydrateFamily(group, family, url, signal) {
   const normalization = createAssetNormalization(validation.measurement), hydrated = [];
   for (let meshIndex = 0; meshIndex < validation.meshes.length; meshIndex += 1) {
     const sourceMesh = validation.meshes[meshIndex], material = sourceMesh.material.clone(); material.metalness = 0; material.roughness = Math.max(material.roughness ?? 0, NATURAL_GEOLOGY_RENDER_POLICY.hydratedRoughnessFloor);
+    applyNaturalGeologyAssetSurface(material, { family });
     const instances = new THREE.InstancedMesh(sourceMesh.geometry, material, placements.length); instances.name = `natural-geology-hydrated-${family}-${meshIndex}`; instances.castShadow = true; instances.receiveShadow = true;
-    for (let i = 0; i < placements.length; i += 1) { composePlacementMatrix(placements[i], tempMatrix); instances.setMatrixAt(i, tempMatrix.clone().multiply(normalization).multiply(sourceMesh.matrixWorld)); }
-    instances.instanceMatrix.needsUpdate = true; instances.computeBoundingSphere?.(); hydrated.push(instances);
+    for (let i = 0; i < placements.length; i += 1) {
+      composePlacementMatrix(placements[i], tempMatrix);
+      instances.setMatrixAt(i, tempMatrix.clone().multiply(normalization).multiply(sourceMesh.matrixWorld));
+      instances.setColorAt?.(i, naturalGeologyHydratedTintForPlacement(placements[i]));
+    }
+    instances.instanceMatrix.needsUpdate = true;
+    if (instances.instanceColor) instances.instanceColor.needsUpdate = true;
+    instances.computeBoundingSphere?.();
+    instances.userData.naturalGeologyHydration = Object.freeze({ family, geographicInstanceTint: true, authoredMapsPreserved: true });
+    hydrated.push(instances);
   }
   group.add(...hydrated); hideProxyInstances(group, placements.map((p) => p.id));
-  return { family, status: 'active', assetUrl: url, placementCount: placements.length, primitiveCount: hydrated.length, hostedContentLength: preflight.contentLength };
+  return { family, status: 'active', assetUrl: url, placementCount: placements.length, primitiveCount: hydrated.length, geographicInstanceTint: true, hostedContentLength: preflight.contentLength };
 }
 const inFlight = new WeakMap();
 export function upgradeNaturalGeologyAssets(group, { signal, isMobileClass = false } = {}) {
