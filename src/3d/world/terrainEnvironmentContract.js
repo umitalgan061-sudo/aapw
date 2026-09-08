@@ -6,14 +6,16 @@ import { buildEnvironmentMaterialRecipe, validateEnvironmentMaterialRecipe, buil
 import { scoreEnvironmentAssetGeography, explainAssetGeographyDecision } from './terrainEnvironmentAssetGeographyMatrix.js';
 import { environmentPointCandidate } from './terrainEnvironmentDistributionPlanner.js';
 import { climateExposureEnvelope, climateMaterialFamily } from './terrainEnvironmentClimateTransitions.js';
+import { geologyResponseAtWorld, geologyPlacementEnvelope } from './terrainEnvironmentGeologyResponse.js';
+import { seasonalEnvironmentResponse } from './terrainEnvironmentSeasonalGeography.js';
 
 const freeze = (v) => Object.freeze(v);
 
 export const TERRAIN_ENVIRONMENT_CONTRACT = freeze({
-  id:'buzul-muhafizi-terrain-environment-contract-2026-09-07-v3',
-  sequence:freeze(['asset-hydrate','surface-analysis','geography-score','material-recipe','material-validation','climate-response','distribution-decision','ground-transform','placement-manifest','scene-attach']),
+  id:'buzul-muhafizi-terrain-environment-contract-2026-09-08-v4',
+  sequence:freeze(['asset-hydrate','surface-analysis','geography-score','material-recipe','material-validation','climate-response','geology-response','seasonal-response','distribution-decision','ground-transform','placement-manifest','scene-attach']),
   canonicalAuthorities:freeze({height:'src/3d/world/terrain.js',hydrology:'map/Pindex hydrology',material:'src/3d/materials/MaterialAssignmentCore.js',placement:'src/3d/world/WorldAssetPlacementPipeline.js'}),
-  forbiddenShortcuts:freeze(['procedural-placeholder','editor-runtime-import','attach-before-material-validation','attach-before-ground-validation','visual-fabric-modifies-height','visual-fabric-modifies-hydrology','uniform-grid-distribution','asset-source-invention']),
+  forbiddenShortcuts:freeze(['procedural-placeholder','editor-runtime-import','attach-before-material-validation','attach-before-ground-validation','visual-fabric-modifies-height','visual-fabric-modifies-hydrology','uniform-grid-distribution','asset-source-invention','geology-source-invention']),
 });
 
 export function analyzeTerrainSurfaceForEnvironment(sample={}) {
@@ -42,7 +44,10 @@ export function prepareTerrainEnvironmentAssetContext(asset,{category=asset?.cat
   const geography=chosen?scoreEnvironmentAssetGeography(chosen,sample):freeze({accepted:false,score:0,reasons:['missing-asset']});
   const materialRecipe=chosen?buildEnvironmentMaterialRecipe({asset:chosen,category,biome,season:sample.season??'summer',winter,context:climate,sample}):null;
   const materialValidation=validateEnvironmentMaterialRecipe(materialRecipe);
-  return freeze({contractId:TERRAIN_ENVIRONMENT_CONTRACT.id,asset:chosen,profile,registry:freeze({verified:Boolean(registryAsset),validation}),surface:freeze({score:surfaceScore,validation:placementValidation,analysis:analyzeTerrainSurfaceForEnvironment({...sample,worldX,worldZ})}),transform,plan,spatial,climate:freeze({family:climateFamily,envelope:climateEnvelope}),geography,material:freeze({recipe:materialRecipe,validation:materialValidation}),attachAllowed:Boolean(chosen&&registryAsset&&validation.ok&&placementValidation.ok&&surfaceScore>0&&geography.accepted&&materialValidation.ok&&plan.material?.required&&plan.placement?.manifestRequired)});
+  const geology = ['rock','cliff','scree'].includes(String(category).toLowerCase()) ? geologyResponseAtWorld({worldX,worldZ,sample}) : null;
+  const geologyEnvelope = geology ? geologyPlacementEnvelope({worldX,worldZ,sample,category}) : null;
+  const seasonal = seasonalEnvironmentResponse({season:sample.season??'summer',biome,climate,category,sample});
+  return freeze({contractId:TERRAIN_ENVIRONMENT_CONTRACT.id,asset:chosen,profile,registry:freeze({verified:Boolean(registryAsset),validation}),surface:freeze({score:surfaceScore,validation:placementValidation,analysis:analyzeTerrainSurfaceForEnvironment({...sample,worldX,worldZ})}),transform,plan,spatial,climate:freeze({family:climateFamily,envelope:climateEnvelope}),geography,material:freeze({recipe:materialRecipe,validation:materialValidation}),geology:freeze({response:geology,envelope:geologyEnvelope}),seasonal,attachAllowed:Boolean(chosen&&registryAsset&&validation.ok&&placementValidation.ok&&surfaceScore>0&&geography.accepted&&materialValidation.ok&&plan.material?.required&&plan.placement?.groundRequired&&plan.placement?.manifestRequired)});
 }
 
 export function buildTerrainEnvironmentProductionPlan(asset,{category=asset?.category,worldX=0,worldZ=0,seedOrdinal=0,biome='',climate='',winter=false,sample={},distanceMeters=0,visibility=1}={}) {
@@ -67,24 +72,28 @@ export function assertTerrainEnvironmentAttachReady(context) {
   if(!(context?.geography?.accepted))errors.push('geography-rejected');
   if(!context?.material?.validation?.ok)errors.push('material-contract-invalid');
   if(!context?.plan?.material?.required)errors.push('material-contract-missing');
-  if(!context?.plan?.placement?.required)errors.push('placement-contract-missing');
+  if(!context?.plan?.placement?.authority)errors.push('placement-authority-missing');
+  if(!context?.plan?.placement?.groundRequired)errors.push('ground-contract-missing');
   if(!context?.plan?.placement?.manifestRequired)errors.push('placement-manifest-missing');
+  if(context?.asset?.placeholder===true)errors.push('placeholder-asset');
   return freeze({ok:errors.length===0,errors:freeze(errors)});
 }
 
 export function environmentContextForOtherOwners(category,sample={},asset={}) {
   const context=prepareTerrainEnvironmentAssetContext(asset,{category,worldX:sample.worldX,worldZ:sample.worldZ,biome:sample.biome,climate:sample.climate,winter:sample.winter,sample});
-  return freeze({queryOnly:true,contractId:TERRAIN_ENVIRONMENT_CONTRACT.id,gate:assertTerrainEnvironmentAttachReady(context),asset:context.asset,profile:context.profile,surfaceScore:context.surface.score,geography:context.geography,material:context.material,deterministicTransform:context.transform,spatial:ecotoneComposition(category,{...sample,seed:sample.seed}),heightAuthority:TERRAIN_ENVIRONMENT_CONTRACT.canonicalAuthorities.height,materialAuthority:TERRAIN_ENVIRONMENT_CONTRACT.canonicalAuthorities.material,placementAuthority:TERRAIN_ENVIRONMENT_CONTRACT.canonicalAuthorities.placement});
+  return freeze({queryOnly:true,contractId:TERRAIN_ENVIRONMENT_CONTRACT.id,gate:assertTerrainEnvironmentAttachReady(context),asset:context.asset,profile:context.profile,surfaceScore:context.surface.score,geography:context.geography,material:context.material,geology:context.geology,seasonal:context.seasonal,deterministicTransform:context.transform,spatial:ecotoneComposition(category,{...sample,seed:sample.seed}),heightAuthority:TERRAIN_ENVIRONMENT_CONTRACT.canonicalAuthorities.height,materialAuthority:TERRAIN_ENVIRONMENT_CONTRACT.canonicalAuthorities.material,placementAuthority:TERRAIN_ENVIRONMENT_CONTRACT.canonicalAuthorities.placement});
 }
 
 export function validateTerrainEnvironmentContract() {
   const errors=[];
-  const expected=['asset-hydrate','surface-analysis','geography-score','material-recipe','material-validation','climate-response','distribution-decision','ground-transform','placement-manifest','scene-attach'];
+  const expected=['asset-hydrate','surface-analysis','geography-score','material-recipe','material-validation','climate-response','geology-response','seasonal-response','distribution-decision','ground-transform','placement-manifest','scene-attach'];
   if(TERRAIN_ENVIRONMENT_CONTRACT.sequence.join('>')!==expected.join('>'))errors.push('operation-sequence');
   if(TERRAIN_SURFACE_FABRIC_POLICY.canonicalHeightUnchanged!==true)errors.push('surface-height-bypass');
   if(TERRAIN_SURFACE_FABRIC_POLICY.canonicalHydrologyUnchanged!==true)errors.push('surface-hydrology-bypass');
   if(ENVIRONMENT_ASSET_REGISTRY_POLICY.placeholderAllowed!==false)errors.push('placeholder-policy-open');
   if(ENVIRONMENT_ASSET_REGISTRY_POLICY.proceduralReplacementAllowed!==false)errors.push('procedural-replacement-open');
   if(TERRAIN_ENVIRONMENT_PROFILE_POLICY.editorRuntimeImportAllowed!==false)errors.push('editor-runtime-import-open');
+  if(TERRAIN_ENVIRONMENT_CONTRACT.canonicalAuthorities.placement!=='src/3d/world/WorldAssetPlacementPipeline.js')errors.push('placement-authority-drift');
+  if(TERRAIN_ENVIRONMENT_CONTRACT.canonicalAuthorities.material!=='src/3d/materials/MaterialAssignmentCore.js')errors.push('material-authority-drift');
   return freeze({ok:errors.length===0,errors:freeze(errors),contractId:TERRAIN_ENVIRONMENT_CONTRACT.id});
 }
