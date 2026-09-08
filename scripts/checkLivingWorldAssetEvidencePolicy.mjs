@@ -7,6 +7,7 @@ import {
 	auditLivingWorldAssetEvidence,
 	assetEvidenceDigest,
 	isCanonicalLivingWorldAssetPath,
+	validateLivingWorldAssetSurfaceContext,
 } from '../src/3d/gameplay/livingWorldAssetEvidencePolicy.js';
 
 assert.equal(isCanonicalLivingWorldAssetPath('assets/models/characters/guard.glb'), true);
@@ -24,22 +25,46 @@ assert.equal(pointer.status, 'source-reference');
 const loaderFailure = classifyAssetReference({ path: 'assets/models/animals/wolf.glb', byteLength: 132, loaderError: 'decode failed' });
 assert.equal(loaderFailure.missing, true);
 
+const geographicContext = {
+	biome: 'temperate forest',
+	temperature: 0.45,
+	moisture: 0.7,
+	slope: 18,
+	waterDepth: 0,
+	settlementDistance: 800,
+	roadDistance: 260,
+	habitatScore: 0.91,
+	placementDigest: 'p1',
+};
 const evidence = validateLivingWorldAssetEvidence({
 	kind: 'wolf',
 	sourceAsset: { path: 'assets/models/animals/wolf.glb', byteLength: 132 },
 	material: { validated: true, roles: ['fur', 'eye', 'claw', 'tooth'], textures: [{ name: 'albedo', width: 1024, height: 1024, path: 'assets/textures/wolf_albedo.png' }] },
 	placement: { accepted: true, groundAligned: true, habitatAccepted: true, placementDigest: 'p1', materialDigest: 'm1' },
+	geographicContext,
 });
 assert.equal(evidence.accepted, true);
 assert.equal(evidence.source.lfsPointerReference, true);
+assert.equal(evidence.geographic.geography.biome, 'temperate forest');
 assert.equal(auditLivingWorldAssetEvidence(evidence).ok, true);
 assert.equal(assetEvidenceDigest(evidence), assetEvidenceDigest(JSON.parse(JSON.stringify(evidence))));
+
+const surfaceContext = validateLivingWorldAssetSurfaceContext({
+	material: evidence.material,
+	geographicContext,
+	placement: evidence.placement,
+});
+assert.equal(surfaceContext.ok, true);
+assert.equal(surfaceContext.textureErrors.length, 0);
+assert.equal(surfaceContext.geographic.errors.length, 0);
+assert.equal(surfaceContext.roleCoverage, 4);
 
 const missingRole = validateLivingWorldAssetEvidence({
 	kind: 'horse',
 	sourceAsset: { path: 'assets/models/animals/horse.glb', byteLength: 132 },
 	material: { validated: true, roles: ['coat'], textures: [{ width: 1024, height: 1024 }] },
 	placement: { accepted: true, groundAligned: true, habitatAccepted: true },
+	geographicContext,
 });
 assert.equal(missingRole.accepted, false);
 assert(missingRole.errors.includes('missing-material-role'));
@@ -49,9 +74,26 @@ const loaderRejected = validateLivingWorldAssetEvidence({
 	sourceAsset: { path: 'assets/models/dragons/dragon.glb', loaderError: 'not found' },
 	material: { validated: true, roles: ['scale', 'wing', 'eye', 'horn', 'claw'], textures: [] },
 	placement: { accepted: true, groundAligned: true, habitatAccepted: true },
+	geographicContext,
 });
 assert.equal(loaderRejected.accepted, false);
 assert(loaderRejected.errors.includes('loader-error'));
 assert.equal(LIVING_WORLD_ASSET_EVIDENCE_POLICY.missingAssetOnLoaderErrorOnly, true);
 
-console.log(JSON.stringify({ pass: true, pointerStatus: pointer.status, wolfAccepted: evidence.accepted, missingRoleErrors: missingRole.errors, digest: assetEvidenceDigest(evidence) }, null, 2));
+const textureFailure = validateLivingWorldAssetSurfaceContext({
+	material: { roles: ['fur'], textures: [{ name: 'stretch', width: 16384, height: 16, path: 'assets/textures/stretch.png' }] },
+	geographicContext,
+	placement: { placementDigest: 'p1' },
+});
+assert.equal(textureFailure.ok, false);
+assert(textureFailure.textureErrors.includes('texture-extreme-aspect:stretch'));
+
+const geographyFailure = validateLivingWorldAssetSurfaceContext({
+	material: { roles: ['fur'], textures: [{ name: 'albedo', width: 1024, height: 1024, path: 'assets/textures/wolf_albedo.png' }] },
+	geographicContext: { ...geographicContext, placementDigest: 'different-placement' },
+	placement: { placementDigest: 'p1' },
+});
+assert.equal(geographyFailure.ok, false);
+assert(geographyFailure.geographic.errors.includes('geography-placement-digest-mismatch'));
+
+console.log(JSON.stringify({ pass: true, pointerStatus: pointer.status, wolfAccepted: evidence.accepted, surfaceDigest: surfaceContext.digest, missingRoleErrors: missingRole.errors, digest: assetEvidenceDigest(evidence) }, null, 2));
