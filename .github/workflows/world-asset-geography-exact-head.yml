@@ -17,6 +17,7 @@ on:
       - 'scripts/checkWorldAssetGeographyStress.mjs'
       - 'scripts/checkWorldAssetGeographyMaterialBridge.mjs'
       - 'scripts/checkWorldAssetGeographyPlacementBridge.mjs'
+      - 'scripts/checkWorldEcologySignedMorphology.mjs'
       - '.github/workflows/world-asset-geography-exact-head.yml'
 
 permissions:
@@ -53,6 +54,9 @@ jobs:
       - name: Check placement geography bridge
         run: node scripts/checkWorldAssetGeographyPlacementBridge.mjs
 
+      - name: Check signed ecology morphology
+        run: node scripts/checkWorldEcologySignedMorphology.mjs
+
       - name: Check stress matrix
         run: node scripts/checkWorldAssetGeographyStress.mjs
 
@@ -67,6 +71,7 @@ jobs:
             'src/3d/world/worldAssetGeographyProfile.js',
             'src/3d/world/WorldAssetGeographyPlacementBridge.js',
             'src/3d/world/worldAssetGeographyMaterialBridge.js',
+            'src/3d/world/worldEcologySurfaceField.js',
           ];
           for (const path of files) {
             const text = fs.readFileSync(path, 'utf8');
