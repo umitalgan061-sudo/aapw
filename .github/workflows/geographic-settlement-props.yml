@@ -4,6 +4,7 @@ on:
     paths:
       - 'src/3d/world/geographicSettlementProps.js'
       - 'src/3d/world/geographicSettlementPropQuality.js'
+      - 'src/3d/world/terrainEnvironmentVisualSampling.js'
       - 'src/3d/sceneManager.js'
       - 'scripts/checkGeographicSettlementPropsContract.mjs'
       - 'scripts/checkGeographicSettlementPropsIntegration.mjs'
@@ -13,6 +14,8 @@ on:
       - 'scripts/checkGeographicSettlementPropGroundEvidence.mjs'
       - 'scripts/checkGeographicSettlementPropsDiversity.mjs'
       - 'scripts/checkGeographicSettlementPropPlacementOrder.mjs'
+      - 'scripts/checkTerrainEnvironmentSnowEdge.mjs'
+      - 'scripts/checkTerrainEnvironmentVisualEnvelope.mjs'
       - 'scripts/geographic-settlement-props-harness.html'
       - 'docs/GEOGRAPHIC_SETTLEMENT_PROP_RUNTIME.md'
       - 'assets/models/props/**'
@@ -32,6 +35,8 @@ jobs:
       - run: node scripts/checkGeographicSettlementPropGroundEvidence.mjs
       - run: node scripts/checkGeographicSettlementPropsDiversity.mjs
       - run: node scripts/checkGeographicSettlementPropPlacementOrder.mjs
+      - run: node scripts/checkTerrainEnvironmentSnowEdge.mjs
+      - run: node scripts/checkTerrainEnvironmentVisualEnvelope.mjs
   quality-contract:
     runs-on: ubuntu-latest
     needs: contract
