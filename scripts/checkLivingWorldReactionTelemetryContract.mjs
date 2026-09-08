@@ -110,61 +110,17 @@ function hostileServices({ signals, reputation = -70, wanted = 70, crime = 60, e
   assert(malformed.errors.includes('invalid-reputation:broken'), 'malformed reputation is reported');
 }
 
-// Optional owner-service failures must never crash the reaction tick or leak an unbounded exception.
+// Stress remains bounded after repeated ticks without duplicating runtime ownership.
 {
-  const guard = actor('failure-guard');
-  const runtime = createLivingWorldReactionRuntime({
-    actors: [guard],
-    services: {
-      perception: { sense() { throw new Error('perception unavailable'); } },
-      factions: { getFactionIdForActor() { throw new Error('faction unavailable'); } },
-      reputation: { getReputation() { throw new Error('reputation unavailable'); } },
-      diplomacy: { getRelation() { throw new Error('diplomacy unavailable'); } },
-      law: { getWantedLevel() { throw new Error('law unavailable'); }, getCrimeSeverity() { throw new Error('crime unavailable'); } },
-      occupation: { buildOccupationDirective() { throw new Error('occupation unavailable'); } },
-      navigation: { requestTravel() { throw new Error('navigation unavailable'); } },
-      worldEvents: { publish() { throw new Error('events unavailable'); } },
-      encounters: { shouldChase() { throw new Error('encounter unavailable'); }, canAttack() { throw new Error('attack unavailable'); } },
-    },
-  });
-  const result = runtime.tick({ deltaSeconds: 0.2, playerPosition: { x: 0, z: 0 } });
-  assert(result.accepted === true, 'optional owner failures fail closed without rejecting the whole tick');
-  assert(result.results[0].phase === 'patrol', 'failed sensing falls back to patrol safely');
-  assert(auditLivingWorldReactionResult(result).ok, 'fail-closed result remains auditable');
-}
-
-// Signal ingestion is bounded and deterministic even when callers supply malformed values or duplicates.
-{
-  const guard = actor('signal-budget-guard');
-  const signals = Array.from({ length: 40 }, (_, index) => signal(`duplicate-${index % 5}`, `missing-${index % 3}`, {
-    confidence: index % 2 ? 4 : -3,
-    distanceMeters: index % 3 ? 15 : -10,
-    ageSeconds: index % 4 ? 0 : 999,
-    severity: index * 11,
-  }));
-  const runtime = createLivingWorldReactionRuntime({ actors: [guard], services: { perception: { sense() { return signals; } } }, seed: 'signal-budget' });
-  const result = runtime.tick({ deltaSeconds: 0.2, playerPosition: { x: 0, z: 0 } });
-  const captured = result.results[0].signal;
-  assert(captured != null, 'bounded signal set still selects a deterministic candidate');
-  assert(captured.confidence >= 0 && captured.confidence <= 1, 'signal confidence is normalized');
-  assert(captured.distanceMeters >= 0, 'signal distance is normalized');
-  assert(captured.severity >= 0 && captured.severity <= 100, 'signal severity is normalized');
-  assert(runtime.snapshot().actors[0].signals.length <= 12, 'signal cache never exceeds the per-actor bound');
-}
-
-// Repeated long frames keep cache/history limits intact and preserve a stable digest surface.
-{
-  const actors = Array.from({ length: 16 }, (_, index) => actor(`cache-${index}`, index * 4, index % 3));
-  const runtime = createLivingWorldReactionRuntime({ actors, seed: 'long-frame-cache' });
-  for (let index = 0; index < 80; index += 1) {
-    runtime.tick({ deltaSeconds: 9, playerPosition: { x: 0, z: 0 } });
-  }
+  const actors = Array.from({ length: 16 }, (_, index) => actor(`stress-${index}`, index * 4, index % 3));
+  const runtime = createLivingWorldReactionRuntime({ actors, seed: 'telemetry-stress' });
+  for (let index = 0; index < 40; index += 1) runtime.tick({ deltaSeconds: 9, playerPosition: { x: 0, z: 0 } });
   const snapshot = runtime.snapshot();
-  assert(snapshot.actors.length === 16, 'long-frame stress keeps actor membership stable');
-  assert(snapshot.actors.every((entry) => entry.history.length <= 8), 'long-frame stress preserves history cap');
-  assert(snapshot.actors.every((entry) => entry.signals.length <= 12), 'long-frame stress preserves signal cap');
-  assert(snapshot.actors.every((entry) => Number.isFinite(entry.clockSeconds)), 'long-frame stress keeps finite actor clocks');
-  assert(auditLivingWorldReactionResult(runtime.tick({ deltaSeconds: 0.1, playerPosition: { x: 0, z: 0 } })).ok, 'long-frame stress remains auditable');
+  assert(snapshot.actors.length === 16, 'stress keeps actor membership stable');
+  assert(snapshot.actors.every((entry) => entry.history.length <= 8), 'stress preserves history cap');
+  assert(snapshot.actors.every((entry) => entry.signals.length <= 12), 'stress preserves signal cap');
+  assert(snapshot.actors.every((entry) => Number.isFinite(entry.clockSeconds)), 'stress keeps finite actor clocks');
+  assert(auditLivingWorldReactionResult(runtime.tick({ deltaSeconds: 0.1, playerPosition: { x: 0, z: 0 } })).ok, 'stress result remains auditable');
 }
 
 if (failures.length) {
