@@ -11,13 +11,14 @@ const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, finite(value, min)));
 const MAX_MEMBERS = 32;
 const DEFAULT_COHESION_RADIUS = 28;
+const DEFAULT_SEPARATION_METERS = 2;
 
 export const LIVING_WORLD_GROUP_AI_POLICY = freeze({
 	id: 'living-world-group-ai-policy-2026-09-08-v1',
 	maxMembers: MAX_MEMBERS,
 	defaultCohesionRadiusMeters: DEFAULT_COHESION_RADIUS,
 	maxLeaderDistanceMeters: 80,
-	defaultSeparationMeters: 2,
+	defaultSeparationMeters: DEFAULT_SEPARATION_METERS,
 });
 
 function stableHash(value) {
