@@ -19,7 +19,7 @@ const ACTION_LABELS = Object.freeze({
   enter: 'Yerleşime giriş', exit: 'Yerleşimden çıkış', talk: 'Diyalog', trade: 'Takas',
   buy: 'Satın alma', sell: 'Satış', craft: 'Üretim', equip: 'Kuşanma', acceptQuest: 'Görev kabulü',
   advanceQuest: 'Görev ilerlemesi', travel: 'Seyahat', rest: 'Dinlenme', train: 'Eğitim', save: 'Kayıt',
-  open: 'Hizmet açıldı', close: 'Hizmet kapandı', panel: 'Panel değişti',
+  open: 'Hizmet açıldı', close: 'Hizmet kapandı', panel: 'Panel değişti', feedback: 'İşlem geri bildirimi',
 });
 
 const STATUS = Object.freeze({ ok: 'success', blocked: 'blocked', error: 'error', info: 'info' });
@@ -83,6 +83,14 @@ export function buildSettlementActivityFeed(viewModel = {}, options = {}) {
   for (const entry of visible) statusCounts[entry.status] += 1;
   const latest = visible[0] ?? null;
   const source = viewModel && typeof viewModel === 'object' ? viewModel : {};
+  const explicitUnread = Number.isFinite(Number(options.unread)) ? Math.max(0, Math.trunc(Number(options.unread))) : null;
+  const readThroughSequence = Number.isFinite(Number(options.readThroughSequence))
+    ? Math.max(0, Math.trunc(Number(options.readThroughSequence)))
+    : null;
+  const derivedUnread = readThroughSequence == null
+    ? 0
+    : visible.filter((entry) => entry.sequence > readThroughSequence).length;
+  const unread = integer(explicitUnread ?? derivedUnread, 0, visible.length, 0);
   const feed = {
     version: SETTLEMENT_ACTIVITY_FEED_VERSION,
     settlementId: text(source.player?.settlementId, text(source.settlementId, 'settlement')),
@@ -91,9 +99,19 @@ export function buildSettlementActivityFeed(viewModel = {}, options = {}) {
     latest,
     entries: visible,
     statusCounts,
-    unread: integer(options.unread, 0, visible.length, 0),
+    unread,
+    readThroughSequence: readThroughSequence ?? 0,
   };
   return Object.freeze({ ...feed, digest: digest(feed) });
+}
+
+export function acknowledgeSettlementActivityFeed(feed = {}, readThroughSequence = 0) {
+  const source = feed && typeof feed === 'object' ? feed : {};
+  const entries = Array.isArray(source.entries) ? source.entries : [];
+  const maxSequence = entries.reduce((max, entry) => Math.max(max, integer(entry?.sequence, 0, 999999, 0)), 0);
+  const acknowledged = integer(readThroughSequence, 0, maxSequence, 0);
+  const next = { ...source, unread: entries.filter((entry) => integer(entry?.sequence, 0, 999999, 0) > acknowledged).length, readThroughSequence: acknowledged };
+  return Object.freeze({ ...next, digest: digest(next) });
 }
 
 export function summarizeSettlementActivityFeed(feed = {}) {
@@ -104,6 +122,7 @@ export function summarizeSettlementActivityFeed(feed = {}) {
     digest: text(source.digest),
     count: entries.length,
     unread: integer(source.unread, 0, entries.length, 0),
+    readThroughSequence: integer(source.readThroughSequence, 0, 999999, 0),
     latestAction: text(latest?.action),
     latestStatus: text(latest?.status),
     latestMessage: text(latest?.message),
