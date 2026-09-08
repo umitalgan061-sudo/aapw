@@ -333,7 +333,7 @@ function spatialFields(x, z, seed = 0) {
   );
   const cells = cellular2(
     warped.x / WORLD_ECOLOGY_SURFACE_FIELD_POLICY.cohortScaleMeters,
-    warped.z / WORLD_ECOLOGY_SURFACE_FIELD_FIELD_POLICY.cohortScaleMeters,
+    warped.z / WORLD_ECOLOGY_SURFACE_FIELD_POLICY.cohortScaleMeters,
     seed + 8009,
   );
   return Object.freeze({
