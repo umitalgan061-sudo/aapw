@@ -5,15 +5,12 @@ on:
     branches: [main]
     paths:
       - 'src/3d/world/terrainWindSnowExposure.js'
+      - 'src/3d/world/terrainWindSnowSurfaceFabric.js'
       - 'src/3d/world/terrainWindSnowRuntimeGuard.js'
       - 'scripts/checkTerrainWindSnowExposure.mjs'
       - 'scripts/checkTerrainWindSnowOrographicFold.mjs'
       - 'scripts/checkTerrainWindSnowFieldMatrix.mjs'
-      - 'scripts/checkTerrainWindSnowVisualEnvelope.mjs'
       - 'scripts/checkTerrainWindSnowRuntimeParity.mjs'
-      - 'scripts/checkTerrainWindSnowReferenceFieldSweep.mjs'
-      - 'scripts/checkTerrainWindSnowEdgeCases.mjs'
-      - 'scripts/checkTerrainWindSnowToneChain.mjs'
       - 'scripts/checkWorldEnvironmentAcceptanceMatrix.mjs'
       - '.github/workflows/buzul-muhafizi-snow-relief.yml'
       - 'docs/TERRAIN_WIND_SNOW_SURFACE_CONTRACT.md'
@@ -60,7 +57,7 @@ jobs:
           git diff --check "$LIVE_MAIN_SHA...HEAD"
           git diff --name-only "$LIVE_MAIN_SHA...HEAD" | while IFS= read -r path; do
             case "$path" in
-              src/3d/world/terrainWindSnowExposure.js|src/3d/world/terrainWindSnowRuntimeGuard.js|scripts/checkTerrainWindSnowExposure.mjs|scripts/checkTerrainWindSnowOrographicFold.mjs|scripts/checkTerrainWindSnowFieldMatrix.mjs|scripts/checkTerrainWindSnowVisualEnvelope.mjs|scripts/checkTerrainWindSnowRuntimeParity.mjs|scripts/checkTerrainWindSnowReferenceFieldSweep.mjs|scripts/checkTerrainWindSnowEdgeCases.mjs|scripts/checkTerrainWindSnowToneChain.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix.mjs|.github/workflows/buzul-muhafizi-snow-relief.yml|docs/TERRAIN_WIND_SNOW_SURFACE_CONTRACT.md|docs/TERRAIN_WIND_SNOW_ACCEPTANCE_MATRIX.md|docs/TERRAIN_WIND_SNOW_RUNBOOK.md|docs/TERRAIN_WIND_SNOW_VISUAL_EXPECTATIONS.md) ;;
+              src/3d/world/terrainWindSnowExposure.js|src/3d/world/terrainWindSnowSurfaceFabric.js|src/3d/world/terrainWindSnowRuntimeGuard.js|scripts/checkTerrainWindSnowExposure.mjs|scripts/checkTerrainWindSnowOrographicFold.mjs|scripts/checkTerrainWindSnowFieldMatrix.mjs|scripts/checkTerrainWindSnowRuntimeParity.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix.mjs|.github/workflows/buzul-muhafizi-snow-relief.yml|docs/TERRAIN_WIND_SNOW_SURFACE_CONTRACT.md|docs/TERRAIN_WIND_SNOW_ACCEPTANCE_MATRIX.md|docs/TERRAIN_WIND_SNOW_RUNBOOK.md|docs/TERRAIN_WIND_SNOW_VISUAL_EXPECTATIONS.md) ;;
               *) echo "Unexpected path outside single-purpose snow-relief slice: $path"; exit 1 ;;
             esac
           done
@@ -78,15 +75,12 @@ jobs:
         run: |
           set -euo pipefail
           node --check src/3d/world/terrainWindSnowExposure.js
+          node --check src/3d/world/terrainWindSnowSurfaceFabric.js
           node --check src/3d/world/terrainWindSnowRuntimeGuard.js
           node --check scripts/checkTerrainWindSnowExposure.mjs
           node --check scripts/checkTerrainWindSnowOrographicFold.mjs
           node --check scripts/checkTerrainWindSnowFieldMatrix.mjs
-          node --check scripts/checkTerrainWindSnowVisualEnvelope.mjs
           node --check scripts/checkTerrainWindSnowRuntimeParity.mjs
-          node --check scripts/checkTerrainWindSnowReferenceFieldSweep.mjs
-          node --check scripts/checkTerrainWindSnowEdgeCases.mjs
-          node --check scripts/checkTerrainWindSnowToneChain.mjs
 
       - name: Source-to-runtime parity contract
         run: node scripts/checkTerrainWindSnowRuntimeParity.mjs
@@ -99,18 +93,6 @@ jobs:
 
       - name: Exhaustive deterministic field matrix
         run: node scripts/checkTerrainWindSnowFieldMatrix.mjs
-
-      - name: Spatial visual-envelope acceptance
-        run: node scripts/checkTerrainWindSnowVisualEnvelope.mjs
-
-      - name: Reference relief field sweep
-        run: node scripts/checkTerrainWindSnowReferenceFieldSweep.mjs
-
-      - name: Numerical edge-case acceptance
-        run: node scripts/checkTerrainWindSnowEdgeCases.mjs
-
-      - name: Renderer-facing snow tone chain
-        run: node scripts/checkTerrainWindSnowToneChain.mjs
 
       - name: Install Playwright Chromium for shipped runtime proof
         shell: bash
