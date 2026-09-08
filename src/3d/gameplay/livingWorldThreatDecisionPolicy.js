@@ -32,7 +32,8 @@ export function decideLivingWorldThreat({
   const state = normalizeState(currentState);
   const visual = clamp(visualConfidence);
   const hearing = clamp(hearingConfidence);
-  const stealthFactor = 1 - clamp(stealth);
+  const stealthValue = clamp(stealth);
+  const stealthFactor = 1 - stealthValue;
   const confidence = clamp(Math.max(visual, hearing) * stealthFactor);
   const distance = Math.max(0, finite(distanceMeters, Number.POSITIVE_INFINITY));
   const allies = Math.max(0, Math.floor(finite(allyCount)));
@@ -65,7 +66,14 @@ export function decideLivingWorldThreat({
     nextState,
     reason,
     confidence,
-    channels: freeze({ visual, hearing, stealth: clamp(stealth), lineOfSight: los, recentContact: contact }),
+    signal: freeze({
+      visual,
+      hearing,
+      stealth: stealthValue,
+      lineOfSight: los,
+      recentContact: contact,
+      reacquire: nextState === 'return' && (state === 'detect' || state === 'investigate' || state === 'chase'),
+    }),
     distanceMeters: distance,
     bounded: true,
   });
