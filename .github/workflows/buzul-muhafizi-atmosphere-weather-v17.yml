@@ -3,7 +3,9 @@ on:
   pull_request:
     paths:
       - 'src/3d/world/photorealisticAtmosphereDirector.js'
+      - 'src/3d/world/atmosphereWeatherRuntimeAdapter.js'
       - 'scripts/checkPhotorealisticAtmosphereDirector.mjs'
+      - 'scripts/checkAtmosphereWeatherRuntimeAdapter.mjs'
       - '.github/workflows/buzul-muhafizi-atmosphere-weather-v17.yml'
   push:
     branches:
@@ -24,19 +26,27 @@ jobs:
           git fetch origin main --depth=1
           git merge-base --is-ancestor origin/main HEAD
           files=$(git diff --name-only origin/main...HEAD)
-          test "$(printf '%s\n' "$files" | wc -l)" -eq 3
+          test "$(printf '%s\n' "$files" | wc -l)" -eq 5
           printf '%s\n' "$files" | grep -Fx 'src/3d/world/photorealisticAtmosphereDirector.js'
+          printf '%s\n' "$files" | grep -Fx 'src/3d/world/atmosphereWeatherRuntimeAdapter.js'
           printf '%s\n' "$files" | grep -Fx 'scripts/checkPhotorealisticAtmosphereDirector.mjs'
+          printf '%s\n' "$files" | grep -Fx 'scripts/checkAtmosphereWeatherRuntimeAdapter.mjs'
           printf '%s\n' "$files" | grep -Fx '.github/workflows/buzul-muhafizi-atmosphere-weather-v17.yml'
           additions=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
           test "$additions" -le 3000
-      - name: Syntax and executable contract
-        run: node --check src/3d/world/photorealisticAtmosphereDirector.js && node --check scripts/checkPhotorealisticAtmosphereDirector.mjs && node scripts/checkPhotorealisticAtmosphereDirector.mjs
+      - name: Syntax and executable contracts
+        run: |
+          node --check src/3d/world/photorealisticAtmosphereDirector.js
+          node --check src/3d/world/atmosphereWeatherRuntimeAdapter.js
+          node --check scripts/checkPhotorealisticAtmosphereDirector.mjs
+          node --check scripts/checkAtmosphereWeatherRuntimeAdapter.mjs
+          node scripts/checkPhotorealisticAtmosphereDirector.mjs
+          node scripts/checkAtmosphereWeatherRuntimeAdapter.mjs
       - name: Protect shared boundaries
         shell: bash
         run: |
           set -euo pipefail
-          ! grep -nE 'EditorMaterialStudio|MaterialAssignmentCore|WorldAssetPlacementPipeline' src/3d/world/photorealisticAtmosphereDirector.js
-          ! grep -nE 'src/3d/world/(terrain|water|sceneManager|naturalGeology|rivers|roads)\.js' src/3d/world/photorealisticAtmosphereDirector.js
+          ! grep -R -nE 'EditorMaterialStudio|MaterialAssignmentCore|WorldAssetPlacementPipeline' src/3d/world/photorealisticAtmosphereDirector.js src/3d/world/atmosphereWeatherRuntimeAdapter.js
+          ! grep -R -nE 'src/3d/world/(terrain|water|sceneManager|naturalGeology|rivers|roads)\.js' src/3d/world/photorealisticAtmosphereDirector.js src/3d/world/atmosphereWeatherRuntimeAdapter.js
       - name: Diff hygiene
         run: git diff --check origin/main...HEAD
