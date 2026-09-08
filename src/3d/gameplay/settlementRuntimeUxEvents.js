@@ -1,0 +1,19 @@
+/** DOM-free settlement UX event bridge. */
+import { createSettlementRuntimeUxDirector } from './settlementRuntimeUxDirector.js';
+export const SETTLEMENT_UX_EVENTS_VERSION=1;
+export const SETTLEMENT_UX_EVENT_NAMES=Object.freeze({request:'aapw:settlement-ux-request',response:'aapw:settlement-ux-response',opened:'aapw:settlement-ux-opened',focused:'aapw:settlement-ux-focused',executed:'aapw:settlement-ux-executed',closed:'aapw:settlement-ux-closed',saved:'aapw:settlement-ux-saved',restored:'aapw:settlement-ux-restored',reset:'aapw:settlement-ux-reset',feedback:'aapw:settlement-ux-feedback'});
+const text=(v,f='')=>String(v??f).trim().slice(0,160);
+const clone=(v)=>v==null?v:JSON.parse(JSON.stringify(v));
+const bus=()=>({listeners:new Map(),on(n,f){const s=this.listeners.get(n)??new Set();s.add(f);this.listeners.set(n,s);return()=>s.delete(f);},emit(n,p){for(const f of this.listeners.get(n)??[])f(p);}});
+export function createSettlementRuntimeUxEventBridge(options={}){
+ const eventBus=options.bus&&typeof options.bus.on==='function'&&typeof options.bus.emit==='function'?options.bus:bus();
+ const now=typeof options.now==='function'?options.now:()=>Date.now();
+ const director=options.director??createSettlementRuntimeUxDirector({...options,now});
+ let disposed=false,lastRequestId='';
+ const emit=(name,payload)=>{if(!disposed)eventBus.emit(name,{version:1,at:now(),...clone(payload)});};
+ const handle=async(request={})=>{if(disposed)return {ok:false,code:'disposed',requestId:text(request.requestId)};const id=text(request.requestId,`${request.type}-${now()}`);if(id===lastRequestId)return {ok:false,code:'duplicate-request',requestId:id};lastRequestId=id;const type=text(request.type);try{let payload;if(type==='open'){payload=director.open(request.node,request.meta);emit(SETTLEMENT_UX_EVENT_NAMES.opened,{requestId:id,view:payload});}else if(type==='focus'){payload=director.focus(request.nodeId);emit(SETTLEMENT_UX_EVENT_NAMES.focused,{requestId:id,view:payload});}else if(type==='execute'){payload=await director.execute(request.action,request.input);emit(SETTLEMENT_UX_EVENT_NAMES.executed,{requestId:id,result:payload});}else if(type==='close'){payload=director.close(request.reason);emit(SETTLEMENT_UX_EVENT_NAMES.closed,{requestId:id,view:payload});}else if(type==='save'){payload=director.exportState();emit(SETTLEMENT_UX_EVENT_NAMES.saved,{requestId:id,snapshot:payload});}else if(type==='restore'){payload=director.importState(request.snapshot);emit(SETTLEMENT_UX_EVENT_NAMES.restored,{requestId:id,view:payload});}else if(type==='reset'){payload=director.reset(request.reason);emit(SETTLEMENT_UX_EVENT_NAMES.reset,{requestId:id,view:payload});}else return {ok:false,code:'unknown-request',requestId:id};emit(SETTLEMENT_UX_EVENT_NAMES.response,{requestId:id,type,payload});return {ok:true,requestId:id,payload};}catch(error){const feedback=director.feedback({status:'error',message:text(error?.message,'Event işlem hatası.'),code:'event-error'});emit(SETTLEMENT_UX_EVENT_NAMES.feedback,{requestId:id,feedback});return {ok:false,requestId:id,code:'event-error',payload:feedback};}};
+ const off=eventBus.on(SETTLEMENT_UX_EVENT_NAMES.request,(request)=>{void handle(request);});
+ return {version:1,bus:eventBus,director,handle,getState:()=>director.getState(),getViewModel:()=>director.getViewModel(),exportState:()=>director.exportState(),importState:(s)=>director.importState(s),reset:(r)=>director.reset(r),dispose(){if(disposed)return;disposed=true;off?.();director.dispose?.();}};
+}
+export function createSettlementRuntimeUxRequest(type,payload={}){return {version:1,requestId:text(payload.requestId,`${type}-${Date.now()}`),type,...clone(payload)};}
+export function isSettlementRuntimeUxResponse(value){return Boolean(value&&typeof value.ok==='boolean'&&typeof value.requestId==='string');}
