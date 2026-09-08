@@ -14,16 +14,24 @@
  */
 
 import { terrainMacroWeatheringResidualMeters } from './terrainMacroWeathering.js';
+import {
+	REFERENCE_COASTLINE_WARP_POLICY,
+	referenceCoastlineNaturalizationOffsets,
+} from './referenceCoastlineWarp.js';
 
 const TAU = Math.PI * 2;
 const clamp01 = (value) => value < 0 ? 0 : value > 1 ? 1 : value;
 
 export const TERRAIN_RELIEF_DETAIL_POLICY = Object.freeze({
-	id: 'terrain-coast-warp-and-relief-detail-2026-08-26-v3-anisotropic-mountain-fabric',
-	revision: 4,
+	id: 'terrain-coast-warp-and-relief-detail-2026-08-31-v4-coastline-aware-anisotropic-fabric',
+	supersedes: 'terrain-coast-warp-and-relief-detail-2026-08-26-v3-anisotropic-mountain-fabric',
+	revision: 5,
 	coastWarpU: 1.55 / 96,
 	coastWarpV: 1.55 / 64,
 	coastWarpOctaves: 3,
+	coastlineWarpPolicyId: REFERENCE_COASTLINE_WARP_POLICY.id,
+	coastlineSignedDistanceAware: true,
+	coastLegacyRetainAtBoundary: 0.74,
 
 	// Broad lowland form.
 	plainsAmplitudeMeters: 5.5,
@@ -300,9 +308,16 @@ export function coastWarpOffsets(normalizedX, normalizedY) {
 	const broadV = fbm2(normalizedX * 9.3 - 5.9, normalizedY * 9.3 + 27.4, P.coastWarpOctaves);
 	const fineU = fbm2(normalizedX * 31.5 + 61.2, normalizedY * 31.5 - 17.8, 2);
 	const fineV = fbm2(normalizedX * 31.5 - 43.6, normalizedY * 31.5 + 8.5, 2);
+	const legacyDu = (broadU * 0.72 + fineU * 0.28) * P.coastWarpU;
+	const legacyDv = (broadV * 0.72 + fineV * 0.28) * P.coastWarpV;
+	const naturalized = referenceCoastlineNaturalizationOffsets(normalizedX, normalizedY);
+	// Keep the historical broad warp everywhere, but trade a small fraction of it for a signed-distance
+	// normal/tangent meander only at real sea/dry boundaries. The total envelope therefore stays near the
+	// established v3 budget while the visual shoreline stops inheriting long cardinal mask steps.
+	const legacyRetain = 1 - naturalized.proximity * (1 - P.coastLegacyRetainAtBoundary);
 	return {
-		du: (broadU * 0.72 + fineU * 0.28) * P.coastWarpU,
-		dv: (broadV * 0.72 + fineV * 0.28) * P.coastWarpV,
+		du: legacyDu * legacyRetain + naturalized.du,
+		dv: legacyDv * legacyRetain + naturalized.dv,
 	};
 }
 
