@@ -10,10 +10,10 @@
  * material, vegetation and habitat systems.
  */
 
-export const WORLD_ECOLOGY_SURFACE_FIELD_REVISION = 'v1-authority-preserving-multiscale-ecotones';
+export const WORLD_ECOLOGY_SURFACE_FIELD_REVISION = 'v1-authority-preserving-multiscale-ecotones-signed-morphology';
 
 export const WORLD_ECOLOGY_SURFACE_FIELD_POLICY = Object.freeze({
-  id: 'world-ecology-surface-field-2026-09-03-v1',
+  id: 'world-ecology-surface-field-2026-09-08-v2-signed-morphology',
   renderOnly: true,
   deterministic: true,
   worldSpace: true,
@@ -38,10 +38,16 @@ export const WORLD_ECOLOGY_SURFACE_FIELD_POLICY = Object.freeze({
   ecologyResponse: true,
   weatheringResponse: true,
   placementRankingResponse: true,
+  signedConcavityPreserved: true,
 });
 
 const TAU = Math.PI * 2;
 const clamp01 = (value) => value < 0 ? 0 : value > 1 ? 1 : value;
+const clampSigned = (value) => {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return n < -1 ? -1 : n > 1 ? 1 : n;
+};
 const finite = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
 const lerp = (a, b, t) => a + (b - a) * t;
 const fract = (value) => value - Math.floor(value);
@@ -327,7 +333,7 @@ function spatialFields(x, z, seed = 0) {
   );
   const cells = cellular2(
     warped.x / WORLD_ECOLOGY_SURFACE_FIELD_POLICY.cohortScaleMeters,
-    warped.z / WORLD_ECOLOGY_SURFACE_FIELD_POLICY.cohortScaleMeters,
+    warped.z / WORLD_ECOLOGY_SURFACE_FIELD_FIELD_POLICY.cohortScaleMeters,
     seed + 8009,
   );
   return Object.freeze({
@@ -343,9 +349,14 @@ function spatialFields(x, z, seed = 0) {
   });
 }
 
+function ecologyConcavityHint(value) {
+  const signed = clampSigned(value);
+  return clamp01(signed * 0.5 + 0.5);
+}
+
 function ecologicalResponse(surface, spatial) {
   const b = surface.biome;
-  const concavityHint = clamp01(finite(surface.concavity, 0.5));
+  const concavityHint = ecologyConcavityHint(surface.concavity);
   const shelterHint = clamp01(finite(surface.shelter, 0.5));
   const erosionHint = clamp01(finite(surface.erosion, 0.5));
   const depositionHint = clamp01(finite(surface.deposition, 0.5));
@@ -642,11 +653,12 @@ export function sampleWorldEcologySurfaceField(input = {}) {
   const z = finite(input.z, 0);
   const seed = hashUint(finite(input.seed, 0));
   const physical = physicalSurfaceFactors(input);
+  const rawConcavity = finite(input.concavity, 0);
   const surface = Object.freeze({
     ...physical,
     x,
     z,
-    concavity: clamp01(finite(input.concavity, 0.5)),
+    concavity: clampSigned(rawConcavity),
     shelter: clamp01(finite(input.shelter, 0.5)),
     erosion: clamp01(finite(input.erosion, 0.5)),
     deposition: clamp01(finite(input.deposition, 0.5)),
@@ -683,6 +695,7 @@ export function ecologySurfaceMaterialContext(field) {
     lithic: field.response.lithic,
     soilDepth: field.response.soilDepth,
     frost: field.response.frost,
+    concavity: field.physical?.concavity ?? 0,
     wetMeadow: field.domains.wetMeadow,
     dryHeath: field.domains.dryHeath,
     woodland: field.domains.woodland,
@@ -758,6 +771,7 @@ export function summarizeEcologySurfaceField(field) {
     deposition: field.response?.deposition ?? 0,
     erosion: field.response?.erosion ?? 0,
     lithic: field.response?.lithic ?? 0,
+    concavity: field.physical?.concavity ?? 0,
     vegetationCapacity: field.placement?.vegetationCapacity ?? 0,
     rockCapacity: field.placement?.rockCapacity ?? 0,
   });
