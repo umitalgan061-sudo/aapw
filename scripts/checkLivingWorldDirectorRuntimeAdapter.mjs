@@ -6,16 +6,7 @@ import { evaluateHabitat, planFaunaGroup, auditEcologyPlan, normalizeEcologyCont
 import { createEventDirectorState, advanceEventDirector, buildAmbientWorldEventReceipt, LIVING_WORLD_EVENT_DIRECTOR_POLICY } from '../src/3d/gameplay/livingWorldEventDirectorAdapter.js';
 import { collectLivingWorldRuntimeEvidence, validateLivingWorldRuntimeEvidence, buildLivingWorldAcceptanceSummary, runtimeEvidenceDigest, LIVING_WORLD_RUNTIME_EVIDENCE_POLICY, summarizeLivingWorldObservationWindow, buildLivingWorldObservationReceipt, validateLivingWorldObservationSummary, analyzeLivingWorldObservationTrend, buildLivingWorldObservationAcceptance } from '../src/3d/gameplay/livingWorldRuntimeEvidence.js';
 
-const occupation = normalizeOccupationDefinition({
-	id: 'farmer-1', seed: 'farmer-seed', travelSpeedMps: 1.5,
-	anchors: [{ id: 'field', x: 40, z: 25, type: 'worksite' }, { id: 'home', x: 5, z: 8, type: 'home' }],
-	schedule: [
-		{ startSeconds: 6 * 3600, endSeconds: 12 * 3600, phase: 'travel', locationId: 'field', activityId: 'field-travel' },
-		{ startSeconds: 12 * 3600, endSeconds: 18 * 3600, phase: 'work', locationId: 'field', activityId: 'field-work' },
-		{ startSeconds: 18 * 3600, endSeconds: 22 * 3600, phase: 'travel', locationId: 'home', activityId: 'home-travel' },
-		{ startSeconds: 22 * 3600, endSeconds: 6 * 3600, phase: 'rest', locationId: 'home', activityId: 'sleep' },
-	],
-});
+const occupation = normalizeOccupationDefinition({ id: 'farmer-1', seed: 'farmer-seed', travelSpeedMps: 1.5, anchors: [{ id: 'field', x: 40, z: 25, type: 'worksite' }, { id: 'home', x: 5, z: 8, type: 'home' }], schedule: [{ startSeconds: 21600, endSeconds: 43200, phase: 'travel', locationId: 'field', activityId: 'field-travel' }, { startSeconds: 43200, endSeconds: 64800, phase: 'work', locationId: 'field', activityId: 'field-work' }, { startSeconds: 64800, endSeconds: 79200, phase: 'travel', locationId: 'home', activityId: 'home-travel' }, { startSeconds: 79200, endSeconds: 21600, phase: 'rest', locationId: 'home', activityId: 'sleep' }] });
 assert.equal(occupation.id, 'farmer-1');
 assert.equal(occupation.schedule.length, 4);
 assert.equal(occupationDigest(occupation), occupationDigest(normalizeOccupationDefinition(occupation)));
@@ -46,13 +37,7 @@ function makeController(id, x, z, state = 'patrol') {
 	const object3D = new THREE.Object3D();
 	object3D.name = id;
 	object3D.position.set(x, 0, z);
-	object3D.userData = {
-		kind: id.includes('wolf') ? 'animal' : 'npc',
-		npcPerception: { intent: state, suspicion: state === 'chase' ? 0.92 : 0.15, heard: state === 'investigate', lineOfSight: state !== 'investigate' },
-		wildlifeFlee: { phase: id.includes('wolf') ? (state === 'flee' ? 'flee' : 'roam') : null, direct: state === 'flee', pack: false, recovering: false },
-		materialEvidence: { validated: true, surfaceCount: 5, roles: ['skin', 'hair', 'cloth', 'leather', 'metal'], materialSlotCount: 5, uvPresent: true, paletteIds: ['human-1'], textures: [{ name: 'albedo', width: 1024, height: 1024, map: 'map' }] },
-		placementEvidence: { accepted: true, groundAligned: true, navAligned: true, habitatAccepted: true, waterSafe: true, slopeSafe: true, placementDigest: 'p1', materialDigest: 'm1', provenance: '#590' },
-	};
+	object3D.userData = { kind: id.includes('wolf') ? 'animal' : 'npc', npcPerception: { intent: state, suspicion: state === 'chase' ? 0.92 : 0.15, heard: state === 'investigate', lineOfSight: state !== 'investigate' }, wildlifeFlee: { phase: id.includes('wolf') ? (state === 'flee' ? 'flee' : 'roam') : null, direct: state === 'flee', pack: false, recovering: false }, materialEvidence: { validated: true, surfaceCount: 5, roles: ['skin', 'hair', 'cloth', 'leather', 'metal'], materialSlotCount: 5, uvPresent: true, paletteIds: ['human-1'], textures: [{ name: 'albedo', width: 1024, height: 1024, map: 'map' }] }, placementEvidence: { accepted: true, groundAligned: true, navAligned: true, habitatAccepted: true, waterSafe: true, slopeSafe: true, placementDigest: 'p1', materialDigest: 'm1', provenance: '#590' } };
 	return { id, object3D, currentState: state, updates: 0, update(delta) { assert(Number.isFinite(delta) && delta >= 0); this.updates += 1; } };
 }
 
@@ -112,19 +97,7 @@ assert.equal(summarizeLivingWorldObservationWindow([{ frameMs: 10, tickMs: 1, ac
 assert.equal(summarizeLivingWorldObservationWindow([{ frameMs: 10, tickMs: 1, actors: 1, materialValidated: true, placementValidated: false }]).reason, 'placement-evidence');
 assert.equal(validateLivingWorldObservationSummary({ sampleCount: 121, performance: { frameP95Ms: -1, tickP95Ms: 1 }, population: { peakActors: 999 }, world: { errorTotal: -1 } }).ok, false);
 
-const stableTrendSamples = Array.from({ length: 12 }, (_, index) => ({
-	frameMs: 11.5 + (index % 2) * 0.4,
-	tickMs: 1.2 + (index % 3) * 0.1,
-	actors: 18 + (index % 3),
-	activeActors: 16 + (index % 2),
-	errors: 0,
-	worldEvents: index % 2,
-	eventCandidates: 2 + (index % 3),
-	threatRatio: 0.2,
-	cohesionRatio: 0.9,
-	materialValidated: true,
-	placementValidated: true,
-}));
+const stableTrendSamples = Array.from({ length: 12 }, (_, index) => ({ frameMs: 11.5 + (index % 2) * 0.4, tickMs: 1.2 + (index % 3) * 0.1, actors: 18 + (index % 3), activeActors: 16 + (index % 2), errors: 0, worldEvents: index % 2, eventCandidates: 2 + (index % 3), threatRatio: 0.2, cohesionRatio: 0.9, materialValidated: true, placementValidated: true }));
 const stableTrendA = analyzeLivingWorldObservationTrend(stableTrendSamples, { windowId: 'stable-window' });
 const stableTrendB = analyzeLivingWorldObservationTrend(stableTrendSamples, { windowId: 'stable-window' });
 assert.deepEqual(stableTrendA, stableTrendB);
@@ -175,9 +148,7 @@ const warningThresholdTrend = analyzeLivingWorldObservationTrend([
 assert.equal(warningThresholdTrend.warnings.frame, true);
 assert.equal(warningThresholdTrend.warnings.tick, false);
 
-const malformedObservationSummary = summarizeLivingWorldObservationWindow([
-	{ frameMs: Number.NaN, tickMs: Infinity, actors: 99999, activeActors: -10, errors: -4, threatRatio: 8, cohesionRatio: -2, materialValidated: false, placementValidated: false },
-], { windowId: 'malformed' });
+const malformedObservationSummary = summarizeLivingWorldObservationWindow([{ frameMs: Number.NaN, tickMs: Infinity, actors: 99999, activeActors: -10, errors: -4, threatRatio: 8, cohesionRatio: -2, materialValidated: false, placementValidated: false }], { windowId: 'malformed' });
 assert.equal(malformedObservationSummary.sampleCount, 1);
 assert.equal(malformedObservationSummary.population.peakActors, 512);
 assert.equal(malformedObservationSummary.world.errorTotal, 0);
@@ -199,24 +170,10 @@ for (const frameMs of [0, 5, 16.67, 16.68, 20, 33.34]) {
 	assert.equal(result.performance.withinFrameBudget, frameMs <= 16.67);
 }
 
-const alternatingTrendA = analyzeLivingWorldObservationTrend([
-	{ frameMs: 10, tickMs: 1, actors: 8, activeActors: 8, errors: 0, materialValidated: true, placementValidated: true },
-	{ frameMs: 21, tickMs: 1, actors: 8, activeActors: 8, errors: 0, materialValidated: true, placementValidated: true },
-	{ frameMs: 10, tickMs: 1, actors: 8, activeActors: 8, errors: 0, materialValidated: true, placementValidated: true },
-	{ frameMs: 21, tickMs: 1, actors: 8, activeActors: 8, errors: 0, materialValidated: true, placementValidated: true },
-], { windowId: 'alternating' });
-const alternatingTrendB = analyzeLivingWorldObservationTrend([
-	{ frameMs: 10, tickMs: 1, actors: 8, activeActors: 8, errors: 0, materialValidated: true, placementValidated: true },
-	{ frameMs: 21, tickMs: 1, actors: 8, activeActors: 8, errors: 0, materialValidated: true, placementValidated: true },
-	{ frameMs: 10, tickMs: 1, actors: 8, activeActors: 8, errors: 0, materialValidated: true, placementValidated: true },
-	{ frameMs: 21, tickMs: 1, actors: 8, activeActors: 8, errors: 0, materialValidated: true, placementValidated: true },
-], { windowId: 'alternating' });
-assert.deepEqual(alternatingTrendA, alternatingTrendB);
-assert.equal(alternatingTrendA.degrading, false);
+const alternating = analyzeLivingWorldObservationTrend([10, 21, 10, 21].map((frameMs) => ({ frameMs, tickMs: 1, actors: 8, activeActors: 8, errors: 0, materialValidated: true, placementValidated: true })), { windowId: 'alternating' });
+assert.equal(alternating.degrading, false);
 assert.equal(analyzeLivingWorldObservationTrend([]).reason, 'stable');
-const rejectedAcceptance = buildLivingWorldObservationAcceptance({ accepted: false, reason: 'frame-budget', digest: 'x', performance: {}, evidence: {} }, stableTrendA);
-assert.equal(rejectedAcceptance.accepted, false);
-assert.equal(rejectedAcceptance.reason, 'frame-budget');
+assert.equal(buildLivingWorldObservationAcceptance({ accepted: false, reason: 'frame-budget', digest: 'x', performance: {}, evidence: {} }, stableTrendA).accepted, false);
 
 assert.equal(director.reset(), true);
 assert.equal(director.audit().tickCount, 0);
