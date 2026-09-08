@@ -1,6 +1,9 @@
 name: Northern Vegetation Climate
 
 on:
+  push:
+    branches:
+      - codex/foundation-grounding-20260821
   pull_request:
     paths:
       - 'assets/models/vegetation/pine_Zt62gceKXZ.glb'
@@ -115,3 +118,4 @@ jobs:
         run: node scripts/checkNorthGroundCoverClimate.mjs
       - name: Wind-grass climate module
         run: node scripts/checkWindGrassClimateModule.mjs
+

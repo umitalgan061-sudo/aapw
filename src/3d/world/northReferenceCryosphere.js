@@ -6,13 +6,15 @@
  * northern Westeros instead of implicitly spanning every landmass at the same map Y.
  *
  * Data-only/render-climate authority: this module never changes canonical terrain height,
- * collider sampling, hydrology or settlement coordinates.
+ * collider sampling, hydrology or settlement coordinates. The microclimate layer only modulates
+ * already-authored climate response inside those canonical zones; it cannot create a new zone.
  * @module world/northReferenceCryosphere
  */
 
 import { WORLD_SCALE } from '../config.js';
 import { REFERENCE_BIOME_ZONES, sampleReferenceInfluence } from './worldReferenceMap.js';
 import { worldXZToNormalizedReference } from './worldReferenceAlignment.js';
+import { CRYOSPHERE_MICROCLIMATE_POLICY, cryosphereMicroclimateAtWorldXZ, modulateCryosphereWeights } from './cryosphereMicroclimate.js';
 
 const clamp01 = (value) => (value < 0 ? 0 : value > 1 ? 1 : value);
 
@@ -35,6 +37,8 @@ export const NORTH_REFERENCE_CRYOSPHERE_POLICY = Object.freeze({
 	tundraUnionBlend: true,
 	iceEdgeVisualHarmony: true,
 	curvedIceHalo: true,
+	microclimatePolicyId: CRYOSPHERE_MICROCLIMATE_POLICY.id,
+	microclimateModulationBounded: true,
 	alwaysWinterZoneId: ALWAYS_WINTER_ZONE.id,
 	northZoneId: NORTH_ZONE.id,
 	iceTransitionRadiusScale: 1.55,
@@ -157,5 +161,7 @@ export function northReferenceCryosphereAtWorldXZ(worldX, worldZ) {
 		bounds,
 		WORLD_SCALE.METERS_PER_MAP_UNIT,
 	);
-	return northReferenceCryosphereAtNormalized(normalized.x, normalized.y);
+	const base = northReferenceCryosphereAtNormalized(normalized.x, normalized.y);
+	const microclimate = cryosphereMicroclimateAtWorldXZ(worldX, worldZ, normalized.x);
+	return modulateCryosphereWeights(base, microclimate);
 }

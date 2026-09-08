@@ -332,10 +332,23 @@ function createWallGeometry(path, sampleHeightMeters, caveGapSegment, seed) {
 function makePortalShape(width, height, openingHalfWidth, sideHeight, archRise) {
 	const halfWidth = width * 0.5;
 	const shape = new THREE.Shape();
-	shape.moveTo(-halfWidth, 0);
-	shape.lineTo(halfWidth, 0);
-	shape.lineTo(halfWidth, height);
-	shape.lineTo(-halfWidth, height);
+	// Keep the render shell safely overlapping both omitted Wall edge sections while breaking the
+	// manufactured rectangular silhouette. The side shoulders bulge slightly beyond the former
+	// rectangle and the crown is irregular, so no new gap is opened around the authoritative arch.
+	shape.moveTo(-halfWidth * 1.025, 0);
+	shape.lineTo(halfWidth * 1.030, 0);
+	shape.lineTo(halfWidth * 1.035, height * 0.24);
+	shape.lineTo(halfWidth * 1.018, height * 0.55);
+	shape.lineTo(halfWidth * 1.028, height * 0.82);
+	shape.lineTo(halfWidth * 0.76, height * 0.985);
+	shape.lineTo(halfWidth * 0.42, height * 0.955);
+	shape.lineTo(halfWidth * 0.08, height * 1.008);
+	shape.lineTo(-halfWidth * 0.27, height * 0.972);
+	shape.lineTo(-halfWidth * 0.59, height * 1.018);
+	shape.lineTo(-halfWidth * 0.84, height * 0.962);
+	shape.lineTo(-halfWidth * 1.026, height * 0.79);
+	shape.lineTo(-halfWidth * 1.018, height * 0.46);
+	shape.lineTo(-halfWidth * 1.032, height * 0.18);
 	shape.closePath();
 
 	// Earcut cannot triangulate a hole that literally touches the outer contour. A 12 cm ice sill
@@ -389,9 +402,6 @@ function createPortalMesh(leftSection, rightSection, material) {
 		bevelSize: 0.7,
 		bevelSegments: 2,
 	});
-	// ExtrudeGeometry's default UVs are shape-space metres. With the Wall's glacial texture repeat
-	// that made this one section repeat tens of times vertically and read as a bright manufactured
-	// panel. Reproject it to the same longitudinal/metre-scale UV convention as the adjacent Wall.
 	const positions = geometry.getAttribute('position');
 	const uvs = geometry.getAttribute('uv');
 	const uBase = ((leftSection.distanceMeters + rightSection.distanceMeters) * 0.5)
@@ -415,6 +425,7 @@ function createPortalMesh(leftSection, rightSection, material) {
 	mesh.receiveShadow = true;
 	mesh.userData.iceLandmarkRole = 'arched-wall-portal';
 	mesh.userData.wallAlignedPortalUv = true;
+	mesh.userData.portalOuterSilhouette = 'irregular-wall-overlap-buttress-v2';
 	return { mesh, centerX, centerZ, groundY, tx, tz, nx, nz, depth, width };
 }
 
@@ -432,8 +443,6 @@ function createCaveShell(portal, sampleHeightMeters, material) {
 
 	for (let ring = 0; ring < ringCount; ring += 1) {
 		const t = ring / (ringCount - 1);
-		// Begin just inside the exterior portal face. The previous symmetric +/- depth placement put
-		// half the cave shell outside The Wall, creating a visible blue pipe on approach.
 		const depthOffset = entranceOffset + cavePolicy.tunnelDepthMeters * t;
 		const centerX = portal.centerX + portal.nx * depthOffset;
 		const centerZ = portal.centerZ + portal.nz * depthOffset;
@@ -557,12 +566,6 @@ function buildCollisionCircles(sections, caveGapSegment, portal, caveRings) {
 	return blockers;
 }
 
-/**
- * Creates the map-aligned Wall plus a walk-through ice cave. The caller owns adding `group` to the
- * scene and can feed `blockers` to physics' existing circle collider; no general physics engine is
- * introduced. `sampleHeightMeters` must be the same shared terrain/collider authority used by the
- * rest of the world.
- */
 export function createIceLandmarks({
 	sampleHeightMeters,
 	seed = WORLD_DEFAULTS.WORLD_SEED,
@@ -572,7 +575,7 @@ export function createIceLandmarks({
 	}
 	const group = new THREE.Group();
 	group.name = 'map-aligned-ice-landmarks';
-	const textures = createIceSurfaceTextures(seed ^ 0x49434557); // ICEW
+	const textures = createIceSurfaceTextures(seed ^ 0x49434557);
 	const wallMaterial = createIceMaterial(textures, { cave: false });
 	const caveMaterial = createIceMaterial(textures, { cave: true });
 	const path = densifyWallPath();

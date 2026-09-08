@@ -96,12 +96,12 @@ export const VALYRIA_GEOLOGY_POLICY = Object.freeze({
   geologyDensityBoost: 2.15,
   geologyLargeOutcropBoost: 1.65,
   palette: Object.freeze({
-    basalt: Object.freeze([0.075, 0.060, 0.055]),
-    weatheredBasalt: Object.freeze([0.145, 0.125, 0.115]),
-    ash: Object.freeze([0.305, 0.285, 0.270]),
-    sulfurAsh: Object.freeze([0.335, 0.285, 0.165]),
-    lava: Object.freeze([1.0, 0.115, 0.018]),
-    lavaCooling: Object.freeze([0.48, 0.075, 0.025]),
+    basalt: Object.freeze([0.090, 0.082, 0.078]),
+    weatheredBasalt: Object.freeze([0.125, 0.113, 0.106]),
+    ash: Object.freeze([0.240, 0.230, 0.220]),
+    sulfurAsh: Object.freeze([0.250, 0.225, 0.145]),
+    lava: Object.freeze([0.340, 0.075, 0.032]),
+    lavaCooling: Object.freeze([0.200, 0.065, 0.045]),
   }),
 });
 
@@ -281,11 +281,11 @@ export function applyValyriaSurfaceColor(target, sample) {
     target.b += (rgb[2] - target.b) * t;
   };
   blend(P.basalt, weights.basalt * 0.92);
-  blend(P.weatheredBasalt, weights.cooledLava * 0.60);
-  blend(P.ash, weights.ash * 0.60);
-  blend(P.sulfurAsh, weights.sulfur * 0.44);
-  blend(P.lavaCooling, weights.lava * 0.32);
-  blend(P.lava, weights.lava * 0.70);
+  blend(P.weatheredBasalt, weights.cooledLava * 0.32);
+  blend(P.ash, weights.ash * 0.42);
+  blend(P.sulfurAsh, weights.sulfur * 0.28);
+  blend(P.lavaCooling, weights.lava * 0.18);
+  blend(P.lava, weights.lava * 0.35);
   return target;
 }
 

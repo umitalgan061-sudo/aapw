@@ -8,6 +8,8 @@ const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'u
 const terrain = read('src/3d/world/worldReferenceSurfaceTerrainVisual.js');
 const water = read('src/3d/world/water.js');
 const roads = read('src/3d/world/roads.js');
+const ecologyDetail = read('src/3d/world/worldAssetTransitionDetail.js');
+const surfaceFabric = read('src/3d/materials/worldAssetSurfaceFabric.js');
 
 function requireTokens(source, label, tokens) {
 	for (const token of tokens) {
@@ -15,20 +17,40 @@ function requireTokens(source, label, tokens) {
 	}
 }
 
-requireTokens(terrain, 'terrain natural-transition contract', [
-	"naturalTransitionRevision: 'v1-slope-aspect-shelter'",
-	'slopeAwareAtlasIntegration: true',
-	'aspectWeathering: true',
-	'shelteredMoisture: true',
-	'pindexGeoNormal',
-	'pindexGeoSlope',
-	'pindexGeoAspect',
-	'pindexGeoWetShelter',
-	'pindexGeoWeatheredFace',
-	'pindexGeoMossPocket',
-	'PINDEX_QUALITY_V2_GRANITE_SHADOW',
-	'PINDEX_QUALITY_V2_GRANITE_SUNLIT',
-	'PINDEX_QUALITY_V2_BASALT_WET',
+requireTokens(terrain, 'terrain owner-map visual contract', [
+	'WORLD_REFERENCE_SURFACE_VISUAL_POLICY',
+	'sourceMapSha256:',
+	'applyReferenceSurfaceToTerrainMesh',
+	'RUNTIME_PINDEX_TERRAIN_POLISH_POLICY',
+	'applyPindex01DetailToTerrainMesh',
+	'applyPindex05DetailToTerrainMesh',
+	'applyPindex10DetailToTerrainMesh',
+	'canonical terrain mesh',
+]);
+
+requireTokens(ecologyDetail, 'world transition detail contract', [
+	"revision: 'v1-world-space-irregular-boundary-fabric'",
+	'canonicalDistanceReadOnly: true',
+	'canonicalHydrologyReadOnly: true',
+	'canonicalRoadReadOnly: true',
+	'canonicalSettlementReadOnly: true',
+	'newGeographyIntroduced: false',
+	'boundaryWarpMeters:',
+	'materialNoiseScalesMeters:',
+]);
+
+requireTokens(surfaceFabric, 'asset surface fabric contract', [
+	"revision: WORLD_ASSET_SURFACE_FABRIC_REVISION",
+	'worldSpace: true',
+	'geometryUnchanged: true',
+	'sourceMapsPreserved: true',
+	'sourceUvsPreserved: true',
+	'canonicalTerrainReadOnly: true',
+	'canonicalHydrologyReadOnly: true',
+	'canonicalColliderReadOnly: true',
+	'usesIrregularBoundaryDetail: true',
+	'worldAssetSurfaceFabricFbm',
+	'worldAssetSurfaceFabricRoughPattern',
 ]);
 
 requireTokens(water, 'coast breaker contract', [
@@ -56,12 +78,7 @@ requireTokens(roads, 'road shoulder contract', [
 	'run177IrregularShoulder',
 ]);
 
-for (const [label, source] of [['terrain', terrain], ['water', water], ['roads', roads]]) {
-	if (label === 'roads') {
-		const roadSurface = source.slice(source.indexOf('// RUN 177'));
-		if (roadSurface.includes('Math.random(')) throw new Error('[checkCinematicGeographyRealism] road material became nondeterministic');
-		continue;
-	}
+for (const [label, source] of [['terrain', terrain], ['water', water], ['roads', roads], ['transition-detail', ecologyDetail], ['surface-fabric', surfaceFabric]]) {
 	if (source.includes('Math.random(')) throw new Error(`[checkCinematicGeographyRealism] ${label} became nondeterministic`);
 }
 
@@ -74,6 +91,8 @@ if (!roads.includes('extraDrawCalls: 0')) {
 if (!terrain.includes('cpuVertexPassesAdded: 0')) {
 	throw new Error('[checkCinematicGeographyRealism] terrain realism added a second CPU vertex pass');
 }
+if (!surfaceFabric.includes('newGeographyIntroduced: false')) {
+	throw new Error('[checkCinematicGeographyRealism] asset surface fabric is no longer geography-neutral');
+}
 
-console.log('[checkCinematicGeographyRealism] PASS: slope/aspect/shelter terrain, bathymetry-directed irregular surf, and eroded road shoulders remain deterministic and render-only.');
-
+console.log('[checkCinematicGeographyRealism] PASS: owner-map terrain, deterministic irregular world-space transitions, bathymetry-directed surf, and eroded road shoulders remain render-only.');

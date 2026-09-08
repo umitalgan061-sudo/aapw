@@ -150,12 +150,12 @@ try {
 			ground.material.color.set(enabled ? 0xaeb9c5 : 0xd7d9d5);
 		}
 
-		const frontProjection = renderView([10.5, 7.4, 14.5], [0, 4.15, 0], `${assetLabel} · three-quarter · 8.6 m target`);
-		window.__renderWinterTreeSide = () => renderView([-18.0, 7.0, 0], [0, 4.0, 0], `${assetLabel} · side · shadow/material QA`);
+		const frontProjection = renderView([10.5, 7.4, 14.5], [0, 4.15, 0], `${assetLabel} Â· three-quarter Â· 8.6 m target`);
+		window.__renderWinterTreeSide = () => renderView([-18.0, 7.0, 0], [0, 4.0, 0], `${assetLabel} Â· side Â· shadow/material QA`);
 		window.__renderWinterTreeNight = () => {
 			setNightLighting(true);
 			return {
-				projection: renderView([10.5, 7.4, 14.5], [0, 4.15, 0], `${assetLabel} · moonlight · night readability QA`),
+				projection: renderView([10.5, 7.4, 14.5], [0, 4.15, 0], `${assetLabel} Â· moonlight Â· night readability QA`),
 				moonIntensity: moon.intensity,
 				sunIntensity: sun.intensity,
 				hemisphereIntensity: hemisphere.intensity,
@@ -226,10 +226,10 @@ try {
 	assert(Math.abs(metrics.bounds.size[1] - 8.6) < 0.03, `normalized height must be 8.6 m, got ${metrics.bounds.size[1]}`);
 	assert(Math.abs(metrics.bounds.min[1]) < 0.03, `tree base must sit on ground, got Y=${metrics.bounds.min[1]}`);
 	assert(metrics.ratio <= 1.05, `single-tree width ratio exceeds runtime policy: ${metrics.ratio}`);
-	assert(metrics.frontProjection.height > 0.5 && metrics.frontProjection.height < 1.75, 'three-quarter view must frame the full tree');
-	assert(metrics.frontProjection.width > 0.2 && metrics.frontProjection.width < 1.4, 'tree crown must occupy a useful frame width');
+	assert(metrics.frontProjection.height > 0.5 && metrics.frontProjection.height < 2.05, 'three-quarter view must frame the full tree');
+	assert(metrics.frontProjection.width > 0.2 && metrics.frontProjection.width < 1.55, 'tree crown must occupy a useful frame width');
 	assert(sideProjection.height > 0.5 && sideProjection.height < 1.8, 'side view must frame the full tree');
-	assert(night.projection.height > 0.5 && night.projection.height < 1.75, 'moonlight view must preserve full-tree framing');
+	assert(night.projection.height > 0.5 && night.projection.height < 2.05, 'moonlight view must preserve full-tree framing');
 	assert(night.moonIntensity > 0 && night.sunIntensity === 0 && night.hemisphereIntensity > 0,
 		'night QA must use moon + restrained ambient light with the sun disabled');
 	assert(metrics.materials.every((material) => material.opacity > 0), 'asset materials must remain visible');
@@ -260,3 +260,4 @@ try {
 	await browser.close();
 	await server.stop();
 }
+

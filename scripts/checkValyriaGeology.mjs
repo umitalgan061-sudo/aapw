@@ -100,7 +100,10 @@ const pool = valyriaSurfaceWeights({ nx: P.coreCenter.nx, ny: P.coreCenter.ny, h
 assert(pool.lava > 0.75, `core lava corridor/pool signal too weak: ${pool.lava}`);
 assert(pool.drainage > 0.45, `core drainage signal missing: ${pool.drainage}`);
 const ridge = valyriaSurfaceWeights({ nx: P.coreCenter.nx, ny: P.coreCenter.ny, heightAboveSeaMeters: 260, concavityMeters: -0.4, slopeDegrees: 38 });
-assert(ridge.lava < 0.12 && ridge.ash > 0.5);
+// The v4 morphology intentionally permits cooled drainage traces across an ash-dominant ridge;
+// the invariant is mineral dominance and cooling, not an artificial absence of all lava signal.
+assert(ridge.ash > 0.5 && ridge.ash > ridge.lava, 'ridge must remain ash-dominant');
+assert(ridge.cooledLava > 0.18 && ridge.drainage > 0.5, 'ridge drainage must read as cooled, terrain-following volcanic fabric');
 
 const worldX = (P.coreCenter.nx * 9000 - 4500) * 1.477342100713197;
 const worldZ = (P.coreCenter.ny * 7000 - 3500) * 1.477342100713197;

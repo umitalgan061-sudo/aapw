@@ -27,11 +27,22 @@ import {
 	TERRAIN_MICRO_SURFACE_POLICY,
 	terrainMicroUvAt,
 } from '../src/3d/world/terrainMicroSurface.js';
+import { NATURAL_SURFACE_MATERIAL_POLICY } from '../src/3d/world/naturalSurfaceMaterial.js';
+import {
+	VALYRIA_GEOLOGY_POLICY,
+	applyValyriaSurfaceColorAtWorldXZ,
+} from '../src/3d/world/valyriaGeology.js';
 import {
 	northClimateWeightsAtWorldXZ,
 	resolveTerrainBiomeColor,
 	slopeDegreesFromNeighbours,
+	terrainConcavityMetersFromNeighbours,
 } from '../src/3d/world/terrainBiomeShading.js';
+import {
+	createNaturalGeology,
+	NATURAL_GEOLOGY_RENDER_POLICY,
+} from '../src/3d/world/naturalGeology.js';
+import { KINGDOM_SEATS, mapToWorldXZ } from '../src/3d/world/settlements.js';
 import { sampleReferencePindexQualityV2 } from '../src/3d/world/worldReferenceSurfacePindexes.js';
 import {
 	applyRuntimePindexTerrainPolishToMesh,
@@ -47,6 +58,7 @@ import {
 import { createWaterDepthField } from '../src/3d/world/waterDepthField.js';
 
 const params = new URLSearchParams(location.search);
+const focus = params.get('focus') === 'valyria' ? 'valyria' : 'world';
 const width = Math.max(640, Number(params.get('width')) || 1600);
 const height = Math.max(480, Number(params.get('height')) || 1100);
 const segmentsX = Math.max(80, Number(params.get('segments')) || 240);
@@ -97,7 +109,7 @@ let northIceMax = 0;
 let northIceActiveSamples = 0;
 let northIceSamples = 0;
 
-for (let index = 0; index < positions.count; index++) {
+for (let index = 0; index < positions.count; index += 1) {
 	const worldX = positions.getX(index);
 	const worldZ = positions.getZ(index);
 	const surface = {};
@@ -113,6 +125,13 @@ for (let index = 0; index < positions.count; index++) {
 	const north = sampleHeight(worldX, worldZ - slopeSpacing);
 	const south = sampleHeight(worldX, worldZ + slopeSpacing);
 	const slopeDegrees = slopeDegreesFromNeighbours(west, east, north, south, slopeSpacing);
+	const terrainConcavityMeters = terrainConcavityMetersFromNeighbours(
+		terrainHeight,
+		west,
+		east,
+		north,
+		south,
+	);
 	resolveTerrainBiomeColor(scratchColor, {
 		heightAboveSeaMeters: terrainHeight - seaLevel,
 		slopeDegrees,
@@ -120,6 +139,16 @@ for (let index = 0; index < positions.count; index++) {
 		snowWeight: surface.snowWeight ?? 0,
 		worldX,
 		worldZ,
+		terrainConcavityMeters,
+	});
+	// Production terrain applies the shared Valyria lithology after biome colour. The proof harness
+	// must preserve that ordering or its regional screenshot is not evidence for the shipped surface.
+	applyValyriaSurfaceColorAtWorldXZ(scratchColor, {
+		worldX,
+		worldZ,
+		heightAboveSeaMeters: terrainHeight - seaLevel,
+		concavityMeters: terrainConcavityMeters,
+		slopeDegrees,
 	});
 	colors[index * 3] = scratchColor.r;
 	colors[index * 3 + 1] = scratchColor.g;
@@ -140,14 +169,14 @@ for (let index = 0; index < positions.count; index++) {
 			dominantWeight = weight;
 		}
 	}
-	surfaceCounts[dominant]++;
+	surfaceCounts[dominant] += 1;
 
 	if (ny <= 0.22) {
 		const permanentIce = northClimateWeightsAtWorldXZ(worldX, worldZ).permanentIce;
 		northIceSum += permanentIce;
 		northIceMax = Math.max(northIceMax, permanentIce);
-		if (permanentIce >= 0.5) northIceActiveSamples++;
-		northIceSamples++;
+		if (permanentIce >= 0.5) northIceActiveSamples += 1;
+		northIceSamples += 1;
 	}
 }
 terrainGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
@@ -162,6 +191,36 @@ applyTerrainMicroSurface(terrainMaterial);
 const terrain = new THREE.Mesh(terrainGeometry, terrainMaterial);
 const runtimeTerrainPolish = applyRuntimePindexTerrainPolishToMesh(terrain);
 scene.add(terrain);
+
+// The previous full-world proof rendered only terrain and water even though the workflow was named
+// Natural Geology Visual Proof. Render the deterministic shipped fallback meshes too. Asset hydration
+// is covered separately because CI intentionally checks out LFS pointers; placement/grounding QA owns
+// road exclusions, while this scene proves the actual outcrop materials and geometry compile/render.
+const qaSeats = KINGDOM_SEATS.map((seat) => {
+	const point = mapToWorldXZ(
+		seat.mapX,
+		seat.mapY,
+		WORLD_SCALE.MAP_BOUNDS,
+		WORLD_SCALE.METERS_PER_MAP_UNIT,
+	);
+	return Object.freeze({
+		id: seat.id,
+		x: point.x,
+		z: point.z,
+		groundY: sampleHeight(point.x, point.z),
+	});
+});
+const naturalGeologyResult = createNaturalGeology({
+	sampleHeightMeters: sampleHeight,
+	seaLevelMeters: seaLevel,
+	seed: WORLD_DEFAULTS.WORLD_SEED,
+	seats: qaSeats,
+	roadEdges: [],
+	worldWidthMeters: worldWidth,
+	worldDepthMeters: worldDepth,
+	isMobileClass: false,
+});
+scene.add(naturalGeologyResult.group);
 
 const depthField = createWaterDepthField({
 	sampleHeightMeters: sampleHeight,
@@ -193,11 +252,30 @@ for (const worldX of [-worldWidth / 2, worldWidth / 2]) {
 const frameMargin = 1.06;
 const fittedHalfHeight = Math.max(requiredHalfHeight * frameMargin, requiredHalfWidth * frameMargin / aspect);
 const fittedHalfWidth = fittedHalfHeight * aspect;
+let activeHalfHeight = fittedHalfHeight;
+let activeHalfWidth = fittedHalfWidth;
 camera.left = -fittedHalfWidth;
 camera.right = fittedHalfWidth;
 camera.top = fittedHalfHeight;
 camera.bottom = -fittedHalfHeight;
 camera.updateProjectionMatrix();
+
+if (focus === 'valyria') {
+	const focusX = (VALYRIA_GEOLOGY_POLICY.coreCenter.nx - 0.5) * worldWidth;
+	const focusZ = (VALYRIA_GEOLOGY_POLICY.coreCenter.ny - 0.5) * worldDepth;
+	const regionalHalfHeight = 1080;
+	activeHalfHeight = regionalHalfHeight;
+	activeHalfWidth = regionalHalfHeight * aspect;
+	camera.position.set(focusX - 860, 2680, focusZ + 1180);
+	camera.up.set(0, 1, 0);
+	camera.lookAt(focusX, seaLevel + 95, focusZ);
+	camera.left = -regionalHalfHeight * aspect;
+	camera.right = regionalHalfHeight * aspect;
+	camera.top = regionalHalfHeight;
+	camera.bottom = -regionalHalfHeight;
+	camera.updateMatrixWorld(true);
+	camera.updateProjectionMatrix();
+}
 
 updateWater(water, camera.position, 0);
 renderer.render(scene, camera);
@@ -209,8 +287,23 @@ const meanHeight = heightSum / sampleCount;
 const heightVariance = Math.max(0, heightSquaredSum / sampleCount - meanHeight * meanHeight);
 const deepOceanBackdrop = water.userData.deepOceanBackdrop;
 const deepOceanBackdropWorldY = water.position.y + (deepOceanBackdrop?.position.y ?? 0);
+const geologyPlacements = naturalGeologyResult.placements ?? [];
+const geologyAssetProxyCount = geologyPlacements.filter((placement) => placement.kind === 'asset-proxy').length;
+const geologyValyriaPlacementCount = geologyPlacements.filter((placement) => placement.volcanic).length;
+const geologyKindCounts = {};
+const geologyValyriaKindCounts = {};
+for (const placement of geologyPlacements) {
+	geologyKindCounts[placement.kind] = (geologyKindCounts[placement.kind] ?? 0) + 1;
+	if (placement.volcanic) geologyValyriaKindCounts[placement.kind] = (geologyValyriaKindCounts[placement.kind] ?? 0) + 1;
+}
+const geologyRenderedInstanceCount = naturalGeologyResult.group.children.reduce(
+	(sum, child) => sum + (child?.isInstancedMesh ? child.count : 0),
+	0,
+);
+
 window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
 	status: 'ready',
+	focus,
 	width,
 	height,
 	segmentsX,
@@ -227,6 +320,11 @@ window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
 	northPermanentIceActiveSamples: northIceActiveSamples,
 	terrainSurfaceRealism: Object.freeze({
 		policyId: TERRAIN_MICRO_SURFACE_POLICY.id,
+		naturalSurfaceMaterialPolicyId: NATURAL_SURFACE_MATERIAL_POLICY.id,
+		valyriaWorldSpacePbr: NATURAL_SURFACE_MATERIAL_POLICY.worldSpaceAlbedoVariation,
+		valyriaProductionVertexColorParity: true,
+		canonicalHeightUnchanged: NATURAL_SURFACE_MATERIAL_POLICY.canonicalHeightUnchanged,
+		canonicalHydrologyUnchanged: NATURAL_SURFACE_MATERIAL_POLICY.canonicalHydrologyUnchanged,
 		runtimePindexPolicyId: RUNTIME_PINDEX_TERRAIN_POLISH_POLICY.id,
 		runtimePindexChangedVertices: runtimeTerrainPolish.changedVertices ?? null,
 		runtimePindexDetailTouchedVertices: runtimeTerrainPolish.detailTouchedVertices ?? null,
@@ -236,10 +334,35 @@ window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
 		naturalAlbedoRemap: TERRAIN_MICRO_SURFACE_POLICY.naturalAlbedoRemap,
 		regionalMoistureVariation: TERRAIN_MICRO_SURFACE_POLICY.regionalMoistureVariation,
 		elevationWeathering: TERRAIN_MICRO_SURFACE_POLICY.elevationWeathering,
+		snowGranularAlbedo: TERRAIN_MICRO_SURFACE_POLICY.snowGranularAlbedo,
+		snowMicroNormal: TERRAIN_MICRO_SURFACE_POLICY.snowMicroNormal,
+		snowRoughnessVariation: TERRAIN_MICRO_SURFACE_POLICY.snowRoughnessVariation,
+		snowSurfaceScaleMeters: TERRAIN_MICRO_SURFACE_POLICY.snowSurfaceScaleMeters,
 		coastalIntertidalBreakup: TERRAIN_MICRO_SURFACE_POLICY.coastalIntertidalBreakup,
 		coastalSaltSprayWeathering: TERRAIN_MICRO_SURFACE_POLICY.coastalSaltSprayWeathering,
 		coastalRoughnessResponse: TERRAIN_MICRO_SURFACE_POLICY.coastalRoughnessResponse,
 		uvChannel: TERRAIN_MICRO_SURFACE_POLICY.uvChannel,
+	}),
+	naturalGeology: Object.freeze({
+		policyId: NATURAL_GEOLOGY_RENDER_POLICY.id,
+		inScene: naturalGeologyResult.group.parent === scene,
+		placementCount: geologyPlacements.length,
+		valyriaPlacementCount: geologyValyriaPlacementCount,
+		assetProxyCount: geologyAssetProxyCount,
+		renderedInstanceCount: geologyRenderedInstanceCount,
+		groupChildCount: naturalGeologyResult.group.children.length,
+		assetState: naturalGeologyResult.group.userData.naturalGeology?.assetState ?? null,
+		worldSpaceRockWeathering: naturalGeologyResult.group.userData.naturalGeology?.worldSpaceRockWeathering === true,
+		deterministicMineralFacetSeparation: naturalGeologyResult.group.userData.naturalGeology?.deterministicMineralFacetSeparation === true,
+		volcanicFallbackMaterialIsolation: naturalGeologyResult.group.userData.naturalGeology?.volcanicFallbackMaterialIsolation === true,
+		smallFallbackShadowSuppression: naturalGeologyResult.group.userData.naturalGeology?.smallFallbackShadowSuppression === true,
+		roundedBoulderNormalResponse: naturalGeologyResult.group.userData.naturalGeology?.roundedBoulderNormalResponse === true,
+		volcanicFallbackSmoothedLightingNormals: naturalGeologyResult.group.userData.naturalGeology?.volcanicFallbackSmoothedLightingNormals === true,
+		volcanicFallbackCalibratedBasaltReflectance: naturalGeologyResult.group.userData.naturalGeology?.volcanicFallbackCalibratedBasaltReflectance === true,
+		kindCounts: Object.freeze({ ...geologyKindCounts }),
+		valyriaKindCounts: Object.freeze({ ...geologyValyriaKindCounts }),
+		visualProofUsesDeterministicFallback: true,
+		roadExclusionGeometryCoveredBySeparateContract: true,
 	}),
 	waterDepthField: Object.freeze({
 		resolution: depthField.resolution,
@@ -251,12 +374,12 @@ window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
 		nearDepthWrite: water.material.depthWrite,
 		farDepthWrite: water.userData.farWater?.material?.depthWrite ?? null,
 		farRenderOrder: water.userData.farWater?.renderOrder ?? null,
-		farLocalY: water.userData.farWater?.position?.y ?? null,
+		farLocalY: water.userData.farWater?.position.y ?? null,
 		deepBackdropDepthWrite: deepOceanBackdrop?.material?.depthWrite ?? null,
 		deepBackdropOpaque: deepOceanBackdrop?.material?.transparent === false,
 		deepBackdropFog: deepOceanBackdrop?.material?.fog ?? null,
 		deepBackdropRenderOrder: deepOceanBackdrop?.renderOrder ?? null,
-		deepBackdropLocalY: deepOceanBackdrop?.position?.y ?? null,
+		deepBackdropLocalY: deepOceanBackdrop?.position.y ?? null,
 		deepBackdropWorldY: deepOceanBackdropWorldY,
 		deepBackdropExtentMeters: WATER_DEEP_OCEAN_BACKDROP_EXTENT_METERS,
 		nearWorldXZ: Object.freeze([water.position.x, water.position.z]),
@@ -268,8 +391,11 @@ window.__FULL_WORLD_3D_TOPDOWN__ = Object.freeze({
 		frameMargin,
 		fittedHalfWidth,
 		fittedHalfHeight,
+		activeHalfWidth,
+		activeHalfHeight,
 	}),
 });
 </script>
 </body>
 </html>
+

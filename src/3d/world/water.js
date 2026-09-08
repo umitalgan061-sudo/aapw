@@ -32,10 +32,14 @@ export const WAVE_TOTAL_AMPLITUDE_METERS = SWELL_COMPONENTS.reduce((sum, [, ampl
 export const WATER_OFFSHORE_OPTICAL_GAIN = 0.82;
 
 export const WATER_SURFACE_VARIATION_POLICY = Object.freeze({
-	id: 'water-world-surface-variation-2026-08-27-v3-readable-current-shear',
+	id: 'water-world-surface-variation-2026-09-01-v4-depth-field-edge-feather',
 	renderOnly: true,
 	canonicalDepthUnchanged: true,
 	canonicalCoverageUnchanged: true,
+	depthFieldBoundaryFeatherUv: 0.018,
+	coverageChannelUnchangedAtBoundary: true,
+	farLayerGeometricSwellDisabled: true,
+	farLayerTriangleSeamPrevented: true,
 	macroScaleMeters: 3300,
 	mesoScaleMeters: 1180,
 	fineScaleMeters: 390,
@@ -118,17 +122,24 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 	varying vec2 vSwellSlope;
 	#include <fog_pars_fragment>
 
+	float depthFieldBoundaryBlend(vec2 uv) {
+		float edgeDistance = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y));
+		return smoothstep(0.0, ${WATER_SURFACE_VARIATION_POLICY.depthFieldBoundaryFeatherUv.toFixed(4)}, edgeDistance);
+	}
+
 	vec2 sampleWaterField(vec2 worldXZ) {
 		vec2 uv = worldXZ / uDepthFieldExtentMeters + 0.5;
 		if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return vec2(1.0, 1.0);
 		vec4 field = texture2D(uDepthMap, uv);
-		return field.rg;
+		float boundaryBlend = depthFieldBoundaryBlend(uv);
+		return vec2(mix(1.0, field.r, boundaryBlend), field.g);
 	}
 
 	float sampleOffshoreOptical(vec2 worldXZ) {
 		vec2 uv = worldXZ / uDepthFieldExtentMeters + 0.5;
 		if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 1.0;
-		return texture2D(uOffshoreMap, uv).r;
+		float offshore = texture2D(uOffshoreMap, uv).r;
+		return mix(1.0, offshore, depthFieldBoundaryBlend(uv));
 	}
 
 	float sampleFragmentDepth(vec2 worldXZ) {
@@ -231,6 +242,9 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float clearCoastMask = clearShallowBand * smoothstep(0.08, 0.74, offshoreOptical);
 		float offshoreGain = offshoreOptical * (1.0 - fragmentDepth) * ${WATER_OFFSHORE_OPTICAL_GAIN.toFixed(2)};
 		float deepMarineMask = smoothstep(0.54, 0.96, fragmentDepth) * smoothstep(0.42, 0.94, offshoreOptical);
+		float aerialOffshoreMask = smoothstep(0.24, 0.82, offshoreOptical) * smoothstep(0.035, 0.22, fragmentDepth);
+		float aerialMarineMask = max(deepMarineMask, aerialOffshoreMask);
+		float shallowOffshoreFabricMask = clamp(aerialMarineMask - deepMarineMask, 0.0, 1.0);
 		float oceanFabric = openOceanSurfaceFabric(vWorldPosition.xz);
 		float oceanShear = openOceanCurrentShear(vWorldPosition.xz, uTime);
 
@@ -240,6 +254,8 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float microSlopeFade = mix(0.28, 1.0, 1.0 - smoothstep(420.0, 2200.0, cameraDistance));
 		vec2 slope = vSwellSlope * swellShadingFade + rippleSlope(vWorldPosition.xz, uTime) * rippleFade;
 		slope += openOceanMicroSlope(vWorldPosition.xz, uTime, oceanShear) * microSlopeFade * deepMarineMask;
+		slope += openOceanMicroSlope(vWorldPosition.xz + vec2(173.0, -91.0), uTime * 0.67, -oceanShear)
+			* microSlopeFade * shallowOffshoreFabricMask * 0.58;
 		vec3 normal = normalize(vec3(-slope.x, 1.0, -slope.y));
 		vec3 viewDir = normalize(uCameraPosition - vWorldPosition);
 
@@ -254,16 +270,40 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		vec3 referenceShoreClear = vec3(${REFERENCE_WATER_COLORS.shoreClear.r.toFixed(4)}, ${REFERENCE_WATER_COLORS.shoreClear.g.toFixed(4)}, ${REFERENCE_WATER_COLORS.shoreClear.b.toFixed(4)});
 		bodyColor = mix(bodyColor, referenceLakeClear, enclosedLakeMask * clearShallowBand * 0.34);
 		bodyColor = mix(bodyColor, referenceShoreClear, clearCoastMask * 0.24);
+		vec3 referenceIntertidalNeutral = vec3(0.145, 0.258, 0.278);
+		float intertidalNeutralMask = clearCoastMask * smoothstep(0.16, 0.72, offshoreOptical);
+		bodyColor = mix(bodyColor, referenceIntertidalNeutral, intertidalNeutralMask * 0.22);
 
 		// Deep open water gets bounded kilometre- and hectometre-scale variation independent of
 		// physical depth. Current shear is masked to boundary-connected offshore water, so enclosed
 		// lakes and the canonical shoreline remain owned by the depth/coverage textures above.
-		float deepLumaVariation = (oceanFabric * 0.085 + oceanShear * 0.060) * deepMarineMask;
+		float deepLumaVariation = (oceanFabric * 0.105 + oceanShear * 0.075) * deepMarineMask;
 		deepLumaVariation = clamp(deepLumaVariation, -${WATER_SURFACE_VARIATION_POLICY.deepColorVariationMax.toFixed(3)}, ${WATER_SURFACE_VARIATION_POLICY.deepColorVariationMax.toFixed(3)});
 		bodyColor *= 1.0 + deepLumaVariation;
 		float currentMix = clamp(0.5 + oceanFabric * 0.26 + oceanShear * 0.34, 0.0, 1.0);
 		vec3 currentTint = mix(vec3(0.018, 0.043, 0.066), vec3(0.060, 0.125, 0.148), currentMix);
-		bodyColor = mix(bodyColor, currentTint, (abs(oceanFabric) * 0.075 + abs(oceanShear) * 0.095) * deepMarineMask);
+		bodyColor = mix(bodyColor, currentTint, (abs(oceanFabric) * 0.095 + abs(oceanShear) * 0.115) * deepMarineMask);
+		float aerialOffshoreVariation = clamp(oceanFabric * 0.052 + oceanShear * 0.039,
+			-${WATER_SURFACE_VARIATION_POLICY.deepColorVariationMax.toFixed(3)}, ${WATER_SURFACE_VARIATION_POLICY.deepColorVariationMax.toFixed(3)});
+		bodyColor *= 1.0 + aerialOffshoreVariation * shallowOffshoreFabricMask;
+		bodyColor = mix(bodyColor, currentTint,
+			(abs(oceanFabric) * 0.052 + abs(oceanShear) * 0.064) * shallowOffshoreFabricMask);
+		float aerialOceanPatch = waterSurfaceNoise(vWorldPosition.xz / 780.0 + vec2(9.4, -16.8)) * 2.0 - 1.0;
+		float aerialOceanCrossCurrent = waterSurfaceNoise(mat2(0.62, -0.78, 0.78, 0.62) * vWorldPosition.xz / 390.0 + vec2(-21.7, 8.3)) * 2.0 - 1.0;
+		float aerialOceanRelief = clamp(aerialOceanPatch * 0.072 + aerialOceanCrossCurrent * 0.043, -0.105, 0.105);
+		bodyColor *= 1.0 + aerialOceanRelief * shallowOffshoreFabricMask;
+		bodyColor = mix(bodyColor, currentTint,
+			(abs(aerialOceanPatch) * 0.095 + abs(aerialOceanCrossCurrent) * 0.065) * shallowOffshoreFabricMask);
+		float aerialMarineSigned = clamp(aerialOceanPatch * 0.62 + aerialOceanCrossCurrent * 0.38, -1.0, 1.0);
+		vec3 aerialMarineCool = vec3(0.014, 0.034, 0.052);
+		vec3 aerialMarineWarm = vec3(0.040, 0.084, 0.101);
+		vec3 aerialMarineTint = mix(aerialMarineCool, aerialMarineWarm, aerialMarineSigned * 0.5 + 0.5);
+		bodyColor = mix(bodyColor, aerialMarineTint,
+			aerialMarineMask * (0.12 + abs(aerialMarineSigned) * 0.12));
+		float neutralCoastalWaterMask = clearCoastMask * smoothstep(0.10, 0.84, offshoreOptical);
+		vec3 neutralCoastalWater = mix(vec3(0.118, 0.214, 0.238), vec3(0.046, 0.108, 0.139),
+			smoothstep(0.12, 0.58, fragmentDepth));
+		bodyColor = mix(bodyColor, neutralCoastalWater, neutralCoastalWaterMask * 0.44);
 		vec3 nightAbsorption = vec3(0.010, 0.030, 0.052);
 		bodyColor = mix(bodyColor, bodyColor * 0.62 + nightAbsorption, clamp(uNightFactor, 0.0, 1.0) * 0.34);
 
@@ -275,12 +315,16 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float roughnessDriver = clamp(0.50 + oceanFabric * 0.24 + oceanShear * 0.28 + (localSlopeEnergy - 0.5) * 0.22, 0.0, 1.0);
 		float waterRoughness = mix(${WATER_SURFACE_VARIATION_POLICY.roughnessMin.toFixed(2)}, ${WATER_SURFACE_VARIATION_POLICY.roughnessMax.toFixed(2)}, roughnessDriver);
 		waterRoughness = mix(0.36, waterRoughness, deepMarineMask);
+		waterRoughness = mix(waterRoughness, clamp(0.20 + roughnessDriver * 0.28, 0.16, 0.48),
+			shallowOffshoreFabricMask * 0.72);
+		waterRoughness = clamp(waterRoughness + aerialOceanCrossCurrent * shallowOffshoreFabricMask * 0.045, 0.14, 0.52);
 		float specularPower = mix(132.0, 28.0, waterRoughness);
 		float specular = pow(clamp(dot(normal, halfVector), 0.0, 1.0), specularPower);
 		float specularFresnel = 0.02 + 0.98 * pow(1.0 - clamp(dot(normal, viewDir), 0.0, 1.0), 5.0);
 		float broadGlint = pow(clamp(dot(normal, halfVector), 0.0, 1.0), mix(48.0, 10.0, waterRoughness));
 		float glintField = clamp(0.5 + oceanFabric * 0.31 + oceanShear * 0.42, 0.0, 1.0);
 		float glintBreakup = smoothstep(0.18, 0.82, glintField) * deepMarineMask;
+		glintBreakup = max(glintBreakup, smoothstep(0.34, 0.78, glintField) * shallowOffshoreFabricMask * 0.62);
 		vec3 celestialSpecular = uSunColor * (specular + broadGlint * glintBreakup * 0.16) * specularFresnel * (0.12 + clamp(uSunIntensity, 0.0, 1.6) * 0.34);
 
 		float surfA = sin(dot(vWorldPosition.xz, vec2(0.018, -0.013)) + uTime * 0.55);
@@ -313,7 +357,6 @@ const WATER_FRAGMENT_SHADER = /* glsl */ `
 		float bedReadability = max(enclosedLakeMask * clearShallowBand * 0.30, clearCoastMask * 0.18);
 		alpha *= 1.0 - bedReadability;
 		alpha *= waterCoverage;
-
 		gl_FragColor = vec4(color, max(alpha, foam * 0.78));
 		#include <fog_fragment>
 	}
@@ -399,6 +442,12 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 		offshoreOpticalGain: WATER_OFFSHORE_OPTICAL_GAIN,
 		celestialSpecular: true,
 		deepMarineSurfaceVariation: WATER_SURFACE_VARIATION_POLICY.id,
+		aerialOffshoreSurfaceVariation: true,
+		physicalDepthAuthorityUnchanged: true,
+		depthFieldBoundaryOpticalFeather: true,
+		coverageChannelUnchangedAtBoundary: true,
+		farLayerGeometricSwellDisabled: true,
+		farLayerTriangleSeamPrevented: true,
 		variableRoughness: true,
 		referencePalettePolicyId: GEOGRAPHIC_REFERENCE_PALETTE_POLICY.id,
 		enclosedLakeBedReadable: true,
@@ -417,6 +466,7 @@ export function createWater(waterLevelMeters, segments = WATER_PLANE_SEGMENTS) {
 	farWater.position.y = -0.06;
 	farWater.renderOrder = -1;
 	farWater.frustumCulled = false;
+	farWater.userData.geometricSwellDisabled = true;
 	mesh.add(farWater);
 
 	const deepOceanGeometry = new THREE.PlaneGeometry(
@@ -455,7 +505,7 @@ export function setWaterDepthField(waterMesh, depthField, swellStrength = 1) {
 		uniforms.uDepthMap.value = depthField.texture;
 		uniforms.uOffshoreMap.value = depthField.offshoreTexture ?? PLACEHOLDER_OFFSHORE_TEXTURE;
 		uniforms.uDepthFieldExtentMeters.value = depthField.extentMeters;
-		uniforms.uSwellStrength.value = swellStrength;
+		uniforms.uSwellStrength.value = material === waterMesh.material ? swellStrength : 0;
 	}
 	waterMesh.userData.depthField = depthField;
 }
