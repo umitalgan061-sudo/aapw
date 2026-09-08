@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { buildLivingWorldFaunaThreatSnapshot, writeLivingWorldFaunaThreatTelemetry } from '../src/3d/gameplay/livingWorldFaunaThreatTelemetry.js';
+import { buildLivingWorldFaunaThreatSnapshot, buildLivingWorldFaunaThreatTransition, writeLivingWorldFaunaThreatTelemetry } from '../src/3d/gameplay/livingWorldFaunaThreatTelemetry.js';
 
 const make = (id, x, z, flags = {}) => ({ id, species: 'wolf', controller: { object3D: { position: { x, z }, userData: {} }, ...flags } });
 const entries = [make('far', 30, 0), make('near-react', 3, 4, { isReacting: true }), make('near-flee', 1, 1, { isFleeing: true })];
@@ -22,6 +22,11 @@ const generated = buildLivingWorldFaunaThreatSnapshot(source(), { x: 0, z: 0 }, 
 assert.equal(generated.actors.length, 2);
 assert.equal(pulled, 2);
 assert.equal(generated.truncated, true);
+const transition = buildLivingWorldFaunaThreatTransition(
+  { actors: [{ id: 'wolf-a', threat: true, inRadius: true }, { id: 'wolf-b', threat: true, inRadius: true }] },
+  { actors: [{ id: 'wolf-b', threat: true, inRadius: true }, { id: 'wolf-c', threat: true, inRadius: true }] },
+);
+assert.deepEqual(transition, { version: 1, entered: ['wolf-c'], exited: ['wolf-a'], persisted: ['wolf-b'] });
 const object3D = { userData: {} };
 assert.equal(writeLivingWorldFaunaThreatTelemetry(object3D, first), true);
 assert.deepEqual(object3D.userData.livingWorldFaunaThreat, { version: 1, threatCount: 2, fleeingCount: 1, reactingCount: 1, truncated: false });
