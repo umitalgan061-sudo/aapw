@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import { createPlayerInputParity, normalizeStick } from '../src/3d/gameplay/playerInputParity.js';
+
+const input = createPlayerInputParity({ deadzone: 0.2 });
+assert.deepEqual(normalizeStick(0.1, 0), { x: 0, y: 0 });
+input.ingestKeyboard('KeyW', true);
+assert.deepEqual(input.consumePressed(), ['moveForward']);
+assert.deepEqual(input.snapshot().held, ['moveForward']);
+input.ingestKeyboard('KeyW', false);
+input.ingestGamepad({ leftX: 2, leftY: -2, buttons: [1, 0, 0.8, 0] });
+const gamepad = input.snapshot();
+assert.deepEqual(gamepad.move, { x: 0.7071067811865475, y: -0.7071067811865475 });
+assert.deepEqual(gamepad.held, ['dodge', 'lightAttack']);
+input.ingestTouch('block', true);
+assert.equal(input.snapshot().held.includes('block'), true);
+assert.deepEqual(input.consumePressed(), ['block', 'dodge', 'heavyAttack', 'lightAttack']);
+input.ingestTouch('block', false);
+input.reset();
+assert.deepEqual(input.snapshot(), { move: { x: 0, y: 0 }, held: [], pressed: [] });
+console.log('player input parity contract: PASS');
