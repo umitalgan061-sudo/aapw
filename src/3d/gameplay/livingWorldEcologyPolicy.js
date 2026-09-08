@@ -396,7 +396,7 @@ export function planHabitatSpecies({ species = [], context = {}, seed = 0, maxSp
 		species: entry.id,
 		score: Number(entry.score.toFixed(6)),
 		activity: chooseEcologyActivity(entry.id, context, `${seed}:${entry.id}`, context.clockSeconds),
-	}))); 
+	})));
 }
 
 export function normalizeEcologyContext(context = {}) {
