@@ -199,6 +199,25 @@ for (const frameMs of [0, 5, 16.67, 16.68, 20, 33.34]) {
 	assert.equal(result.performance.withinFrameBudget, frameMs <= 16.67);
 }
 
+const alternatingTrendA = analyzeLivingWorldObservationTrend([
+	{ frameMs: 10, tickMs: 1, actors: 8, activeActors: 8, errors: 0, materialValidated: true, placementValidated: true },
+	{ frameMs: 21, tickMs: 1, actors: 8, activeActors: 8, errors: 0, materialValidated: true, placementValidated: true },
+	{ frameMs: 10, tickMs: 1, actors: 8, activeActors: 8, errors: 0, materialValidated: true, placementValidated: true },
+	{ frameMs: 21, tickMs: 1, actors: 8, activeActors: 8, errors: 0, materialValidated: true, placementValidated: true },
+], { windowId: 'alternating' });
+const alternatingTrendB = analyzeLivingWorldObservationTrend([
+	{ frameMs: 10, tickMs: 1, actors: 8, activeActors: 8, errors: 0, materialValidated: true, placementValidated: true },
+	{ frameMs: 21, tickMs: 1, actors: 8, activeActors: 8, errors: 0, materialValidated: true, placementValidated: true },
+	{ frameMs: 10, tickMs: 1, actors: 8, activeActors: 8, errors: 0, materialValidated: true, placementValidated: true },
+	{ frameMs: 21, tickMs: 1, actors: 8, activeActors: 8, errors: 0, materialValidated: true, placementValidated: true },
+], { windowId: 'alternating' });
+assert.deepEqual(alternatingTrendA, alternatingTrendB);
+assert.equal(alternatingTrendA.degrading, false);
+assert.equal(analyzeLivingWorldObservationTrend([]).reason, 'stable');
+const rejectedAcceptance = buildLivingWorldObservationAcceptance({ accepted: false, reason: 'frame-budget', digest: 'x', performance: {}, evidence: {} }, stableTrendA);
+assert.equal(rejectedAcceptance.accepted, false);
+assert.equal(rejectedAcceptance.reason, 'frame-budget');
+
 assert.equal(director.reset(), true);
 assert.equal(director.audit().tickCount, 0);
 assert.equal(director.dispose(), true);
