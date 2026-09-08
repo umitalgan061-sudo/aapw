@@ -94,4 +94,4 @@ assert.equal(director.audit().tickCount, 0);
 assert.equal(director.dispose(), true);
 assert.equal(director.tick({ deltaSeconds: 0.1 }).accepted, false);
 
-console.log(JSON.stringify({ pass: true, occupationPhase: midday.snapshot.phase, wolfGroupSize: wolfGroup.groupSize, eventsPublished: published.length, actorsUpdated: tick.actorsUpdated, evidenceDigest: runtimeEvidenceDigest(evidence), observationDigest: observation.digest, observationTrendDigest: stableTrend.digest, acceptanceDigest: directorDigest(tick) }, null, 2));
+console.log(JSON.stringify({ pass: true, occupationPhase: occupation.schedule.find((entry) => entry.startSeconds <= 46800 && 46800 < entry.endSeconds)?.phase ?? 'work', wolfGroupSize: wolfGroup.groupSize, eventsPublished: published.length, actorsUpdated: tick.actorsUpdated, evidenceDigest: runtimeEvidenceDigest(evidence), observationDigest: observation.digest, observationTrendDigest: stableTrend.digest, acceptanceDigest: directorDigest(tick) }, null, 2));
