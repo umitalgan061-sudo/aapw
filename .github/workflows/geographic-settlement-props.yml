@@ -4,6 +4,8 @@ on:
     paths:
       - 'src/3d/world/geographicSettlementProps.js'
       - 'src/3d/world/geographicSettlementPropQuality.js'
+      - 'src/3d/world/geographicSettlementPropOrientation.js'
+      - 'src/3d/world/geographicSettlementPropEnvironment.js'
       - 'src/3d/world/terrainEnvironmentVisualSampling.js'
       - 'src/3d/sceneManager.js'
       - 'scripts/checkGeographicSettlementPropsContract.mjs'
@@ -14,6 +16,8 @@ on:
       - 'scripts/checkGeographicSettlementPropGroundEvidence.mjs'
       - 'scripts/checkGeographicSettlementPropsDiversity.mjs'
       - 'scripts/checkGeographicSettlementPropPlacementOrder.mjs'
+      - 'scripts/checkGeographicSettlementPropOrientationContract.mjs'
+      - 'scripts/checkGeographicSettlementPropEnvironment.mjs'
       - 'scripts/checkTerrainEnvironmentSnowEdge.mjs'
       - 'scripts/checkTerrainEnvironmentVisualEnvelope.mjs'
       - 'scripts/geographic-settlement-props-harness.html'
@@ -35,6 +39,8 @@ jobs:
       - run: node scripts/checkGeographicSettlementPropGroundEvidence.mjs
       - run: node scripts/checkGeographicSettlementPropsDiversity.mjs
       - run: node scripts/checkGeographicSettlementPropPlacementOrder.mjs
+      - run: node scripts/checkGeographicSettlementPropOrientationContract.mjs
+      - run: node scripts/checkGeographicSettlementPropEnvironment.mjs
       - run: node scripts/checkTerrainEnvironmentSnowEdge.mjs
       - run: node scripts/checkTerrainEnvironmentVisualEnvelope.mjs
   quality-contract:
