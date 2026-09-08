@@ -40,6 +40,13 @@ function asIterable(value) {
   return [];
 }
 
+function detectionChannel(visual, hearing) {
+  if (visual > 0 && hearing > 0) return 'visual+hearing';
+  if (visual > 0) return 'visual';
+  if (hearing > 0) return 'hearing';
+  return 'none';
+}
+
 function normalizeActor(actor, index, origin, options) {
   const distance = Math.sqrt(distanceSquared(actor, origin));
   if (!Number.isFinite(distance) || distance > options.threatRadius) return null;
@@ -59,6 +66,7 @@ function normalizeActor(actor, index, origin, options) {
     confidence: Number(confidence.toFixed(4)),
     visualConfidence: Number(visual.toFixed(4)),
     hearingConfidence: Number(hearing.toFixed(4)),
+    detectionChannel: detectionChannel(visual, hearing),
     stealth: Number(stealth.toFixed(4)),
     fleeing,
     reacting,
