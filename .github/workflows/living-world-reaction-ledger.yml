@@ -9,7 +9,7 @@ on:
     paths:
       - 'src/3d/gameplay/livingWorldReactionLedger.js'
       - 'src/3d/gameplay/livingWorldReactionProjection.js'
-      - 'scripts/checkLivingWorldReactionLedger.mjs'
+      - 'scripts/checkLivingWorldReactionLedgerContract.mjs'
       - 'scripts/checkLivingWorldReactionProjection.mjs'
       - '.github/workflows/living-world-reaction-ledger.yml'
   workflow_dispatch:
@@ -44,11 +44,11 @@ jobs:
           set -euo pipefail
           node --check src/3d/gameplay/livingWorldReactionLedger.js
           node --check src/3d/gameplay/livingWorldReactionProjection.js
-          node --check scripts/checkLivingWorldReactionLedger.mjs
+          node --check scripts/checkLivingWorldReactionLedgerContract.mjs
           node --check scripts/checkLivingWorldReactionProjection.mjs
 
       - name: Run ledger contract
-        run: node scripts/checkLivingWorldReactionLedger.mjs
+        run: node scripts/checkLivingWorldReactionLedgerContract.mjs
 
       - name: Run projection contract
         run: node scripts/checkLivingWorldReactionProjection.mjs
@@ -57,8 +57,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          first_ledger="$(node scripts/checkLivingWorldReactionLedger.mjs)"
-          second_ledger="$(node scripts/checkLivingWorldReactionLedger.mjs)"
+          first_ledger="$(node scripts/checkLivingWorldReactionLedgerContract.mjs)"
+          second_ledger="$(node scripts/checkLivingWorldReactionLedgerContract.mjs)"
           test "$first_ledger" = "$second_ledger"
           first_projection="$(node scripts/checkLivingWorldReactionProjection.mjs)"
           second_projection="$(node scripts/checkLivingWorldReactionProjection.mjs)"
@@ -76,7 +76,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "LIVING_WORLD_REACTION_LEDGER_POLICY=${{ github.sha }}"
+          echo "candidate=${{ github.sha }}"
           echo "ledger_contract=PASS"
           echo "projection_contract=PASS"
           echo "determinism_replay=PASS"
