@@ -20,6 +20,7 @@ on:
       - 'scripts/checkTerrainGroundContext.mjs'
       - 'scripts/checkTerrainGroundContextProfiles.mjs'
       - 'scripts/checkTerrainEnvironmentEcotone.mjs'
+      - 'scripts/checkTerrainWindSnowContinuityRegression.mjs'
       - 'scripts/checkWorldEnvironmentAcceptanceMatrix.mjs'
       - '.github/workflows/buzul-muhafizi-snow-relief.yml'
   workflow_dispatch:
@@ -54,7 +55,7 @@ jobs:
           git diff --check "$LIVE_MAIN_SHA...HEAD"
           git diff --name-only "$LIVE_MAIN_SHA...HEAD" | while IFS= read -r path; do
             case "$path" in
-              src/3d/world/terrainWindSnowExposure.js|src/3d/world/terrainWindSnowSurfaceFabric.js|src/3d/world/terrainWindSnowRuntimeGuard.js|src/3d/world/terrainGroundContext.js|src/3d/world/terrainGroundContextProfiles.js|src/3d/world/terrainEnvironmentEcotone.js|scripts/checkTerrainWindSnowExposure.mjs|scripts/checkTerrainWindSnowOrographicFold.mjs|scripts/checkTerrainWindSnowFieldMatrix.mjs|scripts/checkTerrainWindSnowRuntimeParity.mjs|scripts/checkTerrainWindSnowReferenceFieldSweep.mjs|scripts/checkTerrainWindSnowVisualEnvelope.mjs|scripts/checkTerrainWindSnowEdgeCases.mjs|scripts/checkTerrainGroundContext.mjs|scripts/checkTerrainGroundContextProfiles.mjs|scripts/checkTerrainEnvironmentEcotone.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix.mjs|.github/workflows/buzul-muhafizi-snow-relief.yml) ;;
+              src/3d/world/terrainWindSnowExposure.js|src/3d/world/terrainWindSnowSurfaceFabric.js|src/3d/world/terrainWindSnowRuntimeGuard.js|src/3d/world/terrainGroundContext.js|src/3d/world/terrainGroundContextProfiles.js|src/3d/world/terrainEnvironmentEcotone.js|scripts/checkTerrainWindSnowExposure.mjs|scripts/checkTerrainWindSnowOrographicFold.mjs|scripts/checkTerrainWindSnowFieldMatrix.mjs|scripts/checkTerrainWindSnowRuntimeParity.mjs|scripts/checkTerrainWindSnowReferenceFieldSweep.mjs|scripts/checkTerrainWindSnowVisualEnvelope.mjs|scripts/checkTerrainWindSnowEdgeCases.mjs|scripts/checkTerrainGroundContext.mjs|scripts/checkTerrainGroundContextProfiles.mjs|scripts/checkTerrainEnvironmentEcotone.mjs|scripts/checkTerrainWindSnowContinuityRegression.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix.mjs|.github/workflows/buzul-muhafizi-snow-relief.yml) ;;
               *) echo "Unexpected path outside snow relief production slice: $path"; exit 1 ;;
             esac
           done
@@ -73,7 +74,7 @@ jobs:
           node --check src/3d/world/terrainGroundContext.js
           node --check src/3d/world/terrainGroundContextProfiles.js
           node --check src/3d/world/terrainEnvironmentEcotone.js
-          for file in scripts/checkTerrainWindSnowExposure.mjs scripts/checkTerrainWindSnowOrographicFold.mjs scripts/checkTerrainWindSnowFieldMatrix.mjs scripts/checkTerrainWindSnowRuntimeParity.mjs scripts/checkTerrainWindSnowReferenceFieldSweep.mjs scripts/checkTerrainWindSnowVisualEnvelope.mjs scripts/checkTerrainWindSnowEdgeCases.mjs scripts/checkTerrainGroundContext.mjs scripts/checkTerrainGroundContextProfiles.mjs scripts/checkTerrainEnvironmentEcotone.mjs; do node --check "$file"; done
+          for file in scripts/checkTerrainWindSnowExposure.mjs scripts/checkTerrainWindSnowOrographicFold.mjs scripts/checkTerrainWindSnowFieldMatrix.mjs scripts/checkTerrainWindSnowRuntimeParity.mjs scripts/checkTerrainWindSnowReferenceFieldSweep.mjs scripts/checkTerrainWindSnowVisualEnvelope.mjs scripts/checkTerrainWindSnowEdgeCases.mjs scripts/checkTerrainGroundContext.mjs scripts/checkTerrainGroundContextProfiles.mjs scripts/checkTerrainEnvironmentEcotone.mjs scripts/checkTerrainWindSnowContinuityRegression.mjs; do node --check "$file"; done
       - name: Directional snow contract
         run: node scripts/checkTerrainWindSnowExposure.mjs
       - name: Orographic fold contract
@@ -94,6 +95,8 @@ jobs:
         run: node scripts/checkTerrainGroundContextProfiles.mjs
       - name: Environment ecotone contract
         run: node scripts/checkTerrainEnvironmentEcotone.mjs
+      - name: Continuity regression matrix
+        run: node scripts/checkTerrainWindSnowContinuityRegression.mjs
       - name: Install Playwright Chromium for shipped runtime proof
         shell: bash
         run: |
