@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {
   buyItem, completeQuestObjective, craftItem, createRpgSettlementState,
   loadRpgState, saveRpgState, useService
-} from '../gameplay/rpgSettlementSlice.js';
+} from '../gameplay/rpgSettlementSlice.mjs';
 
 const state = createRpgSettlementState('proof-seed');
 assert.equal(state.location, 'winterfell');
