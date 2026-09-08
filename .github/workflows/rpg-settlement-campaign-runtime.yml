@@ -36,9 +36,9 @@ jobs:
           set -euo pipefail
           git fetch origin main --no-tags --prune
           BASE="$(git rev-parse origin/main)"
-          test "$(git merge-base HEAD \"$BASE\")" = "$BASE"
-          ADDS="$(git diff --numstat \"$BASE...HEAD\" | awk '{a+=$1} END {print a+0}')"
-          DELS="$(git diff --numstat \"$BASE...HEAD\" | awk '{d+=$2} END {print d+0}')"
+          test "$(git merge-base HEAD "$BASE")" = "$BASE"
+          ADDS="$(git diff --numstat "$BASE...HEAD" | awk '{a+=$1} END {print a+0}')"
+          DELS="$(git diff --numstat "$BASE...HEAD" | awk '{d+=$2} END {print d+0}')"
           TOTAL=$((ADDS+DELS))
           test "$TOTAL" -le 3000
           git diff --check "$BASE...HEAD"
@@ -47,17 +47,22 @@ jobs:
       - name: Node and runtime syntax
         run: |
           set -euo pipefail
-          node --check src/3d/gameplay/settlementCampaignContent.js
-          node --check src/3d/gameplay/settlementCampaignRuntime.js
-          node --check src/3d/gameplay/settlementCampaignEventBridge.js
-          node --check src/3d/gameplay/settlementCampaignSaveAdapter.js
-          node --check src/3d/gameplay/settlementCampaignUiModel.js
-          node --check scripts/checkSettlementCampaignRuntime.mjs
-          node --check scripts/checkSettlementCampaignBrowser.mjs
-          node --check scripts/checkSettlementCampaignEventBridge.mjs
+          for file in src/3d/gameplay/settlementCampaign*.js scripts/checkSettlementCampaign*.mjs; do node --check "$file"; done
 
       - name: Content and runtime executable regression
         run: node scripts/checkSettlementCampaignRuntime.mjs
+
+      - name: Contract and authoring regression
+        run: |
+          set -euo pipefail
+          node scripts/checkSettlementCampaignContracts.mjs
+          node scripts/checkSettlementCampaignAuthoring.mjs
+          node scripts/checkSettlementCampaignDeepSlice.mjs
+          node scripts/checkSettlementCampaignQuestChains.mjs
+          node scripts/checkSettlementCampaignEquipment.mjs
+          node scripts/checkSettlementCampaignAssetEvidence.mjs
+          node scripts/checkSettlementCampaignNavigation.mjs
+          node scripts/checkSettlementCampaignAccessibility.mjs
 
       - name: EventBus lifecycle regression
         run: node scripts/checkSettlementCampaignEventBridge.mjs
@@ -82,6 +87,21 @@ jobs:
           assert.equal(restoreSettlementCampaignSavePayload(runtime, saved.payload).ok, true);
           assert.equal(migrateSettlementCampaignSave({ schema:0, panel:'quests' }).migrated, true);
           console.log('SETTLEMENT_CAMPAIGN_SAVE_OK');
+          NODE
+
+      - name: Save slot and feedback/accessibility contract
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { buildSettlementSaveSlotList, serializeSettlementSaveSlots, parseSettlementSaveSlots, selectSettlementSaveSlot } from './src/3d/gameplay/settlementCampaignSaveSlots.js';
+          import { normalizeSettlementFeedback, validateSettlementFeedback, buildSettlementFeedbackPanel } from './src/3d/gameplay/settlementCampaignFeedback.js';
+          const slots = buildSettlementSaveSlotList([{ slotId:'slot-1', occupied:true, updatedAt:'2026-09-08T10:00:00Z', settlementId:'north-settlement' }]);
+          assert.equal(selectSettlementSaveSlot(slots,'slot-1').ok,true);
+          assert.equal(parseSettlementSaveSlots(serializeSettlementSaveSlots(slots)).ok,true);
+          const feedback = normalizeSettlementFeedback({ status:'warning', action:'travel', message:'Yorgunluk yüksek.' });
+          assert.equal(validateSettlementFeedback(feedback).ok,true);
+          assert.equal(buildSettlementFeedbackPanel([feedback]).summary.total,1);
+          console.log('SETTLEMENT_CAMPAIGN_UX_BOUNDARIES_OK');
           NODE
 
       - name: Deterministic manifest
@@ -116,7 +136,7 @@ jobs:
           set -euo pipefail
           git fetch origin main --no-tags --prune
           BASE="$(git rev-parse origin/main)"
-          test "$(git merge-base HEAD \"$BASE\")" = "$BASE"
+          test "$(git merge-base HEAD "$BASE")" = "$BASE"
           echo "FINAL_BASE=$BASE FINAL_HEAD=$(git rev-parse HEAD)"
 
       - name: Final exact diff budget
@@ -124,8 +144,8 @@ jobs:
         run: |
           set -euo pipefail
           BASE="$(git rev-parse origin/main)"
-          ADDS="$(git diff --numstat \"$BASE...HEAD\" | awk '{a+=$1} END {print a+0}')"
-          DELS="$(git diff --numstat \"$BASE...HEAD\" | awk '{d+=$2} END {print d+0}')"
+          ADDS="$(git diff --numstat "$BASE...HEAD" | awk '{a+=$1} END {print a+0}')"
+          DELS="$(git diff --numstat "$BASE...HEAD" | awk '{d+=$2} END {print d+0}')"
           TOTAL=$((ADDS+DELS))
           test "$TOTAL" -le 3000
-          echo "FINAL_CHANGED_LINES=$TOTAL"
+          echo "FINAL_CHANGED_LINES=$TOTAL adds=$ADDS deletes=$DELS"
