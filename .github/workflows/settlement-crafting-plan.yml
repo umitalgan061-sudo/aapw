@@ -1,0 +1,25 @@
+name: Settlement Crafting Plan
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementCraftingPlan.js'
+      - 'scripts/checkSettlementCraftingPlan.mjs'
+      - '.github/workflows/settlement-crafting-plan.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/settlementCraftingPlan.js'
+      - 'scripts/checkSettlementCraftingPlan.mjs'
+      - '.github/workflows/settlement-crafting-plan.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node --check src/3d/gameplay/settlementCraftingPlan.js
+      - run: node scripts/checkSettlementCraftingPlan.mjs
