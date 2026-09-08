@@ -1,0 +1,44 @@
+name: Buzul Muhafızı Snow Relief Continuity
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/terrainSnowReliefDirector.js'
+      - 'src/3d/world/terrainSnowReliefContinuity.js'
+      - 'scripts/checkTerrainSnowReliefContinuity.mjs'
+      - '.github/workflows/buzul-muhafizi-snow-relief-continuity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  continuity-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Exact-main ancestry and bounded diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          changed=$(git diff --shortstat origin/main...HEAD | awk '{print ($4 + 0) + ($6 + 0)}')
+          test "$changed" -le 3000
+      - name: Syntax checks
+        run: |
+          node --check src/3d/world/terrainSnowReliefDirector.js
+          node --check src/3d/world/terrainSnowReliefContinuity.js
+          node --check scripts/checkTerrainSnowReliefContinuity.mjs
+      - name: Deterministic continuity contract
+        run: node scripts/checkTerrainSnowReliefContinuity.mjs
