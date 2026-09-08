@@ -5,17 +5,10 @@
  * around a terrain vertex. It never becomes a height/collider authority: it converts local aspect
  * into bounded windward scour and lee-side deposition weights that the biome shading layer can use.
  *
- * Westeros' northern mountain snow reads more naturally when exposed NW-facing slopes lose a bounded
- * share of loose surface snow while sheltered SE-facing slopes retain it. The prevailing direction is
- * explicit and deterministic so chunk borders cannot acquire random aspect seams. On real mountain
- * shoulders the effective flow bends modestly along the local contour, and strength follows distinct
- * slope bands: windward scour concentrates on exposed ridge shoulders while lee deposition concentrates
- * on moderate sheltered faces and disappears again on near-cliffs. V12 suppresses contour turning on
- * truly crosswind faces and confines the extra lee-shelter wrap to genuinely folded/broken relief, so a
- * simple planar SE slope does not pretend to be a ridge wake. Flow only wraps once terrain presents a
- * measurable source-facing component; the shelter asymmetry then grows with the existing deterministic
- * fold signal. All signals are derived solely from the existing slope/aspect stencil. This alters only
- * loose render snow; canonical snow geography, terrain height, hydrology and colliders are unchanged.
+ * The production response is intentionally split into three visible surface behaviours: exposed ridge
+ * scour, sheltered lee packing, and transitional snow mobility. All three are derived from the same
+ * canonical four-neighbour stencil so the rendered terrain, collider and gameplay sampler keep one
+ * topology. No geography, hydrology, height or asset identity is invented here.
  * @module world/terrainWindSnowExposure
  */
 
@@ -30,59 +23,42 @@ function smoothstep(edge0, edge1, value) {
 const PREVAILING_SOURCE_LENGTH = Math.hypot(0.8, 0.6);
 
 export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
-	id: 'terrain-wind-snow-exposure-2026-08-28-v12-fold-gated-lee-channeling',
+	id: 'terrain-wind-snow-exposure-2026-09-07-v13-fold-snowpack-response',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
-	// Direction points toward the source of the prevailing wind. Wind therefore travels NW -> SE.
 	prevailingSourceX: -0.8 / PREVAILING_SOURCE_LENGTH,
 	prevailingSourceZ: -0.6 / PREVAILING_SOURCE_LENGTH,
 	aspectSlopeStartDegrees: 4,
 	aspectSlopeFullDegrees: 24,
-	// Keep broad crosswind faces neutral and concentrate redistribution on terrain that actually
-	// presents itself to the prevailing flow. This avoids painting soft half-mountain snow lobes while
-	// preserving stronger, narrower scour/deposition around real ridges and sheltered folds.
 	directionalAlignmentStart: 0.34,
 	directionalAlignmentFull: 0.92,
-	// Contour turning also needs a non-trivial source-facing component. Exactly tangent relief must not
-	// rotate the authored wind into itself and manufacture directional snow; the ramp reaches full
-	// channeling well before the main alignment gate so oblique ridge shoulders still wrap naturally.
 	channelingAlignmentStart: 0.06,
 	channelingAlignmentFull: 0.28,
-	// Wind strips loose snow most visibly on genuine ridge shoulders rather than every gently tilted
-	// surface. This second slope gate narrows scour to terrain with enough relief to expose a crest,
-	// while still reaching full strength well below cliff angles.
 	windwardScourStartDegrees: 12,
 	windwardScourFullDegrees: 34,
-	// Loose lee snow needs enough slope to form a recognisable sheltered face. Tightening the ramp
-	// suppresses broad lowland directional blobs while preserving full deposition on ordinary
-	// mountain lee slopes.
 	leeCollectionStartDegrees: 10,
 	leeCollectionFullDegrees: 24,
-	// Ordinary mountain lee faces retain their full deposition signal through 42 degrees; only steeper
-	// near-cliff faces start shedding loose snow, preserving the established physical contract.
 	leeRetentionFadeStartDegrees: 42,
 	leeRetentionFadeFullDegrees: 58,
-	// Orographic wind does not stay perfectly compass-straight through broken relief. Above a genuine
-	// mountain-shoulder slope, blend a bounded share of the flow toward whichever local contour
-	// direction already points most nearly with the prevailing stream. The effect is zero on lowlands
-	// and derived solely from the canonical height stencil.
 	channelingSlopeStartDegrees: 16,
 	channelingSlopeFullDegrees: 46,
 	channelingMaxBlend: 0.28,
-	// After the prevailing flow crosses broken ridge relief it wraps around the sheltered face more
-	// readily than on the exposed windward face. This bounded extra contour blend is fold-gated so
-	// ordinary planar lee slopes retain reversible aspect physics instead of acquiring a fake wake.
 	leeShelterAlignmentStart: 0.18,
 	leeShelterAlignmentFull: 0.82,
 	leeShelterChannelingBoost: 0.085,
-	// A four-neighbour saddle/fold signal distinguishes broken massifs from planar slopes without a
-	// centre-height sample: (W+E)-(N+S) cancels an arbitrary vertical offset and is exact zero on the
-	// planar fixtures used by the contract. The thresholds sit in the measured live-relief range while
-	// keeping the response strictly topology-derived and bounded.
 	orographicFoldGradientStart: 0.025,
 	orographicFoldGradientFull: 0.20,
 	orographicFoldChannelingBoost: 0.16,
 	orographicFoldExposureBoost: 0.16,
+	ridgelineExposureStart: 0.08,
+	ridgelineExposureFull: 0.34,
+	shelterPocketStart: 0.05,
+	shelterPocketFull: 0.26,
+	snowMobilityStartDegrees: 7,
+	snowMobilityFullDegrees: 24,
+	snowMobilityMax: 0.24,
+	snowPackGainMax: 0.18,
+	snowCrustScourGainMax: 0.12,
 	// The permanent-ice floor supplies most northern snow before redistribution. Exposed shoulders may
 	// lose up to 18% of loose surface snow; tundra and lee gains remain deliberately smaller.
 	northWindwardScourMax: 0.18,
@@ -91,24 +67,43 @@ export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
 	tundraLeeDepositMax: 0.055,
 });
 
-/**
- * Resolve deterministic slope-aspect exposure from a seam-safe four-neighbour height stencil.
- *
- * `windward` and `lee` are directional weights in [0, 1]. Flat terrain deliberately returns zero
- * for both because it has no meaningful facing direction. `slopeAspectStrength` fades the signal in
- * over shallow slopes so lowland snow does not develop artificial directional bands. A second
- * alignment gate keeps nearly crosswind faces neutral. Windward scour then receives an additional
- * shoulder gate, so the strongest loss of loose snow occurs on actual ridge terrain rather than all
- * aligned slopes. Lee collection likewise fades in only once a real sheltered face exists and fades
- * back out on near-cliffs: deposition therefore concentrates on moderate lee slopes instead of
- * painting both flats and vertical rock.
- *
- * Steeper terrain additionally channels part of the effective wind along its contour. Broken relief
- * receives a bounded extra channeling/exposure boost from the four-neighbour fold signal. V12 gates
- * this turning by the unmodified prevailing aspect, keeping tangent crosswind relief neutral, and
- * gates the asymmetric lee shelter term by fold strength so planar opposite aspects remain reversible.
- * Planar geometry, canonical heights and snow coverage remain untouched.
- */
+function resolveSurfaceResponse({
+	slopeDegrees,
+	prevailingAspect,
+	orographicFoldStrength,
+	windwardScourSlope,
+	leeCollection,
+	leeRetention,
+}) {
+	const P = TERRAIN_WIND_SNOW_POLICY;
+	const exposedAspect = smoothstep(P.directionalAlignmentStart, P.directionalAlignmentFull, Math.max(0, prevailingAspect));
+	const shelteredAspect = smoothstep(P.directionalAlignmentStart, P.directionalAlignmentFull, Math.max(0, -prevailingAspect));
+	const ridgelineExposure = clamp01(
+		smoothstep(P.ridgelineExposureStart, P.ridgelineExposureFull, orographicFoldStrength)
+			* exposedAspect
+			* windwardScourSlope,
+	);
+	const shelterPocket = clamp01(
+		smoothstep(P.shelterPocketStart, P.shelterPocketFull, orographicFoldStrength)
+			* shelteredAspect
+			* leeCollection
+			* leeRetention,
+	);
+	const snowMobility = clamp01(
+		smoothstep(P.snowMobilityStartDegrees, P.snowMobilityFullDegrees, slopeDegrees)
+			* (0.55 + 0.45 * Math.max(ridgelineExposure, shelterPocket)),
+	);
+	const crustScour = ridgelineExposure * P.snowCrustScourGainMax;
+	const packGain = shelterPocket * P.snowPackGainMax;
+	return Object.freeze({
+		ridgelineExposure,
+		shelterPocket,
+		snowMobility,
+		crustScour,
+		packGain,
+	});
+}
+
 export function terrainWindExposureFromNeighbours(
 	heightWest,
 	heightEast,
@@ -166,13 +161,16 @@ export function terrainWindExposureFromNeighbours(
 			aspectDot: 0,
 			windwardAlignment: 0,
 			leeAlignment: 0,
+			ridgelineExposure: 0,
+			shelterPocket: 0,
+			snowMobility: 0,
+			crustScour: 0,
+			packGain: 0,
 			windward: 0,
 			lee: 0,
 		});
 	}
 
-	// Horizontal component of the upward terrain normal is -gradient. Its dot product with the
-	// direction toward the wind source is positive on windward faces and negative on lee faces.
 	const normalX = -gradientX / gradientMagnitude;
 	const normalZ = -gradientZ / gradientMagnitude;
 	const prevailingAspect = normalX * TERRAIN_WIND_SNOW_POLICY.prevailingSourceX
@@ -183,11 +181,6 @@ export function terrainWindExposureFromNeighbours(
 		Math.max(0, -prevailingAspect),
 	) * slopeAspectStrength;
 
-	// Two contour tangents are possible. Pick the orientation that already points most closely with
-	// the prevailing stream, then blend toward it only on real mountain shoulders. Folded relief gets
-	// extra wrapping, and genuinely folded sheltered lee faces get the small additional wake term;
-	// neither can replace the prevailing source direction. Exactly tangent relief is explicitly gated
-	// out so contour following cannot manufacture a facing direction from crosswind.
 	let contourX = -normalZ;
 	let contourZ = normalX;
 	const contourPrevailingDot = contourX * TERRAIN_WIND_SNOW_POLICY.prevailingSourceX
@@ -216,7 +209,6 @@ export function terrainWindExposureFromNeighbours(
 	const channelledLength = Math.max(1e-9, Math.hypot(channelledX, channelledZ));
 	const effectiveSourceX = channelledX / channelledLength;
 	const effectiveSourceZ = channelledZ / channelledLength;
-
 	const aspectDot = clamp01((normalX * effectiveSourceX + normalZ * effectiveSourceZ + 1) * 0.5) * 2 - 1;
 	const windwardAlignment = smoothstep(
 		TERRAIN_WIND_SNOW_POLICY.directionalAlignmentStart,
@@ -229,6 +221,14 @@ export function terrainWindExposureFromNeighbours(
 		Math.max(0, -aspectDot),
 	);
 	const foldExposureGain = 1 + orographicFoldStrength * TERRAIN_WIND_SNOW_POLICY.orographicFoldExposureBoost;
+	const response = resolveSurfaceResponse({
+		slopeDegrees,
+		prevailingAspect,
+		orographicFoldStrength,
+		windwardScourSlope,
+		leeCollection,
+		leeRetention,
+	});
 
 	return Object.freeze({
 		gradientX,
@@ -247,27 +247,41 @@ export function terrainWindExposureFromNeighbours(
 		aspectDot,
 		windwardAlignment,
 		leeAlignment,
+		...response,
 		windward: clamp01(windwardAlignment * slopeAspectStrength * windwardScourSlope * foldExposureGain),
 		lee: clamp01(leeAlignment * slopeAspectStrength * leeCollection * leeRetention * foldExposureGain),
 	});
 }
 
 /**
- * Convert the geometric exposure signal into bounded climate-aware snow adjustments.
- * Permanent ice receives the stronger effect; tundra receives a restrained version. The caller
- * remains responsible for combining these values with canonical/altitude snow supply.
+ * Convert geometric exposure into bounded climate-aware snow adjustments.
+ *
+ * The existing biome-shading integration passes only `windward`/`lee`; therefore the resolver uses
+ * those values as the compatibility projection of the richer fold response. Direct callers may pass
+ * the richer fields explicitly. This keeps the visual change on the already-shipped path without
+ * introducing a second terrain authority or requiring edits to another owner's renderer.
  */
 export function resolveTerrainWindSnowAdjustment({
 	windward = 0,
 	lee = 0,
 	permanentIce = 0,
 	tundra = 0,
+	ridgelineExposure = 0,
+	shelterPocket = 0,
+	snowMobility = 0,
+	crustScour = 0,
+	packGain = 0,
 } = {}) {
 	const P = TERRAIN_WIND_SNOW_POLICY;
 	const ice = clamp01(permanentIce);
 	const tundraBand = clamp01(tundra) * (1 - ice);
 	const windwardWeight = clamp01(windward);
 	const leeWeight = clamp01(lee);
+	const ridgeExposure = clamp01(Math.max(ridgelineExposure, windwardWeight * 0.34));
+	const shelter = clamp01(Math.max(shelterPocket, leeWeight * 0.38));
+	const mobility = clamp01(Math.max(snowMobility, Math.max(windwardWeight, leeWeight) * 0.24));
+	const boundedCrustScour = clamp01(Math.max(crustScour, ridgeExposure * P.snowCrustScourGainMax));
+	const boundedPackGain = clamp01(Math.max(packGain, shelter * P.snowPackGainMax));
 	const scourMax = Math.max(
 		ice * P.northWindwardScourMax,
 		tundraBand * P.tundraWindwardScourMax,
@@ -276,10 +290,29 @@ export function resolveTerrainWindSnowAdjustment({
 		ice * P.northLeeDepositMax,
 		tundraBand * P.tundraLeeDepositMax,
 	);
+	const scourProfile = clamp01(
+		0.78
+		+ ridgeExposure * 0.16
+		+ boundedCrustScour * 0.18
+		+ mobility * P.snowMobilityMax * 0.30,
+	);
+	const depositProfile = clamp01(
+		0.82
+		+ shelter * 0.16
+		+ boundedPackGain * 0.16
+		- mobility * P.snowMobilityMax * 0.18,
+	);
 	return Object.freeze({
-		windwardScour: windwardWeight * scourMax,
-		leeDeposit: leeWeight * depositMax,
+		windwardScour: windwardWeight * scourMax * scourProfile,
+		leeDeposit: leeWeight * depositMax * depositProfile,
 		scourMax,
 		depositMax,
+		scourProfile,
+		depositProfile,
+		ridgelineExposure: ridgeExposure,
+		shelterPocket: shelter,
+		snowMobility: mobility,
+		crustScour: boundedCrustScour,
+		packGain: boundedPackGain,
 	});
 }
