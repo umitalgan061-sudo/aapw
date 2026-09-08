@@ -8,11 +8,22 @@
  * ADR-0003 for why eviction is intentionally deferred rather than built speculatively now.
  * `unloadChunk`/`disposeAll` still exist for scene teardown and are ready for eviction logic to
  * reuse once it's actually needed.
+ *
+ * Environment residency is layered on top of this established terrain lifecycle. It changes only
+ * environment render/material budget metadata; it never changes terrain height, chunk coordinates,
+ * hydrology, colliders, or the canonical placement authorities.
  * @module world/chunkManager
  */
 
 import { createTerrainChunk, disposeTerrainChunk } from './terrain.js';
 import { CHUNK_CONFIG } from '../config.js';
+import {
+	makeChunkResidencyEntry,
+	applyResidencyToChunkMesh,
+	planEnvironmentResidency,
+	WORLD_ENVIRONMENT_RESIDENCY_POLICY,
+	residencyStats,
+} from './worldEnvironmentResidency.js';
 
 /**
  * @param {number} chunkX
@@ -21,6 +32,12 @@ import { CHUNK_CONFIG } from '../config.js';
  */
 function chunkKey(chunkX, chunkZ) {
 	return `${chunkX},${chunkZ}`;
+}
+
+function runtimeIsCoarsePointer() {
+	return typeof window !== 'undefined' &&
+		typeof window.matchMedia === 'function' &&
+		window.matchMedia('(pointer: coarse)').matches;
 }
 
 export class ChunkManager {
@@ -34,8 +51,10 @@ export class ChunkManager {
 	 *   `world/terrain.js`'s `createHeightSampler` doc comment. `sceneManager.js` passes the same
 	 *   array here and into `physics.js`'s `createGroundCollider` so rendered chunk geometry and
 	 *   every gameplay height query stay in agreement.
+	 * @param {string} [options.quality='medium'] Visual quality used only for environment material LOD.
+	 * @param {boolean} [options.mobile] Optional explicit device class for deterministic integration tests.
 	 */
-	constructor({ scene, chunkSizeMeters, seed, flattenPads = [], segments = CHUNK_CONFIG.TERRAIN_SEGMENTS_DESKTOP }) {
+	constructor({ scene, chunkSizeMeters, seed, flattenPads = [], segments = CHUNK_CONFIG.TERRAIN_SEGMENTS_DESKTOP, quality = 'medium', mobile = runtimeIsCoarsePointer() }) {
 		this.scene = scene;
 		this.chunkSizeMeters = chunkSizeMeters;
 		/** Mesh resolution per chunk — see `CHUNK_CONFIG.TERRAIN_SEGMENTS_DESKTOP` for why this is
@@ -43,11 +62,86 @@ export class ChunkManager {
 		this.segments = segments;
 		this.seed = seed;
 		this.flattenPads = flattenPads;
+		this.environmentQuality = quality;
+		this.environmentMobile = Boolean(mobile);
+		this.environmentResidencyCenter = { x: 0, z: 0 };
+		this.environmentResidencyPolicyId = WORLD_ENVIRONMENT_RESIDENCY_POLICY.id;
 		/** @type {Map<string, import('three').Mesh>} Currently in the scene. */
 		this.loaded = new Map();
 		/** @type {Set<string>} Every chunk key ever loaded, even if later unloaded. Only grows —
 		 * see DECISIONS.md ADR-0003 for why World Coverage is tracked from this, not `loaded`. */
 		this.everGenerated = new Set();
+	}
+
+	/**
+	 * Applies the current environment residency band to one terrain chunk. The returned manifest is
+	 * intentionally stored on userData so environment consumers can use the exact same decision
+	 * without rebuilding distance math or inventing a second radius system.
+	 */
+	applyEnvironmentResidency(chunkX, chunkZ, centerChunkX = this.environmentResidencyCenter.x, centerChunkZ = this.environmentResidencyCenter.z) {
+		const mesh = this.getLoadedChunkMesh(chunkX, chunkZ);
+		if (!mesh) return null;
+		const entry = makeChunkResidencyEntry({
+			chunkX,
+			chunkZ,
+			centerChunkX,
+			centerChunkZ,
+			chunkSizeMeters: this.chunkSizeMeters,
+			seed: this.seed,
+			quality: this.environmentQuality,
+			mobile: this.environmentMobile,
+		});
+		applyResidencyToChunkMesh(mesh, entry, {
+			quality: this.environmentQuality,
+			mobile: this.environmentMobile,
+		});
+		return entry;
+	}
+
+	/** Re-applies distance bands to every resident chunk after the streaming center moves. */
+	refreshEnvironmentResidency(centerChunkX = this.environmentResidencyCenter.x, centerChunkZ = this.environmentResidencyCenter.z) {
+		this.environmentResidencyCenter = { x: centerChunkX, z: centerChunkZ };
+		for (const key of this.loaded.keys()) {
+			const [chunkX, chunkZ] = key.split(',').map(Number);
+			this.applyEnvironmentResidency(chunkX, chunkZ, centerChunkX, centerChunkZ);
+		}
+		return this.getEnvironmentResidencyStats();
+	}
+
+	/** Returns a pure, deterministic plan for the currently requested streaming radius. */
+	getEnvironmentResidencyPlan(radiusChunks = 2) {
+		return planEnvironmentResidency({
+			centerChunkX: this.environmentResidencyCenter.x,
+			centerChunkZ: this.environmentResidencyCenter.z,
+			radiusChunks,
+			chunkSizeMeters: this.chunkSizeMeters,
+			seed: this.seed,
+			quality: this.environmentQuality,
+			mobile: this.environmentMobile,
+		});
+	}
+
+	/** Returns compact runtime counters suitable for perf/debug telemetry. */
+	getEnvironmentResidencyStats() {
+		const entries = [];
+		for (const mesh of this.loaded.values()) {
+			const manifest = mesh.userData?.environmentResidency;
+			if (manifest) entries.push(manifest);
+		}
+		const stats = { near: 0, mid: 0, far: 0, outer: 0, maxAssets: 0 };
+		for (const manifest of entries) {
+			stats[manifest.band] = (stats[manifest.band] ?? 0) + 1;
+			for (const family of manifest.families ?? []) stats.maxAssets += family.maxAssets ?? 0;
+		}
+		return Object.freeze({
+			policyId: this.environmentResidencyPolicyId,
+			quality: this.environmentQuality,
+			mobile: this.environmentMobile,
+			residentChunks: this.loaded.size,
+			residentManifests: entries.length,
+			bands: Object.freeze({ near: stats.near, mid: stats.mid, far: stats.far, outer: stats.outer }),
+			maxAssets: stats.maxAssets,
+		});
 	}
 
 	/**
@@ -65,6 +159,7 @@ export class ChunkManager {
 		this.scene.add(mesh);
 		this.loaded.set(key, mesh);
 		this.everGenerated.add(key);
+		this.applyEnvironmentResidency(chunkX, chunkZ);
 		return mesh;
 	}
 
@@ -89,11 +184,13 @@ export class ChunkManager {
 	 * @param {number} radius Chunks in each direction from the center (0 = just the center chunk).
 	 */
 	loadSquare(centerX, centerZ, radius) {
+		this.environmentResidencyCenter = { x: centerX, z: centerZ };
 		for (let dz = -radius; dz <= radius; dz++) {
 			for (let dx = -radius; dx <= radius; dx++) {
 				this.loadChunk(centerX + dx, centerZ + dz);
 			}
 		}
+		this.refreshEnvironmentResidency(centerX, centerZ);
 	}
 
 	/**
@@ -107,7 +204,9 @@ export class ChunkManager {
 	 * @param {number} radius
 	 */
 	streamTowards(centerChunkX, centerChunkZ, radius) {
+		this.environmentResidencyCenter = { x: centerChunkX, z: centerChunkZ };
 		this.loadSquare(centerChunkX, centerChunkZ, radius);
+		this.refreshEnvironmentResidency(centerChunkX, centerChunkZ);
 	}
 
 	/**
@@ -231,6 +330,7 @@ ChunkManager.prototype.loadChunk = function loadChunkWithMobileTerrainLodRun134(
 	this.scene.add(mesh);
 	this.loaded.set(key, mesh);
 	this.everGenerated.add(key);
+	this.applyEnvironmentResidency(chunkX, chunkZ, center.x, center.z);
 	return mesh;
 };
 
@@ -251,7 +351,9 @@ ChunkManager.prototype.streamTowards = function streamTowardsWithMobileTerrainLo
 		disposeTerrainChunk(mesh);
 		this.scene.add(replacement);
 		this.loaded.set(key, replacement);
+		this.applyEnvironmentResidency(chunkX, chunkZ, centerChunkX, centerChunkZ);
 	}
+	this.refreshEnvironmentResidency(centerChunkX, centerChunkZ);
 };
 
 
