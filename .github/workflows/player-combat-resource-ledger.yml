@@ -1,0 +1,35 @@
+name: Player Combat Resource Ledger
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatResourceLedger.js'
+      - 'scripts/checkPlayerCombatResourceLedger.mjs'
+      - '.github/workflows/player-combat-resource-ledger.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Exact-main ancestry
+        run: git merge-base --is-ancestor origin/main "$GITHUB_SHA"
+      - name: Scope and budget
+        run: |
+          files=$(git diff --name-only origin/main...HEAD)
+          test "$(printf '%s\n' "$files" | sed '/^$/d' | wc -l)" -eq 3
+          printf '%s\n' "$files" | grep -Fx '.github/workflows/player-combat-resource-ledger.yml'
+          printf '%s\n' "$files" | grep -Fx 'scripts/checkPlayerCombatResourceLedger.mjs'
+          printf '%s\n' "$files" | grep -Fx 'src/3d/gameplay/playerCombatResourceLedger.js'
+          test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+      - name: Runtime/editor boundary
+        run: '! grep -RInE "EditorMaterialStudio|document\.|window\." src/3d/gameplay/playerCombatResourceLedger.js scripts/checkPlayerCombatResourceLedger.mjs'
+      - name: Syntax
+        run: node --check src/3d/gameplay/playerCombatResourceLedger.js && node --check scripts/checkPlayerCombatResourceLedger.mjs
+      - name: Executable regression
+        run: node scripts/checkPlayerCombatResourceLedger.mjs
