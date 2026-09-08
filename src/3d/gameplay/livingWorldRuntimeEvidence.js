@@ -321,3 +321,59 @@ export function validateLivingWorldObservationSummary(summary) {
 	if (summary?.world?.errorTotal < 0) errors.push('negative-errors');
 	return freeze({ ok: errors.length === 0, errors: freeze(errors), digest: String(summary?.digest ?? '00000000') });
 }
+
+function observationSlope(first, second) {
+	if (!(first.length && second.length)) return 0;
+	return observationAverage(second) - observationAverage(first);
+}
+
+export function analyzeLivingWorldObservationTrend(samples = [], { windowId = 'trend', warningFrameMs = 20, warningTickMs = 5 } = {}) {
+	const normalized = (Array.isArray(samples) ? samples : []).slice(-OBSERVATION_MAX_SAMPLES).map(normalizeObservationSample);
+	const split = Math.floor(normalized.length / 2);
+	const first = normalized.slice(0, split || normalized.length);
+	const second = normalized.slice(split || 0);
+	const frameFirst = first.map((sample) => sample.frameMs);
+	const frameSecond = second.map((sample) => sample.frameMs);
+	const tickFirst = first.map((sample) => sample.tickMs);
+	const tickSecond = second.map((sample) => sample.tickMs);
+	const frameDeltaMs = observationSlope(frameFirst, frameSecond);
+	const tickDeltaMs = observationSlope(tickFirst, tickSecond);
+	const errorBurstCount = normalized.filter((sample) => sample.errors > 0).length;
+	const actorPressure = normalized.length ? Math.max(...normalized.map((sample) => sample.actors / OBSERVATION_MAX_ACTORS)) : 0;
+	const frameWarning = normalized.some((sample) => sample.frameMs > warningFrameMs);
+	const tickWarning = normalized.some((sample) => sample.tickMs > warningTickMs);
+	const degrading = frameDeltaMs > 1 || tickDeltaMs > 0.75 || errorBurstCount >= 3 || actorPressure > 0.9;
+	const digest = stableHash(normalized.map((sample) => JSON.stringify(sample)).join('|')).toString(16).padStart(8, '0');
+	return freeze({
+		windowId: String(windowId),
+		sampleCount: normalized.length,
+		frameDeltaMs: Number(frameDeltaMs.toFixed(4)),
+		tickDeltaMs: Number(tickDeltaMs.toFixed(4)),
+		errorBurstCount,
+		actorPressure: Number(actorPressure.toFixed(4)),
+		warnings: freeze({ frame: frameWarning, tick: tickWarning }),
+		degrading,
+		reason: degrading ? (errorBurstCount >= 3 ? 'error-burst' : actorPressure > 0.9 ? 'actor-pressure' : frameDeltaMs > 1 ? 'frame-regression' : 'tick-regression') : 'stable',
+		digest,
+	});
+}
+
+export function buildLivingWorldObservationAcceptance(summary, trend) {
+	const baseValidation = validateLivingWorldObservationSummary(summary);
+	const trendValidation = trend && typeof trend === 'object' ? trend : analyzeLivingWorldObservationTrend([]);
+	const accepted = baseValidation.ok && Boolean(summary?.accepted) && !trendValidation.degrading;
+	return freeze({
+		accepted,
+		reason: accepted ? 'stable' : !baseValidation.ok ? 'invalid-summary' : !summary?.accepted ? String(summary?.reason ?? 'rejected-summary') : trendValidation.reason,
+		summaryDigest: String(summary?.digest ?? '00000000'),
+		trendDigest: String(trendValidation.digest ?? '00000000'),
+		windowId: String(summary?.windowId ?? trendValidation.windowId ?? 'default'),
+		proof: freeze({
+			performanceStable: !trendValidation.degrading,
+			withinFrameBudget: Boolean(summary?.performance?.withinFrameBudget),
+			withinTickBudget: Boolean(summary?.performance?.withinTickBudget),
+			materialValidated: Boolean(summary?.evidence?.materialValidated),
+			placementValidated: Boolean(summary?.evidence?.placementValidated),
+		}),
+	});
+}
