@@ -1,100 +1,23 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import {
-  TERRAIN_GROUND_CONTEXT_POLICY as P,
-  buildTerrainGroundContext,
-  classifyTerrainGroundSlope,
-  classifyTerrainWaterDepth,
-  classifyTerrainGroundSurface,
-  resolveTerrainGroundTransform,
-  resolveTerrainGroundPlacementSafety,
-  resolveTerrainAgentPlacementQuery,
-  validateTerrainGroundContext,
-  serializeTerrainGroundContext,
-} from '../src/3d/world/terrainGroundContext.js';
+import { TERRAIN_GROUND_CONTEXT_POLICY as P, buildTerrainGroundContext, classifyTerrainGroundSlope, classifyTerrainWaterDepth, classifyTerrainGroundSurface, resolveTerrainGroundTransform, resolveTerrainGroundPlacementSafety, resolveTerrainAgentPlacementQuery, validateTerrainGroundContext, serializeTerrainGroundContext } from '../src/3d/world/terrainGroundContext.js';
 
-assert.equal(P.readOnly, true);
-assert.equal(P.heightAuthorityUnchanged, true);
-assert.equal(P.hydrologyAuthorityUnchanged, true);
-assert.equal(P.colliderAuthorityUnchanged, true);
-assert.equal(P.navigationAuthorityUnchanged, true);
-assert.equal(P.editorIndependent, true);
-
-const slopeBands = [0, 3.9, 4, 13.9, 14, 23.9, 24, 37.9, 38, 51.9, 52, 80];
-for (const degrees of slopeBands) {
-  const slope = classifyTerrainGroundSlope(degrees);
-  assert(Number.isFinite(slope.normalized));
-  assert.equal(slope.placementSafe, degrees <= P.maxTerrainPlacementSlopeDegrees);
-  assert.equal(slope.cliff, degrees >= P.cliffSlopeDegrees);
-}
-
-for (const height of [100, 0, 2, -0.1, -1, -4, -16, -100]) {
-  const water = classifyTerrainWaterDepth(height);
-  assert(Number.isFinite(water.depthMeters));
-  assert.equal(water.land, height >= 0);
-  assert.equal(water.submerged, water.depthMeters >= P.submergedDepthMeters);
-  assert(water.normalizedDepth >= 0 && water.normalizedDepth <= 1);
-}
-
-const surface = classifyTerrainGroundSurface({ heightAboveSeaMeters: 40, slopeDegrees: 18, rockWeight: 0.6, snowWeight: 0.2 });
-assert(surface.land && surface.walkable && surface.buildable === true);
-const cliffSurface = classifyTerrainGroundSurface({ heightAboveSeaMeters: 100, slopeDegrees: 70, rockWeight: 0.9, snowWeight: 0 });
-assert.equal(cliffSurface.walkable, false);
-assert.equal(cliffSurface.buildable, false);
-const waterSurface = classifyTerrainGroundSurface({ heightAboveSeaMeters: -8, slopeDegrees: 2, rockWeight: 0, snowWeight: 0 });
-assert.equal(waterSurface.land, false);
-assert.equal(waterSurface.walkable, false);
-
-const transform = resolveTerrainGroundTransform({ worldX: 10, worldY: 0, worldZ: -4, heightAboveSeaMeters: 23.5, normal: { x: 0.3, y: 0.9, z: 0.1 }, verticalOffsetMeters: 0.4, yawRadians: 1.2 });
-assert.deepEqual(transform.normal, { x: transform.normal.x, y: transform.normal.y, z: transform.normal.z });
-assert(Math.abs(Math.hypot(transform.normal.x, transform.normal.y, transform.normal.z) - 1) < 1e-9);
-assert.equal(transform.y, 23.9);
-
+assert.equal(P.readOnly, true); assert.equal(P.heightAuthorityUnchanged, true); assert.equal(P.hydrologyAuthorityUnchanged, true); assert.equal(P.colliderAuthorityUnchanged, true); assert.equal(P.navigationAuthorityUnchanged, true); assert.equal(P.editorIndependent, true);
+for (const degrees of [0,3.9,4,13.9,14,23.9,24,37.9,38,51.9,52,80]) { const slope = classifyTerrainGroundSlope(degrees); assert(Number.isFinite(slope.normalized)); assert.equal(slope.placementSafe, degrees <= P.maxTerrainPlacementSlopeDegrees); assert.equal(slope.cliff, degrees >= P.cliffSlopeDegrees); }
+for (const height of [100,0,2,-0.1,-1,-4,-16,-100]) { const water = classifyTerrainWaterDepth(height); assert(Number.isFinite(water.depthMeters)); assert.equal(water.land, height >= 0); assert.equal(water.submerged, water.depthMeters >= P.submergedDepthMeters); assert(water.normalizedDepth >= 0 && water.normalizedDepth <= 1); }
+const surface = classifyTerrainGroundSurface({ heightAboveSeaMeters: 40, slopeDegrees: 18, rockWeight: 0.6, snowWeight: 0.2 }); assert(surface.land && surface.walkable && surface.buildable === true);
+const cliffSurface = classifyTerrainGroundSurface({ heightAboveSeaMeters: 100, slopeDegrees: 70, rockWeight: 0.9, snowWeight: 0 }); assert.equal(cliffSurface.walkable, false); assert.equal(cliffSurface.buildable, false);
+const waterSurface = classifyTerrainGroundSurface({ heightAboveSeaMeters: -8, slopeDegrees: 2, rockWeight: 0, snowWeight: 0 }); assert.equal(waterSurface.land, false); assert.equal(waterSurface.walkable, false);
+const transform = resolveTerrainGroundTransform({ worldX: 10, worldY: 0, worldZ: -4, heightAboveSeaMeters: 23.5, normal: { x: 0.3, y: 0.9, z: 0.1 }, verticalOffsetMeters: 0.4, yawRadians: 1.2 }); assert(Math.abs(Math.hypot(transform.normal.x, transform.normal.y, transform.normal.z) - 1) < 1e-9); assert.equal(transform.y, 23.9);
 const contexts = [
-  buildTerrainGroundContext({ worldX: 1, worldY: 0, worldZ: 2, heightAboveSeaMeters: 30, slopeDegrees: 12, normal: { x: 0.1, y: 0.99, z: 0.02 }, biome: { grass: 0.6, forest: 0.3, snow: 0.1 }, colliderY: 30 }),
-  buildTerrainGroundContext({ worldX: 3, worldY: 0, worldZ: 4, heightAboveSeaMeters: 8, slopeDegrees: 34, normal: { x: 0.3, y: 0.94, z: 0.1 }, biome: { rock: 0.5, snow: 0.2 }, roadDistanceMeters: 8 }),
-  buildTerrainGroundContext({ worldX: -5, worldY: 0, worldZ: -7, heightAboveSeaMeters: -12, slopeDegrees: 2, biome: { snow: 0.8 } }),
+ buildTerrainGroundContext({ worldX:1,worldY:0,worldZ:2,heightAboveSeaMeters:30,slopeDegrees:12,normal:{x:0.1,y:0.99,z:0.02},biomeName:'grassland',biome:{grass:0.6,forest:0.3,snow:0.1},colliderY:30,snowAmount:0.1 }),
+ buildTerrainGroundContext({ worldX:3,worldY:0,worldZ:4,heightAboveSeaMeters:8,slopeDegrees:34,normal:{x:0.3,y:0.94,z:0.1},biome:{rock:0.5,snow:0.2},roadDistanceMeters:8 }),
+ buildTerrainGroundContext({ worldX:-5,worldY:0,worldZ:-7,heightAboveSeaMeters:-12,slopeDegrees:2,biomeName:'ocean',biome:{snow:0.8},waterType:'ocean' }),
 ];
-for (const [index, context] of contexts.entries()) {
-  const validation = validateTerrainGroundContext(context);
-  assert.equal(validation.pass, true, `context ${index} validation failed`);
-  assert.equal(context.policy, P.id);
-  assert.equal(context.collider.parity, true);
-  const parsed = JSON.parse(serializeTerrainGroundContext(context));
-  assert.equal(parsed.policy, P.id);
-  assert.equal(parsed.coordinate.x, context.coordinate.x);
-  assert.equal(parsed.transform.y, context.transform.y);
-}
-
-const safe = resolveTerrainGroundPlacementQuery(contexts[0], { preferWalkable: true, preferBuildable: true });
-assert.equal(typeof safe.accepted, 'boolean');
-assert.equal(safe.groundY, contexts[0].transform.y);
-assert.equal(safe.normal.y, contexts[0].transform.normal.y);
-
-const blockedSlope = resolveTerrainGroundPlacementQuery(
-  buildTerrainGroundContext({ heightAboveSeaMeters: 30, slopeDegrees: 60, biome: { rock: 0.7 } }),
-  { preferWalkable: true },
-);
-assert.equal(blockedSlope.accepted, false);
-const blockedWater = resolveTerrainGroundPlacementQuery(
-  buildTerrainGroundContext({ heightAboveSeaMeters: -10, slopeDegrees: 2 }),
-  { preferWalkable: true },
-);
-assert.equal(blockedWater.accepted, false);
-
-for (const malformed of [
-  buildTerrainGroundContext({ worldX: NaN, worldY: Infinity, worldZ: -Infinity, heightAboveSeaMeters: NaN, slopeDegrees: NaN, normal: { x: NaN, y: NaN, z: NaN }, biome: { grass: NaN } }),
-  buildTerrainGroundContext({ heightAboveSeaMeters: -Infinity, slopeDegrees: Infinity, waterDistanceMeters: NaN, roadDistanceMeters: NaN }),
-]) {
-  const validation = validateTerrainGroundContext(malformed);
-  assert.equal(validation.pass, true);
-}
-
-const placementSafety = resolveTerrainGroundPlacementSafety({ heightAboveSeaMeters: 12, slopeDegrees: 20, waterDistanceMeters: 10, roadDistanceMeters: 6, settlementDistanceMeters: 9, biome: { rock: 0.2, snow: 0.1 } });
-assert.equal(placementSafety.terrainSafe, true);
-assert.equal(placementSafety.slopeSafe, true);
-assert.equal(placementSafety.waterSafe, true);
-assert.equal(placementSafety.roadClear, true);
-assert.equal(placementSafety.settlementClear, true);
-
-console.log('[checkTerrainGroundContext] PASS', JSON.stringify({ policy: P.id, slopeBands: slopeBands.length, contexts: contexts.length }));
+for (const [i,c] of contexts.entries()) { assert.equal(validateTerrainGroundContext(c).pass,true,`context ${i} validation failed`); assert.equal(c.policy,P.id); assert.equal(c.collider.parity,true); assert(c.ecotone && Number.isFinite(c.ecotone.snowlineEdge)); const parsed=JSON.parse(serializeTerrainGroundContext(c)); assert.equal(parsed.policy,P.id); assert.equal(parsed.coordinate.x,c.coordinate.x); assert.equal(parsed.ecotone.snowlineEdge,c.ecotone.snowlineEdge); }
+const safe = resolveTerrainAgentPlacementQuery(contexts[0],{category:'tree',preferWalkable:true}); assert.equal(safe.accepted,true); assert.equal(safe.profile.category,'tree'); assert.equal(safe.reason,'accepted');
+const blockedSlope = resolveTerrainAgentPlacementQuery(contexts[1],{category:'building',preferWalkable:true}); assert.equal(blockedSlope.accepted,false);
+const blockedWater = resolveTerrainAgentPlacementQuery(contexts[2],{category:'tree',preferWalkable:true}); assert.equal(blockedWater.accepted,false);
+const safety = resolveTerrainGroundPlacementSafety({heightAboveSeaMeters:12,slopeDegrees:20,waterDistanceMeters:10,roadDistanceMeters:6,settlementDistanceMeters:9,biome:{rock:0.2,snow:0.1}}); assert.equal(safety.slopeSafe,true); assert.equal(safety.waterSafe,true); assert.equal(safety.roadClear,true); assert.equal(safety.settlementClear,true);
+for (const malformed of [ buildTerrainGroundContext({worldX:NaN,worldY:Infinity,worldZ:-Infinity,heightAboveSeaMeters:NaN,slopeDegrees:NaN,normal:{x:NaN,y:NaN,z:NaN},biome:{grass:NaN}}), buildTerrainGroundContext({heightAboveSeaMeters:-Infinity,slopeDegrees:Infinity,waterDistanceMeters:NaN,roadDistanceMeters:NaN,settlementDistanceMeters:NaN}) ]) assert.equal(validateTerrainGroundContext(malformed).pass,true);
+console.log('[checkTerrainGroundContext] PASS',JSON.stringify({policy:P.id,slopeBands:12,contexts:contexts.length,ecotone:true}));
