@@ -332,6 +332,28 @@ export async function createWolf({
 	};
 }
 
+/**
+ * Resolve one configured animal's initial terrain-relative placement without allowing malformed
+ * coordinates or a transient terrain-provider failure to poison the whole parallel fauna batch.
+ * Per-frame patrol/flee movement keeps using `tryCommitGroundedMove`, which already fails closed on
+ * invalid collider or ground samples.
+ */
+export function resolveConfiguredAnimalSpawnGround({ spawn, seat, sampleGroundY } = {}) {
+	const worldX = seat?.x + spawn?.offsetXMeters;
+	const worldZ = seat?.z + spawn?.offsetZMeters;
+	if (!Number.isFinite(worldX) || !Number.isFinite(worldZ)) {
+		return { ok: false, reason: 'non-finite-position' };
+	}
+	let groundY;
+	try {
+		groundY = sampleGroundY(worldX, worldZ);
+	} catch (error) {
+		return { ok: false, reason: 'ground-sample-error', error };
+	}
+	if (!Number.isFinite(groundY)) return { ok: false, reason: 'non-finite-ground' };
+	return { ok: true, worldX, worldZ, groundY };
+}
+
 export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsById, sampleGroundY, groundCollider, playerCollider }) {
 	const animals = await Promise.all(
 		animalConfig.SPAWNS.map(async (spawn) => {
@@ -340,19 +362,23 @@ export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsB
 				console.warn(`[gameplay/animals] Animal spawn "${spawn.id}" references unknown seat "${spawn.seatId}" — skipping.`);
 				return null;
 			}
-			const worldX = seat.x + spawn.offsetXMeters;
-			const worldZ = seat.z + spawn.offsetZMeters;
+			const species = spawn.speciesId ? animalConfig.SPECIES?.[spawn.speciesId] : null;
+			if (spawn.speciesId && !species) {
+				console.warn(`[gameplay/animals] Animal spawn "${spawn.id}" references unknown species "${spawn.speciesId}" — skipping.`);
+				return null;
+			}
+			const placement = resolveConfiguredAnimalSpawnGround({ spawn, seat, sampleGroundY });
+			if (!placement.ok) {
+				console.warn(`[gameplay/animals] Animal spawn "${spawn.id}" has unsafe initial placement (${placement.reason}) — skipping.`, placement.error ?? '');
+				return null;
+			}
+			const { worldX, worldZ, groundY } = placement;
 			const patrolWaypoints = spawn.patrol
 				? [
 						{ x: worldX, z: worldZ },
 						{ x: seat.x + spawn.patrol.toOffsetXMeters, z: seat.z + spawn.patrol.toOffsetZMeters },
 					]
 				: undefined;
-			const species = spawn.speciesId ? animalConfig.SPECIES?.[spawn.speciesId] : null;
-			if (spawn.speciesId && !species) {
-				console.warn(`[gameplay/animals] Animal spawn "${spawn.id}" references unknown species "${spawn.speciesId}" — skipping.`);
-				return null;
-			}
 			const clips = species?.clips;
 			const walkClipName = species ? clips?.walk : animalConfig.WALK_CLIP_NAME;
 			const effectiveWaypoints = walkClipName ? patrolWaypoints : undefined;
@@ -365,7 +391,7 @@ export async function spawnConfiguredAnimals({ assetLoader, animalConfig, seatsB
 				stripChildNames: species ? (species.stripChildNames ?? []) : animalConfig.STRIP_CHILD_NAMES,
 				worldX,
 				worldZ,
-				groundY: sampleGroundY(worldX, worldZ),
+				groundY,
 				rotationYRadians: spawn.rotationYRadians,
 				name: spawn.id,
 				groundCollider,
