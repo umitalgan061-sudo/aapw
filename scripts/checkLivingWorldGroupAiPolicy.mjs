@@ -1,14 +1,6 @@
 import assert from 'node:assert/strict';
-import * as THREE from 'three';
-import {
-	LIVING_WORLD_GROUP_AI_POLICY,
-	selectGroupLeader,
-	computeGroupCenter,
-	evaluateGroupCohesion,
-	summarizeGroupThreat,
-	buildGroupFormationTargets,
-	auditGroupAiPolicy,
-} from '../src/3d/gameplay/livingWorldGroupAiPolicy.js';
+import * as THREE from '../src/3d/vendor/three/three.module.js';
+import { LIVING_WORLD_GROUP_AI_POLICY, selectGroupLeader, computeGroupCenter, evaluateGroupCohesion, summarizeGroupThreat, buildGroupFormationTargets, auditGroupAiPolicy } from '../src/3d/gameplay/livingWorldGroupAiPolicy.js';
 
 function member(id, x, z, priority = 0, fleeing = false) {
 	const object3D = new THREE.Object3D();
@@ -18,11 +10,7 @@ function member(id, x, z, priority = 0, fleeing = false) {
 	return { id, priority, object3D, isFleeing: fleeing };
 }
 
-const members = [
-	member('guard-b', 4, 0, 10),
-	member('guard-a', 0, 0, 30),
-	member('guard-c', 8, 0, 20),
-];
+const members = [member('guard-b', 4, 0, 10), member('guard-a', 0, 0, 30), member('guard-c', 8, 0, 20)];
 const leaderA = selectGroupLeader(members, 'seed');
 const leaderB = selectGroupLeader(members, 'seed');
 assert.deepEqual(leaderA, leaderB);
