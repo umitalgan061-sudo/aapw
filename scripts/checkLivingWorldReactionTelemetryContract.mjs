@@ -118,8 +118,8 @@ function hostileServices({ signals, reputation = -70, wanted = 70, crime = 60, e
   const snapshot = runtime.snapshot();
   assert(snapshot.actors.length === 16, 'stress keeps actor membership stable');
   assert(snapshot.actors.every((entry) => entry.history.length <= 8), 'stress preserves history cap');
-  assert(snapshot.actors.every((entry) => entry.signals.length <= 12), 'stress preserves signal cap');
-  assert(snapshot.actors.every((entry) => Number.isFinite(entry.clockSeconds)), 'stress keeps finite actor clocks');
+  assert(snapshot.actors.every((entry) => entry.cachedSignalCount <= 12), 'stress preserves bounded perception cache');
+  assert(Number.isFinite(snapshot.clockSeconds), 'stress keeps finite runtime clock');
   assert(auditLivingWorldReactionResult(runtime.tick({ deltaSeconds: 0.1, playerPosition: { x: 0, z: 0 } })).ok, 'stress result remains auditable');
 }
 
