@@ -6,12 +6,18 @@ import {
 
 const attack = decideLivingWorldThreat({ currentState: 'detect', visualConfidence: 1, distanceMeters: 2, hasLineOfSight: true });
 assert.equal(attack.nextState, 'attack');
+assert.equal(attack.signal.reacquire, false);
 
 const investigate = decideLivingWorldThreat({ currentState: 'patrol', hearingConfidence: 0.2, distanceMeters: 40 });
 assert.equal(investigate.nextState, 'investigate');
+assert.equal(investigate.signal.reacquire, false);
 
 const chase = decideLivingWorldThreat({ currentState: 'detect', visualConfidence: 0.8, stealth: 0, distanceMeters: 18, hasLineOfSight: false });
 assert.equal(chase.nextState, 'chase');
+
+const lostContact = decideLivingWorldThreat({ currentState: 'chase', distanceMeters: 100 });
+assert.equal(lostContact.nextState, 'return');
+assert.equal(lostContact.signal.reacquire, true);
 
 const flee = decideLivingWorldThreat({ currentState: 'chase', visualConfidence: 1, distanceMeters: 4, healthRatio: 0.1, threatRatio: 1, allyCount: 0, hasLineOfSight: true });
 assert.equal(flee.nextState, 'flee');
