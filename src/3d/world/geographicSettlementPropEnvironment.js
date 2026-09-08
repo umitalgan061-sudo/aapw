@@ -12,19 +12,11 @@
 
 export const GEOGRAPHIC_SETTLEMENT_PROP_ENVIRONMENT_POLICY = Object.freeze({
   version: 1,
-  id: 'settlement-fringe-geographic-prop-environment-2026-09-08-v1',
+  id: 'settlement-fringe-geographic-prop-environment-2026-09-08-v2',
   transitionFloor: 0.12,
   strongBiomeThreshold: 0.62,
-  moisture: Object.freeze({
-    saturated: 0.80,
-    damp: 0.55,
-    dry: 0.25,
-  }),
-  slope: Object.freeze({
-    gentle: 8,
-    usable: 18,
-    steep: 30,
-  }),
+  moisture: Object.freeze({ saturated: 0.80, damp: 0.55, dry: 0.25 }),
+  slope: Object.freeze({ gentle: 8, usable: 18, steep: 30 }),
   family: Object.freeze({
     barrel: Object.freeze({ maxWaterDepth: 0.06, maxSnowWeight: 0.95, maxRockWeight: 0.95, preferredMoistureMin: 0.18 }),
     crate: Object.freeze({ maxWaterDepth: 0.06, maxSnowWeight: 0.95, maxRockWeight: 0.90, preferredMoistureMin: 0.12 }),
@@ -61,7 +53,7 @@ export function normalizeEnvironmentSample(sample = {}) {
     slopeDegrees: Math.max(0, Math.min(90, numberOr(sample.slopeDegrees))),
     waterDepth: Math.max(0, numberOr(sample.waterDepth)),
     biome: String(sample.biome ?? ''),
-    biomeInfluence: clamp01(sample.biomeInfluence ?? sample.influence),
+    biomeInfluence: clamp01(sample.biomeInfluence ?? sample.influence ?? sample.referenceInfluence),
     rockWeight: clamp01(sample.rockWeight),
     snowWeight: clamp01(sample.snowWeight),
     waterWeight: clamp01(sample.waterWeight),
@@ -113,18 +105,12 @@ export function familyEnvironmentCompatibility(family, sample = {}) {
   const normalized = normalizeEnvironmentSample(sample);
   const profile = familyProfile(family);
   if (!profile) return 0;
-
   let score = 1;
   if (normalized.waterDepth > profile.maxWaterDepth) return 0;
   score -= Math.max(0, normalized.rockWeight - profile.maxRockWeight) * 0.85;
   score -= Math.max(0, normalized.snowWeight - profile.maxSnowWeight) * 0.85;
-
-  if (profile.preferredMoistureMin != null && normalized.moisture < profile.preferredMoistureMin) {
-    score -= Math.min(0.65, (profile.preferredMoistureMin - normalized.moisture) * 1.25);
-  }
-  if (profile.preferredMoistureMax != null && normalized.moisture > profile.preferredMoistureMax) {
-    score -= Math.min(0.65, (normalized.moisture - profile.preferredMoistureMax) * 1.25);
-  }
+  if (profile.preferredMoistureMin != null && normalized.moisture < profile.preferredMoistureMin) score -= Math.min(0.65, (profile.preferredMoistureMin - normalized.moisture) * 1.25);
+  if (profile.preferredMoistureMax != null && normalized.moisture > profile.preferredMoistureMax) score -= Math.min(0.65, (normalized.moisture - profile.preferredMoistureMax) * 1.25);
   return clamp01(score);
 }
 
@@ -143,9 +129,7 @@ export function familyWetnessSuitability(family, sample = {}) {
   if (normalized.waterDepth <= 0.01) return 1;
   const profile = familyProfile(family);
   if (!profile) return 0;
-  return normalized.waterDepth <= profile.maxWaterDepth
-    ? clamp01(1 - normalized.waterDepth / Math.max(profile.maxWaterDepth, 0.001) * 0.45)
-    : 0;
+  return normalized.waterDepth <= profile.maxWaterDepth ? clamp01(1 - normalized.waterDepth / Math.max(profile.maxWaterDepth, 0.001) * 0.45) : 0;
 }
 
 export function familyTerrainSuitability(family, sample = {}) {
@@ -179,28 +163,15 @@ export function environmentFitScore({ family = '', roleId = 'temperate', sample 
   const terrainSuitability = familyTerrainSuitability(family, normalized);
   const transitionPenalty = isTransitionBiome(normalized) ? 0.88 : 1;
   const strongBiomeBonus = isStrongBiome(normalized) ? 1.05 : 1;
+  const roleBiomeConflict = biomeCompatibility <= 0;
 
   const road = numberOr(roadDistance, Infinity);
-  const access = !Number.isFinite(road)
-    ? 0.70
-    : road <= 12
-      ? 1.0
-      : road <= 30
-        ? 0.92
-        : 0.78;
-
-  const weighted = (
-    familyCompatibility * 0.30 +
-    biomeCompatibility * 0.20 +
-    snowSuitability * 0.16 +
-    wetnessSuitability * 0.14 +
-    terrainSuitability * 0.14 +
-    access * 0.06
-  );
+  const access = !Number.isFinite(road) ? 0.70 : road <= 12 ? 1.0 : road <= 30 ? 0.92 : 0.78;
+  const weighted = familyCompatibility * 0.30 + biomeCompatibility * 0.20 + snowSuitability * 0.16 + wetnessSuitability * 0.14 + terrainSuitability * 0.14 + access * 0.06;
   const score = clamp01(weighted * transitionPenalty * strongBiomeBonus);
   const reasons = [];
   if (biomeCompatibility >= 1) reasons.push('role-biome-match');
-  else if (biomeCompatibility <= 0) reasons.push('role-biome-conflict');
+  else if (roleBiomeConflict) reasons.push('role-biome-conflict');
   if (familyCompatibility >= 0.9) reasons.push('family-surface-match');
   else if (familyCompatibility < 0.5) reasons.push('family-surface-risk');
   if (snowSuitability >= 0.8) reasons.push('snow-compatible');
@@ -211,15 +182,15 @@ export function environmentFitScore({ family = '', roleId = 'temperate', sample 
   else if (terrainSuitability < 0.4) reasons.push('terrain-risk');
   if (access >= 0.95) reasons.push('road-access');
   else if (access < 0.8) reasons.push('remote-access');
-  if (isTransitionBiome(normalized)) reasons.push('biome-transition');
-  if (isStrongBiome(normalized)) reasons.push('strong-biome');
+  if (transitionPenalty < 1) reasons.push('biome-transition');
+  if (strongBiomeBonus > 1) reasons.push('strong-biome');
 
   return Object.freeze({
     family: String(family),
     roleId: String(roleId),
     score,
     accepted: score >= 0.48,
-    components: Object.freeze({ biomeCompatibility, familyCompatibility, snowSuitability, wetnessSuitability, terrainSuitability, access, transitionPenalty, strongBiomeBonus }),
+    components: Object.freeze({ biomeCompatibility, roleBiomeConflict, familyCompatibility, snowSuitability, wetnessSuitability, terrainSuitability, access, transitionPenalty, strongBiomeBonus }),
     sample: normalized,
     reasons: Object.freeze(reasons),
   });
@@ -228,28 +199,12 @@ export function environmentFitScore({ family = '', roleId = 'temperate', sample 
 export function chooseEnvironmentFamily({ roleId = 'temperate', candidates = [], sample = {}, roadDistance = Infinity } = {}) {
   const scored = (candidates || []).map((family) => environmentFitScore({ family, roleId, sample, roadDistance }));
   scored.sort((a, b) => b.score - a.score || a.family.localeCompare(b.family));
-  return Object.freeze({
-    winner: scored[0]?.family || null,
-    score: scored[0]?.score ?? 0,
-    accepted: scored[0]?.accepted ?? false,
-    ranked: Object.freeze(scored),
-  });
+  return Object.freeze({ winner: scored[0]?.family || null, score: scored[0]?.score ?? 0, accepted: scored[0]?.accepted ?? false, ranked: Object.freeze(scored) });
 }
 
 export function environmentFingerprint({ family = '', roleId = '', sample = {}, roadDistance = Infinity } = {}) {
   const fit = environmentFitScore({ family, roleId, sample, roadDistance });
-  const parts = [
-    family,
-    roleId,
-    fit.sample.biome,
-    fit.score.toFixed(5),
-    fit.components.familyCompatibility.toFixed(5),
-    fit.components.snowSuitability.toFixed(5),
-    fit.components.wetnessSuitability.toFixed(5),
-    fit.components.terrainSuitability.toFixed(5),
-    fit.components.access.toFixed(5),
-  ];
-  return parts.join('|');
+  return [family, roleId, fit.sample.biome, fit.score.toFixed(5), fit.components.familyCompatibility.toFixed(5), fit.components.snowSuitability.toFixed(5), fit.components.wetnessSuitability.toFixed(5), fit.components.terrainSuitability.toFixed(5), fit.components.access.toFixed(5)].join('|');
 }
 
 export function validateEnvironmentFitBatch(records = []) {
@@ -261,18 +216,9 @@ export function validateEnvironmentFitBatch(records = []) {
     fingerprints.push(environmentFingerprint(record));
     if (!fit.accepted) errors.push(`record-${index}:environment-fit=${fit.score.toFixed(3)}`);
     if (isTransitionBiome(fit.sample)) warnings.push(`record-${index}:transition-biome`);
-    if (fit.components.roleBiomeConflict === true) warnings.push(`record-${index}:role-biome-conflict`);
+    if (fit.components.roleBiomeConflict) warnings.push(`record-${index}:role-biome-conflict`);
   }
-  return Object.freeze({
-    ok: errors.length === 0,
-    errors: Object.freeze(errors),
-    warnings: Object.freeze(warnings),
-    fingerprints: Object.freeze(fingerprints),
-  });
+  return Object.freeze({ ok: errors.length === 0, errors: Object.freeze(errors), warnings: Object.freeze(warnings), fingerprints: Object.freeze(fingerprints) });
 }
 
-export const __ENVIRONMENT_TEST_HOOKS = Object.freeze({
-  numberOr,
-  clamp01,
-  familyProfile,
-});
+export const __ENVIRONMENT_TEST_HOOKS = Object.freeze({ numberOr, clamp01, familyProfile });
