@@ -1,13 +1,16 @@
 /**
  * Read-only terrain/environment query contract for world placement consumers.
  *
- * This adapter is intentionally downstream-facing: it consumes already-resolved terrain samples and
- * exposes one immutable context object containing height/slope/normal, coarse biome, hydrology and
- * placement safety signals. It never samples a second terrain authority, edits terrain, creates water,
- * owns navmesh state, or imports editor/runtime placement UI. Player/NPC/settlement systems can consume
- * the same context so their world transforms agree with the terrain renderer.
+ * Consumes already-resolved terrain samples and exposes immutable height/slope/normal, biome,
+ * hydrology, wind/snow and placement-safety context. Category profiles mirror the central world
+ * placement semantics without importing or duplicating the material/placement pipeline.
  * @module world/terrainGroundContext
  */
+
+import {
+  evaluateTerrainGroundContextAgainstProfile,
+  resolveTerrainGroundContextProfile,
+} from './terrainGroundContextProfiles.js';
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 const clampSigned = (value) => Math.max(-1, Math.min(1, value));
@@ -38,13 +41,14 @@ export const TERRAIN_GROUND_CONTEXT_POLICY = Object.freeze({
 });
 
 function normalizeBiomeWeights(biome = {}) {
-  const grass = clamp01(finiteOr(biome.grass, biome.grassWeight));
-  const forest = clamp01(finiteOr(biome.forest, biome.forestWeight));
-  const tundra = clamp01(finiteOr(biome.tundra, biome.tundraWeight));
-  const desert = clamp01(finiteOr(biome.desert, biome.desertWeight));
-  const rock = clamp01(finiteOr(biome.rock, biome.rockWeight));
-  const snow = clamp01(finiteOr(biome.snow, biome.snowWeight));
-  return Object.freeze({ grass, forest, tundra, desert, rock, snow });
+  return Object.freeze({
+    grass: clamp01(finiteOr(biome.grass, biome.grassWeight)),
+    forest: clamp01(finiteOr(biome.forest, biome.forestWeight)),
+    tundra: clamp01(finiteOr(biome.tundra, biome.tundraWeight)),
+    desert: clamp01(finiteOr(biome.desert, biome.desertWeight)),
+    rock: clamp01(finiteOr(biome.rock, biome.rockWeight)),
+    snow: clamp01(finiteOr(biome.snow, biome.snowWeight)),
+  });
 }
 
 export function classifyTerrainGroundSlope(slopeDegrees = 0) {
@@ -137,13 +141,7 @@ export function resolveTerrainGroundPlacementSafety({
   const P = TERRAIN_GROUND_CONTEXT_POLICY;
   const slope = classifyTerrainGroundSlope(slopeDegrees);
   const water = classifyTerrainWaterDepth(heightAboveSeaMeters);
-  const surface = classifyTerrainGroundSurface({
-    heightAboveSeaMeters,
-    slopeDegrees,
-    rockWeight: biome.rock,
-    snowWeight: biome.snow,
-  });
-  const waterDistance = Math.max(0, finiteOr(waterDistanceMeters, 1e9));
+  const surface = classifyTerrainGroundSurface({ heightAboveSeaMeters, slopeDegrees, rockWeight: biome.rock, snowWeight: biome.snow });
   const roadDistance = Math.max(0, finiteOr(roadDistanceMeters, 1e9));
   const settlementDistance = Math.max(0, finiteOr(settlementDistanceMeters, 1e9));
   return Object.freeze({
@@ -169,6 +167,8 @@ export function buildTerrainGroundContext({
   aspectDot = 0,
   normal = { x: 0, y: 1, z: 0 },
   biome = {},
+  biomeName = '',
+  waterType = null,
   waterDistanceMeters = Infinity,
   roadDistanceMeters = Infinity,
   settlementDistanceMeters = Infinity,
@@ -180,28 +180,25 @@ export function buildTerrainGroundContext({
 } = {}) {
   const normalizedBiome = normalizeBiomeWeights(biome);
   const slope = classifyTerrainGroundSlope(slopeDegrees);
-  const water = classifyTerrainWaterDepth(heightAboveSeaMeters);
+  const water = {
+    ...classifyTerrainWaterDepth(heightAboveSeaMeters),
+    type: waterType == null ? null : String(waterType).toLowerCase(),
+  };
+  const frozenWater = Object.freeze(water);
   const surface = classifyTerrainGroundSurface({ heightAboveSeaMeters, slopeDegrees, rockWeight: normalizedBiome.rock, snowWeight: normalizedBiome.snow });
-  const placement = resolveTerrainGroundPlacementSafety({
-    slopeDegrees, heightAboveSeaMeters, waterDistanceMeters, roadDistanceMeters, settlementDistanceMeters,
-    biome: normalizedBiome,
-  });
-  const transform = resolveTerrainGroundTransform({
-    worldX, worldY: colliderY ?? worldY, worldZ, heightAboveSeaMeters, normal, verticalOffsetMeters, yawRadians,
-  });
-  const wind = Object.freeze({
-    windward: clamp01(terrainWindward),
-    lee: clamp01(terrainLee),
-    aspectDot: clampSigned(aspectDot),
-  });
-  return Object.freeze({
+  const placement = resolveTerrainGroundPlacementSafety({ slopeDegrees, heightAboveSeaMeters, waterDistanceMeters, roadDistanceMeters, settlementDistanceMeters, biome: normalizedBiome });
+  const transform = resolveTerrainGroundTransform({ worldX, worldY, worldZ, heightAboveSeaMeters, normal, verticalOffsetMeters, yawRadians });
+  const wind = Object.freeze({ windward: clamp01(terrainWindward), lee: clamp01(terrainLee), aspectDot: clampSigned(aspectDot) });
+  const context = Object.freeze({
     policy: TERRAIN_GROUND_CONTEXT_POLICY.id,
     coordinate: Object.freeze({ x: finiteOr(worldX), y: finiteOr(worldY), z: finiteOr(worldZ) }),
     heightAboveSeaMeters: finiteOr(heightAboveSeaMeters),
     slope,
-    water,
+    water: frozenWater,
     surface,
     biome: normalizedBiome,
+    dominantBiome: String(biomeName || '').toLowerCase() || null,
+    distance: Object.freeze({ roadMeters: finiteOr(roadDistanceMeters, Infinity), settlementMeters: finiteOr(settlementDistanceMeters, Infinity), waterMeters: finiteOr(waterDistanceMeters, Infinity) }),
     wind,
     placement,
     transform,
@@ -211,6 +208,7 @@ export function buildTerrainGroundContext({
       parity: !Number.isFinite(colliderY) || Math.abs(colliderY - transform.y) <= 0.01,
     }),
   });
+  return context;
 }
 
 export function validateTerrainGroundContext(context) {
@@ -228,15 +226,19 @@ export function validateTerrainGroundContext(context) {
     slopeFinite: Number.isFinite(c.slope?.degrees),
     waterFinite: Number.isFinite(c.water?.depthMeters),
     biomeFinite: Object.values(c.biome ?? {}).every(Number.isFinite),
-    placementBoolean: ['terrainSafe','slopeSafe','waterSafe','roadClear','settlementClear','buildable','walkable']
-      .every((key) => typeof placement[key] === 'boolean'),
+    placementBoolean: ['terrainSafe','slopeSafe','waterSafe','roadClear','settlementClear','buildable','walkable'].every((key) => typeof placement[key] === 'boolean'),
     noEditorDependency: true,
     noSecondaryHeightAuthority: true,
   };
-  return Object.freeze({
-    ...checks,
-    pass: Object.values(checks).every(Boolean),
-  });
+  return Object.freeze({ ...checks, pass: Object.values(checks).every(Boolean) });
+}
+
+export function evaluateTerrainGroundContextProfile(context, category = 'vegetation', overrides = {}) {
+  return evaluateTerrainGroundContextAgainstProfile(context, category, overrides);
+}
+
+export function resolveTerrainGroundContextProfileForCategory(category = 'vegetation') {
+  return resolveTerrainGroundContextProfile(category);
 }
 
 export function serializeTerrainGroundContext(context) {
@@ -247,7 +249,10 @@ export function serializeTerrainGroundContext(context) {
     heightAboveSeaMeters: c.heightAboveSeaMeters,
     slope: c.slope,
     water: c.water,
+    surface: c.surface,
     biome: c.biome,
+    dominantBiome: c.dominantBiome,
+    distance: c.distance,
     wind: c.wind,
     placement: c.placement,
     transform: c.transform,
@@ -257,21 +262,26 @@ export function serializeTerrainGroundContext(context) {
 
 export function resolveTerrainAgentPlacementQuery(context, options = {}) {
   const c = context ?? buildTerrainGroundContext({});
+  const profileCategory = options.category ?? 'vegetation';
+  const profileResult = evaluateTerrainGroundContextProfile(c, profileCategory, options);
   const preferWalkable = options.preferWalkable !== false;
   const preferBuildable = options.preferBuildable === true;
   const maxSlopeDegrees = finiteOr(options.maxSlopeDegrees, TERRAIN_GROUND_CONTEXT_POLICY.maxTerrainPlacementSlopeDegrees);
+  const accepted = profileResult.accepted
+    && c.placement.slopeSafe
+    && c.placement.waterSafe
+    && (!preferWalkable || c.surface.walkable)
+    && (!preferBuildable || c.surface.buildable)
+    && c.slope.degrees <= maxSlopeDegrees;
   return Object.freeze({
-    accepted: c.placement.slopeSafe
-      && c.placement.waterSafe
-      && (!preferWalkable || c.surface.walkable)
-      && (!preferBuildable || c.surface.buildable)
-      && c.slope.degrees <= maxSlopeDegrees,
+    accepted,
+    profile: profileResult,
     transform: c.transform,
     groundY: c.transform.y,
     normal: c.transform.normal,
     water: c.water,
     biome: c.biome,
     slopeDegrees: c.slope.degrees,
-    reason: c.placement.reason,
+    reason: accepted ? 'accepted' : profileResult.reason !== 'accepted' ? profileResult.reason : c.placement.reason,
   });
 }
