@@ -4,7 +4,7 @@ import { createLivingWorldDirector, auditDirectorPolicy, directorDigest } from '
 import { normalizeOccupationDefinition, buildOccupationDirective, occupationDigest } from '../src/3d/gameplay/livingWorldOccupationSchedule.js';
 import { evaluateHabitat, planFaunaGroup, auditEcologyPlan, normalizeEcologyContext } from '../src/3d/gameplay/livingWorldEcologyPolicy.js';
 import { createEventDirectorState, advanceEventDirector, buildAmbientWorldEventReceipt, LIVING_WORLD_EVENT_DIRECTOR_POLICY } from '../src/3d/gameplay/livingWorldEventDirectorAdapter.js';
-import { collectLivingWorldRuntimeEvidence, validateLivingWorldRuntimeEvidence, buildLivingWorldAcceptanceSummary, runtimeEvidenceDigest, LIVING_WORLD_RUNTIME_EVIDENCE_POLICY, summarizeLivingWorldObservationWindow, buildLivingWorldObservationReceipt, validateLivingWorldObservationSummary } from '../src/3d/gameplay/livingWorldRuntimeEvidence.js';
+import { collectLivingWorldRuntimeEvidence, validateLivingWorldRuntimeEvidence, buildLivingWorldAcceptanceSummary, runtimeEvidenceDigest, LIVING_WORLD_RUNTIME_EVIDENCE_POLICY, summarizeLivingWorldObservationWindow, buildLivingWorldObservationReceipt, validateLivingWorldObservationSummary, analyzeLivingWorldObservationTrend, buildLivingWorldObservationAcceptance } from '../src/3d/gameplay/livingWorldRuntimeEvidence.js';
 
 const occupation = normalizeOccupationDefinition({
 	id: 'farmer-1', seed: 'farmer-seed', travelSpeedMps: 1.5,
@@ -112,9 +112,96 @@ assert.equal(summarizeLivingWorldObservationWindow([{ frameMs: 10, tickMs: 1, ac
 assert.equal(summarizeLivingWorldObservationWindow([{ frameMs: 10, tickMs: 1, actors: 1, materialValidated: true, placementValidated: false }]).reason, 'placement-evidence');
 assert.equal(validateLivingWorldObservationSummary({ sampleCount: 121, performance: { frameP95Ms: -1, tickP95Ms: 1 }, population: { peakActors: 999 }, world: { errorTotal: -1 } }).ok, false);
 
+const stableTrendSamples = Array.from({ length: 12 }, (_, index) => ({
+	frameMs: 11.5 + (index % 2) * 0.4,
+	tickMs: 1.2 + (index % 3) * 0.1,
+	actors: 18 + (index % 3),
+	activeActors: 16 + (index % 2),
+	errors: 0,
+	worldEvents: index % 2,
+	eventCandidates: 2 + (index % 3),
+	threatRatio: 0.2,
+	cohesionRatio: 0.9,
+	materialValidated: true,
+	placementValidated: true,
+}));
+const stableTrendA = analyzeLivingWorldObservationTrend(stableTrendSamples, { windowId: 'stable-window' });
+const stableTrendB = analyzeLivingWorldObservationTrend(stableTrendSamples, { windowId: 'stable-window' });
+assert.deepEqual(stableTrendA, stableTrendB);
+assert.equal(stableTrendA.degrading, false);
+assert.equal(stableTrendA.reason, 'stable');
+assert.equal(stableTrendA.sampleCount, 12);
+assert.equal(stableTrendA.warnings.frame, false);
+assert.equal(stableTrendA.warnings.tick, false);
+assert.equal(stableTrendA.digest, stableTrendB.digest);
+const stableAcceptance = buildLivingWorldObservationAcceptance(observationA, stableTrendA);
+assert.equal(stableAcceptance.accepted, true);
+assert.equal(stableAcceptance.reason, 'stable');
+assert.equal(stableAcceptance.proof.performanceStable, true);
+assert.equal(stableAcceptance.proof.materialValidated, true);
+assert.equal(stableAcceptance.proof.placementValidated, true);
+
+const frameRegressionSamples = stableTrendSamples.map((sample, index) => ({ ...sample, frameMs: index < 6 ? 12 : 15 + index * 0.35 }));
+const frameTrend = analyzeLivingWorldObservationTrend(frameRegressionSamples, { windowId: 'frame-regression' });
+assert.equal(frameTrend.degrading, true);
+assert.equal(frameTrend.reason, 'frame-regression');
+assert(frameTrend.frameDeltaMs > 1);
+assert.equal(frameTrend.warnings.frame, true);
+assert.equal(buildLivingWorldObservationAcceptance(observationA, frameTrend).accepted, false);
+
+const tickRegressionSamples = stableTrendSamples.map((sample, index) => ({ ...sample, tickMs: index < 6 ? 1.2 : 2.5 + index * 0.2 }));
+const tickTrend = analyzeLivingWorldObservationTrend(tickRegressionSamples, { windowId: 'tick-regression' });
+assert.equal(tickTrend.degrading, true);
+assert.equal(tickTrend.reason, 'tick-regression');
+assert(tickTrend.tickDeltaMs > 0.75);
+assert.equal(tickTrend.warnings.tick, false === false ? true : true);
+
+const errorBurstSamples = stableTrendSamples.map((sample, index) => ({ ...sample, errors: index < 4 ? 1 : 0 }));
+const errorTrend = analyzeLivingWorldObservationTrend(errorBurstSamples, { windowId: 'error-burst' });
+assert.equal(errorTrend.degrading, true);
+assert.equal(errorTrend.reason, 'error-burst');
+assert.equal(errorTrend.errorBurstCount, 4);
+
+const actorPressureSamples = stableTrendSamples.map((sample) => ({ ...sample, actors: 500, activeActors: 490 }));
+const actorTrend = analyzeLivingWorldObservationTrend(actorPressureSamples, { windowId: 'actor-pressure' });
+assert.equal(actorTrend.degrading, true);
+assert.equal(actorTrend.reason, 'actor-pressure');
+assert(actorTrend.actorPressure > 0.9);
+
+const warningThresholdTrend = analyzeLivingWorldObservationTrend([
+	{ frameMs: 20.01, tickMs: 4.01, actors: 10, activeActors: 10, errors: 0, materialValidated: true, placementValidated: true },
+	{ frameMs: 19.8, tickMs: 4.5, actors: 10, activeActors: 10, errors: 0, materialValidated: true, placementValidated: true },
+], { windowId: 'warning-threshold', warningFrameMs: 20, warningTickMs: 5 });
+assert.equal(warningThresholdTrend.warnings.frame, true);
+assert.equal(warningThresholdTrend.warnings.tick, false);
+
+const malformedObservationSummary = summarizeLivingWorldObservationWindow([
+	{ frameMs: Number.NaN, tickMs: Infinity, actors: 99999, activeActors: -10, errors: -4, threatRatio: 8, cohesionRatio: -2, materialValidated: false, placementValidated: false },
+], { windowId: 'malformed' });
+assert.equal(malformedObservationSummary.sampleCount, 1);
+assert.equal(malformedObservationSummary.population.peakActors, 512);
+assert.equal(malformedObservationSummary.world.errorTotal, 0);
+assert.equal(malformedObservationSummary.world.averageThreatRatio, 1);
+assert.equal(malformedObservationSummary.world.averageCohesionRatio, 0);
+assert.equal(malformedObservationSummary.evidence.materialValidated, false);
+assert.equal(malformedObservationSummary.evidence.placementValidated, false);
+assert.equal(validateLivingWorldObservationSummary(malformedObservationSummary).ok, true);
+
+for (const actorCount of [0, 1, 8, 64, 512, 700]) {
+	const result = summarizeLivingWorldObservationWindow([{ frameMs: 10, tickMs: 1, actors: actorCount, activeActors: actorCount, materialValidated: true, placementValidated: true }], { windowId: `actors-${actorCount}` });
+	assert(result.population.peakActors <= 512);
+	if (actorCount <= 512) assert.equal(result.accepted, true);
+	else assert.equal(result.accepted, false);
+}
+
+for (const frameMs of [0, 5, 16.67, 16.68, 20, 33.34]) {
+	const result = summarizeLivingWorldObservationWindow([{ frameMs, tickMs: 1, actors: 2, activeActors: 2, materialValidated: true, placementValidated: true }], { windowId: `frame-${frameMs}` });
+	assert.equal(result.performance.withinFrameBudget, frameMs <= 16.67);
+}
+
 assert.equal(director.reset(), true);
 assert.equal(director.audit().tickCount, 0);
 assert.equal(director.dispose(), true);
 assert.equal(director.tick({ deltaSeconds: 0.1 }).accepted, false);
 
-console.log(JSON.stringify({ pass: true, occupationPhase: midday.snapshot.phase, wolfGroupSize: wolfGroup.groupSize, eventsPublished: published.length, actorsUpdated: tick.actorsUpdated, evidenceDigest: runtimeEvidenceDigest(evidence), observationDigest: observationA.digest, acceptanceDigest: directorDigest(tick) }, null, 2));
+console.log(JSON.stringify({ pass: true, occupationPhase: midday.snapshot.phase, wolfGroupSize: wolfGroup.groupSize, eventsPublished: published.length, actorsUpdated: tick.actorsUpdated, evidenceDigest: runtimeEvidenceDigest(evidence), observationDigest: observationA.digest, observationTrendDigest: stableTrendA.digest, acceptanceDigest: directorDigest(tick) }, null, 2));
