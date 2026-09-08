@@ -1,5 +1,4 @@
 const ACTIONS = Object.freeze(['idle', 'light', 'heavy', 'guard', 'parry', 'dodge', 'ranged-charge', 'ranged-release']);
-const STANCES = Object.freeze(['neutral', 'combat', 'guarding', 'evading', 'stunned', 'dead']);
 
 const clamp = (value, min, max, fallback = min) => {
   const numeric = Number(value);
@@ -32,16 +31,22 @@ const deepFreeze = (value) => {
   return value;
 };
 
-const stableJson = (value) => JSON.stringify(value, Object.keys(value).sort());
+const stableJson = (value) => {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+};
 
 export function projectPlayerCombatState(input = {}) {
-  const action = normalizeAction(input.action);
-  const health = clamp(input.health, 0, Math.max(1, finite(input.maxHealth, 100)), 0);
   const maxHealth = Math.max(1, finite(input.maxHealth, 100));
-  const stamina = clamp(input.stamina, 0, Math.max(1, finite(input.maxStamina, 100)), 0);
   const maxStamina = Math.max(1, finite(input.maxStamina, 100));
-  const poise = clamp(input.poise, 0, Math.max(1, finite(input.maxPoise, 100)), 0);
   const maxPoise = Math.max(1, finite(input.maxPoise, 100));
+  const action = normalizeAction(input.action);
+  const health = clamp(input.health, 0, maxHealth, 0);
+  const stamina = clamp(input.stamina, 0, maxStamina, 0);
+  const poise = clamp(input.poise, 0, maxPoise, 0);
   const dead = Boolean(input.dead) || health <= 0;
   const stunned = Boolean(input.stunned) || poise <= 0;
   const guarding = Boolean(input.guarding) || action === 'guard' || action === 'parry';
