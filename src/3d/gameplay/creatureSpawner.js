@@ -94,13 +94,20 @@ export function isCreatureHabitatCompatible(speciesId, x, z, {
 	seats,
 	habitatRules = CREATURE_HABITAT_RULES,
 } = {}) {
+	if (!Number.isFinite(x) || !Number.isFinite(z)) return false;
 	const rule = habitatRules?.[speciesId];
 	if (!rule) return true;
 	const seatDistance = nearestSeatDistanceMeters(x, z, seats);
 	if (rule.minSeatDistanceMeters != null && seatDistance < rule.minSeatDistanceMeters) return false;
 	if (rule.maxSeatDistanceMeters != null && seatDistance > rule.maxSeatDistanceMeters) return false;
 	if (typeof sampleHeightMeters !== 'function') return false;
-	const elevationAboveSea = sampleHeightMeters(x, z) - seaLevelMeters;
+	let groundY;
+	try {
+		groundY = sampleHeightMeters(x, z);
+	} catch {
+		return false;
+	}
+	const elevationAboveSea = groundY - seaLevelMeters;
 	if (!Number.isFinite(elevationAboveSea)) return false;
 	if (rule.minElevationAboveSeaMeters != null && elevationAboveSea < rule.minElevationAboveSeaMeters) return false;
 	if (rule.maxElevationAboveSeaMeters != null && elevationAboveSea > rule.maxElevationAboveSeaMeters) return false;
@@ -321,7 +328,14 @@ export function scatterCreatures({
 				const x = sampleCenterX + Math.cos(angle) * sampleRadius;
 				const z = sampleCenterZ + Math.sin(angle) * sampleRadius;
 				const rotationYRadians = rng() * Math.PI * 2;
-				if (!isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges })) continue;
+				if (!Number.isFinite(x) || !Number.isFinite(z)) continue;
+				let physicallyPlaceable = false;
+				try {
+					physicallyPlaceable = isPlaceablePosition(x, z, { sampleHeightMeters, seaLevelMeters, seats, roadEdges });
+				} catch {
+					continue;
+				}
+				if (!physicallyPlaceable) continue;
 				if (!isCreatureHabitatCompatible(speciesId, x, z, { sampleHeightMeters, seaLevelMeters, seats })) continue;
 				if (!isCreatureSpawnClear(speciesId, x, z, spawns)) continue;
 				if (!isCreaturePredatorSpawnSeparated(speciesId, x, z, spawns)) continue;

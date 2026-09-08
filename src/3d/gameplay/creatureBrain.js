@@ -210,8 +210,6 @@ export const CREATURE_BEHAVIOR_PROFILES = Object.freeze({
 	}),
 });
 
-/** FNV-1a 32-bit string hash — the string->numeric-seed step feeding `mulberry32` (imported by the
- * caller from `world/terrain.js`, not duplicated here). Deterministic, no `Math.random()`. */
 function hashSeedString(text) {
 	let hash = 0x811c9dc5;
 	for (let i = 0; i < text.length; i++) {
@@ -221,32 +219,6 @@ function hashSeedString(text) {
 	return hash >>> 0;
 }
 
-/**
- * Builds one procedural creature: rig + wander/reactive-movement state machine. Shape matches
- * `gameplay/animals.js`'s `createWolf` return contract (`{object3D, isFleeing, update, dispose}`) so
- * it slots into `game3d.js`'s existing `updateEntitiesSafely` loop unchanged.
- * @param {object} options
- * @param {string} options.speciesId Key into both `CREATURE_BODY_PLANS` and `CREATURE_BEHAVIOR_PROFILES`.
- * @param {string} options.spawnId Unique id (also used to seed this being's own wander RNG).
- * @param {number} options.worldX
- * @param {number} options.worldZ
- * @param {number} options.groundY
- * @param {number} [options.rotationYRadians]
- * @param {number} [options.socialAnchorX] Shared deterministic herd center supplied by creatureSpawner.
- * @param {number} [options.socialAnchorZ] Shared deterministic herd center supplied by creatureSpawner.
- * @param {{getGroundHeight: (x: number, z: number) => number}} options.groundCollider
- * @param {{resolveXZ: (x: number, z: number) => {x: number, z: number}}} [options.playerCollider]
- *   Run 332's own follow-up to Run 331's own named gap: the same castle+village obstacle collider
- *   `sceneManager.js` builds for `gameplay/player.js` (see its own JSDoc), applied to both the
- *   wander and reactive movement branches here so a being pushes back out of a house/keep instead of
- *   wandering/fleeing straight through it. Optional — omit (the default) for any caller with no
- *   obstacle collider available (e.g. a unit test).
- * @param {(seed: number) => () => number} options.mulberry32 Passed in rather than imported directly
- *   from `world/terrain.js` — keeps this gameplay module's only coupling to `world/` explicit and
- *   caller-controlled, same "generator takes plain data, not a live import graph" rule `world/README.md`
- *   already holds `world/vegetation.js` to.
- * @returns {{object3D: import('three').Object3D, isFleeing: boolean, update: (delta: number, playerPosition?: {x:number,z:number}, herdmateReactivePositions?: {x:number,z:number}[]) => void, dispose: () => void}}
- */
 export function createCreatureBeing({
 	speciesId,
 	spawnId,
@@ -261,15 +233,13 @@ export function createCreatureBeing({
 	mulberry32,
 }) {
 	const profile = CREATURE_BEHAVIOR_PROFILES[speciesId];
-	if (!profile) {
-		throw new Error(`[gameplay/creatureBrain] no CREATURE_BEHAVIOR_PROFILES entry for species "${speciesId}"`);
-	}
+	if (!profile) throw new Error(`[gameplay/creatureBrain] no CREATURE_BEHAVIOR_PROFILES entry for species "${speciesId}"`);
 	const plan = CREATURE_BODY_PLANS[speciesId];
 	const rig = createCreatureRig({ speciesId, variant: spawnId });
 	const object3D = rig.object3D;
 	object3D.name = spawnId;
 	object3D.position.set(worldX, groundY, worldZ);
-	object3D.rotation.y = rotationYRadians;
+	object3D.rotation.y = Number.isFinite(rotationYRadians) ? rotationYRadians : 0;
 
 	const socialCohesionEnabled = profile.locomotion !== 'flight'
 		&& profile.packAlertRadiusMeters != null
@@ -278,10 +248,8 @@ export function createCreatureBeing({
 	const idleWanderRadiusMeters = socialCohesionEnabled
 		? Math.min(profile.wanderRadiusMeters, profile.packAlertRadiusMeters * CREATURE_SOCIAL_WANDER_RADIUS_FACTOR)
 		: profile.wanderRadiusMeters;
-	const rng = mulberry32(hashSeedString(spawnId) ^ 0x42524e00); // "BRN\0"-ish tag
-	const wanderCenter = socialCohesionEnabled
-		? { x: socialAnchorX, z: socialAnchorZ }
-		: { x: worldX, z: worldZ };
+	const rng = mulberry32(hashSeedString(spawnId) ^ 0x42524e00);
+	const wanderCenter = socialCohesionEnabled ? { x: socialAnchorX, z: socialAnchorZ } : { x: worldX, z: worldZ };
 	let wanderTarget = { x: worldX, z: worldZ };
 	let pauseTimer = profile.wanderPauseSeconds;
 	let gaitClockSeconds = 0;
@@ -295,22 +263,15 @@ export function createCreatureBeing({
 		idleWanderRadiusMeters: Number(idleWanderRadiusMeters.toFixed(3)),
 		alertRadiusMeters: profile.packAlertRadiusMeters ?? null,
 	});
-	// Flight-only state — declared unconditionally (cheap, and keeps this function's shape uniform) but
-	// only ever read/written when `isFlightSpecies` is true.
-	let flightPhase = 'grounded'; // 'grounded' | 'climbing' | 'cruising' | 'landing'
+	let flightPhase = 'grounded';
 	let flightAltitudeMeters = 0;
 	let flightHeadingX = 0;
 	let flightHeadingZ = 1;
 	let flightElapsedSeconds = 0;
 
-	/** Shortest-path yaw turn — copied from `gameplay/animals.js`'s `createWolf` (small, per-species
-	 * controller; this project's own established precedent — see that module's own header — prefers
-	 * this over a shared cross-module helper for a function this small). */
 	function turnToward(targetYaw, delta) {
 		const turnStep = DEFAULT_TURN_RATE_RADIANS_PER_SECOND * delta;
-		object3D.rotation.y +=
-			(((targetYaw - object3D.rotation.y + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI) *
-			Math.min(1, turnStep);
+		object3D.rotation.y += (((targetYaw - object3D.rotation.y + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI) * Math.min(1, turnStep);
 	}
 
 	function pickNewWanderTarget() {
@@ -319,11 +280,52 @@ export function createCreatureBeing({
 		wanderTarget = { x: wanderCenter.x + Math.cos(angle) * radius, z: wanderCenter.z + Math.sin(angle) * radius };
 	}
 
-	/**
-	 * Ground-hop wander step — the exact wander behavior every species used before flight species
-	 * existed, extracted unchanged so a flight species can reuse it verbatim while grounded (see this
-	 * file's own "Birds fly now" header section). Returns whether movement happened this frame.
-	 */
+	function reactiveDirection(dx, dz, distance, sign = 1) {
+		const hasSeparationVector = Number.isFinite(distance) && distance > 1e-6;
+		const fallbackYaw = Number.isFinite(object3D.rotation.y) ? object3D.rotation.y : 0;
+		return {
+			x: (hasSeparationVector ? dx / distance : Math.sin(fallbackYaw)) * sign,
+			z: (hasSeparationVector ? dz / distance : Math.cos(fallbackYaw)) * sign,
+		};
+	}
+
+	function tryCommitGroundedMove(candidateX, candidateZ, minimumDistanceX = null, minimumDistanceZ = null, minimumDistanceMeters = 0) {
+		if (!Number.isFinite(candidateX) || !Number.isFinite(candidateZ)) return false;
+		let resolvedX = candidateX;
+		let resolvedZ = candidateZ;
+		try {
+			if (playerCollider) {
+				const resolved = playerCollider.resolveXZ(candidateX, candidateZ);
+				if (!Number.isFinite(resolved?.x) || !Number.isFinite(resolved?.z)) return false;
+				resolvedX = resolved.x;
+				resolvedZ = resolved.z;
+			}
+			if (Number.isFinite(minimumDistanceX) && Number.isFinite(minimumDistanceZ) && minimumDistanceMeters > 0) {
+				const resolvedDistance = Math.hypot(resolvedX - minimumDistanceX, resolvedZ - minimumDistanceZ);
+				if (!Number.isFinite(resolvedDistance) || resolvedDistance < minimumDistanceMeters - 1e-6) return false;
+			}
+			const resolvedY = groundCollider.getGroundHeight(resolvedX, resolvedZ);
+			if (!Number.isFinite(resolvedY)) return false;
+			object3D.position.set(resolvedX, resolvedY, resolvedZ);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	function tryCommitFlightMove(candidateX, candidateZ, candidateAltitudeMeters) {
+		if (!Number.isFinite(candidateX) || !Number.isFinite(candidateZ) || !Number.isFinite(candidateAltitudeMeters)) return false;
+		try {
+			const terrainY = groundCollider.getGroundHeight(candidateX, candidateZ);
+			const candidateY = terrainY + candidateAltitudeMeters;
+			if (!Number.isFinite(terrainY) || !Number.isFinite(candidateY)) return false;
+			object3D.position.set(candidateX, candidateY, candidateZ);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
 	function stepGroundWander(delta) {
 		if (pauseTimer > 0) {
 			pauseTimer -= delta;
@@ -334,26 +336,14 @@ export function createCreatureBeing({
 		const distance = Math.hypot(dx, dz);
 		const step = profile.wanderSpeedMps * delta;
 		if (distance <= step) {
-			let targetX = wanderTarget.x;
-			let targetZ = wanderTarget.z;
-			if (playerCollider) {
-				({ x: targetX, z: targetZ } = playerCollider.resolveXZ(targetX, targetZ));
-			}
-			object3D.position.x = targetX;
-			object3D.position.z = targetZ;
-			object3D.position.y = groundCollider.getGroundHeight(targetX, targetZ);
+			if (!tryCommitGroundedMove(wanderTarget.x, wanderTarget.z)) return false;
 			pickNewWanderTarget();
 			pauseTimer = profile.wanderPauseSeconds;
 			return false;
 		}
-		let nextX = object3D.position.x + (dx / distance) * step;
-		let nextZ = object3D.position.z + (dz / distance) * step;
-		if (playerCollider) {
-			({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
-		}
-		object3D.position.x = nextX;
-		object3D.position.z = nextZ;
-		object3D.position.y = groundCollider.getGroundHeight(object3D.position.x, object3D.position.z);
+		const nextX = object3D.position.x + (dx / distance) * step;
+		const nextZ = object3D.position.z + (dz / distance) * step;
+		if (!tryCommitGroundedMove(nextX, nextZ)) return false;
 		turnToward(Math.atan2(dx, dz), delta);
 		return true;
 	}
@@ -368,12 +358,7 @@ export function createCreatureBeing({
 			const dzFromPlayer = playerPosition ? object3D.position.z - playerPosition.z : Infinity;
 			const distanceFromPlayer = Math.hypot(dxFromPlayer, dzFromPlayer);
 			let reactingDirectly = distanceFromPlayer < profile.reactiveTriggerRadiusMeters;
-
-			// `approach-friendly` (`kopek`): stop reacting once close enough that closing further would
-			// visually push into the player — mirrors `flee-on-approach`'s own trigger-radius shape.
-			if (profile.reactiveDirection === 'toward' && distanceFromPlayer <= (profile.reactiveStopDistanceMeters ?? 0)) {
-				reactingDirectly = false;
-			}
+			if (profile.reactiveDirection === 'toward' && distanceFromPlayer <= (profile.reactiveStopDistanceMeters ?? 0)) reactingDirectly = false;
 
 			let reactingFromHerd = false;
 			if (!reactingDirectly && playerPosition && profile.packAlertRadiusMeters != null && herdmateReactivePositions) {
@@ -391,83 +376,88 @@ export function createCreatureBeing({
 			let isMoving = false;
 
 			if (isFlightSpecies) {
-				// Climb -> cruise -> land. See this file's own "Birds fly now" header section for the
-				// full design rationale; kept as its own branch rather than interleaved with the ground
-				// species' branch below so neither reads as a special case of the other.
-				if (currentlyReacting && flightPhase === 'grounded') {
-					flightPhase = 'climbing';
-					flightElapsedSeconds = 0;
-					const safeDistance = Math.max(distanceFromPlayer, 1e-6);
-					flightHeadingX = dxFromPlayer / safeDistance;
-					flightHeadingZ = dzFromPlayer / safeDistance;
-				}
-
 				if (flightPhase === 'grounded') {
-					isMoving = stepGroundWander(delta);
+					if (currentlyReacting) {
+						const heading = reactiveDirection(dxFromPlayer, dzFromPlayer, distanceFromPlayer);
+						const nextAltitude = Math.min(profile.flightAltitudeMeters, profile.takeoffClimbMps * delta);
+						const nextX = object3D.position.x + heading.x * profile.reactiveSpeedMps * delta;
+						const nextZ = object3D.position.z + heading.z * profile.reactiveSpeedMps * delta;
+						if (tryCommitFlightMove(nextX, nextZ, nextAltitude)) {
+							flightHeadingX = heading.x;
+							flightHeadingZ = heading.z;
+							flightAltitudeMeters = nextAltitude;
+							flightElapsedSeconds = delta;
+							flightPhase = nextAltitude >= profile.flightAltitudeMeters ? 'cruising' : 'climbing';
+							turnToward(Math.atan2(flightHeadingX, flightHeadingZ), delta);
+							isMoving = true;
+						}
+					} else isMoving = stepGroundWander(delta);
 				} else if (flightPhase === 'landing') {
-					flightAltitudeMeters = Math.max(0, flightAltitudeMeters - profile.takeoffClimbMps * delta);
-					object3D.position.y = groundCollider.getGroundHeight(object3D.position.x, object3D.position.z) + flightAltitudeMeters;
-					isMoving = true;
-					if (flightAltitudeMeters <= 0) {
-						flightPhase = 'grounded';
-						wanderCenter.x = object3D.position.x;
-						wanderCenter.z = object3D.position.z;
-						pickNewWanderTarget();
-						pauseTimer = profile.wanderPauseSeconds;
+					const nextAltitude = Math.max(0, flightAltitudeMeters - profile.takeoffClimbMps * delta);
+					if (tryCommitFlightMove(object3D.position.x, object3D.position.z, nextAltitude)) {
+						flightAltitudeMeters = nextAltitude;
+						isMoving = true;
+						if (flightAltitudeMeters <= 0) {
+							flightPhase = 'grounded';
+							wanderCenter.x = object3D.position.x;
+							wanderCenter.z = object3D.position.z;
+							pickNewWanderTarget();
+							pauseTimer = profile.wanderPauseSeconds;
+						}
 					}
 				} else {
-					// 'climbing' or 'cruising' — both fly the same fixed heading at reactiveSpeedMps,
-					// differing only in whether altitude is still increasing.
-					flightElapsedSeconds += delta;
-					object3D.position.x += flightHeadingX * profile.reactiveSpeedMps * delta;
-					object3D.position.z += flightHeadingZ * profile.reactiveSpeedMps * delta;
+					const nextElapsedSeconds = flightElapsedSeconds + delta;
+					const nextX = object3D.position.x + flightHeadingX * profile.reactiveSpeedMps * delta;
+					const nextZ = object3D.position.z + flightHeadingZ * profile.reactiveSpeedMps * delta;
+					let nextAltitude = flightAltitudeMeters;
+					let nextPhase = flightPhase;
 					if (flightPhase === 'climbing') {
-						flightAltitudeMeters = Math.min(profile.flightAltitudeMeters, flightAltitudeMeters + profile.takeoffClimbMps * delta);
-						if (flightAltitudeMeters >= profile.flightAltitudeMeters) flightPhase = 'cruising';
-					} else if (flightElapsedSeconds >= profile.flightDurationSeconds) {
-						flightPhase = 'landing';
+						nextAltitude = Math.min(profile.flightAltitudeMeters, flightAltitudeMeters + profile.takeoffClimbMps * delta);
+						if (nextAltitude >= profile.flightAltitudeMeters) nextPhase = 'cruising';
+					} else if (nextElapsedSeconds >= profile.flightDurationSeconds) nextPhase = 'landing';
+					if (tryCommitFlightMove(nextX, nextZ, nextAltitude)) {
+						flightElapsedSeconds = nextElapsedSeconds;
+						flightAltitudeMeters = nextAltitude;
+						flightPhase = nextPhase;
+						turnToward(Math.atan2(flightHeadingX, flightHeadingZ), delta);
+						isMoving = true;
 					}
-					object3D.position.y = groundCollider.getGroundHeight(object3D.position.x, object3D.position.z) + flightAltitudeMeters;
-					turnToward(Math.atan2(flightHeadingX, flightHeadingZ), delta);
-					isMoving = true;
 				}
-
 				if (isMoving) {
 					gaitClockSeconds += delta;
 					applyCreatureGait(rig, { gaitName: flightPhase === 'grounded' ? plan.restGait : plan.alertGait, elapsedSeconds: gaitClockSeconds });
-				} else if (wasMoving) {
-					resetCreatureGaitPose(rig);
-				}
+				} else if (wasMoving) resetCreatureGaitPose(rig);
 				wasMoving = isMoving;
 				return;
 			}
 
 			if (currentlyReacting) {
-				const safeDistance = Math.max(distanceFromPlayer, 1e-6);
 				const sign = profile.reactiveDirection === 'toward' ? -1 : 1;
-				const dirX = (dxFromPlayer / safeDistance) * sign;
-				const dirZ = (dzFromPlayer / safeDistance) * sign;
-				const step = profile.reactiveSpeedMps * delta;
-				let nextX = object3D.position.x + dirX * step;
-				let nextZ = object3D.position.z + dirZ * step;
-				if (playerCollider) {
-					({ x: nextX, z: nextZ } = playerCollider.resolveXZ(nextX, nextZ));
+				const direction = reactiveDirection(dxFromPlayer, dzFromPlayer, distanceFromPlayer, sign);
+				const requestedStep = profile.reactiveSpeedMps * delta;
+				const stopDistance = profile.reactiveDirection === 'toward' ? Math.max(0, profile.reactiveStopDistanceMeters ?? 0) : 0;
+				const step = profile.reactiveDirection === 'toward'
+					? Math.min(requestedStep, Math.max(0, distanceFromPlayer - stopDistance))
+					: requestedStep;
+				const nextX = object3D.position.x + direction.x * step;
+				const nextZ = object3D.position.z + direction.z * step;
+				const guardFriendlyStop = profile.reactiveDirection === 'toward' && playerPosition;
+				if (step > 0 && tryCommitGroundedMove(
+					nextX,
+					nextZ,
+					guardFriendlyStop ? playerPosition.x : null,
+					guardFriendlyStop ? playerPosition.z : null,
+					guardFriendlyStop ? stopDistance : 0,
+				)) {
+					turnToward(Math.atan2(direction.x, direction.z), delta);
+					isMoving = true;
 				}
-				object3D.position.x = nextX;
-				object3D.position.z = nextZ;
-				object3D.position.y = groundCollider.getGroundHeight(object3D.position.x, object3D.position.z);
-				turnToward(Math.atan2(dirX, dirZ), delta);
-				isMoving = true;
-			} else {
-				isMoving = stepGroundWander(delta);
-			}
+			} else isMoving = stepGroundWander(delta);
 
 			if (isMoving) {
 				gaitClockSeconds += delta;
 				applyCreatureGait(rig, { gaitName: currentlyReacting ? plan.alertGait : plan.restGait, elapsedSeconds: gaitClockSeconds });
-			} else if (wasMoving) {
-				resetCreatureGaitPose(rig);
-			}
+			} else if (wasMoving) resetCreatureGaitPose(rig);
 			wasMoving = isMoving;
 		},
 		dispose() {
@@ -476,44 +466,41 @@ export function createCreatureBeing({
 	};
 }
 
-/**
- * Bulk-instantiates every entry of a procedural spawn list (see `gameplay/creatureSpawner.js`) into
- * live `createCreatureBeing` controllers — same "resolve + load in one call, `game3d.js` just adds the
- * results to the scene" shape as `animals.js`'s `spawnConfiguredAnimals`, minus the `Promise.all`/
- * asset-download step: a procedural rig has nothing to `await` (no network fetch, no glTF parse), so
- * this stays a plain synchronous function rather than an async one that never actually suspends.
- * @param {object} options
- * @param {{id: string, speciesId: string, x: number, z: number, rotationYRadians?: number, socialAnchorX?: number, socialAnchorZ?: number}[]} options.spawns
- * @param {{getGroundHeight: (x: number, z: number) => number}} options.groundCollider
- * @param {{resolveXZ: (x: number, z: number) => {x: number, z: number}}} [options.playerCollider]
- *   Forwarded to every `createCreatureBeing` call — see that function's own JSDoc.
- * @param {(seed: number) => () => number} options.mulberry32
- * @returns {ReturnType<typeof createCreatureBeing>[]} Already filtered — a spawn naming a species with
- *   no `CREATURE_BEHAVIOR_PROFILES` entry is skipped with a console warning, not thrown, matching
- *   `spawnConfiguredAnimals`'s own "skip, don't crash the whole spawn batch" behavior for a bad seat id.
- */
 export function spawnConfiguredCreatures({ spawns, groundCollider, playerCollider, mulberry32 }) {
 	const beings = [];
 	for (const spawn of spawns) {
-		if (!CREATURE_BEHAVIOR_PROFILES[spawn.speciesId]) {
-			console.warn(`[gameplay/creatureBrain] spawn "${spawn.id}" names species "${spawn.speciesId}" with no behavior profile — skipping.`);
+		if (!spawn || typeof spawn.id !== 'string' || !spawn.id.trim() || !CREATURE_BEHAVIOR_PROFILES[spawn.speciesId]) {
+			console.warn(`[gameplay/creatureBrain] malformed/unknown spawn "${spawn?.id ?? '<invalid>'}" species "${spawn?.speciesId ?? '<invalid>'}" — skipping.`);
 			continue;
 		}
-		beings.push(
-			createCreatureBeing({
-				speciesId: spawn.speciesId,
-				spawnId: spawn.id,
-				worldX: spawn.x,
-				worldZ: spawn.z,
-				groundY: groundCollider.getGroundHeight(spawn.x, spawn.z),
-				rotationYRadians: spawn.rotationYRadians ?? 0,
-				socialAnchorX: spawn.socialAnchorX ?? null,
-				socialAnchorZ: spawn.socialAnchorZ ?? null,
-				groundCollider,
-				playerCollider,
-				mulberry32,
-			}),
-		);
+		if (!Number.isFinite(spawn.x) || !Number.isFinite(spawn.z)) {
+			console.warn(`[gameplay/creatureBrain] spawn "${spawn.id}" has non-finite world coordinates — skipping.`);
+			continue;
+		}
+		let groundY;
+		try {
+			groundY = groundCollider.getGroundHeight(spawn.x, spawn.z);
+		} catch (error) {
+			console.warn(`[gameplay/creatureBrain] spawn "${spawn.id}" ground sample failed — skipping.`, error);
+			continue;
+		}
+		if (!Number.isFinite(groundY)) {
+			console.warn(`[gameplay/creatureBrain] spawn "${spawn.id}" resolved non-finite ground — skipping.`);
+			continue;
+		}
+		beings.push(createCreatureBeing({
+			speciesId: spawn.speciesId,
+			spawnId: spawn.id,
+			worldX: spawn.x,
+			worldZ: spawn.z,
+			groundY,
+			rotationYRadians: spawn.rotationYRadians ?? 0,
+			socialAnchorX: spawn.socialAnchorX ?? null,
+			socialAnchorZ: spawn.socialAnchorZ ?? null,
+			groundCollider,
+			playerCollider,
+			mulberry32,
+		}));
 	}
 	return beings;
 }

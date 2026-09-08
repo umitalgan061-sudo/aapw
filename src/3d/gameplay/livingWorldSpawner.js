@@ -295,8 +295,10 @@ export function wrapCreatureWithThreatMemory(creature, {
 			if (other === member || !other.isDirectAlarmSource) continue;
 			const dx = other.object3D.position.x - creature.object3D.position.x;
 			const dz = other.object3D.position.z - creature.object3D.position.z;
-			if (Math.hypot(dx, dz) <= packAlertRadiusMeters) result.push({ x: other.object3D.position.x, z: other.object3D.position.z });
+			const distanceMeters = Math.hypot(dx, dz);
+			if (distanceMeters < packAlertRadiusMeters) result.push({ x: other.object3D.position.x, z: other.object3D.position.z, distanceMeters });
 		}
+		result.sort((a, b) => a.distanceMeters - b.distanceMeters || a.x - b.x || a.z - b.z);
 		return result;
 	}
 
@@ -315,7 +317,7 @@ export function wrapCreatureWithThreatMemory(creature, {
 				}
 			}
 		}
-		result.sort((a, b) => a.distanceMeters - b.distanceMeters || a.speciesId.localeCompare(b.speciesId));
+		result.sort((a, b) => a.distanceMeters - b.distanceMeters || a.speciesId.localeCompare(b.speciesId) || a.x - b.x || a.z - b.z);
 		return result;
 	}
 
@@ -462,10 +464,12 @@ export async function spawnLivingWorld({ assetLoader, state, spawnWorld, eventsB
 		speciesCounts: isMobileClassCreatures ? MOBILE_SPECIES_COUNTS : DESKTOP_SPECIES_COUNTS,
 	});
 	const rawCreatures = spawnConfiguredCreatures({ spawns: creatureSpawns, groundCollider: state.groundCollider, playerCollider: state.playerCollider, mulberry32 });
+	const creatureSpawnById = new Map(creatureSpawns.map((spawn) => [spawn.id, spawn]));
 	const creatureHerdRegistry = new Map();
 	const creatureEcologyRegistry = new Map();
 	state.creatures = rawCreatures.map((creature, index) => {
-		const speciesId = creatureSpawns[index]?.speciesId;
+		const creatureSpawn = creatureSpawnById.get(creature.object3D.name);
+		const speciesId = creatureSpawn?.speciesId;
 		const profile = CREATURE_BEHAVIOR_PROFILES[speciesId];
 		const predatorRule = CREATURE_PREDATOR_THREAT_RULES[speciesId];
 		const threatAwareCreature = wrapCreatureWithThreatMemory(creature, {
@@ -475,13 +479,13 @@ export async function spawnLivingWorld({ assetLoader, state, spawnWorld, eventsB
 			speciesId,
 			packAlertRadiusMeters: profile?.packAlertRadiusMeters,
 			herdRegistry: creatureHerdRegistry,
-			sourceId: creatureSpawns[index]?.id ?? `${speciesId ?? 'creature'}:${index}`,
+			sourceId: creatureSpawn?.id ?? creature.object3D.name ?? `${speciesId ?? 'creature'}:${index}`,
 			predatorSpeciesIds: predatorRule?.predatorSpeciesIds ?? [],
 			predatorThreatRadiusMeters: predatorRule?.radiusMeters ?? 0,
 			ecologyRegistry: creatureEcologyRegistry,
 		});
 		return wrapCreatureWithSimulationLod(threatAwareCreature, {
-			id: `${speciesId ?? 'creature'}:${index}`,
+			id: creatureSpawn?.id ?? creature.object3D.name ?? `${speciesId ?? 'creature'}:${index}`,
 			nearRadiusMeters: 70,
 			farIntervalSeconds: 0.25,
 			distantRadiusMeters: 180,
