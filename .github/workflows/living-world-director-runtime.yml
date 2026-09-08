@@ -1,0 +1,109 @@
+name: Living World Director Runtime
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/livingWorldOccupationSchedule.js'
+      - 'src/3d/gameplay/livingWorldEcologyPolicy.js'
+      - 'src/3d/gameplay/livingWorldEventDirectorAdapter.js'
+      - 'src/3d/gameplay/livingWorldDirectorRuntimeAdapter.js'
+      - 'src/3d/gameplay/livingWorldRuntimeEvidence.js'
+      - 'src/3d/gameplay/livingWorldGroupAiPolicy.js'
+      - 'scripts/checkLivingWorldDirectorRuntimeAdapter.mjs'
+      - 'scripts/checkLivingWorldOccupationSchedule.mjs'
+      - 'scripts/checkLivingWorldEcologyPolicy.mjs'
+      - 'scripts/checkLivingWorldEventDirectorAdapter.mjs'
+      - 'scripts/checkLivingWorldGroupAiPolicy.mjs'
+      - 'scripts/checkLivingWorldDirectorBrowser.mjs'
+      - '.github/workflows/living-world-director-runtime.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  living-world-director-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Exact-main freshness, diff cap and scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+          additions="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END {print s+0}')"
+          deletions="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END {print s+0}')"
+          total=$((additions + deletions))
+          echo "additions=$additions deletions=$deletions total=$total"
+          test "$total" -le 3000
+          changed="$(git diff --name-only origin/main...HEAD)"
+          printf '%s\n' "$changed"
+          unexpected="$(printf '%s\n' "$changed" | grep -Ev '^(src/3d/gameplay/(livingWorldOccupationSchedule|livingWorldEcologyPolicy|livingWorldEventDirectorAdapter|livingWorldDirectorRuntimeAdapter|livingWorldRuntimeEvidence|livingWorldGroupAiPolicy)\.js|scripts/checkLivingWorld(DirectorRuntimeAdapter|OccupationSchedule|EcologyPolicy|EventDirectorAdapter|GroupAiPolicy|DirectorBrowser)\.mjs|\.github/workflows/living-world-director-runtime\.yml)$' || true)"
+          test -z "$unexpected"
+          git diff --check origin/main...HEAD
+
+      - name: Syntax contract
+        run: |
+          node --check src/3d/gameplay/livingWorldOccupationSchedule.js
+          node --check src/3d/gameplay/livingWorldEcologyPolicy.js
+          node --check src/3d/gameplay/livingWorldEventDirectorAdapter.js
+          node --check src/3d/gameplay/livingWorldDirectorRuntimeAdapter.js
+          node --check src/3d/gameplay/livingWorldRuntimeEvidence.js
+          node --check src/3d/gameplay/livingWorldGroupAiPolicy.js
+
+      - name: Occupation regression
+        run: node scripts/checkLivingWorldOccupationSchedule.mjs
+
+      - name: Ecology regression
+        run: node scripts/checkLivingWorldEcologyPolicy.mjs
+
+      - name: Ambient event determinism regression
+        run: node scripts/checkLivingWorldEventDirectorAdapter.mjs
+
+      - name: Group AI regression
+        run: node scripts/checkLivingWorldGroupAiPolicy.mjs
+
+      - name: Director vertical slice regression
+        run: node scripts/checkLivingWorldDirectorRuntimeAdapter.mjs
+
+      - name: Install Chromium proof tooling
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/pw"
+          npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+          echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+
+      - name: Real shipped Three.js browser proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4173 --bind 127.0.0.1 >"$RUNNER_TEMP/living-world-http.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:4173/game3d.html >/dev/null && break
+            sleep 1
+          done
+          BASE_URL=http://127.0.0.1:4173 node scripts/checkLivingWorldDirectorBrowser.mjs
+
+      - name: Shared material placement contract
+        run: node scripts/checkSharedMaterialPlacementContract.js
+
+      - name: Final exact-main freshness recheck
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags
+          test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
