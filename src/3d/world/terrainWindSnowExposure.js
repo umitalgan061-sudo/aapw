@@ -1,16 +1,14 @@
 /**
  * Render-only prevailing-wind signal for geographic snow redistribution.
  *
- * This module deliberately consumes only the same four-neighbour terrain heights already sampled
- * around a terrain vertex. It never becomes a height/collider authority: it converts local aspect
- * into bounded windward scour and lee-side deposition weights that the biome shading layer can use.
- *
- * The production response is intentionally split into three visible surface behaviours: exposed ridge
- * scour, sheltered lee packing, and transitional snow mobility. All three are derived from the same
- * canonical four-neighbour stencil so the rendered terrain, collider and gameplay sampler keep one
- * topology. No geography, hydrology, height or asset identity is invented here.
+ * This module consumes only the same four-neighbour terrain heights already sampled around a terrain
+ * vertex. It never becomes a height/collider authority: it converts local aspect into bounded windward
+ * scour and lee-side deposition weights that the biome shading layer can use. The surface-fabric layer
+ * further breaks those signals across relief families without introducing a second terrain grid.
  * @module world/terrainWindSnowExposure
  */
+
+import { resolveTerrainWindSnowSurfaceFabric } from './terrainWindSnowSurfaceFabric.js';
 
 const clamp01 = (value) => Math.max(0, Math.min(1, value));
 
@@ -23,7 +21,7 @@ function smoothstep(edge0, edge1, value) {
 const PREVAILING_SOURCE_LENGTH = Math.hypot(0.8, 0.6);
 
 export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
-	id: 'terrain-wind-snow-exposure-2026-09-07-v13-fold-snowpack-response',
+	id: 'terrain-wind-snow-exposure-2026-09-08-v14-surface-fabric',
 	renderOnly: true,
 	heightAuthorityUnchanged: true,
 	prevailingSourceX: -0.8 / PREVAILING_SOURCE_LENGTH,
@@ -59,8 +57,6 @@ export const TERRAIN_WIND_SNOW_POLICY = Object.freeze({
 	snowMobilityMax: 0.24,
 	snowPackGainMax: 0.18,
 	snowCrustScourGainMax: 0.12,
-	// The permanent-ice floor supplies most northern snow before redistribution. Exposed shoulders may
-	// lose up to 18% of loose surface snow; tundra and lee gains remain deliberately smaller.
 	northWindwardScourMax: 0.18,
 	tundraWindwardScourMax: 0.09,
 	northLeeDepositMax: 0.11,
@@ -95,13 +91,7 @@ function resolveSurfaceResponse({
 	);
 	const crustScour = ridgelineExposure * P.snowCrustScourGainMax;
 	const packGain = shelterPocket * P.snowPackGainMax;
-	return Object.freeze({
-		ridgelineExposure,
-		shelterPocket,
-		snowMobility,
-		crustScour,
-		packGain,
-	});
+	return Object.freeze({ ridgelineExposure, shelterPocket, snowMobility, crustScour, packGain });
 }
 
 export function terrainWindExposureFromNeighbours(
@@ -168,6 +158,7 @@ export function terrainWindExposureFromNeighbours(
 			packGain: 0,
 			windward: 0,
 			lee: 0,
+			surfaceFabric: resolveTerrainWindSnowSurfaceFabric({}),
 		});
 	}
 
@@ -209,7 +200,8 @@ export function terrainWindExposureFromNeighbours(
 	const channelledLength = Math.max(1e-9, Math.hypot(channelledX, channelledZ));
 	const effectiveSourceX = channelledX / channelledLength;
 	const effectiveSourceZ = channelledZ / channelledLength;
-	const aspectDot = clamp01((normalX * effectiveSourceX + normalZ * effectiveSourceZ + 1) * 0.5) * 2 - 1;
+	const rawAspectDot = normalX * effectiveSourceX + normalZ * effectiveSourceZ;
+	const aspectDot = Math.max(-1, Math.min(1, rawAspectDot));
 	const windwardAlignment = smoothstep(
 		TERRAIN_WIND_SNOW_POLICY.directionalAlignmentStart,
 		TERRAIN_WIND_SNOW_POLICY.directionalAlignmentFull,
@@ -229,6 +221,15 @@ export function terrainWindExposureFromNeighbours(
 		leeCollection,
 		leeRetention,
 	});
+	const surfaceFabric = resolveTerrainWindSnowSurfaceFabric({
+		slopeDegrees,
+		aspectDot,
+		foldGradient,
+		foldStrength: orographicFoldStrength,
+		leeRetention,
+	});
+	const fabricWindward = clamp01(windwardAlignment * surfaceFabric.windwardGain);
+	const fabricLee = clamp01(leeAlignment * surfaceFabric.leeGain);
 
 	return Object.freeze({
 		gradientX,
@@ -248,29 +249,20 @@ export function terrainWindExposureFromNeighbours(
 		windwardAlignment,
 		leeAlignment,
 		...response,
-		windward: clamp01(windwardAlignment * slopeAspectStrength * windwardScourSlope * foldExposureGain),
-		lee: clamp01(leeAlignment * slopeAspectStrength * leeCollection * leeRetention * foldExposureGain),
+		surfaceFabric,
+		windward: clamp01(fabricWindward * slopeAspectStrength * windwardScourSlope * foldExposureGain),
+		lee: clamp01(fabricLee * slopeAspectStrength * leeCollection * leeRetention * foldExposureGain),
 	});
 }
 
-/**
- * Convert geometric exposure into bounded climate-aware snow adjustments.
- *
- * The existing biome-shading integration passes only `windward`/`lee`; therefore the resolver uses
- * those values as the compatibility projection of the richer fold response. Direct callers may pass
- * the richer fields explicitly. This keeps the visual change on the already-shipped path without
- * introducing a second terrain authority or requiring edits to another owner's renderer.
- */
 export function resolveTerrainWindSnowAdjustment({
 	windward = 0,
 	lee = 0,
 	permanentIce = 0,
 	tundra = 0,
 	ridgelineExposure = 0,
-	shelterPocket = 0,
-	snowMobility = 0,
-	crustScour = 0,
-	packGain = 0,
+	shelterPocket = 0,	snowMobility = 0,
+	crustScour = 0,	packGain = 0,
 } = {}) {
 	const P = TERRAIN_WIND_SNOW_POLICY;
 	const ice = clamp01(permanentIce);
@@ -282,37 +274,15 @@ export function resolveTerrainWindSnowAdjustment({
 	const mobility = clamp01(Math.max(snowMobility, Math.max(windwardWeight, leeWeight) * 0.24));
 	const boundedCrustScour = clamp01(Math.max(crustScour, ridgeExposure * P.snowCrustScourGainMax));
 	const boundedPackGain = clamp01(Math.max(packGain, shelter * P.snowPackGainMax));
-	const scourMax = Math.max(
-		ice * P.northWindwardScourMax,
-		tundraBand * P.tundraWindwardScourMax,
-	);
-	const depositMax = Math.max(
-		ice * P.northLeeDepositMax,
-		tundraBand * P.tundraLeeDepositMax,
-	);
-	const scourProfile = clamp01(
-		0.78
-		+ ridgeExposure * 0.16
-		+ boundedCrustScour * 0.18
-		+ mobility * P.snowMobilityMax * 0.30,
-	);
-	const depositProfile = clamp01(
-		0.82
-		+ shelter * 0.16
-		+ boundedPackGain * 0.16
-		- mobility * P.snowMobilityMax * 0.18,
-	);
+	const scourMax = Math.max(ice * P.northWindwardScourMax, tundraBand * P.tundraWindwardScourMax);
+	const depositMax = Math.max(ice * P.northLeeDepositMax, tundraBand * P.tundraLeeDepositMax);
+	const scourProfile = clamp01(0.78 + ridgeExposure * 0.16 + boundedCrustScour * 0.18 + mobility * P.snowMobilityMax * 0.30);
+	const depositProfile = clamp01(0.82 + shelter * 0.16 + boundedPackGain * 0.16 - mobility * P.snowMobilityMax * 0.18);
 	return Object.freeze({
 		windwardScour: windwardWeight * scourMax * scourProfile,
 		leeDeposit: leeWeight * depositMax * depositProfile,
-		scourMax,
-		depositMax,
-		scourProfile,
-		depositProfile,
-		ridgelineExposure: ridgeExposure,
-		shelterPocket: shelter,
-		snowMobility: mobility,
-		crustScour: boundedCrustScour,
-		packGain: boundedPackGain,
+		scourMax, depositMax, scourProfile, depositProfile,
+		ridgelineExposure: ridgeExposure, shelterPocket: shelter, snowMobility: mobility,
+		crustScour: boundedCrustScour, packGain: boundedPackGain,
 	});
 }
