@@ -1,0 +1,82 @@
+name: Settlement Vertical Slice Runtime Contracts
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/eventBus.js'
+      - 'src/3d/gameplay/settlementVerticalSlice.js'
+      - 'src/3d/gameplay/settlementVerticalSliceRoles.js'
+      - 'src/3d/gameplay/settlementVerticalSliceEvents.js'
+      - 'src/3d/gameplay/settlementVerticalSliceContent.js'
+      - 'src/3d/gameplay/settlementVerticalSliceUiModel.js'
+      - 'scripts/checkSettlementVerticalSliceMatrix.mjs'
+      - 'scripts/checkSettlementVerticalSliceJourney.mjs'
+      - 'scripts/checkSettlementRoleCatalog.mjs'
+      - 'scripts/checkSettlementVerticalSliceRoleRuntime.mjs'
+      - 'scripts/checkSettlementVerticalSliceEvents.mjs'
+      - 'scripts/checkSettlementVerticalSliceContent.mjs'
+      - '.github/workflows/settlement-vertical-slice-runtime.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  settlement-runtime-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact main ancestry and diff budget
+        shell: bash
+        run: |
+          git fetch origin main --depth=1
+          BASE="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$BASE" HEAD
+          ADDITIONS="$(git diff --numstat "$BASE"...HEAD | awk '{a+=$1} END {print a+0}')"
+          DELETIONS="$(git diff --numstat "$BASE"...HEAD | awk '{d+=$2} END {print d+0}')"
+          TOTAL=$((ADDITIONS + DELETIONS))
+          echo "base=$BASE"
+          echo "head=$(git rev-parse HEAD)"
+          echo "additions=$ADDITIONS deletions=$DELETIONS total=$TOTAL"
+          test "$TOTAL" -le 3000
+      - name: Syntax
+        run: |
+          node --check src/3d/eventBus.js
+          node --check src/3d/gameplay/settlementVerticalSlice.js
+          node --check src/3d/gameplay/settlementVerticalSliceRoles.js
+          node --check src/3d/gameplay/settlementVerticalSliceEvents.js
+          node --check src/3d/gameplay/settlementVerticalSliceContent.js
+          node --check src/3d/gameplay/settlementVerticalSliceUiModel.js
+          node --check scripts/checkSettlementVerticalSliceMatrix.mjs
+          node --check scripts/checkSettlementVerticalSliceJourney.mjs
+          node --check scripts/checkSettlementRoleCatalog.mjs
+          node --check scripts/checkSettlementVerticalSliceRoleRuntime.mjs
+          node --check scripts/checkSettlementVerticalSliceEvents.mjs
+          node --check scripts/checkSettlementVerticalSliceContent.mjs
+      - name: Runtime ownership boundary
+        shell: bash
+        run: |
+          ! grep -R "EditorMaterialStudio\|MaterialAssignmentCore\|WorldAssetPlacementPipeline\|from 'three'\|from \"three\"\|document\.\|window\.\|scene\.add(\|scene\.remove(" src/3d/gameplay/settlementVerticalSlice*.js
+          ! grep -R "inventory\.add(\|inventory\.remove(\|copper +=\|copper -=\|gameState\.set(" src/3d/gameplay/settlementVerticalSlice*.js
+      - name: Core matrix
+        run: node scripts/checkSettlementVerticalSliceMatrix.mjs
+      - name: End-to-end journey
+        run: node scripts/checkSettlementVerticalSliceJourney.mjs
+      - name: Role catalog
+        run: node scripts/checkSettlementRoleCatalog.mjs
+      - name: Role runtime integration
+        run: node scripts/checkSettlementVerticalSliceRoleRuntime.mjs
+      - name: Shared EventBus runtime
+        run: node scripts/checkSettlementVerticalSliceEvents.mjs
+      - name: Settlement content
+        run: node scripts/checkSettlementVerticalSliceContent.mjs
+      - name: Settlement UI model source
+        run: node --check src/3d/gameplay/settlementVerticalSliceUiModel.js
+      - name: Whitespace
+        run: git diff --check origin/main...HEAD

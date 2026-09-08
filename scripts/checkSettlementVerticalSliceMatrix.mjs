@@ -134,7 +134,8 @@ assert(!evaluateSettlementGate(
   baseContext(),
 ).ok, 'missing quest progress rejects');
 
-// Capability matrix for every action family.
+// Capability matrix: only explicit false disables an injected capability; missing/falsy legacy values
+// stay enabled so existing callers that omit optional capability maps remain backward-compatible.
 const capabilityGroups = [
   ['door', ['enter', 'exit']],
   ['settlement', ['enter', 'exit']],
@@ -146,18 +147,39 @@ const capabilityGroups = [
   ['persistence', ['save']],
 ];
 for (const [capability, actions] of capabilityGroups) {
-  for (const value of [false, null, 0, '']) {
-    const actionSet = new Set(actions);
-    const slice = createSettlementVerticalSlice({
-      definition: { id: `cap-${capability}`, settlementId: `cap-${capability}`, entryNodeId: 'node', nodes: [{ id: 'node', kind: 'settlement', actions: [...new Set([...actions, 'back'])] }] },
+  const actionSet = new Set(actions);
+  const disabledSlice = createSettlementVerticalSlice({
+    definition: { id: `cap-${capability}`, settlementId: `cap-${capability}`, entryNodeId: 'node', nodes: [{ id: 'node', kind: 'settlement', actions: [...new Set([...actions, 'back'])] }] },
+    handlers,
+  });
+  const available = disabledSlice.availableActions(baseContext({
+    settlementId: `cap-${capability}`,
+    capabilities: { [capability]: false },
+  }));
+  for (const action of actionSet) assert(!available.includes(action), `capability=${capability} explicit false hides ${action}`);
+
+  for (const value of [undefined, null, 0, '', 'false', true, 1, 'yes']) {
+    const legacySlice = createSettlementVerticalSlice({
+      definition: { id: `legacy-${capability}-${String(value)}`, settlementId: `legacy-${capability}`, entryNodeId: 'node', nodes: [{ id: 'node', kind: 'settlement', actions: [...new Set([...actions, 'back'])] }] },
       handlers,
     });
-    const available = slice.availableActions(baseContext({
-      settlementId: `cap-${capability}`,
-      capabilities: { [capability]: value },
-    }));
-    for (const action of actionSet) assert(!available.includes(action), `capability=${capability} value=${String(value)} hides ${action}`);
+    const legacyContext = baseContext({ settlementId: `legacy-${capability}` });
+    const capabilitiesOverride = { [capability]: value };
+    if (value === undefined) {
+      delete capabilitiesOverride[capability];
+    }
+    const legacyAvailable = legacySlice.availableActions({ ...legacyContext, capabilities: { ...legacyContext.capabilities, ...capabilitiesOverride } });
+    for (const action of actionSet) assert(legacyAvailable.includes(action), `capability=${capability} legacy value=${String(value)} remains available`);
   }
+}
+
+// Capability gates use the same explicit-false contract and never leak truthy coercion surprises.
+for (const value of [false, undefined, null, 0, '', 'yes']) {
+  const result = evaluateSettlementGate(
+    { type: 'capability', capability: 'trade' },
+    baseContext({ capabilities: { trade: value } }),
+  );
+  assert(result.ok === (value !== false), `capability gate explicit-false contract value=${String(value)}`);
 }
 
 // Every supported action delegates with the canonical handler identity.
@@ -293,7 +315,8 @@ assert(summary.kinds.settlement === 1, 'summary reports settlement kind');
 assert(summary.kinds.vendor === 1, 'summary reports vendor kind');
 assert(summary.kinds.crafting === 1, 'summary reports crafting kind');
 
-// Persistence matrix with gated restore and unknown node recovery.
+// Persistence matrix: restore validates node accessibility, not transient action capability.
+// A hall without its own gate remains restorable when dialogue becomes unavailable.
 {
   const slice = createSettlementVerticalSlice({ definition, handlers });
   slice.transitionTo('interior', 'hall', baseContext());
@@ -303,9 +326,9 @@ assert(summary.kinds.crafting === 1, 'summary reports crafting kind');
   const ok = restored.importSnapshot(saved, baseContext());
   assert(ok.ok, 'valid snapshot imports');
   assert(restored.currentNode().id === 'hall', 'valid snapshot restores current node');
-  const gated = restored.importSnapshot(saved, baseContext({ capabilities: { dialogue: false } }));
-  assert(!gated.ok && gated.recovered, 'gated snapshot recovers');
-  assert(restored.currentNode().id === 'square', 'gated snapshot returns to entry');
+  const dialogueLoss = restored.importSnapshot(saved, baseContext({ capabilities: { dialogue: false } }));
+  assert(dialogueLoss.ok && !dialogueLoss.recovered, 'temporary dialogue capability loss does not gate an ungated hall');
+  assert(restored.currentNode().id === 'hall', 'temporary action capability loss keeps restored node');
 }
 
 {
@@ -317,6 +340,24 @@ assert(summary.kinds.crafting === 1, 'summary reports crafting kind');
   assert(!wrongVersion.ok && wrongVersion.reason === 'unsupported-snapshot-version', 'unsupported snapshot version is rejected');
   const wrongSlice = slice.importSnapshot({ version: 1, sliceId: 'other', currentNodeId: 'hall' }, baseContext());
   assert(!wrongSlice.ok && wrongSlice.reason === 'snapshot-slice-mismatch', 'snapshot slice mismatch is rejected');
+}
+
+// A node-level capability gate still recovers when the required service becomes unavailable.
+for (const value of [false, undefined, null, 0, '', 'enabled']) {
+  const gatedDefinition = {
+    id: `gated-cap-${String(value)}`,
+    settlementId: 'gated-capability',
+    entryNodeId: 'entry',
+    nodes: [
+      { id: 'entry', kind: 'settlement', actions: ['interact', 'back'] },
+      { id: 'service', kind: 'vendor', actions: ['trade', 'back'], gates: [{ type: 'capability', capability: 'trade' }] },
+    ],
+  };
+  const slice = createSettlementVerticalSlice({ definition: gatedDefinition, handlers });
+  const context = baseContext({ settlementId: 'gated-capability', capabilities: { trade: value } });
+  const result = slice.setNode('service', context);
+  assert(result.ok === (value !== false), `node capability gate follows explicit-false semantics value=${String(value)}`);
+  assert(slice.currentNode().id === (value !== false ? 'service' : 'entry'), `node capability gate recovery position value=${String(value)}`);
 }
 
 if (failures.length) {
