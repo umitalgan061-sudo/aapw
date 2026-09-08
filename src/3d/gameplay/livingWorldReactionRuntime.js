@@ -31,6 +31,7 @@ export const LIVING_WORLD_REACTION_RUNTIME_POLICY = freeze({
   maxEventsPerTick: 6,
   maxDeltaSeconds: 0.25,
   sensingIntervalSeconds: 0.15,
+  perceptionCacheTtlSeconds: 1.25,
   distantTickIntervalSeconds: 0.75,
   farTickIntervalSeconds: 2.0,
   investigateTimeoutSeconds: 12,
@@ -138,7 +139,15 @@ function normalizeSignals(signals) {
     visible: Boolean(signal?.visible),
     suspicious: Boolean(signal?.suspicious),
     severity: normalizeSeverity(signal?.severity),
-  })));
+  }));
+}
+
+function ageCachedSignals(signals, deltaSeconds) {
+  if (!Array.isArray(signals) || !signals.length) return [];
+  const ttl = LIVING_WORLD_REACTION_RUNTIME_POLICY.perceptionCacheTtlSeconds;
+  return signals
+    .map((signal) => freeze({ ...signal, ageSeconds: signal.ageSeconds + Math.max(0, deltaSeconds) }))
+    .filter((signal) => signal.ageSeconds <= ttl);
 }
 
 function chooseBestSignal(signals) {
@@ -353,6 +362,7 @@ function createActorState(actor, index) {
     homePosition: readPosition(actor),
     targetId: '',
     lod: 'near',
+    signalCache: [],
     history: [],
   };
 }
@@ -541,11 +551,13 @@ export function createLivingWorldReactionRuntime({
     state.lastTickSeconds = nowSeconds;
     state.elapsedInPhase += deltaSeconds;
 
-    let signals = [];
     if (nowSeconds - state.lastSenseSeconds >= LIVING_WORLD_REACTION_RUNTIME_POLICY.sensingIntervalSeconds) {
-      signals = updatePerceptionCache(services, actor, nowSeconds, { lod, playerPosition });
+      state.signalCache = updatePerceptionCache(services, actor, nowSeconds, { lod, playerPosition });
       state.lastSenseSeconds = nowSeconds;
+    } else {
+      state.signalCache = ageCachedSignals(state.signalCache, deltaSeconds);
     }
+    const signals = state.signalCache;
     const bestSignal = chooseBestSignal(signals);
     const target = bestSignal?.signal?.target ?? { id: state.targetId, position: null };
     const relation = relationSnapshot(actor, {
@@ -619,8 +631,9 @@ export function createLivingWorldReactionRuntime({
       law,
       worldEvent,
       signal: bestSignal,
+      cachedSignalCount: state.signalCache.length,
       randomSample: random01(),
-      digest: digest({ actorId: state.id, phase: state.phase, targetId: state.targetId, lod }),
+      digest: digest({ actorId: state.id, phase: state.phase, targetId: state.targetId, lod, cachedSignalCount: state.signalCache.length }),
     });
     writeActorTelemetry(actor, telemetry);
     return telemetry;
@@ -662,6 +675,7 @@ export function createLivingWorldReactionRuntime({
         elapsedInPhase: state.elapsedInPhase,
         targetId: state.targetId,
         lod: state.lod,
+        cachedSignalCount: state.signalCache.length,
         history: freeze([...state.history]),
       }))),
       policyId: LIVING_WORLD_REACTION_RUNTIME_POLICY.id,
@@ -676,6 +690,7 @@ export function createLivingWorldReactionRuntime({
       state.lastTickSeconds = -Infinity;
       state.lastAttackSeconds = -Infinity;
       state.targetId = '';
+      state.signalCache = [];
       state.history = [];
     }
     nowSeconds = initialClockSeconds;
@@ -694,6 +709,7 @@ export function createLivingWorldReactionRuntime({
       if (!REACTION_PHASES.includes(actor.phase)) errors.push(`invalid-phase:${actor.id}`);
       if (!LOD_LEVELS.includes(actor.lod)) errors.push(`invalid-lod:${actor.id}`);
       if (actor.history.length > MAX_HISTORY) errors.push(`history-overflow:${actor.id}`);
+      if (actor.cachedSignalCount > LIVING_WORLD_REACTION_RUNTIME_POLICY.maxSignalsPerActor) errors.push(`signal-cache-overflow:${actor.id}`);
     }
     return freeze({ ok: errors.length === 0, errors: freeze(errors), digest: digest(snap) });
   }
@@ -717,6 +733,7 @@ export function auditLivingWorldReactionResult(result) {
     if (!LOD_LEVELS.includes(actor.lod)) errors.push(`invalid-lod:${actor.actorId}`);
     if (actor?.relation?.wanted != null && (actor.relation.wanted < 0 || actor.relation.wanted > 100)) errors.push(`invalid-wanted:${actor.actorId}`);
     if (actor?.relation?.reputation != null && (actor.relation.reputation < -100 || actor.relation.reputation > 100)) errors.push(`invalid-reputation:${actor.actorId}`);
+    if (actor?.cachedSignalCount > LIVING_WORLD_REACTION_RUNTIME_POLICY.maxSignalsPerActor) errors.push(`signal-cache-overflow:${actor.actorId}`);
   }
   return freeze({ ok: errors.length === 0, errors: freeze(errors), digest: digest(result) });
 }
