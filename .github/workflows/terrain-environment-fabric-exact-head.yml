@@ -10,7 +10,7 @@ on:
 jobs:
   contract-and-spatial:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,7 +27,11 @@ jobs:
       - run: node scripts/checkTerrainEnvironmentAssetSourceAdapter.mjs
       - run: node scripts/checkTerrainEnvironmentContractV3.mjs
       - run: node scripts/checkTerrainEnvironmentPolicyBoundaries.mjs
-      - run: node -e "import('./src/3d/world/terrainEnvironmentContract.js').then(m=>{const r=m.validateTerrainEnvironmentContract();if(!r.ok)process.exit(1);console.log(JSON.stringify(r));})"
+      - run: node scripts/checkTerrainEnvironmentGeologyDepth.mjs
+      - run: node scripts/checkTerrainEnvironmentSeasonalDepth.mjs
+      - run: node scripts/checkTerrainEnvironmentRuntimeDepth.mjs
+      - run: node scripts/checkTerrainEnvironmentAcceptanceDepth.mjs
+      - run: node -e "import('./src/3d/world/terrainEnvironmentContract.js').then(m=>{const r=m.validateTerrainEnvironmentContract();if(!r.ok)process.exit(1);if(r.contractId!=='buzul-muhafizi-terrain-environment-contract-2026-09-08-v4')process.exit(1);console.log(JSON.stringify(r));})"
   exact-head-guard:
     runs-on: ubuntu-latest
     timeout-minutes: 5
