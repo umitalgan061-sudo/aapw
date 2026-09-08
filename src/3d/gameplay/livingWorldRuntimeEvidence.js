@@ -206,3 +206,118 @@ export function buildLivingWorldAcceptanceSummary(evidence, directorSnapshot = n
 		}),
 	});
 }
+
+const OBSERVATION_MAX_SAMPLES = 120;
+const OBSERVATION_FRAME_BUDGET_MS = 16.67;
+const OBSERVATION_TICK_BUDGET_MS = 4;
+const OBSERVATION_MAX_ACTORS = 512;
+const OBSERVATION_MAX_ERRORS = 8;
+
+function observationPercentile(values, ratio) {
+	if (!values.length) return 0;
+	const sorted = values.slice().sort((a, b) => a - b);
+	return sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil((sorted.length - 1) * ratio)))];
+}
+
+function observationAverage(values) {
+	return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+}
+
+function normalizeObservationSample(sample = {}) {
+	const actors = Math.max(0, Math.min(OBSERVATION_MAX_ACTORS, Math.trunc(finite(sample.actors ?? sample.actorCount, 0))));
+	const activeActors = Math.max(0, Math.min(actors, Math.trunc(finite(sample.activeActors, actors))));
+	const frameMs = Math.max(0, finite(sample.frameMs, 0));
+	const tickMs = Math.max(0, finite(sample.tickMs, 0));
+	return freeze({
+		frameMs: Number(frameMs.toFixed(4)),
+		tickMs: Number(tickMs.toFixed(4)),
+		actors,
+		activeActors,
+		errors: Math.max(0, Math.trunc(finite(sample.errors ?? sample.errorCount, 0))),
+		worldEvents: Math.max(0, Math.trunc(finite(sample.worldEvents, 0))),
+		eventCandidates: Math.max(0, Math.trunc(finite(sample.eventCandidates, 0))),
+		threatRatio: Number(clamp(sample.threatRatio, 0, 1).toFixed(4)),
+		cohesionRatio: Number(clamp(sample.cohesionRatio, 0, 1).toFixed(4)),
+		materialValidated: sample.materialValidated !== false,
+		placementValidated: sample.placementValidated !== false,
+	});
+}
+
+export function summarizeLivingWorldObservationWindow(samples = [], { windowId = 'default' } = {}) {
+	const normalized = (Array.isArray(samples) ? samples : []).slice(-OBSERVATION_MAX_SAMPLES).map(normalizeObservationSample);
+	const frames = normalized.map((sample) => sample.frameMs);
+	const ticks = normalized.map((sample) => sample.tickMs);
+	const actors = normalized.map((sample) => sample.actors);
+	const errors = normalized.map((sample) => sample.errors);
+	const frameP95 = observationPercentile(frames, 0.95);
+	const tickP95 = observationPercentile(ticks, 0.95);
+	const peakActors = actors.length ? Math.max(...actors) : 0;
+	const errorTotal = errors.reduce((sum, value) => sum + value, 0);
+	const materialValidated = normalized.every((sample) => sample.materialValidated);
+	const placementValidated = normalized.every((sample) => sample.placementValidated);
+	const withinFrameBudget = frameP95 <= OBSERVATION_FRAME_BUDGET_MS;
+	const withinTickBudget = tickP95 <= OBSERVATION_TICK_BUDGET_MS;
+	const actorBudgetOk = peakActors <= OBSERVATION_MAX_ACTORS;
+	const errorsOk = errorTotal <= OBSERVATION_MAX_ERRORS;
+	const accepted = normalized.length > 0 && withinFrameBudget && withinTickBudget && actorBudgetOk && errorsOk && materialValidated && placementValidated;
+	const digestPayload = normalized.map((sample) => JSON.stringify(sample)).join('|');
+	return freeze({
+		windowId: String(windowId),
+		sampleCount: normalized.length,
+		performance: freeze({
+			averageFrameMs: Number(observationAverage(frames).toFixed(4)),
+			frameP95Ms: Number(frameP95.toFixed(4)),
+			maxFrameMs: Number((frames.length ? Math.max(...frames) : 0).toFixed(4)),
+			averageTickMs: Number(observationAverage(ticks).toFixed(4)),
+			tickP95Ms: Number(tickP95.toFixed(4)),
+			maxTickMs: Number((ticks.length ? Math.max(...ticks) : 0).toFixed(4)),
+			withinFrameBudget,
+			withinTickBudget,
+		}),
+		population: freeze({
+			peakActors,
+			averageActors: Number(observationAverage(actors).toFixed(4)),
+			activeRatio: Number(observationAverage(normalized.map((sample) => sample.actors ? sample.activeActors / sample.actors : 0)).toFixed(4)),
+		}),
+		world: freeze({
+			errorTotal,
+			peakErrors: errors.length ? Math.max(...errors) : 0,
+			averageThreatRatio: Number(observationAverage(normalized.map((sample) => sample.threatRatio)).toFixed(4)),
+			averageCohesionRatio: Number(observationAverage(normalized.map((sample) => sample.cohesionRatio)).toFixed(4)),
+			worldEventCount: normalized.reduce((sum, sample) => sum + sample.worldEvents, 0),
+			eventCandidateCount: normalized.reduce((sum, sample) => sum + sample.eventCandidates, 0),
+		}),
+		evidence: freeze({ materialValidated, placementValidated }),
+		accepted,
+		reason: accepted ? 'healthy' : normalized.length === 0 ? 'empty-window' : !withinFrameBudget ? 'frame-budget' : !withinTickBudget ? 'tick-budget' : !actorBudgetOk ? 'actor-budget' : !errorsOk ? 'errors' : !materialValidated ? 'material-evidence' : 'placement-evidence',
+		digest: stableHash(digestPayload).toString(16).padStart(8, '0'),
+	});
+}
+
+export function buildLivingWorldObservationReceipt(summary, { source = 'living-world' } = {}) {
+	const safe = summary && typeof summary === 'object' ? summary : summarizeLivingWorldObservationWindow([]);
+	return freeze({
+		policyId: `${LIVING_WORLD_RUNTIME_EVIDENCE_POLICY.id}:observation`,
+		deterministic: true,
+		source: String(source),
+		accepted: Boolean(safe.accepted),
+		reason: String(safe.reason ?? 'unknown'),
+		windowId: String(safe.windowId ?? 'default'),
+		sampleCount: Math.max(0, Math.min(OBSERVATION_MAX_SAMPLES, Math.trunc(finite(safe.sampleCount, 0)))),
+		digest: String(safe.digest ?? '00000000'),
+		frameP95Ms: Number(finite(safe.performance?.frameP95Ms, 0).toFixed(4)),
+		tickP95Ms: Number(finite(safe.performance?.tickP95Ms, 0).toFixed(4)),
+		peakActors: Math.max(0, Math.min(OBSERVATION_MAX_ACTORS, Math.trunc(finite(safe.population?.peakActors, 0)))),
+		errorTotal: Math.max(0, Math.trunc(finite(safe.world?.errorTotal, 0))),
+	});
+}
+
+export function validateLivingWorldObservationSummary(summary) {
+	const errors = [];
+	if (!summary || typeof summary !== 'object') errors.push('missing-summary');
+	if (summary?.sampleCount > OBSERVATION_MAX_SAMPLES) errors.push('sample-overflow');
+	if (summary?.performance?.frameP95Ms < 0 || summary?.performance?.tickP95Ms < 0) errors.push('negative-latency');
+	if (summary?.population?.peakActors > OBSERVATION_MAX_ACTORS) errors.push('actor-overflow');
+	if (summary?.world?.errorTotal < 0) errors.push('negative-errors');
+	return freeze({ ok: errors.length === 0, errors: freeze(errors), digest: String(summary?.digest ?? '00000000') });
+}
