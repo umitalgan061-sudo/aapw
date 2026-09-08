@@ -10,6 +10,9 @@ const ROOT = resolve(import.meta.dirname, '..');
 const read = (path) => readFileSync(resolve(ROOT, path), 'utf8');
 const placementSource = read('src/3d/world/naturalGeologyPlacement.js');
 const renderSource = read('src/3d/world/naturalGeology.js');
+const adapterSource = read('src/3d/world/PreResolvedInstancedAssetPlacement.js');
+const materialCoreSource = read('src/3d/materials/MaterialAssignmentCore.js');
+const worldPlacementSource = read('src/3d/world/WorldAssetPlacementPipeline.js');
 const valyriaSource = read('src/3d/world/valyriaGeology.js');
 const ecologySource = read('src/3d/world/valyriaEcology.js');
 const terrainSource = read('src/3d/world/terrain.js');
@@ -48,8 +51,10 @@ for (const snippet of [
 ]) {
   assert(placementSource.includes(snippet), `placement contract lost: ${snippet}`);
 }
+
 for (const snippet of [
   "from '../assetLoader.js'",
+  "from './PreResolvedInstancedAssetPlacement.js'",
   'createNaturalGeology',
   'createValyriaVolcanicSurface',
   'upgradeNaturalGeologyAssets',
@@ -58,12 +63,47 @@ for (const snippet of [
   'hostedPreflightMinBytes',
   'maximumHydratedSourceBytes',
   'referenceLandscapeRuntimeLoad: false',
+  'sharedPlacementManifestRequired: true',
+  'transactionalFamilyHydration: true',
+  'preparePreResolvedInstancedWorldAsset',
+  'auditPreResolvedInstancedWorldAsset',
+  'attachPreparedPreResolvedInstancedWorldAsset',
+  'prepareHydratedBatch',
+  'disposeStagedHydratedBatches',
   'assets/models/fbx/rocky_terrain_low_poly.glb',
   'assets/models/fbx/desert_rocks.glb',
   'assets/models/fbx/rugged_mountain_landscape.glb',
 ]) {
   assert(renderSource.includes(snippet), `renderer contract lost: ${snippet}`);
 }
+assert(!renderSource.includes('group.add(...hydrated)'), 'hydrated geology bypassed shared attachment gate');
+assert(renderSource.indexOf('preparePreResolvedInstancedWorldAsset') < renderSource.indexOf('hideProxyInstances(group, placements.map'), 'proxy suppression must occur only after shared preparation');
+assert(renderSource.indexOf('attachPreparedPreResolvedInstancedWorldAsset') < renderSource.indexOf('hideProxyInstances(group, placements.map'), 'proxy suppression must occur only after shared attachment');
+
+for (const snippet of [
+  "from '../materials/MaterialAssignmentCore.js'",
+  "from './WorldAssetPlacementPipeline.js'",
+  'createMaterialManifest',
+  'validateMaterialAssignment',
+  'attachPreparedWorldAsset',
+  'PRE_RESOLVED_INSTANCED_ASSET_POLICY',
+  'preparePreResolvedInstancedWorldAsset',
+  'attachPreparedPreResolvedInstancedWorldAsset',
+  'auditPreResolvedInstancedWorldAsset',
+  'pre-resolved-instanced',
+  'materialReadyForWorld',
+  'worldPlacementManifest',
+  'authoredMaterialPreserved: true',
+  'matricesMutated: false',
+  'placement-count-mismatch',
+  'non-finite-instance-matrix',
+]) {
+  assert(adapterSource.includes(snippet), `instanced shared-placement bridge lost: ${snippet}`);
+}
+assert(materialCoreSource.includes('export function validateMaterialAssignment'));
+assert(materialCoreSource.includes('export function createMaterialManifest'));
+assert(worldPlacementSource.includes('export function attachPreparedWorldAsset'));
+
 for (const snippet of [
   'v4-natural-volcanic-morphology',
   'coreCenter',
@@ -135,7 +175,12 @@ assert(!ecologySource.includes('Math.random()'), 'Valyria ecology adapter must r
 for (const forbidden of ['Math.random()', 'setTerrainHeight', 'writeHeight', 'flattenPads.push', 'WORLD_REFERENCE_BASE_SURFACE_MASK =', 'createHeightSampler(']) {
   assert(!placementSource.includes(forbidden), `placement became geography authority: ${forbidden}`);
   assert(!renderSource.includes(forbidden), `render layer became geography authority: ${forbidden}`);
+  assert(!adapterSource.includes(forbidden), `instanced bridge became geography authority: ${forbidden}`);
 }
+assert(!adapterSource.includes('autoAssignMaterials('), 'pre-resolved bridge must preserve authored materials');
+assert(!adapterSource.includes('applyMaterialRecipe('), 'pre-resolved bridge must not replace authored materials');
+assert(!adapterSource.includes('object.position.y ='), 'pre-resolved bridge must not re-ground canonical instance matrices');
+assert(!adapterSource.includes('setMatrixAt('), 'pre-resolved bridge must never mutate caller-owned instance matrices');
 
 const manifestFiles = new Set(manifest.assets.map((entry) => entry.file));
 for (const file of [...NATURAL_GEOLOGY_PLACEMENT_POLICY.directAssetFamilies, ...NATURAL_GEOLOGY_PLACEMENT_POLICY.referenceOnlyAssets]) {
@@ -154,4 +199,7 @@ console.log(JSON.stringify({
   valyriaEcologyPolicy: VALYRIA_BARREN_ECOLOGY_POLICY.id,
   canonicalTerrainIntegration: true,
   naturalVolcanicMorphology: true,
+  sharedInstancedHydration: true,
+  authoredMaterialsPreserved: true,
+  transactionalProxySuppression: true,
 }, null, 2));
