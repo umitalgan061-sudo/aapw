@@ -4,7 +4,7 @@ import { createLivingWorldDirector, auditDirectorPolicy, directorDigest } from '
 import { normalizeOccupationDefinition, buildOccupationDirective, occupationDigest } from '../src/3d/gameplay/livingWorldOccupationSchedule.js';
 import { evaluateHabitat, planFaunaGroup, auditEcologyPlan, normalizeEcologyContext } from '../src/3d/gameplay/livingWorldEcologyPolicy.js';
 import { createEventDirectorState, advanceEventDirector, buildAmbientWorldEventReceipt, LIVING_WORLD_EVENT_DIRECTOR_POLICY } from '../src/3d/gameplay/livingWorldEventDirectorAdapter.js';
-import { collectLivingWorldRuntimeEvidence, validateLivingWorldRuntimeEvidence, buildLivingWorldAcceptanceSummary, runtimeEvidenceDigest, LIVING_WORLD_RUNTIME_EVIDENCE_POLICY } from '../src/3d/gameplay/livingWorldRuntimeEvidence.js';
+import { collectLivingWorldRuntimeEvidence, validateLivingWorldRuntimeEvidence, buildLivingWorldAcceptanceSummary, runtimeEvidenceDigest, LIVING_WORLD_RUNTIME_EVIDENCE_POLICY, summarizeLivingWorldObservationWindow, buildLivingWorldObservationReceipt, validateLivingWorldObservationSummary } from '../src/3d/gameplay/livingWorldRuntimeEvidence.js';
 
 const occupation = normalizeOccupationDefinition({
 	id: 'farmer-1', seed: 'farmer-seed', travelSpeedMps: 1.5,
@@ -83,9 +83,38 @@ assert.equal(acceptance.proof.assetMaterialValidated, true);
 assert.equal(acceptance.proof.groundHabitatAligned, true);
 assert.equal(runtimeEvidenceDigest(evidence), runtimeEvidenceDigest(JSON.parse(JSON.stringify(evidence))));
 assert.equal(validateLivingWorldRuntimeEvidence({ ...evidence, placement: { ...evidence.placement, missingAssets: 1 } }).ok, false);
+
+const observationSamples = [
+	{ frameMs: 11.2, tickMs: 1.1, actors: 12, activeActors: 10, errors: 0, worldEvents: 1, eventCandidates: 2, threatRatio: 0.2, cohesionRatio: 0.9, materialValidated: true, placementValidated: true },
+	{ frameMs: 14.4, tickMs: 1.8, actors: 18, activeActors: 17, errors: 0, worldEvents: 1, eventCandidates: 3, threatRatio: 0.35, cohesionRatio: 0.88, materialValidated: true, placementValidated: true },
+	{ frameMs: 16.1, tickMs: 2.2, actors: 24, activeActors: 20, errors: 0, worldEvents: 2, eventCandidates: 4, threatRatio: 0.4, cohesionRatio: 0.86, materialValidated: true, placementValidated: true },
+];
+const observationA = summarizeLivingWorldObservationWindow(observationSamples, { windowId: 'director-window' });
+const observationB = summarizeLivingWorldObservationWindow(observationSamples, { windowId: 'director-window' });
+assert.deepEqual(observationA, observationB);
+assert.equal(observationA.accepted, true);
+assert.equal(observationA.performance.withinFrameBudget, true);
+assert.equal(observationA.performance.withinTickBudget, true);
+assert.equal(observationA.population.peakActors, 24);
+assert.equal(observationA.world.errorTotal, 0);
+assert.equal(observationA.evidence.materialValidated, true);
+assert.equal(observationA.evidence.placementValidated, true);
+assert.equal(observationA.sampleCount, 3);
+assert.equal(observationA.digest, observationB.digest);
+assert.equal(validateLivingWorldObservationSummary(observationA).ok, true);
+const observationReceipt = buildLivingWorldObservationReceipt(observationA, { source: 'director-runtime' });
+assert.equal(observationReceipt.policyId, `${LIVING_WORLD_RUNTIME_EVIDENCE_POLICY.id}:observation`);
+assert.equal(observationReceipt.deterministic, true);
+assert.equal(observationReceipt.digest, observationA.digest);
+assert.equal(summarizeLivingWorldObservationWindow([{ frameMs: 24, tickMs: 1, actors: 1, materialValidated: true, placementValidated: true }]).reason, 'frame-budget');
+assert.equal(summarizeLivingWorldObservationWindow([{ frameMs: 10, tickMs: 5, actors: 1, materialValidated: true, placementValidated: true }]).reason, 'tick-budget');
+assert.equal(summarizeLivingWorldObservationWindow([{ frameMs: 10, tickMs: 1, actors: 1, materialValidated: false, placementValidated: true }]).reason, 'material-evidence');
+assert.equal(summarizeLivingWorldObservationWindow([{ frameMs: 10, tickMs: 1, actors: 1, materialValidated: true, placementValidated: false }]).reason, 'placement-evidence');
+assert.equal(validateLivingWorldObservationSummary({ sampleCount: 121, performance: { frameP95Ms: -1, tickP95Ms: 1 }, population: { peakActors: 999 }, world: { errorTotal: -1 } }).ok, false);
+
 assert.equal(director.reset(), true);
 assert.equal(director.audit().tickCount, 0);
 assert.equal(director.dispose(), true);
 assert.equal(director.tick({ deltaSeconds: 0.1 }).accepted, false);
 
-console.log(JSON.stringify({ pass: true, occupationPhase: midday.snapshot.phase, wolfGroupSize: wolfGroup.groupSize, eventsPublished: published.length, actorsUpdated: tick.actorsUpdated, evidenceDigest: runtimeEvidenceDigest(evidence), acceptanceDigest: directorDigest(tick) }, null, 2));
+console.log(JSON.stringify({ pass: true, occupationPhase: midday.snapshot.phase, wolfGroupSize: wolfGroup.groupSize, eventsPublished: published.length, actorsUpdated: tick.actorsUpdated, evidenceDigest: runtimeEvidenceDigest(evidence), observationDigest: observationA.digest, acceptanceDigest: directorDigest(tick) }, null, 2));
