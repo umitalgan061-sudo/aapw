@@ -197,214 +197,31 @@ export const WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY = Object.freeze({
 });
 
 export const WORLD_ASSET_GEOGRAPHY_DOMAINS = Object.freeze({
-  woodland: Object.freeze({
-    canonicalNames: ['forest', 'woodland', 'grove', 'taiga'],
-    maxSlope: 32,
-    moistureCenter: 0.63,
-    moistureHalfWidth: 0.36,
-    elevationWindow: Object.freeze([0, 280]),
-    wetTolerance: 0.62,
-    snowTolerance: 0.14,
-    preferredAspect: 0.0,
-    aspectTolerance: Math.PI,
-  }),
-  meadow: Object.freeze({
-    canonicalNames: ['meadow', 'grassland', 'pasture', 'plain', 'lowland'],
-    maxSlope: 18,
-    moistureCenter: 0.55,
-    moistureHalfWidth: 0.44,
-    elevationWindow: Object.freeze([0, 180]),
-    wetTolerance: 0.72,
-    snowTolerance: 0.10,
-    preferredAspect: 0.0,
-    aspectTolerance: Math.PI,
-  }),
-  heath: Object.freeze({
-    canonicalNames: ['heath', 'moor', 'upland', 'steppe', 'scrub'],
-    maxSlope: 28,
-    moistureCenter: 0.36,
-    moistureHalfWidth: 0.42,
-    elevationWindow: Object.freeze([35, 420]),
-    wetTolerance: 0.48,
-    snowTolerance: 0.34,
-    preferredAspect: Math.PI,
-    aspectTolerance: Math.PI,
-  }),
-  wetland: Object.freeze({
-    canonicalNames: ['wetland', 'marsh', 'bog', 'fen'],
-    maxSlope: 8,
-    moistureCenter: 0.86,
-    moistureHalfWidth: 0.26,
-    elevationWindow: Object.freeze([-2, 40]),
-    wetTolerance: 1,
-    snowTolerance: 0.42,
-    preferredAspect: 0,
-    aspectTolerance: Math.PI,
-  }),
-  riparian: Object.freeze({
-    canonicalNames: ['riparian', 'riverbank', 'floodplain', 'alluvial'],
-    maxSlope: 12,
-    moistureCenter: 0.74,
-    moistureHalfWidth: 0.30,
-    elevationWindow: Object.freeze([-2, 90]),
-    wetTolerance: 1,
-    snowTolerance: 0.30,
-    preferredAspect: 0,
-    aspectTolerance: Math.PI,
-  }),
-  coast: Object.freeze({
-    canonicalNames: ['coast', 'shore', 'beach', 'dune', 'intertidal'],
-    maxSlope: 22,
-    moistureCenter: 0.71,
-    moistureHalfWidth: 0.36,
-    elevationWindow: Object.freeze([-1, 18]),
-    wetTolerance: 1,
-    snowTolerance: 0.55,
-    preferredAspect: 0,
-    aspectTolerance: Math.PI,
-  }),
-  alpine: Object.freeze({
-    canonicalNames: ['alpine', 'subalpine', 'high-mountain'],
-    maxSlope: 44,
-    moistureCenter: 0.48,
-    moistureHalfWidth: 0.42,
-    elevationWindow: Object.freeze([140, 650]),
-    wetTolerance: 0.70,
-    snowTolerance: 1,
-    preferredAspect: 0,
-    aspectTolerance: Math.PI,
-  }),
-  scree: Object.freeze({
-    canonicalNames: ['scree', 'talus', 'bare', 'rock'],
-    maxSlope: 72,
-    moistureCenter: 0.34,
-    moistureHalfWidth: 0.48,
-    elevationWindow: Object.freeze([45, 700]),
-    wetTolerance: 0.55,
-    snowTolerance: 0.90,
-    preferredAspect: 0,
-    aspectTolerance: Math.PI,
-  }),
-  snowfield: Object.freeze({
-    canonicalNames: ['snowfield', 'ice', 'glacier', 'permanent-ice'],
-    maxSlope: 55,
-    moistureCenter: 0.50,
-    moistureHalfWidth: 0.60,
-    elevationWindow: Object.freeze([0, 800]),
-    wetTolerance: 1,
-    snowTolerance: 1,
-    preferredAspect: 0,
-    aspectTolerance: Math.PI,
-  }),
-  volcanic: Object.freeze({
-    canonicalNames: ['lava', 'volcanic', 'basalt', 'obsidian', 'ash', 'pumice'],
-    maxSlope: 54,
-    moistureCenter: 0.28,
-    moistureHalfWidth: 0.50,
-    elevationWindow: Object.freeze([0, 750]),
-    wetTolerance: 0.45,
-    snowTolerance: 0.68,
-    preferredAspect: 0,
-    aspectTolerance: Math.PI,
-  }),
+  woodland: Object.freeze({ canonicalNames: ['forest', 'woodland', 'grove', 'taiga'], maxSlope: 32, moistureCenter: 0.63, moistureHalfWidth: 0.36, elevationWindow: Object.freeze([0, 280]), wetTolerance: 0.62, snowTolerance: 0.14, preferredAspect: 0, aspectTolerance: Math.PI }),
+  meadow: Object.freeze({ canonicalNames: ['meadow', 'grassland', 'pasture', 'plain', 'lowland'], maxSlope: 18, moistureCenter: 0.55, moistureHalfWidth: 0.44, elevationWindow: Object.freeze([0, 180]), wetTolerance: 0.72, snowTolerance: 0.10, preferredAspect: 0, aspectTolerance: Math.PI }),
+  heath: Object.freeze({ canonicalNames: ['heath', 'moor', 'upland', 'steppe', 'scrub'], maxSlope: 28, moistureCenter: 0.36, moistureHalfWidth: 0.42, elevationWindow: Object.freeze([35, 420]), wetTolerance: 0.48, snowTolerance: 0.34, preferredAspect: Math.PI, aspectTolerance: Math.PI }),
+  wetland: Object.freeze({ canonicalNames: ['wetland', 'marsh', 'bog', 'fen'], maxSlope: 8, moistureCenter: 0.86, moistureHalfWidth: 0.26, elevationWindow: Object.freeze([-2, 40]), wetTolerance: 1, snowTolerance: 0.42, preferredAspect: 0, aspectTolerance: Math.PI }),
+  riparian: Object.freeze({ canonicalNames: ['riparian', 'riverbank', 'floodplain', 'alluvial'], maxSlope: 12, moistureCenter: 0.74, moistureHalfWidth: 0.30, elevationWindow: Object.freeze([-2, 90]), wetTolerance: 1, snowTolerance: 0.30, preferredAspect: 0, aspectTolerance: Math.PI }),
+  coast: Object.freeze({ canonicalNames: ['coast', 'shore', 'beach', 'dune', 'intertidal'], maxSlope: 22, moistureCenter: 0.71, moistureHalfWidth: 0.36, elevationWindow: Object.freeze([-1, 18]), wetTolerance: 1, snowTolerance: 0.55, preferredAspect: 0, aspectTolerance: Math.PI }),
+  alpine: Object.freeze({ canonicalNames: ['alpine', 'subalpine', 'high-mountain'], maxSlope: 44, moistureCenter: 0.48, moistureHalfWidth: 0.42, elevationWindow: Object.freeze([140, 650]), wetTolerance: 0.70, snowTolerance: 1, preferredAspect: 0, aspectTolerance: Math.PI }),
+  scree: Object.freeze({ canonicalNames: ['scree', 'talus', 'bare', 'rock'], maxSlope: 72, moistureCenter: 0.34, moistureHalfWidth: 0.48, elevationWindow: Object.freeze([45, 700]), wetTolerance: 0.55, snowTolerance: 0.90, preferredAspect: 0, aspectTolerance: Math.PI }),
+  snowfield: Object.freeze({ canonicalNames: ['snowfield', 'ice', 'glacier', 'permanent-ice'], maxSlope: 55, moistureCenter: 0.50, moistureHalfWidth: 0.60, elevationWindow: Object.freeze([0, 800]), wetTolerance: 1, snowTolerance: 1, preferredAspect: 0, aspectTolerance: Math.PI }),
+  volcanic: Object.freeze({ canonicalNames: ['lava', 'volcanic', 'basalt', 'obsidian', 'ash', 'pumice'], maxSlope: 54, moistureCenter: 0.28, moistureHalfWidth: 0.50, elevationWindow: Object.freeze([0, 750]), wetTolerance: 0.45, snowTolerance: 0.68, preferredAspect: 0, aspectTolerance: Math.PI }),
 });
 
 export const WORLD_ASSET_GEOGRAPHY_FAMILIES = Object.freeze({
-  vegetation: Object.freeze({
-    preferredDomains: Object.freeze({ woodland: 1.00, meadow: 0.86, heath: 0.72, wetland: 0.68, riparian: 0.76, coast: 0.42, alpine: 0.48, scree: 0.08, snowfield: 0.02, volcanic: 0.24 }),
-    antiDomains: Object.freeze({ snowfield: 0.72, scree: 0.62, coast: 0.14 }),
-    maxSlope: 38,
-    moistureCenter: 0.60,
-    elevationComfortMeters: 230,
-    cohesionMeters: 24,
-    gapMeters: 5.5,
-    preferredClusterSize: 6,
-    scale: Object.freeze([0.78, 1.24]),
-  }),
-  tree: Object.freeze({
-    preferredDomains: Object.freeze({ woodland: 1.00, meadow: 0.72, heath: 0.56, riparian: 0.82, wetland: 0.52, coast: 0.16, alpine: 0.18, scree: 0.00, snowfield: 0.00, volcanic: 0.12 }),
-    antiDomains: Object.freeze({ snowfield: 0.98, scree: 0.82, volcanic: 0.34 }),
-    maxSlope: 34,
-    moistureCenter: 0.64,
-    elevationComfortMeters: 200,
-    cohesionMeters: 29,
-    gapMeters: 7.0,
-    preferredClusterSize: 7,
-    scale: Object.freeze([0.74, 1.30]),
-  }),
-  shrub: Object.freeze({
-    preferredDomains: Object.freeze({ woodland: 0.66, meadow: 0.78, heath: 0.96, wetland: 0.70, riparian: 0.74, coast: 0.55, alpine: 0.52, scree: 0.18, snowfield: 0.04, volcanic: 0.36 }),
-    antiDomains: Object.freeze({ snowfield: 0.80, scree: 0.30 }),
-    maxSlope: 42,
-    moistureCenter: 0.52,
-    elevationComfortMeters: 300,
-    cohesionMeters: 18,
-    gapMeters: 4.0,
-    preferredClusterSize: 5,
-    scale: Object.freeze([0.60, 1.40]),
-  }),
-  rock: Object.freeze({
-    preferredDomains: Object.freeze({ woodland: 0.04, meadow: 0.12, heath: 0.52, wetland: 0.06, riparian: 0.08, coast: 0.54, alpine: 0.92, scree: 1.00, snowfield: 0.42, volcanic: 0.96 }),
-    antiDomains: Object.freeze({ wetland: 0.84, meadow: 0.34 }),
-    maxSlope: 72,
-    moistureCenter: 0.40,
-    elevationComfortMeters: 420,
-    cohesionMeters: 33,
-    gapMeters: 3.0,
-    preferredClusterSize: 4,
-    scale: Object.freeze([0.65, 1.48]),
-  }),
-  snow: Object.freeze({
-    preferredDomains: Object.freeze({ woodland: 0.10, meadow: 0.06, heath: 0.24, wetland: 0.12, riparian: 0.12, coast: 0.46, alpine: 0.76, scree: 0.62, snowfield: 1.00, volcanic: 0.12 }),
-    antiDomains: Object.freeze({ meadow: 0.54, wetland: 0.20 }),
-    maxSlope: 55,
-    moistureCenter: 0.52,
-    elevationComfortMeters: 420,
-    cohesionMeters: 36,
-    gapMeters: 4.0,
-    preferredClusterSize: 3,
-    scale: Object.freeze([0.76, 1.22]),
-  }),
-  building: Object.freeze({
-    preferredDomains: Object.freeze({ woodland: 0.48, meadow: 0.86, heath: 0.72, wetland: 0.10, riparian: 0.34, coast: 0.60, alpine: 0.16, scree: 0.04, snowfield: 0.00, volcanic: 0.20 }),
-    antiDomains: Object.freeze({ wetland: 0.90, riparian: 0.46, snowfield: 0.96, scree: 0.76 }),
-    maxSlope: 12,
-    moistureCenter: 0.50,
-    elevationComfortMeters: 180,
-    cohesionMeters: 45,
-    gapMeters: 2.5,
-    preferredClusterSize: 3,
-    scale: Object.freeze([0.90, 1.14]),
-  }),
-  settlement: Object.freeze({
-    preferredDomains: Object.freeze({ woodland: 0.56, meadow: 0.92, heath: 0.74, wetland: 0.06, riparian: 0.42, coast: 0.72, alpine: 0.12, scree: 0.00, snowfield: 0.00, volcanic: 0.12 }),
-    antiDomains: Object.freeze({ wetland: 0.96, riparian: 0.52, snowfield: 0.99, scree: 0.88 }),
-    maxSlope: 12,
-    moistureCenter: 0.49,
-    elevationComfortMeters: 210,
-    cohesionMeters: 65,
-    gapMeters: 5,
-    preferredClusterSize: 5,
-    scale: Object.freeze([0.94, 1.08]),
-  }),
-  waterside: Object.freeze({
-    preferredDomains: Object.freeze({ woodland: 0.18, meadow: 0.52, heath: 0.20, wetland: 0.94, riparian: 1.00, coast: 0.98, alpine: 0.38, scree: 0.10, snowfield: 0.28, volcanic: 0.12 }),
-    antiDomains: Object.freeze({ meadow: 0.02, scree: 0.58 }),
-    maxSlope: 18,
-    moistureCenter: 0.82,
-    elevationComfortMeters: 90,
-    cohesionMeters: 22,
-    gapMeters: 2.0,
-    preferredClusterSize: 4,
-    scale: Object.freeze([0.80, 1.22]),
-  }),
+  vegetation: Object.freeze({ preferredDomains: Object.freeze({ woodland: 1.00, meadow: 0.86, heath: 0.72, wetland: 0.68, riparian: 0.76, coast: 0.42, alpine: 0.48, scree: 0.08, snowfield: 0.02, volcanic: 0.24 }), antiDomains: Object.freeze({ snowfield: 0.72, scree: 0.62, coast: 0.14 }), maxSlope: 38, moistureCenter: 0.60, elevationComfortMeters: 230, cohesionMeters: 24, gapMeters: 5.5, preferredClusterSize: 6, scale: Object.freeze([0.78, 1.24]) }),
+  tree: Object.freeze({ preferredDomains: Object.freeze({ woodland: 1.00, meadow: 0.72, heath: 0.56, riparian: 0.82, wetland: 0.52, coast: 0.16, alpine: 0.18, scree: 0.00, snowfield: 0.00, volcanic: 0.12 }), antiDomains: Object.freeze({ snowfield: 0.98, scree: 0.82, volcanic: 0.34 }), maxSlope: 34, moistureCenter: 0.64, elevationComfortMeters: 200, cohesionMeters: 29, gapMeters: 7.0, preferredClusterSize: 7, scale: Object.freeze([0.74, 1.30]) }),
+  shrub: Object.freeze({ preferredDomains: Object.freeze({ woodland: 0.66, meadow: 0.78, heath: 0.96, wetland: 0.70, riparian: 0.74, coast: 0.55, alpine: 0.52, scree: 0.18, snowfield: 0.04, volcanic: 0.36 }), antiDomains: Object.freeze({ snowfield: 0.80, scree: 0.30 }), maxSlope: 42, moistureCenter: 0.52, elevationComfortMeters: 300, cohesionMeters: 18, gapMeters: 4.0, preferredClusterSize: 5, scale: Object.freeze([0.60, 1.40]) }),
+  rock: Object.freeze({ preferredDomains: Object.freeze({ woodland: 0.04, meadow: 0.12, heath: 0.52, wetland: 0.06, riparian: 0.08, coast: 0.54, alpine: 0.92, scree: 1.00, snowfield: 0.42, volcanic: 0.96 }), antiDomains: Object.freeze({ wetland: 0.84, meadow: 0.34 }), maxSlope: 72, moistureCenter: 0.40, elevationComfortMeters: 420, cohesionMeters: 33, gapMeters: 3.0, preferredClusterSize: 4, scale: Object.freeze([0.65, 1.48]) }),
+  snow: Object.freeze({ preferredDomains: Object.freeze({ woodland: 0.10, meadow: 0.06, heath: 0.24, wetland: 0.12, riparian: 0.12, coast: 0.46, alpine: 0.76, scree: 0.62, snowfield: 1.00, volcanic: 0.12 }), antiDomains: Object.freeze({ meadow: 0.54, wetland: 0.20 }), maxSlope: 55, moistureCenter: 0.52, elevationComfortMeters: 420, cohesionMeters: 36, gapMeters: 4.0, preferredClusterSize: 3, scale: Object.freeze([0.76, 1.22]) }),
+  building: Object.freeze({ preferredDomains: Object.freeze({ woodland: 0.48, meadow: 0.86, heath: 0.72, wetland: 0.10, riparian: 0.34, coast: 0.60, alpine: 0.16, scree: 0.04, snowfield: 0.00, volcanic: 0.20 }), antiDomains: Object.freeze({ wetland: 0.90, riparian: 0.46, snowfield: 0.96, scree: 0.76 }), maxSlope: 12, moistureCenter: 0.50, elevationComfortMeters: 180, cohesionMeters: 45, gapMeters: 2.5, preferredClusterSize: 3, scale: Object.freeze([0.90, 1.14]) }),
+  settlement: Object.freeze({ preferredDomains: Object.freeze({ woodland: 0.56, meadow: 0.92, heath: 0.74, wetland: 0.06, riparian: 0.42, coast: 0.72, alpine: 0.12, scree: 0.00, snowfield: 0.00, volcanic: 0.12 }), antiDomains: Object.freeze({ wetland: 0.96, riparian: 0.52, snowfield: 0.99, scree: 0.88 }), maxSlope: 12, moistureCenter: 0.49, elevationComfortMeters: 210, cohesionMeters: 65, gapMeters: 5, preferredClusterSize: 5, scale: Object.freeze([0.94, 1.08]) }),
+  waterside: Object.freeze({ preferredDomains: Object.freeze({ woodland: 0.18, meadow: 0.52, heath: 0.20, wetland: 0.94, riparian: 1.00, coast: 0.98, alpine: 0.38, scree: 0.10, snowfield: 0.28, volcanic: 0.12 }), antiDomains: Object.freeze({ meadow: 0.02, scree: 0.58 }), maxSlope: 18, moistureCenter: 0.82, elevationComfortMeters: 90, cohesionMeters: 22, gapMeters: 2.0, preferredClusterSize: 4, scale: Object.freeze([0.80, 1.22]) }),
 });
 
 function inferFamily(metadata = {}) {
-  const signature = [metadata.category, metadata.kind, metadata.family, metadata.assetFamily, metadata.name, metadata.id, metadata.src]
-    .filter(Boolean)
-    .join('|')
-    .toLowerCase();
+  const signature = [metadata.category, metadata.kind, metadata.family, metadata.assetFamily, metadata.name, metadata.id, metadata.src].filter(Boolean).join('|').toLowerCase();
   if (/settlement|village|town|city|keep|castle|fort/.test(signature)) return 'settlement';
   if (/building|house|hut|tower|wall|gate|structure/.test(signature)) return 'building';
   if (/snow|ice|glacier|frost|winter/.test(signature)) return 'snow';
@@ -418,13 +235,7 @@ function inferFamily(metadata = {}) {
 
 function normalizeSurface(surface = {}) {
   const biome = parseBiome(surface.biome);
-  const aspect = aspectComponents(
-    Number.isFinite(Number(surface.aspectRadians))
-      ? Number(surface.aspectRadians)
-      : Number.isFinite(Number(surface.aspectDegrees))
-        ? Number(surface.aspectDegrees) * Math.PI / 180
-        : 0,
-  );
+  const aspect = aspectComponents(Number.isFinite(Number(surface.aspectRadians)) ? Number(surface.aspectRadians) : Number.isFinite(Number(surface.aspectDegrees)) ? Number(surface.aspectDegrees) * Math.PI / 180 : 0);
   const slopeDegrees = Math.max(0, finite(surface.slopeDegrees, 0));
   const heightMeters = finite(surface.height ?? surface.elevation ?? surface.heightMeters, 0);
   const moisture = clamp01(surface.moisture ?? surface.wetness ?? 0.5);
@@ -440,38 +251,11 @@ function normalizeSurface(surface = {}) {
   const deposition = clamp01(surface.deposition ?? surface.depositionalBench ?? 0.4);
   const shelter = clamp01(surface.shelter ?? surface.topographicShelter ?? 0.5);
   const lithic = clamp01(surface.lithic ?? surface.rockWeight ?? 0.3);
-  return Object.freeze({
-    x: finite(surface.x, 0),
-    z: finite(surface.z, 0),
-    heightMeters,
-    slopeDegrees,
-    slope: clamp01(slopeDegrees / 60),
-    aspect,
-    moisture,
-    snow,
-    waterDepth,
-    riverDistance,
-    lakeDistance,
-    coastDistance,
-    roadDistance,
-    settlementDistance,
-    concavity,
-    erosion,
-    deposition,
-    shelter,
-    lithic,
-    biome,
-  });
+  return Object.freeze({ x: finite(surface.x, 0), z: finite(surface.z, 0), heightMeters, slopeDegrees, slope: clamp01(slopeDegrees / 60), aspect, moisture, snow, waterDepth, riverDistance, lakeDistance, coastDistance, roadDistance, settlementDistance, concavity, erosion, deposition, shelter, lithic, biome });
 }
 
 function surfaceDistances(surface) {
-  return Object.freeze({
-    river: clamp01(1 - surface.riverDistance / 92),
-    lake: clamp01(1 - surface.lakeDistance / 125),
-    coast: clamp01(1 - surface.coastDistance / 150),
-    road: clamp01(1 - surface.roadDistance / 36),
-    settlement: clamp01(1 - surface.settlementDistance / 70),
-  });
+  return Object.freeze({ river: clamp01(1 - surface.riverDistance / 92), lake: clamp01(1 - surface.lakeDistance / 125), coast: clamp01(1 - surface.coastDistance / 150), road: clamp01(1 - surface.roadDistance / 36), settlement: clamp01(1 - surface.settlementDistance / 70) });
 }
 
 function landformProfile(surface, spatial) {
@@ -484,17 +268,7 @@ function landformProfile(surface, spatial) {
   const drainage = clamp01(spatial.swale * 0.44 + spatial.ridge * 0.24 + bowl * 0.32);
   const exposed = clamp01(range(surface.slopeDegrees, 18, 52) * 0.62 + surface.erosion * 0.20 + ridge * 0.18);
   const depositional = clamp01((1 - surface.slope) * 0.45 + surface.deposition * 0.28 + spatial.sediment * 0.27);
-  return Object.freeze({
-    slopeComfort,
-    elevationLow,
-    elevationMid,
-    elevationHigh,
-    bowl,
-    ridge,
-    drainage,
-    exposed,
-    depositional,
-  });
+  return Object.freeze({ slopeComfort, elevationLow, elevationMid, elevationHigh, bowl, ridge, drainage, exposed, depositional });
 }
 
 function spatialProfile(x, z) {
@@ -514,18 +288,25 @@ function spatialProfile(x, z) {
   return Object.freeze({ wx, wz, macro, meso, fine, swale, ridge, sediment, cohort, directionNoise });
 }
 
+function boundedWindowFit(value, low, high) {
+  const lower = finite(low);
+  const upper = Math.max(lower, finite(high, lower));
+  const span = Math.max(1, upper - lower);
+  const edge = Math.max(8, span * 0.16);
+  const n = finite(value, lower - edge);
+  if (n <= lower - edge || n >= upper + edge) return 0;
+  const lowerRamp = smooth((n - (lower - edge)) / edge);
+  const upperRamp = smooth(((upper + edge) - n) / edge);
+  return clamp01(Math.min(lowerRamp, upperRamp));
+}
+
 function domainScore(surface, landform, spatial, domainName) {
   const D = WORLD_ASSET_GEOGRAPHY_DOMAINS[domainName];
   if (!D) return 0;
   const slopeFit = 1 - range(surface.slopeDegrees, D.maxSlope * 0.75, D.maxSlope);
   const moistureFit = bell(surface.moisture, D.moistureCenter, D.moistureHalfWidth);
-  const elevationLow = D.elevationWindow[0];
-  const elevationHigh = D.elevationWindow[1];
-  const elevationFit = Math.max(
-    range(surface.heightMeters, elevationLow, elevationLow + Math.max(1, (elevationHigh - elevationLow) * 0.24)),
-    1 - range(surface.heightMeters, elevationHigh - Math.max(1, (elevationHigh - elevationLow) * 0.24), elevationHigh + 1),
-    bell(surface.heightMeters, (elevationLow + elevationHigh) * 0.5, (elevationHigh - elevationLow) * 0.5),
-  );
+  const [elevationLow, elevationHigh] = D.elevationWindow;
+  const elevationFit = boundedWindowFit(surface.heightMeters, elevationLow, elevationHigh);
   const snowFit = D.snowTolerance >= 0.99 ? 1 : 1 - clamp01((surface.snow - D.snowTolerance) / 0.75);
   const waterFit = surface.waterDepth > WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.hardNoPlaceWaterMeters ? 0 : 1;
   const form = domainName === 'wetland'
@@ -547,21 +328,12 @@ function domainScore(surface, landform, spatial, domainName) {
                   : domainName === 'meadow'
                     ? (1 - landform.exposed) * 0.34 + surface.moisture * 0.26 + spatial.swale * 0.18 + spatial.sediment * 0.22
                     : 0.5;
-  return clamp01(
-    slopeFit * 0.20
-      + moistureFit * 0.22
-      + elevationFit * 0.16
-      + snowFit * 0.12
-      + waterFit * 0.10
-      + clamp01(form) * 0.20,
-  );
+  return clamp01(slopeFit * 0.20 + moistureFit * 0.22 + elevationFit * 0.16 + snowFit * 0.12 + waterFit * 0.10 + clamp01(form) * 0.20);
 }
 
 function computeDomains(surface, landform, spatial) {
   const scores = {};
-  for (const domainName of Object.keys(WORLD_ASSET_GEOGRAPHY_DOMAINS)) {
-    scores[domainName] = domainScore(surface, landform, spatial, domainName);
-  }
+  for (const domainName of Object.keys(WORLD_ASSET_GEOGRAPHY_DOMAINS)) scores[domainName] = domainScore(surface, landform, spatial, domainName);
   return Object.freeze(scores);
 }
 
@@ -576,42 +348,15 @@ function scoreFamily(family, domains, surface, landform, spatial) {
   const slopePenalty = range(surface.slopeDegrees, profile.maxSlope * 0.82, profile.maxSlope);
   const moistureFit = bell(surface.moisture, profile.moistureCenter, 0.50);
   const elevationFit = bell(surface.heightMeters, profile.elevationComfortMeters, Math.max(80, profile.elevationComfortMeters * 0.80));
-  const climateSpread = clamp01(
-    surface.biome.snow * (family === 'snow' ? 1 : profile.antiDomains.snowfield ?? 0.4)
-      + surface.biome.tundra * (family === 'snow' ? 0.42 : 0.12),
-  );
-  const morphologicalSupport = clamp01(
-    landform.slopeComfort * 0.28
-      + landform.depositional * 0.20
-      + landform.exposed * (family === 'rock' || family === 'snow' ? 0.34 : 0.08)
-      + spatial.ridge * (family === 'rock' || family === 'snow' ? 0.22 : 0.06),
-  );
-  const score = clamp01(
-    positive * 0.37
-      + moistureFit * 0.12
-      + elevationFit * 0.12
-      + morphologicalSupport * 0.17
-      + climateSpread * 0.08
-      + (1 - slopePenalty) * 0.14
-      - negative * 0.27,
-  );
-  return Object.freeze({
-    score,
-    preferredSignal: positive,
-    antiSignal: negative,
-    slopePenalty,
-    moistureFit,
-    elevationFit,
-    climateSpread,
-    morphologicalSupport,
-  });
+  const climateSpread = clamp01(surface.biome.snow * (family === 'snow' ? 1 : profile.antiDomains.snowfield ?? 0.4) + surface.biome.tundra * (family === 'snow' ? 0.42 : 0.12));
+  const morphologicalSupport = clamp01(landform.slopeComfort * 0.28 + landform.depositional * 0.20 + landform.exposed * (family === 'rock' || family === 'snow' ? 0.34 : 0.08) + spatial.ridge * (family === 'rock' || family === 'snow' ? 0.22 : 0.06));
+  const score = clamp01(positive * 0.37 + moistureFit * 0.12 + elevationFit * 0.12 + morphologicalSupport * 0.17 + climateSpread * 0.08 + (1 - slopePenalty) * 0.14 - negative * 0.27);
+  return Object.freeze({ score, preferredSignal: positive, antiSignal: negative, slopePenalty, moistureFit, elevationFit, climateSpread, morphologicalSupport });
 }
 
 function preferredAspectForFamily(family, surface, domains) {
   const p = WORLD_ASSET_GEOGRAPHY_FAMILIES[family] ?? WORLD_ASSET_GEOGRAPHY_FAMILIES.vegetation;
-  const candidates = Object.entries(p.preferredDomains)
-    .sort((a, b) => (domains[b[0]] * b[1]) - (domains[a[0]] * a[1]))
-    .slice(0, 3);
+  const candidates = Object.entries(p.preferredDomains).sort((a, b) => (domains[b[0]] * b[1]) - (domains[a[0]] * a[1])).slice(0, 3);
   if (!candidates.length) return surface.aspect.radians;
   const thermal = surface.aspect.southness > surface.aspect.northness ? 0.22 : -0.18;
   const exposure = family === 'rock' || family === 'snow' ? 0.42 : 0.18;
@@ -632,60 +377,16 @@ function materialContext(family, surface, landform, domains, familyScore) {
   const moisture = surface.moisture;
   const cold = clamp01(surface.snow * 0.72 + surface.biome.tundra * 0.52 + surface.biome.snow * 0.88);
   const mineral = clamp01(surface.lithic * 0.55 + domains.scree * 0.22 + domains.volcanic * 0.23);
-  const dampness = clamp01(
-    moisture * 0.54
-      + domains.wetland * 0.18
-      + domains.riparian * 0.14
-      + (1 - landform.exposed) * 0.14,
-  );
-  const dryness = clamp01(
-    (1 - moisture) * 0.42
-      + domains.heath * 0.28
-      + domains.scree * 0.20
-      + landform.exposed * 0.10,
-  );
-  const weathering = clamp01(
-    surface.erosion * 0.42
-      + landform.exposed * 0.27
-      + (1 - surface.shelter) * 0.18
-      + mineral * 0.13,
-  );
+  const dampness = clamp01(moisture * 0.54 + domains.wetland * 0.18 + domains.riparian * 0.14 + (1 - landform.exposed) * 0.14);
+  const dryness = clamp01((1 - moisture) * 0.42 + domains.heath * 0.28 + domains.scree * 0.20 + landform.exposed * 0.10);
+  const weathering = clamp01(surface.erosion * 0.42 + landform.exposed * 0.27 + (1 - surface.shelter) * 0.18 + mineral * 0.13);
   const lichen = clamp01(cold * 0.30 + dampness * 0.34 + domains.rock * 0.18 + domains.alpine * 0.18);
   const moss = clamp01(dampness * 0.58 + domains.woodland * 0.22 + domains.riparian * 0.20);
-  const sediment = clamp01(
-    surface.deposition * 0.34
-      + domains.riparian * 0.30
-      + domains.coast * 0.18
-      + landform.depositional * 0.18,
-  );
+  const sediment = clamp01(surface.deposition * 0.34 + domains.riparian * 0.30 + domains.coast * 0.18 + landform.depositional * 0.18);
   const snowCover = clamp01(surface.snow * 0.56 + domains.snowfield * 0.28 + cold * 0.16);
   const familyScale = WORLD_ASSET_GEOGRAPHY_FAMILIES[family]?.scale ?? [0.8, 1.2];
   const weatherScale = 1 + (familyScore.score - 0.5) * 0.18 + (surface.shelter - 0.5) * 0.10;
-  return Object.freeze({
-    family,
-    moisture,
-    cold,
-    mineral,
-    dampness,
-    dryness,
-    weathering,
-    lichen,
-    moss,
-    sediment,
-    snowCover,
-    albedoMacro: 0.88 + dryness * 0.12 - dampness * 0.06,
-    albedoMeso: 0.86 + mineral * 0.08,
-    albedoFine: 0.96 + (surface.moisture - 0.5) * 0.06,
-    normalMacro: clamp01(0.34 + landform.exposed * 0.40 + mineral * 0.26),
-    normalFine: clamp01(0.38 + surface.erosion * 0.32 + mineral * 0.30),
-    roughnessMacro: clamp01(0.52 + dampness * 0.28 + weathering * 0.20),
-    roughnessFine: clamp01(0.48 + weathering * 0.26 + mineral * 0.18 + dryness * 0.08),
-    preferredScale: Object.freeze([
-      clamp01((familyScale[0] - 0.5) / 1.0),
-      clamp01((familyScale[1] - 0.5) / 1.2),
-    ]),
-    weatherScale,
-  });
+  return Object.freeze({ family, moisture, cold, mineral, dampness, dryness, weathering, lichen, moss, sediment, snowCover, albedoMacro: 0.88 + dryness * 0.12 - dampness * 0.06, albedoMeso: 0.86 + mineral * 0.08, albedoFine: 0.96 + (surface.moisture - 0.5) * 0.06, normalMacro: clamp01(0.34 + landform.exposed * 0.40 + mineral * 0.26), normalFine: clamp01(0.38 + surface.erosion * 0.32 + mineral * 0.30), roughnessMacro: clamp01(0.52 + dampness * 0.28 + weathering * 0.20), roughnessFine: clamp01(0.48 + weathering * 0.26 + mineral * 0.18 + dryness * 0.08), preferredScale: Object.freeze([clamp01((familyScale[0] - 0.5) / 1.0), clamp01((familyScale[1] - 0.5) / 1.2)]), weatherScale });
 }
 
 export function sampleWorldAssetGeographyProfile(surfaceInput = {}, metadata = {}) {
@@ -699,55 +400,12 @@ export function sampleWorldAssetGeographyProfile(surfaceInput = {}, metadata = {
   const distances = surfaceDistances(surface);
   const preferredAspect = preferredAspectForFamily(safeFamily, surface, domains);
   const cohort = ecologicalCohortValue(surface, spatial, safeFamily);
-  const score = clamp01(
-    familyResponse.score * 0.72
-      + distances.river * 0.06 * (safeFamily === 'waterside' ? 1.25 : 0.42)
-      + distances.lake * 0.05 * (safeFamily === 'waterside' ? 1.18 : 0.36)
-      + distances.coast * 0.03 * (safeFamily === 'waterside' || safeFamily === 'settlement' ? 1.25 : 0.34)
-      + distances.road * 0.02
-      + distances.settlement * 0.02
-      + cohort * 0.10,
-  );
+  const score = clamp01(familyResponse.score * 0.72 + distances.river * 0.06 * (safeFamily === 'waterside' ? 1.25 : 0.42) + distances.lake * 0.05 * (safeFamily === 'waterside' ? 1.18 : 0.36) + distances.coast * 0.03 * (safeFamily === 'waterside' || safeFamily === 'settlement' ? 1.25 : 0.34) + distances.road * 0.02 + distances.settlement * 0.02 + cohort * 0.10);
   const material = materialContext(safeFamily, surface, landform, domains, familyResponse);
-  const placementClass = score >= WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.scoreExcellent
-    ? 'excellent'
-    : score >= WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.scoreStrong
-      ? 'strong'
-      : score >= WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.scoreFloor
-        ? 'conditional'
-        : 'poor';
-  const climateSignal = clamp01(
-    surface.biome.snow * 0.46
-      + surface.biome.tundra * 0.20
-      + surface.biome.coast * 0.10
-      + surface.biome.wetland * 0.08
-      + surface.biome.desert * 0.06
-      + surface.biome.lava * 0.10,
-  );
+  const placementClass = score >= WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.scoreExcellent ? 'excellent' : score >= WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.scoreStrong ? 'strong' : score >= WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.scoreFloor ? 'conditional' : 'poor';
+  const climateSignal = clamp01(surface.biome.snow * 0.46 + surface.biome.tundra * 0.20 + surface.biome.coast * 0.10 + surface.biome.wetland * 0.08 + surface.biome.desert * 0.06 + surface.biome.lava * 0.10);
   const rotation = preferredAspect + (cohort - 0.5) * 0.62 + spatial.directionNoise * 0.14;
-  return Object.freeze({
-    policyId: WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.id,
-    family: safeFamily,
-    placementScore: score,
-    placementClass,
-    climateSignal,
-    surface,
-    landform,
-    domains,
-    familyResponse,
-    distances,
-    cohort,
-    preferredAspect,
-    preferredRotationRadians: rotation,
-    material,
-    spatial: Object.freeze({
-      macro: spatial.macro,
-      meso: spatial.meso,
-      fine: spatial.fine,
-      cohort: spatial.cohort,
-      directionNoise: spatial.directionNoise,
-    }),
-  });
+  return Object.freeze({ policyId: WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.id, family: safeFamily, placementScore: score, placementClass, climateSignal, surface, landform, domains, familyResponse, distances, cohort, preferredAspect, preferredRotationRadians: rotation, material, spatial: Object.freeze({ macro: spatial.macro, meso: spatial.meso, fine: spatial.fine, cohort: spatial.cohort, directionNoise: spatial.directionNoise }) });
 }
 
 export function isWorldAssetGeographicallyPlausible(profile, { minimumScore = WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.scoreFloor } = {}) {
@@ -757,11 +415,7 @@ export function isWorldAssetGeographicallyPlausible(profile, { minimumScore = WO
   return profile.placementScore >= finite(minimumScore, WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.scoreFloor);
 }
 
-export function assetGeographyPlacementDecision(profile, {
-  rejectPoor = true,
-  minimumScore = WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.scoreFloor,
-  strongScore = WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.scoreStrong,
-} = {}) {
+export function assetGeographyPlacementDecision(profile, { rejectPoor = true, minimumScore = WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.scoreFloor, strongScore = WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.scoreStrong } = {}) {
   const score = clamp01(profile?.placementScore);
   const plausible = isWorldAssetGeographicallyPlausible(profile, { minimumScore });
   const decision = plausible ? (score >= strongScore ? 'accept-strong' : 'accept-conditional') : rejectPoor ? 'reject' : 'accept-poor';
@@ -772,13 +426,7 @@ export function assetGeographyPlacementDecision(profile, {
   if (profile?.familyResponse?.moistureFit < 0.20) reasons.push('moisture');
   if (profile?.familyResponse?.elevationFit < 0.20) reasons.push('elevation');
   if (score < minimumScore) reasons.push('score');
-  return Object.freeze({
-    accept: decision !== 'reject',
-    decision,
-    score,
-    plausible,
-    reasons: [...new Set(reasons)],
-  });
+  return Object.freeze({ accept: decision !== 'reject', decision, score, plausible, reasons: [...new Set(reasons)] });
 }
 
 export function deterministicAssetCohortOffset(x, z, family = 'vegetation') {
@@ -791,12 +439,12 @@ export function deterministicAssetCohortOffset(x, z, family = 'vegetation') {
 
 export function deterministicAssetScale(profile, x, z) {
   const family = profile?.family ?? 'vegetation';
-  const range = WORLD_ASSET_GEOGRAPHY_FAMILIES[family]?.scale ?? [0.8, 1.2];
+  const rangeValues = WORLD_ASSET_GEOGRAPHY_FAMILIES[family]?.scale ?? [0.8, 1.2];
   const cohort = deterministicAssetCohortOffset(x, z, family);
   const shelter = clamp01(profile?.surface?.shelter ?? 0.5);
   const exposure = clamp01(profile?.surface?.slopeDegrees / 48);
   const raw = 0.55 * cohort + 0.25 * shelter + 0.20 * (1 - exposure);
-  return lerp(range[0], range[1], clamp01(raw));
+  return lerp(rangeValues[0], rangeValues[1], clamp01(raw));
 }
 
 export function deterministicAssetYaw(profile, x, z) {
@@ -811,39 +459,22 @@ export function deterministicAssetYaw(profile, x, z) {
 export function evaluateAssetDistributionCandidate({ x = 0, z = 0, surface = {}, metadata = {} } = {}) {
   const profile = sampleWorldAssetGeographyProfile({ ...surface, x, z }, metadata);
   const decision = assetGeographyPlacementDecision(profile);
-  return Object.freeze({
-    x,
-    z,
-    profile,
-    decision,
-    scale: deterministicAssetScale(profile, x, z),
-    yaw: deterministicAssetYaw(profile, x, z),
-  });
+  return Object.freeze({ x, z, profile, decision, scale: deterministicAssetScale(profile, x, z), yaw: deterministicAssetYaw(profile, x, z) });
 }
 
 export function rankAssetDistributionCandidates(candidates = [], metadata = {}) {
   if (!Array.isArray(candidates)) throw new TypeError('candidates must be an array');
-  return candidates
-    .map((candidate, index) => ({
-      index,
-      candidate: evaluateAssetDistributionCandidate({ ...candidate, metadata }),
-    }))
+  return candidates.map((candidate, index) => ({ index, candidate: evaluateAssetDistributionCandidate({ ...candidate, metadata }) }))
     .sort((a, b) => {
       const delta = b.candidate.profile.placementScore - a.candidate.profile.placementScore;
       if (Math.abs(delta) > 1e-9) return delta;
       const cohort = b.candidate.profile.cohort - a.candidate.profile.cohort;
       if (Math.abs(cohort) > 1e-9) return cohort;
       return a.index - b.index;
-    })
-    .map(({ candidate }) => candidate);
+    }).map(({ candidate }) => candidate);
 }
 
-export function distributeAssetCandidates(candidates = [], metadata = {}, {
-  targetCount = null,
-  minimumScore = WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.scoreFloor,
-  spacingMeters = null,
-  clusterBias = 0.32,
-} = {}) {
+export function distributeAssetCandidates(candidates = [], metadata = {}, { targetCount = null, minimumScore = WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.scoreFloor, spacingMeters = null, clusterBias = 0.32 } = {}) {
   const ranked = rankAssetDistributionCandidates(candidates, metadata);
   const family = metadata.family || metadata.assetFamily || inferFamily(metadata);
   const profile = WORLD_ASSET_GEOGRAPHY_FAMILIES[family] ?? WORLD_ASSET_GEOGRAPHY_FAMILIES.vegetation;
@@ -862,14 +493,7 @@ export function distributeAssetCandidates(candidates = [], metadata = {}, {
     if (selected.length > 0 && adjacencyBonus < 0.20 && cohort < 0.78) continue;
     selected.push(item);
   }
-  return Object.freeze({
-    family,
-    selected,
-    rejected: ranked.filter((item) => !selected.includes(item)),
-    targetCount: limit,
-    spacingMeters: minimumSpacing,
-    deterministic: true,
-  });
+  return Object.freeze({ family, selected, rejected: ranked.filter((item) => !selected.includes(item)), targetCount: limit, spacingMeters: minimumSpacing, deterministic: true });
 }
 
 export function compareAssetGeographyProfiles(a, b) {
@@ -881,9 +505,7 @@ export function compareAssetGeographyProfiles(a, b) {
     elevationDelta: finite(a.surface?.heightMeters) - finite(b.surface?.heightMeters),
     climateSignalDelta: finite(a.climateSignal) - finite(b.climateSignal),
     cohortDelta: finite(a.cohort) - finite(b.cohort),
-    domainDistances: Object.freeze(Object.fromEntries(
-      Object.keys(WORLD_ASSET_GEOGRAPHY_DOMAINS).map((key) => [key, finite(a.domains?.[key]) - finite(b.domains?.[key])]),
-    )),
+    domainDistances: Object.freeze(Object.fromEntries(Object.keys(WORLD_ASSET_GEOGRAPHY_DOMAINS).map((key) => [key, finite(a.domains?.[key]) - finite(b.domains?.[key])]))),
   });
 }
 
@@ -905,10 +527,7 @@ export function validateAssetGeographyProfile(profile) {
 
 export function summarizeAssetGeography(profile) {
   if (!profile) return null;
-  const domains = Object.entries(profile.domains ?? {})
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 4)
-    .map(([id, score]) => ({ id, score }));
+  const domains = Object.entries(profile.domains ?? {}).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([id, score]) => ({ id, score }));
   return Object.freeze({
     family: profile.family,
     placementScore: profile.placementScore,
@@ -921,14 +540,6 @@ export function summarizeAssetGeography(profile) {
     snow: profile.surface.snow,
     cohort: profile.cohort,
     preferredRotationRadians: profile.preferredRotationRadians,
-    material: Object.freeze({
-      dampness: profile.material.dampness,
-      dryness: profile.material.dryness,
-      mineral: profile.material.mineral,
-      weathering: profile.material.weathering,
-      snowCover: profile.material.snowCover,
-      roughnessMacro: profile.material.roughnessMacro,
-      normalMacro: profile.material.normalMacro,
-    }),
+    material: Object.freeze({ dampness: profile.material.dampness, dryness: profile.material.dryness, mineral: profile.material.mineral, weathering: profile.material.weathering, snowCover: profile.material.snowCover, roughnessMacro: profile.material.roughnessMacro, normalMacro: profile.material.normalMacro }),
   });
 }
