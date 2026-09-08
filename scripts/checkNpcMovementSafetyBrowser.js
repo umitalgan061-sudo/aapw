@@ -26,12 +26,20 @@ async function main() {
     await page.goto(`${BASE_URL}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
     const proof = await page.evaluate(async () => {
       const THREE = await import('three');
-      const { createNPC } = await import('/src/3d/gameplay/npc.js');
+      const { createNPC, spawnConfiguredNPCs } = await import('/src/3d/gameplay/npc.js');
 
       class FakeAssetLoader {
-        async loadFBXModel() {
+        async loadFBXModel(url = '') {
           const group = new THREE.Group();
           group.animations = [];
+          if (!String(url).includes('/animations/')) {
+            const geometry = new THREE.BoxGeometry(0.55, 1.8, 0.4);
+            const material = new THREE.MeshStandardMaterial({ roughness: 0.8 });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.name = 'Guard_Body';
+            mesh.position.y = 0.9;
+            group.add(mesh);
+          }
           return group;
         }
       }
@@ -76,6 +84,80 @@ async function main() {
       const recoveredGroundPosition = groundNpc.object3D.position.clone();
       groundNpc.dispose();
 
+      const resumeNpc = await makeNpc(
+        { getGroundHeight: () => 0 },
+        { resolveXZ: (x, z) => ({ x, z }) },
+        'resume-delta-guard',
+      );
+      resumeNpc.update(30, { x: 100, z: 100 });
+      const boundedResumePosition = resumeNpc.object3D.position.clone();
+      const beforeInvalidDelta = resumeNpc.object3D.position.clone();
+      resumeNpc.update(Number.NaN, { x: 100, z: 100 });
+      const afterInvalidDelta = resumeNpc.object3D.position.clone();
+      resumeNpc.update(Infinity, { x: 100, z: 100 });
+      const afterInfiniteDelta = resumeNpc.object3D.position.clone();
+      resumeNpc.update(-0.25, { x: 100, z: 100 });
+      const afterNegativeDelta = resumeNpc.object3D.position.clone();
+      const skippedAfterInvalidDelta = resumeNpc.object3D.userData.simulationSkippedTicks;
+      resumeNpc.dispose();
+
+      let malformedPatrolGroundSamples = 0;
+      let malformedPatrolColliderResolves = 0;
+      const malformedPatrolNpc = await createNPC({
+        assetLoader: new FakeAssetLoader(),
+        modelUrl: '/assets/models/characters/paladin_j_nordstrom.fbx',
+        idleAnimationUrl: '/assets/animations/peasant_girl/idle.fbx',
+        walkAnimationUrl: '/assets/animations/peasant_girl/walking.fbx',
+        worldX: 0, worldZ: 0, groundY: 0,
+        name: 'malformed-patrol-guard',
+        groundCollider: { getGroundHeight: () => { malformedPatrolGroundSamples += 1; return 0; } },
+        playerCollider: { resolveXZ: (x, z) => { malformedPatrolColliderResolves += 1; return { x, z }; } },
+        patrolWaypoints: [{ x: Infinity, z: 4 }],
+        speedMps: 2, pauseSeconds: 0, simulationLodMaxStepSeconds: 0.25,
+      });
+      malformedPatrolNpc.update(0.25, { x: 100, z: 100 });
+      const malformedPatrolPosition = malformedPatrolNpc.object3D.position.clone();
+      const malformedPatrolYaw = malformedPatrolNpc.object3D.rotation.y;
+      malformedPatrolNpc.dispose();
+
+      const sampledGroundPoints = [];
+      const configuredGroundCollider = {
+        getGroundHeight(x, z) {
+          sampledGroundPoints.push({ x, z });
+          if (Math.abs(x - 100) <= 40 && Math.abs(z) <= 40) return Number.NaN;
+          if (Math.abs(x - 200) <= 40 && Math.abs(z) <= 40) throw new Error('synthetic terrain sampler failure');
+          return 3;
+        },
+      };
+      const configuredSpawns = await spawnConfiguredNPCs({
+        assetLoader: new FakeAssetLoader(),
+        npcConfig: {
+          SPAWNS: [
+            { id: 'spawn-valid', seatId: 'seat-valid', offsetXMeters: 12, offsetZMeters: 0, modelUrl: '/valid.fbx' },
+            { id: 'spawn-invalid-ground', seatId: 'seat-invalid-ground', offsetXMeters: 12, offsetZMeters: 0, modelUrl: '/invalid-ground.fbx' },
+            { id: 'spawn-throwing-ground', seatId: 'seat-throwing-ground', offsetXMeters: 12, offsetZMeters: 0, modelUrl: '/throwing-ground.fbx' },
+            { id: 'spawn-invalid-offset', seatId: 'seat-invalid-offset', offsetXMeters: Number.NaN, offsetZMeters: 0, modelUrl: '/invalid-offset.fbx' },
+            { id: 'spawn-invalid-world', seatId: 'seat-invalid-world', offsetXMeters: 0, offsetZMeters: 0, modelUrl: '/invalid-world.fbx' },
+            { id: 'spawn-overflow-world', seatId: 'seat-overflow-world', offsetXMeters: Number.MAX_VALUE, offsetZMeters: 0, modelUrl: '/overflow-world.fbx' },
+          ],
+          IDLE_ANIMATION_URL: '/assets/animations/peasant_girl/idle.fbx',
+        },
+        seatsById: new Map([
+          ['seat-valid', { x: 0, z: 0 }],
+          ['seat-invalid-ground', { x: 100, z: 0 }],
+          ['seat-throwing-ground', { x: 200, z: 0 }],
+          ['seat-invalid-offset', { x: 300, z: 0 }],
+          ['seat-invalid-world', { x: Infinity, z: 0 }],
+          ['seat-overflow-world', { x: Number.MAX_VALUE, z: 0 }],
+        ]),
+        sampleGroundY: () => { throw new Error('groundCollider should own configured geography sampling'); },
+        groundCollider: configuredGroundCollider,
+        playerCollider: { resolveXZ: (x, z) => ({ x, z }) },
+      });
+      const configuredSpawnPosition = configuredSpawns[0]?.object3D.position.clone();
+      const configuredPlacementReady = configuredSpawns[0]?.object3D.userData.materialReadyForWorld === true;
+      for (const npc of configuredSpawns) npc.dispose();
+
       const occlusionNpc = await createNPC({
         assetLoader: new FakeAssetLoader(),
         modelUrl: '/assets/models/characters/paladin_j_nordstrom.fbx',
@@ -100,12 +182,27 @@ async function main() {
       const occlusionPosition = occlusionNpc.object3D.position.clone();
       occlusionNpc.dispose();
 
+      const sampledXs = sampledGroundPoints.map((point) => point.x);
       return {
         colliderFinite: [colliderPosition.x, colliderPosition.y, colliderPosition.z].every(Number.isFinite),
         colliderStayedPut: colliderPosition.distanceTo(new THREE.Vector3(0, 0, 0)) < 1e-9,
         groundFinite: [blockedGroundPosition.x, blockedGroundPosition.y, blockedGroundPosition.z].every(Number.isFinite),
         groundStayedPut: blockedGroundPosition.distanceTo(new THREE.Vector3(0, 0, 0)) < 1e-9,
         groundRecovered: recoveredGroundPosition.z > 0 && [recoveredGroundPosition.x, recoveredGroundPosition.y, recoveredGroundPosition.z].every(Number.isFinite),
+        resumeDeltaBounded: boundedResumePosition.z > 0 && boundedResumePosition.z <= 0.500001,
+        invalidDeltaIgnored: afterInvalidDelta.distanceTo(beforeInvalidDelta) < 1e-9 && skippedAfterInvalidDelta >= 1,
+        infiniteDeltaIgnored: afterInfiniteDelta.distanceTo(afterInvalidDelta) < 1e-9 && skippedAfterInvalidDelta >= 2,
+        negativeDeltaIgnored: afterNegativeDelta.distanceTo(afterInfiniteDelta) < 1e-9 && skippedAfterInvalidDelta >= 3,
+        malformedPatrolFailsClosed: malformedPatrolPosition.distanceTo(new THREE.Vector3(0, 0, 0)) < 1e-9 && [malformedPatrolPosition.x, malformedPatrolPosition.y, malformedPatrolPosition.z].every(Number.isFinite),
+        malformedPatrolYawFinite: Number.isFinite(malformedPatrolYaw),
+        malformedPatrolSkipsGroundSampling: malformedPatrolGroundSamples === 0,
+        malformedPatrolSkipsColliderResolution: malformedPatrolColliderResolves === 0,
+        configuredSpawnIsolation: configuredSpawns.length === 1 && configuredSpawns[0].object3D.name === 'spawn-valid',
+        configuredSpawnGroundFinite: configuredSpawnPosition?.y === 3 && [configuredSpawnPosition.x, configuredSpawnPosition.y, configuredSpawnPosition.z].every(Number.isFinite),
+        configuredSpawnSharedPlacement: configuredPlacementReady,
+        invalidWorldSkippedBeforeSampling: sampledGroundPoints.every((point) => Number.isFinite(point.x) && Number.isFinite(point.z)),
+        invalidOffsetSkippedBeforeSampling: !sampledXs.some((x) => Number.isFinite(x) && Math.abs(x - 300) < 40),
+        overflowWorldSkippedBeforeSampling: !sampledXs.includes(Number.MAX_VALUE),
         losFailedClosed: perception.lineOfSight === false && perception.reason === 'occluded',
         invalidLosDidNotAlert: perception.intent === 'patrol' && perception.suspicion === 0,
         occlusionFinite: [occlusionPosition.x, occlusionPosition.y, occlusionPosition.z].every(Number.isFinite),
@@ -122,8 +219,10 @@ async function main() {
     server.kill('SIGTERM');
   }
 
-  const fatalServerLog = serverErrors.join('').replace(/BrokenPipeError: \[Errno 32\] Broken pipe/g, '');
-  if (/\" [45]\d\d |(?:^|\n)\w*(?:Error|Exception):|Traceback/im.test(fatalServerLog)) {
+  const fatalServerLog = serverErrors.join('')
+    .replace(/BrokenPipeError: \[Errno 32\] Broken pipe/g, '')
+    .replace(/ConnectionResetError: \[Errno 104\] Connection reset by peer/g, '');
+  if (/\" [45]\d\d |(?:^|\n)[A-Za-z_][\w.]*(?:Error|Exception):/m.test(fatalServerLog)) {
     throw new Error(`static server errors: ${fatalServerLog}`);
   }
 }

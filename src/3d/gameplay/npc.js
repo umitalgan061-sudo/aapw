@@ -7,6 +7,7 @@
 
 import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
+import { prepareConfiguredNpcWorldAsset, resolveConfiguredNpcPatrol, resolveConfiguredNpcSpawnPlacement } from './npcWorldPlacement.js';
 
 function easeBlendToward(currentBlend, targetBlend, delta, transitionSeconds) {
 	if (transitionSeconds > 0) {
@@ -65,7 +66,7 @@ export function evaluateNpcGuardAwareness({ observer, target, yawRadians = 0, ra
 }
 
 export function evaluateNpcGuardAssistAlert({ alert, observer, groupId, sourceId, lastRevision = 0, assistRadiusMeters = 25 } = {}) {
-	if (!alert || !observer || !groupId || alert.groupId !== groupId || !(alert.revision > lastRevision)) {
+	if (!alert || !observer || !groupId || alert.groupId !== groupId || !Number.isSafeInteger(alert.revision) || alert.revision <= 0 || !(alert.revision > lastRevision)) {
 		return { accepted: false, reason: 'stale', revision: lastRevision, sourceDistanceMeters: Infinity };
 	}
 	if (alert.sourceId === sourceId) {
@@ -79,12 +80,16 @@ export function evaluateNpcGuardAssistAlert({ alert, observer, groupId, sourceId
 	if (!Number.isFinite(sourceDistanceMeters) || sourceDistanceMeters > assistRadiusMeters) {
 		return { accepted: false, reason: 'range', revision: alert.revision, sourceDistanceMeters };
 	}
+	const lastKnown = alert.lastKnown;
+	if (lastKnown && (!Number.isFinite(lastKnown.x) || !Number.isFinite(lastKnown.z))) {
+		return { accepted: false, reason: 'invalid', revision: alert.revision, sourceDistanceMeters };
+	}
 	return {
 		accepted: true,
 		reason: 'assist',
 		revision: alert.revision,
 		sourceDistanceMeters,
-		lastKnown: alert.lastKnown ? { x: alert.lastKnown.x, z: alert.lastKnown.z } : null,
+		lastKnown: lastKnown ? { x: lastKnown.x, z: lastKnown.z } : null,
 		sourceId: alert.sourceId,
 	};
 }
@@ -319,6 +324,7 @@ export async function createNPC({
 	let suspicion = 0;
 	let lastKnownPlayer = null;
 	let investigationRemaining = 0;
+	let returningToRoute = false;
 	let previousPlayerPosition = null;
 	const simulationLod = createNpcSimulationLod({
 		id: name ?? displayName ?? modelUrl,
@@ -378,10 +384,12 @@ export async function createNPC({
 				const noiseStrength = Math.max(0, Math.min(1, (playerSpeedMps - 1.5) / 5.5));
 				heard = !awareness.visible && noiseStrength > 0 && distanceToPlayer <= Math.max(4, combatStanceTriggerRadiusMeters * 0.8) * noiseStrength;
 				if (awareness.visible) {
+					returningToRoute = true;
 					suspicion = Math.min(1, suspicion + simulationDelta / 0.22);
 					lastKnownPlayer = { x: playerPosition.x, z: playerPosition.z };
 					investigationRemaining = Math.max(investigationRemaining, 2 + distanceToPlayer / Math.max(0.25, speedMps * 0.85));
 				} else if (heard) {
+					returningToRoute = true;
 					suspicion = Math.min(1, suspicion + simulationDelta * 0.72 * noiseStrength);
 					lastKnownPlayer = { x: playerPosition.x, z: playerPosition.z };
 					investigationRemaining = Math.max(investigationRemaining, 1.25 + distanceToPlayer / Math.max(0.25, speedMps * 0.85));
@@ -406,6 +414,7 @@ export async function createNPC({
 				if (!awareness.visible && assist.accepted && assist.lastKnown) {
 					assisted = true;
 					assistSourceId = assist.sourceId;
+					returningToRoute = true;
 					suspicion = Math.max(suspicion, 0.35);
 					lastKnownPlayer = { ...assist.lastKnown };
 					investigationRemaining = Math.max(investigationRemaining, 1.5 + assist.sourceDistanceMeters / Math.max(0.25, speedMps));
@@ -429,8 +438,10 @@ export async function createNPC({
 					perceptionIntent = distanceToPlayer > combatEngageRadiusMeters ? 'chase' : 'combat';
 				} else if (awareness.visible) {
 					perceptionIntent = 'observe';
+				} else if (lastKnownPlayer && investigationRemaining > 0) {
+					perceptionIntent = 'investigate';
 				} else {
-					perceptionIntent = lastKnownPlayer && investigationRemaining > 0 ? 'investigate' : 'patrol';
+					perceptionIntent = returningToRoute ? 'return' : 'patrol';
 				}
 				model.userData.npcPerception = {
 					intent: perceptionIntent,
@@ -444,6 +455,7 @@ export async function createNPC({
 					lineOfSightSamples: los.samples,
 					engageRadiusMeters: Number(combatEngageRadiusMeters.toFixed(3)),
 					investigationRemaining: Number(investigationRemaining.toFixed(3)),
+					returningToRoute,
 					lastKnown: lastKnownPlayer ? { ...lastKnownPlayer } : null,
 				};
 			}
@@ -464,6 +476,20 @@ export async function createNPC({
 				playAction(moved ? (walkAction || idleAction) : idleAction);
 			} else if (perceptionEnabled && perceptionIntent === 'investigate' && lastKnownPlayer) {
 				const moved = moveNpcToward(model, lastKnownPlayer, speedMps * 0.85, simulationDelta, groundCollider, playerCollider, turnRateRadiansPerSecond);
+				playAction(moved ? (walkAction || idleAction) : idleAction);
+			} else if (perceptionEnabled && perceptionIntent === 'return') {
+				const returnTarget = isPatrolling ? patrolWaypoints[waypointIndex % patrolWaypoints.length] : homePosition;
+				const distanceToRoute = Math.hypot(model.position.x - returnTarget.x, model.position.z - returnTarget.z);
+				const moved = moveNpcToward(model, returnTarget, speedMps * 0.8, simulationDelta, groundCollider, playerCollider, turnRateRadiansPerSecond, 0.35);
+				if (!moved && distanceToRoute <= 0.35) {
+					returningToRoute = false;
+					lastKnownPlayer = null;
+					if (model.userData.npcPerception) {
+						model.userData.npcPerception.intent = 'patrol';
+						model.userData.npcPerception.returningToRoute = false;
+						model.userData.npcPerception.lastKnown = null;
+					}
+				}
 				playAction(moved ? (walkAction || idleAction) : idleAction);
 			} else if (isPatrolling) {
 				if (pauseTimer > 0) {
@@ -507,26 +533,29 @@ export async function createNPC({
 
 export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, sampleGroundY, groundCollider, playerCollider }) {
 	const guardAlertChannel = { nextRevision: 1, groups: new Map() };
+	const sampleGroundHeight = groundCollider?.getGroundHeight ? (x, z) => groundCollider.getGroundHeight(x, z) : sampleGroundY;
 	const npcs = await Promise.all(npcConfig.SPAWNS.map(async (spawn) => {
 		const seat = seatsById.get(spawn.seatId);
 		if (!seat) {
 			console.warn(`[gameplay/npc] NPC spawn "${spawn.id}" references unknown seat "${spawn.seatId}" — skipping.`);
 			return null;
 		}
-		const worldX = seat.x + spawn.offsetXMeters;
-		const worldZ = seat.z + spawn.offsetZMeters;
-		const groundY = sampleGroundY(worldX, worldZ);
-		const patrolWaypoints = spawn.patrol ? [
-			{ x: worldX, z: worldZ },
-			{ x: seat.x + spawn.patrol.toOffsetXMeters, z: seat.z + spawn.patrol.toOffsetZMeters },
-		] : undefined;
-		return createNPC({
+		const placement = resolveConfiguredNpcSpawnPlacement({ spawn, seat, sampleGroundHeight });
+		if (!placement.ok) {
+			console.warn(`[gameplay/npc] NPC spawn "${spawn.id}" failed canonical geography placement (${placement.error}) — skipping.`);
+			return null;
+		}
+		const patrol = resolveConfiguredNpcPatrol(spawn, seat, placement, sampleGroundHeight);
+		if (patrol.route?.disabled) {
+			console.warn(`[gameplay/npc] NPC patrol "${spawn.id}" crosses unsafe geography (${patrol.route.error}) — spawning stationary.`);
+		}
+		const controller = await createNPC({
 			assetLoader,
 			modelUrl: spawn.modelUrl,
 			idleAnimationUrl: npcConfig.IDLE_ANIMATION_URL,
-			worldX,
-			worldZ,
-			groundY,
+			worldX: placement.x,
+			worldZ: placement.z,
+			groundY: placement.groundY,
 			rotationYRadians: spawn.rotationYRadians,
 			name: spawn.id,
 			displayName: spawn.displayName,
@@ -535,8 +564,8 @@ export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, s
 			nameTagVerticalOffsetMeters: npcConfig.NAME_TAG_VERTICAL_OFFSET_METERS,
 			groundCollider,
 			playerCollider,
-			walkAnimationUrl: patrolWaypoints ? npcConfig.WALK_ANIMATION_URL : undefined,
-			patrolWaypoints,
+			walkAnimationUrl: patrol.waypoints ? npcConfig.WALK_ANIMATION_URL : undefined,
+			patrolWaypoints: patrol.waypoints,
 			speedMps: npcConfig.PATROL_SPEED_MPS,
 			pauseSeconds: npcConfig.PATROL_PAUSE_SECONDS,
 			combatStanceTriggerRadiusMeters: npcConfig.COMBAT_STANCE_TRIGGER_RADIUS_METERS,
@@ -549,6 +578,20 @@ export async function spawnConfiguredNPCs({ assetLoader, npcConfig, seatsById, s
 			simulationLodEnabled: true,
 			simulationLodBootstrapDormant: true,
 		});
+		const prepared = prepareConfiguredNpcWorldAsset(controller.object3D, { spawn, placement, sampleGroundHeight });
+		if (!prepared.ok) {
+			console.warn(`[gameplay/npc] NPC spawn "${spawn.id}" failed shared material/placement contract (${prepared.error}) — skipping.`);
+			controller.dispose();
+			return null;
+		}
+		controller.object3D.userData.npcPatrolPlacement = Object.freeze({
+			enabled: Boolean(patrol.waypoints),
+			disabledByGeography: Boolean(patrol.route?.disabled),
+			error: patrol.route?.error ?? null,
+			distanceMeters: Number((patrol.route?.distanceMeters ?? 0).toFixed(3)),
+			routeSampleCount: patrol.route?.routeSampleCount ?? 0,
+		});
+		return controller;
 	}));
 	return npcs.filter(Boolean);
 }

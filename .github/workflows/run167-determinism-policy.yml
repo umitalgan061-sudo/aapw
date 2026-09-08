@@ -100,6 +100,8 @@ jobs:
           node scripts/checkPwaInstallability.js
 
       - name: Offline shell delta guard
+        id: offline_shell
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
@@ -257,3 +259,10 @@ jobs:
           set -euo pipefail
           git diff --check
           if grep -nE '\b(TEMP|HACK|FIXME|WORKAROUND)\b' scripts/checkSeededRandomPolicy.js; then exit 1; fi
+
+      - name: Enforce offline shell delta outcome
+        if: always()
+        shell: bash
+        run: |
+          echo "[run167] offline_shell=${{ steps.offline_shell.outcome }}"
+          test "${{ steps.offline_shell.outcome }}" = success

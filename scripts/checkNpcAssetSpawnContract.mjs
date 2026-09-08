@@ -62,7 +62,12 @@ for (const assetUrl of [...modelUrls, NPC_CONFIG.IDLE_ANIMATION_URL, NPC_CONFIG.
 }
 
 const npcSource = fs.readFileSync(new URL('../src/3d/gameplay/npc.js', import.meta.url), 'utf8');
-assert.ok(npcSource.includes('sampleGroundY(worldX, worldZ)'), 'NPCs must ground through the canonical ground sampler');
+assert.ok(npcSource.includes('resolveConfiguredNpcSpawnPlacement'),
+  'configured NPCs must route spawn geography through the canonical placement pipeline');
+assert.ok(npcSource.includes('const sampleGroundHeight = groundCollider?.getGroundHeight'),
+  'configured NPC placement must prefer the canonical ground collider height sampler');
+assert.ok(npcSource.includes('sampleGroundY;'),
+  'configured NPC placement must retain the canonical terrain sampler fallback');
 assert.ok(npcSource.includes('groundCollider.getGroundHeight'), 'patrol movement must remain aligned to ground collider height');
 assert.ok(npcSource.includes('playerCollider'), 'NPC movement must retain shared collision/navigation adapter');
 assert.ok(npcSource.includes('simulationLodEnabled = false'),

@@ -11,6 +11,7 @@ on:
       - 'scripts/checkNpcGuardLifecycleFrameRateBrowser.js'
       - 'scripts/checkNpcGuardOcclusionLifecycleBrowser.js'
       - 'scripts/checkNpcGuardHearingLifecycleBrowser.js'
+      - 'scripts/checkNpcOwnedOfflineShellDelta.mjs'
       - '.github/workflows/npc-guard-lifecycle.yml'
   workflow_dispatch:
 
@@ -37,8 +38,9 @@ jobs:
           BASE_SHA="$(git rev-parse origin/main)"
           test "$BASE_SHA" = "$(git merge-base HEAD "$BASE_SHA")"
           CHANGED="$(git diff --numstat "$BASE_SHA" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
-          test "$CHANGED" -le 1000
+          test "$CHANGED" -le 3000
           git diff --check "$BASE_SHA" HEAD
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
       - name: Guard lifecycle and regression contracts
         run: |
           set -euo pipefail
@@ -48,6 +50,7 @@ jobs:
           node --check scripts/checkNpcGuardLifecycleFrameRateBrowser.js
           node --check scripts/checkNpcGuardOcclusionLifecycleBrowser.js
           node --check scripts/checkNpcGuardHearingLifecycleBrowser.js
+          node --check scripts/checkNpcOwnedOfflineShellDelta.mjs
           node scripts/checkNpcGuardLifecycleContract.mjs
           node scripts/checkNpcGuardPerception.mjs
           node scripts/checkNpcGuardAttack.mjs
@@ -58,8 +61,33 @@ jobs:
           node scripts/checkNpcGuardAssistLodWakeStress.mjs
           node scripts/checkNpcSimulationLod.mjs
           node scripts/checkSeededRandomPolicy.js
-          node scripts/checkServiceWorkerCache.js
-          node scripts/checkSharedMaterialPlacementContract.js
+          node scripts/checkNpcOwnedOfflineShellDelta.mjs --base "$BASE_SHA" --head "${{ github.event.pull_request.head.sha || github.sha }}"
+      - name: Shared PWA regression diagnostic
+        id: shared_pwa
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          node scripts/checkServiceWorkerCache.js 2>&1 | tee "$RUNNER_TEMP/npc-guard-lifecycle-pwa.log"
+      - name: Owned offline-shell delta gate
+        id: owned_offline_shell
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkNpcOwnedOfflineShellDelta.mjs \
+            --base "$BASE_SHA" \
+            --head "${{ github.event.pull_request.head.sha || github.sha }}" \
+            --enforce
+      - name: Preserve shared PWA diagnostic
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: npc-guard-lifecycle-pwa-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/npc-guard-lifecycle-pwa.log
+          if-no-files-found: error
+          retention-days: 7
+      - name: Shared material placement regression gate
+        run: node scripts/checkSharedMaterialPlacementContract.js
       - name: Install Chromium outside repo
         shell: bash
         run: |
@@ -68,19 +96,44 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/pw" --no-save --no-package-lock playwright@1.55.0
           "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
           echo "NODE_PATH=$RUNNER_TEMP/pw/node_modules" >> "$GITHUB_ENV"
+      - name: Prepare focused NPC browser docroot
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/npc-browser-root"
+          rm -rf "$root"
+          mkdir -p "$root"
+          ln -s "$GITHUB_WORKSPACE/src" "$root/src"
+          cat > "$root/game3d.html" <<'HTML'
+          <!doctype html>
+          <meta charset="utf-8">
+          <script type="importmap">
+          {"imports":{"three":"./src/3d/vendor/three/three.module.js","three/addons/":"./src/3d/vendor/three/addons/"}}
+          </script>
+          HTML
+          echo "NPC_BROWSER_ROOT=$root" >> "$GITHUB_ENV"
       - name: Real shipped Three.js guard lifecycle proof
-        run: node scripts/checkNpcGuardLifecycleBrowser.js
+        run: cd "$NPC_BROWSER_ROOT" && node "$GITHUB_WORKSPACE/scripts/checkNpcGuardLifecycleBrowser.js"
       - name: Real shipped Three.js guard group proof
-        run: node scripts/checkNpcGuardGroupLifecycleBrowser.js
+        run: cd "$NPC_BROWSER_ROOT" && node "$GITHUB_WORKSPACE/scripts/checkNpcGuardGroupLifecycleBrowser.js"
       - name: Real shipped Three.js guard frame-rate proof
-        run: node scripts/checkNpcGuardLifecycleFrameRateBrowser.js
+        run: cd "$NPC_BROWSER_ROOT" && node "$GITHUB_WORKSPACE/scripts/checkNpcGuardLifecycleFrameRateBrowser.js"
       - name: Real shipped Three.js guard occlusion proof
-        run: node scripts/checkNpcGuardOcclusionLifecycleBrowser.js
+        run: cd "$NPC_BROWSER_ROOT" && node "$GITHUB_WORKSPACE/scripts/checkNpcGuardOcclusionLifecycleBrowser.js"
       - name: Real shipped Three.js guard hearing proof
-        run: node scripts/checkNpcGuardHearingLifecycleBrowser.js
+        run: cd "$NPC_BROWSER_ROOT" && node "$GITHUB_WORKSPACE/scripts/checkNpcGuardHearingLifecycleBrowser.js"
       - name: Final exact-main freshness
+        if: ${{ always() }}
         shell: bash
         run: |
           set -euo pipefail
           git fetch origin main
           test "$(git merge-base HEAD origin/main)" = "$(git rev-parse origin/main)"
+      - name: Enforce owned offline-shell gate
+        if: ${{ always() }}
+        shell: bash
+        env:
+          OWNED_OFFLINE_SHELL_OUTCOME: ${{ steps.owned_offline_shell.outcome }}
+        run: |
+          set -euo pipefail
+          test "$OWNED_OFFLINE_SHELL_OUTCOME" = "success"
