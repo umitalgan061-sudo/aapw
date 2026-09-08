@@ -11,13 +11,14 @@
 
 import * as THREE from 'three';
 import { AssetLoader } from '../assetLoader.js';
+import { northReferenceCryosphereAtWorldXZ } from './northReferenceCryosphere.js';
 
 const PREFERRED_SNOW_PINE_ASSET = 'assets/models/vegetation/pine_Zt62gceKXZ.glb';
 const BARE_WINTER_TREE_ASSET = 'assets/models/vegetation/winter_tree.glb';
 const SNOW_DEAD_TREE_GROVE_ASSET = 'assets/models/vegetation/dead_trees_with_snow_iEuwXWner0.glb';
 
 export const WINTER_VEGETATION_ASSET_POLICY = Object.freeze({
-	id: 'winter-vegetation-materialized-asset-2026-08-21-v4',
+	id: 'winter-vegetation-materialized-asset-2026-09-01-v5-climate-material',
 	preferredSnowPineAsset: PREFERRED_SNOW_PINE_ASSET,
 	bareWinterTreeAsset: BARE_WINTER_TREE_ASSET,
 	groveAsset: SNOW_DEAD_TREE_GROVE_ASSET,
@@ -45,6 +46,13 @@ export const WINTER_VEGETATION_ASSET_POLICY = Object.freeze({
 	pineFoliageFineScale: 0.71,
 	pineFoliageWeatheringStrength: 0.18,
 	pineFoliageRoughnessVariation: 0.09,
+	// Texture-only climate response. Placement/species selection remains owned by vegetation.js;
+	// this maps the same canonical owner-map cryosphere field onto the hydrated pine's snow amount.
+	pineFoliageClimateSnowFloor: 0.20,
+	pineFoliageClimateSnowCeiling: 0.82,
+	pineFoliageClimateSnowMixMinMultiplier: 0.62,
+	pineFoliageClimateSnowMixMaxMultiplier: 1.18,
+	pineFoliageClimateAuthority: 'northReferenceCryosphereAtWorldXZ',
 	// A Git-LFS pointer is ~130 bytes. A real textured tree GLB is orders of magnitude larger. HEAD
 	// preflight lets Firebase/static hosting reject an unhydrated pointer without downloading it into
 	// GLTFLoader first. Keep the threshold deliberately tiny so it cannot reject a plausible real GLB.
@@ -53,6 +61,7 @@ export const WINTER_VEGETATION_ASSET_POLICY = Object.freeze({
 });
 
 const inFlightUpgrades = new WeakMap();
+const clamp01 = (value) => Math.max(0, Math.min(1, value));
 
 function makeStatus(status, extra = {}) {
 	return Object.freeze({
@@ -161,10 +170,68 @@ export function createWinterAssetNormalization(measurement, targetHeightMeters =
 }
 
 /**
+ * Converts canonical owner-map cryosphere strength into a bounded visual snow scalar for one real
+ * winter-pine instance. This is deliberately render-only: vegetation.js remains the sole placement
+ * and species authority, while the hydrated model's texture now reflects where that chosen tree is.
+ */
+export function winterPineClimateSnowFactorAtWorldXZ(
+	worldX,
+	worldZ,
+	policy = WINTER_VEGETATION_ASSET_POLICY,
+) {
+	if (!Number.isFinite(worldX) || !Number.isFinite(worldZ)) {
+		throw new TypeError('winter pine climate coordinates must be finite');
+	}
+	const climate = northReferenceCryosphereAtWorldXZ(worldX, worldZ);
+	const coldness = Math.max(climate.permanentIce, climate.tundra);
+	const floor = Number(policy.pineFoliageClimateSnowFloor);
+	const ceiling = Number(policy.pineFoliageClimateSnowCeiling);
+	const width = Math.max(1e-6, ceiling - floor);
+	const snowFactor = clamp01((coldness - floor) / width);
+	return Object.freeze({
+		snowFactor,
+		coldness,
+		permanentIce: climate.permanentIce,
+		tundra: climate.tundra,
+		tundraBand: climate.tundraBand,
+		outsideReference: climate.outsideReference,
+	});
+}
+
+/**
+ * Samples the exact existing procedural instance transforms in world space. Using matrixWorld here
+ * matters for translated vegetation groups (for example spawn-anchored/mobile world groups); a
+ * local-position climate lookup would paint the right model with the wrong region's snow amount.
+ */
+export function buildWinterPineClimateInstanceValues(
+	sourceMesh,
+	policy = WINTER_VEGETATION_ASSET_POLICY,
+) {
+	const count = Math.max(0, Number(sourceMesh?.count) || 0);
+	const values = new Float32Array(count);
+	if (!sourceMesh || count === 0) return values;
+	sourceMesh.updateWorldMatrix?.(true, false);
+	const treeMatrix = new THREE.Matrix4();
+	const worldMatrix = new THREE.Matrix4();
+	const worldPosition = new THREE.Vector3();
+	for (let instanceIndex = 0; instanceIndex < count; instanceIndex += 1) {
+		sourceMesh.getMatrixAt(instanceIndex, treeMatrix);
+		worldMatrix.multiplyMatrices(sourceMesh.matrixWorld, treeMatrix);
+		worldPosition.setFromMatrixPosition(worldMatrix);
+		values[instanceIndex] = winterPineClimateSnowFactorAtWorldXZ(
+			worldPosition.x,
+			worldPosition.z,
+			policy,
+		).snowFactor;
+	}
+	return values;
+}
+
+/**
  * Converts only the preferred pine's alpha-cut foliage toward a cold snow palette. Keeping the
  * original map fragment first preserves its detailed silhouette/alpha and texture variation. Snow
- * coverage, albedo weathering, micro-normal and roughness now vary continuously in world space so
- * hydrated crowns do not repeat the same flat white treatment at every deterministic tree instance.
+ * coverage, albedo weathering, micro-normal and roughness vary continuously in world space, while
+ * the per-instance cryosphere attribute makes the amount of snow follow canonical geography.
  */
 export function applyWinterPineMaterialTreatment(material, assetUrl, policy = WINTER_VEGETATION_ASSET_POLICY) {
 	if (!material || assetUrl !== policy.preferredSnowPineAsset) return material;
@@ -175,6 +242,7 @@ export function applyWinterPineMaterialTreatment(material, assetUrl, policy = WI
 	material.userData = {
 		...material.userData,
 		winterPineTreatment: isMappedFoliage ? 'snow-foliage-shader' : 'winter-trunk-source-map',
+		winterPineClimateAuthority: isMappedFoliage ? policy.pineFoliageClimateAuthority : null,
 	};
 	if (!isMappedFoliage) return material;
 
@@ -184,11 +252,18 @@ export function applyWinterPineMaterialTreatment(material, assetUrl, policy = WI
 		priorCompile?.call(this, shader, renderer);
 		if (typeof shader.vertexShader === 'string') {
 			shader.vertexShader = shader.vertexShader
-				.replace('#include <common>', '#include <common>\nvarying vec3 vWinterPineWorldPosition;')
+				.replace('#include <common>', `#include <common>
+#ifdef USE_INSTANCING
+attribute float winterPineClimate;
+#endif
+varying vec3 vWinterPineWorldPosition;
+varying float vWinterPineClimate;`)
 				.replace('#include <begin_vertex>', `#include <begin_vertex>
 vec4 winterPineWorldPosition = vec4(transformed, 1.0);
+vWinterPineClimate = 0.0;
 #ifdef USE_INSTANCING
 winterPineWorldPosition = instanceMatrix * winterPineWorldPosition;
+vWinterPineClimate = winterPineClimate;
 #endif
 vWinterPineWorldPosition = (modelMatrix * winterPineWorldPosition).xyz;`);
 		}
@@ -196,6 +271,7 @@ vWinterPineWorldPosition = (modelMatrix * winterPineWorldPosition).xyz;`);
 		if (shader.fragmentShader.includes(commonMarker)) {
 			shader.fragmentShader = shader.fragmentShader.replace(commonMarker, `${commonMarker}
 varying vec3 vWinterPineWorldPosition;
+varying float vWinterPineClimate;
 float winterPineHash(vec2 p) {
 	p = fract(p * vec2(123.34, 345.45));
 	p += dot(p, p + 34.345);
@@ -229,6 +305,12 @@ float winterPineNoise(vec2 p) {
 			float winterSnowMix = ${policy.pineFoliageSnowMixMin.toFixed(3)}
 				+ ${policy.pineFoliageSnowMixRange.toFixed(3)} * smoothstep(0.12, 0.52, winterFoliageLuma);
 			winterSnowMix *= mix(0.78, 1.12, winterExposure);
+			float winterClimateSnowMultiplier = mix(
+				${policy.pineFoliageClimateSnowMixMinMultiplier.toFixed(3)},
+				${policy.pineFoliageClimateSnowMixMaxMultiplier.toFixed(3)},
+				clamp(vWinterPineClimate, 0.0, 1.0)
+			);
+			winterSnowMix *= winterClimateSnowMultiplier;
 			winterSnowMix = clamp(winterSnowMix, 0.18, 0.72);
 			diffuseColor.rgb = mix(diffuseColor.rgb, vec3(${snowR.toFixed(3)}, ${snowG.toFixed(3)}, ${snowB.toFixed(3)}), winterSnowMix);
 			diffuseColor.rgb *= 1.0 + (winterMeso - 0.5) * ${policy.pineFoliageWeatheringStrength.toFixed(3)} + (winterFine - 0.5) * 0.055;`);
@@ -252,7 +334,7 @@ roughnessFactor = clamp(roughnessFactor + (winterMeso - 0.5) * ${policy.pineFoli
 #endif`);
 		}
 	};
-	material.customProgramCacheKey = () => `${policy.id}:snow-foliage-v1`;
+	material.customProgramCacheKey = () => `${policy.id}:snow-foliage-v2`;
 	material.needsUpdate = true;
 	return material;
 }
@@ -299,10 +381,19 @@ function applyWinterAssetInstances({ group, sourceMesh, sourceFoliageMesh, model
 	const finalMatrix = new THREE.Matrix4();
 	const addedMeshes = [];
 	const disposedTextures = new Set();
+	const climateValues = assetUrl === WINTER_VEGETATION_ASSET_POLICY.preferredSnowPineAsset
+		? buildWinterPineClimateInstanceValues(sourceMesh)
+		: null;
 
 	for (let meshIndex = 0; meshIndex < modelMeshes.length; meshIndex++) {
 		const sourceAssetMesh = modelMeshes[meshIndex];
 		const material = cloneMaterialWithTextureCleanup(sourceAssetMesh.material, disposedTextures, assetUrl);
+		if (climateValues && !sourceAssetMesh.geometry.getAttribute('winterPineClimate')) {
+			sourceAssetMesh.geometry.setAttribute(
+				'winterPineClimate',
+				new THREE.InstancedBufferAttribute(climateValues, 1),
+			);
+		}
 		const instanced = new THREE.InstancedMesh(sourceAssetMesh.geometry, material, count);
 		instanced.name = `vegetation-snow-asset-${meshIndex}`;
 		instanced.instanceMatrix.setUsage(THREE.StaticDrawUsage);
@@ -312,6 +403,8 @@ function applyWinterAssetInstances({ group, sourceMesh, sourceFoliageMesh, model
 			assetUrl,
 			meshIndex,
 			materialTreatment: material.userData?.winterPineTreatment ?? 'source',
+			climateMaterialAuthority: climateValues ? WINTER_VEGETATION_ASSET_POLICY.pineFoliageClimateAuthority : null,
+			climateAttribute: Boolean(climateValues),
 		});
 
 		for (let instanceIndex = 0; instanceIndex < count; instanceIndex++) {
@@ -335,8 +428,11 @@ function markNorthClimateRepresentation(group, assetUrl, meshCount, treeCount) {
 		winterAssetMeshCount: meshCount,
 		winterAssetTreeCount: treeCount,
 		winterAssetTreatment: assetUrl === WINTER_VEGETATION_ASSET_POLICY.preferredSnowPineAsset
-			? 'textured-pine-snow-foliage'
+			? 'textured-pine-climate-snow-foliage'
 			: 'source-material',
+		winterAssetClimateAuthority: assetUrl === WINTER_VEGETATION_ASSET_POLICY.preferredSnowPineAsset
+			? WINTER_VEGETATION_ASSET_POLICY.pineFoliageClimateAuthority
+			: null,
 	});
 }
 

@@ -1,0 +1,89 @@
+name: Winter Pine Climate Material
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/winterVegetationAsset.js'
+      - 'src/3d/world/northReferenceCryosphere.js'
+      - 'scripts/checkWinterPineClimateMaterial.mjs'
+      - 'scripts/checkWinterPineMaterialTreatment.mjs'
+      - 'scripts/checkSharedMaterialPlacementContract.js'
+      - '.github/workflows/winter-pine-climate-material.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  winter-pine-climate-material:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Exact-main ancestry and bounded scope
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA='${{ github.event.pull_request.base.sha }}'
+          git merge-base --is-ancestor "$BASE_SHA" HEAD
+          read -r ADD DEL < <(git diff --numstat "$BASE_SHA"...HEAD | awk '{a+=$1; d+=$2} END {print a+0, d+0}')
+          TOTAL=$((ADD + DEL))
+          echo "base=$BASE_SHA additions=$ADD deletions=$DEL total=$TOTAL"
+          test "$TOTAL" -le 1000
+          git diff --check "$BASE_SHA"...HEAD
+
+      - name: Resolve vendored Three.js for Node contracts
+        run: node scripts/setupNodeThreeShim.mjs
+
+      - name: Syntax and climate material contracts
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/winterVegetationAsset.js
+          node --check scripts/checkWinterPineClimateMaterial.mjs
+          node --check scripts/checkWinterPineMaterialTreatment.mjs
+          node scripts/checkWinterPineClimateMaterial.mjs
+          node scripts/checkWinterPineMaterialTreatment.mjs
+          node scripts/checkWinterVegetationAssetUpgrade.mjs
+          node scripts/checkWinterVegetationResourceOwnership.mjs
+
+      - name: Hydrated preferred pine is a real GLB
+        shell: bash
+        run: |
+          set -euo pipefail
+          git lfs pull --include='assets/models/vegetation/pine_Zt62gceKXZ.glb'
+          FILE='assets/models/vegetation/pine_Zt62gceKXZ.glb'
+          test -f "$FILE"
+          SIZE=$(wc -c < "$FILE")
+          echo "hydrated pine bytes=$SIZE"
+          test "$SIZE" -gt 512
+          MAGIC=$(head -c 4 "$FILE")
+          test "$MAGIC" = 'glTF'
+
+      - name: Shared Material Placement Contract
+        run: |
+          set -euo pipefail
+          node scripts/checkSharedMaterialPlacementContract.js
+          test -f src/3d/materials/MaterialAssignmentCore.js
+          test -f src/3d/world/WorldAssetPlacementPipeline.js
+          ! grep -R "EditorMaterialStudio" src/3d/world/winterVegetationAsset.js
+
+      - name: Seeded runtime determinism policy
+        run: node scripts/checkSeededRandomPolicy.js
+
+      - name: Final exact-main freshness
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          EXPECTED='${{ github.event.pull_request.base.sha }}'
+          git fetch origin main --depth=1
+          LIVE=$(git rev-parse origin/main)
+          echo "expected-main=$EXPECTED live-main=$LIVE head=$(git rev-parse HEAD)"
+          test "$LIVE" = "$EXPECTED"
