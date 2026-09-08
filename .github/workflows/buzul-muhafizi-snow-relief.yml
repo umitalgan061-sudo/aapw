@@ -9,6 +9,7 @@ on:
       - 'src/3d/world/terrainWindSnowRuntimeGuard.js'
       - 'src/3d/world/terrainGroundContext.js'
       - 'src/3d/world/terrainGroundContextProfiles.js'
+      - 'src/3d/world/terrainEnvironmentEcotone.js'
       - 'scripts/checkTerrainWindSnowExposure.mjs'
       - 'scripts/checkTerrainWindSnowOrographicFold.mjs'
       - 'scripts/checkTerrainWindSnowFieldMatrix.mjs'
@@ -59,7 +60,7 @@ jobs:
           git diff --check "$LIVE_MAIN_SHA...HEAD"
           git diff --name-only "$LIVE_MAIN_SHA...HEAD" | while IFS= read -r path; do
             case "$path" in
-              src/3d/world/terrainWindSnowExposure.js|src/3d/world/terrainWindSnowSurfaceFabric.js|src/3d/world/terrainWindSnowRuntimeGuard.js|src/3d/world/terrainGroundContext.js|src/3d/world/terrainGroundContextProfiles.js|scripts/checkTerrainWindSnowExposure.mjs|scripts/checkTerrainWindSnowOrographicFold.mjs|scripts/checkTerrainWindSnowFieldMatrix.mjs|scripts/checkTerrainWindSnowRuntimeParity.mjs|scripts/checkTerrainWindSnowReferenceFieldSweep.mjs|scripts/checkTerrainWindSnowVisualEnvelope.mjs|scripts/checkTerrainWindSnowEdgeCases.mjs|scripts/checkTerrainGroundContext.mjs|scripts/checkTerrainGroundContextProfiles.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix.mjs|.github/workflows/buzul-muhafizi-snow-relief.yml) ;;
+              src/3d/world/terrainWindSnowExposure.js|src/3d/world/terrainWindSnowSurfaceFabric.js|src/3d/world/terrainWindSnowRuntimeGuard.js|src/3d/world/terrainGroundContext.js|src/3d/world/terrainGroundContextProfiles.js|src/3d/world/terrainEnvironmentEcotone.js|scripts/checkTerrainWindSnowExposure.mjs|scripts/checkTerrainWindSnowOrographicFold.mjs|scripts/checkTerrainWindSnowFieldMatrix.mjs|scripts/checkTerrainWindSnowRuntimeParity.mjs|scripts/checkTerrainWindSnowReferenceFieldSweep.mjs|scripts/checkTerrainWindSnowVisualEnvelope.mjs|scripts/checkTerrainWindSnowEdgeCases.mjs|scripts/checkTerrainGroundContext.mjs|scripts/checkTerrainGroundContextProfiles.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix.mjs|.github/workflows/buzul-muhafizi-snow-relief.yml) ;;
               *) echo "Unexpected path outside snow relief production slice: $path"; exit 1 ;;
             esac
           done
@@ -81,6 +82,7 @@ jobs:
           node --check src/3d/world/terrainWindSnowRuntimeGuard.js
           node --check src/3d/world/terrainGroundContext.js
           node --check src/3d/world/terrainGroundContextProfiles.js
+          node --check src/3d/world/terrainEnvironmentEcotone.js
           node --check scripts/checkTerrainWindSnowExposure.mjs
           node --check scripts/checkTerrainWindSnowOrographicFold.mjs
           node --check scripts/checkTerrainWindSnowFieldMatrix.mjs
