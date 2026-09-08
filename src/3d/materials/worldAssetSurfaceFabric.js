@@ -32,6 +32,7 @@ export const WORLD_ASSET_SURFACE_FABRIC_POLICY = Object.freeze({
   independentNormalDomain: true,
   dynamicSurfaceContextUniforms: true,
   cacheKeyExcludesDynamicSurfaceContext: true,
+  worldToViewNormalConversion: true,
   macroScaleMeters: 260,
   mesoScaleMeters: 71,
   patchScaleMeters: 19,
@@ -414,7 +415,7 @@ vec3 worldAssetSurfaceFabricMicroEdgeWorld = vec3(
 worldAssetSurfaceFabricMicroEdgeWorld -= worldAssetSurfaceFabricNormalBaseWorld
   * dot(worldAssetSurfaceFabricMicroEdgeWorld, worldAssetSurfaceFabricNormalBaseWorld);
 
-vec3 worldAssetSurfaceFabricViewPerturb = normalMatrix
+vec3 worldAssetSurfaceFabricViewPerturb = mat3(viewMatrix)
   * (worldAssetSurfaceFabricNormalGradientWorld + worldAssetSurfaceFabricMicroEdgeWorld);
 normal = normalize(normal + worldAssetSurfaceFabricViewPerturb);
 `,
@@ -476,13 +477,6 @@ const DYNAMIC_UNIFORM_NAMES = Object.freeze([
   'worldAssetSurfaceFabricWeathering',
   'worldAssetSurfaceFabricWind',
 ]);
-
-function installDynamicUniforms(shader, constants) {
-  shader.uniforms ||= {};
-  for (const name of DYNAMIC_UNIFORM_NAMES) {
-    shader.uniforms[name] = { value: finite(constants[name.replace('worldAssetSurfaceFabric', '').toLowerCase()] ?? 0.5) };
-  }
-}
 
 function assignDynamicUniforms(shader, constants) {
   const values = {
@@ -575,6 +569,7 @@ export function installWorldAssetSurfaceFabric(material, context = {}, {
     dynamicSurfaceContextUniforms: true,
     cacheKeyExcludesDynamicSurfaceContext: true,
     dynamicUniformNames: DYNAMIC_UNIFORM_NAMES,
+    worldToViewNormalConversion: true,
     maximumColorDeviation: constants.maximumColorDeviation,
     maximumRoughnessDeviation: constants.maximumRoughnessDeviation,
     maximumNormalDeviation: constants.maximumNormalDeviation,
