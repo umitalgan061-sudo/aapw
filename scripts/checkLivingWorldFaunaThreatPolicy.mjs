@@ -17,6 +17,8 @@ assert.equal(first.fleeingCount, 1);
 assert.equal(first.reactingCount, 2);
 assert.equal(first.actors[0].zone, 'flee');
 assert.equal(first.actors[1].zone, 'investigate');
+assert.equal(first.actors[0].detectionChannel, 'visual');
+assert.equal(first.actors[1].detectionChannel, 'visual+hearing');
 
 const bounded = policy.snapshot({ actors, maxActors: 1 });
 assert.equal(bounded.scanned, 1);
