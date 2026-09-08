@@ -8,6 +8,7 @@ on:
       - 'src/3d/world/terrainWindSnowSurfaceFabric.js'
       - 'src/3d/world/terrainWindSnowRuntimeGuard.js'
       - 'src/3d/world/terrainGroundContext.js'
+      - 'src/3d/world/terrainGroundContextProfiles.js'
       - 'scripts/checkTerrainWindSnowExposure.mjs'
       - 'scripts/checkTerrainWindSnowOrographicFold.mjs'
       - 'scripts/checkTerrainWindSnowFieldMatrix.mjs'
@@ -16,6 +17,7 @@ on:
       - 'scripts/checkTerrainWindSnowVisualEnvelope.mjs'
       - 'scripts/checkTerrainWindSnowEdgeCases.mjs'
       - 'scripts/checkTerrainGroundContext.mjs'
+      - 'scripts/checkTerrainGroundContextProfiles.mjs'
       - 'scripts/checkWorldEnvironmentAcceptanceMatrix.mjs'
       - '.github/workflows/buzul-muhafizi-snow-relief.yml'
   workflow_dispatch:
@@ -57,7 +59,7 @@ jobs:
           git diff --check "$LIVE_MAIN_SHA...HEAD"
           git diff --name-only "$LIVE_MAIN_SHA...HEAD" | while IFS= read -r path; do
             case "$path" in
-              src/3d/world/terrainWindSnowExposure.js|src/3d/world/terrainWindSnowSurfaceFabric.js|src/3d/world/terrainWindSnowRuntimeGuard.js|src/3d/world/terrainGroundContext.js|scripts/checkTerrainWindSnowExposure.mjs|scripts/checkTerrainWindSnowOrographicFold.mjs|scripts/checkTerrainWindSnowFieldMatrix.mjs|scripts/checkTerrainWindSnowRuntimeParity.mjs|scripts/checkTerrainWindSnowReferenceFieldSweep.mjs|scripts/checkTerrainWindSnowVisualEnvelope.mjs|scripts/checkTerrainWindSnowEdgeCases.mjs|scripts/checkTerrainGroundContext.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix.mjs|.github/workflows/buzul-muhafizi-snow-relief.yml) ;;
+              src/3d/world/terrainWindSnowExposure.js|src/3d/world/terrainWindSnowSurfaceFabric.js|src/3d/world/terrainWindSnowRuntimeGuard.js|src/3d/world/terrainGroundContext.js|src/3d/world/terrainGroundContextProfiles.js|scripts/checkTerrainWindSnowExposure.mjs|scripts/checkTerrainWindSnowOrographicFold.mjs|scripts/checkTerrainWindSnowFieldMatrix.mjs|scripts/checkTerrainWindSnowRuntimeParity.mjs|scripts/checkTerrainWindSnowReferenceFieldSweep.mjs|scripts/checkTerrainWindSnowVisualEnvelope.mjs|scripts/checkTerrainWindSnowEdgeCases.mjs|scripts/checkTerrainGroundContext.mjs|scripts/checkTerrainGroundContextProfiles.mjs|scripts/checkWorldEnvironmentAcceptanceMatrix.mjs|.github/workflows/buzul-muhafizi-snow-relief.yml) ;;
               *) echo "Unexpected path outside snow relief production slice: $path"; exit 1 ;;
             esac
           done
@@ -78,6 +80,7 @@ jobs:
           node --check src/3d/world/terrainWindSnowSurfaceFabric.js
           node --check src/3d/world/terrainWindSnowRuntimeGuard.js
           node --check src/3d/world/terrainGroundContext.js
+          node --check src/3d/world/terrainGroundContextProfiles.js
           node --check scripts/checkTerrainWindSnowExposure.mjs
           node --check scripts/checkTerrainWindSnowOrographicFold.mjs
           node --check scripts/checkTerrainWindSnowFieldMatrix.mjs
@@ -86,30 +89,26 @@ jobs:
           node --check scripts/checkTerrainWindSnowVisualEnvelope.mjs
           node --check scripts/checkTerrainWindSnowEdgeCases.mjs
           node --check scripts/checkTerrainGroundContext.mjs
+          node --check scripts/checkTerrainGroundContextProfiles.mjs
 
       - name: Directional snow contract
         run: node scripts/checkTerrainWindSnowExposure.mjs
-
       - name: Orographic fold contract
         run: node scripts/checkTerrainWindSnowOrographicFold.mjs
-
       - name: Relief family field matrix
         run: node scripts/checkTerrainWindSnowFieldMatrix.mjs
-
       - name: Runtime parity contract
         run: node scripts/checkTerrainWindSnowRuntimeParity.mjs
-
       - name: Canonical-style reference field sweep
         run: node scripts/checkTerrainWindSnowReferenceFieldSweep.mjs
-
       - name: Visual snow envelope
         run: node scripts/checkTerrainWindSnowVisualEnvelope.mjs
-
       - name: Fail-closed edge cases
         run: node scripts/checkTerrainWindSnowEdgeCases.mjs
-
       - name: Shared ground context contract
         run: node scripts/checkTerrainGroundContext.mjs
+      - name: Ground placement profile contract
+        run: node scripts/checkTerrainGroundContextProfiles.mjs
 
       - name: Install Playwright Chromium for shipped runtime proof
         shell: bash
