@@ -25,6 +25,7 @@ export const LIVING_WORLD_REACTION_INTEGRATION_POLICY = freeze({
   maxGroups: 24,
   maxActors: 128,
   maxEventsPerFrame: 6,
+  maxCompanionLinks: 32,
 });
 
 function normalizeCollection(collection) {
@@ -78,12 +79,88 @@ function makeGroupRequests(groups, actors) {
   });
 }
 
+function normalizeCompanionLinks(links = []) {
+  if (!Array.isArray(links)) return [];
+  return links.slice(0, LIVING_WORLD_REACTION_INTEGRATION_POLICY.maxCompanionLinks).map((link, index) => ({
+    id: asString(link?.id, `companion-${index}`),
+    actorId: asString(link?.actorId ?? link?.companionId, ''),
+    targetId: asString(link?.targetId ?? link?.leaderId ?? link?.companionOf, ''),
+    mode: asString(link?.mode, 'follow'),
+    followDistanceMeters: Math.max(2, Math.min(18, finite(link?.followDistanceMeters, 6))),
+  })).filter((link) => link.actorId && link.targetId && link.actorId !== link.targetId);
+}
+
+function distanceBetweenActors(actor, target) {
+  const a = actor?.object3D?.position ?? actor?.position;
+  const b = target?.object3D?.position ?? target?.position;
+  if (!a || !b) return Infinity;
+  const x = Number(a.x) - Number(b.x);
+  const z = Number(a.z) - Number(b.z);
+  return Number.isFinite(x) && Number.isFinite(z) ? Math.hypot(x, z) : Infinity;
+}
+
+function buildCompanionIntents(actors, links, reactionResult) {
+  const actorById = new Map(actors.map((actor) => [asString(actor?.id ?? actor?.actorId), actor]));
+  const reactionById = new Map((reactionResult?.results ?? []).map((entry) => [entry.actorId, entry]));
+  return freeze(normalizeCompanionLinks(links).map((link) => {
+    const companion = actorById.get(link.actorId);
+    const target = actorById.get(link.targetId);
+    const targetReaction = reactionById.get(link.targetId);
+    const distanceMeters = distanceBetweenActors(companion, target);
+    const phase = asString(targetReaction?.phase, 'patrol');
+    const intent = phase === 'attack'
+      ? 'assist-combat'
+      : phase === 'flee'
+        ? 'regroup'
+        : ['detect', 'investigate', 'chase'].includes(phase)
+          ? 'follow-contact'
+          : 'follow';
+    const positionAction = distanceMeters > link.followDistanceMeters ? 'close-rank' : 'hold-rank';
+    return freeze({
+      id: link.id,
+      actorId: link.actorId,
+      targetId: link.targetId,
+      mode: link.mode,
+      intent,
+      positionAction,
+      targetPhase: phase,
+      targetLod: asString(targetReaction?.lod, 'unknown'),
+      distanceMeters: Number.isFinite(distanceMeters) ? distanceMeters : null,
+      followDistanceMeters: link.followDistanceMeters,
+    });
+  }));
+}
+
+function buildGroupIntentSummary(groupSnapshot) {
+  const groups = Array.isArray(groupSnapshot?.groups) ? groupSnapshot.groups : [];
+  const intentCounts = new Map();
+  for (const group of groups) {
+    const intent = asString(group?.intent, 'roam');
+    intentCounts.set(intent, (intentCounts.get(intent) ?? 0) + 1);
+  }
+  const distribution = [...intentCounts.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([intent, count]) => ({ intent, count }));
+  const leaders = groups
+    .map((group) => asString(group?.leader?.id, ''))
+    .filter(Boolean)
+    .sort();
+  return freeze({
+    groupCount: groups.length,
+    acceptedGroups: Number(groupSnapshot?.acceptedGroups ?? 0),
+    leaders: freeze(leaders),
+    intentDistribution: freeze(distribution),
+  });
+}
+
 function buildOwnerSnapshot(collections, result) {
   return freeze({
     actors: freeze(collectActors(collections)),
     director: result?.director ?? null,
     groups: result?.groups ?? null,
     reaction: result?.reaction ?? null,
+    groupIntentSummary: result?.groupIntentSummary ?? null,
+    companions: result?.companions ?? null,
   });
 }
 
@@ -118,6 +195,7 @@ export function createLivingWorldReactionIntegration({
     eventContext = {},
     eventTypes = [],
     groups = [],
+    companions = [],
     playerPosition = null,
     reactionOptions = {},
   } = {}) {
@@ -142,18 +220,24 @@ export function createLivingWorldReactionIntegration({
       options: reactionOptions,
     });
     const groupSnapshot = createGroupDirectorSnapshot(makeGroupRequests(groups, actors));
+    const groupIntentSummary = buildGroupIntentSummary(groupSnapshot);
+    const companionIntents = buildCompanionIntents(actors, companions, reactionResult);
     integrationTick += 1;
     return freeze({
       accepted: directorSnapshot?.accepted !== false && reactionResult?.accepted !== false,
       tick: integrationTick,
       director: directorSnapshot,
       groups: groupSnapshot,
+      groupIntentSummary,
+      companions: companionIntents,
       reaction: reactionResult,
       actorCount: actors.length,
       policyId: LIVING_WORLD_REACTION_INTEGRATION_POLICY.id,
       ownerSnapshot: buildOwnerSnapshot(normalizedCollections, {
         director: directorSnapshot,
         groups: groupSnapshot,
+        groupIntentSummary,
+        companions: companionIntents,
         reaction: reactionResult,
       }),
     });
@@ -197,5 +281,7 @@ export function auditLivingWorldReactionIntegration(result) {
   if (result?.actorCount > LIVING_WORLD_REACTION_INTEGRATION_POLICY.maxActors) errors.push('actor-overflow');
   if (result?.groups?.groupCount > LIVING_WORLD_REACTION_INTEGRATION_POLICY.maxGroups) errors.push('group-overflow');
   if (result?.reaction?.actorCount > LIVING_WORLD_REACTION_INTEGRATION_POLICY.maxActors) errors.push('reaction-actor-overflow');
+  if (result?.companions?.length > LIVING_WORLD_REACTION_INTEGRATION_POLICY.maxCompanionLinks) errors.push('companion-overflow');
+  if (result?.groupIntentSummary?.groupCount !== result?.groups?.groupCount) errors.push('group-summary-mismatch');
   return freeze({ ok: errors.length === 0, errors: freeze(errors) });
 }
