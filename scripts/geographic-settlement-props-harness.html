@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AAPW Geographic Settlement Props Runtime Proof</title><style>html,body{margin:0;height:100%;background:#101010;color:#eee;font:13px system-ui}#game3d-canvas{display:block;width:100%;height:100%}#proof{position:fixed;left:12px;top:12px;right:12px;max-height:70vh;overflow:auto;padding:10px;background:#000b;border:1px solid #777;border-radius:6px;z-index:2;white-space:pre-wrap}.ok{border-color:#79d479}.bad{border-color:#d46d6d}</style></head>
+<body><canvas id="game3d-canvas"></canvas><pre id="proof">Booting actual sceneManager.createScene()…</pre>
+<script type="importmap">{"imports":{"three":"/src/3d/vendor/three/three.module.js","three/addons/":"/src/3d/vendor/three/addons/"}}</script>
+<script type="module">
+import { createScene } from '../src/3d/sceneManager.js';
+import { collectGeographicPropMaterialEvidence, auditGeographicSettlementPropGroup } from '../src/3d/world/geographicSettlementPropQuality.js';
+const proof=document.querySelector('#proof');
+const pageErrors=[];
+const consoleErrors=[];
+const originalConsoleError=console.error;
+console.error=(...args)=>{ consoleErrors.push(args.map(String).join(' ')); originalConsoleError(...args); };
+window.addEventListener('error',e=>pageErrors.push(String(e.error||e.message||'error')));
+window.addEventListener('unhandledrejection',e=>pageErrors.push(String(e.reason||'unhandled-rejection')));
+try {
+  const state=createScene(document.querySelector('#game3d-canvas'));
+  if(!state?.geographicSettlementPropsReady) throw new Error('sceneManager did not expose geographicSettlementPropsReady');
+  const runtime=await state.geographicSettlementPropsReady;
+  const group=runtime?.group;
+  const children=[];
+  group?.traverse?.(x=>{ if(x?.userData?.geographicSettlementProp) children.push(x); });
+  const quality=runtime?.quality || auditGeographicSettlementPropGroup(group,runtime?.plan||[]);
+  const failures=[];
+  if(!runtime?.ok) failures.push('runtime-result-not-ok');
+  if(runtime?.failedAssetFamilies?.length) failures.push('missing-assets:'+runtime.failedAssetFamilies.join(','));
+  if(children.length===0) failures.push('no-runtime-props');
+  if(quality?.placeholderCount) failures.push('placeholder-count:'+quality.placeholderCount);
+  if(quality?.manifestCount!==children.length) failures.push(`manifest-mismatch:${quality?.manifestCount}/${children.length}`);
+  if(quality?.materialReadyCount!==children.length) failures.push(`material-ready-mismatch:${quality?.materialReadyCount}/${children.length}`);
+  if(quality?.placementGateCount!==children.length) failures.push(`placement-gate-mismatch:${quality?.placementGateCount}/${children.length}`);
+  if(!quality?.planAudit?.ok) failures.push(...(quality?.planAudit?.errors||[]));
+  if(!quality?.seatAudit?.ok) failures.push(...(quality?.seatAudit?.errors||[]));
+  if(quality?.errors?.length) failures.push(...quality.errors);
+  const evidence=children.slice(0,8).map(x=>({
+    asset:x.userData?.geographicSourceAsset,
+    semanticRole:x.userData?.geographicSemanticRole,
+    approach:x.userData?.geographicApproach,
+    biome:x.userData?.geographicBiomeId,
+    slope:x.userData?.geographicPlacement?.slopeDegrees,
+    roadDistance:x.userData?.geographicPlacement?.roadDistance,
+    distanceFromSeat:x.userData?.geographicPlacement?.distanceFromSeat,
+    materialMode:x.userData?.geographicManifest?.recipe?.mode||null,
+    manifestValidation:x.userData?.geographicManifest?.validation||null,
+    materialEvidence:collectGeographicPropMaterialEvidence(x),
+    placementSurface:x.userData?.worldPlacementSurface||x.userData?.geographicManifest?.placementSurface||null,
+  }));
+  window.__GEOGRAPHIC_SETTLEMENT_PROPS_PROOF__={
+    ok:failures.length===0&&pageErrors.length===0&&consoleErrors.length===0,
+    failures,pageErrors,consoleErrors,
+    placementCount:children.length,
+    hydratedAssetFamilies:runtime.hydratedAssetFamilies,
+    failedAssetFamilies:runtime.failedAssetFamilies,
+    quality,
+    evidence,
+  };
+  proof.textContent=JSON.stringify(window.__GEOGRAPHIC_SETTLEMENT_PROPS_PROOF__,null,2);
+  proof.className=window.__GEOGRAPHIC_SETTLEMENT_PROPS_PROOF__.ok?'ok':'bad';
+} catch(e) {
+  window.__GEOGRAPHIC_SETTLEMENT_PROPS_PROOF__={ok:false,failures:[String(e)],pageErrors,consoleErrors};
+  proof.textContent=JSON.stringify(window.__GEOGRAPHIC_SETTLEMENT_PROPS_PROOF__,null,2);
+  proof.className='bad';
+}
+</script></body></html>

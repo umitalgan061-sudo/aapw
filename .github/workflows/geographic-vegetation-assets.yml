@@ -1,0 +1,39 @@
+name: Geographic Vegetation Assets
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/geographicVegetationAsset.js'
+      - 'src/3d/world/vegetation.js'
+      - 'scripts/checkGeographicVegetationAssets.mjs'
+      - 'assets/models/vegetation/**'
+      - '.github/workflows/geographic-vegetation-assets.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { lfs: false }
+      - run: node scripts/setupNodeThreeShim.mjs
+      - run: node scripts/checkGeographicVegetationAssets.mjs
+  asset-preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { lfs: true }
+      - name: Hydrate only tree candidates used by geography layer
+        run: git lfs pull --include="assets/models/vegetation/birch_trees_R7qMWzb7nk.glb,assets/models/vegetation/big_tree_by_3donimus_dnwh762pn_6_na.glb,assets/models/vegetation/fall_tree_4GYen9Xm3Kj.glb,assets/models/vegetation/dead_tree_n8FhMgMldD.glb"
+      - name: Reject unresolved LFS pointers
+        run: |
+          set -euo pipefail
+          for f in \
+            assets/models/vegetation/birch_trees_R7qMWzb7nk.glb \
+            assets/models/vegetation/big_tree_by_3donimus_dnwh762pn_6_na.glb \
+            assets/models/vegetation/fall_tree_4GYen9Xm3Kj.glb \
+            assets/models/vegetation/dead_tree_n8FhMgMldD.glb; do
+            test -s "$f"
+            test "$(wc -c < "$f")" -gt 1024
+            ! grep -a -q 'version https://git-lfs.github.com/spec/v1' "$f"
+          done
