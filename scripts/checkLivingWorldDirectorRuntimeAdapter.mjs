@@ -154,7 +154,7 @@ const tickTrend = analyzeLivingWorldObservationTrend(tickRegressionSamples, { wi
 assert.equal(tickTrend.degrading, true);
 assert.equal(tickTrend.reason, 'tick-regression');
 assert(tickTrend.tickDeltaMs > 0.75);
-assert.equal(tickTrend.warnings.tick, false === false ? true : true);
+assert.equal(tickTrend.warnings.tick, true);
 
 const errorBurstSamples = stableTrendSamples.map((sample, index) => ({ ...sample, errors: index < 4 ? 1 : 0 }));
 const errorTrend = analyzeLivingWorldObservationTrend(errorBurstSamples, { windowId: 'error-burst' });
