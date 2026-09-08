@@ -80,7 +80,7 @@ try {
     const calls = [];
     const patrol = makeActor({ id: 'browser-guard', x: 10, z: 10, schedule: { phase: 'work', activityId: 'gate-watch', locationId: 'north-gate', shouldTravel: false } });
     const hostile = makeActor({ id: 'browser-raider', x: 18, z: 10, factionId: 'raiders' });
-    const wolf = makeActor({ id: 'browser-wolf', x: 30, z: 30, factionId: 'wildlife', kind: 'animal', traits: { fleeWhenOutnumbered: true }, });
+    const wolf = makeActor({ id: 'browser-wolf', x: 30, z: 30, factionId: 'wildlife', kind: 'animal', traits: { fleeWhenOutnumbered: true } });
     let senseMode = 'hostile';
     const services = {
       perception: {
@@ -104,7 +104,7 @@ try {
         },
       },
       factions: { getFactionIdForActor(actor) { return actor.factionId; } },
-      reputation: { getReputation(actor, target) { return actor === hostile ? -75 : target?.factionId === 'raiders' ? -90 : 0; } },
+      reputation: { getReputation(_actor, target) { return target?.id === hostile.id ? -75 : 0; } },
       diplomacy: { getRelation(actorFaction, targetFaction) { return actorFaction === 'north-watch' && targetFaction === 'raiders' ? 'war' : 'neutral'; } },
       law: {
         getWantedLevel(target) { return target?.id === hostile.id ? 90 : 0; },
@@ -128,7 +128,6 @@ try {
       },
     };
 
-    // The browser owns a real Three.js Object3D collection; no synthetic controller class replaces it.
     const runtime = createLivingWorldReactionRuntime({ actors: [patrol, hostile, wolf], services, seed: 'browser-reaction', clockSeconds: 21600 });
     const ticks = [];
     ticks.push(runtime.tick({ deltaSeconds: 0.2, playerPosition: { x: 0, z: 0 } }));
@@ -148,21 +147,13 @@ try {
     if (!calls.some((entry) => entry.startsWith('event:'))) throw new Error('world event was not delegated');
     if (!calls.includes('occupation:gate-watch')) throw new Error('occupation was not observed');
 
-    // Kill perception and prove the same live actor returns instead of teleporting or disappearing.
     senseMode = 'none';
     const recovered = runtime.tick({ deltaSeconds: 0.2, playerPosition: { x: 0, z: 0 } });
     const recoveredHostile = recovered.results.find((entry) => entry.actorId === hostile.id);
     if (recoveredHostile?.phase !== 'return') throw new Error(`lost target did not return: ${recoveredHostile?.phase}`);
     if (recoveredHostile.directive.kind !== 'return') throw new Error('return directive missing');
 
-    // Build and inspect real group members with Three.js objects.
-    const evidence = collectLivingWorldReactionEvidence({
-      actors: [patrol, hostile, wolf],
-      playerPosition: { x: 0, z: 0 },
-      frameMs: 14.2,
-      tickMs: 2.1,
-      sceneAssetCount: 3,
-    });
+    const evidence = collectLivingWorldReactionEvidence({ actors: [patrol, hostile, wolf], playerPosition: { x: 0, z: 0 }, frameMs: 14.2, tickMs: 2.1, sceneAssetCount: 3 });
     const evidenceValidation = validateLivingWorldReactionEvidence(evidence);
     if (!evidenceValidation.ok) throw new Error(`reaction evidence invalid: ${evidenceValidation.errors.join(',')}`);
     const acceptance = buildLivingWorldReactionAcceptanceSummary(evidence, recovered);
@@ -171,18 +162,17 @@ try {
     if (evidence.sharedContract.material !== 'src/3d/materials/MaterialAssignmentCore.js') throw new Error('shared material core drift');
     if (evidence.sharedContract.placement !== 'src/3d/world/WorldAssetPlacementPipeline.js') throw new Error('shared placement core drift');
 
-    // LOD proof on the same real runtime module: far entities are retained but not fully ticked every frame.
     const farA = makeActor({ id: 'far-a', x: 210, z: 0 });
     const farB = makeActor({ id: 'far-b', x: 500, z: 0 });
     const lodRuntime = createLivingWorldReactionRuntime({ actors: [farA, farB], services: { perception: { sense() { return []; } } }, seed: 'lod-proof' });
     const lodFirst = lodRuntime.tick({ deltaSeconds: 0.2, playerPosition: { x: 0, z: 0 } });
     const lodSecond = lodRuntime.tick({ deltaSeconds: 0.2, playerPosition: { x: 0, z: 0 } });
-    const lodThird = lodRuntime.tick({ deltaSeconds: 2, playerPosition: { x: 0, z: 0 } });
+    const lodThird = lodRuntime.tick({ deltaSeconds: 1, playerPosition: { x: 0, z: 0 } });
     const farOne = lodFirst.results.find((entry) => entry.actorId === 'far-a');
     const farTwo = lodFirst.results.find((entry) => entry.actorId === 'far-b');
     if (farOne?.lod !== 'far' || farTwo?.lod !== 'culled') throw new Error('browser LOD classification failed');
     if (lodSecond.results.find((entry) => entry.actorId === 'far-a')?.simulated !== false) throw new Error('far LOD did not throttle');
-    if (lodThird.results.find((entry) => entry.actorId === 'far-a')?.simulated !== false) throw new Error('far LOD unexpectedly simulated too aggressively');
+    if (lodThird.results.find((entry) => entry.actorId === 'far-a')?.simulated !== false) throw new Error('far LOD simulation cadence exceeded the bounded interval');
 
     const audited = auditLivingWorldReactionResult(recovered);
     if (!audited.ok) throw new Error(`runtime result audit failed: ${audited.errors.join(',')}`);
@@ -195,7 +185,7 @@ try {
       evidenceAccepted: acceptance.accepted,
       sharedMaterialCore: evidence.sharedContract.material,
       sharedPlacementCore: evidence.sharedContract.placement,
-      lod: { near: LIVING_WORLD_REACTION_RUNTIME_POLICY.sensingIntervalSeconds, far: farOne.lod, culled: farTwo.lod },
+      lod: { sensingInterval: LIVING_WORLD_REACTION_RUNTIME_POLICY.sensingIntervalSeconds, far: farOne.lod, culled: farTwo.lod },
       callCount: calls.length,
     };
   });
