@@ -77,10 +77,9 @@ function surfaceForProfile(prepared) {
   const centerZ = optionalFinite(surface.z);
   return {
     ...surface,
-    ...(footprintSample ?? {}),
-    // Footprint sampling is useful for relief/moisture aggregation, but the object transform is the
-    // authoritative world-space location for a geography profile. Do not let the first footprint sample
-    // silently move the asset into another ecological patch.
+    // Footprint sampling is already incorporated into the placement material context. Geography
+    // itself must remain anchored to the canonical center surface so a corner cannot move the asset
+    // into a neighboring biome, slope band, elevation window or climate patch.
     x: centerX ?? optionalFinite(position?.x) ?? optionalFinite(footprintSample?.x) ?? 0,
     z: centerZ ?? optionalFinite(position?.z) ?? optionalFinite(footprintSample?.z) ?? 0,
   };
@@ -271,10 +270,6 @@ function augmentManifest(prepared, profile, decision, summary, regional = null) 
   return manifest;
 }
 
-/**
- * Prepare an asset using the existing placement/material pipeline, then attach a deterministic
- * geography profile. The original prepared transform and placement result are never overwritten.
- */
 export function prepareWorldAssetWithGeography(object, {
   metadata = {},
   minimumScore = WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.scoreFloor,
@@ -362,10 +357,6 @@ export function prepareWorldAssetWithGeography(object, {
   };
 }
 
-/**
- * Place an asset with geography diagnostics while delegating all actual scene insertion to the
- * existing pipeline. Advisory mode is the safe production default.
- */
 export function placeWorldAssetWithGeography(scene, object, options = {}) {
   const prepared = prepareWorldAssetWithGeography(object, options);
   if (!prepared?.ok) return prepared;
@@ -378,10 +369,6 @@ export function placeWorldAssetWithGeography(scene, object, options = {}) {
   };
 }
 
-/**
- * Compatibility helper for code that expects the old placeWorldAsset return shape while still
- * persisting the geography profile. This helper never changes the old placement authority.
- */
 export function placeWorldAssetWithGeographyCompatibility(scene, object, options = {}) {
   const prepared = prepareWorldAssetWithGeography(object, options);
   if (!prepared?.ok) return prepared;
@@ -402,10 +389,6 @@ export function placeWorldAssetWithGeographyCompatibility(scene, object, options
   } : attached;
 }
 
-/**
- * Re-audit an already prepared asset. The canonical placement audit remains authoritative; geography
- * is reported as an additional diagnostic layer rather than silently changing a saved object.
- */
 export function auditWorldAssetWithGeography(object, {
   metadata = {},
   minimumScore = WORLD_ASSET_GEOGRAPHY_PROFILE_POLICY.scoreFloor,
@@ -417,9 +400,10 @@ export function auditWorldAssetWithGeography(object, {
   const surface = storedSurface
     ? {
       ...storedSurface,
-      ...(footprint?.samples?.[0] ?? {}),
-      x: optionalFinite(storedSurface.x) ?? optionalFinite(object?.position?.x) ?? optionalFinite(footprint?.samples?.[0]?.x) ?? 0,
-      z: optionalFinite(storedSurface.z) ?? optionalFinite(object?.position?.z) ?? optionalFinite(footprint?.samples?.[0]?.z) ?? 0,
+      // Footprint points remain available to the canonical placement audit, but they are not a
+      // substitute for the canonical center sample when deriving the geography profile.
+      x: optionalFinite(storedSurface.x) ?? optionalFinite(object?.position?.x) ?? 0,
+      z: optionalFinite(storedSurface.z) ?? optionalFinite(object?.position?.z) ?? 0,
     }
     : null;
   if (!surface) {
