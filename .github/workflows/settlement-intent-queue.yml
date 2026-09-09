@@ -1,0 +1,17 @@
+name: settlement-intent-queue
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementIntentQueue.js'
+      - 'scripts/checkSettlementIntentQueue.mjs'
+      - '.github/workflows/settlement-intent-queue.yml'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: node --check src/3d/gameplay/settlementIntentQueue.js
+      - run: node scripts/checkSettlementIntentQueue.mjs
+      - run: git diff --check
