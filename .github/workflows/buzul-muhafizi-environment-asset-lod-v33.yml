@@ -1,0 +1,63 @@
+name: Buzul Muhafızı — Environment Asset LOD Contract v33
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/environmentAssetLodContract.js'
+      - 'scripts/checkEnvironmentAssetLodContract.mjs'
+      - '.github/workflows/buzul-muhafizi-environment-asset-lod-v33.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/world/environmentAssetLodContract.js'
+      - 'scripts/checkEnvironmentAssetLodContract.mjs'
+      - '.github/workflows/buzul-muhafizi-environment-asset-lod-v33.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: false
+
+      - name: Verify exact main ancestry and focused scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --no-tags --prune
+          base=$(git merge-base HEAD origin/main)
+          test "$base" = "$(git rev-parse origin/main)"
+          files=$(git diff --name-only "$base" HEAD)
+          test -n "$files"
+          while IFS= read -r file; do
+            case "$file" in
+              src/3d/world/environmentAssetLodContract.js|scripts/checkEnvironmentAssetLodContract.mjs|.github/workflows/buzul-muhafizi-environment-asset-lod-v33.yml) ;;
+              *) echo "out-of-scope file: $file"; exit 1 ;;
+            esac
+          done <<< "$files"
+          changed=$(git diff --numstat "$base" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
+
+      - name: Syntax check
+        run: node --check src/3d/world/environmentAssetLodContract.js && node --check scripts/checkEnvironmentAssetLodContract.mjs
+
+      - name: Execute contract regression
+        run: node scripts/checkEnvironmentAssetLodContract.mjs
+
+      - name: Enforce shared material and placement boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -nE "EditorMaterialStudio|createMesh|new THREE\.|new Mesh|geometry|scene\.add|terrain\.js|water\.js|sceneManager\.js" src/3d/world/environmentAssetLodContract.js
+          grep -n "MaterialAssignmentCore\|WorldAssetPlacementPipeline\|sharedMaterialPlacementContract" src/3d/world/environmentAssetLodContract.js
+
+      - name: Diff hygiene
+        run: git diff --check
