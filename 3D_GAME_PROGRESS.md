@@ -17702,3 +17702,54 @@ in `QUESTIONS_FOR_OWNER.md` (unaffected by this run: today's `git push` to `orig
 "this repository moved" notice — a new data point suggesting *plain push* works fine through the rename
 redirect in this environment, while the separately-diagnosed `git-lfs` blocker, which is about the missing
 `git-lfs` binary/pointer-file hydration, not about push routing, remains fully unresolved and unrelated).
+
+## Run 363 (2026-09-09) — fix `NODE_KINDS.includes` TypeError in settlementVerticalSliceRoles.js
+
+Picked up finding (1) logged at the end of Run 362: `validateSettlementRoleDefinition` in
+`src/3d/gameplay/settlementVerticalSliceRoles.js` called `NODE_KINDS.includes(normalized.kind)`, but
+`NODE_KINDS` (line 237) is declared as a `Set`, not an `Array` — `.includes` does not exist on `Set`,
+so every call threw `TypeError: NODE_KINDS.includes is not a function` before any validation logic ran.
+Root cause: `Set` was substituted for `Array` at some prior point without updating the membership-test
+call site. Fix: `NODE_KINDS.includes(...)` → `NODE_KINDS.has(...)` (single-token change, same semantics,
+correct API for a `Set`).
+
+Verification (`git stash` before/after, same pattern as Run 361): before the fix,
+`scripts/checkSettlementVerticalSliceRoleRuntime.mjs` crashed immediately with the `TypeError` above (0
+assertions executed). After the fix it runs to completion and reports `[settlement-role-runtime] FAIL: 21
+assertions` — a real, pre-existing behavioral gap in the settlement role/gating runtime (node role
+identity, action-gating by capability, item/reputation/proximity gates, failed-transition stability) that
+was unreachable/unobservable while the module fatally crashed on import-time use. This is a net
+improvement (fatal crash → debuggable assertions), not a regression: the runtime check never passed
+before this fix and still doesn't after it; no previously-passing check was broken by this change.
+
+Full DoD sweep: `node --check` PASS. Runtime check — see above (progressed from crash to real failures,
+confirmed via stash diff, not a regression). Other settlement vertical-slice check scripts
+(`checkSettlementVerticalSliceJourney.mjs`, `Matrix.mjs`, `Events.mjs`, `Content.mjs`) do not import this
+symbol path and are unaffected. Browser-half smoke test (`scripts/smokeTestGame3D.js`) remains
+environment-blocked in this session (times out launching a browser context) — same pre-existing,
+unrelated constraint noted in prior runs, not caused by this change. Visual evidence — N/A, no
+rendering/UI surface touched. Performance — no runtime behavior change reachable from the live game (this
+module is still not wired into any playable scene). Memory-leak checklist — N/A. Technical debt — net 0
+new markers. World Coverage — unchanged. Asset/LFS blocker — reconfirmed still present in this session's
+environment too (`git-lfs` not installed; sampled `.glb` files under `assets/` are still ~130-byte LFS
+pointer stubs, not real binaries); not re-reported to `QUESTIONS_FOR_OWNER.md` since Run 344/349/355
+already logged it and owner has not yet acted — no new information this run. World Evolution Report: no
+yol/orman/kale/NPC/hayvan/event count change; "oyuncu fark eder mi" — hayır, bu modül henüz hiçbir
+oynanabilir sahneye bağlı değil. No ADR — single-token API-correctness fix, not a design decision.
+
+Risk: LOW (one-token change, Set API correction; before/after behavior confirmed via `git stash`; no
+other module imports `NODE_KINDS`).
+
+**New findings logged for future atomic subtasks (not fixed here — separate root causes):**
+1. The 21 assertion failures now surfacing in `checkSettlementVerticalSliceRoleRuntime.mjs` — node role
+   identity not retained, action-gating by capability (craft/dialogue/trade/travel/persistence/door) not
+   enforced, item/reputation/proximity gates not blocking, failed transitions not keeping the active node
+   stable. Needs its own read of `settlementVerticalSliceRoles.js` role-node construction and the gating
+   helpers before fixing — likely more than one root cause given the breadth of failures.
+2. `settlementVerticalSliceRoles.js:225`'s two other findings from Run 362 (`settlementVerticalSliceContent.js`
+   missing `isSettlementRole` export; `settlementCampaignJourney.js` journey-stage naming mismatch) remain
+   open, untouched by this run.
+
+**Next safe step:** finding (1) above is now the most concrete next candidate (same file family, keeps
+context warm) — or terrain macro-relief (priority item 1), still blocked on real GLB assets pending the
+LFS/repo-rename owner decision in `QUESTIONS_FOR_OWNER.md`.

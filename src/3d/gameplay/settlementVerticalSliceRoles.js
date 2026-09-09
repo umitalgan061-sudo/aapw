@@ -222,7 +222,7 @@ export function validateSettlementRoleDefinition(definition = {}) {
     const normalized = normalizeNode(node, 'role');
     if (ids.has(normalized.id)) errors.push(`duplicate-node:${normalized.id}`);
     ids.add(normalized.id);
-    if (!NODE_KINDS.includes(normalized.kind)) errors.push(`unsupported-kind:${normalized.kind}`);
+    if (!NODE_KINDS.has(normalized.kind)) errors.push(`unsupported-kind:${normalized.kind}`);
     if (!normalized.actions.length) errors.push(`missing-actions:${normalized.id}`);
     if (index === 0 && normalized.kind !== 'settlement') errors.push('first-node-not-settlement');
   }
