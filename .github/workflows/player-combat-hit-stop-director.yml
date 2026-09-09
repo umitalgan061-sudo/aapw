@@ -1,0 +1,40 @@
+name: Player Combat Hit-Stop Director
+on:
+  push:
+    branches: [codex/kizil-ufuk-combat-hit-stop-director-20260909]
+  pull_request:
+    paths:
+      - src/3d/gameplay/playerCombatHitStopDirector.js
+      - scripts/checkPlayerCombatHitStopDirector.mjs
+      - .github/workflows/player-combat-hit-stop-director.yml
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - name: Exact main ancestry and scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          BASE="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$BASE" HEAD
+          CHANGED="$(git diff --name-only "$BASE"...HEAD)"
+          ALLOW='^(src/3d/gameplay/playerCombatHitStopDirector\.js|scripts/checkPlayerCombatHitStopDirector\.mjs|\.github/workflows/player-combat-hit-stop-director\.yml)$'
+          while IFS= read -r path; do [[ "$path" =~ $ALLOW ]] || { echo "Unexpected path: $path"; exit 1; }; done <<< "$CHANGED"
+          LINES="$(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          test "$LINES" -le 3000
+      - name: Syntax and executable regression
+        run: |
+          node --check src/3d/gameplay/playerCombatHitStopDirector.js
+          node --check scripts/checkPlayerCombatHitStopDirector.mjs
+          node scripts/checkPlayerCombatHitStopDirector.mjs
+      - name: Shared runtime/editor boundary
+        shell: bash
+        run: |
+          ! grep -RInE 'EditorMaterialStudio|MaterialAssignmentCore|WorldAssetPlacementPipeline' src/3d/gameplay/playerCombatHitStopDirector.js scripts/checkPlayerCombatHitStopDirector.mjs
+      - name: Diff hygiene
+        run: git diff --check
