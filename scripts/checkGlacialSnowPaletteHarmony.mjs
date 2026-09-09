@@ -7,7 +7,11 @@ import {
 } from '../src/3d/world/terrainSnowSurfaceTone.js';
 
 const EPSILON = 1e-9;
-const source = readFileSync(new URL('../src/3d/world/terrainBiomeShading.js', import.meta.url), 'utf8');
+// terrainBiomeShading.js's TERRAIN_BIOME_PALETTE/heightAuthorityUnchanged literals were extracted to
+// terrainBiomeShadingPolicy.js (Run 359 split); read both so these source-text assertions still see
+// the whole module's contract.
+const source = readFileSync(new URL('../src/3d/world/terrainBiomeShading.js', import.meta.url), 'utf8')
+  + '\n' + readFileSync(new URL('../src/3d/world/terrainBiomeShadingPolicy.js', import.meta.url), 'utf8');
 
 function readPaletteHex(name) {
   const match = source.match(new RegExp(`\\b${name}:\\s*new THREE\\.Color\\(0x([0-9a-fA-F]{6})\\)`));

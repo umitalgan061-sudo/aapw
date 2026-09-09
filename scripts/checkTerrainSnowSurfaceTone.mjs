@@ -204,7 +204,11 @@ for (const sample of [
   }
 }
 
-const shadingSource = readFileSync(new URL('../src/3d/world/terrainBiomeShading.js', import.meta.url), 'utf8');
+// terrainBiomeShading.js's policy/palette constants (incl. heightAuthorityUnchanged) were extracted
+// to terrainBiomeShadingPolicy.js (Run 359 split); read both so these source-text assertions still
+// see the whole module's contract.
+const shadingSource = readFileSync(new URL('../src/3d/world/terrainBiomeShading.js', import.meta.url), 'utf8')
+  + '\n' + readFileSync(new URL('../src/3d/world/terrainBiomeShadingPolicy.js', import.meta.url), 'utf8');
 assert.match(shadingSource, /resolveTerrainSnowSurfaceTone/);
 assert.match(shadingSource, /PACKED_SNOW/);
 assert.match(shadingSource, /ACCUMULATED_SNOW/);

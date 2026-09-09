@@ -17331,3 +17331,109 @@ atomic subtask, as do the pre-existing crashes/failures in `checkLivingWorldReac
 `checkLivingWorldReactionArchitecture.mjs` (6 assertions) noted above — none touched by this run's
 atomic subtask, all confirmed pre-existing, a future run should consider whether any warrant their own
 dedicated RCA/fix pass.
+
+## Run 359 (2026-09-09, scheduled routine) — `terrainBiomeShading.js` split under the 600-line cap (policy/palette config extraction), 4 source-text checks fixed pre-commit
+
+**Session start.** Read `GOVERNANCE.md`, `CLAUDE.md`, `GOVERNANCE_CONTINUATION_OVERRIDE.md`,
+`GOVERNANCE_CONTINUOUS_OWNER_DIRECTIVE.md`, `GOVERNANCE_FULL_GAME_DIRECTIVE.md`, and this file's own
+tail (Run 358). `git log -1` confirmed `main` at `de37fb4` (Run 358's own commit); `git fetch origin
+main` returned the same — zero drift, safe to build on.
+
+**LFS/asset blocker — reconfirmed, not re-notified** (same class as `RCA_RUN344_LFS_REPO_RENAME.md`,
+corroborated again this run: `git-lfs` still not installed, `assets/*.glb` are still ~130-byte pointer
+text, and every check requiring a headless browser still fails with "browser has been closed"). Terrain
+macro-relief (priority item 1) remains unattemptable here, so this run continued Run 358's own named
+"next safe step": technical debt cleanup (priority item 6) on the next largest over-cap file.
+
+**Technical debt: split `src/3d/world/terrainBiomeShading.js` (724 lines) under the cap.**
+`checkSmokeCheckRegistry.js` re-confirmed it as the largest of 3 remaining files over Altın Kural 7's
+600-line cap (`iceLandmarks.js` 652, `settlementVerticalSlice.js` 638). Read the file in full. Unlike
+Run 358's split (a calculation/policy *function* cluster), this file's largest cleanly-separable concern
+turned out to be its **policy/palette config**: `TERRAIN_BIOME_SHADING_POLICY` (the ~90-field tunable
+threshold table plus measured percentile telemetry), `NEUTRAL_DETAIL_GAIN`, `TERRAIN_BIOME_PALETTE` (26
+base `THREE.Color` swatches) and the one-time, deterministic `TERRAIN_REFERENCE_PALETTE_CALIBRATION`
+lerp block that nudges those swatches toward the shared geographic reference palette at module load —
+177 lines of pure static config and one-time colour calibration, zero per-frame logic, extracted
+verbatim into a new `src/3d/world/terrainBiomeShadingPolicy.js`. A calculation-function cluster (the
+rock-geology detail signal, or the north-climate/cryosphere/snowline/snow-coverage functions) was
+considered first, but every one of those functions reads dozens of fields off
+`TERRAIN_BIOME_SHADING_POLICY` — a shared config object with ~15 confirmed external importers
+(`terrain.js`, `checkCoastalCryosphereWidth.mjs`, `checkNorthMountainSnowline.mjs`, etc.) keyed to its
+exact field set at its current import path, so moving the *functions* out first would force either
+duplicating dozens of shared numeric fields into a second file (real config-drift risk, unlike the small
+primitive-helper duplication this codebase's convention actually covers) or a genuine two-way import
+cycle (functions module needs the policy object; policy object's canonical export path needed by
+external readers). Extracting the config itself sidesteps both: `terrainBiomeShadingPolicy.js` imports
+only `three` and the sibling `geographicReferencePalette.js` — nothing from `terrainBiomeShading.js` —
+so the split is strictly one-directional (`terrainBiomeShading.js` imports from the new file, never the
+reverse), and `terrainBiomeShading.js` re-exports all four names unchanged
+(`export { TERRAIN_BIOME_SHADING_POLICY, NEUTRAL_DETAIL_GAIN, TERRAIN_BIOME_PALETTE,
+TERRAIN_REFERENCE_PALETTE_CALIBRATION };`) so every existing external importer keeps working from the
+same `.../terrainBiomeShading.js` path with no changes on their end. A byte-diff of the moved block
+(`sed -n '26,202p'` of the pre-split original vs. the new file's corresponding block) confirmed the move
+is logic- and value-identical. `terrainBiomeShading.js` is now 555 lines; `terrainBiomeShadingPolicy.js`
+is 200.
+
+**Four source-text regressions, found and fixed before commit, not shipped.** Four check scripts
+(`checkTerrainSnowSurfaceTone.mjs`, `checkGlacialSnowPaletteHarmony.mjs`,
+`checkGlacialAccumulatedPaletteRetention.mjs`, `checkNorthMountainSnowVisualContract.mjs`) `readFileSync`
+`terrainBiomeShading.js`'s own raw source text and regex-match literal strings that lived in the moved
+block — `heightAuthorityUnchanged:\s*true`, and (for the two palette-harmony scripts) the literal
+`NAME: new THREE.Color(0x......)` swatch declarations themselves, read via a `readPaletteHex(name)`
+helper. Moving that text out of `terrainBiomeShading.js` made these assertions stop finding their own
+evidence, even though the underlying property (an explicit `heightAuthorityUnchanged: true` flag; an
+explicit, unmottled base swatch per named colour) remained true, just relocated — the same regression
+class Run 358 hit with `checkLivingWorldReactionArchitecture.mjs`. Found by actually running the full
+non-browser check battery before/after (not by inspection) and diffing captured output line-for-line.
+Fixed all four by concatenating `terrainBiomeShadingPolicy.js`'s source onto the read text before
+matching, so every existing assertion still sees the whole module's contract from either file.
+
+**Validation.** `node --check` clean on both touched files
+(`terrainBiomeShading.js`, `terrainBiomeShadingPolicy.js`) and all four fixed check scripts. Ran the full
+battery of 26 `terrainBiomeShading`-referencing check scripts (identified via `grep -rl
+terrainBiomeShading scripts/`) before (`git stash`) and after: the 5 that can actually execute in this
+environment (`checkTerrainSnowSurfaceTone/GlacialSnowPaletteHarmony/GlacialAccumulatedPaletteRetention/
+TerrainWindSnowRuntimeParity/NorthMountainSnowVisualContract.mjs`) produce **byte-identical stdout**
+before/after; the other 21 fail identically before and after (`ERR_MODULE_NOT_FOUND: three` — no
+`node_modules` in this environment — or a closed headless-browser session), confirmed via a true clean
+`git stash -u` baseline (the first stash attempt without `-u` left the new untracked file on disk and
+falsely inflated the "baseline" `checkServiceWorkerCache.js` count by one — caught and redone correctly
+before drawing any conclusion from it). `checkSmokeCheckRegistry.js` violation count dropped 3→2
+(`terrainBiomeShading.js` no longer listed, now a 555/600 WARN). `checkTechnicalDebt.js` (0 new
+TEMP/HACK/FIXME/WORKAROUND, 56/43 recorded-debt counts unchanged), `checkSeededRandomPolicy.js`,
+`checkAssetsManifest.js`, `checkWorldReferenceMap.js`, `checkWorldEventDeterminism.js`,
+`checkPwaInstallability.js` all PASS fresh, byte-identical to the true clean baseline.
+`checkServiceWorkerCache.js` FAIL count moved 107→108 `src/3d` files missing from `service-worker.js`'s
+hand-maintained shell list (confirmed via the corrected `git stash -u` baseline that 107 is the
+pre-existing count on unmodified `origin/main`) — this run's one new file is the only addition to an
+already-massive, independent, pre-existing backlog (same backlog Run 357 and Run 358 also each added one
+file to without fixing); not touched, matching Run 358's own precedent of not hand-editing
+`service-worker.js` for an analogous new sibling module. `roadNetworkSafetyCheck.js`/
+`terrainSeatSafetyCheck.js` were not run — both require a Playwright/headless-Chromium browser session,
+environment-blocked exactly as documented, and neither touches anything this run changed.
+
+Full DoD sweep: `node --check` PASS on all six touched/new files; smoke test — non-browser half PASS
+(5/5 executable `terrainBiomeShading`-referencing checks byte-identical before/after, plus the full
+governance/smoke-registry sweep), browser half environment-blocked (not a regression); visual evidence —
+N/A, non-visual refactor; performance — no runtime behavior change, `perf_log.csv` not appended (no live
+renderer stats available here); memory-leak checklist — N/A, no new object lifecycles, config/palette
+objects remain `Object.freeze`d exactly as before, same mutable-`THREE.Color`-swatch pattern preserved
+verbatim; technical debt — net 0 (violation count −1 via the file-cap fix, 0 new TEMP/HACK markers);
+World Coverage — unchanged (desktop 96.2%/mobile 4.5%, no world-data delta). World Evolution Report: no
+yol/orman/kale/NPC/hayvan/event count change; "oyuncu fark eder mi" — hayır, davranış birebir aynı
+(renk/eşik değerleri tek bir bit bile değişmedi, yalnızca hangi dosyada tanımlandıkları değişti). No
+ADR — pure internal reorganization (config relocation), no design decision, no affected external
+contract or numeric value.
+
+Risk: LOW (verified lossless split — byte-diffed against the pre-split original; 5/5 executable
+non-browser checks that actually exercise this module's palette/policy contract byte-identical
+before/after; all remaining failures independently reproduced as pre-existing on a true clean
+`git stash -u` baseline of unmodified `origin/main`). Next safe step: repeat this same split treatment on
+the next largest over-cap file (`src/3d/world/iceLandmarks.js`, 652 lines, or
+`src/3d/gameplay/settlementVerticalSlice.js`, 638 lines — both now the only 2 remaining Altın Kural 7
+violations), or — once a future environment has working LFS/asset access — resume terrain macro-relief
+with its full Görsel Doğrulama Standardı evidence. The pre-existing `checkServiceWorkerCache.js` (108+
+unregistered `src/3d` files, spanning several prior runs' split-off sibling modules too) remains an
+independent, larger-scope item outside this run's atomic subtask — a future run should consider whether
+it warrants its own dedicated pass to bring `service-worker.js`'s shell list back in sync with the real
+import graph.

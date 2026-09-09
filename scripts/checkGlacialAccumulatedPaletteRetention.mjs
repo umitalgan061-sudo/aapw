@@ -9,7 +9,11 @@ import {
 const EPSILON = 1e-9;
 const MIN_GLACIAL_DISTANCE_GAIN = 0.0004;
 const MIN_COASTAL_DISTANCE_GAIN = 0.0002;
-const shadingSource = readFileSync(new URL('../src/3d/world/terrainBiomeShading.js', import.meta.url), 'utf8');
+// terrainBiomeShading.js's TERRAIN_BIOME_PALETTE/heightAuthorityUnchanged literals were extracted to
+// terrainBiomeShadingPolicy.js (Run 359 split); read both so these source-text assertions still see
+// the whole module's contract.
+const shadingSource = readFileSync(new URL('../src/3d/world/terrainBiomeShading.js', import.meta.url), 'utf8')
+  + '\n' + readFileSync(new URL('../src/3d/world/terrainBiomeShadingPolicy.js', import.meta.url), 'utf8');
 
 function clamp01(value) {
   return Math.max(0, Math.min(1, value));

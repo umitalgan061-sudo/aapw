@@ -4,7 +4,11 @@ import { readFileSync } from 'node:fs';
 
 const browserSource = readFileSync(new URL('./checkNorthMountainSnowVisualQa.js', import.meta.url), 'utf8');
 const htmlSource = readFileSync(new URL('../north-mountain-snow-visual-qa.html', import.meta.url), 'utf8');
-const terrainSource = readFileSync(new URL('../src/3d/world/terrainBiomeShading.js', import.meta.url), 'utf8');
+// terrainBiomeShading.js's heightAuthorityUnchanged literal was extracted to
+// terrainBiomeShadingPolicy.js (Run 359 split); read both so this source-text assertion still sees
+// the whole module's contract.
+const terrainSource = readFileSync(new URL('../src/3d/world/terrainBiomeShading.js', import.meta.url), 'utf8')
+	+ '\n' + readFileSync(new URL('../src/3d/world/terrainBiomeShadingPolicy.js', import.meta.url), 'utf8');
 const snowToneSource = readFileSync(new URL('../src/3d/world/terrainSnowSurfaceTone.js', import.meta.url), 'utf8');
 
 assert.match(browserSource, /resolveTerrainSnowCoverage/,
