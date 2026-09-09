@@ -475,3 +475,5 @@ Snapshot'ta okuyup geçici varsayılanlara uymaya devam edecek.
   seferlik bir durum değil, tutarlı/süregelen bir ortam koşulu. Owner henüz bir aksiyon almadı (rename
   hâlâ `aapw`, environment hâlâ eski adı gösteriyor). Kod değişikliği yapılmadı, tekrar push bildirimi
   atılmadı (run344 zaten iletmişti).
+
+**(run 355 ek doğrulama, aynı 🔴 madde, yeniden bildirilmedi):** 2026-09-09 tarihli bu run'ın ortamı da aynı LFS/repo-rename bloğunu doğruladı — `git lfs` komutu bu ortamda hiç kurulu değil, `assets/**/*.glb` örnekleri hâlâ ~130 byte pointer metni, session repo scope hâlâ eski ad (`westeros-pwa`). Owner henüz aksiyon almadı. Kod değişikliği yapılmadı, tekrar push bildirimi atılmadı (Run 344 zaten iletmişti).

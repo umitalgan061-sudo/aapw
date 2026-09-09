@@ -16985,3 +16985,70 @@ and `checkMobilePerfBudget.js` end to end. Terrain/road work remains claimed by 
 corner-agent sessions and continues to move fast (100+ commits landed during this single session) —
 any future run should refresh `origin/main` immediately before reading this file's own tail, not
 after, per this run's own near-miss above.
+
+## Run 355 (2026-09-09, scheduled routine) — Verification-only: LFS/repo-rename block reconfirmed unresolved, full non-asset regression sweep re-run fresh, no code/gameplay delta
+
+**Session snapshot.** Read `GOVERNANCE.md` (all 33 sections, incl. §8.5/8.11-8.14, already cover every
+item this run's own prompt template re-lists as "🆕" — no gap found, nothing rewritten), `CREDITS.md`
+(already carries Meshy AI/Mixamo/Free3D/Hitem3d attributions), `CATCH_UP.md`, `perf_log.csv`,
+`QUESTIONS_FOR_OWNER.md` (LFS/rename item still open, still un-actioned by the owner), and this file's
+own tail (Run 349 scheduled-routine entry, committed `f698d2a` on 2026-09-02). `git fetch origin main`
+at session start and again immediately before this commit both matched local `HEAD` exactly
+(`a05509f`) — zero drift, safe to write additively.
+
+**What changed since Run 349's tail.** `origin/main` advanced from `f698d2a` to `a05509f` — one
+GitHub Actions-driven `player`/`rpg` feature line (equipment-combat runtime bridge, third-person
+camera policy, combat frame/targeting/action-router chain, cross-device input parity, settlement
+campaign UX vertical slice; all outside `.github/workflows/`-declared, non-narrative commits, most
+recent 2026-09-08). None of it touches `world/`, terrain, roads, `GOVERNANCE.md`, or any regression
+script this run depends on.
+
+**Non-asset regression sweep (re-run fresh, not restated):**
+- `terrainSeatSafetyCheck.js` — PASS 14/14 seats (raw-height flood safety + gameplay-terrain 35°
+  walkability both intact; water level 6 m).
+- `roadNetworkSafetyCheck.js` — PASS: 13 topology edges / 14-14 seats represented, all measured grades
+  ≤16.1° (cap 20°), river non-collision holds (no road point within 25 m of the river polyline),
+  mountain-avoidance fallback still explicit (60.7° over-cap case correctly left unrendered rather than
+  faked safe).
+- `checkTechnicalDebt.js` — PASS: 0 new TEMP/HACK/FIXME/WORKAROUND markers; 56 recorded progress-debt
+  entries, 43 owner-tracking entries (both counts unchanged from the last read).
+
+**LFS/repo-rename block (`RCA_RUN344_LFS_REPO_RENAME.md`) — reconfirmed, still open, NOT re-notified.**
+`git lfs` is not a recognized command in this environment (never installed); `assets/**/*.glb` sampled
+files are still 130-131 byte git-lfs pointer text, not real binary GLB/FBX. GitHub access for this
+session remains scoped to `westeros-pwa` (the pre-rename name), matching every prior run's finding
+since Run 344. Per the project's own established do-not-re-notify convention (Run 344 already pushed
+an owner notification for this exact item; Run 349 reconfirmed without re-notifying), **no push
+notification was sent this run either** — nothing new to report on this item.
+
+**Why no code/gameplay change this run.** Terrain macro-relief (priority-list item 1) is already
+substantially shipped through ADR-0295–ADR-0300 (Run 349–354); DECISIONS.md's own last entry names the
+one remaining structural item as terrain LOD (mesh resolution), which — like any further terrain/visual
+work — requires the project's Görsel Doğrulama Standardı (≥2 camera angles, F4 near+far, real rendered
+proof). That verification path needs real GLB/FBX geometry and a working browser smoke run, both
+blocked by the LFS finding above in this environment. Making a terrain/visual change here without that
+proof would violate `GOVERNANCE.md` §8.5's own "kanıt yetersizse DONE sayılmaz" rule, so none was
+attempted. `GOVERNANCE.md` and `CREDITS.md` were read and confirmed already complete for everything
+this run's prompt template asks to seed — rewriting either would have been redundant and risked
+clobbering established content, so neither was touched.
+
+**Full DoD sweep.** Not applicable in the usual code sense — zero source/gameplay files touched, only
+this file (`node --check` N/A, Markdown-only). Memory-leak checklist: N/A. Technical debt: 0 new.
+World Coverage: unchanged (desktop 96.2% / mobile 4.5%). World Evolution Report: no yol/orman/kale/
+NPC/hayvan/event count change this run (the concurrent `player`/`rpg` commits above are a separate,
+non-terrain track); no new ADR (verification, not a design decision); "oyuncu fark eder mi" — hayır,
+bu run'da görünür hiçbir değişiklik yok.
+
+**Risk:** LOW (docs-only, zero runtime delta). No new stable tag cut — this run cannot verify "the
+game opens without issues" against real assets in this environment (same LFS block), and tagging
+without that would overstate what was confirmed; the existing `stable-2026-08-19-0511` (Run 348b) tag
+remains the latest verified checkpoint.
+
+**Next safe step.** Unchanged from Run 349/354's own guidance: terrain LOD (ADR-0297) is the next
+structural item, but needs an environment where the LFS/repo-rename block is lifted (owner action, per
+`QUESTIONS_FOR_OWNER.md`) before it can be done with real visual proof. A future run in such an
+environment should re-run the full asset-dependent `smokeTestGame3D.js` + `checkMobilePerfBudget.js`
+before attempting it. Terrain/world/player/rpg feature work continues to move via the concurrent
+GitHub Actions workflow pipeline (`.github/workflows/`) independent of this narrative track; any future
+run in this track should keep refreshing `origin/main` immediately before reading this file's tail,
+per Run 349's own documented near-miss.
