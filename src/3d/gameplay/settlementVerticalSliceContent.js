@@ -83,6 +83,10 @@ export function listSettlementContentRoles() {
   return Object.freeze(SERVICE_ROLES.slice());
 }
 
+export function isSettlementRole(role) {
+  return Boolean(normalizeRole(role));
+}
+
 export function getSettlementContentHooks(role) {
   const normalized = normalizeRole(role);
   return normalized ? Object.freeze(ROLE_HOOKS[normalized].slice()) : Object.freeze([]);
@@ -120,7 +124,7 @@ export function buildSettlementContentJourney(options = {}) {
     ? options.roles.map(normalizeRole).filter(Boolean)
     : getSettlementServiceOrder(options.chapter || 'arrival');
   const unique = [...new Set(requested)].slice(0, 8);
-  const beats = unique.map((role, index) => buildSettlementContentBeat(role, {
+  const beats = unique.map((role) => buildSettlementContentBeat(role, {
     targetId: options.targets?.[role],
     required: Array.isArray(options.requiredRoles) && options.requiredRoles.includes(role),
     questHook: options.questHooks?.[role],
@@ -250,5 +254,42 @@ export function buildSettlementTravelHook(originRole, destinationRole, options =
     requiresDiscovery: options.requiresDiscovery !== false,
     travelMode: clean(options.travelMode, 'road'),
     hint: clean(options.hint, `${origin} → ${destination}`),
+  });
+}
+
+export function buildSettlementInteractionSlice(options = {}) {
+  const settlementId = clean(options.settlementId, 'settlement');
+  const journey = buildSettlementContentJourney({
+    settlementId,
+    chapter: 'arrival',
+    roles: ['gate', 'market', 'tavern'],
+    requiredRoles: ['gate', 'market'],
+    targets: options.targets,
+    questHooks: { tavern: clean(options.questId, 'arrival-quest') },
+  });
+  const forge = buildSettlementContentBeat('blacksmith', {
+    targetId: options.blacksmithTargetId,
+    required: true,
+    questHook: clean(options.smithingQuestId, 'forge-first-blade'),
+    rewardHook: 'smithing-xp',
+  });
+  const travel = buildSettlementTravelHook('gate', 'stable', { travelMode: 'road' });
+  return Object.freeze({
+    version: SETTLEMENT_CONTENT_VERSION,
+    settlementId,
+    journey,
+    forge,
+    travel,
+    chain: Object.freeze(['arrive', 'trade', 'talk', 'craft', 'travel']),
+    integration: Object.freeze({
+      questSystem: 'existing',
+      inventory: 'existing',
+      economy: 'existing',
+      crafting: 'existing',
+      travel: 'existing',
+      persistence: 'existing',
+      materialPlacement: 'merged-590',
+    }),
+    fingerprint: hash({ settlementId, journey, forge, travel }),
   });
 }
