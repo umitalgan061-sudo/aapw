@@ -17753,3 +17753,48 @@ other module imports `NODE_KINDS`).
 **Next safe step:** finding (1) above is now the most concrete next candidate (same file family, keeps
 context warm) — or terrain macro-relief (priority item 1), still blocked on real GLB assets pending the
 LFS/repo-rename owner decision in `QUESTIONS_FOR_OWNER.md`.
+
+## Run 364 (2026-09-09) — fix copy-pasted `page.on('pageerror', ...)` missing-paren SyntaxError in 3 run216 QA scripts
+
+Session-start `node --check` sweep across all 693 files in `src/` + `scripts/` (priority item 2, "Syntax
+hataları") found 3 real `SyntaxError`s, all the same root cause: `scripts/checkRun216EditorGamePreviewBrowser.js`,
+`scripts/checkRun216EditorSessionNavigationBrowserSafe.js`, `scripts/checkRun216EditorBrightAuthoringBrowser.js`
+each had `page.on('pageerror', (error) => errors.push(String(error));` — the arrow-callback's own
+`page.on(` call is missing its closing `)`. Root cause: this one line was evidently copy-pasted across a
+family of five run-216 one-off Playwright editor-QA scripts with the typo already in it. It only broke 3
+of the 5: `checkRun216EditorVisibleAuroraBrowser.js` uses a different block-body form (`(error) => { ... }`)
+that was never affected, and `checkRun216EditorUsabilityBrowser.js` already carries the same broken line
+but wrapped in a `/* */` comment directly above a second, already-correct copy of the call — i.e. a prior
+run already silently patched that one file in place rather than deleting the dead broken line, so it
+never surfaced in a `node --check` sweep. Fix: added the missing `)` in each of the 3 live-broken files
+(`errors.push(String(error));` → `errors.push(String(error)));`), matching the working form already
+present in the other two files.
+
+Verification: `node --check` on all 3 fixed files — PASS (previously `SyntaxError: missing ) after
+argument list` on all 3). Full repo-wide `node --check` sweep (693 files, `src/` + `scripts/`) — 0 errors,
+confirmed clean. These 3 files are standalone run-216 Playwright QA scripts (editor game-preview / session
+navigation / bright-authoring authoring-flow checks) — not imported by `game3d.js`, `script.js`, or any
+`src/` runtime module, and not present in `checkSmokeCheckRegistry.js`'s registry, so this change has zero
+reach into the playable game or the current smoke-check suite; risk is contained to "these 3 files parse
+now" by construction. Did not attempt a full `smokeTestGame3D.js` / real-browser run: this session's
+`assets/**/*.glb`/`*.fbx` are still ~130-byte git-lfs pointer stubs (`git-lfs` not preinstalled here;
+`git lfs pull` was tried again this run — hung past 30 s where prior runs (349/355) reported an instant
+silent no-op, so the underlying block is still present, just observed slightly differently) — the same
+pre-existing, already-escalated (`QUESTIONS_FOR_OWNER.md`, run 344/349/355) repo-rename/LFS-auth issue,
+re-confirmed but not re-reported (no new information — owner still has not acted, GitHub repo is still
+named `aapw` under the same account, `origin` push/fetch for `westeros-pwa` itself still works fine via
+GitHub's rename redirect). No design/product decision involved — no ADR. No new technical debt. No
+world/gameplay change — World Evolution Report: no yol/orman/kale/NPC/hayvan/event delta; "oyuncu fark
+eder mi" — hayır, bu üç dosya hiçbir oynanabilir yüzeye bağlı değil, sadece geliştirici tarafı QA
+scriptleri. No `perf_log.csv` row added (no renderer/runtime code touched, no browser session available
+to sample from — consistent with every run since 355 having no real browser sample for the same
+environment reason). No stable tag this run (unchanged from every run since 349: a real browser boot
+verification is required first and remains environment-blocked).
+
+Risk: LOW (three single-character insertions restoring intended syntax in dead-end QA scripts with no
+runtime import path; before/after `node --check` diff is the whole proof).
+
+**Next safe step:** unchanged from Run 363 — pick up the `NODE_KINDS`-adjacent settlement vertical-slice
+role-gating assertion failures (21 failing assertions in `checkSettlementVerticalSliceRoleRuntime.mjs`),
+or terrain macro-relief (priority item 1), still blocked on real GLB asset access pending the owner's
+`aapw` repo-rename decision in `QUESTIONS_FOR_OWNER.md`.
