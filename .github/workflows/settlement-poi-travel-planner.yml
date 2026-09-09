@@ -1,0 +1,16 @@
+name: settlement-poi-travel-planner
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementPoiTravelPlanner.js'
+      - 'scripts/checkSettlementPoiTravelPlanner.mjs'
+      - '.github/workflows/settlement-poi-travel-planner.yml'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/checkSettlementPoiTravelPlanner.mjs
