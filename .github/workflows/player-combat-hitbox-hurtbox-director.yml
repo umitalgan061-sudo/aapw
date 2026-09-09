@@ -1,0 +1,44 @@
+name: Player Combat Hitbox Hurtbox Director
+on:
+  push:
+    branches:
+      - codex/kizil-ufuk-hitbox-hurtbox-director-20260909
+  pull_request:
+    paths:
+      - src/3d/gameplay/playerCombatHitboxHurtboxDirector.js
+      - scripts/checkPlayerCombatHitboxHurtboxDirector.mjs
+      - .github/workflows/player-combat-hitbox-hurtbox-director.yml
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verify exact-main ancestry and focused diff
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          BASE="$(git rev-parse origin/main)"
+          git merge-base --is-ancestor "$BASE" HEAD
+          mapfile -t CHANGED < <(git diff --name-only "$BASE"...HEAD)
+          test "${#CHANGED[@]}" -eq 3
+          printf '%s\n' "${CHANGED[@]}" | grep -Fxq 'src/3d/gameplay/playerCombatHitboxHurtboxDirector.js'
+          printf '%s\n' "${CHANGED[@]}" | grep -Fxq 'scripts/checkPlayerCombatHitboxHurtboxDirector.mjs'
+          printf '%s\n' "${CHANGED[@]}" | grep -Fxq '.github/workflows/player-combat-hitbox-hurtbox-director.yml'
+          LINES="$(git diff --numstat "$BASE"...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          test "$LINES" -le 3000
+          ! git diff --check "$BASE"...HEAD
+      - name: Syntax and executable contract
+        run: |
+          node --check src/3d/gameplay/playerCombatHitboxHurtboxDirector.js
+          node --check scripts/checkPlayerCombatHitboxHurtboxDirector.mjs
+          node scripts/checkPlayerCombatHitboxHurtboxDirector.mjs
+      - name: Runtime/editor boundary
+        shell: bash
+        run: |
+          ! grep -nE 'EditorMaterialStudio|MaterialAssignmentCore|WorldAssetPlacementPipeline|document\.|window\.|THREE\.' src/3d/gameplay/playerCombatHitboxHurtboxDirector.js
