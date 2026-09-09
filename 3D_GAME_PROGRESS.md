@@ -17798,3 +17798,69 @@ runtime import path; before/after `node --check` diff is the whole proof).
 role-gating assertion failures (21 failing assertions in `checkSettlementVerticalSliceRoleRuntime.mjs`),
 or terrain macro-relief (priority item 1), still blocked on real GLB asset access pending the owner's
 `aapw` repo-rename decision in `QUESTIONS_FOR_OWNER.md`.
+
+## Run 365 (2026-09-09) — add missing `isSettlementRole` export to settlementVerticalSliceContent.js
+
+Picked up finding (2) logged at the end of Run 362: `scripts/checkSettlementVerticalSliceContent.mjs`
+imports `isSettlementRole` from `src/3d/gameplay/settlementVerticalSliceContent.js`, but that module never
+exported it — a `SyntaxError: The requested module ... does not provide an export named 'isSettlementRole'`
+at import time, so the entire check script (135 assertions) never ran. Root cause: a sibling module,
+`settlementVerticalSliceRoles.js`, already exports its own `isSettlementRole(role)` (checking its own
+`ROLE_NAMES` list), and the content-check script was evidently authored assuming the content module would
+offer the equivalent for its own, separate 8-role `SERVICE_ROLES` catalog — it never did. Fix: added
+`export function isSettlementRole(role) { return normalizeRole(role) !== ''; }` to
+`settlementVerticalSliceContent.js`, reusing the module's own existing `normalizeRole` validity check
+(same semantics already used internally by `getSettlementContentHooks`/`getSettlementRolePurpose`), a
+4-line addition with no other code touched.
+
+Verification: `node --check` PASS. `node scripts/checkSettlementVerticalSliceContent.mjs` — previously
+failed to even import (0 assertions executed); now **PASS: 135 settlement content assertions**, no
+failures. Confirmed via `git stash` that the three unrelated pre-existing failures elsewhere in the same
+settlement vertical-slice family (`checkSettlementVerticalSliceMatrix.mjs`: 1 FAIL "summary gate count
+matches authored definition"; `checkSettlementVerticalSliceEvents.mjs`: 1 FAIL "action normalization is
+deterministic"; `checkSettlementVerticalSliceJourney.mjs`: assertions around craft/door/save capability
+gating) are identical before and after this change — none of those three scripts import
+`settlementVerticalSliceContent.js`, so this fix cannot have touched them; grep confirms no other file
+imports the new export.
+
+Full DoD sweep: `node --check` PASS across full 684-file repo-wide sweep (0 errors). `checkSmokeCheckRegistry.js`
+— OK, 44 smoke checks/19 modules unaffected (0 new files added). `checkTechnicalDebt.js` — PASS, 0 new
+markers, 56/43 counts unchanged. `checkAssetsManifest.js` — OK, 547 entries, unaffected.
+`checkSeededRandomPolicy.js` — PASS, unaffected (no `Math.random()` introduced). `checkWorldEventDeterminism.js`
+— PASS, checksum unchanged. `checkPwaInstallability.js` — OK, unaffected. Browser-half smoke test
+(`scripts/smokeTestGame3D.js`) remains environment-blocked in this session (same pre-existing LFS/repo-rename
+constraint below, not caused by this change). Visual evidence — N/A, no rendering/UI surface touched, this
+module is not yet wired into any playable scene. Performance — no runtime behavior change reachable from
+the live game; no `perf_log.csv` row added (no renderer/runtime code touched, no browser session available).
+Memory-leak checklist — N/A, no object lifecycles involved, pure functions only. Technical debt — net 0 new
+markers (this fixes a real bug, not a workaround). World Coverage — unchanged. World Evolution Report: no
+yol/orman/kale/NPC/hayvan/event count change; "oyuncu fark eder mi" — hayır, bu modül henüz hiçbir
+oynanabilir sahneye bağlı değil, yalnızca geliştirici tarafı check script'i artık çalışıyor. No ADR — a
+missing-export fix restoring already-intended behavior is not a design decision. Asset/LFS blocker —
+reconfirmed still present in this session's environment (`git-lfs` not installed; sampled `.glb` files
+under `assets/` are still ~130-byte LFS pointer stubs); not re-reported to `QUESTIONS_FOR_OWNER.md` since
+runs 344/349/355/364 already logged it and owner has not yet acted — no new information this run, but see
+this run's own escalation note below (owner has now had 4+ consecutive runs report this unresolved, and it
+is the direct blocker on priority item 1 / terrain macro-relief).
+
+Risk: LOW (single 4-line additive export restoring already-intended cross-module contract; confirmed via
+`git stash` that no other script's pass/fail state changed; no existing export removed or renamed, no
+call site elsewhere touched).
+
+**New findings logged for future atomic subtasks (not fixed here — separate root causes):**
+1. `checkSettlementVerticalSliceMatrix.mjs` — "summary gate count matches authored definition" (1
+   assertion). Needs a read of the matrix summary/gate-count code path before fixing blind.
+2. `checkSettlementVerticalSliceEvents.mjs` — "action normalization is deterministic" (1 assertion).
+3. `checkSettlementVerticalSliceJourney.mjs` — craft/door/save capability-gating assertions (multiple,
+   overlaps in spirit with the 21 `checkSettlementVerticalSliceRoleRuntime.mjs` failures logged in Run 363
+   — likely worth investigating together in one future subtask since both concern the same
+   role/capability-gating runtime, but each is its own file/root cause until read).
+
+**Next safe step:** any of the three settlement vertical-slice findings above, or the 21 role-runtime
+gating assertions from Run 363 (same family, keeps context warm) — or terrain macro-relief (priority item
+1), still blocked on real GLB asset access pending the owner's `aapw` repo-rename decision in
+`QUESTIONS_FOR_OWNER.md`. That decision is now the single actual blocker on all priority-1..1.7 world/asset
+work across the last 20+ runs (344 through 365); every run in between has necessarily been working
+priority-2 (syntax) and priority-3-adjacent (settlement logic bugs) items instead. Escalating this via
+direct owner notification this run rather than only re-confirming the file entry again, since four prior
+in-file mentions have not yet produced owner action.

@@ -83,6 +83,10 @@ export function listSettlementContentRoles() {
   return Object.freeze(SERVICE_ROLES.slice());
 }
 
+export function isSettlementRole(role) {
+  return normalizeRole(role) !== '';
+}
+
 export function getSettlementContentHooks(role) {
   const normalized = normalizeRole(role);
   return normalized ? Object.freeze(ROLE_HOOKS[normalized].slice()) : Object.freeze([]);
