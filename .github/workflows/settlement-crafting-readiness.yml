@@ -1,0 +1,29 @@
+name: settlement-crafting-readiness
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementCraftingReadiness.js'
+      - 'scripts/checkSettlementCraftingReadiness.mjs'
+      - '.github/workflows/settlement-crafting-readiness.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax
+        run: |
+          node --check src/3d/gameplay/settlementCraftingReadiness.js
+          node --check scripts/checkSettlementCraftingReadiness.mjs
+      - name: Executable contract
+        run: node scripts/checkSettlementCraftingReadiness.mjs
+      - name: Ownership boundary
+        run: |
+          ! grep -R "EditorMaterialStudio\|MaterialAssignmentCore\|WorldAssetPlacementPipeline" src/3d/gameplay/settlementCraftingReadiness.js scripts/checkSettlementCraftingReadiness.mjs
+      - name: Focused diff budget
+        run: |
+          test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
