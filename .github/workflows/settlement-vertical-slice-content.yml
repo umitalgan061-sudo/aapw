@@ -1,0 +1,30 @@
+name: settlement-vertical-slice-content
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementVerticalSliceContent.js'
+      - 'scripts/checkSettlementVerticalSliceContent.mjs'
+      - '.github/workflows/settlement-vertical-slice-content.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/settlementVerticalSliceContent.js'
+      - 'scripts/checkSettlementVerticalSliceContent.mjs'
+      - '.github/workflows/settlement-vertical-slice-content.yml'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verify exact runtime contract
+        run: node scripts/checkSettlementVerticalSliceContent.mjs
+      - name: Verify syntax
+        run: node --check src/3d/gameplay/settlementVerticalSliceContent.js
+      - name: Guard ownership boundaries
+        shell: bash
+        run: |
+          ! grep -R "EditorMaterialStudio\|WorldAssetPlacementPipeline\|MaterialAssignmentCore" src/3d/gameplay/settlementVerticalSliceContent.js scripts/checkSettlementVerticalSliceContent.mjs
+          ! grep -R "sceneManager\|terrain.js\|water.js\|livingWorld" src/3d/gameplay/settlementVerticalSliceContent.js
