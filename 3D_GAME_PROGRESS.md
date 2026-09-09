@@ -17130,3 +17130,89 @@ Risk: LOW (verified lossless split, all reachable non-browser regressions green)
 either repeat this same split treatment on `WorldAssetPlacementPipeline.js` (largest remaining
 violation), or — once a future environment has working LFS/asset access — resume terrain macro-relief
 with its full Görsel Doğrulama Standardı evidence.
+
+## Run 357 (2026-09-09, scheduled routine) — `WorldAssetPlacementPipeline.js` split under the 600-line cap (two-module extraction), full non-browser regression sweep re-run
+
+**Session start.** Read `GOVERNANCE.md`, `CLAUDE.md`, `GOVERNANCE_CONTINUATION_OVERRIDE.md`,
+`GOVERNANCE_CONTINUOUS_OWNER_DIRECTIVE.md`, `GOVERNANCE_FULL_GAME_DIRECTIVE.md`, and this file's own
+tail (Run 356). `git status` was clean on `main` at `e1a94cb`, matching the session's stated starting
+point. `git fetch origin main` at session start returned `e1a94cb` — zero drift, safe to build on.
+
+**LFS/asset blocker — reconfirmed, not re-notified (same class as `RCA_RUN344_LFS_REPO_RENAME.md`,
+corroborated again by every run since 344).** No new probing done this run — per the established
+convention, this is accepted as a known, already-documented environment limitation. Because of it,
+terrain macro-relief (priority item 1) remains unattemptable here (its DoD ends in a Görsel Doğrulama
+Standardı step this session cannot produce), so this run continued Run 356's fallback: technical debt
+cleanup (priority item 6).
+
+**Technical debt: split `src/3d/world/WorldAssetPlacementPipeline.js` (821 lines) under the cap.**
+`checkSmokeCheckRegistry.js` still listed it as the largest of 5 files over GOVERNANCE.md's
+Altın Kural 7 (600-line cap), exactly as Run 356 left it. Following Run 356's own pattern
+(`roadPathfinder.js` → `roadPathfinderRiverAvoidance.js`), extracted two cohesive, already
+privately-scoped concerns as pure lossless moves — zero logic changes, verified by diffing the
+extracted bodies byte-for-byte against the pre-split original (only `export` keywords and blank-line
+spacing differ, confirmed via `git show HEAD:...` + `diff`):
+
+- `src/3d/world/WorldAssetFootprintGeometry.js` (203 lines, new): the world-space ground-contact
+  footprint sampler — `worldFootprintFor` (now the module's sole export) plus its private helpers
+  (`rootLocalGeometryBounds`, `clusterGroundContactBoxes`, `boxesConnectedInXZ`,
+  `expandBoxWithGeometryCorners`) and constants (`GROUND_CONTACT_BAND_POLICY`,
+  `GROUND_CONTACT_ISLAND_POLICY`). A repo-wide grep confirmed the only other mention of these symbols
+  anywhere in the codebase was a doc-comment reference in `foundationIslandProbes.js`, not an import —
+  safe to move as one unit.
+- `src/3d/world/WorldSurfacePolicySchema.js` (114 lines, new): the placement-policy schema —
+  `validateWorldSurfacePolicy`, `normalizePlacementPolicy`, the `POLICY_NUMERIC_FIELDS`/
+  `POLICY_LIST_FIELDS`/`POLICY_FIELDS`/`POLICY_RANGES` constants, and private helpers
+  (`isPlainObject`, `optionalFinite`, `normalizedStringList`, `policyErrorKey`). Two of these
+  (`validateWorldSurfacePolicy`, `normalizePlacementPolicy`) were already part of the pipeline's
+  public API, so `WorldAssetPlacementPipeline.js` now imports and **re-exports** both — a grep of
+  every repo importer of `WorldAssetPlacementPipeline.js` (`geographicSettlementProps.js`,
+  `villages.js`, `EditorTerrainFoundationGrounder.js`, and a dozen `scripts/check*.mjs` files)
+  confirmed none of them break: each still gets every symbol it imports (`resolveWorldSurfacePlacement`,
+  `prepareWorldAssetForPlacement`, `placeWorldAsset`, `WORLD_SURFACE_POLICY_PRESETS`,
+  `validateWorldSurfacePolicy`, `resolveWorldSurfacePolicy`, etc.) from the same module path as before.
+  `isPlainObject` and `optionalFinite` are also still used inside `WorldAssetPlacementPipeline.js`
+  itself (in `mergeWorldSurfacePolicy` and `normalizeWorldSurfaceSample`), so both are now imported
+  back from the new module rather than duplicated.
+
+A single extraction wasn't enough this time (footprint geometry alone only brought the file to 631
+lines, still 31 over cap) — hence the second, independently-cohesive policy-schema extraction, done the
+same way. `WorldAssetPlacementPipeline.js` is now 535 lines, comfortably under the cap.
+
+**Validation.** `node --check` clean on all three files. `checkSmokeCheckRegistry.js` violation count
+dropped 5→4 (`WorldAssetPlacementPipeline.js` no longer listed). A `git
+stash`/`stash pop` (with `-u`, to include the new untracked files) confirmed the `three`-resolution
+failure in `scripts/checkWorldSurfacePlacementPolicy.mjs` / `checkStructureSurfacePolicy.mjs`
+(`ERR_MODULE_NOT_FOUND: three`, same class as Run 356's `checkRoadRoutingSourceContract.mjs` finding)
+and the `checkServiceWorkerCache.js` / `checkGeographicSettlementPropsIntegration.mjs` failures
+(104 pre-existing unregistered `src/3d` files in `GAME3D_SHELL_FILES` plus 22 unregistered model
+assets; a missing browser-proof evidence artifact) all reproduce identically on unmodified
+`origin/main` — none are regressions this run introduced; this run's two new files simply add 2 more
+names to the pre-existing 104-file service-worker registration backlog, same as Run 356's own new file
+did. Remaining non-browser regressions all still PASS fresh: `checkTechnicalDebt.js` (0 new
+TEMP/HACK/FIXME/WORKAROUND markers, 56/43 recorded-debt counts unchanged), `checkPwaInstallability.js`,
+`checkWorldReferenceMap.js` (17/5/4 zones), `checkWorldReferenceAlignment.js` (14/14 seats, 100%
+runtime coverage), `checkWorldEventDeterminism.js` (24-emission checksum match), `checkSeededRandomPolicy.js`
+(no `Math.random()` under `src/3d`), `checkAssetsManifest.js` (547 entries resolve).
+`roadNetworkSafetyCheck.js`/`terrainSeatSafetyCheck.js` were not run — both require a Playwright/
+headless-Chromium browser session, environment-blocked exactly as documented, and neither touches
+anything this run changed.
+
+Full DoD sweep: `node --check` PASS on all three touched/new files; smoke test — non-browser half PASS,
+browser half environment-blocked (not a regression); visual evidence — N/A, non-visual refactor;
+performance — no runtime behavior change, `perf_log.csv` not appended (no live renderer stats available
+here); memory-leak checklist — N/A, no new object lifecycles, same caching/pooling patterns preserved
+verbatim; technical debt — net -1 violation (5→4), 0 new TEMP/HACK markers; World Coverage — unchanged
+(desktop 96.2%/mobile 4.5%, no world-data delta). World Evolution Report: no yol/orman/kale/NPC/hayvan/
+event count change; "oyuncu fark eder mi" — hayır, davranış birebir aynı, yalnızca dosya organizasyonu
+değişti. No ADR — pure internal reorganization, no design decision, no affected external contract.
+
+Risk: LOW (verified lossless split — byte-diffed against the pre-split original — all reachable
+non-browser regressions green, all remaining failures independently reproduced as pre-existing on
+unmodified `origin/main`). Next safe step: repeat this same split treatment on the next largest
+over-cap file (`src/3d/gameplay/livingWorldReactionRuntime.js`, 743 lines), or — once a future
+environment has working LFS/asset access — resume terrain macro-relief with its full Görsel Doğrulama
+Standardı evidence. The pre-existing `checkServiceWorkerCache.js` (104+ unregistered `src/3d` files)
+and `checkGeographicSettlementPropsIntegration.mjs` (missing browser-proof artifact) failures are
+independent, larger-scope items outside this run's atomic subtask; a future run should consider
+whether either warrants its own dedicated pass.
