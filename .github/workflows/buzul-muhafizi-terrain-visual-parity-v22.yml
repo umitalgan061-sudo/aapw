@@ -1,0 +1,49 @@
+name: Buzul Muhafızı — Terrain Visual Parity v22
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/terrainVisualParityProbe.js'
+      - 'scripts/checkTerrainVisualParityProbe.mjs'
+      - '.github/workflows/buzul-muhafizi-terrain-visual-parity-v22.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  terrain-visual-parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Assert exact-main ancestry and focused scope
+        shell: bash
+        run: |
+          git fetch origin main --depth=1
+          BASE=$(git merge-base HEAD origin/main)
+          MAIN=$(git rev-parse origin/main)
+          test "$BASE" = "$MAIN"
+          FILES=$(git diff --name-only "$MAIN" HEAD)
+          test "$(printf '%s\n' "$FILES" | wc -l | tr -d ' ')" -eq 3
+          printf '%s\n' "$FILES" | grep -Fxq 'src/3d/world/terrainVisualParityProbe.js'
+          printf '%s\n' "$FILES" | grep -Fxq 'scripts/checkTerrainVisualParityProbe.mjs'
+          printf '%s\n' "$FILES" | grep -Fxq '.github/workflows/buzul-muhafizi-terrain-visual-parity-v22.yml'
+          ADDED=$(git diff --numstat "$MAIN" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$ADDED" -le 3000
+      - name: Protect shared runtime boundaries
+        shell: bash
+        run: |
+          ! grep -R "EditorMaterialStudio\|MaterialAssignmentCore\|WorldAssetPlacementPipeline" -n src/3d/world/terrainVisualParityProbe.js scripts/checkTerrainVisualParityProbe.mjs
+          ! grep -R "terrain.js\|water.js\|sceneManager.js\|naturalGeology.js\|rivers.js\|roads.js" -n src/3d/world/terrainVisualParityProbe.js
+      - name: Syntax check
+        run: |
+          node --check src/3d/world/terrainVisualParityProbe.js
+          node --check scripts/checkTerrainVisualParityProbe.mjs
+      - name: Execute contract
+        run: node scripts/checkTerrainVisualParityProbe.mjs
+      - name: Diff hygiene
+        shell: bash
+        run: |
+          ! git diff --check "$MAIN" HEAD
