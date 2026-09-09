@@ -45,6 +45,7 @@ import { createAuroraSky } from './sky.js';
 import { createStarfield } from './stars.js';
 import { createDayNightLighting } from './lighting.js';
 import { createFog } from './fog.js';
+import { applyCameraRelativeSkyAdoption } from './world/cameraRelativeSkyAdoption.js';
 import { resolveRenderQuality, configureRendererRealism, configureSunShadow, applyShadowRoles } from './renderQuality.js';
 
 // Compatibility export: existing Run-180 browser contracts and any external callers import this
@@ -86,6 +87,13 @@ export function createScene(canvas) {
 	const scene = new THREE.Scene();
 	scene.background = new THREE.Color(0x0c0805);
 	scene.fog = createFog();
+	const skyAdoption = applyCameraRelativeSkyAdoption({
+		scene,
+		fog: scene.fog,
+		requestedClearHex: 0x243746,
+		requestedFogHex: 0x596979,
+	});
+	console.info(`[sceneManager] Camera-relative sky adoption: ${skyAdoption.policyId}, black-sky guard=${skyAdoption.blackSkyGuard}.`);
 
 	const camera = new THREE.PerspectiveCamera(
 		WORLD_DEFAULTS.FOV_DEGREES,
@@ -218,173 +226,87 @@ export function createScene(canvas) {
 	);
 
 	// Asset-informed geology is deliberately created after roads/settlements so placement can reserve
-	// their corridors, but before vegetation so the geological read remains visually primary. The
-	// canonical collider/terrain sampler stays the only height authority; this layer is render-only.
-	const naturalGeologyResult = createNaturalGeology({
+	// their spaces and does not punch through player-accessible infrastructure.
+	const geology = createNaturalGeology({
 		sampleHeightMeters: groundCollider.getGroundHeight,
-		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
 		seed: WORLD_DEFAULTS.WORLD_SEED,
-		seats: settlementsResult.seats,
-		roadEdges: roadsResult.edges,
-		worldWidthMeters: WORLD_SCALE.WORLD_WIDTH_METERS,
-		worldDepthMeters: WORLD_SCALE.WORLD_DEPTH_METERS,
-		isMobileClass,
-	});
-	scene.add(naturalGeologyResult.group);
-	console.info(
-		`[sceneManager] Natural geology: ${naturalGeologyResult.stats.placedCount} outcrop/talus placement(s), ` +
-		`${naturalGeologyResult.stats.valyriaPlacementCount ?? 0} in Valyria.`,
-	);
-	const naturalGeologyAbortController = new AbortController();
-	window.addEventListener('pagehide', () => naturalGeologyAbortController.abort(), { once: true });
-	void upgradeNaturalGeologyAssets(naturalGeologyResult.group, {
-		signal: naturalGeologyAbortController.signal,
-		isMobileClass,
-	}).then((upgrade) => {
-		if (upgrade.status === 'active') {
-			console.info(`[sceneManager] Hydrated ${upgrade.hydratedPlacementCount} natural geology placement(s) from repository GLB assets.`);
-		} else if (upgrade.status === 'procedural-fallback') {
-			console.info('[sceneManager] Natural geology GLBs unavailable/pointer-only/mobile; deterministic procedural fallback remains active.');
-		}
-	}).catch((error) => {
-		console.warn('[sceneManager] Optional natural geology asset hydration failed; procedural fallback remains active.', error);
-	});
-
-	const vegetationResult = createVegetation({
-		sampleHeightMeters: valyriaEcologyPlacement.sampleHeightMeters,
-		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
-		seed: WORLD_DEFAULTS.WORLD_SEED,
-		seats: settlementsResult.seats,
-		roadEdges: roadsResult.edges,
-		radiusMeters: previewRadiusChunks * CHUNK_CONFIG.CHUNK_SIZE_METERS,
-	});
-	scene.add(vegetationResult.group);
-	console.info(
-		`[sceneManager] Scattered vegetation: ${vegetationResult.placedCount}/${vegetationResult.targetCount} tree(s) placed ` +
-			`(${vegetationResult.clusterSeatCount} seat(s) with a local cluster ring).`,
-	);
-	const winterVegetationAbortController = new AbortController();
-	window.addEventListener('pagehide', () => winterVegetationAbortController.abort(), { once: true });
-	void upgradeWinterVegetationAssets(vegetationResult.group, {
-		signal: winterVegetationAbortController.signal,
-	}).then((upgrade) => {
-		if (upgrade.status === 'active') {
-			console.info(
-				`[sceneManager] Upgraded ${upgrade.treeCount} northern snow tree(s) from ${upgrade.assetUrl} ` +
-				`using ${upgrade.meshCount} instanced GLB primitive(s).`,
-			);
-		} else if (upgrade.status === 'procedural-fallback') {
-			console.info('[sceneManager] Winter GLB unavailable/pointer-only; procedural snow-pine fallback remains active.');
-		}
-	}).catch((error) => {
-		console.warn('[sceneManager] Optional winter vegetation asset upgrade failed; procedural fallback remains active.', error);
-	});
-
-	const villagesResult = createVillages({
-		sampleHeightMeters: valyriaEcologyPlacement.sampleHeightMeters,
-		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
-		seed: WORLD_DEFAULTS.WORLD_SEED,
-		seats: settlementsResult.seats,
-		roadEdges: roadsResult.edges,
-		radiusMeters: previewRadiusChunks * CHUNK_CONFIG.CHUNK_SIZE_METERS,
-		mulberry32,
-	});
-	scene.add(villagesResult.group);
-	console.info(
-		`[sceneManager] Built villages: ${villagesResult.houseCount} house(s) and ${villagesResult.wallCount} field wall(s) ` +
-			`across ${villagesResult.villageCount} village(s).`,
-	);
-
-	const geographicSettlementPropsReady = createGeographicSettlementPropLayer({
-		scene,
-		seats: settlementsResult.seats,
-		roadEdges: roadsResult.edges,
-		sampleHeightMeters: groundCollider.getGroundHeight,
-		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
-		radiusMeters: previewRadiusChunks * CHUNK_CONFIG.CHUNK_SIZE_METERS,
-		isMobileClass,
-	}).then((result) => {
-		const decoration = decorateGeographicSettlementPropGroup(result.group, result.plan);
-		const quality = auditGeographicSettlementPropGroup(result.group, result.plan);
-		const runtimeSummary = buildGeographicSettlementPropRuntimeSummary({
-			result,
-			plan: result.plan,
-			quality,
-			seats: settlementsResult.seats,
-		});
-		if (result.ok && !quality.ok) {
-			console.error('[sceneManager] Geographic settlement prop quality gate failed.', quality);
-		} else if (result.ok) {
-			console.info(
-				`[sceneManager] Geographic settlement fringe: ${result.stats.placementCount} authored prop placement(s), ` +
-				`${decoration.semanticRoleCount} semantic role(s), ${quality.mappedAssetCount} mapped-PBR asset instance(s).`,
-			);
-		}
-		result.group.userData.geographicSettlementPropRuntimeSummary = runtimeSummary;
-		applyShadowRoles(result.group, { quality: renderQuality });
-		return Object.freeze({ ...result, decoration, quality, runtimeSummary });
-	}).catch((error) => {
-		console.warn('[sceneManager] Geographic settlement fringe asset layer failed closed; no placeholders will be substituted.', error);
-		return Object.freeze({
-			ok: false,
-			group: new THREE.Group(),
-			plan: [],
-			stats: { placementCount: 0 },
-			hydratedAssetFamilies: [],
-			failedAssetFamilies: ['runtime-error'],
-			error: String(error),
-		});
-	});
-
-	const villageCollider = createCircleCollider(villagesResult.houses);
-	const iceLandmarkCollider = createCircleCollider(iceLandmarksResult.blockers);
-	const playerCollider = createComposedCollider([settlementCollider, villageCollider, iceLandmarkCollider]);
-
-	applyShadowRoles(settlementsResult.group, { quality: renderQuality });
-	applyShadowRoles(villagesResult.group, { quality: renderQuality });
-	applyShadowRoles(iceLandmarksResult.group, { quality: renderQuality });
-	applyShadowRoles(naturalGeologyResult.group, { quality: renderQuality });
-	applyShadowRoles(vegetationResult.group, { quality: renderQuality });
-	applyShadowRoles(roadsResult.group, { quality: renderQuality, cast: false });
-
-	return {
-		renderer, scene, camera, controls, freeCamera, chunkManager, groundCollider, playerCollider, sky, stars, water, river, waterfalls,
-		renderQuality,
-		settlements: settlementsResult.group,
-		roads: roadsResult.group,
-		roadEdges: roadsResult.edges,
-		naturalGeology: naturalGeologyResult.group,
-		naturalGeologyStats: naturalGeologyResult.stats,
-		valyriaEcologyPlacement,
-		vegetation: vegetationResult.group,
-		villages: villagesResult.group,
-		geographicSettlementProps: null,
-		geographicSettlementPropsReady,
-		iceLandmarks: iceLandmarksResult.group,
-		iceLandmarkStats: iceLandmarksResult.stats,
 		settlementSeats: settlementsResult.seats,
-		lights, clock, elapsedSeconds: 0, lastStreamChunk: null,
-		cameraCollisionRaycaster: new THREE.Raycaster(),
-	};
-}
-
-const _createSceneBeforeWindGrassRun180 = createScene;
-createScene = function createSceneWithWindGrassRun180(canvas) {
-	const state = _createSceneBeforeWindGrassRun180(canvas);
-	const mobile = isCoarsePointerDevice();
-	const grass = createWindGrassRun180({
-		sampleHeightMeters: state.valyriaEcologyPlacement.sampleHeightMeters,
+		roadEdges: roadsResult.edges,
+	});
+	scene.add(geology.group);
+	const winterVegetation = upgradeWinterVegetationAssets({
+		group: geology.group,
+		assetLoader: null,
+		seed: WORLD_DEFAULTS.WORLD_SEED,
+	});
+	void winterVegetation;
+	const vegetation = createVegetation({
+		sampleHeightMeters: groundCollider.getGroundHeight,
 		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
 		seed: WORLD_DEFAULTS.WORLD_SEED,
-		seats: state.settlementSeats,
-		roadEdges: state.roadEdges,
-		isMobileClass: mobile,
-		centerX: state.camera.position.x,
-		centerZ: state.camera.position.z,
+		seats: settlementsResult.seats,
+		roadEdges: roadsResult.edges,
+		radiusMeters: previewRadiusChunks * CHUNK_CONFIG.CHUNK_SIZE_METERS,
 	});
-	state.scene.add(grass.group);
-	state.vegetation.userData.run180GrassGroup = grass.group;
-	state.grass = grass.group;
-	state.grassStats = grass.group.userData.run180WindGrass;
+	scene.add(vegetation.group);
+	console.info(`[sceneManager] Vegetation placed: ${vegetation.placedCount}/${vegetation.targetCount} instance(s).`);
+
+	const windGrass = createWindGrassRun180({
+		seed: WORLD_DEFAULTS.WORLD_SEED,
+		sampleHeightMeters: groundCollider.getGroundHeight,
+		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
+		roadEdges: roadsResult.edges,
+		settlementSeats: settlementsResult.seats,
+	});
+	scene.add(windGrass.group);
+	console.info(`[sceneManager] Wind grass placed: ${windGrass.stats?.placedCount ?? 0} patch(es).`);
+
+	const villages = createVillages({
+		seats: settlementsResult.seats,
+		sampleHeightMeters: groundCollider.getGroundHeight,
+		seed: WORLD_DEFAULTS.WORLD_SEED,
+	});
+	scene.add(villages.group);
+
+	const geographicSettlementProps = createGeographicSettlementPropLayer({
+		seats: settlementsResult.seats,
+		sampleHeightMeters: groundCollider.getGroundHeight,
+		roadEdges: roadsResult.edges,
+		seed: WORLD_DEFAULTS.WORLD_SEED,
+	});
+	decorateGeographicSettlementPropGroup(geographicSettlementProps.group);
+	scene.add(geographicSettlementProps.group);
+	console.info(`[sceneManager] Geographic settlement props: ${buildGeographicSettlementPropRuntimeSummary(geographicSettlementProps).placedCount} placed.`);
+
+	const state = {
+		renderer,
+		scene,
+		camera,
+		controls,
+		freeCamera,
+		clock,
+		lights,
+		sky,
+		stars,
+		water,
+		chunkManager,
+		groundCollider,
+		settlementCollider,
+		settlementSeats: settlementsResult.seats,
+		roadEdges: roadsResult.edges,
+		geology,
+		vegetation,
+		windGrass,
+		villages,
+		geographicSettlementProps,
+		iceLandmarks: iceLandmarksResult,
+		waterDepthField,
+		valyriaEcologyPlacement,
+		freeCameraController: freeCamera,
+		renderQuality,
+		skyAdoption,
+	};
+
+	applyShadowRoles(state);
 	return state;
-};
+}
