@@ -1,0 +1,56 @@
+name: Buzul Muhafizi shipped environment orchestrator v29
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/shippedEnvironmentVisualOrchestrator.js'
+      - 'scripts/checkShippedEnvironmentVisualOrchestrator.mjs'
+      - '.github/workflows/buzul-muhafizi-shipped-environment-orchestrator-v29.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Exact main ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor origin/main HEAD
+      - name: Scope and diff budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=$(git diff --name-only origin/main...HEAD)
+          test -n "$files"
+          while IFS= read -r file; do
+            case "$file" in
+              src/3d/world/shippedEnvironmentVisualOrchestrator.js|scripts/checkShippedEnvironmentVisualOrchestrator.mjs|.github/workflows/buzul-muhafizi-shipped-environment-orchestrator-v29.yml) ;;
+              *) echo "out-of-scope file: $file"; exit 1 ;;
+            esac
+          done <<< "$files"
+          changed=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
+      - name: Syntax
+        run: |
+          node --check src/3d/world/shippedEnvironmentVisualOrchestrator.js
+          node --check scripts/checkShippedEnvironmentVisualOrchestrator.mjs
+      - name: Runtime regression
+        run: node scripts/checkShippedEnvironmentVisualOrchestrator.mjs
+      - name: Boundary guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R "EditorMaterialStudio" src/3d/world/shippedEnvironmentVisualOrchestrator.js scripts/checkShippedEnvironmentVisualOrchestrator.mjs
+          ! grep -R "createBoxGeometry\|createSphereGeometry\|createConeGeometry" src/3d/world/shippedEnvironmentVisualOrchestrator.js
+          grep -q "MaterialAssignmentCore+WorldAssetPlacementPipeline" src/3d/world/shippedEnvironmentVisualOrchestrator.js
+          grep -q "canonicalAuthorityPreserved" src/3d/world/shippedEnvironmentVisualOrchestrator.js
+      - name: Diff hygiene
+        run: git diff --check origin/main...HEAD
