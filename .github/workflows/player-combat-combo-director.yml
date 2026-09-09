@@ -1,0 +1,23 @@
+name: player-combat-combo-director
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatComboDirector.js'
+      - 'scripts/checkPlayerCombatComboDirector.mjs'
+      - '.github/workflows/player-combat-combo-director.yml'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax check
+        run: node --check src/3d/gameplay/playerCombatComboDirector.js
+      - name: Execute contract
+        run: node scripts/checkPlayerCombatComboDirector.mjs
+      - name: Diff hygiene
+        run: git diff --check
