@@ -1,0 +1,28 @@
+name: settlement reward claim planner
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementRewardClaimPlanner.js'
+      - 'scripts/checkSettlementRewardClaimPlanner.mjs'
+      - '.github/workflows/settlement-reward-claim-planner.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/settlementRewardClaimPlanner.js'
+      - 'scripts/checkSettlementRewardClaimPlanner.mjs'
+      - '.github/workflows/settlement-reward-claim-planner.yml'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: syntax
+        run: node --check src/3d/gameplay/settlementRewardClaimPlanner.js && node --check scripts/checkSettlementRewardClaimPlanner.mjs
+      - name: focused regression
+        run: node scripts/checkSettlementRewardClaimPlanner.mjs
+      - name: runtime/editor boundary
+        run: '! grep -n "EditorMaterialStudio\|document\.\|window\." src/3d/gameplay/settlementRewardClaimPlanner.js'
