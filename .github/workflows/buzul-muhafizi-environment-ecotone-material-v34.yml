@@ -1,0 +1,50 @@
+name: Buzul Muhafizi Environment Ecotone Material Response v34
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/environmentEcotoneMaterialResponse.js'
+      - 'scripts/checkEnvironmentEcotoneMaterialResponse.mjs'
+      - '.github/workflows/buzul-muhafizi-environment-ecotone-material-v34.yml'
+  push:
+    branches:
+      - 'buzul-muhafizi/exact-main-environment-ecotone-material-v34-20260909'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify exact focused scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          base_sha="$(git merge-base HEAD origin/main)"
+          changed="$(git diff --name-only "$base_sha" HEAD)"
+          printf '%s\n' "$changed"
+          test -n "$changed"
+          forbidden='(src/3d/world/(terrain|water|sceneManager|naturalGeology|rivers|roads)\.js|EditorMaterialStudio\.js)'
+          if printf '%s\n' "$changed" | grep -E "$forbidden"; then
+            echo 'Forbidden contested production/editor path changed.'
+            exit 1
+          fi
+          count="$(git diff --numstat "$base_sha" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          test "$count" -le 3000
+      - name: Verify shared authority boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -nE "EditorMaterialStudio|MaterialAssignmentCore|WorldAssetPlacementPipeline" src/3d/world/environmentEcotoneMaterialResponse.js | grep -v "sharedMaterialAuthority\|sharedPlacementAuthority" || true
+          grep -q "sharedMaterialAuthority" src/3d/world/environmentEcotoneMaterialResponse.js
+          grep -q "sharedPlacementAuthority" src/3d/world/environmentEcotoneMaterialResponse.js
+      - name: Syntax check
+        run: node --check src/3d/world/environmentEcotoneMaterialResponse.js && node --check scripts/checkEnvironmentEcotoneMaterialResponse.mjs
+      - name: Execute contract
+        run: node scripts/checkEnvironmentEcotoneMaterialResponse.mjs
