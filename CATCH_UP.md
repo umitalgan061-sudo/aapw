@@ -6,6 +6,27 @@ anlarsın" özeti. **En yeni giriş en üstte.**
 
 ---
 
+## Run 362 itibarıyla (2026-09-09) — İlk kez ses var, arazi artık gerçekten dağlık, ve bir GitHub sürprizi
+
+Bu giriş normalde her ~10 çalıştırmada bir gelmesi gerekirken 22 çalıştırma (Run 341→362) geçti — geri
+dönüp bakılsın. En büyük ilk haber: **oyunda artık ses var.** Önceden tamamen sessizdi; şimdi duraklatma
+menüsünde tıklama sesi ve bir yerleşim keşfedince çalan bir "ding" var, ikisi de açıp kapatılabiliyor
+(sessize alma düğmesi eklendi). İkinci büyük haber: **arazi artık gerçekten dağlık hissettiriyor.**
+Birkaç çalıştırma boyunca (349-354) eğim/yüksekliğe göre biyom renklendirmesi, organik (düz çizgi değil)
+kıyı şeritleri ve gerçek bir yükselti farkı eklendi — iç bölgeler artık kendi kıyısından 780 metre
+yükseğe çıkabiliyor (öncesinde neredeyse düzdü), ve yollar bu dağların dik yamaçlarından değil eteklerinden
+dolaşıyor. Ayarlar ekranına grafik kalitesi seçeneği eklendi. Bir de can sıkıcı bir teknik sürpriz çıktı:
+GitHub deposu bir noktada `westeros-pwa`'dan `aapw`'a **yeniden adlandırılmış** görünüyor — bu, üç boyutlu
+modellerin (glTF/GLB) indirilmesini (git-lfs) etkiliyor, dosyalar hâlâ küçük "işaretçi" metinleri olarak
+duruyor, gerçek model değil. Bu konu birkaç kez tekrar doğrulandı ama hâlâ senin bir kararını bekliyor
+(`QUESTIONS_FOR_OWNER.md`'de: depoyu eski adına geri çevir, ya da ortamı yeni ada bağla) — kod tarafında
+yapılacak bir şey yok. Son birkaç çalıştırma (356-362) daha çok perde arkası temizlikti: kod kalitesi
+kuralına (dosya başına 600 satır sınırı) takılan altı büyük dosya bölündü, ve bu iş sırasında hiç
+fark edilmemiş gerçek bir yazım hatası (bozuk bir fonksiyon tanımı) bulunup düzeltildi — o kod henüz
+oyuna bağlı değildi, yani oyuncu hiçbir şey fark etmedi, ama artık dosya en azından çalışıyor.
+
+---
+
 ## Run 340 itibarıyla (2026-08-14) — Artık her şey birbirine çarpıyor, atlı araba var, oyun duraklatılabiliyor
 
 Bu 10 çalıştırmanın (331-340) teması "dünya artık gerçekten bir dünya gibi davranıyor": önceden
