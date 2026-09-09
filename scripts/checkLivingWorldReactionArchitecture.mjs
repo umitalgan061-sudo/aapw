@@ -3,6 +3,7 @@ import path from 'node:path';
 
 const ROOT = process.cwd();
 const runtimePath = path.resolve(ROOT, 'src/3d/gameplay/livingWorldReactionRuntime.js');
+const policyPath = path.resolve(ROOT, 'src/3d/gameplay/livingWorldReactionPolicy.js');
 const evidencePath = path.resolve(ROOT, 'src/3d/gameplay/livingWorldReactionEvidence.js');
 const runtimeTestPath = path.resolve(ROOT, 'scripts/checkLivingWorldReactionRuntime.mjs');
 const browserTestPath = path.resolve(ROOT, 'scripts/checkLivingWorldReactionBrowser.mjs');
@@ -28,6 +29,13 @@ function count(source, pattern) {
 }
 
 const runtime = read(runtimePath);
+const policy = read(policyPath);
+// Run 358 split relation/phase-decision/owner-service-call logic out of `livingWorldReactionRuntime.js`
+// into `livingWorldReactionPolicy.js` (a pure lossless move, see 3D_GAME_PROGRESS.md Run 358). The
+// architecture properties this file checks for (owner-service seam usage, no duplicate ownership) are
+// still true of the subsystem as a whole; `combined` lets assertions that used to find their evidence
+// in one file keep finding it now that it may live in either half.
+const combined = `${runtime}\n${policy}`;
 const evidence = read(evidencePath);
 const runtimeTest = read(runtimeTestPath);
 const browserTest = read(browserTestPath);
@@ -40,14 +48,14 @@ includes(runtime, 'export function auditLivingWorldReactionResult', 'runtime exp
 includes(runtime, 'export function livingWorldReactionDigest', 'runtime exposes deterministic digest evidence');
 includes(runtime, 'LIVING_WORLD_REACTION_RUNTIME_POLICY', 'runtime has a named bounded policy');
 includes(runtime, 'services?.perception', 'perception stays behind the existing owner/service seam');
-includes(runtime, 'services?.factions', 'faction lookup stays behind the existing owner/service seam');
-includes(runtime, 'services?.reputation', 'reputation stays behind the existing owner/service seam');
-includes(runtime, 'services?.diplomacy', 'diplomacy stays behind the existing owner/service seam');
-includes(runtime, 'services?.law', 'law/crime stays behind the existing owner/service seam');
-includes(runtime, 'services?.navigation', 'navigation stays behind the existing owner/service seam');
-includes(runtime, 'services?.encounters', 'combat/encounter stays behind the existing owner/service seam');
-includes(runtime, 'services?.worldEvents', 'world events stay behind the existing publisher seam');
-includes(runtime, 'services?.occupation', 'occupation stays behind the existing schedule owner seam');
+includes(combined, 'services?.factions', 'faction lookup stays behind the existing owner/service seam');
+includes(combined, 'services?.reputation', 'reputation stays behind the existing owner/service seam');
+includes(combined, 'services?.diplomacy', 'diplomacy stays behind the existing owner/service seam');
+includes(combined, 'services?.law', 'law/crime stays behind the existing owner/service seam');
+includes(combined, 'services?.navigation', 'navigation stays behind the existing owner/service seam');
+includes(combined, 'services?.encounters', 'combat/encounter stays behind the existing owner/service seam');
+includes(combined, 'services?.worldEvents', 'world events stay behind the existing publisher seam');
+includes(combined, 'services?.occupation', 'occupation stays behind the existing schedule owner seam');
 includes(runtime, 'maxActors: 128', 'actor population cap is explicit and bounded');
 includes(runtime, 'maxDeltaSeconds: 0.25', 'frame delta is bounded');
 includes(runtime, 'sensingIntervalSeconds: 0.15', 'sensing tick is throttled');
@@ -71,14 +79,14 @@ includes(runtime, 'normalizeLod', 'population LOD classification is explicit');
 includes(runtime, 'tickIntervalForLod', 'population LOD tick budget is explicit');
 includes(runtime, 'normalizeSignals', 'perception input normalization is explicit');
 includes(runtime, 'chooseBestSignal', 'perception signal arbitration is deterministic');
-includes(runtime, 'resolveReputation', 'relationship decision path reads reputation rather than owning it');
-includes(runtime, 'resolveDiplomaticRelation', 'relationship decision path reads diplomacy rather than owning it');
-includes(runtime, 'resolveWanted', 'law decision path reads wanted state rather than owning it');
-includes(runtime, 'resolveCrimeSeverity', 'crime decision path reads existing law evidence rather than owning it');
-includes(runtime, 'callNavigation', 'navigation is delegated instead of reimplemented');
-includes(runtime, 'callCombat', 'combat is delegated instead of reimplemented');
-includes(runtime, 'callLawReport', 'law reporting is delegated instead of reimplemented');
-includes(runtime, 'callWorldEvent', 'world-event publishing is delegated instead of reimplemented');
+includes(combined, 'resolveReputation', 'relationship decision path reads reputation rather than owning it');
+includes(combined, 'resolveDiplomaticRelation', 'relationship decision path reads diplomacy rather than owning it');
+includes(combined, 'resolveWanted', 'law decision path reads wanted state rather than owning it');
+includes(combined, 'resolveCrimeSeverity', 'crime decision path reads existing law evidence rather than owning it');
+includes(combined, 'callNavigation', 'navigation is delegated instead of reimplemented');
+includes(combined, 'callCombat', 'combat is delegated instead of reimplemented');
+includes(combined, 'callLawReport', 'law reporting is delegated instead of reimplemented');
+includes(combined, 'callWorldEvent', 'world-event publishing is delegated instead of reimplemented');
 
 // Forbidden ownership signals: no DOM/editor/material authoring/scene spawning/combat damage implementation.
 for (const forbidden of [
@@ -88,11 +96,12 @@ for (const forbidden of [
   'persistWorldState', 'localStorage', 'sessionStorage',
 ]) {
   excludes(runtime, forbidden, `runtime does not own forbidden concern: ${forbidden}`);
+  excludes(policy, forbidden, `policy module does not own forbidden concern: ${forbidden}`);
 }
 assert(count(runtime, /createLivingWorldReactionRuntime/g) >= 1, 'only one reaction runtime factory is defined');
-assert(count(runtime, /function callService\(/g) === 1, 'owner-service invocation seam is centralized');
-assert(count(runtime, /Math\.random/g) === 0, 'runtime never calls Math.random');
-assert(count(runtime, /Date\.now/g) === 0, 'runtime never uses wall-clock nondeterminism');
+assert(count(combined, /function callService\(/g) === 1, 'owner-service invocation seam is centralized');
+assert(count(combined, /Math\.random/g) === 0, 'runtime never calls Math.random');
+assert(count(combined, /Date\.now/g) === 0, 'runtime never uses wall-clock nondeterminism');
 
 // Evidence owner boundary: shared material/placement cores are references, not duplicate implementations.
 assert(evidence.split(/\r?\n/).length < 500, 'evidence helper remains bounded');

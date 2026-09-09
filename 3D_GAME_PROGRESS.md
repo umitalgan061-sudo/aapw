@@ -17216,3 +17216,118 @@ Standardı evidence. The pre-existing `checkServiceWorkerCache.js` (104+ unregis
 and `checkGeographicSettlementPropsIntegration.mjs` (missing browser-proof artifact) failures are
 independent, larger-scope items outside this run's atomic subtask; a future run should consider
 whether either warrants its own dedicated pass.
+
+## Run 358 (2026-09-09, scheduled routine) — `livingWorldReactionRuntime.js` split under the 600-line cap, a real regression found and fixed mid-run, full non-browser LWRR + governance sweep re-run
+
+**Session start.** Read `GOVERNANCE.md`, `CLAUDE.md`, `GOVERNANCE_CONTINUATION_OVERRIDE.md`,
+`GOVERNANCE_CONTINUOUS_OWNER_DIRECTIVE.md`, `GOVERNANCE_FULL_GAME_DIRECTIVE.md`, and this file's own
+tail (Run 357). `git log -15` confirmed `main` at `421b04d` (Run 357's own commit). `git fetch origin
+main` at session start returned `421b04d` — zero drift, safe to build on.
+
+**LFS/asset blocker — reconfirmed, not re-notified (same class as `RCA_RUN344_LFS_REPO_RENAME.md`,
+corroborated again by every run since 344).** No new probing done. Terrain macro-relief (priority item
+1) remains unattemptable here (its DoD ends in a Görsel Doğrulama Standardı step this session cannot
+produce), so this run continued the established fallback: technical debt cleanup (priority item 6),
+picking up Run 357's own named "next safe step."
+
+**Technical debt: split `src/3d/gameplay/livingWorldReactionRuntime.js` (743 lines) under the cap.**
+`checkSmokeCheckRegistry.js` listed it as the largest of 4 remaining files over Altın Kural 7's 600-line
+cap. Extracted the relation/faction/reputation/diplomacy/law resolution cluster, the phase-decision
+gates, and the small dependency-injected owner-service call bridge (navigation/encounters/law/world-
+events/occupation-schedule) into a new `src/3d/gameplay/livingWorldReactionPolicy.js` (255 lines):
+`callService`, `relationSnapshot` (+ its private `resolveFaction`/`resolveReputation`/
+`resolveDiplomaticRelation`/`resolveWanted`/`resolveCrimeSeverity`/`defaultRelation` helpers),
+`thresholdForPhase`, `nextPhaseForSignal`, `canAttack`, `canChase`, `scheduleDirective`,
+`callNavigation`, `callCombat`, `callLawReport`, `callWorldEvent` — one cohesive concern ("how should
+this actor react, and who do I tell") distinct from the runtime's own actor-state/tick-loop
+orchestration, which stayed in the original file. `livingWorldReactionRuntime.js` now imports the ten
+functions it still calls directly from the new module; a byte-diff of the moved function bodies against
+the pre-split original (stripping only the added `export` keywords) confirmed the move was logic-
+identical, differing solely by the blank lines needed to join the several non-contiguous ranges that
+were extracted. `livingWorldReactionRuntime.js` is now 545 lines; `livingWorldReactionPolicy.js` is 255.
+
+**A real regression, found and root-caused before commit, not shipped.** The first version of the split
+crashed every code path that reaches `scheduleDirective` (`ReferenceError: readPosition is not
+defined`, thrown from the new module) — `scheduleDirective` calls `readPosition(actor)`, and that
+6-line helper was left behind in `livingWorldReactionRuntime.js`, not carried into the new module. This
+was caught by actually *running* the non-browser Living World Reaction test suite
+(`scripts/checkLivingWorldReaction*.mjs`, minus the two `*Browser.mjs` ones, which are environment-
+blocked) rather than trusting `node --check` and the byte-diff alone — both of those had already passed
+on the broken version, since a missing runtime reference is not a syntax error and doesn't show up in a
+diff of the code that *was* moved correctly. Fix: duplicated `readPosition` into
+`livingWorldReactionPolicy.js` (matching an already-existing sibling duplicate of the same helper in
+`livingWorldDirectorRuntimeAdapter.js`, and the codebase-wide convention — confirmed via grep across
+~20 files — of each leaf module owning tiny, dependency-free helpers rather than importing them, which
+is what keeps this split's import direction one-directional and avoids a circular import between the
+two files). Re-ran the full non-browser LWRR suite after the fix: every one of the ten scripts
+(`checkLivingWorldReactionArchitecture/AssetContract/Budget/Integration/LedgerContract/Projection/
+Reset/Runtime/ScenarioMatrix/TelemetryContract.mjs`) now produces **byte-identical output** to
+unmodified `origin/main` (verified by diffing captured output before/after via `git stash`) — including
+several pre-existing failures/crashes in `LedgerContract`/`Projection`/`ScenarioMatrix`/`Budget`/
+`Reset`/`AssetContract`/`Runtime`/`Architecture.mjs` that already existed on `origin/main` before this
+run and are unrelated to this split (not investigated further — out of this run's atomic scope; a
+future run may want to RCA them, since a `TypeError` crash in a governance check script is not a
+healthy steady state regardless of cause).
+
+**A second, smaller regression in the same class, also found and fixed.**
+`checkLivingWorldReactionArchitecture.mjs` greps `livingWorldReactionRuntime.js`'s own source text for
+literal evidence strings (e.g. `'services?.factions'`, `'callNavigation'`) to prove the owner-service
+seam is used rather than reimplemented. Moving that code out of the file made the check stop finding
+its own evidence — 13 assertions newly failed (19 vs. the pre-existing 6) even though the underlying
+architecture property (every one of those seams is still used, just from the new module) remained true.
+Fixed by teaching the check script to also read `livingWorldReactionPolicy.js` and check the moved
+assertions against the concatenation of both files (`combined`), plus extending the forbidden-ownership-
+signal scan to the new file too, for the same defense-in-depth reason it already covered the original.
+Re-ran: back to the same pre-existing 6 failures (all six are a documentation gap — missing "ownership
+boundary" marker phrases — unrelated to this split, present on unmodified `main` already).
+
+**Validation.** `node --check` clean on all three touched/new files (`livingWorldReactionRuntime.js`,
+`livingWorldReactionPolicy.js`, `checkLivingWorldReactionArchitecture.mjs`). `checkSmokeCheckRegistry.js`
+violation count dropped 4→3 (`livingWorldReactionRuntime.js` no longer listed, now a 545/600 WARN).
+`checkTechnicalDebt.js` (0 new TEMP/HACK/FIXME/WORKAROUND, 56/43 recorded-debt counts unchanged),
+`checkSeededRandomPolicy.js` (no `Math.random()` under `src/3d`), `checkAssetsManifest.js` (547 entries
+resolve), `checkWorldReferenceMap.js` (17/5/4 zones), `checkWorldEventDeterminism.js` (24-emission
+checksum match), `checkPwaInstallability.js` all PASS fresh. `checkServiceWorkerCache.js` FAIL count
+moved 106→107 `src/3d` files (confirmed via `git stash` that 106 is the pre-existing count on unmodified
+`origin/main`, same backlog Run 357 also added one file to) — this run's one new file is the only
+addition, not a new class of failure. `roadNetworkSafetyCheck.js`/`terrainSeatSafetyCheck.js` were not
+run — both require a Playwright/headless-Chromium browser session, environment-blocked exactly as
+documented, and neither touches anything this run changed.
+
+Full DoD sweep: `node --check` PASS on all touched files; smoke test — non-browser half PASS (including
+a full, byte-identical-to-`origin/main` re-verification of the entire non-browser Living World Reaction
+suite, a stronger check than prior file-split runs typically ran), browser half environment-blocked (not
+a regression); visual evidence — N/A, non-visual refactor; performance — no runtime behavior change,
+`perf_log.csv` not appended (no live renderer stats available here); memory-leak checklist — N/A, no new
+object lifecycles, same closures/caching patterns preserved verbatim; technical debt — net -1 violation
+(4→3), 0 new TEMP/HACK markers; World Coverage — unchanged (desktop 96.2%/mobile 4.5%, no world-data
+delta). World Evolution Report: no yol/orman/kale/NPC/hayvan/event count change; "oyuncu fark eder mi" —
+hayır, davranış birebir aynı (ve bu run bunu gerçek test suite'iyle kanıtladı, yalnız statik diff'le
+değil), yalnızca dosya organizasyonu değişti. No ADR — pure internal reorganization, no design decision,
+no affected external contract.
+
+**Process note for future split runs, not a rule change (documented here since it changed how this run
+worked, not what it built):** a byte-diff of moved code plus `node --check` is necessary but was not
+sufficient this run — it missed a helper function used by the moved code but left behind in the
+original file, because that shows up only as a *runtime* reference error, not a diff or syntax
+difference. Whenever a split subtask has a real, runnable non-browser test suite for the module being
+split (as this one did), run that suite before and after — not just the generic registry/tech-debt/
+determinism checks — since those don't execute the split module's own logic at all.
+
+Risk: LOW (verified lossless split — byte-diffed against the pre-split original, and independently
+confirmed by an exact-output-match of the module's own full non-browser test suite before/after — all
+reachable non-browser regressions green, all remaining failures independently reproduced as pre-existing
+on unmodified `origin/main`). Next safe step: repeat this same split treatment on the next largest
+over-cap file (`src/3d/world/terrainBiomeShading.js`, 724 lines, now the largest of the 3 remaining
+violations — `src/3d/world/iceLandmarks.js` at 652 and `src/3d/gameplay/settlementVerticalSlice.js` at
+638 also remain), or — once a future environment has working LFS/asset access — resume terrain
+macro-relief with its full Görsel Doğrulama Standardı evidence. The pre-existing
+`checkServiceWorkerCache.js` (107+ unregistered `src/3d` files) and `checkGeographicSettlementPropsIntegration.mjs`
+(missing browser-proof artifact) failures remain independent, larger-scope items outside this run's
+atomic subtask, as do the pre-existing crashes/failures in `checkLivingWorldReactionLedgerContract.mjs`,
+`checkLivingWorldReactionProjection.mjs`, `checkLivingWorldReactionScenarioMatrix.mjs`,
+`checkLivingWorldReactionBudget.mjs`, `checkLivingWorldReactionReset.mjs`,
+`checkLivingWorldReactionAssetContract.mjs`, `checkLivingWorldReactionRuntime.mjs` (4 assertions) and
+`checkLivingWorldReactionArchitecture.mjs` (6 assertions) noted above — none touched by this run's
+atomic subtask, all confirmed pre-existing, a future run should consider whether any warrant their own
+dedicated RCA/fix pass.
