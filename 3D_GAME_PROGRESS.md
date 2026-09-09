@@ -17437,3 +17437,94 @@ unregistered `src/3d` files, spanning several prior runs' split-off sibling modu
 independent, larger-scope item outside this run's atomic subtask — a future run should consider whether
 it warrants its own dedicated pass to bring `service-worker.js`'s shell list back in sync with the real
 import graph.
+
+## Run 360 (2026-09-09, scheduled routine) — `iceLandmarks.js` split under the 600-line cap (noise/texture-generation extraction); scheduled-prompt staleness note
+
+**Session start.** Read `GOVERNANCE.md`, `CLAUDE.md`, `GOVERNANCE_CONTINUATION_OVERRIDE.md`,
+`GOVERNANCE_CONTINUOUS_OWNER_DIRECTIVE.md`, `GOVERNANCE_FULL_GAME_DIRECTIVE.md`, this file's own tail
+(Run 359), `QUESTIONS_FOR_OWNER.md` tail, `CATCH_UP.md` head, `RULES_CHANGELOG.md` tail. `git fetch
+origin main` matched local `HEAD` exactly (`aee3d26`, Run 359's own commit) — zero drift, safe to build on.
+
+**Scheduled-prompt staleness note (not a rule change, a one-time observation for the record):** this
+run's incoming scheduled prompt's first instruction was "create `GOVERNANCE.md` from scratch, it doesn't
+exist yet." It already exists (created run ~56-76 per `RULES_CHANGELOG.md`, now 33 sections, ~52 KB) and
+already covers every item the prompt listed as new — console-cleanliness DoD item (§8.1), terrain-change
+safety check via `terrainSeatSafetyCheck.js`/`roadNetworkSafetyCheck.js` (already implemented, referenced
+throughout recent runs), deterministic regression checksums (`checkWorldEventDeterminism.js`, PASS this
+run), stable-tag checkpoints (`STABLE_TAGS.md`, 123 KB, populated), rule-set consolidation passes
+(`RULES_CHANGELOG.md`, multiple entries above), per-subsystem error containment, `CREDITS.md` (89 KB,
+already populated with Meshy AI/Mixamo/Free3D/Hitem3d attributions), `assets_manifest.json` source
+URL+date fields, `CATCH_UP.md` (populated, most recent entry run 340), `perf_log.csv` (populated,
+17 KB), `QUESTIONS_FOR_OWNER.md` escalation log (populated, run 355 most recent entry), Turkish in-game
+text vs. English code/comments (already the established convention throughout `src/3d`), PWA cache
+versioning (`service-worker.js` `SHELL_CACHE` versioned v11→v12+ across runs), periodic platform checks
+(§ "Periyodik Platform Kontrolü", last documented run 321/current). Re-reading and re-writing all of this
+from scratch would have discarded ~300 runs of accumulated, cross-referenced governance history for no
+gain and real loss (broken run-number citations throughout `QUESTIONS_FOR_OWNER.md`/`RULES_CHANGELOG.md`/
+`3D_GAME_PROGRESS.md` that point at specific `GOVERNANCE.md` sections). No `GOVERNANCE.md` edit made this
+run; nothing conflicting or stale found on this pass (a real consolidation pass, if due, is a separate,
+dedicated subtask per §"Kural Seti Bakımı" — last one on record is effectively continuous given the file
+already reflects every run's rule changes incrementally, not batched).
+
+**LFS/asset blocker — reconfirmed, not re-notified** (same class as `RCA_RUN344_LFS_REPO_RENAME.md`,
+corroborated again this run: `git lfs` is not a recognized git command in this environment, `assets/**/*.glb`
+samples are still ~130-131 byte pointer text, session repo scope is still the pre-rename name). Terrain
+macro-relief (priority item 1) remains unattemptable here, so this run continued Run 358/359's own named
+"next safe step": technical debt cleanup (priority item 6) on the next largest over-cap file.
+
+**Technical debt: split `src/3d/world/iceLandmarks.js` (652/653 lines) under the cap.**
+`checkSmokeCheckRegistry.js` re-confirmed the 2 remaining Altın Kural 7 violations
+(`iceLandmarks.js` 652, `settlementVerticalSlice.js` 638); picked `iceLandmarks.js` as it has the fewest
+external check-script dependents (2, both ES-import-based, vs. 9 for the other file — smaller blast
+radius). Read the file in full. The cleanest separable concern was its **deterministic value-noise
+helpers + procedural ice-surface texture generator**: `clamp01`, `smoothstep`, `hash2D`, `valueNoise2D`,
+`fbm2D`, and `createIceSurfaceTextures` (121 lines) — extracted verbatim into a new
+`src/3d/world/iceLandmarkNoise.js`. Three of the five helpers (`clamp01`, `hash2D`, `valueNoise2D`) are
+also called directly from other functions later in `iceLandmarks.js` (wall/cave geometry noise, portal
+UV clamping), not just from the texture generator, so those three are re-exported and imported back;
+`smoothstep` and `fbm2D` stay private in the new file since nothing outside it uses them. The new file
+imports only `three` — nothing from `iceLandmarks.js` — so the split is strictly one-directional.
+A diff of the moved block against the pre-split original (`git show HEAD:...`) confirmed the function
+bodies are byte-identical; only the `export` keyword was added to four of the five moved declarations.
+`iceLandmarks.js` is now 531 lines; `iceLandmarkNoise.js` is 132.
+
+**Validation.** `node --check` clean on both files. Confirmed via a true `git stash -u` baseline that
+`checkSmokeCheckRegistry.js`'s violation count was 2 before this run and is 1 after (only
+`settlementVerticalSlice.js`, untouched by this run, remains). `checkTechnicalDebt.js` (0 new
+TEMP/HACK/FIXME/WORKAROUND, 56/43 recorded-debt counts unchanged), `checkAssetsManifest.js` (547 entries
+OK), `checkWorldReferenceMap.js`, `checkSeededRandomPolicy.js`, `checkWorldEventDeterminism.js` (checksum
+match), `checkPwaInstallability.js` all PASS, unaffected by this change. `checkServiceWorkerCache.js`
+`src/3d` count moved 108→109 (confirmed via `git stash -u` that 108 is the true pre-existing baseline on
+unmodified `origin/main`) — this run's one new file is the only addition, matching the same pattern Run
+357/358/359 each left for their own new sibling modules; not hand-edited, per that same precedent.
+`checkIceLandmarks.mjs`/`checkIceLandmarksVisualQa.js` (the file's own 2 dependent check scripts) both
+fail identically to their pre-existing, environment-blocked state (`ERR_MODULE_NOT_FOUND: three` — no
+`node_modules` here; a DOM `Image` decode failure needing a real browser/canvas) — neither is a
+regression, neither touches anything this run's diff could affect (both import the module's unchanged
+public surface: `ICE_LANDMARK_POLICY`, `createIceLandmarks`, `disposeIceLandmarks`).
+`roadNetworkSafetyCheck.js`/`terrainSeatSafetyCheck.js` were not run — both require a headless-Chromium
+session, environment-blocked exactly as documented, and neither touches anything this run changed.
+
+Full DoD sweep: `node --check` PASS on both touched/new files; smoke test — non-browser half PASS (full
+governance/smoke-registry sweep above, all byte-identical or improved vs. the true clean baseline),
+browser half environment-blocked (not a regression, pre-existing); visual evidence — N/A, non-visual
+refactor (byte-identical function bodies, confirmed by diff); performance — no runtime behavior change,
+`perf_log.csv` not appended (no live renderer stats available in this environment); memory-leak
+checklist — N/A, no new object lifecycles, same `THREE.DataTexture`/material/geometry disposal pattern
+in `disposeIceLandmarks` preserved verbatim and untouched; technical debt — net −1 violation (2→1), 0 new
+TEMP/HACK markers; World Coverage — unchanged (desktop 96.2%/mobile 4.5%, no world-data delta). World
+Evolution Report: no yol/orman/kale/NPC/hayvan/event count change; "oyuncu fark eder mi" — hayır, davranış
+birebir aynı (aynı noise fonksiyonları, aynı seed'ler, aynı doku çıktısı — yalnızca hangi dosyada
+tanımlandıkları değişti). No ADR — pure internal reorganization, no design decision, no affected external
+contract or numeric value.
+
+Risk: LOW (verified lossless split — byte-diffed against the pre-split original; full non-browser check
+battery byte-identical/improved before-after against a true clean `git stash -u` baseline; both of the
+module's own dependent check scripts fail identically to their pre-existing environment-blocked state).
+Next safe step: split the one remaining Altın Kural 7 violation (`src/3d/gameplay/settlementVerticalSlice.js`,
+638 lines — its 9 check-script dependents make it a larger, more careful pass than this run's or Run
+358/359's), or — once a future environment has working LFS/asset access — resume terrain macro-relief
+with its full Görsel Doğrulama Standardı evidence. The pre-existing `checkServiceWorkerCache.js` (109+
+unregistered `src/3d` files) and `checkGeographicSettlementPropsIntegration.mjs` (missing browser-proof
+artifact) failures remain independent, larger-scope items outside this run's atomic subtask, as do the
+pre-existing `checkLivingWorldReaction*` failures noted in Run 358/359 — none touched by this run.
