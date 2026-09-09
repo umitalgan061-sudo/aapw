@@ -4,7 +4,6 @@
  */
 import {
   getSettlementService,
-  getSettlementQuestObjective,
   getSettlementRoute,
   getSettlementRecipe,
   resolveCraftingRecipe,
@@ -22,7 +21,6 @@ const finite = (value, fallback = 0) => {
   return Number.isFinite(number) ? number : fallback;
 };
 const integer = (value, min, max, fallback = min) => Math.max(min, Math.min(max, Math.trunc(finite(value, fallback))));
-const clone = (value) => value == null ? value : JSON.parse(JSON.stringify(value));
 const stable = (value) => {
   if (value === null || typeof value !== 'object') return JSON.stringify(value);
   if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
@@ -33,6 +31,12 @@ const digest = (value) => {
   const source = stable(value);
   for (let index = 0; index < source.length; index += 1) { hash ^= source.charCodeAt(index); hash = Math.imul(hash, 16777619); }
   return (hash >>> 0).toString(16).padStart(8, '0');
+};
+const deepFreeze = (value) => {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+  Object.freeze(value);
+  for (const child of Object.values(value)) deepFreeze(child);
+  return value;
 };
 const normalizeSnapshot = (raw = {}) => {
   const source = raw && typeof raw === 'object' ? raw : {};
@@ -98,6 +102,6 @@ export function planSettlementNextStep(rawSnapshot = {}, rawContext = {}) {
     alternatives: serviceCandidates.filter((item) => item.serviceId !== primary.serviceId).slice(0, 6),
     summary: { objectiveCount: objectiveRows.length, actionableObjectives: objectiveRows.filter((row) => row.status === 'available').length, availableServices: serviceCandidates.filter((item) => item.available).length },
   };
-  return Object.freeze(JSON.parse(JSON.stringify({ ...result, digest: digest(result) })));
+  return deepFreeze({ ...result, digest: digest(result) });
 }
 export const serializeSettlementNextStepPlan = (plan) => stable(plan);
