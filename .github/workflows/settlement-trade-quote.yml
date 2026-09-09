@@ -1,0 +1,27 @@
+name: Settlement Trade Quote
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementTradeQuote.js'
+      - 'scripts/checkSettlementTradeQuote.mjs'
+      - '.github/workflows/settlement-trade-quote.yml'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check src/3d/gameplay/settlementTradeQuote.js
+      - run: node scripts/checkSettlementTradeQuote.mjs
+      - name: Diff budget
+        shell: bash
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          lines=$(git diff --numstat "$base"...HEAD -- src/3d/gameplay/settlementTradeQuote.js scripts/checkSettlementTradeQuote.mjs .github/workflows/settlement-trade-quote.yml | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$lines" -le 3000
+      - name: Boundary guard
+        shell: bash
+        run: |
+          ! git diff --name-only "${{ github.event.pull_request.base.sha }}"...HEAD | grep -E '(^src/3d/world/|^src/3d/materials/|EditorMaterialStudio)' || true
