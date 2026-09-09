@@ -1,0 +1,46 @@
+name: buzul-muhafizi-shipped-visual-adoption-v31
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/shippedVisualAdoption.js'
+      - 'scripts/checkShippedVisualAdoption.mjs'
+      - '.github/workflows/buzul-muhafizi-shipped-visual-adoption-v31.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verify exact-main ancestry and focused scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor origin/main HEAD
+          files=$(git diff --name-only origin/main...HEAD)
+          test -n "$files"
+          while IFS= read -r file; do
+            case "$file" in
+              src/3d/world/shippedVisualAdoption.js|scripts/checkShippedVisualAdoption.mjs|.github/workflows/buzul-muhafizi-shipped-visual-adoption-v31.yml) ;;
+              *) echo "Unexpected file in focused world scope: $file"; exit 1 ;;
+            esac
+          done <<< "$files"
+          changed=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
+          git diff --check origin/main...HEAD
+      - name: Syntax and executable adoption contract
+        run: |
+          node --check src/3d/world/shippedVisualAdoption.js
+          node --check scripts/checkShippedVisualAdoption.mjs
+          node scripts/checkShippedVisualAdoption.mjs
+      - name: Guard shared material/editor boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! git diff origin/main...HEAD -- '*.js' | grep -E 'EditorMaterialStudio|MaterialAssignmentCore|WorldAssetPlacementPipeline' || true
