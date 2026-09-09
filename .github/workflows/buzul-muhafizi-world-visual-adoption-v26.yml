@@ -1,0 +1,73 @@
+name: Buzul Muhafizi World Visual Adoption v26
+
+on:
+  pull_request:
+    paths:
+      - src/3d/world/worldVisualAdoptionDirector.js
+      - scripts/checkWorldVisualAdoptionDirector.mjs
+      - .github/workflows/buzul-muhafizi-world-visual-adoption-v26.yml
+  push:
+    branches:
+      - main
+      - buzul-muhafizi/exact-main-world-visual-adoption-v26-20260909
+
+jobs:
+  world-visual-adoption:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exact main ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse origin/main)" = "a05509f812b37fc34cdd058f4af30c8763a4c9ed" || {
+            echo "main advanced; requalify from fresh exact origin/main" >&2
+            exit 1
+          }
+          git merge-base --is-ancestor a05509f812b37fc34cdd058f4af30c8763a4c9ed HEAD
+      - name: Scope and diff budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=$(git diff --name-only a05509f812b37fc34cdd058f4af30c8763a4c9ed...HEAD)
+          expected=$'\.github/workflows/buzul-muhafizi-world-visual-adoption-v26.yml\nscripts/checkWorldVisualAdoptionDirector.mjs\nsrc/3d/world/worldVisualAdoptionDirector.js'
+          test "$(printf '%s\n' "$files" | sort)" = "$(printf '%s\n' "$expected" | sort)"
+          changed=$(git diff --numstat a05509f812b37fc34cdd058f4af30c8763a4c9ed...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$changed" -le 3000
+          test "$(git diff --numstat a05509f812b37fc34cdd058f4af30c8763a4c9ed | awk '$2>0 {bad=1} END {print bad+0}')" = 0
+      - name: Syntax
+        run: |
+          node --check src/3d/world/worldVisualAdoptionDirector.js
+          node --check scripts/checkWorldVisualAdoptionDirector.mjs
+      - name: Executable contract
+        run: node scripts/checkWorldVisualAdoptionDirector.mjs
+      - name: Shared material and editor boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R "EditorMaterialStudio\|MaterialAssignmentCore\|WorldAssetPlacementPipeline" src/3d/world/worldVisualAdoptionDirector.js scripts/checkWorldVisualAdoptionDirector.mjs
+          grep -q "requireMaterialAssignmentCore: true" src/3d/world/worldVisualAdoptionDirector.js
+          grep -q "requireWorldAssetPlacementPipeline: true" src/3d/world/worldVisualAdoptionDirector.js
+      - name: Production ownership boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -E "createHeight|createWater|createVegetation|createNaturalGeology|createScene|new THREE|Object3D" src/3d/world/worldVisualAdoptionDirector.js
+          grep -q "canonicalMutation: false" src/3d/world/worldVisualAdoptionDirector.js
+      - name: Deterministic serialization
+        run: |
+          node --input-type=module - <<'NODE'
+          import { buildWorldVisualAdoptionManifest, stableWorldVisualAdoptionString } from './src/3d/world/worldVisualAdoptionDirector.js';
+          const sample = { id: 'probe', phase: 'near', position: {x: 1, y: 2, z: 3}, height: 2, slope: .2, moisture: .4, temperature: 0, waterDistance: 50, roadDistance: 100, settlementDistance: 100, groundConfidence: 1, snowCover: 0, canopy: .5, skyLuminance: .3, exposure: 1, hasCanonicalHeight: true, hasCanonicalBiome: true, tileBoundaryDistance: 100, textureRepeatRisk: 0, moireRisk: 0, blackSkyRisk: 0 };
+          const a = buildWorldVisualAdoptionManifest([sample]);
+          const b = buildWorldVisualAdoptionManifest([{...sample}]);
+          if (stableWorldVisualAdoptionString(a) !== stableWorldVisualAdoptionString(b)) process.exit(1);
+          console.log('determinism: PASS');
+          NODE
