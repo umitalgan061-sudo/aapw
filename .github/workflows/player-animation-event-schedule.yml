@@ -1,0 +1,39 @@
+name: player-animation-event-schedule
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerAnimationEventSchedule.js'
+      - 'scripts/checkPlayerAnimationEventSchedule.mjs'
+      - '.github/workflows/player-animation-event-schedule.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Exact-base and focused-scope guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git merge-base HEAD origin/main)" = "a05509f812b37fc34cdd058f4af30c8763a4c9ed"
+          files="$(git diff --name-only origin/main...HEAD)"
+          test "$(printf '%s\n' "$files" | sed '/^$/d' | wc -l)" -eq 3
+          printf '%s\n' "$files" | grep -Fxq 'src/3d/gameplay/playerAnimationEventSchedule.js'
+          printf '%s\n' "$files" | grep -Fxq 'scripts/checkPlayerAnimationEventSchedule.mjs'
+          printf '%s\n' "$files" | grep -Fxq '.github/workflows/player-animation-event-schedule.yml'
+          test "$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')" -le 3000
+      - name: Syntax
+        run: node --check src/3d/gameplay/playerAnimationEventSchedule.js
+      - name: Executable contract
+        run: node scripts/checkPlayerAnimationEventSchedule.mjs
+      - name: Runtime/editor boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R "EditorMaterialStudio\|document\.\|window\." src/3d/gameplay/playerAnimationEventSchedule.js scripts/checkPlayerAnimationEventSchedule.mjs
