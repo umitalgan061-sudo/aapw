@@ -17528,3 +17528,101 @@ with its full Görsel Doğrulama Standardı evidence. The pre-existing `checkSer
 unregistered `src/3d` files) and `checkGeographicSettlementPropsIntegration.mjs` (missing browser-proof
 artifact) failures remain independent, larger-scope items outside this run's atomic subtask, as do the
 pre-existing `checkLivingWorldReaction*` failures noted in Run 358/359 — none touched by this run.
+
+## Run 361 (2026-09-09, scheduled routine) — `settlementVerticalSlice.js` split under the 600-line cap (normalization/gate-evaluation extraction); zero remaining Altın Kural 7 violations
+
+**Session start.** Read `GOVERNANCE.md`, `CLAUDE.md`, `GOVERNANCE_CONTINUATION_OVERRIDE.md`,
+`GOVERNANCE_CONTINUOUS_OWNER_DIRECTIVE.md`, `GOVERNANCE_FULL_GAME_DIRECTIVE.md`, this file's own tail
+(Run 360), `QUESTIONS_FOR_OWNER.md` tail, `DECISIONS.md` tail. `git fetch origin main` initially showed
+local `HEAD` 251 commits behind a *stale* cached `origin/main` ref from clone time — a false alarm, not a
+concurrency conflict: a fresh `git fetch origin main` immediately resolved `origin/main` to the exact same
+commit as local `HEAD` (`6fd7ef5`, Run 360's own commit). Local `main` branch pointer was separately stale
+(`f698d2a`, pre-run-350) from being left on detached `HEAD` across prior runs; reset it to `origin/main`
+before starting so this run commits on a proper branch instead of detached `HEAD`.
+
+**Scheduled-prompt staleness note (not re-litigated in full — see Run 360 for the complete accounting):**
+this run's incoming prompt again opened with "create `GOVERNANCE.md` from scratch." Confirmed once more it
+already exists (33 sections, ~52 KB, last touched run ~355) and `CREDITS.md` (89 KB) is already populated.
+No edit made; nothing new to reconcile since Run 360's pass four hours (in-fiction) earlier.
+
+**LFS/asset blocker — reconfirmed, not re-notified** (same class as `RCA_RUN344_LFS_REPO_RENAME.md`):
+`git lfs` is still not an installed command in this environment; sampled `assets/**/*.glb` files are still
+~130-131 byte pointer text; session repo scope is still the pre-rename name. Terrain macro-relief
+(priority item 1) remains unattemptable here, so this run continued Run 358/359/360's own named "next
+safe step": the one remaining Altın Kural 7 violation.
+
+**Technical debt: split `src/3d/gameplay/settlementVerticalSlice.js` (638/639 lines) under the cap.**
+`checkSmokeCheckRegistry.js` confirmed this was the only remaining over-cap file (the larger-blast-radius
+one Run 360 deliberately deferred: 9 external check-script dependents vs. iceLandmarks.js's 2). Read the
+file in full. The cleanest separable concern was its **input normalization and gate-evaluation layer** —
+pure, side-effect-free helpers with no dependency on the runtime factory: `SETTLEMENT_LIMITS`, `ACTIONS`,
+`NODE_KINDS`, `CAPABILITY_FOR_ACTION`, `HANDLER_FOR_ACTION`, `id`, `text`, `finite`, `integer`, `boolMap`,
+`amountMap`, `reputationMap`, `questMap`, `capabilities`, `normalizeContext`, `normalizeGate`,
+`normalizeNode`, `normalizeDefinition`, `stableStringify`, `hash`, `evaluateSettlementGate`,
+`evaluateSettlementGates` (306 lines) — extracted verbatim into a new
+`src/3d/gameplay/settlementVerticalSliceNormalize.js`. The new file has zero imports (pure functions only),
+so the split is strictly one-directional: `settlementVerticalSlice.js` imports from it, never the reverse.
+A diff against the pre-split original confirmed every moved function body is byte-identical — only the
+`export` keyword was added. `settlementVerticalSlice.js` re-exports `SETTLEMENT_LIMITS`,
+`evaluateSettlementGate` and `evaluateSettlementGates` so its public import surface
+(`./settlementVerticalSlice.js`) is completely unchanged for the 9 existing external consumers (verified by
+grep: all import only already-public names — `createSettlementVerticalSlice`, `evaluateSettlementGate`,
+`evaluateSettlementGates`, `buildSettlementInteractionRail`, `settlementActionLabel`,
+`settlementNodeKindLabel`, `describeSettlementAction`, `summarizeSettlementSlice`,
+`validateSettlementSliceDefinition`, `normalizeSettlementContext`, `fingerprintSettlementContext` — none
+reach into the internal helpers now living in the sibling file). `settlementVerticalSlice.js` is now 368
+lines; `settlementVerticalSliceNormalize.js` is 306.
+
+**Validation.** `node --check` clean on both files. `checkSmokeCheckRegistry.js`: **0 violations** (684
+files, 14 approaching the cap — down from the 1 remaining violation Run 360 left). Ran all 9 dependent
+check scripts (`checkSettlementVerticalSliceJourney.mjs`, `checkSettlementRoleCatalog.mjs`,
+`checkSettlementVerticalSliceMatrix.mjs`, `checkSettlementCampaignContracts.mjs`,
+`checkSettlementVerticalSliceEvents.mjs`, `checkSettlementVerticalSliceContent.mjs`,
+`checkSettlementCampaignRuntime.mjs`, `checkSettlementVerticalSliceRoleRuntime.mjs`,
+`checkSettlementCampaignDeepSlice.mjs`) both **before** (`git stash -u` against the true clean baseline)
+and **after** this run's diff: all 9 already fail on unmodified `origin/main` (pre-existing, unrelated
+defects — a `NODE_KINDS.includes is not a function` bug in `settlementVerticalSliceRoles.js`, a syntax
+error in `settlementCampaignFacade.js`, missing exports in `settlementVerticalSliceContent.js`, and several
+failing content/runtime assertions), and every one of the 9 outputs is **byte-identical** before and after
+— confirmed with `diff`, not just exit codes. None is a regression this run introduced or is in scope to
+fix (each belongs to a different file this run did not touch). `checkTechnicalDebt.js` (0 new
+TEMP/HACK/FIXME/WORKAROUND, 56/43 counts unchanged), `checkAssetsManifest.js` (547 entries OK),
+`checkWorldReferenceMap.js`, `checkSeededRandomPolicy.js`, `checkWorldEventDeterminism.js` (checksum
+match), `checkPwaInstallability.js` all PASS, unaffected by this change. `checkServiceWorkerCache.js`
+`src/3d` count moved 109→110 (confirmed via `git stash -u` that 109 is the true pre-existing baseline) —
+this run's one new file is the only addition, matching the same pattern Run 357/358/359/360 each left for
+their own new sibling modules; not hand-edited, per that same precedent.
+`roadNetworkSafetyCheck.js`/`terrainSeatSafetyCheck.js` were not run — both require a headless-Chromium
+session, environment-blocked exactly as documented, and neither touches anything this run changed.
+
+Full DoD sweep: `node --check` PASS on both touched/new files; smoke test — non-browser half PASS (full
+governance/smoke-registry sweep above, all byte-identical or improved vs. the true clean baseline),
+browser half environment-blocked (not a regression, pre-existing); visual evidence — N/A, non-visual
+refactor (byte-identical function bodies, confirmed by diff); performance — no runtime behavior change,
+`perf_log.csv` not appended (no live renderer stats available in this environment); memory-leak
+checklist — N/A, no new object lifecycles, no THREE.js resources involved (pure data-normalization module);
+technical debt — net 0 (56/43 recorded counts unchanged, 0 new TEMP/HACK markers); World Coverage —
+unchanged (desktop 96.2%/mobile 4.5%, no world-data delta). World Evolution Report: no yol/orman/kale/
+NPC/hayvan/event count change; "oyuncu fark eder mi" — hayır, davranış birebir aynı (aynı doğrulama
+mantığı, aynı seed'ler — yalnızca hangi dosyada tanımlandıkları değişti). No ADR — pure internal
+reorganization, no design decision, no affected external contract or numeric value.
+
+Risk: LOW (verified lossless split — diffed against the pre-split original; full non-browser check
+battery byte-identical/improved before-after against a true clean `git stash -u` baseline; all 9 of the
+module's own dependent check scripts produce byte-identical output before and after, confirming their
+failures are pre-existing and unrelated to this diff).
+
+**Next safe step:** Altın Kural 7 is now fully clear (0 violations, 684/684 files under the 600-line cap)
+for the first time since this cleanup series began (Run 357). The next-largest structural items are: (a)
+the pre-existing, unrelated defects surfaced above by the settlement check scripts (`NODE_KINDS.includes`
+TypeError in `settlementVerticalSliceRoles.js`, the `settlementCampaignFacade.js` syntax error, missing
+`isSettlementRole` export) — each is its own atomic bugfix subtask (priority item 2, syntax/blocking bugs),
+independent of this run's scope; (b) terrain macro-relief (priority item 1), still blocked pending an
+environment with working LFS/asset access or an owner decision on the `aapw` repo-rename question already
+on record in `QUESTIONS_FOR_OWNER.md`; (c) the pre-existing `checkServiceWorkerCache.js` (110+ unregistered
+`src/3d` files) and `checkGeographicSettlementPropsIntegration.mjs` backlogs, unchanged in scope by this
+run. Recommend the next run pick up (a) — real, previously-undiscovered TypeErrors/SyntaxErrors are
+higher priority (item 2) than further refactors and were only surfaced because this run finally exercised
+the settlement check scripts' baseline in full. Per "Çalıştırma İçinde Zincirleme" this session continues
+directly into that fix as the next chained subtask (see Run 362 below) rather than waiting for a fresh
+invocation.
