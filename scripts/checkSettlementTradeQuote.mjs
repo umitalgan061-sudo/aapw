@@ -1,0 +1,12 @@
+import { createSettlementTradeQuote, serializeSettlementTradeQuote } from '../src/3d/gameplay/settlementTradeQuote.js';
+const content={items:{iron_ore:{label:'Demir Cevheri',buy:6,sell:3,tags:['ore','smithing']},bread:{label:'Ekmek',buy:3,sell:1,tags:['food']}}};
+const snapshot={copper:10,inventory:{iron_ore:4,bread:2}};
+const buy=createSettlementTradeQuote(content,snapshot,{mode:'buy',itemIds:['iron_ore','bread'],quantities:{iron_ore:1,bread:2}});
+if (buy.total!==10 || buy.remainingCopper!==0 || buy.acceptedCount!==2) throw new Error('buy quote mismatch');
+const sell=createSettlementTradeQuote(content,snapshot,{mode:'sell',itemIds:['iron_ore'],quantities:{iron_ore:2}});
+if (sell.total!==6 || sell.remainingCopper!==16 || sell.acceptedCount!==1) throw new Error('sell quote mismatch');
+const blocked=createSettlementTradeQuote(content,{copper:2,inventory:{}},{mode:'buy',itemIds:['iron_ore']});
+if (blocked.acceptedCount!==0 || blocked.rejectedCount!==1) throw new Error('affordability mismatch');
+const malformed=createSettlementTradeQuote(content,{copper:'x',inventory:null},{mode:'buy',itemIds:['missing','iron_ore']});
+if (!Number.isFinite(malformed.total) || !Object.isFrozen(malformed) || serializeSettlementTradeQuote(buy)!==serializeSettlementTradeQuote(buy)) throw new Error('determinism/freeze mismatch');
+console.log('settlement trade quote ok');
