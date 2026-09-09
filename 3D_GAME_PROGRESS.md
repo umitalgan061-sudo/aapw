@@ -17864,3 +17864,110 @@ work across the last 20+ runs (344 through 365); every run in between has necess
 priority-2 (syntax) and priority-3-adjacent (settlement logic bugs) items instead. Escalating this via
 direct owner notification this run rather than only re-confirming the file entry again, since four prior
 in-file mentions have not yet produced owner action.
+
+## Run 366 (2026-09-09) — fix stale `gateCount === 5` assertion in checkSettlementVerticalSliceMatrix.mjs
+
+Picked up finding (1) logged at the end of Run 365: `scripts/checkSettlementVerticalSliceMatrix.mjs`
+`FAIL: 1 assertions — summary gate count matches authored definition`. Same-family finding (2), the
+`checkSettlementVerticalSliceEvents.mjs` "action normalization is deterministic" failure, was read in
+parallel to compare tractability (see **New findings** below) but not fixed this run — its root cause
+reaches into a shared `scalarRecord()` helper used by several event-envelope builders, a wider blast
+radius than the single-assertion fix below, so per the "prefer the smaller, well-understood root cause"
+guidance it was left logged rather than fixed blind in the same commit.
+
+**Root cause.** The check script's `definition` fixture (authored in commit `249990ad`, "expand settlement
+vertical slice scenario matrix", 2026-09-08) declares gates on six of its nine nodes: `broker` (1 item
+gate), `chronicler` (1 reputation gate), `quest` (2 gates — quest state + flag), `road` (1 flag gate),
+`gate` (1 proximity gate), `save` (1 capability gate) — 1+1+2+1+1+1 = **7** individual gate objects. The
+assertion two lines below, `assert(summary.gateCount === 5, ...)`, has asserted `=== 5` since that same
+original commit — it was never correct, not a regression from a later definition edit. Traced
+`summarizeSettlementSlice()` in `src/3d/gameplay/settlementVerticalSlice.js` (delegates to
+`normalizeDefinition()`/`normalizeNode()`/`normalizeGate()` in `settlementVerticalSliceNormalize.js`,
+split out under Altın Kural 7 in Run 357) and confirmed by direct invocation that it faithfully sums
+`node.gates.length` across all nodes after `normalizeGate()` validates each raw gate object — all 7 gates
+in the fixture are well-formed (each has its required `type`-specific key: `itemId`, `factionId`,
+`questId`+`key` for the two-gate `quest` node, `key`, none/`distance`, `capability`) and none are dropped
+by `normalizeGate()`'s `Boolean` filter. So the implementation is correct and the definition is
+intentionally rich (the `quest` node's two independent gates — quest-state AND a signed-flag — is
+deliberate authoring, exercised elsewhere in the same file via `evaluateSettlementGates` on a
+three-gate list); the test fixture's author simply miscounted when writing the assertion. This is a test
+bug, not a production-code bug — same "root-cause it, don't guess-patch" standard applies to check
+scripts as to `src/`.
+
+**Fix.** One-token correction in the check script only: `assert(summary.gateCount === 5, ...)` →
+`assert(summary.gateCount === 7, ...)`. No change to any `src/` file — `summarizeSettlementSlice()`,
+`normalizeDefinition()`, `normalizeNode()`, and `normalizeGate()` are all already behaving correctly and
+were left untouched.
+
+**Verification.** Before the fix (confirmed via `git stash`): `node scripts/checkSettlementVerticalSliceMatrix.mjs`
+→ `FAIL: 1 assertions — summary gate count matches authored definition`. Direct invocation of
+`summarizeSettlementSlice(definition)` against the exact fixture object printed `"gateCount": 7`,
+confirming the implementation's actual output before touching anything. After the fix: `PASS: 367
+deterministic matrix assertions` (up from 366 passing + 1 failing). Re-ran all five settlement
+vertical-slice check scripts before/after via `git stash`/`git stash pop` to confirm no other script's
+pass/fail state moved: `checkSettlementVerticalSliceEvents.mjs` — FAIL 1 (`action normalization is
+deterministic`), identical before/after; `checkSettlementVerticalSliceJourney.mjs` — same 5+ pre-existing
+craft/door/save/gated-recovery failures, identical tail output before/after; `checkSettlementVerticalSliceRoleRuntime.mjs`
+— same pre-existing item/reputation/proximity/failed-transition failures, identical tail output
+before/after; `checkSettlementVerticalSliceContent.mjs` — `PASS: 135` both times, unaffected. Only the one
+touched file's one assertion changed state.
+
+Full DoD sweep: `node --check` PASS on the touched file; repo-wide `node --check` sweep across every
+`src/**/*.js` and `scripts/**/*.js`/`*.mjs` file — 0 errors. `checkSmokeCheckRegistry.js` — OK, 44 smoke
+checks/19 modules unaffected, 684 files within the 600-line cap (14 pre-existing WARNs approaching it, none
+newly introduced, none in a file this run touched — the touched script is 369/600 lines). `checkTechnicalDebt.js`
+— PASS, 0 new markers, 56/43 counts unchanged. `checkAssetsManifest.js` — OK, 547 entries, unaffected.
+`checkSeededRandomPolicy.js` — PASS, unaffected (no `Math.random()` introduced). `checkWorldEventDeterminism.js`
+— PASS, checksum `ea2bd3bfff60…` unchanged. `checkPwaInstallability.js` — OK, unaffected. Browser-half smoke
+test (`scripts/smokeTestGame3D.js`) remains environment-blocked in this session (same pre-existing
+LFS/repo-rename constraint, not attempted, consistent with runs 355–365). Visual evidence — N/A, no
+rendering/UI surface touched; this is a check-script-only fix, the underlying `settlementVerticalSlice.js`
+module is still not wired into any playable scene. Performance — no runtime behavior change reachable from
+the live game; no `perf_log.csv` row added (no renderer/runtime code touched, no browser session available,
+consistent with every run since 355). Memory-leak checklist — N/A, no object lifecycles involved.
+Technical debt — net 0 new markers (this corrects a stale test expectation, not a workaround; no
+TEMP/HACK/FIXME/WORKAROUND comment added, no ADR needed — a miscounted assertion fix is not a design
+decision). World Coverage — unchanged. World Evolution Report: no yol/orman/kale/NPC/hayvan/event count
+change; "oyuncu fark eder mi" — hayır, bu değişiklik yalnızca bir geliştirici QA script'inin kendi iç
+sayım hatasını düzeltiyor, hiçbir oynanabilir sisteme veya `src/` çalışma zamanı davranışına dokunmuyor.
+Asset/LFS blocker — reconfirmed still present in this session's environment (not resampled this run;
+unchanged since Run 365's direct owner escalation, no new information, not re-reported per the standing
+"no new information" rule from runs 349/355/364/365).
+
+Risk: LOW (single-digit-token change in a check script only, zero `src/` edits; the corrected value (7) was
+independently confirmed by direct invocation of the already-correct, unmodified production function against
+the fixture's own literal gate list, not assumed; `git stash`-based before/after diff confirms all four
+other settlement vertical-slice check scripts are byte-identical in their pass/fail output and failure
+messages, so no other script's baseline moved).
+
+**New findings logged for future atomic subtasks (not fixed here — separate root causes):**
+1. `checkSettlementVerticalSliceEvents.mjs` — "action normalization is deterministic" (still 1 assertion,
+   unchanged by this run). Root-caused during this run's comparison pass (not guessed): `normalizeSettlementSliceActionRequest()`
+   in `src/3d/gameplay/settlementVerticalSliceEvents.js` delegates to a private `normalizeActionRequest()`
+   that copies `source.payload` through a shared `scalarRecord()` helper (used by several other
+   envelope/context builders in the same file) via a plain `for...of Object.entries(value)` loop —
+   insertion order is preserved, not canonicalized, so two logically-identical payload objects authored
+   with different key orders (`{quantity, offerId}` vs `{offerId, quantity}`) normalize to objects whose
+   `JSON.stringify` output differs only in key order, which the check script's `same()` helper (a strict
+   `JSON.stringify` string comparison) correctly flags as non-deterministic. Confirmed by direct
+   invocation: `normalizeSettlementSliceActionRequest({..., payload:{quantity:2,offerId:'ore'}})` prints
+   `"payload":{"quantity":2,"offerId":"ore"}` while the swapped-order input prints
+   `"payload":{"offerId":"ore","quantity":2}` — same values, different key order. A correct fix would sort
+   keys inside `scalarRecord()` (or only within the `payload` field) before
+   freezing the result — touches a helper shared by `normalizeContext()`, `normalizeNodeRequest()`, and the
+   `envelope()` builder used for every emitted event, so it is a wider-blast-radius change than this run's
+   fix and deserves its own dedicated before/after verification pass across all `SETTLEMENT_SLICE_EVENTS`
+   emissions (open/state/result/nodeResult/saveResult/restoreResult/resetResult/closed) rather than being
+   folded into this commit.
+2. `checkSettlementVerticalSliceJourney.mjs` — craft/door/save capability-gating assertions (multiple
+   failures), unchanged, untouched by this run.
+3. The 21 failing assertions in `checkSettlementVerticalSliceRoleRuntime.mjs` (role identity / action-gating
+   by capability / item/reputation/proximity gates / failed-transition stability), unchanged, untouched by
+   this run.
+
+**Next safe step:** finding (1) above is now the most concrete and already root-caused next candidate — the
+fix location (`scalarRecord()` in `settlementVerticalSliceEvents.js`) and exact defect (insertion-order
+preserved instead of canonicalized) are both known from this run's investigation, so the next run can go
+straight to implementing+verifying a key-sorting fix without re-discovery. Terrain macro-relief (priority
+item 1) remains blocked on the owner's `aapw` repo-rename/LFS decision in `QUESTIONS_FOR_OWNER.md` —
+unchanged, not re-reported this run (no new information since Run 365's direct escalation).

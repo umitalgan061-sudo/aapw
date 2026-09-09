@@ -310,7 +310,7 @@ for (let run = 0; run < 10; run += 1) {
 const summary = summarizeSettlementSlice(definition);
 assert(summary.nodeCount === definition.nodes.length, 'summary node count matches definition');
 assert(summary.actionCount > summary.nodeCount, 'summary captures multiple interactions');
-assert(summary.gateCount === 5, 'summary gate count matches authored definition');
+assert(summary.gateCount === 7, 'summary gate count matches authored definition');
 assert(summary.kinds.settlement === 1, 'summary reports settlement kind');
 assert(summary.kinds.vendor === 1, 'summary reports vendor kind');
 assert(summary.kinds.crafting === 1, 'summary reports crafting kind');
