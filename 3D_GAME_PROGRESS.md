@@ -17052,3 +17052,81 @@ before attempting it. Terrain/world/player/rpg feature work continues to move vi
 GitHub Actions workflow pipeline (`.github/workflows/`) independent of this narrative track; any future
 run in this track should keep refreshing `origin/main` immediately before reading this file's tail,
 per Run 349's own documented near-miss.
+
+## Run 356 (2026-09-09, scheduled routine) — Session-start stale-ref resync (same class as the run-349 near-miss, this time on `origin/main` itself), full non-browser regression sweep, `roadPathfinder.js` split under the 600-line cap
+
+**Numbering note:** this run and the "Run 355" entry directly above landed concurrently (independent
+sessions, same `a05509f` starting point, same non-browser regression sweep, same conclusions) — labeled
+356 here purely to keep the sequence monotonic after the collision, not because any dependency exists
+between the two entries.
+
+Session started detached on a commit whose cached `origin/main` (`f698d2a`, 2026-09-02) looked 260
+commits behind the checked-out tree (`a05509f`) — the exact "trust a stale local git ref" trap this
+file's own previous entry already named. Rather than reset or force-push anything, ran a genuine
+`git fetch origin main` first: it returned `a05509f` too, confirming the checked-out tree already **is**
+real `origin/main` and the earlier mismatch was only a stale in-process cache from before that fetch —
+zero data loss, zero unpushed work, nothing to rescue. `git checkout -B main origin/main` cleanly
+re-attached local `main`. Lesson reinforced rather than new: always force a fresh `fetch` before
+trusting any cached `origin/*` ref, not just before trusting this file's own tail.
+
+Ran the full non-browser regression/governance sweep fresh: `roadNetworkSafetyCheck.js` PASS (13
+topology edges, 14/14 seats, 6.81km network, mountain-avoidance + river non-collision),
+`terrainSeatSafetyCheck.js` PASS 14/14 (raw flood safety + gameplay walkability both clean),
+`checkTechnicalDebt.js` PASS (0 new debt), `checkPwaInstallability.js` OK, `checkServiceWorkerCache.js`
+OK, `checkWorldReferenceMap.js` OK (17/5/4 zones), `checkWorldReferenceAlignment.js` PASS (14/14 seats,
+100% runtime coverage), `checkWorldEventDeterminism.js` PASS (24-emission checksum match),
+`checkSeededRandomPolicy.js` PASS (no `Math.random()` under `src/3d`), `checkAssetsManifest.js` OK (547
+entries resolve).
+
+**LFS/asset blocker reconfirmed, not re-notified (same 🔴 item as RCA_RUN344, corroborated again by
+run349's later entry):** `assets/**/*.glb` are still ~130-byte git-lfs pointer text in this session's
+checkout, not real binaries (`file` confirms `ASCII text`); `git lfs` is not even installed as a git
+subcommand here. `smokeTestGame3D.js`'s browser half and `terrainSeatSafetyCheck.js`'s own Playwright
+path both still depend on a static-file server + headless Chromium — the latter passed once given a
+longer timeout (needs ~70-90s to boot in this environment, not a new finding, just slower than 60s this
+run), but genuine visual/asset-backed verification (F4, 2+ camera angles, real model geometry) remains
+blocked here exactly as documented. Per the established do-not-re-notify convention, no new push
+notification was sent.
+
+**Technical debt (priority item 6): split `src/3d/world/roadPathfinder.js` under the 600-line cap.**
+`checkSmokeCheckRegistry.js` listed it among 6 files over GOVERNANCE.md Altın Kural 7's 600-line cap
+(624 lines). Extracted the river-avoidance field (`buildRiverAvoidanceField`,
+`distanceToCanonicalRiver`, `riverCostMultiplier`, `profileRiverExposure`, and their five private
+constants/cache — all already private to the module, no external consumers per a repo-wide grep) into
+a new `src/3d/world/roadPathfinderRiverAvoidance.js` (126 lines), a pure lossless move with zero logic
+changes. `roadPathfinder.js` now imports the four functions instead of defining them; 513 lines, well
+under the cap. Verified: `node --check` clean on both files; `roadNetworkSafetyCheck.js` reproduces
+byte-identical edge grades/lengths/connectivity as before the split (proves the extraction changed
+nothing behaviorally); `checkSmokeCheckRegistry.js` violation count dropped 6→5 (`roadPathfinder.js` no
+longer listed). `checkRoadRoutingSourceContract.mjs` could not run in this environment either way
+(pre-existing, unrelated `ERR_MODULE_NOT_FOUND: three` when invoked via plain `node` outside a browser
+import map — reproduced identically on `origin/main` before this change via `git stash`, so not a
+regression this run introduced).
+
+**Terrain macro-relief (priority item 1) explicitly deferred, not silently skipped:** the Değişiklik
+Etki Analizi + Arazi Değişikliği Güvenlik Kontrolü process this class of change requires ends in a
+Görsel Doğrulama Standardı step (2+ camera angles, F4 near+far) that this session cannot produce given
+the LFS blocker above — a terrain edit without that evidence cannot be called DONE. Rather than guess
+at an unverifiable visual change, this run did the next priority item that has a complete, real,
+non-visual DoD path (technical debt) instead.
+
+Remaining 5 over-cap files (unchanged this run, next candidates for the same treatment):
+`src/3d/world/WorldAssetPlacementPipeline.js` (821), `src/3d/gameplay/livingWorldReactionRuntime.js`
+(743), `src/3d/world/terrainBiomeShading.js` (724), `src/3d/world/iceLandmarks.js` (652),
+`src/3d/gameplay/settlementVerticalSlice.js` (638).
+
+Full DoD sweep: `node --check` PASS both touched files; smoke test — non-browser half PASS (browser
+half environment-blocked, see above, not a regression); visual evidence — N/A, non-visual refactor;
+performance — no runtime behavior change, `perf_log.csv` not appended (no live renderer stats available
+in this environment); memory leak checklist — N/A, no new object lifecycles introduced, same
+`WeakMap`/`Map` caching pattern preserved verbatim in the new module; technical debt — net -1 violation
+(6→5), 0 new TEMP/HACK markers; World Coverage — unchanged (desktop 96.2%/mobile 4.5%, no world-data
+delta). World Evolution Report: no yol/orman/kale/NPC/hayvan/event count change; "oyuncu fark eder mi"
+— hayır, davranış birebir aynı, yalnızca dosya organizasyonu değişti. No ADR — pure internal
+reorganization, no design decision, no affected external contract (confirmed via
+`checkRoadRoutingSourceContract.mjs`'s required-snippet list, which this split does not touch).
+
+Risk: LOW (verified lossless split, all reachable non-browser regressions green). Next safe step:
+either repeat this same split treatment on `WorldAssetPlacementPipeline.js` (largest remaining
+violation), or — once a future environment has working LFS/asset access — resume terrain macro-relief
+with its full Görsel Doğrulama Standardı evidence.

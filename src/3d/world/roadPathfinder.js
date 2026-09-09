@@ -1,5 +1,4 @@
 import { WORLD_DEFAULTS } from '../config.js';
-import { generateRiverPath } from './rivers.js';
 import {
 	ROAD_PROFILE_POLICY,
 	checksumProfile,
@@ -9,6 +8,11 @@ import {
 	profileTerrainSegment,
 	summarizePolylineCurvature,
 } from './roadSurfaceProfile.js';
+import {
+	buildRiverAvoidanceField,
+	profileRiverExposure,
+	riverCostMultiplier,
+} from './roadPathfinderRiverAvoidance.js';
 
 /**
  * Deterministic, terrain-profiled A* routing for the live road network.
@@ -53,11 +57,6 @@ const ENDPOINT_LINK_RADIUS_CELLS = 2.6;
 const MIN_ENDPOINT_LINK_RADIUS_METERS = 220;
 const SMOOTHING_ITERATIONS = 2;
 const EPSILON = 1e-9;
-const RIVER_CLEARANCE_METERS = 25;
-const RIVER_AVOIDANCE_RADIUS_METERS = 95;
-const RIVER_NEAR_COST_MULTIPLIER = 24;
-const RIVER_BANK_COST_MULTIPLIER = 4.5;
-const RIVER_PROFILE_SPACING_METERS = 12;
 const FINE_REFINEMENT_CELL_METERS = 24;
 const MIN_REFINEMENT_CELL_METERS = 36;
 const MID_REFINEMENT_CELL_METERS = 45;
@@ -82,7 +81,6 @@ const MAX_EMPTY_LONG_ROUTE_STAGES = 1;
 const LONG_ROUTE_FAIL_FAST_SAMPLE_SPACING_METERS = 30;
 const LONG_ROUTE_FAIL_FAST_SUBMERGED_SPAN_METERS = ROAD_ROUTING_POLICY.longRouteFailFastSubmergedSpanMeters;
 const FINE_GRID_NEIGHBOR_CELL_LIMIT_METERS = 24;
-const riverAvoidanceCache = new WeakMap();
 
 const EIGHT_NEIGHBOR_OFFSETS = Object.freeze([
 	[1, 0], [-1, 0], [0, 1], [0, -1],
@@ -115,115 +113,6 @@ const FINE_NEIGHBOR_OFFSETS = Object.freeze([
 function gradeCostMultiplier(angleDegrees) {
 	const ratio = angleDegrees / ROAD_COMFORT_GRADE_DEGREES;
 	return 1 + ratio ** GRADE_PENALTY_EXPONENT;
-}
-
-function buildRiverAvoidanceField(sampleHeightMeters) {
-	if (riverAvoidanceCache.has(sampleHeightMeters)) return riverAvoidanceCache.get(sampleHeightMeters);
-	const { points } = generateRiverPath({
-		seed: WORLD_DEFAULTS.WORLD_SEED,
-		sampleHeightMeters,
-		seaLevelMeters: WORLD_DEFAULTS.WATER_LEVEL_METERS,
-	});
-	const cellSize = RIVER_AVOIDANCE_RADIUS_METERS;
-	const bins = new Map();
-	for (const point of points) {
-		const ix = Math.floor(point.x / cellSize);
-		const iz = Math.floor(point.z / cellSize);
-		const key = `${ix},${iz}`;
-		let bucket = bins.get(key);
-		if (!bucket) {
-			bucket = [];
-			bins.set(key, bucket);
-		}
-		bucket.push({ x: point.x, z: point.z });
-	}
-	const field = Object.freeze({ bins, cellSize, pointCount: points.length });
-	riverAvoidanceCache.set(sampleHeightMeters, field);
-	return field;
-}
-
-function distanceToCanonicalRiver(field, x, z) {
-	if (!field || field.pointCount === 0) return Infinity;
-	const ix = Math.floor(x / field.cellSize);
-	const iz = Math.floor(z / field.cellSize);
-	let nearest = Infinity;
-	for (let dz = -2; dz <= 2; dz += 1) {
-		for (let dx = -2; dx <= 2; dx += 1) {
-			const bucket = field.bins.get(`${ix + dx},${iz + dz}`);
-			if (!bucket) continue;
-			for (const point of bucket) nearest = Math.min(nearest, Math.hypot(x - point.x, z - point.z));
-		}
-	}
-	return nearest;
-}
-
-function riverCostMultiplier(field, x, z) {
-	const distance = distanceToCanonicalRiver(field, x, z);
-	if (distance >= RIVER_AVOIDANCE_RADIUS_METERS) return 1;
-	if (distance <= RIVER_CLEARANCE_METERS) return RIVER_NEAR_COST_MULTIPLIER;
-	const t = (distance - RIVER_CLEARANCE_METERS) / (RIVER_AVOIDANCE_RADIUS_METERS - RIVER_CLEARANCE_METERS);
-	const smooth = t * t * (3 - 2 * t);
-	return RIVER_BANK_COST_MULTIPLIER + (1 - RIVER_BANK_COST_MULTIPLIER) * smooth;
-}
-
-function profileRiverExposure(field, points) {
-	if (!field || field.pointCount === 0 || !Array.isArray(points) || points.length === 0) {
-		return Object.freeze({
-			minimumDistanceMeters: Infinity,
-			adjacentPointCount: 0,
-			maxConsecutiveAdjacentSamples: 0,
-			continuousAdjacentRunMeters: 0,
-			continuousSampleCount: 0,
-		});
-	}
-	let minimumDistanceMeters = Infinity;
-	let adjacentPointCount = 0;
-	let maxConsecutiveAdjacentSamples = 0;
-	let pointRun = 0;
-	for (const point of points) {
-		const distance = distanceToCanonicalRiver(field, point.x, point.z);
-		minimumDistanceMeters = Math.min(minimumDistanceMeters, distance);
-		if (distance < RIVER_CLEARANCE_METERS) {
-			adjacentPointCount += 1;
-			pointRun += 1;
-			maxConsecutiveAdjacentSamples = Math.max(maxConsecutiveAdjacentSamples, pointRun);
-		} else {
-			pointRun = 0;
-		}
-	}
-
-	let currentRunMeters = 0;
-	let continuousAdjacentRunMeters = 0;
-	let continuousSampleCount = 0;
-	for (let segmentIndex = 1; segmentIndex < points.length; segmentIndex += 1) {
-		const start = points[segmentIndex - 1];
-		const end = points[segmentIndex];
-		const segmentLength = Math.hypot(end.x - start.x, end.z - start.z);
-		const intervals = Math.max(1, Math.ceil(segmentLength / RIVER_PROFILE_SPACING_METERS));
-		const stepLength = segmentLength / intervals;
-		for (let step = 1; step <= intervals; step += 1) {
-			const t = step / intervals;
-			const x = start.x + (end.x - start.x) * t;
-			const z = start.z + (end.z - start.z) * t;
-			const distance = distanceToCanonicalRiver(field, x, z);
-			minimumDistanceMeters = Math.min(minimumDistanceMeters, distance);
-			continuousSampleCount += 1;
-			if (distance < RIVER_CLEARANCE_METERS) {
-				currentRunMeters += stepLength;
-				continuousAdjacentRunMeters = Math.max(continuousAdjacentRunMeters, currentRunMeters);
-			} else {
-				currentRunMeters = 0;
-			}
-		}
-	}
-
-	return Object.freeze({
-		minimumDistanceMeters,
-		adjacentPointCount,
-		maxConsecutiveAdjacentSamples,
-		continuousAdjacentRunMeters,
-		continuousSampleCount,
-	});
 }
 
 class MinHeap {
