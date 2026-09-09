@@ -17626,3 +17626,79 @@ higher priority (item 2) than further refactors and were only surfaced because t
 the settlement check scripts' baseline in full. Per "Çalıştırma İçinde Zincirleme" this session continues
 directly into that fix as the next chained subtask (see Run 362 below) rather than waiting for a fresh
 invocation.
+
+## Run 362 (2026-09-09, scheduled routine, chained from Run 361) — fix real SyntaxError in `settlementCampaignFacade.js` (priority item 2)
+
+**Continuation, not a fresh invocation.** Run 361 (this same session) surfaced a genuine, previously
+undiscovered `SyntaxError: Missing initializer in const declaration` in
+`src/3d/gameplay/settlementCampaignFacade.js` while establishing the settlement check scripts' baseline.
+Per "Çalıştırma İçinde Zincirleme" and priority order (item 2, syntax hataları, ranks above item 6, teknik
+borç, which Run 361 just finished), this session continued directly into fixing it rather than deferring
+to a future run.
+
+**Root cause.** Line 24: `const can(action,context={})=>{...}` — missing `=` between the binding name and
+the arrow function. This is a plain typo, present since the file's very first commit (`1cbfc39`,
+`feat(rpg): compose settlement campaign director facade`); the module has never once been syntactically
+valid. Confirmed via `grep` that nothing in the live `game3d.js`/runtime import chain reaches this file —
+only `settlementCampaignReadiness.js` (itself unreferenced by anything else) and two check scripts import
+it — so this was dead code from the game's perspective, not a live crash, but it is still a real defect
+worth fixing outright rather than leaving broken.
+
+**Fix.** One-character change: `const can(action,context={})=>` → `const can=(action,context={})=>`.
+Matches the file's existing dense/minified authoring style (every other line in the file already omits
+whitespace around operators) — no reformatting beyond the missing character.
+
+**Validation.** `node --check` now passes (previously failed at parse time). Re-ran the full non-browser
+governance battery: `checkSmokeCheckRegistry.js` (still 0 violations, 684 files), `checkTechnicalDebt.js`
+(0 new markers, 56/43 counts unchanged), `checkAssetsManifest.js` (547 entries), `checkSeededRandomPolicy.js`,
+`checkWorldEventDeterminism.js` (checksum match), `checkPwaInstallability.js` — all PASS, unaffected.
+The two check scripts that actually `import` this file (`checkSettlementCampaignAuthoring.mjs`,
+`checkSettlementCampaignDeepSlice.mjs`) previously failed with the module-level `SyntaxError` (confirmed via
+`git stash` against this exact diff); now the module parses and loads, and both scripts progress further to
+real, separate, pre-existing **logic** assertion failures deeper in the settlement-campaign stack (a
+`journey-start` stage-name mismatch — `'orientation'` vs expected `'arrival'` — in
+`settlementCampaignJourney.js`, and a `facade-craft` capability assertion in the craft/interaction wiring).
+Both are strictly outside this fix's scope (different files, different pre-existing defects, not introduced
+by this one-character change) and were unreachable/unobservable before this fix since the SyntaxError
+short-circuited everything downstream. This is a net improvement (fatal parse error → real, debuggable
+assertion failures) and not a regression by any measure: neither script passed before, neither passes now,
+and no previously-passing script was broken. `checkSettlementCampaignContracts.mjs` and
+`checkSettlementCampaignRuntime.mjs` (which do not import this file, only check import-text/other symbols)
+are confirmed unaffected — same failures, same output, as documented in Run 361.
+
+Full DoD sweep: `node --check` PASS (newly, was FAIL); smoke test — non-browser half PASS per above,
+browser half environment-blocked (pre-existing, unrelated); visual evidence — N/A, no rendering/UI surface
+touched, this module is not yet wired into any playable scene; performance — no runtime behavior change
+reachable from the live game; memory-leak checklist — N/A, no object lifecycles involved; technical
+debt — net 0 new markers (this fixes a real bug, not a workaround; no TEMP/HACK/FIXME added); World
+Coverage — unchanged. World Evolution Report: no yol/orman/kale/NPC/hayvan/event count change; "oyuncu fark
+eder mi" — hayır, bu modül henüz hiçbir oynanabilir sahneye bağlı değil. No ADR — a one-character typo fix
+is not a design decision.
+
+Risk: LOW (single-character change, confirmed by diff; full non-browser battery PASS/unaffected; the two
+directly-affected check scripts verified via `git stash` to have failed identically at the syntax level
+before this fix, and to fail only on new/different/deeper assertions after — never previously passing,
+never newly broken).
+
+**New findings logged for a future atomic subtask (not fixed here — separate files, separate root
+causes, priority item 2/3 candidates):**
+1. `src/3d/gameplay/settlementVerticalSliceRoles.js:225` — `TypeError: NODE_KINDS.includes is not a
+   function` in `validateSettlementRoleDefinition`. `NODE_KINDS` there is very likely a plain object/Map
+   rather than an array (or an import-shape mismatch after some prior refactor) — needs a read of that
+   file's own `NODE_KINDS` definition before fixing blind.
+2. `src/3d/gameplay/settlementVerticalSliceContent.js` — missing an `isSettlementRole` export that
+   `scripts/checkSettlementVerticalSliceContent.mjs` expects.
+3. `settlementCampaignJourney.js` journey-stage naming (`'orientation'` produced vs `'arrival'` expected
+   at journey start) and a `facade-craft` capability-gating assertion in the craft/interaction path
+   (surfaced by this run, exact root cause not yet investigated).
+None of these are design/product decisions — they are code-level bugs, so they go in the priority queue
+(item 2/3) for a future run, not `QUESTIONS_FOR_OWNER.md`.
+
+**Next safe step:** pick up finding (1) above (`NODE_KINDS.includes`) — smallest, most self-contained of
+the three, single file, single function. After that, terrain macro-relief (priority item 1) remains the
+top structural priority once LFS/asset access is available; the `aapw` repo-rename question is still open
+in `QUESTIONS_FOR_OWNER.md` (unaffected by this run: today's `git push` to `origin` (still named
+`westeros-pwa` in this session's remote config) succeeded and landed on `origin/main` despite GitHub's
+"this repository moved" notice — a new data point suggesting *plain push* works fine through the rename
+redirect in this environment, while the separately-diagnosed `git-lfs` blocker, which is about the missing
+`git-lfs` binary/pointer-file hydration, not about push routing, remains fully unresolved and unrelated).
