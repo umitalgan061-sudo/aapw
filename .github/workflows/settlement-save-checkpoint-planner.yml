@@ -1,0 +1,38 @@
+name: settlement-save-checkpoint-planner
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/settlementSaveCheckpointPlanner.js'
+      - 'scripts/checkSettlementSaveCheckpointPlanner.mjs'
+      - '.github/workflows/settlement-save-checkpoint-planner.yml'
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementSaveCheckpointPlanner.js'
+      - 'scripts/checkSettlementSaveCheckpointPlanner.mjs'
+      - '.github/workflows/settlement-save-checkpoint-planner.yml'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Validate exact-main ancestry and focused diff
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            git fetch --no-tags origin main --depth=1
+            git merge-base --is-ancestor origin/main "$GITHUB_SHA"
+            changed=$(git diff --numstat origin/main..."$GITHUB_SHA" | awk '{a+=$1; d+=$2} END {print a+d+0}')
+            test "$changed" -le 3000
+          fi
+      - name: Syntax check
+        run: node --check src/3d/gameplay/settlementSaveCheckpointPlanner.js
+      - name: Executable contract
+        run: node scripts/checkSettlementSaveCheckpointPlanner.mjs
+      - name: Shared runtime boundary
+        shell: bash
+        run: |
+          ! grep -nE "EditorMaterialStudio|MaterialAssignmentCore|WorldAssetPlacementPipeline" src/3d/gameplay/settlementSaveCheckpointPlanner.js
