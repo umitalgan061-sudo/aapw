@@ -1,0 +1,53 @@
+name: Buzul Muhafizi — Terrain Relief Material Adoption v35
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/terrainReliefMaterialAdoption.js'
+      - 'scripts/checkTerrainReliefMaterialAdoption.mjs'
+      - '.github/workflows/buzul-muhafizi-terrain-relief-material-v35.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  terrain-relief-material-adoption:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify focused diff budget and ownership boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          base_sha="$(git merge-base HEAD origin/main)"
+          changed_files="$(git diff --name-only "$base_sha" HEAD)"
+          expected_files=$'src/3d/world/terrainReliefMaterialAdoption.js\nscripts/checkTerrainReliefMaterialAdoption.mjs\n.github/workflows/buzul-muhafizi-terrain-relief-material-v35.yml'
+          test "$changed_files" = "$expected_files"
+          changed_lines="$(git diff --numstat "$base_sha" HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          test "$changed_lines" -le 3000
+          ! grep -R "EditorMaterialStudio.js" -n src/3d/world/terrainReliefMaterialAdoption.js
+          ! grep -R "createGeometry\|new THREE\.|Math\.random" -n src/3d/world/terrainReliefMaterialAdoption.js
+
+      - name: Syntax check
+        run: |
+          node --check src/3d/world/terrainReliefMaterialAdoption.js
+          node --check scripts/checkTerrainReliefMaterialAdoption.mjs
+
+      - name: Run executable terrain/material contract
+        run: node scripts/checkTerrainReliefMaterialAdoption.mjs
+
+      - name: Verify shared material/placement boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R "EditorMaterialStudio\|MaterialAssignmentCore\|WorldAssetPlacementPipeline" -n src/3d/world/terrainReliefMaterialAdoption.js
+          ! grep -R "terrain\.js\|water\.js\|sceneManager\.js\|naturalGeology\.js\|rivers\.js\|roads\.js" -n src/3d/world/terrainReliefMaterialAdoption.js
+          grep -q "MaterialAssignmentCore" src/3d/world/terrainReliefMaterialAdoption.js
+          grep -q "WorldAssetPlacementPipeline" src/3d/world/terrainReliefMaterialAdoption.js
