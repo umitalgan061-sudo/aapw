@@ -1,0 +1,35 @@
+name: player-combat-action-buffer
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatActionBuffer.js'
+      - 'scripts/checkPlayerCombatActionBuffer.mjs'
+      - '.github/workflows/player-combat-action-buffer.yml'
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Enforce focused additive scope
+        shell: bash
+        run: |
+          changed=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}")
+          allowed=$'src/3d/gameplay/playerCombatActionBuffer.js\nscripts/checkPlayerCombatActionBuffer.mjs\n.github/workflows/player-combat-action-buffer.yml'
+          diff -u <(printf '%s\n' "$allowed") <(printf '%s\n' "$changed")
+          lines=$(git diff --numstat "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$lines" -le 3000
+      - name: Syntax
+        run: node --check src/3d/gameplay/playerCombatActionBuffer.js && node --check scripts/checkPlayerCombatActionBuffer.mjs
+      - name: Executable regression
+        run: node scripts/checkPlayerCombatActionBuffer.mjs
+      - name: Shared runtime/editor boundary
+        shell: bash
+        run: |
+          if git diff "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" -- '*.js' '*.mjs' | grep -E 'EditorMaterialStudio|MaterialAssignmentCore|WorldAssetPlacementPipeline' ; then
+            echo 'unexpected shared material/editor import'; exit 1
+          fi
+      - name: Diff hygiene
+        run: git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
