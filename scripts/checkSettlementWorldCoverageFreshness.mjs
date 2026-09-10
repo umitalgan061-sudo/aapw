@@ -36,12 +36,12 @@ const allowed=new Set([
 ]);
 for(const path of files)assert(allowed.has(path),`unexpected file in World Coverage scope: ${path}`);
 
+const runtimePatch=run('git',['diff','-U0',`${base}...${head}`,'--','src/3d/gameplay/settlementWorldCoverageAcceptance.js','src/3d/gameplay/settlementWorldCoverageRuntimeAdapter.js','src/3d/gameplay/settlementWorldCoverageSlice.js']);
+for(const pattern of ['EditorMaterialStudio.js','MaterialAssignmentCore.js','WorldAssetPlacementPipeline.js','BoxGeometry','MeshBasicMaterial','MeshStandardMaterial'])assert(!runtimePatch.includes(pattern),`runtime ownership token leaked into coverage modules: ${pattern}`);
+
 const runtimeFiles=files.filter((path)=>path.startsWith('src/3d/gameplay/settlementWorldCoverage'));
 assert(runtimeFiles.length===3,'expected three runtime coverage modules');
 for(const required of ['src/3d/gameplay/settlementWorldCoverageSlice.js','src/3d/gameplay/settlementWorldCoverageAcceptance.js','src/3d/gameplay/settlementWorldCoverageRuntimeAdapter.js'])assert(runtimeFiles.includes(required),`missing runtime coverage module: ${required}`);
-
-const runtimePatch=run(['git'].includes('git')?['diff','-U0',`${base}...${head}`,'--','src/3d/gameplay/settlementWorldCoverageAcceptance.js','src/3d/gameplay/settlementWorldCoverageRuntimeAdapter.js','src/3d/gameplay/settlementWorldCoverageSlice.js']:[]);
-for(const pattern of ['EditorMaterialStudio.js','MaterialAssignmentCore.js','WorldAssetPlacementPipeline.js','BoxGeometry','MeshBasicMaterial','MeshStandardMaterial'])assert(!runtimePatch.includes(pattern),`runtime ownership token leaked into coverage modules: ${pattern}`);
 
 const checks=Object.fromEntries(numstat.map((row)=>[row.path,{additions:row.additions,deletions:row.deletions}]));
 for(const path of runtimeFiles)assert((checks[path]?.deletions??0)===0,`runtime coverage module unexpectedly deleted: ${path}`);
