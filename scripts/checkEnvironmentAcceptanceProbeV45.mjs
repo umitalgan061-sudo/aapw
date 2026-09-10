@@ -42,6 +42,7 @@ assert.equal(Object.isFrozen(risks), true);
 const malformed = inspectEnvironmentSample({ slope: 'bad', elevation: NaN, waterDistance: null });
 assert.ok(Number.isFinite(malformed.materials.roughness));
 assert.ok(Number.isFinite(malformed.materials.normalEnergy));
-assert.ok(Number.isFinite(malformed.digest));
+assert.equal(typeof malformed.digest, 'string');
+assert.ok(malformed.digest.length > 0);
 
 console.log('environment-acceptance-probe-v45: PASS');
