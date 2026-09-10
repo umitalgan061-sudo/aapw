@@ -83,5 +83,4 @@ const riskTotal = Object.values(plan.risks).reduce((sum, value) => sum + value, 
 assert(riskTotal === 0, `synthetic ownership plan contains runtime risks: ${JSON.stringify(plan.risks)}`);
 assert(plan.gaps.length === 0, `synthetic ownership plan contains ${plan.gaps.length} coverage gaps`);
 assert(plan.report.readyForRuntimeProof === true, 'synthetic ownership plan is not internally consistent');
-assert(plan.gaps.filter(Boolean).length === 0, 'critical queue source unexpectedly contains unresolved gaps');
 console.log(`FULL_WORLD_COVERAGE_OWNERSHIP_OK checks=64 cells=${plan.cellCount} seams=${seamAudit.pairCount} probes=${plan.probeCount} digest=${manifest.deterministicDigest}`);
