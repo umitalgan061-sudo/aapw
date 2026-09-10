@@ -9,10 +9,13 @@ on:
       - 'src/3d/world/worldCoverageAcceptanceEvidenceV51.js'
       - 'src/3d/world/worldCoverageSceneManifestV51.js'
       - 'src/3d/world/worldCoverageAssetBoundaryV51.js'
+      - 'src/3d/world/worldCoverageGroundQueryV51.js'
       - 'scripts/checkWorldCoverageRuntimeAdapterV51.mjs'
       - 'scripts/checkWorldCoverageAcceptanceEvidenceV51.mjs'
       - 'scripts/checkWorldCoverageSceneManifestV51.mjs'
+      - 'scripts/checkWorldCoverageSceneRuntimeContractV51.mjs'
       - 'scripts/checkWorldCoverageAssetBoundaryV51.mjs'
+      - 'scripts/checkWorldCoverageGroundQueryV51.mjs'
       - '.github/workflows/buzul-muhafizi-world-coverage-runtime-v51.yml'
   workflow_dispatch:
 
@@ -53,10 +56,13 @@ jobs:
               src/3d/world/worldCoverageAcceptanceEvidenceV51.js|\
               src/3d/world/worldCoverageSceneManifestV51.js|\
               src/3d/world/worldCoverageAssetBoundaryV51.js|\
+              src/3d/world/worldCoverageGroundQueryV51.js|\
               scripts/checkWorldCoverageRuntimeAdapterV51.mjs|\
               scripts/checkWorldCoverageAcceptanceEvidenceV51.mjs|\
               scripts/checkWorldCoverageSceneManifestV51.mjs|\
+              scripts/checkWorldCoverageSceneRuntimeContractV51.mjs|\
               scripts/checkWorldCoverageAssetBoundaryV51.mjs|\
+              scripts/checkWorldCoverageGroundQueryV51.mjs|\
               .github/workflows/buzul-muhafizi-world-coverage-runtime-v51.yml) ;;
               *) echo "Unexpected file in world coverage PR: $file"; exit 1 ;;
             esac
@@ -74,6 +80,7 @@ jobs:
           node --check src/3d/world/worldCoverageAcceptanceEvidenceV51.js
           node --check src/3d/world/worldCoverageSceneManifestV51.js
           node --check src/3d/world/worldCoverageAssetBoundaryV51.js
+          node --check src/3d/world/worldCoverageGroundQueryV51.js
 
       - name: Run runtime acceptance checks
         shell: bash
@@ -82,18 +89,24 @@ jobs:
           node scripts/checkWorldCoverageRuntimeAdapterV51.mjs
           node scripts/checkWorldCoverageAcceptanceEvidenceV51.mjs
           node scripts/checkWorldCoverageSceneManifestV51.mjs
+          node scripts/checkWorldCoverageSceneRuntimeContractV51.mjs
           node scripts/checkWorldCoverageAssetBoundaryV51.mjs
+          node scripts/checkWorldCoverageGroundQueryV51.mjs
 
       - name: Boundary guard
         shell: bash
         run: |
           set -euo pipefail
           ! grep -RInE 'EditorMaterialStudio|document\.querySelector|document\.createElement|new[[:space:]]+(Mesh|BoxGeometry|SphereGeometry|CylinderGeometry)|THREE\.(Mesh|BoxGeometry|SphereGeometry|CylinderGeometry)' \
+            src/3d/world/worldCoverageDirectorV51.js \
             src/3d/world/worldCoverageRuntimeAdapterV51.js \
             src/3d/world/worldCoverageAcceptanceEvidenceV51.js \
             src/3d/world/worldCoverageSceneManifestV51.js \
             src/3d/world/worldCoverageAssetBoundaryV51.js \
+            src/3d/world/worldCoverageGroundQueryV51.js \
             scripts/checkWorldCoverageRuntimeAdapterV51.mjs \
             scripts/checkWorldCoverageAcceptanceEvidenceV51.mjs \
             scripts/checkWorldCoverageSceneManifestV51.mjs \
-            scripts/checkWorldCoverageAssetBoundaryV51.mjs
+            scripts/checkWorldCoverageSceneRuntimeContractV51.mjs \
+            scripts/checkWorldCoverageAssetBoundaryV51.mjs \
+            scripts/checkWorldCoverageGroundQueryV51.mjs
