@@ -13,13 +13,17 @@ const numstat=run('git',['diff','--numstat',`${base}...${head}`]).split('\n').fi
 assert(mergeBase===base,`freshness failed: merge base ${mergeBase} != origin/main ${base}`);
 assert(behind===0,`branch is behind origin/main by ${behind}`);
 assert(ahead>=1,'coverage branch has no commits');
-assert(files.length<=12,`focused scope has too many files: ${files.length}`);
+assert(files.length<=14,`focused scope has too many files: ${files.length}`);
 const changed=numstat.reduce((sum,row)=>sum+row.additions+row.deletions,0);
 assert(changed<=3000,`diff budget exceeded: ${changed}`);
 assert(changed>=2700,`World Coverage target not reached: ${changed}`);
 
 const allowed=new Set([
+  '.github/workflows/settlement-world-coverage-governance.yml',
   '.github/workflows/settlement-world-coverage.yml',
+  'docs/settlement-world-coverage.md',
+  'scripts/checkSettlementWorldCoverageApiSurface.mjs',
+  'scripts/checkSettlementWorldCoverageBrowserBoundary.mjs',
   'scripts/checkSettlementWorldCoverageContract.mjs',
   'scripts/checkSettlementWorldCoverageDeterminism.mjs',
   'scripts/checkSettlementWorldCoverageFreshness.mjs',
@@ -49,10 +53,10 @@ const requiredEvidence={gate:['door','road'],market:['vendor','stall'],tavern:['
 for(const serviceId of serviceIds){assert(requiredEvidence[serviceId]?.length===2,`invalid service evidence contract: ${serviceId}`);}
 for(const intent of intentIds)assert(intent.length>0,`empty intent: ${intent}`);
 
-const workflowCount=files.filter((file)=>file==='.github/workflows/settlement-world-coverage.yml').length;
+const workflowCount=files.filter((file)=>file.startsWith('.github/workflows/settlement-world-coverage')).length;
 const scriptCount=files.filter((file)=>file.startsWith('scripts/checkSettlementWorldCoverage')).length;
-assert(workflowCount===1,'exactly one World Coverage workflow expected');
-assert(scriptCount===5,'exactly five World Coverage executable scripts expected');
+assert(workflowCount===2,'two World Coverage workflows expected');
+assert(scriptCount===8,'eight World Coverage executable scripts expected');
 
 const commitMessages=run('git',['log','--format=%s',`${base}..${head}`]).split('\n').filter(Boolean);
 assert(commitMessages.some((message)=>/settlement/i.test(message)),'coverage commits lack settlement marker');
