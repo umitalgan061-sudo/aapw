@@ -20,7 +20,7 @@ function candidates(plan){
   for(const row of plan.services){
     if(row.status==='blocked'||row.status==='available-blocked')continue;
     const primary=row.primaryIntent;
-    const serviceScore=PRIORITY[row.domain?.includes('smith')?'craft':row.domain?.includes('trade')?'trade':row.domain?.includes('rest')?'rest':row.domain?.includes('training')?'train':row.domain?.includes('mount')?'travel':'quests']??10;
+    const serviceScore=row.id==='market'?50:PRIORITY[row.domain?.includes('smith')?'craft':row.domain?.includes('trade')?'trade':row.domain?.includes('rest')?'rest':row.domain?.includes('training')?'train':row.domain?.includes('mount')?'travel':'quests']??10;
     push(row.id,primary,serviceScore+(row.status==='ready'?10:0),row.status);
   }
   for(const quest of plan.objectives??[])if(!quest.complete)push('tavern',text(quest.action,'advanceQuest'),35+(quest.ratio??0)*10,'quest-objective');
