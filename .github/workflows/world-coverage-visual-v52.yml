@@ -1,0 +1,65 @@
+name: World Coverage Visual Runtime v52
+on:
+  pull_request:
+    paths:
+      - 'game3d.html'
+      - 'src/3d/world/worldCoverageVisualRuntimeV52.js'
+      - 'src/3d/world/worldCoverageVisualRuntimeV52Policies.js'
+      - 'scripts/checkWorldCoverageVisual*V52.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  world-coverage-visual-v52:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout exact PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Node runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntax check production module
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/worldCoverageVisualRuntimeV52.js
+          node --check src/3d/world/worldCoverageVisualRuntimeV52Policies.js
+      - name: Syntax check v52 scripts
+        run: |
+          set -euo pipefail
+          for file in scripts/*WorldCoverageVisual*V52.mjs; do
+            node --check "$file"
+          done
+      - name: Runtime acceptance
+        run: node scripts/checkWorldCoverageVisualRuntimeV52.mjs
+      - name: Contract boundary
+        run: node scripts/checkWorldCoverageVisualRuntimeV52Contract.mjs
+      - name: Asset-first boundary
+        run: node scripts/checkWorldCoverageVisualAssetContractV52.mjs
+      - name: Visual RCA coverage
+        run: node scripts/checkWorldCoverageVisualRcaV52.mjs
+      - name: Determinism
+        run: node scripts/checkWorldCoverageVisualDeterminismV52.mjs
+      - name: Render hook lifecycle
+        run: node scripts/checkWorldCoverageVisualRenderHookV52.mjs
+      - name: Mobile visual budgets
+        run: node scripts/checkWorldCoverageVisualBudgetV52.mjs
+      - name: Source coverage
+        run: node scripts/checkWorldCoverageVisualSourceCoverageV52.mjs
+      - name: HTML entry contract
+        run: |
+          set -euo pipefail
+          grep -F "./src/3d/world/worldCoverageVisualRuntimeV52.js" game3d.html
+          test "$(grep -n "worldCoverageVisualRuntimeV52.js" game3d.html | head -n1 | cut -d: -f1)" -lt "$(grep -n "src/3d/game3d.js" game3d.html | head -n1 | cut -d: -f1)"
+      - name: Diff safety
+        run: |
+          set -euo pipefail
+          git diff --check "$GITHUB_BASE_REF...HEAD"
+          additions="$(git diff --numstat "$GITHUB_BASE_REF...HEAD" | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          echo "World Coverage v52 total changed lines: $additions"
+          test "$additions" -le 3000
