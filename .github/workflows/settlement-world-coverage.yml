@@ -1,0 +1,102 @@
+name: Settlement World Coverage
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementWorldCoverageSlice.js'
+      - 'src/3d/gameplay/settlementWorldCoverageAcceptance.js'
+      - 'src/3d/gameplay/settlementWorldCoverageRuntimeAdapter.js'
+      - 'scripts/checkSettlementWorldCoverageSlice.mjs'
+      - 'scripts/checkSettlementWorldCoverageRuntimeAdapter.mjs'
+      - 'scripts/checkSettlementWorldCoverageContract.mjs'
+      - '.github/workflows/settlement-world-coverage.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/settlementWorldCoverageSlice.js'
+      - 'src/3d/gameplay/settlementWorldCoverageAcceptance.js'
+      - 'src/3d/gameplay/settlementWorldCoverageRuntimeAdapter.js'
+      - 'scripts/checkSettlementWorldCoverageSlice.mjs'
+      - 'scripts/checkSettlementWorldCoverageRuntimeAdapter.mjs'
+      - 'scripts/checkSettlementWorldCoverageContract.mjs'
+      - '.github/workflows/settlement-world-coverage.yml'
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Syntax check
+        run: |
+          node --check src/3d/gameplay/settlementWorldCoverageSlice.js
+          node --check src/3d/gameplay/settlementWorldCoverageAcceptance.js
+          node --check src/3d/gameplay/settlementWorldCoverageRuntimeAdapter.js
+          node --check scripts/checkSettlementWorldCoverageSlice.mjs
+          node --check scripts/checkSettlementWorldCoverageRuntimeAdapter.mjs
+          node --check scripts/checkSettlementWorldCoverageContract.mjs
+      - name: Settlement World Coverage Slice
+        run: node scripts/checkSettlementWorldCoverageSlice.mjs
+      - name: Settlement World Coverage Runtime Adapter
+        run: node scripts/checkSettlementWorldCoverageRuntimeAdapter.mjs
+      - name: Settlement World Coverage Contract Matrix
+        run: node scripts/checkSettlementWorldCoverageContract.mjs
+
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Main freshness and focused diff budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          BASE="$(git rev-parse origin/main)"
+          HEAD="$(git rev-parse HEAD)"
+          BEHIND="$(git rev-list --count "$HEAD..$BASE")"
+          if [ "$BEHIND" -ne 0 ]; then
+            echo "branch is behind origin/main by $BEHIND commit(s)"
+            exit 1
+          fi
+          CHANGED="$(git diff --numstat "$BASE" "$HEAD" | awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          if [ "$CHANGED" -gt 3000 ]; then
+            echo "diff budget exceeded: $CHANGED"
+            exit 1
+          fi
+          FORBIDDEN='EditorMaterialStudio.js'
+          if git diff --name-only "$BASE" "$HEAD" | grep -F "$FORBIDDEN"; then
+            echo "editor material studio must not be imported or modified by this slice"
+            exit 1
+          fi
+          echo "base=$BASE head=$HEAD changed=$CHANGED"
+
+  runtime-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Guard shared ownership boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            src/3d/gameplay/settlementWorldCoverageSlice.js \
+            src/3d/gameplay/settlementWorldCoverageAcceptance.js \
+            src/3d/gameplay/settlementWorldCoverageRuntimeAdapter.js; do
+            if grep -nE "EditorMaterialStudio|src/3d/materials/MaterialAssignmentCore|src/3d/world/WorldAssetPlacementPipeline" "$file"; then
+              echo "coverage modules must not take editor/shared-placement ownership"
+              exit 1
+            fi
+          done
+          if grep -nE "geometry|BoxGeometry|MeshBasicMaterial|MeshStandardMaterial" \
+            src/3d/gameplay/settlementWorldCoverageAcceptance.js \
+            src/3d/gameplay/settlementWorldCoverageRuntimeAdapter.js; then
+            echo "acceptance/adapter layers must not author primitive geometry"
+            exit 1
+          fi
