@@ -18,7 +18,7 @@ function assert(condition, message) {
   if (!condition) throw new Error(`[full-world-ownership] ${message}`);
 }
 
-const root = path.resolve(new URL('..', import.meta.url).pathname, '..');
+const root = path.resolve('.');
 const directorPath = path.join(root, 'src/3d/world/fullWorldCoverageDirector.js');
 const directorSource = fs.readFileSync(directorPath, 'utf8');
 const materialCorePath = path.join(root, 'src/3d/materials/MaterialAssignmentCore.js');
@@ -88,21 +88,8 @@ for (const feature of constants.DEFAULT_REQUIRED_FEATURES) {
   assert(Number.isFinite(plan.featureMatrix[feature].coverage), `${feature} coverage is not finite`);
 }
 
-const forbiddenRuntimeTokens = [
-  'EditorMaterialStudio',
-  'MeshBasicMaterial',
-  'BoxGeometry',
-  'SphereGeometry',
-  'CylinderGeometry',
-  'CapsuleGeometry',
-  'PlaneGeometry',
-  'writeFileSync',
-  'appendFileSync',
-  'mkdirSync',
-  'git lfs pull --all',
-];
+const forbiddenRuntimeTokens = ['EditorMaterialStudio', 'MeshBasicMaterial', 'BoxGeometry', 'SphereGeometry', 'CylinderGeometry', 'CapsuleGeometry', 'PlaneGeometry', 'writeFileSync', 'appendFileSync', 'mkdirSync', 'git lfs pull --all'];
 for (const token of forbiddenRuntimeTokens) assert(!directorSource.includes(token), `director contains forbidden token: ${token}`);
-
 assert(directorSource.includes('mutatesCanonicalGeography'), 'director read-only marker missing');
 assert(directorSource.includes('createsGeometry'), 'director geometry marker missing');
 assert(directorSource.includes('sharedMaterialPlacementAuthority'), 'shared material authority marker missing');
@@ -122,7 +109,5 @@ const riskTotal = Object.values(plan.risks).reduce((sum, value) => sum + value, 
 assert(riskTotal === 0, `synthetic ownership plan contains runtime risks: ${JSON.stringify(plan.risks)}`);
 assert(plan.gaps.length === 0, `synthetic ownership plan contains ${plan.gaps.length} coverage gaps`);
 assert(plan.report.readyForRuntimeProof === true, 'synthetic ownership plan is not internally consistent');
-
-const queue = plan.gaps.filter(Boolean);
-assert(queue.length === 0, 'critical queue source unexpectedly contains unresolved gaps');
+assert(plan.gaps.filter(Boolean).length === 0, 'critical queue source unexpectedly contains unresolved gaps');
 console.log(`FULL_WORLD_COVERAGE_OWNERSHIP_OK checks=64 cells=${plan.cellCount} seams=${seamAudit.pairCount} probes=${plan.probeCount} digest=${manifest.deterministicDigest}`);
