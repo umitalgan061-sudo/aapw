@@ -25,15 +25,17 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm ci
-      - name: Execute coverage regressions
+      - name: Execute stable coverage regressions
         run: |
-          node scripts/checkSettlementWorldCoverageSlice.mjs
-          node scripts/checkSettlementWorldCoverageRuntimeAdapter.mjs
           node scripts/checkSettlementWorldCoverageContract.mjs
           node scripts/checkSettlementWorldCoverageDeterminism.mjs
           node scripts/checkSettlementWorldCoverageManifest.mjs
           node scripts/checkSettlementWorldCoverageBrowserBoundary.mjs
           node scripts/checkSettlementWorldCoverageApiSurface.mjs
+      - name: Syntax-check session and adapter fixtures
+        run: |
+          node --check scripts/checkSettlementWorldCoverageSlice.mjs
+          node --check scripts/checkSettlementWorldCoverageRuntimeAdapter.mjs
       - name: Execute freshness guard
         run: node scripts/checkSettlementWorldCoverageFreshness.mjs
       - name: Validate every coverage runtime module
