@@ -20,6 +20,8 @@ assert.equal(first.observations[1].grounding.eligible, true);
 assert.equal(first.observations[3].grounding.eligible, false);
 assert.equal(Object.isFrozen(first), true);
 assert.equal(Object.isFrozen(first.observations[0]), true);
+assert.match(first.digest, /"riskCounts"/);
+assert.match(first.digest, /"rectangularWater":1/);
 const target = {};
 assert.equal(applyEnvironmentSurfaceResponseV46(target, first), true);
 assert.equal(target.environmentSurfaceResponseV46, first);
