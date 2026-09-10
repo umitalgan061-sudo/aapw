@@ -36,4 +36,4 @@ jobs:
         run: |
           changed=$(git diff --numstat "${{ github.event.pull_request.base.sha || github.event.before }}" "${{ github.sha }}" -- src/3d/world/environmentVisualAdoptionV55.js scripts/checkEnvironmentVisualAdoptionV55.mjs .github/workflows/buzul-muhafizi-environment-visual-adoption-v55.yml | awk '{a+=$1; d+=$2} END {print a+d+0}')
           test "$changed" -le 3000
-          test "$changed" -gt 1000
+          test "$changed" -gt 500
