@@ -3,9 +3,9 @@ import { createSettlementQuestChainDirector } from '../src/3d/gameplay/settlemen
 
 const director = createSettlementQuestChainDirector({
   nodes: [
-    { id: 'talk-warden', type: 'talk', title: 'Warden briefing', order: 2 },
+    { id: 'talk-warden', type: 'talk', title: 'Warden briefing', order: 2, requiredDialogueChoice: 'warden-helped' },
     { id: 'market-run', type: 'trade', title: 'Restock the market', requiredFlag: 'market-open', order: 1 },
-    { id: 'forge-blade', type: 'craft', title: 'Forge a field blade', requiredItem: 'iron-ingot', requiredSkill: 'smithing', requiredSkillLevel: 2, order: 3 },
+    { id: 'forge-blade', type: 'craft', title: 'Forge a field blade', requiredItem: 'iron-ingot', requiredSkill: 'smithing', requiredSkillLevel: 2, requiredReputation: 5, order: 3 },
   ],
 });
 
@@ -17,6 +17,8 @@ const input = {
     flags: { 'market-open': true },
     items: { 'iron-ingot': 1 },
     skills: { smithing: 2 },
+    reputation: { craft: 5 },
+    dialogueChoices: { 'warden-helped': true },
     services: { trade: true, craft: true },
     completedSteps: { 'market-run': true },
   },
@@ -33,10 +35,16 @@ assert.equal(Object.isFrozen(first.rows[0]), true);
 
 const blocked = director.evaluate({
   ...input,
-  state: { services: { trade: false, craft: false } },
+  state: { services: { trade: false, craft: false }, items: { 'iron-ingot': 1 }, skills: { smithing: 2 }, reputation: { craft: 0 } },
 });
 assert.equal(blocked.rows.find((row) => row.id === 'market-run').blockedReason, 'missing-flag:market-open');
-assert.equal(blocked.rows.find((row) => row.id === 'forge-blade').blockedReason, 'missing-item:iron-ingot');
+assert.equal(blocked.rows.find((row) => row.id === 'forge-blade').blockedReason, 'reputation-too-low:craft');
+
+const dialogueBlocked = director.evaluate({
+  ...input,
+  state: { flags: { 'market-open': true }, items: { 'iron-ingot': 1 }, skills: { smithing: 2 }, reputation: { craft: 5 }, services: { trade: true, craft: true } },
+});
+assert.equal(dialogueBlocked.rows.find((row) => row.id === 'talk-warden').blockedReason, 'dialogue-choice-missing:warden-helped');
 
 const outside = director.evaluate({ settlementId: 'canonical-town-01', insideSettlement: false, alive: true, state: {} });
 assert.equal(outside.totalSteps, 0);
