@@ -5,6 +5,13 @@ const clamp = (value, min, max) => Math.min(max, Math.max(min, Number.isFinite(v
 const finite = (value, fallback = 0) => (Number.isFinite(value) ? value : fallback);
 const cleanId = (value, fallback = 'unknown') => String(value ?? fallback).trim().slice(0, 80) || fallback;
 
+function deepFreeze(value) {
+  if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value;
+  Object.freeze(value);
+  Object.values(value).forEach(deepFreeze);
+  return value;
+}
+
 function normalizeAction(action) {
   const value = String(action ?? '').trim().toLowerCase();
   return ACTIONS.includes(value) ? value : null;
@@ -46,7 +53,7 @@ export function buildPlayerComboChainDirector(input = {}) {
     : null;
   const step = queuedAction ? `${cleanId(input.chainId, 'default')}:${queuedAction}` : null;
 
-  return Object.freeze({
+  return deepFreeze({
     chainId: cleanId(input.chainId, 'default'),
     phase,
     currentAction,
