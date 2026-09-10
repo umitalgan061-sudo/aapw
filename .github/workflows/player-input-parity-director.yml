@@ -1,0 +1,36 @@
+name: player-input-parity-director
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerInputParityDirector.js'
+      - 'scripts/checkPlayerInputParityDirector.mjs'
+      - '.github/workflows/player-input-parity-director.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax check
+        run: |
+          node --check src/3d/gameplay/playerInputParityDirector.js
+          node --check scripts/checkPlayerInputParityDirector.mjs
+      - name: Regression
+        run: node scripts/checkPlayerInputParityDirector.mjs
+      - name: Scope and boundary guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")
+          allowed=$'src/3d/gameplay/playerInputParityDirector.js\nscripts/checkPlayerInputParityDirector.mjs\n.github/workflows/player-input-parity-director.yml'
+          while IFS= read -r path; do
+            test -z "$path" || grep -Fxq "$path" <<< "$allowed"
+          done <<< "$changed"
+          total=$(git diff --numstat "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}" | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$total" -le 3000
+          ! grep -R "EditorMaterialStudio\|MaterialStudio" src/3d/gameplay/playerInputParityDirector.js scripts/checkPlayerInputParityDirector.mjs
+          git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}"
