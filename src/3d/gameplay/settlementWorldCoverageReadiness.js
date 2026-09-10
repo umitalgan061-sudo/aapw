@@ -35,3 +35,8 @@ export function createSettlementWorldCoverageReadiness(input={}){
   const output={version:SETTLEMENT_WORLD_COVERAGE_READINESS_VERSION,settlementId:plan.settlementId,locationId:plan.locationId,selected,alternatives:candidatesList.slice(1),safeFallback,blockedServices:plan.services.filter(row=>row.status==='blocked').map(row=>row.id),summary:{candidateCount:candidatesList.length,readyServices:plan.serviceSummary.ready,partialServices:plan.serviceSummary.partial,interactionable:candidatesList.length>0}};
   return freeze({...output,fingerprint:digest(output)});
 }
+
+export function createSettlementWorldCoverageQuickActions(readiness={}, limit=3){
+  const rows=[readiness.selected,...(readiness.alternatives??[])].filter(Boolean).slice(0,Math.max(1,limit));
+  return freeze(rows.map(row=>({serviceId:row.serviceId,intent:row.intent,reason:text(row.reason,'ready')})));
+}
