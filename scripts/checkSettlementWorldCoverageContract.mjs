@@ -52,7 +52,7 @@ addInteraction('i1','gate','enter',1);addInteraction('i2','market','trade',2);ad
 
 const completeInput={settlementId:'canonical-settlement',assets:assetEvidence,materials:materialEvidence,manifests:manifestEvidence,placements:placementEvidence,cameras,interactions};
 const acceptance=createSettlementWorldCoverageAcceptance(completeInput);
-assert(acceptance.status==='green',`expected green acceptance, got ${acceptance.status}`);
+assert(acceptance.status==='green',`expected green acceptance, got ${acceptance.status}; score=${acceptance.score}; flags=${JSON.stringify(acceptance.flags)}; services=${JSON.stringify(acceptance.services)}`);
 assert(acceptance.score===1,'complete acceptance score drift');
 assert(acceptance.flags.noMissingAssets,'missing asset flag drift');
 assert(acceptance.flags.noPlaceholderMaterials,'placeholder material flag drift');
