@@ -18421,3 +18421,65 @@ maddesindeki üç seçenekten birine karar vermesi gerekiyor; kod tarafında bu 
 yapılabilecek başka bir şey yok. Bu blokaj gerçek asset içeriğini etkiliyor ama arazi/yol/NPC/kod
 kalitesi işine (öncelik sırası 1-8) engel değil — sıradaki güvenli alt görev (arazi makro-relıyefi)
 ayrı bir alt görev olarak ele alınmalı.
+
+## Run 371 (2026-09-10, scheduled routine) — new feature: world/Weather (rain tied to distant_storm), game3d.js split for headroom
+
+**Alt görev 1 — `game3d.js` bölme (önkoşul).** Dosya 598/600 satırdaydı (kapasiteye tam sınırda);
+yeni bir sistem eklemeden önce, `mobileSpawnVegetation.js`'ye "mobile spawn-anchored vegetation disc"
+bloğunu (run 135/ADR-0159, davranış değişikliği yok, sadece taşıma) çıkardım — aynı `gameLoopHelpers.js`
+(run 105) / `gameplay/livingWorldSpawner.js` (run 332) emsaliyle. `game3d.js` 555'e düştü.
+
+**Alt görev 2 — `world/weather.js` (yeni özellik, hedef mimarideki boş `world/Weather` klasörü ilk kez
+dolduruldu, GOVERNANCE.md §18 madde 14 "Yeni özellik").** Sabit boyutlu (900 damla) bir
+`THREE.LineSegments` yağmur efekti: her damlanın konumu/fazı `mulberry32` ile deterministik olarak
+kuruluyor (Math.random() yok), her kare kamera etrafında yeniden merkezleniyor (dünya boyutunda tek
+bir parçacık sistemine gerek kalmadan her yerde "üstünde yağıyor" hissi). Yeni bir zamanlama icat
+etmek yerine mevcut FAZ 8 `distant_storm` dünya olayına pasif olarak abone oluyor (`worldEventToast.js`
+ile aynı ilişki, ADR-0056) — bu yüzden `worldEvents.js`'in kendi deterministik çekiliş sırasını hiç
+etkilemiyor, fixture'ı değişmedi. `game3d.js`'e ekleme: import + oluşturma/sahneye ekleme + event
+listener + tick loop'ta `updateSystemSafely` ile sarılı update çağrısı + dispose — toplam ~20 satır,
+dosya 581/600'e çıktı (hâlâ sınırın altında). Doku/model asset'i gerektirmiyor — `RCA_RUN370_LFS_PROXY_AUTH.md`'nin
+belgelediği git-lfs/proxy-auth açığından etkilenmiyor.
+
+**DoD:** `node --check` PASS (4 dosya). `scripts/checkWeatherSystem.js` (yeni check, run içinde yazıldı) —
+determinizm (aynı seed → aynı damla düzeni), boşta görünmezlik, trigger()→fade-in→hold→fade-out→gizlenme
+tam simülasyonla doğrulandı. `checkSmokeCheckRegistry.js` OK (687 dosya, 600 satır sınırının hepsi
+altında). `checkTechnicalDebt.js` PASS (0 yeni marker). `checkSeededRandomPolicy.js` PASS. Performans:
+perf-panel/tarayıcı ölçümü bu run'da alınamadı (aşağıdaki not), ama tasarım gereği tek ekstra draw
+call + ~1800 vertex — bütçeye göre ihmal edilebilir düzeyde (tahmini, ölçülmedi — dürüstçe işaretleniyor).
+Konsol temizliği: N/A (tarayıcı oturumu tamamlanmadı). ADR: gerekmedi (mevcut event-bus/safe-mode
+kalıplarının tekrar kullanımı, yeni bir mimari karar değil).
+
+**🟡 Yan bulgu — tarayıcı smoke test artık ÇALIŞIYOR ama `audio-and-movement` fazında takılıyor.**
+Run 370'ün proxy-auth RCA'sından sonra bu run `NODE_PATH=$(npm root -g) node scripts/smokeTestGame3D.js`
+ile gerçek bir tarayıcı denemesi yaptı (global `playwright@1.56.1` + önceden kurulu Chromium,
+`/opt/pw-browsers`) — önceki ~16 run'ın "ortam engelli" diye bıraktığı şeyin aksine, ilk üç faz
+(`scene-and-debug`, `world-events-and-interaction`, `settlement-and-ui`) gerçekten TAMAMLANDI (her biri
+~50-90 saniyede). Ama `audio-and-movement` fazında 7+ dakikadır ilerleme yok — muhtemelen oyuncu
+karakterinin Mixamo FBX animasyonlarının da (kale modelleri gibi) LFS pointer-stub olması ve bir
+hareket kontrolünün gerçek bir model/animasyon bekleyip sessizce asılı kalması (kanıtlanmadı, bir
+sonraki run'ın kendi trace'iyle doğrulaması gerekiyor — bu satır bir tahmin, kesin RCA değil). **Bu
+kendi başına önemli:** tarayıcı/Playwright altyapısı bu ortamda ÇALIŞIYOR; "ortam engelli" etiketi en
+azından sahne/UI/dünya-olayı/yerleşim fazları için artık yanlış — sadece hareket/animasyon fazı asset
+içeriğine (LFS) bağımlı görünüyor. Bir sonraki run bunu `checkPlayerMovementSmoke` gibi tek bir fazı
+izole ederek (kısa timeout'la) doğrulamalı.
+
+**Node-script `three` bağımlılığı notu:** `checkIceLandmarks.mjs` gibi `world/`'den import eden
+node script'ler `three` paketinin yerel olarak çözülebilir olmasını gerektiriyor (repo'da
+`package.json` yok) — CI workflow'ları bunu `npm install --no-save --no-package-lock three@0.160.0`
+ile her çalıştırmada tazeliyor (`.github/workflows/*.yml`'de görüldü). Bu run aynısını yaptı; taze bir
+konteynerde bu adım atlanırsa `world/`'e dokunan hiçbir node check script'i (hatta önceden var olanlar
+bile) çalışmaz — bu run'a özgü bir keşif değildi ama ilk kez açıkça not düşülüyor.
+
+**World Evolution Report:** yeni bir player-facing özellik (yağmur) eklendi — evet, oyuncu fark eder
+(görsel kanıt bu run'da tarayıcı fazı tamamlanamadığı için alınamadı, bir sonraki run'ın
+`checkWeatherSystem.js` PASS'ının üstüne F4/gerçek render kanıtı eklemesi gerekiyor). Yol/kale/NPC/
+hayvan sayısında değişiklik yok. World Coverage değişmedi.
+
+**Risk:** LOW-MEDIUM — yeni kod eklendi (weather.js, game3d.js wiring) ama mevcut event-bus/safe-mode
+kalıpları tekrar kullanıldı, hiçbir mevcut sistem değiştirilmedi (sadece iki taşıma: vegetation disc
++ import temizliği). Görsel kanıt eksikliği açıkça işaretlendi, DONE olarak iddia edilmiyor.
+
+**Sıradaki adım:** (1) bir sonraki run tarayıcıda gerçek görsel kanıt alsın (F4 önden/arkadan, yağmur
+tetiklenmiş/tetiklenmemiş), (2) `audio-and-movement` fazının takılma nedenini izole bir script'le
+doğrulasın, (3) `checkSettlementCampaignDeepSlice.mjs` (41 satır, tek assertion) hâlâ bekliyor.
