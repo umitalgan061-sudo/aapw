@@ -74,12 +74,12 @@ function normalizeVector(vector) {
 function normalizeCamera(camera, fallback) {
   const source = camera && typeof camera === 'object' ? camera : {};
   return {
-    width: clamp(source.width, 256, 4096),
-    height: clamp(source.height, 256, 4096),
+    width: clamp(source.width ?? fallback.width, 256, 4096),
+    height: clamp(source.height ?? fallback.height, 256, 4096),
     orthographic: source.orthographic !== false,
     yaw: round(finite(source.yaw, fallback.yaw)),
     pitch: round(finite(source.pitch, fallback.pitch)),
-    distance: clamp(source.distance, 1, 50000),
+    distance: clamp(source.distance ?? fallback.distance, 1, 50000),
   };
 }
 
