@@ -18784,3 +18784,80 @@ replacement (`'domcontentloaded'` → `'commit'`), applied identically across al
 **DoD:** `node --check` PASS on all 9 files. Spot-verification in progress at commit time — see the
 next progress entry for the actual pass/fail result (not claimed here in advance). No ADR (bugfix,
 same root cause already documented in 371e/371f, no new design decision).
+
+## Run 372 (2026-09-10, scheduled routine) — concurrency collision on the 10-file navigation fix; picked up the entry-gate gap Run 371g's own spot-check surfaced instead
+
+Session-start housekeeping (GOVERNANCE.md §8.14/§20): stored prompt's "create GOVERNANCE.md" step
+re-verified against the file (already contains every rule asked for — §8.11–§8.13, §13, §15, `CREDITS.md`/
+`QUESTIONS_FOR_OWNER.md` already exist, run199/235/291/321/348 superseding notes already record this
+was done) and correctly skipped, same as Run 371g would have found. Local detached HEAD/stale `main`
+ref resynced to `origin/main`.
+
+**Real concurrency collision, handled per §8.14 (not just the theoretical case that section already
+describes — this run hit it directly):** independently picked the same next-subtask Run 371f had
+explicitly named (the 10-file `waitUntil`/`waitForFunction` fix above), did the same file-by-file
+verification work, and had a working local fix ready — but the pre-commit `git fetch origin main`
+(done immediately before what would have been this run's own commit) showed `origin/main` had already
+advanced by 2 commits: another session had pushed the identical fix (`b78fe89`) plus an honest
+post-fix spot-check (`76b4392`, this run's own "Run 371g" entries above) minutes earlier. Compared the
+two: functionally equivalent (same two bugs, same files, same mechanism), theirs already merged and
+already had its own real-browser verification recorded. Per §8.14 ("iki rakip kopya asla aynı anda
+push edilmez"), discarded this run's local duplicate entirely (`git reset --hard origin/main`) rather
+than pushing a second, redundant commit — no code lost, the other session's work was strictly
+equivalent-or-better (their `checkVillageArchitectureNavigationBrowser.mjs` also raised
+`READY_TIMEOUT_MS` 90s→120s, addressing the very timeout question this run's own draft entry had
+logged as still-open before the reset).
+
+**Picked up Run 371g's own honest spot-check finding instead** (the genuinely still-open item, not a
+duplicate): `checkMobileJumpControl.js` was one of the 9/10 fixed files that never dismisses Run 266's
+`#run266-entry-gate` overlay before its own `page.click('.g3d-touch-jump-button')`, so the gate
+intercepts the click and Playwright retry-loops until its own action timeout. Added the same
+dismissal `checkRun266EntryGate.js` and `captureRun339PauseMenuEvidence.js`'s `waitForReady` already
+use (`page.click('#run266-entry-enter')` then `waitForFunction(() =>
+!document.getElementById('run266-entry-gate'), null, {timeout:5000})`) right after the existing
+`GAME_READY` wait and before the layout/click assertions. Single-context script (unlike
+`captureRun339PauseMenuEvidence.js`'s two-context case that Run 371g found the 5000ms insufficient
+for), so kept the same 5000ms budget rather than guessing a larger one without evidence this script
+needs it.
+
+**Empirical verification (not just `node --check`):** ran the full script end-to-end. It now gets past
+navigation, `GAME_READY`, the entry-gate dismissal, and the click itself cleanly — confirmed by the
+failure it hits next: `assert.deepEqual(errors, [])` fails on the same **already-documented, unrelated**
+Run 370 LFS/proxy-auth blocker (`RCA_RUN370_LFS_PROXY_AUTH.md`) surfacing as `console:[game3d] asset
+error` lines for `Moon 2K.fbx`, several `castles/*.glb`, and multiple `animals/*.glb` — every one a git-LFS
+pointer file being parsed as JSON/FBX, not a real click/gate/asset-content bug. This script's own error
+check (`assert.deepEqual(errors, [])`) is stricter than most of this project's other checks (it treats
+*any* console error as failure, including asset-load errors unrelated to what it's actually testing) —
+worth a future run's own look at whether that assertion should be scoped to page errors / jump-specific
+console output instead of all console errors, once the LFS blocker itself is resolved and this
+distinction can actually be tested against a clean baseline.
+
+**DoD:** `node --check scripts/checkMobileJumpControl.js` PASS. Ran end-to-end in a real headless
+Chromium — reaches the correct, expected (LFS-blocked) failure point rather than the gate-click
+timeout it hit before. No ADR (mechanical fix mirroring an existing, already-established dismissal
+pattern in two other files in this same repo, not a new design decision). No gameplay/runtime code
+touched (`scripts/` dev-tooling only) — no Arazi Değişiklik Güvenlik Kontrolü, no `perf_log.csv`/World
+Evolution Report delta, no player-visible change.
+
+**Sıradaki adım:** (1) the other 8 fixed files that never dismiss `#run266-entry-gate` — grep and check
+each individually for whether they interact with the page (only ones with a `.click()`/`.tap()` after
+`GAME_READY` actually need it; several of the 10 are screenshot/read-only and may not). (2) Confirm/
+refute Run 371f's "just needs more patience" hypothesis for full-desktop-world `GAME_READY` boots
+(`checkVillageArchitectureNavigationBrowser.mjs` timed out at its own newly-real 120s in Run 371g's
+merged fix — still unconfirmed whether that's a genuine multi-minute cost or an actual hang). (3) The
+owner-decision-pending LFS/proxy-auth blocker (`QUESTIONS_FOR_OWNER.md`) remains the real ceiling on
+how much further any of these dev-tool scripts can be made to pass end-to-end — most will keep failing
+at real-asset-load until that's resolved, which is expected and correctly attributed, not a reason to
+keep re-diagnosing the same scripts. Priority-list items 1–4 (terrain macro relief, road network,
+ground color, castle texturing — `GOVERNANCE.md` §18) remain queued behind this reliability work for
+the same reason Run 371/371g gave: trustworthy verification tooling before undertaking the
+Arazi Değişiklik Güvenlik Kontrolü-gated terrain work.
+
+**Risk:** LOW — dev-tooling only, single well-scoped fix, no gameplay/runtime/asset changes. **World
+Evolution Report:** no delta this run (tooling-only). **Concurrency note for future runs:** two
+independent sessions picked the identical next-subtask within ~10 minutes of each other today — worth
+watching whether GOVERNANCE.md's own explicit next-subtask notes (this project's established practice
+of naming the exact next step at the end of each run entry) are *increasing* collision risk by making
+the "obvious next task" too obvious when multiple sessions read the same file at once, versus the
+alternative (vaguer notes) which would likely just relocate the collisions elsewhere. Not treated as
+actionable by itself this run — a single collision, correctly resolved via §8.14, isn't yet a pattern.
