@@ -1,0 +1,38 @@
+name: player-combo-chain-director
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerComboChainDirector.js'
+      - 'scripts/checkPlayerComboChainDirector.mjs'
+      - '.github/workflows/player-combo-chain-director.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax
+        run: node --check src/3d/gameplay/playerComboChainDirector.js && node --check scripts/checkPlayerComboChainDirector.mjs
+      - name: Executable regression
+        run: node scripts/checkPlayerComboChainDirector.mjs
+      - name: Scope guard
+        shell: bash
+        run: |
+          files=$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.sha }}")
+          test -n "$files"
+          while IFS= read -r file; do
+            case "$file" in
+              src/3d/gameplay/playerComboChainDirector.js|scripts/checkPlayerComboChainDirector.mjs|.github/workflows/player-combo-chain-director.yml) ;;
+              *) echo "Unexpected file: $file"; exit 1 ;;
+            esac
+          done <<< "$files"
+      - name: Diff hygiene
+        run: git diff --check
