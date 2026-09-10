@@ -23,7 +23,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - name: Install dependencies
         run: npm ci
       - name: Execute coverage regressions
@@ -58,7 +57,7 @@ jobs:
           base="$(git rev-parse origin/main)"
           while IFS= read -r file; do
             case "$file" in
-              src/3d/gameplay/settlementWorldCoverage*.js|scripts/checkSettlementWorldCoverage*.mjs|.github/workflows/settlement-world-coverage*.yml) ;;
+              src/3d/gameplay/settlementWorldCoverage*.js|scripts/checkSettlementWorldCoverage*.mjs|.github/workflows/settlement-world-coverage*.yml|docs/settlement-world-coverage.md) ;;
               *) echo "Unexpected World Coverage file: $file"; exit 1 ;;
             esac
           done < <(git diff --name-only "$base...HEAD")
