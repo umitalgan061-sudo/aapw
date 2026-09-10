@@ -18144,3 +18144,135 @@ last remaining concrete, already-isolated candidate in this file family — not 
 this run (kept to the one file this run's RCA was already deep in). A future run should apply the same
 "read/verify before touching" discipline there before attempting a fix; the settlement-vertical-slice
 check-script family will then be fully green (Matrix, Content, Events, Journey all already PASS).
+
+---
+
+## Run 369 (2026-09-10, scheduled routine) — root-cause and repair all 21 `checkSettlementVerticalSliceRoleRuntime.mjs` failures; settlement-vertical-slice check family now fully green
+
+Picked up the concrete, already-isolated "next safe step" logged at the end of Run 368: this file's 21
+pre-existing failures (`FAIL: 21`, unchanged since its introduction by the same single "rebase: replay
+vertical slice onto current main" commit that also introduced the never-green Journey file — confirmed via
+`git log --oneline --follow`, identical single-commit history). Investigated before touching code, per this
+project's "read/verify before touching" convention; root causes split across one real (contained,
+already-unwired) production gap and two categories of test-fixture-only bugs.
+
+**Root causes (confirmed by direct invocation before any fix, not guessed):**
+1. **"X node retains role identity" (8 failures).** `createSettlementVerticalSlice()`'s internal
+   `normalizeNode()` (in `settlementVerticalSliceNormalize.js`, the generic engine's own node schema) never
+   included a `role` field in its output — it was written before `settlementVerticalSliceRoles.js` existed
+   and only knows `id/kind/label/actions/gates/metadata`. Any node built via the roles catalog (which does
+   set `.role`) silently lost that field the moment it passed through the generic engine's normalization.
+   Confirmed directly: `createSettlementVerticalSlice({definition, handlers}).currentNode().role` printed
+   `undefined` for a blacksmith node whose pre-normalization source object had `role: 'blacksmith'`.
+2. **"X action is denied without Y capability" (8 failures).** Test expected `reason === 'action-unavailable'`,
+   but `execute()` evaluates the *current node's own* `gates` (via `evaluateSettlementGates`) before the
+   action-level `CAPABILITY_FOR_ACTION` check — and every role node's `gates[0]` is its own capability gate
+   (`buildSettlementRoleNode()` always `gates.unshift({type:'capability', ...})`), so the node gate rejects
+   first with reason `'capability-unavailable'`. This is the exact same precedented pattern Run 368 already
+   found and fixed for forge/save in the Journey file; confirmed again here by direct invocation before
+   touching the test (`execute('craft', {}, {...capabilities:{crafting:false}})` printed
+   `reason: 'capability-unavailable'`, not `'action-unavailable'`).
+3. **"market/tavern/gate gate blocks access" + 2 dependent assertions (5 failures).** Test set up
+   `context.items['market-token']`, `context.reputation.town`, and `context.distance` expecting market/tavern/
+   gate role nodes to carry intrinsic item/reputation/proximity gates by default — but they don't, and
+   confirming this wasn't itself the bug required checking a sibling, already-passing check script first:
+   `checkSettlementRoleCatalog.mjs` already asserts `market.gates.length === 2` for a node built with one
+   *explicit* extra gate (`'market builder keeps capability and explicit gate'`), which only holds if the
+   default (no explicit config) node carries exactly the one capability gate — i.e. adding an intrinsic
+   default gate to `ROLE_DEFAULTS` in production would have silently broken that already-green test. So the
+   bug is the test's own fixture setup, not production: `buildCanonicalSettlementInteractionDefinition()`
+   already supports per-role extra gates via `config[role].gates` (exactly as `checkSettlementRoleCatalog.mjs`
+   demonstrates); this test just never passed any.
+
+**Fixes.**
+- `settlementVerticalSliceNormalize.js`: `normalizeNode()` now carries `role: id(source.role)` straight
+  through (additive field, defaults to `''` when absent — every other consumer of a normalized node reads
+  `id/kind/label/actions/gates/metadata` and ignores unknown keys, confirmed by grep across every importer).
+- `checkSettlementVerticalSliceRoleRuntime.mjs`: the 8 capability-denial assertions now expect
+  `'capability-unavailable'`, with a comment citing the Run 368 precedent. The main and isolated
+  `buildCanonicalSettlementInteractionDefinition()` calls now pass `market: {gates:[{type:'item',
+  itemId:'market-token'}]}`, `tavern: {gates:[{type:'reputation', factionId:'town', minimum:10}]}`,
+  `gate: {gates:[{type:'proximity', distance:4}]}`. None of these three values were picked blind: the
+  item quantity (1) and proximity distance (4) are `settlementVerticalSliceNormalize.js`'s own coded
+  `normalizeGate()` runtime defaults — the proximity distance had to be given *explicitly* here regardless,
+  since `settlementVerticalSliceRoles.js` has its own separate, build-time `normalizeGate()` whose omitted-
+  distance default is 0, not 4 (a real, if currently harmless, inconsistency between the two independent
+  `normalizeGate()` implementations in this file family — flagged below as a follow-up, not fixed this run,
+  scope discipline). Only the tavern reputation minimum (10) has no such anchor anywhere else in the repo
+  (no faction-reputation system is wired into any live scene) — picked as a disclosed temporary fixture
+  default, strictly between the fixture's own fail case (`town: 4`) and pass case (`town: 15`), equal to
+  the fixture's neighboring `reputation.smith: 10` value already authored in the same file.
+
+**Verification.**
+- `node --check` PASS on both touched files; repo-wide `node --check` sweep across every `src/**/*.js`,
+  `src/**/*.mjs` and `scripts/**/*.js`/`*.mjs` — 0 errors.
+- `checkSettlementVerticalSliceRoleRuntime.mjs` was `FAIL: 21`, now **PASS: 251** (was 0 passing since the
+  file's introduction, now 251 passing, 0 failing).
+- Blast-radius sweep, before/after this commit, across every other script importing either touched module:
+  `checkSettlementVerticalSliceJourney.mjs` PASS 135 (unaffected), `checkSettlementVerticalSliceMatrix.mjs`
+  PASS 367 (unaffected), `checkSettlementVerticalSliceEvents.mjs` PASS 44 (unaffected, Run 367's fix still
+  holds), `checkSettlementVerticalSliceContent.mjs` PASS 135 (unaffected — does not import the normalize
+  module), `checkSettlementRoleCatalog.mjs` PASS 160 (unaffected — the exact test whose existing
+  `gates.length === 2` assertion is why the production-code route was rejected in favor of the fixture fix).
+  The unrelated, pre-existing-broken `checkSettlementCampaignContracts.mjs` /
+  `checkSettlementCampaignRuntime.mjs` / `checkSettlementCampaignDeepSlice.mjs` (a sibling
+  `settlementCampaignRuntime.js` subsystem, confirmed via `grep -rl settlementVerticalSliceNormalize` to be
+  structurally unconnected to either touched file) crash identically before and after — same assertion
+  messages, same stack traces, not touched, not investigated this run (separate file family, separate root
+  cause, out of this run's scope).
+- Full DoD gate sweep, re-run fresh: `checkSmokeCheckRegistry.js` OK — 44 smoke checks/19 modules, 684 JS
+  files within the 600-line cap, same class of near-cap WARNs (7 files 543-597/600 this run's own fresh
+  listing), none newly introduced, none in a file this run touched (both touched files sit well under the
+  cap: `settlementVerticalSliceNormalize.js` 309/600, the check script 273/600). `checkTechnicalDebt.js`
+  PASS — 0 new forbidden/debt markers (56/43 counts unchanged). `checkSeededRandomPolicy.js` PASS (no
+  `Math.random()`). `checkAssetsManifest.js` OK, 547 entries, unaffected. `checkWorldEventDeterminism.js`
+  PASS, checksum `ea2bd3bfff60…` unchanged. `checkPwaInstallability.js` OK, unaffected. Browser-half smoke
+  test (`scripts/smokeTestGame3D.js`) — same pre-existing LFS/repo-rename condition as every run since 355
+  reconfirmed this run (`assets/models/settlements/house_fdaqERLQCc.glb` is still a 131-byte `git-lfs`
+  pointer stub; `git lfs` is not an installed command in this container); attempted anyway per this run's
+  own DoD discipline rather than assumed — did not complete a clean pass in this session's environment, not
+  resampled beyond confirming the same known blocker, no new information, not re-reported (Run 344 already
+  delivered the push notification for this).
+
+**Concurrency note (§8.14).** `git fetch origin main` re-run immediately before this commit — `origin/main`
+matched local `HEAD`'s parent exactly (`0c1e898`, itself already fast-forwarded from a stale local `main`
+ref discovered and resynced at the very start of this session before any work began), confirming no
+concurrent session and no drift.
+
+**Follow-up noted, not fixed this run (real but low-priority, zero live-gameplay impact):**
+`settlementVerticalSliceRoles.js` carries its own private `normalizeGate()` (used only when authoring role
+blueprints, e.g. inside `buildSettlementRoleNode()`) whose proximity-gate default distance is `0`, while the
+runtime engine's `normalizeGate()` in `settlementVerticalSliceNormalize.js` (used by `evaluateSettlementGate`
+on every `setNode()`/`execute()` call) defaults an omitted proximity distance to `4`. Currently harmless
+because every existing gate author passes `distance` explicitly, and this run's own fix had to do the same
+after hitting the mismatch directly (a bare `{type:'proximity'}` role gate silently became an
+always-fails-at-distance-0 gate at runtime) — but the two defaults disagreeing is a latent footgun for the
+next person who omits `distance` expecting the roles-catalog helper's own default to match runtime behavior.
+A future run should either make `settlementVerticalSliceRoles.js`'s gate normalizer reuse the shared
+`normalizeGate()`/`evaluateSettlementGate` from `settlementVerticalSliceNormalize.js` instead of maintaining
+a second copy, or explicitly document/align the two defaults — out of this run's scope (would touch a wider
+surface than the one already-diagnosed test-file fix this run committed to).
+
+Risk: LOW. One production change is a single additive field on an already-frozen node object, applied only
+inside a subsystem confirmed (again, via fresh grep) to still not be wired into any playable scene or any
+other importer beyond the two check scripts and `settlementCampaignRuntime.js` (which does not read
+`node.role`, confirmed by grep) — zero observable runtime behavior change reachable from the live game. The
+rest is test-fixture-only. Visual evidence: N/A, no rendering/UI surface touched. Performance: no runtime
+behavior reachable from the live game; no `perf_log.csv` row added (no renderer/runtime code touched, no
+browser session available this session, consistent with every run since 355). Memory leak checklist: N/A.
+Technical debt: net 0 new markers — these are real bugs/gaps being corrected (one production schema gap,
+one precedented-reason-string mismatch, one test-fixture omission), not workarounds; no
+TEMP/HACK/FIXME/WORKAROUND comment added; no ADR (a contained, already-unwired-subsystem bugfix set with
+disclosed reasoning for its one genuinely-picked constant is not an architectural decision, consistent with
+Runs 366-368 not writing one for the same file family). World Coverage: unchanged. World Evolution Report:
+no yol/orman/kale/NPC/hayvan/event count change; "oyuncu fark eder mi" — hayır, bu değişiklik yalnızca henüz
+hiçbir oynanabilir sahneye bağlanmamış bir geliştirici alt-sisteminin (settlement role runtime) kendi şema
+ve test fixture hatalarını düzeltiyor. Terrain macro-relief / LOD and the LFS/repo-rename owner-environment
+condition remain unchanged, not re-reported this run (no new information).
+
+**Next safe step:** the settlement-vertical-slice check-script family (Matrix, Content, Events, Journey,
+RoleRuntime, RoleCatalog) is now fully green end to end. The next concrete, already-isolated candidates are
+either (a) the follow-up noted above (unify the two `normalizeGate()` implementations), or (b) the
+still-broken, structurally separate `settlementCampaignContracts`/`CampaignRuntime`/`CampaignDeepSlice`
+scripts (a different subsystem, not investigated this run) — a future run should root-cause one of those
+before attempting a fix, per this project's own "read/verify before touching" convention.

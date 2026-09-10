@@ -237,6 +237,8 @@ export function evaluateSettlementGates(rawGates, rawContext = {}) {
 }
 
 export function normalizeNode(raw, index) {
+  // `role` is optional authoring metadata (settlementVerticalSliceRoles.js populates it for
+  // blacksmith/tavern/market/... blueprints); passthrough only, no runtime behavior depends on it.
   const source = raw && typeof raw === 'object' ? raw : {};
   const nodeId = id(source.id, `node-${index + 1}`);
   const kind = NODE_KINDS.includes(source.kind) ? source.kind : 'interior';
@@ -256,6 +258,7 @@ export function normalizeNode(raw, index) {
     id: nodeId,
     kind,
     label: text(source.label, nodeId),
+    role: id(source.role),
     actions: Object.freeze(actions),
     gates: Object.freeze(gates),
     metadata: Object.freeze(metadata),

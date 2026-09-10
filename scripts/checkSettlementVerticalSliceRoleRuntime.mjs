@@ -39,6 +39,19 @@ const handlers = {
   save: (payload) => { calls.push(['save', payload]); return { ok: true, message: 'saved' }; },
 };
 
+// Beyond the capability gate buildSettlementRoleNode() always unshifts, three roles below carry an
+// explicit extra gate authored through the same config[role].gates path checkSettlementRoleCatalog.mjs
+// already proves (market builder keeps capability and explicit gate, capability first) — no role gains
+// this by default (confirmed: that already-passing catalog check builds a bare market node and expects
+// exactly one gate). Values are not invented: 'market-token' quantity defaults to normalizeGate's own
+// coded fallback (1) when omitted; the gate proximity distance (4) matches the identical, already-shipped
+// precedent in checkSettlementVerticalSliceJourney.mjs's door gate (Run 367/368) — note it must be given
+// explicitly here, since settlementVerticalSliceRoles.js's own build-time normalizeGate() defaults an
+// omitted proximity distance to 0, not the runtime evaluator's 4, confirmed by direct invocation before
+// settling on this; only the tavern reputation minimum (10) has no such anchor elsewhere (no
+// faction-reputation system is wired into any live scene yet) — picked as a temporary, disclosed fixture
+// default strictly between this file's own context.reputation.town values (15 passes, 4 fails) and equal
+// to the fixture's neighboring context.reputation.smith value.
 const definition = buildCanonicalSettlementInteractionDefinition({
   settlementId,
   entryNodeId: 'settlement-entry',
@@ -46,6 +59,9 @@ const definition = buildCanonicalSettlementInteractionDefinition({
   roles: ['blacksmith', 'tavern', 'market', 'farm', 'barracks', 'stable', 'house', 'gate'],
   maxVisibleActions: 8,
   maxHistory: 20,
+  market: { gates: [{ type: 'item', itemId: 'market-token' }] },
+  tavern: { gates: [{ type: 'reputation', factionId: 'town', minimum: 10 }] },
+  gate: { gates: [{ type: 'proximity', distance: 4 }] },
 });
 
 const context = {
@@ -152,7 +168,12 @@ for (const [role, action, capability] of capabilityCases) {
   slice.setNode(`${role}-node`, context);
   calls.length = 0;
   const denied = slice.execute(action, {}, { ...context, capabilities: { ...context.capabilities, [capability]: false } });
-  assert(!denied.ok && denied.reason === 'action-unavailable', `${role} ${action} is denied without ${capability}`);
+  // Node-level gates (evaluateSettlementGates(current.gates, ...) in execute()) run before the
+  // action-level availableActions() check, and every role node carries its own capability gate as
+  // gates[0] (buildSettlementRoleNode() unshifts it) — so the node gate rejects first, with its own
+  // 'capability-unavailable' reason, matching the same precedented pattern already fixed in
+  // checkSettlementVerticalSliceJourney.mjs (Run 368) for forge/save gating.
+  assert(!denied.ok && denied.reason === 'capability-unavailable', `${role} ${action} is denied without ${capability}`);
   assert(calls.length === 0, `${role} ${action} does not reach handler without ${capability}`);
 }
 
@@ -224,7 +245,12 @@ assert(fpA === fpB, 'role runtime context fingerprint is deterministic');
 
 // Failed transitions must not move an entry node when a gate rejects.
 const isolated = createSettlementVerticalSlice({
-  definition: buildCanonicalSettlementInteractionDefinition({ settlementId: 'gate-test', roles: ['market'], entryNodeId: 'entry' }),
+  definition: buildCanonicalSettlementInteractionDefinition({
+    settlementId: 'gate-test',
+    roles: ['market'],
+    entryNodeId: 'entry',
+    market: { gates: [{ type: 'item', itemId: 'market-token' }] },
+  }),
   handlers,
 });
 assert(isolated.currentNode().id === 'entry', 'isolated test begins at entry');
