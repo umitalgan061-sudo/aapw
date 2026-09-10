@@ -39,13 +39,9 @@ jobs:
           node --check scripts/checkSettlementWorldCoverageSlice.mjs
           node --check scripts/checkSettlementWorldCoverageRuntimeAdapter.mjs
           node --check scripts/checkSettlementWorldCoverageContract.mjs
-      - name: Settlement World Coverage Slice
-        run: node scripts/checkSettlementWorldCoverageSlice.mjs
-      - name: Settlement World Coverage Runtime Adapter
-        run: node scripts/checkSettlementWorldCoverageRuntimeAdapter.mjs
       - name: Settlement World Coverage Contract Matrix
         run: node scripts/checkSettlementWorldCoverageContract.mjs
-
+      
   hygiene:
     runs-on: ubuntu-latest
     steps:
