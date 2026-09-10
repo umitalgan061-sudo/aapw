@@ -1,0 +1,37 @@
+name: Player Combat Timeline Director
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatTimelineDirector.js'
+      - 'scripts/checkPlayerCombatTimelineDirector.mjs'
+      - '.github/workflows/player-combat-timeline-director.yml'
+  push:
+    branches:
+      - codex/kizil-ufuk-combat-timeline-director-20260910
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax check
+        run: |
+          node --check src/3d/gameplay/playerCombatTimelineDirector.js
+          node --check scripts/checkPlayerCombatTimelineDirector.mjs
+      - name: Executable regression
+        run: node scripts/checkPlayerCombatTimelineDirector.mjs
+      - name: Boundary guard
+        run: |
+          ! grep -R "EditorMaterialStudio\|MaterialAssignmentCore\|WorldAssetPlacementPipeline" src/3d/gameplay/playerCombatTimelineDirector.js scripts/checkPlayerCombatTimelineDirector.mjs
+      - name: Diff budget
+        shell: bash
+        run: |
+          additions=$(git diff --numstat origin/main...HEAD -- src/3d/gameplay/playerCombatTimelineDirector.js scripts/checkPlayerCombatTimelineDirector.mjs .github/workflows/player-combat-timeline-director.yml | awk '{a+=$1} END {print a+0}')
+          deletions=$(git diff --numstat origin/main...HEAD -- src/3d/gameplay/playerCombatTimelineDirector.js scripts/checkPlayerCombatTimelineDirector.mjs .github/workflows/player-combat-timeline-director.yml | awk '{d+=$2} END {print d+0}')
+          test "$((additions + deletions))" -le 3000
+      - name: Diff hygiene
+        run: git diff --check origin/main...HEAD
