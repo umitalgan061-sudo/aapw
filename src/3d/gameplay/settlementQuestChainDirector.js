@@ -37,6 +37,8 @@ function normalizeNode(node, index) {
   const requiredQuest = text(node?.requiredQuest);
   const requiredItem = text(node?.requiredItem);
   const requiredSkill = text(node?.requiredSkill);
+  const requiredDialogueChoice = text(node?.requiredDialogueChoice);
+  const requiredReputation = finite(node?.requiredReputation, 0);
   const requiredSkillLevel = Math.max(0, finite(node?.requiredSkillLevel));
   return {
     id,
@@ -50,6 +52,8 @@ function normalizeNode(node, index) {
     requiredItem,
     requiredSkill,
     requiredSkillLevel,
+    requiredDialogueChoice,
+    requiredReputation,
   };
 }
 
@@ -72,6 +76,8 @@ function isComplete(node, state) {
 function blockedReason(node, state) {
   if (node.requiredFlag && state.flags?.[node.requiredFlag] !== true) return `missing-flag:${node.requiredFlag}`;
   if (node.requiredQuest && state.quests?.[node.requiredQuest] !== 'complete') return `quest-not-complete:${node.requiredQuest}`;
+  if (node.requiredDialogueChoice && state.dialogueChoices?.[node.requiredDialogueChoice] !== true) return `dialogue-choice-missing:${node.requiredDialogueChoice}`;
+  if (finite(state.reputation?.[node.service], 0) < node.requiredReputation) return `reputation-too-low:${node.service}`;
   if (!hasItem(state.items, node.requiredItem)) return `missing-item:${node.requiredItem}`;
   if (!hasSkill(state.skills, node.requiredSkill, node.requiredSkillLevel)) return `skill-too-low:${node.requiredSkill}`;
   if (node.type === 'trade' && state.services?.trade !== true) return 'trade-unavailable';
