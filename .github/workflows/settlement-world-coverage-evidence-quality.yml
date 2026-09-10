@@ -1,0 +1,29 @@
+name: Settlement World Coverage Evidence Quality
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/settlementWorldCoverage*.js'
+      - 'scripts/checkSettlementWorldCoverageEvidenceQuality.mjs'
+      - '.github/workflows/settlement-world-coverage-evidence-quality.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/3d/gameplay/settlementWorldCoverage*.js'
+      - 'scripts/checkSettlementWorldCoverageEvidenceQuality.mjs'
+      - '.github/workflows/settlement-world-coverage-evidence-quality.yml'
+
+jobs:
+  evidence-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm ci
+      - name: Syntax check
+        run: node --check scripts/checkSettlementWorldCoverageEvidenceQuality.mjs
+      - name: Execute shipped evidence quality regression
+        run: node scripts/checkSettlementWorldCoverageEvidenceQuality.mjs
