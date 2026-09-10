@@ -39,6 +39,7 @@ function normalizeNode(node, index) {
   const requiredSkill = text(node?.requiredSkill);
   const requiredDialogueChoice = text(node?.requiredDialogueChoice);
   const requiredDependency = text(node?.dependsOn);
+  const completionReceipt = text(node?.completionReceipt);
   const requiredReputation = finite(node?.requiredReputation, 0);
   const requiredSkillLevel = Math.max(0, finite(node?.requiredSkillLevel));
   const requiredItemCount = Math.max(0, Math.floor(finite(node?.requiredItemCount, requiredItem ? 1 : 0)));
@@ -60,6 +61,7 @@ function normalizeNode(node, index) {
     requiredDialogueChoice,
     requiredDependency,
     requiredReputation,
+    completionReceipt,
   };
 }
 
@@ -76,6 +78,7 @@ function hasSkill(skills, skillId, level) {
 function isComplete(node, state) {
   if (state.completedSteps?.[node.id] === true) return true;
   if (state.completedServices?.[node.service] === true) return true;
+  if (node.completionReceipt && state.receipts?.[node.completionReceipt] === true) return true;
   return false;
 }
 
