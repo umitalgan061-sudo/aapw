@@ -47,7 +47,6 @@ jobs:
           set -euo pipefail
           HEAD_SHA="$(git rev-parse HEAD)"
           echo "HEAD_SHA=${HEAD_SHA}"
-          git merge-base --is-ancestor "origin/main" HEAD || true
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
             BASE_SHA="${{ github.event.pull_request.base.sha }}"
             git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"
@@ -58,7 +57,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          BASE="${{ github.event.pull_request.base.sha || 'HEAD~1' }}"
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then BASE="${{ github.event.pull_request.base.sha }}"; else BASE="HEAD~1"; fi
           if ! git cat-file -e "$BASE^{commit}"; then BASE="HEAD~1"; fi
           CHANGES="$(git diff --numstat "$BASE" HEAD -- \
             'src/3d/gameplay/playerCombatCamera*.js' \
@@ -72,15 +71,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if grep -RIn --exclude='EditorMaterialStudio.js' --exclude-dir=node_modules \
-            "EditorMaterialStudio" src/3d/gameplay/playerCombatCamera*.js scripts/checkPlayerCombatCamera*.mjs; then
-            echo 'Camera runtime imports editor Material Studio UI.'
-            exit 1
-          fi
-          if grep -RIn "new THREE\.[A-Za-z]*Geometry" src/3d/gameplay/playerCombatCamera*.js; then
-            echo 'Camera intent scope must not create primitive gameplay geometry.'
-            exit 1
-          fi
+          ! grep -RIn --exclude='EditorMaterialStudio.js' --exclude-dir=node_modules \
+            "EditorMaterialStudio" src/3d/gameplay/playerCombatCamera*.js scripts/checkPlayerCombatCamera*.mjs
+          ! grep -RIn "new THREE\.[A-Za-z]*Geometry" src/3d/gameplay/playerCombatCamera*.js
 
       - name: Syntax check camera contract
         shell: bash
@@ -92,10 +85,13 @@ jobs:
             src/3d/gameplay/playerCombatCameraAcceptance.js \
             src/3d/gameplay/playerCombatCameraReplayContract.js \
             src/3d/gameplay/playerCombatCameraInputParity.js \
+            src/3d/gameplay/playerCombatCameraContract.js \
             scripts/checkPlayerCombatCameraIntentDirector.mjs \
             scripts/checkPlayerCombatCameraIntentMatrix.mjs \
             scripts/checkPlayerCombatCameraRuntimeAdapter.mjs \
-            scripts/checkPlayerCombatCameraInputParity.mjs; do
+            scripts/checkPlayerCombatCameraInputParity.mjs \
+            scripts/checkPlayerCombatCameraContractRuntime.mjs \
+            scripts/checkPlayerCombatCameraContract.mjs; do
             node --check "$file"
           done
 
@@ -110,6 +106,12 @@ jobs:
 
       - name: Input parity regression
         run: node scripts/checkPlayerCombatCameraInputParity.mjs
+
+      - name: Contract runtime regression
+        run: node scripts/checkPlayerCombatCameraContractRuntime.mjs
+
+      - name: Public contract regression
+        run: node scripts/checkPlayerCombatCameraContract.mjs
 
   replay-determinism:
     name: Camera intent replay determinism
@@ -166,6 +168,7 @@ jobs:
           grep -q "aapw:player-attack-window" src/3d/gameplay/playerCombatCameraIntentDirector.js
           grep -q "aapw:player-combat-feedback" src/3d/gameplay/playerCombatCameraIntentDirector.js
           grep -q "aapw:player-camera-intent" src/3d/gameplay/playerCombatCameraIntentDirector.js
+          grep -q "aapw:player-camera-intent" src/3d/gameplay/playerCombatCameraContract.js
 
       - name: Confirm shared placement path remains authoritative
         shell: bash
