@@ -108,6 +108,7 @@ secondSession.open('barracks','quests');
 await secondSession.execute('train',{});
 secondSession.open('house','save');
 secondSession.checkpoint({tag:'deterministic'});
+secondSession.resume(secondSession.snapshotState().checkpoint);
 assert(session.snapshotState().digest===secondSession.snapshotState().digest,'same input replay digest mismatch');
 assert(JSON.stringify(session.view())===JSON.stringify(secondSession.view()),'same input replay view mismatch');
 
@@ -153,7 +154,7 @@ const invalidPlacementInput=clone(proofInput);
 invalidPlacementInput.placements[0].grounded=false;
 invalidPlacementInput.placements[0].overlapRisk=true;
 invalidPlacementInput.placements[0].position.y=2;
-const invalidPlacement=createSettlementWorldCoverageAcceptance(invalidPlacementInput);
+const invalidPlacement= createSettlementWorldCoverageAcceptance(invalidPlacementInput);
 assert(invalidPlacement.placements.invalidCount===1,'invalid placement not caught');
 assert(invalidPlacement.flags.noPlacementRisk===false,'placement risk guard missing');
 
