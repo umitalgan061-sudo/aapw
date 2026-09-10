@@ -18607,3 +18607,48 @@ content-authoring pass). `Browser.mjs` remains Playwright-only, not attempted.
 
 **DoD:** `node --check` PASS. `checkSmokeCheckRegistry.js` OK (688 files). `checkTechnicalDebt.js`
 PASS (0 new markers). No ADR (bugfix backed by direct source reading, not a design decision).
+
+## Run 371e (2026-09-10, scheduled routine) — real visual evidence for Run 371's weather.js; found and fixed a real bug in the process (rain volume Y wasn't following the camera)
+
+**What happened.** Run 371's `world/weather.js` shipped with only logic-level test coverage
+(`checkWeatherSystem.js`) — this run built `scripts/weatherVisualQa.js` (a focused Playwright capture,
+separate from the still-stalled full `smokeTestGame3D.js`, see Run 371 above) to get the real screenshot
+evidence GOVERNANCE.md's Görsel Doğrulama Standardı requires, since it boots to GAME_READY the same way
+`check3DMode` already proved works this run. **It immediately caught a real bug**: the first "before"
+and "during-rain" screenshots came back byte-identical — the rain volume's `group.position.set(camX, 0,
+camZ)` pinned it to world Y=0, but this world's terrain reaches real elevation (up to ~780m inland), so
+for almost any real spawn point the rain rendered nowhere near the camera. Fixed to
+`group.position.set(camX, camY, camZ)`; also strengthened `checkWeatherSystem.js`'s own camera-position
+fixture to a non-zero Y (it had used `y:0`, which happened to coincidentally match the bug's hardcoded 0,
+masking it from the logic-level test entirely).
+
+**Two more environment quirks fixed along the way (documented in `weatherVisualQa.js`'s own comments for
+the next run):** (1) `game3d.html`'s navigation must use `waitUntil:'commit'`, confirmed by hand via a
+direct trace — both `'load'` and `'domcontentloaded'` hang 30s+ in this environment, matching why
+`smokeTestGame3D.js`'s own `createCommittedNavigationBrowser` already exists. (2) `game3d.html` has an
+interactive "run266 entry gate" overlay (`giriş.png` + "Giriş yap" button) sitting on top of the already-
+booted scene until dismissed — GAME_READY firing doesn't mean it's gone. A real `elementHandle.click()`
+on its enter button hung 30s (the handler itself is a few trivial synchronous lines, so this looks like
+Playwright's own actionability/stability wait misjudging this environment's software-rendered Chromium,
+not a real page hang) — a same-page synthetic `element.click()` via `page.evaluate` sidesteps it.
+
+**Visual evidence:** `artifacts/weather-visual-qa/` (gitignored, 3 screenshots): `01-before-chase-cam.png`
+(clear sky, no rain, "Ejderha Görüldü!" toast from an unrelated ambient world event that happened to fire
+during boot), `02-during-chase-cam.png` (same framing, ~5.5s after manually emitting the real
+`distant_storm` event through the game's own live `EventBus` singleton — visible falling rain line
+segments scattered across the frame, "Uzak Fırtına" toast confirms the event fired), `03-during-freecam.png`
+(F4 debug free-cam, second angle per Görsel Doğrulama Standardı — camera happened to fly up into open sky
+during its WASD movement, no rain visible in *this* frame, but 01/02 already give an unambiguous
+before/after). `weatherVisualQa.js` soft-reports the known asset-gap `console.error`s (LFS/proxy-auth,
+RCA_RUN370_LFS_PROXY_AUTH.md) rather than failing on them, same hard/soft split `game3dSmokeChecksScene.js`'s
+own `check2DShell` already established — exit 0, zero *unexpected* console/page errors.
+
+**DoD:** `node --check` PASS (3 files). `checkWeatherSystem.js` PASS (now with a non-zero-Y fixture, so
+this exact regression class can't hide again). Performance: not separately re-measured this run (Run 371's
+own estimate — 1 draw call, ~1800 verts — stands, unaffected by a position-only fix). No ADR (bugfix, not
+a design decision).
+
+**Sıradaki adım:** none outstanding for `weather.js` itself. The `waitUntil:'commit'` / synthetic-click /
+entry-gate findings above are reusable for any future focused Playwright script in this environment —
+worth folding into `smokeTestGame3D.js`'s own approach if a future run revisits its `audio-and-movement`
+stall.

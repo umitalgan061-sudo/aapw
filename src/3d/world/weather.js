@@ -156,7 +156,12 @@ export function createWeatherSystem({ seed }) {
 		group.visible = intensity > 0;
 		if (!group.visible) return;
 
-		group.position.set(cameraPosition.x, 0, cameraPosition.z);
+		// Run 371 fix (found via `scripts/weatherVisualQa.js`'s real screenshot, not guessed): must
+		// follow the camera's Y too, not just X/Z. This world's terrain reaches real elevation (up to
+		// ~780m inland, `terrainContinentalUplift.js`), so a rain volume pinned to world Y=0 renders
+		// nowhere near the camera for almost any real spawn/play position — the two screenshots this
+		// bug produced were byte-identical (rain fully off-screen), which is what caught it.
+		group.position.set(cameraPosition.x, cameraPosition.y, cameraPosition.z);
 		const fallDistance = deltaSeconds * RAIN_FALL_SPEED_METERS_PER_SECOND;
 		for (let index = 0; index < RAIN_DROP_COUNT; index += 1) {
 			phases[index] = (phases[index] + fallDistance) % RAIN_FALL_HEIGHT_METERS;

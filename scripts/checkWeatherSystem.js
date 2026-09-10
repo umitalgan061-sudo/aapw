@@ -47,7 +47,11 @@ assert.equal(seedA1.length, RAIN_DROP_COUNT * 2 * 3, 'position buffer length mus
 	const system = createWeatherSystem({ seed: 7 });
 	system.trigger(2); // 2s hold + the module's own fade margin on each side.
 	let maxOpacity = 0;
-	const cameraPosition = { x: 100, y: 0, z: -50 };
+	// Non-zero y (this world's terrain reaches real elevation, up to ~780m inland) — run 371 caught a
+	// real bug here: the rain volume's Y wasn't following the camera at all, only X/Z, invisible to
+	// this exact test only because it originally used y:0, which happened to match the bug's hardcoded
+	// 0. Fixed in weather.js; kept non-zero here so this class of regression can't hide again.
+	const cameraPosition = { x: 100, y: 340, z: -50 };
 	for (let frame = 0; frame < 720; frame += 1) { // 12s at 60fps — comfortably past a 2s shower's full 6s hold + 4s fade-out (10s), with margin for float accumulation.
 		system.update(1 / 60, cameraPosition);
 		maxOpacity = Math.max(maxOpacity, system.group.material.opacity);
