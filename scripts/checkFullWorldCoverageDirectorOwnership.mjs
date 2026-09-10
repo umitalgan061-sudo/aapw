@@ -64,7 +64,7 @@ assert(placementSource.includes('../materials/MaterialAssignmentCore.js'), 'plac
 assert(!placementSource.includes('EditorMaterialStudio'), 'placement pipeline imports editor UI');
 const reparsed = JSON.parse(JSON.stringify(manifest));
 assert(reparsed.cellCount === manifest.cellCount && reparsed.deterministicDigest === manifest.deterministicDigest && reparsed.validation.ok === manifest.validation.ok, 'manifest serialization drifted');
-assert(Object.values(plan.risks).reduce((sum, value) => sum + value, 0) === 0, `synthetic ownership plan contains runtime risks: ${JSON.stringify(plan.risks)}`);
-assert(plan.gaps.length === 0, `synthetic ownership plan contains ${plan.gaps.length} coverage gaps`);
+assert(Object.values(plan.risks).reduce((sum, value) => sum + value, 0) === 0, 'synthetic ownership plan contains runtime risks');
+assert(plan.gaps.length === 0, 'synthetic ownership plan contains coverage gaps');
 assert(plan.report.readyForRuntimeProof === true, 'synthetic ownership plan is not internally consistent');
 console.log(`FULL_WORLD_COVERAGE_OWNERSHIP_OK checks=64 cells=${plan.cellCount} seams=${seamAudit.pairCount} probes=${plan.probeCount} digest=${manifest.deterministicDigest}`);
