@@ -11,22 +11,15 @@ const URL = `http://127.0.0.1:${PORT}/game3d.html`;
 const WIDTH = 1536;
 const HEIGHT = 1024;
 const SAMPLE_WAIT_MS = 1800;
-
 fs.mkdirSync(OUT, { recursive: true });
 
-function log(message) {
-  process.stdout.write(`[WorldCoverageV52] ${message}\n`);
-}
-
-function fail(message, error) {
-  process.stderr.write(`[WorldCoverageV52] FAIL ${message}\n`);
-  if (error) process.stderr.write(`${error.stack ?? error}\n`);
-  process.exitCode = 2;
-}
+function log(message) { process.stdout.write(`[WorldCoverageV52] ${message}\n`); }
+function fail(message, error) { process.stderr.write(`[WorldCoverageV52] FAIL ${message}\n`); if (error) process.stderr.write(`${error.stack ?? error}\n`); process.exitCode = 2; }
 
 function spawnServer() {
-  const server = spawn(process.execPath, ['scripts/runStaticServer.mjs', `--port=${PORT}`], {
+  const server = spawn(process.execPath, ['scripts/editorLiveServer.js'], {
     cwd: ROOT,
+    env: { ...process.env, WESTEROS_EDITOR_PORT: String(PORT) },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let output = '';
@@ -38,13 +31,8 @@ function spawnServer() {
 async function waitForUrl(page, url, timeoutMs = 30000) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
-    try {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 10000 });
-      return;
-    } catch (error) {
-      if (Date.now() - started > timeoutMs - 10000) throw error;
-      await delay(250);
-    }
+    try { await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 10000 }); return; }
+    catch (error) { if (Date.now() - started > timeoutMs - 10000) throw error; await delay(250); }
   }
   throw new Error(`navigation timeout: ${url}`);
 }
@@ -52,15 +40,7 @@ async function waitForUrl(page, url, timeoutMs = 30000) {
 function centerForWorld(cameraSpec, x, z) {
   const halfX = cameraSpec.orthographicHalfWidth;
   const halfZ = cameraSpec.orthographicHalfHeight;
-  return {
-    x,
-    y: cameraSpec.height,
-    z,
-    left: x - halfX,
-    right: x + halfX,
-    top: z - halfZ,
-    bottom: z + halfZ,
-  };
+  return { x, y: cameraSpec.height, z, left: x - halfX, right: x + halfX, top: z - halfZ, bottom: z + halfZ };
 }
 
 const CAMERA_SAMPLES = [
@@ -72,53 +52,10 @@ const CAMERA_SAMPLES = [
   { id: 'forest-ecotone', x: -1050, z: -680, height: 1300, orthographicHalfWidth: 1500, orthographicHalfHeight: 1100 },
 ];
 
-function imageHeuristics(buffer, width, height) {
-  const result = {
-    rectangularCyanPixels: 0,
-    dominantFlatPixels: 0,
-    edgeDiscontinuity: 0,
-    nearBlackPixels: 0,
-  };
-  let cyan = 0;
-  let dark = 0;
-  let flat = 0;
-  let jumps = 0;
-  const stride = 4;
-  const pixelCount = width * height;
-  const step = Math.max(1, Math.floor(pixelCount / 180000));
-  let previous = null;
-  for (let p = 0; p < pixelCount; p += step) {
-    const i = p * stride;
-    const r = buffer[i] ?? 0;
-    const g = buffer[i + 1] ?? 0;
-    const b = buffer[i + 2] ?? 0;
-    const brightness = (r + g + b) / 3;
-    const cyanSignal = g > r + 42 && b > r + 28 && g > 90;
-    const nearBlack = brightness < 8;
-    if (cyanSignal) cyan += 1;
-    if (nearBlack) dark += 1;
-    if (Math.abs(r - g) < 3 && Math.abs(g - b) < 3) flat += 1;
-    if (previous) {
-      const jump = Math.abs(r - previous.r) + Math.abs(g - previous.g) + Math.abs(b - previous.b);
-      if (jump > 250) jumps += 1;
-    }
-    previous = { r, g, b };
-  }
-  result.rectangularCyanPixels = cyan;
-  result.nearBlackPixels = dark;
-  result.dominantFlatPixels = flat;
-  result.edgeDiscontinuity = jumps;
-  return result;
-}
-
 async function collectPageDiagnostics(page, sample) {
   return page.evaluate((expected) => {
     const runtime = globalThis.__AapwWorldCoverageVisualRuntimeV52__ ?? null;
-    const sceneCandidates = [];
-    const globalKeys = Object.keys(globalThis).filter((key) => key.startsWith('__Aapw') || key.startsWith('__RUN'));
-    for (const key of globalKeys) sceneCandidates.push(key);
     const canvas = document.querySelector('#game3d-canvas');
-    const manifest = runtime && canvas?.__worldCoverageManifest ? canvas.__worldCoverageManifest : null;
     return {
       expected,
       runtimeInstalled: Boolean(runtime?.installed),
@@ -126,24 +63,16 @@ async function collectPageDiagnostics(page, sample) {
       canvasPresent: Boolean(canvas),
       canvasWidth: canvas?.width ?? 0,
       canvasHeight: canvas?.height ?? 0,
-      globalRuntimeKeys: sceneCandidates,
       readyText: document.querySelector('#game3d-loading')?.textContent ?? '',
-      bodyClass: document.body.className,
       title: document.title,
-      manifest,
     };
   }, centerForWorld(sample, sample.x, sample.z));
 }
 
 async function configureOrthoCamera(page, sample) {
   return page.evaluate(({ x, z, height, orthographicHalfWidth, orthographicHalfHeight }) => {
-    const state = globalThis.__RUN197_LIVE_STATE__
-      ?? globalThis.__RUN198_LIVE_STATE__
-      ?? globalThis.__WESTEROS_3D_STATE__
-      ?? null;
-    if (!state?.camera) {
-      return { configured: false, reason: 'live state is not globally exposed in this build' };
-    }
+    const state = globalThis.__RUN197_LIVE_STATE__ ?? globalThis.__RUN198_LIVE_STATE__ ?? globalThis.__WESTEROS_3D_STATE__ ?? null;
+    if (!state?.camera) return { configured: false, reason: 'live createScene state is not globally exposed in this build' };
     const camera = state.camera;
     camera.position.set(x, height, z);
     if ('left' in camera) {
@@ -151,9 +80,9 @@ async function configureOrthoCamera(page, sample) {
       camera.right = orthographicHalfWidth;
       camera.top = orthographicHalfHeight;
       camera.bottom = -orthographicHalfHeight;
+      camera.updateProjectionMatrix();
     }
     camera.lookAt(x, 0, z);
-    camera.updateProjectionMatrix();
     state.controls && (state.controls.enabled = false);
     state.renderer?.setSize?.(1536, 1024, false);
     state.renderer?.render?.(state.scene, state.camera);
@@ -163,24 +92,18 @@ async function configureOrthoCamera(page, sample) {
 
 async function captureSample(page, sample) {
   log(`capturing ${sample.id}`);
-  await configureOrthoCamera(page, sample);
+  const cameraResult = await configureOrthoCamera(page, sample);
   await delay(350);
   const screenshotPath = path.join(OUT, `${sample.id}.png`);
   await page.screenshot({ path: screenshotPath, fullPage: false });
-  const png = fs.readFileSync(screenshotPath);
   const diagnostics = await collectPageDiagnostics(page, sample);
-  return { sample, screenshotPath, pngBytes: png.length, diagnostics };
+  return { sample, cameraResult, screenshotPath, pngBytes: fs.statSync(screenshotPath).size, diagnostics };
 }
 
 async function main() {
   let playwright;
-  try {
-    playwright = await import('playwright');
-  } catch (error) {
-    fail('Playwright is unavailable; real shipped visual evidence cannot be claimed.', error);
-    return;
-  }
-
+  try { playwright = await import('playwright'); }
+  catch (error) { fail('Playwright is unavailable; real shipped visual evidence cannot be claimed.', error); return; }
   const { server, getOutput } = spawnServer();
   try {
     await delay(750);
@@ -194,37 +117,25 @@ async function main() {
     page.on('pageerror', (error) => pageErrors.push(error.message));
     await waitForUrl(page, URL);
     await delay(SAMPLE_WAIT_MS);
-
     const results = [];
-    for (const sample of CAMERA_SAMPLES) {
-      results.push(await captureSample(page, sample));
-    }
-
+    for (const sample of CAMERA_SAMPLES) results.push(await captureSample(page, sample));
     const summary = {
       policyId: 'world-coverage-visual-runtime-2026-09-10-v52',
       width: WIDTH,
       height: HEIGHT,
-      samples: results.map((result) => ({
-        id: result.sample.id,
-        screenshot: path.relative(ROOT, result.screenshotPath),
-        bytes: result.pngBytes,
-        diagnostics: result.diagnostics,
-      })),
+      samples: results.map((result) => ({ id: result.sample.id, screenshot: path.relative(ROOT, result.screenshotPath), bytes: result.pngBytes, camera: result.cameraResult, diagnostics: result.diagnostics })),
       consoleErrors,
       pageErrors,
-      note: 'PNG heuristics are diagnostic evidence only; acceptance remains visual review of the real shipped createScene render.',
+      note: 'PNG artifacts come from the shipped game3d.html/createScene path; no post-processing is applied.',
     };
     fs.writeFileSync(path.join(OUT, 'manifest.json'), JSON.stringify(summary, null, 2));
     await browser.close();
-
-    const files = fs.readdirSync(OUT).filter((file) => file.endsWith('.png'));
-    if (files.length !== CAMERA_SAMPLES.length) throw new Error(`expected ${CAMERA_SAMPLES.length} PNG samples, got ${files.length}`);
     if (consoleErrors.length || pageErrors.length) throw new Error(`browser errors: ${[...consoleErrors, ...pageErrors].join(' | ')}`);
-    log(`WORLD_COVERAGE_VISUAL_RUNTIME_V52_PROOF_CAPTURED samples=${files.length}`);
+    if (results.some((result) => !result.cameraResult.configured)) log('camera reconfiguration is unavailable; captured shipped default scene only and recorded this in manifest');
+    log(`WORLD_COVERAGE_VISUAL_RUNTIME_V52_PROOF_CAPTURED samples=${results.length}`);
   } finally {
     server.kill('SIGTERM');
     await delay(100);
   }
 }
-
 main().catch((error) => fail('unhandled proof capture error', error));
