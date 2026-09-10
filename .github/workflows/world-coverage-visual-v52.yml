@@ -21,9 +21,10 @@ jobs:
         with:
           fetch-depth: 0
       - name: Node runtime
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
+        run: |
+          set -euo pipefail
+          echo "NODE_OPTIONS=--experimental-loader=$(pwd)/scripts/worldCoverageVisualNodeLoaderV52.mjs" >> "$GITHUB_ENV"
+          node --version
       - name: Syntax check production module
         run: |
           set -euo pipefail
