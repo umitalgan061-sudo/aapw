@@ -18060,3 +18060,87 @@ are the next concrete, already-isolated candidates in this same file family — 
 root cause this run (out of scope, kept to the one already-diagnosed fix per session-quality-gate
 discipline); a future run should root-cause one of those two before attempting a fix, per this project's
 own "read/verify before touching" convention.
+
+---
+
+## Run 368 (2026-09-10, scheduled routine) — root-cause and repair all 6 remaining `checkSettlementVerticalSliceJourney.mjs` failures
+
+Picked up the concrete, already-isolated "next safe step" logged at the end of Run 367: this file's 6
+pre-existing failures (`FAIL: 6 assertions`, unchanged since the file's introduction — a single "rebase:
+replay vertical slice onto current main" commit that was never green). Investigated each before touching
+code, per this project's "read/verify before touching" convention; all four root causes turned out to be
+in the test fixture itself, not in `src/3d/gameplay/settlementVerticalSlice*.js` production runtime.
+
+**Root causes and fixes** (all in `scripts/checkSettlementVerticalSliceJourney.mjs`):
+1. `summary.gateCount === 7` — plain miscount against the literally authored `def.nodes[*].gates` arrays.
+2. `ctx(overrides)` hardcoded `distance: 2` and never applied `overrides.distance`, so the door
+   proximity-rejection assertion never actually exercised distance 4.001 — it silently stayed at 2 (inside
+   the gate), so `door.transitionTo` returned `ok:true` instead of the expected rejection.
+3. "craft/save is blocked without capability" expected `reason === 'action-unavailable'`, but `execute()`
+   re-checks the *current node's own* `gates` before the action-level `CAPABILITY_FOR_ACTION` check, and
+   forge/save's node-level capability gates fail first with `'capability-unavailable'`. Confirmed this is
+   intentional, precedented runtime behavior (not a bug) by finding the same node-gate-from-capability
+   pattern deliberately authored in production: `settlementVerticalSliceRoles.js` — `gates.unshift({ type:
+   'capability', capability: requestedCapability })`. Fixed the two expected reason strings instead of
+   touching the runtime.
+4. "gated saved node recovers[/to entry]" restores a snapshot at `hall` under `capabilities.dialogue:
+   false` and expects the import to reject+recover, but `hall` was authored with no `gates` at all, so
+   there was nothing to gate on. The test's own comment ("Snapshot recovery when current context gates the
+   saved node") states the intended behavior directly, so this wasn't a guess: added the missing
+   `gates: [{ type: 'capability', capability: 'dialogue' }]` to `hall`, matching the same real pattern from
+   point 3. Re-checked every earlier `hall` transition/execute in the file — all use the default
+   `ctx()` (`dialogue: true`), so no previously-passing assertion's outcome changed.
+
+**Verification.** `node --check` PASS on the touched file; repo-wide `node --check` sweep across every
+`src/**/*.js` and `scripts/**/*.js`/`*.mjs` — 0 errors. `checkSettlementVerticalSliceJourney.mjs` was
+`FAIL: 6`, now **PASS: 135** (was 129 passing + 6 failing). Blast-radius check: this file's `def`/`ctx`
+fixtures are local to itself (confirmed not imported elsewhere); re-ran the other four
+settlement-vertical-slice check scripts before/after — `checkSettlementVerticalSliceMatrix.mjs` PASS: 367
+(unaffected), `checkSettlementVerticalSliceContent.mjs` PASS: 135 (unaffected),
+`checkSettlementVerticalSliceEvents.mjs` PASS: 44 (unaffected, Run 367's fix still holds),
+`checkSettlementVerticalSliceRoleRuntime.mjs` — same pre-existing 21 failures, identical failure list
+before/after (not investigated this run — kept to one file family per session-quality-gate discipline,
+same convention as Run 367). Full DoD gate sweep: `checkSmokeCheckRegistry.js` OK — 44 smoke checks/19
+modules, 684 JS files within the 600-line cap, same 14 pre-existing near-cap WARNs (5 world-module files
+now sit at 554–597/600 — worth a split-before-next-edit note, none touched this run), none newly
+introduced. `checkTechnicalDebt.js` — initially hit the same `spawnSync git ENOBUFS` Run 367 diagnosed
+(this container's cached `origin/main` was 1 commit stale, producing an oversized diff); `git fetch origin
+main` resolved it cleanly, then PASS — 0 new forbidden/debt markers. `checkSeededRandomPolicy.js` PASS (no
+`Math.random()`). `checkAssetsManifest.js` OK, 547 entries, unaffected. `checkWorldEventDeterminism.js`
+PASS, checksum unchanged. `checkPwaInstallability.js` OK, unaffected. Browser-half smoke test
+(`scripts/smokeTestGame3D.js`) remains environment-blocked this session — same pre-existing LFS/repo-rename
+condition as every run since 355 (git-lfs pointer stubs, `git lfs` CLI absent); not resampled, no new
+information, not re-reported (Run 344 already delivered the push notification for this; owner directive
+recorded in `GOVERNANCE_CONTINUOUS_OWNER_DIRECTIVE.md` §7 confirms the `aapw` rename was itself a deliberate
+owner decision from 2026-08-10, this session's environment/repo scope is simply still bound to the old
+name — a recurring, already-surfaced, non-new condition, not re-notified per this project's own
+anti-spam convention).
+
+**Concurrency note (§8.14).** Remote `main` re-checked via `git fetch origin main` immediately before
+commit and again immediately before push — `origin/main` was `e5f5c36` both times (matches local `HEAD`'s
+parent exactly), confirming no concurrent session and no drift. Pushed cleanly (`e5f5c36..0c1e898 main ->
+main`); GitHub returned its now-expected informational "repository moved to .../aapw" notice on the same
+push (harmless, per `RCA_RUN344_LFS_REPO_RENAME.md` — only LFS batch requests are affected, not
+push/fetch).
+
+Risk: LOW (all four fixes confined to one already-unwired test fixture file; two fixes are pure arithmetic/
+plumbing corrections, two are expected-value corrections backed by either a precedented production pattern
+or the test's own documentation comment — no guessed behavior). Visual evidence: N/A, no
+rendering/UI surface touched — this module is still not wired into any playable scene (re-confirmed via
+repo-wide grep for its exported symbols, unchanged from Run 367). Performance: no runtime behavior
+reachable from the live game; no `perf_log.csv` row added (no renderer/runtime code touched, no browser
+session available this session, consistent with every run since 355). Memory leak checklist: N/A. Technical
+debt: net 0 new markers — these are real fixture bugs being corrected, not workarounds; no
+TEMP/HACK/FIXME/WORKAROUND comment added, no ADR needed (test-expectation corrections against
+already-precedented behavior are not a design decision). World Coverage: unchanged. World Evolution
+Report: no yol/orman/kale/NPC/hayvan/event count change; "oyuncu fark eder mi" — hayır, bu değişiklik
+yalnızca henüz hiçbir oynanabilir sahneye bağlanmamış bir geliştirici alt-sisteminin kendi test fixture
+hatalarını düzeltiyor. Terrain macro-relief (priority item 1) remains blocked on the same standing LFS/
+repo-rename owner-environment condition — unchanged, not re-reported this run.
+
+**Next safe step:** `checkSettlementVerticalSliceRoleRuntime.mjs`'s 21 failures (role identity /
+capability action-gating / item/reputation/proximity gates / failed-transition stability) are now the
+last remaining concrete, already-isolated candidate in this file family — not investigated for root cause
+this run (kept to the one file this run's RCA was already deep in). A future run should apply the same
+"read/verify before touching" discipline there before attempting a fix; the settlement-vertical-slice
+check-script family will then be fully green (Matrix, Content, Events, Journey all already PASS).
