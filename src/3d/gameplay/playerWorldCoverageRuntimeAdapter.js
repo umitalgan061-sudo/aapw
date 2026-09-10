@@ -1,37 +1,34 @@
 /**
  * Runtime-facing bridge for Player World Coverage.
  *
- * Composition only: the player, world sampler, collider, camera, combat, equipment and
- * interaction owners remain injected by the shipped runtime. This adapter observes those
- * authorities, derives the world-aware presentation context, and emits a bounded snapshot.
- * It intentionally contains no THREE import, no DOM/editor access and no asset loader.
+ * Composition only: shipped player, world sampler, equipment, combat and interaction owners are
+ * injected. This adapter observes them, derives the world context and publishes bounded events.
+ * It owns no terrain, actor AI, combat state machine, asset loader, material authoring or DOM UI.
  *
  * @module gameplay/playerWorldCoverageRuntimeAdapter
  */
 
 import {
   PLAYER_WORLD_COVERAGE_VERSION,
-  derivePlayerWorldContext,
+  applyPlayerWorldCoveragePresentation,
   buildCoverageViewportSchedule,
-  buildWorldCoverageInputParity,
   buildWorldCoveragePerformanceBudget,
   buildWorldCoverageAcceptanceManifest,
+  derivePlayerWorldContext,
   validatePlayerWorldContext,
-  applyPlayerWorldCoveragePresentation,
 } from './playerWorldCoverageDirector.js';
+import { normalizePlayerWorldCoverageInput } from './playerWorldCoverageInputParity.js';
 
 export const PLAYER_WORLD_COVERAGE_EVENT = 'aapw:player-world-coverage';
 export const PLAYER_WORLD_COVERAGE_FOCUS_EVENT = 'aapw:player-world-coverage-focus';
 export const PLAYER_WORLD_COVERAGE_ERROR_EVENT = 'aapw:player-world-coverage-error';
 
-const DEFAULT_EVENT_TARGET = globalThis;
 const MAX_HISTORY = 32;
+const MAX_FOCUS_TARGETS = 24;
+const MAX_SAMPLE_BATCH = 96;
 const MAX_EVENTS_PER_SECOND = 20;
 const MIN_PUBLISH_INTERVAL_SECONDS = 1 / MAX_EVENTS_PER_SECOND;
-const MAX_SAMPLE_BATCH = 96;
-const MAX_FOCUS_TARGETS = 24;
 const DEFAULT_RADIUS_METERS = 140;
-const SAFE_DELTA_SECONDS = 0.1;
 
 function finite(value, fallback = 0) {
   const n = Number(value);
@@ -42,6 +39,10 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, finite(value, min)));
 }
 
+function clone(value) {
+  return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+}
+
 function freeze(value, seen = new WeakSet()) {
   if (!value || typeof value !== 'object' || seen.has(value)) return value;
   seen.add(value);
@@ -49,47 +50,35 @@ function freeze(value, seen = new WeakSet()) {
   return Object.freeze(value);
 }
 
-function clone(value) {
-  if (value === undefined) return undefined;
-  return JSON.parse(JSON.stringify(value));
-}
-
-function positionOf(value) {
-  return {
-    x: finite(value?.x),
-    y: finite(value?.y),
-    z: finite(value?.z),
-  };
-}
-
-function sourceFunction(source, names = []) {
+function bindMethod(source, names) {
   if (!source || typeof source !== 'object') return null;
-  for (const name of names) {
-    if (typeof source[name] === 'function') return source[name].bind(source);
-  }
+  for (const name of names) if (typeof source[name] === 'function') return source[name].bind(source);
   return null;
 }
 
-function readPlayerState(player) {
-  if (!player || typeof player !== 'object') return {};
-  const object3D = player.object3D ?? player.model ?? player.root ?? player;
-  const position = positionOf(object3D?.position ?? player.position);
-  const rotationY = finite(object3D?.rotation?.y ?? player.rotationY);
-  const state = player.getState?.() ?? player.state ?? {};
+function readPosition(value) {
+  return { x: finite(value?.x), y: finite(value?.y), z: finite(value?.z) };
+}
+
+function readPlayer(player) {
+  const object3D = player?.object3D ?? player?.model ?? player?.root ?? player;
+  const state = player?.getState?.() ?? player?.state ?? {};
+  const position = readPosition(object3D?.position ?? player?.position);
+  const yaw = finite(object3D?.rotation?.y ?? player?.rotationY);
   return {
     position,
-    headingDegrees: rotationY * 180 / Math.PI,
-    speedMps: finite(state.speedMps ?? player.speedMps),
-    locomotion: state.movementState ?? state.locomotion ?? player.movementState ?? 'idle',
-    isGrounded: state.isGrounded ?? player.isGrounded ?? true,
+    headingDegrees: yaw * 180 / Math.PI,
+    speedMps: Math.max(0, finite(state.speedMps ?? player?.speedMps)),
+    locomotion: state.movementState ?? state.locomotion ?? player?.movementState ?? 'idle',
+    isGrounded: state.isGrounded ?? player?.isGrounded ?? true,
     inAttack: state.attackActive === true || state.inAttack === true,
-    attackWeight: finite(state.attackWeight ?? player.attackWeight, 0),
+    attackWeight: clamp(state.attackWeight ?? player?.attackWeight, 0, 1),
     inGuard: state.guarding === true || state.inGuard === true,
-    lockOn: state.lockOn === true || player.lockOn === true,
-    rangedReady: state.rangedReady === true || player.rangedReady === true,
-    stance: state.stance ?? player.stance ?? (state.guarding ? 'guard' : 'neutral'),
+    lockOn: state.lockOn === true || player?.lockOn === true,
+    rangedReady: state.rangedReady === true || player?.rangedReady === true,
+    stance: state.stance ?? player?.stance ?? 'neutral',
     camera: {
-      distanceMeters: finite(player.cameraDistanceMeters ?? state.cameraDistanceMeters, 4.6),
+      distanceMeters: clamp(player?.cameraDistanceMeters ?? state.cameraDistanceMeters ?? 4.6, 2.5, 8),
       combat: state.attackActive === true || state.guarding === true,
       lockOn: state.lockOn === true,
       terrainNear: false,
@@ -100,31 +89,29 @@ function readPlayerState(player) {
   };
 }
 
-function readEquipmentState(equipment) {
-  if (!equipment || typeof equipment !== 'object') return {};
-  const snapshot = equipment.getSnapshot?.() ?? equipment.snapshot ?? equipment;
+function readEquipment(equipment) {
+  const snapshot = equipment?.getSnapshot?.() ?? equipment?.snapshot ?? equipment ?? {};
   const totals = snapshot.totals ?? snapshot.stats ?? {};
-  const armor = snapshot.armor ?? [];
-  const weapon = snapshot.weapon ?? snapshot.mainHand ?? {};
-  const itemRows = [...(Array.isArray(snapshot.items) ? snapshot.items : []), ...(Array.isArray(armor) ? armor : [])];
-  const weight = finite(totals.weight ?? snapshot.weight, 0);
-  const maxWeight = Math.max(weight, finite(totals.maxWeight ?? snapshot.maxWeight, Math.max(weight, 1)));
-  const surfaceRoles = itemRows.flatMap((item) => Array.isArray(item.surfaceRoles) ? item.surfaceRoles : []);
-  const metalWeight = itemRows.reduce((sum, item) => sum + finite(item.metalWeight ?? (item.materialType === 'metal' ? item.weight : 0)), 0);
-  const leatherWeight = itemRows.reduce((sum, item) => sum + finite(item.leatherWeight ?? (item.materialType === 'leather' ? item.weight : 0)), 0);
+  const armor = Array.isArray(snapshot.armor) ? snapshot.armor : [];
+  const items = Array.isArray(snapshot.items) ? snapshot.items : [];
+  const rows = [...items, ...armor];
+  const weight = Math.max(0, finite(totals.weight ?? snapshot.weight));
+  const maxWeight = Math.max(1, finite(totals.maxWeight ?? snapshot.maxWeight, Math.max(weight, 1)));
+  const metal = rows.reduce((sum, row) => sum + Math.max(0, finite(row.metalWeight ?? (row.materialType === 'metal' ? row.weight : 0))), 0);
+  const leather = rows.reduce((sum, row) => sum + Math.max(0, finite(row.leatherWeight ?? (row.materialType === 'leather' ? row.weight : 0))), 0);
   return {
     encumbranceRatio: clamp(weight / maxWeight, 0, 1),
-    weaponReachMeters: finite(weapon.reachMeters ?? snapshot.weaponReachMeters, 1.6),
-    metalWeightRatio: weight > 0 ? clamp(metalWeight / weight, 0, 1) : 0,
-    leatherWeightRatio: weight > 0 ? clamp(leatherWeight / weight, 0, 1) : 0,
+    weaponReachMeters: finite(snapshot.weapon?.reachMeters ?? snapshot.mainHand?.reachMeters ?? snapshot.weaponReachMeters, 1.6),
+    metalWeightRatio: weight ? clamp(metal / weight, 0, 1) : 0,
+    leatherWeightRatio: weight ? clamp(leather / weight, 0, 1) : 0,
     socketReady: snapshot.socketReady !== false,
     assetReady: snapshot.assetReady !== false,
     stance: snapshot.stance ?? 'neutral',
-    surfaceRoles,
+    surfaceRoles: rows.flatMap((row) => Array.isArray(row.surfaceRoles) ? row.surfaceRoles : []),
   };
 }
 
-function readCombatState(combat, playerState) {
+function readCombat(combat, playerState) {
   const snapshot = combat?.getSnapshot?.() ?? combat?.snapshot ?? combat ?? {};
   return {
     stance: snapshot.stance ?? playerState.stance ?? 'neutral',
@@ -134,73 +121,78 @@ function readCombatState(combat, playerState) {
   };
 }
 
-function readInteractionState(interaction) {
+function readInteraction(interaction) {
   const snapshot = interaction?.getSnapshot?.() ?? interaction?.snapshot ?? interaction ?? {};
-  return {
-    disabled: snapshot.disabled === true,
-  };
+  return { disabled: snapshot.disabled === true };
 }
 
-function readMovementState(playerState, input) {
-  const speed = finite(input?.speedMps ?? playerState.speedMps);
+function normalizeMovement(playerState, input) {
+  const speedMps = Math.max(0, finite(input?.speedMps ?? playerState.speedMps));
   return {
-    speedMps: Math.max(0, speed),
-    locomotion: input?.locomotion ?? playerState.locomotion ?? (speed > 5.5 ? 'sprint' : speed > 0.05 ? 'run' : 'idle'),
+    speedMps,
+    locomotion: input?.locomotion ?? playerState.locomotion ?? (speedMps > 5.5 ? 'sprint' : speedMps > 0.05 ? 'run' : 'idle'),
     inAttack: input?.inAttack ?? playerState.inAttack,
     attackWeight: clamp(input?.attackWeight ?? playerState.attackWeight, 0, 1),
     inGuard: input?.inGuard ?? playerState.inGuard,
   };
 }
 
-function normalizeWorldSources(world) {
-  if (!world) return { sample: null, sampleBatch: null, observe: null, describe: null };
+function readWorld(world) {
   return {
-    sample: sourceFunction(world, ['samplePlayer', 'sampleAt', 'getWorldObservation', 'sample']),
-    sampleBatch: sourceFunction(world, ['sampleBatch', 'sampleMany', 'getWorldObservations']),
-    observe: sourceFunction(world, ['observePlayerWorldCoverage', 'observePlayer']),
-    describe: sourceFunction(world, ['getCoverageDescription', 'describeCoverage']),
+    observe: bindMethod(world, ['observePlayerWorldCoverage', 'observePlayer']),
+    batch: bindMethod(world, ['sampleBatch', 'sampleMany', 'getWorldObservations']),
+    sample: bindMethod(world, ['samplePlayer', 'sampleAt', 'getWorldObservation', 'sample']),
   };
 }
 
-function extractSamples(worldSources, playerState, radiusMeters) {
-  if (worldSources.observe) {
-    const observed = worldSources.observe({ position: playerState.position, radiusMeters });
-    if (Array.isArray(observed)) return observed.slice(0, MAX_SAMPLE_BATCH);
-    if (observed?.samples && Array.isArray(observed.samples)) return observed.samples.slice(0, MAX_SAMPLE_BATCH);
+function sampleWorld(sources, playerState, radiusMeters, explicitSamples) {
+  if (Array.isArray(explicitSamples)) return explicitSamples.slice(0, MAX_SAMPLE_BATCH);
+  if (sources.observe) {
+    const value = sources.observe({ position: playerState.position, radiusMeters, maxSamples: MAX_SAMPLE_BATCH });
+    if (Array.isArray(value)) return value.slice(0, MAX_SAMPLE_BATCH);
+    if (Array.isArray(value?.samples)) return value.samples.slice(0, MAX_SAMPLE_BATCH);
   }
-  if (worldSources.sampleBatch) {
-    const sampled = worldSources.sampleBatch({ position: playerState.position, radiusMeters, maxSamples: MAX_SAMPLE_BATCH });
-    if (Array.isArray(sampled)) return sampled.slice(0, MAX_SAMPLE_BATCH);
+  if (sources.batch) {
+    const value = sources.batch({ position: playerState.position, radiusMeters, maxSamples: MAX_SAMPLE_BATCH });
+    if (Array.isArray(value)) return value.slice(0, MAX_SAMPLE_BATCH);
   }
-  if (worldSources.sample) {
-    const result = worldSources.sample(playerState.position, radiusMeters);
-    if (Array.isArray(result)) return result.slice(0, MAX_SAMPLE_BATCH);
-    if (result) return [result];
+  if (sources.sample) {
+    const value = sources.sample(playerState.position, radiusMeters);
+    if (Array.isArray(value)) return value.slice(0, MAX_SAMPLE_BATCH);
+    if (value) return [value];
   }
   return [];
 }
 
-function pickFocusTargets(targets, playerPosition) {
-  const rows = (Array.isArray(targets) ? targets : []).map((target, index) => {
-    const object = target?.object3D ?? target?.position ? target : null;
-    const position = positionOf(object?.position ?? target?.position);
+function normalizeTargets(targets, playerPosition) {
+  return (Array.isArray(targets) ? targets : []).map((target, index) => {
+    const object = target?.object3D ?? target;
+    const pos = readPosition(object?.position ?? target?.position);
     const id = String(target?.id ?? target?.actorId ?? target?.name ?? `target-${index}`);
-    const dx = position.x - playerPosition.x;
-    const dz = position.z - playerPosition.z;
-    const distance = Math.hypot(dx, dz);
-    const visible = target?.visible !== false && target?.culled !== true;
-    const hostile = target?.hostile === true || target?.factionRelation === 'hostile';
-    return { id, position, distance, visible, hostile };
+    return {
+      id,
+      position: pos,
+      distanceMeters: Math.hypot(pos.x - playerPosition.x, pos.z - playerPosition.z),
+      hostile: target?.hostile === true || target?.factionRelation === 'hostile',
+      visible: target?.visible !== false && target?.culled !== true,
+      lockOnEligible: target?.lockOnEligible !== false,
+      lineOfSight: target?.lineOfSight !== false,
+      threat: clamp(target?.threat, 0, 1),
+    };
   });
-  return rows
-    .filter((row) => row.visible && row.distance <= DEFAULT_RADIUS_METERS)
-    .sort((a, b) => Number(b.hostile) - Number(a.hostile) || a.distance - b.distance || a.id.localeCompare(b.id))
-    .slice(0, MAX_FOCUS_TARGETS);
 }
 
-function dispatch(target, name, detail) {
+function chooseTarget(targets, playerPosition, maxRange = 8) {
+  const ranked = normalizeTargets(targets, playerPosition)
+    .filter((target) => target.visible && target.lineOfSight && target.lockOnEligible && target.distanceMeters <= maxRange)
+    .sort((a, b) => Number(b.hostile) - Number(a.hostile) || b.threat - a.threat || a.distanceMeters - b.distanceMeters || a.id.localeCompare(b.id))
+    .slice(0, MAX_FOCUS_TARGETS);
+  return { target: ranked[0] ?? null, candidates: ranked };
+}
+
+function dispatch(target, type, detail) {
   if (!target || typeof target.dispatchEvent !== 'function' || typeof target.CustomEvent !== 'function') return false;
-  target.dispatchEvent(new target.CustomEvent(name, { detail: freeze(clone(detail)) }));
+  target.dispatchEvent(new target.CustomEvent(type, { detail: freeze(clone(detail)) }));
   return true;
 }
 
@@ -210,169 +202,113 @@ export function createPlayerWorldCoverageRuntimeAdapter({
   equipment = null,
   combat = null,
   interaction = null,
-  eventTarget = DEFAULT_EVENT_TARGET,
+  eventTarget = globalThis,
   now = () => 0,
   radiusMeters = DEFAULT_RADIUS_METERS,
   config,
 } = {}) {
-  const worldSources = normalizeWorldSources(world);
+  const sources = readWorld(world);
   const history = [];
   let revision = 0;
   let lastPublishedSeconds = -Infinity;
   let lastSnapshot = null;
   let disposed = false;
-  let focusedTargets = [];
 
-  function assertActive() {
+  function active() {
     if (disposed) throw new Error('player-world-coverage-runtime-disposed');
   }
 
   function collect(input = {}) {
-    assertActive();
-    const playerState = readPlayerState(player);
-    const movement = readMovementState(playerState, input.movement);
-    const samples = Array.isArray(input.samples) ? input.samples.slice(0, MAX_SAMPLE_BATCH) : extractSamples(worldSources, playerState, radiusMeters);
-    const equipmentState = input.equipment ?? readEquipmentState(equipment);
-    const combatState = input.combat ?? readCombatState(combat, playerState);
-    const interactionState = input.interaction ?? readInteractionState(interaction);
+    active();
+    const playerState = { ...readPlayer(player), ...input.player };
+    const movement = normalizeMovement(playerState, input.movement);
     const snapshot = derivePlayerWorldContext({
-      player: { ...playerState, ...input.player },
-      samples,
-      equipment: equipmentState,
-      combat: combatState,
+      player: playerState,
       movement,
-      interaction: interactionState,
-      config,
+      combat: input.combat ?? readCombat(combat, playerState),
+      equipment: input.equipment ?? readEquipment(equipment),
+      interaction: input.interaction ?? readInteraction(interaction),
+      samples: sampleWorld(sources, playerState, radiusMeters, input.samples),
       nowSeconds: finite(input.nowSeconds, now()),
+      config,
     });
     revision += 1;
     lastSnapshot = snapshot;
     return snapshot;
   }
 
-  function publish(snapshot, { force = false } = {}) {
-    assertActive();
-    const time = snapshot.nowSeconds;
-    if (!force && time - lastPublishedSeconds < MIN_PUBLISH_INTERVAL_SECONDS) return false;
-    lastPublishedSeconds = time;
-    history.push({
-      revision,
-      time,
-      fingerprint: snapshot.fingerprint,
-      playerCellId: snapshot.coverage.playerCell.id,
-      surface: snapshot.surfaceContext.dominantSurface,
-      biome: snapshot.selectedSample.biome,
-    });
+  function publish(snapshot, force = false) {
+    active();
+    if (!force && snapshot.nowSeconds - lastPublishedSeconds < MIN_PUBLISH_INTERVAL_SECONDS) return false;
+    lastPublishedSeconds = snapshot.nowSeconds;
+    const record = Object.freeze({ revision, time: snapshot.nowSeconds, fingerprint: snapshot.fingerprint, playerCellId: snapshot.coverage.playerCell.id });
+    history.push(record);
     while (history.length > MAX_HISTORY) history.shift();
-    dispatch(eventTarget, PLAYER_WORLD_COVERAGE_EVENT, {
-      revision,
-      fingerprint: snapshot.fingerprint,
-      context: snapshot,
-      history: history.slice(-8),
-    });
-    return true;
+    return dispatch(eventTarget, PLAYER_WORLD_COVERAGE_EVENT, { revision, fingerprint: snapshot.fingerprint, context: snapshot, history: history.slice(-8) });
   }
 
   function update(input = {}) {
     const snapshot = collect(input);
-    publish(snapshot, { force: input.forcePublish === true });
-    return freeze({
-      snapshot,
-      validation: validatePlayerWorldContext(snapshot, input.validationOptions),
-    });
+    publish(snapshot, input.forcePublish === true);
+    return freeze({ snapshot, validation: validatePlayerWorldContext(snapshot, input.validationOptions) });
   }
 
   function applyTo(target, snapshot = lastSnapshot) {
-    assertActive();
-    if (!snapshot) return freeze({ ok: false, error: 'no-snapshot' });
-    return applyPlayerWorldCoveragePresentation(target, snapshot);
+    active();
+    return snapshot ? applyPlayerWorldCoveragePresentation(target, snapshot) : freeze({ ok: false, error: 'no-snapshot' });
   }
 
   function focus(targets = []) {
-    assertActive();
-    const playerState = readPlayerState(player);
-    focusedTargets = pickFocusTargets(targets, playerState.position);
-    const winner = focusedTargets.find((target) => target.hostile) ?? focusedTargets[0] ?? null;
-    const detail = {
-      revision,
-      targetId: winner?.id ?? null,
-      candidates: focusedTargets,
-      lockOnReady: Boolean(winner),
-    };
+    active();
+    const playerState = readPlayer(player);
+    const result = chooseTarget(targets, playerState.position, lastSnapshot?.combat?.lockOnRangeMeters ?? 8);
+    const detail = { revision, targetId: result.target?.id ?? null, candidates: result.candidates, lockOnReady: Boolean(result.target) };
     dispatch(eventTarget, PLAYER_WORLD_COVERAGE_FOCUS_EVENT, detail);
     return freeze(detail);
   }
 
-  function acceptance(snapshot = lastSnapshot, options = {}) {
-    assertActive();
-    if (!snapshot) return freeze({ accepted: false, errors: ['no-snapshot'] });
-    return buildWorldCoverageAcceptanceManifest(snapshot, options);
-  }
-
-  function viewport(snapshot = lastSnapshot) {
-    assertActive();
-    if (!snapshot) return freeze({ playerCellId: null, radiusCells: 0, cells: [] });
-    return buildCoverageViewportSchedule({
-      playerPosition: snapshot.player.position,
-      camera: { radiusMeters: radiusMeters },
-      config,
-    });
-  }
-
-  function performance(snapshot = lastSnapshot, { mobile = false } = {}) {
-    assertActive();
-    if (!snapshot) return buildWorldCoveragePerformanceBudget({ mobile });
-    return buildWorldCoveragePerformanceBudget({
-      visibleCellCount: snapshot.coverage.nearbyCellIds.length,
-      samplesPerCell: Math.max(1, snapshot.selectedSample ? 1 : 0),
-      combat: snapshot.combat.stance !== 'neutral' || snapshot.combat.eligible,
-      mobile,
-    });
-  }
-
   function inputParity(input = {}) {
-    assertActive();
-    return buildWorldCoverageInputParity(input);
+    active();
+    return normalizePlayerWorldCoverageInput(input);
+  }
+
+  function acceptance(options = {}) {
+    active();
+    return lastSnapshot ? buildWorldCoverageAcceptanceManifest(lastSnapshot, options) : freeze({ accepted: false, errors: ['no-snapshot'] });
+  }
+
+  function viewport() {
+    active();
+    return lastSnapshot ? buildCoverageViewportSchedule({ playerPosition: lastSnapshot.player.position, camera: { radiusMeters }, config }) : freeze({ playerCellId: null, radiusCells: 0, cells: [] });
+  }
+
+  function performance({ mobile = false } = {}) {
+    active();
+    const visible = lastSnapshot?.coverage?.nearbyCellIds?.length ?? 0;
+    return buildWorldCoveragePerformanceBudget({ visibleCellCount: visible, samplesPerCell: 1, combat: lastSnapshot?.combat?.eligible === true, mobile });
   }
 
   function diagnostics() {
-    assertActive();
-    return freeze({
-      version: PLAYER_WORLD_COVERAGE_VERSION,
-      revision,
-      history: history.slice(),
-      focusedTargets: focusedTargets.slice(),
-      lastFingerprint: lastSnapshot?.fingerprint ?? null,
-      eventRateLimitPerSecond: MAX_EVENTS_PER_SECOND,
-      radiusMeters,
-    });
+    active();
+    return freeze({ version: PLAYER_WORLD_COVERAGE_VERSION, revision, lastFingerprint: lastSnapshot?.fingerprint ?? null, history: history.slice(), eventRateLimitPerSecond: MAX_EVENTS_PER_SECOND, radiusMeters });
   }
 
   function reportError(error, context = {}) {
-    const detail = {
-      revision,
-      message: String(error?.message ?? error ?? 'unknown-error'),
-      name: String(error?.name ?? 'Error'),
-      context: clone(context),
-    };
-    dispatch(eventTarget, PLAYER_WORLD_COVERAGE_ERROR_EVENT, detail);
-    return freeze(detail);
+    return freeze({ revision, message: String(error?.message ?? error ?? 'unknown-error'), context: clone(context) });
   }
 
   function reset() {
-    assertActive();
+    active();
     revision = 0;
     history.length = 0;
-    focusedTargets = [];
-    lastSnapshot = null;
     lastPublishedSeconds = -Infinity;
+    lastSnapshot = null;
   }
 
   function dispose() {
     if (disposed) return;
     disposed = true;
     history.length = 0;
-    focusedTargets = [];
     lastSnapshot = null;
   }
 
@@ -382,10 +318,10 @@ export function createPlayerWorldCoverageRuntimeAdapter({
     publish,
     applyTo,
     focus,
+    inputParity,
     acceptance,
     viewport,
     performance,
-    inputParity,
     diagnostics,
     reportError,
     reset,
@@ -400,12 +336,8 @@ export function attachPlayerWorldCoverageRuntime({ adapter, playerLoop = null } 
   if (!adapter || typeof adapter.update !== 'function') throw new TypeError('adapter.update required');
   if (!playerLoop || typeof playerLoop.onUpdate !== 'function') return Object.freeze({ attached: false, detach() {} });
   const handler = (frame = {}) => {
-    try {
-      return adapter.update(frame);
-    } catch (error) {
-      adapter.reportError(error, { phase: 'loop-update' });
-      return null;
-    }
+    try { return adapter.update(frame); }
+    catch (error) { adapter.reportError(error, { phase: 'loop-update' }); return null; }
   };
   const detach = playerLoop.onUpdate(handler);
   return Object.freeze({ attached: true, detach: typeof detach === 'function' ? detach : () => {} });
@@ -416,7 +348,7 @@ export function validatePlayerWorldCoverageRuntimeAdapter(source) {
   if (!source || typeof source !== 'object') errors.push('missing-source');
   if (typeof source?.update !== 'function') errors.push('missing-update');
   if (typeof source?.collect !== 'function') errors.push('missing-collect');
+  if (typeof source?.inputParity !== 'function') errors.push('missing-input-parity');
   if (typeof source?.dispose !== 'function') errors.push('missing-dispose');
-  if (source?.isDisposed === true && source?.revision !== 0) errors.push('disposed-revision');
   return Object.freeze({ ok: errors.length === 0, errors });
 }
