@@ -18974,3 +18974,84 @@ future run with the time budget to trace one specific state transition against r
 before touching any of those four files' own internal timeouts.
 
 **DoD:** verification-only, no code changed this entry. No ADR.
+
+## Run 373 (2026-09-10, scheduled routine) — code-verified root-cause candidate for the 371l/371m un-guessed timeout family: `player.js`'s 100ms per-frame delta clamp, not `page.evaluate()` lag
+
+Session snapshot: `GOVERNANCE.md`, `3D_GAME_PROGRESS.md` (tail), `QUESTIONS_FOR_OWNER.md` (tail),
+`CATCH_UP.md` (head), `git log -10` all read fresh this run. `git fetch origin main` matched this
+session's starting checkout exactly (`f1929f2`) — no concurrent-session drift to reconcile. Priority-list
+items 1/1.2/1.5/1.7 (terrain macro relief, road network, ground colour, castle texturing) re-confirmed
+still blocked: `assets/**/*.glb` are still ~130-131 byte git-lfs pointer stubs, `git lfs` still not a
+recognized command in this session's environment (`RCA_RUN370_LFS_PROXY_AUTH.md`, unchanged, no
+re-notification needed) — so this run continued down the priority list into the queued smoke-test
+follow-up 371l/371m left open, same as several prior runs have done while items 1-4 stayed blocked.
+
+**Scope: diagnosis only, code-read not runtime-run.** Picked up 371l/371m's own explicitly-flagged
+open question — *why* do `checkPlayerGuardImpactExhaustionRuntime.mjs`,
+`checkPlayerMeleeComboRuntime.mjs`, `checkPlayerStaminaDodgeRuntime.mjs` and
+`checkPlayerDodgeIFrameRuntime.mjs` time out on specific short in-game state transitions (e.g. "grounded
+sprint after a dodge", 7000ms budget in `checkPlayerGuardImpactExhaustionRuntime.mjs:127`) while
+producing real, plausible telemetry right up to the deadline. 371l's own guess was one of two
+possibilities: general software-rendering slowness, or `page.evaluate()` telemetry reads lagging behind
+real game state. Traced the actual simulation-clock code path instead of guessing further:
+
+- `game3d.js`'s render loop (`tick()`, around line 338) reads `const rawDelta = state.clock.getDelta()`
+  — a **real wall-clock** elapsed-time value (THREE.Clock) — and passes it straight into
+  `state.player.update(delta, ...)` with no upstream cap.
+- `player.js:280` then does
+  `const dt = clamp(delta, 0, PLAYER_ACTION_CONFIG.MAX_FRAME_DELTA_SECONDS)`, and
+  `MAX_FRAME_DELTA_SECONDS` (`player.js:66`) is **0.1 seconds**. This clamp is legitimate,
+  standard practice (it exists to stop a single lag spike from teleporting/tunnelling the player) —
+  it is not itself a bug.
+- The consequence: whenever one real `requestAnimationFrame` tick in this environment takes longer
+  than 100ms to complete (plausible and likely here — this same run family already logged a genuinely
+  slow ~8.4-minute real-time run for `checkPlayerGamepadRuntime.mjs`'s gamepad check, i.e. very low
+  real FPS, in Run 371m), the player simulation can advance by **at most** 0.1 simulated seconds per
+  real frame, with **no catch-up/reconciliation step** anywhere in this loop to recover the lost
+  simulated time. Simulated player time then runs permanently slower than wall-clock time, by a factor
+  that grows the slower real per-frame rendering gets — unlike ordinary frame-to-frame jitter, this
+  drift does not average out.
+- This lines up numerically with the specific failures: `DODGE_DURATION_SECONDS` (0.38) +
+  `DODGE_COOLDOWN_SECONDS` (0.22) = 0.6 simulated seconds needed before the dodge→sprint transition
+  the check waits for can occur (`player.js:26-28,234`) — under the clamp, that requires **at least 6
+  real rendered frames no matter how slow each one is**; if this environment's real per-frame cost is
+  regularly a large multiple of 100ms (consistent with the 8.4-minute gamepad-check data point), 6+
+  frames can plausibly consume several real seconds, explaining why a nominally sub-second in-game
+  transition intermittently exceeds a 7000ms Playwright budget without any gameplay-logic bug.
+- This is a **different, more specific mechanism** than 371l's "page.evaluate() lag behind game state"
+  guess — that would mean telemetry reads are stale relative to a game that has already transitioned;
+  what was found instead is that the game's own internal clock is real-time-clamped and never catches
+  up, meaning the *game itself*, not just the reading of its state, is running behind wall time on slow
+  frames.
+
+**Deliberately not fixed, not timeout-bumped, no ADR filed this entry.** Two reasons: (1) this remains
+a code-read hypothesis, not a runtime-confirmed one — no headless Chromium run was executed this entry
+to capture real per-frame `rawDelta` values and correlate them against the exact moment each of the
+four checks times out, so treating this as proven would repeat the mistake `GOVERNANCE.md`'s
+BİLMEME KURALI exists to prevent; (2) `MAX_FRAME_DELTA_SECONDS` is shared, foundational player-movement
+code (`player.js`) — even a confirmed fix belongs in a dedicated run with headroom to re-verify the
+*entire* player-combat/movement check family afterward (a clamp change is exactly the kind of thing
+`GOVERNANCE.md`'s Değişiklik Etki Analizi and the DoD's full regression pass are for), not folded
+into a documentation-only entry.
+
+**Concrete, non-guessed next step for whichever run picks this back up:** add one temporary
+diagnostic (`console.log` of `rawDelta` and the clamped `dt` inside `game3d.js`'s `tick()`, gated to
+the first ~50 frames after `game3d-loading` hides) to one of the four failing checks' own Playwright
+run, capture the real per-frame timings this environment actually produces, and confirm or refute the
+0.1s-clamp-vs-real-frame-time correlation with real numbers before touching either the clamp or any
+check's timeout budget. If confirmed, the checks' own budgets (not the gameplay clamp) are almost
+certainly the right thing to adjust, computed from the measured real per-frame cost rather than
+guessed — the clamp itself should stay as-is unless real-device (non-headless, non-software-rendered)
+telemetry ever shows the same drift, which would make it a genuine gameplay-timing bug rather than a
+test-environment artifact.
+
+**DoD:** documentation-only entry, no source file touched, `node --check` not applicable. No ADR (no
+decision made — a diagnosis record, same category as Run 371l). World Coverage, perf_log.csv and
+`STABLE_TAGS.md` unchanged this entry (no runtime executed, nothing to sample). Priority items 1-4
+remain the same standing LFS-blocked item, not re-reported (`RCA_RUN370_LFS_PROXY_AUTH.md` already
+covers it, owner decision still pending in `QUESTIONS_FOR_OWNER.md`).
+
+**Sıradaki adım:** run the diagnostic above against one of the four still-failing checks to get real
+per-frame timing numbers; only then decide whether the fix belongs in the checks' timeout budgets, in
+`player.js`'s clamp, or in a small "catch-up" accumulator for the render loop. `GuardImpactExhaustion`/
+`MeleeCombo`/`StaminaDodge`/`DodgeIFrame` remain unfixed and unconfirmed.
