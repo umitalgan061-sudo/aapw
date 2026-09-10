@@ -1,0 +1,120 @@
+name: Buzul Muhafizi World Coverage Runtime v51
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/3d/world/worldCoverageDirectorV51.js'
+      - 'src/3d/world/worldCoverageRuntimeAdapterV51.js'
+      - 'src/3d/world/worldCoverageRuntimeSafetyV51.js'
+      - 'src/3d/world/worldCoverageAcceptanceEvidenceV51.js'
+      - 'src/3d/world/worldCoverageSceneManifestV51.js'
+      - 'src/3d/world/worldCoverageAssetBoundaryV51.js'
+      - 'src/3d/world/worldCoverageGroundQueryV51.js'
+      - 'scripts/checkWorldCoverageRuntimeAdapterV51.mjs'
+      - 'scripts/checkWorldCoverageRuntimeSafetyV51.mjs'
+      - 'scripts/checkWorldCoverageAcceptanceEvidenceV51.mjs'
+      - 'scripts/checkWorldCoverageSceneManifestV51.mjs'
+      - 'scripts/checkWorldCoverageSceneRuntimeContractV51.mjs'
+      - 'scripts/checkWorldCoverageAssetBoundaryV51.mjs'
+      - 'scripts/checkWorldCoverageGroundQueryV51.mjs'
+      - '.github/workflows/buzul-muhafizi-world-coverage-runtime-v51.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  world-coverage-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact-main ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --prune
+          base_sha="$(git rev-parse origin/main)"
+          head_sha="$(git rev-parse HEAD)"
+          git merge-base --is-ancestor "$base_sha" "$head_sha"
+          echo "base=$base_sha"
+          echo "head=$head_sha"
+
+      - name: Verify scoped diff budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_sha="$(git rev-parse origin/main)"
+          files="$(git diff --name-only "$base_sha"...HEAD)"
+          while IFS= read -r file; do
+            [ -z "$file" ] && continue
+            case "$file" in
+              src/3d/world/worldCoverageDirectorV51.js|\
+              src/3d/world/worldCoverageRuntimeAdapterV51.js|\
+              src/3d/world/worldCoverageRuntimeSafetyV51.js|\
+              src/3d/world/worldCoverageAcceptanceEvidenceV51.js|\
+              src/3d/world/worldCoverageSceneManifestV51.js|\
+              src/3d/world/worldCoverageAssetBoundaryV51.js|\
+              src/3d/world/worldCoverageGroundQueryV51.js|\
+              scripts/checkWorldCoverageRuntimeAdapterV51.mjs|\
+              scripts/checkWorldCoverageRuntimeSafetyV51.mjs|\
+              scripts/checkWorldCoverageAcceptanceEvidenceV51.mjs|\
+              scripts/checkWorldCoverageSceneManifestV51.mjs|\
+              scripts/checkWorldCoverageSceneRuntimeContractV51.mjs|\
+              scripts/checkWorldCoverageAssetBoundaryV51.mjs|\
+              scripts/checkWorldCoverageGroundQueryV51.mjs|\
+              .github/workflows/buzul-muhafizi-world-coverage-runtime-v51.yml) ;;
+              *) echo "Unexpected file in world coverage PR: $file"; exit 1 ;;
+            esac
+          done <<< "$files"
+          changed="$(git diff --shortstat "$base_sha"...HEAD | awk '{a+=$4; d+=$6} END{print a+d+0}')"
+          echo "changed_lines=$changed"
+          test "$changed" -le 3000
+
+      - name: Syntax-check coverage modules
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check src/3d/world/worldCoverageDirectorV51.js
+          node --check src/3d/world/worldCoverageRuntimeAdapterV51.js
+          node --check src/3d/world/worldCoverageRuntimeSafetyV51.js
+          node --check src/3d/world/worldCoverageAcceptanceEvidenceV51.js
+          node --check src/3d/world/worldCoverageSceneManifestV51.js
+          node --check src/3d/world/worldCoverageAssetBoundaryV51.js
+          node --check src/3d/world/worldCoverageGroundQueryV51.js
+
+      - name: Run runtime acceptance checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkWorldCoverageRuntimeAdapterV51.mjs
+          node scripts/checkWorldCoverageRuntimeSafetyV51.mjs
+          node scripts/checkWorldCoverageAcceptanceEvidenceV51.mjs
+          node scripts/checkWorldCoverageSceneManifestV51.mjs
+          node scripts/checkWorldCoverageSceneRuntimeContractV51.mjs
+          node scripts/checkWorldCoverageAssetBoundaryV51.mjs
+          node scripts/checkWorldCoverageGroundQueryV51.mjs
+
+      - name: Boundary guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -RInE 'EditorMaterialStudio|document\.querySelector|document\.createElement|new[[:space:]]+(Mesh|BoxGeometry|SphereGeometry|CylinderGeometry)|THREE\.(Mesh|BoxGeometry|SphereGeometry|CylinderGeometry)' \
+            src/3d/world/worldCoverageDirectorV51.js \
+            src/3d/world/worldCoverageRuntimeAdapterV51.js \
+            src/3d/world/worldCoverageRuntimeSafetyV51.js \
+            src/3d/world/worldCoverageAcceptanceEvidenceV51.js \
+            src/3d/world/worldCoverageSceneManifestV51.js \
+            src/3d/world/worldCoverageAssetBoundaryV51.js \
+            src/3d/world/worldCoverageGroundQueryV51.js \
+            scripts/checkWorldCoverageRuntimeAdapterV51.mjs \
+            scripts/checkWorldCoverageRuntimeSafetyV51.mjs \
+            scripts/checkWorldCoverageAcceptanceEvidenceV51.mjs \
+            scripts/checkWorldCoverageSceneManifestV51.mjs \
+            scripts/checkWorldCoverageSceneRuntimeContractV51.mjs \
+            scripts/checkWorldCoverageAssetBoundaryV51.mjs \
+            scripts/checkWorldCoverageGroundQueryV51.mjs
