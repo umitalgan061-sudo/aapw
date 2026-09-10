@@ -23,8 +23,6 @@ const changedFiles = [
   'scripts/captureWorldCoverageVisualProofV52.mjs',
 ];
 
-const policy = JSON.parse(fs.readFileSync(path.join(ROOT, 'src/3d/world/worldCoverageVisualRuntimeV52Policies.js'.replace('.js', '.json')), 'utf8'));
-
 const record = {
   id: 'world-coverage-visual-run-2026-09-10-v52',
   owner: 'Buzul Muhafızı',
@@ -53,9 +51,5 @@ const record = {
   },
 };
 
-// A deterministic record deliberately avoids embedding a second source-of-truth policy blob.
-// The import above is only a file-existence guard so a future operator immediately sees that the
-// run record is generated from repository state rather than hand-authored acceptance prose.
-void policy;
 fs.writeFileSync(recordPath, JSON.stringify(record, null, 2));
 console.log(`WORLD_COVERAGE_VISUAL_RUN_V52_RECORDED path=${path.relative(ROOT, recordPath)}`);
