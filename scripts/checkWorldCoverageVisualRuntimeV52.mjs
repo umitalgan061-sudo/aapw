@@ -188,7 +188,7 @@ const manifestBefore = getWorldCoverageVisualRuntimeV52Manifest(scene);
 check(manifestBefore === null, 'manifest must be absent before the first runtime update');
 const manifestAfter = updateWorldCoverageVisualRuntimeV52(scene, camera);
 check(manifestAfter !== null, 'manifest must exist after runtime update');
-check(scene.userData.worldCoverageVisualV52Manifest !== null, 'manifest must be mirrored to scene userData');
+check(getWorldCoverageVisualRuntimeV52Manifest(scene) === manifestAfter, 'manifest getter must expose the first-frame runtime manifest');
 check(scene.userData.worldCoverageVisualV52BlackSkyFallback === true, 'pure-black scene background must receive readable fallback');
 check(scene.userData.worldCoverageVisualRuntimeV52.installed === true, 'scene install marker');
 check(terrain.userData.worldCoverageVisualV52?.materialContract === 'MaterialAssignmentCore', 'terrain material contract marker');
