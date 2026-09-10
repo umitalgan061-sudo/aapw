@@ -23,8 +23,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install dependencies
-        run: npm ci
       - name: Execute stable coverage regressions
         run: |
           node scripts/checkSettlementWorldCoverageContract.mjs
@@ -32,6 +30,7 @@ jobs:
           node scripts/checkSettlementWorldCoverageManifest.mjs
           node scripts/checkSettlementWorldCoverageBrowserBoundary.mjs
           node scripts/checkSettlementWorldCoverageApiSurface.mjs
+          node scripts/checkSettlementWorldCoverageReadiness.mjs
       - name: Syntax-check session and adapter fixtures
         run: |
           node --check scripts/checkSettlementWorldCoverageSlice.mjs
@@ -40,7 +39,7 @@ jobs:
         run: node scripts/checkSettlementWorldCoverageFreshness.mjs
       - name: Validate every coverage runtime module
         run: |
-          for file in src/3d/gameplay/settlementWorldCoverageSlice.js src/3d/gameplay/settlementWorldCoverageAcceptance.js src/3d/gameplay/settlementWorldCoverageRuntimeAdapter.js; do
+          for file in src/3d/gameplay/settlementWorldCoverageSlice.js src/3d/gameplay/settlementWorldCoverageAcceptance.js src/3d/gameplay/settlementWorldCoverageRuntimeAdapter.js src/3d/gameplay/settlementWorldCoverageReadiness.js; do
             node --check "$file"
           done
       - name: Confirm no coverage module owns editor or placement runtime
