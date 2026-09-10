@@ -36,4 +36,6 @@ jobs:
       - name: Executable regression
         run: node scripts/checkPlayerCombatActionAffordanceDirector.mjs
       - name: Diff hygiene
-        run: git diff --check "$BASE"...HEAD
+        run: |
+          BASE="$(git rev-parse origin/main)"
+          git diff --check "$BASE"...HEAD
