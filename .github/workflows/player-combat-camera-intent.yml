@@ -1,0 +1,176 @@
+name: Player Combat Camera Intent
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerCombatCamera*.js'
+      - 'scripts/checkPlayerCombatCamera*.mjs'
+      - '.github/workflows/player-combat-camera-intent.yml'
+  push:
+    branches:
+      - main
+      - 'codex/kizil-ufuk-combat-camera-intent-*'
+    paths:
+      - 'src/3d/gameplay/playerCombatCamera*.js'
+      - 'scripts/checkPlayerCombatCamera*.mjs'
+      - '.github/workflows/player-combat-camera-intent.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Camera intent contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Require clean repository state
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain)"
+          git diff --check
+
+      - name: Verify exact head and ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          echo "HEAD_SHA=${HEAD_SHA}"
+          git merge-base --is-ancestor "origin/main" HEAD || true
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            git merge-base --is-ancestor "$BASE_SHA" "$HEAD_SHA"
+            echo "BASE_SHA=${BASE_SHA}"
+          fi
+
+      - name: Enforce bounded diff budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="${{ github.event.pull_request.base.sha || 'HEAD~1' }}"
+          if ! git cat-file -e "$BASE^{commit}"; then BASE="HEAD~1"; fi
+          CHANGES="$(git diff --numstat "$BASE" HEAD -- \
+            'src/3d/gameplay/playerCombatCamera*.js' \
+            'scripts/checkPlayerCombatCamera*.mjs' \
+            '.github/workflows/player-combat-camera-intent.yml' | \
+            awk '{a+=$1; d+=$2} END {print a+d+0}')"
+          echo "camera intent changed lines=${CHANGES}"
+          test "$CHANGES" -le 3000
+
+      - name: Enforce runtime/editor material boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RIn --exclude='EditorMaterialStudio.js' --exclude-dir=node_modules \
+            "EditorMaterialStudio" src/3d/gameplay/playerCombatCamera*.js scripts/checkPlayerCombatCamera*.mjs; then
+            echo 'Camera runtime imports editor Material Studio UI.'
+            exit 1
+          fi
+          if grep -RIn "new THREE\.[A-Za-z]*Geometry" src/3d/gameplay/playerCombatCamera*.js; then
+            echo 'Camera intent scope must not create primitive gameplay geometry.'
+            exit 1
+          fi
+
+      - name: Syntax check camera contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            src/3d/gameplay/playerCombatCameraIntentDirector.js \
+            src/3d/gameplay/playerCombatCameraRuntimeAdapter.js \
+            src/3d/gameplay/playerCombatCameraAcceptance.js \
+            src/3d/gameplay/playerCombatCameraReplayContract.js \
+            src/3d/gameplay/playerCombatCameraInputParity.js \
+            scripts/checkPlayerCombatCameraIntentDirector.mjs \
+            scripts/checkPlayerCombatCameraIntentMatrix.mjs \
+            scripts/checkPlayerCombatCameraRuntimeAdapter.mjs \
+            scripts/checkPlayerCombatCameraInputParity.mjs; do
+            node --check "$file"
+          done
+
+      - name: Director regression
+        run: node scripts/checkPlayerCombatCameraIntentDirector.mjs
+
+      - name: Scenario matrix regression
+        run: node scripts/checkPlayerCombatCameraIntentMatrix.mjs
+
+      - name: Runtime adapter regression
+        run: node scripts/checkPlayerCombatCameraRuntimeAdapter.mjs
+
+      - name: Input parity regression
+        run: node scripts/checkPlayerCombatCameraInputParity.mjs
+
+  replay-determinism:
+    name: Camera intent replay determinism
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: contract
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Repeat matrix twice
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/checkPlayerCombatCameraIntentMatrix.mjs | tee /tmp/camera-pass-a.txt
+          node scripts/checkPlayerCombatCameraIntentMatrix.mjs | tee /tmp/camera-pass-b.txt
+          diff -u /tmp/camera-pass-a.txt /tmp/camera-pass-b.txt
+
+      - name: Repeat replay adapter twice
+        run: |
+          node scripts/checkPlayerCombatCameraRuntimeAdapter.mjs
+          node scripts/checkPlayerCombatCameraRuntimeAdapter.mjs
+
+  governance:
+    name: Camera ownership and safety governance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [contract, replay-determinism]
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Assert no new camera framework markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -RIn "new OrbitControls\|class .*CameraController\|createThirdPersonCamera" \
+            src/3d/gameplay/playerCombatCamera*.js
+
+      - name: Assert bounded input/state vocabulary
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q "aapw:player-motion" src/3d/gameplay/playerCombatCameraIntentDirector.js
+          grep -q "aapw:player-attack-window" src/3d/gameplay/playerCombatCameraIntentDirector.js
+          grep -q "aapw:player-combat-feedback" src/3d/gameplay/playerCombatCameraIntentDirector.js
+          grep -q "aapw:player-camera-intent" src/3d/gameplay/playerCombatCameraIntentDirector.js
+
+      - name: Confirm shared placement path remains authoritative
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f src/3d/materials/MaterialAssignmentCore.js
+          test -f src/3d/world/WorldAssetPlacementPipeline.js
+          ! grep -RIn "EditorMaterialStudio" src/3d/gameplay/playerCombatCamera*.js
