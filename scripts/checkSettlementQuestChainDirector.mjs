@@ -4,7 +4,7 @@ import { createSettlementQuestChainDirector } from '../src/3d/gameplay/settlemen
 const director = createSettlementQuestChainDirector({
   nodes: [
     { id: 'talk-warden', type: 'talk', title: 'Warden briefing', order: 2, requiredDialogueChoice: 'warden-helped' },
-    { id: 'market-run', type: 'trade', title: 'Restock the market', order: 1, requiredFlag: 'market-open' },
+    { id: 'market-run', type: 'trade', title: 'Restock the market', order: 1, requiredFlag: 'market-open', completionReceipt: 'market-receipt' },
     { id: 'forge-blade', type: 'craft', title: 'Forge a field blade', requiredDependency: 'market-run', requiredItem: 'iron-ingot', requiredSkill: 'smithing', requiredSkillLevel: 2, requiredReputation: 5, order: 3 },
   ],
 });
@@ -32,6 +32,12 @@ assert.equal(first.rows.find((row) => row.id === 'market-run').complete, true);
 assert.equal(first.rows.find((row) => row.id === 'forge-blade').available, true);
 assert.equal(Object.isFrozen(first), true);
 assert.equal(Object.isFrozen(first.rows[0]), true);
+
+const receiptCompleted = director.evaluate({
+  ...input,
+  state: { ...input.state, completedSteps: {}, receipts: { 'market-receipt': true } },
+});
+assert.equal(receiptCompleted.rows.find((row) => row.id === 'market-run').complete, true);
 
 const dependencyBlocked = director.evaluate({
   ...input,
