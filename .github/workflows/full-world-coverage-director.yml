@@ -8,6 +8,7 @@ on:
       - scripts/checkFullWorldCoverageDirectorScenarios.mjs
       - scripts/checkFullWorldRuntimeCoverage.mjs
       - scripts/checkFullWorldCoverageDirectorOwnership.mjs
+      - scripts/checkFullWorldCoverageDirectorPropertyMatrix.mjs
       - .github/workflows/full-world-coverage-director.yml
   push:
     branches: [codex/world-coverage-complete-v1-20260910]
@@ -35,7 +36,7 @@ jobs:
           test "$(git merge-base HEAD origin/main)" = "$MAIN"
           git diff --check origin/main...HEAD
           mapfile -t CHANGED < <(git diff --name-only origin/main...HEAD)
-          for path in "${CHANGED[@]}"; do case "$path" in src/3d/world/fullWorldCoverageDirector.js|scripts/checkFullWorldCoverageDirector.mjs|scripts/checkFullWorldCoverageDirectorScenarios.mjs|scripts/checkFullWorldRuntimeCoverage.mjs|scripts/checkFullWorldCoverageDirectorOwnership.mjs|.github/workflows/full-world-coverage-director.yml) ;; *) echo "UNAUTHORIZED_CHANGED_PATH=$path"; exit 1 ;; esac; done
+          for path in "${CHANGED[@]}"; do case "$path" in src/3d/world/fullWorldCoverageDirector.js|scripts/checkFullWorldCoverageDirector.mjs|scripts/checkFullWorldCoverageDirectorScenarios.mjs|scripts/checkFullWorldRuntimeCoverage.mjs|scripts/checkFullWorldCoverageDirectorOwnership.mjs|scripts/checkFullWorldCoverageDirectorPropertyMatrix.mjs|.github/workflows/full-world-coverage-director.yml) ;; *) echo "UNAUTHORIZED_CHANGED_PATH=$path"; exit 1 ;; esac; done
           additions="$(git diff --numstat origin/main...HEAD | awk '{s+=$1} END{print s+0}')"
           deletions="$(git diff --numstat origin/main...HEAD | awk '{s+=$2} END{print s+0}')"
           test $((additions + deletions)) -le 3000
@@ -44,12 +45,13 @@ jobs:
           node --check scripts/checkFullWorldCoverageDirectorScenarios.mjs
           node --check scripts/checkFullWorldRuntimeCoverage.mjs
           node --check scripts/checkFullWorldCoverageDirectorOwnership.mjs
+          node --check scripts/checkFullWorldCoverageDirectorPropertyMatrix.mjs
           test -f src/3d/materials/MaterialAssignmentCore.js
           test -f src/3d/world/WorldAssetPlacementPipeline.js
           grep -F "Shared, DOM-free material pipeline" src/3d/materials/MaterialAssignmentCore.js
           grep -F "autoAssignMaterials" src/3d/world/WorldAssetPlacementPipeline.js
-          if grep -n "EditorMaterialStudio" src/3d/world/fullWorldCoverageDirector.js scripts/checkFullWorldCoverageDirector.mjs scripts/checkFullWorldCoverageDirectorScenarios.mjs scripts/checkFullWorldRuntimeCoverage.mjs scripts/checkFullWorldCoverageDirectorOwnership.mjs; then exit 1; fi
-          ! grep -nE "new (THREE\.)?(BoxGeometry|SphereGeometry|CylinderGeometry|CapsuleGeometry)|MeshBasicMaterial|PlaneGeometry" src/3d/world/fullWorldCoverageDirector.js scripts/checkFullWorldCoverageDirector.mjs scripts/checkFullWorldCoverageDirectorScenarios.mjs scripts/checkFullWorldCoverageDirectorOwnership.mjs
+          if grep -n "EditorMaterialStudio" src/3d/world/fullWorldCoverageDirector.js scripts/checkFullWorldCoverageDirector.mjs scripts/checkFullWorldCoverageDirectorScenarios.mjs scripts/checkFullWorldRuntimeCoverage.mjs scripts/checkFullWorldCoverageDirectorOwnership.mjs scripts/checkFullWorldCoverageDirectorPropertyMatrix.mjs; then exit 1; fi
+          ! grep -nE "new (THREE\.)?(BoxGeometry|SphereGeometry|CylinderGeometry|CapsuleGeometry)|MeshBasicMaterial|PlaneGeometry" src/3d/world/fullWorldCoverageDirector.js scripts/checkFullWorldCoverageDirector.mjs scripts/checkFullWorldCoverageDirectorScenarios.mjs scripts/checkFullWorldCoverageDirectorOwnership.mjs scripts/checkFullWorldCoverageDirectorPropertyMatrix.mjs
           grep -F "mutatesCanonicalGeography: false" src/3d/world/fullWorldCoverageDirector.js
   executable-contracts:
     needs: exact-scope
@@ -68,6 +70,8 @@ jobs:
         run: node scripts/checkFullWorldRuntimeCoverage.mjs
       - name: Ownership and shared contract regression
         run: node scripts/checkFullWorldCoverageDirectorOwnership.mjs
+      - name: Property matrix regression
+        run: node scripts/checkFullWorldCoverageDirectorPropertyMatrix.mjs
       - name: Run283 governance contract regression
         run: node scripts/checkRun283FinalHeadGovernance.js
       - name: Deterministic replay
@@ -77,6 +81,7 @@ jobs:
           a="$(node scripts/checkFullWorldCoverageDirector.mjs)"; b="$(node scripts/checkFullWorldCoverageDirector.mjs)"; test "$a" = "$b"; echo "$a"
           a="$(node scripts/checkFullWorldCoverageDirectorScenarios.mjs)"; b="$(node scripts/checkFullWorldCoverageDirectorScenarios.mjs)"; test "$a" = "$b"; echo "$a"
           a="$(node scripts/checkFullWorldCoverageDirectorOwnership.mjs)"; b="$(node scripts/checkFullWorldCoverageDirectorOwnership.mjs)"; test "$a" = "$b"; echo "$a"
+          a="$(node scripts/checkFullWorldCoverageDirectorPropertyMatrix.mjs)"; b="$(node scripts/checkFullWorldCoverageDirectorPropertyMatrix.mjs)"; test "$a" = "$b"; echo "$a"
   browser-and-assets:
     needs: executable-contracts
     runs-on: ubuntu-24.04
@@ -117,7 +122,7 @@ jobs:
           test -f src/3d/world/WorldAssetPlacementPipeline.js
           grep -F "Shared, DOM-free material pipeline" src/3d/materials/MaterialAssignmentCore.js
           grep -F "autoAssignMaterials" src/3d/world/WorldAssetPlacementPipeline.js
-          test "$(git grep -l "EditorMaterialStudio" -- src/3d/world/fullWorldCoverageDirector.js scripts/checkFullWorldCoverageDirector.mjs scripts/checkFullWorldCoverageDirectorScenarios.mjs scripts/checkFullWorldRuntimeCoverage.mjs scripts/checkFullWorldCoverageDirectorOwnership.mjs | wc -l)" -eq 0
+          test "$(git grep -l "EditorMaterialStudio" -- src/3d/world/fullWorldCoverageDirector.js scripts/checkFullWorldCoverageDirector.mjs scripts/checkFullWorldCoverageDirectorScenarios.mjs scripts/checkFullWorldRuntimeCoverage.mjs scripts/checkFullWorldCoverageDirectorOwnership.mjs scripts/checkFullWorldCoverageDirectorPropertyMatrix.mjs | wc -l)" -eq 0
       - name: Manifest policy
         run: node --input-type=module -e "import {createSyntheticCoveragePlan,createFullWorldCoverageManifest} from './src/3d/world/fullWorldCoverageDirector.js'; const m=createFullWorldCoverageManifest(createSyntheticCoveragePlan()); if(m.cellCount!==1008||m.unassessedRatio!==0||m.validation.errors.length) throw new Error(JSON.stringify(m.validation.errors)); console.log(JSON.stringify({cells:m.cellCount,probes:m.probeCount,digest:m.deterministicDigest}));"
       - name: Final exact-main freshness
