@@ -1,18 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import {
-  createSyntheticCoveragePlan,
-  createFullWorldCoverageManifest,
-  createCoverageProbeIndex,
-  createCoverageReplay,
-  validateReplay,
-  createRuntimeCoverageAdapter,
-  createViewportCoverageSchedule,
-  createOwnerEvidenceRequest,
-  createSeamAudit,
-  getWorldCoverageConstants,
-} from '../src/3d/world/fullWorldCoverageDirector.js';
+import { createSyntheticCoveragePlan, createFullWorldCoverageManifest, createCoverageProbeIndex, createCoverageReplay, validateReplay, createRuntimeCoverageAdapter, createViewportCoverageSchedule, createOwnerEvidenceRequest, createSeamAudit, getWorldCoverageConstants } from '../src/3d/world/fullWorldCoverageDirector.js';
 function assert(condition, message) { if (!condition) throw new Error(`[full-world-ownership] ${message}`); }
 const root = path.resolve('.');
 const directorSource = fs.readFileSync(path.join(root, 'src/3d/world/fullWorldCoverageDirector.js'), 'utf8');
@@ -62,9 +51,7 @@ assert(boundaryCounts.south === 36, 'south boundary is not complete');
 assert(boundaryCounts.west === 28, 'west boundary is not complete');
 assert(boundaryCounts.east === 28, 'east boundary is not complete');
 for (const phase of plan.evidence) assert(typeof phase.phase === 'string' && typeof phase.passed === 'boolean', `invalid phase evidence ${JSON.stringify(phase)}`);
-assert(plan.evidence.some((phase) => phase.phase === 'determinism'), 'determinism phase missing');
-assert(plan.evidence.some((phase) => phase.phase === 'parity'), 'parity phase missing');
-assert(plan.evidence.some((phase) => phase.phase === 'cross-seam'), 'seam phase missing');
+for (const required of ['determinism','parity','cross-seam']) assert(plan.evidence.some((phase) => phase.phase === required), `${required} phase missing`);
 for (const feature of constants.DEFAULT_REQUIRED_FEATURES) { assert(plan.featureMatrix[feature], `feature matrix missing ${feature}`); assert(Number.isFinite(plan.featureMatrix[feature].coverage), `${feature} coverage is not finite`); }
 for (const token of ['EditorMaterialStudio','MeshBasicMaterial','BoxGeometry','SphereGeometry','CylinderGeometry','CapsuleGeometry','PlaneGeometry','writeFileSync','appendFileSync','mkdirSync','git lfs pull --all']) assert(!directorSource.includes(token), `director contains forbidden token: ${token}`);
 assert(directorSource.includes('mutatesCanonicalGeography'), 'director read-only marker missing');
@@ -76,11 +63,8 @@ assert(placementSource.includes('autoAssignMaterials'), 'WorldAssetPlacementPipe
 assert(placementSource.includes('../materials/MaterialAssignmentCore.js'), 'placement pipeline does not use shared material core');
 assert(!placementSource.includes('EditorMaterialStudio'), 'placement pipeline imports editor UI');
 const reparsed = JSON.parse(JSON.stringify(manifest));
-assert(reparsed.cellCount === manifest.cellCount, 'manifest serialization lost cell count');
-assert(reparsed.deterministicDigest === manifest.deterministicDigest, 'manifest serialization changed digest');
-assert(reparsed.validation.ok === manifest.validation.ok, 'manifest serialization changed validation');
-const riskTotal = Object.values(plan.risks).reduce((sum, value) => sum + value, 0);
-assert(riskTotal === 0, `synthetic ownership plan contains runtime risks: ${JSON.stringify(plan.risks)}`);
+assert(reparsed.cellCount === manifest.cellCount && reparsed.deterministicDigest === manifest.deterministicDigest && reparsed.validation.ok === manifest.validation.ok, 'manifest serialization drifted');
+assert(Object.values(plan.risks).reduce((sum, value) => sum + value, 0) === 0, `synthetic ownership plan contains runtime risks: ${JSON.stringify(plan.risks)}`);
 assert(plan.gaps.length === 0, `synthetic ownership plan contains ${plan.gaps.length} coverage gaps`);
 assert(plan.report.readyForRuntimeProof === true, 'synthetic ownership plan is not internally consistent');
 console.log(`FULL_WORLD_COVERAGE_OWNERSHIP_OK checks=64 cells=${plan.cellCount} seams=${seamAudit.pairCount} probes=${plan.probeCount} digest=${manifest.deterministicDigest}`);
