@@ -5,8 +5,11 @@ const input={snapshot:{settlementId:'canonical-settlement',locationId:'gate',inS
   {family:'settlements',assetId:'road-east',status:'loaded',materialSlots:3,textured:true,grounded:true},
 ]};
 const first=createSettlementWorldCoverageReadiness(input); const second=createSettlementWorldCoverageReadiness(JSON.parse(JSON.stringify(input)));
-assert(first.selected,'readiness must select a next action'); assert(first.selected.serviceId==='gate','gate should be the deterministic first action');
-assert(first.selected.intent==='enter','gate readiness intent drift'); assert(first.fingerprint===second.fingerprint,'readiness fingerprint must be deterministic');
+assert(first.selected,'readiness must select a next action');
+assert(first.selected.serviceId==='market','trade-capable market should win the deterministic readiness priority');
+assert(first.selected.intent==='talk','market primary readiness intent drift');
+assert(first.alternatives.some((row)=>row.serviceId==='gate'),'gate must remain an actionable alternative');
+assert(first.fingerprint===second.fingerprint,'readiness fingerprint must be deterministic');
 assert(first.summary.interactionable===true,'readiness should be interactionable'); assert(first.safeFallback==='gate','safe fallback drift');
 assert(Object.isFrozen(first)&&Object.isFrozen(first.selected)&&Object.isFrozen(first.alternatives),'readiness output must be deeply frozen');
 assert(first.alternatives.length<=7,'readiness alternative bound drift');
