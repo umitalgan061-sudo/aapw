@@ -18573,3 +18573,37 @@ fixes backed by direct source reading + reproduction, not design decisions).
 **Sıradaki adım:** `checkSettlementCampaignAuthoring.mjs`'s `open()`/slice-node desync (see above,
 precise repro included) is the next candidate — needs a design call first, not a blind fix.
 `checkSettlementCampaignEventBridge.mjs`/`QuestChains.mjs` remain fully un-investigated.
+
+## Run 371d (2026-09-10, scheduled routine) — repair checkSettlementCampaignEventBridge.mjs (1 real bug); diagnosed QuestChains as large-scope content gap, not a quick fix
+
+**checkSettlementCampaignEventBridge.mjs — real production bug, double-wrapped response payloads.**
+`emitResponse(request, result)` built the outer response envelope's `.data` field from the *entire*
+`result` object (e.g. `{ok:true, data: runtime.manifest()}`) instead of unwrapping it first — so for
+every request type that wraps a plain runtime call as `{ok:true, data:X}` ('open', 'panel', 'close',
+'reset', 'state', 'manifest', 'dialogue', 'objective'), the response's own `.data` was itself
+`{ok:true, data:X}`, one nesting level too deep. A caller reading `response.data.digest` (as this
+file's own `manifest-digest` check does) would always get `undefined`; the real value sat at
+`response.data.data.digest`. This is the first assertion in this whole check family to actually
+inspect `.data`'s contents instead of just `.ok`/`.code`, which is why 7 other request types with the
+exact same bug went unnoticed. Fixed: `result?.data ?? result` — unwraps the wrapped branches, and
+falls through unchanged for branches whose `result` has no `.data` of its own (`restore`, every
+error/rejection path), so no other passing assertion in the file regressed. Now green (23 checks).
+
+**checkSettlementCampaignQuestChains.mjs — diagnosed, NOT attempted (out of scope for a quick fix).**
+`validateSettlementQuestChains()` returns **57 real errors**, not 1–2: most quest-chain steps
+reference condition ids in an `item_NN`/`skill_NN`/`quest_NN`/`copper_NN`/`reputation_NN` naming
+scheme that was never actually authored into `DIALOGUE_CONDITIONS` (which only has 40 generic
+`flag_NN`-style entries) or `QUEST_OBJECTIVES` (32 entries, `settlement-objective-NN` naming) — two
+separate content passes that used incompatible taxonomies. This is a genuine content-authoring gap
+(dozens of missing typed condition/objective entries, or a rewrite of every quest-chain step to the
+existing `flag_NN` scheme), not a narrow bug — deliberately left alone this run rather than rushing
+placeholder content.
+
+**Family status after this run's 4 sub-entries (371a-d):** `checkSettlementCampaignDeepSlice.mjs`,
+`checkSettlementCampaignRuntime.mjs`, `checkSettlementCampaignAccessibility.mjs`,
+`checkSettlementCampaignEventBridge.mjs` — all green. Still broken: `Authoring.mjs` (diagnosed,
+`open()`/slice-node desync, needs a design call), `QuestChains.mjs` (diagnosed, needs a real
+content-authoring pass). `Browser.mjs` remains Playwright-only, not attempted.
+
+**DoD:** `node --check` PASS. `checkSmokeCheckRegistry.js` OK (688 files). `checkTechnicalDebt.js`
+PASS (0 new markers). No ADR (bugfix backed by direct source reading, not a design decision).
