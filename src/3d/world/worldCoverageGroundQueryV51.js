@@ -188,7 +188,7 @@ export const WORLD_COVERAGE_GROUND_QUERY_V51=Object.freeze({
   version:VERSION,
   maxBatch:MAX_BATCH,
   requiredFields:REQUIRED_FIELDS,
-  placementThresholds:Object.freeze({water:EpsILON_PLACEHOLDER}),
+  placementThresholds:Object.freeze({water:WATER_EPSILON,cliff:CLIFF_SLOPE,snow:PERMANENT_SNOW,road:ROAD_CLEARANCE,settlement:SETTLEMENT_CLEARANCE}),
   waterEpsilon:WATER_EPSILON,
   cliffSlope:CLIFF_SLOPE,
   permanentSnow:PERMANENT_SNOW,
