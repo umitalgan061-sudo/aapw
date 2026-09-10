@@ -7,16 +7,17 @@ const player = {
   maxStamina: 100,
   poise: 88,
   maxPoise: 100,
+  object3D: { position: { x: 10, z: 10 } },
   getMotionState() { return { movementState: this.movementState, stamina: this.stamina, poise: this.poise }; },
 };
 
 const targets = [
-  { id: 'far', position: { x: 9, z: 0 }, hostile: true },
-  { id: 'near', position: { x: 4, z: 0 }, hostile: true },
-  { id: 'friendly', position: { x: 1, z: 0 }, hostile: false },
+  { id: 'far', position: { x: 19, z: 10 }, hostile: true },
+  { id: 'near', position: { x: 14, z: 10 }, hostile: true },
+  { id: 'friendly', position: { x: 11, z: 10 }, hostile: false },
 ];
 
-assert.equal(pickLockOnTarget(targets, 18).id, 'near');
+assert.equal(pickLockOnTarget(targets, 18, { x: 10, z: 10 }).id, 'near');
 assert.equal(pickLockOnTarget([{ id: 'bad', position: { x: NaN, z: 0 } }]), null);
 
 const director = createPlayerCombatAnimationDirector({
@@ -24,15 +25,19 @@ const director = createPlayerCombatAnimationDirector({
   equipment: { weapon: { id: 'viking-sword', kind: 'melee', damage: 42, reachMeters: 2.1, socket: 'mixamorigRightHand' }, armor: { id: 'chain', poise: 18, staminaMultiplier: 0.9 } },
 });
 
-const first = director.snapshot({ channel: 'touch', action: 'interact', pressed: true }, targets);
+const first = director.snapshot({ channel: 'touch', action: 'lockOn', pressed: true }, targets);
 assert.equal(first.input.channel, 'touch');
+assert.equal(first.input.action, 'lockOn');
 assert.equal(first.target.id, 'near');
 assert.equal(first.animation.layer, 'attack');
 assert.equal(first.animation.clip, 'idle');
 assert.equal(first.equipment.weapon.socket, 'mixamorigRightHand');
-assert.equal(first.feedback.some((cue) => cue.cue === 'attack-trail'), true);
+assert.equal(first.feedback.length, 0);
 assert.equal(Object.isFrozen(first), true);
-assert.equal(first.fingerprint, director.snapshot({ channel: 'touch', action: 'interact', pressed: true }, targets).fingerprint);
+assert.equal(first.fingerprint, director.snapshot({ channel: 'touch', action: 'lockOn', pressed: true }, targets).fingerprint);
+
+const interaction = director.snapshot({ channel: 'keyboard', action: 'interact', pressed: true }, targets);
+assert.equal(interaction.target.id, 'near');
 
 director.advance();
 assert.equal(director.snapshot({ channel: 'gamepad', action: 'guard', held: true }, targets).input.channel, 'gamepad');
