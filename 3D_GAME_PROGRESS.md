@@ -18652,3 +18652,52 @@ a design decision).
 entry-gate findings above are reusable for any future focused Playwright script in this environment —
 worth folding into `smokeTestGame3D.js`'s own approach if a future run revisits its `audio-and-movement`
 stall.
+
+## Run 371f (2026-09-10, scheduled routine) — the "audio-and-movement phase stalls" finding was likely a patience problem, not a bug
+
+**Investigation.** With real browser QA finally working this run (see Run 371/371e above), this run
+tried to root-cause `smokeTestGame3D.js`'s own `audio-and-movement` phase stall directly, since ~16
+prior runs had all logged it as "environment-blocked" without isolating which individual check hangs.
+Tested `checkAudioManager`, `checkStarfieldTwinkle`, and the movement checks
+(`checkWolfPackAlert`/`checkNpcPatrol`/`checkWolfPatrol`/`checkNpcCombatStance`) individually, each
+against the real `createCommittedNavigationBrowser` wrapper (copied verbatim from
+`smokeTestGame3D.js` rather than guessed) to keep the reproduction faithful.
+
+**Result: no hang found in any of the first 4.** `checkAudioManager` (601ms), `checkStarfieldTwinkle`
+(304ms), `checkWolfPackAlert` (70,180ms), `checkNpcPatrol` (73,342ms) — all **PASS**, all legitimately
+slow rather than stuck (each movement check runs a real multi-second in-game simulation against
+software-rendered WebGL, which this container's lack of GPU acceleration makes ~10-20x slower than a
+real device). Two more checks (`checkWolfPatrol`, `checkNpcCombatStance`) then failed with "Target
+page, context or browser has been closed" — but that is an artifact of this run's own throwaway
+isolation script, which (unlike the real suite) never called `page.close()` between checks and
+accumulated open WebGL contexts until Chromium itself crashed under the memory pressure; the real
+`smokeTestGame3D.js` does close each page and was not itself reproduced crashing.
+
+**Working hypothesis, not yet fully proven:** the `audio-and-movement` phase alone runs 8 checks, several
+of them multi-second real-time simulations like the two above — at this container's software-rendering
+speed, the whole phase plausibly needs several more minutes than the ~7-8 minutes prior runs waited
+before concluding it was "blocked." This reframes that finding from "broken" to "under-budgeted" —
+worth a future run's own confirmation with a patient, single, uninterrupted `smokeTestGame3D.js` run
+(no shortcuts, several minutes' wait per phase) before re-diagnosing further.
+
+**Also this run: found the likely single biggest reason so many dev-tool scripts have read as
+"environment-blocked" for so many runs.** `collectPerfSnapshot.js` had gone stale since Run 354
+(2026-08-19, the last real `perf_log.csv` row) — trying to refresh it hit the exact same
+`waitUntil:'domcontentloaded'` hang Run 371e already root-caused and worked around
+(`weatherVisualQa.js`'s own `'commit'` fix). Fixed the same way here and confirmed it actually starts
+sampling instead of hanging. **Then checked how far this pattern spreads**: `grep` across `scripts/`
+for `waitUntil: 'domcontentloaded'` / `waitUntil: 'load'` (outside the handful of files that already
+route through `smokeTestGame3D.js`'s own `createCommittedNavigationBrowser` wrapper) found it in
+**273 files**, ~148 of which reference `game3d.html`. That is very plausibly why dozens of runs'
+"tried script X, environment-blocked" notes accumulated across this project's history — most were
+likely never actually broken, just navigating the slow way. **Not mass-fixed this run** (273 files is
+too large a mechanical change to push through without individually verifying each one's own downstream
+assertions still hold — some may target other pages where this doesn't apply, some may have their own
+reasons for the current wait condition); logged here as a concrete, ready-to-execute next subtask
+instead: migrate `scripts/check*.js`/`scripts/capture*.js`'s `game3d.html` navigations to
+`waitUntil:'commit'`, one file (or a small batched group) at a time, each re-verified against its own
+assertions before moving to the next.
+
+**DoD:** `node --check scripts/collectPerfSnapshot.js` PASS. Diagnosis of the 273-file pattern is
+read-only (grep only), no code changed beyond the one file. No ADR (bugfix + investigation record, not
+a design decision).

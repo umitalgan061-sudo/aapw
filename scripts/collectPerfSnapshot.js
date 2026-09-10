@@ -44,7 +44,13 @@ const SAMPLE_WAIT_MS = 3000;
 async function sample(browser, baseUrl) {
 	const page = await browser.newPage();
 	try {
-		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+		// Run 371 fix: was `waitUntil: 'domcontentloaded'`, which hangs the full timeout in this
+		// environment (confirmed by hand this run, same root cause `smokeTestGame3D.js`'s own
+		// `createCommittedNavigationBrowser` already works around for its checks, and
+		// `weatherVisualQa.js` now documents directly) — `'commit'` resolves in well under a second;
+		// the `waitForFunction` below is still the real readiness gate, so this only changes when
+		// `goto()` itself returns, not what state the page must reach before sampling.
+		await page.goto(`${baseUrl}/game3d.html`, { waitUntil: 'commit', timeout: 60000 });
 		// Same readiness signal `game3dSmokeChecksScene.js`'s `check3DMode` already uses: the
 		// `#game3d-loading` element gets `.g3d-loading-hidden` once `GAME_READY` (phase1-scene) fires.
 		await page.waitForFunction(
