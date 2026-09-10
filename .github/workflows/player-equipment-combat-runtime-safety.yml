@@ -1,0 +1,29 @@
+name: Player Equipment Combat Runtime Safety
+on:
+  pull_request:
+    paths:
+      - 'src/3d/gameplay/playerEquipmentCombatRuntimeSafety.js'
+      - 'scripts/checkPlayerEquipmentCombatRuntimeSafety.mjs'
+      - '.github/workflows/player-equipment-combat-runtime-safety.yml'
+jobs:
+  safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Syntax
+        run: node --check src/3d/gameplay/playerEquipmentCombatRuntimeSafety.js && node --check scripts/checkPlayerEquipmentCombatRuntimeSafety.mjs
+      - name: Runtime regression
+        run: node scripts/checkPlayerEquipmentCombatRuntimeSafety.mjs
+      - name: Determinism
+        run: |
+          node scripts/checkPlayerEquipmentCombatRuntimeSafety.mjs > /tmp/safety-a.txt
+          node scripts/checkPlayerEquipmentCombatRuntimeSafety.mjs > /tmp/safety-b.txt
+          cmp /tmp/safety-a.txt /tmp/safety-b.txt
+      - name: Boundary guard
+        run: |
+          ! grep -nE "EditorMaterialStudio|from ['\"]three['\"]|new THREE|document\.|window\." src/3d/gameplay/playerEquipmentCombatRuntimeSafety.js
