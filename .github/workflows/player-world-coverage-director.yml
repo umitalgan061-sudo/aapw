@@ -9,7 +9,12 @@ on:
       - 'src/3d/gameplay/playerWorldCoverageReplayContract.js'
       - 'src/3d/gameplay/playerWorldCoverageAssetEvidence.js'
       - 'src/3d/gameplay/playerWorldCoverageScenarioMatrix.js'
+      - 'src/3d/gameplay/playerWorldCoverageInputParity.js'
+      - 'src/3d/gameplay/playerWorldCoverageThreatAdapter.js'
+      - 'src/3d/gameplay/playerWorldCoverageTelemetry.js'
       - 'scripts/checkPlayerWorldCoverageDirector.mjs'
+      - 'scripts/checkPlayerWorldCoverageInputParity.mjs'
+      - 'scripts/checkPlayerWorldCoverageScenarioMatrix.mjs'
       - 'scripts/setupNodeThreeShim.mjs'
       - '.github/workflows/player-world-coverage-director.yml'
   workflow_dispatch:
@@ -43,20 +48,31 @@ jobs:
           node --check src/3d/gameplay/playerWorldCoverageReplayContract.js
           node --check src/3d/gameplay/playerWorldCoverageAssetEvidence.js
           node --check src/3d/gameplay/playerWorldCoverageScenarioMatrix.js
+          node --check src/3d/gameplay/playerWorldCoverageInputParity.js
+          node --check src/3d/gameplay/playerWorldCoverageThreatAdapter.js
+          node --check src/3d/gameplay/playerWorldCoverageTelemetry.js
           node --check scripts/checkPlayerWorldCoverageDirector.mjs
+          node --check scripts/checkPlayerWorldCoverageInputParity.mjs
+          node --check scripts/checkPlayerWorldCoverageScenarioMatrix.mjs
 
       - name: Enforce shared material/placement boundary
         run: |
-          node -e "const fs=require('fs'); const files=['src/3d/gameplay/playerWorldCoverageDirector.js','src/3d/gameplay/playerWorldCoverageRuntimeAdapter.js','src/3d/gameplay/playerWorldCoverageReplayContract.js','src/3d/gameplay/playerWorldCoverageAssetEvidence.js','src/3d/gameplay/playerWorldCoverageScenarioMatrix.js']; for (const f of files) { const s=fs.readFileSync(f,'utf8'); if (s.includes('EditorMaterialStudio')) throw new Error(f+' imports editor UI'); if (/from ['\"]three['\"]/.test(s)) throw new Error(f+' owns Three runtime'); } if (!fs.existsSync('src/3d/materials/MaterialAssignmentCore.js')) throw new Error('shared MaterialAssignmentCore missing'); if (!fs.existsSync('src/3d/world/WorldAssetPlacementPipeline.js')) throw new Error('shared placement pipeline missing');"
+          node -e "const fs=require('fs'); const files=['src/3d/gameplay/playerWorldCoverageDirector.js','src/3d/gameplay/playerWorldCoverageRuntimeAdapter.js','src/3d/gameplay/playerWorldCoverageReplayContract.js','src/3d/gameplay/playerWorldCoverageAssetEvidence.js','src/3d/gameplay/playerWorldCoverageScenarioMatrix.js','src/3d/gameplay/playerWorldCoverageInputParity.js','src/3d/gameplay/playerWorldCoverageThreatAdapter.js','src/3d/gameplay/playerWorldCoverageTelemetry.js']; for (const f of files) { const s=fs.readFileSync(f,'utf8'); if (s.includes('EditorMaterialStudio')) throw new Error(f+' imports editor UI'); if (/from ['\"]three['\"]/.test(s)) throw new Error(f+' owns Three runtime'); } if (!fs.existsSync('src/3d/materials/MaterialAssignmentCore.js')) throw new Error('shared MaterialAssignmentCore missing'); if (!fs.existsSync('src/3d/world/WorldAssetPlacementPipeline.js')) throw new Error('shared placement pipeline missing');"
 
       - name: Run full world coverage contract
-        run: node scripts/checkPlayerWorldCoverageDirector.mjs
+        run: |
+          node scripts/checkPlayerWorldCoverageDirector.mjs
+          node scripts/checkPlayerWorldCoverageInputParity.mjs
+          node scripts/checkPlayerWorldCoverageScenarioMatrix.mjs
 
-      - name: Run deterministic contract twice
+      - name: Run deterministic contracts twice
         run: |
           node scripts/checkPlayerWorldCoverageDirector.mjs > /tmp/world-coverage-a.json
           node scripts/checkPlayerWorldCoverageDirector.mjs > /tmp/world-coverage-b.json
+          node scripts/checkPlayerWorldCoverageInputParity.mjs > /tmp/input-parity-a.json
+          node scripts/checkPlayerWorldCoverageInputParity.mjs > /tmp/input-parity-b.json
           cmp /tmp/world-coverage-a.json /tmp/world-coverage-b.json
+          cmp /tmp/input-parity-a.json /tmp/input-parity-b.json
 
       - name: Enforce changed-line budget
         run: |
@@ -75,5 +91,7 @@ jobs:
           path: |
             /tmp/world-coverage-a.json
             /tmp/world-coverage-b.json
+            /tmp/input-parity-a.json
+            /tmp/input-parity-b.json
           if-no-files-found: error
           retention-days: 7
