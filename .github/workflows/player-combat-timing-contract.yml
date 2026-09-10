@@ -1,0 +1,22 @@
+name: Player Combat Timing Contract
+on:
+  pull_request:
+    paths:
+      - src/3d/gameplay/playerCombatTimingContract.js
+      - scripts/checkPlayerCombatTimingContract.mjs
+      - .github/workflows/player-combat-timing-contract.yml
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check src/3d/gameplay/playerCombatTimingContract.js
+      - run: node scripts/checkPlayerCombatTimingContract.mjs
+      - run: node scripts/checkPlayerCombatTimingContract.mjs > /tmp/player-timing-a.txt
+      - run: node scripts/checkPlayerCombatTimingContract.mjs > /tmp/player-timing-b.txt
+      - run: cmp /tmp/player-timing-a.txt /tmp/player-timing-b.txt
