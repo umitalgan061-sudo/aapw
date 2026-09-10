@@ -1,0 +1,44 @@
+name: Buzul Muhafizi Environment Surface Response v46
+
+on:
+  pull_request:
+    paths:
+      - 'src/3d/world/environmentSurfaceResponseV46.js'
+      - 'scripts/checkEnvironmentSurfaceResponseV46.mjs'
+      - '.github/workflows/buzul-muhafizi-environment-surface-response-v46.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verify exact main ancestry and focused scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor origin/main HEAD
+          files=$(git diff --name-only origin/main...HEAD)
+          test "$(printf '%s\n' "$files" | sed '/^$/d' | wc -l)" -eq 3
+          printf '%s\n' "$files" | grep -Fxq 'src/3d/world/environmentSurfaceResponseV46.js'
+          printf '%s\n' "$files" | grep -Fxq 'scripts/checkEnvironmentSurfaceResponseV46.mjs'
+          printf '%s\n' "$files" | grep -Fxq '.github/workflows/buzul-muhafizi-environment-surface-response-v46.yml'
+          additions=$(git diff --numstat origin/main...HEAD | awk '{a+=$1; d+=$2} END {print a+d+0}')
+          test "$additions" -le 3000
+      - name: Syntax check
+        run: |
+          node --check src/3d/world/environmentSurfaceResponseV46.js
+          node --check scripts/checkEnvironmentSurfaceResponseV46.mjs
+      - name: Run executable regression
+        run: node scripts/checkEnvironmentSurfaceResponseV46.mjs
+      - name: Enforce environment ownership boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          ! grep -R "EditorMaterialStudio\|MaterialAssignmentCore\|WorldAssetPlacementPipeline" -n src/3d/world/environmentSurfaceResponseV46.js scripts/checkEnvironmentSurfaceResponseV46.mjs
+          ! grep -R "createGeometry\|new THREE\\.Mesh\|new THREE\\.BufferGeometry" -n src/3d/world/environmentSurfaceResponseV46.js
