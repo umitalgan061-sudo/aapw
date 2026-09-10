@@ -57,6 +57,8 @@ jobs:
         run: node scripts/checkWorldCoverageVisualSourceCoverageV52.mjs
       - name: Run record schema
         run: node scripts/checkWorldCoverageVisualRunRecordV52.mjs
+      - name: Camera evidence matrix
+        run: node scripts/checkWorldCoverageVisualCameraMatrixV52.mjs
       - name: HTML entry contract
         run: |
           set -euo pipefail
